@@ -158,7 +158,7 @@ int main(){
     activeView:'diagnostic',viewReady:Promise.resolve(),homeResolve(){},invalidateHomeStream(){},noteReachFail(){},
     applyDiagnosticLive(){},viewStatusHandlers:{diagnostic:s=>{assert(s.health);assert(s.tasks);paints.push(s);}}});
   vm.runInContext(runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('),runtimeJs.indexOf('function renderHomeStream('))+
-      runtimeJs.slice(runtimeJs.indexOf('let shotWs='),runtimeJs.indexOf('function formatExtractionGuard(')),context);
+      runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),runtimeJs.indexOf('function formatExtractionGuard(')),context);
   (async()=>{
     let settled=false;
     const pending=context.loadDiagnosticStatus().then(value=>{settled=true;return value;});

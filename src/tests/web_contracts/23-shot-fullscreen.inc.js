@@ -74,7 +74,7 @@
     const hero = Object.assign(element(), {classList: stubClasses(heroClasses)});
     const els = {shotHero: hero, shotFsButton: element(), shotFsClose: element()};
     const api = new Function('$', 'history', 'location', 'document', 'setTimeout', 'clearTimeout',
-        runtimeJs.slice(runtimeJs.indexOf('let shotFsActive='),
+        runtimeJs.slice(runtimeJs.search(/let\s+shotFsActive\s*=/),
             runtimeJs.indexOf('// The diagnostic stream rides')) +
         ';return{enter:enterShotFullScreen,exit:exitShotFullScreen' +
         ',pop:exitFullScreenOnPop,init:initShotFullScreen}')(

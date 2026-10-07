@@ -1,8 +1,8 @@
 // Exercise activity timing independently of automatic polls and session expiry.
 {
   const assert = require('assert').strict;
-  const source = runtimeJs.slice(runtimeJs.indexOf('let webUiPowerUntil='),
-      runtimeJs.indexOf('const WEB_UI_INACTIVITY_MS='));
+  const source = runtimeJs.slice(runtimeJs.search(/let\s+webUiPowerUntil\s*=/),
+      runtimeJs.search(/const\s+WEB_UI_INACTIVITY_MS\s*=/));
   let now = 100, owner = true;
   const doc = {hidden: false};
   const make = new Function('performance', 'document', 'getOwner',
@@ -33,7 +33,7 @@
   assert(handler.includes('powerManagementEnabled'));
   assert(network.includes('diagnosticPagePatch && !self.requireAdminUnlock(request)'));
   assert(network.includes('notePowerWebActivity(millis()'));
-  assert(runtimeJs.includes("options.headers['X-WebUI-Activity']"));
+  assert(codeIncludes(runtimeJs, "options.headers['X-WebUI-Activity']"));
 }
 
 // Real config waiter: APPLY_CONFIG remains APPLIED after asynchronous saving.

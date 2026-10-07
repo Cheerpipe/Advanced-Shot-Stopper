@@ -3,12 +3,17 @@
   "private": true,
   "description": "Build tooling for Open Brew by Weight embedded Web UI assets",
   "scripts": {
-    "gen:web-ui": "node ./scripts/gen_web_ui.js"
+    "gen:web-ui": "node ./scripts/gen_web_ui.js",
+    "format:web": "prettier --write src/web/js src/web/app.js"
+  },
+  "prettier": {
+    "printWidth": 100
   },
   "devDependencies": {
     "@gfx/zopfli": "1.0.15",
     "clean-css": "5.3.3",
     "html-minifier-terser": "7.2.0",
+    "prettier": "3.5.3",
     "terser": "5.50.0"
   }
 }

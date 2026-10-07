@@ -32,7 +32,7 @@
   const context = vm.createContext({$: id => elements.get(id), controlsMutable: true,
     brewDirty: false, configDirty: false, configLoaded: true, formRev: 1,
     document: {querySelectorAll: () => [learning, ewma]}});
-  const start = runtimeJs.indexOf('let bbwReadback=');
+  const start = runtimeJs.search(/let\s+bbwReadback\s*=/);
   const end = runtimeJs.indexOf('function soundAlertsAreOn', start);
   vm.runInContext(runtimeJs.slice(start, end), context);
   vm.runInContext('bbwFormPresetId=2;bbwReadback={bbwPresetId:2,bbwAlgorithm:"linear_ewma",bbwLegacyOffsetG:0,bbwEwmaOffsetG:1.56,bbwAlpha:0.3,bbwAlphaSource:"initial",bbwEvidenceCount:0}', context);
@@ -70,14 +70,14 @@
   refresh();
   assert.equal(elements.get('bbwAlpha').textContent, '—');
   assert.equal(elements.get('learnedOffsetG').textContent, '—');
-  const load = runtimeJs.split('\n').find(line => line.startsWith('function loadSettingsConfig('));
+  const load = blockAt(runtimeJs, 'function loadSettingsConfig(');
   vm.runInContext(load, context);
   context.brewDirty = true;
   select.value = 'legacy';
   vm.runInContext('loadSettingsConfig({goalWeightG:36,revision:5,bbwAlgorithm:"linear_ewma"})', context);
   assert.equal(select.value, 'legacy');
 
-  const payload = runtimeJs.split('\n').find(line => line.startsWith('function brewPayload('));
+  const payload = blockAt(runtimeJs, 'function brewPayload(');
   const makePayload = new Function('$', 'number', 'sToMs', 'presetState', 'bbwFormPresetId', 'document',
     payload + ';return brewPayload();');
   const nonMicraDocument = {documentElement: {classList: {contains: () => false}}};
@@ -124,7 +124,7 @@
   });
   vm.runInContext(runtimeJs.slice(runtimeJs.indexOf('function lastCurveWeightG('),
     runtimeJs.indexOf('async function populateTimezoneOptions(')), context);
-  vm.runInContext(runtimeJs.split('\n').find(line => line.startsWith('async function exportShotsCsv(')), context);
+  vm.runInContext(blockAt(runtimeJs, 'async function exportShotsCsv('), context);
   await vm.runInContext('exportShotsCsv()', context);
   const lines = (await blob.text()).split('\n').map(line => line.split(','));
   assert.equal(lines.length, 101);

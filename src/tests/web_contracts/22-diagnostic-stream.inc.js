@@ -2,7 +2,7 @@
 // socket only while the view is shown; every navigation unsubscribes.
 {
   const assert = require('assert').strict, vm = require('vm');
-  const source = runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('), runtimeJs.indexOf('function renderHomeStream(')) + runtimeJs.slice(runtimeJs.indexOf('let shotWs='),
+  const source = runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('), runtimeJs.indexOf('function renderHomeStream(')) + runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),
     runtimeJs.indexOf('function formatExtractionGuard('));
   const sockets = [], timers = new Map(); let timer = 0, owner = true;
   const applied = [], frames = [];
@@ -103,7 +103,8 @@
   // already localized, so expectations use the baked-in English literals.
   const assert = require('assert').strict;
   const first = runtimeJs.indexOf('function formatScaleWeight(');
-  const last = runtimeJs.indexOf('const RR=', first);
+  const rrRel = runtimeJs.slice(first).search(/const\s+RR\s*=/);
+  const last = rrRel < 0 ? -1 : rrRel + first;
   const formatters = new Function('pad2',
     runtimeJs.slice(first, last) + ';return {formatScaleWeight,formatScaleTimer};')(
     n => String(n).padStart(2, '0'));
@@ -116,13 +117,13 @@
   assert.equal(formatters.formatScaleWeight({scale: {observedWeightG: null}}), '—');
   // The stream is the only writer: the view handler rides the socket cache
   // and the REST fallback painter is gone along with the route.
-  assert(!runtimeJs.includes("api('/api/v1/status/diagnostic'"),
+  assert(!codeIncludes(runtimeJs, "api('/api/v1/status/diagnostic'"),
       'the Diagnostic view must not read REST status');
-  assert(!runtimeJs.includes("api('/api/v1/log'"),
+  assert(!codeIncludes(runtimeJs, "api('/api/v1/log'"),
       'the Diagnostic view must not poll the REST log');
-  assert(runtimeJs.includes('if(apply&&diagnosticReady())apply(diagFrame.status)'),
+  assert(codeIncludes(runtimeJs, 'if(apply&&diagnosticReady())apply(diagFrame.status)'),
       'the full view waits for all diagnostic sections');
-  assert(runtimeJs.includes('shotWs=null;resetUiStream();'),
+  assert(codeIncludes(runtimeJs, 'shotWs=null;resetUiStream();'),
       'socket loss must drop the cache');
 }
 
@@ -212,15 +213,15 @@
       'the Micra sample age must quantize to whole seconds so an idle stream'
       + ' does not emit one frame per dispatch tick');
   assert(diagRegion.includes('session.diagBoot = control.bootId'));
-  assert(runtimeJs.includes("t('dScaleTimer',formatScaleTimer(s))") &&
-         runtimeJs.includes("t('dScaleWeight',formatScaleWeight(s))"),
+  assert(codeIncludes(runtimeJs, "t('dScaleTimer',formatScaleTimer(s))") &&
+         codeIncludes(runtimeJs, "t('dScaleWeight',formatScaleWeight(s))"),
       'the shared live renderer paints the Scale timer and weight');
-  assert(appJsSource.includes('R.stopDiagnosticStream()'),
+  assert(codeIncludes(appJsSource, 'R.stopDiagnosticStream()'),
       'leaving the view must unsubscribe');
-  assert(runtimeJs.includes('loadDiagnosticStatus'),
+  assert(codeIncludes(runtimeJs, 'loadDiagnosticStatus'),
       'entering the view loads the stream snapshot');
   assert(appJsSource.indexOf('R.startLogStream()') >= 0 &&
-         !appJsSource.includes('R.loadLog()') && !appJsSource.includes('logTimer=setInterval'),
+         !codeIncludes(appJsSource, 'R.loadLog()') && !codeIncludes(appJsSource, 'logTimer=setInterval'),
       'the log view subscribes the stream instead of REST polling');
   assert(partialHtml.diagnostic.includes('id="dScaleTimer"'));
   assert(partialHtml.diagnostic.includes('id="dScaleWeight"'));

@@ -1,986 +1,8083 @@
-'use strict';
+"use strict";
 
-const viewStatusHandlers={};
-function registerViewStatus(name,fn){viewStatusHandlers[name]=fn}
-let ensureViewHook=async(name)=>{};
-function setEnsureViewHook(fn){ensureViewHook=fn}
-async function ensureSettingsDom(){await ensureViewHook('settings')}
-let activeView='',viewReady=Promise.resolve(),viewSeq=0;
-let statusTimer=0;
-function setActiveView(name,ready=Promise.resolve()){activeView=name||'';if(shotFsActive&&activeView!=='home')exitShotFullScreen();viewReady=ready;viewSeq++;if(chartObserver)layoutChartLabels()}
-let stopExtraPollsHook=()=>{};
-let startViewHook=()=>{};
-let routeRendererHook=()=>{};
-function setViewPollHooks(hooks){
-  stopExtraPollsHook=hooks&&hooks.stop||(()=>{});
-  startViewHook=hooks&&hooks.start||(()=>{});
-  routeRendererHook=hooks&&hooks.route||(()=>{});
+const viewStatusHandlers = {};
+function registerViewStatus(name, fn) {
+  viewStatusHandlers[name] = fn;
 }
-function stopViewPolls(){clearCupWeights();clearInterval(statusTimer);statusTimer=0;stopExtraPollsHook()}
-function startView(name){startViewHook(name)}
-function renderRoute(pathname){routeRendererHook(pathname)}
-let diagnosticVisible=false;
+let ensureViewHook = async (name) => {};
+function setEnsureViewHook(fn) {
+  ensureViewHook = fn;
+}
+async function ensureSettingsDom() {
+  await ensureViewHook("settings");
+}
+let activeView = "",
+  viewReady = Promise.resolve(),
+  viewSeq = 0;
+let statusTimer = 0;
+function setActiveView(name, ready = Promise.resolve()) {
+  activeView = name || "";
+  if (shotFsActive && activeView !== "home") exitShotFullScreen();
+  viewReady = ready;
+  viewSeq++;
+  if (chartObserver) layoutChartLabels();
+}
+let stopExtraPollsHook = () => {};
+let startViewHook = () => {};
+let routeRendererHook = () => {};
+function setViewPollHooks(hooks) {
+  stopExtraPollsHook = (hooks && hooks.stop) || (() => {});
+  startViewHook = (hooks && hooks.start) || (() => {});
+  routeRendererHook = (hooks && hooks.route) || (() => {});
+}
+function stopViewPolls() {
+  clearCupWeights();
+  clearInterval(statusTimer);
+  statusTimer = 0;
+  stopExtraPollsHook();
+}
+function startView(name) {
+  startViewHook(name);
+}
+function renderRoute(pathname) {
+  routeRendererHook(pathname);
+}
+let diagnosticVisible = false;
 // Navigation visibility is Home-stream state now: applied from home deltas on
 // every view (see the socket handler) instead of the removed status probe.
-function applyDiagnosticNavigation(s){if(s&&typeof s.diagnosticPageVisible==='boolean')diagnosticVisible=s.diagnosticPageVisible;const link=document.querySelector('[data-route="/diagnostic"]');if(link)link.classList.toggle('hidden',!diagnosticVisible||compatMode)}
-function applyCompatibilityChrome(){document.body.classList.toggle('compatMode',compatMode);document.querySelectorAll('.pageNav a[data-route]').forEach(a=>{const r=a.getAttribute('data-route');if(r&&r!=='/admin')a.classList.toggle('hidden',compatMode)});applyDiagnosticNavigation();if(compatMode&&activeView&&activeView!=='admin'&&activeView!=='diagnostic')renderRoute('/admin')}
-export function compatibilityModeOn(){return compatMode}
+function applyDiagnosticNavigation(s) {
+  if (s && typeof s.diagnosticPageVisible === "boolean")
+    diagnosticVisible = s.diagnosticPageVisible;
+  const link = document.querySelector('[data-route="/diagnostic"]');
+  if (link) link.classList.toggle("hidden", !diagnosticVisible || compatMode);
+}
+function applyCompatibilityChrome() {
+  document.body.classList.toggle("compatMode", compatMode);
+  document.querySelectorAll(".pageNav a[data-route]").forEach((a) => {
+    const r = a.getAttribute("data-route");
+    if (r && r !== "/admin") a.classList.toggle("hidden", compatMode);
+  });
+  applyDiagnosticNavigation();
+  if (compatMode && activeView && activeView !== "admin" && activeView !== "diagnostic")
+    renderRoute("/admin");
+}
+export function compatibilityModeOn() {
+  return compatMode;
+}
 
 const DEVICE_MAX_INFLIGHT = 1;
 const LOG_EVENTS_CAPACITY = 500;
-const SHOTS_PAGE_SIZE=10,SHOTS_EXPORT_LIMIT=100,HISTORY_PAGE_SIZE=20;
-const WEB_UI_CLIENT_HEADER='X-WebUI-Client';
-let webUiPowerUntil=0;
-export function noteWebUiPowerActivity(){if(webUiOwner&&!document.hidden)webUiPowerUntil=performance.now()+180e3}
-function webUiPowerSeconds(){return document.hidden?0:Math.max(0,Math.min(30,Math.floor((webUiPowerUntil-performance.now())/1000)))}
-const WEB_UI_INACTIVITY_MS=15*60*1000;
-const NETWORK_RECONNECT_WAIT_MS=180000;
-const BAKED_FW_VERSION='__FW_RELEASE__';
-function newWebUiClientId(){const b=new Uint8Array(12);if(window.crypto&&window.crypto.getRandomValues)window.crypto.getRandomValues(b);else for(let i=0;i<b.length;i++)b[i]=Math.floor(Math.random()*256);return[...b].map(v=>v.toString(16).padStart(2,'0')).join('')}
-const webUiClientId=newWebUiClientId();
-export async function apiBinary(path,onProgress){if(!webUiPollingActive())throw new Error(__WEBUI_TEXT__("runtime.this_window_is_inactive_reload_to_continue"));await acquireDeviceSlot();const ac=new AbortController(),timer=setTimeout(()=>ac.abort(),12e4);try{const response=await fetch(path,{headers:{[WEB_UI_CLIENT_HEADER]:webUiClientId},signal:ac.signal,cache:'no-store'});if(!response.ok){let data={};try{data=await response.json()}catch(_){}throw new Error(data.message||data.error||(__WEBUI_TEXT__("runtime.http")+response.status))}if(!onProgress||!response.body)return await response.blob();const reader=response.body.getReader(),chunks=[];let loaded=0;for(;;){const{done,value}=await reader.read();if(done)break;chunks.push(value);loaded+=value.byteLength;onProgress(loaded)}return new Blob(chunks,{type:response.headers.get('Content-Type')||'application/octet-stream'})}finally{clearTimeout(timer);releaseDeviceSlot()}}
-let webUiOwner=false,webUiClaiming=false,webUiInactivityTimer=0,webUiActiveUntil=0,inactiveOverlayTimer=0,networkReconnectWait=false,networkReconnectDeadline=0,networkReconnectTimer=0,networkReconnectPollTimer=0,compatMode=false;
-let bootId=0,logBootId=0,lastLog=0,logMissed=0,configRevision=0,lastCommandStatus=null,formRev=0,configLoaded=false,configDirty=false,brewDirty=false,micraDirty=false,micraDiagnosticStatus=null,dateTimeDirty=false,bleDirty=false,powerDirty=false,frontendDirty=false,configBaseline=null,brewBaseline=null,micraBaseline=null,dateTimeBaseline=null,bleBaseline=null,powerBaseline=null,frontendBaseline=null,networkBaseline=null,networkAddressLoaded=false,savedStaSsid='',savedStaOpen=false,savedStaWifiSleep=false,savedDeviceName='',savedStaAddr='',statusBusy=false,pollAt=0,scanBusy=false,scanTimer=0,messageTimer=0,controlsMutable=false,statusTimezoneOffsetMinutes=0,statusUtcAnchorSec=0,statusUtcAnchorAt=0,firmwareVersion='',shotHistory={bootId:0,total:0,hasMore:false,shots:[]},shotStats={},shotSort='date',shotSortDir='desc',historyData={bootId:0,total:0,hasMore:false,records:[]},historyDir='desc',logEvents=[],reachFails=0,pollChain=Promise.resolve(),commandChain=Promise.resolve(),commandBusy=false,homeFlushTimer=0,homeFlushConfig=false,homeFlushPreset=false,homeFlushBusy=false,lastStatusAt=0,statusLiveShot=false,deviceInFlight=0,deviceWaiters=[],preferredScaleSelectSyncing=false,diagnosticUnlocked=false,diagnosticPublicView=false,developmentMode=false,outOfReachOverlay=false,shotsLoaded=false,historyLoaded=false;
-
-const $=id=>document.getElementById(id);
-function updateHeaderSignals(s={}){
-const c=s.snapshotStale?{}:s.connections||{},levels=[__WEBUI_TEXT__("runtime.disconnected"),__WEBUI_TEXT__("runtime.signal_weak"),__WEBUI_TEXT__("runtime.signal_medium"),__WEBUI_TEXT__("runtime.signal_strong")],unavailable=__WEBUI_TEXT__("runtime.signal_unavailable");
-for(const[kind,name]of [['wifi',__WEBUI_TEXT__("shell.wifi")],['bluetooth',__WEBUI_TEXT__("shell.bluetooth")]]){
-const button=$(kind+'Signal');if(!button)continue;
-const connected=c[kind+'Connected'],signal=c[kind+'Level'],valid=Number.isInteger(signal)&&signal>=1&&signal<=3;
-const level=connected===false?0:connected===true&&valid?signal:'unknown';
-const label=level==='unknown'?unavailable:level===0?(kind==='bluetooth'?__WEBUI_TEXT__("runtime.scale_disconnected"):levels[0]):levels[level];
-button.dataset.level=String(level);button.title=name+': '+label;button.setAttribute('aria-label',button.title);
-const identity=$(kind+'Name'),detail=$(kind+'Detail');
-if(identity)identity.textContent=connected===true?(c[kind+'Name']||__WEBUI_TEXT__("runtime.unknown")):connected===false?__WEBUI_TEXT__("runtime.none"):__WEBUI_TEXT__("runtime.unknown");
-if(detail)detail.textContent=label;
-}}
-export function initHeaderSignals(){
-const buttons=[...document.querySelectorAll('.signalIndicator[aria-controls]')];
-function close(){for(const button of buttons){$(button.getAttribute('aria-controls')).hidden=true;button.setAttribute('aria-expanded','false')}}
-for(const button of buttons)button.addEventListener('click',()=>{const panel=$(button.getAttribute('aria-controls')),open=panel.hidden;close();panel.hidden=!open;button.setAttribute('aria-expanded',String(open))});
-document.addEventListener('click',e=>{if(!e.target.closest('.headerSignals'))close()});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){const button=buttons.find(b=>b.getAttribute('aria-expanded')==='true');close();if(button)button.focus()}});
-window.addEventListener('popstate',close);
+const SHOTS_PAGE_SIZE = 10,
+  SHOTS_EXPORT_LIMIT = 100,
+  HISTORY_PAGE_SIZE = 20;
+const WEB_UI_CLIENT_HEADER = "X-WebUI-Client";
+let webUiPowerUntil = 0;
+export function noteWebUiPowerActivity() {
+  if (webUiOwner && !document.hidden) webUiPowerUntil = performance.now() + 180e3;
 }
-let homeBootDone=false,fwReloading=false,bootSeq=0,bootTimer=0;
-const THEME_KEY='ssTh',THEME_MODES=['auto','light','dark'];
-function themeMode(){try{const v=localStorage.getItem(THEME_KEY);return THEME_MODES.includes(v)?v:'auto'}catch(_){return'auto'}}
-function paintTheme(m){const h=document.documentElement,c=m==='auto'?'light dark':m;h.classList.toggle('theme-dark',m==='dark');h.classList.toggle('theme-light',m==='light');h.style.colorScheme=c;const e=document.querySelector('meta[name="color-scheme"]');if(e)e.content=c;const s=document.getElementById('uiTheme');if(s)s.value=m;const b=document.getElementById('themeSignal');if(b){b.dataset.mode=m;b.setAttribute('aria-label',{auto:__WEBUI_TEXT__("shell.theme_auto"),light:__WEBUI_TEXT__("shell.theme_light"),dark:__WEBUI_TEXT__("shell.theme_dark")}[m]||b.getAttribute('aria-label'))}}
-function setTheme(m){if(!THEME_MODES.includes(m))m='auto';try{localStorage.setItem(THEME_KEY,m)}catch(_){}paintTheme(m)}
-function cycleTheme(){setTheme(THEME_MODES[(THEME_MODES.indexOf(themeMode())+1)%3])}
+function webUiPowerSeconds() {
+  return document.hidden
+    ? 0
+    : Math.max(0, Math.min(30, Math.floor((webUiPowerUntil - performance.now()) / 1000)));
+}
+const WEB_UI_INACTIVITY_MS = 15 * 60 * 1000;
+const NETWORK_RECONNECT_WAIT_MS = 180000;
+const BAKED_FW_VERSION = "__FW_RELEASE__";
+function newWebUiClientId() {
+  const b = new Uint8Array(12);
+  if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(b);
+  else for (let i = 0; i < b.length; i++) b[i] = Math.floor(Math.random() * 256);
+  return [...b].map((v) => v.toString(16).padStart(2, "0")).join("");
+}
+const webUiClientId = newWebUiClientId();
+export async function apiBinary(path, onProgress) {
+  if (!webUiPollingActive())
+    throw new Error(__WEBUI_TEXT__("runtime.this_window_is_inactive_reload_to_continue"));
+  await acquireDeviceSlot();
+  const ac = new AbortController(),
+    timer = setTimeout(() => ac.abort(), 12e4);
+  try {
+    const response = await fetch(path, {
+      headers: { [WEB_UI_CLIENT_HEADER]: webUiClientId },
+      signal: ac.signal,
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (_) {}
+      throw new Error(
+        data.message || data.error || __WEBUI_TEXT__("runtime.http") + response.status,
+      );
+    }
+    if (!onProgress || !response.body) return await response.blob();
+    const reader = response.body.getReader(),
+      chunks = [];
+    let loaded = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      loaded += value.byteLength;
+      onProgress(loaded);
+    }
+    return new Blob(chunks, {
+      type: response.headers.get("Content-Type") || "application/octet-stream",
+    });
+  } finally {
+    clearTimeout(timer);
+    releaseDeviceSlot();
+  }
+}
+let webUiOwner = false,
+  webUiClaiming = false,
+  webUiInactivityTimer = 0,
+  webUiActiveUntil = 0,
+  inactiveOverlayTimer = 0,
+  networkReconnectWait = false,
+  networkReconnectDeadline = 0,
+  networkReconnectTimer = 0,
+  networkReconnectPollTimer = 0,
+  compatMode = false;
+let bootId = 0,
+  logBootId = 0,
+  lastLog = 0,
+  logMissed = 0,
+  configRevision = 0,
+  lastCommandStatus = null,
+  formRev = 0,
+  configLoaded = false,
+  configDirty = false,
+  brewDirty = false,
+  micraDirty = false,
+  micraDiagnosticStatus = null,
+  dateTimeDirty = false,
+  bleDirty = false,
+  powerDirty = false,
+  frontendDirty = false,
+  configBaseline = null,
+  brewBaseline = null,
+  micraBaseline = null,
+  dateTimeBaseline = null,
+  bleBaseline = null,
+  powerBaseline = null,
+  frontendBaseline = null,
+  networkBaseline = null,
+  networkAddressLoaded = false,
+  savedStaSsid = "",
+  savedStaOpen = false,
+  savedStaWifiSleep = false,
+  savedDeviceName = "",
+  savedStaAddr = "",
+  statusBusy = false,
+  pollAt = 0,
+  scanBusy = false,
+  scanTimer = 0,
+  messageTimer = 0,
+  controlsMutable = false,
+  statusTimezoneOffsetMinutes = 0,
+  statusUtcAnchorSec = 0,
+  statusUtcAnchorAt = 0,
+  firmwareVersion = "",
+  shotHistory = { bootId: 0, total: 0, hasMore: false, shots: [] },
+  shotStats = {},
+  shotSort = "date",
+  shotSortDir = "desc",
+  historyData = { bootId: 0, total: 0, hasMore: false, records: [] },
+  historyDir = "desc",
+  logEvents = [],
+  reachFails = 0,
+  pollChain = Promise.resolve(),
+  commandChain = Promise.resolve(),
+  commandBusy = false,
+  homeFlushTimer = 0,
+  homeFlushConfig = false,
+  homeFlushPreset = false,
+  homeFlushBusy = false,
+  lastStatusAt = 0,
+  statusLiveShot = false,
+  deviceInFlight = 0,
+  deviceWaiters = [],
+  preferredScaleSelectSyncing = false,
+  diagnosticUnlocked = false,
+  diagnosticPublicView = false,
+  developmentMode = false,
+  outOfReachOverlay = false,
+  shotsLoaded = false,
+  historyLoaded = false;
+
+const $ = (id) => document.getElementById(id);
+function updateHeaderSignals(s = {}) {
+  const c = s.snapshotStale ? {} : s.connections || {},
+    levels = [
+      __WEBUI_TEXT__("runtime.disconnected"),
+      __WEBUI_TEXT__("runtime.signal_weak"),
+      __WEBUI_TEXT__("runtime.signal_medium"),
+      __WEBUI_TEXT__("runtime.signal_strong"),
+    ],
+    unavailable = __WEBUI_TEXT__("runtime.signal_unavailable");
+  for (const [kind, name] of [
+    ["wifi", __WEBUI_TEXT__("shell.wifi")],
+    ["bluetooth", __WEBUI_TEXT__("shell.bluetooth")],
+  ]) {
+    const button = $(kind + "Signal");
+    if (!button) continue;
+    const connected = c[kind + "Connected"],
+      signal = c[kind + "Level"],
+      valid = Number.isInteger(signal) && signal >= 1 && signal <= 3;
+    const level = connected === false ? 0 : connected === true && valid ? signal : "unknown";
+    const label =
+      level === "unknown"
+        ? unavailable
+        : level === 0
+          ? kind === "bluetooth"
+            ? __WEBUI_TEXT__("runtime.scale_disconnected")
+            : levels[0]
+          : levels[level];
+    button.dataset.level = String(level);
+    button.title = name + ": " + label;
+    button.setAttribute("aria-label", button.title);
+    const identity = $(kind + "Name"),
+      detail = $(kind + "Detail");
+    if (identity)
+      identity.textContent =
+        connected === true
+          ? c[kind + "Name"] || __WEBUI_TEXT__("runtime.unknown")
+          : connected === false
+            ? __WEBUI_TEXT__("runtime.none")
+            : __WEBUI_TEXT__("runtime.unknown");
+    if (detail) detail.textContent = label;
+  }
+}
+export function initHeaderSignals() {
+  const buttons = [...document.querySelectorAll(".signalIndicator[aria-controls]")];
+  function close() {
+    for (const button of buttons) {
+      $(button.getAttribute("aria-controls")).hidden = true;
+      button.setAttribute("aria-expanded", "false");
+    }
+  }
+  for (const button of buttons)
+    button.addEventListener("click", () => {
+      const panel = $(button.getAttribute("aria-controls")),
+        open = panel.hidden;
+      close();
+      panel.hidden = !open;
+      button.setAttribute("aria-expanded", String(open));
+    });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".headerSignals")) close();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const button = buttons.find((b) => b.getAttribute("aria-expanded") === "true");
+      close();
+      if (button) button.focus();
+    }
+  });
+  window.addEventListener("popstate", close);
+}
+let homeBootDone = false,
+  fwReloading = false,
+  bootSeq = 0,
+  bootTimer = 0;
+const THEME_KEY = "ssTh",
+  THEME_MODES = ["auto", "light", "dark"];
+function themeMode() {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    return THEME_MODES.includes(v) ? v : "auto";
+  } catch (_) {
+    return "auto";
+  }
+}
+function paintTheme(m) {
+  const h = document.documentElement,
+    c = m === "auto" ? "light dark" : m;
+  h.classList.toggle("theme-dark", m === "dark");
+  h.classList.toggle("theme-light", m === "light");
+  h.style.colorScheme = c;
+  const e = document.querySelector('meta[name="color-scheme"]');
+  if (e) e.content = c;
+  const s = document.getElementById("uiTheme");
+  if (s) s.value = m;
+  const b = document.getElementById("themeSignal");
+  if (b) {
+    b.dataset.mode = m;
+    b.setAttribute(
+      "aria-label",
+      {
+        auto: __WEBUI_TEXT__("shell.theme_auto"),
+        light: __WEBUI_TEXT__("shell.theme_light"),
+        dark: __WEBUI_TEXT__("shell.theme_dark"),
+      }[m] || b.getAttribute("aria-label"),
+    );
+  }
+}
+function setTheme(m) {
+  if (!THEME_MODES.includes(m)) m = "auto";
+  try {
+    localStorage.setItem(THEME_KEY, m);
+  } catch (_) {}
+  paintTheme(m);
+}
+function cycleTheme() {
+  setTheme(THEME_MODES[(THEME_MODES.indexOf(themeMode()) + 1) % 3]);
+}
 // A running shot keeps the UI session alive (the Web UI doubles as a shot
 // timer); every signal is read from the live WebSocket state so a frozen
 // statusLiveShot copy cannot extend the session on non-polling views.
 // Takeover by another client still deactivates immediately elsewhere.
-function sessionShotLive(){const s=homeFrame&&homeFrame.status;return!!(shotFrame&&shotFrame.card.valid&&shotFrame.card.live&&!shotStale||!homeStale&&s&&(s.liveShot||s.cycle&&s.cycle.active||s.machineRunning||s.relayClosed))}
-function resetWebUiInactivity(){if(!webUiOwner)return;webUiActiveUntil=Date.now()+WEB_UI_INACTIVITY_MS;clearTimeout(webUiInactivityTimer);webUiInactivityTimer=setTimeout(()=>{if(webUiOwner&&Date.now()>=webUiActiveUntil)sessionShotLive()?resetWebUiInactivity():deactivateWebUi()},WEB_UI_INACTIVITY_MS)}
-function webUiPollingActive(){if(!webUiOwner)return false;if(Date.now()<webUiActiveUntil)return true;if(sessionShotLive()){resetWebUiInactivity();return true}deactivateWebUi();return false}
-function noteWebUiInteraction(event){if(!webUiOwner||!event.isTrusted)return;noteWebUiPowerActivity();const target=event.target;if(!target||!target.closest||!target.closest('button,a,input,select,textarea,label,summary,[role="button"],[role="switch"],.presetCard'))return;resetWebUiInactivity()}
-function withPollGate(fn){const run=pollChain.then(fn,fn);pollChain=run.catch(console.warn);return run}
-function withCommandGate(fn){const run=commandChain.then(fn,fn);commandChain=run.catch(console.warn);return run}
-function drainDeviceSlots(){while(deviceWaiters.length&&deviceInFlight<DEVICE_MAX_INFLIGHT){deviceInFlight++;deviceWaiters.shift()()}}
-function acquireDeviceSlot(){return new Promise(resolve=>{deviceWaiters.push(resolve);drainDeviceSlots()})}
-function releaseDeviceSlot(){deviceInFlight--;drainDeviceSlots()}
-function statusPollDue(){return!commandBusy&&!homeFlushBusy&&!otaBusy&&Date.now()-lastStatusAt>=900}
-function statusIntervalMs(){return document.hidden?12e3:statusLiveShot?2500:4e3}
-function armStatusTimer(){clearInterval(statusTimer);if(!webUiPollingActive()||(activeView!=='settings'&&activeView!=='admin'))return;statusTimer=setInterval(()=>{if(webUiPollingActive()&&statusPollDue())refreshStatus()},statusIntervalMs())}
-function pad2(n){return String(n).padStart(2,'0')}
-function formatTzLabel(min){const sign=min>=0?'+':'-';const abs=Math.abs(min);return __WEBUI_TEXT__("runtime.utc")+sign+pad2(Math.floor(abs/60))+__WEBUI_TEXT__("runtime.symbol")+pad2(abs%60)}
-function formatWallTime(unixSec,tz){const localSec=unixSec+tz*60;const d=new Date(0);d.setUTCSeconds(localSec);return d.getUTCFullYear()+__WEBUI_TEXT__("runtime.symbol_2")+pad2(d.getUTCMonth()+1)+__WEBUI_TEXT__("runtime.symbol_2")+pad2(d.getUTCDate())+__WEBUI_TEXT__("runtime.symbol_3")+pad2(d.getUTCHours())+__WEBUI_TEXT__("runtime.symbol")+pad2(d.getUTCMinutes())+__WEBUI_TEXT__("runtime.symbol")+pad2(d.getUTCSeconds())}
-function formatWallTimeLocal(unixLocalSec){const d=new Date(0);d.setUTCSeconds(unixLocalSec);return d.getUTCFullYear()+__WEBUI_TEXT__("runtime.symbol_2")+pad2(d.getUTCMonth()+1)+__WEBUI_TEXT__("runtime.symbol_2")+pad2(d.getUTCDate())+__WEBUI_TEXT__("runtime.symbol_3")+pad2(d.getUTCHours())+__WEBUI_TEXT__("runtime.symbol")+pad2(d.getUTCMinutes())+__WEBUI_TEXT__("runtime.symbol")+pad2(d.getUTCSeconds())}
-const HUMAN_WD=__WEBUI_TEXT__("runtime.weekdays").split(','),HUMAN_MON=__WEBUI_TEXT__("runtime.months_short").split(',');
-function formatHumanTime(l){const dt=new Date(l*1e3),now=statusUtcAnchorSec?statusUtcAnchorSec+Math.floor((performance.now()-statusUtcAnchorAt)/1000)+statusTimezoneOffsetMinutes*60:0,n=new Date(now*1e3),d=Math.floor(now/86400)-Math.floor(l/86400),c=dt.toISOString().slice(11,16),AT=__WEBUI_TEXT__("runtime.at");if(now&&d>=0&&d<7)return(d===0?__WEBUI_TEXT__("runtime.today"):d===1?__WEBUI_TEXT__("runtime.yesterday"):HUMAN_WD[dt.getUTCDay()])+AT+c;if(now&&d>=7&&d<28){const w=d/7|0;return w+(w>1?__WEBUI_TEXT__("runtime.weeks_ago"):__WEBUI_TEXT__("runtime.week_ago"))}return HUMAN_MON[dt.getUTCMonth()]+' '+dt.getUTCDate()+(now&&dt.getUTCFullYear()===n.getUTCFullYear()?'':' '+dt.getUTCFullYear())}
-function wrapTimeEl(td,r){if(!(r.hasWallTime&&r.endedAtLocalSec))return;const t=document.createElement('time'),offset=typeof r.timezoneOffsetMinutesAtCommit==='number'?r.timezoneOffsetMinutesAtCommit:Math.round((r.endedAtLocalSec-r.endedAtUnixSec)/60);t.dateTime=new Date(r.endedAtUnixSec*1e3).toISOString();t.textContent=td.textContent;td.title=formatWallTimeLocal(r.endedAtLocalSec)+' ('+formatTzLabel(offset)+')';td.replaceChildren(t)}
-function formatShotTime(r){if(r.hasWallTime&&r.endedAtLocalSec)return formatHumanTime(r.endedAtLocalSec);return'#'+r.bootId+__WEBUI_TEXT__("runtime.no_time")}
-function formatShotTimeCsv(r){if(r.hasWallTime&&r.endedAtLocalSec)return formatWallTimeLocal(r.endedAtLocalSec);return''}
-function formatShotEnded(d){return{paddle:__WEBUI_TEXT__("runtime.manual"),activator:__WEBUI_TEXT__("runtime.manual"),physical_override:__WEBUI_TEXT__("runtime.manual"),normal_target:__WEBUI_TEXT__("runtime.bbw"),scale_threshold:__WEBUI_TEXT__("runtime.bbw"),extended_max_weight:__WEBUI_TEXT__("runtime.fast_guard"),extended_min_time:__WEBUI_TEXT__("runtime.fast_guard"),fast_extraction_max_weight:__WEBUI_TEXT__("runtime.fast_guard"),fast_extraction_min_time:__WEBUI_TEXT__("runtime.fast_guard"),slow_max_time:__WEBUI_TEXT__("runtime.slow_guard"),slow_min_weight:__WEBUI_TEXT__("runtime.slow_guard"),slow_extraction_max_time:__WEBUI_TEXT__("runtime.slow_guard"),slow_extraction_min_weight:__WEBUI_TEXT__("runtime.slow_guard"),auto_to_manual:__WEBUI_TEXT__("runtime.a_to_m"),auto_to_manual_guard:__WEBUI_TEXT__("runtime.a_to_m"),cup_removed:__WEBUI_TEXT__("runtime.cup"),web_stop:__WEBUI_TEXT__("runtime.web"),web_heartbeat:__WEBUI_TEXT__("runtime.heartbeat"),web_heartbeat_timeout:__WEBUI_TEXT__("runtime.heartbeat"),hard_limit:__WEBUI_TEXT__("runtime.hard_limit"),global_limit:__WEBUI_TEXT__("runtime.hard_limit"),wall_limit:__WEBUI_TEXT__("runtime.max_time"),configured_wall_limit:__WEBUI_TEXT__("runtime.max_time"),relay_safety:__WEBUI_TEXT__("runtime.relay"),relay_safety_failure:__WEBUI_TEXT__("runtime.relay"),weight_anomaly:__WEBUI_TEXT__("runtime.anomaly"),touch_weight_fallback:__WEBUI_TEXT__("runtime.touch_stop_fallback")}[String(d||'').toLowerCase()]||__WEBUI_TEXT__("runtime.unknown")}
-function lastCurveWeightG(w){if(!Array.isArray(w))return null;for(let i=w.length-1;i>=0;i--){if(typeof w[i]==='number'&&w[i]!==0)return w[i]/100}return null}
-function axisLabel(v,u){v=Math.round(+v*10)/10;return isFinite(v)?v+__WEBUI_TEXT__("runtime.symbol_3")+u:__WEBUI_TEXT__("runtime.unknown")}
-let chartFrame=0,chartObserver;
-function layoutChartLabels(){if(chartFrame)return;chartFrame=requestAnimationFrame(()=>{chartFrame=0;for(const e of document.querySelectorAll('[data-chart-axis]')){const b=e.getBoundingClientRect();if(!b.width||!b.height)continue;const tk=[];for(const o of e.querySelectorAll('[data-p]'))o.dataset.m?o.remove():tk.push(o);
-const rect=n=>{if(!n.dataset.m)n.style.transform='';let r=n.getBoundingClientRect();if(n.classList.contains('ruleTick')&&(r.left<b.left-1||r.right>b.right+1)){n.style.transform=r.left<b.left?'translateX(0)':'translateX(-100%)';r=n.getBoundingClientRect()}return r};
-if(e.dataset.chartMerge!==undefined&&tk.length>1){const R=tk.map(rect),runs=[];let s=0;for(let i=1;i<=tk.length;i++)if(i===tk.length||R[i].left>=R[i-1].right+4){if(i-s>1)runs.push(tk.slice(s,i));s=i}for(const ru of runs){const f=ru[0],l=ru.at(-1),tx=ru.map(x=>x.textContent),mm=tx.map(t=>t.split(/ (?=\S+$)/)),u=mm[0][1],n=document.createElement('span');n.className='ruleTick';n.dataset.m='1';n.dataset.p=Math.max(...ru.map(x=>+x.dataset.p))+1;n.dataset.k='m'+f.dataset.k+'|'+l.dataset.k;n.textContent=u&&mm.every(p=>p[1]===u)?mm.map(p=>p[0]).join('–')+' '+u:tx.join(' – ');n.style.left=(parseFloat(f.style.left)+parseFloat(l.style.left))/2+'%';n.style.transform='translateX(-50%)';e.appendChild(n);tk.push(n)}}const used=[],next=new Set(),old=e._shown;for(const n of tk.sort((a,b)=>b.dataset.p-a.dataset.p)){
-if(n.dataset.k==='tare'){
-const t=n.parentElement;t.style.bottom='';
-// The drop is rendered first; both markers share bottom:10%.
-if(tk.length>1){const d=e.firstElementChild.getBoundingClientRect(),r=t.getBoundingClientRect();
-if(r.left<d.right&&d.left<r.right)t.style.bottom='calc(10% + '+(d.height+8)+'px)';
-}}
-const r=rect(n),gap=old&&!old.has(n.dataset.k)?8:4,ok=r.left>=b.left-1&&r.right<=b.right+1&&used.every(q=>r.right+gap<=q.left||q.right+gap<=r.left||r.bottom+gap<=q.top||q.bottom+gap<=r.top);if(ok){used.push(r);next.add(n.dataset.k)}n.style.visibility=ok?'visible':'hidden'}e._shown=next}})}
-function watchChartLabels(e){e.dataset.chartAxis='';if(!chartObserver){chartObserver=new ResizeObserver(layoutChartLabels);chartObserver.observe($('app'));document.fonts?.ready.then(layoutChartLabels)}layoutChartLabels()}
-function fillChartTicks(e,l,m,avoidOverlap,mg){if(!e)return;e.replaceChildren();if(!(m>0)){e.removeAttribute('role');e.removeAttribute('aria-label');delete e.dataset.chartAxis;delete e.dataset.chartMerge;delete e._shown;return}const s={},raw=[];for(const t of l||[]){const a=+t[0];if(!isFinite(a))continue;const k=avoidOverlap?a+'|'+t[1]:~~(a*10);if(s[k])continue;s[k]=1;raw.push([Math.max(0,Math.min(1,a/m)),''+t[1],t[2]||0,t[3]||''+t[1]])}raw.sort((a,b)=>a[0]-b[0]);if(avoidOverlap){e.setAttribute('role','img');e.setAttribute('aria-label',raw.map(t=>t[1]).join(', '))}for(const t of raw){const n=document.createElement('span');n.className='ruleTick';n.textContent=t[1];n.style.left=t[0]*100+'%';if(avoidOverlap){n.dataset.p=t[2];n.dataset.k=t[3];n.style.visibility='hidden';}e.appendChild(n)}if(mg)e.dataset.chartMerge='';if(avoidOverlap)watchChartLabels(e)}
-function fixedChartTicks(max,step,unit){const ticks=[];for(let v=0;v<=max+1e-6;v+=step)ticks.push([v,axisLabel(v,unit)]);return ticks}
-function shotDisplayActualG(actual,wCg){if(typeof actual==='number'&&actual!==0)return actual;const fromCurve=lastCurveWeightG(wCg);return fromCurve!==null?fromCurve:(typeof actual==='number'?actual:null)}
-function shotDisplayFlowGS(shot){if(!shot)return null;if(typeof shot.avgFlowGS==='number'&&Number.isFinite(shot.avgFlowGS))return shot.avgFlowGS;const actual=shotDisplayActualG(shot.actualG,shot.wCg);const dur=typeof shot.durationS==='number'?shot.durationS:null;const drop=typeof shot.firstDropS==='number'?shot.firstDropS:(typeof shot.dropS==='number'?shot.dropS:null);if(actual==null||dur==null||drop==null||!(dur-drop>0.5)||!(actual>0))return null;return actual/(dur-drop)}
-function fillStarRate(h,r,off,fn){if(!h)return;const n=Math.max(0,Math.min(5,+r||0));h.classList.add('starRate');h.setAttribute('role','radiogroup');h.setAttribute('aria-label',__WEBUI_TEXT__("runtime.shot_rating"));h.dataset.rating=''+n;h.replaceChildren();for(let i=1;i<=5;i++){const b=document.createElement('button');b.type='button';b.className=i<=n?'on':'';b.disabled=!!off;b.setAttribute('aria-label',i+__WEBUI_TEXT__("runtime.star")+(i>1?__WEBUI_TEXT__("runtime.s"):''));b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.7 6.2 6.7.7-5.1 4.4 1.5 6.6L12 17.2 6.2 20.5l1.5-6.6L2.6 9.5l6.7-.7z"/></svg>';b.onclick=()=>fn&&fn(i===n?0:i);h.appendChild(b)}}
-// Derive one estimate per distinct accepted endpoint, without resampling weights.
-function buildShotSparkModel(shot){
-if(!shot)return null;
-const w=Array.isArray(shot.wCg)?shot.wCg:[],at=shot.wAtMs,markers=shot.wBreakBefore??[];
-if(!Array.isArray(at)||at.length!==w.length||w.length>1201||!Array.isArray(markers)||markers.some((v,i)=>!Number.isInteger(v)||v<0||v>=w.length||(i&&v<=markers[i-1]))||at.some((t,i)=>!Number.isInteger(t)||t<0||t>60000||(i&&t<at[i-1])))return null;
-const breaks=new Set(markers),colors={bbw:'var(--ok)',fast:'#d97706',slow:'#6492d7',atm:'var(--mu)'},num=v=>v==null||!Number.isFinite(+v)?null:+v;
-const end=num(shot.endS),duration=num(shot.durationS),drop=num(shot.dropS)??num(shot.firstDropS),tare=num(shot.tareS),ext=num(shot.extendedS),atm=num(shot.atmS),clear=num(shot.atmClearedS),limit=Math.round((end??duration??Infinity)*1000);
-const kind=t=>atm!=null&&t>=atm&&(clear==null||t<clear)?'atm':ext!=null&&t>=ext&&(shot.extractionExtended||shot.slowExtractionExtended)?shot.extractionExtended?'fast':'slow':'bbw';
-const transitions=[ext,atm,clear].filter(t=>t!=null).sort((a,b)=>a-b),segs=[],dripSegs=[],pts=[],flowSegs=[],dripFlowSegs=[],flowCurve=Array(w.length).fill(null),observations=[];
-let maxFlow=null,plotMaxFlow=0,segment=0,weightPrevious=null;
-// Color splits interpolate only the drawn line; they are never measured rates.
-const append=(segments,p,previous,flow)=>{
- const add=q=>{const k=kind(q.t),s=segments.at(-1);if(!s||!previous||s.kind!==k)segments.push({kind:k,color:flow&&k==='bbw'?'#38bdf8':colors[k],pts:[q]});else s.pts.push(q);previous=q;};
- if(previous)for(const t of transitions)if(t>previous.t&&t<=p.t&&kind(t)!==kind(previous.t)){const q={t,cg:previous.cg+(p.cg-previous.cg)*(t-previous.t)/(p.t-previous.t)},s=segments.at(-1);s.pts.push(q);previous=q;add(q);}
- add(p);
-};
-for(let i=0;i<w.length;i++){
- if(breaks.has(i))segment++;
- const drip=at[i]>limit;
- if(drip&&end==null)continue;
- if(!Number.isFinite(w[i])){segment++;weightPrevious=null;continue;}
- const p={t:at[i]/1000,cg:w[i]};
- if(breaks.has(i))weightPrevious=null;
- if(drip&&!dripSegs.length&&weightPrevious)append(dripSegs,weightPrevious,null,false);
- append(drip?dripSegs:segs,p,weightPrevious,false);weightPrevious=p;pts.push(p);
- const last=observations.at(-1),gray=atm!=null&&p.t>=atm&&(clear==null||p.t<clear);
- if(gray){segment++;continue;}
- if(last&&atm!=null&&last.t<Math.round(atm*1000)&&at[i]>=Math.round(atm*1000))segment++;
- if(last&&clear!=null&&last.t<Math.round(clear*1000)&&at[i]>=Math.round(clear*1000))segment++;
- const observation={t:at[i],cg:w[i],index:i,segment};
- if(last&&last.segment===segment&&last.t===at[i])observations[observations.length-1]=observation;else observations.push(observation);
+function sessionShotLive() {
+  const s = homeFrame && homeFrame.status;
+  return !!(
+    (shotFrame && shotFrame.card.valid && shotFrame.card.live && !shotStale) ||
+    (!homeStale &&
+      s &&
+      (s.liveShot || (s.cycle && s.cycle.active) || s.machineRunning || s.relayClosed))
+  );
 }
-let boundary=0,previousFlow=null,flowStart=null;
-const dropSegment=observations.findLast(p=>p.t<=Math.round(drop*1000))?.segment;
-for(let i=0;i<observations.length;i++){
- const p=observations[i],previous=observations[i-1];
- if(!previous||p.segment!==previous.segment){boundary=i;previousFlow=null;continue;}
- const span=Math.max(1000,p.t-previous.t),start=p.t-span;
- while(boundary+1<i&&observations[boundary+1].t<=start)boundary++;
- const a=observations[boundary],b=observations[boundary+1];
- if(a.segment!==p.segment||a.t>start||(drop!=null&&a.t<Math.round(drop*1000))){previousFlow=null;continue;}
- const startCg=a.t===start?a.cg:a.cg+(b.cg-a.cg)*(start-a.t)/(b.t-a.t);
- const rate=Math.max(0,(p.cg-startCg)*10/span),point={t:(p.t-span/2)/1000,cg:rate*100};
- const drip=p.t>limit,cutoff=limit/1000;
- flowCurve[p.index]=rate;plotMaxFlow=Math.max(plotMaxFlow,rate);
- if(!drip)maxFlow=Math.max(maxFlow??0,rate);
- if(!drip&&!flowSegs.length&&drop>0&&p.segment===dropSegment)flowStart=point;
- if(drip&&point.t<cutoff){previousFlow=point;continue;}
- if(drip&&!dripFlowSegs.length&&previousFlow){
-  const q={t:cutoff,cg:previousFlow.cg+(point.cg-previousFlow.cg)*(cutoff-previousFlow.t)/(point.t-previousFlow.t)};
-  if(flowSegs.length)append(flowSegs,q,previousFlow,true);
-  append(dripFlowSegs,q,null,true);previousFlow=q;
- }
- append(drip?dripFlowSegs:flowSegs,point,previousFlow,true);previousFlow=point;
+function resetWebUiInactivity() {
+  if (!webUiOwner) return;
+  webUiActiveUntil = Date.now() + WEB_UI_INACTIVITY_MS;
+  clearTimeout(webUiInactivityTimer);
+  webUiInactivityTimer = setTimeout(() => {
+    if (webUiOwner && Date.now() >= webUiActiveUntil)
+      sessionShotLive() ? resetWebUiInactivity() : deactivateWebUi();
+  }, WEB_UI_INACTIVITY_MS);
 }
-// Exact event annotations cannot supply estimator support.
-for(const [t,cg] of [[drop,num(shot.dropCg)],[ext,num(shot.extCg)],[atm,num(shot.atmCg)]]){
- if(t==null||t<0||Math.round(t*1000)>limit||cg==null)continue;
- const p={t,cg},k=kind(t);pts.push(p);segs.push({kind:k,color:colors[k],pts:[p]});
-}
-const dur=Math.max(duration||0,end||0,...pts.map(p=>p.t),0);
-if(!pts.length||dur<=0)return null;
-const rawMaxW=Math.max(shot.goalG||0,...pts.map(p=>p.cg/100),0);
-const lastDrip=dripSegs.at(-1)?.pts.at(-1),finalPoint=!shot.wTruncated&&lastDrip?.cg===num(shot.endCg)?lastDrip:null;
-return {observed:true,truncated:!!shot.wTruncated,dur,timeMax:Math.max(10,Math.ceil(dur/10)*10),firstDropS:drop>0?drop:null,tareS:tare>0?tare:null,segs,dripSegs,finalPoint,pts,rawMaxW,maxW:Math.max(10,Math.ceil(rawMaxW/10)*10),flowSegs,dripFlowSegs,flowStart,flowCurve,maxFlow,flowMax:Math.max(.5,Math.ceil(plotMaxFlow/.5)*.5)};
-}
-function shotMaxFlowGS(shot){const model=buildShotSparkModel(shot);return model?model.maxFlow:null}
-function shotFlowCurveGS(shot){const model=buildShotSparkModel(shot);return model?model.flowCurve:[]}
-async function populateTimezoneOptions(){
-const select=$('timezoneId');
-if(!timezoneCatalogPromise)timezoneCatalogPromise=api('/api/v1/time/zones').then(ids=>{
-if(!Array.isArray(ids)||!ids.includes('Etc/UTC'))throw Error();
-timezoneCatalog=ids;return ids
-}).catch(error=>{timezoneCatalogPromise=null;throw error});
-const ids=await timezoneCatalogPromise;
-if(!select||!select.isConnected||select.options.length>1)return;
-const draft=dateTimeDirty?select.value:savedTimezoneId;
-const fragment=document.createDocumentFragment();
-fragment.appendChild(new Option(__WEBUI_TEXT__("runtime.select_timezone"),''));
-for(const id of ids)fragment.appendChild(new Option(id.replaceAll('_',' '),id));
-select.replaceChildren(fragment);
-if(ids.includes(draft))select.value=draft;
-refreshTimezonePreview();
-}
-
-let timezoneCatalog=null,timezoneCatalogPromise=null,savedTimezoneId='';
-let timezonePreviewSeq=0,timezonePreviewSync=0,timezonePreviewAnchor=null,timezonePreviewPending=false,timezonePreviewLoad=null,autoInitPending=false;
-function browserTimezone(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||''}catch(_){return''}}
-
-function renderTimezonePreview(){
-  const preview=$('timezonePreview'),a=timezonePreviewAnchor;
-  if(!preview||!a||document.hidden||activeView!=='admin'||!diagnosticUnlocked)return;
-  const elapsed=Math.max(0,Math.floor((performance.now()-a.at)/1000));
-  if(a.timezoneId!==$('timezoneId')?.value||elapsed>=30||(a.nextTransitionUtcSec&&a.utcSec+elapsed>=a.nextTransitionUtcSec)){refreshTimezonePreview();return}
-  preview.textContent=__WEBUI_TEXT__("runtime.timezone_preview_prefix")+
-    formatWallTimeLocal(a.localSec+elapsed)+' ('+formatTzLabel(a.offsetMinutes)+')'+
-    (a.clockSource==='browser'?__WEBUI_TEXT__("runtime.timezone_preview_browser"):'');
-}
-
-function formatDiagnosticTimezoneOffset(c){
-  if(c.timezoneOffsetKnown)return formatTzLabel(c.appliedTimezoneOffsetMinutes);
-  if(c.timezoneResolution==='clock_unavailable')return __WEBUI_TEXT__("runtime.unknown");
-  const reason={unconfigured:__WEBUI_TEXT__("runtime.timezone_unconfigured"),
-    unknown_zone:__WEBUI_TEXT__("runtime.timezone_unknown_zone"),
-    rules_out_of_range:__WEBUI_TEXT__("runtime.timezone_rules_out_of_range")}[c.timezoneResolution];
-  return formatTzLabel(0)+(reason?' — '+reason:'');
-}
-
-async function refreshTimezonePreview(){
-  const select=$('timezoneId'),preview=$('timezonePreview');if(!select||!preview)return;
-  const id=select.value,seq=++timezonePreviewSeq;
-  timezonePreviewAnchor=null;timezonePreviewPending=false;
-  if(!id){preview.textContent=__WEBUI_TEXT__("runtime.select_timezone");return}
-  preview.textContent=__WEBUI_TEXT__("runtime.timezone_preview_loading");
-  if(!diagnosticUnlocked||document.hidden||activeView!=='admin')return;
-  timezonePreviewPending=true;
-  try{
-    const result=await(timezonePreviewLoad=api('/api/v1/time/preview',{method:'POST',body:body({timezoneId:id,browserUtcSec:Math.floor(Date.now()/1000)})}));
-    if(seq!==timezonePreviewSeq||select.value!==id||!select.isConnected||!diagnosticUnlocked)return;
-    if(result.clockAvailable){timezonePreviewAnchor={...result,at:performance.now()};renderTimezonePreview()}
-    else preview.textContent=__WEBUI_TEXT__("runtime.timezone_preview_no_clock");
-  }catch(error){if(seq===timezonePreviewSeq)preview.textContent=formatCommandError(__WEBUI_TEXT__("runtime.timezone_preview_failed"),error)}
-  finally{if(seq===timezonePreviewSeq)timezonePreviewPending=false}
-}
-
-function timeZoneSelectionChanged(){markDateTimeDirty();refreshTimezonePreview()}
-function updateTimezoneControls(){const select=$('timezoneId');if(select)select.disabled=!controlsMutable||!!$('timezoneAutomatic')?.checked}
-async function changeTimezoneMode(){
-markDateTimeDirty();updateTimezoneControls();
-if(!$('timezoneAutomatic').checked)return;
-const select=$('timezoneId');
-try{await populateTimezoneOptions()}catch(_){}
-if(!$('timezoneAutomatic').checked)return;
-const id=browserTimezone();select.value=timezoneCatalog?.includes(id)?id:'';
-if(!select.value)message(__WEBUI_TEXT__("runtime.timezone_detection_unavailable"),'error');
-refreshTimezonePreview();
-}
-
-async function syncTimezone(c){
-if(compatMode||!c||c.timezoneInitialized==null||autoInitPending||!controlsMutable||commandBusy||
-(c.timezoneInitialized&&(!c.timezoneAutomatic||dateTimeDirty)))return;
-const id=browserTimezone();if(!id||c.timezoneId===id)return;
-autoInitPending=true;
-try{await populateTimezoneOptions();
-if(!timezoneCatalog?.includes(id)||!controlsMutable||
-(c.timezoneInitialized&&dateTimeDirty))return;
-await command('/api/v1/config',withBaseRev({timezoneId:id,
-[c.timezoneInitialized?'timezoneDetected':'timezoneAutoInit']:true}),1,'','');
-}
-catch(_){}
-finally{autoInitPending=false}
-}
-function renderShotSpark(h,shot){if(!h)return null;const m=buildShotSparkModel(shot);if(!m){h.replaceChildren();h.hidden=true;return null}h.hidden=false;const W=240,H=36,p=1.5,X=t=>p+(W-2*p)*Math.min(1,t/m.timeMax),xt=fixedChartTicks(m.timeMax,10,'s');function chart(segs,max,step,unit,weight){const Y=v=>H-p-(H-2*p)*Math.max(0,Math.min(1,v/100/max)),yt=fixedChartTicks(max,step,unit);function path(a,c,drip){const d=a.map((q,i)=>(i?'L':'M')+X(q.t).toFixed(1)+' '+Y(q.cg).toFixed(1)).join(' ')+(a.length===1?'h0':'');return(!drip&&a.length>1&&a.some(q=>q.cg>0)?'<path d="'+d+'V'+(H-p)+'H'+X(a[0].t).toFixed(1)+'Z" fill="'+c+'" fill-opacity=".22"/>':'')+'<path class="shotTrace'+(drip?' shotDripTrace':'')+'" d="'+d+'" fill="none" stroke="'+c+'" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round"'+(drip?' stroke-dasharray="3 3" opacity=".55"':'')+'/>'}const grid=xt.map(q=>{const z=X(q[0]).toFixed(1);return'M'+z+' '+p+'V'+(H-p)}).concat(yt.map(q=>{const z=Y(q[0]*100).toFixed(1);return'M'+p+' '+z+'H'+(W-p)})).join(''),labels=yt.slice().reverse().map(q=>'<span class="shotYTick">'+q[1]+'</span>').join('');let svg='<svg class="shotSpark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><path class="shotGrid" d="'+grid+'"/>';if(m.firstDropS>0)svg+=path([{t:0,cg:0},{t:m.firstDropS,cg:0},...(!weight&&m.flowStart?[m.flowStart]:[])],weight?'var(--ok)':'#38bdf8');for(const s of segs)svg+=path(s.pts,s.color);for(const s of weight?m.dripSegs:m.dripFlowSegs)svg+=path(s.pts,s.color,true);return'<div class="shotCurve"><div class="ruleChartLabel">'+(weight?__WEBUI_TEXT__("home.weight_g"):__WEBUI_TEXT__("runtime.flow_rate_g_s"))+(m.truncated?' · Incomplete curve':'')+'</div><div class="shotSparkHost"><div class="shotSparkY'+(weight?'':' shotSparkFlowY')+'">'+labels+'</div>'+svg+'</svg>'+(weight&&(m.firstDropS>0||m.tareS>0||m.finalPoint)?'<div class="shotDropOverlay"></div>':'')+'<div class="ruleChartTicks"></div></div></div>'}h.innerHTML=chart(m.segs,m.maxW,10,__WEBUI_TEXT__("runtime.g"),1)+chart(m.flowSegs,m.flowMax,.5,'g/s');for(const c of h.querySelectorAll('.shotSparkHost')){const y=c.querySelectorAll('.shotYTick'),n=y.length-1,axis=c.querySelector('.shotSparkY');c.style.setProperty('--shot-plot-min',(n*1.1).toFixed(2)+'rem');y.forEach((e,i)=>{e.style.top=i/n*100+'%';e.dataset.p=i===n?80:i===0?70:20;e.dataset.k=e.textContent;e.style.visibility='hidden';});axis.setAttribute('role','img');axis.setAttribute('aria-label',[...y].map(e=>e.textContent).join(', '));watchChartLabels(axis)}for(const t of h.querySelectorAll('.ruleChartTicks'))fillChartTicks(t,xt.map((q,i)=>[...q,i===0?80:i===xt.length-1?70:20,'time-'+q[0]]),m.timeMax,true);for(const [time,tare] of [[m.firstDropS,0],[m.tareS,1]]){if(!(time>0))continue;const d=document.createElement('span'),late=time/m.timeMax>.75;d.className='shotFirstDrop';const icon=tare?'<svg class="shotTareIcon" viewBox="8 14 49 28" aria-hidden="true"><path d="M8 14H46V26A16 16 0 0 1 30 42H24A16 16 0 0 1 8 26ZM18 19V24H24.5V35H29.5V24H36V19ZM46 18h4a7 7 0 0 1 0 14h-5v-4h5a3 3 0 0 0 0-6h-4Z" fill="var(--fg)"/></svg>':'<svg width="15.6" height="20.8" viewBox="0 0 12 16" aria-hidden="true"><path d="M6 0C5 4 1 7 1 10a5 5 0 0 0 10 0C11 7 7 4 6 0Z" fill="#38bdf8"/></svg>',label=time.toFixed(1)+' s',value='<span data-p="'+(tare?40:50)+'" data-k="'+(tare?'tare':'drop')+'" aria-hidden="true" class="chartMeasure">>'+label+'</span>';d.innerHTML=late?value+' '+icon:icon+' '+value;d.style.left=X(time)/W*100+'%';d.style.transform='translateX(calc('+(late?'-100% + ':'0% - ')+(tare?17.0625:7.8)+'px))';const overlay=h.querySelector('.shotDropOverlay');overlay.appendChild(d);watchChartLabels(overlay)}if(m.finalPoint){const d=document.createElement('span');d.className='shotFinalPoint';d.style.left=X(m.finalPoint.t)/W*100+'%';d.style.top=(H-p-(H-2*p)*Math.max(0,Math.min(1,m.finalPoint.cg/100/m.maxW)))/H*100+'%';Object.assign(d.style,{position:'absolute',width:'6px',height:'6px',boxSizing:'border-box',border:'1.35px solid '+m.dripSegs.at(-1).color,borderRadius:'50%',background:'var(--sf)',transform:'translate(-50%,-50%)',pointerEvents:'none'});d.setAttribute('aria-hidden','true');h.querySelector('.shotDropOverlay').appendChild(d)}return m}
-function renderStatsDurChart(){const root=$('statsDurChart');if(!root)return;if(!root.dataset.ready){root.className='ruleChart';root.innerHTML=("<div class=\"ruleChartLegend\" aria-hidden=\"true\"><span class=\"ruleLeg ruleLegFast\">"+__WEBUI_TEXT__("runtime.fast")+"</span><span class=\"ruleLeg ruleLegBbw\">"+__WEBUI_TEXT__("runtime.bbw")+"</span><span class=\"ruleLeg ruleLegSlow\">"+__WEBUI_TEXT__("runtime.slow")+"</span></div><div id=\"statsDurChartPlot\" class=\"shotSparkHost\"></div>");root.dataset.ready='1'}const host=$('statsDurChartPlot');if(!host)return;const BIN=0.5,tMax=6e4/1e3,tLow=28,tHigh=32,bins=Math.round(tMax/BIN),counts=new Array(bins).fill(0);let maxC=0;for(const d of shotStats.durationsS||[]){if(!isFinite(d)||d<0)continue;const i=Math.min(bins-1,Math.floor(d/BIN));counts[i]++;if(counts[i]>maxC)maxC=counts[i]}const scaleC=Math.max(maxC,1),colors={bbw:'var(--ok)',fast:'#d97706',slow:'#6492d7'},kind=t=>t<tLow?'fast':t<=tHigh?'bbw':'slow',L=axisLabel,W=240,H=36,pad=1.5,x=t=>pad+(W-2*pad)*Math.min(1,Math.max(0,t/tMax)),y=c=>H-pad-(H-2*pad)*Math.max(0,Math.min(1,c/scaleC)),y0=H-pad;let svg='<svg class="shotSpark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">';for(const s of[[0,tLow,'fast'],[tLow,tHigh,'bbw'],[tHigh,tMax,'slow']]){const c=colors[s[2]];svg+='<path d="M'+x(s[0]).toFixed(1)+' '+y0+' L'+x(s[1]).toFixed(1)+' '+y0+'" fill="none" stroke="'+c+'" stroke-width="1.35" vector-effect="non-scaling-stroke" stroke-linecap="round"/>'}for(let i=0;i<bins;i++){const c=counts[i];if(!c)continue;const t=(i+.5)*BIN,col=colors[kind(t)],t0=Math.max(0,t-BIN/2),t2=Math.min(tMax,t+BIN/2),open='M'+x(t0).toFixed(1)+' '+y0+' L'+x(t).toFixed(1)+' '+y(c).toFixed(1)+' L'+x(t2).toFixed(1)+' '+y0;svg+='<path d="'+open+' Z" fill="'+col+'" fill-opacity=".22" stroke="none"/><path d="'+open+'" fill="none" stroke="'+col+'" stroke-width="1.35" vector-effect="non-scaling-stroke" stroke-linejoin="miter" stroke-miterlimit="1"/>'}svg+='</svg>';host.innerHTML='<div class="shotSparkY statsDurSparkY">'+maxC+'</div>'+svg+'<div class="ruleChartTicks"></div>';fillChartTicks(host.lastChild,[[0,'0 s'],[tLow,L(tLow,'s')],[tHigh,L(tHigh,'s')],[tMax,L(tMax,'s')]],tMax)}
-function renderShotStats(){const z='—',s=shotStats||{},q=(i,v,c)=>{const e=$('statsAvg'+i);if(e){e.textContent=v;if(c!=null){e.classList.toggle('shotErrHi',c>0);e.classList.toggle('shotErrLo',c<0)}}},f=(v,p,u)=>v==null?z:v.toFixed(p)+u;q(__WEBUI_TEXT__("runtime.dur"),f(s.avgDurationS,1,__WEBUI_TEXT__("runtime.s")));q(__WEBUI_TEXT__("runtime.weight"),f(s.avgYieldG,1,__WEBUI_TEXT__("runtime.g")));q('Daily',s.shotsPerDay==null?z:s.shotsPerDay.toFixed(1));q('Err',f(s.avgErrorPct,1,__WEBUI_TEXT__("runtime.symbol_4")),s.avgErrorPct);q(__WEBUI_TEXT__("runtime.flow"),f(s.avgFlowGps,2,__WEBUI_TEXT__("runtime.g_s")));renderStatsDurChart()}
-function setEmptyState(id,text){const el=$(id);if(!el)return;el.textContent=text||'';el.hidden=!text}
-function renderShots(){renderShotStats();if(!shotsLoaded)return;const body=$('shotRows');if(!body)return;body.replaceChildren();const td=(p,l,v,c)=>{const e=document.createElement('td');if(l)e.dataset.label=l;if(c)e.className=c;e.textContent=v;if(c==='shotDur'||c==='shotActual')e.innerHTML+='<svg class="shotMetricIcon" width="1.85rem" height="1.85rem" fill="currentColor" aria-hidden="true"><use href="#shotMetric'+(c==='shotDur'?'Time':'Weight')+'"/></svg>';p.appendChild(e);return e};const rows=shotHistory.shots.filter(r=>{const y=shotDisplayActualG(r.actualG,r.wCg);return y!=null&&y>=1});if(rows.length){const labels=[__WEBUI_TEXT__("runtime.time"),__WEBUI_TEXT__("runtime.dur"),__WEBUI_TEXT__("runtime.goal"),__WEBUI_TEXT__("runtime.yield"),__WEBUI_TEXT__("runtime.err"),__WEBUI_TEXT__("runtime.avg_flow"),__WEBUI_TEXT__("runtime.max_flow"),__WEBUI_TEXT__("runtime.tare_time"),__WEBUI_TEXT__("runtime.1st_drop"),__WEBUI_TEXT__("runtime.ended"),__WEBUI_TEXT__("runtime.shot"),__WEBUI_TEXT__("runtime.preset"),__WEBUI_TEXT__("runtime.scale")];for(const r of rows){const row=document.createElement('tr');const actual=shotDisplayActualG(r.actualG,r.wCg);const errN=actual===null||!r.goalG?null:(actual-r.goalG)/r.goalG*100;const err=errN===null?'—':errN.toFixed(1)+'%';const flow=shotDisplayFlowGS(r),maxFlow=shotMaxFlowGS(r);const vals=[formatShotTime(r),r.durationS.toFixed(1)+'s',r.goalG+'g',actual===null?'—':actual.toFixed(1)+'g',err,flow===null?'—':flow.toFixed(2)+' g/s',maxFlow===null?'—':maxFlow.toFixed(2)+' g/s'+(r.wTruncated?' (recorded)':''),r.tareS==null?__WEBUI_TEXT__("runtime.none"):r.tareS.toFixed(1)+'s',r.firstDropS===null?'—':r.firstDropS.toFixed(1)+'s',formatShotEnded(r.stopDetail),r.shotType,shotPresetName(r),r.scaleName||__WEBUI_TEXT__("runtime.none")];const cls=['','shotDur','','shotActual',errN>0?'shotErrHi':errN<0?'shotErrLo':'','','','','','','','',''];vals.forEach((v,i)=>td(row,labels[i],v,cls[i]));wrapTimeEl(row.cells[0],r);const rate=document.createElement('td');rate.className='shotRateCell';rate.dataset.label=__WEBUI_TEXT__("runtime.rate");const rateHost=document.createElement('div');rate.appendChild(rateHost);fillStarRate(rateHost,r.rating||0,!controlsMutable,n=>rateHistoryShot(r.id,n));row.appendChild(rate);const spark=document.createElement('td');spark.className='shotSparkCell';renderShotSpark(spark,r);if(spark.hidden)row.classList.add('noSpark');else row.appendChild(spark);const del=document.createElement('td');del.className='shotDel';const btn=document.createElement('button');btn.type='button';btn.className='btnGlyph btnDanger';btn.title=__WEBUI_TEXT__("runtime.delete");btn.setAttribute('aria-label',__WEBUI_TEXT__("runtime.delete"));btn.innerHTML=("<span class=\"g\">"+__WEBUI_TEXT__("runtime.close")+"</span>");btn.onclick=()=>deleteOneShot(r.id);del.appendChild(btn);row.appendChild(del);body.appendChild(row)}}setEmptyState('shotTableState',rows.length?null:__WEBUI_TEXT__("runtime.no_recorded_shots_yet"));updateShotLogSentinel()}
-function updateFirmwareFooter(){const fw=firmwareVersion||'—';const boot=(bootId||shotHistory.bootId)?('#'+(bootId||shotHistory.bootId)):'—';const text=__WEBUI_TEXT__("runtime.firmware")+fw+' · Boot '+boot;const el=$('firmwareFooter');if(el)el.textContent=text;const inactive=$('inactiveFirmware');if(inactive)inactive.textContent=text}
-function clearLogView(){logEvents=[];logMissed=0;const d=$('logDropped'),el=$('log');if(d)d.hidden=true;if(el)el.value=''}
-function resetNetworkAddressLoaded(){networkAddressLoaded=false}
-function syncShotSortButtons(){const d=$('sortDateButton'),r=$('sortRatingButton'),i=$('sortDirButton'),l=shotSort==='date'?(shotSortDir==='desc'?__WEBUI_TEXT__("runtime.newest_first"):__WEBUI_TEXT__("runtime.oldest_first")):(shotSortDir==='desc'?__WEBUI_TEXT__("runtime.highest_rating"):__WEBUI_TEXT__("runtime.lowest_rating"));if(d)d.setAttribute('aria-pressed',shotSort==='date');if(r)r.setAttribute('aria-pressed',shotSort==='rating');if(i){i.setAttribute('aria-label',l);i.title=l;i.textContent=shotSortDir==='desc'?__WEBUI_TEXT__("runtime.down"):__WEBUI_TEXT__("runtime.symbol_5")}}
-function setShotSort(field){if((field==='date'||field==='rating')&&shotSort!==field){shotSort=field;shotSortDir='desc';return toggleShotSortDir(1)}}
-function toggleShotSortDir(keep){if(!keep)shotSortDir=shotSortDir==='desc'?'asc':'desc';syncShotSortButtons();statsSendSubscribe()}
-function updateShotLogSentinel(){const el=$('shotLogSentinel');if(el){el.hidden=!shotHistory.hasMore;el.textContent=shotHistory.hasMore?__WEBUI_TEXT__("runtime.more"):''}}
-function applyShotPage(d,mode){shotsLoaded=true;const a=d.shots,t=d.total;bootId=d.bootId;if(d.stats)shotStats=d.stats;if(mode==='append'&&t){const s={};for(const x of shotHistory.shots)s[x.id]=1;let n=0;for(const x of a)if(!s[x.id]){s[x.id]=1;shotHistory.shots.push(x);n++}shotHistory.total=t;shotHistory.hasMore=!!n&&!!d.hasMore;return}shotHistory={bootId:d.bootId,total:t,hasMore:!!d.hasMore&&!!t,shots:t?a:[]};}
-function shotStatsViewActive(){if(activeView!=='stats'||!webUiPollingActive())return false;const view=$('view-stats');return!!(view&&!view.classList.contains('hidden'))}
-function maybeLoadMoreShots(){if(statsFetchMark||!shotHistory.hasMore||!shotStatsViewActive())return;const el=$('shotLogSentinel');if(!el||el.hidden)return;const r=el.getBoundingClientRect();if(r.bottom>0&&r.top<(innerHeight||0)+240)loadMoreShots()}
-const loadMoreShots=()=>{if(shotHistory.hasMore&&shotStatsViewActive()&&!statsFetchMark&&!statsExportInFlight){statsFetchMark={request:++statsNextRequest,offset:shotHistory.shots.length};sendUiOperation({op:'stats',on:true,fetch:true,request:statsFetchMark.request,offset:statsFetchMark.offset,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir})}}
-function refreshShots(){return shotStatsViewActive()?startStatsStream():Promise.resolve(false)}
-async function exportShotsCsv(){try{const list=await statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',90e3);if(!list)throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));const maxW=list.reduce((m,r)=>Math.max(m,r.wCg?.length||0),0);const rows=[['id','boot_id','local_time','has_wall_time','ended_at_unix','tz_off','duration_s','goal_g','yield_g','error_g','error_pct','offset_g','avg_flow_g_s','first_drop_s','tare_s','ext_guard','ext','slow_guard','slow_ext','stop','max_rec_g','min_bbw_brew_s','early_s','shot_type','cut_type','yield_source','rating','ended_at_ms','bbw_algorithm','bbw_algorithm_version','bbw_alpha','bbw_learning_applied','preset_id','scale_name','max_flow_g_s','curve_truncated','curve_break_before',...Array.from({length:maxW},(_,i)=>['sample_'+(i+1)+'_time_s','sample_'+(i+1)+'_weight_g','sample_'+(i+1)+'_flow_g_s']).flat()]];for(const r of list){const w=Array.isArray(r.wCg)?r.wCg:[],f=shotFlowCurveGS(r),actual=shotDisplayActualG(r.actualG,r.wCg);const errorG=actual===null||r.goalG==null?null:actual-r.goalG;const errorPct=errorG===null||!r.goalG?null:errorG/r.goalG*100;rows.push([r.id,r.bootId,formatShotTimeCsv(r),r.hasWallTime?'1':'0',r.endedAtUnixSec||'',r.hasWallTime?(r.timezoneOffsetMinutesAtCommit??''):'',r.durationS,r.goalG,actual??'',errorG??'',errorPct??'',r.offsetG,shotDisplayFlowGS(r)??'',r.firstDropS??'',r.tareS??'',r.extractionGuardEnabled?'1':'0',r.extractionExtended?'1':'0',r.slowExtractionGuardEnabled?'1':'0',r.slowExtractionExtended?'1':'0',r.stopDetail??'',r.maxRecoveryWeightG??'',r.minBbwBrewTimeS??'',r.targetReachedEarlyS??'',r.shotType,r.cutType,r.actualWeightSource??'',r.rating??0,r.endedAtMs,r.bbwAlgorithm??'',r.bbwAlgorithmVersion??'',r.bbwAlpha==null?'':Number(r.bbwAlpha).toFixed(2),r.bbwLearningApplied==null?'':r.bbwLearningApplied?'1':'0',r.presetId||'',r.scaleName||'',shotMaxFlowGS(r)??'',r.wTruncated?'1':'0',(r.wBreakBefore||[]).join(';'),...Array.from({length:maxW},(_,i)=>i<w.length?[r.wAtMs?.[i]==null?'':r.wAtMs[i]/1000,w[i]/100,f[i]==null?'':f[i].toFixed(2)]:['','','']).flat()])}const csv=rows.map(c=>c.map(v=>{const s=String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}).join(',')).join('\n');const blob=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='shot-history.csv';a.click();URL.revokeObjectURL(a.href)}catch(e){message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_export_shot_history"),e),'error')}}
-
-const historyTypeLabel=t=>({shot:__WEBUI_TEXT__("runtime.type_shot"),rinse:__WEBUI_TEXT__("runtime.type_rinse"),other:__WEBUI_TEXT__("runtime.type_other"),backflush:__WEBUI_TEXT__("runtime.type_backflush"),power_on:'Power ON',no_scale_guard_aborted:__WEBUI_TEXT__("runtime.type_no_scale_guard_aborted")}[t])
-const HIST_TYPE_SVG={rinse:'<svg viewBox="0 0 60 60"><path d="M34.1,45.5a6.3,6.3,0,0,1-4.9,1.5,6,6,0,0,1-4.9-3.9c-.88-2.5.354-4.9,2.2-8.4a58.1,58.1,0,0,0,3.5-7.6,56.3,56.3,0,0,0,3.5,7.6c1.4,2.7,2.5,4.8,2.5,6.7A5.5,5.5,0,0,1,34.1,45.5Z"/><path d="M3.8,35.4A44.9,44.9,0,0,0,6,30.5,45,45,0,0,0,8.2,35.4C9.2,37.3,10,38.8,10,40.2a3.7,3.7,0,0,1-1.3,2.8,4.1,4.1,0,0,1-3.2.98A4,4,0,0,1,2.2,41.3C1.6,39.6,2.5,37.9,3.8,35.4Z"/><path d="M14.8,49.4A44.9,44.9,0,0,0,17,44.5a45,45,0,0,0,2.2,4.8C20.2,51.3,21,52.8,21,54.2a3.7,3.7,0,0,1-1.3,2.8,4.1,4.1,0,0,1-3.2.98,4,4,0,0,1-3.3-2.7C12.6,53.6,13.5,51.9,14.8,49.4Z"/><path d="M57.8,41.3a4,4,0,0,1-3.3,2.7,4.1,4.1,0,0,1-3.2-.98A3.7,3.7,0,0,1,50,40.2c0-1.4.778-2.9,1.8-4.8A44.9,44.9,0,0,0,54,30.5a44.9,44.9,0,0,0,2.2,4.8C57.5,37.9,58.4,39.6,57.8,41.3Z"/><path d="M46.8,55.3a4,4,0,0,1-3.3,2.7,4.1,4.1,0,0,1-3.2-.98A3.7,3.7,0,0,1,39,54.2c0-1.4.778-2.9,1.8-4.8A44.9,44.9,0,0,0,43,44.5a44.9,44.9,0,0,0,2.2,4.8C46.5,51.9,47.4,53.6,46.8,55.3Z"/><path d="M32.7,15a4.1,4.1,0,0,1-3.2.98,4,4,0,0,1-3.3-2.7c-.593-1.7.268-3.4,1.6-5.9A44.9,44.9,0,0,0,30,2.5,45,45,0,0,0,32.2,7.4C33.2,9.3,34,10.8,34,12.2A3.7,3.7,0,0,1,32.7,15Z"/><path d="M4.1,8.5A50.4,50.4,0,0,0,7,2.3,50.4,50.4,0,0,0,9.9,8.5C11.1,10.8,12,12.6,12,14.2a4.6,4.6,0,0,1-1.6,3.5,5.2,5.2,0,0,1-4.1,1.2A5,5,0,0,1,2.2,15.7C1.5,13.5,2.6,11.5,4.1,8.5Z"/><path d="M48.2,15.7c-.736-2.1.311-4.2,1.9-7.2A50.4,50.4,0,0,0,53,2.3a50.4,50.4,0,0,0,2.9,6.2C57.1,10.8,58,12.6,58,14.2a4.6,4.6,0,0,1-1.6,3.5,5.2,5.2,0,0,1-4.1,1.2A5,5,0,0,1,48.2,15.7Z"/><path d="M15.8,22.4A44.9,44.9,0,0,0,18,17.5a45,45,0,0,0,2.2,4.8C21.2,24.3,22,25.8,22,27.2a3.7,3.7,0,0,1-1.3,2.8,4.1,4.1,0,0,1-3.2.98,4,4,0,0,1-3.3-2.7C13.6,26.6,14.5,24.9,15.8,22.4Z"/><path d="M45.8,28.3a4,4,0,0,1-3.3,2.7,4.1,4.1,0,0,1-3.2-.98A3.7,3.7,0,0,1,38,27.2c0-1.4.778-2.9,1.8-4.8A44.9,44.9,0,0,0,42,17.5a44.9,44.9,0,0,0,2.2,4.8C45.5,24.9,46.4,26.6,45.8,28.3Z"/></svg>',shot:'<svg viewBox="0 0 512 512"><path d="M416.3,314.7v-79.6c0,-8.3,-6.8,-15.1,-15.1,-15.1H16.2c-8.3,0,-15.1,6.8,-15.1,15.1v79.6c0,70.3,38.9,132.2,97.4,167.1H16.3c-8.3,0,-15.1,6.8,-15.1,15.1c0,8.3,6.8,15.1,15.1,15.1h385c8.3,0,15.1,-6.8,15.1,-15.1c0,-8.3,-6.8,-15.1,-15.1,-15.1h-82.3C377.4,446.9,416.3,385,416.3,314.7z"/><path d="M446.5,247.2v30.8c19.7,5.4,34.2,23.5,34.2,44.8c0,23.8,-18,43.5,-41.1,46.2c-2.7,10.5,-6.1,20.7,-10.3,30.5h4.8c42.3,0,76.7,-34.4,76.7,-76.7C510.8,284.7,482.9,253.1,446.5,247.2z"/><path d="M313.9,98.7c19.7,-15.9,24.1,-32.9,24.4,-44.4c0.7,-27.9,-21.4,-48.3,-23.9,-50.5c-6.2,-5.5,-15.8,-5,-21.3,1.2c-5.5,6.2,-5,15.8,1.2,21.3c0.1,0.1,14.1,13.2,13.8,27.3c-0.2,7.5,-4.5,14.6,-13.2,21.6c-19.7,15.9,-24.1,32.9,-24.4,44.4c-0.7,27.9,21.4,48.3,23.9,50.5c2.9,2.6,6.5,3.8,10.1,3.8c4.2,0,8.3,-1.7,11.3,-5c5.5,-6.2,5,-15.7,-1.2,-21.3c-4,-3.6,-14.2,-15.5,-13.8,-27.4C300.9,112.7,305.3,105.7,313.9,98.7z"/><path d="M218.2,98.7c19.7,-15.9,24.1,-32.9,24.4,-44.4c0.7,-27.9,-21.4,-48.3,-23.9,-50.5c-6.2,-5.5,-15.8,-5,-21.3,1.2c-5.5,6.2,-5,15.8,1.2,21.3c0.1,0.1,14.1,13.2,13.8,27.3c-0.2,7.5,-4.5,14.6,-13.2,21.6c-19.7,15.9,-24.1,32.9,-24.4,44.4c-0.7,27.9,21.4,48.3,23.9,50.5c2.9,2.6,6.5,3.8,10.1,3.8c4.2,0,8.3,-1.7,11.3,-5c5.5,-6.2,5,-15.7,-1.2,-21.3c-4,-3.6,-14.2,-15.5,-13.8,-27.4C205.2,112.7,209.6,105.7,218.2,98.7z"/><path d="M122.5,98.7c19.7,-15.9,24.1,-32.9,24.4,-44.4c0.7,-27.9,-21.4,-48.3,-23.9,-50.5c-6.2,-5.5,-15.8,-5,-21.3,1.2c-5.5,6.2,-5,15.8,1.2,21.3c0.1,0.1,14.1,13.2,13.8,27.3c-0.2,7.5,-4.5,14.6,-13.2,21.6c-19.7,15.9,-24.1,32.9,-24.4,44.4c-0.7,27.9,21.4,48.3,23.9,50.5c2.9,2.6,6.5,3.8,10,3.8c4.2,0,8.3,-1.7,11.3,-5.1c5.5,-6.2,5,-15.8,-1.2,-21.3c-0.1,-0.1,-14.1,-13.2,-13.8,-27.3C109.5,112.8,113.8,105.7,122.5,98.7z"/></svg>',other:'<svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>'};
-HIST_TYPE_SVG.power_on='⏻'
-HIST_TYPE_SVG.backflush='<svg viewBox="0 0 256 256"><use href="#hBF"/></svg>'
-HIST_TYPE_SVG.no_scale_guard_aborted='<svg><use href="#hNS"/></svg>'
-const formatHistoryTime=r=>r.hasWallTime&&r.endedAtLocalSec?formatHumanTime(r.endedAtLocalSec):__WEBUI_TEXT__("history.no_time")
-const syncHistoryDirButton=()=>{const i=$('historyDirButton');if(!i)return;const l=historyDir==='desc'?__WEBUI_TEXT__("runtime.newest_first"):__WEBUI_TEXT__("runtime.oldest_first");i.setAttribute('aria-label',l);i.title=l;i.textContent=historyDir==='desc'?__WEBUI_TEXT__("runtime.down"):__WEBUI_TEXT__("runtime.symbol_5")}
-const toggleHistoryDir=()=>{historyDir=historyDir==='desc'?'asc':'desc';syncHistoryDirButton();historySendSubscribe()}
-const updateHistorySentinel=()=>{const el=$('historySentinel');if(el){el.hidden=!historyData.hasMore;el.textContent=historyData.hasMore?__WEBUI_TEXT__("runtime.more"):''}}
-function applyHistoryPage(d,mode){historyLoaded=true;const a=d.history,t=d.total;bootId=d.bootId;if(mode==='append'&&t){const s={};for(const x of historyData.records)s[x.id]=1;let n=0;for(const x of a)if(!s[x.id]){s[x.id]=1;historyData.records.push(x);n++}historyData.total=t;historyData.hasMore=!!n&&!!d.hasMore;return}historyData={bootId:d.bootId,total:t,hasMore:!!d.hasMore&&!!t,records:t?a:[]};}
-const historyViewActive=()=>activeView==='history'&&webUiPollingActive()
-function maybeLoadMoreHistory(){if(historyFetchOffset>=0||!historyData.hasMore||!historyViewActive())return;const el=$('historySentinel');if(!el||el.hidden)return;const r=el.getBoundingClientRect();r.bottom>0&&r.top<innerHeight+240&&loadMoreHistory()}
-function renderHistory(){const body=$('historyRows');if(!body||!historyLoaded)return;body.replaceChildren();const rows=historyData.records;if(rows.length)for(const r of rows){const row=document.createElement('tr');const time=document.createElement('td');time.dataset.label=__WEBUI_TEXT__("runtime.time");time.className='histTime';time.textContent=formatHistoryTime(r);wrapTimeEl(time,r);const dur=document.createElement('td');dur.dataset.label=__WEBUI_TEXT__("runtime.dur");dur.className='shotDur';dur.textContent=(typeof r.durationS==='number'?r.durationS:0).toFixed(1)+'s';const type=document.createElement('td');type.dataset.label=__WEBUI_TEXT__("runtime.type");type.className='histType';const badge=document.createElement('span');badge.className='histBadge';badge.textContent=historyTypeLabel(r.type);type.appendChild(badge);const del=document.createElement('td');del.className='shotDel';const btn=document.createElement('button');btn.type='button';btn.className='btnGlyph btnDanger';btn.title=__WEBUI_TEXT__("runtime.delete");btn.setAttribute('aria-label',__WEBUI_TEXT__("runtime.delete"));btn.innerHTML=('<span class="g">'+__WEBUI_TEXT__("runtime.close")+'</span>');btn.onclick=()=>deleteOneHistory(r.id);del.appendChild(btn);const typeSvg=HIST_TYPE_SVG[r.type];if(typeSvg){const icon=document.createElement('td');icon.className='histIcon';icon.setAttribute('aria-hidden','true');icon.innerHTML=typeSvg;row.appendChild(icon)}row.append(time,dur,type,del);body.appendChild(row)}setEmptyState('historyTableState',rows.length?null:__WEBUI_TEXT__("runtime.no_recorded_activations_yet"));updateHistorySentinel()}
-const loadMoreHistory=()=>{if(historyData.hasMore&&historyViewActive()&&historyFetchOffset<0){historyFetchOffset=historyData.records.length;historyFetchRequest=++historyNextRequest;sendUiOperation({op:'history',on:true,fetch:true,request:historyFetchRequest,offset:historyFetchOffset})}}
-const refreshHistory=()=>historyViewActive()?startHistoryStream():Promise.resolve(false)
-async function clearActivationHistory(){if(!confirm(__WEBUI_TEXT__("runtime.clear_all_recorded_activation_history_this")))return;return withCommandGate(async()=>{try{await api('/api/v1/history/clear',{method:'POST',body:body({confirm:'CLEAR_HISTORY'})});historyData={bootId:historyData.bootId||0,total:0,hasMore:false,records:[]};renderHistory();message(__WEBUI_TEXT__("runtime.activation_history_cleared"),'ok')}catch(e){message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_clear_history"),e),'error')}})}
-async function deleteOneHistory(id){if(!id||!confirm(__WEBUI_TEXT__("runtime.delete_this_history_record")))return;return withCommandGate(async()=>{try{await api('/api/v1/history/delete',{method:'POST',body:body({id})});historyData.records=historyData.records.filter(r=>r.id!==id);if(typeof historyData.total==='number'&&historyData.total>0)historyData.total--;historyData.hasMore=historyData.records.length<historyData.total;renderHistory();message(__WEBUI_TEXT__("runtime.history_record_deleted"),'ok')}catch(e){message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_delete_history_record"),e),'error')}})}
-
-function ntpStateLabel(t){if(!t)return__WEBUI_TEXT__("runtime.not_available");return{SYNCED:__WEBUI_TEXT__("runtime.synced"),STALE:__WEBUI_TEXT__("runtime.stale"),SYNCING:__WEBUI_TEXT__("runtime.syncing"),FAILED:__WEBUI_TEXT__("runtime.failed"),OFF:__WEBUI_TEXT__("runtime.not_synced_2")}[t.state]||__WEBUI_TEXT__("runtime.waiting_for_network")}
-
-function scaleDisplayName(sc){const fr=(sc&&sc.preferredFriendlyName&&String(sc.preferredFriendlyName).trim())||'';if(fr)return fr;return((sc&&sc.preferredName&&String(sc.preferredName).trim())||'')}
-let scaleRename={mac:'',current:''};
-function updateScaleRenameUi(wrapId,mac,current){const w=$(wrapId);if(!w)return;scaleRename={mac,current};w.classList.toggle('hidden',!mac);const a=w.querySelector('a');if(a){const dis=!mac||!controlsMutable;a.classList.toggle('fieldOff',dis);a.setAttribute('aria-disabled',dis?'true':'false')}}
-function validScaleFriendlyNameClient(v){const t=String(v||'').trim();if(!t||t.length>30)return false;if(t[0]===' '||t[0]==='-'||t[t.length-1]===' '||t[t.length-1]==='-')return false;return/^[A-Za-z0-9 -]+$/.test(t)}
-async function renameScale(){if(!scaleRename.mac)return;const raw=prompt(__WEBUI_TEXT__("runtime.scale_rename_prompt"),scaleRename.current);if(raw===null)return;const name=String(raw).trim();if(name&&!validScaleFriendlyNameClient(name)){message(__WEBUI_TEXT__("runtime.scale_rename_invalid"),'error');return}return command('/api/v1/scale/friendly-name',{mac:scaleRename.mac,name},false,__WEBUI_TEXT__("runtime.scale_rename_saved"),__WEBUI_TEXT__("runtime.scale_rename_failed"))}
-function formatPreferredScale(s){const pauseMs=(s.scale&&s.scale.macCachePauseRemainingMs)||0;if(pauseMs>0)return__WEBUI_TEXT__("runtime.waiting")+Math.ceil(pauseMs/1000)+__WEBUI_TEXT__("runtime.s_before_looking_for_a_scale");const name=scaleDisplayName(s.scale);if(name)return name;if((s.scale&&s.scale.preferredMac)||'')return__WEBUI_TEXT__("runtime.unknown_2");const mode=s.config&&s.config.scaleMacCacheMode;return mode==='only'||mode==='prefer'?__WEBUI_TEXT__("runtime.first_detected"):__WEBUI_TEXT__("runtime.none")}
-function scaleHistoryLabel(e){const m=(e&&e.mac)||'';if(!m)return'';return((e.friendlyName&&String(e.friendlyName).trim())||(e.name&&String(e.name).trim())||__WEBUI_TEXT__("runtime.unknown_2"))+__WEBUI_TEXT__("runtime.unknown_3")+m}function updatePreferredScaleSelect(s){const sel=$('preferredScaleSelect'),hint=$('preferredScalePauseHint');if(!sel)return;preferredScaleSelectSyncing=true;const pauseMs=(s.scale&&s.scale.macCachePauseRemainingMs)||0;if(hint)hint.textContent=pauseMs>0?(__WEBUI_TEXT__("runtime.waiting")+Math.ceil(pauseMs/1000)+__WEBUI_TEXT__("runtime.s_before_looking_for_a_scale")):'';sel.disabled=!controlsMutable;const history=(s.scale&&Array.isArray(s.scale.history))?s.scale.history:[],preferred=(s.scale&&s.scale.preferredMac)||'',prev=sel.value,keep=sel.dataset.pending==='1',draft=sel.selectedOptions&&sel.selectedOptions[0];sel.innerHTML='';if(!preferred||(keep&&!prev)){const first=document.createElement('option'),mode=s.config&&s.config.scaleMacCacheMode;first.value='';first.textContent=mode==='only'||mode==='prefer'?__WEBUI_TEXT__("runtime.first_detected"):__WEBUI_TEXT__("runtime.no_preferred");sel.appendChild(first)}const seen={};history.forEach(e=>{const mac=e&&e.mac;if(!mac||seen[mac])return;seen[mac]=1;const o=document.createElement('option');o.value=mac;o.dataset.name=(e.name&&String(e.name).trim())||'';o.textContent=scaleHistoryLabel(e);sel.appendChild(o)});if(preferred&&!seen[preferred]){const o=document.createElement('option');o.value=preferred;o.dataset.name=(s.scale&&s.scale.preferredName&&String(s.scale.preferredName).trim())||'';o.textContent=((s.scale&&s.scale.preferredName&&String(s.scale.preferredName).trim())||__WEBUI_TEXT__("runtime.unknown_2"))+__WEBUI_TEXT__("runtime.unknown_3")+preferred;sel.appendChild(o)}if(keep&&prev&&!seen[prev]&&prev!==preferred&&draft){const o=document.createElement('option');o.value=prev;o.dataset.name=draft.dataset.name||'';o.textContent=draft.textContent;sel.appendChild(o)}sel.value=keep?prev:(preferred||'');updateScalePreferenceOptions();sel.dataset.applied=preferred;const opt=sel.selectedOptions&&sel.selectedOptions[0];updateScaleRenameUi('preferredScaleRenameWrap',sel.value||'',opt&&opt.dataset?String(opt.dataset.name||''):'');preferredScaleSelectSyncing=false}function formatScaleWeight(s){if(!s.scale)return__WEBUI_TEXT__("runtime.unknown");const w=typeof s.scale.observedWeightG==='number'?s.scale.observedWeightG:typeof s.scale.currentWeightG==='number'?s.scale.currentWeightG:null;return w===null?__WEBUI_TEXT__("runtime.unknown"):w.toFixed(1)+__WEBUI_TEXT__("runtime.g_2")}
-function formatScaleStatus(s){const sc=s.scale||{};return sc.available?{STALE:__WEBUI_TEXT__("runtime.stale"),NO_SAMPLE:__WEBUI_TEXT__("runtime.no_sample"),OVERLOAD:__WEBUI_TEXT__("runtime.overload"),ANOMALOUS:__WEBUI_TEXT__("runtime.anomalous")}[sc.streamState]||__WEBUI_TEXT__("runtime.connected"):__WEBUI_TEXT__("runtime.disconnected")}
-function formatMachineState(s){return{CONFIRMED_OFF:__WEBUI_TEXT__("runtime.idle"),ASSUMED_ON:__WEBUI_TEXT__("runtime.assumed_on"),CONFIRMED_ON:__WEBUI_TEXT__("runtime.confirmed_on"),ASSUMED_OFF:__WEBUI_TEXT__("runtime.assumed_off"),UNKNOWN:__WEBUI_TEXT__("runtime.unknown_4")}[s.machineState]||__WEBUI_TEXT__("runtime.unknown_4")}
-function clearCupWeights(){['cupWeight','dCupWeight','idleTareStatus'].forEach(id=>{const el=$(id);if(el)el.textContent=__WEBUI_TEXT__("runtime.unknown")})}
-function formatCupWeight(s){const c=s.cupPresence||{},sc=s.scale||{};return sc.available&&sc.streamState==='FRESH'&&c.present===true&&c.weightValid===true&&typeof c.weightG==='number'&&Number.isFinite(c.weightG)?__WEBUI_TEXT__("runtime.symbol_6")+c.weightG.toFixed(1)+__WEBUI_TEXT__("runtime.g_2"):__WEBUI_TEXT__("runtime.unknown")}
-function formatCupState(s){if(!s.scale?.available)return __WEBUI_TEXT__("runtime.unknown_4");const c=s.cupPresence||{};return c.state==='PRESENT'||c.present?__WEBUI_TEXT__("runtime.present"):__WEBUI_TEXT__("runtime.absent")}
-function formatIdleTare(s){const t=(s.cupPresence||{}).idleTare,sc=s.scale||{};
-if(!t)return __WEBUI_TEXT__("runtime.unknown");
-if(t==='disabled')return __WEBUI_TEXT__("runtime.off_2");
-if(!sc.available||sc.streamState!=='FRESH')return formatScaleStatus(s);
-return{pending:__WEBUI_TEXT__("runtime.idle_tare_pending"),machine_not_off:__WEBUI_TEXT__("runtime.idle_tare_machine_off"),uncertain:__WEBUI_TEXT__("runtime.idle_tare_reference"),retry:__WEBUI_TEXT__("runtime.idle_tare_retry"),tared:__WEBUI_TEXT__("runtime.idle_tare_tared"),remove:__WEBUI_TEXT__("runtime.idle_tare_remove"),ready:__WEBUI_TEXT__("runtime.idle_tare_ready"),empty:__WEBUI_TEXT__("runtime.idle_tare_empty")}[t]||__WEBUI_TEXT__("runtime.idle_tare_unavailable")}
-function formatScaleTimer(s){if(!s.scale||typeof s.scale.timerMs!=='number')return__WEBUI_TEXT__("runtime.unknown");const totalTenths=Math.floor(Math.max(0,s.scale.timerMs)/100);return Math.floor(totalTenths/600)+__WEBUI_TEXT__("runtime.symbol")+pad2(Math.floor(totalTenths/10)%60)+'.'+(totalTenths%10)}
-const RR='?|Pwr|Ext|SW|Panic|IWDT|TWDT|WDT|Sleep|Brn|SDIO|USB|JTAG|eFuse|Glitch|Lock'.split('|');
-export function formatUptime(ms){let x=~~(ms/1e3),p=[],d=~~(x/86400);x%=86400;const h=~~(x/3600);x%=3600;const m=~~(x/60);if(d)p.push(d+'d');if(d||h)p.push(h+'h');if(d||h||m)p.push(m+'m');p.push(x%60+'s');return p.join(__WEBUI_TEXT__("runtime.symbol_3"))}
-function updH(h,s){function b(n,k=false){return !Number.isFinite(n)||n<0?'—':k?(n/1024).toFixed(1)+' KB':n>=1048576?(n/1048576).toFixed(1)+'M':n>=1024?Math.round(n/1024)+'K':n+'b'}const kb=n=>b(n,true);const t=(i,v)=>$(i).textContent=v||__WEBUI_TEXT__("runtime.unknown");const cpu=['hCpu5s','hCpu1m','hCpu5m','hCpuMhz','hTemp','hTPeak','hRamT','hRamU','hRamF'];if(!h){cpu.concat(['hHeapMin','hHeapLargest','hPsramT','hPsramF','hPsramL','hUptime','hResetReason']).forEach(i=>t(i,__WEBUI_TEXT__("runtime.unknown")));return}t('hUptime',typeof h.uptimeMs==='number'&&h.uptimeMs>=0?formatUptime(h.uptimeMs):__WEBUI_TEXT__("runtime.unknown"));t('hResetReason',s?RR[s.resetReasonCode]||__WEBUI_TEXT__("runtime.symbol_7"):'');t('hHeapMin',kb(h.minimumFreeHeapBytes));t('hHeapLargest',kb(h.largestFreeHeapBlockBytes)+(h.heap?' · '+h.heap:''));t('hPsramT',b(h.psramSizeBytes));t('hPsramF',b(h.psramFreeBytes));t('hPsramL',kb(h.psramLargestFreeBlockBytes));const w=h.hwmon;if(!w){cpu.forEach(i=>t(i,__WEBUI_TEXT__("runtime.unknown")));return}const load=v=>w.cpuLoadValid&&typeof v==='number'?v.toFixed(2):'';const split=(t,a,b)=>{t=load(t);return t&&typeof a==='number'&&typeof b==='number'?t+' ('+a.toFixed(2)+' + '+b.toFixed(2)+')':t};t('hCpu5s',split(w.cpuLoad5s,w.cpu0Busy,w.cpu1Busy));t('hCpu1m',load(w.cpuLoad1m));t('hCpu5m',load(w.cpuLoad5m));t('hCpuMhz',typeof w.cpuMhz==='number'&&w.cpuMhz>0?w.cpuMhz+__WEBUI_TEXT__("runtime.mhz"):__WEBUI_TEXT__("runtime.unknown"));t('hTemp',w.tempValid?w.tempC.toFixed(1)+__WEBUI_TEXT__("runtime.c"):'');t('hTPeak',w.tempValid?w.tempPeakC.toFixed(1)+__WEBUI_TEXT__("runtime.c"):'');t('hRamT',b(w.ramTotalBytes));t('hRamU',b(w.ramUsedBytes));t('hRamF',b(w.ramFreeBytes))}
-function clearFieldErrors(){document.querySelectorAll('.invalid').forEach(e=>e.classList.remove('invalid'));document.querySelectorAll('.fieldError').forEach(e=>e.remove())}
-function showFieldError(id,msg){clearFieldErrors();const el=$(id);if(el){el.classList.add('invalid');const s=document.createElement('small');s.className='fieldError';s.textContent=msg;(el.closest('label')||el.parentElement).appendChild(s);let d=el.closest('details');while(d){d.open=true;d=d.parentElement&&d.parentElement.closest('details')}try{el.focus({preventScroll:true})}catch(_){}el.scrollIntoView({block:'center'})}message(msg,'error')}
-function clearMessage(){clearTimeout(messageTimer);messageTimer=0;const e=$('message');if(!e)return;const t=$('messageText');if(t)t.textContent='';e.className='';e.hidden=true}
-function message(text,kind=''){if(kind==='error')hideHomeBoot();clearTimeout(messageTimer);messageTimer=0;const e=$('message');if(!e)return;const t=$('messageText');if(t)t.textContent=text;else e.textContent=text;e.className=kind;e.hidden=!text;e.setAttribute('role',kind==='error'?'alert':'status');e.setAttribute('aria-live',kind==='error'?'assertive':'polite');if(kind==='error')e.scrollIntoView({block:'nearest'});if(!text)return;const ms=kind==='ok'?5e3:kind==='warn'&&!e.querySelector('button:not(#messageClose)')?15e3:0;if(ms)messageTimer=setTimeout(clearMessage,ms)}
-function formatCommandError(fail,e){const detail=e&&e.message?String(e.message):'';if(!fail)return detail||__WEBUI_TEXT__("runtime.request_failed");if(!detail||fail.indexOf(detail)>=0)return fail;return fail+__WEBUI_TEXT__("runtime.symbol_3")+detail}
-function toggleOk(label,on){return label+(on?' enabled.':' disabled.')}
-function toggleFail(label,on){return __WEBUI_TEXT__("runtime.could_not")+(on?'enable ':'disable ')+label+'.'}
-function cn(s){return __WEBUI_TEXT__("runtime.could_not")+s+'.'}
-function commandOkMessage(path,v){return commandMessages(path,v)[0]}
-function commandFailMessage(path,v){return commandMessages(path,v)[1]}
-function commandMessages(path,v){v=v||{};const hit={'control/rinse':[__WEBUI_TEXT__("runtime.rinse_started"),__WEBUI_TEXT__("runtime.start_rinse")],'control/stop':[__WEBUI_TEXT__("runtime.shot_stopped"),__WEBUI_TEXT__("runtime.stop_shot")],'control/paddle':[__WEBUI_TEXT__("runtime.shot_started"),__WEBUI_TEXT__("runtime.start_shot")],'control/force-pulse':[__WEBUI_TEXT__("runtime.switch_pulse_sent"),__WEBUI_TEXT__("runtime.send_switch_pulse")],'control/restart':[__WEBUI_TEXT__("runtime.restart_after_the_shot"),__WEBUI_TEXT__("runtime.restart_the_controller")],'time/sync':[__WEBUI_TEXT__("runtime.time_sync_started"),__WEBUI_TEXT__("runtime.sync_time")],'last-shot/clear':[__WEBUI_TEXT__("runtime.last_shot_cleared"),__WEBUI_TEXT__("runtime.clear_last_shot")],'scale/preferred/clear':[__WEBUI_TEXT__("runtime.preferred_scale_cleared"),__WEBUI_TEXT__("runtime.clear_preferred_scale")],'calibration/reset':[__WEBUI_TEXT__("runtime.learned_stop_offset_reset"),__WEBUI_TEXT__("runtime.reset_learned_stop_offset")],'calibration/reset-guard-samples':[__WEBUI_TEXT__("runtime.a_to_m_samples_reset"),__WEBUI_TEXT__("runtime.reset_a_to_m_samples")],'diagnostic/reset-history':[__WEBUI_TEXT__("runtime.reset_history_cleared"),__WEBUI_TEXT__("runtime.clear_reset_history")],'factory-reset':[__WEBUI_TEXT__("runtime.factory_reset_started"),__WEBUI_TEXT__("runtime.could_not_restore_factory_settings_check_diagnostic")],'device/password':[__WEBUI_TEXT__("runtime.device_password_changed"),__WEBUI_TEXT__("runtime.change_device_password")]}[path.slice(8)];if(path.slice(8)==='control/state-override')return v.state==='on'?[__WEBUI_TEXT__("runtime.inferred_brewing"),cn(__WEBUI_TEXT__("runtime.set_brewing"))]:[__WEBUI_TEXT__("runtime.inferred_idle"),cn(__WEBUI_TEXT__("runtime.set_idle"))];if(hit)return[hit[0],cn(hit[1])];if(path.endsWith('/diagnostic/profiler'))return v.enabled?[__WEBUI_TEXT__("runtime.task_profiler_started"),cn(__WEBUI_TEXT__("runtime.start_the_task_profiler"))]:[__WEBUI_TEXT__("runtime.task_profiler_stopped"),cn(__WEBUI_TEXT__("runtime.stop_the_task_profiler"))];if(path.endsWith('/diagnostic/scale-profile')){const m={start:[__WEBUI_TEXT__("runtime.scale_profile_started"),cn(__WEBUI_TEXT__("runtime.start_the_scale_profile"))],stop:[__WEBUI_TEXT__("runtime.scale_profile_stopped"),cn(__WEBUI_TEXT__("runtime.stop_the_scale_profile"))],delete:[__WEBUI_TEXT__("runtime.scale_profile_deleted"),cn(__WEBUI_TEXT__("runtime.delete_the_scale_profile"))]};const x=m[v.action];if(x)return x}if(path.endsWith('/network'))return v.action==='forget'?[__WEBUI_TEXT__("runtime.wi_fi_forgotten_restarting"),cn(__WEBUI_TEXT__("runtime.forget_wi_fi"))]:[__WEBUI_TEXT__("runtime.wi_fi_settings_saved_restarting"),cn(__WEBUI_TEXT__("runtime.save_wi_fi_settings"))];if(path.endsWith('/select'))return v.mac?[__WEBUI_TEXT__("runtime.preferred_scale_selected"),cn(__WEBUI_TEXT__("runtime.select_preferred_scale"))]:[__WEBUI_TEXT__("runtime.preferred_scale_cleared"),cn(__WEBUI_TEXT__("runtime.clear_preferred_scale"))];if(path.endsWith('/presets')){const x={save:[__WEBUI_TEXT__("runtime.brew_settings_saved"),__WEBUI_TEXT__("runtime.save_brew_settings")],apply:[__WEBUI_TEXT__("runtime.preset_applied"),__WEBUI_TEXT__("runtime.apply_preset")],new:[__WEBUI_TEXT__("runtime.preset_created"),__WEBUI_TEXT__("runtime.create_preset")],duplicate:[__WEBUI_TEXT__("runtime.preset_duplicated"),__WEBUI_TEXT__("runtime.duplicate_preset")],rename:[__WEBUI_TEXT__("runtime.preset_renamed"),__WEBUI_TEXT__("runtime.rename_preset")],delete:[__WEBUI_TEXT__("runtime.preset_deleted"),__WEBUI_TEXT__("runtime.delete_preset")],restore_factory_values:[__WEBUI_TEXT__("runtime.factory_preset_reset"),__WEBUI_TEXT__("runtime.reset_factory_preset")]}[v.action];if(x)return[x[0],cn(x[1])]}if(path.endsWith('/config')){const keys=Object.keys(v).filter(k=>k!=='baseRevision');if(keys[0]==='serialDebugOutput'&&keys.length===1)return[toggleOk(__WEBUI_TEXT__("runtime.serial_debug_output"),v.serialDebugOutput),toggleFail(__WEBUI_TEXT__("runtime.serial_debug_output"),v.serialDebugOutput)];if(keys[0]==='ringRetainLogLevel'&&keys.length===1)return[__WEBUI_TEXT__("runtime.log_retain_level_saved"),cn(__WEBUI_TEXT__("runtime.save_log_retain_level"))];const home={brewByWeight:__WEBUI_TEXT__("runtime.brew_by_weight")};if(keys.length&&keys.every(k=>home[k]))return[keys.map(k=>toggleOk(home[k],v[k])).join(__WEBUI_TEXT__("runtime.symbol_3")),keys.length===1?toggleFail(home[keys[0]],v[keys[0]]):__WEBUI_TEXT__("runtime.could_not_update_quick_settings")];if((v.timezoneId!=null||v.ntpServerPreset!=null||v.ntpServerCustom!=null)&&v.rinseGestureMs==null)return[__WEBUI_TEXT__("runtime.date_and_time_settings_saved"),cn(__WEBUI_TEXT__("runtime.save_date_and_time_settings"))];return[__WEBUI_TEXT__("runtime.machine_settings_saved"),cn(__WEBUI_TEXT__("runtime.save_machine_settings"))]}return[__WEBUI_TEXT__("runtime.done"),cn(__WEBUI_TEXT__("runtime.complete_the_request"))]}
-{const b=$('messageClose');if(b)b.onclick=clearMessage}
-{const r=$('webUiReload');if(r)r.onclick=()=>claimWebUiOwnership()}
-function setInactiveError(text){const el=$('inactiveError');if(!el)return;el.textContent=text||'';el.hidden=!text}
-function setOverlayReconnectMode(on){if(on&&!$('reconnectWait')){const b=$('webUiReload');if(b){const w=document.createElement('div');w.id='reconnectWait';w.className='reconnectRing';w.hidden=true;w.innerHTML=("<span id=\"reconnectSeconds\">"+__WEBUI_TEXT__("runtime.180")+"</span>");b.after(w)}}const el=$('webUiInactive');if(el){el.classList.toggle('isReconnectWait',!!on);el.setAttribute('aria-labelledby',on?'reconnectSeconds':'webUiReload')}const w=$('reconnectWait');if(w)w.hidden=!on;const b=$('webUiReload');if(b)b.hidden=!!on;const h=$('inactiveHint');if(h){if(!h.dataset.d)h.dataset.d=h.textContent;if(!on)h.textContent=h.dataset.d}}
-function updateReconnectCountdown(){const n=Math.max(0,Math.ceil((networkReconnectDeadline-Date.now())/1e3));const s=$('reconnectSeconds');if(s)s.textContent=n;const w=$('reconnectWait');if(w)w.style.setProperty('--p',String(Math.round(n*100/180)));const h=$('inactiveHint');if(h)h.textContent=n?__WEBUI_TEXT__("runtime.waiting_for_the_controller_on_this_address"):__WEBUI_TEXT__("runtime.still_waiting_if_the_new_wi_fi")}
-function endNetworkReconnectWait(){networkReconnectWait=false;networkReconnectDeadline=0;clearInterval(networkReconnectTimer);clearTimeout(networkReconnectPollTimer);networkReconnectTimer=networkReconnectPollTimer=0;const el=$('webUiInactive');if(!el||!el.classList.contains('isVisible'))setOverlayReconnectMode(false)}
-function pollNetworkReconnect(){if(!networkReconnectWait)return;Promise.resolve(claimWebUiOwnership()).finally(()=>{if(networkReconnectWait)networkReconnectPollTimer=setTimeout(pollNetworkReconnect,2e3)})}
-function beginNetworkReconnectWait(){clearInterval(networkReconnectTimer);clearTimeout(networkReconnectPollTimer);networkReconnectWait=true;networkReconnectDeadline=Date.now()+NETWORK_RECONNECT_WAIT_MS;setOverlayReconnectMode(true);if(webUiOwner)deactivateWebUi();else showInactiveOverlay();updateReconnectCountdown();networkReconnectTimer=setInterval(updateReconnectCountdown,1e3);networkReconnectPollTimer=setTimeout(pollNetworkReconnect,2e3)}
-function showInactiveOverlay(){const el=$('webUiInactive');if(!el)return;hideHomeBoot();clearTimeout(inactiveOverlayTimer);inactiveOverlayTimer=0;setInactiveError('');document.body.classList.add('webUiInactive');el.setAttribute('aria-hidden','false');if(!el.classList.contains('isVisible')){void el.offsetWidth;el.classList.add('isVisible')}if(networkReconnectWait)return;const btn=$('webUiReload');if(btn){try{btn.focus({preventScroll:true})}catch(_){btn.focus()}}}
-function hideInactiveOverlay(){const el=$('webUiInactive');if(!el||!el.classList.contains('isVisible'))return;el.classList.remove('isVisible');document.body.classList.remove('webUiInactive');clearTimeout(inactiveOverlayTimer);inactiveOverlayTimer=setTimeout(()=>{el.setAttribute('aria-hidden','true');inactiveOverlayTimer=0;setOverlayReconnectMode(false)},500)}
-function showPageBoot(){const seq=++bootSeq;homeBootDone=false;clearTimeout(bootTimer);document.body.classList.add('pageLoading');const el=$('homeBoot');if(el){el.style.zIndex=seq>1?'20':'39';el.classList.remove('hidden','isDone');el.setAttribute('aria-hidden','false')}return seq}
-function hideHomeBoot(seq=bootSeq){if(seq!==bootSeq||homeBootDone||fwReloading)return;const el=$('homeBoot');if(!el)return;homeBootDone=true;void el.offsetWidth;el.classList.add('isDone');bootTimer=setTimeout(()=>{if(seq===bootSeq){el.classList.add('hidden');el.setAttribute('aria-hidden','true');document.body.classList.remove('pageLoading')}},250)}
-function setOverlayOutOfReach(){if(networkReconnectWait)return;outOfReachOverlay=true;const h=$('inactiveHint');if(h)h.textContent=__WEBUI_TEXT__("shell.out_of_reach_hint");showInactiveOverlay()}
-async function api(path,options={}){if(!webUiPollingActive())throw new Error(__WEBUI_TEXT__("runtime.this_window_is_inactive_reload_to_continue"));await acquireDeviceSlot();if(!webUiPollingActive()){releaseDeviceSlot();throw new Error(__WEBUI_TEXT__("runtime.this_window_is_inactive_reload_to_continue"))}options.headers=Object.assign({[WEB_UI_CLIENT_HEADER]:webUiClientId},options.headers||{});const powerSeconds=webUiPowerSeconds();if(powerSeconds)options.headers['X-WebUI-Activity']=String(powerSeconds);if(options.body)options.headers['Content-Type']='application/json';const ac=new AbortController(),to=setTimeout(()=>ac.abort(),options.timeoutMs||8e3);let response,txt;try{response=await fetch(path,Object.assign({},options,{signal:ac.signal}));txt=await response.text()}catch(err){const e=new Error(err&&err.name==='AbortError'?__WEBUI_TEXT__("runtime.device_timeout"):__WEBUI_TEXT__("runtime.device_unreachable"));e.network=true;throw e}finally{clearTimeout(to);releaseDeviceSlot()}let data={};try{if(!txt)throw 0;data=JSON.parse(txt)}catch(_){throw new Error(__WEBUI_TEXT__("runtime.invalid_response"))}if(!response.ok){if(data.error==='UI_TAKEN_OVER')deactivateWebUi();const err=new Error(data.message||data.error||(__WEBUI_TEXT__("runtime.http")+response.status));err.code=data.error||'';throw err}return data}
-function noteReachOk(){if(reachFails)clearMessage();reachFails=0;if(outOfReachOverlay){outOfReachOverlay=false;hideInactiveOverlay()}}
-function noteReachFail(err,force){clearCupWeights();updateHeaderSignals();reachFails++;if(force||reachFails>=5){if(err&&err.network&&!networkReconnectWait)setOverlayOutOfReach();else message(err&&err.message?err.message:__WEBUI_TEXT__("runtime.device_unreachable"),'error')}}
-function syncAdminSessionUi(unlocked,remoteEnabled=false){const on=!!unlocked||developmentMode;updateHomeAdminActions(on,remoteEnabled);document.body.classList.toggle('devBuild',developmentMode);const lock=$('adminLockPanel'),controls=$('adminControls');if(lock)lock.classList.toggle('hidden',on);if(controls)controls.classList.toggle('hidden',!on);diagnosticUnlocked=on}
-function lockAdminUi(){if(!developmentMode)syncAdminSessionUi(false);const hint=$('adminConfirmHint');if(hint)hint.classList.add('hidden');['adminUnlockPassword','diagnosticUnlockPassword','newDevicePassword','confirmDevicePassword','staPassword'].forEach(id=>{const el=$(id);if(el)el.value=''});resetNetworkAddressLoaded()}
-function lockAdmin(){if(developmentMode)return;clearTimeout(scanTimer);scanTimer=0;api('/api/v1/admin/lock',{method:'POST',body:body({})}).then(()=>{lockAdminUi();noteReachOk();message(__WEBUI_TEXT__("runtime.administration_locked"),'ok');return refreshStatus()}).catch(e=>message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_lock_administration"),e),'error'))}
-function deactivateWebUi(){if(!webUiOwner)return;webUiOwner=false;stopUiStream();webUiActiveUntil=0;clearTimeout(webUiInactivityTimer);webUiInactivityTimer=0;clearTimeout(scanTimer);scanTimer=0;clearTimeout(homeFlushTimer);homeFlushTimer=0;stopViewPolls();lockAdminUi();setMutable(false);showInactiveOverlay()}
-async function claimWebUiOwnership(){initShotFullScreen();if(webUiClaiming)return;webUiClaiming=true;const rec=networkReconnectWait;const btn=$('webUiReload');if(btn&&!rec)btn.disabled=true;try{const ac=new AbortController(),to=setTimeout(()=>ac.abort(),rec?4e3:8e3);let response,txt;try{response=await fetch('/api/v1/ui/claim',{method:'POST',headers:{[WEB_UI_CLIENT_HEADER]:webUiClientId,'Content-Type':'application/json'},body:'{}',signal:ac.signal});txt=await response.text()}finally{clearTimeout(to)}let data={};try{data=txt?JSON.parse(txt):{}}catch(_){throw new Error(__WEBUI_TEXT__("runtime.invalid_ownership_response"))}if(!response.ok)throw new Error(data.message||data.error||(__WEBUI_TEXT__("runtime.unable_to_reload")));endNetworkReconnectWait();webUiOwner=true;resetWebUiInactivity();startUiStream();noteWebUiPowerActivity();stopViewPolls();hideInactiveOverlay();if(typeof data.compatibilityMode==='boolean'&&data.compatibilityMode!==compatMode){compatMode=data.compatibilityMode;applyCompatibilityChrome()}if(activeView)startView(activeView);else renderRoute(location.pathname)}catch(e){if(rec)return;webUiOwner=false;webUiActiveUntil=0;clearTimeout(webUiInactivityTimer);webUiInactivityTimer=0;stopViewPolls();setMutable(false);showInactiveOverlay();if(e&&(e.network||e.name==='AbortError'||e instanceof TypeError))setOverlayOutOfReach();else setInactiveError(e&&e.message?e.message:__WEBUI_TEXT__("runtime.unable_to_reload"))}finally{webUiClaiming=false;if(btn)btn.disabled=false}}
-function body(values){return JSON.stringify(values)}function number(id){return Number($(id).value)}function sToMs(id){return Math.round(number(id)*1000)}
-function setMutable(enabled){const canEdit=!!enabled&&webUiOwner;const was=controlsMutable;controlsMutable=canEdit;if(was!==canEdit)renderHomePresetAccordion();document.querySelectorAll('#app input,#app select,#app button').forEach(e=>{if(e.closest('#message'))return;if(e.classList.contains('textLock')){e.disabled=!webUiOwner;return}if(e.id==='shotFsButton'||e.id==='shotFsClose')return;if(e.classList.contains('taskProfilerCtl')||e.classList.contains('diagCtl')||e.classList.contains('scaleProfileCtl')){e.disabled=!webUiOwner;return}if(e.closest('#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel')){e.disabled=!webUiOwner;return}if(e.dataset.dirty!=null){e.disabled=!canEdit||e.dataset.dirty!=1;return}if(!webUiOwner||!e.closest('#actionsPanel'))e.disabled=!canEdit});['workflowPanel','dateTimePanel','frontendPanel','networkPanel','devicePasswordPanel','firmwareModePanel','blePanel','powerPanel'].forEach(id=>{const el=$(id);if(el)el.classList.toggle('locked',!canEdit)});if($('staPassword'))updateNetworkPasswordState();if($('staIpMode'))updateStaticIpFieldsState();if($('autoTare'))updateConfigGroups();updatePresetActionButtons();updateHomeGuardSwitchesLock();updateWifiSleepState();updateTimezoneControls();if(was!==canEdit&&activeView==='stats'&&$('shotRows'))renderShots()}
-const BREW_CONTROL_IDS=['bbwAlphaBaseline','bbwAlgorithm','brewByWeight','goalWeightG','operationalWallS','bbwProtectionS','weightOffsetBaselineG','cupProtectionEnabled','stopIfCupRemoved','requireCupToStart','fastExtractionGuardEnabled','avoidAccidentalTouchEnabled','touchStopFallbackEnabled','maxRecoveryWeightG','minBbwBrewTimeS','slowExtractionGuardEnabled','minRecoveryWeightG','maxBbwBrewTimeS','autoToManualGuardEnabled','autoToManualGuardLimitMode','autoToManualGuardManualLimitS','autoToManualGuardBaselineS','lineaMicraBrewTargetC'];
-const REVERT_BUTTONS={saveConfigButton:'revertConfigButton',saveBrewPresetButton:'revertBrewPresetButton',saveNetworkButton:'revertNetworkButton',saveDateTimeButton:'revertDateTimeButton',saveWebhookButton:'revertWebhookButton',changeDevicePasswordButton:'revertDevicePasswordButton',saveFirmwareModeButton:'revertFirmwareModeButton',saveBleButton:'revertBleButton',savePowerButton:'revertPowerButton',saveFrontendButton:'revertFrontendButton'};
-function settingsSectionOf(id){if(id==='lineaMicraBrewTargetC'||BREW_CONTROL_IDS.includes(id))return'brew';return id.startsWith('lineaMicra')?'micra':'config'}
-function settingsSectionEls(section){return[...document.querySelectorAll('#workflowPanel input,#workflowPanel select,#workflowPanel textarea')].filter(el=>el.id&&settingsSectionOf(el.id)===section)}
-function snapshotControls(els){const s={};els.forEach(el=>{if(el.id)s[el.id]=el.type==='checkbox'?el.checked:el.value});return s}
-function restoreSnapshot(s){if(!s)return;for(const id in s){const el=$(id);if(!el)continue;if(el.type==='checkbox')el.checked=s[id];else el.value=s[id]}}
-function setSaveDirty(id,hintId,dirty){const b=$(id);if(b){b.dataset.dirty=+dirty;b.disabled=!controlsMutable||!dirty}const r=REVERT_BUTTONS[id]&&$(REVERT_BUTTONS[id]);if(r){r.dataset.dirty=+dirty;r.disabled=!controlsMutable||!dirty}if(hintId)$(hintId)?.classList.toggle('hidden',!dirty)}
-function markConfigDirty(){configDirty=true;setSaveDirty('saveConfigButton','configDirtyHint',true)}
-function markDateTimeDirty(){dateTimeDirty=true;setSaveDirty('saveDateTimeButton','dateTimeDirtyHint',true)}
-function markBleDirty(){bleDirty=true;setSaveDirty('saveBleButton','bleDirtyHint',true)}
-function markPowerDirty(){powerDirty=true;setSaveDirty('savePowerButton','powerDirtyHint',true)}
-function markFrontendDirty(){frontendDirty=true;setSaveDirty('saveFrontendButton','frontendDirtyHint',true)}
-function clearBleDirty(){bleDirty=false;setSaveDirty('saveBleButton','bleDirtyHint',false)}
-function clearPowerDirty(){powerDirty=false;setSaveDirty('savePowerButton','powerDirtyHint',false)}
-function clearFrontendDirty(){frontendDirty=false;setSaveDirty('saveFrontendButton','frontendDirtyHint',false)}
-function updateScalePreferenceOptions(){const sel=$('scalePreference');if(!sel)return;[...sel.options].forEach(o=>{o.disabled=!controlsMutable});sel.disabled=!controlsMutable;const bootstrap=sel.value==='prefer'||sel.value==='only',preferred=$('preferredScaleSelect'),empty=preferred&&[...preferred.options].find(o=>o.value===''),hint=$('preferredScaleBootstrapHint');if(empty)empty.textContent=bootstrap?__WEBUI_TEXT__("runtime.first_detected"):__WEBUI_TEXT__("runtime.no_preferred");if(hint)hint.textContent=bootstrap?__WEBUI_TEXT__("runtime.first_detected_is_shown_until_a_compatible"):__WEBUI_TEXT__("runtime.first_available_does_not_save_a_preferred")}function markBrewDirty(){brewDirty=true;setSaveDirty('saveBrewPresetButton','brewDirtyHint',true)}
-function clearBrewDirty(){brewDirty=false;setSaveDirty('saveBrewPresetButton','brewDirtyHint',false)}
-function revertBrewPreset(){if(!brewDirty)return;if(!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes")))return;restoreSnapshot(brewBaseline);clearBrewDirty();clearFieldErrors();updateConfigGroups();syncHomeGuardSwitchesFromSettings();refreshStatus()}
-function revertMachineConfig(){if(!configDirty)return;if(!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes")))return;restoreSnapshot(configBaseline);if($('preferredScaleSelect'))$('preferredScaleSelect').dataset.pending='0';configBaseline=null;configDirty=false;setSaveDirty('saveConfigButton','configDirtyHint',false);clearFieldErrors();updateConfigGroups();syncHomeGuardSwitchesFromSettings();refreshStatus()}
-function revertLineaMicra(){if(!micraDirty)return;if(!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes")))return;restoreSnapshot(micraBaseline);micraBaseline=null;micraDirty=false;updateMicraRevertButton();clearFieldErrors();updateMicraShutdownControls();refreshStatus()}
-function revertDateTimeConfig(){if(!dateTimeDirty)return;if(!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes")))return;restoreSnapshot(dateTimeBaseline);dateTimeBaseline=null;dateTimeDirty=false;setSaveDirty('saveDateTimeButton','dateTimeDirtyHint',false);clearFieldErrors();refreshTimezonePreview();updateTimezoneControls();refreshStatus()}
-function networkControls(){return[...document.querySelectorAll('#networkPanel input,#networkPanel select')].filter(el=>el.id&&el.id!=='staNetwork')}
-function revertNetworkConfig(){if($('saveNetworkButton').dataset.dirty!=='1')return;if(!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes")))return;restoreSnapshot(networkBaseline);setSaveDirty('saveNetworkButton','',false);clearFieldErrors();updateNetworkPasswordState();updateStaticIpFieldsState();updateWifiSleepState();resetNetworkAddressLoaded();refreshStatus()}
-function invalidateSettingsHydration(){configLoaded=false;formRev=0}
-let bbwReadback=null,bbwFormPresetId=0;
-function updateBbwControls(){const select=$('bbwAlgorithm');if(!select)return;const on=!!$('brewByWeight').checked,ewma=select.value==='linear_ewma';select.disabled=!on||!controlsMutable;document.querySelectorAll('.bbwLearning,.bbwEwma').forEach(el=>{const hidden=!on||(el.classList.contains('bbwEwma')&&!ewma);el.classList.toggle('hidden',hidden);el.querySelectorAll('input,button,select').forEach(input=>input.disabled=hidden||!controlsMutable);});const c=bbwReadback&&bbwReadback.bbwPresetId===bbwFormPresetId?bbwReadback:null;const offset=c&&(ewma?c.bbwEwmaOffsetG:c.bbwLegacyOffsetG);$('learnedOffsetG').textContent=typeof offset==='number'?offset.toFixed(2)+__WEBUI_TEXT__("runtime.g_2"):__WEBUI_TEXT__("runtime.unknown");$('bbwAlpha').textContent=c&&typeof c.bbwAlpha==='number'?c.bbwAlpha.toFixed(2):__WEBUI_TEXT__("runtime.unknown");$('bbwAlphaStatus').textContent=c?(c.bbwAlphaSource==='learned'?__WEBUI_TEXT__("runtime.learned"):__WEBUI_TEXT__("runtime.initial"))+__WEBUI_TEXT__("runtime.symbol_8")+(c.bbwEvidenceCount>=20?__WEBUI_TEXT__("runtime.evaluating"):__WEBUI_TEXT__("runtime.collecting_samples")):__WEBUI_TEXT__("runtime.unavailable");$('resetCalibrationButton').disabled=!on||!controlsMutable||brewDirty||!c||select.value!==c.bbwAlgorithm;$('resetEwmaButton').disabled=$('resetCalibrationButton').disabled||!ewma;}
-function soundAlertsAreOn(){return!!$('soundAlertsEnabled')?.checked}function updateBuzzerAlertVisibility(s){document.querySelectorAll('.buzzerOpt').forEach(e=>{e.classList.toggle('hidden',!s);e.querySelectorAll('input,button,select').forEach(i=>{i.disabled=!s||!controlsMutable||!soundAlertsAreOn()})});updateScaleIncapableAlertControls(s)}function updateScaleIncapableAlertControls(buzzerOn){const el=$('alertOutputChannel');const scaleOnly=!!buzzerOn&&el&&el.value==='scale_only';document.querySelectorAll('.scaleIncapableOpt').forEach(e=>{e.classList.toggle('fieldOff',scaleOnly);e.querySelectorAll('input,select').forEach(i=>{i.disabled=!buzzerOn||scaleOnly||!controlsMutable||!soundAlertsAreOn()})})}function updateBullseyeControls(){const wrap=document.querySelector('.bullseyeOpt'),check=$('bullseyeMelodyEnabled'),tune=$('bullseyeRtttl'),tuneWrap=$('bullseyeTuneWrap');if(!wrap||!check||!tune)return;const buzzerVisible=!wrap.classList.contains('hidden'),available=buzzerVisible&&controlsMutable&&soundAlertsAreOn()&&$('alertOutputChannel').value==='buzzer_only';wrap.classList.toggle('fieldOff',!available);check.disabled=!available;tune.readOnly=!available||!check.checked;if(tuneWrap)tuneWrap.classList.toggle('fieldOff',tune.readOnly)}function updateConfigGroups(){if(!$('autoTare'))return;updateScalePreferenceOptions();const alertBox=document.querySelector('.soundAlertOpt'),alertsOff=!soundAlertsAreOn();if(alertBox){alertBox.classList.toggle('fieldOff',alertsOff);alertBox.querySelectorAll('input,select').forEach(i=>{i.disabled=!controlsMutable||alertsOff})}const wrap=$('alertOutputChannel')&&$('alertOutputChannel').closest('.buzzerOpt');const buzzerVisible=!!wrap&&!wrap.classList.contains('hidden');updateScaleIncapableAlertControls(buzzerVisible);const apply=(cls,off)=>{document.querySelectorAll('.'+cls).forEach(e=>{e.classList.toggle('fieldOff',off);e.querySelectorAll('input,select').forEach(i=>{if(controlsMutable)i.disabled=off||(alertsOff&&!!e.closest('.soundAlertOpt'))})})};apply('retareOpt',!$('autoRetare').checked);apply('tareOpt',!$('autoTare').checked);apply('paddleOpt',$('paddleReturnReminder')?.value==='0');apply('fastGuardOpt',!$('fastExtractionGuardEnabled').checked);apply('touchStopOpt',!$('brewByWeight').checked||!$('avoidAccidentalTouchEnabled').checked);apply('slowGuardOpt',!$('slowExtractionGuardEnabled').checked);apply('atmManualOpt',$('autoToManualGuardLimitMode').value!=='manual');apply('noScaleGuardOpt',$('noScaleBbwMode').value==='off');apply('cupProtectOpt',!$('cupProtectionEnabled')||!$('cupProtectionEnabled').checked);const wall=number('operationalWallS');if(Number.isFinite(wall)){const m=String(Math.max(10,Math.min(60,wall)));$('autoToManualGuardManualLimitS').max=m;$('autoToManualGuardBaselineS').max=m}updateBullseyeControls();updateBbwControls()}
-function extRate(v){return['disabled','slow','medium','fast','rapid'].includes(v)?v:'fast'}
-function rangeCheck(id,min,max,label,opts){const raw=$(id).value.trim(),v=Number(raw),unit=opts&&opts.unit?(' '+opts.unit):'';if(raw===''||!Number.isFinite(v))return{id,msg:label+__WEBUI_TEXT__("runtime.is_required")+min+'–'+max+unit+').'};if(opts&&opts.int&&!Number.isInteger(v))return{id,msg:label+__WEBUI_TEXT__("runtime.must_be_an_integer_from")+min+' to '+max+unit+'.'};if(v<min||v>max)return{id,msg:label+__WEBUI_TEXT__("runtime.must_be_from")+min+' to '+max+unit+'.'};return null}
-function formNumber(id){const el=$(id);if(!el)return NaN;const v=Number(el.value);return Number.isFinite(v)?v:NaN}
-function validNtpHostnameClient(host){const t=String(host||'');if(!t||t.length>63)return false;if(t[0]==='-'||t[0]==='.'||t[t.length-1]==='-'||t[t.length-1]==='.')return false;return/^[A-Za-z0-9.-]+$/.test(t)}
-function validDeviceNameClient(name){const t=String(name||'').trim();if(!t||t.length>32)return false;if(t[0]===' '||t[0]==='-'||t[t.length-1]===' '||t[t.length-1]==='-')return false;return/^[A-Za-z0-9 -]+$/.test(t)}
-function validateMachineClient(){const m=document.documentElement.classList.contains('momentaryMachine');const reedMachine=m&&document.documentElement.classList.contains('reedMachine');let e=rangeCheck('rinseGestureS',0.1,5,__WEBUI_TEXT__("runtime.rinse_gesture"),{unit:__WEBUI_TEXT__("runtime.s")})||rangeCheck('rinseDurationS',0.5,10,__WEBUI_TEXT__("runtime.rinse_duration"),{unit:__WEBUI_TEXT__("runtime.s")})||(m?rangeCheck('stopPulseMs',50,1000,__WEBUI_TEXT__("runtime.auto_stop_pulse"),{int:1})||rangeCheck('maxSinglePressMs',100,5000,__WEBUI_TEXT__("runtime.single_press_limit"),{int:1})||(reedMachine?rangeCheck('reedConfirmTimeoutS',0.2,5,__WEBUI_TEXT__("runtime.reed_confirm_timeout"),{unit:__WEBUI_TEXT__("runtime.s")}):'')||rangeCheck('shotReactTimeoutS',3,30,__WEBUI_TEXT__("runtime.shot_reaction_timeout"),{int:1,unit:__WEBUI_TEXT__("runtime.s")}):rangeCheck('paddleReturnReminderMaxDurationMin',1,60,__WEBUI_TEXT__("runtime.paddle_limit"),{int:1,unit:__WEBUI_TEXT__("runtime.min")}))||rangeCheck('retareWindowS',0.5,10,__WEBUI_TEXT__("runtime.retare_window"),{unit:__WEBUI_TEXT__("runtime.s")})||rangeCheck('postTareBaselineGraceS',0.5,10,__WEBUI_TEXT__("runtime.post_tare_grace"),{unit:__WEBUI_TEXT__("runtime.s")})||rangeCheck('minimumCupWeightG',1,500,__WEBUI_TEXT__("runtime.min_cup_weight"),{unit:__WEBUI_TEXT__("runtime.g")})||rangeCheck('cupRemovedWeightG',-50,-0.1,__WEBUI_TEXT__("runtime.cup_removed"),{unit:__WEBUI_TEXT__("runtime.g")})||rangeCheck('retareStabilitySamples',2,10,__WEBUI_TEXT__("runtime.retare_samples"),{int:1})||rangeCheck('retareStabilityToleranceG',0.1,20,__WEBUI_TEXT__("runtime.retare_tolerance"),{unit:__WEBUI_TEXT__("runtime.g")})||rangeCheck('retareStabilityMaxGapS',0.1,5,__WEBUI_TEXT__("runtime.retare_sample_gap"),{unit:__WEBUI_TEXT__("runtime.s")})||rangeCheck('retareStabilityMinDurationS',0,2,__WEBUI_TEXT__("runtime.retare_min_stable_time"),{unit:__WEBUI_TEXT__("runtime.s")})||rangeCheck('scaleTimerStopExtraDelayMs',0,1000,__WEBUI_TEXT__("runtime.scale_timer_stop_extra_delay"),{int:1,unit:__WEBUI_TEXT__("runtime.ms")})||rangeCheck('dripDelayS',0,10,__WEBUI_TEXT__("runtime.drip_delay"),{unit:__WEBUI_TEXT__("runtime.s")})||rangeCheck('lastShotCooldownMin',5,240,__WEBUI_TEXT__("runtime.last_shot_cooldown"),{int:1,unit:__WEBUI_TEXT__("runtime.min")});if(e)return e;const rg=number('rinseGestureS'),rd=number('rinseDurationS'),rw=number('retareWindowS'),wall=formNumber('operationalWallS'),samples=number('retareStabilitySamples'),gap=number('retareStabilityMaxGapS'),minStab=number('retareStabilityMinDurationS');if(Number.isFinite(wall)){if(!m){if(!(rg<wall))return{id:'rinseGestureS',msg:__WEBUI_TEXT__("runtime.rinse_gesture_must_be_machine_circuit_limit")+wall+' s).'};if(rd>wall)return{id:'rinseDurationS',msg:__WEBUI_TEXT__("runtime.rinse_duration_must_be_machine_circuit_limit")+wall+' s).'}}if(rw>wall)return{id:'retareWindowS',msg:__WEBUI_TEXT__("runtime.retare_window_must_be_machine_circuit_limit")+wall+' s).'}}if(minStab>rw)return{id:'retareStabilityMinDurationS',msg:__WEBUI_TEXT__("runtime.stable_time_must_fit_the_retare_window")};if(minStab>0&&minStab>samples*gap)return{id:'retareStabilityMinDurationS',msg:__WEBUI_TEXT__("runtime.stable_time_must_fit_samples_sample_gap")};if($('canTareStartTimer').checked&&!$('autoTare').checked)return{id:'canTareStartTimer',msg:__WEBUI_TEXT__("runtime.bookoo_combination_requires_shot_start_tare")};if(!m){const iv=+$('paddleReturnReminder').value||0,lim=$('paddleReturnReminderMaxDurationMin')?number('paddleReturnReminderMaxDurationMin'):0;if(lim*60<iv)return{id:'paddleReturnReminderMaxDurationMin',msg:__WEBUI_TEXT__("runtime.paddle_limit_must_be_reminder_interval")+iv+' s).'}}return null}
-function validateBrewClient(){let e=rangeCheck('goalWeightG',10,200,__WEBUI_TEXT__("runtime.target"),{int:1,unit:__WEBUI_TEXT__("runtime.g")})||rangeCheck('operationalWallS',5,60,__WEBUI_TEXT__("runtime.max_bbw_time"),{int:1,unit:__WEBUI_TEXT__("runtime.s")})||rangeCheck('bbwProtectionS',0.5,30,__WEBUI_TEXT__("runtime.bbw_protection"),{unit:__WEBUI_TEXT__("runtime.s")})||(!$('weightOffsetBaselineG').disabled&&rangeCheck('weightOffsetBaselineG',0,5,__WEBUI_TEXT__("runtime.offset_baseline"),{unit:__WEBUI_TEXT__("runtime.g")}))||(document.documentElement.classList.contains('micraTemperatureEnabled')&&rangeCheck('lineaMicraBrewTargetC',80,100,__WEBUI_TEXT__("runtime.brew_temperature"),{unit:'°C'}));if(!e&&!$('bbwAlphaBaseline').disabled&&!$('bbwAlphaBaseline').validity.valid)e={id:'bbwAlphaBaseline',msg:__WEBUI_TEXT__("runtime.use_0_01_1_00_step_0")};if(e)return e;const wall=number('operationalWallS'),bbw=number('bbwProtectionS'),rw=formNumber('retareWindowS'),autoRetare=!!$('autoRetare')&&$('autoRetare').checked;if(bbw>wall)return{id:'bbwProtectionS',msg:__WEBUI_TEXT__("runtime.bbw_protection_must_be_machine_circuit_limit")+wall+' s).'};const minBbw=(autoRetare&&Number.isFinite(rw)?rw:0)+3;if(bbw<minBbw)return{id:'bbwProtectionS',msg:__WEBUI_TEXT__("runtime.bbw_protection_must_be")+minBbw+__WEBUI_TEXT__("runtime.s_effective_retare_3_s")};if($('fastExtractionGuardEnabled').checked){e=rangeCheck('maxRecoveryWeightG',10,200,__WEBUI_TEXT__("runtime.max_recovery"),{unit:__WEBUI_TEXT__("runtime.g")})||rangeCheck('minBbwBrewTimeS',5,55,__WEBUI_TEXT__("runtime.min_bbw_brew_time"),{unit:__WEBUI_TEXT__("runtime.s")});if(e)return e;const goal=number('goalWeightG'),maxW=number('maxRecoveryWeightG'),minT=number('minBbwBrewTimeS');if(!(maxW>goal))return{id:'maxRecoveryWeightG',msg:__WEBUI_TEXT__("runtime.max_recovery_must_be_target")+goal+' g).'};if(minT>=wall)return{id:'minBbwBrewTimeS',msg:__WEBUI_TEXT__("runtime.min_bbw_brew_time_must_be_machine")+wall+' s).'};if(minT<bbw)return{id:'minBbwBrewTimeS',msg:__WEBUI_TEXT__("runtime.min_bbw_brew_time_must_be_bbw")+bbw+' s).'}}if($('slowExtractionGuardEnabled').checked){e=rangeCheck('minRecoveryWeightG',10,200,__WEBUI_TEXT__("runtime.min_recovery"),{unit:__WEBUI_TEXT__("runtime.g")})||rangeCheck('maxBbwBrewTimeS',5,55,__WEBUI_TEXT__("runtime.max_bbw_brew_time"),{unit:__WEBUI_TEXT__("runtime.s")});if(e)return e;const goal=number('goalWeightG'),minW=number('minRecoveryWeightG'),maxT=number('maxBbwBrewTimeS'),minT=number('minBbwBrewTimeS');if(!(minW<goal))return{id:'minRecoveryWeightG',msg:__WEBUI_TEXT__("runtime.min_recovery_must_be_target")+goal+' g).'};if(maxT>=wall)return{id:'maxBbwBrewTimeS',msg:__WEBUI_TEXT__("runtime.max_bbw_brew_time_must_be_machine")+wall+' s).'};if(maxT<bbw)return{id:'maxBbwBrewTimeS',msg:__WEBUI_TEXT__("runtime.max_bbw_brew_time_must_be_bbw")+bbw+' s).'};if($('fastExtractionGuardEnabled').checked&&!(maxT>minT))return{id:'maxBbwBrewTimeS',msg:__WEBUI_TEXT__("runtime.max_bbw_brew_time_must_be_min")+minT+' s).'}}e=rangeCheck('autoToManualGuardManualLimitS',10,wall,__WEBUI_TEXT__("runtime.a_to_m_manual_limit"),{int:1,unit:__WEBUI_TEXT__("runtime.s")});if(e){e.msg=__WEBUI_TEXT__("runtime.a_to_m_manual_limit_must_be")+wall+' s).';return e}e=rangeCheck('autoToManualGuardBaselineS',10,wall,__WEBUI_TEXT__("runtime.a_to_m_baseline"),{int:1,unit:__WEBUI_TEXT__("runtime.s")});if(e){e.msg=__WEBUI_TEXT__("runtime.a_to_m_baseline_must_be_10")+wall+' s).';return e}return null}
-function validateDateTimeClient(){const tz=$('timezoneId').value;if((tz&&!timezoneCatalog?.includes(tz))||(!tz&&(savedTimezoneId||$('timezoneAutomatic').checked)))return{id:'timezoneId',msg:__WEBUI_TEXT__("runtime.select_timezone")};const preset=$('ntpServerPreset').value;if(!['pool','google','cloudflare','nist'].includes(preset))return{id:'ntpServerPreset',msg:__WEBUI_TEXT__("runtime.select_a_valid_ntp_server")};const custom=$('ntpServerCustom').value.trim();if(custom&&!validNtpHostnameClient(custom))return{id:'ntpServerCustom',msg:__WEBUI_TEXT__("runtime.custom_ntp_must_be_empty_or_a")};return null}
-function machinePayload(){if(HOME_GUARD_SWITCHES.some(([h])=>homeSwitchPending[h]))syncSettingsFromHomeSwitches();const reminder=$('paddleReturnReminder');return{rinseEnabled:$('rinseEnabled').checked,rinseGestureMs:sToMs('rinseGestureS'),rinseDurationMs:sToMs('rinseDurationS'),retareWindowMs:sToMs('retareWindowS'),minimumCupWeightG:number('minimumCupWeightG'),cupRemovedWeightG:number('cupRemovedWeightG'),retareStabilitySamples:number('retareStabilitySamples'),retareStabilityToleranceG:number('retareStabilityToleranceG'),retareStabilityMaxGapMs:sToMs('retareStabilityMaxGapS'),retareStabilityMinDurationMs:sToMs('retareStabilityMinDurationS'),autoTare:$('autoTare').checked,autoTareOutsideBrew:$('autoTareOutsideBrew').checked,retareAccessoryOutsideBrew:$('retareAccessoryOutsideBrew').checked,postTareBaselineGraceMs:sToMs('postTareBaselineGraceS'),scaleMacCacheMode:['first','prefer','only'].includes($('scalePreference')?.value)?$('scalePreference').value:'only',paddleMode:$('paddleMode')?(['auto','natural','original'].includes($('paddleMode').value)?$('paddleMode').value:'natural'):undefined,stopPulseMs:$('stopPulseMs')?number('stopPulseMs'):undefined,maxSinglePressMs:$('maxSinglePressMs')?number('maxSinglePressMs'):undefined,momentaryStartEdge:$('momentaryStartEdge')?(['press','release'].includes($('momentaryStartEdge').value)?$('momentaryStartEdge').value:'press'):undefined,reedConfirmTimeoutMs:$('reedConfirmTimeoutS')?sToMs('reedConfirmTimeoutS'):undefined,assumeIdleWhenScaleConnects:$('assumeIdleWhenScaleConnects')?.checked??true,shotReactTimeoutS:$('shotReactTimeoutS')?number('shotReactTimeoutS')||0:undefined,canTareStartTimer:$('canTareStartTimer').checked,bookooMuteOnBuzzerOnly:$('bookooMuteOnBuzzerOnly').checked,bookooConnectBeepLevel:Number($('bookooConnectBeepLevel').value),scaleTimerStopExtraDelayMs:number('scaleTimerStopExtraDelayMs'),dripDelayMs:sToMs('dripDelayS'),soundAlertsEnabled:$('soundAlertsEnabled').checked,firstDropBeep:$('firstDropBeep').checked,scaleConnectedLed:$('scaleConnectedLed').checked,paddleReturnReminderBeep:reminder?!!+reminder.value:undefined,buzzerScaleLostBeep:$('buzzerScaleLostBeep').checked,buzzerAutoToManualGuardEndBeep:$('buzzerAutoToManualGuardEndBeep').checked,buzzerManualNoScaleBeep:$('buzzerManualNoScaleBeep').checked,buzzerScaleConnectedBeep:$('buzzerScaleConnectedBeep').checked,buzzerExtendedPulseRate:extRate($('buzzerExtendedPulseRate').value),buzzerSlowExtendedPulseRate:extRate($('buzzerSlowExtendedPulseRate').value),alertOutputChannel:['scale_only','buzzer_only','scale_priority'].includes($('alertOutputChannel').value)?$('alertOutputChannel').value:'scale_priority',autoRetare:$('autoRetare').checked,paddleReturnReminderIntervalMs:reminder?(+reminder.value||30)*1000:undefined,paddleReturnReminderMaxDurationMs:Math.round(number('paddleReturnReminderMaxDurationMin')*60000),noScaleBbwMode:$('noScaleBbwMode').value,noScaleAllowRinseWhileArmed:$('noScaleAllowRinseWhileArmed').checked,lastShotCooldownMs:Math.round(number('lastShotCooldownMin')*6e4)}}
-function dateTimePayload(){const auto=$('timezoneAutomatic').checked,value={timezoneAutomatic:auto,ntpSyncEnabled:$('ntpSyncEnabled').checked,ntpServerPreset:$('ntpServerPreset').value,ntpServerCustom:$('ntpServerCustom').value.trim()};const zone=$('timezoneId').value;if(zone){value.timezoneId=zone;if(auto)value.timezoneDetected=true}return value}
-function brewPayload(){return{...Object.fromEntries([...['goalWeightG','maxRecoveryWeightG','minRecoveryWeightG'].map(k=>[k,number(k)]),...['operationalWall','bbwProtection','minBbwBrewTime','maxBbwBrewTime','autoToManualGuardManualLimit','autoToManualGuardBaseline'].map(k=>[k+'Ms',sToMs(k+'S')]),...['brewByWeight','fastExtractionGuardEnabled','avoidAccidentalTouchEnabled','touchStopFallbackEnabled','slowExtractionGuardEnabled','autoToManualGuardEnabled','cupProtectionEnabled','stopIfCupRemoved','requireCupToStart'].map(k=>[k,$(k).checked])]),action:'save',id:bbwFormPresetId,...(!$('weightOffsetBaselineG').disabled?{weightOffsetBaselineG:number('weightOffsetBaselineG')}:{}),...(!$('bbwAlphaBaseline').disabled?{bbwAlphaBaseline:number('bbwAlphaBaseline')}:{}),...($('bbwAlgorithm')&&!$('bbwAlgorithm').disabled?{bbwAlgorithm:$('bbwAlgorithm').value}:{}),...(document.documentElement.classList.contains('micraTemperatureEnabled')?{lineaMicraBrewTargetC:number('lineaMicraBrewTargetC')}:{}),autoToManualGuardLimitMode:$('autoToManualGuardLimitMode').value}}
-function parseIpv4Client(text){const m=String(text||'').trim().match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);if(!m)return null;const p=m.slice(1).map(Number);return p.some(n=>n>255)?null:p}
-function ipv4ToInt(p){return((p[0]<<24)|(p[1]<<16)|(p[2]<<8)|p[3])>>>0}
-function validNetmaskClient(p){const m=ipv4ToInt(p);if(!m)return false;const i=(~m)>>>0;return(i&(i+1))===0}
-function updateStaticIpFieldsState(){if(!$('staIpMode'))return;const on=$('staIpMode').value==='static';document.querySelectorAll('.staticIpOpt').forEach(e=>{e.classList.toggle('fieldOff',!on);e.querySelectorAll('input').forEach(i=>{i.disabled=!controlsMutable||!on})})}
-function validateNetworkClient(){const dn=$('deviceName')?$('deviceName').value.trim():'';if($('deviceName')&&!validDeviceNameClient(dn))return{id:'deviceName',msg:__WEBUI_TEXT__("runtime.device_name_must_be_1_32_letters")};const ssid=$('staSsid').value,open=$('staOpen').checked,pw=$('staPassword').value,keep=!!savedStaSsid&&ssid===savedStaSsid&&!pw&&open===savedStaOpen;if(!ssid||ssid.length>32)return{id:'staSsid',msg:__WEBUI_TEXT__("runtime.ssid_must_be_1_32_characters")};if(open&&pw)return{id:'staPassword',msg:__WEBUI_TEXT__("runtime.open_network_password_must_be_empty")};if(!open&&!keep&&(pw.length<8||pw.length>63))return{id:'staPassword',msg:__WEBUI_TEXT__("runtime.wi_fi_password_must_be_8_63")};if($('staIpMode').value!=='static')return null;const ip=parseIpv4Client($('staStaticIp').value),mask=parseIpv4Client($('staNetmask').value),gw=parseIpv4Client($('staGateway').value),dns1=parseIpv4Client($('staDns1').value),d2=$('staDns2').value.trim(),dns2=d2?parseIpv4Client(d2):[0,0,0,0];if(!ip)return{id:'staStaticIp',msg:__WEBUI_TEXT__("runtime.enter_a_valid_ipv4_address")};if(!mask||!validNetmaskClient(mask))return{id:'staNetmask',msg:__WEBUI_TEXT__("runtime.enter_a_valid_subnet_mask")};if(!gw)return{id:'staGateway',msg:__WEBUI_TEXT__("runtime.enter_a_valid_gateway_address")};if(!dns1)return{id:'staDns1',msg:__WEBUI_TEXT__("runtime.enter_a_valid_primary_dns")};if(d2&&!dns2)return{id:'staDns2',msg:__WEBUI_TEXT__("runtime.enter_a_valid_secondary_dns_or_leave")};if(ip[0]===192&&ip[1]===168&&ip[2]===4)return{id:'staStaticIp',msg:__WEBUI_TEXT__("runtime.sta_must_not_use_softap_subnet_192")};if(gw[0]===192&&gw[1]===168&&gw[2]===4)return{id:'staGateway',msg:__WEBUI_TEXT__("runtime.gateway_must_not_use_softap_subnet_192")};if(ipv4ToInt(ip)===ipv4ToInt(gw))return{id:'staStaticIp',msg:__WEBUI_TEXT__("runtime.ip_and_gateway_must_differ")};const m=ipv4ToInt(mask);if((ipv4ToInt(ip)&m)!==(ipv4ToInt(gw)&m))return{id:'staGateway',msg:__WEBUI_TEXT__("runtime.ip_and_gateway_must_share_a_subnet")};const h=ipv4ToInt(ip)&((~m)>>>0);if(!h||h===((~m)>>>0))return{id:'staStaticIp',msg:__WEBUI_TEXT__("runtime.ip_must_not_be_network_broadcast")};return null}
-function networkSavePayload(){const p={action:'save',ssid:$('staSsid').value,password:$('staPassword').value,open:$('staOpen').checked,wifiSleep:savedStaWifiSleep,name:$('deviceName')?$('deviceName').value.trim():'',ipMode:$('staIpMode').value};if(p.ipMode==='static'){p.ip=$('staStaticIp').value.trim();p.netmask=$('staNetmask').value.trim();p.gateway=$('staGateway').value.trim();p.dns1=$('staDns1').value.trim();const d=$('staDns2').value.trim();if(d)p.dns2=d}return p}
-function networkPreferencesOnly(p){return!!savedStaSsid&&p.ssid===savedStaSsid&&!p.password&&p.open===savedStaOpen&&p.ipMode===savedStaAddr.split('|')[0]&&netAddrKey()===savedStaAddr}
-function netAddrKey(){const m=$('staIpMode').value;return m!=='static'?m:m+'|'+$('staStaticIp').value.trim()+'|'+$('staNetmask').value.trim()+'|'+$('staGateway').value.trim()+'|'+$('staDns1').value.trim()+'|'+$('staDns2').value.trim()}
-function validateDevicePasswordClient(){const n=$('newDevicePassword').value,c=$('confirmDevicePassword').value;if(n.length<8||n.length>63)return{id:'newDevicePassword',msg:__WEBUI_TEXT__("runtime.new_device_password_must_be_8_63")};if(n==='ineedacoffee')return{id:'newDevicePassword',msg:__WEBUI_TEXT__("runtime.new_device_password_cannot_be_the_factory")};if(n!==c)return{id:'confirmDevicePassword',msg:__WEBUI_TEXT__("runtime.the_new_device_passwords_do_not_match")};return null}
-function updateStateTone(s){const sr=$('scaleRow');if(sr)sr.classList.toggle('lampBad',!(s.scale&&s.scale.available));const cr=$('cupRow');if(cr){const cp=s.cupPresence||{};cr.classList.toggle('lampBad',!(cp.present||(cp.idleTare==='ready'&&s.scale&&s.scale.available&&s.scale.streamState==='FRESH')))}}
-function renderLog(){const f=$('logFilter').value,m=+$('logLevelFilter').value,r={critical:0,error:1,warning:2,info:3,debug:4};let o='';for(const e of logEvents){if(f&&e.category!==f)continue;if((r[e.level]??3)>m)continue;o+=(e.wallSec?formatWallTimeLocal(e.localSec??e.wallSec):('+'+((e.atMs||0)/1000).toFixed(3)+'s'))+' '+(e.level||'info').toUpperCase()+' ['+e.category+'] '+e.message+'\n'}$('log').value=o;$('log').scrollTop=$('log').scrollHeight}
-function updateLogHealth(d){const a=[],e=$('logDropped');if(d.historyOverwritten)a.push(__WEBUI_TEXT__("runtime.history_rotated")+d.historyOverwritten);if(logMissed)a.push(__WEBUI_TEXT__("runtime.missed_while_disconnected")+logMissed);if(d.serialDropped)a.push(__WEBUI_TEXT__("runtime.serial_dropped")+d.serialDropped);if(!e)return;e.hidden=!a.length;e.textContent=a.join(__WEBUI_TEXT__("runtime.symbol_8"))}
-function updateNetworkPasswordState(){if(!$('staPassword'))return;$('staPassword').disabled=!controlsMutable||$('staOpen').checked}
-function selectDetectedNetwork(){const o=$('staNetwork').selectedOptions[0];if(!o||!o.value)return;$('staSsid').value=o.value;$('staOpen').checked=o.dataset.open==='true';$('staPassword').value='';updateNetworkPasswordState()}
-function showScanResults(d){const select=$('staNetwork');select.replaceChildren();const prompt=document.createElement('option');prompt.value='';prompt.textContent=d.networks.length?__WEBUI_TEXT__("runtime.select_network"):__WEBUI_TEXT__("runtime.no_networks_found");select.appendChild(prompt);for(const n of d.networks){const o=document.createElement('option');o.value=n.ssid;o.dataset.open=String(n.open);o.textContent=n.ssid+__WEBUI_TEXT__("runtime.symbol_9")+n.rssi+__WEBUI_TEXT__("runtime.dbm_channel")+n.channel+(n.open?__WEBUI_TEXT__("runtime.open"):__WEBUI_TEXT__("runtime.secured"))+__WEBUI_TEXT__("runtime.symbol_10");select.appendChild(o)}}
-async function refreshWifiScan(){if(scanBusy||!webUiPollingActive())return;return withPollGate(async()=>{if(scanBusy||!webUiPollingActive())return;scanBusy=true;try{const d=await api('/api/v1/network/scan');$('scanStatus').textContent=d.state==='READY'?__WEBUI_TEXT__("runtime.ready")+d.networks.length+__WEBUI_TEXT__("runtime.network_s"):d.state;if(d.state==='READY')showScanResults(d);if(webUiPollingActive()&&(d.state==='QUEUED'||d.state==='RUNNING'))scanTimer=setTimeout(refreshWifiScan,500)}catch(e){message(e.message,'error')}finally{scanBusy=false}})}
-async function startWifiScan(){if(scanBusy)return;clearTimeout(scanTimer);$('scanStatus').textContent=__WEBUI_TEXT__("runtime.requesting");return withPollGate(async()=>{try{await api('/api/v1/network/scan',{method:'POST',body:'{}'});message(__WEBUI_TEXT__("runtime.wi_fi_scan_started"),'ok');scanTimer=setTimeout(refreshWifiScan,100)}catch(e){message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_start_wi_fi_scan"),e),'error');$('scanStatus').textContent=__WEBUI_TEXT__("runtime.error")}})}
-function loadNetworkAddress(n){if(!n||networkAddressLoaded)return;networkAddressLoaded=true;savedStaSsid=n.wifiConfigured&&n.ssid?n.ssid:'';savedStaOpen=!!(n.wifiConfigured&&n.open);savedStaWifiSleep=!!n.wifiSleep;savedDeviceName=n.deviceName||'';if($('deviceName'))$('deviceName').value=savedDeviceName;if($('staWifiSleep')&&!powerDirty)$('staWifiSleep').checked=savedStaWifiSleep;if(savedStaSsid){$('staSsid').value=savedStaSsid;$('staOpen').checked=savedStaOpen;updateNetworkPasswordState()}$('staIpMode').value=n.ipMode==='static'?'static':'dhcp';if(n.ipMode==='static'){$('staStaticIp').value=n.configuredIp||'';$('staNetmask').value=n.configuredNetmask||'';$('staGateway').value=n.configuredGateway||'';$('staDns1').value=n.configuredDns1||'';$('staDns2').value=n.configuredDns2||''}savedStaAddr=netAddrKey();updateStaticIpFieldsState();updateWifiSleepState();networkBaseline=snapshotControls(networkControls())}
-function updateWifiSleepState(){const el=$('staWifiSleep');if(el)el.disabled=!controlsMutable||!savedStaSsid}
-
-async function setWifiSleep(){const el=$('staWifiSleep');if(!el||!savedStaSsid)return;const a=savedStaAddr.split('|'),p={action:'save',ssid:savedStaSsid,password:'',open:savedStaOpen,wifiSleep:el.checked,ipMode:a[0]};if(p.ipMode==='static'){p.ip=a[1];p.netmask=a[2];p.gateway=a[3];p.dns1=a[4];if(a[5])p.dns2=a[5]}p._noReconnectWait=true;const ok=await command('/api/v1/network',p,false,__WEBUI_TEXT__("runtime.wi_fi_sleep_saved"));if(!ok)el.checked=savedStaWifiSleep;return ok}
-function formatNetworkStatus(n){let t='STA: '+n.staState;if(n.ssid)t+=' — '+n.ssid;if(n.staState==='CONNECTED'&&typeof n.channel==='number'&&n.channel>0)t+=' — channel '+n.channel;if(n.staIp)t+=' — '+n.staIp;if(n.mdnsHost)t+=' — '+n.mdnsHost+'.local';if(typeof n.signalQualityPct==='number'&&typeof n.rssi==='number')t+=' — signal '+n.signalQualityPct+'% ('+n.rssi+' dBm)';t+=(n.wifiConfigured?__WEBUI_TEXT__("runtime.credentials_saved"):'')+' — '+(n.ipMode==='static'?__WEBUI_TEXT__("runtime.static_ip"):'DHCP');if(n.wifiSleep)t+=__WEBUI_TEXT__("runtime.sleep_on");if(n.configState==='PENDING')t+=__WEBUI_TEXT__("runtime.pending_confirm")+(n.confirmRemainingMs?(' '+Math.ceil(n.confirmRemainingMs/1000)+'s'):'');return t}
-
-let presetState={activeId:0,items:[],selectedId:0},presetsLoaded=false;
-function presetSummary(p){return __WEBUI_TEXT__("runtime.target_2")+(p.goalWeightG||'?')+' g'}
-function presetCardDot(){const dot=document.createElement('span');dot.className='presetCardDot';dot.setAttribute('aria-hidden','true');return dot}
-function renderPresetCards(targetId,selectable){const el=$(targetId);if(!el)return;el.replaceChildren();for(const p of presetState.items){const card=document.createElement('article');card.className='presetCard'+(p.id===presetState.activeId?' active':'')+(p.id===presetState.selectedId?' selected':'');card.dataset.id=String(p.id);card.appendChild(presetCardDot());const titleRow=document.createElement('div');titleRow.className='presetCardTitleRow';const title=document.createElement('button');title.type='button';title.className='presetCardTitle';title.textContent=p.name;title.title=__WEBUI_TEXT__("runtime.rename");title.onclick=e=>{e.stopPropagation();if(selectable){presetState.selectedId=p.id;renderAllPresetUi();return}startRenamePreset(p,title)};const badge=document.createElement('span');badge.className='presetCardBadge';badge.textContent=p.isFactory?__WEBUI_TEXT__("runtime.factory"):__WEBUI_TEXT__("runtime.custom");titleRow.appendChild(title);titleRow.appendChild(badge);const meta=document.createElement('div');meta.className='presetCardMeta';meta.textContent=presetSummary(p);card.appendChild(titleRow);card.appendChild(meta);card.onclick=()=>applyPreset(p.id,selectable);el.appendChild(card)}}
-function guardRuleRows(m){const on=!!m&&m.mode==='active',off=__WEBUI_TEXT__("runtime.off_2"),f=v=>Number.isFinite(v)?axisLabel(v,'g'):'\u2014',sub=(t,vals)=>t.replace(/\{(\d)\}/g,(_,i)=>vals[+i]);return[[__WEBUI_TEXT__("runtime.fast"),'guardFast',on&&m.fast?sub(__WEBUI_TEXT__("home.rule_fast"),[f(m.ceil),m.prot,m.tMin,f(m.goal)]):off],[__WEBUI_TEXT__("runtime.bbw"),'guardBbw',on?sub(__WEBUI_TEXT__("home.rule_bbw"),[f(m.goal),m.tMin,m.tMax]):off],[__WEBUI_TEXT__("runtime.slow"),'guardSlow',on&&m.slow?sub(__WEBUI_TEXT__("home.rule_slow"),[f(m.floor),m.tMax]):off]].map(([n,c,r])=>{const row=document.createElement('div');row.className='guardRow '+c;const name=document.createElement('span');name.className='guardName';const dot=document.createElement('i');dot.setAttribute('aria-hidden','true');name.append(dot,n);const rule=document.createElement('span');rule.className='guardRule';rule.textContent=r;row.append(name,rule);return row})}
-function renderHomePresetAccordion(){const el=$('homePresetAcc');if(!el)return;const canSelect=!!($('homeBrewByWeight')&&$('homeBrewByWeight').checked&&controlsMutable),openId=homeAccPendingId||presetState.activeId,sig=JSON.stringify([openId,canSelect,liveRuleModel,presetState.items]);if(sig===homeAccSig)return;homeAccSig=sig;const focusIdx=[...el.querySelectorAll('.presetAccHead')].indexOf(document.activeElement),have=new Map([...el.children].map(n=>[n.dataset.id,n])),nodes=[];for(const p of presetState.items){const active=p.id===openId,key=String(p.id);let item=have.get(key);if(!item){item=document.createElement('div');item.className='presetAccItem';item.dataset.id=key;const head=document.createElement('button');head.type='button';head.className='presetAccHead';const dot=document.createElement('span');dot.className='presetAccDot';dot.setAttribute('aria-hidden','true');const name=document.createElement('span');name.className='presetAccName';const badge=document.createElement('span');badge.className='presetAccBadge';const target=document.createElement('span');target.className='presetAccTarget';const chev=document.createElement('span');chev.className='presetAccChev';chev.setAttribute('aria-hidden','true');chev.textContent='\u25be';head.append(dot,name,badge,target,chev);const panel=document.createElement('div');panel.className='presetAccPanel';const panelIn=document.createElement('div');panelIn.className='presetAccPanelIn';const rows=document.createElement('div');rows.className='presetAccRows';rows.setAttribute('aria-live','polite');panelIn.appendChild(rows);panel.appendChild(panelIn);item.append(head,panel);el.appendChild(item)}const head=item.firstChild;item.classList.toggle('open',active);head.setAttribute('aria-expanded',active);head.disabled=!active&&!canSelect;head.classList.toggle('locked',head.disabled);head.children[1].textContent=p.name;head.children[2].textContent=p.isFactory?__WEBUI_TEXT__("runtime.factory"):__WEBUI_TEXT__("runtime.custom");head.children[3].textContent=presetSummary(p);head.onclick=()=>{if(p.id!==openId)applyPreset(p.id)};const m=p.id===presetState.activeId&&liveRuleModel&&liveRuleModel.mode!=='empty'?liveRuleModel:buildRuleChartModel(p);item.lastChild.firstChild.firstChild.replaceChildren(...guardRuleRows(m));nodes.push(item)}if(![...el.children].every((n,i)=>n===nodes[i]))el.replaceChildren(...nodes);if(focusIdx>=0&&!el.contains(document.activeElement)){const heads=el.querySelectorAll('.presetAccHead');if(heads[focusIdx])heads[focusIdx].focus()}}
-function updateActiveBrewProfileHint(){const el=$('activeBrewProfileHint');if(!el)return;const p=presetState.items.find(x=>x.id===presetState.activeId);el.textContent=__WEBUI_TEXT__("runtime.current_profile")+(p&&p.name?p.name:__WEBUI_TEXT__("runtime.unknown"))}function renderAllPresetUi(){renderPresetCards('presetCards',false);renderHomePresetAccordion();updatePresetActionButtons();updateActiveBrewProfileHint()}
-const HOME_GUARD_SWITCHES=[['homeFastExtractionGuardEnabled','homeFastExtractionGuardEnabledState','fastExtractionGuardEnabled',__WEBUI_TEXT__("runtime.fast_extraction_guard")],['homeAvoidAccidentalTouchEnabled','homeAvoidAccidentalTouchEnabledState','avoidAccidentalTouchEnabled',__WEBUI_TEXT__("runtime.avoid_accidental_touch")],['homeSlowExtractionGuardEnabled','homeSlowExtractionGuardEnabledState','slowExtractionGuardEnabled',__WEBUI_TEXT__("runtime.slow_extraction_guard")],['homeAutoToManualGuardEnabled','homeAutoToManualGuardEnabledState','autoToManualGuardEnabled',__WEBUI_TEXT__("runtime.a_to_m_time_guard")],['homeCupProtectionEnabled','homeCupProtectionEnabledState','cupProtectionEnabled',__WEBUI_TEXT__("runtime.cup_protection")]],homeSwitchPending={};
-let nsm='warn_once';
-function homePendingPairs(){const rows=[['homeBrewByWeight',__WEBUI_TEXT__("runtime.brew_by_weight")],['homeNoScaleBbwEnabled',__WEBUI_TEXT__("runtime.no_scale_bbw")],...HOME_GUARD_SWITCHES.map(x=>[x[0],x[3]])],ok=[],fail=[];for(const [id,label] of rows){const p=homeSwitchPending[id];if(!p)continue;ok.push(toggleOk(label,p.expected));fail.push(toggleFail(label,p.expected))}return{ok:ok.length?ok.join(' '):__WEBUI_TEXT__("runtime.quick_settings_saved"),fail:fail.length===1?fail[0]:__WEBUI_TEXT__("runtime.could_not_update_quick_settings")}}
-function homeSwitchUnset(id){return!$(id)?.closest('.switchRow')?.classList.contains('swR')}
-function syncHomeSwitch(h,s,on){const el=$(h);if(!el)return;el.checked=!!on;el.closest('.switchRow')?.classList.add('swR');if($(s))$(s).textContent=on?__WEBUI_TEXT__("runtime.on"):__WEBUI_TEXT__("runtime.off")}
-function pendVis(id,on){const el=$(id);if(!el)return;const r=el.closest('.switchRow');if(r)r.classList.toggle('switchPending',!!on)}
-function endHomeSwitchPending(id){const p=homeSwitchPending[id];if(p&&p.timer)clearTimeout(p.timer);delete homeSwitchPending[id];pendVis(id,0)}
-function beginHomeSwitchPending(id,expected){endHomeSwitchPending(id);const p={expected:!!expected,until:Date.now()+5e3,timer:setTimeout(()=>{if(homeSwitchPending[id]===p)refreshStatus()},5e3)};homeSwitchPending[id]=p;pendVis(id,1);if($(id+'State'))$(id+'State').textContent=expected?__WEBUI_TEXT__("runtime.on"):__WEBUI_TEXT__("runtime.off");updateHomeGuardSwitchesLock()}
-function applyPolledHomeSwitch(h,s,on,cfgKey){const p=homeSwitchPending[h];if(p){if(!!on!==p.expected&&(Date.now()<p.until||pollAt<p.until))return;endHomeSwitchPending(h);if(cfgKey&&$(cfgKey)){$(cfgKey).checked=!!on;updateConfigGroups()}}syncHomeSwitch(h,s,on)}
-function applyHomeNoScaleFromConfig(c){const mode=c.noScaleBbwMode||'off',on=mode!=='off';if(on)nsm=mode;applyPolledHomeSwitch('homeNoScaleBbwEnabled','',on)}
-function applyHomeSwitchesFromConfig(c){if(!c)return;[['homeBrewByWeight','homeBrewByWeightState','brewByWeight'],...HOME_GUARD_SWITCHES].forEach(([h,s,k])=>typeof c[k]==='boolean'&&applyPolledHomeSwitch(h,s,c[k],k));applyHomeNoScaleFromConfig(c);updateHomeGuardSwitchesLock();renderHomePresetAccordion()}
-function syncHomeGuardSwitchesFromSettings(){HOME_GUARD_SWITCHES.forEach(([h,s,c])=>{if(!homeSwitchPending[h])syncHomeSwitch(h,s,$(c)&&$(c).checked)});if(!homeSwitchPending.homeNoScaleBbwEnabled&&$('noScaleBbwMode')){const mode=$('noScaleBbwMode').value;if(mode!=='off')nsm=mode;syncHomeSwitch('homeNoScaleBbwEnabled','',mode!=='off')}}
-function updateHomeGuardSwitchesLock(){const bbw=$('homeBrewByWeight'),x=homeSwitchUnset('homeBrewByWeight'),on=!x&&!!bbw&&bbw.checked;if(bbw)bbw.disabled=!controlsMutable||x;[['homeNoScaleBbwEnabled'],...HOME_GUARD_SWITCHES].forEach(([h])=>{const el=$(h);if(!el)return;const u=homeSwitchUnset(h),off=!u&&!on;el.disabled=!controlsMutable||u||off;el.closest('.switchRow')?.classList.toggle('fieldOff',off)})}
-function scheduleHomeGuardFlush(){clearTimeout(homeFlushTimer);homeFlushTimer=setTimeout(()=>{homeFlushTimer=0;flushHomeGuards()},350)}
-function persistHomeGuard(h,s,c,preset){const on=$(h).checked;beginHomeSwitchPending(h,on);if($(c))$(c).checked=on;updateConfigGroups();if(preset)homeFlushPreset=true;else homeFlushConfig=true;scheduleHomeGuardFlush()}
-function persistHomeNoScaleBbw(){const el=$('homeNoScaleBbwEnabled');if(!el)return;beginHomeSwitchPending('homeNoScaleBbwEnabled',el.checked);if($('noScaleBbwMode'))$('noScaleBbwMode').value=el.checked?nsm:'off';updateConfigGroups();homeFlushConfig=true;scheduleHomeGuardFlush()}
-function persistHomeBrewByWeight(){const el=$('homeBrewByWeight');if(!el)return;beginHomeSwitchPending('homeBrewByWeight',el.checked);renderHomePresetAccordion();homeFlushConfig=true;scheduleHomeGuardFlush()}
-async function ensureSettingsHydrated(){if(configLoaded)return;await ensureSettingsDom();const s=await api('/api/v1/status/settings');if(!statusPageOk('settings',s))throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));applyCommonStatus(s);loadSettingsConfig(s.config);if(s.presets)ingestPresets(s)}
-function clearHomePend(){['homeBrewByWeight','homeNoScaleBbwEnabled',...HOME_GUARD_SWITCHES.map(x=>x[0])].forEach(endHomeSwitchPending)}
-function syncSettingsFromHomeSwitches(){if($('homeBrewByWeight')&&$('brewByWeight'))$('brewByWeight').checked=$('homeBrewByWeight').checked;HOME_GUARD_SWITCHES.forEach(([h,,k])=>{if($(h)&&$(k))$(k).checked=$(h).checked})}
-function withBaseRev(p){if(configRevision)p.baseRevision=configRevision;return p}
-function isConfigStale(e){return!!(e&&(e.message||'').includes('Config changed'))}
-function homeConfigPatch(){const p={};let n=0;if(homeSwitchPending.homeBrewByWeight){p.brewByWeight=$('homeBrewByWeight').checked;n++}if(homeSwitchPending.homeNoScaleBbwEnabled){p.noScaleBbwMode=$('homeNoScaleBbwEnabled').checked?nsm:'off';n++}return n?withBaseRev(p):null}
-async function flushHomeGuards(){if(homeFlushBusy){scheduleHomeGuardFlush();return}homeFlushBusy=true;updateHomeGuardSwitchesLock();const doConfig=homeFlushConfig,doPreset=homeFlushPreset;homeFlushConfig=false;homeFlushPreset=false;const msgs=homePendingPairs();try{if(doConfig){for(let i=0;i<2;i++){const patch=homeConfigPatch();if(!patch)break;try{await command('/api/v1/config',patch,1,doPreset?'':msgs.ok,doPreset?'':msgs.fail);syncSettingsFromHomeSwitches();break}catch(e){await refreshStatus();if(i||!isConfigStale(e)){message(formatCommandError(msgs.fail,e),'error');clearHomePend();await refreshStatus();return}}}}if(doPreset){try{await ensureSettingsHydrated()}catch(e){message(formatCommandError(msgs.fail,e),'error');clearHomePend();await refreshStatus();return}syncSettingsFromHomeSwitches();if((await saveBrewPreset(msgs.ok,msgs.fail))===false){clearHomePend();await refreshStatus()}}}finally{homeFlushBusy=false;updateHomeGuardSwitchesLock();if(homeFlushConfig||homeFlushPreset)scheduleHomeGuardFlush()}}
-function recipeBrewByWeight(){const active=presetState.items.find(x=>x.id===presetState.activeId);return active?!!active.brewByWeight:true}
-function selectedPreset(){return presetState.items.find(x=>x.id===(presetState.selectedId||presetState.activeId))}function updatePresetActionButtons(){const p=selectedPreset(),factory=!!p?.isFactory,locked=!controlsMutable||!presetsLoaded;document.querySelectorAll('.presetActions button').forEach(el=>{el.disabled=locked||(el.id==='presetDeleteBtn'&&(!p||factory))||(el.id==='presetResetBtn'&&!factory)});$('presetResetBtn')?.classList.toggle('hidden',!factory)}async function applyPreset(id,selectable){id=+id;if(!id)return;if(id===presetState.activeId){presetState.selectedId=id;renderAllPresetUi();return}if(selectable){presetState.selectedId=id;renderAllPresetUi();return}if(brewDirty&&!confirm(__WEBUI_TEXT__("runtime.you_have_unsaved_preset_changes_discard_them"))){presetState.selectedId=presetState.activeId;renderAllPresetUi();return}clearBrewDirty();presetState.selectedId=id;configLoaded=false;formRev=0;const seq=++homeAccApplySeq;homeAccPendingId=id;renderHomePresetAccordion();await command('/api/v1/presets',{action:'apply',id});if(seq===homeAccApplySeq){homeAccPendingId=0;renderHomePresetAccordion()}}
-async function saveBrewPreset(okMsg,failMsg){const ok=okMsg||__WEBUI_TEXT__("runtime.brew_settings_saved"),fail=failMsg||__WEBUI_TEXT__("runtime.could_not_save_brew_settings");try{await ensureSettingsHydrated()}catch(e){message(formatCommandError(fail,e),'error');return false}if(HOME_GUARD_SWITCHES.some(([h])=>homeSwitchPending[h])||homeSwitchPending.homeBrewByWeight)syncSettingsFromHomeSwitches();const err=validateBrewClient();if(err){showFieldError(err.id,err.msg);return false}clearFieldErrors();try{await command('/api/v1/presets',brewPayload(),1,ok,fail,'saveBrewPresetButton');clearBrewDirty();return true}catch(e){message(formatCommandError(fail,e),'error');await refreshStatus();return false}}
-function addBullseyePayload(p){p.bullseyeMelodyEnabled=$('bullseyeMelodyEnabled').checked;p.bullseyeRtttl=$('bullseyeRtttl').value;return p}function validateBullseyeClient(){const text=$('bullseyeRtttl').value;if(text.length>500)return{id:'bullseyeRtttl',msg:__WEBUI_TEXT__("runtime.rtttl_must_be_at_most_500_characters")};if($('bullseyeMelodyEnabled').checked&&!text.trim())return{id:'bullseyeRtttl',msg:__WEBUI_TEXT__("runtime.paste_an_rtttl_tune_before_enabling_bullseye")};return null}async function saveMachineConfig(){const fail=__WEBUI_TEXT__("runtime.could_not_save_machine_settings");try{await ensureSettingsHydrated()}catch(e){message(formatCommandError(fail,e),'error');return}const err=validateMachineClient()||validateBullseyeClient();if(err){showFieldError(err.id,err.msg);return}clearFieldErrors();const snapshot=snapshotControls(settingsSectionEls('config')),sel=$('preferredScaleSelect'),payload=withBaseRev(addBullseyePayload(machinePayload()));if(sel&&sel.dataset.pending==='1'&&sel.value!==(sel.dataset.applied||''))payload.preferredScaleMac=sel.value||'';try{await command('/api/v1/config',payload,1,__WEBUI_TEXT__("runtime.machine_settings_saved"),fail,'saveConfigButton');if(payload.preferredScaleMac!==undefined&&sel.dataset.applied.toUpperCase()!==payload.preferredScaleMac.toUpperCase())throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));if(JSON.stringify(snapshotControls(settingsSectionEls('config')))===JSON.stringify(snapshot)){if(sel)sel.dataset.pending='0';configDirty=false;setSaveDirty('saveConfigButton','configDirtyHint',false);await refreshStatus()}}catch(e){message(formatCommandError(fail,e),'error');await refreshStatus()}}
-async function saveDateTimeConfig(){const fail=__WEBUI_TEXT__("runtime.could_not_save_date_and_time_settings");const err=validateDateTimeClient();if(err){showFieldError(err.id,err.msg);return}clearFieldErrors();const payload=dateTimePayload();try{await command('/api/v1/config',withBaseRev({...payload}),1,__WEBUI_TEXT__("runtime.date_and_time_settings_saved"),fail,'saveDateTimeButton');if(JSON.stringify(dateTimePayload())===JSON.stringify(payload)){dateTimeDirty=false;setSaveDirty('saveDateTimeButton','dateTimeDirtyHint',false)}await refreshStatus()}catch(e){message(formatCommandError(fail,e),'error');await refreshStatus()}}
-function commitRenamePreset(p,name){const t=(name||'').trim();if(!t){message(__WEBUI_TEXT__("runtime.name_is_required"),'error');return}if(presetState.items.some(x=>x.id!==p.id&&x.name===t)){message(__WEBUI_TEXT__("runtime.name_already_in_use"),'error');return}command('/api/v1/presets',{action:'rename',id:p.id,name:t})}
-function startRenamePreset(p,titleEl){const isNarrow=window.matchMedia('(max-width:640px)').matches;if(isNarrow&&$('presetRenameDialog')){$('presetRenameInput').value=p.name;$('presetRenameDialog').showModal();$('presetRenameForm').onsubmit=async ev=>{ev.preventDefault();if(ev.submitter&&ev.submitter.value==='cancel'){$('presetRenameDialog').close();return}commitRenamePreset(p,$('presetRenameInput').value);$('presetRenameDialog').close()};return}if(!titleEl){const name=prompt(__WEBUI_TEXT__("runtime.rename_preset_2"),p.name);if(name===null)return;commitRenamePreset(p,name);return}const input=document.createElement('input');input.type='text';input.className='presetRenameInline';input.maxLength=23;input.value=p.name;const finish=async(ok)=>{const v=input.value;if(input.parentNode)input.replaceWith(titleEl);if(ok)commitRenamePreset(p,v);else renderAllPresetUi()};titleEl.replaceWith(input);input.focus();input.select();input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();finish(true)}if(e.key==='Escape'){e.preventDefault();finish(false)}};input.onblur=()=>finish(true)}
-function ingestPresets(s){if(!s.presets)return;presetsLoaded=true;const prev=presetState.activeId;presetState.activeId=s.presets.activeId||0;presetState.items=s.presets.items||[];if(!presetState.activeId||!presetState.items.some(x=>x.id===presetState.selectedId)||(prev&&prev!==presetState.activeId))presetState.selectedId=presetState.activeId;if(prev&&prev!==presetState.activeId){configLoaded=false;formRev=0;clearBrewDirty();liveRuleModel=null}renderAllPresetUi();if($('brewByWeight')&&!brewDirty)$('brewByWeight').checked=recipeBrewByWeight();const active=presetState.items.find(x=>x.id===presetState.activeId);if($('lineaMicraBrewTargetC')&&!brewDirty&&active&&typeof active.lineaMicraBrewTargetC==='number')$('lineaMicraBrewTargetC').value=active.lineaMicraBrewTargetC.toFixed(1)}
-
-function buildRuleChartModel(c){if(!c)return{mode:'empty'};const N=v=>Number.isFinite(+v)?+v:NaN,bbw=!!c.brewByWeight,fast=bbw&&!!c.fastExtractionGuardEnabled,slow=bbw&&!!c.slowExtractionGuardEnabled,tMin=N(c.minBbwBrewTimeMs)/1e3,tMax=N(c.maxBbwBrewTimeMs)/1e3,pv=N(c.bbwProtectionMs)/1e3,prot=Number.isFinite(pv)?Math.max(0,Math.min(pv,tMin>0?tMin:1/0)):0;if(!(N(c.operationalWallMs)>0))return{mode:'empty'};return{mode:bbw?'active':'timerOnly',fast,slow,tMin,tMax,prot,goal:N(c.goalWeightG),floor:N(c.minRecoveryWeightG),ceil:N(c.maxRecoveryWeightG)}}
-let liveRuleModel=null,homeAccSig='',homeAccPendingId=0,homeAccApplySeq=0;
-function updateRuleChartFromStatus(s){liveRuleModel=buildRuleChartModel(s&&s.config&&{...presetState.items.find(p=>p.id===presetState.activeId),...s.config});renderHomePresetAccordion()}
-
-function ms(m,n){return m!=null?(m/1000).toFixed(n):'—'}
-let homeFrame=null,homeStale=true,homeReady,homeResolve=()=>{};
-function statusStreamFrame(previous,message){
-  if(message.v!==1||!Number.isInteger(message.boot)||typeof message.snapshot!=='boolean'||!message.changes||
-      !message.snapshot&&(!previous||message.boot!==previous.boot))throw Error();
-  const status=message.snapshot?{}:previous.status;
-  for(const[path,value]of Object.entries(message.changes)){
-    if(!/^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*){0,2}$/.test(path)||/(^|\.)(constructor|prototype)(\.|$)/.test(path)||
-        typeof value==='number'&&!Number.isFinite(value))throw Error();
-    const parts=path.split('.');let target=status;
-    for(const key of parts.slice(0,-1))target=target[key]||(target[key]={});
-    target[parts.at(-1)]=value;
+function webUiPollingActive() {
+  if (!webUiOwner) return false;
+  if (Date.now() < webUiActiveUntil) return true;
+  if (sessionShotLive()) {
+    resetWebUiInactivity();
+    return true;
   }
-  if(message.type==='diagnostic'?message.snapshot&&!diagSnapshotOk(status):!statusPageOk('home',status)||status.bootId!==message.boot)throw Error();
-  return{boot:message.boot,status};
+  deactivateWebUi();
+  return false;
 }
-function renderHomeStream(){
-  if(homeStale||!homeFrame)return;
-  const status=homeFrame.status;
-  lastStatusAt=Date.now();statusLiveShot=!!status.liveShot;
-  applyCommonStatus(status);if(status.snapshotStale)setMutable(false);
-  if(activeView!=='home')return;
-  viewStatusHandlers.home?.(status);noteReachOk();hideHomeBoot();
+function noteWebUiInteraction(event) {
+  if (!webUiOwner || !event.isTrusted) return;
+  noteWebUiPowerActivity();
+  const target = event.target;
+  if (
+    !target ||
+    !target.closest ||
+    !target.closest(
+      'button,a,input,select,textarea,label,summary,[role="button"],[role="switch"],.presetCard',
+    )
+  )
+    return;
+  resetWebUiInactivity();
 }
-function invalidateHomeStream(){
-  homeStale=true;homeResolve(false);setMutable(false);updateHeaderSignals();
-  if(activeView!=='home')return;
+function withPollGate(fn) {
+  const run = pollChain.then(fn, fn);
+  pollChain = run.catch(console.warn);
+  return run;
+}
+function withCommandGate(fn) {
+  const run = commandChain.then(fn, fn);
+  commandChain = run.catch(console.warn);
+  return run;
+}
+function drainDeviceSlots() {
+  while (deviceWaiters.length && deviceInFlight < DEVICE_MAX_INFLIGHT) {
+    deviceInFlight++;
+    deviceWaiters.shift()();
+  }
+}
+function acquireDeviceSlot() {
+  return new Promise((resolve) => {
+    deviceWaiters.push(resolve);
+    drainDeviceSlots();
+  });
+}
+function releaseDeviceSlot() {
+  deviceInFlight--;
+  drainDeviceSlots();
+}
+function statusPollDue() {
+  return !commandBusy && !homeFlushBusy && !otaBusy && Date.now() - lastStatusAt >= 900;
+}
+function statusIntervalMs() {
+  return document.hidden ? 12e3 : statusLiveShot ? 2500 : 4e3;
+}
+function armStatusTimer() {
+  clearInterval(statusTimer);
+  if (!webUiPollingActive() || (activeView !== "settings" && activeView !== "admin")) return;
+  statusTimer = setInterval(() => {
+    if (webUiPollingActive() && statusPollDue()) refreshStatus();
+  }, statusIntervalMs());
+}
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+function formatTzLabel(min) {
+  const sign = min >= 0 ? "+" : "-";
+  const abs = Math.abs(min);
+  return (
+    __WEBUI_TEXT__("runtime.utc") +
+    sign +
+    pad2(Math.floor(abs / 60)) +
+    __WEBUI_TEXT__("runtime.symbol") +
+    pad2(abs % 60)
+  );
+}
+function formatWallTime(unixSec, tz) {
+  const localSec = unixSec + tz * 60;
+  const d = new Date(0);
+  d.setUTCSeconds(localSec);
+  return (
+    d.getUTCFullYear() +
+    __WEBUI_TEXT__("runtime.symbol_2") +
+    pad2(d.getUTCMonth() + 1) +
+    __WEBUI_TEXT__("runtime.symbol_2") +
+    pad2(d.getUTCDate()) +
+    __WEBUI_TEXT__("runtime.symbol_3") +
+    pad2(d.getUTCHours()) +
+    __WEBUI_TEXT__("runtime.symbol") +
+    pad2(d.getUTCMinutes()) +
+    __WEBUI_TEXT__("runtime.symbol") +
+    pad2(d.getUTCSeconds())
+  );
+}
+function formatWallTimeLocal(unixLocalSec) {
+  const d = new Date(0);
+  d.setUTCSeconds(unixLocalSec);
+  return (
+    d.getUTCFullYear() +
+    __WEBUI_TEXT__("runtime.symbol_2") +
+    pad2(d.getUTCMonth() + 1) +
+    __WEBUI_TEXT__("runtime.symbol_2") +
+    pad2(d.getUTCDate()) +
+    __WEBUI_TEXT__("runtime.symbol_3") +
+    pad2(d.getUTCHours()) +
+    __WEBUI_TEXT__("runtime.symbol") +
+    pad2(d.getUTCMinutes()) +
+    __WEBUI_TEXT__("runtime.symbol") +
+    pad2(d.getUTCSeconds())
+  );
+}
+const HUMAN_WD = __WEBUI_TEXT__("runtime.weekdays").split(","),
+  HUMAN_MON = __WEBUI_TEXT__("runtime.months_short").split(",");
+function formatHumanTime(l) {
+  const dt = new Date(l * 1e3),
+    now = statusUtcAnchorSec
+      ? statusUtcAnchorSec +
+        Math.floor((performance.now() - statusUtcAnchorAt) / 1000) +
+        statusTimezoneOffsetMinutes * 60
+      : 0,
+    n = new Date(now * 1e3),
+    d = Math.floor(now / 86400) - Math.floor(l / 86400),
+    c = dt.toISOString().slice(11, 16),
+    AT = __WEBUI_TEXT__("runtime.at");
+  if (now && d >= 0 && d < 7)
+    return (
+      (d === 0
+        ? __WEBUI_TEXT__("runtime.today")
+        : d === 1
+          ? __WEBUI_TEXT__("runtime.yesterday")
+          : HUMAN_WD[dt.getUTCDay()]) +
+      AT +
+      c
+    );
+  if (now && d >= 7 && d < 28) {
+    const w = (d / 7) | 0;
+    return w + (w > 1 ? __WEBUI_TEXT__("runtime.weeks_ago") : __WEBUI_TEXT__("runtime.week_ago"));
+  }
+  return (
+    HUMAN_MON[dt.getUTCMonth()] +
+    " " +
+    dt.getUTCDate() +
+    (now && dt.getUTCFullYear() === n.getUTCFullYear() ? "" : " " + dt.getUTCFullYear())
+  );
+}
+function wrapTimeEl(td, r) {
+  if (!(r.hasWallTime && r.endedAtLocalSec)) return;
+  const t = document.createElement("time"),
+    offset =
+      typeof r.timezoneOffsetMinutesAtCommit === "number"
+        ? r.timezoneOffsetMinutesAtCommit
+        : Math.round((r.endedAtLocalSec - r.endedAtUnixSec) / 60);
+  t.dateTime = new Date(r.endedAtUnixSec * 1e3).toISOString();
+  t.textContent = td.textContent;
+  td.title = formatWallTimeLocal(r.endedAtLocalSec) + " (" + formatTzLabel(offset) + ")";
+  td.replaceChildren(t);
+}
+function formatShotTime(r) {
+  if (r.hasWallTime && r.endedAtLocalSec) return formatHumanTime(r.endedAtLocalSec);
+  return "#" + r.bootId + __WEBUI_TEXT__("runtime.no_time");
+}
+function formatShotTimeCsv(r) {
+  if (r.hasWallTime && r.endedAtLocalSec) return formatWallTimeLocal(r.endedAtLocalSec);
+  return "";
+}
+function formatShotEnded(d) {
+  return (
+    {
+      paddle: __WEBUI_TEXT__("runtime.manual"),
+      activator: __WEBUI_TEXT__("runtime.manual"),
+      physical_override: __WEBUI_TEXT__("runtime.manual"),
+      normal_target: __WEBUI_TEXT__("runtime.bbw"),
+      scale_threshold: __WEBUI_TEXT__("runtime.bbw"),
+      extended_max_weight: __WEBUI_TEXT__("runtime.fast_guard"),
+      extended_min_time: __WEBUI_TEXT__("runtime.fast_guard"),
+      fast_extraction_max_weight: __WEBUI_TEXT__("runtime.fast_guard"),
+      fast_extraction_min_time: __WEBUI_TEXT__("runtime.fast_guard"),
+      slow_max_time: __WEBUI_TEXT__("runtime.slow_guard"),
+      slow_min_weight: __WEBUI_TEXT__("runtime.slow_guard"),
+      slow_extraction_max_time: __WEBUI_TEXT__("runtime.slow_guard"),
+      slow_extraction_min_weight: __WEBUI_TEXT__("runtime.slow_guard"),
+      auto_to_manual: __WEBUI_TEXT__("runtime.a_to_m"),
+      auto_to_manual_guard: __WEBUI_TEXT__("runtime.a_to_m"),
+      cup_removed: __WEBUI_TEXT__("runtime.cup"),
+      web_stop: __WEBUI_TEXT__("runtime.web"),
+      web_heartbeat: __WEBUI_TEXT__("runtime.heartbeat"),
+      web_heartbeat_timeout: __WEBUI_TEXT__("runtime.heartbeat"),
+      hard_limit: __WEBUI_TEXT__("runtime.hard_limit"),
+      global_limit: __WEBUI_TEXT__("runtime.hard_limit"),
+      wall_limit: __WEBUI_TEXT__("runtime.max_time"),
+      configured_wall_limit: __WEBUI_TEXT__("runtime.max_time"),
+      relay_safety: __WEBUI_TEXT__("runtime.relay"),
+      relay_safety_failure: __WEBUI_TEXT__("runtime.relay"),
+      weight_anomaly: __WEBUI_TEXT__("runtime.anomaly"),
+      touch_weight_fallback: __WEBUI_TEXT__("runtime.touch_stop_fallback"),
+    }[String(d || "").toLowerCase()] || __WEBUI_TEXT__("runtime.unknown")
+  );
+}
+function lastCurveWeightG(w) {
+  if (!Array.isArray(w)) return null;
+  for (let i = w.length - 1; i >= 0; i--) {
+    if (typeof w[i] === "number" && w[i] !== 0) return w[i] / 100;
+  }
+  return null;
+}
+function axisLabel(v, u) {
+  v = Math.round(+v * 10) / 10;
+  return isFinite(v)
+    ? v + __WEBUI_TEXT__("runtime.symbol_3") + u
+    : __WEBUI_TEXT__("runtime.unknown");
+}
+let chartFrame = 0,
+  chartObserver;
+function layoutChartLabels() {
+  if (chartFrame) return;
+  chartFrame = requestAnimationFrame(() => {
+    chartFrame = 0;
+    for (const e of document.querySelectorAll("[data-chart-axis]")) {
+      const b = e.getBoundingClientRect();
+      if (!b.width || !b.height) continue;
+      const tk = [];
+      for (const o of e.querySelectorAll("[data-p]")) o.dataset.m ? o.remove() : tk.push(o);
+      const rect = (n) => {
+        if (!n.dataset.m) n.style.transform = "";
+        let r = n.getBoundingClientRect();
+        if (n.classList.contains("ruleTick") && (r.left < b.left - 1 || r.right > b.right + 1)) {
+          n.style.transform = r.left < b.left ? "translateX(0)" : "translateX(-100%)";
+          r = n.getBoundingClientRect();
+        }
+        return r;
+      };
+      if (e.dataset.chartMerge !== undefined && tk.length > 1) {
+        const R = tk.map(rect),
+          runs = [];
+        let s = 0;
+        for (let i = 1; i <= tk.length; i++)
+          if (i === tk.length || R[i].left >= R[i - 1].right + 4) {
+            if (i - s > 1) runs.push(tk.slice(s, i));
+            s = i;
+          }
+        for (const ru of runs) {
+          const f = ru[0],
+            l = ru.at(-1),
+            tx = ru.map((x) => x.textContent),
+            mm = tx.map((t) => t.split(/ (?=\S+$)/)),
+            u = mm[0][1],
+            n = document.createElement("span");
+          n.className = "ruleTick";
+          n.dataset.m = "1";
+          n.dataset.p = Math.max(...ru.map((x) => +x.dataset.p)) + 1;
+          n.dataset.k = "m" + f.dataset.k + "|" + l.dataset.k;
+          n.textContent =
+            u && mm.every((p) => p[1] === u)
+              ? mm.map((p) => p[0]).join("–") + " " + u
+              : tx.join(" – ");
+          n.style.left = (parseFloat(f.style.left) + parseFloat(l.style.left)) / 2 + "%";
+          n.style.transform = "translateX(-50%)";
+          e.appendChild(n);
+          tk.push(n);
+        }
+      }
+      const used = [],
+        next = new Set(),
+        old = e._shown;
+      for (const n of tk.sort((a, b) => b.dataset.p - a.dataset.p)) {
+        if (n.dataset.k === "tare") {
+          const t = n.parentElement;
+          t.style.bottom = "";
+          // The drop is rendered first; both markers share bottom:10%.
+          if (tk.length > 1) {
+            const d = e.firstElementChild.getBoundingClientRect(),
+              r = t.getBoundingClientRect();
+            if (r.left < d.right && d.left < r.right)
+              t.style.bottom = "calc(10% + " + (d.height + 8) + "px)";
+          }
+        }
+        const r = rect(n),
+          gap = old && !old.has(n.dataset.k) ? 8 : 4,
+          ok =
+            r.left >= b.left - 1 &&
+            r.right <= b.right + 1 &&
+            used.every(
+              (q) =>
+                r.right + gap <= q.left ||
+                q.right + gap <= r.left ||
+                r.bottom + gap <= q.top ||
+                q.bottom + gap <= r.top,
+            );
+        if (ok) {
+          used.push(r);
+          next.add(n.dataset.k);
+        }
+        n.style.visibility = ok ? "visible" : "hidden";
+      }
+      e._shown = next;
+    }
+  });
+}
+function watchChartLabels(e) {
+  e.dataset.chartAxis = "";
+  if (!chartObserver) {
+    chartObserver = new ResizeObserver(layoutChartLabels);
+    chartObserver.observe($("app"));
+    document.fonts?.ready.then(layoutChartLabels);
+  }
+  layoutChartLabels();
+}
+function fillChartTicks(e, l, m, avoidOverlap, mg) {
+  if (!e) return;
+  e.replaceChildren();
+  if (!(m > 0)) {
+    e.removeAttribute("role");
+    e.removeAttribute("aria-label");
+    delete e.dataset.chartAxis;
+    delete e.dataset.chartMerge;
+    delete e._shown;
+    return;
+  }
+  const s = {},
+    raw = [];
+  for (const t of l || []) {
+    const a = +t[0];
+    if (!isFinite(a)) continue;
+    const k = avoidOverlap ? a + "|" + t[1] : ~~(a * 10);
+    if (s[k]) continue;
+    s[k] = 1;
+    raw.push([Math.max(0, Math.min(1, a / m)), "" + t[1], t[2] || 0, t[3] || "" + t[1]]);
+  }
+  raw.sort((a, b) => a[0] - b[0]);
+  if (avoidOverlap) {
+    e.setAttribute("role", "img");
+    e.setAttribute("aria-label", raw.map((t) => t[1]).join(", "));
+  }
+  for (const t of raw) {
+    const n = document.createElement("span");
+    n.className = "ruleTick";
+    n.textContent = t[1];
+    n.style.left = t[0] * 100 + "%";
+    if (avoidOverlap) {
+      n.dataset.p = t[2];
+      n.dataset.k = t[3];
+      n.style.visibility = "hidden";
+    }
+    e.appendChild(n);
+  }
+  if (mg) e.dataset.chartMerge = "";
+  if (avoidOverlap) watchChartLabels(e);
+}
+function fixedChartTicks(max, step, unit) {
+  const ticks = [];
+  for (let v = 0; v <= max + 1e-6; v += step) ticks.push([v, axisLabel(v, unit)]);
+  return ticks;
+}
+function shotDisplayActualG(actual, wCg) {
+  if (typeof actual === "number" && actual !== 0) return actual;
+  const fromCurve = lastCurveWeightG(wCg);
+  return fromCurve !== null ? fromCurve : typeof actual === "number" ? actual : null;
+}
+function shotDisplayFlowGS(shot) {
+  if (!shot) return null;
+  if (typeof shot.avgFlowGS === "number" && Number.isFinite(shot.avgFlowGS)) return shot.avgFlowGS;
+  const actual = shotDisplayActualG(shot.actualG, shot.wCg);
+  const dur = typeof shot.durationS === "number" ? shot.durationS : null;
+  const drop =
+    typeof shot.firstDropS === "number"
+      ? shot.firstDropS
+      : typeof shot.dropS === "number"
+        ? shot.dropS
+        : null;
+  if (actual == null || dur == null || drop == null || !(dur - drop > 0.5) || !(actual > 0))
+    return null;
+  return actual / (dur - drop);
+}
+function fillStarRate(h, r, off, fn) {
+  if (!h) return;
+  const n = Math.max(0, Math.min(5, +r || 0));
+  h.classList.add("starRate");
+  h.setAttribute("role", "radiogroup");
+  h.setAttribute("aria-label", __WEBUI_TEXT__("runtime.shot_rating"));
+  h.dataset.rating = "" + n;
+  h.replaceChildren();
+  for (let i = 1; i <= 5; i++) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = i <= n ? "on" : "";
+    b.disabled = !!off;
+    b.setAttribute(
+      "aria-label",
+      i + __WEBUI_TEXT__("runtime.star") + (i > 1 ? __WEBUI_TEXT__("runtime.s") : ""),
+    );
+    b.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.7 6.2 6.7.7-5.1 4.4 1.5 6.6L12 17.2 6.2 20.5l1.5-6.6L2.6 9.5l6.7-.7z"/></svg>';
+    b.onclick = () => fn && fn(i === n ? 0 : i);
+    h.appendChild(b);
+  }
+}
+// Derive one estimate per distinct accepted endpoint, without resampling weights.
+function buildShotSparkModel(shot) {
+  if (!shot) return null;
+  const w = Array.isArray(shot.wCg) ? shot.wCg : [],
+    at = shot.wAtMs,
+    markers = shot.wBreakBefore ?? [];
+  if (
+    !Array.isArray(at) ||
+    at.length !== w.length ||
+    w.length > 1201 ||
+    !Array.isArray(markers) ||
+    markers.some(
+      (v, i) => !Number.isInteger(v) || v < 0 || v >= w.length || (i && v <= markers[i - 1]),
+    ) ||
+    at.some((t, i) => !Number.isInteger(t) || t < 0 || t > 60000 || (i && t < at[i - 1]))
+  )
+    return null;
+  const breaks = new Set(markers),
+    colors = { bbw: "var(--ok)", fast: "#d97706", slow: "#6492d7", atm: "var(--mu)" },
+    num = (v) => (v == null || !Number.isFinite(+v) ? null : +v);
+  const end = num(shot.endS),
+    duration = num(shot.durationS),
+    drop = num(shot.dropS) ?? num(shot.firstDropS),
+    tare = num(shot.tareS),
+    ext = num(shot.extendedS),
+    atm = num(shot.atmS),
+    clear = num(shot.atmClearedS),
+    limit = Math.round((end ?? duration ?? Infinity) * 1000);
+  const kind = (t) =>
+    atm != null && t >= atm && (clear == null || t < clear)
+      ? "atm"
+      : ext != null && t >= ext && (shot.extractionExtended || shot.slowExtractionExtended)
+        ? shot.extractionExtended
+          ? "fast"
+          : "slow"
+        : "bbw";
+  const transitions = [ext, atm, clear].filter((t) => t != null).sort((a, b) => a - b),
+    segs = [],
+    dripSegs = [],
+    pts = [],
+    flowSegs = [],
+    dripFlowSegs = [],
+    flowCurve = Array(w.length).fill(null),
+    observations = [];
+  let maxFlow = null,
+    plotMaxFlow = 0,
+    segment = 0,
+    weightPrevious = null;
+  // Color splits interpolate only the drawn line; they are never measured rates.
+  const append = (segments, p, previous, flow) => {
+    const add = (q) => {
+      const k = kind(q.t),
+        s = segments.at(-1);
+      if (!s || !previous || s.kind !== k)
+        segments.push({ kind: k, color: flow && k === "bbw" ? "#38bdf8" : colors[k], pts: [q] });
+      else s.pts.push(q);
+      previous = q;
+    };
+    if (previous)
+      for (const t of transitions)
+        if (t > previous.t && t <= p.t && kind(t) !== kind(previous.t)) {
+          const q = {
+              t,
+              cg: previous.cg + ((p.cg - previous.cg) * (t - previous.t)) / (p.t - previous.t),
+            },
+            s = segments.at(-1);
+          s.pts.push(q);
+          previous = q;
+          add(q);
+        }
+    add(p);
+  };
+  for (let i = 0; i < w.length; i++) {
+    if (breaks.has(i)) segment++;
+    const drip = at[i] > limit;
+    if (drip && end == null) continue;
+    if (!Number.isFinite(w[i])) {
+      segment++;
+      weightPrevious = null;
+      continue;
+    }
+    const p = { t: at[i] / 1000, cg: w[i] };
+    if (breaks.has(i)) weightPrevious = null;
+    if (drip && !dripSegs.length && weightPrevious) append(dripSegs, weightPrevious, null, false);
+    append(drip ? dripSegs : segs, p, weightPrevious, false);
+    weightPrevious = p;
+    pts.push(p);
+    const last = observations.at(-1),
+      gray = atm != null && p.t >= atm && (clear == null || p.t < clear);
+    if (gray) {
+      segment++;
+      continue;
+    }
+    if (last && atm != null && last.t < Math.round(atm * 1000) && at[i] >= Math.round(atm * 1000))
+      segment++;
+    if (
+      last &&
+      clear != null &&
+      last.t < Math.round(clear * 1000) &&
+      at[i] >= Math.round(clear * 1000)
+    )
+      segment++;
+    const observation = { t: at[i], cg: w[i], index: i, segment };
+    if (last && last.segment === segment && last.t === at[i])
+      observations[observations.length - 1] = observation;
+    else observations.push(observation);
+  }
+  let boundary = 0,
+    previousFlow = null,
+    flowStart = null;
+  const dropSegment = observations.findLast((p) => p.t <= Math.round(drop * 1000))?.segment;
+  for (let i = 0; i < observations.length; i++) {
+    const p = observations[i],
+      previous = observations[i - 1];
+    if (!previous || p.segment !== previous.segment) {
+      boundary = i;
+      previousFlow = null;
+      continue;
+    }
+    const span = Math.max(1000, p.t - previous.t),
+      start = p.t - span;
+    while (boundary + 1 < i && observations[boundary + 1].t <= start) boundary++;
+    const a = observations[boundary],
+      b = observations[boundary + 1];
+    if (a.segment !== p.segment || a.t > start || (drop != null && a.t < Math.round(drop * 1000))) {
+      previousFlow = null;
+      continue;
+    }
+    const startCg = a.t === start ? a.cg : a.cg + ((b.cg - a.cg) * (start - a.t)) / (b.t - a.t);
+    const rate = Math.max(0, ((p.cg - startCg) * 10) / span),
+      point = { t: (p.t - span / 2) / 1000, cg: rate * 100 };
+    const drip = p.t > limit,
+      cutoff = limit / 1000;
+    flowCurve[p.index] = rate;
+    plotMaxFlow = Math.max(plotMaxFlow, rate);
+    if (!drip) maxFlow = Math.max(maxFlow ?? 0, rate);
+    if (!drip && !flowSegs.length && drop > 0 && p.segment === dropSegment) flowStart = point;
+    if (drip && point.t < cutoff) {
+      previousFlow = point;
+      continue;
+    }
+    if (drip && !dripFlowSegs.length && previousFlow) {
+      const q = {
+        t: cutoff,
+        cg:
+          previousFlow.cg +
+          ((point.cg - previousFlow.cg) * (cutoff - previousFlow.t)) / (point.t - previousFlow.t),
+      };
+      if (flowSegs.length) append(flowSegs, q, previousFlow, true);
+      append(dripFlowSegs, q, null, true);
+      previousFlow = q;
+    }
+    append(drip ? dripFlowSegs : flowSegs, point, previousFlow, true);
+    previousFlow = point;
+  }
+  // Exact event annotations cannot supply estimator support.
+  for (const [t, cg] of [
+    [drop, num(shot.dropCg)],
+    [ext, num(shot.extCg)],
+    [atm, num(shot.atmCg)],
+  ]) {
+    if (t == null || t < 0 || Math.round(t * 1000) > limit || cg == null) continue;
+    const p = { t, cg },
+      k = kind(t);
+    pts.push(p);
+    segs.push({ kind: k, color: colors[k], pts: [p] });
+  }
+  const dur = Math.max(duration || 0, end || 0, ...pts.map((p) => p.t), 0);
+  if (!pts.length || dur <= 0) return null;
+  const rawMaxW = Math.max(shot.goalG || 0, ...pts.map((p) => p.cg / 100), 0);
+  const lastDrip = dripSegs.at(-1)?.pts.at(-1),
+    finalPoint = !shot.wTruncated && lastDrip?.cg === num(shot.endCg) ? lastDrip : null;
+  return {
+    observed: true,
+    truncated: !!shot.wTruncated,
+    dur,
+    timeMax: Math.max(10, Math.ceil(dur / 10) * 10),
+    firstDropS: drop > 0 ? drop : null,
+    tareS: tare > 0 ? tare : null,
+    segs,
+    dripSegs,
+    finalPoint,
+    pts,
+    rawMaxW,
+    maxW: Math.max(10, Math.ceil(rawMaxW / 10) * 10),
+    flowSegs,
+    dripFlowSegs,
+    flowStart,
+    flowCurve,
+    maxFlow,
+    flowMax: Math.max(0.5, Math.ceil(plotMaxFlow / 0.5) * 0.5),
+  };
+}
+function shotMaxFlowGS(shot) {
+  const model = buildShotSparkModel(shot);
+  return model ? model.maxFlow : null;
+}
+function shotFlowCurveGS(shot) {
+  const model = buildShotSparkModel(shot);
+  return model ? model.flowCurve : [];
+}
+async function populateTimezoneOptions() {
+  const select = $("timezoneId");
+  if (!timezoneCatalogPromise)
+    timezoneCatalogPromise = api("/api/v1/time/zones")
+      .then((ids) => {
+        if (!Array.isArray(ids) || !ids.includes("Etc/UTC")) throw Error();
+        timezoneCatalog = ids;
+        return ids;
+      })
+      .catch((error) => {
+        timezoneCatalogPromise = null;
+        throw error;
+      });
+  const ids = await timezoneCatalogPromise;
+  if (!select || !select.isConnected || select.options.length > 1) return;
+  const draft = dateTimeDirty ? select.value : savedTimezoneId;
+  const fragment = document.createDocumentFragment();
+  fragment.appendChild(new Option(__WEBUI_TEXT__("runtime.select_timezone"), ""));
+  for (const id of ids) fragment.appendChild(new Option(id.replaceAll("_", " "), id));
+  select.replaceChildren(fragment);
+  if (ids.includes(draft)) select.value = draft;
+  refreshTimezonePreview();
+}
+
+let timezoneCatalog = null,
+  timezoneCatalogPromise = null,
+  savedTimezoneId = "";
+let timezonePreviewSeq = 0,
+  timezonePreviewSync = 0,
+  timezonePreviewAnchor = null,
+  timezonePreviewPending = false,
+  timezonePreviewLoad = null,
+  autoInitPending = false;
+function browserTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch (_) {
+    return "";
+  }
+}
+
+function renderTimezonePreview() {
+  const preview = $("timezonePreview"),
+    a = timezonePreviewAnchor;
+  if (!preview || !a || document.hidden || activeView !== "admin" || !diagnosticUnlocked) return;
+  const elapsed = Math.max(0, Math.floor((performance.now() - a.at) / 1000));
+  if (
+    a.timezoneId !== $("timezoneId")?.value ||
+    elapsed >= 30 ||
+    (a.nextTransitionUtcSec && a.utcSec + elapsed >= a.nextTransitionUtcSec)
+  ) {
+    refreshTimezonePreview();
+    return;
+  }
+  preview.textContent =
+    __WEBUI_TEXT__("runtime.timezone_preview_prefix") +
+    formatWallTimeLocal(a.localSec + elapsed) +
+    " (" +
+    formatTzLabel(a.offsetMinutes) +
+    ")" +
+    (a.clockSource === "browser" ? __WEBUI_TEXT__("runtime.timezone_preview_browser") : "");
+}
+
+function formatDiagnosticTimezoneOffset(c) {
+  if (c.timezoneOffsetKnown) return formatTzLabel(c.appliedTimezoneOffsetMinutes);
+  if (c.timezoneResolution === "clock_unavailable") return __WEBUI_TEXT__("runtime.unknown");
+  const reason = {
+    unconfigured: __WEBUI_TEXT__("runtime.timezone_unconfigured"),
+    unknown_zone: __WEBUI_TEXT__("runtime.timezone_unknown_zone"),
+    rules_out_of_range: __WEBUI_TEXT__("runtime.timezone_rules_out_of_range"),
+  }[c.timezoneResolution];
+  return formatTzLabel(0) + (reason ? " — " + reason : "");
+}
+
+async function refreshTimezonePreview() {
+  const select = $("timezoneId"),
+    preview = $("timezonePreview");
+  if (!select || !preview) return;
+  const id = select.value,
+    seq = ++timezonePreviewSeq;
+  timezonePreviewAnchor = null;
+  timezonePreviewPending = false;
+  if (!id) {
+    preview.textContent = __WEBUI_TEXT__("runtime.select_timezone");
+    return;
+  }
+  preview.textContent = __WEBUI_TEXT__("runtime.timezone_preview_loading");
+  if (!diagnosticUnlocked || document.hidden || activeView !== "admin") return;
+  timezonePreviewPending = true;
+  try {
+    const result = await (timezonePreviewLoad = api("/api/v1/time/preview", {
+      method: "POST",
+      body: body({ timezoneId: id, browserUtcSec: Math.floor(Date.now() / 1000) }),
+    }));
+    if (
+      seq !== timezonePreviewSeq ||
+      select.value !== id ||
+      !select.isConnected ||
+      !diagnosticUnlocked
+    )
+      return;
+    if (result.clockAvailable) {
+      timezonePreviewAnchor = { ...result, at: performance.now() };
+      renderTimezonePreview();
+    } else preview.textContent = __WEBUI_TEXT__("runtime.timezone_preview_no_clock");
+  } catch (error) {
+    if (seq === timezonePreviewSeq)
+      preview.textContent = formatCommandError(
+        __WEBUI_TEXT__("runtime.timezone_preview_failed"),
+        error,
+      );
+  } finally {
+    if (seq === timezonePreviewSeq) timezonePreviewPending = false;
+  }
+}
+
+function timeZoneSelectionChanged() {
+  markDateTimeDirty();
+  refreshTimezonePreview();
+}
+function updateTimezoneControls() {
+  const select = $("timezoneId");
+  if (select) select.disabled = !controlsMutable || !!$("timezoneAutomatic")?.checked;
+}
+async function changeTimezoneMode() {
+  markDateTimeDirty();
+  updateTimezoneControls();
+  if (!$("timezoneAutomatic").checked) return;
+  const select = $("timezoneId");
+  try {
+    await populateTimezoneOptions();
+  } catch (_) {}
+  if (!$("timezoneAutomatic").checked) return;
+  const id = browserTimezone();
+  select.value = timezoneCatalog?.includes(id) ? id : "";
+  if (!select.value) message(__WEBUI_TEXT__("runtime.timezone_detection_unavailable"), "error");
+  refreshTimezonePreview();
+}
+
+async function syncTimezone(c) {
+  if (
+    compatMode ||
+    !c ||
+    c.timezoneInitialized == null ||
+    autoInitPending ||
+    !controlsMutable ||
+    commandBusy ||
+    (c.timezoneInitialized && (!c.timezoneAutomatic || dateTimeDirty))
+  )
+    return;
+  const id = browserTimezone();
+  if (!id || c.timezoneId === id) return;
+  autoInitPending = true;
+  try {
+    await populateTimezoneOptions();
+    if (
+      !timezoneCatalog?.includes(id) ||
+      !controlsMutable ||
+      (c.timezoneInitialized && dateTimeDirty)
+    )
+      return;
+    await command(
+      "/api/v1/config",
+      withBaseRev({
+        timezoneId: id,
+        [c.timezoneInitialized ? "timezoneDetected" : "timezoneAutoInit"]: true,
+      }),
+      1,
+      "",
+      "",
+    );
+  } catch (_) {
+  } finally {
+    autoInitPending = false;
+  }
+}
+function renderShotSpark(h, shot) {
+  if (!h) return null;
+  const m = buildShotSparkModel(shot);
+  if (!m) {
+    h.replaceChildren();
+    h.hidden = true;
+    return null;
+  }
+  h.hidden = false;
+  const W = 240,
+    H = 36,
+    p = 1.5,
+    X = (t) => p + (W - 2 * p) * Math.min(1, t / m.timeMax),
+    xt = fixedChartTicks(m.timeMax, 10, "s");
+  function chart(segs, max, step, unit, weight) {
+    const Y = (v) => H - p - (H - 2 * p) * Math.max(0, Math.min(1, v / 100 / max)),
+      yt = fixedChartTicks(max, step, unit);
+    function path(a, c, drip) {
+      const d =
+        a.map((q, i) => (i ? "L" : "M") + X(q.t).toFixed(1) + " " + Y(q.cg).toFixed(1)).join(" ") +
+        (a.length === 1 ? "h0" : "");
+      return (
+        (!drip && a.length > 1 && a.some((q) => q.cg > 0)
+          ? '<path d="' +
+            d +
+            "V" +
+            (H - p) +
+            "H" +
+            X(a[0].t).toFixed(1) +
+            'Z" fill="' +
+            c +
+            '" fill-opacity=".22"/>'
+          : "") +
+        '<path class="shotTrace' +
+        (drip ? " shotDripTrace" : "") +
+        '" d="' +
+        d +
+        '" fill="none" stroke="' +
+        c +
+        '" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round"' +
+        (drip ? ' stroke-dasharray="3 3" opacity=".55"' : "") +
+        "/>"
+      );
+    }
+    const grid = xt
+        .map((q) => {
+          const z = X(q[0]).toFixed(1);
+          return "M" + z + " " + p + "V" + (H - p);
+        })
+        .concat(
+          yt.map((q) => {
+            const z = Y(q[0] * 100).toFixed(1);
+            return "M" + p + " " + z + "H" + (W - p);
+          }),
+        )
+        .join(""),
+      labels = yt
+        .slice()
+        .reverse()
+        .map((q) => '<span class="shotYTick">' + q[1] + "</span>")
+        .join("");
+    let svg =
+      '<svg class="shotSpark" viewBox="0 0 ' +
+      W +
+      " " +
+      H +
+      '" preserveAspectRatio="none"><path class="shotGrid" d="' +
+      grid +
+      '"/>';
+    if (m.firstDropS > 0)
+      svg += path(
+        [
+          { t: 0, cg: 0 },
+          { t: m.firstDropS, cg: 0 },
+          ...(!weight && m.flowStart ? [m.flowStart] : []),
+        ],
+        weight ? "var(--ok)" : "#38bdf8",
+      );
+    for (const s of segs) svg += path(s.pts, s.color);
+    for (const s of weight ? m.dripSegs : m.dripFlowSegs) svg += path(s.pts, s.color, true);
+    return (
+      '<div class="shotCurve"><div class="ruleChartLabel">' +
+      (weight ? __WEBUI_TEXT__("home.weight_g") : __WEBUI_TEXT__("runtime.flow_rate_g_s")) +
+      (m.truncated ? " · Incomplete curve" : "") +
+      '</div><div class="shotSparkHost"><div class="shotSparkY' +
+      (weight ? "" : " shotSparkFlowY") +
+      '">' +
+      labels +
+      "</div>" +
+      svg +
+      "</svg>" +
+      (weight && (m.firstDropS > 0 || m.tareS > 0 || m.finalPoint)
+        ? '<div class="shotDropOverlay"></div>'
+        : "") +
+      '<div class="ruleChartTicks"></div></div></div>'
+    );
+  }
+  h.innerHTML =
+    chart(m.segs, m.maxW, 10, __WEBUI_TEXT__("runtime.g"), 1) +
+    chart(m.flowSegs, m.flowMax, 0.5, "g/s");
+  for (const c of h.querySelectorAll(".shotSparkHost")) {
+    const y = c.querySelectorAll(".shotYTick"),
+      n = y.length - 1,
+      axis = c.querySelector(".shotSparkY");
+    c.style.setProperty("--shot-plot-min", (n * 1.1).toFixed(2) + "rem");
+    y.forEach((e, i) => {
+      e.style.top = (i / n) * 100 + "%";
+      e.dataset.p = i === n ? 80 : i === 0 ? 70 : 20;
+      e.dataset.k = e.textContent;
+      e.style.visibility = "hidden";
+    });
+    axis.setAttribute("role", "img");
+    axis.setAttribute("aria-label", [...y].map((e) => e.textContent).join(", "));
+    watchChartLabels(axis);
+  }
+  for (const t of h.querySelectorAll(".ruleChartTicks"))
+    fillChartTicks(
+      t,
+      xt.map((q, i) => [...q, i === 0 ? 80 : i === xt.length - 1 ? 70 : 20, "time-" + q[0]]),
+      m.timeMax,
+      true,
+    );
+  for (const [time, tare] of [
+    [m.firstDropS, 0],
+    [m.tareS, 1],
+  ]) {
+    if (!(time > 0)) continue;
+    const d = document.createElement("span"),
+      late = time / m.timeMax > 0.75;
+    d.className = "shotFirstDrop";
+    const icon = tare
+        ? '<svg class="shotTareIcon" viewBox="8 14 49 28" aria-hidden="true"><path d="M8 14H46V26A16 16 0 0 1 30 42H24A16 16 0 0 1 8 26ZM18 19V24H24.5V35H29.5V24H36V19ZM46 18h4a7 7 0 0 1 0 14h-5v-4h5a3 3 0 0 0 0-6h-4Z" fill="var(--fg)"/></svg>'
+        : '<svg width="15.6" height="20.8" viewBox="0 0 12 16" aria-hidden="true"><path d="M6 0C5 4 1 7 1 10a5 5 0 0 0 10 0C11 7 7 4 6 0Z" fill="#38bdf8"/></svg>',
+      label = time.toFixed(1) + " s",
+      value =
+        '<span data-p="' +
+        (tare ? 40 : 50) +
+        '" data-k="' +
+        (tare ? "tare" : "drop") +
+        '" aria-hidden="true" class="chartMeasure">>' +
+        label +
+        "</span>";
+    d.innerHTML = late ? value + " " + icon : icon + " " + value;
+    d.style.left = (X(time) / W) * 100 + "%";
+    d.style.transform =
+      "translateX(calc(" + (late ? "-100% + " : "0% - ") + (tare ? 17.0625 : 7.8) + "px))";
+    const overlay = h.querySelector(".shotDropOverlay");
+    overlay.appendChild(d);
+    watchChartLabels(overlay);
+  }
+  if (m.finalPoint) {
+    const d = document.createElement("span");
+    d.className = "shotFinalPoint";
+    d.style.left = (X(m.finalPoint.t) / W) * 100 + "%";
+    d.style.top =
+      ((H - p - (H - 2 * p) * Math.max(0, Math.min(1, m.finalPoint.cg / 100 / m.maxW))) / H) * 100 +
+      "%";
+    Object.assign(d.style, {
+      position: "absolute",
+      width: "6px",
+      height: "6px",
+      boxSizing: "border-box",
+      border: "1.35px solid " + m.dripSegs.at(-1).color,
+      borderRadius: "50%",
+      background: "var(--sf)",
+      transform: "translate(-50%,-50%)",
+      pointerEvents: "none",
+    });
+    d.setAttribute("aria-hidden", "true");
+    h.querySelector(".shotDropOverlay").appendChild(d);
+  }
+  return m;
+}
+function renderStatsDurChart() {
+  const root = $("statsDurChart");
+  if (!root) return;
+  if (!root.dataset.ready) {
+    root.className = "ruleChart";
+    root.innerHTML =
+      '<div class="ruleChartLegend" aria-hidden="true"><span class="ruleLeg ruleLegFast">' +
+      __WEBUI_TEXT__("runtime.fast") +
+      '</span><span class="ruleLeg ruleLegBbw">' +
+      __WEBUI_TEXT__("runtime.bbw") +
+      '</span><span class="ruleLeg ruleLegSlow">' +
+      __WEBUI_TEXT__("runtime.slow") +
+      '</span></div><div id="statsDurChartPlot" class="shotSparkHost"></div>';
+    root.dataset.ready = "1";
+  }
+  const host = $("statsDurChartPlot");
+  if (!host) return;
+  const BIN = 0.5,
+    tMax = 6e4 / 1e3,
+    tLow = 28,
+    tHigh = 32,
+    bins = Math.round(tMax / BIN),
+    counts = new Array(bins).fill(0);
+  let maxC = 0;
+  for (const d of shotStats.durationsS || []) {
+    if (!isFinite(d) || d < 0) continue;
+    const i = Math.min(bins - 1, Math.floor(d / BIN));
+    counts[i]++;
+    if (counts[i] > maxC) maxC = counts[i];
+  }
+  const scaleC = Math.max(maxC, 1),
+    colors = { bbw: "var(--ok)", fast: "#d97706", slow: "#6492d7" },
+    kind = (t) => (t < tLow ? "fast" : t <= tHigh ? "bbw" : "slow"),
+    L = axisLabel,
+    W = 240,
+    H = 36,
+    pad = 1.5,
+    x = (t) => pad + (W - 2 * pad) * Math.min(1, Math.max(0, t / tMax)),
+    y = (c) => H - pad - (H - 2 * pad) * Math.max(0, Math.min(1, c / scaleC)),
+    y0 = H - pad;
+  let svg = '<svg class="shotSpark" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none">';
+  for (const s of [
+    [0, tLow, "fast"],
+    [tLow, tHigh, "bbw"],
+    [tHigh, tMax, "slow"],
+  ]) {
+    const c = colors[s[2]];
+    svg +=
+      '<path d="M' +
+      x(s[0]).toFixed(1) +
+      " " +
+      y0 +
+      " L" +
+      x(s[1]).toFixed(1) +
+      " " +
+      y0 +
+      '" fill="none" stroke="' +
+      c +
+      '" stroke-width="1.35" vector-effect="non-scaling-stroke" stroke-linecap="round"/>';
+  }
+  for (let i = 0; i < bins; i++) {
+    const c = counts[i];
+    if (!c) continue;
+    const t = (i + 0.5) * BIN,
+      col = colors[kind(t)],
+      t0 = Math.max(0, t - BIN / 2),
+      t2 = Math.min(tMax, t + BIN / 2),
+      open =
+        "M" +
+        x(t0).toFixed(1) +
+        " " +
+        y0 +
+        " L" +
+        x(t).toFixed(1) +
+        " " +
+        y(c).toFixed(1) +
+        " L" +
+        x(t2).toFixed(1) +
+        " " +
+        y0;
+    svg +=
+      '<path d="' +
+      open +
+      ' Z" fill="' +
+      col +
+      '" fill-opacity=".22" stroke="none"/><path d="' +
+      open +
+      '" fill="none" stroke="' +
+      col +
+      '" stroke-width="1.35" vector-effect="non-scaling-stroke" stroke-linejoin="miter" stroke-miterlimit="1"/>';
+  }
+  svg += "</svg>";
+  host.innerHTML =
+    '<div class="shotSparkY statsDurSparkY">' +
+    maxC +
+    "</div>" +
+    svg +
+    '<div class="ruleChartTicks"></div>';
+  fillChartTicks(
+    host.lastChild,
+    [
+      [0, "0 s"],
+      [tLow, L(tLow, "s")],
+      [tHigh, L(tHigh, "s")],
+      [tMax, L(tMax, "s")],
+    ],
+    tMax,
+  );
+}
+function renderShotStats() {
+  const z = "—",
+    s = shotStats || {},
+    q = (i, v, c) => {
+      const e = $("statsAvg" + i);
+      if (e) {
+        e.textContent = v;
+        if (c != null) {
+          e.classList.toggle("shotErrHi", c > 0);
+          e.classList.toggle("shotErrLo", c < 0);
+        }
+      }
+    },
+    f = (v, p, u) => (v == null ? z : v.toFixed(p) + u);
+  q(__WEBUI_TEXT__("runtime.dur"), f(s.avgDurationS, 1, __WEBUI_TEXT__("runtime.s")));
+  q(__WEBUI_TEXT__("runtime.weight"), f(s.avgYieldG, 1, __WEBUI_TEXT__("runtime.g")));
+  q("Daily", s.shotsPerDay == null ? z : s.shotsPerDay.toFixed(1));
+  q("Err", f(s.avgErrorPct, 1, __WEBUI_TEXT__("runtime.symbol_4")), s.avgErrorPct);
+  q(__WEBUI_TEXT__("runtime.flow"), f(s.avgFlowGps, 2, __WEBUI_TEXT__("runtime.g_s")));
+  renderStatsDurChart();
+}
+function setEmptyState(id, text) {
+  const el = $(id);
+  if (!el) return;
+  el.textContent = text || "";
+  el.hidden = !text;
+}
+function renderShots() {
+  renderShotStats();
+  if (!shotsLoaded) return;
+  const body = $("shotRows");
+  if (!body) return;
+  body.replaceChildren();
+  const td = (p, l, v, c) => {
+    const e = document.createElement("td");
+    if (l) e.dataset.label = l;
+    if (c) e.className = c;
+    e.textContent = v;
+    if (c === "shotDur" || c === "shotActual")
+      e.innerHTML +=
+        '<svg class="shotMetricIcon" width="1.85rem" height="1.85rem" fill="currentColor" aria-hidden="true"><use href="#shotMetric' +
+        (c === "shotDur" ? "Time" : "Weight") +
+        '"/></svg>';
+    p.appendChild(e);
+    return e;
+  };
+  const rows = shotHistory.shots.filter((r) => {
+    const y = shotDisplayActualG(r.actualG, r.wCg);
+    return y != null && y >= 1;
+  });
+  if (rows.length) {
+    const labels = [
+      __WEBUI_TEXT__("runtime.time"),
+      __WEBUI_TEXT__("runtime.dur"),
+      __WEBUI_TEXT__("runtime.goal"),
+      __WEBUI_TEXT__("runtime.yield"),
+      __WEBUI_TEXT__("runtime.err"),
+      __WEBUI_TEXT__("runtime.avg_flow"),
+      __WEBUI_TEXT__("runtime.max_flow"),
+      __WEBUI_TEXT__("runtime.tare_time"),
+      __WEBUI_TEXT__("runtime.1st_drop"),
+      __WEBUI_TEXT__("runtime.ended"),
+      __WEBUI_TEXT__("runtime.shot"),
+      __WEBUI_TEXT__("runtime.preset"),
+      __WEBUI_TEXT__("runtime.scale"),
+    ];
+    for (const r of rows) {
+      const row = document.createElement("tr");
+      const actual = shotDisplayActualG(r.actualG, r.wCg);
+      const errN = actual === null || !r.goalG ? null : ((actual - r.goalG) / r.goalG) * 100;
+      const err = errN === null ? "—" : errN.toFixed(1) + "%";
+      const flow = shotDisplayFlowGS(r),
+        maxFlow = shotMaxFlowGS(r);
+      const vals = [
+        formatShotTime(r),
+        r.durationS.toFixed(1) + "s",
+        r.goalG + "g",
+        actual === null ? "—" : actual.toFixed(1) + "g",
+        err,
+        flow === null ? "—" : flow.toFixed(2) + " g/s",
+        maxFlow === null ? "—" : maxFlow.toFixed(2) + " g/s" + (r.wTruncated ? " (recorded)" : ""),
+        r.tareS == null ? __WEBUI_TEXT__("runtime.none") : r.tareS.toFixed(1) + "s",
+        r.firstDropS === null ? "—" : r.firstDropS.toFixed(1) + "s",
+        formatShotEnded(r.stopDetail),
+        r.shotType,
+        shotPresetName(r),
+        r.scaleName || __WEBUI_TEXT__("runtime.none"),
+      ];
+      const cls = [
+        "",
+        "shotDur",
+        "",
+        "shotActual",
+        errN > 0 ? "shotErrHi" : errN < 0 ? "shotErrLo" : "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ];
+      vals.forEach((v, i) => td(row, labels[i], v, cls[i]));
+      wrapTimeEl(row.cells[0], r);
+      const rate = document.createElement("td");
+      rate.className = "shotRateCell";
+      rate.dataset.label = __WEBUI_TEXT__("runtime.rate");
+      const rateHost = document.createElement("div");
+      rate.appendChild(rateHost);
+      fillStarRate(rateHost, r.rating || 0, !controlsMutable, (n) => rateHistoryShot(r.id, n));
+      row.appendChild(rate);
+      const spark = document.createElement("td");
+      spark.className = "shotSparkCell";
+      renderShotSpark(spark, r);
+      if (spark.hidden) row.classList.add("noSpark");
+      else row.appendChild(spark);
+      const del = document.createElement("td");
+      del.className = "shotDel";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btnGlyph btnDanger";
+      btn.title = __WEBUI_TEXT__("runtime.delete");
+      btn.setAttribute("aria-label", __WEBUI_TEXT__("runtime.delete"));
+      btn.innerHTML = '<span class="g">' + __WEBUI_TEXT__("runtime.close") + "</span>";
+      btn.onclick = () => deleteOneShot(r.id);
+      del.appendChild(btn);
+      row.appendChild(del);
+      body.appendChild(row);
+    }
+  }
+  setEmptyState(
+    "shotTableState",
+    rows.length ? null : __WEBUI_TEXT__("runtime.no_recorded_shots_yet"),
+  );
+  updateShotLogSentinel();
+}
+function updateFirmwareFooter() {
+  const fw = firmwareVersion || "—";
+  const boot = bootId || shotHistory.bootId ? "#" + (bootId || shotHistory.bootId) : "—";
+  const text = __WEBUI_TEXT__("runtime.firmware") + fw + " · Boot " + boot;
+  const el = $("firmwareFooter");
+  if (el) el.textContent = text;
+  const inactive = $("inactiveFirmware");
+  if (inactive) inactive.textContent = text;
+}
+function clearLogView() {
+  logEvents = [];
+  logMissed = 0;
+  const d = $("logDropped"),
+    el = $("log");
+  if (d) d.hidden = true;
+  if (el) el.value = "";
+}
+function resetNetworkAddressLoaded() {
+  networkAddressLoaded = false;
+}
+function syncShotSortButtons() {
+  const d = $("sortDateButton"),
+    r = $("sortRatingButton"),
+    i = $("sortDirButton"),
+    l =
+      shotSort === "date"
+        ? shotSortDir === "desc"
+          ? __WEBUI_TEXT__("runtime.newest_first")
+          : __WEBUI_TEXT__("runtime.oldest_first")
+        : shotSortDir === "desc"
+          ? __WEBUI_TEXT__("runtime.highest_rating")
+          : __WEBUI_TEXT__("runtime.lowest_rating");
+  if (d) d.setAttribute("aria-pressed", shotSort === "date");
+  if (r) r.setAttribute("aria-pressed", shotSort === "rating");
+  if (i) {
+    i.setAttribute("aria-label", l);
+    i.title = l;
+    i.textContent =
+      shotSortDir === "desc" ? __WEBUI_TEXT__("runtime.down") : __WEBUI_TEXT__("runtime.symbol_5");
+  }
+}
+function setShotSort(field) {
+  if ((field === "date" || field === "rating") && shotSort !== field) {
+    shotSort = field;
+    shotSortDir = "desc";
+    return toggleShotSortDir(1);
+  }
+}
+function toggleShotSortDir(keep) {
+  if (!keep) shotSortDir = shotSortDir === "desc" ? "asc" : "desc";
+  syncShotSortButtons();
+  statsSendSubscribe();
+}
+function updateShotLogSentinel() {
+  const el = $("shotLogSentinel");
+  if (el) {
+    el.hidden = !shotHistory.hasMore;
+    el.textContent = shotHistory.hasMore ? __WEBUI_TEXT__("runtime.more") : "";
+  }
+}
+function applyShotPage(d, mode) {
+  shotsLoaded = true;
+  const a = d.shots,
+    t = d.total;
+  bootId = d.bootId;
+  if (d.stats) shotStats = d.stats;
+  if (mode === "append" && t) {
+    const s = {};
+    for (const x of shotHistory.shots) s[x.id] = 1;
+    let n = 0;
+    for (const x of a)
+      if (!s[x.id]) {
+        s[x.id] = 1;
+        shotHistory.shots.push(x);
+        n++;
+      }
+    shotHistory.total = t;
+    shotHistory.hasMore = !!n && !!d.hasMore;
+    return;
+  }
+  shotHistory = { bootId: d.bootId, total: t, hasMore: !!d.hasMore && !!t, shots: t ? a : [] };
+}
+function shotStatsViewActive() {
+  if (activeView !== "stats" || !webUiPollingActive()) return false;
+  const view = $("view-stats");
+  return !!(view && !view.classList.contains("hidden"));
+}
+function maybeLoadMoreShots() {
+  if (statsFetchMark || !shotHistory.hasMore || !shotStatsViewActive()) return;
+  const el = $("shotLogSentinel");
+  if (!el || el.hidden) return;
+  const r = el.getBoundingClientRect();
+  if (r.bottom > 0 && r.top < (innerHeight || 0) + 240) loadMoreShots();
+}
+const loadMoreShots = () => {
+  if (shotHistory.hasMore && shotStatsViewActive() && !statsFetchMark && !statsExportInFlight) {
+    statsFetchMark = { request: ++statsNextRequest, offset: shotHistory.shots.length };
+    sendUiOperation({
+      op: "stats",
+      on: true,
+      fetch: true,
+      request: statsFetchMark.request,
+      offset: statsFetchMark.offset,
+      limit: SHOTS_PAGE_SIZE,
+      sort: shotSort,
+      dir: shotSortDir,
+    });
+  }
+};
+function refreshShots() {
+  return shotStatsViewActive() ? startStatsStream() : Promise.resolve(false);
+}
+async function exportShotsCsv() {
+  try {
+    const list = await statsFrameWindow(0, SHOTS_EXPORT_LIMIT, "date", "desc", 90e3);
+    if (!list) throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
+    const maxW = list.reduce((m, r) => Math.max(m, r.wCg?.length || 0), 0);
+    const rows = [
+      [
+        "id",
+        "boot_id",
+        "local_time",
+        "has_wall_time",
+        "ended_at_unix",
+        "tz_off",
+        "duration_s",
+        "goal_g",
+        "yield_g",
+        "error_g",
+        "error_pct",
+        "offset_g",
+        "avg_flow_g_s",
+        "first_drop_s",
+        "tare_s",
+        "ext_guard",
+        "ext",
+        "slow_guard",
+        "slow_ext",
+        "stop",
+        "max_rec_g",
+        "min_bbw_brew_s",
+        "early_s",
+        "shot_type",
+        "cut_type",
+        "yield_source",
+        "rating",
+        "ended_at_ms",
+        "bbw_algorithm",
+        "bbw_algorithm_version",
+        "bbw_alpha",
+        "bbw_learning_applied",
+        "preset_id",
+        "scale_name",
+        "max_flow_g_s",
+        "curve_truncated",
+        "curve_break_before",
+        ...Array.from({ length: maxW }, (_, i) => [
+          "sample_" + (i + 1) + "_time_s",
+          "sample_" + (i + 1) + "_weight_g",
+          "sample_" + (i + 1) + "_flow_g_s",
+        ]).flat(),
+      ],
+    ];
+    for (const r of list) {
+      const w = Array.isArray(r.wCg) ? r.wCg : [],
+        f = shotFlowCurveGS(r),
+        actual = shotDisplayActualG(r.actualG, r.wCg);
+      const errorG = actual === null || r.goalG == null ? null : actual - r.goalG;
+      const errorPct = errorG === null || !r.goalG ? null : (errorG / r.goalG) * 100;
+      rows.push([
+        r.id,
+        r.bootId,
+        formatShotTimeCsv(r),
+        r.hasWallTime ? "1" : "0",
+        r.endedAtUnixSec || "",
+        r.hasWallTime ? (r.timezoneOffsetMinutesAtCommit ?? "") : "",
+        r.durationS,
+        r.goalG,
+        actual ?? "",
+        errorG ?? "",
+        errorPct ?? "",
+        r.offsetG,
+        shotDisplayFlowGS(r) ?? "",
+        r.firstDropS ?? "",
+        r.tareS ?? "",
+        r.extractionGuardEnabled ? "1" : "0",
+        r.extractionExtended ? "1" : "0",
+        r.slowExtractionGuardEnabled ? "1" : "0",
+        r.slowExtractionExtended ? "1" : "0",
+        r.stopDetail ?? "",
+        r.maxRecoveryWeightG ?? "",
+        r.minBbwBrewTimeS ?? "",
+        r.targetReachedEarlyS ?? "",
+        r.shotType,
+        r.cutType,
+        r.actualWeightSource ?? "",
+        r.rating ?? 0,
+        r.endedAtMs,
+        r.bbwAlgorithm ?? "",
+        r.bbwAlgorithmVersion ?? "",
+        r.bbwAlpha == null ? "" : Number(r.bbwAlpha).toFixed(2),
+        r.bbwLearningApplied == null ? "" : r.bbwLearningApplied ? "1" : "0",
+        r.presetId || "",
+        r.scaleName || "",
+        shotMaxFlowGS(r) ?? "",
+        r.wTruncated ? "1" : "0",
+        (r.wBreakBefore || []).join(";"),
+        ...Array.from({ length: maxW }, (_, i) =>
+          i < w.length
+            ? [
+                r.wAtMs?.[i] == null ? "" : r.wAtMs[i] / 1000,
+                w[i] / 100,
+                f[i] == null ? "" : f[i].toFixed(2),
+              ]
+            : ["", "", ""],
+        ).flat(),
+      ]);
+    }
+    const csv = rows
+      .map((c) =>
+        c
+          .map((v) => {
+            const s = String(v);
+            return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+          })
+          .join(","),
+      )
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "shot-history.csv";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    message(
+      formatCommandError(__WEBUI_TEXT__("runtime.could_not_export_shot_history"), e),
+      "error",
+    );
+  }
+}
+
+const historyTypeLabel = (t) =>
+  ({
+    shot: __WEBUI_TEXT__("runtime.type_shot"),
+    rinse: __WEBUI_TEXT__("runtime.type_rinse"),
+    other: __WEBUI_TEXT__("runtime.type_other"),
+    backflush: __WEBUI_TEXT__("runtime.type_backflush"),
+    power_on: "Power ON",
+    no_scale_guard_aborted: __WEBUI_TEXT__("runtime.type_no_scale_guard_aborted"),
+  })[t];
+const HIST_TYPE_SVG = {
+  rinse:
+    '<svg viewBox="0 0 60 60"><path d="M34.1,45.5a6.3,6.3,0,0,1-4.9,1.5,6,6,0,0,1-4.9-3.9c-.88-2.5.354-4.9,2.2-8.4a58.1,58.1,0,0,0,3.5-7.6,56.3,56.3,0,0,0,3.5,7.6c1.4,2.7,2.5,4.8,2.5,6.7A5.5,5.5,0,0,1,34.1,45.5Z"/><path d="M3.8,35.4A44.9,44.9,0,0,0,6,30.5,45,45,0,0,0,8.2,35.4C9.2,37.3,10,38.8,10,40.2a3.7,3.7,0,0,1-1.3,2.8,4.1,4.1,0,0,1-3.2.98A4,4,0,0,1,2.2,41.3C1.6,39.6,2.5,37.9,3.8,35.4Z"/><path d="M14.8,49.4A44.9,44.9,0,0,0,17,44.5a45,45,0,0,0,2.2,4.8C20.2,51.3,21,52.8,21,54.2a3.7,3.7,0,0,1-1.3,2.8,4.1,4.1,0,0,1-3.2.98,4,4,0,0,1-3.3-2.7C12.6,53.6,13.5,51.9,14.8,49.4Z"/><path d="M57.8,41.3a4,4,0,0,1-3.3,2.7,4.1,4.1,0,0,1-3.2-.98A3.7,3.7,0,0,1,50,40.2c0-1.4.778-2.9,1.8-4.8A44.9,44.9,0,0,0,54,30.5a44.9,44.9,0,0,0,2.2,4.8C57.5,37.9,58.4,39.6,57.8,41.3Z"/><path d="M46.8,55.3a4,4,0,0,1-3.3,2.7,4.1,4.1,0,0,1-3.2-.98A3.7,3.7,0,0,1,39,54.2c0-1.4.778-2.9,1.8-4.8A44.9,44.9,0,0,0,43,44.5a44.9,44.9,0,0,0,2.2,4.8C46.5,51.9,47.4,53.6,46.8,55.3Z"/><path d="M32.7,15a4.1,4.1,0,0,1-3.2.98,4,4,0,0,1-3.3-2.7c-.593-1.7.268-3.4,1.6-5.9A44.9,44.9,0,0,0,30,2.5,45,45,0,0,0,32.2,7.4C33.2,9.3,34,10.8,34,12.2A3.7,3.7,0,0,1,32.7,15Z"/><path d="M4.1,8.5A50.4,50.4,0,0,0,7,2.3,50.4,50.4,0,0,0,9.9,8.5C11.1,10.8,12,12.6,12,14.2a4.6,4.6,0,0,1-1.6,3.5,5.2,5.2,0,0,1-4.1,1.2A5,5,0,0,1,2.2,15.7C1.5,13.5,2.6,11.5,4.1,8.5Z"/><path d="M48.2,15.7c-.736-2.1.311-4.2,1.9-7.2A50.4,50.4,0,0,0,53,2.3a50.4,50.4,0,0,0,2.9,6.2C57.1,10.8,58,12.6,58,14.2a4.6,4.6,0,0,1-1.6,3.5,5.2,5.2,0,0,1-4.1,1.2A5,5,0,0,1,48.2,15.7Z"/><path d="M15.8,22.4A44.9,44.9,0,0,0,18,17.5a45,45,0,0,0,2.2,4.8C21.2,24.3,22,25.8,22,27.2a3.7,3.7,0,0,1-1.3,2.8,4.1,4.1,0,0,1-3.2.98,4,4,0,0,1-3.3-2.7C13.6,26.6,14.5,24.9,15.8,22.4Z"/><path d="M45.8,28.3a4,4,0,0,1-3.3,2.7,4.1,4.1,0,0,1-3.2-.98A3.7,3.7,0,0,1,38,27.2c0-1.4.778-2.9,1.8-4.8A44.9,44.9,0,0,0,42,17.5a44.9,44.9,0,0,0,2.2,4.8C45.5,24.9,46.4,26.6,45.8,28.3Z"/></svg>',
+  shot: '<svg viewBox="0 0 512 512"><path d="M416.3,314.7v-79.6c0,-8.3,-6.8,-15.1,-15.1,-15.1H16.2c-8.3,0,-15.1,6.8,-15.1,15.1v79.6c0,70.3,38.9,132.2,97.4,167.1H16.3c-8.3,0,-15.1,6.8,-15.1,15.1c0,8.3,6.8,15.1,15.1,15.1h385c8.3,0,15.1,-6.8,15.1,-15.1c0,-8.3,-6.8,-15.1,-15.1,-15.1h-82.3C377.4,446.9,416.3,385,416.3,314.7z"/><path d="M446.5,247.2v30.8c19.7,5.4,34.2,23.5,34.2,44.8c0,23.8,-18,43.5,-41.1,46.2c-2.7,10.5,-6.1,20.7,-10.3,30.5h4.8c42.3,0,76.7,-34.4,76.7,-76.7C510.8,284.7,482.9,253.1,446.5,247.2z"/><path d="M313.9,98.7c19.7,-15.9,24.1,-32.9,24.4,-44.4c0.7,-27.9,-21.4,-48.3,-23.9,-50.5c-6.2,-5.5,-15.8,-5,-21.3,1.2c-5.5,6.2,-5,15.8,1.2,21.3c0.1,0.1,14.1,13.2,13.8,27.3c-0.2,7.5,-4.5,14.6,-13.2,21.6c-19.7,15.9,-24.1,32.9,-24.4,44.4c-0.7,27.9,21.4,48.3,23.9,50.5c2.9,2.6,6.5,3.8,10.1,3.8c4.2,0,8.3,-1.7,11.3,-5c5.5,-6.2,5,-15.7,-1.2,-21.3c-4,-3.6,-14.2,-15.5,-13.8,-27.4C300.9,112.7,305.3,105.7,313.9,98.7z"/><path d="M218.2,98.7c19.7,-15.9,24.1,-32.9,24.4,-44.4c0.7,-27.9,-21.4,-48.3,-23.9,-50.5c-6.2,-5.5,-15.8,-5,-21.3,1.2c-5.5,6.2,-5,15.8,1.2,21.3c0.1,0.1,14.1,13.2,13.8,27.3c-0.2,7.5,-4.5,14.6,-13.2,21.6c-19.7,15.9,-24.1,32.9,-24.4,44.4c-0.7,27.9,21.4,48.3,23.9,50.5c2.9,2.6,6.5,3.8,10.1,3.8c4.2,0,8.3,-1.7,11.3,-5c5.5,-6.2,5,-15.7,-1.2,-21.3c-4,-3.6,-14.2,-15.5,-13.8,-27.4C205.2,112.7,209.6,105.7,218.2,98.7z"/><path d="M122.5,98.7c19.7,-15.9,24.1,-32.9,24.4,-44.4c0.7,-27.9,-21.4,-48.3,-23.9,-50.5c-6.2,-5.5,-15.8,-5,-21.3,1.2c-5.5,6.2,-5,15.8,1.2,21.3c0.1,0.1,14.1,13.2,13.8,27.3c-0.2,7.5,-4.5,14.6,-13.2,21.6c-19.7,15.9,-24.1,32.9,-24.4,44.4c-0.7,27.9,21.4,48.3,23.9,50.5c2.9,2.6,6.5,3.8,10,3.8c4.2,0,8.3,-1.7,11.3,-5.1c5.5,-6.2,5,-15.8,-1.2,-21.3c-0.1,-0.1,-14.1,-13.2,-13.8,-27.3C109.5,112.8,113.8,105.7,122.5,98.7z"/></svg>',
+  other: '<svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>',
+};
+HIST_TYPE_SVG.power_on = "⏻";
+HIST_TYPE_SVG.backflush = '<svg viewBox="0 0 256 256"><use href="#hBF"/></svg>';
+HIST_TYPE_SVG.no_scale_guard_aborted = '<svg><use href="#hNS"/></svg>';
+const formatHistoryTime = (r) =>
+  r.hasWallTime && r.endedAtLocalSec
+    ? formatHumanTime(r.endedAtLocalSec)
+    : __WEBUI_TEXT__("history.no_time");
+const syncHistoryDirButton = () => {
+  const i = $("historyDirButton");
+  if (!i) return;
+  const l =
+    historyDir === "desc"
+      ? __WEBUI_TEXT__("runtime.newest_first")
+      : __WEBUI_TEXT__("runtime.oldest_first");
+  i.setAttribute("aria-label", l);
+  i.title = l;
+  i.textContent =
+    historyDir === "desc" ? __WEBUI_TEXT__("runtime.down") : __WEBUI_TEXT__("runtime.symbol_5");
+};
+const toggleHistoryDir = () => {
+  historyDir = historyDir === "desc" ? "asc" : "desc";
+  syncHistoryDirButton();
+  historySendSubscribe();
+};
+const updateHistorySentinel = () => {
+  const el = $("historySentinel");
+  if (el) {
+    el.hidden = !historyData.hasMore;
+    el.textContent = historyData.hasMore ? __WEBUI_TEXT__("runtime.more") : "";
+  }
+};
+function applyHistoryPage(d, mode) {
+  historyLoaded = true;
+  const a = d.history,
+    t = d.total;
+  bootId = d.bootId;
+  if (mode === "append" && t) {
+    const s = {};
+    for (const x of historyData.records) s[x.id] = 1;
+    let n = 0;
+    for (const x of a)
+      if (!s[x.id]) {
+        s[x.id] = 1;
+        historyData.records.push(x);
+        n++;
+      }
+    historyData.total = t;
+    historyData.hasMore = !!n && !!d.hasMore;
+    return;
+  }
+  historyData = { bootId: d.bootId, total: t, hasMore: !!d.hasMore && !!t, records: t ? a : [] };
+}
+const historyViewActive = () => activeView === "history" && webUiPollingActive();
+function maybeLoadMoreHistory() {
+  if (historyFetchOffset >= 0 || !historyData.hasMore || !historyViewActive()) return;
+  const el = $("historySentinel");
+  if (!el || el.hidden) return;
+  const r = el.getBoundingClientRect();
+  r.bottom > 0 && r.top < innerHeight + 240 && loadMoreHistory();
+}
+function renderHistory() {
+  const body = $("historyRows");
+  if (!body || !historyLoaded) return;
+  body.replaceChildren();
+  const rows = historyData.records;
+  if (rows.length)
+    for (const r of rows) {
+      const row = document.createElement("tr");
+      const time = document.createElement("td");
+      time.dataset.label = __WEBUI_TEXT__("runtime.time");
+      time.className = "histTime";
+      time.textContent = formatHistoryTime(r);
+      wrapTimeEl(time, r);
+      const dur = document.createElement("td");
+      dur.dataset.label = __WEBUI_TEXT__("runtime.dur");
+      dur.className = "shotDur";
+      dur.textContent = (typeof r.durationS === "number" ? r.durationS : 0).toFixed(1) + "s";
+      const type = document.createElement("td");
+      type.dataset.label = __WEBUI_TEXT__("runtime.type");
+      type.className = "histType";
+      const badge = document.createElement("span");
+      badge.className = "histBadge";
+      badge.textContent = historyTypeLabel(r.type);
+      type.appendChild(badge);
+      const del = document.createElement("td");
+      del.className = "shotDel";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btnGlyph btnDanger";
+      btn.title = __WEBUI_TEXT__("runtime.delete");
+      btn.setAttribute("aria-label", __WEBUI_TEXT__("runtime.delete"));
+      btn.innerHTML = '<span class="g">' + __WEBUI_TEXT__("runtime.close") + "</span>";
+      btn.onclick = () => deleteOneHistory(r.id);
+      del.appendChild(btn);
+      const typeSvg = HIST_TYPE_SVG[r.type];
+      if (typeSvg) {
+        const icon = document.createElement("td");
+        icon.className = "histIcon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.innerHTML = typeSvg;
+        row.appendChild(icon);
+      }
+      row.append(time, dur, type, del);
+      body.appendChild(row);
+    }
+  setEmptyState(
+    "historyTableState",
+    rows.length ? null : __WEBUI_TEXT__("runtime.no_recorded_activations_yet"),
+  );
+  updateHistorySentinel();
+}
+const loadMoreHistory = () => {
+  if (historyData.hasMore && historyViewActive() && historyFetchOffset < 0) {
+    historyFetchOffset = historyData.records.length;
+    historyFetchRequest = ++historyNextRequest;
+    sendUiOperation({
+      op: "history",
+      on: true,
+      fetch: true,
+      request: historyFetchRequest,
+      offset: historyFetchOffset,
+    });
+  }
+};
+const refreshHistory = () => (historyViewActive() ? startHistoryStream() : Promise.resolve(false));
+async function clearActivationHistory() {
+  if (!confirm(__WEBUI_TEXT__("runtime.clear_all_recorded_activation_history_this"))) return;
+  return withCommandGate(async () => {
+    try {
+      await api("/api/v1/history/clear", {
+        method: "POST",
+        body: body({ confirm: "CLEAR_HISTORY" }),
+      });
+      historyData = { bootId: historyData.bootId || 0, total: 0, hasMore: false, records: [] };
+      renderHistory();
+      message(__WEBUI_TEXT__("runtime.activation_history_cleared"), "ok");
+    } catch (e) {
+      message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_clear_history"), e), "error");
+    }
+  });
+}
+async function deleteOneHistory(id) {
+  if (!id || !confirm(__WEBUI_TEXT__("runtime.delete_this_history_record"))) return;
+  return withCommandGate(async () => {
+    try {
+      await api("/api/v1/history/delete", { method: "POST", body: body({ id }) });
+      historyData.records = historyData.records.filter((r) => r.id !== id);
+      if (typeof historyData.total === "number" && historyData.total > 0) historyData.total--;
+      historyData.hasMore = historyData.records.length < historyData.total;
+      renderHistory();
+      message(__WEBUI_TEXT__("runtime.history_record_deleted"), "ok");
+    } catch (e) {
+      message(
+        formatCommandError(__WEBUI_TEXT__("runtime.could_not_delete_history_record"), e),
+        "error",
+      );
+    }
+  });
+}
+
+function ntpStateLabel(t) {
+  if (!t) return__WEBUI_TEXT__("runtime.not_available");
+  return (
+    {
+      SYNCED: __WEBUI_TEXT__("runtime.synced"),
+      STALE: __WEBUI_TEXT__("runtime.stale"),
+      SYNCING: __WEBUI_TEXT__("runtime.syncing"),
+      FAILED: __WEBUI_TEXT__("runtime.failed"),
+      OFF: __WEBUI_TEXT__("runtime.not_synced_2"),
+    }[t.state] || __WEBUI_TEXT__("runtime.waiting_for_network")
+  );
+}
+
+function scaleDisplayName(sc) {
+  const fr = (sc && sc.preferredFriendlyName && String(sc.preferredFriendlyName).trim()) || "";
+  if (fr) return fr;
+  return (sc && sc.preferredName && String(sc.preferredName).trim()) || "";
+}
+let scaleRename = { mac: "", current: "" };
+function updateScaleRenameUi(wrapId, mac, current) {
+  const w = $(wrapId);
+  if (!w) return;
+  scaleRename = { mac, current };
+  w.classList.toggle("hidden", !mac);
+  const a = w.querySelector("a");
+  if (a) {
+    const dis = !mac || !controlsMutable;
+    a.classList.toggle("fieldOff", dis);
+    a.setAttribute("aria-disabled", dis ? "true" : "false");
+  }
+}
+function validScaleFriendlyNameClient(v) {
+  const t = String(v || "").trim();
+  if (!t || t.length > 30) return false;
+  if (t[0] === " " || t[0] === "-" || t[t.length - 1] === " " || t[t.length - 1] === "-")
+    return false;
+  return /^[A-Za-z0-9 -]+$/.test(t);
+}
+async function renameScale() {
+  if (!scaleRename.mac) return;
+  const raw = prompt(__WEBUI_TEXT__("runtime.scale_rename_prompt"), scaleRename.current);
+  if (raw === null) return;
+  const name = String(raw).trim();
+  if (name && !validScaleFriendlyNameClient(name)) {
+    message(__WEBUI_TEXT__("runtime.scale_rename_invalid"), "error");
+    return;
+  }
+  return command(
+    "/api/v1/scale/friendly-name",
+    { mac: scaleRename.mac, name },
+    false,
+    __WEBUI_TEXT__("runtime.scale_rename_saved"),
+    __WEBUI_TEXT__("runtime.scale_rename_failed"),
+  );
+}
+function formatPreferredScale(s) {
+  const pauseMs = (s.scale && s.scale.macCachePauseRemainingMs) || 0;
+  if (pauseMs > 0)
+    return__WEBUI_TEXT__("runtime.waiting") +
+      Math.ceil(pauseMs / 1000) +
+      __WEBUI_TEXT__("runtime.s_before_looking_for_a_scale");
+  const name = scaleDisplayName(s.scale);
+  if (name) return name;
+  if ((s.scale && s.scale.preferredMac) || "") return__WEBUI_TEXT__("runtime.unknown_2");
+  const mode = s.config && s.config.scaleMacCacheMode;
+  return mode === "only" || mode === "prefer"
+    ? __WEBUI_TEXT__("runtime.first_detected")
+    : __WEBUI_TEXT__("runtime.none");
+}
+function scaleHistoryLabel(e) {
+  const m = (e && e.mac) || "";
+  if (!m) return "";
+  return (
+    ((e.friendlyName && String(e.friendlyName).trim()) ||
+      (e.name && String(e.name).trim()) ||
+      __WEBUI_TEXT__("runtime.unknown_2")) +
+    __WEBUI_TEXT__("runtime.unknown_3") +
+    m
+  );
+}
+function updatePreferredScaleSelect(s) {
+  const sel = $("preferredScaleSelect"),
+    hint = $("preferredScalePauseHint");
+  if (!sel) return;
+  preferredScaleSelectSyncing = true;
+  const pauseMs = (s.scale && s.scale.macCachePauseRemainingMs) || 0;
+  if (hint)
+    hint.textContent =
+      pauseMs > 0
+        ? __WEBUI_TEXT__("runtime.waiting") +
+          Math.ceil(pauseMs / 1000) +
+          __WEBUI_TEXT__("runtime.s_before_looking_for_a_scale")
+        : "";
+  sel.disabled = !controlsMutable;
+  const history = s.scale && Array.isArray(s.scale.history) ? s.scale.history : [],
+    preferred = (s.scale && s.scale.preferredMac) || "",
+    prev = sel.value,
+    keep = sel.dataset.pending === "1",
+    draft = sel.selectedOptions && sel.selectedOptions[0];
+  sel.innerHTML = "";
+  if (!preferred || (keep && !prev)) {
+    const first = document.createElement("option"),
+      mode = s.config && s.config.scaleMacCacheMode;
+    first.value = "";
+    first.textContent =
+      mode === "only" || mode === "prefer"
+        ? __WEBUI_TEXT__("runtime.first_detected")
+        : __WEBUI_TEXT__("runtime.no_preferred");
+    sel.appendChild(first);
+  }
+  const seen = {};
+  history.forEach((e) => {
+    const mac = e && e.mac;
+    if (!mac || seen[mac]) return;
+    seen[mac] = 1;
+    const o = document.createElement("option");
+    o.value = mac;
+    o.dataset.name = (e.name && String(e.name).trim()) || "";
+    o.textContent = scaleHistoryLabel(e);
+    sel.appendChild(o);
+  });
+  if (preferred && !seen[preferred]) {
+    const o = document.createElement("option");
+    o.value = preferred;
+    o.dataset.name =
+      (s.scale && s.scale.preferredName && String(s.scale.preferredName).trim()) || "";
+    o.textContent =
+      ((s.scale && s.scale.preferredName && String(s.scale.preferredName).trim()) ||
+        __WEBUI_TEXT__("runtime.unknown_2")) +
+      __WEBUI_TEXT__("runtime.unknown_3") +
+      preferred;
+    sel.appendChild(o);
+  }
+  if (keep && prev && !seen[prev] && prev !== preferred && draft) {
+    const o = document.createElement("option");
+    o.value = prev;
+    o.dataset.name = draft.dataset.name || "";
+    o.textContent = draft.textContent;
+    sel.appendChild(o);
+  }
+  sel.value = keep ? prev : preferred || "";
+  updateScalePreferenceOptions();
+  sel.dataset.applied = preferred;
+  const opt = sel.selectedOptions && sel.selectedOptions[0];
+  updateScaleRenameUi(
+    "preferredScaleRenameWrap",
+    sel.value || "",
+    opt && opt.dataset ? String(opt.dataset.name || "") : "",
+  );
+  preferredScaleSelectSyncing = false;
+}
+function formatScaleWeight(s) {
+  if (!s.scale) return__WEBUI_TEXT__("runtime.unknown");
+  const w =
+    typeof s.scale.observedWeightG === "number"
+      ? s.scale.observedWeightG
+      : typeof s.scale.currentWeightG === "number"
+        ? s.scale.currentWeightG
+        : null;
+  return w === null
+    ? __WEBUI_TEXT__("runtime.unknown")
+    : w.toFixed(1) + __WEBUI_TEXT__("runtime.g_2");
+}
+function formatScaleStatus(s) {
+  const sc = s.scale || {};
+  return sc.available
+    ? {
+        STALE: __WEBUI_TEXT__("runtime.stale"),
+        NO_SAMPLE: __WEBUI_TEXT__("runtime.no_sample"),
+        OVERLOAD: __WEBUI_TEXT__("runtime.overload"),
+        ANOMALOUS: __WEBUI_TEXT__("runtime.anomalous"),
+      }[sc.streamState] || __WEBUI_TEXT__("runtime.connected")
+    : __WEBUI_TEXT__("runtime.disconnected");
+}
+function formatMachineState(s) {
+  return (
+    {
+      CONFIRMED_OFF: __WEBUI_TEXT__("runtime.idle"),
+      ASSUMED_ON: __WEBUI_TEXT__("runtime.assumed_on"),
+      CONFIRMED_ON: __WEBUI_TEXT__("runtime.confirmed_on"),
+      ASSUMED_OFF: __WEBUI_TEXT__("runtime.assumed_off"),
+      UNKNOWN: __WEBUI_TEXT__("runtime.unknown_4"),
+    }[s.machineState] || __WEBUI_TEXT__("runtime.unknown_4")
+  );
+}
+function clearCupWeights() {
+  ["cupWeight", "dCupWeight", "idleTareStatus"].forEach((id) => {
+    const el = $(id);
+    if (el) el.textContent = __WEBUI_TEXT__("runtime.unknown");
+  });
+}
+function formatCupWeight(s) {
+  const c = s.cupPresence || {},
+    sc = s.scale || {};
+  return sc.available &&
+    sc.streamState === "FRESH" &&
+    c.present === true &&
+    c.weightValid === true &&
+    typeof c.weightG === "number" &&
+    Number.isFinite(c.weightG)
+    ? __WEBUI_TEXT__("runtime.symbol_6") + c.weightG.toFixed(1) + __WEBUI_TEXT__("runtime.g_2")
+    : __WEBUI_TEXT__("runtime.unknown");
+}
+function formatCupState(s) {
+  if (!s.scale?.available) return __WEBUI_TEXT__("runtime.unknown_4");
+  const c = s.cupPresence || {};
+  return c.state === "PRESENT" || c.present
+    ? __WEBUI_TEXT__("runtime.present")
+    : __WEBUI_TEXT__("runtime.absent");
+}
+function formatIdleTare(s) {
+  const t = (s.cupPresence || {}).idleTare,
+    sc = s.scale || {};
+  if (!t) return __WEBUI_TEXT__("runtime.unknown");
+  if (t === "disabled") return __WEBUI_TEXT__("runtime.off_2");
+  if (!sc.available || sc.streamState !== "FRESH") return formatScaleStatus(s);
+  return (
+    {
+      pending: __WEBUI_TEXT__("runtime.idle_tare_pending"),
+      machine_not_off: __WEBUI_TEXT__("runtime.idle_tare_machine_off"),
+      uncertain: __WEBUI_TEXT__("runtime.idle_tare_reference"),
+      retry: __WEBUI_TEXT__("runtime.idle_tare_retry"),
+      tared: __WEBUI_TEXT__("runtime.idle_tare_tared"),
+      remove: __WEBUI_TEXT__("runtime.idle_tare_remove"),
+      ready: __WEBUI_TEXT__("runtime.idle_tare_ready"),
+      empty: __WEBUI_TEXT__("runtime.idle_tare_empty"),
+    }[t] || __WEBUI_TEXT__("runtime.idle_tare_unavailable")
+  );
+}
+function formatScaleTimer(s) {
+  if (!s.scale || typeof s.scale.timerMs !== "number") return__WEBUI_TEXT__("runtime.unknown");
+  const totalTenths = Math.floor(Math.max(0, s.scale.timerMs) / 100);
+  return (
+    Math.floor(totalTenths / 600) +
+    __WEBUI_TEXT__("runtime.symbol") +
+    pad2(Math.floor(totalTenths / 10) % 60) +
+    "." +
+    (totalTenths % 10)
+  );
+}
+const RR = "?|Pwr|Ext|SW|Panic|IWDT|TWDT|WDT|Sleep|Brn|SDIO|USB|JTAG|eFuse|Glitch|Lock".split("|");
+export function formatUptime(ms) {
+  let x = ~~(ms / 1e3),
+    p = [],
+    d = ~~(x / 86400);
+  x %= 86400;
+  const h = ~~(x / 3600);
+  x %= 3600;
+  const m = ~~(x / 60);
+  if (d) p.push(d + "d");
+  if (d || h) p.push(h + "h");
+  if (d || h || m) p.push(m + "m");
+  p.push((x % 60) + "s");
+  return p.join(__WEBUI_TEXT__("runtime.symbol_3"));
+}
+function updH(h, s) {
+  function b(n, k = false) {
+    return !Number.isFinite(n) || n < 0
+      ? "—"
+      : k
+        ? (n / 1024).toFixed(1) + " KB"
+        : n >= 1048576
+          ? (n / 1048576).toFixed(1) + "M"
+          : n >= 1024
+            ? Math.round(n / 1024) + "K"
+            : n + "b";
+  }
+  const kb = (n) => b(n, true);
+  const t = (i, v) => ($(i).textContent = v || __WEBUI_TEXT__("runtime.unknown"));
+  const cpu = [
+    "hCpu5s",
+    "hCpu1m",
+    "hCpu5m",
+    "hCpuMhz",
+    "hTemp",
+    "hTPeak",
+    "hRamT",
+    "hRamU",
+    "hRamF",
+  ];
+  if (!h) {
+    cpu
+      .concat([
+        "hHeapMin",
+        "hHeapLargest",
+        "hPsramT",
+        "hPsramF",
+        "hPsramL",
+        "hUptime",
+        "hResetReason",
+      ])
+      .forEach((i) => t(i, __WEBUI_TEXT__("runtime.unknown")));
+    return;
+  }
+  t(
+    "hUptime",
+    typeof h.uptimeMs === "number" && h.uptimeMs >= 0
+      ? formatUptime(h.uptimeMs)
+      : __WEBUI_TEXT__("runtime.unknown"),
+  );
+  t("hResetReason", s ? RR[s.resetReasonCode] || __WEBUI_TEXT__("runtime.symbol_7") : "");
+  t("hHeapMin", kb(h.minimumFreeHeapBytes));
+  t("hHeapLargest", kb(h.largestFreeHeapBlockBytes) + (h.heap ? " · " + h.heap : ""));
+  t("hPsramT", b(h.psramSizeBytes));
+  t("hPsramF", b(h.psramFreeBytes));
+  t("hPsramL", kb(h.psramLargestFreeBlockBytes));
+  const w = h.hwmon;
+  if (!w) {
+    cpu.forEach((i) => t(i, __WEBUI_TEXT__("runtime.unknown")));
+    return;
+  }
+  const load = (v) => (w.cpuLoadValid && typeof v === "number" ? v.toFixed(2) : "");
+  const split = (t, a, b) => {
+    t = load(t);
+    return t && typeof a === "number" && typeof b === "number"
+      ? t + " (" + a.toFixed(2) + " + " + b.toFixed(2) + ")"
+      : t;
+  };
+  t("hCpu5s", split(w.cpuLoad5s, w.cpu0Busy, w.cpu1Busy));
+  t("hCpu1m", load(w.cpuLoad1m));
+  t("hCpu5m", load(w.cpuLoad5m));
+  t(
+    "hCpuMhz",
+    typeof w.cpuMhz === "number" && w.cpuMhz > 0
+      ? w.cpuMhz + __WEBUI_TEXT__("runtime.mhz")
+      : __WEBUI_TEXT__("runtime.unknown"),
+  );
+  t("hTemp", w.tempValid ? w.tempC.toFixed(1) + __WEBUI_TEXT__("runtime.c") : "");
+  t("hTPeak", w.tempValid ? w.tempPeakC.toFixed(1) + __WEBUI_TEXT__("runtime.c") : "");
+  t("hRamT", b(w.ramTotalBytes));
+  t("hRamU", b(w.ramUsedBytes));
+  t("hRamF", b(w.ramFreeBytes));
+}
+function clearFieldErrors() {
+  document.querySelectorAll(".invalid").forEach((e) => e.classList.remove("invalid"));
+  document.querySelectorAll(".fieldError").forEach((e) => e.remove());
+}
+function showFieldError(id, msg) {
+  clearFieldErrors();
+  const el = $(id);
+  if (el) {
+    el.classList.add("invalid");
+    const s = document.createElement("small");
+    s.className = "fieldError";
+    s.textContent = msg;
+    (el.closest("label") || el.parentElement).appendChild(s);
+    let d = el.closest("details");
+    while (d) {
+      d.open = true;
+      d = d.parentElement && d.parentElement.closest("details");
+    }
+    try {
+      el.focus({ preventScroll: true });
+    } catch (_) {}
+    el.scrollIntoView({ block: "center" });
+  }
+  message(msg, "error");
+}
+function clearMessage() {
+  clearTimeout(messageTimer);
+  messageTimer = 0;
+  const e = $("message");
+  if (!e) return;
+  const t = $("messageText");
+  if (t) t.textContent = "";
+  e.className = "";
+  e.hidden = true;
+}
+function message(text, kind = "") {
+  if (kind === "error") hideHomeBoot();
+  clearTimeout(messageTimer);
+  messageTimer = 0;
+  const e = $("message");
+  if (!e) return;
+  const t = $("messageText");
+  if (t) t.textContent = text;
+  else e.textContent = text;
+  e.className = kind;
+  e.hidden = !text;
+  e.setAttribute("role", kind === "error" ? "alert" : "status");
+  e.setAttribute("aria-live", kind === "error" ? "assertive" : "polite");
+  if (kind === "error") e.scrollIntoView({ block: "nearest" });
+  if (!text) return;
+  const ms =
+    kind === "ok"
+      ? 5e3
+      : kind === "warn" && !e.querySelector("button:not(#messageClose)")
+        ? 15e3
+        : 0;
+  if (ms) messageTimer = setTimeout(clearMessage, ms);
+}
+function formatCommandError(fail, e) {
+  const detail = e && e.message ? String(e.message) : "";
+  if (!fail) return detail || __WEBUI_TEXT__("runtime.request_failed");
+  if (!detail || fail.indexOf(detail) >= 0) return fail;
+  return fail + __WEBUI_TEXT__("runtime.symbol_3") + detail;
+}
+function toggleOk(label, on) {
+  return label + (on ? " enabled." : " disabled.");
+}
+function toggleFail(label, on) {
+  return __WEBUI_TEXT__("runtime.could_not") + (on ? "enable " : "disable ") + label + ".";
+}
+function cn(s) {
+  return __WEBUI_TEXT__("runtime.could_not") + s + ".";
+}
+function commandOkMessage(path, v) {
+  return commandMessages(path, v)[0];
+}
+function commandFailMessage(path, v) {
+  return commandMessages(path, v)[1];
+}
+function commandMessages(path, v) {
+  v = v || {};
+  const hit = {
+    "control/rinse": [
+      __WEBUI_TEXT__("runtime.rinse_started"),
+      __WEBUI_TEXT__("runtime.start_rinse"),
+    ],
+    "control/stop": [__WEBUI_TEXT__("runtime.shot_stopped"), __WEBUI_TEXT__("runtime.stop_shot")],
+    "control/paddle": [
+      __WEBUI_TEXT__("runtime.shot_started"),
+      __WEBUI_TEXT__("runtime.start_shot"),
+    ],
+    "control/force-pulse": [
+      __WEBUI_TEXT__("runtime.switch_pulse_sent"),
+      __WEBUI_TEXT__("runtime.send_switch_pulse"),
+    ],
+    "control/restart": [
+      __WEBUI_TEXT__("runtime.restart_after_the_shot"),
+      __WEBUI_TEXT__("runtime.restart_the_controller"),
+    ],
+    "time/sync": [__WEBUI_TEXT__("runtime.time_sync_started"), __WEBUI_TEXT__("runtime.sync_time")],
+    "last-shot/clear": [
+      __WEBUI_TEXT__("runtime.last_shot_cleared"),
+      __WEBUI_TEXT__("runtime.clear_last_shot"),
+    ],
+    "scale/preferred/clear": [
+      __WEBUI_TEXT__("runtime.preferred_scale_cleared"),
+      __WEBUI_TEXT__("runtime.clear_preferred_scale"),
+    ],
+    "calibration/reset": [
+      __WEBUI_TEXT__("runtime.learned_stop_offset_reset"),
+      __WEBUI_TEXT__("runtime.reset_learned_stop_offset"),
+    ],
+    "calibration/reset-guard-samples": [
+      __WEBUI_TEXT__("runtime.a_to_m_samples_reset"),
+      __WEBUI_TEXT__("runtime.reset_a_to_m_samples"),
+    ],
+    "diagnostic/reset-history": [
+      __WEBUI_TEXT__("runtime.reset_history_cleared"),
+      __WEBUI_TEXT__("runtime.clear_reset_history"),
+    ],
+    "factory-reset": [
+      __WEBUI_TEXT__("runtime.factory_reset_started"),
+      __WEBUI_TEXT__("runtime.could_not_restore_factory_settings_check_diagnostic"),
+    ],
+    "device/password": [
+      __WEBUI_TEXT__("runtime.device_password_changed"),
+      __WEBUI_TEXT__("runtime.change_device_password"),
+    ],
+  }[path.slice(8)];
+  if (path.slice(8) === "control/state-override")
+    return v.state === "on"
+      ? [__WEBUI_TEXT__("runtime.inferred_brewing"), cn(__WEBUI_TEXT__("runtime.set_brewing"))]
+      : [__WEBUI_TEXT__("runtime.inferred_idle"), cn(__WEBUI_TEXT__("runtime.set_idle"))];
+  if (hit) return [hit[0], cn(hit[1])];
+  if (path.endsWith("/diagnostic/profiler"))
+    return v.enabled
+      ? [
+          __WEBUI_TEXT__("runtime.task_profiler_started"),
+          cn(__WEBUI_TEXT__("runtime.start_the_task_profiler")),
+        ]
+      : [
+          __WEBUI_TEXT__("runtime.task_profiler_stopped"),
+          cn(__WEBUI_TEXT__("runtime.stop_the_task_profiler")),
+        ];
+  if (path.endsWith("/diagnostic/scale-profile")) {
+    const m = {
+      start: [
+        __WEBUI_TEXT__("runtime.scale_profile_started"),
+        cn(__WEBUI_TEXT__("runtime.start_the_scale_profile")),
+      ],
+      stop: [
+        __WEBUI_TEXT__("runtime.scale_profile_stopped"),
+        cn(__WEBUI_TEXT__("runtime.stop_the_scale_profile")),
+      ],
+      delete: [
+        __WEBUI_TEXT__("runtime.scale_profile_deleted"),
+        cn(__WEBUI_TEXT__("runtime.delete_the_scale_profile")),
+      ],
+    };
+    const x = m[v.action];
+    if (x) return x;
+  }
+  if (path.endsWith("/network"))
+    return v.action === "forget"
+      ? [
+          __WEBUI_TEXT__("runtime.wi_fi_forgotten_restarting"),
+          cn(__WEBUI_TEXT__("runtime.forget_wi_fi")),
+        ]
+      : [
+          __WEBUI_TEXT__("runtime.wi_fi_settings_saved_restarting"),
+          cn(__WEBUI_TEXT__("runtime.save_wi_fi_settings")),
+        ];
+  if (path.endsWith("/select"))
+    return v.mac
+      ? [
+          __WEBUI_TEXT__("runtime.preferred_scale_selected"),
+          cn(__WEBUI_TEXT__("runtime.select_preferred_scale")),
+        ]
+      : [
+          __WEBUI_TEXT__("runtime.preferred_scale_cleared"),
+          cn(__WEBUI_TEXT__("runtime.clear_preferred_scale")),
+        ];
+  if (path.endsWith("/presets")) {
+    const x = {
+      save: [
+        __WEBUI_TEXT__("runtime.brew_settings_saved"),
+        __WEBUI_TEXT__("runtime.save_brew_settings"),
+      ],
+      apply: [__WEBUI_TEXT__("runtime.preset_applied"), __WEBUI_TEXT__("runtime.apply_preset")],
+      new: [__WEBUI_TEXT__("runtime.preset_created"), __WEBUI_TEXT__("runtime.create_preset")],
+      duplicate: [
+        __WEBUI_TEXT__("runtime.preset_duplicated"),
+        __WEBUI_TEXT__("runtime.duplicate_preset"),
+      ],
+      rename: [__WEBUI_TEXT__("runtime.preset_renamed"), __WEBUI_TEXT__("runtime.rename_preset")],
+      delete: [__WEBUI_TEXT__("runtime.preset_deleted"), __WEBUI_TEXT__("runtime.delete_preset")],
+      restore_factory_values: [
+        __WEBUI_TEXT__("runtime.factory_preset_reset"),
+        __WEBUI_TEXT__("runtime.reset_factory_preset"),
+      ],
+    }[v.action];
+    if (x) return [x[0], cn(x[1])];
+  }
+  if (path.endsWith("/config")) {
+    const keys = Object.keys(v).filter((k) => k !== "baseRevision");
+    if (keys[0] === "serialDebugOutput" && keys.length === 1)
+      return [
+        toggleOk(__WEBUI_TEXT__("runtime.serial_debug_output"), v.serialDebugOutput),
+        toggleFail(__WEBUI_TEXT__("runtime.serial_debug_output"), v.serialDebugOutput),
+      ];
+    if (keys[0] === "ringRetainLogLevel" && keys.length === 1)
+      return [
+        __WEBUI_TEXT__("runtime.log_retain_level_saved"),
+        cn(__WEBUI_TEXT__("runtime.save_log_retain_level")),
+      ];
+    const home = { brewByWeight: __WEBUI_TEXT__("runtime.brew_by_weight") };
+    if (keys.length && keys.every((k) => home[k]))
+      return [
+        keys.map((k) => toggleOk(home[k], v[k])).join(__WEBUI_TEXT__("runtime.symbol_3")),
+        keys.length === 1
+          ? toggleFail(home[keys[0]], v[keys[0]])
+          : __WEBUI_TEXT__("runtime.could_not_update_quick_settings"),
+      ];
+    if (
+      (v.timezoneId != null || v.ntpServerPreset != null || v.ntpServerCustom != null) &&
+      v.rinseGestureMs == null
+    )
+      return [
+        __WEBUI_TEXT__("runtime.date_and_time_settings_saved"),
+        cn(__WEBUI_TEXT__("runtime.save_date_and_time_settings")),
+      ];
+    return [
+      __WEBUI_TEXT__("runtime.machine_settings_saved"),
+      cn(__WEBUI_TEXT__("runtime.save_machine_settings")),
+    ];
+  }
+  return [__WEBUI_TEXT__("runtime.done"), cn(__WEBUI_TEXT__("runtime.complete_the_request"))];
+}
+{
+  const b = $("messageClose");
+  if (b) b.onclick = clearMessage;
+}
+{
+  const r = $("webUiReload");
+  if (r) r.onclick = () => claimWebUiOwnership();
+}
+function setInactiveError(text) {
+  const el = $("inactiveError");
+  if (!el) return;
+  el.textContent = text || "";
+  el.hidden = !text;
+}
+function setOverlayReconnectMode(on) {
+  if (on && !$("reconnectWait")) {
+    const b = $("webUiReload");
+    if (b) {
+      const w = document.createElement("div");
+      w.id = "reconnectWait";
+      w.className = "reconnectRing";
+      w.hidden = true;
+      w.innerHTML = '<span id="reconnectSeconds">' + __WEBUI_TEXT__("runtime.180") + "</span>";
+      b.after(w);
+    }
+  }
+  const el = $("webUiInactive");
+  if (el) {
+    el.classList.toggle("isReconnectWait", !!on);
+    el.setAttribute("aria-labelledby", on ? "reconnectSeconds" : "webUiReload");
+  }
+  const w = $("reconnectWait");
+  if (w) w.hidden = !on;
+  const b = $("webUiReload");
+  if (b) b.hidden = !!on;
+  const h = $("inactiveHint");
+  if (h) {
+    if (!h.dataset.d) h.dataset.d = h.textContent;
+    if (!on) h.textContent = h.dataset.d;
+  }
+}
+function updateReconnectCountdown() {
+  const n = Math.max(0, Math.ceil((networkReconnectDeadline - Date.now()) / 1e3));
+  const s = $("reconnectSeconds");
+  if (s) s.textContent = n;
+  const w = $("reconnectWait");
+  if (w) w.style.setProperty("--p", String(Math.round((n * 100) / 180)));
+  const h = $("inactiveHint");
+  if (h)
+    h.textContent = n
+      ? __WEBUI_TEXT__("runtime.waiting_for_the_controller_on_this_address")
+      : __WEBUI_TEXT__("runtime.still_waiting_if_the_new_wi_fi");
+}
+function endNetworkReconnectWait() {
+  networkReconnectWait = false;
+  networkReconnectDeadline = 0;
+  clearInterval(networkReconnectTimer);
+  clearTimeout(networkReconnectPollTimer);
+  networkReconnectTimer = networkReconnectPollTimer = 0;
+  const el = $("webUiInactive");
+  if (!el || !el.classList.contains("isVisible")) setOverlayReconnectMode(false);
+}
+function pollNetworkReconnect() {
+  if (!networkReconnectWait) return;
+  Promise.resolve(claimWebUiOwnership()).finally(() => {
+    if (networkReconnectWait) networkReconnectPollTimer = setTimeout(pollNetworkReconnect, 2e3);
+  });
+}
+function beginNetworkReconnectWait() {
+  clearInterval(networkReconnectTimer);
+  clearTimeout(networkReconnectPollTimer);
+  networkReconnectWait = true;
+  networkReconnectDeadline = Date.now() + NETWORK_RECONNECT_WAIT_MS;
+  setOverlayReconnectMode(true);
+  if (webUiOwner) deactivateWebUi();
+  else showInactiveOverlay();
+  updateReconnectCountdown();
+  networkReconnectTimer = setInterval(updateReconnectCountdown, 1e3);
+  networkReconnectPollTimer = setTimeout(pollNetworkReconnect, 2e3);
+}
+function showInactiveOverlay() {
+  const el = $("webUiInactive");
+  if (!el) return;
+  hideHomeBoot();
+  clearTimeout(inactiveOverlayTimer);
+  inactiveOverlayTimer = 0;
+  setInactiveError("");
+  document.body.classList.add("webUiInactive");
+  el.setAttribute("aria-hidden", "false");
+  if (!el.classList.contains("isVisible")) {
+    void el.offsetWidth;
+    el.classList.add("isVisible");
+  }
+  if (networkReconnectWait) return;
+  const btn = $("webUiReload");
+  if (btn) {
+    try {
+      btn.focus({ preventScroll: true });
+    } catch (_) {
+      btn.focus();
+    }
+  }
+}
+function hideInactiveOverlay() {
+  const el = $("webUiInactive");
+  if (!el || !el.classList.contains("isVisible")) return;
+  el.classList.remove("isVisible");
+  document.body.classList.remove("webUiInactive");
+  clearTimeout(inactiveOverlayTimer);
+  inactiveOverlayTimer = setTimeout(() => {
+    el.setAttribute("aria-hidden", "true");
+    inactiveOverlayTimer = 0;
+    setOverlayReconnectMode(false);
+  }, 500);
+}
+function showPageBoot() {
+  const seq = ++bootSeq;
+  homeBootDone = false;
+  clearTimeout(bootTimer);
+  document.body.classList.add("pageLoading");
+  const el = $("homeBoot");
+  if (el) {
+    el.style.zIndex = seq > 1 ? "20" : "39";
+    el.classList.remove("hidden", "isDone");
+    el.setAttribute("aria-hidden", "false");
+  }
+  return seq;
+}
+function hideHomeBoot(seq = bootSeq) {
+  if (seq !== bootSeq || homeBootDone || fwReloading) return;
+  const el = $("homeBoot");
+  if (!el) return;
+  homeBootDone = true;
+  void el.offsetWidth;
+  el.classList.add("isDone");
+  bootTimer = setTimeout(() => {
+    if (seq === bootSeq) {
+      el.classList.add("hidden");
+      el.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("pageLoading");
+    }
+  }, 250);
+}
+function setOverlayOutOfReach() {
+  if (networkReconnectWait) return;
+  outOfReachOverlay = true;
+  const h = $("inactiveHint");
+  if (h) h.textContent = __WEBUI_TEXT__("shell.out_of_reach_hint");
+  showInactiveOverlay();
+}
+async function api(path, options = {}) {
+  if (!webUiPollingActive())
+    throw new Error(__WEBUI_TEXT__("runtime.this_window_is_inactive_reload_to_continue"));
+  await acquireDeviceSlot();
+  if (!webUiPollingActive()) {
+    releaseDeviceSlot();
+    throw new Error(__WEBUI_TEXT__("runtime.this_window_is_inactive_reload_to_continue"));
+  }
+  options.headers = Object.assign({ [WEB_UI_CLIENT_HEADER]: webUiClientId }, options.headers || {});
+  const powerSeconds = webUiPowerSeconds();
+  if (powerSeconds) options.headers["X-WebUI-Activity"] = String(powerSeconds);
+  if (options.body) options.headers["Content-Type"] = "application/json";
+  const ac = new AbortController(),
+    to = setTimeout(() => ac.abort(), options.timeoutMs || 8e3);
+  let response, txt;
+  try {
+    response = await fetch(path, Object.assign({}, options, { signal: ac.signal }));
+    txt = await response.text();
+  } catch (err) {
+    const e = new Error(
+      err && err.name === "AbortError"
+        ? __WEBUI_TEXT__("runtime.device_timeout")
+        : __WEBUI_TEXT__("runtime.device_unreachable"),
+    );
+    e.network = true;
+    throw e;
+  } finally {
+    clearTimeout(to);
+    releaseDeviceSlot();
+  }
+  let data = {};
+  try {
+    if (!txt) throw 0;
+    data = JSON.parse(txt);
+  } catch (_) {
+    throw new Error(__WEBUI_TEXT__("runtime.invalid_response"));
+  }
+  if (!response.ok) {
+    if (data.error === "UI_TAKEN_OVER") deactivateWebUi();
+    const err = new Error(
+      data.message || data.error || __WEBUI_TEXT__("runtime.http") + response.status,
+    );
+    err.code = data.error || "";
+    throw err;
+  }
+  return data;
+}
+function noteReachOk() {
+  if (reachFails) clearMessage();
+  reachFails = 0;
+  if (outOfReachOverlay) {
+    outOfReachOverlay = false;
+    hideInactiveOverlay();
+  }
+}
+function noteReachFail(err, force) {
   clearCupWeights();
-  for(const id of ['scaleWeight','scaleTimer','machineState','state','homeMicraPower','homeMicraCleaning','machineRowState','scale'])setHomeSub(id,__WEBUI_TEXT__("runtime.unknown"));
-  updateHomeAdminActions(false,false);
+  updateHeaderSignals();
+  reachFails++;
+  if (force || reachFails >= 5) {
+    if (err && err.network && !networkReconnectWait) setOverlayOutOfReach();
+    else
+      message(
+        err && err.message ? err.message : __WEBUI_TEXT__("runtime.device_unreachable"),
+        "error",
+      );
+  }
 }
-async function loadHomeStatus(){
+function syncAdminSessionUi(unlocked, remoteEnabled = false) {
+  const on = !!unlocked || developmentMode;
+  updateHomeAdminActions(on, remoteEnabled);
+  document.body.classList.toggle("devBuild", developmentMode);
+  const lock = $("adminLockPanel"),
+    controls = $("adminControls");
+  if (lock) lock.classList.toggle("hidden", on);
+  if (controls) controls.classList.toggle("hidden", !on);
+  diagnosticUnlocked = on;
+}
+function lockAdminUi() {
+  if (!developmentMode) syncAdminSessionUi(false);
+  const hint = $("adminConfirmHint");
+  if (hint) hint.classList.add("hidden");
+  [
+    "adminUnlockPassword",
+    "diagnosticUnlockPassword",
+    "newDevicePassword",
+    "confirmDevicePassword",
+    "staPassword",
+  ].forEach((id) => {
+    const el = $(id);
+    if (el) el.value = "";
+  });
+  resetNetworkAddressLoaded();
+}
+function lockAdmin() {
+  if (developmentMode) return;
+  clearTimeout(scanTimer);
+  scanTimer = 0;
+  api("/api/v1/admin/lock", { method: "POST", body: body({}) })
+    .then(() => {
+      lockAdminUi();
+      noteReachOk();
+      message(__WEBUI_TEXT__("runtime.administration_locked"), "ok");
+      return refreshStatus();
+    })
+    .catch((e) =>
+      message(
+        formatCommandError(__WEBUI_TEXT__("runtime.could_not_lock_administration"), e),
+        "error",
+      ),
+    );
+}
+function deactivateWebUi() {
+  if (!webUiOwner) return;
+  webUiOwner = false;
+  stopUiStream();
+  webUiActiveUntil = 0;
+  clearTimeout(webUiInactivityTimer);
+  webUiInactivityTimer = 0;
+  clearTimeout(scanTimer);
+  scanTimer = 0;
+  clearTimeout(homeFlushTimer);
+  homeFlushTimer = 0;
+  stopViewPolls();
+  lockAdminUi();
+  setMutable(false);
+  showInactiveOverlay();
+}
+async function claimWebUiOwnership() {
+  initShotFullScreen();
+  if (webUiClaiming) return;
+  webUiClaiming = true;
+  const rec = networkReconnectWait;
+  const btn = $("webUiReload");
+  if (btn && !rec) btn.disabled = true;
+  try {
+    const ac = new AbortController(),
+      to = setTimeout(() => ac.abort(), rec ? 4e3 : 8e3);
+    let response, txt;
+    try {
+      response = await fetch("/api/v1/ui/claim", {
+        method: "POST",
+        headers: { [WEB_UI_CLIENT_HEADER]: webUiClientId, "Content-Type": "application/json" },
+        body: "{}",
+        signal: ac.signal,
+      });
+      txt = await response.text();
+    } finally {
+      clearTimeout(to);
+    }
+    let data = {};
+    try {
+      data = txt ? JSON.parse(txt) : {};
+    } catch (_) {
+      throw new Error(__WEBUI_TEXT__("runtime.invalid_ownership_response"));
+    }
+    if (!response.ok)
+      throw new Error(data.message || data.error || __WEBUI_TEXT__("runtime.unable_to_reload"));
+    endNetworkReconnectWait();
+    webUiOwner = true;
+    resetWebUiInactivity();
+    startUiStream();
+    noteWebUiPowerActivity();
+    stopViewPolls();
+    hideInactiveOverlay();
+    if (typeof data.compatibilityMode === "boolean" && data.compatibilityMode !== compatMode) {
+      compatMode = data.compatibilityMode;
+      applyCompatibilityChrome();
+    }
+    if (activeView) startView(activeView);
+    else renderRoute(location.pathname);
+  } catch (e) {
+    if (rec) return;
+    webUiOwner = false;
+    webUiActiveUntil = 0;
+    clearTimeout(webUiInactivityTimer);
+    webUiInactivityTimer = 0;
+    stopViewPolls();
+    setMutable(false);
+    showInactiveOverlay();
+    if (e && (e.network || e.name === "AbortError" || e instanceof TypeError))
+      setOverlayOutOfReach();
+    else setInactiveError(e && e.message ? e.message : __WEBUI_TEXT__("runtime.unable_to_reload"));
+  } finally {
+    webUiClaiming = false;
+    if (btn) btn.disabled = false;
+  }
+}
+function body(values) {
+  return JSON.stringify(values);
+}
+function number(id) {
+  return Number($(id).value);
+}
+function sToMs(id) {
+  return Math.round(number(id) * 1000);
+}
+function setMutable(enabled) {
+  const canEdit = !!enabled && webUiOwner;
+  const was = controlsMutable;
+  controlsMutable = canEdit;
+  if (was !== canEdit) renderHomePresetAccordion();
+  document.querySelectorAll("#app input,#app select,#app button").forEach((e) => {
+    if (e.closest("#message")) return;
+    if (e.classList.contains("textLock")) {
+      e.disabled = !webUiOwner;
+      return;
+    }
+    if (e.id === "shotFsButton" || e.id === "shotFsClose") return;
+    if (
+      e.classList.contains("taskProfilerCtl") ||
+      e.classList.contains("diagCtl") ||
+      e.classList.contains("scaleProfileCtl")
+    ) {
+      e.disabled = !webUiOwner;
+      return;
+    }
+    if (e.closest("#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel")) {
+      e.disabled = !webUiOwner;
+      return;
+    }
+    if (e.dataset.dirty != null) {
+      e.disabled = !canEdit || e.dataset.dirty != 1;
+      return;
+    }
+    if (!webUiOwner || !e.closest("#actionsPanel")) e.disabled = !canEdit;
+  });
+  [
+    "workflowPanel",
+    "dateTimePanel",
+    "frontendPanel",
+    "networkPanel",
+    "devicePasswordPanel",
+    "firmwareModePanel",
+    "blePanel",
+    "powerPanel",
+  ].forEach((id) => {
+    const el = $(id);
+    if (el) el.classList.toggle("locked", !canEdit);
+  });
+  if ($("staPassword")) updateNetworkPasswordState();
+  if ($("staIpMode")) updateStaticIpFieldsState();
+  if ($("autoTare")) updateConfigGroups();
+  updatePresetActionButtons();
+  updateHomeGuardSwitchesLock();
+  updateWifiSleepState();
+  updateTimezoneControls();
+  if (was !== canEdit && activeView === "stats" && $("shotRows")) renderShots();
+}
+const BREW_CONTROL_IDS = [
+  "bbwAlphaBaseline",
+  "bbwAlgorithm",
+  "brewByWeight",
+  "goalWeightG",
+  "operationalWallS",
+  "bbwProtectionS",
+  "weightOffsetBaselineG",
+  "cupProtectionEnabled",
+  "stopIfCupRemoved",
+  "requireCupToStart",
+  "fastExtractionGuardEnabled",
+  "avoidAccidentalTouchEnabled",
+  "touchStopFallbackEnabled",
+  "maxRecoveryWeightG",
+  "minBbwBrewTimeS",
+  "slowExtractionGuardEnabled",
+  "minRecoveryWeightG",
+  "maxBbwBrewTimeS",
+  "autoToManualGuardEnabled",
+  "autoToManualGuardLimitMode",
+  "autoToManualGuardManualLimitS",
+  "autoToManualGuardBaselineS",
+  "lineaMicraBrewTargetC",
+];
+const REVERT_BUTTONS = {
+  saveConfigButton: "revertConfigButton",
+  saveBrewPresetButton: "revertBrewPresetButton",
+  saveNetworkButton: "revertNetworkButton",
+  saveDateTimeButton: "revertDateTimeButton",
+  saveWebhookButton: "revertWebhookButton",
+  changeDevicePasswordButton: "revertDevicePasswordButton",
+  saveFirmwareModeButton: "revertFirmwareModeButton",
+  saveBleButton: "revertBleButton",
+  savePowerButton: "revertPowerButton",
+  saveFrontendButton: "revertFrontendButton",
+};
+function settingsSectionOf(id) {
+  if (id === "lineaMicraBrewTargetC" || BREW_CONTROL_IDS.includes(id)) return "brew";
+  return id.startsWith("lineaMicra") ? "micra" : "config";
+}
+function settingsSectionEls(section) {
+  return [
+    ...document.querySelectorAll(
+      "#workflowPanel input,#workflowPanel select,#workflowPanel textarea",
+    ),
+  ].filter((el) => el.id && settingsSectionOf(el.id) === section);
+}
+function snapshotControls(els) {
+  const s = {};
+  els.forEach((el) => {
+    if (el.id) s[el.id] = el.type === "checkbox" ? el.checked : el.value;
+  });
+  return s;
+}
+function restoreSnapshot(s) {
+  if (!s) return;
+  for (const id in s) {
+    const el = $(id);
+    if (!el) continue;
+    if (el.type === "checkbox") el.checked = s[id];
+    else el.value = s[id];
+  }
+}
+function setSaveDirty(id, hintId, dirty) {
+  const b = $(id);
+  if (b) {
+    b.dataset.dirty = +dirty;
+    b.disabled = !controlsMutable || !dirty;
+  }
+  const r = REVERT_BUTTONS[id] && $(REVERT_BUTTONS[id]);
+  if (r) {
+    r.dataset.dirty = +dirty;
+    r.disabled = !controlsMutable || !dirty;
+  }
+  if (hintId) $(hintId)?.classList.toggle("hidden", !dirty);
+}
+function markConfigDirty() {
+  configDirty = true;
+  setSaveDirty("saveConfigButton", "configDirtyHint", true);
+}
+function markDateTimeDirty() {
+  dateTimeDirty = true;
+  setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", true);
+}
+function markBleDirty() {
+  bleDirty = true;
+  setSaveDirty("saveBleButton", "bleDirtyHint", true);
+}
+function markPowerDirty() {
+  powerDirty = true;
+  setSaveDirty("savePowerButton", "powerDirtyHint", true);
+}
+function markFrontendDirty() {
+  frontendDirty = true;
+  setSaveDirty("saveFrontendButton", "frontendDirtyHint", true);
+}
+function clearBleDirty() {
+  bleDirty = false;
+  setSaveDirty("saveBleButton", "bleDirtyHint", false);
+}
+function clearPowerDirty() {
+  powerDirty = false;
+  setSaveDirty("savePowerButton", "powerDirtyHint", false);
+}
+function clearFrontendDirty() {
+  frontendDirty = false;
+  setSaveDirty("saveFrontendButton", "frontendDirtyHint", false);
+}
+function updateScalePreferenceOptions() {
+  const sel = $("scalePreference");
+  if (!sel) return;
+  [...sel.options].forEach((o) => {
+    o.disabled = !controlsMutable;
+  });
+  sel.disabled = !controlsMutable;
+  const bootstrap = sel.value === "prefer" || sel.value === "only",
+    preferred = $("preferredScaleSelect"),
+    empty = preferred && [...preferred.options].find((o) => o.value === ""),
+    hint = $("preferredScaleBootstrapHint");
+  if (empty)
+    empty.textContent = bootstrap
+      ? __WEBUI_TEXT__("runtime.first_detected")
+      : __WEBUI_TEXT__("runtime.no_preferred");
+  if (hint)
+    hint.textContent = bootstrap
+      ? __WEBUI_TEXT__("runtime.first_detected_is_shown_until_a_compatible")
+      : __WEBUI_TEXT__("runtime.first_available_does_not_save_a_preferred");
+}
+function markBrewDirty() {
+  brewDirty = true;
+  setSaveDirty("saveBrewPresetButton", "brewDirtyHint", true);
+}
+function clearBrewDirty() {
+  brewDirty = false;
+  setSaveDirty("saveBrewPresetButton", "brewDirtyHint", false);
+}
+function revertBrewPreset() {
+  if (!brewDirty) return;
+  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
+  restoreSnapshot(brewBaseline);
+  clearBrewDirty();
+  clearFieldErrors();
+  updateConfigGroups();
+  syncHomeGuardSwitchesFromSettings();
+  refreshStatus();
+}
+function revertMachineConfig() {
+  if (!configDirty) return;
+  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
+  restoreSnapshot(configBaseline);
+  if ($("preferredScaleSelect")) $("preferredScaleSelect").dataset.pending = "0";
+  configBaseline = null;
+  configDirty = false;
+  setSaveDirty("saveConfigButton", "configDirtyHint", false);
+  clearFieldErrors();
+  updateConfigGroups();
+  syncHomeGuardSwitchesFromSettings();
+  refreshStatus();
+}
+function revertLineaMicra() {
+  if (!micraDirty) return;
+  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
+  restoreSnapshot(micraBaseline);
+  micraBaseline = null;
+  micraDirty = false;
+  updateMicraRevertButton();
+  clearFieldErrors();
+  updateMicraShutdownControls();
+  refreshStatus();
+}
+function revertDateTimeConfig() {
+  if (!dateTimeDirty) return;
+  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
+  restoreSnapshot(dateTimeBaseline);
+  dateTimeBaseline = null;
+  dateTimeDirty = false;
+  setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", false);
+  clearFieldErrors();
+  refreshTimezonePreview();
+  updateTimezoneControls();
+  refreshStatus();
+}
+function networkControls() {
+  return [...document.querySelectorAll("#networkPanel input,#networkPanel select")].filter(
+    (el) => el.id && el.id !== "staNetwork",
+  );
+}
+function revertNetworkConfig() {
+  if ($("saveNetworkButton").dataset.dirty !== "1") return;
+  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
+  restoreSnapshot(networkBaseline);
+  setSaveDirty("saveNetworkButton", "", false);
+  clearFieldErrors();
+  updateNetworkPasswordState();
+  updateStaticIpFieldsState();
+  updateWifiSleepState();
+  resetNetworkAddressLoaded();
+  refreshStatus();
+}
+function invalidateSettingsHydration() {
+  configLoaded = false;
+  formRev = 0;
+}
+let bbwReadback = null,
+  bbwFormPresetId = 0;
+function updateBbwControls() {
+  const select = $("bbwAlgorithm");
+  if (!select) return;
+  const on = !!$("brewByWeight").checked,
+    ewma = select.value === "linear_ewma";
+  select.disabled = !on || !controlsMutable;
+  document.querySelectorAll(".bbwLearning,.bbwEwma").forEach((el) => {
+    const hidden = !on || (el.classList.contains("bbwEwma") && !ewma);
+    el.classList.toggle("hidden", hidden);
+    el.querySelectorAll("input,button,select").forEach(
+      (input) => (input.disabled = hidden || !controlsMutable),
+    );
+  });
+  const c = bbwReadback && bbwReadback.bbwPresetId === bbwFormPresetId ? bbwReadback : null;
+  const offset = c && (ewma ? c.bbwEwmaOffsetG : c.bbwLegacyOffsetG);
+  $("learnedOffsetG").textContent =
+    typeof offset === "number"
+      ? offset.toFixed(2) + __WEBUI_TEXT__("runtime.g_2")
+      : __WEBUI_TEXT__("runtime.unknown");
+  $("bbwAlpha").textContent =
+    c && typeof c.bbwAlpha === "number" ? c.bbwAlpha.toFixed(2) : __WEBUI_TEXT__("runtime.unknown");
+  $("bbwAlphaStatus").textContent = c
+    ? (c.bbwAlphaSource === "learned"
+        ? __WEBUI_TEXT__("runtime.learned")
+        : __WEBUI_TEXT__("runtime.initial")) +
+      __WEBUI_TEXT__("runtime.symbol_8") +
+      (c.bbwEvidenceCount >= 20
+        ? __WEBUI_TEXT__("runtime.evaluating")
+        : __WEBUI_TEXT__("runtime.collecting_samples"))
+    : __WEBUI_TEXT__("runtime.unavailable");
+  $("resetCalibrationButton").disabled =
+    !on || !controlsMutable || brewDirty || !c || select.value !== c.bbwAlgorithm;
+  $("resetEwmaButton").disabled = $("resetCalibrationButton").disabled || !ewma;
+}
+function soundAlertsAreOn() {
+  return !!$("soundAlertsEnabled")?.checked;
+}
+function updateBuzzerAlertVisibility(s) {
+  document.querySelectorAll(".buzzerOpt").forEach((e) => {
+    e.classList.toggle("hidden", !s);
+    e.querySelectorAll("input,button,select").forEach((i) => {
+      i.disabled = !s || !controlsMutable || !soundAlertsAreOn();
+    });
+  });
+  updateScaleIncapableAlertControls(s);
+}
+function updateScaleIncapableAlertControls(buzzerOn) {
+  const el = $("alertOutputChannel");
+  const scaleOnly = !!buzzerOn && el && el.value === "scale_only";
+  document.querySelectorAll(".scaleIncapableOpt").forEach((e) => {
+    e.classList.toggle("fieldOff", scaleOnly);
+    e.querySelectorAll("input,select").forEach((i) => {
+      i.disabled = !buzzerOn || scaleOnly || !controlsMutable || !soundAlertsAreOn();
+    });
+  });
+}
+function updateBullseyeControls() {
+  const wrap = document.querySelector(".bullseyeOpt"),
+    check = $("bullseyeMelodyEnabled"),
+    tune = $("bullseyeRtttl"),
+    tuneWrap = $("bullseyeTuneWrap");
+  if (!wrap || !check || !tune) return;
+  const buzzerVisible = !wrap.classList.contains("hidden"),
+    available =
+      buzzerVisible &&
+      controlsMutable &&
+      soundAlertsAreOn() &&
+      $("alertOutputChannel").value === "buzzer_only";
+  wrap.classList.toggle("fieldOff", !available);
+  check.disabled = !available;
+  tune.readOnly = !available || !check.checked;
+  if (tuneWrap) tuneWrap.classList.toggle("fieldOff", tune.readOnly);
+}
+function updateConfigGroups() {
+  if (!$("autoTare")) return;
+  updateScalePreferenceOptions();
+  const alertBox = document.querySelector(".soundAlertOpt"),
+    alertsOff = !soundAlertsAreOn();
+  if (alertBox) {
+    alertBox.classList.toggle("fieldOff", alertsOff);
+    alertBox.querySelectorAll("input,select").forEach((i) => {
+      i.disabled = !controlsMutable || alertsOff;
+    });
+  }
+  const wrap = $("alertOutputChannel") && $("alertOutputChannel").closest(".buzzerOpt");
+  const buzzerVisible = !!wrap && !wrap.classList.contains("hidden");
+  updateScaleIncapableAlertControls(buzzerVisible);
+  const apply = (cls, off) => {
+    document.querySelectorAll("." + cls).forEach((e) => {
+      e.classList.toggle("fieldOff", off);
+      e.querySelectorAll("input,select").forEach((i) => {
+        if (controlsMutable) i.disabled = off || (alertsOff && !!e.closest(".soundAlertOpt"));
+      });
+    });
+  };
+  apply("retareOpt", !$("autoRetare").checked);
+  apply("tareOpt", !$("autoTare").checked);
+  apply("paddleOpt", $("paddleReturnReminder")?.value === "0");
+  apply("fastGuardOpt", !$("fastExtractionGuardEnabled").checked);
+  apply("touchStopOpt", !$("brewByWeight").checked || !$("avoidAccidentalTouchEnabled").checked);
+  apply("slowGuardOpt", !$("slowExtractionGuardEnabled").checked);
+  apply("atmManualOpt", $("autoToManualGuardLimitMode").value !== "manual");
+  apply("noScaleGuardOpt", $("noScaleBbwMode").value === "off");
+  apply("cupProtectOpt", !$("cupProtectionEnabled") || !$("cupProtectionEnabled").checked);
+  const wall = number("operationalWallS");
+  if (Number.isFinite(wall)) {
+    const m = String(Math.max(10, Math.min(60, wall)));
+    $("autoToManualGuardManualLimitS").max = m;
+    $("autoToManualGuardBaselineS").max = m;
+  }
+  updateBullseyeControls();
+  updateBbwControls();
+}
+function extRate(v) {
+  return ["disabled", "slow", "medium", "fast", "rapid"].includes(v) ? v : "fast";
+}
+function rangeCheck(id, min, max, label, opts) {
+  const raw = $(id).value.trim(),
+    v = Number(raw),
+    unit = opts && opts.unit ? " " + opts.unit : "";
+  if (raw === "" || !Number.isFinite(v))
+    return {
+      id,
+      msg: label + __WEBUI_TEXT__("runtime.is_required") + min + "–" + max + unit + ").",
+    };
+  if (opts && opts.int && !Number.isInteger(v))
+    return {
+      id,
+      msg:
+        label + __WEBUI_TEXT__("runtime.must_be_an_integer_from") + min + " to " + max + unit + ".",
+    };
+  if (v < min || v > max)
+    return {
+      id,
+      msg: label + __WEBUI_TEXT__("runtime.must_be_from") + min + " to " + max + unit + ".",
+    };
+  return null;
+}
+function formNumber(id) {
+  const el = $(id);
+  if (!el) return NaN;
+  const v = Number(el.value);
+  return Number.isFinite(v) ? v : NaN;
+}
+function validNtpHostnameClient(host) {
+  const t = String(host || "");
+  if (!t || t.length > 63) return false;
+  if (t[0] === "-" || t[0] === "." || t[t.length - 1] === "-" || t[t.length - 1] === ".")
+    return false;
+  return /^[A-Za-z0-9.-]+$/.test(t);
+}
+function validDeviceNameClient(name) {
+  const t = String(name || "").trim();
+  if (!t || t.length > 32) return false;
+  if (t[0] === " " || t[0] === "-" || t[t.length - 1] === " " || t[t.length - 1] === "-")
+    return false;
+  return /^[A-Za-z0-9 -]+$/.test(t);
+}
+function validateMachineClient() {
+  const m = document.documentElement.classList.contains("momentaryMachine");
+  const reedMachine = m && document.documentElement.classList.contains("reedMachine");
+  let e =
+    rangeCheck("rinseGestureS", 0.1, 5, __WEBUI_TEXT__("runtime.rinse_gesture"), {
+      unit: __WEBUI_TEXT__("runtime.s"),
+    }) ||
+    rangeCheck("rinseDurationS", 0.5, 10, __WEBUI_TEXT__("runtime.rinse_duration"), {
+      unit: __WEBUI_TEXT__("runtime.s"),
+    }) ||
+    (m
+      ? rangeCheck("stopPulseMs", 50, 1000, __WEBUI_TEXT__("runtime.auto_stop_pulse"), {
+          int: 1,
+        }) ||
+        rangeCheck("maxSinglePressMs", 100, 5000, __WEBUI_TEXT__("runtime.single_press_limit"), {
+          int: 1,
+        }) ||
+        (reedMachine
+          ? rangeCheck(
+              "reedConfirmTimeoutS",
+              0.2,
+              5,
+              __WEBUI_TEXT__("runtime.reed_confirm_timeout"),
+              { unit: __WEBUI_TEXT__("runtime.s") },
+            )
+          : "") ||
+        rangeCheck("shotReactTimeoutS", 3, 30, __WEBUI_TEXT__("runtime.shot_reaction_timeout"), {
+          int: 1,
+          unit: __WEBUI_TEXT__("runtime.s"),
+        })
+      : rangeCheck(
+          "paddleReturnReminderMaxDurationMin",
+          1,
+          60,
+          __WEBUI_TEXT__("runtime.paddle_limit"),
+          { int: 1, unit: __WEBUI_TEXT__("runtime.min") },
+        )) ||
+    rangeCheck("retareWindowS", 0.5, 10, __WEBUI_TEXT__("runtime.retare_window"), {
+      unit: __WEBUI_TEXT__("runtime.s"),
+    }) ||
+    rangeCheck("postTareBaselineGraceS", 0.5, 10, __WEBUI_TEXT__("runtime.post_tare_grace"), {
+      unit: __WEBUI_TEXT__("runtime.s"),
+    }) ||
+    rangeCheck("minimumCupWeightG", 1, 500, __WEBUI_TEXT__("runtime.min_cup_weight"), {
+      unit: __WEBUI_TEXT__("runtime.g"),
+    }) ||
+    rangeCheck("cupRemovedWeightG", -50, -0.1, __WEBUI_TEXT__("runtime.cup_removed"), {
+      unit: __WEBUI_TEXT__("runtime.g"),
+    }) ||
+    rangeCheck("retareStabilitySamples", 2, 10, __WEBUI_TEXT__("runtime.retare_samples"), {
+      int: 1,
+    }) ||
+    rangeCheck("retareStabilityToleranceG", 0.1, 20, __WEBUI_TEXT__("runtime.retare_tolerance"), {
+      unit: __WEBUI_TEXT__("runtime.g"),
+    }) ||
+    rangeCheck("retareStabilityMaxGapS", 0.1, 5, __WEBUI_TEXT__("runtime.retare_sample_gap"), {
+      unit: __WEBUI_TEXT__("runtime.s"),
+    }) ||
+    rangeCheck(
+      "retareStabilityMinDurationS",
+      0,
+      2,
+      __WEBUI_TEXT__("runtime.retare_min_stable_time"),
+      { unit: __WEBUI_TEXT__("runtime.s") },
+    ) ||
+    rangeCheck(
+      "scaleTimerStopExtraDelayMs",
+      0,
+      1000,
+      __WEBUI_TEXT__("runtime.scale_timer_stop_extra_delay"),
+      { int: 1, unit: __WEBUI_TEXT__("runtime.ms") },
+    ) ||
+    rangeCheck("dripDelayS", 0, 10, __WEBUI_TEXT__("runtime.drip_delay"), {
+      unit: __WEBUI_TEXT__("runtime.s"),
+    }) ||
+    rangeCheck("lastShotCooldownMin", 5, 240, __WEBUI_TEXT__("runtime.last_shot_cooldown"), {
+      int: 1,
+      unit: __WEBUI_TEXT__("runtime.min"),
+    });
+  if (e) return e;
+  const rg = number("rinseGestureS"),
+    rd = number("rinseDurationS"),
+    rw = number("retareWindowS"),
+    wall = formNumber("operationalWallS"),
+    samples = number("retareStabilitySamples"),
+    gap = number("retareStabilityMaxGapS"),
+    minStab = number("retareStabilityMinDurationS");
+  if (Number.isFinite(wall)) {
+    if (!m) {
+      if (!(rg < wall))
+        return {
+          id: "rinseGestureS",
+          msg:
+            __WEBUI_TEXT__("runtime.rinse_gesture_must_be_machine_circuit_limit") + wall + " s).",
+        };
+      if (rd > wall)
+        return {
+          id: "rinseDurationS",
+          msg:
+            __WEBUI_TEXT__("runtime.rinse_duration_must_be_machine_circuit_limit") + wall + " s).",
+        };
+    }
+    if (rw > wall)
+      return {
+        id: "retareWindowS",
+        msg: __WEBUI_TEXT__("runtime.retare_window_must_be_machine_circuit_limit") + wall + " s).",
+      };
+  }
+  if (minStab > rw)
+    return {
+      id: "retareStabilityMinDurationS",
+      msg: __WEBUI_TEXT__("runtime.stable_time_must_fit_the_retare_window"),
+    };
+  if (minStab > 0 && minStab > samples * gap)
+    return {
+      id: "retareStabilityMinDurationS",
+      msg: __WEBUI_TEXT__("runtime.stable_time_must_fit_samples_sample_gap"),
+    };
+  if ($("canTareStartTimer").checked && !$("autoTare").checked)
+    return {
+      id: "canTareStartTimer",
+      msg: __WEBUI_TEXT__("runtime.bookoo_combination_requires_shot_start_tare"),
+    };
+  if (!m) {
+    const iv = +$("paddleReturnReminder").value || 0,
+      lim = $("paddleReturnReminderMaxDurationMin")
+        ? number("paddleReturnReminderMaxDurationMin")
+        : 0;
+    if (lim * 60 < iv)
+      return {
+        id: "paddleReturnReminderMaxDurationMin",
+        msg: __WEBUI_TEXT__("runtime.paddle_limit_must_be_reminder_interval") + iv + " s).",
+      };
+  }
+  return null;
+}
+function validateBrewClient() {
+  let e =
+    rangeCheck("goalWeightG", 10, 200, __WEBUI_TEXT__("runtime.target"), {
+      int: 1,
+      unit: __WEBUI_TEXT__("runtime.g"),
+    }) ||
+    rangeCheck("operationalWallS", 5, 60, __WEBUI_TEXT__("runtime.max_bbw_time"), {
+      int: 1,
+      unit: __WEBUI_TEXT__("runtime.s"),
+    }) ||
+    rangeCheck("bbwProtectionS", 0.5, 30, __WEBUI_TEXT__("runtime.bbw_protection"), {
+      unit: __WEBUI_TEXT__("runtime.s"),
+    }) ||
+    (!$("weightOffsetBaselineG").disabled &&
+      rangeCheck("weightOffsetBaselineG", 0, 5, __WEBUI_TEXT__("runtime.offset_baseline"), {
+        unit: __WEBUI_TEXT__("runtime.g"),
+      })) ||
+    (document.documentElement.classList.contains("micraTemperatureEnabled") &&
+      rangeCheck("lineaMicraBrewTargetC", 80, 100, __WEBUI_TEXT__("runtime.brew_temperature"), {
+        unit: "°C",
+      }));
+  if (!e && !$("bbwAlphaBaseline").disabled && !$("bbwAlphaBaseline").validity.valid)
+    e = { id: "bbwAlphaBaseline", msg: __WEBUI_TEXT__("runtime.use_0_01_1_00_step_0") };
+  if (e) return e;
+  const wall = number("operationalWallS"),
+    bbw = number("bbwProtectionS"),
+    rw = formNumber("retareWindowS"),
+    autoRetare = !!$("autoRetare") && $("autoRetare").checked;
+  if (bbw > wall)
+    return {
+      id: "bbwProtectionS",
+      msg: __WEBUI_TEXT__("runtime.bbw_protection_must_be_machine_circuit_limit") + wall + " s).",
+    };
+  const minBbw = (autoRetare && Number.isFinite(rw) ? rw : 0) + 3;
+  if (bbw < minBbw)
+    return {
+      id: "bbwProtectionS",
+      msg:
+        __WEBUI_TEXT__("runtime.bbw_protection_must_be") +
+        minBbw +
+        __WEBUI_TEXT__("runtime.s_effective_retare_3_s"),
+    };
+  if ($("fastExtractionGuardEnabled").checked) {
+    e =
+      rangeCheck("maxRecoveryWeightG", 10, 200, __WEBUI_TEXT__("runtime.max_recovery"), {
+        unit: __WEBUI_TEXT__("runtime.g"),
+      }) ||
+      rangeCheck("minBbwBrewTimeS", 5, 55, __WEBUI_TEXT__("runtime.min_bbw_brew_time"), {
+        unit: __WEBUI_TEXT__("runtime.s"),
+      });
+    if (e) return e;
+    const goal = number("goalWeightG"),
+      maxW = number("maxRecoveryWeightG"),
+      minT = number("minBbwBrewTimeS");
+    if (!(maxW > goal))
+      return {
+        id: "maxRecoveryWeightG",
+        msg: __WEBUI_TEXT__("runtime.max_recovery_must_be_target") + goal + " g).",
+      };
+    if (minT >= wall)
+      return {
+        id: "minBbwBrewTimeS",
+        msg: __WEBUI_TEXT__("runtime.min_bbw_brew_time_must_be_machine") + wall + " s).",
+      };
+    if (minT < bbw)
+      return {
+        id: "minBbwBrewTimeS",
+        msg: __WEBUI_TEXT__("runtime.min_bbw_brew_time_must_be_bbw") + bbw + " s).",
+      };
+  }
+  if ($("slowExtractionGuardEnabled").checked) {
+    e =
+      rangeCheck("minRecoveryWeightG", 10, 200, __WEBUI_TEXT__("runtime.min_recovery"), {
+        unit: __WEBUI_TEXT__("runtime.g"),
+      }) ||
+      rangeCheck("maxBbwBrewTimeS", 5, 55, __WEBUI_TEXT__("runtime.max_bbw_brew_time"), {
+        unit: __WEBUI_TEXT__("runtime.s"),
+      });
+    if (e) return e;
+    const goal = number("goalWeightG"),
+      minW = number("minRecoveryWeightG"),
+      maxT = number("maxBbwBrewTimeS"),
+      minT = number("minBbwBrewTimeS");
+    if (!(minW < goal))
+      return {
+        id: "minRecoveryWeightG",
+        msg: __WEBUI_TEXT__("runtime.min_recovery_must_be_target") + goal + " g).",
+      };
+    if (maxT >= wall)
+      return {
+        id: "maxBbwBrewTimeS",
+        msg: __WEBUI_TEXT__("runtime.max_bbw_brew_time_must_be_machine") + wall + " s).",
+      };
+    if (maxT < bbw)
+      return {
+        id: "maxBbwBrewTimeS",
+        msg: __WEBUI_TEXT__("runtime.max_bbw_brew_time_must_be_bbw") + bbw + " s).",
+      };
+    if ($("fastExtractionGuardEnabled").checked && !(maxT > minT))
+      return {
+        id: "maxBbwBrewTimeS",
+        msg: __WEBUI_TEXT__("runtime.max_bbw_brew_time_must_be_min") + minT + " s).",
+      };
+  }
+  e = rangeCheck(
+    "autoToManualGuardManualLimitS",
+    10,
+    wall,
+    __WEBUI_TEXT__("runtime.a_to_m_manual_limit"),
+    { int: 1, unit: __WEBUI_TEXT__("runtime.s") },
+  );
+  if (e) {
+    e.msg = __WEBUI_TEXT__("runtime.a_to_m_manual_limit_must_be") + wall + " s).";
+    return e;
+  }
+  e = rangeCheck(
+    "autoToManualGuardBaselineS",
+    10,
+    wall,
+    __WEBUI_TEXT__("runtime.a_to_m_baseline"),
+    { int: 1, unit: __WEBUI_TEXT__("runtime.s") },
+  );
+  if (e) {
+    e.msg = __WEBUI_TEXT__("runtime.a_to_m_baseline_must_be_10") + wall + " s).";
+    return e;
+  }
+  return null;
+}
+function validateDateTimeClient() {
+  const tz = $("timezoneId").value;
+  if (
+    (tz && !timezoneCatalog?.includes(tz)) ||
+    (!tz && (savedTimezoneId || $("timezoneAutomatic").checked))
+  )
+    return { id: "timezoneId", msg: __WEBUI_TEXT__("runtime.select_timezone") };
+  const preset = $("ntpServerPreset").value;
+  if (!["pool", "google", "cloudflare", "nist"].includes(preset))
+    return { id: "ntpServerPreset", msg: __WEBUI_TEXT__("runtime.select_a_valid_ntp_server") };
+  const custom = $("ntpServerCustom").value.trim();
+  if (custom && !validNtpHostnameClient(custom))
+    return { id: "ntpServerCustom", msg: __WEBUI_TEXT__("runtime.custom_ntp_must_be_empty_or_a") };
+  return null;
+}
+function machinePayload() {
+  if (HOME_GUARD_SWITCHES.some(([h]) => homeSwitchPending[h])) syncSettingsFromHomeSwitches();
+  const reminder = $("paddleReturnReminder");
+  return {
+    rinseEnabled: $("rinseEnabled").checked,
+    rinseGestureMs: sToMs("rinseGestureS"),
+    rinseDurationMs: sToMs("rinseDurationS"),
+    retareWindowMs: sToMs("retareWindowS"),
+    minimumCupWeightG: number("minimumCupWeightG"),
+    cupRemovedWeightG: number("cupRemovedWeightG"),
+    retareStabilitySamples: number("retareStabilitySamples"),
+    retareStabilityToleranceG: number("retareStabilityToleranceG"),
+    retareStabilityMaxGapMs: sToMs("retareStabilityMaxGapS"),
+    retareStabilityMinDurationMs: sToMs("retareStabilityMinDurationS"),
+    autoTare: $("autoTare").checked,
+    autoTareOutsideBrew: $("autoTareOutsideBrew").checked,
+    retareAccessoryOutsideBrew: $("retareAccessoryOutsideBrew").checked,
+    postTareBaselineGraceMs: sToMs("postTareBaselineGraceS"),
+    scaleMacCacheMode: ["first", "prefer", "only"].includes($("scalePreference")?.value)
+      ? $("scalePreference").value
+      : "only",
+    paddleMode: $("paddleMode")
+      ? ["auto", "natural", "original"].includes($("paddleMode").value)
+        ? $("paddleMode").value
+        : "natural"
+      : undefined,
+    stopPulseMs: $("stopPulseMs") ? number("stopPulseMs") : undefined,
+    maxSinglePressMs: $("maxSinglePressMs") ? number("maxSinglePressMs") : undefined,
+    momentaryStartEdge: $("momentaryStartEdge")
+      ? ["press", "release"].includes($("momentaryStartEdge").value)
+        ? $("momentaryStartEdge").value
+        : "press"
+      : undefined,
+    reedConfirmTimeoutMs: $("reedConfirmTimeoutS") ? sToMs("reedConfirmTimeoutS") : undefined,
+    assumeIdleWhenScaleConnects: $("assumeIdleWhenScaleConnects")?.checked ?? true,
+    shotReactTimeoutS: $("shotReactTimeoutS") ? number("shotReactTimeoutS") || 0 : undefined,
+    canTareStartTimer: $("canTareStartTimer").checked,
+    bookooMuteOnBuzzerOnly: $("bookooMuteOnBuzzerOnly").checked,
+    bookooConnectBeepLevel: Number($("bookooConnectBeepLevel").value),
+    scaleTimerStopExtraDelayMs: number("scaleTimerStopExtraDelayMs"),
+    dripDelayMs: sToMs("dripDelayS"),
+    soundAlertsEnabled: $("soundAlertsEnabled").checked,
+    firstDropBeep: $("firstDropBeep").checked,
+    scaleConnectedLed: $("scaleConnectedLed").checked,
+    paddleReturnReminderBeep: reminder ? !!+reminder.value : undefined,
+    buzzerScaleLostBeep: $("buzzerScaleLostBeep").checked,
+    buzzerAutoToManualGuardEndBeep: $("buzzerAutoToManualGuardEndBeep").checked,
+    buzzerManualNoScaleBeep: $("buzzerManualNoScaleBeep").checked,
+    buzzerScaleConnectedBeep: $("buzzerScaleConnectedBeep").checked,
+    buzzerExtendedPulseRate: extRate($("buzzerExtendedPulseRate").value),
+    buzzerSlowExtendedPulseRate: extRate($("buzzerSlowExtendedPulseRate").value),
+    alertOutputChannel: ["scale_only", "buzzer_only", "scale_priority"].includes(
+      $("alertOutputChannel").value,
+    )
+      ? $("alertOutputChannel").value
+      : "scale_priority",
+    autoRetare: $("autoRetare").checked,
+    paddleReturnReminderIntervalMs: reminder ? (+reminder.value || 30) * 1000 : undefined,
+    paddleReturnReminderMaxDurationMs: Math.round(
+      number("paddleReturnReminderMaxDurationMin") * 60000,
+    ),
+    noScaleBbwMode: $("noScaleBbwMode").value,
+    noScaleAllowRinseWhileArmed: $("noScaleAllowRinseWhileArmed").checked,
+    lastShotCooldownMs: Math.round(number("lastShotCooldownMin") * 6e4),
+  };
+}
+function dateTimePayload() {
+  const auto = $("timezoneAutomatic").checked,
+    value = {
+      timezoneAutomatic: auto,
+      ntpSyncEnabled: $("ntpSyncEnabled").checked,
+      ntpServerPreset: $("ntpServerPreset").value,
+      ntpServerCustom: $("ntpServerCustom").value.trim(),
+    };
+  const zone = $("timezoneId").value;
+  if (zone) {
+    value.timezoneId = zone;
+    if (auto) value.timezoneDetected = true;
+  }
+  return value;
+}
+function brewPayload() {
+  return {
+    ...Object.fromEntries([
+      ...["goalWeightG", "maxRecoveryWeightG", "minRecoveryWeightG"].map((k) => [k, number(k)]),
+      ...[
+        "operationalWall",
+        "bbwProtection",
+        "minBbwBrewTime",
+        "maxBbwBrewTime",
+        "autoToManualGuardManualLimit",
+        "autoToManualGuardBaseline",
+      ].map((k) => [k + "Ms", sToMs(k + "S")]),
+      ...[
+        "brewByWeight",
+        "fastExtractionGuardEnabled",
+        "avoidAccidentalTouchEnabled",
+        "touchStopFallbackEnabled",
+        "slowExtractionGuardEnabled",
+        "autoToManualGuardEnabled",
+        "cupProtectionEnabled",
+        "stopIfCupRemoved",
+        "requireCupToStart",
+      ].map((k) => [k, $(k).checked]),
+    ]),
+    action: "save",
+    id: bbwFormPresetId,
+    ...(!$("weightOffsetBaselineG").disabled
+      ? { weightOffsetBaselineG: number("weightOffsetBaselineG") }
+      : {}),
+    ...(!$("bbwAlphaBaseline").disabled ? { bbwAlphaBaseline: number("bbwAlphaBaseline") } : {}),
+    ...($("bbwAlgorithm") && !$("bbwAlgorithm").disabled
+      ? { bbwAlgorithm: $("bbwAlgorithm").value }
+      : {}),
+    ...(document.documentElement.classList.contains("micraTemperatureEnabled")
+      ? { lineaMicraBrewTargetC: number("lineaMicraBrewTargetC") }
+      : {}),
+    autoToManualGuardLimitMode: $("autoToManualGuardLimitMode").value,
+  };
+}
+function parseIpv4Client(text) {
+  const m = String(text || "")
+    .trim()
+    .match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return null;
+  const p = m.slice(1).map(Number);
+  return p.some((n) => n > 255) ? null : p;
+}
+function ipv4ToInt(p) {
+  return ((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]) >>> 0;
+}
+function validNetmaskClient(p) {
+  const m = ipv4ToInt(p);
+  if (!m) return false;
+  const i = ~m >>> 0;
+  return (i & (i + 1)) === 0;
+}
+function updateStaticIpFieldsState() {
+  if (!$("staIpMode")) return;
+  const on = $("staIpMode").value === "static";
+  document.querySelectorAll(".staticIpOpt").forEach((e) => {
+    e.classList.toggle("fieldOff", !on);
+    e.querySelectorAll("input").forEach((i) => {
+      i.disabled = !controlsMutable || !on;
+    });
+  });
+}
+function validateNetworkClient() {
+  const dn = $("deviceName") ? $("deviceName").value.trim() : "";
+  if ($("deviceName") && !validDeviceNameClient(dn))
+    return { id: "deviceName", msg: __WEBUI_TEXT__("runtime.device_name_must_be_1_32_letters") };
+  const ssid = $("staSsid").value,
+    open = $("staOpen").checked,
+    pw = $("staPassword").value,
+    keep = !!savedStaSsid && ssid === savedStaSsid && !pw && open === savedStaOpen;
+  if (!ssid || ssid.length > 32)
+    return { id: "staSsid", msg: __WEBUI_TEXT__("runtime.ssid_must_be_1_32_characters") };
+  if (open && pw)
+    return {
+      id: "staPassword",
+      msg: __WEBUI_TEXT__("runtime.open_network_password_must_be_empty"),
+    };
+  if (!open && !keep && (pw.length < 8 || pw.length > 63))
+    return { id: "staPassword", msg: __WEBUI_TEXT__("runtime.wi_fi_password_must_be_8_63") };
+  if ($("staIpMode").value !== "static") return null;
+  const ip = parseIpv4Client($("staStaticIp").value),
+    mask = parseIpv4Client($("staNetmask").value),
+    gw = parseIpv4Client($("staGateway").value),
+    dns1 = parseIpv4Client($("staDns1").value),
+    d2 = $("staDns2").value.trim(),
+    dns2 = d2 ? parseIpv4Client(d2) : [0, 0, 0, 0];
+  if (!ip) return { id: "staStaticIp", msg: __WEBUI_TEXT__("runtime.enter_a_valid_ipv4_address") };
+  if (!mask || !validNetmaskClient(mask))
+    return { id: "staNetmask", msg: __WEBUI_TEXT__("runtime.enter_a_valid_subnet_mask") };
+  if (!gw)
+    return { id: "staGateway", msg: __WEBUI_TEXT__("runtime.enter_a_valid_gateway_address") };
+  if (!dns1) return { id: "staDns1", msg: __WEBUI_TEXT__("runtime.enter_a_valid_primary_dns") };
+  if (d2 && !dns2)
+    return { id: "staDns2", msg: __WEBUI_TEXT__("runtime.enter_a_valid_secondary_dns_or_leave") };
+  if (ip[0] === 192 && ip[1] === 168 && ip[2] === 4)
+    return { id: "staStaticIp", msg: __WEBUI_TEXT__("runtime.sta_must_not_use_softap_subnet_192") };
+  if (gw[0] === 192 && gw[1] === 168 && gw[2] === 4)
+    return {
+      id: "staGateway",
+      msg: __WEBUI_TEXT__("runtime.gateway_must_not_use_softap_subnet_192"),
+    };
+  if (ipv4ToInt(ip) === ipv4ToInt(gw))
+    return { id: "staStaticIp", msg: __WEBUI_TEXT__("runtime.ip_and_gateway_must_differ") };
+  const m = ipv4ToInt(mask);
+  if ((ipv4ToInt(ip) & m) !== (ipv4ToInt(gw) & m))
+    return { id: "staGateway", msg: __WEBUI_TEXT__("runtime.ip_and_gateway_must_share_a_subnet") };
+  const h = ipv4ToInt(ip) & (~m >>> 0);
+  if (!h || h === ~m >>> 0)
+    return { id: "staStaticIp", msg: __WEBUI_TEXT__("runtime.ip_must_not_be_network_broadcast") };
+  return null;
+}
+function networkSavePayload() {
+  const p = {
+    action: "save",
+    ssid: $("staSsid").value,
+    password: $("staPassword").value,
+    open: $("staOpen").checked,
+    wifiSleep: savedStaWifiSleep,
+    name: $("deviceName") ? $("deviceName").value.trim() : "",
+    ipMode: $("staIpMode").value,
+  };
+  if (p.ipMode === "static") {
+    p.ip = $("staStaticIp").value.trim();
+    p.netmask = $("staNetmask").value.trim();
+    p.gateway = $("staGateway").value.trim();
+    p.dns1 = $("staDns1").value.trim();
+    const d = $("staDns2").value.trim();
+    if (d) p.dns2 = d;
+  }
+  return p;
+}
+function networkPreferencesOnly(p) {
+  return (
+    !!savedStaSsid &&
+    p.ssid === savedStaSsid &&
+    !p.password &&
+    p.open === savedStaOpen &&
+    p.ipMode === savedStaAddr.split("|")[0] &&
+    netAddrKey() === savedStaAddr
+  );
+}
+function netAddrKey() {
+  const m = $("staIpMode").value;
+  return m !== "static"
+    ? m
+    : m +
+        "|" +
+        $("staStaticIp").value.trim() +
+        "|" +
+        $("staNetmask").value.trim() +
+        "|" +
+        $("staGateway").value.trim() +
+        "|" +
+        $("staDns1").value.trim() +
+        "|" +
+        $("staDns2").value.trim();
+}
+function validateDevicePasswordClient() {
+  const n = $("newDevicePassword").value,
+    c = $("confirmDevicePassword").value;
+  if (n.length < 8 || n.length > 63)
+    return {
+      id: "newDevicePassword",
+      msg: __WEBUI_TEXT__("runtime.new_device_password_must_be_8_63"),
+    };
+  if (n === "ineedacoffee")
+    return {
+      id: "newDevicePassword",
+      msg: __WEBUI_TEXT__("runtime.new_device_password_cannot_be_the_factory"),
+    };
+  if (n !== c)
+    return {
+      id: "confirmDevicePassword",
+      msg: __WEBUI_TEXT__("runtime.the_new_device_passwords_do_not_match"),
+    };
+  return null;
+}
+function updateStateTone(s) {
+  const sr = $("scaleRow");
+  if (sr) sr.classList.toggle("lampBad", !(s.scale && s.scale.available));
+  const cr = $("cupRow");
+  if (cr) {
+    const cp = s.cupPresence || {};
+    cr.classList.toggle(
+      "lampBad",
+      !(
+        cp.present ||
+        (cp.idleTare === "ready" && s.scale && s.scale.available && s.scale.streamState === "FRESH")
+      ),
+    );
+  }
+}
+function renderLog() {
+  const f = $("logFilter").value,
+    m = +$("logLevelFilter").value,
+    r = { critical: 0, error: 1, warning: 2, info: 3, debug: 4 };
+  let o = "";
+  for (const e of logEvents) {
+    if (f && e.category !== f) continue;
+    if ((r[e.level] ?? 3) > m) continue;
+    o +=
+      (e.wallSec
+        ? formatWallTimeLocal(e.localSec ?? e.wallSec)
+        : "+" + ((e.atMs || 0) / 1000).toFixed(3) + "s") +
+      " " +
+      (e.level || "info").toUpperCase() +
+      " [" +
+      e.category +
+      "] " +
+      e.message +
+      "\n";
+  }
+  $("log").value = o;
+  $("log").scrollTop = $("log").scrollHeight;
+}
+function updateLogHealth(d) {
+  const a = [],
+    e = $("logDropped");
+  if (d.historyOverwritten)
+    a.push(__WEBUI_TEXT__("runtime.history_rotated") + d.historyOverwritten);
+  if (logMissed) a.push(__WEBUI_TEXT__("runtime.missed_while_disconnected") + logMissed);
+  if (d.serialDropped) a.push(__WEBUI_TEXT__("runtime.serial_dropped") + d.serialDropped);
+  if (!e) return;
+  e.hidden = !a.length;
+  e.textContent = a.join(__WEBUI_TEXT__("runtime.symbol_8"));
+}
+function updateNetworkPasswordState() {
+  if (!$("staPassword")) return;
+  $("staPassword").disabled = !controlsMutable || $("staOpen").checked;
+}
+function selectDetectedNetwork() {
+  const o = $("staNetwork").selectedOptions[0];
+  if (!o || !o.value) return;
+  $("staSsid").value = o.value;
+  $("staOpen").checked = o.dataset.open === "true";
+  $("staPassword").value = "";
+  updateNetworkPasswordState();
+}
+function showScanResults(d) {
+  const select = $("staNetwork");
+  select.replaceChildren();
+  const prompt = document.createElement("option");
+  prompt.value = "";
+  prompt.textContent = d.networks.length
+    ? __WEBUI_TEXT__("runtime.select_network")
+    : __WEBUI_TEXT__("runtime.no_networks_found");
+  select.appendChild(prompt);
+  for (const n of d.networks) {
+    const o = document.createElement("option");
+    o.value = n.ssid;
+    o.dataset.open = String(n.open);
+    o.textContent =
+      n.ssid +
+      __WEBUI_TEXT__("runtime.symbol_9") +
+      n.rssi +
+      __WEBUI_TEXT__("runtime.dbm_channel") +
+      n.channel +
+      (n.open ? __WEBUI_TEXT__("runtime.open") : __WEBUI_TEXT__("runtime.secured")) +
+      __WEBUI_TEXT__("runtime.symbol_10");
+    select.appendChild(o);
+  }
+}
+async function refreshWifiScan() {
+  if (scanBusy || !webUiPollingActive()) return;
+  return withPollGate(async () => {
+    if (scanBusy || !webUiPollingActive()) return;
+    scanBusy = true;
+    try {
+      const d = await api("/api/v1/network/scan");
+      $("scanStatus").textContent =
+        d.state === "READY"
+          ? __WEBUI_TEXT__("runtime.ready") +
+            d.networks.length +
+            __WEBUI_TEXT__("runtime.network_s")
+          : d.state;
+      if (d.state === "READY") showScanResults(d);
+      if (webUiPollingActive() && (d.state === "QUEUED" || d.state === "RUNNING"))
+        scanTimer = setTimeout(refreshWifiScan, 500);
+    } catch (e) {
+      message(e.message, "error");
+    } finally {
+      scanBusy = false;
+    }
+  });
+}
+async function startWifiScan() {
+  if (scanBusy) return;
+  clearTimeout(scanTimer);
+  $("scanStatus").textContent = __WEBUI_TEXT__("runtime.requesting");
+  return withPollGate(async () => {
+    try {
+      await api("/api/v1/network/scan", { method: "POST", body: "{}" });
+      message(__WEBUI_TEXT__("runtime.wi_fi_scan_started"), "ok");
+      scanTimer = setTimeout(refreshWifiScan, 100);
+    } catch (e) {
+      message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_start_wi_fi_scan"), e), "error");
+      $("scanStatus").textContent = __WEBUI_TEXT__("runtime.error");
+    }
+  });
+}
+function loadNetworkAddress(n) {
+  if (!n || networkAddressLoaded) return;
+  networkAddressLoaded = true;
+  savedStaSsid = n.wifiConfigured && n.ssid ? n.ssid : "";
+  savedStaOpen = !!(n.wifiConfigured && n.open);
+  savedStaWifiSleep = !!n.wifiSleep;
+  savedDeviceName = n.deviceName || "";
+  if ($("deviceName")) $("deviceName").value = savedDeviceName;
+  if ($("staWifiSleep") && !powerDirty) $("staWifiSleep").checked = savedStaWifiSleep;
+  if (savedStaSsid) {
+    $("staSsid").value = savedStaSsid;
+    $("staOpen").checked = savedStaOpen;
+    updateNetworkPasswordState();
+  }
+  $("staIpMode").value = n.ipMode === "static" ? "static" : "dhcp";
+  if (n.ipMode === "static") {
+    $("staStaticIp").value = n.configuredIp || "";
+    $("staNetmask").value = n.configuredNetmask || "";
+    $("staGateway").value = n.configuredGateway || "";
+    $("staDns1").value = n.configuredDns1 || "";
+    $("staDns2").value = n.configuredDns2 || "";
+  }
+  savedStaAddr = netAddrKey();
+  updateStaticIpFieldsState();
+  updateWifiSleepState();
+  networkBaseline = snapshotControls(networkControls());
+}
+function updateWifiSleepState() {
+  const el = $("staWifiSleep");
+  if (el) el.disabled = !controlsMutable || !savedStaSsid;
+}
+
+async function setWifiSleep() {
+  const el = $("staWifiSleep");
+  if (!el || !savedStaSsid) return;
+  const a = savedStaAddr.split("|"),
+    p = {
+      action: "save",
+      ssid: savedStaSsid,
+      password: "",
+      open: savedStaOpen,
+      wifiSleep: el.checked,
+      ipMode: a[0],
+    };
+  if (p.ipMode === "static") {
+    p.ip = a[1];
+    p.netmask = a[2];
+    p.gateway = a[3];
+    p.dns1 = a[4];
+    if (a[5]) p.dns2 = a[5];
+  }
+  p._noReconnectWait = true;
+  const ok = await command(
+    "/api/v1/network",
+    p,
+    false,
+    __WEBUI_TEXT__("runtime.wi_fi_sleep_saved"),
+  );
+  if (!ok) el.checked = savedStaWifiSleep;
+  return ok;
+}
+function formatNetworkStatus(n) {
+  let t = "STA: " + n.staState;
+  if (n.ssid) t += " — " + n.ssid;
+  if (n.staState === "CONNECTED" && typeof n.channel === "number" && n.channel > 0)
+    t += " — channel " + n.channel;
+  if (n.staIp) t += " — " + n.staIp;
+  if (n.mdnsHost) t += " — " + n.mdnsHost + ".local";
+  if (typeof n.signalQualityPct === "number" && typeof n.rssi === "number")
+    t += " — signal " + n.signalQualityPct + "% (" + n.rssi + " dBm)";
+  t +=
+    (n.wifiConfigured ? __WEBUI_TEXT__("runtime.credentials_saved") : "") +
+    " — " +
+    (n.ipMode === "static" ? __WEBUI_TEXT__("runtime.static_ip") : "DHCP");
+  if (n.wifiSleep) t += __WEBUI_TEXT__("runtime.sleep_on");
+  if (n.configState === "PENDING")
+    t +=
+      __WEBUI_TEXT__("runtime.pending_confirm") +
+      (n.confirmRemainingMs ? " " + Math.ceil(n.confirmRemainingMs / 1000) + "s" : "");
+  return t;
+}
+
+let presetState = { activeId: 0, items: [], selectedId: 0 },
+  presetsLoaded = false;
+function presetSummary(p) {
+  return __WEBUI_TEXT__("runtime.target_2") + (p.goalWeightG || "?") + " g";
+}
+function presetCardDot() {
+  const dot = document.createElement("span");
+  dot.className = "presetCardDot";
+  dot.setAttribute("aria-hidden", "true");
+  return dot;
+}
+function renderPresetCards(targetId, selectable) {
+  const el = $(targetId);
+  if (!el) return;
+  el.replaceChildren();
+  for (const p of presetState.items) {
+    const card = document.createElement("article");
+    card.className =
+      "presetCard" +
+      (p.id === presetState.activeId ? " active" : "") +
+      (p.id === presetState.selectedId ? " selected" : "");
+    card.dataset.id = String(p.id);
+    card.appendChild(presetCardDot());
+    const titleRow = document.createElement("div");
+    titleRow.className = "presetCardTitleRow";
+    const title = document.createElement("button");
+    title.type = "button";
+    title.className = "presetCardTitle";
+    title.textContent = p.name;
+    title.title = __WEBUI_TEXT__("runtime.rename");
+    title.onclick = (e) => {
+      e.stopPropagation();
+      if (selectable) {
+        presetState.selectedId = p.id;
+        renderAllPresetUi();
+        return;
+      }
+      startRenamePreset(p, title);
+    };
+    const badge = document.createElement("span");
+    badge.className = "presetCardBadge";
+    badge.textContent = p.isFactory
+      ? __WEBUI_TEXT__("runtime.factory")
+      : __WEBUI_TEXT__("runtime.custom");
+    titleRow.appendChild(title);
+    titleRow.appendChild(badge);
+    const meta = document.createElement("div");
+    meta.className = "presetCardMeta";
+    meta.textContent = presetSummary(p);
+    card.appendChild(titleRow);
+    card.appendChild(meta);
+    card.onclick = () => applyPreset(p.id, selectable);
+    el.appendChild(card);
+  }
+}
+function guardRuleRows(m) {
+  const on = !!m && m.mode === "active",
+    off = __WEBUI_TEXT__("runtime.off_2"),
+    f = (v) => (Number.isFinite(v) ? axisLabel(v, "g") : "\u2014"),
+    sub = (t, vals) => t.replace(/\{(\d)\}/g, (_, i) => vals[+i]);
+  return [
+    [
+      __WEBUI_TEXT__("runtime.fast"),
+      "guardFast",
+      on && m.fast
+        ? sub(__WEBUI_TEXT__("home.rule_fast"), [f(m.ceil), m.prot, m.tMin, f(m.goal)])
+        : off,
+    ],
+    [
+      __WEBUI_TEXT__("runtime.bbw"),
+      "guardBbw",
+      on ? sub(__WEBUI_TEXT__("home.rule_bbw"), [f(m.goal), m.tMin, m.tMax]) : off,
+    ],
+    [
+      __WEBUI_TEXT__("runtime.slow"),
+      "guardSlow",
+      on && m.slow ? sub(__WEBUI_TEXT__("home.rule_slow"), [f(m.floor), m.tMax]) : off,
+    ],
+  ].map(([n, c, r]) => {
+    const row = document.createElement("div");
+    row.className = "guardRow " + c;
+    const name = document.createElement("span");
+    name.className = "guardName";
+    const dot = document.createElement("i");
+    dot.setAttribute("aria-hidden", "true");
+    name.append(dot, n);
+    const rule = document.createElement("span");
+    rule.className = "guardRule";
+    rule.textContent = r;
+    row.append(name, rule);
+    return row;
+  });
+}
+function renderHomePresetAccordion() {
+  const el = $("homePresetAcc");
+  if (!el) return;
+  const canSelect = !!($("homeBrewByWeight") && $("homeBrewByWeight").checked && controlsMutable),
+    openId = homeAccPendingId || presetState.activeId,
+    sig = JSON.stringify([openId, canSelect, liveRuleModel, presetState.items]);
+  if (sig === homeAccSig) return;
+  homeAccSig = sig;
+  const focusIdx = [...el.querySelectorAll(".presetAccHead")].indexOf(document.activeElement),
+    have = new Map([...el.children].map((n) => [n.dataset.id, n])),
+    nodes = [];
+  for (const p of presetState.items) {
+    const active = p.id === openId,
+      key = String(p.id);
+    let item = have.get(key);
+    if (!item) {
+      item = document.createElement("div");
+      item.className = "presetAccItem";
+      item.dataset.id = key;
+      const head = document.createElement("button");
+      head.type = "button";
+      head.className = "presetAccHead";
+      const dot = document.createElement("span");
+      dot.className = "presetAccDot";
+      dot.setAttribute("aria-hidden", "true");
+      const name = document.createElement("span");
+      name.className = "presetAccName";
+      const badge = document.createElement("span");
+      badge.className = "presetAccBadge";
+      const target = document.createElement("span");
+      target.className = "presetAccTarget";
+      const chev = document.createElement("span");
+      chev.className = "presetAccChev";
+      chev.setAttribute("aria-hidden", "true");
+      chev.textContent = "\u25be";
+      head.append(dot, name, badge, target, chev);
+      const panel = document.createElement("div");
+      panel.className = "presetAccPanel";
+      const panelIn = document.createElement("div");
+      panelIn.className = "presetAccPanelIn";
+      const rows = document.createElement("div");
+      rows.className = "presetAccRows";
+      rows.setAttribute("aria-live", "polite");
+      panelIn.appendChild(rows);
+      panel.appendChild(panelIn);
+      item.append(head, panel);
+      el.appendChild(item);
+    }
+    const head = item.firstChild;
+    item.classList.toggle("open", active);
+    head.setAttribute("aria-expanded", active);
+    head.disabled = !active && !canSelect;
+    head.classList.toggle("locked", head.disabled);
+    head.children[1].textContent = p.name;
+    head.children[2].textContent = p.isFactory
+      ? __WEBUI_TEXT__("runtime.factory")
+      : __WEBUI_TEXT__("runtime.custom");
+    head.children[3].textContent = presetSummary(p);
+    head.onclick = () => {
+      if (p.id !== openId) applyPreset(p.id);
+    };
+    const m =
+      p.id === presetState.activeId && liveRuleModel && liveRuleModel.mode !== "empty"
+        ? liveRuleModel
+        : buildRuleChartModel(p);
+    item.lastChild.firstChild.firstChild.replaceChildren(...guardRuleRows(m));
+    nodes.push(item);
+  }
+  if (![...el.children].every((n, i) => n === nodes[i])) el.replaceChildren(...nodes);
+  if (focusIdx >= 0 && !el.contains(document.activeElement)) {
+    const heads = el.querySelectorAll(".presetAccHead");
+    if (heads[focusIdx]) heads[focusIdx].focus();
+  }
+}
+function updateActiveBrewProfileHint() {
+  const el = $("activeBrewProfileHint");
+  if (!el) return;
+  const p = presetState.items.find((x) => x.id === presetState.activeId);
+  el.textContent =
+    __WEBUI_TEXT__("runtime.current_profile") +
+    (p && p.name ? p.name : __WEBUI_TEXT__("runtime.unknown"));
+}
+function renderAllPresetUi() {
+  renderPresetCards("presetCards", false);
+  renderHomePresetAccordion();
+  updatePresetActionButtons();
+  updateActiveBrewProfileHint();
+}
+const HOME_GUARD_SWITCHES = [
+    [
+      "homeFastExtractionGuardEnabled",
+      "homeFastExtractionGuardEnabledState",
+      "fastExtractionGuardEnabled",
+      __WEBUI_TEXT__("runtime.fast_extraction_guard"),
+    ],
+    [
+      "homeAvoidAccidentalTouchEnabled",
+      "homeAvoidAccidentalTouchEnabledState",
+      "avoidAccidentalTouchEnabled",
+      __WEBUI_TEXT__("runtime.avoid_accidental_touch"),
+    ],
+    [
+      "homeSlowExtractionGuardEnabled",
+      "homeSlowExtractionGuardEnabledState",
+      "slowExtractionGuardEnabled",
+      __WEBUI_TEXT__("runtime.slow_extraction_guard"),
+    ],
+    [
+      "homeAutoToManualGuardEnabled",
+      "homeAutoToManualGuardEnabledState",
+      "autoToManualGuardEnabled",
+      __WEBUI_TEXT__("runtime.a_to_m_time_guard"),
+    ],
+    [
+      "homeCupProtectionEnabled",
+      "homeCupProtectionEnabledState",
+      "cupProtectionEnabled",
+      __WEBUI_TEXT__("runtime.cup_protection"),
+    ],
+  ],
+  homeSwitchPending = {};
+let nsm = "warn_once";
+function homePendingPairs() {
+  const rows = [
+      ["homeBrewByWeight", __WEBUI_TEXT__("runtime.brew_by_weight")],
+      ["homeNoScaleBbwEnabled", __WEBUI_TEXT__("runtime.no_scale_bbw")],
+      ...HOME_GUARD_SWITCHES.map((x) => [x[0], x[3]]),
+    ],
+    ok = [],
+    fail = [];
+  for (const [id, label] of rows) {
+    const p = homeSwitchPending[id];
+    if (!p) continue;
+    ok.push(toggleOk(label, p.expected));
+    fail.push(toggleFail(label, p.expected));
+  }
+  return {
+    ok: ok.length ? ok.join(" ") : __WEBUI_TEXT__("runtime.quick_settings_saved"),
+    fail: fail.length === 1 ? fail[0] : __WEBUI_TEXT__("runtime.could_not_update_quick_settings"),
+  };
+}
+function homeSwitchUnset(id) {
+  return !$(id)?.closest(".switchRow")?.classList.contains("swR");
+}
+function syncHomeSwitch(h, s, on) {
+  const el = $(h);
+  if (!el) return;
+  el.checked = !!on;
+  el.closest(".switchRow")?.classList.add("swR");
+  if ($(s)) $(s).textContent = on ? __WEBUI_TEXT__("runtime.on") : __WEBUI_TEXT__("runtime.off");
+}
+function pendVis(id, on) {
+  const el = $(id);
+  if (!el) return;
+  const r = el.closest(".switchRow");
+  if (r) r.classList.toggle("switchPending", !!on);
+}
+function endHomeSwitchPending(id) {
+  const p = homeSwitchPending[id];
+  if (p && p.timer) clearTimeout(p.timer);
+  delete homeSwitchPending[id];
+  pendVis(id, 0);
+}
+function beginHomeSwitchPending(id, expected) {
+  endHomeSwitchPending(id);
+  const p = {
+    expected: !!expected,
+    until: Date.now() + 5e3,
+    timer: setTimeout(() => {
+      if (homeSwitchPending[id] === p) refreshStatus();
+    }, 5e3),
+  };
+  homeSwitchPending[id] = p;
+  pendVis(id, 1);
+  if ($(id + "State"))
+    $(id + "State").textContent = expected
+      ? __WEBUI_TEXT__("runtime.on")
+      : __WEBUI_TEXT__("runtime.off");
+  updateHomeGuardSwitchesLock();
+}
+function applyPolledHomeSwitch(h, s, on, cfgKey) {
+  const p = homeSwitchPending[h];
+  if (p) {
+    if (!!on !== p.expected && (Date.now() < p.until || pollAt < p.until)) return;
+    endHomeSwitchPending(h);
+    if (cfgKey && $(cfgKey)) {
+      $(cfgKey).checked = !!on;
+      updateConfigGroups();
+    }
+  }
+  syncHomeSwitch(h, s, on);
+}
+function applyHomeNoScaleFromConfig(c) {
+  const mode = c.noScaleBbwMode || "off",
+    on = mode !== "off";
+  if (on) nsm = mode;
+  applyPolledHomeSwitch("homeNoScaleBbwEnabled", "", on);
+}
+function applyHomeSwitchesFromConfig(c) {
+  if (!c) return;
+  [["homeBrewByWeight", "homeBrewByWeightState", "brewByWeight"], ...HOME_GUARD_SWITCHES].forEach(
+    ([h, s, k]) => typeof c[k] === "boolean" && applyPolledHomeSwitch(h, s, c[k], k),
+  );
+  applyHomeNoScaleFromConfig(c);
+  updateHomeGuardSwitchesLock();
+  renderHomePresetAccordion();
+}
+function syncHomeGuardSwitchesFromSettings() {
+  HOME_GUARD_SWITCHES.forEach(([h, s, c]) => {
+    if (!homeSwitchPending[h]) syncHomeSwitch(h, s, $(c) && $(c).checked);
+  });
+  if (!homeSwitchPending.homeNoScaleBbwEnabled && $("noScaleBbwMode")) {
+    const mode = $("noScaleBbwMode").value;
+    if (mode !== "off") nsm = mode;
+    syncHomeSwitch("homeNoScaleBbwEnabled", "", mode !== "off");
+  }
+}
+function updateHomeGuardSwitchesLock() {
+  const bbw = $("homeBrewByWeight"),
+    x = homeSwitchUnset("homeBrewByWeight"),
+    on = !x && !!bbw && bbw.checked;
+  if (bbw) bbw.disabled = !controlsMutable || x;
+  [["homeNoScaleBbwEnabled"], ...HOME_GUARD_SWITCHES].forEach(([h]) => {
+    const el = $(h);
+    if (!el) return;
+    const u = homeSwitchUnset(h),
+      off = !u && !on;
+    el.disabled = !controlsMutable || u || off;
+    el.closest(".switchRow")?.classList.toggle("fieldOff", off);
+  });
+}
+function scheduleHomeGuardFlush() {
+  clearTimeout(homeFlushTimer);
+  homeFlushTimer = setTimeout(() => {
+    homeFlushTimer = 0;
+    flushHomeGuards();
+  }, 350);
+}
+function persistHomeGuard(h, s, c, preset) {
+  const on = $(h).checked;
+  beginHomeSwitchPending(h, on);
+  if ($(c)) $(c).checked = on;
+  updateConfigGroups();
+  if (preset) homeFlushPreset = true;
+  else homeFlushConfig = true;
+  scheduleHomeGuardFlush();
+}
+function persistHomeNoScaleBbw() {
+  const el = $("homeNoScaleBbwEnabled");
+  if (!el) return;
+  beginHomeSwitchPending("homeNoScaleBbwEnabled", el.checked);
+  if ($("noScaleBbwMode")) $("noScaleBbwMode").value = el.checked ? nsm : "off";
+  updateConfigGroups();
+  homeFlushConfig = true;
+  scheduleHomeGuardFlush();
+}
+function persistHomeBrewByWeight() {
+  const el = $("homeBrewByWeight");
+  if (!el) return;
+  beginHomeSwitchPending("homeBrewByWeight", el.checked);
+  renderHomePresetAccordion();
+  homeFlushConfig = true;
+  scheduleHomeGuardFlush();
+}
+async function ensureSettingsHydrated() {
+  if (configLoaded) return;
+  await ensureSettingsDom();
+  const s = await api("/api/v1/status/settings");
+  if (!statusPageOk("settings", s)) throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
+  applyCommonStatus(s);
+  loadSettingsConfig(s.config);
+  if (s.presets) ingestPresets(s);
+}
+function clearHomePend() {
+  ["homeBrewByWeight", "homeNoScaleBbwEnabled", ...HOME_GUARD_SWITCHES.map((x) => x[0])].forEach(
+    endHomeSwitchPending,
+  );
+}
+function syncSettingsFromHomeSwitches() {
+  if ($("homeBrewByWeight") && $("brewByWeight"))
+    $("brewByWeight").checked = $("homeBrewByWeight").checked;
+  HOME_GUARD_SWITCHES.forEach(([h, , k]) => {
+    if ($(h) && $(k)) $(k).checked = $(h).checked;
+  });
+}
+function withBaseRev(p) {
+  if (configRevision) p.baseRevision = configRevision;
+  return p;
+}
+function isConfigStale(e) {
+  return !!(e && (e.message || "").includes("Config changed"));
+}
+function homeConfigPatch() {
+  const p = {};
+  let n = 0;
+  if (homeSwitchPending.homeBrewByWeight) {
+    p.brewByWeight = $("homeBrewByWeight").checked;
+    n++;
+  }
+  if (homeSwitchPending.homeNoScaleBbwEnabled) {
+    p.noScaleBbwMode = $("homeNoScaleBbwEnabled").checked ? nsm : "off";
+    n++;
+  }
+  return n ? withBaseRev(p) : null;
+}
+async function flushHomeGuards() {
+  if (homeFlushBusy) {
+    scheduleHomeGuardFlush();
+    return;
+  }
+  homeFlushBusy = true;
+  updateHomeGuardSwitchesLock();
+  const doConfig = homeFlushConfig,
+    doPreset = homeFlushPreset;
+  homeFlushConfig = false;
+  homeFlushPreset = false;
+  const msgs = homePendingPairs();
+  try {
+    if (doConfig) {
+      for (let i = 0; i < 2; i++) {
+        const patch = homeConfigPatch();
+        if (!patch) break;
+        try {
+          await command(
+            "/api/v1/config",
+            patch,
+            1,
+            doPreset ? "" : msgs.ok,
+            doPreset ? "" : msgs.fail,
+          );
+          syncSettingsFromHomeSwitches();
+          break;
+        } catch (e) {
+          await refreshStatus();
+          if (i || !isConfigStale(e)) {
+            message(formatCommandError(msgs.fail, e), "error");
+            clearHomePend();
+            await refreshStatus();
+            return;
+          }
+        }
+      }
+    }
+    if (doPreset) {
+      try {
+        await ensureSettingsHydrated();
+      } catch (e) {
+        message(formatCommandError(msgs.fail, e), "error");
+        clearHomePend();
+        await refreshStatus();
+        return;
+      }
+      syncSettingsFromHomeSwitches();
+      if ((await saveBrewPreset(msgs.ok, msgs.fail)) === false) {
+        clearHomePend();
+        await refreshStatus();
+      }
+    }
+  } finally {
+    homeFlushBusy = false;
+    updateHomeGuardSwitchesLock();
+    if (homeFlushConfig || homeFlushPreset) scheduleHomeGuardFlush();
+  }
+}
+function recipeBrewByWeight() {
+  const active = presetState.items.find((x) => x.id === presetState.activeId);
+  return active ? !!active.brewByWeight : true;
+}
+function selectedPreset() {
+  return presetState.items.find((x) => x.id === (presetState.selectedId || presetState.activeId));
+}
+function updatePresetActionButtons() {
+  const p = selectedPreset(),
+    factory = !!p?.isFactory,
+    locked = !controlsMutable || !presetsLoaded;
+  document.querySelectorAll(".presetActions button").forEach((el) => {
+    el.disabled =
+      locked ||
+      (el.id === "presetDeleteBtn" && (!p || factory)) ||
+      (el.id === "presetResetBtn" && !factory);
+  });
+  $("presetResetBtn")?.classList.toggle("hidden", !factory);
+}
+async function applyPreset(id, selectable) {
+  id = +id;
+  if (!id) return;
+  if (id === presetState.activeId) {
+    presetState.selectedId = id;
+    renderAllPresetUi();
+    return;
+  }
+  if (selectable) {
+    presetState.selectedId = id;
+    renderAllPresetUi();
+    return;
+  }
+  if (
+    brewDirty &&
+    !confirm(__WEBUI_TEXT__("runtime.you_have_unsaved_preset_changes_discard_them"))
+  ) {
+    presetState.selectedId = presetState.activeId;
+    renderAllPresetUi();
+    return;
+  }
+  clearBrewDirty();
+  presetState.selectedId = id;
+  configLoaded = false;
+  formRev = 0;
+  const seq = ++homeAccApplySeq;
+  homeAccPendingId = id;
+  renderHomePresetAccordion();
+  await command("/api/v1/presets", { action: "apply", id });
+  if (seq === homeAccApplySeq) {
+    homeAccPendingId = 0;
+    renderHomePresetAccordion();
+  }
+}
+async function saveBrewPreset(okMsg, failMsg) {
+  const ok = okMsg || __WEBUI_TEXT__("runtime.brew_settings_saved"),
+    fail = failMsg || __WEBUI_TEXT__("runtime.could_not_save_brew_settings");
+  try {
+    await ensureSettingsHydrated();
+  } catch (e) {
+    message(formatCommandError(fail, e), "error");
+    return false;
+  }
+  if (HOME_GUARD_SWITCHES.some(([h]) => homeSwitchPending[h]) || homeSwitchPending.homeBrewByWeight)
+    syncSettingsFromHomeSwitches();
+  const err = validateBrewClient();
+  if (err) {
+    showFieldError(err.id, err.msg);
+    return false;
+  }
+  clearFieldErrors();
+  try {
+    await command("/api/v1/presets", brewPayload(), 1, ok, fail, "saveBrewPresetButton");
+    clearBrewDirty();
+    return true;
+  } catch (e) {
+    message(formatCommandError(fail, e), "error");
+    await refreshStatus();
+    return false;
+  }
+}
+function addBullseyePayload(p) {
+  p.bullseyeMelodyEnabled = $("bullseyeMelodyEnabled").checked;
+  p.bullseyeRtttl = $("bullseyeRtttl").value;
+  return p;
+}
+function validateBullseyeClient() {
+  const text = $("bullseyeRtttl").value;
+  if (text.length > 500)
+    return {
+      id: "bullseyeRtttl",
+      msg: __WEBUI_TEXT__("runtime.rtttl_must_be_at_most_500_characters"),
+    };
+  if ($("bullseyeMelodyEnabled").checked && !text.trim())
+    return {
+      id: "bullseyeRtttl",
+      msg: __WEBUI_TEXT__("runtime.paste_an_rtttl_tune_before_enabling_bullseye"),
+    };
+  return null;
+}
+async function saveMachineConfig() {
+  const fail = __WEBUI_TEXT__("runtime.could_not_save_machine_settings");
+  try {
+    await ensureSettingsHydrated();
+  } catch (e) {
+    message(formatCommandError(fail, e), "error");
+    return;
+  }
+  const err = validateMachineClient() || validateBullseyeClient();
+  if (err) {
+    showFieldError(err.id, err.msg);
+    return;
+  }
+  clearFieldErrors();
+  const snapshot = snapshotControls(settingsSectionEls("config")),
+    sel = $("preferredScaleSelect"),
+    payload = withBaseRev(addBullseyePayload(machinePayload()));
+  if (sel && sel.dataset.pending === "1" && sel.value !== (sel.dataset.applied || ""))
+    payload.preferredScaleMac = sel.value || "";
+  try {
+    await command(
+      "/api/v1/config",
+      payload,
+      1,
+      __WEBUI_TEXT__("runtime.machine_settings_saved"),
+      fail,
+      "saveConfigButton",
+    );
+    if (
+      payload.preferredScaleMac !== undefined &&
+      sel.dataset.applied.toUpperCase() !== payload.preferredScaleMac.toUpperCase()
+    )
+      throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));
+    if (
+      JSON.stringify(snapshotControls(settingsSectionEls("config"))) === JSON.stringify(snapshot)
+    ) {
+      if (sel) sel.dataset.pending = "0";
+      configDirty = false;
+      setSaveDirty("saveConfigButton", "configDirtyHint", false);
+      await refreshStatus();
+    }
+  } catch (e) {
+    message(formatCommandError(fail, e), "error");
+    await refreshStatus();
+  }
+}
+async function saveDateTimeConfig() {
+  const fail = __WEBUI_TEXT__("runtime.could_not_save_date_and_time_settings");
+  const err = validateDateTimeClient();
+  if (err) {
+    showFieldError(err.id, err.msg);
+    return;
+  }
+  clearFieldErrors();
+  const payload = dateTimePayload();
+  try {
+    await command(
+      "/api/v1/config",
+      withBaseRev({ ...payload }),
+      1,
+      __WEBUI_TEXT__("runtime.date_and_time_settings_saved"),
+      fail,
+      "saveDateTimeButton",
+    );
+    if (JSON.stringify(dateTimePayload()) === JSON.stringify(payload)) {
+      dateTimeDirty = false;
+      setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", false);
+    }
+    await refreshStatus();
+  } catch (e) {
+    message(formatCommandError(fail, e), "error");
+    await refreshStatus();
+  }
+}
+function commitRenamePreset(p, name) {
+  const t = (name || "").trim();
+  if (!t) {
+    message(__WEBUI_TEXT__("runtime.name_is_required"), "error");
+    return;
+  }
+  if (presetState.items.some((x) => x.id !== p.id && x.name === t)) {
+    message(__WEBUI_TEXT__("runtime.name_already_in_use"), "error");
+    return;
+  }
+  command("/api/v1/presets", { action: "rename", id: p.id, name: t });
+}
+function startRenamePreset(p, titleEl) {
+  const isNarrow = window.matchMedia("(max-width:640px)").matches;
+  if (isNarrow && $("presetRenameDialog")) {
+    $("presetRenameInput").value = p.name;
+    $("presetRenameDialog").showModal();
+    $("presetRenameForm").onsubmit = async (ev) => {
+      ev.preventDefault();
+      if (ev.submitter && ev.submitter.value === "cancel") {
+        $("presetRenameDialog").close();
+        return;
+      }
+      commitRenamePreset(p, $("presetRenameInput").value);
+      $("presetRenameDialog").close();
+    };
+    return;
+  }
+  if (!titleEl) {
+    const name = prompt(__WEBUI_TEXT__("runtime.rename_preset_2"), p.name);
+    if (name === null) return;
+    commitRenamePreset(p, name);
+    return;
+  }
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "presetRenameInline";
+  input.maxLength = 23;
+  input.value = p.name;
+  const finish = async (ok) => {
+    const v = input.value;
+    if (input.parentNode) input.replaceWith(titleEl);
+    if (ok) commitRenamePreset(p, v);
+    else renderAllPresetUi();
+  };
+  titleEl.replaceWith(input);
+  input.focus();
+  input.select();
+  input.onkeydown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      finish(true);
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      finish(false);
+    }
+  };
+  input.onblur = () => finish(true);
+}
+function ingestPresets(s) {
+  if (!s.presets) return;
+  presetsLoaded = true;
+  const prev = presetState.activeId;
+  presetState.activeId = s.presets.activeId || 0;
+  presetState.items = s.presets.items || [];
+  if (
+    !presetState.activeId ||
+    !presetState.items.some((x) => x.id === presetState.selectedId) ||
+    (prev && prev !== presetState.activeId)
+  )
+    presetState.selectedId = presetState.activeId;
+  if (prev && prev !== presetState.activeId) {
+    configLoaded = false;
+    formRev = 0;
+    clearBrewDirty();
+    liveRuleModel = null;
+  }
+  renderAllPresetUi();
+  if ($("brewByWeight") && !brewDirty) $("brewByWeight").checked = recipeBrewByWeight();
+  const active = presetState.items.find((x) => x.id === presetState.activeId);
+  if (
+    $("lineaMicraBrewTargetC") &&
+    !brewDirty &&
+    active &&
+    typeof active.lineaMicraBrewTargetC === "number"
+  )
+    $("lineaMicraBrewTargetC").value = active.lineaMicraBrewTargetC.toFixed(1);
+}
+
+function buildRuleChartModel(c) {
+  if (!c) return { mode: "empty" };
+  const N = (v) => (Number.isFinite(+v) ? +v : NaN),
+    bbw = !!c.brewByWeight,
+    fast = bbw && !!c.fastExtractionGuardEnabled,
+    slow = bbw && !!c.slowExtractionGuardEnabled,
+    tMin = N(c.minBbwBrewTimeMs) / 1e3,
+    tMax = N(c.maxBbwBrewTimeMs) / 1e3,
+    pv = N(c.bbwProtectionMs) / 1e3,
+    prot = Number.isFinite(pv) ? Math.max(0, Math.min(pv, tMin > 0 ? tMin : 1 / 0)) : 0;
+  if (!(N(c.operationalWallMs) > 0)) return { mode: "empty" };
+  return {
+    mode: bbw ? "active" : "timerOnly",
+    fast,
+    slow,
+    tMin,
+    tMax,
+    prot,
+    goal: N(c.goalWeightG),
+    floor: N(c.minRecoveryWeightG),
+    ceil: N(c.maxRecoveryWeightG),
+  };
+}
+let liveRuleModel = null,
+  homeAccSig = "",
+  homeAccPendingId = 0,
+  homeAccApplySeq = 0;
+function updateRuleChartFromStatus(s) {
+  liveRuleModel = buildRuleChartModel(
+    s &&
+      s.config && { ...presetState.items.find((p) => p.id === presetState.activeId), ...s.config },
+  );
+  renderHomePresetAccordion();
+}
+
+function ms(m, n) {
+  return m != null ? (m / 1000).toFixed(n) : "—";
+}
+let homeFrame = null,
+  homeStale = true,
+  homeReady,
+  homeResolve = () => {};
+function statusStreamFrame(previous, message) {
+  if (
+    message.v !== 1 ||
+    !Number.isInteger(message.boot) ||
+    typeof message.snapshot !== "boolean" ||
+    !message.changes ||
+    (!message.snapshot && (!previous || message.boot !== previous.boot))
+  )
+    throw Error();
+  const status = message.snapshot ? {} : previous.status;
+  for (const [path, value] of Object.entries(message.changes)) {
+    if (
+      !/^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*){0,2}$/.test(path) ||
+      /(^|\.)(constructor|prototype)(\.|$)/.test(path) ||
+      (typeof value === "number" && !Number.isFinite(value))
+    )
+      throw Error();
+    const parts = path.split(".");
+    let target = status;
+    for (const key of parts.slice(0, -1)) target = target[key] || (target[key] = {});
+    target[parts.at(-1)] = value;
+  }
+  if (
+    message.type === "diagnostic"
+      ? message.snapshot && !diagSnapshotOk(status)
+      : !statusPageOk("home", status) || status.bootId !== message.boot
+  )
+    throw Error();
+  return { boot: message.boot, status };
+}
+function renderHomeStream() {
+  if (homeStale || !homeFrame) return;
+  const status = homeFrame.status;
+  lastStatusAt = Date.now();
+  statusLiveShot = !!status.liveShot;
+  applyCommonStatus(status);
+  if (status.snapshotStale) setMutable(false);
+  if (activeView !== "home") return;
+  viewStatusHandlers.home?.(status);
+  noteReachOk();
+  hideHomeBoot();
+}
+function invalidateHomeStream() {
+  homeStale = true;
+  homeResolve(false);
+  setMutable(false);
+  updateHeaderSignals();
+  if (activeView !== "home") return;
+  clearCupWeights();
+  for (const id of [
+    "scaleWeight",
+    "scaleTimer",
+    "machineState",
+    "state",
+    "homeMicraPower",
+    "homeMicraCleaning",
+    "machineRowState",
+    "scale",
+  ])
+    setHomeSub(id, __WEBUI_TEXT__("runtime.unknown"));
+  updateHomeAdminActions(false, false);
+}
+async function loadHomeStatus() {
   startUiStream();
-  return homeStale&&!await homeReady?null:homeFrame?.status;
+  return homeStale && !(await homeReady) ? null : homeFrame?.status;
 }
-export function formatMicraCleaning(lm){
-  const ws=lm?.websocket||{},label=__WEBUI_TEXT__("diagnostic.cleaning_states").split('|')[['inactive','waiting_for_paddle','cleaning'].indexOf(ws.cleaning)];
-  return !lm?.accountConfigured?__WEBUI_TEXT__("runtime.not_connected"):!lm.observeState?__WEBUI_TEXT__("runtime.disabled"):
-    lm.connectionType==='api'?__WEBUI_TEXT__("diagnostic.cleaning_api"):!ws.cleaningAvailable?__WEBUI_TEXT__("diagnostic.cleaning_no_update"):
-    label||__WEBUI_TEXT__("runtime.unknown_4")+(ws.cleaningLabel?' · '+ws.cleaningLabel:'');
+export function formatMicraCleaning(lm) {
+  const ws = lm?.websocket || {},
+    label = __WEBUI_TEXT__("diagnostic.cleaning_states").split("|")[
+      ["inactive", "waiting_for_paddle", "cleaning"].indexOf(ws.cleaning)
+    ];
+  return !lm?.accountConfigured
+    ? __WEBUI_TEXT__("runtime.not_connected")
+    : !lm.observeState
+      ? __WEBUI_TEXT__("runtime.disabled")
+      : lm.connectionType === "api"
+        ? __WEBUI_TEXT__("diagnostic.cleaning_api")
+        : !ws.cleaningAvailable
+          ? __WEBUI_TEXT__("diagnostic.cleaning_no_update")
+          : label ||
+            __WEBUI_TEXT__("runtime.unknown_4") +
+              (ws.cleaningLabel ? " · " + ws.cleaningLabel : "");
 }
-let shotWs=null,shotRetry=0,shotTry=0,shotFrame=null,shotSeen=null,shotResync=!1,shotResyncStrikes=0,shotStale=!0,shotPaint=0,shotSetup=0,shotAlive=0,shotDeadline=0,shotGotHome=!1,shotGotShot=!1;function resetUiStream(){clearTimeout(diagSetup);diagFrame=null;diagResolve?.(false);diagResolve=null;historyFetchOffset=-1;historyResolve?.(false);statsFetchMark=null;statsPage=null;statsLastSeq=0;statsResolve?.(false);statsExportResolve?.(null);shotStale=true;shotResync=false;invalidateHomeStream()}
-function stopUiStream(){clearTimeout(shotRetry),shotRetry=0,clearTimeout(shotSetup),clearTimeout(shotAlive),clearTimeout(shotDeadline);const e=shotWs;shotWs=null,resetUiStream(),e&&e.close(),paintUiStream()}function paintUiStream(){if(shotStale)cancelNoScaleFinish();scheduleNoScaleTimer();if("home"!==activeView)return;const e=$("shotHero");if(e){if(e.setAttribute("aria-busy",String(shotStale)),!shotFrame)return e.hidden=!1,setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_loading")),setHomeSub("shotHeroWeight","—"),void setHomeSub("shotHeroElapsed","—");if(!shotFrame.card.valid)return clearShotHero(),void(shotFsActive?exitShotFullScreen():shotStale&&(e.hidden=!1,setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_stale"))));renderShotHero({...shotFrame.card,...shotFrame.curve,elapsedMs:noScaleClock||noScaleFinish?noScaleTimerElapsed():shotFrame.card.elapsedMs}),shotStale?setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_stale")):"pending"===shotFrame.phase&&setHomeSub("shotHeroState",__WEBUI_TEXT__("home.hero_pending"))}}function scheduleShotPaint(){shotPaint||(shotPaint=requestAnimationFrame(()=>{shotPaint=0,paintUiStream()}))}function uiStreamFrame(e,t){const o=(e,t=4294967295,s=0)=>Number.isInteger(e)&&e>=s&&e<=t,n=t?.card;if(!(t&&1===t.v&&o(t.boot)&&o(t.seq)&&o(t.revision)&&o(t.cycle)&&o(t.shotId)&&o(t.cursor,1201)&&o(t.curveBase,1201)&&"boolean"==typeof t.snapshot&&["idle","active","pending","transient"].includes(t.phase)&&n&&"boolean"==typeof n.valid&&"boolean"==typeof n.live&&o(n.elapsedMs)&&(null===n.weight||Number.isFinite(n.weight))&&(null===n.averageFlowGps||Number.isFinite(n.averageFlowGps))&&(void 0===n.scaleAvailable||"boolean"==typeof n.scaleAvailable)&&[n.firstDropMs,n.tareMs].every(e=>null===e||o(e,6e4))))throw Error();if(e&&t.boot===e.boot&&t.seq<=e.seq)return e;const s=t.curve;if(!s||!Array.isArray(s.wCg)||!Array.isArray(s.wAtMs)||!Array.isArray(s.wBreakBefore)||s.wCg.length!==s.wAtMs.length||s.wCg.length!==t.cursor-t.curveBase||s.wCg.some(e=>!o(e,32767,-32767))||s.wAtMs.some((e,t)=>!o(e,6e4)||t&&e<s.wAtMs[t-1])||s.wBreakBefore.some(e=>!o(e,1200)||0===e||e<t.curveBase||e>=t.cursor))throw Error();if(t.snapshot){if(0!==t.curveBase)throw Error();return t}if(!e||t.boot!==e.boot||t.cycle!==e.cycle||t.shotId!==e.shotId||t.base!==e.seq||t.seq!==e.seq+1||t.curveBase!==e.cursor||s.wAtMs.length&&e.cursor&&s.wAtMs[0]<e.curve.wAtMs.at(-1))throw Error();return{...t,curve:{...s,wCg:[...e.curve.wCg,...s.wCg],wAtMs:[...e.curve.wAtMs,...s.wAtMs],wBreakBefore:[...e.curve.wBreakBefore,...s.wBreakBefore]}}}function startUiStream(){
-  if(!webUiPollingActive()||shotWs)return;
-  clearTimeout(shotRetry);shotRetry=0;shotResyncStrikes=0;shotStale=true;paintUiStream();
-  const socket=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/api/v1/ui/ui-stream');
-  shotWs=socket;shotGotShot=false;shotGotHome=false;
-  homeReady=new Promise(resolve=>homeResolve=resolve);
-  shotSetup=setTimeout(()=>{if(shotWs&&(!shotGotShot||!shotGotHome))shotWs.close()},8e3);
-  socket.onopen=()=>{
-    if(shotWs!==socket||!webUiPollingActive()){socket.close();return}
-    socket.send(JSON.stringify({op:'bind',client:webUiClientId,...shotSeen||{}}));
-    if(diagStreamWanted){if(!diagResolve)armDiagnosticReady();socket.send('{"op":"diagnostic","on":true}')}
-    if(historyStreamWanted)historySendSubscribe();
-    if(logStreamWanted)sendUiOperation({op:'log',on:true,after:lastLog});
-    if(statsStreamWanted)statsSendSubscribe();
+let shotWs = null,
+  shotRetry = 0,
+  shotTry = 0,
+  shotFrame = null,
+  shotSeen = null,
+  shotResync = !1,
+  shotResyncStrikes = 0,
+  shotStale = !0,
+  shotPaint = 0,
+  shotSetup = 0,
+  shotAlive = 0,
+  shotDeadline = 0,
+  shotGotHome = !1,
+  shotGotShot = !1;
+function resetUiStream() {
+  clearTimeout(diagSetup);
+  diagFrame = null;
+  diagResolve?.(false);
+  diagResolve = null;
+  historyFetchOffset = -1;
+  historyResolve?.(false);
+  statsFetchMark = null;
+  statsPage = null;
+  statsLastSeq = 0;
+  statsResolve?.(false);
+  statsExportResolve?.(null);
+  shotStale = true;
+  shotResync = false;
+  invalidateHomeStream();
+}
+function stopUiStream() {
+  clearTimeout(shotRetry),
+    (shotRetry = 0),
+    clearTimeout(shotSetup),
+    clearTimeout(shotAlive),
+    clearTimeout(shotDeadline);
+  const e = shotWs;
+  (shotWs = null), resetUiStream(), e && e.close(), paintUiStream();
+}
+function paintUiStream() {
+  if (shotStale) cancelNoScaleFinish();
+  scheduleNoScaleTimer();
+  if ("home" !== activeView) return;
+  const e = $("shotHero");
+  if (e) {
+    if ((e.setAttribute("aria-busy", String(shotStale)), !shotFrame))
+      return (
+        (e.hidden = !1),
+        setHomeSub("shotHeroState", __WEBUI_TEXT__("home.hero_loading")),
+        setHomeSub("shotHeroWeight", "—"),
+        void setHomeSub("shotHeroElapsed", "—")
+      );
+    if (!shotFrame.card.valid)
+      return (
+        clearShotHero(),
+        void (shotFsActive
+          ? exitShotFullScreen()
+          : shotStale &&
+            ((e.hidden = !1), setHomeSub("shotHeroState", __WEBUI_TEXT__("home.hero_stale"))))
+      );
+    renderShotHero({
+      ...shotFrame.card,
+      ...shotFrame.curve,
+      elapsedMs: noScaleClock || noScaleFinish ? noScaleTimerElapsed() : shotFrame.card.elapsedMs,
+    }),
+      shotStale
+        ? setHomeSub("shotHeroState", __WEBUI_TEXT__("home.hero_stale"))
+        : "pending" === shotFrame.phase &&
+          setHomeSub("shotHeroState", __WEBUI_TEXT__("home.hero_pending"));
+  }
+}
+function scheduleShotPaint() {
+  shotPaint ||
+    (shotPaint = requestAnimationFrame(() => {
+      (shotPaint = 0), paintUiStream();
+    }));
+}
+function uiStreamFrame(e, t) {
+  const o = (e, t = 4294967295, s = 0) => Number.isInteger(e) && e >= s && e <= t,
+    n = t?.card;
+  if (
+    !(
+      t &&
+      1 === t.v &&
+      o(t.boot) &&
+      o(t.seq) &&
+      o(t.revision) &&
+      o(t.cycle) &&
+      o(t.shotId) &&
+      o(t.cursor, 1201) &&
+      o(t.curveBase, 1201) &&
+      "boolean" == typeof t.snapshot &&
+      ["idle", "active", "pending", "transient"].includes(t.phase) &&
+      n &&
+      "boolean" == typeof n.valid &&
+      "boolean" == typeof n.live &&
+      o(n.elapsedMs) &&
+      (null === n.weight || Number.isFinite(n.weight)) &&
+      (null === n.averageFlowGps || Number.isFinite(n.averageFlowGps)) &&
+      (void 0 === n.scaleAvailable || "boolean" == typeof n.scaleAvailable) &&
+      [n.firstDropMs, n.tareMs].every((e) => null === e || o(e, 6e4))
+    )
+  )
+    throw Error();
+  if (e && t.boot === e.boot && t.seq <= e.seq) return e;
+  const s = t.curve;
+  if (
+    !s ||
+    !Array.isArray(s.wCg) ||
+    !Array.isArray(s.wAtMs) ||
+    !Array.isArray(s.wBreakBefore) ||
+    s.wCg.length !== s.wAtMs.length ||
+    s.wCg.length !== t.cursor - t.curveBase ||
+    s.wCg.some((e) => !o(e, 32767, -32767)) ||
+    s.wAtMs.some((e, t) => !o(e, 6e4) || (t && e < s.wAtMs[t - 1])) ||
+    s.wBreakBefore.some((e) => !o(e, 1200) || 0 === e || e < t.curveBase || e >= t.cursor)
+  )
+    throw Error();
+  if (t.snapshot) {
+    if (0 !== t.curveBase) throw Error();
+    return t;
+  }
+  if (
+    !e ||
+    t.boot !== e.boot ||
+    t.cycle !== e.cycle ||
+    t.shotId !== e.shotId ||
+    t.base !== e.seq ||
+    t.seq !== e.seq + 1 ||
+    t.curveBase !== e.cursor ||
+    (s.wAtMs.length && e.cursor && s.wAtMs[0] < e.curve.wAtMs.at(-1))
+  )
+    throw Error();
+  return {
+    ...t,
+    curve: {
+      ...s,
+      wCg: [...e.curve.wCg, ...s.wCg],
+      wAtMs: [...e.curve.wAtMs, ...s.wAtMs],
+      wBreakBefore: [...e.curve.wBreakBefore, ...s.wBreakBefore],
+    },
+  };
+}
+function startUiStream() {
+  if (!webUiPollingActive() || shotWs) return;
+  clearTimeout(shotRetry);
+  shotRetry = 0;
+  shotResyncStrikes = 0;
+  shotStale = true;
+  paintUiStream();
+  const socket = new WebSocket(
+    (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/api/v1/ui/ui-stream",
+  );
+  shotWs = socket;
+  shotGotShot = false;
+  shotGotHome = false;
+  homeReady = new Promise((resolve) => (homeResolve = resolve));
+  shotSetup = setTimeout(() => {
+    if (shotWs && (!shotGotShot || !shotGotHome)) shotWs.close();
+  }, 8e3);
+  socket.onopen = () => {
+    if (shotWs !== socket || !webUiPollingActive()) {
+      socket.close();
+      return;
+    }
+    socket.send(JSON.stringify({ op: "bind", client: webUiClientId, ...(shotSeen || {}) }));
+    if (diagStreamWanted) {
+      if (!diagResolve) armDiagnosticReady();
+      socket.send('{"op":"diagnostic","on":true}');
+    }
+    if (historyStreamWanted) historySendSubscribe();
+    if (logStreamWanted) sendUiOperation({ op: "log", on: true, after: lastLog });
+    if (statsStreamWanted) statsSendSubscribe();
     shotActivity();
   };
-  socket.onmessage=event=>{
-    if(shotWs!==socket||!webUiPollingActive())return;
-    try{
-      if(typeof event.data!=='string'||event.data.length>28672)throw Error();
-      const data=JSON.parse(event.data);
-      if(data.type==='alive'){clearTimeout(shotDeadline);return}
-      if(shotResync&&!data.snapshot)return;
-      if(data.type==='diagnostic'){
-        if(!diagStreamWanted)return;
-        const next=statusStreamFrame(diagFrame,data);
-        if(next!==diagFrame){diagFrame=next;scheduleDiagPaint()}
+  socket.onmessage = (event) => {
+    if (shotWs !== socket || !webUiPollingActive()) return;
+    try {
+      if (typeof event.data !== "string" || event.data.length > 28672) throw Error();
+      const data = JSON.parse(event.data);
+      if (data.type === "alive") {
+        clearTimeout(shotDeadline);
+        return;
+      }
+      if (shotResync && !data.snapshot) return;
+      if (data.type === "diagnostic") {
+        if (!diagStreamWanted) return;
+        const next = statusStreamFrame(diagFrame, data);
+        if (next !== diagFrame) {
+          diagFrame = next;
+          scheduleDiagPaint();
+        }
         resolveDiagFrame();
         return;
       }
-      if(data.type==='history'){
-        if(!historyStreamWanted||!(data.request===historyRequest||historyFetchOffset>=0&&data.request===historyFetchRequest))return;
+      if (data.type === "history") {
+        if (
+          !historyStreamWanted ||
+          !(
+            data.request === historyRequest ||
+            (historyFetchOffset >= 0 && data.request === historyFetchRequest)
+          )
+        )
+          return;
         applyHistoryStream(historyStreamFrame(data));
         return;
       }
-      if(data.type==='log'){
-        if(!logStreamWanted)return;
+      if (data.type === "log") {
+        if (!logStreamWanted) return;
         applyLogFrame(logStreamFrame(data));
         return;
       }
-      if(data.type==='stats'){
-        if(!statsStreamWanted||![statsRequest,statsFetchMark?.request,statsExportRequest||-1].includes(data.request))return;
+      if (data.type === "stats") {
+        if (
+          !statsStreamWanted ||
+          ![statsRequest, statsFetchMark?.request, statsExportRequest || -1].includes(data.request)
+        )
+          return;
         applyStatsStream(statsStreamFrame(data));
         return;
       }
-      if(data.type==='home'){
-        const paddleOff=homeFrame?.status.physicalActivatorOn===true&&data.changes?.physicalActivatorOn===false;
-        homeFrame=statusStreamFrame(shotGotHome?homeFrame:null,data);
-        if(logStreamWanted&&logBootId&&logBootId!==homeFrame.boot){logBootId=homeFrame.boot;logEvents=[];lastLog=logMissed=0;sendUiOperation({op:'log',on:true,after:0})}
-        if('timeUtcSec' in data.changes){statusUtcAnchorSec=homeFrame.status.timeUtcSec;statusUtcAnchorAt=performance.now()}
+      if (data.type === "home") {
+        const paddleOff =
+          homeFrame?.status.physicalActivatorOn === true &&
+          data.changes?.physicalActivatorOn === false;
+        homeFrame = statusStreamFrame(shotGotHome ? homeFrame : null, data);
+        if (logStreamWanted && logBootId && logBootId !== homeFrame.boot) {
+          logBootId = homeFrame.boot;
+          logEvents = [];
+          lastLog = logMissed = 0;
+          sendUiOperation({ op: "log", on: true, after: 0 });
+        }
+        if ("timeUtcSec" in data.changes) {
+          statusUtcAnchorSec = homeFrame.status.timeUtcSec;
+          statusUtcAnchorAt = performance.now();
+        }
         delete homeFrame.status.timeUtcSec;
-        shotGotHome=true;homeStale=false;
+        shotGotHome = true;
+        homeStale = false;
         // Navigation visibility is a Home-stream field; applying it here keeps
         // the Diagnostic menu entry live on every view without a REST probe.
-        if('diagnosticPageVisible' in data.changes)applyDiagnosticNavigation(homeFrame.status);
-        if(noScaleClock&&homeFrame.boot===noScaleClock.boot&&(homeFrame.status.cycle?.active===false||
-            homeFrame.status.machineType==='paddle'&&paddleOff))finishNoScaleTimer();
+        if ("diagnosticPageVisible" in data.changes) applyDiagnosticNavigation(homeFrame.status);
+        if (
+          noScaleClock &&
+          homeFrame.boot === noScaleClock.boot &&
+          (homeFrame.status.cycle?.active === false ||
+            (homeFrame.status.machineType === "paddle" && paddleOff))
+        )
+          finishNoScaleTimer();
         renderHomeStream();
         homeResolve(true);
-      }else{
-        if(!shotGotShot&&!data.snapshot)throw Error();
-        const next=uiStreamFrame(shotGotShot?shotFrame:null,data);
-        if(next===shotFrame)return;
+      } else {
+        if (!shotGotShot && !data.snapshot) throw Error();
+        const next = uiStreamFrame(shotGotShot ? shotFrame : null, data);
+        if (next === shotFrame) return;
         syncNoScaleTimer(next);
-        shotFrame=next;shotGotShot=true;shotResync=false;shotStale=!!data.stale;
+        shotFrame = next;
+        shotGotShot = true;
+        shotResync = false;
+        shotStale = !!data.stale;
         revealNoScaleFinish();
-        if(['active','pending'].includes(data.phase))shotSeen={cycle:data.cycle,boot:data.boot};
-        else if(shotSeen&&shotSeen.boot!==data.boot)shotSeen=null;
+        if (["active", "pending"].includes(data.phase))
+          shotSeen = { cycle: data.cycle, boot: data.boot };
+        else if (shotSeen && shotSeen.boot !== data.boot) shotSeen = null;
         scheduleShotPaint();
       }
-      if(shotGotHome&&shotGotShot)clearTimeout(shotSetup);
-    }catch(_){
-      invalidateHomeStream();shotStale=true;scheduleShotPaint();
+      if (shotGotHome && shotGotShot) clearTimeout(shotSetup);
+    } catch (_) {
+      invalidateHomeStream();
+      shotStale = true;
+      scheduleShotPaint();
       // A frame the server keeps producing invalid must not ping-pong resync
       // forever: three bad frames on one connection degrade to the normal
       // close-and-retry error path instead of a silent churn loop. Strikes
       // reset only on a fresh connection, so recurring failures still count.
-      if(shotResync||socket.readyState!==WebSocket.OPEN||++shotResyncStrikes>3)socket.close();
+      if (shotResync || socket.readyState !== WebSocket.OPEN || ++shotResyncStrikes > 3)
+        socket.close();
       else requestShotResync();
     }
   };
-  socket.onclose=event=>{
-    if(shotWs!==socket)return;
-    clearTimeout(shotSetup);clearTimeout(shotAlive);clearTimeout(shotDeadline);
-    shotWs=null;resetUiStream();scheduleShotPaint();
-    if(event?.code===4001){deactivateWebUi();return}
-    if(webUiPollingActive())noteReachFail({network:true},true);
-    if(webUiPollingActive())shotRetry=setTimeout(startUiStream,Math.min(1e4,500*2**Math.min(shotTry++,5))*(.8+.4*Math.random()));
+  socket.onclose = (event) => {
+    if (shotWs !== socket) return;
+    clearTimeout(shotSetup);
+    clearTimeout(shotAlive);
+    clearTimeout(shotDeadline);
+    shotWs = null;
+    resetUiStream();
+    scheduleShotPaint();
+    if (event?.code === 4001) {
+      deactivateWebUi();
+      return;
+    }
+    if (webUiPollingActive()) noteReachFail({ network: true }, true);
+    if (webUiPollingActive())
+      shotRetry = setTimeout(
+        startUiStream,
+        Math.min(1e4, 500 * 2 ** Math.min(shotTry++, 5)) * (0.8 + 0.4 * Math.random()),
+      );
   };
 }
 // Module-scoped keepalive and resync: a tab back from the background re-arms them after frozen page timers.
-function shotActivity(){if(!shotWs||shotWs.readyState!==1||!webUiPollingActive())return;clearTimeout(shotAlive);clearTimeout(shotDeadline);shotWs.send(JSON.stringify({op:'activity',seconds:webUiPowerSeconds()}));shotDeadline=setTimeout(()=>shotWs&&shotWs.close(),1e4);shotAlive=setTimeout(()=>{shotTry=0;shotActivity()},2e4)}
-function requestShotResync(){if(!shotWs||shotWs.readyState!==1)return;shotResync=true;shotGotHome=shotGotShot=false;historyFetchOffset=-1;statsFetchMark=null;statsPage=null;statsExportResolve?.(null);homeResolve(false);homeReady=new Promise(r=>homeResolve=r);clearTimeout(shotSetup);shotSetup=setTimeout(()=>shotWs&&shotWs.close(),8e3);shotWs.send('{"op":"resync"}')}
-let noScaleClock=null,noScalePaint=0,noScaleFinish=null;
-const noScaleSilenceMs=1500;
-function syncNoScaleTimer(frame){
-  const card=frame.card,now=performance.now(),c=noScaleClock;
-  if(noScaleFinish&&(frame.boot!==noScaleFinish.boot||frame.cycle!==noScaleFinish.cycle||!card.valid||card.scaleAvailable!==false)){
+function shotActivity() {
+  if (!shotWs || shotWs.readyState !== 1 || !webUiPollingActive()) return;
+  clearTimeout(shotAlive);
+  clearTimeout(shotDeadline);
+  shotWs.send(JSON.stringify({ op: "activity", seconds: webUiPowerSeconds() }));
+  shotDeadline = setTimeout(() => shotWs && shotWs.close(), 1e4);
+  shotAlive = setTimeout(() => {
+    shotTry = 0;
+    shotActivity();
+  }, 2e4);
+}
+function requestShotResync() {
+  if (!shotWs || shotWs.readyState !== 1) return;
+  shotResync = true;
+  shotGotHome = shotGotShot = false;
+  historyFetchOffset = -1;
+  statsFetchMark = null;
+  statsPage = null;
+  statsExportResolve?.(null);
+  homeResolve(false);
+  homeReady = new Promise((r) => (homeResolve = r));
+  clearTimeout(shotSetup);
+  shotSetup = setTimeout(() => shotWs && shotWs.close(), 8e3);
+  shotWs.send('{"op":"resync"}');
+}
+let noScaleClock = null,
+  noScalePaint = 0,
+  noScaleFinish = null;
+const noScaleSilenceMs = 1500;
+function syncNoScaleTimer(frame) {
+  const card = frame.card,
+    now = performance.now(),
+    c = noScaleClock;
+  if (
+    noScaleFinish &&
+    (frame.boot !== noScaleFinish.boot ||
+      frame.cycle !== noScaleFinish.cycle ||
+      !card.valid ||
+      card.scaleAvailable !== false)
+  ) {
     cancelNoScaleFinish();
   }
-  if(!card.valid||!card.live||card.scaleAvailable!==false){
-    if(card.valid&&card.scaleAvailable===false)finishNoScaleTimer();
-    else{noScaleClock=null;if(noScalePaint)cancelAnimationFrame(noScalePaint);noScalePaint=0}
+  if (!card.valid || !card.live || card.scaleAvailable !== false) {
+    if (card.valid && card.scaleAvailable === false) finishNoScaleTimer();
+    else {
+      noScaleClock = null;
+      if (noScalePaint) cancelAnimationFrame(noScalePaint);
+      noScalePaint = 0;
+    }
     return;
   }
-  if(noScaleFinish)return;
-  if(!c||c.boot!==frame.boot||c.cycle!==frame.cycle||shotStale||now-c.seen>=noScaleSilenceMs)
-    noScaleClock={boot:frame.boot,cycle:frame.cycle,offset:card.elapsedMs-now,target:card.elapsedMs-now,at:now,seen:now,shown:card.elapsedMs};
-  else{c.target=card.elapsedMs-now;c.seen=now}
+  if (noScaleFinish) return;
+  if (
+    !c ||
+    c.boot !== frame.boot ||
+    c.cycle !== frame.cycle ||
+    shotStale ||
+    now - c.seen >= noScaleSilenceMs
+  )
+    noScaleClock = {
+      boot: frame.boot,
+      cycle: frame.cycle,
+      offset: card.elapsedMs - now,
+      target: card.elapsedMs - now,
+      at: now,
+      seen: now,
+      shown: card.elapsedMs,
+    };
+  else {
+    c.target = card.elapsedMs - now;
+    c.seen = now;
+  }
 }
-function noScaleTimerElapsed(){
-  const c=noScaleClock;
-  if(!c)return noScaleFinish&&!noScaleFinish.revealed?noScaleFinish.elapsed:shotFrame.card.elapsedMs;
-  if(!shotStale){
-    const now=Math.min(performance.now(),c.seen+noScaleSilenceMs),step=(now-c.at)*.1;
-    c.offset+=Math.max(-step,Math.min(step,c.target-c.offset));c.at=now;
-    c.shown=now+c.offset;
+function noScaleTimerElapsed() {
+  const c = noScaleClock;
+  if (!c)
+    return noScaleFinish && !noScaleFinish.revealed
+      ? noScaleFinish.elapsed
+      : shotFrame.card.elapsedMs;
+  if (!shotStale) {
+    const now = Math.min(performance.now(), c.seen + noScaleSilenceMs),
+      step = (now - c.at) * 0.1;
+    c.offset += Math.max(-step, Math.min(step, c.target - c.offset));
+    c.at = now;
+    c.shown = now + c.offset;
   }
   return c.shown;
 }
-function finishNoScaleTimer(){
-  const c=noScaleClock,weight=$('shotHeroWeight');
-  if(!c)return;
-  const elapsed=noScaleTimerElapsed();
-  noScaleClock=null;
-  if(noScalePaint)cancelAnimationFrame(noScalePaint);
-  noScalePaint=0;
-  if(activeView!=='home'||document.hidden||!weight?.animate||window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches)return;
-  const animation=weight.animate([{opacity:1},{opacity:0}],{duration:400,fill:'forwards',easing:'ease-in-out'});
-  noScaleFinish={boot:c.boot,cycle:c.cycle,elapsed,animation,revealed:false};
-  animation.finished.then(()=>{if(noScaleFinish?.animation===animation)revealNoScaleFinish()},()=>{});
+function finishNoScaleTimer() {
+  const c = noScaleClock,
+    weight = $("shotHeroWeight");
+  if (!c) return;
+  const elapsed = noScaleTimerElapsed();
+  noScaleClock = null;
+  if (noScalePaint) cancelAnimationFrame(noScalePaint);
+  noScalePaint = 0;
+  if (
+    activeView !== "home" ||
+    document.hidden ||
+    !weight?.animate ||
+    window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+  )
+    return;
+  const animation = weight.animate([{ opacity: 1 }, { opacity: 0 }], {
+    duration: 400,
+    fill: "forwards",
+    easing: "ease-in-out",
+  });
+  noScaleFinish = { boot: c.boot, cycle: c.cycle, elapsed, animation, revealed: false };
+  animation.finished.then(
+    () => {
+      if (noScaleFinish?.animation === animation) revealNoScaleFinish();
+    },
+    () => {},
+  );
 }
-function cancelNoScaleFinish(){noScaleFinish?.animation.cancel();noScaleFinish=null}
-function revealNoScaleFinish(){
-  const f=noScaleFinish;
-  if(!f||f.revealed||f.animation.playState!=='finished'||shotFrame?.card.live)return;
-  if(activeView!=='home'||document.hidden||shotStale||!$('shotHeroWeight')){
-    cancelNoScaleFinish();return;
+function cancelNoScaleFinish() {
+  noScaleFinish?.animation.cancel();
+  noScaleFinish = null;
+}
+function revealNoScaleFinish() {
+  const f = noScaleFinish;
+  if (!f || f.revealed || f.animation.playState !== "finished" || shotFrame?.card.live) return;
+  if (activeView !== "home" || document.hidden || shotStale || !$("shotHeroWeight")) {
+    cancelNoScaleFinish();
+    return;
   }
-  f.revealed=true;
+  f.revealed = true;
   f.animation.cancel();
-  f.animation=$('shotHeroWeight').animate([{opacity:0},{opacity:1}],{duration:400,easing:'ease-in-out'});
+  f.animation = $("shotHeroWeight").animate([{ opacity: 0 }, { opacity: 1 }], {
+    duration: 400,
+    easing: "ease-in-out",
+  });
   paintUiStream();
-  f.animation.finished.then(()=>{if(noScaleFinish===f)noScaleFinish=null},()=>{});
+  f.animation.finished.then(
+    () => {
+      if (noScaleFinish === f) noScaleFinish = null;
+    },
+    () => {},
+  );
 }
-function scheduleNoScaleTimer(){
-  if(noScalePaint||!noScaleClock||shotStale||activeView!=='home'||document.hidden||!webUiPollingActive())return;
-  noScalePaint=requestAnimationFrame(()=>{
-    noScalePaint=0;
-    if(!noScaleClock||shotStale||activeView!=='home'||document.hidden||!webUiPollingActive())return;
-    const elapsed=noScaleTimerElapsed();
-    if(performance.now()-noScaleClock.seen>=noScaleSilenceMs){
-      shotStale=true;paintUiStream();return;
+function scheduleNoScaleTimer() {
+  if (
+    noScalePaint ||
+    !noScaleClock ||
+    shotStale ||
+    activeView !== "home" ||
+    document.hidden ||
+    !webUiPollingActive()
+  )
+    return;
+  noScalePaint = requestAnimationFrame(() => {
+    noScalePaint = 0;
+    if (
+      !noScaleClock ||
+      shotStale ||
+      activeView !== "home" ||
+      document.hidden ||
+      !webUiPollingActive()
+    )
+      return;
+    const elapsed = noScaleTimerElapsed();
+    if (performance.now() - noScaleClock.seen >= noScaleSilenceMs) {
+      shotStale = true;
+      paintUiStream();
+      return;
     }
-    setHomeSub('shotHeroWeight',ms(elapsed,1)+__WEBUI_TEXT__("runtime.s_2"));
+    setHomeSub("shotHeroWeight", ms(elapsed, 1) + __WEBUI_TEXT__("runtime.s_2"));
     scheduleNoScaleTimer();
   });
 }
 // Full-screen pushes a history entry so Back closes the card. Route changes
 // leave that entry intact; consuming it would undo the user's navigation.
-let shotFsActive=false,shotFsPushed=false,shotFsConsumed=false,shotFsTimer=0,shotFsExitEnd=null;
-function enterShotFullScreen(){const hero=$('shotHero');if(!hero||shotFsActive)return;clearTimeout(shotFsTimer);const body=hero.querySelector('.heroBody');if(body&&shotFsExitEnd){body.removeEventListener('animationend',shotFsExitEnd);shotFsExitEnd=null}shotFsActive=true;hero.classList.remove('fsOut');hero.classList.add('fs');document.body.classList.add('shotFs');const close=$('shotFsClose');if(close)close.focus();shotFsPushed=false;try{history.pushState({ssShotFs:1},'',location.href);shotFsPushed=true}catch(_){}}
-function exitShotFullScreen(){const hero=$('shotHero');if(!hero||!shotFsActive)return;shotFsActive=false;clearTimeout(shotFsTimer);const body=hero.querySelector('.heroBody'),finish=()=>{clearTimeout(shotFsTimer);if(shotFsExitEnd){body&&body.removeEventListener('animationend',shotFsExitEnd);shotFsExitEnd=null}hero.classList.remove('fs','fsOut');document.body.classList.remove('shotFs');const open=$('shotFsButton');if(open)open.focus()};if(!body||document.hidden||window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches){finish();return}hero.classList.add('fsOut');shotFsExitEnd=function onEnd(e){if(e.animationName!=='heroFsOut')return;body.removeEventListener('animationend',shotFsExitEnd);shotFsExitEnd=null;finish()};body.addEventListener('animationend',shotFsExitEnd);shotFsTimer=setTimeout(()=>{if(hero.classList.contains('fs'))finish()},400)}
+let shotFsActive = false,
+  shotFsPushed = false,
+  shotFsConsumed = false,
+  shotFsTimer = 0,
+  shotFsExitEnd = null;
+function enterShotFullScreen() {
+  const hero = $("shotHero");
+  if (!hero || shotFsActive) return;
+  clearTimeout(shotFsTimer);
+  const body = hero.querySelector(".heroBody");
+  if (body && shotFsExitEnd) {
+    body.removeEventListener("animationend", shotFsExitEnd);
+    shotFsExitEnd = null;
+  }
+  shotFsActive = true;
+  hero.classList.remove("fsOut");
+  hero.classList.add("fs");
+  document.body.classList.add("shotFs");
+  const close = $("shotFsClose");
+  if (close) close.focus();
+  shotFsPushed = false;
+  try {
+    history.pushState({ ssShotFs: 1 }, "", location.href);
+    shotFsPushed = true;
+  } catch (_) {}
+}
+function exitShotFullScreen() {
+  const hero = $("shotHero");
+  if (!hero || !shotFsActive) return;
+  shotFsActive = false;
+  clearTimeout(shotFsTimer);
+  const body = hero.querySelector(".heroBody"),
+    finish = () => {
+      clearTimeout(shotFsTimer);
+      if (shotFsExitEnd) {
+        body && body.removeEventListener("animationend", shotFsExitEnd);
+        shotFsExitEnd = null;
+      }
+      hero.classList.remove("fs", "fsOut");
+      document.body.classList.remove("shotFs");
+      const open = $("shotFsButton");
+      if (open) open.focus();
+    };
+  if (
+    !body ||
+    document.hidden ||
+    (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)
+  ) {
+    finish();
+    return;
+  }
+  hero.classList.add("fsOut");
+  shotFsExitEnd = function onEnd(e) {
+    if (e.animationName !== "heroFsOut") return;
+    body.removeEventListener("animationend", shotFsExitEnd);
+    shotFsExitEnd = null;
+    finish();
+  };
+  body.addEventListener("animationend", shotFsExitEnd);
+  shotFsTimer = setTimeout(() => {
+    if (hero.classList.contains("fs")) finish();
+  }, 400);
+}
 // Returns true when a popstate only closed (or had already closed) the
 // full-screen card, so the router must not re-render the current view.
-function exitFullScreenOnPop(){if(shotFsActive){exitShotFullScreen();shotFsPushed=shotFsConsumed=false;return true}if(shotFsConsumed){shotFsConsumed=false;return true}shotFsPushed=false;return false}
-function initShotFullScreen(){const hero=$('shotHero');if(!hero||hero.dataset.fsBound)return;hero.dataset.fsBound='1';const open=$('shotFsButton'),close=$('shotFsClose');if(open)open.onclick=()=>enterShotFullScreen();if(close)close.onclick=()=>{if(!shotFsActive)return;exitShotFullScreen();if(shotFsPushed){shotFsPushed=false;shotFsConsumed=true;history.back()}};hero.addEventListener('click',e=>{if(shotFsActive&&e.target.closest&&e.target.closest('a[data-route]'))exitShotFullScreen()},true)}
+function exitFullScreenOnPop() {
+  if (shotFsActive) {
+    exitShotFullScreen();
+    shotFsPushed = shotFsConsumed = false;
+    return true;
+  }
+  if (shotFsConsumed) {
+    shotFsConsumed = false;
+    return true;
+  }
+  shotFsPushed = false;
+  return false;
+}
+function initShotFullScreen() {
+  const hero = $("shotHero");
+  if (!hero || hero.dataset.fsBound) return;
+  hero.dataset.fsBound = "1";
+  const open = $("shotFsButton"),
+    close = $("shotFsClose");
+  if (open) open.onclick = () => enterShotFullScreen();
+  if (close)
+    close.onclick = () => {
+      if (!shotFsActive) return;
+      exitShotFullScreen();
+      if (shotFsPushed) {
+        shotFsPushed = false;
+        shotFsConsumed = true;
+        history.back();
+      }
+    };
+  hero.addEventListener(
+    "click",
+    (e) => {
+      if (shotFsActive && e.target.closest && e.target.closest("a[data-route]"))
+        exitShotFullScreen();
+    },
+    true,
+  );
+}
 // The diagnostic stream rides the owned shot socket as a view-scoped
 // subscription: subscribe when the Diagnostic page appears, unsubscribe on
 // every navigation so the device stops sending diagnostic frames.
-let diagFrame=null,diagStreamWanted=false,diagPaint=0,diagReady=Promise.resolve(false),diagResolve=null,diagSetup=0;
-function armDiagnosticReady(){clearTimeout(diagSetup);diagResolve?.(false);diagReady=new Promise(r=>diagResolve=r);diagSetup=setTimeout(()=>{if(diagStreamWanted&&!diagnosticReady())shotWs?.close()},8e3)}
-function diagnosticReady(){const s=diagFrame?.status;return!!(s?.health?.hwmon&&s.nvs&&s.tasks&&s.scaleProfile)}
-function resolveDiagFrame(){if(diagnosticReady()&&diagResolve){const r=diagResolve;diagResolve=null;clearTimeout(diagSetup);r(true)}}
-function scheduleDiagPaint(){diagPaint||(diagPaint=requestAnimationFrame(()=>{diagPaint=0;paintDiagnosticStream()}))}
-function paintDiagnosticStream(){if(activeView!=='diagnostic'||!diagFrame)return;applyDiagnosticLive(diagFrame.status);const apply=viewStatusHandlers['diagnostic'];if(apply&&diagnosticReady())apply(diagFrame.status)}
-async function loadDiagnosticStatus(){startUiStream();startDiagnosticStream();return diagnosticReady()||await diagReady?diagFrame?.status:null}
-function startDiagnosticStream(){if(!webUiPollingActive()||diagStreamWanted)return;diagStreamWanted=true;armDiagnosticReady();if(shotWs&&shotWs.readyState===1)shotWs.send('{"op":"diagnostic","on":true}')}
-function stopDiagnosticStream(){clearTimeout(diagSetup);diagStreamWanted=false;diagFrame=null;diagResolve&&diagResolve(false);diagResolve=null;if(shotWs&&shotWs.readyState===1)shotWs.send('{"op":"diagnostic","on":false}')}
-// The serial log rides the owned socket: subscribe with the rendered tail's
-// cursor; watermark-gated frames push new events without REST polling.
-let logStreamWanted=false;
-function sendUiOperation(op){if(shotWs&&shotWs.readyState===1)shotWs.send(JSON.stringify(op))}
-function startLogStream(){if(webUiPollingActive()&&(diagnosticUnlocked||diagnosticPublicView||developmentMode)){if(!logStreamWanted){logStreamWanted=true;sendUiOperation({op:'log',on:true,after:lastLog})}return true}return false}
-function stopLogStream(){logStreamWanted=false;sendUiOperation({op:'log',on:false})}
-function logStreamFrame(m){
-if(m.v!==1||!Number.isInteger(m.bootId)||!Array.isArray(m.events)||typeof m.hasMore!=='boolean'||typeof m.cursorInvalid!=='boolean'||['historyOverwritten','missedEvents','serialDropped'].some(k=>!Number.isInteger(m[k])))throw Error();
-for(const e of m.events)if(!e||!Number.isInteger(e.sequence)||!Number.isInteger(e.atMs)||!Number.isInteger(e.wallSec)||!Number.isInteger(e.localSec)||typeof e.level!=='string'||typeof e.category!=='string'||typeof e.message!=='string')throw Error();
-return m}
-function applyLogFrame(m){
-const b=+m.bootId;
-if((logBootId&&b&&b!==logBootId)||m.cursorInvalid){logEvents=[];lastLog=logMissed=0}
-bootId=logBootId=b;logMissed+=m.missedEvents||0;for(const e of m.events){if(lastLog&&((e.sequence-lastLog)|0)<=0)continue;logEvents.push(e);lastLog=e.sequence}
-if(logEvents.length>LOG_EVENTS_CAPACITY)logEvents.splice(0,logEvents.length-LOG_EVENTS_CAPACITY);updateLogHealth(m)
-renderLog();updateFirmwareFooter();if(activeView==='diagnostic')noteReachOk()}
-function diagSnapshotOk(s){return typeof s.machineState==='string'&&typeof s.state==='string'&&typeof s.relayClosed==='boolean'&&typeof s.controlSource==='string'&&s.cupPresence&&typeof s.cupPresence.state==='string'&&s.safety&&typeof s.safety.state==='string'&&s.scale&&typeof s.scale.streamState==='string'}
-// Request IDs separate the standing History window from scroll fetches.
-let historyStreamWanted=false,historyFetchOffset=-1,historyStreamBoot=0,historyStreamEpoch=0,historyRequest=0,historyFetchRequest=0,historyNextRequest=0,historyResolve=null;
-function historySendSubscribe(){if(!shotWs||shotWs.readyState!==1)return;historyFetchOffset=-1;historyRequest=++historyNextRequest;sendUiOperation({op:'history',on:true,request:historyRequest,offset:0,limit:HISTORY_PAGE_SIZE,dir:historyDir})}
-function startHistoryStream(){if(!webUiPollingActive())return Promise.resolve(false);historyStreamWanted=false;historyResolve?.(false);const ready=new Promise(r=>historyResolve=r),resolve=historyResolve;return viewReady.then(()=>{if(historyResolve!==resolve||!webUiPollingActive()||activeView!=='history')return false;historyStreamWanted=true;historySendSubscribe();return ready})}
-function stopHistoryStream(){historyStreamWanted=false;historyFetchOffset=-1;historyResolve?.(false);historyResolve=null;sendUiOperation({op:'history',on:false})}
-function historyStreamFrame(message){
-  if(message.v!==1||!Number.isInteger(message.boot)||typeof message.snapshot!=='boolean'||!Number.isInteger(message.epoch)||!Number.isInteger(message.request)||
-     !Number.isInteger(message.total)||message.total<0||!Number.isInteger(message.offset)||message.offset<0||
-     !Number.isInteger(message.limit)||message.limit<1||message.limit>120||typeof message.hasMore!=='boolean'||
-     !Array.isArray(message.records))throw Error();
-  if(!message.snapshot&&message.boot!==historyStreamBoot)throw Error();
-  if(message.offset+message.records.length>message.total||message.hasMore!==(message.offset+message.records.length<message.total))throw Error();
-  for(const r of message.records){if(!r||!Number.isInteger(r.id)||r.id<=0||typeof r.type!=='string'||typeof r.durationS!=='number'||!Number.isFinite(r.durationS)||typeof r.hasWallTime!=='boolean'||!Number.isInteger(r.endedAtUnixSec)||!Number.isInteger(r.endedAtLocalSec))throw Error()}
-  if(message.snapshot&&!statusPageOk('records',message.ui))throw Error();
-  return message;
+let diagFrame = null,
+  diagStreamWanted = false,
+  diagPaint = 0,
+  diagReady = Promise.resolve(false),
+  diagResolve = null,
+  diagSetup = 0;
+function armDiagnosticReady() {
+  clearTimeout(diagSetup);
+  diagResolve?.(false);
+  diagReady = new Promise((r) => (diagResolve = r));
+  diagSetup = setTimeout(() => {
+    if (diagStreamWanted && !diagnosticReady()) shotWs?.close();
+  }, 8e3);
 }
-function applyHistoryStream(message){
-  if(!historyViewActive())return;
-  const fetch=historyFetchOffset>=0&&message.request===historyFetchRequest;
-  if(fetch&&message.epoch!==historyStreamEpoch){historySendSubscribe();return}
-  const mode=fetch?'append':'replace';
-  if(message.snapshot)applyCommonStatus(message.ui);
-  applyHistoryPage({bootId:message.boot,total:message.total,hasMore:message.hasMore,history:message.records},mode);
-  historyStreamBoot=message.boot;historyStreamEpoch=message.epoch;historyFetchOffset=-1;
-  renderHistory();updateFirmwareFooter();noteReachOk();
-  if(mode!=='append'&&historyResolve)historyResolve(true);
+function diagnosticReady() {
+  const s = diagFrame?.status;
+  return !!(s?.health?.hwmon && s.nvs && s.tasks && s.scaleProfile);
 }
-// Stats pages assemble atomically; request IDs isolate sorting and CSV export.
-let statsStreamWanted=false,statsFetchMark=null,statsStreamBoot=0,statsStreamEpoch=0,statsRequest=0,statsNextRequest=0,statsExportRequest=0,statsLastSeq=0,statsPage=null,statsResolve=null,statsExportResolve=null;
-function statsSendSubscribe(){if(!shotWs||shotWs.readyState!==1)return;statsFetchMark=null;statsPage=null;statsExportResolve?.(null);statsRequest=++statsNextRequest;sendUiOperation({op:'stats',on:true,request:statsRequest,offset:0,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir})}
-function startStatsStream(){if(!webUiPollingActive())return Promise.resolve(false);statsStreamWanted=false;statsResolve?.(false);const ready=new Promise(r=>statsResolve=r),resolve=statsResolve;return viewReady.then(()=>{if(statsResolve!==resolve||!webUiPollingActive()||activeView!=='stats')return false;statsStreamWanted=true;statsSendSubscribe();return ready})}
-function stopStatsStream(){statsStreamWanted=false;statsFetchMark=null;statsPage=null;statsResolve?.(false);statsResolve=null;if(statsExportResolve)statsExportResolve(null);sendUiOperation({op:'stats',on:false})}
-// One export window at a time: a second request reuses the pending promise
-// instead of orphaning the first to its timeout.
-let statsExportInFlight=null;
-function statsFrameWindow(offset,limit,sort,dir,timeoutMs){
-  if(statsExportInFlight)return statsExportInFlight;
-  statsFetchMark=null;statsExportRequest=++statsNextRequest;
-  const pending=statsExportInFlight=new Promise(resolve=>{
-    const timer=setTimeout(()=>statsExportResolve?.(null),timeoutMs);
-    statsExportResolve=rows=>{clearTimeout(timer);statsExportResolve=null;statsExportRequest=0;resolve(rows)};
-    sendUiOperation({op:'stats',on:true,fetch:true,request:statsExportRequest,offset,limit,sort,dir});
-  });
-  pending.then(()=>{statsExportInFlight=null});
-  return pending;
-}
-function statsRowOk(r){
-if(!r||!Number.isInteger(r.id)||r.id<=0||!Number.isInteger(r.bootId)||!Number.isInteger(r.endedAtMs)||r.endedAtMs<0||typeof r.hasWallTime!=='boolean'||!Number.isInteger(r.endedAtLocalSec)||!Number.isInteger(r.endedAtUnixSec)||typeof r.durationS!=='number'||!Number.isFinite(r.durationS)||!Number.isInteger(r.rating))return false;
-const w=r.wCg,a=r.wAtMs;
-if(!Array.isArray(w)||!Array.isArray(a)||w.length!==a.length||w.length>1201)return false;
-for(let i=0;i<w.length;i++){if(!Number.isInteger(w[i])||w[i]>32767||w[i]<-32767||!Number.isInteger(a[i])||a[i]<0||a[i]>6e4||(i&&a[i]<a[i-1]))return false}
-return Array.isArray(r.wBreakBefore)&&r.wBreakBefore.every(v=>Number.isInteger(v)&&v>0&&v<w.length)}
-function statsStreamFrame(message){
-if(message.v!==1||!Number.isInteger(message.boot)||typeof message.snapshot!=='boolean'||!Number.isInteger(message.epoch)||!Number.isInteger(message.request)||!Number.isInteger(message.seq)||message.seq<0||!Number.isInteger(message.total)||message.total<0||!Number.isInteger(message.offset)||message.offset<0||!Number.isInteger(message.limit)||message.limit<1||message.limit>100||typeof message.hasMore!=='boolean'||!Array.isArray(message.rows)||!Number.isInteger(message.rowBase)||message.rowBase<0||typeof message.more!=='boolean')throw Error();
-if(message.stats!==undefined&&(typeof message.stats!=='object'||!message.stats))throw Error();
-for(const r of message.rows)if(!statsRowOk(r))throw Error();
-if(message.offset+message.rowBase+message.rows.length>message.total)throw Error();
-const buffered=statsPage&&statsPage.seq===message.seq;
-if(buffered){
-if(message.snapshot||message.boot!==statsPage.boot||message.epoch!==statsPage.epoch||message.request!==statsPage.request||message.rowBase!==statsPage.rows.length||message.total!==statsPage.total||message.offset!==statsPage.offset||message.limit!==statsPage.limit||message.hasMore!==statsPage.hasMore)throw Error();
-}else{
-if(message.rowBase!==0||message.seq<=statsLastSeq)throw Error();
-if(!message.snapshot&&message.boot!==statsStreamBoot)throw Error();
-if(message.snapshot&&!statusPageOk('records',message.ui))throw Error();
-}
-if(!message.more&&message.hasMore!==(message.offset+message.rowBase+message.rows.length<message.total))throw Error();
-return message;
-}
-function applyStatsStream(message){
-if(!shotStatsViewActive())return;
-if(!statsPage||statsPage.seq!==message.seq){
-const mode=message.request===statsExportRequest?'export':message.request===statsFetchMark?.request?'append':'replace';
-if(mode==='append'&&message.epoch!==statsStreamEpoch){statsSendSubscribe();return}
-statsPage={seq:message.seq,boot:message.boot,epoch:message.epoch,request:message.request,mode,total:message.total,offset:message.offset,limit:message.limit,hasMore:message.hasMore,stats:message.stats||null,rows:[]};
-}
-if(message.snapshot)applyCommonStatus(message.ui);
-statsPage.rows.push(...message.rows);
-if(message.more)return;
-const page=statsPage;statsPage=null;statsLastSeq=page.seq;
-if(page.mode==='export'){statsExportResolve?.(page.rows);return}
-statsFetchMark=null;
-statsStreamBoot=message.boot;statsStreamEpoch=page.epoch;
-applyShotPage({bootId:message.boot,total:page.total,hasMore:page.hasMore,stats:page.stats,shots:page.rows},page.mode);
-renderShots();updateFirmwareFooter();noteReachOk();
-if(page.mode!=='append'&&statsResolve)statsResolve(true);
-}
-// Back from the background: resync the live socket; rebuild only if it died hidden.
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&webUiPollingActive())shotWs&&shotWs.readyState===1?(requestShotResync(),shotActivity()):startUiStream()});
-window.addEventListener('pagehide',stopUiStream);
-window.addEventListener('pageshow',()=>{if(webUiPollingActive())startUiStream()});
-function formatExtractionGuard(d){return!d.guardEnabled?__WEBUI_TEXT__("runtime.off_2"):d.extended?__WEBUI_TEXT__("runtime.ext")+(d.goal??__WEBUI_TEXT__("runtime.unknown"))+__WEBUI_TEXT__("runtime.g_or")+ms(d.minBbwBrewRemainingMs,1)+__WEBUI_TEXT__("runtime.s_left"):d.inShot?__WEBUI_TEXT__("runtime.on_2"):__WEBUI_TEXT__("runtime.idle")}
-function formatSlowExtractionGuard(d){return!d.guardEnabled?__WEBUI_TEXT__("runtime.off_2"):d.extended?__WEBUI_TEXT__("runtime.ext")+(d.goal??__WEBUI_TEXT__("runtime.unknown"))+__WEBUI_TEXT__("runtime.g"):d.inShot?__WEBUI_TEXT__("runtime.on_2"):__WEBUI_TEXT__("runtime.idle")}
-function formatAtmGuard(d){return!d.atmEnabled?__WEBUI_TEXT__("runtime.off_2"):d.atmEnforced?__WEBUI_TEXT__("runtime.a_to_m_2")+ms(d.atmRemainingMs,0)+__WEBUI_TEXT__("runtime.s"):d.atmArmed?__WEBUI_TEXT__("runtime.armed"):__WEBUI_TEXT__("runtime.idle")}
-function formatNoScaleGuard(g){if(!g||!g.enabled)return__WEBUI_TEXT__("runtime.off_2");if(!g.armed)return__WEBUI_TEXT__("runtime.temporarily_allowed")+Math.ceil(g.cooldownRemainingMs/6e4)+__WEBUI_TEXT__("runtime.min_2");return g.mode==='require_scale'?(g.scaleUsable?__WEBUI_TEXT__("runtime.ready_2"):__WEBUI_TEXT__("runtime.scale_required")):__WEBUI_TEXT__("runtime.armed")}
-function formatAccidentalTouch(d){return!d.enabled?__WEBUI_TEXT__("runtime.off_2"):d.holding?__WEBUI_TEXT__("runtime.holding"):d.inShot?__WEBUI_TEXT__("runtime.active"):__WEBUI_TEXT__("runtime.idle")}
-function formatCupProtection(d){return!d.enabled?__WEBUI_TEXT__("runtime.off_2"):d.inShot?(d.stopIfRemoved?__WEBUI_TEXT__("runtime.armed"):__WEBUI_TEXT__("runtime.brew_allowed")):d.requireCupToStart&&d.scaleUsable&&!d.present?__WEBUI_TEXT__("runtime.can_t_brew_no_cup"):d.aborted?__WEBUI_TEXT__("runtime.shot_aborted"):__WEBUI_TEXT__("runtime.brew_allowed")}
-function setHomeSub(id,v){const e=$(id);if(e&&e.textContent!==v)e.textContent=v}
-function updateHomeGuardSubs(s,live){const nl={off:__WEBUI_TEXT__("runtime.off_2"),warn_once:__WEBUI_TEXT__("runtime.warn_once"),require_scale:__WEBUI_TEXT__("runtime.require_scale")};if($("homeNoScaleBbwMode"))$("homeNoScaleBbwMode").textContent=nl[(s.config||{}).noScaleBbwMode]||__WEBUI_TEXT__("runtime.warn_once");const c=s.cycle||{},cfg=s.config||{},b=!!cfg.brewByWeight,t=c.shotType,sc=s.scale||{},ls=s.lastShot||{};setHomeSub('homeBbwSub',!b?__WEBUI_TEXT__("runtime.off_2"):!live?__WEBUI_TEXT__("runtime.idle"):t==='auto'?__WEBUI_TEXT__("runtime.active"):t==='timer_only'?__WEBUI_TEXT__("runtime.timer_only"):t==='manual'?'Manual':t==='rinse'?__WEBUI_TEXT__("runtime.rinse"):__WEBUI_TEXT__("runtime.on_2"));setHomeSub('homeNoScaleSub',formatNoScaleGuard(b?s.noScaleShotGuard:{enabled:0}));setHomeSub('homeFastSub',formatExtractionGuard({guardEnabled:b&&!!cfg.fastExtractionGuardEnabled,extended:live&&c.extractionExtended,goal:c.activeStopWeightG,minBbwBrewRemainingMs:c.minBbwBrewTimeRemainingMs,inShot:live}));setHomeSub('homeTouchSub',formatAccidentalTouch({enabled:b&&!!cfg.avoidAccidentalTouchEnabled,holding:live&&!!c.accidentalTouchHolding,inShot:live}));setHomeSub('homeSlowSub',formatSlowExtractionGuard({guardEnabled:b&&!!cfg.slowExtractionGuardEnabled,extended:live&&c.slowExtractionExtended,goal:c.activeStopWeightG,inShot:live}));setHomeSub('homeAtmSub',formatAtmGuard({atmEnabled:b&&!!cfg.autoToManualGuardEnabled,atmEnforced:live&&c.autoToManualGuardEnforced,atmArmed:live&&c.autoToManualGuardArmed,atmRemainingMs:c.autoToManualGuardRemainingMs}));setHomeSub('homeCupSub',formatCupProtection({enabled:b&&!!cfg.cupProtectionEnabled,requireCupToStart:!!cfg.requireCupToStart,stopIfRemoved:!!cfg.stopIfCupRemoved,present:!!(s.cupPresence&&s.cupPresence.present),scaleUsable:!!(sc.available&&sc.streamState==='FRESH'),inShot:live,aborted:!live&&!!ls.valid&&ls.endReason==='cup_removed'}))}
-function renderShotHero(d){const hero=$('shotHero');if(!hero)return;const t=(id,v)=>$('shotHero'+id).textContent=v,wt=typeof d.weight==='number'?d.weight:null,goal=d.goal,scale=wt!==null&&goal>0?Math.max(goal,wt):0,err=scale?((wt-goal)/goal*100).toFixed(1)+'%':'',el=d.elapsedMs,drop=d.firstDropMs,flow=typeof d.averageFlowGps==='number'?d.averageFlowGps:null,model=buildShotSparkModel({wCg:d.wCg,wAtMs:d.wAtMs,wBreakBefore:d.wBreakBefore,wTruncated:d.wTruncated,wDtS:d.wDtS,durationS:typeof el==='number'?el/1000:null,firstDropS:drop!=null?drop/1000:null,tareS:d.tareMs!=null?d.tareMs/1000:null,dropS:d.dropS,dropCg:d.dropCg,extendedS:d.extendedS,extCg:d.extCg,atmS:d.atmS,atmCg:d.atmCg,atmClearedS:d.atmClearedS,endS:d.endS,endCg:d.endCg,extractionExtended:d.extractionExtended,slowExtractionExtended:d.slowExtractionExtended,goalG:goal});hero.hidden=false;hero.classList.toggle('live',!!d.live);t('State',d.live?__WEBUI_TEXT__("home.hero_brewing"):__WEBUI_TEXT__("home.hero_last_shot"));t('Preset',d.presetName&&d.presetName!==__WEBUI_TEXT__("runtime.unknown")?__WEBUI_TEXT__("runtime.symbol_8")+d.presetName:'');const noScale=d.scaleAvailable===false;const label=t('Weight',noScale?ms(el,1)+__WEBUI_TEXT__("runtime.s_2"):wt===null?__WEBUI_TEXT__("runtime.unknown"):wt.toFixed(1)+__WEBUI_TEXT__("runtime.g_2"))+t('Goal',noScale?'':goal>0?' / '+goal+' g':'');const hTrack=$('shotHeroTrack');if(hTrack){hTrack.style.setProperty('--goal-pct',(scale?goal/scale*100:100)+'%');hTrack.setAttribute('aria-label',label)}$('shotHeroBar').style.width=(scale?wt/scale*100:0)+'%';const chip=(id,v)=>{const e=$('shotHero'+id);e.hidden=!v;e.textContent=v||''};chip('Elapsed',!noScale&&ms(el,1)+__WEBUI_TEXT__("runtime.s_2"));chip('Drop',!noScale&&drop!=null&&__WEBUI_TEXT__("home.hero_first_drop")+' '+ms(drop,1)+__WEBUI_TEXT__("runtime.s_2"));chip('Flow',!noScale&&flow!==null&&__WEBUI_TEXT__("runtime.avg_flow")+' '+flow.toFixed(2)+__WEBUI_TEXT__("runtime.g_s"));chip('Error',!noScale&&err&&__WEBUI_TEXT__("home.hero_error")+' '+err);const mode=noScale?__WEBUI_TEXT__("home.hero_no_scale"):d.live?{auto:__WEBUI_TEXT__("runtime.bbw"),timer_only:__WEBUI_TEXT__("runtime.timer_only"),manual:__WEBUI_TEXT__("runtime.manual"),rinse:__WEBUI_TEXT__("runtime.rinse")}[(d.shotType||'').toLowerCase()]||'':formatShotEnded(d.endReason);chip('Mode',mode!==__WEBUI_TEXT__("runtime.unknown")&&mode);const spark=$('shotHeroSpark');if(spark){const segs=model&&model.segs.filter(s=>s.pts.length>1);if(segs&&segs.length){const W=120,H=34,P=1,X=v=>P+(W-2*P)*Math.min(1,v/model.timeMax),Y=c=>H-P-(H-2*P)*Math.min(1,Math.max(0,c/100/model.maxW));spark.innerHTML='<svg viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">'+segs.map(s=>{const p=s.pts.map((q,i)=>(i?'L':'M')+X(q.t).toFixed(1)+' '+Y(q.cg).toFixed(1)).join('');return'<path d="'+p+'V'+H+'H'+X(s.pts[0].t).toFixed(1)+'Z" fill="var(--on)" opacity=".18" stroke="none"/><path d="'+p+'" fill="none" stroke="var(--on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'}).join('')+'<line x1="0" y1="33.2" x2="120" y2="33.2" stroke="var(--on)" opacity=".25" stroke-width=".7"/></svg>'}else spark.replaceChildren()}}function clearShotHero(){const hero=$('shotHero');if(hero)hero.hidden=true}
-function shotPresetName(shot){return shot&&shot.presetName||__WEBUI_TEXT__("runtime.unknown")}
-function checkFirmwareReload(version){if(!version||BAKED_FW_VERSION==='dev'||configDirty||brewDirty||dateTimeDirty||bleDirty||powerDirty||frontendDirty)return;if(version===BAKED_FW_VERSION){try{sessionStorage.removeItem('ssFwReload')}catch(_){}return}let reloaded=true;try{reloaded=!!sessionStorage.getItem('ssFwReload');if(!reloaded)sessionStorage.setItem('ssFwReload','1')}catch(_){}if(!reloaded){fwReloading=true;// A fresh-cached navigation may be reopened without revalidating (WebKit
-// home-screen apps), so reload() can land on the stale copy again; a
-// changed URL is a new cache key and forces a request to the device.
-location.replace(location.pathname+'?fw='+version)}}
-function developmentActive(){return developmentMode}function applyCommonStatus(s){if(s.connections||s.snapshotStale)updateHeaderSignals(s);applyDiagnosticNavigation(s);if('development'in s)developmentMode=!!s.development;if('compatibilityMode'in s&&!!s.compatibilityMode!==compatMode){compatMode=!!s.compatibilityMode;applyCompatibilityChrome()}setMutable(!!s.configMutable||!!s.webUiOverrideActive);if(s.firmwareVersion){firmwareVersion=s.firmwareVersion;checkFirmwareReload(s.firmwareVersion)}if(typeof s.bootId==='number')bootId=s.bootId;updateFirmwareFooter();const c=s.config||{};syncTimezone(c);lastCommandStatus=s.lastCommand||null;if(typeof c.revision==='number')configRevision=c.revision;if(typeof s.timeUtcSec==='number'){statusUtcAnchorSec=s.timeUtcSec;statusUtcAnchorAt=performance.now()}if(typeof c.appliedTimezoneOffsetMinutes==='number')statusTimezoneOffsetMinutes=c.appliedTimezoneOffsetMinutes;if(!dateTimeDirty){if(c.ntpServerPreset!=null&&$('ntpServerPreset'))$('ntpServerPreset').value=c.ntpServerPreset||'pool';if(c.ntpServerCustom!=null&&$('ntpServerCustom'))$('ntpServerCustom').value=c.ntpServerCustom||''}if(typeof c.serialDebugOutput==='boolean'&&$('serialDebugOutput'))$('serialDebugOutput').checked=!!c.serialDebugOutput;if(typeof s.buzzerSupported==='boolean')updateBuzzerAlertVisibility(!!s.buzzerSupported);applyMachineTypeUi(s)}
-function applyMachineTypeUi(s){const t=s.machineType||(s.compileFlags&&s.compileFlags.machineType)||'paddle';document.documentElement.classList.toggle('momentaryMachine',t!=='paddle');document.documentElement.classList.toggle('reedMachine',t==='momentary_reed');document.documentElement.classList.toggle('lineaMicraIntegration',s.machineIntegration==='linea_micra_cloud');if($('dMt'))$('dMt').textContent=t}
-function loadSettingsConfig(c){if(!c||typeof c.goalWeightG!=='number'||!$('goalWeightG'))return;if(configLoaded&&(configDirty||brewDirty||formRev===c.revision))return;bbwFormPresetId=c.bbwPresetId||0;$('bbwAlphaBaseline').value=c.bbwAlphaBaseline??.3;if($('bbwAlgorithm'))$('bbwAlgorithm').value=c.bbwAlgorithm||'';$('goalWeightG').value=c.goalWeightG;['rinseGesture','rinseDuration','operationalWall','retareWindow','postTareBaselineGrace','bbwProtection','retareStabilityMaxGap','retareStabilityMinDuration','minBbwBrewTime','maxBbwBrewTime'].forEach(k=>$(k+'S').value=String(c[k+'Ms']/1000));const paddleReturnReminderLimit=$('paddleReturnReminderMaxDurationMin');if(paddleReturnReminderLimit)paddleReturnReminderLimit.value=String(c.paddleReturnReminderMaxDurationMs/60000);$('lastShotCooldownMin').value=String((c.lastShotCooldownMs??36e5)/60000);[['minimumCupWeightG',10],['cupRemovedWeightG',-3],['retareStabilitySamples',3],['retareStabilityToleranceG',2],['maxRecoveryWeightG',42],['minRecoveryWeightG',34],['scaleTimerStopExtraDelayMs',0]].forEach(([k,d])=>$(k).value=String(c[k]??d));$('dripDelayS').value=String((c.dripDelayMs??3000)/1000);['autoTare','autoTareOutsideBrew','retareAccessoryOutsideBrew','brewByWeight','soundAlertsEnabled','canTareStartTimer','bookooMuteOnBuzzerOnly','firstDropBeep','scaleConnectedLed','buzzerScaleLostBeep','buzzerAutoToManualGuardEndBeep','buzzerManualNoScaleBeep','buzzerScaleConnectedBeep','autoRetare','fastExtractionGuardEnabled','avoidAccidentalTouchEnabled','touchStopFallbackEnabled','slowExtractionGuardEnabled','autoToManualGuardEnabled','cupProtectionEnabled','stopIfCupRemoved','requireCupToStart','rinseEnabled','noScaleAllowRinseWhileArmed'].forEach(k=>{const el=$(k);if(el)el.checked=!!c[k]});$('noScaleBbwMode').value=['off','warn_once','require_scale'].includes(c.noScaleBbwMode)?c.noScaleBbwMode:(c.avoidBbwShotWithoutScale?'warn_once':'off');$('buzzerExtendedPulseRate').value=extRate(c.buzzerExtendedPulseRate);$('buzzerSlowExtendedPulseRate').value=extRate(c.buzzerSlowExtendedPulseRate);$('alertOutputChannel').value=['scale_only','buzzer_only','scale_priority'].includes(c.alertOutputChannel)?c.alertOutputChannel:'scale_priority';$('bookooConnectBeepLevel').value=String([0,1,2,3,4,5].includes(+c.bookooConnectBeepLevel)?+c.bookooConnectBeepLevel:4);if($('scalePreference')){const m=['first','prefer','only'].includes(c.scaleMacCacheMode)?c.scaleMacCacheMode:(c.scaleMacCacheMode==='full'||c.scaleMacCacheMode==='only'?'only':c.scaleMacCacheMode==='prefer'?'prefer':'first');$('scalePreference').value=m;updateScalePreferenceOptions()}if($('paddleMode'))$('paddleMode').value=['auto','natural','original'].includes(c.paddleMode)?c.paddleMode:'natural';if($('stopPulseMs'))$('stopPulseMs').value=String(c.stopPulseMs??300);if($('maxSinglePressMs'))$('maxSinglePressMs').value=String(c.maxSinglePressMs??1000);if($('momentaryStartEdge'))$('momentaryStartEdge').value=['press','release'].includes(c.momentaryStartEdge)?c.momentaryStartEdge:'press';if($('reedConfirmTimeoutS'))$('reedConfirmTimeoutS').value=String((c.reedConfirmTimeoutMs??1000)/1000);if($('assumeIdleWhenScaleConnects'))$('assumeIdleWhenScaleConnects').checked=c.assumeIdleWhenScaleConnects!==false;if($('shotReactTimeoutS'))$('shotReactTimeoutS').value=String(c.shotReactTimeoutS??12);$('autoToManualGuardLimitMode').value=(c.autoToManualGuardLimitMode==='manual')?'manual':'auto';$('autoToManualGuardManualLimitS').value=String((c.autoToManualGuardManualLimitMs??32000)/1000);$('autoToManualGuardBaselineS').value=String((c.autoToManualGuardBaselineMs??c.autoToManualGuardManualLimitMs??32000)/1000);$('weightOffsetBaselineG').value=String(typeof c.weightOffsetBaselineG==='number'?c.weightOffsetBaselineG:1.5);$('autoToManualGuardTrendS').textContent=typeof c.autoToManualGuardTrendMs==='number'?(c.autoToManualGuardTrendMs/1000).toFixed(1)+__WEBUI_TEXT__("runtime.s_2"):__WEBUI_TEXT__("runtime.unknown");formRev=c.revision;configRevision=c.revision;configLoaded=true;if(!brewDirty){configDirty=false;setSaveDirty('saveConfigButton','configDirtyHint',false)};updateConfigGroups();syncHomeGuardSwitchesFromSettings();updateHomeGuardSwitchesLock()}
-function loadAdminConfig(c){if(!c||!$('timezoneId'))return;const select=$('timezoneId'),previous=select.value;savedTimezoneId=c.timezoneId||'';populateTimezoneOptions().catch(()=>{});if(!dateTimeDirty){select.value=c.timezoneId||'';$('timezoneAutomatic').checked=!!c.timezoneAutomatic;$('ntpSyncEnabled').checked=c.ntpSyncEnabled!==false;setSaveDirty('saveDateTimeButton','dateTimeDirtyHint',false)}const state=$('timezoneSaveState');if(state)state.textContent=c.persistFailed?__WEBUI_TEXT__("runtime.timezone_save_failed"):c.persistPending?__WEBUI_TEXT__("runtime.timezone_saving"):c.timezoneId?__WEBUI_TEXT__("runtime.timezone_saved")+c.timezoneId:__WEBUI_TEXT__("runtime.timezone_pending");if(previous!==select.value||(!timezonePreviewAnchor&&!timezonePreviewPending))refreshTimezonePreview();updateTimezoneControls()}
-function updateHomeAdminActions(unlocked,remoteEnabled){const panel=$('actionsPanel');if(!panel)return;const show=!!unlocked&&!!remoteEnabled;panel.classList.toggle('hidden',!show);document.body.classList.toggle('homeAdminActions',show)}
-function formatBackflushState(s){const b=s.backflush;if(!b)return '';if(s.state==='BACKFLUSH_CANDIDATE')return __WEBUI_TEXT__("runtime.backflush_checking");if(s.state==='BACKFLUSH_RUNNING')return __WEBUI_TEXT__("runtime.backflush_running");if(s.state==='REQUIRES_OFF'&&b.stopReason!=='none')return b.stopReason==='unconfirmed_end'?__WEBUI_TEXT__("runtime.backflush_other"):b.stopReason==='mode_ended'?__WEBUI_TEXT__("runtime.backflush_return_off"):__WEBUI_TEXT__("runtime.backflush_interrupted");if(b.waiting&&b.ready)return __WEBUI_TEXT__("runtime.backflush_waiting");return (b.waiting||b.unresolved)&&!s.cycle?.active?__WEBUI_TEXT__("runtime.backflush_restart"):''}
-function applyHomeStatus(s){const admin=!!s.adminUnlocked,canControl=controlsMutable,remoteReady=!!s.remoteControlEnabled,relayStartReady=!(s.safety&&(s.safety.recoveryRequired||s.safety.state==='LOCKOUT')),live=!!s.machineRunning,shot=$('stopButton'),force=$('forcePulseButton'),g=shot&&shot.querySelector('.g'),t=shot&&shot.querySelector('.t'),switchOnly=(s.machineType||(s.compileFlags&&s.compileFlags.machineType))==='momentary';syncAdminSessionUi(admin,remoteReady);$('machineState').textContent=formatMachineState(s);$('state').textContent=formatBackflushState(s)||s.stateLabel||__WEBUI_TEXT__("runtime.unknown");updateStateTone(s);$('cupState').textContent=formatCupState(s);$('cupWeight').textContent=formatCupWeight(s);$('idleTareStatus').textContent=formatIdleTare(s);$('scale').textContent=formatScaleStatus(s);$('preferredScale').textContent=formatPreferredScale(s);updateScaleRenameUi('preferredScaleRenameWrap',s.scale?.preferredMac||'',scaleDisplayName(s.scale));$('scaleWeight').textContent=formatScaleWeight(s);$('scaleTimer').textContent=formatScaleTimer(s);updateHomeGuardSubs(s,!!s.cycle?.active);paintUiStream();const rinseButton=$('rinseButton');if(rinseButton)rinseButton.disabled=!(admin&&remoteReady&&relayStartReady&&canControl&&(s.config?s.config.rinseEnabled===true:true));if(shot){shot.dataset.mode=live?'stop':'start';shot.title=live?__WEBUI_TEXT__("runtime.stop_shot_2"):__WEBUI_TEXT__("runtime.start_shot_2");shot.setAttribute('aria-label',shot.title);shot.classList.toggle('btnDanger',live);if(g)g.textContent=live?__WEBUI_TEXT__("runtime.stop"):__WEBUI_TEXT__("runtime.start");if(t)t.textContent=shot.title;shot.disabled=!admin||(!live&&!(remoteReady&&relayStartReady&&canControl));if(force)force.disabled=!(admin&&remoteReady&&relayStartReady&&webUiOwner);['overrideIdleLink','overrideBrewingLink'].forEach(i=>{const a=$(i);if(!a)return;const off=!canControl&&!switchOnly;a.classList.toggle('fieldOff',off);a.setAttribute('aria-disabled',off?'true':'false')});}ingestPresets(s);updateRuleChartFromStatus(s);applyHomeSwitchesFromConfig(s.config)}
-const MICRA_SWITCHES=['ApplyTemperature','ObserveState','BoostScaleDetectionWhenOn','ReduceScaleScanningWhenOff','RecognizeWake','PowerOnWithScale','ShutdownWithScale','ScaleOffWithMachine'];
-function micraOptionField(id){return id[0].toLowerCase()+id.slice(1)+(id==='RecognizeWake'?'Gesture':'')}
-function applyLineaMicraStatus(s){const m=s.lineaMicra;if(!m)return;document.documentElement.classList.toggle('micraTemperatureEnabled',m.applyTemperature&&m.accountConfigured);const machines=m.machines||[],select=$('lineaMicraMachine'),previous=select.value;select.textContent='';if(!machines.length)select.add(new Option(__WEBUI_TEXT__("runtime.connect_to_load_machines"),''));else machines.forEach(x=>select.add(new Option(x.name?x.name+' · '+x.serial:x.serial,x.serial)));if(machines.some(x=>x.serial===previous))select.value=previous;if(!micraDirty){$('lineaMicraConnectionType').value=m.connectionType||'websocket';for(const id of MICRA_SWITCHES)$('lineaMicra'+id).checked=!!m[micraOptionField(id)];$('lineaMicraShutdownGrace').value=String(m.shutdownGraceSeconds||0);}const canEdit=controlsMutable,connected=m.accountConfigured,session=!connected&&machines.length>0,target=m.targetValid?__WEBUI_TEXT__("runtime.target")+" "+(m.targetDeciC/10).toFixed(1)+" °C":'',temperature=m.temperatureState&&m.temperatureState!=='disabled'?__WEBUI_TEXT__("runtime.brew_temperature")+' '+m.temperatureState+(m.requestedTargetDeciC?' '+(m.requestedTargetDeciC/10).toFixed(1)+' °C':''):'';$('lineaMicraIdentity').innerText=connected?m.email+'\n'+m.selectedName+' - '+m.selectedSerial:session?__WEBUI_TEXT__("runtime.signed_in_select_machine"):__WEBUI_TEXT__("runtime.not_connected");$('lineaMicraStatus').textContent=[connected||m.phase!=='disabled'?m.phase:__WEBUI_TEXT__("runtime.unauthenticated"),m.error==='none'?'':m.error,target,temperature,m.apActive?__WEBUI_TEXT__("runtime.ap_mode_paused"):'',m.shotPaused?__WEBUI_TEXT__("runtime.shot_paused"):'' ].filter(Boolean).join(' · ');for(let e=$('lineaMicraUsername').parentElement,n=5;n--;e=e.nextSibling)e.hidden=connected;$('lineaMicraConnectButton').disabled=!canEdit||!m.staConnected||m.apActive;$('lineaMicraConnectButton').classList.toggle('busy',!connected&&['queued','authenticating','listing'].includes(m.phase));select.disabled=!canEdit||!machines.length;$('lineaMicraSelectButton').disabled=!canEdit||!machines.length||!select.value;$('lineaMicraConnectionType').disabled=!canEdit||(!connected&&!session);const scanGate=!canEdit||!connected||!$('lineaMicraObserveState').checked;for(const id of MICRA_SWITCHES)$('lineaMicra'+id).disabled=!canEdit||!connected;$('lineaMicraBoostScaleDetectionWhenOn').disabled=scanGate;$('lineaMicraReduceScaleScanningWhenOff').disabled=scanGate;updateMicraShutdownControls(canEdit,connected);$('lineaMicraSaveButton').disabled=!canEdit||!connected;updateMicraRevertButton();$('lineaMicraDisconnectButton').disabled=!canEdit||(!connected&&!machines.length)}function markLineaMicraDirty(){micraDirty=true;$("lineaMicraSaveButton").disabled=!controlsMutable||$("lineaMicraObserveState").disabled;updateMicraRevertButton()}function updateMicraRevertButton(){const r=$('revertLineaMicraButton');if(r){r.dataset.dirty=+micraDirty;r.disabled=!controlsMutable||!micraDirty}}function updateMicraShutdownControls(canEdit=controlsMutable,connected=true){const on=$('lineaMicraShutdownWithScale').checked;$('lineaMicraShutdownWithScale').disabled=!canEdit||!connected;$('lineaMicraShutdownGrace').disabled=!canEdit||!connected||!on;$('lineaMicraShutdownGraceWrap').classList.toggle('hidden',!on)}async function connectLineaMicra(){const username=$('lineaMicraUsername').value.trim(),password=$('lineaMicraPassword').value;if(!username||!$('lineaMicraUsername').validity.valid){showFieldError('lineaMicraUsername',__WEBUI_TEXT__("runtime.enter_valid_email"));return false}if(!password){showFieldError('lineaMicraPassword',__WEBUI_TEXT__("runtime.enter_password"));return false}$('lineaMicraConnectButton').classList.add('busy');const ok=await command('/api/v1/machine/linea-micra',{action:'connect',username,password},false,__WEBUI_TEXT__("runtime.micra_connection_queued"),__WEBUI_TEXT__("runtime.micra_action_failed"));$('lineaMicraPassword').value='';return ok}async function selectLineaMicra(){const serial=$('lineaMicraMachine').value;return serial?saveLineaMicraSettings('select',serial):false}async function saveLineaMicraSettings(action='save',serial=''){const ok=await command('/api/v1/machine/linea-micra',{action,...(action==='select'?{serial}:{}),...Object.fromEntries(MICRA_SWITCHES.map(id=>[micraOptionField(id),$('lineaMicra'+id).checked])),connectionType:$('lineaMicraConnectionType').value,shutdownGraceSeconds:Number($('lineaMicraShutdownGrace').value)||0,},false,__WEBUI_TEXT__("runtime.micra_settings_queued"),__WEBUI_TEXT__("runtime.could_not_save_micra"),action==='save'?'lineaMicraSaveButton':undefined);if(ok)micraDirty=false;return ok}async function disconnectLineaMicra(){const ok=await lineaMicraAction('disconnect');if(ok){$('lineaMicraUsername').value='';$('lineaMicraPassword').value='';micraDirty=false}return ok}function lineaMicraAction(action){return command('/api/v1/machine/linea-micra',{action},false,'',__WEBUI_TEXT__("runtime.micra_action_failed"))}function loadBullseyeConfig(c){if(!c||configDirty||!$('bullseyeMelodyEnabled'))return;$('bullseyeMelodyEnabled').checked=!!c.bullseyeMelodyEnabled;$('bullseyeRtttl').value=typeof c.bullseyeRtttl==='string'?c.bullseyeRtttl:'';updateBullseyeControls()}function applySettingsStatus(s){bbwReadback=s.config;updatePreferredScaleSelect(s);const sc=s.scale||{};if($('forgetPairedScale'))$('forgetPairedScale').disabled=!(controlsMutable&&(sc.preferredMac||sc.macCachePauseRemainingMs>0));loadSettingsConfig(s.config);loadBullseyeConfig(s.config);applyLineaMicraStatus(s);ingestPresets(s);updateBbwControls();if(typeof s.config.autoToManualGuardTrendMs==='number')$('autoToManualGuardTrendS').textContent=(s.config.autoToManualGuardTrendMs/1000).toFixed(1)+__WEBUI_TEXT__("runtime.s_2");if(configLoaded){if(!configDirty)configBaseline=snapshotControls(settingsSectionEls('config'));if(!brewDirty)brewBaseline=snapshotControls(settingsSectionEls('brew'));if(!micraDirty)micraBaseline=snapshotControls(settingsSectionEls('micra'))}}
-function renderLineaMicraDiagnostic(){const lm=micraDiagnosticStatus;if(!lm||!$('dMicraPowerValue'))return;const age=lm.sampleValid?lm.sampleAgeMs+Math.max(0,Date.now()-lm.receivedAtMs):0,stale=lm.freshnessPolicy!=='connection'&&lm.quality==='current'&&age>=lm.freshnessMs,power=lm.powerState,source=({api:'API',websocket:'WebSocket',api_initial:__WEBUI_TEXT__("diagnostic.api_via_websocket")})[lm.powerSource],busy=['queued','authenticating','listing','running','backoff'].includes(lm.phase);$('dMicraPowerValue').textContent=power||__WEBUI_TEXT__("runtime.unknown");$('dMicraMode').textContent=(lm.observedMode||__WEBUI_TEXT__("runtime.unknown"))+(source?' ('+source+')':'');$('dMicraQuality').textContent=(stale?'stale':lm.quality)||__WEBUI_TEXT__("runtime.unknown");$('dMicraAge').textContent=lm.temperatureState+'/'+lm.temperatureError+' · '+(lm.sampleValid?Math.floor(age/1000)+__WEBUI_TEXT__("runtime.s_ago"):__WEBUI_TEXT__("runtime.no_sample"));const refresh=$('lineaMicraRefreshLink');if(refresh){const disabled=!controlsMutable||!lm.observeState||!lm.accountConfigured||busy;refresh.setAttribute('aria-disabled',String(disabled));refresh.tabIndex=disabled?-1:0}}
-// Diagnostic sections are painted only from the owned WebSocket cache.
-function applyDiagnosticLive(s){
-const t=(i,v)=>{const e=$(i);if(e)e.textContent=v||__WEBUI_TEXT__("runtime.unknown")},sf=s.safety||{},sc=s.scale||{},cp=s.cupPresence||{};
-t('dMachine',s.machineState);
-const lm=s.lineaMicra;
-if(lm){micraDiagnosticStatus={...lm,receivedAtMs:Date.now()};renderLineaMicraDiagnostic()}
-t('dBrew',formatBackflushState(s)||s.state);t('dCup',cp.state);t('dScaleName',sc.connectedMac?sc.connectedFriendlyName||__WEBUI_TEXT__("runtime.unknown"):__WEBUI_TEXT__("runtime.not_connected"));updateScaleRenameUi('dScaleNameRenameWrap',sc.connectedMac||'',sc.connectedFriendlyName||'');t('dCupWeight',formatCupWeight(s));t('dActivator',s.physicalActivatorOn?__WEBUI_TEXT__("runtime.on"):__WEBUI_TEXT__("runtime.off"));if($('dReed'))t('dReed',s.reedOn?__WEBUI_TEXT__("runtime.on"):__WEBUI_TEXT__("runtime.off"));t('dRelay',s.relayClosed?__WEBUI_TEXT__("runtime.on"):__WEBUI_TEXT__("runtime.off"));t('dSource',s.controlSource);t('dSafety',sf.state+(s.backflush?' · '+(s.backflush.hardLimitMs/1000)+' s max · '+Math.ceil(s.backflush.remainingMs/1000)+' s left':''));t('dFault',sf.fault!=='NONE'?sf.fault:s.backflush?.stopReason||sf.fault);t('dWatchdog',sf.taskWatchdogReady?__WEBUI_TEXT__("runtime.ready_3"):__WEBUI_TEXT__("runtime.fault"));t('dExternal',sf.externalHardware?__WEBUI_TEXT__("runtime.present_2"):__WEBUI_TEXT__("runtime.not_configured"));t('dRecovery',sf.recoveryRequired?__WEBUI_TEXT__("runtime.required"):__WEBUI_TEXT__("runtime.none_2"));t('dStream',sc.streamState);t('dControl',sc.controlState);t('dScaleRssi',typeof sc.rssi==='number'?sc.rssi+__WEBUI_TEXT__("runtime.dbm"):'');t('hRecoveredStales',String(sc.recoveredStaleCount));t('hStaleTime',typeof sc.recoveredStaleMs==='number'?sc.recoveredStaleMs+__WEBUI_TEXT__("runtime.ms_2"):'');const wi=sc.weightUpdateIntervalMs;t('hScaleRate',typeof wi==='number'&&wi>0?(1000/wi).toFixed(1)+__WEBUI_TEXT__("runtime.hz")+wi+__WEBUI_TEXT__("runtime.ms_3"):'');t('hScaleGaps',String(sc.packetGaps));t('hScaleGapMax',sc.maxPacketGapMs+__WEBUI_TEXT__("runtime.ms_2"));t('hScaleRejected',String(sc.rejectedPackets));t('hScaleReconnects',String(sc.reconnects));t('hLastDisconnect',sc.lastDisconnect?.summary||sc.lastDisconnectReasonName||__WEBUI_TEXT__("diagnostic.none_2"));t('hScaleCommandFailure',sc.lastCommandFailure?.summary||__WEBUI_TEXT__("diagnostic.none_3"));t('hEventsDropped',String(sc.eventsDropped));t('dScaleWeight',formatScaleWeight(s));t('dScaleTimer',formatScaleTimer(s))}
-function renderDiagClock(){const t=i=>v=>{const e=$(i);if(e)e.textContent=v||__WEBUI_TEXT__("runtime.unknown")};const u=statusUtcAnchorSec>0?statusUtcAnchorSec+Math.floor((performance.now()-statusUtcAnchorAt)/1000):0,utc=u&&formatWallTime(u,0),local=u&&formatWallTime(u,statusTimezoneOffsetMinutes);t('ut')(utc&&utc.slice(11));t('ud')(utc&&utc.slice(0,10));t('lt')(local&&local.slice(11));t('ld')(local&&local.slice(0,10));renderLineaMicraDiagnostic()}
-function applyDiagnosticStatus(s){if(!s)return;const u=!!s.adminUnlocked,p=!!s.diagnosticPublic;syncAdminSessionUi(u);diagnosticPublicView=p;if(!u&&!p)return;const t=(i,v)=>$(i).textContent=v||__WEBUI_TEXT__("runtime.unknown");t('hFirmware',s.firmwareVersion);t('hBoot',typeof s.bootId==='number'&&s.bootId?'#'+s.bootId:'');const m=s.maintenance;t('maintenance',m.active?__WEBUI_TEXT__("runtime.reserved"):m.persistFailed?__WEBUI_TEXT__("runtime.save_failed"):m.persistPending?__WEBUI_TEXT__("runtime.saving"):__WEBUI_TEXT__("runtime.idle"));t('hLease',m.active?String(m.leaseId):'');t('hLoopMax',s.health.loopMaxGapMs+__WEBUI_TEXT__("runtime.ms_2"));updH(s.health,s.safety);const nv=s.nvs||{},nf=nv.lastFailure;t('hNvsLayout',nv.layoutExpected?__WEBUI_TEXT__("runtime.expected"):__WEBUI_TEXT__("runtime.mismatch"));t('hNvsSize',typeof nv.partitionBytes==='number'?Math.round(nv.partitionBytes/1024)+__WEBUI_TEXT__("runtime.kib"):'');t('hNvsEntries',nv.statsValid&&typeof nv.usedEntries==='number'?nv.usedEntries+__WEBUI_TEXT__("runtime.symbol_11")+nv.availableEntries:'');t('hNvsTotal',nv.statsValid&&typeof nv.freeEntries==='number'?nv.freeEntries+__WEBUI_TEXT__("runtime.symbol_11")+nv.totalEntries:'');t('hNvsNamespaces',nv.statsValid&&typeof nv.namespaces==='number'?String(nv.namespaces):'');t('hNvsFailures',typeof nv.failures==='number'?String(nv.failures):'');t('hNvsLastFailure',nf?nf.subsystem+__WEBUI_TEXT__("runtime.symbol_8")+nf.operation+__WEBUI_TEXT__("runtime.symbol_8")+nf.errorName:__WEBUI_TEXT__("runtime.none_2"));t('hNvsLockTimeouts',typeof nv.flashIoLockTimeouts==='number'?String(nv.flashIoLockTimeouts):'');t('lastCommand',s.lastCommand&&s.lastCommand.requestId?String(s.lastCommand.requestId):__WEBUI_TEXT__("runtime.none"));t('lastCommandState',s.lastCommand&&s.lastCommand.requestId?(s.lastCommand.state||''):'');if(s.lastCommand&&(s.lastCommand.state==='FAILED'||s.lastCommand.state==='CANCELED')&&s.lastCommand.requestId&&s.lastCommand.requestId!==window.__lastCmdFailShown){window.__lastCmdFailShown=s.lastCommand.requestId;message(__WEBUI_TEXT__("runtime.last_command")+s.lastCommand.state.toLowerCase()+'.','error')}const time=s.time;t('ntpStatus',ntpStateLabel(time));t('ntpServer',time&&time.activeServer);t('zoneName',s.config.timezoneId||__WEBUI_TEXT__("runtime.timezone_pending"));t('uo',formatDiagnosticTimezoneOffset(s.config));t('lastSync',time?.lastSyncUtcSec&&s.config.lastSyncOffsetKnown&&formatWallTime(time.lastSyncUtcSec,s.config.lastSyncAppliedTimezoneOffsetMinutes));renderDiagClock();const n=s.network;t('hWifiState',n.staState);t('hWifiPs',n.wifiPs);t('hWifiCoex',n.wifiCoex);t('hSsid',n.ssid);t('hWifiChannel',n.staState==='CONNECTED'&&typeof n.channel==='number'&&n.channel>0?String(n.channel):'');t('hWifiIp',n.staIp);t('hWifiSignal',typeof n.signalQualityPct==='number'?n.signalQualityPct+__WEBUI_TEXT__("runtime.symbol_4"):'');t('hWifiRssi',typeof n.rssi==='number'?n.rssi+__WEBUI_TEXT__("runtime.dbm"):'');t('hWifiCreds',n.wifiConfigured?__WEBUI_TEXT__("runtime.saved"):__WEBUI_TEXT__("runtime.none_2"));t('hWifiIpMode',n.ipMode==='static'?__WEBUI_TEXT__("runtime.static_ip"):__WEBUI_TEXT__("runtime.dhcp"));t('hWifiConfirm',n.configState==='PENDING'?__WEBUI_TEXT__("runtime.pending")+(n.confirmRemainingMs?(__WEBUI_TEXT__("runtime.symbol_3")+Math.ceil(n.confirmRemainingMs/1000)+__WEBUI_TEXT__("runtime.s")):''):'');t('hApState',n.apActive?__WEBUI_TEXT__("runtime.active_2"):__WEBUI_TEXT__("runtime.inactive"));t('hApSsid',n.apSsid||__WEBUI_TEXT__("runtime.advancedshotstopperap"));t('hApIp',n.apIp);t('hApClients',String(n.apClients));const ser=s.serial||{};t('dSerialIo4',{closed:__WEBUI_TEXT__("runtime.closed"),open:__WEBUI_TEXT__("runtime.open_2")}[ser.io4]||__WEBUI_TEXT__("runtime.unknown"));t('dSerialState',{enabled_jtag:__WEBUI_TEXT__("runtime.enabled_compile_flag"),enabled_io4:__WEBUI_TEXT__("runtime.enabled_io04"),disabled:__WEBUI_TEXT__("runtime.disabled")}[ser.state]||__WEBUI_TEXT__("runtime.unknown"));const f=s.compileFlags||{};t('dBz',f.buzzer);t('dCircuit',f.remoteMachineControl?__WEBUI_TEXT__("runtime.enabled"):__WEBUI_TEXT__("runtime.disabled_2"));t('dArch',[f.arch,'HW: '+f.hardwareProfile,'Machine: '+f.machineBrand+' '+f.machineModel+' ('+f.machineProfile+')'].join(' · '))}function applyAdminStatus(s){const unlocked=!!s.adminUnlocked;syncAdminSessionUi(unlocked);const hint=$('adminConfirmHint');if(hint){const pending=s.network&&s.network.configState==='PENDING';hint.classList.toggle('hidden',unlocked||!pending);if(pending&&!unlocked){const sec=s.network.confirmRemainingMs?Math.ceil(s.network.confirmRemainingMs/1000):0;hint.textContent=__WEBUI_TEXT__("runtime.pending_wi_fi_confirm_this_window_will")+(sec?('. '+sec+__WEBUI_TEXT__("runtime.s_remaining")):'.')}}if(!unlocked)return;ensureUiOverridePanel();{const op=$('uiOverridePanel'),ob=$('uiOverrideButton'),oh=$('uiOverrideHint');if(op)op.classList.toggle('hidden',!!s.configMutable);if(ob){const r=typeof s.webUiOverrideRemainingMs==='number'?s.webUiOverrideRemainingMs:0,a=!!s.webUiOverrideActive&&r>0,n=a?Math.ceil(r/1e3):0,t=ob.querySelector('.t');if(t)t.textContent=a?n+__WEBUI_TEXT__("runtime.s"):__WEBUI_TEXT__("runtime.unlock_1_min");if(oh)oh.textContent=a?n+__WEBUI_TEXT__("runtime.s_restart"):__WEBUI_TEXT__("runtime.config_lock_override_for_1_min")}}$('networkStatus').textContent=formatNetworkStatus(s.network);loadNetworkAddress(s.network);$('apStatus').textContent=__WEBUI_TEXT__("runtime.ap")+(s.network.apActive?__WEBUI_TEXT__("runtime.active_2"):__WEBUI_TEXT__("runtime.inactive"))+__WEBUI_TEXT__("runtime.advancedshotstopperap_2")+(s.network.apSsid||__WEBUI_TEXT__("runtime.advancedshotstopperap"))+__WEBUI_TEXT__("runtime.advancedshotstopperap_2")+s.network.apIp+__WEBUI_TEXT__("runtime.unknown_3")+s.network.apClients+__WEBUI_TEXT__("runtime.client_s");if(!powerDirty){if($('bleScanIntensity'))$('bleScanIntensity').value=(s.bleScan&&s.bleScan.scanIntensity)||'balanced';}if(!bleDirty&&$('bleEnabled'))$('bleEnabled').checked=!(s.bleScan&&s.bleScan.enabled===false);if(!bleDirty)bleBaseline=snapshotControls(document.querySelectorAll('#blePanel input,#blePanel select'));if(!powerDirty)powerBaseline=snapshotControls(document.querySelectorAll('#powerPanel input,#powerPanel select'));if(!frontendDirty)frontendBaseline=snapshotControls(document.querySelectorAll('#frontendPanel input,#frontendPanel select'));$('restartButton').disabled=!controlsMutable;applyOtaStatus(s.ota);loadAdminConfig(s.config);if(!dateTimeDirty)dateTimeBaseline=snapshotControls(document.querySelectorAll('#dateTimePanel input,#dateTimePanel select,#dateTimePanel textarea'));const sync=s.time?.lastSyncUtcSec||0;if(sync&&sync!==timezonePreviewSync){timezonePreviewSync=sync;refreshTimezonePreview()}else renderTimezonePreview()}
-const OTA_UPLOAD_TIMEOUT_MS=15*60*1000;
-const OTA_COMMAND_TIMEOUT_MS=60*1000;
-let otaBusy=false,otaLastStatus=null;
-function otaTagText(t){return t?t.version+__WEBUI_TEXT__("runtime.symbol_8")+t.arch:__WEBUI_TEXT__("runtime.unknown")}
-function otaKib(n){return typeof n==='number'&&isFinite(n)?Math.round(n/1024)+' KiB':__WEBUI_TEXT__("runtime.unknown_size")}
-function otaStatusText(o){const pending=otaCommitStored();if(pending)return otaCheckBoot(pending,o);if(!o.available)return __WEBUI_TEXT__("runtime.this_controller_has_no_spare_firmware_slot");if(o.restartPending)return __WEBUI_TEXT__("runtime.flashed_restart_waits_until_the_shot_ends");if(!o.confirmed)return __WEBUI_TEXT__("runtime.firmware_confirmation_pending")+(o.confirmBlockReason||__WEBUI_TEXT__("runtime.waiting_for_startup"))+__WEBUI_TEXT__("runtime.symbol_12")+(o.confirmLastError?__WEBUI_TEXT__("runtime.esp_idf_error")+o.confirmLastError+'.':'');if(o.state==='receiving')return __WEBUI_TEXT__("runtime.receiving_a_firmware_image");if(o.state==='staged')return __WEBUI_TEXT__("runtime.verified_and_waiting_for_you_to_flash");if(!o.safe)return __WEBUI_TEXT__("runtime.waiting_for_idle")+o.lockReason+__WEBUI_TEXT__("runtime.symbol_12");return __WEBUI_TEXT__("runtime.ready_for_a_firmware_image")}
-function applyOtaStatus(o){if(!$('otaPanel'))return;if(!o){$('otaStatus').textContent=__WEBUI_TEXT__("runtime.firmware_updates_are_unavailable");['otaVerifyButton','otaFlashButton','otaDiscardButton','otaFile'].forEach(id=>{if($(id))$(id).disabled=true});return}otaLastStatus=o;const staged=o.state==='staged'&&o.staged?o.staged:null,active=!!o.sessionActive;$('otaStatus').textContent=otaStatusText(o)+(active?__WEBUI_TEXT__("runtime.resumable_transfer")+otaKib(o.nextOffset||0)+__WEBUI_TEXT__("runtime.symbol_11")+otaKib(o.expectedBytes||0):'');$('otaRunning').textContent=__WEBUI_TEXT__("runtime.running")+otaTagText(o.running)+__WEBUI_TEXT__("runtime.update_slot")+otaKib(o.slotBytes);$('otaStaged').textContent=staged?__WEBUI_TEXT__("runtime.verified_image")+otaTagText(staged)+__WEBUI_TEXT__("runtime.unknown_3")+otaKib(o.receivedBytes):active?__WEBUI_TEXT__("runtime.transfer")+(o.transferId||'')+__WEBUI_TEXT__("runtime.expires_in")+Math.ceil((o.sessionExpiresInMs||0)/6e4)+__WEBUI_TEXT__("runtime.min_3"):__WEBUI_TEXT__("runtime.no_verified_image");const ready=controlsMutable&&o.available&&o.safe&&o.confirmed&&!o.restartPending&&!otaBusy;$('otaFile').disabled=!ready;$('otaVerifyButton').disabled=!ready;$('otaFlashButton').disabled=!ready||!staged;$('otaDiscardButton').disabled=!ready||(!staged&&!active);if(active&&o.expectedBytes)$('otaProgress').value=Math.round(100*(o.nextOffset||0)/o.expectedBytes)}
-function otaSend(path,payload,onProgress,timeoutMs,method='POST',headers={}){return acquireDeviceSlot().then(()=>new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();xhr.open(method,path,true);xhr.timeout=timeoutMs;xhr.setRequestHeader(WEB_UI_CLIENT_HEADER,webUiClientId);Object.keys(headers).forEach(k=>xhr.setRequestHeader(k,headers[k]));if(payload&&!(headers['Content-Type']))xhr.setRequestHeader('Content-Type','application/octet-stream');if(onProgress&&xhr.upload)xhr.upload.onprogress=e=>{if(e.lengthComputable)onProgress(Math.round(e.loaded*100/e.total))};xhr.onload=()=>{let data={};try{data=xhr.responseText?JSON.parse(xhr.responseText):{}}catch(_){const e=new Error(__WEBUI_TEXT__("runtime.invalid_response_http")+xhr.status+__WEBUI_TEXT__("runtime.symbol_10"));e.status=xhr.status;reject(e);return}if(xhr.status>=200&&xhr.status<300)resolve(data);else{const e=new Error(data.message||data.error||(__WEBUI_TEXT__("runtime.http")+xhr.status));e.status=xhr.status;e.code=data.error||'';reject(e)}};xhr.onerror=()=>reject(new Error(__WEBUI_TEXT__("runtime.device_unreachable")));xhr.ontimeout=()=>reject(new Error(__WEBUI_TEXT__("runtime.device_timeout")));xhr.onabort=()=>reject(new Error(__WEBUI_TEXT__("runtime.the_upload_was_cancelled")));xhr.send(payload||null)}).finally(()=>releaseDeviceSlot()))}
-function otaBeginBusy(){otaBusy=true;applyOtaStatus(otaLastStatus)}
-function otaEndBusy(data,fallbackText,kind){otaBusy=false;$('otaProgress').classList.add('hidden');$('otaProgress').value=0;if(data)applyOtaStatus(data);else applyOtaStatus(otaLastStatus);if(fallbackText)message(fallbackText,kind||'');refreshStatus()}
-function otaTransferId(){const b=new Uint8Array(18);crypto.getRandomValues(b);return Array.from(b,x=>x.toString(16).padStart(2,'0')).join('')}
-function otaStored(){try{return JSON.parse(localStorage.getItem('ssOtaSession')||'null')}catch(_){return null}}
-function otaStore(v){try{localStorage.setItem('ssOtaSession',JSON.stringify(v))}catch(_){}}
-function otaClearStore(){try{localStorage.removeItem('ssOtaSession')}catch(_){}}
-const OTA_PROTOCOL_VERSION=3;
-async function otaFileIdentity(file){return(await import('/js/ota-image.js?v=__FW_ASSET_TAG__')).otaFileIdentity(file)}
-function otaRemoteMatches(identity,status){return!!(status&&status.transferId&&(!identity.transferId||status.transferId===identity.transferId)&&status.sha256===identity.sha256&&status.expectedBytes===identity.size&&status.sessionArch===identity.arch&&status.sessionHardware===identity.hardware&&status.sessionMachine===identity.machine&&status.sessionVersion===identity.version)}
-function otaSessionIdentity(identity,status){if(!status||status.otaProtocolVersion!==OTA_PROTOCOL_VERSION)throw new Error(__WEBUI_TEXT__("runtime.this_controller_does_not_support_the_resumable"));if(status.runningIdentityValid!==true)throw new Error(__WEBUI_TEXT__("runtime.the_running_firmware_has_no_usable_image"));if(!status.running||identity.hardware!==status.running.hardware||identity.machine!==status.running.machine)throw new Error(__WEBUI_TEXT__("runtime.the_running_firmware_has_no_usable_image"));const occupied=status.sessionActive||status.state==='staged';if(occupied){if(!otaRemoteMatches(identity,status))throw new Error(__WEBUI_TEXT__("runtime.another_firmware_image_owns_the_update_slot"));return{...identity,transferId:status.transferId}}const saved=otaStored(),same=saved&&saved.size===identity.size&&saved.sha256===identity.sha256&&saved.arch===identity.arch&&saved.hardware===identity.hardware&&saved.machine===identity.machine&&saved.version===identity.version&&saved.transferId;return{...identity,transferId:same?saved.transferId:otaTransferId()}}
-function otaSessionBody(session){const{size,sha256,arch,hardware,machine,version,transferId}=session;return JSON.stringify({size,sha256,arch,hardware,machine,version,transferId})}
-function otaValidOffset(offset,size){return Number.isInteger(offset)&&offset>=0&&offset<=size&&(offset===size||offset%4096===0)}
-function otaRecoverable(session,status){return otaRemoteMatches(session,status)&&status.sessionActive===true&&status.state==='receiving'&&otaValidOffset(status.nextOffset,session.size)}
-function otaUploadErrorText(session,status,error){
-  if(error.otaFileChanged)return error.message;
-  if(error.code==='OTA_SESSION_EXPIRED'||status&&status.lastResult==='OTA_SESSION_EXPIRED')return __WEBUI_TEXT__("runtime.the_firmware_upload_session_expired_choose_the");
-  if(error.message==='The upload was cancelled.')return __WEBUI_TEXT__("runtime.the_firmware_upload_was_cancelled");
-  if(error.status>=400&&error.status<500&&error.code!=='RECEIVE_FAILED')return __WEBUI_TEXT__("runtime.the_firmware_upload_was_rejected");
-  if(session&&otaRecoverable(session,status))return __WEBUI_TEXT__("runtime.the_firmware_upload_paused_choose_the_same");
-  if(session&&otaRemoteMatches(session,status)&&status.state==='staged')return __WEBUI_TEXT__("runtime.the_firmware_is_verified_refresh_its_status");
-  if(error.status)return __WEBUI_TEXT__("runtime.the_firmware_upload_was_rejected");
-  if(session&&!status)return __WEBUI_TEXT__("runtime.the_upload_result_could_not_be_checked");
-  if(session&&status&&!status.sessionActive)return __WEBUI_TEXT__("runtime.the_firmware_upload_session_no_longer_exists");
-  return __WEBUI_TEXT__("runtime.the_firmware_upload_failed");
-}
-async function otaUpload(){
-  const files=$('otaFile').files,file=files&&files[0];
-  if(!file){showFieldError('otaFile',__WEBUI_TEXT__("runtime.choose_the_firmware_bin_file_to_upload"));return}
-  clearFieldErrors();const slot=otaLastStatus&&otaLastStatus.slotBytes;
-  if(typeof slot==='number'&&file.size>slot){showFieldError('otaFile',__WEBUI_TEXT__("runtime.that_file_is")+otaKib(file.size)+__WEBUI_TEXT__("runtime.larger_than_the")+otaKib(slot)+__WEBUI_TEXT__("runtime.update_slot_2"));return}
-  const bar=$('otaProgress');bar.value=0;bar.classList.remove('hidden');otaBeginBusy();let session=null,status=null;
-  try{
-    message(__WEBUI_TEXT__("runtime.checking_firmware_identity"));
-    const identity=await otaFileIdentity(file),remote=await otaSend('/api/v1/ota/session',null,null,OTA_COMMAND_TIMEOUT_MS,'GET');
-    session=otaSessionIdentity(identity,remote);
-    status=await otaSend('/api/v1/ota/session',otaSessionBody(session),null,OTA_COMMAND_TIMEOUT_MS,'POST',{'Content-Type':'application/json'});
-    if(!otaRemoteMatches(session,status))throw new Error(__WEBUI_TEXT__("runtime.the_controller_returned_a_different_or_incomplete"));
-    let offset=status.nextOffset,highWater=offset,failures=0;
-    if(!otaValidOffset(offset,file.size))throw new Error(__WEBUI_TEXT__("runtime.the_controller_reported_an_invalid_firmware_offset"));
-    otaStore(session);otaCommitStore(null);
-    while(offset<file.size){
-      const end=Math.min(file.size,offset+65536);
-      if(!await session.verifyRange(offset,end)){const changed=new Error(__WEBUI_TEXT__("runtime.the_firmware_file_changed_while_it_was"));changed.otaFileChanged=true;throw changed}
-      const chunk=file.slice(offset,end),headers={'X-OTA-Transfer':session.transferId,'X-OTA-Offset':String(offset),'X-OTA-Length':String(file.size),'Content-Range':'bytes '+offset+'-'+(end-1)+'/'+file.size};
-      let reconciled=false;
-      try{status=await otaSend('/api/v1/ota',chunk,null,OTA_UPLOAD_TIMEOUT_MS,'PATCH',headers)}
-      catch(e){
-        failures++;
-        status=await otaSend('/api/v1/ota/session',null,null,OTA_COMMAND_TIMEOUT_MS,'GET');
-        if(!otaRemoteMatches(session,status)||(!otaRecoverable(session,status)&&status.state!=='staged'))throw e;
-        if(failures>=3&&status.nextOffset!==file.size)throw e;
-        reconciled=true;
-      }
-      const next=status.nextOffset;
-      if(!otaRemoteMatches(session,status)||!otaValidOffset(next,file.size)||next>end||(!reconciled&&next!==end))throw new Error(__WEBUI_TEXT__("runtime.the_controller_did_not_confirm_a_valid"));
-      // Recovery may go backwards to the last durable checkpoint. Only new
-      // progress beyond the high-water mark resets the bounded retry budget.
-      if(next>highWater){highWater=next;failures=0}
-      offset=next;bar.value=Math.round(100*offset/file.size);
-    }
-    if(status.state!=='staged'||!status.staged||status.staged.arch!==identity.arch||status.staged.version!==identity.version||status.staged.packed!==identity.packed)throw new Error(__WEBUI_TEXT__("runtime.the_controller_did_not_report_the_expected"));
-    otaEndBusy(status,__WEBUI_TEXT__("runtime.firmware_verified")+otaTagText(status.staged)+'. Review it, then flash.','ok');
-  }catch(e){
-    let current=null;
-    if(session){try{current=await otaSend('/api/v1/ota/session',null,null,OTA_COMMAND_TIMEOUT_MS,'GET')}catch(_){}}
-    otaEndBusy(current,formatCommandError(otaUploadErrorText(session,current,e),e),'error');
+function resolveDiagFrame() {
+  if (diagnosticReady() && diagResolve) {
+    const r = diagResolve;
+    diagResolve = null;
+    clearTimeout(diagSetup);
+    r(true);
   }
 }
-function otaCommitStored(){try{return JSON.parse(localStorage.getItem('ssOtaCommit')||'null')}catch(_){return null}}
-function otaCommitStore(value){try{if(value)localStorage.setItem('ssOtaCommit',JSON.stringify(value));else localStorage.removeItem('ssOtaCommit')}catch(_){}}
-function otaCheckBoot(expected,status){
-  if(!Number.isInteger(expected.bootId)||!Number.isInteger(status.bootId)||!expected.imageSha256||!status.running||!status.running.imageSha256)return __WEBUI_TEXT__("runtime.update_result_unverified_firmware_does_not_expose");
-  if(status.bootId===expected.bootId)return status.restartPending||status.state==='committed'?__WEBUI_TEXT__("runtime.flashed_waiting_for_the_controller_to_restart"):__WEBUI_TEXT__("runtime.commit_not_yet_verified_refresh_status_before");
-  if(status.running.imageSha256!==expected.imageSha256)return __WEBUI_TEXT__("runtime.the_controller_restarted_into_another_image_the");
-  if(!status.confirmed)return __WEBUI_TEXT__("runtime.expected_firmware_booted_confirmation_pending")+(status.confirmBlockReason||'startup')+').'+(status.confirmLastError?__WEBUI_TEXT__("runtime.esp_idf_error")+status.confirmLastError+'.':'');
-  otaCommitStore(null);otaClearStore();message(__WEBUI_TEXT__("runtime.ota_confirmed_by_the_rebooted_firmware"),'ok');return __WEBUI_TEXT__("runtime.ota_confirmed_by_the_rebooted_firmware");
+function scheduleDiagPaint() {
+  diagPaint ||
+    (diagPaint = requestAnimationFrame(() => {
+      diagPaint = 0;
+      paintDiagnosticStream();
+    }));
 }
-async function otaFlash(){
-  const current=otaLastStatus,staged=current&&current.state==='staged'&&current.staged;
-  if(!staged){message(__WEBUI_TEXT__("runtime.upload_and_verify_a_firmware_image_first"),'warn');return}
-  if(!confirm(__WEBUI_TEXT__("runtime.flash")+otaTagText(staged)+__WEBUI_TEXT__("runtime.and_restart_the_controller")))return;
-  const saved=otaStored(),session={size:current.expectedBytes,sha256:current.sha256,arch:current.sessionArch,hardware:current.sessionHardware,machine:current.sessionMachine,version:current.sessionVersion,transferId:current.transferId},expected={...session,bootId:current.bootId,imageSha256:saved&&otaRemoteMatches(saved,current)?saved.imageSha256:(staged.imageSha256||'')};
-  otaBeginBusy();let data=null;
-  try{
-    data=await otaSend('/api/v1/ota/session',null,null,OTA_COMMAND_TIMEOUT_MS,'GET');
-    if(!otaRemoteMatches(session,data)||data.state!=='staged')throw new Error(__WEBUI_TEXT__("runtime.the_staged_transfer_changed_before_flash"));
-    expected.bootId=data.bootId;otaCommitStore(expected);
-    for(let attempt=1;attempt<=3;attempt++){
-      try{data=await otaSend('/api/v1/ota/flash',null,null,OTA_COMMAND_TIMEOUT_MS);if(!otaRemoteMatches(session,data))throw new Error(__WEBUI_TEXT__("runtime.the_commit_response_did_not_identify_the"));break}
-      catch(error){
-        data=await otaSend('/api/v1/ota/session',null,null,OTA_COMMAND_TIMEOUT_MS,'GET');
-        const rebooted=Number.isInteger(expected.bootId)&&Number.isInteger(data.bootId)&&data.bootId!==expected.bootId;
-        if(rebooted)break;
-        if(!otaRemoteMatches(session,data))throw error;
-        if(data.restartPending||data.state==='committed')break;
-        if(data.state!=='staged'||attempt===3)throw error;
+function paintDiagnosticStream() {
+  if (activeView !== "diagnostic" || !diagFrame) return;
+  applyDiagnosticLive(diagFrame.status);
+  const apply = viewStatusHandlers["diagnostic"];
+  if (apply && diagnosticReady()) apply(diagFrame.status);
+}
+async function loadDiagnosticStatus() {
+  startUiStream();
+  startDiagnosticStream();
+  return diagnosticReady() || (await diagReady) ? diagFrame?.status : null;
+}
+function startDiagnosticStream() {
+  if (!webUiPollingActive() || diagStreamWanted) return;
+  diagStreamWanted = true;
+  armDiagnosticReady();
+  if (shotWs && shotWs.readyState === 1) shotWs.send('{"op":"diagnostic","on":true}');
+}
+function stopDiagnosticStream() {
+  clearTimeout(diagSetup);
+  diagStreamWanted = false;
+  diagFrame = null;
+  diagResolve && diagResolve(false);
+  diagResolve = null;
+  if (shotWs && shotWs.readyState === 1) shotWs.send('{"op":"diagnostic","on":false}');
+}
+// The serial log rides the owned socket: subscribe with the rendered tail's
+// cursor; watermark-gated frames push new events without REST polling.
+let logStreamWanted = false;
+function sendUiOperation(op) {
+  if (shotWs && shotWs.readyState === 1) shotWs.send(JSON.stringify(op));
+}
+function startLogStream() {
+  if (webUiPollingActive() && (diagnosticUnlocked || diagnosticPublicView || developmentMode)) {
+    if (!logStreamWanted) {
+      logStreamWanted = true;
+      sendUiOperation({ op: "log", on: true, after: lastLog });
+    }
+    return true;
+  }
+  return false;
+}
+function stopLogStream() {
+  logStreamWanted = false;
+  sendUiOperation({ op: "log", on: false });
+}
+function logStreamFrame(m) {
+  if (
+    m.v !== 1 ||
+    !Number.isInteger(m.bootId) ||
+    !Array.isArray(m.events) ||
+    typeof m.hasMore !== "boolean" ||
+    typeof m.cursorInvalid !== "boolean" ||
+    ["historyOverwritten", "missedEvents", "serialDropped"].some((k) => !Number.isInteger(m[k]))
+  )
+    throw Error();
+  for (const e of m.events)
+    if (
+      !e ||
+      !Number.isInteger(e.sequence) ||
+      !Number.isInteger(e.atMs) ||
+      !Number.isInteger(e.wallSec) ||
+      !Number.isInteger(e.localSec) ||
+      typeof e.level !== "string" ||
+      typeof e.category !== "string" ||
+      typeof e.message !== "string"
+    )
+      throw Error();
+  return m;
+}
+function applyLogFrame(m) {
+  const b = +m.bootId;
+  if ((logBootId && b && b !== logBootId) || m.cursorInvalid) {
+    logEvents = [];
+    lastLog = logMissed = 0;
+  }
+  bootId = logBootId = b;
+  logMissed += m.missedEvents || 0;
+  for (const e of m.events) {
+    if (lastLog && ((e.sequence - lastLog) | 0) <= 0) continue;
+    logEvents.push(e);
+    lastLog = e.sequence;
+  }
+  if (logEvents.length > LOG_EVENTS_CAPACITY)
+    logEvents.splice(0, logEvents.length - LOG_EVENTS_CAPACITY);
+  updateLogHealth(m);
+  renderLog();
+  updateFirmwareFooter();
+  if (activeView === "diagnostic") noteReachOk();
+}
+function diagSnapshotOk(s) {
+  return (
+    typeof s.machineState === "string" &&
+    typeof s.state === "string" &&
+    typeof s.relayClosed === "boolean" &&
+    typeof s.controlSource === "string" &&
+    s.cupPresence &&
+    typeof s.cupPresence.state === "string" &&
+    s.safety &&
+    typeof s.safety.state === "string" &&
+    s.scale &&
+    typeof s.scale.streamState === "string"
+  );
+}
+// Request IDs separate the standing History window from scroll fetches.
+let historyStreamWanted = false,
+  historyFetchOffset = -1,
+  historyStreamBoot = 0,
+  historyStreamEpoch = 0,
+  historyRequest = 0,
+  historyFetchRequest = 0,
+  historyNextRequest = 0,
+  historyResolve = null;
+function historySendSubscribe() {
+  if (!shotWs || shotWs.readyState !== 1) return;
+  historyFetchOffset = -1;
+  historyRequest = ++historyNextRequest;
+  sendUiOperation({
+    op: "history",
+    on: true,
+    request: historyRequest,
+    offset: 0,
+    limit: HISTORY_PAGE_SIZE,
+    dir: historyDir,
+  });
+}
+function startHistoryStream() {
+  if (!webUiPollingActive()) return Promise.resolve(false);
+  historyStreamWanted = false;
+  historyResolve?.(false);
+  const ready = new Promise((r) => (historyResolve = r)),
+    resolve = historyResolve;
+  return viewReady.then(() => {
+    if (historyResolve !== resolve || !webUiPollingActive() || activeView !== "history")
+      return false;
+    historyStreamWanted = true;
+    historySendSubscribe();
+    return ready;
+  });
+}
+function stopHistoryStream() {
+  historyStreamWanted = false;
+  historyFetchOffset = -1;
+  historyResolve?.(false);
+  historyResolve = null;
+  sendUiOperation({ op: "history", on: false });
+}
+function historyStreamFrame(message) {
+  if (
+    message.v !== 1 ||
+    !Number.isInteger(message.boot) ||
+    typeof message.snapshot !== "boolean" ||
+    !Number.isInteger(message.epoch) ||
+    !Number.isInteger(message.request) ||
+    !Number.isInteger(message.total) ||
+    message.total < 0 ||
+    !Number.isInteger(message.offset) ||
+    message.offset < 0 ||
+    !Number.isInteger(message.limit) ||
+    message.limit < 1 ||
+    message.limit > 120 ||
+    typeof message.hasMore !== "boolean" ||
+    !Array.isArray(message.records)
+  )
+    throw Error();
+  if (!message.snapshot && message.boot !== historyStreamBoot) throw Error();
+  if (
+    message.offset + message.records.length > message.total ||
+    message.hasMore !== message.offset + message.records.length < message.total
+  )
+    throw Error();
+  for (const r of message.records) {
+    if (
+      !r ||
+      !Number.isInteger(r.id) ||
+      r.id <= 0 ||
+      typeof r.type !== "string" ||
+      typeof r.durationS !== "number" ||
+      !Number.isFinite(r.durationS) ||
+      typeof r.hasWallTime !== "boolean" ||
+      !Number.isInteger(r.endedAtUnixSec) ||
+      !Number.isInteger(r.endedAtLocalSec)
+    )
+      throw Error();
+  }
+  if (message.snapshot && !statusPageOk("records", message.ui)) throw Error();
+  return message;
+}
+function applyHistoryStream(message) {
+  if (!historyViewActive()) return;
+  const fetch = historyFetchOffset >= 0 && message.request === historyFetchRequest;
+  if (fetch && message.epoch !== historyStreamEpoch) {
+    historySendSubscribe();
+    return;
+  }
+  const mode = fetch ? "append" : "replace";
+  if (message.snapshot) applyCommonStatus(message.ui);
+  applyHistoryPage(
+    {
+      bootId: message.boot,
+      total: message.total,
+      hasMore: message.hasMore,
+      history: message.records,
+    },
+    mode,
+  );
+  historyStreamBoot = message.boot;
+  historyStreamEpoch = message.epoch;
+  historyFetchOffset = -1;
+  renderHistory();
+  updateFirmwareFooter();
+  noteReachOk();
+  if (mode !== "append" && historyResolve) historyResolve(true);
+}
+// Stats pages assemble atomically; request IDs isolate sorting and CSV export.
+let statsStreamWanted = false,
+  statsFetchMark = null,
+  statsStreamBoot = 0,
+  statsStreamEpoch = 0,
+  statsRequest = 0,
+  statsNextRequest = 0,
+  statsExportRequest = 0,
+  statsLastSeq = 0,
+  statsPage = null,
+  statsResolve = null,
+  statsExportResolve = null;
+function statsSendSubscribe() {
+  if (!shotWs || shotWs.readyState !== 1) return;
+  statsFetchMark = null;
+  statsPage = null;
+  statsExportResolve?.(null);
+  statsRequest = ++statsNextRequest;
+  sendUiOperation({
+    op: "stats",
+    on: true,
+    request: statsRequest,
+    offset: 0,
+    limit: SHOTS_PAGE_SIZE,
+    sort: shotSort,
+    dir: shotSortDir,
+  });
+}
+function startStatsStream() {
+  if (!webUiPollingActive()) return Promise.resolve(false);
+  statsStreamWanted = false;
+  statsResolve?.(false);
+  const ready = new Promise((r) => (statsResolve = r)),
+    resolve = statsResolve;
+  return viewReady.then(() => {
+    if (statsResolve !== resolve || !webUiPollingActive() || activeView !== "stats") return false;
+    statsStreamWanted = true;
+    statsSendSubscribe();
+    return ready;
+  });
+}
+function stopStatsStream() {
+  statsStreamWanted = false;
+  statsFetchMark = null;
+  statsPage = null;
+  statsResolve?.(false);
+  statsResolve = null;
+  if (statsExportResolve) statsExportResolve(null);
+  sendUiOperation({ op: "stats", on: false });
+}
+// One export window at a time: a second request reuses the pending promise
+// instead of orphaning the first to its timeout.
+let statsExportInFlight = null;
+function statsFrameWindow(offset, limit, sort, dir, timeoutMs) {
+  if (statsExportInFlight) return statsExportInFlight;
+  statsFetchMark = null;
+  statsExportRequest = ++statsNextRequest;
+  const pending = (statsExportInFlight = new Promise((resolve) => {
+    const timer = setTimeout(() => statsExportResolve?.(null), timeoutMs);
+    statsExportResolve = (rows) => {
+      clearTimeout(timer);
+      statsExportResolve = null;
+      statsExportRequest = 0;
+      resolve(rows);
+    };
+    sendUiOperation({
+      op: "stats",
+      on: true,
+      fetch: true,
+      request: statsExportRequest,
+      offset,
+      limit,
+      sort,
+      dir,
+    });
+  }));
+  pending.then(() => {
+    statsExportInFlight = null;
+  });
+  return pending;
+}
+function statsRowOk(r) {
+  if (
+    !r ||
+    !Number.isInteger(r.id) ||
+    r.id <= 0 ||
+    !Number.isInteger(r.bootId) ||
+    !Number.isInteger(r.endedAtMs) ||
+    r.endedAtMs < 0 ||
+    typeof r.hasWallTime !== "boolean" ||
+    !Number.isInteger(r.endedAtLocalSec) ||
+    !Number.isInteger(r.endedAtUnixSec) ||
+    typeof r.durationS !== "number" ||
+    !Number.isFinite(r.durationS) ||
+    !Number.isInteger(r.rating)
+  )
+    return false;
+  const w = r.wCg,
+    a = r.wAtMs;
+  if (!Array.isArray(w) || !Array.isArray(a) || w.length !== a.length || w.length > 1201)
+    return false;
+  for (let i = 0; i < w.length; i++) {
+    if (
+      !Number.isInteger(w[i]) ||
+      w[i] > 32767 ||
+      w[i] < -32767 ||
+      !Number.isInteger(a[i]) ||
+      a[i] < 0 ||
+      a[i] > 6e4 ||
+      (i && a[i] < a[i - 1])
+    )
+      return false;
+  }
+  return (
+    Array.isArray(r.wBreakBefore) &&
+    r.wBreakBefore.every((v) => Number.isInteger(v) && v > 0 && v < w.length)
+  );
+}
+function statsStreamFrame(message) {
+  if (
+    message.v !== 1 ||
+    !Number.isInteger(message.boot) ||
+    typeof message.snapshot !== "boolean" ||
+    !Number.isInteger(message.epoch) ||
+    !Number.isInteger(message.request) ||
+    !Number.isInteger(message.seq) ||
+    message.seq < 0 ||
+    !Number.isInteger(message.total) ||
+    message.total < 0 ||
+    !Number.isInteger(message.offset) ||
+    message.offset < 0 ||
+    !Number.isInteger(message.limit) ||
+    message.limit < 1 ||
+    message.limit > 100 ||
+    typeof message.hasMore !== "boolean" ||
+    !Array.isArray(message.rows) ||
+    !Number.isInteger(message.rowBase) ||
+    message.rowBase < 0 ||
+    typeof message.more !== "boolean"
+  )
+    throw Error();
+  if (message.stats !== undefined && (typeof message.stats !== "object" || !message.stats))
+    throw Error();
+  for (const r of message.rows) if (!statsRowOk(r)) throw Error();
+  if (message.offset + message.rowBase + message.rows.length > message.total) throw Error();
+  const buffered = statsPage && statsPage.seq === message.seq;
+  if (buffered) {
+    if (
+      message.snapshot ||
+      message.boot !== statsPage.boot ||
+      message.epoch !== statsPage.epoch ||
+      message.request !== statsPage.request ||
+      message.rowBase !== statsPage.rows.length ||
+      message.total !== statsPage.total ||
+      message.offset !== statsPage.offset ||
+      message.limit !== statsPage.limit ||
+      message.hasMore !== statsPage.hasMore
+    )
+      throw Error();
+  } else {
+    if (message.rowBase !== 0 || message.seq <= statsLastSeq) throw Error();
+    if (!message.snapshot && message.boot !== statsStreamBoot) throw Error();
+    if (message.snapshot && !statusPageOk("records", message.ui)) throw Error();
+  }
+  if (
+    !message.more &&
+    message.hasMore !== message.offset + message.rowBase + message.rows.length < message.total
+  )
+    throw Error();
+  return message;
+}
+function applyStatsStream(message) {
+  if (!shotStatsViewActive()) return;
+  if (!statsPage || statsPage.seq !== message.seq) {
+    const mode =
+      message.request === statsExportRequest
+        ? "export"
+        : message.request === statsFetchMark?.request
+          ? "append"
+          : "replace";
+    if (mode === "append" && message.epoch !== statsStreamEpoch) {
+      statsSendSubscribe();
+      return;
+    }
+    statsPage = {
+      seq: message.seq,
+      boot: message.boot,
+      epoch: message.epoch,
+      request: message.request,
+      mode,
+      total: message.total,
+      offset: message.offset,
+      limit: message.limit,
+      hasMore: message.hasMore,
+      stats: message.stats || null,
+      rows: [],
+    };
+  }
+  if (message.snapshot) applyCommonStatus(message.ui);
+  statsPage.rows.push(...message.rows);
+  if (message.more) return;
+  const page = statsPage;
+  statsPage = null;
+  statsLastSeq = page.seq;
+  if (page.mode === "export") {
+    statsExportResolve?.(page.rows);
+    return;
+  }
+  statsFetchMark = null;
+  statsStreamBoot = message.boot;
+  statsStreamEpoch = page.epoch;
+  applyShotPage(
+    {
+      bootId: message.boot,
+      total: page.total,
+      hasMore: page.hasMore,
+      stats: page.stats,
+      shots: page.rows,
+    },
+    page.mode,
+  );
+  renderShots();
+  updateFirmwareFooter();
+  noteReachOk();
+  if (page.mode !== "append" && statsResolve) statsResolve(true);
+}
+// Back from the background: resync the live socket; rebuild only if it died hidden.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && webUiPollingActive())
+    shotWs && shotWs.readyState === 1 ? (requestShotResync(), shotActivity()) : startUiStream();
+});
+window.addEventListener("pagehide", stopUiStream);
+window.addEventListener("pageshow", () => {
+  if (webUiPollingActive()) startUiStream();
+});
+function formatExtractionGuard(d) {
+  return !d.guardEnabled
+    ? __WEBUI_TEXT__("runtime.off_2")
+    : d.extended
+      ? __WEBUI_TEXT__("runtime.ext") +
+        (d.goal ?? __WEBUI_TEXT__("runtime.unknown")) +
+        __WEBUI_TEXT__("runtime.g_or") +
+        ms(d.minBbwBrewRemainingMs, 1) +
+        __WEBUI_TEXT__("runtime.s_left")
+      : d.inShot
+        ? __WEBUI_TEXT__("runtime.on_2")
+        : __WEBUI_TEXT__("runtime.idle");
+}
+function formatSlowExtractionGuard(d) {
+  return !d.guardEnabled
+    ? __WEBUI_TEXT__("runtime.off_2")
+    : d.extended
+      ? __WEBUI_TEXT__("runtime.ext") +
+        (d.goal ?? __WEBUI_TEXT__("runtime.unknown")) +
+        __WEBUI_TEXT__("runtime.g")
+      : d.inShot
+        ? __WEBUI_TEXT__("runtime.on_2")
+        : __WEBUI_TEXT__("runtime.idle");
+}
+function formatAtmGuard(d) {
+  return !d.atmEnabled
+    ? __WEBUI_TEXT__("runtime.off_2")
+    : d.atmEnforced
+      ? __WEBUI_TEXT__("runtime.a_to_m_2") + ms(d.atmRemainingMs, 0) + __WEBUI_TEXT__("runtime.s")
+      : d.atmArmed
+        ? __WEBUI_TEXT__("runtime.armed")
+        : __WEBUI_TEXT__("runtime.idle");
+}
+function formatNoScaleGuard(g) {
+  if (!g || !g.enabled) return__WEBUI_TEXT__("runtime.off_2");
+  if (!g.armed)
+    return__WEBUI_TEXT__("runtime.temporarily_allowed") +
+      Math.ceil(g.cooldownRemainingMs / 6e4) +
+      __WEBUI_TEXT__("runtime.min_2");
+  return g.mode === "require_scale"
+    ? g.scaleUsable
+      ? __WEBUI_TEXT__("runtime.ready_2")
+      : __WEBUI_TEXT__("runtime.scale_required")
+    : __WEBUI_TEXT__("runtime.armed");
+}
+function formatAccidentalTouch(d) {
+  return !d.enabled
+    ? __WEBUI_TEXT__("runtime.off_2")
+    : d.holding
+      ? __WEBUI_TEXT__("runtime.holding")
+      : d.inShot
+        ? __WEBUI_TEXT__("runtime.active")
+        : __WEBUI_TEXT__("runtime.idle");
+}
+function formatCupProtection(d) {
+  return !d.enabled
+    ? __WEBUI_TEXT__("runtime.off_2")
+    : d.inShot
+      ? d.stopIfRemoved
+        ? __WEBUI_TEXT__("runtime.armed")
+        : __WEBUI_TEXT__("runtime.brew_allowed")
+      : d.requireCupToStart && d.scaleUsable && !d.present
+        ? __WEBUI_TEXT__("runtime.can_t_brew_no_cup")
+        : d.aborted
+          ? __WEBUI_TEXT__("runtime.shot_aborted")
+          : __WEBUI_TEXT__("runtime.brew_allowed");
+}
+function setHomeSub(id, v) {
+  const e = $(id);
+  if (e && e.textContent !== v) e.textContent = v;
+}
+function updateHomeGuardSubs(s, live) {
+  const nl = {
+    off: __WEBUI_TEXT__("runtime.off_2"),
+    warn_once: __WEBUI_TEXT__("runtime.warn_once"),
+    require_scale: __WEBUI_TEXT__("runtime.require_scale"),
+  };
+  if ($("homeNoScaleBbwMode"))
+    $("homeNoScaleBbwMode").textContent =
+      nl[(s.config || {}).noScaleBbwMode] || __WEBUI_TEXT__("runtime.warn_once");
+  const c = s.cycle || {},
+    cfg = s.config || {},
+    b = !!cfg.brewByWeight,
+    t = c.shotType,
+    sc = s.scale || {},
+    ls = s.lastShot || {};
+  setHomeSub(
+    "homeBbwSub",
+    !b
+      ? __WEBUI_TEXT__("runtime.off_2")
+      : !live
+        ? __WEBUI_TEXT__("runtime.idle")
+        : t === "auto"
+          ? __WEBUI_TEXT__("runtime.active")
+          : t === "timer_only"
+            ? __WEBUI_TEXT__("runtime.timer_only")
+            : t === "manual"
+              ? "Manual"
+              : t === "rinse"
+                ? __WEBUI_TEXT__("runtime.rinse")
+                : __WEBUI_TEXT__("runtime.on_2"),
+  );
+  setHomeSub("homeNoScaleSub", formatNoScaleGuard(b ? s.noScaleShotGuard : { enabled: 0 }));
+  setHomeSub(
+    "homeFastSub",
+    formatExtractionGuard({
+      guardEnabled: b && !!cfg.fastExtractionGuardEnabled,
+      extended: live && c.extractionExtended,
+      goal: c.activeStopWeightG,
+      minBbwBrewRemainingMs: c.minBbwBrewTimeRemainingMs,
+      inShot: live,
+    }),
+  );
+  setHomeSub(
+    "homeTouchSub",
+    formatAccidentalTouch({
+      enabled: b && !!cfg.avoidAccidentalTouchEnabled,
+      holding: live && !!c.accidentalTouchHolding,
+      inShot: live,
+    }),
+  );
+  setHomeSub(
+    "homeSlowSub",
+    formatSlowExtractionGuard({
+      guardEnabled: b && !!cfg.slowExtractionGuardEnabled,
+      extended: live && c.slowExtractionExtended,
+      goal: c.activeStopWeightG,
+      inShot: live,
+    }),
+  );
+  setHomeSub(
+    "homeAtmSub",
+    formatAtmGuard({
+      atmEnabled: b && !!cfg.autoToManualGuardEnabled,
+      atmEnforced: live && c.autoToManualGuardEnforced,
+      atmArmed: live && c.autoToManualGuardArmed,
+      atmRemainingMs: c.autoToManualGuardRemainingMs,
+    }),
+  );
+  setHomeSub(
+    "homeCupSub",
+    formatCupProtection({
+      enabled: b && !!cfg.cupProtectionEnabled,
+      requireCupToStart: !!cfg.requireCupToStart,
+      stopIfRemoved: !!cfg.stopIfCupRemoved,
+      present: !!(s.cupPresence && s.cupPresence.present),
+      scaleUsable: !!(sc.available && sc.streamState === "FRESH"),
+      inShot: live,
+      aborted: !live && !!ls.valid && ls.endReason === "cup_removed",
+    }),
+  );
+}
+function renderShotHero(d) {
+  const hero = $("shotHero");
+  if (!hero) return;
+  const t = (id, v) => ($("shotHero" + id).textContent = v),
+    wt = typeof d.weight === "number" ? d.weight : null,
+    goal = d.goal,
+    scale = wt !== null && goal > 0 ? Math.max(goal, wt) : 0,
+    err = scale ? (((wt - goal) / goal) * 100).toFixed(1) + "%" : "",
+    el = d.elapsedMs,
+    drop = d.firstDropMs,
+    flow = typeof d.averageFlowGps === "number" ? d.averageFlowGps : null,
+    model = buildShotSparkModel({
+      wCg: d.wCg,
+      wAtMs: d.wAtMs,
+      wBreakBefore: d.wBreakBefore,
+      wTruncated: d.wTruncated,
+      wDtS: d.wDtS,
+      durationS: typeof el === "number" ? el / 1000 : null,
+      firstDropS: drop != null ? drop / 1000 : null,
+      tareS: d.tareMs != null ? d.tareMs / 1000 : null,
+      dropS: d.dropS,
+      dropCg: d.dropCg,
+      extendedS: d.extendedS,
+      extCg: d.extCg,
+      atmS: d.atmS,
+      atmCg: d.atmCg,
+      atmClearedS: d.atmClearedS,
+      endS: d.endS,
+      endCg: d.endCg,
+      extractionExtended: d.extractionExtended,
+      slowExtractionExtended: d.slowExtractionExtended,
+      goalG: goal,
+    });
+  hero.hidden = false;
+  hero.classList.toggle("live", !!d.live);
+  t("State", d.live ? __WEBUI_TEXT__("home.hero_brewing") : __WEBUI_TEXT__("home.hero_last_shot"));
+  t(
+    "Preset",
+    d.presetName && d.presetName !== __WEBUI_TEXT__("runtime.unknown")
+      ? __WEBUI_TEXT__("runtime.symbol_8") + d.presetName
+      : "",
+  );
+  const noScale = d.scaleAvailable === false;
+  const label =
+    t(
+      "Weight",
+      noScale
+        ? ms(el, 1) + __WEBUI_TEXT__("runtime.s_2")
+        : wt === null
+          ? __WEBUI_TEXT__("runtime.unknown")
+          : wt.toFixed(1) + __WEBUI_TEXT__("runtime.g_2"),
+    ) + t("Goal", noScale ? "" : goal > 0 ? " / " + goal + " g" : "");
+  const hTrack = $("shotHeroTrack");
+  if (hTrack) {
+    hTrack.style.setProperty("--goal-pct", (scale ? (goal / scale) * 100 : 100) + "%");
+    hTrack.setAttribute("aria-label", label);
+  }
+  $("shotHeroBar").style.width = (scale ? (wt / scale) * 100 : 0) + "%";
+  const chip = (id, v) => {
+    const e = $("shotHero" + id);
+    e.hidden = !v;
+    e.textContent = v || "";
+  };
+  chip("Elapsed", !noScale && ms(el, 1) + __WEBUI_TEXT__("runtime.s_2"));
+  chip(
+    "Drop",
+    !noScale &&
+      drop != null &&
+      __WEBUI_TEXT__("home.hero_first_drop") + " " + ms(drop, 1) + __WEBUI_TEXT__("runtime.s_2"),
+  );
+  chip(
+    "Flow",
+    !noScale &&
+      flow !== null &&
+      __WEBUI_TEXT__("runtime.avg_flow") + " " + flow.toFixed(2) + __WEBUI_TEXT__("runtime.g_s"),
+  );
+  chip("Error", !noScale && err && __WEBUI_TEXT__("home.hero_error") + " " + err);
+  const mode = noScale
+    ? __WEBUI_TEXT__("home.hero_no_scale")
+    : d.live
+      ? {
+          auto: __WEBUI_TEXT__("runtime.bbw"),
+          timer_only: __WEBUI_TEXT__("runtime.timer_only"),
+          manual: __WEBUI_TEXT__("runtime.manual"),
+          rinse: __WEBUI_TEXT__("runtime.rinse"),
+        }[(d.shotType || "").toLowerCase()] || ""
+      : formatShotEnded(d.endReason);
+  chip("Mode", mode !== __WEBUI_TEXT__("runtime.unknown") && mode);
+  const spark = $("shotHeroSpark");
+  if (spark) {
+    const segs = model && model.segs.filter((s) => s.pts.length > 1);
+    if (segs && segs.length) {
+      const W = 120,
+        H = 34,
+        P = 1,
+        X = (v) => P + (W - 2 * P) * Math.min(1, v / model.timeMax),
+        Y = (c) => H - P - (H - 2 * P) * Math.min(1, Math.max(0, c / 100 / model.maxW));
+      spark.innerHTML =
+        '<svg viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">' +
+        segs
+          .map((s) => {
+            const p = s.pts
+              .map((q, i) => (i ? "L" : "M") + X(q.t).toFixed(1) + " " + Y(q.cg).toFixed(1))
+              .join("");
+            return (
+              '<path d="' +
+              p +
+              "V" +
+              H +
+              "H" +
+              X(s.pts[0].t).toFixed(1) +
+              'Z" fill="var(--on)" opacity=".18" stroke="none"/><path d="' +
+              p +
+              '" fill="none" stroke="var(--on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+            );
+          })
+          .join("") +
+        '<line x1="0" y1="33.2" x2="120" y2="33.2" stroke="var(--on)" opacity=".25" stroke-width=".7"/></svg>';
+    } else spark.replaceChildren();
+  }
+}
+function clearShotHero() {
+  const hero = $("shotHero");
+  if (hero) hero.hidden = true;
+}
+function shotPresetName(shot) {
+  return (shot && shot.presetName) || __WEBUI_TEXT__("runtime.unknown");
+}
+function checkFirmwareReload(version) {
+  if (
+    !version ||
+    BAKED_FW_VERSION === "dev" ||
+    configDirty ||
+    brewDirty ||
+    dateTimeDirty ||
+    bleDirty ||
+    powerDirty ||
+    frontendDirty
+  )
+    return;
+  if (version === BAKED_FW_VERSION) {
+    try {
+      sessionStorage.removeItem("ssFwReload");
+    } catch (_) {}
+    return;
+  }
+  let reloaded = true;
+  try {
+    reloaded = !!sessionStorage.getItem("ssFwReload");
+    if (!reloaded) sessionStorage.setItem("ssFwReload", "1");
+  } catch (_) {}
+  if (!reloaded) {
+    fwReloading = true; // A fresh-cached navigation may be reopened without revalidating (WebKit
+    // home-screen apps), so reload() can land on the stale copy again; a
+    // changed URL is a new cache key and forces a request to the device.
+    location.replace(location.pathname + "?fw=" + version);
+  }
+}
+function developmentActive() {
+  return developmentMode;
+}
+function applyCommonStatus(s) {
+  if (s.connections || s.snapshotStale) updateHeaderSignals(s);
+  applyDiagnosticNavigation(s);
+  if ("development" in s) developmentMode = !!s.development;
+  if ("compatibilityMode" in s && !!s.compatibilityMode !== compatMode) {
+    compatMode = !!s.compatibilityMode;
+    applyCompatibilityChrome();
+  }
+  setMutable(!!s.configMutable || !!s.webUiOverrideActive);
+  if (s.firmwareVersion) {
+    firmwareVersion = s.firmwareVersion;
+    checkFirmwareReload(s.firmwareVersion);
+  }
+  if (typeof s.bootId === "number") bootId = s.bootId;
+  updateFirmwareFooter();
+  const c = s.config || {};
+  syncTimezone(c);
+  lastCommandStatus = s.lastCommand || null;
+  if (typeof c.revision === "number") configRevision = c.revision;
+  if (typeof s.timeUtcSec === "number") {
+    statusUtcAnchorSec = s.timeUtcSec;
+    statusUtcAnchorAt = performance.now();
+  }
+  if (typeof c.appliedTimezoneOffsetMinutes === "number")
+    statusTimezoneOffsetMinutes = c.appliedTimezoneOffsetMinutes;
+  if (!dateTimeDirty) {
+    if (c.ntpServerPreset != null && $("ntpServerPreset"))
+      $("ntpServerPreset").value = c.ntpServerPreset || "pool";
+    if (c.ntpServerCustom != null && $("ntpServerCustom"))
+      $("ntpServerCustom").value = c.ntpServerCustom || "";
+  }
+  if (typeof c.serialDebugOutput === "boolean" && $("serialDebugOutput"))
+    $("serialDebugOutput").checked = !!c.serialDebugOutput;
+  if (typeof s.buzzerSupported === "boolean") updateBuzzerAlertVisibility(!!s.buzzerSupported);
+  applyMachineTypeUi(s);
+}
+function applyMachineTypeUi(s) {
+  const t = s.machineType || (s.compileFlags && s.compileFlags.machineType) || "paddle";
+  document.documentElement.classList.toggle("momentaryMachine", t !== "paddle");
+  document.documentElement.classList.toggle("reedMachine", t === "momentary_reed");
+  document.documentElement.classList.toggle(
+    "lineaMicraIntegration",
+    s.machineIntegration === "linea_micra_cloud",
+  );
+  if ($("dMt")) $("dMt").textContent = t;
+}
+function loadSettingsConfig(c) {
+  if (!c || typeof c.goalWeightG !== "number" || !$("goalWeightG")) return;
+  if (configLoaded && (configDirty || brewDirty || formRev === c.revision)) return;
+  bbwFormPresetId = c.bbwPresetId || 0;
+  $("bbwAlphaBaseline").value = c.bbwAlphaBaseline ?? 0.3;
+  if ($("bbwAlgorithm")) $("bbwAlgorithm").value = c.bbwAlgorithm || "";
+  $("goalWeightG").value = c.goalWeightG;
+  [
+    "rinseGesture",
+    "rinseDuration",
+    "operationalWall",
+    "retareWindow",
+    "postTareBaselineGrace",
+    "bbwProtection",
+    "retareStabilityMaxGap",
+    "retareStabilityMinDuration",
+    "minBbwBrewTime",
+    "maxBbwBrewTime",
+  ].forEach((k) => ($(k + "S").value = String(c[k + "Ms"] / 1000)));
+  const paddleReturnReminderLimit = $("paddleReturnReminderMaxDurationMin");
+  if (paddleReturnReminderLimit)
+    paddleReturnReminderLimit.value = String(c.paddleReturnReminderMaxDurationMs / 60000);
+  $("lastShotCooldownMin").value = String((c.lastShotCooldownMs ?? 36e5) / 60000);
+  [
+    ["minimumCupWeightG", 10],
+    ["cupRemovedWeightG", -3],
+    ["retareStabilitySamples", 3],
+    ["retareStabilityToleranceG", 2],
+    ["maxRecoveryWeightG", 42],
+    ["minRecoveryWeightG", 34],
+    ["scaleTimerStopExtraDelayMs", 0],
+  ].forEach(([k, d]) => ($(k).value = String(c[k] ?? d)));
+  $("dripDelayS").value = String((c.dripDelayMs ?? 3000) / 1000);
+  [
+    "autoTare",
+    "autoTareOutsideBrew",
+    "retareAccessoryOutsideBrew",
+    "brewByWeight",
+    "soundAlertsEnabled",
+    "canTareStartTimer",
+    "bookooMuteOnBuzzerOnly",
+    "firstDropBeep",
+    "scaleConnectedLed",
+    "buzzerScaleLostBeep",
+    "buzzerAutoToManualGuardEndBeep",
+    "buzzerManualNoScaleBeep",
+    "buzzerScaleConnectedBeep",
+    "autoRetare",
+    "fastExtractionGuardEnabled",
+    "avoidAccidentalTouchEnabled",
+    "touchStopFallbackEnabled",
+    "slowExtractionGuardEnabled",
+    "autoToManualGuardEnabled",
+    "cupProtectionEnabled",
+    "stopIfCupRemoved",
+    "requireCupToStart",
+    "rinseEnabled",
+    "noScaleAllowRinseWhileArmed",
+  ].forEach((k) => {
+    const el = $(k);
+    if (el) el.checked = !!c[k];
+  });
+  $("noScaleBbwMode").value = ["off", "warn_once", "require_scale"].includes(c.noScaleBbwMode)
+    ? c.noScaleBbwMode
+    : c.avoidBbwShotWithoutScale
+      ? "warn_once"
+      : "off";
+  $("buzzerExtendedPulseRate").value = extRate(c.buzzerExtendedPulseRate);
+  $("buzzerSlowExtendedPulseRate").value = extRate(c.buzzerSlowExtendedPulseRate);
+  $("alertOutputChannel").value = ["scale_only", "buzzer_only", "scale_priority"].includes(
+    c.alertOutputChannel,
+  )
+    ? c.alertOutputChannel
+    : "scale_priority";
+  $("bookooConnectBeepLevel").value = String(
+    [0, 1, 2, 3, 4, 5].includes(+c.bookooConnectBeepLevel) ? +c.bookooConnectBeepLevel : 4,
+  );
+  if ($("scalePreference")) {
+    const m = ["first", "prefer", "only"].includes(c.scaleMacCacheMode)
+      ? c.scaleMacCacheMode
+      : c.scaleMacCacheMode === "full" || c.scaleMacCacheMode === "only"
+        ? "only"
+        : c.scaleMacCacheMode === "prefer"
+          ? "prefer"
+          : "first";
+    $("scalePreference").value = m;
+    updateScalePreferenceOptions();
+  }
+  if ($("paddleMode"))
+    $("paddleMode").value = ["auto", "natural", "original"].includes(c.paddleMode)
+      ? c.paddleMode
+      : "natural";
+  if ($("stopPulseMs")) $("stopPulseMs").value = String(c.stopPulseMs ?? 300);
+  if ($("maxSinglePressMs")) $("maxSinglePressMs").value = String(c.maxSinglePressMs ?? 1000);
+  if ($("momentaryStartEdge"))
+    $("momentaryStartEdge").value = ["press", "release"].includes(c.momentaryStartEdge)
+      ? c.momentaryStartEdge
+      : "press";
+  if ($("reedConfirmTimeoutS"))
+    $("reedConfirmTimeoutS").value = String((c.reedConfirmTimeoutMs ?? 1000) / 1000);
+  if ($("assumeIdleWhenScaleConnects"))
+    $("assumeIdleWhenScaleConnects").checked = c.assumeIdleWhenScaleConnects !== false;
+  if ($("shotReactTimeoutS")) $("shotReactTimeoutS").value = String(c.shotReactTimeoutS ?? 12);
+  $("autoToManualGuardLimitMode").value =
+    c.autoToManualGuardLimitMode === "manual" ? "manual" : "auto";
+  $("autoToManualGuardManualLimitS").value = String(
+    (c.autoToManualGuardManualLimitMs ?? 32000) / 1000,
+  );
+  $("autoToManualGuardBaselineS").value = String(
+    (c.autoToManualGuardBaselineMs ?? c.autoToManualGuardManualLimitMs ?? 32000) / 1000,
+  );
+  $("weightOffsetBaselineG").value = String(
+    typeof c.weightOffsetBaselineG === "number" ? c.weightOffsetBaselineG : 1.5,
+  );
+  $("autoToManualGuardTrendS").textContent =
+    typeof c.autoToManualGuardTrendMs === "number"
+      ? (c.autoToManualGuardTrendMs / 1000).toFixed(1) + __WEBUI_TEXT__("runtime.s_2")
+      : __WEBUI_TEXT__("runtime.unknown");
+  formRev = c.revision;
+  configRevision = c.revision;
+  configLoaded = true;
+  if (!brewDirty) {
+    configDirty = false;
+    setSaveDirty("saveConfigButton", "configDirtyHint", false);
+  }
+  updateConfigGroups();
+  syncHomeGuardSwitchesFromSettings();
+  updateHomeGuardSwitchesLock();
+}
+function loadAdminConfig(c) {
+  if (!c || !$("timezoneId")) return;
+  const select = $("timezoneId"),
+    previous = select.value;
+  savedTimezoneId = c.timezoneId || "";
+  populateTimezoneOptions().catch(() => {});
+  if (!dateTimeDirty) {
+    select.value = c.timezoneId || "";
+    $("timezoneAutomatic").checked = !!c.timezoneAutomatic;
+    $("ntpSyncEnabled").checked = c.ntpSyncEnabled !== false;
+    setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", false);
+  }
+  const state = $("timezoneSaveState");
+  if (state)
+    state.textContent = c.persistFailed
+      ? __WEBUI_TEXT__("runtime.timezone_save_failed")
+      : c.persistPending
+        ? __WEBUI_TEXT__("runtime.timezone_saving")
+        : c.timezoneId
+          ? __WEBUI_TEXT__("runtime.timezone_saved") + c.timezoneId
+          : __WEBUI_TEXT__("runtime.timezone_pending");
+  if (previous !== select.value || (!timezonePreviewAnchor && !timezonePreviewPending))
+    refreshTimezonePreview();
+  updateTimezoneControls();
+}
+function updateHomeAdminActions(unlocked, remoteEnabled) {
+  const panel = $("actionsPanel");
+  if (!panel) return;
+  const show = !!unlocked && !!remoteEnabled;
+  panel.classList.toggle("hidden", !show);
+  document.body.classList.toggle("homeAdminActions", show);
+}
+function formatBackflushState(s) {
+  const b = s.backflush;
+  if (!b) return "";
+  if (s.state === "BACKFLUSH_CANDIDATE") return __WEBUI_TEXT__("runtime.backflush_checking");
+  if (s.state === "BACKFLUSH_RUNNING") return __WEBUI_TEXT__("runtime.backflush_running");
+  if (s.state === "REQUIRES_OFF" && b.stopReason !== "none")
+    return b.stopReason === "unconfirmed_end"
+      ? __WEBUI_TEXT__("runtime.backflush_other")
+      : b.stopReason === "mode_ended"
+        ? __WEBUI_TEXT__("runtime.backflush_return_off")
+        : __WEBUI_TEXT__("runtime.backflush_interrupted");
+  if (b.waiting && b.ready) return __WEBUI_TEXT__("runtime.backflush_waiting");
+  return (b.waiting || b.unresolved) && !s.cycle?.active
+    ? __WEBUI_TEXT__("runtime.backflush_restart")
+    : "";
+}
+function applyHomeStatus(s) {
+  const admin = !!s.adminUnlocked,
+    canControl = controlsMutable,
+    remoteReady = !!s.remoteControlEnabled,
+    relayStartReady = !(s.safety && (s.safety.recoveryRequired || s.safety.state === "LOCKOUT")),
+    live = !!s.machineRunning,
+    shot = $("stopButton"),
+    force = $("forcePulseButton"),
+    g = shot && shot.querySelector(".g"),
+    t = shot && shot.querySelector(".t"),
+    switchOnly = (s.machineType || (s.compileFlags && s.compileFlags.machineType)) === "momentary";
+  syncAdminSessionUi(admin, remoteReady);
+  $("machineState").textContent = formatMachineState(s);
+  $("state").textContent =
+    formatBackflushState(s) || s.stateLabel || __WEBUI_TEXT__("runtime.unknown");
+  updateStateTone(s);
+  $("cupState").textContent = formatCupState(s);
+  $("cupWeight").textContent = formatCupWeight(s);
+  $("idleTareStatus").textContent = formatIdleTare(s);
+  $("scale").textContent = formatScaleStatus(s);
+  $("preferredScale").textContent = formatPreferredScale(s);
+  updateScaleRenameUi(
+    "preferredScaleRenameWrap",
+    s.scale?.preferredMac || "",
+    scaleDisplayName(s.scale),
+  );
+  $("scaleWeight").textContent = formatScaleWeight(s);
+  $("scaleTimer").textContent = formatScaleTimer(s);
+  updateHomeGuardSubs(s, !!s.cycle?.active);
+  paintUiStream();
+  const rinseButton = $("rinseButton");
+  if (rinseButton)
+    rinseButton.disabled = !(
+      admin &&
+      remoteReady &&
+      relayStartReady &&
+      canControl &&
+      (s.config ? s.config.rinseEnabled === true : true)
+    );
+  if (shot) {
+    shot.dataset.mode = live ? "stop" : "start";
+    shot.title = live
+      ? __WEBUI_TEXT__("runtime.stop_shot_2")
+      : __WEBUI_TEXT__("runtime.start_shot_2");
+    shot.setAttribute("aria-label", shot.title);
+    shot.classList.toggle("btnDanger", live);
+    if (g) g.textContent = live ? __WEBUI_TEXT__("runtime.stop") : __WEBUI_TEXT__("runtime.start");
+    if (t) t.textContent = shot.title;
+    shot.disabled = !admin || (!live && !(remoteReady && relayStartReady && canControl));
+    if (force) force.disabled = !(admin && remoteReady && relayStartReady && webUiOwner);
+    ["overrideIdleLink", "overrideBrewingLink"].forEach((i) => {
+      const a = $(i);
+      if (!a) return;
+      const off = !canControl && !switchOnly;
+      a.classList.toggle("fieldOff", off);
+      a.setAttribute("aria-disabled", off ? "true" : "false");
+    });
+  }
+  ingestPresets(s);
+  updateRuleChartFromStatus(s);
+  applyHomeSwitchesFromConfig(s.config);
+}
+const MICRA_SWITCHES = [
+  "ApplyTemperature",
+  "ObserveState",
+  "BoostScaleDetectionWhenOn",
+  "ReduceScaleScanningWhenOff",
+  "RecognizeWake",
+  "PowerOnWithScale",
+  "ShutdownWithScale",
+  "ScaleOffWithMachine",
+];
+function micraOptionField(id) {
+  return id[0].toLowerCase() + id.slice(1) + (id === "RecognizeWake" ? "Gesture" : "");
+}
+function applyLineaMicraStatus(s) {
+  const m = s.lineaMicra;
+  if (!m) return;
+  document.documentElement.classList.toggle(
+    "micraTemperatureEnabled",
+    m.applyTemperature && m.accountConfigured,
+  );
+  const machines = m.machines || [],
+    select = $("lineaMicraMachine"),
+    previous = select.value;
+  select.textContent = "";
+  if (!machines.length)
+    select.add(new Option(__WEBUI_TEXT__("runtime.connect_to_load_machines"), ""));
+  else
+    machines.forEach((x) =>
+      select.add(new Option(x.name ? x.name + " · " + x.serial : x.serial, x.serial)),
+    );
+  if (machines.some((x) => x.serial === previous)) select.value = previous;
+  if (!micraDirty) {
+    $("lineaMicraConnectionType").value = m.connectionType || "websocket";
+    for (const id of MICRA_SWITCHES) $("lineaMicra" + id).checked = !!m[micraOptionField(id)];
+    $("lineaMicraShutdownGrace").value = String(m.shutdownGraceSeconds || 0);
+  }
+  const canEdit = controlsMutable,
+    connected = m.accountConfigured,
+    session = !connected && machines.length > 0,
+    target = m.targetValid
+      ? __WEBUI_TEXT__("runtime.target") + " " + (m.targetDeciC / 10).toFixed(1) + " °C"
+      : "",
+    temperature =
+      m.temperatureState && m.temperatureState !== "disabled"
+        ? __WEBUI_TEXT__("runtime.brew_temperature") +
+          " " +
+          m.temperatureState +
+          (m.requestedTargetDeciC ? " " + (m.requestedTargetDeciC / 10).toFixed(1) + " °C" : "")
+        : "";
+  $("lineaMicraIdentity").innerText = connected
+    ? m.email + "\n" + m.selectedName + " - " + m.selectedSerial
+    : session
+      ? __WEBUI_TEXT__("runtime.signed_in_select_machine")
+      : __WEBUI_TEXT__("runtime.not_connected");
+  $("lineaMicraStatus").textContent = [
+    connected || m.phase !== "disabled" ? m.phase : __WEBUI_TEXT__("runtime.unauthenticated"),
+    m.error === "none" ? "" : m.error,
+    target,
+    temperature,
+    m.apActive ? __WEBUI_TEXT__("runtime.ap_mode_paused") : "",
+    m.shotPaused ? __WEBUI_TEXT__("runtime.shot_paused") : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  for (let e = $("lineaMicraUsername").parentElement, n = 5; n--; e = e.nextSibling)
+    e.hidden = connected;
+  $("lineaMicraConnectButton").disabled = !canEdit || !m.staConnected || m.apActive;
+  $("lineaMicraConnectButton").classList.toggle(
+    "busy",
+    !connected && ["queued", "authenticating", "listing"].includes(m.phase),
+  );
+  select.disabled = !canEdit || !machines.length;
+  $("lineaMicraSelectButton").disabled = !canEdit || !machines.length || !select.value;
+  $("lineaMicraConnectionType").disabled = !canEdit || (!connected && !session);
+  const scanGate = !canEdit || !connected || !$("lineaMicraObserveState").checked;
+  for (const id of MICRA_SWITCHES) $("lineaMicra" + id).disabled = !canEdit || !connected;
+  $("lineaMicraBoostScaleDetectionWhenOn").disabled = scanGate;
+  $("lineaMicraReduceScaleScanningWhenOff").disabled = scanGate;
+  updateMicraShutdownControls(canEdit, connected);
+  $("lineaMicraSaveButton").disabled = !canEdit || !connected;
+  updateMicraRevertButton();
+  $("lineaMicraDisconnectButton").disabled = !canEdit || (!connected && !machines.length);
+}
+function markLineaMicraDirty() {
+  micraDirty = true;
+  $("lineaMicraSaveButton").disabled = !controlsMutable || $("lineaMicraObserveState").disabled;
+  updateMicraRevertButton();
+}
+function updateMicraRevertButton() {
+  const r = $("revertLineaMicraButton");
+  if (r) {
+    r.dataset.dirty = +micraDirty;
+    r.disabled = !controlsMutable || !micraDirty;
+  }
+}
+function updateMicraShutdownControls(canEdit = controlsMutable, connected = true) {
+  const on = $("lineaMicraShutdownWithScale").checked;
+  $("lineaMicraShutdownWithScale").disabled = !canEdit || !connected;
+  $("lineaMicraShutdownGrace").disabled = !canEdit || !connected || !on;
+  $("lineaMicraShutdownGraceWrap").classList.toggle("hidden", !on);
+}
+async function connectLineaMicra() {
+  const username = $("lineaMicraUsername").value.trim(),
+    password = $("lineaMicraPassword").value;
+  if (!username || !$("lineaMicraUsername").validity.valid) {
+    showFieldError("lineaMicraUsername", __WEBUI_TEXT__("runtime.enter_valid_email"));
+    return false;
+  }
+  if (!password) {
+    showFieldError("lineaMicraPassword", __WEBUI_TEXT__("runtime.enter_password"));
+    return false;
+  }
+  $("lineaMicraConnectButton").classList.add("busy");
+  const ok = await command(
+    "/api/v1/machine/linea-micra",
+    { action: "connect", username, password },
+    false,
+    __WEBUI_TEXT__("runtime.micra_connection_queued"),
+    __WEBUI_TEXT__("runtime.micra_action_failed"),
+  );
+  $("lineaMicraPassword").value = "";
+  return ok;
+}
+async function selectLineaMicra() {
+  const serial = $("lineaMicraMachine").value;
+  return serial ? saveLineaMicraSettings("select", serial) : false;
+}
+async function saveLineaMicraSettings(action = "save", serial = "") {
+  const ok = await command(
+    "/api/v1/machine/linea-micra",
+    {
+      action,
+      ...(action === "select" ? { serial } : {}),
+      ...Object.fromEntries(
+        MICRA_SWITCHES.map((id) => [micraOptionField(id), $("lineaMicra" + id).checked]),
+      ),
+      connectionType: $("lineaMicraConnectionType").value,
+      shutdownGraceSeconds: Number($("lineaMicraShutdownGrace").value) || 0,
+    },
+    false,
+    __WEBUI_TEXT__("runtime.micra_settings_queued"),
+    __WEBUI_TEXT__("runtime.could_not_save_micra"),
+    action === "save" ? "lineaMicraSaveButton" : undefined,
+  );
+  if (ok) micraDirty = false;
+  return ok;
+}
+async function disconnectLineaMicra() {
+  const ok = await lineaMicraAction("disconnect");
+  if (ok) {
+    $("lineaMicraUsername").value = "";
+    $("lineaMicraPassword").value = "";
+    micraDirty = false;
+  }
+  return ok;
+}
+function lineaMicraAction(action) {
+  return command(
+    "/api/v1/machine/linea-micra",
+    { action },
+    false,
+    "",
+    __WEBUI_TEXT__("runtime.micra_action_failed"),
+  );
+}
+function loadBullseyeConfig(c) {
+  if (!c || configDirty || !$("bullseyeMelodyEnabled")) return;
+  $("bullseyeMelodyEnabled").checked = !!c.bullseyeMelodyEnabled;
+  $("bullseyeRtttl").value = typeof c.bullseyeRtttl === "string" ? c.bullseyeRtttl : "";
+  updateBullseyeControls();
+}
+function applySettingsStatus(s) {
+  bbwReadback = s.config;
+  updatePreferredScaleSelect(s);
+  const sc = s.scale || {};
+  if ($("forgetPairedScale"))
+    $("forgetPairedScale").disabled = !(
+      controlsMutable &&
+      (sc.preferredMac || sc.macCachePauseRemainingMs > 0)
+    );
+  loadSettingsConfig(s.config);
+  loadBullseyeConfig(s.config);
+  applyLineaMicraStatus(s);
+  ingestPresets(s);
+  updateBbwControls();
+  if (typeof s.config.autoToManualGuardTrendMs === "number")
+    $("autoToManualGuardTrendS").textContent =
+      (s.config.autoToManualGuardTrendMs / 1000).toFixed(1) + __WEBUI_TEXT__("runtime.s_2");
+  if (configLoaded) {
+    if (!configDirty) configBaseline = snapshotControls(settingsSectionEls("config"));
+    if (!brewDirty) brewBaseline = snapshotControls(settingsSectionEls("brew"));
+    if (!micraDirty) micraBaseline = snapshotControls(settingsSectionEls("micra"));
+  }
+}
+function renderLineaMicraDiagnostic() {
+  const lm = micraDiagnosticStatus;
+  if (!lm || !$("dMicraPowerValue")) return;
+  const age = lm.sampleValid ? lm.sampleAgeMs + Math.max(0, Date.now() - lm.receivedAtMs) : 0,
+    stale =
+      lm.freshnessPolicy !== "connection" && lm.quality === "current" && age >= lm.freshnessMs,
+    power = lm.powerState,
+    source = {
+      api: "API",
+      websocket: "WebSocket",
+      api_initial: __WEBUI_TEXT__("diagnostic.api_via_websocket"),
+    }[lm.powerSource],
+    busy = ["queued", "authenticating", "listing", "running", "backoff"].includes(lm.phase);
+  $("dMicraPowerValue").textContent = power || __WEBUI_TEXT__("runtime.unknown");
+  $("dMicraMode").textContent =
+    (lm.observedMode || __WEBUI_TEXT__("runtime.unknown")) + (source ? " (" + source + ")" : "");
+  $("dMicraQuality").textContent =
+    (stale ? "stale" : lm.quality) || __WEBUI_TEXT__("runtime.unknown");
+  $("dMicraAge").textContent =
+    lm.temperatureState +
+    "/" +
+    lm.temperatureError +
+    " · " +
+    (lm.sampleValid
+      ? Math.floor(age / 1000) + __WEBUI_TEXT__("runtime.s_ago")
+      : __WEBUI_TEXT__("runtime.no_sample"));
+  const refresh = $("lineaMicraRefreshLink");
+  if (refresh) {
+    const disabled = !controlsMutable || !lm.observeState || !lm.accountConfigured || busy;
+    refresh.setAttribute("aria-disabled", String(disabled));
+    refresh.tabIndex = disabled ? -1 : 0;
+  }
+}
+// Diagnostic sections are painted only from the owned WebSocket cache.
+function applyDiagnosticLive(s) {
+  const t = (i, v) => {
+      const e = $(i);
+      if (e) e.textContent = v || __WEBUI_TEXT__("runtime.unknown");
+    },
+    sf = s.safety || {},
+    sc = s.scale || {},
+    cp = s.cupPresence || {};
+  t("dMachine", s.machineState);
+  const lm = s.lineaMicra;
+  if (lm) {
+    micraDiagnosticStatus = { ...lm, receivedAtMs: Date.now() };
+    renderLineaMicraDiagnostic();
+  }
+  t("dBrew", formatBackflushState(s) || s.state);
+  t("dCup", cp.state);
+  t(
+    "dScaleName",
+    sc.connectedMac
+      ? sc.connectedFriendlyName || __WEBUI_TEXT__("runtime.unknown")
+      : __WEBUI_TEXT__("runtime.not_connected"),
+  );
+  updateScaleRenameUi(
+    "dScaleNameRenameWrap",
+    sc.connectedMac || "",
+    sc.connectedFriendlyName || "",
+  );
+  t("dCupWeight", formatCupWeight(s));
+  t(
+    "dActivator",
+    s.physicalActivatorOn ? __WEBUI_TEXT__("runtime.on") : __WEBUI_TEXT__("runtime.off"),
+  );
+  if ($("dReed"))
+    t("dReed", s.reedOn ? __WEBUI_TEXT__("runtime.on") : __WEBUI_TEXT__("runtime.off"));
+  t("dRelay", s.relayClosed ? __WEBUI_TEXT__("runtime.on") : __WEBUI_TEXT__("runtime.off"));
+  t("dSource", s.controlSource);
+  t(
+    "dSafety",
+    sf.state +
+      (s.backflush
+        ? " · " +
+          s.backflush.hardLimitMs / 1000 +
+          " s max · " +
+          Math.ceil(s.backflush.remainingMs / 1000) +
+          " s left"
+        : ""),
+  );
+  t("dFault", sf.fault !== "NONE" ? sf.fault : s.backflush?.stopReason || sf.fault);
+  t(
+    "dWatchdog",
+    sf.taskWatchdogReady ? __WEBUI_TEXT__("runtime.ready_3") : __WEBUI_TEXT__("runtime.fault"),
+  );
+  t(
+    "dExternal",
+    sf.externalHardware
+      ? __WEBUI_TEXT__("runtime.present_2")
+      : __WEBUI_TEXT__("runtime.not_configured"),
+  );
+  t(
+    "dRecovery",
+    sf.recoveryRequired ? __WEBUI_TEXT__("runtime.required") : __WEBUI_TEXT__("runtime.none_2"),
+  );
+  t("dStream", sc.streamState);
+  t("dControl", sc.controlState);
+  t("dScaleRssi", typeof sc.rssi === "number" ? sc.rssi + __WEBUI_TEXT__("runtime.dbm") : "");
+  t("hRecoveredStales", String(sc.recoveredStaleCount));
+  t(
+    "hStaleTime",
+    typeof sc.recoveredStaleMs === "number"
+      ? sc.recoveredStaleMs + __WEBUI_TEXT__("runtime.ms_2")
+      : "",
+  );
+  const wi = sc.weightUpdateIntervalMs;
+  t(
+    "hScaleRate",
+    typeof wi === "number" && wi > 0
+      ? (1000 / wi).toFixed(1) + __WEBUI_TEXT__("runtime.hz") + wi + __WEBUI_TEXT__("runtime.ms_3")
+      : "",
+  );
+  t("hScaleGaps", String(sc.packetGaps));
+  t("hScaleGapMax", sc.maxPacketGapMs + __WEBUI_TEXT__("runtime.ms_2"));
+  t("hScaleRejected", String(sc.rejectedPackets));
+  t("hScaleReconnects", String(sc.reconnects));
+  t(
+    "hLastDisconnect",
+    sc.lastDisconnect?.summary ||
+      sc.lastDisconnectReasonName ||
+      __WEBUI_TEXT__("diagnostic.none_2"),
+  );
+  t("hScaleCommandFailure", sc.lastCommandFailure?.summary || __WEBUI_TEXT__("diagnostic.none_3"));
+  t("hEventsDropped", String(sc.eventsDropped));
+  t("dScaleWeight", formatScaleWeight(s));
+  t("dScaleTimer", formatScaleTimer(s));
+}
+function renderDiagClock() {
+  const t = (i) => (v) => {
+    const e = $(i);
+    if (e) e.textContent = v || __WEBUI_TEXT__("runtime.unknown");
+  };
+  const u =
+      statusUtcAnchorSec > 0
+        ? statusUtcAnchorSec + Math.floor((performance.now() - statusUtcAnchorAt) / 1000)
+        : 0,
+    utc = u && formatWallTime(u, 0),
+    local = u && formatWallTime(u, statusTimezoneOffsetMinutes);
+  t("ut")(utc && utc.slice(11));
+  t("ud")(utc && utc.slice(0, 10));
+  t("lt")(local && local.slice(11));
+  t("ld")(local && local.slice(0, 10));
+  renderLineaMicraDiagnostic();
+}
+function applyDiagnosticStatus(s) {
+  if (!s) return;
+  const u = !!s.adminUnlocked,
+    p = !!s.diagnosticPublic;
+  syncAdminSessionUi(u);
+  diagnosticPublicView = p;
+  if (!u && !p) return;
+  const t = (i, v) => ($(i).textContent = v || __WEBUI_TEXT__("runtime.unknown"));
+  t("hFirmware", s.firmwareVersion);
+  t("hBoot", typeof s.bootId === "number" && s.bootId ? "#" + s.bootId : "");
+  const m = s.maintenance;
+  t(
+    "maintenance",
+    m.active
+      ? __WEBUI_TEXT__("runtime.reserved")
+      : m.persistFailed
+        ? __WEBUI_TEXT__("runtime.save_failed")
+        : m.persistPending
+          ? __WEBUI_TEXT__("runtime.saving")
+          : __WEBUI_TEXT__("runtime.idle"),
+  );
+  t("hLease", m.active ? String(m.leaseId) : "");
+  t("hLoopMax", s.health.loopMaxGapMs + __WEBUI_TEXT__("runtime.ms_2"));
+  updH(s.health, s.safety);
+  const nv = s.nvs || {},
+    nf = nv.lastFailure;
+  t(
+    "hNvsLayout",
+    nv.layoutExpected ? __WEBUI_TEXT__("runtime.expected") : __WEBUI_TEXT__("runtime.mismatch"),
+  );
+  t(
+    "hNvsSize",
+    typeof nv.partitionBytes === "number"
+      ? Math.round(nv.partitionBytes / 1024) + __WEBUI_TEXT__("runtime.kib")
+      : "",
+  );
+  t(
+    "hNvsEntries",
+    nv.statsValid && typeof nv.usedEntries === "number"
+      ? nv.usedEntries + __WEBUI_TEXT__("runtime.symbol_11") + nv.availableEntries
+      : "",
+  );
+  t(
+    "hNvsTotal",
+    nv.statsValid && typeof nv.freeEntries === "number"
+      ? nv.freeEntries + __WEBUI_TEXT__("runtime.symbol_11") + nv.totalEntries
+      : "",
+  );
+  t(
+    "hNvsNamespaces",
+    nv.statsValid && typeof nv.namespaces === "number" ? String(nv.namespaces) : "",
+  );
+  t("hNvsFailures", typeof nv.failures === "number" ? String(nv.failures) : "");
+  t(
+    "hNvsLastFailure",
+    nf
+      ? nf.subsystem +
+          __WEBUI_TEXT__("runtime.symbol_8") +
+          nf.operation +
+          __WEBUI_TEXT__("runtime.symbol_8") +
+          nf.errorName
+      : __WEBUI_TEXT__("runtime.none_2"),
+  );
+  t(
+    "hNvsLockTimeouts",
+    typeof nv.flashIoLockTimeouts === "number" ? String(nv.flashIoLockTimeouts) : "",
+  );
+  t(
+    "lastCommand",
+    s.lastCommand && s.lastCommand.requestId
+      ? String(s.lastCommand.requestId)
+      : __WEBUI_TEXT__("runtime.none"),
+  );
+  t("lastCommandState", s.lastCommand && s.lastCommand.requestId ? s.lastCommand.state || "" : "");
+  if (
+    s.lastCommand &&
+    (s.lastCommand.state === "FAILED" || s.lastCommand.state === "CANCELED") &&
+    s.lastCommand.requestId &&
+    s.lastCommand.requestId !== window.__lastCmdFailShown
+  ) {
+    window.__lastCmdFailShown = s.lastCommand.requestId;
+    message(
+      __WEBUI_TEXT__("runtime.last_command") + s.lastCommand.state.toLowerCase() + ".",
+      "error",
+    );
+  }
+  const time = s.time;
+  t("ntpStatus", ntpStateLabel(time));
+  t("ntpServer", time && time.activeServer);
+  t("zoneName", s.config.timezoneId || __WEBUI_TEXT__("runtime.timezone_pending"));
+  t("uo", formatDiagnosticTimezoneOffset(s.config));
+  t(
+    "lastSync",
+    time?.lastSyncUtcSec &&
+      s.config.lastSyncOffsetKnown &&
+      formatWallTime(time.lastSyncUtcSec, s.config.lastSyncAppliedTimezoneOffsetMinutes),
+  );
+  renderDiagClock();
+  const n = s.network;
+  t("hWifiState", n.staState);
+  t("hWifiPs", n.wifiPs);
+  t("hWifiCoex", n.wifiCoex);
+  t("hSsid", n.ssid);
+  t(
+    "hWifiChannel",
+    n.staState === "CONNECTED" && typeof n.channel === "number" && n.channel > 0
+      ? String(n.channel)
+      : "",
+  );
+  t("hWifiIp", n.staIp);
+  t(
+    "hWifiSignal",
+    typeof n.signalQualityPct === "number"
+      ? n.signalQualityPct + __WEBUI_TEXT__("runtime.symbol_4")
+      : "",
+  );
+  t("hWifiRssi", typeof n.rssi === "number" ? n.rssi + __WEBUI_TEXT__("runtime.dbm") : "");
+  t(
+    "hWifiCreds",
+    n.wifiConfigured ? __WEBUI_TEXT__("runtime.saved") : __WEBUI_TEXT__("runtime.none_2"),
+  );
+  t(
+    "hWifiIpMode",
+    n.ipMode === "static" ? __WEBUI_TEXT__("runtime.static_ip") : __WEBUI_TEXT__("runtime.dhcp"),
+  );
+  t(
+    "hWifiConfirm",
+    n.configState === "PENDING"
+      ? __WEBUI_TEXT__("runtime.pending") +
+          (n.confirmRemainingMs
+            ? __WEBUI_TEXT__("runtime.symbol_3") +
+              Math.ceil(n.confirmRemainingMs / 1000) +
+              __WEBUI_TEXT__("runtime.s")
+            : "")
+      : "",
+  );
+  t(
+    "hApState",
+    n.apActive ? __WEBUI_TEXT__("runtime.active_2") : __WEBUI_TEXT__("runtime.inactive"),
+  );
+  t("hApSsid", n.apSsid || __WEBUI_TEXT__("runtime.advancedshotstopperap"));
+  t("hApIp", n.apIp);
+  t("hApClients", String(n.apClients));
+  const ser = s.serial || {};
+  t(
+    "dSerialIo4",
+    { closed: __WEBUI_TEXT__("runtime.closed"), open: __WEBUI_TEXT__("runtime.open_2") }[ser.io4] ||
+      __WEBUI_TEXT__("runtime.unknown"),
+  );
+  t(
+    "dSerialState",
+    {
+      enabled_jtag: __WEBUI_TEXT__("runtime.enabled_compile_flag"),
+      enabled_io4: __WEBUI_TEXT__("runtime.enabled_io04"),
+      disabled: __WEBUI_TEXT__("runtime.disabled"),
+    }[ser.state] || __WEBUI_TEXT__("runtime.unknown"),
+  );
+  const f = s.compileFlags || {};
+  t("dBz", f.buzzer);
+  t(
+    "dCircuit",
+    f.remoteMachineControl
+      ? __WEBUI_TEXT__("runtime.enabled")
+      : __WEBUI_TEXT__("runtime.disabled_2"),
+  );
+  t(
+    "dArch",
+    [
+      f.arch,
+      "HW: " + f.hardwareProfile,
+      "Machine: " + f.machineBrand + " " + f.machineModel + " (" + f.machineProfile + ")",
+    ].join(" · "),
+  );
+}
+function applyAdminStatus(s) {
+  const unlocked = !!s.adminUnlocked;
+  syncAdminSessionUi(unlocked);
+  const hint = $("adminConfirmHint");
+  if (hint) {
+    const pending = s.network && s.network.configState === "PENDING";
+    hint.classList.toggle("hidden", unlocked || !pending);
+    if (pending && !unlocked) {
+      const sec = s.network.confirmRemainingMs ? Math.ceil(s.network.confirmRemainingMs / 1000) : 0;
+      hint.textContent =
+        __WEBUI_TEXT__("runtime.pending_wi_fi_confirm_this_window_will") +
+        (sec ? ". " + sec + __WEBUI_TEXT__("runtime.s_remaining") : ".");
+    }
+  }
+  if (!unlocked) return;
+  ensureUiOverridePanel();
+  {
+    const op = $("uiOverridePanel"),
+      ob = $("uiOverrideButton"),
+      oh = $("uiOverrideHint");
+    if (op) op.classList.toggle("hidden", !!s.configMutable);
+    if (ob) {
+      const r = typeof s.webUiOverrideRemainingMs === "number" ? s.webUiOverrideRemainingMs : 0,
+        a = !!s.webUiOverrideActive && r > 0,
+        n = a ? Math.ceil(r / 1e3) : 0,
+        t = ob.querySelector(".t");
+      if (t)
+        t.textContent = a
+          ? n + __WEBUI_TEXT__("runtime.s")
+          : __WEBUI_TEXT__("runtime.unlock_1_min");
+      if (oh)
+        oh.textContent = a
+          ? n + __WEBUI_TEXT__("runtime.s_restart")
+          : __WEBUI_TEXT__("runtime.config_lock_override_for_1_min");
+    }
+  }
+  $("networkStatus").textContent = formatNetworkStatus(s.network);
+  loadNetworkAddress(s.network);
+  $("apStatus").textContent =
+    __WEBUI_TEXT__("runtime.ap") +
+    (s.network.apActive ? __WEBUI_TEXT__("runtime.active_2") : __WEBUI_TEXT__("runtime.inactive")) +
+    __WEBUI_TEXT__("runtime.advancedshotstopperap_2") +
+    (s.network.apSsid || __WEBUI_TEXT__("runtime.advancedshotstopperap")) +
+    __WEBUI_TEXT__("runtime.advancedshotstopperap_2") +
+    s.network.apIp +
+    __WEBUI_TEXT__("runtime.unknown_3") +
+    s.network.apClients +
+    __WEBUI_TEXT__("runtime.client_s");
+  if (!powerDirty) {
+    if ($("bleScanIntensity"))
+      $("bleScanIntensity").value = (s.bleScan && s.bleScan.scanIntensity) || "balanced";
+  }
+  if (!bleDirty && $("bleEnabled"))
+    $("bleEnabled").checked = !(s.bleScan && s.bleScan.enabled === false);
+  if (!bleDirty)
+    bleBaseline = snapshotControls(document.querySelectorAll("#blePanel input,#blePanel select"));
+  if (!powerDirty)
+    powerBaseline = snapshotControls(
+      document.querySelectorAll("#powerPanel input,#powerPanel select"),
+    );
+  if (!frontendDirty)
+    frontendBaseline = snapshotControls(
+      document.querySelectorAll("#frontendPanel input,#frontendPanel select"),
+    );
+  $("restartButton").disabled = !controlsMutable;
+  applyOtaStatus(s.ota);
+  loadAdminConfig(s.config);
+  if (!dateTimeDirty)
+    dateTimeBaseline = snapshotControls(
+      document.querySelectorAll(
+        "#dateTimePanel input,#dateTimePanel select,#dateTimePanel textarea",
+      ),
+    );
+  const sync = s.time?.lastSyncUtcSec || 0;
+  if (sync && sync !== timezonePreviewSync) {
+    timezonePreviewSync = sync;
+    refreshTimezonePreview();
+  } else renderTimezonePreview();
+}
+const OTA_UPLOAD_TIMEOUT_MS = 15 * 60 * 1000;
+const OTA_COMMAND_TIMEOUT_MS = 60 * 1000;
+let otaBusy = false,
+  otaLastStatus = null;
+function otaTagText(t) {
+  return t
+    ? t.version + __WEBUI_TEXT__("runtime.symbol_8") + t.arch
+    : __WEBUI_TEXT__("runtime.unknown");
+}
+function otaKib(n) {
+  return typeof n === "number" && isFinite(n)
+    ? Math.round(n / 1024) + " KiB"
+    : __WEBUI_TEXT__("runtime.unknown_size");
+}
+function otaStatusText(o) {
+  const pending = otaCommitStored();
+  if (pending) return otaCheckBoot(pending, o);
+  if (!o.available) return __WEBUI_TEXT__("runtime.this_controller_has_no_spare_firmware_slot");
+  if (o.restartPending) return __WEBUI_TEXT__("runtime.flashed_restart_waits_until_the_shot_ends");
+  if (!o.confirmed)
+    return (
+      __WEBUI_TEXT__("runtime.firmware_confirmation_pending") +
+      (o.confirmBlockReason || __WEBUI_TEXT__("runtime.waiting_for_startup")) +
+      __WEBUI_TEXT__("runtime.symbol_12") +
+      (o.confirmLastError ? __WEBUI_TEXT__("runtime.esp_idf_error") + o.confirmLastError + "." : "")
+    );
+  if (o.state === "receiving") return __WEBUI_TEXT__("runtime.receiving_a_firmware_image");
+  if (o.state === "staged") return __WEBUI_TEXT__("runtime.verified_and_waiting_for_you_to_flash");
+  if (!o.safe)
+    return (
+      __WEBUI_TEXT__("runtime.waiting_for_idle") +
+      o.lockReason +
+      __WEBUI_TEXT__("runtime.symbol_12")
+    );
+  return __WEBUI_TEXT__("runtime.ready_for_a_firmware_image");
+}
+function applyOtaStatus(o) {
+  if (!$("otaPanel")) return;
+  if (!o) {
+    $("otaStatus").textContent = __WEBUI_TEXT__("runtime.firmware_updates_are_unavailable");
+    ["otaVerifyButton", "otaFlashButton", "otaDiscardButton", "otaFile"].forEach((id) => {
+      if ($(id)) $(id).disabled = true;
+    });
+    return;
+  }
+  otaLastStatus = o;
+  const staged = o.state === "staged" && o.staged ? o.staged : null,
+    active = !!o.sessionActive;
+  $("otaStatus").textContent =
+    otaStatusText(o) +
+    (active
+      ? __WEBUI_TEXT__("runtime.resumable_transfer") +
+        otaKib(o.nextOffset || 0) +
+        __WEBUI_TEXT__("runtime.symbol_11") +
+        otaKib(o.expectedBytes || 0)
+      : "");
+  $("otaRunning").textContent =
+    __WEBUI_TEXT__("runtime.running") +
+    otaTagText(o.running) +
+    __WEBUI_TEXT__("runtime.update_slot") +
+    otaKib(o.slotBytes);
+  $("otaStaged").textContent = staged
+    ? __WEBUI_TEXT__("runtime.verified_image") +
+      otaTagText(staged) +
+      __WEBUI_TEXT__("runtime.unknown_3") +
+      otaKib(o.receivedBytes)
+    : active
+      ? __WEBUI_TEXT__("runtime.transfer") +
+        (o.transferId || "") +
+        __WEBUI_TEXT__("runtime.expires_in") +
+        Math.ceil((o.sessionExpiresInMs || 0) / 6e4) +
+        __WEBUI_TEXT__("runtime.min_3")
+      : __WEBUI_TEXT__("runtime.no_verified_image");
+  const ready =
+    controlsMutable && o.available && o.safe && o.confirmed && !o.restartPending && !otaBusy;
+  $("otaFile").disabled = !ready;
+  $("otaVerifyButton").disabled = !ready;
+  $("otaFlashButton").disabled = !ready || !staged;
+  $("otaDiscardButton").disabled = !ready || (!staged && !active);
+  if (active && o.expectedBytes)
+    $("otaProgress").value = Math.round((100 * (o.nextOffset || 0)) / o.expectedBytes);
+}
+function otaSend(path, payload, onProgress, timeoutMs, method = "POST", headers = {}) {
+  return acquireDeviceSlot().then(() =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(method, path, true);
+      xhr.timeout = timeoutMs;
+      xhr.setRequestHeader(WEB_UI_CLIENT_HEADER, webUiClientId);
+      Object.keys(headers).forEach((k) => xhr.setRequestHeader(k, headers[k]));
+      if (payload && !headers["Content-Type"])
+        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      if (onProgress && xhr.upload)
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) onProgress(Math.round((e.loaded * 100) / e.total));
+        };
+      xhr.onload = () => {
+        let data = {};
+        try {
+          data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+        } catch (_) {
+          const e = new Error(
+            __WEBUI_TEXT__("runtime.invalid_response_http") +
+              xhr.status +
+              __WEBUI_TEXT__("runtime.symbol_10"),
+          );
+          e.status = xhr.status;
+          reject(e);
+          return;
+        }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+        else {
+          const e = new Error(
+            data.message || data.error || __WEBUI_TEXT__("runtime.http") + xhr.status,
+          );
+          e.status = xhr.status;
+          e.code = data.error || "";
+          reject(e);
+        }
+      };
+      xhr.onerror = () => reject(new Error(__WEBUI_TEXT__("runtime.device_unreachable")));
+      xhr.ontimeout = () => reject(new Error(__WEBUI_TEXT__("runtime.device_timeout")));
+      xhr.onabort = () => reject(new Error(__WEBUI_TEXT__("runtime.the_upload_was_cancelled")));
+      xhr.send(payload || null);
+    }).finally(() => releaseDeviceSlot()),
+  );
+}
+function otaBeginBusy() {
+  otaBusy = true;
+  applyOtaStatus(otaLastStatus);
+}
+function otaEndBusy(data, fallbackText, kind) {
+  otaBusy = false;
+  $("otaProgress").classList.add("hidden");
+  $("otaProgress").value = 0;
+  if (data) applyOtaStatus(data);
+  else applyOtaStatus(otaLastStatus);
+  if (fallbackText) message(fallbackText, kind || "");
+  refreshStatus();
+}
+function otaTransferId() {
+  const b = new Uint8Array(18);
+  crypto.getRandomValues(b);
+  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+function otaStored() {
+  try {
+    return JSON.parse(localStorage.getItem("ssOtaSession") || "null");
+  } catch (_) {
+    return null;
+  }
+}
+function otaStore(v) {
+  try {
+    localStorage.setItem("ssOtaSession", JSON.stringify(v));
+  } catch (_) {}
+}
+function otaClearStore() {
+  try {
+    localStorage.removeItem("ssOtaSession");
+  } catch (_) {}
+}
+const OTA_PROTOCOL_VERSION = 3;
+async function otaFileIdentity(file) {
+  return (await import("/js/ota-image.js?v=__FW_ASSET_TAG__")).otaFileIdentity(file);
+}
+function otaRemoteMatches(identity, status) {
+  return !!(
+    status &&
+    status.transferId &&
+    (!identity.transferId || status.transferId === identity.transferId) &&
+    status.sha256 === identity.sha256 &&
+    status.expectedBytes === identity.size &&
+    status.sessionArch === identity.arch &&
+    status.sessionHardware === identity.hardware &&
+    status.sessionMachine === identity.machine &&
+    status.sessionVersion === identity.version
+  );
+}
+function otaSessionIdentity(identity, status) {
+  if (!status || status.otaProtocolVersion !== OTA_PROTOCOL_VERSION)
+    throw new Error(__WEBUI_TEXT__("runtime.this_controller_does_not_support_the_resumable"));
+  if (status.runningIdentityValid !== true)
+    throw new Error(__WEBUI_TEXT__("runtime.the_running_firmware_has_no_usable_image"));
+  if (
+    !status.running ||
+    identity.hardware !== status.running.hardware ||
+    identity.machine !== status.running.machine
+  )
+    throw new Error(__WEBUI_TEXT__("runtime.the_running_firmware_has_no_usable_image"));
+  const occupied = status.sessionActive || status.state === "staged";
+  if (occupied) {
+    if (!otaRemoteMatches(identity, status))
+      throw new Error(__WEBUI_TEXT__("runtime.another_firmware_image_owns_the_update_slot"));
+    return { ...identity, transferId: status.transferId };
+  }
+  const saved = otaStored(),
+    same =
+      saved &&
+      saved.size === identity.size &&
+      saved.sha256 === identity.sha256 &&
+      saved.arch === identity.arch &&
+      saved.hardware === identity.hardware &&
+      saved.machine === identity.machine &&
+      saved.version === identity.version &&
+      saved.transferId;
+  return { ...identity, transferId: same ? saved.transferId : otaTransferId() };
+}
+function otaSessionBody(session) {
+  const { size, sha256, arch, hardware, machine, version, transferId } = session;
+  return JSON.stringify({ size, sha256, arch, hardware, machine, version, transferId });
+}
+function otaValidOffset(offset, size) {
+  return (
+    Number.isInteger(offset) &&
+    offset >= 0 &&
+    offset <= size &&
+    (offset === size || offset % 4096 === 0)
+  );
+}
+function otaRecoverable(session, status) {
+  return (
+    otaRemoteMatches(session, status) &&
+    status.sessionActive === true &&
+    status.state === "receiving" &&
+    otaValidOffset(status.nextOffset, session.size)
+  );
+}
+function otaUploadErrorText(session, status, error) {
+  if (error.otaFileChanged) return error.message;
+  if (
+    error.code === "OTA_SESSION_EXPIRED" ||
+    (status && status.lastResult === "OTA_SESSION_EXPIRED")
+  )
+    return __WEBUI_TEXT__("runtime.the_firmware_upload_session_expired_choose_the");
+  if (error.message === "The upload was cancelled.")
+    return __WEBUI_TEXT__("runtime.the_firmware_upload_was_cancelled");
+  if (error.status >= 400 && error.status < 500 && error.code !== "RECEIVE_FAILED")
+    return __WEBUI_TEXT__("runtime.the_firmware_upload_was_rejected");
+  if (session && otaRecoverable(session, status))
+    return __WEBUI_TEXT__("runtime.the_firmware_upload_paused_choose_the_same");
+  if (session && otaRemoteMatches(session, status) && status.state === "staged")
+    return __WEBUI_TEXT__("runtime.the_firmware_is_verified_refresh_its_status");
+  if (error.status) return __WEBUI_TEXT__("runtime.the_firmware_upload_was_rejected");
+  if (session && !status) return __WEBUI_TEXT__("runtime.the_upload_result_could_not_be_checked");
+  if (session && status && !status.sessionActive)
+    return __WEBUI_TEXT__("runtime.the_firmware_upload_session_no_longer_exists");
+  return __WEBUI_TEXT__("runtime.the_firmware_upload_failed");
+}
+async function otaUpload() {
+  const files = $("otaFile").files,
+    file = files && files[0];
+  if (!file) {
+    showFieldError("otaFile", __WEBUI_TEXT__("runtime.choose_the_firmware_bin_file_to_upload"));
+    return;
+  }
+  clearFieldErrors();
+  const slot = otaLastStatus && otaLastStatus.slotBytes;
+  if (typeof slot === "number" && file.size > slot) {
+    showFieldError(
+      "otaFile",
+      __WEBUI_TEXT__("runtime.that_file_is") +
+        otaKib(file.size) +
+        __WEBUI_TEXT__("runtime.larger_than_the") +
+        otaKib(slot) +
+        __WEBUI_TEXT__("runtime.update_slot_2"),
+    );
+    return;
+  }
+  const bar = $("otaProgress");
+  bar.value = 0;
+  bar.classList.remove("hidden");
+  otaBeginBusy();
+  let session = null,
+    status = null;
+  try {
+    message(__WEBUI_TEXT__("runtime.checking_firmware_identity"));
+    const identity = await otaFileIdentity(file),
+      remote = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+    session = otaSessionIdentity(identity, remote);
+    status = await otaSend(
+      "/api/v1/ota/session",
+      otaSessionBody(session),
+      null,
+      OTA_COMMAND_TIMEOUT_MS,
+      "POST",
+      { "Content-Type": "application/json" },
+    );
+    if (!otaRemoteMatches(session, status))
+      throw new Error(__WEBUI_TEXT__("runtime.the_controller_returned_a_different_or_incomplete"));
+    let offset = status.nextOffset,
+      highWater = offset,
+      failures = 0;
+    if (!otaValidOffset(offset, file.size))
+      throw new Error(__WEBUI_TEXT__("runtime.the_controller_reported_an_invalid_firmware_offset"));
+    otaStore(session);
+    otaCommitStore(null);
+    while (offset < file.size) {
+      const end = Math.min(file.size, offset + 65536);
+      if (!(await session.verifyRange(offset, end))) {
+        const changed = new Error(__WEBUI_TEXT__("runtime.the_firmware_file_changed_while_it_was"));
+        changed.otaFileChanged = true;
+        throw changed;
+      }
+      const chunk = file.slice(offset, end),
+        headers = {
+          "X-OTA-Transfer": session.transferId,
+          "X-OTA-Offset": String(offset),
+          "X-OTA-Length": String(file.size),
+          "Content-Range": "bytes " + offset + "-" + (end - 1) + "/" + file.size,
+        };
+      let reconciled = false;
+      try {
+        status = await otaSend("/api/v1/ota", chunk, null, OTA_UPLOAD_TIMEOUT_MS, "PATCH", headers);
+      } catch (e) {
+        failures++;
+        status = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+        if (
+          !otaRemoteMatches(session, status) ||
+          (!otaRecoverable(session, status) && status.state !== "staged")
+        )
+          throw e;
+        if (failures >= 3 && status.nextOffset !== file.size) throw e;
+        reconciled = true;
+      }
+      const next = status.nextOffset;
+      if (
+        !otaRemoteMatches(session, status) ||
+        !otaValidOffset(next, file.size) ||
+        next > end ||
+        (!reconciled && next !== end)
+      )
+        throw new Error(__WEBUI_TEXT__("runtime.the_controller_did_not_confirm_a_valid"));
+      // Recovery may go backwards to the last durable checkpoint. Only new
+      // progress beyond the high-water mark resets the bounded retry budget.
+      if (next > highWater) {
+        highWater = next;
+        failures = 0;
+      }
+      offset = next;
+      bar.value = Math.round((100 * offset) / file.size);
+    }
+    if (
+      status.state !== "staged" ||
+      !status.staged ||
+      status.staged.arch !== identity.arch ||
+      status.staged.version !== identity.version ||
+      status.staged.packed !== identity.packed
+    )
+      throw new Error(__WEBUI_TEXT__("runtime.the_controller_did_not_report_the_expected"));
+    otaEndBusy(
+      status,
+      __WEBUI_TEXT__("runtime.firmware_verified") +
+        otaTagText(status.staged) +
+        ". Review it, then flash.",
+      "ok",
+    );
+  } catch (e) {
+    let current = null;
+    if (session) {
+      try {
+        current = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+      } catch (_) {}
+    }
+    otaEndBusy(current, formatCommandError(otaUploadErrorText(session, current, e), e), "error");
+  }
+}
+function otaCommitStored() {
+  try {
+    return JSON.parse(localStorage.getItem("ssOtaCommit") || "null");
+  } catch (_) {
+    return null;
+  }
+}
+function otaCommitStore(value) {
+  try {
+    if (value) localStorage.setItem("ssOtaCommit", JSON.stringify(value));
+    else localStorage.removeItem("ssOtaCommit");
+  } catch (_) {}
+}
+function otaCheckBoot(expected, status) {
+  if (
+    !Number.isInteger(expected.bootId) ||
+    !Number.isInteger(status.bootId) ||
+    !expected.imageSha256 ||
+    !status.running ||
+    !status.running.imageSha256
+  )
+    return __WEBUI_TEXT__("runtime.update_result_unverified_firmware_does_not_expose");
+  if (status.bootId === expected.bootId)
+    return status.restartPending || status.state === "committed"
+      ? __WEBUI_TEXT__("runtime.flashed_waiting_for_the_controller_to_restart")
+      : __WEBUI_TEXT__("runtime.commit_not_yet_verified_refresh_status_before");
+  if (status.running.imageSha256 !== expected.imageSha256)
+    return __WEBUI_TEXT__("runtime.the_controller_restarted_into_another_image_the");
+  if (!status.confirmed)
+    return (
+      __WEBUI_TEXT__("runtime.expected_firmware_booted_confirmation_pending") +
+      (status.confirmBlockReason || "startup") +
+      ")." +
+      (status.confirmLastError
+        ? __WEBUI_TEXT__("runtime.esp_idf_error") + status.confirmLastError + "."
+        : "")
+    );
+  otaCommitStore(null);
+  otaClearStore();
+  message(__WEBUI_TEXT__("runtime.ota_confirmed_by_the_rebooted_firmware"), "ok");
+  return __WEBUI_TEXT__("runtime.ota_confirmed_by_the_rebooted_firmware");
+}
+async function otaFlash() {
+  const current = otaLastStatus,
+    staged = current && current.state === "staged" && current.staged;
+  if (!staged) {
+    message(__WEBUI_TEXT__("runtime.upload_and_verify_a_firmware_image_first"), "warn");
+    return;
+  }
+  if (
+    !confirm(
+      __WEBUI_TEXT__("runtime.flash") +
+        otaTagText(staged) +
+        __WEBUI_TEXT__("runtime.and_restart_the_controller"),
+    )
+  )
+    return;
+  const saved = otaStored(),
+    session = {
+      size: current.expectedBytes,
+      sha256: current.sha256,
+      arch: current.sessionArch,
+      hardware: current.sessionHardware,
+      machine: current.sessionMachine,
+      version: current.sessionVersion,
+      transferId: current.transferId,
+    },
+    expected = {
+      ...session,
+      bootId: current.bootId,
+      imageSha256:
+        saved && otaRemoteMatches(saved, current) ? saved.imageSha256 : staged.imageSha256 || "",
+    };
+  otaBeginBusy();
+  let data = null;
+  try {
+    data = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+    if (!otaRemoteMatches(session, data) || data.state !== "staged")
+      throw new Error(__WEBUI_TEXT__("runtime.the_staged_transfer_changed_before_flash"));
+    expected.bootId = data.bootId;
+    otaCommitStore(expected);
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        data = await otaSend("/api/v1/ota/flash", null, null, OTA_COMMAND_TIMEOUT_MS);
+        if (!otaRemoteMatches(session, data))
+          throw new Error(__WEBUI_TEXT__("runtime.the_commit_response_did_not_identify_the"));
+        break;
+      } catch (error) {
+        data = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+        const rebooted =
+          Number.isInteger(expected.bootId) &&
+          Number.isInteger(data.bootId) &&
+          data.bootId !== expected.bootId;
+        if (rebooted) break;
+        if (!otaRemoteMatches(session, data)) throw error;
+        if (data.restartPending || data.state === "committed") break;
+        if (data.state !== "staged" || attempt === 3) throw error;
       }
     }
-    otaEndBusy(data,otaCheckBoot(expected,data),'');
-  }catch(e){otaEndBusy(data,formatCommandError(__WEBUI_TEXT__("runtime.the_flash_result_is_unverified_reconnect_to"),e),'error')}
+    otaEndBusy(data, otaCheckBoot(expected, data), "");
+  } catch (e) {
+    otaEndBusy(
+      data,
+      formatCommandError(__WEBUI_TEXT__("runtime.the_flash_result_is_unverified_reconnect_to"), e),
+      "error",
+    );
+  }
 }
-function otaDiscard(){otaBeginBusy();otaSend('/api/v1/ota/abort',null,null,OTA_COMMAND_TIMEOUT_MS).then(data=>{otaClearStore();otaCommitStore(null);$('otaFile').value='';otaEndBusy(data,__WEBUI_TEXT__("runtime.the_verified_image_was_discarded"),'ok')}).catch(e=>{otaEndBusy(null,formatCommandError(__WEBUI_TEXT__("runtime.the_image_could_not_be_discarded"),e),'error')})}
-function statusPageOk(v,s){const c=s&&s.config;if(!c||typeof s.configMutable!=='boolean')return!1;return v==='records'?!!(typeof s.firmwareVersion==='string'&&typeof s.webUiOverrideActive==='boolean'&&typeof s.compatibilityMode==='boolean'&&typeof s.timeUtcSec==='number'&&typeof c.revision==='number'&&typeof c.timezoneId==='string'&&typeof c.appliedTimezoneOffsetMinutes==='number'&&typeof c.timezoneAutomatic==='boolean'&&typeof c.timezoneInitialized==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'&&typeof s.lastCommand.state==='string'):v==='home'?!!(typeof s.adminUnlocked==='boolean'&&typeof c.soundAlertsEnabled==='boolean'&&s.safety&&s.scale&&s.presets&&s.cycle&&s.lastShot&&s.noScaleShotGuard&&typeof s.machineState==='string'&&s.cupPresence):v==='settings'?!!(typeof c.soundAlertsEnabled==='boolean'&&typeof c.dripDelayMs==='number'&&typeof c.postTareBaselineGraceMs==='number'&&s.scale&&s.presets&&typeof s.buzzerSupported==='boolean'):v==='admin'?!!(typeof s.adminUnlocked==='boolean'&&s.network&&(s.adminUnlocked?(s.bleScan&&typeof s.bleScan.scanIntensity==='string'&&typeof c.timezoneId==='string'&&c.ntpServerPreset!=null&&s.ota&&typeof s.ota.available==='boolean'&&s.webhooks&&typeof s.webhooks.enabled==='boolean'&&s.lastCommand&&typeof s.lastCommand.requestId==='number'):typeof s.network.configState==='string')):!1}
-async function loadStatus(){if(statusBusy||document.hidden||!webUiPollingActive())return;statusBusy=true;const seq=viewSeq;try{pollAt=Date.now();const v=activeView,s=v==='home'?await loadHomeStatus():v==='diagnostic'?await loadDiagnosticStatus():await api('/api/v1/status/'+v);await viewReady;if(seq!==viewSeq||!webUiPollingActive())return false;if(v!=='diagnostic'&&!statusPageOk(v,s))throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));lastStatusAt=Date.now();if(v!=='diagnostic'){if(typeof s.liveShot==='boolean')statusLiveShot=s.liveShot;else if(s.cycle||typeof s.relayClosed==='boolean')statusLiveShot=!!((s.cycle&&s.cycle.active)||s.machineRunning||s.relayClosed)}if(v!=='diagnostic')applyCommonStatus(s);if(s.snapshotStale)setMutable(false);const apply=viewStatusHandlers[v];if(apply)apply(s);if(v==='admin'&&s.adminUnlocked){await timezoneCatalogPromise;await timezonePreviewLoad?.catch(()=>{})}noteReachOk();armStatusTimer();return true}catch(e){if(seq===viewSeq)noteReachFail(e);return false}finally{statusBusy=false}}
-function refreshStatus(){return withPollGate(activeView==='stats'?refreshShots:activeView==='history'?refreshHistory:loadStatus)}
+function otaDiscard() {
+  otaBeginBusy();
+  otaSend("/api/v1/ota/abort", null, null, OTA_COMMAND_TIMEOUT_MS)
+    .then((data) => {
+      otaClearStore();
+      otaCommitStore(null);
+      $("otaFile").value = "";
+      otaEndBusy(data, __WEBUI_TEXT__("runtime.the_verified_image_was_discarded"), "ok");
+    })
+    .catch((e) => {
+      otaEndBusy(
+        null,
+        formatCommandError(__WEBUI_TEXT__("runtime.the_image_could_not_be_discarded"), e),
+        "error",
+      );
+    });
+}
+function statusPageOk(v, s) {
+  const c = s && s.config;
+  if (!c || typeof s.configMutable !== "boolean") return !1;
+  return v === "records"
+    ? !!(
+        typeof s.firmwareVersion === "string" &&
+        typeof s.webUiOverrideActive === "boolean" &&
+        typeof s.compatibilityMode === "boolean" &&
+        typeof s.timeUtcSec === "number" &&
+        typeof c.revision === "number" &&
+        typeof c.timezoneId === "string" &&
+        typeof c.appliedTimezoneOffsetMinutes === "number" &&
+        typeof c.timezoneAutomatic === "boolean" &&
+        typeof c.timezoneInitialized === "boolean" &&
+        s.lastCommand &&
+        typeof s.lastCommand.requestId === "number" &&
+        typeof s.lastCommand.state === "string"
+      )
+    : v === "home"
+      ? !!(
+          typeof s.adminUnlocked === "boolean" &&
+          typeof c.soundAlertsEnabled === "boolean" &&
+          s.safety &&
+          s.scale &&
+          s.presets &&
+          s.cycle &&
+          s.lastShot &&
+          s.noScaleShotGuard &&
+          typeof s.machineState === "string" &&
+          s.cupPresence
+        )
+      : v === "settings"
+        ? !!(
+            typeof c.soundAlertsEnabled === "boolean" &&
+            typeof c.dripDelayMs === "number" &&
+            typeof c.postTareBaselineGraceMs === "number" &&
+            s.scale &&
+            s.presets &&
+            typeof s.buzzerSupported === "boolean"
+          )
+        : v === "admin"
+          ? !!(
+              typeof s.adminUnlocked === "boolean" &&
+              s.network &&
+              (s.adminUnlocked
+                ? s.bleScan &&
+                  typeof s.bleScan.scanIntensity === "string" &&
+                  typeof c.timezoneId === "string" &&
+                  c.ntpServerPreset != null &&
+                  s.ota &&
+                  typeof s.ota.available === "boolean" &&
+                  s.webhooks &&
+                  typeof s.webhooks.enabled === "boolean" &&
+                  s.lastCommand &&
+                  typeof s.lastCommand.requestId === "number"
+                : typeof s.network.configState === "string")
+            )
+          : !1;
+}
+async function loadStatus() {
+  if (statusBusy || document.hidden || !webUiPollingActive()) return;
+  statusBusy = true;
+  const seq = viewSeq;
+  try {
+    pollAt = Date.now();
+    const v = activeView,
+      s =
+        v === "home"
+          ? await loadHomeStatus()
+          : v === "diagnostic"
+            ? await loadDiagnosticStatus()
+            : await api("/api/v1/status/" + v);
+    await viewReady;
+    if (seq !== viewSeq || !webUiPollingActive()) return false;
+    if (v !== "diagnostic" && !statusPageOk(v, s))
+      throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
+    lastStatusAt = Date.now();
+    if (v !== "diagnostic") {
+      if (typeof s.liveShot === "boolean") statusLiveShot = s.liveShot;
+      else if (s.cycle || typeof s.relayClosed === "boolean")
+        statusLiveShot = !!((s.cycle && s.cycle.active) || s.machineRunning || s.relayClosed);
+    }
+    if (v !== "diagnostic") applyCommonStatus(s);
+    if (s.snapshotStale) setMutable(false);
+    const apply = viewStatusHandlers[v];
+    if (apply) apply(s);
+    if (v === "admin" && s.adminUnlocked) {
+      await timezoneCatalogPromise;
+      await timezonePreviewLoad?.catch(() => {});
+    }
+    noteReachOk();
+    armStatusTimer();
+    return true;
+  } catch (e) {
+    if (seq === viewSeq) noteReachFail(e);
+    return false;
+  } finally {
+    statusBusy = false;
+  }
+}
+function refreshStatus() {
+  return withPollGate(
+    activeView === "stats" ? refreshShots : activeView === "history" ? refreshHistory : loadStatus,
+  );
+}
 
-async function clearShotHistory(){if(!confirm(__WEBUI_TEXT__("runtime.clear_all_recorded_shot_history_this_cannot")))return;return withCommandGate(async()=>{try{await api('/api/v1/stats/clear',{method:'POST',body:body({confirm:'CLEAR_SHOT_LOG'})});shotHistory={bootId:shotHistory.bootId||0,total:0,hasMore:false,shots:[]};shotStats={};renderShots();message(__WEBUI_TEXT__("runtime.shot_history_cleared"),'ok')}catch(e){message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_clear_shot_history"),e),'error')}})}
+async function clearShotHistory() {
+  if (!confirm(__WEBUI_TEXT__("runtime.clear_all_recorded_shot_history_this_cannot"))) return;
+  return withCommandGate(async () => {
+    try {
+      await api("/api/v1/stats/clear", {
+        method: "POST",
+        body: body({ confirm: "CLEAR_SHOT_LOG" }),
+      });
+      shotHistory = { bootId: shotHistory.bootId || 0, total: 0, hasMore: false, shots: [] };
+      shotStats = {};
+      renderShots();
+      message(__WEBUI_TEXT__("runtime.shot_history_cleared"), "ok");
+    } catch (e) {
+      message(
+        formatCommandError(__WEBUI_TEXT__("runtime.could_not_clear_shot_history"), e),
+        "error",
+      );
+    }
+  });
+}
 
-async function deleteOneShot(id){if(!id||!confirm(__WEBUI_TEXT__("runtime.delete_this_shot_record")))return;return withCommandGate(async()=>{try{await api('/api/v1/stats/delete',{method:'POST',body:body({id})});shotHistory.shots=shotHistory.shots.filter(s=>s.id!==id);if(typeof shotHistory.total==='number'&&shotHistory.total>0)shotHistory.total--;shotHistory.hasMore=shotHistory.shots.length<shotHistory.total;renderShots();message(__WEBUI_TEXT__("runtime.shot_deleted"),'ok')}catch(e){message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_delete_shot"),e),'error')}})}
-async function postShotRating(p,undo){return withCommandGate(async()=>{try{await api('/api/v1/stats/rate',{method:'POST',body:body(p)});noteReachOk();return true}catch(e){if(undo)undo();message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_shot_rating"),e),'error');return false}})}
-function rateHistoryShot(id,n){const s=shotHistory.shots.find(x=>x&&x.id===id),p=s&&s.rating;if(s)s.rating=n;renderShots();return postShotRating({id,rating:n},()=>{if(s)s.rating=p;renderShots()}).then(ok=>ok&&shotSort==='rating'&&refreshShots())}
-async function forgetPairedScale(){if(!confirm(__WEBUI_TEXT__("runtime.clear_the_preferred_scale_discovery_pauses_for")))return;await command('/api/v1/scale/preferred/clear',{})}
-function selectPreferredScale(){const sel=$('preferredScaleSelect');if(!sel||preferredScaleSelectSyncing)return;const mac=sel.value||'';sel.dataset.pending='1';markConfigDirty();const opt=sel.selectedOptions&&sel.selectedOptions[0];updateScaleRenameUi('preferredScaleRenameWrap',mac,opt&&opt.dataset?String(opt.dataset.name||''):'')}async function command(path,value={},soft,okMsg,failMsg,busyId){return withCommandGate(async()=>{commandBusy=true;const sb=busyId?$(busyId):null;if(sb)sb.classList.add('busy');try{const noReconnect=path.endsWith('/network')&&value.action==='save'&&value._noReconnectWait,firmwareModeSave=path.endsWith('/firmware-mode'),waitForRevision=path.endsWith('/config')||path.endsWith('/presets'),previousRevision=configRevision;const payload=value;delete payload._noReconnectWait;const accepted=await api(path,{method:'POST',body:body(payload)});clearFieldErrors();noteReachOk();if(noReconnect)savedStaWifiSleep=!!$('staWifiSleep').checked;if(path.endsWith('/network')&&value.action==='save'&&!noReconnect){beginNetworkReconnectWait();return true}if(firmwareModeSave){beginNetworkReconnectWait();return true}if(waitForRevision){let applied=false;for(let i=0;i<40;i++){if(i)await new Promise(r=>setTimeout(r,100));await refreshStatus();const result=lastCommandStatus;if(result?.requestId!==accepted.requestId)continue;if(result.state==='FAILED'||result.state==='CANCELED')throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));if((result.state==='APPLIED'||result.state==='PERSISTED')&&configRevision!==previousRevision){applied=true;break}}if(!applied)throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"))}else await refreshStatus();if(okMsg!=='')message(okMsg||(noReconnect?__WEBUI_TEXT__("runtime.network_preferences_saved"):commandOkMessage(path,value)),'ok');return true}catch(e){if(soft)throw e;if(failMsg!=='')message(formatCommandError(failMsg||commandFailMessage(path,value),e),'error');await refreshStatus();return false}finally{commandBusy=false;if(sb)sb.classList.remove('busy')}})}async function setBleScanIntensity(){const sel=$('bleScanIntensity');if(!sel)return;const wanted=sel.value;try{await api('/api/v1/admin/ble-scan',{method:'PUT',body:body({scanIntensity:wanted})});noteReachOk();message(__WEBUI_TEXT__("runtime.ble_scan_mode_saved"),'ok');await refreshStatus();return true}catch(x){message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_ble_scan_mode"),x),'error');await refreshStatus();return false}}async function setBleEnabled(){const el=$('bleEnabled');if(!el)return;const wanted=el.checked;try{await api('/api/v1/admin/ble-scan',{method:'PUT',body:body({enabled:wanted})});noteReachOk();message(wanted?__WEBUI_TEXT__("runtime.ble_enabled_saved"):__WEBUI_TEXT__("runtime.ble_disabled_saved"),'ok');await refreshStatus();return true}catch(x){el.checked=!wanted;message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_ble_setting"),x),'error');await refreshStatus();return false}}function ensureUiOverridePanel(){if(developmentMode||$('uiOverridePanel'))return;const p=document.createElement('fieldset');p.id='uiOverridePanel';p.innerHTML=("<legend>"+__WEBUI_TEXT__("runtime.ui_override")+"</legend><div class=\"btnBar\"><button id=\"uiOverrideButton\" class=\"btnGlyph btnWarn\" type=\"button\"><span class=\"g\">"+__WEBUI_TEXT__("runtime.symbol_13")+"</span><span class=\"t\">"+__WEBUI_TEXT__("runtime.unlock_1_min")+"</span></button></div><small id=\"uiOverrideHint\"></small>");const s=document.querySelector('#adminControls .adminSession');if(s)s.after(p);const b=$('uiOverrideButton');if(b&&!b.dataset.bound){b.dataset.bound='1';b.onclick=()=>api('/api/v1/ui/unlock',{method:'POST',body:body({confirm:'UNSAFE_WEBUI_OVERRIDE'})}).then(()=>{noteReachOk();message(__WEBUI_TEXT__("runtime.override_on"),'ok');return refreshStatus()}).catch(e=>message(formatCommandError(__WEBUI_TEXT__("runtime.override_failed"),e),'error'))}}
+async function deleteOneShot(id) {
+  if (!id || !confirm(__WEBUI_TEXT__("runtime.delete_this_shot_record"))) return;
+  return withCommandGate(async () => {
+    try {
+      await api("/api/v1/stats/delete", { method: "POST", body: body({ id }) });
+      shotHistory.shots = shotHistory.shots.filter((s) => s.id !== id);
+      if (typeof shotHistory.total === "number" && shotHistory.total > 0) shotHistory.total--;
+      shotHistory.hasMore = shotHistory.shots.length < shotHistory.total;
+      renderShots();
+      message(__WEBUI_TEXT__("runtime.shot_deleted"), "ok");
+    } catch (e) {
+      message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_delete_shot"), e), "error");
+    }
+  });
+}
+async function postShotRating(p, undo) {
+  return withCommandGate(async () => {
+    try {
+      await api("/api/v1/stats/rate", { method: "POST", body: body(p) });
+      noteReachOk();
+      return true;
+    } catch (e) {
+      if (undo) undo();
+      message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_shot_rating"), e), "error");
+      return false;
+    }
+  });
+}
+function rateHistoryShot(id, n) {
+  const s = shotHistory.shots.find((x) => x && x.id === id),
+    p = s && s.rating;
+  if (s) s.rating = n;
+  renderShots();
+  return postShotRating({ id, rating: n }, () => {
+    if (s) s.rating = p;
+    renderShots();
+  }).then((ok) => ok && shotSort === "rating" && refreshShots());
+}
+async function forgetPairedScale() {
+  if (!confirm(__WEBUI_TEXT__("runtime.clear_the_preferred_scale_discovery_pauses_for"))) return;
+  await command("/api/v1/scale/preferred/clear", {});
+}
+function selectPreferredScale() {
+  const sel = $("preferredScaleSelect");
+  if (!sel || preferredScaleSelectSyncing) return;
+  const mac = sel.value || "";
+  sel.dataset.pending = "1";
+  markConfigDirty();
+  const opt = sel.selectedOptions && sel.selectedOptions[0];
+  updateScaleRenameUi(
+    "preferredScaleRenameWrap",
+    mac,
+    opt && opt.dataset ? String(opt.dataset.name || "") : "",
+  );
+}
+async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
+  return withCommandGate(async () => {
+    commandBusy = true;
+    const sb = busyId ? $(busyId) : null;
+    if (sb) sb.classList.add("busy");
+    try {
+      const noReconnect =
+          path.endsWith("/network") && value.action === "save" && value._noReconnectWait,
+        firmwareModeSave = path.endsWith("/firmware-mode"),
+        waitForRevision = path.endsWith("/config") || path.endsWith("/presets"),
+        previousRevision = configRevision;
+      const payload = value;
+      delete payload._noReconnectWait;
+      const accepted = await api(path, { method: "POST", body: body(payload) });
+      clearFieldErrors();
+      noteReachOk();
+      if (noReconnect) savedStaWifiSleep = !!$("staWifiSleep").checked;
+      if (path.endsWith("/network") && value.action === "save" && !noReconnect) {
+        beginNetworkReconnectWait();
+        return true;
+      }
+      if (firmwareModeSave) {
+        beginNetworkReconnectWait();
+        return true;
+      }
+      if (waitForRevision) {
+        let applied = false;
+        for (let i = 0; i < 40; i++) {
+          if (i) await new Promise((r) => setTimeout(r, 100));
+          await refreshStatus();
+          const result = lastCommandStatus;
+          if (result?.requestId !== accepted.requestId) continue;
+          if (result.state === "FAILED" || result.state === "CANCELED")
+            throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));
+          if (
+            (result.state === "APPLIED" || result.state === "PERSISTED") &&
+            configRevision !== previousRevision
+          ) {
+            applied = true;
+            break;
+          }
+        }
+        if (!applied) throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));
+      } else await refreshStatus();
+      if (okMsg !== "")
+        message(
+          okMsg ||
+            (noReconnect
+              ? __WEBUI_TEXT__("runtime.network_preferences_saved")
+              : commandOkMessage(path, value)),
+          "ok",
+        );
+      return true;
+    } catch (e) {
+      if (soft) throw e;
+      if (failMsg !== "")
+        message(formatCommandError(failMsg || commandFailMessage(path, value), e), "error");
+      await refreshStatus();
+      return false;
+    } finally {
+      commandBusy = false;
+      if (sb) sb.classList.remove("busy");
+    }
+  });
+}
+async function setBleScanIntensity() {
+  const sel = $("bleScanIntensity");
+  if (!sel) return;
+  const wanted = sel.value;
+  try {
+    await api("/api/v1/admin/ble-scan", { method: "PUT", body: body({ scanIntensity: wanted }) });
+    noteReachOk();
+    message(__WEBUI_TEXT__("runtime.ble_scan_mode_saved"), "ok");
+    await refreshStatus();
+    return true;
+  } catch (x) {
+    message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_ble_scan_mode"), x), "error");
+    await refreshStatus();
+    return false;
+  }
+}
+async function setBleEnabled() {
+  const el = $("bleEnabled");
+  if (!el) return;
+  const wanted = el.checked;
+  try {
+    await api("/api/v1/admin/ble-scan", { method: "PUT", body: body({ enabled: wanted }) });
+    noteReachOk();
+    message(
+      wanted
+        ? __WEBUI_TEXT__("runtime.ble_enabled_saved")
+        : __WEBUI_TEXT__("runtime.ble_disabled_saved"),
+      "ok",
+    );
+    await refreshStatus();
+    return true;
+  } catch (x) {
+    el.checked = !wanted;
+    message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_ble_setting"), x), "error");
+    await refreshStatus();
+    return false;
+  }
+}
+function ensureUiOverridePanel() {
+  if (developmentMode || $("uiOverridePanel")) return;
+  const p = document.createElement("fieldset");
+  p.id = "uiOverridePanel";
+  p.innerHTML =
+    "<legend>" +
+    __WEBUI_TEXT__("runtime.ui_override") +
+    '</legend><div class="btnBar"><button id="uiOverrideButton" class="btnGlyph btnWarn" type="button"><span class="g">' +
+    __WEBUI_TEXT__("runtime.symbol_13") +
+    '</span><span class="t">' +
+    __WEBUI_TEXT__("runtime.unlock_1_min") +
+    '</span></button></div><small id="uiOverrideHint"></small>';
+  const s = document.querySelector("#adminControls .adminSession");
+  if (s) s.after(p);
+  const b = $("uiOverrideButton");
+  if (b && !b.dataset.bound) {
+    b.dataset.bound = "1";
+    b.onclick = () =>
+      api("/api/v1/ui/unlock", { method: "POST", body: body({ confirm: "UNSAFE_WEBUI_OVERRIDE" }) })
+        .then(() => {
+          noteReachOk();
+          message(__WEBUI_TEXT__("runtime.override_on"), "ok");
+          return refreshStatus();
+        })
+        .catch((e) =>
+          message(formatCommandError(__WEBUI_TEXT__("runtime.override_failed"), e), "error"),
+        );
+  }
+}
 
 export {
-  $, webUiOwner, webUiPollingActive, noteWebUiInteraction, exitFullScreenOnPop,
-  claimWebUiOwnership, setMutable, controlsMutable, lockAdmin, showPageBoot, hideHomeBoot, withPollGate,
-  body, number, message, formatCommandError, showFieldError, clearFieldErrors,
-  api, command, withCommandGate, withBaseRev,
-  registerViewStatus, setEnsureViewHook,
-  setActiveView, setViewPollHooks, stopViewPolls,
-  refreshStatus, loadStatus, armStatusTimer,
-  stopDiagnosticStream, renderDiagClock, startLogStream, stopLogStream, startHistoryStream, stopHistoryStream,
-  startStatsStream, stopStatsStream,
-  renderLog, clearLogView,
-  loadMoreShots, exportShotsCsv, clearShotHistory,
+  $,
+  webUiOwner,
+  webUiPollingActive,
+  noteWebUiInteraction,
+  exitFullScreenOnPop,
+  claimWebUiOwnership,
+  setMutable,
+  controlsMutable,
+  lockAdmin,
+  showPageBoot,
+  hideHomeBoot,
+  withPollGate,
+  body,
+  number,
+  message,
+  formatCommandError,
+  showFieldError,
+  clearFieldErrors,
+  api,
+  command,
+  withCommandGate,
+  withBaseRev,
+  registerViewStatus,
+  setEnsureViewHook,
+  setActiveView,
+  setViewPollHooks,
+  stopViewPolls,
+  refreshStatus,
+  loadStatus,
+  armStatusTimer,
+  stopDiagnosticStream,
+  renderDiagClock,
+  startLogStream,
+  stopLogStream,
+  startHistoryStream,
+  stopHistoryStream,
+  startStatsStream,
+  stopStatsStream,
+  renderLog,
+  clearLogView,
+  loadMoreShots,
+  exportShotsCsv,
+  clearShotHistory,
   renderStatsDurChart,
-  loadMoreHistory, clearActivationHistory,
-  toggleHistoryDir, syncHistoryDirButton,
-  setShotSort, toggleShotSortDir, syncShotSortButtons,
+  loadMoreHistory,
+  clearActivationHistory,
+  toggleHistoryDir,
+  syncHistoryDirButton,
+  setShotSort,
+  toggleShotSortDir,
+  syncShotSortButtons,
   resetNetworkAddressLoaded,
-  formatWallTime, applyHomeStatus, applySettingsStatus, applyAdminStatus, applyDiagnosticStatus,
-  updateConfigGroups, updateScalePreferenceOptions, setSaveDirty, markConfigDirty, markDateTimeDirty, markBleDirty, markPowerDirty, markFrontendDirty, clearBleDirty, clearPowerDirty, clearFrontendDirty, markBrewDirty, saveMachineConfig, saveDateTimeConfig, saveBrewPreset,
-  settingsSectionOf, snapshotControls, restoreSnapshot, revertBrewPreset, revertMachineConfig, revertDateTimeConfig, revertNetworkConfig,
-  markLineaMicraDirty, revertLineaMicra, updateMicraShutdownControls, connectLineaMicra, selectLineaMicra, saveLineaMicraSettings, disconnectLineaMicra, lineaMicraAction,
-  validateNetworkClient, validateDevicePasswordClient, networkSavePayload, networkPreferencesOnly,
-  startWifiScan, selectDetectedNetwork, updateNetworkPasswordState, updateStaticIpFieldsState,
-  forgetPairedScale, selectPreferredScale, renameScale, setBleScanIntensity, setBleEnabled,
-  setWifiSleep, themeMode, paintTheme, setTheme, cycleTheme,
-  otaUpload, otaFlash, otaDiscard,
-  populateTimezoneOptions, timeZoneSelectionChanged,
-  changeTimezoneMode, syncHomeGuardSwitchesFromSettings,
-  persistHomeGuard, persistHomeNoScaleBbw, persistHomeBrewByWeight,
-  invalidateSettingsHydration, clearBrewDirty, presetState, selectedPreset,
-  formatExtractionGuard, formatSlowExtractionGuard, formatAtmGuard, formatNoScaleGuard,
-  formatAccidentalTouch, formatCupProtection,
-  bootId, formRev, configDirty, brewDirty, bleDirty, powerDirty, frontendDirty, bleBaseline, powerBaseline, frontendBaseline, noteReachOk, noteReachFail,
+  formatWallTime,
+  applyHomeStatus,
+  applySettingsStatus,
+  applyAdminStatus,
+  applyDiagnosticStatus,
+  updateConfigGroups,
+  updateScalePreferenceOptions,
+  setSaveDirty,
+  markConfigDirty,
+  markDateTimeDirty,
+  markBleDirty,
+  markPowerDirty,
+  markFrontendDirty,
+  clearBleDirty,
+  clearPowerDirty,
+  clearFrontendDirty,
+  markBrewDirty,
+  saveMachineConfig,
+  saveDateTimeConfig,
+  saveBrewPreset,
+  settingsSectionOf,
+  snapshotControls,
+  restoreSnapshot,
+  revertBrewPreset,
+  revertMachineConfig,
+  revertDateTimeConfig,
+  revertNetworkConfig,
+  markLineaMicraDirty,
+  revertLineaMicra,
+  updateMicraShutdownControls,
+  connectLineaMicra,
+  selectLineaMicra,
+  saveLineaMicraSettings,
+  disconnectLineaMicra,
+  lineaMicraAction,
+  validateNetworkClient,
+  validateDevicePasswordClient,
+  networkSavePayload,
+  networkPreferencesOnly,
+  startWifiScan,
+  selectDetectedNetwork,
+  updateNetworkPasswordState,
+  updateStaticIpFieldsState,
+  forgetPairedScale,
+  selectPreferredScale,
+  renameScale,
+  setBleScanIntensity,
+  setBleEnabled,
+  setWifiSleep,
+  themeMode,
+  paintTheme,
+  setTheme,
+  cycleTheme,
+  otaUpload,
+  otaFlash,
+  otaDiscard,
+  populateTimezoneOptions,
+  timeZoneSelectionChanged,
+  changeTimezoneMode,
+  syncHomeGuardSwitchesFromSettings,
+  persistHomeGuard,
+  persistHomeNoScaleBbw,
+  persistHomeBrewByWeight,
+  invalidateSettingsHydration,
+  clearBrewDirty,
+  presetState,
+  selectedPreset,
+  formatExtractionGuard,
+  formatSlowExtractionGuard,
+  formatAtmGuard,
+  formatNoScaleGuard,
+  formatAccidentalTouch,
+  formatCupProtection,
+  bootId,
+  formRev,
+  configDirty,
+  brewDirty,
+  bleDirty,
+  powerDirty,
+  frontendDirty,
+  bleBaseline,
+  powerBaseline,
+  frontendBaseline,
+  noteReachOk,
+  noteReachFail,
   developmentActive,
 };

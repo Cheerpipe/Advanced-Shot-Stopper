@@ -1,67 +1,66 @@
-    !ui.includes('function applyHomeStatus(') ||
-    !ui.includes('function applySettingsStatus(') ||
-    !ui.includes('function applyAdminStatus(') ||
-        ui.includes("api('/api/v1/status')") ||
-    !ui.includes('DEVICE_MAX_INFLIGHT') ||
-    !ui.includes('acquireDeviceSlot') ||
-    !ui.includes('releaseDeviceSlot') ||
-    ui.includes('/api/v1/heartbeat') ||
-    ui.includes('function heartbeat(') ||
-    ui.includes('setInterval(()=>refreshStatus(),2500)')) {
+    !codeIncludes(ui, 'function applyHomeStatus(') ||
+    !codeIncludes(ui, 'function applySettingsStatus(') ||
+    !codeIncludes(ui, 'function applyAdminStatus(') ||
+        codeIncludes(ui, "api('/api/v1/status')") ||
+    !codeIncludes(ui, 'DEVICE_MAX_INFLIGHT') ||
+    !codeIncludes(ui, 'acquireDeviceSlot') ||
+    !codeIncludes(ui, 'releaseDeviceSlot') ||
+    codeIncludes(ui, '/api/v1/heartbeat') ||
+    codeIncludes(ui, 'function heartbeat(') ||
+    codeIncludes(ui, 'setInterval(()=>refreshStatus(),2500)')) {
   throw new Error('Web UI must adapt/pause status polls, serialize commands, time out hung fetches, and use DEVICE_MAX_INFLIGHT without POST heartbeat');
 }
-if (!runtimeJs.includes("function statusIntervalMs(){return document.hidden?12e3:statusLiveShot?2500:4e3}") ||
-    !runtimeJs.includes("s=v==='home'?await loadHomeStatus():v==='diagnostic'?await loadDiagnosticStatus():await api(") ||
-    !runtimeJs.includes("activeView!=='settings'&&activeView!=='admin'")) {
+if (!codeIncludes(runtimeJs, "function statusIntervalMs(){return document.hidden?12e3:statusLiveShot?2500:4e3}") ||
+    !codeIncludes(runtimeJs, "s=v==='home'?await loadHomeStatus():v==='diagnostic'?await loadDiagnosticStatus():await api(") ||
+    !codeIncludes(runtimeJs, "activeView!=='settings'&&activeView!=='admin'")) {
   throw new Error('Home and Diagnostic must use their socket; other views retain live/idle/hidden REST intervals');
 }
-if (!ui.includes('async function loadStatus(){') ||
-    !ui.includes('function startStatsStream(){') ||
-    !ui.includes('function startLogStream(){') ||
-    !ui.includes('function applyLogFrame(') ||
-    !ui.includes('LOG_EVENTS_CAPACITY') ||
-    !ui.includes('logEvents.splice(0,logEvents.length-LOG_EVENTS_CAPACITY)') ||
-    !ui.includes("function refreshStatus(){return withPollGate(activeView==='stats'?refreshShots:activeView==='history'?refreshHistory:loadStatus)}") ||
-    !ui.includes("function refreshShots(){return shotStatsViewActive()?startStatsStream():Promise.resolve(false)}") ||
-    !(ui.includes("name==='home'||name==='settings'||name==='admin'||name==='diagnostic'") ||
-      ui.includes("name === 'home' || name === 'settings' || name === 'admin' ||") ||
-      ui.includes("name === 'diagnostic'")) ||
-    ui.includes("name==='presets'") ||
-    !(ui.includes("name==='stats'") || ui.includes("name === 'stats'")) ||
-    !ui.includes('renderRoute(location.pathname)') ||
-    !ui.includes('ensureView') ||
-    ui.includes('Promise.all([loadShots(),loadLog()])')) {
+if (!codeIncludes(ui, 'async function loadStatus(){') ||
+    !codeIncludes(ui, 'function startStatsStream(){') ||
+    !codeIncludes(ui, 'function startLogStream(){') ||
+    !codeIncludes(ui, 'function applyLogFrame(') ||
+    !codeIncludes(ui, 'LOG_EVENTS_CAPACITY') ||
+    !codeIncludes(ui, 'logEvents.splice(0,logEvents.length-LOG_EVENTS_CAPACITY)') ||
+    !codeIncludes(ui, "function refreshStatus(){return withPollGate(activeView==='stats'?refreshShots:activeView==='history'?refreshHistory:loadStatus") ||
+    !codeIncludes(ui, "function refreshShots(){return shotStatsViewActive()?startStatsStream():Promise.resolve(false)}") ||
+    !(codeIncludes(ui, "name==='home'||name==='settings'||name==='admin'||name==='diagnostic'") ||
+      codeIncludes(ui, "name === 'home' || name === 'settings' || name === 'admin' ||") ||
+      codeIncludes(ui, "name === 'diagnostic'")) ||
+    codeIncludes(ui, "name==='presets'") ||
+    !(codeIncludes(ui, "name==='stats'") || codeIncludes(ui, "name === 'stats'")) ||
+    !codeIncludes(ui, 'renderRoute(location.pathname)') ||
+    !codeIncludes(ui, 'ensureView') ||
+    codeIncludes(ui, 'Promise.all([loadShots(),loadLog()])')) {
   throw new Error('Web UI must lazy-load status/shots/log per active SPA view; background polls stay gated');
 }
 {
   const statsStart = (() => {
-    const spaced = appJsSource.indexOf("name === 'stats'");
-    const i = spaced >= 0 ? spaced : appJsSource.indexOf("name==='stats'");
+    const i = appJsSource.search(/name\s*===\s*['"]stats['"]/);
     if (i < 0) return '';
     const j = appJsSource.indexOf('}', i);
     return j > i ? appJsSource.slice(i, j) : '';
   })();
   if (statsStart.includes('R.loadStatus()') || !statsStart.includes('R.startStatsStream()') ||
-      !runtimeJs.includes("was!==canEdit&&activeView==='stats'") ||
-      !runtimeJs.includes("fillStarRate(rateHost,r.rating||0,!controlsMutable,")) {
+      !codeIncludes(runtimeJs, "was!==canEdit&&activeView==='stats'") ||
+      !codeIncludes(runtimeJs, "fillStarRate(rateHost,r.rating||0,!controlsMutable,")) {
     throw new Error(
         'Stats must load its own state with records, and re-render rating stars when mutable flips');
   }
 }
-if (!ui.includes('id="view-home"') ||
-    !ui.includes('id="view-stats"') ||
-    !ui.includes('id="view-settings"') ||
-    ui.includes('id="view-presets"') ||
-    !ui.includes('id="view-admin"') ||
-    ui.includes('id="view-debug"') ||
-    !ui.includes('id="view-diagnostic"') ||
-    ui.includes('id="view-log"') ||
-    !ui.includes('data-route="/settings"') ||
-    ui.includes('data-route="/presets"') ||
-    !ui.includes('data-route="/admin"') ||
-    ui.includes('data-route="/debug"') ||
-    !ui.includes('data-route="/diagnostic"') ||
-    !ui.includes('history.pushState')) {
+if (!codeIncludes(ui, 'id="view-home"') ||
+    !codeIncludes(ui, 'id="view-stats"') ||
+    !codeIncludes(ui, 'id="view-settings"') ||
+    codeIncludes(ui, 'id="view-presets"') ||
+    !codeIncludes(ui, 'id="view-admin"') ||
+    codeIncludes(ui, 'id="view-debug"') ||
+    !codeIncludes(ui, 'id="view-diagnostic"') ||
+    codeIncludes(ui, 'id="view-log"') ||
+    !codeIncludes(ui, 'data-route="/settings"') ||
+    codeIncludes(ui, 'data-route="/presets"') ||
+    !codeIncludes(ui, 'data-route="/admin"') ||
+    codeIncludes(ui, 'data-route="/debug"') ||
+    !codeIncludes(ui, 'data-route="/diagnostic"') ||
+    !codeIncludes(ui, 'history.pushState')) {
   throw new Error('Web UI must expose Home/Stats/Admin/Diagnostic/Settings routes as an SPA');
 }
 const maxHandlersMatch = network.match(/max_uri_handlers\s*=\s*(\d+)/);
@@ -102,11 +101,15 @@ for (const method of ['GET', 'POST', 'PUT']) {
 }
 
 const diagnosticButtons = new Map();
+const profilerStart = ui.search(/for\s*\(\s*const\s*\[id,\s*path,\s*field\]\s*of/);
 const diagnosticProfilerBindings = ui.slice(
-    ui.indexOf('for(const[id,path,field]'), ui.indexOf("$('scaleProfileDeleteButton').onclick"));
-const diagnosticResetStart = ui.indexOf("for(const[id,path]of[['loopMax'");
-const diagnosticResetBindings = ui.slice(
-    diagnosticResetStart, ui.indexOf('}export function activate()', diagnosticResetStart));
+    profilerStart, ui.search(/\$\(\s*['"]scaleProfileDeleteButton['"]\s*\)\s*\.\s*onclick/));
+const diagnosticResetStart = ui.search(
+    /for\s*\(\s*const\s*\[id,\s*path\]\s*of\s*\[\s*\[\s*['"]loopMax['"]/);
+const activateRel = ui.slice(diagnosticResetStart)
+    .search(/\}\s*export\s+function\s+activate\s*\(/);
+const diagnosticResetBindings = activateRel < 0 ? '' :
+    ui.slice(diagnosticResetStart, diagnosticResetStart + activateRel);
 new Function('$', 'R', diagnosticProfilerBindings + diagnosticResetBindings)(
     id => {
       const button = {};
@@ -146,15 +149,15 @@ for (const [route, handler] of expected) {
       throw new Error(`Missing HTTP registration: ${route} -> ${handler}`);
     }
   }
-  if (uri !== '/' && !ui.includes(uri.split('?')[0]) && !diagnosticBoundRoutes.has(uri)) {
+  if (uri !== '/' && !codeIncludes(ui, uri.split('?')[0]) && !diagnosticBoundRoutes.has(uri)) {
     const statusPage = uri.match(/^\/api\/v1\/status\/(home|settings|admin|diagnostic)$/);
     const lazyAsset = uri.match(/^\/(partials|js)\//);
     const browserIcon = uri === '/favicon.ico' ||
         uri.startsWith('/apple-touch-icon');
     const rawLastShotApi = uri === '/api/v1/last-shot/clear';
     const directScaleSelectionApi = uri === '/api/v1/scale/preferred/select';
-    if (!(statusPage && ui.includes('async function loadStatus(') && ui.includes('/api/v1/status/')) &&
-        !(lazyAsset && (ui.includes('/partials/') || ui.includes('/js/'))) &&
+    if (!(statusPage && codeIncludes(ui, 'async function loadStatus(') && codeIncludes(ui, '/api/v1/status/')) &&
+        !(lazyAsset && (codeIncludes(ui, '/partials/') || codeIncludes(ui, '/js/'))) &&
         !browserIcon && !rawLastShotApi && !directScaleSelectionApi) {
       throw new Error(`Registered API is not referenced by the UI: ${uri}`);
     }
@@ -194,8 +197,8 @@ if (alertChannelStatusFields.length !== 1 ||
 if (!statusFormat.includes('{\\"firmwareVersion\\":\\"%s\\",\\"bootId\\":%lu,\\"configMutable\\":%s,') ||
     !statusFormat.includes('\\"webUiOverrideActive\\":%s,\\"webUiOverrideRemainingMs\\":%lu,') ||
     !statusFormat.includes('\\"configLockReason\\":\\"%s\\",\\"liveShot\\":%s"') ||
-    !ui.includes("typeof s.bootId==='number'") ||
-    !ui.includes('updateFirmwareFooter()')) {
+    !codeIncludes(ui, "typeof s.bootId==='number'") ||
+    !codeIncludes(ui, 'updateFirmwareFooter()')) {
   throw new Error(
       'Status shared envelope must open with firmwareVersion/bootId/configMutable/webUiOverride/liveShot');
 }
@@ -210,7 +213,7 @@ if (!statusFormat.includes('page == StatusPage::Settings') ||
     statusFormat.includes('StatusPage::Debug')) {
   throw new Error('buzzerSupported must be gated to status settings only');
 }
-if (ui.includes("statusPageOk(v,s)") && !ui.includes("v!=='diagnostic'&&!statusPageOk(v,s)")) {
+if (codeIncludes(ui, "statusPageOk(v,s)") && !codeIncludes(ui, "v!=='diagnostic'&&!statusPageOk(v,s)")) {
   throw new Error('statusPageOk must not validate a diagnostic REST payload');
 }
 if (network.includes('page == StatusPage::Diagnostic')) {
@@ -260,7 +263,7 @@ if (network.includes('page == StatusPage::Diagnostic')) {
       !diagRegion.includes('commandsJson') ||
       !html.includes('id="scaleCommandTable"') ||
       !html.includes('id="scaleCommandRows"') ||
-      !ui.includes('applyScaleCommands(sc)') ||
+      !codeIncludes(ui, 'applyScaleCommands(sc)') ||
       !bleLibrary.includes('case ScaleOp::PowerOff: return 0x15;')) {
     throw new Error('Diagnostic scale command table must use current library model and wire codes');
   }
@@ -271,25 +274,25 @@ if (network.includes('page == StatusPage::Diagnostic')) {
       !homeStreamSource.includes('delta.field("liveShot"') ||
       !diagRegion.includes('config.ringRetainLogLevel') ||
       !diagRegion.includes('config.appliedTimezoneOffsetMinutes') ||
-      !ui.includes("typeof s.bootId==='number'") ||
-      !ui.includes('function applyDiagnosticStatus(') ||
-      !ui.includes('dBz') ||
-      !ui.includes('dCircuit') ||
-      !ui.includes('dArch') ||
-      !ui.includes("'HW: '+f.hardwareProfile") ||
-      !ui.includes("'Machine: '+f.machineBrand+' '+f.machineModel") ||
-      !ui.includes('dSerialIo4') ||
-      !ui.includes('dSerialState') ||
-      !ui.includes("enabled_jtag:'Enabled (compile flag)'") ||
-      !ui.includes("enabled_io4:'Enabled (IO04)'") ||
-      !ui.includes('Compile flags') ||
-      !ui.includes('s.compileFlags') ||
+      !codeIncludes(ui, "typeof s.bootId==='number'") ||
+      !codeIncludes(ui, 'function applyDiagnosticStatus(') ||
+      !codeIncludes(ui, 'dBz') ||
+      !codeIncludes(ui, 'dCircuit') ||
+      !codeIncludes(ui, 'dArch') ||
+      !codeIncludes(ui, "'HW: '+f.hardwareProfile") ||
+      !codeIncludes(ui, "'Machine: '+f.machineBrand+' '+f.machineModel") ||
+      !codeIncludes(ui, 'dSerialIo4') ||
+      !codeIncludes(ui, 'dSerialState') ||
+      !codeIncludes(ui, "enabled_jtag:'Enabled (compile flag)'") ||
+      !codeIncludes(ui, "enabled_io4:'Enabled (IO04)'") ||
+      !codeIncludes(ui, 'Compile flags') ||
+      !codeIncludes(ui, 's.compileFlags') ||
       !html.includes('paddleOnly') ||
       !html.includes('id="dMt"') ||
       !html.includes('<legend>Serial</legend>') ||
       !css.includes('html.momentaryMachine .paddleOnly') ||
       !css.includes('.momentaryOnly') ||
-      !ui.includes('function applyMachineTypeUi(')) {
+      !codeIncludes(ui, 'function applyMachineTypeUi(')) {
     throw new Error(
         'diagnostic stream must keep transversal bootId/firmware/liveShot/ringRetain for the Diagnostic page');
   }
@@ -345,8 +348,8 @@ if (!network.includes('ShotStopperDebugExport.h') ||
         'return sendChunk(request, text, strlen(text)) == ESP_OK') ||
     network.includes('httpd_resp_send_chunk(request, text, HTTPD_RESP_USE_STRLEN)') ||
     !firmware.includes('ShotStopperDebugExport.h') ||
-    !ui.includes('/api/v1/debug/export') ||
-    !ui.includes('exportDebugDataButton') ||
+    !codeIncludes(ui, '/api/v1/debug/export') ||
+    !codeIncludes(ui, 'exportDebugDataButton') ||
     !html.includes('id="exportDebugDataButton"') ||
     network.slice(
         network.indexOf('esp_err_t ShotStopperNetwork::debugExportHandler'),
@@ -369,9 +372,9 @@ if (ringOpenSlice.includes('timezoneOffsetMinutes') ||
   throw new Error(
       'NTP/serialDebug must not share the revision/ringRetainLogLevel open append');
 }
-if (!ui.includes(
+if (!codeIncludes(ui, 
         "typeof s.buzzerSupported==='boolean')updateBuzzerAlertVisibility") &&
-    !ui.includes(
+    !codeIncludes(ui, 
         'typeof s.buzzerSupported==="boolean")updateBuzzerAlertVisibility')) {
   throw new Error(
       'applyCommonStatus must only update buzzer visibility when buzzerSupported is present');
@@ -643,9 +646,9 @@ if (!network.includes('!status.apActive') ||
 }
 if (network.includes('\\"passwordChangeRequired\\"') ||
     network.includes('PASSWORD_CHANGE_REQUIRED') ||
-    ui.includes('passwordChangeRequired') ||
-    ui.includes('factory AP/UI password') ||
-    ui.includes('Change the factory AP/UI password')) {
+    codeIncludes(ui, 'passwordChangeRequired') ||
+    codeIncludes(ui, 'factory AP/UI password') ||
+    codeIncludes(ui, 'Change the factory AP/UI password')) {
   throw new Error('Factory password change gate must remain removed from status/UI/API');
 }
 

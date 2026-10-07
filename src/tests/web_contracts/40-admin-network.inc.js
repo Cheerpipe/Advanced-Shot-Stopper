@@ -5,7 +5,7 @@
   const dateTimeFn = runtimeJs.slice(
       runtimeJs.indexOf('function dateTimePayload('),
       runtimeJs.indexOf('function brewPayload('));
-  if (!machineFn.includes("scaleConnectedLed:$('scaleConnectedLed').checked") ||
+  if (!codeIncludes(machineFn, "scaleConnectedLed:$('scaleConnectedLed').checked") ||
       machineFn.includes('ntpServerPreset') ||
       machineFn.includes('timezoneOffsetMinutes') ||
       machineFn.includes('serialDebugOutput') ||
@@ -16,9 +16,9 @@
       !dateTimeFn.includes('ntpServerPreset') ||
       !dateTimeFn.includes('ntpServerCustom') ||
       dateTimeFn.includes('scaleConnectedLed') ||
-      !ui.includes("saveDateTimeButton').onclick=R.saveDateTimeConfig") ||
-      ui.includes("saveDateTimeButton').onclick=R.saveMachineConfig") ||
-      (ui.includes("function markConfigDirty(") &&
+      !codeIncludes(ui, "saveDateTimeButton').onclick=R.saveDateTimeConfig") ||
+      codeIncludes(ui, "saveDateTimeButton').onclick=R.saveMachineConfig") ||
+      (codeIncludes(ui, "function markConfigDirty(") &&
        runtimeJs.slice(runtimeJs.indexOf('function markConfigDirty('),
                        runtimeJs.indexOf('function markDateTimeDirty('))
            .includes('dateTimeDirtyHint'))) {
@@ -26,18 +26,18 @@
         'Save machine must send only machine fields; Date & time has its own payload and dirty flag');
   }
 }
-if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.serialDebugOutput") ||
-         ui.includes("$('serialDebugOutput').checked=!!c.serialDebugOutput")) ||
+if (!(codeIncludes(ui, "if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.serialDebugOutput") ||
+         codeIncludes(ui, "$('serialDebugOutput').checked=!!c.serialDebugOutput")) ||
     firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)',
                      firmware.indexOf('persistenceReady = EEPROM.begin')) < 0 ||
     firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)',
                      firmware.indexOf('persistenceReady = EEPROM.begin')) >
         firmware.indexOf('BOOT_RESET_REASON') ||
-    !ui.includes("serialLogLevel:$('serialLogLevel').value") ||
-    !ui.includes("ringRetainLogLevel:$('ringRetainLogLevel').value||'none'") ||
-    !ui.includes("serialLogLevel').onchange") ||
-    !ui.includes("ringRetainLogLevel').onchange") ||
-    !ui.includes('baseRevision') ||
+    !codeIncludes(ui, "serialLogLevel:$('serialLogLevel').value") ||
+    !codeIncludes(ui, "ringRetainLogLevel:$('ringRetainLogLevel').value||'none'") ||
+    !codeIncludes(ui, "serialLogLevel').onchange") ||
+    !codeIncludes(ui, "ringRetainLogLevel').onchange") ||
+    !codeIncludes(ui, 'baseRevision') ||
     !network.includes('ringRetainLogLevel') ||
     !html.includes('id="homePresetAcc"') ||
     html.includes('id="ruleChart"') ||
@@ -55,20 +55,20 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
     !css.includes('.guardFast i{background:#d97706}') ||
     !css.includes('.guardBbw i{background:var(--ok)}') ||
     !css.includes('.guardSlow i{background:#6492d7}') ||
-    !ui.includes('function buildRuleChartModel(') ||
-    !ui.includes('function renderHomePresetAccordion(') ||
-    !ui.includes('function guardRuleRows(') ||
-    !ui.includes('function updateRuleChartFromStatus(') ||
-    !ui.includes('bbw&&!!c.fastExtractionGuardEnabled') ||
-    !ui.includes('bbw&&!!c.slowExtractionGuardEnabled') ||
-    !ui.includes("'timerOnly'") ||
-    !ui.includes("'active'") ||
-    !ui.includes("Number.isFinite(pv)?Math.max(0,Math.min(pv") ||
-    !ui.includes('Cuts at {0} between {1} s and {2} s, or at {2} s with {3} or more') ||
-    !ui.includes('Cuts at {0} between {1} s and {2} s') ||
-    !ui.includes('Cuts at {0} or more from {1} s') ||
-    !ui.includes('bbwProtectionMs') ||
-    !runtimeJs.includes('vector-effect="non-scaling-stroke"') ||
+    !codeIncludes(ui, 'function buildRuleChartModel(') ||
+    !codeIncludes(ui, 'function renderHomePresetAccordion(') ||
+    !codeIncludes(ui, 'function guardRuleRows(') ||
+    !codeIncludes(ui, 'function updateRuleChartFromStatus(') ||
+    !codeIncludes(ui, 'bbw&&!!c.fastExtractionGuardEnabled') ||
+    !codeIncludes(ui, 'bbw&&!!c.slowExtractionGuardEnabled') ||
+    !codeIncludes(ui, "'timerOnly'") ||
+    !codeIncludes(ui, "'active'") ||
+    !codeIncludes(ui, "Number.isFinite(pv)?Math.max(0,Math.min(pv") ||
+    !codeIncludes(ui, 'Cuts at {0} between {1} s and {2} s, or at {2} s with {3} or more') ||
+    !codeIncludes(ui, 'Cuts at {0} between {1} s and {2} s') ||
+    !codeIncludes(ui, 'Cuts at {0} or more from {1} s') ||
+    !codeIncludes(ui, 'bbwProtectionMs') ||
+    !codeIncludes(runtimeJs, 'vector-effect="non-scaling-stroke"') ||
     !firmware.includes('SERIAL_DEBUG_ON') ||
     !firmware.includes('SERIAL_DEBUG_OFF') ||
     !firmware.includes('DEBUG_FULL') ||
@@ -99,9 +99,9 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
   const context = vm.createContext({__WEBUI_TEXT__: key => strings[key],
     document: {createElement: node, createTextNode: text => ({textContent: text})},
     presetState: {activeId: 1, items: [saved]}, renderHomePresetAccordion() {}});
-  vm.runInContext(runtimeJs.split('\n').filter(line =>
-    ['axisLabel', 'guardRuleRows', 'buildRuleChartModel', 'updateRuleChartFromStatus']
-      .some(name => line.startsWith('function ' + name + '('))).join('\n'), context);
+  vm.runInContext(['axisLabel', 'guardRuleRows', 'buildRuleChartModel',
+    'updateRuleChartFromStatus'].map((name) => blockAt(runtimeJs, 'function ' + name + '('))
+      .join('\n'), context);
   const rules = config => {
     context.status = {config};
     return Array.from(vm.runInContext('updateRuleChartFromStatus(status); guardRuleRows(liveRuleModel)', context),
@@ -118,35 +118,35 @@ if (!(ui.includes("if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.
   assert(rules({...home, bbwProtectionMs: 15000})[0].includes('between 15 s and 28 s'));
   assert.deepStrictEqual(rules({...home, brewByWeight: false}), ['Off', 'Off', 'Off']);
 }
-if (!ui.includes('id="staIpMode"') ||
-    !ui.includes('id="staStaticIp"') ||
-    !ui.includes('id="staNetmask"') ||
-    !ui.includes('id="staGateway"') ||
-    !ui.includes('id="staDns1"') ||
-    !ui.includes('function networkSavePayload(') ||
-    !ui.includes("ipMode:$('staIpMode').value") ||
-    !ui.includes('staticIpOpt') ||
-    !ui.includes('pending confirm') ||
-    !ui.includes('savedStaSsid') ||
-    !ui.includes('Leave empty to keep the saved password') ||
-    !ui.includes('keep=!!savedStaSsid') ||
-    !ui.includes("savedStaSsid=n.wifiConfigured&&n.ssid?n.ssid:''") ||
-    !ui.includes('function formatNetworkStatus(n)') ||
-    !ui.includes("n.staState==='CONNECTED'&&typeof n.channel==='number'&&n.channel>0") ||
-    !ui.includes("' — channel '+n.channel") ||
-    !ui.includes("signalQualityPct") ||
-    !ui.includes("n.rssi") ||
-    !ui.includes('signal ') ||
-    !ui.includes(' dBm)') ||
-    !ui.includes("$('networkStatus').textContent=formatNetworkStatus(s.network)") ||
-    !ui.includes("t('hSsid',n.ssid)") ||
-    !ui.includes("t('hWifiState',n.staState)") ||
-    !ui.includes("t('hWifiPs',n.wifiPs)") ||
-    !ui.includes("t('hWifiCoex',n.wifiCoex)") ||
-    !ui.includes("$('apStatus').textContent='AP: '+(s.network.apActive?'active':'inactive')") ||
-    !ui.includes("s.network.apSsid") ||
-    !ui.includes("n.apSsid") ||
-    !ui.includes("t('hApState',n.apActive?'active':'inactive')") ||
+if (!codeIncludes(ui, 'id="staIpMode"') ||
+    !codeIncludes(ui, 'id="staStaticIp"') ||
+    !codeIncludes(ui, 'id="staNetmask"') ||
+    !codeIncludes(ui, 'id="staGateway"') ||
+    !codeIncludes(ui, 'id="staDns1"') ||
+    !codeIncludes(ui, 'function networkSavePayload(') ||
+    !codeIncludes(ui, "ipMode:$('staIpMode').value") ||
+    !codeIncludes(ui, 'staticIpOpt') ||
+    !codeIncludes(ui, 'pending confirm') ||
+    !codeIncludes(ui, 'savedStaSsid') ||
+    !codeIncludes(ui, 'Leave empty to keep the saved password') ||
+    !codeIncludes(ui, 'keep=!!savedStaSsid') ||
+    !codeIncludes(ui, "savedStaSsid=n.wifiConfigured&&n.ssid?n.ssid:''") ||
+    !codeIncludes(ui, 'function formatNetworkStatus(n)') ||
+    !codeIncludes(ui, "n.staState==='CONNECTED'&&typeof n.channel==='number'&&n.channel>0") ||
+    !codeIncludes(ui, "' — channel '+n.channel") ||
+    !codeIncludes(ui, "signalQualityPct") ||
+    !codeIncludes(ui, "n.rssi") ||
+    !codeIncludes(ui, 'signal ') ||
+    !codeIncludes(ui, ' dBm)') ||
+    !codeIncludes(ui, "$('networkStatus').textContent=formatNetworkStatus(s.network)") ||
+    !codeIncludes(ui, "t('hSsid',n.ssid)") ||
+    !codeIncludes(ui, "t('hWifiState',n.staState)") ||
+    !codeIncludes(ui, "t('hWifiPs',n.wifiPs)") ||
+    !codeIncludes(ui, "t('hWifiCoex',n.wifiCoex)") ||
+    !codeIncludes(ui, "$('apStatus').textContent='AP: '+(s.network.apActive?'active':'inactive')") ||
+    !codeIncludes(ui, "s.network.apSsid") ||
+    !codeIncludes(ui, "n.apSsid") ||
+    !codeIncludes(ui, "t('hApState',n.apActive?'active':'inactive'") ||
     !html.includes('<legend>WiFi</legend>') ||
     !html.includes('<strong>Sleep</strong><div id="hWifiPs">') ||
     !html.includes('<strong>Coex</strong><div id="hWifiCoex">') ||
@@ -190,20 +190,20 @@ if (!network.includes('restoreLkgToActive(next)') ||
   if (      !powerPanel.includes('id="staWifiSleep" type="checkbox" checked') ||
       !powerPanel.includes('Wi-Fi sleep<small') ||
       !powerPanel.includes('Puts the Wi-Fi radio into modem sleep') ||
-      !ui.includes('wifiSleep:savedStaWifiSleep') ||
-      !ui.includes("savedStaWifiSleep=!!n.wifiSleep") ||
-      !ui.includes("if($('staWifiSleep')&&!powerDirty)$('staWifiSleep').checked=savedStaWifiSleep") ||
-      !ui.includes("if(n.wifiSleep)t+=' — sleep on'") ||
-      !ui.includes('function setWifiSleep(') ||
-      !ui.includes('_noReconnectWait') ||
-      !ui.includes('delete payload._noReconnectWait') ||
-      !ui.includes('function updateWifiSleepState(') ||
-      !ui.includes('!controlsMutable||!savedStaSsid') ||
-      !ui.includes("R.setWifiSleep()") ||
-      !ui.includes("markPowerDirty") ||
-      !ui.includes('if(noReconnect)savedStaWifiSleep=') ||
-      !ui.includes('R.resetNetworkAddressLoaded()') ||
-      !ui.includes('Wi-Fi sleep saved.') ||
+      !codeIncludes(ui, 'wifiSleep:savedStaWifiSleep') ||
+      !codeIncludes(ui, "savedStaWifiSleep=!!n.wifiSleep") ||
+      !codeIncludes(ui, "if($('staWifiSleep')&&!powerDirty)$('staWifiSleep').checked=savedStaWifiSleep") ||
+      !codeIncludes(ui, "if(n.wifiSleep)t+=' — sleep on'") ||
+      !codeIncludes(ui, 'function setWifiSleep(') ||
+      !codeIncludes(ui, '_noReconnectWait') ||
+      !codeIncludes(ui, 'delete payload._noReconnectWait') ||
+      !codeIncludes(ui, 'function updateWifiSleepState(') ||
+      !codeIncludes(ui, '!controlsMutable||!savedStaSsid') ||
+      !codeIncludes(ui, "R.setWifiSleep()") ||
+      !codeIncludes(ui, "markPowerDirty") ||
+      !codeIncludes(ui, 'if(noReconnect)savedStaWifiSleep=') ||
+      !codeIncludes(ui, 'R.resetNetworkAddressLoaded()') ||
+      !codeIncludes(ui, 'Wi-Fi sleep saved.') ||
       !network.includes('\\"wifiSleep\\":%s') ||
       !network.includes('jsonHasOnlyUniqueFields(root, saveFields, 12)') ||
       !network.includes('jsonBoolean(root, "wifiSleep", command.network.wifiSleep)') ||
@@ -283,11 +283,11 @@ if (!network.includes('restoreLkgToActive(next)') ||
       !network.includes('applyMdnsName();') ||
       !network.includes('WiFi.setHostname(host)') ||
       !network.includes('\\"deviceName\\":\\"%s\\",\\"mdnsHost\\":\\"%s\\"') ||
-      !ui.includes('function networkPreferencesOnly(') ||
-      !ui.includes("name:$('deviceName')") ||
-      !ui.includes("savedDeviceName=n.deviceName||''") ||
-      !ui.includes('function validDeviceNameClient(') ||
-      !ui.includes('id="deviceName"') ||
+      !codeIncludes(ui, 'function networkPreferencesOnly(') ||
+      !codeIncludes(ui, "name:$('deviceName')") ||
+      !codeIncludes(ui, "savedDeviceName=n.deviceName||''") ||
+      !codeIncludes(ui, 'function validDeviceNameClient(') ||
+      !codeIncludes(ui, 'id="deviceName"') ||
       network.includes('mdns_query_(') ||
       mdnsAddCount !== 1) {
     throw new Error(
@@ -345,15 +345,15 @@ if (shellHtml.includes('class="themeSel"') ||
     css.includes('.themeOpt') ||
     !css.includes('html.theme-light{') ||
     !css.includes('html.theme-dark{') ||
-    !runtimeJs.includes("THEME_KEY='ssTh'") ||
-    !runtimeJs.includes("THEME_MODES=['auto','light','dark']") ||
-    !runtimeJs.includes("getElementById('uiTheme')") ||
-    !runtimeJs.includes('localStorage.getItem(THEME_KEY)') ||
-    !runtimeJs.includes('localStorage.setItem(THEME_KEY,m)') ||
-    !runtimeJs.includes("classList.toggle('theme-dark'") ||
-    !runtimeJs.includes("classList.toggle('theme-light'") ||
-    !appJsSource.includes('R.paintTheme(R.themeMode())') ||
-    !appJsSource.includes('R.paintTheme(e.target.value)') ||
+    !codeIncludes(runtimeJs, "THEME_KEY='ssTh'") ||
+    !codeIncludes(runtimeJs, "THEME_MODES=['auto','light','dark']") ||
+    !codeIncludes(runtimeJs, "getElementById('uiTheme')") ||
+    !codeIncludes(runtimeJs, 'localStorage.getItem(THEME_KEY)') ||
+    !codeIncludes(runtimeJs, 'localStorage.setItem(THEME_KEY,m)') ||
+    !codeIncludes(runtimeJs, "classList.toggle('theme-dark'") ||
+    !codeIncludes(runtimeJs, "classList.toggle('theme-light'") ||
+    !codeIncludes(appJsSource, 'R.paintTheme(R.themeMode())') ||
+    !codeIncludes(appJsSource, 'R.paintTheme(e.target.value)') ||
     !html.includes('id="frontendPanel"') ||
     !html.includes('<legend>Frontend</legend>') ||
     !html.includes('id="uiTheme"') ||
@@ -521,85 +521,85 @@ if (!firmwareCore.includes('if (brewEndIsAbandonedStart(reason) || endingRinseCy
     !firmwareCore.includes('!endingRinseCycle(reason) && !brewEndIsAbandonedStart(reason)')) {
   throw new Error('Abandoned starts and rinses must not emit misleading brew-state webhooks');
 }
-if (!ui.includes('function claimWebUiOwnership()') ||
-    !ui.includes('function deactivateWebUi()') ||
-    !ui.includes('function showInactiveOverlay()') ||
-    !ui.includes('function hideInactiveOverlay()') ||
-    !ui.includes('id="webUiReload"') ||
-    !ui.includes('>Reload<') ||
-    !ui.includes('X-WebUI-Client')) {
+if (!codeIncludes(ui, 'function claimWebUiOwnership()') ||
+    !codeIncludes(ui, 'function deactivateWebUi()') ||
+    !codeIncludes(ui, 'function showInactiveOverlay()') ||
+    !codeIncludes(ui, 'function hideInactiveOverlay()') ||
+    !codeIncludes(ui, 'id="webUiReload"') ||
+    !codeIncludes(ui, '>Reload<') ||
+    !codeIncludes(ui, 'X-WebUI-Client')) {
   throw new Error('Inactive WebUI windows must become passive and offer Reload');
 }
-if (!ui.includes('const WEB_UI_INACTIVITY_MS=15*60*1000') ||
-    !ui.includes('function resetWebUiInactivity()') ||
-    !ui.includes('function webUiPollingActive()') ||
-    !ui.includes('function noteWebUiInteraction(event)') ||
-    !(ui.includes("document.addEventListener('pointerdown',noteWebUiInteraction,true)") ||
-      ui.includes("document.addEventListener('pointerdown', R.noteWebUiInteraction, true)") ||
-      ui.includes("document.addEventListener('pointerdown',R.noteWebUiInteraction,true)")) ||
-    !(ui.includes("document.addEventListener('keydown',noteWebUiInteraction,true)") ||
-      ui.includes("document.addEventListener('keydown', R.noteWebUiInteraction, true)") ||
-      ui.includes("document.addEventListener('keydown',R.noteWebUiInteraction,true)")) ||
-    ui.includes("addEventListener('scroll',noteWebUiInteraction") ||
-    ui.includes("addEventListener('scroll', R.noteWebUiInteraction")) {
+if (!codeIncludes(ui, 'const WEB_UI_INACTIVITY_MS=15*60*1000') ||
+    !codeIncludes(ui, 'function resetWebUiInactivity()') ||
+    !codeIncludes(ui, 'function webUiPollingActive()') ||
+    !codeIncludes(ui, 'function noteWebUiInteraction(event)') ||
+    !(codeIncludes(ui, "document.addEventListener('pointerdown',noteWebUiInteraction,true)") ||
+      codeIncludes(ui, "document.addEventListener('pointerdown', R.noteWebUiInteraction, true)") ||
+      codeIncludes(ui, "document.addEventListener('pointerdown',R.noteWebUiInteraction,true)")) ||
+    !(codeIncludes(ui, "document.addEventListener('keydown',noteWebUiInteraction,true)") ||
+      codeIncludes(ui, "document.addEventListener('keydown', R.noteWebUiInteraction, true)") ||
+      codeIncludes(ui, "document.addEventListener('keydown',R.noteWebUiInteraction,true)")) ||
+    codeIncludes(ui, "addEventListener('scroll',noteWebUiInteraction") ||
+    codeIncludes(ui, "addEventListener('scroll', R.noteWebUiInteraction")) {
   throw new Error('WebUI inactivity must expire after 15 minutes of direct control interaction, never scrolling');
 }
-if (!ui.includes('Press Reload to enable this window again.') ||
-    !ui.includes('id="webUiInactive"') ||
-    !ui.includes('id="inactiveHint"') ||
-    !ui.includes('id="inactiveError"') ||
+if (!codeIncludes(ui, 'Press Reload to enable this window again.') ||
+    !codeIncludes(ui, 'id="webUiInactive"') ||
+    !codeIncludes(ui, 'id="inactiveHint"') ||
+    !codeIncludes(ui, 'id="inactiveError"') ||
     !css.includes('.inactiveOverlay') ||
     !css.includes('.inactiveOverlay.isVisible') ||
     !css.includes('opacity .5s') ||
     !network.includes('This WebUI window is inactive. Reactivate to continue.') ||
-    ui.includes('Another WebUI window controls this device.') ||
+    codeIncludes(ui, 'Another WebUI window controls this device.') ||
     network.includes('Another WebUI window has taken control.') ||
-    ui.includes('function ownershipBanner(') ||
-    ui.includes('webUiOwnership') ||
-    ui.includes('btnTakeControl') ||
-    ui.includes('Reactivate')) {
+    codeIncludes(ui, 'function ownershipBanner(') ||
+    codeIncludes(ui, 'webUiOwnership') ||
+    codeIncludes(ui, 'btnTakeControl') ||
+    codeIncludes(ui, 'Reactivate')) {
   throw new Error('WebUI inactive notice must be a full-screen Reload overlay');
 }
-if (!ui.includes("w.id='reconnectWait'") ||
-    !ui.includes("w.className='reconnectRing'") ||
-    !ui.includes('reconnectSeconds') ||
-    !ui.includes('function beginNetworkReconnectWait()') ||
-    !ui.includes('function endNetworkReconnectWait()') ||
-    !ui.includes('function pollNetworkReconnect()') ||
-    !ui.includes('NETWORK_RECONNECT_WAIT_MS=180000') ||
-    !ui.includes('setTimeout(pollNetworkReconnect,2e3)') ||
-    !ui.includes('setInterval(updateReconnectCountdown,1e3)') ||
-    !ui.includes('rec?4e3:8e3') ||
-    !ui.includes("value.action==='save'") ||
-    !ui.includes('beginNetworkReconnectWait()') ||
-    !ui.includes('claimWebUiOwnership()') ||
-    !ui.includes('Waiting for the controller on this address.') ||
-    !ui.includes('the previous network should return shortly.') ||
+if (!codeIncludes(ui, "w.id='reconnectWait'") ||
+    !codeIncludes(ui, "w.className='reconnectRing'") ||
+    !codeIncludes(ui, 'reconnectSeconds') ||
+    !codeIncludes(ui, 'function beginNetworkReconnectWait()') ||
+    !codeIncludes(ui, 'function endNetworkReconnectWait()') ||
+    !codeIncludes(ui, 'function pollNetworkReconnect()') ||
+    !codeIncludes(ui, 'NETWORK_RECONNECT_WAIT_MS=180000') ||
+    !codeIncludes(ui, 'setTimeout(pollNetworkReconnect,2e3)') ||
+    !codeIncludes(ui, 'setInterval(updateReconnectCountdown,1e3)') ||
+    !codeIncludes(ui, 'rec?4e3:8e3') ||
+    !codeIncludes(ui, "value.action==='save'") ||
+    !codeIncludes(ui, 'beginNetworkReconnectWait()') ||
+    !codeIncludes(ui, 'claimWebUiOwnership()') ||
+    !codeIncludes(ui, 'Waiting for the controller on this address.') ||
+    !codeIncludes(ui, 'the previous network should return shortly.') ||
     !css.includes('.inactiveOverlay.isReconnectWait') ||
     !css.includes('.reconnectRing') ||
     !css.includes('conic-gradient') ||
-    ui.includes('function heartbeat(') ||
-    ui.includes('/api/v1/heartbeat')) {
+    codeIncludes(ui, 'function heartbeat(') ||
+    codeIncludes(ui, '/api/v1/heartbeat')) {
   throw new Error(
       'Wi-Fi save must show a 180s reconnect overlay that polls ui/claim even after 0s, without a heartbeat endpoint');
 }
-if (!ui.includes('clearTimeout(webUiInactivityTimer)') ||
-    !ui.includes('clearTimeout(scanTimer)') ||
-    !ui.includes('stopViewPolls()') ||
-    !ui.includes('if(!webUiPollingActive())throw new Error')) {
+if (!codeIncludes(ui, 'clearTimeout(webUiInactivityTimer)') ||
+    !codeIncludes(ui, 'clearTimeout(scanTimer)') ||
+    !codeIncludes(ui, 'stopViewPolls()') ||
+    !codeIncludes(ui, 'if(!webUiPollingActive())throw new Error')) {
   throw new Error('WebUI inactivity must cancel poll timers and block further API calls');
 }
-if (!ui.includes('setMutable(!!s.configMutable||!!s.webUiOverrideActive)') ||
-    !ui.includes('webUiOverrideActive') ||
-    !ui.includes('webUiOverrideRemainingMs') ||
-    !ui.includes("uiOverridePanel") ||
-    !ui.includes("uiOverrideButton") ||
-    !ui.includes('UI Override') ||
-    !ui.includes("closest('#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel')") ||
-    !ui.includes('function ensureUiOverridePanel(') ||
-    !ui.includes('if(developmentMode||$(\'uiOverridePanel\'))return;') ||
-    !ui.includes('/api/v1/ui/unlock') ||
-    !ui.includes('UNSAFE_WEBUI_OVERRIDE') ||
+if (!codeIncludes(ui, 'setMutable(!!s.configMutable||!!s.webUiOverrideActive)') ||
+    !codeIncludes(ui, 'webUiOverrideActive') ||
+    !codeIncludes(ui, 'webUiOverrideRemainingMs') ||
+    !codeIncludes(ui, "uiOverridePanel") ||
+    !codeIncludes(ui, "uiOverrideButton") ||
+    !codeIncludes(ui, 'UI Override') ||
+    !codeIncludes(ui, "closest('#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel')") ||
+    !codeIncludes(ui, 'function ensureUiOverridePanel(') ||
+    !codeIncludes(ui, 'if(developmentMode||$(\'uiOverridePanel\'))return;') ||
+    !codeIncludes(ui, '/api/v1/ui/unlock') ||
+    !codeIncludes(ui, 'UNSAFE_WEBUI_OVERRIDE') ||
     !network.includes('/api/v1/ui/unlock') ||
     !network.includes('UNSAFE_WEBUI_OVERRIDE') ||
     !network.includes('WEB_UI_OVERRIDE_MS') ||
@@ -609,35 +609,35 @@ if (!ui.includes('setMutable(!!s.configMutable||!!s.webUiOverrideActive)') ||
     network.includes('clearWebUiOverrideIfSafe')) {
   throw new Error('Web UI must honor configMutable/webUiOverrideActive with a timed admin-gated UI Override');
 }
-if (ui.includes('configLockBanner') || css.includes('configLockBanner') ||
-    ui.includes('ensureConfigLockBanner') || ui.includes('renderConfigLockBanner') ||
-    ui.includes('Controls locked:') || ui.includes('Unsafe WebUI override active')) {
+if (codeIncludes(ui, 'configLockBanner') || css.includes('configLockBanner') ||
+    codeIncludes(ui, 'ensureConfigLockBanner') || codeIncludes(ui, 'renderConfigLockBanner') ||
+    codeIncludes(ui, 'Controls locked:') || codeIncludes(ui, 'Unsafe WebUI override active')) {
   throw new Error('Web UI must not render the configuration-lock warning banner');
 }
 if (network.includes('return "safety_recovery"') ||
     network.includes('return "safety_lockout"') ||
-    ui.includes("safety_recovery:'safety recovery'") ||
-    ui.includes("safety_lockout:'safety lockout'")) {
+    codeIncludes(ui, "safety_recovery:'safety recovery'") ||
+    codeIncludes(ui, "safety_lockout:'safety lockout'")) {
   throw new Error('Safety recovery must not lock the WebUI');
 }
-if (!ui.includes("s.safety.recoveryRequired||s.safety.state==='LOCKOUT'") ||
-    !ui.includes('admin&&remoteReady&&relayStartReady&&canControl') ||
-    !ui.includes("live?'Stop shot':'Start shot'") ||
-    !ui.includes("dataset.mode==='stop'") ||
-    !ui.includes("/api/v1/control/paddle") ||
-    !ui.includes("/api/v1/control/stop") ||
-    !ui.includes('show=!!unlocked&&!!remoteEnabled') ||
-    !ui.includes('syncAdminSessionUi(admin,remoteReady)') ||
-    !ui.includes("id=\"actionsPanel\" class=\"hidden\"") ||
-    !ui.includes('shot.disabled=!admin||(!live&&!(remoteReady&&relayStartReady&&canControl))')) {
+if (!codeIncludes(ui, "s.safety.recoveryRequired||s.safety.state==='LOCKOUT'") ||
+    !codeIncludes(ui, 'admin&&remoteReady&&relayStartReady&&canControl') ||
+    !codeIncludes(ui, "live?'Stop shot':'Start shot'") ||
+    !codeIncludes(ui, "dataset.mode==='stop'") ||
+    !codeIncludes(ui, "/api/v1/control/paddle") ||
+    !codeIncludes(ui, "/api/v1/control/stop") ||
+    !codeIncludes(ui, 'show=!!unlocked&&!!remoteEnabled') ||
+    !codeIncludes(ui, 'syncAdminSessionUi(admin,remoteReady)') ||
+    !codeIncludes(ui, "id=\"actionsPanel\" class=\"hidden\"") ||
+    !codeIncludes(ui, 'shot.disabled=!admin||(!live&&!(remoteReady&&relayStartReady&&canControl))')) {
   throw new Error('Circuit actions must require remote policy and Admin unlock while preserving Stop semantics');
 }
-if (!ui.includes('id="forcePulseButton"') ||
-    !ui.includes('class="btnGlyph btnWarn momentaryOnly"') ||
-    !ui.includes('Force switch press') ||
-    !ui.includes("R.command('/api/v1/control/force-pulse')") ||
-    !js.includes("'control/force-pulse':['Switch pulse sent.','send switch pulse']") ||
-    !runtimeJs.includes("force.disabled=!(admin&&remoteReady&&relayStartReady&&webUiOwner)") ||
+if (!codeIncludes(ui, 'id="forcePulseButton"') ||
+    !codeIncludes(ui, 'class="btnGlyph btnWarn momentaryOnly"') ||
+    !codeIncludes(ui, 'Force switch press') ||
+    !codeIncludes(ui, "R.command('/api/v1/control/force-pulse')") ||
+    !codeIncludes(js, "'control/force-pulse':['Switch pulse sent.','send switch pulse'") ||
+    !codeIncludes(runtimeJs, "force.disabled=!(admin&&remoteReady&&relayStartReady&&webUiOwner)") ||
     !css.includes('color:var(--ac);min-height:3rem;min-width:4.5rem;padding:.6rem .85rem') ||
     !css.includes('#actionsPanel .btnGlyph{flex:1;') ||
     !css.includes('#actionsPanel .momentaryOnly{flex:.6;min-height:var(--tap);min-width:4.5rem}') ||
@@ -708,32 +708,32 @@ const maxRespHeadersMatch = network.match(/max_resp_headers\s*=\s*(\d+)/);
 if (!maxRespHeadersMatch || Number(maxRespHeadersMatch[1]) < 12) {
   throw new Error('HTTP server must allow at least 12 response headers for gzip and ETag');
 }
-if (!ui.includes('function withPollGate(') ||
-    !ui.includes('function withCommandGate(') ||
-    !ui.includes('function armStatusTimer(') ||
-    !ui.includes('function statusPollDue(') ||
-    !ui.includes('commandBusy') ||
-    !ui.includes('statusLiveShot') ||
-    !ui.includes('visibilitychange') ||
-    !ui.includes('await refreshStatus()') ||
-    !ui.includes('noteReachFail(') ||
-    !ui.includes('function startView(') ||
-    !ui.includes('function stopViewPolls(') ||
-    !ui.includes('function renderRoute(') ||
-    !ui.includes('armStatusTimer()') ||
-    !ui.includes('AbortController') ||
-    !ui.includes('Device timeout') ||
-    !ui.includes("throw new Error('Invalid response')") ||
-    !ui.includes("throw new Error('Invalid status')") ||
-    !ui.includes("await loadDiagnosticStatus():await api('/api/v1/status/'+v)") ||
-    !ui.includes('function ensureSettingsHydrated(') ||
-    !ui.includes('function homeConfigPatch(') ||
-    !ui.includes('function withBaseRev(') ||
-    !ui.includes('function isConfigStale(') ||
-    !ui.includes('formRev') ||
-    !ui.includes('formRev===c.revision') ||
-    !ui.includes('baseRevision') ||
-    !ui.includes('command(path,value={},soft,okMsg,failMsg,busyId)') ||
-    !ui.includes('/api/v1/status/') ||
-    !ui.includes('function statusPageOk(') ||
-    !ui.includes("throw new Error('Invalid response')") ||
+if (!codeIncludes(ui, 'function withPollGate(') ||
+    !codeIncludes(ui, 'function withCommandGate(') ||
+    !codeIncludes(ui, 'function armStatusTimer(') ||
+    !codeIncludes(ui, 'function statusPollDue(') ||
+    !codeIncludes(ui, 'commandBusy') ||
+    !codeIncludes(ui, 'statusLiveShot') ||
+    !codeIncludes(ui, 'visibilitychange') ||
+    !codeIncludes(ui, 'await refreshStatus()') ||
+    !codeIncludes(ui, 'noteReachFail(') ||
+    !codeIncludes(ui, 'function startView(') ||
+    !codeIncludes(ui, 'function stopViewPolls(') ||
+    !codeIncludes(ui, 'function renderRoute(') ||
+    !codeIncludes(ui, 'armStatusTimer()') ||
+    !codeIncludes(ui, 'AbortController') ||
+    !codeIncludes(ui, 'Device timeout') ||
+    !codeIncludes(ui, "throw new Error('Invalid response')") ||
+    !codeIncludes(ui, "throw new Error('Invalid status')") ||
+    !codeIncludes(ui, "await loadDiagnosticStatus():await api('/api/v1/status/'+v)") ||
+    !codeIncludes(ui, 'function ensureSettingsHydrated(') ||
+    !codeIncludes(ui, 'function homeConfigPatch(') ||
+    !codeIncludes(ui, 'function withBaseRev(') ||
+    !codeIncludes(ui, 'function isConfigStale(') ||
+    !codeIncludes(ui, 'formRev') ||
+    !codeIncludes(ui, 'formRev===c.revision') ||
+    !codeIncludes(ui, 'baseRevision') ||
+    !codeIncludes(ui, 'command(path,value={},soft,okMsg,failMsg,busyId)') ||
+    !codeIncludes(ui, '/api/v1/status/') ||
+    !codeIncludes(ui, 'function statusPageOk(') ||
+    !codeIncludes(ui, "throw new Error('Invalid response')") ||

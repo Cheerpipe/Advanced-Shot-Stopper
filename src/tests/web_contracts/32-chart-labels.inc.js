@@ -1,5 +1,5 @@
 {
-  const start = runtimeJs.indexOf('let chartFrame='), end = runtimeJs.indexOf('function fixedChartTicks(', start);
+  const start = runtimeJs.search(/let\s+chartFrame\s*=/), end = runtimeJs.indexOf('function fixedChartTicks(', start);
   if (start < 0 || end < 0) throw new Error('Chart label layout helpers are missing');
   const roots = [], frames = [];
   const fakeDocument = {
@@ -149,7 +149,7 @@
     if (shown.length !== 1 || shown[0] !== '36 g')
       throw new Error('A merged range that cannot fit must fall back: ' + shown);
   }
-  if (!runtimeJs.includes("fillChartTicks($('ruleChartTicks')") &&
-      !runtimeJs.includes('fillChartTicks(t,'))
+  if (!codeIncludes(runtimeJs, "fillChartTicks($('ruleChartTicks')") &&
+      !codeIncludes(runtimeJs, 'fillChartTicks(t,'))
     throw new Error('Chart tick rendering must stay shared with the shot charts');
 }

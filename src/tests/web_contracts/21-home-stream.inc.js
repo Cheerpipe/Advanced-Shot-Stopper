@@ -1,7 +1,7 @@
 // Home uses the existing owned socket, with independent scalar and curve state.
 {
   const assert = require('assert').strict, vm = require('vm');
-  const source = runtimeJs.slice(runtimeJs.indexOf('let homeFrame='),
+  const source = runtimeJs.slice(runtimeJs.search(/let\s+homeFrame\s*=/),
     runtimeJs.indexOf('function formatExtractionGuard(')).replace(/export /g, '');
   const validator = runtimeJs.slice(runtimeJs.indexOf('function statusPageOk('),
     runtimeJs.indexOf('async function loadStatus('));
@@ -94,7 +94,7 @@
   sockets[1].close(4001); assert.equal(owner, false, 'takeover must deactivate the old Home without REST');
   const polling = runtimeJs.slice(runtimeJs.indexOf('function armStatusTimer('), runtimeJs.indexOf('function pad2('));
   assert(!polling.includes("activeView!=='home'"), 'Home must not arm the REST polling timer');
-  assert(runtimeJs.includes("s=v==='home'?await loadHomeStatus():v==='diagnostic'?await loadDiagnosticStatus():await api("),
+  assert(codeIncludes(runtimeJs, "s=v==='home'?await loadHomeStatus():v==='diagnostic'?await loadDiagnosticStatus():await api("),
       'Home and Diagnostic load from the stream; only the remaining views REST');
   const rest = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8');
   assert(!rest.includes('StatusPage::Home') && !rest.includes('/api/v1/status/home'),
@@ -108,8 +108,8 @@
     assert.equal(formatCleaning({...lm, websocket: {...lm.websocket, cleaning}}), expected);
   assert.equal(formatCleaning({...lm, connectionType: 'api'}), 'Unavailable — requires WebSocket');
   assert.equal(formatCleaning({...lm, observeState: false}), 'Disabled');
-  assert(viewJs.diagnostic.includes("set('Cleaning',R.formatMicraCleaning(lm))"));
-  assert(viewJs.home.includes('R.formatMicraCleaning(s.lineaMicra)'));
+  assert(codeIncludes(viewJs.diagnostic, "set('Cleaning',R.formatMicraCleaning(lm))"));
+  assert(codeIncludes(viewJs.home, 'R.formatMicraCleaning(s.lineaMicra)'));
 }
 
 // Execute the firmware's bounded field writer itself, including unchanged,

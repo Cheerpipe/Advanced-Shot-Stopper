@@ -1,13 +1,13 @@
 {
   const childId = 'touchStopFallbackEnabled';
-  const formatter = runtimeJs.split('\n').find(line => line.startsWith('function formatShotEnded('));
+  const formatter = blockAt(runtimeJs, 'function formatShotEnded(');
   const ended = new Function(formatter + ';return formatShotEnded;')();
   for (const reason of ['touch_weight_fallback', 'TOUCH_WEIGHT_FALLBACK']) {
     if (ended(reason) !== 'Touch fallback')
       throw new Error('Ended must identify sustained-weight touch protection');
   }
-  if (!runtimeJs.includes('formatShotEnded(r.stopDetail)') ||
-      !runtimeJs.includes('formatShotEnded(d.endReason)')) {
+  if (!codeIncludes(runtimeJs, 'formatShotEnded(r.stopDetail)') ||
+      !codeIncludes(runtimeJs, 'formatShotEnded(d.endReason)')) {
     throw new Error('Stats and Home must share the Ended cause formatter');
   }
   if (html.indexOf(`id="${childId}"`) < html.indexOf('id="avoidAccidentalTouchEnabled"') ||
@@ -15,12 +15,12 @@
       !network.includes('touchStopFallbackEnabled must be a boolean.')) {
     throw new Error('Touch fallback must be a default-ON subordinate setting');
   }
-  const groups = runtimeJs.slice(runtimeJs.indexOf('function updateConfigGroups(){'),
+  const groups = runtimeJs.slice(runtimeJs.search(/function\s+updateConfigGroups\(\)\s*\{/),
     runtimeJs.indexOf('function extRate('));
-  const payload = js.split('\n').find(line => line.startsWith('function brewPayload(){'));
+  const payload = blockAt(allJs, 'function brewPayload()');
   const bindings = viewJs.settings.slice(
-    viewJs.settings.indexOf("document.querySelectorAll('#workflowPanel input"),
-    viewJs.settings.indexOf('const resetBbw='));
+    viewJs.settings.search(/document\s*\.\s*querySelectorAll\(\s*['"]#workflowPanel input/),
+    viewJs.settings.search(/const\s+resetBbw\s*=/));
   for (const parent of [false, true]) for (const saved of [false, true]) {
     for (const bbw of [false, true]) for (const mutable of [false, true]) {
       const nodes = {};
@@ -93,7 +93,7 @@
       !firmwareCore.includes('candidate.autoTareOutsideBrew = command.config.autoTareOutsideBrew;')) {
     throw new Error('Idle tare must have an independent default-ON machine setting');
   }
-  const payloadLine = js.split('\n').find(line => line.startsWith('function machinePayload(){'));
+  const payloadLine = blockAt(allJs, 'function machinePayload()');
   if (!payloadLine) throw new Error('Missing machine payload function');
   const makePayload = new Function('$', 'number', 'sToMs', 'extRate',
     'HOME_GUARD_SWITCHES', 'homeSwitchPending', 'syncSettingsFromHomeSwitches',
@@ -107,7 +107,7 @@
       throw new Error('Idle/accessory tare payload must be independent of shot-start tare');
     }
   }
-  if (!js.includes("['autoTare','autoTareOutsideBrew','retareAccessoryOutsideBrew','brewByWeight'")) {
+  if (!codeIncludes(js, "['autoTare','autoTareOutsideBrew','retareAccessoryOutsideBrew','brewByWeight'")) {
     throw new Error('Settings hydration must restore both saved idle tare values');
   }
 }
@@ -119,7 +119,7 @@
       throw new Error(`${id} must start disabled before settings load`);
     }
   }
-  const source = runtimeJs.slice(runtimeJs.indexOf('function updatePresetActionButtons(){'),
+  const source = runtimeJs.slice(runtimeJs.search(/function\s+updatePresetActionButtons\(\)\s*\{/),
     runtimeJs.indexOf('async function applyPreset('));
   const update = new Function('$', 'document', 'selectedPreset', 'controlsMutable', 'presetsLoaded',
     source + ';updatePresetActionButtons();');
@@ -137,44 +137,44 @@
       }
     }
   }
-  if (!runtimeJs.includes('function ingestPresets(s){if(!s.presets)return;presetsLoaded=true;')) {
+  if (!codeIncludes(runtimeJs, 'function ingestPresets(s){if(!s.presets)return;presetsLoaded=true;')) {
     throw new Error('Preset actions must refresh after loading settles');
   }
 }
 
 if (/R\.(homeFlushConfig|homeFlushPreset|configLoaded|formRev|brewDirty)\s*=/.test(js) ||
-    !js.includes('function persistHomeBrewByWeight(') ||
-    !js.includes('function invalidateSettingsHydration(') ||
-    !js.includes('function clearBrewDirty(')) {
+    !codeIncludes(js, 'function persistHomeBrewByWeight(') ||
+    !codeIncludes(js, 'function invalidateSettingsHydration(') ||
+    !codeIncludes(js, 'function clearBrewDirty(')) {
   throw new Error(
       'View modules must call runtime helpers instead of assigning read-only ESM namespace exports');
 }
-if (!ui.includes('<legend>Brew</legend>') ||
-    !ui.includes('<legend>Machine and scale</legend>') ||
-    !ui.includes('<legend>Network</legend>') ||
-    !ui.includes('<legend>Device password</legend>') ||
-    !ui.includes('<legend>Frontend</legend>') ||
-    !ui.includes('id="presetCards"') ||
+if (!codeIncludes(ui, '<legend>Brew</legend>') ||
+    !codeIncludes(ui, '<legend>Machine and scale</legend>') ||
+    !codeIncludes(ui, '<legend>Network</legend>') ||
+    !codeIncludes(ui, '<legend>Device password</legend>') ||
+    !codeIncludes(ui, '<legend>Frontend</legend>') ||
+    !codeIncludes(ui, 'id="presetCards"') ||
     partialHtml.settings.includes('id="presetCardsState"') ||
     partialHtml.settings.includes('class="presetCard skeleton"') ||
-    runtimeJs.includes('settlePanel(') ||
+    codeIncludes(runtimeJs, 'settlePanel(') ||
     !partialHtml.settings.includes('id="presetCardsWrap" class="panelWrap"') ||
     !css.includes('.panelWrap{position:relative}') ||
-    !ui.includes('id="presetNewBtn"') ||
-    !ui.includes('id="presetDupBtn"') ||
-    ui.includes('id="presetLoadBtn"') ||
-    ui.includes('id="presetSaveBtn"') ||
+    !codeIncludes(ui, 'id="presetNewBtn"') ||
+    !codeIncludes(ui, 'id="presetDupBtn"') ||
+    codeIncludes(ui, 'id="presetLoadBtn"') ||
+    codeIncludes(ui, 'id="presetSaveBtn"') ||
     !html.includes('id="saveBrewPresetButton" class="btnGlyph mutable btnInvert" data-dirty="0" disabled') ||
     !html.includes('id="saveConfigButton" class="btnGlyph mutable btnInvert" data-dirty="0" disabled') ||
     html.includes('id="exportShotsButton" class="btnGlyph btnInvert"') ||
     !css.includes('font-variant-emoji:text') ||
     !html.includes('<span class="g">×</span>') ||
     !html.includes('<span class="g">✓</span>') ||
-    ui.includes('💾') || ui.includes('⚡') ||
-    !ui.includes('Save brew settings') ||
-    !ui.includes('id="activeBrewProfileHint"') ||
-    !ui.includes('Current profile: ') ||
-    !ui.includes('function updateActiveBrewProfileHint(') ||
+    codeIncludes(ui, '💾') || codeIncludes(ui, '⚡') ||
+    !codeIncludes(ui, 'Save brew settings') ||
+    !codeIncludes(ui, 'id="activeBrewProfileHint"') ||
+    !codeIncludes(ui, 'Current profile: ') ||
+    !codeIncludes(ui, 'function updateActiveBrewProfileHint(') ||
     html.indexOf('id="activeBrewProfileHint"') <
         html.indexOf('id="saveBrewPresetButton"') ||
     html.indexOf('id="saveBrewPresetButton"') <
@@ -185,23 +185,23 @@ if (!ui.includes('<legend>Brew</legend>') ||
         html.indexOf('<summary>Alerts</summary>') ||
     html.indexOf('id="saveConfigButton"') >
         html.indexOf('<legend>Network</legend>') ||
-    !ui.includes('id="presetResetBtn"') ||
-    !ui.includes('id="presetDeleteBtn"') ||
-    !ui.includes('id="presetRenameDialog"') ||
-    !ui.includes('id="homePresetAcc"') ||
+    !codeIncludes(ui, 'id="presetResetBtn"') ||
+    !codeIncludes(ui, 'id="presetDeleteBtn"') ||
+    !codeIncludes(ui, 'id="presetRenameDialog"') ||
+    !codeIncludes(ui, 'id="homePresetAcc"') ||
     !html.includes('<legend>Presets</legend>') ||
     html.indexOf('id="presetPanel"') > html.indexOf('<legend>Presets</legend>') ||
     html.indexOf('<legend>Presets</legend>') > html.indexOf('id="homePresetAcc"') ||
     html.indexOf('id="homePresetBlock"') > html.indexOf('id="homePresetAcc"') ||
-    !ui.includes('id="homeBrewByWeight"') ||
-    !ui.includes('id="homeNoScaleBbwEnabled"') ||
-    !ui.includes('id="quickSettingsPanel"') ||
+    !codeIncludes(ui, 'id="homeBrewByWeight"') ||
+    !codeIncludes(ui, 'id="homeNoScaleBbwEnabled"') ||
+    !codeIncludes(ui, 'id="quickSettingsPanel"') ||
     !html.includes('class="homeSwitchGrid"') ||
     !html.includes('id="homeBbwSub"') ||
     !html.includes('id="homeNoScaleSub"') ||
     !html.includes('id="homeFastSub"') ||
     !html.includes('id="homeTouchSub"') ||
-    !ui.includes('function formatAccidentalTouch(') ||
+    !codeIncludes(ui, 'function formatAccidentalTouch(') ||
     !html.includes('id="homeSlowSub"') ||
     !html.includes('id="homeAtmSub"') ||
     !html.includes('id="homeCupSub"') ||
@@ -220,10 +220,10 @@ if (!ui.includes('<legend>Brew</legend>') ||
     html.indexOf('id="homeFastExtractionGuardEnabled"') > html.indexOf('id="homePresetBlock"') ||
     !html.includes('class="homeGuardGrid"') ||
     html.indexOf('class="homeGuardGrid"') > html.indexOf('id="homeNoScaleBbwMode"') ||
-    !ui.includes('id="homeNoScaleBbwMode"') ||
-    !ui.includes('id="homeFastExtractionGuardEnabled"') ||
-    !ui.includes('id="homeSlowExtractionGuardEnabled"') ||
-    !ui.includes('id="homeAutoToManualGuardEnabled"') ||
+    !codeIncludes(ui, 'id="homeNoScaleBbwMode"') ||
+    !codeIncludes(ui, 'id="homeFastExtractionGuardEnabled"') ||
+    !codeIncludes(ui, 'id="homeSlowExtractionGuardEnabled"') ||
+    !codeIncludes(ui, 'id="homeAutoToManualGuardEnabled"') ||
     html.indexOf('id="quickSettingsPanel"') > html.indexOf('id="equipmentPanel"') ||
     html.indexOf('id="homeBrewByWeight"') > html.indexOf('id="homeNoScaleBbwMode"') ||
     html.indexOf('id="homeNoScaleBbwMode"') >
@@ -253,18 +253,18 @@ if (!ui.includes('<legend>Brew</legend>') ||
         html.indexOf('<summary>Cup protection</summary>') ||
     html.indexOf('<summary>Cup protection</summary>') >
         html.indexOf('<summary>Fast extraction guard</summary>') ||
-    !ui.includes('id="cupProtectionEnabled"') ||
+    !codeIncludes(ui, 'id="cupProtectionEnabled"') ||
     html.indexOf('id="cupProtectionEnabled"') >
         html.indexOf('id="stopIfCupRemoved"') ||
-    !ui.includes('id="stopIfCupRemoved"') ||
-    !ui.includes('id="requireCupToStart"') ||
+    !codeIncludes(ui, 'id="stopIfCupRemoved"') ||
+    !codeIncludes(ui, 'id="requireCupToStart"') ||
     html.indexOf('id="requireCupToStart"') >
         html.indexOf('<summary>Fast extraction guard</summary>') ||
-    ui.includes('id="cupPresentWeightG"') ||
+    codeIncludes(ui, 'id="cupPresentWeightG"') ||
     html.includes('id="cupPresentWeightG"') ||
     html.includes('id="requireCupToStart" type="checkbox" checked') ||
-    !ui.includes('If the cup was already tared before connection, lift it and place it again.') ||
-    !ui.includes('id="homeCupProtectionEnabled"') ||
+    !codeIncludes(ui, 'If the cup was already tared before connection, lift it and place it again.') ||
+    !codeIncludes(ui, 'id="homeCupProtectionEnabled"') ||
     html.indexOf('<summary>Slow extraction guard</summary>') < 0 ||
     html.indexOf('<summary>A→M time guard</summary>') < 0 ||
     html.includes('<summary>Avoid accidental touch</summary>') ||
@@ -276,40 +276,40 @@ if (!ui.includes('<legend>Brew</legend>') ||
         html.indexOf('<summary>Slow extraction guard</summary>') ||
     html.indexOf('<summary>Slow extraction guard</summary>') >
         html.indexOf('<summary>A→M time guard</summary>') ||
-    !ui.includes('function updateHomeGuardSwitchesLock(') ||
-    !ui.includes('function persistHomeGuard(') ||
-    !ui.includes('function flushHomeGuards(') ||
-    !ui.includes('function scheduleHomeGuardFlush(') ||
-    !ui.includes('function withCommandGate(') ||
-    !ui.includes('function beginHomeSwitchPending(') ||
-    !ui.includes('function applyPolledHomeSwitch(') ||
-    !ui.includes('function applyHomeSwitchesFromConfig(') ||
-    !ui.includes('Date.now()+5e3') ||
-    !ui.includes('pollAt<p.until') ||
-    !ui.includes("classList.toggle('switchPending',!!on)") ||
-    !ui.includes("persistHomeGuard('homeFastExtractionGuardEnabled'") ||
-    !ui.includes("persistHomeGuard('homeAvoidAccidentalTouchEnabled'") ||
-    !ui.includes("persistHomeGuard('homeSlowExtractionGuardEnabled'") ||
-    !ui.includes("persistHomeGuard('homeAutoToManualGuardEnabled'") ||
-    !ui.includes("persistHomeGuard('homeCupProtectionEnabled'") ||
-    !ui.includes('onchange=R.persistHomeNoScaleBbw') ||
-    !ui.includes('function persistHomeNoScaleBbw(') ||
-    !ui.includes("p.noScaleBbwMode=$('homeNoScaleBbwEnabled').checked?nsm:'off'") ||
-    ui.includes("persistHomeGuard('homeSoundAlertsEnabled'") ||
-    !ui.includes("'fastExtractionGuardEnabled',1)") ||
-    !ui.includes("'avoidAccidentalTouchEnabled',1)") ||
-    !ui.includes("'slowExtractionGuardEnabled',1)") ||
-    !ui.includes("'autoToManualGuardEnabled',1)") ||
-    !ui.includes("'cupProtectionEnabled',1)") ||
-    !ui.includes('el.disabled=!controlsMutable||u||off') ||
-    ui.includes('el.disabled=!controlsMutable||off||pend') ||
-    !ui.includes('homeFlushBusy') ||
-    !ui.includes('scheduleHomeGuardFlush()') ||
-    !ui.includes("classList.toggle('fieldOff',off)") ||
-    !ui.includes('bbw.disabled=!controlsMutable||x') ||
-    !ui.includes('function homeSwitchUnset(') ||
-    !ui.includes("classList.add('swR')") ||
-    !ui.includes("typeof c[k]==='boolean'") ||
+    !codeIncludes(ui, 'function updateHomeGuardSwitchesLock(') ||
+    !codeIncludes(ui, 'function persistHomeGuard(') ||
+    !codeIncludes(ui, 'function flushHomeGuards(') ||
+    !codeIncludes(ui, 'function scheduleHomeGuardFlush(') ||
+    !codeIncludes(ui, 'function withCommandGate(') ||
+    !codeIncludes(ui, 'function beginHomeSwitchPending(') ||
+    !codeIncludes(ui, 'function applyPolledHomeSwitch(') ||
+    !codeIncludes(ui, 'function applyHomeSwitchesFromConfig(') ||
+    !codeIncludes(ui, 'Date.now()+5e3') ||
+    !codeIncludes(ui, 'pollAt<p.until') ||
+    !codeIncludes(ui, "classList.toggle('switchPending',!!on)") ||
+    !codeIncludes(ui, "persistHomeGuard('homeFastExtractionGuardEnabled'") ||
+    !codeIncludes(ui, "persistHomeGuard('homeAvoidAccidentalTouchEnabled'") ||
+    !codeIncludes(ui, "persistHomeGuard('homeSlowExtractionGuardEnabled'") ||
+    !codeIncludes(ui, "persistHomeGuard('homeAutoToManualGuardEnabled'") ||
+    !codeIncludes(ui, "persistHomeGuard('homeCupProtectionEnabled'") ||
+    !codeIncludes(ui, 'onchange=R.persistHomeNoScaleBbw') ||
+    !codeIncludes(ui, 'function persistHomeNoScaleBbw(') ||
+    !codeIncludes(ui, "p.noScaleBbwMode=$('homeNoScaleBbwEnabled').checked?nsm:'off'") ||
+    codeIncludes(ui, "persistHomeGuard('homeSoundAlertsEnabled'") ||
+    !codeIncludes(ui, "'fastExtractionGuardEnabled',1") ||
+    !codeIncludes(ui, "'avoidAccidentalTouchEnabled',1") ||
+    !codeIncludes(ui, "'slowExtractionGuardEnabled',1") ||
+    !codeIncludes(ui, "'autoToManualGuardEnabled',1") ||
+    !codeIncludes(ui, "'cupProtectionEnabled',1") ||
+    !codeIncludes(ui, 'el.disabled=!controlsMutable||u||off') ||
+    codeIncludes(ui, 'el.disabled=!controlsMutable||off||pend') ||
+    !codeIncludes(ui, 'homeFlushBusy') ||
+    !codeIncludes(ui, 'scheduleHomeGuardFlush()') ||
+    !codeIncludes(ui, "classList.toggle('fieldOff',off)") ||
+    !codeIncludes(ui, 'bbw.disabled=!controlsMutable||x') ||
+    !codeIncludes(ui, 'function homeSwitchUnset(') ||
+    !codeIncludes(ui, "classList.add('swR')") ||
+    !codeIncludes(ui, "typeof c[k]==='boolean'") ||
     html.includes('id="homeBrewByWeight" type="checkbox" role="switch" aria-label="Brew by weight" checked') ||
     html.includes('id="homeNoScaleBbwMode" type="checkbox"') ||
     !html.includes('id="homeNoScaleBbwEnabled" type="checkbox" role="switch" aria-label="No-scale BBW"') ||
@@ -331,15 +331,15 @@ if (!ui.includes('<legend>Brew</legend>') ||
     !css.includes('#brewModeRow .swL{font-size:1.05rem;font-weight:700;line-height:1.2;color:var(--fg);letter-spacing:0}') ||
     css.includes('.ruleChartHead') || css.includes('.ruleChartMode') ||
     !css.includes('.switchRow.switchPending .slider,.switchRow.switchPending input:checked+.slider{background:var(--wn);border-color:var(--wn)}') ||
-    !ui.includes('function persistHomeBrewByWeight(') ||
-    !ui.includes("onchange=R.persistHomeBrewByWeight") ||
-    !ui.includes('beginHomeSwitchPending(h,on)') ||
-    ui.includes('id="clearLastShotButton"') ||
+    !codeIncludes(ui, 'function persistHomeBrewByWeight(') ||
+    !codeIncludes(ui, "onchange=R.persistHomeBrewByWeight") ||
+    !codeIncludes(ui, 'beginHomeSwitchPending(h,on)') ||
+    codeIncludes(ui, 'id="clearLastShotButton"') ||
     css.includes('#shotPanel') ||
     !css.includes('#shotTable .btnGlyph{border:0;border-radius:2rem;min-height:var(--tap);min-width:var(--tap);padding:0;flex:0 0 auto;background:none;box-shadow:none;filter:none') ||
     html.includes('id="lastCycle"') ||
-    !ui.includes('function renderShotHero(') ||
-    !ui.includes('function renderShotSpark(') ||
+    !codeIncludes(ui, 'function renderShotHero(') ||
+    !codeIncludes(ui, 'function renderShotSpark(') ||
     !network.includes('\\"lastShot\\"') ||
     !network.includes('\\"curve\\":{%s}') ||
     !network.includes('formatShotCurveJsonBody') ||
@@ -378,23 +378,23 @@ if (!ui.includes('<legend>Brew</legend>') ||
     // call sites); a dedup that reduces the raw occurrences is fine as long
     // as the gate itself stays in the network sources.
     (network.match(/historyMutationAllowed/g) || []).length < 4 ||
-    ui.includes('id="view-presets"') ||
-    ui.includes('data-route="/presets"') ||
-    ui.includes('id="presetsPageCards"') ||
-    ui.includes('id="homePresetChips"') ||
-    ui.includes('id="homePresetCards"') ||
-    !ui.includes("action:'new'") ||
-    !ui.includes("action:'duplicate'") ||
-    !ui.includes("action:'rename'") ||
-    !ui.includes("action:'restore_factory_values'") ||
-    !ui.includes('function startRenamePreset(') ||
-    !ui.includes('function updatePresetActionButtons(') ||
-    !ui.includes("function presetSummary(p){return 'Target '+(p.goalWeightG||'?')+' g'}") ||
-    !ui.includes("badge.textContent=p.isFactory?'factory':'custom'") ||
-    !ui.includes('Discard them and switch presets') ||
-    !ui.includes('saveBrewPreset') ||
-    !ui.includes('/api/v1/presets') ||
-    ui.includes('id="presetNameInput"') ||
+    codeIncludes(ui, 'id="view-presets"') ||
+    codeIncludes(ui, 'data-route="/presets"') ||
+    codeIncludes(ui, 'id="presetsPageCards"') ||
+    codeIncludes(ui, 'id="homePresetChips"') ||
+    codeIncludes(ui, 'id="homePresetCards"') ||
+    !codeIncludes(ui, "action:'new'") ||
+    !codeIncludes(ui, "action:'duplicate'") ||
+    !codeIncludes(ui, "action:'rename'") ||
+    !codeIncludes(ui, "action:'restore_factory_values'") ||
+    !codeIncludes(ui, 'function startRenamePreset(') ||
+    !codeIncludes(ui, 'function updatePresetActionButtons(') ||
+    !codeIncludes(ui, "function presetSummary(p){return 'Target '+(p.goalWeightG||'?')+' g'}") ||
+    !codeIncludes(ui, "badge.textContent=p.isFactory?'factory':'custom'") ||
+    !codeIncludes(ui, 'Discard them and switch presets') ||
+    !codeIncludes(ui, 'saveBrewPreset') ||
+    !codeIncludes(ui, '/api/v1/presets') ||
+    codeIncludes(ui, 'id="presetNameInput"') ||
     !network.includes('/api/v1/presets') ||
     !network.includes('presetsHandler') ||
     !network.includes('restore_factory_values') ||
@@ -414,84 +414,84 @@ if (!ui.includes('<legend>Brew</legend>') ||
                                html.indexOf('id="firmwareFooter"'));
   const statusHtml = html.slice(html.indexOf('id="equipmentPanel"'),
                                 html.indexOf('id="actionsPanel"'));
-  if (!ui.includes('id="hCpu5s"') ||
-      !ui.includes('id="hCpu1m"') ||
-      !ui.includes('id="hCpu5m"') ||
-      !ui.includes('id="hCpuMhz"') ||
-      !ui.includes('id="hWifiState"') ||
-      !ui.includes('id="hWifiPs"') ||
-      !ui.includes('id="hWifiCoex"') ||
-      !ui.includes('id="hSsid"') ||
-      !ui.includes('id="hWifiChannel"') ||
-      !ui.includes('id="hWifiIp"') ||
-      !ui.includes('id="hWifiSignal"') ||
-      !ui.includes('id="hWifiRssi"') ||
-      !ui.includes('id="hApState"') ||
-      !ui.includes('id="hApSsid"') ||
-      !ui.includes('id="hApIp"') ||
-      !ui.includes('id="hApClients"') ||
-      !ui.includes('id="hUptime"') ||
-      !ui.includes('id="hFirmware"') ||
-      !ui.includes('id="hBoot"') ||
-      !ui.includes('id="hResetReason"') ||
-      !ui.includes('id="hTemp"') ||
-      !ui.includes('id="hTPeak"') ||
-      !ui.includes('id="hRamT"') ||
-      !ui.includes('id="hRamU"') ||
-      !ui.includes('id="hRamF"') ||
-      !ui.includes('id="hTaskState"') ||
-      !ui.includes('id="hTaskElapsed"') ||
-      !ui.includes('id="taskProfilerStartButton"') ||
-      !ui.includes('id="taskProfilerStopButton"') ||
-      !ui.includes('id="hProfileState"') ||
-      !ui.includes('id="hProfileElapsed"') ||
-      !ui.includes('id="hProfileRecords"') ||
-      !ui.includes('id="hProfileCapacity"') ||
-      !ui.includes('id="hProfileRemaining"') ||
-      !ui.includes('id="scaleProfileStartButton"') ||
-      !ui.includes('id="scaleProfileStopButton"') ||
-      !ui.includes('id="scaleProfileDeleteButton"') ||
-      !ui.includes('id="scaleProfileDownloadButton"') ||
-      !ui.includes('btnGlyph btnInvert scaleProfileCtl"') ||
-      !ui.includes('function applyScaleProfile(') ||
-      !ui.includes('/api/v1/diagnostic/scale-profile') ||
-      !ui.includes('id="taskTable"') ||
-      !ui.includes('id="taskTableBody"') ||
-      !ui.includes('id="taskTableHint"') ||
-      !ui.includes('function applyTaskProfiler(') ||
-      !ui.includes("[['taskProfiler','profiler','enabled'],['scaleProfile','scale-profile','action']]") ||
-      !ui.includes('100% = 1 core busy (sum can exceed 100)') ||
-      !ui.includes('id="hHeapMin"') ||
-      !ui.includes('id="hHeapLargest"') ||
-      !ui.includes('id="hPsramT"') ||
-      !ui.includes('id="hPsramF"') ||
-      !ui.includes('id="hPsramL"') ||
-      !ui.includes('id="hLoopGap"') ||
-      !ui.includes('id="hLoopMax"') ||
-      !ui.includes('id="loopMaxResetButton"') ||
+  if (!codeIncludes(ui, 'id="hCpu5s"') ||
+      !codeIncludes(ui, 'id="hCpu1m"') ||
+      !codeIncludes(ui, 'id="hCpu5m"') ||
+      !codeIncludes(ui, 'id="hCpuMhz"') ||
+      !codeIncludes(ui, 'id="hWifiState"') ||
+      !codeIncludes(ui, 'id="hWifiPs"') ||
+      !codeIncludes(ui, 'id="hWifiCoex"') ||
+      !codeIncludes(ui, 'id="hSsid"') ||
+      !codeIncludes(ui, 'id="hWifiChannel"') ||
+      !codeIncludes(ui, 'id="hWifiIp"') ||
+      !codeIncludes(ui, 'id="hWifiSignal"') ||
+      !codeIncludes(ui, 'id="hWifiRssi"') ||
+      !codeIncludes(ui, 'id="hApState"') ||
+      !codeIncludes(ui, 'id="hApSsid"') ||
+      !codeIncludes(ui, 'id="hApIp"') ||
+      !codeIncludes(ui, 'id="hApClients"') ||
+      !codeIncludes(ui, 'id="hUptime"') ||
+      !codeIncludes(ui, 'id="hFirmware"') ||
+      !codeIncludes(ui, 'id="hBoot"') ||
+      !codeIncludes(ui, 'id="hResetReason"') ||
+      !codeIncludes(ui, 'id="hTemp"') ||
+      !codeIncludes(ui, 'id="hTPeak"') ||
+      !codeIncludes(ui, 'id="hRamT"') ||
+      !codeIncludes(ui, 'id="hRamU"') ||
+      !codeIncludes(ui, 'id="hRamF"') ||
+      !codeIncludes(ui, 'id="hTaskState"') ||
+      !codeIncludes(ui, 'id="hTaskElapsed"') ||
+      !codeIncludes(ui, 'id="taskProfilerStartButton"') ||
+      !codeIncludes(ui, 'id="taskProfilerStopButton"') ||
+      !codeIncludes(ui, 'id="hProfileState"') ||
+      !codeIncludes(ui, 'id="hProfileElapsed"') ||
+      !codeIncludes(ui, 'id="hProfileRecords"') ||
+      !codeIncludes(ui, 'id="hProfileCapacity"') ||
+      !codeIncludes(ui, 'id="hProfileRemaining"') ||
+      !codeIncludes(ui, 'id="scaleProfileStartButton"') ||
+      !codeIncludes(ui, 'id="scaleProfileStopButton"') ||
+      !codeIncludes(ui, 'id="scaleProfileDeleteButton"') ||
+      !codeIncludes(ui, 'id="scaleProfileDownloadButton"') ||
+      !codeIncludes(ui, 'btnGlyph btnInvert scaleProfileCtl"') ||
+      !codeIncludes(ui, 'function applyScaleProfile(') ||
+      !codeIncludes(ui, '/api/v1/diagnostic/scale-profile') ||
+      !codeIncludes(ui, 'id="taskTable"') ||
+      !codeIncludes(ui, 'id="taskTableBody"') ||
+      !codeIncludes(ui, 'id="taskTableHint"') ||
+      !codeIncludes(ui, 'function applyTaskProfiler(') ||
+      !codeIncludes(ui, "[['taskProfiler','profiler','enabled'],['scaleProfile','scale-profile','action']") ||
+      !codeIncludes(ui, '100% = 1 core busy (sum can exceed 100)') ||
+      !codeIncludes(ui, 'id="hHeapMin"') ||
+      !codeIncludes(ui, 'id="hHeapLargest"') ||
+      !codeIncludes(ui, 'id="hPsramT"') ||
+      !codeIncludes(ui, 'id="hPsramF"') ||
+      !codeIncludes(ui, 'id="hPsramL"') ||
+      !codeIncludes(ui, 'id="hLoopGap"') ||
+      !codeIncludes(ui, 'id="hLoopMax"') ||
+      !codeIncludes(ui, 'id="loopMaxResetButton"') ||
       !diagHtml.includes('Max scale gap (<button id="scaleGapMaxResetButton" class="inlineAction diagCtl" type="button">Reset</button>)') ||
-      !ui.includes('id="hScaleGapMax"') ||
-      !ui.includes('id="loopTimingTable"') ||
-      !ui.includes('id="loopTimingBody"') ||
+      !codeIncludes(ui, 'id="hScaleGapMax"') ||
+      !codeIncludes(ui, 'id="loopTimingTable"') ||
+      !codeIncludes(ui, 'id="loopTimingBody"') ||
       !diagHtml.includes('<th>Loop gap</th><th>Loop max</th>') ||
-      !ui.includes("[['loopMax','loop-max'],['scaleGapMax','scale-gap-max']]") ||
-      !ui.includes("$(id+'ResetButton').onclick=()=>R.command('/api/v1/diagnostic/'+path+'/reset',{})") ||
-      !ui.includes("t('hScaleGapMax',sc.maxPacketGapMs+") ||
-      !ui.includes('id="lastCommandState"') ||
-      !ui.includes('function updH(') ||
-      !ui.includes('updH(s.health,s.safety)') ||
-      !ui.includes('function applyDiagnosticStatus(') ||
-      !ui.includes("t('hLoopMax',s.health.loopMaxGapMs+") ||
-      !ui.includes('h.uptimeMs') ||
-      !ui.includes('h.minimumFreeHeapBytes') ||
-      !ui.includes('h.largestFreeHeapBlockBytes') ||
-      !ui.includes('h.heap') ||
-      !ui.includes('h.psramSizeBytes') ||
-      !ui.includes('h.psramFreeBytes') ||
-      !ui.includes('h.psramLargestFreeBlockBytes') ||
-      !ui.includes("toFixed(1)+' KB'") ||
-      !ui.includes('resetReasonCode') ||
-      !ui.includes("RR[s.resetReasonCode]") ||
+      !codeIncludes(ui, "[['loopMax','loop-max'],['scaleGapMax','scale-gap-max']") ||
+      !codeIncludes(ui, "$(id+'ResetButton').onclick=()=>R.command('/api/v1/diagnostic/'+path+'/reset',{})") ||
+      !codeIncludes(ui, "t('hScaleGapMax',sc.maxPacketGapMs+") ||
+      !codeIncludes(ui, 'id="lastCommandState"') ||
+      !codeIncludes(ui, 'function updH(') ||
+      !codeIncludes(ui, 'updH(s.health,s.safety)') ||
+      !codeIncludes(ui, 'function applyDiagnosticStatus(') ||
+      !codeIncludes(ui, "t('hLoopMax',s.health.loopMaxGapMs+") ||
+      !codeIncludes(ui, 'h.uptimeMs') ||
+      !codeIncludes(ui, 'h.minimumFreeHeapBytes') ||
+      !codeIncludes(ui, 'h.largestFreeHeapBlockBytes') ||
+      !codeIncludes(ui, 'h.heap') ||
+      !codeIncludes(ui, 'h.psramSizeBytes') ||
+      !codeIncludes(ui, 'h.psramFreeBytes') ||
+      !codeIncludes(ui, 'h.psramLargestFreeBlockBytes') ||
+      !codeIncludes(ui, "toFixed(1)+' KB'") ||
+      !codeIncludes(ui, 'resetReasonCode') ||
+      !codeIncludes(ui, "RR[s.resetReasonCode]") ||
       !network.includes('"health.hwmon.') ||
       !network.includes('cpuLoad5s') ||
       !network.includes('cpuLoad1m') ||
@@ -500,17 +500,17 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !network.includes('cpu1Busy') ||
       !network.includes('cpuLoadValid') ||
       !network.includes('cpuMhz') ||
-      !ui.includes('cpuLoad5s') ||
-      !ui.includes('cpuLoad1m') ||
-      !ui.includes('cpuLoad5m') ||
-      !ui.includes('cpuLoadValid') ||
-      !ui.includes('cpuMhz') ||
-      !ui.includes("w.cpuMhz+' MHz'") ||
-      !ui.includes('w.cpu0Busy') ||
-      !ui.includes('w.cpu1Busy') ||
-      !ui.includes("t+' ('+a.toFixed(2)+' + '+b.toFixed(2)+')'") ||
-      !ui.includes("split(w.cpuLoad5s,w.cpu0Busy,w.cpu1Busy)") ||
-      !ui.includes('0–2 (cpu0 + cpu1)') ||
+      !codeIncludes(ui, 'cpuLoad5s') ||
+      !codeIncludes(ui, 'cpuLoad1m') ||
+      !codeIncludes(ui, 'cpuLoad5m') ||
+      !codeIncludes(ui, 'cpuLoadValid') ||
+      !codeIncludes(ui, 'cpuMhz') ||
+      !codeIncludes(ui, "w.cpuMhz+' MHz'") ||
+      !codeIncludes(ui, 'w.cpu0Busy') ||
+      !codeIncludes(ui, 'w.cpu1Busy') ||
+      !codeIncludes(ui, "t+' ('+a.toFixed(2)+' + '+b.toFixed(2)+')'") ||
+      !codeIncludes(ui, "split(w.cpuLoad5s,w.cpu0Busy,w.cpu1Busy)") ||
+      !codeIncludes(ui, '0–2 (cpu0 + cpu1)') ||
       !network.includes('tempPeakC') ||
       !network.includes('ramTotalBytes') ||
       !network.includes('"health.uptimeMs"') ||
@@ -566,23 +566,23 @@ if (!ui.includes('<legend>Brew</legend>') ||
       !diagHtml.includes('id="hScaleRate"') ||
       !diagHtml.includes('id="hRecoveredStales"') ||
       !diagHtml.includes('id="hStaleTime"') ||
-      !ui.includes("t('dMachine',s.machineState)") ||
-      !ui.includes("t('hFirmware',s.firmwareVersion)") ||
-      !ui.includes("t('hBoot',typeof s.bootId==='number'&&s.bootId?'#'+s.bootId:'')") ||
-      !ui.includes("t('dBrew',formatBackflushState(s)||s.state)") ||
-      !ui.includes("t('dCup',cp.state)") ||
-      !ui.includes('function applyDiagnosticGuards(') ||
-      !ui.includes('function exportDebugData(') ||
-      !ui.includes('/api/v1/debug/export') ||
-      !ui.includes("t('dActivator',s.physicalActivatorOn?'ON':'OFF')") ||
-      !ui.includes("t('dReed',s.reedOn?'ON':'OFF')") ||
-      !ui.includes("t('dStream',sc.streamState)") ||
-      !ui.includes("t('dControl',sc.controlState)") ||
-      !ui.includes("t('dScaleRssi',typeof sc.rssi==='number'?sc.rssi+' dBm':'')") ||
-      !ui.includes("t('hScaleRate',typeof wi==='number'&&wi>0?") ||
-      !ui.includes("(1000/wi).toFixed(1)+' Hz (≈'+wi+' ms)'") ||
-      !ui.includes("t('hRecoveredStales',String(sc.recoveredStaleCount))") ||
-      !ui.includes("t('hStaleTime',typeof sc.recoveredStaleMs==='number'?sc.recoveredStaleMs+' ms':'')") ||
+      !codeIncludes(ui, "t('dMachine',s.machineState)") ||
+      !codeIncludes(ui, "t('hFirmware',s.firmwareVersion)") ||
+      !codeIncludes(ui, "t('hBoot',typeof s.bootId==='number'&&s.bootId?'#'+s.bootId:'')") ||
+      !codeIncludes(ui, "t('dBrew',formatBackflushState(s)||s.state)") ||
+      !codeIncludes(ui, "t('dCup',cp.state)") ||
+      !codeIncludes(ui, 'function applyDiagnosticGuards(') ||
+      !codeIncludes(ui, 'function exportDebugData(') ||
+      !codeIncludes(ui, '/api/v1/debug/export') ||
+      !codeIncludes(ui, "t('dActivator',s.physicalActivatorOn?'ON':'OFF'") ||
+      !codeIncludes(ui, "t('dReed',s.reedOn?'ON':'OFF')") ||
+      !codeIncludes(ui, "t('dStream',sc.streamState)") ||
+      !codeIncludes(ui, "t('dControl',sc.controlState)") ||
+      !codeIncludes(ui, "t('dScaleRssi',typeof sc.rssi==='number'?sc.rssi+' dBm':'')") ||
+      !codeIncludes(ui, "t('hScaleRate',typeof wi==='number'&&wi>0?") ||
+      !codeIncludes(ui, "(1000/wi).toFixed(1)+' Hz (≈'+wi+' ms)'") ||
+      !codeIncludes(ui, "t('hRecoveredStales',String(sc.recoveredStaleCount))") ||
+      !codeIncludes(ui, "t('hStaleTime',typeof sc.recoveredStaleMs==='number'?sc.recoveredStaleMs+' ms':''") ||
       !diagHtml.includes('<strong>Heap min</strong>') ||
       !diagHtml.includes('<strong>Heap largest</strong>') ||
       !diagHtml.includes('<strong>PSRAM size</strong>') ||
@@ -659,12 +659,12 @@ if (!ui.includes('<legend>Brew</legend>') ||
         'runtime.symbol_3': ' '}[key] || ''));
   assert.equal(formatWallTime(1704069000, 0), '2024-01-01 00:30:00');
   assert.equal(formatWallTime(1704069000, -180), '2023-12-31 21:30:00');
-  if (!ui.includes("t('ut')(utc&&utc.slice(11))") ||
-      !ui.includes("t('ud')(utc&&utc.slice(0,10))") ||
-      !ui.includes("t('lt')(local&&local.slice(11))") ||
-      !ui.includes("t('ld')(local&&local.slice(0,10))") ||
-      !ui.includes('function renderDiagClock(') ||
-      !ui.includes('statusUtcAnchorSec+Math.floor((performance.now()-statusUtcAnchorAt)/1000)')) {
+  if (!codeIncludes(ui, "t('ut')(utc&&utc.slice(11))") ||
+      !codeIncludes(ui, "t('ud')(utc&&utc.slice(0,10))") ||
+      !codeIncludes(ui, "t('lt')(local&&local.slice(11))") ||
+      !codeIncludes(ui, "t('ld')(local&&local.slice(0,10))") ||
+      !codeIncludes(ui, 'function renderDiagClock(') ||
+      !codeIncludes(ui, 'statusUtcAnchorSec+Math.floor((performance.now()-statusUtcAnchorAt)/1000)')) {
     throw new Error('Diagnostic UTC and local date/time fields must use the configured offset');
   }
 }
@@ -849,17 +849,17 @@ if (!ui.includes('<legend>Brew</legend>') ||
     throw new Error('The Download link must trigger only its own action');
   }
 }
-if (!ui.includes('id="shotTable"') ||
-    !ui.includes('id="exportShotsButton"') ||
-    !ui.includes('id="clearShotsButton"') ||
+if (!codeIncludes(ui, 'id="shotTable"') ||
+    !codeIncludes(ui, 'id="exportShotsButton"') ||
+    !codeIncludes(ui, 'id="clearShotsButton"') ||
     !html.includes('id="clearShotsButton" class="btnGlyph btnInvert"') ||
     html.includes('id="clearShotsButton" class="btnGlyph btnDanger"') ||
     !css.includes('.glassBar>.btnGlyph.btnInvert') ||
-    !ui.includes("confirm:'CLEAR_SHOT_LOG'") ||
-    !runtimeJs.includes('function setEmptyState(') ||
-    !ui.includes('refreshShots()') ||
-    !js.includes("'shotDur'") ||
-    !js.includes("'shotActual'") ||
+    !codeIncludes(ui, "confirm:'CLEAR_SHOT_LOG'") ||
+    !codeIncludes(runtimeJs, 'function setEmptyState(') ||
+    !codeIncludes(ui, 'refreshShots()') ||
+    !codeIncludes(js, "'shotDur'") ||
+    !codeIncludes(js, "'shotActual'") ||
     !css.includes('#shotTable .shotDur,#shotTable .shotActual') ||
     !css.includes('grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate rate rate" "spark spark spark spark spark spark"') ||
     !css.includes('#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate rate rate"}') ||
@@ -869,26 +869,26 @@ if (!ui.includes('id="shotTable"') ||
     css.includes('grid-area:cut') ||
     !css.includes('#shotTable .shotDel') ||
     !css.includes('#shotTable td.shotDel,#shotTable td.shotDel>.btnGlyph{background:transparent!important}') ||
-    !js.includes("className='shotDel'") ||
-    runtimeJs.includes('<span class="t">Delete</span>') ||
-    !ui.includes('formatShotTime(r)') ||
-    !runtimeJs.includes('function formatShotEnded(') ||
-    !runtimeJs.includes('function shotDisplayActualG(') ||
-    !runtimeJs.includes('shotDisplayActualG(r.actualG,r.wCg)') ||
-    !runtimeJs.includes('shotFrame.card') ||
-    !runtimeJs.includes('return y!=null&&y>=1') ||
-    !runtimeJs.includes('shotDisplayFlowGS(r)') ||
-    !runtimeJs.includes('shotMaxFlowGS(r)') ||
-    !runtimeJs.includes('shotPresetName(r)') ||
-    !runtimeJs.includes("'preset_id','scale_name','max_flow_g_s'") ||
+    !codeIncludes(js, "className='shotDel'") ||
+    codeIncludes(runtimeJs, '<span class="t">Delete</span>') ||
+    !codeIncludes(ui, 'formatShotTime(r)') ||
+    !codeIncludes(runtimeJs, 'function formatShotEnded(') ||
+    !codeIncludes(runtimeJs, 'function shotDisplayActualG(') ||
+    !codeIncludes(runtimeJs, 'shotDisplayActualG(r.actualG,r.wCg)') ||
+    !codeIncludes(runtimeJs, 'shotFrame.card') ||
+    !codeIncludes(runtimeJs, 'return y!=null&&y>=1') ||
+    !codeIncludes(runtimeJs, 'shotDisplayFlowGS(r)') ||
+    !codeIncludes(runtimeJs, 'shotMaxFlowGS(r)') ||
+    !codeIncludes(runtimeJs, 'shotPresetName(r)') ||
+    !codeIncludes(runtimeJs, "'preset_id','scale_name','max_flow_g_s'") ||
     !network.includes('const bool live = control.activeCycle || control.homePending') ||
-    runtimeJs.includes('const live=!!((s.cycle&&s.cycle.active)||s.liveShot)') ||
-    runtimeJs.includes('const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
-    !runtimeJs.includes('drop=d.firstDropMs') ||
-    !runtimeJs.includes('formatShotEnded(r.stopDetail)') ||
-    !js.includes("labels=['Time','Dur','Goal','Yield','Err%','Avg flow','Max flow','Tare time','1st drop','Ended','Shot','Preset','Scale']") ||
-    js.includes("labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||
-    js.includes("labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Guard','Ext','Stop','Shot','Cut']") ||
+    codeIncludes(runtimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.liveShot)') ||
+    codeIncludes(runtimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
+    !codeIncludes(runtimeJs, 'drop=d.firstDropMs') ||
+    !codeIncludes(runtimeJs, 'formatShotEnded(r.stopDetail)') ||
+    !codeIncludes(js, "labels=['Time','Dur','Goal','Yield','Err%','Avg flow','Max flow','Tare time','1st drop','Ended','Shot','Preset','Scale'") ||
+    codeIncludes(js, "labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||
+    codeIncludes(js, "labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Guard','Ext','Stop','Shot','Cut']") ||
     partialHtml.stats.includes('<th>Guard</th>') ||
     partialHtml.stats.includes('<th>Ext</th>') ||
     partialHtml.stats.includes('<th>Stop</th>') ||
@@ -901,30 +901,30 @@ if (!ui.includes('id="shotTable"') ||
     !partialHtml.stats.includes('<strong>Avg yield</strong>') ||
     !partialHtml.stats.includes('id="shotTableState" class="emptyState" role="status" hidden') ||
     partialHtml.stats.includes('<th>Actual</th>') ||
-    !ui.includes('no time') ||
-    !ui.includes('id="timezoneId"') ||
-    !js.includes('/api/v1/time/zones') ||
-    js.includes('Request accepted.') ||
-    js.includes("message('Request queued.','ok')") ||
-    js.includes('Request queued successfully.') ||
+    !codeIncludes(ui, 'no time') ||
+    !codeIncludes(ui, 'id="timezoneId"') ||
+    !codeIncludes(js, '/api/v1/time/zones') ||
+    codeIncludes(js, 'Request accepted.') ||
+    codeIncludes(js, "message('Request queued.','ok')") ||
+    codeIncludes(js, 'Request queued successfully.') ||
     !network.includes('hasWallTime') ||
     !network.includes('endedAtLocalSec') ||
     !network.includes('\\"presetName\\":\\"%s\\"') ||
     !network.includes('SHOT_LOG_CLEAR_NOT_CONFIRMED')) {
   throw new Error('Shot history UI/API must expose table, CSV export, clear confirmation, and timezone setting');
 }
-if (ui.includes('id="shotRating"') ||
+if (codeIncludes(ui, 'id="shotRating"') ||
     partialHtml.home.includes('<strong>Rate</strong>') ||
     !partialHtml.stats.includes('<th>Rate</th>') ||
-    !runtimeJs.includes('function fillStarRate(') ||
-    !runtimeJs.includes('0 0 24 24') ||
-    runtimeJs.includes('star.jpg') ||
-    runtimeJs.includes('star.png') ||
-    !runtimeJs.includes("className='shotRateCell'") ||
-    !js.includes("dataset.label='Rate'") ||
-    !runtimeJs.includes('function postShotRating(') ||
-    !runtimeJs.includes('{id,rating:n}') ||
-    !runtimeJs.includes("'rating','ended_at_ms'") ||
+    !codeIncludes(runtimeJs, 'function fillStarRate(') ||
+    !codeIncludes(runtimeJs, '0 0 24 24') ||
+    codeIncludes(runtimeJs, 'star.jpg') ||
+    codeIncludes(runtimeJs, 'star.png') ||
+    !codeIncludes(runtimeJs, "className='shotRateCell'") ||
+    !codeIncludes(js, "dataset.label='Rate'") ||
+    !codeIncludes(runtimeJs, 'function postShotRating(') ||
+    !codeIncludes(runtimeJs, '{id,rating:n}') ||
+    !codeIncludes(runtimeJs, "'rating','ended_at_ms'") ||
     !css.includes('.starRate{display:inline-flex;align-items:center;margin:-.6rem 0 0 -.15rem}') ||
     !css.includes('.starRate button+button{margin-left:-.18rem}') ||
     !css.includes('.starRate button.on{color:var(--ac)}') ||
@@ -946,65 +946,67 @@ if (ui.includes('id="shotRating"') ||
     firmwareCore.includes('lastShotStore.updateRating')) {
   throw new Error('Shot rating must be SVG stars on last shot and history, persisted on the device');
 }
-if (!js.includes('function commandOkMessage(') ||
-    !js.includes('function commandFailMessage(') ||
-    !js.includes('function formatCommandError(') ||
-    !js.includes('function homePendingPairs(') ||
-    !js.includes('command(path,value={},soft,okMsg,failMsg,busyId)') ||
-    js.includes("message(e&&e.message?e.message:'Request failed.','error')") ||
-    !js.includes('Machine settings saved.') ||
-    !js.includes("cn('save machine settings')") ||
-    !js.includes('Brew settings saved.') ||
-    !js.includes("'save brew settings'") ||
-    !js.includes("homeFastExtractionGuardEnabledState','fastExtractionGuardEnabled','Fast extraction guard'") ||
-    !js.includes("label+(on?' enabled.':' disabled.')") ||
-    !js.includes("'Could not '+(on?'enable ':'disable ')+label+'.'") ||
-    !js.includes('Wi-Fi settings saved. Restarting.') ||
-    !js.includes('Wi-Fi sleep saved.') ||
-    !js.includes("cn('save Wi-Fi settings')") ||
-    !js.includes('Wi-Fi scan started.') ||
-    !js.includes('Could not start Wi-Fi scan.') ||
-    !js.includes('Administration unlocked.') ||
-    !js.includes('Could not unlock administration.') ||
-    !js.includes("R.noteReachOk();R.message('Administration unlocked.','ok')") ||
-    !js.includes('Administration locked.') ||
-    !js.includes('Could not lock administration.') ||
-    !js.includes("noteReachOk();message('Administration locked.','ok')") ||
-    !js.includes('Shot history cleared.') ||
-    !js.includes('Could not clear shot history.') ||
-    !js.includes('Could not update Quick Settings.') ||
-    js.includes('Shot history cleared successfully.') ||
-    js.includes('Unlock failed.') ||
-    js.includes('Lock failed.')) {
+if (!codeIncludes(js, 'function commandOkMessage(') ||
+    !codeIncludes(js, 'function commandFailMessage(') ||
+    !codeIncludes(js, 'function formatCommandError(') ||
+    !codeIncludes(js, 'function homePendingPairs(') ||
+    !codeIncludes(js, 'command(path,value={},soft,okMsg,failMsg,busyId)') ||
+    codeIncludes(js, "message(e&&e.message?e.message:'Request failed.','error')") ||
+    !codeIncludes(js, 'Machine settings saved.') ||
+    !codeIncludes(js, "cn('save machine settings')") ||
+    !codeIncludes(js, 'Brew settings saved.') ||
+    !codeIncludes(js, "'save brew settings'") ||
+    !codeIncludes(js, "homeFastExtractionGuardEnabledState','fastExtractionGuardEnabled','Fast extraction guard'") ||
+    !codeIncludes(js, "label+(on?' enabled.':' disabled.')") ||
+    !codeIncludes(js, "'Could not '+(on?'enable ':'disable ')+label+'.'") ||
+    !codeIncludes(js, 'Wi-Fi settings saved. Restarting.') ||
+    !codeIncludes(js, 'Wi-Fi sleep saved.') ||
+    !codeIncludes(js, "cn('save Wi-Fi settings')") ||
+    !codeIncludes(js, 'Wi-Fi scan started.') ||
+    !codeIncludes(js, 'Could not start Wi-Fi scan.') ||
+    !codeIncludes(js, 'Administration unlocked.') ||
+    !codeIncludes(js, 'Could not unlock administration.') ||
+    !codeIncludes(js, "R.noteReachOk();R.message('Administration unlocked.','ok')") ||
+    !codeIncludes(js, 'Administration locked.') ||
+    !codeIncludes(js, 'Could not lock administration.') ||
+    !codeIncludes(js, "noteReachOk();message('Administration locked.','ok')") ||
+    !codeIncludes(js, 'Shot history cleared.') ||
+    !codeIncludes(js, 'Could not clear shot history.') ||
+    !codeIncludes(js, 'Could not update Quick Settings.') ||
+    codeIncludes(js, 'Shot history cleared successfully.') ||
+    codeIncludes(js, 'Unlock failed.') ||
+    codeIncludes(js, 'Lock failed.')) {
   throw new Error('Web UI must show action-specific success and failure toasts instead of generic queued/failed copy');
 }
 {
   const commandFn = runtimeJs.slice(runtimeJs.indexOf('async function command('),
       runtimeJs.indexOf('async function setBleScanIntensity('));
-  if (!commandFn.includes("path.endsWith('/config')||path.endsWith('/presets')") ||
-      !commandFn.includes('configRevision!==previousRevision') ||
-      !commandFn.includes('result?.requestId!==accepted.requestId') ||
-      commandFn.indexOf("message(okMsg||") < commandFn.indexOf("throw new Error('Device did not apply the change.')")) {
+  if (!codeIncludes(commandFn, "path.endsWith('/config')||path.endsWith('/presets')") ||
+      !codeIncludes(commandFn, 'configRevision!==previousRevision') ||
+      !codeIncludes(commandFn, 'result?.requestId!==accepted.requestId') ||
+      compactSource(commandFn).indexOf(compactSource("message(okMsg||")) <
+          compactSource(commandFn).indexOf(
+              compactSource("throw new Error('Device did not apply the change.')"))) {
     throw new Error('Config and preset saves must confirm their request and revision before showing success');
   }
 }
-if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
-    !runtimeJs.includes('SHOTS_EXPORT_LIMIT=100') ||
-    runtimeJs.includes("'/api/v1/stats?offset='") ||
-    runtimeJs.includes("api('/api/v1/stats')") ||
-    !runtimeJs.includes('function startStatsStream(') ||
-    !runtimeJs.includes('function stopStatsStream(') ||
-    !runtimeJs.includes('function statsStreamFrame(') ||
-    !runtimeJs.includes('function applyStatsStream(') ||
-    !runtimeJs.includes('if(statsStreamWanted)statsSendSubscribe()') ||
-    !runtimeJs.includes('if(statsExportInFlight)return statsExportInFlight') ||
-    !runtimeJs.includes('statsRequest=++statsNextRequest') ||
-    !runtimeJs.includes("sendUiOperation({op:'stats',on:true,fetch:true,request:statsFetchMark.request,offset:statsFetchMark.offset,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir})") ||
-    !runtimeJs.includes("statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',90e3)") ||
-    !runtimeJs.includes('function shotStatsViewActive(){') ||
-    !runtimeJs.includes('function renderShots(') ||
-    !viewJs.stats.includes('IntersectionObserver') ||
-    !viewJs.stats.includes("R.loadMoreShots()") ||
+if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
+    !codeIncludes(runtimeJs, 'SHOTS_EXPORT_LIMIT=100') ||
+    codeIncludes(runtimeJs, "'/api/v1/stats?offset='") ||
+    codeIncludes(runtimeJs, "api('/api/v1/stats')") ||
+    !codeIncludes(runtimeJs, 'function startStatsStream(') ||
+    !codeIncludes(runtimeJs, 'function stopStatsStream(') ||
+    !codeIncludes(runtimeJs, 'function statsStreamFrame(') ||
+    !codeIncludes(runtimeJs, 'function applyStatsStream(') ||
+    !codeIncludes(runtimeJs, 'if(statsStreamWanted)statsSendSubscribe()') ||
+    !codeIncludes(runtimeJs, 'if(statsExportInFlight)return statsExportInFlight') ||
+    !codeIncludes(runtimeJs, 'statsRequest=++statsNextRequest') ||
+    !codeIncludes(runtimeJs, "sendUiOperation({op:'stats',on:true,fetch:true,request:statsFetchMark.request,offset:statsFetchMark.offset,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir,}") ||
+    !codeIncludes(runtimeJs, "statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',90e3)") ||
+    !codeIncludes(runtimeJs, 'function shotStatsViewActive(){') ||
+    !codeIncludes(runtimeJs, 'function renderShots(') ||
+    !codeIncludes(viewJs.stats, 'IntersectionObserver') ||
+    !codeIncludes(viewJs.stats, "R.loadMoreShots()") ||
     !partialHtml.stats.includes('id="shotLogSentinel"') ||
     !css.includes('#shotLogSentinel{min-height:1px') ||
     network.includes('parseShotsPageQuery') ||
@@ -1017,15 +1019,15 @@ if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !networkHeader.includes('sendStatsStream') ||
     !network.includes('\\"hasMore\\":%s') ||
     !network.includes('\\"total\\":%u') ||
-    !appJsSource.includes('R.startStatsStream()') ||
+    !codeIncludes(appJsSource, 'R.startStatsStream()') ||
     // Backpressure pacing: the client guard covers a solo maximal row frame
     // (server rows are bounded by the external kJsonItem workspace), and a
     // tab returning from the background resyncs the owned socket instead of
     // tearing it down.
-    !runtimeJs.includes('event.data.length>28672') ||
-    !runtimeJs.includes('function requestShotResync(') ||
-    !runtimeJs.includes('function shotActivity(') ||
-    runtimeJs.includes('stopUiStream();startUiStream()')) {
+    !codeIncludes(runtimeJs, 'event.data.length>28672') ||
+    !codeIncludes(runtimeJs, 'function requestShotResync(') ||
+    !codeIncludes(runtimeJs, 'function shotActivity(') ||
+    codeIncludes(runtimeJs, 'stopUiStream();startUiStream()')) {
   throw new Error('Shot history must page 10 shots over the owned WebSocket with infinite scroll and a streamed export');
 }
 const shotLogTypes = fs.readFileSync(
@@ -1035,23 +1037,23 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !partialHtml.stats.includes('aria-label="Sort history"') ||
     !css.includes('.shotSort{') ||
     !css.includes('.shotSort button[aria-pressed="true"]') ||
-    !runtimeJs.includes('function setShotSort(') ||
-    !runtimeJs.includes('function toggleShotSortDir(') ||
-    !runtimeJs.includes('function syncShotSortButtons(') ||
-    !runtimeJs.includes('syncShotSortButtons();statsSendSubscribe()') ||
-    !runtimeJs.includes("'date','desc'") ||
-    !runtimeJs.includes("shotSort==='rating'") ||
-    !js.includes('Highest rating') ||
-    !js.includes('Oldest first') ||
-    !js.includes('Lowest rating') ||
-    !viewJs.stats.includes('sortDateButton') ||
-    !viewJs.stats.includes('sortRatingButton') ||
-    !viewJs.stats.includes('sortDirButton') ||
-    !js.includes('Newest first') ||
-    !viewJs.stats.includes("R.setShotSort('date')") ||
-    !viewJs.stats.includes("R.setShotSort('rating')") ||
-    !viewJs.stats.includes('R.toggleShotSortDir()') ||
-    !viewJs.stats.includes('R.syncShotSortButtons()') ||
+    !codeIncludes(runtimeJs, 'function setShotSort(') ||
+    !codeIncludes(runtimeJs, 'function toggleShotSortDir(') ||
+    !codeIncludes(runtimeJs, 'function syncShotSortButtons(') ||
+    !codeIncludes(runtimeJs, 'syncShotSortButtons();statsSendSubscribe()') ||
+    !codeIncludes(runtimeJs, "'date','desc'") ||
+    !codeIncludes(runtimeJs, "shotSort==='rating'") ||
+    !codeIncludes(js, 'Highest rating') ||
+    !codeIncludes(js, 'Oldest first') ||
+    !codeIncludes(js, 'Lowest rating') ||
+    !codeIncludes(viewJs.stats, 'sortDateButton') ||
+    !codeIncludes(viewJs.stats, 'sortRatingButton') ||
+    !codeIncludes(viewJs.stats, 'sortDirButton') ||
+    !codeIncludes(js, 'Newest first') ||
+    !codeIncludes(viewJs.stats, "R.setShotSort('date')") ||
+    !codeIncludes(viewJs.stats, "R.setShotSort('rating')") ||
+    !codeIncludes(viewJs.stats, 'R.toggleShotSortDir()') ||
+    !codeIncludes(viewJs.stats, 'R.syncShotSortButtons()') ||
     !shotLogTypes.includes('shotLogSortRecords') ||
     !shotLogTypes.includes('ShotLogSort::Rating') ||
     !network.includes('shotLogSortFromName') ||
@@ -1075,14 +1077,14 @@ const historyTypesIo = fs.readFileSync(
 const historyIo = fs.readFileSync(
     path.join(sketchDir, 'ShotStopperHistory.h'), 'utf8');
 if (!historyTypesIo.includes('BACKFLUSH = 5') ||
-    !runtimeJs.includes('HIST_TYPE_SVG.backflush=') ||
+    !codeIncludes(runtimeJs, 'HIST_TYPE_SVG.backflush=') ||
     !partialHtml.history.includes('id="hBF" viewBox="0 0 256 256"') ||
-    !runtimeJs.includes('Backflush in progress') ||
-    !runtimeJs.includes('Backflush unavailable')) {
+    !codeIncludes(runtimeJs, 'Backflush in progress') ||
+    !codeIncludes(runtimeJs, 'Backflush unavailable')) {
   throw new Error('Backflush must preserve history ordinals, supplied icon and state-driven guidance');
 }
 {
-  const formatter = runtimeJs.split('\n').find(line => line.startsWith('function formatBackflushState('));
+  const formatter = blockAt(runtimeJs, 'function formatBackflushState(');
   const format = new Function(formatter + ';return formatBackflushState;')();
   for (const [state, backflush, expected] of [
     ['BACKFLUSH_CANDIDATE', {}, 'Checking backflush'],
@@ -1101,16 +1103,16 @@ if (!historyTypesIo.includes('BACKFLUSH = 5') ||
 }
 if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !shellHtml.includes('<section id="view-history" class="view" data-view="history"></section>') ||
-    !appJsSource.includes("'/history':'history'") ||
-    !appJsSource.includes("SECONDARY=new Set(['stats','history','diagnostic','admin'])") ||
-    !appJsSource.includes('R.startHistoryStream()') ||
-    appJsSource.includes('historyTimer') ||
-    appJsSource.includes('/api/v1/status/home') ||
-    !appJsSource.includes('R.stopHistoryStream()') ||
-    !viewJs.history.includes("R.loadMoreHistory()") ||
-    !viewJs.history.includes('R.clearActivationHistory') ||
-    !viewJs.history.includes('R.toggleHistoryDir') ||
-    !viewJs.history.includes('R.syncHistoryDirButton()') ||
+    !codeIncludes(appJsSource, "'/history':'history'") ||
+    !codeIncludes(appJsSource, "SECONDARY=new Set(['stats','history','diagnostic','admin'])") ||
+    !codeIncludes(appJsSource, 'R.startHistoryStream()') ||
+    codeIncludes(appJsSource, 'historyTimer') ||
+    codeIncludes(appJsSource, '/api/v1/status/home') ||
+    !codeIncludes(appJsSource, 'R.stopHistoryStream()') ||
+    !codeIncludes(viewJs.history, "R.loadMoreHistory()") ||
+    !codeIncludes(viewJs.history, 'R.clearActivationHistory') ||
+    !codeIncludes(viewJs.history, 'R.toggleHistoryDir') ||
+    !codeIncludes(viewJs.history, 'R.syncHistoryDirButton()') ||
     !partialHtml.history.includes('id="historyPanel"') ||
     !partialHtml.history.includes('id="historyTable"') ||
     !partialHtml.history.includes('id="historyRows"') ||
@@ -1125,30 +1127,30 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     css.includes('.panelState{') ||
     css.includes('.panelState.isOver{') ||
     !css.includes('.histBadge{') ||
-    !runtimeJs.includes('HISTORY_PAGE_SIZE=20') ||
-    runtimeJs.includes("'/api/v1/history?offset='") ||
-    !runtimeJs.includes('function startHistoryStream(') ||
-    !runtimeJs.includes('function stopHistoryStream(') ||
-    !runtimeJs.includes('function historyStreamFrame(') ||
-    !runtimeJs.includes('function applyHistoryStream(') ||
-    !runtimeJs.includes('if(diagStreamWanted){if(!diagResolve)armDiagnosticReady();') ||
-    !runtimeJs.includes('if(historyStreamWanted)historySendSubscribe()') ||
-    !runtimeJs.includes('function applyHistoryPage(') ||
-    !runtimeJs.includes('function renderHistory(') ||
-    !runtimeJs.includes('function deleteOneHistory(') ||
-    !runtimeJs.includes('function clearActivationHistory(') ||
-    !runtimeJs.includes("power_on:'Power ON'") ||
-    !runtimeJs.includes("HIST_TYPE_SVG.power_on='⏻'") ||
-    !runtimeJs.includes('No scale guard aborted') ||
-    !runtimeJs.includes('HIST_TYPE_SVG.no_scale_guard_aborted=') ||
+    !codeIncludes(runtimeJs, 'HISTORY_PAGE_SIZE=20') ||
+    codeIncludes(runtimeJs, "'/api/v1/history?offset='") ||
+    !codeIncludes(runtimeJs, 'function startHistoryStream(') ||
+    !codeIncludes(runtimeJs, 'function stopHistoryStream(') ||
+    !codeIncludes(runtimeJs, 'function historyStreamFrame(') ||
+    !codeIncludes(runtimeJs, 'function applyHistoryStream(') ||
+    !codeIncludes(runtimeJs, 'if(diagStreamWanted){if(!diagResolve)armDiagnosticReady();') ||
+    !codeIncludes(runtimeJs, 'if(historyStreamWanted)historySendSubscribe()') ||
+    !codeIncludes(runtimeJs, 'function applyHistoryPage(') ||
+    !codeIncludes(runtimeJs, 'function renderHistory(') ||
+    !codeIncludes(runtimeJs, 'function deleteOneHistory(') ||
+    !codeIncludes(runtimeJs, 'function clearActivationHistory(') ||
+    !codeIncludes(runtimeJs, "power_on:'Power ON'") ||
+    !codeIncludes(runtimeJs, "HIST_TYPE_SVG.power_on='⏻'") ||
+    !codeIncludes(runtimeJs, 'No scale guard aborted') ||
+    !codeIncludes(runtimeJs, 'HIST_TYPE_SVG.no_scale_guard_aborted=') ||
     !partialHtml.history.includes('id="hNS" viewBox="82 82 204 204"') ||
     !historyTypesIo.includes('NO_SCALE_GUARD_ABORTED') ||
-    !runtimeJs.includes("confirm:'CLEAR_HISTORY'") ||
-    !runtimeJs.includes("'/api/v1/history/delete'") ||
-    !runtimeJs.includes("'/api/v1/history/clear'") ||
-    !runtimeJs.includes('const toggleHistoryDir=()=>{') ||
-    !runtimeJs.includes("sendUiOperation({op:'history',on:true,fetch:true,request:historyFetchRequest,offset:historyFetchOffset})") ||
-    runtimeJs.includes('exportShotsCsv') && runtimeJs.includes('historyCsv') ||
+    !codeIncludes(runtimeJs, "confirm:'CLEAR_HISTORY'") ||
+    !codeIncludes(runtimeJs, "'/api/v1/history/delete'") ||
+    !codeIncludes(runtimeJs, "'/api/v1/history/clear'") ||
+    !codeIncludes(runtimeJs, 'const toggleHistoryDir=()=>{') ||
+    !codeIncludes(runtimeJs, "sendUiOperation({op:'history',on:true,fetch:true,request:historyFetchRequest,offset:historyFetchOffset,}") ||
+    codeIncludes(runtimeJs, 'exportShotsCsv') && codeIncludes(runtimeJs, 'historyCsv') ||
     network.includes('parseHistoryPageQuery') ||
     network.includes('historyHandler') ||
     !network.includes('sendHistoryStream') ||
@@ -1210,23 +1212,23 @@ if (!statsSection ||
     !statsSection[1].includes('class="fieldHint"') ||
     !statsSection[1].includes('Last 10 shots. BBW: 10 target cuts.') ||
     !statsSection[1].includes('id="statsDurChart"') ||
-    !runtimeJs.includes('function renderStatsDurChart(') ||
-    !viewJs.stats.includes('R.renderStatsDurChart()') ||
-    !runtimeJs.includes('statsDurChartPlot') ||
-    !runtimeJs.includes('shotSparkHost') ||
-    !runtimeJs.includes('fill-opacity') ||
-    !runtimeJs.includes('statsDurSparkY') ||
-    !runtimeJs.includes('renderStatsDurChart()') ||
-    !runtimeJs.includes('const BIN=0.5,tMax=6e4/1e3,tLow=28,tHigh=32') ||
-    !js.includes("fillChartTicks(host.lastChild,[[0,'0 s'],[tLow,L(tLow,'s')],[tHigh,L(tHigh,'s')],[tMax,L(tMax,'s')]],tMax)") ||
+    !codeIncludes(runtimeJs, 'function renderStatsDurChart(') ||
+    !codeIncludes(viewJs.stats, 'R.renderStatsDurChart()') ||
+    !codeIncludes(runtimeJs, 'statsDurChartPlot') ||
+    !codeIncludes(runtimeJs, 'shotSparkHost') ||
+    !codeIncludes(runtimeJs, 'fill-opacity') ||
+    !codeIncludes(runtimeJs, 'statsDurSparkY') ||
+    !codeIncludes(runtimeJs, 'renderStatsDurChart()') ||
+    !codeIncludes(runtimeJs, 'const BIN=0.5,tMax=6e4/1e3,tLow=28,tHigh=32') ||
+    !codeIncludes(js, "fillChartTicks(host.lastChild,[[0,'0 s'],[tLow,L(tLow,'s')],[tHigh,L(tHigh,'s')],[tMax,L(tMax,'s')],],tMax") ||
     !css.includes('#statsDurChart{margin-top:') ||
     !css.includes('.shotCurve .shotSparkHost,#statsDurChartPlot{display:grid;') ||
-    !runtimeJs.includes('function renderShotStats(){') ||
-    !runtimeJs.includes('s.avgDurationS') ||
-    !runtimeJs.includes('shotStats=d.stats') ||
-    !runtimeJs.includes('renderShotStats();') ||
-    runtimeJs.includes('slice(0,20)') ||
-    runtimeJs.includes("shotsUrl(0,SHOTS_PAGE_SIZE,'date','desc')") ||
+    !codeIncludes(runtimeJs, 'function renderShotStats(){') ||
+    !codeIncludes(runtimeJs, 's.avgDurationS') ||
+    !codeIncludes(runtimeJs, 'shotStats=d.stats') ||
+    !codeIncludes(runtimeJs, 'renderShotStats();') ||
+    codeIncludes(runtimeJs, 'slice(0,20)') ||
+    codeIncludes(runtimeJs, "shotsUrl(0,SHOTS_PAGE_SIZE,'date','desc')") ||
     !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal err err avgflow avgflow"') ||
     css.includes('.shotCard:has(') ||
     css.includes('#shotStatsPanel') ||
@@ -1248,7 +1250,7 @@ if (!statsSection ||
       statsSection[1].includes('id="shotStatsState"') ||
       !css.includes('.panelWrap{position:relative}') ||
       css.includes('.panelState.isOver{') ||
-      runtimeJs.includes('settlePanel(')) {
+      codeIncludes(runtimeJs, 'settlePanel(')) {
     throw new Error('Stats must use page loading without section waves');
   }
   const assert = require('assert').strict, vm = require('vm');
@@ -1286,9 +1288,9 @@ if (!statsSection ||
         renderShots: () => events.push('render:' + context.controlsMutable),
         updateHeaderSignals() {}, updateFirmwareFooter() {}, noteReachOk() {},
         __WEBUI_TEXT__: key => key});
-      const stream = rawRuntimeJs.slice(rawRuntimeJs.indexOf('let statsStreamWanted='),
-          rawRuntimeJs.indexOf("document.addEventListener('visibilitychange'")) + '\n' +
-          rawRuntimeJs.split('\n').find(line => line.startsWith('const loadMoreShots=')) +
+      const stream = rawRuntimeJs.slice(rawRuntimeJs.search(/let\s+statsStreamWanted\s*=/),
+          rawRuntimeJs.search(/document\.addEventListener\(\s*['"]visibilitychange['"]/)) + '\n' +
+          blockAt(rawRuntimeJs, 'const loadMoreShots') +
           '\nthis.loadMoreShots=loadMoreShots;';
       vm.runInContext(stream, context);
       const loading = context.startStatsStream();
@@ -1391,7 +1393,7 @@ if (!statsSection ||
         updateHeaderSignals() {}, updateFirmwareFooter() {}, noteReachOk() {},
         __WEBUI_TEXT__: key => key});
       const stream = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function historyStreamFrame('),
-          rawRuntimeJs.indexOf("document.addEventListener('visibilitychange'"));
+          rawRuntimeJs.search(/document\.addEventListener\(\s*['"]visibilitychange['"]/));
       vm.runInContext(stream, context);
       const frame = extras => Object.assign({v: 1, type: 'history', boot: 9, snapshot: true,
         epoch: 5, request: 1, ui, total: 2, offset: 0, limit: 20, hasMore: false,
@@ -1494,11 +1496,11 @@ if (!statsSection ||
   delete global.fillChartTicks;
 }
 
-if (!ui.includes('id="firmwareFooter"') ||
-    !ui.includes('id="inactiveFirmware"') ||
-    !ui.includes('firmwareVersion') ||
-    !ui.includes('updateFirmwareFooter()') ||
-    !ui.includes("const inactive=$('inactiveFirmware')") ||
+if (!codeIncludes(ui, 'id="firmwareFooter"') ||
+    !codeIncludes(ui, 'id="inactiveFirmware"') ||
+    !codeIncludes(ui, 'firmwareVersion') ||
+    !codeIncludes(ui, 'updateFirmwareFooter()') ||
+    !codeIncludes(ui, "const inactive=$('inactiveFirmware')") ||
     !css.includes('body.homeAdminActions #view-home:not(.hidden)~.pageFooter{margin-bottom:calc(7rem + env(safe-area-inset-bottom))}') ||
     css.includes('body.homeAdminActions #view-home:not(.hidden)~.pageFooter{display:none}') ||
     !css.includes('#actionsPanel{position:fixed;left:0;right:0') ||
@@ -1519,11 +1521,11 @@ if (!shellHtml.includes('https://github.com/Cheerpipe/AcaiaArduinoBLE') ||
 if (!shellHtml.includes('id="message"') ||
     !shellHtml.includes('id="messageText"') ||
     !shellHtml.includes('id="messageClose"') ||
-    !runtimeJs.includes('function clearMessage(') ||
-    !runtimeJs.includes('b.onclick=clearMessage') ||
-    !runtimeJs.includes("kind==='ok'?5e3") ||
-    !runtimeJs.includes("kind==='warn'&&!e.querySelector('button:not(#messageClose)')?15e3") ||
-    !runtimeJs.includes('setTimeout(clearMessage,ms)') ||
+    !codeIncludes(runtimeJs, 'function clearMessage(') ||
+    !codeIncludes(runtimeJs, 'b.onclick=clearMessage') ||
+    !codeIncludes(runtimeJs, "kind==='ok'?5e3") ||
+    !codeIncludes(runtimeJs, "kind==='warn'&&!e.querySelector('button:not(#messageClose)')?15e3") ||
+    !codeIncludes(runtimeJs, 'setTimeout(clearMessage,ms)') ||
     !css.includes('#message:not(.error):not(.warn){display:none}') ||
     !css.includes('.messageClose')) {
   throw new Error('Status message bar must auto-hide ok/warn and stay for errors');
@@ -1535,15 +1537,15 @@ if (!css.includes('.hidden,[hidden]{display:none!important}') ||
 }
 if (!/<fieldset[^>]*><legend>Log<\/legend>/.test(html) ||
     /authenticatedOnly[^>]*><legend>Log<\/legend>/.test(html) ||
-    !ui.includes('startLogStream()') ||
-    !ui.includes('function logStreamFrame(') ||
-    !(ui.includes("name==='diagnostic'") || ui.includes("name === 'diagnostic'")) ||
-    !ui.includes('id="view-diagnostic"') ||
-    !ui.includes('data-route="/diagnostic"') ||
+    !codeIncludes(ui, 'startLogStream()') ||
+    !codeIncludes(ui, 'function logStreamFrame(') ||
+    !(codeIncludes(ui, "name==='diagnostic'") || codeIncludes(ui, "name === 'diagnostic'")) ||
+    !codeIncludes(ui, 'id="view-diagnostic"') ||
+    !codeIncludes(ui, 'data-route="/diagnostic"') ||
     !html.includes('<span>Diagnostic</span></a>') ||
-    !ui.includes('id="logLevelFilter"') ||
-    !ui.includes('e.level') ||
-    !ui.includes('value="boot"') ||
+    !codeIncludes(ui, 'id="logLevelFilter"') ||
+    !codeIncludes(ui, 'e.level') ||
+    !codeIncludes(ui, 'value="boot"') ||
     html.indexOf('id="ringRetainLogLevel"') < html.indexOf('id="view-diagnostic"') ||
     html.indexOf('id="ringRetainLogLevel"') >
         html.indexOf('</section>', html.indexOf('id="view-diagnostic"')) ||
@@ -1553,10 +1555,10 @@ if (!/<fieldset[^>]*><legend>Log<\/legend>/.test(html) ||
     html.indexOf('id="ringRetainLogLevel"') > html.indexOf('id="serialLogLevel"') ||
     !html.includes('id="serialLogLevel" class="diagCtl"') ||
     !html.includes('id="ringRetainLogLevel" class="diagCtl"') ||
-    !runtimeJs.includes("e.classList.contains('diagCtl')") ||
+    !codeIncludes(runtimeJs, "e.classList.contains('diagCtl')") ||
     html.includes('id="navLogWrap"') ||
-    ui.includes('function ringLogEnabled(') ||
-    ui.includes('function updateLogNavVisibility(') ||
+    codeIncludes(ui, 'function ringLogEnabled(') ||
+    codeIncludes(ui, 'function updateLogNavVisibility(') ||
     !html.includes('<hr class="logSep">') ||
     html.indexOf('<hr class="logSep">') < html.indexOf('id="serialLogLevel"') ||
     html.indexOf('<hr class="logSep">') > html.indexOf('id="logLevelFilter"') ||
@@ -1571,19 +1573,19 @@ if (!network.includes('historyOverwritten') ||
     !network.includes('serialDropped') ||
     !network.includes('hasMore') ||
     !network.includes('cursorInvalid') ||
-    !ui.includes('logBootId') ||
-    !ui.includes('Missed while disconnected') ||
-    !ui.includes('m.cursorInvalid')) {
+    !codeIncludes(ui, 'logBootId') ||
+    !codeIncludes(ui, 'Missed while disconnected') ||
+    !codeIncludes(ui, 'm.cursorInvalid')) {
   throw new Error('Diagnostic log must distinguish history rotation from unread and serial loss');
 }
-if (!ui.includes('id="factoryResetButton"') ||
-    !ui.includes("confirm('Restore all factory settings?") ||
-    !ui.includes("confirm:'ERASE_ALL_SETTINGS'") ||
+if (!codeIncludes(ui, 'id="factoryResetButton"') ||
+    !codeIncludes(ui, "confirm('Restore all factory settings?") ||
+    !codeIncludes(ui, "confirm:'ERASE_ALL_SETTINGS'") ||
     !network.includes('FACTORY_RESET_NOT_CONFIRMED') ||
     !network.includes('resetAllDurableStores(next)') ||
     !network.includes('ensureFactoryResetIntent(') ||
     !network.includes('releaseNvsSpaceForFactoryReset') ||
-    !ui.includes('id="restartPanel"') ||
+    !codeIncludes(ui, 'id="restartPanel"') ||
     html.indexOf('id="saveDateTimeButton"') > html.indexOf('id="restartPanel"') ||
     html.indexOf('id="restartPanel"') > html.indexOf('id="factoryResetButton"') ||
     html.slice(html.indexOf('id="actionsPanel"'), html.indexOf('id="view-stats"'))
@@ -1597,7 +1599,7 @@ if (!ui.includes('id="factoryResetButton"') ||
 }
 if (!html.includes('<legend>NVS</legend>') ||
     !html.includes('id="hNvsLastFailure"') ||
-    !js.includes('const nv=s.nvs||{}') ||
+    !codeIncludes(js, 'const nv=s.nvs||{}') ||
     !network.includes('\\\"availableEntries\\\"') ||
     !network.includes('\\\"flashIoLockTimeouts\\\"') ||
     !network.includes('captureNvsDiagnostics()')) {
@@ -1620,10 +1622,10 @@ if (!css.includes('.btnBar,.presetActions{display:flex;gap:.5rem') ||
 if (html.includes('id="debugPanel"') ||
     html.includes('id="view-debug"') ||
     html.includes('data-route="/debug"') ||
-    ui.includes('function debugBuzzer(') ||
-    ui.includes('function debugBookoo(') ||
-    ui.includes('/api/v1/control/buzzer') ||
-    ui.includes('/api/v1/control/bookoo') ||
+    codeIncludes(ui, 'function debugBuzzer(') ||
+    codeIncludes(ui, 'function debugBookoo(') ||
+    codeIncludes(ui, '/api/v1/control/buzzer') ||
+    codeIncludes(ui, '/api/v1/control/bookoo') ||
     network.includes('buzzerHandler') ||
     network.includes('bookooHandler') ||
     network.includes('/api/v1/status/debug') ||

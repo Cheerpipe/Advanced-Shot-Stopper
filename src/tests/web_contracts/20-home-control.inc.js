@@ -1,6 +1,7 @@
 {
-  const format = new Function(runtimeJs.split('\n').find(line =>
-    line.startsWith('function formatCupState(')) + ';return formatCupState;')();
+  const cupAt = runtimeJs.indexOf('function formatCupState(');
+  const format = new Function(runtimeJs.slice(cupAt, runtimeJs.indexOf('\n}', cupAt) + 2) +
+    ';return formatCupState;')();
   for (const cupPresence of [{state:'ABSENT',present:false}, {state:'PRESENT',present:true}]) {
     for (const scale of [undefined, {available:false}, {available:true}]) {
       const expected = scale?.available ? (cupPresence.present ? 'Present' : 'Absent') : 'Unknown';
@@ -236,7 +237,7 @@
   const listeners={};
   const controller=new Function('WebSocket','location','document','window','setTimeout','clearTimeout',
     'requestAnimationFrame','webUiPollingActive','webUiClientId','activeView','$','webUiPowerSeconds','invalidateHomeStream',
-    'let homeFrame=null,homeStale=true,homeReady,homeResolve=()=>{};function noteReachFail(){}'+runtimeJs.slice(runtimeJs.indexOf('let shotWs='),runtimeJs.indexOf('function formatExtractionGuard('))+
+    'let homeFrame=null,homeStale=true,homeReady,homeResolve=()=>{};function noteReachFail(){}'+runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),runtimeJs.indexOf('function formatExtractionGuard('))+
     ';return{start:startUiStream,stop:stopUiStream,frame:()=>shotFrame,stale:()=>shotStale};')(
     Socket,{protocol:'http:',host:'device.local'},
     {hidden:false,addEventListener:(name,fn)=>listeners[name]=fn},
@@ -261,10 +262,10 @@
   rebound.onmessage({data:JSON.stringify({...snapshot,phase:'pending',card:{...snapshot.card,live:false}})});
   owner=false;controller.stop();controller.start();
   if(sockets.length!==2||rebound.readyState!==3)throw new Error('Inactive owner cannot retain/reopen stream');
-  if(runtimeJs.includes('let shotTick=')||runtimeJs.includes('runShot(live?s:0)')||
-      !runtimeJs.includes('stopUiStream();')||!runtimeJs.includes('startUiStream();')||
-      !runtimeJs.includes("op:'bind',client:webUiClientId")||
-      !runtimeJs.includes('"op":"resync"'))
+  if(codeIncludes(runtimeJs, 'let shotTick=')||codeIncludes(runtimeJs, 'runShot(live?s:0)')||
+      !codeIncludes(runtimeJs, 'stopUiStream();')||!codeIncludes(runtimeJs, 'startUiStream();')||
+      !codeIncludes(runtimeJs, "op:'bind',client:webUiClientId")||
+      !codeIncludes(runtimeJs, '"op":"resync"'))
     throw new Error('Firmware timer and stream must follow ownership/visibility lifecycle');
 }
 
@@ -276,7 +277,7 @@
   const timer=new Function('performance','requestAnimationFrame','cancelAnimationFrame','document',
     'webUiPollingActive','setHomeSub','$','ms','paintUiStream','window',
     "let shotStale=false,activeView='home',shotFrame=null;"+
-    runtimeJs.slice(runtimeJs.indexOf('let noScaleClock='),runtimeJs.indexOf('// The diagnostic stream rides'))+
+    runtimeJs.slice(runtimeJs.search(/let\s+noScaleClock\s*=/),runtimeJs.indexOf('// The diagnostic stream rides'))+
     ';return{sync:f=>{syncNoScaleTimer(f);shotFrame=f;revealNoScaleFinish()},elapsed:noScaleTimerElapsed,schedule:scheduleNoScaleTimer,'+
     'finish:finishNoScaleTimer,ending:()=>noScaleFinish,clock:()=>noScaleClock,stale:()=>shotStale,setStale:v=>shotStale=v,view:v=>activeView=v};')(
     {now:()=>now},fn=>{frames.set(++id,fn);return id},id=>frames.delete(id),document,
@@ -432,10 +433,10 @@ int main(){
     'Every changed control gate, including activator edges, must request urgent delivery');
   assert(network.includes('delta.field("physicalActivatorOn", bool(control.physicalActivatorOn))'),
     'Home must include physical activator edges even when the cycle state does not change');
-  assert(runtimeJs.includes("homeFrame.status.machineType==='paddle'&&paddleOff"),
+  assert(codeIncludes(runtimeJs, "homeFrame.status.machineType==='paddle'&&paddleOff"),
     'Only paddle OFF, never a momentary button release, may trigger an early timer fade');
-  const edgeSource=/const paddleOff=([^;]+);/.exec(runtimeJs)[1];
-  const paddleOff=new Function('homeFrame','data','return '+edgeSource);
+  const edgeSource=/const\s+paddleOff\s*=([\s\S]*?);/.exec(runtimeJs)[1];
+  const paddleOff=new Function('homeFrame','data','return ('+edgeSource+')');
   assert(paddleOff({status:{physicalActivatorOn:true}},{changes:{physicalActivatorOn:false}}));
   assert(!paddleOff({status:{physicalActivatorOn:false}},{changes:{physicalActivatorOn:false}}),
     'A remote start with the paddle already OFF must keep counting');
@@ -471,71 +472,71 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     !scaleSection[1].includes('id="preferredScale"') ||
     !scaleSection[1].includes('id="scaleWeight"') ||
     !scaleSection[1].includes('id="scaleTimer"') ||
-    !ui.includes('s.physicalActivatorOn?') ||
-    !ui.includes('s.relayClosed?') || !ui.includes('ON') || !ui.includes('OFF') ||
-    !ui.includes('function formatScaleWeight(') ||
-    !ui.includes('function formatScaleStatus(') ||
-    !ui.includes('function formatScaleTimer(') ||
-    !ui.includes('function formatMachineState(') ||
-    !ui.includes('CONFIRMED_OFF:') || !ui.includes('Idle') ||
-    !ui.includes('ASSUMED_ON:') || !ui.includes('Assumed on') ||
-    !ui.includes('CONFIRMED_ON:') || !ui.includes('Confirmed on') ||
-    !ui.includes('ASSUMED_OFF:') || !ui.includes('Assumed off') ||
-    !ui.includes('function formatCupState(') ||
-    !ui.includes('lastDisconnectReasonName') ||
-    !ui.includes('Stale') || !ui.includes('No sample') ||
-    !ui.includes('formatScaleStatus(s)') ||
-    !ui.includes('id="preferredScale"') ||
-    !ui.includes('id="preferredScaleSelect"') ||
-    !ui.includes('id="preferredScalePauseHint"') ||
-    !ui.includes('id="preferredScaleBootstrapHint"') ||
-    !ui.includes('id="scalePreference"') ||
-    !ui.includes('id="forgetPairedScale"') ||
-    !ui.includes('Scale preference') ||
-    !ui.includes('First available') ||
-    !ui.includes('First detected') ||
-    !ui.includes('Prefer selected') ||
-    !ui.includes('Preferred only') ||
-    !ui.includes('Preferred scale') ||
-    !ui.includes('Clear preferred') ||
-    !ui.includes('scaleMacCacheMode') ||
-    !ui.includes('/api/v1/scale/preferred/clear') ||
-    ui.includes("command('/api/v1/scale/preferred/select'") ||
-    !ui.includes('function formatPreferredScale(') ||
-    !ui.includes('function updatePreferredScaleSelect(') ||
-    !ui.includes('function updateScalePreferenceOptions(') ||
-    !ui.includes("if(!preferred||(keep&&!prev)){const first=document.createElement('option')") ||
-    !ui.includes("first.textContent=mode==='only'||mode==='prefer'?") ||
-    !ui.includes('empty.textContent=bootstrap?') ||
-    !ui.includes('First detected') || !ui.includes('No preferred') ||
-    ui.includes("msg:'Select a preferred scale first.'") ||
-    !ui.includes('<option value="prefer" selected>Prefer selected</option>') ||
-    ui.includes('<option value="first" selected>First available</option>') ||
-    ui.includes('<option value="only" selected>Preferred only</option>') ||
-    ui.includes("if(!canPrefer&&(sel.value==='prefer'||sel.value==='only'))") ||
-    ui.includes("o.disabled=!canPrefer||!controlsMutable") ||
+    !codeIncludes(ui, 's.physicalActivatorOn?') ||
+    !codeIncludes(ui, 's.relayClosed?') || !codeIncludes(ui, 'ON') || !codeIncludes(ui, 'OFF') ||
+    !codeIncludes(ui, 'function formatScaleWeight(') ||
+    !codeIncludes(ui, 'function formatScaleStatus(') ||
+    !codeIncludes(ui, 'function formatScaleTimer(') ||
+    !codeIncludes(ui, 'function formatMachineState(') ||
+    !codeIncludes(ui, 'CONFIRMED_OFF:') || !codeIncludes(ui, 'Idle') ||
+    !codeIncludes(ui, 'ASSUMED_ON:') || !codeIncludes(ui, 'Assumed on') ||
+    !codeIncludes(ui, 'CONFIRMED_ON:') || !codeIncludes(ui, 'Confirmed on') ||
+    !codeIncludes(ui, 'ASSUMED_OFF:') || !codeIncludes(ui, 'Assumed off') ||
+    !codeIncludes(ui, 'function formatCupState(') ||
+    !codeIncludes(ui, 'lastDisconnectReasonName') ||
+    !codeIncludes(ui, 'Stale') || !codeIncludes(ui, 'No sample') ||
+    !codeIncludes(ui, 'formatScaleStatus(s)') ||
+    !codeIncludes(ui, 'id="preferredScale"') ||
+    !codeIncludes(ui, 'id="preferredScaleSelect"') ||
+    !codeIncludes(ui, 'id="preferredScalePauseHint"') ||
+    !codeIncludes(ui, 'id="preferredScaleBootstrapHint"') ||
+    !codeIncludes(ui, 'id="scalePreference"') ||
+    !codeIncludes(ui, 'id="forgetPairedScale"') ||
+    !codeIncludes(ui, 'Scale preference') ||
+    !codeIncludes(ui, 'First available') ||
+    !codeIncludes(ui, 'First detected') ||
+    !codeIncludes(ui, 'Prefer selected') ||
+    !codeIncludes(ui, 'Preferred only') ||
+    !codeIncludes(ui, 'Preferred scale') ||
+    !codeIncludes(ui, 'Clear preferred') ||
+    !codeIncludes(ui, 'scaleMacCacheMode') ||
+    !codeIncludes(ui, '/api/v1/scale/preferred/clear') ||
+    codeIncludes(ui, "command('/api/v1/scale/preferred/select'") ||
+    !codeIncludes(ui, 'function formatPreferredScale(') ||
+    !codeIncludes(ui, 'function updatePreferredScaleSelect(') ||
+    !codeIncludes(ui, 'function updateScalePreferenceOptions(') ||
+    !codeIncludes(ui, "if(!preferred||(keep&&!prev)){const first=document.createElement('option')") ||
+    !codeIncludes(ui, "first.textContent=mode==='only'||mode==='prefer'?") ||
+    !codeIncludes(ui, 'empty.textContent=bootstrap?') ||
+    !codeIncludes(ui, 'First detected') || !codeIncludes(ui, 'No preferred') ||
+    codeIncludes(ui, "msg:'Select a preferred scale first.'") ||
+    !codeIncludes(ui, '<option value="prefer" selected>Prefer selected</option>') ||
+    codeIncludes(ui, '<option value="first" selected>First available</option>') ||
+    codeIncludes(ui, '<option value="only" selected>Preferred only</option>') ||
+    codeIncludes(ui, "if(!canPrefer&&(sel.value==='prefer'||sel.value==='only'))") ||
+    codeIncludes(ui, "o.disabled=!canPrefer||!controlsMutable") ||
     // Regression: missing ';' after `prev` concatenated into
     // `prevupdateScalePreferenceOptions` and broke Settings status refresh.
-    ui.includes(':prevupdateScalePreferenceOptions') ||
-    !ui.includes("sel.value=keep?prev:(preferred||'');updateScalePreferenceOptions()") ||
-    !ui.includes('preferredScaleSelectSyncing') ||
-    !ui.includes("sel.dataset.pending='1'") ||
-    !ui.includes("scaleMacCacheMode:['first','prefer','only'].includes($('scalePreference')?.value)?$('scalePreference').value:'only'") ||
-    !ui.includes('payload.preferredScaleMac=sel.value') ||
-    ui.includes('id="alwaysUseThisScale"') ||
-    ui.includes('Always use this scale') ||
-    !ui.includes('function selectPreferredScale(') ||
-    !ui.includes('function forgetPairedScale(') ||
-    !ui.includes('Saved scale history is kept') ||
-    !ui.includes('formatPreferredScale(s)') ||
-    !ui.includes('macCachePauseRemainingMs>0') ||
-    ui.includes('id="preferredScaleSettings"') ||
-    ui.includes('id="scaleMacCacheMode"') ||
-    ui.includes('id="clearPreferredScale"') ||
-    ui.includes('id="scaleMacCacheFullWarn"') ||
-    ui.includes('Use scale MAC cache') ||
-    ui.includes('Paired scale') ||
-    ui.includes('Forget this scale') ||
+    codeIncludes(ui, ':prevupdateScalePreferenceOptions') ||
+    !codeIncludes(ui, "sel.value=keep?prev:preferred||'';updateScalePreferenceOptions()") ||
+    !codeIncludes(ui, 'preferredScaleSelectSyncing') ||
+    !codeIncludes(ui, "sel.dataset.pending='1'") ||
+    !codeIncludes(ui, "scaleMacCacheMode:['first','prefer','only'].includes($('scalePreference')?.value)?$('scalePreference').value:'only'") ||
+    !codeIncludes(ui, 'payload.preferredScaleMac=sel.value') ||
+    codeIncludes(ui, 'id="alwaysUseThisScale"') ||
+    codeIncludes(ui, 'Always use this scale') ||
+    !codeIncludes(ui, 'function selectPreferredScale(') ||
+    !codeIncludes(ui, 'function forgetPairedScale(') ||
+    !codeIncludes(ui, 'Saved scale history is kept') ||
+    !codeIncludes(ui, 'formatPreferredScale(s)') ||
+    !codeIncludes(ui, 'macCachePauseRemainingMs>0') ||
+    codeIncludes(ui, 'id="preferredScaleSettings"') ||
+    codeIncludes(ui, 'id="scaleMacCacheMode"') ||
+    codeIncludes(ui, 'id="clearPreferredScale"') ||
+    codeIncludes(ui, 'id="scaleMacCacheFullWarn"') ||
+    codeIncludes(ui, 'Use scale MAC cache') ||
+    codeIncludes(ui, 'Paired scale') ||
+    codeIncludes(ui, 'Forget this scale') ||
     !network.includes('preferredScaleClearHandler') ||
     !network.includes('preferredScaleSelectHandler') ||
     !network.includes('/api/v1/scale/preferred/clear') ||
@@ -553,33 +554,33 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     !network.includes('\\"timerMs\\"')) {
   throw new Error('Home Status must show Machine/Brew/Cup and a Scale panel with one value per label');
 }
-if (!ui.includes('id="renameScaleLink"') ||
-    !ui.includes('id="preferredScaleRenameWrap"') ||
-    !ui.includes('id="dScaleName"') ||
-    !ui.includes('id="dScaleNameRename"') ||
-    !ui.includes('id="dScaleNameRenameWrap"') ||
-    !ui.includes('Connected scale') ||
-    !ui.includes('(rename)') ||
-    !ui.includes('function renameScale(') ||
-    !ui.includes('function updateScaleRenameUi(') ||
-    !ui.includes('function scaleDisplayName(') ||
-    !ui.includes('function validScaleFriendlyNameClient(') ||
-    !ui.includes('/api/v1/scale/friendly-name') ||
-    !ui.includes('preferredFriendlyName') ||
-    !ui.includes('Name this scale') ||
-    !ui.includes('e.friendlyName&&String(e.friendlyName).trim()') ||
-    !ui.includes("o.dataset.name=(e.name&&String(e.name).trim())||''") ||
-    !ui.includes("opt.dataset?String(opt.dataset.name||'')") ||
+if (!codeIncludes(ui, 'id="renameScaleLink"') ||
+    !codeIncludes(ui, 'id="preferredScaleRenameWrap"') ||
+    !codeIncludes(ui, 'id="dScaleName"') ||
+    !codeIncludes(ui, 'id="dScaleNameRename"') ||
+    !codeIncludes(ui, 'id="dScaleNameRenameWrap"') ||
+    !codeIncludes(ui, 'Connected scale') ||
+    !codeIncludes(ui, '(rename)') ||
+    !codeIncludes(ui, 'function renameScale(') ||
+    !codeIncludes(ui, 'function updateScaleRenameUi(') ||
+    !codeIncludes(ui, 'function scaleDisplayName(') ||
+    !codeIncludes(ui, 'function validScaleFriendlyNameClient(') ||
+    !codeIncludes(ui, '/api/v1/scale/friendly-name') ||
+    !codeIncludes(ui, 'preferredFriendlyName') ||
+    !codeIncludes(ui, 'Name this scale') ||
+    !codeIncludes(ui, 'e.friendlyName&&String(e.friendlyName).trim()') ||
+    !codeIncludes(ui, "o.dataset.name=(e.name&&String(e.name).trim())||''") ||
+    !codeIncludes(ui, "opt.dataset?String(opt.dataset.name||'')") ||
     !network.includes('scaleFriendlyNameHandler') ||
     !network.includes('/api/v1/scale/friendly-name') ||
     !network.includes('UNKNOWN_SCALE') ||
     !network.includes('The scale name cannot be changed while a cycle') ||
     !network.includes('connectedFriendlyName') ||
     !network.includes('connectedMac') ||
-    !runtimeJs.includes("updateScaleRenameUi('dScaleNameRenameWrap',sc.connectedMac||'',sc.connectedFriendlyName||'')") ||
+    !codeIncludes(runtimeJs, "updateScaleRenameUi('dScaleNameRenameWrap',sc.connectedMac||'',sc.connectedFriendlyName||''") ||
     !network.includes('\\"preferredFriendlyName\\"') ||
     !scaleWorker.includes('bool setScaleFriendlyName(') ||
-    ui.includes("label.split(' — ')")) {
+    codeIncludes(ui, "label.split(' — ')")) {
   throw new Error(
       'Scale names must support a friendly-name override with rename links in Home and Diagnostic');
 }
@@ -597,23 +598,23 @@ if (!ui.includes('id="renameScaleLink"') ||
   if (selected().mac || !wrap.hidden)
     throw new Error('Diagnostic rename must disappear when no scale is connected');
 }
-if (ui.includes('id="shotPanel"') ||
-    ui.includes('id="shotBar"') ||
-    ui.includes('id="shotBarFast"') ||
-    ui.includes('id="shotBarTicks"') ||
+if (codeIncludes(ui, 'id="shotPanel"') ||
+    codeIncludes(ui, 'id="shotBar"') ||
+    codeIncludes(ui, 'id="shotBarFast"') ||
+    codeIncludes(ui, 'id="shotBarTicks"') ||
     partialHtml.home.includes('id="shotBarTicks"') ||
     partialHtml.home.includes('<legend>Current / Last Shot</legend>') ||
     partialHtml.home.includes('class="ruleChartLabel">Weight (g)</div>') ||
     partialHtml.home.includes('id="shotIdle"') ||
     css.includes('content:"Weight (g)"') ||
     css.includes('#shotIdle') ||
-    ui.includes('shotMark') ||
-    !ui.includes('Math.max(goal,wt)') ||
+    codeIncludes(ui, 'shotMark') ||
+    !codeIncludes(ui, 'Math.max(goal,wt)') ||
     css.includes('.shotTrack') ||
     css.includes('#shotBarTicks') ||
     css.includes('.shotMark') ||
     css.includes('max-width:150%') ||
-    ui.includes('id="shotCard"') ||
+    codeIncludes(ui, 'id="shotCard"') ||
     html.includes('id="shotSparkHost"') ||
     !css.includes('.shotSparkHost') ||
     !css.includes('.shotSpark{') ||
@@ -631,31 +632,31 @@ if (ui.includes('id="shotPanel"') ||
     !css.includes('.shotYTick{position:absolute;right:0;white-space:nowrap;transform:translateY(-50%)}') ||
     css.includes('.shotYTick:first-child') || css.includes('.shotYTick:last-child') ||
     !css.includes('.ruleChartLabel{font-size:.78rem;font-weight:700;margin:0 0 .75rem') ||
-    !ui.includes('function renderShotSpark(') ||
-    !runtimeJs.includes('function buildShotSparkModel(') ||
-    !runtimeJs.includes('function axisLabel(') ||
-    !runtimeJs.includes('function fillChartTicks(') ||
-    runtimeJs.includes('s[a=') ||
-    !runtimeJs.includes('style.left=') ||
-    !runtimeJs.includes("style.setProperty('--shot-plot-min'") ||
-    !runtimeJs.includes('.style.top=') ||
- runtimeJs.includes('style="--shot-plot-min:') ||
-    runtimeJs.includes("style=\"left:") ||
-    !runtimeJs.includes('function shotDisplayFlowGS(') ||
-    !runtimeJs.includes('if(!pts.length||dur<=0)return null') ||
-    !runtimeJs.includes('m.firstDropS>0') ||
-    !runtimeJs.includes('m.flowSegs,m.flowMax') ||
-    !runtimeJs.includes('Flow rate (g/s)') ||
-    !runtimeJs.includes("querySelectorAll('.ruleChartTicks')") ||
-    runtimeJs.includes("['.ruleChartTicks',xt]") || runtimeJs.includes("'.shotEventTicks'") ||
-    runtimeJs.includes("'1st '+L(") || !runtimeJs.includes("label=time.toFixed(1)+' s'") ||
-    runtimeJs.includes('fillChartTicks($(\'shotBarTicks\')') ||
-    !runtimeJs.includes('raw.sort(') ||
-    runtimeJs.includes('shotIdle') ||
-    runtimeJs.includes("last?'Last shot.'") ||
+    !codeIncludes(ui, 'function renderShotSpark(') ||
+    !codeIncludes(runtimeJs, 'function buildShotSparkModel(') ||
+    !codeIncludes(runtimeJs, 'function axisLabel(') ||
+    !codeIncludes(runtimeJs, 'function fillChartTicks(') ||
+    codeIncludes(runtimeJs, 's[a=') ||
+    !codeIncludes(runtimeJs, 'style.left=') ||
+    !codeIncludes(runtimeJs, "style.setProperty('--shot-plot-min'") ||
+    !codeIncludes(runtimeJs, '.style.top=') ||
+ codeIncludes(runtimeJs, 'style="--shot-plot-min:') ||
+    codeIncludes(runtimeJs, "style=\"left:") ||
+    !codeIncludes(runtimeJs, 'function shotDisplayFlowGS(') ||
+    !codeIncludes(runtimeJs, 'if(!pts.length||dur<=0)return null') ||
+    !codeIncludes(runtimeJs, 'm.firstDropS>0') ||
+    !codeIncludes(runtimeJs, 'm.flowSegs,m.flowMax') ||
+    !codeIncludes(runtimeJs, 'Flow rate (g/s)') ||
+    !codeIncludes(runtimeJs, "querySelectorAll('.ruleChartTicks')") ||
+    codeIncludes(runtimeJs, "['.ruleChartTicks',xt]") || codeIncludes(runtimeJs, "'.shotEventTicks'") ||
+    codeIncludes(runtimeJs, "'1st '+L(") || !codeIncludes(runtimeJs, "label=time.toFixed(1)+' s'") ||
+    codeIncludes(runtimeJs, 'fillChartTicks($(\'shotBarTicks\')') ||
+    !codeIncludes(runtimeJs, 'raw.sort(') ||
+    codeIncludes(runtimeJs, 'shotIdle') ||
+    codeIncludes(runtimeJs, "last?'Last shot.'") ||
     !css.includes('.shotFirstDrop{') ||
-    runtimeJs.includes('stroke="currentColor"') ||
-    !runtimeJs.includes("if(spark.hidden)row.classList.add('noSpark')") ||
+    codeIncludes(runtimeJs, 'stroke="currentColor"') ||
+    !codeIncludes(runtimeJs, "if(spark.hidden)row.classList.add('noSpark')") ||
     !css.includes('.shotCard{') ||
     !css.includes('.metric,.shotCard > *{') ||
     !css.includes('.metric strong,.shotCard strong{') ||
@@ -666,71 +667,71 @@ if (ui.includes('id="shotPanel"') ||
     !css.includes('.shotCard .shotDur > div,.shotCard .shotActual > div') ||
     !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal err err avgflow avgflow"') ||
     css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate rate rate"') ||
-    ui.includes('id="shotElapsed"') ||
-    ui.includes('id="shotMoment"') ||
-    ui.includes("formatHumanTime(d.momentSec)") ||
-    ui.includes('id="shotFirstDrop"') ||
-    ui.includes('id="shotTareTime"') ||
-    ui.includes('id="shotScale"') ||
-    ui.includes('id="shotCurrentWeight"') ||
+    codeIncludes(ui, 'id="shotElapsed"') ||
+    codeIncludes(ui, 'id="shotMoment"') ||
+    codeIncludes(ui, "formatHumanTime(d.momentSec)") ||
+    codeIncludes(ui, 'id="shotFirstDrop"') ||
+    codeIncludes(ui, 'id="shotTareTime"') ||
+    codeIncludes(ui, 'id="shotScale"') ||
+    codeIncludes(ui, 'id="shotCurrentWeight"') ||
     partialHtml.home.includes('<strong>Yield</strong>') ||
     partialHtml.home.includes('<strong>Avg flow</strong>') ||
     partialHtml.home.includes('<strong>Max flow</strong>') ||
     partialHtml.home.includes('<strong>Dur</strong>') ||
     partialHtml.home.includes('data-label=') ||
     html.includes('data-label="Actual"') ||
-    ui.includes('id="shotGoalWeight"') ||
-    ui.includes('id="shotErr"') ||
-    ui.includes('id="shotFlow"') ||
-    ui.includes('id="shotMaxFlow"') ||
-    ui.includes('id="shotEnded"') ||
-    ui.includes('id="shotType"') ||
-    ui.includes('id="shotPreset"') ||
-    !ui.includes('shotFrame.card') ||
-    ui.includes('id="shotRetare"') ||
-    ui.includes('id="shotGuard"') ||
-    ui.includes('id="shotPct"') ||
-    !ui.includes('id="shotHero"') ||
-    !ui.includes('shotHeroState') ||
-    !ui.includes('function uiStreamFrame(') ||
+    codeIncludes(ui, 'id="shotGoalWeight"') ||
+    codeIncludes(ui, 'id="shotErr"') ||
+    codeIncludes(ui, 'id="shotFlow"') ||
+    codeIncludes(ui, 'id="shotMaxFlow"') ||
+    codeIncludes(ui, 'id="shotEnded"') ||
+    codeIncludes(ui, 'id="shotType"') ||
+    codeIncludes(ui, 'id="shotPreset"') ||
+    !codeIncludes(ui, 'shotFrame.card') ||
+    codeIncludes(ui, 'id="shotRetare"') ||
+    codeIncludes(ui, 'id="shotGuard"') ||
+    codeIncludes(ui, 'id="shotPct"') ||
+    !codeIncludes(ui, 'id="shotHero"') ||
+    !codeIncludes(ui, 'shotHeroState') ||
+    !codeIncludes(ui, 'function uiStreamFrame(') ||
     !network.includes('firstDropElapsedMs') ||
     !network.includes('shotType') ||
     !network.includes('scaleProtocol') ||
-    !ui.includes('remoteReady&&relayStartReady&&canControl') ||
-    ui.includes('Remote machine control disabled by policy') ||
+    !codeIncludes(ui, 'remoteReady&&relayStartReady&&canControl') ||
+    codeIncludes(ui, 'Remote machine control disabled by policy') ||
     !network.includes('delta.field("remoteControlEnabled"') ||
     !network.includes('delta.field("lastCommand.requestId"') ||
     !network.includes('delta.field("maintenance.active"') ||
     !network.includes('delta.field("maintenance.persistPending"') ||
     !network.includes('delta.field("maintenance.persistFailed"') ||
-    !ui.includes('persistFailed') ||
-    !ui.includes('Saving...') ||
+    !codeIncludes(ui, 'persistFailed') ||
+    !codeIncludes(ui, 'Saving...') ||
     !network.includes('delta.field("cycle.active"') ||
     !network.includes('extractionExtended') ||
-    !ui.includes('paintUiStream()')) {
+    !codeIncludes(ui, 'paintUiStream()')) {
   throw new Error('Web UI must enforce remote policy, maintenance, durable command state, and live shot status');
 }
 {
   const curveTypes = fs.readFileSync(path.join(sketchDir, 'ShotStopperShotCurveTypes.h'), 'utf8');
   const record = curveTypes.slice(curveTypes.indexOf('struct ShotCurveRecord'),
       curveTypes.indexOf('inline ShotCurveRecord emptyShotCurveRecord'));
-  if (!runtimeJs.includes("spark.className='shotSparkCell'") ||
-      !runtimeJs.includes("renderShotSpark(spark,r)") ||
+  if (!codeIncludes(runtimeJs, "spark.className='shotSparkCell'") ||
+      !codeIncludes(runtimeJs, "renderShotSpark(spark,r)") ||
       /flow/i.test(record) || network.includes('\"flowCg\"') || network.includes('\"flowDtS\"')) {
     throw new Error('Stats must share the ordered Weight/Flow chart renderer without a persisted flow series');
   }
 }
-if (!ui.includes('id="autoToManualGuardEnabled"') ||
-    !ui.includes('id="autoToManualGuardLimitMode"') ||
-    !ui.includes('id="autoToManualGuardBaselineS"') ||
-    !ui.includes('id="scaleTimerStopExtraDelayMs"') ||
+if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
+    !codeIncludes(ui, 'id="autoToManualGuardLimitMode"') ||
+    !codeIncludes(ui, 'id="autoToManualGuardBaselineS"') ||
+    !codeIncludes(ui, 'id="scaleTimerStopExtraDelayMs"') ||
     !html.includes('Waits this extra time before stopping the scale') ||
     html.includes('Added after measured scale start lag') ||
     html.includes('Added after the scale timer catches up to circuit whole seconds') ||
-    !ui.includes('id="dripDelayS" type="number" min="0" max="10" step="0.1"') ||
-    !ui.includes('id="autoToManualGuardManualLimitS"') ||
-    !ui.includes('id="autoToManualGuardTrendS"') ||
-    !ui.includes('id="resetGuardSamplesButton"') ||
+    !codeIncludes(ui, 'id="dripDelayS" type="number" min="0" max="10" step="0.1"') ||
+    !codeIncludes(ui, 'id="autoToManualGuardManualLimitS"') ||
+    !codeIncludes(ui, 'id="autoToManualGuardTrendS"') ||
+    !codeIncludes(ui, 'id="resetGuardSamplesButton"') ||
     html.indexOf('id="autoToManualGuardLimitMode"') >
         html.indexOf('id="autoToManualGuardManualLimitS"') ||
     html.indexOf('id="autoToManualGuardManualLimitS"') >
@@ -739,25 +740,25 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
         html.indexOf('id="autoToManualGuardBaselineS"') ||
     html.indexOf('id="autoToManualGuardBaselineS"') >
         html.indexOf('id="resetGuardSamplesButton"') ||
-    !ui.includes('Reset A→M samples to baseline') ||
-    !ui.includes('id="homeAtmSub"') ||
-    !ui.includes('id="homeNoScaleSub"') ||
-    !ui.includes('id="noScaleBbwMode"') ||
-    !ui.includes('id="noScaleAllowRinseWhileArmed"') ||
-    !ui.includes('id="lastShotCooldownMin"') ||
-    !ui.includes('When BBW has no scale') ||
-    !ui.includes('Protection returns after') ||
-    !ui.includes('Allow rinse while Armed') ||
-    !ui.includes("noScaleAllowRinseWhileArmed:$('noScaleAllowRinseWhileArmed').checked") ||
-    !ui.includes("'rinseEnabled','noScaleAllowRinseWhileArmed'") ||
-    !ui.includes('id="noScaleBbwMode"') ||
-    !ui.includes('value="warn_once"') ||
-    !ui.includes('value="require_scale"') ||
-    !ui.includes('function formatNoScaleGuard(') ||
-    !ui.includes('function formatSlowExtractionGuard(') ||
-    !ui.includes("setHomeSub('homeSlowSub',formatSlowExtractionGuard(") ||
-    !ui.includes('updateHomeGuardSubs(s,!!s.cycle?.active)') ||
-    ui.includes('function updateNoScaleGuard(') ||
+    !codeIncludes(ui, 'Reset A→M samples to baseline') ||
+    !codeIncludes(ui, 'id="homeAtmSub"') ||
+    !codeIncludes(ui, 'id="homeNoScaleSub"') ||
+    !codeIncludes(ui, 'id="noScaleBbwMode"') ||
+    !codeIncludes(ui, 'id="noScaleAllowRinseWhileArmed"') ||
+    !codeIncludes(ui, 'id="lastShotCooldownMin"') ||
+    !codeIncludes(ui, 'When BBW has no scale') ||
+    !codeIncludes(ui, 'Protection returns after') ||
+    !codeIncludes(ui, 'Allow rinse while Armed') ||
+    !codeIncludes(ui, "noScaleAllowRinseWhileArmed:$('noScaleAllowRinseWhileArmed').checked") ||
+    !codeIncludes(ui, "'rinseEnabled','noScaleAllowRinseWhileArmed'") ||
+    !codeIncludes(ui, 'id="noScaleBbwMode"') ||
+    !codeIncludes(ui, 'value="warn_once"') ||
+    !codeIncludes(ui, 'value="require_scale"') ||
+    !codeIncludes(ui, 'function formatNoScaleGuard(') ||
+    !codeIncludes(ui, 'function formatSlowExtractionGuard(') ||
+    !codeIncludes(ui, "setHomeSub('homeSlowSub',formatSlowExtractionGuard(") ||
+    !codeIncludes(ui, 'updateHomeGuardSubs(s,!!s.cycle?.active)') ||
+    codeIncludes(ui, 'function updateNoScaleGuard(') ||
     html.includes('id="shotAtmGuard"') ||
     html.includes('id="shotNoScaleGuard"') ||
     html.includes('id="statusExtractionGuard"') ||
@@ -813,26 +814,26 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !domain.includes('bool cupPresent = false') ||
     !domain.includes('MachineRunState machineRunState') ||
     !domain.includes('CupPresenceState cupPresenceState') ||
-    !ui.includes('A→M ·') ||
-    !ui.includes('function updateHomeGuardSubs(') ||
-    !ui.includes('updateHomeGuardSubs(s,live)') ||
-    !ui.includes("setHomeSub('homeBbwSub'") ||
-    !ui.includes("setHomeSub('homeCupSub'") ||
-    ui.includes("setHomeSub('homeAlertsSub'") ||
-    !ui.includes('function formatCupProtection(') ||
-    ui.includes('function formatAlertsChannel(') ||
+    !codeIncludes(ui, 'A→M ·') ||
+    !codeIncludes(ui, 'function updateHomeGuardSubs(') ||
+    !codeIncludes(ui, 'updateHomeGuardSubs(s,live)') ||
+    !codeIncludes(ui, "setHomeSub('homeBbwSub'") ||
+    !codeIncludes(ui, "setHomeSub('homeCupSub'") ||
+    codeIncludes(ui, "setHomeSub('homeAlertsSub'") ||
+    !codeIncludes(ui, 'function formatCupProtection(') ||
+    codeIncludes(ui, 'function formatAlertsChannel(') ||
     !/Can\\?'t brew — no cup/.test(ui) ||
-    !ui.includes('Shot aborted') ||
-    !ui.includes('Brew allowed') ||
-    !ui.includes("c.state==='PRESENT'||c.present?") ||
-    !ui.includes('Present') || !ui.includes('Absent') ||
+    !codeIncludes(ui, 'Shot aborted') ||
+    !codeIncludes(ui, 'Brew allowed') ||
+    !codeIncludes(ui, "c.state==='PRESENT'||c.present?") ||
+    !codeIncludes(ui, 'Present') || !codeIncludes(ui, 'Absent') ||
     !network.includes('shotLogStopDetailName(') ||
     !html.includes('option value="scale_priority">Scale priority') ||
     !css.includes('.swS') ||
     !css.includes('.homeSwitchGrid .swS') ||
     !css.includes('.homeGuardGrid{') ||
     !css.includes('grid-template-columns:repeat(2,minmax(0,1fr))') ||
-    !ui.includes('yield_source') ||
+    !codeIncludes(ui, 'yield_source') ||
     !network.includes('autoToManualGuardEnabled') ||
     !network.includes('autoToManualGuardBaselineMs') ||
     !network.includes('scaleTimerStopExtraDelayMs') ||
@@ -849,7 +850,7 @@ if (!ui.includes('id="autoToManualGuardEnabled"') ||
     !network.includes('stopIfCupRemoved') ||
     !network.includes('requireCupToStart') ||
     !network.includes('cupRemovedWeightG') ||
-    !ui.includes("cupRemovedWeightG:number('cupRemovedWeightG')")) {
+    !codeIncludes(ui, "cupRemovedWeightG:number('cupRemovedWeightG')")) {
   throw new Error('Auto-to-manual time guard must be wired in config UI, live panel, shots API, and routes');
 }
 if (!network.includes('callbacks_.copyHomeShot(latest, workBuf_->homeCurve)') ||
@@ -861,9 +862,9 @@ if (!network.includes('callbacks_.copyHomeShot(latest, workBuf_->homeCurve)') ||
     !network.includes('\\"presetName\\":\\"%s\\"') ||
     !network.includes('\\"averageFlowGps\\":%s') ||
     !network.includes('card.averageFlowValid && std::isfinite(card.averageFlowGps)') ||
-    ui.includes('rateLastShotValue') ||
-    ui.includes('controlsMutable&&last&&!live&&ls.shotLogId') ||
-    ui.includes('clearLastShotButton')) {
+    codeIncludes(ui, 'rateLastShotValue') ||
+    codeIncludes(ui, 'controlsMutable&&last&&!live&&ls.shotLogId') ||
+    codeIncludes(ui, 'clearLastShotButton')) {
   throw new Error('Home and integration must project the newest eligible history row');
 }
 const paddleHelp = html.slice(html.indexOf('<summary>Paddle</summary>'),
@@ -891,8 +892,8 @@ if (!html.includes('<summary>Paddle</summary>') ||
     !html.includes('Neither transition stops early') ||
     !html.includes('early ON→OFF demotes the tentative shot to a rinse') ||
     !html.includes('Without weight control, OFF stops normally') ||
-    !ui.includes("paddleMode:$('paddleMode')?(['auto','natural','original']") ||
-    !ui.includes("if($('paddleMode'))$('paddleMode').value=") ||
+    !codeIncludes(ui, "paddleMode:$('paddleMode')?['auto','natural','original']") ||
+    !codeIncludes(ui, "if($('paddleMode'))$('paddleMode').value=") ||
     !network.includes('"paddleMode"') ||
     !network.includes('paddleMode must be auto, natural or original.') ||
     !network.includes('jsonPaddleMode') ||
@@ -1010,26 +1011,26 @@ if (!html.includes('<summary>Switch</summary>') ||
         html.indexOf('<summary>No-scale BBW</summary>') ||
     !html.includes(
         'How long the controller holds the machine button when stopping automatically') ||
-    !ui.includes("stopPulseMs:$('stopPulseMs')?number(") ||
-    !ui.includes("if($('stopPulseMs'))$('stopPulseMs').value=") ||
-    !ui.includes('Auto-stop pulse') ||
-    !ui.includes('Single-press limit') ||
-    !ui.includes('Reed confirm timeout') ||
-    !ui.includes('momentaryStartEdge:') ||
-    !ui.includes('reedConfirmTimeoutMs:') ||
-    !ui.includes('assumeIdleWhenScaleConnects:') ||
-    !ui.includes('shotReactTimeoutS:') ||
-    !ui.includes('id="overrideIdleLink"') ||
-    !ui.includes('id="overrideBrewingLink"') ||
-    !ui.includes('id="machineStateValue"') ||
-    !ui.includes('/api/v1/control/state-override') ||
-    !ui.includes('updateHomeAdminActions') ||
-    !ui.includes('function updateHomeAdminActions(unlocked,remoteEnabled){const panel=$(') ||
-    !ui.includes('show=!!unlocked&&!!remoteEnabled') ||
-    !ui.includes('syncAdminSessionUi(admin,remoteReady)') ||
-    ui.includes('id="overrideIdleButton"') ||
-    ui.includes('id="overrideBrewingButton"') ||
-    ui.includes("d.classList.contains('momentaryMachine')&&!d.classList.contains('reedMachine')") ||
+    !codeIncludes(ui, "stopPulseMs:$('stopPulseMs')?number(") ||
+    !codeIncludes(ui, "if($('stopPulseMs'))$('stopPulseMs').value=") ||
+    !codeIncludes(ui, 'Auto-stop pulse') ||
+    !codeIncludes(ui, 'Single-press limit') ||
+    !codeIncludes(ui, 'Reed confirm timeout') ||
+    !codeIncludes(ui, 'momentaryStartEdge:') ||
+    !codeIncludes(ui, 'reedConfirmTimeoutMs:') ||
+    !codeIncludes(ui, 'assumeIdleWhenScaleConnects:') ||
+    !codeIncludes(ui, 'shotReactTimeoutS:') ||
+    !codeIncludes(ui, 'id="overrideIdleLink"') ||
+    !codeIncludes(ui, 'id="overrideBrewingLink"') ||
+    !codeIncludes(ui, 'id="machineStateValue"') ||
+    !codeIncludes(ui, '/api/v1/control/state-override') ||
+    !codeIncludes(ui, 'updateHomeAdminActions') ||
+    !codeIncludes(ui, 'function updateHomeAdminActions(unlocked,remoteEnabled){const panel=$(') ||
+    !codeIncludes(ui, 'show=!!unlocked&&!!remoteEnabled') ||
+    !codeIncludes(ui, 'syncAdminSessionUi(admin,remoteReady)') ||
+    codeIncludes(ui, 'id="overrideIdleButton"') ||
+    codeIncludes(ui, 'id="overrideBrewingButton"') ||
+    codeIncludes(ui, "d.classList.contains('momentaryMachine')&&!d.classList.contains('reedMachine')") ||
     !html.includes('Assume idle when the scale connects') ||
     !html.includes('marks the machine as idle without pressing its button') ||
     !html.includes('Shot reaction timeout') ||
@@ -1100,7 +1101,7 @@ if (!html.includes('<summary>Switch</summary>') ||
   const toggle = (name, on) => on ? classes.add(name) : classes.delete(name);
   const context = vm.createContext({$: () => ({classList: {toggle}}),
     document: {body: {classList: {toggle: () => {}}}}});
-  vm.runInContext(runtimeJs.split('\n').find(line => line.startsWith('function updateHomeAdminActions(')), context);
+  vm.runInContext(blockAt(runtimeJs, 'function updateHomeAdminActions('), context);
   const visible = (admin, remote) => { vm.runInContext(`updateHomeAdminActions(${admin},${remote})`, context); return !classes.has('hidden'); };
   assert(!visible(false, false) && !visible(true, false) && !visible(false, true) && visible(true, true));
 }
@@ -1120,8 +1121,8 @@ if (!html.includes('class="cfgGroup paddleOnly"><summary>Paddle</summary>') ||
     !html.includes('a long press is left to the machine') ||
     !html.includes('id="rinseButton" class="btnGlyph" title="Start rinse"') ||
     html.includes('id="rinseButton" class="btnGlyph paddleOnly"') ||
-    !ui.includes('s.config.rinseEnabled===true') ||
-    !ui.includes('rinseEnabled:$(\'rinseEnabled\').checked') ||
+    !codeIncludes(ui, 's.config.rinseEnabled===true') ||
+    !codeIncludes(ui, 'rinseEnabled:$(\'rinseEnabled\').checked') ||
     !network.includes('"rinseEnabled"') ||
     !network.includes('rinseEnabled must be a boolean.') ||
     !firmwareCore.includes('candidate.rinseEnabled = command.config.rinseEnabled') ||
@@ -1134,15 +1135,15 @@ if (!html.includes('class="cfgGroup paddleOnly"><summary>Paddle</summary>') ||
     !html.includes('When on, repeating beeps remind you to return the paddle after an automatic stop while it is still ON. Turn off to silence this reminder.') ||
     html.includes('id="paddleReturnReminderBeep"') ||
     html.includes('id="paddleReturnReminderIntervalS"') ||
-    !runtimeJs.includes('paddleReturnReminderBeep:reminder?!!+reminder.value:undefined') ||
-    !runtimeJs.includes('paddleReturnReminderIntervalMs:reminder?(+reminder.value||30)*1000:undefined') ||
+    !codeIncludes(runtimeJs, 'paddleReturnReminderBeep:reminder?!!+reminder.value:undefined') ||
+    !codeIncludes(runtimeJs, 'paddleReturnReminderIntervalMs:reminder?(+reminder.value||30)*1000:undefined') ||
     html.includes('cfgGroup paddleOnly momentaryOnly') ||
     html.includes('cfgGroup momentaryOnly paddleOnly') ||
     !css.includes('html.momentaryMachine .paddleOnly') ||
     !css.includes('html:not(.momentaryMachine) .momentaryOnly') ||
     !css.includes('html:not(.reedMachine) .reedOnly') ||
-    !ui.includes("classList.toggle('momentaryMachine',t!=='paddle')") ||
-    !ui.includes("classList.toggle('reedMachine',t==='momentary_reed')")) {
+    !codeIncludes(ui, "classList.toggle('momentaryMachine',t!=='paddle')") ||
+    !codeIncludes(ui, "classList.toggle('reedMachine',t==='momentary_reed')")) {
   throw new Error(
       'Paddle and Momentary Settings groups must be mutually exclusive by compiled machine type; Quick rinse is shared');
 }
@@ -1163,20 +1164,20 @@ if (rinseHeader.includes('session.') ||
   throw new Error(
       'Rinse clock must not write session; brew must not read rinseGestureMs; ShotStopper copies the accept anchor');
 }
-if (!ui.includes('id="learnedOffsetG"') ||
-    !ui.includes('id="weightOffsetBaselineG"') ||
-    !ui.includes('id="resetCalibrationButton"') ||
+if (!codeIncludes(ui, 'id="learnedOffsetG"') ||
+    !codeIncludes(ui, 'id="weightOffsetBaselineG"') ||
+    !codeIncludes(ui, 'id="resetCalibrationButton"') ||
     html.indexOf('id="learnedOffsetG"') >
         html.indexOf('id="weightOffsetBaselineG"') ||
     html.indexOf('id="weightOffsetBaselineG"') >
         html.indexOf('id="resetCalibrationButton"') ||
-    !ui.includes('Reset learned stop offset') ||
-    ui.includes('Reset learned stop offset to baseline') ||
+    !codeIncludes(ui, 'Reset learned stop offset') ||
+    codeIncludes(ui, 'Reset learned stop offset to baseline') ||
     !css.includes('.bbwLearning .btnBar{max-width:22rem}') ||
     css.includes('#bbwAlgorithm{width:100%}') ||
-    !ui.includes('Save changed baseline values before resetting') ||
+    !codeIncludes(ui, 'Save changed baseline values before resetting') ||
     !network.includes('weightOffsetBaselineG') ||
-    !ui.includes('weightOffsetBaselineG')) {
+    !codeIncludes(ui, 'weightOffsetBaselineG')) {
   throw new Error('Learned stop offset baseline must be wired like A→M baseline reset');
 }
 if (!html.includes('<summary>Cup</summary>') ||
@@ -1262,28 +1263,28 @@ if (!html.includes('<summary>Cup</summary>') ||
         html.indexOf('<summary>Acaia</summary>') ||
     html.indexOf('<summary>Felicita</summary>') >
         html.indexOf('<summary>Alerts</summary>') ||
-    !ui.includes("d.parentElement.closest('details')")) {
+    !codeIncludes(ui, "d.parentElement.closest('details')")) {
   throw new Error('Machine settings must split Tare and Scales, with Bookoo/Acaia/Felicita subgroups');
 }
 if (!html.includes('id="postTareBaselineGraceS" type="number" min="0.5" max="10" step="0.1"') ||
-    !ui.includes("rangeCheck('postTareBaselineGraceS',0.5,10,'Post-tare grace',{unit:'s'})") ||
-    !ui.includes("postTareBaselineGraceMs:sToMs('postTareBaselineGraceS')") ||
-    !ui.includes("'postTareBaselineGrace'") ||
-    !ui.includes("$(k+'S').value=String(c[k+'Ms']/1000)") ||
-    !ui.includes("apply('tareOpt',!$('autoTare').checked)") ||
-    !(ui.includes("$('autoTare').onchange=()=>{updateConfigGroups();markConfigDirty()}") ||
-      ui.includes("$('autoTare').onchange=()=>{R.updateConfigGroups();R.markConfigDirty()}")) ||
-    !ui.includes("typeof c.postTareBaselineGraceMs==='number'") ||
+    !codeIncludes(ui, "rangeCheck('postTareBaselineGraceS',0.5,10,'Post-tare grace',{unit:'s',}") ||
+    !codeIncludes(ui, "postTareBaselineGraceMs:sToMs('postTareBaselineGraceS')") ||
+    !codeIncludes(ui, "'postTareBaselineGrace'") ||
+    !codeIncludes(ui, "$(k+'S').value=String(c[k+'Ms']/1000)") ||
+    !codeIncludes(ui, "apply('tareOpt',!$('autoTare').checked)") ||
+    !(codeIncludes(ui, "$('autoTare').onchange=()=>{updateConfigGroups();markConfigDirty()}") ||
+      codeIncludes(ui, "$('autoTare').onchange=()=>{R.updateConfigGroups();R.markConfigDirty()}")) ||
+    !codeIncludes(ui, "typeof c.postTareBaselineGraceMs==='number'") ||
     !network.includes('\\"postTareBaselineGraceMs\\":%lu') ||
     !network.includes('Post-tare grace must be from 0.5 to 10 s.') ||
     !network.includes('candidate.postTareBaselineGraceMs') ||
     !firmware.includes('session.config.postTareBaselineGraceMs')) {
   throw new Error('Post-tare grace must be wired through Tare settings, status/settings, and firmware');
 }
-if (!ui.includes("rangeCheck('dripDelayS',0,10,'Drip delay',{unit:'s'})") ||
-    !ui.includes("dripDelayMs:sToMs('dripDelayS')") ||
-    !ui.includes("$('dripDelayS').value=String((c.dripDelayMs??3000)/1000)") ||
-    !ui.includes('How long to wait after water stops before recording the final drink weight and learning from it.') ||
+if (!codeIncludes(ui, "rangeCheck('dripDelayS',0,10,'Drip delay',{unit:'s',}") ||
+    !codeIncludes(ui, "dripDelayMs:sToMs('dripDelayS')") ||
+    !codeIncludes(ui, "$('dripDelayS').value=String((c.dripDelayMs??3000)/1000)") ||
+    !codeIncludes(ui, 'How long to wait after water stops before recording the final drink weight and learning from it.') ||
     !network.includes('\\"dripDelayMs\\":%lu') ||
     !network.includes('Drip delay must be from 0 to 10 s.') ||
     !network.includes('candidate.dripDelayMs')) {

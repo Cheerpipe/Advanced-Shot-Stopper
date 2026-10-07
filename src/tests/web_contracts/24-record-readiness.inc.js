@@ -1,7 +1,7 @@
 // Cold record views must not subscribe before their markup can accept a page.
 {
   const assert = require('assert').strict, vm = require('vm');
-  const source = rawRuntimeJs.slice(rawRuntimeJs.indexOf('let shotWs='),
+  const source = rawRuntimeJs.slice(rawRuntimeJs.search(/let\s+shotWs\s*=/),
       rawRuntimeJs.indexOf('function formatExtractionGuard('));
   function fixture(view) {
     let mount;

@@ -11,7 +11,7 @@
       throw new Error(`Missing Home Assistant integration route: ${route}`);
   }
   if (/Authorization|Bearer|pairing|management.token|requireIntegrationAuth/i.test(integrationApi) ||
-      viewJs.admin.includes('/api/v1/integration/pairing/open')) {
+      codeIncludes(viewJs.admin, '/api/v1/integration/pairing/open')) {
     throw new Error('The integration API must share the open local-LAN posture of the Web UI');
   }
   if (!integrationApi.includes('\\"wifiMac\\"') ||

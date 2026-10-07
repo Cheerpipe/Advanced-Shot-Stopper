@@ -34,7 +34,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
       $: id => ({homeMicraCleaning: cleaning, homeMicraPower: power, machineRowState: rowState, state: brew, machineRow}[id] || null)},
     document: {querySelector: () => null},
     __WEBUI_TEXT__: key => key === 'home.optimistic' ? 'Optimistic' : 'Unknown'};
-  vm.runInNewContext(viewJs.home.replace(/import\*as R from'[^']+';/, '').replace(/export /g, ''), context);
+  vm.runInNewContext(viewJs.home.replace(/import\s*\*\s*as\s+R\s+from\s*['"][^'"]+['"];?/, '').replace(/export /g, ''), context);
   for (const [lineaMicra, expected] of [
     [{powerState: 'ON', quality: 'current'}, 'ON'],
     [{powerState: 'OFF', quality: 'current'}, 'OFF'],
@@ -87,7 +87,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const domContext = vm.createContext({$: id => dom[id], document: {createElement: element},
     __WEBUI_TEXT__: key => labels[key] || key, R: {formatWallTime: String}});
   const cleaningSource = rawRuntimeJs.slice(rawRuntimeJs.indexOf('export function formatMicraCleaning('),
-      rawRuntimeJs.indexOf('let shotWs=')).replace('export ', '');
+      rawRuntimeJs.search(/let\s+shotWs\s*=/)).replace('export ', '');
   domContext.R.formatMicraCleaning = new Function('__WEBUI_TEXT__', cleaningSource + ';return formatMicraCleaning;')(domContext.__WEBUI_TEXT__);
   vm.runInContext(cloudUi.slice(0, cloudUi.indexOf('function applyScaleCommands(')), domContext);
   const show = lm => { domContext.lm = lm; vm.runInContext('renderMicraCloudDiagnostic(lm)', domContext); };
@@ -341,7 +341,7 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
 {
   const assert = require('assert');
   const vm = require('vm');
-  const binding = viewJs.settings.match(/\$\('lineaMicraDisconnectButton'\)\.onclick=(.*?);if\(\$\('lineaMicraShutdownWithScale'\)/);
+  const binding = viewJs.settings.match(/\$\(\s*['"]lineaMicraDisconnectButton['"]\s*\)\s*\.\s*onclick\s*=([\s\S]*?);\s*if\s*\(\s*\$\(\s*['"]lineaMicraShutdownWithScale['"]\s*\)/);
   assert(binding, 'Micra Disconnect click binding is missing');
   let calls = 0, confirmed = false;
   const click = vm.runInNewContext(`(${binding[1]})`, {
@@ -355,10 +355,10 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
   click();
   assert.strictEqual(calls, 1, 'Confirmed Disconnect must invoke the action');
 
-  const saveBinding = viewJs.settings.match(/\$\('lineaMicraSaveButton'\)\.onclick=(.*?);if\(/);
+  const saveBinding = viewJs.settings.match(/\$\(\s*['"]lineaMicraSaveButton['"]\s*\)\s*\.\s*onclick\s*=([\s\S]*?);\s*if\s*\(/);
   assert(saveBinding, 'Micra Save click binding is missing');
 
-  const statusUi = rawRuntimeJs.slice(rawRuntimeJs.indexOf('const MICRA_SWITCHES='),
+  const statusUi = rawRuntimeJs.slice(rawRuntimeJs.search(/const\s+MICRA_SWITCHES\s*=/),
       rawRuntimeJs.indexOf('function renderLineaMicraDiagnostic('));
   for (const theme of ['theme-light', 'theme-dark']) {
     const nodes = new Map();
@@ -476,36 +476,36 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !rawCss.includes('[type=email]') ||
     !micraDiagnosticHtml.includes('<span id="dMicraPowerValue">{{webui:diagnostic.unknown}}</span> - <a id="lineaMicraRefreshLink" href="#" aria-disabled="true" tabindex="-1">({{webui:diagnostic.refresh_state}})</a>') ||
     micraDiagnosticHtml.includes('id="lineaMicraRefreshButton"') ||
-    !viewJs.diagnostic.includes("e.preventDefault();R.lineaMicraAction('refresh')") ||
-    !rawRuntimeJs.includes("s.machineIntegration==='linea_micra_cloud'") ||
-    !rawRuntimeJs.includes("{action:'connect',username,password}") ||
-    !rawRuntimeJs.includes("lineaMicraAction('disconnect')") ||
-    rawRuntimeJs.includes("['queued','authenticating','listing','running','backoff'].includes(m.phase)") ||
-    !rawRuntimeJs.includes("m.email+'\\n'+m.selectedName+' - '+m.selectedSerial") ||
-    !rawRuntimeJs.includes("$('lineaMicraIdentity').innerText=connected?") ||
-    !rawRuntimeJs.includes("for(let e=$('lineaMicraUsername').parentElement,n=5;n--;e=e.nextSibling)e.hidden=connected") ||
-    !rawRuntimeJs.includes("$('lineaMicraConnectButton').disabled=!canEdit||!m.staConnected||m.apActive") ||
+    !codeIncludes(viewJs.diagnostic, "e.preventDefault();R.lineaMicraAction('refresh')") ||
+    !codeIncludes(rawRuntimeJs, "s.machineIntegration==='linea_micra_cloud'") ||
+    !codeIncludes(rawRuntimeJs, "{action:'connect',username,password}") ||
+    !codeIncludes(rawRuntimeJs, "lineaMicraAction('disconnect')") ||
+    codeIncludes(rawRuntimeJs, "['queued','authenticating','listing','running','backoff'].includes(m.phase)") ||
+    !codeIncludes(rawRuntimeJs, "m.email+'\\n'+m.selectedName+' - '+m.selectedSerial") ||
+    !codeIncludes(rawRuntimeJs, "$('lineaMicraIdentity').innerText=connected?") ||
+    !codeIncludes(rawRuntimeJs, "for(let e=$('lineaMicraUsername').parentElement,n=5;n--;e=e.nextSibling)e.hidden=connected") ||
+    !codeIncludes(rawRuntimeJs, "$('lineaMicraConnectButton').disabled=!canEdit||!m.staConnected||m.apActive") ||
     !micraSettingsHtml.includes('<button id="lineaMicraConnectButton" class="btnGlyph mutable btnInvert" type="button"><span class="g">{{webui:settings.symbol_3}}</span><span class="t">{{webui:settings.connect_account}}</span></button>') ||
-    !rawRuntimeJs.includes("$('lineaMicraConnectButton').classList.add('busy');const ok=await command('/api/v1/machine/linea-micra',{action:'connect'") ||
-    !rawRuntimeJs.includes("$('lineaMicraConnectButton').classList.toggle('busy',!connected&&['queued','authenticating','listing'].includes(m.phase))") ||
-    !rawRuntimeJs.includes('select.disabled=!canEdit||!machines.length') ||
-    !rawRuntimeJs.includes("updateMicraShutdownControls(canEdit,connected)") ||
-    !rawRuntimeJs.includes("$('lineaMicraShutdownGrace').disabled=!canEdit||!connected||!on") ||
-    !rawRuntimeJs.includes("$('lineaMicraShutdownGraceWrap').classList.toggle('hidden',!on)") ||
-    !rawRuntimeJs.includes("$('lineaMicraShutdownGrace').value=String(m.shutdownGraceSeconds||0)") ||
-    !viewJs.settings.includes("$('lineaMicraShutdownWithScale').onchange=()=>R.updateMicraShutdownControls()") ||
+    !codeIncludes(rawRuntimeJs, "$('lineaMicraConnectButton').classList.add('busy');const ok=await command('/api/v1/machine/linea-micra',{action:'connect'") ||
+    !codeIncludes(rawRuntimeJs, "$('lineaMicraConnectButton').classList.toggle('busy',!connected&&['queued','authenticating','listing'].includes(m.phase)") ||
+    !codeIncludes(rawRuntimeJs, 'select.disabled=!canEdit||!machines.length') ||
+    !codeIncludes(rawRuntimeJs, "updateMicraShutdownControls(canEdit,connected)") ||
+    !codeIncludes(rawRuntimeJs, "$('lineaMicraShutdownGrace').disabled=!canEdit||!connected||!on") ||
+    !codeIncludes(rawRuntimeJs, "$('lineaMicraShutdownGraceWrap').classList.toggle('hidden',!on)") ||
+    !codeIncludes(rawRuntimeJs, "$('lineaMicraShutdownGrace').value=String(m.shutdownGraceSeconds||0)") ||
+    !codeIncludes(viewJs.settings, "$('lineaMicraShutdownWithScale').onchange=()=>R.updateMicraShutdownControls()") ||
     !micraSettingsHtml.includes('id="lineaMicraShutdownWithScale" type="checkbox">') ||
     !micraSettingsHtml.includes('id="lineaMicraShutdownGraceWrap" class="hidden"') ||
     !micraSettingsHtml.includes('<option value="60">') ||
     micraSettingsHtml.includes('id="lineaMicraShutdownWithScale" type="checkbox" checked') ||
-    !rawRuntimeJs.includes("$('lineaMicraDisconnectButton').disabled=!canEdit||(!connected&&!machines.length)") ||
-    !rawRuntimeJs.includes("$('dMicraPowerValue').textContent=power") ||
-    !rawRuntimeJs.includes("m.temperatureState&&m.temperatureState!=='disabled'") ||
-    !rawRuntimeJs.includes("$('dMicraAge').textContent=lm.temperatureState+'/'+lm.temperatureError+' · '") ||
-    !rawRuntimeJs.includes("refresh.setAttribute('aria-disabled',String(disabled))") ||
-    rawRuntimeJs.includes("expired?'UNKNOWN':lm.powerState") ||
-    !rawRuntimeJs.includes('power=lm.powerState') ||
-    !rawRuntimeJs.includes("stale=lm.freshnessPolicy!=='connection'&&lm.quality==='current'&&age>=lm.freshnessMs") ||
+    !codeIncludes(rawRuntimeJs, "$('lineaMicraDisconnectButton').disabled=!canEdit||(!connected&&!machines.length)") ||
+    !codeIncludes(rawRuntimeJs, "$('dMicraPowerValue').textContent=power") ||
+    !codeIncludes(rawRuntimeJs, "m.temperatureState&&m.temperatureState!=='disabled'") ||
+    !codeIncludes(rawRuntimeJs, "$('dMicraAge').textContent=lm.temperatureState+'/'+lm.temperatureError+' · '") ||
+    !codeIncludes(rawRuntimeJs, "refresh.setAttribute('aria-disabled',String(disabled))") ||
+    codeIncludes(rawRuntimeJs, "expired?'UNKNOWN':lm.powerState") ||
+    !codeIncludes(rawRuntimeJs, 'power=lm.powerState') ||
+    !codeIncludes(rawRuntimeJs, "stale=lm.freshnessPolicy!=='connection'&&lm.quality==='current'&&age>=lm.freshnessMs") ||
     !micraSettingsHtml.includes('id="lineaMicraApplyTemperature" type="checkbox" checked') ||
     !micraSettingsHtml.includes('id="lineaMicraObserveState" type="checkbox" checked') ||
     !micraSettingsHtml.includes('id="lineaMicraRecognizeWake" type="checkbox" checked')) {

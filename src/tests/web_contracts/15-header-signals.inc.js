@@ -16,7 +16,8 @@
     document: {querySelectorAll: () => buttons, addEventListener: (name, fn) => {events[name] = fn;}},
     window: {addEventListener: (name, fn) => {events[name] = fn;}},
   });
-  vm.runInContext(runtimeJs.slice(start, runtimeJs.indexOf('\nlet homeBootDone=', start)).replace(/^export /gm, ''), context);
+  const regionEnd = runtimeJs.slice(start).search(/\nlet\s+homeBootDone\s*=/);
+  vm.runInContext(runtimeJs.slice(start, regionEnd < 0 ? undefined : regionEnd + start).replace(/^export /gm, ''), context);
   for (const [signal, level] of [[1, '1'], [2, '2'], [3, '3'], [null, 'unknown'], [NaN, 'unknown'], [Infinity, 'unknown'], [-1, 'unknown'], [0, 'unknown'], [4, 'unknown'], [1.5, 'unknown'], ['3', 'unknown']]) {
     context.updateHeaderSignals({connections: {wifiConnected: true, wifiLevel: signal, bluetoothConnected: true, bluetoothLevel: signal}});
     for (const kind of ['wifi', 'bluetooth']) assert.equal(elements[kind + 'Signal'].dataset.level, level, String(signal));
@@ -66,10 +67,10 @@
   context.updateHeaderSignals({snapshotStale: true, connections: {wifiConnected: true, wifiName: 'Old SSID'}});
   assert.equal(elements.wifiName.textContent, '—');
   assert.equal(elements.wifiDetail.textContent, 'Signal unavailable');
-  assert(appJsSource.includes('R.initHeaderSignals();'));
-  assert(rawRuntimeJs.includes('applyCommonStatus(s){if(s.connections||s.snapshotStale)updateHeaderSignals(s);'),
+  assert(codeIncludes(appJsSource, 'R.initHeaderSignals();'));
+  assert(codeIncludes(rawRuntimeJs, 'applyCommonStatus(s){if(s.connections||s.snapshotStale)updateHeaderSignals(s);'),
       'record-only envelopes must not erase live header signals');
-  assert(rawRuntimeJs.includes('noteReachFail(err,force){clearCupWeights();updateHeaderSignals();'));
+  assert(codeIncludes(rawRuntimeJs, 'noteReachFail(err,force){clearCupWeights();updateHeaderSignals();'));
   for (const file of ['network/ShotStopperStatus.inc', 'diagnostics/ShotStopperNetworkDiagnostics.inc']) {
     const source = fs.readFileSync(path.join(sketchDir, file), 'utf8');
     for (const field of ['wifiConnected', 'wifiLevel', 'bluetoothConnected', 'bluetoothLevel', 'wifiName', 'bluetoothName']) assert(source.includes('\\"' + field + '\\"'), file + ': ' + field);
@@ -91,7 +92,7 @@
   const link = {classList: {toggle: (name, on) => on ? hidden.add(name) : hidden.delete(name)}};
   const context = vm.createContext({compatMode: false,
     document: {querySelector: selector => {assert.equal(selector, '[data-route="/diagnostic"]'); return link;}}});
-  const start = rawRuntimeJs.indexOf('let diagnosticVisible=false;');
+  const start = rawRuntimeJs.search(/let\s+diagnosticVisible\s*=\s*false\s*;/);
   vm.runInContext(rawRuntimeJs.slice(start, rawRuntimeJs.indexOf('function applyCompatibilityChrome(', start))
     .replace(/^export /gm, ''), context);
   context.applyDiagnosticNavigation();
@@ -117,7 +118,7 @@
     window: {scrollY: 0, matchMedia: () => mobile, addEventListener: (name, fn) => {events[name] = fn;}}});
   const headerStart = appJsSource.indexOf('function scrollHeader()');
   header.mobile = mobile;
-  vm.runInContext(appJsSource.slice(headerStart, appJsSource.indexOf("window.addEventListener('popstate'", headerStart)), header);
+  vm.runInContext(appJsSource.slice(headerStart, (() => { const at = appJsSource.slice(headerStart).search(/window\.addEventListener\(\s*['"]popstate['"]/); return at < 0 ? undefined : at + headerStart; })()), header);
   for (const [scroll, progress] of [[0, 0], [30, .25], [60, .5], [120, 1], [300, 1], [-20, 0]]) {
     header.window.scrollY = scroll; events.scroll();
     assert.equal(values['--header-progress'], progress, 'Header shrinks continuously within scroll bounds');
@@ -166,7 +167,8 @@
     }},
   });
   const start = appJsSource.indexOf('function updateNavigationLayout()');
-  vm.runInContext(appJsSource.slice(start, appJsSource.indexOf('const msgEl=', start)), context);
+  const msgElAt = appJsSource.slice(start).search(/const\s+msgEl\s*=/);
+  vm.runInContext(appJsSource.slice(start, msgElAt < 0 ? undefined : msgElAt + start), context);
   assert.equal(root.dataset.navLayout, 'icons', 'Wide header retains section icons and names');
   assert.equal(geometry['--menu-offset'], '72px', 'Initial header measures its actual menu row');
   assert.deepEqual(nav.appended.map(el => el.className), ['pill'], 'Script enhancement adds the sliding selection pill');

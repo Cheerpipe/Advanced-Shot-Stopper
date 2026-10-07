@@ -6,9 +6,8 @@
     return {insertCell: () => {const cell = {}; cells.push(cell); return cell;}};
   }};
   const elements = {scaleCommandRows: rows, scaleCommandTable: {}, scaleCommandHint: {}};
-  const first = viewJs.diagnostic.indexOf('function applyScaleCommands(');
-  const last = viewJs.diagnostic.indexOf('\n', first);
-  const apply = new Function('$', viewJs.diagnostic.slice(first, last) +
+  const apply = new Function('$',
+    blockAt(viewJs.diagnostic, 'function applyScaleCommands(') +
     ';return applyScaleCommands;')(id => elements[id]);
   const commands = ['Tare', 'Volume', 'Start timer', 'Stop timer', 'Reset timer',
     'Tare and start timer', 'Power off'].map((name, i) => ({name,
@@ -75,10 +74,10 @@
       !/<details id="scaleRow" class="lampRow">[\s\S]*?<\/details><details id="cupRow" class="lampRow">/.test(home) ||
       !/<legend>Scale<\/legend>[\s\S]*?id="dCupWeight"/.test(diagnostic) ||
       !diagnostic.includes('id="dCup"') || diagnostic.includes('id="scaleTareButton"') ||
-      !source.includes("$('cupWeight').textContent=formatCupWeight(s)") ||
-      !source.includes("t('dCupWeight',formatCupWeight(s))") ||
-      !source.includes('function noteReachFail(err,force){clearCupWeights();') ||
-      !source.includes('function stopViewPolls(){clearCupWeights();')) {
+      !codeIncludes(source, "$('cupWeight').textContent=formatCupWeight(s)") ||
+      !codeIncludes(source, "t('dCupWeight',formatCupWeight(s))") ||
+      !codeIncludes(source, 'function noteReachFail(err,force){clearCupWeights();') ||
+      !codeIncludes(source, 'function stopViewPolls(){clearCupWeights();')) {
     throw new Error('Home and Diagnostic cup panel contract');
   }
   // Parse the actual adjacent C++ format literals for both status paths.

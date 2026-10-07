@@ -39,24 +39,42 @@ for (const name of runtimeExports) {
     throw new Error(`Runtime export is not imported: ${name}`);
   }
 }
-if (rawAppJsSource.includes('htmlCache') ||
-    !rawAppJsSource.includes('if(viewLoads.has(name))return viewLoads.get(name)') ||
-    !rawAppJsSource.includes('viewLoads.set(name,load)') ||
-    !rawAppJsSource.includes('finally{viewLoads.delete(name)}') ||
-    !rawAppJsSource.includes("jsMods.has(name)&&htmlLoaded.has(name)")) {
+// Structural contracts match authoring sources with whitespace-insensitive
+// comparison so the readable formatting style cannot break them. Semicolons
+// and quote characters are stripped from both haystack and needle: formatters
+// add statement terminators the historic minified needles omit and normalize
+// string quotes.
+const compactSource = (source) => source.replace(/[\s;'"]/g, '');
+const codeIncludes = (source, needle) =>
+  compactSource(source).includes(compactSource(needle));
+// Extract a top-level declaration block from an authoring source by cutting
+// at the next column-0 closing brace; valid for the formatted style whose
+// top-level closers start a line.
+const blockAt = (source, marker) => {
+  const at = source.indexOf(marker);
+  return at < 0 ? '' : source.slice(at, source.indexOf('\n}', at) + 2);
+};
+if (codeIncludes(rawAppJsSource, 'htmlCache') ||
+    !compactSource(rawAppJsSource).includes(
+        'if(viewLoads.has(name))returnviewLoads.get(name)') ||
+    !compactSource(rawAppJsSource).includes('viewLoads.set(name,load)') ||
+    !compactSource(rawAppJsSource).includes('finally{viewLoads.delete(name)') ||
+    !compactSource(rawAppJsSource)
+        .includes('jsMods.has(name)&&htmlLoaded.has(name)')) {
   throw new Error('Partial loading must coalesce in flight and release text/promises after insertion');
 }
-const diagnosticDownload = rawViewJs.diagnostic.match(
-  /const\s+([A-Za-z_$][\w$]*)=document\.createElement\('a'\)[\s\S]*?,([A-Za-z_$][\w$]*)=URL\.createObjectURL\(/);
+const diagnosticCompact = compactSource(rawViewJs.diagnostic);
+const diagnosticDownload = diagnosticCompact.match(
+  /const([A-Za-z_$][\w$]*)=document\.createElement\(a\)[\s\S]*?,([A-Za-z_$][\w$]*)=URL\.createObjectURL\(/);
 const diagnosticClickAt = diagnosticDownload
-  ? rawViewJs.diagnostic.indexOf(`${diagnosticDownload[1]}.click()`, diagnosticDownload.index)
+  ? diagnosticCompact.indexOf(`${diagnosticDownload[1]}.click()`, diagnosticDownload.index)
   : -1;
 const diagnosticHrefAt = diagnosticDownload
-  ? rawViewJs.diagnostic.indexOf(
+  ? diagnosticCompact.indexOf(
       `${diagnosticDownload[1]}.href=${diagnosticDownload[2]}`, diagnosticDownload.index)
   : -1;
 const diagnosticRevokeAt = diagnosticDownload
-  ? rawViewJs.diagnostic.indexOf(
+  ? diagnosticCompact.indexOf(
       `URL.revokeObjectURL(${diagnosticDownload[2]})`, diagnosticDownload.index)
   : -1;
 if (!diagnosticDownload || diagnosticHrefAt < 0 ||
@@ -97,12 +115,9 @@ const allHtml = shellHtml.replace(
     });
 let allJs = [appJsSource, runtimeJs, otaImageJs,
   ...VIEW_NAMES.map((n) => viewJs[n])].join('\n');
-const singleQuoted = (value) => "'" + value.replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'").replace(/\r/g, '\\r').replace(/\n/g, '\\n') + "'";
-for (const value of [...new Set(Object.values(
-  require('../web/locales/en.json').strings))].sort((a, b) => b.length - a.length)) {
-  allJs = allJs.split(JSON.stringify(value)).join(singleQuoted(value));
-}
+// Localized values keep their emitted quote style: codeIncludes compares
+// needles quote-insensitively, and a text-wide double-to-single rewrite would
+// corrupt markup that embeds unescaped quotes (e.g. values like " class=").
 // Most wiring checks look across shell + partials + all JS modules.
 const html = allHtml;
 const js = allJs;
@@ -160,8 +175,8 @@ if (!shellHtml.includes('class="pageNav"') ||
     shellHtml.indexOf('class="topBar"') > shellHtml.indexOf('class="pageNav"') ||
     !css.includes('@media(min-width:700px)') ||
     !css.includes('[data-nav-layout="text"] .pageNav svg{display:none}') ||
-    !appJsSource.includes('function updateNavigationLayout()') ||
-    !appJsSource.includes("matchMedia('(max-width: 699px)')")) {
+    !codeIncludes(appJsSource, 'function updateNavigationLayout()') ||
+    !codeIncludes(appJsSource, "matchMedia('(max-width: 699px)')")) {
   throw new Error('Web UI must adapt a single navigation bar between header icons, header text and bottom icons');
 }
 if (!css.includes('.inactiveMain{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;max-width:24rem;width:100%;text-align:center}')) {
@@ -181,15 +196,15 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !css.includes('.bootWave i{width:.55rem;height:100%;border-radius:.3rem;background:var(--ac);animation:bootWave 1.1s ease-in-out infinite}') ||
     !css.includes('@keyframes bootWave{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}') ||
     !css.includes('.bootWave i{animation:none}') ||
-    !runtimeJs.includes('let homeBootDone=false,fwReloading=false') ||
-    !runtimeJs.includes('function hideHomeBoot(seq=bootSeq){') ||
-    !runtimeJs.includes("bootTimer=setTimeout(()=>{if(seq===bootSeq)") ||
-    !runtimeJs.includes("function message(text,kind=''){if(kind==='error')hideHomeBoot();") ||
-    runtimeJs.includes('function applyHomeStatus(s){hideHomeBoot();') ||
-    !runtimeJs.includes("function showInactiveOverlay(){const el=$('webUiInactive');if(!el)return;hideHomeBoot();") ||
-    !runtimeJs.includes("location.replace(location.pathname+'?fw='+version)") ||
-    !appJsSource.includes('boot=R.showPageBoot();R.stopViewPolls();') ||
-    !appJsSource.includes('if(ok)R.hideHomeBoot(boot)')) {
+    !codeIncludes(runtimeJs, 'let homeBootDone=false,fwReloading=false') ||
+    !codeIncludes(runtimeJs, 'function hideHomeBoot(seq=bootSeq){') ||
+    !codeIncludes(runtimeJs, "bootTimer=setTimeout(()=>{if(seq===bootSeq)") ||
+    !codeIncludes(runtimeJs, "function message(text,kind=''){if(kind==='error')hideHomeBoot();") ||
+    codeIncludes(runtimeJs, 'function applyHomeStatus(s){hideHomeBoot();') ||
+    !codeIncludes(runtimeJs, "function showInactiveOverlay(){const el=$('webUiInactive');if(!el)return;hideHomeBoot();") ||
+    !codeIncludes(runtimeJs, "location.replace(location.pathname+'?fw='+version)") ||
+    !codeIncludes(appJsSource, 'boot=R.showPageBoot();R.stopViewPolls();') ||
+    !codeIncludes(appJsSource, 'if(ok)R.hideHomeBoot(boot)')) {
   throw new Error(
       'Every view must reuse the Home splash and fade immediately after data loads, preserving firmware reload and inactive overlay handoff');
 }
@@ -207,7 +222,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
   const routeSource = appJsSource.slice(appJsSource.indexOf('function startView('),
     appJsSource.indexOf('function navigate('));
   const hooksSource = appJsSource.slice(appJsSource.indexOf('R.setViewPollHooks('),
-    appJsSource.indexOf("document.querySelectorAll('a[data-route]')"));
+    appJsSource.search(/document\.querySelectorAll\(\s*['"]a\[data-route\]['"]\s*\)/));
   (async () => {
     const classes = new Set(['hidden', 'isDone']), bodyClasses = new Set(), timers = [];
     const classList = set => ({add: (...names) => names.forEach(n => set.add(n)),
@@ -256,7 +271,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       viewStatusHandlers: {admin: () => applied.push('status')},
       timezoneCatalogPromise: catalog.promise, timezonePreviewLoad: preview.promise,
       noteReachOk: () => applied.push('ready'), noteReachFail() {}, armStatusTimer() {}});
-    vm.runInContext(rawRuntimeJs.split('\n').find(line => line.startsWith('async function loadStatus(')), statusContext);
+    vm.runInContext(blockAt(rawRuntimeJs, 'async function loadStatus('), statusContext);
     const adminLoading = statusContext.loadStatus(); await flush();
     assert.deepEqual(applied, [], 'Fetch status immediately but defer hydration until markup is initialized');
     statusMarkup.resolve(); await flush();
@@ -296,8 +311,9 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     assert.equal(logContext.lastLog, 1);
     assert.equal(rendered, 2);
 
-    const slotSource = rawRuntimeJs.split('\n').filter(line =>
-      /^(function drainDeviceSlots|function acquireDeviceSlot|function releaseDeviceSlot|async function api\()/.test(line)).join('\n');
+    const slotSource = ['function drainDeviceSlots(', 'function acquireDeviceSlot(',
+      'function releaseDeviceSlot(', 'async function api(']
+        .map((marker) => blockAt(rawRuntimeJs, marker)).join('\n');
     for (const view of ['stats', 'history', 'home', 'settings', 'admin', 'diagnostic']) {
       const requests = [], responses = [];
       const slots = vm.createContext({activeView: view, deviceInFlight: 0, deviceWaiters: [],
@@ -333,8 +349,8 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
 
     // Record pages have no REST reads left; the remaining per-view fetches
     // are the claim-gated status pages, exercised by the lifecycle suites.
-    assert(!rawRuntimeJs.includes('/api/v1/stats?offset=') &&
-           !rawRuntimeJs.includes('/api/v1/history?offset='),
+    assert(!codeIncludes(rawRuntimeJs, '/api/v1/stats?offset=') &&
+           !codeIncludes(rawRuntimeJs, '/api/v1/history?offset='),
         'record pages must subscribe over the owned WebSocket, not read REST');
 
     const assets = {stats: deferred(), history: deferred()}, secondary = deferred(),
@@ -453,7 +469,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     }
   }
   if (fade !== .25 ||
-      !runtimeJs.includes("document.body.classList.remove('pageLoading')}}," + Math.round(fade * 1000) + ')') ||
+      !codeIncludes(runtimeJs, "document.body.classList.remove('pageLoading')}}," + Math.round(fade * 1000) + ')') ||
       !css.includes('transition:.01ms!important')) {
     throw new Error('Splash removal must follow the immediate 250 ms fade and restore control motion');
   }
@@ -637,8 +653,13 @@ if (htmlBytes > 85800) {
 // validation, the snapshot-readiness wait, and the local clock/age ticker)
 // adds ~0.7 KB of JS source allowance while deleting the REST status and
 // log pull plumbing; compressed asset and firmware limits stay fixed.
-if (jsBytes > 264500) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 264500)`);
+// Web UI JS sources are authored in formatted, human-readable style since the
+// 2026-10 reformat; this allowance was re-measured once for that re-baselining
+// (332.1 KB of localized JS) with fixed headroom, and generated assets stayed
+// byte-identical modulo the cache-buster tag. New features raise it again per
+// the entries below.
+if (jsBytes > 336500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 336500)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -682,19 +703,21 @@ if (jsBytes > 264500) {
 // Include the same ~4 KB Stats stream allowance described above.
 // Include the same ~0.5 KB owned-socket pacing allowance described above.
 // Include the same ~0.7 KB Diagnostic full-WebSocket allowance described above.
-if (htmlBytes + jsBytes > 349400) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 349400)`);
+// The 2026-10 JS reformat re-baselining described above also applies here:
+// 417.0 KB measured, headroom fixed at +6 KB.
+if (htmlBytes + jsBytes > 423500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 423500)`);
 }
-if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
-    !ui.includes('id="dActivator"') || !ui.includes('firstDropBeep') ||
-    !ui.includes('paddleReturnReminderBeep') ||
-    !ui.includes('buzzerScaleLostBeep') ||
-    !ui.includes('buzzerAutoToManualGuardEndBeep') ||
-    !ui.includes('buzzerManualNoScaleBeep') ||
-    !ui.includes('buzzerScaleConnectedBeep') ||
-    !ui.includes('scaleConnectedLed') ||
-    !ui.includes('buzzerExtendedPulseRate') ||
-    !ui.includes('buzzerSlowExtendedPulseRate') ||
+if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
+    !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
+    !codeIncludes(ui, 'paddleReturnReminderBeep') ||
+    !codeIncludes(ui, 'buzzerScaleLostBeep') ||
+    !codeIncludes(ui, 'buzzerAutoToManualGuardEndBeep') ||
+    !codeIncludes(ui, 'buzzerManualNoScaleBeep') ||
+    !codeIncludes(ui, 'buzzerScaleConnectedBeep') ||
+    !codeIncludes(ui, 'scaleConnectedLed') ||
+    !codeIncludes(ui, 'buzzerExtendedPulseRate') ||
+    !codeIncludes(ui, 'buzzerSlowExtendedPulseRate') ||
     !html.includes('id="buzzerExtendedPulseRate"') ||
     !html.includes('id="buzzerSlowExtendedPulseRate"') ||
     !html.includes('class="buzzerOpt scaleIncapableOpt">Extended shot pulse<select id="buzzerExtendedPulseRate"') ||
@@ -720,15 +743,15 @@ if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     html.includes('id="buzzerExtendedPulseBeep"') ||
     html.includes('20ms') ||
     html.includes('x segundo') ||
-    ui.includes('querySelectorAll(\'.scaleIncapableOpt\').forEach(e=>{e.classList.toggle(\'fieldOff\',scaleOnly);e.querySelectorAll(\'input\').forEach') ||
-    !ui.includes('alertOutputChannel') ||
-    !ui.includes('buzzerSupported') ||
-    !ui.includes('Output channel') ||
-    !ui.includes('scale_priority') ||
-    !ui.includes('Buzzer only') ||
-    !ui.includes('class="fieldHint"') ||
-    !ui.includes('id="bookooMuteOnBuzzerOnly"') ||
-    !ui.includes('id="bookooConnectBeepLevel"') ||
+    codeIncludes(ui, 'querySelectorAll(\'.scaleIncapableOpt\').forEach(e=>{e.classList.toggle(\'fieldOff\',scaleOnly);e.querySelectorAll(\'input\').forEach') ||
+    !codeIncludes(ui, 'alertOutputChannel') ||
+    !codeIncludes(ui, 'buzzerSupported') ||
+    !codeIncludes(ui, 'Output channel') ||
+    !codeIncludes(ui, 'scale_priority') ||
+    !codeIncludes(ui, 'Buzzer only') ||
+    !codeIncludes(ui, 'class="fieldHint"') ||
+    !codeIncludes(ui, 'id="bookooMuteOnBuzzerOnly"') ||
+    !codeIncludes(ui, 'id="bookooConnectBeepLevel"') ||
     !html.includes('id="bookooMuteOnBuzzerOnly" type="checkbox" checked') ||
     !html.includes('id="buzzerScaleConnectedBeep" type="checkbox" checked') ||
     !html.includes('id="scaleConnectedLed" type="checkbox" checked') ||
@@ -743,21 +766,21 @@ if (!/lang="en"/.test(html) || !ui.includes('role="switch"') ||
     !html.includes('Applies when <strong>Buzzer only</strong> is selected.')) {
   throw new Error('Web UI must show paddle state, scale beep options, and buzzer alerts');
 }
-if (!ui.includes('id="operationalWallS" type="number" min="5" max="60"') ||
-    !ui.includes('Max BBW time (s)') ||
-    !ui.includes('sToMs(') ||
-    !ui.includes('rinseGestureMs:sToMs') ||
+if (!codeIncludes(ui, 'id="operationalWallS" type="number" min="5" max="60"') ||
+    !codeIncludes(ui, 'Max BBW time (s)') ||
+    !codeIncludes(ui, 'sToMs(') ||
+    !codeIncludes(ui, 'rinseGestureMs:sToMs') ||
     !network.includes('Max BBW time must be from 5 to 60 s.')) {
   throw new Error('Max BBW time must be capped at 60 s in the UI and API messages');
 }
-if (!ui.includes('function rangeCheck(') ||
-    !ui.includes('function showFieldError(') ||
-    !ui.includes('samples × sample gap') ||
-    !ui.includes('aria-live') ||
-    !ui.includes('fieldError') ||
-    !ui.includes('id="goalWeightG" type="number" min="10" max="200" step="1"') ||
-    !ui.includes('validateNetworkClient') ||
-    !ui.includes('validateDevicePasswordClient') ||
+if (!codeIncludes(ui, 'function rangeCheck(') ||
+    !codeIncludes(ui, 'function showFieldError(') ||
+    !codeIncludes(ui, 'samples × sample gap') ||
+    !codeIncludes(ui, 'aria-live') ||
+    !codeIncludes(ui, 'fieldError') ||
+    !codeIncludes(ui, 'id="goalWeightG" type="number" min="10" max="200" step="1"') ||
+    !codeIncludes(ui, 'validateNetworkClient') ||
+    !codeIncludes(ui, 'validateDevicePasswordClient') ||
     !network.includes('Max recovery must be from 10 to 200 g.') ||
     !network.includes('Fast guard requires max recovery') ||
     !network.includes('SSID must be 1–32 characters.') ||
@@ -809,37 +832,37 @@ if (!network.includes('"firstDropBeep"') ||
     !network.includes('"ntpServerPreset"') ||
     !network.includes('"ntpServerCustom"') ||
     !network.includes('\\"time\\":{') ||
-    !ui.includes('id=ut') ||
-    !ui.includes('id="ntpStatus"') ||
-    !ui.includes('id="ntpServerPreset"') ||
-    !ui.includes('id="ntpServerCustom"') ||
+    !codeIncludes(ui, 'id=ut') ||
+    !codeIncludes(ui, 'id="ntpStatus"') ||
+    !codeIncludes(ui, 'id="ntpServerPreset"') ||
+    !codeIncludes(ui, 'id="ntpServerCustom"') ||
     !html.includes('id="staSsid" type="text"') ||
     !html.includes('id="ntpServerCustom" type="text"') ||
     !html.includes('id="presetRenameInput" type="text"') ||
-    !ui.includes('id="syncTimeButton"') ||
-    !ui.includes('id="autoRetare"') ||
-    !ui.includes('id="fastExtractionGuardEnabled"') ||
-    !ui.includes('id="avoidAccidentalTouchEnabled"') ||
-    !ui.includes('id="maxRecoveryWeightG"') ||
-    !ui.includes('id="minBbwBrewTimeS"') ||
-    !ui.includes('Fast extraction guard') ||
-    !ui.includes('id="slowExtractionGuardEnabled"') ||
-    !ui.includes('id="minRecoveryWeightG"') ||
-    !ui.includes('id="maxBbwBrewTimeS"') ||
-    !ui.includes('Slow extraction guard') ||
-    !ui.includes('id="retareWindowS"') ||
-    !ui.includes('id="minimumCupWeightG"') ||
-    !ui.includes('id="retareStabilitySamples"') ||
-    !ui.includes('id="retareStabilityToleranceG"') ||
-    !ui.includes('id="retareStabilityMaxGapS"') ||
-    !ui.includes('id="retareStabilityMinDurationS"') ||
-    !ui.includes('BBW protection (s)') ||
-    !ui.includes('id="bbwProtectionS"') ||
-    !ui.includes('Paddle reminder limit (min)') ||
-    !ui.includes('id="paddleReturnReminderMaxDurationMin"') ||
-    !ui.includes('paddleReturnReminderMaxDurationMs:Math.round(') ||
-    ui.includes('Up to 120 shots') ||
-    !ui.includes('/api/v1/time/sync') ||
+    !codeIncludes(ui, 'id="syncTimeButton"') ||
+    !codeIncludes(ui, 'id="autoRetare"') ||
+    !codeIncludes(ui, 'id="fastExtractionGuardEnabled"') ||
+    !codeIncludes(ui, 'id="avoidAccidentalTouchEnabled"') ||
+    !codeIncludes(ui, 'id="maxRecoveryWeightG"') ||
+    !codeIncludes(ui, 'id="minBbwBrewTimeS"') ||
+    !codeIncludes(ui, 'Fast extraction guard') ||
+    !codeIncludes(ui, 'id="slowExtractionGuardEnabled"') ||
+    !codeIncludes(ui, 'id="minRecoveryWeightG"') ||
+    !codeIncludes(ui, 'id="maxBbwBrewTimeS"') ||
+    !codeIncludes(ui, 'Slow extraction guard') ||
+    !codeIncludes(ui, 'id="retareWindowS"') ||
+    !codeIncludes(ui, 'id="minimumCupWeightG"') ||
+    !codeIncludes(ui, 'id="retareStabilitySamples"') ||
+    !codeIncludes(ui, 'id="retareStabilityToleranceG"') ||
+    !codeIncludes(ui, 'id="retareStabilityMaxGapS"') ||
+    !codeIncludes(ui, 'id="retareStabilityMinDurationS"') ||
+    !codeIncludes(ui, 'BBW protection (s)') ||
+    !codeIncludes(ui, 'id="bbwProtectionS"') ||
+    !codeIncludes(ui, 'Paddle reminder limit (min)') ||
+    !codeIncludes(ui, 'id="paddleReturnReminderMaxDurationMin"') ||
+    !codeIncludes(ui, 'paddleReturnReminderMaxDurationMs:Math.round(') ||
+    codeIncludes(ui, 'Up to 120 shots') ||
+    !codeIncludes(ui, '/api/v1/time/sync') ||
     !firmware.includes('session.config.firstDropBeep') ||
     !firmware.includes('candidate.buzzerScaleConnectedBeep') ||
     !firmware.includes('candidate.scaleConnectedLed') ||
@@ -858,11 +881,11 @@ if (firmware.includes('SHOT_STOPPER_ENABLE_ALED') ||
     domain.includes('BOOT_SUBSYSTEM_INDICATORS')) {
   throw new Error('WS2812B/ALED support must be fully removed');
 }
-if (!ui.includes('id="bullseyeMelodyEnabled"') ||
-    !ui.includes('id="bullseyeRtttl" maxlength="500"') ||
-    !ui.includes('Bullseye melody') ||
-    !js.includes('bullseyeMelodyEnabled') ||
-    !js.includes('bullseyeRtttl') ||
+if (!codeIncludes(ui, 'id="bullseyeMelodyEnabled"') ||
+    !codeIncludes(ui, 'id="bullseyeRtttl" maxlength="500"') ||
+    !codeIncludes(ui, 'Bullseye melody') ||
+    !codeIncludes(js, 'bullseyeMelodyEnabled') ||
+    !codeIncludes(js, 'bullseyeRtttl') ||
     !network.includes('"bullseyeMelodyEnabled"') ||
     !network.includes('"bullseyeRtttl"') ||
     !network.includes('stageBullseyeConfig') ||
@@ -883,8 +906,8 @@ if (!ui.includes('id="bullseyeMelodyEnabled"') ||
         'Bullseye test handler must release the shared PSRAM/JSON workspace on success and parse failure');
   }
 }
-if (!ui.includes("scaleConnectedLed:$('scaleConnectedLed').checked") ||
-    !ui.includes("'scaleConnectedLed'") ||
+if (!codeIncludes(ui, "scaleConnectedLed:$('scaleConnectedLed').checked") ||
+    !codeIncludes(ui, "'scaleConnectedLed'") ||
     !network.includes('\\"scaleConnectedLed\\":%s') ||
     !firmware.includes('serviceScaleConnectedLed') ||
     !firmware.includes('SCALE_CONNECTED_LED_GPIO') ||
@@ -892,18 +915,18 @@ if (!ui.includes("scaleConnectedLed:$('scaleConnectedLed').checked") ||
   throw new Error('Scale-connected GPIO LED must be wired through Settings, status/settings, and firmware');
 }
 
-if (!ui.includes('id="soundAlertsEnabled"') ||
-    ui.includes('id="homeSoundAlertsEnabled"') ||
-    ui.includes('id="homeAlertsSub"') ||
-    ui.includes("setHomeSub('homeAlertsSub'") ||
-    ui.includes('function formatAlertsChannel(') ||
-    ui.includes("persistHomeGuard('homeSoundAlertsEnabled'") ||
-    !ui.includes('soundAlertsEnabled:$(\'soundAlertsEnabled\').checked') ||
-    ui.includes('p.soundAlertsEnabled=$(\'homeSoundAlertsEnabled\').checked') ||
-    ui.includes("k!=='soundAlertsEnabled'") ||
-    js.includes("keys[0]==='soundAlertsEnabled'") ||
-    !(ui.includes("typeof c.soundAlertsEnabled==='boolean'") ||
-      ui.includes("'boolean'==typeof c.soundAlertsEnabled"))) {
+if (!codeIncludes(ui, 'id="soundAlertsEnabled"') ||
+    codeIncludes(ui, 'id="homeSoundAlertsEnabled"') ||
+    codeIncludes(ui, 'id="homeAlertsSub"') ||
+    codeIncludes(ui, "setHomeSub('homeAlertsSub'") ||
+    codeIncludes(ui, 'function formatAlertsChannel(') ||
+    codeIncludes(ui, "persistHomeGuard('homeSoundAlertsEnabled'") ||
+    !codeIncludes(ui, 'soundAlertsEnabled:$(\'soundAlertsEnabled\').checked') ||
+    codeIncludes(ui, 'p.soundAlertsEnabled=$(\'homeSoundAlertsEnabled\').checked') ||
+    codeIncludes(ui, "k!=='soundAlertsEnabled'") ||
+    codeIncludes(js, "keys[0]==='soundAlertsEnabled'") ||
+    !(codeIncludes(ui, "typeof c.soundAlertsEnabled==='boolean'") ||
+      codeIncludes(ui, "'boolean'==typeof c.soundAlertsEnabled"))) {
   throw new Error('Sound alerts must be controlled from Settings, not Home Quick Settings');
 }
 
@@ -911,32 +934,32 @@ if (html.indexOf('<summary>Brew by Weight</summary>') >
         html.indexOf('<summary>Cup protection</summary>') ||
     html.indexOf('<summary>Cup protection</summary>') >
         html.indexOf('<summary>Fast extraction guard</summary>') ||
-    !ui.includes('id="cupProtectionEnabled"') ||
+    !codeIncludes(ui, 'id="cupProtectionEnabled"') ||
     html.indexOf('id="cupProtectionEnabled"') >
         html.indexOf('id="stopIfCupRemoved"') ||
     html.indexOf('id="stopIfCupRemoved"') >
         html.indexOf('id="requireCupToStart"') ||
     html.indexOf('id="requireCupToStart"') >
         html.indexOf('<summary>Fast extraction guard</summary>') ||
-    !ui.includes('id="stopIfCupRemoved"') ||
-    !ui.includes('id="requireCupToStart"') ||
-    ui.includes('id="cupPresentWeightG"') ||
+    !codeIncludes(ui, 'id="stopIfCupRemoved"') ||
+    !codeIncludes(ui, 'id="requireCupToStart"') ||
+    codeIncludes(ui, 'id="cupPresentWeightG"') ||
     html.includes('id="cupPresentWeightG"') ||
     html.indexOf('id="cupRemovedWeightG"') <
         html.indexOf('<summary>Cup</summary>') ||
     html.indexOf('id="cupRemovedWeightG"') >
         html.indexOf('<summary>Tare</summary>') ||
     html.includes('id="requireCupToStart" type="checkbox" checked') ||
-    !ui.includes('id="cupProtectionEnabled" type="checkbox" checked> Cup protection') ||
-    !ui.includes('cupProtectOpt') ||
-    !ui.includes('If the cup was already tared before connection, lift it and place it again.') ||
-    !ui.includes('id="homeCupProtectionEnabled"') ||
+    !codeIncludes(ui, 'id="cupProtectionEnabled" type="checkbox" checked> Cup protection') ||
+    !codeIncludes(ui, 'cupProtectOpt') ||
+    !codeIncludes(ui, 'If the cup was already tared before connection, lift it and place it again.') ||
+    !codeIncludes(ui, 'id="homeCupProtectionEnabled"') ||
     html.indexOf('id="homeAvoidAccidentalTouchEnabled"') >
         html.indexOf('id="homeCupProtectionEnabled"') ||
     html.indexOf('id="homeCupProtectionEnabled"') >
         html.indexOf('id="homePresetBlock"') ||
-    !ui.includes("persistHomeGuard('homeCupProtectionEnabled'") ||
-    !ui.includes("'cupProtectionEnabled',1)") ||
+    !codeIncludes(ui, "persistHomeGuard('homeCupProtectionEnabled'") ||
+    !codeIncludes(ui, "'cupProtectionEnabled',1") ||
     !network.includes('cupProtectionEnabled') ||
     !network.includes('stopIfCupRemoved') ||
     !network.includes('requireCupToStart') ||
@@ -944,40 +967,40 @@ if (html.indexOf('<summary>Brew by Weight</summary>') >
   throw new Error('Cup protection master must precede Stop if cup is removed and Require cup to start; Home mirrors the master after accidental touch');
 }
 
-if (ui.includes('bleCompanionEnabled') ||
-    ui.includes('bleCompanionPanel') ||
-    ui.includes('/api/v1/admin/ble-compat') ||
-    ui.includes('Companion characteristics') ||
-    ui.includes('BLE companion') ||
-    ui.includes('ensureBleScanPanel') ||
+if (codeIncludes(ui, 'bleCompanionEnabled') ||
+    codeIncludes(ui, 'bleCompanionPanel') ||
+    codeIncludes(ui, '/api/v1/admin/ble-compat') ||
+    codeIncludes(ui, 'Companion characteristics') ||
+    codeIncludes(ui, 'BLE companion') ||
+    codeIncludes(ui, 'ensureBleScanPanel') ||
     network.includes('bleCompanion') ||
     network.includes('WebCommandType::BLE_COMPAT') ||
     networkHeader.includes('bleCompatHandler') ||
     firmwareCore.includes('persistBleCompanionEnabled') ||
-    !ui.includes('<legend>') || !ui.includes('Power management') ||
-    !ui.includes('ESP32 power management') ||
-    !ui.includes('bleScanIntensity') ||
-    !ui.includes('BLE scan mode') ||
-    ui.includes('Aggressive 100%') ||
-    ui.includes('Normal 50%') ||
-    ui.includes('Light 25%') ||
-    !ui.includes('How much radio time is spent searching for Bluetooth espresso scales') ||
-    !ui.includes("scanIntensity:wanted") ||
-    ui.includes('bleScanBackoff') ||
-    ui.includes('Idle scan backoff') ||
-    ui.includes("backoffMin:wanted") ||
-    ui.includes('bleScanBoost') ||
-    ui.includes('Scan boost on machine use') ||
-    ui.includes("boostMin:wanted") ||
-    !ui.includes('bleEnabled') ||
-    !ui.includes('Enable Bluetooth') ||
-    !ui.includes("enabled:wanted") ||
-    !ui.includes('Master switch that enables or disables Bluetooth connections to scales.') ||
+    !codeIncludes(ui, '<legend>') || !codeIncludes(ui, 'Power management') ||
+    !codeIncludes(ui, 'ESP32 power management') ||
+    !codeIncludes(ui, 'bleScanIntensity') ||
+    !codeIncludes(ui, 'BLE scan mode') ||
+    codeIncludes(ui, 'Aggressive 100%') ||
+    codeIncludes(ui, 'Normal 50%') ||
+    codeIncludes(ui, 'Light 25%') ||
+    !codeIncludes(ui, 'How much radio time is spent searching for Bluetooth espresso scales') ||
+    !codeIncludes(ui, "scanIntensity:wanted") ||
+    codeIncludes(ui, 'bleScanBackoff') ||
+    codeIncludes(ui, 'Idle scan backoff') ||
+    codeIncludes(ui, "backoffMin:wanted") ||
+    codeIncludes(ui, 'bleScanBoost') ||
+    codeIncludes(ui, 'Scan boost on machine use') ||
+    codeIncludes(ui, "boostMin:wanted") ||
+    !codeIncludes(ui, 'bleEnabled') ||
+    !codeIncludes(ui, 'Enable Bluetooth') ||
+    !codeIncludes(ui, "enabled:wanted") ||
+    !codeIncludes(ui, 'Master switch that enables or disables Bluetooth connections to scales.') ||
     !network.includes('BleScanCommandPayload::ENABLED') ||
     !firmwareCore.includes('void persistBleScanEnabled') ||
     !firmwareCore.includes('applyLiveBleEnabled') ||
-    !ui.includes('/api/v1/admin/ble-scan') ||
-    !ui.includes("method:'PUT'") ||
+    !codeIncludes(ui, '/api/v1/admin/ble-scan') ||
+    !codeIncludes(ui, "method:'PUT'") ||
     !network.includes('scanIntensity') ||
     network.includes('backoffMin') ||
     network.includes('boostMin') ||
@@ -1102,16 +1125,16 @@ if (!domainCore.includes('#ifndef SHOT_STOPPER_DEVELOPMENT') ||
     // refactor must not turn this into a count of source lines.
     Object.values(network.match(/\\"development\\":%s/g) || [])
         .length > 8 ||
-    !js.includes('developmentMode') ||
-    !js.includes("'development'in s") ||
-    !js.includes('if(!developmentMode)syncAdminSessionUi(false)') ||
-    !js.includes('if(developmentMode||$(\'uiOverridePanel\'))return;') ||
-    !js.includes("classList.toggle('devBuild',developmentMode)") ||
+    !codeIncludes(js, 'developmentMode') ||
+    !codeIncludes(js, "'development'in s") ||
+    !codeIncludes(js, 'if(!developmentMode)syncAdminSessionUi(false)') ||
+    !codeIncludes(js, 'if(developmentMode||$(\'uiOverridePanel\'))return;') ||
+    !codeIncludes(js, "classList.toggle('devBuild',developmentMode)") ||
     // Session visibility is driven by the actual unlock state, and
     // development builds treat administration as always unlocked; assert the
     // behavior (visible when either condition holds), not minified names.
     !/const\s+on\s*=\s*!!unlocked\s*\|\|\s*developmentMode/.test(js) ||
-    !js.includes("if(R.developmentActive())return;") ||
+    !codeIncludes(js, "if(R.developmentActive())return;") ||
     !rawShellHtml.includes('class="{{webui-meta:development-class}}"') ||
     !css.includes('body.devBuild #adminLockPanel') ||
     !css.includes('body.devBuild #diagnosticLockPanel')) {
@@ -1184,26 +1207,26 @@ if (!domainCore.includes('#ifndef SHOT_STOPPER_ENABLE_JTAG') ||
         'Remote machine control must stay opt-in (Kconfig/sdkconfig/CLI default off) with HTTP and processWebCommand guards');
   }
 }
-if (ui.includes('authenticatedOnly') ||
-    ui.includes("s.setItem('shotStopperToken'") ||
-    ui.includes('pageNav authenticatedOnly') ||
-    ui.includes("authenticated()&&known") ||
-    !ui.includes('function knownPath(') ||
-    !ui.includes('class="brand"') ||
-    !ui.includes('class="brandMark"') ||
-    !ui.includes('<small>Open</small>Brew by Weight') ||
-    !ui.includes('href="/" data-route="/"') ||
-    !ui.includes("querySelectorAll('a[data-route]')") ||
-    !ui.includes('ensureView') ||
-    !ui.includes('/partials/') ||
+if (codeIncludes(ui, 'authenticatedOnly') ||
+    codeIncludes(ui, "s.setItem('shotStopperToken'") ||
+    codeIncludes(ui, 'pageNav authenticatedOnly') ||
+    codeIncludes(ui, "authenticated()&&known") ||
+    !codeIncludes(ui, 'function knownPath(') ||
+    !codeIncludes(ui, 'class="brand"') ||
+    !codeIncludes(ui, 'class="brandMark"') ||
+    !codeIncludes(ui, '<small>Open</small>Brew by Weight') ||
+    !codeIncludes(ui, 'href="/" data-route="/"') ||
+    !codeIncludes(ui, "querySelectorAll('a[data-route]')") ||
+    !codeIncludes(ui, 'ensureView') ||
+    !codeIncludes(ui, '/partials/') ||
     !network.includes('HTTPD_404_NOT_FOUND') ||
     !network.includes('notFoundHandler')) {
   throw new Error('Web UI must expose public SPA routes and redirect unknown paths to /');
 }
 if (html.includes('id="rememberMe"') ||
-    js.includes('rememberMe:r') ||
-    js.includes("s.setItem('shotStopperToken'") ||
-    js.includes('function clearAuth()') ||
+    codeIncludes(js, 'rememberMe:r') ||
+    codeIncludes(js, "s.setItem('shotStopperToken'") ||
+    codeIncludes(js, 'function clearAuth()') ||
     network.includes('jsonBoolean(root, "rememberMe", rememberMe)') ||
     network.includes('createSession(token, csrf, rememberMe)') ||
     network.includes('uiAuthenticated') ||
