@@ -98,12 +98,22 @@ function stripRemoteControlCss(css) {
     REMOTE_CONTROL_CSS_RE.test(rule) ? '' : rule);
 }
 
-// Drop the runtime helper that toggles the action bar and its only call site;
-// without the panel they are dead bytes in every non-remote build.
+// Drop the runtime helper that toggles the action bar and its call sites;
+// without the panel they are dead bytes in every non-remote build. The
+// definition may sit on one line (minified authoring) or close at a
+// column-0 brace (formatted authoring); call-site args never contain ';'.
 function stripRemoteControlJs(js) {
-  return js
-      .replace(/function updateHomeAdminActions\([^)]*\)\{.*\}(?=\n)/, '')
-      .replace(/updateHomeAdminActions\([^)]*\);/g, '');
+  const defRe = /function updateHomeAdminActions\([^)]*\)\s*\{.*\}(?=\n)|function updateHomeAdminActions\([^)]*\)\s*\{[\s\S]*?\n\}/;
+  const callRe = /updateHomeAdminActions\([^;]*?\);/g;
+  const withoutDef = js.replace(defRe, '');
+  if (withoutDef === js) {
+    throw new Error('Remote-control JS strip: definition not found');
+  }
+  const stripped = withoutDef.replace(callRe, '');
+  if (stripped === withoutDef) {
+    throw new Error('Remote-control JS strip: no call site removed');
+  }
+  return stripped;
 }
 
 function readFirmwareVersion() {
@@ -229,13 +239,22 @@ function buildSecondaryJs(viewJsRaw, assetTag) {
         .replace(/export\s+function\s+applyStatus/g, `function ${name}ApplyStatus`)
         .replace(/export\s+function\s+init/g, `function ${name}Init`)
         .replace(/export\s+function\s+activate/g, `function ${name}Activate`)
-        .replace(/\blet ready=/g, `let ${name}Ready=`)
-        .replace(/\bif\(ready\)/g, `if(${name}Ready)`)
-        .replace(/\bready=true/g, `${name}Ready=true`)
+        .replace(/\blet\s+ready\s*=/g, `let ${name}Ready=`)
+        .replace(/\bif\s*\(\s*ready\s*\)/g, `if(${name}Ready)`)
+        .replace(/\bready\s*=\s*true\b/g, `${name}Ready=true`)
         .replace(
             new RegExp(
                 `registerViewStatus\\('${name}',applyStatus\\)`, 'g'),
             `registerViewStatus('${name}',${name}ApplyStatus)`);
+    // Whitespace-tolerant renames must keep landing; a miss would collide
+    // the per-view ready flag across bundled views.
+    for (const token of [`let ${name}Ready=`, `if(${name}Ready)`,
+      `${name}Ready=true`]) {
+      if (!body.includes(token)) {
+        throw new Error(
+            `Secondary view ${name} lost its ready-state rename (${token})`);
+      }
+    }
     if (/\bimport\s*\*/.test(body)) {
       throw new Error(`Secondary view ${name} retained its runtime import`);
     }
