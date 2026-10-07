@@ -131,6 +131,8 @@ Power loss before saving completes can still lose pending changes.
 When you first open **Stats**, both **Stats** and **Shot history** show a loading
 wave. They fade away together once the summaries and history are ready. The
 wave over Stats does not add space to the panel or resize it when it disappears.
+With Wi-Fi sleep enabled, a large history may take a little longer to appear.
+You can leave the page while it loads and return later.
 
 Sort the list by **Date** or **Rating**, ascending or descending. Date
 defaults to newest first. Rating puts unrated shots (0 stars) at the end
@@ -138,8 +140,9 @@ in both directions; equal scores keep newer shots first. The table loads
 **10 shots at a time** as you scroll. Changes arrive automatically while the
 page is open. After an entry is added, rated, or deleted, the list refreshes
 from the first page in your chosen order; scroll to load more again. Export CSV
-downloads the full log newest-first, independent of the on-screen sort. Wait
-for the download before changing the sort or leaving Stats.
+downloads the full log newest-first, independent of the on-screen sort. A large
+export can take up to 90 seconds on a slow connection. Wait for the download
+before changing the sort or leaving Stats.
 
 The Time column reads the way people talk: "Today" or "Yesterday" with the
 clock time to the minute, the weekday name for the rest of the week, then

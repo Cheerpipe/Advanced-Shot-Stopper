@@ -993,7 +993,7 @@ if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !runtimeJs.includes('if(statsExportInFlight)return statsExportInFlight') ||
     !runtimeJs.includes('statsRequest=++statsNextRequest') ||
     !runtimeJs.includes("sendUiOperation({op:'stats',on:true,fetch:true,request:statsFetchMark.request,offset:statsFetchMark.offset,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir})") ||
-    !runtimeJs.includes("statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',15e3)") ||
+    !runtimeJs.includes("statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',90e3)") ||
     !runtimeJs.includes('function shotStatsViewActive(){') ||
     !runtimeJs.includes('function renderShots(') ||
     !viewJs.stats.includes('IntersectionObserver') ||
