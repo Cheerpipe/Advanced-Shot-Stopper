@@ -135,10 +135,11 @@ wave over Stats does not add space to the panel or resize it when it disappears.
 Sort the list by **Date** or **Rating**, ascending or descending. Date
 defaults to newest first. Rating puts unrated shots (0 stars) at the end
 in both directions; equal scores keep newer shots first. The table loads
-**10 shots at a time** as you scroll. The 20 s poll refreshes only the
-first page of the current sort so new shots appear without re-downloading
-the whole log. Export CSV fetches the full log newest-first in one
-request, independent of the on-screen sort.
+**10 shots at a time** as you scroll. Changes arrive automatically while the
+page is open. After an entry is added, rated, or deleted, the list refreshes
+from the first page in your chosen order; scroll to load more again. Export CSV
+downloads the full log newest-first, independent of the on-screen sort. Wait
+for the download before changing the sort or leaving Stats.
 
 The Time column reads the way people talk: "Today" or "Yesterday" with the
 clock time to the minute, the weekday name for the rest of the week, then

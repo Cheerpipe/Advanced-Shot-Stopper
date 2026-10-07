@@ -991,10 +991,8 @@ if (!runtimeJs.includes('SHOTS_PAGE_SIZE=10') ||
     !runtimeJs.includes('function applyStatsStream(') ||
     !runtimeJs.includes('if(statsStreamWanted)statsSendSubscribe()') ||
     !runtimeJs.includes('if(statsExportInFlight)return statsExportInFlight') ||
-    !runtimeJs.includes("(activeView==='stats'||activeView==='history')") ||
-    !runtimeJs.includes("'configMutable','webUiOverrideActive','compatibilityMode','firmwareVersion','snapshotStale','adminUnlocked'") ||
-    !runtimeJs.includes("statsSendSubscribe(){statsSend({op:'stats',on:true,offset:0,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir})}") ||
-    !runtimeJs.includes("statsSend({op:'stats',on:true,fetch:true,offset:statsFetchMark.offset,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir})") ||
+    !runtimeJs.includes('statsRequest=++statsNextRequest') ||
+    !runtimeJs.includes("sendUiOperation({op:'stats',on:true,fetch:true,request:statsFetchMark.request,offset:statsFetchMark.offset,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir})") ||
     !runtimeJs.includes("statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',15e3)") ||
     !runtimeJs.includes('function shotStatsViewActive(){') ||
     !runtimeJs.includes('function renderShots(') ||
@@ -1033,7 +1031,7 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !runtimeJs.includes('function setShotSort(') ||
     !runtimeJs.includes('function toggleShotSortDir(') ||
     !runtimeJs.includes('function syncShotSortButtons(') ||
-    !runtimeJs.includes('statsReplaceNext=true;statsSendSubscribe()') ||
+    !runtimeJs.includes('syncShotSortButtons();statsSendSubscribe()') ||
     !runtimeJs.includes("'date','desc'") ||
     !runtimeJs.includes("shotSort==='rating'") ||
     !js.includes('Highest rating') ||
@@ -1126,7 +1124,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !runtimeJs.includes('function stopHistoryStream(') ||
     !runtimeJs.includes('function historyStreamFrame(') ||
     !runtimeJs.includes('function applyHistoryStream(') ||
-    !runtimeJs.includes('if(diagStreamWanted)socket.send(\'{"op":"diagnostic","on":true}\')') ||
+    !runtimeJs.includes('if(diagStreamWanted){if(!diagResolve)armDiagnosticReady();') ||
     !runtimeJs.includes('if(historyStreamWanted)historySendSubscribe()') ||
     !runtimeJs.includes('function applyHistoryPage(') ||
     !runtimeJs.includes('function renderHistory(') ||
@@ -1142,7 +1140,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !runtimeJs.includes("'/api/v1/history/delete'") ||
     !runtimeJs.includes("'/api/v1/history/clear'") ||
     !runtimeJs.includes('const toggleHistoryDir=()=>{') ||
-    !runtimeJs.includes("historySend({op:'history',on:true,fetch:true,offset:historyFetchOffset})") ||
+    !runtimeJs.includes("sendUiOperation({op:'history',on:true,fetch:true,request:historyFetchRequest,offset:historyFetchOffset})") ||
     runtimeJs.includes('exportShotsCsv') && runtimeJs.includes('historyCsv') ||
     network.includes('parseHistoryPageQuery') ||
     network.includes('historyHandler') ||
@@ -1267,6 +1265,7 @@ if (!statsSection ||
         shotHistory: {bootId: 0, total: 2, hasMore: true, shots: [{id: 2}, {id: 1}]}, shotsLoaded: false,
         shotStatsViewActive: () => true, webUiPollingActive: () => true,
         shotWs: {readyState: 1, send: op => sent.push(JSON.parse(op))},
+        sendUiOperation: op => sent.push(JSON.parse(JSON.stringify(op))),
         statusPageOk: (page, state) => !!state, shotSort: 'date', shotSortDir: 'desc',
         SHOTS_PAGE_SIZE: 10, SHOTS_EXPORT_LIMIT: 100,
         setTimeout: () => 0, clearTimeout() {},
@@ -1288,10 +1287,10 @@ if (!statsSection ||
       const loading = context.startStatsStream();
       await Promise.resolve();
       assert.deepEqual(sent.at(-1),
-          {op: 'stats', on: true, offset: 0, limit: 10, sort: 'date', dir: 'desc'},
+          {op: 'stats', on: true, request: 1, offset: 0, limit: 10, sort: 'date', dir: 'desc'},
           'Entering the view subscribes with the standing window');
       const frame = extras => Object.assign({v: 1, type: 'stats', boot: 9, snapshot: true,
-        epoch: 5, seq: 1, ui, bootId: 9, stats: {avgDurationS: 28}, total: 2, offset: 0,
+        epoch: 5, request: 1, seq: 1, ui, bootId: 9, stats: {avgDurationS: 28}, total: 2, offset: 0,
         limit: 10, hasMore: false, rows: [row(2)], rowBase: 0, more: true}, extras);
       context.applyStatsStream(context.statsStreamFrame(frame()));
       assert.deepEqual(events, ['state'], 'A split page applies nothing until more:false');
@@ -1303,30 +1302,50 @@ if (!statsSection ||
       events.length = 0;
       context.applyStatsStream(context.statsStreamFrame(
           frame({snapshot: false, epoch: 6, seq: 2, rows: [row(2), row(1)], more: false})));
-      assert.deepEqual(events, ['records:poll', 'render:false'],
-          'An epoch push merges like a poll');
+      assert.deepEqual(events, ['records:replace', 'render:false'],
+          'An epoch push replaces stale rows from older pages');
       events.length = 0;
       context.loadMoreShots();
       assert.deepEqual(sent.at(-1),
-          {op: 'stats', on: true, fetch: true, offset: 2, limit: 10, sort: 'date', dir: 'desc'},
+          {op: 'stats', on: true, fetch: true, request: 2, offset: 2, limit: 10, sort: 'date', dir: 'desc'},
           'The sentinel asks for the next window without disturbing the subscription');
       context.applyStatsStream(context.statsStreamFrame(
-          frame({snapshot: false, epoch: 7, seq: 3, offset: 2, rows: [], more: false})));
+          frame({snapshot: false, epoch: 6, request: 2, seq: 3, offset: 2, rows: [], more: false})));
       assert.deepEqual(events, ['records:append', 'render:false'],
           'One-shot fetches append the requested window');
       events.length = 0;
       const exported = context.statsFrameWindow(0, 100, 'date', 'desc', 50);
       assert.deepEqual(sent.at(-1),
-          {op: 'stats', on: true, fetch: true, offset: 0, limit: 100, sort: 'date', dir: 'desc'},
+          {op: 'stats', on: true, fetch: true, request: 3, offset: 0, limit: 100, sort: 'date', dir: 'desc'},
           'The export asks for its own date/desc window');
       context.applyStatsStream(context.statsStreamFrame(
-          frame({snapshot: false, epoch: 8, seq: 4, limit: 100, hasMore: true, rows: [row(1)], more: false})));
+          frame({snapshot: false, epoch: 8, request: 3, seq: 4, limit: 100, hasMore: true, rows: [row(1)], more: false})));
       assert.deepEqual(events, [], 'The export window must not touch view state');
       assert.equal((await exported).length, 1, 'The export resolves with its assembled rows');
+      await Promise.resolve();
+      context.loadMoreShots();
+      const pendingRequest = sent.at(-1).request;
+      context.applyStatsStream(context.statsStreamFrame(frame({snapshot:false,epoch:9,
+        request:pendingRequest,seq:5,offset:2,rows:[],more:false})));
+      assert.equal(sent.at(-1).fetch, undefined, 'a changed epoch must restart the standing window');
+      assert(sent.at(-1).request > pendingRequest, 'replacement replies need a new request identity');
+      const interrupted = context.statsFrameWindow(0,100,'date','desc',50);
+      const exportRequest = sent.at(-1).request;
+      context.loadMoreShots();
+      assert.equal(sent.at(-1).request,exportRequest,'scrolling must not preempt export');
+      context.statsSendSubscribe();
+      assert.equal(await interrupted,null,'sorting settles an interrupted export');
+      const standingRequest = sent.at(-1).request;
+      context.loadMoreShots();
+      assert(vm.runInContext('statsFetchMark',context));
+      context.applyStatsStream(context.statsStreamFrame(frame({snapshot:false,epoch:10,
+        request:standingRequest,seq:6,rows:[row(2),row(1)],more:false})));
+      assert.equal(vm.runInContext('statsFetchMark',context),null,
+          'A standing replacement invalidates scroll offsets from the previous list');
       context.shotStatsViewActive = () => false;
       events.length = 0;
       context.applyStatsStream(context.statsStreamFrame(
-          frame({snapshot: false, epoch: 9, seq: 5, hasMore: true, rows: [row(2)], more: false})));
+          frame({snapshot: false, epoch: 10, seq: 7, hasMore: true, rows: [row(2)], more: false})));
       assert.deepEqual(events, [], 'Frames on another view cannot apply state or rows');
       context.shotStatsViewActive = () => true;
       for (const bad of [frame({snapshot: false, boot: 10, seq: 6, rows: [row(2)], more: false}),
@@ -1340,7 +1359,7 @@ if (!statsSection ||
       }
     }
     // History rides the owned socket: snapshot frames hydrate UI state and
-    // replace the page, one-shot fetch frames append, epoch pushes poll, and
+    // replace the page, one-shot fetch frames append, epoch pushes replace, and
     // invalid frames fail closed.
     {
       const events = [], resolved = [];
@@ -1350,7 +1369,7 @@ if (!statsSection ||
           timezoneAutomatic: true, timezoneInitialized: true}};
       const context = vm.createContext({activeView: 'history', viewSeq: 1,
         historyLoaded: false, historyData: {bootId: 0, total: 0, hasMore: false, records: []},
-        historyFetchOffset: -1, historyReplaceNext: true, historyStreamBoot: 0,
+        historyFetchOffset: -1, historyStreamBoot: 0, historyStreamEpoch: 0, historyFetchRequest: 2,
         historyResolve: value => resolved.push(value), historyViewActive: () => true,
         statusPageOk: (page, state) => !!state,
         developmentMode: false, compatMode: false, controlsMutable: false, firmwareVersion: '', bootId: 0,
@@ -1368,7 +1387,7 @@ if (!statsSection ||
           rawRuntimeJs.indexOf("document.addEventListener('visibilitychange'"));
       vm.runInContext(stream, context);
       const frame = extras => Object.assign({v: 1, type: 'history', boot: 9, snapshot: true,
-        epoch: 5, ui, bootId: 9, total: 2, offset: 0, limit: 20, hasMore: false,
+        epoch: 5, request: 1, ui, bootId: 9, total: 2, offset: 0, limit: 20, hasMore: false,
         records: [
           {id: 2, type: 'shot', durationS: 28.5, hasWeight: true, hasWallTime: true,
            endedAtUnixSec: 1790809185, endedAtLocalSec: 1790794385},
@@ -1380,12 +1399,12 @@ if (!statsSection ||
       assert.deepEqual(resolved, [true], 'The view load settles on the first replace frame');
       events.length = 0;
       context.applyHistoryStream(context.historyStreamFrame(frame({snapshot: false})));
-      assert.deepEqual(events, ['records:poll', 'render:false'],
-          'An epoch push without a resync merges like a poll');
+      assert.deepEqual(events, ['records:replace', 'render:false'],
+          'A standing update cannot retain deleted or reordered tail rows');
       events.length = 0;
       context.historyFetchOffset = 2;
       context.applyHistoryStream(context.historyStreamFrame(frame({snapshot: false,
-        offset: 2, hasMore: false, records: []})));
+        request: 2, offset: 2, hasMore: false, records: []})));
       assert.equal(context.historyFetchOffset, -1, 'A served fetch clears its in-flight marker');
       assert.deepEqual(events, ['records:append', 'render:false']);
       events.length = 0;

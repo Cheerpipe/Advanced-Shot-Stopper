@@ -206,7 +206,10 @@ measurements keep recording either way. While the page is open, its
 **States**, **Machine I/O**, and **Scale** sections — including the scale's
 timer — update on their own several times per second, so readings such as the
 relay, the switch, the cup, and the weight stay current without reloading;
-every other section refreshes every few seconds.
+every other section refreshes every few seconds. The page finishes loading
+when those sections have arrived. New log entries appear automatically while
+Diagnostic is open, and leaving the page stops its live updates. If the
+connection drops, the interface reconnects and reloads current readings.
 
 **Diagnostic → Scale → Profiling** records what the scale actually sent and
 what the firmware decided about it. Press **Start** before reproducing a

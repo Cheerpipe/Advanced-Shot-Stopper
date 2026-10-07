@@ -232,7 +232,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
 
 namespace {
 // Frame budget shared by every multi-section sender: bounded well under the
-// client's 24064-byte message guard with headroom for escaping.
+// client's 28672-byte message guard with headroom for escaping.
 constexpr size_t kUiStreamFrameBudget = 20480;
 // Diagnostic telemetry shares one evaluation gate: sampled producers (heap,
 // CPU, NVS stats, profiler copies, steady-state RSSI) never run per dispatch
@@ -253,6 +253,7 @@ bool ShotStopperNetwork::sendUiStreamFrame(UiStreamSession &session,
   frame.type = HTTPD_WS_TYPE_TEXT;
   frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
   frame.len = used;
+  deferArm = false;
   if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
     // Same repair rule as the Home stream: defer with a retry armed.
     if (!uiStreamSendCleanAbort) return false;
@@ -282,6 +283,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
       initial ? "true" : "false");
   delta.field("state", "\"%s\"", stopperStateName(control.state));
   delta.field("machineState", "\"%s\"", machineRunStateName(control.machineRunState));
+  delta.field("machineRunning", bool(control.machineRunning));
   delta.field("backflush.waiting", bool(control.backflushWaiting));
   delta.field("backflush.ready", bool(control.backflushReady));
   delta.field("backflush.unresolved", bool(control.backflushUnresolved));
@@ -463,7 +465,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   delta.field("firmwareVersion", "\"%s\"", FW_VERSION);
   delta.field("bootId", "%lu", static_cast<unsigned long>(control.bootId));
   delta.field("adminUnlocked", bool(unlocked));
-  delta.field("diagnosticPublic", bool(diagnosticPageEnabled()));
+  delta.field("diagnosticPublic", true);
   delta.field("development", bool(DEVELOPMENT_BUILD));
   delta.field("lastCommand.requestId", "%lu",
               static_cast<unsigned long>(network.lastCommandRequestId));
@@ -835,7 +837,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
       if (initial || fingerprint != session.diagTasksFingerprint) {
         if (!sendUiStreamFrame(session, used, session.diagResync)) return false;
         if (session.diagResync) return true;
-        if (!initial) session.diagTasksFingerprint = fingerprint;
+        session.diagTasksFingerprint = fingerprint;
       }
     }
     {
@@ -855,7 +857,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
       if (initial || fingerprint != session.diagProfileFingerprint) {
         if (!sendUiStreamFrame(session, used, session.diagResync)) return false;
         if (session.diagResync) return true;
-        if (!initial) session.diagProfileFingerprint = fingerprint;
+        session.diagProfileFingerprint = fingerprint;
       }
     }
     session.diagSlowAtMs = now;
@@ -885,14 +887,13 @@ bool ShotStopperNetwork::sendLogStream(UiStreamSession &session,
           "{\"v\":1,\"type\":\"log\",\"bootId\":%lu,\"dropped\":%lu,"
           "\"historyOverwritten\":%lu,\"missedEvents\":%lu,"
           "\"serialDropped\":%lu,\"serialTruncated\":%lu,"
-          "\"hasMore\":%s,\"cursorInvalid\":%s,\"events\":[",
+          "\"cursorInvalid\":%s,\"events\":[",
           static_cast<unsigned long>(control.bootId),
           static_cast<unsigned long>(control.debugEventsDropped),
           static_cast<unsigned long>(work.logMetadata.historyOverwritten),
           static_cast<unsigned long>(work.logMetadata.missedEvents),
           static_cast<unsigned long>(work.logMetadata.serialDropped),
           static_cast<unsigned long>(work.logMetadata.serialTruncated),
-          work.logMetadata.hasMore ? "true" : "false",
           work.logMetadata.cursorInvalid ? "true" : "false"))
     return false;
   int16_t eventOffset = 0;
@@ -939,14 +940,14 @@ bool ShotStopperNetwork::sendLogStream(UiStreamSession &session,
     escapeJsonString(message, work.jsonItem, NetworkWorkBuf::kJsonItem);
     // Append-only budget: an event that no longer fits ends this frame and
     // resumes on the next dispatch (logPush stays armed).
-    if (used >= kUiStreamFrameBudget) {
+    if (used + strlen(work.jsonItem) + 256 > kUiStreamFrameBudget) {
       budgetFull = true;
       break;
     }
     if (!statusJsonAppend(&used,
             "%s{\"sequence\":%lu,\"atMs\":%lu,\"wallSec\":%lu,"
             "\"localSec\":%lu,\"level\":\"%s\",\"category\":\"%s\","
-            "\"code\":%u,\"message\":%s,\"argument1\":%ld,"
+            "\"code\":%u,\"message\":\"%s\",\"argument1\":%ld,"
             "\"argument2\":%ld}",
             index == 0 ? "" : ",",
             static_cast<unsigned long>(event.sequence),
@@ -958,13 +959,12 @@ bool ShotStopperNetwork::sendLogStream(UiStreamSession &session,
             static_cast<unsigned>(event.code), work.jsonItem,
             static_cast<long>(event.argument1),
             static_cast<long>(event.argument2))) {
-      budgetFull = true;
-      break;
+      return false;
     }
     lastSequence = event.sequence;
   }
   const bool more = budgetFull || work.logMetadata.hasMore;
-  if (!statusJsonAppend(&used, "]}")) return false;
+  if (!statusJsonAppend(&used, "],\"hasMore\":%s}", more ? "true" : "false")) return false;
   bool deferred = false;
   if (!sendUiStreamFrame(session, used, deferred)) return false;
   if (deferred) return true;
@@ -1039,10 +1039,11 @@ bool ShotStopperNetwork::sendHistoryStream(UiStreamSession &session,
   size_t used = 0;
   if (!statusJsonAppend(&used,
           "{\"v\":1,\"type\":\"history\",\"boot\":%lu,\"snapshot\":%s,"
-          "\"epoch\":%lu,",
+          "\"epoch\":%lu,\"request\":%lu,",
           static_cast<unsigned long>(control.bootId),
           initial ? "true" : "false",
-          static_cast<unsigned long>(epoch)) ||
+          static_cast<unsigned long>(epoch),
+          static_cast<unsigned long>(fetch ? session.historyFetchRequest : session.historyRequest)) ||
       (initial && (!appendRecordPageUi(control, &used, override) ||
                    !statusJsonAppend(&used, ","))) ||
       !statusJsonAppend(&used,
@@ -1232,11 +1233,13 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
   // partial page and in-flight markers when a replace lands.
   if (initial) session.statsFetch = false;
   const bool fetch = session.statsFetch;
+  const uint32_t request = fetch ? session.statsFetchRequest : session.statsRequest;
   // The in-flight page survives only unchanged: a fetch or a store change
   // supersedes it, and a fetch preempting the standing page re-arms the
   // standing snapshot so the view is not left on pre-fetch rows.
   if (session.statsPaging && (fetch != session.statsPageFetch ||
-                              session.statsPageEpoch != epoch || initial)) {
+                              session.statsPageEpoch != epoch ||
+                              session.statsPageRequest != request || initial)) {
     // A fetch preempting the standing page re-arms the standing snapshot
     // only when the fetch completes, so the fetch's own continuation
     // dispatches never look initial.
@@ -1311,6 +1314,7 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
     session.statsPaging = true;
     session.statsSent = 0;
     session.statsPageEpoch = epoch;
+    session.statsPageRequest = request;
     session.statsPageSnapshot = initial;
     session.statsPageFetch = fetch;
     session.statsBoot = control.bootId;
@@ -1321,11 +1325,12 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
   size_t used = 0;
   if (!statusJsonAppend(&used,
           "{\"v\":1,\"type\":\"stats\",\"boot\":%lu,\"snapshot\":%s,"
-          "\"epoch\":%lu,\"seq\":%lu,",
+          "\"epoch\":%lu,\"seq\":%lu,\"request\":%lu,",
           static_cast<unsigned long>(control.bootId),
           first && session.statsPageSnapshot ? "true" : "false",
           static_cast<unsigned long>(epoch),
-          static_cast<unsigned long>(session.statsSeq)))
+          static_cast<unsigned long>(session.statsSeq),
+          static_cast<unsigned long>(request)))
       return false;
   if (first && session.statsPageSnapshot &&
       (!appendRecordPageUi(control, &used, override) ||

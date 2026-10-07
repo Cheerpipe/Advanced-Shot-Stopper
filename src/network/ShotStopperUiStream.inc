@@ -32,7 +32,7 @@ bool uiStreamKnownFields(const cJSON *message, const char *const *names,
 bool uiStreamIntInRange(const cJSON *node, double low, double high) {
   return node == nullptr ||
          (cJSON_IsNumber(node) && node->valuedouble >= low &&
-          node->valuedouble <= high && node->valuedouble == node->valueint);
+          node->valuedouble <= high && floor(node->valuedouble) == node->valuedouble);
 }
 
 bool uiStreamOriginMatches(const char *origin, const char *host) {
@@ -204,17 +204,14 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
         shapeOk = name && (!strcmp(name, "op") || !strcmp(name, "on") ||
                            !strcmp(name, "after"));
       }
-      const bool numbersOk =
-          !after || (cJSON_IsNumber(after) && after->valuedouble >= 0 &&
-                     after->valuedouble <= UINT32_MAX &&
-                     after->valuedouble == after->valueint);
+      const bool numbersOk = uiStreamIntInRange(after, 0, UINT32_MAX);
       if (shapeOk && numbersOk) {
         if (!cJSON_IsTrue(on)) {
           accepted = !after;
           if (accepted) session->logOn = false;
         } else {
           session->logOn = true;
-          session->logAfter = after ? static_cast<uint32_t>(after->valueint) : 0;
+          session->logAfter = after ? static_cast<uint32_t>(after->valuedouble) : 0;
           session->logPush = true;
           accepted = true;
         }
@@ -227,15 +224,17 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
       // View-scoped History page subscription: the standing window tracks the
       // page; a one-shot fetch serves sentinel appends without disturbing it.
       static const char *const kFields[] = {"op", "on", "offset",
-                                            "limit", "dir", "fetch"};
+                                            "limit", "dir", "fetch", "request"};
+      const cJSON *requestId = cJSON_GetObjectItemCaseSensitive(message, "request");
       const cJSON *on = cJSON_GetObjectItemCaseSensitive(message, "on");
       const cJSON *offset = cJSON_GetObjectItemCaseSensitive(message, "offset");
       const cJSON *limit = cJSON_GetObjectItemCaseSensitive(message, "limit");
       const cJSON *dir = cJSON_GetObjectItemCaseSensitive(message, "dir");
       const cJSON *fetch = cJSON_GetObjectItemCaseSensitive(message, "fetch");
       const bool shapeOk =
-          cJSON_IsBool(on) && uiStreamKnownFields(message, kFields, 6);
+          cJSON_IsBool(on) && uiStreamKnownFields(message, kFields, 7);
       const bool numbersOk =
+          uiStreamIntInRange(requestId, 1, UINT32_MAX) &&
           uiStreamIntInRange(offset, 0, HISTORY_CAPACITY) &&
           uiStreamIntInRange(limit, 1, HISTORY_PAGE_MAX) &&
           (!fetch || cJSON_IsBool(fetch)) &&
@@ -245,21 +244,23 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
       if (shapeOk && numbersOk) {
         if (!cJSON_IsTrue(on)) {
           // Unsubscribe carries no window fields.
-          accepted = !offset && !limit && !dir && !fetch;
+          accepted = !offset && !limit && !dir && !fetch && !requestId;
           if (accepted) {
             session->historyOn = false;
             session->historyFetch = false;
           }
         } else if (fetch && cJSON_IsTrue(fetch)) {
-          accepted = offset != nullptr;
+          accepted = session->historyOn && offset != nullptr;
           if (accepted) {
             session->historyFetchOffset =
                 static_cast<size_t>(offset->valueint);
             session->historyFetch = true;
+            session->historyFetchRequest = requestId ? static_cast<uint32_t>(requestId->valuedouble) : 0;
           }
         } else {
           session->historyOn = true;
           session->historyResync = true;
+          session->historyRequest = requestId ? static_cast<uint32_t>(requestId->valuedouble) : 0;
           if (offset)
             session->historyOffset = static_cast<size_t>(offset->valueint);
           if (limit)
@@ -280,7 +281,8 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
       // fetches also serve the CSV export window (limit 100, date/desc).
       static const char *const kFields[] = {"op",    "on",    "offset",
                                             "limit", "sort",  "dir",
-                                            "fetch"};
+                                            "fetch", "request"};
+      const cJSON *requestId = cJSON_GetObjectItemCaseSensitive(message, "request");
       const cJSON *on = cJSON_GetObjectItemCaseSensitive(message, "on");
       const cJSON *offset = cJSON_GetObjectItemCaseSensitive(message, "offset");
       const cJSON *limit = cJSON_GetObjectItemCaseSensitive(message, "limit");
@@ -288,8 +290,9 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
       const cJSON *dir = cJSON_GetObjectItemCaseSensitive(message, "dir");
       const cJSON *fetch = cJSON_GetObjectItemCaseSensitive(message, "fetch");
       const bool shapeOk =
-          cJSON_IsBool(on) && uiStreamKnownFields(message, kFields, 7);
+          cJSON_IsBool(on) && uiStreamKnownFields(message, kFields, 8);
       const bool numbersOk =
+          uiStreamIntInRange(requestId, 1, UINT32_MAX) &&
           uiStreamIntInRange(offset, 0, SHOT_LOG_CAPACITY) &&
           uiStreamIntInRange(limit, 1, SHOT_LOG_CAPACITY) &&
           (!fetch || cJSON_IsBool(fetch)) &&
@@ -301,14 +304,14 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
                      !strcmp(dir->valuestring, "desc"))));
       if (shapeOk && numbersOk) {
         if (!cJSON_IsTrue(on)) {
-          accepted = !offset && !limit && !sort && !dir && !fetch;
+          accepted = !offset && !limit && !sort && !dir && !fetch && !requestId;
           if (accepted) {
             session->statsOn = false;
             session->statsFetch = false;
             session->statsPaging = false;
           }
         } else if (fetch && cJSON_IsTrue(fetch)) {
-          accepted = offset != nullptr;
+          accepted = session->statsOn && offset != nullptr;
           if (accepted) {
             session->statsFetchOffset =
                 static_cast<size_t>(offset->valueint);
@@ -322,10 +325,12 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
                 ? shotLogSortDirFromName(dir->valuestring)
                 : session->statsDir;
             session->statsFetch = true;
+            session->statsFetchRequest = requestId ? static_cast<uint32_t>(requestId->valuedouble) : 0;
           }
         } else {
           session->statsOn = true;
           session->statsResync = true;
+          session->statsRequest = requestId ? static_cast<uint32_t>(requestId->valuedouble) : 0;
           if (offset)
             session->statsOffset = static_cast<size_t>(offset->valueint);
           if (limit)

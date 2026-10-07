@@ -128,11 +128,15 @@ unowned allocations. Converting a task handle to a destructor that invokes
 executing. The HTTP server similarly owns internal LwIP callbacks and must be
 stopped on the manager task before its token is cleared.
 
-The claimed Web UI allows two concurrent read requests only for Stats or
-History (small Home navigation metadata plus that page's records). Home live
-updates use its session-owned socket without periodic REST polling. Other API requests remain
-exclusive, including commands and OTA. Four HTTP sockets and a four-connection
-backlog accommodate the two reads plus lazy HTML and JavaScript downloads.
+The claimed Web UI shares one session-owned socket across Home, Stats, History,
+and Diagnostic. Only the active view subscribes to records, diagnostic sections,
+and logs; shared Home state keeps navigation and command readback current.
+Diagnostic readiness includes its base, sampled metrics, and both profiler
+sections. Record request IDs distinguish standing windows, scroll fetches, and
+exports; Stats continuations also retain their store epoch and sequence.
+Other API requests remain exclusive, including commands and OTA. Four HTTP
+sockets and a four-connection backlog also accommodate lazy HTML and JavaScript
+downloads.
 Handlers execute serially on the existing HTTP task, retaining one owner of
 the shared response workspace; overlapping requests do not add worker tasks
 or concurrent workspace access.

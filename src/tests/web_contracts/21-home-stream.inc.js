@@ -42,24 +42,24 @@
     return output;
   };
   const initial = {v: 1, type: 'home', boot: 7, snapshot: true, changes: flatten(status)};
-  const first = context.homeStreamFrame(null, initial);
+  const first = context.statusStreamFrame(null, initial);
   const patch = {v: 1, type: 'home', boot: 7, snapshot: false,
     changes: {'scale.observedWeightG': 12.1, 'machineState': 'CONFIRMED_ON'}};
-  const second = context.homeStreamFrame(first, patch);
+  const second = context.statusStreamFrame(first, patch);
   assert.equal(second.status.scale.timerMs, 1000);
   assert.equal(second.status.scale.observedWeightG, 12.1);
   assert.equal(first.status.scale.observedWeightG, 12.1, 'Home applies scalar patches to its current cache');
-  assert.equal(context.homeStreamFrame(second, patch).status.scale.observedWeightG, 12.1, 'scalar assignments are idempotent');
-  const lost = context.homeStreamFrame(second, {...patch,
+  assert.equal(context.statusStreamFrame(second, patch).status.scale.observedWeightG, 12.1, 'scalar assignments are idempotent');
+  const lost = context.statusStreamFrame(second, {...patch,
     changes: {'scale.available': false, 'scale.observedWeightG': null, 'scale.timerMs': null}});
   assert.equal(lost.status.scale.timerMs, null);
   for (const bad of [{...patch, boot: 8},
     {...patch, changes: {'scale.timerMs': Infinity}},
     {...patch, changes: {'config.constructor.prototype': {poisoned: true}}},
     {...initial, changes: {'scale.available': true}}]) {
-    assert.throws(() => context.homeStreamFrame(first, bad), 'invalid Home messages require resync');
+    assert.throws(() => context.statusStreamFrame(first, bad), 'invalid Home messages require resync');
   }
-  assert.equal(context.homeStreamFrame(first, {...initial, boot: 8, changes: {...initial.changes, bootId: 8}}).boot, 8);
+  assert.equal(context.statusStreamFrame(first, {...initial, boot: 8, changes: {...initial.changes, bootId: 8}}).boot, 8);
   context.startUiStream(); sockets[0].onopen();
   assert.equal(sockets[0].sent[0].op, 'bind');
   assert.equal(sockets[0].sent[1].op, 'activity', 'liveness is a socket control message, not REST polling');

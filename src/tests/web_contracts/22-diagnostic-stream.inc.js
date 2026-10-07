@@ -2,7 +2,7 @@
 // socket only while the view is shown; every navigation unsubscribes.
 {
   const assert = require('assert').strict, vm = require('vm');
-  const source = runtimeJs.slice(runtimeJs.indexOf('let shotWs='),
+  const source = runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('), runtimeJs.indexOf('function renderHomeStream(')) + runtimeJs.slice(runtimeJs.indexOf('let shotWs='),
     runtimeJs.indexOf('function formatExtractionGuard('));
   const sockets = [], timers = new Map(); let timer = 0, owner = true;
   const applied = [], frames = [];
@@ -20,7 +20,7 @@
     clearTimeout: id => timers.delete(id), requestAnimationFrame: fn => { fn(); return 1; },
     webUiPollingActive: () => owner, webUiClientId: '0123456789abcdef', webUiPowerSeconds: () => 30,
     activeView: 'diagnostic', viewSeq: 1, viewReady: Promise.resolve(), lastStatusAt: 0,
-    performance: {now: () => 1234}, invalidateHomeStream() {}, noteReachFail() {},
+    performance: {now: () => 1234}, invalidateHomeStream() {}, noteReachFail() {}, homeResolve() {},
     applyDiagnosticLive: status => applied.push(status),
     viewStatusHandlers: {diagnostic: () => {}},
   };
@@ -38,9 +38,9 @@
     'scale.maxPacketGapMs': 240, 'scale.lastDisconnect.summary': '',
   };
   const snapshot = {v: 1, type: 'diagnostic', boot: 7, snapshot: true, changes: {...changes}};
-  const snapshotFrame = context.diagStreamFrame(null, snapshot);
+  const snapshotFrame = context.statusStreamFrame(null, snapshot);
   assert.equal(snapshotFrame.status.scale.timerMs, 65430);
-  const patch = context.diagStreamFrame(snapshotFrame,
+  const patch = context.statusStreamFrame(snapshotFrame,
       {v: 1, type: 'diagnostic', boot: 7, snapshot: false,
        changes: {'scale.timerMs': 65900, 'relayClosed': true}});
   assert.equal(patch.status.relayClosed, true, 'deltas patch the live cache');
@@ -49,7 +49,7 @@
       {...patch, changes: {'scale.timerMs': Infinity}},
       {...patch, changes: {'scale.constructor.prototype': {poisoned: true}}},
       {...patch, snapshot: true, changes: {'scale.available': true}}]) {
-    assert.throws(() => context.diagStreamFrame(patch, bad),
+    assert.throws(() => context.statusStreamFrame(patch, bad),
         'invalid diagnostic frames must fail closed');
   }
 
@@ -120,9 +120,9 @@
       'the Diagnostic view must not read REST status');
   assert(!runtimeJs.includes("api('/api/v1/log'"),
       'the Diagnostic view must not poll the REST log');
-  assert(runtimeJs.includes('const apply=viewStatusHandlers[\'diagnostic\'];if(apply)apply(diagFrame.status)'),
-      'stream frames must drive the full view');
-  assert(runtimeJs.includes('shotWs=null;diagFrame=null;'),
+  assert(runtimeJs.includes('if(apply&&diagnosticReady())apply(diagFrame.status)'),
+      'the full view waits for all diagnostic sections');
+  assert(runtimeJs.includes('shotWs=null;resetUiStream();'),
       'socket loss must drop the cache');
 }
 

@@ -380,6 +380,7 @@ class ShotStopperNetwork {
            historyFetchOffset = 0;
     ShotLogSortDir historyDir = ShotLogSortDir::Desc;
     uint32_t historyEpoch = 0, historyFingerprint = 0, historyBoot = 0;
+    uint32_t historyRequest = 0, historyFetchRequest = 0;
     // Stats page subscription, same layout plus the sort field and the
     // fetch's own window (sentinel appends page by the view's order; the CSV
     // export always asks for date/desc).
@@ -395,7 +396,8 @@ class ShotStopperNetwork {
     bool statsPaging = false, statsPageSnapshot = false, statsPageFetch = false;
     bool statsRedeliverStanding = false;
     size_t statsSent = 0;
-    uint32_t statsPageEpoch = 0;
+    uint32_t statsPageEpoch = 0, statsPageRequest = 0;
+    uint32_t statsRequest = 0, statsFetchRequest = 0;
     char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
     bool bound = false, resync = true;
     bool homeResync = true;

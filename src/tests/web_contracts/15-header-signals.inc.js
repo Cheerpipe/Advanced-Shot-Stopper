@@ -67,7 +67,8 @@
   assert.equal(elements.wifiName.textContent, '—');
   assert.equal(elements.wifiDetail.textContent, 'Signal unavailable');
   assert(appJsSource.includes('R.initHeaderSignals();'));
-  assert(rawRuntimeJs.includes('applyCommonStatus(s){updateHeaderSignals(s);'));
+  assert(rawRuntimeJs.includes('applyCommonStatus(s){if(s.connections||s.snapshotStale)updateHeaderSignals(s);'),
+      'record-only envelopes must not erase live header signals');
   assert(rawRuntimeJs.includes('noteReachFail(err,force){clearCupWeights();updateHeaderSignals();'));
   for (const file of ['network/ShotStopperStatus.inc', 'diagnostics/ShotStopperNetworkDiagnostics.inc']) {
     const source = fs.readFileSync(path.join(sketchDir, file), 'utf8');

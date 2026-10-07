@@ -236,7 +236,7 @@
   const listeners={};
   const controller=new Function('WebSocket','location','document','window','setTimeout','clearTimeout',
     'requestAnimationFrame','webUiPollingActive','webUiClientId','activeView','$','webUiPowerSeconds','invalidateHomeStream',
-    'let homeFrame=null,homeStale=true,homeReady,homeResolve=()=>{};'+runtimeJs.slice(runtimeJs.indexOf('let shotWs='),runtimeJs.indexOf('function formatExtractionGuard('))+
+    'let homeFrame=null,homeStale=true,homeReady,homeResolve=()=>{};function noteReachFail(){}'+runtimeJs.slice(runtimeJs.indexOf('let shotWs='),runtimeJs.indexOf('function formatExtractionGuard('))+
     ';return{start:startUiStream,stop:stopUiStream,frame:()=>shotFrame,stale:()=>shotStale};')(
     Socket,{protocol:'http:',host:'device.local'},
     {hidden:false,addEventListener:(name,fn)=>listeners[name]=fn},
