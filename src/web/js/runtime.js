@@ -740,7 +740,7 @@ function stopStatsStream(){statsStreamWanted=false;statsFetchMark=null;statsPage
 let statsExportInFlight=null;
 function statsFrameWindow(offset,limit,sort,dir,timeoutMs){
   if(statsExportInFlight)return statsExportInFlight;
-  statsFetchMark=null;statsPage=null;statsExportRequest=++statsNextRequest;
+  statsFetchMark=null;statsExportRequest=++statsNextRequest;
   const pending=statsExportInFlight=new Promise(resolve=>{
     const timer=setTimeout(()=>statsExportResolve?.(null),timeoutMs);
     statsExportResolve=rows=>{clearTimeout(timer);statsExportResolve=null;statsExportRequest=0;resolve(rows)};

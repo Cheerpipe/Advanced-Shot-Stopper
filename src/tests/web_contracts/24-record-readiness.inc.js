@@ -88,9 +88,18 @@
       rows: [row(2)], rowBase: 0, more: true};
     socket.onmessage({data: JSON.stringify(frame)});
     assert.equal(vm.runInContext('statsPage.rows.length', f.context), 1);
+    // Export can be requested while the standing page is still arriving.
+    const exported = f.context.statsFrameWindow(0, 100, 'date', 'desc', 90000);
+    assert.equal(vm.runInContext('statsPage.rows.length', f.context), 1);
     socket.onmessage({data: JSON.stringify({...frame, snapshot: false,
       rows: [row(1)], rowBase: 1, more: false})});
     assert.equal(await pending, true);
+    const request = socket.sent.find(message => message.fetch).request;
+    socket.onmessage({data: JSON.stringify({...frame, snapshot: false, seq: 2,
+      request, limit: 100})});
+    socket.onmessage({data: JSON.stringify({...frame, snapshot: false, seq: 2,
+      request, limit: 100, rows: [row(1)], rowBase: 1, more: false})});
+    assert.deepEqual(Array.from(await exported, entry => entry.id), [2, 1]);
     assert(!socket.sent.some(message => message.op === 'resync'));
     f.stop();
     socket.onmessage({data: JSON.stringify({...frame, snapshot: false, rowBase: 1})});
