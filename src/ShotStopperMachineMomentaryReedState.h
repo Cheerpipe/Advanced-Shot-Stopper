@@ -216,7 +216,7 @@ inline MachineRunState machineRunState() {
   return MachineRunState::CONFIRMED_OFF;
 }
 
-inline void machineFillInferenceStatus(ControlStatusSnapshot &status) {
+inline void machineFillInferenceStatus(ControlStatusFields &status) {
   status.reedOn = reedOn;
   status.machineStartAckPending =
       reedAssume == ReedAssume::ON || reedAssume == ReedAssume::GRACE_ON;

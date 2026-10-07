@@ -40,7 +40,8 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
                                       const ShotLogRecord *latest) {
   uiStreamSendKind = "home";
   const bool initial = session.homeResync || session.homeBoot != control.bootId;
-  HomeStreamDelta delta{session.homeHashes, UiStreamSession::kHomeFields, 0, 0, 0, initial};
+  auto &hashes = workBuf_->uiFingerprints[&session - uiStreams_];
+  HomeStreamDelta delta{hashes.homeHashes, UiStreamFingerprints::kHomeFields, 0, 0, 0, initial};
   delta.ok = statusJsonAppend(&delta.used,
       "{\"v\":1,\"type\":\"home\",\"boot\":%lu,\"snapshot\":%s,\"changes\":{",
       static_cast<unsigned long>(control.bootId),
@@ -278,7 +279,8 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   const uint32_t now = millis();
   const bool initial = session.diagResync || session.diagBoot != control.bootId;
   const bool slow = initial || now - session.diagSlowAtMs >= kDiagSlowMs;
-  HomeStreamDelta delta{session.diagHashes, UiStreamSession::kDiagFields, 0, 0, 0, initial};
+  auto &hashes = workBuf_->uiFingerprints[&session - uiStreams_];
+  HomeStreamDelta delta{hashes.diagHashes, UiStreamFingerprints::kDiagFields, 0, 0, 0, initial};
   delta.ok = statusJsonAppend(&delta.used,
       "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":%s,\"changes\":{",
       static_cast<unsigned long>(control.bootId),
@@ -618,7 +620,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   }
   if (slow) {
     // Sampled telemetry: one gate, one frame, evaluation at poll cost.
-    HomeStreamDelta telemetry{session.diagHashes, UiStreamSession::kDiagFields,
+    HomeStreamDelta telemetry{hashes.diagHashes, UiStreamFingerprints::kDiagFields,
                               delta.index, 0, 0, initial};
     telemetry.ok = statusJsonAppend(&telemetry.used,
         "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":false,\"changes\":{",
@@ -1230,7 +1232,7 @@ __attribute__((optimize("Os")))
 bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
                                          const ControlStatusSnapshot &control) {
   uiStreamSendKind = "stats";
-  const uint32_t epoch =
+  uint32_t epoch =
       callbacks_.shotLogEpoch ? callbacks_.shotLogEpoch() : 0;
   const bool initial =
       session.statsResync || session.statsBoot != control.bootId;
@@ -1255,49 +1257,57 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
   const ShotLogSort sort = fetch ? session.statsFetchSort : session.statsSort;
   const ShotLogSortDir dir = fetch ? session.statsFetchDir : session.statsDir;
   NetworkWorkBuf &work = *g_work;
-  const ShotStatsView stats =
-      callbacks_.copyShotStats != nullptr ? callbacks_.copyShotStats()
-                                          : ShotStatsView{};
-  const size_t count =
-      callbacks_.copyShotRecords != nullptr
-          ? callbacks_.copyShotRecords(work.shotRecords, SHOT_LOG_CAPACITY)
-          : 0;
-  const size_t curveCount =
-      callbacks_.copyShotCurves != nullptr
-          ? callbacks_.copyShotCurves(work.shotCurves, SHOT_CURVE_CAPACITY)
-          : 0;
-  shotLogSortRecords(work.shotRecords, count, sort, dir);
-  size_t start = 0, pageCount = 0;
-  const bool hasMore =
-      shotLogPageSlice(count, offset, limit, start, pageCount);
-  char statsHeader[384] = {};
-  const bool statsOk =
-      buildIntegrationStats(stats, statsHeader, sizeof(statsHeader));
-  uint32_t fingerprint = crc32Update(0xFFFFFFFFU,
-      reinterpret_cast<const uint8_t *>(&epoch), sizeof(epoch));
-  const uint32_t window[4] = {static_cast<uint32_t>(offset),
+  auto &cache = work.statsCache;
+  auto &snapshot = cache.snapshot;
+  const bool reload = !cache.valid || snapshot.epoch != epoch;
+  if (reload) {
+    if (!callbacks_.copyShotStatsSnapshot) return false;
+    callbacks_.copyShotStatsSnapshot(snapshot);
+    epoch = snapshot.epoch;
+    cache.statsOk = buildIntegrationStats(snapshot.stats, cache.header, sizeof(cache.header));
+  }
+  const size_t count = snapshot.count, curveCount = snapshot.curveCount;
+  if (reload || cache.sort != sort || cache.dir != dir)
+    shotLogSortRecords(snapshot.records, count, sort, dir);
+  if (reload || cache.offset != offset || cache.limit != limit ||
+      cache.sort != sort || cache.dir != dir) {
+    cache.hasMore = shotLogPageSlice(count, offset, limit, cache.start, cache.pageCount);
+    uint32_t fingerprint = crc32Update(0xFFFFFFFFU,
+        reinterpret_cast<const uint8_t *>(&epoch), sizeof(epoch));
+    const uint32_t window[4] = {static_cast<uint32_t>(offset),
                               static_cast<uint32_t>(limit),
                               static_cast<uint32_t>(sort),
                               static_cast<uint32_t>(dir)};
-  fingerprint = crc32Update(fingerprint,
-      reinterpret_cast<const uint8_t *>(window), sizeof(window));
-  if (statsOk)
     fingerprint = crc32Update(fingerprint,
-        reinterpret_cast<const uint8_t *>(statsHeader), strlen(statsHeader));
-  resetShotCurveRecord(work.serializedCurve);
-  for (size_t index = start; index < start + pageCount; ++index) {
-    const ShotLogRecord &record = work.shotRecords[index];
-    const ShotCurveRecord *curve =
-        findShotCurveById(work.shotCurves, curveCount, record.id);
-    const uint32_t rowHash =
-        uiStreamCurveHash(curve ? *curve : work.serializedCurve,
-                            curve ? curve->count : 0);
-    const uint32_t row[2] = {record.id, record.extractionGuardEnabled};
-    fingerprint = crc32Update(fingerprint,
-        reinterpret_cast<const uint8_t *>(row), sizeof(row));
-    fingerprint = crc32Update(fingerprint,
-        reinterpret_cast<const uint8_t *>(&rowHash), sizeof(rowHash));
+        reinterpret_cast<const uint8_t *>(window), sizeof(window));
+    if (cache.statsOk)
+      fingerprint = crc32Update(fingerprint,
+          reinterpret_cast<const uint8_t *>(cache.header), strlen(cache.header));
+    resetShotCurveRecord(work.serializedCurve);
+    for (size_t index = cache.start; index < cache.start + cache.pageCount; ++index) {
+      const ShotLogRecord &record = snapshot.records[index];
+      const ShotCurveRecord *curve =
+          findShotCurveById(snapshot.curves, curveCount, record.id);
+      const uint32_t rowHash =
+          uiStreamCurveHash(curve ? *curve : work.serializedCurve,
+                              curve ? curve->count : 0);
+      const uint32_t row[2] = {record.id, record.extractionGuardEnabled};
+      fingerprint = crc32Update(fingerprint,
+          reinterpret_cast<const uint8_t *>(row), sizeof(row));
+      fingerprint = crc32Update(fingerprint,
+          reinterpret_cast<const uint8_t *>(&rowHash), sizeof(rowHash));
+    }
+    cache.fingerprint = fingerprint;
+    cache.offset = offset;
+    cache.limit = limit;
+    cache.sort = sort;
+    cache.dir = dir;
+    cache.valid = true;
   }
+  const uint32_t fingerprint = cache.fingerprint;
+  const size_t start = cache.start, pageCount = cache.pageCount;
+  // The owner may have committed after the cheap epoch read, before capture.
+  if (session.statsPaging && session.statsPageEpoch != epoch) session.statsPaging = false;
   if (!session.statsPaging && !initial && !fetch && fingerprint == session.statsFingerprint) {
     // Content identical (e.g. a no-op rating bump): adopt the moved epoch so
     // idle ticks stop at the cheap gate instead of recopying the records.
@@ -1339,20 +1349,20 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
       (!appendRecordPageUi(control, &used, override) ||
        !statusJsonAppend(&used, ",")))
     return false;
-  if (first && statsOk &&
-      !statusJsonAppend(&used, "\"stats\":%s,", statsHeader))
+  if (first && cache.statsOk &&
+      !statusJsonAppend(&used, "\"stats\":%s,", cache.header))
     return false;
   if (!statusJsonAppend(&used,
           "\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
           "\"hasMore\":%s,\"rows\":[",
           static_cast<unsigned long>(control.bootId),
           static_cast<unsigned>(count), static_cast<unsigned>(start),
-          static_cast<unsigned>(limit), hasMore ? "true" : "false"))
+          static_cast<unsigned>(limit), cache.hasMore ? "true" : "false"))
     return false;
   const size_t rowsBase = used;
   while (session.statsSent < pageCount) {
     const size_t rowBytes = formatShotStatsRow(
-        work, work.shotRecords[start + session.statsSent], work.shotCurves,
+        work, snapshot.records[start + session.statsSent], snapshot.curves,
         curveCount);
     if (!rowBytes) return false;
     // Close the frame before this row unless the frame is empty; a single

@@ -521,7 +521,7 @@ inline MachineRunState machineRunState() {
   return momentaryInferredState;
 }
 
-inline void machineFillInferenceStatus(ControlStatusSnapshot &status) {
+inline void machineFillInferenceStatus(ControlStatusFields &status) {
   status.machineStartAckPending = momentaryStartAwaitingAck;
   status.machineStopAckPending = momentaryStopAwaitingAck;
   status.machineOrphanRun = momentaryOrphanRun;

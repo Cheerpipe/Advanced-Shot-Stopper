@@ -209,7 +209,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   debugLog.clear();
   serialLogLevel = LogLevel::NONE;
   ringRetainLogLevel = LogLevel::INFO;
-  publishedControlStatus = ControlStatusSnapshot{};
+  publishedControlStatus = ControlStatusFields{};
+  publishedControlCurve = ControlStatusCurve{};
   taskProfiler.resetForHost();
   healthProfilerRequest.store(HealthProfilerRequest::NONE,
                               std::memory_order_relaxed);
@@ -14943,6 +14944,8 @@ void m09_snapshot_mutexes_preserve_concurrent_invariants() {
     ShotPreset &active = mutableActiveShotPreset(presetBank);
     active.goalWeightG = runtimeConfig.goalWeightG;
     active.operationalWallMs = 10000U + active.goalWeightG;
+    shotCurveSampler.reset(0);
+    shotCurveSampler.accept(static_cast<float>(generation % 100), generation);
     publishRecipeState();
     publishControlStatus();
 
@@ -14973,6 +14976,12 @@ void m09_snapshot_mutexes_preserve_concurrent_invariants() {
     do {
       ControlStatusSnapshot status;
       copyControlStatus(status);
+      if (status.activeCycle &&
+          (status.shotCurveCount != 1 || status.shotCurveAtMs[0] != status.cycleId ||
+           status.shotCurveWeightCg[0] != shotLogWeightToCentigrams(
+               static_cast<float>(status.cycleId % 100)))) {
+        violations.fetch_add(1, std::memory_order_relaxed);
+      }
       if ((status.activeCycle &&
            (status.cycleId == 0 || status.source != ControlSource::WEB)) ||
           (!status.activeCycle &&
@@ -16008,6 +16017,39 @@ void sh01_activation_store_mutex_serializes_append_read_flush() {
   historyLog.copyPage(page, 0, HISTORY_PAGE_DEFAULT, ShotLogSortDir::Desc);
   CHECK(page.total == kIterations);
   CHECK(page.records[0].id == kIterations);
+}
+
+void sh02_stats_snapshot_captures_one_store_generation() {
+  resetHarness(false, true);
+  ShotLogRecord record{};
+  record.durationDs = 150;
+  record.actualWeightCg = 3000;
+  CHECK(shotLog.append(record, false));
+  CHECK(copyShotRecords(&record, 1) == 1);
+  ShotCurveRecord curve = emptyShotCurveRecord();
+  curve.shotId = record.id;
+  curve.count = 1;
+  curve.weightCg[0] = record.actualWeightCg;
+  CHECK(shotCurves.append(curve, false));
+  auto snapshot = std::make_unique<ShotStatsSnapshot>();
+  static unsigned acquisitions;
+  acquisitions = 0;
+  TaskMutex::hostObserver = [](const TaskMutex *mutex, bool acquired) {
+    if (mutex == &shotStoreMutex && acquired) ++acquisitions;
+  };
+  copyShotStatsSnapshot(*snapshot);
+  TaskMutex::hostObserver = nullptr;
+  CHECK(acquisitions == 1);
+  CHECK(snapshot->epoch == copyShotLogEpoch());
+  CHECK(snapshot->count == 1 && snapshot->curveCount == 1);
+  CHECK(snapshot->stats.shotCount == 1 && snapshot->stats.actualCgSum == 3000);
+  CHECK(snapshot->records[0].id == snapshot->curves[0].shotId);
+  CHECK(snapshot->records[0].actualWeightCg == snapshot->curves[0].weightCg[0]);
+  CHECK(rateShotRecord(record.id, 5));
+  CHECK(snapshot->epoch != copyShotLogEpoch());
+  CHECK(shotLogRating(snapshot->records[0].extractionGuardEnabled) == 0);
+  copyShotStatsSnapshot(*snapshot);
+  CHECK(shotLogRating(snapshot->records[0].extractionGuardEnabled) == 5);
 }
 
 void s19_shot_store_persist_failure_logs_once_until_success() {
@@ -19575,6 +19617,7 @@ const TestCase testCases[] = {
     {"S12f", s12f_shot_store_snapshot_serializes_rating_and_finalize},
     {"S13", s13_persist_debug_messages_identify_origin},
     {"SH01", sh01_activation_store_mutex_serializes_append_read_flush},
+    {"SH02", sh02_stats_snapshot_captures_one_store_generation},
     {"S19", s19_shot_store_persist_failure_logs_once_until_success},
     {"S19b", s19b_shot_store_io_backoff_resets_for_new_dirty_data},
     {"H01", h01_health_threshold_alerts_fire_once_per_crossing},

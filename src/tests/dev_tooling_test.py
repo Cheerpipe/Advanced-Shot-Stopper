@@ -238,7 +238,10 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp"
     image.write_bytes(b"x")
     (build / "shotstopper.map").write_text(
         "0x3c000000 _ext_ram_bss_start\n0x3c000010 _ext_ram_bss_end\n"
-        "0x3fc80000 localBuzzer\n0x3fc80010 taskProfiler\n")
+        "0x3fc80000 localBuzzer\n0x3fc80010 taskProfiler\n"
+        "0x3fc80020 publishedControlStatus\n0x3fc80030 controlStatusMutex\n"
+        "0x3fc80040 publishedControlGate\n0x3fc80050 controlGateMutex\n"
+        "0x3c000004 publishedControlCurve\n")
     size = build / "size.json"
     metrics = {"total_size": 1, "used_diram": 1, "flash_code": 1, "flash_rodata": 1}
     size.write_text(json.dumps(metrics))
@@ -253,6 +256,15 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp"
 
     sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_PERF=y\n")
     assert check_size().returncode == 0
+    memory_map = build / "shotstopper.map"
+    valid_map = memory_map.read_text()
+    memory_map.write_text(valid_map.replace("0x3c000004 publishedControlCurve",
+                                           "0x3fc80100 publishedControlCurve"))
+    assert "publishedControlCurve must reside in external BSS" in check_size().stderr
+    memory_map.write_text(valid_map.replace("0x3fc80020 publishedControlStatus",
+                                           "0x3c000008 publishedControlStatus"))
+    assert "publishedControlStatus must remain in internal SRAM" in check_size().stderr
+    memory_map.write_text(valid_map)
     size.write_text("{}")
     invalid = check_size()
     assert invalid.returncode != 0 and "total_size is missing or invalid" in invalid.stderr
@@ -422,7 +434,7 @@ for script in (ROOT / "scripts").rglob("*"):
     if not script.is_file() or script.suffix == ".js":
         continue
     first = script.read_text(errors="replace").splitlines()[0]
-    if "sh" in first:
+    if first.startswith("#!") and "sh" in first:
         checked = subprocess.run(["bash", "-n", str(script)], capture_output=True)
         assert checked.returncode == 0, f"shell syntax: {script.name}"
 
@@ -1468,6 +1480,7 @@ for arch, arch_selectors in profile_arch.items():
         assert "unexpected CONFIG_SPIRAM_XIP_FROM_PSRAM=y" in mismatch.stderr
     micra = selectors + ["CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y",
                          "CONFIG_MBEDTLS_DYNAMIC_BUFFER=y",
+                         "CONFIG_WS_BUFFER_SIZE=4096",
                          "CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y"]
     assert verify_production_profile(arch, micra, "linea_micra_cloud").returncode == 0
     assert "CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y" in verify_production_profile(

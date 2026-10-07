@@ -71,6 +71,7 @@ esp_err_t ShotStopperNetwork::uiStreamHandshake(httpd_req_t *request) {
   for (auto &session : self.uiStreams_) {
     if (session.fd != -1) continue;
     session = UiStreamSession{};
+    new (&self.workBuf_->uiFingerprints[&session - self.uiStreams_]) UiStreamFingerprints{};
     session.fd = httpd_req_to_sockfd(request);
     session.openedAtMs = millis();
     request->sess_ctx = &session;
@@ -86,6 +87,8 @@ esp_err_t ShotStopperNetwork::uiStreamHandshake(httpd_req_t *request) {
 void ShotStopperNetwork::uiStreamFree(void *context) {
   if (!instance_ || !context) return;
   TaskLockGuard lock(instance_->dataMux_);
+  new (&instance_->workBuf_->uiFingerprints[
+      static_cast<UiStreamSession *>(context) - instance_->uiStreams_]) UiStreamFingerprints{};
   *static_cast<UiStreamSession *>(context) = UiStreamSession{};
 }
 
@@ -102,8 +105,8 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
   frame.payload = reinterpret_cast<uint8_t *>(body);
   if (httpd_ws_recv_frame(request, &frame, frame.len) != ESP_OK ||
       memchr(body, '\0', frame.len)) return ESP_FAIL;
-  const char *end = nullptr;
-  cJSON *message = cJSON_ParseWithOpts(body, &end, true);
+  cJSON *message = parseJsonDocumentWithinLimits(
+      body, kUiStreamRequestBytes, JSON_DOCUMENT_MAX_VALUES);
   if (!message) return ESP_FAIL;
   const cJSON *op = cJSON_GetObjectItemCaseSensitive(message, "op");
   const cJSON *client = cJSON_GetObjectItemCaseSensitive(message, "client");

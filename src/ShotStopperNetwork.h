@@ -183,6 +183,12 @@ inline int8_t clampWifiRssi(int32_t rssi) {
 
 struct NetworkWorkBuf;
 
+struct UiStreamFingerprints {
+  static constexpr size_t kHomeFields = 128, kDiagFields = 224;
+  uint32_t homeHashes[kHomeFields] = {};
+  uint32_t diagHashes[kDiagFields] = {};
+};
+
 struct NetworkBridgeCallbacks {
   void (*copyControlStatus)(ControlStatusSnapshot &output) = nullptr;
   void (*copyControlGate)(ControlGateSnapshot &output) = nullptr;
@@ -197,7 +203,7 @@ struct NetworkBridgeCallbacks {
   void (*reportTaskWatchdogFault)() = nullptr;
   void (*requestSafeRestart)() = nullptr;
   size_t (*copyShotRecords)(ShotLogRecord *output, size_t capacity) = nullptr;
-  size_t (*copyShotCurves)(ShotCurveRecord *output, size_t capacity) = nullptr;
+  void (*copyShotStatsSnapshot)(ShotStatsSnapshot &output) = nullptr;
   bool (*copyHomeShot)(ShotLogRecord &record, ShotCurveRecord &curve) = nullptr;
   bool (*shotLogSavePending)() = nullptr;
   void (*copyHistoryPage)(HistoryPage &page, size_t offset, size_t limit,
@@ -354,16 +360,12 @@ class ShotStopperNetwork {
     uint32_t sequence = 0, cycle = 0, shot = 0, boot = 0;
     uint32_t fingerprint = 0, prefixHash = 0, markersHash = 0;
     uint16_t cursor = 0;
-    static constexpr size_t kHomeFields = 128;
-    uint32_t homeHashes[kHomeFields] = {};
     uint32_t homeBoot = 0, homeClockSync = 0, homeClockUtc = 0;
     // Diagnostic page subscription: state dies with the session struct reset,
     // so an unbound or superseded socket never keeps streaming diagnostics.
     // Slots cover the live projection plus every migrated REST section;
     // sampled sections (health, NVS, profilers, network measurements) share
     // one 4 s evaluation gate so their producers run at most per interval.
-    static constexpr size_t kDiagFields = 224;
-    uint32_t diagHashes[kDiagFields] = {};
     uint32_t diagBoot = 0, diagSlowAtMs = 0;
     uint32_t diagTasksFingerprint = 0, diagProfileFingerprint = 0;
     bool diagnostic = false, diagResync = true;

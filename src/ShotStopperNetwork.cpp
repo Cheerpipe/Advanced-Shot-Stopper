@@ -60,6 +60,16 @@ namespace shotstopper {
 
 WallClock g_wallClock;
 
+struct StatsStreamCache {
+  ShotStatsSnapshot snapshot{};
+  bool valid = false, statsOk = false, hasMore = false;
+  ShotLogSort sort = ShotLogSort::Date;
+  ShotLogSortDir dir = ShotLogSortDir::Desc;
+  size_t offset = 0, limit = 0, start = 0, pageCount = 0;
+  uint32_t fingerprint = 0;
+  char header[384]{};
+};
+
 struct NetworkWorkBuf {
   // Fits the diagnostic status with up to 20 task rows and 16 loop-phase
   // rows, plus the record-page UI section and debug-export chunks that
@@ -93,8 +103,8 @@ struct NetworkWorkBuf {
   };
   DebugEvent logBatch[kNetworkLogBatchSize]{};
   DebugLogReadMetadata logMetadata{};
-  ShotLogRecord shotRecords[SHOT_LOG_CAPACITY]{};
-  ShotCurveRecord shotCurves[SHOT_CURVE_CAPACITY]{};
+  UiStreamFingerprints uiFingerprints[2]{};
+  StatsStreamCache statsCache{};
   ShotCurveRecord homeCurve{};
   ShotCurveRecord serializedCurve{};
   ControlStatusSnapshot control{};

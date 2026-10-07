@@ -163,9 +163,8 @@ void publishControlStatus() {
   HistoryPage statusHistoryPage = {};
   copyHistoryPage(statusHistoryPage, 0, 1, ShotLogSortDir::Desc);
   TaskLockGuard lock(controlStatusMutex);
-  ControlStatusSnapshot &next = publishedControlStatus;
-  // Value-initialize in place: a returned aggregate would use 6 KiB of stack.
-  new (&next) ControlStatusSnapshot{};
+  ControlStatusFields &next = publishedControlStatus;
+  new (&next) ControlStatusFields{};
   next.cupTare = cupTare;
   next.snapshotVersion = ++controlStatusVersion;
   if (controlStatusVersion == 0) {
@@ -336,9 +335,9 @@ void publishControlStatus() {
         next.shotCurveExtendedMs, next.shotCurveExtendedCg,
         next.shotCurveAtmMs, next.shotCurveAtmCg,
         next.shotCurveAtmClearedMs, next.shotCurveEndedMs,
-        next.shotCurveEndedCg, next.shotCurveWeightCg,
-        sizeof(next.shotCurveWeightCg) / sizeof(next.shotCurveWeightCg[0]),
-        next.shotCurveAtMs, next.shotCurveBreakBefore);
+        next.shotCurveEndedCg, publishedControlCurve.shotCurveWeightCg,
+        SHOT_CURVE_MAX_POINTS, publishedControlCurve.shotCurveAtMs,
+        publishedControlCurve.shotCurveBreakBefore);
   }
   copyCString(next.scaleProtocol, sizeof(next.scaleProtocol),
               scaleLink.protocolName);

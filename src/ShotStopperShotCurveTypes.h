@@ -59,6 +59,15 @@ struct ShotCurveRecord {
   uint8_t breakBefore[SHOT_CURVE_BREAK_BYTES];
 };
 
+// Network-owned PSRAM copy, captured with one store lock; never a stack local.
+struct ShotStatsSnapshot {
+  ShotStatsView stats{};
+  ShotLogRecord records[SHOT_LOG_CAPACITY]{};
+  ShotCurveRecord curves[SHOT_CURVE_CAPACITY]{};
+  size_t count = 0, curveCount = 0;
+  uint32_t epoch = 0;
+};
+
 inline void resetShotCurveRecord(ShotCurveRecord &curve) {
   memset(&curve, 0, sizeof(curve));
   curve.atmClearedMs = SHOT_LOG_METRIC_MISSING;

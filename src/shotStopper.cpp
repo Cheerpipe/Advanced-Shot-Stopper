@@ -519,10 +519,10 @@ bool webhookBrewStartPending = false;
 #endif
 
 bool virtualHoldOn = false;
-// Full status snapshots stay in internal DRAM (check_web_assets forbids
-// SHOT_STOPPER_PSRAM_BSS on this type). Task mutexes make the ordinary C++
-// payload copies race-free; readers never accept an in-progress publication.
-ControlStatusSnapshot publishedControlStatus;
+// One lock/version commits internal scalars and the external presentation
+// payload together. Control/safety never depend on an external pointer.
+ControlStatusFields publishedControlStatus;
+SHOT_STOPPER_PSRAM_BSS ControlStatusCurve publishedControlCurve;
 TaskMutex controlStatusMutex;
 uint32_t controlStatusVersion = 0;
 ControlGateSnapshot publishedControlGate;
@@ -910,7 +910,8 @@ void requestLoopMaxReset() { loopPhaseProfiler.requestReset(); }
 
 void copyControlStatus(ControlStatusSnapshot &output) {
   TaskLockGuard lock(controlStatusMutex);
-  output = publishedControlStatus;
+  static_cast<ControlStatusFields &>(output) = publishedControlStatus;
+  static_cast<ControlStatusCurve &>(output) = publishedControlCurve;
   output.snapshotStale =
       __atomic_load_n(&controlStatusPublishRequested, __ATOMIC_ACQUIRE);
 }
@@ -962,9 +963,12 @@ size_t copyShotRecords(ShotLogRecord *output, size_t capacity) {
   return shotLog.copyNewestFirst(output, capacity);
 }
 
-size_t copyShotCurves(ShotCurveRecord *output, size_t capacity) {
+void copyShotStatsSnapshot(ShotStatsSnapshot &output) {
   TaskLockGuard lock(shotStoreMutex);
-  return shotCurves.copyNewestFirst(output, capacity);
+  output.stats = shotLog.statsView();
+  output.count = shotLog.copyNewestFirst(output.records, SHOT_LOG_CAPACITY);
+  output.curveCount = shotCurves.copyNewestFirst(output.curves, SHOT_CURVE_CAPACITY);
+  output.epoch = shotLog.epoch();
 }
 
 bool copyHomeShot(ShotLogRecord &record, ShotCurveRecord &curve) {

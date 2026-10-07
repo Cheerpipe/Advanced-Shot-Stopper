@@ -540,7 +540,7 @@ void ShotStopperMicraService::serviceWebSocket() {
   config.headers = buffer.headers;
   config.crt_bundle_attach = esp_crt_bundle_attach;
   config.disable_auto_reconnect = true;
-  config.buffer_size = 1024;
+  config.buffer_size = 4096;  // Above the internal-first malloc threshold.
   config.task_prio = 1;  // Zero selects SDK default 5, rather than idle priority.
   config.task_stack = 6144;
   config.task_core_id_set = true;

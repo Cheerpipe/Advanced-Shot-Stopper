@@ -93,6 +93,7 @@ const wallClock = fs.readFileSync(path.join(sketchDir, 'ShotStopperTime.h'), 'ut
 const domainCore = fs.readFileSync(path.join(sketchDir, 'ShotStopperDomain.h'), 'utf8');
 const domain = [
   domainCore,
+  fs.readFileSync(path.join(sketchDir, 'domain/ShotStopperControlStatusTypes.inc'), 'utf8'),
   fs.readFileSync(path.join(sketchDir, 'ShotStopperMachineTypes.h'), 'utf8'),
   fs.readFileSync(path.join(sketchDir, 'ShotStopperScaleTypes.h'), 'utf8'),
   fs.readFileSync(path.join(sketchDir, 'ShotStopperBrewTypes.h'), 'utf8'),
@@ -262,6 +263,7 @@ if (!idfHelpers.includes('sdkconfig.defaults.micra') ||
     !sdkconfigMicra.includes('# CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC is not set') ||
     !sdkconfigMicra.includes('CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y') ||
     !sdkconfigMicra.includes('CONFIG_MBEDTLS_DYNAMIC_BUFFER=y') ||
+    !sdkconfigMicra.includes('CONFIG_WS_BUFFER_SIZE=4096') ||
     !sdkconfigMicra.includes('CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y')) {
   throw new Error(
       'Micra-only mbedTLS must use PSRAM, dynamic record buffers, and TLS session tickets');
@@ -463,9 +465,11 @@ if (!psram.includes('#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
         'SHOT_STOPPER_PSRAM_BSS ShotPresetBank publishedPresetBank') ||
     firmwareCore.includes('stagingControlStatus') ||
     !flashIoScratch.includes('allocInternal(FLASH_IO_SCRATCH_BYTES, AllocationOwner::FLASH_IO)') ||
+    !firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ControlStatusCurve publishedControlCurve') ||
+    firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ControlStatusFields') ||
     firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ControlStatusSnapshot')) {
   throw new Error(
-      'Large history/settings/debug-ring/recipe BSS must use SHOT_STOPPER_PSRAM_BSS; flash scratch and live status snapshots stay internal');
+      'History/settings/debug-ring/recipe/curve payloads use PSRAM; flash scratch and control scalars stay internal');
 }
 if (!firmwareCore.includes('uint8_t *serialLogQueueBytes = nullptr') ||
     !firmwareCore.includes(
