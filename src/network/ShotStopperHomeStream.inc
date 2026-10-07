@@ -38,6 +38,7 @@ __attribute__((optimize("Os")))
 bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
                                       const ControlStatusSnapshot &control,
                                       const ShotLogRecord *latest) {
+  uiStreamSendKind = "home";
   const bool initial = session.homeResync || session.homeBoot != control.bootId;
   HomeStreamDelta delta{session.homeHashes, UiStreamSession::kHomeFields, 0, 0, 0, initial};
   delta.ok = statusJsonAppend(&delta.used,
@@ -273,6 +274,7 @@ bool ShotStopperNetwork::sendUiStreamFrame(UiStreamSession &session,
 __attribute__((optimize("Os")))
 bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
                                               const ControlStatusSnapshot &control) {
+  uiStreamSendKind = "diagnostic";
   const uint32_t now = millis();
   const bool initial = session.diagResync || session.diagBoot != control.bootId;
   const bool slow = initial || now - session.diagSlowAtMs >= kDiagSlowMs;
@@ -875,6 +877,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
 __attribute__((optimize("Os")))
 bool ShotStopperNetwork::sendLogStream(UiStreamSession &session,
                                        const ControlStatusSnapshot &control) {
+  uiStreamSendKind = "log";
   const uint32_t latest =
       callbacks_.debugLogLatestSequence ? callbacks_.debugLogLatestSequence() : 0;
   if (!session.logPush && latest == session.logAfter) return true;
@@ -982,6 +985,7 @@ bool ShotStopperNetwork::sendLogStream(UiStreamSession &session,
 __attribute__((optimize("Os")))
 bool ShotStopperNetwork::sendHistoryStream(UiStreamSession &session,
                                            const ControlStatusSnapshot &control) {
+  uiStreamSendKind = "history";
   const uint32_t epoch = callbacks_.historyEpoch ? callbacks_.historyEpoch() : 0;
   const bool initial =
       session.historyResync || session.historyBoot != control.bootId;
@@ -1225,6 +1229,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
 __attribute__((optimize("Os")))
 bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
                                          const ControlStatusSnapshot &control) {
+  uiStreamSendKind = "stats";
   const uint32_t epoch =
       callbacks_.shotLogEpoch ? callbacks_.shotLogEpoch() : 0;
   const bool initial =
@@ -1241,6 +1246,10 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
     session.statsPaging = false;
   }
   if (!session.statsPaging && !initial && !fetch && epoch == session.statsEpoch) return true;
+  if (session.statsPaging && millis() - session.statsSentAtMs < kStatsStreamPaceMs) {
+    uiStreamUrgent_.store(true, std::memory_order_release);
+    return true;
+  }
   const size_t offset = fetch ? session.statsFetchOffset : session.statsOffset;
   const size_t limit = fetch ? session.statsFetchLimit : session.statsLimit;
   const ShotLogSort sort = fetch ? session.statsFetchSort : session.statsSort;
@@ -1377,8 +1386,8 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
     return true;
   }
   if (more) {
-    // Continue the page on the next dispatch; urgent bypasses the idle
-    // cadence so a healthy client still streams without gaps.
+    // Give ACKs time to free TCP credit without delaying live Home updates.
+    session.statsSentAtMs = millis();
     uiStreamUrgent_.store(true, std::memory_order_release);
     return true;
   }

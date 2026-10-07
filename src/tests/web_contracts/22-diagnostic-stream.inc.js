@@ -142,7 +142,8 @@
 // Firmware projection: bounded field budget, view-scoped dispatch, and wiring.
 {
   const assert = require('assert').strict;
-  const stream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperUiStream.inc'), 'utf8');
+  const stream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperUiStream.inc'), 'utf8') +
+      fs.readFileSync(path.join(sketchDir, 'network/ShotStopperUiStreamTransport.inc'), 'utf8');
   const homeStream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperHomeStream.inc'), 'utf8');
   assert(stream.includes('strcmp(op->valuestring, "diagnostic")'));
   assert(stream.includes('session->diagnostic = cJSON_IsTrue(on)'));
@@ -180,13 +181,16 @@
   assert(homeCall >= 0 && cardCall > homeCall && diagCall > cardCall &&
          historyCall > diagCall && statsCall > historyCall,
       'dispatch must send home, card, diagnostic, history, stats in order');
-  // Pacing: one budgeted stats frame per dispatch resumes the in-flight page
-  // and flags urgency so a healthy client streams without cadence gaps.
+  // Bulk continuations leave ACK headroom while live Home can dispatch sooner.
   assert(homeStream.includes('session.statsPageEpoch != epoch') &&
          homeStream.includes('session.statsSent = 0;'),
       'stats pages must capture identity at page start and resume by epoch');
   assert(homeStream.includes('uiStreamUrgent_.store(true, std::memory_order_release);\n    return true;'),
-      'a continued page must flag urgency for the next dispatch');
+      'a continued page must flag another dispatch');
+  assert(stream.includes('kStatsStreamFrameBytes = 8192') &&
+         homeStream.includes('millis() - session.statsSentAtMs < kStatsStreamPaceMs') &&
+         homeStream.includes('session.statsSentAtMs = millis();'),
+      'Stats must cap row batches and pace continuations after delivery');
   const diagRegion = homeStream.slice(homeStream.indexOf('sendDiagnosticStream'));
   const diagSlots = Number(/kDiagFields\s*=\s*(\d+)/.exec(networkHeader)[1]);
   const diagCalls = (diagRegion.match(/\bdelta\.field\(/g) || []).length;

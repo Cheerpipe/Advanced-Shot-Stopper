@@ -45,6 +45,7 @@ struct UiStreamSession {
 struct TaskLockGuard { explicit TaskLockGuard(int){} };
 struct httpd_ws_frame_t { int type=0; uint8_t *payload=nullptr; size_t len=0; };
 bool uiStreamSendCleanAbort=false;
+const char *uiStreamSendKind="control";
 int sendResult=ESP_OK;
 std::vector<std::string> delivered;
 int httpd_ws_send_frame_async(int,int,httpd_ws_frame_t *frame){

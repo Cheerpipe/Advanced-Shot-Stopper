@@ -5,15 +5,9 @@ constexpr uint32_t kUiStreamBindMs = 5000, kUiStreamRetainMs = 30000;
 // Live shots keep the scale's 10 Hz; idle Home only needs edge pickup.
 constexpr uint32_t kUiStreamLiveMs = 100, kUiStreamIdleMs = 250;
 constexpr size_t kUiStreamRequestBytes = 160;
-// Stats pages carry full curves; multi-row frames accumulate under this
-// budget, one frame per dispatch tick (a continued page resumes where its
-// previous frame stopped). A maximal row (~20.7 KiB curve JSON plus scalars)
-// rides alone and stays far under the client's 28 KiB frame guard even with
-// the ui and stats extras.
-constexpr size_t kStatsStreamFrameBytes = 20480;
-// WS header size: a failed write of at most this many bytes leaves the
-// stream clean, because nothing of that frame reached the socket.
-constexpr size_t kUiStreamHeaderMax = 14;
+// Leave TCP send-buffer headroom for live state. A larger individual curve
+// stays intact, alone under the client's 28 KiB message guard.
+constexpr size_t kStatsStreamFrameBytes = 8192;
 
 // Shared op validation for the view-scoped record subscriptions: an exact
 // field whitelist and bounded optional integers.
@@ -56,51 +50,7 @@ uint32_t uiStreamCurveHash(const ShotCurveRecord &curve, uint16_t count) {
   return hash;
 }
 
-// Set by uiStreamSend for the senders: true when a failed call wrote
-// nothing of a frame header (transient backpressure), so the frame can be
-// deferred to the next dispatch; a partial payload or a dead peer leaves it
-// false and the caller must close the session. httpd serializes every send
-// on its own thread, so the flag needs no lock.
-bool uiStreamSendCleanAbort = false;
-
-int uiStreamSendFailed(size_t done, size_t length) {
-  uiStreamSendCleanAbort =
-      done == 0 && length <= kUiStreamHeaderMax &&
-      errno != EPIPE && errno != EBADF && errno != ECONNRESET &&
-      errno != ENOTCONN && errno != ENOTSOCK;
-  return -1;
-}
-
-// IDF's WS sender calls send_fn once per header/payload and accepts short writes.
-// Complete each write or fail within 100 ms, including slow-client backpressure.
-int uiStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int flags) {
-  const uint32_t started = millis();
-  size_t done = 0;
-  while (done < length) {
-    const uint32_t age = millis() - started;
-    if (age >= 100) {
-      errno = EAGAIN;
-      return uiStreamSendFailed(done, length);
-    }
-    fd_set writable;
-    FD_ZERO(&writable);
-    FD_SET(fd, &writable);
-    timeval wait = {0, static_cast<suseconds_t>((100 - age) * 1000)};
-    const int ready = select(fd + 1, nullptr, &writable, nullptr, &wait);
-    if (ready < 0 && (errno == EBADF || errno == EINVAL))
-      return uiStreamSendFailed(done, length);
-    if (ready <= 0) {
-      // The write budget ran out with the socket still congested.
-      errno = EAGAIN;
-      return uiStreamSendFailed(done, length);
-    }
-    const int sent = send(fd, data + done, length - done, flags | MSG_DONTWAIT);
-    if (sent > 0) done += static_cast<size_t>(sent);
-    else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
-      return uiStreamSendFailed(done, length);
-  }
-  return static_cast<int>(done);
-}
+#include "ShotStopperUiStreamTransport.inc"
 }  // namespace
 
 #include "ShotStopperHomeStream.inc"
@@ -140,6 +90,7 @@ void ShotStopperNetwork::uiStreamFree(void *context) {
 }
 
 esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
+  uiStreamSendKind = "control";
   ShotStopperNetwork &self = *instance_;
   auto *session = static_cast<UiStreamSession *>(request->sess_ctx);
   if (!session) return ESP_FAIL;
@@ -424,6 +375,7 @@ void ShotStopperNetwork::uiStreamDispatch(void *context) {
     }
     if (!allowed) {
       if (session.bound) {
+        uiStreamSendKind = "close";
         uint8_t code[] = {0x0f, 0xa1};  // 4001: ownership taken over.
         httpd_ws_frame_t close = {};
         close.type = HTTPD_WS_TYPE_CLOSE;
@@ -438,6 +390,7 @@ void ShotStopperNetwork::uiStreamDispatch(void *context) {
       self.sendUiStream(session);
     }
   }
+  uiStreamSendKind = "control";
   self.uiStreamWorkPending_.store(false, std::memory_order_release);
 }
 
@@ -496,6 +449,7 @@ void ShotStopperNetwork::sendUiStream(UiStreamSession &session) {
 bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
                                       const ControlStatusSnapshot &control,
                                       const ShotLogRecord &latest, bool eligible) {
+  uiStreamSendKind = "shot";
   ShotCurveRecord &curve = workBuf_->serializedCurve;
   const PersistedLastShot &cycle = control.homeCycle;
   const bool live = control.activeCycle || control.homePending;

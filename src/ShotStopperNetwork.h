@@ -395,7 +395,7 @@ class ShotStopperNetwork {
     // until its terminating frame; a deferred send keeps this state intact.
     bool statsPaging = false, statsPageSnapshot = false, statsPageFetch = false;
     size_t statsSent = 0;
-    uint32_t statsPageEpoch = 0, statsPageRequest = 0;
+    uint32_t statsPageEpoch = 0, statsPageRequest = 0, statsSentAtMs = 0;
     uint32_t statsRequest = 0, statsFetchRequest = 0;
     char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
     bool bound = false, resync = true;

@@ -51,6 +51,7 @@ target_include_directories(micra_cancellation_host_test PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/micra_stubs" "${CMAKE_CURRENT_BINARY_DIR}")
 host_test(micra_stomp_host_test LABEL "host;network;concurrency")
 host_test(boot_heap_host_test LABEL "host;resources;network;concurrency")
+host_test(ui_stream_transport_host_test LABEL "host;network")
 
 if(SHOTSTOPPER_SANITIZER STREQUAL "thread")
   foreach(case M09 R25c F03 F04 F17 IT10 IT28 SH01 RACE06)
