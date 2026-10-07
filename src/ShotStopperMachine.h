@@ -276,7 +276,7 @@ inline MachineStatusSample machineSampleStatus() {
   return {rawOn, running, circuitElapsedMs, runState};
 }
 
-inline void machineFillStatus(ControlStatusSnapshot &status,
+inline void machineFillStatus(ControlStatusFields &status,
                               const MachineStatusSample &sample) {
   status.rawActivatorOn = sample.rawOn;
   status.physicalActivatorOn = sample.rawOn;

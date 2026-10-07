@@ -90,6 +90,10 @@ void testDepthLimitRejectsWithoutDamagingPriorDocument() {
   const uint32_t before = shotstopper::jsonDocumentLimitRejections();
   CHECK(shotstopper::parseJsonDocument(deep.c_str()) == nullptr);
   CHECK(shotstopper::jsonDocumentLimitRejections() == before + 1);
+  // A 160-byte UI frame can still exceed the parser's recursion budget.
+  CHECK(deep.size() <= 160);
+  CHECK(shotstopper::parseJsonDocumentWithinLimits(
+      deep.c_str(), 160, shotstopper::JSON_DOCUMENT_MAX_VALUES) == nullptr);
   CHECK(shotstopper::jsonDocumentLimitRejectedRecently());
   CHECK(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(prior, "safe")));
   cJSON_Delete(prior);

@@ -814,9 +814,10 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   }
 
   size_t shotTotal = 0;
+  work.statsCache.valid = false;  // Debug export borrows the same record array.
   if (self.callbacks_.copyShotRecords != nullptr) {
     shotTotal =
-        self.callbacks_.copyShotRecords(work.shotRecords, SHOT_LOG_CAPACITY);
+        self.callbacks_.copyShotRecords(work.statsCache.snapshot.records, SHOT_LOG_CAPACITY);
   }
   const size_t recent =
       shotTotal < DEBUG_EXPORT_SHOT_SUMMARY_LIMIT
@@ -827,7 +828,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
                          "\"shotLogSummary\":{\"total\":%lu,\"recent\":[",
                          static_cast<unsigned long>(shotTotal));
   for (size_t index = 0; ok && index < recent; ++index) {
-    const ShotLogRecord &record = work.shotRecords[index];
+    const ShotLogRecord &record = work.statsCache.snapshot.records[index];
     ok = debugExportChunkf(
         request, buf, cap,
         "%s{\"id\":%lu,\"bootId\":%lu,\"durationDs\":%u,\"goalWeightG\":%u,"

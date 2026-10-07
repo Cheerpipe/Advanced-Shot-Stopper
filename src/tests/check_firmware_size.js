@@ -53,11 +53,17 @@ const externalBssBytes = symbolAddress('_ext_ram_bss_end') - symbolAddress('_ext
 if (externalBssBytes < 0 || externalBssBytes > config.maximumExternalBssBytes) {
   failures.push(`external BSS ${externalBssBytes} > budget ${config.maximumExternalBssBytes}`);
 }
-for (const name of ['localBuzzer', 'taskProfiler']) {
+for (const name of ['localBuzzer', 'taskProfiler', 'publishedControlStatus',
+                    'controlStatusMutex', 'publishedControlGate', 'controlGateMutex']) {
   const address = symbolAddress(name);
   if (address < 0x3fc80000 || address >= 0x3fd00000) {
     failures.push(`${name} must remain in internal SRAM`);
   }
+}
+const curveAddress = symbolAddress('publishedControlCurve');
+if (curveAddress < symbolAddress('_ext_ram_bss_start') ||
+    curveAddress >= symbolAddress('_ext_ram_bss_end')) {
+  failures.push('publishedControlCurve must reside in external BSS');
 }
 console.log(`external BSS: ${externalBssBytes} (budget ${config.maximumExternalBssBytes})`);
 if (actual.image > slotLimits[arch]) {

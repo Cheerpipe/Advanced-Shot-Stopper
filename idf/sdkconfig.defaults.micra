@@ -5,5 +5,7 @@
 # CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC is not set
 CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y
 CONFIG_MBEDTLS_DYNAMIC_BUFFER=y
+# The transport's HTTP upgrade buffer also exceeds ALWAYSINTERNAL=2048.
+CONFIG_WS_BUFFER_SIZE=4096
 # Reuse the cloud's TLS 1.3 tickets after it closes an HTTP connection.
 CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y

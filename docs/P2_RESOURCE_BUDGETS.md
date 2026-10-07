@@ -115,6 +115,10 @@ required before qualification. PSRAM access may slow NVS integer operations.
 Both linker maps must also keep external BSS at or below 800 KiB (819,200 bytes) and retain
 `localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
 objects to PSRAM would move synchronization state accessed under spinlocks.
+The same map check now requires the published control scalars, control gate and
+their mutexes to stay internal, and the published curve payload to reside in
+external BSS. Runtime session fingerprints remain part of the explicitly
+external Network allocation.
 The timestamped-curve Micra development profile measured 756,272 external-BSS bytes,
 183,510 DIRAM bytes and a 2,188,640-byte image with the task-only pending finalizer
 in PSRAM. This ceiling detects
@@ -181,18 +185,18 @@ cases also remain pending; the successful full transfer does not qualify them.
 
 | Resource | Placement and bound |
 |---|---|
-| Network work buffer | external, measured 629,376 bytes on ESP32-S3, bounded at 640 KiB; includes the 498,400-byte curve read copy, 22,016-byte curve JSON, 23,552-byte row JSON, 40,960-byte status JSON and dedicated curve staging; handlers share the work-buffer mutex |
+| Network work buffer | external, bounded at 640 KiB; includes the existing 498,400-byte curve read copy in a reusable coherent Stats capture, 22,016-byte curve JSON, 26,112-byte row JSON, 40,960-byte status JSON, dedicated curve staging, 2,816 bytes of session fingerprints and a bounded page header/cache key; handlers share the work-buffer mutex. The earlier 629,376-byte measurement predates this layout; verify the current size in the matched firmware build |
 | HTTP response send | complete assets and JSON use HTTPD Content-Length responses; streamed bodies retain chunked transfer. Source buffers pass directly to HTTPD's default socket send, which copies into lwIP; no application bounce buffer or extra copy |
 | NVS metadata cache | PSRAM preferred with internal fallback on n16r8; n8r4 retains its existing placement; flash I/O still uses the internal scratch below |
 | Shot-curve store | external, 498,420-byte cache for 100 records of 4,984 bytes; bounded block-header index and two 5,088-byte disk/verification workspaces belong to the same owner; immutable worker image is separately external |
-| Curve capture/finalization | external task-owned 1201-observation sampler and pending/finalization snapshots; no large curve local on control or HTTP stacks; the established mutex-protected published status remains internal, bounded at 6,912 bytes, including one small Home lifecycle result; the retained runtime result lives in PSRAM |
-| Home live stream | two fixed session contexts and one coalesced dispatch on the existing priority-1 tasks; 128 field fingerprints per session (1 KiB combined) plus boot/clock anchors deduplicate Home independently of the shot; shared 23,552-byte external row workspace and 22,016-byte curve scratch, with no extra TX allocation; 1201 curve points maximum, 100 ms progress cadence and no unchanged data; four HTTP sockets retained |
+| Curve capture/finalization | external task-owned 1201-observation sampler and pending/finalization snapshots; the published scalar status stays internal, bounded at 2,048 bytes; its 4,955-byte curve array payload moves to PSRAM (plus alignment), with the same mutex/version covering both parts. The full reader snapshot stays bounded at 6,912 bytes in the external HTTP workspace; no control-path allocation or large stack local |
+| Home live stream | two fixed internal session contexts and one coalesced dispatch on the existing priority-1 tasks; 128 Home and 224 Diagnostic field fingerprints per session occupy 2,816 bytes in the external workspace; boot/clock anchors stay internal. Shared 26,112-byte external row workspace and 22,016-byte curve scratch, with no extra TX allocation; 1201 curve points maximum, 100 ms progress cadence and no unchanged data; four HTTP sockets retained |
 | Shared flash-I/O scratch | internal heap, 3,328-byte capacity for one 3,304-byte PersistedSettings record; slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
 | USB serial output | internal heap, 2,064 bytes for the eight-record ESP log queue; one external 2,560-byte CLI reply buffer; startup failures free both allocations, and successful startup retains one boot-lifetime owner |
 | Micra cloud workspace | external and lazy; a 6,344-byte work buffer on ESP32-S3 holds identity, tokens, authorization header, and client state while cloud observation is active, plus one request-scoped 16 KiB buffer whose mutually exclusive request-body and response phases share storage (22,728 bytes combined, excluding HTTP/TLS library allocations); Disconnect, disabled observation, STA loss, and AP entry destroy the client and free both blocks |
 | Micra WS/STOMP scratch | PSRAM-only reusable block, capped at 24 KiB; includes 17410 B accumulator, two 1025 B header scratch arrays, signed-header/CONNECT storage, and 60 × 12 B rate bins; retained across shot/acquisition pauses, freed after callback quiescence for API/disable/identity/network/maintenance changes |
-| Micra WS SDK allocations | separate 6144 B internal task stack in the current memory trial, core 0 priority 1; target stack qualification is pending; fixed RX/TX 1024 B ordinary-heap buffers, event/transport objects and WSS TLS are separate; dynamic SDK buffers and auto-reconnect disabled |
-| Micra/Webhook TLS allocations | external through the Micra profile's mbedTLS allocator (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` from `sdkconfig.defaults.micra`); dynamic record, certificate, handshake, and session objects never fragment internal DRAM on Micra-profile builds and are freed through the matching capability allocator. Other machine profiles keep mbedTLS internal, so webhookS there still draws handshake memory from internal DRAM |
+| Micra SDK transport buffers | HTTP RX/TX 4096 B each; WebSocket RX/TX 4096 B each plus a separate 4096 B upgrade buffer. Ordinary malloc prefers PSRAM above ALWAYSINTERNAL=2048, with possible internal fallback. The 6144 B internal WebSocket task stack remains on core 0 priority 1; event/transport objects and WSS TLS are separate; dynamic SDK buffers and auto-reconnect disabled |
+| Micra TLS allocations | external through the Micra profile's mbedTLS allocator (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` from `sdkconfig.defaults.micra`); dynamic record, certificate, handshake, and session objects use PSRAM without internal fallback. Generic webhooks accept HTTP only and do not create TLS handshakes |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
 | Scale profiler workspace | external, only while a manual capture exists: 256 KiB record buffer, header/context and a bounded per-signal observation cache (32 bytes per signal), and a 32 KiB ordering index after stop (combined ceiling 320 KiB, enforced including the index); freed after the trace is saved and no download is streaming it; capture storage is a dedicated 260 KiB flash partition with a header-last commit |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
@@ -287,7 +291,9 @@ Diagnostic `memoryAllocations` reports cumulative
 successes, failures, largest requested size, and last failed size by owner for
 the application's capability-allocation wrappers. These counters are not live
 allocation counts and do not include allocations made directly by SDK code.
-The retained legacy external-fallback counter stays zero: there is no fallback.
+The retained legacy external-fallback counter stays zero: the application's
+explicit external allocator has no fallback. It does not measure ordinary
+SDK malloc fallback or prove that all SDK allocations landed in PSRAM.
 JSON and Micra-profile mbedTLS still allocate individual objects, but those
 allocations no longer churn the internal heap; an arena would require separate
 lifetime/concurrency evidence.

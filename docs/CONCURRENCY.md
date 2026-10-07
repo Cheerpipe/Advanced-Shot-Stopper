@@ -33,6 +33,18 @@ machine facade supplies a small scalar sample; publication does not allocate a
 second full status snapshot. Readers can use the previous committed version
 while an input owner is busy. The status version is published with the completed
 commit, and refresh acknowledgment follows it.
+The scalar publication stays internal; curve arrays reside in PSRAM. The same
+mutex covers both writes and the full reader copy, so their snapshot version,
+cycle identity and observations cannot tear. The control gate remains a
+separate internal snapshot with its existing owner and lock.
+
+Stats obtains records, curves, aggregate and epoch in one acquisition of
+`shotStoreMutex`, then releases it before sorting or transmission. Its retained
+external capture is protected by the Network workspace mutex. Continuations
+reuse the capture; epoch changes reload it and window/order changes rebuild
+only the page projection. Debug export invalidates this cache before overwriting
+its record array. No second full curve cache or store-lock-to-network-I/O edge
+is introduced.
 
 Scale results, fallback mailboxes and the weight FIFO share one task mutex.
 The consumer checks results and selects a weight only if none is pending,

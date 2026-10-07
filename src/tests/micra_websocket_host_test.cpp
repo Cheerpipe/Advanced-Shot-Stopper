@@ -64,7 +64,7 @@ int pdMS_TO_TICKS(int value) { return value; }
 void taskYIELD() {}
 void *esp_websocket_client_init(const esp_websocket_client_config_t *config) {
   assert(!locked && !callback && config->disable_auto_reconnect);
-  assert(config->task_core_id == 0 && config->task_prio == 1 && config->buffer_size == 1024);
+  assert(config->task_core_id == 0 && config->task_prio == 1 && config->buffer_size == 4096);
   assert(config->network_timeout_ms == 10000);
   ++initCalls;
   if (inhibitAfterInit) shotstopper::outboundBleQuiet.store(true);

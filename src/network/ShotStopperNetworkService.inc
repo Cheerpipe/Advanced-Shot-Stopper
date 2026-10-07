@@ -46,6 +46,9 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
     return false;
   }
   new (workBuf_) NetworkWorkBuf{};
+  static_assert(sizeof(uiStreams_) / sizeof(uiStreams_[0]) ==
+                    sizeof(workBuf_->uiFingerprints) / sizeof(workBuf_->uiFingerprints[0]),
+                "Every UI session needs an external fingerprint slot");
   noteWorkBufExternal(true);
   memset(&g_wifiScan, 0, sizeof(g_wifiScan));
   memset(&g_wifiScanWorking, 0, sizeof(g_wifiScanWorking));

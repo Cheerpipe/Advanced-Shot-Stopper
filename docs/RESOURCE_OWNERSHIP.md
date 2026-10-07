@@ -36,9 +36,15 @@ request; a coalesced HTTP dispatch still owns all serialization. Queue or
 workspace contention preserves the request for a later Network service pass.
 Control never performs serialization or waits for this presentation update.
 
+The published control scalars and synchronization stay in internal RAM, with a
+2 KiB scalar budget. The 1201-point curve payload lives in PSRAM. The same
+publication mutex commits and copies both parts under one snapshot version;
+readers own their complete copy and never retain a mutable publisher pointer.
+
 The same socket carries independent Home field patches, including Equipment,
 quick settings, presets, shared navigation and command readback. Each fixed
-session owns 128 CRC32 field fingerprints and a clock anchor; fields have stable
+session owns a fixed PSRAM slot with 128 Home and 224 Diagnostic CRC32 field
+fingerprints, plus an internal clock anchor; fields have stable
 ordinals and formatting at display precision. Initial/resync frames replace the
 browser cache, then unchanged values produce no data frame. Disconnected scale
 weight/timer are never inspected; a single null transition clears them. Serialization
@@ -48,6 +54,10 @@ activity, rather than a periodic Home REST request.
 The bounded Home presentation projection uses size optimization and shared
 typed formatting calls to keep the existing firmware growth budget; control
 and safety retain the build profile's performance optimization.
+Fingerprint slots belong to the existing external Network workspace and are
+reset in place on handshake and session release. HTTP server shutdown releases
+its contexts before the workspace is freed; no task, allocation, or external
+mutex storage is added.
 
 ScaleService publishes the bounded friendly/raw BLE name in its link
 snapshot and retains the latest successful shot-tare result under the critical
@@ -72,7 +82,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | OTA write handle | `OpenBrewByWeightOta::otaHandle_` (`UniqueResource`) | abort under `FlashIoGuard`; `release()` transfers it exactly once to `esp_ota_end` |
 | OTA SHA context | `OpenBrewByWeightOta::sessionSha256_` (`UniqueResource`) | `psa_hash_abort` then capability-aware heap free |
 | Network command queue and lifecycle semaphores | `OpenBrewByWeightNetwork` (`UniqueResource`) | acquired before task creation; reset in reverse order after manager join |
-| boot heap shaper block | `OpenBrewByWeightNetwork` | one-shot 60,000-byte internal hold taken before Wi-Fi bring-up and released once the station settle floor passes and the applicable late milestones settle (first cloud query terminal, first NTP attempt terminal), expired on the first service pass at or after 60 s even if startup is failing, or freed in `stop()` after owner join; keeps bring-up allocations out of the central DRAM free run; no shaping/retry when the hold cannot be satisfied |
+| boot heap shaper block | `OpenBrewByWeightNetwork` | one-shot 53,248-byte internal hold taken before Wi-Fi bring-up and released once the station settle floor passes and the applicable late milestones settle (first cloud query terminal, first NTP attempt terminal), expired on the first service pass at or after 60 s even if startup is failing, or freed in `stop()` after owner join; keeps bring-up allocations out of the central DRAM free run; no shaping/retry when the hold cannot be satisfied |
 | boot heap capture | `BootHeapCapture`, task-only producers under one internal static `TaskMutex` | fixed payload of at most 768 bytes in PSRAM; first stage samples retained until reset, health-task sampling stops 60 s after release; `BOOT_HEAP` copies each immutable record under the mutex and prints outside it; no task, dynamic allocation, flash write or credential capture |
 | relay `esp_timer` constructor temporaries | local `TimerRollbackOwner` | automatic reverse rollback until both timers and the independent timer are ready |
 | network/webhook tasks | owning service, borrowed `TaskHandle_t` | stop request, task acknowledgement, join, then queues/buffers/clients |
@@ -89,7 +99,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | reset-history durable state | existing maintenance lease and NetworkService persistence owner | control holds clear requests until the machine is configuration-safe; NetworkService writes through the shared flash lock, and control publishes completion only after success |
 | shot history, curves, activation history and last-shot aggregate | `ActivationStores` RAM data layer plus the core-0 persistence worker; Network borrows only through mutex-guarded callbacks | `shotStoreMutex` covers RAM operations and immutable image capture only; no flash/network I/O spans it, and Home receives one control-published exact-ID rating/curve snapshot |
 | webhook queue / payload | `WebhookDispatcher` | internal queue storage and external HTTP payload; release after worker join, or startup rollback |
-| Micra WebSocket/STOMP | cloud worker owns lifecycle; SDK receive task owns framing between callbacks | one reusable PSRAM workspace capped at 24 KiB (header 1024 B decoded in place, body 16384 B, retained frame descriptor and 60 fixed rate bins); 1024 B RX and 1024 B TX library buffers use ordinary heap, separate 6144 B internal SDK stack on core 0 priority 1; no SDK auto-reconnect; stop joins callbacks before destroy/free |
+| Micra WebSocket/STOMP | cloud worker owns lifecycle; SDK receive task owns framing between callbacks | one reusable PSRAM workspace capped at 24 KiB (header 1024 B decoded in place, body 16384 B, retained frame descriptor and 60 fixed rate bins); 4096 B RX and 4096 B TX library buffers and a separate 4096 B upgrade buffer use ordinary malloc with PSRAM preference; separate 6144 B internal SDK stack on core 0 priority 1; no SDK auto-reconnect; stop joins callbacks before destroy/free |
 | Micra-profile TLS state | mbedTLS / owning HTTPS/WSS client | certificate, handshake, record, and session allocations use PSRAM only and are released by mbedTLS; no internal fallback |
 | profiler workspace / capture | core-0 health worker via `TaskProfiler` | control/HTTP publish requests only; external processing workspace and separate internal kernel capture are freed on stop or failed start |
 | scale profile capture/store | core-0 health worker via `ScaleProfiler` | owns the extended capture clock, constant-memory capacity ETA and full-buffer completion; status readers only copy estimates; scale worker and control loop append fixed-size records through one leaf capture mutex after releasing their own locks; the settings_persist worker performs invalidate/save steps against the frozen immutable generation; a download lease pins it against Start/Delete |
@@ -121,6 +131,11 @@ start. No caller may replace the process-wide hooks afterward. This is not a
 resettable arena: simultaneous documents never share storage, and allocation
 failure rejects the current parse without invalidating another document.
 External allocations fail closed; they never fall back to internal RAM.
+UI WebSocket control frames retain their 160-byte wire limit and use this same
+parser's depth and value limits. Micra HTTP RX/TX buffers are 4096 bytes each.
+The SDK's ordinary malloc prefers PSRAM above the 2048-byte threshold, but can
+fall back to internal RAM; this differs from the application's fail-closed
+external allocator and the Micra mbedTLS allocator.
 
 The remaining raw task and server handles are deliberate lifecycle tokens, not
 unowned allocations. Converting a task handle to a destructor that invokes
@@ -136,6 +151,13 @@ sections. Record request IDs distinguish standing windows, scroll fetches, and
 exports; Stats continuations also retain their store epoch and sequence.
 Stats finishes a standing page before serving a queued fetch; a new subscription
 or explicit resync cancels earlier fetches when that operation is accepted.
+Stats captures records, curves, aggregate and epoch under one store lock into
+the existing external workspace. Continuations reuse that immutable capture
+and the sorted page/header/fingerprint until its epoch or window/order changes.
+Sessions retain their own request identity, sequence and cursor. Debug export
+invalidates the cache before borrowing the record array. A capture that sees a
+newer epoch than the initial probe starts a new page sequence. Store locks are
+released before sorting, hashing, JSON formatting or sending.
 Other API requests remain exclusive, including commands and OTA. Four HTTP
 sockets and a four-connection backlog also accommodate lazy HTML and JavaScript
 downloads.

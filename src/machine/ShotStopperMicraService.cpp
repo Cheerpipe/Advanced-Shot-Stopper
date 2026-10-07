@@ -2093,8 +2093,9 @@ bool ShotStopperMicraService::request(
     config.crt_bundle_attach = esp_crt_bundle_attach;
     config.event_handler = httpEvent;
     config.user_data = this;
-    config.buffer_size = 1024;
-    config.buffer_size_tx = 1024;
+    // Above ALWAYSINTERNAL=2048: ordinary SDK malloc prefers PSRAM.
+    config.buffer_size = 4096;
+    config.buffer_size_tx = 4096;
     config.save_client_session = true;
     config.is_async = true;
     work_->client = esp_http_client_init(&config);
