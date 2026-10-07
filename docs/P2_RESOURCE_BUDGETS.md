@@ -305,6 +305,12 @@ The 4096-byte OTA transfer chunk remains request-scoped; retain it across
 requests only if target traces justify the extra resident memory.
 
 Internal-heap diagnostics also publish allocated, free, and total block counts.
+Heap alerts use raw internal free bytes and the largest block. A valid zero
+is exhaustion, including a zero largest block. Invalid or stale samples cannot
+clear the heap latch or request a restart; a fresh valid sample is needed.
+The existing hysteresis, five-minute sustained-low window and configuration-safe,
+open-circuit restart admission remain unchanged. Shaper-held memory is unavailable
+until released and is never added to these health readings.
 `internalHeapFragmentationPermille` is
 `1000 × (total free - largest free block) / total free`, guarded to zero when
 total free is zero or the reported largest block covers it. ESP32-S3 internal

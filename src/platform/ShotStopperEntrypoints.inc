@@ -121,10 +121,9 @@ void healthWorkerTask(void *) {
       sample.hwmon = hwmon.sample(HEALTH_TELEMETRY_INTERVAL_MS);
 #endif
       const bool heapLow =
-          sample.heap.internalFree > 0 &&
+          sample.heapValid &&
           (sample.heap.internalFree < HEALTH_HEAP_FREE_ALERT_BYTES ||
-           (sample.heap.internalLargest > 0 &&
-            sample.heap.internalLargest < HEALTH_HEAP_LARGEST_ALERT_BYTES));
+           sample.heap.internalLargest < HEALTH_HEAP_LARGEST_ALERT_BYTES);
       if (heapLow) {
         if (heapLowSinceMs == 0) heapLowSinceMs = now;
         sample.restartRequested =
@@ -159,7 +158,8 @@ void serviceHealthWorkerSample() {
       xQueueReceive(healthSampleQueue, &sample, 0) == pdTRUE) {
     healthSnapshotVersion = sample.version;
     healthSnapshotAtMs = sample.sampledAtMs;
-    healthSnapshotValid = sample.heapValid;
+    healthSnapshotValid = sample.heapValid && sample.version != 0 &&
+        elapsedMs(sample.sampledAtMs) <= HEALTH_SAMPLE_STALE_MS;
     freeHeapBytes = sample.heap.internalFree;
     minimumFreeHeapBytes = sample.heap.internalMinimum;
     largestFreeHeapBlockBytes = sample.heap.internalLargest;
@@ -183,7 +183,7 @@ void serviceHealthWorkerSample() {
     loopIntervalGapMs = healthIntervalMaxGapMs;
     loopPhaseProfiler.publishIntervalGap(loopIntervalGapMs);
     healthIntervalMaxGapMs = 0;
-    if (sample.restartRequested && !healthHeapRestartLatched &&
+    if (healthSnapshotValid && sample.restartRequested && !healthHeapRestartLatched &&
         controlAllowsConfigurationNow() && !circuitClosed) {
       healthHeapRestartLatched = true;
       addDebugEvent(DebugCategory::SYSTEM, DebugCode::HEALTH_HEAP_RESTART,
@@ -193,7 +193,7 @@ void serviceHealthWorkerSample() {
     }
   }
   healthSnapshotValid =
-      healthSnapshotVersion != 0 &&
+      healthSnapshotValid &&
       elapsedMs(healthSnapshotAtMs) <= HEALTH_SAMPLE_STALE_MS;
   if (!healthSnapshotValid) hwmonSnapshot.cpuLoadValid = false;
 }
@@ -571,15 +571,13 @@ void setup() {
 
 void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs) {
   const bool heapLow =
-      freeHeapBytes > 0 &&
+      healthSnapshotValid &&
       (freeHeapBytes < HEALTH_HEAP_FREE_ALERT_BYTES ||
-       (largestFreeHeapBlockBytes > 0 &&
-        largestFreeHeapBlockBytes < HEALTH_HEAP_LARGEST_ALERT_BYTES));
+       largestFreeHeapBlockBytes < HEALTH_HEAP_LARGEST_ALERT_BYTES);
   const bool heapClear =
-      freeHeapBytes == 0 ||
-      (freeHeapBytes >= HEALTH_HEAP_FREE_CLEAR_BYTES &&
-       (largestFreeHeapBlockBytes == 0 ||
-        largestFreeHeapBlockBytes >= HEALTH_HEAP_LARGEST_CLEAR_BYTES));
+      healthSnapshotValid &&
+      freeHeapBytes >= HEALTH_HEAP_FREE_CLEAR_BYTES &&
+      largestFreeHeapBlockBytes >= HEALTH_HEAP_LARGEST_CLEAR_BYTES;
   if (heapLow) {
     if (!healthHeapAlertLatched) {
       healthHeapAlertLatched = true;

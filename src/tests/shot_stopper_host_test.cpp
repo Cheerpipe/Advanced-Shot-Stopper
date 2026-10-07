@@ -16108,6 +16108,7 @@ void s19b_shot_store_io_backoff_resets_for_new_dirty_data() {
 
 void h01_health_threshold_alerts_fire_once_per_crossing() {
   resetHarness(false, true);
+  healthSnapshotValid = true;
   freeHeapBytes = HEALTH_HEAP_FREE_ALERT_BYTES - 1;
   largestFreeHeapBlockBytes = HEALTH_HEAP_LARGEST_CLEAR_BYTES;
   loopStackMinBytes = HEALTH_STACK_MIN_CLEAR_BYTES;
@@ -16155,6 +16156,7 @@ void h01_health_threshold_alerts_fire_once_per_crossing() {
 
 void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   resetHarness(false, true);
+  healthSnapshotValid = true;
   reachReadyFromBoot();
   freeHeapBytes = HEALTH_HEAP_FREE_ALERT_BYTES - 1;
   largestFreeHeapBlockBytes = HEALTH_HEAP_LARGEST_ALERT_BYTES - 1;
@@ -16195,6 +16197,7 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   resetHarness(false, true);
   reachReadyFromBoot();
   freeHeapBytes = HEALTH_HEAP_FREE_ALERT_BYTES - 1;
+  healthSnapshotValid = true;
   largestFreeHeapBlockBytes = HEALTH_HEAP_LARGEST_ALERT_BYTES - 1;
   loopStackMinBytes = HEALTH_STACK_MIN_CLEAR_BYTES;
   setScaleWorkerStackMinBytesForHost(HEALTH_STACK_MIN_CLEAR_BYTES);
@@ -16217,6 +16220,7 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   reachReadyFromBoot();
   (void)startCycle();
   CHECK(session.active);
+  healthSnapshotValid = true;
   freeHeapBytes = HEALTH_HEAP_FREE_ALERT_BYTES - 1;
   largestFreeHeapBlockBytes = HEALTH_HEAP_LARGEST_ALERT_BYTES - 1;
   loopStackMinBytes = HEALTH_STACK_MIN_CLEAR_BYTES;
@@ -16236,6 +16240,7 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   reachReadyFromBoot();
   maintenanceLease.active = true;
   freeHeapBytes = HEALTH_HEAP_FREE_ALERT_BYTES - 1;
+  healthSnapshotValid = true;
   largestFreeHeapBlockBytes = HEALTH_HEAP_LARGEST_ALERT_BYTES - 1;
   loopStackMinBytes = HEALTH_STACK_MIN_CLEAR_BYTES;
   setScaleWorkerStackMinBytesForHost(HEALTH_STACK_MIN_CLEAR_BYTES);
@@ -16244,6 +16249,49 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   serviceHealthThresholdAlerts(0);
   CHECK(!safeRestartPending());
   CHECK(!debugEventExists(DebugCode::HEALTH_HEAP_RESTART));
+}
+
+void h01c_health_zero_is_exhaustion_not_missing_telemetry() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  healthSampleQueue = xQueueCreate(1, sizeof(HealthWorkerSample));
+  HealthWorkerSample sample;
+  sample.version = 1;
+  sample.sampledAtMs = hostMillis;
+  sample.restartRequested = true;
+  // Invalid samples must not become valid merely because their age is fresh.
+  CHECK(xQueueOverwrite(healthSampleQueue, &sample) == pdTRUE);
+  serviceHealthWorkerSample();
+  serviceHealthWorkerSample();
+  CHECK(!healthSnapshotValid && !healthHeapAlertLatched && !safeRestartPending());
+  sample.heapValid = true;
+  sample.sampledAtMs = hostMillis - HEALTH_SAMPLE_STALE_MS - 1;
+  CHECK(xQueueOverwrite(healthSampleQueue, &sample) == pdTRUE);
+  serviceHealthWorkerSample();
+  CHECK(!healthSnapshotValid && !safeRestartPending());
+  sample.sampledAtMs = hostMillis;
+  sample.restartRequested = false;
+  sample.heap.internalFree = HEALTH_HEAP_FREE_CLEAR_BYTES;
+  // A zero largest block also represents exhaustion even with a free total.
+  CHECK(xQueueOverwrite(healthSampleQueue, &sample) == pdTRUE);
+  serviceHealthWorkerSample();
+  CHECK(healthSnapshotValid && healthHeapAlertLatched && !safeRestartPending());
+  sample.heap.internalFree = 0;
+  sample.restartRequested = true;
+  CHECK(xQueueOverwrite(healthSampleQueue, &sample) == pdTRUE);
+  serviceHealthWorkerSample();
+  CHECK(healthHeapAlertLatched && healthHeapRestartLatched && safeRestartPending());
+  sample.heapValid = false;
+  sample.heap.internalFree = HEALTH_HEAP_FREE_CLEAR_BYTES;
+  sample.heap.internalLargest = HEALTH_HEAP_LARGEST_CLEAR_BYTES;
+  CHECK(xQueueOverwrite(healthSampleQueue, &sample) == pdTRUE);
+  serviceHealthWorkerSample();
+  CHECK(healthHeapAlertLatched && healthHeapRestartLatched);
+  sample.heapValid = true;
+  sample.restartRequested = false;
+  CHECK(xQueueOverwrite(healthSampleQueue, &sample) == pdTRUE);
+  serviceHealthWorkerSample();
+  CHECK(!healthHeapAlertLatched && !healthHeapRestartLatched);
 }
 
 void h02_hwmon_cpu_load_uses_refreshed_idle_and_ema() {
@@ -19622,6 +19670,7 @@ const TestCase testCases[] = {
     {"S19b", s19b_shot_store_io_backoff_resets_for_new_dirty_data},
     {"H01", h01_health_threshold_alerts_fire_once_per_crossing},
     {"H01b", h01b_health_heap_low_restarts_only_when_ready_and_sustained},
+    {"H01c", h01c_health_zero_is_exhaustion_not_missing_telemetry},
     {"H02", h02_hwmon_cpu_load_uses_refreshed_idle_and_ema},
     {"H03", h03_task_profiler_start_stop_updates_snapshot},
     {"H04", h04_loop_phase_profiler_publishes_window_and_session_totals},
