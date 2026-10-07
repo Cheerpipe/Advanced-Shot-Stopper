@@ -47,7 +47,7 @@ class ShotStopperMicraService {
   LineaMicraStatus status() const;
   LineaMicraCloudCall cloudCall() const;
   HeapLifecycleAggregate heapTelemetry() const;
-  MicraWebSocketStatus websocketStatus() const;
+  MicraWebSocketStatus websocketStatus(bool includeTraffic = true) const;
   LineaMicraDiscoverySnapshot discovery() const;
   MachinePhysicalStartDisposition physicalStart(MachineBackflushPermit *permit = nullptr);
   MachineBackflushSnapshot backflush(bool consume = false);

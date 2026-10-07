@@ -327,6 +327,7 @@
     "diagnostic.profile_capacity": "Capture capacity used",
     "diagnostic.profile_capacity_hint": "Includes space reserved for the closing event. Recording ends when capacity is full; the trace is saved afterward.",
     "diagnostic.profile_download_failed": "Scale profile download failed",
+    "diagnostic.profile_errors": "Recording storage unavailable|Not enough memory to record|A recording operation is already in progress|Could not prepare recording storage|Could not save the recording|Could not read the saved recording",
     "diagnostic.profile_estimating": "Estimating…",
     "diagnostic.profile_incomplete": "Incomplete ({n} lost)",
     "diagnostic.profile_remaining": "Estimated time remaining",

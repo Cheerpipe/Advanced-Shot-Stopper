@@ -211,6 +211,9 @@ when those sections have arrived. New log entries appear automatically while
 Diagnostic is open, and leaving the page stops its live updates. If the
 connection drops, the interface reconnects and reloads current readings.
 
+In **NVS**, unavailable entry and namespace measurements appear as a dash,
+so a failed measurement is not mistaken for an empty store.
+
 **Diagnostic → Scale → Profiling** records what the scale actually sent and
 what the firmware decided about it. Press **Start** before reproducing a
 problem — for example a wrong tare or an unexpected cup event — and **Stop**
@@ -235,6 +238,9 @@ returns to **Estimating…**; recording stays active.
 The percentage describes the capture, while **Saving…** and **Saved** tell you
 whether it has been stored for a restart. Stopping early keeps the actual
 percentage used rather than changing it to 100%.
+The state also explains recording errors, such as insufficient memory or a
+failed save. If saving fails and **Download** remains available, download the
+trace before restarting to preserve the recording held in memory.
 
 On a 16 MB controller, **Diagnostic → Misc → Coredump** shows how many complete
 crash records are saved, up to two. Unlock Admin to download them. The browser

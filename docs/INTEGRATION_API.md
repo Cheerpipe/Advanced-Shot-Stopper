@@ -295,15 +295,21 @@ the public integration routes described above. Mutations stay confirmed REST
 commands: `POST /api/v1/stats/clear|delete|rate`,
 `POST /api/v1/history/clear|delete`.
 
-Stats and History frames both carry `bootId`, `total`, `offset`, `limit`,
+Stats and History frames both carry `boot`, `total`, `offset`, `limit`,
 `hasMore`, and a small `ui` object (snapshot frames only). Stats frames also
 carry `stats` (the firmware-computed aggregate) and `rows` — the same row
-fields the REST page produced, with each row's curve arrays embedded at the
+fields used for the table and CSV export, with each row's curve arrays embedded at the
 top level; pages larger than the frame budget continue across frames with
 `rowBase` and `more` until a terminating frame. History frames carry
 `records`. Paging and sorting parameters are unchanged: `offset`, `limit`, and `dir` (`asc` or `desc`), plus
 `sort` (`date` or `rating`) for Stats. The page sizes used by the browser are
 ten shots and twenty activations.
+
+The browser derives each shot's error from its displayed yield and goal;
+WS rows omit `errorG` and `errorPct`. Per-shot `bootId` remains part of the
+row identity. History records carry `hasWallTime` and both timestamps;
+the unused `hasWeight` flag is omitted. These owned Web UI projections
+ship with the embedded frontend and do not change the public integration API.
 
 `ui` contains `firmwareVersion`, `configMutable`, `webUiOverrideActive`,
 `compatibilityMode`, `development`, `machineType`, `machineIntegration`,
@@ -384,7 +390,8 @@ and `/api/v1/status/diagnostic` no longer exist.
 
 Diagnostic frames have `v: 1`, `type: "diagnostic"`, `boot`, `snapshot`, and
 `changes`. A field is sent only when its value changed since it was last
-sent, at any cadence: a settled device emits no diagnostic frames at all.
+sent. An unchanged projection emits no frame; displayed ages, uptime,
+traffic and other live measurements can still change on an otherwise idle device.
 Event-driven state (control, safety, guards, maintenance, crash count, NTP
 and Wi-Fi link state, machine integration) is evaluated on every dispatch
 tick and lands within one tick (at most 100 ms during a shot, 250 ms
@@ -394,6 +401,12 @@ per second. Sampled telemetry (heap and CPU health, hardware monitor, NVS
 statistics, steady-state Wi-Fi RSSI and signal quality, task profiler, scale
 profiler, machine-integration traffic counters) shares a four-second
 evaluation gate, so its producers cost no more than the retired status poll.
+NTP synchronization age/retry countdowns and raw Micra subscription/reconnect
+counters are not sent to this view. The task-profiler projection includes
+the displayed CPU, stack and loop-gap measurements; the full debug export
+retains additional capture and execution statistics. Scale-profile action
+availability and errors remain in the live projection, while internal
+session and storage metadata remain owned by the profiler.
 A snapshot arrives in stages: the core frame carries the live projection and
 the following frames deliver the heavier sections; the page renders each
 section as it lands. The wall clock is not streamed: the page renders UTC and
@@ -402,11 +415,14 @@ local time from the Home stream's time anchor and ticks locally.
 The serial log subscribes on the same socket with
 `{"op":"log","on":true,"after":<last rendered sequence>}` while the page is
 shown and unsubscribes on navigation. Log frames have `v: 1`, `type: "log"`,
-the retired REST log payload shape (`bootId`, `dropped`, `historyOverwritten`,
-`missedEvents`, `serialDropped`, `serialTruncated`, `hasMore`,
+the display payload (`bootId`, `historyOverwritten`,
+`missedEvents`, `serialDropped`, `hasMore`,
 `cursorInvalid`, `events`), and are pushed when the log ring advances; a
 backlog pages across dispatches with `hasMore`, and an invalidated cursor
 refills the view from the oldest retained event without a client round trip.
+Each event carries `sequence`, `atMs`, `wallSec`, `localSec`, `level`,
+`category` and the formatted `message`; internal event codes and arguments
+are retained in the firmware rather than repeated on the wire.
 
 Commands from the Diagnostic page (log levels, profiler start and stop, loop
 and scale-gap resets, reset-history clearing, machine-integration refresh)

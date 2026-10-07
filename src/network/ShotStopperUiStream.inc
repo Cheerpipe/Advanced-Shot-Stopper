@@ -481,10 +481,8 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
     card = shotLogProjectLastShot(latest, linked);
     curve = workBuf_->homeCurve;
   } else resetShotCurveRecord(curve);
-  const bool savePending = eligible && callbacks_.shotLogSavePending && callbacks_.shotLogSavePending();
-  char preset[sizeof(card.presetName) * 6], scale[sizeof(card.scaleName) * 6];
+  char preset[sizeof(card.presetName) * 6];
   escapeJsonString(card.presetName, preset, sizeof(preset));
-  escapeJsonString(card.scaleName, scale, sizeof(scale));
   char weight[32] = "null", flow[32] = "null", drop[16] = "null", tare[16] = "null";
   if (card.weightValid && std::isfinite(card.currentWeightG))
     snprintf(weight, sizeof(weight), "%.2f", static_cast<double>(card.currentWeightG));
@@ -500,21 +498,19 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   char *output = workBuf_->jsonItem;
   const int cardBytes = snprintf(output, NetworkWorkBuf::kJsonItem,
       "\"phase\":\"%s\",\"card\":{\"valid\":%s,\"live\":%s,\"weight\":%s,"
-      "\"weightValid\":%s,\"goal\":%u,\"elapsedMs\":%lu,\"firstDropMs\":%s,"
-      "\"tareMs\":%s,\"presetName\":\"%s\",\"scaleName\":\"%s\","
+      "\"goal\":%u,\"elapsedMs\":%lu,\"firstDropMs\":%s,"
+      "\"tareMs\":%s,\"presetName\":\"%s\","
       "\"scaleAvailable\":%s,\"shotType\":\"%s\",\"endReason\":\"%s\",\"averageFlowGps\":%s,"
-      "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,"
-      "\"rating\":%u,\"savePending\":%s}",
+      "\"extractionExtended\":%s,\"slowExtractionExtended\":%s}",
       phase, card.valid ? "true" : "false", control.activeCycle ? "true" : "false",
-      weight, card.weightValid ? "true" : "false", card.goalWeightG,
-      static_cast<unsigned long>(card.durationMs), drop, tare, preset, scale,
+      weight, card.goalWeightG,
+      static_cast<unsigned long>(card.durationMs), drop, tare, preset,
       card.scaleAvailable ? "true" : "false",
       lastShotTypeName(static_cast<LastShotType>(card.shotType)),
       !live && !retained && eligible ? shotLogStopDetailName(static_cast<ShotLogStopDetail>(latest.stopDetail))
                                   : shotLogStopDetailName(shotLogStopDetailFromEndReason(
                                         card.endReason, card.fastExtractionGuardEnabled, card.extractionExtended)),
-      flow, card.extractionExtended ? "true" : "false", card.slowExtractionExtended ? "true" : "false",
-      card.rating, savePending ? "true" : "false");
+      flow, card.extractionExtended ? "true" : "false", card.slowExtractionExtended ? "true" : "false");
   if (cardBytes <= 0 || static_cast<size_t>(cardBytes) >= NetworkWorkBuf::kJsonItem)
     return true;
   const uint32_t markers = crc32Update(0xFFFFFFFFU,
@@ -537,13 +533,12 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   char envelope[384];
   const int envelopeBytes = snprintf(envelope, sizeof(envelope),
       "{\"v\":1,\"boot\":%lu,\"seq\":%lu,\"base\":%lu,\"revision\":%lu,"
-      "\"snapshot\":%s,\"cycle\":%lu,\"shotId\":%lu,\"latestShotId\":%lu,"
-      "\"remainingMs\":%lu,\"stale\":%s,\"curveBase\":%u,\"cursor\":%u,",
+      "\"snapshot\":%s,\"cycle\":%lu,\"shotId\":%lu,"
+      "\"stale\":%s,\"curveBase\":%u,\"cursor\":%u,",
       static_cast<unsigned long>(control.bootId), static_cast<unsigned long>(session.sequence + 1),
       static_cast<unsigned long>(session.sequence), static_cast<unsigned long>(control.snapshotVersion),
       replace ? "true" : "false", static_cast<unsigned long>(card.cycleId),
-      static_cast<unsigned long>(card.shotLogId), static_cast<unsigned long>(eligible ? latest.id : 0),
-      static_cast<unsigned long>(retained ? kUiStreamRetainMs - age : 0),
+      static_cast<unsigned long>(card.shotLogId),
       control.snapshotStale ? "true" : "false", base, curve.count);
   size_t used = static_cast<size_t>(cardBytes);
   bool ok = formatted && envelopeBytes > 0 && static_cast<size_t>(envelopeBytes) < sizeof(envelope);

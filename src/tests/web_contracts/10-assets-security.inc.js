@@ -275,23 +275,22 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       lastLog: 9, logMissed: 0, LOG_EVENTS_CAPACITY: 500, activeView: 'diagnostic',
       updateLogHealth() {}, renderLog: () => {rendered++;}, updateFirmwareFooter() {},
       noteReachOk() {}, noteReachFail() {}});
-    const logLines = rawRuntimeJs.split('\n');
-    const applyStart = logLines.findIndex(line => line.startsWith('function applyLogFrame('));
-    let applyEnd = applyStart + 1;
-    while (logLines[applyEnd] !== '}') applyEnd++;
-    const logFns = logLines.slice(applyStart, applyEnd + 1).join('\n');
+    const logFns = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function logStreamFrame('),
+        rawRuntimeJs.indexOf('function diagSnapshotOk('));
     vm.runInContext(logFns, logContext);
     const event = sequence => ({sequence, atMs: 1, wallSec: 0, localSec: 0,
-      level: 'info', category: 'web', code: 1, message: 'm', argument1: 0, argument2: 0});
-    logContext.applyLogFrame({bootId: 3, dropped: 0, historyOverwritten: 0,
-      missedEvents: 2, serialDropped: 0, serialTruncated: 0, hasMore: false,
-      cursorInvalid: false, events: [event(10), event(11)]});
+      level: 'info', category: 'web', message: 'm'});
+    const frame = {v: 1, type: 'log', bootId: 3, historyOverwritten: 0,
+      missedEvents: 2, serialDropped: 0, hasMore: false,
+      cursorInvalid: false, events: [event(10), event(11)]};
+    logContext.applyLogFrame(logContext.logStreamFrame(frame));
+    for (const bad of [{...frame, missedEvents: null}, {...frame, events: [{...event(12), message: 4}]}])
+      assert.throws(() => logContext.logStreamFrame(bad));
     assert.equal(rendered, 1);
     assert.equal(logContext.lastLog, 11);
     assert.equal(logContext.logMissed, 2);
-    logContext.applyLogFrame({bootId: 4, dropped: 0, historyOverwritten: 0,
-      missedEvents: 0, serialDropped: 0, serialTruncated: 0, hasMore: false,
-      cursorInvalid: false, events: [event(1)]});
+    logContext.applyLogFrame(logContext.logStreamFrame({...frame, bootId: 4,
+      missedEvents: 0, events: [event(1)]}));
     assert.equal(logContext.logEvents.length, 1,
         'a boot change must clear the rendered log');
     assert.equal(logContext.lastLog, 1);

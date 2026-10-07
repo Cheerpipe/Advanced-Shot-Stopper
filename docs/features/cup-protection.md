@@ -19,6 +19,9 @@ A cup-start refusal holds the relay open for that attempt. Release the physical
 activator, correct the cup/scale condition, then activate again. A blocked
 held button is not forwarded halfway through the hold.
 
+When cup removal stops a shot, Home's cup-protection status shows that the
+shot was aborted after brewing ends.
+
 On Linea Micra, a recognized standby wake gesture is not a brew attempt, so
 **Require cup to start** does not block it or emit a missing-cup alert. See
 [Linea Micra](../settings/linea-micra.md#recognize-paddle-wake-gestures).

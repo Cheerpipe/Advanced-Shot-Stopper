@@ -22,10 +22,10 @@ struct ShotStopperMicraService::WebSocketBuffer {
   uint8_t attempts = 0;
 };
 
-MicraWebSocketStatus ShotStopperMicraService::websocketStatus() const {
+MicraWebSocketStatus ShotStopperMicraService::websocketStatus(bool includeTraffic) const {
   TaskLockGuard lock(mux_);
   MicraWebSocketStatus result = websocketStatus_;
-  if (websocket_ != nullptr) {
+  if (includeTraffic && websocket_ != nullptr) {
     const uint64_t second = static_cast<uint64_t>(esp_timer_get_time()) / 1000000;
     for (const auto &bin : websocket_->rates) {
       if (second - bin.second < 60) {

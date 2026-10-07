@@ -705,6 +705,14 @@ if (!ui.includes('<legend>Brew</legend>') ||
   assert.equal(nodes.hProfileRemaining.textContent, '—');
   render({...profile, state: 'saved', recordCount: 4096, reservedRecords: 0});
   assert.match(nodes.hProfileCapacity.textContent, /^50%/);
+  render({...profile, state: 'stopped', persistence: 'failed', lastError: 'save_failed', canDownload: true});
+  assert.match(nodes.hProfileState.textContent, /Could not save the recording/);
+  assert.equal(nodes.scaleProfileDownloadButton.disabled, false);
+  render({...profile, partitionAvailable: false, lastError: 'no_partition'});
+  assert.equal(nodes.hProfileState.textContent, 'Recording storage unavailable');
+  assert.equal(nodes.scaleProfileStopButton.disabled, true);
+  render({...profile, lastError: 'none'});
+  assert(!nodes.hProfileState.textContent.includes('Could not'));
   runtime.webUiOwner = false;
   render(profile);
   assert.equal(nodes.scaleProfileStopButton.disabled, true);
@@ -713,7 +721,7 @@ if (!ui.includes('<legend>Brew</legend>') ||
   render(null);
   assert.equal(nodes.hProfileCapacity.textContent, '—');
   assert.equal(nodes.hProfileRemaining.textContent, '—');
-  for (const name of ['recordBytes', 'reservedRecords', 'estimatedRemainingMs'])
+  for (const name of ['lastError', 'reservedRecords', 'estimatedRemainingMs'])
     assert.ok(network.includes(`\\"${name}\\"`), `Missing profiler status field ${name}`);
   assert.ok(!source.includes('p.durationLimitMs'), 'Profiler UI must not display a fixed deadline');
 }
@@ -900,7 +908,6 @@ if (!ui.includes('id="shotTable"') ||
     js.includes("message('Request queued.','ok')") ||
     js.includes('Request queued successfully.') ||
     !network.includes('hasWallTime') ||
-    !network.includes('hasWeight') ||
     !network.includes('endedAtLocalSec') ||
     !network.includes('\\"presetName\\":\\"%s\\"') ||
     !network.includes('SHOT_LOG_CLEAR_NOT_CONFIRMED')) {
@@ -1290,7 +1297,7 @@ if (!statsSection ||
           {op: 'stats', on: true, request: 1, offset: 0, limit: 10, sort: 'date', dir: 'desc'},
           'Entering the view subscribes with the standing window');
       const frame = extras => Object.assign({v: 1, type: 'stats', boot: 9, snapshot: true,
-        epoch: 5, request: 1, seq: 1, ui, bootId: 9, stats: {avgDurationS: 28}, total: 2, offset: 0,
+        epoch: 5, request: 1, seq: 1, ui, stats: {avgDurationS: 28}, total: 2, offset: 0,
         limit: 10, hasMore: false, rows: [row(2)], rowBase: 0, more: true}, extras);
       context.applyStatsStream(context.statsStreamFrame(frame()));
       assert.deepEqual(events, ['state'], 'A split page applies nothing until more:false');
@@ -1387,11 +1394,11 @@ if (!statsSection ||
           rawRuntimeJs.indexOf("document.addEventListener('visibilitychange'"));
       vm.runInContext(stream, context);
       const frame = extras => Object.assign({v: 1, type: 'history', boot: 9, snapshot: true,
-        epoch: 5, request: 1, ui, bootId: 9, total: 2, offset: 0, limit: 20, hasMore: false,
+        epoch: 5, request: 1, ui, total: 2, offset: 0, limit: 20, hasMore: false,
         records: [
-          {id: 2, type: 'shot', durationS: 28.5, hasWeight: true, hasWallTime: true,
+          {id: 2, type: 'shot', durationS: 28.5, hasWallTime: true,
            endedAtUnixSec: 1790809185, endedAtLocalSec: 1790794385},
-          {id: 1, type: 'rinse', durationS: 4, hasWeight: false, hasWallTime: false,
+          {id: 1, type: 'rinse', durationS: 4, hasWallTime: false,
            endedAtUnixSec: 0, endedAtLocalSec: 0}]}, extras);
       context.applyHistoryStream(context.historyStreamFrame(frame()));
       assert.deepEqual(events, ['state', 'records:replace', 'render:false'],

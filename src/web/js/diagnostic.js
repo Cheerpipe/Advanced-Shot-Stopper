@@ -77,10 +77,11 @@ function applyLoopTiming(s){
 let profileBusy=false;
 function applyScaleProfile(p){
 const set=(key,value)=>{$('hProfile'+key).textContent=value},valid=p&&p.partitionAvailable;
+const error=__WEBUI_TEXT__("diagnostic.profile_errors").split('|')[['no_partition','allocation','busy','invalidate_failed','save_failed','index_failed'].indexOf(p?.lastError)]||'';
 ['Start','Stop','Delete','Download'].forEach(key=>{$('scaleProfile'+key+'Button').disabled=!valid||!p['can'+key]||!R.webUiOwner});
-if(!valid){set('State',__WEBUI_TEXT__("diagnostic.profile_unavailable"));['Elapsed','Records','Capacity','Remaining'].forEach(key=>set(key,'—'));return}
+if(!valid){set('State',error||__WEBUI_TEXT__("diagnostic.profile_unavailable"));['Elapsed','Records','Capacity','Remaining'].forEach(key=>set(key,'—'));return}
 const SN=__WEBUI_TEXT__("diagnostic.profile_state_names").split('|'),VN=__WEBUI_TEXT__("diagnostic.profile_saved_names").split('|'),si=['empty','preparing','recording','stopped','saved'].indexOf(p.state),vi=['none','pending','saving','saved','invalidating','failed'].indexOf(p.persistence);
-set('State',(SN[si]||p.state)+(p.stopReason&&p.stopReason!=='none'?' ('+p.stopReason+')':'')+(VN[vi]?' · '+VN[vi]:''));
+set('State',(SN[si]||p.state)+(p.stopReason&&p.stopReason!=='none'?' ('+p.stopReason+')':'')+(VN[vi]?' · '+VN[vi]:'')+(error?' · '+error:''));
 set('Elapsed',R.formatUptime(p.elapsedMs));
 set('Capacity',p.recordCapacity?Math.floor(100*(p.recordCount+(p.reservedRecords||0))/p.recordCapacity)+'%':'—');
 const eta=p.estimatedRemainingMs;

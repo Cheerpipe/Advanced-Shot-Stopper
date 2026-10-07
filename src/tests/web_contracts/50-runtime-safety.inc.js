@@ -185,10 +185,9 @@ if (soundAlertStatusFields.length !== 1 ||
 const alertChannelStatusFields =
     statusFormat.match(/\\"alertOutputChannel\\":\\"%s\\"/g) || [];
 if (alertChannelStatusFields.length !== 1 ||
-    !network.includes('delta.field("config.alertOutputChannel"') ||
     !statusFormat.includes('page == StatusPage::Settings')) {
   throw new Error(
-      'alertOutputChannel must be projected by the Home stream and status/settings');
+      'alertOutputChannel must remain available in status/settings');
 }
 // Shared status envelope: firmware/bootId/mutable/liveShot/ringRetain only.
 // NTP → admin; serialDebug/diagnostics → diagnostic; buzzerSupported → settings.
@@ -226,7 +225,7 @@ if (network.includes('page == StatusPage::Diagnostic')) {
   for (const field of [
     'apActive', 'apSsid', 'apIp', 'apClients', 'wifiConfigured', 'ssid', 'staState',
     'wifiPs', 'wifiCoex', 'channel', 'staIp', 'ipMode', 'configState', 'confirmRemainingMs', 'rssi',
-    'signalQualityPct', 'lastSyncAgeMs', 'lastSyncUtcSec', 'nextRetryInMs',
+    'signalQualityPct', 'lastSyncUtcSec',
     'activeServer', 'maintenance', 'persistPending', 'uptimeMs', 'hwmon',
     'minimumFreeHeapBytes', 'largestFreeHeapBlockBytes',
     'internalHeapAllocatedBlocks', 'internalHeapFreeBlocks',

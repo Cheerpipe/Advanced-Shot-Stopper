@@ -14,7 +14,7 @@ bool selectMachineIntegrationDevice(const char *serial,
 void clearMachineIntegrationDiscovery();
 LineaMicraStatus machineIntegrationStatus();
 LineaMicraCloudCall machineIntegrationCloudCall();
-MicraWebSocketStatus machineIntegrationWebSocketStatus();
+MicraWebSocketStatus machineIntegrationWebSocketStatus(bool includeTraffic = true);
 HeapLifecycleAggregate machineIntegrationHeapTelemetry();
 LineaMicraDiscoverySnapshot machineIntegrationDiscovery();
 

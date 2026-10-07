@@ -822,31 +822,24 @@ bool jsonScratchAppend(char *buf, size_t cap, size_t *used, const char *fmt,
 }
 
 bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
-                              const TaskProfilerSnapshot &tasks) {
+                              const TaskProfilerSnapshot &tasks, bool full = true) {
   if (!jsonScratchAppend(
           buf, cap, used,
-          "{\"stackUnit\":\"bytes\",\"state\":\"%s\",\"stopReason\":\"%s\","
-          "\"elapsedMs\":%lu,\"remainingMs\":%lu,\"sampleCount\":%lu,"
-          "\"currentTotalCpuPct\":%.1f,\"averageTotalCpuPct\":%.1f,"
+          "{\"state\":\"%s\",\"stopReason\":\"%s\",\"elapsedMs\":%lu,"
+          "\"currentTotalCpuPct\":%.1f,"
           "\"unreportedCurrentCpuPct\":%.1f,\"unreportedAverageCpuPct\":%.1f,"
-          "\"truncated\":%s,\"lastCaptureUs\":%lu,\"maxCaptureUs\":%lu,"
+          "\"truncated\":%s,"
           "\"peakGapMs\":%lu,\"recentGapMs\":%lu,"
           "\"peakGapUs\":%lu,\"recentGapUs\":%lu,"
           "\"peakDelayUs\":%lu,\"recentDelayUs\":%lu,"
-          "\"peakDispatchUs\":%lu,\"recentDispatchUs\":%lu,"
-          "\"rows\":[",
+          "\"peakDispatchUs\":%lu,\"recentDispatchUs\":%lu",
           taskProfilerStateName(tasks.state),
           taskProfilerStopReasonName(tasks.stopReason),
           static_cast<unsigned long>(tasks.elapsedMs),
-          static_cast<unsigned long>(tasks.remainingMs),
-          static_cast<unsigned long>(tasks.sampleCount),
           static_cast<double>(tasks.currentTotalCpuPct),
-          static_cast<double>(tasks.averageTotalCpuPct),
           static_cast<double>(tasks.unreportedCurrentCpuPct),
           static_cast<double>(tasks.unreportedAverageCpuPct),
           tasks.truncated ? "true" : "false",
-          static_cast<unsigned long>(tasks.lastCaptureUs),
-          static_cast<unsigned long>(tasks.maxCaptureUs),
           static_cast<unsigned long>(tasks.loopPhases.peakGapMs),
           static_cast<unsigned long>(tasks.loopPhases.recentGapMs),
           static_cast<unsigned long>(tasks.loopPhases.peakGapUs),
@@ -857,6 +850,16 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
           static_cast<unsigned long>(tasks.loopPhases.recentDispatchUs))) {
     return false;
   }
+  // Detailed measurements remain available in the full debug export.
+  if (full && !jsonScratchAppend(buf, cap, used,
+          ",\"stackUnit\":\"bytes\",\"remainingMs\":%lu,\"sampleCount\":%lu,"
+          "\"averageTotalCpuPct\":%.1f,\"lastCaptureUs\":%lu,\"maxCaptureUs\":%lu",
+          static_cast<unsigned long>(tasks.remainingMs),
+          static_cast<unsigned long>(tasks.sampleCount),
+          static_cast<double>(tasks.averageTotalCpuPct),
+          static_cast<unsigned long>(tasks.lastCaptureUs),
+          static_cast<unsigned long>(tasks.maxCaptureUs))) return false;
+  if (!jsonScratchAppend(buf, cap, used, ",\"rows\":[")) return false;
   for (uint8_t i = 0; i < tasks.rowCount; ++i) {
     char safeName[TASK_PROFILER_NAME_CAPACITY * 2] = {};
     sanitizeJsonEmbed(tasks.rows[i].name, safeName, sizeof(safeName));
@@ -878,21 +881,22 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
             "%s{\"name\":\"loopTask/%s\",\"core\":1,\"stackMinWords\":4294967295,"
             "\"sampleCount\":%lu,"
             "\"currentCpuPct\":%.1f,\"averageCpuPct\":%.1f,"
-            "\"averageExecutionUs\":%lu,\"maxExecutionUs\":%lu,"
-            "\"lastExecutionUs\":%lu,\"peakGapExecutionUs\":%lu,"
-            "\"recentGapExecutionUs\":%lu}",
+            "\"peakGapExecutionUs\":%lu,\"recentGapExecutionUs\":%lu",
             tasks.rowCount == 0 && i == 0 ? "" : ",",
             row.name != nullptr ? row.name : "unknown",
             static_cast<unsigned long>(row.sampleCount),
             static_cast<double>(row.currentCpuPct),
             static_cast<double>(row.averageCpuPct),
-            static_cast<unsigned long>(row.averageExecutionUs),
-            static_cast<unsigned long>(row.maxExecutionUs),
-            static_cast<unsigned long>(row.lastExecutionUs),
             static_cast<unsigned long>(row.peakGapExecutionUs),
             static_cast<unsigned long>(row.recentGapExecutionUs))) {
       return false;
     }
+    if (full && !jsonScratchAppend(buf, cap, used,
+            ",\"averageExecutionUs\":%lu,\"maxExecutionUs\":%lu,\"lastExecutionUs\":%lu",
+            static_cast<unsigned long>(row.averageExecutionUs),
+            static_cast<unsigned long>(row.maxExecutionUs),
+            static_cast<unsigned long>(row.lastExecutionUs))) return false;
+    if (!jsonScratchAppend(buf, cap, used, "}")) return false;
   }
   return jsonScratchAppend(buf, cap, used, "]}");
 }
@@ -903,7 +907,7 @@ bool statusJsonAppendTaskProfiler(size_t *used,
     return false;
   }
   return formatTaskProfilerObject(g_work->statusJson, NetworkWorkBuf::kStatusJson,
-                                  used, tasks);
+                                  used, tasks, false);
 }
 
 bool statusJsonAppendScaleProfiler(size_t *used,
@@ -939,31 +943,25 @@ bool statusJsonAppendScaleProfiler(size_t *used,
   return statusJsonAppend(
       used,
       "\"scaleProfile\":{\"state\":\"%s\",\"persistence\":\"%s\","
-      "\"generation\":%lu,\"sessionId\":%lu,\"elapsedMs\":%llu,"
-      "\"durationLimitMs\":0,\"recordCount\":%lu,\"recordCapacity\":%lu,"
-      "\"recordBytes\":%lu,\"reservedRecords\":%u,\"estimatedRemainingMs\":%s,"
+      "\"elapsedMs\":%llu,\"recordCount\":%lu,\"recordCapacity\":%lu,"
+      "\"reservedRecords\":%u,\"estimatedRemainingMs\":%s,"
       "\"weightCount\":%lu,\"eventCount\":%lu,\"lostCount\":%lu,"
-      "\"stopReason\":\"%s\",\"complete\":%s,\"downloading\":%s,"
+      "\"stopReason\":\"%s\","
       "\"partitionAvailable\":%s,\"lastError\":\"%s\","
       "\"canStart\":%s,\"canStop\":%s,\"canDelete\":%s,\"canDownload\":%s}",
       scaleProfilerStateName(profile.state),
       scaleProfilerPersistenceName(profile.persistence),
-      static_cast<unsigned long>(profile.generation),
-      static_cast<unsigned long>(profile.sessionId),
       static_cast<unsigned long long>(profile.elapsedMs),
       static_cast<unsigned long>(profile.state == ScaleProfilerState::SAVED
                                      ? profile.savedRecordCount
                                      : profile.recordCount),
       static_cast<unsigned long>(SCALE_PROFILE_RECORD_CAPACITY),
-      static_cast<unsigned long>(SCALE_PROFILE_RECORD_BYTES),
       profile.state == ScaleProfilerState::RECORDING ? 1U : 0U,
       remaining,
       static_cast<unsigned long>(profile.weightCount),
       static_cast<unsigned long>(profile.eventCount),
       static_cast<unsigned long>(profile.lostCount),
       scaleProfilerStopReasonName(profile.stopReason),
-      profile.lostCount == 0 ? "true" : "false",
-      profile.downloading ? "true" : "false",
       profile.partitionAvailable ? "true" : "false",
       scaleProfilerErrorName(profile.lastError),
       canStart ? "true" : "false", canStop ? "true" : "false",

@@ -59,7 +59,6 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("configMutable", bool(controlAllowsConfiguration(control)));
   delta.field("snapshotStale", bool(control.snapshotStale));
   delta.field("webUiOverrideActive", bool(override));
-  delta.field("configLockReason", "\"%s\"", configLockReason(control));
   delta.field("liveShot", bool(control.activeCycle || control.relayClosed));
   delta.field("machineType", "\"%s\"", compiledMachineTypeId());
   delta.field("diagnosticPageVisible", bool(diagnosticPageEnabled()));
@@ -84,7 +83,6 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("config.timezoneAutomatic", bool(config.timezoneAutomatic));
   delta.field("config.timezoneInitialized", bool(durableTimezoneSaved().load()));
   delta.field("config.soundAlertsEnabled", !bool(config.soundAlertsMuted));
-  delta.field("config.alertOutputChannel", "\"%s\"", alertOutputChannelId(config.alertOutputChannel));
   delta.field("config.brewByWeight", !bool(config.timerOnly));
   delta.field("config.goalWeightG", "%u", static_cast<unsigned>(config.goalWeightG));
   delta.field("config.operationalWallMs", "%lu", static_cast<unsigned long>(config.operationalWallMs));
@@ -99,10 +97,6 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("config.stopIfCupRemoved", bool(config.stopIfCupRemoved));
   delta.field("config.requireCupToStart", bool(config.requireCupToStart));
   delta.field("config.avoidAccidentalTouchEnabled", bool(config.avoidAccidentalTouchEnabled));
-  delta.field("config.touchStopFallbackEnabled", bool(config.touchStopFallbackEnabled));
-  delta.field("config.cupPresentWeightG", config.cupPresentWeightG);
-  delta.field("config.cupRemovedWeightG", config.cupRemovedWeightG);
-  delta.field("config.avoidBbwShotWithoutScale", bool(noScaleBbwEnabled(config.noScaleBbwMode)));
   delta.field("config.noScaleBbwMode", "\"%s\"", noScaleBbwModeId(config.noScaleBbwMode));
   delta.field("config.scaleMacCacheMode", "\"%s\"", scaleMacCacheModeId(config.scaleMacCacheMode));
   delta.field("config.rinseEnabled", bool(config.rinseEnabled));
@@ -138,12 +132,10 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("scale.preferredMac", "\"%s\"", control.preferredScaleMac);
   escapeJsonString(control.preferredScaleName, g_work->historyJson, NetworkWorkBuf::kHistoryJson);
   delta.field("scale.preferredName", "\"%s\"", g_work->historyJson);
-  delta.field("scale.protocol", "\"%s\"", control.scaleProtocol);
   // Whole-second ceiling (UI resolution): the delta hash must change only
   // when the displayed countdown does, not on every stream tick.
   delta.field("scale.macCachePauseRemainingMs", "%lu",
               static_cast<unsigned long>((control.scaleMacCachePauseRemainingMs + 999U) / 1000U * 1000U));
-  delta.field("scale.lastDisconnectReasonName", "\"%s\"", scaleDisconnectReasonName(control.scaleLastDisconnectReason));
   delta.field("connections.wifiConnected", bool(network.staState == StaState::CONNECTED));
   delta.field("connections.wifiLevel", "%s", connectionSignalLevelJson(
       network.staLinkMetricsValid, network.staRssi));
@@ -191,7 +183,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("presets", "%s", g_work->presetsJson);
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   const auto micra = machineIntegrationStatus();
-  const auto ws = machineIntegrationWebSocketStatus();
+  const auto ws = machineIntegrationWebSocketStatus(false);
   uint8_t options, connection;
   { TaskLockGuard lock(dataMux_); options = settings_.lineaMicra.options; connection = settings_.lineaMicra.connectionType; }
   delta.field("machineIntegration", "\"linea_micra_cloud\"");
@@ -499,11 +491,6 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   delta.field("time.activeServer", "\"%s\"", safeServer);
   delta.field("time.lastSyncUtcSec", "%lu",
               static_cast<unsigned long>(timeStatus.lastSyncUtcSec));
-  // Whole seconds: ticking ages hash-change at display resolution only.
-  delta.field("time.lastSyncAgeMs", "%lu",
-              static_cast<unsigned long>(timeStatus.lastSyncAgeMs / 1000 * 1000));
-  delta.field("time.nextRetryInMs", "%lu",
-              static_cast<unsigned long>(timeStatus.nextRetryInMs / 1000 * 1000));
   char safeStaSsid[80] = {}, safeApSsid[80] = {};
   sanitizeJsonEmbed(network.staSsid, safeStaSsid, sizeof(safeStaSsid));
   sanitizeJsonEmbed(network.apSsid, safeApSsid, sizeof(safeApSsid));
@@ -754,7 +741,6 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
                       static_cast<unsigned long>(now / 1000 * 1000));
       telemetry.field("lineaMicra.websocket.state", "\"%s\"", micraSocketStateName(ws.state));
       telemetry.field("lineaMicra.websocket.reason", "\"%s\"", safeReason);
-      telemetry.field("lineaMicra.websocket.subscribed", bool(ws.subscribed));
       telemetry.field("lineaMicra.websocket.machineConnectedKnown",
                       bool(ws.machineConnectedKnown));
       telemetry.field("lineaMicra.websocket.machineConnected",
@@ -781,8 +767,6 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
                       static_cast<unsigned>(ws.transmitPerMinute));
       telemetry.field("lineaMicra.websocket.messages", "%u",
                       static_cast<unsigned>(ws.messages));
-      telemetry.field("lineaMicra.websocket.reconnects", "%u",
-                      static_cast<unsigned>(ws.reconnects));
       telemetry.field("lineaMicra.websocket.errors", "%u",
                       static_cast<unsigned>(ws.errors));
       telemetry.field("lineaMicra.websocket.plannedConnections", "%u",
@@ -889,16 +873,14 @@ bool ShotStopperNetwork::sendLogStream(UiStreamSession &session,
   uint32_t lastSequence = session.logAfter;
   size_t used = 0;
   if (!statusJsonAppend(&used,
-          "{\"v\":1,\"type\":\"log\",\"bootId\":%lu,\"dropped\":%lu,"
+          "{\"v\":1,\"type\":\"log\",\"bootId\":%lu,"
           "\"historyOverwritten\":%lu,\"missedEvents\":%lu,"
-          "\"serialDropped\":%lu,\"serialTruncated\":%lu,"
+          "\"serialDropped\":%lu,"
           "\"cursorInvalid\":%s,\"events\":[",
           static_cast<unsigned long>(control.bootId),
-          static_cast<unsigned long>(control.debugEventsDropped),
           static_cast<unsigned long>(work.logMetadata.historyOverwritten),
           static_cast<unsigned long>(work.logMetadata.missedEvents),
           static_cast<unsigned long>(work.logMetadata.serialDropped),
-          static_cast<unsigned long>(work.logMetadata.serialTruncated),
           work.logMetadata.cursorInvalid ? "true" : "false"))
     return false;
   int16_t eventOffset = 0;
@@ -952,8 +934,7 @@ bool ShotStopperNetwork::sendLogStream(UiStreamSession &session,
     if (!statusJsonAppend(&used,
             "%s{\"sequence\":%lu,\"atMs\":%lu,\"wallSec\":%lu,"
             "\"localSec\":%lu,\"level\":\"%s\",\"category\":\"%s\","
-            "\"code\":%u,\"message\":\"%s\",\"argument1\":%ld,"
-            "\"argument2\":%ld}",
+            "\"message\":\"%s\"}",
             index == 0 ? "" : ",",
             static_cast<unsigned long>(event.sequence),
             static_cast<unsigned long>(event.atMs),
@@ -961,9 +942,7 @@ bool ShotStopperNetwork::sendLogStream(UiStreamSession &session,
             static_cast<unsigned long>(event.wallSec +
                                        static_cast<int32_t>(eventOffset) * 60),
             logLevelName(event.level), debugCategoryName(event.category),
-            static_cast<unsigned>(event.code), work.jsonItem,
-            static_cast<long>(event.argument1),
-            static_cast<long>(event.argument2))) {
+            work.jsonItem)) {
       return false;
     }
     lastSequence = event.sequence;
@@ -1053,9 +1032,8 @@ bool ShotStopperNetwork::sendHistoryStream(UiStreamSession &session,
       (initial && (!appendRecordPageUi(control, &used, override) ||
                    !statusJsonAppend(&used, ","))) ||
       !statusJsonAppend(&used,
-          "\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
+          "\"total\":%u,\"offset\":%u,\"limit\":%u,"
           "\"hasMore\":%s,\"records\":[",
-          static_cast<unsigned long>(control.bootId),
           static_cast<unsigned>(page.total), static_cast<unsigned>(page.start),
           static_cast<unsigned>(session.historyLimit),
           page.hasMore ? "true" : "false"))
@@ -1064,13 +1042,12 @@ bool ShotStopperNetwork::sendHistoryStream(UiStreamSession &session,
     const HistoryRecord &record = page.records[index];
     if (!statusJsonAppend(&used,
             "%s{\"id\":%lu,\"type\":\"%s\",\"durationS\":%.1f,"
-            "\"hasWeight\":%s,\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,"
+            "\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,"
             "\"endedAtLocalSec\":%lu}",
             index == 0 ? "" : ",",
             static_cast<unsigned long>(record.id),
             historyTypeName(static_cast<HistoryType>(record.type)),
             static_cast<double>(record.durationDs) / 10.0,
-            (record.flags & HISTORY_FLAG_NO_WEIGHT) == 0 ? "true" : "false",
             (record.flags & HISTORY_FLAG_WALL_TIME) != 0 ? "true" : "false",
             static_cast<unsigned long>(record.endedAtUnixSec),
             static_cast<unsigned long>(record.endedAtLocalSec)))
@@ -1110,8 +1087,6 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
                                               const ShotCurveRecord *curves,
                                               size_t curveCount) {
   char actual[16] = "null";
-  char errorG[16] = "null";
-  char errorPct[16] = "null";
   char flow[16] = "null";
   char firstDrop[16] = "null";
   char tareAt[16] = "null";
@@ -1125,13 +1100,6 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
   if (!shotLogWeightIsMissing(record.actualWeightCg)) {
     snprintf(actual, sizeof(actual), "%.2f",
              static_cast<double>(record.actualWeightCg) / 100.0);
-    snprintf(errorG, sizeof(errorG), "%.2f",
-             static_cast<double>(record.errorCg) / 100.0);
-    if (record.goalWeightG > 0) {
-      snprintf(errorPct, sizeof(errorPct), "%.1f",
-               static_cast<double>(record.errorCg) * 100.0 /
-                   (static_cast<double>(record.goalWeightG) * 100.0));
-    }
   }
   if (record.avgFlowCgS != SHOT_LOG_METRIC_MISSING) {
     snprintf(flow, sizeof(flow), "%.2f",
@@ -1180,7 +1148,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
       "\"endedAtUnixSec\":%lu,\"timezoneOffsetMinutesAtCommit\":%d,"
       "\"durationS\":%.1f,\"presetId\":%u,\"presetName\":\"%s\","
       "\"scaleName\":\"%s\","
-      "\"goalG\":%u,\"actualG\":%s,\"errorG\":%s,\"errorPct\":%s,"
+      "\"goalG\":%u,\"actualG\":%s,"
       "\"offsetG\":%.2f,\"bbwAlgorithm\":\"%s\",\"bbwAlgorithmVersion\":%s,"
       "\"bbwAlpha\":%s,\"bbwLearningApplied\":%s,\"avgFlowGS\":%s,"
       "\"firstDropS\":%s,\"tareS\":%s,"
@@ -1200,7 +1168,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
       static_cast<double>(record.durationDs) / 10.0,
       static_cast<unsigned>(shotLogPresetId(record)),
       presetName, scaleNameJson,
-      static_cast<unsigned>(record.goalWeightG), actual, errorG, errorPct,
+      static_cast<unsigned>(record.goalWeightG), actual,
       static_cast<double>(record.offsetUsedCg) / 100.0,
       shotLogBbwAlgorithm(record), shotLogBbwVersion(record),
       alphaJson, shotLogBbwLearningApplied(record), flow, firstDrop, tareAt,
@@ -1353,9 +1321,8 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
       !statusJsonAppend(&used, "\"stats\":%s,", cache.header))
     return false;
   if (!statusJsonAppend(&used,
-          "\"bootId\":%lu,\"total\":%u,\"offset\":%u,\"limit\":%u,"
+          "\"total\":%u,\"offset\":%u,\"limit\":%u,"
           "\"hasMore\":%s,\"rows\":[",
-          static_cast<unsigned long>(control.bootId),
           static_cast<unsigned>(count), static_cast<unsigned>(start),
           static_cast<unsigned>(limit), cache.hasMore ? "true" : "false"))
     return false;

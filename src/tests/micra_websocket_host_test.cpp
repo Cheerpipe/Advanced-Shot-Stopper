@@ -13,8 +13,9 @@
 #include "ShotStopperDomain.h"
 
 static std::atomic<uint64_t> now{1000};
+static std::atomic<unsigned> timerReads{0};
 uint32_t millis() { return static_cast<uint32_t>(now); }
-int64_t esp_timer_get_time() { return static_cast<int64_t>(now * 1000); }
+int64_t esp_timer_get_time() { ++timerReads; return static_cast<int64_t>(now * 1000); }
 void xTaskNotifyGive(TaskHandle_t) {}
 static bool callback = false, locked = false;
 static unsigned stops = 0, destroys = 0;
@@ -125,6 +126,7 @@ struct MicraWebSocketTest {
       service.serviceWebSocket();
       assert(!service.websocket_ && !service.work_);
       assert(service.websocketStatus().state == MicraSocketState::PAUSED);
+      assert(service.websocketStatus(false).state == MicraSocketState::PAUSED);
       inhibited.store(false);
       service.serviceWebSocket();
       subscribe(service);
@@ -136,6 +138,7 @@ struct MicraWebSocketTest {
       now = service.websocketStatus().retryAtMs;
       service.serviceWebSocket();
       assert(!service.websocket_->client && service.websocket_->attempts == 1);
+      assert(service.websocketStatus(false).state == service.websocketStatus().state);
       inhibited.store(false);
       service.serviceWebSocket();
       assert(service.websocket_->client);
@@ -446,6 +449,16 @@ struct MicraWebSocketTest {
     assert(rates.receiveBytes > UINT32_MAX);
     assert(rates.receivePerSecond == offFrame.size());
     assert(rates.receivePerMinute == onFrame.size() + offFrame.size());
+    // Home needs a coherent cleaning snapshot, without reading the rate clock.
+    const auto reads = timerReads.load();
+    for (unsigned i = 0; i < 40; ++i) {
+      const auto home = service.websocketStatus(false);
+      assert(home.cleaning == rates.cleaning && home.cleaningAvailable == rates.cleaningAvailable);
+      assert(home.receivePerMinute == 0 && home.receivePerSecond == 0);
+    }
+    assert(timerReads == reads);
+    assert(service.websocketStatus().receivePerMinute == rates.receivePerMinute);
+    assert(timerReads == reads + 1);
     now += 61000;
     rates = service.websocketStatus();
     assert(rates.receivePerSecond == 0 && rates.receivePerMinute == 0);

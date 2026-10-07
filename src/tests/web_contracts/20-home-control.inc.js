@@ -696,7 +696,6 @@ if (ui.includes('id="shotPanel"') ||
     !network.includes('firstDropElapsedMs') ||
     !network.includes('shotType') ||
     !network.includes('scaleProtocol') ||
-    !network.includes('delta.field("scale.protocol"') ||
     !ui.includes('remoteReady&&relayStartReady&&canControl') ||
     ui.includes('Remote machine control disabled by policy') ||
     !network.includes('delta.field("remoteControlEnabled"') ||

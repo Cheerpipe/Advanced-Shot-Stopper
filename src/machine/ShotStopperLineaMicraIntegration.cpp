@@ -179,7 +179,7 @@ void clearMachineIntegrationDiscovery() { service.clearDiscovery(); }
 LineaMicraStatus machineIntegrationStatus() { return service.status(); }
 
 LineaMicraCloudCall machineIntegrationCloudCall() { return service.cloudCall(); }
-MicraWebSocketStatus machineIntegrationWebSocketStatus() { return service.websocketStatus(); }
+MicraWebSocketStatus machineIntegrationWebSocketStatus(bool includeTraffic) { return service.websocketStatus(includeTraffic); }
 
 HeapLifecycleAggregate machineIntegrationHeapTelemetry() {
   return service.heapTelemetry();
