@@ -503,17 +503,20 @@ the next page to start from a full snapshot.
 
 Stats frames have `v: 1`, `type: "stats"`, `boot`, `snapshot`, `epoch`,
 `seq`, the `ui` object and the `stats` aggregate (first frame of a page
-only), `bootId`, `total`, `offset`, `limit`, `hasMore`, `rows`, `rowBase`,
-and `more`. Rows are the exact REST page projection, including each row's
-curve arrays. Because full curves can exceed one frame, a page is emitted
-under a ~20 KiB frame budget: the first frame ends with `more: true` and a
+only), `total`, `offset`, `limit`, `hasMore`, `rows`, `rowBase`, and `more`.
+Each row retains its own `bootId` and curve arrays; row errors are calculated
+from the displayed yield by the browser. Because full curves can exceed one
+frame, a page is emitted under a ~20 KiB frame budget: the first frame ends with `more: true` and a
 continuation frame resumes at its `rowBase`; the browser buffers partial
 pages and applies them whole when a frame ends with `more: false`. A store
 epoch and a fingerprint (window, aggregate, and per-row id, rating, and
 curve hashes) suppress pages while nothing changed — rating a shot, saving,
 deleting, or clearing moves the epoch, so the standing subscription pushes
 the updated page without any browser request. The export window streams the
-requested rows once without touching the subscribed view state.
+requested rows once without touching the subscribed view state. The server
+refreshes its cached records when the store epoch, sort field, or sort direction
+changes; subsequent frames reuse that snapshot. This preserves chronological
+CSV order after browsing by rating without repeated store captures per frame.
 
 
 ## Linea Micra Web API

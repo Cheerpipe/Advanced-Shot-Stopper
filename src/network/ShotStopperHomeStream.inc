@@ -1227,7 +1227,8 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
   NetworkWorkBuf &work = *g_work;
   auto &cache = work.statsCache;
   auto &snapshot = cache.snapshot;
-  const bool reload = !cache.valid || snapshot.epoch != epoch;
+  const bool reload = !cache.valid || snapshot.epoch != epoch ||
+                      cache.sort != sort || cache.dir != dir;
   if (reload) {
     if (!callbacks_.copyShotStatsSnapshot) return false;
     callbacks_.copyShotStatsSnapshot(snapshot);

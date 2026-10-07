@@ -64,8 +64,9 @@ void capture(ShotStatsSnapshot &out){
   ++captures;
   out.epoch=storeEpoch;out.stats.shotCount=storeEpoch;out.count=out.curveCount=3;
   for(size_t i=0;i<out.count;++i){
-    out.records[i]={};out.records[i].id=i+1;out.records[i].actualWeightCg=storeEpoch*100+i;
-    resetShotCurveRecord(out.curves[i]);out.curves[i].shotId=i+1;out.curves[i].count=1;
+    out.records[i]={};out.records[i].id=3-i;out.records[i].actualWeightCg=storeEpoch*100+i;
+    out.records[i].extractionGuardEnabled=shotLogPackRating(0,i==0?1:i==1?5:0);
+    resetShotCurveRecord(out.curves[i]);out.curves[i].shotId=3-i;out.curves[i].count=1;
     out.curves[i].weightCg[0]=out.records[i].actualWeightCg;
   }
 }
@@ -98,9 +99,9 @@ int main(){
   assert(frames[0].find("\\"stats\\":{\\"shotCount\\":1}")!=std::string::npos);
   assert(frames[1].find("\\"rowBase\\":1")!=std::string::npos);
   assert(send(session)&&frames.size()==3);
-  // New window/order reuses the store capture, but hashes that page anew.
+  // A new window with the same order reuses capture, but hashes that page anew.
   session.statsFetch=true;session.statsFetchRequest=2;session.statsFetchOffset=1;
-  session.statsFetchLimit=1;session.statsFetchDir=ShotLogSortDir::Asc;
+  session.statsFetchLimit=1;
   assert(send(session)&&captures==1&&hashes==4);
   assert(!session.statsFetch&&frames.back().find("\\"id\\":2")!=std::string::npos);
   // A debug export can borrow records: invalidation must refill the cache.
@@ -128,6 +129,27 @@ int main(){
   assert(send(fresh)&&fresh.statsSent==1&&captures==copied);
   strcpy(fresh.clientId,"superseded");
   assert(!send(fresh));
+  // The store returns newest-first; the sorter cannot reuse rating/asc input.
+  strcpy(fresh.clientId,"owner");fresh.statsPaging=false;
+  auto page=[&](ShotLogSort sort,ShotLogSortDir dir,int a,int b,int c,bool fetch=false){
+    const unsigned before=captures;
+    const bool changed=work.statsCache.sort!=sort||work.statsCache.dir!=dir;
+    fresh.statsResync=!fetch;fresh.statsFetch=fetch;
+    if(fetch){fresh.statsFetchSort=sort;fresh.statsFetchDir=dir;
+      fresh.statsFetchOffset=0;fresh.statsFetchLimit=100;fresh.statsFetchRequest=5;}
+    else{fresh.statsSort=sort;fresh.statsDir=dir;}
+    frames.clear();for(int i=0;i<3;++i)assert(send(fresh));
+    assert(!fresh.statsPaging&&frames.size()==3&&captures==before+(changed?1:0));
+    const int expected[]={a,b,c};
+    for(size_t i=0;i<3;++i)
+      assert(frames[i].find("\\\"id\\\":"+std::to_string(expected[i]))!=std::string::npos);
+  };
+  page(ShotLogSort::Date,ShotLogSortDir::Asc,1,2,3);
+  page(ShotLogSort::Date,ShotLogSortDir::Desc,3,2,1);
+  page(ShotLogSort::Rating,ShotLogSortDir::Desc,2,3,1);
+  page(ShotLogSort::Date,ShotLogSortDir::Desc,3,2,1,true);
+  page(ShotLogSort::Rating,ShotLogSortDir::Desc,2,3,1);
+  page(ShotLogSort::Date,ShotLogSortDir::Desc,3,2,1);
 }
 `;
   const directory = path.resolve(sketchDir, '..', 'temp', 'ai_temp_stats_cache');
