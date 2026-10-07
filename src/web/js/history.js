@@ -1,20 +1,7 @@
 "use strict";
 import * as R from "./runtime.js?v=__FW_ASSET_TAG__";
 const $ = R.$;
-let ready = false,
-  hObs = 0;
-function armHistorySentinel() {
-  const el = $("historySentinel");
-  if (!el || hObs) return;
-  hObs = new IntersectionObserver(
-    (es) => {
-      if (es.some((e) => e.isIntersecting)) R.loadMoreHistory();
-    },
-    { rootMargin: "240px" },
-  );
-  hObs.observe(el);
-}
-export function applyStatus() {}
+let ready = false;
 export function init() {
   if (ready) return;
   ready = true;
@@ -24,5 +11,5 @@ export function init() {
     $("historyDirButton").onclick = R.toggleHistoryDir;
     R.syncHistoryDirButton();
   }
-  armHistorySentinel();
+  R.armListSentinel("historySentinel", R.loadMoreHistory);
 }

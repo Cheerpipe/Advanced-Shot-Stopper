@@ -60,17 +60,7 @@ class ShotLog
   // over the header words every mutation moves (rating bumps generation —
   // see updateRating; a full-ring append only advances nextRecordId). Curve
   // stores mutate only alongside these words. Caller holds the store mutex.
-  uint32_t epoch() const {
-    uint32_t crc = crc32Update(0xFFFFFFFFU,
-        reinterpret_cast<const uint8_t *>(&store_.header.generation),
-        sizeof(store_.header.generation));
-    crc = crc32Update(crc,
-        reinterpret_cast<const uint8_t *>(&store_.header.nextRecordId),
-        sizeof(store_.header.nextRecordId));
-    return crc32Update(crc,
-        reinterpret_cast<const uint8_t *>(&store_.header.count),
-        sizeof(store_.header.count));
-  }
+  uint32_t epoch() const { return dualSlotHeaderEpoch(store_.header); }
 
   ShotStatsView statsView() const {
     ShotLogRecord eligible[SHOT_LOG_STATS_WINDOW];
@@ -121,15 +111,7 @@ class ShotLog
     // generation: the modified slot content must win dual-slot selection and
     // stream epochs hash these header words.
     ++store_.header.generation;
-    if (!persistNow) {
-      dirty_ = true;
-      return true;
-    }
-    if (save()) {
-      return true;
-    }
-    load();
-    return false;
+    return persistMutation(persistNow);
   }
 
   bool copyRatingById(uint32_t id, uint8_t &rating) const {
@@ -149,15 +131,7 @@ class ShotLog
     resetShotLogStoreWithBootId(store_);
     store_.header.bootId = bootId;
     store_.header.generation = generation;
-    if (!persistNow) {
-      dirty_ = true;
-      return true;
-    }
-    if (save()) {
-      return true;
-    }
-    load();
-    return false;
+    return persistMutation(persistNow);
   }
 
   size_t count() const { return store_.header.count; }

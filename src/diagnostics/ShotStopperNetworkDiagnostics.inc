@@ -535,8 +535,8 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
 
   char safeStaSsid[WIFI_SSID_CAPACITY] = {};
   char safeApSsid[WIFI_SSID_CAPACITY] = {};
-  sanitizeJsonEmbed(network.staSsid, safeStaSsid, sizeof(safeStaSsid));
-  sanitizeJsonEmbed(network.apSsid, safeApSsid, sizeof(safeApSsid));
+  sanitizeJsonEmbed(network.iface.staSsid, safeStaSsid, sizeof(safeStaSsid));
+  sanitizeJsonEmbed(network.iface.apSsid, safeApSsid, sizeof(safeApSsid));
   ok = ok &&
        debugExportChunkf(
            request, buf, cap,
@@ -552,10 +552,10 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            network.networkActive ? "true" : "false",
            network.apActive ? "true" : "false", safeApSsid,
            network.wifiConfigured ? "true" : "false",
-           staStateName(network.staState), network.staIp, safeStaSsid,
-           network.apIp, static_cast<unsigned>(network.apClients),
-           network.httpActive ? "true" : "false", network.staMac,
-           network.staBssid, network.apMac,
+           staStateName(network.staState), network.iface.staIp, safeStaSsid,
+           network.iface.apIp, static_cast<unsigned>(network.apClients),
+           network.httpActive ? "true" : "false", network.iface.staMac,
+           network.iface.staBssid, network.iface.apMac,
            network.staReconnectHeld ? "true" : "false",
            network.apStartHeld ? "true" : "false",
            network.httpStartHeld ? "true" : "false",
@@ -864,7 +864,7 @@ bool ShotStopperNetwork::appendRecordPageUi(
   sanitizeJsonEmbed(FW_VERSION, version, sizeof(version));
   char wifiName[WIFI_SSID_CAPACITY * 6] = {};
   char bluetoothName[PREFERRED_SCALE_NAME_CAPACITY * 6] = {};
-  escapeJsonString(network.staState == StaState::CONNECTED ? network.staSsid : "",
+  escapeJsonString(network.staState == StaState::CONNECTED ? network.iface.staSsid : "",
                    wifiName, sizeof(wifiName));
   if (control.scaleAvailable && callbacks_.copyScaleHistory)
     callbacks_.copyScaleHistory(g_work->scaleHistory);

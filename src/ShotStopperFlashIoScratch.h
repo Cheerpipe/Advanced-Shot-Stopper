@@ -93,10 +93,6 @@ inline std::atomic<uint32_t> &flashIoForbiddenAttemptCount() {
   return count;
 }
 
-inline uint32_t flashIoForbiddenAttempts() {
-  return flashIoForbiddenAttemptCount().load(std::memory_order_relaxed);
-}
-
 inline uint32_t flashIoLockTimeouts() {
   return flashIoLockTimeoutCount().load(std::memory_order_relaxed);
 }
@@ -190,9 +186,6 @@ inline void feedFlashIoWatchdog() {
 
 // Compatibility alias used by existing call sites.
 inline bool lockFlashIo() { return tryLockFlashIo(); }
-inline bool lockFlashIoForControl() {
-  return tryLockFlashIo(FLASH_IO_CONTROL_LOCK_TIMEOUT_MS);
-}
 
 // Preferences putBytes/getBytes must not touch PSRAM while flash cache is
 // off. Caller must already hold the flash I/O lock so the scratch exists.

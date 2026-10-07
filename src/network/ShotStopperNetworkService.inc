@@ -295,10 +295,6 @@ bool ShotStopperNetwork::enqueueWebhook(const WebhookEvent &event) {
   return webhooks_.enqueue(event);
 }
 
-WebhookStatus ShotStopperNetwork::webhookStatus() const {
-  return webhooks_.status();
-}
-
 WebhookConfig ShotStopperNetwork::webhookConfig() const {
   return webhooks_.config();
 }
@@ -349,10 +345,6 @@ void ShotStopperNetwork::overlayLiveShotSettings(PersistedSettings &settings) {
     callbacks_.copyBullseyeConfig(&settings.bullseyeMelody);
   }
   mergePreferredScaleMac(settings);
-}
-
-void ShotStopperNetwork::syncPreferredScaleMac(const char *mac) {
-  syncPreferredScale(mac, nullptr);
 }
 
 void ShotStopperNetwork::syncPreferredScale(const char *mac, const char *name) {
@@ -712,7 +704,7 @@ void ShotStopperNetwork::service() {
   // earlier in this pass; re-reading WiFi.status() here just repeats it.
   const bool staConnected =
       networkSnapshot.staState == StaState::CONNECTED &&
-      networkSnapshot.wifiConfigured && networkSnapshot.staIp[0] != '\0';
+      networkSnapshot.wifiConfigured && networkSnapshot.iface.staIp[0] != '\0';
   publishMachineIntegrationNetworkState(
       staConnected, networkSnapshot.apActive,
       outboundShotActive.load(std::memory_order_acquire),

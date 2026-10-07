@@ -623,24 +623,7 @@ void serialCliFillNetworkDump(SerialCliNetworkDump &dump) {
   dump.staConnectAgeMs = snap.staConnectAgeMs;
   dump.staReconnectAgeMs = snap.staReconnectAgeMs;
   dump.lastCommandState = snap.lastCommandState;
-  copyCString(dump.apIp, sizeof(dump.apIp), snap.apIp);
-  copyCString(dump.staIp, sizeof(dump.staIp), snap.staIp);
-  copyCString(dump.staSsid, sizeof(dump.staSsid), snap.staSsid);
-  copyCString(dump.configuredIp, sizeof(dump.configuredIp), snap.configuredIp);
-  copyCString(dump.configuredNetmask, sizeof(dump.configuredNetmask),
-              snap.configuredNetmask);
-  copyCString(dump.configuredGateway, sizeof(dump.configuredGateway),
-              snap.configuredGateway);
-  copyCString(dump.configuredDns1, sizeof(dump.configuredDns1),
-              snap.configuredDns1);
-  copyCString(dump.configuredDns2, sizeof(dump.configuredDns2),
-              snap.configuredDns2);
-  copyCString(dump.staMac, sizeof(dump.staMac), snap.staMac);
-  copyCString(dump.staBssid, sizeof(dump.staBssid), snap.staBssid);
-  copyCString(dump.apMac, sizeof(dump.apMac), snap.apMac);
-  copyCString(dump.apSsid, sizeof(dump.apSsid), snap.apSsid);
-  copyCString(dump.ntpActiveServer, sizeof(dump.ntpActiveServer),
-              snap.ntpActiveServer);
+  dump.iface = snap.iface;
 #else
   (void)dump;
 #endif

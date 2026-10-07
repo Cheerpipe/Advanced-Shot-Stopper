@@ -343,17 +343,6 @@ constexpr size_t ACCIDENTAL_TOUCH_RATE_WINDOW = 4;
 // internal RAM — do not allocate on heap or PSRAM on the weight path.
 constexpr size_t MAX_SHOT_DATAPOINTS = 32;
 
-enum class ScaleSignal : uint8_t {
-  NONE = 0,
-  FIRST_DROP = 1,
-  STABLE_CUP = 2,
-  THRESHOLD_CONFIRM = 3,
-  PREDICTED_CUT_DUE = 4,
-  CUP_LIKELY_REMOVED = 5,
-  STREAM_STALE = 6,
-  STREAM_FAULT = 7
-};
-
 enum class CupPresenceState : uint8_t {
   ABSENT = 0,
   PRESENT = 1

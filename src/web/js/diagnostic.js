@@ -17,7 +17,7 @@ function renderMicraCloudDiagnostic(lm) {
     "CloudTime",
     call
       ? call.startedAtUtcSec
-        ? R.formatWallTime(call.startedAtUtcSec, 0) + " UTC"
+        ? R.formatWallTimeLocal(call.startedAtUtcSec) + " UTC"
         : __WEBUI_TEXT__("runtime.unknown")
       : none,
   );
@@ -440,9 +440,7 @@ export function init() {
   setInterval(() => {
     if (!document.hidden) R.renderDiagClock();
   }, 1000);
-  const lock = $("diagnosticLockPanel"),
-    controls = $("diagnosticControls");
-  if (lock) lock.remove();
+  const controls = $("diagnosticControls");
   if (controls) controls.classList.remove("hidden");
   $("serialLogLevel").onchange = () =>
     R.command("/api/v1/config", R.withBaseRev({ serialLogLevel: $("serialLogLevel").value }));
@@ -494,7 +492,6 @@ export function init() {
   ])
     $(id + "ResetButton").onclick = () => R.command("/api/v1/diagnostic/" + path + "/reset", {});
 }
-export function activate() {}
 
 let crashBusy = false;
 function applyLoopTiming(s) {

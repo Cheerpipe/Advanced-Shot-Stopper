@@ -38,8 +38,6 @@ constexpr uint32_t MOMENTARY_FLOW_GAP_SKIP_MS = 500;
 constexpr uint32_t MOMENTARY_QUIET_MS = 1000;
 constexpr uint32_t MOMENTARY_STOP_ACK_MS = 1500;
 constexpr uint32_t MOMENTARY_STOP_RETRY_AFTER_MS = 600;
-constexpr uint32_t MOMENTARY_PREINFUSION_MS = 8000;
-constexpr uint32_t MOMENTARY_START_NACK_MS = 12000;
 constexpr uint32_t MOMENTARY_CONFIRM_MIN_RUN_MS = 800;
 constexpr uint32_t MOMENTARY_STALE_UNKNOWN_MS = 1500;
 

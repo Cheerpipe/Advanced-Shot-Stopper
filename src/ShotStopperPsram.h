@@ -32,7 +32,7 @@
 namespace shotstopper {
 
 enum class AllocationOwner : uint8_t {
-  OTHER, NETWORK, WEBHOOK, COMPANION, PROFILER, FLASH_IO, OTA, BUZZER, JSON,
+  OTHER, NETWORK, WEBHOOK, PROFILER, FLASH_IO, OTA, BUZZER, JSON,
   SERIAL_LOG, COUNT
 };
 

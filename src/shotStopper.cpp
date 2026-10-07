@@ -185,9 +185,6 @@ static_assert(CONTROL_STATUS_REFRESH_WAIT_MS >= 20U &&
 // ---------------------------------------------------------------------------
 
 constexpr size_t EEPROM_SIZE = 2;
-constexpr size_t WEIGHT_ADDR = 0;
-constexpr size_t OFFSET_ADDR = 1;
-constexpr size_t TREND_POINT_COUNT = WEIGHT_TREND_POINT_COUNT;
 static_assert(MAX_SHOT_DATAPOINTS >= WEIGHT_TREND_POINT_COUNT,
               "Shot trajectory must hold the prediction window");
 static_assert(SHOT_CURVE_MAX_POINTS == 1201,

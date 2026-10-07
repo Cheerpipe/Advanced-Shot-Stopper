@@ -48,7 +48,7 @@ html:is([data-nav-layout="icons"],[data-nav-layout="text"]){--nav-space:1.5rem;-
 .textLock:hover{color:var(--ac);text-decoration:underline}
 .adminSession{display:flex;align-items:baseline;flex-wrap:wrap;gap:.15rem;margin:0 0 .55rem;color:var(--mu);font-size:.82rem;line-height:1.35}
 body.devBuild .adminSession{display:none}
-body.devBuild #adminLockPanel,body.devBuild #diagnosticLockPanel{display:none}
+body.devBuild #adminLockPanel{display:none}
 @media(min-width:700px){
 :root{--hdr:4.45rem}
 .brand{order:0}.headerSignals{order:1}
@@ -137,7 +137,6 @@ label:has(>input[type=checkbox]) .fieldHint{margin-left:1.9rem}
 .inlineAction{border:0;background:none;padding:0;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}
 .inlineAction:disabled{opacity:.65;cursor:not-allowed}
 .stateReady{color:var(--ok);font-weight:700}
-.stateActive{color:var(--ac);font-weight:700}
 .stateFault{color:var(--dn);font-weight:700}
 #machineStateValue .switchOnly,#machineStateValue a{font-size:.78rem;font-weight:400}
 .metric a{color:inherit;text-decoration:underline;cursor:pointer}
@@ -229,16 +228,8 @@ small{display:block;color:var(--mu)}
 #statsDurChart{margin-top:1.35rem}
 .locked{opacity:.5}
 .switchRow{display:flex;align-items:center;gap:.75rem;margin:.4rem 0;min-height:var(--tap);justify-content:space-between}
-.switch{position:relative;display:inline-block;width:3rem;height:var(--tap);margin:0;padding:0;flex-shrink:0}
-.switch input,.homeGuardGrid .switchRow input{position:absolute;opacity:0;width:0;height:0}
-.slider{position:absolute;inset:.5rem 0;display:block;border:1px solid var(--bd);border-radius:2rem;background:var(--bd);cursor:pointer;transition:.2s}
-.slider:before{position:absolute;content:"";width:1.2rem;height:1.2rem;left:.25rem;top:.2rem;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:.2s}
-.switch input:checked+.slider{background:var(--pri);border-color:var(--pri)}
-.switch input:checked+.slider:before{transform:translateX(1.25rem)}
-.switch input:disabled+.slider{cursor:not-allowed;opacity:.48}
-.switchOn,.switchOff,.switchState{display:none}
-.switchRow.switchPending .slider,.switchRow.switchPending input:checked+.slider{background:var(--wn);border-color:var(--wn)}
-.switchRow.switchPending input:disabled+.slider{opacity:1;cursor:wait}
+.homeGuardGrid .switchRow input{position:absolute;opacity:0;width:0;height:0}
+.switchState{display:none}
 
 #quickSettingsPanel{padding:1rem;margin:1rem 0}
 .homeSwitchGrid{display:flex;flex-direction:column;gap:.15rem;margin:0 0 1rem;padding:0 0 .75rem;border-bottom:1px solid var(--ln)}
@@ -479,7 +470,6 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 #diagnosticsPanel details{grid-column:1/-1;max-width:100%;overflow:auto}#diagnosticsPanel details table{width:100%;min-width:24rem;border-collapse:collapse}#diagnosticsPanel details th,#diagnosticsPanel details td{text-align:left;padding:.45rem;border-bottom:1px solid var(--ln)}
 
 :where(a,button,input,select,textarea,summary):focus-visible{outline:3px solid var(--ac);outline-offset:2px}
-.switch input:focus-visible+.slider{outline:3px solid var(--ac);outline-offset:2px}
 .btnGlyph:not(:disabled):hover{filter:brightness(.95)}
 @media(max-width:699px){
 .topBar{--logo-w:2.35rem;--logo-h:3.1rem;--brand-font:1.4rem;--brand-small:.84rem;--compact:var(--header-progress,0);min-height:calc(5rem - 1.25rem * var(--compact));transition:min-height .12s linear}
@@ -491,4 +481,4 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 @media(max-width:340px){body{padding-inline:.75rem}.topBar{margin-inline:-.75rem;padding-inline:.75rem}.statusColumn{grid-template-columns:1fr}}
 @media(max-width:380px){.topBar{gap:.15rem;--logo-w:1.85rem;--logo-h:2.5rem;--brand-font:1.15rem;--brand-small:.73rem}.headerSignals{padding-left:.25rem}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:.01ms!important}.bootWave i{animation:none}.btnGlyph.busy .g:after{animation:none}}
-@media(forced-colors:active){input[type=checkbox]{appearance:auto}.slider,.ktrack,#brewModeRow .xlsw{forced-color-adjust:auto}.btnGlyph,.presetCard,.kcard,#brewModeRow,.heroFsBtn,input,select,textarea{border-color:ButtonText}}
+@media(forced-colors:active){input[type=checkbox]{appearance:auto}.ktrack,#brewModeRow .xlsw{forced-color-adjust:auto}.btnGlyph,.presetCard,.kcard,#brewModeRow,.heroFsBtn,input,select,textarea{border-color:ButtonText}}

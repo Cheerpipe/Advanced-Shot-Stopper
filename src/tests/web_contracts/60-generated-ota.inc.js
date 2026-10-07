@@ -516,8 +516,13 @@ if (generated.cssGzip.length > 10300) {
 // 48300 bytes. The Diagnostic full-WebSocket migration (log stream client,
 // snapshot readiness, local clock ticker) adds ~150 compressed bytes while
 // deleting the REST pull plumbing; source allowances above cover the rest.
-if (sentinelRuntimeGzip.length > 48500) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 48500-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The dead-code cleanup moves the shared list-sentinel helper into the
+// runtime while deleting the dead pagination helpers and the UTC wrapper
+// hop; the minified runtime shrinks by ~130 raw bytes and the combined
+// flash total by ~280, but terser's renamed-identifier entropy shifts the
+// gzipped runtime by +30 bytes. Cap raised to 48550.
+if (sentinelRuntimeGzip.length > 48550) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 48550-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

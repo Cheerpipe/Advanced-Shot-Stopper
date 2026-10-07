@@ -106,10 +106,9 @@ const diagnosticProfilerBindings = ui.slice(
     profilerStart, ui.search(/\$\(\s*['"]scaleProfileDeleteButton['"]\s*\)\s*\.\s*onclick/));
 const diagnosticResetStart = ui.search(
     /for\s*\(\s*const\s*\[id,\s*path\]\s*of\s*\[\s*\[\s*['"]loopMax['"]/);
-const activateRel = ui.slice(diagnosticResetStart)
-    .search(/\}\s*export\s+function\s+activate\s*\(/);
-const diagnosticResetBindings = activateRel < 0 ? '' :
-    ui.slice(diagnosticResetStart, diagnosticResetStart + activateRel);
+const resetEnd = ui.slice(diagnosticResetStart).search(/\}\s*let crashBusy\b/);
+const diagnosticResetBindings = resetEnd < 0 ? '' :
+    ui.slice(diagnosticResetStart, diagnosticResetStart + resetEnd);
 new Function('$', 'R', diagnosticProfilerBindings + diagnosticResetBindings)(
     id => {
       const button = {};

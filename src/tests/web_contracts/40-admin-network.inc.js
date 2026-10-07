@@ -26,9 +26,7 @@
         'Save machine must send only machine fields; Date & time has its own payload and dirty flag');
   }
 }
-if (!(codeIncludes(ui, "if($('serialDebugOutput'))$('serialDebugOutput').checked=!!c.serialDebugOutput") ||
-         codeIncludes(ui, "$('serialDebugOutput').checked=!!c.serialDebugOutput")) ||
-    firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)',
+if (firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)',
                      firmware.indexOf('persistenceReady = EEPROM.begin')) < 0 ||
     firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)',
                      firmware.indexOf('persistenceReady = EEPROM.begin')) >
@@ -595,7 +593,7 @@ if (!codeIncludes(ui, 'setMutable(!!s.configMutable||!!s.webUiOverrideActive)') 
     !codeIncludes(ui, "uiOverridePanel") ||
     !codeIncludes(ui, "uiOverrideButton") ||
     !codeIncludes(ui, 'UI Override') ||
-    !codeIncludes(ui, "closest('#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel')") ||
+    !codeIncludes(ui, "closest('#adminLockPanel,#uiOverridePanel')") ||
     !codeIncludes(ui, 'function ensureUiOverridePanel(') ||
     !codeIncludes(ui, 'if(developmentMode||$(\'uiOverridePanel\'))return;') ||
     !codeIncludes(ui, '/api/v1/ui/unlock') ||

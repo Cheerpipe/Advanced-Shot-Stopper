@@ -167,7 +167,6 @@ inline uint32_t machineCloseLimitMs(uint32_t operationalWallMs) {
 }
 inline bool machineCycleHardMaxArmedForTest() { return false; }
 inline bool machineCyclePromotedToNaturalForTest() { return false; }
-inline uint32_t machineLastActivatorEdgeMs() { return momentaryRawChangedAtMs; }
 inline void machineNoteFirmwareStop() {
   momentarySkipFirmwareStopPulse = false;
 }

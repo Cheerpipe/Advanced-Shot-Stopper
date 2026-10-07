@@ -142,7 +142,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("connections.bluetoothConnected", bool(control.scaleAvailable));
   delta.field("connections.bluetoothLevel", "%s", connectionSignalLevelJson(
       control.scaleRssiValid, control.scaleRssi));
-  escapeJsonString(network.staState == StaState::CONNECTED ? network.staSsid : "", g_work->historyJson, NetworkWorkBuf::kHistoryJson);
+  escapeJsonString(network.staState == StaState::CONNECTED ? network.iface.staSsid : "", g_work->historyJson, NetworkWorkBuf::kHistoryJson);
   delta.field("connections.wifiName", "\"%s\"", g_work->historyJson);
   escapeConnectedScaleName(control, g_work->scaleHistory, g_work->historyJson, NetworkWorkBuf::kHistoryJson);
   delta.field("connections.bluetoothName", "\"%s\"", g_work->historyJson);
@@ -492,11 +492,11 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   delta.field("time.lastSyncUtcSec", "%lu",
               static_cast<unsigned long>(timeStatus.lastSyncUtcSec));
   char safeStaSsid[80] = {}, safeApSsid[80] = {};
-  sanitizeJsonEmbed(network.staSsid, safeStaSsid, sizeof(safeStaSsid));
-  sanitizeJsonEmbed(network.apSsid, safeApSsid, sizeof(safeApSsid));
+  sanitizeJsonEmbed(network.iface.staSsid, safeStaSsid, sizeof(safeStaSsid));
+  sanitizeJsonEmbed(network.iface.apSsid, safeApSsid, sizeof(safeApSsid));
   delta.field("network.apActive", bool(network.apActive));
-  delta.field("network.apSsid", "\"%s\"", safeApSsid);
-  delta.field("network.apIp", "\"%s\"", network.apIp);
+  delta.field("network.iface.apSsid", "\"%s\"", safeApSsid);
+  delta.field("network.iface.apIp", "\"%s\"", network.iface.apIp);
   delta.field("network.wifiConfigured", bool(network.wifiConfigured));
   delta.field("network.ssid", "\"%s\"", safeStaSsid);
   delta.field("network.staState", "\"%s\"", staStateName(network.staState));
@@ -505,7 +505,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   if (network.channel != 0)
     delta.field("network.channel", "%u", static_cast<unsigned>(network.channel));
   else delta.field("network.channel", "null");
-  delta.field("network.staIp", "\"%s\"", network.staIp);
+  delta.field("network.iface.staIp", "\"%s\"", network.iface.staIp);
   delta.field("network.ipMode", "\"%s\"", staIpModeName(network.staIpMode));
   delta.field("network.configState", "\"%s\"", staConfigStateName(network.staConfigState));
   // Whole seconds: the UI ceils the remaining window for display.

@@ -48,10 +48,6 @@ inline int32_t rfCoexLastError() {
   return detail::g_rfCoexLastError.load(std::memory_order_relaxed);
 }
 
-inline uint32_t rfCoexFailureCount() {
-  return detail::g_rfCoexFailures.load(std::memory_order_relaxed);
-}
-
 inline bool ensureRfCoexBt() {
 #if defined(SHOT_STOPPER_RF_COEX_HAS_IDF)
   const esp_err_t result = esp_coex_preference_set(ESP_COEX_PREFER_BT);

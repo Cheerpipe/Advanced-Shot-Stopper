@@ -1183,7 +1183,6 @@ from IRAM.
 | Name | Why it is omitted |
 | --- | --- |
 | `PaddleMode` (Natural / Original / Auto) | Latch TYPE=0 translator setting. Lives in `OpenBrewByWeightMachinePaddleConfig.h`; the brew orchestrator never branches on it. |
-| `BrewCommand` | Declared, unused at runtime. `ENTER_RINSE` was removed; rinse is `REQUEST_RINSE` via the brew orchestrator. |
 | `AlertEvent` | Outputs (beeps), not a mode. |
 | `TaskProfilerState` | Diagnostics only. |
 | Shot-log / NVS dual-slot enums | Storage format, not live control. |

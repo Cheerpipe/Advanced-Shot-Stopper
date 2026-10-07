@@ -479,7 +479,7 @@ void verifySafetyInvariants() {
     std::cerr << "Safety invariant failed: safe state has machine circuit closed\n";
     ++failures;
   }
-  if (!MACHINE_USES_MOMENTARY_SWITCH &&
+  if (SHOT_STOPPER_MACHINE_TYPE == 0 &&
       machineLastIntention().stablyOff &&
       stopperState != StopperState::RINSE &&
       session.source != ControlSource::WEB && relay.closed &&
@@ -1830,15 +1830,15 @@ void r05_regression_uses_last_ten_valid_samples() {
   resetShotTrajectory(session.startedAtMs);
   session.receivedFreshWeightInCycle = false;
 
-  for (size_t i = 1; i <= TREND_POINT_COUNT; ++i) {
+  for (size_t i = 1; i <= WEIGHT_TREND_POINT_COUNT; ++i) {
     recordWeightSample(static_cast<float>(i) * 2.0f,
                        shot.startMs + static_cast<uint32_t>(i * 1000));
   }
-  CHECK(shot.datapoints == TREND_POINT_COUNT);
+  CHECK(shot.datapoints == WEIGHT_TREND_POINT_COUNT);
   CHECK(fabsf(shot.expectedEndS - 17.25f) < 0.001f);
 
   resetShotTrajectory(session.startedAtMs);
-  for (size_t i = 0; i < TREND_POINT_COUNT; ++i) {
+  for (size_t i = 0; i < WEIGHT_TREND_POINT_COUNT; ++i) {
     recordWeightSample(20.0f - static_cast<float>(i),
                        shot.startMs + static_cast<uint32_t>(i * 1000));
   }
@@ -1847,7 +1847,7 @@ void r05_regression_uses_last_ten_valid_samples() {
   // Intercept already above target with a positive slope predicts a time in
   // the past of the sample window; fall back to the operational wall.
   resetShotTrajectory(session.startedAtMs);
-  for (size_t i = 0; i < TREND_POINT_COUNT; ++i) {
+  for (size_t i = 0; i < WEIGHT_TREND_POINT_COUNT; ++i) {
     recordWeightSample(40.0f + static_cast<float>(i) * 0.1f,
                        shot.startMs + static_cast<uint32_t>(i * 1000));
   }
@@ -1859,7 +1859,7 @@ void r05_regression_uses_last_ten_valid_samples() {
   startCycle();
   session.extractionExtended = true;
   resetShotTrajectory(session.startedAtMs);
-  for (size_t i = 1; i <= TREND_POINT_COUNT; ++i) {
+  for (size_t i = 1; i <= WEIGHT_TREND_POINT_COUNT; ++i) {
     recordWeightSample(static_cast<float>(i) * 2.0f,
                        shot.startMs + static_cast<uint32_t>(i * 1000));
   }
@@ -1871,7 +1871,7 @@ void r05_regression_uses_last_ten_valid_samples() {
   startCycle();
   session.slowExtractionExtended = true;
   resetShotTrajectory(session.startedAtMs);
-  for (size_t i = 1; i <= TREND_POINT_COUNT; ++i) {
+  for (size_t i = 1; i <= WEIGHT_TREND_POINT_COUNT; ++i) {
     recordWeightSample(static_cast<float>(i) * 2.0f,
                        shot.startMs + static_cast<uint32_t>(i * 1000));
   }
@@ -7694,7 +7694,7 @@ void r29_direct_threshold_stops_before_regression_is_ready() {
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
-  CHECK(shot.datapoints < TREND_POINT_COUNT);
+  CHECK(shot.datapoints < WEIGHT_TREND_POINT_COUNT);
   const float threshold = effectiveStopThreshold();
   publishWeight(threshold + 0.1f);
   CHECK(getRelaySafetySnapshot().closed);
@@ -14551,7 +14551,7 @@ void sc15_status_printers_use_dump_views() {
   SerialCliNetworkDump dump;
   dump.wifiConfigured = true;
   dump.staOpen = false;
-  strncpy(dump.staSsid, "CafeLAN", sizeof(dump.staSsid) - 1);
+  strncpy(dump.iface.staSsid, "CafeLAN", sizeof(dump.iface.staSsid) - 1);
   dump.staState = 2;
   dump.wifiStatus = 3;
   dump.wifiMode = 1;
@@ -14561,7 +14561,7 @@ void sc15_status_printers_use_dump_views() {
   dump.apStartHeld = false;
   dump.httpStartHeld = true;
   dump.wifiPs = WifiPsLive::NONE;
-  strncpy(dump.staIp, "192.168.1.20", sizeof(dump.staIp) - 1);
+  strncpy(dump.iface.staIp, "192.168.1.20", sizeof(dump.iface.staIp) - 1);
   Serial.tx.clear();
   serialCliPrintNetStatus(dump);
   CHECK(serialTxContains("WIFI_STATUS"));
@@ -14576,7 +14576,7 @@ void sc15_status_printers_use_dump_views() {
   CHECK(serialTxContains("httpActive=true"));
   CHECK(serialTxContains("httpStartHeld=true"));
 
-  strncpy(dump.apSsid, "OpenBrewByWeightAP-75fcbf0d", sizeof(dump.apSsid) - 1);
+  strncpy(dump.iface.apSsid, "OpenBrewByWeightAP-75fcbf0d", sizeof(dump.iface.apSsid) - 1);
   Serial.tx.clear();
   serialCliPrintApStatus(dump);
   CHECK(serialTxContains("ssid=OpenBrewByWeightAP-75fcbf0d"));

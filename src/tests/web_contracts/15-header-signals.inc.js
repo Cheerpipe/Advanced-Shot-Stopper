@@ -75,7 +75,7 @@
     const source = fs.readFileSync(path.join(sketchDir, file), 'utf8');
     for (const field of ['wifiConnected', 'wifiLevel', 'bluetoothConnected', 'bluetoothLevel', 'wifiName', 'bluetoothName']) assert(source.includes('\\"' + field + '\\"'), file + ': ' + field);
     assert(source.includes('escapeConnectedScaleName(control, g_work->scaleHistory,'), 'Both envelopes use the connected identity resolver');
-    assert(source.includes('escapeJsonString(network.staState == StaState::CONNECTED ? network.staSsid : ""'), 'Preserve escaped SSID only while connected');
+    assert(source.includes('escapeJsonString(network.staState == StaState::CONNECTED ? network.iface.staSsid : ""'), 'Preserve escaped SSID only while connected');
   }
   const network = fs.readFileSync(path.join(sketchDir, 'ShotStopperNetwork.cpp'), 'utf8');
   assert(network.replace(/\s+/g, ' ').includes('entry.friendlyName[0] ? entry.friendlyName : scaleDefaultFriendlyName(entry.name)'), 'Friendly name precedes the advertised BLE name and its derived default');

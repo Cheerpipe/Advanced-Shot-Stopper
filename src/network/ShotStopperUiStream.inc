@@ -64,8 +64,8 @@ esp_err_t ShotStopperNetwork::uiStreamHandshake(httpd_req_t *request) {
     return ESP_FAIL;
   const NetworkStatusSnapshot network = self.snapshot();
   snprintf(local, sizeof(local), "%s.local", network.mdnsHost);
-  if (!uiStreamOriginMatches(origin, network.staIp) &&
-      !uiStreamOriginMatches(origin, network.apIp) &&
+  if (!uiStreamOriginMatches(origin, network.iface.staIp) &&
+      !uiStreamOriginMatches(origin, network.iface.apIp) &&
       !uiStreamOriginMatches(origin, local)) return ESP_FAIL;
   TaskLockGuard lock(self.dataMux_);
   for (auto &session : self.uiStreams_) {

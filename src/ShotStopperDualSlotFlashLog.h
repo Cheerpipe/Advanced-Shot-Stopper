@@ -19,6 +19,22 @@
 
 namespace shotstopper {
 
+// One CRC over the header words every ring mutation moves (generation,
+// nextRecordId, count). Shared by the stores' epoch() stream gates so the
+// hashing cannot drift between stores.
+template <typename Header>
+uint32_t dualSlotHeaderEpoch(const Header &header) {
+  uint32_t crc = crc32Update(0xFFFFFFFFU,
+      reinterpret_cast<const uint8_t *>(&header.generation),
+      sizeof(header.generation));
+  crc = crc32Update(crc,
+      reinterpret_cast<const uint8_t *>(&header.nextRecordId),
+      sizeof(header.nextRecordId));
+  return crc32Update(crc,
+      reinterpret_cast<const uint8_t *>(&header.count),
+      sizeof(header.count));
+}
+
 template <typename StoreT>
 struct DualSlotFlashLogTraits;
 
@@ -345,6 +361,20 @@ class DualSlotFlashLog {
   }
 
  protected:
+  // Persists after a mutation: defer when allowed, otherwise save now and
+  // reload the last-good slot when the immediate save fails.
+  bool persistMutation(bool persistNow) {
+    if (!persistNow) {
+      dirty_ = true;
+      return true;
+    }
+    if (save()) {
+      return true;
+    }
+    load();
+    return false;
+  }
+
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
   static const esp_partition_t *flashLogPartition() {

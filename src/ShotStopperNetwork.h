@@ -132,19 +132,7 @@ struct NetworkStatusSnapshot {
   int32_t wifiStatus = 6;
   uint32_t staConnectAgeMs = 0;
   uint32_t staReconnectAgeMs = 0;
-  char apIp[16] = "192.168.4.1";
-  char staIp[16] = {};
-  char staSsid[WIFI_SSID_CAPACITY] = {};
-  char configuredIp[16] = {};
-  char configuredNetmask[16] = {};
-  char configuredGateway[16] = {};
-  char configuredDns1[16] = {};
-  char configuredDns2[16] = {};
-  char staMac[18] = {};
-  char staBssid[18] = {};
-  char apMac[18] = {};
-  char apSsid[WIFI_SSID_CAPACITY] = {};
-  char ntpActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
+  NetworkInterfaceSnapshot iface = {};
   char deviceName[DEVICE_NAME_CAPACITY] = {};
   char mdnsHost[DEVICE_NAME_CAPACITY] = {};
 };
@@ -268,7 +256,6 @@ class ShotStopperNetwork {
   NetworkStatusSnapshot snapshot();
   NetworkHeapTelemetrySnapshot heapTelemetrySnapshot();
   void requestNtpSyncIfNeeded();
-  void syncPreferredScaleMac(const char *mac);
   void syncPreferredScale(const char *mac, const char *name);
   void syncScaleLinkRf(bool connectingOrUp);
   void syncScaleConnectingRf(bool connecting);
@@ -284,7 +271,6 @@ class ShotStopperNetwork {
   void copySettings(PersistedSettings &output);
   StaJoinHints staJoinHints();
   bool enqueueWebhook(const WebhookEvent &event);
-  WebhookStatus webhookStatus() const;
   WebhookConfig webhookConfig() const;
 
   private:

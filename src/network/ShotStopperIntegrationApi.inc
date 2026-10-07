@@ -182,7 +182,7 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     char id[18] = {};
     char currentIp[16] = {};
     char mdnsHost[DEVICE_NAME_CAPACITY] = {};
-    copyCString(currentIp, sizeof(currentIp), network.staIp);
+    copyCString(currentIp, sizeof(currentIp), network.iface.staIp);
     copyCString(mdnsHost, sizeof(mdnsHost), network.mdnsHost);
     integrationDeviceId(id);
     char btMac[18] = {};

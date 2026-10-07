@@ -253,10 +253,6 @@ uint32_t ShotStopperOta::slotBytes() const {
   return slotBytes_;
 }
 
-bool ShotStopperOta::bootPendingVerify() const {
-  return publishedState().pendingVerify;
-}
-
 bool ShotStopperOta::runningImageConfirmed() const {
   return publishedState().confirmed;
 }
@@ -535,11 +531,6 @@ void ShotStopperOta::clearSession(bool abortHandle) {
   clearSessionSha256();
   journaledBytes_ = 0;
   removeSessionJournal();
-}
-
-bool ShotStopperOta::isExactSession(const OtaSessionIdentity &identity) const {
-  TaskLockGuard lock(mutex_);
-  return (sessionActive_ || stagedValid_) && sameSession(session_, identity);
 }
 
 bool ShotStopperOta::isDuplicateRange(uint32_t offset,

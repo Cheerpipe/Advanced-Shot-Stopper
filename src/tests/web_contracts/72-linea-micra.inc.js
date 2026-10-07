@@ -85,7 +85,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const labels = {'diagnostic.cloud_titles': 'Email|Machine|Time|API|Result|Duration|Connection|Traffic|Planned|Unexpected|Cleaning',
     'diagnostic.cleaning_states': 'Inactive|Waiting for paddle|Cleaning'};
   const domContext = vm.createContext({$: id => dom[id], document: {createElement: element},
-    __WEBUI_TEXT__: key => labels[key] || key, R: {formatWallTime: String}});
+    __WEBUI_TEXT__: key => labels[key] || key, R: {formatWallTimeLocal: String}});
   const cleaningSource = rawRuntimeJs.slice(rawRuntimeJs.indexOf('export function formatMicraCleaning('),
       rawRuntimeJs.search(/let\s+shotWs\s*=/)).replace('export ', '');
   domContext.R.formatMicraCleaning = new Function('__WEBUI_TEXT__', cleaningSource + ';return formatMicraCleaning;')(domContext.__WEBUI_TEXT__);
@@ -124,7 +124,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert(dom.dMicraWsHeap.textContent.includes('internal Δ'));
   const context = vm.createContext({$: id => nodes[id],
     __WEBUI_TEXT__: key => key === 'diagnostic.cloud_results' ? ['success','canceled','http_error','transport_error','invalid_response','response_too_large','setup_error'].map(k=>'diagnostic.cloud_'+k).join('|') : key,
-    R: {formatWallTime: (sec, offset) => {assert.strictEqual(offset, 0); return String(sec);}}});
+    R: {formatWallTimeLocal: String}});
   context.R.formatMicraCleaning = new Function('__WEBUI_TEXT__', cleaningSource + ';return formatMicraCleaning;')(context.__WEBUI_TEXT__);
   vm.runInContext(cloudUi.slice(cloudUi.indexOf('function renderMicraCloudDiagnostic('),
       cloudUi.indexOf('function applyScaleCommands(')), context);

@@ -542,7 +542,7 @@ bool ShotStopperNetwork::handleCliWifiAction(const WebCommand &command,
       dataMux_.lock();
       status_.staState = status_.wifiConfigured ? StaState::DISCONNECTED
                                                 : StaState::NOT_CONFIGURED;
-      status_.staIp[0] = '\0';
+      status_.iface.staIp[0] = '\0';
       clearStaLinkMetrics();
       dataMux_.unlock();
       actionLog("WIFI_DISCONNECT STA down; reconnect held");
@@ -562,7 +562,7 @@ bool ShotStopperNetwork::handleCliWifiAction(const WebCommand &command,
       g_wallClock.markDisabled();
       dataMux_.lock();
       status_.staState = StaState::DISCONNECTED;
-      status_.staIp[0] = '\0';
+      status_.iface.staIp[0] = '\0';
       clearStaLinkMetrics();
       dataMux_.unlock();
       if (!beginStationConnect(settings, now)) {
@@ -724,15 +724,15 @@ void ShotStopperNetwork::printActionSnapshot(const char *command, bool ok) {
              "ap=%s apIp=%s clients=%u http=%s holds sta/ap/http=%d/%d/%d",
              command != nullptr ? command : "NETWORK",
              ok ? "OK" : "ERR",
-             status.staSsid[0] != '\0' ? status.staSsid : "-",
+             status_.iface.staSsid[0] != '\0' ? status_.iface.staSsid : "-",
              serialCliWifiModeName(status.wifiMode),
              static_cast<long>(status.wifiStatus),
              serialCliWlStatusName(status.wifiStatus),
              staStateName(status.staState),
-             status.staIp[0] != '\0' ? status.staIp : "-",
+             status_.iface.staIp[0] != '\0' ? status_.iface.staIp : "-",
              status.staLinkMetricsValid ? static_cast<int>(status.staRssi) : 0,
              status.apActive ? "up" : "down",
-             status.apIp,
+             status_.iface.apIp,
              static_cast<unsigned>(status.apClients),
              status.httpActive ? "up" : "down",
              status.staReconnectHeld ? 1 : 0,
@@ -827,16 +827,16 @@ void ShotStopperNetwork::refreshExtendedStatus(uint32_t now) {
       staReconnectAttemptAtMs_ != 0
           ? static_cast<uint32_t>(now - staReconnectAttemptAtMs_)
           : 0;
-  memset(status_.staMac, 0, sizeof(status_.staMac));
-  memset(status_.staBssid, 0, sizeof(status_.staBssid));
-  memset(status_.apMac, 0, sizeof(status_.apMac));
-  memset(status_.apSsid, 0, sizeof(status_.apSsid));
-  copyCString(status_.staMac, sizeof(status_.staMac), staMac);
-  copyCString(status_.staBssid, sizeof(status_.staBssid), staBssid);
-  copyCString(status_.apMac, sizeof(status_.apMac), apMac);
-  copyCString(status_.apSsid, sizeof(status_.apSsid), apSsid);
-  memset(status_.ntpActiveServer, 0, sizeof(status_.ntpActiveServer));
-  copyCString(status_.ntpActiveServer, sizeof(status_.ntpActiveServer),
+  memset(status_.iface.staMac, 0, sizeof(status_.iface.staMac));
+  memset(status_.iface.staBssid, 0, sizeof(status_.iface.staBssid));
+  memset(status_.iface.apMac, 0, sizeof(status_.iface.apMac));
+  memset(status_.iface.apSsid, 0, sizeof(status_.iface.apSsid));
+  copyCString(status_.iface.staMac, sizeof(status_.iface.staMac), staMac);
+  copyCString(status_.iface.staBssid, sizeof(status_.iface.staBssid), staBssid);
+  copyCString(status_.iface.apMac, sizeof(status_.iface.apMac), apMac);
+  copyCString(status_.iface.apSsid, sizeof(status_.iface.apSsid), apSsid);
+  memset(status_.iface.ntpActiveServer, 0, sizeof(status_.iface.ntpActiveServer));
+  copyCString(status_.iface.ntpActiveServer, sizeof(status_.iface.ntpActiveServer),
               timeStatus.activeServer);
   dataMux_.unlock();
 }

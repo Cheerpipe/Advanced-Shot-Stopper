@@ -109,7 +109,7 @@ else()
     add_test(NAME ${name} COMMAND ${name})
     set_tests_properties(${name} PROPERTIES LABELS "host;ble")
   endfunction()
-  ble_test(scale_ble_portable_test "${ble_dir}/src/ScaleBleStateMachine.cpp")
+  ble_test(scale_ble_portable_test "${ble_dir}/tests/ScaleBleStateMachine.cpp")
   ble_test(nimble_advertisement_test
     "${ble_dir}/src/ScaleProtocolCommon.cpp"
     "${ble_dir}/src/protocols/Registry.cpp"

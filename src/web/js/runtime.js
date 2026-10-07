@@ -425,22 +425,7 @@ function formatTzLabel(min) {
   );
 }
 function formatWallTime(unixSec, tz) {
-  const localSec = unixSec + tz * 60;
-  const d = new Date(0);
-  d.setUTCSeconds(localSec);
-  return (
-    d.getUTCFullYear() +
-    __WEBUI_TEXT__("runtime.symbol_2") +
-    pad2(d.getUTCMonth() + 1) +
-    __WEBUI_TEXT__("runtime.symbol_2") +
-    pad2(d.getUTCDate()) +
-    __WEBUI_TEXT__("runtime.symbol_3") +
-    pad2(d.getUTCHours()) +
-    __WEBUI_TEXT__("runtime.symbol") +
-    pad2(d.getUTCMinutes()) +
-    __WEBUI_TEXT__("runtime.symbol") +
-    pad2(d.getUTCSeconds())
-  );
+  return formatWallTimeLocal(unixSec + tz * 60);
 }
 function formatWallTimeLocal(unixLocalSec) {
   const d = new Date(0);
@@ -1627,13 +1612,6 @@ function shotStatsViewActive() {
   const view = $("view-stats");
   return !!(view && !view.classList.contains("hidden"));
 }
-function maybeLoadMoreShots() {
-  if (statsFetchMark || !shotHistory.hasMore || !shotStatsViewActive()) return;
-  const el = $("shotLogSentinel");
-  if (!el || el.hidden) return;
-  const r = el.getBoundingClientRect();
-  if (r.bottom > 0 && r.top < (innerHeight || 0) + 240) loadMoreShots();
-}
 const loadMoreShots = () => {
   if (shotHistory.hasMore && shotStatsViewActive() && !statsFetchMark && !statsExportInFlight) {
     statsFetchMark = { request: ++statsNextRequest, offset: shotHistory.shots.length };
@@ -1649,6 +1627,16 @@ const loadMoreShots = () => {
     });
   }
 };
+// Arms a list-end sentinel once so its view loads the next page whenever
+// the sentinel scrolls close enough to the viewport.
+function armListSentinel(id, onLoad) {
+  const el = $(id);
+  if (!el || el.dataset.armed) return;
+  el.dataset.armed = 1;
+  new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && onLoad(), {
+    rootMargin: "240px",
+  }).observe(el);
+}
 function refreshShots() {
   return shotStatsViewActive() ? startStatsStream() : Promise.resolve(false);
 }
@@ -1850,13 +1838,6 @@ function applyHistoryPage(d, mode) {
   historyData = { bootId: d.bootId, total: t, hasMore: !!d.hasMore && !!t, records: t ? a : [] };
 }
 const historyViewActive = () => activeView === "history" && webUiPollingActive();
-function maybeLoadMoreHistory() {
-  if (historyFetchOffset >= 0 || !historyData.hasMore || !historyViewActive()) return;
-  const el = $("historySentinel");
-  if (!el || el.hidden) return;
-  const r = el.getBoundingClientRect();
-  r.bottom > 0 && r.top < innerHeight + 240 && loadMoreHistory();
-}
 function renderHistory() {
   const body = $("historyRows");
   if (!body || !historyLoaded) return;
@@ -2895,7 +2876,7 @@ function setMutable(enabled) {
       e.disabled = !webUiOwner;
       return;
     }
-    if (e.closest("#adminLockPanel,#diagnosticLockPanel,#uiOverridePanel")) {
+    if (e.closest("#adminLockPanel,#uiOverridePanel")) {
       e.disabled = !webUiOwner;
       return;
     }
@@ -6288,8 +6269,6 @@ function applyCommonStatus(s) {
     if (c.ntpServerCustom != null && $("ntpServerCustom"))
       $("ntpServerCustom").value = c.ntpServerCustom || "";
   }
-  if (typeof c.serialDebugOutput === "boolean" && $("serialDebugOutput"))
-    $("serialDebugOutput").checked = !!c.serialDebugOutput;
   if (typeof s.buzzerSupported === "boolean") updateBuzzerAlertVisibility(!!s.buzzerSupported);
   applyMachineTypeUi(s);
 }
@@ -7983,6 +7962,7 @@ export {
   renderLog,
   clearLogView,
   loadMoreShots,
+  armListSentinel,
   exportShotsCsv,
   clearShotHistory,
   renderStatsDurChart,
@@ -7994,7 +7974,7 @@ export {
   toggleShotSortDir,
   syncShotSortButtons,
   resetNetworkAddressLoaded,
-  formatWallTime,
+  formatWallTimeLocal,
   applyHomeStatus,
   applySettingsStatus,
   applyAdminStatus,

@@ -10,7 +10,7 @@ const jsDir = path.join(__dirname, '../web/js');
 const runtime = fs.readFileSync(path.join(jsDir, 'runtime.js'), 'utf8');
 const locale = JSON.parse(fs.readFileSync(
     path.join(jsDir, '../locales/en.json'), 'utf8')).strings;
-const otaSource = runtime.slice(runtime.indexOf('const OTA_UPLOAD_TIMEOUT_MS='),
+const otaSource = runtime.slice(runtime.search(/const\s+OTA_UPLOAD_TIMEOUT_MS\s*=/),
     runtime.indexOf('function statusPageOk('));
 const parser = new Function(fs.readFileSync(path.join(jsDir, 'ota-image.js'), 'utf8')
     .replace(/export\s+/g, '') + ';return otaFileIdentity;')();

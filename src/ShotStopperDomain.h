@@ -195,6 +195,26 @@ inline bool validNtpHostname(const char *host) {
 constexpr size_t TIMEZONE_ID_CAPACITY = 64;
 constexpr size_t WIFI_SSID_CAPACITY = 33;
 constexpr size_t WIFI_PASSWORD_CAPACITY = 64;
+
+// Live interface addresses and identities for the Wi-Fi/AP/NTP state. Shared
+// by NetworkStatusSnapshot and SerialCliNetworkDump so the two views cannot
+// drift apart; persisted settings keep their own schema.
+struct NetworkInterfaceSnapshot {
+  char apIp[16] = "192.168.4.1";
+  char staIp[16] = {};
+  char staSsid[WIFI_SSID_CAPACITY] = {};
+  char configuredIp[16] = {};
+  char configuredNetmask[16] = {};
+  char configuredGateway[16] = {};
+  char configuredDns1[16] = {};
+  char configuredDns2[16] = {};
+  char staMac[18] = {};
+  char staBssid[18] = {};
+  char apMac[18] = {};
+  char apSsid[WIFI_SSID_CAPACITY] = {};
+  char ntpActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
+};
+
 constexpr size_t WEB_COMMAND_QUEUE_LENGTH = 4;
 constexpr size_t DEBUG_EVENT_CAPACITY = 512;
 // Text logs are formatted into 128-byte views throughout the firmware. Keep
@@ -244,7 +264,6 @@ static_assert(SHOT_STOPPER_DEVELOPMENT == 0 || SHOT_STOPPER_DEVELOPMENT == 1,
 #define SHOT_STOPPER_ENABLE_JTAG 0
 #endif
 
-constexpr bool JTAG_SUPPORT_ENABLED = SHOT_STOPPER_ENABLE_JTAG == 1;
 static_assert(SHOT_STOPPER_ENABLE_JTAG == 0 || SHOT_STOPPER_ENABLE_JTAG == 1,
               "SHOT_STOPPER_ENABLE_JTAG must be 0 (off) or 1 (USB Serial/JTAG)");
 
@@ -305,10 +324,6 @@ enum class MachineType : uint8_t {
   MOMENTARY_REED = 2
 };
 
-constexpr uint8_t COMPILED_MACHINE_TYPE =
-    static_cast<uint8_t>(SHOT_STOPPER_MACHINE_TYPE);
-constexpr bool MACHINE_USES_MOMENTARY_SWITCH = SHOT_STOPPER_MACHINE_TYPE != 0;
-constexpr bool MACHINE_HAS_REED = SHOT_STOPPER_MACHINE_TYPE == 2;
 constexpr uint32_t COMPILED_STOP_PULSE_MS =
     static_cast<uint32_t>(SHOT_STOPPER_STOP_PULSE_MS);
 constexpr uint32_t COMPILED_MAX_SINGLE_PRESS_MS =
@@ -317,11 +332,9 @@ constexpr uint32_t COMPILED_REED_CONFIRM_TIMEOUT_MS =
     static_cast<uint32_t>(SHOT_STOPPER_REED_CONFIRM_TIMEOUT_MS);
 constexpr uint32_t MIN_REED_CONFIRM_TIMEOUT_MS = 200;
 constexpr uint32_t MAX_REED_CONFIRM_TIMEOUT_MS = 5000;
-constexpr uint32_t DEFAULT_REED_CONFIRM_TIMEOUT_MS = 1000;
 constexpr uint32_t COMPILED_SHOT_REACT_TIMEOUT_MS = 12000;
 constexpr uint8_t MIN_SHOT_REACT_TIMEOUT_S = 3;
 constexpr uint8_t MAX_SHOT_REACT_TIMEOUT_S = 30;
-constexpr uint8_t DEFAULT_SHOT_REACT_TIMEOUT_S = 12;
 
 inline const char *compiledMachineTypeId() {
   switch (SHOT_STOPPER_MACHINE_TYPE) {
@@ -2497,18 +2510,6 @@ inline bool parseLogLevel(const char *text, uint8_t &level) {
     return true;
   }
   return false;
-}
-
-inline char logLevelLetter(LogLevel level) {
-  switch (level) {
-    case LogLevel::CRITICAL: return 'C';
-    case LogLevel::ERROR: return 'E';
-    case LogLevel::WARNING: return 'W';
-    case LogLevel::INFO: return 'I';
-    case LogLevel::DEBUG: return 'D';
-    case LogLevel::NONE: return '-';
-  }
-  return '?';
 }
 
 inline bool logLevelAtMost(LogLevel level, LogLevel threshold) {

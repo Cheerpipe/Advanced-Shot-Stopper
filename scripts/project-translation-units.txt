@@ -3,7 +3,6 @@
 idf/components/ShotStopperBleRuntime/ShotStopperBleRuntime.cpp
 idf/main/main.cpp
 libraries/EspressoScaleBLE/src/EspressoScaleBLENimble.cpp
-libraries/EspressoScaleBLE/src/ScaleBleStateMachine.cpp
 libraries/EspressoScaleBLE/src/ScaleProtocolCommon.cpp
 libraries/EspressoScaleBLE/src/nimble/NimbleAdvertisement.cpp
 libraries/EspressoScaleBLE/src/nimble/NimbleResilience.cpp

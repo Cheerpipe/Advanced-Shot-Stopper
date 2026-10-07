@@ -69,7 +69,7 @@ bool ShotStopperNetwork::startNetwork() {
   WiFi.setAutoReconnect(false);
   dataMux_.lock();
   status_.wifiConfigured = settings.staConfigured;
-  copyCString(status_.apIp, sizeof(status_.apIp), AP_IP);
+  copyCString(status_.iface.apIp, sizeof(status_.iface.apIp), AP_IP);
   dataMux_.unlock();
   publishConfiguredAddressStatus();
   // Take the central DRAM run out of circulation before Wi-Fi, mDNS, and the
@@ -128,16 +128,16 @@ void ShotStopperNetwork::publishConfiguredAddressStatus() {
   status_.staWifiSleep = settings.staWifiSleep;
   status_.staIpMode = settings.staIpMode;
   status_.staConfigState = settings.staConfigState;
-  memset(status_.staSsid, 0, sizeof(status_.staSsid));
-  copyCString(status_.staSsid, sizeof(status_.staSsid), staSsid);
-  copyCString(status_.configuredIp, sizeof(status_.configuredIp), configuredIp);
-  copyCString(status_.configuredNetmask, sizeof(status_.configuredNetmask),
+  memset(status_.iface.staSsid, 0, sizeof(status_.iface.staSsid));
+  copyCString(status_.iface.staSsid, sizeof(status_.iface.staSsid), staSsid);
+  copyCString(status_.iface.configuredIp, sizeof(status_.iface.configuredIp), configuredIp);
+  copyCString(status_.iface.configuredNetmask, sizeof(status_.iface.configuredNetmask),
               configuredNetmask);
-  copyCString(status_.configuredGateway, sizeof(status_.configuredGateway),
+  copyCString(status_.iface.configuredGateway, sizeof(status_.iface.configuredGateway),
               configuredGateway);
-  copyCString(status_.configuredDns1, sizeof(status_.configuredDns1),
+  copyCString(status_.iface.configuredDns1, sizeof(status_.iface.configuredDns1),
               configuredDns1);
-  copyCString(status_.configuredDns2, sizeof(status_.configuredDns2),
+  copyCString(status_.iface.configuredDns2, sizeof(status_.iface.configuredDns2),
               configuredDns2);
   copyCString(status_.deviceName, sizeof(status_.deviceName), deviceName);
   copyCString(status_.mdnsHost, sizeof(status_.mdnsHost), mdnsHost);
@@ -266,7 +266,7 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t,
     syncScaleSoftApRadio(false);
     status_.apClients = 0;
     status_.staState = StaState::NOT_CONFIGURED;
-    status_.staIp[0] = '\0';
+    status_.iface.staIp[0] = '\0';
     clearStaLinkMetrics();
     dataMux_.unlock();
     lifecycleLog(
@@ -304,7 +304,7 @@ void ShotStopperNetwork::clearStaLinkMetrics() {
   status_.staLinkMetricsValid = false;
   status_.staRssi = 0;
   status_.staSignalQualityPct = 0;
-  status_.staBssid[0] = '\0';
+  status_.iface.staBssid[0] = '\0';
 }
 
 bool ShotStopperNetwork::brewRfActive() const {
@@ -517,7 +517,7 @@ bool ShotStopperNetwork::beginStationConnect(const NetworkSettingsSnapshot &sett
   WiFi.disconnect(false, false);
   dataMux_.lock();
   status_.staState = StaState::CONNECTING;
-  status_.staIp[0] = '\0';
+  status_.iface.staIp[0] = '\0';
   clearStaLinkMetrics();
   dataMux_.unlock();
   log(DebugCategory::NETWORK, DebugCode::STA_CONNECTING);
@@ -584,7 +584,7 @@ void ShotStopperNetwork::startStation(const NetworkSettingsSnapshot &settings,
   syncScaleSoftApRadio(false);
   status_.apClients = 0;
   status_.staState = StaState::CONNECTING;
-  status_.staIp[0] = '\0';
+  status_.iface.staIp[0] = '\0';
   clearStaLinkMetrics();
   status_.windowRemainingMs = 0;
   status_.confirmRemainingMs = 0;
@@ -788,8 +788,8 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
   status_.apActive = apReady;
   syncScaleSoftApRadio(apReady);
   status_.apClients = 0;
-  memset(status_.apSsid, 0, sizeof(status_.apSsid));
-  copyCString(status_.apSsid, sizeof(status_.apSsid), apSsid);
+  memset(status_.iface.apSsid, 0, sizeof(status_.iface.apSsid));
+  copyCString(status_.iface.apSsid, sizeof(status_.iface.apSsid), apSsid);
   if (!settings.staConfigured) {
     status_.staState = StaState::NOT_CONFIGURED;
   } else if (status_.staState == StaState::CONNECTED && !staLinkUp) {
@@ -797,7 +797,7 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
   }
   if (!staLinkUp &&
       (!keepStation || status_.staState != StaState::CONNECTED)) {
-    status_.staIp[0] = '\0';
+    status_.iface.staIp[0] = '\0';
     clearStaLinkMetrics();
   }
   status_.windowRemainingMs = 0;
@@ -849,7 +849,7 @@ void ShotStopperNetwork::stopNetwork() {
   status_.apClients = 0;
   status_.staState = status_.wifiConfigured ? StaState::DISCONNECTED
                                             : StaState::NOT_CONFIGURED;
-  status_.staIp[0] = '\0';
+  status_.iface.staIp[0] = '\0';
   clearStaLinkMetrics();
   status_.windowRemainingMs = 0;
   dataMux_.unlock();
@@ -888,7 +888,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       dataMux_.lock();
       status_.staState = StaState::DISCONNECTED;
       status_.networkActive = false;
-      status_.staIp[0] = '\0';
+      status_.iface.staIp[0] = '\0';
       clearStaLinkMetrics();
       dataMux_.unlock();
       log(DebugCategory::NETWORK, DebugCode::STA_FAILED,
@@ -978,13 +978,13 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       dataMux_.lock();
       status_.staState = StaState::CONNECTED;
       status_.networkActive = httpReady;
-      copyCString(previousAddress, sizeof(previousAddress), status_.staIp);
-      copyCString(status_.staIp, sizeof(status_.staIp), address);
+      copyCString(previousAddress, sizeof(previousAddress), status_.iface.staIp);
+      copyCString(status_.iface.staIp, sizeof(status_.iface.staIp), address);
       status_.staLinkMetricsValid = true;
       status_.staRssi = clampWifiRssi(rssi);
       status_.staSignalQualityPct = wifiRssiToSignalQualityPct(rssi);
       status_.windowRemainingMs = 0;
-      copyCString(status_.staBssid, sizeof(status_.staBssid), bssidText);
+      copyCString(status_.iface.staBssid, sizeof(status_.iface.staBssid), bssidText);
       dataMux_.unlock();
       if (callbacks_.reportStationIpChange != nullptr &&
           strcmp(previousAddress, address) != 0) {

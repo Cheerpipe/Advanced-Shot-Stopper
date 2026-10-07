@@ -268,14 +268,12 @@ class ShotStopperOta {
   OtaResult writeRange(uint32_t offset, uint32_t contentLength,
                        const OtaStreamIo &io, uint32_t now);
   void expireSession(uint32_t now);
-  bool isExactSession(const OtaSessionIdentity &identity) const;
   bool isDuplicateRange(uint32_t offset, uint32_t contentLength) const;
   // Points the bootloader at the staged image. The caller performs the
   // restart, so machine circuit can be opened first.
   OtaResult commit();
   void discard();
 
-  bool bootPendingVerify() const;
   bool runningImageConfirmed() const;
   bool runningImageRejected() const;
   // Cancels the pending rollback: the running image becomes permanent.

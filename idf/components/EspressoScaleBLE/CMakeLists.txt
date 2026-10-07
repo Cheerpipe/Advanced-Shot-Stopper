@@ -2,7 +2,6 @@ set(ESPRESSO_SCALE_BLE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../libraries/Espress
 
 set(ESPRESSO_SCALE_BLE_SRCS
   "${ESPRESSO_SCALE_BLE_DIR}/src/EspressoScaleBLENimble.cpp"
-  "${ESPRESSO_SCALE_BLE_DIR}/src/ScaleBleStateMachine.cpp"
   "${ESPRESSO_SCALE_BLE_DIR}/src/ScaleProtocolCommon.cpp"
   "${ESPRESSO_SCALE_BLE_DIR}/src/nimble/NimbleAdvertisement.cpp"
   "${ESPRESSO_SCALE_BLE_DIR}/src/nimble/NimbleResilience.cpp"

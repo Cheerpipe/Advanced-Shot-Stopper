@@ -221,4 +221,3 @@ export function init() {
       R.command("/api/v1/calibration/reset-guard-samples");
   };
 }
-export function activate() {}

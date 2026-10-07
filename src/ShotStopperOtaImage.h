@@ -250,18 +250,6 @@ inline OtaImageHeaderResult validateOtaImageHeader(const uint8_t *bytes,
   return OtaImageHeaderResult::OK;
 }
 
-inline const char *otaImageHeaderResultName(OtaImageHeaderResult result) {
-  switch (result) {
-    case OtaImageHeaderResult::OK: return "OK";
-    case OtaImageHeaderResult::TOO_SHORT: return "TOO_SHORT";
-    case OtaImageHeaderResult::BAD_MAGIC: return "BAD_MAGIC";
-    case OtaImageHeaderResult::WRONG_CHIP: return "WRONG_CHIP";
-    case OtaImageHeaderResult::BAD_APP_DESC: return "BAD_APP_DESC";
-    case OtaImageHeaderResult::WRONG_PROJECT: return "WRONG_PROJECT";
-  }
-  return "UNKNOWN";
-}
-
 // Finds the Shot Stopper tag in a byte stream delivered in arbitrary chunks.
 //
 // Uses Knuth-Morris-Pratt so a partial match that fails can still resume inside
@@ -299,7 +287,6 @@ class OtaImageTagScanner {
   const OtaImageTag &tag() const { return tag_; }
   // Byte offset of the first character of the tag prefix within the image.
   uint32_t tagOffset() const { return tagOffset_; }
-  size_t prefixLength() const { return prefixLength_; }
 
   private:
   void buildFailureTable() {

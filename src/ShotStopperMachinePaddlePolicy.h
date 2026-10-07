@@ -76,8 +76,6 @@ bool machineCyclePromotedToNaturalForTest() {
   return machineCyclePromotedToNatural;
 }
 
-uint32_t machineLastActivatorEdgeMs() { return rawActivatorChangedAtMs; }
-
 // Early paddle OFF still reports stop (or rinse) so Original/Auto walk-away
 // does not hide the gesture. After that window, Original/Auto may hide stop.
 bool machineReportsStopOnRelease() {

@@ -13,27 +13,14 @@
 #ifndef EspressoScaleBLE_h
 #define EspressoScaleBLE_h
 
-#define LIBRARY_VERSION                 "5.0.0"
-#define WRITE_CHAR_OLD_VERSION          "2a80"
-#define READ_CHAR_OLD_VERSION           "2a80"
-#define WRITE_CHAR_NEW_VERSION          "49535343-8841-43f4-a8d4-ecbe34729bb3"
-#define READ_CHAR_NEW_VERSION           "49535343-1e4d-4bd9-ba61-23c647249616"
-#define WRITE_CHAR_GENERIC              "ff12"
-#define READ_CHAR_GENERIC               "ff11"
-#define WRITE_CHAR_FELICITA             "ffe1"
-#define READ_CHAR_FELICITA              "ffe1"
-#define WRITE_CHAR_ECLAIR               "4F9A45BA-8E1B-4E07-E157-0814D393B968"
-#define READ_CHAR_ECLAIR                "AD736C5F-BBC9-1F96-D304-CB5D5F41E160"
 #define HEARTBEAT_PERIOD_MS              2750UL
 #define FIRST_PACKET_TIMEOUT_MS          5000UL
 #define MAX_PACKET_PERIOD_MS             5000UL
-#define GENERIC_MAX_PACKET_PERIOD_MS     8000UL
 #define SCALE_SCAN_TIMEOUT_MS            3000UL
 #define BLE_OPERATION_TIMEOUT_MS          1000UL
 #define BLE_CONNECT_TIMEOUT_MS            2000UL
 #define BLE_DISCOVER_TIMEOUT_MS           3000UL
 #define SCALE_CONNECT_SETTLE_MS           0UL
-#define LINK_DOWN_DEBOUNCE_MS             120UL
 #define SCALE_DISCONNECT_SILENCE_MS       3000UL
 // GAP scan duty while discovering. Connecting and GATT-up paths never start
 // a scan. Intervals avoid 20/60/100/120 ms advertising harmonics.
@@ -44,16 +31,12 @@
 #define BLE_SCAN_BALANCED_WINDOW          0x0032
 #define BLE_SCAN_AGGRESSIVE_INTERVAL      0x0020
 #define BLE_SCAN_AGGRESSIVE_WINDOW        0x0020
-#define SCALE_CONNECT_ATTEMPTS           3U
 #define SCALE_CONNECT_BUDGET_MS         10000UL
 #define MAX_BLE_PACKET_LENGTH           20
-#define MAX_SUPPORTED_WEIGHT_GRAMS      10000.0f
 #define MAX_CONSECUTIVE_REJECTED_PACKETS 8U
 #define SCALE_MAC_CAPACITY               18U
 #define SCALE_NAME_CAPACITY              32U
 #define SCALE_LINK_RSSI_UNAVAILABLE      127
-#define ACAIA_MAC_CAPACITY               SCALE_MAC_CAPACITY
-#define ACAIA_NAME_CAPACITY              SCALE_NAME_CAPACITY
 
 #include "ScaleBleBackend.h"
 #include "ScaleBleTypes.h"
@@ -61,14 +44,6 @@
 #include "ScaleProtocol.h"
 #include <stddef.h>
 #include <stdint.h>
-
-enum scale_type {
-    OLD,
-    NEW,
-    GENERIC,
-    FELICITA,
-    ECLAIR
-};
 
 enum class ScaleDisconnectReason : uint8_t {
     NONE,

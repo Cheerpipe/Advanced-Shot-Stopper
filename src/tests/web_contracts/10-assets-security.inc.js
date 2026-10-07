@@ -8,7 +8,6 @@ const VIEW_NAMES = webUi.VIEW_NAMES;
   assert.deepEqual(Object.keys(views).sort(), [...webUi.SECONDARY_VIEWS].sort());
   for (const name of webUi.SECONDARY_VIEWS) {
     assert.equal(typeof views[name].init, 'function', name + ': lazy view must initialize');
-    assert.equal(typeof views[name].applyStatus, 'function', name + ': status handler must exist');
   }
 })().catch(error => {console.error(error); process.exitCode = 1;});
 const rawPartialHtml = {};
@@ -462,7 +461,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       suppression.includes('bootWave')) {
     throw new Error('Loading must suppress control motion while preserving the loading wave');
   }
-  for (const selector of ['.slider', '.slider:before']) {
+  for (const selector of ['.ktrack', '.kknob']) {
     const rule = css.slice(css.indexOf(selector + '{')).split('}')[0];
     if (Number(rule.match(/transition:([\d.]+)s/)[1]) !== .2) {
       throw new Error('Normal toggle track and thumb animations must remain available after loading');
@@ -1136,14 +1135,12 @@ if (!domainCore.includes('#ifndef SHOT_STOPPER_DEVELOPMENT') ||
     !/const\s+on\s*=\s*!!unlocked\s*\|\|\s*developmentMode/.test(js) ||
     !codeIncludes(js, "if(R.developmentActive())return;") ||
     !rawShellHtml.includes('class="{{webui-meta:development-class}}"') ||
-    !css.includes('body.devBuild #adminLockPanel') ||
-    !css.includes('body.devBuild #diagnosticLockPanel')) {
+    !css.includes('body.devBuild #adminLockPanel')) {
   throw new Error(
       'SHOT_STOPPER_DEVELOPMENT must default off, make administration public by compile flag, and never flash the locked admin UI');
 }
 if (!domainCore.includes('#ifndef SHOT_STOPPER_ENABLE_JTAG') ||
     !domainCore.includes('#define SHOT_STOPPER_ENABLE_JTAG 0') ||
-    !domainCore.includes('JTAG_SUPPORT_ENABLED = SHOT_STOPPER_ENABLE_JTAG == 1') ||
     !domainCore.includes(
         'SHOT_STOPPER_ENABLE_JTAG must be 0 (off) or 1 (USB Serial/JTAG)') ||
     !domainCore.includes('CONFIG_SHOT_STOPPER_ENABLE_JTAG') ||

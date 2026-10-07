@@ -204,7 +204,6 @@ constexpr const char *OTA_ALLOW_DOWNGRADE_HEADER = "X-OTA-Allow-Downgrade";
 constexpr const char *OTA_TRANSFER_HEADER = "X-OTA-Transfer";
 constexpr const char *OTA_OFFSET_HEADER = "X-OTA-Offset";
 constexpr const char *OTA_LENGTH_HEADER = "X-OTA-Length";
-constexpr size_t OTA_STATUS_JSON_CAPACITY = NetworkWorkBuf::kOtaJson;
 constexpr const char *STATUS_TOO_MANY = "429 Too Many Requests";
 constexpr const char *STATUS_CONFLICT = "409 Conflict";
 constexpr const char *STATUS_NOT_FOUND = "404 Not Found";

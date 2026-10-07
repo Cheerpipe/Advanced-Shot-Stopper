@@ -41,7 +41,6 @@ constexpr uint8_t LINEA_MICRA_KNOWN_SCALE_OPTIONS =
 constexpr uint16_t LINEA_MICRA_SHUTDOWN_GRACE_SECONDS[] = {0, 5, 15, 30, 60};
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_MIN_DECI_C = 800;
 constexpr uint16_t LINEA_MICRA_BREW_TARGET_MAX_DECI_C = 1000;
-constexpr uint16_t LINEA_MICRA_BREW_TARGET_DEFAULT_DECI_C = 930;
 enum class MicraConnectionType : uint8_t { WEBSOCKET = 0, API = 1 };
 inline const char *micraConnectionTypeName(uint8_t value) {
   return value == static_cast<uint8_t>(MicraConnectionType::API) ? "api" : "websocket";

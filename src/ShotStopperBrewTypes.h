@@ -351,15 +351,4 @@ inline void pushAutoToManualGuardSample(
   samples[AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT - 1] = durationDs;
 }
 
-enum class BrewCommand : uint8_t {
-  NONE = 0,
-  BEGIN_BREW = 1,
-  // 2 was ENTER_RINSE; rinse is UserIntent::REQUEST_RINSE via the stopper.
-  REQUEST_MACHINE_START = 3,
-  REQUEST_MACHINE_STOP = 4,
-  REQUEST_RETARE = 5,
-  SUSPEND_WEIGHT_CONTROL = 6,
-  FINALIZE = 7
-};
-
 }  // namespace shotstopper

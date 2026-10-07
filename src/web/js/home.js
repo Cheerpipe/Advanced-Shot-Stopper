@@ -99,7 +99,6 @@ export function init() {
         1,
       );
 }
-export function activate() {}
 function micraPower(m) {
   const p = m?.quality === "optimistic" && (m.optimisticOn ? "ON" : m.optimisticOff ? "OFF" : "");
   return p

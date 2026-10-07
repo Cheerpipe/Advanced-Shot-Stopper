@@ -547,4 +547,3 @@ export function init() {
   const themeSel = $("uiTheme");
   if (themeSel) themeSel.value = R.themeMode();
 }
-export function activate() {}

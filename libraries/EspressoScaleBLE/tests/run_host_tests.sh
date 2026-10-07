@@ -20,7 +20,7 @@ common_flags=(
 "$compiler" "${common_flags[@]}" \
   -fsanitize=address,undefined \
   -fno-omit-frame-pointer \
-  "$repo_root/src/ScaleBleStateMachine.cpp" \
+  "$repo_root/tests/ScaleBleStateMachine.cpp" \
   "$repo_root/tests/scale_ble_portable_test.cpp" \
   -o "$build_dir/scale_ble_portable_test"
 

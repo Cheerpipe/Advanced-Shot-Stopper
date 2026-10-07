@@ -201,7 +201,7 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
     const NetworkStatusSnapshot network = self.snapshot();
     const bool staConnected = network.staState == StaState::CONNECTED &&
                               network.wifiConfigured &&
-                              network.staIp[0] != '\0';
+                              network.iface.staIp[0] != '\0';
     if (!staConnected || network.apActive) {
       return sendError(request, STATUS_CONFLICT, "MICRA_STA_REQUIRED",
                        "Connect to Wi-Fi station mode and close setup AP first.");

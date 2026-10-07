@@ -68,9 +68,6 @@ struct ScaleBleDiagnostics {
 
 enum class ScaleBleAddressType : uint8_t {
     Public = 0,
-    Random = 1,
-    PublicIdentity = 2,
-    RandomIdentity = 3,
     Unknown = 0xff
 };
 

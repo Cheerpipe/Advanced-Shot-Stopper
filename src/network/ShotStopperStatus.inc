@@ -118,8 +118,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                     sizeof(safePreferredScaleName));
   sanitizeJsonEmbed(FW_VERSION, safeFirmwareVersion,
                     sizeof(safeFirmwareVersion));
-  sanitizeJsonEmbed(network.staSsid, safeStaSsid, sizeof(safeStaSsid));
-  sanitizeJsonEmbed(network.apSsid, safeApSsid, sizeof(safeApSsid));
+  sanitizeJsonEmbed(network.iface.staSsid, safeStaSsid, sizeof(safeStaSsid));
+  sanitizeJsonEmbed(network.iface.apSsid, safeApSsid, sizeof(safeApSsid));
   sanitizeJsonEmbed(network.deviceName, safeDeviceName, sizeof(safeDeviceName));
   sanitizeJsonEmbed(network.mdnsHost, safeMdnsHost, sizeof(safeMdnsHost));
   const WebhookConfig webhookConfig = self.webhooks_.config();
@@ -180,7 +180,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
                     sizeof(safeConnectedScaleFriendly));
   char wifiName[WIFI_SSID_CAPACITY * 6] = {};
   char bluetoothName[PREFERRED_SCALE_NAME_CAPACITY * 6] = {};
-  escapeJsonString(network.staState == StaState::CONNECTED ? network.staSsid : "",
+  escapeJsonString(network.staState == StaState::CONNECTED ? network.iface.staSsid : "",
                    wifiName, sizeof(wifiName));
   escapeConnectedScaleName(control, g_work->scaleHistory,
                            bluetoothName, sizeof(bluetoothName));
@@ -486,17 +486,17 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           "\"configuredDns2\":\"%s\","
           "\"deviceName\":\"%s\",\"mdnsHost\":\"%s\"},"
           "\"bleScan\":{\"scanIntensity\":\"%s\",\"enabled\":%s}",
-          network.apActive ? "true" : "false", safeApSsid, network.apIp,
+          network.apActive ? "true" : "false", safeApSsid, network.iface.apIp,
           static_cast<unsigned>(network.apClients),
           network.wifiConfigured ? "true" : "false", safeStaSsid,
           network.staOpen ? "true" : "false",
           network.staWifiSleep ? "true" : "false", staStateName(network.staState),
-          staChannelJson, network.staIp, staIpModeName(network.staIpMode),
+          staChannelJson, network.iface.staIp, staIpModeName(network.staIpMode),
           staConfigStateName(network.staConfigState),
           static_cast<unsigned long>(network.confirmRemainingMs), staRssiJson,
-          staSignalQualityJson, network.configuredIp, network.configuredNetmask,
-          network.configuredGateway, network.configuredDns1,
-          network.configuredDns2, safeDeviceName, safeMdnsHost,
+          staSignalQualityJson, network.iface.configuredIp, network.iface.configuredNetmask,
+          network.iface.configuredGateway, network.iface.configuredDns1,
+          network.iface.configuredDns2, safeDeviceName, safeMdnsHost,
           bleScanIntensityName(clampBleScanIntensity(
               control.bleScanIntensity)),
           control.bleScanEnabled ? "true" : "false");

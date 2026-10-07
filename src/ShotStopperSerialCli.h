@@ -550,19 +550,7 @@ struct SerialCliNetworkDump {
   uint32_t staConnectAgeMs = 0;
   uint32_t staReconnectAgeMs = 0;
   CommandResultState lastCommandState = CommandResultState::NONE;
-  char apIp[16] = "192.168.4.1";
-  char staIp[16] = {};
-  char staSsid[WIFI_SSID_CAPACITY] = {};
-  char configuredIp[16] = {};
-  char configuredNetmask[16] = {};
-  char configuredGateway[16] = {};
-  char configuredDns1[16] = {};
-  char configuredDns2[16] = {};
-  char staMac[18] = {};
-  char staBssid[18] = {};
-  char apMac[18] = {};
-  char apSsid[WIFI_SSID_CAPACITY] = {};
-  char ntpActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
+  NetworkInterfaceSnapshot iface = {};
 };
 
 struct SerialCliHealthDump {
@@ -653,7 +641,7 @@ inline void serialCliPrintWifiStatus(const SerialCliNetworkDump &dump) {
   Serial.print("configured=");
   Serial.println(dump.wifiConfigured ? "true" : "false");
   Serial.print("ssid=");
-  Serial.println(dump.staSsid[0] != '\0' ? dump.staSsid : "-");
+  Serial.println(dump.iface.staSsid[0] != '\0' ? dump.iface.staSsid : "-");
   Serial.print("security=");
   Serial.println(!dump.wifiConfigured ? "-" : (dump.staOpen ? "open" : "wpa"));
   Serial.print("staState=");
@@ -669,19 +657,19 @@ inline void serialCliPrintWifiStatus(const SerialCliNetworkDump &dump) {
   Serial.print("configState=");
   Serial.println(staConfigStateName(dump.staConfigState));
   Serial.print("staIp=");
-  Serial.println(dump.staIp[0] != '\0' ? dump.staIp : "-");
+  Serial.println(dump.iface.staIp[0] != '\0' ? dump.iface.staIp : "-");
   Serial.print("configuredIp=");
-  Serial.println(dump.configuredIp[0] != '\0' ? dump.configuredIp : "-");
+  Serial.println(dump.iface.configuredIp[0] != '\0' ? dump.iface.configuredIp : "-");
   Serial.print("netmask=");
-  Serial.println(dump.configuredNetmask[0] != '\0' ? dump.configuredNetmask
+  Serial.println(dump.iface.configuredNetmask[0] != '\0' ? dump.iface.configuredNetmask
                                                    : "-");
   Serial.print("gateway=");
-  Serial.println(dump.configuredGateway[0] != '\0' ? dump.configuredGateway
+  Serial.println(dump.iface.configuredGateway[0] != '\0' ? dump.iface.configuredGateway
                                                    : "-");
   Serial.print("dns1=");
-  Serial.println(dump.configuredDns1[0] != '\0' ? dump.configuredDns1 : "-");
+  Serial.println(dump.iface.configuredDns1[0] != '\0' ? dump.iface.configuredDns1 : "-");
   Serial.print("dns2=");
-  Serial.println(dump.configuredDns2[0] != '\0' ? dump.configuredDns2 : "-");
+  Serial.println(dump.iface.configuredDns2[0] != '\0' ? dump.iface.configuredDns2 : "-");
   Serial.print("rssi=");
   if (dump.staLinkMetricsValid) {
     Serial.print(static_cast<int>(dump.staRssi));
@@ -694,9 +682,9 @@ inline void serialCliPrintWifiStatus(const SerialCliNetworkDump &dump) {
   Serial.print("channel=");
   Serial.println(static_cast<unsigned>(dump.channel));
   Serial.print("staBssid=");
-  Serial.println(dump.staBssid[0] != '\0' ? dump.staBssid : "-");
+  Serial.println(dump.iface.staBssid[0] != '\0' ? dump.iface.staBssid : "-");
   Serial.print("staMac=");
-  Serial.println(dump.staMac[0] != '\0' ? dump.staMac : "-");
+  Serial.println(dump.iface.staMac[0] != '\0' ? dump.iface.staMac : "-");
   Serial.print("confirmRemainingMs=");
   Serial.println(static_cast<unsigned long>(dump.confirmRemainingMs));
   Serial.print("staConnectAgeMs=");
@@ -712,7 +700,7 @@ inline void serialCliPrintWifiStatus(const SerialCliNetworkDump &dump) {
   Serial.print(" ");
   Serial.println(commandResultStateName(dump.lastCommandState));
   Serial.print("ntpServer=");
-  Serial.println(dump.ntpActiveServer[0] != '\0' ? dump.ntpActiveServer : "-");
+  Serial.println(dump.iface.ntpActiveServer[0] != '\0' ? dump.iface.ntpActiveServer : "-");
   Serial.print("ntpMayArm=");
   Serial.println(dump.ntpMayArm ? "true" : "false");
   Serial.print("staReconnectHeld=");
@@ -724,13 +712,13 @@ inline void serialCliPrintApStatus(const SerialCliNetworkDump &dump) {
   Serial.print("active=");
   Serial.println(dump.apActive ? "true" : "false");
   Serial.print("ssid=");
-  Serial.println(dump.apSsid[0] != '\0' ? dump.apSsid : SOFT_AP_SSID_PREFIX);
+  Serial.println(dump.iface.apSsid[0] != '\0' ? dump.iface.apSsid : SOFT_AP_SSID_PREFIX);
   Serial.print("ip=");
-  Serial.println(dump.apIp[0] != '\0' ? dump.apIp : "192.168.4.1");
+  Serial.println(dump.iface.apIp[0] != '\0' ? dump.iface.apIp : "192.168.4.1");
   Serial.print("clients=");
   Serial.println(static_cast<unsigned>(dump.apClients));
   Serial.print("apMac=");
-  Serial.println(dump.apMac[0] != '\0' ? dump.apMac : "-");
+  Serial.println(dump.iface.apMac[0] != '\0' ? dump.iface.apMac : "-");
   Serial.print("wifiMode=");
   Serial.println(serialCliWifiModeName(dump.wifiMode));
   Serial.print("passwordFactory=");
@@ -748,9 +736,9 @@ inline void serialCliPrintWebuiStatus(const SerialCliNetworkDump &dump) {
   Serial.print("networkActive=");
   Serial.println(dump.networkActive ? "true" : "false");
   Serial.print("bindSta=");
-  Serial.println(dump.staIp[0] != '\0' ? dump.staIp : "-");
+  Serial.println(dump.iface.staIp[0] != '\0' ? dump.iface.staIp : "-");
   Serial.print("bindAp=");
-  Serial.println(dump.apIp[0] != '\0' ? dump.apIp : "192.168.4.1");
+  Serial.println(dump.iface.apIp[0] != '\0' ? dump.iface.apIp : "192.168.4.1");
   Serial.print("lastCommand=");
   Serial.print(static_cast<unsigned long>(dump.lastCommandRequestId));
   Serial.print(" ");

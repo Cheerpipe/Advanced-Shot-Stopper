@@ -316,10 +316,10 @@ if (!codeIncludes(ui, '<legend>Brew</legend>') ||
     html.includes('id="homeSoundAlertsEnabled"') ||
     html.includes('id="homeCupProtectionEnabled" type="checkbox" role="switch" aria-label="Cup protection" checked') ||
     !css.includes('.switchRow.switchPending') ||
-    !css.includes('.switch{position:relative;display:inline-block;width:3rem;height:var(--tap)') ||
-    !css.includes('.slider{position:absolute;inset:.5rem 0;') ||
-    !css.includes('.switch input:checked+.slider{background:var(--pri);border-color:var(--pri)}') ||
-    !css.includes('.switch input:checked+.slider:before{transform:translateX(1.25rem)}') ||
+    !css.includes('.ktrack{position:relative;flex:none;width:2.3rem;height:1.3rem;border-radius:2rem;background:var(--bd);transition:.2s}') ||
+    !css.includes('.kknob{position:absolute;top:.15rem;left:.15rem;width:1rem;height:1rem;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:.2s}') ||
+    !css.includes('.homeGuardGrid input:checked~.ktrack{background:var(--ac)}') ||
+    !css.includes('.homeGuardGrid input:checked~.ktrack .kknob{transform:translateX(1rem)}') ||
     !css.includes('.homeSwitchGrid') ||
     !css.includes('justify-content:space-between') ||
     !css.includes('.homeSwitchGrid{') ||
@@ -330,7 +330,7 @@ if (!codeIncludes(ui, '<legend>Brew</legend>') ||
     !css.includes('grid-template-columns:repeat(2,minmax(0,1fr))') ||
     !css.includes('#brewModeRow .swL{font-size:1.05rem;font-weight:700;line-height:1.2;color:var(--fg);letter-spacing:0}') ||
     css.includes('.ruleChartHead') || css.includes('.ruleChartMode') ||
-    !css.includes('.switchRow.switchPending .slider,.switchRow.switchPending input:checked+.slider{background:var(--wn);border-color:var(--wn)}') ||
+    !css.includes('.homeGuardGrid .switchRow.switchPending .ktrack{opacity:1;background:var(--wn);border-color:var(--wn)}') ||
     !codeIncludes(ui, 'function persistHomeBrewByWeight(') ||
     !codeIncludes(ui, "onchange=R.persistHomeBrewByWeight") ||
     !codeIncludes(ui, 'beginHomeSwitchPending(h,on)') ||
@@ -653,11 +653,11 @@ if (!codeIncludes(ui, '<legend>Brew</legend>') ||
   const first = ui.indexOf('function pad2(');
   const last = ui.indexOf('const HUMAN_WD', first);
   if (first < 0 || last < first) throw new Error('Missing wall-time formatter');
-  const {formatWallTime} = new Function('__WEBUI_TEXT__',
-      ui.slice(first, last) + ';return {formatWallTime};')(
+  const {formatWallTime, formatWallTimeLocal} = new Function('__WEBUI_TEXT__',
+      ui.slice(first, last) + ';return {formatWallTime,formatWallTimeLocal};')(
       key => ({'runtime.symbol': ':', 'runtime.symbol_2': '-',
         'runtime.symbol_3': ' '}[key] || ''));
-  assert.equal(formatWallTime(1704069000, 0), '2024-01-01 00:30:00');
+  assert.equal(formatWallTimeLocal(1704069000), '2024-01-01 00:30:00');
   assert.equal(formatWallTime(1704069000, -180), '2023-12-31 21:30:00');
   if (!codeIncludes(ui, "t('ut')(utc&&utc.slice(11))") ||
       !codeIncludes(ui, "t('ud')(utc&&utc.slice(0,10))") ||
@@ -1005,8 +1005,8 @@ if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
     !codeIncludes(runtimeJs, "statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',90e3)") ||
     !codeIncludes(runtimeJs, 'function shotStatsViewActive(){') ||
     !codeIncludes(runtimeJs, 'function renderShots(') ||
-    !codeIncludes(viewJs.stats, 'IntersectionObserver') ||
-    !codeIncludes(viewJs.stats, "R.loadMoreShots()") ||
+    !codeIncludes(runtimeJs, 'function armListSentinel(') ||
+    !codeIncludes(viewJs.stats, 'R.armListSentinel("shotLogSentinel", R.loadMoreShots)') ||
     !partialHtml.stats.includes('id="shotLogSentinel"') ||
     !css.includes('#shotLogSentinel{min-height:1px') ||
     network.includes('parseShotsPageQuery') ||
@@ -1109,7 +1109,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     codeIncludes(appJsSource, 'historyTimer') ||
     codeIncludes(appJsSource, '/api/v1/status/home') ||
     !codeIncludes(appJsSource, 'R.stopHistoryStream()') ||
-    !codeIncludes(viewJs.history, "R.loadMoreHistory()") ||
+    !codeIncludes(viewJs.history, 'R.armListSentinel("historySentinel", R.loadMoreHistory)') ||
     !codeIncludes(viewJs.history, 'R.clearActivationHistory') ||
     !codeIncludes(viewJs.history, 'R.toggleHistoryDir') ||
     !codeIncludes(viewJs.history, 'R.syncHistoryDirButton()') ||

@@ -213,7 +213,7 @@ function inlineHomeModule(appSrc, homeSrc, assetTag) {
       .replace(/import\s*\*\s*as\s+R\s+from\s*['"][^'"]+['"];\s*/m, '')
       .replace(/export\s+function\s+/g, 'function ');
   const iife =
-      `const __homeModule=(()=>{${body}\nreturn{init,applyStatus,activate};})();`;
+      `const __homeModule=(()=>{${body}\nreturn{init,applyStatus};})();`;
   if (!appSrc.includes('__homeModule')) {
     throw new Error('app.js must reference __homeModule for home cold path');
   }
@@ -238,14 +238,21 @@ function buildSecondaryJs(viewJsRaw, assetTag) {
         .replace(/const\s+\$\s*=\s*R\.\$;\s*/m, '')
         .replace(/export\s+function\s+applyStatus/g, `function ${name}ApplyStatus`)
         .replace(/export\s+function\s+init/g, `function ${name}Init`)
-        .replace(/export\s+function\s+activate/g, `function ${name}Activate`)
         .replace(/\blet\s+ready\s*=/g, `let ${name}Ready=`)
         .replace(/\bif\s*\(\s*ready\s*\)/g, `if(${name}Ready)`)
         .replace(/\bready\s*=\s*true\b/g, `${name}Ready=true`)
         .replace(
             new RegExp(
-                `registerViewStatus\\('${name}',applyStatus\\)`, 'g'),
+                `registerViewStatus\\(\\s*['"]${name}['"]\\s*,\\s*applyStatus\\s*\\)`,
+                'g'),
             `registerViewStatus('${name}',${name}ApplyStatus)`);
+    // The registration rewrite must keep landing; a miss would leave the
+    // bundled view calling the renamed-away applyStatus identifier.
+    if (body.includes('registerViewStatus') &&
+        !body.includes(`registerViewStatus('${name}',${name}ApplyStatus)`)) {
+      throw new Error(
+          `Secondary view ${name} lost its status-handler registration rewrite`);
+    }
     // Whitespace-tolerant renames must keep landing; a miss would collide
     // the per-view ready flag across bundled views.
     for (const token of [`let ${name}Ready=`, `if(${name}Ready)`,
@@ -263,7 +270,7 @@ function buildSecondaryJs(viewJsRaw, assetTag) {
   parts.push('export const views={');
   for (const name of SECONDARY_VIEWS) {
     parts.push(
-        `  ${name}:{init:${name}Init,applyStatus:${name}ApplyStatus},`);
+        `  ${name}:{init:${name}Init},`);
   }
   parts.push('};');
   return parts.join('\n');
