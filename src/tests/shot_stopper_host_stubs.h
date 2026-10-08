@@ -327,8 +327,6 @@ enum class ScaleDisconnectReason : uint8_t {
   MBUF_ALLOCATION_FAILED
 };
 
-using AcaiaDisconnectReason = ScaleDisconnectReason;
-
 inline ScaleFeatureSet hostGenericScaleFeatures() {
   ScaleFeatureSet features = scaleFeatureSetNone();
   features.flags = ScaleFeatureWeight | ScaleFeatureTare |
@@ -801,9 +799,6 @@ class EspressoScaleBLE {
     return ScaleCommandResult::Ok;
   }
 };
-
-using AcaiaArduinoBLE = EspressoScaleBLE;
-
 
 struct HostQueue {
   HostQueue(size_t capacityValue, size_t itemSizeValue)
