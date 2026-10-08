@@ -82,6 +82,22 @@ now stores the epoch on the fingerprint-suppression path and on snapshot
 sends, and the history fingerprint became component-wise over the raw
 record bytes. Image, rodata, DIRAM, and external-BSS allowances are
 unchanged.
+The SoftAP onboarding feature (captive-portal DNS, probe redirect, SoftAP
+admin bypass, live-apply save, /setup view) raises the flash-code allowance
+by another 512 bytes, to 33,792, and the rodata allowance by 2,048 bytes,
+to 18,432 (measured 1,548,556 flash-code and 605,644 rodata bytes on the
+development Micra build). Code growth is the vendored AsyncUDP/DNSServer
+reply path plus the bypass, probe-redirect, and live-apply handlers; rodata
+is dominated by the embedded onboarding assets (the /setup partial, its
+view module, and route wiring measured 129,368 combined compressed bytes in
+the Web contract gate), which consume the roughly 1,940 rodata bytes the
+record-stream change had left. The measured 2,321,200-byte image and
+2,321,075 linked bytes stay inside their existing 49,072/49,064-byte
+allowances, DIRAM grows 480 bytes for the DNSServer object and the stream
+session flag (well inside its 8,192-byte allowance), and the reed/Silvia
+development profile keeps passing with negative deltas against this
+baseline. Firmware task ownership, control timing, OTA identity and
+partitions remain unchanged.
 The additional atomic priority flag retains the single HTTP workspace owner;
 control only notifies Network and never waits for serialization. The stop fade
 is browser animation state, with no firmware task or control-timing changes.

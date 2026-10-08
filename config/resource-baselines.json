@@ -5,8 +5,8 @@
     "image": 49072,
     "total_size": 49064,
     "used_diram": 8192,
-    "flash_code": 33280,
-    "flash_rodata": 16384
+    "flash_code": 33792,
+    "flash_rodata": 18432
   },
   "targets": {
     "n8r4": {
