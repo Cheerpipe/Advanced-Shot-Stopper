@@ -466,10 +466,11 @@ if (generated.jsGzip.length > 4600) {
 // sheet, grab row, conditional Reset pill, masked tick strip) adds +817
 // measured bytes. Cap raised to 10950.
 // The /setup onboarding view (menu-less shell, centered card, scan/form/
-// connecting/success/error states, brand lockup) adds ~250 measured bytes.
-// Cap raised to 11250.
-if (generated.cssGzip.length > 11250) {
-  throw new Error('Compressed Web CSS exceeds the 11250-byte gzip budget');
+// connecting/success/error states, brand lockup) adds ~250 measured bytes,
+// the countdown line ~15 more, and the password reveal toggle ~110 more.
+// Cap raised to 11400.
+if (generated.cssGzip.length > 11400) {
+  throw new Error('Compressed Web CSS exceeds the 11400-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -658,10 +659,11 @@ if (generated.icon48Gzip.length > 3500) {
 // Cap raised to 129400; firmware image, memory placement and OTA
 // partitions stay fixed.
 // The connecting-state countdown (deadline text, tabular-numeric style)
-// adds ~170 measured bytes. Cap raised to 129700; firmware image, memory
-// placement and OTA partitions stay fixed.
-if (generated.combined > 129700) {
-  throw new Error(`Combined Web UI gzip exceeds the 129700-byte flash budget (${generated.combined})`);
+// adds ~170 measured bytes, and the password reveal toggle ~215 more.
+// Cap raised to 130000; firmware image, memory placement and OTA
+// partitions stay fixed.
+if (generated.combined > 130000) {
+  throw new Error(`Combined Web UI gzip exceeds the 130000-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

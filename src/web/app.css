@@ -539,6 +539,10 @@ body.setupView #app{display:flex;flex:1;flex-direction:column}
 .setupHiddenToggle span{font-size:.875rem;color:var(--mu)}
 #setupConnect{display:block;width:100%;margin-top:.75rem;min-height:3rem;border:0;border-radius:2rem;background:var(--pri);color:var(--on);font-weight:700;cursor:pointer}
 #setupRescan,#setupRetry{border:1px solid var(--bd);background:var(--sf);color:var(--fg);font-weight:650;min-height:2.75rem;padding:.5rem 1.25rem;cursor:pointer}
+.setupPassRow{display:flex;align-items:baseline;gap:.5rem}
+.setupPassRow label{flex:1}
+.setupPassToggle{padding:.15rem 0;border:0;border-radius:0;background:transparent;color:var(--mu);font-size:.8rem;font-weight:600;text-decoration:underline;text-underline-offset:.15em;cursor:pointer}
+.setupPassToggle:hover{color:var(--ac)}
 .setupCountdown{margin:0;color:var(--mu);font-size:.85rem;font-variant-numeric:tabular-nums}
 .setupCheck{width:3.4rem;height:3.4rem;margin:0;display:grid;place-items:center;border-radius:50%;background:var(--mo);color:var(--ok);font-size:1.8rem;font-weight:800}
 .setupLinks{margin:.35rem 0}

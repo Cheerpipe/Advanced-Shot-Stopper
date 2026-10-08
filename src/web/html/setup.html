@@ -14,7 +14,10 @@
     <input type="text" id="setupManualSsid" maxlength="32" autocomplete="off" spellcheck="false" hidden>
     <label class="setupHiddenToggle"><input type="checkbox" id="setupHiddenToggle"><span>{{webui:setup.my_network_is_not_listed}}</span></label>
     <div id="setupPasswordWrap">
-      <label for="setupPassword">{{webui:setup.password}}</label>
+      <div class="setupPassRow">
+        <label for="setupPassword">{{webui:setup.password}}</label>
+        <button type="button" id="setupPasswordShow" class="setupPassToggle" aria-pressed="false">{{webui:setup.show}}</button>
+      </div>
       <input type="password" id="setupPassword" autocomplete="new-password" maxlength="63">
     </div>
     <p class="fieldHint">{{webui:setup.band_hint}}</p>

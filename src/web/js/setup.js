@@ -320,6 +320,16 @@ function bind() {
     syncPasswordVisibility();
   };
   $("setupNetwork").onchange = syncPasswordVisibility;
+  const passToggle = $("setupPasswordShow");
+  const passShowText = __WEBUI_TEXT__("setup.show");
+  const passHideText = __WEBUI_TEXT__("setup.hide");
+  passToggle.onclick = () => {
+    const input = $("setupPassword");
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    passToggle.textContent = show ? passHideText : passShowText;
+    passToggle.setAttribute("aria-pressed", String(show));
+  };
   $("setupForm").onsubmit = (e) => {
     e.preventDefault();
     connect();

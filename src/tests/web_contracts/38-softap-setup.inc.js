@@ -171,6 +171,9 @@
       !codeIncludes(setupJs, 'This usually takes less than') ||
       !partialHtml.setup.includes('id="setupConnectingCountdown"') ||
       !partialHtml.setup.includes('id="setupHiddenToggle"') ||
+      !partialHtml.setup.includes('id="setupPasswordShow"') ||
+      !codeIncludes(setupJs, 'input.type=show?"text":"password"') ||
+      !codeIncludes(setupJs, 'passToggle.setAttribute("aria-pressed"') ||
       !partialHtml.setup.includes('2.4 GHz') ||
       !css.includes('body.setupView .topBar,body.setupView .pageNav{display:none}') ||
       !css.includes('.setupCard{')) {
