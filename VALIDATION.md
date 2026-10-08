@@ -46,7 +46,12 @@ release-ready while required HIL/manual evidence is pending.
 Every versioned firmware budget measurement must build with the `--development`
 profile (admin unlock plus the JTAG console), as defined by
 `docs/P2_RESOURCE_BUDGETS.md`; normal release builds retain the OTA-slot and
-memory-placement checks but have no matching versioned size baseline.
+memory-placement checks but have no matching versioned size baseline. A plain
+`./scripts/dev build` therefore prints "budget evidence requires a
+--development build" and is **not** budget evidence: only the development
+profile compares the versioned baselines, so any change that can move image
+size (embedded Web assets included) must be verified with a `--development`
+build or the R2/R3 gate before it is called done.
 R2/R3 validation applies it to all supported built-in profile pairs in
 `docs/BUILD_PROFILES.md` and leaves those
 measured images in their profile build directories. Image

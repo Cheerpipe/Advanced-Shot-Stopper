@@ -75,10 +75,12 @@ for (const [metric, baseline] of Object.entries(config.targets[arch])) {
   if (!Number.isFinite(value) || value < 0) failures.push(`${metric} is missing or invalid`);
   else if (qualifiedSizeProfile && value > limit) failures.push(`${metric} ${value} > baseline budget ${limit}`);
   else console.log(qualifiedSizeProfile
-    ? `${metric}: ${value} (baseline ${baseline}, delta ${value - baseline})`
-    : `${metric}: ${value} (no versioned baseline for this build profile)`);
+      ? `${metric}: ${value} (baseline ${baseline}, delta ${value - baseline})`
+      : `${metric}: ${value} (no versioned baseline for this build profile; ` +
+        'budget evidence requires a --development build)');
 }
 if (failures.length) throw new Error(failures.join('; '));
 console.log(qualifiedSizeProfile
   ? `${arch}: image and memory regions are within versioned budgets`
-  : `${arch}: no versioned baseline for this build profile; OTA slot and memory checks passed`);
+  : `${arch}: no versioned baseline for this build profile (budget evidence ` +
+    'requires a --development build); OTA slot and memory checks passed');

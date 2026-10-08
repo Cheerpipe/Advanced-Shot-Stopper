@@ -266,7 +266,9 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp"
                               text=True, capture_output=True)
 
     sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_PERF=y\n")
-    assert check_size().returncode == 0
+    release_profile = check_size()
+    assert release_profile.returncode == 0
+    assert "budget evidence requires a --development build" in release_profile.stdout
     memory_map = build / "shotstopper.map"
     valid_map = memory_map.read_text()
     memory_map.write_text(valid_map.replace("0x3c000004 publishedControlCurve",
@@ -976,7 +978,8 @@ invalid_language, _ = language_cli("--webui-language", "../en")
 assert invalid_language.returncode == 2 and "Invalid WebUI language" in invalid_language.stderr
 
 
-def validate_language_steps(args: list[str], environment: str | None = None):
+def validate_language_steps(args: list[str], environment: str | None = None,
+                            risk: str = "R3"):
     captured = {}
 
     def capture(command, risk, steps, verbosity, manual=None, prelude=None):
@@ -985,7 +988,7 @@ def validate_language_steps(args: list[str], environment: str | None = None):
 
     main = dev_module["main"]
     with patch.dict(main.__globals__, execute=capture, markdown_errors=lambda: []), \
-            patch.object(sys, "argv", [str(DEV), "validate", "--risk", "R3", *args]), \
+            patch.object(sys, "argv", [str(DEV), "validate", "--risk", risk, *args]), \
             patch.dict(os.environ, {}, clear=False):
         if environment is None:
             os.environ.pop("SHOTSTOPPER_WEBUI_LANGUAGE", None)
@@ -1008,6 +1011,13 @@ for validate_args, environment, expected in (
                for argv in build_steps), build_steps
     assert all("--development" in argv and "--jtag" not in argv
                for argv in build_steps), build_steps
+
+# R2 shares the firmware budget builds: every profile pair is compiled with
+# --development so the versioned size baselines are always compared.
+r2_steps = validate_language_steps(["src/web/app.js"], risk="R2")
+r2_builds = [argv for name, argv in r2_steps if name.startswith("idf-")]
+assert len(r2_builds) == 3, r2_builds
+assert all("--development" in argv for argv in r2_builds), r2_builds
 
 
 def dispatched(stages: tuple[str, ...], args: list[str], fail: str = "",

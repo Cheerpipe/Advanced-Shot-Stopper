@@ -10,7 +10,12 @@ an implementation contract, not a substitute for target/HIL evidence.
 the historical n8r4 `-Os` baseline. Every test or review that measures these
 budgets must compile with the
 `--development` profile; it enables the admin unlock and the USB Serial/JTAG
-console and gives a reproducible comparison profile. Comparisons must use the
+console and gives a reproducible comparison profile. This is enforced, not
+just prose: the R2/R3 validation gate compiles every supported profile pair
+with `--development` (FIRMWARE_BUDGET_OPTIONS in scripts/dev), a tooling test
+pins that composition for both risk levels, and any other build profile makes
+the resource verifier print "budget evidence requires a --development build"
+instead of comparing baselines. Comparisons must use the
 same hardware and machine profiles and the same profile on both sides. Every
 supported build emits `size.json` from the linker map and
 records image bytes, total linked bytes, DIRAM, flash code, and flash rodata.
