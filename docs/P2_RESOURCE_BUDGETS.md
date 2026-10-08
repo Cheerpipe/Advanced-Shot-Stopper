@@ -97,7 +97,13 @@ allowances, DIRAM grows 480 bytes for the DNSServer object and the stream
 session flag (well inside its 8,192-byte allowance), and the reed/Silvia
 development profile keeps passing with negative deltas against this
 baseline. Firmware task ownership, control timing, OTA identity and
-partitions remain unchanged.
+partitions remain unchanged. The /setup connecting-countdown assets push the measured
+development rodata to 605,900 bytes (18,548 over baseline), so the rodata
+allowance rises once more, to 19,456 bytes: the roughly 900 remaining bytes
+deliberately absorb the documented version/asset-tag padding wobble so
+routine commits do not trip the gate. Flash code measures 1,548,664 bytes
+(228 bytes inside its allowance), the image 2,321,552 and linked 2,321,439
+bytes, and DIRAM is unchanged.
 The additional atomic priority flag retains the single HTTP workspace owner;
 control only notifies Network and never waits for serialization. The stop fade
 is browser animation state, with no firmware task or control-timing changes.
