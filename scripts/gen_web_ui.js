@@ -28,8 +28,8 @@ const versionPath = path.join(repoRoot, 'src', 'ShotStopperVersion.h');
 const outputPath =
     path.join(repoRoot, 'src', 'ShotStopperWebAssetsGzip.h');
 
-const VIEW_NAMES = ['home', 'stats', 'history', 'diagnostic', 'settings', 'admin'];
-const LAZY_PARTIALS = ['stats', 'history', 'diagnostic', 'settings', 'admin'];
+const VIEW_NAMES = ['home', 'stats', 'history', 'diagnostic', 'settings', 'admin', 'setup'];
+const LAZY_PARTIALS = ['stats', 'history', 'diagnostic', 'settings', 'admin', 'setup'];
 const SECONDARY_VIEWS = ['stats', 'history', 'diagnostic', 'admin'];
 
 // Machine-type exclusive markup classes. Sources stay type-agnostic and hide
@@ -395,6 +395,8 @@ async function generate(options = {}) {
       await minifyJs(buildSecondaryJs(viewJsRaw, assetTag));
   const settingsJs =
       await minifyJs(stampAssetTag(viewJsRaw.settings, assetTag));
+  const setupJs =
+      await minifyJs(stampAssetTag(viewJsRaw.setup, assetTag));
   let css = localizedCss;
   if (options.remoteControl === false) css = stripRemoteControlCss(css);
   if (options.machineType) css = stripMachineTypeCss(css, options.machineType);
@@ -408,6 +410,7 @@ async function generate(options = {}) {
     otaImageJs,
     secondaryJs,
     settingsJs,
+    setupJs,
     css,
     manifest,
     icon192Raw,
@@ -422,7 +425,7 @@ async function generate(options = {}) {
 }
 
 async function finish({shellHtml, partials, appJs, runtimeJs, otaImageJs, secondaryJs,
-                       settingsJs, css, manifest, icon192Raw, icon48Raw, assetTag,
+                       settingsJs, setupJs, css, manifest, icon192Raw, icon48Raw, assetTag,
                        version, inputLanguage, requestedLanguage,
                        resolvedLanguage, write}) {
   const shellGzip = await gzipBuffer(Buffer.from(shellHtml, 'utf8'));
@@ -432,6 +435,7 @@ async function finish({shellHtml, partials, appJs, runtimeJs, otaImageJs, second
   const otaImageGzip = await gzipBuffer(Buffer.from(otaImageJs, 'utf8'));
   const secondaryGzip = await gzipBuffer(Buffer.from(secondaryJs, 'utf8'));
   const settingsGzip = await gzipBuffer(Buffer.from(settingsJs, 'utf8'));
+  const setupGzip = await gzipBuffer(Buffer.from(setupJs, 'utf8'));
   const manifestGzip = await gzipBuffer(Buffer.from(manifest, 'utf8'));
   const icon192Gzip = await gzipBuffer(icon192Raw);
   const icon48Gzip = await gzipBuffer(icon48Raw);
@@ -462,6 +466,7 @@ ${emitGzipConst('SHOT_STOPPER_WEB_OTA_IMAGE_GZIP', otaImageGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_CSS_GZIP', cssGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_SECONDARY_GZIP', secondaryGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP', settingsGzip)}
+${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETUP_GZIP', setupGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_MANIFEST_GZIP', manifestGzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_ICON_192_GZIP', icon192Gzip)}
 ${emitGzipConst('SHOT_STOPPER_WEB_ICON_48_GZIP', icon48Gzip)}
@@ -486,7 +491,7 @@ ${emitGzipConst('SHOT_STOPPER_WEB_ICON_48_GZIP', icon48Gzip)}
   let combined = shellGzip.length + appJsGzip.length + runtimeGzip.length +
       otaImageGzip.length +
       cssGzip.length + secondaryGzip.length + settingsGzip.length +
-      manifestGzip.length + icon192Gzip.length + icon48Gzip.length;
+      setupGzip.length + manifestGzip.length + icon192Gzip.length + icon48Gzip.length;
   for (const name of LAZY_PARTIALS) {
     combined += partialGzip[name].length;
   }
@@ -498,6 +503,7 @@ ${emitGzipConst('SHOT_STOPPER_WEB_ICON_48_GZIP', icon48Gzip)}
     otaImageJs,
     secondaryJs,
     settingsJs,
+    setupJs,
     css,
     manifest,
     icon192Raw,
@@ -509,6 +515,7 @@ ${emitGzipConst('SHOT_STOPPER_WEB_ICON_48_GZIP', icon48Gzip)}
     otaImageGzip,
     secondaryGzip,
     settingsGzip,
+    setupGzip,
     manifestGzip,
     icon192Gzip,
     icon48Gzip,

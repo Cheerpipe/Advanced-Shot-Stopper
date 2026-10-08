@@ -69,10 +69,13 @@ if (!maxHandlersMatch) {
 }
 const maxUriHandlers = Number(maxHandlersMatch[1]);
 const registeredRouteCount = (network.match(/registerHandler\(server_/g) || []).length;
-if (registeredRouteCount > 40 || maxUriHandlers <= registeredRouteCount ||
+// /setup onboarding adds three registrations (shell route, partial, view JS);
+// the ceiling moves with it so the SoftAP captive portal keeps its dedicated
+// view without hiding any other route behind wildcards.
+if (registeredRouteCount > 43 || maxUriHandlers <= registeredRouteCount ||
     maxUriHandlers - registeredRouteCount < 8) {
   throw new Error(
-    `HTTP wildcard routing must retain at least 8 spare slots and at most 40 registrations ` +
+    `HTTP wildcard routing must retain at least 8 spare slots and at most 43 registrations ` +
     `(routes=${registeredRouteCount}, limit=${maxUriHandlers})`
   );
 }

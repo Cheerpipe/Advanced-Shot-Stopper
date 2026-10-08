@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/time.h>
 #include <time.h>
 #include <errno.h>
@@ -186,6 +187,7 @@ const char *jsonParseFailureMessage(const char *fallback) {
 }
 
 constexpr const char *AP_IP = "192.168.4.1";
+constexpr const char CAPTIVE_PORTAL_URL[] = "http://192.168.4.1/setup";
 constexpr const char *JSON_CONTENT_TYPE = "application/json";
 constexpr const char *STATUS_OK = "200 OK";
 constexpr const char *STATUS_NOT_MODIFIED = "304 Not Modified";

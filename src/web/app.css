@@ -521,3 +521,24 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 @media(max-width:380px){.topBar{gap:.15rem;--logo-w:1.85rem;--logo-h:2.5rem;--brand-font:1.15rem;--brand-small:.73rem}.headerSignals{padding-left:.25rem}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:.01ms!important}.bootWave i{animation:none}.btnGlyph.busy .g:after{animation:none}}
 @media(forced-colors:active){input[type=checkbox]{appearance:auto}.ktrack,#brewModeRow .xlsw{forced-color-adjust:auto}.btnGlyph,.presetCard,.kcard,#brewModeRow,.heroFsBtn,input,select,textarea{border-color:ButtonText}}
+/* /setup onboarding (SoftAP captive portal): menu-less centered card. */
+body.setupView{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;padding-bottom:1rem}
+body.setupView .topBar,body.setupView .pageNav{display:none}
+body.setupView #app{display:flex;flex:1;flex-direction:column}
+.setupBrand{margin:1.25rem auto .75rem;color:var(--ac)}
+.setupBrand .brandMark{width:2.55rem;height:3.35rem}
+.setupBrand span{font-size:1.5rem;font-weight:800;line-height:1.05}
+.setupBrand small{font-size:.9rem;font-weight:600}
+.setupCard{margin:auto;width:100%;max-width:24rem;padding:1.5rem;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);box-shadow:var(--ah)}
+.setupCard h1{margin:0 0 .35rem;font-size:1.35rem}
+.setupIntro{margin:0 0 1rem;color:var(--mu);font-size:.95rem}
+.setupState{display:flex;flex-direction:column;align-items:center;gap:.75rem;text-align:center;margin:.5rem 0}
+.setupState .bootWave{height:2.4rem}
+.setupState a{color:var(--ac)}
+.setupHiddenToggle{display:flex;align-items:center;min-height:var(--tap);margin:.25rem 0}
+.setupHiddenToggle span{font-size:.875rem;color:var(--mu)}
+#setupConnect{display:block;width:100%;margin-top:.75rem;min-height:3rem;border:0;border-radius:2rem;background:var(--pri);color:var(--on);font-weight:700;cursor:pointer}
+#setupRescan{border:1px solid var(--bd);background:var(--sf);color:var(--fg);font-weight:650;min-height:2.75rem;padding:.5rem 1.25rem;cursor:pointer}
+.setupCheck{width:3.4rem;height:3.4rem;margin:0;display:grid;place-items:center;border-radius:50%;background:var(--mo);color:var(--ok);font-size:1.8rem;font-weight:800}
+.setupLinks{margin:.35rem 0}
+.setupLinks a{display:inline-block;margin:.15rem 0;color:var(--ac);font-weight:600;overflow-wrap:anywhere}

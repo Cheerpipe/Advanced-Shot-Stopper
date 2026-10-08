@@ -8,29 +8,38 @@ start with [Hardware](HARDWARE.md).
 
 1. Keep the physical activator OFF (release a momentary button) and power the
    controller. Turn on the scale with no other app connected to it.
-2. Join the controller's [fallback access point](settings/ap.md#first-connection)
-   from your phone or computer. The name is **`OpenBrewByWeightAP-`** plus
-   eight characters unique to this controller (USB `AP_STATUS` shows the exact
-   name). Stay connected even if the phone reports "no internet"; open the AP
-   address in a browser. The scale may wait to connect until you finish this
-   setup network.
-3. If the Web UI shows **Reload**, select it to claim this browser session.
-   Open **Admin** and unlock it with the device password.
-4. Change the factory device password in **Admin → Device password**. It is
-   shared by Admin and the access point. If the AP disconnects after a
-   password change, reconnect using the new password.
-5. In **Admin → Wi-Fi**, enter your home network and save. Rejoin that network
-   on your phone/computer when the controller's AP closes.
-6. Open the controller within the 3-minute confirmation window. On most home
-   networks it answers at `openbrewbyweight.local`, its default device name
-   (a renamed controller answers at `<name>.local` instead). If that name does
-   not open, find the controller's IP address in the router's connected-device
-   list or via [USB NET_STATUS](SERIAL_CLI.md). The old AP address does not
-   automatically become a home-network address. A successful browser claim
-   confirms the new settings; unreachable settings revert.
+2. On your phone or computer, join the controller's
+   [setup network](settings/ap.md#first-connection). The name is
+   **`OpenBrewByWeightAP-`** plus eight characters unique to this controller
+   (USB `AP_STATUS` shows the exact name) and the password is the device
+   password (**`ineedacoffee`** from the factory). Stay joined even if your
+   phone reports "no internet".
+3. The setup page opens on its own within a few seconds — choose your home
+   network, type its password, and select **Connect**. If the page does not
+   open by itself, browse to **`http://192.168.4.1/setup`**. The controller
+   joins your network without restarting: the page shows the addresses to use
+   from now on (`<name>.local` and the controller's new address), and you can
+   close it once it reports success. No other password is asked during this
+   flow.
+4. Rejoin your home network on the phone/computer and open the controller at
+   the address the setup page showed. On most home networks
+   `openbrewbyweight.local` answers (a renamed controller answers at
+   `<name>.local`). If that name does not open, find the controller's IP
+   address in the router's connected-device list or via
+   [USB NET_STATUS](SERIAL_CLI.md).
+5. If the Web UI shows **Reload**, select it to claim this browser session,
+   then open **Admin** and unlock it with the device password.
+6. Change the factory device password in **Admin → Device password**. It is
+   shared by Admin and the setup network. If you later use the setup network
+   again, join it with the new password.
 
-You can also operate locally over the AP while your client remains associated.
-The [AP guide](settings/ap.md) explains its idle shutdown and recovery.
+A wrong password in the setup page can be corrected right there — the
+controller keeps its setup network alive and keeps trying for about three
+minutes before it falls back to the previous settings.
+
+You can also operate locally over the setup network while your client remains
+associated. The [AP guide](settings/ap.md) explains its idle shutdown and
+recovery.
 
 ## Web access
 

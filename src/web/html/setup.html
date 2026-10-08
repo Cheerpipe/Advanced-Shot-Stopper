@@ -1,0 +1,42 @@
+<div class="setupBrand brand" aria-hidden="true"><svg class="brandMark" viewBox="0 0 36 48"><use href="#brandMark"/></svg><span><small>{{webui:setup.advanced}}</small>{{webui:setup.shot_stopper}}</span></div>
+<section class="setupCard" id="setupCard">
+  <h1>{{webui:setup.title}}</h1>
+  <p class="setupIntro">{{webui:setup.intro}}</p>
+  <div id="setupScanning" class="setupState" hidden>
+    <span class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <p>{{webui:setup.searching_networks}}</p>
+    <button type="button" id="setupRescan" class="textLock">{{webui:setup.try_again}}</button>
+  </div>
+  <form id="setupForm" hidden>
+    <label for="setupNetwork">{{webui:setup.network}}</label>
+    <select id="setupNetwork" autocomplete="off"></select>
+    <label id="setupManualLabel" for="setupManualSsid" hidden>{{webui:setup.network_name}}</label>
+    <input type="text" id="setupManualSsid" maxlength="32" autocomplete="off" spellcheck="false" hidden>
+    <label class="setupHiddenToggle"><input type="checkbox" id="setupHiddenToggle"><span>{{webui:setup.my_network_is_not_listed}}</span></label>
+    <div id="setupPasswordWrap">
+      <label for="setupPassword">{{webui:setup.password}}</label>
+      <input type="password" id="setupPassword" autocomplete="new-password" maxlength="63">
+    </div>
+    <p class="fieldHint">{{webui:setup.band_hint}}</p>
+    <p class="fieldError" id="setupFieldError" hidden></p>
+    <button type="submit" id="setupConnect">{{webui:setup.connect}}</button>
+  </form>
+  <div id="setupConnecting" class="setupState" hidden>
+    <span class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+    <p id="setupConnectingText">{{webui:setup.connecting}}</p>
+  </div>
+  <div id="setupSuccess" class="setupState" hidden>
+    <p class="setupCheck" aria-hidden="true">&#10003;</p>
+    <p id="setupSuccessText"></p>
+    <p id="setupSuccessLinks" class="setupLinks"></p>
+    <p class="fieldHint">{{webui:setup.close_hint}}</p>
+  </div>
+  <div id="setupError" class="setupState" hidden>
+    <p id="setupErrorText" class="fieldError"></p>
+    <p class="fieldHint">{{webui:setup.error_hints}}</p>
+  </div>
+  <div id="setupLocked" class="setupState" hidden>
+    <p>{{webui:setup.locked_hint}}</p>
+    <a href="/admin">{{webui:setup.open_admin}}</a>
+  </div>
+</section>

@@ -15,7 +15,8 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
   static const char *const confirmFields[] = {"action"};
   static const char *const saveFields[] = {
       "action", "ssid",     "password", "open",  "wifiSleep", "ipMode",
-      "ip",     "netmask",  "gateway",  "dns1",  "dns2",      "name"};
+      "ip",     "netmask",  "gateway",  "dns1",  "dns2",      "name",
+      "apply"};
   const char *networkError = nullptr;
   bool parsed = root != nullptr &&
                 jsonString(root, "action", action, sizeof(action), false);
@@ -38,7 +39,8 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
       const NetworkStatusSnapshot network = self.snapshot();
       if (sta.staConfigState !=
               static_cast<uint8_t>(StaConfigState::PENDING) ||
-          !sta.staConfigured || network.apActive ||
+          !sta.staConfigured ||
+          (network.apActive && !network.apKeepActive) ||
           network.staState != StaState::CONNECTED) {
         parsed = false;
         networkError = "No pending network configuration to confirm.";
@@ -94,7 +96,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
         cJSON_GetObjectItemCaseSensitive(root, "dns1") != nullptr;
     const bool hasDns2 =
         cJSON_GetObjectItemCaseSensitive(root, "dns2") != nullptr;
-    if (!jsonHasOnlyUniqueFields(root, saveFields, 12) ||
+    if (!jsonHasOnlyUniqueFields(root, saveFields, 13) ||
         !jsonString(root, "ssid", command.network.ssid, sizeof(command.network.ssid), false) ||
         !jsonString(root, "password", command.network.password,
                     sizeof(command.network.password), true) ||
@@ -146,6 +148,21 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
       networkError =
           "Device name must be 1-32 letters, digits, spaces, or hyphens, "
           "without a leading or trailing space or hyphen.";
+    }
+    const bool hasApply =
+        cJSON_GetObjectItemCaseSensitive(root, "apply") != nullptr;
+    if (parsed && hasApply) {
+      char applyMode[8] = {};
+      if (!jsonString(root, "apply", applyMode, sizeof(applyMode), false) ||
+          strcmp(applyMode, "live") != 0) {
+        parsed = false;
+        networkError = "apply must be \"live\" when provided.";
+      } else if (!self.snapshot().apActive) {
+        parsed = false;
+        networkError = "Live apply is available only from the setup network.";
+      } else {
+        command.network.applyLive = true;
+      }
     }
     if (parsed) {
       command.network.wifiSleepSpecified = true;

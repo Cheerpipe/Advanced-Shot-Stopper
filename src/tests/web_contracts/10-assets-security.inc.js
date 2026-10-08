@@ -202,7 +202,8 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !codeIncludes(runtimeJs, "function showInactiveOverlay(){const el=$('webUiInactive');if(!el)return;hideHomeBoot();") ||
     !codeIncludes(runtimeJs, "location.replace(location.pathname+'?fw='+version)") ||
     !codeIncludes(appJsSource, 'boot=R.showPageBoot();R.stopViewPolls();') ||
-    !codeIncludes(appJsSource, 'if(ok){R.hideHomeBoot(boot);R.ensureBackgroundRecordStreams();}')) {
+    !codeIncludes(appJsSource, 'if(ok){R.hideHomeBoot(boot);') ||
+    !codeIncludes(appJsSource, 'if(view!=="setup")R.ensureBackgroundRecordStreams();')) {
   throw new Error(
       'Every view must reuse the Home splash and fade immediately after data loads, preserving firmware reload and inactive overlay handoff');
 }
@@ -550,8 +551,12 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // inert dialog markup (grab row, stacked preset/label header, value row with
 // Reset, tick-scale zone): ~1.4 KB of HTML source allowance; compressed asset
 // and firmware budgets stay fixed.
-if (htmlBytes > 87200) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 87200)`);
+// The /setup onboarding view adds its shell placeholder plus the menu-less
+// card partial (brand, scan/form/connecting/success/error/locked states):
+// ~1.1 KB of HTML source allowance; compressed asset and firmware budgets
+// stay fixed.
+if (htmlBytes > 88300) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 88300)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -664,8 +669,13 @@ if (htmlBytes > 87200) {
 // keyboard stepping, and the hydrate→goal→save commit path in home.js plus
 // the hero pencil gate in runtime.js: ~6.3 KB of JS source allowance;
 // compressed asset and firmware limits stay fixed.
-if (jsBytes > 343000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 343000)`);
+// The /setup onboarding view adds its own module (scan picker with signal
+// and lock glyphs, live-apply save, bounded connect poll with resume and
+// pre-connect grace, success/error cards) plus the shell route wiring in
+// app.js: ~8 KB of JS source allowance; compressed asset and firmware
+// limits stay fixed.
+if (jsBytes > 352000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 352000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -714,8 +724,10 @@ if (jsBytes > 343000) {
 // The Home quick target-weight sheet contributes the same ~6.3 KB of JS and
 // ~1.4 KB of HTML source allowance described above; compressed budgets stay
 // fixed.
-if (htmlBytes + jsBytes > 431500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 431500)`);
+// The /setup onboarding view contributes the same ~1.1 KB of HTML and ~8 KB
+// of JS source allowance described above; compressed budgets stay fixed.
+if (htmlBytes + jsBytes > 441000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 441000)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

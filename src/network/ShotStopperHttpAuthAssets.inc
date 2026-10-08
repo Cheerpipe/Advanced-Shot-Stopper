@@ -172,6 +172,32 @@ void ShotStopperNetwork::touchAdminUnlock() {
   dataMux_.unlock();
 }
 
+bool ShotStopperNetwork::socketServedBySoftAp(int socketFd) {
+  if (socketFd < 0) {
+    return false;
+  }
+  sockaddr_in local = {}, peer = {};
+  socklen_t length = sizeof(local);
+  if (getsockname(socketFd, reinterpret_cast<sockaddr *>(&local), &length) !=
+          0 ||
+      local.sin_family != AF_INET) {
+    return false;
+  }
+  length = sizeof(peer);
+  if (getpeername(socketFd, reinterpret_cast<sockaddr *>(&peer), &length) !=
+          0 ||
+      peer.sin_family != AF_INET) {
+    return false;
+  }
+  // The local-address match is the discriminator: only a socket actually
+  // served by the SoftAP interface address qualifies, so a LAN that happens
+  // to number itself 192.168.4.0/24 never inherits the bypass.
+  const uint32_t localHost = ntohl(local.sin_addr.s_addr);
+  const uint32_t peerHost = ntohl(peer.sin_addr.s_addr);
+  return localHost == 0xC0A80401u &&
+         (peerHost & 0xFFFFFF00u) == 0xC0A80400u;
+}
+
 bool ShotStopperNetwork::adminUnlockAllowed(httpd_req_t *request) {
 #if SHOT_STOPPER_DEVELOPMENT == 1
   // Development build: administration is public by design. Returning true
@@ -181,13 +207,14 @@ bool ShotStopperNetwork::adminUnlockAllowed(httpd_req_t *request) {
   return true;
 #else
   char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
-  if (!readWebUiClientId(request, clientId, sizeof(clientId))) {
-    return false;
-  }
+  const bool hasClient =
+      readWebUiClientId(request, clientId, sizeof(clientId));
   const uint32_t now = millis();
   bool allowed = false;
+  bool apActive = false;
   dataMux_.lock();
-  if (adminUnlocked_ && adminUnlockClientId_[0] != '\0' &&
+  apActive = status_.apActive;
+  if (hasClient && adminUnlocked_ && adminUnlockClientId_[0] != '\0' &&
       strcmp(adminUnlockClientId_, clientId) == 0) {
     if (static_cast<int32_t>(now - adminUnlockUntilMs_) >= 0) {
       adminUnlocked_ = false;
@@ -199,6 +226,12 @@ bool ShotStopperNetwork::adminUnlockAllowed(httpd_req_t *request) {
   }
   dataMux_.unlock();
   memset(clientId, 0, sizeof(clientId));
+  // SoftAP onboarding bypass: whoever joined the device network already
+  // proved the WPA2 passphrase, which is the device password.
+  if (!allowed && apActive &&
+      socketServedBySoftAp(httpd_req_to_sockfd(request))) {
+    allowed = true;
+  }
   return allowed;
 #endif
 }
@@ -589,10 +622,22 @@ esp_err_t ShotStopperNetwork::partialAdminHandler(httpd_req_t *request) {
                             SHOT_STOPPER_WEB_PARTIAL_ADMIN_GZIP_LEN);
 }
 
+esp_err_t ShotStopperNetwork::partialSetupHandler(httpd_req_t *request) {
+  return serveImmutableGzip(request, "text/html; charset=utf-8",
+                            SHOT_STOPPER_WEB_PARTIAL_SETUP_GZIP,
+                            SHOT_STOPPER_WEB_PARTIAL_SETUP_GZIP_LEN);
+}
+
 esp_err_t ShotStopperNetwork::viewSettingsHandler(httpd_req_t *request) {
   return serveImmutableGzip(request, "application/javascript; charset=utf-8",
                             SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP,
                             SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP_LEN);
+}
+
+esp_err_t ShotStopperNetwork::viewSetupHandler(httpd_req_t *request) {
+  return serveImmutableGzip(request, "application/javascript; charset=utf-8",
+                            SHOT_STOPPER_WEB_VIEW_SETUP_GZIP,
+                            SHOT_STOPPER_WEB_VIEW_SETUP_GZIP_LEN);
 }
 
 esp_err_t ShotStopperNetwork::manifestHandler(httpd_req_t *request) {
@@ -624,12 +669,51 @@ esp_err_t ShotStopperNetwork::browserIconHandler(httpd_req_t *request) {
                             SHOT_STOPPER_WEB_ICON_192_GZIP_LEN);
 }
 
+namespace {
+
+// OS captive probes (frozen 2026-10): only these Hosts bounce to /setup, and
+// only while the SoftAP is up, so ordinary typo paths keep the / redirect.
+constexpr const char *const CAPTIVE_PROBE_HOSTS[] = {
+    "captive.apple.com",
+    "connectivitycheck.gstatic.com",
+    "connectivitycheck.android.com",
+    "clients3.google.com",
+    "www.msftconnecttest.com",
+    "www.msftncsi.com",
+};
+
+bool captiveProbeHost(httpd_req_t *request) {
+  char host[64] = {};
+  if (httpd_req_get_hdr_value_str(request, "Host", host, sizeof(host)) !=
+      ESP_OK) {
+    return false;
+  }
+  char *port = strchr(host, ':');
+  if (port != nullptr) {
+    *port = '\0';
+  }
+  for (const char *probe : CAPTIVE_PROBE_HOSTS) {
+    if (strcasecmp(host, probe) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+}  // namespace
+
 esp_err_t ShotStopperNetwork::notFoundHandler(httpd_req_t *request,
                                               httpd_err_code_t) {
   // Keep API 404s as JSON; browser paths bounce to Home.
   if (strncmp(request->uri, "/api/", 5) == 0) {
     return sendError(request, STATUS_NOT_FOUND, "NOT_FOUND",
                      "The requested resource was not found.");
+  }
+  if (instance_->snapshot().apActive && captiveProbeHost(request)) {
+    httpd_resp_set_status(request, "302 Found");
+    httpd_resp_set_hdr(request, "Location", CAPTIVE_PORTAL_URL);
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+    return httpd_resp_send(request, nullptr, 0);
   }
   httpd_resp_set_status(request, "302 Found");
   httpd_resp_set_hdr(request, "Location", "/");

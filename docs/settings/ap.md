@@ -45,15 +45,28 @@ and OTA use that same device password.
    **`ineedacoffee`**. Forget any saved network that is only
    `OpenBrewByWeightAP` with no suffix. The scale may wait to connect
    until you finish this setup network.
-3. Open **`http://192.168.4.1`** within the idle window (or stay associated).
-   On clients that support it, the controller's
-   [device name](wifi.md#discovery-by-name) also resolves while you are on
-   this AP.
-4. Select **Reload** if prompted to claim the Web UI. Unlock Admin to save
-   home Wi-Fi. Continue with [first setup](../GETTING_STARTED.md).
+3. The setup page opens by itself: pick your home network, enter its
+   password, and connect. If nothing pops up, open
+   **`http://192.168.4.1/setup`** in a browser. Joining this network already
+   proves the device password, so the setup page asks for nothing else. The
+   controller joins your network while this setup network stays up, then
+   shows the addresses to use from now on. If the connection fails, the page
+   keeps your entries so you can retry; on a first-time setup, giving up
+   leaves the controller waiting on this same setup network for another
+   try (it forgets the failed attempt after about 3 minutes).
+4. Continue with [first setup](../GETTING_STARTED.md). Changing networks
+   later (including a static IP address) is done from
+   **Admin → Wi-Fi** on your home network.
+
+While you are on this AP, every name resolves to the controller, and phones
+and computers detect that sign-in is required — that is what makes the guided
+setup page open on its own. The controller's
+[device name](wifi.md#discovery-by-name) also resolves while you are here.
 
 If home Wi-Fi is lost but you know the device password, use the AP after
-reboot / `AP_START`. A forgotten password also prevents joining the protected
-AP: use USB or [physical recovery](../EMERGENCY_RECOVERY.md) to restore access.
+reboot / `AP_START`: it serves the same guided setup page, and the whole
+flow is passwordless while you are on it. A forgotten password also prevents
+joining the protected AP: use USB or
+[physical recovery](../EMERGENCY_RECOVERY.md) to restore access.
 
 Related: [Wi-Fi](wifi.md), [Factory reset](factory-reset.md).

@@ -150,6 +150,9 @@ CONFIG_ARDUINO_SELECTIVE_EEPROM=y
 CONFIG_ARDUINO_SELECTIVE_Preferences=y
 CONFIG_ARDUINO_SELECTIVE_Network=y
 CONFIG_ARDUINO_SELECTIVE_WiFi=y
+# Captive-portal DNS responder for the SoftAP onboarding flow.
+CONFIG_ARDUINO_SELECTIVE_AsyncUDP=y
+CONFIG_ARDUINO_SELECTIVE_DNSServer=y
 # SoftAP+HTTP provisioning is implemented in ShotStopperNetwork; WiFiProv /
 # network_provisioning is unused and only costs flash + init RAM.
 # CONFIG_ARDUINO_SELECTIVE_WiFiProv is not set
@@ -174,10 +177,8 @@ CONFIG_ARDUINO_SELECTIVE_WiFi=y
 # CONFIG_ARDUINO_SELECTIVE_SPI is not set
 # CONFIG_ARDUINO_SELECTIVE_Wire is not set
 # CONFIG_ARDUINO_SELECTIVE_Ticker is not set
-# CONFIG_ARDUINO_SELECTIVE_DNSServer is not set
 # CONFIG_ARDUINO_SELECTIVE_ESPmDNS is not set
 # CONFIG_ARDUINO_SELECTIVE_NetBIOS is not set
-# CONFIG_ARDUINO_SELECTIVE_AsyncUDP is not set
 # CONFIG_ARDUINO_SELECTIVE_NetworkClientSecure is not set
 
 # The native NimBLE host configuration is supplied by

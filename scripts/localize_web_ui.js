@@ -227,10 +227,12 @@ function projectSources() {
     ['html/stats.html', 'html'], ['html/history.html', 'html'],
     ['html/diagnostic.html', 'html'],
     ['html/settings.html', 'html'], ['html/admin.html', 'html'],
+    ['html/setup.html', 'html'],
     ['app.css', 'css'], ['app.js', 'js'], ['js/runtime.js', 'js'],
     ['js/ota-image.js', 'js'], ['js/home.js', 'js'], ['js/stats.js', 'js'],
     ['js/history.js', 'js'],
     ['js/diagnostic.js', 'js'], ['js/settings.js', 'js'], ['js/admin.js', 'js'],
+    ['js/setup.js', 'js'],
   ];
   return files.map(([name, type]) => ({file: `src/web/${name}`, type,
     content: fs.readFileSync(path.join(webDir, name), 'utf8')}));

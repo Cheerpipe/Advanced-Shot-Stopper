@@ -72,8 +72,12 @@ zone and the offset currently applied to it as separate values. Daylight
 saving changes update that offset automatically. The controller includes
 IANA rules for 2025–2099; future legal changes require a firmware update.
 
-Factory credentials and the first-connection walkthrough are in the
-[README](../../README.md#first-connection) and [AP](ap.md).
+First-time setup is guided: join the controller's [setup network](ap.md#first-connection)
+and the setup page opens by itself (or at `http://192.168.4.1/setup`), asks for
+your network and its password, and connects live — no restart, no extra
+password. The table's **Home Wi-Fi (STA)**, **IP mode**, and **Confirm window**
+rows describe the **Admin → Wi-Fi** page, which is the advanced path for
+changing an already-configured network.
 
 ## Discovery by name
 
@@ -110,11 +114,12 @@ the same maintenance window.
 
 ## Example
 
-From the AP, save your home network. When the controller joins, its AP stops.
-Join the home network on your phone/computer, find the controller's DHCP address
-in the router or USB `NET_STATUS`, and open that address within 3 minutes to
-confirm. The old AP page cannot discover an arbitrary new DHCP address.
-If you later lose that network, the device keeps retrying STA. Recover the AP with USB
+From the setup page (see [AP](ap.md#first-connection)), save your home
+network: the controller joins it live, the page shows the new addresses, and
+the setup network closes by itself. From **Admin → Wi-Fi** the classic save
+still restarts the controller and waits for you to reopen the new address
+within 3 minutes to confirm. If you later lose that network, the device keeps
+retrying STA. Recover the setup network with USB
 `AP_START` (see [USB serial CLI](../SERIAL_CLI.md)) or a reboot.
 
 OTA over Wi-Fi: [OTA](../features/ota.md). Scripts:

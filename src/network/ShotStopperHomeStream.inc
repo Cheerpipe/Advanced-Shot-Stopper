@@ -54,6 +54,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
         static_cast<int32_t>(millis() - adminUnlockUntilMs_) < 0;
     override = webUiOverrideActive_ && static_cast<int32_t>(millis() - webUiOverrideUntilMs_) < 0;
   }
+  unlocked |= session.fromSoftAp;
   delta.field("firmwareVersion", "\"%s\"", FW_VERSION);
   delta.field("bootId", "%lu", static_cast<unsigned long>(control.bootId));
   delta.field("configMutable", bool(controlAllowsConfiguration(control)));
@@ -449,6 +450,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
     unlocked |= adminUnlocked_ && strcmp(adminUnlockClientId_, session.clientId) == 0 &&
         static_cast<int32_t>(millis() - adminUnlockUntilMs_) < 0;
   }
+  unlocked |= session.fromSoftAp;
   const NetworkStatusSnapshot network = snapshot();
   const auto &config = control.config;
   const auto timeStatus = g_wallClock.snapshot(now);

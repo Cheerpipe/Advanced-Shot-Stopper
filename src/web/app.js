@@ -23,6 +23,7 @@ const ROUTES = {
   "/admin": "admin",
   "/diagnostic": "diagnostic",
   "/log": "diagnostic",
+  "/setup": "setup",
 };
 function knownPath(pathname) {
   const p = (pathname || "/").replace(/\/+$/, "") || "/";
@@ -83,6 +84,7 @@ R.setEnsureViewHook(ensureView);
 function stopExtraPolls() {
   R.stopDiagnosticStream();
   R.stopLogStream();
+  jsMods.get("setup")?.stop?.();
 }
 function startView(name, seq = routeSeq) {
   return R.withPollGate(async () => {
@@ -93,6 +95,10 @@ function startView(name, seq = routeSeq) {
     if (name === "home" || name === "settings" || name === "admin" || name === "diagnostic") {
       ok = await R.loadStatus();
       R.armStatusTimer();
+    } else if (name === "setup") {
+      // The onboarding view drives its own scan/connect polling.
+      await jsMods.get("setup")?.start?.();
+      ok = true;
     }
     if (name !== activeView || seq !== routeSeq) return false;
     if (name === "diagnostic") {
@@ -114,7 +120,7 @@ async function renderRoute(pathname) {
     view = ROUTES[known];
     target = known;
   }
-  if (R.compatibilityModeOn() && view !== "admin" && view !== "diagnostic") {
+  if (R.compatibilityModeOn() && view !== "admin" && view !== "diagnostic" && view !== "setup") {
     view = "admin";
     target = "/admin";
   }
@@ -123,6 +129,7 @@ async function renderRoute(pathname) {
   const ready = ensureView(view).then(() => {
     if (seq !== routeSeq) return;
     document.body.classList.toggle("homeView", view === "home");
+    document.body.classList.toggle("setupView", view === "setup");
     document
       .querySelectorAll(".view")
       .forEach((el) => el.classList.toggle("hidden", el.dataset.view !== view));
@@ -134,9 +141,10 @@ async function renderRoute(pathname) {
     if (seq !== routeSeq) return;
     // Record pages subscribe in the background once the active view's
     // initial load is done, so they stay fresh without slowing first paint.
+    // Setup (captive portal) skips them: sockets are scarce on the SoftAP.
     if (ok) {
       R.hideHomeBoot(boot);
-      R.ensureBackgroundRecordStreams();
+      if (view !== "setup") R.ensureBackgroundRecordStreams();
     } else if (R.webUiPollingActive())
       R.message(__WEBUI_TEXT__("shell.unable_to_load_view"), "error");
   } catch (e) {

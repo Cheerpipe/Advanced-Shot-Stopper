@@ -465,8 +465,11 @@ if (generated.jsGzip.length > 4600) {
 // The Home quick target-weight sheet frosted surface (backdrop, anchored
 // sheet, grab row, conditional Reset pill, masked tick strip) adds +817
 // measured bytes. Cap raised to 10950.
-if (generated.cssGzip.length > 10950) {
-  throw new Error('Compressed Web CSS exceeds the 10950-byte gzip budget');
+// The /setup onboarding view (menu-less shell, centered card, scan/form/
+// connecting/success/error states, brand lockup) adds ~250 measured bytes.
+// Cap raised to 11250.
+if (generated.cssGzip.length > 11250) {
+  throw new Error('Compressed Web CSS exceeds the 11250-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -650,8 +653,12 @@ if (generated.icon48Gzip.length > 3500) {
 // (sheet JS in the shell chunk, frosted CSS, dialog markup in the Home
 // partial): 125976 measured. Cap raised to 126100; firmware image,
 // memory placement and OTA partitions stay fixed.
-if (generated.combined > 126100) {
-  throw new Error(`Combined Web UI gzip exceeds the 126100-byte flash budget (${generated.combined})`);
+// The /setup onboarding view adds its own lazy partial and view JS chunk
+// plus the centered-card CSS and shell route wiring: 129350 measured.
+// Cap raised to 129400; firmware image, memory placement and OTA
+// partitions stay fixed.
+if (generated.combined > 129400) {
+  throw new Error(`Combined Web UI gzip exceeds the 129400-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

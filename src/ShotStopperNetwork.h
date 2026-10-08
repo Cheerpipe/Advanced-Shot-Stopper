@@ -14,6 +14,7 @@
 
 #include <WiFi.h>
 #include <esp_http_server.h>
+#include <DNSServer.h>
 #include "ShotStopperRfCoex.h"
 
 #include "ShotStopperTaskProfiler.h"
@@ -123,6 +124,9 @@ struct NetworkStatusSnapshot {
   bool staReconnectHeld = false;
   bool apStartHeld = false;
   bool httpStartHeld = false;
+  // AP_START keep or /setup live apply: SoftAP must survive STA connect and
+  // the idle timeout while an onboarding session is in flight.
+  bool apKeepActive = false;
   bool devicePasswordFactory = false;
   bool ntpMayArm = false;
   uint8_t wifiMode = 0;
@@ -388,6 +392,10 @@ class ShotStopperNetwork {
     char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
     bool bound = false, resync = true;
     bool homeResync = true;
+    // Captured at handshake: the socket is served by the SoftAP interface, so
+    // the session reports admin unlocked for its lifetime (the WPA2
+    // passphrase is the device password).
+    bool fromSoftAp = false;
   };
   UiStreamSession uiStreams_[2];
   std::atomic<bool> uiStreamWorkPending_{false};
@@ -413,6 +421,11 @@ class ShotStopperNetwork {
   bool scanRequested_ = false;
   bool restartPending_ = false;
   bool apRestartPending_ = false;
+  // /setup live apply: connect on the network task without a restart, keeping
+  // the SoftAP and /setup alive through the association (retry timestamp
+  // follows the restartRequestedAtMs_ pattern for deferred RF gates).
+  bool liveApplyPending_ = false;
+  uint32_t liveApplyRetryAtMs_ = 0;
   bool acceptedCommandPending_ = false;
   bool completionPending_ = false;
   bool staConfirmArmed_ = false;
@@ -528,6 +541,13 @@ class ShotStopperNetwork {
   void stopSoftApKeepStation();
   void stopSoftApLeaveHttp();
   void stopSoftAp(bool stopHttp);
+  // Captive-portal DNS (wildcard A -> SoftAP IP) on UDP/53 while the SoftAP
+  // is up. Network task owns the lifecycle; replies come from the AsyncUDP
+  // callback inside the vendored component (processNextRequest is a stub).
+  void startCaptivePortalDns();
+  void stopCaptivePortalDns();
+  DNSServer captiveDns_;
+  bool captiveDnsActive_ = false;
   void clearSoftApIdleState();
   void armSoftApIdleDeadline(uint32_t now);
   void serviceSoftApIdle(uint32_t now);
@@ -594,7 +614,9 @@ class ShotStopperNetwork {
   static esp_err_t crashArchiveClearHandler(httpd_req_t *request);
   static esp_err_t partialSettingsHandler(httpd_req_t *request);
   static esp_err_t partialAdminHandler(httpd_req_t *request);
+  static esp_err_t partialSetupHandler(httpd_req_t *request);
   static esp_err_t viewSettingsHandler(httpd_req_t *request);
+  static esp_err_t viewSetupHandler(httpd_req_t *request);
   static esp_err_t manifestHandler(httpd_req_t *request);
   static esp_err_t iconHandler(httpd_req_t *request);
   static esp_err_t browserIconHandler(httpd_req_t *request);
@@ -742,6 +764,10 @@ class ShotStopperNetwork {
   void clearAdminUnlock();
   void grantAdminUnlock(const char *clientId, uint32_t now);
   void touchAdminUnlock();
+  // True when the socket is served by the SoftAP interface address with a
+  // peer on the SoftAP subnet (local-address match keeps a LAN that happens
+  // to use 192.168.4.0/24 from inheriting the bypass).
+  static bool socketServedBySoftAp(int socketFd);
   bool adminUnlockAllowed(httpd_req_t *request);
   bool requireAdminUnlock(httpd_req_t *request);
   bool diagnosticPageEnabled();

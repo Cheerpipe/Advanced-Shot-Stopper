@@ -162,10 +162,13 @@ void ShotStopperNetwork::clearPendingConfirmWindow() {
 
 void ShotStopperNetwork::requestPendingNetworkConfirm() {
   dataMux_.lock();
+  // Runs on the httpd task: read the locked mirror, never the network-task
+  // apKeepRequested_ flag directly.
   const bool pending =
       settings_.staConfigState ==
           static_cast<uint8_t>(StaConfigState::PENDING) &&
-      settings_.staConfigured && !status_.apActive;
+      settings_.staConfigured &&
+      (!status_.apActive || status_.apKeepActive);
   if (pending) {
     pendingConfirmRequest_ = true;
   }
@@ -176,8 +179,8 @@ bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
   PersistedSettings next = settingsCopy();
   NetworkStatusSnapshot status = snapshot();
   if (next.staConfigState != static_cast<uint8_t>(StaConfigState::PENDING) ||
-      !next.staConfigured || status.apActive ||
-      status.staState != StaState::CONNECTED) {
+      !next.staConfigured || status.staState != StaState::CONNECTED ||
+      (status.apActive && !apKeepRequested_)) {
     return false;
   }
   if (!networkFlashWriteAllowed()) {
@@ -198,6 +201,16 @@ bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
   status_.staConfigState = next.staConfigState;
   pendingConfirmRequest_ = false;
   dataMux_.unlock();
+  if (apKeepRequested_) {
+    // Config confirmed: drop the keep so the next serviceStaState() pass
+    // stops the SoftAP (this covers a CLI AP_START keep too — a confirmed
+    // network change ends the fallback window; re-issue AP_START to keep
+    // the AP). The HTTP confirm response already went out.
+    apKeepRequested_ = false;
+    dataMux_.lock();
+    status_.apKeepActive = false;
+    dataMux_.unlock();
+  }
   clearPendingConfirmWindow();
   publishConfiguredAddressStatus();
   log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
@@ -240,6 +253,20 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t,
   dataMux_.unlock();
   clearPendingConfirmWindow();
   publishConfiguredAddressStatus();
+  // Live-apply revert: drop the keep (and its mirror) unconditionally, but
+  // remember the onboarding context — a first-use revert must keep the
+  // SoftAP up as the fallback network serving /setup, even when the station
+  // briefly connected and then went unconfirmed.
+  const bool onboardingRevert = apKeepRequested_;
+  apKeepRequested_ = false;
+  dataMux_.lock();
+  status_.apKeepActive = false;
+  if (!next.staConfigured) {
+    status_.staState = StaState::NOT_CONFIGURED;
+    status_.iface.staIp[0] = '\0';
+    clearStaLinkMetrics();
+  }
+  dataMux_.unlock();
   log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
       static_cast<int32_t>(next.runtime.revision));
   stopNtp();
@@ -254,8 +281,9 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t,
     startupComplete_ = false;
     return true;
   }
-  if (staEverConnected_) {
+  if (staEverConnected_ && !onboardingRevert) {
     stopHttpServer();
+    stopCaptivePortalDns();
     WiFi.softAPdisconnect(true);
     if (WiFi.status() == WL_CONNECTED) {
       WiFi.disconnect(false, false);
@@ -567,6 +595,7 @@ bool ShotStopperNetwork::beginStationConnect(const NetworkSettingsSnapshot &sett
 void ShotStopperNetwork::startStation(const NetworkSettingsSnapshot &settings,
                                       uint32_t now) {
   stopHttpServer();
+  stopCaptivePortalDns();
   abortWifiScan(now, false);
   if (WiFi.getMode() != WIFI_OFF) {
     WiFi.softAPdisconnect(true);
@@ -603,6 +632,7 @@ void ShotStopperNetwork::stopSoftAp(bool stopHttp) {
   if (!snapshot().apActive) {
     return;
   }
+  stopCaptivePortalDns();
   beginOwnedHeapLifecycle(wifiHeap_, HeapLifecycleEvent::AP_STOP);
   // Keep WIFI_AP_STA (or current mode) after SoftAP stop so the fresh STA
   // association is not reset by a mode switch to WIFI_STA.
@@ -751,6 +781,9 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
   beginOwnedHeapLifecycle(wifiHeap_, HeapLifecycleEvent::AP_START);
 
   abortWifiScan(now, false);
+  // Re-raising tears the current AP down first; the captive DNS must not
+  // outlive the interface it answers on.
+  stopCaptivePortalDns();
   const bool keepStation = settings.staConfigured;
   const bool staLinkUp = keepStation && WiFi.status() == WL_CONNECTED;
   const bool wantHttp = !httpStartHeld_;
@@ -774,8 +807,10 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
   applyWifiPowerSave(true);
   syncScaleSoftApRadio(true);
   const IPAddress ip(192, 168, 4, 1);
+  // dns=ip makes the DHCP lease offer the device as DNS server; without it
+  // Arduino leaves option 6 out and AP clients cannot resolve probe hosts.
   const bool configured =
-      WiFi.softAPConfig(ip, ip, IPAddress(255, 255, 255, 0));
+      WiFi.softAPConfig(ip, ip, IPAddress(255, 255, 255, 0), (uint32_t)0, ip);
   char apSsid[WIFI_SSID_CAPACITY] = {};
   fillSoftApSsid(apSsid, sizeof(apSsid));
   const bool apReady =
@@ -825,8 +860,31 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
   }
   armSoftApIdleDeadline(now);
   applyWifiPowerSave(true);
+  startCaptivePortalDns();
   finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::SUCCESS);
   return true;
+}
+
+void ShotStopperNetwork::startCaptivePortalDns() {
+  if (captiveDnsActive_) {
+    return;
+  }
+  const IPAddress ip(192, 168, 4, 1);
+  if (!captiveDns_.start(53, "*", ip)) {
+    lifecycleLog("Captive portal DNS start failed");
+    return;
+  }
+  captiveDnsActive_ = true;
+  lifecycleLog("Captive portal DNS up (UDP/53)");
+}
+
+void ShotStopperNetwork::stopCaptivePortalDns() {
+  if (!captiveDnsActive_) {
+    return;
+  }
+  captiveDns_.stop();
+  captiveDnsActive_ = false;
+  lifecycleLog("Captive portal DNS down");
 }
 
 void ShotStopperNetwork::stopNetwork() {
@@ -834,6 +892,7 @@ void ShotStopperNetwork::stopNetwork() {
   esp_wifi_scan_stop();
   WiFi.scanDelete();
   stopHttpServer();
+  stopCaptivePortalDns();
   WiFi.softAPdisconnect(true);
   if (WiFi.getMode() != WIFI_OFF && WiFi.status() == WL_CONNECTED) {
     WiFi.disconnect(false, false);
@@ -1004,6 +1063,27 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       armPendingConfirmWindow(now);
     }
     applyWifiPowerSave();
+    return;
+  }
+
+  // Live-apply onboarding window: the pending config armed the confirm timer
+  // at connect start but never reached a user confirmation (page closed, or
+  // wrong credentials kept the retries from connecting). Revert to the
+  // previous state; the SoftAP keeps serving /setup for another attempt.
+  if (status.apActive && apKeepRequested_ && staConfirmArmed_ &&
+      !wifiScanInProgress() &&
+      static_cast<int32_t>(now - staConfirmDeadlineMs_) >= 0) {
+    WiFi.disconnect(false, false);
+    if (!revertPendingNetwork(now, "confirm timeout")) {
+      // Durable-write gate closed: retry in a second without the startup
+      // backoff (noteNetworkRetryBackoff would clear startupComplete_ and
+      // restart networking, dropping the onboarding SoftAP).
+      dataMux_.lock();
+      staConfirmDeadlineMs_ = now + 1000;
+      dataMux_.unlock();
+    } else {
+      clearNetworkFailureStatus(false);
+    }
     return;
   }
 

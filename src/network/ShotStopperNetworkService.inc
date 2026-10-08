@@ -208,7 +208,7 @@ NetworkStatusSnapshot ShotStopperNetwork::snapshot() {
       staConfirmArmed_ &&
       settings_.staConfigState ==
           static_cast<uint8_t>(StaConfigState::PENDING) &&
-      !status_.apActive;
+      (!status_.apActive || status_.apKeepActive);
   const uint32_t deadline = staConfirmDeadlineMs_;
   dataMux_.unlock();
   copy.taskAgeMs = static_cast<uint32_t>(
@@ -634,6 +634,31 @@ void ShotStopperNetwork::service() {
 
   // Boot confirmation must also run while a requested restart is waiting.
   serviceOtaRollback(now);
+
+  // /setup live apply: associate the freshly saved network on this task
+  // without a restart, keeping the SoftAP (and /setup) alive throughout.
+  // Deferred RF gates retry here; the connect itself arms the 180 s window.
+  if (liveApplyPending_ &&
+      static_cast<int32_t>(now - liveApplyRetryAtMs_) >= 0) {
+    if (!snapshot().apActive) {
+      // The onboarding AP went away before the connect could start (AP_STOP
+      // or teardown): fall back to the ordinary save-and-restart path.
+      liveApplyPending_ = false;
+      restartPending_ = true;
+      restartRequestedAtMs_ = now;
+    } else {
+      apKeepRequested_ = true;
+      dataMux_.lock();
+      status_.apKeepActive = true;
+      dataMux_.unlock();
+      if (beginStationConnect(networkSettingsSnapshot(), now)) {
+        liveApplyPending_ = false;
+        armPendingConfirmWindow(now);
+      } else {
+        liveApplyRetryAtMs_ = now + 1000;
+      }
+    }
+  }
 
   if (restartPending_) {
     // NVS is already committed. Do not touch the radio on the way to

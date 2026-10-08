@@ -348,7 +348,15 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
       memcpy(next.staDns2, command.network.staDns2, sizeof(next.staDns2));
       finalizeSavedStaCredentials(next, command.network.commitConfirmed);
       persist = true;
-      restartPending_ = true;
+      if (command.network.applyLive) {
+        // /setup onboarding: the network task consumes the flag and connects
+        // live under the SoftAP (no restart).
+        restartPending_ = false;
+        liveApplyPending_ = true;
+        liveApplyRetryAtMs_ = 0;
+      } else {
+        restartPending_ = true;
+      }
       break;
     }
 
@@ -585,9 +593,15 @@ bool ShotStopperNetwork::handleCliApAction(const WebCommand &command,
     case WebCommandType::AP_START: {
       apStartHeld_ = false;
       apKeepRequested_ = true;
+      dataMux_.lock();
+      status_.apKeepActive = true;
+      dataMux_.unlock();
       const bool ok = ensureAccessPoint(now, true);
       if (!ok) {
         apKeepRequested_ = false;
+        dataMux_.lock();
+        status_.apKeepActive = false;
+        dataMux_.unlock();
       }
       actionLog(ok ? "AP_START SoftAP requested" : "ERR AP_START failed");
       printActionSnapshot("AP_START", ok);
@@ -596,6 +610,9 @@ bool ShotStopperNetwork::handleCliApAction(const WebCommand &command,
     case WebCommandType::AP_STOP: {
       apStartHeld_ = true;
       apKeepRequested_ = false;
+      dataMux_.lock();
+      status_.apKeepActive = false;
+      dataMux_.unlock();
       const bool staUp = snapshot().staState == StaState::CONNECTED &&
                          WiFi.status() == WL_CONNECTED;
       if (staUp) {
@@ -1136,6 +1153,7 @@ bool ShotStopperNetwork::startHttpServer() {
       registerHandler(server_, "/history", HTTP_GET, rootHandler) &&
       registerHandler(server_, "/admin", HTTP_GET, rootHandler) &&
       registerHandler(server_, "/settings", HTTP_GET, rootHandler) &&
+      registerHandler(server_, "/setup", HTTP_GET, rootHandler) &&
       registerHandler(server_, "/app.js", HTTP_GET, jsHandler) &&
       registerHandler(server_, "/app.css", HTTP_GET, cssHandler) &&
       registerHandler(server_, "/js/runtime.js", HTTP_GET, runtimeJsHandler) &&
@@ -1152,8 +1170,12 @@ bool ShotStopperNetwork::startHttpServer() {
                       partialSettingsHandler) &&
       registerHandler(server_, "/partials/admin.html", HTTP_GET,
                       partialAdminHandler) &&
+      registerHandler(server_, "/partials/setup.html", HTTP_GET,
+                      partialSetupHandler) &&
       registerHandler(server_, "/js/settings.js", HTTP_GET,
                       viewSettingsHandler) &&
+      registerHandler(server_, "/js/setup.js", HTTP_GET,
+                      viewSetupHandler) &&
       registerHandler(server_, "/manifest.webmanifest", HTTP_GET,
                       manifestHandler) &&
       registerHandler(server_, "/icons/icon-192.png", HTTP_GET,

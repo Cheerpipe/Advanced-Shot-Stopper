@@ -73,6 +73,7 @@ esp_err_t ShotStopperNetwork::uiStreamHandshake(httpd_req_t *request) {
     session = UiStreamSession{};
     new (&self.workBuf_->uiFingerprints[&session - self.uiStreams_]) UiStreamFingerprints{};
     session.fd = httpd_req_to_sockfd(request);
+    session.fromSoftAp = socketServedBySoftAp(session.fd);
     session.openedAtMs = millis();
     request->sess_ctx = &session;
     request->free_ctx = uiStreamFree;
