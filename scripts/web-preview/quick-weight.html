@@ -75,6 +75,7 @@ h1{font-size:1.55rem;margin:.2rem 0 .3rem;padding-right:7.5rem}
 .mkBackdrop{position:absolute;inset:0;z-index:9;background:rgba(21,21,21,.42);opacity:0;pointer-events:none;transition:opacity .28s}
 .mkBackdrop.show{opacity:1;pointer-events:auto}
 .qsheet{position:absolute;left:0;right:0;bottom:0;z-index:10;display:flex;flex-direction:column;height:auto;max-height:46%;transform:translateY(105%);transition:transform .34s cubic-bezier(.32,.72,.32,1);border-top:1px solid var(--ln);border-radius:1.35rem 1.35rem 0 0;background:var(--sf);box-shadow:0 -1.1rem 2.6rem rgba(0,0,0,.3)}
+@supports(backdrop-filter:blur(1px)){.qsheet{background:color-mix(in srgb,var(--sf) 58%,transparent);-webkit-backdrop-filter:blur(18px) saturate(1.6);backdrop-filter:blur(18px) saturate(1.6)}}
 .qsheet.open{transform:none}
 .qsheet.nodrag{transition:none}
 .qsheetGrab{position:relative;flex:none;display:flex;align-items:center;justify-content:center;min-height:2.72rem;padding:.1rem .7rem;cursor:grab;touch-action:none}
