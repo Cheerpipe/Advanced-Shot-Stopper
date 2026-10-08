@@ -937,6 +937,13 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     dataMux_.lock();
     status_.staState = StaState::DISCONNECTED;
     dataMux_.unlock();
+    if (staConfirmArmed_ && apKeepRequested_) {
+      // Same hold as the aged-attempt path: an aborted onboarding attempt
+      // must not enter the 10 s reconnect loop (it aborts every UI scan and
+      // flip-flops the state the /setup page is polling).
+      staReconnectHeld_ = true;
+      lifecycleLog("WiFi STA onboarding attempt aborted; retry from the page");
+    }
     lifecycleLog(brewRf ? "WiFi STA associate aborted; brew RF active"
                         : "WiFi STA associate aborted; scale connecting");
     applyWifiPowerSave();

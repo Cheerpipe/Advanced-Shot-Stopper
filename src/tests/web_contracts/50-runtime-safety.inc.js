@@ -454,7 +454,7 @@ if (!network.includes('WiFi.mode(WIFI_STA)') ||
 }
 {
   const abortAt = network.indexOf('associate aborted; brew RF active');
-  const abortSlice = abortAt >= 0 ? network.slice(Math.max(0, abortAt - 500), abortAt) : '';
+  const abortSlice = abortAt >= 0 ? network.slice(Math.max(0, abortAt - 900), abortAt) : '';
   if (!abortSlice.includes('staState == StaState::CONNECTING') ||
       !abortSlice.includes('WiFi.status() != WL_CONNECTED')) {
     throw new Error(

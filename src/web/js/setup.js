@@ -88,6 +88,7 @@ function renderPicker(networks) {
 
 async function startScan() {
   state = "scanning";
+  scanStartedAt = Date.now();
   show("setupScanning");
   try {
     await R.api("/api/v1/network/scan", { method: "POST", body: "{}" });
@@ -99,6 +100,9 @@ async function startScan() {
   pollScan();
 }
 
+const SCAN_WAIT_MS = 30000;
+let scanStartedAt = 0;
+
 async function pollScan() {
   // One chain per poll generation: a fresh generation (stop()+start()) may
   // take over while a stale continuation is still unwinding.
@@ -108,6 +112,12 @@ async function pollScan() {
   try {
     const d = await R.api("/api/v1/network/scan");
     if (state !== "scanning" || token !== pollToken) return;
+    // Page-side watchdog: whatever the device does, a scan never outlives
+    // this bound on the onboarding card.
+    if (Date.now() - scanStartedAt >= SCAN_WAIT_MS) {
+      scanFailed(null);
+      return;
+    }
     if (d.state === "READY") {
       lastNetworks = d.networks || [];
       state = "form";
@@ -326,8 +336,12 @@ export async function start() {
   // scan/connect chains are paused by stop(), never abandoned.
   captureSleepPreference();
   if (state === "idle") return startScan();
-  if (state === "scanning") pollScan();
-  else if (state === "connecting") pollConnect();
+  if (state === "scanning") {
+    // Timers were suspended while hidden: settle an expired scan now
+    // instead of re-entering a dead wait.
+    if (Date.now() - scanStartedAt >= SCAN_WAIT_MS) scanFailed(null);
+    else pollScan();
+  } else if (state === "connecting") pollConnect();
   return true;
 }
 
