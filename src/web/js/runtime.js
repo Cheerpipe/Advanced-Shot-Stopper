@@ -2284,26 +2284,55 @@ function clearFieldErrors() {
   document.querySelectorAll(".invalid").forEach((e) => e.classList.remove("invalid"));
   document.querySelectorAll(".fieldError").forEach((e) => e.remove());
 }
+function markFieldError(el, msg) {
+  el.classList.add("invalid");
+  const s = document.createElement("small");
+  s.className = "fieldError";
+  s.textContent = msg;
+  (el.closest("label") || el.parentElement).appendChild(s);
+  let d = el.closest("details");
+  while (d) {
+    d.open = true;
+    d = d.parentElement && d.parentElement.closest("details");
+  }
+}
+function focusField(el) {
+  try {
+    el.focus({ preventScroll: true });
+  } catch (_) {}
+  el.scrollIntoView({ block: "center" });
+}
 function showFieldError(id, msg) {
   clearFieldErrors();
   const el = $(id);
   if (el) {
-    el.classList.add("invalid");
-    const s = document.createElement("small");
-    s.className = "fieldError";
-    s.textContent = msg;
-    (el.closest("label") || el.parentElement).appendChild(s);
-    let d = el.closest("details");
-    while (d) {
-      d.open = true;
-      d = d.parentElement && d.parentElement.closest("details");
-    }
-    try {
-      el.focus({ preventScroll: true });
-    } catch (_) {}
-    el.scrollIntoView({ block: "center" });
+    markFieldError(el, msg);
+    focusField(el);
   }
   message(msg, "error");
+}
+// Multi-field brew validation report: every offending field is marked with its
+// own messages and the first one gets focus. Away from the Settings view (the
+// Home quick-weight sheet saves through the same validator) the settings DOM
+// is not visible, so the messages surface through the error banner instead.
+function showFieldErrors(list) {
+  clearFieldErrors();
+  const text = list.map((e) => e.msg).join(" ");
+  if (activeView !== "settings") {
+    message(text, "error");
+    return;
+  }
+  let focused = false;
+  for (const {id, msg} of list) {
+    const el = $(id);
+    if (!el) continue;
+    markFieldError(el, msg);
+    if (!focused) {
+      focusField(el);
+      focused = true;
+    }
+  }
+  message(text, "error");
 }
 function clearMessage() {
   clearTimeout(messageTimer);
@@ -3413,133 +3442,168 @@ function validateMachineClient() {
   }
   return null;
 }
+const sub = (t, vals) => t.replace(/\{(\d)\}/g, (_, i) => vals[+i]);
+// Brew validation message values: formatted per the input's step so every
+// number shows the precision the field itself uses ("34.0 g", never "34 g"
+// for a 0.1-step field, and never a rounded-off typed value).
+function brewFieldValue(id) {
+  const raw = $(id).value.trim(),
+    v = Number(raw);
+  if (raw === "" || !Number.isFinite(v)) return "";
+  const step = Number($(id).step),
+    dec = step > 0 && step < 1 ? (String(step).split(".")[1] || "").length : 0,
+    fixed = v.toFixed(dec);
+  return Number(fixed) === v ? fixed : String(v);
+}
+const BREW_FIELD_TEXT = {
+    goalWeightG: [__WEBUI_TEXT__("runtime.target"), __WEBUI_TEXT__("runtime.g"), "bbw"],
+    operationalWallS: [__WEBUI_TEXT__("runtime.max_bbw_time"), __WEBUI_TEXT__("runtime.s"), "bbw"],
+    bbwProtectionS: [__WEBUI_TEXT__("runtime.bbw_protection"), __WEBUI_TEXT__("runtime.s"), "bbw"],
+    weightOffsetBaselineG: [__WEBUI_TEXT__("runtime.offset_baseline"), __WEBUI_TEXT__("runtime.g")],
+    lineaMicraBrewTargetC: [__WEBUI_TEXT__("runtime.brew_temperature"), "°C"],
+    maxRecoveryWeightG: [__WEBUI_TEXT__("runtime.max_recovery"), __WEBUI_TEXT__("runtime.g"), "fast"],
+    minBbwBrewTimeS: [__WEBUI_TEXT__("runtime.min_bbw_brew_time"), __WEBUI_TEXT__("runtime.s"), "fast"],
+    minRecoveryWeightG: [__WEBUI_TEXT__("runtime.min_recovery"), __WEBUI_TEXT__("runtime.g"), "slow"],
+    maxBbwBrewTimeS: [__WEBUI_TEXT__("runtime.max_bbw_brew_time"), __WEBUI_TEXT__("runtime.s"), "slow"],
+    autoToManualGuardManualLimitS: [
+      __WEBUI_TEXT__("settings.err_manual_limit"),
+      __WEBUI_TEXT__("runtime.s"),
+      "atm",
+    ],
+    autoToManualGuardBaselineS: [
+      __WEBUI_TEXT__("settings.err_baseline_duration"),
+      __WEBUI_TEXT__("runtime.s"),
+      "atm",
+    ],
+  },
+  BREW_SECTION_TEXT = {
+    bbw: __WEBUI_TEXT__("settings.brew_by_weight"),
+    fast: __WEBUI_TEXT__("settings.fast_extraction_guard"),
+    slow: __WEBUI_TEXT__("settings.slow_extraction_guard"),
+    atm: __WEBUI_TEXT__("settings.a_to_m_time_guard"),
+  },
+  BREW_CROSS_TEXT = {
+    gt: __WEBUI_TEXT__("settings.err_greater"),
+    lt: __WEBUI_TEXT__("settings.err_less"),
+    ge: __WEBUI_TEXT__("settings.err_at_least"),
+    le: __WEBUI_TEXT__("settings.err_not_exceed"),
+    range: __WEBUI_TEXT__("settings.err_from_to"),
+  },
+  BREW_REL = {
+    ">": (a, b) => a > b,
+    ">=": (a, b) => a >= b,
+    "<": (a, b) => a < b,
+    "<=": (a, b) => a <= b,
+  },
+  // Cross-field rules as [fieldA, fieldB, violation(fieldA, fieldB), messageA,
+  // messageB, gates...]: each message is phrased from its own field's side and
+  // names the other field's value, label, and settings section. The retare
+  // floor entry is single-sided: its bound is computed, not an edited field.
+  BREW_CROSS_RULES = [
+    ["bbwProtectionS", "operationalWallS", ">", "le", "ge"],
+    ["bbwProtectionS", "retareFloor", "<", "ge"],
+    ["maxRecoveryWeightG", "goalWeightG", "<=", "gt", "lt", "fast"],
+    ["minBbwBrewTimeS", "operationalWallS", ">=", "lt", "gt", "fast"],
+    ["minBbwBrewTimeS", "bbwProtectionS", "<", "ge", "le", "fast"],
+    ["minRecoveryWeightG", "goalWeightG", ">=", "lt", "gt", "slow"],
+    ["maxBbwBrewTimeS", "operationalWallS", ">=", "lt", "gt", "slow"],
+    ["maxBbwBrewTimeS", "bbwProtectionS", "<", "ge", "le", "slow"],
+    ["maxBbwBrewTimeS", "minBbwBrewTimeS", "<=", "gt", "lt", "fast", "slow"],
+    ["autoToManualGuardManualLimitS", "operationalWallS", ">", "range", "ge"],
+    ["autoToManualGuardBaselineS", "operationalWallS", ">", "range", "ge"],
+  ];
+function brewCrossErr(kind, id, other) {
+  const [label, unit] = BREW_FIELD_TEXT[id],
+    [ref, refUnit, refSection] = BREW_FIELD_TEXT[other],
+    section = BREW_SECTION_TEXT[refSection],
+    mine = brewFieldValue(id) + " " + unit,
+    limit = brewFieldValue(other) + " " + refUnit;
+  return kind === "range"
+    ? sub(BREW_CROSS_TEXT.range, [label, mine, "10 " + unit, limit, ref, section])
+    : sub(BREW_CROSS_TEXT[kind], [label, mine, limit, ref, section]);
+}
+// The fields the user changed since the form was last clean: the baseline is
+// refreshed whenever the brew section is saved or re-hydrated clean, so
+// programmatic writes (the Home quick-weight sheet) count as edits too.
+function editedBrewFields() {
+  const edited = new Set();
+  if (!brewBaseline) return edited;
+  for (const el of settingsSectionEls("brew"))
+    if (el.id && brewBaseline[el.id] !== (el.type === "checkbox" ? el.checked : el.value))
+      edited.add(el.id);
+  return edited;
+}
 function validateBrewClient() {
-  let e =
-    rangeCheck("goalWeightG", 10, 200, __WEBUI_TEXT__("runtime.target"), {
-      int: 1,
-      unit: __WEBUI_TEXT__("runtime.g"),
-    }) ||
-    rangeCheck("operationalWallS", 5, 60, __WEBUI_TEXT__("runtime.max_bbw_time"), {
-      int: 1,
-      unit: __WEBUI_TEXT__("runtime.s"),
-    }) ||
-    rangeCheck("bbwProtectionS", 0.5, 30, __WEBUI_TEXT__("runtime.bbw_protection"), {
-      unit: __WEBUI_TEXT__("runtime.s"),
-    }) ||
-    (!$("weightOffsetBaselineG").disabled &&
-      rangeCheck("weightOffsetBaselineG", 0, 5, __WEBUI_TEXT__("runtime.offset_baseline"), {
-        unit: __WEBUI_TEXT__("runtime.g"),
-      })) ||
-    (document.documentElement.classList.contains("micraTemperatureEnabled") &&
-      rangeCheck("lineaMicraBrewTargetC", 80, 100, __WEBUI_TEXT__("runtime.brew_temperature"), {
-        unit: "°C",
-      }));
-  if (!e && !$("bbwAlphaBaseline").disabled && !$("bbwAlphaBaseline").validity.valid)
-    e = { id: "bbwAlphaBaseline", msg: __WEBUI_TEXT__("runtime.use_0_01_1_00_step_0") };
-  if (e) return e;
-  const wall = number("operationalWallS"),
-    bbw = number("bbwProtectionS"),
-    rw = formNumber("retareWindowS"),
-    autoRetare = !!$("autoRetare") && $("autoRetare").checked;
-  if (bbw > wall)
-    return {
-      id: "bbwProtectionS",
-      msg: __WEBUI_TEXT__("runtime.bbw_protection_must_be_machine_circuit_limit") + wall + " s).",
-    };
-  const minBbw = (autoRetare && Number.isFinite(rw) ? rw : 0) + 3;
-  if (bbw < minBbw)
-    return {
-      id: "bbwProtectionS",
-      msg:
-        __WEBUI_TEXT__("runtime.bbw_protection_must_be") +
-        minBbw +
-        __WEBUI_TEXT__("runtime.s_effective_retare_3_s"),
-    };
-  if ($("fastExtractionGuardEnabled").checked) {
-    e =
-      rangeCheck("maxRecoveryWeightG", 10, 200, __WEBUI_TEXT__("runtime.max_recovery"), {
-        unit: __WEBUI_TEXT__("runtime.g"),
-      }) ||
-      rangeCheck("minBbwBrewTimeS", 5, 55, __WEBUI_TEXT__("runtime.min_bbw_brew_time"), {
-        unit: __WEBUI_TEXT__("runtime.s"),
+  const errors = [],
+    edited = editedBrewFields(),
+    fastOn = $("fastExtractionGuardEnabled").checked,
+    slowOn = $("slowExtractionGuardEnabled").checked,
+    brewRange = (id, min, max, opts) => {
+      const [label, unit] = BREW_FIELD_TEXT[id],
+        v = brewFieldValue(id);
+      return rangeCheck(
+        id,
+        min,
+        max,
+        v === "" ? label : label + " " + v + " " + unit,
+        {unit, ...opts},
+      );
+    },
+    add = (e) => e && errors.push(e);
+  add(brewRange("goalWeightG", 10, 200, {int: 1}));
+  add(brewRange("operationalWallS", 5, 60, {int: 1}));
+  add(brewRange("bbwProtectionS", 0.5, 30));
+  if (!$("weightOffsetBaselineG").disabled) add(brewRange("weightOffsetBaselineG", 0, 5));
+  if (document.documentElement.classList.contains("micraTemperatureEnabled"))
+    add(brewRange("lineaMicraBrewTargetC", 80, 100));
+  if (!$("bbwAlphaBaseline").disabled && !$("bbwAlphaBaseline").validity.valid)
+    errors.push({id: "bbwAlphaBaseline", msg: __WEBUI_TEXT__("runtime.use_0_01_1_00_step_0")});
+  if (fastOn) {
+    add(brewRange("maxRecoveryWeightG", 10, 200));
+    add(brewRange("minBbwBrewTimeS", 5, 55));
+  }
+  if (slowOn) {
+    add(brewRange("minRecoveryWeightG", 10, 200));
+    add(brewRange("maxBbwBrewTimeS", 5, 55));
+  }
+  add(brewRange("autoToManualGuardManualLimitS", 10, 60, {int: 1}));
+  add(brewRange("autoToManualGuardBaselineS", 10, 60, {int: 1}));
+  const rw = formNumber("retareWindowS"),
+    withRetare = !!$("autoRetare") && $("autoRetare").checked && Number.isFinite(rw),
+    floor = (withRetare ? rw : 0) + 3;
+  for (const [a, b, rel, kindA, kindB, ...gates] of BREW_CROSS_RULES) {
+    if (gates.includes("fast") && !fastOn) continue;
+    if (gates.includes("slow") && !slowOn) continue;
+    const retareRule = b === "retareFloor",
+      x = number(a),
+      y = retareRule ? floor : number(b);
+    if (!(Number.isFinite(x) && Number.isFinite(y) && BREW_REL[rel](x, y))) continue;
+    if (retareRule) {
+      const [label, unit] = BREW_FIELD_TEXT[a],
+        mine = brewFieldValue(a) + " " + unit,
+        bound = floor.toFixed(1) + " " + unit;
+      errors.push({
+        id: a,
+        msg: withRetare
+          ? sub(BREW_CROSS_TEXT.ge, [
+              label,
+              mine,
+              bound,
+              sub(__WEBUI_TEXT__("settings.err_retare_sum"), [brewFieldValue("retareWindowS")]),
+              __WEBUI_TEXT__("settings.tare"),
+            ])
+          : sub(__WEBUI_TEXT__("settings.err_at_least_plain"), [label, mine, bound]),
       });
-    if (e) return e;
-    const goal = number("goalWeightG"),
-      maxW = number("maxRecoveryWeightG"),
-      minT = number("minBbwBrewTimeS");
-    if (!(maxW > goal))
-      return {
-        id: "maxRecoveryWeightG",
-        msg: __WEBUI_TEXT__("runtime.max_recovery_must_be_target") + goal + " g).",
-      };
-    if (minT >= wall)
-      return {
-        id: "minBbwBrewTimeS",
-        msg: __WEBUI_TEXT__("runtime.min_bbw_brew_time_must_be_machine") + wall + " s).",
-      };
-    if (minT < bbw)
-      return {
-        id: "minBbwBrewTimeS",
-        msg: __WEBUI_TEXT__("runtime.min_bbw_brew_time_must_be_bbw") + bbw + " s).",
-      };
-  }
-  if ($("slowExtractionGuardEnabled").checked) {
-    e =
-      rangeCheck("minRecoveryWeightG", 10, 200, __WEBUI_TEXT__("runtime.min_recovery"), {
-        unit: __WEBUI_TEXT__("runtime.g"),
-      }) ||
-      rangeCheck("maxBbwBrewTimeS", 5, 55, __WEBUI_TEXT__("runtime.max_bbw_brew_time"), {
-        unit: __WEBUI_TEXT__("runtime.s"),
+      continue;
+    }
+    const blamed = [a, b].filter((id) => edited.has(id));
+    for (const id of blamed.length ? blamed : [a])
+      errors.push({
+        id,
+        msg: brewCrossErr(id === a ? kindA : kindB, id, id === a ? b : a),
       });
-    if (e) return e;
-    const goal = number("goalWeightG"),
-      minW = number("minRecoveryWeightG"),
-      maxT = number("maxBbwBrewTimeS"),
-      minT = number("minBbwBrewTimeS");
-    if (!(minW < goal))
-      return {
-        id: "minRecoveryWeightG",
-        msg: __WEBUI_TEXT__("runtime.min_recovery_must_be_target") + goal + " g).",
-      };
-    if (maxT >= wall)
-      return {
-        id: "maxBbwBrewTimeS",
-        msg: __WEBUI_TEXT__("runtime.max_bbw_brew_time_must_be_machine") + wall + " s).",
-      };
-    if (maxT < bbw)
-      return {
-        id: "maxBbwBrewTimeS",
-        msg: __WEBUI_TEXT__("runtime.max_bbw_brew_time_must_be_bbw") + bbw + " s).",
-      };
-    if ($("fastExtractionGuardEnabled").checked && !(maxT > minT))
-      return {
-        id: "maxBbwBrewTimeS",
-        msg: __WEBUI_TEXT__("runtime.max_bbw_brew_time_must_be_min") + minT + " s).",
-      };
   }
-  e = rangeCheck(
-    "autoToManualGuardManualLimitS",
-    10,
-    wall,
-    __WEBUI_TEXT__("runtime.a_to_m_manual_limit"),
-    { int: 1, unit: __WEBUI_TEXT__("runtime.s") },
-  );
-  if (e) {
-    e.msg = __WEBUI_TEXT__("runtime.a_to_m_manual_limit_must_be") + wall + " s).";
-    return e;
-  }
-  e = rangeCheck(
-    "autoToManualGuardBaselineS",
-    10,
-    wall,
-    __WEBUI_TEXT__("runtime.a_to_m_baseline"),
-    { int: 1, unit: __WEBUI_TEXT__("runtime.s") },
-  );
-  if (e) {
-    e.msg = __WEBUI_TEXT__("runtime.a_to_m_baseline_must_be_10") + wall + " s).";
-    return e;
-  }
-  return null;
+  return errors;
 }
 function validateDateTimeClient() {
   const tz = $("timezoneId").value;
@@ -4078,8 +4142,7 @@ function renderPresetCards(targetId, selectable) {
 function guardRuleRows(m) {
   const on = !!m && m.mode === "active",
     off = __WEBUI_TEXT__("runtime.off_2"),
-    f = (v) => (Number.isFinite(v) ? axisLabel(v, "g") : "\u2014"),
-    sub = (t, vals) => t.replace(/\{(\d)\}/g, (_, i) => vals[+i]);
+    f = (v) => (Number.isFinite(v) ? axisLabel(v, "g") : "\u2014");
   return [
     [
       __WEBUI_TEXT__("runtime.fast"),
@@ -4384,6 +4447,10 @@ async function ensureSettingsHydrated() {
   if (!statusPageOk("settings", s)) throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
   applyCommonStatus(s);
   loadSettingsConfig(s.config);
+  // The hydrated form is clean, so snapshot the brew baseline here as well:
+  // a Home quick-weight write that follows must count as an edited field for
+  // error attribution even when the Settings view has never been polled.
+  if (!brewDirty) brewBaseline = snapshotControls(settingsSectionEls("brew"));
   if (s.presets) ingestPresets(s);
 }
 function clearHomePend() {
@@ -4541,9 +4608,9 @@ async function saveBrewPreset(okMsg, failMsg) {
   }
   if (HOME_GUARD_SWITCHES.some(([h]) => homeSwitchPending[h]) || homeSwitchPending.homeBrewByWeight)
     syncSettingsFromHomeSwitches();
-  const err = validateBrewClient();
-  if (err) {
-    showFieldError(err.id, err.msg);
+  const errs = validateBrewClient();
+  if (errs.length) {
+    showFieldErrors(errs);
     return false;
   }
   clearFieldErrors();

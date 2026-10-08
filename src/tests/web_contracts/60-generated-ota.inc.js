@@ -544,8 +544,12 @@ if (generated.cssGzip.length > 11400) {
 // background model application, the immediate background ensure, and the
 // per-stream sync markers) measure +68 compressed bytes on the sentinel
 // build while deleting the per-view stop paths. Cap raised to 48700.
-if (sentinelRuntimeGzip.length > 48700) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 48700-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Brew settings edited-field error attribution (rule table with per-side
+// phrasing, baseline-diff edited-field detection, multi-error renderer)
+// replaces the first-failure validator's shorter strings: +547 compressed
+// bytes on the sentinel build. Cap raised to 49300.
+if (sentinelRuntimeGzip.length > 49300) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 49300-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -663,8 +667,11 @@ if (generated.icon48Gzip.length > 3500) {
 // chain heartbeat with the pre-connect address line ~170 more.
 // Cap raised to 130200; firmware image, memory placement and OTA
 // partitions stay fixed.
-if (generated.combined > 130200) {
-  throw new Error(`Combined Web UI gzip exceeds the 130200-byte flash budget (${generated.combined})`);
+// Brew settings edited-field error attribution adds its reviewed runtime
+// allowance to the combined cap (130594 measured). Cap raised to 130700;
+// firmware image, memory placement and OTA partitions stay fixed.
+if (generated.combined > 130700) {
+  throw new Error(`Combined Web UI gzip exceeds the 130700-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

@@ -97,8 +97,9 @@ if (firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)'
   const context = vm.createContext({__WEBUI_TEXT__: key => strings[key],
     document: {createElement: node, createTextNode: text => ({textContent: text})},
     presetState: {activeId: 1, items: [saved]}, renderHomePresetAccordion() {}});
-  vm.runInContext(['axisLabel', 'guardRuleRows', 'buildRuleChartModel',
-    'updateRuleChartFromStatus'].map((name) => blockAt(runtimeJs, 'function ' + name + '('))
+  vm.runInContext([runtimeJs.match(/^const sub = \(t, vals\).*$/m)[0],
+    ...['axisLabel', 'guardRuleRows', 'buildRuleChartModel',
+      'updateRuleChartFromStatus'].map((name) => blockAt(runtimeJs, 'function ' + name + '('))]
       .join('\n'), context);
   const rules = config => {
     context.status = {config};
