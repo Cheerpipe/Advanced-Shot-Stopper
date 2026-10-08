@@ -166,6 +166,10 @@
       !codeIncludes(setupJs, '{action:"confirm"}') ||
       !codeIncludes(setupJs, 'e.code==="ADMIN_LOCKED"') ||
       !setupJs.includes('CONNECT_WAIT_MS') ||
+      // The visible 20 s attempt countdown must mirror the firmware bound.
+      !codeIncludes(setupJs, 'ATTEMPT_WINDOW_MS=20000') ||
+      !codeIncludes(setupJs, 'This usually takes less than') ||
+      !partialHtml.setup.includes('id="setupConnectingCountdown"') ||
       !partialHtml.setup.includes('id="setupHiddenToggle"') ||
       !partialHtml.setup.includes('2.4 GHz') ||
       !css.includes('body.setupView .topBar,body.setupView .pageNav{display:none}') ||

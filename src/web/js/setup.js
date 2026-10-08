@@ -6,6 +6,10 @@
 import * as R from "/js/runtime.js?v=__FW_ASSET_TAG__";
 const $ = R.$;
 const CONNECT_WAIT_MS = 60000;
+// Mirrors the firmware's LIVE_APPLY_ATTEMPT_MS onboarding bound: the device
+// fails a wrong-password attempt by 20 s, so the countdown tells the user
+// how long this can take before they see a result.
+const ATTEMPT_WINDOW_MS = 20000;
 const POLL_MS = 1000;
 let bound = false,
   pollTimer = 0,
@@ -137,6 +141,17 @@ function scanFailed(error) {
   );
 }
 
+function updateConnectingCountdown() {
+  const el = $("setupConnectingCountdown");
+  if (!el) return;
+  const remaining = Math.ceil((waitStartedAt + ATTEMPT_WINDOW_MS - Date.now()) / 1000);
+  el.hidden = false;
+  el.textContent =
+    remaining > 0
+      ? __WEBUI_TEXT__("setup.connecting_deadline").replace("{n}", remaining)
+      : __WEBUI_TEXT__("setup.connecting_slow");
+}
+
 function showLocked() {
   state = "locked";
   show("setupLocked");
@@ -180,6 +195,7 @@ async function connect() {
   $("setupConnectingText").textContent =
     __WEBUI_TEXT__("setup.connecting_to").replace("{x}", payload.ssid);
   show("setupConnecting");
+  updateConnectingCountdown();
   try {
     await R.api("/api/v1/network", { method: "POST", body: R.body(payload) });
   } catch (e) {
@@ -205,6 +221,7 @@ async function pollConnect() {
     if (chainBusyToken === token) chainBusyToken = -1;
   }
   if (state !== "connecting" || token !== pollToken) return;
+  updateConnectingCountdown();
   const network = status && status.network;
   if (network && network.staState === "CONNECTED" && network.staIp) {
     await finishSuccess(status);

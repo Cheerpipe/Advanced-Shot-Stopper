@@ -1318,6 +1318,8 @@
     "setup.close_hint": "You can close this window now — the controller finishes on its own and this setup network goes away.",
     "setup.connect": "Connect",
     "setup.connecting": "Connecting…",
+    "setup.connecting_deadline": "This usually takes less than {n} s",
+    "setup.connecting_slow": "Taking longer than usual — still trying…",
     "setup.connecting_to": "Connecting to {x}…",
     "setup.error_could_not_connect": "We couldn't connect to that network.",
     "setup.error_hints": "Check the password, make sure the network is 2.4 GHz, and that the router is nearby. You can try again right now.",

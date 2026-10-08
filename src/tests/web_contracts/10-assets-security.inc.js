@@ -555,8 +555,11 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // card partial (brand, scan/form/connecting/success/error/locked states):
 // ~1.1 KB of HTML source allowance; compressed asset and firmware budgets
 // stay fixed.
-if (htmlBytes > 88300) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 88300)`);
+// The connecting-state countdown line under the 20 s bound adds ~70 bytes
+// of HTML source allowance; compressed asset and firmware budgets stay
+// fixed.
+if (htmlBytes > 88500) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 88500)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -674,8 +677,10 @@ if (htmlBytes > 88300) {
 // pre-connect grace, success/error cards) plus the shell route wiring in
 // app.js: ~8 KB of JS source allowance; compressed asset and firmware
 // limits stay fixed.
-if (jsBytes > 352000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 352000)`);
+// The connecting-state countdown painter adds ~700 bytes of JS source
+// allowance; compressed asset and firmware limits stay fixed.
+if (jsBytes > 353000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 353000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -726,8 +731,9 @@ if (jsBytes > 352000) {
 // fixed.
 // The /setup onboarding view contributes the same ~1.1 KB of HTML and ~8 KB
 // of JS source allowance described above; compressed budgets stay fixed.
-if (htmlBytes + jsBytes > 441000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 441000)`);
+// The connecting-state countdown adds ~0.8 KB more (line + painter).
+if (htmlBytes + jsBytes > 442000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 442000)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
