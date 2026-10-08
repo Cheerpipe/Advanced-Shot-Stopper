@@ -63,19 +63,20 @@ settings, or ship in firmware assets.
 ### Quick target-weight design preview
 
 Open `http://127.0.0.1:4173/quick-weight` on the same preview server to review
-ten interaction proposals for changing the brew target weight from the Home
-screen, plus a reference mock of the current Home. Each proposal keeps the
-Home clean: a floating pill above the action dock shows the current target and
-opens an animated bottom sheet (pinned to the bottom edge, full screen width
-on mobile and content width on desktop, never taller than half the visible
-area) containing one continuous weight control — a vertical column, a radial
-dial, dual coarse/fine sliders, giant-number scrub, a magnifying ruler with
-inertia, a micrometer roller, a brew-button arc, velocity-adaptive scrub, a
-relative joystick pad, or a concentric dual crown. Every mock is a fixed-height
-screen with real scrolling; the weight change propagates to the preset
-accordion and a simulated shot, and the page theme toggle cycles automatic,
-light and dark. Values and controls are illustrative only; this preview does
-not connect to a device, change saved settings, or ship in firmware assets.
+the converged proposal for changing the brew target weight from the Home
+screen, plus a reference mock of the current Home. The mock replicates the
+shipping Home (Last-shot hero card first) and adds a small vector edit pencil
+next to the "/ target weight" text; tapping it opens an animated bottom sheet
+(pinned to the bottom edge, full screen width on mobile and content width on
+desktop, never taller than half the visible area) containing one continuous
+control: a sliding micrometer-style tick scale with speed-adaptive
+acceleration (slow drags adjust fractions of a gram, fast drags traverse the
+range) and a Reset button that appears only once the weight differs from the
+preset default. Every mock is a fixed-height screen with real scrolling; the
+weight change propagates to the preset accordion and a simulated shot, and the
+page theme toggle cycles automatic, light and dark. Values and controls are
+illustrative only; this preview does not connect to a device, change saved
+settings, or ship in firmware assets.
 
 ### Mobile navigation preview
 
