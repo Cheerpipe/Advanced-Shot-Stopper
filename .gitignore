@@ -71,6 +71,9 @@ reports/
 *.profraw
 *.profdata
 
+# Local Web UI design mockups served by scripts/webui-preview/server.js
+/webui-mockups/
+
 # Internal AI agent workspace
 /temp/
 /docs/plans/

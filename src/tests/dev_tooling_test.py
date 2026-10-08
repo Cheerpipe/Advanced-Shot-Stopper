@@ -140,6 +140,17 @@ opt_forwarded = captured_firmware("build", "--os")
 assert opt_forwarded["steps"][0][1][-2:] == ["--", "--os"]
 force_forwarded = captured_firmware("build", "--force-sdkconfig-regenerate")
 assert force_forwarded["steps"][0][1][-2:] == ["--", "--force-sdkconfig-regenerate"]
+
+# The Web UI design preview server is official tooling dispatched by the facade.
+preview_captured = captured_firmware("preview", "--port", "4174")
+assert preview_captured["steps"][0][1] == ["node", "scripts/webui-preview/server.js"]
+assert preview_captured["env_extra"] == {"PORT": "4174"}, preview_captured
+assert captured_firmware("preview")["env_extra"] == {}
+assert (ROOT / "scripts/webui-preview/server.js").is_file()
+for invalid_preview in (("preview", "extra"), ("preview", "--port", "0"),
+                        ("preview", "--port", "70000")):
+    rejected_preview = run(*invalid_preview)
+    assert rejected_preview.returncode == 2, (invalid_preview, rejected_preview.stderr)
 for stage in ("flash", "ota", "monitor"):
     rejected = run(stage, "--force-sdkconfig-regenerate")
     assert rejected.returncode == 2 and "does not apply" in rejected.stderr

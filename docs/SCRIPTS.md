@@ -14,6 +14,7 @@ flash over USB.
 | Flash an existing image | `./scripts/dev flash --confirm --hardware <hardware> --machine <machine> --port <port>` |
 | Monitor USB serial | `./scripts/dev monitor --port <port> --speed 115200` |
 | Run host tests | `./scripts/dev test normal` |
+| Preview Web UI designs | `./scripts/dev preview` |
 | Validate changes | `./scripts/dev validate` |
 
 Successful firmware builds automatically retain ELF/BIN pairs in
@@ -24,6 +25,36 @@ its ELF; `./scripts/dev clean` keeps these archives.
 At the end of every successful command that includes `build`, the terminal
 highlights the absolute build-output folder and the absolute `shotstopper.bin`
 path ready for installation.
+
+## Web UI design preview
+
+The design preview server renders the embedded Web UI in a desktop browser
+for design iteration. Only the server itself is part of the project; every
+design asset it serves is a local file that never enters Git:
+
+- **Project tooling:** `scripts/webui-preview/server.js`, started with
+  `./scripts/dev preview` (use `--port 4174` when the default port 4173 is
+  busy). It listens only on this computer, reads the current firmware
+  markup, styles, and scripts on every page load, and stops with Ctrl-C.
+- **Local design assets:** the `webui-mockups/` folder at the repository
+  root. The folder is Git-ignored, so a fresh clone starts without it and
+  mockup work never produces commits, documentation, or tests.
+
+The server offers two kinds of pages. Reference views are rendered live
+from the firmware sources: `/` shows the Home screen, `/mobile-menu` the
+bottom-navigation sample views, and `/micra` the machine diagnostics, with
+the firmware stylesheet at `/app.css`. Everything else is served from
+`webui-mockups/` by file name: drop `proposal.html` into the folder and
+open `http://127.0.0.1:4173/proposal`; `proposal.css` and `proposal.js`
+resolve the same way, so adding or removing a mockup never requires a
+server change.
+
+The preview does not connect to a device or change its settings; the
+values it shows are illustrative. Mockups and assets created for the
+preview are development resources, not product files: they must not
+generate commits, documentation updates, or tests, and they never ship in
+firmware assets. Bringing a finished design into the product is a
+separate, deliberate change.
 
 ## USB installation
 

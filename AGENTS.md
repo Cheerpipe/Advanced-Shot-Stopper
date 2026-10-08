@@ -107,17 +107,20 @@ all three directories must remain Git-ignored. Bring existing external
 task working files into the appropriate local directory and update their
 references. Follow [local storage, migration, and cleanup rules](docs/AI_WORKFLOW.md#local-project-files-and-git).
 
-## Prototypes, mockups, and dev servers
+## Web UI preview server and mockups
 
-Prototypes, Web UI mockups, and throwaway dev servers that exist to serve or
-iterate on mockups are local working artifacts: keep them under `temp/` (for
-example `temp/ai_temp_<task>/`), never in `src/`, `docs/`, or the tracked
-tree. When a request only produces or changes such files under `temp/`, it is
-the one exception to the commit mandate above: do not stage, commit, or
-force-add anything — report the result and stop. Never move prototype or
-mockup work into tracked directories so it can be committed; promoting a
-mockup into the product is a separate change that the user must request
-explicitly.
+The Web UI design preview server (`scripts/webui-preview/`, started with
+`./scripts/dev preview`) is official project tooling: changes to it are
+ordinary tracked changes with their own commit, documentation, and
+validation gates. Everything it serves as design material is not part of
+the project: mockups, prototypes, and static assets live only in
+`webui-mockups/`, which stays Git-ignored. Requests that only create or
+edit files there must not produce commits, documentation updates, or
+tests — report the result and stop; do not stage, commit, or force-add
+them. Never move mockup work into tracked directories to make it
+committable; promoting a design into the product is a separate change the
+user must request explicitly. Throwaway work unrelated to Web UI design
+still belongs in `temp/` under the local storage rules.
 
 ## Plans, audits, and session handoff
 
