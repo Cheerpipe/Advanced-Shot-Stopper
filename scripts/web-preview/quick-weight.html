@@ -65,11 +65,11 @@ h1{font-size:1.55rem;margin:.2rem 0 .3rem;padding-right:7.5rem}
 .mock .shotHero .heroSpark svg{display:block;width:100%;height:2.4rem}
 .mock .shotHero .heroSpark .line{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
 .mock .shotHero .heroSpark .fill{fill:currentColor;opacity:.16;stroke:none}
-.qeditPen{display:inline-flex;align-items:center;justify-content:center;padding:.3rem;cursor:pointer;color:inherit;opacity:.85;transition:transform .12s,opacity .15s;flex:none}
+.qeditPen{display:inline-flex;align-items:center;justify-content:center;padding:.18rem;cursor:pointer;color:inherit;opacity:.85;transition:transform .12s,opacity .15s;flex:none}
 .qeditPen:hover{opacity:1}
 .qeditPen:active{transform:scale(.85)}
 .qeditPen svg{width:1rem;height:1rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.shotHero .heroNum .qeditPen{align-self:baseline;margin-left:.45rem;transform:translateY(.32rem)}
+.shotHero .heroNum .qeditPen{align-self:baseline;margin-left:0;padding:.05rem;transform:translateY(.32rem)}
 
 /* ---------- Hoja inferior ---------- */
 .mkBackdrop{position:absolute;inset:0;z-index:9;background:rgba(21,21,21,.42);opacity:0;pointer-events:none;transition:opacity .28s}
@@ -77,16 +77,16 @@ h1{font-size:1.55rem;margin:.2rem 0 .3rem;padding-right:7.5rem}
 .qsheet{position:absolute;left:0;right:0;bottom:0;z-index:10;display:flex;flex-direction:column;height:auto;max-height:46%;transform:translateY(105%);transition:transform .34s cubic-bezier(.32,.72,.32,1);border-top:1px solid var(--ln);border-radius:1.35rem 1.35rem 0 0;background:var(--sf);box-shadow:0 -1.1rem 2.6rem rgba(0,0,0,.3)}
 .qsheet.open{transform:none}
 .qsheet.nodrag{transition:none}
-.qsheetGrab{position:relative;flex:none;padding:.5rem 0 .15rem;cursor:grab;touch-action:none}
+.qsheetGrab{position:relative;flex:none;display:flex;align-items:center;justify-content:center;min-height:3.1rem;padding:.15rem .7rem;cursor:grab;touch-action:none}
 .qsheetGrab:active{cursor:grabbing}
-.qsheetGrab i{display:block;width:2.7rem;height:.3rem;margin:0 auto;border-radius:2rem;background:var(--ln)}
-.qsheetHead{display:flex;align-items:center;gap:.55rem;padding:.2rem .95rem .1rem;cursor:grab;touch-action:none}
+.qsheetGrab i{display:block;width:2.4rem;height:.26rem;border-radius:2rem;background:var(--ln)}
+.qsheetDone{position:absolute;right:.7rem;top:50%;transform:translateY(-50%);min-height:1.9rem;padding:0 .85rem;border:1.5px solid var(--ac);border-radius:2rem;background:var(--pri);border-color:var(--pri);color:var(--on);font:inherit;font-size:.76rem;font-weight:700;cursor:pointer}
+.qsheetHead{display:flex;align-items:baseline;gap:.5rem;padding:0 .95rem .05rem;cursor:grab;touch-action:none}
 .qsheetHead .twLabel{margin:0;flex:0 1 auto}
-.qsheetHp{margin-left:.4rem;color:var(--mu);font-size:.8rem;font-weight:600}
-.qsheetDone{flex:none;margin-left:auto;min-height:2.2rem;padding:0 1rem;border:1.5px solid var(--ac);border-radius:2rem;background:var(--pri);border-color:var(--pri);color:var(--on);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
-.qsheetVal{display:flex;align-items:baseline;gap:.8rem;padding:.15rem .95rem .25rem;font-variant-numeric:tabular-nums}
-.qsheetVal .twVal{font-size:2.35rem}
-.qsheetBody{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;padding:.25rem .95rem calc(.85rem + .35rem);overflow:hidden}
+.qsheetHp{color:var(--mu);font-size:.8rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.qsheetValRow{display:flex;align-items:center;gap:.8rem;padding:0 .95rem .15rem}
+.qsheetValRow .twVal{margin:0;font-size:2.35rem}
+.qsheetBody{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;padding:.1rem .95rem calc(.8rem + .3rem);overflow:hidden}
 .twLabel{display:flex;align-items:center;gap:.45rem;margin:0 0 .3rem;font-size:.68rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mu)}
 .twLabel .ic{width:1.05rem;height:1.05rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .twVal{font-variant-numeric:tabular-nums;font-weight:800;letter-spacing:-.03em;line-height:1}
@@ -95,7 +95,7 @@ h1{font-size:1.55rem;margin:.2rem 0 .3rem;padding-right:7.5rem}
 .mkToast.show{opacity:1;transform:translate(-50%,0)}
 
 /* ---------- Micrómetro: escala superior única ---------- */
-.qmicZone{display:flex;flex-direction:column;justify-content:center;gap:.75rem;padding:1.7rem 0;touch-action:none;cursor:ew-resize;user-select:none}
+.qmicZone{display:flex;flex-direction:column;justify-content:center;gap:.75rem;padding:.55rem 0 1.7rem;touch-action:none;cursor:ew-resize;user-select:none}
 .qmicScale{position:relative;height:1.5rem;overflow:hidden;-webkit-mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent);mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent)}
 .qmicScaleIn{position:absolute;inset:0;will-change:transform}
 .qmicScaleIn i{position:absolute;top:0;width:1.5px;height:.8rem;background:var(--bd)}

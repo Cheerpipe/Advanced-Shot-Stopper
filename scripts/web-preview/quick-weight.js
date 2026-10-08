@@ -277,18 +277,13 @@
     sheet.setAttribute('role', 'dialog');
     sheet.setAttribute('aria-label', 'Set target weight');
     sheet.innerHTML = `
-      <div class="qsheetGrab" aria-hidden="true"><i></i></div>
-      <div class="qsheetHead">
-        <p class="twLabel">${ICON_SCALE} Target weight</p>
-        <span class="qsheetHp">· <b class="jsPresetName">Espresso</b></span>
-        <button type="button" class="qsheetDone">Listo</button>
-      </div>
+      <div class="qsheetGrab"><i></i><button type="button" class="qsheetDone">Listo</button></div>
       <div class="qsheetBody"></div>`;
     ctx.mock.append(backdrop, sheet);
-    ctx.presetNameEls.push($('.jsPresetName', sheet));
 
     const body = $('.qsheetBody', sheet);
     const ctl = ctlFactory(ctx, body) || {};
+    ctx.presetNameEls.push($('.jsPresetName', sheet));
     const open = () => {
       if (ctl.resync) ctl.resync();
       sheet.classList.add('open');
@@ -342,7 +337,11 @@
   // ---------- Micrómetro: escala superior con aceleración + Reset ----------
   function ctlMicrometer(ctx, body) {
     body.innerHTML = `
-      <div class="qsheetVal" style="padding:0 0 .1rem">
+      <div class="qsheetHead">
+        <p class="twLabel">${ICON_SCALE} Target weight</p>
+        <span class="qsheetHp">· <b class="jsPresetName">Espresso</b></span>
+      </div>
+      <div class="qsheetValRow">
         <p class="twVal"><span class="jsNum">36.0</span><small>g</small></p>
         <button type="button" class="qreset jsReset">${ICON_RESET}<span>Reset · <b class="jsDef">36.0</b> g</span></button>
       </div>
@@ -389,12 +388,10 @@
         setW(ctx, c.w, { silent: true });
         paint();
       },
-      end: () => showToast(ctx, `Target set to ${fmt(ctx.state.w)} g · ${ctx.state.preset}`),
+      end: () => {},
     });
     resetBtn.addEventListener('click', () => {
-      const def = presetDef();
-      if (!setW(ctx, def)) showToast(ctx, `Already at the preset weight · ${fmt(def)} g`);
-      else showToast(ctx, `Reset to ${fmt(def)} g · ${ctx.state.preset}`);
+      setW(ctx, presetDef(), { silent: true });
       paint();
     });
     return { resync: paint };
