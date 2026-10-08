@@ -1,8 +1,8 @@
 'use strict';
 
 (() => {
-  // Maquetas de ajuste rápido de peso: cada pantalla replica el Home actual y
-  // agrega un control distinto. Todo es presentación local, sin dispositivo.
+  // Segunda iteración: píldora flotante + hoja inferior animada con controles
+  // continuos. Cada maqueta es una pantalla con scroll real; nada toca el fw.
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => [...(root || document).querySelectorAll(sel)];
   const fmt = w => (Math.round(w * 10) / 10).toFixed(1);
@@ -20,8 +20,6 @@
     { name: 'Lungo', badge: 'Factory', g: 54 },
     { name: 'Weekend shot', badge: 'Custom', g: 40.5 },
   ];
-  const CHIP_WEIGHTS = [17, 18, 20, 25, 27, 30, 36, 40, 54];
-  const FAN_WEIGHTS = [17, 18, 20, 25, 27, 36];
 
   function drag(node, handlers) {
     node.addEventListener('pointerdown', event => {
@@ -41,8 +39,16 @@
       node.addEventListener('pointercancel', end);
     });
   }
+  const polar = (cx, cy, r, deg) => {
+    const rad = deg * Math.PI / 180;
+    return [cx + r * Math.sin(rad), cy - r * Math.cos(rad)];
+  };
+  const arcPath = (cx, cy, r, a0, a1) => {
+    const [x0, y0] = polar(cx, cy, r, a0), [x1, y1] = polar(cx, cy, r, a1);
+    return `M ${x0} ${y0} A ${r} ${r} 0 ${Math.abs(a1 - a0) > 180 ? 1 : 0} 1 ${x1} ${y1}`;
+  };
 
-  // ---------- Chrome común: cabecera, navegación y dock ----------
+  // ---------- Chrome común ----------
   const TOP = `
   <div class="mockTop">
     <div class="brand"><svg class="brandMark" viewBox="0 0 36 48" aria-hidden="true"><use href="#brandMark"/></svg><span><small>Open</small>Brew by Weight</span></div>
@@ -59,20 +65,19 @@
     <a><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h2m6 0h8M4 17h8m6 0h2"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg><span>Settings</span></a>
     <a><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 4-4 7-8 9-4-2-8-5-8-9V6z"/><rect x="9" y="10" width="6" height="5" rx="1"/><path d="M10 10V8a2 2 0 0 1 4 0v2"/></svg><span>Admin</span></a>
   </nav>`;
-
-  function standardDock() {
+  const standardDock = () => {
     const dock = el('div', 'mockDock');
     dock.innerHTML = `
       <button type="button" class="btnGlyph ghost narrow jsRinse"><span class="g">≋</span><span class="t">Rinse</span></button>
       <button type="button" class="btnGlyph jsStart"><span class="g">▶</span><span class="t">Start shot</span></button>
       <button type="button" class="btnGlyph ghost narrow jsPush"><span class="g">!</span><span class="t">Push</span></button>`;
     return dock;
-  }
+  };
 
-  // ---------- Réplica del Home actual ----------
+  // ---------- Réplica del Home ----------
   function buildHome(mock) {
-    const body = el('div', 'mockBody');
-    mock.append(body);
+    const scroll = el('div', 'mockScroll');
+    mock.append(scroll);
 
     const hero = el('section', 'shotHero');
     hero.hidden = true;
@@ -83,7 +88,7 @@
         <div class="heroTrack" role="img"><i class="jsHeroBar"></i></div>
         <p class="heroChips"><span class="heroChip jsHeroElapsed"></span><span class="heroChip jsHeroFlow"></span></p>
       </div>`;
-    body.append(hero);
+    scroll.append(hero);
 
     const quick = el('fieldset');
     quick.innerHTML = `
@@ -99,7 +104,7 @@
           <label class="switchRow kcard"><input type="checkbox" role="switch" checked><span class="swL">Cup protection<span class="swS">Stop if the cup is removed</span></span><span class="ktrack" aria-hidden="true"><i class="kknob"></i></span></label>
         </div>
       </div>`;
-    body.append(quick);
+    scroll.append(quick);
     const brewInput = $('input', quick);
     const guards = $('.homeGuardGrid', quick);
     brewInput.addEventListener('change', () => guards.classList.toggle('fieldOff', !brewInput.checked));
@@ -108,7 +113,7 @@
     const presets = el('fieldset');
     presets.innerHTML = '<legend>Presets</legend>';
     presets.append(acc);
-    body.append(presets);
+    scroll.append(presets);
 
     const equip = el('fieldset', 'mkEquip');
     equip.innerHTML = `
@@ -116,16 +121,16 @@
       <details class="lampRow"><summary><i class="lamp" aria-hidden="true"></i><span class="devName">Machine</span><span class="lampState stateReady">Ready</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></details>
       <details class="lampRow"><summary><i class="lamp" aria-hidden="true"></i><span class="devName">Scale</span><span class="lampState">Connected · Acaia Lunar</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></details>
       <details class="lampRow"><summary><i class="lamp" aria-hidden="true"></i><span class="devName">Cup</span><span class="lampState">Present · 142.5 g</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></details>`;
-    body.append(equip);
+    scroll.append(equip);
 
     const ctx = {
-      mock, body, state: { w: 36, preset: 'Espresso' }, shot: null, sliders: [],
+      mock, scroll, state: { w: 36, preset: 'Espresso' }, shot: null,
       hero: {
         root: hero, state: $('.jsHeroState', hero), preset: $('.jsHeroPreset', hero),
         weight: $('.jsHeroWeight', hero), goal: $('.jsHeroGoal', hero),
         bar: $('.jsHeroBar', hero), elapsed: $('.jsHeroElapsed', hero), flow: $('.jsHeroFlow', hero),
       },
-      bbwRule: null, presetNameEls: [], dockStart: null,
+      presetNameEls: [], resyncs: [], closeSheet: null, dockStart: null,
     };
 
     PRESETS.forEach((p, index) => {
@@ -195,31 +200,23 @@
     });
     ctx.state.preset = p.name;
     setW(ctx, p.g);
-    ctx.sliders.forEach(resync => resync());
-    $$('.qchip.on', ctx.mock).forEach(chip => chip.classList.remove('on'));
-    $$('.qchip', ctx.mock).forEach(chip => {
-      if (Number(chip.dataset.g) === p.g) chip.classList.add('on');
-    });
+    ctx.resyncs.forEach(resync => resync());
   }
 
   // ---------- Simulación de tiro ----------
   function setStartButton(ctx, running) {
     const btn = ctx.dockStart;
-    if (btn) {
-      btn.classList.toggle('solid', running);
-      btn.innerHTML = running
-        ? '<span class="g">■</span><span class="t">Stop shot</span>'
-        : '<span class="g">▶</span><span class="t">Start shot</span>';
-    }
-    if (ctx.setRunning) ctx.setRunning(running);
+    if (!btn) return;
+    btn.classList.toggle('solid', running);
+    btn.innerHTML = running
+      ? '<span class="g">■</span><span class="t">Stop shot</span>'
+      : '<span class="g">▶</span><span class="t">Start shot</span>';
   }
-
   function stopShot(ctx, finished) {
     if (!ctx.shot) return;
     clearInterval(ctx.shot.timer);
     ctx.shot = null;
     setStartButton(ctx, false);
-    if (ctx.onShotEnd) ctx.onShotEnd();
     if (finished) {
       ctx.hero.state.textContent = 'Complete';
       ctx.hero.root.classList.remove('live');
@@ -229,9 +226,10 @@
       ctx.hero.root.hidden = true;
     }
   }
-
   function startShot(ctx, mode) {
     if (ctx.shot) return stopShot(ctx, false);
+    if (ctx.closeSheet) ctx.closeSheet();
+    ctx.scroll.scrollTo({ top: 0, behavior: 'smooth' });
     const rinse = mode === 'rinse';
     const target = rinse ? 3 : ctx.state.w;
     const hero = ctx.hero;
@@ -257,20 +255,17 @@
         cur = Math.min(target, cur + speed * 0.09);
         hero.weight.textContent = fmt(cur);
         hero.bar.style.width = (cur / target) * 100 + '%';
-        hero.elapsed.textContent = t.toFixed(1) + ' s';
         hero.flow.textContent = speed.toFixed(1) + ' g/s';
         if (cur >= target - 0.05) {
           hero.bar.style.width = '100%';
           return stopShot(ctx, true);
         }
-        if (ctx.onShotTick) ctx.onShotTick(cur / target);
       }
       hero.elapsed.textContent = t.toFixed(1) + ' s';
     };
     ctx.shot = { timer: setInterval(step, 90) };
     setStartButton(ctx, true);
   }
-
   function wireDock(ctx, mock) {
     const start = $('.jsStart', mock);
     ctx.dockStart = start;
@@ -279,18 +274,85 @@
     $('.jsPush', mock).addEventListener('click', () => showToast(ctx, 'Paddle pulsed (momentary)'));
   }
 
-  // ---------- Tarjeta objetivo común ----------
-  function targetCard(headHtml) {
-    const card = el('div', 'twCard');
-    card.innerHTML = `<p class="twLabel">${ICON_SCALE} Target weight</p>${headHtml}`;
-    return card;
-  }
-  const bigValue = () => `<p class="twVal"><span class="jsNum">36.0</span><small>g</small></p>`;
-  const presetSub = note => `<p class="twSub">Applies to <b class="jsPresetName">Espresso</b>${note}</p>`;
+  // ---------- Píldora + hoja inferior ----------
+  function makeSheet(ctx, ctlFactory, opts) {
+    const options = opts || {};
+    const backdrop = el('div', 'mkBackdrop');
+    const sheet = el('div', 'qsheet');
+    sheet.setAttribute('role', 'dialog');
+    sheet.setAttribute('aria-label', 'Set target weight');
+    sheet.innerHTML = `
+      <div class="qsheetGrab" aria-hidden="true"><i></i></div>
+      <div class="qsheetHead">
+        <p class="twLabel">${ICON_SCALE} Target weight</p>
+        <span class="qsheetHp">· <b class="jsPresetName">Espresso</b></span>
+        <button type="button" class="qsheetDone">Listo</button>
+      </div>
+      ${options.valueRow === false ? '' : `
+      <div class="qsheetVal">
+        <p class="twVal"><span class="jsNum">36.0</span><small>g</small></p>
+      </div>`}
+      <div class="qsheetBody"></div>`;
+    ctx.mock.append(backdrop, sheet);
+    ctx.presetNameEls.push($('.jsPresetName', sheet));
 
-  // Slider táctil compartido: riel + relleno + burbuja, enganche por pasos.
-  function makeSlider(ctx, opts) {
-    const range = opts.range, snap = opts.snap || 1;
+    const pill = el('button', 'qpill');
+    pill.type = 'button';
+    pill.innerHTML = `${ICON_SCALE}<span>Target</span><b><span class="jsNum">36.0</span> g</b><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6"/></svg>`;
+    ctx.mock.append(pill);
+
+    const body = $('.qsheetBody', sheet);
+    const ctl = ctlFactory(ctx, body) || {};
+    const open = () => {
+      if (ctl.resync) ctl.resync();
+      sheet.classList.add('open');
+      backdrop.classList.add('show');
+    };
+    const close = () => {
+      sheet.classList.remove('open');
+      backdrop.classList.remove('show');
+    };
+    ctx.closeSheet = close;
+    ctx.resyncs.push(() => ctl.resync && ctl.resync());
+
+    drag(pill, {
+      start: e => ({ y: e.clientY, moved: 0 }),
+      move: (e, c) => { c.moved = Math.max(c.moved, c.y - e.clientY); },
+      end: (e, c) => { if (c.moved > 10) open(); else if (!sheet.classList.contains('open')) open(); },
+    });
+    [$('.qsheetGrab', sheet), $('.qsheetHead', sheet)].forEach(zone => drag(zone, {
+      start: e => { sheet.classList.add('nodrag'); return { y: e.clientY, dy: 0 }; },
+      move: (e, c) => {
+        c.dy = Math.max(0, e.clientY - c.y);
+        sheet.style.transform = `translateY(${c.dy}px)`;
+      },
+      end: (e, c) => {
+        sheet.classList.remove('nodrag');
+        if (c.dy > 90) {
+          sheet.style.transition = 'transform .3s ease-in';
+          sheet.style.transform = 'translateY(105%)';
+          setTimeout(() => {
+            sheet.classList.remove('open');
+            sheet.style.transition = '';
+            sheet.style.transform = '';
+            backdrop.classList.remove('show');
+          }, 290);
+        } else {
+          sheet.style.transform = '';
+        }
+      },
+    }));
+    backdrop.addEventListener('click', close);
+    $('.qsheetDone', sheet).addEventListener('click', close);
+    return { sheet, body, open, close };
+  }
+
+  // ---------- Controles continuos ----------
+  const toastEnd = ctx => showToast(ctx, `Target set to ${fmt(ctx.state.w)} g · ${ctx.state.preset}`);
+  const bound = v => Math.max(10, Math.min(80, v));
+
+  // Slider horizontal continuo reutilizable.
+  function makeSlider(ctx, range, onEnd) {
     const node = el('div', 'qtrack');
     node.innerHTML = '<div class="qtrackRail"></div><div class="qtrackFill"></div><span class="qbubble"></span><span class="qthumb"></span>';
     const fill = $('.qtrackFill', node), thumb = $('.qthumb', node), bubble = $('.qbubble', node);
@@ -309,589 +371,466 @@
       move: e => {
         const rect = node.getBoundingClientRect();
         const t = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-        let v = range.min + t * (range.max - range.min);
-        v = Math.round(v / snap) * snap;
-        node.dataset.v = Math.round(clampW(v) * 10) / 10;
+        node.dataset.v = range.min + t * (range.max - range.min);
         paint();
         setW(ctx, value(), { silent: true });
       },
-      end: () => { node.classList.remove('drag'); opts.onEnd(value()); },
+      end: () => { node.classList.remove('drag'); onEnd(value()); },
     });
     return { node, set(v) { node.dataset.v = v; paint(); }, value };
   }
 
-  // ---------- 01 · Rueda selector ----------
-  function variant01(ctx) {
-    const card = targetCard(`
-      <div class="qwheel" aria-label="Set the target weight with the wheels">
-        <div class="qdrum int"><div class="qdrumList"></div></div>
-        <span class="qwheelSep">.</span>
-        <div class="qdrum dec"><div class="qdrumList"></div></div>
-        <span class="qwheelUnit">g</span>
-        <span class="qwheelBand" aria-hidden="true"></span>
-      </div>
-      ${presetSub(' · flick the wheels')}`);
-    ctx.body.querySelector('.shotHero').after(card);
-    ctx.presetNameEls.push($('.jsPresetName', card));
-    const drums = $$('.qdrum', card), lists = $$('.qdrumList', card);
-    const ranges = [{ min: 5, max: 100 }, { min: 0, max: 9 }];
-    let idx = [Math.floor(ctx.state.w) - 5, Math.round((ctx.state.w % 1) * 10)];
-    lists.forEach((list, d) => {
-      for (let v = ranges[d].min; v <= ranges[d].max; v++) list.append(el('i', null, String(v)));
-    });
-    const itemH = () => lists[0].firstChild.offsetHeight, drumH = () => drums[0].offsetHeight;
-    const tyFor = d => drumH() / 2 - (idx[d] + 0.5) * itemH();
-    const paintHi = () => lists.forEach((list, d) => [...list.children].forEach((item, i) => item.classList.toggle('at', i === idx[d])));
-    const paint = () => { lists.forEach((list, d) => { list.style.transform = `translateY(${tyFor(d)}px)`; }); paintHi(); };
-    paint();
-    const apply = silent => setW(ctx, (idx[0] + 5) + idx[1] / 10, { silent });
-    drums.forEach((drum, d) => drag(drum, {
-      start: e => {
-        lists[d].style.transition = 'none';
-        return { sx: e.clientY, base: tyFor(d), ty: tyFor(d) };
-      },
-      move: (e, c) => {
-        c.ty = c.base + (e.clientY - c.sx);
-        const prov = Math.max(0, Math.min(ranges[d].max - ranges[d].min, Math.round((drumH() / 2 - c.ty) / itemH() - 0.5)));
-        if (prov !== idx[d]) { idx[d] = prov; apply(true); paintHi(); }
-        lists[d].style.transform = `translateY(${c.ty}px)`;
-      },
-      end: (e, c) => {
-        idx[d] = Math.max(0, Math.min(ranges[d].max - ranges[d].min, Math.round((drumH() / 2 - c.ty) / itemH() - 0.5)));
-        lists[d].style.transition = '';
-        paint();
-        apply(false);
-      },
-    }));
-    ctx.sliders.push(() => { idx = [Math.floor(ctx.state.w) - 5, Math.round((ctx.state.w % 1) * 10)]; paint(); });
-  }
-
-  // ---------- 02 · Riel magnético de presets ----------
-  function variant02(ctx) {
+  // 01 · Columna vertical
+  function ctlColumn(ctx, body) {
     const MIN = 10, MAX = 80;
-    const card = targetCard(`
-      <div class="qsliderHead">${bigValue()}<span class="twHint">slide · snaps<br>to presets</span></div>
-      <div class="qrail">
-        <div class="qrailTrack">
-          <div class="qrailRail"></div>
-          <span class="qthumb"></span>
-          <span class="qrailBubble"></span>
+    body.innerHTML = `
+      <div class="qcol">
+        <div class="qcolInfo">
+          <p class="twVal"><span class="jsNum">36.0</span><small>g</small></p>
+          <p class="twSub"><b class="jsPresetName">Espresso</b> · arrastra la columna</p>
+          <div class="qcolRange"><span>${MIN} g</span><span>${MAX} g</span></div>
         </div>
-      </div>
-      <p class="twHint">Tap a mark to jump straight to it.</p>`);
-    ctx.body.querySelector('.shotHero').after(card);
-    const rail = $('.qrail', card), track = $('.qrailTrack', card);
-    const thumb = $('.qthumb', track), bubble = $('.qrailBubble', track);
-    const marks = CHIP_WEIGHTS.map(g => {
-      const mark = el('button', 'qmark', `<i></i><span>${g}</span>`);
-      mark.type = 'button';
-      mark.dataset.g = g;
-      mark.style.left = (g - MIN) / (MAX - MIN) * 100 + '%';
-      track.append(mark);
-      return mark;
-    });
-    const presetFor = g => (PRESETS.find(p => p.g === g) || {}).name || 'Custom';
-    const nearest = w => CHIP_WEIGHTS.reduce((a, b) => (Math.abs(b - w) < Math.abs(a - w) ? b : a));
-    const paint = (w, snapAnim) => {
-      thumb.classList.toggle('snap', !!snapAnim);
-      thumb.style.left = (w - MIN) / (MAX - MIN) * 100 + '%';
-      marks.forEach(m => m.classList.toggle('on', Number(m.dataset.g) === nearest(w)));
+        <div class="qcolTrack"><div class="qcolFill"></div><div class="qcolThumb"><i></i></div></div>
+      </div>`;
+    ctx.presetNameEls.push($('.jsPresetName', body));
+    const zone = $('.qcol', body), track = $('.qcolTrack', body);
+    const fill = $('.qcolFill', body), thumb = $('.qcolThumb', body);
+    const paint = () => {
+      const t = (Math.max(MIN, Math.min(MAX, ctx.state.w)) - MIN) / (MAX - MIN);
+      fill.style.height = t * 100 + '%';
+      const th = thumb.offsetHeight;
+      thumb.style.bottom = t * (track.clientHeight - th) + 'px';
     };
-    paint(ctx.state.w);
-    drag(rail, {
-      start: () => { rail.classList.add('drag'); return {}; },
-      move: (e, c) => {
+    paint();
+    drag(zone, {
+      move: e => {
         const r = track.getBoundingClientRect();
-        const t = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-        c.w = MIN + t * (MAX - MIN);
-        paint(c.w);
-        const n = nearest(c.w);
-        bubble.style.left = (c.w - MIN) / (MAX - MIN) * 100 + '%';
-        bubble.textContent = `${fmt(n)} g · ${presetFor(n)}`;
+        const t = Math.max(0, Math.min(1, 1 - (e.clientY - r.top) / r.height));
+        setW(ctx, MIN + t * (MAX - MIN), { silent: true });
+        paint();
       },
-      end: (e, c) => {
-        rail.classList.remove('drag');
-        const n = nearest(c.w == null ? ctx.state.w : c.w);
-        paint(n, true);
-        setW(ctx, n);
-      },
+      end: () => toastEnd(ctx),
     });
-    marks.forEach(m => m.addEventListener('click', () => {
-      setW(ctx, Number(m.dataset.g));
-      paint(ctx.state.w, true);
-    }));
-    ctx.sliders.push(() => paint(ctx.state.w));
+    return { resync: paint };
   }
 
-  // ---------- 03 · Scrub vertical ----------
-  function variant03(ctx) {
-    const card = targetCard(`
-      <div class="qscrub">
-        <div class="qscrubMain">
-          <p class="twVal qscrubVal"><span class="jsNum">36.0</span><small>g</small></p>
-          ${presetSub(' · drag ↑↓, 0.1 g per tick')}
+  // 02 · Dial radial
+  function ctlDial(ctx, body) {
+    const D = { min: 10, max: 80, a0: -135, a1: 135, r: 96, c: 110 };
+    body.innerHTML = `
+      <div class="qdialStage">
+        <svg viewBox="0 0 220 220" aria-hidden="true">
+          <path class="dTrack" fill="none" stroke="var(--ln)" stroke-width="10" stroke-linecap="round"/>
+          <path class="dTicks" fill="none" stroke="var(--mu)" stroke-width="2"/>
+          <path class="dValue" fill="none" stroke="var(--ac)" stroke-width="10" stroke-linecap="round"/>
+          <circle class="dThumb" r="11" fill="var(--sf)" stroke="var(--ac)" stroke-width="4"/>
+        </svg>
+        <div class="qdialCenter"><p class="twVal"><span class="jsNum">36.0</span><small>g</small></p><p class="twSub" style="margin:0"><b class="jsPresetName">Espresso</b></p></div>
+      </div>
+      <p class="qdialRange"><span>${D.min} g</span><span>${D.max} g</span></p>`;
+    ctx.presetNameEls.push($('.jsPresetName', body));
+    const svg = $('svg', body), value = $('.dValue', svg), thumb = $('.dThumb', svg);
+    const angle = w => D.a0 + (Math.max(D.min, Math.min(D.max, w)) - D.min) / (D.max - D.min) * (D.a1 - D.a0);
+    let ticks = '';
+    for (let g = D.min; g <= D.max; g += 5) {
+      const a = angle(g), big = g % 10 === 0;
+      const [x0, y0] = polar(D.c, D.c, D.r - (big ? 18 : 13), a);
+      const [x1, y1] = polar(D.c, D.c, D.r - 7, a);
+      ticks += `M ${x0.toFixed(1)} ${y0.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} `;
+    }
+    $('.dTicks', svg).setAttribute('d', ticks);
+    $('.dTrack', svg).setAttribute('d', arcPath(D.c, D.c, D.r, D.a0, D.a1));
+    const paint = () => {
+      const a = angle(ctx.state.w);
+      value.setAttribute('d', arcPath(D.c, D.c, D.r, D.a0, a));
+      const [x, y] = polar(D.c, D.c, D.r, a);
+      thumb.setAttribute('cx', x);
+      thumb.setAttribute('cy', y);
+    };
+    paint();
+    drag(svg, {
+      move: e => {
+        const r = svg.getBoundingClientRect();
+        const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+        let deg = Math.atan2(dx, -dy) * 180 / Math.PI;
+        deg = Math.max(D.a0, Math.min(D.a1, deg));
+        setW(ctx, D.min + (deg - D.a0) / (D.a1 - D.a0) * (D.max - D.min), { silent: true });
+        paint();
+      },
+      end: () => toastEnd(ctx),
+    });
+    return { resync: paint };
+  }
+
+  // 03 · Doble slider
+  function ctlDual(ctx, body) {
+    const coarseRange = { min: 10, max: 80 }, fineRange = { min: 34, max: 38 };
+    body.innerHTML = `
+      <p class="qslideLabel"><span>Grueso</span><small>10 – 80 g</small></p>
+      <div class="jsCoarse"></div>
+      <p class="qslideLabel"><span>Fino</span><small>± 2 g · décimas</small></p>
+      <div class="jsFine"></div>`;
+    const recenter = v => { fineRange.min = v - 2; fineRange.max = v + 2; };
+    const fine = makeSlider(ctx, fineRange, () => toastEnd(ctx));
+    const coarse = makeSlider(ctx, coarseRange, v => { recenter(v); fine.set(v); toastEnd(ctx); });
+    $('.jsFine', body).append(fine.node);
+    $('.jsCoarse', body).append(coarse.node);
+    return {
+      resync() {
+        coarse.set(ctx.state.w);
+        recenter(ctx.state.w);
+        fine.set(ctx.state.w);
+      },
+    };
+  }
+
+  // 04 · Número gigante
+  function ctlBigNum(ctx, body) {
+    body.innerHTML = `
+      <div class="qbignum">
+        <div class="qbignumMain">
+          <p class="twVal"><span class="jsNum">36.0</span><small>g</small></p>
+          <p class="twSub">Arrastra el número ↑ ↓ · <b class="jsPresetName">Espresso</b></p>
         </div>
         <div class="qrule"><div class="qruleIn"></div></div>
-      </div>
-      <span class="qscrubArrows" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m6 14 6-6 6 6"/></svg><svg viewBox="0 0 24 24"><path d="m6 10 6 6 6-6"/></svg></span>`);
-    ctx.body.querySelector('.shotHero').after(card);
-    ctx.presetNameEls.push($('.jsPresetName', card));
-    const zone = $('.qscrub', card), ruler = $('.qruleIn', card);
-    const paint = () => { ruler.style.transform = `translateY(${-(ctx.state.w * 28) % 140}px)`; };
+      </div>`;
+    ctx.presetNameEls.push($('.jsPresetName', body));
+    const zone = $('.qbignum', body), ruler = $('.qruleIn', body);
+    const paint = () => { ruler.style.transform = `translateY(${-(ctx.state.w * 26) % 130}px)`; };
     paint();
     drag(zone, {
       start: e => { zone.classList.add('drag'); return { y: e.clientY, w: ctx.state.w, moved: 0 }; },
       move: (e, c) => {
         c.moved = Math.max(c.moved, Math.abs(e.clientY - c.y));
-        setW(ctx, c.w + (c.y - e.clientY) * 0.025, { silent: true });
+        setW(ctx, bound(c.w + (c.y - e.clientY) * 0.03), { silent: true });
         paint();
       },
       end: (e, c) => {
         zone.classList.remove('drag');
-        if (c.moved > 3) showToast(ctx, `Target set to ${fmt(ctx.state.w)} g · ${ctx.state.preset}`);
-        else setW(ctx, ctx.state.w + (e.clientY < zone.getBoundingClientRect().top + zone.offsetHeight / 2 ? 0.1 : -0.1));
+        if (c.moved > 3) toastEnd(ctx);
       },
     });
+    return { resync: paint };
   }
 
-  // ---------- 04 · Dial radial ----------
-  function polar(cx, cy, r, deg) {
-    const rad = deg * Math.PI / 180;
-    return [cx + r * Math.sin(rad), cy - r * Math.cos(rad)];
-  }
-  function arcPath(cx, cy, r, a0, a1) {
-    const [x0, y0] = polar(cx, cy, r, a0), [x1, y1] = polar(cx, cy, r, a1);
-    return `M ${x0} ${y0} A ${r} ${r} 0 ${Math.abs(a1 - a0) > 180 ? 1 : 0} 1 ${x1} ${y1}`;
-  }
-  const DIAL = { min: 10, max: 80, a0: -135, a1: 135, r: 96, c: 110 };
-  const dialAngle = w => DIAL.a0 + (clampW(w) - DIAL.min) / (DIAL.max - DIAL.min) * (DIAL.a1 - DIAL.a0);
-  function angleFromEvent(node, e) {
-    const rect = node.getBoundingClientRect();
-    const dx = e.clientX - (rect.left + rect.width / 2), dy = e.clientY - (rect.top + rect.height / 2);
-    let deg = Math.atan2(dx, -dy) * 180 / Math.PI;
-    return Math.max(DIAL.a0, Math.min(DIAL.a1, deg));
-  }
-  function variant04(ctx) {
-    const card = targetCard(`
-      <button type="button" class="qdialOpen" style="all:unset;display:block;width:100%;cursor:pointer">
-        <div class="qsliderHead">${bigValue()}<span class="twHint">tap to open<br>the dial ↗</span></div>
-      </button>`);
-    ctx.body.querySelector('.shotHero').after(card);
-
-    const backdrop = el('div', 'mkBackdrop');
-    const wrap = el('div', 'qdialWrap');
-    wrap.innerHTML = `
-      <div class="qdial" role="dialog" aria-label="Set target weight">
-        <p class="twLabel" style="justify-content:center">${ICON_SCALE} Set target weight</p>
-        <div class="qdialStage">
-          <svg viewBox="0 0 220 220" aria-hidden="true">
-            <path class="dTrack" fill="none" stroke="var(--ln)" stroke-width="10" stroke-linecap="round"/>
-            <path class="dTicks" fill="none" stroke="var(--mu)" stroke-width="2"/>
-            <path class="dValue" fill="none" stroke="var(--ac)" stroke-width="10" stroke-linecap="round"/>
-            <circle class="dThumb" r="11" fill="var(--sf)" stroke="var(--ac)" stroke-width="4"/>
-          </svg>
-          <div class="qdialCenter"><p class="twVal" style="font-size:2.6rem"><span class="jsNum">36.0</span><small>g</small></p><p class="twSub" style="margin:.1rem 0 0"><b class="jsPresetName">Espresso</b></p></div>
-        </div>
-        <p class="qdialRange"><span>10 g</span><span>80 g</span></p>
-        <div class="qdialBtns">
-          <button type="button" data-d="-1">− 1 g</button>
-          <button type="button" data-d="1">+ 1 g</button>
-          <button type="button" class="apply">Listo</button>
-        </div>
+  // 05 · Regla con lupa
+  function ctlRuler(ctx, body) {
+    const MIN = 10, MAX = 80, PPG = 16;
+    body.innerHTML = `
+      <div class="qlens">
+        <div class="qlensStrip"><div class="qlensTicks"></div><div class="qlensReticle"></div></div>
+        <div class="qlensHint"><span>${MIN} g</span><span>desliza la regla · suelta con inercia</span><span>${MAX} g</span></div>
       </div>`;
-    ctx.mock.append(backdrop, wrap);
-    ctx.presetNameEls.push($('.jsPresetName', wrap));
-
-    const svg = $('.qdialStage svg', wrap), value = $('.dValue', svg), thumb = $('.dThumb', svg);
-    const ticks = $('.dTicks', svg);
-    let path = '';
-    for (let g = DIAL.min; g <= DIAL.max; g += 5) {
-      const a = dialAngle(g), long = g % 10 === 0;
-      const [x0, y0] = polar(DIAL.c, DIAL.c, DIAL.r - (long ? 18 : 13), a);
-      const [x1, y1] = polar(DIAL.c, DIAL.c, DIAL.r - 7, a);
-      path += `M ${x0.toFixed(1)} ${y0.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} `;
+    const strip = $('.qlensStrip', body), ticksHost = $('.qlensTicks', body);
+    const marks = [];
+    for (let v = MIN; v <= MAX; v += 0.5) {
+      const tick = el('i');
+      tick.dataset.v = v;
+      tick.style.left = ((v - MIN) * PPG) + 'px';
+      ticksHost.append(tick);
+      marks.push({ v, node: tick, label: null });
+      if (v % 5 === 0) {
+        const label = el('span', null, String(v));
+        label.style.left = ((v - MIN) * PPG) + 'px';
+        ticksHost.append(label);
+        marks.push({ v, node: label, label: true });
+      }
     }
-    ticks.setAttribute('d', path);
-    $('.dTrack', svg).setAttribute('d', arcPath(DIAL.c, DIAL.c, DIAL.r, DIAL.a0, DIAL.a1));
-
+    let raf = 0, vel = 0;
     const paint = () => {
-      const a = dialAngle(ctx.state.w);
-      value.setAttribute('d', arcPath(DIAL.c, DIAL.c, DIAL.r, DIAL.a0, a));
-      const [x, y] = polar(DIAL.c, DIAL.c, DIAL.r, a);
-      thumb.setAttribute('cx', x); thumb.setAttribute('cy', y);
-      renderTargets(ctx);
+      const rect = strip.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const tx = cx - (ctx.state.w - MIN) * PPG;
+      ticksHost.style.transform = `translateX(${tx}px)`;
+      for (const m of marks) {
+        const d = Math.abs((m.v - MIN) * PPG + tx - cx);
+        const lens = Math.exp(-Math.pow(d / 85, 2));
+        if (m.label) {
+          m.node.style.opacity = (0.15 + 0.85 * lens).toFixed(2);
+          m.node.style.transform = `translateX(-50%) scale(${(0.85 + 0.5 * lens).toFixed(2)})`;
+        } else {
+          m.node.style.height = (11 + 21 * lens).toFixed(1) + 'px';
+          m.node.style.opacity = (0.5 + 0.5 * lens).toFixed(2);
+          m.node.style.background = lens > 0.55 ? 'var(--ac)' : '';
+        }
+      }
     };
-    let openW = 36;
-    const open = () => { openW = ctx.state.w; paint(); wrap.classList.add('show'); backdrop.classList.add('show'); };
-    const close = apply => {
-      wrap.classList.remove('show'); backdrop.classList.remove('show');
-      if (!apply) setW(ctx, openW, { silent: true, force: true });
-      else showToast(ctx, `Target set to ${fmt(ctx.state.w)} g · ${ctx.state.preset}`);
-    };
-    $('.qdialOpen', card).addEventListener('click', open);
-    backdrop.addEventListener('click', () => close(false));
-    drag(svg, {
-      move: e => { setW(ctx, DIAL.min + (angleFromEvent(svg, e) - DIAL.a0) / (DIAL.a1 - DIAL.a0) * (DIAL.max - DIAL.min), { silent: true }); paint(); },
+    const stopMomentum = () => { if (raf) cancelAnimationFrame(raf); raf = 0; vel = 0; };
+    drag($('.qlens', body), {
+      start: e => { stopMomentum(); return { x: e.clientX, lastX: e.clientX, lastT: performance.now(), vel: 0 }; },
+      move: (e, c) => {
+        const now = performance.now();
+        const dt = Math.max(1, now - c.lastT);
+        c.vel = 0.8 * c.vel + 0.2 * ((e.clientX - c.lastX) / dt);
+        c.lastX = e.clientX;
+        c.lastT = now;
+        setW(ctx, bound(ctx.state.w + (e.clientX - c.x) / PPG), { silent: true });
+        paint();
+      },
+      end: (e, c) => {
+        vel = Math.max(-2.4, Math.min(2.4, c.vel));
+        const glide = () => {
+          setW(ctx, bound(ctx.state.w + vel * 16 / PPG), { silent: true });
+          vel *= 0.94;
+          paint();
+          if (Math.abs(vel) > 0.012) raf = requestAnimationFrame(glide);
+          else { raf = 0; toastEnd(ctx); }
+        };
+        if (Math.abs(vel) > 0.05) raf = requestAnimationFrame(glide);
+        else toastEnd(ctx);
+      },
     });
-    $$('.qdialBtns button', wrap).forEach(btn => {
-      if (btn.dataset.d) btn.addEventListener('click', () => { setW(ctx, ctx.state.w + Number(btn.dataset.d), { silent: true }); paint(); });
-      else btn.addEventListener('click', () => close(true));
-    });
+    return { resync: paint };
   }
 
-  // ---------- 05 · Hoja con doble slider ----------
-  function variant05(ctx) {
-    const card = targetCard(`
-      <button type="button" style="all:unset;display:block;width:100%;cursor:pointer" class="qsheetOpen">
-        <div class="qsliderHead">${bigValue()}<span class="twHint">tap to open<br>sliders ↗</span></div>
-      </button>`);
-    ctx.body.querySelector('.shotHero').after(card);
-
-    const backdrop = el('div', 'mkBackdrop');
-    const sheet = el('div', 'qsheet');
-    sheet.innerHTML = `
-      <div class="qgrabBar" aria-hidden="true"></div>
-      <div class="qsheetTop"><p class="twLabel">${ICON_SCALE} Target weight</p><p class="twVal" style="font-size:2.2rem"><span class="jsNum">36.0</span><small>g</small></p></div>
-      <p class="qslideLabel"><span>Coarse</span><small>1 g steps</small></p>
-      <div class="jsCoarse"></div>
-      <p class="qslideLabel"><span>Fine</span><small>0.1 g steps · ±2 g</small></p>
-      <div class="jsFine"></div>
-      <div class="qchips"></div>
-      <div class="qsheetBtns"><button type="button" class="apply">Listo</button></div>`;
-    ctx.mock.append(backdrop, sheet);
-
-    const coarseRange = { min: 10, max: 80 }, fineRange = { min: 34, max: 38 };
-    const toast = () => showToast(ctx, `Target set to ${fmt(ctx.state.w)} g · ${ctx.state.preset}`);
-    const recenterFine = v => { fineRange.min = v - 2; fineRange.max = v + 2; };
-    const coarse = makeSlider(ctx, { range: coarseRange, snap: 1, onEnd: v => { recenterFine(v); fine.set(v); toast(); } });
-    const fine = makeSlider(ctx, { range: fineRange, snap: 0.1, onEnd: toast });
-    $('.jsCoarse', sheet).append(coarse.node);
-    $('.jsFine', sheet).append(fine.node);
-
-    const chipsRow = $('.qchips', sheet);
-    [18, 20, 25, 27, 36, 54].forEach(g => {
-      const chip = el('button', 'qchip' + (g === 36 ? ' on' : ''), `${fmt(g)}<small>g</small>`);
-      chip.type = 'button';
-      chip.addEventListener('click', () => {
-        $$('.qchip', chipsRow).forEach(c => c.classList.remove('on'));
-        chip.classList.add('on');
-        setW(ctx, g);
-        coarse.set(g);
-        recenterFine(g);
-        fine.set(g);
-      });
-      chipsRow.append(chip);
-    });
-    const open = () => {
-      coarse.set(ctx.state.w);
-      recenterFine(ctx.state.w);
-      fine.set(ctx.state.w);
-      sheet.classList.add('open');
-      backdrop.classList.add('show');
+  // 06 · Micrómetro
+  function ctlMicrometer(ctx, body) {
+    body.innerHTML = `
+      <div class="qmic">
+        <div class="qmicScale"><div class="qmicScaleIn"></div><div class="qmicNeedle"></div></div>
+        <div class="qmicDrum"><div class="qmicKnurl"></div><div class="qmicAxis"></div></div>
+        <div class="qmicRead"><small>gira el rodillo · 0.02 g / px</small><small><b class="jsPresetName">Espresso</b></small></div>
+      </div>`;
+    ctx.presetNameEls.push($('.jsPresetName', body));
+    const zone = $('.qmic', body), scaleIn = $('.qmicScaleIn', body);
+    const knurl = $('.qmicKnurl', body), scale = $('.qmicScale', body);
+    const ticks = [];
+    for (let v = 5; v <= 100; v++) {
+      const t = el('i');
+      if (v % 5 === 0) t.classList.add('big');
+      scaleIn.append(t);
+      ticks.push({ v, node: t });
+    }
+    let px = 0;
+    const paint = () => {
+      const w = scale.getBoundingClientRect().width, cx = w / 2;
+      for (const t of ticks) {
+        const x = cx + (t.v - ctx.state.w) * 9;
+        const vis = x > -8 && x < w + 8;
+        t.node.style.display = vis ? '' : 'none';
+        t.node.style.left = x.toFixed(1) + 'px';
+        t.node.classList.toggle('now', Math.round(ctx.state.w) === t.v);
+      }
+      knurl.style.backgroundPosition = `${(px % 14).toFixed(1)}px 0, ${(px % 7).toFixed(1)}px 0, 0 0`;
     };
-    const close = () => { sheet.classList.remove('open'); backdrop.classList.remove('show'); };
-    $('.qsheetOpen', card).addEventListener('click', open);
-    backdrop.addEventListener('click', close);
-    $('.apply', sheet).addEventListener('click', close);
+    paint();
+    drag(zone, {
+      start: e => ({ x: e.clientX, w: ctx.state.w, px0: px }),
+      move: (e, c) => {
+        const dx = e.clientX - c.x;
+        px = c.px0 + dx;
+        setW(ctx, bound(c.w + dx * 0.02), { silent: true });
+        paint();
+      },
+      end: () => toastEnd(ctx),
+    });
+    return { resync: paint };
   }
 
-  // ---------- 06 · Arco alrededor de Start ----------
-  function variant06(ctx, mock) {
-    const dock = el('div', 'mockDock');
-    dock.innerHTML = `
-      <button type="button" class="qarcSide jsRinse"><svg viewBox="0 0 24 24"><path d="M7 3v3M12 3v3M17 3v3M5 9h14l1.5 11H3.5z"/><path d="M5 14h14"/></svg><span>Rinse</span></button>
-      <button type="button" class="qarcBtn" aria-label="Start shot. Drag the ring to set the target weight.">
+  // 07 · Arco del shot
+  function ctlShotArc(ctx, body) {
+    const A = { min: 10, max: 80, a0: -145, a1: 145, r: 46, c: 50 };
+    body.innerHTML = `
+      <div class="qshot">
         <svg viewBox="0 0 100 100" aria-hidden="true">
           <path class="aTrack" fill="none" stroke="var(--ln)" stroke-width="4"/>
           <path class="aValue" fill="none" stroke="var(--ac)" stroke-width="6" stroke-linecap="round"/>
           <circle class="aThumb" r="5" fill="var(--sf)" stroke="var(--ac)" stroke-width="3"/>
         </svg>
-        <span class="qarcCore"><b>▶</b><small>Start</small></span>
-      </button>
-      <button type="button" class="qarcSide jsPush"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 10h14M7 7l-2 3 2 3M17 7l2 3-2 3"/></svg><span>Push</span></button>`;
-    mock.append(dock);
-    const read = el('button', 'qarcRead');
-    read.type = 'button';
-    read.innerHTML = '<span class="dot" aria-hidden="true"></span><span class="jsNum">36.0</span> g · drag the ring';
-    mock.append(read);
-
-    const ARC = { min: 10, max: 80, a0: -145, a1: 145, r: 45, c: 50 };
-    const svg = $('svg', dock);
-    const value = $('.aValue', dock), thumb = $('.aThumb', dock);
-    $('.aTrack', dock).setAttribute('d', arcPath(ARC.c, ARC.c, ARC.r, ARC.a0, ARC.a1));
-    const core = $('.qarcCore', dock), btn = $('.qarcBtn', dock);
-    const arcAngle = w => ARC.a0 + (clampW(w) - ARC.min) / (ARC.max - ARC.min) * (ARC.a1 - ARC.a0);
-
-    const paint = progress => {
-      if (progress == null) {
-        const a = arcAngle(ctx.state.w);
-        value.setAttribute('d', arcPath(ARC.c, ARC.c, ARC.r, ARC.a0, a));
-        const [x, y] = polar(ARC.c, ARC.c, ARC.r, a);
-        thumb.setAttribute('cx', x); thumb.setAttribute('cy', y);
-        renderTargets(ctx);
-      } else {
-        value.setAttribute('d', arcPath(ARC.c, ARC.c, ARC.r, ARC.a0, ARC.a0 + progress * (ARC.a1 - ARC.a0)));
-        const [x, y] = polar(ARC.c, ARC.c, ARC.r, ARC.a0 + progress * (ARC.a1 - ARC.a0));
-        thumb.setAttribute('cx', x); thumb.setAttribute('cy', y);
-      }
+        <button type="button" class="qshotBtn"><b><span class="jsNum">36.0</span> g</b><small>gira el anillo · toca para brew</small></button>
+      </div>`;
+    const zone = $('.qshot', body), svg = $('svg', body);
+    const btn = $('.qshotBtn', body), value = $('.aValue', svg), thumb = $('.aThumb', svg);
+    $('.aTrack', svg).setAttribute('d', arcPath(A.c, A.c, A.r, A.a0, A.a1));
+    const angle = w => A.a0 + (Math.max(A.min, Math.min(A.max, w)) - A.min) / (A.max - A.min) * (A.a1 - A.a0);
+    const paint = () => {
+      const a = angle(ctx.state.w);
+      value.setAttribute('d', arcPath(A.c, A.c, A.r, A.a0, a));
+      const [x, y] = polar(A.c, A.c, A.r, a);
+      thumb.setAttribute('cx', x);
+      thumb.setAttribute('cy', y);
     };
     paint();
-
-    const ringDrag = (node, isBtn) => drag(node, {
-      start: e => ({ x: e.clientX, y: e.clientY, moved: 0 }),
+    drag(zone, {
+      start: e => ({ moved: 0, x: e.clientX, y: e.clientY }),
       move: (e, c) => {
-        if (isBtn) {
-          c.moved = Math.max(c.moved, Math.hypot(e.clientX - c.x, e.clientY - c.y));
-          if (c.moved < 5) return;
-        }
-        const rect = svg.getBoundingClientRect();
-        const dx = e.clientX - (rect.left + rect.width / 2), dy = e.clientY - (rect.top + rect.height / 2);
+        c.moved = Math.max(c.moved, Math.hypot(e.clientX - c.x, e.clientY - c.y));
+        if (c.moved < 5) return;
+        const r = svg.getBoundingClientRect();
+        const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
         let deg = Math.atan2(dx, -dy) * 180 / Math.PI;
-        deg = Math.max(ARC.a0, Math.min(ARC.a1, deg));
-        setW(ctx, ARC.min + (deg - ARC.a0) / (ARC.a1 - ARC.a0) * (ARC.max - ARC.min), { silent: true });
+        deg = Math.max(A.a0, Math.min(A.a1, deg));
+        setW(ctx, A.min + (deg - A.a0) / (A.a1 - A.a0) * (A.max - A.min), { silent: true });
         paint();
       },
       end: (e, c) => {
-        if (isBtn && c.moved < 5) { startShot(ctx); return; }
-        showToast(ctx, `Target set to ${fmt(ctx.state.w)} g · ${ctx.state.preset}`);
+        if (c.moved < 5) { startShot(ctx); return; }
+        toastEnd(ctx);
       },
     });
-    ringDrag(btn, true);
-    ringDrag(read, false);
-
-    $('.jsRinse', dock).addEventListener('click', () => startShot(ctx, 'rinse'));
-    $('.jsPush', dock).addEventListener('click', () => showToast(ctx, 'Paddle pulsed (momentary)'));
-    ctx.setRunning = running => {
-      core.innerHTML = running ? '<b>■</b><small>Stop</small>' : '<b>▶</b><small>Start</small>';
-    };
-    ctx.onShotTick = progress => paint(progress);
-    ctx.onShotEnd = () => paint();
+    return { resync: paint };
   }
 
-  // ---------- 07 · Slider de precisión ----------
-  function variant07(ctx) {
-    const card = targetCard(`
-      <div class="qslider qsliderCard">
-        <div class="qsliderHead">${bigValue()}<span class="twHint">drag · 0.5 g steps</span></div>
+  // 08 · Scrub adaptativo
+  function ctlAdaptive(ctx, body) {
+    body.innerHTML = `
+      <div class="qada">
+        <p class="twVal"><span class="jsNum">36.0</span><small>g</small></p>
+        <div class="qadaMeter"><i></i></div>
+        <div class="qadaLabels"><span>fino</span><span>ganancia</span><span>grueso</span></div>
+        <p class="twHint">Despacio = precisión · rápido = rango</p>
+      </div>`;
+    const zone = $('.qada', body), meter = $('.qadaMeter i', body);
+    drag(zone, {
+      start: e => { zone.classList.add('drag'); return { y: e.clientY, t: performance.now(), gain: 0.015 }; },
+      move: (e, c) => {
+        const now = performance.now(), dt = Math.max(4, now - c.t);
+        const dy = e.clientY - c.y;
+        const vel = Math.abs(dy) / dt;
+        c.gain = 0.015 + Math.min(0.28, vel * 0.03);
+        setW(ctx, bound(ctx.state.w - dy * c.gain), { silent: true });
+        c.y = e.clientY;
+        c.t = now;
+        meter.style.width = (12 + (c.gain - 0.015) / 0.28 * 88).toFixed(0) + '%';
+      },
+      end: () => { zone.classList.remove('drag'); meter.style.width = '12%'; toastEnd(ctx); },
+    });
+    return { resync: () => {} };
+  }
+
+  // 09 · Joystick relativo
+  function ctlJoystick(ctx, body) {
+    body.innerHTML = `
+      <div class="qjoy" aria-label="Relative adjustment pad">
+        <div class="qjoyOrigin"></div><div class="qjoyLine"></div>
+        <div class="qjoyPuck"><i></i></div><div class="qjoyDelta">+0.0 g</div>
       </div>
-      <div class="qticks"><span>10</span><span>45</span><span>80</span></div>
-      <div class="qfine"><button type="button" data-d="-0.1">− 0.1</button><button type="button" data-d="0.1">+ 0.1</button></div>
-      ${presetSub(' · fine tune below')}`);
-    ctx.body.querySelector('.shotHero').after(card);
-    ctx.presetNameEls.push($('.jsPresetName', card));
-    const slider = makeSlider(ctx, {
-      range: { min: 10, max: 80 },
-      snap: 0.5,
-      onEnd: () => showToast(ctx, `Target set to ${fmt(ctx.state.w)} g · ${ctx.state.preset}`),
+      <p class="twHint" style="margin-top:.5rem">Toca y arrastra: derecha suma, izquierda resta · suelta y repite</p>`;
+    const zone = $('.qjoy', body);
+    const origin = $('.qjoyOrigin', body), line = $('.qjoyLine', body);
+    const puck = $('.qjoyPuck', body), delta = $('.qjoyDelta', body);
+    const local = e => {
+      const r = zone.getBoundingClientRect();
+      return [e.clientX - r.left, e.clientY - r.top];
+    };
+    drag(zone, {
+      start: e => {
+        const [x, y] = local(e);
+        zone.classList.add('on');
+        origin.style.left = x + 'px';
+        origin.style.top = y + 'px';
+        line.style.left = x + 'px';
+        line.style.top = y + 'px';
+        line.style.width = '0px';
+        puck.style.left = x + 'px';
+        puck.style.top = y + 'px';
+        delta.style.left = x + 'px';
+        delta.style.top = (y - 34) + 'px';
+        delta.textContent = '+0.0 g';
+        return { x0: x, w: ctx.state.w };
+      },
+      move: (e, c) => {
+        const [x, y] = local(e);
+        const d = (x - c.x0) * 0.06;
+        setW(ctx, bound(c.w + d), { silent: true });
+        line.style.width = Math.abs(x - c.x0) + 'px';
+        line.style.left = Math.min(c.x0, x) + 'px';
+        puck.style.left = x + 'px';
+        puck.style.top = y + 'px';
+        delta.style.left = x + 'px';
+        delta.style.top = (y - 34) + 'px';
+        delta.textContent = (d >= 0 ? '+' : '−') + fmt(Math.abs(d)) + ' g';
+      },
+      end: () => { zone.classList.remove('on'); toastEnd(ctx); },
     });
-    $('.qsliderCard', card).after(slider.node);
-    $$('.qfine button', card).forEach(btn => btn.addEventListener('click', () => {
-      const v = Math.round((ctx.state.w + Number(btn.dataset.d)) * 10) / 10;
-      setW(ctx, v);
-      slider.set(v);
-    }));
-    ctx.sliders.push(() => slider.set(ctx.state.w));
+    return { resync: () => {} };
   }
 
-  // ---------- 08 · Carrusel de presets ----------
-  function variant08(ctx) {
-    const card = targetCard(`
-      <div class="qcar" aria-label="Swipe to pick a preset"><div class="qcarTrack"></div></div>
-      <div class="qcarDots" aria-hidden="true"></div>
-      <p class="twHint" style="text-align:center;margin-top:.55rem">Swipe the cards · applies on release</p>`);
-    ctx.body.querySelector('.shotHero').after(card);
-    const car = $('.qcar', card), track = $('.qcarTrack', card), dots = $('.qcarDots', card);
-    const cards = PRESETS.map((p, i) => {
-      const c = el('div', 'qcarCard' + (i === 0 ? ' at' : ''), `<b><span>${fmt(p.g)}</span><small>g</small></b><span>${p.name} · ${p.badge}</span>`);
-      track.append(c);
-      dots.append(el('i', i === 0 ? 'at' : ''));
-      return c;
-    });
-    let index = 0;
-    const centerFor = i => car.clientWidth / 2 - (cards[i].offsetLeft + cards[i].offsetWidth / 2);
-    const paint = snap => {
-      track.classList.toggle('snap', !!snap);
-      track.style.transform = `translateX(${centerFor(index)}px)`;
-      cards.forEach((c, i) => {
-        c.classList.toggle('at', i === index);
-        c.querySelector('b span').textContent = fmt(PRESETS[i].g);
-      });
-      [...dots.children].forEach((d, i) => d.classList.toggle('at', i === index));
+  // 10 · Corona doble
+  function ctlCrown(ctx, body) {
+    const O = { min: 10, max: 80, a0: -135, a1: 135, r: 97, ri: 64, c: 110, span: 3 };
+    body.innerHTML = `
+      <div class="qcrown">
+        <svg viewBox="0 0 220 220" aria-hidden="true">
+          <path class="oTrack" fill="none" stroke="var(--ln)" stroke-width="9" stroke-linecap="round"/>
+          <path class="oTicks" fill="none" stroke="var(--mu)" stroke-width="2"/>
+          <path class="oValue" fill="none" stroke="var(--ac)" stroke-width="9" stroke-linecap="round"/>
+          <circle class="oThumb" r="9" fill="var(--sf)" stroke="var(--ac)" stroke-width="3.5"/>
+          <path class="iTrack" fill="none" stroke="var(--ln)" stroke-width="12" stroke-linecap="round"/>
+          <path class="iValue" fill="none" stroke="color-mix(in srgb,var(--ac) 55%,var(--sf))" stroke-width="12" stroke-linecap="round"/>
+          <circle class="iThumb" r="7" fill="var(--sf)" stroke="var(--ac)" stroke-width="3"/>
+        </svg>
+        <div class="qcrownCenter"><p class="twVal"><span class="jsNum">36.0</span><small>g</small></p><small class="jsPresetName">Espresso</small></div>
+      </div>
+      <p class="twHint" style="text-align:center;margin-top:.4rem">Anillo exterior: 10–80 g · interior: ±3 g</p>`;
+    ctx.presetNameEls.push($('.jsPresetName', body));
+    const svg = $('svg', body);
+    const oAngle = w => O.a0 + (Math.max(O.min, Math.min(O.max, w)) - O.min) / (O.max - O.min) * (O.a1 - O.a0);
+    let base = ctx.state.w;
+    const iAngle = w => O.a0 + Math.max(-O.span, Math.min(O.span, w - base)) / O.span * (O.a1 - O.a0);
+    let ticks = '';
+    for (let g = O.min; g <= O.max; g += 5) {
+      const a = oAngle(g), big = g % 10 === 0;
+      const [x0, y0] = polar(O.c, O.c, O.r - (big ? 16 : 11), a);
+      const [x1, y1] = polar(O.c, O.c, O.r - 6, a);
+      ticks += `M ${x0.toFixed(1)} ${y0.toFixed(1)} L ${x1.toFixed(1)} ${y1.toFixed(1)} `;
+    }
+    $('.oTicks', svg).setAttribute('d', ticks);
+    $('.oTrack', svg).setAttribute('d', arcPath(O.c, O.c, O.r, O.a0, O.a1));
+    $('.iTrack', svg).setAttribute('d', arcPath(O.c, O.c, O.ri, O.a0, O.a1));
+    const paint = () => {
+      const oa = oAngle(ctx.state.w);
+      $('.oValue', svg).setAttribute('d', arcPath(O.c, O.c, O.r, O.a0, oa));
+      const [ox, oy] = polar(O.c, O.c, O.r, oa);
+      const ot = $('.oThumb', svg);
+      ot.setAttribute('cx', ox); ot.setAttribute('cy', oy);
+      const ia = iAngle(ctx.state.w);
+      $('.iValue', svg).setAttribute('d', arcPath(O.c, O.c, O.ri, O.a0, ia));
+      const [ix, iy] = polar(O.c, O.c, O.ri, ia);
+      const it = $('.iThumb', svg);
+      it.setAttribute('cx', ix); it.setAttribute('cy', iy);
     };
     paint();
-    const nearestIndex = x => {
-      let best = 0, bestD = 1e9;
-      cards.forEach((c, i) => {
-        const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 + x - car.clientWidth / 2);
-        if (d < bestD) { bestD = d; best = i; }
-      });
-      return best;
-    };
-    drag(car, {
-      start: e => { track.classList.remove('snap'); return { sx: e.clientX, x0: centerFor(index) }; },
-      move: (e, c) => {
-        let x = c.x0 + (e.clientX - c.sx);
-        x = Math.min(centerFor(0) + 24, Math.max(centerFor(cards.length - 1) - 24, x));
-        c.x = x;
-        track.style.transform = `translateX(${x}px)`;
-      },
-      end: (e, c) => {
-        index = c.x == null ? index : nearestIndex(c.x);
-        paint(true);
-        selectPreset(ctx, index);
-      },
-    });
-    ctx.sliders.push(() => {
-      const next = Math.max(0, PRESETS.findIndex(p => p.name === ctx.state.preset));
-      if (next !== index) { index = next; paint(true); }
-    });
-  }
-
-  // ---------- 09 · Menú radial ----------
-  function variant09(ctx) {
-    const card = targetCard(`
-      <p class="twVal" style="text-align:center;font-size:3rem"><span class="jsNum">36.0</span><small>g</small></p>
-      <p class="twHint" style="text-align:center">Hold the weight to open quick weights</p>`);
-    ctx.body.querySelector('.shotHero').after(card);
-
-    const backdrop = el('div', 'mkBackdrop');
-    const wrap = el('div', 'qfanWrap');
-    const origin = el('div', 'qfanOrigin');
-    const ring = el('div', 'qpressRing');
-    wrap.append(origin, ring);
-    const items = FAN_WEIGHTS.map((g, i) => {
-      const item = el('button', 'qfanItem', fmt(g));
-      item.type = 'button';
-      item.dataset.g = g;
-      item.dataset.i = i;
-      origin.after(item);
-      return item;
-    });
-    const cancel = el('div', 'qfanCancel', '✕');
-    origin.after(cancel);
-    ctx.mock.append(backdrop, wrap);
-
-    const place = (x, y) => {
-      const rect = ctx.mock.getBoundingClientRect();
-      const ox = Math.max(88, Math.min(rect.width - 88, x - rect.left));
-      const oy = Math.max(120, Math.min(rect.height - 150, y - rect.top - 40));
-      origin.style.left = ox + 'px';
-      origin.style.top = oy + 'px';
-      ring.style.left = ox + 'px';
-      ring.style.top = oy + 'px';
-      cancel.style.left = ox + 'px';
-      cancel.style.top = oy + 'px';
-      items.forEach((item, i) => {
-        const a = (-160 + i * (140 / (items.length - 1))) * Math.PI / 180;
-        item.style.left = ox + Math.sin(a) * 118 + 'px';
-        item.style.top = oy + Math.cos(a) * -118 + 'px';
-      });
-    };
-    const nearest = (x, y) => {
-      let best = null, bestD = 44;
-      items.forEach(item => {
-        const r = item.getBoundingClientRect();
-        const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
-        if (d < bestD) { bestD = d; best = item; }
-      });
-      return best;
-    };
-    let holdTimer = 0;
-    drag(card, {
+    drag(svg, {
       start: e => {
-        holdTimer = setTimeout(() => {
-          place(e.clientX, e.clientY);
-          wrap.classList.add('show');
-          backdrop.classList.add('show');
-        }, 350);
-        return { x: e.clientX, y: e.clientY };
+        const r = svg.getBoundingClientRect();
+        const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+        const rv = Math.hypot(dx, dy) / r.width * 220;
+        return { ring: rv > 80 ? 'outer' : 'inner', base: base };
       },
       move: (e, c) => {
-        if (!wrap.classList.contains('show')) {
-          if (Math.hypot(e.clientX - c.x, e.clientY - c.y) > 12) clearTimeout(holdTimer);
-          return;
+        const r = svg.getBoundingClientRect();
+        const dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+        let deg = Math.atan2(dx, -dy) * 180 / Math.PI;
+        deg = Math.max(O.a0, Math.min(O.a1, deg));
+        const t = (deg - O.a0) / (O.a1 - O.a0);
+        if (c.ring === 'outer') {
+          setW(ctx, O.min + t * (O.max - O.min), { silent: true });
+          base = ctx.state.w;
+        } else {
+          setW(ctx, bound(c.base - O.span + t * O.span * 2), { silent: true });
         }
-        items.forEach(item => item.classList.remove('hot'));
-        const hot = nearest(e.clientX, e.clientY);
-        if (hot) hot.classList.add('hot');
+        paint();
       },
-      end: e => {
-        clearTimeout(holdTimer);
-        if (!wrap.classList.contains('show')) return;
-        const hot = nearest(e.clientX, e.clientY);
-        wrap.classList.remove('show');
-        backdrop.classList.remove('show');
-        if (hot) setW(ctx, Number(hot.dataset.g));
-      },
+      end: () => { base = ctx.state.w; toastEnd(ctx); },
     });
-  }
-
-  // ---------- 10 · Cajón inferior ----------
-  function variant10(ctx, mock) {
-    const grab = el('button', 'qgrab');
-    grab.type = 'button';
-    grab.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6"/></svg><span><span class="jsNum">36.0</span> g · target</span>';
-    const drawer = el('div', 'qdrawer');
-    drawer.innerHTML = `
-      <div class="qgrabBar" aria-hidden="true"></div>
-      <div class="qsliderHead"><p class="twLabel">${ICON_SCALE} Target weight</p><p class="twVal" style="font-size:2.2rem"><span class="jsNum">36.0</span><small>g</small></p></div>
-      <div class="jsSlide"></div>
-      <div class="qchips"></div>
-      <p class="twHint">Slide to set · chips jump to favorites.</p>`;
-    mock.append(grab, drawer);
-    const slider = makeSlider(ctx, {
-      range: { min: 10, max: 80 },
-      snap: 0.5,
-      onEnd: () => showToast(ctx, `Target set to ${fmt(ctx.state.w)} g · ${ctx.state.preset}`),
-    });
-    $('.jsSlide', drawer).append(slider.node);
-    ctx.sliders.push(() => slider.set(ctx.state.w));
-    const chipsRow = $('.qchips', drawer);
-    CHIP_WEIGHTS.forEach(g => {
-      const chip = el('button', 'qchip' + (g === 36 ? ' on' : ''), `${fmt(g)}<small>g</small>`);
-      chip.type = 'button';
-      chip.addEventListener('click', () => {
-        $$('.qchip', chipsRow).forEach(c => c.classList.remove('on'));
-        chip.classList.add('on');
-        setW(ctx, g);
-        slider.set(g);
-      });
-      chipsRow.append(chip);
-    });
-
-    let openState = false;
-    const setOpen = open => {
-      openState = open;
-      drawer.classList.toggle('open', open);
-      grab.querySelector('svg').style.transform = open ? 'rotate(180deg)' : '';
-    };
-    drag(grab, {
-      start: e => ({ y: e.clientY, up: 0, down: 0 }),
-      move: (e, c) => {
-        c.up = Math.max(c.up, c.y - e.clientY);
-        c.down = Math.max(c.down, e.clientY - c.y);
-        if (c.up > 6) setOpen(true);
-        if (c.down > 6) setOpen(false);
-      },
-      end: (e, c) => { if (c.up < 6 && c.down < 6) setOpen(!openState); },
-    });
+    return { resync() { base = ctx.state.w; paint(); } };
   }
 
   // ---------- Init ----------
-  const VARIANTS = { '01': variant01, '02': variant02, '03': variant03, '04': variant04, '05': variant05, '06': variant06, '07': variant07, '08': variant08, '09': variant09, '10': variant10 };
+  const CONTROLS = {
+    '01': ctlColumn, '02': ctlDial, '03': ctlDual, '04': ctlBigNum, '05': ctlRuler,
+    '06': ctlMicrometer, '07': ctlShotArc, '08': ctlAdaptive, '09': ctlJoystick, '10': ctlCrown,
+  };
+  const WITH_OWN_VALUE = { '01': 1, '02': 1, '04': 1, '07': 1, '08': 1, '10': 1 };
   $$('.mock[data-chrome]').forEach(mock => {
     mock.insertAdjacentHTML('afterbegin', TOP);
     mock.insertAdjacentHTML('beforeend', NAV);
-    const variant = mock.dataset.variant;
+    mock.append(standardDock());
     const ctx = buildHome(mock);
-    if (variant === '06') {
-      variant06(ctx, mock);
-    } else {
-      const dock = standardDock();
-      mock.append(dock);
-      wireDock(ctx, mock);
-      if (VARIANTS[variant]) VARIANTS[variant](ctx, mock);
-    }
+    wireDock(ctx, mock);
+    const variant = mock.dataset.variant;
+    if (CONTROLS[variant]) makeSheet(ctx, CONTROLS[variant], { valueRow: !WITH_OWN_VALUE[variant] });
     renderTargets(ctx);
   });
 

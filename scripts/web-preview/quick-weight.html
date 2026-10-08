@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Home · Ajuste rápido del peso objetivo · 10 propuestas</title>
+<title>Home · Ajuste rápido del peso objetivo · 10 propuestas con hoja inferior</title>
 <link rel="stylesheet" href="/app.css">
 <style>
 /* ---------- Página ---------- */
@@ -28,22 +28,24 @@ h1{font-size:1.55rem;margin:.2rem 0 .3rem;padding-right:7.5rem}
 .optTags span.good{border-color:color-mix(in srgb,var(--ok) 45%,var(--ln));background:var(--mo);color:var(--ok)}
 .optTags span.bad{border-color:color-mix(in srgb,var(--dn) 40%,var(--ln));background:var(--me);color:var(--dn)}
 
-/* ---------- Marco de maqueta (pantalla) ---------- */
-.mock{position:relative;max-width:26.5rem;margin:0 auto;background:var(--bg);border:1px solid var(--ln);border-radius:calc(var(--r) + .4rem);overflow:hidden;box-shadow:var(--ah)}
-.mockTop{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.55rem 1rem .1rem;color:var(--ac)}
+/* ---------- Marco de maqueta (pantalla fija con scroll interno) ---------- */
+.mock{position:relative;height:760px;max-width:26.5rem;margin:0 auto;background:var(--bg);border:1px solid var(--ln);border-radius:calc(var(--r) + .4rem);overflow:hidden;box-shadow:var(--ah);display:flex;flex-direction:column}
+.mockDesktop{height:660px;max-width:none;width:min(100%,760px)}
+.mockTop{flex:none;display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.55rem 1rem .1rem;color:var(--ac);border-bottom:1px solid color-mix(in srgb,var(--ln) 55%,transparent)}
 .mockTop .brand{margin:0;color:var(--ac)}
 .mockTop .brandMark{width:2rem;height:2.65rem}
 .mockTop .brand span{font-size:1.2rem}
 .mockTop .brand small{font-size:.75rem}
 .mock .pageNav{position:absolute;left:50%;bottom:.7rem;transform:translateX(-50%);z-index:6;width:calc(100% - 1.5rem);max-width:30rem;box-shadow:0 .3rem 1.2rem #0002}
-.mockBody{position:relative;max-width:26.5rem;margin:0 auto;padding:.5rem 1rem 9.4rem}
+.mockScroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 1rem 9.6rem;scrollbar-width:none}
+.mockScroll::-webkit-scrollbar{display:none}
 .mockDock{position:absolute;left:.65rem;right:.65rem;bottom:4.15rem;z-index:5;display:flex;gap:.55rem;padding:.6rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--sf);box-shadow:var(--ah)}
 .mockDock .btnGlyph{flex:1;border:1.5px solid var(--ac);background:transparent;color:var(--ac);min-height:3.1rem}
 .mockDock .btnGlyph.solid{background:var(--pri);border-color:var(--pri);color:var(--on)}
 .mockDock .btnGlyph.ghost{border-color:var(--ln);color:var(--mu)}
 .mockDock .btnGlyph.narrow{flex:.62;min-width:4.2rem}
 
-/* ---------- Réplica del Home actual (piezas no cubiertas por app.css) ---------- */
+/* ---------- Réplica del Home (piezas no cubiertas por app.css) ---------- */
 .mkBrew{position:relative;display:flex;align-items:center;gap:.75rem;min-height:3.6rem;margin:0 0 .6rem;padding:.65rem .95rem;border:1.5px solid var(--ln);border-radius:var(--r);background:var(--sf);cursor:pointer;transition:.2s}
 .mkBrew input{position:absolute;opacity:0;width:0;height:0;margin:0}
 .mkBrew .swL{display:flex;flex-direction:column;gap:.1rem;flex:1 1 auto;min-width:0;font-size:1.05rem;font-weight:700;line-height:1.2}
@@ -58,280 +60,273 @@ h1{font-size:1.55rem;margin:.2rem 0 .3rem;padding-right:7.5rem}
 .mkBrew:not(:has(input:checked)):hover{background:var(--in)}
 .mkEquip .lampRow summary{padding:.5rem .1rem}
 .mkEquip .devName{width:4.2rem}
+.mock .shotHero{margin:.35rem 0 1rem;cursor:default}
+.mock .shotHero .heroHistory{display:none}
 
-/* ---------- Componentes compartidos de las variantes ---------- */
-.twCard{position:relative;margin:.15rem 0 1rem;padding:.8rem .9rem;border:1px solid var(--ln);border-radius:calc(var(--r) + .25rem);background:var(--sf);box-shadow:var(--ah)}
+/* ---------- Píldora de invocación ---------- */
+.qpill{position:absolute;left:50%;bottom:8.7rem;transform:translateX(-50%);z-index:7;display:flex;align-items:center;gap:.55rem;min-height:2.65rem;padding:0 1.05rem;border:1px solid var(--ln);border-radius:2rem;background:color-mix(in srgb,var(--sf) 88%,transparent);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);box-shadow:var(--ah);color:var(--fg);font:inherit;font-size:.8rem;font-weight:650;cursor:pointer;touch-action:none;user-select:none;transition:transform .12s}
+.qpill:active{transform:translateX(-50%) scale(.96)}
+.qpill .ic{width:1.15rem;height:1.15rem;fill:none;stroke:var(--ac);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.qpill b{font-size:1.08rem;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.qpill small{color:var(--mu)}
+.qpill .chev{width:.95rem;height:.95rem;fill:none;stroke:var(--ac);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;transition:transform .25s}
+
+/* ---------- Hoja inferior ---------- */
+.mkBackdrop{position:absolute;inset:0;z-index:9;background:rgba(21,21,21,.42);opacity:0;pointer-events:none;transition:opacity .28s}
+.mkBackdrop.show{opacity:1;pointer-events:auto}
+.qsheet{position:absolute;left:0;right:0;bottom:0;z-index:10;display:flex;flex-direction:column;height:46%;transform:translateY(105%);transition:transform .34s cubic-bezier(.32,.72,.32,1);border-top:1px solid var(--ln);border-radius:1.35rem 1.35rem 0 0;background:var(--sf);box-shadow:0 -1.1rem 2.6rem rgba(0,0,0,.3)}
+.qsheet.open{transform:none}
+.qsheet.nodrag{transition:none}
+.qsheetGrab{position:relative;flex:none;padding:.5rem 0 .15rem;cursor:grab;touch-action:none}
+.qsheetGrab:active{cursor:grabbing}
+.qsheetGrab i{display:block;width:2.7rem;height:.3rem;margin:0 auto;border-radius:2rem;background:var(--ln)}
+.qsheetHead{display:flex;align-items:center;gap:.55rem;padding:.2rem .95rem .1rem;cursor:grab;touch-action:none}
+.qsheetHead .twLabel{margin:0;flex:1;cursor:grab}
+.qsheetDone{flex:none;margin-left:auto;min-height:2.2rem;padding:0 1rem;border:1.5px solid var(--ac);border-radius:2rem;background:var(--pri);border-color:var(--pri);color:var(--on);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+.qsheetHp{margin-left:.4rem;color:var(--mu);font-size:.8rem;font-weight:600}
+.qsheetVal{display:flex;align-items:baseline;gap:.4rem;padding:.15rem .95rem .25rem;font-variant-numeric:tabular-nums}
+.qsheetVal .twVal{font-size:2.35rem}
+.qsheetVal .twSub{margin:0 0 .25rem .1rem}
+.qsheetBody{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;padding:.25rem .95rem calc(.85rem + .35rem);overflow:hidden}
 .twLabel{display:flex;align-items:center;gap:.45rem;margin:0 0 .3rem;font-size:.68rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mu)}
 .twLabel .ic{width:1.05rem;height:1.05rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .twVal{font-variant-numeric:tabular-nums;font-weight:800;letter-spacing:-.03em;line-height:1}
 .twVal small{display:inline;font-size:.45em;font-weight:700;color:var(--mu);letter-spacing:0;margin-left:.15rem}
 .twSub{margin:.4rem 0 0;font-size:.74rem;color:var(--mu);font-weight:500}
 .twSub b{color:var(--ac);font-weight:700}
-.twHint{margin:.3rem 0 0;font-size:.72rem;color:var(--mu)}
-.twHint kbd{padding:.05rem .35rem;border:1px solid var(--ln);border-bottom-width:2px;border-radius:.4rem;background:var(--in);font:inherit;font-size:.9em}
-.mkToast{position:absolute;left:50%;bottom:10.9rem;transform:translate(-50%,.6rem);z-index:12;display:flex;align-items:center;gap:.5rem;max-width:calc(100% - 2rem);padding:.5rem .85rem;border:1px solid color-mix(in srgb,var(--ok) 45%,var(--ln));border-radius:2rem;background:var(--sf);color:var(--ok);font-size:.78rem;font-weight:650;box-shadow:var(--ah);opacity:0;pointer-events:none;transition:.25s}
+.mkToast{position:absolute;left:50%;bottom:11.6rem;transform:translate(-50%,.6rem);z-index:12;display:flex;align-items:center;gap:.5rem;max-width:calc(100% - 2rem);padding:.5rem .85rem;border:1px solid color-mix(in srgb,var(--ok) 45%,var(--ln));border-radius:2rem;background:var(--sf);color:var(--ok);font-size:.78rem;font-weight:650;box-shadow:var(--ah);opacity:0;pointer-events:none;transition:.25s}
 .mkToast.show{opacity:1;transform:translate(-50%,0)}
-.mkBackdrop{position:absolute;inset:0;z-index:9;background:rgba(21,21,21,.45);opacity:0;pointer-events:none;transition:.2s}
-.mkBackdrop.show{opacity:1;pointer-events:auto}
 
-/* 01 · Rueda selector (tambores) */
-.qwheel{position:relative;display:flex;align-items:center;gap:.15rem;padding:.4rem .2rem;border:1px solid var(--ln);border-radius:var(--r);background:var(--in);overflow:hidden;touch-action:none;cursor:ns-resize;user-select:none}
-.qdrum{position:relative;flex:1;height:11rem;overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,transparent,#000 26%,#000 74%,transparent);mask-image:linear-gradient(to bottom,transparent,#000 26%,#000 74%,transparent);cursor:ns-resize}
-.qdrum.dec{flex:.55}
-.qdrumList{display:flex;flex-direction:column;will-change:transform}
-.qdrumList i{display:flex;align-items:center;justify-content:center;height:2.75rem;font-style:normal;font-size:1.7rem;font-weight:750;font-variant-numeric:tabular-nums;color:var(--mu);transition:color .15s,font-size .15s}
-.qdrum.dec .qdrumList i{font-size:1.3rem}
-.qdrumList i.at{color:var(--ac);font-weight:800}
-.qwheelSep{flex:none;font-size:1.9rem;font-weight:800;color:var(--fg)}
-.qwheelUnit{flex:none;align-self:flex-end;margin:0 .55rem .9rem 0;font-size:1.05rem;font-weight:700;color:var(--mu)}
-.qwheelBand{position:absolute;left:.5rem;right:.5rem;top:50%;height:2.75rem;transform:translateY(-50%);border-top:1.5px solid var(--ac);border-bottom:1.5px solid var(--ac);border-radius:.45rem;background:color-mix(in srgb,var(--ac) 7%,transparent);pointer-events:none}
+/* ---------- Controles continuos ---------- */
+/* 01 · Columna vertical */
+.qcol{position:relative;display:flex;align-items:stretch;gap:1.1rem;height:100%}
+.qcolInfo{flex:1;display:flex;flex-direction:column;justify-content:center;gap:.5rem;min-width:0}
+.qcolInfo .twVal{font-size:3.2rem}
+.qcolRange{display:flex;justify-content:space-between;font-size:.68rem;font-weight:700;color:var(--mu);font-variant-numeric:tabular-nums}
+.qcolTrack{position:relative;flex:none;width:3.4rem;border-radius:2rem;background:var(--in);border:1px solid var(--ln);touch-action:none;cursor:ns-resize;overflow:hidden;background-image:repeating-linear-gradient(to bottom,color-mix(in srgb,var(--ln) 60%,transparent) 0 1px,transparent 1px 25%)}
+.qcolFill{position:absolute;left:0;right:0;bottom:0;border-radius:2rem;background:linear-gradient(180deg,color-mix(in srgb,var(--ac) 72%,var(--sf)),color-mix(in srgb,var(--ac) 45%,var(--sf)))}
+.qcolThumb{position:absolute;left:.14rem;right:.14rem;height:2.05rem;border-radius:2rem;background:var(--sf);border:2px solid var(--ac);box-shadow:0 2px 8px rgba(0,0,0,.22);display:grid;place-items:center}
+.qcolThumb i{width:1.15rem;height:1.15rem;background:repeating-linear-gradient(to bottom,var(--ac) 0 1.5px,transparent 1.5px 4px);border-radius:2px;opacity:.75}
 
-/* 02 · Riel magnético de presets (compartido: chips) */
-.qchips{display:flex;gap:.4rem;margin:.6rem 0 .1rem;overflow-x:auto;padding:.1rem .05rem .3rem;scrollbar-width:thin}
-.qchip{flex:0 0 auto;min-height:2.4rem;padding:0 .8rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.85rem;font-weight:700;font-variant-numeric:tabular-nums;cursor:pointer;white-space:nowrap}
-.qchip small{display:inline;font-size:.72em;font-weight:600;color:var(--mu);margin-left:.1rem}
-.qchip:hover{background:var(--in)}
-.qchip.on{border-color:var(--ac);background:var(--pri);color:var(--on)}
-.qchip.on small{color:color-mix(in srgb,var(--on) 75%,transparent)}
-.qrail{position:relative;margin-top:1.55rem;touch-action:none;cursor:ew-resize;user-select:none}
-.qrailTrack{position:relative;height:2.9rem;margin:0 .35rem}
-.qrailRail{position:absolute;left:0;right:0;top:.5rem;height:.5rem;border-radius:2rem;background:var(--sf);border:1px solid var(--ln)}
-.qmark{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.3rem;background:none;border:0;padding:0;cursor:pointer}
-.qmark i{width:.34rem;height:1rem;border-radius:2px;background:var(--bd);transition:background .15s,transform .15s}
-.qmark span{font-size:.66rem;font-weight:700;color:var(--mu);font-variant-numeric:tabular-nums;transition:color .15s}
-.qmark.on i{background:var(--ac);transform:scaleY(1.18)}
-.qmark.on span{color:var(--ac)}
-.qrailTrack .qthumb{top:.75rem}
-.qrailTrack .qthumb.snap{transition:left .18s ease-out}
-.qrailBubble{position:absolute;bottom:calc(100% + .4rem);transform:translateX(-50%);padding:.16rem .6rem;border-radius:.55rem;background:var(--ac);color:var(--on);font-size:.78rem;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;opacity:0;transition:opacity .15s;pointer-events:none}
-.qrail.drag .qrailBubble{opacity:1}
-
-/* 03 · Scrub vertical */
-.qscrub{display:flex;align-items:stretch;gap:.9rem;touch-action:none;cursor:ns-resize;user-select:none}
-.qscrubMain{flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0}
-.qscrub .twVal{font-size:3.4rem;margin:.15rem 0 0}
-.qscrubVal{transition:transform .08s linear}
-.qscrubArrows{position:absolute;top:.6rem;right:.9rem;display:grid;gap:.15rem;color:var(--mu)}
-.qscrubArrows svg{width:1rem;height:1rem;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
-.qrule{position:relative;flex:none;width:2.1rem;border-left:1px solid var(--ln);overflow:hidden}
-.qruleIn{position:absolute;left:0;right:0;top:50%;height:200%;background:repeating-linear-gradient(to bottom,var(--ln) 0 1px,transparent 1px 14px);background-position:0 7px}
-.qrule:after{content:"";position:absolute;left:-.25rem;right:.35rem;top:50%;height:2px;transform:translateY(-50%);background:var(--ac);border-radius:2px}
-.qscrub.drag .qscrubVal{color:var(--ac)}
-
-/* 04 · Dial radial */
-.qdialWrap{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:1rem;opacity:0;pointer-events:none;transition:.2s}
-.qdialWrap.show{opacity:1;pointer-events:auto}
-.qdial{width:min(17.5rem,100%);padding:1.1rem 1rem 1.2rem;border:1px solid var(--ln);border-radius:calc(var(--r) + .5rem);background:var(--sf);box-shadow:0 1.2rem 3rem rgba(0,0,0,.3);text-align:center}
-.qdialStage{position:relative;width:13rem;height:13rem;margin:0 auto}
+/* 02 · Dial radial */
+.qdialStage{position:relative;height:calc(100% - 1.4rem);aspect-ratio:1;max-width:100%;margin:0 auto}
 .qdialStage svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
 .qdialStage svg:active{cursor:grabbing}
-.qdialCenter{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;pointer-events:none}
-.qdialCenter .twVal{font-size:2.6rem}
-.qdialRange{display:flex;justify-content:space-between;margin:.35rem .4rem 0;font-size:.7rem;font-weight:700;color:var(--mu);font-variant-numeric:tabular-nums}
-.qdialBtns{display:flex;gap:.5rem;margin-top:.9rem}
-.qdialBtns button{flex:1;min-height:2.6rem;border:1.5px solid var(--ac);border-radius:2rem;background:transparent;color:var(--ac);font:inherit;font-size:.85rem;font-weight:700;cursor:pointer}
-.qdialBtns button.apply{background:var(--pri);border-color:var(--pri);color:var(--on)}
+.qdialCenter{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.12rem;pointer-events:none}
+.qdialCenter .twVal{font-size:2.3rem}
+.qdialRange{display:flex;justify-content:space-between;margin:.25rem .5rem 0;font-size:.68rem;font-weight:700;color:var(--mu);font-variant-numeric:tabular-nums}
 
-/* 05 · Hoja con doble slider */
-.qsheet{position:absolute;left:0;right:0;bottom:0;z-index:10;padding:.7rem .9rem calc(.9rem + .5rem);border-top:1px solid var(--ln);border-radius:1.2rem 1.2rem 0 0;background:var(--sf);box-shadow:0 -1rem 2.5rem rgba(0,0,0,.28);transform:translateY(105%);transition:transform .28s cubic-bezier(.32,.72,.32,1)}
-.qsheet.open{transform:none}
-.qgrabBar{width:2.6rem;height:.28rem;margin:0 auto .6rem;border-radius:2rem;background:var(--ln)}
-.qsheetTop{display:flex;align-items:baseline;gap:.6rem;margin:0 0 .35rem}
-.qsheetTop .twLabel{margin:0;flex:1}
-.qslideLabel{display:flex;justify-content:space-between;align-items:baseline;margin:.75rem 0 .1rem;font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mu)}
-.qslideLabel small{font-size:.72rem;font-weight:600;letter-spacing:0;text-transform:none;color:var(--mu)}
-.qsheet .qtrack{margin:.55rem 0 .1rem}
-.qsheet .qchips{margin:.8rem 0 .6rem}
-.qsheetBtns{display:flex;gap:.5rem;margin-top:.7rem}
-.qsheetBtns button{flex:1;min-height:2.6rem;border:1.5px solid var(--ln);border-radius:2rem;background:transparent;color:var(--fg);font:inherit;font-size:.85rem;font-weight:700;cursor:pointer}
-.qsheetBtns button.apply{background:var(--pri);border-color:var(--pri);color:var(--on)}
-
-/* 06 · Arco alrededor de Start */
-.mock[data-variant="06"] .mockDock{left:50%;right:auto;transform:translateX(-50%);width:auto;gap:1rem;padding:.65rem .9rem;border-radius:2rem}
-.mock[data-variant="06"] .mkToast{bottom:14.5rem}
-.qarcRead{position:absolute;left:50%;bottom:11.6rem;transform:translateX(-50%);z-index:5;display:flex;align-items:center;gap:.45rem;padding:.3rem .8rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);box-shadow:var(--ah);font-size:.8rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--fg);cursor:grab;touch-action:none}
-.qarcRead:active{cursor:grabbing}
-.qarcRead .dot{width:.5rem;height:.5rem;border-radius:50%;background:var(--ac)}
-.qarcBtn{position:relative;flex:none;width:5.4rem;height:5.4rem;border:0;background:none;padding:0;cursor:pointer;touch-action:none}
-.qarcBtn svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-.qarcCore{position:absolute;inset:.72rem;border-radius:50%;background:var(--pri);color:var(--on);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.05rem;font-size:.72rem;font-weight:700;box-shadow:var(--ah);transition:.15s}
-.qarcCore b{font-size:1.25rem;line-height:1}
-.qarcCore small{display:block;color:color-mix(in srgb,var(--on) 78%,transparent);font-size:.6rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
-.qarcBtn:active .qarcCore{transform:scale(.94)}
-.qarcSide{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.2rem;min-width:4.2rem;min-height:5.4rem;border:1.5px solid var(--ln);border-radius:1.2rem;background:transparent;color:var(--mu);font:inherit;cursor:pointer}
-.qarcSide svg{width:1.3rem;height:1.3rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-.qarcSide span{font-size:.68rem;font-weight:700}
-.qarcSide:hover{background:var(--in)}
-
-/* 07 · Slider de precisión */
-.qslider{position:relative;padding-top:1.15rem}
-.qsliderHead{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem}
-.qsliderHead .twVal{font-size:2.5rem}
-.qfine{display:flex;gap:.4rem;margin-top:.7rem}
-.qfine button{flex:1;min-height:2.4rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.82rem;font-weight:700;font-variant-numeric:tabular-nums;cursor:pointer}
-.qfine button:hover{background:var(--pa);color:var(--ac)}
-.qtrack{position:relative;height:1.5rem;margin:.9rem 0 .1rem;cursor:pointer;touch-action:none}
+/* 03 · Doble slider */
+.qslideLabel{display:flex;justify-content:space-between;align-items:baseline;margin:.55rem 0 .15rem;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mu)}
+.qslideLabel small{font-size:.7rem;font-weight:600;letter-spacing:0;text-transform:none}
+.qtrack{position:relative;height:1.5rem;margin:.85rem 0 .1rem;cursor:pointer;touch-action:none}
 .qtrackRail{position:absolute;left:0;right:0;top:50%;height:.55rem;transform:translateY(-50%);border-radius:2rem;background:var(--in);border:1px solid var(--ln)}
-.qtrackFill{position:absolute;left:0;top:50%;height:.55rem;transform:translateY(-50%);border-radius:2rem;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 65%,var(--sf)),var(--ac))}
-.qthumb{position:absolute;top:50%;width:1.55rem;height:1.55rem;transform:translate(-50%,-50%);border:2px solid var(--ac);border-radius:50%;background:var(--sf);box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:grab;transition:box-shadow .15s}
+.qtrackFill{position:absolute;left:0;top:50%;height:.55rem;transform:translateY(-50%);border-radius:2rem;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 60%,var(--sf)),var(--ac))}
+.qthumb{position:absolute;top:50%;width:1.55rem;height:1.55rem;transform:translate(-50%,-50%);border:2px solid var(--ac);border-radius:50%;background:var(--sf);box-shadow:0 2px 6px rgba(0,0,0,.25);cursor:grab}
 .qthumb:active{cursor:grabbing;box-shadow:0 0 0 .4rem color-mix(in srgb,var(--ac) 18%,transparent)}
 .qbubble{position:absolute;bottom:calc(100% + .3rem);transform:translateX(-50%);padding:.12rem .5rem;border-radius:.5rem;background:var(--ac);color:var(--on);font-size:.75rem;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;opacity:0;transition:.15s}
 .qtrack.drag .qbubble{opacity:1}
 .qticks{display:flex;justify-content:space-between;margin:0 .2rem;font-size:.66rem;font-weight:700;color:var(--mu);font-variant-numeric:tabular-nums}
 
-/* 08 · Carrusel de presets (swipe) */
-.qcar{position:relative;overflow:hidden;border-radius:.8rem;touch-action:pan-y;cursor:grab;user-select:none}
-.qcar.drag{cursor:grabbing}
-.qcarTrack{display:flex;gap:.7rem;padding:.4rem .3rem .5rem;will-change:transform}
-.qcarTrack.snap{transition:transform .28s cubic-bezier(.32,.72,.32,1)}
-.qcarCard{flex:0 0 76%;display:flex;flex-direction:column;gap:.4rem;align-items:center;padding:.9rem .95rem;border:1.5px solid var(--ln);border-radius:calc(var(--r) + .15rem);background:var(--sf);text-align:center;transform:scale(.93);opacity:.6;transition:transform .25s,opacity .25s,border-color .25s,background .25s}
-.qcarCard.at{border-color:var(--ac);background:var(--pa);transform:none;opacity:1}
-.qcarCard b{font-size:2.5rem;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}
-.qcarCard b small{font-size:.42em;color:var(--mu);font-weight:700;margin-left:.1rem}
-.qcarCard span{font-size:.72rem;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em}
-.qcarDots{display:flex;justify-content:center;gap:.35rem;margin:.6rem 0 0}
-.qcarDots i{width:.45rem;height:.45rem;border-radius:50%;background:var(--bd);transition:.2s}
-.qcarDots i.at{background:var(--ac);transform:scale(1.2)}
+/* 04 · Número gigante */
+.qbignum{position:relative;display:flex;align-items:center;gap:1rem;height:100%;touch-action:none;cursor:ns-resize;user-select:none}
+.qbignumMain{flex:1;display:flex;flex-direction:column;gap:.4rem;min-width:0}
+.qbignumMain .twVal{font-size:4.3rem}
+.qbignum.drag .twVal{color:var(--ac)}
+.qrule{position:relative;flex:none;width:2rem;border-left:1px solid var(--ln);overflow:hidden}
+.qruleIn{position:absolute;left:0;right:0;top:50%;height:200%;background:repeating-linear-gradient(to bottom,var(--ln) 0 1px,transparent 1px 13px);background-position:0 6px}
+.qrule:after{content:"";position:absolute;left:-.25rem;right:.35rem;top:50%;height:2px;transform:translateY(-50%);background:var(--ac);border-radius:2px}
 
-/* 09 · Menú radial al mantener presionado */
-.qfanWrap{position:absolute;inset:0;z-index:10;pointer-events:none}
-.qfanOrigin{position:absolute;width:0;height:0}
-.qfanItem{position:absolute;left:0;top:0;transform:translate(-50%,-50%) scale(.3);display:flex;align-items:center;justify-content:center;min-width:3.6rem;min-height:2.5rem;padding:0 .6rem;border:1.5px solid var(--ln);border-radius:2rem;background:var(--sf);color:var(--fg);font:inherit;font-size:.95rem;font-weight:800;font-variant-numeric:tabular-nums;box-shadow:var(--ah);opacity:0;transition:transform .18s cubic-bezier(.34,1.5,.5,1),opacity .15s,border-color .1s,background .1s;pointer-events:none}
-.qfanWrap.show .qfanItem{transform:translate(-50%,-50%) scale(1);opacity:1}
-.qfanItem.hot{border-color:var(--ac);background:var(--pri);color:var(--on);transform:translate(-50%,-50%) scale(1.12)}
-.qfanCancel{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;width:2.4rem;height:2.4rem;border:1px dashed var(--bd);border-radius:50%;background:var(--sf);color:var(--mu);font-size:1.1rem;font-weight:700;opacity:0;transition:.18s;pointer-events:none}
-.qfanWrap.show .qfanCancel{opacity:1}
-.qpressRing{position:absolute;left:0;top:0;width:3.2rem;height:3.2rem;transform:translate(-50%,-50%) scale(.4);border-radius:50%;border:2px solid var(--ac);background:color-mix(in srgb,var(--ac) 18%,transparent);opacity:0;transition:.18s;pointer-events:none}
-.qfanWrap.show .qpressRing{opacity:1;transform:translate(-50%,-50%) scale(1)}
+/* 05 · Regla con lupa */
+.qlens{position:relative;height:100%;display:flex;flex-direction:column;justify-content:center;gap:.4rem;touch-action:none;cursor:ew-resize;user-select:none}
+.qlensStrip{position:relative;height:4.6rem;overflow:hidden;-webkit-mask-image:linear-gradient(to right,transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(to right,transparent,#000 18%,#000 82%,transparent)}
+.qlensTicks{position:absolute;inset:0;will-change:transform}
+.qlensTicks i{position:absolute;bottom:0;width:1.5px;border-radius:2px;background:var(--bd)}
+.qlensTicks span{position:absolute;bottom:0;transform:translateX(-50%);font-size:.72rem;font-weight:750;color:var(--mu);font-variant-numeric:tabular-nums;white-space:nowrap}
+.qlensReticle{position:absolute;left:50%;top:-.35rem;bottom:-.35rem;width:0;pointer-events:none}
+.qlensReticle:before{content:"";position:absolute;left:-1px;top:0;bottom:0;width:2px;background:var(--ac)}
+.qlensReticle:after{content:"";position:absolute;left:-4.5px;top:-2px;border:.4rem solid transparent;border-top-color:var(--ac)}
+.qlensHint{display:flex;justify-content:space-between;font-size:.66rem;font-weight:700;color:var(--mu);padding:0 .3rem}
 
-/* 10 · Cajón inferior */
-.mock[data-variant="10"] .mkToast{bottom:12.5rem}
-.qgrab{position:absolute;left:50%;bottom:9rem;transform:translateX(-50%);z-index:8;display:flex;align-items:center;gap:.5rem;min-height:2.3rem;padding:0 1rem;border:1px solid var(--ln);border-radius:2rem;background:color-mix(in srgb,var(--sf) 86%,transparent);backdrop-filter:blur(10px);box-shadow:var(--ah);color:var(--fg);font:inherit;font-size:.8rem;font-weight:700;font-variant-numeric:tabular-nums;cursor:grab;touch-action:none;user-select:none}
-.qgrab:active{cursor:grabbing}
-.qgrab svg{width:1rem;height:1rem;fill:none;stroke:var(--ac);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
-.qdrawer{position:absolute;left:0;right:0;bottom:0;z-index:7;padding:.55rem .9rem calc(.9rem + 4.6rem);border-top:1px solid var(--ln);border-radius:1.2rem 1.2rem 0 0;background:var(--sf);box-shadow:0 -1rem 2.5rem rgba(0,0,0,.28);transform:translateY(105%);transition:transform .3s cubic-bezier(.32,.72,.32,1)}
-.qdrawer.open{transform:none}
-.qdrawer .qtrack{margin:.6rem 0 .1rem}
+/* 06 · Micrómetro */
+.qmic{height:100%;display:flex;flex-direction:column;justify-content:center;gap:.75rem;touch-action:none;cursor:ew-resize;user-select:none}
+.qmicScale{position:relative;height:1.5rem;overflow:hidden;-webkit-mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent);mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent)}
+.qmicScaleIn{position:absolute;inset:0;will-change:transform}
+.qmicScaleIn i{position:absolute;top:0;width:1.5px;height:.8rem;background:var(--bd)}
+.qmicScaleIn i.big{height:1.25rem;background:var(--mu)}
+.qmicScaleIn i.now{background:var(--ac);width:2.5px}
+.qmicDrum{position:relative;height:4.4rem;border:1px solid var(--ln);border-radius:1.1rem;overflow:hidden;box-shadow:inset 0 .55rem 1.1rem rgba(0,0,0,.14),inset 0 -.55rem 1.1rem rgba(0,0,0,.14)}
+.qmicKnurl{position:absolute;inset:0;background:
+ repeating-linear-gradient(90deg,rgba(0,0,0,.15) 0 2px,transparent 2px 7px),
+ repeating-linear-gradient(90deg,rgba(255,255,255,.09) 0 3px,transparent 3px 7px),
+ linear-gradient(180deg,var(--sf) 0,var(--in) 26%,var(--in) 74%,var(--sf) 100%)}
+.qmicAxis{position:absolute;left:0;right:0;top:50%;height:1.5px;background:color-mix(in srgb,var(--ac) 70%,transparent)}
+.qmicNeedle{position:absolute;left:50%;top:-.3rem;bottom:-.3rem;width:2.5px;transform:translateX(-50%);background:var(--ac);border-radius:2px;box-shadow:0 0 0 .2rem color-mix(in srgb,var(--ac) 16%,transparent);pointer-events:none}
+.qmicRead{display:flex;justify-content:space-between;align-items:baseline;padding:0 .35rem}
+.qmicRead small{font-size:.68rem;font-weight:700;color:var(--mu)}
 
-/* ---------- Hero de tiro simulado ---------- */
-.mock .shotHero{margin:.35rem 0 1rem;cursor:default}
-.mock .shotHero .heroHistory{display:none}
+/* 07 · Arco del shot */
+.qshot{position:relative;height:calc(100% - .4rem);aspect-ratio:1;max-width:100%;margin:0 auto;touch-action:none}
+.qshotBtn{position:absolute;inset:1.05rem;border:0;border-radius:50%;background:var(--pri);color:var(--on);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.15rem;cursor:pointer;box-shadow:var(--ah);transition:transform .15s;font:inherit}
+.qshotBtn:active{transform:scale(.95)}
+.qshotBtn b{font-size:2rem;font-weight:800;line-height:1}
+.qshotBtn small{font-size:.66rem;font-weight:750;letter-spacing:.09em;text-transform:uppercase;color:color-mix(in srgb,var(--on) 80%,transparent)}
+.qshot svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;cursor:grab}
+.qshot svg:active{cursor:grabbing}
+
+/* 08 · Scrub adaptativo */
+.qada{position:relative;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;touch-action:none;cursor:ns-resize;user-select:none}
+.qada .twVal{font-size:3.6rem;transition:color .12s}
+.qada.drag .twVal{color:var(--ac)}
+.qadaMeter{position:relative;width:11rem;height:.55rem;border-radius:2rem;background:var(--in);border:1px solid var(--ln);overflow:hidden}
+.qadaMeter i{position:absolute;left:0;top:0;bottom:0;width:12%;border-radius:2rem;background:linear-gradient(90deg,var(--ok),var(--wn));transition:width .08s}
+.qadaLabels{display:flex;justify-content:space-between;width:11rem;font-size:.64rem;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em}
+
+/* 09 · Joystick relativo */
+.qjoy{position:relative;height:100%;border-radius:1.1rem;background:var(--in);background-image:radial-gradient(color-mix(in srgb,var(--ln) 80%,transparent) 1px,transparent 1.3px);background-size:19px 19px;border:1px solid var(--ln);touch-action:none;cursor:crosshair;overflow:hidden}
+.qjoyOrigin{position:absolute;width:3.6rem;height:3.6rem;border-radius:50%;border:1.5px dashed var(--bd);transform:translate(-50%,-50%);opacity:0;transition:opacity .2s;pointer-events:none}
+.qjoy.on .qjoyOrigin{opacity:.8}
+.qjoyLine{position:absolute;left:0;top:0;height:2.5px;border-radius:2px;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 25%,transparent),var(--ac));transform-origin:0 50%;opacity:0;pointer-events:none}
+.qjoy.on .qjoyLine{opacity:1}
+.qjoyPuck{position:absolute;width:3.3rem;height:3.3rem;border-radius:50%;border:2px solid var(--ac);background:color-mix(in srgb,var(--ac) 20%,var(--sf));box-shadow:0 .25rem .8rem rgba(0,0,0,.25),0 0 0 .5rem color-mix(in srgb,var(--ac) 10%,transparent);transform:translate(-50%,-50%);display:grid;place-items:center;opacity:0;transition:opacity .15s;pointer-events:none}
+.qjoyPuck i{width:.8rem;height:.8rem;border-radius:50%;background:var(--ac)}
+.qjoy.on .qjoyPuck{opacity:1}
+.qjoyDelta{position:absolute;transform:translate(-50%,-135%);padding:.1rem .55rem;border-radius:2rem;background:var(--ac);color:var(--on);font-size:.75rem;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;opacity:0;transition:opacity .15s;pointer-events:none}
+.qjoy.on .qjoyDelta{opacity:1}
+
+/* 10 · Corona doble */
+.qcrown{position:relative;height:calc(100% - 1.6rem);aspect-ratio:1;max-width:100%;margin:0 auto;touch-action:none}
+.qcrown svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;cursor:grab}
+.qcrown svg:active{cursor:grabbing}
+.qcrownCenter{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.1rem;pointer-events:none}
+.qcrownCenter .twVal{font-size:2.1rem}
+.qcrownCenter small{font-size:.64rem;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.07em}
 </style>
 </head>
 <body>
 <svg hidden><symbol id="brandMark" viewBox="0 0 36 48"><g transform="rotate(-16 18 11)"><path fill-rule="evenodd" d="M10 3h16v16H10zm8 4c-2 2-3 3.4-3 5a3 3 0 106 0c0-1.6-1-3-3-5z"/><path d="M12 0h2v3h-2zm4 0h2v3h-2zm4 0h2v3h-2zm4 0h2v3h-2zM26 5h3v2h-3zm0 4h3v2h-3zm0 4h3v2h-3zm0 4h3v2h-3z"/></g><path d="M18 24a2 2 0 11-4 0c0-2 2-3.5 2-3.5s2 1.5 2 3.5z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M8 32v2a10 8.5 0 0020 0v-2M28 33c4.8 0 5 9.5-3.6 8M6 46h24"/></symbol></svg>
 <button type="button" id="themeToggle">Tema: auto</button>
-<h1>Ajuste rápido del peso objetivo</h1>
-<p class="lead">Hoy cambiar el peso obliga a ir a <b>Settings → editar el preset → guardar → volver</b>. Estas maquetas exploran 10 formas de cambiarlo directamente desde el Home, usando el Home actual como base. Todas son <b>táctiles primero</b> — deslizamientos, giros o gestos — pensadas para el pulgar en el bar.</p>
-<p class="note">Cada maqueta es interactiva: cambia el peso y presiona <b>Start shot</b> para ver un tiro simulado con el nuevo objetivo. Todo es solo presentación; nada toca el firmware.</p>
+<h1>Ajuste rápido del peso · hoja inferior</h1>
+<p class="lead">Segunda iteración: el Home queda intacto y una <b>píldora flotante</b> invoca una <b>hoja que sube desde el borde inferior</b> (animada, anclada abajo, ancho completo en móvil y ancho del contenido en escritorio, nunca más del 50% de la pantalla). Dentro, un control <b>continuo</b> — sin saltos discretos ni botones ±.</p>
+<p class="note">Cada maqueta es una pantalla con scroll real: toca la píldora, desliza el control y presiona <b>Start shot</b> para ver el tiro simulado con el nuevo objetivo. Todo es presentación; nada toca el firmware.</p>
 <nav class="propNav" aria-label="Propuestas">
   <a href="#ref">Ref · actual</a>
-  <a href="#v01">01 Rueda</a>
-  <a href="#v02">02 Riel</a>
-  <a href="#v03">03 Scrub</a>
-  <a href="#v04">04 Dial</a>
-  <a href="#v05">05 Doble slider</a>
-  <a href="#v06">06 Arco</a>
-  <a href="#v07">07 Slider</a>
-  <a href="#v08">08 Carrusel</a>
-  <a href="#v09">09 Radial</a>
-  <a href="#v10">10 Cajón</a>
+  <a href="#v01">01 Columna</a>
+  <a href="#v02">02 Dial</a>
+  <a href="#v03">03 Doble slider</a>
+  <a href="#v04">04 Número</a>
+  <a href="#v05">05 Regla lupa</a>
+  <a href="#v06">06 Micrómetro</a>
+  <a href="#v07">07 Arco shot</a>
+  <a href="#v08">08 Scrub pro</a>
+  <a href="#v09">09 Joystick</a>
+  <a href="#v10">10 Corona</a>
+  <a href="#desk">Escritorio</a>
 </nav>
 
 <section class="ref" id="ref">
   <h2>Referencia · el Home actual</h2>
-  <p>El punto de partida: el peso objetivo solo aparece dentro del acordeón de presets y editarlo exige navegar a Settings. Las 10 propuestas debajo agregan el control rápido sobre esta misma base.</p>
+  <p>El punto de partida: sin control de peso a la vista; editarlo exige ir a Settings → preset → guardar. Las 10 propuestas agregan solo la píldora flotante sobre esta misma base.</p>
   <div class="mock" data-chrome data-dock data-variant="00"></div>
 </section>
 
 <section class="opt" id="v01">
   <div class="optHead">
-    <h2>01 · Rueda selector (<em>picker</em>)</h2>
-    <p>El peso como rueda de selector estilo iOS: desliza el tambor de gramos (5–100) y el de décimas (0–0.9); el valor en la banda central aplica al soltar. Un flick largo recorre rangos amplios en un solo gesto de pulgar.</p>
-    <p class="optTags"><span class="good">100% táctil, con inercia de lista</span><span class="good">valor exacto 0.1 g</span><span class="bad">ocupa altura en el Home</span></p>
+    <h2>01 · Columna vertical</h2>
+    <p>Un slider vertical tipo control de volumen: el relleno sube con el peso y el pulgar ancho se arrastra por la columna; el valor grande viaja en vivo a su lado. Rango 10–80 g, resolución continua de 0.1 g.</p>
+    <p class="optTags"><span class="good">gesto de pulgar natural</span><span class="good">expone el rango completo</span><span>requiere altura en la hoja</span></p>
   </div>
   <div class="mock" data-chrome data-dock data-variant="01"></div>
 </section>
 
 <section class="opt" id="v02">
   <div class="optHead">
-    <h2>02 · Riel magnético de presets</h2>
-    <p>Un riel horizontal con tus pesos favoritos marcados (17…54 g). Arrastra el control: el imán resalta el preset más cercano con su nombre en la burbuja y, al soltar, se engancha a la marca. Tocar una marca salta directo a ella.</p>
-    <p class="optTags"><span class="good">deslizamiento con imán</span><span class="good">un gesto, preset exacto</span><span class="bad">solo pesos marcados</span></p>
+    <h2>02 · Dial radial</h2>
+    <p>El dial de la iteración anterior, ahora dentro de la hoja: gira el arco de 270° entre 10 y 80 g con marcas cada 5 g; el centro muestra el valor y el preset activo. Cero botones: solo el anillo.</p>
+    <p class="optTags"><span class="good">muy táctil y visible</span><span class="good">rango amplio en un gesto</span><span class="bad">precisión exige giro corto</span></p>
   </div>
   <div class="mock" data-chrome data-dock data-variant="02"></div>
 </section>
 
 <section class="opt" id="v03">
   <div class="optHead">
-    <h2>03 · Arrastre vertical (<em>scrub</em>)</h2>
-    <p>El número se vuelve una rueda: arrastra hacia arriba o abajo y la regla lateral se desliza mientras el valor cambia en pasos de 0.1 g. Al soltar, el valor se asienta y aplica. Sin botones: todo el rectángulo es el control.</p>
-    <p class="optTags"><span class="good">rápido y continuo</span><span class="good">sin botones</span><span class="bad">exige destreza táctil</span><span class="bad">riesgo de toques accidentales</span></p>
+    <h2>03 · Doble slider (grueso + fino)</h2>
+    <p>Dos sliders continuos apilados: el grueso recorre 10–80 g y el fino se centra en el valor actual con una ventana de ±2 g para el ajuste de décimas. El patrón clásico de las apps de báscula, sin teclado.</p>
+    <p class="optTags"><span class="good">grueso y fino explícitos</span><span class="good">cualquier valor exacto</span><span>dos gestos para valores lejanos</span></p>
   </div>
   <div class="mock" data-chrome data-dock data-variant="03"></div>
 </section>
 
 <section class="opt" id="v04">
   <div class="optHead">
-    <h2>04 · Dial radial</h2>
-    <p>Toca el peso y se abre un dial de 10 a 80 g con marcas cada 5 g: gira el arco con el dedo y el centro muestra el valor en vivo. Botones <b>−1 / +1</b> para ajuste fino y <b>Listo</b> para confirmar.</p>
-    <p class="optTags"><span class="good">muy táctil y visible</span><span class="good">rango amplio en un gesto</span><span class="bad">tapa la pantalla</span><span class="bad">paso extra de apertura</span></p>
+    <h2>04 · Número gigante</h2>
+    <p>El número ES el control: arrastra la tipografía gigante hacia arriba o abajo y la regla lateral se desliza acompañando el gesto, como una balanza de precisión. Todo el área de la hoja responde.</p>
+    <p class="optTags"><span class="good">área de toque máxima</span><span class="good">jerarquía visual clarísima</span><span class="bad">cambios grandes = flicks largos</span></p>
   </div>
   <div class="mock" data-chrome data-dock data-variant="04"></div>
 </section>
 
 <section class="opt" id="v05">
   <div class="optHead">
-    <h2>05 · Hoja con doble slider (grueso + fino)</h2>
-    <p>Toca el peso y sube una hoja con dos sliders: uno grueso de 10 a 80 g en pasos de 1 g y uno fino de ±2 g alrededor del valor en pasos de 0.1 g. El patrón clásico de las apps de báscula, sin teclado: todo con el pulgar.</p>
-    <p class="optTags"><span class="good">dos sliders: grueso y fino</span><span class="good">cualquier valor exacto</span><span class="bad">dos pasos: abrir + deslizar</span></p>
+    <h2>05 · Regla con lupa</h2>
+    <p>Una regla horizontal que se desliza bajo una retícula central: las marcas cercanas al índice se alargan e iluminan como si una lupa las magnificara, y al soltar la regla sigue con inercia hasta frenar. Precisión de instrumento.</p>
+    <p class="optTags"><span class="good">lupa = ajuste finísimo</span><span class="good">inercia natural de flick</span><span class="bad">exige aprender el gesto</span></p>
   </div>
   <div class="mock" data-chrome data-dock data-variant="05"></div>
 </section>
 
 <section class="opt" id="v06">
   <div class="optHead">
-    <h2>06 · Arco alrededor del botón de shot</h2>
-    <p>El Home no gana ningún elemento nuevo: el propio botón <b>Start shot</b> se rodea de un arco. Arrástralo para fijar el peso (lectura en la píldora superior) y durante el tiro el mismo arco se rellena como progreso. Metáfora unificada: ese círculo es el tiro.</p>
-    <p class="optTags"><span class="good">cero espacio extra</span><span class="good">control y progreso en un solo elemento</span><span class="bad">poco descubrible</span><span class="bad">drag junto al botón crítico</span></p>
+    <h2>06 · Micrómetro</h2>
+    <p>Metáfora de instrumento de medición: el rodillo estriado gira bajo el dedo (la moleteada se desplaza) y la escala superior desliza con su aguja central. Sensibilidad de 0.02 g por píxel: barista-cirujano.</p>
+    <p class="optTags"><span class="good">sensibilidad extrema</span><span class="good">estética de instrumento</span><span class="bad">cambios amplios toman tiempo</span></p>
   </div>
   <div class="mock" data-chrome data-dock data-variant="06"></div>
 </section>
 
 <section class="opt" id="v07">
   <div class="optHead">
-    <h2>07 · Slider de precisión</h2>
-    <p>Slider horizontal de 10 a 80 g: el arrastre mueve en pasos de 0.5 g con burbuja de valor, y los botones inferiores afinan ±0.1 g. Equilibrio entre gesto grueso y botón fino en una sola tarjeta.</p>
-    <p class="optTags"><span class="good">control continuo familiar</span><span class="good">fino y grueso explícitos</span><span class="bad">ocupa más alto que otras</span></p>
+    <h2>07 · Arco del shot</h2>
+    <p>Dentro de la hoja, el botón de disparo envuelto en su arco de peso: gira el anillo para fijar el objetivo y toca el centro para brew &amp; cerrar. El mismo anillo, luego en el dock, se rellenará con el progreso del tiro.</p>
+    <p class="optTags"><span class="good">peso y disparo en un elemento</span><span class="good">continuo, sin botones</span><span class="bad">dos conceptos en un gesto</span></p>
   </div>
   <div class="mock" data-chrome data-dock data-variant="07"></div>
 </section>
 
 <section class="opt" id="v08">
   <div class="optHead">
-    <h2>08 · Carrusel de presets (<em>swipe</em>)</h2>
-    <p>El objetivo se vuelve un carrusel: desliza horizontalmente entre tus presets (Espresso, Ristretto, Lungo, Weekend shot); la tarjeta central se agranda y el peso aplica al soltar. Un flick por receta, como pasar fotos.</p>
-    <p class="optTags"><span class="good">swipe nativo móvil</span><span class="good">presets con nombre y peso</span><span class="bad">saltos discretos, no continuo</span></p>
+    <h2>08 · Scrub adaptativo</h2>
+    <p>Arrastra en cualquier parte de la hoja: la sensibilidad se adapta a la velocidad del gesto — despacio es quirúrgico (0.015 g/px) y rápido recorre rangos amplios. El medidor inferior muestra la ganancia en vivo.</p>
+    <p class="optTags"><span class="good">fino y grueso en un solo gesto</span><span class="good">sin áreas muertas</span><span class="bad">la ganancia sorprende al inicio</span></p>
   </div>
   <div class="mock" data-chrome data-dock data-variant="08"></div>
 </section>
 
 <section class="opt" id="v09">
   <div class="optHead">
-    <h2>09 · Menú radial al mantener presionado</h2>
-    <p>La pantalla queda limpia hasta que la necesitas: mantén presionado el peso y un abanico con los pesos frecuentes se abre alrededor de tu dedo; desliza hasta uno y suelta. Un gesto, una mano, cero navegación.</p>
-    <p class="optTags"><span class="good">pantalla limpia</span><span class="good">un solo gesto con el pulgar</span><span class="bad">oculto hasta descubrirlo</span><span class="bad">exige puntería al soltar</span></p>
+    <h2>09 · Joystick relativo</h2>
+    <p>Control relativo: toca donde quieras, aparece el puck con su guía, y la distancia que arrastres es el ajuste (derecha suma, izquierda resta). Suelta y vuelve a tocar para seguir acumulando desde cualquier punto.</p>
+    <p class="optTags"><span class="good">funciona en cualquier altura</span><span class="good">presión donde caiga el pulgar</span><span class="bad">ajuste absoluto = varios gestos</span></p>
   </div>
   <div class="mock" data-chrome data-dock data-variant="09"></div>
 </section>
 
 <section class="opt" id="v10">
   <div class="optHead">
-    <h2>10 · Cajón de ajuste rápido</h2>
-    <p>Un asa flotante sobre el dock muestra el objetivo actual. Deslízala hacia arriba y se abre un cajón con slider, chips de pesos y ajuste fino; hacia abajo lo cierra. El Home permanece intacto y el control queda a un gesto del pulgar.</p>
-    <p class="optTags"><span class="good">varios controles en un lugar</span><span class="good">gesto natural desde el dock</span><span class="bad">un paso más que 01/02</span><span>asa siempre visible</span></p>
+    <h2>10 · Corona doble</h2>
+    <p>Dos anillos concéntricos como la corona de un reloj: el exterior mueve el rango completo (10–80 g) y el interior afina en una ventana de ±3 g. El valor vive al centro, con el preset debajo.</p>
+    <p class="optTags"><span class="good">grueso y fino sin cambiar de control</span><span class="good">metáfora de reloj premium</span><span class="bad">dos radios que distinguir</span></p>
   </div>
   <div class="mock" data-chrome data-dock data-variant="10"></div>
+</section>
+
+<section class="opt" id="desk">
+  <div class="optHead">
+    <h2>Escritorio · misma hoja, ancho del contenido</h2>
+    <p>En pantallas anchas la hoja no ocupa todo el viewport: se alinea al ancho del área de contenido (como los fieldsets del Home), sigue anclada al borde inferior y conserva el tope de altura. Misma interacción de la propuesta 03.</p>
+    <p class="optTags"><span class="good">coherente móvil ↔ escritorio</span><span class="good">nunca tapa todo el Home</span></p>
+  </div>
+  <div class="mock mockDesktop" data-chrome data-dock data-variant="03"></div>
 </section>
 
 <script src="/quick-weight.js" defer></script>

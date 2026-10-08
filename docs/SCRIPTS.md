@@ -63,17 +63,19 @@ settings, or ship in firmware assets.
 ### Quick target-weight design preview
 
 Open `http://127.0.0.1:4173/quick-weight` on the same preview server to review
-ten touch-first interaction proposals for changing the brew target weight
-directly from the Home screen, plus a reference mock of the current Home. Every
-variant replicates the Home layout (quick settings, preset accordion,
-equipment, action dock) and adds one quick-weight control: picker wheels, a
-snapping preset rail, vertical scrub, a radial dial, a dual coarse/fine slider
-sheet, an arc around the Start button, a precision slider, a swipeable preset
-carousel, a long-press radial menu, and a bottom drawer. Each mock is fully
-interactive: the weight change propagates to the preset accordion and a
-simulated shot, and the page theme toggle cycles automatic, light and dark.
-Values and controls are illustrative only; this preview does not connect to a
-device, change saved settings, or ship in firmware assets.
+ten interaction proposals for changing the brew target weight from the Home
+screen, plus a reference mock of the current Home. Each proposal keeps the
+Home clean: a floating pill above the action dock shows the current target and
+opens an animated bottom sheet (pinned to the bottom edge, full screen width
+on mobile and content width on desktop, never taller than half the visible
+area) containing one continuous weight control — a vertical column, a radial
+dial, dual coarse/fine sliders, giant-number scrub, a magnifying ruler with
+inertia, a micrometer roller, a brew-button arc, velocity-adaptive scrub, a
+relative joystick pad, or a concentric dual crown. Every mock is a fixed-height
+screen with real scrolling; the weight change propagates to the preset
+accordion and a simulated shot, and the page theme toggle cycles automatic,
+light and dark. Values and controls are illustrative only; this preview does
+not connect to a device, change saved settings, or ship in firmware assets.
 
 ### Mobile navigation preview
 
