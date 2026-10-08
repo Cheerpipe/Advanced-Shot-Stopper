@@ -2,8 +2,11 @@
 import * as R from "./runtime.js?v=__FW_ASSET_TAG__";
 const $ = R.$;
 let ready = false;
+let closeQuickWeight = null;
 export function applyStatus(s) {
   R.applyHomeStatus(s);
+  if (closeQuickWeight && ["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state))
+    closeQuickWeight();
   const power = micraPower(s.lineaMicra);
   $("homeMicraPower").textContent = power;
   $("homeMicraCleaning").textContent = R.formatMicraCleaning(s.lineaMicra);
@@ -98,6 +101,191 @@ export function init() {
         "cupProtectionEnabled",
         1,
       );
+  closeQuickWeight = initQuickWeight();
+}
+function initQuickWeight() {
+  const sheet = $("qwSheet"),
+    pen = $("shotGoalEdit"),
+    zone = $("qwZone"),
+    grab = $("qwGrab"),
+    head = $("qwHead");
+  if (!sheet || !pen || !zone || !grab || !head) return null;
+  const backdrop = $("qwBackdrop"),
+    scale = $("qwScale"),
+    num = $("qwNum"),
+    def = $("qwDef"),
+    resetBtn = $("qwReset"),
+    presetEl = $("qwPreset"),
+    doneBtn = $("qwDone");
+  // Firmware preset goal: uint8 whole grams, 10–200 (settings validation).
+  const MIN = 10,
+    MAX = 200,
+    PX_PER_G = 9,
+    BASE_G_PER_PX = 0.008,
+    SPEED_CAP = 10,
+    SPEED_K = 14;
+  const inner = document.createElement("div");
+  inner.className = "qwScaleIn";
+  const ticks = [];
+  for (let v = MIN; v <= MAX; v++) {
+    const tick = document.createElement("i");
+    if (v % 5 === 0) tick.className = "big";
+    inner.appendChild(tick);
+    ticks.push({ v, node: tick });
+  }
+  scale.appendChild(inner);
+  let value = MIN,
+    openValue = MIN;
+  const clamp = (v) => Math.max(MIN, Math.min(MAX, v));
+  const speedMul = (v) => 1 + Math.min(SPEED_CAP - 1, Math.abs(v || 0) * SPEED_K);
+  const paint = () => {
+    const width = scale.getBoundingClientRect().width,
+      shown = Math.round(value);
+    for (const tick of ticks) {
+      const p = width / 2 + (tick.v - value) * PX_PER_G;
+      tick.node.style.display = p > -6 && p < width + 6 ? "" : "none";
+      tick.node.style.left = p.toFixed(1) + "px";
+      tick.node.classList.toggle("now", tick.v === shown);
+    }
+    num.textContent = shown;
+    zone.setAttribute("aria-valuenow", shown);
+    zone.setAttribute("aria-valuetext", shown + " g");
+    def.textContent = openValue;
+    resetBtn.classList.toggle("show", shown !== openValue);
+  };
+  const open = () => {
+    const preset = R.presetState.items.find((x) => x.id === R.presetState.activeId);
+    if (!preset || !preset.goalWeightG) return;
+    value = openValue = clamp(preset.goalWeightG);
+    presetEl.textContent = preset.name || "";
+    paint();
+    sheet.inert = false;
+    backdrop.inert = false;
+    sheet.classList.add("open");
+    backdrop.classList.add("show");
+    document.body.classList.add("qwOpen");
+    doneBtn.focus();
+  };
+  const commit = async (grams) => {
+    try {
+      await R.ensureSettingsHydrated();
+      $("goalWeightG").value = String(grams);
+      await R.saveBrewPreset();
+    } catch (e) {
+      R.message(
+        R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_brew_settings"), e),
+        "error",
+      );
+    }
+  };
+  const close = (save) => {
+    if (!sheet.classList.contains("open")) return;
+    sheet.classList.remove("open");
+    backdrop.classList.remove("show");
+    sheet.inert = true;
+    backdrop.inert = true;
+    document.body.classList.remove("qwOpen");
+    if (!pen.hidden) pen.focus();
+    if (save && Math.round(value) !== openValue) commit(Math.round(value));
+  };
+  const drag = (node, handlers) => {
+    node.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      event.preventDefault();
+      try {
+        node.setPointerCapture(event.pointerId);
+      } catch {
+        /* synthetic pointers cannot be captured */
+      }
+      const ctx = handlers.start ? handlers.start(event) : {};
+      const move = (ev) => handlers.move && handlers.move(ev, ctx);
+      const end = (ev) => {
+        node.removeEventListener("pointermove", move);
+        node.removeEventListener("pointerup", end);
+        node.removeEventListener("pointercancel", end);
+        handlers.end && handlers.end(ev, ctx);
+      };
+      node.addEventListener("pointermove", move);
+      node.addEventListener("pointerup", end);
+      node.addEventListener("pointercancel", end);
+    });
+  };
+  const vel = { x: 0, t: 0, v: 0 };
+  drag(zone, {
+    start: (e) => {
+      vel.x = e.clientX;
+      vel.t = performance.now();
+      vel.v = 0;
+      return { x: e.clientX };
+    },
+    move: (e, ctx) => {
+      const dx = e.clientX - ctx.x;
+      ctx.x = e.clientX;
+      const now = performance.now(),
+        dt = Math.max(4, now - vel.t);
+      // Slow gestures stay surgical; sustained speed gears up to SPEED_CAP×
+      // so one drag can cross the range without releasing.
+      vel.v = 0.75 * vel.v + 0.25 * (Math.abs(e.clientX - vel.x) / dt);
+      vel.x = e.clientX;
+      vel.t = now;
+      value = clamp(value + dx * BASE_G_PER_PX * speedMul(vel.v));
+      paint();
+    },
+  });
+  const dismissDrag = {
+    start: (e) => {
+      sheet.classList.add("nodrag");
+      return { y: e.clientY, dy: 0 };
+    },
+    move: (e, ctx) => {
+      ctx.dy = Math.max(0, e.clientY - ctx.y);
+      sheet.style.transform = "translateY(" + ctx.dy + "px)";
+    },
+    end: (e, ctx) => {
+      sheet.classList.remove("nodrag");
+      if (ctx.dy > 90) {
+        sheet.style.transition = "transform .3s ease-in";
+        sheet.style.transform = "translateY(105%)";
+        setTimeout(() => {
+          sheet.style.transition = "";
+          sheet.style.transform = "";
+          close(true);
+        }, 290);
+      } else sheet.style.transform = "";
+    },
+  };
+  drag(grab, dismissDrag);
+  drag(head, dismissDrag);
+  zone.addEventListener("keydown", (e) => {
+    const step =
+      e.key === "ArrowUp" || e.key === "ArrowRight"
+        ? 1
+        : e.key === "ArrowDown" || e.key === "ArrowLeft"
+          ? -1
+          : e.key === "PageUp"
+            ? 10
+            : e.key === "PageDown"
+              ? -10
+              : 0;
+    if (!step) return;
+    e.preventDefault();
+    value = clamp(Math.round(value) + step);
+    paint();
+  });
+  pen.onclick = open;
+  doneBtn.onclick = () => close(true);
+  resetBtn.onclick = () => {
+    value = openValue;
+    paint();
+  };
+  backdrop.onclick = () => close(true);
+  sheet.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close(true);
+  });
+  addEventListener("resize", () => {
+    if (sheet.classList.contains("open")) paint();
+  });
+  return () => close(false);
 }
 function micraPower(m) {
   const p = m?.quality === "optimistic" && (m.optimisticOn ? "ON" : m.optimisticOff ? "OFF" : "");

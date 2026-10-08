@@ -6177,6 +6177,10 @@ function renderShotHero(d) {
       : "",
   );
   const noScale = d.scaleAvailable === false;
+  const goalEdit = $("shotGoalEdit");
+  if (goalEdit)
+    goalEdit.hidden =
+      d.live || noScale || !(goal > 0) || hero.classList.contains("fs");
   const label =
     t(
       "Weight",
@@ -8050,6 +8054,7 @@ export {
   saveMachineConfig,
   saveDateTimeConfig,
   saveBrewPreset,
+  ensureSettingsHydrated,
   settingsSectionOf,
   snapshotControls,
   restoreSnapshot,

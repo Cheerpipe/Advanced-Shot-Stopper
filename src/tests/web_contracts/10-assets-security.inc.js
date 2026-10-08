@@ -546,8 +546,12 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // The Home full-screen shot card adds two icon buttons, the hero body wrapper,
 // and their labels: ~0.8 KB of HTML source allowance; compressed asset and
 // firmware budgets stay fixed.
-if (htmlBytes > 85800) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 85800)`);
+// The Home quick target-weight sheet adds the hero pencil button and the
+// inert dialog markup (grab row, stacked preset/label header, value row with
+// Reset, tick-scale zone): ~1.4 KB of HTML source allowance; compressed asset
+// and firmware budgets stay fixed.
+if (htmlBytes > 87200) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 87200)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -655,8 +659,13 @@ if (htmlBytes > 85800) {
 // (332.1 KB of localized JS) with fixed headroom, and generated assets stayed
 // byte-identical modulo the cache-buster tag. New features raise it again per
 // the entries below.
-if (jsBytes > 336500) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 336500)`);
+// The Home quick target-weight sheet adds the pointer-drag controller with
+// velocity-adaptive acceleration, the tick-scale painter, grab dismiss,
+// keyboard stepping, and the hydrate→goal→save commit path in home.js plus
+// the hero pencil gate in runtime.js: ~6.3 KB of JS source allowance;
+// compressed asset and firmware limits stay fixed.
+if (jsBytes > 343000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 343000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -702,8 +711,11 @@ if (jsBytes > 336500) {
 // Include the same ~0.7 KB Diagnostic full-WebSocket allowance described above.
 // The 2026-10 JS reformat re-baselining described above also applies here:
 // 417.0 KB measured, headroom fixed at +6 KB.
-if (htmlBytes + jsBytes > 423500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 423500)`);
+// The Home quick target-weight sheet contributes the same ~6.3 KB of JS and
+// ~1.4 KB of HTML source allowance described above; compressed budgets stay
+// fixed.
+if (htmlBytes + jsBytes > 431500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 431500)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

@@ -150,7 +150,7 @@
   }
   const heroElements=new Map(),lookup=id=>{
     if(!heroElements.has(id))heroElements.set(id,{hidden:false,textContent:'',style:{setProperty(){}},
-      classList:{toggle(){}},setAttribute(){},replaceChildren(){}});
+      classList:{toggle(){},contains(){return false}},setAttribute(){},replaceChildren(){}});
     return heroElements.get(id);
   };
   const paint=new Function('$','buildShotSparkModel','formatShotEnded','ms',

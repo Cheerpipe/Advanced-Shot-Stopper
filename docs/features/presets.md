@@ -20,6 +20,21 @@ subsections remain available as collapsed groups.
 Once loaded, the available actions depend on the selected preset and whether
 editing is allowed.
 
+## Change the target weight from Home
+
+When the last shot card on Home shows a target (a scale shot, while the
+machine is idle), a small pencil sits next to the target weight. Tap it to
+open a sliding scale at the bottom of the screen:
+
+- Drag slowly to move one gram at a time; drag faster and the scale
+  accelerates so you can cross the range in a single gesture.
+- The target can be set from 10 g to 200 g, in whole grams.
+- **Reset** appears once you move away from the recipe's weight; tap it to go
+  back.
+- Closing the sheet — with **Done**, a swipe down, or tapping outside — saves
+  the new weight to the active recipe right away. The change is the same as
+  saving the target in Settings.
+
 ## Create or change a recipe
 
 1. Load the preset you want to use.
@@ -43,7 +58,8 @@ not the last remaining preset. The active preset survives reboot.
 | Home session | Quick Settings BBW affects the current workflow. Turning it off selects Manual without saving BBW off in the recipe. |
 | Home / Home Assistant active preset | Quick guard switches persist Fast, Slow, A→M, cup protection, and accidental-touch values only in the active preset. |
 
-To make an intentional recipe change permanent, edit and save it in Settings.
+To make an intentional recipe change permanent, edit and save it in Settings;
+the target weight alone can also be set from Home as described above.
 **Stop after sustained weight** is also saved per preset. New and factory-reset
 recipes enable it; Duplicate copies the source recipe's choice. Turning
 **Avoid accidental touch** off preserves that choice but disables the backup

@@ -406,8 +406,12 @@ const cssRoundTrip = zlib.gunzipSync(generated.cssGzip).toString('utf8');
 if (cssRoundTrip !== generated.css) {
   throw new Error('Generated gzip Web CSS does not round-trip to the minified CSS');
 }
-if (generated.gzip.length > 4096) {
-  throw new Error('Compressed Web UI shell HTML exceeds the 4 KiB gzip budget');
+// The Home quick target-weight sheet inlines its dialog markup into the Home
+// partial carried by the shell HTML (pencil button, inert sheet and backdrop):
+// +303 measured bytes. Cap raised to 4200; firmware image and OTA limits stay
+// fixed.
+if (generated.gzip.length > 4200) {
+  throw new Error('Compressed Web UI shell HTML exceeds the 4200-byte gzip budget');
 }
 if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
     !generated.html
@@ -427,8 +431,13 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // Transfer 100 bytes of unused shell allowance to the no-scale local clock.
 // The combined flash, firmware image and OTA limits remain unchanged.
 // Transfer another 400 shell bytes to the no-scale finish transition.
-if (generated.jsGzip.length > 3884) {
-  throw new Error('Compressed Web UI shell JS exceeds the 3884-byte gzip budget');
+// The Home quick target-weight sheet rides the eagerly inlined home module
+// (pointer-drag controller with velocity-adaptive acceleration, tick painter,
+// grab dismiss, keyboard stepping, hydrate→goal→save commit): +1231 measured
+// bytes over the transferred baseline. Cap raised to 4450; the combined flash
+// total stays fixed.
+if (generated.jsGzip.length > 4450) {
+  throw new Error('Compressed Web UI shell JS exceeds the 4450-byte gzip budget');
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -450,8 +459,11 @@ if (generated.jsGzip.length > 3884) {
 // raise the cap to 9550. The full-screen shot card presentation mode
 // (fixed landscape card, portrait rotation, fluid vmin sizing, and the two
 // corner icon buttons with safe-area-aware tap floors) raises the cap to 10300.
-if (generated.cssGzip.length > 10300) {
-  throw new Error('Compressed Web CSS exceeds the 10300-byte gzip budget');
+// The Home quick target-weight sheet frosted surface (backdrop, anchored
+// sheet, grab row, conditional Reset pill, masked tick strip) adds +817
+// measured bytes. Cap raised to 10950.
+if (generated.cssGzip.length > 10950) {
+  throw new Error('Compressed Web CSS exceeds the 10950-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -631,8 +643,12 @@ if (generated.icon48Gzip.length > 3500) {
 // unchanged (verified per variant); the new cache-buster tag digits alone
 // shift the gzipped total by +21 bytes, raising the measured combined to
 // 123815. Cap raised to 123900; firmware image and OTA limits stay fixed.
-if (generated.combined > 123900) {
-  throw new Error(`Combined Web UI gzip exceeds the 123900-byte flash budget (${generated.combined})`);
+// The Home quick target-weight sheet adds its reviewed combined allowance
+// (sheet JS in the shell chunk, frosted CSS, dialog markup in the Home
+// partial): 125976 measured. Cap raised to 126100; firmware image,
+// memory placement and OTA partitions stay fixed.
+if (generated.combined > 126100) {
+  throw new Error(`Combined Web UI gzip exceeds the 126100-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
