@@ -5973,18 +5973,12 @@ function applyStatsStream(message) {
 }
 // After the first view paints, subscribe whichever record page is not
 // standing yet so both datasets refresh in the background for the rest of
-// the session. The delay keeps the heavy multi-frame pages from contending
-// with first paint or immediate post-load interactions; compat mode never
-// loads record views.
-let recordsTimer = 0;
-function scheduleBackgroundRecordStreams() {
-  if (recordsTimer || compatMode) return;
-  recordsTimer = setTimeout(() => {
-    recordsTimer = 0;
-    if (!webUiPollingActive() || compatMode) return;
-    ensureStatsStream();
-    ensureHistoryStream();
-  }, 1500);
+// the session. The active view has already painted, so the record pages
+// cannot delay it; compat mode never loads record views.
+function ensureBackgroundRecordStreams() {
+  if (!webUiPollingActive() || compatMode) return;
+  ensureStatsStream();
+  ensureHistoryStream();
 }
 // Back from the background: resync the live socket; rebuild only if it died hidden.
 document.addEventListener("visibilitychange", () => {
@@ -8027,7 +8021,7 @@ export {
   stopLogStream,
   startHistoryStream,
   startStatsStream,
-  scheduleBackgroundRecordStreams,
+  ensureBackgroundRecordStreams,
   renderLog,
   clearLogView,
   loadMoreShots,

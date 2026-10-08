@@ -467,8 +467,8 @@ Leaving the view no longer unsubscribes it: the browser keeps the History
 window standing for the whole UI session, so arriving records update the page
 even while another view is open. Opening History with that live data paints
 straight from the cached page, and the page a URL load starts on is fetched
-first; any record page still not standing is subscribed in the background a
-moment after the first view finishes loading. After a reconnect or a tab
+first; any record page still not standing is subscribed in the background as
+soon as the first view finishes loading. After a reconnect or a tab
 refocus, the browser replays the subscription and resyncs, so the first open
 still starts from a fresh snapshot. Every accepted op forces the next frame to
 be a full snapshot of the requested window.

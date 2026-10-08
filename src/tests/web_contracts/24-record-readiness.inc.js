@@ -109,34 +109,31 @@
           : {snapshot: false, epoch: 6});
       assert.deepEqual(f.applied, [view], view + ': background frames update only the model');
     }
-    // The deferred background ensure subscribes only the record page that is
-    // not standing yet, stays idempotent, and never arms in compat mode (AC3).
+    // The background ensure subscribes only the record page that is not
+    // standing yet, fires immediately after the active view's load, stays
+    // idempotent, and never runs in compat mode (AC3).
     {
       const f = fixture('stats'), cold = f.start(), socket = f.sockets[0];
       socket.open(); f.mount(); await Promise.resolve();
       deliver(socket, 'stats', {});
       await cold;
-      const timers = f.timers.length;
-      f.context.scheduleBackgroundRecordStreams();
-      assert.equal(f.timers.length, timers + 1, 'the ensure arms one deferred timer');
-      f.context.scheduleBackgroundRecordStreams();
-      assert.equal(f.timers.length, timers + 1, 'arming again while pending is a no-op');
-      f.timers.at(-1)();
+      f.context.ensureBackgroundRecordStreams();
       assert.equal(socket.sent.filter(message => message.op === 'history' && message.on).length, 1,
-          'the ensure subscribes the non-active record page');
+          'the ensure subscribes the non-active record page at once');
       assert.equal(socket.sent.filter(message => message.op === 'stats' && message.on).length, 1,
           'the already-standing page is not re-subscribed');
       f.context.activeView = 'home';
-      f.context.scheduleBackgroundRecordStreams();
-      f.timers.at(-1)();
+      f.context.ensureBackgroundRecordStreams();
       assert.equal(socket.sent.filter(message => message.op === 'history' && message.on).length, 1,
           'a later ensure stays a no-op while both pages stand');
     }
     {
-      const f = fixture('admin'), timers = f.timers.length;
+      const f = fixture('admin'), socket = f.sockets[0];
+      socket.open();
       f.context.compatMode = true;
-      f.context.scheduleBackgroundRecordStreams();
-      assert.equal(f.timers.length, timers, 'compat mode never arms the background ensure');
+      f.context.ensureBackgroundRecordStreams();
+      assert.equal(socket.sent.filter(message => message.op === 'stats' || message.op === 'history').length, 0,
+          'compat mode never subscribes record pages');
     }
     // With both pages standing, navigating between record views sends no new
     // subscribe ops at all (AC1).

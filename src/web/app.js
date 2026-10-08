@@ -136,7 +136,7 @@ async function renderRoute(pathname) {
     // initial load is done, so they stay fresh without slowing first paint.
     if (ok) {
       R.hideHomeBoot(boot);
-      R.scheduleBackgroundRecordStreams();
+      R.ensureBackgroundRecordStreams();
     } else if (R.webUiPollingActive())
       R.message(__WEBUI_TEXT__("shell.unable_to_load_view"), "error");
   } catch (e) {

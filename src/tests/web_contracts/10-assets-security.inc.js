@@ -203,7 +203,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !codeIncludes(runtimeJs, "function showInactiveOverlay(){const el=$('webUiInactive');if(!el)return;hideHomeBoot();") ||
     !codeIncludes(runtimeJs, "location.replace(location.pathname+'?fw='+version)") ||
     !codeIncludes(appJsSource, 'boot=R.showPageBoot();R.stopViewPolls();') ||
-    !codeIncludes(appJsSource, 'if(ok){R.hideHomeBoot(boot);R.scheduleBackgroundRecordStreams();}')) {
+    !codeIncludes(appJsSource, 'if(ok){R.hideHomeBoot(boot);R.ensureBackgroundRecordStreams();}')) {
   throw new Error(
       'Every view must reuse the Home splash and fade immediately after data loads, preserving firmware reload and inactive overlay handoff');
 }
@@ -396,7 +396,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
           startDiagnosticStream() {}, stopDiagnosticStream() {},
           startStatsStream: () => {events.push('data'); return data.promise;},
           startHistoryStream: () => {events.push('data'); return data.promise;},
-          scheduleBackgroundRecordStreams() {},
+          ensureBackgroundRecordStreams() {},
           loadStatus: () => {events.push('status'); return status.promise;},
           startLogStream: () => {events.push('data'); return data.promise;},
           hideHomeBoot: () => events.push('fade'), message: () => events.push('error')}});

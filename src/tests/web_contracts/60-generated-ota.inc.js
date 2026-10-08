@@ -522,8 +522,8 @@ if (generated.cssGzip.length > 10300) {
 // flash total by ~280, but terser's renamed-identifier entropy shifts the
 // gzipped runtime by +30 bytes. Cap raised to 48550.
 // Session-standing Stats/History subscriptions (cache-hit view entry,
-// background model application, deferred background ensure, and the
-// per-stream sync markers) measure +65 compressed bytes on the sentinel
+// background model application, the immediate background ensure, and the
+// per-stream sync markers) measure +68 compressed bytes on the sentinel
 // build while deleting the per-view stop paths. Cap raised to 48700.
 if (sentinelRuntimeGzip.length > 48700) {
   throw new Error(`Compressed Web UI runtime JS exceeds the 48700-byte gzip budget (${sentinelRuntimeGzip.length})`);

@@ -996,7 +996,7 @@ if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
     codeIncludes(runtimeJs, "api('/api/v1/stats')") ||
     !codeIncludes(runtimeJs, 'function startStatsStream(') ||
     !codeIncludes(runtimeJs, 'function ensureStatsStream(') ||
-    !codeIncludes(runtimeJs, 'function scheduleBackgroundRecordStreams(') ||
+    !codeIncludes(runtimeJs, 'function ensureBackgroundRecordStreams(') ||
     // Navigation must settle a pending cold record entry so the serialized
     // poll gate never waits on an abandoned view's page.
     !codeIncludes(runtimeJs, 'if(activeView!==name){statsResolve?.(false);statsResolve=null;historyResolve?.(false);historyResolve=null;}') ||
@@ -1024,7 +1024,7 @@ if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
     !network.includes('\\"hasMore\\":%s') ||
     !network.includes('\\"total\\":%u') ||
     !codeIncludes(appJsSource, 'R.startStatsStream()') ||
-    !codeIncludes(appJsSource, 'R.scheduleBackgroundRecordStreams()') ||
+    !codeIncludes(appJsSource, 'R.ensureBackgroundRecordStreams()') ||
     // Backpressure pacing: the client guard covers a solo maximal row frame
     // (server rows are bounded by the external kJsonItem workspace), and a
     // tab returning from the background resyncs the owned socket instead of
