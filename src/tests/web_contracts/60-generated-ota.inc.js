@@ -436,8 +436,11 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // grab dismiss, keyboard stepping, hydrate→goal→save commit): +1231 measured
 // bytes over the transferred baseline. Cap raised to 4450; the combined flash
 // total stays fixed.
-if (generated.jsGzip.length > 4450) {
-  throw new Error('Compressed Web UI shell JS exceeds the 4450-byte gzip budget');
+// The ?edit_weight=1 URL launcher (preset-ready wait, admin-lock gate,
+// one-shot parameter strip, exposed open) adds +112 measured bytes on top.
+// Cap raised to 4600.
+if (generated.jsGzip.length > 4600) {
+  throw new Error('Compressed Web UI shell JS exceeds the 4600-byte gzip budget');
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.

@@ -53,6 +53,21 @@
       '["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state)'),
     'A machine shot must close the sheet');
 
+  // URL launcher: without shots the hero card is absent, so ?edit_weight=1 is
+  // the entry point. It must wait for the active preset and the admin lock,
+  // open once, and strip the one-shot parameter from the address bar.
+  qwAssert.ok(codeIncludes(qwHomeJs,
+      'new URLSearchParams(location.search).has("edit_weight")'),
+    'The edit_weight URL parameter must arm the quick-weight launcher');
+  qwAssert.ok(codeIncludes(qwHomeJs, 'quickWeight.open()') &&
+      codeIncludes(qwHomeJs, 'preset.goalWeightG && pen && !pen.disabled'),
+    'The armed launcher must open only once the preset is ready and unlocked');
+  qwAssert.ok(codeIncludes(qwHomeJs,
+      'history.replaceState(null, "", location.pathname)'),
+    'Opening from the URL must strip the one-shot parameter');
+  qwAssert.ok(codeIncludes(qwHomeJs, 'return { open, close };'),
+    'The controller must expose open for the URL launcher');
+
   qwAssert.ok(/position:fixed[^}]*bottom:0/.test(qwCssRule('qwSheet')) &&
       /backdrop-filter:blur\(18px\)/.test(css),
     'The sheet anchors to the viewport bottom with a frosted surface');
@@ -187,7 +202,7 @@
       qwDragZone.x = 0;
     };
 
-    qwInit();
+    const qwCtl = qwInit();
     qwEls.shotGoalEdit.onclick();
     qwAssert.ok(qwEls.qwSheet.classes.has('open'), 'The pencil must open the sheet');
     qwAssert.equal(qwEls.qwNum.textContent, '36', 'The sheet opens at the active preset goal');
@@ -239,6 +254,14 @@
     qwAssert.ok(!qwEls.qwSheet.classes.has('open'), 'Escape closes the sheet');
     await new Promise((r) => setTimeout(r, 0));
     qwAssert.equal(qwRuntime.hydrated, 0, 'An unchanged close must not hydrate or save');
+
+    // The URL launcher path: open() reopens at the preset goal without a hero.
+    qwCtl.open();
+    qwAssert.ok(qwEls.qwSheet.classes.has('open'),
+      'The exposed open must launch the sheet without the hero pencil');
+    qwAssert.equal(qwEls.qwNum.textContent, '36', 'A programmatic open starts at the preset goal');
+    qwFire(qwEls.qwSheet, 'keydown', {key: 'Escape'});
+    await new Promise((r) => setTimeout(r, 0));
 
     // Done commits the changed value through hydrate → goal field → save.
     qwEls.shotGoalEdit.onclick();

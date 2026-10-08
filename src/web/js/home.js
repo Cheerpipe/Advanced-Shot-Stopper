@@ -2,11 +2,24 @@
 import * as R from "./runtime.js?v=__FW_ASSET_TAG__";
 const $ = R.$;
 let ready = false;
-let closeQuickWeight = null;
+let quickWeight = null;
+let quickWeightWanted = false;
 export function applyStatus(s) {
   R.applyHomeStatus(s);
-  if (closeQuickWeight && ["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state))
-    closeQuickWeight();
+  const brewing = ["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state);
+  if (quickWeight && brewing) quickWeight.close();
+  // URL launcher: on a controller with no shots yet the hero card is absent,
+  // so ?edit_weight=1 is the only entry point. Wait for the active preset
+  // and the admin lock to settle, then open once and drop the parameter.
+  if (quickWeightWanted && quickWeight && !brewing) {
+    const preset = R.presetState.items.find((x) => x.id === R.presetState.activeId);
+    const pen = $("shotGoalEdit");
+    if (preset && preset.goalWeightG && pen && !pen.disabled) {
+      quickWeightWanted = false;
+      history.replaceState(null, "", location.pathname);
+      quickWeight.open();
+    }
+  }
   const power = micraPower(s.lineaMicra);
   $("homeMicraPower").textContent = power;
   $("homeMicraCleaning").textContent = R.formatMicraCleaning(s.lineaMicra);
@@ -101,7 +114,8 @@ export function init() {
         "cupProtectionEnabled",
         1,
       );
-  closeQuickWeight = initQuickWeight();
+  quickWeight = initQuickWeight();
+  quickWeightWanted = new URLSearchParams(location.search).has("edit_weight");
 }
 function initQuickWeight() {
   const sheet = $("qwSheet"),
@@ -285,7 +299,7 @@ function initQuickWeight() {
   addEventListener("resize", () => {
     if (sheet.classList.contains("open")) paint();
   });
-  return () => close(false);
+  return { open, close };
 }
 function micraPower(m) {
   const p = m?.quality === "optimistic" && (m.optimisticOn ? "ON" : m.optimisticOff ? "OFF" : "");
