@@ -17759,8 +17759,30 @@ void ff18_duplicate_timestamp_pairs() {
   CHECK(session.thresholdConfirmations == 1);
   publishWeight(threshold + 1.2f, pairMs, 1, 103);  // Same millisecond.
   CHECK(session.thresholdConfirmations == 1);  // dt=0 restarts, never confirms.
+  // SCALE_THRESHOLD_CONFIRMED names its firing law: 1 = confirmed direct
+  // samples, 2 = predicted end time. Capture right before the confirming
+  // sample so only the new event is inspected.
+  const uint32_t beforeDirect = debugLogLatestSequence();
   publishWeight(threshold + 1.4f, pairMs + 110, 1, 104);
   CHECK(session.thresholdConfirmations == 2);
+  DebugEvent direct[4] = {};
+  const size_t directCount = copyDebugEvents(beforeDirect, direct, 4);
+  bool sawDirectLaw = false;
+  for (size_t i = 0; i < directCount; ++i) {
+    sawDirectLaw |= direct[i].code == DebugCode::SCALE_THRESHOLD_CONFIRMED &&
+                    direct[i].argument2 == 1;
+  }
+  CHECK(sawDirectLaw);
+  debugLog.clear();
+  resetDirectStopConfirmation();  // Isolate the predicted-end law.
+  shot.expectedEndS = 0.0f;
+  CHECK(automaticScaleStopDue());
+  DebugEvent predicted[2] = {};
+  const size_t predictedCount = copyDebugEvents(0, predicted, 2);
+  CHECK(predictedCount > 0 &&
+        predicted[predictedCount - 1].code ==
+            DebugCode::SCALE_THRESHOLD_CONFIRMED &&
+        predicted[predictedCount - 1].argument2 == 2);
 }
 
 void at16_resting_finger_contained_by_direct_stop_law() {
@@ -17896,7 +17918,7 @@ void fw01_median_final_weight_filters_dip() {
   markScaleWorkerProgress();
   publishWeight(36.05f, hostMillis,
                 pendingFinalize.scaleConnectionGeneration, sequence++);
-  hostMillis = pendingFinalize.endedAtMs + 300;
+  hostMillis = pendingFinalize.endedAtMs + 400;
   markScaleWorkerProgress();
   publishWeight(36.1f, hostMillis,
                 pendingFinalize.scaleConnectionGeneration, sequence++);
@@ -17969,6 +17991,174 @@ void fw02_offset_floor_from_sensor_lag() {
   currentWeightReceivedAtMs = ++hostMillis;
   CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
   CHECK(fabsf(preset.bbwEwmaOffsetG - 0.276f) < 0.005f);
+
+  // A shot whose own mean rate is negative (final below the captured
+  // baseline, e.g. a tare shift) floors at zero: the offset converges freely.
+  preset.bbwEwmaOffsetG = 0.20f;
+  preparePendingBbwForTest();
+  pendingFinalize.offsetAnalysis = true;
+  pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
+  pendingFinalize.scaleBaselineReady = true;
+  pendingFinalize.scaleBaselineG = 36.5f;
+  pendingFinalize.scaleConnectionGeneration =
+      getScaleLinkSnapshot().connectionGeneration;
+  pendingFinalize.weightOffsetG = 0.20f;
+  pendingFinalize.goalWeightG = 36;
+  pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
+  pendingFinalize.endedAtMs = hostMillis;
+  pendingFinalize.durationDs = 300;
+  pendingFinalize.firstDropDs = 100;
+  currentWeight = 36.2f;
+  ++currentWeightSequence;
+  currentWeightReceivedAtMs = ++hostMillis;
+  CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
+  CHECK(fabsf(preset.bbwEwmaOffsetG -
+              (0.20f + (preset.bbwEwmaAlpha / 100.0f) * 0.2f)) < 0.005f);
+
+  // First drop equal to the duration leaves no measurable brew span: the
+  // rate is unavailable and the 0.8 g/s prior floors the offset again.
+  preset.bbwEwmaOffsetG = 0.20f;
+  preparePendingBbwForTest();
+  pendingFinalize.offsetAnalysis = true;
+  pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
+  pendingFinalize.scaleBaselineReady = true;
+  pendingFinalize.scaleBaselineG = 0.0f;
+  pendingFinalize.scaleConnectionGeneration =
+      getScaleLinkSnapshot().connectionGeneration;
+  pendingFinalize.weightOffsetG = 0.20f;
+  pendingFinalize.goalWeightG = 36;
+  pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
+  pendingFinalize.endedAtMs = hostMillis;
+  pendingFinalize.durationDs = 300;
+  pendingFinalize.firstDropDs = 300;  // brewS == 0 -> rate unavailable.
+  currentWeight = 36.05f;
+  ++currentWeightSequence;
+  currentWeightReceivedAtMs = ++hostMillis;
+  CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
+  CHECK(fabsf(preset.bbwEwmaOffsetG - 0.552f) < 0.005f);
+}
+
+void ff19_foreign_generation_cannot_latch_first_drop() {
+  // First-flow detection is fenced behind the connection generation that
+  // owns the cycle: a reconnecting scale's samples must never latch a first
+  // drop, while the owned connection still fires on the same shape.
+  startFirstFlowBrew();
+  CHECK(session.ownedConnectionGeneration != 0);
+  const uint32_t foreign = session.ownedConnectionGeneration + 1U;
+  publishWeight(0.40f, hostMillis + 100, foreign, 900);
+  publishWeight(0.50f, hostMillis + 100, foreign, 901);
+  CHECK(session.firstDropMs == 0);
+  CHECK(session.firstFlow.phase == FirstFlowPhase::SEEKING);
+  CHECK(session.firstFlow.confirmations == 0);  // FSM never stepped.
+  publishWeight(0.40f, hostMillis + 100);
+  publishWeight(0.50f, hostMillis + 100);
+  CHECK(session.firstDropMs != 0);
+}
+
+void ff20_seeking_fa_telemetry_args_and_rate_limit() {
+  // A streak that dies sub-threshold emits FIRST_DROP_SEEKING_FA carrying
+  // the effective threshold (cg) and sigma-hat (cg), and never more than
+  // one event per second — a noisy counter must not evict the real drop.
+  startFirstFlowBrew();
+  CHECK(scaleProfiler().hostStartNoFlash(hostMillis));
+  for (int i = 0; i < 8; ++i) {  // Warm sigma-hat with +/-0.2 g idle noise.
+    publishWeight(i % 2 ? -0.2f : 0.2f, hostMillis + 100);
+  }
+  CHECK(session.firstFlow.noiseSamples == FIRST_DROP_NOISE_WARMUP_SAMPLES);
+  publishWeight(0.7f, hostMillis + 100);  // Streak starts above 3*sigma-hat.
+  publishWeight(0.0f, hostMillis + 100);  // Death -> FA #1.
+  publishWeight(0.7f, hostMillis + 100);  // Second streak dies inside 1 s...
+  publishWeight(0.0f, hostMillis + 100);  // ...rate-limited away.
+  publishWeight(0.7f, hostMillis + 1000);
+  publishWeight(0.0f, hostMillis + 100);  // Death >= 1 s later -> FA #2.
+  CHECK(session.firstDropMs == 0);        // Nothing here is a real drop.
+  uint32_t faEvents = 0;
+  uint32_t arg1 = 0, arg2 = 0;
+  for (uint32_t i = 0; i < scaleProfiler().hostRecordCount(); ++i) {
+    const auto row = scaleProfiler().hostRecord(i);
+    if (row.kind == static_cast<uint16_t>(ScaleProfileEvent::FIRST_DROP_SEEKING_FA)) {
+      ++faEvents;
+      arg1 = row.arg1;
+      arg2 = row.arg2;
+    }
+  }
+  CHECK(faEvents == 2);
+  // Warmup window is the idle zero plus seven +/-0.2 g samples
+  // (sigma-hat ~0.187 g), then one EWMA step (~0.188 g): the floor engages
+  // at ~3 x 0.188 g = 56 cg with sigma-hat 18 cg — never the fixed 30 cg.
+  CHECK(arg1 >= 55 && arg1 <= 57);
+  CHECK(arg2 >= 17 && arg2 <= 19);
+  scaleProfiler().hostStop(ScaleProfilerStopReason::USER, hostMillis);
+}
+
+void fw03_dense_tail_decimates_to_reachable_median() {
+  // Dense ~10 Hz streams are decimated to one accepted sample per
+  // POST_STOP_TAIL_SAMPLE_SPACING_MS (250 ms), so a tail of at least ~1.2 s
+  // fills the ring and the median engages at the reference cadence; a short
+  // dense burst that cannot reach the coverage window still falls back to
+  // the running max. Pin both sides so neither constant moves silently.
+  {
+    // Short 0.6 s burst at 10 Hz: only three decimated samples fit.
+    PendingShotFinalize burst;
+    const float shortTail[] = {36.0f, 36.4f, 34.6f, 34.7f, 34.8f,
+                               34.9f, 35.0f};
+    uint32_t atMs = 10000;
+    for (float sample : shortTail) {
+      notePostStopTailSample(burst, sample, atMs);
+      atMs += 100;
+    }
+    CHECK(burst.tailCount == 3);
+    CHECK(fabsf(postStopFinalWeightG(burst, 0.0f) - 36.4f) < 0.01f);
+    // 1.5 s at 10 Hz: accepted every 300 ms -> five samples spanning 1.2 s,
+    // and a single splash sample cannot own the result.
+    PendingShotFinalize dense;
+    const float longTail[] = {35.0f, 36.4f, 35.0f, 34.8f, 35.0f, 35.0f,
+                              34.9f, 35.0f, 35.0f, 35.1f, 35.0f, 35.0f,
+                              35.2f, 35.2f, 35.2f, 35.2f};
+    atMs = 10000;
+    for (float sample : longTail) {
+      notePostStopTailSample(dense, sample, atMs);
+      atMs += 100;
+    }
+    CHECK(dense.tailCount == POST_STOP_TAIL_SAMPLE_COUNT);
+    // Accepted every 300 ms and the ring keeps sliding: 34.8, 34.9, 35.1,
+    // 35.2, 35.2 -> median 35.1, not the 36.4 splash the running max
+    // would report.
+    CHECK(fabsf(postStopFinalWeightG(dense, 0.0f) - 35.1f) < 0.01f);
+  }
+  // Integration: the same 1.5 s dense tail through the real drip hold.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  startCycle();
+  advanceToBrew();
+  session.startedWithScale = true;
+  session.scaleBaselineReady = true;
+  endBbwProtectionForTests();
+  publishControlRamp(1.0f, 30.0f, 0.5f, 100, 10);
+  schedulePendingShotFinalize(EndReason::SCALE_THRESHOLD, 30000);
+  session.active = false;
+  pendingFinalize.dripDelayMs = 1800;
+  pendingFinalize.lastKnownWeightG = 34.5f;
+  pendingFinalize.lastKnownWeightValid = true;
+  pendingFinalize.endedAtMs = hostMillis;
+  uint32_t sequence = pendingFinalize.curveLastSequence + 1U;
+  const float tail[] = {35.0f, 36.4f, 35.0f, 34.8f, 35.0f, 35.0f,
+                        34.9f, 35.0f, 35.0f, 35.1f, 35.0f, 35.0f,
+                        35.2f, 35.2f, 35.2f, 35.2f};
+  uint32_t atMs = pendingFinalize.endedAtMs + 100;
+  for (float sample : tail) {
+    hostMillis = atMs;
+    markScaleWorkerProgress();
+    publishWeight(sample, atMs, pendingFinalize.scaleConnectionGeneration,
+                  sequence++);
+    atMs += 100;  // 10 Hz.
+  }
+  CHECK(pendingFinalize.tailCount == POST_STOP_TAIL_SAMPLE_COUNT);
+  hostMillis = pendingFinalize.endedAtMs + pendingFinalize.dripDelayMs + 1;
+  pendingShotFinalizeTask();
+  ShotLogRecord record[1] = {};
+  CHECK(shotLog.copyNewestFirst(record, 1) == 1);
+  CHECK(fabsf(record[0].actualWeightCg / 100.0f - 35.1f) < 0.02f);
 }
 
 void ff02_chorrito_fires_on_second_sample() {
@@ -19547,9 +19737,12 @@ const TestCase testCases[] = {
     {"FF12", ff12_cupmin_parameter_gates_touch_and_residual},
     {"FF17", ff17_noise_adaptive_threshold_and_rate_gate},
     {"FF18", ff18_duplicate_timestamp_pairs},
+    {"FF19", ff19_foreign_generation_cannot_latch_first_drop},
+    {"FF20", ff20_seeking_fa_telemetry_args_and_rate_limit},
     {"AT16", at16_resting_finger_contained_by_direct_stop_law},
     {"FW01", fw01_median_final_weight_filters_dip},
     {"FW02", fw02_offset_floor_from_sensor_lag},
+    {"FW03", fw03_dense_tail_decimates_to_reachable_median},
     {"FF13", ff13_rinse_first_drop_goes_through_stopper},
     {"FF14", ff14_no_scale_first_drop_does_not_skip_stopper},
     {"FF15", ff15_orchestrate_post_tare_holds_cup_transitions},

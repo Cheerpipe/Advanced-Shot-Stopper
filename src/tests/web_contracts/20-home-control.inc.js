@@ -181,7 +181,16 @@
   paint({...card,scaleAvailable:true});
   if(lookup('shotHeroWeight').textContent!=='2.0 g'||lookup('shotHeroGoal').textContent!==' / 36 g'||
       lookup('shotHeroElapsed').hidden)throw new Error('A scale shot must keep the weight layout');
-  const chips=['Elapsed','Drop','Flow','Error','Mode'].map(id=>html.indexOf('id="shotHero'+id+'"'));
+  paint({...card,touchHold:true});
+  if(lookup('shotHeroTouch').hidden||lookup('shotHeroTouch').textContent!=='touch hold')
+    throw new Error('A live sustained touch must surface on the shot hero');
+  paint({...card,touchHold:true,live:false});
+  if(!lookup('shotHeroTouch').hidden)throw new Error('The touch-hold chip must be live-only');
+  paint({...card,touchHold:true,scaleAvailable:false,weight:null,elapsedMs:27400,firstDropMs:2000,averageFlowGps:1.5});
+  if(!lookup('shotHeroTouch').hidden)throw new Error('A shot without a scale must never claim a touch hold');
+  paint({...card});
+  if(!lookup('shotHeroTouch').hidden)throw new Error('The touch-hold chip needs the firmware flag');
+  const chips=['Elapsed','Drop','Flow','Error','Touch','Mode'].map(id=>html.indexOf('id="shotHero'+id+'"'));
   if(chips.some((pos,i)=>pos<0||(i&&pos<=chips[i-1])))throw new Error('Home shot chips must keep their reading order');
   const apply = new Function(runtimeJs.slice(runtimeJs.indexOf('function uiStreamFrame('),
     runtimeJs.indexOf('function startUiStream('))+';return uiStreamFrame;')();

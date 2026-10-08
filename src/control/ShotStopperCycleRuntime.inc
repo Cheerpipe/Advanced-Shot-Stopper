@@ -604,6 +604,15 @@ void profileScaleWeightDecision(bool accepted, DebugCode reason, float weight,
 
 void notePostStopTailSample(PendingShotFinalize &pending, float weightG,
                             uint32_t atMs) {
+  pending.tailMaxG = pending.tailCount == 0
+                         ? weightG
+                         : fmaxf(pending.tailMaxG, weightG);
+  if (pending.tailCount > 0 &&
+      static_cast<uint32_t>(
+          atMs - pending.tailAtMs[pending.tailCount - 1U]) <
+          POST_STOP_TAIL_SAMPLE_SPACING_MS) {
+    return;
+  }
   if (pending.tailCount < POST_STOP_TAIL_SAMPLE_COUNT) {
     pending.tailG[pending.tailCount] = weightG;
     pending.tailAtMs[pending.tailCount] = atMs;
@@ -616,8 +625,6 @@ void notePostStopTailSample(PendingShotFinalize &pending, float weightG,
     pending.tailG[POST_STOP_TAIL_SAMPLE_COUNT - 1U] = weightG;
     pending.tailAtMs[POST_STOP_TAIL_SAMPLE_COUNT - 1U] = atMs;
   }
-  pending.tailMaxG = pending.tailCount == 1 ? weightG
-                                            : fmaxf(pending.tailMaxG, weightG);
 }
 
 // Median of the plausible post-stop tail; early post-stop samples are still
@@ -658,7 +665,8 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                       uint32_t packetSequence,
                                       uint32_t connectionGeneration,
                                       uint32_t captureSequence = 0) {
-  const ProfileControlObservation profile(captureSequence, connectionGeneration);  const bool touchProvenanceValid = packetSequence != 0 && connectionGeneration != 0;
+  const ProfileControlObservation profile(captureSequence, connectionGeneration);
+  const bool touchProvenanceValid = packetSequence != 0 && connectionGeneration != 0;
   const TouchStopEvidence previousTouchStop = session.touchStop;
   session.touchStop = {};  // Only a qualifying touch sample may retain evidence.
   if (!std::isfinite(weight) || fabsf(weight) > MAX_PARSED_WEIGHT_G) {

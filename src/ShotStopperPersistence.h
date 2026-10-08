@@ -40,17 +40,28 @@ inline void ensurePersistedPresetBank(PersistedSettings &settings) {
 // Set when the most recently ADOPTED settings record aliased blobs that still
 // stored the removed regression mode (bbwAlgorithm==0); boot consumes it to
 // invalidate BBW learning so post-migration guards fail safe for one shot.
-// Only loadPersistedSettings sets it, from the slot that actually won — a
+// bbwLegacyAliasedPresetIds scopes that invalidation to the presets that
+// actually aliased — never-aliased presets keep their learning evidence even
+// while a migrated slot waits for its first post-migration persist.
+// Only loadPersistedSettings sets these, from the slot that actually won — a
 // stale losing slot or a probe read must not re-trigger invalidation.
 inline bool bbwLegacyAliasesApplied = false;
+inline uint8_t bbwLegacyAliasedPresetIds[MAX_SHOT_PRESETS] = {};
+inline uint8_t bbwLegacyAliasedPresetCount = 0;
 
 // Repair-before-validate: settings slots persisted by pre-removal firmware
 // must never surface as invalid. The regression algorithm id becomes EWMA,
 // and the EWMA offset seeds from the regression offset the user actually
 // brewed with — but only while the EWMA field still holds its untouched
 // default, so a user who already ran EWMA keeps that learning. Returns
-// whether anything changed so the caller can re-sign the checksum.
-inline bool repairRemovedBbwLegacyAliases(PersistedSettings &settings) {
+// whether anything changed so the caller can re-sign the checksum; aliased
+// preset ids are reported for the scoped boot invalidation.
+inline bool repairRemovedBbwLegacyAliases(
+    PersistedSettings &settings, uint8_t *aliasedPresetIds = nullptr,
+    uint8_t *aliasedPresetCount = nullptr) {
+  if (aliasedPresetCount != nullptr) {
+    *aliasedPresetCount = 0;
+  }
   bool repaired = false;
   if (settings.runtime.bbwAlgorithm == 0) {
     settings.runtime.bbwAlgorithm =
@@ -68,6 +79,10 @@ inline bool repairRemovedBbwLegacyAliases(PersistedSettings &settings) {
     }
     preset.bbwProfileVersion = BBW_PROFILE_VERSION;
     repaired = true;
+    if (aliasedPresetIds != nullptr && aliasedPresetCount != nullptr &&
+        *aliasedPresetCount < MAX_SHOT_PRESETS) {
+      aliasedPresetIds[(*aliasedPresetCount)++] = preset.id;
+    }
   }
   return repaired;
 }
@@ -125,10 +140,8 @@ inline PersistedSettings &persistedSettingsScratch() {
 
 inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *key,
                              PersistedSettings &settings,
-                             bool *legacyAliased = nullptr) {
-  if (legacyAliased != nullptr) {
-    *legacyAliased = false;
-  }
+                             uint8_t *aliasedPresetIds = nullptr,
+                             uint8_t *aliasedPresetCount = nullptr) {
   if (!preferences.isKey(key) ||
       preferences.getBytesLength(key) != sizeof(PersistedSettings)) {
     return false;
@@ -151,11 +164,9 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
     settings.schemaVersion = CONFIG_SCHEMA_VERSION;
     settings.checksum = persistedSettingsChecksum(settings);
   }
-  if (repairRemovedBbwLegacyAliases(settings)) {
+  if (repairRemovedBbwLegacyAliases(settings, aliasedPresetIds,
+                                    aliasedPresetCount)) {
     settings.checksum = persistedSettingsChecksum(settings);
-    if (legacyAliased != nullptr) {
-      *legacyAliased = true;
-    }
   }
   if (!validPersistedSettings(settings)) return false;
   return true;
@@ -178,29 +189,40 @@ inline bool loadPersistedSettings(PersistedSettings &settings) {
     return false;
   }
   PersistedSettings &scratch = persistedSettingsScratch();
-  bool slotAAliased = false;
+  uint8_t slotAIds[MAX_SHOT_PRESETS];
+  uint8_t slotACount = 0;
   bool loaded = readSettingsSlot(preferences, SETTINGS_SLOT_A, scratch,
-                                 &slotAAliased);
+                                 slotAIds, &slotACount);
   uint32_t loadedRevision = 0;
-  bool adoptedAliased = false;
+  const uint8_t *adoptedIds = slotAIds;
+  uint8_t adoptedCount = slotACount;
   if (loaded) {
     settings = scratch;
     loadedRevision = scratch.storageRevision;
-    adoptedAliased = slotAAliased;
   }
-  bool slotBAliased = false;
-  if (readSettingsSlot(preferences, SETTINGS_SLOT_B, scratch, &slotBAliased) &&
+  uint8_t slotBIds[MAX_SHOT_PRESETS];
+  uint8_t slotBCount = 0;
+  if (readSettingsSlot(preferences, SETTINGS_SLOT_B, scratch, slotBIds,
+                       &slotBCount) &&
       (!loaded || secondRevisionIsNewer(loadedRevision,
                                         scratch.storageRevision))) {
     settings = scratch;
     loadedRevision = scratch.storageRevision;
     loaded = true;
-    adoptedAliased = slotBAliased;
+    adoptedIds = slotBIds;
+    adoptedCount = slotBCount;
   }
   preferences.end();
   // Only the adopted record may re-arm the one-shot migration invalidation;
-  // a stale losing slot or later probe read must not.
-  bbwLegacyAliasesApplied = loaded && adoptedAliased;
+  // a stale losing slot or later probe read must not. The id list scopes the
+  // invalidation to presets that actually aliased.
+  bbwLegacyAliasesApplied = loaded && adoptedCount > 0;
+  bbwLegacyAliasedPresetCount = bbwLegacyAliasesApplied ? adoptedCount : 0;
+  if (bbwLegacyAliasesApplied) {
+    for (uint8_t i = 0; i < adoptedCount; ++i) {
+      bbwLegacyAliasedPresetIds[i] = adoptedIds[i];
+    }
+  }
   if (loaded) durableTimezoneSaved().store(settings.runtime.timezoneId[0] != '\0');
   unlockSettingsNvs();
   return loaded;

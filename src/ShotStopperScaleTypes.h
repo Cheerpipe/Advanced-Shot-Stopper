@@ -362,8 +362,13 @@ constexpr size_t MAX_SHOT_DATAPOINTS = 32;
 // Post-stop drip tail: the settled final weight is the median of the last
 // POST_STOP_TAIL_SAMPLE_COUNT plausible samples once they span at least
 // POST_STOP_TAIL_MIN_COVERAGE_MS; sparser tails fall back to the running max.
+// Dense streams are decimated to one sample per spacing window so the ring
+// actually reaches the required coverage (~10 Hz scales would otherwise span
+// only 0.4 s and the median could never engage).
 constexpr size_t POST_STOP_TAIL_SAMPLE_COUNT = 5;
 constexpr uint32_t POST_STOP_TAIL_MIN_COVERAGE_MS = 1000;
+constexpr uint32_t POST_STOP_TAIL_SAMPLE_SPACING_MS =
+    POST_STOP_TAIL_MIN_COVERAGE_MS / (POST_STOP_TAIL_SAMPLE_COUNT - 1U);
 
 enum class CupPresenceState : uint8_t {
   ABSENT = 0,

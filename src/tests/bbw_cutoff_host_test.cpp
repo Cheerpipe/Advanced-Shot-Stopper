@@ -147,8 +147,12 @@ int main() {
                            sizeof(legacyBlob));
   PersistedSettings reloaded;
   assert(loadPersistedSettings(reloaded));
-  // The adopted record carried aliases; boot may invalidate learning once.
+  // The adopted record carried aliases; boot may invalidate learning once,
+  // scoped to exactly the presets that aliased (both factory presets here).
   assert(bbwLegacyAliasesApplied);
+  assert(bbwLegacyAliasedPresetCount == 2);
+  assert(bbwLegacyAliasedPresetIds[0] == legacyBlob.presets.presets[0].id);
+  assert(bbwLegacyAliasedPresetIds[1] == legacyBlob.presets.presets[1].id);
   // A clean newer slot A with a stale legacy losing slot B adopts A and must
   // NOT re-arm the migration flag on later boots.
   PersistedSettings cleanBlob = settings;
@@ -158,6 +162,25 @@ int main() {
                            sizeof(cleanBlob));
   assert(loadPersistedSettings(reloaded));
   assert(!bbwLegacyAliasesApplied);
+  assert(bbwLegacyAliasedPresetCount == 0);
+  // The losing slot itself still stores the alias: keep a stale legacy B
+  // under the newer clean A and re-verify the flag stays disarmed while B's
+  // alias-repair is only probed, never adopted.
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_B, &legacyBlob,
+                           sizeof(legacyBlob));
+  assert(loadPersistedSettings(reloaded));
+  assert(!bbwLegacyAliasesApplied);
+  assert(bbwLegacyAliasedPresetCount == 0);
+  assert(reloaded.storageRevision == cleanBlob.storageRevision);
+  // A legacy record that WINS adoption (newer losing-clean B) re-arms the
+  // one-shot invalidation: only the adopted record may arm it.
+  legacyBlob.storageRevision = cleanBlob.storageRevision + 5U;
+  legacyBlob.checksum = persistedSettingsChecksum(legacyBlob);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_B, &legacyBlob,
+                           sizeof(legacyBlob));
+  assert(loadPersistedSettings(reloaded));
+  assert(bbwLegacyAliasesApplied);
+  assert(reloaded.presets.presets[0].bbwAlgorithm == 1);
   // Restore the adopted-alias case for the seed checks below.
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacyBlob,
                            sizeof(legacyBlob));
@@ -305,6 +328,22 @@ int main() {
     assert(fabsf(acaiaLagS * 0.8f - 0.552f) < 0.005f);  // Documented floor
     assert(kScaleProtocolAcaiaLegacy.features.sensorLagMs ==
            kScaleProtocolAcaia.features.sensorLagMs);
+    // Every shipping protocol carries a prior: a zero would silently
+    // disable the learned-offset lag floor for that scale.
+    for (const ScaleProtocol *protocol : {&kScaleProtocolAcaiaLegacy,
+                                          &kScaleProtocolAcaia,
+                                          &kScaleProtocolGenericFf11,
+                                          &kScaleProtocolFelicita,
+                                          &kScaleProtocolEclair,
+                                          &kScaleProtocolDecent,
+                                          &kScaleProtocolDifluid,
+                                          &kScaleProtocolMyscale,
+                                          &kScaleProtocolWeighMyBru,
+                                          &kScaleProtocolVaria,
+                                          &kScaleProtocolEureka}) {
+      assert(protocol->features.sensorLagMs >= 200 &&
+             protocol->features.sensorLagMs <= 1000);
+    }
   }
 
   std::cout << "BBW numeric, adaptation, state, and history checks passed\n";

@@ -1642,3 +1642,30 @@ if (html.includes('id="debugPanel"') ||
     network.includes('StatusPage::Debug')) {
   throw new Error('Debug tab/API must be removed from Web UI and network handlers');
 }
+
+{
+  // Cup-minimum setup guidance: a live platform weight between 0.5 g and
+  // the configured minimum must surface the hint with both placeholders
+  // substituted; everything else keeps it hidden without crashing.
+  const assert = require('assert');
+  let minimumCupWeightG = 10;
+  const hint = {hidden: true, textContent: ''};
+  const guidance = new Function('$', 'R',
+    blockAt(viewJs.settings, 'function updateCupMinGuidance(') +
+    ';return updateCupMinGuidance;')(
+    id => id === 'cupMinGuidance' ? hint : null,
+    {number: () => minimumCupWeightG});
+  guidance({cupSetup: {observedG: 4.21}});
+  assert(!hint.hidden && hint.textContent.includes('4.2') &&
+      hint.textContent.includes('10.0') &&
+      !hint.textContent.includes('{x}') && !hint.textContent.includes('{n}'));
+  for (const status of [{}, {cupSetup: {}}, {cupSetup: {observedG: null}},
+    {cupSetup: {observedG: 0.4}}, {cupSetup: {observedG: 12}}]) {
+    guidance(status);
+    assert(hint.hidden, 'Guidance must hide for absent, tiny and over-minimum cups');
+  }
+  minimumCupWeightG = Number.NaN;
+  guidance({cupSetup: {observedG: 4.2}});
+  assert(hint.hidden, 'An unparseable minimum must keep the guidance hidden');
+  assert(settingsHtml.includes('id="cupMinGuidance" class="fieldHint" hidden'));
+}

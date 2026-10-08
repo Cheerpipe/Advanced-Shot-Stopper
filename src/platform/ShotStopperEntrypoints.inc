@@ -322,12 +322,15 @@ void setup() {
     ensureShotPresetBank(presetBank, runtimeConfig.retareWindowMs,
                          runtimeConfig.autoRetare);
     if (bbwLegacyAliasesApplied) {
-      // Aliased regression presets must not accept learning snapshotted
-      // against their pre-migration identity; fail safe for one shot.
-      for (uint8_t i = 0; i < presetBank.count && i < MAX_SHOT_PRESETS; ++i) {
-        bbwLearningBank.invalidate(presetBank.presets[i].id, presetBank, 1);
+      // Aliased presets must not accept learning snapshotted against their
+      // pre-migration identity; fail safe for one shot. Never-aliased
+      // presets keep their evidence even before the first re-persist.
+      for (uint8_t i = 0; i < bbwLegacyAliasedPresetCount &&
+                         i < MAX_SHOT_PRESETS; ++i) {
+        bbwLearningBank.invalidate(bbwLegacyAliasedPresetIds[i], presetBank, 1);
       }
       bbwLegacyAliasesApplied = false;
+      bbwLegacyAliasedPresetCount = 0;
     }
     scaleWorkerLoadPreferred(persistedSettings.preferredScaleMac,
                              persistedSettings.preferredScaleName,
