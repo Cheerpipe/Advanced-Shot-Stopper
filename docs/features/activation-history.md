@@ -50,8 +50,11 @@ a brew.
 ## In the Web UI
 
 Open the **History** page (next to Stats) to browse the diary. The entries and
-the sort and Clear controls stay hidden behind a loading animation until the
-initial data is ready. The list loads
+the sort and Clear controls normally appear at once with their data; a brief
+loading animation covers them only while the device has not sent the initial
+data yet — for example right after the interface starts or after a dropped
+connection. From then on the diary keeps refreshing in the background while
+you are on other pages, so History always opens instantly. The list loads
 **20 entries at a time** as you scroll. New or deleted entries refresh the list
 automatically from the first page; scroll to load more again. Sort by date,
 newest or oldest first, from the sort control at the top. Each card leads with

@@ -16,6 +16,15 @@ let activeView = "",
   viewSeq = 0;
 let statusTimer = 0;
 function setActiveView(name, ready = Promise.resolve()) {
+  // A cold record entry abandoned by navigation must not keep holding the
+  // serialized poll gate until its page lands; settle it like the old
+  // view-scoped stop paths did. The subscriptions themselves stay standing.
+  if (activeView !== name) {
+    statsResolve?.(false);
+    statsResolve = null;
+    historyResolve?.(false);
+    historyResolve = null;
+  }
   activeView = name || "";
   if (shotFsActive && activeView !== "home") exitShotFullScreen();
   viewReady = ready;
@@ -1638,7 +1647,7 @@ function armListSentinel(id, onLoad) {
   }).observe(el);
 }
 function refreshShots() {
-  return shotStatsViewActive() ? startStatsStream() : Promise.resolve(false);
+  return shotStatsViewActive() ? startStatsStream(true) : Promise.resolve(false);
 }
 async function exportShotsCsv() {
   try {
@@ -1902,7 +1911,7 @@ const loadMoreHistory = () => {
     });
   }
 };
-const refreshHistory = () => (historyViewActive() ? startHistoryStream() : Promise.resolve(false));
+const refreshHistory = () => (historyViewActive() ? startHistoryStream(true) : Promise.resolve(false));
 async function clearActivationHistory() {
   if (!confirm(__WEBUI_TEXT__("runtime.clear_all_recorded_activation_history_this"))) return;
   return withCommandGate(async () => {
@@ -4889,6 +4898,9 @@ function resetUiStream() {
   statsLastSeq = 0;
   statsResolve?.(false);
   statsExportResolve?.(null);
+  // A closed socket ends every subscription generation: nothing stays synced
+  // until socket.onopen replays the wanted subscriptions.
+  historySynced = statsSynced = false;
   shotStale = true;
   shotResync = false;
   invalidateHomeStream();
@@ -5183,6 +5195,7 @@ function requestShotResync() {
   statsFetchMark = null;
   statsPage = null;
   statsExportResolve?.(null);
+  historySynced = statsSynced = false;
   homeResolve(false);
   homeReady = new Promise((r) => (homeResolve = r));
   clearTimeout(shotSetup);
@@ -5581,7 +5594,11 @@ function diagSnapshotOk(s) {
   );
 }
 // Request IDs separate the standing History window from scroll fetches.
+// historySynced marks a cached model that reflects a completed page
+// from the current subscription generation, so warm view entries can paint
+// from it; every subscribe or resync drops it until a page lands again.
 let historyStreamWanted = false,
+  historySynced = false,
   historyFetchOffset = -1,
   historyStreamBoot = 0,
   historyStreamEpoch = 0,
@@ -5592,6 +5609,7 @@ let historyStreamWanted = false,
 function historySendSubscribe() {
   if (!shotWs || shotWs.readyState !== 1) return;
   historyFetchOffset = -1;
+  historySynced = false;
   historyRequest = ++historyNextRequest;
   sendUiOperation({
     op: "history",
@@ -5602,26 +5620,40 @@ function historySendSubscribe() {
     dir: historyDir,
   });
 }
-function startHistoryStream() {
-  if (!webUiPollingActive()) return Promise.resolve(false);
-  historyStreamWanted = false;
-  historyResolve?.(false);
-  const ready = new Promise((r) => (historyResolve = r)),
-    resolve = historyResolve;
-  return viewReady.then(() => {
-    if (historyResolve !== resolve || !webUiPollingActive() || activeView !== "history")
-      return false;
+// The History subscription is session-standing: once ensured it stays on for
+// the whole UI session and socket.onopen replays it after a reconnect, so the
+// cached page keeps refreshing regardless of the active view.
+function ensureHistoryStream(resubscribe) {
+  if (resubscribe || !historyStreamWanted) {
     historyStreamWanted = true;
-    historySendSubscribe();
+    if (shotWs?.readyState === 1) historySendSubscribe();
+  }
+}
+function startHistoryStream(force) {
+  if (!webUiPollingActive()) return Promise.resolve(false);
+  return viewReady.then(() => {
+    if (!webUiPollingActive() || activeView !== "history") return false;
+    // Warm entry: the standing subscription keeps the model current, so paint
+    // it without an op or a snapshot wait. Forced refreshes, first opens,
+    // reconnects, and pending resyncs take the subscribe-and-wait path.
+    if (
+      !force &&
+      historyStreamWanted &&
+      historySynced &&
+      historyLoaded &&
+      shotWs?.readyState === 1 &&
+      !shotResync
+    ) {
+      renderHistory();
+      updateFirmwareFooter();
+      noteReachOk();
+      return true;
+    }
+    historyResolve?.(false);
+    const ready = new Promise((r) => (historyResolve = r));
+    ensureHistoryStream(force);
     return ready;
   });
-}
-function stopHistoryStream() {
-  historyStreamWanted = false;
-  historyFetchOffset = -1;
-  historyResolve?.(false);
-  historyResolve = null;
-  sendUiOperation({ op: "history", on: false });
 }
 function historyStreamFrame(message) {
   if (
@@ -5665,7 +5697,6 @@ function historyStreamFrame(message) {
   return message;
 }
 function applyHistoryStream(message) {
-  if (!historyViewActive()) return;
   const fetch = historyFetchOffset >= 0 && message.request === historyFetchRequest;
   if (fetch && message.epoch !== historyStreamEpoch) {
     historySendSubscribe();
@@ -5685,13 +5716,22 @@ function applyHistoryStream(message) {
   historyStreamBoot = message.boot;
   historyStreamEpoch = message.epoch;
   historyFetchOffset = -1;
-  renderHistory();
-  updateFirmwareFooter();
-  noteReachOk();
-  if (mode !== "append" && historyResolve) historyResolve(true);
+  // The model updates on every view; only the hidden view's DOM work and
+  // reachability signal wait until History is actually open.
+  if (historyViewActive()) {
+    renderHistory();
+    updateFirmwareFooter();
+    noteReachOk();
+  }
+  if (mode !== "append") {
+    historySynced = true;
+    historyResolve?.(true);
+  }
 }
 // Stats pages assemble atomically; request IDs isolate sorting and CSV export.
+// statsSynced mirrors historySynced for the shot page cache.
 let statsStreamWanted = false,
+  statsSynced = false,
   statsFetchMark = null,
   statsStreamBoot = 0,
   statsStreamEpoch = 0,
@@ -5707,6 +5747,7 @@ function statsSendSubscribe() {
   statsFetchMark = null;
   statsPage = null;
   statsExportResolve?.(null);
+  statsSynced = false;
   statsRequest = ++statsNextRequest;
   sendUiOperation({
     op: "stats",
@@ -5718,27 +5759,35 @@ function statsSendSubscribe() {
     dir: shotSortDir,
   });
 }
-function startStatsStream() {
-  if (!webUiPollingActive()) return Promise.resolve(false);
-  statsStreamWanted = false;
-  statsResolve?.(false);
-  const ready = new Promise((r) => (statsResolve = r)),
-    resolve = statsResolve;
-  return viewReady.then(() => {
-    if (statsResolve !== resolve || !webUiPollingActive() || activeView !== "stats") return false;
+// The Stats subscription is session-standing, like History above.
+function ensureStatsStream(resubscribe) {
+  if (resubscribe || !statsStreamWanted) {
     statsStreamWanted = true;
-    statsSendSubscribe();
+    if (shotWs?.readyState === 1) statsSendSubscribe();
+  }
+}
+function startStatsStream(force) {
+  if (!webUiPollingActive()) return Promise.resolve(false);
+  return viewReady.then(() => {
+    if (!webUiPollingActive() || activeView !== "stats") return false;
+    if (
+      !force &&
+      statsStreamWanted &&
+      statsSynced &&
+      shotsLoaded &&
+      shotWs?.readyState === 1 &&
+      !shotResync
+    ) {
+      renderShots();
+      updateFirmwareFooter();
+      noteReachOk();
+      return true;
+    }
+    statsResolve?.(false);
+    const ready = new Promise((r) => (statsResolve = r));
+    ensureStatsStream(force);
     return ready;
   });
-}
-function stopStatsStream() {
-  statsStreamWanted = false;
-  statsFetchMark = null;
-  statsPage = null;
-  statsResolve?.(false);
-  statsResolve = null;
-  if (statsExportResolve) statsExportResolve(null);
-  sendUiOperation({ op: "stats", on: false });
 }
 // One export window at a time: a second request reuses the pending promise
 // instead of orphaning the first to its timeout.
@@ -5862,7 +5911,6 @@ function statsStreamFrame(message) {
   return message;
 }
 function applyStatsStream(message) {
-  if (!shotStatsViewActive()) return;
   if (!statsPage || statsPage.seq !== message.seq) {
     const mode =
       message.request === statsExportRequest
@@ -5911,10 +5959,32 @@ function applyStatsStream(message) {
     },
     page.mode,
   );
-  renderShots();
-  updateFirmwareFooter();
-  noteReachOk();
-  if (page.mode !== "append" && statsResolve) statsResolve(true);
+  // The model updates on every view; only the hidden view's DOM work and
+  // reachability signal wait until Stats is actually open.
+  if (shotStatsViewActive()) {
+    renderShots();
+    updateFirmwareFooter();
+    noteReachOk();
+  }
+  if (page.mode !== "append") {
+    statsSynced = true;
+    statsResolve?.(true);
+  }
+}
+// After the first view paints, subscribe whichever record page is not
+// standing yet so both datasets refresh in the background for the rest of
+// the session. The delay keeps the heavy multi-frame pages from contending
+// with first paint or immediate post-load interactions; compat mode never
+// loads record views.
+let recordsTimer = 0;
+function scheduleBackgroundRecordStreams() {
+  if (recordsTimer || compatMode) return;
+  recordsTimer = setTimeout(() => {
+    recordsTimer = 0;
+    if (!webUiPollingActive() || compatMode) return;
+    ensureStatsStream();
+    ensureHistoryStream();
+  }, 1500);
 }
 // Back from the background: resync the live socket; rebuild only if it died hidden.
 document.addEventListener("visibilitychange", () => {
@@ -7956,9 +8026,8 @@ export {
   startLogStream,
   stopLogStream,
   startHistoryStream,
-  stopHistoryStream,
   startStatsStream,
-  stopStatsStream,
+  scheduleBackgroundRecordStreams,
   renderLog,
   clearLogView,
   loadMoreShots,

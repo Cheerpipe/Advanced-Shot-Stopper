@@ -16,13 +16,13 @@ if (!codeIncludes(runtimeJs, "function statusIntervalMs(){return document.hidden
   throw new Error('Home and Diagnostic must use their socket; other views retain live/idle/hidden REST intervals');
 }
 if (!codeIncludes(ui, 'async function loadStatus(){') ||
-    !codeIncludes(ui, 'function startStatsStream(){') ||
+    !codeIncludes(ui, 'function startStatsStream(force){') ||
     !codeIncludes(ui, 'function startLogStream(){') ||
     !codeIncludes(ui, 'function applyLogFrame(') ||
     !codeIncludes(ui, 'LOG_EVENTS_CAPACITY') ||
     !codeIncludes(ui, 'logEvents.splice(0,logEvents.length-LOG_EVENTS_CAPACITY)') ||
     !codeIncludes(ui, "function refreshStatus(){return withPollGate(activeView==='stats'?refreshShots:activeView==='history'?refreshHistory:loadStatus") ||
-    !codeIncludes(ui, "function refreshShots(){return shotStatsViewActive()?startStatsStream():Promise.resolve(false)}") ||
+    !codeIncludes(ui, "function refreshShots(){return shotStatsViewActive()?startStatsStream(true):Promise.resolve(false)}") ||
     !(codeIncludes(ui, "name==='home'||name==='settings'||name==='admin'||name==='diagnostic'") ||
       codeIncludes(ui, "name === 'home' || name === 'settings' || name === 'admin' ||") ||
       codeIncludes(ui, "name === 'diagnostic'")) ||

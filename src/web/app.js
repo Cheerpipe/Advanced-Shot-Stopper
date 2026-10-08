@@ -83,8 +83,6 @@ R.setEnsureViewHook(ensureView);
 function stopExtraPolls() {
   R.stopDiagnosticStream();
   R.stopLogStream();
-  R.stopHistoryStream();
-  R.stopStatsStream();
 }
 function startView(name, seq = routeSeq) {
   return R.withPollGate(async () => {
@@ -134,8 +132,12 @@ async function renderRoute(pathname) {
   try {
     const [, ok] = await Promise.all([ready, startView(view)]);
     if (seq !== routeSeq) return;
-    if (ok) R.hideHomeBoot(boot);
-    else if (R.webUiPollingActive())
+    // Record pages subscribe in the background once the active view's
+    // initial load is done, so they stay fresh without slowing first paint.
+    if (ok) {
+      R.hideHomeBoot(boot);
+      R.scheduleBackgroundRecordStreams();
+    } else if (R.webUiPollingActive())
       R.message(__WEBUI_TEXT__("shell.unable_to_load_view"), "error");
   } catch (e) {
     if (seq === routeSeq)

@@ -995,7 +995,11 @@ if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
     codeIncludes(runtimeJs, "'/api/v1/stats?offset='") ||
     codeIncludes(runtimeJs, "api('/api/v1/stats')") ||
     !codeIncludes(runtimeJs, 'function startStatsStream(') ||
-    !codeIncludes(runtimeJs, 'function stopStatsStream(') ||
+    !codeIncludes(runtimeJs, 'function ensureStatsStream(') ||
+    !codeIncludes(runtimeJs, 'function scheduleBackgroundRecordStreams(') ||
+    // Navigation must settle a pending cold record entry so the serialized
+    // poll gate never waits on an abandoned view's page.
+    !codeIncludes(runtimeJs, 'if(activeView!==name){statsResolve?.(false);statsResolve=null;historyResolve?.(false);historyResolve=null;}') ||
     !codeIncludes(runtimeJs, 'function statsStreamFrame(') ||
     !codeIncludes(runtimeJs, 'function applyStatsStream(') ||
     !codeIncludes(runtimeJs, 'if(statsStreamWanted)statsSendSubscribe()') ||
@@ -1020,6 +1024,7 @@ if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
     !network.includes('\\"hasMore\\":%s') ||
     !network.includes('\\"total\\":%u') ||
     !codeIncludes(appJsSource, 'R.startStatsStream()') ||
+    !codeIncludes(appJsSource, 'R.scheduleBackgroundRecordStreams()') ||
     // Backpressure pacing: the client guard covers a solo maximal row frame
     // (server rows are bounded by the external kJsonItem workspace), and a
     // tab returning from the background resyncs the owned socket instead of
@@ -1108,7 +1113,9 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !codeIncludes(appJsSource, 'R.startHistoryStream()') ||
     codeIncludes(appJsSource, 'historyTimer') ||
     codeIncludes(appJsSource, '/api/v1/status/home') ||
-    !codeIncludes(appJsSource, 'R.stopHistoryStream()') ||
+    // Record subscriptions are session-standing: navigation must not stop them.
+    codeIncludes(appJsSource, 'R.stopHistoryStream()') ||
+    codeIncludes(appJsSource, 'R.stopStatsStream()') ||
     !codeIncludes(viewJs.history, 'R.armListSentinel("historySentinel", R.loadMoreHistory)') ||
     !codeIncludes(viewJs.history, 'R.clearActivationHistory') ||
     !codeIncludes(viewJs.history, 'R.toggleHistoryDir') ||
@@ -1130,7 +1137,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !codeIncludes(runtimeJs, 'HISTORY_PAGE_SIZE=20') ||
     codeIncludes(runtimeJs, "'/api/v1/history?offset='") ||
     !codeIncludes(runtimeJs, 'function startHistoryStream(') ||
-    !codeIncludes(runtimeJs, 'function stopHistoryStream(') ||
+    !codeIncludes(runtimeJs, 'function ensureHistoryStream(') ||
     !codeIncludes(runtimeJs, 'function historyStreamFrame(') ||
     !codeIncludes(runtimeJs, 'function applyHistoryStream(') ||
     !codeIncludes(runtimeJs, 'if(diagStreamWanted){if(!diagResolve)armDiagnosticReady();') ||
@@ -1355,7 +1362,8 @@ if (!statsSection ||
       events.length = 0;
       context.applyStatsStream(context.statsStreamFrame(
           frame({snapshot: false, epoch: 10, seq: 7, hasMore: true, rows: [row(2)], more: false})));
-      assert.deepEqual(events, [], 'Frames on another view cannot apply state or rows');
+      assert.deepEqual(events, ['records:replace'],
+          'Frames on another view refresh the cached rows without rendering them');
       context.shotStatsViewActive = () => true;
       for (const bad of [frame({snapshot: false, boot: 10, seq: 6, rows: [row(2)], more: false}),
         frame({snapshot: false, seq: 1, rows: [row(2)], more: false}),
@@ -1419,7 +1427,8 @@ if (!statsSection ||
       events.length = 0;
       context.historyViewActive = () => false;
       context.applyHistoryStream(context.historyStreamFrame(frame({snapshot: false})));
-      assert.deepEqual(events, [], 'Frames on another view cannot apply state or records');
+      assert.deepEqual(events, ['records:replace'],
+          'Frames on another view refresh the cached records without rendering them');
       context.historyViewActive = () => true;
       for (const bad of [frame({snapshot: false, boot: 10}),
         frame({snapshot: false, hasMore: true}),

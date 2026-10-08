@@ -203,7 +203,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !codeIncludes(runtimeJs, "function showInactiveOverlay(){const el=$('webUiInactive');if(!el)return;hideHomeBoot();") ||
     !codeIncludes(runtimeJs, "location.replace(location.pathname+'?fw='+version)") ||
     !codeIncludes(appJsSource, 'boot=R.showPageBoot();R.stopViewPolls();') ||
-    !codeIncludes(appJsSource, 'if(ok)R.hideHomeBoot(boot)')) {
+    !codeIncludes(appJsSource, 'if(ok){R.hideHomeBoot(boot);R.scheduleBackgroundRecordStreams();}')) {
   throw new Error(
       'Every view must reuse the Home splash and fade immediately after data loads, preserving firmware reload and inactive overlay handoff');
 }
@@ -395,9 +395,8 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
           setActiveView() {}, armStatusTimer() {}, applyDiagnosticNavigation() {},
           startDiagnosticStream() {}, stopDiagnosticStream() {},
           startStatsStream: () => {events.push('data'); return data.promise;},
-          stopStatsStream() {},
           startHistoryStream: () => {events.push('data'); return data.promise;},
-          stopHistoryStream() {},
+          scheduleBackgroundRecordStreams() {},
           loadStatus: () => {events.push('status'); return status.promise;},
           startLogStream: () => {events.push('data'); return data.promise;},
           hideHomeBoot: () => events.push('fade'), message: () => events.push('error')}});

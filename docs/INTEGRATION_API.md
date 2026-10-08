@@ -463,10 +463,15 @@ one-shot append fetch for the next window without disturbing the subscription:
 {"op":"history","on":true,"fetch":true,"offset":20}
 ```
 
-Leaving the view unsubscribes with `{"op":"history","on":false}`; after a
-reconnect the browser replays the subscription, so the page always starts from
-a fresh snapshot. Every accepted op forces the next frame to be a full
-snapshot of the requested window.
+Leaving the view no longer unsubscribes it: the browser keeps the History
+window standing for the whole UI session, so arriving records update the page
+even while another view is open. Opening History with that live data paints
+straight from the cached page, and the page a URL load starts on is fetched
+first; any record page still not standing is subscribed in the background a
+moment after the first view finishes loading. After a reconnect or a tab
+refocus, the browser replays the subscription and resyncs, so the first open
+still starts from a fresh snapshot. Every accepted op forces the next frame to
+be a full snapshot of the requested window.
 
 History frames have `v: 1`, `type: "history"`, `boot`, `snapshot`, `epoch`,
 the `ui` object (snapshot frames only), `total`, `offset`, `limit`, `hasMore`,
@@ -496,9 +501,11 @@ newest-first by date, regardless of the on-screen sort:
 {"op":"stats","on":true,"fetch":true,"offset":0,"limit":100,"sort":"date","dir":"desc"}
 ```
 
-Leaving the view unsubscribes with `{"op":"stats","on":false}`; after a
-reconnect the browser replays the subscription, and every accepted op forces
-the next page to start from a full snapshot.
+Leaving the view no longer unsubscribes it: the Stats window also stays
+standing for the whole UI session, refreshes in the background while any view
+is open, and re-opens paint straight from the cached rows. After a reconnect
+or a tab refocus, the browser replays the subscription and resyncs, and every
+accepted op forces the next page to start from a full snapshot.
 
 Stats frames have `v: 1`, `type: "stats"`, `boot`, `snapshot`, `epoch`,
 `seq`, the `ui` object and the `stats` aggregate (first frame of a page

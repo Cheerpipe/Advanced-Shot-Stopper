@@ -5,8 +5,12 @@ in the Web UI shot log. Use it to see how long a shot ran, why it ended, and
 how close it landed to the target when brew by weight was in use.
 
 When you open **Stats**, the Stats section, including its chart, and the
-Shot history section, including its sort, export, and clear controls, stay
-hidden behind loading animations until the shot data is ready.
+Shot history section, including its sort, export, and clear controls, normally
+appear at once with their data. A brief loading animation covers them only
+while the device has not sent the shot data yet — for example right after the
+interface starts or after a dropped connection. From then on the data keeps
+refreshing in the background even while you are elsewhere in the interface, so
+the page always opens instantly with the latest shots.
 
 Stopwatch and gram-weight icons sit beside the large duration and yield values
 in each shot card and beside Avg time and Avg yield in the Stats summary.
