@@ -107,6 +107,18 @@ all three directories must remain Git-ignored. Bring existing external
 task working files into the appropriate local directory and update their
 references. Follow [local storage, migration, and cleanup rules](docs/AI_WORKFLOW.md#local-project-files-and-git).
 
+## Prototypes, mockups, and dev servers
+
+Prototypes, Web UI mockups, and throwaway dev servers that exist to serve or
+iterate on mockups are local working artifacts: keep them under `temp/` (for
+example `temp/ai_temp_<task>/`), never in `src/`, `docs/`, or the tracked
+tree. When a request only produces or changes such files under `temp/`, it is
+the one exception to the commit mandate above: do not stage, commit, or
+force-add anything — report the result and stop. Never move prototype or
+mockup work into tracked directories so it can be committed; promoting a
+mockup into the product is a separate change that the user must request
+explicitly.
+
 ## Plans, audits, and session handoff
 
 Store every development plan in `docs/plans/` and every audit in `docs/audits/`;
