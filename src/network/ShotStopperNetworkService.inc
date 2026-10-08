@@ -651,6 +651,8 @@ void ShotStopperNetwork::service() {
       dataMux_.lock();
       status_.apKeepActive = true;
       dataMux_.unlock();
+      // A new user attempt releases any onboarding failure hold.
+      staReconnectHeld_ = false;
       if (beginStationConnect(networkSettingsSnapshot(), now)) {
         liveApplyPending_ = false;
         armPendingConfirmWindow(now);

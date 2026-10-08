@@ -284,6 +284,11 @@ class ShotStopperNetwork {
   void overlayLiveShotSettings(PersistedSettings &settings);
   static constexpr uint32_t STA_CONNECT_TIMEOUT_MS = 25000;
   static constexpr uint32_t STA_RECOVERY_ATTEMPT_MS = 60000;
+  // Onboarding (/setup live apply) attempts age out sooner: a wrong
+  // password can leave the driver mid-status (AUTH_EXPIRE keeps the last
+  // status), which the terminal-fail set cannot distinguish from healthy
+  // association progress.
+  static constexpr uint32_t LIVE_APPLY_ATTEMPT_MS = 20000;
   static constexpr uint32_t STA_CONFIRM_TIMEOUT_MS = 180000;
   static constexpr uint32_t STA_RECONNECT_INTERVAL_MS = 10000;
   // Auto SoftAP shuts down after this long with zero SoftAP stations.

@@ -137,6 +137,23 @@
         'Unsafe-control scan cancels must skip the optimistic handler QUEUED; dropped scan commands retire it');
   }
 
+  // Onboarding attempts must fail fast and stop the retry loop: a wrong
+  // password can leave the driver mid-status (AUTH_EXPIRE keeps the last
+  // status), so the attempt ages at 20 s instead of 60 s, and the failed
+  // attempt holds reconnects (each retry aborted every UI scan, leaving an
+  // empty picker after Try again) until a new save, confirm, or revert.
+  if (!networkHeader.includes('LIVE_APPLY_ATTEMPT_MS = 20000') ||
+      !codeIncludes(staStateBlock,
+          '(liveOnboarding?LIVE_APPLY_ATTEMPT_MS:STA_RECOVERY_ATTEMPT_MS)') ||
+      !codeIncludes(staStateBlock,
+          'staReconnectHeld_=true') ||
+      !codeIncludes(serviceBlock, 'staReconnectHeld_=false') ||
+      !codeIncludes(confirmBlock, 'staReconnectHeld_=false') ||
+      !codeIncludes(revertBlock, 'staReconnectHeld_=false')) {
+    throw new Error(
+        'Live-apply attempts must age at 20 s and hold reconnects on failure until the next save/confirm/revert');
+  }
+
   // /setup web view: route, menu-less shell, live-apply payload, bounded
   // connect wait, confirm on success, and the LAN ADMIN_LOCKED escape hatch.
   const setupJs = viewJs.setup || '';

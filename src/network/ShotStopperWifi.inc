@@ -207,6 +207,7 @@ bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
     // network change ends the fallback window; re-issue AP_START to keep
     // the AP). The HTTP confirm response already went out.
     apKeepRequested_ = false;
+    staReconnectHeld_ = false;
     dataMux_.lock();
     status_.apKeepActive = false;
     dataMux_.unlock();
@@ -259,6 +260,8 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t,
   // briefly connected and then went unconfirmed.
   const bool onboardingRevert = apKeepRequested_;
   apKeepRequested_ = false;
+  // A reverted onboarding attempt cannot leave the reconnect loop held.
+  staReconnectHeld_ = false;
   dataMux_.lock();
   status_.apKeepActive = false;
   if (!next.staConfigured) {
@@ -1157,15 +1160,25 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     const bool terminalFail = wifiStatus == WL_CONNECT_FAILED ||
                               wifiStatus == WL_NO_SSID_AVAIL ||
                               wifiStatus == WL_CONNECTION_LOST;
+    const bool liveOnboarding = staConfirmArmed_ && apKeepRequested_;
     const bool attemptAged =
         static_cast<uint32_t>(millis() - staConnectStartedAtMs_) >=
-        STA_RECOVERY_ATTEMPT_MS;
+        (liveOnboarding ? LIVE_APPLY_ATTEMPT_MS : STA_RECOVERY_ATTEMPT_MS);
     if (terminalFail || attemptAged) {
       dataMux_.lock();
       status_.staState = StaState::DISCONNECTED;
       dataMux_.unlock();
       staReconnectAttemptAtMs_ = now;
-      if (terminalFail) {
+      if (liveOnboarding) {
+        // Hold the reconnect loop: the /setup page owns the next attempt,
+        // and each reconnect would abort any UI scan (empty picker after a
+        // failed onboarding connect). A new save, confirm, or the 180 s
+        // window revert releases the hold.
+        staReconnectHeld_ = true;
+        lifecycleLog(terminalFail
+                         ? "WiFi STA onboarding attempt failed; retry from the page"
+                         : "WiFi STA onboarding attempt timed out; retry from the page");
+      } else if (terminalFail) {
         lifecycleLog("WiFi STA recovery attempt ended; will retry");
       }
       return;
