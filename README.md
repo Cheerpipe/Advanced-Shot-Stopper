@@ -160,7 +160,7 @@ steps of 0.01, initially 0.30. Saving either base preserves current learning.
 EWMA keeps its current α. **Reset EWMA learning** restores both saved bases,
 marks α initial and clears its evidence. Automatic learning may subsequently
 choose 0.10, 0.30, 0.50 or 1.00; a custom α remains active until a candidate
-earns a switch. See [BBW learning](docs/features/brew-by-weight.md#cutoff-algorithms-and-learning)
+earns a switch. See [BBW learning](docs/features/brew-by-weight.md#cutoff-behavior-and-learning)
 for eligibility, comparison windows and persistence.
 
 ## First connection

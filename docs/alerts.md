@@ -30,7 +30,7 @@ During a shot, the Home shot card shows a **touch hold** capsule while the
 platform reads a sustained unexpected load, such as a finger resting on it.
 It is visual only: it makes no sound and stops nothing by itself. Weight
 stops wait for the load to make sense again; see
-[BBW](../features/brew-by-weight.md#when-touch-protection-delays-a-stop).
+[BBW](features/brew-by-weight.md#when-touch-protection-delays-a-stop).
 
 A **Touch fallback** ending uses the same completion cue as other automatic
 stops, subject to **Sound alerts** and the available sound output.
