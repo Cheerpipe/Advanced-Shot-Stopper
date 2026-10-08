@@ -128,11 +128,9 @@ async function pollScan() {
 }
 
 function scanFailed(error) {
-  state = "form";
   lastNetworks = lastNetworks || [];
   renderPicker(lastNetworks);
-  show("setupForm");
-  setStatusError(
+  finishError(
     error
       ? R.formatCommandError(__WEBUI_TEXT__("setup.scan_failed"), error)
       : __WEBUI_TEXT__("setup.scan_failed"),
@@ -280,6 +278,10 @@ function finishError(text) {
 
 function bind() {
   $("setupRescan").onclick = () => {
+    setStatusError("");
+    startScan();
+  };
+  $("setupRetry").onclick = () => {
     setStatusError("");
     startScan();
   };
