@@ -1321,6 +1321,7 @@
     "setup.connecting_deadline": "This usually takes less than {n} s",
     "setup.connecting_slow": "Taking longer than usual — still trying…",
     "setup.connecting_to": "Connecting to {x}…",
+    "setup.connecting_where": "Once connected, the controller will live at {x} — open it from this phone on your Wi-Fi.",
     "setup.error_could_not_connect": "We couldn't connect to that network.",
     "setup.error_hints": "Check the password, make sure the network is 2.4 GHz, and that the router is nearby. You can try again right now.",
     "setup.error_reverted": "The attempt was given up and the previous settings were restored.",

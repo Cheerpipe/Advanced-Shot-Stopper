@@ -175,6 +175,11 @@
       !codeIncludes(setupJs, 'setupRescan").hidden = lastNetworks === null') ||
       !codeIncludes(setupJs, 'input.type=show?"text":"password"') ||
       !codeIncludes(setupJs, 'passToggle.setAttribute("aria-pressed"') ||
+      !codeIncludes(setupJs, 'setInterval(chainWatchdog,2500)') ||
+      !codeIncludes(setupJs, 'window.addEventListener("pageshow"') ||
+      !codeIncludes(setupJs, '"http://"+deviceHost+".local"') ||
+      !partialHtml.setup.includes('id="setupConnectingWhere"') ||
+      !partialHtml.setup.includes('autocapitalize="off"') ||
       !partialHtml.setup.includes('2.4 GHz') ||
       !css.includes('body.setupView .topBar,body.setupView .pageNav{display:none}') ||
       !css.includes('.setupCard{')) {

@@ -659,11 +659,12 @@ if (generated.icon48Gzip.length > 3500) {
 // Cap raised to 129400; firmware image, memory placement and OTA
 // partitions stay fixed.
 // The connecting-state countdown (deadline text, tabular-numeric style)
-// adds ~170 measured bytes, and the password reveal toggle ~215 more.
-// Cap raised to 130000; firmware image, memory placement and OTA
+// adds ~170 measured bytes, the password reveal toggle ~215 more, and the
+// chain heartbeat with the pre-connect address line ~170 more.
+// Cap raised to 130200; firmware image, memory placement and OTA
 // partitions stay fixed.
-if (generated.combined > 130000) {
-  throw new Error(`Combined Web UI gzip exceeds the 130000-byte flash budget (${generated.combined})`);
+if (generated.combined > 130200) {
+  throw new Error(`Combined Web UI gzip exceeds the 130200-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

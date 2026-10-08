@@ -18,7 +18,7 @@
         <label for="setupPassword">{{webui:setup.password}}</label>
         <button type="button" id="setupPasswordShow" class="setupPassToggle" aria-pressed="false">{{webui:setup.show}}</button>
       </div>
-      <input type="password" id="setupPassword" autocomplete="new-password" maxlength="63">
+      <input type="password" id="setupPassword" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="63">
     </div>
     <p class="fieldHint">{{webui:setup.band_hint}}</p>
     <p class="fieldError" id="setupFieldError" hidden></p>
@@ -27,6 +27,7 @@
   <div id="setupConnecting" class="setupState" hidden>
     <span class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     <p id="setupConnectingText">{{webui:setup.connecting}}</p>
+    <p id="setupConnectingWhere" class="fieldHint" hidden></p>
     <p id="setupConnectingCountdown" class="setupCountdown" hidden></p>
   </div>
   <div id="setupSuccess" class="setupState" hidden>

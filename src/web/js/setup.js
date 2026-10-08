@@ -20,7 +20,8 @@ let bound = false,
   waitStartedAt = 0,
   sawConnecting = false,
   savedWifiSleep = true,
-  savedWifiSleepLoaded = false;
+  savedWifiSleepLoaded = false,
+  deviceHost = "";
 const els = {};
 
 // One live poll chain at a time: stop() bumps the token so a pending tick
@@ -28,6 +29,7 @@ const els = {};
 function armPoll(fn, ms) {
   const token = pollToken;
   pollTimer = setTimeout(() => {
+    pollTimer = 0;
     if (token === pollToken) fn();
   }, ms);
 }
@@ -208,6 +210,15 @@ async function connect() {
   $("setupConnectingText").textContent =
     __WEBUI_TEXT__("setup.connecting_to").replace("{x}", payload.ssid);
   show("setupConnecting");
+  const where = $("setupConnectingWhere");
+  if (where) {
+    where.hidden = !deviceHost;
+    if (deviceHost)
+      where.textContent = __WEBUI_TEXT__("setup.connecting_where").replace(
+        "{x}",
+        "http://" + deviceHost + ".local",
+      );
+  }
   updateConnectingCountdown();
   try {
     await R.api("/api/v1/network", { method: "POST", body: R.body(payload) });
@@ -362,15 +373,32 @@ function captureSleepPreference() {
   savedWifiSleepLoaded = true;
   R.api("/api/v1/status/admin")
     .then((s) => {
-      if (s && s.network && typeof s.network.wifiSleep === "boolean")
-        savedWifiSleep = s.network.wifiSleep;
+      if (!s || !s.network) return;
+      if (typeof s.network.wifiSleep === "boolean") savedWifiSleep = s.network.wifiSleep;
+      deviceHost = s.network.mdnsHost || s.network.deviceName || "";
     })
     .catch(() => {});
+}
+
+function chainWatchdog() {
+  if (!bound || document.hidden) return;
+  const chainDead = pollTimer === 0 && chainBusyToken !== pollToken;
+  if (!chainDead) return;
+  if (state === "scanning") {
+    if (Date.now() - scanStartedAt >= SCAN_WAIT_MS) scanFailed(null);
+    else pollScan();
+  } else if (state === "connecting") {
+    pollConnect();
+  }
 }
 
 export function init() {
   if (bound) return;
   bound = true;
+  setInterval(chainWatchdog, 2500);
+  window.addEventListener("pageshow", () => {
+    if (!document.hidden && state !== "success" && state !== "locked") start();
+  });
   for (const id of [
     "setupScanning",
     "setupForm",
