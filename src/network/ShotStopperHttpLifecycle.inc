@@ -97,6 +97,11 @@ void ShotStopperNetwork::processAcceptedMaintenanceCommand(uint32_t now) {
       if (acceptedCommand_.type == WebCommandType::SAVE_LINEA_MICRA) {
         clearStagedLineaMicra(acceptedCommand_.stagedConfigRequestId);
       }
+      if (acceptedCommand_.type == WebCommandType::START_WIFI_SCAN) {
+        // The handler published an optimistic QUEUED for this command; the
+        // scan itself never starts, so retire that state for the clients.
+        abortWifiScan(now, false);
+      }
       (void)enqueueMaintenanceCompletion(
           acceptedCommand_, false, CommandResultState::CANCELED);
       acceptedCommandPending_ = false;
@@ -111,6 +116,9 @@ void ShotStopperNetwork::processAcceptedMaintenanceCommand(uint32_t now) {
     }
     if (acceptedCommand_.type == WebCommandType::SAVE_LINEA_MICRA) {
       clearStagedLineaMicra(acceptedCommand_.stagedConfigRequestId);
+    }
+    if (acceptedCommand_.type == WebCommandType::START_WIFI_SCAN) {
+      abortWifiScan(now, false);
     }
     (void)enqueueMaintenanceCompletion(
         acceptedCommand_, false, CommandResultState::CANCELED);

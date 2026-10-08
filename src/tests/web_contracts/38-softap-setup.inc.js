@@ -117,6 +117,26 @@
         'Live-apply confirm/revert must relax only on apKeepActive and revert to the SoftAP fallback');
   }
 
+  // Scan pipeline: the HTTP handler's optimistic QUEUED must not be canceled
+  // by serviceWifiScan while its own maintenance lease is still landing
+  // (every /setup or Admin reload logged a spurious cancel before the scan
+  // started); only task-owned (requested) or on-radio (RUNNING) scans cancel,
+  // and a dropped scan command retires the optimistic state itself.
+  const serviceWifiScanBlock =
+      blockAt(network, 'void ShotStopperNetwork::serviceWifiScan(');
+  if ((serviceWifiScanBlock.match(
+          /canceled = requested \|\| state == WifiScanState::RUNNING \|\|/g) || [])
+          .length !== 0 ||
+      (serviceWifiScanBlock.match(
+          /canceled = requested \|\| state == WifiScanState::RUNNING;/g) || [])
+          .length !== 2 ||
+      !network.includes('abortWifiScan(now, false);') ||
+      !codeIncludes(network,
+          'if(acceptedCommand_.type==WebCommandType::START_WIFI_SCAN){abortWifiScan(now,false);}')) {
+    throw new Error(
+        'Unsafe-control scan cancels must skip the optimistic handler QUEUED; dropped scan commands retire it');
+  }
+
   // /setup web view: route, menu-less shell, live-apply payload, bounded
   // connect wait, confirm on success, and the LAN ADMIN_LOCKED escape hatch.
   const setupJs = viewJs.setup || '';

@@ -1199,10 +1199,14 @@ void ShotStopperNetwork::serviceWifiScan(uint32_t now) {
   state = g_wifiScan.state;
   dataMux_.unlock();
 
+  // A bare QUEUED set optimistically by the scan handler is still waiting
+  // for its own maintenance lease to publish; canceling it here races the
+  // command pipeline and logs a spurious cancel on every /setup or Admin
+  // scan. Only cancel scans this task owns (requested) or that are on the
+  // radio (RUNNING).
   if (scaleHuntRfActive_.load(std::memory_order_relaxed) ||
       scaleConnecting_.load(std::memory_order_relaxed)) {
-    const bool canceled = requested || state == WifiScanState::RUNNING ||
-                          state == WifiScanState::QUEUED;
+    const bool canceled = requested || state == WifiScanState::RUNNING;
     if (canceled) {
       abortWifiScan(now, false);
     }
@@ -1210,8 +1214,7 @@ void ShotStopperNetwork::serviceWifiScan(uint32_t now) {
   }
 
   if (!safe) {
-    const bool canceled = requested || state == WifiScanState::RUNNING ||
-                          state == WifiScanState::QUEUED;
+    const bool canceled = requested || state == WifiScanState::RUNNING;
     if (canceled) {
       abortWifiScan(now, false);
     }
