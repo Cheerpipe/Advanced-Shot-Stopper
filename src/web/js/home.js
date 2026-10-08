@@ -141,7 +141,10 @@ function initQuickWeight() {
   const inner = document.createElement("div");
   inner.className = "qwScaleIn";
   const ticks = [];
-  for (let v = MIN; v <= MAX; v++) {
+  // Ticks keep drawing past both range ends so the drum fills the strip at
+  // any value; only the value itself clamps to [MIN, MAX]. 45 g covers the
+  // half-strip of the widest sheet (760 px / 2 / PX_PER_G + margin).
+  for (let v = MIN - 45; v <= MAX + 45; v++) {
     const tick = document.createElement("i");
     if (v % 5 === 0) tick.className = "big";
     inner.appendChild(tick);
