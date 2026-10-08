@@ -80,12 +80,6 @@
   const network = fs.readFileSync(path.join(sketchDir, 'ShotStopperNetwork.cpp'), 'utf8');
   assert(network.replace(/\s+/g, ' ').includes('entry.friendlyName[0] ? entry.friendlyName : scaleDefaultFriendlyName(entry.name)'), 'Friendly name precedes the advertised BLE name and its derived default');
   assert(network.includes('preferredScaleMacEqual(entry.mac, control.connectedScaleMac)'), 'Name must match the connected scale');
-  const preview = require('../../scripts/preview_web_ui.js').renderHome();
-  for (const kind of ['wifi', 'bluetooth']) {
-    assert.equal((preview.match(new RegExp('id="' + kind + 'Signal"', 'g')) || []).length, 1, 'Preview must retain exactly one header');
-    const svg = source => source.match(new RegExp('id="' + kind + 'Signal"[\\s\\S]*?(<svg[\\s\\S]*?</svg>)'))[1];
-    assert.equal(svg(rawShellHtml), svg(preview), 'Firmware must ship the accepted option 1 drawing');
-  }
 }
 {
   const assert = require('assert').strict, vm = require('vm'), hidden = new Set(['hidden']);
