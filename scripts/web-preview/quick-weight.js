@@ -338,7 +338,7 @@
   function ctlMicrometer(ctx, body) {
     body.innerHTML = `
       <div class="qsheetHead">
-        <p class="qsheetPreset"><b class="jsPresetName">Espresso</b></p>
+        <span class="qsheetHp">· <b class="jsPresetName">Espresso</b></span>
         <p class="twLabel">${ICON_SCALE} Target weight</p>
       </div>
       <div class="qsheetValRow">
