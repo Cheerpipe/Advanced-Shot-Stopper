@@ -38,6 +38,8 @@ const routes = {
   '/guard-tables.js': ['text/javascript', 'scripts/web-preview/guard-tables.js'],
   '/nav-glass': ['text/html; charset=utf-8', 'scripts/web-preview/nav-glass.html'],
   '/nav-glass.js': ['text/javascript', 'scripts/web-preview/nav-glass.js'],
+  '/quick-weight': ['text/html; charset=utf-8', 'scripts/web-preview/quick-weight.html'],
+  '/quick-weight.js': ['text/javascript', 'scripts/web-preview/quick-weight.js'],
 };
 
 function renderHome() {
