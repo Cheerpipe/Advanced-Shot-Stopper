@@ -282,18 +282,18 @@ retains its assigned gain. For example, appended CSV values can be
 The one-time USB curve-layout update starts the old weight curves empty while
 preserving settings, shot summaries and activation history. Subsequent firmware
 updates can use OTA. See [Build](../BUILD.md#curve-layout-transition).
-Select Linear
-regression + offset correction in current firmware for like-for-like
-algorithm comparison. Renaming the visible method does not rename API/CSV
-identifiers.
+The algorithm column is descriptive: it records the policy each shot ran
+under, including `legacy` for shots recorded before that mode was removed.
+It has been a read-only identity for a while and is not a setting.
 
 Algorithm identity describes the shot's configured policy even when a guard
 or manual action ends it; use `stop`, `shot_type` and `cut_type` to interpret
 the outcome. EWMA time/safety-limit outcomes remain in eligible history with
 learning-applied false; only a normal weight-target cut can train EWMA.
-Compare datasets separately by preset, algorithm/profile and
-actual gain, recording firmware identity, recipe changes and resets externally.
-Export before the ring overwrites older shots.
+Compare shots like for like using each shot's captured `bbw_alpha`,
+`offset_g` and the firmware identity recorded alongside the dataset; recipe
+changes and resets belong in those notes too. Export the CSV before a firmware
+update so pre-update shots keep their original algorithm identity.
 
 Average flow uses final weight (including accepted post-drip) minus baseline,
 divided by duration after first drop. It is not terminal flow at cutoff.
@@ -303,7 +303,7 @@ Error and average flow share final weight algebraically, so their correlation
 does not prove a residual-flow mechanism. The dashed weight tail shows captured
 post-stop drips; the flow chart also shows their supported rates as a dashed
 continuation. See
-[BBW learning](brew-by-weight.md#cutoff-algorithms-and-learning).
+[BBW learning](brew-by-weight.md#cutoff-behavior-and-learning).
 
 | Stop detail | Meaning |
 | --- | --- |

@@ -38,7 +38,8 @@ static const ScaleFeatureSet kAcaiaFeatures = {
     0,
     2750,
     5000,
-    0
+    0,
+    690
 };
 
 bool encodeAcaiaCommand(ScaleOp op, uint8_t arg, uint8_t *out, int *length) {

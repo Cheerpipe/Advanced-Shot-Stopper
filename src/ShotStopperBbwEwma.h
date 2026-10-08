@@ -6,8 +6,8 @@
 namespace shotstopper {
 namespace bbwEwma {
 
-inline float clampOffset(float value) {
-  return fmaxf(0.0f, fminf(MAX_OFFSET_G, value));
+inline float clampOffset(float value, float minG = 0.0f) {
+  return fmaxf(minG, fminf(MAX_OFFSET_G, value));
 }
 
 inline float predict(const float *timeS, const float *weightG, size_t count,

@@ -141,7 +141,8 @@ inline bool validShotPresetName(const char *name) {
 inline bool validateShotPresetRecipe(const ShotPreset &preset,
                                      uint32_t machineRetareWindowMs,
                                      bool machineAutoRetare) {
-  if (preset.bbwAlgorithm > 1 || !validBbwAlpha(preset.bbwEwmaAlpha) ||
+  if (preset.bbwAlgorithm != static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA) ||
+      !validBbwAlpha(preset.bbwEwmaAlpha) ||
       !validBbwAlpha(preset.bbwAlphaBaseline) ||
       preset.bbwAlphaLearned > 1 || preset.bbwProfileVersion != BBW_PROFILE_VERSION ||
       preset.lineaMicraBrewTargetDeciC <
@@ -351,8 +352,7 @@ inline void applyShotPresetToConfig(const ShotPreset &preset,
   const bool sessionManual = keepSessionTimerOnly && config.timerOnly;
   config.goalWeightG = preset.goalWeightG;
   config.bbwAlgorithm = preset.bbwAlgorithm;
-  config.weightOffsetG = preset.bbwAlgorithm == 0 ? preset.weightOffsetG
-                                                : preset.bbwEwmaOffsetG;
+  config.weightOffsetG = preset.bbwEwmaOffsetG;
   config.weightOffsetBaselineG = preset.weightOffsetBaselineG;
   config.bbwProtectionMs = preset.bbwProtectionMs;
   config.operationalWallMs = preset.operationalWallMs;

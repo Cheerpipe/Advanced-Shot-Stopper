@@ -38,7 +38,7 @@ not the last remaining preset. The active preset survives reboot.
 
 | Scope | Settings |
 | --- | --- |
-| Preset | Target, BBW, cutoff algorithm, protection time, Fast/Slow/A→M guards, cup-protection options, accidental-touch protection, offset/alpha baselines, separate regression/EWMA offsets, EWMA gain and initial/learned provenance; Linea Micra builds also retain a brew-boiler target |
+| Preset | Target, BBW, protection time, Fast/Slow/A→M guards, cup-protection options, accidental-touch protection, offset/alpha baselines, learned offset, EWMA gain and initial/learned provenance; Linea Micra builds also retain a brew-boiler target |
 | Shared machine settings | Physical switch behavior, rinse, no-scale policy, all three tare switches and timing, cup detection, alerts, preferred scale, network |
 | Home session | Quick Settings BBW affects the current workflow. Turning it off selects Manual without saving BBW off in the recipe. |
 | Home / Home Assistant active preset | Quick guard switches persist Fast, Slow, A→M, cup protection, and accidental-touch values only in the active preset. |
@@ -81,33 +81,29 @@ or factory preset. Definitions: `fillFactorySinglePreset` /
 `fillDoubleFirmwareDefaults` in
 `OpenBrewByWeightPresets.h` in the firmware sources.
 
-Both algorithms' learning follows the preset. New and factory recipes select
-adaptive EWMA, seed both offsets from the table above and use current/base α=0.30. Duplicate
-copies selection, both bases, offsets and gain/provenance into an independent recipe,
-with empty candidate evidence. Reboot retains those saved values and rebuilds
-only the transient evidence window. Upgrades without a selector preserve regression's
-offset and copy it to EWMA, selecting EWMA once; later updates retain the saved
-choice. Switching back to **Linear regression + offset correction** resumes its own offset.
-Its API/CSV identifier remains `legacy`.
+Learning follows the preset. New and factory recipes seed the offset from
+the table above and use current/base α=0.30. Duplicating a preset copies the
+baseline, offset and gain/provenance into an independent recipe with empty
+candidate evidence. Reboot retains those saved values and rebuilds only the
+transient evidence window. Updating from firmware that still offered
+**Linear regression + offset correction** keeps that mode's offset as the
+EWMA starting point.
 
-Use a separate preset for each physical portafilter/basket setup. EWMA's learned
+Use a separate preset for each physical portafilter/basket setup. The learned
 offset in grams, gain α and candidate observations belong to that preset; shots
 from another preset do not train it. The candidate window is transient, while
 offset/gain and the shot log are persistent. Changing the physical setup under
 the same preset requires an intentional learning reset; it is not detected.
 
 Save **Baseline offset**, then choose **Reset learned stop offset to baseline**
-to reset only the selected algorithm's offset. EWMA retains its gain but restarts
-evidence. Save **Baseline learning factor (α)** (0.01–1.00, step 0.01), then
+to restore the offset. The gain is retained but evidence restarts. Save
+**Baseline learning factor (α)** (0.01–1.00, step 0.01), then
 **Reset EWMA learning** restores both saved bases and initial provenance.
-Changing either base alone preserves current offsets, gain and evidence.
-The editable baseline is shared by both algorithms within one preset; their
-learned offsets are independent. For example, save a 0.80 g baseline for one
-portafilter, select EWMA and reset: its EWMA offset becomes 0.80 g, while its
-regression offset and every other preset remain unchanged.
-**Reset** on a factory card restores the whole recipe, both offsets and initial
-gain/base at 0.30; it is available only for factory cards. A device factory reset additionally
-erases other settings and history. See [BBW learning](brew-by-weight.md#cutoff-algorithms-and-learning)
+Changing either base alone preserves the current offset, gain and evidence.
+**Reset** on a factory card restores the whole recipe, offset and initial
+gain/base at 0.30; it is available only for factory cards. A device factory
+reset additionally erases other settings and history. See
+[BBW learning](brew-by-weight.md#cutoff-behavior-and-learning)
 for prediction, gain selection and reset behavior.
 
 Example: duplicate Double, set a 40 g target and valid Fast/Slow recovery

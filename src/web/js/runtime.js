@@ -2919,7 +2919,6 @@ function setMutable(enabled) {
 }
 const BREW_CONTROL_IDS = [
   "bbwAlphaBaseline",
-  "bbwAlgorithm",
   "brewByWeight",
   "goalWeightG",
   "operationalWallS",
@@ -3124,20 +3123,17 @@ function invalidateSettingsHydration() {
 let bbwReadback = null,
   bbwFormPresetId = 0;
 function updateBbwControls() {
-  const select = $("bbwAlgorithm");
-  if (!select) return;
-  const on = !!$("brewByWeight").checked,
-    ewma = select.value === "linear_ewma";
-  select.disabled = !on || !controlsMutable;
+  if (!$("brewByWeight")) return;
+  const on = !!$("brewByWeight").checked;
   document.querySelectorAll(".bbwLearning,.bbwEwma").forEach((el) => {
-    const hidden = !on || (el.classList.contains("bbwEwma") && !ewma);
+    const hidden = !on;
     el.classList.toggle("hidden", hidden);
     el.querySelectorAll("input,button,select").forEach(
       (input) => (input.disabled = hidden || !controlsMutable),
     );
   });
   const c = bbwReadback && bbwReadback.bbwPresetId === bbwFormPresetId ? bbwReadback : null;
-  const offset = c && (ewma ? c.bbwEwmaOffsetG : c.bbwLegacyOffsetG);
+  const offset = c && c.bbwEwmaOffsetG;
   $("learnedOffsetG").textContent =
     typeof offset === "number"
       ? offset.toFixed(2) + __WEBUI_TEXT__("runtime.g_2")
@@ -3154,8 +3150,8 @@ function updateBbwControls() {
         : __WEBUI_TEXT__("runtime.collecting_samples"))
     : __WEBUI_TEXT__("runtime.unavailable");
   $("resetCalibrationButton").disabled =
-    !on || !controlsMutable || brewDirty || !c || select.value !== c.bbwAlgorithm;
-  $("resetEwmaButton").disabled = $("resetCalibrationButton").disabled || !ewma;
+    !on || !controlsMutable || brewDirty || !c;
+  $("resetEwmaButton").disabled = $("resetCalibrationButton").disabled;
 }
 function soundAlertsAreOn() {
   return !!$("soundAlertsEnabled")?.checked;
@@ -3671,9 +3667,6 @@ function brewPayload() {
       ? { weightOffsetBaselineG: number("weightOffsetBaselineG") }
       : {}),
     ...(!$("bbwAlphaBaseline").disabled ? { bbwAlphaBaseline: number("bbwAlphaBaseline") } : {}),
-    ...($("bbwAlgorithm") && !$("bbwAlgorithm").disabled
-      ? { bbwAlgorithm: $("bbwAlgorithm").value }
-      : {}),
     ...(document.documentElement.classList.contains("micraTemperatureEnabled")
       ? { lineaMicraBrewTargetC: number("lineaMicraBrewTargetC") }
       : {}),
@@ -6218,6 +6211,7 @@ function renderShotHero(d) {
       __WEBUI_TEXT__("runtime.avg_flow") + " " + flow.toFixed(2) + __WEBUI_TEXT__("runtime.g_s"),
   );
   chip("Error", !noScale && err && __WEBUI_TEXT__("home.hero_error") + " " + err);
+  chip("Touch", !noScale && d.live && d.touchHold && __WEBUI_TEXT__("home.hero_touch_hold"));
   const mode = noScale
     ? __WEBUI_TEXT__("home.hero_no_scale")
     : d.live
@@ -6351,7 +6345,6 @@ function loadSettingsConfig(c) {
   if (configLoaded && (configDirty || brewDirty || formRev === c.revision)) return;
   bbwFormPresetId = c.bbwPresetId || 0;
   $("bbwAlphaBaseline").value = c.bbwAlphaBaseline ?? 0.3;
-  if ($("bbwAlgorithm")) $("bbwAlgorithm").value = c.bbwAlgorithm || "";
   $("goalWeightG").value = c.goalWeightG;
   [
     "rinseGesture",

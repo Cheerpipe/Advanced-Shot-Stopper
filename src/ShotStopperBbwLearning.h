@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ShotStopperBbwCutoff.h"
+#include "ShotStopperBbwEwma.h"
 #include "ShotStopperPresets.h"
 
 namespace shotstopper {

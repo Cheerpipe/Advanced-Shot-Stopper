@@ -46,7 +46,6 @@ settings; the active recipe arrives expanded.
 | --- | --- | --- | --- |
 | **Brew by weight** | ON | ON / OFF | ON: stop by weight when a scale is usable. OFF: paddle, **Stop**, and the 60 s firmware cap only. Fast, Slow, A→M, Max BBW time, and No-scale BBW become read-only. |
 | **Stop after sustained weight** | ON | ON / OFF | A backup for a weight stop blocked by **Avoid accidental touch**. Fresh readings must stay above the applicable cut threshold for 1 second. Saved per preset; takes effect on the next shot. |
-| **Cutoff algorithm** | Linear prediction + adaptive EWMA | Linear regression + offset correction / Linear prediction + adaptive EWMA | Saved per preset; applies to the next shot. |
 | **Target (g)** | 36 g | 10–200 g | Goal weight. Stop aims at `target − learned offset`. |
 | **Max BBW time (s)** | 50 s | 5–60 s | Operational time limit for an **automatic BBW** cycle. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
 | **Baseline offset (g)** | 1.5 g | 0–5 g | Seed used by **Reset learned stop offset**. Save this before reset. |
@@ -70,7 +69,7 @@ near 36 g. This example assumes the Fast guard permits a normal stop and
 no other guard has requested an earlier end. If target arrives too early,
 Fast can deliberately extend the shot.
 
-## Cutoff algorithms and learning
+## Cutoff behavior and learning
 
 ### When touch protection delays a stop
 
@@ -103,22 +102,20 @@ threshold may prevent this backup from firing, so the existing time limits remai
 Backup endings appear as **Touch fallback** and do not train the learned offset
 or the A→M duration trend.
 
-### Algorithm selection
+### One cutoff algorithm
 
-In **Settings → Brew → BBW**, choose **Cutoff algorithm**, then save the
-preset. New controllers, new presets and factory recipe resets use **Linear
-prediction + adaptive EWMA**. Upgrading settings without a selector selects
-it once, retaining the old learned offset for regression and copying that offset
-as the EWMA seed. A saved choice survives subsequent updates and reboot.
+The former **Linear regression + offset correction** mode was removed; its
+learned offset became your starting point. When you update from a firmware
+that still had it, presets saved with that mode keep working: the offset the
+machine actually used arrives as the EWMA starting offset, and learning
+resumes from there on the next shot.
 
-Both modes use ten eligible samples, a positive linear trend, the existing
+Every shot uses ten eligible samples, a positive linear trend, the existing
 minimum prediction horizon and two-sample direct confirmation. Invalid
-prediction falls back to direct stopping and the existing time limits.
-**Linear regression + offset correction** retains the original ordinary
-least-squares calculation. Its stable API/CSV identifier remains `legacy`;
-renaming the former Legacy label changes neither its calculation nor past data.
-EWMA centers
-sample times before fitting, reducing floating-point cancellation:
+prediction falls back to direct stopping and the existing time limits. The
+API and CSV still report `legacy` for shots recorded under the old mode; the
+word describes past data, never a choice. Sample times are centered before
+fitting, reducing floating-point cancellation:
 
 ```text
 x = sample_time - latest_sample_time
@@ -131,18 +128,14 @@ captured offset `O`, target `G`, and final weight `W`, define error `e = W-G`
 and effective compensation `z = O+e`. Reject nonfinite observations and
 `abs(z) > 5 g` before smoothing. Otherwise:
 
-| Mode | Next offset | Tradeoff |
-| --- | --- | --- |
-| Linear regression + offset correction | `clamp(O + e, 0, 5)` | Full correction reacts quickly and follows individual-shot noise. |
-| Adaptive EWMA | `clamp(O + α*e, 0, 5)` | Smaller gains smooth noise; larger gains respond faster. |
-
-With `O=1.50 g`, `G=36 g`, `W=36.20 g`, regression learns **1.70 g** and EWMA
-at α=0.30 learns **1.56 g**. History retains **1.50 g** for that shot.
-EWMA additionally requires the accepted post-drip measurement to remain fresh,
-with valid baseline and connection provenance, following a normal weight-target
-cut. Manual stops, time/safety limits, cup removal, excluded shots and Fast/Slow
+The next offset after an eligible shot is `clamp(O + α*e, 0, 5)`, with a
+lower bound set by the connected scale's reporting lag: smaller gains smooth
+noise; larger gains respond faster. With `O=1.50 g`, `G=36 g`, `W=36.20 g`,
+α=0.30 learns **1.56 g**, and history retains **1.50 g** for that shot.
+EWMA requires the accepted post-drip measurement to remain fresh, with valid
+baseline and connection provenance, following a normal weight-target cut.
+Manual stops, time/safety limits, cup removal, excluded shots and Fast/Slow
 extensions do not train it: forced stops do not measure normal cutoff error.
-Existing regression eligibility is preserved.
 
 Four candidate gains (0.10, 0.30, 0.50, 1.00) score compensation predictions
 before updating them. After 20 eligible EWMA observations, evaluation occurs
@@ -160,20 +153,20 @@ from each trajectory's state before the oldest retained sample, without using
 future measurements. Once a candidate wins, subsequent choices use the four
 fixed gains. Neither saving a baseline nor switching the selector resets learning.
 
-Each preset retains separate offsets. Switching to regression freezes EWMA evidence;
-returning resumes it. Reboot retains offset, gain and initial/learned provenance,
-but collects a fresh evidence window. Recipe or relevant tare/drip timing changes
-also restart evidence without erasing the offset or gain.
+Each preset retains its own offset. Reboot keeps offset, gain and
+initial/learned provenance, but collects a fresh evidence window. Recipe or
+relevant tare/drip timing changes also restart evidence without erasing the
+offset or gain.
 
-The learned-offset readout previews the draft algorithm's own value. EWMA shows
-α, its editable baseline and status alongside it; regression hides these fields. BBW OFF disables the
-selector and hides learning fields. Polling preserves unsaved edits, and resets
-require a saved selection/baseline and an editable, idle configuration.
+The learned-offset readout shows the offset with α, its editable baseline and
+status alongside it. BBW OFF hides the learning fields. Polling preserves
+unsaved edits, and resets require a saved baseline and an editable, idle
+configuration.
 
-- **Reset learned stop offset** resets only the selected mode's
-  offset. For EWMA it retains α and restarts evidence.
-- **Reset EWMA learning** restores EWMA's offset and α to their saved baselines,
-  marks provenance initial, and clears evidence. Regression is retained.
+- **Reset learned stop offset** restores the offset to the saved baseline. It
+  retains α and restarts evidence.
+- **Reset EWMA learning** restores offset and α to their saved baselines,
+  marks provenance initial, and clears evidence.
 
 Save both bases before resetting; editing them alone leaves learned values
 and evidence intact. For the example above, α=0.10 gives a next offset of 1.52 g,
@@ -183,7 +176,7 @@ between shots, not to live scale filtering. The saved base is a reset seed,
 not a fixed gain that disables automatic adaptation.
 
 Pending analysis cannot undo either reset. A future change to the firmware's
-initial gain must preserve valid retained learning. Neither mode changes guard,
+initial gain must preserve valid retained learning. Nothing here changes guard,
 physical-stop, relay, watchdog or time-limit authority. No improved physical
 accuracy is claimed without representative machine/scale measurements.
 

@@ -321,6 +321,14 @@ void setup() {
     presetBank = persistedSettings.presets;
     ensureShotPresetBank(presetBank, runtimeConfig.retareWindowMs,
                          runtimeConfig.autoRetare);
+    if (bbwLegacyAliasesApplied) {
+      // Aliased regression presets must not accept learning snapshotted
+      // against their pre-migration identity; fail safe for one shot.
+      for (uint8_t i = 0; i < presetBank.count && i < MAX_SHOT_PRESETS; ++i) {
+        bbwLearningBank.invalidate(presetBank.presets[i].id, presetBank, 1);
+      }
+      bbwLegacyAliasesApplied = false;
+    }
     scaleWorkerLoadPreferred(persistedSettings.preferredScaleMac,
                              persistedSettings.preferredScaleName,
                              persistedSettings.scaleHistory);

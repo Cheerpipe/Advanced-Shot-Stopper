@@ -21,7 +21,8 @@ static const ScaleFeatureSet kFelicitaFeatures = {
     0,
     0,
     5000,
-    0
+    0,
+    500
 };
 
 bool felicitaSupportedPacketLength(int length) {

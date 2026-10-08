@@ -303,9 +303,9 @@ struct CycleSession {
 };
 
 struct PendingShotFinalize {
-  uint8_t bbwAlgorithm = 0;
+  uint8_t bbwAlgorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
   uint8_t bbwAlpha = 100;
-  uint8_t bbwProfileVersion = 1;
+  uint8_t bbwProfileVersion = BBW_PROFILE_VERSION;
   uint32_t bbwLearningGeneration = 0;
   uint32_t scaleConnectionGeneration = 0;
   bool scaleBaselineReady = false;
@@ -345,6 +345,12 @@ struct PendingShotFinalize {
   uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS;
   bool lastKnownWeightValid = false;
   float lastKnownWeightG = 0.0f;
+  // Plausible post-stop tail collected during the drip hold; the final
+  // weight is the median of the last POST_STOP_TAIL_SAMPLE_COUNT samples.
+  float tailG[POST_STOP_TAIL_SAMPLE_COUNT] = {};
+  uint32_t tailAtMs[POST_STOP_TAIL_SAMPLE_COUNT] = {};
+  uint8_t tailCount = 0;
+  float tailMaxG = 0.0f;
   uint8_t activePresetId = 0;
   char activePresetName[SHOT_PRESET_NAME_CAPACITY] = {};
   char scaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};

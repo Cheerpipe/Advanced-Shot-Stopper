@@ -1,11 +1,10 @@
 {
   const assert = require('assert');
   const vm = require('vm');
-  assert(html.includes('<option value="legacy">Linear regression + offset correction</option>'));
-  assert(html.includes('<strong>Linear regression + offset correction:</strong>'));
-  assert(html.includes('applies the full final-weight error from the latest successful shot'));
-  assert(html.includes('<strong>Linear prediction + adaptive EWMA:</strong>'));
-  assert(html.includes('it never changes to the other algorithm automatically'));
+  // The cutoff-algorithm selector is gone: one algorithm, one alpha baseline.
+  assert(!html.includes('id="bbwAlgorithm"'));
+  assert(!html.includes('Linear regression + offset correction'));
+  assert(!html.includes('Linear prediction + adaptive EWMA'));
   assert(!html.includes('<div class="row"><label>Target (g)'));
   for (const id of ['resetCalibrationButton', 'resetEwmaButton'])
     assert(html.includes('id="' + id + '" class="btnGlyph mutable"'));
@@ -20,7 +19,7 @@
     elements.set(id, node);
     return node;
   };
-  for (const id of ['bbwAlgorithm', 'brewByWeight', 'learnedOffsetG', 'bbwAlpha',
+  for (const id of ['brewByWeight', 'learnedOffsetG', 'bbwAlpha',
     'bbwAlphaStatus', 'resetCalibrationButton',
     'resetEwmaButton', 'weightOffsetBaselineG', 'bbwAlphaBaseline', 'goalWeightG']) element(id);
   const learning = element('learning', ['bbwLearning']);
@@ -28,7 +27,6 @@
     elements.get('resetCalibrationButton'), elements.get('resetEwmaButton'), elements.get('bbwAlphaBaseline')];
   const ewma = element('ewma', ['bbwEwma']);
   ewma.querySelectorAll = () => [elements.get('bbwAlphaBaseline'), elements.get('resetEwmaButton')];
-  const select = elements.get('bbwAlgorithm');
   const context = vm.createContext({$: id => elements.get(id), controlsMutable: true,
     brewDirty: false, configDirty: false, configLoaded: true, formRev: 1,
     document: {querySelectorAll: () => [learning, ewma]}});
@@ -37,45 +35,32 @@
   vm.runInContext(runtimeJs.slice(start, end), context);
   vm.runInContext('bbwFormPresetId=2;bbwReadback={bbwPresetId:2,bbwAlgorithm:"linear_ewma",bbwLegacyOffsetG:0,bbwEwmaOffsetG:1.56,bbwAlpha:0.3,bbwAlphaSource:"initial",bbwEvidenceCount:0}', context);
   elements.get('brewByWeight').checked = true;
-  select.value = 'linear_ewma';
   const refresh = () => vm.runInContext('updateBbwControls()', context);
   refresh();
   assert.equal(elements.get('bbwAlpha').textContent, '0.30');
   assert.equal(elements.get('learnedOffsetG').textContent, '1.56 g');
   assert(!ewma.classList.contains('hidden'));
-  select.value = 'legacy';
-  context.brewDirty = true;
-  refresh();
-  assert(ewma.classList.contains('hidden'));
-  assert(elements.get('bbwAlphaBaseline').disabled);
-  assert.equal(elements.get('learnedOffsetG').textContent, '0.00 g');
-  assert(elements.get('resetCalibrationButton').disabled);
+  assert(!elements.get('resetCalibrationButton').disabled);
   vm.runInContext('bbwReadback.bbwAlpha=.5;bbwReadback.bbwAlphaSource="learned";bbwReadback.bbwEvidenceCount=20', context);
   refresh();
-  assert.equal(select.value, 'legacy');
   assert.equal(elements.get('bbwAlpha').textContent, '0.50');
-  select.value = 'linear_ewma';
-  context.brewDirty = false;
-  refresh();
-  assert.equal(elements.get('bbwAlphaStatus').textContent, 'Learned · Evaluating');
+  assert.equal(elements.get('bbwAlphaStatus').textContent, 'Learned \u00b7 Evaluating');
   elements.get('brewByWeight').checked = false;
   refresh();
-  assert(select.disabled && learning.classList.contains('hidden'));
+  assert(learning.classList.contains('hidden'));
   assert(elements.get('weightOffsetBaselineG').disabled);
   elements.get('brewByWeight').checked = true;
   context.controlsMutable = false;
   refresh();
-  assert(select.disabled && elements.get('resetEwmaButton').disabled);
+  assert(elements.get('resetEwmaButton').disabled);
   vm.runInContext('bbwReadback.bbwPresetId=1', context);
   refresh();
-  assert.equal(elements.get('bbwAlpha').textContent, '—');
-  assert.equal(elements.get('learnedOffsetG').textContent, '—');
+  assert.equal(elements.get('bbwAlpha').textContent, '\u2014');
+  assert.equal(elements.get('learnedOffsetG').textContent, '\u2014');
   const load = blockAt(runtimeJs, 'function loadSettingsConfig(');
   vm.runInContext(load, context);
   context.brewDirty = true;
-  select.value = 'legacy';
   vm.runInContext('loadSettingsConfig({goalWeightG:36,revision:5,bbwAlgorithm:"linear_ewma"})', context);
-  assert.equal(select.value, 'legacy');
 
   const payload = blockAt(runtimeJs, 'function brewPayload(');
   const makePayload = new Function('$', 'number', 'sToMs', 'presetState', 'bbwFormPresetId', 'document',
@@ -90,7 +75,6 @@
   assert(!('bbwAlphaBaseline' in fields));
   context.controlsMutable = true;
   elements.get('brewByWeight').checked = true;
-  select.value = 'linear_ewma';
   refresh();
   const withBase = makePayload(id => elements.get(id) || {checked: true, value: 'auto'},
     id => id === 'bbwAlphaBaseline' ? .37 : 36, () => 30000,

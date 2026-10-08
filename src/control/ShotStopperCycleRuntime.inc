@@ -602,12 +602,57 @@ void profileScaleWeightDecision(bool accepted, DebugCode reason, float weight,
       accepted ? 0 : static_cast<uint32_t>(weightToCentigrams(referenceG)));
 }
 
+void notePostStopTailSample(PendingShotFinalize &pending, float weightG,
+                            uint32_t atMs) {
+  if (pending.tailCount < POST_STOP_TAIL_SAMPLE_COUNT) {
+    pending.tailG[pending.tailCount] = weightG;
+    pending.tailAtMs[pending.tailCount] = atMs;
+    ++pending.tailCount;
+  } else {
+    memmove(&pending.tailG[0], &pending.tailG[1],
+            (POST_STOP_TAIL_SAMPLE_COUNT - 1U) * sizeof(float));
+    memmove(&pending.tailAtMs[0], &pending.tailAtMs[1],
+            (POST_STOP_TAIL_SAMPLE_COUNT - 1U) * sizeof(uint32_t));
+    pending.tailG[POST_STOP_TAIL_SAMPLE_COUNT - 1U] = weightG;
+    pending.tailAtMs[POST_STOP_TAIL_SAMPLE_COUNT - 1U] = atMs;
+  }
+  pending.tailMaxG = pending.tailCount == 1 ? weightG
+                                            : fmaxf(pending.tailMaxG, weightG);
+}
+
+// Median of the plausible post-stop tail; early post-stop samples are still
+// rising, so a sparse or short-span tail falls back to the running max
+// rather than letting one dip or one pre-settle sample define the shot.
+float postStopFinalWeightG(const PendingShotFinalize &pending,
+                           float fallbackG) {
+  if (pending.tailCount == 0) {
+    return fallbackG;
+  }
+  if (pending.tailCount < POST_STOP_TAIL_SAMPLE_COUNT ||
+      static_cast<uint32_t>(
+          pending.tailAtMs[pending.tailCount - 1U] - pending.tailAtMs[0]) <
+          POST_STOP_TAIL_MIN_COVERAGE_MS) {
+    return pending.tailMaxG;
+  }
+  float sorted[POST_STOP_TAIL_SAMPLE_COUNT];
+  memcpy(sorted, pending.tailG, sizeof(sorted));
+  for (size_t i = 1; i < POST_STOP_TAIL_SAMPLE_COUNT; ++i) {
+    const float value = sorted[i];
+    size_t j = i;
+    while (j > 0 && sorted[j - 1] > value) {
+      sorted[j] = sorted[j - 1];
+      --j;
+    }
+    sorted[j] = value;
+  }
+  return sorted[POST_STOP_TAIL_SAMPLE_COUNT / 2U];
+}
+
 bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                       uint32_t packetSequence,
                                       uint32_t connectionGeneration,
                                       uint32_t captureSequence = 0) {
-  const ProfileControlObservation profile(captureSequence, connectionGeneration);
-  const bool touchProvenanceValid = packetSequence != 0 && connectionGeneration != 0;
+  const ProfileControlObservation profile(captureSequence, connectionGeneration);  const bool touchProvenanceValid = packetSequence != 0 && connectionGeneration != 0;
   const TouchStopEvidence previousTouchStop = session.touchStop;
   session.touchStop = {};  // Only a qualifying touch sample may retain evidence.
   if (!std::isfinite(weight) || fabsf(weight) > MAX_PARSED_WEIGHT_G) {
@@ -702,7 +747,11 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     performAutomaticRetare();
   }
 
-  if (session.active && session.startedWithScale) {
+  // First-flow markers belong to the connection that owns this cycle; a
+  // foreign generation must not latch a first-drop timestamp.
+  if (session.active && session.startedWithScale &&
+      (session.ownedConnectionGeneration == 0 ||
+       connectionGeneration == session.ownedConnectionGeneration)) {
     const FirstFlowObservation firstDrop =
         considerScaleFlowMarkers(weight, receivedAtMs, packetSequence);
     if (firstDrop.atMs != 0) {
@@ -722,7 +771,10 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
       pendingFinalize.curveBreakPending = !continuous ||
           !appendShotCurveObservation(pendingFinalize.curve, weight,
               receivedAtMs - pendingFinalize.cycleStartedAtMs, pendingFinalize.curveBreakPending);
-      if (continuous) pendingFinalize.curveLastSequence = packetSequence;
+      if (continuous) {
+        pendingFinalize.curveLastSequence = packetSequence;
+        notePostStopTailSample(pendingFinalize, weight, receivedAtMs);
+      }
     }
     return valid;
   }
@@ -1387,13 +1439,14 @@ void pendingShotFinalizeTask() {
   snapshot = pendingFinalize;
   pendingFinalize.pending = false;
 
-  const float finalWeightG = currentWeight;
+  const float finalWeightG = postStopFinalWeightG(snapshot, currentWeight);
   bool postDripWeightValid = false;
   if (scaleAvailable() && std::isfinite(currentWeight) &&
       currentWeightSequence != snapshot.endedWeightSequence &&
       static_cast<int32_t>(currentWeightReceivedAtMs - snapshot.endedAtMs) >
           0 &&
-      plausibleSettledBrewWeight(currentWeight, snapshot.lastKnownWeightG,
+      std::isfinite(finalWeightG) &&
+      plausibleSettledBrewWeight(finalWeightG, snapshot.lastKnownWeightG,
                                  snapshot.lastKnownWeightValid)) {
     postDripWeightValid = snapshot.startedWithScale;
   }

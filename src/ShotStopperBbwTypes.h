@@ -6,9 +6,14 @@
 
 namespace shotstopper {
 
-enum class BbwAlgorithm : uint8_t { LEGACY = 0, LINEAR_EWMA = 1 };
+// LINEAR_EWMA is the only cutoff algorithm. Numeric value 1 matches the
+// pre-removal persisted encoding; blobs storing 0 (removed regression mode)
+// are aliased to 1 by the settings-load repair path.
+enum class BbwAlgorithm : uint8_t { LINEAR_EWMA = 1 };
 constexpr uint8_t DEFAULT_BBW_EWMA_ALPHA = 30;  // Hundredths, dimensionless.
-constexpr uint8_t BBW_PROFILE_VERSION = 2;  // EWMA policy; regression remains v1.
+// v1 was the removed regression policy; stored shot logs keep whatever
+// version they were written with and are never recomputed.
+constexpr uint8_t BBW_PROFILE_VERSION = 2;
 constexpr uint8_t BBW_ALPHA_CANDIDATES[] = {10, 30, 50, 100};
 
 inline bool validBbwAlpha(uint8_t alpha) {
@@ -16,7 +21,8 @@ inline bool validBbwAlpha(uint8_t alpha) {
 }
 
 inline uint8_t bbwAlgorithmVersion(uint8_t algorithm) {
-  return algorithm == 0 ? 1 : BBW_PROFILE_VERSION;
+  (void)algorithm;
+  return BBW_PROFILE_VERSION;
 }
 
 inline bool parseBbwAlphaBaseline(double value, uint8_t &out) {
@@ -28,19 +34,18 @@ inline bool parseBbwAlphaBaseline(double value, uint8_t &out) {
 }
 
 inline const char *bbwAlgorithmName(uint8_t algorithm) {
-  switch (static_cast<BbwAlgorithm>(algorithm)) {
-    case BbwAlgorithm::LEGACY: return "legacy";
-    case BbwAlgorithm::LINEAR_EWMA: return "linear_ewma";
-  }
-  return "unknown";
+  return algorithm == static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA)
+             ? "linear_ewma"
+             : "unknown";
 }
 
 inline bool parseBbwAlgorithm(const char *name, uint8_t &algorithm) {
-  for (uint8_t value = 0; value <= 1; ++value) {
-    if (name != nullptr && strcmp(name, bbwAlgorithmName(value)) == 0) {
-      algorithm = value;
-      return true;
-    }
+  if (name == nullptr) return false;
+  // "legacy" (the removed regression mode) stays accepted so old clients and
+  // scripts keep working; both names select the only remaining algorithm.
+  if (strcmp(name, "linear_ewma") == 0 || strcmp(name, "legacy") == 0) {
+    algorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
+    return true;
   }
   return false;
 }

@@ -9,6 +9,11 @@ How those detections protect the shot is explained in
 
 ## When it applies
 
+While you set this up, put your usual cup on the scale and watch the reading:
+if the cup weighs less than **Minimum cup weight**, Settings shows a hint with
+the measured weight — lower the minimum below it, or cup detection and late
+tare will not recognize that cup.
+
 Detection runs while idle and during brewing. A stable increase from the last
 qualified absent reading, at or above the minimum cup weight, counts as **placed**.
 A confirmed weight at or below the removed threshold

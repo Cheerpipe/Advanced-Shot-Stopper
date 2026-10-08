@@ -501,7 +501,7 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
       "\"goal\":%u,\"elapsedMs\":%lu,\"firstDropMs\":%s,"
       "\"tareMs\":%s,\"presetName\":\"%s\","
       "\"scaleAvailable\":%s,\"shotType\":\"%s\",\"endReason\":\"%s\",\"averageFlowGps\":%s,"
-      "\"extractionExtended\":%s,\"slowExtractionExtended\":%s}",
+      "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,\"touchHold\":%s}",
       phase, card.valid ? "true" : "false", control.activeCycle ? "true" : "false",
       weight, card.goalWeightG,
       static_cast<unsigned long>(card.durationMs), drop, tare, preset,
@@ -510,7 +510,10 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
       !live && !retained && eligible ? shotLogStopDetailName(static_cast<ShotLogStopDetail>(latest.stopDetail))
                                   : shotLogStopDetailName(shotLogStopDetailFromEndReason(
                                         card.endReason, card.fastExtractionGuardEnabled, card.extractionExtended)),
-      flow, card.extractionExtended ? "true" : "false", card.slowExtractionExtended ? "true" : "false");
+      flow, card.extractionExtended ? "true" : "false",
+      card.slowExtractionExtended ? "true" : "false",
+      control.activeCycle && control.cycleAccidentalTouchHolding ? "true"
+                                                                 : "false");
   if (cardBytes <= 0 || static_cast<size_t>(cardBytes) >= NetworkWorkBuf::kJsonItem)
     return true;
   const uint32_t markers = crc32Update(0xFFFFFFFFU,

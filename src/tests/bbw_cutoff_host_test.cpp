@@ -12,11 +12,20 @@ using namespace shotstopper;
 int main() {
   float times[10], weights[10];
   for (int i = 0; i < 10; ++i) { times[i] = 20.0f + i; weights[i] = 10.0f + 2 * i; }
-  for (uint8_t mode : {0, 1}) {
-    assert(std::fabs(predictedWeightStopTimeS(times, weights, 10, 36, 50, mode) - 33) < 1e-5f);
-    assert(predictedWeightStopTimeS(times, weights, 9, 36, 50, mode) == 50);
-    assert(predictedWeightStopTimeS(times, weights, 10, 20, 50, mode) == 50);
-  }
+  assert(std::fabs(bbwEwma::predict(times, weights, 10, 36, 50) - 33) < 1e-5f);
+  assert(bbwEwma::predict(times, weights, 9, 36, 50) == 50);
+  assert(bbwEwma::predict(times, weights, 10, 20, 50) == 50);
+  // The removed regression mode must parse as an alias, never as value 0.
+  uint8_t parsedAlgorithm = 2;
+  assert(parseBbwAlgorithm("legacy", parsedAlgorithm) && parsedAlgorithm == 1);
+  assert(parseBbwAlgorithm("linear_ewma", parsedAlgorithm) &&
+         parsedAlgorithm == 1);
+  assert(!parseBbwAlgorithm("regression", parsedAlgorithm));
+  assert(!parseBbwAlgorithm(nullptr, parsedAlgorithm));
+  assert(strcmp(bbwAlgorithmName(1), "linear_ewma") == 0);
+  assert(strcmp(bbwAlgorithmName(0), "unknown") == 0);
+  assert(bbwAlgorithmVersion(0) == BBW_PROFILE_VERSION &&
+         bbwAlgorithmVersion(1) == BBW_PROFILE_VERSION);
   for (float &time : times) time += 10000.0f;
   assert(std::fabs(bbwEwma::predict(times, weights, 10, 36, 50) - 10033) < 0.002f);
   times[5] = times[4];
@@ -43,16 +52,14 @@ int main() {
   weights[3] = INFINITY;
   assert(bbwEwma::predict(times, weights, 10, 36, 60) == 60);
   float next = 0;
-  assert(learnBbwOffset(0, 1.5f, 36.2f, 36, 100, false, next));
-  assert(std::fabs(next - 1.7f) < 1e-5f);
-  assert(learnBbwOffset(1, 1.5f, 36.2f, 36, 30, true, next));
+  assert(bbwEwma::learn(1.5f, 36.2f, 36, 30, true, next));
   assert(std::fabs(next - 1.56f) < 1e-5f);
-  assert(!learnBbwOffset(1, 1.5f, 36.2f, 36, 30, false, next));
-  assert(!learnBbwOffset(1, 1.5f, 42, 36, 10, true, next));
-  assert(!learnBbwOffset(1, NAN, 36, 36, 30, true, next));
-  assert(!learnBbwOffset(1, 1.5f, 36, 36, 0, true, next));
+  assert(!bbwEwma::learn(1.5f, 36.2f, 36, 30, false, next));
+  assert(!bbwEwma::learn(1.5f, 42, 36, 10, true, next));
+  assert(!bbwEwma::learn(NAN, 36, 36, 30, true, next));
+  assert(!bbwEwma::learn(1.5f, 36, 36, 0, true, next));
   for (uint8_t gain : {1, 30, 37, 100}) {
-    assert(learnBbwOffset(1, 1.5f, 36.2f, 36, gain, true, next));
+    assert(bbwEwma::learn(1.5f, 36.2f, 36, gain, true, next));
     assert(fabsf(next - (1.5f + gain * .002f)) < 1e-5f);
     uint8_t parsed = 0;
     assert(parseBbwAlphaBaseline(gain / 100.0, parsed) && parsed == gain);
@@ -71,8 +78,8 @@ int main() {
     uint8_t parsed = 50;
     assert(!parseBbwAlphaBaseline(invalid, parsed) && parsed == 50);
   }
-  assert(learnBbwOffset(1, 0, 35, 36, 30, true, next) && next == 0);
-  assert(learnBbwOffset(1, 5, 36, 36, 30, true, next) && next == 5);
+  assert(bbwEwma::learn(0, 35, 36, 30, true, next) && next == 0);
+  assert(bbwEwma::learn(5, 36, 36, 30, true, next) && next == 5);
   bbwEwma::Evidence constant, noisy, changed;
   uint8_t alpha = 30;
   for (int i = 0; i < 100; ++i) assert(constant.observe(1.5f, 1.5f, 30) == 30);
@@ -119,25 +126,57 @@ int main() {
     assert(preset.bbwEwmaAlpha == 30);
     assert(preset.weightOffsetG == preset.bbwEwmaOffsetG);
   }
-  PersistedSettings updated = settings;
-  updated.presets.presets[0].bbwAlgorithm = 0;
-  updated.presets.presets[0].bbwEwmaAlpha = 50;
-  updated.presets.presets[0].bbwAlphaLearned = 1;
-  updated.presets.presets[0].bbwEwmaOffsetG = 0.80f;
-  updated.presets.presets[1].bbwEwmaOffsetG = 3.10f;
-  updated.presets.presets[1].bbwEwmaAlpha = 10;
-  assert(savePersistedSettings(updated));
+  // A blob persisted by pre-removal firmware with the regression mode
+  // active must load as EWMA with the regression offset seeded, and the
+  // first shot after migration still learns (fields stay consistent).
+  persistence_host::reset();
+  PersistedSettings legacyBlob = settings;
+  legacyBlob.runtime.bbwAlgorithm = 0;
+  legacyBlob.presets.presets[0].bbwAlgorithm = 0;
+  legacyBlob.presets.presets[0].bbwProfileVersion = 1;
+  legacyBlob.presets.presets[0].weightOffsetG = 2.30f;
+  legacyBlob.presets.presets[0].bbwEwmaAlpha = 50;
+  legacyBlob.presets.presets[0].bbwAlphaLearned = 1;
+  legacyBlob.presets.presets[1].bbwAlgorithm = 0;
+  legacyBlob.presets.presets[1].bbwProfileVersion = 1;
+  legacyBlob.presets.presets[1].weightOffsetG = 0.70f;
+  legacyBlob.presets.presets[1].bbwEwmaOffsetG = 0.90f;  // Real EWMA history.
+  legacyBlob.presets.presets[1].bbwEwmaAlpha = 10;
+  legacyBlob.checksum = persistedSettingsChecksum(legacyBlob);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacyBlob,
+                           sizeof(legacyBlob));
   PersistedSettings reloaded;
   assert(loadPersistedSettings(reloaded));
-  assert(reloaded.presets.presets[0].bbwAlgorithm == 0);
+  assert(reloaded.runtime.bbwAlgorithm == 1);
+  assert(reloaded.presets.presets[0].bbwAlgorithm == 1);
+  assert(reloaded.presets.presets[0].bbwProfileVersion == BBW_PROFILE_VERSION);
+  // Untouched EWMA default: the regression offset becomes the seed.
+  assert(fabsf(reloaded.presets.presets[0].bbwEwmaOffsetG - 2.30f) < 1e-5f);
   assert(reloaded.presets.presets[0].bbwEwmaAlpha == 50);
   assert(reloaded.presets.presets[0].bbwAlphaLearned == 1);
-  assert(reloaded.presets.presets[0].bbwEwmaOffsetG == 0.80f);
-  assert(reloaded.presets.presets[1].bbwEwmaOffsetG == 3.10f);
+  // A preset that already ran EWMA keeps its learned offset untouched.
+  assert(reloaded.presets.presets[1].bbwAlgorithm == 1);
+  assert(fabsf(reloaded.presets.presets[1].bbwEwmaOffsetG - 0.90f) < 1e-5f);
   assert(reloaded.presets.presets[1].bbwEwmaAlpha == 10);
-  updated.presets.presets[0].bbwAlgorithm = 255;
-  updated.checksum = persistedSettingsChecksum(updated);
-  assert(!validPersistedSettings(updated));
+  assert(validPersistedSettings(reloaded));
+  // Seeded offset plus a fresh miss keeps learning on the EWMA path.
+  float migratedOffset = 0;
+  assert(bbwEwma::learn(reloaded.presets.presets[0].bbwEwmaOffsetG, 36.2f,
+                        36, reloaded.presets.presets[0].bbwEwmaAlpha, true,
+                        migratedOffset));
+  assert(fabsf(migratedOffset - (2.30f + 0.5f * 0.2f)) < 1e-5f);
+  // The migrated record round-trips byte-exact through save/load.
+  assert(savePersistedSettings(reloaded));
+  PersistedSettings secondPass;
+  assert(loadPersistedSettings(secondPass));
+  assert(memcmp(&secondPass, &reloaded, sizeof(secondPass)) == 0);
+  secondPass.presets.presets[0].bbwAlgorithm = 255;
+  secondPass.checksum = persistedSettingsChecksum(secondPass);
+  assert(!validPersistedSettings(secondPass));
+  secondPass.presets.presets[0].bbwAlgorithm = 0;
+  secondPass.checksum = persistedSettingsChecksum(secondPass);
+  // Validation itself rejects the removed id; only the slot-read path aliases.
+  assert(!validPersistedSettings(secondPass));
 
   ShotPresetBank bank = reloaded.presets;
   BbwLearningBank learning;
@@ -207,5 +246,47 @@ int main() {
     decoded.header.schemaVersion = 5;
     assert(!validShotLogStore(decoded));
   }
+  // Reference-relative fitWeightTrend must agree with the exact absolute-time
+  // regression on shot-scale times (~60 s) within 0.01 g at every probe.
+  {
+    float t[WEIGHT_TREND_POINT_COUNT], w[WEIGHT_TREND_POINT_COUNT];
+    for (size_t i = 0; i < WEIGHT_TREND_POINT_COUNT; ++i) {
+      t[i] = 55.0f + 0.45f * static_cast<float>(i);
+      w[i] = 20.0f + 1.7f * (t[i] - 55.0f) + 0.05f * std::sin(static_cast<float>(i));
+    }
+    w[WEIGHT_TREND_POINT_COUNT - 1] = 28.6f;  // Last-sample gate passes.
+    const WeightTrendFit fit = fitWeightTrend(t, w, WEIGHT_TREND_POINT_COUNT);
+    assert(fit.valid);
+    assert(fabsf(fit.referenceS - t[WEIGHT_TREND_POINT_COUNT - 1]) < 1e-6f);
+    double sx = 0, sy = 0, sxx = 0, sxy = 0;
+    const double n = static_cast<double>(WEIGHT_TREND_POINT_COUNT);
+    for (size_t i = 0; i < WEIGHT_TREND_POINT_COUNT; ++i) {
+      sx += t[i];
+      sy += w[i];
+      sxx += static_cast<double>(t[i]) * t[i];
+      sxy += static_cast<double>(t[i]) * w[i];
+    }
+    const double slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+    const double intercept = sy / n - slope * (sx / n);
+    for (float probe : {55.0f, 57.5f, 59.1f, 60.0f}) {
+      const double expectedG = intercept + slope * probe;
+      const float gotG = fit.intercept + fit.slope * (probe - fit.referenceS);
+      assert(std::fabs(gotG - expectedG) < 0.01);
+    }
+  }
+
+  // The per-protocol sensor-lag priors must keep reproducing the flat
+  // Single/Double seed magnitudes from reference-pair flows; a table edit
+  // that breaks this invalidates the documented seed policy.
+  {
+    const float acaiaLagS =
+        kScaleProtocolAcaia.features.sensorLagMs / 1000.0f;
+    assert(fabsf(acaiaLagS * 0.72f - 0.5f) < 0.05f);    // Single seed
+    assert(fabsf(acaiaLagS * 2.17f - 1.5f) < 0.05f);    // Double seed
+    assert(fabsf(acaiaLagS * 0.8f - 0.552f) < 0.005f);  // Documented floor
+    assert(kScaleProtocolAcaiaLegacy.features.sensorLagMs ==
+           kScaleProtocolAcaia.features.sensorLagMs);
+  }
+
   std::cout << "BBW numeric, adaptation, state, and history checks passed\n";
 }

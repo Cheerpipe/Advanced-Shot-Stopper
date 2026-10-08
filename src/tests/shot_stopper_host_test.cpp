@@ -22,7 +22,7 @@ namespace {
 int failures = 0;
 int testsRun = 0;
 bool hostAutoScaleWorkerProgress = true;
-uint8_t hostBbwAlgorithm = 0;
+uint8_t hostBbwAlgorithm = 1;
 
 #define CHECK(condition)                                                       \
   do {                                                                         \
@@ -449,9 +449,9 @@ void preparePendingBbwForTest() {
   const ShotPreset &preset = activeShotPreset(presetBank);
   pendingFinalize.bbwAlgorithm = preset.bbwAlgorithm;
   pendingFinalize.bbwProfileVersion = bbwAlgorithmVersion(preset.bbwAlgorithm);
-  pendingFinalize.bbwAlpha = preset.bbwAlgorithm == 0 ? 100 : preset.bbwEwmaAlpha;
+  pendingFinalize.bbwAlpha = preset.bbwEwmaAlpha;
   pendingFinalize.bbwLearningGeneration = bbwLearningBank.forPreset(
-      preset.id, presetBank).generations[preset.bbwAlgorithm];
+      preset.id, presetBank).generations[1];
 }
 
 void verifySafetyInvariants() {
@@ -539,12 +539,19 @@ void publishTestScaleWorkerPolicy() {
   publishScaleWorkerPolicy(runtimeConfig, firmwareInitializationComplete);
 }
 
+uint32_t hostLastWeightEventAtMs = 0;
 void publishWeight(float weight, uint32_t receivedAtMs = UINT32_MAX,
                    uint32_t generation = 0, uint32_t sequence = 0) {
   // Deliver scheduled samples at their capture time; invalid-future tests use
-  // publishScaleEvent/publishPendingScaleWeightEvent directly.
+  // publishScaleEvent/publishPendingScaleWeightEvent directly. Default-time
+  // publishes never repeat a millisecond: real scales stamp each packet, and
+  // duplicate-timestamp behavior is tested with explicit equal times.
   if (receivedAtMs != UINT32_MAX && static_cast<int32_t>(receivedAtMs - hostMillis) > 0)
     hostMillis = receivedAtMs;
+  else if (receivedAtMs == UINT32_MAX && hostLastWeightEventAtMs == hostMillis)
+    ++hostMillis;
+  hostLastWeightEventAtMs =
+      receivedAtMs == UINT32_MAX ? hostMillis : receivedAtMs;
   ScaleEvent event;
   event.type = ScaleEventType::WEIGHT;
   event.receivedAtMs = receivedAtMs == UINT32_MAX ? hostMillis : receivedAtMs;
@@ -1817,11 +1824,11 @@ void r05_regression_uses_last_ten_valid_samples() {
     times[i] = static_cast<float>(i + 1);
     weights[i] = static_cast<float>(i + 1) * 2.0f;
   }
-  CHECK(fabsf(predictedWeightStopTimeS(times, weights, WEIGHT_TREND_POINT_COUNT,
-                                       34.5f, 60.0f) -
+  CHECK(fabsf(bbwEwma::predict(times, weights, WEIGHT_TREND_POINT_COUNT,
+                                34.5f, 60.0f) -
               17.25f) < 0.001f);
-  CHECK(fabsf(predictedWeightStopTimeS(times, weights, WEIGHT_TREND_POINT_COUNT,
-                                       41.0f, 60.0f) -
+  CHECK(fabsf(bbwEwma::predict(times, weights, WEIGHT_TREND_POINT_COUNT,
+                                41.0f, 60.0f) -
               20.5f) < 0.001f);
 
   resetHarness(false, true);
@@ -2041,44 +2048,44 @@ void r11_final_shot_analysis_updates_only_valid_offset() {
   resetHarness(false, true);
   reachReadyFromBoot();
   const float originalOffset = runtimeConfig.weightOffsetG;
-  preparePendingBbwForTest();
-  pendingFinalize.offsetAnalysis = true;
-  pendingFinalize.endedAtMs = hostMillis;
-  pendingFinalize.endedWeightSequence = 0;
-  pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
-  pendingFinalize.weightOffsetG = originalOffset;
-  currentWeight = DEFAULT_GOAL_WEIGHT_G + 1.0f;
-  currentWeightSequence = 1;
-  currentWeightReceivedAtMs = hostMillis + 1;
-  runLoopAfter(pendingFinalize.dripDelayMs);
-  finishHostMaintenance();
-  CHECK(fabsf(runtimeConfig.weightOffsetG - 2.5f) < 0.001f);
-
-  const float validOffset = runtimeConfig.weightOffsetG;
-  preparePendingBbwForTest();
-  pendingFinalize.offsetAnalysis = true;
-  pendingFinalize.endedAtMs = hostMillis;
-  pendingFinalize.endedWeightSequence = currentWeightSequence;
-  pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
-  pendingFinalize.weightOffsetG = validOffset;
-  currentWeight = DEFAULT_GOAL_WEIGHT_G + MAX_OFFSET_G + 1.0f;
-  ++currentWeightSequence;
-  currentWeightReceivedAtMs = hostMillis + 1;
-  runLoopAfter(pendingFinalize.dripDelayMs);
-  CHECK(runtimeConfig.weightOffsetG == validOffset);
-
-  preparePendingBbwForTest();
-  pendingFinalize.offsetAnalysis = true;
-  pendingFinalize.endedAtMs = hostMillis;
-  pendingFinalize.endedWeightSequence = currentWeightSequence;
-  pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
-  pendingFinalize.weightOffsetG = 3.0f;
-  currentWeight = 32.0f;
-  ++currentWeightSequence;
-  currentWeightReceivedAtMs = hostMillis + 1;
-  runLoopAfter(pendingFinalize.dripDelayMs);
-  finishHostMaintenance();
-  CHECK(fabsf(runtimeConfig.weightOffsetG) < 0.001f);
+  const uint32_t generation = getScaleLinkSnapshot().connectionGeneration;
+  for (int part = 0; part < 3; ++part) {
+    preparePendingBbwForTest();
+    pendingFinalize.offsetAnalysis = true;
+    pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
+    pendingFinalize.scaleBaselineReady = true;
+    pendingFinalize.scaleConnectionGeneration = generation;
+    pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
+    pendingFinalize.dripDelayMs = 0;
+    pendingFinalize.endedAtMs = hostMillis;
+    pendingFinalize.endedWeightSequence = currentWeightSequence;
+    pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+    currentWeightConnectionGeneration = generation;
+    hostMillis += 20;
+    currentWeightReceivedAtMs = hostMillis;
+    ++currentWeightSequence;
+    if (part == 0) {
+      pendingFinalize.weightOffsetG = originalOffset;
+      currentWeight = DEFAULT_GOAL_WEIGHT_G + 1.0f;
+    } else if (part == 1) {
+      pendingFinalize.weightOffsetG = runtimeConfig.weightOffsetG;
+      currentWeight = DEFAULT_GOAL_WEIGHT_G + MAX_OFFSET_G + 1.0f;
+    } else {
+      pendingFinalize.weightOffsetG = 3.0f;
+      currentWeight = 32.0f;
+    }
+    pendingShotFinalizeTask();
+    if (part == 0) {
+      // EWMA (alpha 30): 1.5 g + 0.3 x 1 g miss.
+      CHECK(fabsf(runtimeConfig.weightOffsetG - 1.8f) < 0.001f);
+    } else if (part == 1) {
+      // Observation outside the safe range leaves the offset unchanged.
+      CHECK(fabsf(runtimeConfig.weightOffsetG - 1.8f) < 0.001f);
+    } else {
+      // EWMA pulls the offset down: 3.0 g + 0.3 x (32 - 36) g = 1.8 g.
+      CHECK(fabsf(runtimeConfig.weightOffsetG - 1.8f) < 0.001f);
+    }
+  }
 }
 
 void bbw01_snapshots_and_isolated_finalization() {
@@ -2108,7 +2115,6 @@ void bbw01_snapshots_and_isolated_finalization() {
     const float used = pendingFinalize.weightOffsetG;
     CHECK(pendingFinalize.bbwAlpha == 50);
     // A saved choice made after the shot does not redirect its captured policy.
-    preset.bbwAlgorithm = 0;
     preset.bbwEwmaAlpha = 10;
     if (resetBeforeFinalize) bbwLearningBank.invalidate(origin, presetBank, 1);
     setActiveShotPreset(presetBank, FACTORY_PRESET_ID_SINGLE);
@@ -2171,15 +2177,16 @@ void bbw02_freshness_reset_and_safety() {
     CHECK(preset.bbwEwmaOffsetG == 2.0f && preset.bbwEwmaAlpha == 50);
     CHECK(bbwLearningBank.forPreset(preset.id, presetBank).evidence.count == 0);
   }
-  const float legacyOffset = preset.weightOffsetG;
+  // Snapshots still carrying the removed regression id must never learn;
+  // migrated presets learn through bbw01/r58 below.
   PendingShotFinalize legacy = pendingFinalize;
   legacy.bbwAlgorithm = 0;
   legacy.bbwProfileVersion = 1;
-  legacy.weightOffsetG = legacyOffset;
-  legacy.endReason = EndReason::CONFIGURED_WALL_LIMIT;
-  legacy.bbwLearningGeneration = bbwLearningBank.forPreset(preset.id, presetBank).generations[0];
-  CHECK(learnPendingBbw(legacy, currentWeight, true));
-  CHECK(fabsf(preset.weightOffsetG - legacyOffset - 0.20f) < 1e-5f);
+  legacy.endReason = EndReason::SCALE_THRESHOLD;
+  legacy.bbwLearningGeneration = bbwLearningBank.forPreset(preset.id, presetBank).generations[1];
+  const float offsetBeforeReject = preset.bbwEwmaOffsetG;
+  CHECK(!learnPendingBbw(legacy, currentWeight, true));
+  CHECK(preset.bbwEwmaOffsetG == offsetBeforeReject);
   const float retainedLegacyOffset = preset.weightOffsetG;
   auto &evidence = bbwLearningBank.forPreset(preset.id, presetBank);
   evidence.evidence.observe(2.1f, 2.0f, preset.bbwEwmaAlpha);
@@ -2219,10 +2226,10 @@ void bbw02_freshness_reset_and_safety() {
   CHECK(preset.weightOffsetG == retainedLegacyOffset && preset.bbwEwmaOffsetG == 0.80f);
   CHECK(memcmp(&other, findShotPreset(presetBank, other.id), sizeof(other)) == 0);
   CHECK(bbwLearningBank.forPreset(preset.id, presetBank).evidence.count == 0);
-  for (uint8_t mode : {0, 1}) {
+  {
     resetHarness(false, true);
     reachReadyFromBoot();
-    runtimeConfig.bbwAlgorithm = mode;
+    runtimeConfig.bbwAlgorithm = 1;
     startCycle();
     advanceToBrew();
     endBbwProtectionForTests();
@@ -3057,7 +3064,7 @@ void w09_valid_config_applies_only_from_ready() {
   resetHarness(false, false);
   reachReadyFromBoot();
   runtimeConfig.weightOffsetG = 2.25f;
-  mutableActiveShotPreset(presetBank).weightOffsetG = 2.25f;
+  mutableActiveShotPreset(presetBank).bbwEwmaOffsetG = 2.25f;
   WebCommand update;
   update.type = WebCommandType::APPLY_CONFIG;
   update.config = runtimeConfig;
@@ -13260,7 +13267,7 @@ void w90c_preset_temperature_presence_and_learning_invalidation() {
   runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
 
   auto &learning = bbwLearningBank.forPreset(preset.id, presetBank);
-  const uint32_t generation = learning.generations[preset.bbwAlgorithm];
+  const uint32_t generation = learning.generations[1];
   save.requestId = 902;
   save.lineaMicraBrewTargetSpecified = true;
   save.lineaMicraBrewTargetDeciC = 945;
@@ -17621,6 +17628,249 @@ void startFirstFlowBrew() {
   establishPostTareBaseline();
 }
 
+void ff17_noise_adaptive_threshold_and_rate_gate() {
+  // Table-driven first-drop fuzz with a sigma-hat column. A fixed LCG seed
+  // keeps the noise case deterministic across platforms.
+  uint32_t seed = 0xBEEF;
+  auto noise = [&seed]() {
+    seed = seed * 1664525U + 1013904223U;
+    return ((seed >> 8) & 0xFFFFU) / 65535.0f * 2.0f - 1.0f;  // [-1, 1)
+  };
+  // 200 near-N(0, 0.3 g) samples (sum of three uniforms) never fire, and
+  // the noise-adaptive floor engages after warmup.
+  {
+    FirstFlowState state;
+    bool fired = false;
+    uint32_t atMs = 1000;
+    for (int i = 0; i < 200; ++i, atMs += 100) {
+      const float sample = (noise() + noise() + noise()) * 0.30f;
+      if (stepFirstFlow(state, sample, atMs, i + 1, 0.0f) ==
+          FirstFlowClass::FIRE) {
+        fired = true;
+      }
+    }
+    CHECK(!fired);
+    CHECK(state.noiseSamples >= FIRST_DROP_NOISE_WARMUP_SAMPLES);
+    CHECK(firstFlowEffectiveThresholdG(state) > FIRST_DROP_THRESHOLD_G);
+    CHECK(fabsf(sqrtf(state.noiseVarHatG) - 0.3f) < 0.1f);
+  }
+  // A 1 g/s ramp fires on the second packet past the threshold.
+  {
+    FirstFlowState state;
+    FirstFlowClass classified = FirstFlowClass::NONE;
+    uint32_t atMs = 1000;
+    for (int i = 1; i <= 6 && classified != FirstFlowClass::FIRE;
+         ++i, atMs += 100) {
+      classified = stepFirstFlow(state, 0.1f * i, atMs, i, 0.0f);
+    }
+    CHECK(classified == FirstFlowClass::FIRE);
+  }
+  // A gentle 0.15 g/s onset still fires.
+  {
+    FirstFlowState state;
+    FirstFlowClass classified = FirstFlowClass::NONE;
+    uint32_t atMs = 1000;
+    for (int i = 1; i <= 40 && classified != FirstFlowClass::FIRE;
+         ++i, atMs += 100) {
+      classified = stepFirstFlow(state, 0.015f * i, atMs, i, 0.0f);
+    }
+    CHECK(classified == FirstFlowClass::FIRE);
+  }
+  // 0.03 g/s thermal creep for a full minute never fires.
+  {
+    FirstFlowState state;
+    bool fired = false;
+    uint32_t atMs = 1000;
+    for (int i = 1; i <= 600; ++i, atMs += 100) {
+      if (stepFirstFlow(state, 0.003f * i, atMs, i, 0.0f) ==
+          FirstFlowClass::FIRE) {
+        fired = true;
+      }
+    }
+    CHECK(!fired);
+  }
+}
+
+void ff18_duplicate_timestamp_pairs() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  startCycle();
+  advanceToBrew();
+  const size_t before = shot.datapoints;
+  const uint32_t atMs = hostMillis + 100;
+  publishWeight(20.0f, atMs, 1, 100);
+  const size_t afterFirst = shot.datapoints;
+  CHECK(afterFirst == before + 1);
+  session.receivedFreshWeightInCycle = false;
+  publishWeight(20.5f, atMs, 1, 101);  // Same millisecond, next packet.
+  CHECK(shot.datapoints == afterFirst);  // Inserted once.
+  CHECK(session.receivedFreshWeightInCycle);
+  CHECK(session.lastAcceptedPacketSequence == 101);
+  CHECK(fabsf(session.lastAcceptedWeightG - 20.5f) < 1e-4f);
+
+  // A zero-span pair above the stop threshold cannot confirm a direct stop.
+  endBbwProtectionForTests();
+  session.config.avoidAccidentalTouchEnabled = false;  // Keep the jump plain.
+  resetDirectStopConfirmation();
+  const float threshold = effectiveStopThreshold();
+  const uint32_t pairMs = hostMillis + 10;
+  publishWeight(threshold + 1.0f, pairMs, 1, 102);
+  CHECK(session.thresholdConfirmations == 1);
+  publishWeight(threshold + 1.2f, pairMs, 1, 103);  // Same millisecond.
+  CHECK(session.thresholdConfirmations == 1);  // dt=0 restarts, never confirms.
+  publishWeight(threshold + 1.4f, pairMs + 110, 1, 104);
+  CHECK(session.thresholdConfirmations == 2);
+}
+
+void at16_resting_finger_contained_by_direct_stop_law() {
+  // A gently drifting extra load keeps the classifier holding TOUCH: the
+  // direct stop law must refuse it, and only the explicitly touch-labeled
+  // fallback may end the shot, calibration-ineligible.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  enableAccidentalTouchForTest();
+  startCycle();
+  advanceToBrew();
+  endBbwProtectionForTests();
+  session.config.touchStopFallbackEnabled = false;  // Isolate the direct law.
+  hostMillis += 100;
+  publishWeight(40.0f);
+  CHECK(session.accidentalTouchHolding);
+  for (int i = 0; i < 6; ++i) {
+    hostMillis += 200;
+    publishWeight(44.0f + 0.5f * i);  // Resting finger, gently drifting.
+    CHECK(session.accidentalTouchHolding);
+    CHECK(!automaticScaleStopDue());
+  }
+  CHECK(session.active);
+
+  // Fallback enabled: the sustained hold ends the shot only through the
+  // touch-labeled path and never feeds offset learning.
+  prepareTouchFallbackTest();
+  hostMillis += 100;
+  publishWeight(40.0f);
+  const uint32_t first = hostMillis;
+  publishWeight(46.0f, first + 500);
+  publishWeight(50.0f, first + 999);
+  CHECK(!automaticScaleStopDue());
+  publishWeight(54.0f, first + 1000);
+  CHECK(automaticScaleStopDue());
+  CHECK(session.directStopReason == EndReason::TOUCH_WEIGHT_FALLBACK);
+  CHECK(!session.calibrationEligible);
+}
+
+void fw01_median_final_weight_filters_dip() {
+  // Post-stop drip tail with one -1.9 g dip constituent: the median of the
+  // last five plausible samples swallows it, and learning consumes the
+  // median (not the last sample).
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  startCycle();
+  advanceToBrew();
+  session.startedWithScale = true;
+  session.scaleBaselineReady = true;
+  endBbwProtectionForTests();
+  publishControlRamp(1.0f, 30.0f, 0.5f, 100, 10);  // Stay below the cut.
+  schedulePendingShotFinalize(EndReason::SCALE_THRESHOLD, 30000);
+  session.active = false;
+  pendingFinalize.dripDelayMs = 2500;
+  pendingFinalize.lastKnownWeightG = 30.0f;
+  pendingFinalize.lastKnownWeightValid = true;
+  pendingFinalize.endedAtMs = hostMillis;
+  uint32_t sequence = pendingFinalize.curveLastSequence + 1U;
+  const float tail[] = {36.0f, 36.1f, 34.3f, 36.15f, 36.2f, 36.25f};
+  uint32_t atMs = pendingFinalize.endedAtMs + 100;
+  for (float sample : tail) {
+    hostMillis = atMs;
+    markScaleWorkerProgress();
+    publishWeight(sample, atMs, pendingFinalize.scaleConnectionGeneration,
+                  sequence++);
+    atMs += 300;
+  }
+  CHECK(pendingFinalize.tailCount == POST_STOP_TAIL_SAMPLE_COUNT);
+  hostMillis = pendingFinalize.endedAtMs + pendingFinalize.dripDelayMs + 1;
+  const float seedOffset = activeShotPreset(presetBank).bbwEwmaOffsetG;
+  pendingShotFinalizeTask();
+  ShotLogRecord record[1] = {};
+  CHECK(shotLog.copyNewestFirst(record, 1) == 1);
+
+  // Median of the last five (36.1, 34.3, 36.15, 36.2, 36.25) is 36.15.
+  CHECK(fabsf(record[0].actualWeightCg / 100.0f - 36.15f) < 0.02f);
+  const ShotPreset &preset = activeShotPreset(presetBank);
+  CHECK(fabsf(preset.bbwEwmaOffsetG -
+              (seedOffset + (preset.bbwEwmaAlpha / 100.0f) * (36.15f - 36.0f))) <
+        0.01f);
+
+  // Sparse tail (two samples spanning 0.2 s): running-max fallback.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  startCycle();
+  advanceToBrew();
+  session.startedWithScale = true;
+  session.scaleBaselineReady = true;
+  endBbwProtectionForTests();
+  publishControlRamp(1.0f, 30.0f, 0.5f, 100, 10);
+  schedulePendingShotFinalize(EndReason::SCALE_THRESHOLD, 30000);
+  session.active = false;
+  pendingFinalize.dripDelayMs = 800;
+  pendingFinalize.lastKnownWeightG = 30.0f;
+  pendingFinalize.lastKnownWeightValid = true;
+  pendingFinalize.endedAtMs = hostMillis;
+  sequence = pendingFinalize.curveLastSequence + 1U;
+  hostMillis = pendingFinalize.endedAtMs + 100;
+  markScaleWorkerProgress();
+  publishWeight(36.05f, hostMillis,
+                pendingFinalize.scaleConnectionGeneration, sequence++);
+  hostMillis = pendingFinalize.endedAtMs + 300;
+  markScaleWorkerProgress();
+  publishWeight(36.1f, hostMillis,
+                pendingFinalize.scaleConnectionGeneration, sequence++);
+  CHECK(pendingFinalize.tailCount == 2);
+  hostMillis = pendingFinalize.endedAtMs + pendingFinalize.dripDelayMs + 1;
+  pendingShotFinalizeTask();
+  CHECK(shotLog.copyNewestFirst(record, 1) == 1);
+  CHECK(fabsf(record[0].actualWeightCg / 100.0f - 36.1f) < 0.02f);  // Max.
+}
+
+void fw02_offset_floor_from_sensor_lag() {
+  // Acaia-class lag (690 ms x 0.8 g/s = 0.55 g) floors a converging offset.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  scale.connectedFeatures.sensorLagMs = 690;
+  setScaleConnected(false);
+  setScaleConnected(true);
+  CHECK(getScaleLinkSnapshot().features.sensorLagMs == 690);
+  ShotPreset &preset = mutableActiveShotPreset(presetBank);
+  preset.bbwEwmaOffsetG = 0.20f;
+  preparePendingBbwForTest();
+  pendingFinalize.offsetAnalysis = true;
+  pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
+  pendingFinalize.scaleBaselineReady = true;
+  pendingFinalize.scaleConnectionGeneration =
+      getScaleLinkSnapshot().connectionGeneration;
+  pendingFinalize.weightOffsetG = 0.20f;
+  pendingFinalize.goalWeightG = preset.goalWeightG;
+  pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
+  pendingFinalize.endedAtMs = hostMillis;
+  currentWeight = 36.05f;
+  currentWeightConnectionGeneration = pendingFinalize.scaleConnectionGeneration;
+  ++currentWeightSequence;
+  currentWeightReceivedAtMs = ++hostMillis;
+  CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
+  CHECK(fabsf(preset.bbwEwmaOffsetG - 0.552f) < 0.005f);
+
+  // Normal convergence far above the floor is untouched.
+  preset.bbwEwmaOffsetG = 2.0f;
+  preparePendingBbwForTest();
+  pendingFinalize.weightOffsetG = 2.0f;
+  currentWeight = 36.2f;
+  ++currentWeightSequence;
+  currentWeightReceivedAtMs = ++hostMillis;
+  CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
+  CHECK(fabsf(preset.bbwEwmaOffsetG -
+              (2.0f + (preset.bbwEwmaAlpha / 100.0f) * 0.2f)) < 0.005f);
+}
+
 void ff02_chorrito_fires_on_second_sample() {
   startFirstFlowBrew();
   const uint32_t firstAtMs = hostMillis + 50;
@@ -18390,8 +18640,8 @@ void pm26_blocked_no_scale_hold_does_not_close_k1() {
 using TestFunction = void (*)();
 
 void bbw03_shared_guard_parity() {
-  for (uint8_t mode : {0, 1}) {
-    hostBbwAlgorithm = mode;
+  {
+    hostBbwAlgorithm = 1;
     for (auto test : {t06_paddle_off_during_brew,
                      t11_ble_loss_suspends_brew_without_late_stop,
                      t12_global_limit_opens_manual_and_brew_cycles,
@@ -18411,7 +18661,7 @@ void bbw03_shared_guard_parity() {
                      pm07_original_bbw_hard_limit_while_held,
                      pm11_original_bbw_release_honors_operational_wall}) test();
   }
-  hostBbwAlgorithm = 0;
+  hostBbwAlgorithm = 1;
 }
 
 void pow01_scale_disconnect_grace_and_rinse_clock() {
@@ -19195,6 +19445,11 @@ const TestCase testCases[] = {
     {"FF10", ff10_control_ramp_records_first_flow},
     {"FF11", ff11_cup_and_finger_are_not_first_drop},
     {"FF12", ff12_cupmin_parameter_gates_touch_and_residual},
+    {"FF17", ff17_noise_adaptive_threshold_and_rate_gate},
+    {"FF18", ff18_duplicate_timestamp_pairs},
+    {"AT16", at16_resting_finger_contained_by_direct_stop_law},
+    {"FW01", fw01_median_final_weight_filters_dip},
+    {"FW02", fw02_offset_floor_from_sensor_lag},
     {"FF13", ff13_rinse_first_drop_goes_through_stopper},
     {"FF14", ff14_no_scale_first_drop_does_not_skip_stopper},
     {"FF15", ff15_orchestrate_post_tare_holds_cup_transitions},

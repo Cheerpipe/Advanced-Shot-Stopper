@@ -1101,7 +1101,8 @@ inline uint32_t minimumBbwProtectionMs(
 
 inline ConfigValidationError validateRuntimeConfig(
     const RuntimeConfig &config) {
-  if (config.bbwAlgorithm > 1) return ConfigValidationError::BBW_ALGORITHM;
+  if (config.bbwAlgorithm != static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA))
+    return ConfigValidationError::BBW_ALGORITHM;
   if (config.goalWeightG < MIN_GOAL_WEIGHT_G ||
       config.goalWeightG > MAX_GOAL_WEIGHT_G) {
     return ConfigValidationError::GOAL_WEIGHT;

@@ -13,7 +13,8 @@ static const ScaleFeatureSet kWeighMyBruFeatures = {
     0,
     0,
     8000,
-    0
+    0,
+    400
 };
 
 bool weighMyBruSupportedPacketLength(int length) {

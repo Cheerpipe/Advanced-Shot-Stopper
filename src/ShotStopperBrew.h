@@ -438,7 +438,7 @@ void considerDirectStopSample(float weight, uint32_t receivedAtMs,
   const bool consecutive = session.thresholdConfirmations > 0 &&
       connectionGeneration == session.lastThresholdConnectionGeneration &&
       packetSequence == session.lastThresholdPacketSequence + 1U &&
-      static_cast<int32_t>(receivedAtMs - session.lastThresholdAtMs) >= 0 &&
+      static_cast<int32_t>(receivedAtMs - session.lastThresholdAtMs) > 0 &&
       static_cast<uint32_t>(receivedAtMs - session.lastThresholdAtMs) <=
           DIRECT_STOP_CONFIRMATION_WINDOW_MS;
   session.thresholdConfirmations = consecutive
@@ -490,8 +490,10 @@ void considerDirectStopSample(float weight, uint32_t receivedAtMs,
 
   session.directStopPending = true;
   session.directStopReason = EndReason::SCALE_THRESHOLD;
+  // Arg2 is the firing law: 1 = confirmed weight samples (direct),
+  // 2 = predicted end time.
   addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_THRESHOLD_CONFIRMED,
-                static_cast<int32_t>(weight * 100.0f));
+                static_cast<int32_t>(weight * 100.0f), 1);
 }
 void armNoScaleShotGuard() {
   if (noScaleShotGuardArmed) {
@@ -823,6 +825,6 @@ bool automaticScaleStopDue() {
   session.directStopPending = true;
   session.directStopReason = EndReason::SCALE_THRESHOLD;
   addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_THRESHOLD_CONFIRMED,
-                static_cast<int32_t>(session.lastAcceptedWeightG * 100.0f));
+                static_cast<int32_t>(session.lastAcceptedWeightG * 100.0f), 2);
   return true;
 }

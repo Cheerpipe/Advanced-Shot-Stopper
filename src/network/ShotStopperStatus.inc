@@ -428,6 +428,18 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         control.bbwAlphaLearned ? "learned" : "initial", control.bbwEvidenceCount);
   }
   if (ok && page == StatusPage::Settings) {
+    // Live platform weight for the cup-minimum setup guidance; presence
+    // classification itself depends on the minimum, so it cannot be used.
+    char cupObserved[24] = "null";
+    if (control.scaleAvailable && control.currentWeightValid &&
+        std::isfinite(control.currentWeightG)) {
+      snprintf(cupObserved, sizeof(cupObserved), "%.1f",
+               static_cast<double>(control.currentWeightG));
+    }
+    ok = statusJsonAppend(&used, ",\"cupSetup\":{\"observedG\":%s}",
+                          cupObserved);
+  }
+  if (ok && page == StatusPage::Settings) {
     ok = statusJsonAppend(
         &used, ",\"bullseyeMelodyEnabled\":%s,\"bullseyeRtttl\":\"%s\"",
         g_work->bullseyeMelody.enabled ? "true" : "false",

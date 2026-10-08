@@ -107,6 +107,7 @@ enum class ScaleProfileEvent : uint16_t {
   CUP_QUALIFICATION_RESET,
   CUP_RESET,
   FINALIZE_CANCELLED,
+  FIRST_DROP_SEEKING_FA,
 };
 
 // Append-only signal IDs. Values are scalars, not another control state machine.
@@ -273,6 +274,7 @@ inline const char *scaleProfileEventName(ScaleProfileEvent kind) {
     case ScaleProfileEvent::CUP_QUALIFICATION_RESET: return "CUP_QUALIFICATION_RESET";
     case ScaleProfileEvent::CUP_RESET: return "CUP_RESET";
     case ScaleProfileEvent::FINALIZE_CANCELLED: return "FINALIZE_CANCELLED";
+    case ScaleProfileEvent::FIRST_DROP_SEEKING_FA: return "FIRST_DROP_SEEKING_FA";
   }
   return "UNKNOWN";
 }

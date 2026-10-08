@@ -34,13 +34,16 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
       currentWeightIsFresh(millis()) &&
       currentWeightConnectionGeneration == snapshot.scaleConnectionGeneration &&
       snapshot.scaleConnectionGeneration == getScaleLinkSnapshot().connectionGeneration;
-  if (!learnBbwOffset(snapshot.bbwAlgorithm, snapshot.weightOffsetG, finalWeightG,
-                       snapshot.goalWeightG, snapshot.bbwAlpha, acceptedFresh,
-                       updatedOffset)) {
+  if (!bbwEwma::learn(snapshot.weightOffsetG, finalWeightG, snapshot.goalWeightG,
+                      snapshot.bbwAlpha, acceptedFresh, updatedOffset)) {
     serialTrace(LogLevel::WARNING,
                 "Calculated offset outside safe range; offset unchanged");
     return false;
   }
+  // Sensor transport lag sets a physical lower bound: coffee that flowed for
+  // λ_sensor at ~0.8 g/s was already in the cup when the scale reported stop.
+  updatedOffset = bbwEwma::clampOffset(
+      updatedOffset, getScaleLinkSnapshot().features.sensorLagMs * 0.0008f);
 
   ShotPreset *preset = mutableShotPreset(
       presetBank, snapshot.activePresetId != 0 ? snapshot.activePresetId
@@ -50,22 +53,19 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
                 "Offset learn skipped; shot preset no longer exists");
     return false;
   }
-  if (snapshot.bbwAlgorithm > 1 ||
+  if (snapshot.bbwAlgorithm !=
+          static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA) ||
       snapshot.bbwProfileVersion != bbwAlgorithmVersion(snapshot.bbwAlgorithm)) return false;
   auto &learning = bbwLearningBank.forPreset(preset->id, presetBank);
-  if (snapshot.bbwLearningGeneration != learning.generations[snapshot.bbwAlgorithm])
+  if (snapshot.bbwLearningGeneration != learning.generations[1])
     return false;
-  if (snapshot.bbwAlgorithm == 0) {
-    preset->weightOffsetG = updatedOffset;
-  } else {
-    preset->bbwEwmaOffsetG = updatedOffset;
-    const uint8_t nextAlpha = learning.evidence.observe(
-        snapshot.weightOffsetG + (finalWeightG - snapshot.goalWeightG),
-        snapshot.weightOffsetG, snapshot.bbwAlpha);
-    if (nextAlpha != preset->bbwEwmaAlpha) preset->bbwAlphaLearned = 1;
-    preset->bbwEwmaAlpha = nextAlpha;
-  }
-  learning.generations[snapshot.bbwAlgorithm] = bbwLearningBank.newGeneration();
+  preset->bbwEwmaOffsetG = updatedOffset;
+  const uint8_t nextAlpha = learning.evidence.observe(
+      snapshot.weightOffsetG + (finalWeightG - snapshot.goalWeightG),
+      snapshot.weightOffsetG, snapshot.bbwAlpha);
+  if (nextAlpha != preset->bbwEwmaAlpha) preset->bbwAlphaLearned = 1;
+  preset->bbwEwmaAlpha = nextAlpha;
+  learning.generations[1] = bbwLearningBank.newGeneration();
   RuntimeConfig candidate = runtimeConfig;
   applyShotPresetToConfig(activeShotPreset(presetBank), candidate, true);
   ++candidate.revision;

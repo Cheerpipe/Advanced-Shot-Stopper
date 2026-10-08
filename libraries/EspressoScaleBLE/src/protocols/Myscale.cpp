@@ -20,7 +20,8 @@ static const ScaleFeatureSet kMyscaleFeatures = {
     0,
     0,
     5000,
-    0
+    0,
+    350
 };
 
 bool myscaleSupportedPacketLength(int length) {

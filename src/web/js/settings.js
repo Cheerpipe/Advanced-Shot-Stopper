@@ -4,6 +4,7 @@ const $ = R.$;
 let ready = false;
 export function applyStatus(s) {
   R.applySettingsStatus(s);
+  updateCupMinGuidance(s);
   const reminder = $("paddleReturnReminder");
   if (reminder && !R.configDirty && !R.brewDirty) {
     reminder.value = s.config.paddleReturnReminderBeep
@@ -17,6 +18,22 @@ export function applyStatus(s) {
   const link = document.querySelector('[data-route="/diagnostic"]');
   if (link && typeof s.diagnosticPageVisible === "boolean")
     link.classList.toggle("hidden", !s.diagnosticPageVisible);
+}
+
+// Setup help: something rests on the platform but reads below the configured
+// cup minimum, so cup detection and late tare will not see it as a cup.
+function updateCupMinGuidance(s) {
+  const hint = $("cupMinGuidance");
+  if (!hint) return;
+  const observed = s.cupSetup && typeof s.cupSetup.observedG === "number" ? s.cupSetup.observedG : null,
+    min = R.number("minimumCupWeightG");
+  const show =
+    observed !== null && Number.isFinite(min) && observed > 0.5 && observed < min;
+  hint.hidden = !show;
+  if (show)
+    hint.textContent = __WEBUI_TEXT__("settings.cup_min_guidance")
+      .replaceAll("{x}", observed.toFixed(1))
+      .replace("{n}", min.toFixed(1));
 }
 export function init() {
   if (ready) return;
@@ -187,9 +204,7 @@ export function init() {
     if (
       confirm(
         __WEBUI_TEXT__("settings.reset_2") +
-          (full
-            ? __WEBUI_TEXT__("settings.ewma")
-            : $("bbwAlgorithm").selectedOptions[0].textContent) +
+          __WEBUI_TEXT__("settings.ewma") +
           __WEBUI_TEXT__("settings.offset_to") +
           R.number("weightOffsetBaselineG").toFixed(2) +
           __WEBUI_TEXT__("settings.g") +

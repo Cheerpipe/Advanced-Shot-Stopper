@@ -305,6 +305,18 @@ constexpr uint8_t DIRECT_STOP_CONFIRMATION_SAMPLES = 2;
 constexpr uint8_t WEIGHT_RECOVERY_CONFIRMATION_SAMPLES = 3;
 constexpr uint32_t DIRECT_STOP_CONFIRMATION_WINDOW_MS = 1000;
 constexpr float FIRST_DROP_THRESHOLD_G = 0.3f;
+// Noise-adaptive floor: the effective first-drop threshold is
+// max(FIRST_DROP_THRESHOLD_G, k·σ̂) once the noise estimator warms up.
+constexpr float FIRST_DROP_NOISE_EWMA_BETA = 0.1f;
+constexpr uint8_t FIRST_DROP_NOISE_WARMUP_SAMPLES = 8;
+// A strictly rising run this long is signal (onset or creep), not noise:
+// the noise estimator must not chase it, or the k·σ̂ floor would run away
+// from any gentle linear onset and the first drop could never fire.
+constexpr uint8_t FIRST_DROP_NOISE_RISE_FREEZE = 3;
+constexpr float FIRST_DROP_SIGMA_K = 3.0f;
+// Mean rate required across a confirmation streak; thermal creep (~0.03 g/s)
+// stays below it while gentle 0.1 g/s onsets pass.
+constexpr float FIRST_DROP_MIN_RATE_G_S = 0.08f;
 constexpr float FIRST_DROP_FINGER_STEP_G = 2.0f;
 constexpr float FIRST_DROP_BASELINE_SETTLE_G = 0.5f;
 // Rewrite tare zero only for noise this close to 0; 0.25 g of coffee is not zero.
@@ -342,6 +354,12 @@ constexpr size_t ACCIDENTAL_TOUCH_RATE_WINDOW = 4;
 // Sliding window for brew-by-weight prediction. Keep this tiny and in
 // internal RAM — do not allocate on heap or PSRAM on the weight path.
 constexpr size_t MAX_SHOT_DATAPOINTS = 32;
+
+// Post-stop drip tail: the settled final weight is the median of the last
+// POST_STOP_TAIL_SAMPLE_COUNT plausible samples once they span at least
+// POST_STOP_TAIL_MIN_COVERAGE_MS; sparser tails fall back to the running max.
+constexpr size_t POST_STOP_TAIL_SAMPLE_COUNT = 5;
+constexpr uint32_t POST_STOP_TAIL_MIN_COVERAGE_MS = 1000;
 
 enum class CupPresenceState : uint8_t {
   ABSENT = 0,
@@ -472,6 +490,13 @@ struct FirstFlowState {
   uint32_t jumpAtMs = 0;
   uint32_t candidateMs = 0;
   float candidateWeightG = 0.0f;
+  // Noise estimator: warmup mean of squared deviations initializes σ̂², then
+  // an EWMA (β) tracks it. Frozen mid-streak and through monotone rises —
+  // a rising run is signal (onset or creep), never noise evidence.
+  float noiseVarHatG = 0.0f;
+  float noiseWarmSumG = 0.0f;
+  uint8_t noiseSamples = 0;
+  uint8_t riseRun = 0;
 };
 
 struct FirstFlowObservation {
@@ -524,9 +549,32 @@ inline bool firstFlowIsCupMass(float delta, float cupMinG) {
   return delta >= firstFlowCupMinG(cupMinG);
 }
 
-inline bool firstFlowIsCoffeeLeftover(float delta, float cupMinG) {
-  return delta >= FIRST_DROP_THRESHOLD_G &&
+inline bool firstFlowIsCoffeeLeftover(float delta, float cupMinG,
+                                      float thresholdG = FIRST_DROP_THRESHOLD_G) {
+  return delta >= thresholdG &&
          delta < FIRST_DROP_FINGER_STEP_G && !firstFlowIsCupMass(delta, cupMinG);
+}
+
+inline float firstFlowEffectiveThresholdG(const FirstFlowState &state) {
+  if (state.noiseSamples < FIRST_DROP_NOISE_WARMUP_SAMPLES) {
+    return FIRST_DROP_THRESHOLD_G;
+  }
+  return fmaxf(FIRST_DROP_THRESHOLD_G,
+               FIRST_DROP_SIGMA_K * sqrtf(state.noiseVarHatG));
+}
+
+inline void noteFirstFlowNoiseSample(FirstFlowState &state, float deviationG) {
+  if (state.noiseSamples < FIRST_DROP_NOISE_WARMUP_SAMPLES) {
+    state.noiseWarmSumG += deviationG * deviationG;
+    if (++state.noiseSamples == FIRST_DROP_NOISE_WARMUP_SAMPLES) {
+      state.noiseVarHatG =
+          state.noiseWarmSumG / FIRST_DROP_NOISE_WARMUP_SAMPLES;
+    }
+    return;
+  }
+  state.noiseVarHatG =
+      (1.0f - FIRST_DROP_NOISE_EWMA_BETA) * state.noiseVarHatG +
+      FIRST_DROP_NOISE_EWMA_BETA * deviationG * deviationG;
 }
 
 // SEEKING: small coffee steps (< 2 g, below cup min) confirm first flow.
@@ -541,7 +589,15 @@ inline FirstFlowClass stepFirstFlow(
     return FirstFlowClass::NONE;
   }
 
+  const bool rising = state.hasLastSample && weight > state.lastWeightG;
+  state.riseRun = rising
+                      ? (state.riseRun < FIRST_DROP_NOISE_RISE_FREEZE
+                             ? static_cast<uint8_t>(state.riseRun + 1U)
+                             : FIRST_DROP_NOISE_RISE_FREEZE)
+                      : 0;
+
   const float objectMinG = firstFlowCupMinG(cupMinG);
+  const float thresholdG = firstFlowEffectiveThresholdG(state);
   const float delta = weight - baselineG;
   const float step =
       state.hasLastSample ? (weight - state.lastWeightG) : delta;
@@ -549,7 +605,14 @@ inline FirstFlowClass stepFirstFlow(
       firstFlowPacketsConsecutive(state, receivedAtMs, packetSequence);
 
   if (state.phase == FirstFlowPhase::SEEKING) {
-    if (delta < FIRST_DROP_THRESHOLD_G) {
+    if (delta < thresholdG) {
+      // σ̂ is fed only by idle sub-threshold samples — real packets, never
+      // the monotone lock minimum — and stays frozen during a live streak
+      // and through rising runs.
+      if (state.confirmations == 0 &&
+          state.riseRun < FIRST_DROP_NOISE_RISE_FREEZE) {
+        noteFirstFlowNoiseSample(state, delta);
+      }
       state.confirmations = 0;
       state.residualConfirmations = 0;
       state.candidateMs = 0;
@@ -573,7 +636,18 @@ inline FirstFlowClass stepFirstFlow(
     }
     noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
     if (state.confirmations >= FIRST_DROP_CONFIRMATION_SAMPLES) {
-      return FirstFlowClass::FIRE;
+      // Mean rate across the streak separates flow from creep; a zero span
+      // carries no independent evidence and keeps the streak waiting.
+      const uint32_t spanMs = receivedAtMs - state.candidateMs;
+      const float meanRateG_S =
+          spanMs != 0
+              ? (weight - state.candidateWeightG) /
+                    (static_cast<float>(spanMs) / 1000.0f)
+              : 0.0f;
+      if (meanRateG_S >= FIRST_DROP_MIN_RATE_G_S) {
+        return FirstFlowClass::FIRE;
+      }
+      return FirstFlowClass::CANDIDATE;
     }
     return FirstFlowClass::CANDIDATE;
   }
@@ -593,7 +667,7 @@ inline FirstFlowClass stepFirstFlow(
 
   const bool released = weight <= state.peakG - FIRST_DROP_FINGER_STEP_G;
   if (released) {
-    if (firstFlowIsCoffeeLeftover(delta, cupMinG) &&
+    if (firstFlowIsCoffeeLeftover(delta, cupMinG, thresholdG) &&
         !firstFlowIsCupMass(state.peakG - baselineG, cupMinG)) {
       state.confirmations = 0;
       state.residualConfirmations =
@@ -610,7 +684,7 @@ inline FirstFlowClass stepFirstFlow(
       }
       return FirstFlowClass::TOUCH;
     }
-    if (delta >= FIRST_DROP_THRESHOLD_G) {
+    if (delta >= thresholdG) {
       state.confirmations = 0;
       state.residualConfirmations = 0;
       noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
@@ -673,7 +747,9 @@ inline const char *weightControlStateName(WeightControlState state) {
 struct WeightTrendFit {
   bool valid = false;
   float slope = 0.0f;
+  // Intercept is the fitted weight at referenceS, not at t=0.
   float intercept = 0.0f;
+  float referenceS = 0.0f;
 };
 
 inline WeightTrendFit fitWeightTrend(const float *timeS, const float *weightG,
@@ -687,6 +763,9 @@ inline WeightTrendFit fitWeightTrend(const float *timeS, const float *weightG,
     return fit;
   }
 
+  // Center time on the newest sample: raw shot times (~60 s) would burn
+  // float precision in the cross products below.
+  fit.referenceS = timeS[datapoints - 1];
   float sumXY = 0.0f;
   float sumX = 0.0f;
   float sumY = 0.0f;
@@ -696,10 +775,11 @@ inline WeightTrendFit fitWeightTrend(const float *timeS, const float *weightG,
     if (!std::isfinite(timeS[i]) || !std::isfinite(weightG[i])) {
       return fit;
     }
-    sumXY += timeS[i] * weightG[i];
-    sumX += timeS[i];
+    const float t = timeS[i] - fit.referenceS;
+    sumXY += t * weightG[i];
+    sumX += t;
     sumY += weightG[i];
-    sumSquaredX += timeS[i] * timeS[i];
+    sumSquaredX += t * t;
   }
 
   const float n = static_cast<float>(WEIGHT_TREND_POINT_COUNT);
@@ -768,6 +848,10 @@ inline float accidentalTouchMedianControlRate(const float *timeS,
   return 0.5f * (rates[count / 2U - 1U] + rates[count / 2U]);
 }
 
+// The direct weight-stop law (automaticScaleStopDue) refuses to honor any
+// stop while the classifier holds TOUCH/SUSTAINED, and the touch fallback
+// marks the shot calibration-ineligible: a finger resting on the platform
+// must never stop the machine through its own mass. Host tests pin this.
 inline AccidentalTouchClass classifyAccidentalTouch(
     AccidentalTouchPhase phase, const float *timeS, const float *weightG,
     size_t datapoints, float weight, float timeSNow, bool hasAnchor,
@@ -796,7 +880,8 @@ inline AccidentalTouchClass classifyAccidentalTouch(
   bool anomalous = startupTouch;
   const WeightTrendFit fit = fitWeightTrend(timeS, weightG, datapoints);
   if (phase == AccidentalTouchPhase::TREND && fit.valid) {
-    const float expected = fit.intercept + fit.slope * timeSNow;
+    const float expected =
+        fit.intercept + fit.slope * (timeSNow - fit.referenceS);
     const float residual = weight - expected;
     const float trendLimit = fmaxf(
         ACCIDENTAL_TOUCH_TREND_MIN_RATE_G_S,

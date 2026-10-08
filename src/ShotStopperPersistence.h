@@ -37,6 +37,40 @@ inline void ensurePersistedPresetBank(PersistedSettings &settings) {
                        settings.runtime.autoRetare);
 }
 
+// Set when the most recent slot read aliased blobs that still stored the
+// removed regression mode (bbwAlgorithm==0); boot consumes it to invalidate
+// BBW learning so post-migration guards fail safe for one shot.
+inline bool bbwLegacyAliasesApplied = false;
+
+// Repair-before-validate: settings slots persisted by pre-removal firmware
+// must never surface as invalid. The regression algorithm id becomes EWMA,
+// and the EWMA offset seeds from the regression offset the user actually
+// brewed with — but only while the EWMA field still holds its untouched
+// default, so a user who already ran EWMA keeps that learning. Returns
+// whether anything changed so the caller can re-sign the checksum.
+inline bool repairRemovedBbwLegacyAliases(PersistedSettings &settings) {
+  bool repaired = false;
+  if (settings.runtime.bbwAlgorithm == 0) {
+    settings.runtime.bbwAlgorithm =
+        static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
+    repaired = true;
+  }
+  for (uint8_t i = 0; i < settings.presets.count && i < MAX_SHOT_PRESETS; ++i) {
+    ShotPreset &preset = settings.presets.presets[i];
+    if (preset.bbwAlgorithm != 0) {
+      continue;
+    }
+    preset.bbwAlgorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
+    if (preset.bbwEwmaOffsetG == DEFAULT_WEIGHT_OFFSET_G) {
+      preset.bbwEwmaOffsetG = preset.weightOffsetG;
+    }
+    preset.bbwProfileVersion = BBW_PROFILE_VERSION;
+    repaired = true;
+  }
+  bbwLegacyAliasesApplied = bbwLegacyAliasesApplied || repaired;
+  return repaired;
+}
+
 inline bool validPersistedSettings(const PersistedSettings &settings) {
   if (settings.magic != PERSISTED_SETTINGS_MAGIC ||
       settings.schemaVersion != CONFIG_SCHEMA_VERSION ||
@@ -110,6 +144,9 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
     }
     settings.lineaMicra.connectionType = static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
     settings.schemaVersion = CONFIG_SCHEMA_VERSION;
+    settings.checksum = persistedSettingsChecksum(settings);
+  }
+  if (repairRemovedBbwLegacyAliases(settings)) {
     settings.checksum = persistedSettingsChecksum(settings);
   }
   if (!validPersistedSettings(settings)) return false;

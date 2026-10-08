@@ -127,8 +127,9 @@ excluded from the scale inhibit so backflush supervision survives BLE acquisitio
 
 ## BBW policy and storage
 
-`OpenBrewByWeightBbwCutoff.h` dispatches fixed-size prediction/learning inputs to
-independent regression and adaptive EWMA implementations. Shared scale qualification,
+Brew-by-weight uses a single cutoff policy: linear prediction with adaptive
+EWMA learning (the regression mode was removed; persisted `algorithm=0`
+blobs are aliased to EWMA at settings load). Shared scale qualification,
 direct confirmation, guards, control arbitration and machine/safety authority
 remain outside the policy. The original trend fit remains shared with accidental
 touch sensing; only EWMA cutoff uses centered OLS. Strategies neither actuate
@@ -295,7 +296,7 @@ Decoding checks the supplied length before reading record CRCs and copies only
 that validated length; compact inputs do not require a full-store allocation.
 Profile rules are immutable: changing prediction, gain candidates or eligibility
 requires versioned compatibility, not relabeling historical data. Numeric and
-user contracts are in [BBW](features/brew-by-weight.md#cutoff-algorithms-and-learning)
+user contracts are in [BBW](features/brew-by-weight.md#cutoff-behavior-and-learning)
 and [shot history](features/shot-history.md).
 
 ## Live settings notifications

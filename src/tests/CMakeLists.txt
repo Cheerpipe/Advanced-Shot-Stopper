@@ -138,6 +138,13 @@ host_test(nimble_client_test
 target_include_directories(nimble_client_test PRIVATE "${ble_dir}/tests/stubs" "${ble_dir}/src")
 set_tests_properties(nimble_client_test PROPERTIES LABELS "host;ble;concurrency")
 
+# The BBW λ sanity pin reads the real per-protocol sensor-lag table.
+if(TARGET bbw_cutoff_host_test)
+  target_sources(bbw_cutoff_host_test PRIVATE
+    "${ble_dir}/src/ScaleProtocolCommon.cpp" ${scale_protocol_sources})
+  target_include_directories(bbw_cutoff_host_test PRIVATE "${ble_dir}/src")
+endif()
+
 find_path(CJSON_INCLUDE_DIR cJSON.h PATH_SUFFIXES cjson)
 find_library(CJSON_LIBRARY cjson)
 if(NOT CJSON_INCLUDE_DIR OR NOT CJSON_LIBRARY)

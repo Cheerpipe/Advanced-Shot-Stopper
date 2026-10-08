@@ -137,7 +137,6 @@ for (const field of settingsHtml.matchAll(
   }
 }
 for (const [id, names] of Object.entries({
-  bbwAlgorithm: ['Linear regression + offset correction:', 'Linear prediction + adaptive EWMA:'],
   autoToManualGuardLimitMode: ['Auto:', 'Manual:'], paddleMode: ['Natural:', 'Original:', 'Auto:'],
   momentaryStartEdge: ['Button press:', 'Button release:'],
   noScaleBbwMode: ['Allow manual brewing:', 'Warn once, then allow:', 'Require a scale:'],

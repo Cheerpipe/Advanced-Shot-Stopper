@@ -379,13 +379,8 @@ void processWebCommand(const WebCommand &command) {
         return;
       }
       ShotPreset &preset = mutableActiveShotPreset(presetBank);
-      if (command.bbwFullReset && preset.bbwAlgorithm != 1) {
-        rejectWebCommand(command);
-        return;
-      }
-      bbwLearningBank.invalidate(preset.id, presetBank, preset.bbwAlgorithm);
-      (preset.bbwAlgorithm == 0 ? preset.weightOffsetG : preset.bbwEwmaOffsetG) =
-          preset.weightOffsetBaselineG;
+      bbwLearningBank.invalidate(preset.id, presetBank, 1);
+      preset.bbwEwmaOffsetG = preset.weightOffsetBaselineG;
       if (command.bbwFullReset) {
         preset.bbwEwmaAlpha = preset.bbwAlphaBaseline;
         preset.bbwAlphaLearned = 0;

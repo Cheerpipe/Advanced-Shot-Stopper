@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ShotStopperScaleTypes.h"
-#include "ShotStopperBbwCutoff.h"
+#include "ShotStopperBbwEwma.h"
 #include "ShotStopperShotLogTypes.h"
 
 // =============================================================================
@@ -24,9 +24,9 @@ void resetShotTrajectory(uint32_t startedAtMs) {
 }
 
 void calculateExpectedEndTime(float cutTargetG) {
-  shot.expectedEndS = predictedWeightStopTimeS(
+  shot.expectedEndS = bbwEwma::predict(
       shot.timeS, shot.weight, shot.datapoints, cutTargetG,
-      session.config.operationalWallMs / 1000.0f, session.config.bbwAlgorithm);
+      session.config.operationalWallMs / 1000.0f);
 }
 
 void rejectScaleSample(DebugCode code, float weightG, float referenceG = 0.0f) {
@@ -74,6 +74,15 @@ bool expirePostTareBaselineIfNeeded() {
 bool acceptWeightIntoTrajectory(float weight, uint32_t receivedAtMs,
                                 uint32_t packetSequence,
                                 float cutTargetG = 0.0f) {
+  if (shot.datapoints > 0 && receivedAtMs == session.lastAcceptedWeightAtMs) {
+    // Re-transmitted timestamp: counts as freshness for staleness watchers,
+    // but a zero-duration sample must not widen the trajectory fit.
+    session.receivedFreshWeightInCycle = true;
+    session.lastAcceptedWeightG = weight;
+    session.lastAcceptedPacketSequence = packetSequence;
+    serialTracef(LogLevel::DEBUG, "%.2fg, t=dup, kept freshness only", weight);
+    return true;
+  }
   size_t index;
   if (shot.datapoints < MAX_SHOT_DATAPOINTS) {
     index = shot.datapoints++;
@@ -121,9 +130,18 @@ FirstFlowObservation considerScaleFlowMarkers(float weight,
     session.scaleBaselineG = weight;
   }
 
+  const bool seekingStreak = session.firstFlow.phase == FirstFlowPhase::SEEKING &&
+      session.firstFlow.confirmations > 0;
   const FirstFlowClass classified =
       stepFirstFlow(session.firstFlow, weight, receivedAtMs, packetSequence,
                     session.scaleBaselineG, runtimeConfig.minimumCupWeightG);
+  if (seekingStreak && classified == FirstFlowClass::NONE) {
+    // A confirmation streak died sub-threshold without firing: without this
+    // telemetry a mistuned threshold is indistinguishable from a dead sensor.
+    scaleProfileNoteEvent(ScaleProfileEvent::FIRST_DROP_SEEKING_FA, millis(),
+                          session.ownedConnectionGeneration, packetSequence,
+                          weight, session.scaleBaselineG, 0);
+  }
   if (classified == FirstFlowClass::FIRE) {
     return {session.firstFlow.candidateMs != 0 ? session.firstFlow.candidateMs
                                                : receivedAtMs,
