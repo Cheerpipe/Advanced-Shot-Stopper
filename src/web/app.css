@@ -475,7 +475,7 @@ body.qwOpen{overflow:hidden}
 .qwReset.show:active{transform:scale(.95)}
 .qwReset svg{width:.95rem;height:.95rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .qwReset b{font-variant-numeric:tabular-nums}
-.qwZone{position:relative;display:flex;flex-direction:column;justify-content:center;padding:.9rem 0 .95rem;touch-action:none;cursor:ew-resize;user-select:none;-webkit-user-select:none}
+.qwZone{position:relative;display:flex;flex-direction:column;justify-content:center;padding:1.5rem 0 .95rem;touch-action:none;cursor:ew-resize;user-select:none;-webkit-user-select:none}
 .qwScale{position:relative;height:1.5rem;overflow:hidden;-webkit-mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent);mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent)}
 .qwScaleIn{position:absolute;inset:0;will-change:transform}
 .qwScaleIn i{position:absolute;top:0;width:1.5px;height:.8rem;background:var(--bd)}
