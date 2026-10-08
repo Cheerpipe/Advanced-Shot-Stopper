@@ -88,6 +88,14 @@
   svAssert.equal(svC.errors[1].msg,
     'Target 10 g must be greater than 40.0 g (Min recovery, Slow extraction guard).');
 
+  // An emptied participant reports only its own required-value error: the
+  // cross rules must not compare against Number("") === 0.
+  const svEmpty = svValidate((f) => {
+    f.goalWeightG.value = '';
+  });
+  svAssert.equal(svEmpty.errors.length, 1, JSON.stringify(svEmpty.errors));
+  svAssert.equal(svEmpty.errors[0].msg, 'Target is required (10–200 g).');
+
   // (d) A disabled guard skips both its self-range checks and its rules.
   const svD = svValidate((f) => {
     f.fastExtractionGuardEnabled.checked = false;

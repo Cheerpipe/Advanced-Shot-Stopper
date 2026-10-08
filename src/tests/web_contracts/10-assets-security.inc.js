@@ -687,10 +687,10 @@ if (htmlBytes > 88800) {
 // Edited-field error attribution for the brew settings (the declarative
 // cross-field rule table with per-side phrasing, the baseline-diff
 // edited-field detector, and the multi-error renderer with its banner
-// fallback) replaces the first-failure validator: ~2.9 KB of JS source
+// fallback) replaces the first-failure validator: ~3.5 KB of JS source
 // allowance; compressed asset and firmware limits stay fixed.
-if (jsBytes > 358000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 358000)`);
+if (jsBytes > 358400) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 358400)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -744,11 +744,11 @@ if (jsBytes > 358000) {
 // The connecting-state countdown adds ~0.8 KB more (line + painter), and
 // the heartbeat/where-line work ~1.8 KB more.
 // The brew settings edited-field error attribution contributes the same
-// ~3.2 KB of JS source allowance described above (rule table, multi-error
+// ~3.5 KB of JS source allowance described above (rule table, multi-error
 // renderer, and the hydration-time brew baseline capture); compressed
 // budgets stay fixed.
-if (htmlBytes + jsBytes > 446800) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 446800)`);
+if (htmlBytes + jsBytes > 447100) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 447100)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

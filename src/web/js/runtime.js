@@ -3574,14 +3574,18 @@ function validateBrewClient() {
   for (const [a, b, rel, kindA, kindB, ...gates] of BREW_CROSS_RULES) {
     if (gates.includes("fast") && !fastOn) continue;
     if (gates.includes("slow") && !slowOn) continue;
-    const retareRule = b === "retareFloor",
-      x = number(a),
+    const retareRule = b === "retareFloor";
+    // An empty or non-numeric participant already produced its self-range
+    // error; cross rules only compare well-formed values (Number("") is 0).
+    if (brewFieldValue(a) === "" || (!retareRule && brewFieldValue(b) === "")) continue;
+    const x = number(a),
       y = retareRule ? floor : number(b);
-    if (!(Number.isFinite(x) && Number.isFinite(y) && BREW_REL[rel](x, y))) continue;
+    if (!BREW_REL[rel](x, y)) continue;
     if (retareRule) {
       const [label, unit] = BREW_FIELD_TEXT[a],
         mine = brewFieldValue(a) + " " + unit,
-        bound = floor.toFixed(1) + " " + unit;
+        fixed = floor.toFixed(1),
+        bound = (Number(fixed) === floor ? fixed : String(floor)) + " " + unit;
       errors.push({
         id: a,
         msg: withRetare
