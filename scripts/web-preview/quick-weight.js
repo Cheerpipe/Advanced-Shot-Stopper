@@ -347,7 +347,6 @@
       </div>
       <div class="qmicZone jsZone">
         <div class="jsScale"></div>
-        <div class="qmicDrum"><div class="qmicKnurl"></div><div class="qmicAxis"></div><div class="qmicNeedle"></div></div>
       </div>`;
     const zone = $('.jsZone', body);
     const scale = el('div', 'qmicScale');
@@ -361,7 +360,6 @@
       ticks.push({ v, node: t });
     }
     const vel = { x: 0, t: 0, v: 0 };
-    let px = 0;
     const resetBtn = $('.jsReset', body);
     const presetDef = () => (PRESETS.find(p => p.name === ctx.state.preset) || {}).def;
     const paint = () => {
@@ -374,7 +372,6 @@
         t.node.style.left = p.toFixed(1) + 'px';
         t.node.classList.toggle('now', t.v === now);
       }
-      $('.qmicKnurl', zone).style.backgroundPosition = `${(px % 14).toFixed(1)}px 0, ${(px % 7).toFixed(1)}px 0, 0 0`;
       $('.jsDef', body).textContent = fmt(presetDef());
       resetBtn.classList.toggle('show', Math.abs(ctx.state.w - presetDef()) > 0.04);
     };
@@ -388,7 +385,6 @@
         vel.v = 0.75 * vel.v + 0.25 * (Math.abs(e.clientX - vel.x) / dt);
         vel.x = e.clientX; vel.t = now;
         c.w = bound(c.w + dx * 0.008 * speedMul(vel.v, 10, 14));
-        px += dx;
         setW(ctx, c.w, { silent: true });
         paint();
       },
