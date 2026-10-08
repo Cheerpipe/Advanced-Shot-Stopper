@@ -308,6 +308,10 @@ constexpr float FIRST_DROP_THRESHOLD_G = 0.3f;
 // Noise-adaptive floor: the effective first-drop threshold is
 // max(FIRST_DROP_THRESHOLD_G, k·σ̂) once the noise estimator warms up.
 constexpr float FIRST_DROP_NOISE_EWMA_BETA = 0.1f;
+// Deviations fed to σ̂ are capped at the fixed floor: k·σ̂ then can never
+// exceed 3×0.3 g, so even a noisy onset (vibration resetting the rise-freeze)
+// still crosses the threshold instead of being chased away forever.
+constexpr float FIRST_DROP_NOISE_MAX_DEVIATION_G = 0.3f;
 constexpr uint8_t FIRST_DROP_NOISE_WARMUP_SAMPLES = 8;
 // A strictly rising run this long is signal (onset or creep), not noise:
 // the noise estimator must not chase it, or the k·σ̂ floor would run away
@@ -497,7 +501,10 @@ struct FirstFlowState {
   float noiseWarmSumG = 0.0f;
   uint8_t noiseSamples = 0;
   uint8_t riseRun = 0;
+  uint32_t lastFaAtMs = 0;
 };
+static_assert(sizeof(FirstFlowState) <= 56,
+              "FirstFlowState sits in per-cycle BSS; keep it tiny");
 
 struct FirstFlowObservation {
   uint32_t atMs = 0;
@@ -607,11 +614,12 @@ inline FirstFlowClass stepFirstFlow(
   if (state.phase == FirstFlowPhase::SEEKING) {
     if (delta < thresholdG) {
       // σ̂ is fed only by idle sub-threshold samples — real packets, never
-      // the monotone lock minimum — and stays frozen during a live streak
+      // the monotone lock minimum — capped, and frozen during a live streak
       // and through rising runs.
       if (state.confirmations == 0 &&
           state.riseRun < FIRST_DROP_NOISE_RISE_FREEZE) {
-        noteFirstFlowNoiseSample(state, delta);
+        noteFirstFlowNoiseSample(
+            state, fminf(fabsf(delta), FIRST_DROP_NOISE_MAX_DEVIATION_G));
       }
       state.confirmations = 0;
       state.residualConfirmations = 0;
@@ -709,9 +717,21 @@ inline FirstFlowClass stepFirstFlow(
             : 1U;
     noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
     if (state.confirmations >= FIRST_DROP_CONFIRMATION_SAMPLES) {
-      state.candidateMs = state.jumpAtMs;
-      state.candidateWeightG = state.postJumpG;
-      return FirstFlowClass::FIRE;
+      // Same mean-rate law as SEEKING, measured from the touch jump, so a
+      // slowly creeping extra load cannot latch a bogus first drop. The
+      // residual (finger-release) path stays ungated: leftover coffee
+      // settles at a near-zero rate that a gate would false-reject.
+      const uint32_t sinceJumpMs = receivedAtMs - state.jumpAtMs;
+      const float meanRateG_S =
+          sinceJumpMs != 0
+              ? (weight - state.postJumpG) /
+                    (static_cast<float>(sinceJumpMs) / 1000.0f)
+              : 0.0f;
+      if (meanRateG_S >= FIRST_DROP_MIN_RATE_G_S) {
+        state.candidateMs = state.jumpAtMs;
+        state.candidateWeightG = state.postJumpG;
+        return FirstFlowClass::FIRE;
+      }
     }
     return FirstFlowClass::TOUCH;
   }

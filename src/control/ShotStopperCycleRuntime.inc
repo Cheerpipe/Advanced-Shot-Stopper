@@ -645,7 +645,13 @@ float postStopFinalWeightG(const PendingShotFinalize &pending,
     }
     sorted[j] = value;
   }
-  return sorted[POST_STOP_TAIL_SAMPLE_COUNT / 2U];
+  const float median = sorted[POST_STOP_TAIL_SAMPLE_COUNT / 2U];
+  // A majority of dipped samples would own the median; the plausibility
+  // pre-filter only rejects individual outliers, so cap the damage by
+  // falling back to the running max.
+  return median < pending.tailMaxG - MAX_RECOVERY_WEIGHT_DROP_G
+             ? pending.tailMaxG
+             : median;
 }
 
 bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,

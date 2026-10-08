@@ -107,8 +107,10 @@ or the A→M duration trend.
 The former **Linear regression + offset correction** mode was removed; its
 learned offset became your starting point. When you update from a firmware
 that still had it, presets saved with that mode keep working: the offset the
-machine actually used arrives as the EWMA starting offset, and learning
-resumes from there on the next shot.
+machine actually used arrives as the EWMA starting offset — unless that
+recipe already had learned EWMA values, which are kept as they were. The
+first shot after the update runs with the migrated offset exactly as before;
+learning resumes from the second shot on.
 
 Every shot uses ten eligible samples, a positive linear trend, the existing
 minimum prediction horizon and two-sample direct confirmation. Invalid

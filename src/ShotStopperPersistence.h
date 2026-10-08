@@ -37,9 +37,11 @@ inline void ensurePersistedPresetBank(PersistedSettings &settings) {
                        settings.runtime.autoRetare);
 }
 
-// Set when the most recent slot read aliased blobs that still stored the
-// removed regression mode (bbwAlgorithm==0); boot consumes it to invalidate
-// BBW learning so post-migration guards fail safe for one shot.
+// Set when the most recently ADOPTED settings record aliased blobs that still
+// stored the removed regression mode (bbwAlgorithm==0); boot consumes it to
+// invalidate BBW learning so post-migration guards fail safe for one shot.
+// Only loadPersistedSettings sets it, from the slot that actually won — a
+// stale losing slot or a probe read must not re-trigger invalidation.
 inline bool bbwLegacyAliasesApplied = false;
 
 // Repair-before-validate: settings slots persisted by pre-removal firmware
@@ -67,7 +69,6 @@ inline bool repairRemovedBbwLegacyAliases(PersistedSettings &settings) {
     preset.bbwProfileVersion = BBW_PROFILE_VERSION;
     repaired = true;
   }
-  bbwLegacyAliasesApplied = bbwLegacyAliasesApplied || repaired;
   return repaired;
 }
 
@@ -123,7 +124,11 @@ inline PersistedSettings &persistedSettingsScratch() {
 }
 
 inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *key,
-                             PersistedSettings &settings) {
+                             PersistedSettings &settings,
+                             bool *legacyAliased = nullptr) {
+  if (legacyAliased != nullptr) {
+    *legacyAliased = false;
+  }
   if (!preferences.isKey(key) ||
       preferences.getBytesLength(key) != sizeof(PersistedSettings)) {
     return false;
@@ -148,6 +153,9 @@ inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *ke
   }
   if (repairRemovedBbwLegacyAliases(settings)) {
     settings.checksum = persistedSettingsChecksum(settings);
+    if (legacyAliased != nullptr) {
+      *legacyAliased = true;
+    }
   }
   if (!validPersistedSettings(settings)) return false;
   return true;
@@ -170,20 +178,29 @@ inline bool loadPersistedSettings(PersistedSettings &settings) {
     return false;
   }
   PersistedSettings &scratch = persistedSettingsScratch();
-  bool loaded = readSettingsSlot(preferences, SETTINGS_SLOT_A, scratch);
+  bool slotAAliased = false;
+  bool loaded = readSettingsSlot(preferences, SETTINGS_SLOT_A, scratch,
+                                 &slotAAliased);
   uint32_t loadedRevision = 0;
+  bool adoptedAliased = false;
   if (loaded) {
     settings = scratch;
     loadedRevision = scratch.storageRevision;
+    adoptedAliased = slotAAliased;
   }
-  if (readSettingsSlot(preferences, SETTINGS_SLOT_B, scratch) &&
+  bool slotBAliased = false;
+  if (readSettingsSlot(preferences, SETTINGS_SLOT_B, scratch, &slotBAliased) &&
       (!loaded || secondRevisionIsNewer(loadedRevision,
                                         scratch.storageRevision))) {
     settings = scratch;
     loadedRevision = scratch.storageRevision;
     loaded = true;
+    adoptedAliased = slotBAliased;
   }
   preferences.end();
+  // Only the adopted record may re-arm the one-shot migration invalidation;
+  // a stale losing slot or later probe read must not.
+  bbwLegacyAliasesApplied = loaded && adoptedAliased;
   if (loaded) durableTimezoneSaved().store(settings.runtime.timezoneId[0] != '\0');
   unlockSettingsNvs();
   return loaded;

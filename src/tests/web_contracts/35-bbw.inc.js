@@ -33,7 +33,7 @@
   const start = runtimeJs.search(/let\s+bbwReadback\s*=/);
   const end = runtimeJs.indexOf('function soundAlertsAreOn', start);
   vm.runInContext(runtimeJs.slice(start, end), context);
-  vm.runInContext('bbwFormPresetId=2;bbwReadback={bbwPresetId:2,bbwAlgorithm:"linear_ewma",bbwLegacyOffsetG:0,bbwEwmaOffsetG:1.56,bbwAlpha:0.3,bbwAlphaSource:"initial",bbwEvidenceCount:0}', context);
+  vm.runInContext('bbwFormPresetId=2;bbwReadback={bbwPresetId:2,bbwAlgorithm:"linear_ewma",bbwEwmaOffsetG:1.56,bbwAlpha:0.3,bbwAlphaSource:"initial",bbwEvidenceCount:0}', context);
   elements.get('brewByWeight').checked = true;
   const refresh = () => vm.runInContext('updateBbwControls()', context);
   refresh();

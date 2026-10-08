@@ -298,7 +298,6 @@ void publishControlStatus() {
   next.bbwAlpha = bbwPreset.bbwEwmaAlpha;
   next.bbwAlphaBaseline = bbwPreset.bbwAlphaBaseline;
   next.bbwAlphaLearned = bbwPreset.bbwAlphaLearned != 0;
-  next.bbwLegacyOffsetG = bbwPreset.weightOffsetG;
   next.bbwEwmaOffsetG = bbwPreset.bbwEwmaOffsetG;
   next.lastCycle = lastCycle;
   next.lastShot = statusLastShot;

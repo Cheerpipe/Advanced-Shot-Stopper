@@ -135,12 +135,21 @@ FirstFlowObservation considerScaleFlowMarkers(float weight,
   const FirstFlowClass classified =
       stepFirstFlow(session.firstFlow, weight, receivedAtMs, packetSequence,
                     session.scaleBaselineG, runtimeConfig.minimumCupWeightG);
-  if (seekingStreak && classified == FirstFlowClass::NONE) {
-    // A confirmation streak died sub-threshold without firing: without this
-    // telemetry a mistuned threshold is indistinguishable from a dead sensor.
-    scaleProfileNoteEvent(ScaleProfileEvent::FIRST_DROP_SEEKING_FA, millis(),
-                          session.ownedConnectionGeneration, packetSequence,
-                          weight, session.scaleBaselineG, 0);
+  if (seekingStreak && classified == FirstFlowClass::NONE &&
+      static_cast<uint32_t>(receivedAtMs - session.firstFlow.lastFaAtMs) >=
+          1000U) {
+    // A confirmation streak died sub-threshold without firing. Args carry
+    // the diagnosis: effective threshold (cg) and σ̂ (cg) separate an
+    // inflated noise floor (vibration) from a healthy 0.3 g floor, without
+    // which a mistuned threshold is indistinguishable from a dead sensor.
+    // Rate-limited so a noisy counter cannot evict the real first drop.
+    session.firstFlow.lastFaAtMs = receivedAtMs;
+    scaleProfileNoteEvent(
+        ScaleProfileEvent::FIRST_DROP_SEEKING_FA, millis(),
+        session.ownedConnectionGeneration, packetSequence, weight,
+        static_cast<uint32_t>(firstFlowEffectiveThresholdG(session.firstFlow) *
+                              100.0f),
+        static_cast<uint32_t>(sqrtf(session.firstFlow.noiseVarHatG) * 100.0f));
   }
   if (classified == FirstFlowClass::FIRE) {
     return {session.firstFlow.candidateMs != 0 ? session.firstFlow.candidateMs

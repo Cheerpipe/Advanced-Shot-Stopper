@@ -99,7 +99,6 @@ struct ControlStatusFields : ScaleLinkMetrics {
   uint8_t bbwAlphaBaseline = DEFAULT_BBW_EWMA_ALPHA;
   uint8_t bbwAlpha = DEFAULT_BBW_EWMA_ALPHA;
   bool bbwAlphaLearned = false;
-  float bbwLegacyOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   float bbwEwmaOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   LastCycleSummary lastCycle = {};
   // Read-only Home lifecycle; never persisted or used to authorize actuation.

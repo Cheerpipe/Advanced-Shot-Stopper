@@ -147,6 +147,24 @@ int main() {
                            sizeof(legacyBlob));
   PersistedSettings reloaded;
   assert(loadPersistedSettings(reloaded));
+  // The adopted record carried aliases; boot may invalidate learning once.
+  assert(bbwLegacyAliasesApplied);
+  // A clean newer slot A with a stale legacy losing slot B adopts A and must
+  // NOT re-arm the migration flag on later boots.
+  PersistedSettings cleanBlob = settings;
+  cleanBlob.storageRevision = legacyBlob.storageRevision + 10U;
+  cleanBlob.checksum = persistedSettingsChecksum(cleanBlob);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &cleanBlob,
+                           sizeof(cleanBlob));
+  assert(loadPersistedSettings(reloaded));
+  assert(!bbwLegacyAliasesApplied);
+  // Restore the adopted-alias case for the seed checks below.
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacyBlob,
+                           sizeof(legacyBlob));
+  persistence_host::records.erase(
+      persistence_host::storageKey(SETTINGS_NAMESPACE, SETTINGS_SLOT_B));
+  assert(loadPersistedSettings(reloaded));
+  assert(bbwLegacyAliasesApplied);
   assert(reloaded.runtime.bbwAlgorithm == 1);
   assert(reloaded.presets.presets[0].bbwAlgorithm == 1);
   assert(reloaded.presets.presets[0].bbwProfileVersion == BBW_PROFILE_VERSION);
@@ -169,6 +187,7 @@ int main() {
   assert(savePersistedSettings(reloaded));
   PersistedSettings secondPass;
   assert(loadPersistedSettings(secondPass));
+  assert(!bbwLegacyAliasesApplied);
   assert(memcmp(&secondPass, &reloaded, sizeof(secondPass)) == 0);
   secondPass.presets.presets[0].bbwAlgorithm = 255;
   secondPass.checksum = persistedSettingsChecksum(secondPass);

@@ -17689,6 +17689,47 @@ void ff17_noise_adaptive_threshold_and_rate_gate() {
     }
     CHECK(!fired);
   }
+  // A gentle onset riding vibration (the rise-freeze alone cannot contain
+  // σ̂ here; the deviation cap must) still fires.
+  {
+    uint32_t seed = 42;
+    auto jitter = [&seed]() {
+      seed = seed * 1664525U + 1013904223U;
+      return ((seed >> 8) & 0xFFFFU) / 65535.0f * 0.1f - 0.05f;
+    };
+    FirstFlowState state;
+    FirstFlowClass classified = FirstFlowClass::NONE;
+    uint32_t atMs = 1000;
+    int q = 0;
+    for (int i = 0; i < 30 && classified != FirstFlowClass::FIRE;
+         ++i, ++q, atMs += 100) {
+      classified = stepFirstFlow(state, jitter() * 0.6f, atMs, q + 1, 0.0f);
+    }
+    for (int i = 1; i <= 150 && classified != FirstFlowClass::FIRE;
+         ++i, ++q, atMs += 100) {
+      classified = stepFirstFlow(state, 0.015f * i + jitter(), atMs, q + 1,
+                                 0.0f);
+    }
+    CHECK(classified == FirstFlowClass::FIRE);
+    CHECK(firstFlowEffectiveThresholdG(state) <= 0.91f);  // Cap holds.
+  }
+  // A slowly creeping load after a touch (through path) cannot latch a
+  // first drop: its mean rate from the jump stays under the rate gate.
+  {
+    FirstFlowState state;
+    bool fired = false;
+    uint32_t atMs = 1000;
+    for (int i = 0; i < 260; ++i, atMs += 100) {
+      // Jump to 5 g, then creep +0.005 g/sample (0.05 g/s) to ~+1.3 g.
+      const float weight = i == 0 ? 5.0f : 5.0f + 0.005f * i;
+      if (stepFirstFlow(state, weight, atMs, i + 1, 0.0f) ==
+          FirstFlowClass::FIRE) {
+        fired = true;
+      }
+    }
+    CHECK(!fired);
+    CHECK(state.phase == FirstFlowPhase::TOUCH);
+  }
 }
 
 void ff18_duplicate_timestamp_pairs() {
@@ -17801,6 +17842,40 @@ void fw01_median_final_weight_filters_dip() {
               (seedOffset + (preset.bbwEwmaAlpha / 100.0f) * (36.15f - 36.0f))) <
         0.01f);
 
+  // A wide-span tail where dipped samples form the majority: the median
+  // guard falls back to the running max instead of letting the dip win.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  startCycle();
+  advanceToBrew();
+  session.startedWithScale = true;
+  session.scaleBaselineReady = true;
+  endBbwProtectionForTests();
+  publishControlRamp(1.0f, 30.0f, 0.5f, 100, 10);
+  schedulePendingShotFinalize(EndReason::SCALE_THRESHOLD, 30000);
+  session.active = false;
+  pendingFinalize.dripDelayMs = 2500;
+  pendingFinalize.lastKnownWeightG = 34.0f;
+  pendingFinalize.lastKnownWeightValid = true;
+  pendingFinalize.endedAtMs = hostMillis;
+  sequence = pendingFinalize.curveLastSequence + 1U;
+  {
+    const float wideTail[] = {34.05f, 34.0f, 37.0f, 34.05f, 34.0f, 34.02f};
+    uint32_t wideAtMs = pendingFinalize.endedAtMs + 100;
+    for (float sample : wideTail) {
+      hostMillis = wideAtMs;
+      markScaleWorkerProgress();
+      publishWeight(sample, wideAtMs,
+                    pendingFinalize.scaleConnectionGeneration, sequence++);
+      wideAtMs += 300;
+    }
+  }
+  CHECK(pendingFinalize.tailCount == POST_STOP_TAIL_SAMPLE_COUNT);
+  hostMillis = pendingFinalize.endedAtMs + pendingFinalize.dripDelayMs + 1;
+  pendingShotFinalizeTask();
+  CHECK(shotLog.copyNewestFirst(record, 1) == 1);
+  CHECK(fabsf(record[0].actualWeightCg / 100.0f - 37.0f) < 0.02f);
+
   // Sparse tail (two samples spanning 0.2 s): running-max fallback.
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -17852,6 +17927,8 @@ void fw02_offset_floor_from_sensor_lag() {
   pendingFinalize.goalWeightG = preset.goalWeightG;
   pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
   pendingFinalize.endedAtMs = hostMillis;
+  pendingFinalize.durationDs = 300;   // 30 s shot, drop at 10 s: 1.8 g/s.
+  pendingFinalize.firstDropDs = 100;
   currentWeight = 36.05f;
   currentWeightConnectionGeneration = pendingFinalize.scaleConnectionGeneration;
   ++currentWeightSequence;
@@ -17863,12 +17940,35 @@ void fw02_offset_floor_from_sensor_lag() {
   preset.bbwEwmaOffsetG = 2.0f;
   preparePendingBbwForTest();
   pendingFinalize.weightOffsetG = 2.0f;
+  pendingFinalize.durationDs = 300;
+  pendingFinalize.firstDropDs = 100;
   currentWeight = 36.2f;
   ++currentWeightSequence;
   currentWeightReceivedAtMs = ++hostMillis;
   CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
   CHECK(fabsf(preset.bbwEwmaOffsetG -
               (2.0f + (preset.bbwEwmaAlpha / 100.0f) * 0.2f)) < 0.005f);
+
+  // A slow shot (0.4 g/s, long preinfusion) floors at its own lag mass:
+  // 0.69 s x 0.4 g/s = 0.276 g, not the 0.8 g/s prior's 0.552 g.
+  preset.bbwEwmaOffsetG = 0.20f;
+  preparePendingBbwForTest();
+  pendingFinalize.offsetAnalysis = true;
+  pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
+  pendingFinalize.scaleBaselineReady = true;
+  pendingFinalize.scaleConnectionGeneration =
+      getScaleLinkSnapshot().connectionGeneration;
+  pendingFinalize.weightOffsetG = 0.20f;
+  pendingFinalize.goalWeightG = 18;
+  pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
+  pendingFinalize.endedAtMs = hostMillis;
+  pendingFinalize.durationDs = 450;  // 18.05 g / 45 s = 0.40 g/s.
+  pendingFinalize.firstDropDs = SHOT_LOG_METRIC_MISSING;
+  currentWeight = 18.05f;
+  ++currentWeightSequence;
+  currentWeightReceivedAtMs = ++hostMillis;
+  CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
+  CHECK(fabsf(preset.bbwEwmaOffsetG - 0.276f) < 0.005f);
 }
 
 void ff02_chorrito_fires_on_second_sample() {
