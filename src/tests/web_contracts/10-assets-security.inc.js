@@ -681,9 +681,10 @@ if (htmlBytes > 88800) {
 // app.js: ~8 KB of JS source allowance; compressed asset and firmware
 // limits stay fixed.
 // The connecting-state countdown painter adds ~700 bytes of JS source
-// allowance; compressed asset and firmware limits stay fixed.
-if (jsBytes > 353000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 353000)`);
+// allowance, and the first-scan retry gating ~160 more; compressed asset
+// and firmware limits stay fixed.
+if (jsBytes > 353500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 353500)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -735,8 +736,8 @@ if (jsBytes > 353000) {
 // The /setup onboarding view contributes the same ~1.1 KB of HTML and ~8 KB
 // of JS source allowance described above; compressed budgets stay fixed.
 // The connecting-state countdown adds ~0.8 KB more (line + painter).
-if (htmlBytes + jsBytes > 442000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 442000)`);
+if (htmlBytes + jsBytes > 442500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 442500)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

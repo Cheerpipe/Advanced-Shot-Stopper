@@ -89,6 +89,9 @@ function renderPicker(networks) {
 async function startScan() {
   state = "scanning";
   scanStartedAt = Date.now();
+  // "Try again" only makes sense once a scan already ran; the first
+  // automatic scan has nothing to retry.
+  $("setupRescan").hidden = lastNetworks === null;
   show("setupScanning");
   try {
     await R.api("/api/v1/network/scan", { method: "POST", body: "{}" });

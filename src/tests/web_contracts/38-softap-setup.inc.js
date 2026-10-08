@@ -172,6 +172,7 @@
       !partialHtml.setup.includes('id="setupConnectingCountdown"') ||
       !partialHtml.setup.includes('id="setupHiddenToggle"') ||
       !partialHtml.setup.includes('id="setupPasswordShow"') ||
+      !codeIncludes(setupJs, 'setupRescan").hidden = lastNetworks === null') ||
       !codeIncludes(setupJs, 'input.type=show?"text":"password"') ||
       !codeIncludes(setupJs, 'passToggle.setAttribute("aria-pressed"') ||
       !partialHtml.setup.includes('2.4 GHz') ||
