@@ -52,6 +52,7 @@ struct HomeStreamDelta {
 __attribute__((optimize("Os")))
 bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
                                       const ControlStatusSnapshot &control,
+                                      const NetworkStatusSnapshot &network,
                                       const ShotLogRecord *latest) {
   uiStreamSendKind = "home";
   const bool initial = session.homeResync || session.homeBoot != control.bootId;
@@ -61,7 +62,6 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
       "{\"v\":1,\"type\":\"home\",\"boot\":%lu,\"snapshot\":%s,\"changes\":{",
       static_cast<unsigned long>(control.bootId),
       initial ? "true" : "false");
-  const NetworkStatusSnapshot network = snapshot();
   bool unlocked = DEVELOPMENT_BUILD, override = false;
   {
     TaskLockGuard lock(dataMux_);
@@ -195,7 +195,25 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("noScaleShotGuard.scaleUsable", bool(control.scaleAvailable && control.weightStreamState == WeightStreamState::FRESH));
   if (callbacks_.copyPresetBank) callbacks_.copyPresetBank(&g_work->presetBank);
   else memset(&g_work->presetBank, 0, sizeof(g_work->presetBank));
-  buildSlimPresetsJson(g_work->presetBank);
+  // Presets rarely change; skip the slim-JSON rebuild while the bank is
+  // byte-identical to the last render AND the shared presetsJson buffer
+  // still holds that render (the REST and integration handlers reuse the
+  // buffer with other formats). The delta hash below is computed either
+  // way, so frames stay byte-identical. Single-threaded: httpd dispatch.
+  static ShotPresetBank renderedPresets;
+  static uint32_t renderedPresetsHash = 0;
+  const size_t renderedBytes = strlen(g_work->presetsJson);
+  if (memcmp(&renderedPresets, &g_work->presetBank,
+             sizeof(renderedPresets)) != 0 ||
+      crc32Update(0xFFFFFFFFU,
+                  reinterpret_cast<const uint8_t *>(g_work->presetsJson),
+                  renderedBytes) != renderedPresetsHash) {
+    renderedPresets = g_work->presetBank;
+    buildSlimPresetsJson(g_work->presetBank);
+    renderedPresetsHash = crc32Update(0xFFFFFFFFU,
+        reinterpret_cast<const uint8_t *>(g_work->presetsJson),
+        strlen(g_work->presetsJson));
+  }
   delta.field("presets", "%s", g_work->presetsJson);
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   const auto micra = machineIntegrationStatus();
@@ -282,7 +300,8 @@ bool ShotStopperNetwork::sendUiStreamFrame(UiStreamSession &session,
 // carry snapshot:false deltas that the client merges in order.
 __attribute__((optimize("Os")))
 bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
-                                              const ControlStatusSnapshot &control) {
+                                              const ControlStatusSnapshot &control,
+                                              const NetworkStatusSnapshot &network) {
   uiStreamSendKind = "diagnostic";
   const uint32_t now = millis();
   const bool initial = session.diagResync || session.diagBoot != control.bootId;
@@ -466,7 +485,6 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
         static_cast<int32_t>(millis() - adminUnlockUntilMs_) < 0;
   }
   unlocked |= session.fromSoftAp;
-  const NetworkStatusSnapshot network = snapshot();
   const auto &config = control.config;
   const auto timeStatus = g_wallClock.snapshot(now);
   int16_t timezoneOffset = 0, lastSyncTimezoneOffset = 0;

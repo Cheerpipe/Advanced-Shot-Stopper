@@ -389,6 +389,9 @@ void ShotStopperNetwork::uiStreamDispatch(void *context) {
   ShotLogRecord latest = {};
   const bool eligible = self.callbacks_.copyHomeShot &&
       self.callbacks_.copyHomeShot(latest, self.workBuf_->homeCurve);
+  // Tick-constant network state is fetched once per dispatch too and
+  // shared by the home and diagnostic projections.
+  const NetworkStatusSnapshot network = self.snapshot();
   for (auto &session : self.uiStreams_) {
     if (session.fd < 0) continue;
     bool allowed;
@@ -412,7 +415,7 @@ void ShotStopperNetwork::uiStreamDispatch(void *context) {
     }
     else if (session.bound) {
       httpd_sess_update_lru_counter(self.server_, session.fd);
-      self.sendUiStream(session, control, latest, eligible);
+      self.sendUiStream(session, control, network, latest, eligible);
     }
   }
   self.unlockWorkBuf();
@@ -422,10 +425,11 @@ void ShotStopperNetwork::uiStreamDispatch(void *context) {
 
 void ShotStopperNetwork::sendUiStream(UiStreamSession &session,
                                       ControlStatusSnapshot &control,
+                                      const NetworkStatusSnapshot &network,
                                       const ShotLogRecord &latest, bool eligible) {
   // Home first, then the shot card: the client's setup window waits for both
   // and must not queue behind record pages, which can pace across dispatches.
-  if (!sendHomeStream(session, control, eligible ? &latest : nullptr)) {
+  if (!sendHomeStream(session, control, network, eligible ? &latest : nullptr)) {
     httpd_sess_trigger_close(server_, session.fd);
     return;
   }
@@ -433,7 +437,7 @@ void ShotStopperNetwork::sendUiStream(UiStreamSession &session,
     httpd_sess_trigger_close(server_, session.fd);
     return;
   }
-  if (session.diagnostic && !sendDiagnosticStream(session, control)) {
+  if (session.diagnostic && !sendDiagnosticStream(session, control, network)) {
     httpd_sess_trigger_close(server_, session.fd);
     return;
   }

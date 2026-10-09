@@ -651,13 +651,16 @@ class ShotStopperNetwork {
   static void uiStreamDispatch(void *context);
   void serviceUiStream(uint32_t now);
   void sendUiStream(UiStreamSession &session, ControlStatusSnapshot &control,
+                    const NetworkStatusSnapshot &network,
                     const ShotLogRecord &latest, bool eligible);
   bool sendShotCard(UiStreamSession &session, const ControlStatusSnapshot &control,
                     const ShotLogRecord &latest, bool eligible);
   bool sendHomeStream(UiStreamSession &session, const ControlStatusSnapshot &control,
+                      const NetworkStatusSnapshot &network,
                       const ShotLogRecord *latest);
   bool sendDiagnosticStream(UiStreamSession &session,
-                            const ControlStatusSnapshot &control);
+                            const ControlStatusSnapshot &control,
+                            const NetworkStatusSnapshot &network);
   bool sendUiStreamFrame(UiStreamSession &session, size_t used, bool &deferArm);
   bool sendLogStream(UiStreamSession &session,
                      const ControlStatusSnapshot &control);

@@ -148,7 +148,7 @@
   const homeStream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperHomeStream.inc'), 'utf8');
   assert(stream.includes('strcmp(op->valuestring, "diagnostic")'));
   assert(stream.includes('session->diagnostic = cJSON_IsTrue(on)'));
-  assert(stream.includes('session.diagnostic && !sendDiagnosticStream(session, control)'),
+  assert(stream.includes('session.diagnostic && !sendDiagnosticStream(session, control, network)'),
       'the diagnostic delta rides the existing dispatch under the status workspace');
   // Record-stream no-change bookkeeping: the suppression path must adopt a
   // moved epoch, and every standing-window send (snapshots included) must
@@ -176,7 +176,7 @@
   // card, so record pages — which may pace across dispatch ticks — go last.
   const homeCall = stream.indexOf('if (!sendHomeStream(session, control,');
   const cardCall = stream.indexOf('if (!sendShotCard(session, control,');
-  const diagCall = stream.indexOf('session.diagnostic && !sendDiagnosticStream(session, control)');
+  const diagCall = stream.indexOf('session.diagnostic && !sendDiagnosticStream(session, control, network)');
   const historyCall = stream.indexOf('session.historyOn && !sendHistoryStream(session, control)');
   const statsCall = stream.indexOf('session.statsOn && !sendStatsStream(session, control)');
   assert(homeCall >= 0 && cardCall > homeCall && diagCall > cardCall &&
