@@ -3612,15 +3612,21 @@ const BREW_FIELD_TEXT = {
     ["autoToManualGuardManualLimitS", "operationalWallS", ">", "range", "ge"],
     ["autoToManualGuardBaselineS", "operationalWallS", ">", "range", "ge"],
   ];
+// Message label for a brew field: the Settings form labels carry the unit in
+// parentheses, so every error and warning opens with the exact field name the
+// user sees, never the field's own current value.
+const brewFieldLabel = (id) => {
+  const [label, unit] = BREW_FIELD_TEXT[id];
+  return label + " (" + unit + ")";
+};
 function brewCrossErr(kind, id, other) {
-  const [label, unit] = BREW_FIELD_TEXT[id],
+  const unit = BREW_FIELD_TEXT[id][1],
     [ref, refUnit, refSection] = BREW_FIELD_TEXT[other],
     section = BREW_SECTION_TEXT[refSection],
-    mine = brewFieldValue(id) + " " + unit,
     limit = brewFieldValue(other) + " " + refUnit;
   return kind === "range"
-    ? sub(BREW_CROSS_TEXT.range, [label, mine, "10 " + unit, limit, ref, section])
-    : sub(BREW_CROSS_TEXT[kind], [label, mine, limit, ref, section]);
+    ? sub(BREW_CROSS_TEXT.range, [brewFieldLabel(id), "10 " + unit, limit, ref, section])
+    : sub(BREW_CROSS_TEXT[kind], [brewFieldLabel(id), limit, ref, section]);
 }
 // The fields the user changed since the form was last clean: the baseline is
 // refreshed whenever the brew section is saved or re-hydrated clean, so
@@ -3638,17 +3644,11 @@ function validateBrewClient() {
     edited = editedBrewFields(),
     fastOn = $("fastExtractionGuardEnabled").checked,
     slowOn = $("slowExtractionGuardEnabled").checked,
-    brewRange = (id, min, max, opts) => {
-      const [label, unit] = BREW_FIELD_TEXT[id],
-        v = brewFieldValue(id);
-      return rangeCheck(
-        id,
-        min,
-        max,
-        v === "" ? label : label + " " + v + " " + unit,
-        {unit, ...opts},
-      );
-    },
+    brewRange = (id, min, max, opts) =>
+      rangeCheck(id, min, max, brewFieldLabel(id), {
+        unit: BREW_FIELD_TEXT[id][1],
+        ...opts,
+      }),
     add = (e) => e && errors.push(e);
   add(brewRange("goalWeightG", 10, 200, {int: 1}));
   add(brewRange("operationalWallS", 5, 60, {int: 1}));
@@ -3687,21 +3687,19 @@ function validateBrewClient() {
       y = retareRule ? floor : number(b);
     if (!BREW_REL[rel](x, y)) continue;
     if (retareRule) {
-      const [label, unit] = BREW_FIELD_TEXT[a],
-        mine = brewFieldValue(a) + " " + unit,
+      const unit = BREW_FIELD_TEXT[a][1],
         fixed = floor.toFixed(1),
         bound = (Number(fixed) === floor ? fixed : String(floor)) + " " + unit;
       errors.push({
         id: a,
         msg: withRetare
           ? sub(BREW_CROSS_TEXT.ge, [
-              label,
-              mine,
+              brewFieldLabel(a),
               bound,
               sub(__WEBUI_TEXT__("settings.err_retare_sum"), [brewFieldValue("retareWindowS")]),
               __WEBUI_TEXT__("settings.tare"),
             ])
-          : sub(__WEBUI_TEXT__("settings.err_at_least_plain"), [label, mine, bound]),
+          : sub(__WEBUI_TEXT__("settings.err_at_least_plain"), [brewFieldLabel(a), bound]),
       });
       continue;
     }

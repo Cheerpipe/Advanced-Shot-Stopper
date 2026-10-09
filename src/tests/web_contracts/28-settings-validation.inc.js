@@ -1,6 +1,7 @@
 // Settings brew validation: every cross-field rule reports on the field the
-// user edited, phrased from that side with the attempted value, the blocking
-// limit, and the source field plus its settings section; multiple edited
+// user edited, phrased from that side opening with the field's Settings form
+// label ("Name (unit)", never the field's own current value), then the
+// blocking limit, the source field, and its settings section; multiple edited
 // fields in conflict yield one error each. The battery executes the real
 // validator (rangeCheck, number helpers, and the rule table) against a stub
 // form with a controlled brew baseline.
@@ -59,25 +60,25 @@
   };
 
   // (a) Editing only Target into conflict attributes the error to Target with
-  // the exact self-contained phrasing: attempted value, limit with the
-  // 0.1-step precision, source field, and section.
+  // the exact self-contained phrasing: the UI label with its unit, the limit
+  // with the 0.1-step precision, source field, and section.
   const svA = svValidate((f) => {
     f.goalWeightG.value = '10';
   });
   svAssert.equal(svA.errors.length, 1, JSON.stringify(svA.errors));
   svAssert.equal(svA.errors[0].id, 'goalWeightG');
   svAssert.equal(svA.errors[0].msg,
-    'Target 10 g must be greater than 34.0 g (Min recovery, Slow extraction guard).');
+    'Target (g) must be greater than 34.0 g (Min recovery, Slow extraction guard).');
 
-  // (b) A self-range violation keeps its own field and gains the attempted
-  // value prefix; the cross-field consequence of the same edit follows.
+  // (b) A self-range violation keeps its own field under its UI label; the
+  // cross-field consequence of the same edit follows.
   const svB = svValidate((f) => {
     f.goalWeightG.value = '250';
   });
   svAssert.equal(svB.errors[0].id, 'goalWeightG');
-  svAssert.equal(svB.errors[0].msg, 'Target 250 g must be from 10 to 200 g.');
+  svAssert.equal(svB.errors[0].msg, 'Target (g) must be from 10 to 200 g.');
   svAssert.equal(svB.errors[1].msg,
-    'Target 250 g must be less than 80.0 g (Max recovery, Fast extraction guard).');
+    'Target (g) must be less than 80.0 g (Max recovery, Fast extraction guard).');
   svAssert.ok(svB.errors.every((e) => e.id === 'goalWeightG'));
 
   // (c) Two edited fields in conflict produce two errors, one per side, each
@@ -90,9 +91,9 @@
   svAssert.deepEqual(svC.errors.map((e) => e.id),
     ['minRecoveryWeightG', 'goalWeightG']);
   svAssert.equal(svC.errors[0].msg,
-    'Min recovery 40.0 g must be less than 10 g (Target, Brew by Weight).');
+    'Min recovery (g) must be less than 10 g (Target, Brew by Weight).');
   svAssert.equal(svC.errors[1].msg,
-    'Target 10 g must be greater than 40.0 g (Min recovery, Slow extraction guard).');
+    'Target (g) must be greater than 40.0 g (Min recovery, Slow extraction guard).');
 
   // An emptied participant reports only its own required-value error: the
   // cross rules must not compare against Number("") === 0.
@@ -100,7 +101,7 @@
     f.goalWeightG.value = '';
   });
   svAssert.equal(svEmpty.errors.length, 1, JSON.stringify(svEmpty.errors));
-  svAssert.equal(svEmpty.errors[0].msg, 'Target is required (10–200 g).');
+  svAssert.equal(svEmpty.errors[0].msg, 'Target (g) is required (10–200 g).');
 
   // (d) A disabled guard skips both its self-range checks and its rules.
   const svD = svValidate((f) => {
@@ -122,7 +123,7 @@
   svAssert.equal(svE.errors.length, 1, JSON.stringify(svE.errors));
   svAssert.equal(svE.errors[0].id, 'operationalWallS');
   svAssert.equal(svE.errors[0].msg,
-    'Max BBW time 25 s must be greater than 28.0 s (Min BBW brew time, Fast extraction guard).');
+    'Max BBW time (s) must be greater than 28.0 s (Min BBW brew time, Fast extraction guard).');
 
   // (f) A stored conflict with nothing edited falls back to the rule's owning
   // field, phrased from that side.
@@ -132,7 +133,7 @@
   svAssert.equal(svF.errors.length, 1, JSON.stringify(svF.errors));
   svAssert.equal(svF.errors[0].id, 'minRecoveryWeightG');
   svAssert.equal(svF.errors[0].msg,
-    'Min recovery 34.0 g must be less than 10 g (Target, Brew by Weight).');
+    'Min recovery (g) must be less than 10 g (Target, Brew by Weight).');
 
   // (h) The retare floor rule shows its computation when auto-retare is on and
   // states the bare bound when it is off.
@@ -142,12 +143,12 @@
   });
   svAssert.equal(svH1.errors.length, 1, JSON.stringify(svH1.errors));
   svAssert.equal(svH1.errors[0].msg,
-    'BBW protection 5.0 s must be at least 8.0 s (Retare window 5.0 s + 3 s, Tare).');
+    'BBW protection (s) must be at least 8.0 s (Retare window 5.0 s + 3 s, Tare).');
   const svH2 = svValidate(null, (f) => {
     f.bbwProtectionS.value = '2';
   });
   svAssert.equal(svH2.errors.length, 1, JSON.stringify(svH2.errors));
-  svAssert.equal(svH2.errors[0].msg, 'BBW protection 2.0 s must be at least 3.0 s.');
+  svAssert.equal(svH2.errors[0].msg, 'BBW protection (s) must be at least 3.0 s.');
 
   // (i)/(j) The A→M ceiling conflict blames the edited side: the wall side
   // gets "at least", the limit side gets the capped range wording.
@@ -159,14 +160,14 @@
   });
   svAssert.equal(svI.errors.length, 1, JSON.stringify(svI.errors));
   svAssert.equal(svI.errors[0].msg,
-    'Max BBW time 40 s must be at least 45 s (Manual limit, A→M time guard).');
+    'Max BBW time (s) must be at least 45 s (Manual limit, A→M time guard).');
   const svJ = svValidate((f) => {
     f.autoToManualGuardManualLimitS.value = '70';
   });
   svAssert.deepEqual(svJ.errors.map((e) => e.id),
     ['autoToManualGuardManualLimitS', 'autoToManualGuardManualLimitS']);
   svAssert.equal(svJ.errors[1].msg,
-    'Manual limit 70 s must be from 10 s to 45 s (up to Max BBW time, Brew by Weight).');
+    'Manual limit (s) must be from 10 s to 45 s (up to Max BBW time, Brew by Weight).');
 
   // (g) Rule-table completeness against the relation inventory: eleven rules
   // (ten two-sided plus the single-sided retare floor), every referenced
@@ -256,7 +257,7 @@
     });
     svAssert.equal(w1.warnings.length, 1, JSON.stringify(w1.warnings));
     svAssert.equal(w1.warnings[0].msg,
-      'Target 10 g must be greater than 34.0 g (Min recovery, Slow extraction guard).');
+      'Target (g) must be greater than 34.0 g (Min recovery, Slow extraction guard).');
     const w1Empty = svValidate((f) => {
       f.goalWeightG.value = '';
     });
