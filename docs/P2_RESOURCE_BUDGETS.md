@@ -126,6 +126,24 @@ the current build uses 189,078 bytes. External BSS remains under its separately
 reviewed 800 KiB ceiling. The 3 MiB OTA slot remains the hard image limit,
 with 827,152 bytes (about 26%) free in the measured build. Static measurements
 do not qualify runtime heap or stack behavior.
+The loop diagnostics and control-loop slimming series raises the image,
+linked, flash-code, and rodata allowances once more, to 52,272, 52,264,
+34,196, and 21,300 bytes. Two work streams share the growth: the loop
+diagnostics commits (input sub-phase attribution, true own-CPU pairing with
+the lock-free counter path) that landed above the last reviewed allowance,
+and the status-publish slimming plus all-loop optimization series (status
+sub-phase profiling with shot-store and control-status lock-wait telemetry,
+the generation-guarded store gather, the per-dispatch stream fetch hoist,
+and the Stats records cache with per-row curve fetches). The reference
+development Micra build measures 2,325,968 image bytes, 2,325,847 linked
+bytes, 1,549,232 flash-code bytes, 608,588 rodata bytes, DIRAM at 185,094
+bytes (2,576 over baseline, well inside its allowance), and external BSS
+at 762,248 of 819,200 bytes; the series also returns about 492 KB of
+runtime PSRAM heap by dropping the whole-store curve copy from the network
+workspace, which these ELF metrics do not capture. Each allowance carries
+64 bytes of headroom over the measurement, following the established
+padding-wobble convention. Firmware task ownership, control timing, OTA
+identity and partitions remain unchanged.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
