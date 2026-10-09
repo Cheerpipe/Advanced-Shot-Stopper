@@ -186,8 +186,13 @@ function initQuickWeight() {
   const commit = async (grams) => {
     try {
       await R.ensureSettingsHydrated();
-      $("goalWeightG").value = String(grams);
-      await R.saveBrewPreset();
+      const field = $("goalWeightG"),
+        rejected = String(field.value);
+      field.value = String(grams);
+      // A rejected value must not linger in the form as a phantom edit: put
+      // the previous value back so the brew baseline and the live warnings
+      // keep describing the real saved state.
+      if (!(await R.saveBrewPreset())) field.value = rejected;
     } catch (e) {
       R.message(
         R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_brew_settings"), e),

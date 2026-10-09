@@ -2281,12 +2281,13 @@ function updH(h, s) {
   t("hRamF", b(w.ramFreeBytes));
 }
 function clearFieldErrors() {
+  document.querySelectorAll(".fieldError").forEach((e) => e.remove());
   document.querySelectorAll(".invalid").forEach((e) => {
     e.classList.remove("invalid");
-    e.removeAttribute("aria-invalid");
-    e.removeAttribute("aria-describedby");
+    // Red marks can share the input with live yellow warnings; keep their
+    // aria pairing instead of wiping it with the red one.
+    refreshFieldAria(e);
   });
-  document.querySelectorAll(".fieldError").forEach((e) => e.remove());
 }
 function markFieldError(el, msg) {
   el.classList.add("invalid");
@@ -3097,6 +3098,20 @@ function clearBrewDirty() {
 // drift from what Save would reject.
 let brewWarnSig = "",
   brewWarnSeq = 0;
+// Re-point an input's aria pairing at whichever message smalls remain in its
+// label — yellow survivors after a red clear, red survivors after a yellow
+// clear, or nothing (attributes removed).
+function refreshFieldAria(el) {
+  const warnIds = [...(el.closest("label") || el.parentElement)
+    .querySelectorAll("small.fieldWarning,small.fieldError")].map((s) => s.id);
+  if (warnIds.length) {
+    el.setAttribute("aria-invalid", "true");
+    el.setAttribute("aria-describedby", warnIds.join(" "));
+  } else {
+    el.removeAttribute("aria-invalid");
+    el.removeAttribute("aria-describedby");
+  }
+}
 function brewWarningList() {
   // Suppress only the empty-field "is required" result: it fires mid-typing
   // and is self-evident. Everything else is a true statement about the
@@ -3107,8 +3122,7 @@ function clearBrewWarningsDom() {
   document.querySelectorAll("#workflowPanel .fieldWarning").forEach((e) => e.remove());
   document.querySelectorAll("#workflowPanel .fieldWarn").forEach((e) => {
     e.classList.remove("fieldWarn");
-    e.removeAttribute("aria-invalid");
-    e.removeAttribute("aria-describedby");
+    refreshFieldAria(e);
   });
   $("brewConflictChip")?.classList.add("hidden");
 }
@@ -3135,7 +3149,9 @@ function refreshBrewWarnings() {
     s.id = "brewWarn" + ++brewWarnSeq;
     s.textContent = msg;
     (el.closest("label") || el.parentElement).appendChild(s);
-    el.setAttribute("aria-describedby", s.id);
+    // One field can carry several warnings; link them all like markFieldError.
+    const prev = el.getAttribute("aria-describedby");
+    el.setAttribute("aria-describedby", (prev ? prev + " " : "") + s.id);
   }
   const chip = $("brewConflictChip");
   if (chip) {
@@ -3156,16 +3172,9 @@ function clearBrewFieldErrors() {
     el.classList.remove("invalid");
     const host = el.closest("label") || el.parentElement;
     host.querySelectorAll("small.fieldError").forEach((s) => s.remove());
-    // Rebuild the aria pairing from the yellow warnings that survive the
-    // handover: the signature-skip renderer will not rewrite them.
-    const warnIds = [...host.querySelectorAll("small.fieldWarning")].map((s) => s.id);
-    if (warnIds.length) {
-      el.setAttribute("aria-invalid", "true");
-      el.setAttribute("aria-describedby", warnIds.join(" "));
-    } else {
-      el.removeAttribute("aria-invalid");
-      el.removeAttribute("aria-describedby");
-    }
+    // Rebuild the aria pairing from the smalls that survive the handover:
+    // the signature-skip renderer will not rewrite an unchanged set.
+    refreshFieldAria(el);
   }
 }
 function revertBrewPreset() {

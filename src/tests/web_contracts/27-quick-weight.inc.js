@@ -33,11 +33,17 @@
     'Sheet bounds must equal the firmware preset goal bounds');
 
   // Commit order: hydrate the settings form, write the goal, save the preset.
+  // A rejected save must put the previous value back so no phantom edit
+  // lingers in the form (the live warnings and the brew baseline would
+  // otherwise describe a value the device never accepted).
   const qwHydrate = qwFirst('R.ensureSettingsHydrated()'),
-    qwWrite = qwFirst('$("goalWeightG").value = String(grams)'),
-    qwSave = qwFirst('R.saveBrewPreset()');
+    qwWrite = qwFirst('field.value = String(grams)'),
+    qwSave = qwFirst('R.saveBrewPreset()'),
+    qwRestore = qwFirst('field.value = rejected;');
   qwAssert.ok(0 <= qwHydrate && qwHydrate < qwWrite && qwWrite < qwSave,
     'Closing must hydrate, then write the goal field, then save the preset');
+  qwAssert.ok(qwRestore > qwSave,
+    'A rejected quick-weight save must restore the previous goal value');
   qwAssert.ok((runtimeJs.match(/export\s*\{[\s\S]*?\n\};/) || [''])[0]
       .replace(/\s/g, '').includes('ensureSettingsHydrated'),
     'Runtime must export ensureSettingsHydrated for the commit path');
@@ -173,7 +179,7 @@
     const qwRuntime = {
       presetState: {activeId: 2, items: [{id: 2, name: 'Espresso', goalWeightG: 36}]},
       ensureSettingsHydrated: async () => { qwRuntime.hydrated++; },
-      saveBrewPreset: async () => { qwRuntime.saved++; },
+      saveBrewPreset: async () => { qwRuntime.saved++; return true; },
       message: () => {},
       formatCommandError: (m) => m,
       hydrated: 0,

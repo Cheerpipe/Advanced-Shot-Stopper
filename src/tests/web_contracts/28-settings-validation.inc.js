@@ -288,7 +288,8 @@
       const el = {id, attrs: {},
         classList: {add: () => {}, remove: () => {}},
         setAttribute(k, v) { el.attrs[k] = v; },
-        getAttribute: () => null, removeAttribute() {},
+        getAttribute(k) { return k in el.attrs ? el.attrs[k] : null; },
+        removeAttribute(k) { delete el.attrs[k]; },
         closest: () => ({appendChild: () => harness.counts.appended++,
                          querySelectorAll: () => []})};
       return el;
@@ -308,7 +309,9 @@
     const script = [
       [{id: 'goalWeightG', msg: 'one.'}],
       [{id: 'goalWeightG', msg: 'one.'}],
-      [{id: 'goalWeightG', msg: 'one.'}, {id: 'minRecoveryWeightG', msg: 'two.'}],
+      // Same field twice: the validator does emit two results for one input
+      // (self-range + cross rule), and both smalls must stay aria-linked.
+      [{id: 'goalWeightG', msg: 'one.'}, {id: 'goalWeightG', msg: 'two.'}],
       [],
     ];
     let call = 0;
@@ -328,10 +331,17 @@
     svAssert.equal(harness.counts.created, createdAfterFirst,
       'An unchanged warning signature must not write the DOM');
     call = 2;
+    // The production clear (clearBrewWarningsDom) resets the pairing via
+    // refreshFieldAria before re-rendering; the flat DOM stub cannot model
+    // class queries, so reset the recorded attrs the same way here.
+    harness.fields.goalWeightG.attrs = {};
     engine.refreshBrewWarnings();
     svAssert.equal(harness.counts.created, createdAfterFirst + 2);
     svAssert.equal(harness.chip.hidden, false);
     svAssert.equal(harness.chip.textContent, '2 conflicts will block saving.');
+    svAssert.match(harness.fields.goalWeightG.attrs['aria-describedby'],
+      /^brewWarn\d+ brewWarn\d+$/,
+      'Two warnings on one field must both stay aria-linked');
     call = 3;
     engine.refreshBrewWarnings();
     svAssert.equal(harness.chip.hidden, true, 'The chip must hide at zero conflicts');
