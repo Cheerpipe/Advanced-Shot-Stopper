@@ -1092,12 +1092,16 @@ ShotStatsView copyShotStats() {
 
 bool copyShotStoreStatus(uint32_t &bootId, PersistedLastShot &last,
                          PersistedLastShot &good, ShotCurveRecord &goodCurve,
-                         bool includeGoodHistory) {
+                         HistoryRecord &newestActivation,
+                         bool &hasNewestActivation, bool includeGoodHistory) {
   const uint32_t lockStartedUs = micros();
   TaskLockGuard lock(shotStoreMutex);
   noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs,
                   micros() - lockStartedUs);
   bootId = shotLog.bootId();
+  // Newest activation record rides the same critical section so the status
+  // publish needs no second shotStoreMutex acquisition.
+  hasNewestActivation = historyLog.copyNewest(newestActivation);
   last = persistedLastShot;
   // The star rating lives in the shot-log record once the shot is committed;
   // mirror it into the status aggregate so the WebUI and HA see one value.

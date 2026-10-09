@@ -159,11 +159,11 @@ void publishControlStatus() {
   PersistedLastShot statusLastShot = {};
   PersistedLastShot statusLastGoodShot = {};
   static SHOT_STOPPER_PSRAM_BSS ShotCurveRecord statusLastGoodCurve;
+  HistoryRecord statusNewestActivation = {};
+  bool hasNewestActivation = false;
   const bool lastGoodHistoryLinked = copyShotStoreStatus(
       shotBootId, statusLastShot, statusLastGoodShot, statusLastGoodCurve,
-      !session.active);
-  HistoryPage statusHistoryPage = {};
-  copyHistoryPage(statusHistoryPage, 0, 1, ShotLogSortDir::Desc);
+      statusNewestActivation, hasNewestActivation, !session.active);
   if (recordStatusPhases)
     finishLoopPhase(LoopPhase::HOUSEKEEPING_STATUS_STORE_COPY);
   const uint32_t statusLockStartedUs = micros();
@@ -318,8 +318,8 @@ void publishControlStatus() {
     next.homeCycle.weightValid = weightFresh;
   }
   next.lastGoodShotHistoryLinked = lastGoodHistoryLinked;
-  if (statusHistoryPage.count > 0) {
-    const HistoryRecord &newest = statusHistoryPage.records[0];
+  if (hasNewestActivation) {
+    const HistoryRecord &newest = statusNewestActivation;
     next.lastActivationId = newest.id;
     next.lastActivationEndedAtUnixSec = newest.endedAtUnixSec;
     next.lastActivationEndedAtLocalSec = newest.endedAtLocalSec;

@@ -103,6 +103,22 @@ class HistoryLog
     }
     page.count = pageCount;
   }
+
+  // Copies the newest record without materializing a HistoryPage; equivalent
+  // to copyPage(page, 0, 1, Desc) without the page frame. Caller holds the
+  // store mutex.
+  bool copyNewest(HistoryRecord &record) const {
+    if (store_.header.count == 0) {
+      return false;
+    }
+    size_t index = store_.header.writeIndex;
+    if (index == 0) {
+      index = HISTORY_CAPACITY;
+    }
+    --index;
+    record = store_.records[index];
+    return true;
+  }
 };
 
 }  // namespace shotstopper

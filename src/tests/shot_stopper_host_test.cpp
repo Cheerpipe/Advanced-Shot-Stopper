@@ -14798,8 +14798,10 @@ void s04c_delete_shot_record_removes_log_and_curve() {
   uint32_t bootId = 0;
   PersistedLastShot last = {}, publishedGood = {};
   ShotCurveRecord publishedCurve = emptyShotCurveRecord();
+  HistoryRecord newestActivation = {};
+  bool hasNewestActivation = false;
   CHECK(copyShotStoreStatus(bootId, last, publishedGood, publishedCurve,
-                            true));
+                            newestActivation, hasNewestActivation, true));
   CHECK(publishedGood.rating == 4);
   CHECK(publishedCurve.shotId == id);
   CHECK(shotLog.containsId(id));
@@ -14812,7 +14814,7 @@ void s04c_delete_shot_record_removes_log_and_curve() {
   CHECK(persistedLastGoodShot.cycleId == 44);
   CHECK(fabsf(persistedLastGoodShot.currentWeightG - 36.5f) < 0.001f);
   CHECK(!copyShotStoreStatus(bootId, last, publishedGood, publishedCurve,
-                             true));
+                             newestActivation, hasNewestActivation, true));
   CHECK(!rateLastShot(5));
 }
 
@@ -15788,7 +15790,10 @@ void s12d_rate_last_shot_and_history() {
   uint32_t bootId = 0;
   PersistedLastShot last = {}, good = {};
   ShotCurveRecord curve = emptyShotCurveRecord();
-  CHECK(copyShotStoreStatus(bootId, last, good, curve, true));
+  HistoryRecord newestActivation = {};
+  bool hasNewestActivation = false;
+  CHECK(copyShotStoreStatus(bootId, last, good, curve, newestActivation,
+                            hasNewestActivation, true));
   CHECK(good.rating == 2);
   CHECK(good.shotLogId == stored[0].id);
 }
@@ -15827,7 +15832,10 @@ void s12e_history_rating_wins_after_last_shot_save_failure_and_reboot() {
   uint32_t bootId = 0;
   PersistedLastShot last = {}, publishedGood = {};
   ShotCurveRecord curve = emptyShotCurveRecord();
-  CHECK(copyShotStoreStatus(bootId, last, publishedGood, curve, true));
+  HistoryRecord newestActivation = {};
+  bool hasNewestActivation = false;
+  CHECK(copyShotStoreStatus(bootId, last, publishedGood, curve,
+                            newestActivation, hasNewestActivation, true));
   CHECK(publishedGood.rating == 4);
   CHECK(publishedGood.cycleId == good.cycleId);
   CHECK(fabsf(publishedGood.currentWeightG - good.currentWeightG) < 0.001f);
@@ -15873,7 +15881,10 @@ void s12f_shot_store_snapshot_serializes_rating_and_finalize() {
       uint32_t bootId = 0;
       PersistedLastShot last = {}, good = {};
       ShotCurveRecord curve = emptyShotCurveRecord();
-      if (!copyShotStoreStatus(bootId, last, good, curve, true) ||
+      HistoryRecord newestActivation = {};
+      bool hasNewestActivation = false;
+      if (!copyShotStoreStatus(bootId, last, good, curve, newestActivation,
+                               hasNewestActivation, true) ||
           good.durationMs != 13000U + good.cycleId ||
           good.currentWeightG !=
               30.0f + static_cast<float>(good.cycleId % 5U))
@@ -16598,6 +16609,34 @@ void h08_lock_wait_stats_flow_into_the_profiler_snapshot() {
   CHECK(snap.shotStoreWaitMaxUs == 700U);
   CHECK(snap.controlStatusWaitLastUs == 150U);
   CHECK(snap.controlStatusWaitMaxUs == 150U);
+}
+
+void h10_newest_history_record_matches_first_desc_page_row() {
+  resetHarness(false, true);
+  HistoryRecord newest = {};
+  HistoryPage page;
+  // Empty store: both reads agree that nothing is there.
+  CHECK(!historyLog.copyNewest(newest));
+  historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+  CHECK(page.count == 0);
+  // Fill past capacity so writeIndex wraps; every step must agree.
+  for (uint32_t n = 1; n <= HISTORY_CAPACITY + 5U; ++n) {
+    appendHistoryRecord(HistoryType::SHOT, n * 100U, n % 2 == 0, nullptr);
+    historyLog.copyPage(page, 0, 1, ShotLogSortDir::Desc);
+    CHECK(historyLog.copyNewest(newest));
+    CHECK(page.count == 1);
+    CHECK(memcmp(&newest, &page.records[0], sizeof(HistoryRecord)) == 0);
+  }
+  // The merged publish gather carries the same record through the single
+  // shotStoreMutex critical section.
+  uint32_t bootId = 0;
+  PersistedLastShot last = {}, good = {};
+  ShotCurveRecord curve = emptyShotCurveRecord();
+  HistoryRecord gathered = {};
+  bool hasGathered = false;
+  copyShotStoreStatus(bootId, last, good, curve, gathered, hasGathered, true);
+  CHECK(hasGathered);
+  CHECK(memcmp(&gathered, &newest, sizeof(HistoryRecord)) == 0);
 }
 
 void h07_mutex_wait_accounting_tracks_last_and_max() {
@@ -20383,6 +20422,7 @@ const TestCase testCases[] = {
     {"H06", h06_loop_phase_input_subphases_report_individually},
     {"H07", h07_mutex_wait_accounting_tracks_last_and_max},
     {"H08", h08_lock_wait_stats_flow_into_the_profiler_snapshot},
+    {"H10", h10_newest_history_record_matches_first_desc_page_row},
     {"N01", n01_wall_clock_tracks_utc_from_anchor},
     {"N01b", n01b_wall_clock_survives_millis_wrap},
     {"N01c", n01c_wall_clock_cancel_syncing_restores_anchor},
