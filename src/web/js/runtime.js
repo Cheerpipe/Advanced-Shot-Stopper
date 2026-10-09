@@ -3657,7 +3657,12 @@ function validateBrewClient() {
   if (document.documentElement.classList.contains("micraTemperatureEnabled"))
     add(brewRange("lineaMicraBrewTargetC", 80, 100));
   if (!$("bbwAlphaBaseline").disabled && !$("bbwAlphaBaseline").validity.valid)
-    errors.push({id: "bbwAlphaBaseline", msg: __WEBUI_TEXT__("runtime.use_0_01_1_00_step_0")});
+    errors.push({
+      id: "bbwAlphaBaseline",
+      // Live previews suppress the empty-field result only, as with rangeCheck.
+      required: $("bbwAlphaBaseline").value.trim() === "",
+      msg: __WEBUI_TEXT__("runtime.use_0_01_1_00_step_0"),
+    });
   if (fastOn) {
     add(brewRange("maxRecoveryWeightG", 10, 200));
     add(brewRange("minBbwBrewTimeS", 5, 55));
@@ -4714,6 +4719,9 @@ async function saveBrewPreset(okMsg, failMsg) {
     syncSettingsFromHomeSwitches();
   const errs = validateBrewClient();
   if (errs.length) {
+    // The red report replaces the yellow preview (same sentences): drop the
+    // amber marks so each verdict reads exactly once until the next edit.
+    clearBrewWarnings();
     showFieldErrors(errs);
     return false;
   }

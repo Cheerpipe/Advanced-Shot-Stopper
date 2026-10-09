@@ -188,9 +188,9 @@
     'Slow extraction guard', 'A→M time guard', 'Tare'])
     svAssert.ok(settingsHtml.includes('>' + section + '</summary>'),
       'Settings section summary missing: ' + section);
-  svAssert.ok(codeIncludes(runtimeJs,
-      'const errs = validateBrewClient(); if (errs.length) { showFieldErrors(errs); return false; }'),
-    'saveBrewPreset must render the full violation list');
+  svAssert.ok(codeIncludes(runtimeJs, 'const errs = validateBrewClient(); if (errs.length) {') &&
+      codeIncludes(runtimeJs, 'clearBrewWarnings(); showFieldErrors(errs); return false; }'),
+    'saveBrewPreset must render the full violation list, replacing the yellow preview');
   svAssert.ok(codeIncludes(runtimeJs,
       'brewBaseline[el.id] !== (el.type === "checkbox" ? el.checked : el.value)'),
     'Attribution must diff the live form against the clean brew baseline');
@@ -350,6 +350,33 @@
     svAssert.ok(strings['settings.conflict_will_block_saving'] &&
                 strings['settings.conflicts_will_block_saving'],
       'Chip locale keys must exist');
+  }
+
+  // (w6) The aria rebuild branch: a red small that survives the brew-scoped
+  // clear keeps its id in the rebuilt pairing (the flat w4 stub cannot
+  // exercise refreshFieldAria's query, so drive it through the real
+  // clearBrewFieldErrors with a host that reports one surviving red small).
+  {
+    const engineSrc = runtimeJs.slice(runtimeJs.indexOf('let brewWarnSig'),
+      runtimeJs.indexOf('function revertBrewPreset()'));
+    const survivor = {id: 'fieldErr7', remove: () => {}};
+    const el = {id: 'goalWeightG', attrs: {},
+      classList: {add: () => {}, remove: () => {}},
+      setAttribute(k, v) { el.attrs[k] = v; },
+      getAttribute(k) { return k in el.attrs ? el.attrs[k] : null; },
+      removeAttribute(k) { delete el.attrs[k]; },
+      closest: () => ({appendChild: () => {}, querySelectorAll: () => [survivor]})};
+    el.attrs['aria-invalid'] = 'true';
+    el.attrs['aria-describedby'] = 'fieldErr7 brewWarn9';
+    const engine = new Function('$', 'document', 'validateBrewClient',
+      '__WEBUI_TEXT__', 'settingsSectionEls',
+      engineSrc + ';return {clearBrewFieldErrors};')(
+      () => null, {querySelectorAll: () => [], createElement: () => ({})},
+      () => [], (k) => strings[k], () => [el]);
+    engine.clearBrewFieldErrors();
+    svAssert.equal(el.attrs['aria-describedby'], 'fieldErr7',
+      'The rebuild must re-point at the surviving red small');
+    svAssert.equal(el.attrs['aria-invalid'], 'true');
   }
 
   // Structural pins: wiring, styles, chip, hooks, and symmetric aria.

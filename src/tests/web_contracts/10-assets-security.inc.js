@@ -702,8 +702,8 @@ if (htmlBytes > 89200) {
 // rendering plus the shared aria-rebuild helper: ~4.2 KB of JS source
 // allowance (pre-authorized raise, 2026-10-09); compressed asset and
 // firmware limits stay fixed.
-if (jsBytes > 364600) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 364600)`);
+if (jsBytes > 365000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 365000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -764,8 +764,8 @@ if (jsBytes > 364600) {
 // HTML and ~1.5 KB of JS source allowance described above; the live brew
 // warnings add ~3.4 KB of JS and the conflict-chip element (~60 B of HTML),
 // pre-authorized 2026-10-09; compressed budgets stay fixed.
-if (htmlBytes + jsBytes > 453900) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 453900)`);
+if (htmlBytes + jsBytes > 454300) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 454300)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

@@ -550,10 +550,11 @@ if (generated.cssGzip.length > 11400) {
 // bytes on the sentinel build. Cap raised to 49300.
 // Live brew validation warnings (validator twin with the required-result
 // filter, signature-skip renderer, scoped red clear, symmetric aria, and
-// the conflict chip) add +406 compressed bytes on the sentinel build
-// (pre-authorized raise, 2026-10-09). Cap raised to 49710.
-if (sentinelRuntimeGzip.length > 49710) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 49710-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// the conflict chip, plus the shared aria-rebuild helper and multi-warning
+// describedby append) add +429 compressed bytes on the sentinel build
+// (pre-authorized raise, 2026-10-09). Cap raised to 49740.
+if (sentinelRuntimeGzip.length > 49740) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 49740-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -678,11 +679,11 @@ if (generated.icon48Gzip.length > 3500) {
 // skipped-state card, probe-URL helper, skip/finish action flows) add their
 // reviewed combined allowance: 130990 measured. Cap raised to 131000.
 // Live brew validation warnings add their reviewed combined allowance
-// (runtime engine + CSS twins + settings chip): 131438 measured
-// (pre-authorized raise, 2026-10-09). Cap raised to 131500; firmware image,
-// memory placement and OTA partitions stay fixed.
-if (generated.combined > 131500) {
-  throw new Error(`Combined Web UI gzip exceeds the 131500-byte flash budget (${generated.combined})`);
+// (runtime engine + CSS twins + settings chip, plus the aria-rebuild
+// round): 131502 measured (pre-authorized raise, 2026-10-09). Cap raised
+// to 131600; firmware image, memory placement and OTA partitions stay fixed.
+if (generated.combined > 131600) {
+  throw new Error(`Combined Web UI gzip exceeds the 131600-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
