@@ -195,6 +195,10 @@ export function init() {
             ? R.markLineaMicraDirty()
             : R.markConfigDirty();
         R.updateConfigGroups();
+        // Failed-save red marks on brew fields hand over to the live yellow
+        // preview, which re-runs over the pending set as a whole.
+        R.clearBrewFieldErrors();
+        R.refreshBrewWarnings();
       };
       el.addEventListener("input", fn);
       el.addEventListener("change", fn);

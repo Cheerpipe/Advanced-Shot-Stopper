@@ -46,6 +46,8 @@ so refreshing the page afterwards shows the normal Home.
 2. Select **Duplicate** to start from that recipe, or **New** for an Untitled
    preset seeded from firmware Double defaults.
 3. Rename the card, edit its brew settings, and select **Save preset**.
+   While editing, values that conflict with another field are flagged in
+   yellow right away, before you save.
 4. Switch to another preset and back to check the saved recipe.
 
 Duplicate names receive a suffix, such as "Double copy 2". You can keep up to

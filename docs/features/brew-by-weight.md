@@ -37,7 +37,10 @@ pulses depend on machine-state confirmation: see
 
 Defaults below describe factory Double; see [Presets](presets.md) for Single.
 These live on the **active preset** under **Settings → Brew**, except where
-noted. **Home → Quick Settings** can toggle brew by weight for the session
+noted. While you edit, values that conflict with another field are flagged
+in yellow right away — the same message Save would show — so you can fix
+them before saving. **Home → Quick Settings** can toggle brew by weight for
+the session
 (Manual). The **Presets** section below it summarizes how each recipe cuts as
 three short rules — Fast, BBW, and Slow — built from that recipe's saved
 settings; the active recipe arrives expanded.

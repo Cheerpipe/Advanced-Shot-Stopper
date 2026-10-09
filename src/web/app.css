@@ -158,6 +158,9 @@ html:not(.lineaMicraIntegration) .micraOnly,html:not(.micraTemperatureEnabled) .
 #message.warn:before{content:__WEBUI_CSS_TEXT__("css.symbol")}
 .fieldError{display:block;color:var(--dn);font-weight:600;font-size:.8125rem;margin:.25rem 0;max-width:34rem;line-height:1.35}
 .invalid{border-color:var(--dn)!important;outline:2px solid var(--dn)}
+.fieldWarning{display:block;color:var(--wn);background:var(--mw);border-radius:.35rem;padding:.25rem .5rem;font-weight:600;font-size:.8125rem;margin:.25rem 0;max-width:34rem;line-height:1.35}
+.fieldWarning:before{content:__WEBUI_CSS_TEXT__("css.symbol");margin-right:.35rem}
+.fieldWarn{border-color:var(--wn)!important}
 .cfgGroup{margin:.5rem 0;padding:.25rem 0 .5rem;border:0;border-top:1px solid var(--ln);border-radius:0}
 .cfgGroup .cfgGroup{margin:.5rem 0 0;padding-left:.75rem}
 summary{min-height:var(--tap);padding:.65rem .25rem;cursor:pointer;font-weight:650;color:var(--fg)}

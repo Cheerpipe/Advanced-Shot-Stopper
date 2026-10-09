@@ -132,6 +132,7 @@
       settingsSectionOf: () => 'config', updateScalePreferenceOptions() {},
       updateScaleRenameUi: (_, mac) => {context.renameMac = mac;},
       setSaveDirty() {}, confirm: () => true, clearFieldErrors() {},
+      refreshBrewWarnings() {},
       updateConfigGroups() {}, syncHomeGuardSwitchesFromSettings() {},
       ensureSettingsHydrated: async () => {}, validateMachineClient: () => null,
       validateBullseyeClient: () => null, machinePayload: () => ({scaleMacCacheMode: 'only'}),

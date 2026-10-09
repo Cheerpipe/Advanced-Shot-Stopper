@@ -696,8 +696,13 @@ if (htmlBytes > 89200) {
 // The /setup skip exit and grace Done button contribute the probe-URL
 // helper plus the skip/finish action flows: ~1.5 KB of JS source allowance;
 // compressed asset and firmware limits stay fixed.
-if (jsBytes > 359800) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 359800)`);
+// Live brew validation warnings add the warning engine (validator twin with
+// the required-result filter, signature-skip renderer, scoped red clear,
+// symmetric aria) plus the settings listener wiring and conflict-chip
+// rendering: ~3.5 KB of JS source allowance (pre-authorized raise,
+// 2026-10-09); compressed asset and firmware limits stay fixed.
+if (jsBytes > 363800) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 363800)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -755,10 +760,11 @@ if (jsBytes > 359800) {
 // renderer, and the hydration-time brew baseline capture); compressed
 // budgets stay fixed.
 // The /setup skip exit and grace Done button contribute the same ~400 B of
-// HTML and ~1.5 KB of JS source allowance described above (448798 measured);
-// compressed budgets stay fixed.
-if (htmlBytes + jsBytes > 448900) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 448900)`);
+// HTML and ~1.5 KB of JS source allowance described above; the live brew
+// warnings add ~3.4 KB of JS and the conflict-chip element (~60 B of HTML),
+// pre-authorized 2026-10-09; compressed budgets stay fixed.
+if (htmlBytes + jsBytes > 453100) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 453100)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

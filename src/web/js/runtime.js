@@ -2281,21 +2281,30 @@ function updH(h, s) {
   t("hRamF", b(w.ramFreeBytes));
 }
 function clearFieldErrors() {
-  document.querySelectorAll(".invalid").forEach((e) => e.classList.remove("invalid"));
+  document.querySelectorAll(".invalid").forEach((e) => {
+    e.classList.remove("invalid");
+    e.removeAttribute("aria-invalid");
+    e.removeAttribute("aria-describedby");
+  });
   document.querySelectorAll(".fieldError").forEach((e) => e.remove());
 }
 function markFieldError(el, msg) {
   el.classList.add("invalid");
+  el.setAttribute("aria-invalid", "true");
   const s = document.createElement("small");
   s.className = "fieldError";
+  s.id = "fieldErr" + ++fieldErrSeq;
   s.textContent = msg;
   (el.closest("label") || el.parentElement).appendChild(s);
+  const prev = el.getAttribute("aria-describedby");
+  el.setAttribute("aria-describedby", (prev ? prev + " " : "") + s.id);
   let d = el.closest("details");
   while (d) {
     d.open = true;
     d = d.parentElement && d.parentElement.closest("details");
   }
 }
+let fieldErrSeq = 0;
 function focusField(el) {
   try {
     el.focus({ preventScroll: true });
@@ -3082,6 +3091,83 @@ function clearBrewDirty() {
   brewDirty = false;
   setSaveDirty("saveBrewPresetButton", "brewDirtyHint", false);
 }
+// Live brew warnings: the save validator's verdict, rendered in yellow while
+// editing instead of red after Save. Same rules, same edited-field
+// attribution — only the presentation differs, so the preview can never
+// drift from what Save would reject.
+let brewWarnSig = "",
+  brewWarnSeq = 0;
+function brewWarningList() {
+  // Suppress only the empty-field "is required" result: it fires mid-typing
+  // and is self-evident. Everything else is a true statement about the
+  // pending set as a whole and self-clears as typing completes.
+  return validateBrewClient().filter((e) => !e.required);
+}
+function clearBrewWarningsDom() {
+  document.querySelectorAll("#workflowPanel .fieldWarning").forEach((e) => e.remove());
+  document.querySelectorAll("#workflowPanel .fieldWarn").forEach((e) => {
+    e.classList.remove("fieldWarn");
+    e.removeAttribute("aria-invalid");
+    e.removeAttribute("aria-describedby");
+  });
+  $("brewConflictChip")?.classList.add("hidden");
+}
+function clearBrewWarnings() {
+  brewWarnSig = "";
+  clearBrewWarningsDom();
+}
+function refreshBrewWarnings() {
+  if (!$("goalWeightG")) return;
+  const warnings = brewWarningList(),
+    sig = warnings.map((e) => e.id + "\u0001" + e.msg).join("\u0002");
+  // Unchanged signature ⇒ zero DOM writes: poll refreshes never flicker the
+  // warnings and never disturb red save errors on other fields.
+  if (sig === brewWarnSig) return;
+  brewWarnSig = sig;
+  clearBrewWarningsDom();
+  for (const {id, msg} of warnings) {
+    const el = $(id);
+    if (!el) continue;
+    el.classList.add("fieldWarn");
+    el.setAttribute("aria-invalid", "true");
+    const s = document.createElement("small");
+    s.className = "fieldWarning";
+    s.id = "brewWarn" + ++brewWarnSeq;
+    s.textContent = msg;
+    (el.closest("label") || el.parentElement).appendChild(s);
+    el.setAttribute("aria-describedby", s.id);
+  }
+  const chip = $("brewConflictChip");
+  if (chip) {
+    chip.classList.toggle("hidden", !warnings.length);
+    chip.textContent =
+      warnings.length === 1
+        ? __WEBUI_TEXT__("settings.conflict_will_block_saving").replace("{0}", 1)
+        : warnings.length > 1
+          ? __WEBUI_TEXT__("settings.conflicts_will_block_saving").replace("{0}", warnings.length)
+          : "";
+  }
+}
+// After a failed save, red brew errors hand over to the live yellow state on
+// the next edit anywhere in the panel. Scoped to brew fields so machine
+// config red errors survive brew keystrokes.
+function clearBrewFieldErrors() {
+  for (const el of settingsSectionEls("brew")) {
+    el.classList.remove("invalid");
+    const host = el.closest("label") || el.parentElement;
+    host.querySelectorAll("small.fieldError").forEach((s) => s.remove());
+    // Rebuild the aria pairing from the yellow warnings that survive the
+    // handover: the signature-skip renderer will not rewrite them.
+    const warnIds = [...host.querySelectorAll("small.fieldWarning")].map((s) => s.id);
+    if (warnIds.length) {
+      el.setAttribute("aria-invalid", "true");
+      el.setAttribute("aria-describedby", warnIds.join(" "));
+    } else {
+      el.removeAttribute("aria-invalid");
+      el.removeAttribute("aria-describedby");
+    }
+  }
+}
 function revertBrewPreset() {
   if (!brewDirty) return;
   if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
@@ -3089,6 +3175,7 @@ function revertBrewPreset() {
   clearBrewDirty();
   clearFieldErrors();
   updateConfigGroups();
+  refreshBrewWarnings();
   syncHomeGuardSwitchesFromSettings();
   refreshStatus();
 }
@@ -3102,6 +3189,9 @@ function revertMachineConfig() {
   setSaveDirty("saveConfigButton", "configDirtyHint", false);
   clearFieldErrors();
   updateConfigGroups();
+  // R2's inputs (retare window, auto-retare) live in this section: restoring
+  // them can change the retare floor, so the warnings re-run here.
+  refreshBrewWarnings();
   syncHomeGuardSwitchesFromSettings();
   refreshStatus();
 }
@@ -3271,6 +3361,7 @@ function rangeCheck(id, min, max, label, opts) {
   if (raw === "" || !Number.isFinite(v))
     return {
       id,
+      required: true,
       msg: label + __WEBUI_TEXT__("runtime.is_required") + min + "–" + max + unit + ").",
     };
   if (opts && opts.int && !Number.isInteger(v))
@@ -4621,6 +4712,7 @@ async function saveBrewPreset(okMsg, failMsg) {
   try {
     await command("/api/v1/presets", brewPayload(), 1, ok, fail, "saveBrewPresetButton");
     clearBrewDirty();
+    clearBrewWarnings();
     return true;
   } catch (e) {
     message(formatCommandError(fail, e), "error");
@@ -6846,6 +6938,7 @@ function applySettingsStatus(s) {
     if (!brewDirty) brewBaseline = snapshotControls(settingsSectionEls("brew"));
     if (!micraDirty) micraBaseline = snapshotControls(settingsSectionEls("micra"));
   }
+  refreshBrewWarnings();
 }
 function renderLineaMicraDiagnostic() {
   const lm = micraDiagnosticStatus;
@@ -8122,6 +8215,8 @@ export {
   clearPowerDirty,
   clearFrontendDirty,
   markBrewDirty,
+  refreshBrewWarnings,
+  clearBrewFieldErrors,
   saveMachineConfig,
   saveDateTimeConfig,
   saveBrewPreset,

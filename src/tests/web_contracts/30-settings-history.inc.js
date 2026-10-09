@@ -63,6 +63,7 @@
         field.addEventListener = (type, fn) => events[type] = fn;
         new Function('document', 'R', bindings)({querySelectorAll: () => [field]}, {
           settingsSectionOf: () => 'brew', markBrewDirty() {},
+          clearBrewFieldErrors() {}, refreshBrewWarnings() {},
           updateBbwControls() {}, updateConfigGroups: refresh
         });
         for (const type of ['input', 'change']) {

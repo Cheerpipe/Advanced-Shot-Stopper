@@ -548,8 +548,12 @@ if (generated.cssGzip.length > 11400) {
 // phrasing, baseline-diff edited-field detection, multi-error renderer)
 // replaces the first-failure validator's shorter strings: +547 compressed
 // bytes on the sentinel build. Cap raised to 49300.
-if (sentinelRuntimeGzip.length > 49300) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 49300-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Live brew validation warnings (validator twin with the required-result
+// filter, signature-skip renderer, scoped red clear, symmetric aria, and
+// the conflict chip) add +406 compressed bytes on the sentinel build
+// (pre-authorized raise, 2026-10-09). Cap raised to 49710.
+if (sentinelRuntimeGzip.length > 49710) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 49710-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -672,10 +676,13 @@ if (generated.icon48Gzip.length > 3500) {
 // firmware image, memory placement and OTA partitions stay fixed.
 // The /setup skip exit and grace Done button (quiet form action,
 // skipped-state card, probe-URL helper, skip/finish action flows) add their
-// reviewed combined allowance: 130990 measured. Cap raised to 131000;
-// firmware image, memory placement and OTA partitions stay fixed.
-if (generated.combined > 131000) {
-  throw new Error(`Combined Web UI gzip exceeds the 131000-byte flash budget (${generated.combined})`);
+// reviewed combined allowance: 130990 measured. Cap raised to 131000.
+// Live brew validation warnings add their reviewed combined allowance
+// (runtime engine + CSS twins + settings chip): 131438 measured
+// (pre-authorized raise, 2026-10-09). Cap raised to 131500; firmware image,
+// memory placement and OTA partitions stay fixed.
+if (generated.combined > 131500) {
+  throw new Error(`Combined Web UI gzip exceeds the 131500-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

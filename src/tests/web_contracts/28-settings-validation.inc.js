@@ -12,7 +12,11 @@
     svCut('function rangeCheck(', 'function formNumber(') +
     svCut('function number(', 'function sToMs(') +
     svCut('function formNumber(', 'function validNtpHostnameClient(') +
-    svCut('const sub = (t, vals)', 'function validateDateTimeClient');
+    svCut('const sub = (t, vals)', 'function validateDateTimeClient') +
+    // The live-warning twin sits before the rule table in the source; the
+    // harness compiles it in so the executable cases below run the exact
+    // production filter, not a copy.
+    svCut('function brewWarningList(', 'function clearBrewWarnings(');
   // Field defaults mirror the Settings form: steps come from the shipped
   // inputs (asserted below) and values form one consistent stored state.
   const svFieldSpec = {
@@ -44,12 +48,14 @@
       baseline[el.id] = el.type === 'checkbox' ? el.checked : el.value;
     if (edit) edit(fields);
     const api = new Function('$', 'document', 'settingsSectionEls', 'brewBaseline',
-      svValidatorSrc + ';return {validateBrewClient, rules: BREW_CROSS_RULES};')(
+      svValidatorSrc +
+      ';return {validateBrewClient, brewWarningList, rules: BREW_CROSS_RULES};')(
       (id) => fields[id],
       {documentElement: {classList: {contains: () => false}}},
       (section) => (section === 'brew' ? Object.values(fields) : []),
       baseline);
-    return {errors: api.validateBrewClient(), rules: api.rules};
+    return {errors: api.validateBrewClient(), warnings: api.brewWarningList(),
+            rules: api.rules};
   };
 
   // (a) Editing only Target into conflict attributes the error to Target with
@@ -207,6 +213,10 @@
         parentElement: {appendChild: () => {}},
         focus() { state.focused++; },
         scrollIntoView() {},
+        attrs: {},
+        setAttribute(k, v) { this.attrs[k] = v; },
+        getAttribute() { return null; },
+        removeAttribute() {},
       };
       const ui = new Function('$', 'document', 'message', 'clearFieldErrors',
         'activeView', svUiSrc + ';return {showFieldError, showFieldErrors};')(
@@ -216,7 +226,7 @@
         {id: 'goalWeightG', msg: 'one.'},
         {id: 'minRecoveryWeightG', msg: 'two.'},
       ]);
-      return {state, details};
+      return {state, details, field};
     };
     const svAway = svUiRun('home');
     svAssert.deepEqual(svAway.state.banner, [['one. two.', 'error']]);
@@ -227,5 +237,139 @@
     svAssert.equal(svIn.details.open, true, 'The section must unfold to reveal the fields');
     svAssert.equal(svIn.state.focused, 1, 'Only the first offender takes focus');
     svAssert.deepEqual(svIn.state.banner, [['one. two.', 'error']]);
+    svAssert.equal(svIn.field.attrs['aria-invalid'], 'true',
+      'Red errors must mark their input for assistive tech');
+    svAssert.ok(/^fieldErr\d/.test(svIn.field.attrs['aria-describedby']),
+      'Red errors must point aria-describedby at their message');
+  }
+
+  // Live warnings (yellow preview of the save rejection): the executable
+  // cases prove the warning set is exactly the validator's output minus the
+  // empty-field "is required" results, resolves whole-set, and respects
+  // guard gating; the engine harness proves signature-skip rendering and the
+  // conflict chip.
+  {
+    // (w1) Editing only Target into conflict shows the same single verdict
+    // the save would produce, and the empty-field result is suppressed.
+    const w1 = svValidate((f) => {
+      f.goalWeightG.value = '10';
+    });
+    svAssert.equal(w1.warnings.length, 1, JSON.stringify(w1.warnings));
+    svAssert.equal(w1.warnings[0].msg,
+      'Target 10 g must be greater than 34.0 g (Min recovery, Slow extraction guard).');
+    const w1Empty = svValidate((f) => {
+      f.goalWeightG.value = '';
+    });
+    svAssert.equal(w1Empty.errors.length, 1);
+    svAssert.deepEqual(w1Empty.warnings, [],
+      'The empty-field "is required" result must not warn live');
+
+    // (w2) Resolving the other side clears the whole set without saving.
+    const w2 = svValidate((f) => {
+      f.goalWeightG.value = '33';
+      f.minRecoveryWeightG.value = '32';
+    });
+    svAssert.deepEqual(w2.warnings, [], JSON.stringify(w2.warnings));
+
+    // (w3) A disabled guard keeps producing no warnings at all.
+    const w3 = svValidate((f) => {
+      f.fastExtractionGuardEnabled.checked = false;
+      f.maxRecoveryWeightG.value = '5';
+    });
+    svAssert.deepEqual(w3.warnings, []);
+
+    // (w4)/(w5) Engine harness: count DOM writes across two unchanged runs
+    // (signature skip) and check the chip text/count and hidden-at-zero.
+    const strings = JSON.parse(
+      fs.readFileSync(path.join(sketchDir, 'web/locales/en.json'), 'utf8')).strings;
+    const engineSrc = runtimeJs.slice(runtimeJs.indexOf('let brewWarnSig'),
+      runtimeJs.indexOf('function revertBrewPreset()'));
+    const mkField = (id) => {
+      const el = {id, attrs: {},
+        classList: {add: () => {}, remove: () => {}},
+        setAttribute(k, v) { el.attrs[k] = v; },
+        getAttribute: () => null, removeAttribute() {},
+        closest: () => ({appendChild: () => harness.counts.appended++,
+                         querySelectorAll: () => []})};
+      return el;
+    };
+    const harness = {
+      counts: {created: 0, appended: 0, chipTexts: []},
+      chip: {textContent: '', hidden: true,
+        classList: {add: () => {}, remove: () => {},
+          toggle: (_c, on) => { harness.chip.hidden = on; }}},
+      fields: {
+        goalWeightG: null, minRecoveryWeightG: null, brewConflictChip: null,
+      },
+    };
+    harness.fields.goalWeightG = mkField('goalWeightG');
+    harness.fields.minRecoveryWeightG = mkField('minRecoveryWeightG');
+    harness.fields.brewConflictChip = harness.chip;
+    const script = [
+      [{id: 'goalWeightG', msg: 'one.'}],
+      [{id: 'goalWeightG', msg: 'one.'}],
+      [{id: 'goalWeightG', msg: 'one.'}, {id: 'minRecoveryWeightG', msg: 'two.'}],
+      [],
+    ];
+    let call = 0;
+    const engine = new Function('$', 'document', 'validateBrewClient',
+      '__WEBUI_TEXT__', 'settingsSectionEls',
+      engineSrc + ';return {refreshBrewWarnings, clearBrewWarnings};')(
+      (id) => harness.fields[id],
+      {querySelectorAll: () => [],
+       createElement: () => { harness.counts.created++; return {}; }},
+      () => script[Math.min(call, script.length - 1)],
+      (k) => strings[k],
+      () => []);
+    engine.refreshBrewWarnings();
+    const createdAfterFirst = harness.counts.created;
+    call = 1;
+    engine.refreshBrewWarnings();
+    svAssert.equal(harness.counts.created, createdAfterFirst,
+      'An unchanged warning signature must not write the DOM');
+    call = 2;
+    engine.refreshBrewWarnings();
+    svAssert.equal(harness.counts.created, createdAfterFirst + 2);
+    svAssert.equal(harness.chip.hidden, false);
+    svAssert.equal(harness.chip.textContent, '2 conflicts will block saving.');
+    call = 3;
+    engine.refreshBrewWarnings();
+    svAssert.equal(harness.chip.hidden, true, 'The chip must hide at zero conflicts');
+    svAssert.ok(!engineSrc.match(/\bmessage\(/),
+      'The live-warning path must stay inline-only (no banner)');
+    svAssert.ok(strings['settings.conflict_will_block_saving'] &&
+                strings['settings.conflicts_will_block_saving'],
+      'Chip locale keys must exist');
+  }
+
+  // Structural pins: wiring, styles, chip, hooks, and symmetric aria.
+  {
+    const settingsJsSrc = viewJs.settings || '';
+    const engineSrc = runtimeJs.slice(runtimeJs.indexOf('let brewWarnSig'),
+      runtimeJs.indexOf('function revertBrewPreset()'));
+    svAssert.ok(codeIncludes(settingsJsSrc,
+      'R.clearBrewFieldErrors();R.refreshBrewWarnings();'),
+      'The shared settings listener must clear stale red marks and refresh warnings');
+    svAssert.ok(codeIncludes(blockAt(runtimeJs, 'function applySettingsStatus(s) {'),
+      'refreshBrewWarnings();'),
+      'applySettingsStatus must refresh warnings after re-capturing baselines');
+    svAssert.ok(codeIncludes(blockAt(runtimeJs, 'function revertBrewPreset() {'),
+      'refreshBrewWarnings();'));
+    svAssert.ok(codeIncludes(blockAt(runtimeJs, 'function revertMachineConfig() {'),
+      'refreshBrewWarnings();'));
+    svAssert.ok(codeIncludes(blockAt(runtimeJs, 'function saveBrewPreset('),
+      'clearBrewWarnings();'),
+      'A successful brew save must clear the warnings immediately');
+    svAssert.ok(engineSrc.includes('aria-invalid') &&
+                engineSrc.includes('aria-describedby'),
+      'Yellow warnings must mark their input for assistive tech');
+    svAssert.ok(blockAt(runtimeJs, 'function clearBrewFieldErrors(')
+        .includes('small.fieldError'),
+      'The scoped red clear must remove the brew smalls, not just the class');
+    svAssert.ok(css.includes('.fieldWarning{') && css.includes('.fieldWarn{') &&
+                rawCss.includes('.fieldWarning:before{content:__WEBUI_CSS_TEXT__("css.symbol")'),
+      'Warning twins must exist with the shared alert glyph');
+    svAssert.ok(settingsHtml.includes('id="brewConflictChip"'),
+      'The brew save bar must carry the conflict chip');
   }
 }

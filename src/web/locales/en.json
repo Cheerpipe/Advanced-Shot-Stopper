@@ -1069,6 +1069,8 @@
     "settings.clear_preferred_scale": "Clear preferred scale",
     "settings.close": "×",
     "settings.combine_tare_timer_at_shot_start": "Sends tare and timer start together for a more synchronized start on Bookoo scales.",
+    "settings.conflict_will_block_saving": "{0} conflict will block saving.",
+    "settings.conflicts_will_block_saving": "{0} conflicts will block saving.",
     "settings.connect_account": "Connect",
     "settings.connect_to_load_machines": "Connect to load machines",
     "settings.connection_type": "Connection type",
