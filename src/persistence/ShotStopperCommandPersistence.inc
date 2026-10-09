@@ -713,9 +713,12 @@ void serviceShotStorePersistence() {
                            resultGeneration;
       activationStores.acknowledgePersisted(*shotStorePersistImage,
                                             resultOk && current);
-      if (resultOk && current && shotStorePersistImageLastShotDirty) {
-        lastShotNvsDirty = false;
-        lastShotPersistFailLatched = false;
+      if (resultOk && current) {
+        shotStorePersistCleanGeneration = resultGeneration;
+        if (shotStorePersistImageLastShotDirty) {
+          lastShotNvsDirty = false;
+          lastShotPersistFailLatched = false;
+        }
       }
     }
     if (resultOk) {
@@ -736,6 +739,14 @@ void serviceShotStorePersistence() {
   }
   if (inFlight || !settingsPersistenceAvailable()) return;
   if (maintenanceLease.active) return;
+  // Clean common case at 100 Hz: nothing mutated since the acknowledged
+  // image and no retry in flight — skip the snapshot fetch and both mutex
+  // round trips below. Every wrapper mutation bumps the generation, so a
+  // failed or superseded persist (dirty flags still set) keeps this false.
+  if (shotStoreDirtyGeneration.load(std::memory_order_acquire) ==
+      shotStorePersistCleanGeneration) {
+    return;
+  }
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   if (!durableFlashWriteAllowed(session.active || machineIsRunning(),
                                 link.connecting)) {
@@ -785,7 +796,7 @@ void serviceShotStorePersistence() {
 void serviceRuntimePersistence(
     const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
   if (runtimeConfig.firstTimezoneAutoClockQuality == 1 &&
-      runtimeConfig.firstTimezoneAutoBootId == copyShotLogBootId()) {
+      runtimeConfig.firstTimezoneAutoBootId == copyShotLogBootIdCached()) {
 #ifndef SHOT_STOPPER_HOST_TEST
     const uint64_t nowUs = static_cast<uint64_t>(esp_timer_get_time());
 #else

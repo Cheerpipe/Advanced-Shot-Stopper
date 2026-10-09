@@ -615,6 +615,19 @@ bool shotStorePersistResultIoFail = false;
 bool shotStorePersistImageLastShotDirty = false;
 uint32_t shotStorePersistImageGeneration = 0;
 uint32_t shotStorePersistResultGeneration = 0;
+// Generation of the last image the worker acknowledged as persisted with no
+// newer mutation behind it. While shotStoreDirtyGeneration equals it, the
+// 100 Hz persistence service is in its clean common case and skips the
+// shotStoreMutex dirty-check round trip; a failed or superseded persist
+// leaves it behind, so retries keep flowing through the locked path.
+uint32_t shotStorePersistCleanGeneration = 0;
+// Cached shot-log boot identity for the 100 Hz runtime-persistence
+// timezone check. The value changes only at boot (cache starts empty) or
+// via the clear/factory-reset wrappers, which bump the store generation,
+// so a generation-keyed lazy refresh stays correct. Control task only.
+bool shotLogBootIdCacheValid = false;
+uint32_t shotLogBootIdCache = 0;
+uint32_t shotLogBootIdCacheGeneration = 0;
 // Staged BLE scan settings: the control loop publishes, the settings_persist
 // worker owns the durable NVS write. pending/intensity/result flags are
 // guarded by bleScanPersistMux. Every request id accepted since the last
@@ -1085,6 +1098,17 @@ uint32_t copyShotLogBootId() {
   return shotLog.bootId();
 }
 
+uint32_t copyShotLogBootIdCached() {
+  const uint32_t generation =
+      shotStoreDirtyGeneration.load(std::memory_order_acquire);
+  if (!shotLogBootIdCacheValid || shotLogBootIdCacheGeneration != generation) {
+    shotLogBootIdCache = copyShotLogBootId();
+    shotLogBootIdCacheGeneration = generation;
+    shotLogBootIdCacheValid = true;
+  }
+  return shotLogBootIdCache;
+}
+
 ShotStatsView copyShotStats() {
   TaskLockGuard lock(shotStoreMutex);
   return shotLog.statsView();
@@ -1170,6 +1194,10 @@ bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
                              historyLog, lastShotStore, shotCurves)) {
     return false;
   }
+  // The wiped stores are a mutation like any other: bump so the status
+  // gather guard re-fetches and the persistence fast path keeps flowing
+  // until the reset state is acknowledged as persisted.
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
   // Factory reset includes the saved scale profile: drop its durable header
   // and any frozen RAM copy left by an unsaved session.
   if (!scaleProfiler().clearForFactoryReset()) {

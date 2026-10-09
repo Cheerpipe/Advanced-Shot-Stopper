@@ -162,6 +162,12 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   // The status publish's gather cache keys on the generation; force a fresh
   // fetch so a prior test's cache cannot serve stale data at generation 0.
   statusStoreCacheValid = false;
+  // Same for the persistence fast path's clean latch and the boot-id cache;
+  // the sentinel means "nothing acknowledged", so tests that create store
+  // dirtiness directly (onBoot/append without a wrapper bump) keep flowing
+  // through the locked path exactly as before.
+  shotStorePersistCleanGeneration = UINT32_MAX;
+  shotLogBootIdCacheValid = false;
   shotStoreObservedDirtyGeneration = 0;
   shotStorePersistInFlight = false;
   shotStorePersistResultReady = false;
@@ -16710,6 +16716,40 @@ void h11_status_store_cache_generation_guard() {
   CHECK(status.shotCurveAtMs[0] == 15000);
 }
 
+void h12_persistence_fast_path_skips_clean_store_mutex() {
+  resetHarness(false, true);
+  // Drive one full persist cycle so the clean latch catches up with the
+  // acknowledged image (the host drain persists synchronously).
+  persistLastShotSnapshot(PersistedLastShot{});
+  serviceShotStorePersistence();
+  serviceShotStorePersistence();
+  static thread_local int acquisitions = 0;
+  acquisitions = 0;
+  TaskMutex::hostObserver = [](const TaskMutex *mutex, bool acquired) {
+    if (mutex == &shotStoreMutex && acquired) ++acquisitions;
+  };
+  serviceShotStorePersistence();
+  TaskMutex::hostObserver = nullptr;
+  CHECK(acquisitions == 0);
+  // A wrapper mutation bumps the generation: the locked path flows again
+  // and the service returns to its clean fast path afterwards.
+  persistLastShotSnapshot(PersistedLastShot{});
+  acquisitions = 0;
+  TaskMutex::hostObserver = [](const TaskMutex *mutex, bool acquired) {
+    if (mutex == &shotStoreMutex && acquired) ++acquisitions;
+  };
+  serviceShotStorePersistence();
+  serviceShotStorePersistence();
+  TaskMutex::hostObserver = nullptr;
+  CHECK(acquisitions > 0);
+  // The boot-id cache tracks the store through clearShotLog's bump and
+  // serves the 100 Hz timezone check without the lock once settled.
+  const uint32_t clearedBootId = copyShotLogBootId();
+  CHECK(clearShotLog());
+  CHECK(copyShotLogBootIdCached() == copyShotLogBootId());
+  CHECK(copyShotLogBootIdCached() == clearedBootId);
+}
+
 void h07_mutex_wait_accounting_tracks_last_and_max() {
   std::atomic<uint32_t> lastUs{0};
   std::atomic<uint32_t> maxUs{0};
@@ -20495,6 +20535,7 @@ const TestCase testCases[] = {
     {"H08", h08_lock_wait_stats_flow_into_the_profiler_snapshot},
     {"H10", h10_newest_history_record_matches_first_desc_page_row},
     {"H11", h11_status_store_cache_generation_guard},
+    {"H12", h12_persistence_fast_path_skips_clean_store_mutex},
     {"N01", n01_wall_clock_tracks_utc_from_anchor},
     {"N01b", n01b_wall_clock_survives_millis_wrap},
     {"N01c", n01c_wall_clock_cancel_syncing_restores_anchor},
