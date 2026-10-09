@@ -1121,6 +1121,12 @@ bool ShotStopperNetwork::startHttpServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.task_priority = tskIDLE_PRIORITY + 1;
   config.stack_size = HTTP_SERVER_TASK_STACK_SIZE;
+  // Pin httpd to core 0, as TASK_SCHEDULE_CONTRACTS already declares and the
+  // Micra websocket client practices: unpinned, this control-priority task
+  // migrates onto core 1 and timeslices with the control loop while serving
+  // heavy WebUI responses, absorbing core-1 wall time into whatever loop
+  // phase is executing.
+  config.core_id = 0;
   // Keep the httpd task stack in internal RAM (default task_caps). OTA upload
   // erases/writes flash on this task. XIP usually keeps cache available, but
   // flash mapping and driver paths can still disable it.
