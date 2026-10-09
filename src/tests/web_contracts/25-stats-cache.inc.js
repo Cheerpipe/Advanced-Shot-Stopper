@@ -39,6 +39,7 @@ int httpd_ws_send_frame_async(int,int,httpd_ws_frame_t *frame){
   if(sendResult==ESP_OK)frames.emplace_back(reinterpret_cast<char *>(frame->payload),frame->len);
   return sendResult;
 }
+${body(networkSource, 'struct StatsCurveHashCache {')};
 ${body(networkSource, 'struct StatsStreamCache {')};
 struct NetworkWorkBuf {
   static constexpr size_t kStatusJson=40960,kJsonItem=16000;
@@ -54,21 +55,24 @@ uint32_t uiStreamCurveHash(const ShotCurveRecord &curve,uint16_t count){
   ++hashes;return count ? curve.weightCg[0] : 0;
 }
 size_t formatShotStatsRow(NetworkWorkBuf &buffer,const ShotLogRecord &record,
-                         const ShotCurveRecord *curves,size_t count){
-  auto *curve=findShotCurveById(curves,count,record.id);
+                         const ShotCurveRecord *curve){
   assert(curve && curve->weightCg[0]==record.actualWeightCg);
   return snprintf(buffer.jsonItem,sizeof(buffer.jsonItem),
       "{\\"id\\":%u,\\"weight\\":%u,\\"padding\\":\\"%015000d\\"}",record.id,record.actualWeightCg,0);
 }
-void capture(ShotStatsSnapshot &out){
+void capture(ShotStatsRecordsSnapshot &out){
   ++captures;
-  out.epoch=storeEpoch;out.stats.shotCount=storeEpoch;out.count=out.curveCount=3;
+  out.epoch=storeEpoch;out.stats.shotCount=storeEpoch;out.count=3;
   for(size_t i=0;i<out.count;++i){
     out.records[i]={};out.records[i].id=3-i;out.records[i].actualWeightCg=storeEpoch*100+i;
     out.records[i].extractionGuardEnabled=shotLogPackRating(0,i==0?1:i==1?5:0);
-    resetShotCurveRecord(out.curves[i]);out.curves[i].shotId=3-i;out.curves[i].count=1;
-    out.curves[i].weightCg[0]=out.records[i].actualWeightCg;
   }
+}
+bool curveById(uint32_t id,ShotCurveRecord &curve){
+  resetShotCurveRecord(curve);
+  if(id==0||id>3) return false;
+  curve.count=1;curve.weightCg[0]=storeEpoch*100+(3-id);
+  return true;
 }
 struct ShotStopperNetwork {
   static constexpr size_t WEB_UI_CLIENT_ID_CAPACITY=25;
@@ -78,7 +82,8 @@ ${session}
   std::atomic<bool> uiStreamUrgent_{false};
   struct {
     uint32_t (*shotLogEpoch)()=+[](){return storeEpoch;};
-    void (*copyShotStatsSnapshot)(ShotStatsSnapshot &)=capture;
+    void (*copyShotStatsRecords)(ShotStatsRecordsSnapshot &)=capture;
+    bool (*copyShotCurveById)(uint32_t,ShotCurveRecord &)=curveById;
   } callbacks_;
   bool appendRecordPageUi(const ControlStatusSnapshot &,size_t *used,bool){
     return statusJsonAppend(used,"\\"ui\\":{}");
@@ -99,25 +104,26 @@ int main(){
   assert(frames[0].find("\\"stats\\":{\\"shotCount\\":1}")!=std::string::npos);
   assert(frames[1].find("\\"rowBase\\":1")!=std::string::npos);
   assert(send(session)&&frames.size()==3);
-  // A new window with the same order reuses capture, but hashes that page anew.
+  // A new window with the same order reuses the capture AND the cached
+  // per-row curve hashes (curves are immutable once committed).
   session.statsFetch=true;session.statsFetchRequest=2;session.statsFetchOffset=1;
   session.statsFetchLimit=1;
-  assert(send(session)&&captures==1&&hashes==4);
+  assert(send(session)&&captures==1&&hashes==3);
   assert(!session.statsFetch&&frames.back().find("\\"id\\":2")!=std::string::npos);
   // A debug export can borrow records: invalidation must refill the cache.
   work.statsCache.valid=false;work.statsCache.snapshot.records[0].actualWeightCg=999;
   session.statsResync=true;
-  assert(send(session)&&captures==2&&session.statsSent==1);
+  assert(send(session)&&captures==2&&session.statsSent==1&&hashes==6);
   const uint32_t oldSeq=session.statsSeq;
   ++storeEpoch;
   assert(send(session)&&captures==3&&session.statsSeq==oldSeq+1);
   assert(session.statsSent==1&&frames.back().find("\\"shotCount\\":2")!=std::string::npos);
   // An epoch advance during capture must also restart the in-flight page.
   work.statsCache.valid=false;
-  network.callbacks_.copyShotStatsSnapshot=+[](ShotStatsSnapshot &out){++storeEpoch;capture(out);};
+  network.callbacks_.copyShotStatsRecords=+[](ShotStatsRecordsSnapshot &out){++storeEpoch;capture(out);};
   assert(send(session)&&session.statsSeq==oldSeq+2&&session.statsSent==1);
   assert(session.statsPageEpoch==3&&frames.back().find("\\"epoch\\":3")!=std::string::npos);
-  network.callbacks_.copyShotStatsSnapshot=capture;
+  network.callbacks_.copyShotStatsRecords=capture;
   const size_t delivered=frames.size();const unsigned copied=captures,hashed=hashes;
   sendResult=-1;uiStreamSendCleanAbort=true;
   assert(send(session)&&session.statsSent==1&&frames.size()==delivered);
@@ -130,16 +136,16 @@ int main(){
   strcpy(fresh.clientId,"superseded");
   assert(!send(fresh));
   // The store returns newest-first; the sorter cannot reuse rating/asc input.
+  // Sort/dir toggles re-sort the cached records in place: no store recapture.
   strcpy(fresh.clientId,"owner");fresh.statsPaging=false;
   auto page=[&](ShotLogSort sort,ShotLogSortDir dir,int a,int b,int c,bool fetch=false){
     const unsigned before=captures;
-    const bool changed=work.statsCache.sort!=sort||work.statsCache.dir!=dir;
     fresh.statsResync=!fetch;fresh.statsFetch=fetch;
     if(fetch){fresh.statsFetchSort=sort;fresh.statsFetchDir=dir;
       fresh.statsFetchOffset=0;fresh.statsFetchLimit=100;fresh.statsFetchRequest=5;}
     else{fresh.statsSort=sort;fresh.statsDir=dir;}
     frames.clear();for(int i=0;i<3;++i)assert(send(fresh));
-    assert(!fresh.statsPaging&&frames.size()==3&&captures==before+(changed?1:0));
+    assert(!fresh.statsPaging&&frames.size()==3&&captures==before);
     const int expected[]={a,b,c};
     for(size_t i=0;i<3;++i)
       assert(frames[i].find("\\\"id\\\":"+std::to_string(expected[i]))!=std::string::npos);

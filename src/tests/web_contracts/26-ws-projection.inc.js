@@ -31,7 +31,7 @@ ${body(networkSource, 'bool __attribute__((format(printf, 2, 3)))\nstatusJsonApp
 ${body(networkSource, 'bool formatTaskProfilerObject(')}
 ${body(networkSource, 'bool statusJsonAppendScaleProfiler(')}
 struct ShotStopperNetwork {
-  static size_t formatShotStatsRow(NetworkWorkBuf &,const ShotLogRecord &,const ShotCurveRecord *,size_t);
+  static size_t formatShotStatsRow(NetworkWorkBuf &,const ShotLogRecord &,const ShotCurveRecord *);
 };
 ${body(read('network/ShotStopperHomeStream.inc'), 'size_t ShotStopperNetwork::formatShotStatsRow(')}
 int main(){
@@ -71,10 +71,10 @@ int main(){
   ShotLogRecord record{};record.id=1;record.bootId=9;record.goalWeightG=40;record.actualWeightCg=4200;
   record.errorCg=200;record.avgFlowCgS=SHOT_LOG_METRIC_MISSING;
   record.firstDropDs=record.tareAtDs=SHOT_LOG_METRIC_MISSING;
-  assert(ShotStopperNetwork::formatShotStatsRow(work,record,nullptr,0));
+  assert(ShotStopperNetwork::formatShotStatsRow(work,record,nullptr));
   const std::string row=work.jsonItem;puts(row.c_str());
   record.errorCg=500;
-  assert(ShotStopperNetwork::formatShotStatsRow(work,record,nullptr,0));
+  assert(ShotStopperNetwork::formatShotStatsRow(work,record,nullptr));
   assert(row==work.jsonItem);
 }
 `;

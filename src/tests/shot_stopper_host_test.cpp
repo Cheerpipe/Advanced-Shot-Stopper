@@ -16075,24 +16075,28 @@ void sh02_stats_snapshot_captures_one_store_generation() {
   curve.count = 1;
   curve.weightCg[0] = record.actualWeightCg;
   CHECK(shotCurves.append(curve, false));
-  auto snapshot = std::make_unique<ShotStatsSnapshot>();
+  auto snapshot = std::make_unique<ShotStatsRecordsSnapshot>();
   static unsigned acquisitions;
   acquisitions = 0;
   TaskMutex::hostObserver = [](const TaskMutex *mutex, bool acquired) {
     if (mutex == &shotStoreMutex && acquired) ++acquisitions;
   };
-  copyShotStatsSnapshot(*snapshot);
+  copyShotStatsRecords(*snapshot);
   TaskMutex::hostObserver = nullptr;
   CHECK(acquisitions == 1);
   CHECK(snapshot->epoch == copyShotLogEpoch());
-  CHECK(snapshot->count == 1 && snapshot->curveCount == 1);
+  CHECK(snapshot->count == 1);
   CHECK(snapshot->stats.shotCount == 1 && snapshot->stats.actualCgSum == 3000);
-  CHECK(snapshot->records[0].id == snapshot->curves[0].shotId);
-  CHECK(snapshot->records[0].actualWeightCg == snapshot->curves[0].weightCg[0]);
+  CHECK(snapshot->records[0].id == record.id);
+  // Row curves are fetched on demand under one short lock each.
+  ShotCurveRecord fetched = emptyShotCurveRecord();
+  CHECK(copyShotCurveById(record.id, fetched));
+  CHECK(fetched.shotId == record.id);
+  CHECK(fetched.weightCg[0] == record.actualWeightCg);
   CHECK(rateShotRecord(record.id, 5));
   CHECK(snapshot->epoch != copyShotLogEpoch());
   CHECK(shotLogRating(snapshot->records[0].extractionGuardEnabled) == 0);
-  copyShotStatsSnapshot(*snapshot);
+  copyShotStatsRecords(*snapshot);
   CHECK(shotLogRating(snapshot->records[0].extractionGuardEnabled) == 5);
 }
 

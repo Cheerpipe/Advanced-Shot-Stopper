@@ -199,7 +199,8 @@ struct NetworkBridgeCallbacks {
   void (*reportTaskWatchdogFault)() = nullptr;
   void (*requestSafeRestart)() = nullptr;
   size_t (*copyShotRecords)(ShotLogRecord *output, size_t capacity) = nullptr;
-  void (*copyShotStatsSnapshot)(ShotStatsSnapshot &output) = nullptr;
+  void (*copyShotStatsRecords)(ShotStatsRecordsSnapshot &output) = nullptr;
+  bool (*copyShotCurveById)(uint32_t shotId, ShotCurveRecord &curve) = nullptr;
   bool (*copyHomeShot)(ShotLogRecord &record, ShotCurveRecord &curve) = nullptr;
   bool (*shotLogSavePending)() = nullptr;
   void (*copyHistoryPage)(HistoryPage &page, size_t offset, size_t limit,
@@ -672,7 +673,7 @@ class ShotStopperNetwork {
   // the WS sender; writes into work.jsonItem and returns its length, 0 on
   // overflow.
   size_t formatShotStatsRow(NetworkWorkBuf &work, const ShotLogRecord &record,
-                            const ShotCurveRecord *curves, size_t curveCount);
+                            const ShotCurveRecord *curve);
 #if SHOT_STOPPER_DEVELOPMENT == 1
   // Unlock handlers are release-only: development builds serve public
   // administration and never compile the unlock endpoints.

@@ -1119,8 +1119,7 @@ bool ShotStopperNetwork::sendHistoryStream(UiStreamSession &session,
 // returns the written length, 0 on overflow.
 size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
                                               const ShotLogRecord &record,
-                                              const ShotCurveRecord *curves,
-                                              size_t curveCount) {
+                                              const ShotCurveRecord *curve) {
   char actual[16] = "null";
   char flow[16] = "null";
   char firstDrop[16] = "null";
@@ -1162,8 +1161,6 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
   }
   ShotCurveRecord &emptyCurve = work.serializedCurve;
   resetShotCurveRecord(emptyCurve);
-  const ShotCurveRecord *curve =
-      findShotCurveById(curves, curveCount, record.id);
   if (curve == nullptr) {
     curve = &emptyCurve;
   }
@@ -1262,19 +1259,45 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
   NetworkWorkBuf &work = *g_work;
   auto &cache = work.statsCache;
   auto &snapshot = cache.snapshot;
-  const bool reload = !cache.valid || snapshot.epoch != epoch ||
-                      cache.sort != sort || cache.dir != dir;
+  // Only a record-epoch move reloads the cache: sort/dir toggles re-sort
+  // the cached records in place and window changes re-slice them, so the
+  // ~10.8 KB records copy (formerly ~509 KB with every curve) happens only
+  // when the store actually changed.
+  const bool reload = !cache.valid || snapshot.epoch != epoch;
   if (reload) {
-    if (!callbacks_.copyShotStatsSnapshot) return false;
-    callbacks_.copyShotStatsSnapshot(snapshot);
+    if (!callbacks_.copyShotStatsRecords) return false;
+    callbacks_.copyShotStatsRecords(snapshot);
     epoch = snapshot.epoch;
     cache.statsOk = buildIntegrationStats(snapshot.stats, cache.header, sizeof(cache.header));
+    cache.curveHashes = {};
   }
-  const size_t count = snapshot.count, curveCount = snapshot.curveCount;
-  if (reload || cache.sort != sort || cache.dir != dir)
-    shotLogSortRecords(snapshot.records, count, sort, dir);
+  const size_t count = snapshot.count;
   if (reload || cache.offset != offset || cache.limit != limit ||
       cache.sort != sort || cache.dir != dir) {
+    // Materialize the requested order as an index permutation over the
+    // newest-first cache: date/desc is the store order, date/asc its
+    // reverse, rating an insertion sort of indices. The records themselves
+    // never move, so toggles re-slice without recopying or re-sorting data.
+    for (size_t index = 0; index < count; ++index) cache.order[index] = static_cast<uint16_t>(index);
+    if (sort == ShotLogSort::Rating) {
+      for (size_t i = 1; i < count; ++i) {
+        const uint16_t key = cache.order[i];
+        size_t j = i;
+        while (j > 0 && shotLogCompareRatingOrder(
+                            snapshot.records[cache.order[j - 1U]],
+                            snapshot.records[key], dir) > 0) {
+          cache.order[j] = cache.order[j - 1U];
+          --j;
+        }
+        cache.order[j] = key;
+      }
+    } else if (dir == ShotLogSortDir::Asc) {
+      for (size_t index = 0; index < count / 2; ++index) {
+        const uint16_t swapped = cache.order[index];
+        cache.order[index] = cache.order[count - 1U - index];
+        cache.order[count - 1U - index] = swapped;
+      }
+    }
     cache.hasMore = shotLogPageSlice(count, offset, limit, cache.start, cache.pageCount);
     uint32_t fingerprint = crc32Update(0xFFFFFFFFU,
         reinterpret_cast<const uint8_t *>(&epoch), sizeof(epoch));
@@ -1287,14 +1310,22 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
     if (cache.statsOk)
       fingerprint = crc32Update(fingerprint,
           reinterpret_cast<const uint8_t *>(cache.header), strlen(cache.header));
-    resetShotCurveRecord(work.serializedCurve);
     for (size_t index = cache.start; index < cache.start + cache.pageCount; ++index) {
-      const ShotLogRecord &record = snapshot.records[index];
-      const ShotCurveRecord *curve =
-          findShotCurveById(snapshot.curves, curveCount, record.id);
-      const uint32_t rowHash =
-          uiStreamCurveHash(curve ? *curve : work.serializedCurve,
-                              curve ? curve->count : 0);
+      const ShotLogRecord &record = snapshot.records[cache.order[index]];
+      // Curves are immutable once committed: an id-keyed hash lets window
+      // changes re-fingerprint rows without re-fetching their curves, and
+      // a missing curve hashes over zero points exactly as before.
+      const uint32_t *cachedHash = cache.curveHashes.find(record.id);
+      uint32_t rowHash;
+      if (cachedHash != nullptr) {
+        rowHash = *cachedHash;
+      } else {
+        const bool haveCurve = callbacks_.copyShotCurveById != nullptr &&
+            callbacks_.copyShotCurveById(record.id, cache.fetchCurve);
+        rowHash = uiStreamCurveHash(cache.fetchCurve,
+                                    haveCurve ? cache.fetchCurve.count : 0);
+        cache.curveHashes.insert(record.id, rowHash);
+      }
       const uint32_t row[2] = {record.id, record.extractionGuardEnabled};
       fingerprint = crc32Update(fingerprint,
           reinterpret_cast<const uint8_t *>(row), sizeof(row));
@@ -1364,9 +1395,13 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
     return false;
   const size_t rowsBase = used;
   while (session.statsSent < pageCount) {
+    const ShotLogRecord &record = snapshot.records[cache.order[start + session.statsSent]];
+    // Fetch only the curve of the row being framed; short store-lock holds
+    // paced across dispatches replace the former whole-store copy.
+    const bool haveCurve = callbacks_.copyShotCurveById != nullptr &&
+        callbacks_.copyShotCurveById(record.id, cache.fetchCurve);
     const size_t rowBytes = formatShotStatsRow(
-        work, snapshot.records[start + session.statsSent], snapshot.curves,
-        curveCount);
+        work, record, haveCurve ? &cache.fetchCurve : nullptr);
     if (!rowBytes) return false;
     // Close the frame before this row unless the frame is empty; a single
     // oversized row still fits under the client's frame guard alone.

@@ -59,12 +59,15 @@ struct ShotCurveRecord {
   uint8_t breakBefore[SHOT_CURVE_BREAK_BYTES];
 };
 
-// Network-owned PSRAM copy, captured with one store lock; never a stack local.
-struct ShotStatsSnapshot {
+// Network-owned PSRAM copy, captured with one store lock; never a stack
+// local. Records only: the streaming Stats page sorts and aggregates from
+// these, and each row's curve is fetched on demand (curves are immutable
+// once committed), so the ~5 KB-per-shot curve bulk never rides the
+// snapshot copy.
+struct ShotStatsRecordsSnapshot {
   ShotStatsView stats{};
   ShotLogRecord records[SHOT_LOG_CAPACITY]{};
-  ShotCurveRecord curves[SHOT_CURVE_CAPACITY]{};
-  size_t count = 0, curveCount = 0;
+  size_t count = 0;
   uint32_t epoch = 0;
 };
 
@@ -409,19 +412,6 @@ inline bool formatShotCurveJsonBody(char *out, size_t capacity,
          appendMetricS("atmClearedS", curve.atmClearedMs) &&
          appendMetricS("endS", curve.ended.atMs) &&
          appendMetricCg("endCg", curve.ended.weightCg);
-}
-
-inline const ShotCurveRecord *findShotCurveById(const ShotCurveRecord *curves,
-                                                size_t count, uint32_t shotId) {
-  if (curves == nullptr || shotId == 0) {
-    return nullptr;
-  }
-  for (size_t i = 0; i < count; ++i) {
-    if (curves[i].shotId == shotId) {
-      return &curves[i];
-    }
-  }
-  return nullptr;
 }
 
 inline void copyShotCurveRecordToStatusFields(

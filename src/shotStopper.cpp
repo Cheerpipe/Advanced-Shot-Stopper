@@ -1039,12 +1039,20 @@ size_t copyShotRecords(ShotLogRecord *output, size_t capacity) {
   return shotLog.copyNewestFirst(output, capacity);
 }
 
-void copyShotStatsSnapshot(ShotStatsSnapshot &output) {
+void copyShotStatsRecords(ShotStatsRecordsSnapshot &output) {
   TaskLockGuard lock(shotStoreMutex);
   output.stats = shotLog.statsView();
   output.count = shotLog.copyNewestFirst(output.records, SHOT_LOG_CAPACITY);
-  output.curveCount = shotCurves.copyNewestFirst(output.curves, SHOT_CURVE_CAPACITY);
   output.epoch = shotLog.epoch();
+}
+
+bool copyShotCurveById(uint32_t shotId, ShotCurveRecord &curve) {
+  const uint32_t lockStartedUs = micros();
+  TaskLockGuard lock(shotStoreMutex);
+  noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs,
+                  micros() - lockStartedUs);
+  resetShotCurveRecord(curve);
+  return shotCurves.copyByShotId(shotId, curve);
 }
 
 bool copyHomeShot(ShotLogRecord &record, ShotCurveRecord &curve) {

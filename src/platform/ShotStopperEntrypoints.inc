@@ -482,7 +482,8 @@ void setup() {
     callbacks.reportTaskWatchdogFault = reportTaskWatchdogFault;
     callbacks.requestSafeRestart = requestSafeRestart;
     callbacks.copyShotRecords = copyShotRecords;
-    callbacks.copyShotStatsSnapshot = copyShotStatsSnapshot;
+    callbacks.copyShotStatsRecords = copyShotStatsRecords;
+    callbacks.copyShotCurveById = copyShotCurveById;
     callbacks.copyHomeShot = copyHomeShot;
     callbacks.shotLogSavePending = shotLogSavePending;
     callbacks.copyHistoryPage = copyHistoryPage;

@@ -61,8 +61,52 @@ namespace shotstopper {
 
 WallClock g_wallClock;
 
+// Id-keyed cache of per-row curve hashes. Curves are immutable once
+// committed, so a hash stays valid until the record epoch moves; window
+// changes (sort/dir/paging) re-fingerprint rows without re-fetching or
+// re-hashing their curves.
+struct StatsCurveHashCache {
+  static constexpr size_t kCapacity = 128;  // power of two, > SHOT_LOG_CAPACITY
+  uint32_t shotId[kCapacity] = {};
+  uint32_t hash[kCapacity] = {};
+
+  const uint32_t *find(uint32_t id) const {
+    if (id == 0) return nullptr;
+    const size_t seed = id & (kCapacity - 1);
+    for (size_t probe = 0; probe < kCapacity; ++probe) {
+      const size_t index = (seed + probe) & (kCapacity - 1);
+      if (shotId[index] == id) return &hash[index];
+      if (shotId[index] == 0) return nullptr;
+    }
+    return nullptr;
+  }
+
+  void insert(uint32_t id, uint32_t value) {
+    if (id == 0) return;
+    const size_t seed = id & (kCapacity - 1);
+    for (size_t probe = 0; probe < kCapacity; ++probe) {
+      const size_t index = (seed + probe) & (kCapacity - 1);
+      if (shotId[index] == id || shotId[index] == 0) {
+        shotId[index] = id;
+        hash[index] = value;
+        return;
+      }
+    }
+    // Full table: drop the entry; that row re-fetches its curve next time.
+  }
+};
+
 struct StatsStreamCache {
-  ShotStatsSnapshot snapshot{};
+  ShotStatsRecordsSnapshot snapshot{};
+  // Fetch scratch for the row curve currently being hashed or formatted;
+  // distinct from serializedCurve, which formatShotStatsRow resets as its
+  // empty-curve template.
+  ShotCurveRecord fetchCurve{};
+  StatsCurveHashCache curveHashes{};
+  // Requested-order permutation over the newest-first records: rows point
+  // into the untouched cache, so sort/dir toggles are pure index math and
+  // a reload always restores the store order.
+  uint16_t order[SHOT_LOG_CAPACITY] = {};
   bool valid = false, statsOk = false, hasMore = false;
   ShotLogSort sort = ShotLogSort::Date;
   ShotLogSortDir dir = ShotLogSortDir::Desc;
