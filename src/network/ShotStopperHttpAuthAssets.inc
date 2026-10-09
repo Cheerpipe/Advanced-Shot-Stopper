@@ -722,7 +722,10 @@ esp_err_t serveProbeSuccess(httpd_req_t *request, const char *host) {
   }
   httpd_resp_set_status(request, "200 OK");
   httpd_resp_set_type(request, "text/plain");
-  return httpd_resp_send(request, "Microsoft Connect Test",
+  return httpd_resp_send(request,
+                         strcasecmp(host, "www.msftncsi.com") == 0
+                             ? "Microsoft NCSI"
+                             : "Microsoft Connect Test",
                          HTTPD_RESP_USE_STRLEN);
 }
 

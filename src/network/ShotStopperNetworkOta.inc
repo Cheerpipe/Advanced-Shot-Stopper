@@ -64,7 +64,8 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
     parsed = jsonHasOnlyUniqueFields(root, skipFields, 1);
     if (!parsed) {
       networkError = "Skip request must include only action=\"skip\".";
-    } else if (!self.snapshot().apActive) {
+    } else if (!self.snapshot().apActive ||
+               !socketServedBySoftAp(httpd_req_to_sockfd(request))) {
       parsed = false;
       networkError = "No setup network to skip.";
     } else {
@@ -83,6 +84,9 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
     parsed = jsonHasOnlyUniqueFields(root, finishFields, 1);
     if (!parsed) {
       networkError = "Finish request must include only action=\"finish\".";
+    } else if (!socketServedBySoftAp(httpd_req_to_sockfd(request))) {
+      parsed = false;
+      networkError = "No setup network to finish.";
     } else {
       const uint32_t now = millis();
       bool grace = false;

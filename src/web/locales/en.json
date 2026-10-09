@@ -1338,6 +1338,7 @@
     "setup.shot_stopper": "Brew by Weight",
     "setup.show": "Show",
     "setup.skip": "Continue without Wi-Fi",
+    "setup.skip_failed": "Could not continue without Wi-Fi. ",
     "setup.skip_text": "You can close this window now. The controller stays on its setup network — come back any time at http://192.168.4.1 while it is up.",
     "setup.success_text": "Connected to {x} at {y}. Use it from any device on your network:",
     "setup.title": "Connect to your Wi-Fi",

@@ -337,7 +337,7 @@ async function skipSetup() {
     });
   } catch (e) {
     if (e && e.code === "ADMIN_LOCKED") return showLocked();
-    setStatusError(R.formatCommandError(__WEBUI_TEXT__("setup.save_failed"), e));
+    setStatusError(R.formatCommandError(__WEBUI_TEXT__("setup.skip_failed"), e));
     return;
   }
   state = "skipped";

@@ -176,14 +176,17 @@ if (!codeIncludes(ui, 'id="staIpMode"') ||
     !network.includes('action must be \\"save\\", \\"forget\\", \\"confirm\\", \\"skip\\", or \\"finish\\".') ||
     !network.includes('No pending network configuration to confirm.') ||
     // Skip portal exit: setup-context action (no admin unlock, like confirm),
-    // single-field body, gated on the SoftAP being up, arms probe success.
+    // single-field body, gated on the SoftAP being up AND the request coming
+    // from the SoftAP socket, arms probe success.
     !network.includes('strcmp(action, "confirm") != 0 && strcmp(action, "skip") != 0') ||
     !network.includes('Skip request must include only action=\\"skip\\".') ||
     !network.includes('No setup network to skip.') ||
+    !network.includes('!socketServedBySoftAp(httpd_req_to_sockfd(request))') ||
     !network.includes('self.portalExitRequested_.store(true, std::memory_order_release)') ||
     !network.includes('sendJson(request, STATUS_OK, "{\\"skipped\\":true}")') ||
     // Finish (Done): ends the post-confirm grace early; valid only while the
-    // deadline is actually running, arms probe success, lingers before stop.
+    // deadline is actually running and the peer is on the SoftAP, arms probe
+    // success, lingers before stop.
     !networkHeader.includes('SOFTAP_TEARDOWN_GRACE_MS = 60000') ||
     !networkHeader.includes('SOFTAP_FINISH_LINGER_MS = 3000') ||
     !networkHeader.includes('uint32_t apTeardownAtMs = 0;') ||
@@ -192,7 +195,9 @@ if (!codeIncludes(ui, 'id="staIpMode"') ||
     !network.includes('status_.apTeardownAtMs = now + SOFTAP_FINISH_LINGER_MS') ||
     !network.includes('sendJson(request, STATUS_OK, "{\\"finished\\":true}")') ||
     !network.includes('status_.apTeardownAtMs = millis() + SOFTAP_TEARDOWN_GRACE_MS') ||
-    !network.includes('bool ShotStopperNetwork::softApTeardownDue(')) {
+    !network.includes('bool ShotStopperNetwork::softApTeardownDue(') ||
+    // Legacy Windows NCSI (www.msftncsi.com) expects its own probe body.
+    !network.includes('"Microsoft NCSI"')) {
   throw new Error('DHCP/static IP mode must be wired in UI, status, WiFi.config, and confirm/revert path');
 }
 if (!network.includes('restoreLkgToActive(next)') ||
