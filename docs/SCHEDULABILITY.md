@@ -153,9 +153,12 @@ include their own measurement cost. The full task-profiler export pairs each
 phase's wall-time maximum with the own-CPU time of the iteration that set it
 (the loop task's kernel-accounted runtime counter), so preemption at a
 maximum is derivable by subtraction,
-and reports the last and maximum mutex-acquisition wait for every control
-loop acquisition of the Micra backflush mutex and the scale critical-event
-mutex (the input sub-phases are their main, not only, acquirers).
+and reports the last and maximum mutex-acquisition wait recorded at the
+instrumented control-loop sites: the Micra backflush poll and the scale
+critical-event drain (other acquisitions of the same mutexes, such as the
+machine-guards backflush poll or the diagnostics tare capture, are not
+counted). Own-CPU values are kernel-folded at switch-out: a phase that ran
+uninterrupted can read zero until its time folds into a later boundary.
 
 Partition-backed shot stores advance through one 4 KiB erase or one 1 KiB
 program operation per worker step. The flash lock is released and the current

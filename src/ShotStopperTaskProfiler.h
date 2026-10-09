@@ -130,7 +130,10 @@ class LoopPhaseProfiler {
     lastUs_[index] = durationUs;
     if (durationUs > maxUs_[index]) {
       maxUs_[index] = durationUs;
-      maxCpuUs_[index] = cpuUs;
+      // The kernel folds own-CPU at switch-out, so a delta can carry time
+      // from earlier phases (cpuUs > wall); clamp so wall − cpu stays a
+      // conservative lower bound of preemption.
+      maxCpuUs_[index] = cpuUs > durationUs ? durationUs : cpuUs;
     }
     if (active_) {
       totalsUs_[index] += durationUs;

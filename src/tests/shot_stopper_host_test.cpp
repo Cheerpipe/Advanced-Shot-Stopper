@@ -16493,6 +16493,16 @@ void h05_loop_phase_profiler_pairs_cpu_with_wall_maxima() {
   profiler.copySnapshot(snap);
   CHECK(scaleEvents.maxExecutionUs == 900U);
   CHECK(scaleEvents.maxCpuUs == 120U);
+  // The kernel folds own-CPU at switch-out: a fold that lands in this phase
+  // can exceed its wall time, and the stored pair must clamp to the wall so
+  // wall - cpu never goes negative.
+  profiler.record(LoopPhase::INPUT_MACHINE_SERVICE, 250U, 3000000U, 900U);
+  profiler.record(LoopPhase::DIAGNOSTICS, 0U, 3001000U);
+  profiler.copySnapshot(snap);
+  const auto &machineService =
+      snap.rows[static_cast<uint8_t>(LoopPhase::INPUT_MACHINE_SERVICE)];
+  CHECK(machineService.maxExecutionUs == 250U);
+  CHECK(machineService.maxCpuUs == 250U);
   // Reset clears the paired maximum with the rest.
   profiler.requestReset();
   CHECK(profiler.consumeReset());
