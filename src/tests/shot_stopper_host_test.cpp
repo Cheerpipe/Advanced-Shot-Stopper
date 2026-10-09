@@ -7920,6 +7920,9 @@ void r35_connected_without_weight_stream_is_not_available() {
   observedWeightSequence = 0;
   setScaleWorkerTaskPresentForHost(true);
   CHECK(getScaleLinkSnapshot().state == ScaleLinkState::CONNECTED);
+  // The publish no longer services weight telemetry itself (housekeeping
+  // owns that in production); service it explicitly in the same order.
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   ControlStatusSnapshot status;
   copyControlStatus(status);
@@ -7928,6 +7931,7 @@ void r35_connected_without_weight_stream_is_not_available() {
   CHECK(!status.observedWeightValid);
 
   publishWeight(1500.0f);
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   copyControlStatus(status);
   CHECK(status.observedWeightValid);
@@ -7938,6 +7942,7 @@ void r35_connected_without_weight_stream_is_not_available() {
   publishWeight(10.0f);
   setScaleConnected(false);
   setScaleConnected(true);
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   copyControlStatus(status);
   CHECK(!status.currentWeightValid);
@@ -7949,6 +7954,7 @@ void r36_recovered_stale_metrics_count_connected_gaps_only() {
   resetHarness(false, true);
   reachReadyFromBoot();
   publishWeight(12.0f);
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   copyControlStatus(status);
   CHECK(status.weightStreamState == WeightStreamState::FRESH);
@@ -7968,6 +7974,7 @@ void r36_recovered_stale_metrics_count_connected_gaps_only() {
   hostMillis += 250;
   markScaleWorkerProgress();
   publishWeight(12.1f);
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   copyControlStatus(status);
   CHECK(status.weightStreamState == WeightStreamState::FRESH);
@@ -7976,6 +7983,7 @@ void r36_recovered_stale_metrics_count_connected_gaps_only() {
 
   hostMillis += MAX_AUTOMATION_WEIGHT_AGE_MS + 100;
   markScaleWorkerProgress();
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   copyControlStatus(status);
   CHECK(status.weightStreamState == WeightStreamState::STALE);
@@ -7983,6 +7991,7 @@ void r36_recovered_stale_metrics_count_connected_gaps_only() {
   hostMillis += 400;
   markScaleWorkerProgress();
   publishWeight(12.2f);
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   copyControlStatus(status);
   CHECK(status.weightStreamState == WeightStreamState::FRESH);
@@ -7992,13 +8001,16 @@ void r36_recovered_stale_metrics_count_connected_gaps_only() {
   resetHarness(false, true);
   reachReadyFromBoot();
   publishWeight(12.0f);
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   hostMillis += MAX_AUTOMATION_WEIGHT_AGE_MS + 100;
   markScaleWorkerProgress();
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   copyControlStatus(status);
   CHECK(status.weightStreamState == WeightStreamState::STALE);
   setScaleConnected(false);
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   copyControlStatus(status);
   CHECK(status.scaleRecoveredStaleCount == 0);
@@ -8006,6 +8018,7 @@ void r36_recovered_stale_metrics_count_connected_gaps_only() {
 
   setScaleConnected(true);
   publishWeight(12.0f);
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   copyControlStatus(status);
   CHECK(status.weightStreamState == WeightStreamState::FRESH);
@@ -8014,15 +8027,19 @@ void r36_recovered_stale_metrics_count_connected_gaps_only() {
   resetHarness(false, true);
   reachReadyFromBoot();
   publishWeight(12.0f);
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   setScaleConnected(false);
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   setScaleConnected(true);
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   copyControlStatus(status);
   CHECK(status.weightStreamState == WeightStreamState::STALE);
   CHECK(status.scaleRecoveredStaleCount == 0);
   publishWeight(12.0f);
+  serviceWeightStreamTelemetry(getScaleLinkSnapshot());
   publishControlStatus();
   copyControlStatus(status);
   CHECK(status.weightStreamState == WeightStreamState::FRESH);

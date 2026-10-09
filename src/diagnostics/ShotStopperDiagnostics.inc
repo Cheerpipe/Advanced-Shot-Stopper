@@ -140,7 +140,6 @@ void publishControlStatus() {
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
   const ScaleLinkSnapshot scaleLink = getScaleLinkSnapshot();
   const MachineStatusSample machine = machineSampleStatus();
-  serviceWeightStreamTelemetry(scaleLink);
   const bool weightFresh =
       scaleLinkAvailable(scaleLink) && currentWeightIsFresh(now, scaleLink);
   // Gather other owners before locking publication. Waiting for one producer
@@ -160,7 +159,6 @@ void publishControlStatus() {
   PersistedLastShot statusLastShot = {};
   PersistedLastShot statusLastGoodShot = {};
   static SHOT_STOPPER_PSRAM_BSS ShotCurveRecord statusLastGoodCurve;
-  resetShotCurveRecord(statusLastGoodCurve);
   const bool lastGoodHistoryLinked = copyShotStoreStatus(
       shotBootId, statusLastShot, statusLastGoodShot, statusLastGoodCurve,
       !session.active);
