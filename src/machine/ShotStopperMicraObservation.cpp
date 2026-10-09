@@ -6,11 +6,22 @@
 
 namespace shotstopper {
 namespace {
-const char *text(const cJSON *object, const char *key) {
-  const cJSON *value = cJSON_GetObjectItemCaseSensitive(object, key);
+const cJSON *find(const cJSON *object, const char *key) {
+  return cJSON_GetObjectItemCaseSensitive(object, key);
+}
+
+// cJSON keeps duplicate JSON keys as siblings after the first value; a repeat
+// of a key this decoder consumes is a protocol error, not a silent override.
+bool duplicated(const cJSON *value, const char *key) {
   for (const cJSON *field = value ? value->next : nullptr; field; field = field->next)
-    if (field->string && strcmp(field->string, key) == 0) return nullptr;
-  return cJSON_IsString(value) ? value->valuestring : nullptr;
+    if (field->string && strcmp(field->string, key) == 0) return true;
+  return false;
+}
+
+const char *text(const cJSON *object, const char *key) {
+  const cJSON *value = find(object, key);
+  if (duplicated(value, key) || !cJSON_IsString(value)) return nullptr;
+  return value->valuestring;
 }
 
 LineaMicraObservedMode mode(const char *value) {
@@ -18,6 +29,37 @@ LineaMicraObservedMode mode(const char *value) {
   if (strcmp(value, "BrewingMode") == 0) return LineaMicraObservedMode::BREWING;
   if (strcmp(value, "EcoMode") == 0) return LineaMicraObservedMode::ECO;
   return LineaMicraObservedMode::UNSUPPORTED;
+}
+
+LineaMicraBoilerState boilerState(const char *value) {
+  if (strcmp(value, "StandBy") == 0) return LineaMicraBoilerState::STANDBY;
+  if (strcmp(value, "HeatingUp") == 0) return LineaMicraBoilerState::HEATING_UP;
+  if (strcmp(value, "Ready") == 0) return LineaMicraBoilerState::READY;
+  if (strcmp(value, "NoWater") == 0) return LineaMicraBoilerState::NO_WATER;
+  if (strcmp(value, "EcoMode") == 0) return LineaMicraBoilerState::ECO;
+  if (strcmp(value, "Off") == 0) return LineaMicraBoilerState::OFF;
+  return LineaMicraBoilerState::UNSUPPORTED;
+}
+
+LineaMicraSteamLevel steamLevel(const char *value) {
+  if (strcmp(value, "Level1") == 0) return LineaMicraSteamLevel::LEVEL_1;
+  if (strcmp(value, "Level2") == 0) return LineaMicraSteamLevel::LEVEL_2;
+  if (strcmp(value, "Level3") == 0) return LineaMicraSteamLevel::LEVEL_3;
+  return LineaMicraSteamLevel::UNSUPPORTED;
+}
+
+// readyStartTime is cloud epoch milliseconds, null while no estimate exists.
+// The bounds cover 2017..2103 so the second truncation fits uint32_t.
+bool readyAtSeconds(const cJSON *value, uint32_t &seconds) {
+  if (cJSON_IsNull(value)) {
+    seconds = 0;
+    return true;
+  }
+  if (!cJSON_IsNumber(value) || !std::isfinite(value->valuedouble)) return false;
+  const double epochMs = value->valuedouble;
+  if (epochMs < 1.5e12 || epochMs > 4.2e12) return false;
+  seconds = static_cast<uint32_t>(epochMs / 1000.0);
+  return true;
 }
 }  // namespace
 
@@ -33,13 +75,15 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
     seen |= bit;
   }
   MicraObservation next = update;
-  const cJSON *connected = cJSON_GetObjectItemCaseSensitive(root, "connected");
+  const cJSON *connected = find(root, "connected");
+  if (duplicated(connected, "connected")) return false;
   if (connected != nullptr) {
     if (!cJSON_IsBool(connected)) return false;
     next.connectedPresent = true;
     next.connected = cJSON_IsTrue(connected);
   }
-  const cJSON *widgets = cJSON_GetObjectItemCaseSensitive(root, "widgets");
+  const cJSON *widgets = find(root, "widgets");
+  if (duplicated(widgets, "widgets")) return false;
   if (widgets != nullptr && !cJSON_IsArray(widgets)) return false;
   const cJSON *widget = nullptr;
   cJSON_ArrayForEach(widget, widgets) {
@@ -48,31 +92,57 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
     if (code == nullptr) return false;
     const bool power = strcmp(code, "CMMachineStatus") == 0;
     const bool boiler = strcmp(code, "CMCoffeeBoiler") == 0;
+    const bool steam = strcmp(code, "CMSteamBoilerLevel") == 0;
     const bool cleaning = strcmp(code, "CMBackFlush") == 0;
-    if (!power && !boiler && !cleaning) continue;
-    const cJSON *output = cJSON_GetObjectItemCaseSensitive(widget, "output");
-    if (!cJSON_IsObject(output)) return false;
-    for (const cJSON *field = output->next; field; field = field->next)
-      if (field->string && strcmp(field->string, "output") == 0) return false;
-    const char *key = power ? "mode" : boiler ? "targetTemperature" : "status";
-    const cJSON *value = cJSON_GetObjectItemCaseSensitive(output, key);
-    for (const cJSON *field = value ? value->next : nullptr; field; field = field->next)
-      if (field->string && strcmp(field->string, key) == 0) return false;
+    if (!power && !boiler && !steam && !cleaning) continue;
+    const cJSON *output = find(widget, "output");
+    if (duplicated(output, "output") || !cJSON_IsObject(output)) return false;
     if (power) {
+      const cJSON *value = find(output, "mode");
+      if (duplicated(value, "mode")) return false;
       if (value == nullptr) continue;
       if (!cJSON_IsString(value) || value->valuestring == nullptr) return false;
       if (next.powerPresent) return false;
       next.powerPresent = true;
       next.mode = mode(value->valuestring);
-    } else if (boiler) {
-      if (value == nullptr) continue;
-      if (!cJSON_IsNumber(value) || !std::isfinite(value->valuedouble) ||
-          value->valuedouble < LINEA_MICRA_BREW_TARGET_MIN_DECI_C / 10.0 ||
-          value->valuedouble > LINEA_MICRA_BREW_TARGET_MAX_DECI_C / 10.0 ||
-          next.temperaturePresent) return false;
-      next.temperaturePresent = next.temperatureValid = true;
-      next.targetDeciC = static_cast<uint16_t>(std::lround(value->valuedouble * 10.0));
+    } else if (boiler || steam) {
+      const cJSON *status = find(output, "status");
+      if (duplicated(status, "status")) return false;
+      if (status != nullptr) {
+        if (!cJSON_IsString(status) || status->valuestring == nullptr) return false;
+        if (boiler ? next.coffeeBoilerPresent : next.steamBoilerPresent) return false;
+        if (boiler) {
+          next.coffeeBoilerPresent = true;
+          next.coffeeBoiler = boilerState(status->valuestring);
+        } else {
+          next.steamBoilerPresent = true;
+          next.steamBoiler = boilerState(status->valuestring);
+        }
+      }
+      const cJSON *ready = find(output, "readyStartTime");
+      if (duplicated(ready, "readyStartTime")) return false;
+      uint32_t readyAt = 0;
+      if (ready != nullptr && !readyAtSeconds(ready, readyAt)) return false;
+      const cJSON *target = find(output, boiler ? "targetTemperature" : "targetLevel");
+      if (duplicated(target, boiler ? "targetTemperature" : "targetLevel")) return false;
+      if (boiler) {
+        if (ready != nullptr) next.coffeeReadyAtUtcSec = readyAt;
+        if (target == nullptr) continue;
+        if (!cJSON_IsNumber(target) || !std::isfinite(target->valuedouble) ||
+            target->valuedouble < LINEA_MICRA_BREW_TARGET_MIN_DECI_C / 10.0 ||
+            target->valuedouble > LINEA_MICRA_BREW_TARGET_MAX_DECI_C / 10.0 ||
+            next.temperaturePresent) return false;
+        next.temperaturePresent = next.temperatureValid = true;
+        next.targetDeciC = static_cast<uint16_t>(std::lround(target->valuedouble * 10.0));
+      } else {
+        if (ready != nullptr) next.steamReadyAtUtcSec = readyAt;
+        if (target == nullptr) continue;
+        if (!cJSON_IsString(target) || target->valuestring == nullptr) return false;
+        next.steamLevel = steamLevel(target->valuestring);
+      }
     } else if (next.source == MicraObservationSource::WEBSOCKET) {
+      const cJSON *value = find(output, "status");
+      if (duplicated(value, "status")) return false;
       if (value == nullptr) continue;
       if (!cJSON_IsString(value) || value->valuestring == nullptr ||
           next.cleaningPresent) return false;
@@ -91,7 +161,8 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
       next.cleaningLabel[length] = '\0';
     }
   }
-  const cJSON *removed = cJSON_GetObjectItemCaseSensitive(root, "removedWidgets");
+  const cJSON *removed = find(root, "removedWidgets");
+  if (duplicated(removed, "removedWidgets")) return false;
   if (removed != nullptr && !cJSON_IsArray(removed)) return false;
   cJSON_ArrayForEach(widget, removed) {
     const char *code = cJSON_IsString(widget) ? widget->valuestring : text(widget, "code");
@@ -103,6 +174,14 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
       next.temperaturePresent = true;
       next.temperatureValid = false;
       next.targetDeciC = 0;
+      next.coffeeBoilerPresent = true;
+      next.coffeeBoiler = LineaMicraBoilerState::UNSUPPORTED;
+      next.coffeeReadyAtUtcSec = 0;
+    } else if (strcmp(code, "CMSteamBoilerLevel") == 0) {
+      next.steamBoilerPresent = true;
+      next.steamBoiler = LineaMicraBoilerState::UNSUPPORTED;
+      next.steamReadyAtUtcSec = 0;
+      next.steamLevel = LineaMicraSteamLevel::UNKNOWN;
     } else if (strcmp(code, "CMBackFlush") == 0 &&
                next.source == MicraObservationSource::WEBSOCKET) {
       if (next.cleaningPresent) return false;

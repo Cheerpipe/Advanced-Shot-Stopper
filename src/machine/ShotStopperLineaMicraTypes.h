@@ -35,6 +35,31 @@ enum class LineaMicraObservedMode : uint8_t {
   ECO,
   UNSUPPORTED
 };
+enum class LineaMicraBoilerState : uint8_t {
+  UNKNOWN,
+  STANDBY,
+  OFF,
+  HEATING_UP,
+  READY,
+  NO_WATER,
+  ECO,
+  UNSUPPORTED
+};
+enum class LineaMicraSteamLevel : uint8_t {
+  UNKNOWN,
+  LEVEL_1,
+  LEVEL_2,
+  LEVEL_3,
+  UNSUPPORTED
+};
+enum class LineaMicraReadiness : uint8_t {
+  UNKNOWN,
+  OFF,
+  WARMING_UP,
+  WAITING_FOR_STEAM,
+  READY,
+  NEEDS_WATER
+};
 enum class LineaMicraObservationQuality : uint8_t {
   Disabled,
   UNCONFIGURED,
@@ -106,6 +131,43 @@ inline const char *lineaMicraObservedModeName(LineaMicraObservedMode mode) {
     case LineaMicraObservedMode::NONE: return "none";
   }
   return "none";
+}
+
+inline const char *lineaMicraBoilerStateName(LineaMicraBoilerState state) {
+  switch (state) {
+    case LineaMicraBoilerState::STANDBY: return "standby";
+    case LineaMicraBoilerState::OFF: return "off";
+    case LineaMicraBoilerState::HEATING_UP: return "heating_up";
+    case LineaMicraBoilerState::READY: return "ready";
+    case LineaMicraBoilerState::NO_WATER: return "no_water";
+    case LineaMicraBoilerState::ECO: return "eco";
+    case LineaMicraBoilerState::UNSUPPORTED: return "unsupported";
+    case LineaMicraBoilerState::UNKNOWN: return "unknown";
+  }
+  return "unknown";
+}
+
+inline const char *lineaMicraSteamLevelName(LineaMicraSteamLevel level) {
+  switch (level) {
+    case LineaMicraSteamLevel::LEVEL_1: return "level_1";
+    case LineaMicraSteamLevel::LEVEL_2: return "level_2";
+    case LineaMicraSteamLevel::LEVEL_3: return "level_3";
+    case LineaMicraSteamLevel::UNSUPPORTED: return "unsupported";
+    case LineaMicraSteamLevel::UNKNOWN: return "unknown";
+  }
+  return "unknown";
+}
+
+inline const char *lineaMicraReadinessName(LineaMicraReadiness readiness) {
+  switch (readiness) {
+    case LineaMicraReadiness::OFF: return "off";
+    case LineaMicraReadiness::WARMING_UP: return "warming_up";
+    case LineaMicraReadiness::WAITING_FOR_STEAM: return "waiting_for_steam";
+    case LineaMicraReadiness::READY: return "ready";
+    case LineaMicraReadiness::NEEDS_WATER: return "needs_water";
+    case LineaMicraReadiness::UNKNOWN: return "unknown";
+  }
+  return "unknown";
 }
 
 inline const char *lineaMicraObservationQualityName(
@@ -217,6 +279,8 @@ struct LineaMicraStatus {
   uint32_t requestId = 0;
   uint32_t sampleAtMs = 0;
   uint32_t temperatureAtMs = 0;
+  uint32_t coffeeReadyAtUtcSec = 0;
+  uint32_t steamReadyAtUtcSec = 0;
   uint32_t configGeneration = 0;
   uint32_t identityGeneration = 0;
   uint16_t targetDeciC = 0;
@@ -232,6 +296,9 @@ struct LineaMicraStatus {
   MicraObservationSource powerSource = MicraObservationSource::NONE;
   LineaMicraObservedMode observedMode = LineaMicraObservedMode::NONE;
   LineaMicraObservationQuality quality = LineaMicraObservationQuality::Disabled;
+  LineaMicraBoilerState coffeeBoiler = LineaMicraBoilerState::UNKNOWN;
+  LineaMicraBoilerState steamBoiler = LineaMicraBoilerState::UNKNOWN;
+  LineaMicraSteamLevel steamLevel = LineaMicraSteamLevel::UNKNOWN;
   LineaMicraTemperatureState temperatureState =
       LineaMicraTemperatureState::Disabled;
   LineaMicraError temperatureError = LineaMicraError::NONE;
@@ -250,9 +317,48 @@ struct LineaMicraStatus {
   bool temperatureRetryable = false;
 };
 
+// Informational rollup of the dashboard boiler widgets. Evidence-driven: a
+// HeatingUp or EcoMode boiler is below temperature (warming), a Ready boiler
+// is at temperature, and an Off steam boiler never blocks readiness because
+// it was disabled on purpose. Contradictory or absent evidence (standby,
+// off, unknown, or unsupported boilers while the machine reports ON) stays
+// UNKNOWN instead of guessing, so the Home lamp can fall back to a neutral
+// label. This layer never feeds control: power remains ON/OFF only.
+inline LineaMicraReadiness lineaMicraReadiness(const LineaMicraStatus &status) {
+  if (status.optimisticOff) return LineaMicraReadiness::OFF;
+  // An optimistic ON overlay means the machine is waking while the confirmed
+  // state still reads OFF: evaluate boilers as ON (they will be unknown, so
+  // the rollup degrades to UNKNOWN and the lamp stays neutral).
+  if (status.powerState == LineaMicraPowerState::OFF && !status.optimisticOn)
+    return LineaMicraReadiness::OFF;
+  if (status.powerState != LineaMicraPowerState::ON && !status.optimisticOn)
+    return LineaMicraReadiness::UNKNOWN;
+  const LineaMicraBoilerState coffee = status.coffeeBoiler;
+  const LineaMicraBoilerState steam = status.steamBoiler;
+  if (coffee == LineaMicraBoilerState::NO_WATER ||
+      steam == LineaMicraBoilerState::NO_WATER)
+    return LineaMicraReadiness::NEEDS_WATER;
+  const auto warming = [](LineaMicraBoilerState boiler) {
+    return boiler == LineaMicraBoilerState::HEATING_UP ||
+        boiler == LineaMicraBoilerState::ECO;
+  };
+  if (coffee == LineaMicraBoilerState::READY) {
+    if (steam == LineaMicraBoilerState::READY ||
+        steam == LineaMicraBoilerState::OFF)
+      return LineaMicraReadiness::READY;
+    if (warming(steam)) return LineaMicraReadiness::WAITING_FOR_STEAM;
+    return LineaMicraReadiness::UNKNOWN;
+  }
+  if (warming(coffee)) return LineaMicraReadiness::WARMING_UP;
+  return LineaMicraReadiness::UNKNOWN;
+}
+
 static_assert(sizeof(LineaMicraRequest) <= 16,
               "Linea Micra request must stay compact");
-static_assert(sizeof(LineaMicraStatus) <= 64,
+// Boiler readiness (states, steam level, readyAt timestamps) widened the
+// observation payload beyond the historic 64-byte budget; 80 keeps it
+// copy-cheap for the per-tick effective-status handoff.
+static_assert(sizeof(LineaMicraStatus) <= 80,
               "Linea Micra status must stay compact");
 static_assert(std::is_trivially_copyable<LineaMicraRequest>::value);
 static_assert(std::is_trivially_copyable<LineaMicraStatus>::value);

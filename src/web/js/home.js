@@ -4,6 +4,41 @@ const $ = R.$;
 let ready = false;
 let quickWeight = null;
 let quickWeightWanted = false;
+let micraBoilerStatus = null;
+let micraBoilerTimer = 0;
+
+// Boiler rows interpolate the warm-up estimate locally from the absolute
+// readyAtUtcSec the stream delivers once; a stable estimate costs no frames.
+function micraBoilerText(lm, boiler) {
+  if (!lm || !lm.accountConfigured) return __WEBUI_TEXT__("runtime.not_connected");
+  if (!lm.observeState) return __WEBUI_TEXT__("runtime.disabled");
+  const data = lm.boiler ? lm.boiler[boiler] : null;
+  const state = data ? data.state : "";
+  if (state === "ready") return __WEBUI_TEXT__("runtime.ready_2");
+  const label = __WEBUI_TEXT__("home.boiler_states").split("|")[
+    ["heating_up", "no_water", "eco"].indexOf(state)
+  ];
+  if (!label) return __WEBUI_TEXT__("runtime.unknown");
+  const readyAt = (data && data.readyAtUtcSec ? data.readyAtUtcSec : 0) * 1000;
+  if ((state === "heating_up" || state === "eco") && readyAt > Date.now())
+    return (
+      label +
+      " · " +
+      __WEBUI_TEXT__("home.ready_in").replace(
+        "%1",
+        String(Math.max(1, Math.ceil((readyAt - Date.now()) / 60000))),
+      )
+    );
+  return label;
+}
+
+function renderMicraBoilers() {
+  const brew = $("homeMicraBrewBoiler"),
+    steam = $("homeMicraSteamBoiler");
+  if (brew) brew.textContent = micraBoilerText(micraBoilerStatus, "coffee");
+  if (steam) steam.textContent = micraBoilerText(micraBoilerStatus, "steam");
+}
+
 export function applyStatus(s) {
   R.applyHomeStatus(s);
   const brewing = ["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state);
@@ -12,7 +47,7 @@ export function applyStatus(s) {
   // so ?edit_weight=1 is the only entry point. Wait for the active preset
   // and the admin lock to settle, then open once and drop the parameter.
   if (quickWeightWanted && quickWeight && !brewing) {
-    const preset = R.presetState.items.find((x) => x.id === R.presetState.activeId);
+    const preset = R.presetState.items.find((x) => x.id === s.presetState.activeId);
     const pen = $("shotGoalEdit");
     if (preset && preset.goalWeightG && pen && !pen.disabled) {
       quickWeightWanted = false;
@@ -23,26 +58,47 @@ export function applyStatus(s) {
   const power = micraPower(s.lineaMicra);
   $("homeMicraPower").textContent = power;
   $("homeMicraCleaning").textContent = R.formatMicraCleaning(s.lineaMicra);
+  micraBoilerStatus = s.lineaMicra || null;
+  renderMicraBoilers();
   const rs = $("machineRowState"),
     st = $("state"),
     row = $("machineRow");
   if (row) {
-    const off = power.startsWith("OFF"),
-      rdy = !off && s.state === "READY";
+    const lm = s.lineaMicra || {},
+      micraActive =
+        s.machineIntegration === "linea_micra_cloud" && lm.accountConfigured && lm.observeState,
+      off = power.startsWith("OFF"),
+      needsWater = lm.readiness === "needs_water",
+      // With boiler evidence the lamp claims Ready only when both boilers
+      // are ready; without it (or without the integration) the controller
+      // state decides, as before.
+      rdy = !off && (micraActive ? lm.readiness === "ready" : s.state === "READY"),
+      labels = {
+        warming_up: __WEBUI_TEXT__("home.warming_up"),
+        waiting_for_steam: __WEBUI_TEXT__("home.waiting_for_steam"),
+        needs_water: __WEBUI_TEXT__("home.needs_water"),
+      };
     rs.textContent = off
       ? __WEBUI_TEXT__("home.turned_off")
       : rdy
         ? __WEBUI_TEXT__("runtime.ready_2")
-        : st.textContent;
+        : labels[lm.readiness] ||
+          (power.indexOf("ON") === 0 ? __WEBUI_TEXT__("home.on") : st.textContent);
     rs.classList.toggle("stateReady", rdy);
-    rs.classList.toggle("stateFault", !rdy && (off || st.classList.contains("stateFault")));
-    row.classList.toggle("lampBad", !rdy);
+    rs.classList.toggle(
+      "stateFault",
+      !rdy && (off || needsWater || st.classList.contains("stateFault")),
+    );
+    row.classList.toggle("lampBad", !rdy && (!micraActive || off || needsWater));
   }
 }
 export function init() {
   if (ready) return;
   ready = true;
   R.registerViewStatus("home", applyStatus);
+  micraBoilerTimer = setInterval(() => {
+    if (!document.hidden) renderMicraBoilers();
+  }, 1000);
   const rinseButton = $("rinseButton");
   if (rinseButton) rinseButton.onclick = () => R.command("/api/v1/control/rinse");
   const stopButton = $("stopButton");

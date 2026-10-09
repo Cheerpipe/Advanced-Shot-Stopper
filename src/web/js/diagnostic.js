@@ -124,10 +124,9 @@ function renderMicraWebSocket(lm, set) {
   );
 }
 function ensureMicraRows() {
-  const cloud = $("micraCloudDiagnostics"),
-    mode = $("dMicraMode")?.parentElement;
-  const row = (id, title, parent) => {
-    if ($(id) || !parent) return;
+  const cloud = $("micraCloudDiagnostics");
+  const row = (id, title) => {
+    if ($(id) || !cloud) return;
     const row = document.createElement("div"),
       label = document.createElement("strong"),
       v = document.createElement("div");
@@ -135,7 +134,7 @@ function ensureMicraRows() {
     label.textContent = title;
     v.id = id;
     row.append(label, v);
-    parent.insertBefore(row, id === "dMicraCleaning" ? mode : null);
+    cloud.append(row);
   };
   const titles = __WEBUI_TEXT__("diagnostic.cloud_titles").split("|");
   [
@@ -149,12 +148,10 @@ function ensureMicraRows() {
     "WsTraffic",
     "WsPlanned",
     "WsUnexpected",
-    "Cleaning",
   ].forEach((id, i) =>
-    row("dMicra" + (i < 6 ? "Cloud" : "") + id, titles[i], i > 9 ? mode?.parentElement : cloud),
+    row("dMicra" + (i < 6 ? "Cloud" : "") + id, titles[i]),
   );
   for (const [id, anchor] of [
-    ["dMicraCleaningHint", "dMicraCleaning"],
     ["dMicraWsTiming", "dMicraWsState"],
     ["dMicraWsHeap", "hHeapLargest"],
   ]) {

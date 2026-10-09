@@ -5015,6 +5015,8 @@ function invalidateHomeStream() {
     "machineState",
     "state",
     "homeMicraPower",
+    "homeMicraBrewBoiler",
+    "homeMicraSteamBoiler",
     "homeMicraCleaning",
     "machineRowState",
     "scale",
@@ -6967,7 +6969,12 @@ function renderLineaMicraDiagnostic() {
       websocket: "WebSocket",
       api_initial: __WEBUI_TEXT__("diagnostic.api_via_websocket"),
     }[lm.powerSource],
-    busy = ["queued", "authenticating", "listing", "running", "backoff"].includes(lm.phase);
+    busy = ["queued", "authenticating", "listing", "running", "backoff"].includes(lm.phase),
+    unavailable = !lm.accountConfigured
+      ? __WEBUI_TEXT__("runtime.not_connected")
+      : !lm.observeState
+        ? __WEBUI_TEXT__("runtime.disabled")
+        : "";
   $("dMicraPowerValue").textContent = power || __WEBUI_TEXT__("runtime.unknown");
   $("dMicraMode").textContent =
     (lm.observedMode || __WEBUI_TEXT__("runtime.unknown")) + (source ? " (" + source + ")" : "");
@@ -6981,6 +6988,61 @@ function renderLineaMicraDiagnostic() {
     (lm.sampleValid
       ? Math.floor(age / 1000) + __WEBUI_TEXT__("runtime.s_ago")
       : __WEBUI_TEXT__("runtime.no_sample"));
+  const boiler = lm.boiler || {},
+    coffee = boiler.coffee || {},
+    steam = boiler.steam || {},
+    boilerAge = boiler.sampleAgeMs
+      ? Math.floor((boiler.sampleAgeMs + Math.max(0, Date.now() - lm.receivedAtMs)) / 1000)
+      : 0,
+    readinessLabel = __WEBUI_TEXT__("diagnostic.readiness_states").split("|")[
+      ["off", "warming_up", "waiting_for_steam", "ready", "needs_water", "unknown"].indexOf(lm.readiness)
+    ],
+    waterLabel = __WEBUI_TEXT__("diagnostic.water_states").split("|")[
+      [coffee.state, steam.state].includes("no_water")
+        ? 1
+        : [coffee.state, steam.state].some(
+              (x) => x && x !== "unknown" && x !== "unsupported",
+            )
+          ? 0
+          : 2
+    ],
+    // The absolute readyAt timestamp lets the remaining time tick locally
+    // without stream frames; the sample age interpolates the same way.
+    boilerRow = (b, qualifier) => {
+      if (unavailable) return unavailable;
+      const parts = [];
+      if (b.state) parts.push(b.state.replace(/_/g, " "));
+      if (qualifier) parts.push(qualifier);
+      const left = Math.max(
+        0,
+        b.readyAtUtcSec ? b.readyAtUtcSec - Math.floor(Date.now() / 1000) : 0,
+      );
+      if ((b.state === "heating_up" || b.state === "eco") && b.readyAtUtcSec)
+        parts.push(
+          __WEBUI_TEXT__("diagnostic.ready_in").replace(
+            "%1",
+            Math.floor(left / 60) + "m " + (left % 60) + "s",
+          ) +
+            " (" +
+            formatWallTimeLocal(b.readyAtUtcSec) +
+            " UTC)",
+        );
+      if (boilerAge) parts.push(boilerAge + __WEBUI_TEXT__("runtime.s_ago"));
+      return parts.length ? parts.join(" · ") : __WEBUI_TEXT__("runtime.unknown");
+    };
+  $("dMicraReadiness").textContent =
+    unavailable || readinessLabel || lm.readiness || __WEBUI_TEXT__("runtime.unknown");
+  $("dMicraBrewBoiler").textContent = boilerRow(
+    coffee,
+    coffee.targetDeciC ? (coffee.targetDeciC / 10).toFixed(1) + " °C" : "",
+  );
+  $("dMicraSteamBoiler").textContent = boilerRow(
+    steam,
+    steam.level && steam.level !== "unknown" && steam.level !== "unsupported"
+      ? steam.level.replace("level_", "level ")
+      : "",
+  );
+  $("dMicraWater").textContent = unavailable || waterLabel;
   const refresh = $("lineaMicraRefreshLink");
   if (refresh) {
     const disabled = !controlsMutable || !lm.observeState || !lm.accountConfigured || busy;

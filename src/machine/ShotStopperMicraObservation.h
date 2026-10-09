@@ -21,14 +21,21 @@ struct MicraObservationStamp {
 struct MicraObservation {
   MicraObservationStamp stamp;
   uint32_t receivedAtMs = 0;
+  uint32_t coffeeReadyAtUtcSec = 0;
+  uint32_t steamReadyAtUtcSec = 0;
   uint16_t targetDeciC = 0;
   MicraObservationSource source = MicraObservationSource::HTTP;
   LineaMicraObservedMode mode = LineaMicraObservedMode::NONE;
+  LineaMicraBoilerState coffeeBoiler = LineaMicraBoilerState::UNKNOWN;
+  LineaMicraBoilerState steamBoiler = LineaMicraBoilerState::UNKNOWN;
+  LineaMicraSteamLevel steamLevel = LineaMicraSteamLevel::UNKNOWN;
   MicraCleaningState cleaning = MicraCleaningState::UNKNOWN;
   char cleaningLabel[33] = {};
   bool powerPresent = false;
   bool temperaturePresent = false;
   bool temperatureValid = false;
+  bool coffeeBoilerPresent = false;
+  bool steamBoilerPresent = false;
   bool cleaningPresent = false;
   bool cleaningAvailable = false;
   bool connectedPresent = false;
@@ -97,11 +104,27 @@ struct MicraObservationFence {
                            : LineaMicraObservationQuality::CURRENT;
       ++powerRevision;
     }
-    if (update.temperaturePresent &&
+    // Boiler-widget data rides the temperature revision: the coffee target
+    // and both boilers' status/estimate fields arrive in the same widget
+    // outputs, and a stale poll must not clobber fresher pushed states.
+    const bool boilerWidget = update.temperaturePresent ||
+        update.coffeeBoilerPresent || update.steamBoilerPresent;
+    if (boilerWidget &&
         (push || update.stamp.temperatureRevision == temperatureRevision)) {
-      status.targetValid = update.temperatureValid;
-      status.targetDeciC = update.targetDeciC;
+      if (update.temperaturePresent) {
+        status.targetValid = update.temperatureValid;
+        status.targetDeciC = update.targetDeciC;
+      }
+      if (update.coffeeBoilerPresent) {
+        status.coffeeBoiler = update.coffeeBoiler;
+        status.coffeeReadyAtUtcSec = update.coffeeReadyAtUtcSec;
+      }
       status.temperatureAtMs = update.receivedAtMs;
+      if (update.steamBoilerPresent) {
+        status.steamBoiler = update.steamBoiler;
+        status.steamReadyAtUtcSec = update.steamReadyAtUtcSec;
+        status.steamLevel = update.steamLevel;
+      }
       ++temperatureRevision;
     }
     return true;
@@ -109,6 +132,9 @@ struct MicraObservationFence {
 };
 
 static_assert(std::is_trivially_copyable<MicraObservation>::value);
-static_assert(sizeof(MicraObservation) <= 80);
+// Boiler readiness fields (states, steam level, readyAt timestamps) widened
+// the observation beyond the historic 80-byte budget; 96 keeps it compact
+// for the per-frame decode path.
+static_assert(sizeof(MicraObservation) <= 96);
 
 }  // namespace shotstopper

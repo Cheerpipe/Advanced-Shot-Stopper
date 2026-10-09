@@ -159,6 +159,34 @@ stream is paused or the machine is offline. API mode shows that cleaning is
 unavailable. A cloud cleaning update never starts the machine or turns an
 existing shot into backflush. Transitions during a shot pause may be missed.
 
+## Boiler readiness
+
+While the machine is on, La Marzocco's cloud reports whether each boiler is
+still warming. Home uses that instead of assuming: the machine row reads
+**Warming up** while the brew boiler heats, **Waiting for steam** once shots
+are possible but the steam boiler is still below temperature, and **Ready**
+only when both boilers report ready. When the water tank needs refilling the
+row reads **Needs water**, and while a wake-up is still being confirmed it
+shows a plain **On** rather than claiming readiness.
+
+The open machine panel adds one row per boiler. Each shows its state and,
+while heating, the machine's own estimate of the time remaining, for example
+`Warming up · ready in ~6 min`. The estimate counts down on the screen without
+extra network traffic. The steam row shows the steam level set in the app
+(level 1–3), because the Micra controls steam by level rather than by
+temperature; the current temperature of either boiler is not available through
+the cloud service.
+
+Diagnostics groups every machine-reported state under **La Marzocco Micra**:
+readiness, power state, observed mode, both boilers (with the brew target
+temperature and remaining estimate), water, cleaning, and observation quality.
+Connection and account details stay in **La Marzocco Cloud**.
+
+These states are informational. Nothing about paddle handling, guards, brew
+control, or how the machine is turned on and off changes with them. In API
+mode the same states arrive with each dashboard read instead of as live
+pushes.
+
 ### Automatic backflush
 
 With firmware enabled, WebSocket monitoring can supervise the automatic

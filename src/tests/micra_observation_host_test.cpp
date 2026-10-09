@@ -161,6 +161,118 @@ int main() {
   assert(update.powerPresent && update.mode == LineaMicraObservedMode::NONE);
   assert(update.temperaturePresent && !update.temperatureValid);
 
+  // Boiler readiness widgets: status, estimate, and steam level.
+  update = {};
+  update.source = MicraObservationSource::WEBSOCKET;
+  assert(decode(R"({"widgets":[)"
+      R"({"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},)"
+      R"({"code":"CMCoffeeBoiler","output":{"status":"HeatingUp","targetTemperature":93.0,"readyStartTime":1760000460000}},)"
+      R"({"code":"CMSteamBoilerLevel","output":{"status":"HeatingUp","targetLevel":"Level3","readyStartTime":1760000820500}}]})", update));
+  assert(update.powerPresent && update.mode == LineaMicraObservedMode::BREWING);
+  assert(update.temperaturePresent && update.temperatureValid && update.targetDeciC == 930);
+  assert(update.coffeeBoilerPresent && update.coffeeBoiler == LineaMicraBoilerState::HEATING_UP);
+  assert(update.coffeeReadyAtUtcSec == 1760000460U);
+  assert(update.steamBoilerPresent && update.steamBoiler == LineaMicraBoilerState::HEATING_UP);
+  assert(update.steamLevel == LineaMicraSteamLevel::LEVEL_3);
+  assert(update.steamReadyAtUtcSec == 1760000820U);
+  // Unknown status strings degrade to UNSUPPORTED instead of failing.
+  update = {};
+  update.source = MicraObservationSource::WEBSOCKET;
+  assert(decode(R"({"widgets":[{"code":"CMSteamBoilerLevel","output":{"status":"FutureMode","targetLevel":"Level4"}}]})", update));
+  assert(update.steamBoiler == LineaMicraBoilerState::UNSUPPORTED);
+  assert(update.steamLevel == LineaMicraSteamLevel::UNSUPPORTED);
+  // Null estimate means no estimate; malformed values reject the frame.
+  update = {};
+  update.source = MicraObservationSource::WEBSOCKET;
+  assert(decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"Ready","targetTemperature":94,"readyStartTime":null}}]})", update));
+  assert(update.coffeeBoiler == LineaMicraBoilerState::READY && update.coffeeReadyAtUtcSec == 0);
+  update = {};
+  update.source = MicraObservationSource::WEBSOCKET;
+  assert(!decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"Ready","readyStartTime":"soon"}}]})", update));
+  assert(!decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"Ready","readyStartTime":1000}}]})", update));
+  assert(!decode(R"({"widgets":[{"code":"CMSteamBoilerLevel","output":{"status":"Ready","status":"Ready"}}]})", update));
+  assert(!decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"Ready"}},{"code":"CMCoffeeBoiler","output":{"status":"Ready"}}]})", update));
+  update = {};
+  update.source = MicraObservationSource::WEBSOCKET;
+  assert(decode(R"({"removedWidgets":["CMSteamBoilerLevel"]})", update));
+  assert(update.steamBoilerPresent && update.steamBoiler == LineaMicraBoilerState::UNSUPPORTED);
+  assert(update.steamLevel == LineaMicraSteamLevel::UNKNOWN && update.steamReadyAtUtcSec == 0);
+
+  // Boiler fields ride the temperature revision: partial pushes apply, and a
+  // stale poll cannot clobber fresher pushed boiler states.
+  LineaMicraStatus bstate;
+  bstate.identityGeneration = 1;
+  LineaMicraPowerStateTracker bpower;
+  MicraObservationFence bfence;
+  MicraObservation poll;
+  poll.source = MicraObservationSource::HTTP_INITIAL;
+  poll.stamp = bfence.stamp(1, bpower.generation());
+  poll.powerPresent = poll.temperaturePresent = poll.temperatureValid = true;
+  poll.mode = LineaMicraObservedMode::BREWING;
+  poll.targetDeciC = 930;
+  poll.coffeeBoilerPresent = poll.steamBoilerPresent = true;
+  poll.coffeeBoiler = poll.steamBoiler = LineaMicraBoilerState::HEATING_UP;
+  poll.coffeeReadyAtUtcSec = 1760000460U;
+  poll.steamReadyAtUtcSec = 1760000820U;
+  poll.steamLevel = LineaMicraSteamLevel::LEVEL_3;
+  poll.receivedAtMs = 100;
+  assert(bfence.merge(bstate, bpower, poll, true, true));
+  assert(bstate.coffeeBoiler == LineaMicraBoilerState::HEATING_UP);
+  assert(bstate.steamLevel == LineaMicraSteamLevel::LEVEL_3);
+  assert(bstate.temperatureAtMs == 100);
+  MicraObservation steamOnly;
+  steamOnly.source = MicraObservationSource::WEBSOCKET;
+  steamOnly.stamp = bfence.stamp(1, bpower.generation());
+  steamOnly.steamBoilerPresent = true;
+  steamOnly.steamBoiler = LineaMicraBoilerState::READY;
+  steamOnly.receivedAtMs = 150;
+  assert(bfence.merge(bstate, bpower, steamOnly, true));
+  assert(bstate.steamBoiler == LineaMicraBoilerState::READY);
+  assert(bstate.coffeeBoiler == LineaMicraBoilerState::HEATING_UP);  // Untouched.
+  assert(bstate.temperatureAtMs == 150);
+  assert(bfence.merge(bstate, bpower, poll, true, true));  // Stale poll loses.
+  assert(bstate.steamBoiler == LineaMicraBoilerState::READY);
+  assert(bstate.coffeeBoiler == LineaMicraBoilerState::HEATING_UP);
+
+  // Readiness rollup truth table over the effective status.
+  LineaMicraStatus rs;
+  rs.powerState = LineaMicraPowerState::ON;
+  rs.coffeeBoiler = rs.steamBoiler = LineaMicraBoilerState::HEATING_UP;
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::WARMING_UP);
+  rs.coffeeBoiler = LineaMicraBoilerState::READY;
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::WAITING_FOR_STEAM);
+  rs.steamBoiler = LineaMicraBoilerState::READY;
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::READY);
+  rs.steamBoiler = LineaMicraBoilerState::OFF;  // Steam off never blocks.
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::READY);
+  rs.coffeeBoiler = LineaMicraBoilerState::NO_WATER;
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::NEEDS_WATER);
+  rs.powerState = LineaMicraPowerState::OFF;
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::OFF);
+  rs.optimisticOff = true;  // Standby accepted, cloud not yet confirming.
+  rs.powerState = LineaMicraPowerState::ON;
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::OFF);
+  rs.optimisticOff = false;
+  rs.powerState = LineaMicraPowerState::UNKNOWN;
+  rs.coffeeBoiler = rs.steamBoiler = LineaMicraBoilerState::READY;
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::UNKNOWN);
+  rs.powerState = LineaMicraPowerState::OFF;
+  rs.optimisticOn = true;  // Paddle wake: confirmed OFF, optimistic ON.
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::READY);  // Retained boilers.
+  rs.coffeeBoiler = rs.steamBoiler = LineaMicraBoilerState::UNKNOWN;
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::UNKNOWN);
+  rs.powerState = LineaMicraPowerState::ON;
+  rs.coffeeBoiler = LineaMicraBoilerState::STANDBY;  // Contradictory: no claim.
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::UNKNOWN);
+  rs.coffeeBoiler = LineaMicraBoilerState::ECO;  // Below temperature.
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::WARMING_UP);
+  rs.coffeeBoiler = LineaMicraBoilerState::READY;
+  rs.steamBoiler = LineaMicraBoilerState::ECO;
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::WAITING_FOR_STEAM);
+  assert(std::strcmp(lineaMicraReadinessName(LineaMicraReadiness::WAITING_FOR_STEAM), "waiting_for_steam") == 0);
+  assert(std::strcmp(lineaMicraBoilerStateName(LineaMicraBoilerState::HEATING_UP), "heating_up") == 0);
+  assert(std::strcmp(lineaMicraSteamLevelName(LineaMicraSteamLevel::LEVEL_3), "level_3") == 0);
+
   LineaMicraStatus state;
   state.identityGeneration = 1;
   state.sampleAtMs = 100;

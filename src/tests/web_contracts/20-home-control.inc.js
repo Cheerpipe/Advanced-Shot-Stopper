@@ -456,7 +456,7 @@ int main(){
 if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     statusSection[1].includes('class="statusColumn"') ||
     statusSection[1].includes('class="row"') ||
-    (statusSection[1].match(/class="metric[ "]/g) || []).length !== 4 ||
+    (statusSection[1].match(/class="metric[ "]/g) || []).length !== 6 ||
     !statusSection[1].includes('id="machineRowState"') ||
     !statusSection[1].includes('id="machineStateValue"') ||
     !statusSection[1].includes('<strong>Machine</strong>') ||
@@ -466,6 +466,8 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     !statusSection[1].includes('id="machineState"') ||
     !statusSection[1].includes('id="state"') ||
     !statusSection[1].includes('id="homeMicraPower"') ||
+    !statusSection[1].includes('id="homeMicraBrewBoiler"') ||
+    !statusSection[1].includes('id="homeMicraSteamBoiler"') ||
     statusSection[1].includes('id="cupState"') ||
     statusSection[1].includes('id="paddle"') ||
     statusSection[1].includes('id="relay"') ||

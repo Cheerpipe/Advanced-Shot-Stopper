@@ -439,8 +439,11 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // The ?edit_weight=1 URL launcher (preset-ready wait, admin-lock gate,
 // one-shot parameter strip, exposed open) adds +112 measured bytes on top.
 // Cap raised to 4600.
-if (generated.jsGzip.length > 4600) {
-  throw new Error('Compressed Web UI shell JS exceeds the 4600-byte gzip budget');
+// The Micra boiler readiness rows and lamp rollup (locally ticking warm-up
+// estimates from absolute readyAt timestamps) add +405 measured bytes.
+// Cap raised to 5050.
+if (generated.jsGzip.length > 5050) {
+  throw new Error(`Compressed Web UI shell JS exceeds the 5050-byte gzip budget (${generated.jsGzip.length})`);
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -553,8 +556,11 @@ if (generated.cssGzip.length > 11400) {
 // the conflict chip, plus the shared aria-rebuild helper and multi-warning
 // describedby append) add +429 compressed bytes on the sentinel build
 // (pre-authorized raise, 2026-10-09). Cap raised to 49740.
-if (sentinelRuntimeGzip.length > 49740) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 49740-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Micra boiler readiness adds the diagnostic readiness/boiler/water
+// renderers with locally interpolated estimates: +438 compressed bytes.
+// Cap raised to 50250 (pre-authorized raise, 2026-10-09).
+if (sentinelRuntimeGzip.length > 50250) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 50250-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -682,8 +688,12 @@ if (generated.icon48Gzip.length > 3500) {
 // (runtime engine + CSS twins + settings chip, plus the aria-rebuild
 // round): 131502 measured (pre-authorized raise, 2026-10-09). Cap raised
 // to 131600; firmware image, memory placement and OTA partitions stay fixed.
-if (generated.combined > 131600) {
-  throw new Error(`Combined Web UI gzip exceeds the 131600-byte flash budget (${generated.combined})`);
+// Micra boiler readiness (Home rows and lamp, diagnostic machine section,
+// locales) adds its reviewed combined allowance: 132502 measured
+// (pre-authorized raise, 2026-10-09). Cap raised to 132600; firmware image,
+// memory placement and OTA partitions stay fixed.
+if (generated.combined > 132600) {
+  throw new Error(`Combined Web UI gzip exceeds the 132600-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

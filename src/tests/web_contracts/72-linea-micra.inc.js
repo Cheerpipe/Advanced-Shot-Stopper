@@ -59,6 +59,24 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   context.applyStatus({lineaMicra: {powerState: 'ON', quality: 'current'}, state: 'BREWING'});
   assert.strictEqual(machineRow.bad, true);
   assert.strictEqual(brew.textContent, '');
+  // Boiler-readiness lamp: with boiler evidence the machine row claims Ready
+  // only when both boilers are ready; otherwise it narrates the warm-up.
+  const warming = {machineIntegration: 'linea_micra_cloud', state: 'READY',
+    lineaMicra: {accountConfigured: true, observeState: true, powerState: 'ON', quality: 'current'}};
+  for (const [readiness, expected, bad] of [
+    ['warming_up', 'Warming up', false],
+    ['waiting_for_steam', 'Waiting for steam', false],
+    ['needs_water', 'Needs water', true],
+    ['ready', 'Ready', false],
+    ['unknown', 'On', false],
+  ]) {
+    context.applyStatus({...warming, lineaMicra: {...warming.lineaMicra, readiness}});
+    assert.strictEqual(rowState.textContent, expected);
+    assert.strictEqual(machineRow.bad, bad);
+  }
+  // Without the integration the controller state decides, as before.
+  context.applyStatus({lineaMicra: {powerState: 'ON', quality: 'current'}, state: 'READY'});
+  assert.strictEqual(rowState.textContent, 'Ready');
   assert(network.includes('delta.field("lineaMicra.powerState"'),
       'Home stream must project Micra power independently of REST status');
 }
@@ -82,6 +100,16 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const state = element(), modeRow = element(), mode = element(), cloud = element(), heapRow = element(), heap = element();
   mode.id = 'dMicraMode'; cloud.id = 'micraCloudDiagnostics'; heap.id = 'hHeapLargest';
   state.append(modeRow); modeRow.append(mode); heapRow.append(heap);
+  // The cleaning row is static markup inside the machine-state fieldset; the
+  // synthetic DOM mirrors the generated diagnostic page.
+  const machine = element(), cleaningRow = element(), cleaning = element(), cleaningHint = element();
+  cleaning.id = 'dMicraCleaning'; cleaningHint.id = 'dMicraCleaningHint';
+  machine.append(cleaningRow); cleaningRow.append(cleaning, cleaningHint);
+  assert(micraDiagnosticHtml.includes('id="micraMachineDiagnostics" class="statusColumn micraOnly"'));
+  assert(micraDiagnosticHtml.includes('{{webui:diagnostic.marzocco_micra}}'));
+  for (const id of ['dMicraReadiness', 'dMicraBrewBoiler', 'dMicraSteamBoiler', 'dMicraWater']) {
+    assert(micraDiagnosticHtml.includes(`id="${id}"`), `machine section row missing: ${id}`);
+  }
   const labels = {'diagnostic.cloud_titles': 'Email|Machine|Time|API|Result|Duration|Connection|Traffic|Planned|Unexpected|Cleaning',
     'diagnostic.cleaning_states': 'Inactive|Waiting for paddle|Cleaning'};
   const domContext = vm.createContext({$: id => dom[id], document: {createElement: element},
@@ -99,7 +127,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert.strictEqual(cloud.children.length, 10, 'Status refresh must not duplicate dynamic rows');
   assert.strictEqual(dom.dMicraWsPlanned.textContent, '7');
   assert.strictEqual(dom.dMicraWsUnexpected.textContent, '3');
-  assert.strictEqual(state.children[0], dom.dMicraCleaning.parentElement, 'Cleaning appears before observed mode');
+  assert.strictEqual(machine.children.length, 1, 'Cleaning stays a static row of the machine section');
   assert.strictEqual(dom.dMicraCleaning.textContent, 'Waiting for paddle');
   assert(dom.dMicraCleaningHint.textContent.includes('2.0 s'));
   assert(!dom.dMicraCleaningHint.textContent.includes('diagnostic.stale'));
@@ -315,7 +343,9 @@ for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
       if (id === 'lineaMicraRefreshLink') return null;
       if (!nodes.has(id)) nodes.set(id, {textContent: ''});
       return nodes.get(id);
-    }, __WEBUI_TEXT__: key => key};
+    }, __WEBUI_TEXT__: key => key === 'runtime.s_ago' ? ' s ago'
+      : key === 'diagnostic.ready_in' ? 'ready in %1' : key};
+  context.formatWallTimeLocal = seconds => 'T' + seconds;
   vm.createContext(context);
   vm.runInContext(rawRuntimeJs.slice(rawRuntimeJs.indexOf('function renderLineaMicraDiagnostic('),
       rawRuntimeJs.indexOf('function applyDiagnosticStatus(')), context);
@@ -329,8 +359,35 @@ for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
           quality === 'current' && policy !== 'connection' ? 'stale' : quality);
     }
   }
+  // Boiler readiness rendering: raw state, qualifier, locally computed
+  // remaining estimate, and derived water. Date.now() is fixed at 3600100 ms,
+  // so a readyAt 3720100 ms is 120 s ahead.
+  const linked = {accountConfigured: true, observeState: true, powerState: 'ON',
+    receivedAtMs: 3600100, readiness: 'waiting_for_steam', boiler: {sampleAgeMs: 4000,
+      coffee: {state: 'ready', targetDeciC: 935, readyAtUtcSec: 0},
+      steam: {state: 'heating_up', level: 'level_3', readyAtUtcSec: 3720}}};
+  context.micraDiagnosticStatus = linked;
+  vm.runInContext('renderLineaMicraDiagnostic()', context);
+  assert.strictEqual(nodes.get('dMicraReadiness').textContent, 'waiting_for_steam');
+  assert.strictEqual(nodes.get('dMicraBrewBoiler').textContent, 'ready · 93.5 °C · 4 s ago');
+  assert.strictEqual(nodes.get('dMicraSteamBoiler').textContent,
+      'heating up · level 3 · ready in 2m 0s (T3720 UTC) · 4 s ago');
+  assert.strictEqual(nodes.get('dMicraWater').textContent, 'diagnostic.water_states'.split('|')[0]);
+  context.micraDiagnosticStatus = {...linked,
+    boiler: {...linked.boiler, coffee: {...linked.boiler.coffee, state: 'no_water'}}};
+  vm.runInContext('renderLineaMicraDiagnostic()', context);
+  assert.strictEqual(nodes.get('dMicraWater').textContent, 'diagnostic.water_states'.split('|')[1]);
+  context.micraDiagnosticStatus = {accountConfigured: true, observeState: false};
+  vm.runInContext('renderLineaMicraDiagnostic()', context);
+  assert.strictEqual(nodes.get('dMicraReadiness').textContent, 'runtime.disabled');
+  assert.strictEqual(nodes.get('dMicraWater').textContent, 'runtime.disabled');
   assert(micraStatus.includes('micraPowerSourceName(micraStatus.powerSource)'));
   assert(micraStatus.includes('micraStatus.connectionFreshness ? "connection" : "time"'));
+  assert(network.includes('delta.field("lineaMicra.readiness"'),
+      'Home stream must project the derived Micra readiness');
+  assert(network.includes('delta.field("lineaMicra.boiler.coffee.state"') &&
+         network.includes('delta.field("lineaMicra.boiler.steam.readyAtUtcSec"'),
+      'Home stream must project the boiler states and estimates');
 }
 for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
   'dMicraQuality', 'dMicraAge', 'lineaMicraRefreshLink']) {

@@ -563,10 +563,14 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // budgets stay fixed.
 // The /setup skip exit adds the quiet form action and the skipped-state card
 // with its probe link, and the grace adds the success-screen Done button:
-// ~400 bytes of HTML source allowance; compressed asset and firmware
+// ~400 bytes of HTML source allowance; compressed asset and firmware budgets
+// stay fixed.
+// The La Marzocco Micra diagnostic section (readiness, power, mode, brew and
+// steam boiler rows, water, cleaning, communication) plus the Home boiler
+// rows add ~1.1 KB of HTML source allowance; compressed asset and firmware
 // budgets stay fixed.
-if (htmlBytes > 89200) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 89200)`);
+if (htmlBytes > 91000) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 91000)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -702,8 +706,12 @@ if (htmlBytes > 89200) {
 // rendering plus the shared aria-rebuild helper: ~4.2 KB of JS source
 // allowance (pre-authorized raise, 2026-10-09); compressed asset and
 // firmware limits stay fixed.
-if (jsBytes > 365000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 365000)`);
+// Micra boiler readiness adds the Home lamp rollup with locally ticking
+// warm-up estimates from the absolute readyAt timestamps, plus the
+// diagnostic readiness/boiler/water renderers sharing the cached stream
+// snapshot: ~4.5 KB of JS source allowance (pre-authorized raise, 2026-10-09).
+if (jsBytes > 370000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 370000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -764,8 +772,8 @@ if (jsBytes > 365000) {
 // HTML and ~1.5 KB of JS source allowance described above; the live brew
 // warnings add ~3.4 KB of JS and the conflict-chip element (~60 B of HTML),
 // pre-authorized 2026-10-09; compressed budgets stay fixed.
-if (htmlBytes + jsBytes > 454300) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 454300)`);
+if (htmlBytes + jsBytes > 460000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 460000)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

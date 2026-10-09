@@ -366,6 +366,15 @@ sequence/base and cursor contract on the same socket. Equipment updates do not
 resend an unchanged shot card or curve. Commands continue to use the existing
 HTTP endpoints and ownership checks.
 
+Micra firmware streams an informational boiler-readiness layer on the same
+frames: `lineaMicra.readiness` (the derived rollup: `off`, `warming_up`,
+`waiting_for_steam`, `ready`, `needs_water`, or `unknown`),
+`lineaMicra.boiler.coffee.state` and `lineaMicra.boiler.steam.state`, and each
+boiler's `readyAtUtcSec` estimate. `readyAtUtcSec` is an absolute UTC second
+timestamp (0 when the machine gave no estimate), and the browser derives the
+ticking countdown locally, so a stable estimate emits no frames. Readiness is
+never evidence for control; power stays ON/OFF-only.
+
 Reconnect and `{"op":"resync"}` request fresh snapshots; the resync op also
 forces a fresh History snapshot for subscribed sessions. Ownership takeover
 closes the previous socket with code 4001. Bounded `activity`/`alive` control
@@ -561,6 +570,9 @@ The subtree also reports `connectionType`. Diagnostic status alone includes
 `lineaMicra.websocket`: socket lifecycle/reason/epoch, subscription and machine
 connectivity, genuine evidence timestamps, payload byte counters, fixed 1s/60s
 rates, retry/stop/publication latency, cleaning availability and memory metrics.
+Diagnostic status also carries the boiler detail beyond the Home projection:
+`lineaMicra.boiler.coffee.targetDeciC`, `lineaMicra.boiler.steam.level`
+(`level_1`–`level_3`), and a whole-second `lineaMicra.boiler.sampleAgeMs`.
 `cloudCall` remains the last HTTP call. Cleaning never changes control state.
 Payload byte totals use 64-bit counters and include positive partial sends.
 Rate windows use the 64-bit monotonic clock, independently of millisecond

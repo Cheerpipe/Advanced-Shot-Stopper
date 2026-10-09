@@ -234,6 +234,16 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
       ws.cleaning == MicraCleaningState::CLEANING ? "cleaning" : "unknown");
   escapeJsonString(ws.cleaningLabel, g_work->historyJson, NetworkWorkBuf::kHistoryJson);
   delta.field("lineaMicra.websocket.cleaningLabel", "\"%s\"", g_work->historyJson);
+  delta.field("lineaMicra.readiness", "\"%s\"",
+              lineaMicraReadinessName(lineaMicraReadiness(micra)));
+  delta.field("lineaMicra.boiler.coffee.state", "\"%s\"",
+              lineaMicraBoilerStateName(micra.coffeeBoiler));
+  delta.field("lineaMicra.boiler.coffee.readyAtUtcSec", "%lu",
+              static_cast<unsigned long>(micra.coffeeReadyAtUtcSec));
+  delta.field("lineaMicra.boiler.steam.state", "\"%s\"",
+              lineaMicraBoilerStateName(micra.steamBoiler));
+  delta.field("lineaMicra.boiler.steam.readyAtUtcSec", "%lu",
+              static_cast<unsigned long>(micra.steamReadyAtUtcSec));
 #else
   delta.field("machineIntegration", "\"none\"");
 #endif
@@ -447,6 +457,26 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
                 micra.connectionFreshness ? "connection" : "time");
     delta.field("lineaMicra.freshnessMs", "%lu",
                 static_cast<unsigned long>(micra_timing::kStateFreshnessMs));
+    delta.field("lineaMicra.readiness", "\"%s\"",
+                lineaMicraReadinessName(lineaMicraReadiness(micra)));
+    delta.field("lineaMicra.boiler.coffee.state", "\"%s\"",
+                lineaMicraBoilerStateName(micra.coffeeBoiler));
+    delta.field("lineaMicra.boiler.coffee.targetDeciC", "%u",
+                static_cast<unsigned>(micra.targetDeciC));
+    delta.field("lineaMicra.boiler.coffee.readyAtUtcSec", "%lu",
+                static_cast<unsigned long>(micra.coffeeReadyAtUtcSec));
+    delta.field("lineaMicra.boiler.steam.state", "\"%s\"",
+                lineaMicraBoilerStateName(micra.steamBoiler));
+    delta.field("lineaMicra.boiler.steam.level", "\"%s\"",
+                lineaMicraSteamLevelName(micra.steamLevel));
+    delta.field("lineaMicra.boiler.steam.readyAtUtcSec", "%lu",
+                static_cast<unsigned long>(micra.steamReadyAtUtcSec));
+    // Whole seconds, like sampleAgeMs: the browser interpolates the boiler
+    // age and estimate countdowns locally instead of costing delta frames.
+    delta.field("lineaMicra.boiler.sampleAgeMs", "%lu",
+                static_cast<unsigned long>(micra.temperatureAtMs == 0
+                    ? 0
+                    : static_cast<uint32_t>(millis() - micra.temperatureAtMs) / 1000 * 1000));
     delta.field("lineaMicra.powerSource", "\"%s\"", micraPowerSourceName(micra.powerSource));
     delta.field("lineaMicra.phase", "\"%s\"", lineaMicraPhaseName(micra.phase));
     delta.field("lineaMicra.temperatureState", "\"%s\"", lineaMicraTemperatureStateName(micra.temperatureState));
