@@ -641,6 +641,28 @@ if (/\bruntimeConfig\b/.test(scaleWorker) ||
     throw new Error('Hwmon must reuse the 5 s HeapCapSnapshot instead of sampling heap twice');
   }
 }
+{
+  // The four input sub-phase boundaries must partition the retired aggregate
+  // phase chronologically around their call groups (checked within the loop
+  // body so definitions elsewhere in the concatenation cannot match).
+  const loopBody = firmwareCore.slice(
+      firmwareCore.indexOf('recordResetUptime(loopStartedAtMs)'));
+  const marks = [
+    'machineIntegrationBackflush(true)',
+    'finishLoopPhase(LoopPhase::INPUT_BACKFLUSH)',
+    'pushActivatorDrivePermission(loopScaleLink)',
+    'finishLoopPhase(LoopPhase::INPUT_DRIVE_PERMISSION)',
+    'processScaleWorkerEvents();',
+    'finishLoopPhase(LoopPhase::INPUT_SCALE_EVENTS)',
+    'observeMachineSenseFromSession(loopScaleLink)',
+    'finishLoopPhase(LoopPhase::INPUT_MACHINE_SERVICE)',
+  ].map((m) => loopBody.indexOf(m));
+  if (marks.some((at) => at < 0) ||
+      marks.some((at, i) => i > 0 && at <= marks[i - 1])) {
+    throw new Error(
+        'Input sub-phase boundaries must stay in chronological order around their call groups');
+  }
+}
 if (!domain.includes('HEALTH_HEAP_LOW_RESTART_MS') ||
     !firmwareCore.includes('DebugCode::HEALTH_HEAP_RESTART') ||
     !firmwareCore.includes('controlAllowsConfigurationNow() && !circuitClosed')) {

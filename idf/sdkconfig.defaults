@@ -9,6 +9,9 @@
 
 CONFIG_FREERTOS_HZ=1000
 CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y
+# Pins the runtime-stats clock to esp_timer microseconds; the per-task CPU
+# deltas in the loop phase profiler assume this unit.
+CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER=y
 CONFIG_FREERTOS_IN_IRAM=y
 # Builds refresh an existing sdkconfig when selected defaults change.
 # Firmware reads core pins via xTaskGetCoreID regardless.

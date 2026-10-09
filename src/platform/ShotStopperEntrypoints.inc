@@ -665,15 +665,23 @@ void loop() {
   const bool profileLoopPhases = taskProfiler.loopPhaseProfilingEnabled();
   uint32_t loopPhaseStartedAtUs = loopStartedAtUs;
 #if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
-  // Own-CPU time per phase uses the runtime-stats clock (esp_timer µs, U32)
-  // — the same counter uxTaskGetSystemState reports — so a phase's wall
-  // maximum pairs with its own-CPU time and preemption is the difference.
-  uint32_t loopPhaseCpuStartedUs = portGET_RUN_TIME_COUNTER_VALUE();
+  // Own-CPU time per phase reads the kernel-accounted runtime counter of
+  // THIS task (vTaskGetInfo → ulRunTimeCounter, esp_timer µs, U32) — the
+  // per-task value uxTaskGetSystemState reports. The global runtime counter
+  // would not do: it is the same clock as micros() and would carry
+  // preemption. The paired delta makes preemption at a wall maximum
+  // derivable by subtraction. vTaskGetInfo is lock-free field copying.
+  const auto loopTaskCpuUs = []() {
+    TaskStatus_t status;
+    vTaskGetInfo(nullptr, &status, pdFALSE, eInvalid);
+    return static_cast<uint32_t>(status.ulRunTimeCounter);
+  };
+  uint32_t loopPhaseCpuStartedUs = loopTaskCpuUs();
 #endif
   const auto finishLoopPhase = [&](LoopPhase phase) {
     const uint32_t endedAtUs = micros();
 #if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
-    const uint32_t cpuEndedUs = portGET_RUN_TIME_COUNTER_VALUE();
+    const uint32_t cpuEndedUs = loopTaskCpuUs();
     loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs, endedAtUs,
                              cpuEndedUs - loopPhaseCpuStartedUs);
     loopPhaseCpuStartedUs = cpuEndedUs;

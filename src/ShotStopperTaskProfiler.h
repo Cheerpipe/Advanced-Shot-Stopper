@@ -355,8 +355,9 @@ struct TaskProfilerSnapshot {
   uint8_t rowCount = 0;
   TaskProfilerRow rows[TASK_PROFILER_MAX_ROWS] = {};
   LoopPhaseProfilerSnapshot loopPhases = {};
-  // Lock waits inside the loop input sub-phases (Micra backflush mux_, scale
-  // critical-event mutex): last and observed-maximum acquisition time.
+  // Mutex-acquisition waits observed on the control loop (Micra backflush
+  // mux_, scale critical-event mutex) across every acquiring phase, not
+  // just the input sub-phases: last and observed-maximum wait time.
   uint32_t micraBackflushWaitLastUs = 0;
   uint32_t micraBackflushWaitMaxUs = 0;
   uint32_t scaleEventsWaitLastUs = 0;

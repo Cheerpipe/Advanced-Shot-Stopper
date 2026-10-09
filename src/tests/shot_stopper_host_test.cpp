@@ -16534,6 +16534,20 @@ void h06_loop_phase_input_subphases_report_individually() {
   CHECK(summedPct < aggregatePct + 0.001f);
 }
 
+void h08_lock_wait_stats_flow_into_the_profiler_snapshot() {
+  resetHarness(false, false);
+  noteMutexWaitUs(scaleCriticalEventWaitLastUsStat(),
+                 scaleCriticalEventWaitMaxUsStat(), 650U);
+  noteMutexWaitUs(micraBackflushWaitLastUsStat(),
+                  micraBackflushWaitMaxUsStat(), 25U);
+  TaskProfilerSnapshot snap;
+  copyTaskProfiler(snap);
+  CHECK(snap.scaleEventsWaitLastUs == 650U);
+  CHECK(snap.scaleEventsWaitMaxUs == 650U);
+  CHECK(snap.micraBackflushWaitLastUs == 25U);
+  CHECK(snap.micraBackflushWaitMaxUs == 25U);
+}
+
 void h07_mutex_wait_accounting_tracks_last_and_max() {
   std::atomic<uint32_t> lastUs{0};
   std::atomic<uint32_t> maxUs{0};
@@ -20316,6 +20330,7 @@ const TestCase testCases[] = {
     {"H05", h05_loop_phase_profiler_pairs_cpu_with_wall_maxima},
     {"H06", h06_loop_phase_input_subphases_report_individually},
     {"H07", h07_mutex_wait_accounting_tracks_last_and_max},
+    {"H08", h08_lock_wait_stats_flow_into_the_profiler_snapshot},
     {"N01", n01_wall_clock_tracks_utc_from_anchor},
     {"N01b", n01b_wall_clock_survives_millis_wrap},
     {"N01c", n01c_wall_clock_cancel_syncing_restores_anchor},

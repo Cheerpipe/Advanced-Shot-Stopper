@@ -44,8 +44,16 @@ int main(){
   puts(live.c_str());puts(full.c_str());
   tasks.remainingMs=900;tasks.sampleCount=20;tasks.averageTotalCpuPct=80;
   tasks.lastCaptureUs=100;tasks.maxCaptureUs=200;
+  tasks.micraBackflushWaitLastUs=11;tasks.micraBackflushWaitMaxUs=22;
+  tasks.scaleEventsWaitLastUs=33;tasks.scaleEventsWaitMaxUs=44;
+  for(auto &row:tasks.loopPhases.rows)row.maxCpuUs=7;
   for(auto &row:tasks.loopPhases.rows){row.averageExecutionUs=100;row.maxExecutionUs=1000;row.lastExecutionUs=500;}
   assert(format(false)==live && format(true)!=full);
+  const auto detailed=format(true);
+  assert(detailed.find("\\\"maxCpuUs\\\":7")!=std::string::npos);
+  assert(detailed.find("\\\"lockWaits\\\":{\\\"micraBackflush\\\":{\\\"lastUs\\\":11,"
+                      "\\\"maxUs\\\":22},\\\"scaleEvents\\\":{\\\"lastUs\\\":33,"
+                      "\\\"maxUs\\\":44}}")!=std::string::npos);
   ++tasks.loopPhases.rows[0].recentGapExecutionUs;
   assert(format(false)!=live);
   size_t used=0;assert(!formatTaskProfilerObject(work.statusJson,40,&used,tasks,false));
@@ -96,7 +104,7 @@ int main(){
   assert(!('errorG' in row) && !('errorPct' in row));
   assert(Array.isArray(row.wCg) && Array.isArray(row.wAtMs));
   fs.writeFileSync(path.join(directory, 'sizes.json'), JSON.stringify({
-    fixture: 'one task and sixteen loop phases; one synthetic 42g shot',
+    fixture: 'one task and nineteen loop phases; one synthetic 42g shot',
     taskLiveBytes: Buffer.byteLength(wire[0]),
     taskFullBytes: Buffer.byteLength(wire[1]),
     shotRowBytes: Buffer.byteLength(wire[5])}, null, 2)+'\n');
