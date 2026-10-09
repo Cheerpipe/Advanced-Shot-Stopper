@@ -1,8 +1,28 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
+
+namespace shotstopper {
+
+// Lock-wait accounting for the Micra service's backflush poll (the control
+// loop's input/backflush phase): the poll updates these atomics, the
+// task-profiler snapshot reads them. Inline with function-local storage so
+// every host-test harness that compiles only fragments links the same
+// instance; this header is Micra-specific, keeping the concrete feature out
+// of the common machine lifecycle.
+inline std::atomic<uint32_t> &micraBackflushWaitLastUsStat() {
+  static std::atomic<uint32_t> value{0};
+  return value;
+}
+inline std::atomic<uint32_t> &micraBackflushWaitMaxUsStat() {
+  static std::atomic<uint32_t> value{0};
+  return value;
+}
+
+}  // namespace shotstopper
 
 namespace shotstopper::micra_timing {
 

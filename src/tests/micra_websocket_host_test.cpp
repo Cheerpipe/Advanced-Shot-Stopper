@@ -11,6 +11,7 @@
 #include "ShotStopperOutboundAdmission.h"
 #include "ShotStopperJsonArena.h"
 #include "ShotStopperDomain.h"
+#include "ShotStopperTaskProfiler.h"
 
 static std::atomic<uint64_t> now{1000};
 static std::atomic<unsigned> timerReads{0};
@@ -721,4 +722,15 @@ int main() {
   shotstopper::MicraWebSocketTest::pongPublicationRace();
   shotstopper::MicraWebSocketTest::concurrentStatusLifecycle();
   shotstopper::MicraWebSocketTest::setupAdmissionAndBackoff();
+  {
+    // The backflush poll records its mutex acquisition wait for the task
+    // profiler; the stats must stay readable and consistent afterwards.
+    shotstopper::ShotStopperMicraService service;
+    service.backflush(false);
+    const uint32_t last =
+        shotstopper::micraBackflushWaitLastUsStat().load();
+    const uint32_t max =
+        shotstopper::micraBackflushWaitMaxUsStat().load();
+    assert(max >= last);
+  }
 }

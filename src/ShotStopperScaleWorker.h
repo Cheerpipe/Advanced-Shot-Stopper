@@ -167,6 +167,16 @@ extern QueueHandle_t scaleEventQueue;
 extern portMUX_TYPE scaleLinkMux;
 extern TaskMutex scalePreferredMacMux;
 extern TaskMutex scaleCriticalEventMux;
+// Lock-wait accounting for the control loop's drain of critical scale
+// events: the drain updates these, the task-profiler snapshot reads them.
+inline std::atomic<uint32_t> &scaleCriticalEventWaitLastUsStat() {
+  static std::atomic<uint32_t> value{0};
+  return value;
+}
+inline std::atomic<uint32_t> &scaleCriticalEventWaitMaxUsStat() {
+  static std::atomic<uint32_t> value{0};
+  return value;
+}
 extern uint32_t scalePacketSequence;
 extern char scalePreferredMac[PREFERRED_SCALE_MAC_CAPACITY];
 extern char scalePreferredName[PREFERRED_SCALE_NAME_CAPACITY];

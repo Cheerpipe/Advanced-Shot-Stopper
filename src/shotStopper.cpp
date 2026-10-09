@@ -66,6 +66,7 @@
 #include "ShotStopperOutboundAdmission.h"
 #include "ShotStopperFirmwareMode.h"
 #include "machine/ShotStopperMachineIntegration.h"
+#include "machine/ShotStopperMicraTiming.h"
 #include "ShotStopperIntegrationState.h"
 #include "ShotStopperDebugExport.h"
 #if !defined(SHOT_STOPPER_HOST_TEST)
@@ -903,6 +904,14 @@ uint32_t elapsedMs(uint32_t sinceMs) {
 void copyTaskProfiler(TaskProfilerSnapshot &output) {
   taskProfiler.copySnapshot(output);
   loopPhaseProfiler.copySnapshot(output.loopPhases);
+  output.micraBackflushWaitLastUs =
+      micraBackflushWaitLastUsStat().load(std::memory_order_relaxed);
+  output.micraBackflushWaitMaxUs =
+      micraBackflushWaitMaxUsStat().load(std::memory_order_relaxed);
+  output.scaleEventsWaitLastUs =
+      scaleCriticalEventWaitLastUsStat().load(std::memory_order_relaxed);
+  output.scaleEventsWaitMaxUs =
+      scaleCriticalEventWaitMaxUsStat().load(std::memory_order_relaxed);
 }
 
 void copyScaleProfilerStatus(ScaleProfilerStatus &output) {

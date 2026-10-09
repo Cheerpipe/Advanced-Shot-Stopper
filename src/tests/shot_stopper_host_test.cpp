@@ -16382,7 +16382,8 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   CHECK(snap.recentGapUs == 5100U);
   CHECK(snap.recentDelayUs == 4200U);
   CHECK(snap.recentDispatchUs == 300U);
-  CHECK(snap.rows[3].recentGapExecutionUs == 90U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)]
+            .recentGapExecutionUs == 90U);
   profiler.beginIteration(false, 1003000U);
   profiler.record(LoopPhase::DIAGNOSTICS, 10U, 2003000U);
   profiler.copySnapshot(snap);
@@ -16391,10 +16392,14 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   CHECK(snap.peakDelayUs == 7000U);
   CHECK(snap.peakDispatchUs == 400U);
   CHECK(snap.recentGapMs == 5U);
-  CHECK(snap.rows[3].lastExecutionUs == 90U);
-  CHECK(snap.rows[3].maxExecutionUs == 150U);
-  CHECK(snap.rows[3].peakGapExecutionUs == 150U);
-  CHECK(snap.rows[3].recentGapExecutionUs == 90U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].lastExecutionUs ==
+        90U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].maxExecutionUs ==
+        150U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)]
+            .peakGapExecutionUs == 150U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)]
+            .recentGapExecutionUs == 90U);
   profiler.requestReset();
   CHECK(profiler.consumeReset());
   profiler.copySnapshot(snap);
@@ -16403,13 +16408,17 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   CHECK(snap.peakDelayUs == 0U);
   CHECK(snap.peakDispatchUs == 0U);
   CHECK(snap.recentGapMs == 5U);
-  CHECK(snap.rows[3].maxExecutionUs == 0U);
-  CHECK(snap.rows[3].lastExecutionUs == 90U);
-  CHECK(snap.rows[3].recentGapExecutionUs == 90U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].maxExecutionUs ==
+        0U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].lastExecutionUs ==
+        90U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)]
+            .recentGapExecutionUs == 90U);
   profiler.beginIteration(true, 1000U);
   profiler.copySnapshot(snap);
-  CHECK(snap.rows[3].lastExecutionUs == 90U);
-  CHECK(snap.rows[3].sampleCount == 0U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].lastExecutionUs ==
+        90U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].sampleCount == 0U);
   profiler.record(LoopPhase::SAFETY_HEALTH, 100U, 1100U);
   profiler.record(LoopPhase::CONTROL, 200U, 1300U);
   // Housekeeping only records on iterations that run the gated block.
@@ -16424,9 +16433,13 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   CHECK(snap.rows[0].maxExecutionUs == 100U);
   CHECK(snap.rows[0].currentCpuPct > 0.009f);
   CHECK(snap.rows[0].currentCpuPct < 0.011f);
-  CHECK(strcmp(snap.rows[1].name, "scale/machine input") == 0);
-  CHECK(strcmp(snap.rows[2].name, "machine guards") == 0);
-  CHECK(strcmp(snap.rows[5].name, "commands") == 0);
+  CHECK(snap.rowCount == 19U);
+  CHECK(strcmp(snap.rows[1].name, "input/backflush poll") == 0);
+  CHECK(strcmp(snap.rows[2].name, "input/drive permission") == 0);
+  CHECK(strcmp(snap.rows[3].name, "input/scale events") == 0);
+  CHECK(strcmp(snap.rows[4].name, "input/machine service") == 0);
+  CHECK(strcmp(snap.rows[5].name, "machine guards") == 0);
+  CHECK(strcmp(snap.rows[8].name, "commands") == 0);
   const auto &history = snap.rows[static_cast<uint8_t>(
       LoopPhase::HOUSEKEEPING_SHOT_PERSISTENCE)];
   CHECK(strcmp(history.name, "housekeeping/history") == 0);
@@ -16449,12 +16462,90 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
             .recentGapExecutionUs == 30U);
   CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS)]
             .peakGapExecutionUs == 0U);
-  CHECK(snap.rows[3].averageExecutionUs == 200U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)]
+            .averageExecutionUs == 200U);
 
   profiler.beginIteration(false, 3501000U);
   profiler.copySnapshot(snap);
   CHECK(snap.rows[0].averageCpuPct > 0.002f);
   CHECK(snap.rows[0].averageCpuPct < 0.003f);
+}
+
+void h05_loop_phase_profiler_pairs_cpu_with_wall_maxima() {
+  LoopPhaseProfiler profiler;
+  LoopPhaseProfilerSnapshot snap;
+  // Default cpuUs equals the wall duration (callers without a counter read).
+  profiler.beginIteration(true, 1000U);
+  profiler.record(LoopPhase::INPUT_SCALE_EVENTS, 500U, 1500U);
+  profiler.record(LoopPhase::INPUT_SCALE_EVENTS, 300U, 1800U);
+  // Cross the 1 s window so the snapshot actually publishes.
+  profiler.record(LoopPhase::DIAGNOSTICS, 0U, 1001000U);
+  profiler.copySnapshot(snap);
+  const auto &scaleEvents =
+      snap.rows[static_cast<uint8_t>(LoopPhase::INPUT_SCALE_EVENTS)];
+  CHECK(scaleEvents.maxExecutionUs == 500U);
+  CHECK(scaleEvents.maxCpuUs == 500U);
+  // A larger wall sample with a SMALLER cpu share replaces the pair: the
+  // stored cpu time belongs to the iteration that set the maximum.
+  profiler.record(LoopPhase::INPUT_SCALE_EVENTS, 900U, 2200U, 120U);
+  profiler.record(LoopPhase::INPUT_SCALE_EVENTS, 400U, 2600U, 390U);
+  profiler.record(LoopPhase::DIAGNOSTICS, 0U, 2001000U);
+  profiler.copySnapshot(snap);
+  CHECK(scaleEvents.maxExecutionUs == 900U);
+  CHECK(scaleEvents.maxCpuUs == 120U);
+  // Reset clears the paired maximum with the rest.
+  profiler.requestReset();
+  CHECK(profiler.consumeReset());
+  profiler.copySnapshot(snap);
+  CHECK(scaleEvents.maxExecutionUs == 0U);
+  CHECK(scaleEvents.maxCpuUs == 0U);
+}
+
+void h06_loop_phase_input_subphases_report_individually() {
+  LoopPhaseProfiler profiler;
+  LoopPhaseProfilerSnapshot snap;
+  profiler.beginIteration(true, 1000U);
+  profiler.record(LoopPhase::INPUT_BACKFLUSH, 100U, 1100U);
+  profiler.record(LoopPhase::INPUT_DRIVE_PERMISSION, 50U, 1150U);
+  profiler.record(LoopPhase::INPUT_SCALE_EVENTS, 700U, 1850U);
+  profiler.record(LoopPhase::INPUT_MACHINE_SERVICE, 200U, 2050U);
+  profiler.record(LoopPhase::DIAGNOSTICS, 0U, 1001000U);
+  profiler.copySnapshot(snap);
+  const auto sub = [&](LoopPhase phase) -> const LoopPhaseProfilerRow & {
+    return snap.rows[static_cast<uint8_t>(phase)];
+  };
+  CHECK(strcmp(sub(LoopPhase::INPUT_BACKFLUSH).name, "input/backflush poll") ==
+        0);
+  CHECK(strcmp(sub(LoopPhase::INPUT_MACHINE_SERVICE).name,
+               "input/machine service") == 0);
+  CHECK(sub(LoopPhase::INPUT_BACKFLUSH).lastExecutionUs == 100U);
+  CHECK(sub(LoopPhase::INPUT_SCALE_EVENTS).maxExecutionUs == 700U);
+  // The four sub-phases each sampled once; their CPU percentages sum to the
+  // same share one aggregate phase with the same total would report.
+  const float aggregateUs = 100U + 50U + 700U + 200U;
+  float aggregatePct = 0.0f;
+  float summedPct = 0.0f;
+  for (uint8_t i = static_cast<uint8_t>(LoopPhase::INPUT_BACKFLUSH);
+       i <= static_cast<uint8_t>(LoopPhase::INPUT_MACHINE_SERVICE); ++i) {
+    summedPct += snap.rows[i].currentCpuPct;
+  }
+  aggregatePct = aggregateUs * 100.0f / 1000000.0f;  // exact 1 s window
+  CHECK(summedPct > aggregatePct - 0.001f);
+  CHECK(summedPct < aggregatePct + 0.001f);
+}
+
+void h07_mutex_wait_accounting_tracks_last_and_max() {
+  std::atomic<uint32_t> lastUs{0};
+  std::atomic<uint32_t> maxUs{0};
+  noteMutexWaitUs(lastUs, maxUs, 40U);
+  noteMutexWaitUs(lastUs, maxUs, 90U);
+  noteMutexWaitUs(lastUs, maxUs, 10U);
+  CHECK(lastUs.load() == 10U);
+  CHECK(maxUs.load() == 90U);
+  // The live stats are readable from the profiler snapshot's side (the
+  // Micra backflush accessor is exercised by the micra host tests).
+  CHECK(scaleCriticalEventWaitLastUsStat().load() == 0U);
+  CHECK(micraBackflushWaitLastUsStat().load() == 0U);
 }
 
 void r51_auto_to_manual_guard_fires_while_scale_lost() {
@@ -20222,6 +20313,9 @@ const TestCase testCases[] = {
     {"H02", h02_hwmon_cpu_load_uses_refreshed_idle_and_ema},
     {"H03", h03_task_profiler_start_stop_updates_snapshot},
     {"H04", h04_loop_phase_profiler_publishes_window_and_session_totals},
+    {"H05", h05_loop_phase_profiler_pairs_cpu_with_wall_maxima},
+    {"H06", h06_loop_phase_input_subphases_report_individually},
+    {"H07", h07_mutex_wait_accounting_tracks_last_and_max},
     {"N01", n01_wall_clock_tracks_utc_from_anchor},
     {"N01b", n01b_wall_clock_survives_millis_wrap},
     {"N01c", n01c_wall_clock_cancel_syncing_restores_anchor},

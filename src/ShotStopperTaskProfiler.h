@@ -26,7 +26,10 @@ constexpr uint32_t TASK_PROFILER_MAX_DURATION_MS = 5UL * 60UL * 1000UL;
 
 enum class LoopPhase : uint8_t {
   SAFETY_HEALTH,
-  SCALE_MACHINE_INPUT,
+  INPUT_BACKFLUSH,
+  INPUT_DRIVE_PERMISSION,
+  INPUT_SCALE_EVENTS,
+  INPUT_MACHINE_SERVICE,
   MACHINE_GUARDS,
   CONTROL,
   ALERTS_TIMERS,
@@ -49,7 +52,10 @@ constexpr uint8_t LOOP_PHASE_COUNT = static_cast<uint8_t>(LoopPhase::COUNT);
 inline const char *loopPhaseName(LoopPhase phase) {
   switch (phase) {
     case LoopPhase::SAFETY_HEALTH: return "safety/health";
-    case LoopPhase::SCALE_MACHINE_INPUT: return "scale/machine input";
+    case LoopPhase::INPUT_BACKFLUSH: return "input/backflush poll";
+    case LoopPhase::INPUT_DRIVE_PERMISSION: return "input/drive permission";
+    case LoopPhase::INPUT_SCALE_EVENTS: return "input/scale events";
+    case LoopPhase::INPUT_MACHINE_SERVICE: return "input/machine service";
     case LoopPhase::MACHINE_GUARDS: return "machine guards";
     case LoopPhase::CONTROL: return "control";
     case LoopPhase::ALERTS_TIMERS: return "alerts/timers";
@@ -74,6 +80,9 @@ struct LoopPhaseProfilerRow {
   uint32_t sampleCount = 0;
   uint32_t averageExecutionUs = 0;
   uint32_t maxExecutionUs = 0;
+  // Own-CPU time of the very iteration that set maxExecutionUs, so
+  // preemption at the maximum is derivable by subtraction.
+  uint32_t maxCpuUs = 0;
   uint32_t lastExecutionUs = 0;
   uint32_t peakGapExecutionUs = 0;
   uint32_t recentGapExecutionUs = 0;
@@ -107,11 +116,22 @@ class LoopPhaseProfiler {
   }
 
   void record(LoopPhase phase, uint32_t durationUs, uint32_t nowUs) {
+    record(phase, durationUs, nowUs, durationUs);
+  }
+
+  // cpuUs is the acquiring task's own-CPU delta over the same interval
+  // (runtime-stats clock); it defaults to the wall duration for callers
+  // without a counter read. A new wall maximum stores the paired cpuUs.
+  void record(LoopPhase phase, uint32_t durationUs, uint32_t nowUs,
+              uint32_t cpuUs) {
     const uint8_t index = static_cast<uint8_t>(phase);
     if (index >= LOOP_PHASE_COUNT) return;
     iterationUs_[index] = durationUs;
     lastUs_[index] = durationUs;
-    if (durationUs > maxUs_[index]) maxUs_[index] = durationUs;
+    if (durationUs > maxUs_[index]) {
+      maxUs_[index] = durationUs;
+      maxCpuUs_[index] = cpuUs;
+    }
     if (active_) {
       totalsUs_[index] += durationUs;
       windowUs_[index] += durationUs;
@@ -127,6 +147,7 @@ class LoopPhaseProfiler {
   bool consumeReset() {
     if (!resetRequested_.exchange(false, std::memory_order_acq_rel)) return false;
     memset(maxUs_, 0, sizeof(maxUs_));
+    memset(maxCpuUs_, 0, sizeof(maxCpuUs_));
     memset(peakGapUs_, 0, sizeof(peakGapUs_));
     peakGapMs_ = 0;
     peakGapDurationUs_ = 0;
@@ -139,6 +160,7 @@ class LoopPhaseProfiler {
     snapshot_.peakDispatchUs = 0;
     for (LoopPhaseProfilerRow &row : snapshot_.rows) {
       row.maxExecutionUs = 0;
+      row.maxCpuUs = 0;
       row.peakGapExecutionUs = 0;
     }
     return true;
@@ -215,6 +237,7 @@ class LoopPhaseProfiler {
       row.peakGapExecutionUs = peakGapUs_[i];
       row.recentGapExecutionUs = recentGapUs_[i];
       row.maxExecutionUs = maxUs_[i];
+      row.maxCpuUs = maxCpuUs_[i];
       if (!active_) continue;
       row.sampleCount = sampleCounts_[i];
       row.averageExecutionUs = sampleCounts_[i] == 0
@@ -243,6 +266,7 @@ class LoopPhaseProfiler {
   uint32_t windowUs_[LOOP_PHASE_COUNT] = {};
   uint32_t sampleCounts_[LOOP_PHASE_COUNT] = {};
   uint32_t maxUs_[LOOP_PHASE_COUNT] = {};
+  uint32_t maxCpuUs_[LOOP_PHASE_COUNT] = {};
   uint32_t lastUs_[LOOP_PHASE_COUNT] = {};
   uint32_t iterationUs_[LOOP_PHASE_COUNT] = {};
   uint32_t peakGapUs_[LOOP_PHASE_COUNT] = {};
@@ -263,6 +287,18 @@ class LoopPhaseProfiler {
   mutable TaskMutex snapshotMutex_;
   LoopPhaseProfilerSnapshot snapshot_ = {};
 };
+
+// Last/max acquisition wait for a blocking mutex, updated from the acquiring
+// task; read by the task-profiler serializer via the snapshot fields below.
+inline void noteMutexWaitUs(std::atomic<uint32_t> &lastUs,
+                            std::atomic<uint32_t> &maxUs, uint32_t waitedUs) {
+  lastUs.store(waitedUs, std::memory_order_relaxed);
+  uint32_t known = maxUs.load(std::memory_order_relaxed);
+  while (waitedUs > known &&
+         !maxUs.compare_exchange_weak(known, waitedUs,
+                                      std::memory_order_relaxed)) {
+  }
+}
 
 enum class TaskProfilerState : uint8_t { NEVER, RUNNING, STOPPED, FAILED };
 enum class TaskProfilerStopReason : uint8_t {
@@ -319,6 +355,12 @@ struct TaskProfilerSnapshot {
   uint8_t rowCount = 0;
   TaskProfilerRow rows[TASK_PROFILER_MAX_ROWS] = {};
   LoopPhaseProfilerSnapshot loopPhases = {};
+  // Lock waits inside the loop input sub-phases (Micra backflush mux_, scale
+  // critical-event mutex): last and observed-maximum acquisition time.
+  uint32_t micraBackflushWaitLastUs = 0;
+  uint32_t micraBackflushWaitMaxUs = 0;
+  uint32_t scaleEventsWaitLastUs = 0;
+  uint32_t scaleEventsWaitMaxUs = 0;
 };
 
 class TaskProfiler {

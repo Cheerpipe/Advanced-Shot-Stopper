@@ -388,7 +388,13 @@ void processScaleWorkerEvents() {
   while (processed < SCALE_EVENT_QUEUE_LENGTH + 1) {
     bool receivedCritical = false;
     bool receivedWeight = false;
+    // Every iteration blocks on this mutex; record how long the wait took
+    // so a drained-events phase maximum can blame lock contention.
+    const uint32_t criticalLockStartedUs = micros();
     scaleCriticalEventMux.lock();
+    noteMutexWaitUs(scaleCriticalEventWaitLastUsStat(),
+                    scaleCriticalEventWaitMaxUsStat(),
+                    micros() - criticalLockStartedUs);
     if (scaleReferenceChangedEventPending) {
       event = scaleReferenceChangedEvent;
       scaleReferenceChangedEventPending = false;

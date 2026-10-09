@@ -5,6 +5,7 @@
 #include "ShotStopperJsonArena.h"
 #include "ShotStopperDomain.h"
 #include "ShotStopperMicraTiming.h"
+#include "ShotStopperTaskProfiler.h"
 #include "ShotStopperMicraPublicIdentityCache.h"
 #include "ShotStopperPsram.h"
 
@@ -766,7 +767,12 @@ bool ShotStopperMicraService::backflushReadyLocked() const {
 }
 
 MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
+  // The control loop polls this every iteration; record how long the
+  // blocking acquisition waited so a backflush phase maximum can blame it.
+  const uint32_t muxLockStartedUs = micros();
   TaskLockGuard lock(mux_);
+  noteMutexWaitUs(micraBackflushWaitLastUsStat(), micraBackflushWaitMaxUsStat(),
+                  micros() - muxLockStartedUs);
   qualifyBackflushLocked();
   auto result = consume ? backflush_.take() : backflush_.status();
   result.ready = backflushReadyLocked();

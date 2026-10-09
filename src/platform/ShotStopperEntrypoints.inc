@@ -664,10 +664,22 @@ void loop() {
   if (resetLoopMax) loopMaxGapMs = 0;
   const bool profileLoopPhases = taskProfiler.loopPhaseProfilingEnabled();
   uint32_t loopPhaseStartedAtUs = loopStartedAtUs;
+#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+  // Own-CPU time per phase uses the runtime-stats clock (esp_timer µs, U32)
+  // — the same counter uxTaskGetSystemState reports — so a phase's wall
+  // maximum pairs with its own-CPU time and preemption is the difference.
+  uint32_t loopPhaseCpuStartedUs = portGET_RUN_TIME_COUNTER_VALUE();
+#endif
   const auto finishLoopPhase = [&](LoopPhase phase) {
     const uint32_t endedAtUs = micros();
-    loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs,
-                             endedAtUs);
+#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+    const uint32_t cpuEndedUs = portGET_RUN_TIME_COUNTER_VALUE();
+    loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs, endedAtUs,
+                             cpuEndedUs - loopPhaseCpuStartedUs);
+    loopPhaseCpuStartedUs = cpuEndedUs;
+#else
+    loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs, endedAtUs);
+#endif
     loopPhaseStartedAtUs = endedAtUs;
   };
   recordResetUptime(loopStartedAtMs);
@@ -722,13 +734,16 @@ void loop() {
     session.stopTimerRequested = false;
     cancelScaleCompletionBeep();
   }
+  finishLoopPhase(LoopPhase::INPUT_BACKFLUSH);
   pushActivatorDrivePermission(loopScaleLink);
   machineSampleInput();
+  finishLoopPhase(LoopPhase::INPUT_DRIVE_PERMISSION);
   processScaleWorkerEvents();
+  finishLoopPhase(LoopPhase::INPUT_SCALE_EVENTS);
   observeMachineSenseFromSession(loopScaleLink);
   serviceMachine();
   fillLoopGuardsFromIntention(machinePollIntention(), loopScaleLink);
-  finishLoopPhase(LoopPhase::SCALE_MACHINE_INPUT);
+  finishLoopPhase(LoopPhase::INPUT_MACHINE_SERVICE);
   const MachineIntention powerIntention = machineLastIntention();
   const bool wakeGestureConsumed = serviceMachineWakeGesture(powerIntention);
   if (!wakeGestureConsumed) {

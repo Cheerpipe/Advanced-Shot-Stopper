@@ -854,12 +854,18 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
   // Detailed measurements remain available in the full debug export.
   if (full && !jsonScratchAppend(buf, cap, used,
           ",\"stackUnit\":\"bytes\",\"remainingMs\":%lu,\"sampleCount\":%lu,"
-          "\"averageTotalCpuPct\":%.1f,\"lastCaptureUs\":%lu,\"maxCaptureUs\":%lu",
+          "\"averageTotalCpuPct\":%.1f,\"lastCaptureUs\":%lu,\"maxCaptureUs\":%lu,"
+          "\"lockWaits\":{\"micraBackflush\":{\"lastUs\":%lu,\"maxUs\":%lu},"
+          "\"scaleEvents\":{\"lastUs\":%lu,\"maxUs\":%lu}}",
           static_cast<unsigned long>(tasks.remainingMs),
           static_cast<unsigned long>(tasks.sampleCount),
           static_cast<double>(tasks.averageTotalCpuPct),
           static_cast<unsigned long>(tasks.lastCaptureUs),
-          static_cast<unsigned long>(tasks.maxCaptureUs))) return false;
+          static_cast<unsigned long>(tasks.maxCaptureUs),
+          static_cast<unsigned long>(tasks.micraBackflushWaitLastUs),
+          static_cast<unsigned long>(tasks.micraBackflushWaitMaxUs),
+          static_cast<unsigned long>(tasks.scaleEventsWaitLastUs),
+          static_cast<unsigned long>(tasks.scaleEventsWaitMaxUs))) return false;
   if (!jsonScratchAppend(buf, cap, used, ",\"rows\":[")) return false;
   for (uint8_t i = 0; i < tasks.rowCount; ++i) {
     char safeName[TASK_PROFILER_NAME_CAPACITY * 2] = {};
@@ -893,9 +899,11 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
       return false;
     }
     if (full && !jsonScratchAppend(buf, cap, used,
-            ",\"averageExecutionUs\":%lu,\"maxExecutionUs\":%lu,\"lastExecutionUs\":%lu",
+            ",\"averageExecutionUs\":%lu,\"maxExecutionUs\":%lu,\"maxCpuUs\":%lu,"
+            "\"lastExecutionUs\":%lu",
             static_cast<unsigned long>(row.averageExecutionUs),
             static_cast<unsigned long>(row.maxExecutionUs),
+            static_cast<unsigned long>(row.maxCpuUs),
             static_cast<unsigned long>(row.lastExecutionUs))) return false;
     if (!jsonScratchAppend(buf, cap, used, "}")) return false;
   }
