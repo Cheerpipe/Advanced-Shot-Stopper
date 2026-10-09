@@ -1957,6 +1957,7 @@ void appendHistoryRecord(HistoryType type, uint32_t durationMs,
 #include "platform/ShotStopperPowerRuntime.inc"
 #include "control/ShotStopperWakeGesture.inc"
 #include "control/ShotStopperCycleRuntime.inc"
+#include "control/ShotStopperCycleFinalize.inc"
 #include "scale/ShotStopperScaleEvents.inc"
 #include "control/ShotStopperControlStateMachine.inc"
 #include "control/ShotStopperSettingsCallbacks.inc"
