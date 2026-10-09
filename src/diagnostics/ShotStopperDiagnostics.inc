@@ -149,8 +149,8 @@ void publishControlGate() {
 // while network-task wrappers bump with release and pair with the acquire
 // load here. Direct store mutation without a wrapper does not propagate
 // while the guard holds (pinned by host test h11). The factory-reset path
-// bumps nothing, but it always ends in a restart and the guard starts
-// unfetched at boot.
+// bumps the generation too, so its wiped stores re-fetch immediately
+// (host builds aside: that wrapper is firmware-only).
 bool statusStoreCacheValid = false;
 uint32_t statusStoreCacheGeneration = 0;
 bool statusStoreCacheIncludeGoodHistory = false;

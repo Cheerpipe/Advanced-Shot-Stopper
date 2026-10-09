@@ -135,13 +135,18 @@ recent Loop gap value. Both gaps include scheduling and waiting beyond phase
 execution. The breakdown captures the delay call, the dispatch time from its
 return to the next loop start, and the remaining unphased work. The delay call
 includes scheduler time until the task runs again; it does not identify which
-task ran during that interval. Housekeeping has eight separate, non-overlapping
+task ran during that interval. Housekeeping has ten separate, non-overlapping
 rows: serial log, serial CLI, settings persistence, history persistence, scale
-identity persistence, weight telemetry, status publication, and LED service.
+identity persistence, weight telemetry, and LED service, plus the status
+publication's three contiguous sub-phases — owner snapshot gather, store
+copy, and lock+commit — which the publish itself records on its own timeline,
+so a housekeeping pass that publishes nothing contributes no status rows.
 History persistence includes selective immutable image capture before dispatch
 to the flash worker: clean ring payloads are skipped, and curves copy only the
-uncommitted suffix rather than the retained bank. These rows record only on
-iterations that run the 10 ms-gated
+uncommitted suffix rather than the retained bank. The shot-store persistence
+service additionally skips its locked dirty check entirely while the store
+generation matches the last image the flash worker acknowledged. These rows
+record only on iterations that run the 10 ms-gated
 block; skipped iterations contribute zero to their loop-gap breakdown.
 The loop owns the counters; ordinary
 phase records avoid locking, while one-second and health-window publication

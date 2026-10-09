@@ -1259,10 +1259,10 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
   NetworkWorkBuf &work = *g_work;
   auto &cache = work.statsCache;
   auto &snapshot = cache.snapshot;
-  // Only a record-epoch move reloads the cache: sort/dir toggles re-sort
-  // the cached records in place and window changes re-slice them, so the
-  // ~10.8 KB records copy (formerly ~509 KB with every curve) happens only
-  // when the store actually changed.
+  // Only a record-epoch move reloads the cache: sort/dir toggles rebuild a
+  // requested-order index permutation over the untouched newest-first
+  // records, so the ~10.8 KB records copy (formerly ~509 KB with every
+  // curve) happens only when the store actually changed.
   const bool reload = !cache.valid || snapshot.epoch != epoch;
   if (reload) {
     if (!callbacks_.copyShotStatsRecords) return false;
