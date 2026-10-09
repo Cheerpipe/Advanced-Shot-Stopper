@@ -694,6 +694,50 @@ Hwmon hwmon;
 HwmonSnapshot hwmonSnapshot = {};
 TaskProfiler taskProfiler;
 LoopPhaseProfiler loopPhaseProfiler;
+// Shared wall/own-CPU timeline for loop-phase recording, kept at file scope
+// (not as loop() locals) so publishControlStatus can close the status gather
+// sub-phase and open the store-copy/commit sub-phases on the same clock the
+// loop body uses. loopPhaseStartedAtUs == 0 means the loop has not run yet,
+// so boot-time publishes skip sub-phase recording.
+static uint32_t loopPhaseStartedAtUs = 0;
+#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+static uint32_t loopPhaseCpuStartedUs = 0;
+
+// Own-CPU time per phase reads THIS task's kernel-accounted runtime counter
+// (vTaskGetInfo with eRunning — the lock-free branch; the SMP
+// ulTaskGetRunTimeCounter is not on this TU's include path — esp_timer
+// µs, U32). The global runtime counter would not do: it is the same
+// clock as micros() and would carry preemption. The kernel folds a
+// running stint's CPU in at switch-out, so a delta is attributed to the
+// phase where the fold landed; record() clamps the stored pair so
+// wall − cpu stays a conservative lower bound of preemption.
+static uint32_t loopTaskCpuUs() {
+  TaskStatus_t status;
+  vTaskGetInfo(nullptr, &status, pdFALSE, eRunning);
+  return static_cast<uint32_t>(status.ulRunTimeCounter);
+}
+#endif
+
+static void finishLoopPhase(LoopPhase phase) {
+  const uint32_t endedAtUs = micros();
+#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+  const uint32_t cpuEndedUs = loopTaskCpuUs();
+  loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs, endedAtUs,
+                           cpuEndedUs - loopPhaseCpuStartedUs);
+  loopPhaseCpuStartedUs = cpuEndedUs;
+#else
+  loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs, endedAtUs);
+#endif
+  loopPhaseStartedAtUs = endedAtUs;
+}
+
+// Lock-wait accounting for the status publish's shot-store and control-status
+// acquisitions on the control task: the acquire path updates these, the
+// task-profiler snapshot reads them.
+std::atomic<uint32_t> shotStoreWaitLastUs{0};
+std::atomic<uint32_t> shotStoreWaitMaxUs{0};
+std::atomic<uint32_t> controlStatusWaitLastUs{0};
+std::atomic<uint32_t> controlStatusWaitMaxUs{0};
 bool platformClockReady = false;
 bool persistenceReady = false;
 bool firmwareInitializationComplete = false;
@@ -912,6 +956,13 @@ void copyTaskProfiler(TaskProfilerSnapshot &output) {
       scaleCriticalEventWaitLastUsStat().load(std::memory_order_relaxed);
   output.scaleEventsWaitMaxUs =
       scaleCriticalEventWaitMaxUsStat().load(std::memory_order_relaxed);
+  output.shotStoreWaitLastUs =
+      shotStoreWaitLastUs.load(std::memory_order_relaxed);
+  output.shotStoreWaitMaxUs = shotStoreWaitMaxUs.load(std::memory_order_relaxed);
+  output.controlStatusWaitLastUs =
+      controlStatusWaitLastUs.load(std::memory_order_relaxed);
+  output.controlStatusWaitMaxUs =
+      controlStatusWaitMaxUs.load(std::memory_order_relaxed);
 }
 
 void copyScaleProfilerStatus(ScaleProfilerStatus &output) {
@@ -998,7 +1049,10 @@ bool shotLogSavePending() {
 
 void copyHistoryPage(HistoryPage &page, size_t offset, size_t limit,
                      ShotLogSortDir dir) {
+  const uint32_t lockStartedUs = micros();
   TaskLockGuard lock(shotStoreMutex);
+  noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs,
+                  micros() - lockStartedUs);
   historyLog.copyPage(page, offset, limit, dir);
 }
 
@@ -1039,7 +1093,10 @@ ShotStatsView copyShotStats() {
 bool copyShotStoreStatus(uint32_t &bootId, PersistedLastShot &last,
                          PersistedLastShot &good, ShotCurveRecord &goodCurve,
                          bool includeGoodHistory) {
+  const uint32_t lockStartedUs = micros();
   TaskLockGuard lock(shotStoreMutex);
+  noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs,
+                  micros() - lockStartedUs);
   bootId = shotLog.bootId();
   last = persistedLastShot;
   // The star rating lives in the shot-log record once the shot is committed;

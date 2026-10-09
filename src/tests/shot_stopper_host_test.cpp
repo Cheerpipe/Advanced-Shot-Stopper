@@ -16421,9 +16421,12 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].sampleCount == 0U);
   profiler.record(LoopPhase::SAFETY_HEALTH, 100U, 1100U);
   profiler.record(LoopPhase::CONTROL, 200U, 1300U);
-  // Housekeeping only records on iterations that run the gated block.
+  // Housekeeping only records on iterations that run the gated block. The
+  // status publish splits into three contiguous sub-phases.
   profiler.record(LoopPhase::HOUSEKEEPING_SHOT_PERSISTENCE, 70U, 1400U);
-  profiler.record(LoopPhase::HOUSEKEEPING_STATUS, 30U, 1430U);
+  profiler.record(LoopPhase::HOUSEKEEPING_STATUS_GATHER, 12U, 1412U);
+  profiler.record(LoopPhase::HOUSEKEEPING_STATUS_STORE_COPY, 10U, 1422U);
+  profiler.record(LoopPhase::HOUSEKEEPING_STATUS_COMMIT, 8U, 1430U);
   profiler.record(LoopPhase::DIAGNOSTICS, 50U, 1001000U);
   profiler.copySnapshot(snap);
   CHECK(snap.rowCount == LOOP_PHASE_COUNT);
@@ -16433,20 +16436,36 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   CHECK(snap.rows[0].maxExecutionUs == 100U);
   CHECK(snap.rows[0].currentCpuPct > 0.009f);
   CHECK(snap.rows[0].currentCpuPct < 0.011f);
-  CHECK(snap.rowCount == 19U);
+  CHECK(snap.rowCount == 21U);
   CHECK(strcmp(snap.rows[1].name, "input/backflush poll") == 0);
   CHECK(strcmp(snap.rows[2].name, "input/drive permission") == 0);
   CHECK(strcmp(snap.rows[3].name, "input/scale events") == 0);
   CHECK(strcmp(snap.rows[4].name, "input/machine service") == 0);
   CHECK(strcmp(snap.rows[5].name, "machine guards") == 0);
   CHECK(strcmp(snap.rows[8].name, "commands") == 0);
+  CHECK(strcmp(snap.rows[static_cast<uint8_t>(
+                    LoopPhase::HOUSEKEEPING_STATUS_GATHER)]
+                    .name,
+               "status/gather") == 0);
+  CHECK(strcmp(snap.rows[static_cast<uint8_t>(
+                    LoopPhase::HOUSEKEEPING_STATUS_STORE_COPY)]
+                    .name,
+               "status/store copy") == 0);
+  CHECK(strcmp(snap.rows[static_cast<uint8_t>(
+                    LoopPhase::HOUSEKEEPING_STATUS_COMMIT)]
+                    .name,
+               "status/lock+commit") == 0);
   const auto &history = snap.rows[static_cast<uint8_t>(
       LoopPhase::HOUSEKEEPING_SHOT_PERSISTENCE)];
   CHECK(strcmp(history.name, "housekeeping/history") == 0);
   CHECK(history.sampleCount == 1U);
   CHECK(history.maxExecutionUs == 70U);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS)]
-            .averageExecutionUs == 30U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS_GATHER)]
+            .averageExecutionUs == 12U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS_STORE_COPY)]
+            .averageExecutionUs == 10U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS_COMMIT)]
+            .averageExecutionUs == 8U);
   CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::DIAGNOSTICS)]
             .averageExecutionUs == 50U);
   CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::FINAL_SCALE_DRAIN)]
@@ -16458,9 +16477,9 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   profiler.capturePeakGap(1U, 1000U, 900U, 80U);
   profiler.record(LoopPhase::DIAGNOSTICS, 10U, 3002000U);
   profiler.copySnapshot(snap);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS)]
-            .recentGapExecutionUs == 30U);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS)]
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS_COMMIT)]
+            .recentGapExecutionUs == 8U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS_GATHER)]
             .peakGapExecutionUs == 0U);
   CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)]
             .averageExecutionUs == 200U);
@@ -16550,12 +16569,18 @@ void h08_lock_wait_stats_flow_into_the_profiler_snapshot() {
                  scaleCriticalEventWaitMaxUsStat(), 650U);
   noteMutexWaitUs(micraBackflushWaitLastUsStat(),
                   micraBackflushWaitMaxUsStat(), 25U);
+  noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs, 700U);
+  noteMutexWaitUs(controlStatusWaitLastUs, controlStatusWaitMaxUs, 150U);
   TaskProfilerSnapshot snap;
   copyTaskProfiler(snap);
   CHECK(snap.scaleEventsWaitLastUs == 650U);
   CHECK(snap.scaleEventsWaitMaxUs == 650U);
   CHECK(snap.micraBackflushWaitLastUs == 25U);
   CHECK(snap.micraBackflushWaitMaxUs == 25U);
+  CHECK(snap.shotStoreWaitLastUs == 700U);
+  CHECK(snap.shotStoreWaitMaxUs == 700U);
+  CHECK(snap.controlStatusWaitLastUs == 150U);
+  CHECK(snap.controlStatusWaitMaxUs == 150U);
 }
 
 void h07_mutex_wait_accounting_tracks_last_and_max() {

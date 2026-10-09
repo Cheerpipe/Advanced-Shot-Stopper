@@ -152,6 +152,10 @@ void publishControlStatus() {
   const uint32_t macPauseRemainingMs = scaleMacCachePauseRemainingMs(now);
   const bool persistPending = liveConfigPersistPending();
   const CupTareDiagnostics cupTare = captureCupTareDiagnostics();
+  // Sub-phases ride the loop's shared phase timeline; boot-time publishes
+  // run before the first loop iteration and skip recording.
+  const bool recordStatusPhases = loopPhaseStartedAtUs != 0;
+  if (recordStatusPhases) finishLoopPhase(LoopPhase::HOUSEKEEPING_STATUS_GATHER);
   uint32_t shotBootId = 0;
   PersistedLastShot statusLastShot = {};
   PersistedLastShot statusLastGoodShot = {};
@@ -162,7 +166,12 @@ void publishControlStatus() {
       !session.active);
   HistoryPage statusHistoryPage = {};
   copyHistoryPage(statusHistoryPage, 0, 1, ShotLogSortDir::Desc);
+  if (recordStatusPhases)
+    finishLoopPhase(LoopPhase::HOUSEKEEPING_STATUS_STORE_COPY);
+  const uint32_t statusLockStartedUs = micros();
   TaskLockGuard lock(controlStatusMutex);
+  noteMutexWaitUs(controlStatusWaitLastUs, controlStatusWaitMaxUs,
+                  micros() - statusLockStartedUs);
   ControlStatusFields &next = publishedControlStatus;
   new (&next) ControlStatusFields{};
   next.cupTare = cupTare;
@@ -477,6 +486,7 @@ void publishControlStatus() {
       serialLogDroppedCount();
   lock.unlock();
   publishControlGate();
+  if (recordStatusPhases) finishLoopPhase(LoopPhase::HOUSEKEEPING_STATUS_COMMIT);
 }
 
 void refreshControlStatus() {

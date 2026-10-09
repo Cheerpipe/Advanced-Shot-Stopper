@@ -46,6 +46,8 @@ int main(){
   tasks.lastCaptureUs=100;tasks.maxCaptureUs=200;
   tasks.micraBackflushWaitLastUs=11;tasks.micraBackflushWaitMaxUs=22;
   tasks.scaleEventsWaitLastUs=33;tasks.scaleEventsWaitMaxUs=44;
+  tasks.shotStoreWaitLastUs=55;tasks.shotStoreWaitMaxUs=66;
+  tasks.controlStatusWaitLastUs=77;tasks.controlStatusWaitMaxUs=88;
   for(auto &row:tasks.loopPhases.rows)row.maxCpuUs=7;
   for(auto &row:tasks.loopPhases.rows){row.averageExecutionUs=100;row.maxExecutionUs=1000;row.lastExecutionUs=500;}
   assert(format(false)==live && format(true)!=full);
@@ -53,7 +55,9 @@ int main(){
   assert(detailed.find("\\\"maxCpuUs\\\":7")!=std::string::npos);
   assert(detailed.find("\\\"lockWaits\\\":{\\\"micraBackflush\\\":{\\\"lastUs\\\":11,"
                       "\\\"maxUs\\\":22},\\\"scaleEvents\\\":{\\\"lastUs\\\":33,"
-                      "\\\"maxUs\\\":44}}")!=std::string::npos);
+                      "\\\"maxUs\\\":44},\\\"shotStore\\\":{\\\"lastUs\\\":55,"
+                      "\\\"maxUs\\\":66},\\\"controlStatus\\\":{\\\"lastUs\\\":77,"
+                      "\\\"maxUs\\\":88}}")!=std::string::npos);
   ++tasks.loopPhases.rows[0].recentGapExecutionUs;
   assert(format(false)!=live);
   size_t used=0;assert(!formatTaskProfilerObject(work.statusJson,40,&used,tasks,false));

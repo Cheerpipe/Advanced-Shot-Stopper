@@ -72,7 +72,7 @@ struct StatsStreamCache {
 };
 
 struct NetworkWorkBuf {
-  // Fits the diagnostic status with up to 20 task rows and 16 loop-phase
+  // Fits the diagnostic status with up to 20 task rows and 21 loop-phase
   // rows, plus the record-page UI section and debug-export chunks that
   // share this buffer.
   static constexpr size_t kStatusJson = 40960;
@@ -856,7 +856,9 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
           ",\"stackUnit\":\"bytes\",\"remainingMs\":%lu,\"sampleCount\":%lu,"
           "\"averageTotalCpuPct\":%.1f,\"lastCaptureUs\":%lu,\"maxCaptureUs\":%lu,"
           "\"lockWaits\":{\"micraBackflush\":{\"lastUs\":%lu,\"maxUs\":%lu},"
-          "\"scaleEvents\":{\"lastUs\":%lu,\"maxUs\":%lu}}",
+          "\"scaleEvents\":{\"lastUs\":%lu,\"maxUs\":%lu},"
+          "\"shotStore\":{\"lastUs\":%lu,\"maxUs\":%lu},"
+          "\"controlStatus\":{\"lastUs\":%lu,\"maxUs\":%lu}}",
           static_cast<unsigned long>(tasks.remainingMs),
           static_cast<unsigned long>(tasks.sampleCount),
           static_cast<double>(tasks.averageTotalCpuPct),
@@ -865,7 +867,11 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
           static_cast<unsigned long>(tasks.micraBackflushWaitLastUs),
           static_cast<unsigned long>(tasks.micraBackflushWaitMaxUs),
           static_cast<unsigned long>(tasks.scaleEventsWaitLastUs),
-          static_cast<unsigned long>(tasks.scaleEventsWaitMaxUs))) return false;
+          static_cast<unsigned long>(tasks.scaleEventsWaitMaxUs),
+          static_cast<unsigned long>(tasks.shotStoreWaitLastUs),
+          static_cast<unsigned long>(tasks.shotStoreWaitMaxUs),
+          static_cast<unsigned long>(tasks.controlStatusWaitLastUs),
+          static_cast<unsigned long>(tasks.controlStatusWaitMaxUs))) return false;
   if (!jsonScratchAppend(buf, cap, used, ",\"rows\":[")) return false;
   for (uint8_t i = 0; i < tasks.rowCount; ++i) {
     char safeName[TASK_PROFILER_NAME_CAPACITY * 2] = {};

@@ -40,7 +40,9 @@ enum class LoopPhase : uint8_t {
   HOUSEKEEPING_SHOT_PERSISTENCE,
   HOUSEKEEPING_SCALE_PERSISTENCE,
   HOUSEKEEPING_WEIGHT_TELEMETRY,
-  HOUSEKEEPING_STATUS,
+  HOUSEKEEPING_STATUS_GATHER,
+  HOUSEKEEPING_STATUS_STORE_COPY,
+  HOUSEKEEPING_STATUS_COMMIT,
   HOUSEKEEPING_LED,
   DIAGNOSTICS,
   FINAL_SCALE_DRAIN,
@@ -66,7 +68,9 @@ inline const char *loopPhaseName(LoopPhase phase) {
     case LoopPhase::HOUSEKEEPING_SHOT_PERSISTENCE: return "housekeeping/history";
     case LoopPhase::HOUSEKEEPING_SCALE_PERSISTENCE: return "housekeeping/scale save";
     case LoopPhase::HOUSEKEEPING_WEIGHT_TELEMETRY: return "housekeeping/weight";
-    case LoopPhase::HOUSEKEEPING_STATUS: return "housekeeping/status";
+    case LoopPhase::HOUSEKEEPING_STATUS_GATHER: return "status/gather";
+    case LoopPhase::HOUSEKEEPING_STATUS_STORE_COPY: return "status/store copy";
+    case LoopPhase::HOUSEKEEPING_STATUS_COMMIT: return "status/lock+commit";
     case LoopPhase::HOUSEKEEPING_LED: return "housekeeping/LED";
     case LoopPhase::DIAGNOSTICS: return "diagnostics";
     case LoopPhase::FINAL_SCALE_DRAIN: return "final scale drain";
@@ -359,12 +363,17 @@ struct TaskProfilerSnapshot {
   TaskProfilerRow rows[TASK_PROFILER_MAX_ROWS] = {};
   LoopPhaseProfilerSnapshot loopPhases = {};
   // Mutex-acquisition waits observed on the control loop (Micra backflush
-  // mux_, scale critical-event mutex) across every acquiring phase, not
-  // just the input sub-phases: last and observed-maximum wait time.
+  // mux_, scale critical-event mutex, and the status publish's shot-store and
+  // control-status acquisitions) across every acquiring phase, not just the
+  // input sub-phases: last and observed-maximum wait time.
   uint32_t micraBackflushWaitLastUs = 0;
   uint32_t micraBackflushWaitMaxUs = 0;
   uint32_t scaleEventsWaitLastUs = 0;
   uint32_t scaleEventsWaitMaxUs = 0;
+  uint32_t shotStoreWaitLastUs = 0;
+  uint32_t shotStoreWaitMaxUs = 0;
+  uint32_t controlStatusWaitLastUs = 0;
+  uint32_t controlStatusWaitMaxUs = 0;
 };
 
 class TaskProfiler {
