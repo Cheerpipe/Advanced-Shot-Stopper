@@ -15,15 +15,30 @@ struct HomeStreamDelta {
 
   void field(const char *path, const char *format, ...) __attribute__((format(printf, 3, 4))) {
     if (!ok || index >= capacity) { ok = false; return; }
+    // Fields are short; hash from stack scratch and keep the PSRAM work
+    // buffer out of the steady-state read path. Overflow falls back to the
+    // full buffer, so the hashed and emitted bytes are identical either way.
+    char scratch[256];
     va_list args;
     va_start(args, format);
-    const int length = vsnprintf(g_work->jsonItem, NetworkWorkBuf::kJsonItem, format, args);
+    int length = vsnprintf(scratch, sizeof(scratch), format, args);
     va_end(args);
-    if (length < 0 || static_cast<size_t>(length) >= NetworkWorkBuf::kJsonItem) { ok = false; return; }
+    const char *value = scratch;
+    if (length < 0) { ok = false; return; }
+    if (static_cast<size_t>(length) >= sizeof(scratch)) {
+      va_start(args, format);
+      length = vsnprintf(g_work->jsonItem, NetworkWorkBuf::kJsonItem, format, args);
+      va_end(args);
+      value = g_work->jsonItem;
+      if (length < 0 || static_cast<size_t>(length) >= NetworkWorkBuf::kJsonItem) {
+        ok = false;
+        return;
+      }
+    }
     const uint32_t hash = crc32Update(0xFFFFFFFFU,
-        reinterpret_cast<const uint8_t *>(g_work->jsonItem), length);
+        reinterpret_cast<const uint8_t *>(value), length);
     if (snapshot || hashes[index] != hash) {
-      ok = statusJsonAppend(&used, "%s\"%s\":%s", changed ? "," : "", path, g_work->jsonItem);
+      ok = statusJsonAppend(&used, "%s\"%s\":%s", changed ? "," : "", path, value);
       hashes[index] = hash;
       ++changed;
     }

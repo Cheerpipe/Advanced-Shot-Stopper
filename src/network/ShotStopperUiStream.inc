@@ -368,6 +368,27 @@ void ShotStopperNetwork::serviceUiStream(uint32_t now) {
 
 void ShotStopperNetwork::uiStreamDispatch(void *context) {
   auto &self = *static_cast<ShotStopperNetwork *>(context);
+  // One fetch per dispatch, shared by every session below: the refresh
+  // handshake, the 6.7 KB control snapshot, and the 5.1 KB home-shot copy
+  // are dispatch-constant, so a takeover must not redo them per session.
+  // httpd serialization stays exclusive: one take(0) for the whole
+  // dispatch; if settings work holds it, the urgent flag re-arms the next
+  // dispatch with a complete view.
+  if (xSemaphoreTake(self.statusResponseMux_.get(), 0) != pdTRUE) {
+    self.uiStreamUrgent_.store(true, std::memory_order_release);
+    self.uiStreamWorkPending_.store(false, std::memory_order_release);
+    return;
+  }
+  self.callbacks_.refreshControlStatus();
+  ControlStatusSnapshot &control = self.workBuf_->control;
+  self.loadControlStatus(control);
+  // The RF notification can precede the committed presentation snapshot.
+  if ((control.activeCycle || control.relayClosed) !=
+      self.controlCriticalRfActive_.load(std::memory_order_acquire))
+    self.uiStreamUrgent_.store(true, std::memory_order_release);
+  ShotLogRecord latest = {};
+  const bool eligible = self.callbacks_.copyHomeShot &&
+      self.callbacks_.copyHomeShot(latest, self.workBuf_->homeCurve);
   for (auto &session : self.uiStreams_) {
     if (session.fd < 0) continue;
     bool allowed;
@@ -391,63 +412,43 @@ void ShotStopperNetwork::uiStreamDispatch(void *context) {
     }
     else if (session.bound) {
       httpd_sess_update_lru_counter(self.server_, session.fd);
-      self.sendUiStream(session);
+      self.sendUiStream(session, control, latest, eligible);
     }
   }
+  self.unlockWorkBuf();
   uiStreamSendKind = "control";
   self.uiStreamWorkPending_.store(false, std::memory_order_release);
 }
 
-void ShotStopperNetwork::sendUiStream(UiStreamSession &session) {
-  // httpd serialization is exclusive. Try rather than wait behind Network's
-  // occasional settings work; the next dispatch recovers a complete view.
-  if (xSemaphoreTake(statusResponseMux_.get(), 0) != pdTRUE) {
-    uiStreamUrgent_.store(true, std::memory_order_release);
-    return;
-  }
-  callbacks_.refreshControlStatus();
-  ControlStatusSnapshot &control = workBuf_->control;
-  loadControlStatus(control);
-  // The RF notification can precede the committed presentation snapshot.
-  if ((control.activeCycle || control.relayClosed) !=
-      controlCriticalRfActive_.load(std::memory_order_acquire))
-    uiStreamUrgent_.store(true, std::memory_order_release);
-  ShotLogRecord latest = {};
-  const bool eligible = callbacks_.copyHomeShot &&
-      callbacks_.copyHomeShot(latest, workBuf_->homeCurve);
+void ShotStopperNetwork::sendUiStream(UiStreamSession &session,
+                                      ControlStatusSnapshot &control,
+                                      const ShotLogRecord &latest, bool eligible) {
   // Home first, then the shot card: the client's setup window waits for both
   // and must not queue behind record pages, which can pace across dispatches.
   if (!sendHomeStream(session, control, eligible ? &latest : nullptr)) {
-    unlockWorkBuf();
     httpd_sess_trigger_close(server_, session.fd);
     return;
   }
   if (!sendShotCard(session, control, latest, eligible)) {
-    unlockWorkBuf();
     httpd_sess_trigger_close(server_, session.fd);
     return;
   }
   if (session.diagnostic && !sendDiagnosticStream(session, control)) {
-    unlockWorkBuf();
     httpd_sess_trigger_close(server_, session.fd);
     return;
   }
   if (session.historyOn && !sendHistoryStream(session, control)) {
-    unlockWorkBuf();
     httpd_sess_trigger_close(server_, session.fd);
     return;
   }
   if (session.statsOn && !sendStatsStream(session, control)) {
-    unlockWorkBuf();
     httpd_sess_trigger_close(server_, session.fd);
     return;
   }
   if (session.logOn && !sendLogStream(session, control)) {
-    unlockWorkBuf();
     httpd_sess_trigger_close(server_, session.fd);
     return;
   }
-  unlockWorkBuf();
 }
 
 bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
@@ -528,7 +529,11 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   const bool replace = session.resync || session.boot != control.bootId ||
       session.cycle != card.cycleId || session.shot != card.shotLogId ||
       session.cursor > curve.count || session.markersHash != markers ||
-      session.prefixHash != uiStreamCurveHash(curve, session.cursor);
+      // Steady state has cursor == count; reuse the full-curve hash already
+      // computed above instead of CRC-ing the same bytes a second time.
+      session.prefixHash != (session.cursor == curve.count
+                                 ? prefix
+                                 : uiStreamCurveHash(curve, session.cursor));
   if (!replace && session.fingerprint == fingerprint)
     return true;
   const uint16_t base = replace ? 0 : session.cursor;

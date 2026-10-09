@@ -650,7 +650,8 @@ class ShotStopperNetwork {
   static void uiStreamFree(void *context);
   static void uiStreamDispatch(void *context);
   void serviceUiStream(uint32_t now);
-  void sendUiStream(UiStreamSession &session);
+  void sendUiStream(UiStreamSession &session, ControlStatusSnapshot &control,
+                    const ShotLogRecord &latest, bool eligible);
   bool sendShotCard(UiStreamSession &session, const ControlStatusSnapshot &control,
                     const ShotLogRecord &latest, bool eligible);
   bool sendHomeStream(UiStreamSession &session, const ControlStatusSnapshot &control,

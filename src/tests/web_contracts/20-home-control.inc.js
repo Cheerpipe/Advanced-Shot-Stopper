@@ -433,8 +433,8 @@ int main(){
     const run=spawnSync(binary,[],{encoding:'utf8'});
     assert.equal(run.status,0,run.error?.message||run.stderr);
   }finally{fs.rmSync(binary,{force:true})}
-  const lockFailure=stream.slice(stream.indexOf('if (xSemaphoreTake(statusResponseMux_'),
-    stream.indexOf('callbacks_.refreshControlStatus();'));
+  const lockFailure=stream.slice(stream.indexOf('if (xSemaphoreTake(self.statusResponseMux_'),
+    stream.indexOf('self.callbacks_.refreshControlStatus();'));
   assert(lockFailure.includes('uiStreamUrgent_.store(true'),'Workspace contention must preserve urgent delivery');
   assert(stream.includes('(control.activeCycle || control.relayClosed) !='),
     'A notification preceding the committed snapshot must preserve urgent delivery');
@@ -862,7 +862,7 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !codeIncludes(ui, "cupRemovedWeightG:number('cupRemovedWeightG')")) {
   throw new Error('Auto-to-manual time guard must be wired in config UI, live panel, shots API, and routes');
 }
-if (!network.includes('callbacks_.copyHomeShot(latest, workBuf_->homeCurve)') ||
+if (!network.includes('callbacks_.copyHomeShot(latest, self.workBuf_->homeCurve)') ||
     !network.includes('shotLogProjectLastShot(latest, linked)') ||
     !network.includes('shotLogProjectLastShot(latestShot, control.lastShot)') ||
     network.includes('\"lastGoodShot\":%s') ||
