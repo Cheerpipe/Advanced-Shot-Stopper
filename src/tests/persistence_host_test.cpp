@@ -1198,7 +1198,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(bank.presets[1].id == FACTORY_PRESET_ID_SINGLE);
   CHECK(bank.presets[0].slowExtractionGuardEnabled);
   CHECK(std::fabs(bank.presets[0].minRecoveryWeightG -
-                  DEFAULT_MIN_RECOVERY_WEIGHT_G) < 0.001f);
+                  FACTORY_DOUBLE_MIN_RECOVERY_WEIGHT_G) < 0.001f);
   CHECK(bank.presets[0].maxBbwBrewTimeMs == DEFAULT_MAX_BBW_BREW_TIME_MS);
   CHECK(bank.presets[0].cupProtectionEnabled);
   CHECK(bank.presets[0].stopIfCupRemoved);

@@ -94,7 +94,7 @@ reported only after the Micra dashboard confirms the same temperature.
 | Fast: minimum brew time | 28 s | 28 s |
 | Fast: maximum recovery weight | 20 g | 42 g |
 | Slow: decision time | 44 s | 44 s |
-| Slow: minimum recovery weight | 16 g | 34 g |
+| Slow: minimum recovery weight | 16 g | 32 g |
 
 Both start with BBW and Fast/Slow/A→M enabled, Max BBW time 50 s and initial
 BBW protection 12 s. These are factory seeds, not a description of a modified

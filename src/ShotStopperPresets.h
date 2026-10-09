@@ -72,6 +72,7 @@ inline void fillFactoryDoublePreset(ShotPreset &preset) {
   preset.id = FACTORY_PRESET_ID_DOUBLE;
   preset.isFactory = true;
   copyCString(preset.name, SHOT_PRESET_NAME_CAPACITY, "Double");
+  preset.minRecoveryWeightG = FACTORY_DOUBLE_MIN_RECOVERY_WEIGHT_G;
 }
 
 inline void seedDefaultShotPresetBank(ShotPresetBank &bank) {

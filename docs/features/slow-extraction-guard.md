@@ -28,7 +28,7 @@ Active preset, **Settings → Brew**. The ON/OFF switch is also on
 | --- | --- | --- | --- |
 | **Enable** | ON | ON / OFF | Master switch for the slow-shot recovery. |
 | **Max BBW brew time (s)** | 44 s | 5–55 s; greater than Fast's minimum when both are on | Decision time for the slow-shot branch. |
-| **Min recovery weight (g)** | 34 g Double / 16 g Single | 10–200 g; below target | Recovery floor; learned offset applies. |
+| **Min recovery weight (g)** | 32 g Double / 16 g Single | 10–200 g; below target | Recovery floor; learned offset applies. |
 
 ## How it works
 
