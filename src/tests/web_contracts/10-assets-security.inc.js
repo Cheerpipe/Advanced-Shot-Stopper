@@ -755,10 +755,10 @@ if (jsBytes > 359800) {
 // renderer, and the hydration-time brew baseline capture); compressed
 // budgets stay fixed.
 // The /setup skip exit and grace Done button contribute the same ~400 B of
-// HTML and ~1.5 KB of JS source allowance described above; compressed
-// budgets stay fixed.
-if (htmlBytes + jsBytes > 449200) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 449200)`);
+// HTML and ~1.5 KB of JS source allowance described above (448798 measured);
+// compressed budgets stay fixed.
+if (htmlBytes + jsBytes > 448900) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 448900)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

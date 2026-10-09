@@ -203,12 +203,14 @@
       !codeIncludes(setupJs, 'state="skipped"') ||
       !codeIncludes(setupJs, 'connectivitycheck.gstatic.com/generate_204') ||
       !codeIncludes(setupJs, '$("setupSkipDone").href=PROBE_URL') ||
+      !codeIncludes(setupJs, '$("setupSkip").onclick=skipSetup') ||
       // Post-confirm grace: the success screen stays readable and its Done
       // button ends the window early (finish arms probe success, then the
       // device lingers briefly before dropping the setup network).
       !partialHtml.setup.includes('id="setupFinish"') ||
       !codeIncludes(setupJs, '{action:"finish"}') ||
       !codeIncludes(setupJs, 'window.location.href=PROBE_URL') ||
+      !codeIncludes(setupJs, '$("setupFinish").onclick=finishSetup') ||
       !codeIncludes(setupJs, 'setupRescan").hidden = lastNetworks === null') ||
       !codeIncludes(setupJs, 'input.type=show?"text":"password"') ||
       !codeIncludes(setupJs, 'passToggle.setAttribute("aria-pressed"') ||

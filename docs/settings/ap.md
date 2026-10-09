@@ -68,8 +68,8 @@ setup page open on its own. The controller's
 Not ready to configure Wi-Fi yet? Choose **Continue without Wi-Fi** on the
 setup page. The sign-in window closes on its own, but your phone stays
 joined to the setup network and the setup page remains open at
-`http://192.168.4.1` until the setup network itself shuts down — reopen it
-there whenever you want to continue.
+`http://192.168.4.1/setup` until the setup network itself shuts down —
+reopen it there whenever you want to continue.
 
 If home Wi-Fi is lost but you know the device password, use the AP after
 reboot / `AP_START`: it serves the same guided setup page, and the whole

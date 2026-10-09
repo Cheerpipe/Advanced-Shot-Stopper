@@ -670,10 +670,10 @@ if (generated.icon48Gzip.length > 3500) {
 // Brew settings edited-field error attribution adds its reviewed runtime
 // allowance to the combined cap (130594 measured). Cap raised to 130700;
 // firmware image, memory placement and OTA partitions stay fixed.
-// The /setup skip exit (quiet form action, skipped-state card, probe-URL
-// helper and action flow) adds its reviewed combined allowance:
-// 130903 measured. Cap raised to 131000; firmware image, memory placement
-// and OTA partitions stay fixed.
+// The /setup skip exit and grace Done button (quiet form action,
+// skipped-state card, probe-URL helper, skip/finish action flows) add their
+// reviewed combined allowance: 130990 measured. Cap raised to 131000;
+// firmware image, memory placement and OTA partitions stay fixed.
 if (generated.combined > 131000) {
   throw new Error(`Combined Web UI gzip exceeds the 131000-byte flash budget (${generated.combined})`);
 }
