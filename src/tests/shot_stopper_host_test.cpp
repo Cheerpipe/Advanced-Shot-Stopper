@@ -159,6 +159,9 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   shotStorePersistRetryAtMs = 0;
   shotStorePersistIoRetryMs = 0;
   shotStoreDirtyGeneration.store(0, std::memory_order_relaxed);
+  // The status publish's gather cache keys on the generation; force a fresh
+  // fetch so a prior test's cache cannot serve stale data at generation 0.
+  statusStoreCacheValid = false;
   shotStoreObservedDirtyGeneration = 0;
   shotStorePersistInFlight = false;
   shotStorePersistResultReady = false;
@@ -16639,6 +16642,74 @@ void h10_newest_history_record_matches_first_desc_page_row() {
   CHECK(memcmp(&gathered, &newest, sizeof(HistoryRecord)) == 0);
 }
 
+void h11_status_store_cache_generation_guard() {
+  resetHarness(false, true);
+  ControlStatusSnapshot status;
+
+  // A valid home cycle makes the store curve dead data, so the publish's
+  // generation guard may hold across publishes in this state.
+  homeCycleResult = lastShotFromEndedCycle(EndReason::ACTIVATOR, 1500);
+  homeCycleResolvedAtMs = hostMillis;
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.homeCycle.valid);
+  CHECK(status.lastActivationId == 0);
+
+  // Pinned contract: a direct store mutation without a wrapper does not
+  // bump the generation and must NOT reach the next publish while the
+  // guard holds.
+  HistoryRecord direct = {};
+  direct.durationDs = 42;
+  direct.type = static_cast<uint8_t>(HistoryType::OTHER);
+  CHECK(historyLog.append(direct, false));
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.lastActivationId != historyLog.nextRecordId() - 1U);
+  // A generation bump is the documented invalidation for direct mutations.
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_relaxed);
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.lastActivationId == historyLog.nextRecordId() - 1U);
+  CHECK(status.lastActivationDurationDs == 42);
+
+  // Wrapper mutations bump and propagate, including a rating-only change.
+  ShotLogRecord shot = {};
+  shot.durationDs = 250;
+  shot.goalWeightG = 36;
+  shot.actualWeightCg = 3650;
+  CHECK(shotLog.append(shot, false));
+  ShotLogRecord storedShot = {};
+  CHECK(shotLog.copyNewestFirst(&storedShot, 1) == 1);
+  PersistedLastShot good = {};
+  good.valid = true;
+  good.cycleId = 44;
+  good.durationMs = 25000;
+  good.weightValid = true;
+  good.currentWeightG = 36.5f;
+  good.shotLogId = storedShot.id;
+  good.presetId = FACTORY_PRESET_ID_DOUBLE;
+  persistLastShotSnapshot(good);
+  CHECK(rateShotRecord(storedShot.id, 4));
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.lastGoodShotHistoryLinked);
+  CHECK(status.lastGoodShot.rating == 4);
+  CHECK(rateShotRecord(storedShot.id, 2));
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.lastGoodShot.rating == 2);
+
+  // Curve precedence is unchanged while the guard holds: a matching
+  // pendingFinalize owns the published curve, not the store gather.
+  pendingFinalize.pending = true;
+  pendingFinalize.cycleId = homeCycleResult.cycleId;
+  appendShotCurveObservation(pendingFinalize.curve, 36.5f, 15000, false);
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.shotCurveCount == pendingFinalize.curve.count);
+  CHECK(status.shotCurveAtMs[0] == 15000);
+}
+
 void h07_mutex_wait_accounting_tracks_last_and_max() {
   std::atomic<uint32_t> lastUs{0};
   std::atomic<uint32_t> maxUs{0};
@@ -20423,6 +20494,7 @@ const TestCase testCases[] = {
     {"H07", h07_mutex_wait_accounting_tracks_last_and_max},
     {"H08", h08_lock_wait_stats_flow_into_the_profiler_snapshot},
     {"H10", h10_newest_history_record_matches_first_desc_page_row},
+    {"H11", h11_status_store_cache_generation_guard},
     {"N01", n01_wall_clock_tracks_utc_from_anchor},
     {"N01b", n01b_wall_clock_survives_millis_wrap},
     {"N01c", n01c_wall_clock_cancel_syncing_restores_anchor},

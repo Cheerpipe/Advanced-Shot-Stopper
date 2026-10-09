@@ -135,6 +135,33 @@ void publishControlGate() {
 #endif
 }
 
+// Publish-side gather cache; single writer is the control task, so the
+// guard fields need no atomics of their own. While the store generation and
+// the good-history mode are unchanged AND the fetched curve would be dead
+// data anyway (an active session or a valid home cycle overwrites
+// statusLastGoodCurve from the sampler/pendingFinalize below, leaving only
+// the scalars observable), the publish reuses the cached gather and skips
+// the shotStoreMutex round trip. The generation is read BEFORE the fetch so
+// a mutation landing mid-fetch makes the cached generation stale and the
+// next publish re-fetches. Every wrapper that mutates the shot/history/
+// curve stores or the last-shot snapshot bumps shotStoreDirtyGeneration;
+// the memory_order_relaxed bump sites are same-task (control task) today,
+// while network-task wrappers bump with release and pair with the acquire
+// load here. Direct store mutation without a wrapper does not propagate
+// while the guard holds (pinned by host test h11). The factory-reset path
+// bumps nothing, but it always ends in a restart and the guard starts
+// unfetched at boot.
+bool statusStoreCacheValid = false;
+uint32_t statusStoreCacheGeneration = 0;
+bool statusStoreCacheIncludeGoodHistory = false;
+uint32_t statusShotBootId = 0;
+PersistedLastShot statusLastShot = {};
+PersistedLastShot statusLastGoodShot = {};
+bool statusLastGoodLinked = false;
+HistoryRecord statusNewestActivation = {};
+bool statusHasNewestActivation = false;
+static SHOT_STOPPER_PSRAM_BSS ShotCurveRecord statusLastGoodCurve;
+
 void publishControlStatus() {
   const uint32_t now = millis();
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
@@ -155,15 +182,22 @@ void publishControlStatus() {
   // run before the first loop iteration and skip recording.
   const bool recordStatusPhases = loopPhaseStartedAtUs != 0;
   if (recordStatusPhases) finishLoopPhase(LoopPhase::HOUSEKEEPING_STATUS_GATHER);
-  uint32_t shotBootId = 0;
-  PersistedLastShot statusLastShot = {};
-  PersistedLastShot statusLastGoodShot = {};
-  static SHOT_STOPPER_PSRAM_BSS ShotCurveRecord statusLastGoodCurve;
-  HistoryRecord statusNewestActivation = {};
-  bool hasNewestActivation = false;
-  const bool lastGoodHistoryLinked = copyShotStoreStatus(
-      shotBootId, statusLastShot, statusLastGoodShot, statusLastGoodCurve,
-      statusNewestActivation, hasNewestActivation, !session.active);
+  const bool includeGoodHistory = !session.active;
+  const bool storeCurveIsDead = session.active || homeCycleResult.valid;
+  const uint32_t gatherGeneration =
+      shotStoreDirtyGeneration.load(std::memory_order_acquire);
+  if (!statusStoreCacheValid ||
+      statusStoreCacheGeneration != gatherGeneration ||
+      statusStoreCacheIncludeGoodHistory != includeGoodHistory ||
+      !storeCurveIsDead) {
+    statusLastGoodLinked = copyShotStoreStatus(
+        statusShotBootId, statusLastShot, statusLastGoodShot,
+        statusLastGoodCurve, statusNewestActivation, statusHasNewestActivation,
+        includeGoodHistory);
+    statusStoreCacheGeneration = gatherGeneration;
+    statusStoreCacheIncludeGoodHistory = includeGoodHistory;
+    statusStoreCacheValid = true;
+  }
   if (recordStatusPhases)
     finishLoopPhase(LoopPhase::HOUSEKEEPING_STATUS_STORE_COPY);
   const uint32_t statusLockStartedUs = micros();
@@ -186,7 +220,7 @@ void publishControlStatus() {
   next.remoteControlEnabled = REMOTE_MACHINE_CONTROL_ENABLED;
   next.source = session.active ? session.source : ControlSource::NONE;
   next.cycleId = session.active ? session.id : 0;
-  next.bootId = shotBootId;
+  next.bootId = statusShotBootId;
   next.maintenanceLeaseActive = maintenanceLease.active;
   next.maintenanceLeaseId = maintenanceLease.active ? maintenanceLease.id : 0;
   next.maintenanceStartedAtMs =
@@ -317,8 +351,8 @@ void publishControlStatus() {
     next.homeCycle.currentWeightG = pendingFinalize.curve.weightCg[pendingFinalize.curve.count - 1] / 100.0f;
     next.homeCycle.weightValid = weightFresh;
   }
-  next.lastGoodShotHistoryLinked = lastGoodHistoryLinked;
-  if (hasNewestActivation) {
+  next.lastGoodShotHistoryLinked = statusLastGoodLinked;
+  if (statusHasNewestActivation) {
     const HistoryRecord &newest = statusNewestActivation;
     next.lastActivationId = newest.id;
     next.lastActivationEndedAtUnixSec = newest.endedAtUnixSec;
