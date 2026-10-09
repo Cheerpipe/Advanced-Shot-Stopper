@@ -23,6 +23,7 @@
     <p class="fieldHint">{{webui:setup.band_hint}}</p>
     <p class="fieldError" id="setupFieldError" hidden></p>
     <button type="submit" id="setupConnect">{{webui:setup.connect}}</button>
+    <button type="button" id="setupSkip" class="textLock">{{webui:setup.skip}}</button>
   </form>
   <div id="setupConnecting" class="setupState" hidden>
     <span class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
@@ -35,6 +36,10 @@
     <p id="setupSuccessText"></p>
     <p id="setupSuccessLinks" class="setupLinks"></p>
     <p class="fieldHint">{{webui:setup.close_hint}}</p>
+  </div>
+  <div id="setupSkipped" class="setupState" hidden>
+    <p>{{webui:setup.skip_text}}</p>
+    <a id="setupSkipDone" href="http://captive.apple.com/hotspot-detect.html">{{webui:setup.done}}</a>
   </div>
   <div id="setupError" class="setupState" hidden>
     <p id="setupErrorText" class="fieldError"></p>

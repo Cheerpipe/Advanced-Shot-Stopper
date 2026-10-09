@@ -553,6 +553,11 @@ class ShotStopperNetwork {
   void stopCaptivePortalDns();
   DNSServer captiveDns_;
   bool captiveDnsActive_ = false;
+  // Captive-portal exit ("skip"/"finish"): while set, OS connectivity probes
+  // get their platform success response instead of the 302 to /setup, so the
+  // OS closes its captive window as "logged in" and keeps the SoftAP link.
+  // Set from the httpd task; a fresh captive DNS session resets it.
+  std::atomic<bool> portalExitRequested_{false};
   void clearSoftApIdleState();
   void armSoftApIdleDeadline(uint32_t now);
   void serviceSoftApIdle(uint32_t now);

@@ -72,15 +72,27 @@
     '"captive.apple.com"', '"connectivitycheck.gstatic.com"',
     '"connectivitycheck.android.com"', '"clients3.google.com"',
     '"www.msftconnecttest.com"', '"www.msftncsi.com"'];
+  const startDnsBlock =
+      blockAt(network, 'void ShotStopperNetwork::startCaptivePortalDns() {');
   if (probeHosts.some((host) => !network.includes(host)) ||
       !notFoundBlock.includes('CAPTIVE_PORTAL_URL') ||
-      !codeIncludes(notFoundBlock, 'instance_->snapshot().apActive&&captiveProbeHost(request)') ||
+      !codeIncludes(notFoundBlock,
+                    'instance_->snapshot().apActive?captiveProbeHost(request):nullptr') ||
+      !codeIncludes(notFoundBlock,
+                    'instance_->portalExitRequested_.load(std::memory_order_acquire)') ||
+      !notFoundBlock.includes('serveProbeSuccess(request, probe)') ||
       !notFoundBlock.includes('"/api/"') || !notFoundBlock.includes('STATUS_NOT_FOUND') ||
       !network.includes('constexpr const char CAPTIVE_PORTAL_URL[] = "http://192.168.4.1/setup";') ||
       network.indexOf('constexpr const char CAPTIVE_PORTAL_URL[]') <
-          network.indexOf('constexpr const char *AP_IP')) {
+          network.indexOf('constexpr const char *AP_IP') ||
+      !networkHeader.includes('std::atomic<bool> portalExitRequested_{false}') ||
+      !codeIncludes(startDnsBlock,
+                    'portalExitRequested_.store(false,std::memory_order_release)') ||
+      !network.includes('<TITLE>Success</TITLE>') ||
+      !network.includes('"204 No Content"') ||
+      !network.includes('"Microsoft Connect Test"')) {
     throw new Error(
-        'Captive probe hosts must 302 to /setup only while the AP is up; API 404s stay JSON');
+        'Captive probes must 302 to /setup only while the AP is up, answer the OS success bodies when a portal exit is armed, and reset the arming per DNS session; API 404s stay JSON');
   }
 
   // Live apply: /setup saves connect without a restart on the network task.
@@ -155,7 +167,8 @@
   }
 
   // /setup web view: route, menu-less shell, live-apply payload, bounded
-  // connect wait, confirm on success, and the LAN ADMIN_LOCKED escape hatch.
+  // connect wait, confirm on success, the skip exit, and the LAN ADMIN_LOCKED
+  // escape hatch.
   const setupJs = viewJs.setup || '';
   if (!codeIncludes(appJsSource, '"/setup":"setup"') ||
       !codeIncludes(appJsSource, 'setupView') ||
@@ -172,6 +185,16 @@
       !partialHtml.setup.includes('id="setupConnectingCountdown"') ||
       !partialHtml.setup.includes('id="setupHiddenToggle"') ||
       !partialHtml.setup.includes('id="setupPasswordShow"') ||
+      // Skip exit: quiet action on the form, confirmation state that keeps
+      // the device address visible, and a probe-URL link that closes the
+      // captive window after the device arms portal-exit success.
+      !partialHtml.setup.includes('id="setupSkip"') ||
+      !partialHtml.setup.includes('id="setupSkipped"') ||
+      !partialHtml.setup.includes('captive.apple.com/hotspot-detect.html') ||
+      !codeIncludes(setupJs, '{action:"skip"}') ||
+      !codeIncludes(setupJs, 'state="skipped"') ||
+      !codeIncludes(setupJs, 'connectivitycheck.gstatic.com/generate_204') ||
+      !codeIncludes(setupJs, '$("setupSkipDone").href=PROBE_URL') ||
       !codeIncludes(setupJs, 'setupRescan").hidden = lastNetworks === null') ||
       !codeIncludes(setupJs, 'input.type=show?"text":"password"') ||
       !codeIncludes(setupJs, 'passToggle.setAttribute("aria-pressed"') ||
@@ -182,8 +205,9 @@
       !partialHtml.setup.includes('autocapitalize="off"') ||
       !partialHtml.setup.includes('2.4 GHz') ||
       !css.includes('body.setupView .topBar,body.setupView .pageNav{display:none}') ||
-      !css.includes('.setupCard{')) {
+      !css.includes('.setupCard{') ||
+      !css.includes('#setupSkip{')) {
     throw new Error(
-        '/setup must be a routed menu-less view with the live-apply save pipeline and captive-portal fallbacks');
+        '/setup must be a routed menu-less view with the live-apply save pipeline, the skip portal exit, and captive-portal fallbacks');
   }
 }

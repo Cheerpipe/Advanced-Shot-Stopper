@@ -878,6 +878,8 @@ void ShotStopperNetwork::startCaptivePortalDns() {
     return;
   }
   captiveDnsActive_ = true;
+  // A raised SoftAP is a fresh portal session: probes bounce to /setup again.
+  portalExitRequested_.store(false, std::memory_order_release);
   lifecycleLog("Captive portal DNS up (UDP/53)");
 }
 

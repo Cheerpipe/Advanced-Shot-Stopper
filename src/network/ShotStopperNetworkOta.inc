@@ -13,6 +13,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
   command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
   static const char *const forgetFields[] = {"action"};
   static const char *const confirmFields[] = {"action"};
+  static const char *const skipFields[] = {"action"};
   static const char *const saveFields[] = {
       "action", "ssid",     "password", "open",  "wifiSleep", "ipMode",
       "ip",     "netmask",  "gateway",  "dns1",  "dns2",      "name",
@@ -20,7 +21,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
   const char *networkError = nullptr;
   bool parsed = root != nullptr &&
                 jsonString(root, "action", action, sizeof(action), false);
-  if (parsed && strcmp(action, "confirm") != 0) {
+  if (parsed && strcmp(action, "confirm") != 0 && strcmp(action, "skip") != 0) {
     if (!self.requireAdminUnlock(request)) {
       if (root != nullptr) {
         cJSON_Delete(root);
@@ -53,6 +54,24 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
         return self.sendAccepted(request, command.requestId,
                                  "\"state\":\"QUEUED\"");
       }
+    }
+  } else if (parsed && strcmp(action, "skip") == 0) {
+    // Setup-context action (SoftAP peer, same trust as confirm): arm the
+    // portal-exit probe answers so the OS captive window closes as "logged
+    // in" while the association — and /setup at 192.168.4.1 — stay up.
+    parsed = jsonHasOnlyUniqueFields(root, skipFields, 1);
+    if (!parsed) {
+      networkError = "Skip request must include only action=\"skip\".";
+    } else if (!self.snapshot().apActive) {
+      parsed = false;
+      networkError = "No setup network to skip.";
+    } else {
+      self.portalExitRequested_.store(true, std::memory_order_release);
+      if (root != nullptr) {
+        cJSON_Delete(root);
+      }
+      self.unlockJsonBody();
+      return sendJson(request, STATUS_OK, "{\"skipped\":true}");
     }
   } else if (parsed && strcmp(action, "forget") == 0) {
     if (!self.webUiConfigurationAllowed(request, status)) {
@@ -199,7 +218,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
     }
   } else {
     parsed = false;
-    networkError = "action must be \"save\", \"forget\", or \"confirm\".";
+    networkError = "action must be \"save\", \"forget\", \"confirm\", or \"skip\".";
   }
   if (root != nullptr) {
     cJSON_Delete(root);

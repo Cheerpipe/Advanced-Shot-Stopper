@@ -11,6 +11,12 @@ const CONNECT_WAIT_MS = 60000;
 // how long this can take before they see a result.
 const ATTEMPT_WINDOW_MS = 20000;
 const POLL_MS = 1000;
+// Wildcard DNS resolves the OS probe hosts to the device itself, so pointing
+// the browser at one triggers the portal verdict: after "skip"/"finish" the
+// device answers success and the captive window closes as "logged in".
+const PROBE_URL = /Android/i.test(navigator.userAgent)
+  ? "http://connectivitycheck.gstatic.com/generate_204"
+  : "http://captive.apple.com/hotspot-detect.html";
 let bound = false,
   pollTimer = 0,
   pollToken = 0,
@@ -39,7 +45,7 @@ function signalGlyph(rssi) {
 }
 
 function show(name) {
-  for (const key of ["setupScanning", "setupForm", "setupConnecting", "setupSuccess", "setupError", "setupLocked"])
+  for (const key of ["setupScanning", "setupForm", "setupConnecting", "setupSuccess", "setupSkipped", "setupError", "setupLocked"])
     if (els[key]) els[key].hidden = key !== name;
 }
 
@@ -307,6 +313,23 @@ async function finishSuccess(status) {
   }
 }
 
+async function skipSetup() {
+  setStatusError("");
+  try {
+    await R.api("/api/v1/network", {
+      method: "POST",
+      body: R.body({ action: "skip" }),
+    });
+  } catch (e) {
+    if (e && e.code === "ADMIN_LOCKED") return showLocked();
+    setStatusError(R.formatCommandError(__WEBUI_TEXT__("setup.save_failed"), e));
+    return;
+  }
+  state = "skipped";
+  $("setupSkipDone").href = PROBE_URL;
+  show("setupSkipped");
+}
+
 function finishError(text) {
   state = "error";
   $("setupErrorText").textContent = text;
@@ -326,6 +349,7 @@ function bind() {
     setStatusError("");
     startScan();
   };
+  $("setupSkip").onclick = skipSetup;
   $("setupHiddenToggle").onchange = () => {
     const manual = $("setupHiddenToggle").checked;
     $("setupManualSsid").hidden = !manual;
@@ -404,6 +428,7 @@ export function init() {
     "setupForm",
     "setupConnecting",
     "setupSuccess",
+    "setupSkipped",
     "setupError",
     "setupLocked",
   ])

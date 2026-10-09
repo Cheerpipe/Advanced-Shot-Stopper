@@ -682,11 +682,13 @@ constexpr const char *const CAPTIVE_PROBE_HOSTS[] = {
     "www.msftncsi.com",
 };
 
-bool captiveProbeHost(httpd_req_t *request) {
+// Returns the matched probe host (nullptr for non-probe requests) so the
+// portal-exit path can answer with the OS-specific success response.
+const char *captiveProbeHost(httpd_req_t *request) {
   char host[64] = {};
   if (httpd_req_get_hdr_value_str(request, "Host", host, sizeof(host)) !=
       ESP_OK) {
-    return false;
+    return nullptr;
   }
   char *port = strchr(host, ':');
   if (port != nullptr) {
@@ -694,10 +696,34 @@ bool captiveProbeHost(httpd_req_t *request) {
   }
   for (const char *probe : CAPTIVE_PROBE_HOSTS) {
     if (strcasecmp(host, probe) == 0) {
-      return true;
+      return probe;
     }
   }
-  return false;
+  return nullptr;
+}
+
+// Portal-exit probe answers: iOS CNA dismisses on a 200 "Success" page,
+// Android/Chrome on a bare 204, Windows NCSI on the 200 probe text body.
+esp_err_t serveProbeSuccess(httpd_req_t *request, const char *host) {
+  if (strcasecmp(host, "captive.apple.com") == 0) {
+    httpd_resp_set_status(request, "200 OK");
+    httpd_resp_set_type(request, "text/html");
+    httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+    return httpd_resp_send(request,
+                           "<HTML><HEAD><TITLE>Success</TITLE></HEAD>"
+                           "<BODY>Success</BODY></HTML>",
+                           HTTPD_RESP_USE_STRLEN);
+  }
+  httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+  if (strcasecmp(host, "www.msftconnecttest.com") != 0 &&
+      strcasecmp(host, "www.msftncsi.com") != 0) {
+    httpd_resp_set_status(request, "204 No Content");
+    return httpd_resp_send(request, nullptr, 0);
+  }
+  httpd_resp_set_status(request, "200 OK");
+  httpd_resp_set_type(request, "text/plain");
+  return httpd_resp_send(request, "Microsoft Connect Test",
+                         HTTPD_RESP_USE_STRLEN);
 }
 
 }  // namespace
@@ -709,7 +735,13 @@ esp_err_t ShotStopperNetwork::notFoundHandler(httpd_req_t *request,
     return sendError(request, STATUS_NOT_FOUND, "NOT_FOUND",
                      "The requested resource was not found.");
   }
-  if (instance_->snapshot().apActive && captiveProbeHost(request)) {
+  const char *probe =
+      instance_->snapshot().apActive ? captiveProbeHost(request) : nullptr;
+  if (probe != nullptr &&
+      instance_->portalExitRequested_.load(std::memory_order_acquire)) {
+    return serveProbeSuccess(request, probe);
+  }
+  if (probe != nullptr) {
     httpd_resp_set_status(request, "302 Found");
     httpd_resp_set_hdr(request, "Location", CAPTIVE_PORTAL_URL);
     httpd_resp_set_hdr(request, "Cache-Control", "no-store");

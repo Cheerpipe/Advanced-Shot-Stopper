@@ -561,7 +561,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // The low-profile password reveal toggle adds its label row and button:
 // ~160 bytes of HTML source allowance; compressed asset and firmware
 // budgets stay fixed.
-if (htmlBytes > 88800) {
+// The /setup skip exit adds the quiet form action and the skipped-state card
+// with its probe link: ~300 bytes of HTML source allowance; compressed asset
+// and firmware budgets stay fixed.
+if (htmlBytes > 89100) {
   throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 88800)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
@@ -689,8 +692,11 @@ if (htmlBytes > 88800) {
 // edited-field detector, and the multi-error renderer with its banner
 // fallback) replaces the first-failure validator: ~3.5 KB of JS source
 // allowance; compressed asset and firmware limits stay fixed.
-if (jsBytes > 358400) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 358400)`);
+// The /setup skip exit contributes its probe-URL helper and the skip action
+// flow: ~1 KB of JS source allowance; compressed asset and firmware limits
+// stay fixed.
+if (jsBytes > 359200) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 359200)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -747,8 +753,10 @@ if (jsBytes > 358400) {
 // ~3.5 KB of JS source allowance described above (rule table, multi-error
 // renderer, and the hydration-time brew baseline capture); compressed
 // budgets stay fixed.
-if (htmlBytes + jsBytes > 447100) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 447100)`);
+// The /setup skip exit contributes the same ~300 B of HTML and ~1 KB of JS
+// source allowance described above; compressed budgets stay fixed.
+if (htmlBytes + jsBytes > 448400) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 448400)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
