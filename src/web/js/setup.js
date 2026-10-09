@@ -300,8 +300,8 @@ async function finishSuccess(status) {
   state = "success";
   show("setupSuccess");
   if (network.configState === "PENDING") {
-    // Tell the device to keep this network; it then finishes on its own and
-    // the setup network goes away moments later.
+    // Tell the device to keep this network; it then holds the setup network
+    // open for a short grace so this screen stays readable.
     try {
       await R.api("/api/v1/network", {
         method: "POST",
@@ -311,6 +311,21 @@ async function finishSuccess(status) {
       /* the 180 s confirm window still reverts if this never lands */
     }
   }
+}
+
+// "Done" on the success screen: end the post-confirm grace early. The device
+// arms probe success first, then drops the setup network a few seconds later,
+// so navigating to the probe closes the captive window cleanly.
+async function finishSetup() {
+  try {
+    await R.api("/api/v1/network", {
+      method: "POST",
+      body: R.body({ action: "finish" }),
+    });
+  } catch (e) {
+    /* the grace window still ends on its own */
+  }
+  window.location.href = PROBE_URL;
 }
 
 async function skipSetup() {
@@ -350,6 +365,7 @@ function bind() {
     startScan();
   };
   $("setupSkip").onclick = skipSetup;
+  $("setupFinish").onclick = finishSetup;
   $("setupHiddenToggle").onchange = () => {
     const manual = $("setupHiddenToggle").checked;
     $("setupManualSsid").hidden = !manual;

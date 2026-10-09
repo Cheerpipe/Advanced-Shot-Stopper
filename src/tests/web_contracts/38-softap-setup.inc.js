@@ -121,6 +121,14 @@
       !codeIncludes(confirmBlock, '(status.apActive&&!apKeepRequested_)') ||
       !codeIncludes(networkHandlerBlock, '(network.apActive&&!network.apKeepActive)') ||
       !codeIncludes(confirmBlock, 'apKeepRequested_=false') ||
+      // Post-confirm grace: confirm schedules the SoftAP teardown instead of
+      // dropping it on the next pass; serviceStaState stops only when the
+      // deadline passes (zero keeps the legacy immediate stop), and every
+      // teardown/re-raise clears the deadline for the next AP session.
+      !codeIncludes(confirmBlock,
+                    'status_.apTeardownAtMs=millis()+SOFTAP_TEARDOWN_GRACE_MS') ||
+      !codeIncludes(staStateBlock, 'softApTeardownDue(status,now)') ||
+      !stopSoftApBlock.includes('status_.apTeardownAtMs = 0;') ||
       !codeIncludes(revertBlock, 'apKeepRequested_=false') ||
       !codeIncludes(revertBlock, 'status_.staState=StaState::NOT_CONFIGURED') ||
       !codeIncludes(staStateBlock, 'status.apActive&&apKeepRequested_&&staConfirmArmed_') ||
@@ -195,6 +203,12 @@
       !codeIncludes(setupJs, 'state="skipped"') ||
       !codeIncludes(setupJs, 'connectivitycheck.gstatic.com/generate_204') ||
       !codeIncludes(setupJs, '$("setupSkipDone").href=PROBE_URL') ||
+      // Post-confirm grace: the success screen stays readable and its Done
+      // button ends the window early (finish arms probe success, then the
+      // device lingers briefly before dropping the setup network).
+      !partialHtml.setup.includes('id="setupFinish"') ||
+      !codeIncludes(setupJs, '{action:"finish"}') ||
+      !codeIncludes(setupJs, 'window.location.href=PROBE_URL') ||
       !codeIncludes(setupJs, 'setupRescan").hidden = lastNetworks === null') ||
       !codeIncludes(setupJs, 'input.type=show?"text":"password"') ||
       !codeIncludes(setupJs, 'passToggle.setAttribute("aria-pressed"') ||

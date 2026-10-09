@@ -51,6 +51,12 @@ ControlGateSnapshot ShotStopperNetwork::controlGate() const {
   return gate;
 }
 
+bool ShotStopperNetwork::softApTeardownDue(
+    const NetworkStatusSnapshot &status, uint32_t now) {
+  return status.apTeardownAtMs == 0 ||
+         static_cast<int32_t>(now - status.apTeardownAtMs) >= 0;
+}
+
 bool ShotStopperNetwork::lockWorkBufForStatus() {
   if (callbacks_.refreshControlStatus != nullptr) {
     callbacks_.refreshControlStatus();
@@ -202,14 +208,18 @@ bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
   pendingConfirmRequest_ = false;
   dataMux_.unlock();
   if (apKeepRequested_) {
-    // Config confirmed: drop the keep so the next serviceStaState() pass
-    // stops the SoftAP (this covers a CLI AP_START keep too — a confirmed
+    // Config confirmed: schedule the SoftAP teardown instead of stopping on
+    // the next pass, so the success screen stays readable inside the OS
+    // captive window (this covers a CLI AP_START keep too — a confirmed
     // network change ends the fallback window; re-issue AP_START to keep
     // the AP). The HTTP confirm response already went out.
     apKeepRequested_ = false;
     staReconnectHeld_ = false;
     dataMux_.lock();
     status_.apKeepActive = false;
+    if (status.apActive) {
+      status_.apTeardownAtMs = millis() + SOFTAP_TEARDOWN_GRACE_MS;
+    }
     dataMux_.unlock();
   }
   clearPendingConfirmWindow();
@@ -298,6 +308,7 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t,
     status_.apClients = 0;
     status_.staState = StaState::NOT_CONFIGURED;
     status_.iface.staIp[0] = '\0';
+    status_.apTeardownAtMs = 0;
     clearStaLinkMetrics();
     dataMux_.unlock();
     lifecycleLog(
@@ -619,6 +630,7 @@ void ShotStopperNetwork::startStation(const NetworkSettingsSnapshot &settings,
   status_.iface.staIp[0] = '\0';
   clearStaLinkMetrics();
   status_.windowRemainingMs = 0;
+  status_.apTeardownAtMs = 0;
   status_.confirmRemainingMs = 0;
   dataMux_.unlock();
   publishConfiguredAddressStatus();
@@ -651,6 +663,7 @@ void ShotStopperNetwork::stopSoftAp(bool stopHttp) {
     status_.networkActive = false;
   }
   status_.windowRemainingMs = 0;
+  status_.apTeardownAtMs = 0;
   dataMux_.unlock();
   clearSoftApIdleState();
   log(DebugCategory::NETWORK, DebugCode::AP_STOPPED);
@@ -839,6 +852,7 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
     clearStaLinkMetrics();
   }
   status_.windowRemainingMs = 0;
+  status_.apTeardownAtMs = 0;
   dataMux_.unlock();
   log(DebugCategory::NETWORK, DebugCode::AP_STARTED, apReady, httpReady);
   lifecycleLogf("%s%s at %s",
@@ -916,6 +930,7 @@ void ShotStopperNetwork::stopNetwork() {
   status_.iface.staIp[0] = '\0';
   clearStaLinkMetrics();
   status_.windowRemainingMs = 0;
+  status_.apTeardownAtMs = 0;
   dataMux_.unlock();
   clearSoftApIdleState();
   log(DebugCategory::NETWORK, DebugCode::AP_STOPPED);
@@ -986,7 +1001,8 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       }
       return;
     }
-    if (status.apActive && !apKeepRequested_) {
+    if (status.apActive && !apKeepRequested_ &&
+        softApTeardownDue(status, now)) {
       stopSoftApKeepStation();
     }
     if (!status.staLinkMetricsValid || staRssiSampledAtMs_ == 0 ||
@@ -1031,7 +1047,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     formatIp(WiFi.localIP(), address);
     char previousAddress[16] = {};
     finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::SUCCESS);
-    if (!apKeepRequested_) {
+    if (!apKeepRequested_ && softApTeardownDue(status, now)) {
       stopSoftApKeepStation();
     }
     const bool mayStartHttp = !httpStartHeld_ &&

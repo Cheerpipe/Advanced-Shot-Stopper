@@ -115,6 +115,10 @@ struct NetworkStatusSnapshot {
   uint8_t staSignalQualityPct = 0;
   uint32_t windowRemainingMs = 0;
   uint32_t confirmRemainingMs = 0;
+  // Mirror of the post-confirm SoftAP teardown deadline (0 = stop at the next
+  // service pass, the pre-grace behavior). confirmPendingNetwork sets it to
+  // the grace window; the "finish" action shortens it to a probe linger.
+  uint32_t apTeardownAtMs = 0;
   uint32_t taskAgeMs = 0;
   uint32_t taskStackMinBytes = UINT32_MAX;
   uint32_t startupFailures = 0;
@@ -294,6 +298,11 @@ class ShotStopperNetwork {
   // Auto SoftAP shuts down after this long with zero SoftAP stations.
   // Resets when the last client leaves; skipped while AP_START keep is set.
   static constexpr uint32_t SOFTAP_IDLE_TIMEOUT_MS = 180000;
+  // After a /setup confirm, keep the SoftAP up this long so the success
+  // screen (with its .local/IP links) stays readable inside the OS captive
+  // window; the "finish" action ends it early after a probe linger.
+  static constexpr uint32_t SOFTAP_TEARDOWN_GRACE_MS = 60000;
+  static constexpr uint32_t SOFTAP_FINISH_LINGER_MS = 3000;
   static constexpr uint32_t WIFI_SCAN_TIMEOUT_MS = 20000;
   static constexpr uint32_t RESTART_DELAY_MS = 750;
   // A freshly committed OTA image proves itself by serving its Web UI. Confirm
@@ -546,6 +555,10 @@ class ShotStopperNetwork {
   void stopSoftApKeepStation();
   void stopSoftApLeaveHttp();
   void stopSoftAp(bool stopHttp);
+  // Teardown gate for the post-confirm grace: a zero deadline keeps the
+  // legacy immediate stop; otherwise the SoftAP stops once now passes it.
+  static bool softApTeardownDue(const NetworkStatusSnapshot &status,
+                                uint32_t now);
   // Captive-portal DNS (wildcard A -> SoftAP IP) on UDP/53 while the SoftAP
   // is up. Network task owns the lifecycle; replies come from the AsyncUDP
   // callback inside the vendored component (processNextRequest is a stub).

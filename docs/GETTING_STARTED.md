@@ -18,8 +18,9 @@ start with [Hardware](HARDWARE.md).
    network, type its password, and select **Connect**. If the page does not
    open by itself, browse to **`http://192.168.4.1/setup`**. The controller
    joins your network without restarting: the page shows the addresses to use
-   from now on (`<name>.local` and the controller's new address), and you can
-   close it once it reports success. No other password is asked during this
+   from now on (`<name>.local` and the controller's new address) and keeps
+   the setup network open for about a minute so you can note them — select
+   **Done** when you have them. No other password is asked during this
    flow.
 4. Rejoin your home network on the phone/computer and open the controller at
    the address the setup page showed. On most home networks

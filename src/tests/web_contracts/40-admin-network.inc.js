@@ -173,7 +173,7 @@ if (!codeIncludes(ui, 'id="staIpMode"') ||
     !network.includes('or empty to keep the saved password.') ||
     !network.includes('StaIpMode::STATIC') ||
     !network.includes('STA_CONFIRM_TIMEOUT_MS') ||
-    !network.includes('action must be \\"save\\", \\"forget\\", \\"confirm\\", or \\"skip\\".') ||
+    !network.includes('action must be \\"save\\", \\"forget\\", \\"confirm\\", \\"skip\\", or \\"finish\\".') ||
     !network.includes('No pending network configuration to confirm.') ||
     // Skip portal exit: setup-context action (no admin unlock, like confirm),
     // single-field body, gated on the SoftAP being up, arms probe success.
@@ -181,7 +181,18 @@ if (!codeIncludes(ui, 'id="staIpMode"') ||
     !network.includes('Skip request must include only action=\\"skip\\".') ||
     !network.includes('No setup network to skip.') ||
     !network.includes('self.portalExitRequested_.store(true, std::memory_order_release)') ||
-    !network.includes('sendJson(request, STATUS_OK, "{\\"skipped\\":true}")')) {
+    !network.includes('sendJson(request, STATUS_OK, "{\\"skipped\\":true}")') ||
+    // Finish (Done): ends the post-confirm grace early; valid only while the
+    // deadline is actually running, arms probe success, lingers before stop.
+    !networkHeader.includes('SOFTAP_TEARDOWN_GRACE_MS = 60000') ||
+    !networkHeader.includes('SOFTAP_FINISH_LINGER_MS = 3000') ||
+    !networkHeader.includes('uint32_t apTeardownAtMs = 0;') ||
+    !network.includes('Finish request must include only action=\\"finish\\".') ||
+    !network.includes('No setup network to finish.') ||
+    !network.includes('status_.apTeardownAtMs = now + SOFTAP_FINISH_LINGER_MS') ||
+    !network.includes('sendJson(request, STATUS_OK, "{\\"finished\\":true}")') ||
+    !network.includes('status_.apTeardownAtMs = millis() + SOFTAP_TEARDOWN_GRACE_MS') ||
+    !network.includes('bool ShotStopperNetwork::softApTeardownDue(')) {
   throw new Error('DHCP/static IP mode must be wired in UI, status, WiFi.config, and confirm/revert path');
 }
 if (!network.includes('restoreLkgToActive(next)') ||

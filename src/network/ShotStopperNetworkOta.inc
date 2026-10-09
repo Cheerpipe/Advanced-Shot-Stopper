@@ -14,6 +14,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
   static const char *const forgetFields[] = {"action"};
   static const char *const confirmFields[] = {"action"};
   static const char *const skipFields[] = {"action"};
+  static const char *const finishFields[] = {"action"};
   static const char *const saveFields[] = {
       "action", "ssid",     "password", "open",  "wifiSleep", "ipMode",
       "ip",     "netmask",  "gateway",  "dns1",  "dns2",      "name",
@@ -21,7 +22,8 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
   const char *networkError = nullptr;
   bool parsed = root != nullptr &&
                 jsonString(root, "action", action, sizeof(action), false);
-  if (parsed && strcmp(action, "confirm") != 0 && strcmp(action, "skip") != 0) {
+  if (parsed && strcmp(action, "confirm") != 0 && strcmp(action, "skip") != 0 &&
+      strcmp(action, "finish") != 0) {
     if (!self.requireAdminUnlock(request)) {
       if (root != nullptr) {
         cJSON_Delete(root);
@@ -72,6 +74,36 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
       }
       self.unlockJsonBody();
       return sendJson(request, STATUS_OK, "{\"skipped\":true}");
+    }
+  } else if (parsed && strcmp(action, "finish") == 0) {
+    // Setup-context action: valid only while the post-confirm grace window
+    // runs. Arm the portal-exit probe answers, then shorten the SoftAP
+    // teardown to a short linger so the captive window can fetch its
+    // probe-success page before the link drops.
+    parsed = jsonHasOnlyUniqueFields(root, finishFields, 1);
+    if (!parsed) {
+      networkError = "Finish request must include only action=\"finish\".";
+    } else {
+      const uint32_t now = millis();
+      bool grace = false;
+      self.dataMux_.lock();
+      grace = self.status_.apActive && self.status_.apTeardownAtMs != 0 &&
+              static_cast<int32_t>(self.status_.apTeardownAtMs - now) > 0;
+      if (grace) {
+        self.status_.apTeardownAtMs = now + SOFTAP_FINISH_LINGER_MS;
+      }
+      self.dataMux_.unlock();
+      if (!grace) {
+        parsed = false;
+        networkError = "No setup network to finish.";
+      } else {
+        self.portalExitRequested_.store(true, std::memory_order_release);
+        if (root != nullptr) {
+          cJSON_Delete(root);
+        }
+        self.unlockJsonBody();
+        return sendJson(request, STATUS_OK, "{\"finished\":true}");
+      }
     }
   } else if (parsed && strcmp(action, "forget") == 0) {
     if (!self.webUiConfigurationAllowed(request, status)) {
@@ -218,7 +250,8 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
     }
   } else {
     parsed = false;
-    networkError = "action must be \"save\", \"forget\", \"confirm\", or \"skip\".";
+    networkError =
+        "action must be \"save\", \"forget\", \"confirm\", \"skip\", or \"finish\".";
   }
   if (root != nullptr) {
     cJSON_Delete(root);

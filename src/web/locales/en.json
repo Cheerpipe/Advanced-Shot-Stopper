@@ -1310,7 +1310,7 @@
     "setup.advanced": "Open",
     "setup.band_hint": "The controller only supports 2.4 GHz networks.",
     "setup.choose_network": "Choose your network",
-    "setup.close_hint": "You can close this window now — the controller finishes on its own and this setup network goes away.",
+    "setup.close_hint": "This setup network stays open for about a minute so you can note the addresses above. Tap Done when you are ready to close it.",
     "setup.connect": "Connect",
     "setup.connecting": "Connecting…",
     "setup.connecting_deadline": "This usually takes less than {n} s",

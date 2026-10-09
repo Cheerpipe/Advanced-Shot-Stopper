@@ -562,10 +562,11 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // ~160 bytes of HTML source allowance; compressed asset and firmware
 // budgets stay fixed.
 // The /setup skip exit adds the quiet form action and the skipped-state card
-// with its probe link: ~300 bytes of HTML source allowance; compressed asset
-// and firmware budgets stay fixed.
-if (htmlBytes > 89100) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 88800)`);
+// with its probe link, and the grace adds the success-screen Done button:
+// ~400 bytes of HTML source allowance; compressed asset and firmware
+// budgets stay fixed.
+if (htmlBytes > 89200) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 89200)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -692,11 +693,11 @@ if (htmlBytes > 89100) {
 // edited-field detector, and the multi-error renderer with its banner
 // fallback) replaces the first-failure validator: ~3.5 KB of JS source
 // allowance; compressed asset and firmware limits stay fixed.
-// The /setup skip exit contributes its probe-URL helper and the skip action
-// flow: ~1 KB of JS source allowance; compressed asset and firmware limits
-// stay fixed.
-if (jsBytes > 359200) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 359200)`);
+// The /setup skip exit and grace Done button contribute the probe-URL
+// helper plus the skip/finish action flows: ~1.5 KB of JS source allowance;
+// compressed asset and firmware limits stay fixed.
+if (jsBytes > 359800) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 359800)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -753,10 +754,11 @@ if (jsBytes > 359200) {
 // ~3.5 KB of JS source allowance described above (rule table, multi-error
 // renderer, and the hydration-time brew baseline capture); compressed
 // budgets stay fixed.
-// The /setup skip exit contributes the same ~300 B of HTML and ~1 KB of JS
-// source allowance described above; compressed budgets stay fixed.
-if (htmlBytes + jsBytes > 448400) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 448400)`);
+// The /setup skip exit and grace Done button contribute the same ~400 B of
+// HTML and ~1.5 KB of JS source allowance described above; compressed
+// budgets stay fixed.
+if (htmlBytes + jsBytes > 449200) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 449200)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

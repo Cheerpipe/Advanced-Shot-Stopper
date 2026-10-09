@@ -50,7 +50,9 @@ and OTA use that same device password.
    **`http://192.168.4.1/setup`** in a browser. Joining this network already
    proves the device password, so the setup page asks for nothing else. The
    controller joins your network while this setup network stays up, then
-   shows the addresses to use from now on. If the connection fails, the page
+   shows the addresses to use from now on and keeps them on screen for about
+   a minute so you can note them; **Done** on that screen closes the setup
+   network right away. If the connection fails, the page
    keeps your entries so you can retry; on a first-time setup, giving up
    leaves the controller waiting on this same setup network for another
    try (it forgets the failed attempt after about 3 minutes).
