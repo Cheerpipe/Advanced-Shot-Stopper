@@ -119,6 +119,8 @@ struct MicraObservationFence {
         status.coffeeBoiler = update.coffeeBoiler;
         status.coffeeReadyAtUtcSec = update.coffeeReadyAtUtcSec;
       }
+      // temperatureAtMs keeps its REST-facing name but now timestamps the
+      // last boiler-widget frame, which is what the boiler age renders.
       status.temperatureAtMs = update.receivedAtMs;
       if (update.steamBoilerPresent) {
         status.steamBoiler = update.steamBoiler;

@@ -327,12 +327,12 @@ struct LineaMicraStatus {
 inline LineaMicraReadiness lineaMicraReadiness(const LineaMicraStatus &status) {
   if (status.optimisticOff) return LineaMicraReadiness::OFF;
   // An optimistic ON overlay means the machine is waking while the confirmed
-  // state still reads OFF: evaluate boilers as ON (they will be unknown, so
-  // the rollup degrades to UNKNOWN and the lamp stays neutral).
+  // state still reads OFF: any retained boiler evidence predates the standby,
+  // so the rollup must stay UNKNOWN and the lamp neutral rather than claim a
+  // readiness the reheating machine cannot have yet.
   if (status.powerState == LineaMicraPowerState::OFF && !status.optimisticOn)
     return LineaMicraReadiness::OFF;
-  if (status.powerState != LineaMicraPowerState::ON && !status.optimisticOn)
-    return LineaMicraReadiness::UNKNOWN;
+  if (status.powerState != LineaMicraPowerState::ON) return LineaMicraReadiness::UNKNOWN;
   const LineaMicraBoilerState coffee = status.coffeeBoiler;
   const LineaMicraBoilerState steam = status.steamBoiler;
   if (coffee == LineaMicraBoilerState::NO_WATER ||

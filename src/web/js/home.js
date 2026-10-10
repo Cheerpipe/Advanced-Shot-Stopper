@@ -4,7 +4,6 @@ const $ = R.$;
 let ready = false;
 let quickWeight = null;
 let quickWeightWanted = false;
-let micraBoilerStatus = null;
 let micraBoilerTimer = 0;
 
 // Boiler rows interpolate the warm-up estimate locally from the absolute
@@ -16,7 +15,7 @@ function micraBoilerText(lm, boiler) {
   const state = data ? data.state : "";
   if (state === "ready") return __WEBUI_TEXT__("runtime.ready_2");
   const label = __WEBUI_TEXT__("home.boiler_states").split("|")[
-    ["heating_up", "no_water", "eco"].indexOf(state)
+    ["heating_up", "no_water", "eco", "off", "standby"].indexOf(state)
   ];
   if (!label) return __WEBUI_TEXT__("runtime.unknown");
   const readyAt = (data && data.readyAtUtcSec ? data.readyAtUtcSec : 0) * 1000;
@@ -33,10 +32,14 @@ function micraBoilerText(lm, boiler) {
 }
 
 function renderMicraBoilers() {
+  // Reads the live cache: once the stream is invalidated the cache is null
+  // and the ticker leaves the reset placeholders alone.
+  const lm = R.homeStatusCache()?.lineaMicra;
+  if (!lm) return;
   const brew = $("homeMicraBrewBoiler"),
     steam = $("homeMicraSteamBoiler");
-  if (brew) brew.textContent = micraBoilerText(micraBoilerStatus, "coffee");
-  if (steam) steam.textContent = micraBoilerText(micraBoilerStatus, "steam");
+  if (brew) brew.textContent = micraBoilerText(lm, "coffee");
+  if (steam) steam.textContent = micraBoilerText(lm, "steam");
 }
 
 export function applyStatus(s) {
@@ -47,7 +50,7 @@ export function applyStatus(s) {
   // so ?edit_weight=1 is the only entry point. Wait for the active preset
   // and the admin lock to settle, then open once and drop the parameter.
   if (quickWeightWanted && quickWeight && !brewing) {
-    const preset = R.presetState.items.find((x) => x.id === s.presetState.activeId);
+    const preset = R.presetState.items.find((x) => x.id === R.presetState.activeId);
     const pen = $("shotGoalEdit");
     if (preset && preset.goalWeightG && pen && !pen.disabled) {
       quickWeightWanted = false;
@@ -58,7 +61,6 @@ export function applyStatus(s) {
   const power = micraPower(s.lineaMicra);
   $("homeMicraPower").textContent = power;
   $("homeMicraCleaning").textContent = R.formatMicraCleaning(s.lineaMicra);
-  micraBoilerStatus = s.lineaMicra || null;
   renderMicraBoilers();
   const rs = $("machineRowState"),
     st = $("state"),

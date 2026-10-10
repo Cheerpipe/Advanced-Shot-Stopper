@@ -435,7 +435,7 @@
     "home.a_to_m_time_guard": "A→M time guard",
     "home.actions": "Actions",
     "home.avoid_accidental_touch": "Avoid accidental touch",
-    "home.boiler_states": "Heating up|Needs water|Energy saving",
+    "home.boiler_states": "Heating up|Needs water|Energy saving|Off|Standby",
     "home.brew": "Brew",
     "home.brew_by_weight": "Brew by weight",
     "home.cup": "Cup",

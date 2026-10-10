@@ -4972,7 +4972,7 @@ function statusStreamFrame(previous, message) {
   const status = message.snapshot ? {} : previous.status;
   for (const [path, value] of Object.entries(message.changes)) {
     if (
-      !/^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*){0,2}$/.test(path) ||
+      !/^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*){0,3}$/.test(path) ||
       /(^|\.)(constructor|prototype)(\.|$)/.test(path) ||
       (typeof value === "number" && !Number.isFinite(value))
     )
@@ -5027,6 +5027,11 @@ function invalidateHomeStream() {
 async function loadHomeStatus() {
   startUiStream();
   return homeStale && !(await homeReady) ? null : homeFrame?.status;
+}
+// Synchronous view for local tickers: null while the stream is invalidated,
+// so painters stop repainting stale values over the reset placeholders.
+export function homeStatusCache() {
+  return homeStale ? null : homeFrame?.status || null;
 }
 export function formatMicraCleaning(lm) {
   const ws = lm?.websocket || {},

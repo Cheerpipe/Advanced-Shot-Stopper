@@ -233,6 +233,29 @@ int main() {
   assert(bfence.merge(bstate, bpower, poll, true, true));  // Stale poll loses.
   assert(bstate.steamBoiler == LineaMicraBoilerState::READY);
   assert(bstate.coffeeBoiler == LineaMicraBoilerState::HEATING_UP);
+  // A coffee widget carrying only a status (no targetTemperature) updates the
+  // boiler state and keeps the last known target.
+  update = {};
+  update.source = MicraObservationSource::WEBSOCKET;
+  assert(decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"Ready"}}]})", update));
+  assert(update.coffeeBoilerPresent && update.coffeeBoiler == LineaMicraBoilerState::READY);
+  assert(!update.temperaturePresent && !update.steamBoilerPresent);
+  update.stamp = bfence.stamp(1, bpower.generation());
+  update.receivedAtMs = 200;
+  assert(bfence.merge(bstate, bpower, update, true));
+  assert(bstate.coffeeBoiler == LineaMicraBoilerState::READY);
+  assert(bstate.targetDeciC == 930 && bstate.targetValid);  // Retained target.
+  assert(bstate.steamBoiler == LineaMicraBoilerState::READY);  // Untouched.
+  // A steam-only NoWater report drives the rollup once power is ON.
+  MicraObservation drySteam;
+  drySteam.source = MicraObservationSource::WEBSOCKET;
+  drySteam.stamp = bfence.stamp(1, bpower.generation());
+  drySteam.steamBoilerPresent = true;
+  drySteam.steamBoiler = LineaMicraBoilerState::NO_WATER;
+  drySteam.receivedAtMs = 250;
+  assert(bfence.merge(bstate, bpower, drySteam, true));
+  bstate.powerState = LineaMicraPowerState::ON;
+  assert(lineaMicraReadiness(bstate) == LineaMicraReadiness::NEEDS_WATER);
 
   // Readiness rollup truth table over the effective status.
   LineaMicraStatus rs;
@@ -258,7 +281,7 @@ int main() {
   assert(lineaMicraReadiness(rs) == LineaMicraReadiness::UNKNOWN);
   rs.powerState = LineaMicraPowerState::OFF;
   rs.optimisticOn = true;  // Paddle wake: confirmed OFF, optimistic ON.
-  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::READY);  // Retained boilers.
+  assert(lineaMicraReadiness(rs) == LineaMicraReadiness::UNKNOWN);  // Retained boilers predate standby.
   rs.coffeeBoiler = rs.steamBoiler = LineaMicraBoilerState::UNKNOWN;
   assert(lineaMicraReadiness(rs) == LineaMicraReadiness::UNKNOWN);
   rs.powerState = LineaMicraPowerState::ON;

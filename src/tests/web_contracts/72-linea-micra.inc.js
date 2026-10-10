@@ -28,13 +28,21 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert(rawPartialHtml.home.includes('<div class="metric micraOnly"><strong>{{webui:home.machine_power_state}}</strong><div id="homeMicraPower">'));
   const el = () => ({textContent: '', classList: {toggle() {}, contains: () => false}});
   const cleaning = el(), power = el(), rowState = el(), brew = el();
+  const brewBoiler = el(), steamBoiler = el();
   const machineRow = {textContent: '', bad: false};
   machineRow.classList = {toggle: (_, on) => { machineRow.bad = on; }};
+  let lastStatus = null;
   const context = {R: {applyHomeStatus() {}, formatMicraCleaning:()=>'',
-      $: id => ({homeMicraCleaning: cleaning, homeMicraPower: power, machineRowState: rowState, state: brew, machineRow}[id] || null)},
+      homeStatusCache: () => lastStatus,
+      $: id => ({homeMicraCleaning: cleaning, homeMicraPower: power, machineRowState: rowState, state: brew, machineRow,
+        homeMicraBrewBoiler: brewBoiler, homeMicraSteamBoiler: steamBoiler}[id] || null)},
     document: {querySelector: () => null},
+    Date: {now: () => 60000},
     __WEBUI_TEXT__: key => key === 'home.optimistic' ? 'Optimistic' : 'Unknown'};
   vm.runInNewContext(viewJs.home.replace(/import\s*\*\s*as\s+R\s+from\s*['"][^'"]+['"];?/, '').replace(/export /g, ''), context);
+  // The boiler ticker reads the live cache; mirror what the stream apply does.
+  const directApply = context.applyStatus;
+  context.applyStatus = data => { lastStatus = data; directApply(data); };
   for (const [lineaMicra, expected] of [
     [{powerState: 'ON', quality: 'current'}, 'ON'],
     [{powerState: 'OFF', quality: 'current'}, 'OFF'],
@@ -74,11 +82,47 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
     assert.strictEqual(rowState.textContent, expected);
     assert.strictEqual(machineRow.bad, bad);
   }
+  // Home boiler rows: estimate math (Date.now pinned to 60000 ms),
+  // clamping, labels, and configuration gating.
+  const frame = (coffee, steam) => ({machineIntegration: 'linea_micra_cloud', state: 'READY',
+    lineaMicra: {accountConfigured: true, observeState: true, powerState: 'ON', quality: 'current',
+      boiler: {coffee, steam}}});
+  context.applyStatus(frame({state: 'heating_up', readyAtUtcSec: 1000},
+      {state: 'heating_up', readyAtUtcSec: 1200, level: 'level_3'}));
+  assert.strictEqual(brewBoiler.textContent, 'Heating up · ready in ~16 min');
+  assert.strictEqual(steamBoiler.textContent, 'Heating up · ready in ~19 min');
+  context.applyStatus(frame({state: 'heating_up', readyAtUtcSec: 10}, {state: 'heating_up'}));
+  assert.strictEqual(brewBoiler.textContent, 'Heating up');  // Expired estimate: no countdown.
+  assert.strictEqual(steamBoiler.textContent, 'Heating up');  // No estimate given.
+  context.applyStatus(frame({state: 'ready'}, {state: 'no_water'}));
+  assert.strictEqual(brewBoiler.textContent, 'Ready');
+  assert.strictEqual(steamBoiler.textContent, 'Needs water');
+  context.applyStatus(frame({state: 'eco'}, {state: 'standby'}));
+  assert.strictEqual(brewBoiler.textContent, 'Energy saving');
+  assert.strictEqual(steamBoiler.textContent, 'Standby');
+  context.applyStatus(frame({state: 'off'}, {state: 'unknown'}));
+  assert.strictEqual(brewBoiler.textContent, 'Off');
+  assert.strictEqual(steamBoiler.textContent, '—');
+  context.applyStatus({lineaMicra: {accountConfigured: false, observeState: false}});
+  assert.strictEqual(brewBoiler.textContent, 'Not connected');
+  context.applyStatus({lineaMicra: {accountConfigured: true, observeState: false}});
+  assert.strictEqual(brewBoiler.textContent, 'Disabled');
   // Without the integration the controller state decides, as before.
   context.applyStatus({lineaMicra: {powerState: 'ON', quality: 'current'}, state: 'READY'});
   assert.strictEqual(rowState.textContent, 'Ready');
   assert(network.includes('delta.field("lineaMicra.powerState"'),
       'Home stream must project Micra power independently of REST status');
+  // Cross-side contract: every firmware-emitted stream path must pass the
+  // client delta gate (regression: 4-segment boiler paths were rejected and
+  // killed the live snapshot on Micra builds).
+  const gateSource = rawRuntimeJs.match(
+      /\/(\^\[a-zA-Z\]\[a-zA-Z0-9\]\*\(\\\.\[a-zA-Z\]\[a-zA-Z0-9\]\*\)\{0,\d\}\$)\/\.test\(path\)/);
+  assert(gateSource, 'client delta path gate must exist');
+  const gate = new RegExp(gateSource[1]);
+  const streamPaths = [...micraStatus.matchAll(/delta\.field\("([^"]+)"/g)].map(m => m[1]);
+  assert(streamPaths.length > 30, 'stream field extraction found no paths');
+  for (const path of streamPaths)
+    assert(gate.test(path), `firmware field path rejected by the client gate: ${path}`);
 }
 {
   const assert = require('assert');

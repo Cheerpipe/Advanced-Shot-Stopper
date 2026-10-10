@@ -76,14 +76,12 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
   }
   MicraObservation next = update;
   const cJSON *connected = find(root, "connected");
-  if (duplicated(connected, "connected")) return false;
   if (connected != nullptr) {
     if (!cJSON_IsBool(connected)) return false;
     next.connectedPresent = true;
     next.connected = cJSON_IsTrue(connected);
   }
   const cJSON *widgets = find(root, "widgets");
-  if (duplicated(widgets, "widgets")) return false;
   if (widgets != nullptr && !cJSON_IsArray(widgets)) return false;
   const cJSON *widget = nullptr;
   cJSON_ArrayForEach(widget, widgets) {
@@ -106,6 +104,9 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
       next.powerPresent = true;
       next.mode = mode(value->valuestring);
     } else if (boiler || steam) {
+      // Occurrence guards are field-keyed (status/level/target): the cloud
+      // ships complete widget outputs, and a fragment would simply update
+      // only the fields it carries.
       const cJSON *status = find(output, "status");
       if (duplicated(status, "status")) return false;
       if (status != nullptr) {
@@ -162,7 +163,6 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
     }
   }
   const cJSON *removed = find(root, "removedWidgets");
-  if (duplicated(removed, "removedWidgets")) return false;
   if (removed != nullptr && !cJSON_IsArray(removed)) return false;
   cJSON_ArrayForEach(widget, removed) {
     const char *code = cJSON_IsString(widget) ? widget->valuestring : text(widget, "code");
