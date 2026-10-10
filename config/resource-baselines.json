@@ -6,7 +6,7 @@
     "total_size": 55700,
     "used_diram": 8192,
     "flash_code": 36200,
-    "flash_rodata": 22800
+    "flash_rodata": 22900
   },
   "targets": {
     "n8r4": {

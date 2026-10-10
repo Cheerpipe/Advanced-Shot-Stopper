@@ -48,18 +48,19 @@ LineaMicraSteamLevel steamLevel(const char *value) {
   return LineaMicraSteamLevel::UNSUPPORTED;
 }
 
-// readyStartTime is cloud epoch milliseconds, null while no estimate exists.
-// The bounds cover 2017..2103 so the second truncation fits uint32_t.
-bool readyAtSeconds(const cJSON *value, uint32_t &seconds) {
-  if (cJSON_IsNull(value)) {
-    seconds = 0;
-    return true;
-  }
-  if (!cJSON_IsNumber(value) || !std::isfinite(value->valuedouble)) return false;
-  const double epochMs = value->valuedouble;
-  if (epochMs < 1.5e12 || epochMs > 4.2e12) return false;
-  seconds = static_cast<uint32_t>(epochMs / 1000.0);
-  return true;
+// readyStartTime is cloud epoch time: milliseconds in the captured payloads,
+// but live machines also report zero or seconds-scale values for the same
+// field. An estimate that cannot be interpreted is absent; this display-only
+// field must never reject the dashboard frame it rides on.
+void readyAtSeconds(const cJSON *value, uint32_t &seconds) {
+  seconds = 0;
+  const double epoch = cJSON_IsNumber(value) && std::isfinite(value->valuedouble)
+                           ? value->valuedouble
+                           : 0.0;
+  if (epoch >= 1.5e12 && epoch <= 4.2e12)
+    seconds = static_cast<uint32_t>(epoch / 1000.0);
+  else if (epoch >= 1.5e9 && epoch < 1.5e12)
+    seconds = static_cast<uint32_t>(epoch);
 }
 }  // namespace
 
@@ -106,11 +107,14 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
     } else if (boiler || steam) {
       // Occurrence guards are field-keyed (status/level/target): the cloud
       // ships complete widget outputs, and a fragment would simply update
-      // only the fields it carries.
+      // only the fields it carries. These readiness fields are display-only:
+      // a value with an unexpected type degrades to absent rather than
+      // rejecting the observation frame, unlike the control-relevant target
+      // temperature below, which keeps its historical strictness.
       const cJSON *status = find(output, "status");
       if (duplicated(status, "status")) return false;
-      if (status != nullptr) {
-        if (!cJSON_IsString(status) || status->valuestring == nullptr) return false;
+      if (status != nullptr && cJSON_IsString(status) &&
+          status->valuestring != nullptr) {
         if (boiler ? next.coffeeBoilerPresent : next.steamBoilerPresent) return false;
         if (boiler) {
           next.coffeeBoilerPresent = true;
@@ -123,7 +127,7 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
       const cJSON *ready = find(output, "readyStartTime");
       if (duplicated(ready, "readyStartTime")) return false;
       uint32_t readyAt = 0;
-      if (ready != nullptr && !readyAtSeconds(ready, readyAt)) return false;
+      if (ready != nullptr) readyAtSeconds(ready, readyAt);
       const cJSON *target = find(output, boiler ? "targetTemperature" : "targetLevel");
       if (duplicated(target, boiler ? "targetTemperature" : "targetLevel")) return false;
       if (boiler) {
@@ -137,9 +141,9 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
         next.targetDeciC = static_cast<uint16_t>(std::lround(target->valuedouble * 10.0));
       } else {
         if (ready != nullptr) next.steamReadyAtUtcSec = readyAt;
-        if (target == nullptr) continue;
-        if (!cJSON_IsString(target) || target->valuestring == nullptr) return false;
-        next.steamLevel = steamLevel(target->valuestring);
+        if (target != nullptr && cJSON_IsString(target) &&
+            target->valuestring != nullptr)
+          next.steamLevel = steamLevel(target->valuestring);
       }
     } else if (next.source == MicraObservationSource::WEBSOCKET) {
       const cJSON *value = find(output, "status");

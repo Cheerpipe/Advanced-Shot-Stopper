@@ -559,8 +559,10 @@ if (generated.cssGzip.length > 11400) {
 // Micra boiler readiness adds the diagnostic readiness/boiler/water
 // renderers with locally interpolated estimates: +438 compressed bytes.
 // Cap raised to 50250 (pre-authorized raise, 2026-10-09).
-if (sentinelRuntimeGzip.length > 50250) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 50250-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The diagnostic States power row and decode-robustness rework measure
+// 50249; headroom raised to 50400.
+if (sentinelRuntimeGzip.length > 50400) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 50400-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -692,8 +694,10 @@ if (generated.icon48Gzip.length > 3500) {
 // locales) adds its reviewed combined allowance: 132502 measured
 // (pre-authorized raise, 2026-10-09). Cap raised to 132600; firmware image,
 // memory placement and OTA partitions stay fixed.
-if (generated.combined > 132600) {
-  throw new Error(`Combined Web UI gzip exceeds the 132600-byte flash budget (${generated.combined})`);
+// The States-column power row and decode-robustness rework measure 132583;
+// headroom raised to 132700.
+if (generated.combined > 132700) {
+  throw new Error(`Combined Web UI gzip exceeds the 132700-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

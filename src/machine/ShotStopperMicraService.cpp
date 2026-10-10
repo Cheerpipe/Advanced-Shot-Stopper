@@ -1915,6 +1915,12 @@ bool ShotStopperMicraService::readDashboard(
   const bool decoded = decodeMicraDashboard(root, update) &&
       (update.powerPresent || (update.connectedPresent && !update.connected));
   cJSON_Delete(root);
+  // A transport-level success with no observation sample means the payload
+  // was rejected; the excerpt names the offending shape on the serial log.
+  if (!decoded)
+    serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
+                         "Micra dashboard decode rejected: %.96s",
+                         io_->response);
   work_->responseUsed = 0;
   releaseIoBuffer(decoded);
   if (!decoded) return false;

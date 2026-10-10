@@ -190,7 +190,18 @@ bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &f
                                              1024);
   const bool decoded = root && decodeMicraDashboard(root, update);
   if (root) cJSON_Delete(root);
-  if (!decoded) return false;
+  if (!decoded) {
+    // Names the offending push shape on the serial log instead of failing
+    // the subscription silently. The body is length-delimited, not
+    // NUL-terminated: copy a bounded excerpt before printing.
+    char excerpt[97];
+    const int excerptLength = frame.bodyLength < 96 ? frame.bodyLength : 96;
+    memcpy(excerpt, frame.body, excerptLength);
+    excerpt[excerptLength] = '\0';
+    serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
+                         "Micra dashboard push rejected: %s", excerpt);
+    return false;
+  }
   if (!self.websocketAdmitted()) return true;
   TaskLockGuard lock(self.mux_);
   if (buffer.stamp.epoch != self.observationFence_.epoch ||

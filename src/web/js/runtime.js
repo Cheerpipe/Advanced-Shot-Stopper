@@ -6981,6 +6981,8 @@ function renderLineaMicraDiagnostic() {
         ? __WEBUI_TEXT__("runtime.disabled")
         : "";
   $("dMicraPowerValue").textContent = power || __WEBUI_TEXT__("runtime.unknown");
+  const brief = $("dMicraPowerBrief");
+  if (brief) brief.textContent = power || __WEBUI_TEXT__("runtime.unknown");
   $("dMicraMode").textContent =
     (lm.observedMode || __WEBUI_TEXT__("runtime.unknown")) + (source ? " (" + source + ")" : "");
   $("dMicraQuality").textContent =

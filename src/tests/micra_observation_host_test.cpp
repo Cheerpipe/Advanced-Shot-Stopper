@@ -181,15 +181,39 @@ int main() {
   assert(decode(R"({"widgets":[{"code":"CMSteamBoilerLevel","output":{"status":"FutureMode","targetLevel":"Level4"}}]})", update));
   assert(update.steamBoiler == LineaMicraBoilerState::UNSUPPORTED);
   assert(update.steamLevel == LineaMicraSteamLevel::UNSUPPORTED);
-  // Null estimate means no estimate; malformed values reject the frame.
-  update = {};
-  update.source = MicraObservationSource::WEBSOCKET;
+  // Null estimate means no estimate; malformed values degrade to absent
+  // instead of failing the frame (display-only field), and both epoch
+  // milliseconds and seconds-scale values are interpreted.
+  const auto fresh = [&update] {
+    update = {};
+    update.source = MicraObservationSource::WEBSOCKET;
+  };
+  fresh();
   assert(decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"Ready","targetTemperature":94,"readyStartTime":null}}]})", update));
   assert(update.coffeeBoiler == LineaMicraBoilerState::READY && update.coffeeReadyAtUtcSec == 0);
-  update = {};
-  update.source = MicraObservationSource::WEBSOCKET;
-  assert(!decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"Ready","readyStartTime":"soon"}}]})", update));
-  assert(!decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"Ready","readyStartTime":1000}}]})", update));
+  fresh();
+  assert(decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"HeatingUp","readyStartTime":"soon"}}]})", update));
+  assert(update.coffeeBoiler == LineaMicraBoilerState::HEATING_UP && update.coffeeReadyAtUtcSec == 0);
+  fresh();
+  assert(decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"HeatingUp","readyStartTime":1000}}]})", update));
+  assert(update.coffeeReadyAtUtcSec == 0);  // Sub-epoch garbage: absent.
+  fresh();
+  assert(decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"HeatingUp","readyStartTime":0}}]})", update));
+  assert(update.coffeeReadyAtUtcSec == 0);
+  fresh();
+  assert(decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"HeatingUp","readyStartTime":-1}}]})", update));
+  assert(update.coffeeReadyAtUtcSec == 0);
+  fresh();
+  assert(decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"HeatingUp","readyStartTime":1760000460}}]})", update));
+  assert(update.coffeeReadyAtUtcSec == 1760000460U);  // Seconds-scale epoch.
+  fresh();
+  assert(decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"HeatingUp","readyStartTime":1.76e12}}]})", update));
+  assert(update.coffeeReadyAtUtcSec == 1760000000U);  // Millisecond epoch.
+  fresh();
+  // A non-string boiler status degrades to absent, not rejection.
+  assert(decode(R"({"widgets":[{"code":"CMSteamBoilerLevel","output":{"status":7,"targetLevel":"Level2"}}]})", update));
+  assert(!update.steamBoilerPresent && update.steamLevel == LineaMicraSteamLevel::LEVEL_2);
+  fresh();
   assert(!decode(R"({"widgets":[{"code":"CMSteamBoilerLevel","output":{"status":"Ready","status":"Ready"}}]})", update));
   assert(!decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"status":"Ready"}},{"code":"CMCoffeeBoiler","output":{"status":"Ready"}}]})", update));
   update = {};
