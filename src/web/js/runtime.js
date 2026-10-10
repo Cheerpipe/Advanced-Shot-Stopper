@@ -78,7 +78,8 @@ const DEVICE_MAX_INFLIGHT = 1;
 const LOG_EVENTS_CAPACITY = 500;
 const SHOTS_PAGE_SIZE = 10,
   SHOTS_EXPORT_LIMIT = 100,
-  HISTORY_PAGE_SIZE = 20;
+  HISTORY_PAGE_SIZE = 20,
+  HISTORY_EXPORT_LIMIT = 1000;
 const WEB_UI_CLIENT_HEADER = "X-WebUI-Client";
 let webUiPowerUntil = 0;
 export function noteWebUiPowerActivity() {
@@ -1649,6 +1650,24 @@ function armListSentinel(id, onLoad) {
 function refreshShots() {
   return shotStatsViewActive() ? startStatsStream(true) : Promise.resolve(false);
 }
+function downloadCsv(name, rows) {
+  const csv = rows
+    .map((c) =>
+      c
+        .map((v) => {
+          const s = String(v);
+          return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        })
+        .join(","),
+    )
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 async function exportShotsCsv() {
   try {
     const list = await statsFrameWindow(0, SHOTS_EXPORT_LIMIT, "date", "desc", 90e3);
@@ -1755,22 +1774,7 @@ async function exportShotsCsv() {
         ).flat(),
       ]);
     }
-    const csv = rows
-      .map((c) =>
-        c
-          .map((v) => {
-            const s = String(v);
-            return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-          })
-          .join(","),
-      )
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "shot-history.csv";
-    a.click();
-    URL.revokeObjectURL(a.href);
+    downloadCsv("shot-history.csv", rows);
   } catch (e) {
     message(
       formatCommandError(__WEBUI_TEXT__("runtime.could_not_export_shot_history"), e),
@@ -1851,7 +1855,7 @@ function renderHistory() {
   const body = $("historyRows");
   if (!body || !historyLoaded) return;
   body.replaceChildren();
-  const rows = historyData.records;
+  const rows = historyVisibleRecords();
   if (rows.length)
     for (const r of rows) {
       const row = document.createElement("tr");
@@ -1894,12 +1898,25 @@ function renderHistory() {
     }
   setEmptyState(
     "historyTableState",
-    rows.length ? null : __WEBUI_TEXT__("runtime.no_recorded_activations_yet"),
+    rows.length
+      ? null
+      : historyTypeFilter.size && (historyData.records.length || historyData.hasMore)
+        ? __WEBUI_TEXT__("runtime.no_activations_match_filter")
+        : __WEBUI_TEXT__("runtime.no_recorded_activations_yet"),
   );
   updateHistorySentinel();
+  // A filter can hide every loaded record of a rare type, so keep filling
+  // pages until one page of matches is visible or the log is exhausted.
+  if (historyTypeFilter.size && rows.length < HISTORY_PAGE_SIZE && historyData.hasMore)
+    loadMoreHistory();
 }
 const loadMoreHistory = () => {
-  if (historyData.hasMore && historyViewActive() && historyFetchOffset < 0) {
+  if (
+    historyData.hasMore &&
+    historyViewActive() &&
+    historyFetchOffset < 0 &&
+    !historyExportWindow
+  ) {
     historyFetchOffset = historyData.records.length;
     historyFetchRequest = ++historyNextRequest;
     sendUiOperation({
@@ -1946,6 +1963,187 @@ async function deleteOneHistory(id) {
     }
   });
 }
+// CSV export rides the standing subscription's one-shot fetch windows, like
+// the Stats export: one window at a time, superseded (resolved empty) whenever
+// a re-subscribe claims the session fetch slot.
+let historyExportWindow = null;
+function fetchHistoryWindow(offset) {
+  return new Promise((resolve) => {
+    const done = (page) => {
+      clearTimeout(timer);
+      historyExportWindow = null;
+      resolve(page);
+    };
+    const timer = setTimeout(() => done(null), 12e3);
+    historyExportWindow = { request: ++historyNextRequest, resolve: done };
+    sendUiOperation({
+      op: "history",
+      on: true,
+      fetch: true,
+      request: historyExportWindow.request,
+      offset,
+    });
+  });
+}
+async function exportActivationHistory() {
+  if (historyExportWindow) return;
+  try {
+    if (!shotWs || shotWs.readyState !== 1)
+      throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
+    const rows = [
+      ["id", "local_time", "ended_at_unix_sec", "has_wall_time", "duration_s", "type"],
+    ];
+    let offset = 0,
+      total = Infinity,
+      hasMore = true;
+    while (hasMore && offset < total && rows.length - 1 < HISTORY_EXPORT_LIMIT) {
+      const page = await fetchHistoryWindow(offset);
+      if (!page) throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
+      total = page.total;
+      hasMore = page.hasMore;
+      for (const r of page.records)
+        rows.push([
+          r.id,
+          r.hasWallTime ? formatWallTimeLocal(r.endedAtLocalSec) : "",
+          r.endedAtUnixSec,
+          r.hasWallTime ? 1 : 0,
+          r.durationS.toFixed(1),
+          r.type,
+        ]);
+      offset += page.records.length;
+      if (!page.records.length) break;
+    }
+    downloadCsv("activation-history.csv", rows);
+  } catch (e) {
+    message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_export_history"), e), "error");
+  }
+}
+// Type filter: an empty selection shows everything; checking one or more types
+// narrows the list to them. The button carries the active count.
+const HISTORY_TYPE_KEYS = [
+  "shot",
+  "rinse",
+  "backflush",
+  "power_on",
+  "other",
+  "no_scale_guard_aborted",
+];
+const historyTypeFilter = new Set();
+const historyVisibleRecords = () =>
+  historyTypeFilter.size
+    ? historyData.records.filter((r) => historyTypeFilter.has(r.type))
+    : historyData.records;
+let historyFilterPanel = null;
+function syncHistoryFilterButton() {
+  const b = $("historyFilterButton");
+  if (!b) return;
+  const n = historyTypeFilter.size;
+  b.setAttribute("aria-pressed", n ? "true" : "false");
+  b.classList.toggle("btnFilterOn", !!n);
+  const chip = b.querySelector(".histFilterCount");
+  if (chip) {
+    chip.textContent = n;
+    chip.hidden = !n;
+  }
+}
+function applyHistoryTypeFilter() {
+  if (historyFilterPanel)
+    for (const box of historyFilterPanel.querySelectorAll('input[type="checkbox"]'))
+      box.checked = historyTypeFilter.has(box.value);
+  syncHistoryFilterButton();
+  renderHistory();
+}
+function setHistoryTypeFilter(types) {
+  historyTypeFilter.clear();
+  if (types) for (const t of types) historyTypeFilter.add(t);
+  applyHistoryTypeFilter();
+}
+function buildHistoryFilterPanel() {
+  const p = (historyFilterPanel = document.createElement("div"));
+  p.className = "histFilterPanel";
+  p.setAttribute("role", "menu");
+  p.setAttribute("aria-label", __WEBUI_TEXT__("history.filter_types"));
+  const head = document.createElement("div");
+  head.className = "histFilterHead";
+  const label = document.createElement("span");
+  label.textContent = __WEBUI_TEXT__("history.filter_types");
+  const reset = document.createElement("button");
+  reset.type = "button";
+  reset.className = "histFilterReset";
+  reset.textContent = __WEBUI_TEXT__("history.filter_reset");
+  reset.onclick = () => setHistoryTypeFilter();
+  head.append(label, reset);
+  p.appendChild(head);
+  for (const t of HISTORY_TYPE_KEYS) {
+    const item = document.createElement("label");
+    item.className = "histFilterItem";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.value = t;
+    box.setAttribute("role", "menuitemcheckbox");
+    const icon = document.createElement("span");
+    icon.className = "histFilterIcon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.innerHTML = HIST_TYPE_SVG[t] || "";
+    const text = document.createElement("span");
+    text.textContent = historyTypeLabel(t);
+    item.append(box, icon, text);
+    p.appendChild(item);
+  }
+  p.addEventListener("change", (e) => {
+    if (e.target.type !== "checkbox") return;
+    e.target.checked ? historyTypeFilter.add(e.target.value) : historyTypeFilter.delete(e.target.value);
+    applyHistoryTypeFilter();
+  });
+  p.hidden = true;
+  document.body.appendChild(p);
+  return p;
+}
+function placeHistoryFilterPanel() {
+  const b = $("historyFilterButton"),
+    p = historyFilterPanel;
+  if (!b || !p) return;
+  const r = b.getBoundingClientRect();
+  const below = innerHeight - r.bottom;
+  p.style.top =
+    (below >= p.offsetHeight || below >= r.top
+      ? r.bottom + 8
+      : Math.max(8, r.top - p.offsetHeight - 8)) + "px";
+  p.style.left =
+    Math.min(Math.max(8, r.left + r.width / 2 - p.offsetWidth / 2), innerWidth - p.offsetWidth - 8) +
+    "px";
+}
+function toggleHistoryFilter(force) {
+  const b = $("historyFilterButton");
+  if (!b) return;
+  const p = historyFilterPanel || buildHistoryFilterPanel();
+  const open = force === undefined ? p.hidden : force;
+  p.hidden = !open;
+  b.setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) {
+    placeHistoryFilterPanel();
+    p.querySelector('input[type="checkbox"]').focus();
+  }
+}
+const repositionHistoryFilter = () =>
+  historyFilterPanel && !historyFilterPanel.hidden && placeHistoryFilterPanel();
+document.addEventListener("click", (e) => {
+  if (
+    historyFilterPanel &&
+    !historyFilterPanel.hidden &&
+    !historyFilterPanel.contains(e.target) &&
+    !(e.target instanceof Element && e.target.closest("#historyFilterButton"))
+  )
+    toggleHistoryFilter(false);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && historyFilterPanel && !historyFilterPanel.hidden) {
+    toggleHistoryFilter(false);
+    $("historyFilterButton")?.focus();
+  }
+});
+window.addEventListener("scroll", repositionHistoryFilter, { passive: true });
+window.addEventListener("resize", repositionHistoryFilter, { passive: true });
 
 function ntpStateLabel(t) {
   if (!t) return__WEBUI_TEXT__("runtime.not_available");
@@ -5253,7 +5451,8 @@ function startUiStream() {
           !historyStreamWanted ||
           !(
             data.request === historyRequest ||
-            (historyFetchOffset >= 0 && data.request === historyFetchRequest)
+            (historyFetchOffset >= 0 && data.request === historyFetchRequest) ||
+            (historyExportWindow && data.request === historyExportWindow.request)
           )
         )
           return;
@@ -5786,6 +5985,7 @@ let historyStreamWanted = false,
   historyResolve = null;
 function historySendSubscribe() {
   if (!shotWs || shotWs.readyState !== 1) return;
+  historyExportWindow?.resolve(null);
   historyFetchOffset = -1;
   historySynced = false;
   historyRequest = ++historyNextRequest;
@@ -5875,6 +6075,10 @@ function historyStreamFrame(message) {
   return message;
 }
 function applyHistoryStream(message) {
+  if (historyExportWindow && message.request === historyExportWindow.request) {
+    historyExportWindow.resolve(message);
+    return;
+  }
   const fetch = historyFetchOffset >= 0 && message.request === historyFetchRequest;
   if (fetch && message.epoch !== historyStreamEpoch) {
     historySendSubscribe();
@@ -8276,6 +8480,9 @@ export {
   renderStatsDurChart,
   loadMoreHistory,
   clearActivationHistory,
+  exportActivationHistory,
+  toggleHistoryFilter,
+  syncHistoryFilterButton,
   toggleHistoryDir,
   syncHistoryDirButton,
   setShotSort,

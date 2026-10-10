@@ -26,7 +26,7 @@
       homeResolve() {}, homeReady: Promise.resolve(),
       shotStatsViewActive: () => context.activeView === 'stats',
       historyViewActive: () => context.activeView === 'history',
-      shotsLoaded: false, historyLoaded: false,
+      shotsLoaded: false, historyLoaded: false, historyExportWindow: null,
       applyCommonStatus() {},
       applyShotPage: () => { context.shotsLoaded = true; applied.push('stats'); },
       applyHistoryPage: () => { context.historyLoaded = true; applied.push('history'); },

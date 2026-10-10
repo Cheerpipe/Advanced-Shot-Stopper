@@ -1158,7 +1158,23 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !codeIncludes(runtimeJs, "'/api/v1/history/clear'") ||
     !codeIncludes(runtimeJs, 'const toggleHistoryDir=()=>{') ||
     !codeIncludes(runtimeJs, "sendUiOperation({op:'history',on:true,fetch:true,request:historyFetchRequest,offset:historyFetchOffset,}") ||
-    codeIncludes(runtimeJs, 'exportShotsCsv') && codeIncludes(runtimeJs, 'historyCsv') ||
+    !partialHtml.history.includes('id="historyFilterButton"') ||
+    !partialHtml.history.includes('id="exportHistoryButton"') ||
+    !partialHtml.history.includes('id="hFl"') ||
+    !codeIncludes(viewJs.history, 'R.exportActivationHistory') ||
+    !codeIncludes(viewJs.history, 'R.toggleHistoryFilter') ||
+    !codeIncludes(runtimeJs, 'function exportActivationHistory(') ||
+    !codeIncludes(runtimeJs, 'function toggleHistoryFilter(') ||
+    !codeIncludes(runtimeJs, 'function fetchHistoryWindow(') ||
+    !codeIncludes(runtimeJs, 'historyExportWindow?.resolve(null)') ||
+    // The owned-socket dispatcher must route export windows to the history
+    // stream handler; dropping them by request id hangs the export.
+    !codeIncludes(runtimeJs, 'historyExportWindow&&data.request===historyExportWindow.request') ||
+    !codeIncludes(runtimeJs, 'historyVisibleRecords()') ||
+    !codeIncludes(runtimeJs, 'Could not export activation history.') ||
+    !codeIncludes(runtimeJs, 'No activations match the selected types.') ||
+    !css.includes('.histFilterPanel{') ||
+    !css.includes('.histFilterCount{') ||
     network.includes('parseHistoryPageQuery') ||
     network.includes('historyHandler') ||
     !network.includes('sendHistoryStream') ||
@@ -1183,7 +1199,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !historyIo.includes('"history"') ||
     !activationStoresIo.includes('class ActivationStores') ||
     !activationStoresIo.includes('TaskLockGuard(shotStoreMutex)')) {
-  throw new Error('Activation history must page 20 records over the owned WebSocket with sort direction, clear, delete, and no CSV export');
+  throw new Error('Activation history must page 20 records over the owned WebSocket with sort direction, a type filter, clear, delete, and a streamed CSV export');
 }
 // The embedded ui object ends with '}}' and no separator of its own, so every
 // call site must append the ',' before the next frame member. A missing comma
@@ -1388,6 +1404,7 @@ if (!statsSection ||
       const context = vm.createContext({activeView: 'history', viewSeq: 1,
         historyLoaded: false, historyData: {bootId: 0, total: 0, hasMore: false, records: []},
         historyFetchOffset: -1, historyStreamBoot: 0, historyStreamEpoch: 0, historyFetchRequest: 2,
+        historyExportWindow: null,
         historyResolve: value => resolved.push(value), historyViewActive: () => true,
         statusPageOk: (page, state) => !!state,
         developmentMode: false, compatMode: false, controlsMutable: false, firmwareVersion: '', bootId: 0,

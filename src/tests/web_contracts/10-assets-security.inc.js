@@ -710,7 +710,14 @@ if (htmlBytes > 91000) {
 // warm-up estimates from the absolute readyAt timestamps, plus the
 // diagnostic readiness/boiler/water renderers sharing the cached stream
 // snapshot: ~4.5 KB of JS source allowance (pre-authorized raise, 2026-10-09).
-if (jsBytes > 370000) {
+// History CSV export (streamed one-shot fetch windows over the standing
+// subscription, plus the shared download/CSV helper split out of the Stats
+// export) and the multi-select activation-type filter (visible-records
+// projection, progressive page fill, and the fixed-position popover with
+// live filtering and quick reset) add ~8 KB of JS source allowance
+// (pre-authorized raise, 2026-10-09); compressed asset and firmware limits
+// stay fixed.
+if (jsBytes > 378000) {
   throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 370000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
@@ -772,8 +779,12 @@ if (jsBytes > 370000) {
 // HTML and ~1.5 KB of JS source allowance described above; the live brew
 // warnings add ~3.4 KB of JS and the conflict-chip element (~60 B of HTML),
 // pre-authorized 2026-10-09; compressed budgets stay fixed.
-if (htmlBytes + jsBytes > 460000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 460000)`);
+// History CSV export and the activation-type filter contribute the same
+// ~8 KB of JS source allowance described above plus ~0.6 KB of History HTML
+// (filter/export buttons and the funnel symbol), pre-authorized 2026-10-09;
+// compressed budgets stay fixed.
+if (htmlBytes + jsBytes > 469000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 469000)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

@@ -6,6 +6,9 @@ export function init() {
   if (ready) return;
   ready = true;
   $("clearHistoryButton").onclick = R.clearActivationHistory;
+  $("exportHistoryButton").onclick = R.exportActivationHistory;
+  $("historyFilterButton").onclick = R.toggleHistoryFilter;
+  R.syncHistoryFilterButton();
   const h = $("historySort");
   if (h) {
     $("historyDirButton").onclick = R.toggleHistoryDir;

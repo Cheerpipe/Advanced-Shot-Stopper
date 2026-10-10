@@ -69,7 +69,25 @@ and No scale guard aborted entries show an X. When the clock
 was not synced when the entry was recorded, the card shows "no time"
 instead of a date.
 
+Narrow the diary to what you care about with the Filter control next to the
+sort order. It opens a checklist of activation types — Shot, Rinse, Backflush,
+Power ON, Other, and No scale guard aborted — and you can tick as many as you
+like. With nothing ticked the diary shows everything; ticking one or more
+types shows only those, and the list updates as you tick. While a filter is
+active the Filter button shows a count badge and stays highlighted, so the
+state is visible at a glance, and Reset at the top of the checklist clears it
+in one tap. The checklist closes when you tap outside it or press Escape, and
+it works the same on a phone and on a computer. If the entries you are
+filtering for are older than what has loaded, the list keeps loading more
+pages on its own until it finds them or reaches the end; when a filter
+matches nothing at all, the page says so instead of showing an empty diary.
+
 Changing the saved time zone later does not rewrite earlier entry times.
+
+Take the diary into a spreadsheet with the Export button. It downloads an
+`activation-history.csv` file with every entry — its date and time, the UTC
+timestamp, the duration, and the type — in the current sort order, newest or
+oldest first, exactly as the page is set.
 
 Delete a single entry with the ✕ on its card, or clear the whole diary with
 the Clear button. Clearing asks for an explicit confirmation and cannot be

@@ -108,6 +108,7 @@
   });
   vm.runInContext(runtimeJs.slice(runtimeJs.indexOf('function lastCurveWeightG('),
     runtimeJs.indexOf('async function populateTimezoneOptions(')), context);
+  vm.runInContext(blockAt(runtimeJs, 'function downloadCsv('), context);
   vm.runInContext(blockAt(runtimeJs, 'async function exportShotsCsv('), context);
   await vm.runInContext('exportShotsCsv()', context);
   const lines = (await blob.text()).split('\n').map(line => line.split(','));

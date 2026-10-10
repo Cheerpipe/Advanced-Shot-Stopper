@@ -472,8 +472,11 @@ if (generated.jsGzip.length > 5050) {
 // connecting/success/error states, brand lockup) adds ~250 measured bytes,
 // the countdown line ~15 more, and the password reveal toggle ~110 more.
 // Cap raised to 11400.
-if (generated.cssGzip.length > 11400) {
-  throw new Error('Compressed Web CSS exceeds the 11400-byte gzip budget');
+// The History activation-type filter popover (fixed panel, count chip,
+// active-state button, touch-sized type rows) adds +158 measured bytes.
+// Cap raised to 11700 (pre-authorized raise, 2026-10-09).
+if (generated.cssGzip.length > 11700) {
+  throw new Error('Compressed Web CSS exceeds the 11700-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -561,8 +564,14 @@ if (generated.cssGzip.length > 11400) {
 // Cap raised to 50250 (pre-authorized raise, 2026-10-09).
 // The diagnostic States power row and decode-robustness rework measure
 // 50249; headroom raised to 50400.
-if (sentinelRuntimeGzip.length > 50400) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 50400-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// History CSV export (streamed fetch windows over the standing subscription
+// plus the download/CSV helper split out of the Stats export) and the
+// multi-select activation-type filter (visible-records projection,
+// progressive page fill, fixed-position popover with live filtering and
+// quick reset) measure +814 compressed bytes. Cap raised to 51500
+// (pre-authorized raise, 2026-10-09).
+if (sentinelRuntimeGzip.length > 51500) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 51500-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -696,8 +705,13 @@ if (generated.icon48Gzip.length > 3500) {
 // memory placement and OTA partitions stay fixed.
 // The States-column power row and decode-robustness rework measure 132583;
 // headroom raised to 132700.
-if (generated.combined > 132700) {
-  throw new Error(`Combined Web UI gzip exceeds the 132700-byte flash budget (${generated.combined})`);
+// History CSV export and the activation-type filter add their reviewed
+// combined allowance (runtime windows/filter logic, popover CSS, History
+// partial buttons and funnel symbol, locales): 134023 measured
+// (pre-authorized raise, 2026-10-09). Cap raised to 134200; firmware image,
+// memory placement and OTA partitions stay fixed.
+if (generated.combined > 134200) {
+  throw new Error(`Combined Web UI gzip exceeds the 134200-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
