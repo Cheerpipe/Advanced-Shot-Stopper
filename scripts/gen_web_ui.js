@@ -563,6 +563,7 @@ if (require.main === module) {
     let developmentMode;
     let machineType;
     let remoteControl;
+    let versionOverride;
     for (let i = 2; i < process.argv.length; i++) {
       const arg = process.argv[i];
       if (arg === '--webui-language') {
@@ -578,12 +579,17 @@ if (require.main === module) {
         if (++i >= process.argv.length) throw new Error('--machine-type requires a value');
         machineType = process.argv[i];
       } else if (arg.startsWith('--machine-type=')) {
-        machineType = arg.slice('--machine-type='.length);
+        machineType = process.argv[i].slice('--machine-type='.length);
+      } else if (arg === '--version') {
+        if (++i >= process.argv.length) throw new Error('--version requires a value');
+        versionOverride = process.argv[i];
+      } else if (arg.startsWith('--version=')) {
+        versionOverride = process.argv[i].slice('--version='.length);
       } else {
         throw new Error(`Unknown argument: ${arg}`);
       }
     }
-    return generate({webUiLanguage, developmentMode, machineType, remoteControl});
+    return generate({webUiLanguage, developmentMode, machineType, remoteControl, versionOverride});
   })
       .then((result) => {
         const parts = [
