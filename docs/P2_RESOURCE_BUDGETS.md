@@ -158,6 +158,15 @@ gate. Flash code stays inside its 36,200-byte allowance, DIRAM inside
 8,192, and external BSS well under its ceiling. The new auditlog partition
 carves reserved filesystem space without moving any existing partition, so
 OTA identity and slot layout are unchanged.
+The Web UI stream takeover repair (valid audit-frame JSON on the diagnostic
+stream plus the 4001 takeover close shared by the dispatch and rejected-bind
+paths, with the off-Home reachability recovery note in the embedded runtime)
+raises the image/linked allowances to 59,648/59,636 bytes. The reference
+development Micra build measures 2,333,344 image bytes and 2,333,219 linked
+bytes — 59,584/59,572 over baseline, with the allowances keeping the
+established 64 bytes of padding-wobble headroom. Flash code, rodata, DIRAM,
+external BSS, task ownership, control timing, OTA identity, and partitions
+all remain inside their existing limits.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
