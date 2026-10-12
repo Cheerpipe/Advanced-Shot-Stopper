@@ -354,6 +354,10 @@ function initQuickWeight() {
     paint();
   });
   pen.onclick = open;
+  // The active (expanded) preset row's "Target XX g" opens the same sheet;
+  // taps on other rows keep the accordion head's apply behavior.
+  addEventListener("click", (e) =>
+    e.target.closest(".presetAccItem.open .presetAccTarget") && open());
   doneBtn.onclick = () => close(true);
   resetBtn.onclick = () => {
     value = openValue;

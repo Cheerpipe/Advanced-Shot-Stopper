@@ -1,4 +1,5 @@
-// Quick target-weight sheet: the hero pencil is the only invocation point and
+// Quick target-weight sheet: the hero pencil, the one-shot ?edit_weight URL,
+// and the active preset row's Target text are the invocation points, and
 // closing the sheet commits through the proven settings-hydrate → preset-save
 // pipeline with the firmware's whole-gram 10–200 g preset goal contract.
 {
@@ -73,6 +74,9 @@
     'Opening from the URL must strip the one-shot parameter');
   qwAssert.ok(codeIncludes(qwHomeJs, 'return { open, close };'),
     'The controller must expose open for the URL launcher');
+  qwAssert.ok(codeIncludes(qwHomeJs,
+      'e.target.closest(".presetAccItem.open .presetAccTarget")'),
+    'The accordion Target tap must match only the open (active) preset row');
 
   qwAssert.ok(/position:fixed[^}]*bottom:0/.test(qwCssRule('qwSheet')) &&
       /backdrop-filter:blur\(18px\)/.test(css),
@@ -185,16 +189,19 @@
       hydrated: 0,
       saved: 0,
     };
+    const qwAccListeners = {};
     const qwInit = new Function('R', '$', 'document', 'addEventListener', 'performance',
       viewJs.home.slice(viewJs.home.indexOf('function initQuickWeight(')) +
       ';return initQuickWeight;')(
-      qwRuntime, (id) => qwEls[id],
-      {body: (() => { const body = qwNode(); body.classList = qwClassSet(body); return body; })(),
+        qwRuntime, (id) => qwEls[id],
+        {body: (() => { const body = qwNode(); body.classList = qwClassSet(body); return body; })(),
         createElement: () => {
           const node = qwNode();
           node.classList = qwClassSet(node);
           return node;
-        }}, () => {}, {now: () => qwNow});
+        }},
+        (type, fn) => { (qwAccListeners[type] ||= []).push(fn); },
+        {now: () => qwNow});
     const qwFire = (node, type, event) =>
       (node.listeners[type] || []).forEach((fn) => fn(Object.assign(
         {pointerType: 'mouse', button: 0, pointerId: 1, preventDefault() {}}, event)));
@@ -266,6 +273,28 @@
     qwAssert.ok(qwEls.qwSheet.classes.has('open'),
       'The exposed open must launch the sheet without the hero pencil');
     qwAssert.equal(qwEls.qwNum.textContent, '36', 'A programmatic open starts at the preset goal');
+    qwFire(qwEls.qwSheet, 'keydown', {key: 'Escape'});
+    await new Promise((r) => setTimeout(r, 0));
+
+    // The active row's Target text is the third invocation point; other rows
+    // keep the accordion head's select behavior, so only an open row opens.
+    const qwAccTap = (openRow) => ({
+      closest: (sel) =>
+        (openRow && sel === '.presetAccItem.open .presetAccTarget' ? {} : null),
+    });
+    const qwAccClick = (target) =>
+      (qwAccListeners.click || []).forEach((fn) => fn({target}));
+    qwAccClick(qwAccTap(false));
+    qwAssert.ok(!qwEls.qwSheet.classes.has('open'),
+      'A non-active row Target must not open the sheet');
+    qwAccClick({closest: () => null});
+    qwAssert.ok(!qwEls.qwSheet.classes.has('open'),
+      'Taps off the Target text must not open the sheet');
+    qwAccClick(qwAccTap(true));
+    qwAssert.ok(qwEls.qwSheet.classes.has('open'),
+      'The active row Target text must open the sheet');
+    qwAssert.equal(qwEls.qwNum.textContent, '36',
+      'The sheet still opens at the active preset goal');
     qwFire(qwEls.qwSheet, 'keydown', {key: 'Escape'});
     await new Promise((r) => setTimeout(r, 0));
 

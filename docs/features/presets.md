@@ -36,9 +36,11 @@ open a sliding scale at the bottom of the screen:
   saving the target in Settings.
 
 The last shot card only appears after the controller has recorded a shot.
-Until then, opening `http://<device-address>/?edit_weight=1` brings up the
-same sliding scale directly. The address parameter is used once and removed,
-so refreshing the page afterwards shows the normal Home.
+Tapping the weight shown on the active recipe's row in the **Presets**
+section — the Target text beside its name — opens the same sliding scale,
+and so does opening `http://<device-address>/?edit_weight=1`. The address
+parameter is used once and removed, so refreshing the page afterwards shows
+the normal Home.
 
 ## Create or change a recipe
 
