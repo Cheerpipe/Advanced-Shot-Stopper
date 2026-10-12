@@ -605,8 +605,10 @@ if (generated.otaImageGzip.length > 3072) {
 // the always-loaded runtime and shell budgets.
 // Initial power-source diagnostics measure 9840 bytes after reusing row/render
 // logic; allow 9900 bytes. Firmware image and combined asset budgets stay fixed.
-if (generated.secondaryGzip.length > 9900) {
-  throw new Error(`Compressed secondary view JS exceeds the 9900-byte gzip budget (${generated.secondaryGzip.length})`);
+// The Diagnostics audit viewer (records table renderer, hunt-session toggle,
+// explicit clear) measures 10287 bytes. Cap raised to 10350.
+if (generated.secondaryGzip.length > 10350) {
+  throw new Error(`Compressed secondary view JS exceeds the 10350-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');
@@ -727,10 +729,12 @@ if (generated.icon48Gzip.length > 3500) {
 // Cap raised to 134300; firmware image and OTA partition limits stay fixed.
 // The quick-weight dial guard range (guard-derived editable bounds, limit
 // pills, per-gram labeled ticks, zone tints in the inlined home module, plus
-// the Home partial pills and the dial CSS) measures 134688.
-// Cap raised to 134800; firmware image and OTA partition limits stay fixed.
-if (generated.combined > 134800) {
-  throw new Error(`Combined Web UI gzip exceeds the 134800-byte flash budget (${generated.combined})`);
+// the Home partial pills and the dial CSS) measures 134688, and the
+// Diagnostics audit viewer adds ~730 more (panel markup, table CSS share,
+// secondary JS, locales): 135418 combined.
+// Cap raised to 135500; firmware image and OTA partition limits stay fixed.
+if (generated.combined > 135500) {
+  throw new Error(`Combined Web UI gzip exceeds the 135500-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

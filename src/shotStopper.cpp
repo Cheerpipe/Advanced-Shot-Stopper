@@ -431,6 +431,11 @@ SHOT_STOPPER_PSRAM_BSS DebugRingBuffer debugLog;
 // Curated audit latch: classified rare events only, guarded by the same mutex
 // as the common ring so logEmitDetail captures both in one critical section.
 SHOT_STOPPER_PSRAM_BSS AuditLogLatch auditLog;
+// Audit flush bookkeeping: the worker drains records the latch marked
+// pending; the timestamp opens the 2 s batching window on the first pending
+// record so short bursts coalesce into one header commit.
+uint32_t auditFlushPendingSinceMs = 0;
+bool auditFlushBusy = false;
 // The retained ring is task-only. A priority-inheriting mutex avoids disabling
 // interrupts while HTTP/CLI readers copy records from PSRAM.
 TaskMutex debugLogMutex;
@@ -595,7 +600,12 @@ uint32_t runtimePersistRetryAtMs = 0;
 uint32_t runtimePersistIoRetryMs = 0;
 int32_t runtimePersistReasonBits = 0;
 uint32_t nextInternalRequestId = 0x80000000UL;
-enum class PersistenceWork : uint8_t { SETTINGS = 1, SHOT_STORES = 2, SCALE_PROFILE = 3 };
+enum class PersistenceWork : uint8_t {
+  SETTINGS = 1,
+  SHOT_STORES = 2,
+  SCALE_PROFILE = 3,
+  AUDIT_FLUSH = 4,
+};
 #ifndef SHOT_STOPPER_HOST_TEST
 SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistRequest;
 TaskMutex settingsPersistMux;

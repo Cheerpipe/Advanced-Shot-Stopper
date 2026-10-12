@@ -397,6 +397,16 @@ void setup() {
   // Read only the profiler's durable header at boot; records stay in flash
   // until a download streams them.
   scaleProfiler().bootInit();
+  // Recover the durable audit window into the RAM latch before any producer
+  // can emit; a missing partition degrades to latch-only auditing.
+  {
+    uint32_t auditPendingAfter = 0;
+    auditStoreBootOpen(auditLog, auditPendingAfter);
+    if (auditStoreStatus().state == AuditStoreState::UNSUPPORTED) {
+      logEmit(LogLevel::INFO, DebugCategory::SYSTEM,
+              DebugCode::BOOT_SUBSYSTEM, BOOT_SUBSYSTEM_PERSISTENCE, 2);
+    }
+  }
 #endif
   scaleProfiler().setContextProvider(&composeScaleProfileContext);
 
@@ -478,7 +488,11 @@ void setup() {
     callbacks.enqueueWebCommand = enqueueWebCommand;
     callbacks.copyDebugEvents = copyDebugEvents;
     callbacks.copyAuditEvents = copyAuditEvents;
+    callbacks.auditLogLatestSequence = auditLogLatestSequence;
     callbacks.debugLogLatestSequence = debugLogLatestSequence;
+    callbacks.copyAuditStoreStatus = copyAuditStoreStatus;
+    callbacks.setAuditVerbose = setAuditVerbose;
+    callbacks.auditVerboseDeadline = auditVerboseDeadline;
     callbacks.addDebugEvent = addDebugEvent;
     callbacks.reportTaskWatchdogFault = reportTaskWatchdogFault;
     callbacks.requestSafeRestart = requestSafeRestart;

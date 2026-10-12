@@ -961,4 +961,51 @@ inline void hostServiceEspTimer(esp_timer_handle_t timer) {
   timer->callback(timer->arg);
 }
 
+#include "ShotStopperAuditStore.h"
+
+namespace shotstopper {
+// RAM contract stubs: host control builds have no auditlog partition, so the
+// durable store degrades to an in-memory window that keeps the flush and
+// export paths coherent. Format and recovery semantics are pinned by
+// audit_store_host_test against the real store implementation.
+inline std::vector<AuditRecord> &hostAuditStoreWindow() {
+  static std::vector<AuditRecord> window;
+  return window;
+}
+inline AuditStoreStatus hostAuditStoreStatus{AuditStoreState::READY};
+
+inline void auditStoreBootOpen(AuditLogLatch &latch, uint32_t &pendingAfter) {
+  pendingAfter = 0;
+  for (const AuditRecord &record : hostAuditStoreWindow()) latch.adopt(record);
+  pendingAfter = latch.pendingAfter();
+}
+inline bool auditStoreAppend(const AuditRecord &record) {
+  auto &window = hostAuditStoreWindow();
+  if (window.size() >= AUDIT_STORE_RECORD_CAPACITY) window.erase(window.begin());
+  window.push_back(record);
+  hostAuditStoreStatus.seqHigh = record.sequence;
+  hostAuditStoreStatus.retained = window.size();
+  return true;
+}
+inline bool auditStoreCommitHeader() { return true; }
+inline size_t auditStoreCopyAfter(uint32_t afterSequence, AuditRecord *output,
+                                  size_t capacity) {
+  size_t copied = 0;
+  for (const AuditRecord &record : hostAuditStoreWindow()) {
+    if (record.sequence > afterSequence && copied < capacity) {
+      output[copied++] = record;
+    }
+  }
+  return copied;
+}
+inline bool auditStoreEraseAll() {
+  hostAuditStoreWindow().clear();
+  hostAuditStoreStatus = AuditStoreStatus{AuditStoreState::READY};
+  return true;
+}
+// clearAuditStores is defined by the control TU's serial-log fragment for
+// host and target alike; it combines this stub's erase with the latch clear.
+inline AuditStoreStatus auditStoreStatus() { return hostAuditStoreStatus; }
+}  // namespace shotstopper
+
 #endif

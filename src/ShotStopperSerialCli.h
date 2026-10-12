@@ -12,7 +12,9 @@ namespace shotstopper {
 constexpr size_t SERIAL_CLI_LINE_CAPACITY = 160;
 constexpr size_t SERIAL_CLI_MAX_BYTES_PER_LOOP = 8;
 constexpr size_t SERIAL_CLI_VERB_CAPACITY = 24;
-constexpr size_t SERIAL_CLI_OUTPUT_CAPACITY = 2560;
+// The audit verbs (dump/clear/verbose) extend HELP past the previous 2560
+// bytes; one bounded flush must still hold the whole listing.
+constexpr size_t SERIAL_CLI_OUTPUT_CAPACITY = 2880;
 
 enum class SerialCliVerb : uint8_t {
   NONE = 0,
@@ -49,6 +51,9 @@ enum class SerialCliVerb : uint8_t {
   NTP_STATUS,
   HEAP,
   BOOT_HEAP,
+  AUDIT_DUMP,
+  AUDIT_CLEAR,
+  AUDIT_VERBOSE,
   UNKNOWN,
   LINE_TOO_LONG,
   INVALID_ARGS
@@ -104,6 +109,9 @@ inline const char *serialCliVerbName(SerialCliVerb verb) {
     case SerialCliVerb::NTP_STATUS: return "NTP_STATUS";
     case SerialCliVerb::HEAP: return "HEAP";
     case SerialCliVerb::BOOT_HEAP: return "BOOT_HEAP";
+    case SerialCliVerb::AUDIT_DUMP: return "AUDIT_DUMP";
+    case SerialCliVerb::AUDIT_CLEAR: return "AUDIT_CLEAR";
+    case SerialCliVerb::AUDIT_VERBOSE: return "AUDIT_VERBOSE";
     case SerialCliVerb::UNKNOWN: return "UNKNOWN";
     case SerialCliVerb::LINE_TOO_LONG: return "LINE_TOO_LONG";
     case SerialCliVerb::INVALID_ARGS: return "INVALID_ARGS";
@@ -352,6 +360,31 @@ inline bool serialCliParseLine(const char *line, SerialCliRequest &request) {
   if (serialCliEqualsIgnoreCase(verb, "boot_heap")) {
     return requireNoArgs(SerialCliVerb::BOOT_HEAP);
   }
+  if (serialCliEqualsIgnoreCase(verb, "audit_dump")) {
+    if (argCount > 1) {
+      request.verb = SerialCliVerb::INVALID_ARGS;
+      request.error = "AUDIT_DUMP takes an optional record count";
+      return true;
+    }
+    request.verb = SerialCliVerb::AUDIT_DUMP;
+    if (argCount == 1) copyCString(request.arg1, sizeof(request.arg1), args[0]);
+    return true;
+  }
+  if (serialCliEqualsIgnoreCase(verb, "audit_clear")) {
+    return requireNoArgs(SerialCliVerb::AUDIT_CLEAR);
+  }
+  if (serialCliEqualsIgnoreCase(verb, "audit_verbose")) {
+    if (argCount > 1 ||
+        (argCount == 1 && !serialCliEqualsIgnoreCase(args[0], "on") &&
+         !serialCliEqualsIgnoreCase(args[0], "off"))) {
+      request.verb = SerialCliVerb::INVALID_ARGS;
+      request.error = "AUDIT_VERBOSE takes an optional on/off argument";
+      return true;
+    }
+    request.verb = SerialCliVerb::AUDIT_VERBOSE;
+    if (argCount == 1) copyCString(request.arg1, sizeof(request.arg1), args[0]);
+    return true;
+  }
 
   if (serialCliEqualsIgnoreCase(verb, "set_device_password")) {
     if (argCount != 1) {
@@ -465,6 +498,9 @@ inline void serialCliPrintHelp() {
   Serial.println(
       "LOG_DUMP  print RAM debug ring (deferred in brew/machine circuit)  e.g. LOG_DUMP");
   Serial.println("HEALTH  heap, loop gap, cpu load, task stacks  e.g. HEALTH");
+  Serial.println("AUDIT_DUMP [n]  curated audit log, newest n (default 24)  e.g. AUDIT_DUMP 10");
+  Serial.println("AUDIT_CLEAR  erase the durable audit log  e.g. AUDIT_CLEAR");
+  Serial.println("AUDIT_VERBOSE [on|off]  30-minute verbose hunt session  e.g. AUDIT_VERBOSE on");
   Serial.println("SCALE_STATUS  BLE scale link dump  e.g. SCALE_STATUS");
   Serial.println("NTP_STATUS  wall clock and NTP dump  e.g. NTP_STATUS");
   Serial.println(

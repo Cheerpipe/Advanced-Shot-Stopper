@@ -2,6 +2,7 @@
 
 #include "ShotStopperDomain.h"
 #include "ShotStopperAuditLog.h"
+#include "ShotStopperAuditStore.h"
 #include "ShotStopperDebugExport.h"
 #include "ShotStopperHistoryTypes.h"
 #include "ShotStopperPersistence.h"
@@ -197,6 +198,10 @@ struct NetworkBridgeCallbacks {
   size_t (*copyAuditEvents)(uint32_t afterSequence, AuditRecord *output,
                             size_t capacity, uint32_t *dropped,
                             uint32_t *rateLimited) = nullptr;
+  uint32_t (*auditLogLatestSequence)() = nullptr;
+  void (*copyAuditStoreStatus)(AuditStoreStatus &output) = nullptr;
+  bool (*setAuditVerbose)(bool on) = nullptr;
+  uint32_t (*auditVerboseDeadline)() = nullptr;
   uint32_t (*debugLogLatestSequence)() = nullptr;
   void (*addDebugEvent)(DebugCategory category, DebugCode code,
                         int32_t argument1, int32_t argument2) = nullptr;
@@ -376,7 +381,8 @@ class ShotStopperNetwork {
     // sampled sections (health, NVS, profilers, network measurements) share
     // one 4 s evaluation gate so their producers run at most per interval.
     uint32_t diagBoot = 0, diagSlowAtMs = 0;
-    uint32_t diagTasksFingerprint = 0, diagProfileFingerprint = 0;
+    uint32_t diagTasksFingerprint = 0, diagProfileFingerprint = 0,
+             diagAuditFingerprint = 0;
     bool diagnostic = false, diagResync = true;
     // Serial-log subscription, same view-scoped contract: a cheap ring
     // watermark gates the copy, hasMore pages across dispatches, and a
@@ -640,6 +646,8 @@ class ShotStopperNetwork {
   static esp_err_t partialDiagnosticHandler(httpd_req_t *request);
   static esp_err_t crashArchiveDownloadHandler(httpd_req_t *request);
   static esp_err_t crashArchiveClearHandler(httpd_req_t *request);
+  static esp_err_t auditLogClearHandler(httpd_req_t *request);
+  static esp_err_t auditVerboseHandler(httpd_req_t *request);
   static esp_err_t partialSettingsHandler(httpd_req_t *request);
   static esp_err_t partialAdminHandler(httpd_req_t *request);
   static esp_err_t partialSetupHandler(httpd_req_t *request);
@@ -666,6 +674,10 @@ class ShotStopperNetwork {
   bool sendDiagnosticStream(UiStreamSession &session,
                             const ControlStatusSnapshot &control,
                             const NetworkStatusSnapshot &network);
+  // Audit fingerprinted frame inside the diagnostic stream: newest latch and
+  // durable-window records plus the hunt-session state (own .inc fragment).
+  bool sendAuditDiagFrame(UiStreamSession &session,
+                          const ControlStatusSnapshot &control, bool initial);
   bool sendUiStreamFrame(UiStreamSession &session, size_t used, bool &deferArm);
   bool sendLogStream(UiStreamSession &session,
                      const ControlStatusSnapshot &control);

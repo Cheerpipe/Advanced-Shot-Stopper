@@ -165,6 +165,9 @@ persist.
 | `NTP_STATUS` | none | Wall clock / NTP state, saved IANA `timezoneId`, and the offset applied at the current UTC instant. Notes if STA is down |
 | `HEAP` | none | Internal memory heap summary plus the list of free blocks (size and start address, up to 12) so you can see which gaps bound the largest allocation. Reports `freeBlocksTruncated` when more free blocks exist |
 | `BOOT_HEAP` | none | Retained memory samples from the current boot, including the startup reservation and first network/cloud/WebSocket stages. Works with debug traces off |
+| `AUDIT_DUMP` | optional count | Prints the curated audit log (newest first), at most the given number of records (default 24, capped at 128), with the store state, retained count, and dropped/rate-limited counters |
+| `AUDIT_CLEAR` | none | Erases the durable audit log and the RAM latch immediately |
+| `AUDIT_VERBOSE` | optional `on`/`off` | Arms (default) or stops a 30-minute verbose hunt session: marked debug events join the audit log. Needs a synchronized clock |
 
 `HEALTH` stack watermarks are bytes (`stackUnit=bytes`). Legacy `Words` suffixes
 are retained without rescaling their values. `4294967295` means unavailable;

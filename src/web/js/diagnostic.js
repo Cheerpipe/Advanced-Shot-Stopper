@@ -417,6 +417,108 @@ function copyText(text) {
   ta.remove();
   if (ok) R.message(__WEBUI_TEXT__("diagnostic.copied"), "ok");
 }
+let auditBusy = false;
+function auditTime(wallSec) {
+  if (!wallSec) return "—";
+  const d = new Date(wallSec * 1000),
+    now = new Date(),
+    sameDay = d.toDateString() === now.toDateString();
+  return sameDay
+    ? d.toLocaleTimeString()
+    : d.toLocaleDateString() + " " + d.toLocaleTimeString();
+}
+function applyAudit(a) {
+  const body = $("auditBody");
+  if (!body || !a) return;
+  const huntUntil = a.verboseUntilUtcSec || 0,
+    huntLeft = huntUntil ? huntUntil - Math.floor(Date.now() / 1000) : 0,
+    huntOn = huntLeft > 0;
+  $("auditSummary").textContent =
+    (a.state === "unsupported"
+      ? __WEBUI_TEXT__("diagnostic.audit_ram_only")
+      : (a.retained || 0) + " " + __WEBUI_TEXT__("diagnostic.audit_kept")) +
+    (a.dropped || a.rateLimited
+      ? " · " +
+        __WEBUI_TEXT__("diagnostic.audit_dropped").replace(
+          "{d}",
+          a.dropped || 0,
+        ) +
+        " / " +
+        (a.rateLimited || 0)
+      : "") +
+    (huntOn
+      ? " · " +
+        __WEBUI_TEXT__("diagnostic.audit_hunt_left").replace(
+          "{m}",
+          String(Math.ceil(huntLeft / 60)),
+        )
+      : "");
+  const verbose = $("auditVerboseButton"),
+    clear = $("auditClearButton");
+  if (verbose)
+    verbose.querySelector(".t").textContent = huntOn
+      ? __WEBUI_TEXT__("diagnostic.audit_hunt_stop")
+      : __WEBUI_TEXT__("diagnostic.audit_hunt_30m");
+  if (verbose) verbose.disabled = auditBusy || !R.webUiOwner;
+  if (clear)
+    clear.disabled =
+      auditBusy || !R.webUiOwner || !(a.items || []).length;
+  body.replaceChildren();
+  for (const item of (a.items || []).slice().reverse())
+    body.insertRow().append(
+      ...[auditTime(item.wallSec), item.level, item.code, item.text || "—"].map(
+        (text) => Object.assign(document.createElement("td"), { textContent: text }),
+      ),
+    );
+}
+async function toggleAuditHunt() {
+  if (auditBusy) return;
+  const huntOn =
+    ($("auditVerboseButton").querySelector(".t").textContent ===
+      __WEBUI_TEXT__("diagnostic.audit_hunt_stop"));
+  auditBusy = true;
+  try {
+    await R.api("/api/v1/diagnostic/audit/verbose", {
+      method: "POST",
+      body: JSON.stringify({ enabled: !huntOn }),
+    });
+    R.message(
+      huntOn
+        ? __WEBUI_TEXT__("diagnostic.audit_hunt_stopped")
+        : __WEBUI_TEXT__("diagnostic.audit_hunt_started"),
+      "ok",
+    );
+  } catch (e) {
+    R.message(
+      R.formatCommandError(__WEBUI_TEXT__("diagnostic.audit_hunt_failed"), e),
+      "error",
+    );
+  } finally {
+    auditBusy = false;
+    await R.refreshStatus();
+  }
+}
+async function emptyAudit() {
+  if (!confirm(__WEBUI_TEXT__("diagnostic.audit_empty_confirm"))) return;
+  auditBusy = true;
+  await R.refreshStatus();
+  try {
+    await R.api("/api/v1/diagnostic/audit/empty", {
+      method: "POST",
+      body: JSON.stringify({ confirm: "EMPTY_AUDIT_LOG" }),
+      timeoutMs: 12e4,
+    });
+    R.message(__WEBUI_TEXT__("diagnostic.audit_cleared"), "ok");
+  } catch (e) {
+    R.message(
+      R.formatCommandError(__WEBUI_TEXT__("diagnostic.audit_clear_failed"), e),
+      "error",
+    );
+  } finally {
+    auditBusy = false;
+    await R.refreshStatus();
+  }
+}
 export function applyStatus(s) {
   R.applyDiagnosticStatus(s);
   for (const id of ["serialLogLevel", "ringRetainLogLevel"])
@@ -429,6 +531,7 @@ export function applyStatus(s) {
   applyTaskProfiler(s.tasks);
   applyScaleProfile(s.scaleProfile);
   applyLoopTiming(s);
+  applyAudit(s.audit);
   updateCrashRow(s);
   const b = $("hResetHistory");
   if (b) {
@@ -473,6 +576,8 @@ export function init() {
   $("logLevelFilter").onchange = R.renderLog;
   $("copyLogButton").onclick = () => copyText($("log").value);
   $("clearLogButton").onclick = () => R.clearLogView();
+  $("auditVerboseButton").onclick = () => toggleAuditHunt();
+  $("auditClearButton").onclick = () => emptyAudit();
   $("exportDebugDataButton").onclick = () => exportDebugData();
   if ($("lineaMicraRefreshLink"))
     $("lineaMicraRefreshLink").onclick = (e) => {

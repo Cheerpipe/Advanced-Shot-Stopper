@@ -913,6 +913,8 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
         session.diagProfileFingerprint = fingerprint;
       }
     }
+    // Audit latch + durable window: fingerprinted frame in its own fragment.
+    if (!sendAuditDiagFrame(session, control, initial)) return false;
     session.diagSlowAtMs = now;
   }
   session.diagBoot = control.bootId;

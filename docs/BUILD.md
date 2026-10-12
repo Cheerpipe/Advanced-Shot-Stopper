@@ -243,7 +243,12 @@ same-layout schema-1 settings upgrade without losing saved values. The shot stor
 uses schema 2 and the curve store uses schema 2. Other incompatible settings are
 rejected and replaced with factory defaults. Firmware identity is checked before
 writing the device. Older incompatible partition layouts require the clean USB
-installation described below; compatible OTA updates remain supported.
+installation described below; compatible OTA updates remain supported. The
+audit-log partition introduced in October 2026 is carved from reserved
+filesystem space on both boards without moving any existing partition, so
+firmware carrying it installs over USB with `--erase-all` (adopting the new
+table) and updates from it afterwards by OTA or USB normally; firmware without
+the partition simply runs the audit log in RAM-only mode.
 
 List available IDs and compatibility before building:
 

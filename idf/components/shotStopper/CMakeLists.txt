@@ -8,6 +8,7 @@ set(SHOT_STOPPER_SRCS
   "${SHOT_STOPPER_DIR}/ShotStopperTaskMutex.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperResetGuard.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperCrashArchive.cpp"
+  "${SHOT_STOPPER_DIR}/ShotStopperAuditStore.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperPowerManagement.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperScaleWorker.cpp"
   "${SHOT_STOPPER_DIR}/ShotStopperNetwork.cpp"

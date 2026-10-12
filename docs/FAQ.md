@@ -261,7 +261,12 @@ To report an issue, include firmware version, board and machine type, scale
 model/firmware, exact gesture/settings, and redacted diagnostic export. The
 export's `audit` section lists rare faults and anomalies the firmware kept
 aside from the rotating log — useful when the problem happened hours or days
-earlier. Never
+earlier. The same records appear in the **Diagnostic → Audit log** table,
+which survives restarts on its own flash space; **Empty** there (or the
+`AUDIT_CLEAR` USB command) removes them permanently. When a problem is
+actively being hunted, **Hunt 30 m** admits a few extra debug events into the
+audit log for thirty minutes so a rare sequence can be captured; the session
+ends on its own and never changes how the machine is controlled. Never
 include passwords or webhook secrets. [USB HEALTH](SERIAL_CLI.md#diagnostics)
 and [shot history](features/shot-history.md) help explain the observed result.
 

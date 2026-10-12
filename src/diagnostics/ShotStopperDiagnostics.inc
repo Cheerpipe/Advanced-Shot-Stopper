@@ -684,6 +684,66 @@ void serialCliPrintLiveNetworkStatus(SerialCliVerb verb) {
   }
 }
 
+// Audit CLI: newest-first bounded dump of the merged latch + durable window.
+// The audit surface is small (curated events), so direct printing keeps the
+// command synchronous without the deferred LOG_DUMP pipeline.
+void serialCliPrintAuditDump(const char *countArg) {
+  const uint32_t latest = auditLogLatestSequence();
+  long want = 24;
+  if (countArg != nullptr && countArg[0] != '\0') {
+    want = strtol(countArg, nullptr, 10);
+    if (want <= 0) {
+      serialCliReply("ERR AUDIT_DUMP count must be positive");
+      return;
+    }
+    if (want > 128) want = 128;
+  }
+  const uint32_t after = latest > static_cast<uint32_t>(want)
+                             ? latest - static_cast<uint32_t>(want)
+                             : 0;
+  static SHOT_STOPPER_PSRAM_BSS AuditRecord auditCliBatch[128];
+  uint32_t dropped = 0, rateLimited = 0;
+  const size_t count =
+      copyAuditEvents(after, auditCliBatch, 128, &dropped, &rateLimited);
+  const AuditStoreStatus store = auditStoreStatus();
+  char line[160];
+  snprintf(line, sizeof(line), "audit: state=%s retained=%lu seqHigh=%lu",
+           store.state == AuditStoreState::READY ? "ready"
+               : store.state == AuditStoreState::UNSUPPORTED ? "ram-only"
+                                                             : "io-error",
+           static_cast<unsigned long>(store.retained),
+           static_cast<unsigned long>(store.seqHigh));
+  serialCliReply(line);
+  snprintf(line, sizeof(line), "audit: records=%u dropped=%lu rateLimited=%lu",
+           static_cast<unsigned>(count),
+           static_cast<unsigned long>(dropped),
+           static_cast<unsigned long>(rateLimited));
+  serialCliReply(line);
+  for (size_t index = count; index > 0; --index) {
+    const AuditRecord &record = auditCliBatch[index - 1];
+    snprintf(line, sizeof(line),
+             "seq=%lu wall=%lu level=%s code=%s arg1=%ld arg2=%ld %.24s",
+             static_cast<unsigned long>(record.sequence),
+             static_cast<unsigned long>(record.wallSec),
+             logLevelName(static_cast<LogLevel>(record.level)),
+             debugCodeName(static_cast<DebugCode>(record.code)),
+             static_cast<long>(record.argument1),
+             static_cast<long>(record.argument2), record.text);
+    serialCliReply(line);
+  }
+}
+
+void serialCliAuditVerbose(const char *modeArg) {
+  const bool on =
+      modeArg == nullptr || modeArg[0] == '\0' || serialCliEqualsIgnoreCase(modeArg, "on");
+  if (!setAuditVerbose(on)) {
+    serialCliReply("ERR audit verbose needs a synchronized clock");
+    return;
+  }
+  serialCliReply(on ? "OK audit verbose session armed for 1800 s"
+                    : "OK audit verbose session stopped");
+}
+
 void serialCliPrintLiveHealth() {
   SerialCliHealthDump dump;
   dump.freeHeapBytes = freeHeapBytes;
@@ -1016,6 +1076,16 @@ void dispatchSerialCliRequest(SerialCliRequest &request) {
       return;
     case SerialCliVerb::BOOT_HEAP:
       serialCliPrintBootHeap();
+      return;
+    case SerialCliVerb::AUDIT_DUMP:
+      serialCliPrintAuditDump(request.arg1);
+      return;
+    case SerialCliVerb::AUDIT_CLEAR:
+      serialCliReply(clearAuditStores() ? "OK audit log cleared"
+                                        : "ERR audit erase failed");
+      return;
+    case SerialCliVerb::AUDIT_VERBOSE:
+      serialCliAuditVerbose(request.arg1);
       return;
   }
 }

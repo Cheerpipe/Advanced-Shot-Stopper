@@ -191,6 +191,28 @@ restart path accepted the request. During an extraction it waits for the cycle
 to end; it never closes the relay or resumes a cycle after boot. This trusted-
 LAN route exposes no machine actuation counterpart.
 
+### `POST /api/v1/diagnostic/audit/empty`
+
+Erases the durable audit log and the RAM latch. Requires the Admin unlock (or
+a development build) and the exact body `{"confirm":"EMPTY_AUDIT_LOG"}` while
+the machine is Ready; responds `200` with `{}` on success. Mirrors
+`crashes/empty` semantics (gate, confirmation, single flash owner).
+
+### `POST /api/v1/diagnostic/audit/verbose`
+
+Arms or stops a 30-minute verbose audit hunt session with
+`{"enabled":true|false}`. While armed, marked debug events join the audit log
+in addition to the always-audited errors and allowlisted warnings. Requires a
+synchronized wall clock; without one it responds `409 AUDIT_VERBOSE_UNAVAILABLE`.
+The session is RAM-scoped (a reboot ends it) and never affects control.
+
+The diagnostic stream carries the audit surface on its own fingerprinted
+frame under `changes.audit`: `state` (`ready` / `unsupported` / `io_error`),
+`retained`, `dropped`, `rateLimited`, `verboseUntilUtcSec`, and `items` with
+the newest records (`sequence`, `wallSec`, `atMs`, `level`, `category`,
+`code`, `argument1`, `argument2`, `text`). The debug export's `audit` section
+carries the same records for the whole retained window.
+
 ### `POST /api/v1/diagnostic/scale-profile`
 
 Starts, stops, or deletes the manual scale profile capture. Requires the

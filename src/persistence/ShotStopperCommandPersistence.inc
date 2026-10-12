@@ -324,6 +324,65 @@ bool dispatchScaleProfileWork() {
 #endif
 }
 
+// Audit flush on this worker (single owner of the flash lock after boot):
+// drain latch records marked pending, batched at ≤8 records or after a 2 s
+// window, one durable header commit per drained batch. A failed append
+// leaves its record pending, so the next idle dispatch retries.
+void persistAuditLogImage() {
+  auditFlushBusy = true;
+  for (;;) {
+#ifndef SHOT_STOPPER_HOST_TEST
+    waitForShotStoreWriteGate();
+#endif
+    AuditRecord batch[8];
+    size_t count;
+    {
+      TaskLockGuard lock(debugLogMutex);
+      count = auditLog.copyPending(sizeof(batch) / sizeof(batch[0]), batch);
+    }
+    if (count == 0) break;
+    bool failed = false;
+    for (size_t index = 0; index < count && !failed; ++index) {
+      if (!auditStoreAppend(batch[index])) {
+        failed = true;
+        break;
+      }
+      TaskLockGuard lock(debugLogMutex);
+      auditLog.markFlushedThrough(batch[index].sequence);
+    }
+    if (failed || !auditStoreCommitHeader()) break;
+  }
+  {
+    TaskLockGuard lock(debugLogMutex);
+    auditFlushPendingSinceMs = 0;
+  }
+  auditFlushBusy = false;
+}
+
+// True when the latch holds records worth flushing now (batch size or the
+// coalescing window elapsed). Called from this worker's idle branch.
+bool auditFlushDue() {
+  TaskLockGuard lock(debugLogMutex);
+  if (!auditLog.hasPending()) {
+    auditFlushPendingSinceMs = 0;
+    return false;
+  }
+  const uint32_t now = millis();
+  if (auditFlushPendingSinceMs == 0) auditFlushPendingSinceMs = now;
+  return auditLog.pendingCount() >= 8 || now - auditFlushPendingSinceMs >= 2000;
+}
+
+bool dispatchAuditFlushWork() {
+  if (auditFlushBusy) return false;
+#ifndef SHOT_STOPPER_HOST_TEST
+  if (!settingsPersistenceAvailable()) return false;
+  const PersistenceWork work = PersistenceWork::AUDIT_FLUSH;
+  return xQueueSend(settingsPersistQueue, &work, 0) == pdTRUE;
+#else
+  return true;
+#endif
+}
+
 #ifdef SHOT_STOPPER_HOST_TEST
 void settingsPersistTask(void *) {}
 #else
@@ -344,11 +403,12 @@ void settingsPersistTask(void *parameter) {
       const ScaleLinkSnapshot link = getScaleLinkSnapshot();
       if (!control.maintenanceLeaseActive &&
           durableFlashWriteAllowed(control.activeCycle || control.relayClosed ||
-                                       control.machineRunning ||
-                                       control.physicalActivatorOn,
+                                   control.machineRunning ||
+                                   control.physicalActivatorOn,
                                    link.connecting)) {
         (void)persistResetUptimeCheckpoint(millis());
         serviceBleScanPersist();
+        if (auditFlushDue()) (void)dispatchAuditFlushWork();
       }
       continue;
     }
@@ -361,6 +421,11 @@ void settingsPersistTask(void *parameter) {
     }
     if (work == PersistenceWork::SCALE_PROFILE) {
       persistScaleProfileImage();
+      feedOrTripCurrentTaskWatchdog();
+      continue;
+    }
+    if (work == PersistenceWork::AUDIT_FLUSH) {
+      persistAuditLogImage();
       feedOrTripCurrentTaskWatchdog();
       continue;
     }

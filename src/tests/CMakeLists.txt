@@ -80,6 +80,8 @@ else()
   host_test(webhook_worker_host_test LABEL "host;network")
   host_test(heap_telemetry_host_test LABEL "host;resources")
 host_test(audit_log_host_test LABEL "host;diagnostics")
+host_test(audit_store_host_test DEFINITIONS SHOT_STOPPER_AUDIT_HOST_TEST
+  LABEL "host;diagnostics;persistence")
   host_test(scale_profiler_host_test LABEL "host;scale;persistence")
   host_test(resource_owner_host_test LABEL "host;resources")
   host_test(machine_integration_host_test

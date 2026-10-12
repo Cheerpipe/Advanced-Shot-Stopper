@@ -110,6 +110,7 @@ class AuditLogLatch {
     overwritten_ = 0;
     rateLimited_ = 0;
     rateCount_ = 0;
+    pendingAfter_ = 0;
   }
 
   // Returns false when the per-code rate limit suppressed the event.
@@ -167,6 +168,45 @@ class AuditLogLatch {
   uint32_t overwritten() const { return overwritten_; }
   uint32_t rateLimited() const { return rateLimited_; }
 
+  // Persistence seam (durable store phase): records adopted from flash keep
+  // their original sequence and count as already durable; a fresh add() is
+  // pending until markFlushedThrough() advances the watermark past it.
+  bool adopt(const AuditRecord &record) {
+    if (record.sequence == 0) return false;
+    if (count_ == AUDIT_RECORD_CAPACITY) {
+      ++overwritten_;
+    } else {
+      ++count_;
+    }
+    events_[writeIndex_] = record;
+    writeIndex_ = (writeIndex_ + 1) % AUDIT_RECORD_CAPACITY;
+    if (record.sequence >= nextSequence_) nextSequence_ = record.sequence + 1;
+    if (record.sequence > pendingAfter_) pendingAfter_ = record.sequence;
+    return true;
+  }
+
+  size_t copyPending(size_t capacity, AuditRecord *output) const {
+    return copyAfter(pendingAfter_, output, capacity);
+  }
+
+  size_t pendingCount() const {
+    size_t pending = 0;
+    for (size_t index = count_; index > 0; --index) {
+      const AuditRecord &record =
+          events_[(writeIndex_ + AUDIT_RECORD_CAPACITY - index) %
+                  AUDIT_RECORD_CAPACITY];
+      if (record.sequence > pendingAfter_) ++pending;
+    }
+    return pending;
+  }
+
+  void markFlushedThrough(uint32_t sequence) {
+    if (sequence > pendingAfter_) pendingAfter_ = sequence;
+  }
+
+  uint32_t pendingAfter() const { return pendingAfter_; }
+  bool hasPending() const { return latestSequence() > pendingAfter_; }
+
  private:
   bool admitRate(uint8_t code, uint32_t atMs) {
     for (uint8_t i = 0; i < rateCount_; ++i) {
@@ -209,6 +249,7 @@ class AuditLogLatch {
   uint32_t nextSequence_ = 1;
   uint32_t overwritten_ = 0;
   uint32_t rateLimited_ = 0;
+  uint32_t pendingAfter_ = 0;
   size_t count_ = 0;
   size_t writeIndex_ = 0;
   uint8_t rateCount_ = 0;

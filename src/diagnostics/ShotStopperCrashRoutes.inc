@@ -128,3 +128,13 @@ esp_err_t ShotStopperNetwork::crashArchiveClearHandler(httpd_req_t *request) {
       "Confirm crash deletion explicitly.", crashArchiveClear,
       "CRASH_CLEAR_FAILED", "Crash records could not be erased.");
 }
+
+esp_err_t ShotStopperNetwork::auditLogClearHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  if (!self.requireAdminUnlock(request)) return ESP_OK;
+  return self.runConfirmedClear(
+      request, "Stop the cycle and wait for Ready before emptying the audit log.",
+      "EMPTY_AUDIT_LOG", "AUDIT_CLEAR_NOT_CONFIRMED",
+      "Confirm audit-log deletion explicitly.", clearAuditStores,
+      "AUDIT_CLEAR_FAILED", "Audit records could not be erased.");
+}

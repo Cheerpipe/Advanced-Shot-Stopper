@@ -296,9 +296,30 @@ void serialTraceCategoryf(LogLevel level, DebugCategory category,
   logText(level, category, line);
 }
 
-// The verbose audit session switch (marked DEBUG codes admitted to the latch)
-// arrives with the Diagnostics surfacing; until then nothing is verbose-worthy.
-bool auditVerboseActive() { return false; }
+// Verbose audit hunt session (Diagnostics toggle): marked DEBUG codes join
+// the latch while the wall-clock deadline holds. The session lives in RAM
+// like a profiler run — a reboot ends the hunt, the records it captured stay.
+constexpr uint32_t AUDIT_VERBOSE_SESSION_SEC = 30 * 60;
+uint32_t auditVerboseUntilUtcSec = 0;
+bool auditVerboseActive() {
+  return auditVerboseUntilUtcSec != 0 &&
+         g_wallClock.nowUtcSec(millis()) < auditVerboseUntilUtcSec;
+}
+bool setAuditVerbose(bool on) {
+  if (!on) {
+    auditVerboseUntilUtcSec = 0;
+    return true;
+  }
+  const uint32_t now = g_wallClock.nowUtcSec(millis());
+  if (now == 0) return false;  // a hunt deadline needs a synced wall clock
+  auditVerboseUntilUtcSec = now + AUDIT_VERBOSE_SESSION_SEC;
+  serialTraceCategoryf(LogLevel::INFO, DebugCategory::SYSTEM,
+                       "audit verbose session armed for %u s", AUDIT_VERBOSE_SESSION_SEC);
+  return true;
+}
+uint32_t auditVerboseDeadline() {
+  return auditVerboseActive() ? auditVerboseUntilUtcSec : 0;
+}
 
 void logEmitDetail(LogLevel level, DebugCategory category, DebugCode code,
                    int32_t argument1, int32_t argument2,
@@ -390,18 +411,71 @@ size_t copyDebugEvents(uint32_t afterSequence, DebugEvent *output,
 size_t copyAuditEvents(uint32_t afterSequence, AuditRecord *output,
                        size_t capacity, uint32_t *dropped = nullptr,
                        uint32_t *rateLimited = nullptr) {
-  TaskLockGuard lock(debugLogMutex);
-  if (dropped != nullptr) *dropped = auditLog.overwritten();
-  if (rateLimited != nullptr) *rateLimited = auditLog.rateLimited();
-  return auditLog.copyAfter(afterSequence, output, capacity);
+  {
+    TaskLockGuard lock(debugLogMutex);
+    if (dropped != nullptr) *dropped = auditLog.overwritten();
+    if (rateLimited != nullptr) *rateLimited = auditLog.rateLimited();
+  }
+  // Boot adoption mirrors every flushed record in the latch, so the durable
+  // window only contributes records older than the latch's oldest page item;
+  // both sources come back in ascending sequence order.
+  AuditRecord probe[1];
+  uint32_t latchOldest = 0;
+  {
+    TaskLockGuard lock(debugLogMutex);
+    if (auditLog.copyAfter(afterSequence, probe, 1) > 0) {
+      latchOldest = probe[0].sequence;
+    }
+  }
+  size_t filled = 0;
+  if (latchOldest == 0 || latchOldest > afterSequence + 1) {
+    AuditRecord durablePage[8];
+    uint32_t durableAfter = afterSequence;
+    while (filled < capacity) {
+      const size_t count =
+          auditStoreCopyAfter(durableAfter, durablePage, 8);
+      if (count == 0) break;
+      for (size_t index = 0; index < count && filled < capacity; ++index) {
+        if (latchOldest != 0 && durablePage[index].sequence >= latchOldest) {
+          continue;  // already mirrored in the latch page
+        }
+        output[filled++] = durablePage[index];
+      }
+      durableAfter = durablePage[count - 1].sequence;
+      if (count < 8) break;
+    }
+  }
+  {
+    TaskLockGuard lock(debugLogMutex);
+    if (filled < capacity) {
+      filled += auditLog.copyAfter(afterSequence, output + filled,
+                                   capacity - filled);
+    }
+  }
+  return filled;
 }
 
+// Explicit clear (endpoint / factory reset): erase the durable store first,
+// then drop the latch so both surfaces agree the history is empty.
 uint32_t auditLogLatestSequence() {
   TaskLockGuard lock(debugLogMutex);
   return auditLog.latestSequence();
 }
 
+void copyAuditStoreStatus(AuditStoreStatus &output) { output = auditStoreStatus(); }
+
 void clearAuditLatch() {
   TaskLockGuard lock(debugLogMutex);
   auditLog.clear();
 }
+
+// Explicit clear (endpoint / factory reset): erase the durable store first,
+// then drop the latch so both surfaces agree the history is empty. Declared
+// in ShotStopperAuditStore.h; this TU fragment is its single definition.
+namespace shotstopper {
+bool clearAuditStores() {
+  if (!auditStoreEraseAll()) return false;
+  clearAuditLatch();
+  return true;
+}
+}  // namespace shotstopper

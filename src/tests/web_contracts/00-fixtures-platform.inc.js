@@ -24,6 +24,7 @@ const network = readSources([
   'network/ShotStopperUiStream.inc',
   'network/ShotStopperUiStreamTransport.inc',
   'network/ShotStopperHomeStream.inc',
+  'network/ShotStopperAuditStream.inc',
   'network/ShotStopperIntegrationApi.inc',
   'diagnostics/ShotStopperNetworkDiagnostics.inc',
   'network/ShotStopperConfiguration.inc',
@@ -477,7 +478,7 @@ if (!firmwareCore.includes('uint8_t *serialLogQueueBytes = nullptr') ||
       'allocInternal(queueBytes, AllocationOwner::SERIAL_LOG)') ||
     !firmwareCore.includes('esp_ptr_internal(serialLogQueueBytes)') ||
     !firmwareCore.includes('SERIAL_LOG_QUEUE_DEPTH = 8') ||
-    !serialCli.includes('SERIAL_CLI_OUTPUT_CAPACITY = 2560') ||
+    !serialCli.includes('SERIAL_CLI_OUTPUT_CAPACITY = 2880') ||
     !firmwareCore.includes(
       'allocExternal(SERIAL_CLI_OUTPUT_CAPACITY') ||
     !firmwareCore.includes('releaseSerialLogStorage()') ||

@@ -42,12 +42,15 @@ bool crashArchiveRead(uint8_t, size_t offset, void *output, size_t length) {
   return true;
 }
 bool crashArchiveClear() { ++clears; fakeStatus.count = 0; return true; }
+int auditClears = 0;
+bool clearAuditStores() { ++auditClears; return true; }
 
 class ShotStopperNetwork {
  public:
   static ShotStopperNetwork *instance_;
   static esp_err_t crashArchiveDownloadHandler(httpd_req_t *request);
   static esp_err_t crashArchiveClearHandler(httpd_req_t *request);
+  static esp_err_t auditLogClearHandler(httpd_req_t *request);
   bool requireAdminUnlock(httpd_req_t *request) {
     if (request->admin) return true;
     sendError(request, "401", "ADMIN_LOCKED", "Unlock Admin.");

@@ -569,8 +569,11 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // steam boiler rows, water, cleaning, communication) plus the Home boiler
 // rows add ~1.1 KB of HTML source allowance; compressed asset and firmware
 // budgets stay fixed.
-if (htmlBytes > 91000) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 91000)`);
+// The Diagnostics audit panel (summary, hunt/clear buttons, records table)
+// adds ~0.6 KB of HTML source allowance; compressed asset and firmware
+// budgets stay fixed.
+if (htmlBytes > 91600) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 91600)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -724,8 +727,10 @@ if (htmlBytes > 91000) {
 // active preset's guards, the limit pills, and the per-gram labeled zone
 // ruler to home.js: ~2.1 KB of JS source allowance; compressed asset and
 // firmware budgets stay fixed.
-if (jsBytes > 380500) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 380500)`);
+// The Diagnostics audit viewer (records table, hunt-session toggle, explicit
+// clear) adds ~3.1 KB of JS source allowance; compressed budgets stay fixed.
+if (jsBytes > 383500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 383500)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -793,8 +798,10 @@ if (jsBytes > 380500) {
 // The quick-weight dial guard range contributes the same ~2.2 KB of combined
 // source allowance (~2.1 KB of JS plus the two Home range-limit pills)
 // described above; compressed budgets stay fixed.
-if (htmlBytes + jsBytes > 471500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 471500)`);
+// The Diagnostics audit viewer adds its ~3.7 KB of combined source allowance
+// (~3.1 KB of JS plus the audit panel markup) described above.
+if (htmlBytes + jsBytes > 475500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 475500)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

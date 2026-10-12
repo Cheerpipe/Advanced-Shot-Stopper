@@ -54,6 +54,7 @@ uint32_t uiStreamCurveHash(const ShotCurveRecord &curve, uint16_t count) {
 }  // namespace
 
 #include "ShotStopperHomeStream.inc"
+#include "ShotStopperAuditStream.inc"
 
 esp_err_t ShotStopperNetwork::uiStreamHandshake(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;

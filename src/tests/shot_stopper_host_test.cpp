@@ -14499,6 +14499,8 @@ void sc10_help_prints_one_line_per_command() {
   CHECK(serialTxContains(
       "LOG_DUMP  print RAM debug ring (deferred in brew/machine circuit)"));
   CHECK(serialTxContains("HEALTH  heap, loop gap, cpu load"));
+    CHECK(serialTxContains("AUDIT_DUMP [n]  curated audit log"));
+    CHECK(serialTxContains("AUDIT_VERBOSE [on|off]  30-minute verbose hunt"));
   CHECK(serialTxContains("SCALE_STATUS  BLE scale link"));
   CHECK(serialTxContains("NTP_STATUS  wall clock"));
   CHECK(serialTxContains("HEAP  internal heap free-block layout"));
