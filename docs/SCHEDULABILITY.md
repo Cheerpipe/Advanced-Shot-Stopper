@@ -168,7 +168,11 @@ it race-free — and the backflush poll reports an acquisition wait of
 20 ms or more as it happens: a warning on the serial log names the
 holder, and a `machine mux wait` debug-ring event stamps the moment with
 the wait and tenure as its arguments, rate-limited to one report per
-10 s. Own-CPU values are kernel-folded at switch-out: a phase that ran
+10 s. The same event also enters the curated audit latch: a small RAM ring
+of classified rare events (every error plus a maintained allowlist of
+warnings) that the common ring's rotation cannot evict, captured in the
+same critical section and exported as the `audit` section of the debug
+export. Own-CPU values are kernel-folded at switch-out: a phase that ran
 uninterrupted can read zero until its time folds into a later boundary.
 
 Partition-backed shot stores advance through one 4 KiB erase or one 1 KiB

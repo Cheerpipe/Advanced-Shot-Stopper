@@ -754,17 +754,19 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
       }
       for (size_t index = 0; ok && index < count; ++index) {
         const DebugEvent &event = work.logBatch[index];
+        char safeEventText[DEBUG_EVENT_TEXT_CAPACITY * 6] = {};
+        escapeJsonString(event.text, safeEventText, sizeof(safeEventText));
         ok = debugExportChunkf(
             request, buf, cap,
             "%s{\"sequence\":%lu,\"atMs\":%lu,\"wallSec\":%lu,"
             "\"level\":\"%s\",\"category\":\"%s\",\"code\":\"%s\","
-            "\"argument1\":%ld,\"argument2\":%ld}",
+            "\"argument1\":%ld,\"argument2\":%ld,\"text\":\"%s\"}",
             first ? "" : ",", static_cast<unsigned long>(event.sequence),
             static_cast<unsigned long>(event.atMs),
             static_cast<unsigned long>(event.wallSec),
             logLevelName(event.level), debugCategoryName(event.category),
             debugCodeName(event.code), static_cast<long>(event.argument1),
-            static_cast<long>(event.argument2));
+            static_cast<long>(event.argument2), safeEventText);
         first = false;
         after = event.sequence;
       }
@@ -774,6 +776,93 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
     }
   }
   ok = ok && debugExportChunk(request, "]},");
+
+  // Curated audit latch: rare, classified events that outlive ring rotation.
+  uint32_t auditDropped = 0, auditRateLimited = 0;
+  if (ok && self.callbacks_.copyAuditEvents != nullptr) {
+    (void)self.callbacks_.copyAuditEvents(0, nullptr, 0, &auditDropped,
+                                          &auditRateLimited);
+  }
+  ok = ok && debugExportChunkf(request, buf, cap,
+                               "\"audit\":{\"dropped\":%lu,\"rateLimited\":%lu,"
+                               "\"items\":[",
+                               static_cast<unsigned long>(auditDropped),
+                               static_cast<unsigned long>(auditRateLimited));
+  if (ok && self.callbacks_.copyAuditEvents != nullptr) {
+    uint32_t after = 0;
+    bool first = true;
+    for (;;) {
+      AuditRecord *batch = work.auditBatch;
+      const size_t count = self.callbacks_.copyAuditEvents(
+          after, batch, NetworkWorkBuf::kAuditBatchSize, nullptr, nullptr);
+      if (count == 0) {
+        break;
+      }
+      for (size_t index = 0; ok && index < count; ++index) {
+        const AuditRecord &record = batch[index];
+        char safeExcerpt[AUDIT_EXCERPT_BYTES * 6] = {};
+        escapeJsonString(record.text, safeExcerpt, sizeof(safeExcerpt));
+        ok = debugExportChunkf(
+            request, buf, cap,
+            "%s{\"sequence\":%lu,\"atMs\":%lu,\"wallSec\":%lu,"
+            "\"level\":\"%s\",\"category\":\"%s\",\"code\":\"%s\","
+            "\"argument1\":%ld,\"argument2\":%ld,\"text\":\"%s\"}",
+            first ? "" : ",", static_cast<unsigned long>(record.sequence),
+            static_cast<unsigned long>(record.atMs),
+            static_cast<unsigned long>(record.wallSec),
+            logLevelName(static_cast<LogLevel>(record.level)),
+            debugCategoryName(static_cast<DebugCategory>(record.category)),
+            debugCodeName(static_cast<DebugCode>(record.code)),
+            static_cast<long>(record.argument1),
+            static_cast<long>(record.argument2), safeExcerpt);
+        first = false;
+        after = record.sequence;
+      }
+      if (count < NetworkWorkBuf::kAuditBatchSize) {
+        break;
+      }
+    }
+  }
+  ok = ok && debugExportChunk(request, "]},");
+
+#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+  {
+    const HeapLifecycleAggregate micraHeap = machineIntegrationHeapTelemetry();
+    const MicraWebSocketStatus ws = machineIntegrationWebSocketStatus(false);
+    ok = ok &&
+         debugExportChunkf(
+             request, buf, cap,
+             "\"machineIntegrationHeap\":{"
+             "\"service\":{\"cycles\":%lu,\"staleReplacements\":%lu,"
+             "\"lastEvent\":%u,\"lastResult\":%u,"
+             "\"lastFreeDelta\":%ld,\"lastLargestDelta\":%ld,"
+             "\"worstFreeDelta\":%ld,\"worstLargestDelta\":%ld},"
+             "\"websocket\":{\"cycles\":%lu,"
+             "\"lastFreeDelta\":%ld,\"lastLargestDelta\":%ld,"
+             "\"worstFreeDelta\":%ld,\"worstLargestDelta\":%ld,"
+             "\"stop\":{\"lastFreeDelta\":%ld,\"lastLargestDelta\":%ld,"
+             "\"worstFreeDelta\":%ld,\"worstLargestDelta\":%ld},"
+             "\"allocationFailures\":%lu}},",
+             static_cast<unsigned long>(micraHeap.cycles),
+             static_cast<unsigned long>(micraHeap.staleReplacements),
+             static_cast<unsigned>(micraHeap.lastEvent),
+             static_cast<unsigned>(micraHeap.lastResult),
+             static_cast<long>(micraHeap.lastDelta.freeBytes),
+             static_cast<long>(micraHeap.lastDelta.largestBlock),
+             static_cast<long>(micraHeap.worstFreeDelta),
+             static_cast<long>(micraHeap.worstLargestDelta),
+             static_cast<unsigned long>(ws.heap.cycles),
+             static_cast<long>(ws.heap.lastDelta.freeBytes),
+             static_cast<long>(ws.heap.lastDelta.largestBlock),
+             static_cast<long>(ws.heap.worstFreeDelta),
+             static_cast<long>(ws.heap.worstLargestDelta),
+             static_cast<long>(ws.stopHeap.lastDelta.freeBytes),
+             static_cast<long>(ws.stopHeap.lastDelta.largestBlock),
+             static_cast<long>(ws.stopHeap.worstFreeDelta),
+             static_cast<long>(ws.stopHeap.worstLargestDelta),
+             static_cast<unsigned long>(ws.allocationFailures));
+  }
+#endif
 
   const NvsDiagnosticSnapshot nvs = captureNvsDiagnostics();
   ok = ok && debugExportChunkf(

@@ -147,6 +147,10 @@ struct NetworkWorkBuf {
     HistoryPage historyPage;
   };
   DebugEvent logBatch[kNetworkLogBatchSize]{};
+  // Audit latch export batches: full-capacity copies stay bounded by the
+  // latch ring itself (64 records), so one array serves every page.
+  static constexpr size_t kAuditBatchSize = AUDIT_RECORD_CAPACITY;
+  AuditRecord auditBatch[kAuditBatchSize]{};
   DebugLogReadMetadata logMetadata{};
   UiStreamFingerprints uiFingerprints[2]{};
   StatsStreamCache statsCache{};

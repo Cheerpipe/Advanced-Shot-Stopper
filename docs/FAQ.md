@@ -258,7 +258,10 @@ fewer than two records. The screen reports an error if a temporary dump cannot
 be archived. The 8 MB profile does not offer persistent crash downloads.
 
 To report an issue, include firmware version, board and machine type, scale
-model/firmware, exact gesture/settings, and redacted diagnostic export. Never
+model/firmware, exact gesture/settings, and redacted diagnostic export. The
+export's `audit` section lists rare faults and anomalies the firmware kept
+aside from the rotating log — useful when the problem happened hours or days
+earlier. Never
 include passwords or webhook secrets. [USB HEALTH](SERIAL_CLI.md#diagnostics)
 and [shot history](features/shot-history.md) help explain the observed result.
 

@@ -361,6 +361,27 @@ if (!network.includes('ShotStopperDebugExport.h') ||
   throw new Error(
       'Diagnostic must expose guards status and an always-public GET /api/v1/debug/export with schema version');
 }
+// Audit latch (plan F1): curated classification hook ahead of the ring/serial
+// level gates, one shared critical section with the common ring, the copy
+// callback, and the export's audit section with per-event text plus the
+// Micra heap counters. Latch semantics are pinned by audit_log_host_test.
+if (!codeIncludes(firmwareCore,
+      'const bool toAudit = auditWorthy(level, code, auditVerboseActive())') ||
+    !codeIncludes(firmwareCore, 'if (toAudit) {') ||
+    !firmwareCore.includes('AuditLogLatch auditLog') ||
+    !codeIncludes(firmwareCore, 'size_t copyAuditEvents(') ||
+    !firmwareCore.includes('callbacks.copyAuditEvents = copyAuditEvents') ||
+    !networkHeader.includes(
+        'size_t (*copyAuditEvents)(uint32_t afterSequence, AuditRecord *output,') ||
+    !network.includes('AuditRecord auditBatch[kAuditBatchSize]') ||
+    !network.includes('\\"audit\\":{\\"dropped\\":%lu,\\"rateLimited\\":%lu') ||
+    !network.includes('callbacks_.copyAuditEvents') ||
+    !network.includes('\\"text\\":\\"%s\\"') ||
+    !network.includes('machineIntegrationHeapTelemetry') ||
+    !network.includes('\\"machineIntegrationHeap\\":{')) {
+  throw new Error(
+      'The debug export must carry the audit latch section, event text, and Micra heap counters');
+}
 const sharedRingOpen = statusFormat.indexOf(
     ',\\"config\\":{\\"revision\\":%lu,\\"ringRetainLogLevel\\":\\"%s\\"');
 if (sharedRingOpen < 0) {

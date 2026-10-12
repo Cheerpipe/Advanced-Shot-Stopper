@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ShotStopperDomain.h"
+#include "ShotStopperAuditLog.h"
 #include "ShotStopperDebugExport.h"
 #include "ShotStopperHistoryTypes.h"
 #include "ShotStopperPersistence.h"
@@ -193,6 +194,9 @@ struct NetworkBridgeCallbacks {
   size_t (*copyDebugEvents)(uint32_t afterSequence, DebugEvent *output,
                             size_t capacity,
                             DebugLogReadMetadata *metadata) = nullptr;
+  size_t (*copyAuditEvents)(uint32_t afterSequence, AuditRecord *output,
+                            size_t capacity, uint32_t *dropped,
+                            uint32_t *rateLimited) = nullptr;
   uint32_t (*debugLogLatestSequence)() = nullptr;
   void (*addDebugEvent)(DebugCategory category, DebugCode code,
                         int32_t argument1, int32_t argument2) = nullptr;

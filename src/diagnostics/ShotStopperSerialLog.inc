@@ -296,6 +296,10 @@ void serialTraceCategoryf(LogLevel level, DebugCategory category,
   logText(level, category, line);
 }
 
+// The verbose audit session switch (marked DEBUG codes admitted to the latch)
+// arrives with the Diagnostics surfacing; until then nothing is verbose-worthy.
+bool auditVerboseActive() { return false; }
+
 void logEmitDetail(LogLevel level, DebugCategory category, DebugCode code,
                    int32_t argument1, int32_t argument2,
                    const char *detail) {
@@ -320,7 +324,10 @@ void logEmitDetail(LogLevel level, DebugCategory category, DebugCode code,
       logLevelAtMost(level, currentSerialLogLevel());
   const bool toRing =
       logLevelAtMost(level, currentRingRetainLogLevel());
-  if (!toSerial && !toRing) {
+  // Audit capture is level-independent: curated events enter the latch even
+  // when neither serial nor ring retains them.
+  const bool toAudit = auditWorthy(level, code, auditVerboseActive());
+  if (!toSerial && !toRing && !toAudit) {
     return;
   }
 
@@ -331,6 +338,10 @@ void logEmitDetail(LogLevel level, DebugCategory category, DebugCode code,
                    detail);
       __atomic_store_n(&debugLogDroppedSnapshot, debugLog.overwritten(),
                        __ATOMIC_RELAXED);
+    }
+    if (toAudit) {
+      auditLog.add(atMs, wallSec, level, category, code, argument1, argument2,
+                   detail);
     }
   }
 
@@ -374,4 +385,23 @@ size_t copyDebugEvents(uint32_t afterSequence, DebugEvent *output,
     metadata->serialTruncated = serialLogTruncatedCount();
   }
   return copied;
+}
+
+size_t copyAuditEvents(uint32_t afterSequence, AuditRecord *output,
+                       size_t capacity, uint32_t *dropped = nullptr,
+                       uint32_t *rateLimited = nullptr) {
+  TaskLockGuard lock(debugLogMutex);
+  if (dropped != nullptr) *dropped = auditLog.overwritten();
+  if (rateLimited != nullptr) *rateLimited = auditLog.rateLimited();
+  return auditLog.copyAfter(afterSequence, output, capacity);
+}
+
+uint32_t auditLogLatestSequence() {
+  TaskLockGuard lock(debugLogMutex);
+  return auditLog.latestSequence();
+}
+
+void clearAuditLatch() {
+  TaskLockGuard lock(debugLogMutex);
+  auditLog.clear();
 }

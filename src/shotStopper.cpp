@@ -63,6 +63,7 @@
 #endif
 
 #include "ShotStopperDomain.h"
+#include "ShotStopperAuditLog.h"
 #include "ShotStopperOutboundAdmission.h"
 #include "ShotStopperFirmwareMode.h"
 #include "machine/ShotStopperMachineIntegration.h"
@@ -427,6 +428,9 @@ BbwLearningBank bbwLearningBank;
 LastCycleSummary lastCycle;
 // Debug events are not a flash DMA source and are not added from an ISR.
 SHOT_STOPPER_PSRAM_BSS DebugRingBuffer debugLog;
+// Curated audit latch: classified rare events only, guarded by the same mutex
+// as the common ring so logEmitDetail captures both in one critical section.
+SHOT_STOPPER_PSRAM_BSS AuditLogLatch auditLog;
 // The retained ring is task-only. A priority-inheriting mutex avoids disabling
 // interrupts while HTTP/CLI readers copy records from PSRAM.
 TaskMutex debugLogMutex;
