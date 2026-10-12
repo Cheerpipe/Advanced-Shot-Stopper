@@ -144,6 +144,20 @@ workspace, which these ELF metrics do not capture. Each allowance carries
 64 bytes of headroom over the measurement, following the established
 padding-wobble convention. Firmware task ownership, control timing, OTA
 identity and partitions remain unchanged.
+The persistent audit log series (curated RAM latch, flash partition store,
+Diagnostics surfacing with hunt sessions and CLI verbs, alongside the
+quick-weight guard-range dial and the sort-control labels) raises the
+image/linked allowances to 59,400/59,400 bytes and the rodata allowance to
+28,500 bytes. The reference development Micra build measures 2,332,912
+image bytes, 2,332,787 linked bytes, and 615,644 rodata bytes. Of the
+28,292 rodata bytes over baseline, 2,808 were the documented pre-existing
+debt from the task-mutex holder telemetry change; the remainder is the
+audit export/stream/CLI string surface and the enlarged embedded Web
+assets, whose compressed caps are separately enforced by the Web contract
+gate. Flash code stays inside its 36,200-byte allowance, DIRAM inside
+8,192, and external BSS well under its ceiling. The new auditlog partition
+carves reserved filesystem space without moving any existing partition, so
+OTA identity and slot layout are unchanged.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,

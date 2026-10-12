@@ -15,6 +15,7 @@ dangerousTypeCast:*/src/ShotStopperNetwork.h
 dangerousTypeCast:*/src/network/ShotStopperNetworkService.inc
 dangerousTypeCast:*/src/ShotStopperWebhook.cpp
 dangerousTypeCast:*/src/ShotStopperTaskMutex.h
+dangerousTypeCast:*/src/ShotStopperTaskMutex.cpp
 # The scanner is aggregate-initialized with both required fields at its only
 # construction site; Cppcheck does not follow that aggregate initialization.
 uninitMemberVarNoCtor:*/src/ShotStopperJsonArena.h

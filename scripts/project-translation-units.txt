@@ -20,9 +20,11 @@ libraries/EspressoScaleBLE/src/protocols/WeighMyBru.cpp
 src/ShotStopperNetwork.cpp
 src/ShotStopperOta.cpp
 src/ShotStopperPowerManagement.cpp
+src/ShotStopperAuditStore.cpp
 src/ShotStopperCrashArchive.cpp
 src/ShotStopperResetGuard.cpp
 src/ShotStopperScaleWorker.cpp
+src/ShotStopperTaskMutex.cpp
 src/ShotStopperWebhook.cpp
 src/machine/ShotStopperMachineIntegration.cpp | integration=none
 src/machine/ShotStopperLineaMicraIntegration.cpp | integration=linea_micra_cloud
