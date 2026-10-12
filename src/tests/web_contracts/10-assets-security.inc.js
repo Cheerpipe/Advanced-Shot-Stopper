@@ -729,8 +729,11 @@ if (htmlBytes > 91600) {
 // firmware budgets stay fixed.
 // The Diagnostics audit viewer (records table, hunt-session toggle, explicit
 // clear) adds ~3.1 KB of JS source allowance; compressed budgets stay fixed.
-if (jsBytes > 383500) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 383500)`);
+// Keeping the quick-weight grab bar's pointer capture from swallowing taps on
+// its interactive children (the Done button) adds a guard to the shared drag
+// helper: ~0.3 KB of JS source allowance; compressed budgets stay fixed.
+if (jsBytes > 383800) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 383800)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.

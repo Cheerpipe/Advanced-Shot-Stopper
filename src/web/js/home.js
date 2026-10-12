@@ -317,6 +317,9 @@ function initQuickWeight() {
   const drag = (node, handlers) => {
     node.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
+      // Pointer capture would retarget the click of interactive children
+      // (Done lives inside the grab bar) onto the drag node, swallowing it.
+      if (event.target?.closest("button,a,input")) return;
       event.preventDefault();
       try {
         node.setPointerCapture(event.pointerId);
