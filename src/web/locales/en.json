@@ -221,6 +221,7 @@
     "diagnostic.config": "config",
     "diagnostic.confirm": "Confirm",
     "diagnostic.control": "Control",
+    "diagnostic.copied": "Copied",
     "diagnostic.copy": "Copy",
     "diagnostic.copy_log": "Copy log",
     "diagnostic.core": "Core",

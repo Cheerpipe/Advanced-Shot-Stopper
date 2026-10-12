@@ -148,9 +148,7 @@ function ensureMicraRows() {
     "WsTraffic",
     "WsPlanned",
     "WsUnexpected",
-  ].forEach((id, i) =>
-    row("dMicra" + (i < 6 ? "Cloud" : "") + id, titles[i]),
-  );
+  ].forEach((id, i) => row("dMicra" + (i < 6 ? "Cloud" : "") + id, titles[i]));
   for (const [id, anchor] of [
     ["dMicraWsTiming", "dMicraWsState"],
     ["dMicraWsHeap", "hHeapLargest"],
@@ -407,6 +405,18 @@ async function exportDebugData() {
     btn.disabled = false;
   }
 }
+function copyText(text) {
+  // execCommand copies from a user gesture in every browser, including the
+  // plain-HTTP device UI where the async clipboard API is unavailable.
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.cssText = "position:fixed;opacity:0";
+  document.body.append(ta);
+  ta.select();
+  const ok = document.execCommand("copy");
+  ta.remove();
+  if (ok) R.message(__WEBUI_TEXT__("diagnostic.copied"), "ok");
+}
 export function applyStatus(s) {
   R.applyDiagnosticStatus(s);
   for (const id of ["serialLogLevel", "ringRetainLogLevel"])
@@ -439,6 +449,10 @@ export function init() {
   }, 1000);
   const controls = $("diagnosticControls");
   if (controls) controls.classList.remove("hidden");
+  for (const section of $("diagnosticsPanel").querySelectorAll("fieldset.statusColumn")) {
+    const legend = section.querySelector("legend");
+    if (legend) legend.onclick = () => copyText(section.innerText.trim());
+  }
   $("serialLogLevel").onchange = () =>
     R.command("/api/v1/config", R.withBaseRev({ serialLogLevel: $("serialLogLevel").value }));
   $("ringRetainLogLevel").onchange = () =>
@@ -448,8 +462,7 @@ export function init() {
     );
   $("logFilter").onchange = R.renderLog;
   $("logLevelFilter").onchange = R.renderLog;
-  $("copyLogButton").onclick = () =>
-    navigator.clipboard && navigator.clipboard.writeText($("log").value);
+  $("copyLogButton").onclick = () => copyText($("log").value);
   $("clearLogButton").onclick = () => R.clearLogView();
   $("exportDebugDataButton").onclick = () => exportDebugData();
   if ($("lineaMicraRefreshLink"))

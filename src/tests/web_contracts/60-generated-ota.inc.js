@@ -442,8 +442,13 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // The Micra boiler readiness rows and lamp rollup (locally ticking warm-up
 // estimates from absolute readyAt timestamps) add +405 measured bytes.
 // Cap raised to 5050.
-if (generated.jsGzip.length > 5050) {
-  throw new Error(`Compressed Web UI shell JS exceeds the 5050-byte gzip budget (${generated.jsGzip.length})`);
+// The Diagnostic section-copy gesture ships no shell bytes (secondary view
+// module and CSS only), but any web-source change permutes the content tag
+// stamped into the shell JS cache buster; the raw minified shell stays
+// byte-identical while its gzip shifts by tag-entropy noise (5051 measured).
+// Cap raised to 5060; the combined flash total stays fixed.
+if (generated.jsGzip.length > 5060) {
+  throw new Error(`Compressed Web UI shell JS exceeds the 5060-byte gzip budget (${generated.jsGzip.length})`);
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
