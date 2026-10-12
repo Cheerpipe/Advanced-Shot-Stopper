@@ -495,6 +495,8 @@
     "home.symbol_2": "/",
     "home.symbol_3": "≋",
     "home.symbol_4": "!",
+    "home.target_maximum": "Target maximum",
+    "home.target_minimum": "Target minimum",
     "home.target_weight": "Target weight",
     "home.timer": "Timer",
     "home.turned_off": "Turned off",

@@ -43,16 +43,16 @@ if (firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)'
     html.indexOf('id="homePresetAcc"') > html.indexOf('id="equipmentPanel"') ||
     html.includes('Extraction rules') ||
     !css.includes('.ruleChart') ||
-    !css.includes('.ruleLegFast:before{background:#d97706}') ||
+    !css.includes('.ruleLegFast:before{background:var(--gFast)}') ||
     !css.includes('.ruleLegBbw:before{background:var(--ok)}') ||
-    !css.includes('.ruleLegSlow:before{background:#6492d7}') ||
+    !css.includes('.ruleLegSlow:before{background:var(--gSlow)}') ||
     css.includes('.ruleSeg') || css.includes('.ruleChartTrack') ||
     css.includes('.ruleTable') ||
     !css.includes('.presetAccItem.open .presetAccDot') ||
     !css.includes('.presetAccPanel{display:grid;grid-template-rows:0fr') ||
-    !css.includes('.guardFast i{background:#d97706}') ||
+    !css.includes('.guardFast i{background:var(--gFast)}') ||
     !css.includes('.guardBbw i{background:var(--ok)}') ||
-    !css.includes('.guardSlow i{background:#6492d7}') ||
+    !css.includes('.guardSlow i{background:var(--gSlow)}') ||
     !codeIncludes(ui, 'function buildRuleChartModel(') ||
     !codeIncludes(ui, 'function renderHomePresetAccordion(') ||
     !codeIncludes(ui, 'function guardRuleRows(') ||

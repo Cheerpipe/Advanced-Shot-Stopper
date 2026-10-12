@@ -23,6 +23,21 @@
     'The preset name must stack above the Target weight label');
   qwAssert.ok(/id="qwZone"[^>]*aria-valuemin="10"[^>]*aria-valuemax="200"/.test(qwHomeHtml),
     'The scale zone must declare the firmware goal bounds');
+  qwAssert.ok(/<p class="qwLimit" id="qwLimitMin" hidden>/.test(qwHomeHtml) &&
+      /<p class="qwLimit" id="qwLimitMax" hidden>/.test(qwHomeHtml),
+    'Both range-limit pills must ship hidden next to the value');
+
+  // Zone tints and limit pills must reuse the firmware guard colors rather
+  // than inventing new ones: Fast amber, Slow blue, BBW green.
+  qwAssert.ok(/--gFast:#d97706;--gSlow:#6492d7/.test(css) &&
+      /\.qwScaleIn i\.zSlow\{background:var\(--gSlow\)\}/.test(css) &&
+      /\.qwScaleIn i\.zFast\{background:var\(--gFast\)\}/.test(css) &&
+      /\.qwScaleIn i\.zOk\{background:var\(--ok\)\}/.test(css),
+    'Dial zones must reuse the firmware Fast/Slow/BBW colors');
+  qwAssert.ok(/border-radius:2rem/.test(qwCssRule('qwLimit')) &&
+      qwCssRule('guardFast i').includes('var(--gFast)') &&
+      qwCssRule('guardSlow i').includes('var(--gSlow)'),
+    'Limit pills use the chip format; guard dots share the zone color source');
 
   // The slider bounds must match the settings field the commit writes and the
   // constants the drag clamps to.
@@ -52,8 +67,9 @@
   qwAssert.ok(codeIncludes(qwHomeJs, 'value = clamp(value + dx * BASE_G_PER_PX * speedMul(vel.v))') &&
       codeIncludes(qwHomeJs, 'BASE_G_PER_PX = 0.008, SPEED_CAP = 10'),
     'The drag must keep the accepted sensitivity and ×10 acceleration cap');
-  qwAssert.ok(codeIncludes(qwHomeJs, 'if (v % 5 === 0) tick.className = "big"'),
-    'The tick strip keeps 1 g ticks with 5 g majors');
+  qwAssert.ok(codeIncludes(qwHomeJs,
+      'if (v % 5 === 0) { tick.className = "big"; if (v >= MIN && v <= MAX) {'),
+    'The tick strip keeps 1 g ticks with 5 g majors, labeled inside the firmware bounds');
   qwAssert.ok(codeIncludes(qwHomeJs, 'resetBtn.classList.toggle("show", shown !== openValue)'),
     'Reset must appear only while the value differs from the open value');
   qwAssert.ok(codeIncludes(qwHomeJs,
@@ -173,7 +189,8 @@
         : on ? node.classes.add(c) : node.classes.delete(c); },
     });
     const qwIds = ['qwSheet', 'qwBackdrop', 'qwZone', 'qwScale', 'qwNum', 'qwDef',
-      'qwReset', 'qwPreset', 'qwDone', 'qwGrab', 'qwHead', 'shotGoalEdit', 'goalWeightG'];
+      'qwReset', 'qwPreset', 'qwDone', 'qwGrab', 'qwHead', 'shotGoalEdit',
+      'goalWeightG', 'qwLimitMin', 'qwLimitMax'];
     const qwEls = Object.fromEntries(qwIds.map((id) => {
       const node = qwNode();
       node.classList = qwClassSet(node);
@@ -333,5 +350,54 @@
     qwAssert.ok(qwEls.qwSheet.classes.has('open'),
       'A short grab drag must keep the sheet open');
     qwAssert.equal(qwRuntime.saved, 2, 'An unchanged sheet must not save on wiggle');
+
+    // Guard-bounded range: with both guards enabled the dial may only offer
+    // targets strictly inside the recovery weights, the limit pills mark the
+    // two ends, and the ruler tints reference zones outside the range.
+    qwRuntime.presetState.items = [{
+      id: 2, name: 'Espresso', goalWeightG: 36,
+      slowExtractionGuardEnabled: true, minRecoveryWeightG: 32,
+      fastExtractionGuardEnabled: true, maxRecoveryWeightG: 42,
+    }];
+    const qwZoneAttrs = {};
+    qwEls.qwZone.setAttribute = (k, v) => { qwZoneAttrs[k] = String(v); };
+    qwEls.shotGoalEdit.onclick();
+    qwAssert.equal(qwEls.qwNum.textContent, '36', 'The sheet opens at the in-range goal');
+    qwAssert.equal(qwZoneAttrs['aria-valuemin'], '33',
+      'The slider floor sits one gram above the Slow minimum recovery');
+    qwAssert.equal(qwZoneAttrs['aria-valuemax'], '41',
+      'The slider ceiling sits one gram below the Fast maximum recovery');
+    qwAssert.equal(qwEls.qwLimitMin.hidden, true, 'The floor pill starts hidden');
+    qwAssert.equal(qwEls.qwLimitMax.hidden, true, 'The ceiling pill starts hidden');
+    const qwStrip = qwEls.qwScale.children[0].children;
+    const qwLabel = (v) => qwStrip.find((n) => n._text === String(v));
+    qwAssert.ok(qwLabel('40') && qwLabel('40').classes.has('zOk'),
+      'In-range gram labels tint BBW green');
+    qwAssert.ok(qwLabel('30') && qwLabel('30').classes.has('zSlow'),
+      'Labels below the range tint Slow blue');
+    qwAssert.ok(qwLabel('45') && qwLabel('45').classes.has('zFast'),
+      'Labels above the range tint Fast amber');
+    qwAssert.ok(!qwLabel('5') && !qwLabel('205'),
+      'Filler ticks past the firmware bounds stay unlabeled');
+    qwAssert.ok(qwStrip.some((n) => !n._text && n.classes.has('zOk')),
+      'Minor ticks inside the range tint green as well');
+    qwDragZone([[600, 5], [600, 5], [600, 5], [600, 5]]);
+    qwAssert.equal(qwEls.qwNum.textContent, '41',
+      'The drag clamps one gram below the Fast maximum recovery');
+    qwAssert.equal(qwEls.qwLimitMax.hidden, false,
+      'The ceiling pill appears at the top of the target range');
+    qwDragZone([[-600, 5], [-600, 5], [-600, 5], [-600, 5]]);
+    qwAssert.equal(qwEls.qwNum.textContent, '33',
+      'The drag clamps one gram above the Slow minimum recovery');
+    qwAssert.equal(qwEls.qwLimitMin.hidden, false,
+      'The floor pill appears at the bottom of the target range');
+    qwAssert.ok(qwEls.qwLimitMin.classes.has('toneSlow') &&
+        qwEls.qwLimitMax.classes.has('toneFast'),
+      'Limit pills adopt the tint of the guard that bounds them');
+    qwEls.qwReset.onclick();
+    qwFire(qwEls.qwSheet, 'keydown', {key: 'Escape'});
+    await new Promise((r) => setTimeout(r, 0));
+    qwAssert.equal(qwRuntime.saved, 2,
+      'A guard-bounded session closed without edits must not save');
   })().catch((error) => { console.error(error); process.exitCode = 1; });
 }

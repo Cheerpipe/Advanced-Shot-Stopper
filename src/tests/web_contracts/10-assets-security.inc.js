@@ -719,9 +719,13 @@ if (htmlBytes > 91000) {
 // stay fixed.
 // The Diagnostic press-and-hold section copy (pointer hold/cancel wiring and
 // the shared copy helper in diagnostic.js) adds ~0.6 KB of JS source
-// allowance; compressed asset and firmware limits stay fixed.
-if (jsBytes > 379000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 379000)`);
+// allowance; compressed asset and firmware budgets stay fixed.
+// The quick-weight dial guard range adds the editable-range bounds from the
+// active preset's guards, the limit pills, and the per-gram labeled zone
+// ruler to home.js: ~2.1 KB of JS source allowance; compressed asset and
+// firmware budgets stay fixed.
+if (jsBytes > 380500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 380500)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -786,8 +790,11 @@ if (jsBytes > 379000) {
 // ~8 KB of JS source allowance described above plus ~0.6 KB of History HTML
 // (filter/export buttons and the funnel symbol), pre-authorized 2026-10-09;
 // compressed budgets stay fixed.
-if (htmlBytes + jsBytes > 469000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 469000)`);
+// The quick-weight dial guard range contributes the same ~2.2 KB of combined
+// source allowance (~2.1 KB of JS plus the two Home range-limit pills)
+// described above; compressed budgets stay fixed.
+if (htmlBytes + jsBytes > 471500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 471500)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

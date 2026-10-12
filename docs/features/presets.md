@@ -28,7 +28,15 @@ open a sliding scale at the bottom of the screen:
 
 - Drag slowly to move one gram at a time; drag faster and the scale
   accelerates so you can cross the range in a single gesture.
-- The target can be set from 10 g to 200 g, in whole grams.
+- The ruler is marked every gram, with a number every 5 g. Green marks are
+  targets the recipe accepts. Blue marks below the range and amber marks above
+  it lie outside what the recipe's guards allow — they are reference only, and
+  the scale cannot stop on them.
+- The scale only offers targets the recipe can actually use: from 10 g to
+  200 g, in whole grams, and always strictly between the Slow guard's minimum
+  recovery weight and the Fast guard's maximum recovery weight while each
+  guard is enabled. When you reach either end, a small **Target minimum** or
+  **Target maximum** label appears next to the weight.
 - **Reset** appears once you move away from the recipe's weight; tap it to go
   back.
 - Closing the sheet — with **Done**, a swipe down, or tapping outside — saves

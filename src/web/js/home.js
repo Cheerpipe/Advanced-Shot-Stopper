@@ -188,7 +188,9 @@ function initQuickWeight() {
     def = $("qwDef"),
     resetBtn = $("qwReset"),
     presetEl = $("qwPreset"),
-    doneBtn = $("qwDone");
+    doneBtn = $("qwDone"),
+    limitMin = $("qwLimitMin"),
+    limitMax = $("qwLimitMax");
   // Firmware preset goal: uint8 whole grams, 10–200 (settings validation).
   const MIN = 10,
     MAX = 200,
@@ -200,18 +202,32 @@ function initQuickWeight() {
   inner.className = "qwScaleIn";
   const ticks = [];
   // Ticks keep drawing past both range ends so the drum fills the strip at
-  // any value; only the value itself clamps to [MIN, MAX]. 45 g covers the
-  // half-strip of the widest sheet (760 px / 2 / PX_PER_G + margin).
+  // any value; only the value itself clamps to the editable range. Majors
+  // carry their gram number so the ruler reads without counting. 45 g covers
+  // the half-strip of the widest sheet (760 px / 2 / PX_PER_G + margin).
   for (let v = MIN - 45; v <= MAX + 45; v++) {
     const tick = document.createElement("i");
-    if (v % 5 === 0) tick.className = "big";
+    let label = null;
+    if (v % 5 === 0) {
+      tick.className = "big";
+      if (v >= MIN && v <= MAX) {
+        label = document.createElement("b");
+        label.textContent = v;
+        inner.appendChild(label);
+      }
+    }
     inner.appendChild(tick);
-    ticks.push({ v, node: tick });
+    ticks.push({ v, node: tick, label });
   }
   scale.appendChild(inner);
-  let value = MIN,
+  // Editable range [lo, hi] mirrors the Settings cross-field rules: while a
+  // guard is enabled the goal must stay strictly inside its recovery weight,
+  // so the dial can never offer a target Save would reject.
+  let lo = MIN,
+    hi = MAX,
+    value = MIN,
     openValue = MIN;
-  const clamp = (v) => Math.max(MIN, Math.min(MAX, v));
+  const clamp = (v) => Math.max(lo, Math.min(hi, v));
   const speedMul = (v) => 1 + Math.min(SPEED_CAP - 1, Math.abs(v || 0) * SPEED_K);
   const paint = () => {
     const width = scale.getBoundingClientRect().width,
@@ -220,19 +236,49 @@ function initQuickWeight() {
       const p = width / 2 + (tick.v - value) * PX_PER_G;
       tick.node.style.display = p > -6 && p < width + 6 ? "" : "none";
       tick.node.style.left = p.toFixed(1) + "px";
+      if (tick.label) {
+        tick.label.style.display = p > -12 && p < width + 12 ? "" : "none";
+        tick.label.style.left = p.toFixed(1) + "px";
+      }
       tick.node.classList.toggle("now", tick.v === shown);
     }
     num.textContent = shown;
     zone.setAttribute("aria-valuenow", shown);
     zone.setAttribute("aria-valuetext", shown + " g");
+    limitMin.hidden = shown > lo;
+    limitMax.hidden = shown < hi;
     def.textContent = openValue;
     resetBtn.classList.toggle("show", shown !== openValue);
   };
   const open = () => {
     const preset = R.presetState.items.find((x) => x.id === R.presetState.activeId);
     if (!preset || !preset.goalWeightG) return;
+    // Editable range mirrors the Settings cross-field rules: the goal stays
+    // strictly inside each enabled guard's recovery weight, so the dial can
+    // never offer a target Save would reject.
+    const slow =
+        !!preset.slowExtractionGuardEnabled && Number.isFinite(+preset.minRecoveryWeightG),
+      fast =
+        !!preset.fastExtractionGuardEnabled && Number.isFinite(+preset.maxRecoveryWeightG);
+    lo = slow ? Math.min(MAX, Math.floor(+preset.minRecoveryWeightG) + 1) : MIN;
+    hi = fast ? Math.max(MIN, Math.ceil(+preset.maxRecoveryWeightG) - 1) : MAX;
+    if (hi < lo) {
+      lo = MIN;
+      hi = MAX;
+    } // a recipe with no valid target must not lock the dial
+    // Zone tints are reference only: ticks outside the editable range adopt
+    // the color of the guard that limits them; valid ticks take the BBW green.
+    for (const { v, node, label } of ticks) {
+      const zone = v < MIN || v > MAX ? "" : v < lo ? "zSlow" : v > hi ? "zFast" : "zOk";
+      for (const el of label ? [node, label] : [node])
+        ["zSlow", "zFast", "zOk"].forEach((c) => el.classList.toggle(c, c === zone));
+    }
+    limitMin.classList.toggle("toneSlow", slow);
+    limitMax.classList.toggle("toneFast", fast);
     value = openValue = clamp(preset.goalWeightG);
     presetEl.textContent = preset.name || "";
+    zone.setAttribute("aria-valuemin", lo);
+    zone.setAttribute("aria-valuemax", hi);
     paint();
     sheet.inert = false;
     backdrop.inert = false;
