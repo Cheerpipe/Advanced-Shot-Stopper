@@ -605,6 +605,7 @@ enum class PersistenceWork : uint8_t {
   SHOT_STORES = 2,
   SCALE_PROFILE = 3,
   AUDIT_FLUSH = 4,
+  AUDIT_CLEAR = 5,
 };
 #ifndef SHOT_STOPPER_HOST_TEST
 SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistRequest;

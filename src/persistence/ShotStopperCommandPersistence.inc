@@ -383,6 +383,18 @@ bool dispatchAuditFlushWork() {
 #endif
 }
 
+// Explicit clear, handed to the flash-owning worker: the serial CLI runs on
+// the control loop, which is forbidden from taking the flash lock post-boot.
+bool dispatchAuditClearWork() {
+#ifndef SHOT_STOPPER_HOST_TEST
+  if (!settingsPersistenceAvailable()) return false;
+  const PersistenceWork work = PersistenceWork::AUDIT_CLEAR;
+  return xQueueSend(settingsPersistQueue, &work, 0) == pdTRUE;
+#else
+  return true;
+#endif
+}
+
 #ifdef SHOT_STOPPER_HOST_TEST
 void settingsPersistTask(void *) {}
 #else
@@ -426,6 +438,14 @@ void settingsPersistTask(void *parameter) {
     }
     if (work == PersistenceWork::AUDIT_FLUSH) {
       persistAuditLogImage();
+      feedOrTripCurrentTaskWatchdog();
+      continue;
+    }
+    if (work == PersistenceWork::AUDIT_CLEAR) {
+#ifndef SHOT_STOPPER_HOST_TEST
+      waitForShotStoreWriteGate();
+#endif
+      (void)clearAuditStores();
       feedOrTripCurrentTaskWatchdog();
       continue;
     }

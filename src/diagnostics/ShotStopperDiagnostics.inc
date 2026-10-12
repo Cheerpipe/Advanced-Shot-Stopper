@@ -1081,8 +1081,11 @@ void dispatchSerialCliRequest(SerialCliRequest &request) {
       serialCliPrintAuditDump(request.arg1);
       return;
     case SerialCliVerb::AUDIT_CLEAR:
-      serialCliReply(clearAuditStores() ? "OK audit log cleared"
-                                        : "ERR audit erase failed");
+      // The control loop must not take the flash lock; the persistence
+      // worker owns the erase (same queue contract as REBOOT).
+      serialCliReply(dispatchAuditClearWork()
+                         ? "OK queued AUDIT_CLEAR"
+                         : "ERR audit clear could not be queued");
       return;
     case SerialCliVerb::AUDIT_VERBOSE:
       serialCliAuditVerbose(request.arg1);
