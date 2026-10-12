@@ -451,7 +451,16 @@ export function init() {
   if (controls) controls.classList.remove("hidden");
   for (const section of $("diagnosticsPanel").querySelectorAll("fieldset.statusColumn")) {
     const legend = section.querySelector("legend");
-    if (legend) legend.onclick = () => copyText(section.innerText.trim());
+    if (!legend) continue;
+    // Press-and-hold copy: cancel on release, pointer exit, or a browser
+    // gesture takeover (touch scroll), so nothing copies accidentally.
+    let hold = 0;
+    const cancel = () => clearTimeout(hold);
+    legend.onpointerdown = (e) => {
+      cancel();
+      if (e.button === 0) hold = setTimeout(() => copyText(section.innerText.trim()), 600);
+    };
+    legend.onpointerup = legend.onpointerleave = legend.onpointercancel = cancel;
   }
   $("serialLogLevel").onchange = () =>
     R.command("/api/v1/config", R.withBaseRev({ serialLogLevel: $("serialLogLevel").value }));
