@@ -1815,7 +1815,8 @@ const syncHistoryDirButton = () => {
   i.setAttribute("aria-label", l);
   i.title = l;
   i.textContent =
-    historyDir === "desc" ? __WEBUI_TEXT__("runtime.down") : __WEBUI_TEXT__("runtime.symbol_5");
+    (historyDir === "desc" ? __WEBUI_TEXT__("runtime.down") : __WEBUI_TEXT__("runtime.symbol_5")) +
+    " " + __WEBUI_TEXT__("runtime.sort");
 };
 const toggleHistoryDir = () => {
   historyDir = historyDir === "desc" ? "asc" : "desc";

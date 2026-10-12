@@ -1055,6 +1055,10 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !codeIncludes(viewJs.stats, 'sortDateButton') ||
     !codeIncludes(viewJs.stats, 'sortRatingButton') ||
     !codeIncludes(viewJs.stats, 'sortDirButton') ||
+    // The word Sort labels both sort controls so they read without icons.
+    !codeIncludes(viewJs.stats, '<span class="sortLbl">') ||
+    !css.includes('.shotSort .sortLbl{') ||
+    !/<button id="historyDirButton"[^>]*>Sort /.test(partialHtml.history) ||
     !codeIncludes(js, 'Newest first') ||
     !codeIncludes(viewJs.stats, "R.setShotSort('date')") ||
     !codeIncludes(viewJs.stats, "R.setShotSort('rating')") ||
