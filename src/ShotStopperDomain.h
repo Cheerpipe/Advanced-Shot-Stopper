@@ -2272,6 +2272,10 @@ enum class DebugCode : uint8_t {
   SCALE_GATT_CONNECTING,
   SCALE_CONNECT_ATTEMPT_FAILED,
   SCALE_CONNECT_FAILED,
+  // Anomalous Micra-service mutex acquisition on the control loop's backflush
+  // poll: argument1 is the acquisition wait in microseconds, argument2 the
+  // previous holder's tenure in microseconds.
+  MACHINE_MUX_WAIT,
   // A bounded message emitted by the application logger. This exists for
   // legacy diagnostics whose values cannot be represented by two integers.
   LOG_TEXT
@@ -2573,6 +2577,7 @@ inline LogLevel debugCodeDefaultLevel(DebugCode code) {
     case DebugCode::RELAY_GPIO_DESYNC:
     case DebugCode::SCALE_CONNECT_ATTEMPT_FAILED:
     case DebugCode::SCALE_CONNECT_FAILED:
+    case DebugCode::MACHINE_MUX_WAIT:
       return LogLevel::WARNING;
     case DebugCode::OTA_ROLLBACK_ARMED:
     case DebugCode::OTA_ROLLBACK_FAILED:
@@ -2663,6 +2668,7 @@ inline const char *debugCodeName(DebugCode code) {
     case DebugCode::SCALE_CONNECT_ATTEMPT_FAILED:
       return "scale GAP connect attempt failed";
     case DebugCode::SCALE_CONNECT_FAILED: return "scale connect failed";
+    case DebugCode::MACHINE_MUX_WAIT: return "machine mux wait";
     case DebugCode::SCALE_CONNECTED: return "scale connected";
     case DebugCode::SCALE_DISCONNECTED: return "scale disconnected";
     case DebugCode::SCALE_TIMER_START_OK: return "scale timer started";

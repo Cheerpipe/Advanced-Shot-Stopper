@@ -162,7 +162,13 @@ and reports the last and maximum mutex-acquisition wait recorded at the
 instrumented control-loop sites: the Micra backflush poll and the scale
 critical-event drain (other acquisitions of the same mutexes, such as the
 machine-guards backflush poll or the diagnostics tare capture, are not
-counted). Own-CPU values are kernel-folded at switch-out: a phase that ran
+counted). Every task mutex additionally remembers the name and tenure of
+its previous holder — written under the lock, so the next acquirer reads
+it race-free — and the backflush poll reports an acquisition wait of
+20 ms or more as it happens: a warning on the serial log names the
+holder, and a `machine mux wait` debug-ring event stamps the moment with
+the wait and tenure as its arguments, rate-limited to one report per
+10 s. Own-CPU values are kernel-folded at switch-out: a phase that ran
 uninterrupted can read zero until its time folds into a later boundary.
 
 Partition-backed shot stores advance through one 4 KiB erase or one 1 KiB

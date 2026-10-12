@@ -9,8 +9,10 @@
 #define SHOT_STOPPER_TASK_MUTEX_HOST 1
 #include <mutex>
 #else
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <freertos/task.h>
 #endif
 
 namespace shotstopper {
@@ -36,9 +38,7 @@ class TaskMutex {
     mutex_.lock();
     if (hostObserver != nullptr) hostObserver(this, true);
 #else
-    const BaseType_t taken = xSemaphoreTake(handle_, portMAX_DELAY);
-    configASSERT(taken == pdTRUE);
-    (void)taken;
+    lock_();
 #endif
   }
 
@@ -47,11 +47,25 @@ class TaskMutex {
     if (hostObserver != nullptr) hostObserver(this, false);
     mutex_.unlock();
 #else
-    // FreeRTOS implements xSemaphoreGive as a C macro with an internal handle
-    // cast; the public handle type is the one created above.
-    const BaseType_t given = xSemaphoreGive(handle_);
-    configASSERT(given == pdTRUE);
-    (void)given;
+    unlock_();
+#endif
+  }
+
+  // Previous holder attribution, valid only while the caller holds the mutex
+  // (see the out-of-line unlock in ShotStopperTaskMutex.cpp). Host builds
+  // carry no kernel task names.
+  const char *lastOwnerName() const {
+#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+    return "host";
+#else
+    return lastOwner_;
+#endif
+  }
+  uint32_t lastHoldUs() const {
+#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+    return 0;
+#else
+    return lastHoldUs_;
 #endif
   }
 
@@ -59,8 +73,15 @@ class TaskMutex {
 #if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
   std::mutex mutex_;
 #else
+  // Out-of-line: with the telemetry inside, inlining these at every
+  // TaskLockGuard site costs ~25 KB of flash.
+  void lock_();
+  void unlock_();
   StaticSemaphore_t storage_ = {};
   SemaphoreHandle_t handle_ = nullptr;
+  uint32_t ownedSinceUs_ = 0;
+  uint32_t lastHoldUs_ = 0;
+  char lastOwner_[16] = {};
 #endif
 };
 

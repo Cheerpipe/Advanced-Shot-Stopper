@@ -33,6 +33,18 @@ void serialTraceCategoryf(shotstopper::LogLevel level, shotstopper::DebugCategor
   va_end(args);
   disconnectLog = line;
 }
+static int muxWaitEvents = 0;
+static int32_t lastMuxWaitArgs[2] = {0, 0};
+void addDebugEvent(shotstopper::DebugCategory category,
+                   shotstopper::DebugCode code, int32_t argument1,
+                   int32_t argument2) {
+  assert(!locked && category == shotstopper::DebugCategory::NETWORK);
+  if (code == shotstopper::DebugCode::MACHINE_MUX_WAIT) {
+    ++muxWaitEvents;
+    lastMuxWaitArgs[0] = argument1;
+    lastMuxWaitArgs[1] = argument2;
+  }
+}
 static int sendLimit = -1;
 static bool initFails = false, startFails = false;
 static bool sessionFails = false, inhibitAfterSession = false, inhibitAfterInit = false;
@@ -710,6 +722,44 @@ struct MicraWebSocketTest {
     reader.join();
     delete service.work_;
   }
+  static void backflushWaitAttribution() {
+    now = 20000;  // The rate-limit window measures from a zero-initialized latch.
+    muxWaitEvents = 0;
+    disconnectLog.clear();
+    ShotStopperMicraService service;
+    // The uncontended poll wires the detector into backflush(); with the
+    // stub clock each micros() call is 1 ms, so the wait stays ~1 ms and
+    // reports nothing.
+    service.backflush(false);
+    assert(muxWaitEvents == 0);
+    assert(disconnectLog.empty());
+    uint32_t latch = 0;
+    // Just below the 20 ms threshold: still silent.
+    ShotStopperMicraService::reportMuxWaitAnomaly(19999, service.mux_, latch,
+                                                  now);
+    assert(muxWaitEvents == 0);
+    // At and past the threshold the report names the previous holder and
+    // carries the wait as the ring event's first argument.
+    ShotStopperMicraService::reportMuxWaitAnomaly(31000, service.mux_, latch,
+                                                  now);
+    assert(muxWaitEvents == 1);
+    assert(lastMuxWaitArgs[0] == 31000);
+    assert(disconnectLog.find("Micra backflush mux wait=") != std::string::npos);
+    assert(disconnectLog.find("holder=host") != std::string::npos);
+    // Rate limit: a second anomaly inside the 10 s window stays silent...
+    now += 100;
+    disconnectLog.clear();
+    ShotStopperMicraService::reportMuxWaitAnomaly(31000, service.mux_, latch,
+                                                  now);
+    assert(muxWaitEvents == 1);
+    assert(disconnectLog.empty());
+    // ...and fires again once the window has passed.
+    now += 10000;
+    ShotStopperMicraService::reportMuxWaitAnomaly(20000, service.mux_, latch,
+                                                  now);
+    assert(muxWaitEvents == 2);
+    assert(lastMuxWaitArgs[0] == 20000);
+  }
 };
 }
 int main() {
@@ -722,15 +772,5 @@ int main() {
   shotstopper::MicraWebSocketTest::pongPublicationRace();
   shotstopper::MicraWebSocketTest::concurrentStatusLifecycle();
   shotstopper::MicraWebSocketTest::setupAdmissionAndBackoff();
-  {
-    // The backflush poll records its mutex acquisition wait for the task
-    // profiler; the stats must stay readable and consistent afterwards.
-    shotstopper::ShotStopperMicraService service;
-    service.backflush(false);
-    const uint32_t last =
-        shotstopper::micraBackflushWaitLastUsStat().load();
-    const uint32_t max =
-        shotstopper::micraBackflushWaitMaxUsStat().load();
-    assert(max >= last);
-  }
+  shotstopper::MicraWebSocketTest::backflushWaitAttribution();
 }

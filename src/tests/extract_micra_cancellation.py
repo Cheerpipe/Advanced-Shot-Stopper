@@ -31,7 +31,8 @@ output.mkdir(parents=True, exist_ok=True)
     + definition("ShotStopperMicraService::WorkBuffer") + "\n}\n")
 (output / "micra_websocket_status.inc").write_text(
     "\n".join(definition("ShotStopperMicraService::" + name) for name in
-              ("status", "qualifyBackflushLocked", "backflushReadyLocked", "backflush", "finishBackflush", "physicalStart")) + "\n")
+              ("status", "qualifyBackflushLocked", "backflushReadyLocked", "backflush",
+               "reportMuxWaitAnomaly", "finishBackflush", "physicalStart")) + "\n")
 (output / "micra_cancellation_methods.inc").write_text(
     "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
     + "\n".join(map(definition, names)) + "\n"

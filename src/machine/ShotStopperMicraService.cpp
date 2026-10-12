@@ -30,6 +30,9 @@
 void serialTraceCategoryf(shotstopper::LogLevel level,
                           shotstopper::DebugCategory category,
                           const char *fmt, ...);
+void addDebugEvent(shotstopper::DebugCategory category,
+                   shotstopper::DebugCode code, int32_t argument1,
+                   int32_t argument2);
 
 namespace shotstopper {
 namespace {
@@ -771,12 +774,40 @@ MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
   // blocking acquisition waited so a backflush phase maximum can blame it.
   const uint32_t muxLockStartedUs = micros();
   TaskLockGuard lock(mux_);
+  const uint32_t waitedUs = micros() - muxLockStartedUs;
   noteMutexWaitUs(micraBackflushWaitLastUsStat(), micraBackflushWaitMaxUsStat(),
-                  micros() - muxLockStartedUs);
+                  waitedUs);
+  static uint32_t lastMuxWaitReportAtMs = 0;
+  reportMuxWaitAnomaly(waitedUs, mux_, lastMuxWaitReportAtMs, millis());
   qualifyBackflushLocked();
   auto result = consume ? backflush_.take() : backflush_.status();
   result.ready = backflushReadyLocked();
   return result;
+}
+
+void ShotStopperMicraService::reportMuxWaitAnomaly(
+    uint32_t waitedUs, const TaskMutex &mutex, uint32_t &lastReportAtMs,
+    uint32_t nowMs) {
+  // Normal waits are microseconds and the control contract caps blocking at
+  // 50 ms; a wait at or past a fifth of that budget names the holder so a
+  // phase maximum can be attributed after the fact. Rate-limited to keep a
+  // systematically stalled holder from flooding the log. Callers hold the
+  // mutex, which also serializes the latch.
+  constexpr uint32_t kMuxWaitReportUs = 20000;
+  constexpr uint32_t kMuxWaitReportPeriodMs = 10000;
+  if (waitedUs < kMuxWaitReportUs ||
+      nowMs - lastReportAtMs < kMuxWaitReportPeriodMs) {
+    return;
+  }
+  lastReportAtMs = nowMs;
+  serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
+                       "Micra backflush mux wait=%lu us holder=%s hold=%lu us",
+                       static_cast<unsigned long>(waitedUs),
+                       mutex.lastOwnerName(),
+                       static_cast<unsigned long>(mutex.lastHoldUs()));
+  addDebugEvent(DebugCategory::NETWORK, DebugCode::MACHINE_MUX_WAIT,
+                static_cast<int32_t>(waitedUs),
+                static_cast<int32_t>(mutex.lastHoldUs()));
 }
 
 void ShotStopperMicraService::finishBackflush(uint32_t attempt) {

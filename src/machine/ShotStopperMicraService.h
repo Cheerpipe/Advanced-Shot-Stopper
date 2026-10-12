@@ -136,6 +136,10 @@ class ShotStopperMicraService {
   bool networkEligible(LineaMicraError &error, bool observation = false) const;
   void qualifyBackflushLocked();
   bool backflushReadyLocked() const;
+  // Anomaly report for the poll's mutex acquisition wait; the caller holds
+  // the mutex, whose telemetry attributes the previous holder.
+  static void reportMuxWaitAnomaly(uint32_t waitedUs, const TaskMutex &mutex,
+                                   uint32_t &lastReportAtMs, uint32_t nowMs);
   bool ensureIoBuffer();
   bool ensureWorkBuffer();
   void clearSession();
