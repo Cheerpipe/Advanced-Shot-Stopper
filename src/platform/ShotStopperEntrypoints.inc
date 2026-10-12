@@ -727,6 +727,7 @@ void loop() {
   processScaleWorkerEvents();
   finishLoopPhase(LoopPhase::INPUT_SCALE_EVENTS);
   observeMachineSenseFromSession(loopScaleLink);
+  finishLoopPhase(LoopPhase::INPUT_MACHINE_SENSE);
   serviceMachine();
   fillLoopGuardsFromIntention(machinePollIntention(), loopScaleLink);
   finishLoopPhase(LoopPhase::INPUT_MACHINE_SERVICE);
@@ -736,6 +737,7 @@ void loop() {
     serviceNoScaleShotGuard(loopGuardInputs);
     serviceCupStartGuard(loopGuardInputs);
   }
+  finishLoopPhase(LoopPhase::GUARDS_BREW_START);
   // Machine integrations observe the scale link once per loop; the Micra owns
   // its scale power policy (explicit disconnect, grace, relay guard, and the
   // confirmed machine power edge).
@@ -748,31 +750,36 @@ void loop() {
   serviceMachineIntegrationMachinePower(
       loopScaleConnected, loopScaleLink.features.has(ScaleFeaturePowerOff),
       loopRelayClosed);
-  finishLoopPhase(LoopPhase::MACHINE_GUARDS);
+  finishLoopPhase(LoopPhase::MACHINE_INTEGRATION);
   stateMachineTask();
+  finishLoopPhase(LoopPhase::CONTROL_STATE_MACHINE);
   publishControlCriticalLoggingState();
   serviceWebhookBrewStart();
   machineOnBrewOutcome(session.active);
-  finishLoopPhase(LoopPhase::CONTROL);
+  finishLoopPhase(LoopPhase::CONTROL_EFFECTS);
   serviceExtendedPulseAlert();
   localBuzzer.service();
   serviceScaleCompletionBeep();
+  finishLoopPhase(LoopPhase::ALERTS_AUDIO);
   servicePendingScaleTimerStop();
   serviceRemoteTimerStopRetry();
   serviceBullseyeMelody();
-  pendingShotFinalizeTask();
   finishLoopPhase(LoopPhase::ALERTS_TIMERS);
+  pendingShotFinalizeTask();
+  finishLoopPhase(LoopPhase::SHOT_FINALIZE);
   publishControlGate();
   serviceMaintenanceCancellation();
+  finishLoopPhase(LoopPhase::COMMANDS_GATE_MAINTENANCE);
   processWebCommands();
   serviceControlCommandResult();
   serviceMaintenanceLease();
+  finishLoopPhase(LoopPhase::COMMANDS_WEB);
   servicePowerManagement(
       !wakeGestureConsumed &&
       (powerIntention.turnedOn || powerIntention.turnedOff));
   servicePendingResetHistoryClear();
   servicePendingPlannedRestart();
-  finishLoopPhase(LoopPhase::COMMANDS);
+  finishLoopPhase(LoopPhase::COMMANDS_POWER_RESTART);
   if (controlHousekeepingDue(loopStartedAtMs)) {
     serviceSerialLogDump();
     finishLoopPhase(LoopPhase::HOUSEKEEPING_SERIAL_LOG);

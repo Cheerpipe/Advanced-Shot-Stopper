@@ -16410,12 +16410,12 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   LoopPhaseProfiler profiler;
   LoopPhaseProfilerSnapshot snap;
   profiler.beginIteration(false, 1000U);
-  profiler.record(LoopPhase::CONTROL, 150U, 1150U);
+  profiler.record(LoopPhase::CONTROL_STATE_MACHINE, 150U, 1150U);
   profiler.capturePeakGap(8U, 8050U, 7000U, 400U);
   profiler.captureIntervalGap(8050U, 7000U, 400U);
   profiler.publishIntervalGap(8U);
   profiler.beginIteration(false, 2000U);
-  profiler.record(LoopPhase::CONTROL, 90U, 1002000U);
+  profiler.record(LoopPhase::CONTROL_STATE_MACHINE, 90U, 1002000U);
   profiler.captureIntervalGap(5100U, 4200U, 300U);
   profiler.publishIntervalGap(5U);
   profiler.copySnapshot(snap);
@@ -16423,7 +16423,7 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   CHECK(snap.recentGapUs == 5100U);
   CHECK(snap.recentDelayUs == 4200U);
   CHECK(snap.recentDispatchUs == 300U);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)]
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL_STATE_MACHINE)]
             .recentGapExecutionUs == 90U);
   profiler.beginIteration(false, 1003000U);
   profiler.record(LoopPhase::DIAGNOSTICS, 10U, 2003000U);
@@ -16433,13 +16433,13 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   CHECK(snap.peakDelayUs == 7000U);
   CHECK(snap.peakDispatchUs == 400U);
   CHECK(snap.recentGapMs == 5U);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].lastExecutionUs ==
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL_STATE_MACHINE)].lastExecutionUs ==
         90U);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].maxExecutionUs ==
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL_STATE_MACHINE)].maxExecutionUs ==
         150U);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)]
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL_STATE_MACHINE)]
             .peakGapExecutionUs == 150U);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)]
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL_STATE_MACHINE)]
             .recentGapExecutionUs == 90U);
   profiler.requestReset();
   CHECK(profiler.consumeReset());
@@ -16449,19 +16449,19 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   CHECK(snap.peakDelayUs == 0U);
   CHECK(snap.peakDispatchUs == 0U);
   CHECK(snap.recentGapMs == 5U);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].maxExecutionUs ==
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL_STATE_MACHINE)].maxExecutionUs ==
         0U);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].lastExecutionUs ==
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL_STATE_MACHINE)].lastExecutionUs ==
         90U);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)]
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL_STATE_MACHINE)]
             .recentGapExecutionUs == 90U);
   profiler.beginIteration(true, 1000U);
   profiler.copySnapshot(snap);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].lastExecutionUs ==
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL_STATE_MACHINE)].lastExecutionUs ==
         90U);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)].sampleCount == 0U);
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL_STATE_MACHINE)].sampleCount == 0U);
   profiler.record(LoopPhase::SAFETY_HEALTH, 100U, 1100U);
-  profiler.record(LoopPhase::CONTROL, 200U, 1300U);
+  profiler.record(LoopPhase::CONTROL_STATE_MACHINE, 200U, 1300U);
   // Housekeeping only records on iterations that run the gated block. The
   // status publish splits into three contiguous sub-phases.
   profiler.record(LoopPhase::HOUSEKEEPING_SHOT_PERSISTENCE, 70U, 1400U);
@@ -16477,13 +16477,16 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
   CHECK(snap.rows[0].maxExecutionUs == 100U);
   CHECK(snap.rows[0].currentCpuPct > 0.009f);
   CHECK(snap.rows[0].currentCpuPct < 0.011f);
-  CHECK(snap.rowCount == 21U);
+  CHECK(snap.rowCount == 28U);
   CHECK(strcmp(snap.rows[1].name, "input/backflush poll") == 0);
   CHECK(strcmp(snap.rows[2].name, "input/drive permission") == 0);
   CHECK(strcmp(snap.rows[3].name, "input/scale events") == 0);
-  CHECK(strcmp(snap.rows[4].name, "input/machine service") == 0);
-  CHECK(strcmp(snap.rows[5].name, "machine guards") == 0);
-  CHECK(strcmp(snap.rows[8].name, "commands") == 0);
+  CHECK(strcmp(snap.rows[4].name, "input/machine sense") == 0);
+  CHECK(strcmp(snap.rows[5].name, "input/machine service") == 0);
+  CHECK(strcmp(snap.rows[6].name, "guards/brew start") == 0);
+  CHECK(strcmp(snap.rows[7].name, "machine integration") == 0);
+  CHECK(strcmp(snap.rows[8].name, "control/state machine") == 0);
+  CHECK(strcmp(snap.rows[13].name, "commands/gate+maintenance") == 0);
   CHECK(strcmp(snap.rows[static_cast<uint8_t>(
                     LoopPhase::HOUSEKEEPING_STATUS_GATHER)]
                     .name,
@@ -16522,7 +16525,7 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
             .recentGapExecutionUs == 8U);
   CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS_GATHER)]
             .peakGapExecutionUs == 0U);
-  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL)]
+  CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::CONTROL_STATE_MACHINE)]
             .averageExecutionUs == 200U);
 
   profiler.beginIteration(false, 3501000U);

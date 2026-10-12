@@ -3,6 +3,7 @@
 #include "ShotStopperScaleLink.h"
 #include "ShotStopperDomain.h"
 #include "ShotStopperTaskMutex.h"
+#include "ShotStopperTaskProfiler.h"
 
 #include <type_traits>
 #include <atomic>
@@ -123,6 +124,8 @@ uint32_t scaleWorkerStackMinBytesValue();
 uint32_t scaleWorkerMaxGapMsValue();
 uint32_t scaleWorkerDeadlineMissCount();
 uint32_t scaleWorkerMaxExecutionUsValue();
+void copyScaleWorkerPhaseProfilerSnapshot(
+    PhaseProfilerSnapshot<SCALE_WORKER_PHASE_COUNT> &out);
 
 #if defined(SHOT_STOPPER_HOST_TEST)
 void setScaleWorkerBleReadyForHost(bool ready);

@@ -957,6 +957,31 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
             static_cast<unsigned long>(row.lastExecutionUs))) return false;
     if (!jsonScratchAppend(buf, cap, used, "}")) return false;
   }
+  for (uint8_t i = 0; i < tasks.scaleWorkerPhases.rowCount; ++i) {
+    const LoopPhaseProfilerRow &row = tasks.scaleWorkerPhases.rows[i];
+    if (!jsonScratchAppend(
+            buf, cap, used,
+            "%s{\"name\":\"scaleWorker/%s\",\"core\":1,"
+            "\"stackMinWords\":4294967295,\"sampleCount\":%lu,"
+            "\"currentCpuPct\":%.1f,\"averageCpuPct\":%.1f",
+            tasks.rowCount == 0 && tasks.loopPhases.rowCount == 0 && i == 0
+                ? ""
+                : ",",
+            row.name != nullptr ? row.name : "unknown",
+            static_cast<unsigned long>(row.sampleCount),
+            static_cast<double>(row.currentCpuPct),
+            static_cast<double>(row.averageCpuPct))) {
+      return false;
+    }
+    if (full && !jsonScratchAppend(buf, cap, used,
+            ",\"averageExecutionUs\":%lu,\"maxExecutionUs\":%lu,\"maxCpuUs\":%lu,"
+            "\"lastExecutionUs\":%lu",
+            static_cast<unsigned long>(row.averageExecutionUs),
+            static_cast<unsigned long>(row.maxExecutionUs),
+            static_cast<unsigned long>(row.maxCpuUs),
+            static_cast<unsigned long>(row.lastExecutionUs))) return false;
+    if (!jsonScratchAppend(buf, cap, used, "}")) return false;
+  }
   return jsonScratchAppend(buf, cap, used, "]}");
 }
 

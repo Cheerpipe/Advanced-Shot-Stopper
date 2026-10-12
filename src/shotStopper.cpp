@@ -961,6 +961,7 @@ uint32_t elapsedMs(uint32_t sinceMs) {
 void copyTaskProfiler(TaskProfilerSnapshot &output) {
   taskProfiler.copySnapshot(output);
   loopPhaseProfiler.copySnapshot(output.loopPhases);
+  copyScaleWorkerPhaseProfilerSnapshot(output.scaleWorkerPhases);
   output.micraBackflushWaitLastUs =
       micraBackflushWaitLastUsStat().load(std::memory_order_relaxed);
   output.micraBackflushWaitMaxUs =

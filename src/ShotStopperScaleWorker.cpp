@@ -25,6 +25,7 @@
 #include "ShotStopperPowerManagement.h"
 #include "ShotStopperScaleProfiler.h"
 #include "ShotStopperOutboundAdmission.h"
+#include "ShotStopperTaskProfiler.h"
 #if !defined(SHOT_STOPPER_HOST_TEST)
 #include <esp_bt.h>
 #endif
@@ -32,6 +33,7 @@
 #if !defined(SHOT_STOPPER_SCALE_WORKER_IN_ORCHESTRATOR)
 // Orchestrator symbols live in the global namespace (shotStopper.cpp).
 uint32_t elapsedMs(uint32_t sinceMs);
+extern shotstopper::TaskProfiler taskProfiler;
 void addDebugEvent(shotstopper::DebugCategory category, shotstopper::DebugCode code,
                    int32_t argument1 = 0, int32_t argument2 = 0);
 void addDebugEventDetail(shotstopper::DebugCategory category,
@@ -2602,6 +2604,44 @@ void serviceScaleWorkerLink() {
   }
 }
 
+// Component-section profiling of the worker tick, on the same wall/own-CPU
+// timeline and profiler session as the control-loop phases. The own-CPU
+// delta reads this task's kernel runtime counter (same lock-free contract
+// as the control loop's loopTaskCpuUs).
+PhaseProfiler<SCALE_WORKER_PHASE_COUNT> scaleWorkerPhaseProfiler(
+    scaleWorkerPhaseNameFor);
+
+void copyScaleWorkerPhaseProfilerSnapshot(
+    PhaseProfilerSnapshot<SCALE_WORKER_PHASE_COUNT> &out) {
+  scaleWorkerPhaseProfiler.copySnapshot(out);
+}
+
+static uint32_t scaleSectionStartedAtUs = 0;
+#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+static uint32_t scaleSectionCpuStartedUs = 0;
+
+static uint32_t scaleWorkerTaskCpuUs() {
+  TaskStatus_t status;
+  vTaskGetInfo(nullptr, &status, pdFALSE, eRunning);
+  return static_cast<uint32_t>(status.ulRunTimeCounter);
+}
+#endif
+
+static void finishScaleSection(ScaleWorkerPhase section) {
+  const uint32_t endedAtUs = micros();
+#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+  const uint32_t cpuEndedUs = scaleWorkerTaskCpuUs();
+  scaleWorkerPhaseProfiler.record(
+      section, endedAtUs - scaleSectionStartedAtUs, endedAtUs,
+      cpuEndedUs - scaleSectionCpuStartedUs);
+  scaleSectionCpuStartedUs = cpuEndedUs;
+#else
+  scaleWorkerPhaseProfiler.record(section, endedAtUs - scaleSectionStartedAtUs,
+                                  endedAtUs);
+#endif
+  scaleSectionStartedAtUs = endedAtUs;
+}
+
 void scaleWorkerTask(void *) {
 #if !defined(SHOT_STOPPER_HOST_TEST)
   scaleWorkerTaskHandle.store(xTaskGetCurrentTaskHandle(),
@@ -2668,6 +2708,20 @@ void scaleWorkerTask(void *) {
 
     const uint32_t nowMs = millis();
     const uint32_t executionStartedUs = micros();
+    // Section maxima have no dedicated reset control; start each profiler
+    // session with fresh maxima so a new session's peaks are actionable.
+    static bool sectionsEnabledPreviously = false;
+    const bool sectionsEnabled = taskProfiler.loopPhaseProfilingEnabled();
+    if (sectionsEnabled && !sectionsEnabledPreviously) {
+      scaleWorkerPhaseProfiler.requestReset();
+    }
+    sectionsEnabledPreviously = sectionsEnabled;
+    (void)scaleWorkerPhaseProfiler.consumeReset();
+    scaleWorkerPhaseProfiler.beginIteration(sectionsEnabled, executionStartedUs);
+    scaleSectionStartedAtUs = executionStartedUs;
+#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+    scaleSectionCpuStartedUs = scaleWorkerTaskCpuUs();
+#endif
     static uint32_t previousServiceAtMs = 0;
     if (previousServiceAtMs != 0) {
       const uint32_t gapMs = static_cast<uint32_t>(nowMs - previousServiceAtMs);
@@ -2685,6 +2739,7 @@ void scaleWorkerTask(void *) {
             SCALE_WORKER_BACKGROUND_MS;
     // Must run every tick: pollScan() defers GAP connect by one Settle step.
     if (!syncScalePower()) {
+      finishScaleSection(ScaleWorkerPhase::ADMIN);
       feedOrTripCurrentTaskWatchdog();
       vTaskDelay(pdMS_TO_TICKS(10));
       continue;
@@ -2697,6 +2752,7 @@ void scaleWorkerTask(void *) {
     // consumer then observes the same state as with no scale present.
     if (serviceBleMasterSwitch()) {
       syncScaleRadioCoex();
+      finishScaleSection(ScaleWorkerPhase::ADMIN);
       feedOrTripCurrentTaskWatchdog();
       vTaskDelay(pdMS_TO_TICKS(SCALE_WORKER_BACKGROUND_MS));
       continue;
@@ -2704,6 +2760,7 @@ void scaleWorkerTask(void *) {
     syncScaleRadioCoex();
 
     serviceScalePowerOffTimeout(nowMs);
+    finishScaleSection(ScaleWorkerPhase::ADMIN);
 
     // Live GAP check once per tick. Packet timeouts and HCI events cover the
     // rest of the hot path via isLinkUp().
@@ -2730,6 +2787,7 @@ void scaleWorkerTask(void *) {
       setScaleLinkState(ScaleLinkState::DISCONNECTED);
       lastLinkSnapshotMs = nowMs;
     }
+    finishScaleSection(ScaleWorkerPhase::LINK);
 
     // GAP/GATT setup must not wait behind tare/beep/debug: connecting is not
     // linked, so those would otherwise skip advanceConnection() for a tick.
@@ -2739,13 +2797,16 @@ void scaleWorkerTask(void *) {
       serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
                                   connectAttemptSeriesActive, scanSessionAtMs,
                                   scanLastAdvertAtMs);
+      finishScaleSection(ScaleWorkerPhase::DISCOVERY);
     } else {
       if (takeScalePowerOff()) {
         executeScalePowerOffCommand();
+        finishScaleSection(ScaleWorkerPhase::COMMANDS);
       } else {
         ScaleCommand command;
         if (xQueueReceive(scaleCommandQueue, &command, 0) == pdTRUE) {
           executeScaleCommand(command);
+          finishScaleSection(ScaleWorkerPhase::COMMANDS);
         } else {
           uint32_t beepCycleId = 0;
           if (takeScaleBrewBeep(beepCycleId)) {
@@ -2753,23 +2814,28 @@ void scaleWorkerTask(void *) {
             executeScaleBeepCommand(DebugCode::SCALE_BEEP_OK,
                                     DebugCode::SCALE_BEEP_FAILED,
                                     DebugCode::SCALE_BEEP_UNSUPPORTED);
+            finishScaleSection(ScaleWorkerPhase::COMMANDS);
           } else if (takeScalePaddleReturnReminderBeep()) {
             executeScaleBeepCommand(DebugCode::SCALE_PADDLE_REMINDER_BEEP_OK,
                                     DebugCode::SCALE_PADDLE_REMINDER_BEEP_FAILED,
                                     DebugCode::SCALE_PADDLE_REMINDER_BEEP_UNSUPPORTED);
+            finishScaleSection(ScaleWorkerPhase::COMMANDS);
           } else if (takeScaleCompletionBeep()) {
             executeScaleBeepCommand(DebugCode::SCALE_BEEP_OK,
                                     DebugCode::SCALE_BEEP_FAILED,
                                     DebugCode::SCALE_BEEP_UNSUPPORTED);
+            finishScaleSection(ScaleWorkerPhase::COMMANDS);
           } else {
             BookooDebugAction debugAction = BookooDebugAction::START;
             uint8_t debugLevel = 0;
             if (takeScaleDebugCommand(debugAction, debugLevel)) {
               executeScaleDebugCommand(debugAction, debugLevel);
+              finishScaleSection(ScaleWorkerPhase::COMMANDS);
             } else if (!linked && !applyScaleDiscoveryPause()) {
               serviceScaleWorkerDiscovery(lastScanCycleMs, lastConnectLogMs,
                                           connectAttemptSeriesActive,
                                           scanSessionAtMs, scanLastAdvertAtMs);
+              finishScaleSection(ScaleWorkerPhase::DISCOVERY);
             }
           }
         }
@@ -2795,6 +2861,7 @@ void scaleWorkerTask(void *) {
       reportNimbleRuntimeHealth(false);
 #endif
     }
+    finishScaleSection(ScaleWorkerPhase::TELEMETRY);
     const uint32_t executionUs = micros() - executionStartedUs;
     if (executionUs > scaleWorkerMaxExecutionUs.load(std::memory_order_relaxed))
       scaleWorkerMaxExecutionUs.store(executionUs, std::memory_order_relaxed);

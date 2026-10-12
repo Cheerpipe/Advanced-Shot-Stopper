@@ -29,11 +29,18 @@ enum class LoopPhase : uint8_t {
   INPUT_BACKFLUSH,
   INPUT_DRIVE_PERMISSION,
   INPUT_SCALE_EVENTS,
+  INPUT_MACHINE_SENSE,
   INPUT_MACHINE_SERVICE,
-  MACHINE_GUARDS,
-  CONTROL,
+  GUARDS_BREW_START,
+  MACHINE_INTEGRATION,
+  CONTROL_STATE_MACHINE,
+  CONTROL_EFFECTS,
+  ALERTS_AUDIO,
   ALERTS_TIMERS,
-  COMMANDS,
+  SHOT_FINALIZE,
+  COMMANDS_GATE_MAINTENANCE,
+  COMMANDS_WEB,
+  COMMANDS_POWER_RESTART,
   HOUSEKEEPING_SERIAL_LOG,
   HOUSEKEEPING_SERIAL_CLI,
   HOUSEKEEPING_RUNTIME_PERSISTENCE,
@@ -57,11 +64,19 @@ inline const char *loopPhaseName(LoopPhase phase) {
     case LoopPhase::INPUT_BACKFLUSH: return "input/backflush poll";
     case LoopPhase::INPUT_DRIVE_PERMISSION: return "input/drive permission";
     case LoopPhase::INPUT_SCALE_EVENTS: return "input/scale events";
+    case LoopPhase::INPUT_MACHINE_SENSE: return "input/machine sense";
     case LoopPhase::INPUT_MACHINE_SERVICE: return "input/machine service";
-    case LoopPhase::MACHINE_GUARDS: return "machine guards";
-    case LoopPhase::CONTROL: return "control";
+    case LoopPhase::GUARDS_BREW_START: return "guards/brew start";
+    case LoopPhase::MACHINE_INTEGRATION: return "machine integration";
+    case LoopPhase::CONTROL_STATE_MACHINE: return "control/state machine";
+    case LoopPhase::CONTROL_EFFECTS: return "control/effects";
+    case LoopPhase::ALERTS_AUDIO: return "alerts/audio";
     case LoopPhase::ALERTS_TIMERS: return "alerts/timers";
-    case LoopPhase::COMMANDS: return "commands";
+    case LoopPhase::SHOT_FINALIZE: return "shot finalize";
+    case LoopPhase::COMMANDS_GATE_MAINTENANCE:
+      return "commands/gate+maintenance";
+    case LoopPhase::COMMANDS_WEB: return "commands/web";
+    case LoopPhase::COMMANDS_POWER_RESTART: return "commands/power+restart";
     case LoopPhase::HOUSEKEEPING_SERIAL_LOG: return "housekeeping/serial log";
     case LoopPhase::HOUSEKEEPING_SERIAL_CLI: return "housekeeping/serial CLI";
     case LoopPhase::HOUSEKEEPING_RUNTIME_PERSISTENCE: return "housekeeping/settings";
@@ -79,6 +94,45 @@ inline const char *loopPhaseName(LoopPhase phase) {
   return "unknown";
 }
 
+inline const char *loopPhaseNameFor(uint8_t index) {
+  return index < LOOP_PHASE_COUNT
+             ? loopPhaseName(static_cast<LoopPhase>(index))
+             : "unknown";
+}
+
+// Component-level sections of the scale worker tick, profiled on the same
+// wall/own-CPU timeline as the control-loop phases and surfaced as
+// `scaleWorker/<section>` rows in the task profiler.
+enum class ScaleWorkerPhase : uint8_t {
+  ADMIN,
+  LINK,
+  DISCOVERY,
+  COMMANDS,
+  TELEMETRY,
+  COUNT
+};
+
+constexpr uint8_t SCALE_WORKER_PHASE_COUNT =
+    static_cast<uint8_t>(ScaleWorkerPhase::COUNT);
+
+inline const char *scaleWorkerPhaseName(ScaleWorkerPhase phase) {
+  switch (phase) {
+    case ScaleWorkerPhase::ADMIN: return "admin/power+coex";
+    case ScaleWorkerPhase::LINK: return "link service";
+    case ScaleWorkerPhase::DISCOVERY: return "discovery/scan";
+    case ScaleWorkerPhase::COMMANDS: return "commands";
+    case ScaleWorkerPhase::TELEMETRY: return "watchdog+telemetry";
+    case ScaleWorkerPhase::COUNT: break;
+  }
+  return "unknown";
+}
+
+inline const char *scaleWorkerPhaseNameFor(uint8_t index) {
+  return index < SCALE_WORKER_PHASE_COUNT
+             ? scaleWorkerPhaseName(static_cast<ScaleWorkerPhase>(index))
+             : "unknown";
+}
+
 struct LoopPhaseProfilerRow {
   const char *name = nullptr;
   uint32_t sampleCount = 0;
@@ -94,7 +148,8 @@ struct LoopPhaseProfilerRow {
   float averageCpuPct = 0.0f;
 };
 
-struct LoopPhaseProfilerSnapshot {
+template <uint8_t PHASE_COUNT>
+struct PhaseProfilerSnapshot {
   uint8_t rowCount = 0;
   uint32_t peakGapMs = 0;
   uint32_t recentGapMs = 0;
@@ -104,11 +159,16 @@ struct LoopPhaseProfilerSnapshot {
   uint32_t recentDelayUs = 0;
   uint32_t peakDispatchUs = 0;
   uint32_t recentDispatchUs = 0;
-  LoopPhaseProfilerRow rows[LOOP_PHASE_COUNT] = {};
+  LoopPhaseProfilerRow rows[PHASE_COUNT] = {};
 };
 
-class LoopPhaseProfiler {
+using LoopPhaseProfilerSnapshot = PhaseProfilerSnapshot<LOOP_PHASE_COUNT>;
+
+template <uint8_t PHASE_COUNT>
+class PhaseProfiler {
  public:
+  explicit PhaseProfiler(const char *(*nameFor)(uint8_t) = loopPhaseNameFor)
+      : nameFor_(nameFor) {}
   void beginIteration(bool enabled, uint32_t nowUs) {
     memset(iterationUs_, 0, sizeof(iterationUs_));
     if (enabled && !active_) {
@@ -119,17 +179,19 @@ class LoopPhaseProfiler {
     }
   }
 
-  void record(LoopPhase phase, uint32_t durationUs, uint32_t nowUs) {
+  template <typename Phase>
+  void record(Phase phase, uint32_t durationUs, uint32_t nowUs) {
     record(phase, durationUs, nowUs, durationUs);
   }
 
   // cpuUs is the acquiring task's own-CPU delta over the same interval
   // (runtime-stats clock); it defaults to the wall duration for callers
   // without a counter read. A new wall maximum stores the paired cpuUs.
-  void record(LoopPhase phase, uint32_t durationUs, uint32_t nowUs,
+  template <typename Phase>
+  void record(Phase phase, uint32_t durationUs, uint32_t nowUs,
               uint32_t cpuUs) {
     const uint8_t index = static_cast<uint8_t>(phase);
-    if (index >= LOOP_PHASE_COUNT) return;
+    if (index >= PHASE_COUNT) return;
     iterationUs_[index] = durationUs;
     lastUs_[index] = durationUs;
     if (durationUs > maxUs_[index]) {
@@ -202,12 +264,12 @@ class LoopPhaseProfiler {
     snapshot_.recentGapUs = recentGapDurationUs_;
     snapshot_.recentDelayUs = recentDelayUs_;
     snapshot_.recentDispatchUs = recentDispatchUs_;
-    for (uint8_t i = 0; i < LOOP_PHASE_COUNT; ++i) {
+    for (uint8_t i = 0; i < PHASE_COUNT; ++i) {
       snapshot_.rows[i].recentGapExecutionUs = recentGapUs_[i];
     }
   }
 
-  void copySnapshot(LoopPhaseProfilerSnapshot &out) const {
+  void copySnapshot(PhaseProfilerSnapshot<PHASE_COUNT> &out) const {
     TaskLockGuard lock(snapshotMutex_);
     out = snapshot_;
   }
@@ -226,9 +288,9 @@ class LoopPhaseProfiler {
   void publish_(uint32_t nowUs) {
     const uint32_t elapsedUs = nowUs - startedAtUs_;
     const uint32_t windowElapsedUs = nowUs - windowStartedAtUs_;
-    LoopPhaseProfilerSnapshot next;
+    PhaseProfilerSnapshot<PHASE_COUNT> next;
     if (!active_) copySnapshot(next);
-    next.rowCount = LOOP_PHASE_COUNT;
+    next.rowCount = PHASE_COUNT;
     next.peakGapMs = peakGapMs_;
     next.recentGapMs = recentGapMs_;
     next.peakGapUs = peakGapDurationUs_;
@@ -237,9 +299,9 @@ class LoopPhaseProfiler {
     next.recentDelayUs = recentDelayUs_;
     next.peakDispatchUs = peakDispatchUs_;
     next.recentDispatchUs = recentDispatchUs_;
-    for (uint8_t i = 0; i < LOOP_PHASE_COUNT; ++i) {
+    for (uint8_t i = 0; i < PHASE_COUNT; ++i) {
       LoopPhaseProfilerRow &row = next.rows[i];
-      row.name = loopPhaseName(static_cast<LoopPhase>(i));
+      row.name = nameFor_(i);
       row.lastExecutionUs = lastUs_[i];
       row.peakGapExecutionUs = peakGapUs_[i];
       row.recentGapExecutionUs = recentGapUs_[i];
@@ -269,16 +331,16 @@ class LoopPhaseProfiler {
   bool active_ = false;
   uint32_t startedAtUs_ = 0;
   uint32_t windowStartedAtUs_ = 0;
-  uint64_t totalsUs_[LOOP_PHASE_COUNT] = {};
-  uint32_t windowUs_[LOOP_PHASE_COUNT] = {};
-  uint32_t sampleCounts_[LOOP_PHASE_COUNT] = {};
-  uint32_t maxUs_[LOOP_PHASE_COUNT] = {};
-  uint32_t maxCpuUs_[LOOP_PHASE_COUNT] = {};
-  uint32_t lastUs_[LOOP_PHASE_COUNT] = {};
-  uint32_t iterationUs_[LOOP_PHASE_COUNT] = {};
-  uint32_t peakGapUs_[LOOP_PHASE_COUNT] = {};
-  uint32_t intervalGapUs_[LOOP_PHASE_COUNT] = {};
-  uint32_t recentGapUs_[LOOP_PHASE_COUNT] = {};
+  uint64_t totalsUs_[PHASE_COUNT] = {};
+  uint32_t windowUs_[PHASE_COUNT] = {};
+  uint32_t sampleCounts_[PHASE_COUNT] = {};
+  uint32_t maxUs_[PHASE_COUNT] = {};
+  uint32_t maxCpuUs_[PHASE_COUNT] = {};
+  uint32_t lastUs_[PHASE_COUNT] = {};
+  uint32_t iterationUs_[PHASE_COUNT] = {};
+  uint32_t peakGapUs_[PHASE_COUNT] = {};
+  uint32_t intervalGapUs_[PHASE_COUNT] = {};
+  uint32_t recentGapUs_[PHASE_COUNT] = {};
   uint32_t peakGapMs_ = 0;
   uint32_t recentGapMs_ = 0;
   uint32_t peakGapDurationUs_ = 0;
@@ -291,9 +353,12 @@ class LoopPhaseProfiler {
   uint32_t intervalDelayUs_ = 0;
   uint32_t intervalDispatchUs_ = 0;
   std::atomic<bool> resetRequested_{false};
+  const char *(*nameFor_)(uint8_t);
   mutable TaskMutex snapshotMutex_;
-  LoopPhaseProfilerSnapshot snapshot_ = {};
+  PhaseProfilerSnapshot<PHASE_COUNT> snapshot_ = {};
 };
+
+using LoopPhaseProfiler = PhaseProfiler<LOOP_PHASE_COUNT>;
 
 // Last/max acquisition wait for a blocking mutex, updated from the acquiring
 // task; read by the task-profiler serializer via the snapshot fields below.
@@ -362,6 +427,9 @@ struct TaskProfilerSnapshot {
   uint8_t rowCount = 0;
   TaskProfilerRow rows[TASK_PROFILER_MAX_ROWS] = {};
   LoopPhaseProfilerSnapshot loopPhases = {};
+  // Component sections of the scale worker tick, recorded by the worker on
+  // the same profiler session as the loop phases.
+  PhaseProfilerSnapshot<SCALE_WORKER_PHASE_COUNT> scaleWorkerPhases = {};
   // Mutex-acquisition waits observed on the control loop (Micra backflush
   // mux_, scale critical-event mutex, and the status publish's shot-store and
   // control-status acquisitions) across every acquiring phase, not just the

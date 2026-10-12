@@ -39,6 +39,8 @@ int main(){
   tasks.rowCount=1;strcpy(tasks.rows[0].name,"worker");tasks.rows[0].stackMinBytes=1024;
   tasks.loopPhases.rowCount=LOOP_PHASE_COUNT;
   for(auto &row:tasks.loopPhases.rows){row.name="test";row.sampleCount=5;row.recentGapExecutionUs=12;}
+  tasks.scaleWorkerPhases.rowCount=SCALE_WORKER_PHASE_COUNT;
+  for(auto &row:tasks.scaleWorkerPhases.rows){row.name="sec";row.sampleCount=9;}
   auto format=[&](bool full){size_t used=0;assert(formatTaskProfilerObject(work.statusJson,sizeof(work.statusJson),&used,tasks,full));return std::string(work.statusJson);};
   const auto live=format(false),full=format(true);
   puts(live.c_str());puts(full.c_str());
@@ -50,6 +52,7 @@ int main(){
   tasks.controlStatusWaitLastUs=77;tasks.controlStatusWaitMaxUs=88;
   for(auto &row:tasks.loopPhases.rows)row.maxCpuUs=7;
   for(auto &row:tasks.loopPhases.rows){row.averageExecutionUs=100;row.maxExecutionUs=1000;row.lastExecutionUs=500;}
+  for(auto &row:tasks.scaleWorkerPhases.rows){row.averageExecutionUs=60;row.maxExecutionUs=700;row.lastExecutionUs=30;}
   assert(format(false)==live && format(true)!=full);
   const auto detailed=format(true);
   assert(detailed.find("\\\"maxCpuUs\\\":7")!=std::string::npos);
@@ -60,6 +63,8 @@ int main(){
                       "\\\"maxUs\\\":88}}")!=std::string::npos);
   ++tasks.loopPhases.rows[0].recentGapExecutionUs;
   assert(format(false)!=live);
+  assert(detailed.find("\\\"name\\":\\"scaleWorker/sec\\"")!=std::string::npos);
+  assert(live.find("\\\"name\\":\\"scaleWorker/sec\\"")!=std::string::npos);
   size_t used=0;assert(!formatTaskProfilerObject(work.statusJson,40,&used,tasks,false));
   ScaleProfilerStatus profile;profile.partitionAvailable=true;
   auto scale=[&](){size_t used=0;assert(statusJsonAppendScaleProfiler(&used,profile));return std::string("{")+work.statusJson+"}";};
@@ -98,6 +103,12 @@ int main(){
   assert.equal(live.rows[1].sampleCount, 5);
   assert.equal(live.rows[1].recentGapExecutionUs, 12);
   assert.equal(live.rows[0].stackMinWords, 1024);
+  // One task row plus every loop phase and scale-worker section row.
+  assert.equal(live.rows.length, 1 + 28 + 5);
+  const scaleRow = live.rows.find((r) => r.name === 'scaleWorker/sec');
+  assert.equal(scaleRow.sampleCount, 9);
+  assert(!(('averageExecutionUs') in scaleRow));
+  assert(('averageExecutionUs') in full.rows.find((r) => r.name === 'scaleWorker/sec'));
   assert(Buffer.byteLength(JSON.stringify(full))-Buffer.byteLength(JSON.stringify(live)) >= 1000);
   for (const key of ['generation','sessionId','durationLimitMs','recordBytes','complete','downloading'])
     assert(!(key in empty.scaleProfile), key);
