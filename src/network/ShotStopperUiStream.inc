@@ -50,6 +50,18 @@ uint32_t uiStreamCurveHash(const ShotCurveRecord &curve, uint16_t count) {
   return hash;
 }
 
+// Takeover notice for both the dispatch path and a rejected bind: a 4001
+// close makes the page deactivate and offer Reactivate instead of reading
+// the drop as a network failure it would retry forever.
+void sendUiStreamTakeoverClose(httpd_handle_t server, int fd) {
+  uint8_t code[] = {0x0f, 0xa1};  // 4001: ownership taken over.
+  httpd_ws_frame_t close = {};
+  close.type = HTTPD_WS_TYPE_CLOSE;
+  close.payload = code;
+  close.len = sizeof(code);
+  (void)httpd_ws_send_frame_async(server, fd, &close);
+}
+
 #include "ShotStopperUiStreamTransport.inc"
 }  // namespace
 
@@ -330,9 +342,14 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
       accepted = true;
     }
   }
+  const bool bindRejected = !accepted && cJSON_IsString(op) &&
+      strcmp(op->valuestring, "bind") == 0 && cJSON_IsString(client);
   cJSON_Delete(message);
   memset(body, 0, sizeof(body));
-  if (!accepted) return ESP_FAIL;
+  if (!accepted) {
+    if (bindRejected) sendUiStreamTakeoverClose(request->handle, session->fd);
+    return ESP_FAIL;
+  }
   if (activity) {
     uint8_t alive[] = "{\"v\":1,\"type\":\"alive\"}";
     httpd_ws_frame_t reply = {};
@@ -405,12 +422,7 @@ void ShotStopperNetwork::uiStreamDispatch(void *context) {
     if (!allowed) {
       if (session.bound) {
         uiStreamSendKind = "close";
-        uint8_t code[] = {0x0f, 0xa1};  // 4001: ownership taken over.
-        httpd_ws_frame_t close = {};
-        close.type = HTTPD_WS_TYPE_CLOSE;
-        close.payload = code;
-        close.len = sizeof(code);
-        (void)httpd_ws_send_frame_async(self.server_, session.fd, &close);
+        sendUiStreamTakeoverClose(self.server_, session.fd);
       }
       httpd_sess_trigger_close(self.server_, session.fd);
     }

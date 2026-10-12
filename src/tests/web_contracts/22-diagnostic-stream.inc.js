@@ -94,6 +94,24 @@
   sockets[2].onopen();
   assert.deepEqual(sockets[2].sent.find(m => m.op === 'diagnostic'), {op: 'diagnostic', on: true},
       'an open subscription resubscribes after reconnect');
+
+  // Both regressions turned Diagnostic into a reconnect loop under a
+  // permanent claim overlay: the server's audit frame shipped invalid JSON,
+  // and a bind from a superseded client dropped the socket like a network
+  // failure instead of a takeover notice.
+  const uiStreamSrc = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperUiStream.inc'), 'utf8');
+  const takeoverClose = uiStreamSrc.slice(uiStreamSrc.indexOf('void sendUiStreamTakeoverClose'),
+    uiStreamSrc.indexOf('#include "ShotStopperUiStreamTransport.inc"'));
+  assert(takeoverClose.includes('HTTPD_WS_TYPE_CLOSE') && takeoverClose.includes('{0x0f, 0xa1}'),
+      'the takeover close frame must carry WS code 4001');
+  const rejected = uiStreamSrc.slice(uiStreamSrc.indexOf('if (!accepted)'), uiStreamSrc.indexOf('if (activity)'));
+  assert(rejected.includes('sendUiStreamTakeoverClose'),
+      'a rejected bind must close with 4001 so the page deactivates instead of retrying');
+  assert(/uiStreamSendKind = "close";\s*sendUiStreamTakeoverClose\(/.test(uiStreamSrc.replace(/\n\s+/g, ' ')),
+      'the dispatch path must reuse the same takeover close');
+  const auditSrc = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperAuditStream.inc'), 'utf8');
+  assert(auditSrc.includes('statusJsonAppend(&used, "]}}}")'),
+      'the audit frame must close items, audit, changes and the frame root');
 }
 
 {

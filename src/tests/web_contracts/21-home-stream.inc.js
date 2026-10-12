@@ -6,7 +6,7 @@
   const validator = runtimeJs.slice(runtimeJs.indexOf('function statusPageOk('),
     runtimeJs.indexOf('async function loadStatus('));
   const sockets = [], timers = new Map(), rendered = [], common = [];
-  let timer = 0, mutable = false, owner = true;
+  let timer = 0, mutable = false, owner = true, reachOk = 0;
   class Socket {
     static OPEN = 1;
     constructor(url) { this.url = url; this.readyState = 1; this.sent = []; sockets.push(this); }
@@ -23,7 +23,7 @@
     performance: {now: () => 1234}, statusUtcAnchorSec: 0, statusUtcAnchorAt: 0,
     statusLiveShot: false, viewStatusHandlers: {home: value => rendered.push(value)},
     applyCommonStatus: value => { common.push(value); mutable = !!value.configMutable; },
-    setMutable: value => { mutable = value; }, noteReachOk() {}, noteReachFail() {}, hideHomeBoot() {},
+    setMutable: value => { mutable = value; }, noteReachOk: () => { reachOk++; }, noteReachFail() {}, hideHomeBoot() {},
     clearCupWeights() {}, updateHeaderSignals() {}, updateHomeAdminActions() {}, setHomeSub() {},
     deactivateWebUi: () => { owner = false; }, $: () => null,
   };
@@ -73,9 +73,11 @@
   assert.equal(rendered.at(-1).machineState, 'CONFIRMED_ON');
   vm.runInNewContext("activeView='settings'", context);
   context.statusUtcAnchorSec += 10;
-  const paints = rendered.length;
+  const paints = rendered.length, reachBefore = reachOk;
   sockets[0].onmessage({data: JSON.stringify({...patch, changes: {'config.revision': 2}})});
   assert.equal(rendered.length, paints, 'off-Home deltas must not change another page or its edit gate');
+  assert.equal(reachOk, reachBefore + 1,
+      'off-Home frames still prove reachability so the out-of-reach overlay clears on every view');
   vm.runInNewContext("activeView='home';renderHomeStream()", context);
   assert.equal(rendered.at(-1).config.revision, 2, 'navigation must render the updated cache');
   assert.equal(context.statusUtcAnchorSec, status.timeUtcSec + 10, 'Home must retain the current clock after another page updates it');

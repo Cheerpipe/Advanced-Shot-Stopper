@@ -5196,9 +5196,11 @@ function renderHomeStream() {
   statusLiveShot = !!status.liveShot;
   applyCommonStatus(status);
   if (status.snapshotStale) setMutable(false);
+  // Frames on any view prove reachability, so the out-of-reach overlay
+  // clears even off Home.
+  noteReachOk();
   if (activeView !== "home") return;
   viewStatusHandlers.home?.(status);
-  noteReachOk();
   hideHomeBoot();
 }
 function invalidateHomeStream() {

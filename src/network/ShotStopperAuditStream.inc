@@ -61,7 +61,9 @@ bool ShotStopperNetwork::sendAuditDiagFrame(UiStreamSession &session,
       return false;
     }
   }
-  if (!statusJsonAppend(&used, "]}}")) {
+  // Closes items[], audit{}, changes{} and the frame root; one brace short
+  // ships invalid JSON and forces the client into its resync-churn path.
+  if (!statusJsonAppend(&used, "]}}}")) {
     return false;
   }
   const uint32_t fingerprint =
