@@ -179,6 +179,17 @@ Flash code (36,012 over baseline), DIRAM (5,056), and external BSS (771,720
 of 819,200) stay inside their existing allowances. Control timing, OTA
 identity, and partitions are unchanged; the widened settings blob keeps the
 dual-slot NVS write path inside its 3,360-byte budget.
+The Diagnostics audit detail work (the full-log text export endpoint with
+its chunked sink, and the composed audit detail rebuilt from the stored
+record arguments at the JSON surfaces) raises the image/linked allowances to
+65,264/65,264 bytes, the flash-code allowance to 38,896 bytes, and the
+rodata allowance to 29,508 bytes. The reference development Micra build
+measures 2,338,960 image bytes, 2,338,835 linked bytes, 1,553,932 flash-code
+bytes, and 616,796 rodata bytes — 65,200/65,188/38,832/29,444 over baseline,
+keeping the 64-byte padding-wobble headroom. Manual UTC formatting (instead
+of strftime) keeps the newlib locale machinery out of the image. DIRAM
+(5,056 over baseline) and external BSS stay inside their existing
+allowances; control timing, OTA identity, and partitions are unchanged.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,

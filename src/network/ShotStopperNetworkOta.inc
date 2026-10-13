@@ -795,6 +795,89 @@ esp_err_t ShotStopperNetwork::scaleProfileDownloadHandler(
   return ok && flushed ? finished : ESP_FAIL;
 }
 
+// Full audit-log export: the merged durable window + latch, oldest first,
+// one record per line with the composed detail rebuilt from the stored
+// whole-gram arguments and excerpt. When a record has no wall time it was
+// captured before the clock synchronized; the line says so instead of
+// inventing a date.
+esp_err_t ShotStopperNetwork::auditLogExportHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  if (!self.requireAdminUnlock(request)) return ESP_OK;
+  if (self.callbacks_.copyAuditEvents == nullptr) {
+    return sendError(request, STATUS_SERVER_ERROR, "AUDIT_EXPORT_UNAVAILABLE",
+                     "The audit log is not available.");
+  }
+  AuditStoreStatus store{};
+  if (self.callbacks_.copyAuditStoreStatus != nullptr) {
+    self.callbacks_.copyAuditStoreStatus(store);
+  }
+  httpd_resp_set_type(request, "text/plain; charset=utf-8");
+  httpd_resp_set_hdr(request, "Content-Disposition",
+                     "attachment; filename=shotstopper-audit.txt");
+  httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+  httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
+  ScaleProfileTextSink sink(request);
+  char line[256];
+  int written = snprintf(line, sizeof(line), "# Open Brew by Weight audit log");
+  bool ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+  if (ok) {
+    written = snprintf(line, sizeof(line),
+                       "# state=%s retained=%lu seqHigh=%lu",
+                       store.state == AuditStoreState::READY ? "ready"
+                           : store.state == AuditStoreState::UNSUPPORTED
+                                 ? "ram-only"
+                                 : "io-error",
+                       static_cast<unsigned long>(store.retained),
+                       static_cast<unsigned long>(store.seqHigh));
+    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+  }
+  if (ok) {
+    written = snprintf(line, sizeof(line),
+                       "# when (unset = clock not synchronized at capture)"
+                       "\tlevel\tcategory\tevent\tdetail");
+    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+  }
+  AuditRecord batch[16];
+  uint32_t after = 0;
+  while (ok) {
+    const size_t count =
+        self.callbacks_.copyAuditEvents(after, batch, 16, nullptr, nullptr);
+    if (count == 0) break;
+    for (size_t index = 0; ok && index < count; ++index) {
+      const AuditRecord &record = batch[index];
+      // Sized for GCC's worst-case int widths; manual UTC formatting keeps
+      // the newlib locale machinery (strftime) out of the image.
+      char when[80];
+      if (record.wallSec != 0) {
+        const time_t seconds = static_cast<time_t>(record.wallSec);
+        struct tm utc = {};
+        gmtime_r(&seconds, &utc);
+        snprintf(when, sizeof(when), "%04d-%02d-%02d %02d:%02d:%02d UTC",
+                 utc.tm_year + 1900, utc.tm_mon + 1, utc.tm_mday, utc.tm_hour,
+                 utc.tm_min, utc.tm_sec);
+      } else {
+        snprintf(when, sizeof(when), "unset");
+      }
+      char detail[128];
+      formatAuditRecordDetail(record, detail, sizeof(detail));
+      written = snprintf(line, sizeof(line), "%s\t%s\t%s\t%s\t%s", when,
+                         logLevelName(static_cast<LogLevel>(record.level)),
+                         debugCategoryName(
+                             static_cast<DebugCategory>(record.category)),
+                         debugCodeName(static_cast<DebugCode>(record.code)),
+                         detail);
+      ok = written > 0 && written < static_cast<int>(sizeof(line)) &&
+           sink.line(line, static_cast<size_t>(written));
+      after = record.sequence;
+    }
+    if (count < 16) break;
+  }
+  const bool flushed = sink.flush();
+  const esp_err_t finished =
+      flushed ? httpd_resp_send_chunk(request, nullptr, 0) : ESP_FAIL;
+  return ok && flushed ? finished : ESP_FAIL;
+}
+
 namespace {
 
 struct OtaTransfer {

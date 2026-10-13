@@ -800,8 +800,10 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
       }
       for (size_t index = 0; ok && index < count; ++index) {
         const AuditRecord &record = batch[index];
-        char safeExcerpt[AUDIT_EXCERPT_BYTES * 6] = {};
-        escapeJsonString(record.text, safeExcerpt, sizeof(safeExcerpt));
+        char detail[128] = {};
+        char safeDetail[sizeof(detail) * 6] = {};
+        formatAuditRecordDetail(record, detail, sizeof(detail));
+        escapeJsonString(detail, safeDetail, sizeof(safeDetail));
         ok = debugExportChunkf(
             request, buf, cap,
             "%s{\"sequence\":%lu,\"atMs\":%lu,\"wallSec\":%lu,"
@@ -814,7 +816,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
             debugCategoryName(static_cast<DebugCategory>(record.category)),
             debugCodeName(static_cast<DebugCode>(record.code)),
             static_cast<long>(record.argument1),
-            static_cast<long>(record.argument2), safeExcerpt);
+            static_cast<long>(record.argument2), safeDetail);
         first = false;
         after = record.sequence;
       }

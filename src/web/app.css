@@ -134,6 +134,9 @@ label:has(>input[type=checkbox]) .fieldHint{margin-left:1.9rem}
 #taskTable,#loopTimingTable,#scaleCommandTable,#auditTable{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:.86rem}
 #taskTable th,#taskTable td,#loopTimingTable th,#loopTimingTable td,#scaleCommandTable th,#scaleCommandTable td,#auditTable th,#auditTable td{text-align:left;padding:.15rem .35rem;border-bottom:1px solid var(--ln)}
 #taskTable th:nth-child(n+2),#taskTable td:nth-child(n+2),#loopTimingTable th:nth-child(n+2),#loopTimingTable td:nth-child(n+2),#scaleCommandTable th:nth-child(n+2),#scaleCommandTable td:nth-child(n+2){text-align:right}
+#auditTable .auditRow{cursor:pointer}
+#auditTable .auditRow:hover td,#auditTable .auditRow:focus-visible td{background:var(--pa)}
+#auditTable .auditDetailRow td{white-space:normal;color:var(--mu);font-size:.8rem}
 .inlineAction{border:0;background:none;padding:0;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}
 .inlineAction:disabled{opacity:.65;cursor:not-allowed}
 .stateReady{color:var(--ok);font-weight:700}

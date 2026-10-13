@@ -571,9 +571,11 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // budgets stay fixed.
 // The Diagnostics audit panel (summary, hunt/clear buttons, records table)
 // adds ~0.6 KB of HTML source allowance; compressed asset and firmware
-// budgets stay fixed.
-if (htmlBytes > 91600) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 91600)`);
+// budgets remain fixed.
+// The audit viewer adds an Export button plus a fuller panel hint:
+// +161 measured HTML bytes (91761); compressed budgets re-measured below.
+if (htmlBytes > 91800) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 91800)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -736,8 +738,11 @@ if (htmlBytes > 91600) {
 // reworked quick-weight ruler (statically positioned major/medium/minor ticks
 // moved by one transform, decigram value model) to runtime.js and home.js:
 // ~1.6 KB of JS source allowance; compressed budgets stay fixed.
-if (jsBytes > 385400) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 385400)`);
+// The audit per-row full-detail viewer and the full-log Export download add
+// the toggle renderer plus the apiBinary download flow: +1.8 KB measured
+// (387214). Compressed budgets re-measured in the generated-asset checks.
+if (jsBytes > 388000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 388000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -810,8 +815,10 @@ if (jsBytes > 385400) {
 // The quick-weight Target-tap guard (active-row check keyed off the
 // stream-maintained activeId) adds +160 measured JS bytes; compressed budgets
 // stay fixed.
-if (htmlBytes + jsBytes > 477000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 477000)`);
+// The Diagnostics audit viewer and Export contribute their ~2 KB of combined
+// source allowance (~1.8 KB of JS plus the Export button markup).
+if (htmlBytes + jsBytes > 479500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 479500)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

@@ -11,6 +11,7 @@
 #include "ShotStopperOutboundAdmission.h"
 #include "ShotStopperJsonArena.h"
 #include "ShotStopperDomain.h"
+#include "ShotStopperAuditLog.h"
 #include "ShotStopperTaskProfiler.h"
 
 static std::atomic<uint64_t> now{1000};
@@ -35,6 +36,7 @@ void serialTraceCategoryf(shotstopper::LogLevel level, shotstopper::DebugCategor
 }
 static int muxWaitEvents = 0;
 static int32_t lastMuxWaitArgs[2] = {0, 0};
+static std::string lastMuxWaitDetail;
 void addDebugEvent(shotstopper::DebugCategory category,
                    shotstopper::DebugCode code, int32_t argument1,
                    int32_t argument2) {
@@ -43,6 +45,17 @@ void addDebugEvent(shotstopper::DebugCategory category,
     ++muxWaitEvents;
     lastMuxWaitArgs[0] = argument1;
     lastMuxWaitArgs[1] = argument2;
+  }
+}
+void addDebugEventDetail(shotstopper::DebugCategory category,
+                         shotstopper::DebugCode code, int32_t argument1,
+                         int32_t argument2, const char *detail) {
+  assert(!locked && category == shotstopper::DebugCategory::NETWORK);
+  if (code == shotstopper::DebugCode::MACHINE_MUX_WAIT) {
+    ++muxWaitEvents;
+    lastMuxWaitArgs[0] = argument1;
+    lastMuxWaitArgs[1] = argument2;
+    lastMuxWaitDetail = detail != nullptr ? detail : "";
   }
 }
 static int sendLimit = -1;
@@ -726,6 +739,7 @@ struct MicraWebSocketTest {
     now = 20000;  // The rate-limit window measures from a zero-initialized latch.
     muxWaitEvents = 0;
     disconnectLog.clear();
+    lastMuxWaitDetail.clear();
     ShotStopperMicraService service;
     // The uncontended poll wires the detector into backflush(); with the
     // stub clock each micros() call is 1 ms, so the wait stays ~1 ms and
@@ -739,11 +753,13 @@ struct MicraWebSocketTest {
                                                   now);
     assert(muxWaitEvents == 0);
     // At and past the threshold the report names the previous holder and
-    // carries the wait as the ring event's first argument.
+    // carries the wait as the ring event's first argument; the audit excerpt
+    // keeps the holder for the detail view.
     ShotStopperMicraService::reportMuxWaitAnomaly(31000, service.mux_, latch,
                                                   now);
     assert(muxWaitEvents == 1);
     assert(lastMuxWaitArgs[0] == 31000);
+    assert(lastMuxWaitDetail == "holder=host");
     assert(disconnectLog.find("Micra backflush mux wait=") != std::string::npos);
     assert(disconnectLog.find("holder=host") != std::string::npos);
     // Rate limit: a second anomaly inside the 10 s window stays silent...

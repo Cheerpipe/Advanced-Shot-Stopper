@@ -113,12 +113,75 @@ static void testRingWrapAndClear() {
   assert(latch.latestSequence() == 0);
 }
 
+// The JSON surfaces rebuild the full detail from the stored whole-gram args
+// plus the emit-time excerpt, so even records already on flash (arg-only)
+// render with meaningful text instead of an empty column.
+static void testFormatAuditRecordDetail() {
+  char detail[128];
+  AuditRecord record;
+  record.code = static_cast<uint8_t>(DebugCode::HEALTH_HEAP_LOW);
+  record.argument1 = 31000;
+  record.argument2 = 12000;
+  formatAuditRecordDetail(record, detail, sizeof(detail));
+  assert(strcmp(detail,
+                "health heap low free=31000 largest=12000"
+                " (limits 49152/16384 bytes)") == 0);
+
+  record = AuditRecord{};
+  record.code = static_cast<uint8_t>(DebugCode::HEALTH_LOOP_GAP);
+  record.argument1 = 320;
+  formatAuditRecordDetail(record, detail, sizeof(detail));
+  assert(strcmp(detail, "health loop gap high max=320 ms (limit 200 ms)") == 0);
+
+  record = AuditRecord{};
+  record.code = static_cast<uint8_t>(DebugCode::MACHINE_MUX_WAIT);
+  record.argument1 = 25000;
+  record.argument2 = 30000;
+  record.textLen = 10;
+  memcpy(record.text, "holder=net", 10);
+  formatAuditRecordDetail(record, detail, sizeof(detail));
+  assert(strcmp(detail,
+                "machine service mux wait=25000 us hold=30000 us"
+                " holder=net") == 0);
+
+  record = AuditRecord{};
+  record.code = static_cast<uint8_t>(DebugCode::STA_FAILED);
+  record.argument1 = 6;
+  formatAuditRecordDetail(record, detail, sizeof(detail));
+  assert(strcmp(detail, "station connection failed: disconnected (status 6)") ==
+         0);
+  record.argument1 = 42;
+  formatAuditRecordDetail(record, detail, sizeof(detail));
+  assert(strcmp(detail, "station connection failed: unknown (status 42)") == 0);
+
+  // Codes without a dedicated formatter still expose their recorded args.
+  record = AuditRecord{};
+  record.code = static_cast<uint8_t>(DebugCode::RELAY_GPIO_DESYNC);
+  record.argument1 = 7;
+  record.argument2 = -2;
+  formatAuditRecordDetail(record, detail, sizeof(detail));
+  assert(strcmp(detail, "arg1=7 arg2=-2") == 0);
+
+  // Nothing recorded beyond the classification: empty detail, not invented.
+  record = AuditRecord{};
+  record.code = static_cast<uint8_t>(DebugCode::SAFETY_LOCKOUT_ACTIVE);
+  formatAuditRecordDetail(record, detail, sizeof(detail));
+  assert(detail[0] == '\0');
+  // A short output buffer truncates safely instead of overflowing.
+  char small[16];
+  record.code = static_cast<uint8_t>(DebugCode::HEALTH_LOOP_GAP);
+  record.argument1 = 320;
+  formatAuditRecordDetail(record, small, sizeof(small));
+  assert(strlen(small) < sizeof(small));
+}
+
 int main() {
   testClassification();
   testLatchCaptureAndPaging();
   testExcerptTruncation();
   testPerCodeRateLimit();
   testRingWrapAndClear();
+  testFormatAuditRecordDetail();
   printf("audit_log_host_test PASSED\n");
   return 0;
 }

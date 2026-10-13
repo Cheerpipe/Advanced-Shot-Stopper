@@ -425,7 +425,8 @@ function copyText(text) {
   ta.remove();
   if (ok) R.message(__WEBUI_TEXT__("diagnostic.copied"), "ok");
 }
-let auditBusy = false;
+let auditBusy = false,
+  auditItems = [];
 function auditTime(wallSec) {
   if (!wallSec) return "—";
   const d = new Date(wallSec * 1000),
@@ -462,22 +463,87 @@ function applyAudit(a) {
         )
       : "");
   const verbose = $("auditVerboseButton"),
-    clear = $("auditClearButton");
+    clear = $("auditClearButton"),
+    exportLog = $("auditExportButton");
   if (verbose)
     verbose.querySelector(".t").textContent = huntOn
       ? __WEBUI_TEXT__("diagnostic.audit_hunt_stop")
       : __WEBUI_TEXT__("diagnostic.audit_hunt_30m");
   if (verbose) verbose.disabled = auditBusy || !R.webUiOwner;
-  if (clear)
-    clear.disabled =
-      auditBusy || !R.webUiOwner || !(a.items || []).length;
+  for (const b of [clear, exportLog])
+    if (b) b.disabled = auditBusy || !R.webUiOwner || !(a.items || []).length;
   body.replaceChildren();
-  for (const item of (a.items || []).slice().reverse())
-    body.insertRow().append(
+  auditItems = (a.items || []).slice().reverse();
+  for (const item of auditItems) {
+    const row = body.insertRow();
+    row.className = "auditRow";
+    row.tabIndex = 0;
+    row.title = __WEBUI_TEXT__("diagnostic.audit_view");
+    const toggle = () => toggleAuditDetail(row, item);
+    row.onclick = toggle;
+    row.onkeydown = (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        toggle();
+      }
+    };
+    row.append(
       ...[auditTime(item.wallSec), item.level, item.code, item.text || "—"].map(
         (text) => Object.assign(document.createElement("td"), { textContent: text }),
       ),
     );
+  }
+}
+function toggleAuditDetail(row, item) {
+  const open = row.nextElementSibling;
+  if (open && open.classList.contains("auditDetailRow")) {
+    open.remove();
+    return;
+  }
+  const detail = document.createElement("tr");
+  detail.className = "auditDetailRow";
+  const cell = detail.insertCell();
+  cell.colSpan = 4;
+  const when = item.wallSec
+    ? new Date(item.wallSec * 1000).toLocaleString()
+    : __WEBUI_TEXT__("diagnostic.audit_no_clock");
+  for (const text of [
+    __WEBUI_TEXT__("diagnostic.audit_when") + ": " + when,
+    __WEBUI_TEXT__("diagnostic.audit_level") + ": " + item.level +
+      " · " + item.category,
+    __WEBUI_TEXT__("diagnostic.audit_event") + ": " + item.code,
+    __WEBUI_TEXT__("diagnostic.audit_detail") + ": " + (item.text || "—"),
+  ]) {
+    const line = document.createElement("div");
+    line.textContent = text;
+    cell.append(line);
+  }
+  row.after(detail);
+}
+async function exportAudit() {
+  if (auditBusy || !auditItems.length) return;
+  auditBusy = true;
+  R.message(__WEBUI_TEXT__("diagnostic.downloading"));
+  try {
+    const b = await R.apiBinary("/api/v1/diagnostic/audit"),
+      u = URL.createObjectURL(new Blob([b], { type: "text/plain" })),
+      a = Object.assign(document.createElement("a"), {
+        href: u,
+        download: "shotstopper-audit.txt",
+      });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(u), 6e4);
+    R.message(__WEBUI_TEXT__("diagnostic.ok"), "ok");
+  } catch (e) {
+    R.message(
+      R.formatCommandError(__WEBUI_TEXT__("diagnostic.audit_export_failed"), e),
+      "error",
+    );
+  } finally {
+    auditBusy = false;
+  }
 }
 async function toggleAuditHunt() {
   if (auditBusy) return;
@@ -586,6 +652,7 @@ export function init() {
   $("clearLogButton").onclick = () => R.clearLogView();
   $("auditVerboseButton").onclick = () => toggleAuditHunt();
   $("auditClearButton").onclick = () => emptyAudit();
+  $("auditExportButton").onclick = () => exportAudit();
   $("exportDebugDataButton").onclick = () => exportDebugData();
   if ($("lineaMicraRefreshLink"))
     $("lineaMicraRefreshLink").onclick = (e) => {

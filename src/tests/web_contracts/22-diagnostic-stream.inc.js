@@ -112,6 +112,29 @@
   const auditSrc = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperAuditStream.inc'), 'utf8');
   assert(auditSrc.includes('statusJsonAppend(&used, "]}}}")'),
       'the audit frame must close items, audit, changes and the frame root');
+  // The audit table's Detail column is composed firmware-side from the stored
+  // whole-gram arguments plus the emit-time excerpt, so even records already
+  // on flash render with meaningful text; the UI adds a per-row viewer and a
+  // full-log export backed by the text download endpoint.
+  const diagnosticSrc = fs.readFileSync(path.join(sketchDir, 'web/js/diagnostic.js'), 'utf8');
+  assert(auditSrc.includes('formatAuditRecordDetail'),
+      'the audit frame must serialize the composed record detail');
+  assert(diagnosticSrc.includes('function toggleAuditDetail') &&
+         diagnosticSrc.includes('auditDetailRow'),
+      'audit rows must expand to their full detail');
+  assert(partialHtml.diagnostic.includes('id="auditExportButton"') &&
+         diagnosticSrc.includes("R.apiBinary(\"/api/v1/diagnostic/audit\")"),
+      'the audit export must download the full text log');
+  const routes = fs.readFileSync(
+      path.join(sketchDir, 'network/ShotStopperHttpAuthAssets.inc'), 'utf8');
+  assert(routes.includes('{"/api/v1/diagnostic/audit", HTTP_GET, auditLogExportHandler}'),
+      'the audit export route must be registered');
+  const localeStrings = JSON.parse(fs.readFileSync(
+      path.join(sketchDir, 'web', 'locales', 'en.json'), 'utf8')).strings;
+  for (const key of ['diagnostic.audit_export', 'diagnostic.audit_export_failed',
+                     'diagnostic.audit_no_clock', 'diagnostic.audit_view']) {
+    assert(localeStrings[key], 'missing audit locale key ' + key);
+  }
 }
 
 {

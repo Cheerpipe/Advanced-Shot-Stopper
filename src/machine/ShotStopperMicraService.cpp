@@ -1,4 +1,5 @@
 #include "ShotStopperMicraService.h"
+#include "ShotStopperAuditLog.h"
 #include "ShotStopperFirmwareMode.h"
 #include "ShotStopperOutboundAdmission.h"
 
@@ -33,6 +34,9 @@ void serialTraceCategoryf(shotstopper::LogLevel level,
 void addDebugEvent(shotstopper::DebugCategory category,
                    shotstopper::DebugCode code, int32_t argument1,
                    int32_t argument2);
+void addDebugEventDetail(shotstopper::DebugCategory category,
+                         shotstopper::DebugCode code, int32_t argument1,
+                         int32_t argument2, const char *detail);
 
 namespace shotstopper {
 namespace {
@@ -805,9 +809,13 @@ void ShotStopperMicraService::reportMuxWaitAnomaly(
                        static_cast<unsigned long>(waitedUs),
                        mutex.lastOwnerName(),
                        static_cast<unsigned long>(mutex.lastHoldUs()));
-  addDebugEvent(DebugCategory::NETWORK, DebugCode::MACHINE_MUX_WAIT,
-                static_cast<int32_t>(waitedUs),
-                static_cast<int32_t>(mutex.lastHoldUs()));
+  // The audit excerpt keeps only what the packed args cannot carry: who held
+  // the lock. Magnitudes rebuild from the arguments at the JSON surface.
+  char holder[AUDIT_EXCERPT_BYTES] = {};
+  snprintf(holder, sizeof(holder), "holder=%s", mutex.lastOwnerName());
+  addDebugEventDetail(DebugCategory::NETWORK, DebugCode::MACHINE_MUX_WAIT,
+                      static_cast<int32_t>(waitedUs),
+                      static_cast<int32_t>(mutex.lastHoldUs()), holder);
 }
 
 void ShotStopperMicraService::finishBackflush(uint32_t attempt) {

@@ -43,8 +43,12 @@ bool ShotStopperNetwork::sendAuditDiagFrame(UiStreamSession &session,
   }
   for (size_t index = 0; index < records; ++index) {
     const AuditRecord &record = g_work->auditBatch[index];
-    char safeExcerpt[AUDIT_EXCERPT_BYTES * 6] = {};
-    escapeJsonString(record.text, safeExcerpt, sizeof(safeExcerpt));
+    // Full detail rebuilt from the persisted args plus the emit-time excerpt;
+    // the field stays `text` so the frame shape and its closer are unchanged.
+    char detail[128] = {};
+    char safeDetail[sizeof(detail) * 6] = {};
+    formatAuditRecordDetail(record, detail, sizeof(detail));
+    escapeJsonString(detail, safeDetail, sizeof(safeDetail));
     if (!statusJsonAppend(&used,
             "%s{\"sequence\":%lu,\"wallSec\":%lu,\"atMs\":%lu,"
             "\"level\":\"%s\",\"category\":\"%s\",\"code\":\"%s\","
@@ -57,7 +61,7 @@ bool ShotStopperNetwork::sendAuditDiagFrame(UiStreamSession &session,
             debugCategoryName(static_cast<DebugCategory>(record.category)),
             debugCodeName(static_cast<DebugCode>(record.code)),
             static_cast<long>(record.argument1),
-            static_cast<long>(record.argument2), safeExcerpt)) {
+            static_cast<long>(record.argument2), safeDetail)) {
       return false;
     }
   }

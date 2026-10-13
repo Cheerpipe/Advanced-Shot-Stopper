@@ -487,8 +487,10 @@ if (generated.jsGzip.length > 5400) {
 // The quick-weight dial guard range (per-gram label row, guard-zone tick
 // tints, range-limit pills, and the shared --gFast/--gSlow color vars)
 // measures 11721. Cap raised to 11800.
-if (generated.cssGzip.length > 11800) {
-  throw new Error('Compressed Web CSS exceeds the 11800-byte gzip budget');
+// The audit viewer's clickable rows, focus/hover tint, and detail-row styles
+// measure 11802. Cap raised to 11900.
+if (generated.cssGzip.length > 11900) {
+  throw new Error('Compressed Web CSS exceeds the 11900-byte gzip budget');
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -607,8 +609,10 @@ if (generated.otaImageGzip.length > 3072) {
 // logic; allow 9900 bytes. Firmware image and combined asset budgets stay fixed.
 // The Diagnostics audit viewer (records table renderer, hunt-session toggle,
 // explicit clear) measures 10287 bytes. Cap raised to 10350.
-if (generated.secondaryGzip.length > 10350) {
-  throw new Error(`Compressed secondary view JS exceeds the 10350-byte gzip budget (${generated.secondaryGzip.length})`);
+// The audit per-row full-detail viewer (row toggle with keyboard access) and
+// the full-log Export download measure 10638. Cap raised to 10700.
+if (generated.secondaryGzip.length > 10700) {
+  throw new Error(`Compressed secondary view JS exceeds the 10700-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');
@@ -737,8 +741,11 @@ if (generated.icon48Gzip.length > 3500) {
 // displays, and the tenth-precision dial with statically positioned ticks moved
 // by a single transform) measures 135568 combined.
 // Cap raised to 135700; firmware image and OTA partition limits stay fixed.
-if (generated.combined > 135700) {
-  throw new Error(`Combined Web UI gzip exceeds the 135700-byte flash budget (${generated.combined})`);
+// The audit viewer's row toggle and Export button plus the detail-row CSS
+// measure 135959 combined. Cap raised to 136100; firmware image and OTA
+// partition limits stay fixed.
+if (generated.combined > 136100) {
+  throw new Error(`Combined Web UI gzip exceeds the 136100-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

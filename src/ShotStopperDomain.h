@@ -2934,6 +2934,20 @@ inline const char *endReasonDebugName(EndReason reason) {
   return label != nullptr ? label->debugName : "unknown";
 }
 
+// Arduino wl_status_t values as carried by STA_FAILED diagnostics.
+inline const char *wifiStatusName(int32_t status) {
+  switch (status) {
+    case 0: return "idle";
+    case 1: return "no SSID available";
+    case 2: return "scan completed";
+    case 3: return "connected";
+    case 4: return "connect failed";
+    case 5: return "connection lost";
+    case 6: return "disconnected";
+  }
+  return "unknown";
+}
+
 inline bool formatLifecycleDebugMessage(const DebugEvent &event, char *message,
                                         size_t capacity) {
   if (message == nullptr || capacity == 0) {
@@ -2997,9 +3011,11 @@ inline bool formatLifecycleDebugMessage(const DebugEvent &event, char *message,
       return true;
     case DebugCode::HEALTH_HEAP_LOW:
       snprintf(message, capacity,
-               "health heap low free=%ld largest=%ld",
+               "health heap low free=%ld largest=%ld (limits %lu/%lu bytes)",
                static_cast<long>(event.argument1),
-               static_cast<long>(event.argument2));
+               static_cast<long>(event.argument2),
+               static_cast<unsigned long>(HEALTH_HEAP_FREE_ALERT_BYTES),
+               static_cast<unsigned long>(HEALTH_HEAP_LARGEST_ALERT_BYTES));
       return true;
     case DebugCode::HEALTH_HEAP_RESTART:
       snprintf(message, capacity,
@@ -3014,7 +3030,20 @@ inline bool formatLifecycleDebugMessage(const DebugEvent &event, char *message,
                static_cast<long>(event.argument2));
       return true;
     case DebugCode::HEALTH_LOOP_GAP:
-      snprintf(message, capacity, "health loop gap high max=%ld ms",
+      snprintf(message, capacity,
+               "health loop gap high max=%ld ms (limit %lu ms)",
+               static_cast<long>(event.argument1),
+               static_cast<unsigned long>(HEALTH_LOOP_GAP_ALERT_MS));
+      return true;
+    case DebugCode::MACHINE_MUX_WAIT:
+      snprintf(message, capacity,
+               "machine service mux wait=%ld us hold=%ld us",
+               static_cast<long>(event.argument1),
+               static_cast<long>(event.argument2));
+      return true;
+    case DebugCode::STA_FAILED:
+      snprintf(message, capacity, "station connection failed: %s (status %ld)",
+               wifiStatusName(event.argument1),
                static_cast<long>(event.argument1));
       return true;
     case DebugCode::SCALE_SCAN_STARTED:

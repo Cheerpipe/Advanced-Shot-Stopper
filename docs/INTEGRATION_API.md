@@ -206,12 +206,25 @@ in addition to the always-audited errors and allowlisted warnings. Requires a
 synchronized wall clock; without one it responds `409 AUDIT_VERBOSE_UNAVAILABLE`.
 The session is RAM-scoped (a reboot ends it) and never affects control.
 
+### `GET /api/v1/diagnostic/audit`
+
+Downloads the whole retained audit log (durable window plus RAM latch, oldest
+first) as a plain-text attachment (`shotstopper-audit.txt`): a small header
+with the store state, then one tab-separated line per record — wall time in
+UTC (or `unset` when the record predates clock synchronization), level,
+category, event, and the full detail text. Requires the Admin unlock (or a
+development build), like the other audit routes.
+
 The diagnostic stream carries the audit surface on its own fingerprinted
 frame under `changes.audit`: `state` (`ready` / `unsupported` / `io_error`),
 `retained`, `dropped`, `rateLimited`, `verboseUntilUtcSec`, and `items` with
 the newest records (`sequence`, `wallSec`, `atMs`, `level`, `category`,
-`code`, `argument1`, `argument2`, `text`). The debug export's `audit` section
-carries the same records for the whole retained window.
+`code`, `argument1`, `argument2`, `text`). In both this frame and the debug
+export, `text` is the full human-readable detail, rebuilt from the record's
+stored arguments and excerpt — for example
+`health heap low free=31000 largest=12000 (limits 49152/16384 bytes)`. The
+debug export's `audit` section carries the same records for the whole
+retained window.
 
 ### `POST /api/v1/diagnostic/scale-profile`
 

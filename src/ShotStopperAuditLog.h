@@ -99,6 +99,49 @@ struct AuditRecord {
   char text[AUDIT_EXCERPT_BYTES] = {};
 };
 
+// Composes the full human-readable detail for one audit record at the JSON
+// surface: the per-code formatters rebuild the message from the persisted
+// whole-gram arguments (so records already on flash become interpretable),
+// the emit-time excerpt adds what arguments cannot carry (e.g. a mutex
+// holder), and unstructured codes fall back to their raw arguments instead
+// of an empty text.
+inline void formatAuditRecordDetail(const AuditRecord &record, char *output,
+                                    size_t capacity) {
+  if (output == nullptr || capacity == 0) {
+    return;
+  }
+  output[0] = '\0';
+  DebugEvent event;
+  event.code = static_cast<DebugCode>(record.code);
+  event.argument1 = record.argument1;
+  event.argument2 = record.argument2;
+  char base[96] = {};
+  if (!(formatLifecycleDebugMessage(event, base, sizeof(base)) ||
+        formatScaleSampleDebugMessage(event, base, sizeof(base)) ||
+        formatPersistDebugMessage(event, base, sizeof(base))) &&
+      (record.argument1 != 0 || record.argument2 != 0)) {
+    snprintf(base, sizeof(base), "arg1=%ld arg2=%ld",
+             static_cast<long>(record.argument1),
+             static_cast<long>(record.argument2));
+  }
+  size_t used = 0;
+  if (base[0] != '\0') {
+    used = snprintf(output, capacity, "%s", base);
+    if (used >= capacity) used = capacity - 1;
+  }
+  if (record.textLen > 0 && used + 1 < capacity) {
+    char excerpt[AUDIT_EXCERPT_BYTES] = {};
+    const size_t length =
+        record.textLen < AUDIT_EXCERPT_BYTES ? record.textLen
+                                             : AUDIT_EXCERPT_BYTES - 1;
+    for (size_t i = 0; i < length; ++i) {
+      excerpt[i] = record.text[i];
+    }
+    snprintf(output + used, capacity - used, "%s%s", used > 0 ? " " : "",
+             excerpt);
+  }
+}
+
 // Ring latch for classified audit events only; common debug traffic never
 // enters. Callers serialize access with the same mutex as the common ring.
 class AuditLogLatch {

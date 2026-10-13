@@ -647,6 +647,7 @@ class ShotStopperNetwork {
   static esp_err_t crashArchiveDownloadHandler(httpd_req_t *request);
   static esp_err_t crashArchiveClearHandler(httpd_req_t *request);
   static esp_err_t auditLogClearHandler(httpd_req_t *request);
+  static esp_err_t auditLogExportHandler(httpd_req_t *request);
   static esp_err_t auditVerboseHandler(httpd_req_t *request);
   static esp_err_t partialSettingsHandler(httpd_req_t *request);
   static esp_err_t partialAdminHandler(httpd_req_t *request);
