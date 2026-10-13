@@ -611,8 +611,10 @@ if (generated.otaImageGzip.length > 3072) {
 // explicit clear) measures 10287 bytes. Cap raised to 10350.
 // The audit per-row full-detail viewer (row toggle with keyboard access) and
 // the full-log Export download measure 10638. Cap raised to 10700.
-if (generated.secondaryGzip.length > 10700) {
-  throw new Error(`Compressed secondary view JS exceeds the 10700-byte gzip budget (${generated.secondaryGzip.length})`);
+// The audit table pagination and change-gated repaint (page state, pager
+// renderer, selection-preserving fingerprint) measure 10839. Cap raised to 10900.
+if (generated.secondaryGzip.length > 10900) {
+  throw new Error(`Compressed secondary view JS exceeds the 10900-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
   throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');
@@ -744,8 +746,12 @@ if (generated.icon48Gzip.length > 3500) {
 // The audit viewer's row toggle and Export button plus the detail-row CSS
 // measure 135959 combined. Cap raised to 136100; firmware image and OTA
 // partition limits stay fixed.
-if (generated.combined > 136100) {
-  throw new Error(`Combined Web UI gzip exceeds the 136100-byte flash budget (${generated.combined})`);
+// The audit table pagination and change-gated repaint (pager markup and
+// styles, page-state renderer, selection-preserving fingerprint) measure
+// 136315 combined. Cap raised to 136500; firmware image, memory placement,
+// and OTA partition limits stay fixed.
+if (generated.combined > 136500) {
+  throw new Error(`Combined Web UI gzip exceeds the 136500-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

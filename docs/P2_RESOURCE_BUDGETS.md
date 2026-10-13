@@ -190,6 +190,18 @@ keeping the 64-byte padding-wobble headroom. Manual UTC formatting (instead
 of strftime) keeps the newlib locale machinery out of the image. DIRAM
 (5,056 over baseline) and external BSS stay inside their existing
 allowances; control timing, OTA identity, and partitions are unchanged.
+The Diagnostics audit pagination and boot-shaping suppression work (the paged
+audit table with its change-gated repaint, plus the shaper-held gate on the
+health heap alert) raises the image/linked allowances to 65,696/65,684
+bytes, the flash-code allowance to 38,976 bytes, and the rodata allowance to
+29,860 bytes. The reference development Micra build measures 2,339,392
+image bytes, 2,339,267 linked bytes, 1,554,012 flash-code bytes, and
+617,148 rodata bytes — 65,632/65,620/38,912/29,796 over baseline, keeping
+the 64-byte padding-wobble headroom. The growth is the enlarged embedded
+Web assets (whose compressed caps the Web contract gate enforces separately)
+plus a few bytes of alert-gate code. DIRAM (5,056 over baseline) and
+external BSS stay inside their existing allowances; control timing, OTA
+identity, and partitions are unchanged.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,

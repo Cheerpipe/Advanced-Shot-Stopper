@@ -426,7 +426,10 @@ function copyText(text) {
   if (ok) R.message(__WEBUI_TEXT__("diagnostic.copied"), "ok");
 }
 let auditBusy = false,
-  auditItems = [];
+  auditItems = [],
+  auditPage = 0,
+  auditRenderedKey = "";
+const AUDIT_PAGE_SIZE = 5;
 function auditTime(wallSec) {
   if (!wallSec) return "—";
   const d = new Date(wallSec * 1000),
@@ -472,9 +475,25 @@ function applyAudit(a) {
   if (verbose) verbose.disabled = auditBusy || !R.webUiOwner;
   for (const b of [clear, exportLog])
     if (b) b.disabled = auditBusy || !R.webUiOwner || !(a.items || []).length;
-  body.replaceChildren();
+  // Rebuilding identical rows on every status paint would destroy text
+  // selection and any open detail row, so repaint only on real changes.
+  const key = JSON.stringify(a.items || []);
+  if (key === auditRenderedKey) return;
+  auditRenderedKey = key;
   auditItems = (a.items || []).slice().reverse();
-  for (const item of auditItems) {
+  auditPage = Math.min(
+    auditPage,
+    Math.max(0, Math.ceil(auditItems.length / AUDIT_PAGE_SIZE) - 1),
+  );
+  renderAuditPage();
+}
+function renderAuditPage() {
+  const body = $("auditBody");
+  if (!body) return;
+  body.replaceChildren();
+  const start = auditPage * AUDIT_PAGE_SIZE,
+    page = auditItems.slice(start, start + AUDIT_PAGE_SIZE);
+  for (const item of page) {
     const row = body.insertRow();
     row.className = "auditRow";
     row.tabIndex = 0;
@@ -493,6 +512,16 @@ function applyAudit(a) {
       ),
     );
   }
+  const pages = Math.max(1, Math.ceil(auditItems.length / AUDIT_PAGE_SIZE)),
+    pager = $("auditPager");
+  if (!pager) return;
+  pager.classList.toggle("hidden", auditItems.length <= AUDIT_PAGE_SIZE);
+  $("auditPrevButton").disabled = auditPage === 0;
+  $("auditNextButton").disabled = auditPage >= pages - 1;
+  $("auditPageLabel").textContent = __WEBUI_TEXT__("diagnostic.audit_page")
+    .replace("{a}", String(auditItems.length ? start + 1 : 0))
+    .replace("{b}", String(start + page.length))
+    .replace("{c}", String(auditItems.length));
 }
 function toggleAuditDetail(row, item) {
   const open = row.nextElementSibling;
@@ -653,6 +682,15 @@ export function init() {
   $("auditVerboseButton").onclick = () => toggleAuditHunt();
   $("auditClearButton").onclick = () => emptyAudit();
   $("auditExportButton").onclick = () => exportAudit();
+  for (const [id, step] of [
+    ["auditPrevButton", -1],
+    ["auditNextButton", 1],
+  ])
+    $(id).onclick = () => {
+      const pages = Math.max(1, Math.ceil(auditItems.length / AUDIT_PAGE_SIZE));
+      auditPage = Math.min(pages - 1, Math.max(0, auditPage + step));
+      renderAuditPage();
+    };
   $("exportDebugDataButton").onclick = () => exportDebugData();
   if ($("lineaMicraRefreshLink"))
     $("lineaMicraRefreshLink").onclick = (e) => {

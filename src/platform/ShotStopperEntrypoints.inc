@@ -597,8 +597,17 @@ void setup() {
 }
 
 void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs) {
+  // The boot heap shaper deliberately parks HEAP_SHAPER_BYTES while late
+  // bring-up allocations settle; heap lows inside that bounded window are the
+  // expected shaping effect, not a health fault worth recording. The capture
+  // mirrors the held block for exactly that window (RESERVE_AFTER..RELEASE_AFTER).
+  bool heapShaperHeld = false;
+  {
+    TaskLockGuard lock(bootHeapMutex);
+    heapShaperHeld = bootHeapCapture.heldBytes != 0;
+  }
   const bool heapLow =
-      healthSnapshotValid &&
+      healthSnapshotValid && !heapShaperHeld &&
       (freeHeapBytes < HEALTH_HEAP_FREE_ALERT_BYTES ||
        largestFreeHeapBlockBytes < HEALTH_HEAP_LARGEST_ALERT_BYTES);
   const bool heapClear =

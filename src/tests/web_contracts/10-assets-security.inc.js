@@ -577,8 +577,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // The unified Stats/History sort controls give History the "Sort" label span
 // and a pressed-state Date button: +53 measured HTML bytes (91814); compressed
 // budgets re-measured below.
-if (htmlBytes > 91900) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 91900)`);
+// The audit table pager (prev/next buttons, page label) adds +290 measured
+// HTML bytes (92104); compressed budgets re-measured below.
+if (htmlBytes > 92300) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 92300)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -744,8 +746,11 @@ if (htmlBytes > 91900) {
 // The audit per-row full-detail viewer and the full-log Export download add
 // the toggle renderer plus the apiBinary download flow: +1.8 KB measured
 // (387214). Compressed budgets re-measured in the generated-asset checks.
-if (jsBytes > 388000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 388000)`);
+// The audit table pagination and change-gated repaint (page state, pager
+// renderer, selection-preserving fingerprint) add +1.4 KB measured (388629);
+// compressed budgets re-measured below.
+if (jsBytes > 390000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 390000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -820,8 +825,10 @@ if (jsBytes > 388000) {
 // stay fixed.
 // The Diagnostics audit viewer and Export contribute their ~2 KB of combined
 // source allowance (~1.8 KB of JS plus the Export button markup).
-if (htmlBytes + jsBytes > 479500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 479500)`);
+// The audit table pagination and change-gated repaint add their ~1.7 KB of
+// combined source allowance (pager markup plus the fingerprinted renderer).
+if (htmlBytes + jsBytes > 481500) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 481500)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

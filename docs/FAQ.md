@@ -262,10 +262,12 @@ model/firmware, exact gesture/settings, and redacted diagnostic export. The
 export's `audit` section lists rare faults and anomalies the firmware kept
 aside from the rotating log — useful when the problem happened hours or days
 earlier. The same records appear in the **Diagnostic → Audit log** table,
-which survives restarts on its own flash space: each row shows what happened
-in plain words (for example how low the memory fell or which task held a lock
-too long), and tapping a row unfolds the complete detail. A missing time
-means the device clock was not yet synchronized when it happened. **Export**
+which survives restarts on its own flash space: the newest records come first,
+five at a time, with small paging buttons to reach the older ones. Each row
+shows what happened in plain words (for example how low the memory fell or
+which task held a lock too long), and tapping a row unfolds the complete
+detail. A missing time means the device clock was not yet synchronized when it
+happened. **Export**
 downloads the whole saved log as a text file, and **Empty** there (or the
 `AUDIT_CLEAR` USB command) removes the records permanently. When a problem is
 actively being hunted, **Hunt 30 m** admits a few extra debug events into the
