@@ -86,13 +86,12 @@ deadlines. Every non-active state after confirmation, observation loss, physical
 release or safety failure opens the relay. The end path appends one electrical
 duration record without scale commands, shot statistics or brew events.
 
-The schema-3 settings blob retains the 312-byte
+The settings blob retains the 312-byte
 `LineaMicraPersistedSettings` record in every profile. The connection byte at
 record offset 311 occupies prior enclosing-blob padding: Micra offset 2991,
 checksum offset 3304 and total size 3312 remain unchanged. Values are explicitly
-WebSocket=0 and API=1. Schema 1/2 blobs are authenticated against their original
-CRC before an in-memory migration defaults the new byte; v1 also enables the
-existing touch-stop fallback. Load never writes back. Settings saves and resets
+WebSocket=0 and API=1. Blobs from earlier schema epochs are rejected.
+Load never writes back. Settings saves and resets
 wait for successful OTA trial confirmation, preserving the old durable records
 for rollback. This admission does not gate boot readiness or other stores.
 
@@ -148,15 +147,14 @@ Editing reset bases alone preserves current learning and evidence.
 Settings status publishes active-preset identity, both offsets, alpha baseline, gain/provenance
 and evidence count together in the existing coherent control snapshot.
 
-Settings schema 3 uses the current 344-byte `RuntimeConfig`, 104-byte
-`ShotPreset`, and 3,312-byte settings blob. Candidate
+Settings schema 0 uses the current 344-byte `RuntimeConfig`, 108-byte
+`ShotPreset`, and 3,344-byte settings blob. Candidate
 anchors/observations/generations are RAM only; deferred persistence retains
 offsets, gain/provenance, and profile through the existing dual-slot owner.
 `powerManagementEnabled`, webhook preset delivery, and Allow rinse while Armed
 are current explicit fields. Presets never copy the global power setting.
-The schema-1 upgrade names former padding at runtime byte 17 and preset byte 46
-for `touchStopFallbackEnabled`; it initializes both to true before semantic
-validation. Schema-2/3 records preserve explicit false. Blob sizes, revisions and
+`touchStopFallbackEnabled` is an explicit field in the runtime config and every
+preset, defaulting to true. Blob sizes, revisions and
 dual-slot ownership remain unchanged. Other lengths and schemas are rejected.
 The shot log is the authority for a completed shot: confirmed, non-rinse,
 strictly more than 12,000 ms of brewing and a finite settled yield strictly
@@ -170,7 +168,7 @@ remains in the binary layout for internal completed-cycle diagnostics, but its
 separate good-shot field is not a public shot authority. An erase-all install
 starts both histories empty; no upgrade migration is required.
 
-History schema 1 keeps the current fixed records and entries. Guard byte bits 5–7 encode
+History schema 0 keeps the current fixed records and entries. Guard byte bits 5–7 encode
 profile (0 unknown, 1 pre-selector regression with unknown version, 2 regression v1,
 3 adaptive EWMA v1, 4 EWMA v2). Alpha is 0 unknown or 1–100 hundredths;
 extension bits 2–4 hold its low three bits, cut-type bits 4–7 its high four.
@@ -225,7 +223,7 @@ while that owner holds the flash lock. Each keeps two slots in its own data
 partition — 2×12 KiB for `shotlog`, 2×16 KiB for `history` — with generation
 and checksum selection preserving the atomic whole-store update; a failed
 write never erases the last-good slot. Writes remain deferred until the shot
-has ended. The shot log uses schema 2 in its dedicated partition; any other
+has ended. The shot log uses schema 0 in its dedicated partition; any other
 schema is discarded and the shot history starts empty.
 
 On n16r8, ESP-IDF writes one ELF core dump to a 640 KiB capture partition
@@ -240,7 +238,7 @@ by the boot ID and dump digest. HTTP download reads bounded chunks under the
 shared flash lock and releases the lock before sending each chunk. The raw
 archive requires Admin unlock because task stacks may contain secrets.
 
-The shot-curve sidecar uses schema 3. Each accepted extraction or drip weight is paired
+The shot-curve sidecar uses schema 0. Each accepted extraction or drip weight is paired
 with its relative reception time in milliseconds; repeated weights and equal
 timestamps remain observations. The 1201-observation capacity covers a 60 s
 shot with observations at least 50 ms apart. That spacing is a capacity
@@ -251,7 +249,7 @@ and scalar history running.
 
 The 4984-byte RAM record and 498420-byte 100-record cache live in PSRAM.
 Curve events also preserve elapsed milliseconds in 16-bit fields, with
-`UINT16_MAX` reserved for unavailable values. Sidecar schema 3 distinguishes
+`UINT16_MAX` reserved for unavailable values. Sidecar schema 0 distinguishes
 these fields from previous decisecond events; older curve records are discarded
 without changing scalar history, settings, partition addresses or OTA slots.
 Curve JSON keeps the seconds-based `dropS`, `extendedS`, `atmS`, `atmClearedS`
@@ -275,8 +273,8 @@ The existing 1201-reading/60-second bounds include this tail; overflow retains
 the captured prefix and sets `wTruncated`. Rejected readings, reference changes
 and link discontinuities retain segment breaks. The cutoff event keeps its
 original time; accepted post-drip yield updates its separate weight annotation.
-No schema, record-size or partition change is required, and existing schema-3
-records remain readable after OTA. Curve
+No schema, record-size or partition change is required, and existing records
+remain readable after OTA. Curve
 JSON exposes aligned `wCg`/`wAtMs`, segment-start indices in
 `wBreakBefore`, and `wTruncated`. Weight and flow consumers use actual
 times; event annotations never become observed samples. The Web weight chart
@@ -301,13 +299,13 @@ and [shot history](features/shot-history.md).
 
 ## Live settings notifications
 
-The global `timezoneId` is an IANA region/city string in the schema-3 settings
+The global `timezoneId` is an IANA region/city string in the settings
 blob. Network validates it against the firmware's generated tzdata2026d
 catalog; control owns the effective setting and first-auto provenance; the
 existing persistence worker saves both in the same settings generation.
 The `timezoneAutomatic` preference occupies former runtime padding at byte 6,
-preserving the remaining layout. Saved zones and their provenance survive both
-same-schema OTA updates and the supported schema-1/2 to schema-3 conversions.
+preserving the remaining layout. Saved zones and their provenance survive
+same-schema OTA updates.
 Automatic time zone defaults to on for new records.
 Flash persistence publishes `timezoneInitialized` only after loading a valid
 saved zone or verifying a settings write containing one; factory reset clears
@@ -354,7 +352,7 @@ scale's initial connection retain their
 own policy application paths. Persistence and status publication are independent
 of these operational triggers. No callbacks run from an ISR or across a flash
 write, and the OTA update path remains available. The settings layout is
-schema 3, with same-layout schema-1/2 settings preserved on upgrade.
+schema 0; blobs from earlier firmware are rejected.
 
 ## Residual qualification
 

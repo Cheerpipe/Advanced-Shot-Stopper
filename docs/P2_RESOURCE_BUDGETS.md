@@ -326,10 +326,10 @@ large return-value and default-aggregate temporaries.
 Network command builders must activate their union member with
 `setNetworkType()` before writing credentials. Preset metadata remains outside
 the union because a preset operation also carries configuration. Settings
-schema 3 uses a 3,312-byte blob for the bounded Micra cloud account, selected
-machine, and per-scale friendly names. Compatible schema 1/2 blobs are CRC-checked before read-only migration to
-schema 3. The connection byte uses prior padding; the checksum stays at offset
-3304. Trial-boot writes wait for OTA confirmation to retain rollback settings.
+schema 0 uses a 3,344-byte blob for the bounded Micra cloud account, selected
+machine, and per-scale friendly names. Blobs from earlier schema epochs are
+rejected. The connection byte uses prior padding; the checksum stays at offset
+3336. Trial-boot writes wait for OTA confirmation to retain rollback settings.
 
 History V5 retains an exact bounded preset-name snapshot and transfers through
 the shared chunked flash-I/O path. The separate last-shot V4 record retains the

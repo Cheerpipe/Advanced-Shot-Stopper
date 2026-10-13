@@ -935,7 +935,7 @@ if (codeIncludes(ui, 'id="shotRating"') ||
     !network.includes('LAST_SHOT_NOT_FOUND') ||
     !network.includes('\\"rating\\":%u') ||
     !network.includes('\\"shotId\\":%lu') ||
-    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 2') ||
+    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 0') ||
     !lastShotIo.includes(
         'void advance(const PersistedLastShot &shot,') ||
     !lastShotIo.includes('uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS') ||

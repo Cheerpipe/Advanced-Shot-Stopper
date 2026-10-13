@@ -13,7 +13,7 @@
 namespace shotstopper {
 
 constexpr uint32_t HISTORY_MAGIC = 0x41435448U;  // "ACTH"
-constexpr uint16_t HISTORY_SCHEMA_VERSION = 1;
+constexpr uint16_t HISTORY_SCHEMA_VERSION = 0;
 constexpr size_t HISTORY_CAPACITY = 1000;
 constexpr size_t HISTORY_PAGE_DEFAULT = 20;
 // Bounds one HTTP page copy; the handler pages through the ring by offset.

@@ -8,7 +8,7 @@ namespace shotstopper {
 // The BLE scan store has one fixed layout with an explicit master switch.
 // Blobs carrying any other schema version are invalid and never upgraded.
 constexpr uint32_t BLE_SCAN_SETTINGS_MAGIC = 0x424C4543U;  // "BLEC"
-constexpr uint16_t BLE_SCAN_SETTINGS_VERSION = 1;
+constexpr uint16_t BLE_SCAN_SETTINGS_VERSION = 0;
 constexpr const char *BLE_SCAN_SLOT_A = "bleCfgA";
 constexpr const char *BLE_SCAN_SLOT_B = "bleCfgB";
 

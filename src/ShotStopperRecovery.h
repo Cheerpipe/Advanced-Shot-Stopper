@@ -12,7 +12,7 @@
 namespace shotstopper {
 
 constexpr uint32_t RECOVERY_INTENT_MAGIC = 0x52454356U;  // "RECV"
-constexpr uint16_t RECOVERY_INTENT_VERSION = 1;
+constexpr uint16_t RECOVERY_INTENT_VERSION = 0;
 constexpr const char *RECOVERY_NAMESPACE = "recovery";
 constexpr const char *RECOVERY_INTENT_KEY = "pending";
 

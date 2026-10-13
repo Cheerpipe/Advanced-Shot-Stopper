@@ -18,7 +18,7 @@ namespace {
 
 constexpr uint32_t kAddressMagic = 0x43524144;
 constexpr uint32_t kEntryMagic = 0x43524153;
-constexpr uint32_t kEntryVersion = 1;
+constexpr uint32_t kEntryVersion = 0;
 RTC_NOINIT_ATTR volatile CrashAddressRecord g_panicRecord;
 RTC_NOINIT_ATTR volatile uint32_t g_activeBootId;
 RTC_NOINIT_ATTR volatile uint8_t g_activeElfSha[32];

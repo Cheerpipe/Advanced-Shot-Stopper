@@ -143,100 +143,6 @@ void p01_defaults_are_valid() {
 }
 
 
-// Serializes current settings into the frozen v3 3312-byte layout so upgrade
-// tests can write authentic pre-v4 blobs (goal weights in whole grams).
-static void serializeSettingsV3(const PersistedSettings &settings,
-                                uint32_t schemaVersion,
-                                uint8_t out[kSettingsV3Bytes]) {
-  const size_t runtime = offsetof(PersistedSettings, runtime);
-  const size_t bank = offsetof(PersistedSettings, presets);
-  memset(out, 0, kSettingsV3Bytes);
-  memcpy(out, &settings, bank);
-  memcpy(out + bank, &settings.presets, offsetof(ShotPresetBank, presets));
-  // Runtime goal: decigrams -> one gram byte; the flag bytes shift left and
-  // the v3 padding byte at +7 is zero.
-  out[runtime + 4] = static_cast<uint8_t>(settings.runtime.goalWeightDg / 10U);
-  out[runtime + 5] = out[runtime + 6];
-  out[runtime + 6] = out[runtime + 7];
-  out[runtime + 7] = 0;
-  const size_t slots = bank + offsetof(ShotPresetBank, presets);
-  for (size_t index = 0; index < MAX_SHOT_PRESETS; ++index) {
-    const uint8_t *src = reinterpret_cast<const uint8_t *>(
-        &settings.presets.presets[index]);
-    uint8_t *dst = out + slots + index * kSettingsV3PresetBytes;
-    memcpy(dst, src, 27);
-    dst[27] = static_cast<uint8_t>(
-        settings.presets.presets[index].goalWeightDg / 10U);
-    memcpy(dst + 28, src + 32, kSettingsV3PresetBytes - 28);
-  }
-  memcpy(out + bank + kSettingsV3BankBytes,
-         reinterpret_cast<const uint8_t *>(&settings) + bank + sizeof(ShotPresetBank),
-         kSettingsV3ChecksumOffset - bank - kSettingsV3BankBytes);
-  *reinterpret_cast<uint32_t *>(out + 4) = schemaVersion;
-  *reinterpret_cast<uint32_t *>(out + 8) = kSettingsV3Bytes;
-  *reinterpret_cast<uint32_t *>(out + kSettingsV3ChecksumOffset) =
-      settingsV3Checksum(out);
-}
-
-void touch_fallback_settings_upgrade_and_roundtrip() {
-  resetHostPersistence();
-  PersistedSettings settings;
-  CHECK(initializeDefaultSettings(settings));
-  CHECK(settings.runtime.touchStopFallbackEnabled);
-  CHECK(settings.presets.presets[0].touchStopFallbackEnabled);
-  CHECK(offsetof(RuntimeConfig, touchStopFallbackEnabled) == 17);
-  CHECK(sizeof(RuntimeConfig) == 344);
-  CHECK(sizeof(ShotPreset) == 108);
-  CHECK(sizeof(PersistedSettings) == 3344);
-  settings.runtime.avoidAccidentalTouchEnabled = false;
-  settings.runtime.goalWeightDg = 470;
-  settings.runtime.maxRecoveryWeightG = 55.0f;
-  settings.presets.presets[0].avoidAccidentalTouchEnabled = false;
-  settings.presets.presets[0].goalWeightDg = 390;
-  // Old padding is not a boolean and may contain any byte.
-  reinterpret_cast<uint8_t *>(&settings.runtime)[17] = 0xa5;
-  for (auto &preset : settings.presets.presets)
-    reinterpret_cast<uint8_t *>(&preset)[50] = 0xa5;
-  settings.storageRevision = 17;
-  static uint8_t v1Blob[kSettingsV3Bytes];
-  serializeSettingsV3(settings, 1, v1Blob);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, v1Blob,
-                           sizeof(v1Blob));
-  PersistedSettings loaded;
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(validPersistedSettings(loaded));
-  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
-  CHECK(loaded.storageRevision == 17);
-  CHECK(loaded.runtime.goalWeightDg == 470);
-  CHECK(!loaded.runtime.avoidAccidentalTouchEnabled);
-  CHECK(loaded.runtime.touchStopFallbackEnabled);
-  CHECK(!loaded.presets.presets[0].avoidAccidentalTouchEnabled);
-  CHECK(loaded.presets.presets[0].goalWeightDg == 390);
-  CHECK(loaded.presets.presets[0].touchStopFallbackEnabled);
-  loaded.runtime.touchStopFallbackEnabled = false;
-  loaded.presets.presets[0].touchStopFallbackEnabled = false;
-  CHECK(savePersistedSettings(loaded));
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(!loaded.runtime.touchStopFallbackEnabled);
-  CHECK(!loaded.presets.presets[0].touchStopFallbackEnabled);
-  RuntimeConfig recipe;
-  applyShotPresetToConfig(loaded.presets.presets[0], recipe, false);
-  CHECK(!snapshotConfig(recipe).touchStopFallbackEnabled);
-  ShotPreset copy;
-  copyUserRecipeFromConfig(recipe, copy);
-  CHECK(!copy.touchStopFallbackEnabled);
-  uint8_t duplicateId = 0;
-  CHECK(duplicateShotPreset(loaded.presets, loaded.presets.presets[0].id, duplicateId));
-  CHECK(setActiveShotPreset(loaded.presets, duplicateId));
-  CHECK(!activeShotPreset(loaded.presets).touchStopFallbackEnabled);
-  CHECK(restoreFactoryShotPresetValues(loaded.presets, FACTORY_PRESET_ID_DOUBLE));
-  CHECK(loaded.presets.presets[0].touchStopFallbackEnabled);
-  // A corrupt old record must never be repaired into a valid configuration.
-  resetHostPersistence();
-  settings.checksum ^= 1;
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings, sizeof(settings));
-  CHECK(!loadPersistedSettings(loaded));
-}
 
 void p02_newest_valid_slot_is_loaded() {
   resetHostPersistence();
@@ -2372,40 +2278,6 @@ void p63_flash_io_lock_fails_closed_without_mutex() {
   CHECK(FLASH_IO_LOCK_TIMEOUT_MS == 3000);
 }
 
-
-void p87_v3_decigram_upgrade_preserves_settings() {
-  resetHostPersistence();
-  PersistedSettings settings;
-  CHECK(initializeDefaultSettings(settings));
-  settings.runtime.goalWeightDg = 470;
-  settings.runtime.maxRecoveryWeightG = 55.0f;
-  settings.presets.presets[0].goalWeightDg = 390;
-  settings.presets.presets[1].goalWeightDg = 180;
-  strcpy(settings.staSsid, "cafe");
-  settings.storageRevision = 17;
-  static uint8_t v3Blob[kSettingsV3Bytes];
-  serializeSettingsV3(settings, 3, v3Blob);
-  // The serialized whole-gram goals are exactly one tenth of the source.
-  CHECK(v3Blob[offsetof(PersistedSettings, runtime) + 4] == 47);
-  CHECK(v3Blob[offsetof(PersistedSettings, presets) +
-              offsetof(ShotPresetBank, presets) + 27] == 39);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, v3Blob,
-                           sizeof(v3Blob));
-  PersistedSettings loaded;
-  CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
-  CHECK(loaded.storageRevision == 17);
-  CHECK(loaded.runtime.goalWeightDg == 470);
-  CHECK(loaded.presets.presets[0].goalWeightDg == 390);
-  CHECK(loaded.presets.presets[1].goalWeightDg == 180);
-  CHECK(strcmp(loaded.staSsid, "cafe") == 0);
-  // A checksum-corrupt v3 blob is rejected, never repaired.
-  *reinterpret_cast<uint32_t *>(v3Blob + kSettingsV3ChecksumOffset) ^= 1;
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, v3Blob,
-                           sizeof(v3Blob));
-  CHECK(!loadPersistedSettings(loaded));
-}
-
 void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(validDeviceName(DEFAULT_DEVICE_NAME));
   CHECK(strcmp(DEFAULT_DEVICE_NAME, "openbrewbyweight") == 0);
@@ -2438,22 +2310,11 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(settings.lineaMicra.scaleOptions == 0);
   CHECK(settings.lineaMicra.connectionType == 0);
 
-  // Schema 2 used this byte as padding: authenticate before replacing it.
-  settings.lineaMicra.connectionType = 0xa5;
-  static uint8_t v2Blob[kSettingsV3Bytes];
-  serializeSettingsV3(settings, 2, v2Blob);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, v2Blob,
-                           sizeof(v2Blob));
-  PersistedSettings migrated;
-  const auto originalRecords = persistence_host::records;
-  CHECK(loadPersistedSettings(migrated));
-  CHECK(migrated.schemaVersion == CONFIG_SCHEMA_VERSION);
-  CHECK(migrated.lineaMicra.connectionType == 0);
-  CHECK(settings.lineaMicra.connectionType == 0xa5);
-  CHECK(persistence_host::records == originalRecords); // Trial migration is read-only.
+  // A checksum-corrupt record must be rejected, never repaired.
   settings.checksum ^= 1;
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings,
                            sizeof(settings));
+  PersistedSettings migrated;
   CHECK(!loadPersistedSettings(migrated));
   settings.schemaVersion = CONFIG_SCHEMA_VERSION;
   settings.lineaMicra.connectionType = 0;
@@ -2904,11 +2765,9 @@ const TestCase tests[] = {
     {"P61E", p61e_selective_curve_capture_preserves_retention_and_retry},
     {"P61C", p61c_timestamped_capacity_and_interrupted_blocks},
     {"P61D", p61d_clear_epochs_and_stale_worker_images},
-    {"TFP", touch_fallback_settings_upgrade_and_roundtrip},
     {"P90", p90_firmware_mode_store_round_trip_and_factory_reset},
     {"P86", p86_timezone_preference_and_durable_initialization},
     {"P85", p85_schema1_is_strict_and_micra_defaults_round_trip},
-    {"P87", p87_v3_decigram_upgrade_preserves_settings},
     {"P82", p82_ble_scan_strict_versions_and_roundtrip},
     {"P82B", p82b_ble_scan_legacy_minute_bytes_stay_readable},
     {"P80", p80_boot_id_remains_dirty_until_durable},

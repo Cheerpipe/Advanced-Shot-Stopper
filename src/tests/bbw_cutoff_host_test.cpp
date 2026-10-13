@@ -126,109 +126,19 @@ int main() {
     assert(preset.bbwEwmaAlpha == 30);
     assert(preset.weightOffsetG == preset.bbwEwmaOffsetG);
   }
-  // A blob persisted by pre-removal firmware with the regression mode
-  // active must load as EWMA with the regression offset seeded, and the
-  // first shot after migration still learns (fields stay consistent).
-  persistence_host::reset();
-  PersistedSettings legacyBlob;
-  // Zero first: copy-init leaves tail padding indeterminate, and the
-  // byte-exact round-trip below must not depend on stack junk.
-  memset(&legacyBlob, 0, sizeof(legacyBlob));
-  legacyBlob = settings;
-  legacyBlob.runtime.bbwAlgorithm = 0;
-  legacyBlob.presets.presets[0].bbwAlgorithm = 0;
-  legacyBlob.presets.presets[0].bbwProfileVersion = 1;
-  legacyBlob.presets.presets[0].weightOffsetG = 2.30f;
-  legacyBlob.presets.presets[0].bbwEwmaAlpha = 50;
-  legacyBlob.presets.presets[0].bbwAlphaLearned = 1;
-  legacyBlob.presets.presets[1].bbwAlgorithm = 0;
-  legacyBlob.presets.presets[1].bbwProfileVersion = 1;
-  legacyBlob.presets.presets[1].weightOffsetG = 0.70f;
-  legacyBlob.presets.presets[1].bbwEwmaOffsetG = 0.90f;  // Real EWMA history.
-  legacyBlob.presets.presets[1].bbwEwmaAlpha = 10;
-  legacyBlob.checksum = persistedSettingsChecksum(legacyBlob);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacyBlob,
-                           sizeof(legacyBlob));
-  PersistedSettings reloaded;
-  memset(&reloaded, 0, sizeof(reloaded));  // deterministic tail padding
-  assert(loadPersistedSettings(reloaded));
-  // The adopted record carried aliases; boot may invalidate learning once,
-  // scoped to exactly the presets that aliased (both factory presets here).
-  assert(bbwLegacyAliasesApplied);
-  assert(bbwLegacyAliasedPresetCount == 2);
-  assert(bbwLegacyAliasedPresetIds[0] == legacyBlob.presets.presets[0].id);
-  assert(bbwLegacyAliasedPresetIds[1] == legacyBlob.presets.presets[1].id);
-  // A clean newer slot A with a stale legacy losing slot B adopts A and must
-  // NOT re-arm the migration flag on later boots.
-  PersistedSettings cleanBlob = settings;
-  cleanBlob.storageRevision = legacyBlob.storageRevision + 10U;
-  cleanBlob.checksum = persistedSettingsChecksum(cleanBlob);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &cleanBlob,
-                           sizeof(cleanBlob));
-  assert(loadPersistedSettings(reloaded));
-  assert(!bbwLegacyAliasesApplied);
-  assert(bbwLegacyAliasedPresetCount == 0);
-  // The losing slot itself still stores the alias: keep a stale legacy B
-  // under the newer clean A and re-verify the flag stays disarmed while B's
-  // alias-repair is only probed, never adopted.
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_B, &legacyBlob,
-                           sizeof(legacyBlob));
-  assert(loadPersistedSettings(reloaded));
-  assert(!bbwLegacyAliasesApplied);
-  assert(bbwLegacyAliasedPresetCount == 0);
-  assert(reloaded.storageRevision == cleanBlob.storageRevision);
-  // A legacy record that WINS adoption (newer losing-clean B) re-arms the
-  // one-shot invalidation: only the adopted record may arm it.
-  legacyBlob.storageRevision = cleanBlob.storageRevision + 5U;
-  legacyBlob.checksum = persistedSettingsChecksum(legacyBlob);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_B, &legacyBlob,
-                           sizeof(legacyBlob));
-  assert(loadPersistedSettings(reloaded));
-  assert(bbwLegacyAliasesApplied);
-  assert(reloaded.presets.presets[0].bbwAlgorithm == 1);
-  // Restore the adopted-alias case for the seed checks below.
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacyBlob,
-                           sizeof(legacyBlob));
-  persistence_host::records.erase(
-      persistence_host::storageKey(SETTINGS_NAMESPACE, SETTINGS_SLOT_B));
-  assert(loadPersistedSettings(reloaded));
-  assert(bbwLegacyAliasesApplied);
-  assert(reloaded.runtime.bbwAlgorithm == 1);
-  assert(reloaded.presets.presets[0].bbwAlgorithm == 1);
-  assert(reloaded.presets.presets[0].bbwProfileVersion == BBW_PROFILE_VERSION);
-  // Untouched EWMA default: the regression offset becomes the seed.
-  assert(fabsf(reloaded.presets.presets[0].bbwEwmaOffsetG - 2.30f) < 1e-5f);
-  assert(reloaded.presets.presets[0].bbwEwmaAlpha == 50);
-  assert(reloaded.presets.presets[0].bbwAlphaLearned == 1);
-  // A preset that already ran EWMA keeps its learned offset untouched.
-  assert(reloaded.presets.presets[1].bbwAlgorithm == 1);
-  assert(fabsf(reloaded.presets.presets[1].bbwEwmaOffsetG - 0.90f) < 1e-5f);
-  assert(reloaded.presets.presets[1].bbwEwmaAlpha == 10);
-  assert(validPersistedSettings(reloaded));
-  // Seeded offset plus a fresh miss keeps learning on the EWMA path.
-  float migratedOffset = 0;
-  assert(bbwEwma::learn(reloaded.presets.presets[0].bbwEwmaOffsetG, 36.2f,
-                        36, reloaded.presets.presets[0].bbwEwmaAlpha, true,
-                        migratedOffset));
-  assert(fabsf(migratedOffset - (2.30f + 0.5f * 0.2f)) < 1e-5f);
-  // The migrated record round-trips byte-exact through save/load.
-  assert(savePersistedSettings(reloaded));
-  PersistedSettings secondPass;
-  // DMIs leave tail padding indeterminate; the byte-exact comparison below
-  // needs deterministic padding, so zero the whole record first.
-  memset(&secondPass, 0, sizeof(secondPass));
-  assert(loadPersistedSettings(secondPass));
-  assert(!bbwLegacyAliasesApplied);
-  assert(memcmp(&secondPass, &reloaded, sizeof(secondPass)) == 0);
-  secondPass.presets.presets[0].bbwAlgorithm = 255;
-  secondPass.checksum = persistedSettingsChecksum(secondPass);
-  assert(!validPersistedSettings(secondPass));
-  secondPass.presets.presets[0].bbwAlgorithm = 0;
-  secondPass.checksum = persistedSettingsChecksum(secondPass);
-  // Validation itself rejects the removed id; only the slot-read path aliases.
-  assert(!validPersistedSettings(secondPass));
+  // Validation rejects unknown algorithm ids outright; there is no
+  // slot-read aliasing path anymore.
+  settings.presets.presets[0].bbwAlgorithm = 255;
+  settings.checksum = persistedSettingsChecksum(settings);
+  assert(!validPersistedSettings(settings));
+  settings.presets.presets[0].bbwAlgorithm = 0;
+  settings.checksum = persistedSettingsChecksum(settings);
+  assert(!validPersistedSettings(settings));
+  settings.presets.presets[0].bbwAlgorithm = 1;
+  settings.checksum = persistedSettingsChecksum(settings);
+  assert(validPersistedSettings(settings));
 
-  ShotPresetBank bank = reloaded.presets;
+  ShotPresetBank bank = settings.presets;
   BbwLearningBank learning;
   auto &state = learning.forPreset(bank.presets[0].id, bank);
   const uint32_t generation = state.generations[0];
@@ -238,7 +148,7 @@ int main() {
   uint8_t duplicate = 0;
   bank.presets[0].bbwAlphaBaseline = 37;
   assert(duplicateShotPreset(bank, bank.presets[0].id, duplicate));
-  assert(mutableShotPreset(bank, duplicate)->bbwEwmaAlpha == 50);
+  assert(mutableShotPreset(bank, duplicate)->bbwEwmaAlpha == 30);
   assert(mutableShotPreset(bank, duplicate)->bbwAlphaBaseline == 37);
   uint8_t created = 0;
   assert(createUntitledShotPreset(bank, created));

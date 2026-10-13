@@ -64,9 +64,9 @@
 namespace shotstopper {
 
 constexpr uint32_t SERIAL_BAUD = 115200;
-// Settings v3 preserves the v1/v2 layout; authenticated records upgrade on read.
-// Other historical layouts still require the documented USB erase workflow.
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 4;
+// Fresh schema epoch: blobs written by any earlier firmware are rejected, so
+// crossing the cutover requires the documented USB erase workflow.
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 0;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;

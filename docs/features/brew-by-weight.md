@@ -107,19 +107,15 @@ or the A→M duration trend.
 
 ### One cutoff algorithm
 
-The former **Linear regression + offset correction** mode was removed; its
-learned offset became your starting point. When you update from a firmware
-that still had it, presets saved with that mode keep working: the offset the
-machine actually used arrives as the EWMA starting offset — unless that
-recipe already had learned EWMA values, which are kept as they were. The
-first shot after the update runs with the migrated offset exactly as before;
-learning resumes from the second shot on.
+The former **Linear regression + offset correction** mode was removed. Moving
+a device from a firmware that still had it is a fresh start: the installation
+uses `--erase-all`, saved recipes and shot history are not carried over, and
+brew-by-weight begins from the factory EWMA defaults.
 
 Every shot uses ten eligible samples, a positive linear trend, the existing
 minimum prediction horizon and two-sample direct confirmation. Invalid
-prediction falls back to direct stopping and the existing time limits. The
-API and CSV still report `legacy` for shots recorded under the old mode; the
-word describes past data, never a choice. Sample times are centered before
+prediction falls back to direct stopping and the existing time limits. Sample
+times are centered before
 fitting, reducing floating-point cancellation:
 
 ```text

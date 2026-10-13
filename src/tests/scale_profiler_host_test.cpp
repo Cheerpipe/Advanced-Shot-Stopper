@@ -513,7 +513,8 @@ void testStateObservations() {
   CHECK(formatScaleProfileRow(line, sizeof(line), unknown) != 0);
   CHECK(std::string(line).find("UNKNOWN kind=65535") != std::string::npos);
   auto header = profiler.hostHeader();
-  CHECK(header.schemaVersion == 1 && scaleProfileHeaderValid(header));
+  CHECK(header.schemaVersion == SCALE_PROFILE_SCHEMA_VERSION &&
+        scaleProfileHeaderValid(header));
   for (uint32_t key = 0; key < static_cast<uint32_t>(S::COUNT); ++key) {
     ScaleProfileRecord state;
     state.kind = static_cast<uint16_t>(ScaleProfileEvent::STATE_CHANGED);

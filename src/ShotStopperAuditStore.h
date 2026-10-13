@@ -14,7 +14,7 @@ namespace shotstopper {
 // not yet flushed from the RAM latch; the boot scan recovers the last
 // consistent record without intervention.
 constexpr uint32_t AUDIT_STORE_MAGIC = 0x41554C47UL;  // "AULG"
-constexpr uint16_t AUDIT_STORE_SCHEMA_VERSION = 1;
+constexpr uint16_t AUDIT_STORE_SCHEMA_VERSION = 0;
 constexpr size_t AUDIT_STORE_PARTITION_BYTES = 0x10000;
 constexpr size_t AUDIT_STORE_HEADER_BYTES = 4096;
 constexpr size_t AUDIT_STORE_SECTOR_BYTES = 4096;

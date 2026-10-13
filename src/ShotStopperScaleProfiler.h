@@ -54,7 +54,7 @@ constexpr size_t SCALE_PROFILE_INDEX_BYTES =
     SCALE_PROFILE_RECORD_CAPACITY * sizeof(uint32_t);
 constexpr size_t SCALE_PROFILE_CONTEXT_BYTES = 1024;
 constexpr uint32_t SCALE_PROFILE_MAGIC = 0x53505246UL;  // "SPRF"
-constexpr uint16_t SCALE_PROFILE_SCHEMA_VERSION = 1;
+constexpr uint16_t SCALE_PROFILE_SCHEMA_VERSION = 0;
 // 4096-byte header/context sector + 256 KiB maximum record payload.
 constexpr size_t SCALE_PROFILE_PARTITION_BYTES = 0x41000;
 constexpr size_t SCALE_PROFILE_PAYLOAD_OFFSET = 4096;
