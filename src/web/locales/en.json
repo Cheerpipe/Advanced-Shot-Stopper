@@ -193,7 +193,6 @@
     "diagnostic.audit_dropped": "dropped {d} / limited",
     "diagnostic.audit_empty_confirm": "Permanently erase the audit log? The newest events kept in the rotating log are not affected.",
     "diagnostic.audit_event": "Event",
-    "diagnostic.audit_export": "Export",
     "diagnostic.audit_export_failed": "Could not export the audit log.",
     "diagnostic.audit_hint": "Rare faults and anomalies kept out of the rotating log. Tap a row for its full detail. Hunt admits extra debug events for 30 minutes.",
     "diagnostic.audit_hunt_30m": "Hunt 30 m",

@@ -267,8 +267,8 @@ five at a time, with small paging buttons to reach the older ones. Each row
 shows what happened in plain words (for example how low the memory fell or
 which task held a lock too long), and tapping a row unfolds the complete
 detail. A missing time means the device clock was not yet synchronized when it
-happened. **Export**
-downloads the whole saved log as a text file, and **Empty** there (or the
+happened. **Download**
+saves the whole saved log as a text file, and **Delete** there (or the
 `AUDIT_CLEAR` USB command) removes the records permanently. When a problem is
 actively being hunted, **Hunt 30 m** admits a few extra debug events into the
 audit log for thirty minutes so a rare sequence can be captured; the session

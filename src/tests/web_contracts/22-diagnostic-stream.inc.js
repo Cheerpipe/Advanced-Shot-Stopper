@@ -131,7 +131,7 @@
       'the audit export route must be registered');
   const localeStrings = JSON.parse(fs.readFileSync(
       path.join(sketchDir, 'web', 'locales', 'en.json'), 'utf8')).strings;
-  for (const key of ['diagnostic.audit_export', 'diagnostic.audit_export_failed',
+  for (const key of ['diagnostic.download_trace', 'diagnostic.audit_export_failed',
                      'diagnostic.audit_no_clock', 'diagnostic.audit_view']) {
     assert(localeStrings[key], 'missing audit locale key ' + key);
   }

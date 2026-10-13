@@ -138,8 +138,7 @@ label:has(>input[type=checkbox]) .fieldHint{margin-left:1.9rem}
 #auditTable .auditRow:hover td,#auditTable .auditRow:focus-visible td{background:var(--pa)}
 #auditTable .auditDetailRow td{white-space:normal;color:var(--mu);font-size:.8rem}
 .auditPager{display:flex;align-items:center;justify-content:center;gap:.7rem;padding:.35rem 0 .1rem;font-size:.8rem;color:var(--mu)}
-.auditPageBtn{margin:0;border:1px solid var(--ln);border-radius:1.6rem;background:var(--bg);color:var(--ac);font:inherit;font-size:.9rem;font-weight:700;min-height:2.1rem;min-width:2.4rem;padding:0 .7rem;cursor:pointer}
-.auditPageBtn:not(:disabled):hover{background:var(--pa)}
+.auditPageBtn{margin:0;border:0;background:none;color:var(--ac);font:inherit;font-size:1.05rem;font-weight:700;padding:.4rem .3rem;cursor:pointer}
 .auditPageBtn:disabled{opacity:.4;cursor:default}
 .inlineAction{border:0;background:none;padding:0;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}
 .inlineAction:disabled{opacity:.65;cursor:not-allowed}

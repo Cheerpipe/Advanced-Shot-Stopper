@@ -469,7 +469,7 @@ function applyAudit(a) {
     clear = $("auditClearButton"),
     exportLog = $("auditExportButton");
   if (verbose)
-    verbose.querySelector(".t").textContent = huntOn
+    verbose.textContent = huntOn
       ? __WEBUI_TEXT__("diagnostic.audit_hunt_stop")
       : __WEBUI_TEXT__("diagnostic.audit_hunt_30m");
   if (verbose) verbose.disabled = auditBusy || !R.webUiOwner;
@@ -577,8 +577,8 @@ async function exportAudit() {
 async function toggleAuditHunt() {
   if (auditBusy) return;
   const huntOn =
-    ($("auditVerboseButton").querySelector(".t").textContent ===
-      __WEBUI_TEXT__("diagnostic.audit_hunt_stop"));
+    $("auditVerboseButton").textContent ===
+    __WEBUI_TEXT__("diagnostic.audit_hunt_stop");
   auditBusy = true;
   try {
     await R.api("/api/v1/diagnostic/audit/verbose", {
