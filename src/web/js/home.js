@@ -194,8 +194,8 @@ function initQuickWeight() {
   // Firmware preset goal: decigrams, 10.0–200.0 g (settings validation).
   const MIN = 10,
     MAX = 200,
-    PX_PER_DG = 3, // 30 px per gram: single tenths stay grabbable
-    BASE_DG_PER_PX = 0.1,
+    PX_PER_DG = 6, // 60 px per gram: tenths read clearly
+    BASE_DG_PER_PX = 0.05, // 20 px per tenth: ruler tracks the finger at 0.3×
     SPEED_CAP = 8,
     SPEED_K = 14;
   const inner = document.createElement("div");
