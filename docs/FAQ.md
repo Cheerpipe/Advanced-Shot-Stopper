@@ -158,9 +158,28 @@ See [Scales](settings/scales.md) and [Wi-Fi](settings/wifi.md).
 
 ### Why is there no remote Start or rinse?
 
-They are disabled in default firmware. An explicit development build can
-enable them, but Admin unlock alone cannot. Remote Stop remains privileged.
+It is a deliberate safety decision. The controller is built for a trusted
+home network, not the internet, and it does not treat that network as
+hostile — the integration API, for example, is unauthenticated. Any device
+on the network can reach it, so a page that could start a shot or a rinse
+would let a compromised phone or a guest laptop set a hot, unattended
+machine brewing. The web interface reads data and edits settings; nothing
+in it can make the machine run water. Remote start and rinse are disabled
+in default firmware; an explicit development build can enable them, but
+Admin unlock alone cannot. Remote Stop remains privileged (Admin unlock),
+because stopping only ends brewing — it never begins it.
 See [build options](BUILD.md#5-build).
+
+### Why can't I turn the machine on from the web interface?
+
+For the same reason: nothing you can reach over the network can switch the
+machine on. The firmware does power the machine on by itself in some
+automations — on a Linea Micra it can wake the machine when you switch the
+scale on — but each of those begins with a physical action at the espresso
+bar, such as the scale's power button or the machine's own switch. It is
+never a decision the firmware makes on its own, and never one it takes from
+the network. See
+[Turn machine on when the scale powers on](settings/linea-micra.md#turn-machine-on-when-the-scale-powers-on).
 
 ### The web interface only shows the Admin page
 
