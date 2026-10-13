@@ -195,8 +195,8 @@ function initQuickWeight() {
   const MIN = 10,
     MAX = 200,
     PX_PER_DG = 3, // 30 px per gram: single tenths stay grabbable
-    BASE_DG_PER_PX = 0.08,
-    SPEED_CAP = 10,
+    BASE_DG_PER_PX = 0.1,
+    SPEED_CAP = 8,
     SPEED_K = 14;
   const inner = document.createElement("div");
   inner.className = "qwScaleIn";
@@ -341,25 +341,33 @@ function initQuickWeight() {
       node.addEventListener("pointercancel", end);
     });
   };
-  const vel = { x: 0, t: 0, v: 0 };
+  const vel = { t: 0, v: 0 };
+  let pending = 0;
   drag(zone, {
     start: (e) => {
-      vel.x = e.clientX;
       vel.t = performance.now();
       vel.v = 0;
-      return { x: e.clientX };
+      pending = 0;
+      return { x: e.clientX, dx: 0 };
     },
     move: (e, ctx) => {
       const dx = e.clientX - ctx.x;
       ctx.x = e.clientX;
       const now = performance.now(),
         dt = Math.max(4, now - vel.t);
+      // A reversal restarts the speed estimate: stale speed from the outgoing
+      // gesture would sling the value past the intended stop.
+      if (dx * ctx.dx < 0) vel.v = 0;
+      ctx.dx = dx;
       // Slow gestures stay surgical; sustained speed gears up to SPEED_CAP×
       // so one drag can cross the range without releasing.
-      vel.v = 0.75 * vel.v + 0.25 * (Math.abs(e.clientX - vel.x) / dt);
-      vel.x = e.clientX;
+      vel.v = 0.75 * vel.v + 0.25 * (Math.abs(dx) / dt);
       vel.t = now;
-      value = clamp(Math.round(value + dx * BASE_DG_PER_PX * speedMul(vel.v)));
+      // Sub-tenth motion accrues in pending instead of rounding away per
+      // event, so slow drags still move the dial a tenth at a time.
+      pending += dx * BASE_DG_PER_PX * speedMul(vel.v);
+      value = clamp(value + Math.trunc(pending));
+      pending %= 1;
       paint();
     },
   });

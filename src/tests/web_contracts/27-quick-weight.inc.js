@@ -64,10 +64,12 @@
       .replace(/\s/g, '').includes('ensureSettingsHydrated'),
     'Runtime must export ensureSettingsHydrated for the commit path');
 
-  qwAssert.ok(codeIncludes(qwHomeJs,
-      'value = clamp(Math.round(value + dx * BASE_DG_PER_PX * speedMul(vel.v)))') &&
-      codeIncludes(qwHomeJs, 'BASE_DG_PER_PX = 0.08, SPEED_CAP = 10'),
-    'The drag must keep the accepted sensitivity and ×10 acceleration cap');
+  qwAssert.ok(codeIncludes(qwHomeJs, 'pending += dx * BASE_DG_PER_PX * speedMul(vel.v);') &&
+      codeIncludes(qwHomeJs, 'value = clamp(value + Math.trunc(pending));') &&
+      codeIncludes(qwHomeJs, 'pending %= 1;') &&
+      codeIncludes(qwHomeJs, 'if (dx * ctx.dx < 0) vel.v = 0;') &&
+      codeIncludes(qwHomeJs, 'BASE_DG_PER_PX = 0.1, SPEED_CAP = 8'),
+    'The drag must accrue sub-tenth motion, reverse cleanly, and keep the accepted sensitivity and ×8 cap');
   qwAssert.ok(codeIncludes(qwHomeJs, 'PX_PER_DG = 3'),
     'The ruler must spend 3 px per 0.1 g so single tenths are grabbable');
   qwAssert.ok(codeIncludes(qwHomeJs,
@@ -248,18 +250,23 @@
     qwAssert.ok(qwEls.qwDone.focused, 'Opening focuses Done');
 
     // Slow drags stay surgical; fast drags gear up. Replicate the accepted
-    // velocity model to pin the exact deltas (values are decigrams).
-    qwDragZone([[10, 100], [10, 100], [10, 100], [10, 100], [10, 100], [10, 100]]);
-    const qwExpectedSlow = (() => {
-      let value = 360, v = 0, x = 100, t = 0;
-      for (let i = 0; i < 6; i++) {
-        v = 0.75 * v + 0.25 * (10 / 100);
-        value = Math.round(value + 10 * 0.08 * (1 + Math.min(9, Math.abs(v) * 14)));
-        x += 10; t += 100;
+    // accumulator model to pin the exact deltas (values are decigrams).
+    const qwModel = (moves) => {
+      let value = 360, pending = 0, v = 0, prev = 0;
+      for (const [dx, dt] of moves) {
+        if (dx * prev < 0) v = 0;
+        prev = dx;
+        v = 0.75 * v + 0.25 * (Math.abs(dx) / dt);
+        pending += dx * 0.1 * (1 + Math.min(7, Math.abs(v) * 14));
+        const step = Math.trunc(pending);
+        pending -= step;
+        value = Math.max(100, Math.min(2000, value + step));
       }
       return (value / 10).toFixed(1);
-    })();
-    qwAssert.equal(qwEls.qwNum.textContent, qwExpectedSlow,
+    };
+    const qwSlow = [[10, 100], [10, 100], [10, 100], [10, 100], [10, 100], [10, 100]];
+    qwDragZone(qwSlow);
+    qwAssert.equal(qwEls.qwNum.textContent, qwModel(qwSlow),
       'A slow drag must follow the accepted fine sensitivity');
     qwAssert.ok(qwEls.qwReset.classes.has('show'), 'Editing away from the goal reveals Reset');
     qwAssert.equal(qwEls.qwDef.textContent, '36.0', 'Reset offers the open value');
@@ -267,10 +274,20 @@
     qwAssert.equal(qwEls.qwNum.textContent, '36.0', 'Reset restores the open value');
     qwAssert.ok(!qwEls.qwReset.classes.has('show'), 'Reset hides again at the open value');
 
+    // A crawling drag (1 px per event, far below one tenth) must still move
+    // the dial: sub-tenth credit accrues instead of dying in rounding.
+    const qwCrawl = Array.from({length: 40}, () => [1, 25]);
+    qwDragZone(qwCrawl);
+    qwAssert.equal(qwEls.qwNum.textContent, qwModel(qwCrawl),
+      'A crawling drag must accumulate tenths');
+    qwAssert.ok(Number(qwEls.qwNum.textContent) > 36,
+      'A crawling drag must move the dial at all');
+    qwEls.qwReset.onclick();
+
     qwDragZone([[50, 10], [50, 10], [50, 10], [50, 10], [50, 10]]);
     const qwFast = Number(qwEls.qwNum.textContent);
     qwAssert.ok(qwFast - 36 >= 15 && qwFast - 36 <= 21,
-      'A fast drag must engage the ×10 gear (' + (qwFast - 36) + ' g)');
+      'A fast drag must engage the acceleration gear (' + (qwFast - 36) + ' g)');
 
     // Bounds: the firmware goal range clamps however far the drag runs.
     qwEls.qwReset.onclick();

@@ -451,8 +451,12 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // pills, per-gram labeled ticks, zone tints) rides the same inlined home
 // module: +285 measured bytes on top (5336 measured).
 // Cap raised to 5400; the combined flash total stays fixed.
-if (generated.jsGzip.length > 5400) {
-  throw new Error(`Compressed Web UI shell JS exceeds the 5400-byte gzip budget (${generated.jsGzip.length})`);
+// The quick-weight dial fractional-drag fix (sub-tenth pending credit that
+// survives slow drags plus the direction-reversal speed reset) rides the
+// same inlined home module: 5408 measured.
+// Cap raised to 5420; the combined flash total stays fixed.
+if (generated.jsGzip.length > 5420) {
+  throw new Error(`Compressed Web UI shell JS exceeds the 5420-byte gzip budget (${generated.jsGzip.length})`);
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
