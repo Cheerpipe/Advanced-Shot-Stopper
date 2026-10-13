@@ -5,6 +5,20 @@ priority, nominal period, service deadline and Task Watchdog participation for
 every application task. A task without a periodic deadline is event-driven or
 diagnostic and must never execute on a safety path.
 
+## Core topology
+
+The network stack is pinned to core 0 by build configuration
+(`idf/sdkconfig.defaults`): the Wi-Fi driver task, the lwIP `tcpip` task and
+`esp_timer` all run on core 0, so an RF-storm burst cannot preempt the
+priority-1 control and scale loops on core 1. Core 0 therefore concentrates
+every best-effort consumer (httpd, cloud integration, persistence, logging)
+and may degrade first under radio pressure — by design; core 1 stays
+exclusive to control, scale_worker and their IPC. Measured motive: the
+2026-10-12 audit records of ~0.9 s control-loop stalls during beacon-timeout
+storms, where the Micra mutex wait (902 ms) ran with a 1.8 ms holder tenure —
+the loop itself had been preempted, and `tcpip` was the only high-priority
+task without affinity.
+
 ## Application task contract
 
 `max block` is the largest explicit API timeout reachable in one activation;

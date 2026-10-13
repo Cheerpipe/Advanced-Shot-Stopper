@@ -63,6 +63,17 @@ CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 # caches while IDF asserts the writing task's stack is internal, so
 # flash-writing tasks (loop, network, httpd, persist) and VHCI paths fault.
 
+# Core topology contract: the whole network stack (Wi-Fi driver, lwIP tcpip,
+# esp_timer) stays on core 0 so RF-storm bursts cannot preempt the core-1
+# control and scale loops (priority 1). Measured motive: the 2026-10-12
+# ~0.9 s control-loop stalls during beacon-timeout storms, attributed via the
+# audit log (machine mux wait=902 ms with hold=1.8 ms) — tcpip was the only
+# high-priority task without affinity. Wi-Fi and esp_timer are explicit for
+# durability; they already resolve to core 0.
+CONFIG_LWIP_TCPIP_TASK_AFFINITY_CPU0=y
+CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_0=y
+CONFIG_ESP_TIMER_TASK_AFFINITY_CPU0=y
+
 # Bounded Wi-Fi pools for Web UI transfers, STA + SoftAP, and OTA. Static
 # RX/TX buffers reserve ~1.6 KB each until deinit; 8/16 costs ~19.2 KB more
 # internal DMA RAM than 6/6. RX_BA_WIN must stay <= min(2*STATIC_RX, DYNAMIC_RX).
