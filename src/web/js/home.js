@@ -404,10 +404,13 @@ function initQuickWeight() {
     paint();
   });
   pen.onclick = open;
-  // The active (expanded) preset row's "Target XX g" opens the same sheet;
-  // taps on other rows keep the accordion head's apply behavior.
-  addEventListener("click", (e) =>
-    e.target.closest(".presetAccItem.open .presetAccTarget") && open());
+  // Only the already-active row's "Target XX g" opens the sheet: compare the
+  // stream-maintained presetState.activeId, not the .open class applyPreset
+  // paints on the tapped row before this bubble listener runs.
+  addEventListener("click", (e) => {
+    const item = e.target.closest(".presetAccTarget")?.closest(".presetAccItem");
+    if (item && +item.dataset.id === R.presetState.activeId) open();
+  });
   doneBtn.onclick = () => close(true);
   resetBtn.onclick = () => {
     value = openValue;

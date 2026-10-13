@@ -98,9 +98,8 @@
     'Opening from the URL must strip the one-shot parameter');
   qwAssert.ok(codeIncludes(qwHomeJs, 'return { open, close };'),
     'The controller must expose open for the URL launcher');
-  qwAssert.ok(codeIncludes(qwHomeJs,
-      'e.target.closest(".presetAccItem.open .presetAccTarget")'),
-    'The accordion Target tap must match only the open (active) preset row');
+  qwAssert.ok(codeIncludes(qwHomeJs, '+item.dataset.id === R.presetState.activeId'),
+    'The accordion Target tap must match only the already-active preset row');
 
   qwAssert.ok(/position:fixed[^}]*bottom:0/.test(qwCssRule('qwSheet')) &&
       /backdrop-filter:blur\(18px\)/.test(css),
@@ -302,22 +301,25 @@
     await new Promise((r) => setTimeout(r, 0));
 
     // The active row's Target text is the third invocation point; other rows
-    // keep the accordion head's select behavior, so only an open row opens.
-    const qwAccTap = (openRow) => ({
-      closest: (sel) =>
-        (openRow && sel === '.presetAccItem.open .presetAccTarget' ? {} : null),
+    // keep the accordion head's select behavior. The dispatch compares the
+    // row's preset id against the stream-maintained activeId, so a row that
+    // applyPreset just marked .open still cannot trigger the sheet.
+    const qwAccTap = (id) => ({
+      closest: (sel) => (sel === '.presetAccTarget'
+        ? {closest: (sel2) => (sel2 === '.presetAccItem' ? {dataset: {id}} : null)}
+        : null),
     });
     const qwAccClick = (target) =>
       (qwAccListeners.click || []).forEach((fn) => fn({target}));
-    qwAccClick(qwAccTap(false));
+    qwAccClick(qwAccTap('5'));
     qwAssert.ok(!qwEls.qwSheet.classes.has('open'),
       'A non-active row Target must not open the sheet');
     qwAccClick({closest: () => null});
     qwAssert.ok(!qwEls.qwSheet.classes.has('open'),
       'Taps off the Target text must not open the sheet');
-    qwAccClick(qwAccTap(true));
+    qwAccClick(qwAccTap('2'));
     qwAssert.ok(qwEls.qwSheet.classes.has('open'),
-      'The active row Target text must open the sheet');
+      'The already-active row Target text must open the sheet');
     qwAssert.equal(qwEls.qwNum.textContent, '36.0',
       'The sheet still opens at the active preset goal');
     qwFire(qwEls.qwSheet, 'keydown', {key: 'Escape'});

@@ -807,8 +807,11 @@ if (jsBytes > 385400) {
 // described above; compressed budgets stay fixed.
 // The Diagnostics audit viewer adds its ~3.7 KB of combined source allowance
 // (~3.1 KB of JS plus the audit panel markup) described above.
-if (htmlBytes + jsBytes > 476800) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 476800)`);
+// The quick-weight Target-tap guard (active-row check keyed off the
+// stream-maintained activeId) adds +160 measured JS bytes; compressed budgets
+// stay fixed.
+if (htmlBytes + jsBytes > 477000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 477000)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
