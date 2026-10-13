@@ -13,7 +13,7 @@
 namespace shotstopper {
 
 constexpr uint32_t SHOT_LOG_MAGIC = 0x534C4F47U;  // "SLOG"
-constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 2;
+constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 3;
 constexpr size_t SHOT_LOG_CAPACITY = 100;
 constexpr size_t SHOT_LOG_PAGE_DEFAULT = 10;
 // Maximum number of records in each independent read-time Stats window.
@@ -310,7 +310,7 @@ struct ShotLogRecord {
   uint32_t endedAtLocalSec;
   int16_t timezoneOffsetMinutesAtCommit;
   uint16_t durationDs;
-  uint8_t goalWeightG;
+  uint16_t goalWeightDg;
   uint8_t hasWallTime;
   int16_t actualWeightCg;
   int16_t errorCg;
@@ -337,7 +337,7 @@ struct ShotLogRecord {
 };
 
 static_assert(sizeof(ShotLogRecord) == 108,
-              "ShotLogRecord v1 must include the preset-name and scale-name snapshots");
+              "Shot-log v3 decigram goals reuse the record's padding byte");
 
 inline ShotLogType shotLogType(const ShotLogRecord &record);
 
@@ -350,16 +350,16 @@ inline bool shotLogRecordEligible(const ShotLogRecord &record) {
 inline bool shotLogBbwErrorEligible(const ShotLogRecord &record) {
   const ShotLogStopDetail detail =
       static_cast<ShotLogStopDetail>(record.stopDetail);
-  return shotLogType(record) == ShotLogType::AUTO && record.goalWeightG > 0 &&
+  return shotLogType(record) == ShotLogType::AUTO && record.goalWeightDg > 0 &&
          (detail == ShotLogStopDetail::NORMAL_TARGET ||
           detail == ShotLogStopDetail::PREDICTION);
 }
 
 inline uint32_t shotLogBbwErrorTenths(const ShotLogRecord &record) {
   const int32_t error = static_cast<int32_t>(record.actualWeightCg) -
-                        static_cast<int32_t>(record.goalWeightG) * 100;
-  return static_cast<uint32_t>(error < 0 ? -error : error) * 10U /
-         record.goalWeightG;
+                        static_cast<int32_t>(record.goalWeightDg) * 10;
+  return static_cast<uint32_t>(error < 0 ? -error : error) * 100U /
+         record.goalWeightDg;
 }
 
 inline uint8_t shotLogPresetId(const ShotLogRecord &record);
@@ -377,7 +377,7 @@ inline PersistedLastShot shotLogProjectLastShot(
   shot.durationMs = static_cast<uint32_t>(record.durationDs) * 100U;
   shot.currentWeightG = record.actualWeightCg / 100.0f;
   shot.weightValid = true;
-  shot.goalWeightG = record.goalWeightG;
+  shot.goalWeightDg = record.goalWeightDg;
   shot.presetId = shotLogPresetId(record);
   copyCString(shot.presetName, sizeof(shot.presetName), record.presetName);
   shot.shotType = static_cast<uint8_t>(shotLogType(record));

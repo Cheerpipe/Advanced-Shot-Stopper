@@ -49,7 +49,7 @@ settings; the active recipe arrives expanded.
 | --- | --- | --- | --- |
 | **Brew by weight** | ON | ON / OFF | ON: stop by weight when a scale is usable. OFF: paddle, **Stop**, and the 60 s firmware cap only. Fast, Slow, A→M, Max BBW time, and No-scale BBW become read-only. |
 | **Stop after sustained weight** | ON | ON / OFF | A backup for a weight stop blocked by **Avoid accidental touch**. Fresh readings must stay above the applicable cut threshold for 1 second. Saved per preset; takes effect on the next shot. |
-| **Target (g)** | 36 g | 10–200 g | Goal weight. Stop aims at `target − learned offset`. |
+| **Target (g)** | 36 g | 10–200 g in 0.1 g steps | Goal weight. Stop aims at `target − learned offset`. |
 | **Max BBW time (s)** | 50 s | 5–60 s | Operational time limit for an **automatic BBW** cycle. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
 | **Baseline offset (g)** | 1.5 g | 0–5 g | Seed used by **Reset learned stop offset**. Save this before reset. |
 | **Learned stop offset** | starts at 1.5 g | 0–5 g | Subtracted from the target (and from Fast/Slow recovery weights). Updated from eligible BBW measurements after the drip delay. |

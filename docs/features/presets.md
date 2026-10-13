@@ -26,17 +26,18 @@ When the last shot card on Home shows a target (a scale shot, while the
 machine is idle), a small pencil sits next to the target weight. Tap it to
 open a sliding scale at the bottom of the screen:
 
-- Drag slowly to move one gram at a time; drag faster and the scale
+- Drag slowly to move a tenth of a gram at a time; drag faster and the scale
   accelerates so you can cross the range in a single gesture.
-- The ruler is marked every gram, with a number every 5 g. Green marks are
-  targets the recipe accepts. Blue marks below the range and amber marks above
-  it lie outside what the recipe's guards allow — they are reference only, and
-  the scale cannot stop on them.
-- The scale only offers targets the recipe can actually use: from 10 g to
-  200 g, in whole grams, and always strictly between the Slow guard's minimum
-  recovery weight and the Fast guard's maximum recovery weight while each
-  guard is enabled. When you reach either end, a small **Target minimum** or
-  **Target maximum** label appears next to the weight.
+- Every whole gram on the ruler carries its number, with smaller marks at the
+  half gram and the tenth. Green marks are targets the recipe accepts. Blue
+  marks below the range and amber marks above it lie outside what the
+  recipe's guards allow — they are reference only, and the scale cannot stop
+  on them.
+- The scale only offers targets the recipe can actually use: from 10.0 g to
+  200.0 g, in tenths of a gram, and always strictly between the Slow guard's
+  minimum recovery weight and the Fast guard's maximum recovery weight while
+  each guard is enabled. When you reach either end, a small **Target
+  minimum** or **Target maximum** label appears next to the weight.
 - **Reset** appears once you move away from the recipe's weight; tap it to go
   back.
 - Closing the sheet — with **Done**, a swipe down, or tapping outside — saves

@@ -663,7 +663,8 @@ recover the value at the next reconciliation.
 
 Receivers deduplicate by `(deviceId, bootId, cycleId, event, uptimeMs)`, reject
 older events for the same boot, and refresh the REST snapshot when configuration
-or preset revisions skip. Numeric shot fields must be finite and non-negative. Supported
+or preset revisions skip. Numeric shot fields must be finite and non-negative;
+`targetWeightG` is the recipe target in grams quantized to tenths (`36.5`). Supported
 shot types are `auto`, `timer_only`, and `manual`; supported stop details are
 `normal_target`, `extended_max_weight`, `extended_min_time`, `auto_to_manual`,
 `slow_max_time`, `slow_min_weight`, `cup_removed`, `activator`, `web_stop`,

@@ -334,6 +334,18 @@ bool jsonFloat(cJSON *object, const char *name, float &output) {
   return true;
 }
 
+// Target weight arrives in grams with tenths (36.5); stored as decigrams.
+bool jsonGoalWeightDg(cJSON *object, const char *name, uint16_t &output) {
+  float grams = 0.0f;
+  if (!jsonFloat(object, name, grams)) {
+    return false;
+  }
+  const float clipped = fmaxf(0.1f * MIN_GOAL_WEIGHT_DG,
+                              fminf(0.1f * MAX_GOAL_WEIGHT_DG, grams));
+  output = static_cast<uint16_t>(clipped * 10.0f + 0.5f);
+  return true;
+}
+
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
 bool jsonInt16(cJSON *object, const char *name, int16_t &output) {
   if (object == nullptr || name == nullptr) {
@@ -1078,7 +1090,7 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
     n = snprintf(
         buf + used, cap - used,
         "%s{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s,\"brewByWeight\":%s,"
-        "\"goalWeightG\":%u,\"minBbwBrewTimeMs\":%lu,\"maxRecoveryWeightG\":%.1f,"
+        "\"goalWeightG\":%.1f,\"minBbwBrewTimeMs\":%lu,\"maxRecoveryWeightG\":%.1f,"
         "\"minRecoveryWeightG\":%.1f,\"maxBbwBrewTimeMs\":%lu,"
         "\"operationalWallMs\":%lu,\"bbwProtectionMs\":%lu,"
         "\"fastExtractionGuardEnabled\":%s,\"slowExtractionGuardEnabled\":%s,"
@@ -1086,7 +1098,7 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
         "\"lineaMicraBrewTargetC\":%.1f}",
         i == 0 ? "" : ",", static_cast<unsigned>(p.id), safeName,
         p.isFactory ? "true" : "false", p.brewByWeight ? "true" : "false",
-        static_cast<unsigned>(p.goalWeightG),
+        static_cast<double>(goalWeightDgToGrams(p.goalWeightDg)),
         static_cast<unsigned long>(p.minBbwBrewTimeMs),
         static_cast<double>(p.maxRecoveryWeightG),
         static_cast<double>(p.minRecoveryWeightG),

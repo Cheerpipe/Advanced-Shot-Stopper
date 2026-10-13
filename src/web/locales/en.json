@@ -714,6 +714,7 @@
     "runtime.idle_tare_retry": "Tare incomplete — remove the cup and retry",
     "runtime.idle_tare_tared": "Tared",
     "runtime.idle_tare_unavailable": "Waiting for controller ready",
+    "runtime.in_steps_of": " in %1 steps",
     "runtime.inactive": "inactive",
     "runtime.inferred_brewing": "Inferred brewing.",
     "runtime.inferred_idle": "Inferred idle.",

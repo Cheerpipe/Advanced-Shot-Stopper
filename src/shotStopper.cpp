@@ -328,7 +328,7 @@ struct PendingShotFinalize {
   uint16_t durationDs = 0;
   uint16_t firstDropDs = SHOT_LOG_METRIC_MISSING;
   uint16_t tareAtDs = SHOT_LOG_METRIC_MISSING;
-  uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  uint16_t goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   float weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   float scaleBaselineG = 0.0f;
   bool startedWithScale = false;
@@ -1293,7 +1293,7 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
   }
   last.weightValid = finalWeightValid;
   last.currentWeightG = finalWeightValid ? finalWeightG : 0.0f;
-  last.goalWeightG = snapshot.goalWeightG;
+  last.goalWeightDg = snapshot.goalWeightDg;
   last.extractionExtended =
       snapshot.extractionExtended && snapshot.extractionGuardEnabled;
   last.slowExtractionExtended =
@@ -1303,7 +1303,7 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
           ? snapshot.maxRecoveryWeightG
           : (last.slowExtractionExtended
                  ? snapshot.minRecoveryWeightG
-                 : static_cast<float>(snapshot.goalWeightG));
+                 : goalWeightDgToGrams(snapshot.goalWeightDg));
   if (snapshot.firstDropDs != SHOT_LOG_METRIC_MISSING) {
     last.firstDropElapsedMs =
         static_cast<uint32_t>(snapshot.firstDropDs) * 100U;
@@ -1393,7 +1393,7 @@ PersistedLastShot lastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
     last.weightValid = true;
     last.currentWeightG = session.lastAcceptedWeightG;
   }
-  last.goalWeightG = session.config.goalWeightG;
+  last.goalWeightDg = session.config.goalWeightDg;
   last.extractionExtended =
       session.extractionExtended && session.config.fastExtractionGuardEnabled;
   last.slowExtractionExtended =
@@ -1404,7 +1404,7 @@ PersistedLastShot lastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
           ? session.config.maxRecoveryWeightG
           : (last.slowExtractionExtended
                  ? session.config.minRecoveryWeightG
-                 : static_cast<float>(session.config.goalWeightG));
+                 : goalWeightDgToGrams(session.config.goalWeightDg));
   const uint32_t startMs =
       session.circuitClosedAtMs != 0U ? session.circuitClosedAtMs : session.startedAtMs;
   if (session.firstDropMs != 0 &&

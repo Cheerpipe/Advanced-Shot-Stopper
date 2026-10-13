@@ -517,12 +517,12 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   char *output = workBuf_->jsonItem;
   const int cardBytes = snprintf(output, NetworkWorkBuf::kJsonItem,
       "\"phase\":\"%s\",\"card\":{\"valid\":%s,\"live\":%s,\"weight\":%s,"
-      "\"goal\":%u,\"elapsedMs\":%lu,\"firstDropMs\":%s,"
+      "\"goal\":%.1f,\"elapsedMs\":%lu,\"firstDropMs\":%s,"
       "\"tareMs\":%s,\"presetName\":\"%s\","
       "\"scaleAvailable\":%s,\"shotType\":\"%s\",\"endReason\":\"%s\",\"averageFlowGps\":%s,"
       "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,\"touchHold\":%s}",
       phase, card.valid ? "true" : "false", control.activeCycle ? "true" : "false",
-      weight, card.goalWeightG,
+      weight, static_cast<double>(goalWeightDgToGrams(card.goalWeightDg)),
       static_cast<unsigned long>(card.durationMs), drop, tare, preset,
       card.scaleAvailable ? "true" : "false",
       lastShotTypeName(static_cast<LastShotType>(card.shotType)),

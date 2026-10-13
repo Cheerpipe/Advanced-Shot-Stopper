@@ -109,7 +109,7 @@ void stats_json_preserves_independent_metrics() {
   for (unsigned i = 0; i < 3; ++i) {
     rows[i].durationDs = 280 + i * 20;
     rows[i].actualWeightCg = 3690 + i * 100;
-    rows[i].goalWeightG = 36;
+    rows[i].goalWeightDg = 360;
     rows[i].avgFlowCgS = 142 + i * 10;
     rows[i].hasWallTime = true;
     rows[i].endedAtLocalSec = 86400;

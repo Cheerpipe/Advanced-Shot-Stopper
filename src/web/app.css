@@ -494,8 +494,9 @@ body.qwOpen{overflow:hidden}
 .qwZone{position:relative;display:flex;flex-direction:column;justify-content:center;padding:1.5rem 0 .95rem;touch-action:none;cursor:ew-resize;user-select:none;-webkit-user-select:none}
 .qwScale{position:relative;height:2.15rem;overflow:hidden;-webkit-mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent);mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent)}
 .qwScaleIn{position:absolute;inset:0;will-change:transform}
-.qwScaleIn i{position:absolute;top:0;width:1.5px;height:.8rem;background:var(--bd)}
-.qwScaleIn i.big{height:1.25rem;background:var(--mu)}
+.qwScaleIn i{position:absolute;top:0;width:1px;height:.7rem;background:var(--bd)}
+.qwScaleIn i.med{width:1.5px;height:1rem;background:var(--mu)}
+.qwScaleIn i.big{width:1.5px;height:1.25rem;background:var(--mu)}
 .qwScaleIn b{position:absolute;top:1.32rem;transform:translateX(-50%);font-size:.62rem;font-weight:700;line-height:1;color:var(--mu);font-variant-numeric:tabular-nums;white-space:nowrap}
 /* Guard zones: reference tints outside the editable range, BBW green inside */
 .qwScaleIn i.zOk{background:var(--ok)}

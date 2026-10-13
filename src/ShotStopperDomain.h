@@ -66,7 +66,7 @@ namespace shotstopper {
 constexpr uint32_t SERIAL_BAUD = 115200;
 // Settings v3 preserves the v1/v2 layout; authenticated records upgrade on read.
 // Other historical layouts still require the documented USB erase workflow.
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 3;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 4;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;
@@ -638,7 +638,7 @@ enum class LogLevel : uint8_t {
 // Fixed NVS/UI layout; size or offset changes bump CONFIG_SCHEMA_VERSION.
 struct RuntimeConfig {
   uint32_t revision = 1;
-  uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  uint16_t goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   // Global setting, never copied into a preset.
   bool powerManagementEnabled = true;
   uint8_t timezoneAutomatic = 1;  // Former padding, identified by settings tag.
@@ -846,7 +846,7 @@ struct CycleConfigSnapshot {
   uint8_t bbwProfileVersion = BBW_PROFILE_VERSION;
   uint32_t bbwLearningGeneration = 0;
   uint32_t revision = 1;
-  uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  uint16_t goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   float weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   bool autoTare = true;
   bool touchStopFallbackEnabled = true;
@@ -903,7 +903,7 @@ inline CycleConfigSnapshot snapshotConfig(const RuntimeConfig &config) {
   snapshot.bbwAlgorithm = config.bbwAlgorithm;
   snapshot.bbwProfileVersion = bbwAlgorithmVersion(config.bbwAlgorithm);
   snapshot.revision = config.revision;
-  snapshot.goalWeightG = config.goalWeightG;
+  snapshot.goalWeightDg = config.goalWeightDg;
   snapshot.weightOffsetG = config.weightOffsetG;
   snapshot.autoTare = config.autoTare;
   snapshot.postTareBaselineGraceMs = config.postTareBaselineGraceMs;
@@ -1011,7 +1011,7 @@ constexpr size_t SHOT_PRESET_NAME_CAPACITY = 24;
 constexpr uint8_t FACTORY_PRESET_ID_SINGLE = 1;
 constexpr uint8_t FACTORY_PRESET_ID_DOUBLE = 2;
 constexpr float FACTORY_SINGLE_WEIGHT_OFFSET_G = 0.5f;
-constexpr uint8_t FACTORY_SINGLE_GOAL_WEIGHT_G = 18;
+constexpr uint16_t FACTORY_SINGLE_GOAL_WEIGHT_DG = 180;
 constexpr float FACTORY_SINGLE_MAX_RECOVERY_WEIGHT_G = 20.0f;
 constexpr uint32_t FACTORY_SINGLE_MIN_BBW_BREW_TIME_MS = 28000;
 constexpr float FACTORY_SINGLE_MIN_RECOVERY_WEIGHT_G = 16.0f;
@@ -1025,11 +1025,11 @@ inline void repairSlowExtractionGuard(RuntimeConfig &runtime) {
   if (!std::isfinite(runtime.minRecoveryWeightG) ||
       runtime.minRecoveryWeightG < MIN_MIN_RECOVERY_WEIGHT_G ||
       runtime.minRecoveryWeightG > MAX_MIN_RECOVERY_WEIGHT_G ||
-      runtime.minRecoveryWeightG >= static_cast<float>(runtime.goalWeightG)) {
-    const float repaired = static_cast<float>(runtime.goalWeightG) - 1.0f;
+      runtime.minRecoveryWeightG >= goalWeightDgToGrams(runtime.goalWeightDg)) {
+    const float repaired = goalWeightDgToGrams(runtime.goalWeightDg) - 0.1f;
     if (repaired >= MIN_MIN_RECOVERY_WEIGHT_G &&
         repaired <= MAX_MIN_RECOVERY_WEIGHT_G &&
-        repaired < static_cast<float>(runtime.goalWeightG)) {
+        repaired < goalWeightDgToGrams(runtime.goalWeightDg)) {
       runtime.minRecoveryWeightG = repaired;
     } else {
       runtime.slowExtractionGuardEnabled = false;
@@ -1057,7 +1057,7 @@ inline void repairSlowExtractionGuard(RuntimeConfig &runtime) {
       (!std::isfinite(runtime.minRecoveryWeightG) ||
        runtime.minRecoveryWeightG < MIN_MIN_RECOVERY_WEIGHT_G ||
        runtime.minRecoveryWeightG > MAX_MIN_RECOVERY_WEIGHT_G ||
-       runtime.minRecoveryWeightG >= static_cast<float>(runtime.goalWeightG) ||
+       runtime.minRecoveryWeightG >= goalWeightDgToGrams(runtime.goalWeightDg) ||
        runtime.maxBbwBrewTimeMs < MIN_MAX_BBW_BREW_TIME_MS ||
        runtime.maxBbwBrewTimeMs > MAX_MAX_BBW_BREW_TIME_MS ||
        runtime.maxBbwBrewTimeMs >= runtime.operationalWallMs ||
@@ -1069,7 +1069,10 @@ inline void repairSlowExtractionGuard(RuntimeConfig &runtime) {
 }
 
 // NVS dual-slot budget headroom for PersistedSettings including the preset bank.
-constexpr size_t PERSISTED_SETTINGS_NVS_BUDGET = 3328;
+// Settings v4 widens every preset goal to decigrams (+4 B × 8 presets); the
+// nvs partition holds ~2.6 K entries with ~2.3 K free, so the dual-slot blob
+// keeps ample room at 3360.
+constexpr size_t PERSISTED_SETTINGS_NVS_BUDGET = 3360;
 
 enum class PresetAction : uint8_t {
   APPLY = 0,
@@ -1104,8 +1107,8 @@ inline ConfigValidationError validateRuntimeConfig(
     const RuntimeConfig &config) {
   if (config.bbwAlgorithm != static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA))
     return ConfigValidationError::BBW_ALGORITHM;
-  if (config.goalWeightG < MIN_GOAL_WEIGHT_G ||
-      config.goalWeightG > MAX_GOAL_WEIGHT_G) {
+  if (config.goalWeightDg < MIN_GOAL_WEIGHT_DG ||
+      config.goalWeightDg > MAX_GOAL_WEIGHT_DG) {
     return ConfigValidationError::GOAL_WEIGHT;
   }
   if (!std::isfinite(config.weightOffsetG) || config.weightOffsetG < 0.0f ||
@@ -1304,7 +1307,7 @@ inline ConfigValidationError validateRuntimeConfig(
         config.minBbwBrewTimeMs > MAX_MIN_BBW_BREW_TIME_MS) {
       return ConfigValidationError::MIN_BBW_BREW_TIME;
     }
-    if (config.maxRecoveryWeightG <= static_cast<float>(config.goalWeightG) ||
+    if (config.maxRecoveryWeightG <= goalWeightDgToGrams(config.goalWeightDg) ||
         config.minBbwBrewTimeMs >= config.operationalWallMs ||
         config.minBbwBrewTimeMs < config.bbwProtectionMs) {
       return ConfigValidationError::FAST_EXTRACTION_GUARD_RELATION;
@@ -1320,7 +1323,7 @@ inline ConfigValidationError validateRuntimeConfig(
         config.maxBbwBrewTimeMs > MAX_MAX_BBW_BREW_TIME_MS) {
       return ConfigValidationError::MAX_BBW_BREW_TIME;
     }
-    if (config.minRecoveryWeightG >= static_cast<float>(config.goalWeightG) ||
+    if (config.minRecoveryWeightG >= goalWeightDgToGrams(config.goalWeightDg) ||
         config.maxBbwBrewTimeMs >= config.operationalWallMs ||
         config.maxBbwBrewTimeMs < config.bbwProtectionMs ||
         (config.fastExtractionGuardEnabled &&
@@ -1979,7 +1982,7 @@ struct PersistedLastShot {
   EndReason endReason = EndReason::NONE;
   float currentWeightG = 0.0f;
   bool weightValid = false;
-  uint8_t goalWeightG = 0;
+  uint16_t goalWeightDg = 0;
   bool extractionExtended = false;
   float activeStopWeightG = 0.0f;
   uint32_t firstDropElapsedMs = 0;

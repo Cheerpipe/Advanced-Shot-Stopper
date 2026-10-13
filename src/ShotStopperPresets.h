@@ -13,7 +13,7 @@ inline void seedAutoToManualSamples(ShotPreset &preset) {
 inline void fillDoubleFirmwareDefaults(ShotPreset &preset) {
   preset = ShotPreset{};
   preset.brewByWeight = true;
-  preset.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  preset.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   preset.operationalWallMs = DEFAULT_OPERATIONAL_WALL_MS;
   preset.bbwProtectionMs = DEFAULT_BBW_PROTECTION_MS;
   preset.weightOffsetBaselineG = DEFAULT_WEIGHT_OFFSET_G;
@@ -47,7 +47,7 @@ inline void fillFactorySinglePreset(ShotPreset &preset) {
   preset.brewByWeight = true;
   preset.isFactory = true;
   copyCString(preset.name, SHOT_PRESET_NAME_CAPACITY, "Single");
-  preset.goalWeightG = FACTORY_SINGLE_GOAL_WEIGHT_G;
+  preset.goalWeightDg = FACTORY_SINGLE_GOAL_WEIGHT_DG;
   preset.maxRecoveryWeightG = FACTORY_SINGLE_MAX_RECOVERY_WEIGHT_G;
   preset.minBbwBrewTimeMs = FACTORY_SINGLE_MIN_BBW_BREW_TIME_MS;
   preset.minRecoveryWeightG = FACTORY_SINGLE_MIN_RECOVERY_WEIGHT_G;
@@ -153,7 +153,7 @@ inline bool validateShotPresetRecipe(const ShotPreset &preset,
       !std::isfinite(preset.bbwEwmaOffsetG) || preset.bbwEwmaOffsetG < 0.0f ||
       preset.bbwEwmaOffsetG > MAX_OFFSET_G) return false;
   RuntimeConfig probe;
-  probe.goalWeightG = preset.goalWeightG;
+  probe.goalWeightDg = preset.goalWeightDg;
   probe.weightOffsetG = preset.weightOffsetG;
   probe.weightOffsetBaselineG = preset.weightOffsetBaselineG;
   probe.timerOnly = !preset.brewByWeight;
@@ -267,12 +267,12 @@ inline void ensureShotPresetBank(ShotPresetBank &bank,
           preset.maxRecoveryWeightG < MIN_MAX_RECOVERY_WEIGHT_G ||
           preset.maxRecoveryWeightG > MAX_MAX_RECOVERY_WEIGHT_G ||
           preset.maxRecoveryWeightG <=
-              static_cast<float>(preset.goalWeightG)) {
+              goalWeightDgToGrams(preset.goalWeightDg)) {
         const float repaired =
-            static_cast<float>(preset.goalWeightG) + 1.0f;
+            goalWeightDgToGrams(preset.goalWeightDg) + 0.1f;
         if (repaired >= MIN_MAX_RECOVERY_WEIGHT_G &&
             repaired <= MAX_MAX_RECOVERY_WEIGHT_G &&
-            repaired > static_cast<float>(preset.goalWeightG)) {
+            repaired > goalWeightDgToGrams(preset.goalWeightDg)) {
           preset.maxRecoveryWeightG = repaired;
         } else {
           preset.fastExtractionGuardEnabled = false;
@@ -286,7 +286,7 @@ inline void ensureShotPresetBank(ShotPresetBank &bank,
     }
     if (preset.slowExtractionGuardEnabled) {
       RuntimeConfig probe = {};
-      probe.goalWeightG = preset.goalWeightG;
+      probe.goalWeightDg = preset.goalWeightDg;
       probe.operationalWallMs = preset.operationalWallMs;
       probe.bbwProtectionMs = preset.bbwProtectionMs;
       probe.fastExtractionGuardEnabled = preset.fastExtractionGuardEnabled;
@@ -351,7 +351,7 @@ inline void applyShotPresetToConfig(const ShotPreset &preset,
                                     RuntimeConfig &config,
                                     bool keepSessionTimerOnly) {
   const bool sessionManual = keepSessionTimerOnly && config.timerOnly;
-  config.goalWeightG = preset.goalWeightG;
+  config.goalWeightDg = preset.goalWeightDg;
   config.bbwAlgorithm = preset.bbwAlgorithm;
   config.weightOffsetG = preset.bbwEwmaOffsetG;
   config.weightOffsetBaselineG = preset.weightOffsetBaselineG;
@@ -388,7 +388,7 @@ inline void copyUserRecipeFromConfig(const RuntimeConfig &config,
                                      ShotPreset &preset) {
   preset.bbwAlgorithm = config.bbwAlgorithm;
   preset.brewByWeight = !config.timerOnly;
-  preset.goalWeightG = config.goalWeightG;
+  preset.goalWeightDg = config.goalWeightDg;
   preset.operationalWallMs = config.operationalWallMs;
   preset.bbwProtectionMs = config.bbwProtectionMs;
   preset.weightOffsetBaselineG = config.weightOffsetBaselineG;

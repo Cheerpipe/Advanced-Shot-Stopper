@@ -21,7 +21,7 @@
   // Field defaults mirror the Settings form: steps come from the shipped
   // inputs (asserted below) and values form one consistent stored state.
   const svFieldSpec = {
-    goalWeightG: ['number', '1', '36'],
+    goalWeightG: ['number', '0.1', '36'],
     operationalWallS: ['number', '1', '45'],
     bbwProtectionS: ['number', '0.1', '12'],
     weightOffsetBaselineG: ['number', '0.01', '1.5'],
@@ -81,6 +81,15 @@
     'Target (g) must be less than 80.0 g (Max recovery, Fast extraction guard).');
   svAssert.ok(svB.errors.every((e) => e.id === 'goalWeightG'));
 
+  // (b2) Tenths are the finest step the firmware stores; a finer value is
+  // rejected with the step spelled out.
+  const svB2 = svValidate((f) => {
+    f.goalWeightG.value = '36.55';
+  });
+  svAssert.equal(svB2.errors.length, 1, JSON.stringify(svB2.errors));
+  svAssert.equal(svB2.errors[0].msg,
+    'Target (g) must be from 10 to 200 g in 0.1 steps.');
+
   // (c) Two edited fields in conflict produce two errors, one per side, each
   // embedding the other field's value.
   const svC = svValidate((f) => {
@@ -91,7 +100,7 @@
   svAssert.deepEqual(svC.errors.map((e) => e.id),
     ['minRecoveryWeightG', 'goalWeightG']);
   svAssert.equal(svC.errors[0].msg,
-    'Min recovery (g) must be less than 10 g (Target, Brew by Weight).');
+    'Min recovery (g) must be less than 10.0 g (Target, Brew by Weight).');
   svAssert.equal(svC.errors[1].msg,
     'Target (g) must be greater than 40.0 g (Min recovery, Slow extraction guard).');
 
@@ -133,7 +142,7 @@
   svAssert.equal(svF.errors.length, 1, JSON.stringify(svF.errors));
   svAssert.equal(svF.errors[0].id, 'minRecoveryWeightG');
   svAssert.equal(svF.errors[0].msg,
-    'Min recovery (g) must be less than 10 g (Target, Brew by Weight).');
+    'Min recovery (g) must be less than 10.0 g (Target, Brew by Weight).');
 
   // (h) The retare floor rule shows its computation when auto-retare is on and
   // states the bare bound when it is off.
@@ -175,7 +184,7 @@
   // every section reference a real section summary.
   svAssert.equal(svA.rules.length, 11);
   svAssert.ok(svA.rules.some((r) => r[1] === 'retareFloor'));
-  for (const [id, step] of [['goalWeightG', '1'], ['operationalWallS', '1'],
+  for (const [id, step] of [['goalWeightG', '0.1'], ['operationalWallS', '1'],
     ['bbwProtectionS', '0.1'], ['maxRecoveryWeightG', '0.1'],
     ['minBbwBrewTimeS', '0.5'], ['minRecoveryWeightG', '0.1'],
     ['maxBbwBrewTimeS', '0.5'], ['autoToManualGuardManualLimitS', '1'],

@@ -45,7 +45,7 @@ bool shouldTrackWeight() {
 }
 
 float effectiveStopThreshold() {
-  return static_cast<float>(session.config.goalWeightG) -
+  return goalWeightDgToGrams(session.config.goalWeightDg) -
          session.config.weightOffsetG;
 }
 

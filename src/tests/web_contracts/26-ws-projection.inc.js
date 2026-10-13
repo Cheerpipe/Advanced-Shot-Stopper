@@ -73,7 +73,7 @@ int main(){
   assert(scale()==empty);
   profile.downloading=true;assert(scale()!=empty);puts(scale().c_str());
   profile.downloading=false;profile.lastError=ScaleProfilerError::ALLOCATION;puts(scale().c_str());
-  ShotLogRecord record{};record.id=1;record.bootId=9;record.goalWeightG=40;record.actualWeightCg=4200;
+  ShotLogRecord record{};record.id=1;record.bootId=9;record.goalWeightDg=400;record.actualWeightCg=4200;
   record.errorCg=200;record.avgFlowCgS=SHOT_LOG_METRIC_MISSING;
   record.firstDropDs=record.tareAtDs=SHOT_LOG_METRIC_MISSING;
   assert(ShotStopperNetwork::formatShotStatsRow(work,record,nullptr));
@@ -115,7 +115,7 @@ int main(){
   assert.equal(empty.scaleProfile.canStart, true);
   assert.equal(busy.scaleProfile.canStart, false);
   assert.equal(failed.scaleProfile.lastError, 'allocation');
-  assert.equal(row.bootId, 9);assert.equal(row.actualG, 42);
+  assert.equal(row.bootId, 9);assert.equal(row.actualG, 42);assert.equal(row.goalG, 40);
   assert(!('errorG' in row) && !('errorPct' in row));
   assert(Array.isArray(row.wCg) && Array.isArray(row.wAtMs));
   fs.writeFileSync(path.join(directory, 'sizes.json'), JSON.stringify({

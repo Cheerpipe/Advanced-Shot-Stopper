@@ -57,7 +57,8 @@ void profileControlState(uint32_t captureSequence, uint32_t evidenceConnection) 
       {S::STOP_IF_REMOVED, session.active ? session.config.stopIfCupRemoved : runtimeConfig.stopIfCupRemoved},
       {S::REQUIRE_CUP, session.active ? session.config.requireCupToStart : runtimeConfig.requireCupToStart},
       {S::TOUCH_ENABLED, session.active ? session.config.avoidAccidentalTouchEnabled : runtimeConfig.avoidAccidentalTouchEnabled},
-      {S::GOAL_CG, cg(session.active ? session.config.goalWeightG : runtimeConfig.goalWeightG)},
+      {S::GOAL_CG, cg(goalWeightDgToGrams(
+          session.active ? session.config.goalWeightDg : runtimeConfig.goalWeightDg))},
       {S::OFFSET_CG, cg(session.active ? session.config.weightOffsetG : runtimeConfig.weightOffsetG)},
       {S::NO_SCALE_BBW_MODE, runtimeConfig.noScaleBbwMode},
       {S::MIN_CUP_CG, cg(runtimeConfig.minimumCupWeightG)},
@@ -410,7 +411,7 @@ void publishControlStatus() {
     home.valid = true;
     home.cycleId = session.id;
     home.durationMs = next.cycleElapsedMs;
-    home.goalWeightG = session.config.goalWeightG;
+    home.goalWeightDg = session.config.goalWeightDg;
     home.presetId = session.activePresetId;
     copyCString(home.presetName, sizeof(home.presetName), session.activePresetName);
     copyCString(home.scaleName, sizeof(home.scaleName), session.scaleName);
@@ -451,7 +452,7 @@ void publishControlStatus() {
       next.cycleMinBbwBrewTimeRemainingMs = 0;
     } else {
       next.cycleActiveStopWeightG =
-          static_cast<float>(session.config.goalWeightG);
+          goalWeightDgToGrams(session.config.goalWeightDg);
       next.cycleMinBbwBrewTimeRemainingMs = 0;
     }
     next.cycleAutoToManualGuardArmed = session.autoToManualGuardArmed;

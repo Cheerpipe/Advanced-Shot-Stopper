@@ -24,7 +24,8 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
 
   serialTracef(LogLevel::INFO,
                "Final weight: %.2fg; cycle goal: %.2fg; cycle offset: %.2fg",
-               finalWeightG, snapshot.goalWeightG, snapshot.weightOffsetG);
+               finalWeightG, goalWeightDgToGrams(snapshot.goalWeightDg),
+               snapshot.weightOffsetG);
 
   float updatedOffset = 0.0f;
   const bool acceptedFresh = postDripWeightValid && snapshot.scaleBaselineReady &&
@@ -34,7 +35,8 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
       currentWeightIsFresh(millis()) &&
       currentWeightConnectionGeneration == snapshot.scaleConnectionGeneration &&
       snapshot.scaleConnectionGeneration == getScaleLinkSnapshot().connectionGeneration;
-  if (!bbwEwma::learn(snapshot.weightOffsetG, finalWeightG, snapshot.goalWeightG,
+  if (!bbwEwma::learn(snapshot.weightOffsetG, finalWeightG,
+                     goalWeightDgToGrams(snapshot.goalWeightDg),
                       snapshot.bbwAlpha, acceptedFresh, updatedOffset)) {
     serialTrace(LogLevel::WARNING,
                 "Calculated offset outside safe range; offset unchanged");
@@ -78,7 +80,8 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
     return false;
   preset->bbwEwmaOffsetG = updatedOffset;
   const uint8_t nextAlpha = learning.evidence.observe(
-      snapshot.weightOffsetG + (finalWeightG - snapshot.goalWeightG),
+      snapshot.weightOffsetG +
+          (finalWeightG - goalWeightDgToGrams(snapshot.goalWeightDg)),
       snapshot.weightOffsetG, snapshot.bbwAlpha);
   if (nextAlpha != preset->bbwEwmaAlpha) preset->bbwAlphaLearned = 1;
   preset->bbwEwmaAlpha = nextAlpha;

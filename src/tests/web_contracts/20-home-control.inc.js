@@ -164,7 +164,7 @@
   if(!lookup('shotHeroDrop').hidden||lookup('shotHeroFlow').hidden||
       lookup('shotHeroFlow').textContent!=='Avg flow 1.23 g/s')throw new Error('Home must render firmware event/flow validity');
   paint({...card,weight:36.2,elapsedMs:36800});
-  if(lookup('shotHeroWeight').textContent!=='36.2 g'||lookup('shotHeroGoal').textContent!==' / 36 g'||
+  if(lookup('shotHeroWeight').textContent!=='36.2 g'||lookup('shotHeroGoal').textContent!==' / 36.0 g'||
       lookup('shotHeroElapsed').textContent!=='36.8 s'||lookup('shotHeroError').hidden||
       lookup('shotHeroError').textContent!=='Err 0.6%')throw new Error('Home must label units and signed target error');
   paint({...card,weight:35});
@@ -179,7 +179,7 @@
       lookup('shotHeroMode').hidden||lookup('shotHeroMode').textContent!=='No scale')
     throw new Error('A shot started without a scale must turn the hero into a timer');
   paint({...card,scaleAvailable:true});
-  if(lookup('shotHeroWeight').textContent!=='2.0 g'||lookup('shotHeroGoal').textContent!==' / 36 g'||
+  if(lookup('shotHeroWeight').textContent!=='2.0 g'||lookup('shotHeroGoal').textContent!==' / 36.0 g'||
       lookup('shotHeroElapsed').hidden)throw new Error('A scale shot must keep the weight layout');
   paint({...card,touchHold:true});
   if(lookup('shotHeroTouch').hidden||lookup('shotHeroTouch').textContent!=='touch hold')

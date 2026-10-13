@@ -390,7 +390,7 @@ if (!codeIncludes(ui, '<legend>Brew</legend>') ||
     !codeIncludes(ui, "action:'restore_factory_values'") ||
     !codeIncludes(ui, 'function startRenamePreset(') ||
     !codeIncludes(ui, 'function updatePresetActionButtons(') ||
-    !codeIncludes(ui, "function presetSummary(p){return 'Target '+(p.goalWeightG||'?')+' g'}") ||
+    !codeIncludes(ui, "function presetSummary(p){return 'Target '+(p.goalWeightG ? p.goalWeightG.toFixed(1) : '?')+' g'}") ||
     !codeIncludes(ui, "badge.textContent=p.isFactory?'factory':'custom'") ||
     !codeIncludes(ui, 'Discard them and switch presets') ||
     !codeIncludes(ui, 'saveBrewPreset') ||
@@ -935,7 +935,7 @@ if (codeIncludes(ui, 'id="shotRating"') ||
     !network.includes('LAST_SHOT_NOT_FOUND') ||
     !network.includes('\\"rating\\":%u') ||
     !network.includes('\\"shotId\\":%lu') ||
-    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 1') ||
+    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 2') ||
     !lastShotIo.includes(
         'void advance(const PersistedLastShot &shot,') ||
     !lastShotIo.includes('uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS') ||

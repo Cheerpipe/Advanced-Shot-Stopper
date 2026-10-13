@@ -64,14 +64,14 @@ inline bool validBullseyeMelodyConfig(const BullseyeMelodyConfig &config) {
   return validBullseyeRtttl(config.rtttl);
 }
 
-inline bool bullseyeWeightExactlyTarget(float weightG, uint8_t targetWeightG) {
+inline bool bullseyeWeightExactlyTarget(float weightG, uint16_t targetWeightDg) {
   return std::isfinite(weightG) &&
-         fabsf(weightG - static_cast<float>(targetWeightG)) < 0.005f;
+         fabsf(weightG - goalWeightDgToGrams(targetWeightDg)) < 0.005f;
 }
 
 struct BullseyeTracker {
   bool pending = false;
-  uint8_t targetWeightG = 0;
+  uint16_t targetWeightDg = 0;
   uint32_t endedAtMs = 0;
   uint32_t dripDelayMs = 0;
   uint32_t cupPlacementId = 0;
@@ -83,11 +83,11 @@ struct BullseyeTracker {
 
   void clear() { *this = BullseyeTracker{}; }
 
-  void arm(uint8_t target, uint32_t endedAt, uint32_t dripDelay,
+  void arm(uint16_t targetWeightDg_, uint32_t endedAt, uint32_t dripDelay,
            uint32_t weightSequence, uint32_t placementId = 0) {
     clear();
     pending = true;
-    targetWeightG = target;
+    targetWeightDg = targetWeightDg_;
     endedAtMs = endedAt;
     dripDelayMs = dripDelay;
     cupPlacementId = placementId;
@@ -108,7 +108,7 @@ struct BullseyeTracker {
       return false;
     }
     processedWeightSequence = sequence;
-    if (!bullseyeWeightExactlyTarget(weightG, targetWeightG)) {
+    if (!bullseyeWeightExactlyTarget(weightG, targetWeightDg)) {
       targetSinceAtMs = 0;
       lastTargetSampleAtMs = 0;
       targetSampleCount = 0;

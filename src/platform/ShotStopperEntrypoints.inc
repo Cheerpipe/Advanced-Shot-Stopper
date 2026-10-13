@@ -47,9 +47,9 @@ uint32_t composeScaleProfileContext(char *text, size_t capacity) {
   if (used > 0 && static_cast<size_t>(used) < capacity) {
     used += snprintf(
         text + used, capacity - used,
-        "settings=goalG:%d offsetG:%d autoTare:%d autoRetare:%d cupProt:%d "
+        "settings=goalG:%.1f offsetG:%d autoTare:%d autoRetare:%d cupProt:%d "
         "stopIfRemoved:%d requireCup:%d touch:%d graceMs:%lu\n",
-        static_cast<int>(control->config.goalWeightG),
+        static_cast<double>(goalWeightDgToGrams(control->config.goalWeightDg)),
         static_cast<int>(control->config.weightOffsetG),
         control->config.autoTare ? 1 : 0, control->config.autoRetare ? 1 : 0,
         control->config.cupProtectionEnabled ? 1 : 0,
@@ -422,7 +422,7 @@ void setup() {
 
   addDebugEvent(DebugCategory::BOOT, DebugCode::BOOT_RUNTIME_CONFIG,
                 weightToCentigrams(
-                    static_cast<float>(runtimeConfig.goalWeightG)),
+                    goalWeightDgToGrams(runtimeConfig.goalWeightDg)),
                 weightToCentigrams(runtimeConfig.weightOffsetG));
 
 #ifndef SHOT_STOPPER_HOST_TEST

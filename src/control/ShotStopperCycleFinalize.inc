@@ -95,7 +95,7 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
     pendingFinalize.tareAtDs = static_cast<uint16_t>(
         (session.retareAtMs - shotAnchorMs) / 100U);
   }
-  pendingFinalize.goalWeightG = session.config.goalWeightG;
+  pendingFinalize.goalWeightDg = session.config.goalWeightDg;
   pendingFinalize.weightOffsetG = session.config.weightOffsetG;
   pendingFinalize.bbwAlgorithm = session.config.bbwAlgorithm;
   pendingFinalize.bbwAlpha = session.config.bbwAlpha;
@@ -190,7 +190,7 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
   // The persisted duration has decisecond precision; keep a just-over-12 s
   // shot distinguishable from an old row recorded at exactly 12.0 s.
   record.durationDs = snapshot.durationDs > 120U ? snapshot.durationDs : 121U;
-  record.goalWeightG = snapshot.goalWeightG;
+  record.goalWeightDg = snapshot.goalWeightDg;
   record.offsetUsedCg = shotLogWeightToCentigrams(snapshot.weightOffsetG);
   record.shotType = static_cast<uint8_t>(shotLogTypeFromCycle(
       snapshot.finalState, snapshot.startedWithScale, snapshot.timerOnly,
@@ -228,7 +228,7 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
       record.actualWeightCg = 201;
     record.errorCg =
         shotLogWeightToCentigrams(finalWeightG -
-                           static_cast<float>(snapshot.goalWeightG));
+                           goalWeightDgToGrams(snapshot.goalWeightDg));
     if (snapshot.firstDropDs != SHOT_LOG_METRIC_MISSING &&
         (weightSource == ActualWeightSource::POST_DRIP ||
          weightSource == ActualWeightSource::LAST_KNOWN)) {
@@ -301,7 +301,7 @@ void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
                           : 0U;
   event.weightValid = finalWeightValid && std::isfinite(finalWeightG);
   event.weightG = event.weightValid ? finalWeightG : 0.0f;
-  event.targetWeightG = static_cast<float>(snapshot.goalWeightG);
+  event.targetWeightG = goalWeightDgToGrams(snapshot.goalWeightDg);
   event.presetId = snapshot.activePresetId;
   copyCString(event.presetName, sizeof(event.presetName),
               snapshot.activePresetName);
@@ -415,7 +415,8 @@ void maybeQueueAutoToManualGuardSample(const PendingShotFinalize &snapshot,
       brewEndIsAbandonedStart(snapshot.endReason) ||
       snapshot.endReason == EndReason::SHORT_SHOT ||
       static_cast<uint32_t>(snapshot.durationDs) * 100U <= snapshot.protectionMs ||
-      !autoToManualGuardSampleErrorOk(finalWeightG, snapshot.goalWeightG)) {
+      !autoToManualGuardSampleErrorOk(
+            finalWeightG, snapshot.goalWeightDg)) {
     return;
   }
   ShotPreset *preset = mutableShotPreset(

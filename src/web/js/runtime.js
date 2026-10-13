@@ -1474,7 +1474,7 @@ function renderShots() {
       const vals = [
         formatShotTime(r),
         r.durationS.toFixed(1) + "s",
-        r.goalG + "g",
+        r.goalG.toFixed(1) + "g",
         actual === null ? "—" : actual.toFixed(1) + "g",
         err,
         flow === null ? "—" : flow.toFixed(2) + " g/s",
@@ -1733,7 +1733,7 @@ async function exportShotsCsv() {
         r.endedAtUnixSec || "",
         r.hasWallTime ? (r.timezoneOffsetMinutesAtCommit ?? "") : "",
         r.durationS,
-        r.goalG,
+        r.goalG.toFixed(1),
         actual ?? "",
         errorG ?? "",
         errorPct ?? "",
@@ -3578,6 +3578,13 @@ function rangeCheck(id, min, max, label, opts) {
       msg:
         label + __WEBUI_TEXT__("runtime.must_be_an_integer_from") + min + " to " + max + unit + ".",
     };
+  if (opts && opts.step && Math.abs(v / opts.step - Math.round(v / opts.step)) > 1e-6)
+    return {
+      id,
+      msg:
+        label + __WEBUI_TEXT__("runtime.must_be_from") + min + " to " + max + unit +
+        __WEBUI_TEXT__("runtime.in_steps_of").replace("%1", opts.step) + ".",
+    };
   if (v < min || v > max)
     return {
       id,
@@ -3849,7 +3856,7 @@ function validateBrewClient() {
         ...opts,
       }),
     add = (e) => e && errors.push(e);
-  add(brewRange("goalWeightG", 10, 200, {int: 1}));
+  add(brewRange("goalWeightG", 10, 200, {step: 0.1}));
   add(brewRange("operationalWallS", 5, 60, {int: 1}));
   add(brewRange("bbwProtectionS", 0.5, 30));
   if (!$("weightOffsetBaselineG").disabled) add(brewRange("weightOffsetBaselineG", 0, 5));
@@ -4393,7 +4400,7 @@ function formatNetworkStatus(n) {
 let presetState = { activeId: 0, items: [], selectedId: 0 },
   presetsLoaded = false;
 function presetSummary(p) {
-  return __WEBUI_TEXT__("runtime.target_2") + (p.goalWeightG || "?") + " g";
+  return __WEBUI_TEXT__("runtime.target_2") + (p.goalWeightG ? p.goalWeightG.toFixed(1) : "?") + " g";
 }
 function presetCardDot() {
   const dot = document.createElement("span");
@@ -6581,7 +6588,7 @@ function renderShotHero(d) {
         : wt === null
           ? __WEBUI_TEXT__("runtime.unknown")
           : wt.toFixed(1) + __WEBUI_TEXT__("runtime.g_2"),
-    ) + t("Goal", noScale ? "" : goal > 0 ? " / " + goal + " g" : "");
+    ) + t("Goal", noScale ? "" : goal > 0 ? " / " + goal.toFixed(1) + " g" : "");
   const hTrack = $("shotHeroTrack");
   if (hTrack) {
     hTrack.style.setProperty("--goal-pct", (scale ? (goal / scale) * 100 : 100) + "%");
@@ -6741,7 +6748,7 @@ function loadSettingsConfig(c) {
   if (configLoaded && (configDirty || brewDirty || formRev === c.revision)) return;
   bbwFormPresetId = c.bbwPresetId || 0;
   $("bbwAlphaBaseline").value = c.bbwAlphaBaseline ?? 0.3;
-  $("goalWeightG").value = c.goalWeightG;
+  $("goalWeightG").value = c.goalWeightG.toFixed(1);
   [
     "rinseGesture",
     "rinseDuration",

@@ -732,8 +732,12 @@ if (htmlBytes > 91600) {
 // Keeping the quick-weight grab bar's pointer capture from swallowing taps on
 // its interactive children (the Done button) adds a guard to the shared drag
 // helper: ~0.3 KB of JS source allowance; compressed budgets stay fixed.
-if (jsBytes > 383800) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 383800)`);
+// Decigram target weights add the 0.1-step Settings validation branch and the
+// reworked quick-weight ruler (statically positioned major/medium/minor ticks
+// moved by one transform, decigram value model) to runtime.js and home.js:
+// ~1.6 KB of JS source allowance; compressed budgets stay fixed.
+if (jsBytes > 385400) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 385400)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -803,8 +807,8 @@ if (jsBytes > 383800) {
 // described above; compressed budgets stay fixed.
 // The Diagnostics audit viewer adds its ~3.7 KB of combined source allowance
 // (~3.1 KB of JS plus the audit panel markup) described above.
-if (htmlBytes + jsBytes > 475500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 475500)`);
+if (htmlBytes + jsBytes > 476800) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 476800)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
@@ -876,7 +880,7 @@ if (!codeIncludes(ui, 'function rangeCheck(') ||
     !codeIncludes(ui, 'samples × sample gap') ||
     !codeIncludes(ui, 'aria-live') ||
     !codeIncludes(ui, 'fieldError') ||
-    !codeIncludes(ui, 'id="goalWeightG" type="number" min="10" max="200" step="1"') ||
+    !codeIncludes(ui, 'id="goalWeightG" type="number" min="10" max="200" step="0.1"') ||
     !codeIncludes(ui, 'validateNetworkClient') ||
     !codeIncludes(ui, 'validateDevicePasswordClient') ||
     !network.includes('Max recovery must be from 10 to 200 g.') ||

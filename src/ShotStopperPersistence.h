@@ -138,31 +138,106 @@ inline PersistedSettings &persistedSettingsScratch() {
   return *reinterpret_cast<PersistedSettings *>(flashIoScratchBytes());
 }
 
+// Settings v3→v4 cutover: preset and runtime goals widen from whole grams
+// (uint8) to decigrams (uint16). v1/v2/v3 blobs share the 3312-byte layout;
+// after the in-place v1/v2 semantic tweaks the blob is v3, and this staged
+// widening upgrades it in the read buffer before validation. Byte offsets
+// are pinned by the ShotPreset/RuntimeConfig static asserts.
+constexpr size_t kSettingsV3Bytes = 3312;
+constexpr size_t kSettingsV3ChecksumOffset = 3304;
+constexpr size_t kSettingsV3PresetBytes = 104;
+// The bank header keeps one alignment pad byte before the preset array.
+constexpr size_t kSettingsV3BankBytes =
+    offsetof(ShotPresetBank, presets) + MAX_SHOT_PRESETS * kSettingsV3PresetBytes;
+static_assert(kSettingsV3BankBytes == 836);
+static_assert(sizeof(ShotPreset) == 108 && offsetof(ShotPreset, goalWeightDg) == 28);
+static_assert(offsetof(RuntimeConfig, goalWeightDg) == 4);
+static_assert(offsetof(PersistedSettings, runtime) == 16);
+
+inline uint32_t settingsV3Checksum(const uint8_t *blob) {
+  return crc32(blob, kSettingsV3ChecksumOffset);
+}
+
+// Widens an authenticated v3-layout blob in place; the caller's buffer must
+// be sizeof(PersistedSettings) so the +32 preset growth fits.
+inline void widenSettingsV3ToV4(uint8_t *blob) {
+  const size_t bank = offsetof(PersistedSettings, presets);
+  // Move the post-bank tail (including the old checksum slot) past the
+  // widened bank, then expand presets back-to-front so overlaps stay safe.
+  memmove(blob + bank + sizeof(ShotPresetBank),
+          blob + bank + kSettingsV3BankBytes,
+          kSettingsV3Bytes - bank - kSettingsV3BankBytes);
+  const size_t slots = bank + offsetof(ShotPresetBank, presets);
+  for (size_t index = MAX_SHOT_PRESETS; index-- > 0;) {
+    const uint8_t *src = blob + slots + index * kSettingsV3PresetBytes;
+    uint8_t *dst = blob + slots + index * sizeof(ShotPreset);
+    // Capture the goal before any move: preset 0 widens in place, so the
+    // memset below would otherwise erase its own source byte.
+    const uint16_t goalDg = static_cast<uint16_t>(src[27]) * 10;
+    // Tail first: the widened head would otherwise overwrite the tail source.
+    memmove(dst + 32, src + 28, kSettingsV3PresetBytes - 28);
+    memmove(dst, src, 27);
+    memset(dst + 27, 0, 5);
+    dst[28] = static_cast<uint8_t>(goalDg);
+    dst[29] = static_cast<uint8_t>(goalDg >> 8);
+  }
+  // RuntimeConfig: the u16 goal absorbs the v3 pad byte at offset 7, so
+  // everything from offset 8 on is byte-identical.
+  const size_t runtime = offsetof(PersistedSettings, runtime);
+  const uint16_t runtimeGoalDg = static_cast<uint16_t>(blob[runtime + 4]) * 10;
+  blob[runtime + 7] = blob[runtime + 6];
+  blob[runtime + 6] = blob[runtime + 5];
+  blob[runtime + 4] = static_cast<uint8_t>(runtimeGoalDg);
+  blob[runtime + 5] = static_cast<uint8_t>(runtimeGoalDg >> 8);
+  // The shifted v3 tail leaves old checksum bytes in the v4 tail padding;
+  // zero it so byte-exact round-trips stay deterministic.
+  memset(blob + offsetof(PersistedSettings, checksum) + sizeof(uint32_t), 0,
+         sizeof(PersistedSettings) - offsetof(PersistedSettings, checksum) -
+             sizeof(uint32_t));
+  auto *upgraded = reinterpret_cast<PersistedSettings *>(blob);
+  upgraded->schemaVersion = CONFIG_SCHEMA_VERSION;
+  upgraded->structureSize = sizeof(PersistedSettings);
+  upgraded->checksum = 0;
+  upgraded->checksum = persistedSettingsChecksum(*upgraded);
+}
+
 inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *key,
                              PersistedSettings &settings,
                              uint8_t *aliasedPresetIds = nullptr,
                              uint8_t *aliasedPresetCount = nullptr) {
-  if (!preferences.isKey(key) ||
-      preferences.getBytesLength(key) != sizeof(PersistedSettings)) {
+  const size_t stored = preferences.isKey(key)
+                            ? preferences.getBytesLength(key)
+                            : 0;
+  if (stored != sizeof(PersistedSettings) && stored != kSettingsV3Bytes) {
     return false;
   }
-  if (preferences.getBytes(key, &settings, sizeof(settings)) !=
-      sizeof(settings)) {
+  if (preferences.getBytes(key, &settings, stored) != stored) {
     return false;
   }
-  // Both old schemas have the same layout; authenticate before naming padding.
-  if ((settings.schemaVersion == 1 || settings.schemaVersion == 2) &&
-      settings.magic == PERSISTED_SETTINGS_MAGIC &&
-      settings.structureSize == sizeof(settings) &&
-      settings.checksum == persistedSettingsChecksum(settings)) {
-    if (settings.schemaVersion == 1) {
-      settings.runtime.touchStopFallbackEnabled = true;
-      for (auto &preset : settings.presets.presets)
-        preset.touchStopFallbackEnabled = true;
+  // All old schemas share the v3 byte layout: authenticate against the v3
+  // checksum slot, widen to v4 bytewise, then apply the historical v1/v2
+  // semantic tweaks against the widened struct.
+  if (stored == kSettingsV3Bytes) {
+    uint8_t *blob = reinterpret_cast<uint8_t *>(&settings);
+    const uint32_t schema = settings.schemaVersion;
+    if (schema >= 1 && schema <= 3 &&
+        settings.magic == PERSISTED_SETTINGS_MAGIC &&
+        settings.structureSize == kSettingsV3Bytes &&
+        reinterpret_cast<const uint32_t *>(blob + kSettingsV3ChecksumOffset)[0] ==
+            settingsV3Checksum(blob)) {
+      widenSettingsV3ToV4(blob);
+      if (schema == 1) {
+        settings.runtime.touchStopFallbackEnabled = true;
+        for (auto &preset : settings.presets.presets)
+          preset.touchStopFallbackEnabled = true;
+      }
+      if (schema < 3) {
+        settings.lineaMicra.connectionType =
+            static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
+        settings.checksum = 0;
+        settings.checksum = persistedSettingsChecksum(settings);
+      }
     }
-    settings.lineaMicra.connectionType = static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
-    settings.schemaVersion = CONFIG_SCHEMA_VERSION;
-    settings.checksum = persistedSettingsChecksum(settings);
   }
   if (repairRemovedBbwLegacyAliases(settings, aliasedPresetIds,
                                     aliasedPresetCount)) {
@@ -298,6 +373,10 @@ inline bool savePersistedSettings(PersistedSettings &settings) {
   }
   const uint32_t originalRevision = settings.storageRevision;
   const uint32_t originalChecksum = settings.checksum;
+  // Zero first: the shared scratch carries stale bytes from earlier reads,
+  // and memberwise assignment leaves padding indeterminate — stored blobs
+  // must stay byte-reproducible for the read-back verification.
+  memset(&scratch, 0, sizeof(scratch));
   scratch = settings;
   scratch.storageRevision = revision + 1U;
   if (scratch.storageRevision == 0) {

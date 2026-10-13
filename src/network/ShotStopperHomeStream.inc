@@ -100,7 +100,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("config.timezoneInitialized", bool(durableTimezoneSaved().load()));
   delta.field("config.soundAlertsEnabled", !bool(config.soundAlertsMuted));
   delta.field("config.brewByWeight", !bool(config.timerOnly));
-  delta.field("config.goalWeightG", "%u", static_cast<unsigned>(config.goalWeightG));
+  delta.field("config.goalWeightG", goalWeightDgToGrams(config.goalWeightDg));
   delta.field("config.operationalWallMs", "%lu", static_cast<unsigned long>(config.operationalWallMs));
   delta.field("config.minBbwBrewTimeMs", "%lu", static_cast<unsigned long>(config.minBbwBrewTimeMs));
   delta.field("config.maxBbwBrewTimeMs", "%lu", static_cast<unsigned long>(config.maxBbwBrewTimeMs));
@@ -1212,7 +1212,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
       "\"endedAtUnixSec\":%lu,\"timezoneOffsetMinutesAtCommit\":%d,"
       "\"durationS\":%.1f,\"presetId\":%u,\"presetName\":\"%s\","
       "\"scaleName\":\"%s\","
-      "\"goalG\":%u,\"actualG\":%s,"
+      "\"goalG\":%.1f,\"actualG\":%s,"
       "\"offsetG\":%.2f,\"bbwAlgorithm\":\"%s\",\"bbwAlgorithmVersion\":%s,"
       "\"bbwAlpha\":%s,\"bbwLearningApplied\":%s,\"avgFlowGS\":%s,"
       "\"firstDropS\":%s,\"tareS\":%s,"
@@ -1232,7 +1232,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
       static_cast<double>(record.durationDs) / 10.0,
       static_cast<unsigned>(shotLogPresetId(record)),
       presetName, scaleNameJson,
-      static_cast<unsigned>(record.goalWeightG), actual,
+      static_cast<double>(goalWeightDgToGrams(record.goalWeightDg)), actual,
       static_cast<double>(record.offsetUsedCg) / 100.0,
       shotLogBbwAlgorithm(record), shotLogBbwVersion(record),
       alphaJson, shotLogBbwLearningApplied(record), flow, firstDrop, tareAt,

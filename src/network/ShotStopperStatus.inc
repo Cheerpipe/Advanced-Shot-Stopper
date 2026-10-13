@@ -303,7 +303,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   if (ok && page == StatusPage::Settings) {
     ok = statusJsonAppend(
         &used,
-        ",\"goalWeightG\":%u,\"weightOffsetG\":%.2f,"
+        ",\"goalWeightG\":%.1f,\"weightOffsetG\":%.2f,"
         "\"weightOffsetBaselineG\":%.2f,\"autoTare\":%s,"
         "\"autoTareOutsideBrew\":%s,\"retareAccessoryOutsideBrew\":%s,"
         "\"postTareBaselineGraceMs\":%lu,\"brewByWeight\":%s,"
@@ -342,7 +342,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"bookooMuteOnBuzzerOnly\":%s,\"bookooConnectBeepLevel\":%u,"
         "\"avoidBbwShotWithoutScale\":%s,\"noScaleBbwMode\":\"%s\","
         "\"noScaleAllowRinseWhileArmed\":%s,\"lastShotCooldownMs\":%lu",
-        static_cast<unsigned>(control.config.goalWeightG),
+        static_cast<double>(goalWeightDgToGrams(control.config.goalWeightDg)),
         static_cast<double>(control.config.weightOffsetG),
         static_cast<double>(control.config.weightOffsetBaselineG),
         control.config.autoTare ? "true" : "false",

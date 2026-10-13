@@ -1,7 +1,7 @@
 // Quick target-weight sheet: the hero pencil, the one-shot ?edit_weight URL,
 // and the active preset row's Target text are the invocation points, and
 // closing the sheet commits through the proven settings-hydrate → preset-save
-// pipeline with the firmware's whole-gram 10–200 g preset goal contract.
+// pipeline with the firmware's decigram 10.0–200.0 g preset goal contract.
 {
   const qwAssert = require('assert').strict;
   const qwHomeHtml = partialHtml.home,
@@ -21,7 +21,7 @@
   qwAssert.ok(/id="qwPreset".*<\/p><p class="qwLabel"/.test(qwHomeHtml) &&
       qwHomeHtml.indexOf('id="qwPreset"') < qwHomeHtml.indexOf('class="qwLabel"'),
     'The preset name must stack above the Target weight label');
-  qwAssert.ok(/id="qwZone"[^>]*aria-valuemin="10"[^>]*aria-valuemax="200"/.test(qwHomeHtml),
+  qwAssert.ok(/id="qwZone"[^>]*aria-valuemin="10\.0"[^>]*aria-valuemax="200\.0"/.test(qwHomeHtml),
     'The scale zone must declare the firmware goal bounds');
   qwAssert.ok(/<p class="qwLimit" id="qwLimitMin" hidden>/.test(qwHomeHtml) &&
       /<p class="qwLimit" id="qwLimitMax" hidden>/.test(qwHomeHtml),
@@ -53,7 +53,7 @@
   // lingers in the form (the live warnings and the brew baseline would
   // otherwise describe a value the device never accepted).
   const qwHydrate = qwFirst('R.ensureSettingsHydrated()'),
-    qwWrite = qwFirst('field.value = String(grams)'),
+    qwWrite = qwFirst('field.value = (dg / 10).toFixed(1)'),
     qwSave = qwFirst('R.saveBrewPreset()'),
     qwRestore = qwFirst('field.value = rejected;');
   qwAssert.ok(0 <= qwHydrate && qwHydrate < qwWrite && qwWrite < qwSave,
@@ -64,13 +64,21 @@
       .replace(/\s/g, '').includes('ensureSettingsHydrated'),
     'Runtime must export ensureSettingsHydrated for the commit path');
 
-  qwAssert.ok(codeIncludes(qwHomeJs, 'value = clamp(value + dx * BASE_G_PER_PX * speedMul(vel.v))') &&
-      codeIncludes(qwHomeJs, 'BASE_G_PER_PX = 0.008, SPEED_CAP = 10'),
-    'The drag must keep the accepted sensitivity and ×10 acceleration cap');
   qwAssert.ok(codeIncludes(qwHomeJs,
-      'if (v % 5 === 0) { tick.className = "big"; if (v >= MIN && v <= MAX) {'),
-    'The tick strip keeps 1 g ticks with 5 g majors, labeled inside the firmware bounds');
-  qwAssert.ok(codeIncludes(qwHomeJs, 'resetBtn.classList.toggle("show", shown !== openValue)'),
+      'value = clamp(Math.round(value + dx * BASE_DG_PER_PX * speedMul(vel.v)))') &&
+      codeIncludes(qwHomeJs, 'BASE_DG_PER_PX = 0.08, SPEED_CAP = 10'),
+    'The drag must keep the accepted sensitivity and ×10 acceleration cap');
+  qwAssert.ok(codeIncludes(qwHomeJs, 'PX_PER_DG = 3'),
+    'The ruler must spend 3 px per 0.1 g so single tenths are grabbable');
+  qwAssert.ok(codeIncludes(qwHomeJs,
+      'if (d % 10 === 0) { tick.className = "big"; if (d >= MIN * 10 && d <= MAX * 10) {') &&
+      codeIncludes(qwHomeJs, '} else if (d % 5 === 0) tick.className = "med";') &&
+      /\.qwScaleIn i\.med\{/.test(css),
+    'Ticks grade by tenth: whole-gram majors labeled in-bounds, half-gram mediums, tenth minors');
+  qwAssert.ok(codeIncludes(qwHomeJs,
+      'inner.style.transform = "translateX(" + (width / 2 - (value - base) * PX_PER_DG).toFixed(1) + "px)"'),
+    'A drag must slide the pre-built ruler with one transform, not per-tick style writes');
+  qwAssert.ok(codeIncludes(qwHomeJs, 'resetBtn.classList.toggle("show", value !== openValue)'),
     'Reset must appear only while the value differs from the open value');
   qwAssert.ok(codeIncludes(qwHomeJs,
       '["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state)'),
@@ -235,29 +243,29 @@
     const qwCtl = qwInit();
     qwEls.shotGoalEdit.onclick();
     qwAssert.ok(qwEls.qwSheet.classes.has('open'), 'The pencil must open the sheet');
-    qwAssert.equal(qwEls.qwNum.textContent, '36', 'The sheet opens at the active preset goal');
+    qwAssert.equal(qwEls.qwNum.textContent, '36.0', 'The sheet opens at the active preset goal');
     qwAssert.equal(qwEls.qwPreset.textContent, 'Espresso', 'The header shows the preset name');
     qwAssert.ok(!qwEls.qwReset.classes.has('show'), 'Reset stays hidden at the preset goal');
     qwAssert.ok(qwEls.qwDone.focused, 'Opening focuses Done');
 
     // Slow drags stay surgical; fast drags gear up. Replicate the accepted
-    // velocity model to pin the exact deltas.
+    // velocity model to pin the exact deltas (values are decigrams).
     qwDragZone([[10, 100], [10, 100], [10, 100], [10, 100], [10, 100], [10, 100]]);
     const qwExpectedSlow = (() => {
-      let value = 36, v = 0, x = 100, t = 0;
+      let value = 360, v = 0, x = 100, t = 0;
       for (let i = 0; i < 6; i++) {
         v = 0.75 * v + 0.25 * (10 / 100);
-        value += 10 * 0.008 * (1 + Math.min(9, Math.abs(v) * 14));
+        value = Math.round(value + 10 * 0.08 * (1 + Math.min(9, Math.abs(v) * 14)));
         x += 10; t += 100;
       }
-      return Math.round(value);
+      return (value / 10).toFixed(1);
     })();
-    qwAssert.equal(qwEls.qwNum.textContent, String(qwExpectedSlow),
+    qwAssert.equal(qwEls.qwNum.textContent, qwExpectedSlow,
       'A slow drag must follow the accepted fine sensitivity');
     qwAssert.ok(qwEls.qwReset.classes.has('show'), 'Editing away from the goal reveals Reset');
-    qwAssert.equal(qwEls.qwDef.textContent, '36', 'Reset offers the open value');
+    qwAssert.equal(qwEls.qwDef.textContent, '36.0', 'Reset offers the open value');
     qwEls.qwReset.onclick();
-    qwAssert.equal(qwEls.qwNum.textContent, '36', 'Reset restores the open value');
+    qwAssert.equal(qwEls.qwNum.textContent, '36.0', 'Reset restores the open value');
     qwAssert.ok(!qwEls.qwReset.classes.has('show'), 'Reset hides again at the open value');
 
     qwDragZone([[50, 10], [50, 10], [50, 10], [50, 10], [50, 10]]);
@@ -268,15 +276,15 @@
     // Bounds: the firmware goal range clamps however far the drag runs.
     qwEls.qwReset.onclick();
     qwDragZone([[600, 5], [600, 5], [600, 5], [600, 5]]);
-    qwAssert.equal(qwEls.qwNum.textContent, '200', 'The drag clamps at the 200 g ceiling');
+    qwAssert.equal(qwEls.qwNum.textContent, '200.0', 'The drag clamps at the 200 g ceiling');
     qwEls.qwReset.onclick();
     qwDragZone([[-600, 5], [-600, 5], [-600, 5], [-600, 5]]);
-    qwAssert.equal(qwEls.qwNum.textContent, '10', 'The drag clamps at the 10 g floor');
+    qwAssert.equal(qwEls.qwNum.textContent, '10.0', 'The drag clamps at the 10 g floor');
 
-    // Keyboard stepping works without pointers.
+    // Keyboard stepping works without pointers; tenths are the finest step.
     qwEls.qwReset.onclick();
     qwFire(qwEls.qwZone, 'keydown', {key: 'ArrowRight', preventDefault() {}});
-    qwAssert.equal(qwEls.qwNum.textContent, '37', 'Arrow keys step by 1 g');
+    qwAssert.equal(qwEls.qwNum.textContent, '36.1', 'Arrow keys step by 0.1 g');
     qwFire(qwEls.qwZone, 'keydown', {key: 'ArrowLeft', preventDefault() {}});
 
     // Closing without changes must not hit the save pipeline.
@@ -289,7 +297,7 @@
     qwCtl.open();
     qwAssert.ok(qwEls.qwSheet.classes.has('open'),
       'The exposed open must launch the sheet without the hero pencil');
-    qwAssert.equal(qwEls.qwNum.textContent, '36', 'A programmatic open starts at the preset goal');
+    qwAssert.equal(qwEls.qwNum.textContent, '36.0', 'A programmatic open starts at the preset goal');
     qwFire(qwEls.qwSheet, 'keydown', {key: 'Escape'});
     await new Promise((r) => setTimeout(r, 0));
 
@@ -310,7 +318,7 @@
     qwAccClick(qwAccTap(true));
     qwAssert.ok(qwEls.qwSheet.classes.has('open'),
       'The active row Target text must open the sheet');
-    qwAssert.equal(qwEls.qwNum.textContent, '36',
+    qwAssert.equal(qwEls.qwNum.textContent, '36.0',
       'The sheet still opens at the active preset goal');
     qwFire(qwEls.qwSheet, 'keydown', {key: 'Escape'});
     await new Promise((r) => setTimeout(r, 0));
@@ -324,7 +332,7 @@
     await new Promise((r) => setTimeout(r, 0));
     qwAssert.equal(qwRuntime.hydrated, 1, 'Done must hydrate the settings form');
     qwAssert.equal(qwEls.goalWeightG.value, qwEdited,
-      'Done must write the rounded goal into goalWeightG');
+      'Done must write the one-decimal goal into goalWeightG');
     qwAssert.equal(qwRuntime.saved, 1, 'Done must save the brew preset');
 
     // A long grab-row drag dismisses and still commits an edited value.
@@ -362,11 +370,11 @@
     const qwZoneAttrs = {};
     qwEls.qwZone.setAttribute = (k, v) => { qwZoneAttrs[k] = String(v); };
     qwEls.shotGoalEdit.onclick();
-    qwAssert.equal(qwEls.qwNum.textContent, '36', 'The sheet opens at the in-range goal');
-    qwAssert.equal(qwZoneAttrs['aria-valuemin'], '33',
-      'The slider floor sits one gram above the Slow minimum recovery');
-    qwAssert.equal(qwZoneAttrs['aria-valuemax'], '41',
-      'The slider ceiling sits one gram below the Fast maximum recovery');
+    qwAssert.equal(qwEls.qwNum.textContent, '36.0', 'The sheet opens at the in-range goal');
+    qwAssert.equal(qwZoneAttrs['aria-valuemin'], '32.1',
+      'The slider floor sits one decigram above the Slow minimum recovery');
+    qwAssert.equal(qwZoneAttrs['aria-valuemax'], '41.9',
+      'The slider ceiling sits one decigram below the Fast maximum recovery');
     qwAssert.equal(qwEls.qwLimitMin.hidden, true, 'The floor pill starts hidden');
     qwAssert.equal(qwEls.qwLimitMax.hidden, true, 'The ceiling pill starts hidden');
     const qwStrip = qwEls.qwScale.children[0].children;
@@ -382,13 +390,13 @@
     qwAssert.ok(qwStrip.some((n) => !n._text && n.classes.has('zOk')),
       'Minor ticks inside the range tint green as well');
     qwDragZone([[600, 5], [600, 5], [600, 5], [600, 5]]);
-    qwAssert.equal(qwEls.qwNum.textContent, '41',
-      'The drag clamps one gram below the Fast maximum recovery');
+    qwAssert.equal(qwEls.qwNum.textContent, '41.9',
+      'The drag clamps one decigram below the Fast maximum recovery');
     qwAssert.equal(qwEls.qwLimitMax.hidden, false,
       'The ceiling pill appears at the top of the target range');
     qwDragZone([[-600, 5], [-600, 5], [-600, 5], [-600, 5]]);
-    qwAssert.equal(qwEls.qwNum.textContent, '33',
-      'The drag clamps one gram above the Slow minimum recovery');
+    qwAssert.equal(qwEls.qwNum.textContent, '32.1',
+      'The drag clamps one decigram above the Slow minimum recovery');
     qwAssert.equal(qwEls.qwLimitMin.hidden, false,
       'The floor pill appears at the bottom of the target range');
     qwAssert.ok(qwEls.qwLimitMin.classes.has('toneSlow') &&

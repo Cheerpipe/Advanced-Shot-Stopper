@@ -264,7 +264,7 @@ void queueWebhookBrewStart() {
                                    : session.startedAtMs;
   WebhookEvent event = baseWebhookEvent(WebhookEventType::BREWING, session.id,
                                         startedAtMs);
-  event.targetWeightG = static_cast<float>(session.config.goalWeightG);
+  event.targetWeightG = goalWeightDgToGrams(session.config.goalWeightDg);
   event.presetId = session.activePresetId;
   copyCString(event.presetName, sizeof(event.presetName), session.activePresetName);
   (void)networkManager.enqueueWebhook(event);
@@ -293,7 +293,7 @@ void notifyWebhookFirstDrop(const FirstFlowObservation &observation) {
   event.firstDropMs = event.firstDropValid ? observation.atMs - anchor : 0;
   event.weightValid = std::isfinite(observation.weightG);
   event.weightG = event.weightValid ? observation.weightG : 0.0f;
-  event.targetWeightG = static_cast<float>(session.config.goalWeightG);
+  event.targetWeightG = goalWeightDgToGrams(session.config.goalWeightDg);
   event.presetId = session.activePresetId;
   copyCString(event.presetName, sizeof(event.presetName), session.activePresetName);
   (void)networkManager.enqueueWebhook(event);

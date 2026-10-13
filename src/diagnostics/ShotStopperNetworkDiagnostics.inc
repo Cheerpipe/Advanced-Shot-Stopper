@@ -100,7 +100,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   ok = ok &&
        debugExportChunkf(
            request, buf, cap,
-           "\"runtimeConfig\":{\"revision\":%lu,\"goalWeightG\":%u,"
+           "\"runtimeConfig\":{\"revision\":%lu,\"goalWeightG\":%.1f,"
            "\"weightOffsetG\":%.2f,\"weightOffsetBaselineG\":%.2f,"
            "\"autoTare\":%s,\"postTareBaselineGraceMs\":%lu,"
            "\"timerOnly\":%s,\"brewByWeight\":%s,\"canTareStartTimer\":%s,"
@@ -129,7 +129,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"serialLogLevel\":\"%s\",\"serialDebugOutput\":%s,"
            "\"powerManagementEnabled\":%s},",
            static_cast<unsigned long>(c.config.revision),
-           static_cast<unsigned>(c.config.goalWeightG),
+           static_cast<double>(goalWeightDgToGrams(c.config.goalWeightDg)),
            static_cast<double>(c.config.weightOffsetG),
            static_cast<double>(c.config.weightOffsetBaselineG),
            c.config.autoTare ? "true" : "false",
@@ -196,14 +196,14 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
     ok = debugExportChunkf(
         request, buf, cap,
         "%s{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s,\"brewByWeight\":%s,"
-        "\"goalWeightG\":%u,\"minBbwBrewTimeMs\":%lu,\"maxBbwBrewTimeMs\":%lu,"
+        "\"goalWeightG\":%.1f,\"minBbwBrewTimeMs\":%lu,\"maxBbwBrewTimeMs\":%lu,"
         "\"maxRecoveryWeightG\":%.1f,\"minRecoveryWeightG\":%.1f,"
         "\"fastExtractionGuardEnabled\":%s,\"slowExtractionGuardEnabled\":%s,"
         "\"autoToManualGuardEnabled\":%s,\"autoToManualGuardSamplesDs\":[%u,%u,"
         "%u,%u,%u]}",
         i == 0 ? "" : ",", static_cast<unsigned>(p.id), safeName,
         p.isFactory ? "true" : "false", p.brewByWeight ? "true" : "false",
-        static_cast<unsigned>(p.goalWeightG),
+        static_cast<double>(goalWeightDgToGrams(p.goalWeightDg)),
         static_cast<unsigned long>(p.minBbwBrewTimeMs),
         static_cast<unsigned long>(p.maxBbwBrewTimeMs),
         static_cast<double>(p.maxRecoveryWeightG),
@@ -714,7 +714,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   ok = ok &&
        debugExportChunkf(
            request, buf, cap,
-           "\"lastShot\":{\"valid\":%s,\"goalWeightG\":%u,\"durationMs\":%lu,"
+           "\"lastShot\":{\"valid\":%s,\"goalWeightG\":%.1f,\"durationMs\":%lu,"
            "\"endReason\":\"%s\",\"shotType\":\"%s\","
            "\"extractionExtended\":%s,\"slowExtractionExtended\":%s},"
            "\"compileFlags\":{\"buzzer\":\"%s\",\"remoteMachineControl\":%s,"
@@ -723,7 +723,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"machineModel\":\"%s\",\"machineType\":\"%s\",\"stopPulseMs\":%lu,"
            "\"maxSinglePressMs\":%lu,\"development\":%s},",
            c.lastShot.valid ? "true" : "false",
-           static_cast<unsigned>(c.lastShot.goalWeightG),
+           static_cast<double>(goalWeightDgToGrams(c.lastShot.goalWeightDg)),
            static_cast<unsigned long>(c.lastShot.durationMs),
            self.endReasonName(c.lastShot.endReason),
            lastShotTypeName(static_cast<LastShotType>(c.lastShot.shotType)),
@@ -920,12 +920,12 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
     const ShotLogRecord &record = work.statsCache.snapshot.records[index];
     ok = debugExportChunkf(
         request, buf, cap,
-        "%s{\"id\":%lu,\"bootId\":%lu,\"durationDs\":%u,\"goalWeightG\":%u,"
+        "%s{\"id\":%lu,\"bootId\":%lu,\"durationDs\":%u,\"goalWeightG\":%.1f,"
         "\"stopDetail\":\"%s\"}",
         index == 0 ? "" : ",", static_cast<unsigned long>(record.id),
         static_cast<unsigned long>(record.bootId),
         static_cast<unsigned>(record.durationDs),
-        static_cast<unsigned>(record.goalWeightG),
+        static_cast<double>(goalWeightDgToGrams(record.goalWeightDg)),
         shotLogStopDetailName(
             static_cast<ShotLogStopDetail>(record.stopDetail)));
   }

@@ -142,6 +142,42 @@ void p01_defaults_are_valid() {
   CHECK(!validPreferredScaleMac("GG:BB:CC:DD:EE:FF"));
 }
 
+
+// Serializes current settings into the frozen v3 3312-byte layout so upgrade
+// tests can write authentic pre-v4 blobs (goal weights in whole grams).
+static void serializeSettingsV3(const PersistedSettings &settings,
+                                uint32_t schemaVersion,
+                                uint8_t out[kSettingsV3Bytes]) {
+  const size_t runtime = offsetof(PersistedSettings, runtime);
+  const size_t bank = offsetof(PersistedSettings, presets);
+  memset(out, 0, kSettingsV3Bytes);
+  memcpy(out, &settings, bank);
+  memcpy(out + bank, &settings.presets, offsetof(ShotPresetBank, presets));
+  // Runtime goal: decigrams -> one gram byte; the flag bytes shift left and
+  // the v3 padding byte at +7 is zero.
+  out[runtime + 4] = static_cast<uint8_t>(settings.runtime.goalWeightDg / 10U);
+  out[runtime + 5] = out[runtime + 6];
+  out[runtime + 6] = out[runtime + 7];
+  out[runtime + 7] = 0;
+  const size_t slots = bank + offsetof(ShotPresetBank, presets);
+  for (size_t index = 0; index < MAX_SHOT_PRESETS; ++index) {
+    const uint8_t *src = reinterpret_cast<const uint8_t *>(
+        &settings.presets.presets[index]);
+    uint8_t *dst = out + slots + index * kSettingsV3PresetBytes;
+    memcpy(dst, src, 27);
+    dst[27] = static_cast<uint8_t>(
+        settings.presets.presets[index].goalWeightDg / 10U);
+    memcpy(dst + 28, src + 32, kSettingsV3PresetBytes - 28);
+  }
+  memcpy(out + bank + kSettingsV3BankBytes,
+         reinterpret_cast<const uint8_t *>(&settings) + bank + sizeof(ShotPresetBank),
+         kSettingsV3ChecksumOffset - bank - kSettingsV3BankBytes);
+  *reinterpret_cast<uint32_t *>(out + 4) = schemaVersion;
+  *reinterpret_cast<uint32_t *>(out + 8) = kSettingsV3Bytes;
+  *reinterpret_cast<uint32_t *>(out + kSettingsV3ChecksumOffset) =
+      settingsV3Checksum(out);
+}
+
 void touch_fallback_settings_upgrade_and_roundtrip() {
   resetHostPersistence();
   PersistedSettings settings;
@@ -150,31 +186,32 @@ void touch_fallback_settings_upgrade_and_roundtrip() {
   CHECK(settings.presets.presets[0].touchStopFallbackEnabled);
   CHECK(offsetof(RuntimeConfig, touchStopFallbackEnabled) == 17);
   CHECK(sizeof(RuntimeConfig) == 344);
-  CHECK(sizeof(ShotPreset) == 104);
-  CHECK(sizeof(PersistedSettings) == 3312);
+  CHECK(sizeof(ShotPreset) == 108);
+  CHECK(sizeof(PersistedSettings) == 3344);
   settings.runtime.avoidAccidentalTouchEnabled = false;
-  settings.runtime.goalWeightG = 47;
+  settings.runtime.goalWeightDg = 470;
   settings.runtime.maxRecoveryWeightG = 55.0f;
   settings.presets.presets[0].avoidAccidentalTouchEnabled = false;
-  settings.presets.presets[0].goalWeightG = 39;
+  settings.presets.presets[0].goalWeightDg = 390;
   // Old padding is not a boolean and may contain any byte.
   reinterpret_cast<uint8_t *>(&settings.runtime)[17] = 0xa5;
   for (auto &preset : settings.presets.presets)
-    reinterpret_cast<uint8_t *>(&preset)[46] = 0xa5;
-  settings.schemaVersion = 1;
+    reinterpret_cast<uint8_t *>(&preset)[50] = 0xa5;
   settings.storageRevision = 17;
-  settings.checksum = persistedSettingsChecksum(settings);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings, sizeof(settings));
+  static uint8_t v1Blob[kSettingsV3Bytes];
+  serializeSettingsV3(settings, 1, v1Blob);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, v1Blob,
+                           sizeof(v1Blob));
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
   CHECK(validPersistedSettings(loaded));
   CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
   CHECK(loaded.storageRevision == 17);
-  CHECK(loaded.runtime.goalWeightG == 47);
+  CHECK(loaded.runtime.goalWeightDg == 470);
   CHECK(!loaded.runtime.avoidAccidentalTouchEnabled);
   CHECK(loaded.runtime.touchStopFallbackEnabled);
   CHECK(!loaded.presets.presets[0].avoidAccidentalTouchEnabled);
-  CHECK(loaded.presets.presets[0].goalWeightG == 39);
+  CHECK(loaded.presets.presets[0].goalWeightDg == 390);
   CHECK(loaded.presets.presets[0].touchStopFallbackEnabled);
   loaded.runtime.touchStopFallbackEnabled = false;
   loaded.presets.presets[0].touchStopFallbackEnabled = false;
@@ -207,7 +244,7 @@ void p02_newest_valid_slot_is_loaded() {
   CHECK(initializeDefaultSettings(settings));
   CHECK(savePersistedSettings(settings));
   const uint32_t firstRevision = settings.storageRevision;
-  settings.runtime.goalWeightG = 47;
+  settings.runtime.goalWeightDg = 470;
   settings.runtime.noScaleBbwMode &= ~IDLE_ACCESSORY_RETARE;
   settings.runtime.maxRecoveryWeightG = 55.0f;
   settings.runtime.soundAlertsMuted = true;
@@ -229,7 +266,7 @@ void p02_newest_valid_slot_is_loaded() {
 
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.runtime.goalWeightG == 47);
+  CHECK(loaded.runtime.goalWeightDg == 470);
   CHECK(!idleAccessoryRetareEnabled(loaded.runtime.noScaleBbwMode));
   CHECK(loaded.runtime.soundAlertsMuted);
   CHECK(!loaded.runtime.cupProtectionEnabled);
@@ -254,12 +291,12 @@ void p02b_save_uses_ram_revision_when_slots_unreadable() {
   CHECK(savePersistedSettings(settings));
   CHECK(settings.storageRevision != 0);
   persistence_host::records.clear();
-  settings.runtime.goalWeightG = 41;
+  settings.runtime.goalWeightDg = 410;
   settings.runtime.maxRecoveryWeightG = 50.0f;
   CHECK(savePersistedSettings(settings));
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.runtime.goalWeightG == 41);
+  CHECK(loaded.runtime.goalWeightDg == 410);
   CHECK(loaded.storageRevision == settings.storageRevision);
   const uint32_t revision = settings.storageRevision;
   persistence_host::corruptNextWrite = true;
@@ -273,20 +310,20 @@ void p02c_overlay_live_runtime_is_saved_not_stale_blob() {
   resetHostPersistence();
   PersistedSettings stale;
   CHECK(initializeDefaultSettings(stale));
-  stale.runtime.goalWeightG = 36;
+  stale.runtime.goalWeightDg = 360;
   CHECK(savePersistedSettings(stale));
 
   RuntimeConfig live = stale.runtime;
-  live.goalWeightG = 44;
+  live.goalWeightDg = 440;
   live.maxRecoveryWeightG = 53.0f;
   ShotPresetBank livePresets = stale.presets;
   overlayLivePersistedSettings(stale, live, livePresets);
-  CHECK(stale.runtime.goalWeightG == 44);
+  CHECK(stale.runtime.goalWeightDg == 440);
   CHECK(savePersistedSettings(stale));
 
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.runtime.goalWeightG == 44);
+  CHECK(loaded.runtime.goalWeightDg == 440);
   CHECK(loaded.storageRevision == stale.storageRevision);
 }
 
@@ -295,11 +332,11 @@ void p02d_single_scratch_handles_wrap_and_external_destination() {
   PersistedSettings beforeWrap;
   CHECK(initializeDefaultSettings(beforeWrap));
   beforeWrap.storageRevision = UINT32_MAX;
-  beforeWrap.runtime.goalWeightG = 40;
+  beforeWrap.runtime.goalWeightDg = 400;
   finalizePersistedSettings(beforeWrap);
   PersistedSettings afterWrap = beforeWrap;
   afterWrap.storageRevision = 1;
-  afterWrap.runtime.goalWeightG = 48;
+  afterWrap.runtime.goalWeightDg = 480;
   afterWrap.runtime.maxRecoveryWeightG = 55.0f;
   finalizePersistedSettings(afterWrap);
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &beforeWrap,
@@ -312,7 +349,7 @@ void p02d_single_scratch_handles_wrap_and_external_destination() {
   CHECK(loaded != nullptr);
   CHECK(loadPersistedSettings(*loaded));
   CHECK(loaded->storageRevision == 1);
-  CHECK(loaded->runtime.goalWeightG == 48);
+  CHECK(loaded->runtime.goalWeightDg == 480);
   heapCapsFree(loaded);
 }
 
@@ -320,9 +357,9 @@ void p03_corrupt_newest_slot_falls_back() {
   resetHostPersistence();
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
-  settings.runtime.goalWeightG = 40;
+  settings.runtime.goalWeightDg = 400;
   CHECK(savePersistedSettings(settings));
-  settings.runtime.goalWeightG = 48;
+  settings.runtime.goalWeightDg = 480;
   settings.runtime.maxRecoveryWeightG = 55.0f;
   CHECK(savePersistedSettings(settings));
   CHECK(persistence_host::corrupt(SETTINGS_NAMESPACE, SETTINGS_SLOT_B,
@@ -330,14 +367,14 @@ void p03_corrupt_newest_slot_falls_back() {
 
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.runtime.goalWeightG == 40);
+  CHECK(loaded.runtime.goalWeightDg == 400);
 }
 
 void p04_crc_and_semantic_validation_reject_corruption() {
   resetHostPersistence();
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
-  settings.runtime.goalWeightG = 50;
+  settings.runtime.goalWeightDg = 500;
   settings.runtime.maxRecoveryWeightG = 58.0f;
   CHECK(!validPersistedSettings(settings));
   finalizePersistedSettings(settings);
@@ -362,7 +399,7 @@ void p18_shot_log_keeps_history_when_inactive_slot_write_fails() {
   CHECK(log.load());
   ShotLogRecord record = {};
   record.durationDs = 250;
-  record.goalWeightG = 36;
+  record.goalWeightDg = 360;
   record.actualWeightCg = 3600;
   CHECK(log.append(record));
   CHECK(log.count() == 1);
@@ -370,7 +407,7 @@ void p18_shot_log_keeps_history_when_inactive_slot_write_fails() {
   ShotLog::setHostSaveSucceeds(false);
   ShotLogRecord second = {};
   second.durationDs = 260;
-  second.goalWeightG = 36;
+  second.goalWeightDg = 360;
   CHECK(!log.append(second));
   ShotLog::setHostSaveSucceeds(true);
   CHECK(log.count() == 1);
@@ -402,7 +439,7 @@ void p29_last_shot_persists_and_clears() {
   shot.valid = true;
   shot.cycleId = 42;
   shot.durationMs = 28500;
-  shot.goalWeightG = 36;
+  shot.goalWeightDg = 360;
   shot.weightValid = true;
   shot.currentWeightG = 36.2f;
   shot.shotType = static_cast<uint8_t>(LastShotType::AUTO);
@@ -423,7 +460,7 @@ void p29_last_shot_persists_and_clears() {
   CHECK(reloaded.load());
   CHECK(reloaded.get().valid);
   CHECK(reloaded.get().cycleId == 42);
-  CHECK(reloaded.get().goalWeightG == 36);
+  CHECK(reloaded.get().goalWeightDg == 360);
   CHECK(fabs(reloaded.get().currentWeightG - 36.2f) < 0.001f);
   CHECK(reloaded.get().noScaleShotGuardEnabled);
   CHECK(reloaded.get().noScaleShotGuardArmed);
@@ -501,7 +538,7 @@ void p08_factory_reset_rebuilds_defaults() {
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
   settings.runtime.noScaleBbwMode &= ~IDLE_ACCESSORY_RETARE;
-  settings.runtime.goalWeightG = 63;
+  settings.runtime.goalWeightDg = 630;
   settings.runtime.maxRecoveryWeightG = 70.0f;
   strcpy(settings.preferredScaleMac, "AA:BB:CC:DD:EE:FF");
   strcpy(settings.preferredScaleName, "Lunar");
@@ -513,7 +550,7 @@ void p08_factory_reset_rebuilds_defaults() {
   CHECK(idleAccessoryRetareEnabled(settings.runtime.noScaleBbwMode));
   CHECK(settings.schemaVersion == CONFIG_SCHEMA_VERSION);
   CHECK(settings.staWifiSleep);
-  CHECK(settings.runtime.goalWeightG == DEFAULT_GOAL_WEIGHT_G);
+  CHECK(settings.runtime.goalWeightDg == DEFAULT_GOAL_WEIGHT_DG);
   CHECK(settings.runtime.fastExtractionGuardEnabled);
   CHECK(settings.runtime.autoToManualGuardEnabled);
   CHECK(settings.preferredScaleMac[0] == '\0');
@@ -529,7 +566,7 @@ void p08_factory_reset_rebuilds_defaults() {
   CHECK(loadPersistedSettings(loaded));
   CHECK(verifyFactorySettings(loaded));
   CHECK(idleAccessoryRetareEnabled(loaded.runtime.noScaleBbwMode));
-  CHECK(loaded.runtime.goalWeightG == DEFAULT_GOAL_WEIGHT_G);
+  CHECK(loaded.runtime.goalWeightDg == DEFAULT_GOAL_WEIGHT_DG);
 }
 
 void p08b_scale_preference_without_mac_round_trips() {
@@ -559,7 +596,7 @@ void p64_factory_settings_overwrite_does_not_clear_ble_namespace() {
   resetHostPersistence();
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
-  settings.runtime.goalWeightG = 63;
+  settings.runtime.goalWeightDg = 630;
   settings.runtime.maxRecoveryWeightG = 70.0f;
   finalizePersistedSettings(settings);
   CHECK(savePersistedSettings(settings));
@@ -653,7 +690,7 @@ void p65_factory_settings_survives_second_slot_write_fail() {
   resetHostPersistence();
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
-  settings.runtime.goalWeightG = 63;
+  settings.runtime.goalWeightDg = 630;
   settings.runtime.maxRecoveryWeightG = 70.0f;
   finalizePersistedSettings(settings);
   CHECK(savePersistedSettings(settings));
@@ -663,7 +700,7 @@ void p65_factory_settings_survives_second_slot_write_fail() {
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
   CHECK(verifyFactorySettings(loaded));
-  CHECK(loaded.runtime.goalWeightG == DEFAULT_GOAL_WEIGHT_G);
+  CHECK(loaded.runtime.goalWeightDg == DEFAULT_GOAL_WEIGHT_DG);
 }
 
 void p66_shot_log_dual_slot_generation_flip() {
@@ -676,7 +713,7 @@ void p66_shot_log_dual_slot_generation_flip() {
   CHECK(log.load());
   ShotLogRecord record = {};
   record.durationDs = 250;
-  record.goalWeightG = 36;
+  record.goalWeightDg = 360;
   record.actualWeightCg = 3600;
   CHECK(log.append(record));
   CHECK(log.count() == 1);
@@ -686,7 +723,7 @@ void p66_shot_log_dual_slot_generation_flip() {
   ShotLog::setHostSaveSucceeds(false);
   ShotLogRecord second = {};
   second.durationDs = 260;
-  second.goalWeightG = 36;
+  second.goalWeightDg = 360;
   CHECK(!log.append(second));
   ShotLog::setHostSaveSucceeds(true);
   CHECK(log.count() == 1);
@@ -784,7 +821,7 @@ void p66b_snapshot_acknowledgement_preserves_newest_generation() {
 
 void p09_fast_extraction_guard_validation() {
   RuntimeConfig config = {};
-  config.goalWeightG = 36;
+  config.goalWeightDg = 360;
   config.maxRecoveryWeightG = 42.5f;
   config.minBbwBrewTimeMs = 26000;
   config.fastExtractionGuardEnabled = true;
@@ -796,7 +833,7 @@ void p09_fast_extraction_guard_validation() {
         ConfigValidationError::FAST_EXTRACTION_GUARD_RELATION);
 
   config = {};
-  config.goalWeightG = 36;
+  config.goalWeightDg = 360;
   config.minRecoveryWeightG = 30.0f;
   config.maxBbwBrewTimeMs = 44000;
   config.slowExtractionGuardEnabled = true;
@@ -864,7 +901,7 @@ void p12_shot_log_persists_compact_blob() {
   CHECK(log.load());
   ShotLogRecord record = {};
   record.durationDs = 250;
-  record.goalWeightG = 36;
+  record.goalWeightDg = 360;
   record.actualWeightCg = 3600;
   record.actualWeightSource =
       static_cast<uint8_t>(ActualWeightSource::POST_DRIP);
@@ -879,7 +916,7 @@ void p12_shot_log_persists_compact_blob() {
   CHECK(reloaded.count() == 1);
   ShotLogRecord out[1] = {};
   CHECK(reloaded.copyNewestFirst(out, 1) == 1);
-  CHECK(out[0].goalWeightG == 36);
+  CHECK(out[0].goalWeightDg == 360);
   CHECK(out[0].actualWeightSource ==
         static_cast<uint8_t>(ActualWeightSource::POST_DRIP));
   CHECK(strcmp(out[0].presetName, "Double") == 0);
@@ -1153,7 +1190,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(ShotPreset) <= 136);
   CHECK(sizeof(ShotPresetBank) <= 1100);
   CHECK(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET);
-  CHECK(sizeof(PersistedSettings) == 3312);
+  CHECK(sizeof(PersistedSettings) == 3344);
   CHECK(FLASH_IO_SCRATCH_BYTES == sizeof(PersistedSettings));
   CHECK(sizeof(RuntimeConfig) == 344);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
@@ -1162,12 +1199,12 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(WebCommand) <= 440);
   WebCommand command;
   command.type = WebCommandType::PRESET_OP;
-  command.config.goalWeightG = 42;
+  command.config.goalWeightDg = 420;
   command.presetId = 3;
   command.wipePassword();
-  CHECK(command.config.goalWeightG == 42);
+  CHECK(command.config.goalWeightDg == 420);
   WebCommand copied = command;
-  CHECK(copied.config.goalWeightG == 42 && copied.presetId == 3);
+  CHECK(copied.config.goalWeightDg == 420 && copied.presetId == 3);
   command.setNetworkType(WebCommandType::SAVE_NETWORK);
   copyCString(command.network.ssid, sizeof(command.network.ssid), "test-network");
   copyCString(command.network.password, sizeof(command.network.password), "test-password");
@@ -1177,7 +1214,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(command.network.password[0] == '\0');
   CHECK(strcmp(copied.network.password, "test-password") == 0);
   command = WebCommand{};
-  CHECK(command.config.goalWeightG == RuntimeConfig{}.goalWeightG);
+  CHECK(command.config.goalWeightDg == RuntimeConfig{}.goalWeightDg);
   CHECK(weightToCentigrams(INFINITY) == 0);
   CHECK(weightToCentigrams(NAN) == 0);
   CHECK(weightToCentigrams(1e30f) == INT32_MAX);
@@ -1264,10 +1301,10 @@ void p24_preset_bank_size_and_crud_budgets() {
 
   ShotPreset *dbl = mutableShotPreset(bank, FACTORY_PRESET_ID_DOUBLE);
   CHECK(dbl != nullptr);
-  dbl->goalWeightG = 40;
+  dbl->goalWeightDg = 40;
   CHECK(restoreFactoryShotPresetValues(bank, FACTORY_PRESET_ID_DOUBLE));
-  CHECK(findShotPreset(bank, FACTORY_PRESET_ID_DOUBLE)->goalWeightG ==
-        DEFAULT_GOAL_WEIGHT_G);
+  CHECK(findShotPreset(bank, FACTORY_PRESET_ID_DOUBLE)->goalWeightDg ==
+        DEFAULT_GOAL_WEIGHT_DG);
 
   uint8_t newId = 0;
   CHECK(createUntitledShotPreset(bank, newId));
@@ -1275,7 +1312,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(bank.activeId == newId);
   const ShotPreset *created = findShotPreset(bank, newId);
   CHECK(created != nullptr);
-  CHECK(created->goalWeightG == 36);
+  CHECK(created->goalWeightDg == 360);
   CHECK(std::fabs(created->weightOffsetBaselineG - 1.5f) < 0.001f);
   CHECK(std::fabs(created->weightOffsetG - 1.5f) < 0.001f);
 
@@ -1302,7 +1339,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   machine.timerOnly = true;  // session Manual
   RuntimeConfig composed = composeEffectiveConfig(machine, bank);
   CHECK(composed.timerOnly);  // Manual preserved
-  CHECK(composed.goalWeightG == activeShotPreset(bank).goalWeightG);
+  CHECK(composed.goalWeightDg == activeShotPreset(bank).goalWeightDg);
 
   while (bank.count < MAX_SHOT_PRESETS) {
     uint8_t id = 0;
@@ -1345,11 +1382,11 @@ void p26_save_candidate_validation_does_not_require_live_mutation() {
   seedDefaultShotPresetBank(bank);
   ShotPreset *preset = mutableShotPreset(bank, FACTORY_PRESET_ID_DOUBLE);
   CHECK(preset != nullptr);
-  const uint8_t originalGoal = preset->goalWeightG;
+  const uint16_t originalGoal = preset->goalWeightDg;
   ShotPreset candidate = *preset;
-  candidate.goalWeightG = 5;  // invalid
+  candidate.goalWeightDg = 50;  // invalid
   CHECK(!validateShotPresetRecipe(candidate, DEFAULT_RETARE_WINDOW_MS, true));
-  CHECK(preset->goalWeightG == originalGoal);
+  CHECK(preset->goalWeightDg == originalGoal);
 }
 
 void p35_invalid_fast_extraction_recipe_keeps_custom() {
@@ -1361,14 +1398,14 @@ void p35_invalid_fast_extraction_recipe_keeps_custom() {
   ShotPreset *custom = mutableShotPreset(bank, customId);
   CHECK(custom != nullptr);
   custom->fastExtractionGuardEnabled = true;
-  custom->goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  custom->goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   custom->maxRecoveryWeightG = 30.0f;
   ensureShotPresetBank(bank, DEFAULT_RETARE_WINDOW_MS, true);
   CHECK(bank.count == 3);
   const ShotPreset *kept = findShotPreset(bank, customId);
   CHECK(kept != nullptr);
   CHECK(!kept->fastExtractionGuardEnabled ||
-        kept->maxRecoveryWeightG > static_cast<float>(kept->goalWeightG));
+        kept->maxRecoveryWeightG > goalWeightDgToGrams(kept->goalWeightDg));
 }
 
 void p38_invalid_slow_extraction_recipe_keeps_custom() {
@@ -1380,14 +1417,14 @@ void p38_invalid_slow_extraction_recipe_keeps_custom() {
   ShotPreset *custom = mutableShotPreset(bank, customId);
   CHECK(custom != nullptr);
   custom->slowExtractionGuardEnabled = true;
-  custom->goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  custom->goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   custom->minRecoveryWeightG = 36.0f;
   ensureShotPresetBank(bank, DEFAULT_RETARE_WINDOW_MS, true);
   CHECK(bank.count == 3);
   const ShotPreset *kept = findShotPreset(bank, customId);
   CHECK(kept != nullptr);
   CHECK(!kept->slowExtractionGuardEnabled ||
-        kept->minRecoveryWeightG < static_cast<float>(kept->goalWeightG));
+        kept->minRecoveryWeightG < goalWeightDgToGrams(kept->goalWeightDg));
 }
 
 void p16_static_ip_address_validation() {
@@ -1748,7 +1785,7 @@ void p55_network_access_reset_preserves_non_network_settings() {
   resetHostPersistence();
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
-  settings.runtime.goalWeightG = 41;
+  settings.runtime.goalWeightDg = 410;
   strcpy(settings.preferredScaleMac, "AA:BB:CC:DD:EE:FF");
   strcpy(settings.preferredScaleName, "Lunar");
   settings.staConfigured = true;
@@ -1788,7 +1825,7 @@ void p55_network_access_reset_preserves_non_network_settings() {
   CHECK(reset.staWifiSleep);
   CHECK(reset.staIpMode == static_cast<uint8_t>(StaIpMode::DHCP));
   CHECK(passwordIsFactoryDefault(reset));
-  CHECK(reset.runtime.goalWeightG == 41);
+  CHECK(reset.runtime.goalWeightDg == 410);
   CHECK(strcmp(reset.preferredScaleMac, "AA:BB:CC:DD:EE:FF") == 0);
   CHECK(strcmp(reset.preferredScaleName, "Lunar") == 0);
 }
@@ -1801,14 +1838,14 @@ void p56_shot_log_stale_slot_and_foreign_schema_rejected() {
   current.header.nextRecordId = 2;
   current.records[0].id = 1;
   current.records[0].bootId = 4;
-  current.records[0].goalWeightG = 36;
+  current.records[0].goalWeightDg = 360;
   current.records[0].actualWeightCg = 3600;
   current.records[0].actualWeightSource =
       static_cast<uint8_t>(ActualWeightSource::POST_DRIP);
   strcpy(current.records[0].presetName, "Double");
   finalizeShotLogStore(current);
   CHECK(current.header.schemaVersion == SHOT_LOG_SCHEMA_VERSION);
-  CHECK(current.records[0].goalWeightG == 36);
+  CHECK(current.records[0].goalWeightDg == 360);
   CHECK(strcmp(current.records[0].presetName, "Double") == 0);
 
   // A corrupted checksum makes the slot invalid even with intact records.
@@ -1838,7 +1875,7 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
   resetHostPersistence();
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
-  settings.runtime.goalWeightG = 41;
+  settings.runtime.goalWeightDg = 410;
   finalizePersistedSettings(settings);
   CHECK(savePersistedSettings(settings));
 
@@ -1846,7 +1883,7 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
   CHECK(log.load());
   ShotLogRecord record = {};
   record.durationDs = 250;
-  record.goalWeightG = 36;
+  record.goalWeightDg = 360;
   record.actualWeightCg = 3600;
   CHECK(log.append(record));
 
@@ -1894,7 +1931,7 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
   CHECK(readLatestBleScanSettings(onDisk));
   CHECK(verifyFactoryBleScanSettings(onDisk));
 
-  settings.runtime.goalWeightG = 40;
+  settings.runtime.goalWeightDg = 400;
   finalizePersistedSettings(settings);
   CHECK(savePersistedSettings(settings));
   CHECK(log.append(record));
@@ -1904,7 +1941,7 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
   ShotLog::setHostSaveSucceeds(true);
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.runtime.goalWeightG == 40);
+  CHECK(loaded.runtime.goalWeightDg == 400);
   ShotLog reloaded;
   CHECK(reloaded.load());
   // A failed clear keeps the last-good slot: the dual-slot flip never erases
@@ -1918,7 +1955,7 @@ void p59_deferred_shot_log_append_writes_only_on_flush() {
   CHECK(log.load());
   ShotLogRecord record = {};
   record.durationDs = 250;
-  record.goalWeightG = 36;
+  record.goalWeightDg = 360;
   CHECK(log.append(record, false));
   CHECK(log.dirty());
   CHECK(log.count() == 1);
@@ -1937,7 +1974,7 @@ void p60_factory_intent_survives_failed_store_reset() {
   CHECK(saveRecoveryIntent(RecoveryOperation::FACTORY_RESET));
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
-  settings.runtime.goalWeightG = 41;
+  settings.runtime.goalWeightDg = 410;
   finalizePersistedSettings(settings);
   CHECK(savePersistedSettings(settings));
   ShotLog log;
@@ -2223,12 +2260,12 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
   constexpr size_t remainingRecords = lastShotEntries + 6U + 3U + 24U + 32U;
   constexpr size_t applicationEntries = settingsEntries + remainingRecords;
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
-  CHECK(sizeof(PersistedSettings) == 3312U);
-  CHECK(settingsEntries == 212U);
+  CHECK(sizeof(PersistedSettings) == 3344U);
+  CHECK(settingsEntries == 214U);
   CHECK(lastShotEntries == 13U);
-  CHECK(applicationEntries == 290U);
+  CHECK(applicationEntries == 292U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 2104U);
+  CHECK(conservativeEntries - applicationEntries == 2102U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {
@@ -2239,7 +2276,7 @@ void p72_factory_intent_recovers_only_from_nvs_no_space() {
   CHECK(lastShot.load());
   ShotLogRecord record = {};
   record.durationDs = 250;
-  record.goalWeightG = 36;
+  record.goalWeightDg = 360;
   CHECK(log.append(record));
   PersistedLastShot shot = {};
   shot.valid = true;
@@ -2301,7 +2338,7 @@ void p74_factory_intent_second_failure_keeps_settings() {
   resetHostPersistence();
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
-  settings.runtime.goalWeightG = 40;
+  settings.runtime.goalWeightDg = 400;
   finalizePersistedSettings(settings);
   CHECK(savePersistedSettings(settings));
 
@@ -2317,7 +2354,7 @@ void p74_factory_intent_second_failure_keeps_settings() {
   CHECK(releases == 1U);
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
-  CHECK(loaded.runtime.goalWeightG == 40U);
+  CHECK(loaded.runtime.goalWeightDg == 400);
   RecoveryIntent intent;
   CHECK(inspectPendingRecovery(intent) == PendingRecoveryKind::NONE);
 }
@@ -2333,6 +2370,40 @@ void p63_flash_io_lock_fails_closed_without_mutex() {
   CHECK(tryLockFlashIo());
   unlockFlashIo();
   CHECK(FLASH_IO_LOCK_TIMEOUT_MS == 3000);
+}
+
+
+void p87_v3_decigram_upgrade_preserves_settings() {
+  resetHostPersistence();
+  PersistedSettings settings;
+  CHECK(initializeDefaultSettings(settings));
+  settings.runtime.goalWeightDg = 470;
+  settings.runtime.maxRecoveryWeightG = 55.0f;
+  settings.presets.presets[0].goalWeightDg = 390;
+  settings.presets.presets[1].goalWeightDg = 180;
+  strcpy(settings.staSsid, "cafe");
+  settings.storageRevision = 17;
+  static uint8_t v3Blob[kSettingsV3Bytes];
+  serializeSettingsV3(settings, 3, v3Blob);
+  // The serialized whole-gram goals are exactly one tenth of the source.
+  CHECK(v3Blob[offsetof(PersistedSettings, runtime) + 4] == 47);
+  CHECK(v3Blob[offsetof(PersistedSettings, presets) +
+              offsetof(ShotPresetBank, presets) + 27] == 39);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, v3Blob,
+                           sizeof(v3Blob));
+  PersistedSettings loaded;
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.schemaVersion == CONFIG_SCHEMA_VERSION);
+  CHECK(loaded.storageRevision == 17);
+  CHECK(loaded.runtime.goalWeightDg == 470);
+  CHECK(loaded.presets.presets[0].goalWeightDg == 390);
+  CHECK(loaded.presets.presets[1].goalWeightDg == 180);
+  CHECK(strcmp(loaded.staSsid, "cafe") == 0);
+  // A checksum-corrupt v3 blob is rejected, never repaired.
+  *reinterpret_cast<uint32_t *>(v3Blob + kSettingsV3ChecksumOffset) ^= 1;
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, v3Blob,
+                           sizeof(v3Blob));
+  CHECK(!loadPersistedSettings(loaded));
 }
 
 void p85_schema1_is_strict_and_micra_defaults_round_trip() {
@@ -2368,11 +2439,11 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(settings.lineaMicra.connectionType == 0);
 
   // Schema 2 used this byte as padding: authenticate before replacing it.
-  settings.schemaVersion = 2;
   settings.lineaMicra.connectionType = 0xa5;
-  settings.checksum = persistedSettingsChecksum(settings);
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &settings,
-                           sizeof(settings));
+  static uint8_t v2Blob[kSettingsV3Bytes];
+  serializeSettingsV3(settings, 2, v2Blob);
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, v2Blob,
+                           sizeof(v2Blob));
   PersistedSettings migrated;
   const auto originalRecords = persistence_host::records;
   CHECK(loadPersistedSettings(migrated));
@@ -2837,6 +2908,7 @@ const TestCase tests[] = {
     {"P90", p90_firmware_mode_store_round_trip_and_factory_reset},
     {"P86", p86_timezone_preference_and_durable_initialization},
     {"P85", p85_schema1_is_strict_and_micra_defaults_round_trip},
+    {"P87", p87_v3_decigram_upgrade_preserves_settings},
     {"P82", p82_ble_scan_strict_versions_and_roundtrip},
     {"P82B", p82b_ble_scan_legacy_minute_bytes_stay_readable},
     {"P80", p80_boot_id_remains_dirty_until_durable},

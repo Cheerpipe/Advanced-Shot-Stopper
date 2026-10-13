@@ -191,11 +191,11 @@ function initQuickWeight() {
     doneBtn = $("qwDone"),
     limitMin = $("qwLimitMin"),
     limitMax = $("qwLimitMax");
-  // Firmware preset goal: uint8 whole grams, 10–200 (settings validation).
+  // Firmware preset goal: decigrams, 10.0–200.0 g (settings validation).
   const MIN = 10,
     MAX = 200,
-    PX_PER_G = 9,
-    BASE_G_PER_PX = 0.008,
+    PX_PER_DG = 3, // 30 px per gram: single tenths stay grabbable
+    BASE_DG_PER_PX = 0.08,
     SPEED_CAP = 10,
     SPEED_K = 14;
   const inner = document.createElement("div");
@@ -203,82 +203,84 @@ function initQuickWeight() {
   const ticks = [];
   // Ticks keep drawing past both range ends so the drum fills the strip at
   // any value; only the value itself clamps to the editable range. Majors
-  // carry their gram number so the ruler reads without counting. 45 g covers
-  // the half-strip of the widest sheet (760 px / 2 / PX_PER_G + margin).
-  for (let v = MIN - 45; v <= MAX + 45; v++) {
+  // label whole grams, mediums mark halves, minors the tenths. 15 g covers
+  // the half-strip of the widest sheet (760 px / 2 / (PX_PER_DG * 10)).
+  const base = (MIN - 15) * 10;
+  for (let d = base; d <= (MAX + 15) * 10; d++) {
     const tick = document.createElement("i");
     let label = null;
-    if (v % 5 === 0) {
+    if (d % 10 === 0) {
       tick.className = "big";
-      if (v >= MIN && v <= MAX) {
+      if (d >= MIN * 10 && d <= MAX * 10) {
         label = document.createElement("b");
-        label.textContent = v;
+        label.textContent = d / 10;
+        label.style.left = ((d - base) * PX_PER_DG).toFixed(1) + "px";
         inner.appendChild(label);
       }
-    }
+    } else if (d % 5 === 0) tick.className = "med";
+    tick.style.left = ((d - base) * PX_PER_DG).toFixed(1) + "px";
     inner.appendChild(tick);
-    ticks.push({ v, node: tick, label });
+    ticks.push({ d, node: tick, label });
   }
   scale.appendChild(inner);
-  // Editable range [lo, hi] mirrors the Settings cross-field rules: while a
-  // guard is enabled the goal must stay strictly inside its recovery weight,
-  // so the dial can never offer a target Save would reject.
-  let lo = MIN,
-    hi = MAX,
-    value = MIN,
-    openValue = MIN;
-  const clamp = (v) => Math.max(lo, Math.min(hi, v));
+  // Editable range [lo, hi] in decigrams mirrors the Settings cross-field
+  // rules: while a guard is enabled the goal must stay strictly inside its
+  // recovery weight, so the dial can never offer a target Save would reject.
+  let lo = MIN * 10,
+    hi = MAX * 10,
+    value = MIN * 10,
+    openValue = MIN * 10;
+  const clamp = (d) => Math.max(lo, Math.min(hi, d));
   const speedMul = (v) => 1 + Math.min(SPEED_CAP - 1, Math.abs(v || 0) * SPEED_K);
+  let nowIdx = -1;
+  // Ticks sit at fixed offsets; one translate slides the whole ruler and only
+  // the "now" tick and the readouts change per frame, so a drag never
+  // restyles the strip.
   const paint = () => {
-    const width = scale.getBoundingClientRect().width,
-      shown = Math.round(value);
-    for (const tick of ticks) {
-      const p = width / 2 + (tick.v - value) * PX_PER_G;
-      tick.node.style.display = p > -6 && p < width + 6 ? "" : "none";
-      tick.node.style.left = p.toFixed(1) + "px";
-      if (tick.label) {
-        tick.label.style.display = p > -12 && p < width + 12 ? "" : "none";
-        tick.label.style.left = p.toFixed(1) + "px";
-      }
-      tick.node.classList.toggle("now", tick.v === shown);
-    }
-    num.textContent = shown;
-    zone.setAttribute("aria-valuenow", shown);
-    zone.setAttribute("aria-valuetext", shown + " g");
-    limitMin.hidden = shown > lo;
-    limitMax.hidden = shown < hi;
-    def.textContent = openValue;
-    resetBtn.classList.toggle("show", shown !== openValue);
+    const width = scale.getBoundingClientRect().width;
+    inner.style.transform =
+      "translateX(" + (width / 2 - (value - base) * PX_PER_DG).toFixed(1) + "px)";
+    if (ticks[nowIdx]) ticks[nowIdx].node.classList.remove("now");
+    nowIdx = value - base;
+    ticks[nowIdx].node.classList.add("now");
+    num.textContent = (value / 10).toFixed(1);
+    zone.setAttribute("aria-valuenow", (value / 10).toFixed(1));
+    zone.setAttribute("aria-valuetext", (value / 10).toFixed(1) + " g");
+    limitMin.hidden = value > lo;
+    limitMax.hidden = value < hi;
+    def.textContent = (openValue / 10).toFixed(1);
+    resetBtn.classList.toggle("show", value !== openValue);
   };
   const open = () => {
     const preset = R.presetState.items.find((x) => x.id === R.presetState.activeId);
     if (!preset || !preset.goalWeightG) return;
     // Editable range mirrors the Settings cross-field rules: the goal stays
     // strictly inside each enabled guard's recovery weight, so the dial can
-    // never offer a target Save would reject.
+    // never offer a target Save would reject. Bounds land one decigram
+    // inside the recovery weights — the closest step the 0.1 form accepts.
     const slow =
         !!preset.slowExtractionGuardEnabled && Number.isFinite(+preset.minRecoveryWeightG),
       fast =
         !!preset.fastExtractionGuardEnabled && Number.isFinite(+preset.maxRecoveryWeightG);
-    lo = slow ? Math.min(MAX, Math.floor(+preset.minRecoveryWeightG) + 1) : MIN;
-    hi = fast ? Math.max(MIN, Math.ceil(+preset.maxRecoveryWeightG) - 1) : MAX;
+    lo = slow ? Math.min(MAX * 10, Math.ceil(+preset.minRecoveryWeightG * 10 - 1e-6) + 1) : MIN * 10;
+    hi = fast ? Math.max(MIN * 10, Math.floor(+preset.maxRecoveryWeightG * 10 + 1e-6) - 1) : MAX * 10;
     if (hi < lo) {
-      lo = MIN;
-      hi = MAX;
+      lo = MIN * 10;
+      hi = MAX * 10;
     } // a recipe with no valid target must not lock the dial
     // Zone tints are reference only: ticks outside the editable range adopt
     // the color of the guard that limits them; valid ticks take the BBW green.
-    for (const { v, node, label } of ticks) {
-      const zone = v < MIN || v > MAX ? "" : v < lo ? "zSlow" : v > hi ? "zFast" : "zOk";
+    for (const { d, node, label } of ticks) {
+      const zone = d < MIN * 10 || d > MAX * 10 ? "" : d < lo ? "zSlow" : d > hi ? "zFast" : "zOk";
       for (const el of label ? [node, label] : [node])
         ["zSlow", "zFast", "zOk"].forEach((c) => el.classList.toggle(c, c === zone));
     }
     limitMin.classList.toggle("toneSlow", slow);
     limitMax.classList.toggle("toneFast", fast);
-    value = openValue = clamp(preset.goalWeightG);
+    value = openValue = clamp(Math.round(+preset.goalWeightG * 10));
     presetEl.textContent = preset.name || "";
-    zone.setAttribute("aria-valuemin", lo);
-    zone.setAttribute("aria-valuemax", hi);
+    zone.setAttribute("aria-valuemin", (lo / 10).toFixed(1));
+    zone.setAttribute("aria-valuemax", (hi / 10).toFixed(1));
     paint();
     sheet.inert = false;
     backdrop.inert = false;
@@ -287,12 +289,12 @@ function initQuickWeight() {
     document.body.classList.add("qwOpen");
     doneBtn.focus();
   };
-  const commit = async (grams) => {
+  const commit = async (dg) => {
     try {
       await R.ensureSettingsHydrated();
       const field = $("goalWeightG"),
         rejected = String(field.value);
-      field.value = String(grams);
+      field.value = (dg / 10).toFixed(1);
       // A rejected value must not linger in the form as a phantom edit: put
       // the previous value back so the brew baseline and the live warnings
       // keep describing the real saved state.
@@ -312,7 +314,7 @@ function initQuickWeight() {
     backdrop.inert = true;
     document.body.classList.remove("qwOpen");
     if (!pen.hidden) pen.focus();
-    if (save && Math.round(value) !== openValue) commit(Math.round(value));
+    if (save && value !== openValue) commit(value);
   };
   const drag = (node, handlers) => {
     node.addEventListener("pointerdown", (event) => {
@@ -357,7 +359,7 @@ function initQuickWeight() {
       vel.v = 0.75 * vel.v + 0.25 * (Math.abs(e.clientX - vel.x) / dt);
       vel.x = e.clientX;
       vel.t = now;
-      value = clamp(value + dx * BASE_G_PER_PX * speedMul(vel.v));
+      value = clamp(Math.round(value + dx * BASE_DG_PER_PX * speedMul(vel.v)));
       paint();
     },
   });
@@ -398,7 +400,7 @@ function initQuickWeight() {
               : 0;
     if (!step) return;
     e.preventDefault();
-    value = clamp(Math.round(value) + step);
+    value = clamp(value + step);
     paint();
   });
   pen.onclick = open;

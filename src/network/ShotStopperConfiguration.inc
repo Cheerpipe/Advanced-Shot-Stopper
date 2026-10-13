@@ -209,8 +209,8 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
              !jsonUint32(root, "baseRevision", baseRevision)) {
     parseError = "baseRevision must be an integer.";
   } else if (jsonFieldPresent(root, "goalWeightG") &&
-             !jsonUint8(root, "goalWeightG", candidate.goalWeightG)) {
-    parseError = "goalWeightG must be an integer from 10 to 200.";
+             !jsonGoalWeightDg(root, "goalWeightG", candidate.goalWeightDg)) {
+    parseError = "goalWeightG must be a number from 10 to 200.";
   } else if (jsonFieldPresent(root, "rinseEnabled") &&
              !jsonBoolean(root, "rinseEnabled", candidate.rinseEnabled)) {
     parseError = "rinseEnabled must be a boolean.";
@@ -980,7 +980,7 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
     } else {
       bool brewByWeight = true;
       if (!jsonBoolean(root, "brewByWeight", brewByWeight) ||
-          !jsonUint8(root, "goalWeightG", command.config.goalWeightG) ||
+          !jsonGoalWeightDg(root, "goalWeightG", command.config.goalWeightDg) ||
           !jsonUint32(root, "operationalWallMs",
                       command.config.operationalWallMs) ||
           !jsonUint32(root, "bbwProtectionMs",

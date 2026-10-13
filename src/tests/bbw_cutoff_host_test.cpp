@@ -130,7 +130,11 @@ int main() {
   // active must load as EWMA with the regression offset seeded, and the
   // first shot after migration still learns (fields stay consistent).
   persistence_host::reset();
-  PersistedSettings legacyBlob = settings;
+  PersistedSettings legacyBlob;
+  // Zero first: copy-init leaves tail padding indeterminate, and the
+  // byte-exact round-trip below must not depend on stack junk.
+  memset(&legacyBlob, 0, sizeof(legacyBlob));
+  legacyBlob = settings;
   legacyBlob.runtime.bbwAlgorithm = 0;
   legacyBlob.presets.presets[0].bbwAlgorithm = 0;
   legacyBlob.presets.presets[0].bbwProfileVersion = 1;
@@ -146,6 +150,7 @@ int main() {
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &legacyBlob,
                            sizeof(legacyBlob));
   PersistedSettings reloaded;
+  memset(&reloaded, 0, sizeof(reloaded));  // deterministic tail padding
   assert(loadPersistedSettings(reloaded));
   // The adopted record carried aliases; boot may invalidate learning once,
   // scoped to exactly the presets that aliased (both factory presets here).
@@ -209,6 +214,9 @@ int main() {
   // The migrated record round-trips byte-exact through save/load.
   assert(savePersistedSettings(reloaded));
   PersistedSettings secondPass;
+  // DMIs leave tail padding indeterminate; the byte-exact comparison below
+  // needs deterministic padding, so zero the whole record first.
+  memset(&secondPass, 0, sizeof(secondPass));
   assert(loadPersistedSettings(secondPass));
   assert(!bbwLegacyAliasesApplied);
   assert(memcmp(&secondPass, &reloaded, sizeof(secondPass)) == 0);

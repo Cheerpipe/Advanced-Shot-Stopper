@@ -31,6 +31,13 @@ uninitMemberVarNoCtor:*/src/ShotStopperResetGuard.h
 # inlined index to zero and reports objectIndex at the crc ^= data[index]
 # line. Only the split byte itself is ever read.
 objectIndex:*/src/ShotStopperDomain.h
+# Owner: firmware-persistence. Review/expiry: 2027-03-01.
+# savePersistedSettings zeroes the shared flash scratch with memset before
+# memberwise assignment so stored settings blobs stay byte-reproducible:
+# indeterminate padding must not leak into the read-back verification.
+# All-zero bytes are a valid representation of every member on the ESP32-S3
+# targets (IEEE-754 floats), so the portability concern does not apply.
+memsetClassFloat:*/src/ShotStopperPersistence.h
 # `unusedFunction` is intentionally not enabled by static-idf: analysis through
 # the filtered, variant-specific ESP-IDF database misclassifies cross-TU public
 # APIs, and setup/loop are called by idf/main, so they no longer need inline

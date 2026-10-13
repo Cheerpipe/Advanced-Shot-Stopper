@@ -4,7 +4,7 @@ struct ShotPreset {
   char name[SHOT_PRESET_NAME_CAPACITY] = {};
   bool isFactory = false;
   bool brewByWeight = true;
-  uint8_t goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  uint16_t goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   uint32_t operationalWallMs = DEFAULT_OPERATIONAL_WALL_MS;
   uint32_t bbwProtectionMs = DEFAULT_BBW_PROTECTION_MS;
   float weightOffsetBaselineG = DEFAULT_WEIGHT_OFFSET_G;
@@ -77,12 +77,16 @@ static_assert(offsetof(RuntimeConfig, autoTareOutsideBrew) == 334,
 static_assert(sizeof(ShotPreset) <= 136, "ShotPreset too large");
 static_assert(sizeof(ShotPresetBank) <= 1100, "ShotPresetBank too large");
 static_assert(offsetof(RuntimeConfig, bbwAlgorithm) == 335, "V10 runtime layout");
-static_assert(offsetof(ShotPreset, bbwAlgorithm) == 45, "V9 preset selector");
-static_assert(offsetof(ShotPreset, bbwEwmaOffsetG) == 84, "V9 preset offset");
-static_assert(offsetof(ShotPreset, bbwEwmaAlpha) == 88, "V9 preset alpha");
-static_assert(offsetof(ShotPreset, bbwAlphaBaseline) == 91, "V10 preset alpha baseline");
-static_assert(offsetof(ShotPreset, lineaMicraBrewTargetDeciC) == 102,
-              "V15 preset target must consume former tail padding");
-static_assert(offsetof(ShotPreset, touchStopFallbackEnabled) == 46,
-              "Settings v2 preserves preset offsets");
-static_assert(sizeof(ShotPreset) == 104, "V9 preserves preset size");
+static_assert(sizeof(ShotPreset) == 108, "Settings v4 decigram goal size");
+static_assert(offsetof(ShotPreset, goalWeightDg) == 28,
+              "Settings v4 goal must sit in the widened slot");
+static_assert(offsetof(ShotPreset, operationalWallMs) == 32,
+              "Settings v4 preset tail must start u32-aligned");
+static_assert(offsetof(ShotPreset, bbwAlgorithm) == 49, "V9 preset selector (v4)");
+static_assert(offsetof(ShotPreset, bbwEwmaOffsetG) == 88, "V9 preset offset (v4)");
+static_assert(offsetof(ShotPreset, bbwEwmaAlpha) == 92, "V9 preset alpha (v4)");
+static_assert(offsetof(ShotPreset, bbwAlphaBaseline) == 95, "V10 preset alpha baseline (v4)");
+static_assert(offsetof(ShotPreset, lineaMicraBrewTargetDeciC) == 106,
+              "V15 preset target must stay last (v4)");
+static_assert(offsetof(ShotPreset, touchStopFallbackEnabled) == 50,
+              "Settings v2 preset flag (v4 offset)");

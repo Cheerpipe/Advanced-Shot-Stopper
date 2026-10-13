@@ -48,9 +48,14 @@ constexpr uint32_t MIN_RETARE_STABILITY_MAX_GAP_MS = 100;
 constexpr uint32_t MAX_RETARE_STABILITY_MAX_GAP_MS = 5000;
 constexpr uint32_t MIN_RETARE_STABILITY_MIN_DURATION_MS = 0;
 constexpr uint32_t MAX_RETARE_STABILITY_MIN_DURATION_MS = 2000;
-constexpr uint8_t MIN_GOAL_WEIGHT_G = 10;
-constexpr uint8_t MAX_GOAL_WEIGHT_G = 200;
-constexpr uint8_t DEFAULT_GOAL_WEIGHT_G = 36;
+// Target weight lives in decigrams (100–2000 dg = 10.0–200.0 g); the whole
+// pipeline — presets, runtime config, shot records, UI — speaks this unit.
+constexpr uint16_t MIN_GOAL_WEIGHT_DG = 100;
+constexpr uint16_t MAX_GOAL_WEIGHT_DG = 2000;
+constexpr uint16_t DEFAULT_GOAL_WEIGHT_DG = 360;
+inline float goalWeightDgToGrams(uint16_t goalWeightDg) {
+  return static_cast<float>(goalWeightDg) * 0.1f;
+}
 constexpr float DEFAULT_MAX_RECOVERY_WEIGHT_G = 42.0f;
 constexpr float MIN_MAX_RECOVERY_WEIGHT_G = 10.0f;
 constexpr float MAX_MAX_RECOVERY_WEIGHT_G = 200.0f;
@@ -334,11 +339,11 @@ inline uint32_t autoToManualGuardLimitMs(
 }
 
 inline bool autoToManualGuardSampleErrorOk(float actualWeightG,
-                                           uint8_t goalWeightG) {
-  if (!std::isfinite(actualWeightG) || goalWeightG == 0) {
+                                           uint16_t goalWeightDg) {
+  if (!std::isfinite(actualWeightG) || goalWeightDg == 0) {
     return false;
   }
-  const float goal = static_cast<float>(goalWeightG);
+  const float goal = goalWeightDgToGrams(goalWeightDg);
   return fabsf(actualWeightG - goal) <=
          goal * AUTO_TO_MANUAL_GUARD_SAMPLE_MAX_ERROR_RATIO;
 }

@@ -196,14 +196,14 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
 
   addDebugEvent(DebugCategory::STATE, DebugCode::CYCLE_STARTED,
                 weightToCentigrams(
-                    static_cast<float>(session.config.goalWeightG)),
+                    goalWeightDgToGrams(session.config.goalWeightDg)),
                 weightToCentigrams(session.config.weightOffsetG));
   scaleProfileNoteEvent(
       ScaleProfileEvent::SHOT_START, millis(),
       getScaleLinkSnapshot().connectionGeneration, 0, NAN, session.id,
       static_cast<uint32_t>(
           static_cast<int32_t>(weightToCentigrams(
-              static_cast<float>(session.config.goalWeightG)))));
+              goalWeightDgToGrams(session.config.goalWeightDg)))));
   maybeRequestNtpSyncOnActivity();
 }
 
@@ -312,7 +312,7 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
       bullseyeMelodyConfig.enabled && soundAlertsEnabled() &&
       currentAlertOutputChannel() == AlertOutputChannel::BUZZER_ONLY &&
       localBuzzer.ready) {
-    bullseyeTracker.arm(session.config.goalWeightG, millis(),
+    bullseyeTracker.arm(session.config.goalWeightDg, millis(),
                          session.config.dripDelayMs, currentWeightSequence,
                          cupPresencePlacementId());
   } else {
@@ -330,7 +330,7 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
                                            cycleEndTime.endedAtMs);
       event.unixSec = cycleEndTime.available ? cycleEndTime.utcSec : 0;
       event.durationMs = durationMs;
-      event.targetWeightG = static_cast<float>(session.config.goalWeightG);
+      event.targetWeightG = goalWeightDgToGrams(session.config.goalWeightDg);
       event.presetId = session.activePresetId;
       snprintf(event.stopDetail, sizeof(event.stopDetail), "%s",
                shotLogStopDetailName(shotLogStopDetailFromEndReason(

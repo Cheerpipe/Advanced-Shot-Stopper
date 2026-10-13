@@ -82,12 +82,12 @@ bool buildIntegrationLastShot(const PersistedLastShot &shot, const char *detail,
   if (!jsonScratchAppend(
           output, capacity, &used,
           "{\"cycleId\":%lu,\"uptimeMs\":%lu,\"durationMs\":%lu,"
-          "\"targetWeightG\":%u,\"presetId\":%u,\"presetName\":\"%s\","
+          "\"targetWeightG\":%.1f,\"presetId\":%u,\"presetName\":\"%s\","
           "\"shotType\":\"%s\",\"stopDetail\":\"%s\",\"savePending\":%s",
           static_cast<unsigned long>(shot.cycleId),
           static_cast<unsigned long>(shot.endedAtUptimeMs),
           static_cast<unsigned long>(shot.durationMs),
-          static_cast<unsigned>(shot.goalWeightG),
+          static_cast<double>(goalWeightDgToGrams(shot.goalWeightDg)),
           static_cast<unsigned>(shot.presetId), name, lastShotTypeName(type),
           detail, savePending ? "true" : "false")) return false;
   if (shot.hasWallTime &&

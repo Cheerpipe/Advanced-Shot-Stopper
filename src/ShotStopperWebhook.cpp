@@ -480,7 +480,7 @@ bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
     case WebhookEventType::BREWING:
     case WebhookEventType::IDLE:
       if (!append(",\"state\":\"%s\",\"durationMs\":%lu,"
-                  "\"targetWeightG\":%.2f,\"presetId\":%u,\"presetName\":\"%s\","
+                  "\"targetWeightG\":%.1f,\"presetId\":%u,\"presetName\":\"%s\","
                   "\"stopDetail\":\"%s\"",
                   event.type == WebhookEventType::BREWING ? "brewing" : "idle",
                   static_cast<unsigned long>(event.durationMs),
@@ -490,7 +490,7 @@ bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
       break;
     case WebhookEventType::FIRST_DROP:
       if (!append(",\"firstDropMs\":%lu,\"weightG\":%.2f,"
-                  "\"targetWeightG\":%.2f,\"presetId\":%u,\"presetName\":\"%s\"",
+                  "\"targetWeightG\":%.1f,\"presetId\":%u,\"presetName\":\"%s\"",
                   static_cast<unsigned long>(event.firstDropMs), event.weightG,
                   event.targetWeightG, static_cast<unsigned>(event.presetId),
                   presetName)) {
@@ -498,7 +498,7 @@ bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
       }
       break;
     case WebhookEventType::END:
-      if (!append(",\"durationMs\":%lu,\"targetWeightG\":%.2f,"
+      if (!append(",\"durationMs\":%lu,\"targetWeightG\":%.1f,"
                   "\"presetId\":%u,\"presetName\":\"%s\",\"shotType\":\"%s\","
                   "\"stopDetail\":\"%s\"",
                   static_cast<unsigned long>(event.durationMs),

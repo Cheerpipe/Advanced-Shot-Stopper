@@ -1265,7 +1265,7 @@ void t04c_rinse_demote_does_not_learn_offset() {
   runLoopAfter(runtimeConfig.rinseDurationMs);
   CHECK(!session.active);
   CHECK(!pendingFinalize.pending);
-  currentWeight = static_cast<float>(DEFAULT_GOAL_WEIGHT_G) + 3.0f;
+  currentWeight = goalWeightDgToGrams(DEFAULT_GOAL_WEIGHT_DG) + 3.0f;
   currentWeightReceivedAtMs = hostMillis + 1;
   ++currentWeightSequence;
   runLoopAfter(runtimeConfig.dripDelayMs);
@@ -1658,24 +1658,24 @@ void t27_configuration_is_rejected_while_cycle_is_active() {
   resetHarness(false, true);
   reachReadyFromBoot();
   startCycle();
-  CHECK(session.config.goalWeightG == DEFAULT_GOAL_WEIGHT_G);
+  CHECK(session.config.goalWeightDg == DEFAULT_GOAL_WEIGHT_DG);
   WebCommand update;
   update.type = WebCommandType::APPLY_CONFIG;
   update.config = runtimeConfig;
-  update.config.goalWeightG = DEFAULT_GOAL_WEIGHT_G + 6;
+  update.config.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG + 60;
   CHECK(enqueueWebCommand(update));
   loop();
-  CHECK(runtimeConfig.goalWeightG == DEFAULT_GOAL_WEIGHT_G);
-  CHECK(session.config.goalWeightG == DEFAULT_GOAL_WEIGHT_G);
+  CHECK(runtimeConfig.goalWeightDg == DEFAULT_GOAL_WEIGHT_DG);
+  CHECK(session.config.goalWeightDg == DEFAULT_GOAL_WEIGHT_DG);
 
   releaseAtPhysicalDuration(rawActivatorChangedAtMs,
                             runtimeConfig.rinseGestureMs + 100);
   CHECK(stopperState == StopperState::READY);
   CHECK(enqueueWebCommand(update));
   loop();
-  CHECK(runtimeConfig.goalWeightG == DEFAULT_GOAL_WEIGHT_G + 6);
+  CHECK(runtimeConfig.goalWeightDg == DEFAULT_GOAL_WEIGHT_DG + 60);
   startCycle();
-  CHECK(session.config.goalWeightG == DEFAULT_GOAL_WEIGHT_G + 6);
+  CHECK(session.config.goalWeightDg == DEFAULT_GOAL_WEIGHT_DG + 60);
 }
 
 void t28_paddle_motion_cannot_cancel_or_extend_rinse() {
@@ -1773,7 +1773,7 @@ void r03_non_finite_weights_cannot_corrupt_state_or_offset() {
   pendingFinalize.offsetAnalysis = true;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.endedWeightSequence = 0;
-  pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.weightOffsetG = originalOffset;
   currentWeight = std::numeric_limits<float>::quiet_NaN();
   currentWeightSequence = 1;
@@ -2068,17 +2068,17 @@ void r11_final_shot_analysis_updates_only_valid_offset() {
     pendingFinalize.dripDelayMs = 0;
     pendingFinalize.endedAtMs = hostMillis;
     pendingFinalize.endedWeightSequence = currentWeightSequence;
-    pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+    pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
     currentWeightConnectionGeneration = generation;
     hostMillis += 20;
     currentWeightReceivedAtMs = hostMillis;
     ++currentWeightSequence;
     if (part == 0) {
       pendingFinalize.weightOffsetG = originalOffset;
-      currentWeight = DEFAULT_GOAL_WEIGHT_G + 1.0f;
+      currentWeight = goalWeightDgToGrams(DEFAULT_GOAL_WEIGHT_DG) + 1.0f;
     } else if (part == 1) {
       pendingFinalize.weightOffsetG = runtimeConfig.weightOffsetG;
-      currentWeight = DEFAULT_GOAL_WEIGHT_G + MAX_OFFSET_G + 1.0f;
+      currentWeight = goalWeightDgToGrams(DEFAULT_GOAL_WEIGHT_DG) + MAX_OFFSET_G + 1.0f;
     } else {
       pendingFinalize.weightOffsetG = 3.0f;
       currentWeight = 32.0f;
@@ -2164,7 +2164,7 @@ void bbw02_freshness_reset_and_safety() {
   pendingFinalize.scaleBaselineReady = true;
   pendingFinalize.scaleConnectionGeneration = getScaleLinkSnapshot().connectionGeneration;
   pendingFinalize.weightOffsetG = 2.0f;
-  pendingFinalize.goalWeightG = preset.goalWeightG;
+  pendingFinalize.goalWeightDg = preset.goalWeightDg;
   pendingFinalize.endedAtMs = hostMillis;
   currentWeight = 36.2f;
   currentWeightConnectionGeneration = pendingFinalize.scaleConnectionGeneration;
@@ -2259,9 +2259,9 @@ void r58_extended_shot_does_not_learn_weight_offset() {
   pendingFinalize.extractionExtended = true;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.endedWeightSequence = 0;
-  pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.weightOffsetG = originalOffset;
-  currentWeight = DEFAULT_GOAL_WEIGHT_G + 3.0f;
+  currentWeight = goalWeightDgToGrams(DEFAULT_GOAL_WEIGHT_DG) + 3.0f;
   currentWeightSequence = 1;
   currentWeightReceivedAtMs = hostMillis + 1;
   runLoopAfter(pendingFinalize.dripDelayMs);
@@ -2278,9 +2278,9 @@ void r65_slow_extended_shot_does_not_learn_weight_offset() {
   pendingFinalize.slowExtractionExtended = true;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.endedWeightSequence = 0;
-  pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.weightOffsetG = originalOffset;
-  currentWeight = DEFAULT_GOAL_WEIGHT_G - 6.0f;
+  currentWeight = goalWeightDgToGrams(DEFAULT_GOAL_WEIGHT_DG) - 6.0f;
   currentWeightSequence = 1;
   currentWeightReceivedAtMs = hostMillis + 1;
   runLoopAfter(pendingFinalize.dripDelayMs);
@@ -2465,12 +2465,12 @@ void r14_invalid_runtime_configuration_is_transactionally_rejected() {
   update.type = WebCommandType::APPLY_CONFIG;
   update.requestId = 14;
   update.config = runtimeConfig;
-  update.config.goalWeightG = MIN_GOAL_WEIGHT_G - 1;
+  update.config.goalWeightDg = MIN_GOAL_WEIGHT_DG - 1;
   CHECK(validateRuntimeConfig(update.config) ==
         ConfigValidationError::GOAL_WEIGHT);
   CHECK(enqueueWebCommand(update));
   loop();
-  CHECK(runtimeConfig.goalWeightG == original.goalWeightG);
+  CHECK(runtimeConfig.goalWeightDg == original.goalWeightDg);
   CHECK(runtimeConfig.revision == original.revision);
   CHECK(hostLastForwardedNetworkCommand.requestId == 14);
   CHECK(hostLastForwardedNetworkCommand.resultState ==
@@ -2768,7 +2768,7 @@ void w01_default_runtime_configuration_is_valid() {
 
 void w02_each_runtime_field_is_validated() {
   RuntimeConfig config;
-  config.goalWeightG = 9;
+  config.goalWeightDg = 90;
   CHECK(validateRuntimeConfig(config) == ConfigValidationError::GOAL_WEIGHT);
   config = RuntimeConfig{};
   config.weightOffsetG = std::numeric_limits<float>::quiet_NaN();
@@ -3025,11 +3025,11 @@ void attemptActiveConfigUpdate() {
   WebCommand update;
   update.type = WebCommandType::APPLY_CONFIG;
   update.config = before;
-  update.config.goalWeightG = before.goalWeightG + 1;
+  update.config.goalWeightDg = before.goalWeightDg + 1;
   update.preferredScaleSpecified = true;
   strcpy(update.preferredScaleMac, "AA:BB:CC:DD:EE:99");
   processWebCommand(update);
-  CHECK(runtimeConfig.goalWeightG == before.goalWeightG);
+  CHECK(runtimeConfig.goalWeightDg == before.goalWeightDg);
   CHECK(runtimeConfig.revision == before.revision);
   CHECK(preferredScaleMacEqual(scalePreferredMac, preferredBefore));
 }
@@ -3077,7 +3077,7 @@ void w09_valid_config_applies_only_from_ready() {
   WebCommand update;
   update.type = WebCommandType::APPLY_CONFIG;
   update.config = runtimeConfig;
-  update.config.goalWeightG = 42;
+  update.config.goalWeightDg = 420;
   update.config.weightOffsetG = 4.5f;  // Not a Web-editable field.
   noteScaleHistory("AA:BB:CC:DD:EE:99", "BOOKOO_SC_U 369041", false);
   CHECK(setScaleFriendlyName("AA:BB:CC:DD:EE:99", "Coffee scale"));
@@ -3086,7 +3086,7 @@ void w09_valid_config_applies_only_from_ready() {
   update.config.scaleMacCacheMode = static_cast<uint8_t>(ScaleMacCacheMode::ONLY);
   const uint32_t oldRevision = runtimeConfig.revision;
   processWebCommand(update);
-  CHECK(runtimeConfig.goalWeightG == 42);
+  CHECK(runtimeConfig.goalWeightDg == 420);
   CHECK(fabsf(runtimeConfig.weightOffsetG - 2.25f) < 0.001f);
   CHECK(runtimeConfig.revision == oldRevision + 1);
   CHECK(!maintenanceLease.active);
@@ -3126,9 +3126,9 @@ void w10_cycle_configuration_snapshot_is_immutable() {
   reachReadyFromBoot();
   startCycle();
   const CycleConfigSnapshot frozen = session.config;
-  runtimeConfig.goalWeightG = frozen.goalWeightG + 10;
+  runtimeConfig.goalWeightDg = frozen.goalWeightDg + 10;
   runtimeConfig.operationalWallMs = 10000;
-  CHECK(session.config.goalWeightG == frozen.goalWeightG);
+  CHECK(session.config.goalWeightDg == frozen.goalWeightDg);
   CHECK(session.config.operationalWallMs == frozen.operationalWallMs);
   runtimeConfig.firstDropBeep = !frozen.firstDropBeep;
   CHECK(session.config.firstDropBeep == frozen.firstDropBeep);
@@ -6716,7 +6716,7 @@ void w99i_bullseye_test_never_queues_mutable_custom_notes() {
 
 void w99g_bullseye_requires_one_second_of_exact_fresh_samples() {
   BullseyeTracker tracker;
-  tracker.arm(36, 1000, 3000, 10);
+  tracker.arm(360, 1000, 3000, 10);
   CHECK(!tracker.accept(36.0f, 3999, 11, 1000));
   CHECK(!tracker.accept(36.0f, 4000, 12, 1000));
   CHECK(!tracker.accept(35.99f, 4500, 13, 1000));
@@ -6724,11 +6724,11 @@ void w99g_bullseye_requires_one_second_of_exact_fresh_samples() {
   CHECK(tracker.accept(36.0f, 6000, 15, 1000));
   CHECK(!tracker.pending);
 
-  tracker.arm(36, 1000, 3000, 20);
+  tracker.arm(360, 1000, 3000, 20);
   CHECK(!tracker.accept(36.0f, 60000, 21, 1000));
   CHECK(tracker.accept(36.0f, 61000, 22, 1000));
 
-  tracker.arm(36, 1000, 3000, 30);
+  tracker.arm(360, 1000, 3000, 30);
   CHECK(!tracker.accept(36.0f, 4000, 31, 1000));
   CHECK(!tracker.accept(36.0f, 5001, 32, 1000));
   CHECK(tracker.targetSampleCount == 1);
@@ -6748,7 +6748,7 @@ void w99h_bullseye_service_runs_only_in_buzzer_only_mode() {
   markScaleWorkerProgress();
   cupPresence.state = CupPresenceState::PRESENT;
   cupPresence.placementId = 7;
-  bullseyeTracker.arm(36, hostMillis, 3000, 10, cupPresencePlacementId());
+  bullseyeTracker.arm(360, hostMillis, 3000, 10, cupPresencePlacementId());
   currentWeight = 36.0f;
   currentWeightSequence = 11;
   currentWeightReceivedAtMs = 4000;
@@ -6765,7 +6765,7 @@ void w99h_bullseye_service_runs_only_in_buzzer_only_mode() {
   CHECK(localBuzzer.activeCue == BuzzerCue::BULLSEYE);
 
   localBuzzer.stopAll();
-  bullseyeTracker.arm(36, hostMillis, 0, currentWeightSequence,
+  bullseyeTracker.arm(360, hostMillis, 0, currentWeightSequence,
                       cupPresencePlacementId());
   ++cupPresence.placementId;
   serviceBullseyeMelody();
@@ -6774,7 +6774,7 @@ void w99h_bullseye_service_runs_only_in_buzzer_only_mode() {
 
   runtimeConfig.alertOutputChannel =
       static_cast<uint8_t>(AlertOutputChannel::SCALE_PRIORITY);
-  bullseyeTracker.arm(36, hostMillis, 3000, currentWeightSequence,
+  bullseyeTracker.arm(360, hostMillis, 3000, currentWeightSequence,
                       cupPresencePlacementId());
   ++currentWeightSequence;
   currentWeightReceivedAtMs = hostMillis + 100;
@@ -11721,7 +11721,7 @@ void rt04_heavy_cup_does_not_stop_during_retare() {
   runtimeConfig.autoRetare = true;
   runtimeConfig.bbwProtectionMs =
       minimumBbwProtectionMs(runtimeConfig);
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   CHECK(executeNextScaleCommand());
   establishPostTareBaseline();
@@ -12427,7 +12427,7 @@ void s01c_mixed_shots_share_stats_and_home_authority() {
 
   record.durationDs = 130;
   record.actualWeightCg = 3000;
-  record.goalWeightG = 20;
+  record.goalWeightDg = 200;
   record.avgFlowCgS = SHOT_LOG_METRIC_MISSING;
   record.shotType = static_cast<uint8_t>(ShotLogType::AUTO);
   record.stopDetail = static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET);
@@ -12491,7 +12491,7 @@ void s01e_bbw_error_uses_its_own_ten_shots() {
   ShotLogRecord record = {};
   record.durationDs = 300;
   record.actualWeightCg = 3300;
-  record.goalWeightG = 30;
+  record.goalWeightDg = 300;
   record.shotType = static_cast<uint8_t>(ShotLogType::AUTO);
   record.stopDetail = static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET);
   for (int i = 0; i < 12; ++i) CHECK(shotLog.append(record, false));
@@ -12511,7 +12511,7 @@ void s01f_curve_rollover_keeps_stats_windows_and_sorted_joins() {
   resetHarness(false, true);
   ShotLogRecord record = {};
   record.durationDs = 300;
-  record.goalWeightG = 30;
+  record.goalWeightDg = 300;
   ShotCurveRecord curve = emptyShotCurveRecord();
   curve.count = 2;
   curve.atMs[1] = 500;
@@ -12649,7 +12649,7 @@ void s02_shot_log_appends_after_drip_delay() {
   pendingFinalize.endReason = EndReason::ACTIVATOR;
   pendingFinalize.bootId = shotLog.bootId();
   pendingFinalize.durationDs = 120;
-  pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.activePresetId = presetBank.activeId;
@@ -12677,7 +12677,7 @@ void s02e_shot_log_appends_auto_bbw_after_drip_delay() {
   pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
   pendingFinalize.bootId = shotLog.bootId();
   pendingFinalize.durationDs = 120;
-  pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.activePresetId = presetBank.activeId;
@@ -12719,7 +12719,7 @@ void s02f_shot_log_skips_sub_one_gram_weight() {
   pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
   pendingFinalize.bootId = shotLog.bootId();
   pendingFinalize.durationDs = 120;
-  pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.activePresetId = presetBank.activeId;
@@ -13189,7 +13189,7 @@ void s17_new_cycle_commits_pending_log_as_last_known() {
   pendingFinalize.bootId = shotLog.bootId();
   pendingFinalize.durationDs = 151;
   pendingFinalize.firstDropDs = 45;
-  pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   pendingFinalize.scaleBaselineG = 0.0f;
   pendingFinalize.endedAtMs = hostMillis;
@@ -13212,14 +13212,14 @@ void w90_save_unknown_preset_id_does_not_overwrite_active() {
   const ShotPreset *dbl =
       findShotPreset(presetBank, FACTORY_PRESET_ID_DOUBLE);
   CHECK(dbl != nullptr);
-  const uint8_t originalGoal = dbl->goalWeightG;
+  const uint16_t originalGoal = dbl->goalWeightDg;
   WebCommand save;
   save.type = WebCommandType::PRESET_OP;
   save.requestId = 90;
   save.presetAction = static_cast<uint8_t>(PresetAction::SAVE);
   save.presetId = 99;
   save.config = runtimeConfig;
-  save.config.goalWeightG = 40;
+  save.config.goalWeightDg = 400;
   processWebCommand(save);
   CHECK(hostLastForwardedNetworkCommand.requestId == 90);
   CHECK(hostLastForwardedNetworkCommand.resultState ==
@@ -13227,7 +13227,7 @@ void w90_save_unknown_preset_id_does_not_overwrite_active() {
   const ShotPreset *after =
       findShotPreset(presetBank, FACTORY_PRESET_ID_DOUBLE);
   CHECK(after != nullptr);
-  CHECK(after->goalWeightG == originalGoal);
+  CHECK(after->goalWeightDg == originalGoal);
   CHECK(presetBank.activeId == FACTORY_PRESET_ID_DOUBLE);
 }
 
@@ -13327,7 +13327,7 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   initialPreset.avoidAccidentalTouchEnabled = true;
   initialPreset.cupProtectionEnabled = true;
   applyShotPresetToConfig(initialPreset, runtimeConfig, true);
-  const uint8_t goal = runtimeConfig.goalWeightG;
+  const uint16_t goal = runtimeConfig.goalWeightDg;
   const float learnedOffset = activeShotPreset(presetBank).weightOffsetG;
   const struct {
     QuickSettingField field;
@@ -13366,7 +13366,7 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   CHECK(!runtimeConfig.fastExtractionGuardEnabled);
   CHECK(!runtimeConfig.avoidAccidentalTouchEnabled);
   CHECK(!runtimeConfig.cupProtectionEnabled);
-  CHECK(runtimeConfig.goalWeightG == goal);
+  CHECK(runtimeConfig.goalWeightDg == goal);
   CHECK(activeShotPreset(presetBank).weightOffsetG == learnedOffset);
 
   WebCommand stale;
@@ -13727,7 +13727,7 @@ void s15b_cup_off_after_end_keeps_last_known_actual() {
   pendingFinalize.endReason = EndReason::FAST_EXTRACTION_MAX_WEIGHT;
   pendingFinalize.bootId = shotLog.bootId();
   pendingFinalize.durationDs = 280;
-  pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.endedWeightSequence = 7;
@@ -13780,7 +13780,7 @@ void s15_last_shot_persists_after_drip_when_eligible() {
   pendingFinalize.finalState = StopperState::BREW;
   pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
   pendingFinalize.durationDs = 120;
-  pendingFinalize.goalWeightG = DEFAULT_GOAL_WEIGHT_G;
+  pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.bootId = shotLog.bootId();
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.endedWeightSequence = 4;
@@ -14947,19 +14947,19 @@ void m08_recipe_copies_match_published_state() {
   ShotPresetBank copiedBank = {};
   copyRuntimeConfig(&copied);
   copyPresetBank(&copiedBank);
-  CHECK(copied.goalWeightG == runtimeConfig.goalWeightG);
+  CHECK(copied.goalWeightDg == runtimeConfig.goalWeightDg);
   CHECK(copiedBank.activeId == presetBank.activeId);
-  runtimeConfig.goalWeightG = 44;
-  mutableActiveShotPreset(presetBank).goalWeightG = 44;
+  runtimeConfig.goalWeightDg = 440;
+  mutableActiveShotPreset(presetBank).goalWeightDg = 440;
   commitLiveRuntimeConfig(runtimeConfig, RUNTIME_PERSIST_REASON_USER);
   RuntimeConfig after = {};
   ShotPresetBank afterBank = {};
   copyRuntimeConfig(&after);
   copyPresetBank(&afterBank);
-  CHECK(after.goalWeightG == 44);
+  CHECK(after.goalWeightDg == 440);
   CHECK(afterBank.activeId == presetBank.activeId);
   CHECK(findShotPreset(afterBank, afterBank.activeId) != nullptr);
-  CHECK(findShotPreset(afterBank, afterBank.activeId)->goalWeightG == 44);
+  CHECK(findShotPreset(afterBank, afterBank.activeId)->goalWeightDg == 440);
 }
 
 void m09_snapshot_mutexes_preserve_concurrent_invariants() {
@@ -14976,11 +14976,11 @@ void m09_snapshot_mutexes_preserve_concurrent_invariants() {
     session.id = generation;
     session.source = ControlSource::WEB;
     runtimeConfig.revision = generation;
-    runtimeConfig.goalWeightG = static_cast<uint8_t>(20U + generation % 40U);
+    runtimeConfig.goalWeightDg = static_cast<uint16_t>(200U + generation % 400U);
     runtimeConfig.dripDelayMs = generation ^ 0x5a5a5a5aU;
     ShotPreset &active = mutableActiveShotPreset(presetBank);
-    active.goalWeightG = runtimeConfig.goalWeightG;
-    active.operationalWallMs = 10000U + active.goalWeightG;
+    active.goalWeightDg = runtimeConfig.goalWeightDg;
+    active.operationalWallMs = 10000U + active.goalWeightDg;
     shotCurveSampler.reset(0);
     shotCurveSampler.accept(static_cast<float>(generation % 100), generation);
     publishRecipeState();
@@ -15036,7 +15036,7 @@ void m09_snapshot_mutexes_preserve_concurrent_invariants() {
 
       RuntimeConfig config;
       copyRuntimeConfig(&config);
-      if (config.goalWeightG != 20U + config.revision % 40U ||
+      if (config.goalWeightDg != 200U + config.revision % 400U ||
           config.dripDelayMs != (config.revision ^ 0x5a5a5a5aU)) {
         violations.fetch_add(1, std::memory_order_relaxed);
       }
@@ -15045,7 +15045,7 @@ void m09_snapshot_mutexes_preserve_concurrent_invariants() {
       copyPresetBank(&bank);
       const ShotPreset *active = findShotPreset(bank, bank.activeId);
       if (active == nullptr ||
-          active->operationalWallMs != 10000U + active->goalWeightG) {
+          active->operationalWallMs != 10000U + active->goalWeightDg) {
         violations.fetch_add(1, std::memory_order_relaxed);
       }
 
@@ -15054,7 +15054,7 @@ void m09_snapshot_mutexes_preserve_concurrent_invariants() {
       const ShotPreset *recipeActive =
           findShotPreset(recipe.presets, recipe.presets.activeId);
       if (recipeActive == nullptr ||
-          recipeActive->goalWeightG != recipe.runtime.goalWeightG) {
+          recipeActive->goalWeightDg != recipe.runtime.goalWeightDg) {
         violations.fetch_add(1, std::memory_order_relaxed);
       }
 
@@ -15267,11 +15267,11 @@ void f05_settings_persistence_init_is_transactional() {
   update.type = WebCommandType::APPLY_CONFIG;
   update.requestId = 505;
   update.config = before;
-  update.config.goalWeightG = before.goalWeightG + 1U;
+  update.config.goalWeightDg = before.goalWeightDg + 1U;
   hostForwardAcceptedNetworkCommandSucceeds = false;
   processWebCommand(update);
   CHECK(runtimeConfig.revision == before.revision);
-  CHECK(runtimeConfig.goalWeightG == before.goalWeightG);
+  CHECK(runtimeConfig.goalWeightDg == before.goalWeightDg);
   CHECK(controlResultPending);
   CHECK(controlResultCommand.requestId == update.requestId);
   CHECK(controlResultCommand.resultState == CommandResultState::FAILED);
@@ -15739,7 +15739,7 @@ void s12c_finalize_links_exact_history_row() {
   PendingShotFinalize snapshot = {};
   snapshot.cycleId = 7;
   snapshot.durationDs = 300;
-  snapshot.goalWeightG = 36;
+  snapshot.goalWeightDg = 360;
   snapshot.startedWithScale = true;
   snapshot.automaticBrew = true;
   snapshot.finalState = StopperState::READY;
@@ -16690,7 +16690,7 @@ void h11_status_store_cache_generation_guard() {
   // Wrapper mutations bump and propagate, including a rating-only change.
   ShotLogRecord shot = {};
   shot.durationDs = 250;
-  shot.goalWeightG = 36;
+  shot.goalWeightDg = 360;
   shot.actualWeightCg = 3650;
   CHECK(shotLog.append(shot, false));
   ShotLogRecord storedShot = {};
@@ -16858,7 +16858,7 @@ void r49_guard_extends_and_stops_at_max_weight() {
   runtimeConfig.fastExtractionGuardEnabled = true;
   runtimeConfig.maxRecoveryWeightG = 42.5f;
   runtimeConfig.minBbwBrewTimeMs = 26000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -16888,7 +16888,7 @@ void r51_extended_pulse_respects_alert_flag_and_scale_only() {
       static_cast<uint8_t>(ExtendedPulseRate::OFF);
   runtimeConfig.maxRecoveryWeightG = 42.5f;
   runtimeConfig.minBbwBrewTimeMs = 26000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -16908,7 +16908,7 @@ void r51_extended_pulse_respects_alert_flag_and_scale_only() {
       static_cast<uint8_t>(AlertOutputChannel::SCALE_ONLY);
   runtimeConfig.maxRecoveryWeightG = 42.5f;
   runtimeConfig.minBbwBrewTimeMs = 26000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -16926,7 +16926,7 @@ void r50_guard_extends_and_stops_at_min_time() {
   runtimeConfig.fastExtractionGuardEnabled = true;
   runtimeConfig.maxRecoveryWeightG = 42.5f;
   runtimeConfig.minBbwBrewTimeMs = 26000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -16948,7 +16948,7 @@ void r56_guard_inhibits_bbw_weight_cut_before_min_time() {
   runtimeConfig.fastExtractionGuardEnabled = true;
   runtimeConfig.maxRecoveryWeightG = 42.5f;
   runtimeConfig.minBbwBrewTimeMs = 26000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -16967,7 +16967,7 @@ void r57_guard_max_weight_cut_from_predicted_time() {
   runtimeConfig.fastExtractionGuardEnabled = true;
   runtimeConfig.maxRecoveryWeightG = 42.5f;
   runtimeConfig.minBbwBrewTimeMs = 26000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -16989,7 +16989,7 @@ void r59_slow_guard_on_time_bbw_is_scale_threshold() {
   runtimeConfig.slowExtractionGuardEnabled = true;
   runtimeConfig.minRecoveryWeightG = 30.0f;
   runtimeConfig.maxBbwBrewTimeMs = 44000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17009,7 +17009,7 @@ void r60_slow_guard_cuts_at_max_time_when_above_floor() {
   runtimeConfig.slowExtractionGuardEnabled = true;
   runtimeConfig.minRecoveryWeightG = 30.0f;
   runtimeConfig.maxBbwBrewTimeMs = 44000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17029,7 +17029,7 @@ void r61_slow_guard_extends_and_stops_at_min_weight() {
   runtimeConfig.slowExtractionGuardEnabled = true;
   runtimeConfig.minRecoveryWeightG = 30.0f;
   runtimeConfig.maxBbwBrewTimeMs = 44000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17064,7 +17064,7 @@ void r61b_slow_extended_pulse_uses_slow_rate_setting() {
       static_cast<uint8_t>(ExtendedPulseRate::RAPID);
   runtimeConfig.minRecoveryWeightG = 30.0f;
   runtimeConfig.maxBbwBrewTimeMs = 44000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17087,7 +17087,7 @@ void r61b_slow_extended_pulse_uses_slow_rate_setting() {
       static_cast<uint8_t>(ExtendedPulseRate::OFF);
   runtimeConfig.minRecoveryWeightG = 30.0f;
   runtimeConfig.maxBbwBrewTimeMs = 44000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17107,7 +17107,7 @@ void r61c_extended_pulse_resumes_after_scale_lost_alert() {
   runtimeConfig.autoToManualGuardEnabled = false;
   runtimeConfig.maxRecoveryWeightG = 42.5f;
   runtimeConfig.minBbwBrewTimeMs = 26000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17190,7 +17190,7 @@ void r62_fast_extended_is_not_cut_by_slow() {
   runtimeConfig.minBbwBrewTimeMs = 26000;
   runtimeConfig.minRecoveryWeightG = 30.0f;
   runtimeConfig.maxBbwBrewTimeMs = 44000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17220,7 +17220,7 @@ void r63_slow_guard_disabled_continues_past_max_time() {
   resetHarness(false, true);
   reachReadyFromBoot();
   runtimeConfig.slowExtractionGuardEnabled = false;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17246,7 +17246,7 @@ void r64_slow_guard_min_weight_cut_from_predicted_time() {
   runtimeConfig.slowExtractionGuardEnabled = true;
   runtimeConfig.minRecoveryWeightG = 30.0f;
   runtimeConfig.maxBbwBrewTimeMs = 44000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17284,8 +17284,8 @@ void prepareTouchFallbackTest() {
   resetHarness(false, true);
   reachReadyFromBoot();
   enableAccidentalTouchForTest();
-  mutableActiveShotPreset(presetBank).goalWeightG = 36;
-  runtimeConfig.goalWeightG = 36;
+  mutableActiveShotPreset(presetBank).goalWeightDg = 360;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17322,7 +17322,7 @@ void at11_touch_fallback_only_when_both_enabled() {
                    "touch_weight_fallback") == 0);
       ShotLogRecord fallbackRecord = {};
       fallbackRecord.shotType = static_cast<uint8_t>(ShotLogType::AUTO);
-      fallbackRecord.goalWeightG = 36;
+      fallbackRecord.goalWeightDg = 360;
       fallbackRecord.stopDetail = static_cast<uint8_t>(
           ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK);
       CHECK(!shotLogBbwErrorEligible(fallbackRecord));
@@ -17402,7 +17402,7 @@ void at13_touch_fallback_guard_thresholds() {
     if (scenario == 2) session.config.minBbwBrewTimeMs = 5000;
     if (scenario >= 3) {
       session.config.maxBbwBrewTimeMs = 5000;
-      session.config.goalWeightG = 60;
+      session.config.goalWeightDg = 600;
     }
     if (scenario == 4) session.slowExtractionExtended = true;
     for (unsigned i = 0; i <= 10; ++i) {
@@ -17467,7 +17467,7 @@ void at16_touch_fallback_uses_receive_time_for_guard_boundaries() {
     session.config.fastExtractionGuardEnabled = fast;
     session.config.slowExtractionGuardEnabled = !fast;
     session.config.maxRecoveryWeightG = 70;
-    if (!fast) session.config.goalWeightG = 60;
+    if (!fast) session.config.goalWeightDg = 600;
     session.slowExtractionExtended = scenario == 2;
     hostMillis += 700;
     const uint32_t boundary = elapsedMs(session.startedAtMs) - 300;
@@ -17726,8 +17726,8 @@ void at03_late_spike_does_not_cut_then_recovers() {
   resetHarness(false, true);
   reachReadyFromBoot();
   enableAccidentalTouchForTest();
-  runtimeConfig.goalWeightG = 36;
-  mutableActiveShotPreset(presetBank).goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
+  mutableActiveShotPreset(presetBank).goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17752,8 +17752,8 @@ void at04_smooth_approach_cuts_on_two_samples() {
   resetHarness(false, true);
   reachReadyFromBoot();
   enableAccidentalTouchForTest();
-  runtimeConfig.goalWeightG = 36;
-  mutableActiveShotPreset(presetBank).goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
+  mutableActiveShotPreset(presetBank).goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17774,10 +17774,10 @@ void at05_spike_before_min_bbw_brew_time_does_not_enter_fast_extended() {
   enableAccidentalTouchForTest();
   runtimeConfig.fastExtractionGuardEnabled = true;
   runtimeConfig.minBbwBrewTimeMs = 26000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   mutableActiveShotPreset(presetBank).fastExtractionGuardEnabled = true;
   mutableActiveShotPreset(presetBank).minBbwBrewTimeMs = 26000;
-  mutableActiveShotPreset(presetBank).goalWeightG = 36;
+  mutableActiveShotPreset(presetBank).goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17797,7 +17797,7 @@ void at06_fast_extended_spike_does_not_cut_until_sustained() {
   runtimeConfig.fastExtractionGuardEnabled = true;
   runtimeConfig.maxRecoveryWeightG = 42.5f;
   runtimeConfig.minBbwBrewTimeMs = 26000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -17900,7 +17900,7 @@ void at10_holding_does_not_block_slow_extended_at_max_time() {
   runtimeConfig.slowExtractionGuardEnabled = true;
   runtimeConfig.minRecoveryWeightG = 30.0f;
   runtimeConfig.maxBbwBrewTimeMs = 44000;
-  runtimeConfig.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -18262,7 +18262,7 @@ void fw02_offset_floor_from_sensor_lag() {
   pendingFinalize.scaleConnectionGeneration =
       getScaleLinkSnapshot().connectionGeneration;
   pendingFinalize.weightOffsetG = 0.20f;
-  pendingFinalize.goalWeightG = preset.goalWeightG;
+  pendingFinalize.goalWeightDg = preset.goalWeightDg;
   pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.durationDs = 300;   // 30 s shot, drop at 10 s: 1.8 g/s.
@@ -18297,7 +18297,7 @@ void fw02_offset_floor_from_sensor_lag() {
   pendingFinalize.scaleConnectionGeneration =
       getScaleLinkSnapshot().connectionGeneration;
   pendingFinalize.weightOffsetG = 0.20f;
-  pendingFinalize.goalWeightG = 18;
+  pendingFinalize.goalWeightDg = 180;
   pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.durationDs = 450;  // 18.05 g / 45 s = 0.40 g/s.
@@ -18319,7 +18319,7 @@ void fw02_offset_floor_from_sensor_lag() {
   pendingFinalize.scaleConnectionGeneration =
       getScaleLinkSnapshot().connectionGeneration;
   pendingFinalize.weightOffsetG = 0.20f;
-  pendingFinalize.goalWeightG = 36;
+  pendingFinalize.goalWeightDg = 360;
   pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.durationDs = 300;
@@ -18342,7 +18342,7 @@ void fw02_offset_floor_from_sensor_lag() {
   pendingFinalize.scaleConnectionGeneration =
       getScaleLinkSnapshot().connectionGeneration;
   pendingFinalize.weightOffsetG = 0.20f;
-  pendingFinalize.goalWeightG = 36;
+  pendingFinalize.goalWeightDg = 360;
   pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.durationDs = 300;
@@ -18573,8 +18573,8 @@ void ff08_coffee_during_post_tare_grace_fires() {
 
 void ff09_stream_past_half_goal_still_fires() {
   startFirstFlowBrew();
-  runtimeConfig.goalWeightG = 36;
-  session.config.goalWeightG = 36;
+  runtimeConfig.goalWeightDg = 360;
+  session.config.goalWeightDg = 360;
   publishWeight(0.4f, hostMillis + 50, 1, 20);
   publishWeight(0.9f, hostMillis + 150, 1, 21);
   CHECK(session.firstDropMs != 0);
