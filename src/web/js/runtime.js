@@ -3117,9 +3117,16 @@ function setMutable(enabled) {
     if (e.id === "shotFsButton" || e.id === "shotFsClose") return;
     if (
       e.classList.contains("taskProfilerCtl") ||
-      e.classList.contains("diagCtl") ||
-      e.classList.contains("scaleProfileCtl")
+      e.classList.contains("scaleProfileCtl") ||
+      e.closest("#auditPanel>.btnBar")
     ) {
+      // Data-painted controls: the diagnostic stream recomputes their
+      // enabled state (ownership plus data preconditions such as a
+      // non-empty audit log), so a mutability sweep may only disable them.
+      if (!webUiOwner) e.disabled = true;
+      return;
+    }
+    if (e.classList.contains("diagCtl")) {
       e.disabled = !webUiOwner;
       return;
     }
