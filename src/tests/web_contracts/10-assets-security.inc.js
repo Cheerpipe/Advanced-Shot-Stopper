@@ -574,8 +574,11 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // budgets remain fixed.
 // The audit viewer adds an Export button plus a fuller panel hint:
 // +161 measured HTML bytes (91761); compressed budgets re-measured below.
-if (htmlBytes > 91800) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 91800)`);
+// The unified Stats/History sort controls give History the "Sort" label span
+// and a pressed-state Date button: +53 measured HTML bytes (91814); compressed
+// budgets re-measured below.
+if (htmlBytes > 91900) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 91900)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.

@@ -1044,7 +1044,6 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !css.includes('.shotSort{') ||
     !css.includes('.shotSort button[aria-pressed="true"]') ||
     !codeIncludes(runtimeJs, 'function setShotSort(') ||
-    !codeIncludes(runtimeJs, 'function toggleShotSortDir(') ||
     !codeIncludes(runtimeJs, 'function syncShotSortButtons(') ||
     !codeIncludes(runtimeJs, 'syncShotSortButtons();statsSendSubscribe()') ||
     !codeIncludes(runtimeJs, "'date','desc'") ||
@@ -1054,15 +1053,18 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !codeIncludes(js, 'Lowest rating') ||
     !codeIncludes(viewJs.stats, 'sortDateButton') ||
     !codeIncludes(viewJs.stats, 'sortRatingButton') ||
-    !codeIncludes(viewJs.stats, 'sortDirButton') ||
-    // The word Sort labels both sort controls so they read without icons.
+    codeIncludes(viewJs.stats, 'sortDirButton') ||
+    // The word Sort labels both sort controls so they read without icons, and
+    // the direction arrow lives inside the active criterion button.
     !codeIncludes(viewJs.stats, '<span class="sortLbl">') ||
     !css.includes('.shotSort .sortLbl{') ||
-    !/<button id="historyDirButton"[^>]*>Sort /.test(partialHtml.history) ||
+    !codeIncludes(runtimeJs, 'b.textContent = on ? name + " " + arrow : name;') ||
+    !partialHtml.history.includes('<span class="sortLbl">Sort</span>') ||
+    !/<button id="historyDirButton"[^>]*>Date /.test(partialHtml.history) ||
     !codeIncludes(js, 'Newest first') ||
     !codeIncludes(viewJs.stats, "R.setShotSort('date')") ||
     !codeIncludes(viewJs.stats, "R.setShotSort('rating')") ||
-    !codeIncludes(viewJs.stats, 'R.toggleShotSortDir()') ||
+    codeIncludes(viewJs.stats, 'R.toggleShotSortDir') ||
     !codeIncludes(viewJs.stats, 'R.syncShotSortButtons()') ||
     !shotLogTypes.includes('shotLogSortRecords') ||
     !shotLogTypes.includes('ShotLogSort::Rating') ||
@@ -1081,6 +1083,49 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     css.includes('html.theme-dark #message,html.theme-dark .configSaveBar,html.theme-dark #shotLogPanel .btnBar{background:var(--bg)}') ||
     css.includes('html.theme-dark #message,html.theme-dark .configSaveBar{background:var(--bg)}')) {
   throw new Error('Shot history must sort by date or rating with unrated last and keep stats on newest shots');
+}
+{
+  // Unified sort controls: pressing the already-selected criterion toggles the
+  // direction, pressing the other one switches without resetting it, and the
+  // active button carries the arrow plus a label naming the order a press
+  // will produce.
+  const assert = require('assert').strict, vm = require('vm');
+  const button = () => ({attributes: {},
+    setAttribute(name, value) {this.attributes[name] = String(value);},
+    removeAttribute(name) {delete this.attributes[name];}});
+  const sortButtons = {sortDateButton: button(), sortRatingButton: button()};
+  let subscriptions = 0;
+  const sortContext = vm.createContext({
+    shotSort: 'date', shotSortDir: 'desc',
+    $: (id) => sortButtons[id] || null,
+    statsSendSubscribe: () => {subscriptions++;},
+  });
+  vm.runInContext(
+      blockAt(runtimeJs, 'function syncShotSortButtons(') +
+      blockAt(runtimeJs, 'function setShotSort('), sortContext);
+  const state = () => [
+    sortButtons.sortDateButton.textContent, sortButtons.sortDateButton.attributes['aria-pressed'],
+    sortButtons.sortRatingButton.textContent, sortButtons.sortRatingButton.attributes['aria-pressed']];
+  sortContext.setShotSort('date');
+  assert.deepEqual([sortContext.shotSort, sortContext.shotSortDir], ['date', 'asc'],
+      'pressing the active criterion must toggle the direction');
+  assert.deepEqual(state(), ['Date ↑', 'true', 'Rating', 'false']);
+  assert.equal(sortButtons.sortDateButton.attributes['aria-label'], 'Newest first');
+  sortContext.setShotSort('rating');
+  assert.deepEqual([sortContext.shotSort, sortContext.shotSortDir], ['rating', 'asc'],
+      'switching criteria must keep the current direction');
+  assert.deepEqual(state(), ['Date', 'false', 'Rating ↑', 'true']);
+  assert.equal(sortButtons.sortRatingButton.attributes['aria-label'], 'Highest rating');
+  assert.equal(sortButtons.sortDateButton.attributes['aria-label'], undefined,
+      'the inactive criterion must keep its plain visible name');
+  sortContext.setShotSort('rating');
+  sortContext.setShotSort('date');
+  assert.deepEqual(state(), ['Date ↓', 'true', 'Rating', 'false']);
+  assert.equal(sortButtons.sortDateButton.attributes['aria-label'], 'Oldest first');
+  sortContext.setShotSort('duration');
+  assert.deepEqual([sortContext.shotSort, sortContext.shotSortDir], ['date', 'desc'],
+      'unknown sort fields must be ignored');
+  assert.equal(subscriptions, 4, 'every sort change must resubscribe the stats stream');
 }
 const historyTypesIo = fs.readFileSync(
     path.join(sketchDir, 'ShotStopperHistoryTypes.h'), 'utf8');

@@ -15,14 +15,9 @@ export function init() {
       __WEBUI_TEXT__("stats.date") +
       '</button><button id="sortRatingButton" type="button">' +
       __WEBUI_TEXT__("stats.rating") +
-      '</button><button id="sortDirButton" type="button" aria-label="' +
-      __WEBUI_TEXT__("stats.newest_first") +
-      '">' +
-      __WEBUI_TEXT__("stats.down") +
       "</button>";
     $("sortDateButton").onclick = () => R.setShotSort("date");
     $("sortRatingButton").onclick = () => R.setShotSort("rating");
-    $("sortDirButton").onclick = () => R.toggleShotSortDir();
     R.syncShotSortButtons();
   }
   R.armListSentinel("shotLogSentinel", R.loadMoreShots);

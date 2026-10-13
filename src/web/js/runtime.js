@@ -1558,33 +1558,32 @@ function resetNetworkAddressLoaded() {
 function syncShotSortButtons() {
   const d = $("sortDateButton"),
     r = $("sortRatingButton"),
-    i = $("sortDirButton"),
-    l =
-      shotSort === "date"
-        ? shotSortDir === "desc"
-          ? __WEBUI_TEXT__("runtime.newest_first")
-          : __WEBUI_TEXT__("runtime.oldest_first")
-        : shotSortDir === "desc"
-          ? __WEBUI_TEXT__("runtime.highest_rating")
-          : __WEBUI_TEXT__("runtime.lowest_rating");
-  if (d) d.setAttribute("aria-pressed", shotSort === "date");
-  if (r) r.setAttribute("aria-pressed", shotSort === "rating");
-  if (i) {
-    i.setAttribute("aria-label", l);
-    i.title = l;
-    i.textContent =
-      shotSortDir === "desc" ? __WEBUI_TEXT__("runtime.down") : __WEBUI_TEXT__("runtime.symbol_5");
-  }
+    desc = shotSortDir === "desc",
+    arrow = desc ? __WEBUI_TEXT__("runtime.down") : __WEBUI_TEXT__("runtime.symbol_5"),
+    // Each label names the order pressing that button will produce: the active
+    // criterion flips the direction, the other one switches keeping it.
+    sync = (b, on, name, after) => {
+      b.setAttribute("aria-pressed", on);
+      b.textContent = on ? name + " " + arrow : name;
+      if (!on) {
+        b.removeAttribute("aria-label");
+        b.removeAttribute("title");
+      } else {
+        b.setAttribute("aria-label", after);
+        b.title = after;
+      }
+    };
+  if (d)
+    sync(d, shotSort === "date", __WEBUI_TEXT__("stats.date"),
+      desc ? __WEBUI_TEXT__("runtime.oldest_first") : __WEBUI_TEXT__("runtime.newest_first"));
+  if (r)
+    sync(r, shotSort === "rating", __WEBUI_TEXT__("stats.rating"),
+      desc ? __WEBUI_TEXT__("runtime.lowest_rating") : __WEBUI_TEXT__("runtime.highest_rating"));
 }
 function setShotSort(field) {
-  if ((field === "date" || field === "rating") && shotSort !== field) {
-    shotSort = field;
-    shotSortDir = "desc";
-    return toggleShotSortDir(1);
-  }
-}
-function toggleShotSortDir(keep) {
-  if (!keep) shotSortDir = shotSortDir === "desc" ? "asc" : "desc";
+  if (field !== "date" && field !== "rating") return;
+  if (shotSort === field) shotSortDir = shotSortDir === "desc" ? "asc" : "desc";
+  else shotSort = field;
   syncShotSortButtons();
   statsSendSubscribe();
 }
@@ -1810,13 +1809,14 @@ const syncHistoryDirButton = () => {
   if (!i) return;
   const l =
     historyDir === "desc"
-      ? __WEBUI_TEXT__("runtime.newest_first")
-      : __WEBUI_TEXT__("runtime.oldest_first");
+      ? __WEBUI_TEXT__("runtime.oldest_first")
+      : __WEBUI_TEXT__("runtime.newest_first");
   i.setAttribute("aria-label", l);
   i.title = l;
   i.textContent =
-    (historyDir === "desc" ? __WEBUI_TEXT__("runtime.down") : __WEBUI_TEXT__("runtime.symbol_5")) +
-    " " + __WEBUI_TEXT__("runtime.sort");
+    __WEBUI_TEXT__("stats.date") +
+    " " +
+    (historyDir === "desc" ? __WEBUI_TEXT__("runtime.down") : __WEBUI_TEXT__("runtime.symbol_5"));
 };
 const toggleHistoryDir = () => {
   historyDir = historyDir === "desc" ? "asc" : "desc";
@@ -8496,7 +8496,6 @@ export {
   toggleHistoryDir,
   syncHistoryDirButton,
   setShotSort,
-  toggleShotSortDir,
   syncShotSortButtons,
   resetNetworkAddressLoaded,
   formatWallTimeLocal,
