@@ -167,6 +167,18 @@ bytes — 59,584/59,572 over baseline, with the allowances keeping the
 established 64 bytes of padding-wobble headroom. Flash code, rodata, DIRAM,
 external BSS, task ownership, control timing, OTA identity, and partitions
 all remain inside their existing limits.
+The decigram goal migration (settings v3→v4 staged widening in the NVS read
+path, decigram records across shot log v3 and the last-shot blob, one-decimal
+JSON surfaces, and the tenth-precision quick-weight dial with its 0.1-step
+Settings validation) raises the image/linked allowances to 61,584/61,584
+bytes and the rodata allowance to 28,660 bytes. The reference development
+Micra build measures 2,335,280 image bytes, 2,335,167 linked bytes, and
+615,948 rodata bytes — 61,520/61,520/28,596 over baseline, with the
+allowances keeping the established 64 bytes of padding-wobble headroom.
+Flash code (36,012 over baseline), DIRAM (5,056), and external BSS (771,720
+of 819,200) stay inside their existing allowances. Control timing, OTA
+identity, and partitions are unchanged; the widened settings blob keeps the
+dual-slot NVS write path inside its 3,360-byte budget.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
