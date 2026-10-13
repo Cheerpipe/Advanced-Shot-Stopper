@@ -247,15 +247,19 @@ function applyTaskProfiler(t) {
     }
   }
   if (H) {
+    // Before any session the published totals are placeholders too; keep the
+    // section at the empty hint instead of a "Total now 0.0%" zero line.
+    const session = ["running", "stopped", "failed"].includes(t.state);
+    const total = __WEBUI_TEXT__("diagnostic.total_now");
     const p = t.truncated ? [__WEBUI_TEXT__("diagnostic.list_truncated")] : [];
     for (const [label, value] of [
       [__WEBUI_TEXT__("diagnostic.other_now"), t.unreportedCurrentCpuPct],
       [__WEBUI_TEXT__("diagnostic.other_avg"), t.unreportedAverageCpuPct],
-      [__WEBUI_TEXT__("diagnostic.total_now"), t.currentTotalCpuPct],
+      [total, t.currentTotalCpuPct],
     ])
-      if (Number.isFinite(value) && (label === "Total now" || value > 0.05))
+      if (Number.isFinite(value) && (label === total ? session : value > 0.05))
         p.push(label + " " + fmtTaskPct(value));
-    if (!p.length && !B?.firstChild) p.push(__WEBUI_TEXT__("diagnostic.tasks_empty"));
+    if (!p.length && !session) p.push(__WEBUI_TEXT__("diagnostic.tasks_empty"));
     H.textContent = p.join(__WEBUI_TEXT__("diagnostic.symbol_3"));
   }
 }
