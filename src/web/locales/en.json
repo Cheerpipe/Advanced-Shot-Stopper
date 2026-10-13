@@ -417,6 +417,7 @@
     "diagnostic.system": "system",
     "diagnostic.task": "Task",
     "diagnostic.tasks": "CPU Profiling",
+    "diagnostic.tasks_empty": "No measurements yet. Select Start.",
     "diagnostic.temp_current": "Temp current",
     "diagnostic.temp_peak": "Temp peak",
     "diagnostic.this_severity_and_above_view_only": "This severity and above. View only.",

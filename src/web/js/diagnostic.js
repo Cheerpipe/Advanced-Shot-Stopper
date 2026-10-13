@@ -227,7 +227,10 @@ function applyTaskProfiler(t) {
   if (B) {
     B.replaceChildren();
     for (const r of t.rows || []) {
-      if (r.name?.startsWith("loopTask/") && !r.sampleCount) continue;
+      // Phase and section rows publish names before any session records
+      // samples; without samples they are placeholders, not measurements.
+      if (!r.sampleCount && (r.name?.startsWith("loopTask/") || r.name?.startsWith("scaleWorker/")))
+        continue;
       const tr = document.createElement("tr");
       [
         r.name || "—",
@@ -252,6 +255,7 @@ function applyTaskProfiler(t) {
     ])
       if (Number.isFinite(value) && (label === "Total now" || value > 0.05))
         p.push(label + " " + fmtTaskPct(value));
+    if (!p.length && !B?.firstChild) p.push(__WEBUI_TEXT__("diagnostic.tasks_empty"));
     H.textContent = p.join(__WEBUI_TEXT__("diagnostic.symbol_3"));
   }
 }
