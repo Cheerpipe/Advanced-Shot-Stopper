@@ -202,6 +202,16 @@ Web assets (whose compressed caps the Web contract gate enforces separately)
 plus a few bytes of alert-gate code. DIRAM (5,056 over baseline) and
 external BSS stay inside their existing allowances; control timing, OTA
 identity, and partitions are unchanged.
+The smooth-cut scale-loss backup (loss-deadline regimes, per-preset arrival
+statistics read from the shot log, the idle deadline projection and the
+statistics-epoch commands) raises the image/linked allowances to
+67,536/67,528 bytes and the flash-code allowance to 41,796 bytes. The
+reference development Micra build measures 2,341,232 image bytes, 2,341,111
+linked bytes and 1,556,832 flash-code bytes — 67,472/67,464/41,732 over
+baseline, keeping the 64-byte padding-wobble headroom. Rodata (616,412,
+29,060 over baseline), DIRAM (4,704 over baseline) and external BSS
+(771,816 of 819,200) stay inside their existing allowances; control timing,
+OTA identity, and partitions are unchanged.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
