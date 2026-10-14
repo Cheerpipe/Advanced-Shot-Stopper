@@ -28,8 +28,8 @@ Select **Save preset** to keep your edits; the line beside it reads
 
 On Home, the **Presets** section lists the recipes as rows: the active one is
 marked with a filled circle and expands to show how it cuts, for example
-**Before 27 s · Fast · up to 40 g**, **27–36 s · On recipe · 36 g** and
-**After 34 s · Slow · down to 33 g**. Tapping another row applies that recipe
+**Before 27 s · Fast · up to 42 g**, **27–36 s · On recipe · 36 g** and
+**After 36 s · Slow · down to 33 g**. Tapping another row applies that recipe
 when **Stop the shot** is set to **By weight**; in Manual the list says so and
 keeps the active recipe. These rows show the recipe's own values; learned
 drip compensation and time limits still apply.
@@ -136,7 +136,7 @@ reported only after the Micra dashboard confirms the same temperature.
 | Dose | 18 g | 9 g | 18 g | 9 g |
 | Target yield | 36 g | 18 g | 36 g | 18 g |
 | Shot time window | 27–36 s | 23–32 s | 27–36 s | 23–32 s |
-| Run fast shots longer: extra yield, up to | 4 g (40 g) | 2 g (20 g) | off (4 g saved) | off (2 g saved) |
+| Run fast shots longer: extra yield, up to | 6 g (42 g) | 4 g (22 g) | off (6 g saved) | off (4 g saved) |
 | Stop slow shots sooner: less yield, up to | 3 g (33 g) | 1.5 g (16.5 g) | off (3 g saved) | off (1.5 g saved) |
 | Starting drip | 1.5 g | 0.5 g | 1.5 g | 0.5 g |
 

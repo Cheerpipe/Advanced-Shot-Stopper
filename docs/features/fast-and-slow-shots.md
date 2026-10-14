@@ -74,13 +74,13 @@ hollow when off. While a slow shot is stopping sooner, its line reads
 These are saved with each preset under **Settings → Presets**. Defaults are
 for the factory **Double · Adaptive** preset; [the others differ](presets.md#factory-recipes).
 While you edit, the field result shows the resulting weight and ratio, such as
-**→ up to 40 g (1:2.2)**.
+**→ up to 42 g (1:2.3)**.
 
 | Setting | Default | Range | Effect |
 | --- | --- | --- | --- |
 | **Shot time window (s)** (Recipe) | 27 to 36 s (doubles), 23 to 32 s (singles) | **Window start** at least 2 s after Earliest weight stop; **Window end** at least 1 s after Window start and at least 1 s before Max shot time; 0.5 s steps | Reaching the target inside the window is On recipe; earlier is Fast, later is Slow. |
 | **Run fast shots longer** | ON | ON / OFF | Lets fast shots go past the target. |
-| **Extra yield, up to (g)** | 4 g | 0.5–10 g in 0.1 g steps, and no more than a quarter of the target | The most a very fast shot gains over the target. |
+| **Extra yield, up to (g)** | 6 g | 0.5–10 g in 0.1 g steps, and no more than a quarter of the target | The most a very fast shot gains over the target. |
 | **Stop slow shots sooner** | ON | ON / OFF | Lets slow shots stop before the target. |
 | **Less yield, up to (g)** | 3 g | 0.5–10 g in 0.1 g steps, leaving at least 5 g in the cup | The most a very slow shot stops short of the target. |
 
@@ -116,12 +116,12 @@ median of your recent shots moves by a second or more.
 
 ## Examples
 
-Factory Double · Adaptive: 36 g target, 27–36 s window, up to 4 g extra and
+Factory Double · Adaptive: 36 g target, 27–36 s window, up to 6 g extra and
 3 g less.
 
 - 36 g reached at 30 s: On recipe, stops at 36 g.
-- A shot that would reach 36 g at 24 s keeps running and stops near 38 g.
-- A gusher reaching 36 g at 16 s stops at 40 g.
+- A shot that would reach 36 g at 24 s keeps running and stops near 40 g.
+- A gusher reaching 36 g at 16 s stops at 42 g.
 - A shot that would reach 36 g at 36 s stops a little earlier, near 35 g.
 - A very slow shot stops once it reaches 33 g, or at the 50 s Max shot time.
 - Scale lost during the shot: weight decisions pause, and the

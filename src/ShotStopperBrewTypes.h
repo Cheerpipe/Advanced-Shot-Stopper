@@ -60,7 +60,7 @@ inline float goalWeightDgToGrams(uint16_t goalWeightDg) {
 // the target (decigrams). Factory Double · Adaptive values are the defaults.
 constexpr uint32_t DEFAULT_FAST_BEFORE_MS = 27000;
 constexpr uint32_t DEFAULT_SLOW_AFTER_MS = 36000;
-constexpr uint16_t DEFAULT_FAST_MARGIN_DG = 40;
+constexpr uint16_t DEFAULT_FAST_MARGIN_DG = 60;
 constexpr uint16_t DEFAULT_SLOW_MARGIN_DG = 30;
 constexpr uint16_t DEFAULT_DOSE_DG = 180;
 constexpr uint16_t MIN_SIDE_MARGIN_DG = 5;

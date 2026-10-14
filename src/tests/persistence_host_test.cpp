@@ -1076,10 +1076,10 @@ void p24_preset_bank_size_and_crud_budgets() {
     bool sides;
     float offset;
   } factory[] = {
-      {"Double \xC2\xB7 Adaptive", 180, 360, 40, 30, 27000, 36000, true, 1.5f},
-      {"Single \xC2\xB7 Adaptive", 90, 180, 20, 15, 23000, 32000, true, 0.5f},
-      {"Double \xC2\xB7 Fixed", 180, 360, 40, 30, 27000, 36000, false, 1.5f},
-      {"Single \xC2\xB7 Fixed", 90, 180, 20, 15, 23000, 32000, false, 0.5f},
+      {"Double \xC2\xB7 Adaptive", 180, 360, 60, 30, 27000, 36000, true, 1.5f},
+      {"Single \xC2\xB7 Adaptive", 90, 180, 40, 15, 23000, 32000, true, 0.5f},
+      {"Double \xC2\xB7 Fixed", 180, 360, 60, 30, 27000, 36000, false, 1.5f},
+      {"Single \xC2\xB7 Fixed", 90, 180, 40, 15, 23000, 32000, false, 0.5f},
   };
   for (uint8_t i = 0; i < FACTORY_PRESET_COUNT; ++i) {
     const ShotPreset &preset = bank.presets[i];

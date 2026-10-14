@@ -64,8 +64,8 @@ again.
 | **Stop after sustained weight** | Shared settings → Cup protection | ON | ON / OFF | A backup for a weight stop blocked by **Avoid accidental touch**. Fresh readings must stay above the applicable cut threshold for 1 second. Applies to every preset; takes effect on the next shot. |
 
 **Home → Presets** shows how each recipe cuts as three rows, for example
-**Before 27 s · Fast · up to 40 g**, **27–36 s · On recipe · 36 g** and
-**After 34 s · Slow · down to 33 g**; a side that is switched off reads
+**Before 27 s · Fast · up to 42 g**, **27–36 s · On recipe · 36 g** and
+**After 36 s · Slow · down to 33 g**; a side that is switched off reads
 **off**. The active recipe arrives expanded.
 
 Fixed behavior (not separate settings):
@@ -82,7 +82,7 @@ Fixed behavior (not separate settings):
 Double · Adaptive at 36 g, learned drip 1.5 g, shot time window 27–36 s.
 A shot reaching the target inside the window stops with about **34.5 g** on
 the scale, so the post-drip weight lands near 36 g. A shot running early gets
-a slightly higher cut line (up to 40 g), one running late a slightly lower one
+a slightly higher cut line (up to 42 g), one running late a slightly lower one
 (down to 33 g); see [Fast and slow shots](fast-and-slow-shots.md).
 
 ## Cutoff behavior and learning

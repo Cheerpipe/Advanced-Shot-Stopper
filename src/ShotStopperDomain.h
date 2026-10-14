@@ -989,7 +989,7 @@ inline bool factoryShotPresetId(uint8_t id) {
 }
 constexpr float FACTORY_SINGLE_WEIGHT_OFFSET_G = 0.5f;
 constexpr uint16_t FACTORY_SINGLE_GOAL_WEIGHT_DG = 180;
-constexpr uint16_t FACTORY_SINGLE_FAST_MARGIN_DG = 20;
+constexpr uint16_t FACTORY_SINGLE_FAST_MARGIN_DG = 40;
 constexpr uint16_t FACTORY_SINGLE_SLOW_MARGIN_DG = 15;
 constexpr uint32_t FACTORY_SINGLE_FAST_BEFORE_MS = 23000;
 constexpr uint32_t FACTORY_SINGLE_SLOW_AFTER_MS = 32000;
