@@ -202,11 +202,12 @@ function renderReadyMsg(s, lm) {
 function initQuickWeight() {
   const sheet = $("qwSheet"),
     pen = $("shotGoalEdit"),
-    range = $("qwRange"),
+    zone = $("qwZone"),
     grab = $("qwGrab"),
     head = $("qwHead");
-  if (!sheet || !pen || !range || !grab || !head) return null;
+  if (!sheet || !pen || !zone || !grab || !head) return null;
   const backdrop = $("qwBackdrop"),
+    scale = $("qwScale"),
     num = $("qwNum"),
     def = $("qwDef"),
     resetBtn = $("qwReset"),
@@ -217,25 +218,60 @@ function initQuickWeight() {
     ratio = $("qwRatio");
   // Firmware preset goal: decigrams, 10.0–200.0 g (settings validation).
   const MIN = 10,
-    MAX = 200;
+    MAX = 200,
+    PX_PER_DG = 6, // 60 px per gram: tenths read clearly
+    BASE_DG_PER_PX = 0.05, // 20 px per tenth: ruler tracks the finger at 0.3×
+    SPEED_CAP = 8,
+    SPEED_K = 14;
+  const inner = document.createElement("div");
+  inner.className = "qwScaleIn";
+  const ticks = [];
+  // Ticks run 15 g past both ends so the strip stays full (760 px sheet);
+  // majors label whole grams, mediums halves, minors tenths.
+  const base = (MIN - 15) * 10;
+  for (let d = base; d <= (MAX + 15) * 10; d++) {
+    const tick = document.createElement("i");
+    let label = null;
+    if (d % 10 === 0) {
+      tick.className = "big";
+      if (d >= MIN * 10 && d <= MAX * 10) {
+        label = document.createElement("b");
+        label.textContent = d / 10;
+        label.style.left = ((d - base) * PX_PER_DG).toFixed(1) + "px";
+        inner.appendChild(label);
+      }
+    } else if (d % 5 === 0) tick.className = "med";
+    tick.style.left = ((d - base) * PX_PER_DG).toFixed(1) + "px";
+    inner.appendChild(tick);
+    ticks.push({ d, node: tick, label });
+  }
+  scale.appendChild(inner);
   // Editable range [lo, hi] in decigrams mirrors the Settings rules for the
-  // relative margins, so the sheet can never offer a target Save would reject.
+  // relative margins, so the dial can never offer a target Save would reject.
   let lo = MIN * 10,
     hi = MAX * 10,
     value = MIN * 10,
     openValue = MIN * 10,
     dose = 0;
   const clamp = (d) => Math.max(lo, Math.min(hi, d));
+  const speedMul = (v) => 1 + Math.min(SPEED_CAP - 1, Math.abs(v || 0) * SPEED_K);
+  let nowIdx = -1;
+  // Ticks sit at fixed offsets; one translate slides the whole ruler and only
+  // the "now" tick and the readouts change per frame, so a drag never
+  // restyles the strip.
   const paint = () => {
-    const g = (value / 10).toFixed(1);
-    num.textContent = g;
-    ratio.textContent = dose
-      ? __WEBUI_TEXT__("home.ratio_dose")
-          .replace("%1", (value / 10 / dose).toFixed(1))
-          .replace("%2", dose.toFixed(1))
-      : "";
-    range.value = g;
-    range.setAttribute("aria-valuetext", g + " g");
+    const width = scale.getBoundingClientRect().width;
+    inner.style.transform =
+      "translateX(" + (width / 2 - (value - base) * PX_PER_DG).toFixed(1) + "px)";
+    if (ticks[nowIdx]) ticks[nowIdx].node.classList.remove("now");
+    nowIdx = value - base;
+    ticks[nowIdx].node.classList.add("now");
+    num.textContent = (value / 10).toFixed(1);
+    ratio.hidden = !dose;
+    ratio.firstChild.textContent = __WEBUI_TEXT__("home.dose_in").replace("%1", dose.toFixed(1));
+    ratio.lastChild.textContent = "1:" + (value / 10 / dose).toFixed(1);
+    zone.setAttribute("aria-valuenow", (value / 10).toFixed(1));
+    zone.setAttribute("aria-valuetext", (value / 10).toFixed(1) + " g");
     limitMin.hidden = value > lo;
     limitMax.hidden = value < hi;
     def.textContent = (openValue / 10).toFixed(1);
@@ -254,14 +290,16 @@ function initQuickWeight() {
     if (hi < lo) {
       lo = MIN * 10;
       hi = MAX * 10;
-    } // a recipe with no valid target must not lock the sheet
+    } // a recipe with no valid target must not lock the dial
+    for (const { d, node, label } of ticks)
+      for (const el of label ? [node, label] : [node]) el.classList.toggle("out", d < lo || d > hi);
     limitMin.classList.toggle("toneSlow", slow);
     limitMax.classList.toggle("toneFast", fast);
-    range.min = (lo / 10).toFixed(1);
-    range.max = (hi / 10).toFixed(1);
     value = openValue = clamp(Math.round(+preset.goalWeightG * 10));
     dose = +preset.doseG || 0;
     presetEl.textContent = preset.name || "";
+    zone.setAttribute("aria-valuemin", (lo / 10).toFixed(1));
+    zone.setAttribute("aria-valuemax", (hi / 10).toFixed(1));
     paint();
     sheet.inert = false;
     backdrop.inert = false;
@@ -298,37 +336,6 @@ function initQuickWeight() {
     if (!pen.hidden) pen.focus();
     if (save && value !== openValue) commit(value);
   };
-  range.oninput = () => {
-    value = clamp(Math.round(+range.value * 10));
-    paint();
-  };
-  // −/+ step a tenth per tap; holding repeats and speeds up to a gram per
-  // step so a long press can cross the range without the slider.
-  let hold = 0;
-  const stop = () => clearTimeout(hold);
-  for (const [id, dir] of [
-    ["qwMinus", -1],
-    ["qwPlus", 1],
-  ]) {
-    const btn = $(id);
-    btn.onpointerdown = (e) => {
-      e.preventDefault();
-      let n = 0;
-      const step = () => {
-        value = clamp(value + dir * (n > 20 ? 10 : 1));
-        paint();
-        hold = setTimeout(step, n++ ? 70 : 400);
-      };
-      step();
-    };
-    btn.onpointerup = btn.onpointerleave = btn.onpointercancel = stop;
-    btn.onkeydown = (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      value = clamp(value + dir);
-      paint();
-    };
-  }
   const drag = (node, handlers) => {
     node.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -341,19 +348,49 @@ function initQuickWeight() {
       } catch {
         /* synthetic pointers cannot be captured */
       }
-      const ctx = handlers.start(event);
-      const move = (ev) => handlers.move(ev, ctx);
+      const ctx = handlers.start ? handlers.start(event) : {};
+      const move = (ev) => handlers.move && handlers.move(ev, ctx);
       const end = (ev) => {
         node.removeEventListener("pointermove", move);
         node.removeEventListener("pointerup", end);
         node.removeEventListener("pointercancel", end);
-        handlers.end(ev, ctx);
+        handlers.end && handlers.end(ev, ctx);
       };
       node.addEventListener("pointermove", move);
       node.addEventListener("pointerup", end);
       node.addEventListener("pointercancel", end);
     });
   };
+  const vel = { t: 0, v: 0 };
+  let pending = 0;
+  drag(zone, {
+    start: (e) => {
+      vel.t = performance.now();
+      vel.v = 0;
+      pending = 0;
+      return { x: e.clientX, dx: 0 };
+    },
+    move: (e, ctx) => {
+      const dx = e.clientX - ctx.x;
+      ctx.x = e.clientX;
+      const now = performance.now(),
+        dt = Math.max(4, now - vel.t);
+      // A reversal restarts the speed estimate: stale speed from the outgoing
+      // gesture would sling the value past the intended stop.
+      if (dx * ctx.dx < 0) vel.v = 0;
+      ctx.dx = dx;
+      // Slow gestures stay surgical; sustained speed gears up to SPEED_CAP×
+      // so one drag can cross the range without releasing.
+      vel.v = 0.75 * vel.v + 0.25 * (Math.abs(dx) / dt);
+      vel.t = now;
+      // Sub-tenth motion accrues in pending instead of rounding away per
+      // event, so slow drags still move the dial a tenth at a time.
+      pending += dx * BASE_DG_PER_PX * speedMul(vel.v);
+      value = clamp(value + Math.trunc(pending));
+      pending %= 1;
+      paint();
+    },
+  });
   const dismissDrag = {
     start: (e) => {
       sheet.classList.add("nodrag");
@@ -378,17 +415,48 @@ function initQuickWeight() {
   };
   drag(grab, dismissDrag);
   drag(head, dismissDrag);
+  const nudge = (d) => {
+    value = clamp(value + d);
+    paint();
+  };
+  zone.addEventListener("keydown", (e) => {
+    const step = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1, PageUp: 10, PageDown: -10 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    nudge(step);
+  });
+  let hold = 0;
+  const stop = () => clearTimeout(hold);
+  for (const [id, dir] of [
+    ["qwMinus", -1],
+    ["qwPlus", 1],
+  ]) {
+    const btn = $(id);
+    btn.onpointerdown = (e) => {
+      e.preventDefault();
+      let n = 0;
+      const step = () => {
+        nudge(dir * (n > 20 ? 10 : 1));
+        hold = setTimeout(step, n++ ? 70 : 400);
+      };
+      step();
+    };
+    btn.onpointerup = btn.onpointerleave = btn.onpointercancel = stop;
+    btn.onkeydown = (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), nudge(dir));
+  }
   pen.onclick = open;
   addEventListener("click", (e) => e.target.closest(".presetAccEdit") && open());
   doneBtn.onclick = () => close(true);
   resetBtn.onclick = () => {
-    stop();
     value = openValue;
     paint();
   };
   backdrop.onclick = () => close(true);
   sheet.addEventListener("keydown", (e) => {
     if (e.key === "Escape") close(true);
+  });
+  addEventListener("resize", () => {
+    if (sheet.classList.contains("open")) paint();
   });
   return { open, close };
 }

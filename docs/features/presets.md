@@ -54,22 +54,25 @@ preset and whether editing is allowed.
 When the last shot card on Home shows a target (a scale shot, while the
 machine is idle), a small pencil sits next to the target weight. The active
 preset's **On recipe** row in Home's **Presets** section has the same pencil.
-Tap either to open a panel at the bottom of the screen with the weight, its
-ratio and dose (for example **1:2.0 · 18.0 g in**), a slider and **−** / **+**
-buttons:
+Tap either to open a panel at the bottom of the screen. It shows the weight,
+the dose and the ratio as two small labels (for example **18.0 g in** and
+**1:2.0**), and a sliding scale between **−** and **+** buttons:
 
-- Drag the slider for big moves. Tap **−** or **+** to change the weight by a
-  tenth of a gram; hold either one and it repeats, then speeds up to a whole
-  gram at a time.
-- The panel only offers targets the recipe can actually use: from 10.0 g to
+- Drag the scale slowly to move a tenth of a gram at a time; drag faster and
+  it accelerates so you can cross the range in a single gesture.
+- Tap **−** or **+** to change the weight by exactly a tenth of a gram. Hold
+  either one and it repeats, then speeds up to a whole gram at a time.
+- Every whole gram on the scale carries its number, with smaller marks at the
+  half gram and the tenth. Marks the recipe can't use are dimmed, and the
+  scale cannot stop on them.
+- The scale only offers targets the recipe can actually use: from 10.0 g to
   200.0 g, in tenths of a gram. The extra and reduced yields for fast and
-  slow shots are kept as a distance from the target, so they move with it,
-  and the slider stops where the recipe's slow and fast settings allow.
+  slow shots are kept as a distance from the target, so they move with it.
   When you reach either end, a small **Target minimum** or **Target maximum**
   label appears next to the weight.
 - **Reset** appears once you move away from the recipe's weight; tap it to go
   back.
-- Closing the sheet — with **Done**, a swipe down, or tapping outside — saves
+- Closing the panel — with **Save**, a swipe down, or tapping outside — saves
   the new weight to the active recipe right away. The change is the same as
   saving the target in Settings.
 

@@ -465,8 +465,11 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // no-scale and warm-up notice, target ratio, clean-form guard) rides the same
 // inlined home module: 5947 measured, owner-authorized 2026-10-14.
 // Cap raised to 5960.
-if (generated.jsGzip.length > 5960) {
-  throw new Error(`Compressed Web UI shell JS exceeds the 5960-byte gzip budget (${generated.jsGzip.length})`);
+// The target sheet's neutral ruler flanked by hold-to-repeat −/+ buttons and
+// the dose/ratio pills measure 6071, owner-authorized 2026-10-14. Cap raised
+// to 6090.
+if (generated.jsGzip.length > 6090) {
+  throw new Error(`Compressed Web UI shell JS exceeds the 6090-byte gzip budget (${generated.jsGzip.length})`);
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -508,8 +511,10 @@ if (generated.jsGzip.length > 5960) {
 // The Home "Stop the shot" card that replaces the Quick Settings grid
 // (segmented control, Protections row, dots, panel, confirm bar, notice)
 // measures 13397 bytes, owner-authorized 2026-10-14.
-if (generated.cssGzip.length > 13450) {
-  throw new Error(`Compressed Web CSS exceeds the 13450-byte gzip budget (${generated.cssGzip.length})`);
+// The target sheet's −/+ buttons and dose/ratio pills measure 13474 bytes,
+// owner-authorized 2026-10-14.
+if (generated.cssGzip.length > 13500) {
+  throw new Error(`Compressed Web CSS exceeds the 13500-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -782,8 +787,10 @@ if (generated.icon48Gzip.length > 3500) {
 // The Home "Stop the shot" card that replaces Quick Settings measures 145174
 // combined, owner-authorized 2026-10-14. Cap raised to 145300; OTA partition
 // limits stay fixed.
-if (generated.combined > 145300) {
-  throw new Error(`Combined Web UI gzip exceeds the 145300-byte flash budget (${generated.combined})`);
+// The target sheet's ruler with −/+ buttons and dose/ratio pills measures
+// 145458 combined, owner-authorized 2026-10-14. Cap raised to 145500.
+if (generated.combined > 145500) {
+  throw new Error(`Combined Web UI gzip exceeds the 145500-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
