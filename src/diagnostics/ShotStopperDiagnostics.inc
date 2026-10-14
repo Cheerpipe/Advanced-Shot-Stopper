@@ -199,6 +199,9 @@ void publishControlStatus() {
     statusStoreCacheIncludeGoodHistory = includeGoodHistory;
     statusStoreCacheValid = true;
   }
+  // Reads the shot store (cached): never under the publication lock.
+  const corridor::LossDeadline scaleLossProjection =
+      idleScaleLossDeadline(activeShotPreset(presetBank));
   if (recordStatusPhases)
     finishLoopPhase(LoopPhase::HOUSEKEEPING_STATUS_STORE_COPY);
   const uint32_t statusLockStartedUs = micros();
@@ -463,13 +466,9 @@ void publishControlStatus() {
               : session.autoToManualGuardDeadlineAtMs - nowMs;
     }
   }
-  {
-    const ShotPreset &active = activeShotPreset(presetBank);
-    // Interim scale-loss deadline: fixed time, else the window's end.
-    next.autoToManualGuardTrendMs = active.scaleLossFixedMs != 0
-                                         ? active.scaleLossFixedMs
-                                         : active.slowAfterMs;
-  }
+  next.autoToManualGuardTrendMs =
+      static_cast<uint32_t>(scaleLossProjection.deadlineMs);
+  next.scaleLossProjectedSource = static_cast<uint8_t>(scaleLossProjection.source);
   next.noScaleShotGuardEnabled = noScaleBbwEnabled(runtimeConfig.noScaleBbwMode);
   next.noScaleShotGuardArmed = noScaleShotGuardArmed;
   next.noScaleShotGuardHold = noScaleShotGuardHold;

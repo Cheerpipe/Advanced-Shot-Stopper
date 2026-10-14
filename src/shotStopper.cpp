@@ -294,6 +294,8 @@ struct CycleSession {
   bool autoToManualGuardArmed = false;
   bool autoToManualGuardEnforced = false;
   uint32_t autoToManualGuardDeadlineAtMs = 0;
+  uint8_t scaleLossSource = 0;  // corridor::LossSource of the deadline.
+  bool scaleLossBlind = false;  // No valid flow when the scale dropped.
   uint8_t activePresetId = 0;
   char activePresetName[SHOT_PRESET_NAME_CAPACITY] = {};
   char scaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};
@@ -352,6 +354,8 @@ struct PendingShotFinalize {
   uint32_t rampMs = 0;
   int32_t rateAtStopX100 = 0;  // q-hat at the stop command; 0 = invalid.
   bool channeling = false;
+  uint8_t scaleLossSource = 0;
+  bool scaleLossBlind = false;
   uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS;
   bool lastKnownWeightValid = false;
   float lastKnownWeightG = 0.0f;
@@ -1652,6 +1656,8 @@ void latchAtmCurveFromSession(uint32_t atMs) {
   }
 }
 
+void enforceScaleLossBackup();
+
 void setWeightControlState(WeightControlState state) {
   if (session.weightControlState == state) {
     session.automaticEnabled = state == WeightControlState::ACTIVE;
@@ -1669,18 +1675,7 @@ void setWeightControlState(WeightControlState state) {
     scaleProfileNoteEvent(ScaleProfileEvent::CONTROL_SUSPENDED, millis(),
                           getScaleLinkSnapshot().connectionGeneration, 0, NAN,
                           static_cast<uint32_t>(state), 0);
-    if (session.autoToManualGuardArmed &&
-        !session.autoToManualGuardEnforced) {
-      session.autoToManualGuardEnforced = true;
-      latchAtmCurveFromSession(millis());
-      addDebugEvent(DebugCategory::SCALE,
-                    DebugCode::AUTO_TO_MANUAL_GUARD_ENFORCED,
-                    static_cast<int32_t>(
-                        elapsedMs(session.startedAtMs)),
-                    static_cast<int32_t>(
-                        session.autoToManualGuardDeadlineAtMs -
-                        session.startedAtMs));
-    }
+    enforceScaleLossBackup();
   } else if (state == WeightControlState::ACTIVE &&
              (previous == WeightControlState::SUSPENDED ||
               previous == WeightControlState::VALIDATING)) {

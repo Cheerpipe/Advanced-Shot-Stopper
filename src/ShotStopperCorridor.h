@@ -264,15 +264,6 @@ struct RateEstimator {
   }
 };
 
-// Per-shot kernel state owned by the control task.
-struct CorridorState {
-  Params params;
-  RateEstimator rate;
-  int32_t tauMs = 0;           // sensor lag + stop latency (+ stop pulse)
-  int32_t offsetDg = 0;        // learned drip offset r
-};
-static_assert(sizeof(CorridorState) <= 512, "corridor state RAM budget");
-
 // Earliest t >= t_k where W_k + q(t - t_k) + q*tau + r >= f(t). Returns false
 // ("none") when q < 3 dg/s; returns the wall when the line is never met.
 inline bool crossingMs(const Params &p, int32_t tk, int32_t weightDgAtK,
@@ -375,14 +366,16 @@ inline bool admissibleArrival(const ArrivalRecord &r, uint8_t presetId, uint32_t
          !blindOf(r.verdict) && r.arrivalMs > 0;
 }
 
-// Statistics over the newest <= 10 admissible arrivals of one preset.
-inline ArrivalStats arrivalStats(const ArrivalRecord *records, size_t count,
-                                 uint8_t presetId, uint32_t epoch) {
+// Statistics over the newest <= 10 admissible arrivals of one preset; rowAt(i)
+// returns the i-th ArrivalRecord in any order (no copy of the whole log).
+template <typename RowAt>
+inline ArrivalStats arrivalStatsOf(size_t count, RowAt rowAt, uint8_t presetId,
+                                   uint32_t epoch) {
   uint32_t ids[STATS_MAX_SHOTS] = {};
   int32_t times[STATS_MAX_SHOTS] = {};
   uint8_t n = 0;
   for (size_t i = 0; i < count; ++i) {
-    const ArrivalRecord &r = records[i];
+    const ArrivalRecord r = rowAt(i);
     if (!admissibleArrival(r, presetId, epoch)) continue;
     uint8_t slot = n;
     if (n == STATS_MAX_SHOTS) {
@@ -425,6 +418,12 @@ inline ArrivalStats arrivalStats(const ArrivalRecord *records, size_t count,
   return out;
 }
 
+inline ArrivalStats arrivalStats(const ArrivalRecord *records, size_t count,
+                                 uint8_t presetId, uint32_t epoch) {
+  return arrivalStatsOf(count, [records](size_t i) { return records[i]; },
+                        presetId, epoch);
+}
+
 enum class GrindHint : uint8_t { NONE, FAST_EDGE, SLOW_EDGE, FASTER_THAN_WINDOW, SLOWER_THAN_WINDOW };
 
 // Compares the median of the last 5 arrivals with the window edges.
@@ -453,6 +452,18 @@ struct LossDeadline {
   LossSource source = LossSource::WINDOW;
   bool cutNow = false;
 };
+
+// Per-shot kernel state owned by the control task.
+struct CorridorState {
+  Params params;
+  RateEstimator rate;
+  int32_t tauMs = 0;           // sensor lag + stop latency (+ stop pulse)
+  int32_t offsetDg = 0;        // learned drip offset r
+  bool crossingValid = false;  // t* from the last accepted sample
+  int32_t crossingMs = 0;
+  ArrivalStats history;        // this preset's recent arrivals (shot start)
+};
+static_assert(sizeof(CorridorState) <= 512, "corridor state RAM budget");
 
 // Scale-loss deadline, first applicable: fixed time, R0 cut now, R1 projection,
 // R2 history, R3 window midpoint; clamped to [max(t_p, delay), wall].

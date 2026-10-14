@@ -124,6 +124,8 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
   pendingFinalize.rateAtStopX100 =
       session.cut.rate.valid ? session.cut.rate.rateX100 : 0;
   pendingFinalize.channeling = session.cut.rate.channeling;
+  pendingFinalize.scaleLossSource = session.scaleLossSource;
+  pendingFinalize.scaleLossBlind = session.scaleLossBlind;
   pendingFinalize.protectionMs = session.config.bbwProtectionMs;
   pendingFinalize.lastKnownWeightValid =
       session.hasWeightAnchor && std::isfinite(session.lastAcceptedWeightG);
@@ -290,8 +292,11 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
 
   const corridor::ArrivalVerdict verdict =
       pendingShotVerdict(snapshot, snapshot.rateAtStopX100);
-  record.verdict = corridor::packVerdict(verdict.verdict, snapshot.channeling,
-                                         corridor::LossSource::PROJECTION, false);
+  const bool scaleLoss = snapshot.endReason == EndReason::AUTO_TO_MANUAL_GUARD;
+  record.verdict = corridor::packVerdict(
+      verdict.verdict, snapshot.channeling,
+      static_cast<corridor::LossSource>(scaleLoss ? snapshot.scaleLossSource : 0),
+      scaleLoss && snapshot.scaleLossBlind);
   if (verdict.verdict != corridor::Verdict::UNCLASSIFIED)
     record.arrivalDs = static_cast<uint16_t>(verdict.arrivalMs / 100);
   const uint32_t newId = shotLog.nextRecordId();

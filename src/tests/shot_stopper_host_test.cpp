@@ -16856,11 +16856,13 @@ void r52_auto_to_manual_guard_clears_on_scale_recovery() {
   reachReadyFromBoot();
   startCycle();
   advanceToBrew();
-  const uint32_t deadline = session.autoToManualGuardDeadlineAtMs;
   CHECK(session.autoToManualGuardArmed);
   setScaleConnected(false);
   loop();
   CHECK(session.autoToManualGuardEnforced);
+  // The deadline is chosen at the loss; a fixed time gives the same one again.
+  const uint32_t deadline = session.autoToManualGuardDeadlineAtMs;
+  CHECK(session.scaleLossSource == static_cast<uint8_t>(corridor::LossSource::FIXED));
   setScaleConnected(true);
   publishWeight(1.0f);
   publishWeight(2.0f, hostMillis + 1);
@@ -19871,6 +19873,116 @@ void ch01_channeling_caps_the_cut_line_at_the_target() {
   CHECK(cutLineNowDg() == session.cut.params.goalDg);
 }
 
+// Scale-loss backup v2 (plan §4.9): the deadline regime chosen at the loss.
+int32_t scaleLossDeadlineShotMsForTest() {
+  int32_t nowMs = 0;
+  shotTimeAtMs(millis(), nowMs);
+  return nowMs + static_cast<int32_t>(session.autoToManualGuardDeadlineAtMs - millis());
+}
+
+void sl01_scale_loss_regimes() {
+  // R1: a valid flow projects the cut at most 3 s ahead.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  startCycle();
+  advanceToBrew();
+  session.firstDropObserved = true;
+  float weight = 10.0f;
+  for (unsigned i = 0; i < 40; ++i) {
+    hostMillis += 100;
+    markScaleWorkerProgress();
+    publishWeight(weight += 0.5f);  // 5 g/s, ends at 30 g
+  }
+  const bool projectable = session.cut.crossingValid;
+  const int32_t projected = session.cut.crossingMs;
+  setScaleConnected(false);
+  loop();
+  CHECK(session.autoToManualGuardEnforced);
+  CHECK(projectable);
+  CHECK(session.scaleLossSource == static_cast<uint8_t>(corridor::LossSource::PROJECTION));
+  CHECK(!session.scaleLossBlind);
+  CHECK(scaleLossDeadlineShotMsForTest() == projected);
+  reachSessionElapsed(static_cast<uint32_t>(projected) + 50);
+  CHECK(session.endReason == EndReason::AUTO_TO_MANUAL_GUARD);
+  CHECK(pendingFinalize.scaleLossSource ==
+        static_cast<uint8_t>(corridor::LossSource::PROJECTION));
+
+  // R3: lost before the first drops and no history: the window midpoint.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  startCycle();
+  advanceToBrew();
+  setScaleConnected(false);
+  loop();
+  CHECK(session.scaleLossSource == static_cast<uint8_t>(corridor::LossSource::WINDOW));
+  CHECK(session.scaleLossBlind);
+  CHECK(scaleLossDeadlineShotMsForTest() ==
+        (session.cut.params.fastBeforeMs + session.cut.params.slowAfterMs) / 2);
+
+  // R2: three recent arrivals of this preset since its epoch.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  shotLog.clear(false);
+  ShotLogRecord record = {};
+  record.durationDs = 300;
+  record.goalWeightDg = 360;
+  record.actualWeightCg = 3600;
+  record.stopDetail = static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET);
+  shotLogSetPresetId(record, presetBank.activeId);
+  for (uint16_t arrival : {290, 300, 310}) {
+    record.arrivalDs = arrival;
+    CHECK(shotLog.append(record, false));
+  }
+  startCycle();
+  advanceToBrew();
+  CHECK(session.cut.history.n == 3 && session.cut.history.medianMs == 30000);
+  setScaleConnected(false);
+  loop();
+  CHECK(session.scaleLossSource == static_cast<uint8_t>(corridor::LossSource::HISTORY));
+  CHECK(scaleLossDeadlineShotMsForTest() ==
+        30000 + 2 * session.cut.history.sigmaMs / 3 + corridor::HISTORY_MARGIN_MS);
+
+  // Fixed time below the weight-cut delay is clamped to the delay.
+  resetHarness(false, true);
+  runtimeConfig.scaleLossFixedMs = 1000;
+  reachReadyFromBoot();
+  startCycle();
+  advanceToBrew();
+  setScaleConnected(false);
+  loop();
+  CHECK(session.scaleLossSource == static_cast<uint8_t>(corridor::LossSource::FIXED));
+  CHECK(scaleLossDeadlineShotMsForTest() >= session.cut.params.delayMs);
+}
+
+void sl02_new_coffee_restarts_the_statistics_epoch() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  shotLog.clear(false);
+  ShotLogRecord record = {};
+  record.durationDs = 300;
+  CHECK(shotLog.append(record, false));
+  CHECK(shotLog.append(record, false));
+  WebCommand command;
+  command.type = WebCommandType::PRESET_OP;
+  command.requestId = 970;
+  command.presetAction = static_cast<uint8_t>(PresetAction::NEW_COFFEE);
+  command.presetId = presetBank.activeId;
+  processWebCommand(command);
+  CHECK(activeShotPreset(presetBank).learningEpoch == shotLog.nextRecordId());
+  runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
+  // A target move of more than 1 g restarts it again after more shots.
+  CHECK(shotLog.append(record, false));
+  WebCommand save;
+  save.type = WebCommandType::PRESET_OP;
+  save.requestId = 971;
+  save.presetAction = static_cast<uint8_t>(PresetAction::SAVE);
+  save.presetId = presetBank.activeId;
+  save.config = runtimeConfig;
+  save.config.goalWeightDg = runtimeConfig.goalWeightDg + 20;
+  processWebCommand(save);
+  CHECK(activeShotPreset(presetBank).learningEpoch == shotLog.nextRecordId());
+}
+
 const TestCase testCases[] = {
     {"HOME03", home03_active_flow_requires_fresh_baseline_and_confirmed_drop},
     {"HOME02", home02_nonqualifying_resolution_preserves_cutoff_and_endpoint},
@@ -20017,6 +20129,8 @@ const TestCase testCases[] = {
     {"TT01", tt01_smooth_cut_truth_table},
     {"EQ01", eq01_live_cut_equals_kernel_replay},
     {"CH01", ch01_channeling_caps_the_cut_line_at_the_target},
+    {"SL01", sl01_scale_loss_regimes},
+    {"SL02", sl02_new_coffee_restarts_the_statistics_epoch},
     {"R61c", r61c_extended_pulse_resumes_after_scale_lost_alert},
     {"R61d", r61d_extended_pulse_pending_cleared_when_unwanted},
     {"R61e", r61e_extended_pulse_restarts_when_rate_setting_changes},

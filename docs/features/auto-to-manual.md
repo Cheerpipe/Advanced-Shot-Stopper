@@ -1,66 +1,80 @@
 # A→M time guard
 
-Time guard for automatic brew-by-weight shots that **lose the scale**
-mid-extraction. **On by default.**
+The scale-loss backup for brew-by-weight shots. If the scale drops out
+mid-shot, ShotStopper can no longer stop on weight, so it picks the best stop
+time it can and stops the shot then, unless the scale comes back first.
+**On by default.**
 
-A→M means auto-to-manual: weight stop is suspended, but the shot is still
-running. The guard requests a stop on a shorter deadline while reconnection continues.
-Paddle builds open the relay; momentary builds request a stop pulse subject to
+A→M means auto-to-manual: weight stop is paused, but the shot keeps running
+until the backup time. Paddle builds open the relay; momentary builds request a
+stop pulse subject to
 [machine-state and safety conditions](../settings/momentary.md#stopping-and-time-limits).
 
 ## When it applies
 
-Automatic brew-by-weight shots only. It does **not** apply to shots that
-start as manual (`MANUAL_NO_SCALE`), timer-only (BBW off), or rinses.
+Every brew-by-weight shot that started with the scale connected. It does
+**not** apply to shots that start as manual (`MANUAL_NO_SCALE`), timer-only
+(BBW off), or rinses.
 
-When BLE drops or **notifications stop arriving**, weight control pauses.
-A steady weight is not a disconnect: fresh weight notifications still count
-as a live stream even if the brew logic rejects a particular sample. The firmware
-keeps trying to reconnect for the **whole** cycle. If the scale returns with
-three coherent samples, weight stop resumes (including Fast or Slow, if
-enabled) and A→M enforcement clears. A later disconnect in the same cycle
-reuses the same deadline counted from cycle start.
+The scale counts as lost when Bluetooth drops or **weight notifications stop
+arriving** for about a second. A steady weight is not a loss: fresh readings
+still count even if the brew logic ignores one. ShotStopper keeps trying to
+reconnect for the **whole** shot. If the scale returns with three good
+readings, weight stop resumes and the backup time is cancelled. If the scale
+drops again later, a new backup time is chosen from what is known then.
 
-There is no permanent lockout to manual after a fixed reconnect window.
-Reconnect stays preferred.
+## Choosing the backup time
+
+ShotStopper uses the first of these that applies:
+
+1. **Fixed time.** If the preset has a fixed backup time (Limit mode
+   **Manual**), the shot stops at that time.
+2. **The shot was about to stop.** If the shot had already reached its cut
+   line, it stops right away.
+3. **The flow it just saw.** If the coffee was flowing steadily and would have
+   reached the cut line within the next 3 seconds, the shot stops when it
+   would have.
+4. **Your recent shots.** With at least three recent shots on this preset, the
+   shot stops a little after their typical finish time, never later than the
+   end of your window.
+5. **Your window.** Otherwise, the shot stops in the middle of your shot window.
+
+The backup time is never earlier than the last reading the scale sent or the
+weight-cut delay, and never later than the max shot time. A scale that drops
+before the first drops of coffee uses your recent shots or your window.
 
 ## Parameters
 
-Active preset. The ON/OFF switch is also on **Home → Quick Settings**
-(read-only when brew by weight is off).
-
 | Setting | Default | Range / notes | Effect on the shot |
 | --- | --- | --- | --- |
-| **Enable A→M time guard** | ON | ON / OFF | Master switch. OFF: if the scale never returns, the shot runs until paddle OFF or the machine circuit / 60 s wall. |
-| **Limit mode** | Auto | Auto / Manual | **Auto** uses a trend of the last five eligible BBW shot durations. **Manual** uses a fixed number of seconds. |
-| **Manual limit (s)** | 32 s | 10 s … Max BBW time | Used when Limit mode is Manual. |
-| **Trend (s)** | ~32 s | Read-only | Current Auto prediction. Always shown. |
-| **Baseline duration (s)** | 32 s | — | Seed for **Reset A→M samples** (five equal values). Also the factory default for Manual limit. |
+| **Enable A→M time guard** | ON | ON / OFF, shared by every preset; also on **Home → Quick Settings** | OFF: if the scale never returns, the shot runs until paddle OFF or the machine circuit / max shot time. |
+| **Limit mode** | Auto | Auto / Manual, per preset | **Auto** picks the backup time as described above. **Manual** always uses the fixed time. |
+| **Manual limit (s)** | 32 s | 10 s … Max BBW time | The fixed backup time used when Limit mode is Manual. |
+| **Trend (s)** | — | Read-only | The backup time the next shot would use if the scale dropped before the coffee starts flowing. |
 
-Deadline = cycle start + limit. The limit is computed once when an automatic
-brew is confirmed. Enforcement starts on the first scale-loss suspend after
-arming.
+The live panel shows `Off` / `Idle` / `Armed` / `A→M · Ns`. Shot history records
+`stop_detail = auto_to_manual` and `cut_type = limit`, along with how the
+backup time was chosen.
 
-The live panel shows `Off` / `Idle` / `Armed` / `A→M · Ns`. History records
-`stop_detail = auto_to_manual` and `cut_type = limit`.
+## Recent shots
 
-## Duration samples
+Recent shots are the newest ten weight-stopped shots on the same preset.
+Shots stopped by this backup, by the max shot time or by hand do not count,
+and neither do rinses or shots where the coffee channeled.
 
-Successful shots feed a ring of five durations, whether the guard is on or
-not:
-
-- Total shot duration; error ≤ 10 % vs goal; not Fast/Slow extended; not a
-  rinse; not stopped by this guard; post-drip weight available.
-- Auto and manual shots can qualify when weight/error criteria are met.
-- A fresh device starts with five logical **32 s** samples.
+When you change beans or grind, tell ShotStopper so old shots stop counting:
+use **Reset A→M samples** (or the integration API's reset-guard-samples call).
+Changing the preset's window or moving its target by more than 1 g starts
+fresh automatically.
 
 ## Example
 
-An automatic Double loses Bluetooth at 12 s. Trend limit is 32 s. The
-firmware keeps reconnecting, but if the scale is still gone at 32 s from
-start, the controller requests stop. If the scale comes back at 20 s with three good samples,
-weight stop resumes and enforcement clears. A later disconnect reuses the
-original 32 s deadline, rather than starting another 32-second allowance.
+An automatic Double with a 27–34 s window loses Bluetooth at 12 s, before the
+coffee is near its target. The last three shots finished around 30 s, so the
+backup time is about 31.5 s. ShotStopper keeps reconnecting; if the scale comes
+back at 20 s with three good readings, weight stop resumes and the backup time
+is cancelled. If the scale is lost at 29 s while the coffee is flowing toward
+the target, the shot stops when the flow says it would have reached it.
 
 Related: [Brew by weight](brew-by-weight.md), [Alerts](../alerts.md)
 (ATM / manual-no-scale).

@@ -1008,7 +1008,8 @@ enum class PresetAction : uint8_t {
   DELETE = 3,
   DUPLICATE = 4,
   RENAME = 5,
-  RESTORE_FACTORY_VALUES = 6
+  RESTORE_FACTORY_VALUES = 6,
+  NEW_COFFEE = 7  // Restarts the preset's shot statistics.
 };
 
 #include "domain/ShotStopperPresetTypes.inc"

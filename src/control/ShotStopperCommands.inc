@@ -33,6 +33,12 @@ bool webCommandBlockedInCompatibilityMode(WebCommandType type) {
   }
 }
 
+// A preset's statistics epoch: the next shot-log record id (plan §4.8).
+uint32_t shotStatisticsEpochNow() {
+  TaskLockGuard lock(shotStoreMutex);
+  return shotLog.nextRecordId();
+}
+
 void processWebCommand(const WebCommand &command) {
   if (firmwareCompatibilityMode() &&
       webCommandBlockedInCompatibilityMode(command.type)) {
@@ -398,11 +404,13 @@ void processWebCommand(const WebCommand &command) {
     }
 
     case WebCommandType::RESET_AUTO_TO_MANUAL_GUARD_SAMPLES: {
+      // Alias of "I changed beans or grind" for the active preset.
       if (!persistentConfigurationMutationAllowed(command)) {
         rejectWebCommand(command);
         return;
       }
       pendingFinalize.pending = false;
+      mutableActiveShotPreset(presetBank).learningEpoch = shotStatisticsEpochNow();
       RuntimeConfig candidate = runtimeConfig;
       applyShotPresetToConfig(activeShotPreset(presetBank), candidate, true);
       ++candidate.revision;
@@ -456,6 +464,14 @@ void processWebCommand(const WebCommand &command) {
                                         runtimeConfig.retareWindowMs,
                                         runtimeConfig.autoRetare);
           if (ok) {
+            // A new window or a target moved by more than 1 g starts the
+            // preset's shot statistics over (plan §4.8).
+            const int goalChange = static_cast<int>(candidateRecipe.goalWeightDg) -
+                                   static_cast<int>(preset->goalWeightDg);
+            if (candidateRecipe.fastBeforeMs != preset->fastBeforeMs ||
+                candidateRecipe.slowAfterMs != preset->slowAfterMs ||
+                goalChange > 10 || goalChange < -10)
+              candidateRecipe.learningEpoch = shotStatisticsEpochNow();
             ShotPreset previous = *preset;
             previous.weightOffsetBaselineG = candidateRecipe.weightOffsetBaselineG;
             previous.bbwAlphaBaseline = candidateRecipe.bbwAlphaBaseline;
@@ -468,6 +484,7 @@ void processWebCommand(const WebCommand &command) {
         }
         case PresetAction::CREATE:
           ok = createUntitledShotPreset(presetBank, newId);
+          if (ok) mutableShotPreset(presetBank, newId)->learningEpoch = shotStatisticsEpochNow();
           break;
         case PresetAction::DELETE:
           ok = deleteShotPreset(presetBank, command.presetId);
@@ -478,14 +495,25 @@ void processWebCommand(const WebCommand &command) {
           break;
         case PresetAction::DUPLICATE:
           ok = duplicateShotPreset(presetBank, command.presetId, newId);
+          if (ok) mutableShotPreset(presetBank, newId)->learningEpoch = shotStatisticsEpochNow();
           break;
         case PresetAction::RENAME:
           ok = renameShotPreset(presetBank, command.presetId, command.presetName);
           break;
         case PresetAction::RESTORE_FACTORY_VALUES:
           ok = restoreFactoryShotPresetValues(presetBank, command.presetId);
-          if (ok) bbwLearningBank.invalidate(command.presetId, presetBank);
+          if (ok) {
+            bbwLearningBank.invalidate(command.presetId, presetBank);
+            mutableShotPreset(presetBank, command.presetId)->learningEpoch =
+                shotStatisticsEpochNow();
+          }
           break;
+        case PresetAction::NEW_COFFEE: {
+          ShotPreset *preset = mutableShotPreset(presetBank, command.presetId);
+          ok = preset != nullptr;
+          if (ok) preset->learningEpoch = shotStatisticsEpochNow();
+          break;
+        }
       }
       if (!ok) {
         addDebugEvent(DebugCategory::CONFIG, DebugCode::CONFIG_REJECTED,

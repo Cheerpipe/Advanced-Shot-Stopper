@@ -967,6 +967,11 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
     if (!jsonUint8(root, "id", presetId) || presetId == 0) {
       parseError = "id must be a non-zero integer.";
     }
+  } else if (strcmp(action, "new_coffee") == 0) {
+    presetAction = PresetAction::NEW_COFFEE;
+    if (!jsonUint8(root, "id", presetId) || presetId == 0) {
+      parseError = "id must be a non-zero integer.";
+    }
   } else if (strcmp(action, "save") == 0 || strcmp(action, "update") == 0) {
     presetAction = PresetAction::SAVE;
     if (!jsonUint8(root, "id", presetId) || presetId == 0) {

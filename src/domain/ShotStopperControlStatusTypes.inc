@@ -153,7 +153,8 @@ struct ControlStatusFields : ScaleLinkMetrics {
   bool cycleCupRemovedPending = false;
   bool cycleBbwProtectionEnabled = false;
   bool cycleBbwProtectionEnded = false;
-  uint32_t autoToManualGuardTrendMs = 0;
+  uint32_t autoToManualGuardTrendMs = 0;  // Idle scale-loss stop time.
+  uint8_t scaleLossProjectedSource = 2;   // corridor::LossSource (window).
   char scaleProtocol[20] = "none";
   char connectedScaleMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
   char preferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY] = {};

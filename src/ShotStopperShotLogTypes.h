@@ -398,6 +398,26 @@ inline uint32_t shotLogBbwErrorTenths(const ShotLogRecord &record) {
 
 inline uint8_t shotLogPresetId(const ShotLogRecord &record);
 
+// A stored shot as the corridor statistics see it: weight cuts carry their
+// segment's EndReason, everything else is inadmissible.
+inline corridor::ArrivalRecord shotLogArrivalRecord(const ShotLogRecord &record) {
+  corridor::ArrivalRecord out;
+  out.recordId = record.id;
+  out.presetId = shotLogPresetId(record);
+  const auto detail = static_cast<ShotLogStopDetail>(record.stopDetail);
+  out.endReason = static_cast<uint8_t>(
+      detail == ShotLogStopDetail::NORMAL_TARGET ? EndReason::SCALE_THRESHOLD
+      : detail == ShotLogStopDetail::EXTENDED_MAX_WEIGHT
+          ? EndReason::FAST_EXTRACTION_MAX_WEIGHT
+      : detail == ShotLogStopDetail::SLOW_MIN_WEIGHT
+          ? EndReason::SLOW_EXTRACTION_MIN_WEIGHT
+          : EndReason::NONE);
+  out.verdict = record.verdict;
+  out.arrivalMs = record.arrivalDs == SHOT_LOG_METRIC_MISSING
+      ? 0 : static_cast<int32_t>(record.arrivalDs) * 100;
+  return out;
+}
+
 inline PersistedLastShot shotLogProjectLastShot(
     const ShotLogRecord &record, const PersistedLastShot &linked) {
   PersistedLastShot shot = linked.shotLogId == record.id

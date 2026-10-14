@@ -64,6 +64,20 @@ class ShotLog
   // stores mutate only alongside these words. Caller holds the store mutex.
   uint32_t epoch() const { return dualSlotHeaderEpoch(store_.header); }
 
+  // Smooth-cut arrival statistics of one preset since its epoch (plan §4.8).
+  // Caller holds the store mutex.
+  corridor::ArrivalStats arrivalStats(uint8_t presetId, uint32_t epoch) const {
+    const size_t count = store_.header.count;
+    const size_t first =
+        (store_.header.writeIndex + SHOT_LOG_CAPACITY - count) % SHOT_LOG_CAPACITY;
+    return corridor::arrivalStatsOf(
+        count,
+        [this, first](size_t i) {
+          return shotLogArrivalRecord(store_.records[(first + i) % SHOT_LOG_CAPACITY]);
+        },
+        presetId, epoch);
+  }
+
   ShotStatsView statsView() const {
     ShotLogRecord eligible[SHOT_LOG_STATS_WINDOW];
     size_t found = 0;

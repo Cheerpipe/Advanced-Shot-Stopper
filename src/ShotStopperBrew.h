@@ -90,6 +90,7 @@ void updateCutPrediction(float weight, uint32_t receivedAtMs) {
   shot.expectedEndS = NO_CUT_PREDICTION_S;
   int32_t shotMs = 0;
   corridor::CorridorState &cut = session.cut;
+  cut.crossingValid = false;
   if (!shotTimeAtMs(receivedAtMs, shotMs) ||
       cut.rate.push(shotMs, gramsToDg(weight)) !=
           corridor::RateEstimator::Result::ACCEPTED ||
@@ -102,12 +103,11 @@ void updateCutPrediction(float weight, uint32_t receivedAtMs) {
     addDebugEvent(DebugCategory::SCALE, DebugCode::CHANNELING_DETECTED,
                   cut.rate.rawX100, shotMs);
   }
-  int32_t crossing = 0;
-  if (corridor::crossingMs(cut.params, shotMs, gramsToDg(weight),
-                           cut.rate.rateX100, cut.tauMs, cut.offsetDg,
-                           crossing) &&
-      crossing < cut.params.wallMs) {
-    shot.expectedEndS = crossing / 1000.0f;
+  cut.crossingValid = corridor::crossingMs(cut.params, shotMs, gramsToDg(weight),
+                                          cut.rate.rateX100, cut.tauMs,
+                                          cut.offsetDg, cut.crossingMs);
+  if (cut.crossingValid && cut.crossingMs < cut.params.wallMs) {
+    shot.expectedEndS = cut.crossingMs / 1000.0f;
   }
 }
 
@@ -660,32 +660,81 @@ void serviceCupStartGuard(const GuardInputs &inputs) {
     emitAlert(AlertEvent::CUP_START_BLOCKED);
   }
 }
+// "If the scale drops now" for an idle preset: its fixed time, recent shots
+// or the window midpoint. Cached until the preset, its epoch or the shot log
+// changes, so status publication never rescans the log.
+corridor::LossDeadline idleScaleLossDeadline(const ShotPreset &preset) {
+  static struct {
+    uint8_t id = 0;
+    uint32_t epoch = 0, generation = 0, fixedMs = 0, t1 = 0, t2 = 0, delay = 0, wall = 0;
+    corridor::LossDeadline deadline;
+  } cache;
+  const uint32_t generation = shotStoreDirtyGeneration.load(std::memory_order_acquire);
+  if (cache.id == preset.id && cache.epoch == preset.learningEpoch &&
+      cache.generation == generation && cache.fixedMs == preset.scaleLossFixedMs &&
+      cache.t1 == preset.fastBeforeMs && cache.t2 == preset.slowAfterMs &&
+      cache.delay == preset.bbwProtectionMs && cache.wall == preset.operationalWallMs)
+    return cache.deadline;
+  corridor::Params p;
+  p.goalDg = preset.goalWeightDg;
+  p.delayMs = static_cast<int32_t>(preset.bbwProtectionMs);
+  p.fastBeforeMs = static_cast<int32_t>(preset.fastBeforeMs);
+  p.slowAfterMs = static_cast<int32_t>(preset.slowAfterMs);
+  p.wallMs = static_cast<int32_t>(preset.operationalWallMs);
+  corridor::LossInputs in;
+  in.fixedMs = preset.scaleLossFixedMs;
+  in.beforeFirstDrops = true;
+  {
+    TaskLockGuard lock(shotStoreMutex);
+    in.history = shotLog.arrivalStats(preset.id, preset.learningEpoch);
+  }
+  cache = {preset.id, preset.learningEpoch, generation, preset.scaleLossFixedMs,
+           preset.fastBeforeMs, preset.slowAfterMs, preset.bbwProtectionMs,
+           preset.operationalWallMs, corridor::lossDeadline(p, in)};
+  return cache.deadline;
+}
+
+// Scale-loss backup v2 (plan §4.9): armed on every automatic BBW shot while
+// the device switch is on; the deadline is chosen when the stream drops.
 void armAutoToManualGuardForAutomaticBrew() {
   if (!session.config.scaleLossEnabled ||
       session.config.timerOnly || !session.startedWithScale ||
       session.weightControlState == WeightControlState::INACTIVE) {
     return;
   }
-  // Until the scale-loss backup v2 lands: the preset's fixed time, else the
-  // end of the shot time window, never past the max shot time.
-  uint32_t limitMs = session.config.scaleLossFixedMs != 0
-                         ? session.config.scaleLossFixedMs
-                         : session.config.slowAfterMs;
-  if (limitMs > session.config.operationalWallMs)
-    limitMs = session.config.operationalWallMs;
   session.autoToManualGuardArmed = true;
-  session.autoToManualGuardDeadlineAtMs = session.startedAtMs + limitMs;
   addDebugEvent(DebugCategory::SCALE, DebugCode::AUTO_TO_MANUAL_GUARD_ARMED,
-                static_cast<int32_t>(limitMs));
-  if (session.weightControlState == WeightControlState::SUSPENDED &&
-      !session.autoToManualGuardEnforced) {
-    session.autoToManualGuardEnforced = true;
-    latchAtmCurveFromSession(millis());
-    addDebugEvent(DebugCategory::SCALE,
-                  DebugCode::AUTO_TO_MANUAL_GUARD_ENFORCED,
-                  static_cast<int32_t>(elapsedMs(session.startedAtMs)),
-                  static_cast<int32_t>(limitMs));
-  }
+                static_cast<int32_t>(session.config.scaleLossFixedMs));
+  if (session.weightControlState == WeightControlState::SUSPENDED)
+    enforceScaleLossBackup();
+}
+
+// First applicable: the preset's fixed time, cut now, a projection from the
+// last valid flow (<= 3 s ahead), recent shots, or the window midpoint;
+// clamped to [max(last sample, delay), wall] and fired at that command time.
+void enforceScaleLossBackup() {
+  if (!session.autoToManualGuardArmed || session.autoToManualGuardEnforced) return;
+  const corridor::CorridorState &cut = session.cut;
+  corridor::LossInputs in;
+  int32_t nowMs = 0;
+  shotTimeAtMs(millis(), nowMs);
+  in.nowMs = nowMs;
+  in.lastSampleMs = nowMs;
+  if (session.hasWeightAnchor) shotTimeAtMs(session.lastAcceptedWeightAtMs, in.lastSampleMs);
+  in.fixedMs = session.config.scaleLossFixedMs;
+  in.beforeFirstDrops = !session.firstDropObserved;
+  in.crossingValid = cut.crossingValid;
+  in.crossingMs = cut.crossingMs;
+  in.history = cut.history;
+  const corridor::LossDeadline deadline = corridor::lossDeadline(cut.params, in);
+  session.scaleLossSource = static_cast<uint8_t>(deadline.source);
+  session.scaleLossBlind = !cut.crossingValid;
+  session.autoToManualGuardDeadlineAtMs =
+      millis() + static_cast<uint32_t>(deadline.deadlineMs - nowMs);
+  session.autoToManualGuardEnforced = true;
+  latchAtmCurveFromSession(millis());
+  addDebugEvent(DebugCategory::SCALE, DebugCode::AUTO_TO_MANUAL_GUARD_ENFORCED,
+                nowMs, deadline.deadlineMs);
 }
 
 bool autoToManualGuardDeadlineDue() {

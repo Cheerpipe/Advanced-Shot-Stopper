@@ -60,7 +60,7 @@ changed. On momentary machines, check the actual group and its state feedback.
 | **Paddle-off reminder** | 30 s | OFF / 15 / 30 / 60 / 120 s | Repeat beeps at the chosen interval while the **physical paddle stays ON** and **machine circuit is already open**; OFF silences them. |
 | **Paddle reminder limit (min)** | 15 min | 1–60 min | Stop beeping after this time even if the paddle remains ON. |
 | **Scale lost** | (buzzer builds) | ON / OFF | Descending RTTTL on the local buzzer when the scale disconnects (idle or during a shot). Hidden / disabled when Output channel is Scale only. |
-| **ATM / manual-no-scale** | (buzzer builds) | ON / OFF | Distinct RTTTL on the local buzzer when A→M ends or when BBW needs a scale that is missing. Disabled when Output channel is Scale only. |
+| **ATM / manual-no-scale** | (buzzer builds) | ON / OFF | Distinct RTTTL on the local buzzer when the A→M time guard stops a shot after losing the scale, or when BBW needs a scale that is missing. Disabled when Output channel is Scale only. |
 | **Scale connected** | ON (Buzzer only or Scale priority) | ON / OFF | Rising RTTTL when a scale connects or reconnects. Always the local buzzer. |
 | **Blue LED while scale connected** | ON | ON / OFF | Onboard GPIO 1 HIGH while a scale is BLE-connected. Independent of Sound alerts. |
 | **Extended shot pulse** | Fast | Disabled / Slow / Medium / Fast / Rapid | Local-buzzer pulses while a fast shot runs past the target because its cut line was raised. Disabled when Output channel is Scale only. |
