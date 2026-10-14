@@ -508,24 +508,21 @@ function formatShotTimeCsv(r) {
   if (r.hasWallTime && r.endedAtLocalSec) return formatWallTimeLocal(r.endedAtLocalSec);
   return "";
 }
-function formatShotEnded(d) {
+function verdictLabel(v) {
+  return (
+    { fast: __WEBUI_TEXT__("runtime.verdict_fast"), slow: __WEBUI_TEXT__("runtime.verdict_slow") }[v] ||
+    __WEBUI_TEXT__("runtime.verdict_on_recipe")
+  );
+}
+function formatShotEnded(d, verdict) {
   return (
     {
       paddle: __WEBUI_TEXT__("runtime.manual"),
       activator: __WEBUI_TEXT__("runtime.manual"),
       physical_override: __WEBUI_TEXT__("runtime.manual"),
-      normal_target: __WEBUI_TEXT__("runtime.bbw"),
-      scale_threshold: __WEBUI_TEXT__("runtime.bbw"),
-      extended_max_weight: __WEBUI_TEXT__("runtime.fast_guard"),
-      extended_min_time: __WEBUI_TEXT__("runtime.fast_guard"),
-      fast_extraction_max_weight: __WEBUI_TEXT__("runtime.fast_guard"),
-      fast_extraction_min_time: __WEBUI_TEXT__("runtime.fast_guard"),
-      slow_max_time: __WEBUI_TEXT__("runtime.slow_guard"),
-      slow_min_weight: __WEBUI_TEXT__("runtime.slow_guard"),
-      slow_extraction_max_time: __WEBUI_TEXT__("runtime.slow_guard"),
-      slow_extraction_min_weight: __WEBUI_TEXT__("runtime.slow_guard"),
-      auto_to_manual: __WEBUI_TEXT__("runtime.a_to_m"),
-      auto_to_manual_guard: __WEBUI_TEXT__("runtime.a_to_m"),
+      normal_target: verdictLabel(verdict),
+      scale_threshold: verdictLabel(verdict),
+      auto_to_manual: __WEBUI_TEXT__("runtime.scale_loss_backup"),
       cup_removed: __WEBUI_TEXT__("runtime.cup"),
       web_stop: __WEBUI_TEXT__("runtime.web"),
       web_heartbeat: __WEBUI_TEXT__("runtime.heartbeat"),
@@ -767,14 +764,8 @@ function buildShotSparkModel(shot) {
     atm = num(shot.atmS),
     clear = num(shot.atmClearedS),
     limit = Math.round((end ?? duration ?? Infinity) * 1000);
-  const kind = (t) =>
-    atm != null && t >= atm && (clear == null || t < clear)
-      ? "atm"
-      : ext != null && t >= ext && (shot.extractionExtended || shot.slowExtractionExtended)
-        ? shot.extractionExtended
-          ? "fast"
-          : "slow"
-        : "bbw";
+  const verdict = { fast: "fast", slow: "slow" }[shot.verdict] || "bbw",
+    kind = (t) => (atm != null && t >= atm && (clear == null || t < clear) ? "atm" : verdict);
   const transitions = [ext, atm, clear].filter((t) => t != null).sort((a, b) => a - b),
     segs = [],
     dripSegs = [],
@@ -1297,28 +1288,29 @@ function renderStatsDurChart() {
     root.innerHTML =
       '<div class="ruleChartLegend" aria-hidden="true"><span class="ruleLeg ruleLegFast">' +
       __WEBUI_TEXT__("runtime.fast") +
-      '</span><span class="ruleLeg ruleLegBbw">' +
-      __WEBUI_TEXT__("runtime.bbw") +
-      '</span><span class="ruleLeg ruleLegSlow">' +
+      '</span><span id="statsDurWindow" class="ruleLeg ruleLegBbw"></span><span class="ruleLeg ruleLegSlow">' +
       __WEBUI_TEXT__("runtime.slow") +
       '</span></div><div id="statsDurChartPlot" class="shotSparkHost"></div>';
     root.dataset.ready = "1";
   }
   const host = $("statsDurChartPlot");
   if (!host) return;
-  const BIN = 0.5,
+  const presets = homeStatusCache()?.presets || presetState,
+    active = presets.items?.find((p) => p.id === presets.activeId),
+    BIN = 0.5,
     tMax = 6e4 / 1e3,
-    tLow = 28,
-    tHigh = 32,
+    tLow = active ? active.fastBeforeS : 28,
+    tHigh = active ? active.slowAfterS : 32,
     bins = Math.round(tMax / BIN),
     counts = new Array(bins).fill(0);
   let maxC = 0;
-  for (const d of shotStats.durationsS || []) {
+  for (const d of active ? active.arrivalsS || [] : shotStats.durationsS || []) {
     if (!isFinite(d) || d < 0) continue;
     const i = Math.min(bins - 1, Math.floor(d / BIN));
     counts[i]++;
     if (counts[i] > maxC) maxC = counts[i];
   }
+  $("statsDurWindow").textContent = sub(__WEBUI_TEXT__("runtime.window_active_preset"), [tLow, tHigh]);
   const scaleC = Math.max(maxC, 1),
     colors = { bbw: "var(--ok)", fast: "#d97706", slow: "#6492d7" },
     kind = (t) => (t < tLow ? "fast" : t <= tHigh ? "bbw" : "slow"),
@@ -1445,7 +1437,7 @@ function renderShots() {
     return e;
   };
   const rows = shotHistory.shots.filter((r) => {
-    const y = shotDisplayActualG(r.actualG, r.wCg);
+    const y = r.estimatedG ?? shotDisplayActualG(r.actualG, r.wCg);
     return y != null && y >= 1;
   });
   if (rows.length) {
@@ -1466,8 +1458,11 @@ function renderShots() {
     ];
     for (const r of rows) {
       const row = document.createElement("tr");
-      const actual = shotDisplayActualG(r.actualG, r.wCg);
-      const errN = actual === null || !r.goalG ? null : ((actual - r.goalG) / r.goalG) * 100;
+      // A scale-loss shot has no weighed yield: only its estimate, no error.
+      const estimated = r.actualG == null && r.estimatedG != null,
+        actual = estimated ? null : shotDisplayActualG(r.actualG, r.wCg),
+        planned = r.cutLineG > 0 ? r.cutLineG : r.goalG;
+      const errN = actual === null || !planned ? null : ((actual - planned) / planned) * 100;
       const err = errN === null ? "—" : errN.toFixed(1) + "%";
       const flow = shotDisplayFlowGS(r),
         maxFlow = shotMaxFlowGS(r);
@@ -1475,13 +1470,17 @@ function renderShots() {
         formatShotTime(r),
         r.durationS.toFixed(1) + "s",
         r.goalG.toFixed(1) + "g",
-        actual === null ? "—" : actual.toFixed(1) + "g",
+        estimated
+          ? sub(__WEBUI_TEXT__("runtime.yield_estimated"), [Math.round(r.estimatedG)])
+          : actual === null
+            ? "—"
+            : actual.toFixed(1) + "g",
         err,
         flow === null ? "—" : flow.toFixed(2) + " g/s",
         maxFlow === null ? "—" : maxFlow.toFixed(2) + " g/s" + (r.wTruncated ? " (recorded)" : ""),
         r.tareS == null ? __WEBUI_TEXT__("runtime.none") : r.tareS.toFixed(1) + "s",
         r.firstDropS === null ? "—" : r.firstDropS.toFixed(1) + "s",
-        formatShotEnded(r.stopDetail),
+        formatShotEnded(r.stopDetail, r.verdict),
         r.shotType,
         shotPresetName(r),
         r.scaleName || __WEBUI_TEXT__("runtime.none"),
@@ -2597,10 +2596,6 @@ function commandMessages(path, v) {
       __WEBUI_TEXT__("runtime.learned_stop_offset_reset"),
       __WEBUI_TEXT__("runtime.reset_learned_stop_offset"),
     ],
-    "calibration/reset-guard-samples": [
-      __WEBUI_TEXT__("runtime.a_to_m_samples_reset"),
-      __WEBUI_TEXT__("runtime.reset_a_to_m_samples"),
-    ],
     "diagnostic/reset-history": [
       __WEBUI_TEXT__("runtime.reset_history_cleared"),
       __WEBUI_TEXT__("runtime.clear_reset_history"),
@@ -2670,8 +2665,8 @@ function commandMessages(path, v) {
   if (path.endsWith("/presets")) {
     const x = {
       save: [
-        __WEBUI_TEXT__("runtime.brew_settings_saved"),
-        __WEBUI_TEXT__("runtime.save_brew_settings"),
+        __WEBUI_TEXT__("runtime.preset_saved"),
+        __WEBUI_TEXT__("runtime.save_preset"),
       ],
       apply: [__WEBUI_TEXT__("runtime.preset_applied"), __WEBUI_TEXT__("runtime.apply_preset")],
       new: [__WEBUI_TEXT__("runtime.preset_created"), __WEBUI_TEXT__("runtime.create_preset")],
@@ -2682,9 +2677,10 @@ function commandMessages(path, v) {
       rename: [__WEBUI_TEXT__("runtime.preset_renamed"), __WEBUI_TEXT__("runtime.rename_preset")],
       delete: [__WEBUI_TEXT__("runtime.preset_deleted"), __WEBUI_TEXT__("runtime.delete_preset")],
       restore_factory_values: [
-        __WEBUI_TEXT__("runtime.factory_preset_reset"),
-        __WEBUI_TEXT__("runtime.reset_factory_preset"),
+        __WEBUI_TEXT__("runtime.factory_values_restored"),
+        __WEBUI_TEXT__("runtime.restore_factory_values"),
       ],
+      new_coffee: [__WEBUI_TEXT__("runtime.shot_stats_restarted"), __WEBUI_TEXT__("runtime.restart_shot_stats")],
     }[v.action];
     if (x) return [x[0], cn(x[1])];
   }
@@ -2717,8 +2713,8 @@ function commandMessages(path, v) {
         cn(__WEBUI_TEXT__("runtime.save_date_and_time_settings")),
       ];
     return [
-      __WEBUI_TEXT__("runtime.machine_settings_saved"),
-      cn(__WEBUI_TEXT__("runtime.save_machine_settings")),
+      __WEBUI_TEXT__("runtime.shared_settings_saved"),
+      cn(__WEBUI_TEXT__("runtime.save_shared_settings")),
     ];
   }
   return [__WEBUI_TEXT__("runtime.done"), cn(__WEBUI_TEXT__("runtime.complete_the_request"))];
@@ -3132,25 +3128,19 @@ function setMutable(enabled) {
 const BREW_CONTROL_IDS = [
   "bbwAlphaBaseline",
   "brewByWeight",
+  "doseG",
   "goalWeightG",
   "operationalWallS",
   "bbwProtectionS",
   "weightOffsetBaselineG",
-  "cupProtectionEnabled",
-  "stopIfCupRemoved",
-  "requireCupToStart",
   "fastExtractionGuardEnabled",
-  "avoidAccidentalTouchEnabled",
-  "touchStopFallbackEnabled",
-  "maxRecoveryWeightG",
-  "minBbwBrewTimeS",
+  "fastBeforeS",
+  "fastMarginG",
   "slowExtractionGuardEnabled",
-  "minRecoveryWeightG",
-  "maxBbwBrewTimeS",
-  "autoToManualGuardEnabled",
-  "autoToManualGuardLimitMode",
-  "autoToManualGuardManualLimitS",
-  "autoToManualGuardBaselineS",
+  "slowAfterS",
+  "slowMarginG",
+  "grindHintsEnabled",
+  "scaleLossFixedS",
   "lineaMicraBrewTargetC",
 ];
 const REVERT_BUTTONS = {
@@ -3521,15 +3511,8 @@ function updateConfigGroups() {
   apply("fastGuardOpt", !$("fastExtractionGuardEnabled").checked);
   apply("touchStopOpt", !$("brewByWeight").checked || !$("avoidAccidentalTouchEnabled").checked);
   apply("slowGuardOpt", !$("slowExtractionGuardEnabled").checked);
-  apply("atmManualOpt", $("autoToManualGuardLimitMode").value !== "manual");
   apply("noScaleGuardOpt", $("noScaleBbwMode").value === "off");
   apply("cupProtectOpt", !$("cupProtectionEnabled") || !$("cupProtectionEnabled").checked);
-  const wall = number("operationalWallS");
-  if (Number.isFinite(wall)) {
-    const m = String(Math.max(10, Math.min(60, wall)));
-    $("autoToManualGuardManualLimitS").max = m;
-    $("autoToManualGuardBaselineS").max = m;
-  }
   updateBullseyeControls();
   updateBbwControls();
 }
@@ -3736,61 +3719,43 @@ function brewFieldValue(id) {
   return Number(fixed) === v ? fixed : String(v);
 }
 const BREW_FIELD_TEXT = {
-    goalWeightG: [__WEBUI_TEXT__("runtime.target"), __WEBUI_TEXT__("runtime.g"), "bbw"],
-    operationalWallS: [__WEBUI_TEXT__("runtime.max_bbw_time"), __WEBUI_TEXT__("runtime.s"), "bbw"],
-    bbwProtectionS: [__WEBUI_TEXT__("runtime.bbw_protection"), __WEBUI_TEXT__("runtime.s"), "bbw"],
+    doseG: [__WEBUI_TEXT__("runtime.dose"), __WEBUI_TEXT__("runtime.g"), "recipe"],
+    goalWeightG: [__WEBUI_TEXT__("runtime.target_yield"), __WEBUI_TEXT__("runtime.g"), "recipe"],
+    operationalWallS: [__WEBUI_TEXT__("runtime.max_bbw_time"), __WEBUI_TEXT__("runtime.s"), "limits"],
+    bbwProtectionS: [__WEBUI_TEXT__("runtime.bbw_protection"), __WEBUI_TEXT__("runtime.s"), "limits"],
     weightOffsetBaselineG: [__WEBUI_TEXT__("runtime.offset_baseline"), __WEBUI_TEXT__("runtime.g")],
     lineaMicraBrewTargetC: [__WEBUI_TEXT__("runtime.brew_temperature"), "°C"],
-    maxRecoveryWeightG: [__WEBUI_TEXT__("runtime.max_recovery"), __WEBUI_TEXT__("runtime.g"), "fast"],
-    minBbwBrewTimeS: [__WEBUI_TEXT__("runtime.min_bbw_brew_time"), __WEBUI_TEXT__("runtime.s"), "fast"],
-    minRecoveryWeightG: [__WEBUI_TEXT__("runtime.min_recovery"), __WEBUI_TEXT__("runtime.g"), "slow"],
-    maxBbwBrewTimeS: [__WEBUI_TEXT__("runtime.max_bbw_brew_time"), __WEBUI_TEXT__("runtime.s"), "slow"],
-    autoToManualGuardManualLimitS: [
-      __WEBUI_TEXT__("settings.err_manual_limit"),
-      __WEBUI_TEXT__("runtime.s"),
-      "atm",
-    ],
-    autoToManualGuardBaselineS: [
-      __WEBUI_TEXT__("settings.err_baseline_duration"),
-      __WEBUI_TEXT__("runtime.s"),
-      "atm",
-    ],
+    fastBeforeS: [__WEBUI_TEXT__("runtime.window_start"), __WEBUI_TEXT__("runtime.s"), "recipe"],
+    fastMarginG: [__WEBUI_TEXT__("runtime.fast_margin"), __WEBUI_TEXT__("runtime.g"), "fast"],
+    slowAfterS: [__WEBUI_TEXT__("runtime.window_end"), __WEBUI_TEXT__("runtime.s"), "recipe"],
+    slowMarginG: [__WEBUI_TEXT__("runtime.slow_margin"), __WEBUI_TEXT__("runtime.g"), "slow"],
+    scaleLossFixedS: [__WEBUI_TEXT__("runtime.scale_loss_override"), __WEBUI_TEXT__("runtime.s"), "limits"],
   },
   BREW_SECTION_TEXT = {
-    bbw: __WEBUI_TEXT__("settings.brew_by_weight"),
-    fast: __WEBUI_TEXT__("settings.fast_extraction_guard"),
-    slow: __WEBUI_TEXT__("settings.slow_extraction_guard"),
-    atm: __WEBUI_TEXT__("settings.a_to_m_time_guard"),
+    recipe: __WEBUI_TEXT__("settings.recipe"),
+    fast: __WEBUI_TEXT__("settings.fast_shots"),
+    slow: __WEBUI_TEXT__("settings.slow_shots"),
+    limits: __WEBUI_TEXT__("settings.shot_limits"),
   },
   BREW_CROSS_TEXT = {
     gt: __WEBUI_TEXT__("settings.err_greater"),
     lt: __WEBUI_TEXT__("settings.err_less"),
     ge: __WEBUI_TEXT__("settings.err_at_least"),
     le: __WEBUI_TEXT__("settings.err_not_exceed"),
-    range: __WEBUI_TEXT__("settings.err_from_to"),
   },
   BREW_REL = {
     ">": (a, b) => a > b,
-    ">=": (a, b) => a >= b,
     "<": (a, b) => a < b,
-    "<=": (a, b) => a <= b,
   },
-  // Cross-field rules as [fieldA, fieldB, violation(fieldA, fieldB), messageA,
-  // messageB, gates...]: each message is phrased from its own field's side and
-  // names the other field's value, label, and settings section. The retare
-  // floor entry is single-sided: its bound is computed, not an edited field.
+  // Cross-field rules as [fieldA, fieldB, violation(fieldA, fieldB + offset),
+  // messageA, messageB, offset]: each message is phrased from its own field's
+  // side and names the other field's value, label, and settings section. The
+  // retare floor entry is single-sided: its bound is computed, not an edited field.
   BREW_CROSS_RULES = [
     ["bbwProtectionS", "operationalWallS", ">", "le", "ge"],
     ["bbwProtectionS", "retareFloor", "<", "ge"],
-    ["maxRecoveryWeightG", "goalWeightG", "<=", "gt", "lt", "fast"],
-    ["minBbwBrewTimeS", "operationalWallS", ">=", "lt", "gt", "fast"],
-    ["minBbwBrewTimeS", "bbwProtectionS", "<", "ge", "le", "fast"],
-    ["minRecoveryWeightG", "goalWeightG", ">=", "lt", "gt", "slow"],
-    ["maxBbwBrewTimeS", "operationalWallS", ">=", "lt", "gt", "slow"],
-    ["maxBbwBrewTimeS", "bbwProtectionS", "<", "ge", "le", "slow"],
-    ["maxBbwBrewTimeS", "minBbwBrewTimeS", "<=", "gt", "lt", "fast", "slow"],
-    ["autoToManualGuardManualLimitS", "operationalWallS", ">", "range", "ge"],
-    ["autoToManualGuardBaselineS", "operationalWallS", ">", "range", "ge"],
+    ["fastBeforeS", "bbwProtectionS", "<", "ge", "le", 2],
+    ["slowAfterS", "operationalWallS", ">", "le", "ge", -1],
   ];
 // Message label for a brew field: the Settings form labels carry the unit in
 // parentheses, so every error and warning opens with the exact field name the
@@ -3799,14 +3764,11 @@ const brewFieldLabel = (id) => {
   const [label, unit] = BREW_FIELD_TEXT[id];
   return label + " (" + unit + ")";
 };
-function brewCrossErr(kind, id, other) {
-  const unit = BREW_FIELD_TEXT[id][1],
-    [ref, refUnit, refSection] = BREW_FIELD_TEXT[other],
-    section = BREW_SECTION_TEXT[refSection],
-    limit = brewFieldValue(other) + " " + refUnit;
-  return kind === "range"
-    ? sub(BREW_CROSS_TEXT.range, [brewFieldLabel(id), "10 " + unit, limit, ref, section])
-    : sub(BREW_CROSS_TEXT[kind], [brewFieldLabel(id), limit, ref, section]);
+function brewCrossErr(kind, id, other, off = 0) {
+  const [ref, refUnit, refSection] = BREW_FIELD_TEXT[other],
+    limit = (off ? (number(other) + off).toFixed(1) : brewFieldValue(other)) + " " + refUnit,
+    named = off ? ref + (off > 0 ? " + " : " − ") + Math.abs(off) + " " + refUnit : ref;
+  return sub(BREW_CROSS_TEXT[kind], [brewFieldLabel(id), limit, named, BREW_SECTION_TEXT[refSection]]);
 }
 // The fields the user changed since the form was last clean: the baseline is
 // refreshed whenever the brew section is saved or re-hydrated clean, so
@@ -3843,28 +3805,23 @@ function validateBrewClient() {
       required: $("bbwAlphaBaseline").value.trim() === "",
       msg: __WEBUI_TEXT__("runtime.use_0_01_1_00_step_0"),
     });
-  if (fastOn) {
-    add(brewRange("maxRecoveryWeightG", 10, 200));
-    add(brewRange("minBbwBrewTimeS", 5, 55));
-  }
-  if (slowOn) {
-    add(brewRange("minRecoveryWeightG", 10, 200));
-    add(brewRange("maxBbwBrewTimeS", 5, 55));
-  }
-  add(brewRange("autoToManualGuardManualLimitS", 10, 60, {int: 1}));
-  add(brewRange("autoToManualGuardBaselineS", 10, 60, {int: 1}));
+  add(brewRange("doseG", 5, 30, {step: 0.1}));
+  add(brewRange("fastBeforeS", 2.5, 58, {step: 0.5}));
+  add(brewRange("slowAfterS", 3.5, 59, {step: 0.5}));
+  if (fastOn) add(brewRange("fastMarginG", 0.5, 10, {step: 0.1}));
+  if (slowOn) add(brewRange("slowMarginG", 0.5, 10, {step: 0.1}));
+  if (brewFieldValue("scaleLossFixedS") !== "")
+    add(brewRange("scaleLossFixedS", formNumber("bbwProtectionS"), formNumber("operationalWallS")));
   const rw = formNumber("retareWindowS"),
     withRetare = !!$("autoRetare") && $("autoRetare").checked && Number.isFinite(rw),
     floor = (withRetare ? rw : 0) + 3;
-  for (const [a, b, rel, kindA, kindB, ...gates] of BREW_CROSS_RULES) {
-    if (gates.includes("fast") && !fastOn) continue;
-    if (gates.includes("slow") && !slowOn) continue;
+  for (const [a, b, rel, kindA, kindB, off = 0] of BREW_CROSS_RULES) {
     const retareRule = b === "retareFloor";
     // An empty or non-numeric participant already produced its self-range
     // error; cross rules only compare well-formed values (Number("") is 0).
     if (brewFieldValue(a) === "" || (!retareRule && brewFieldValue(b) === "")) continue;
     const x = number(a),
-      y = retareRule ? floor : number(b);
+      y = retareRule ? floor : number(b) + off;
     if (!BREW_REL[rel](x, y)) continue;
     if (retareRule) {
       const unit = BREW_FIELD_TEXT[a][1],
@@ -3887,9 +3844,30 @@ function validateBrewClient() {
     for (const id of blamed.length ? blamed : [a])
       errors.push({
         id,
-        msg: brewCrossErr(id === a ? kindA : kindB, id, id === a ? b : a),
+        msg: brewCrossErr(id === a ? kindA : kindB, id, id === a ? b : a, id === a ? off : -off),
       });
   }
+  if (brewFieldValue("fastBeforeS") !== "" && brewFieldValue("slowAfterS") !== "" && number("slowAfterS") < number("fastBeforeS") + 1)
+    errors.push({
+      id: "slowAfterS",
+      msg: sub(__WEBUI_TEXT__("runtime.window_min_length"), [+(number("fastBeforeS") + 1).toFixed(1)]),
+    });
+  // Margins are relative to the target: extra yield at most a quarter of it,
+  // and an early stop that still leaves 5 g in the cup.
+  const goal = brewFieldValue("goalWeightG") === "" ? NaN : number("goalWeightG"),
+    recipe = BREW_SECTION_TEXT.recipe;
+  if (fastOn && brewFieldValue("fastMarginG") !== "" && number("fastMarginG") > goal / 4)
+    errors.push({
+      id: "fastMarginG",
+      msg: sub(BREW_CROSS_TEXT.le, [brewFieldLabel("fastMarginG"), (goal / 4).toFixed(1) + " g",
+        __WEBUI_TEXT__("runtime.quarter_of_target"), recipe]),
+    });
+  if (slowOn && brewFieldValue("slowMarginG") !== "" && number("slowMarginG") > goal - 5)
+    errors.push({
+      id: "slowMarginG",
+      msg: sub(BREW_CROSS_TEXT.le, [brewFieldLabel("slowMarginG"), (goal - 5).toFixed(1) + " g",
+        BREW_FIELD_TEXT.goalWeightG[0] + " − 5 g", recipe]),
+    });
   return errors;
 }
 function validateDateTimeClient() {
@@ -3971,6 +3949,16 @@ function machinePayload() {
     noScaleBbwMode: $("noScaleBbwMode").value,
     noScaleAllowRinseWhileArmed: $("noScaleAllowRinseWhileArmed").checked,
     lastShotCooldownMs: Math.round(number("lastShotCooldownMin") * 6e4),
+    ...Object.fromEntries(
+      [
+        "cupProtectionEnabled",
+        "stopIfCupRemoved",
+        "requireCupToStart",
+        "avoidAccidentalTouchEnabled",
+        "touchStopFallbackEnabled",
+        "autoToManualGuardEnabled",
+      ].map((k) => [k, $(k).checked]),
+    ),
   };
 }
 function dateTimePayload() {
@@ -3991,29 +3979,17 @@ function dateTimePayload() {
 function brewPayload() {
   return {
     ...Object.fromEntries([
-      ...["goalWeightG", "maxRecoveryWeightG", "minRecoveryWeightG"].map((k) => [k, number(k)]),
-      ...[
-        "operationalWall",
-        "bbwProtection",
-        "minBbwBrewTime",
-        "maxBbwBrewTime",
-        "autoToManualGuardManualLimit",
-        "autoToManualGuardBaseline",
-      ].map((k) => [k + "Ms", sToMs(k + "S")]),
-      ...[
-        "brewByWeight",
-        "fastExtractionGuardEnabled",
-        "avoidAccidentalTouchEnabled",
-        "touchStopFallbackEnabled",
-        "slowExtractionGuardEnabled",
-        "autoToManualGuardEnabled",
-        "cupProtectionEnabled",
-        "stopIfCupRemoved",
-        "requireCupToStart",
-      ].map((k) => [k, $(k).checked]),
+      ...["doseG", "goalWeightG", "fastBeforeS", "slowAfterS", "fastMarginG", "slowMarginG"].map((k) => [
+        k,
+        number(k),
+      ]),
+      ...["operationalWall", "bbwProtection"].map((k) => [k + "Ms", sToMs(k + "S")]),
+      ...["brewByWeight", "fastExtractionGuardEnabled", "slowExtractionGuardEnabled", "grindHintsEnabled"].map((k) => [k, $(k).checked]),
     ]),
     action: "save",
     id: bbwFormPresetId,
+    // Empty means "use your recent shots": the firmware stores it as 0.
+    scaleLossFixedS: number("scaleLossFixedS"),
     ...(!$("weightOffsetBaselineG").disabled
       ? { weightOffsetBaselineG: number("weightOffsetBaselineG") }
       : {}),
@@ -4021,7 +3997,6 @@ function brewPayload() {
     ...(document.documentElement.classList.contains("micraTemperatureEnabled")
       ? { lineaMicraBrewTargetC: number("lineaMicraBrewTargetC") }
       : {}),
-    autoToManualGuardLimitMode: $("autoToManualGuardLimitMode").value,
   };
 }
 function parseIpv4Client(text) {
@@ -4374,7 +4349,23 @@ function formatNetworkStatus(n) {
 let presetState = { activeId: 0, items: [], selectedId: 0 },
   presetsLoaded = false;
 function presetSummary(p) {
-  return __WEBUI_TEXT__("runtime.target_2") + (p.goalWeightG ? p.goalWeightG.toFixed(1) : "?") + " g";
+  const n = (v) => (Number.isFinite(+v) ? +(+v).toFixed(1) : "?");
+  return sub(__WEBUI_TEXT__("runtime.preset_meta"), [
+    n(p.doseG),
+    n(p.goalWeightG),
+    brewRatio(p.goalWeightG, p.doseG),
+    n(p.fastBeforeS),
+    n(p.slowAfterS),
+  ]);
+}
+// Yield over dose, "2.0" for 36 g from 18 g; "?" while either is unknown.
+function brewRatio(yieldG, doseG) {
+  return yieldG > 0 && doseG > 0 ? (yieldG / doseG).toFixed(1) : "?";
+}
+function presetBadge(p) {
+  return p.fastExtractionGuardEnabled || p.slowExtractionGuardEnabled
+    ? __WEBUI_TEXT__("runtime.badge_adaptive")
+    : __WEBUI_TEXT__("runtime.badge_fixed");
 }
 function presetCardDot() {
   const dot = document.createElement("span");
@@ -4412,9 +4403,7 @@ function renderPresetCards(targetId, selectable) {
     };
     const badge = document.createElement("span");
     badge.className = "presetCardBadge";
-    badge.textContent = p.isFactory
-      ? __WEBUI_TEXT__("runtime.factory")
-      : __WEBUI_TEXT__("runtime.custom");
+    badge.textContent = presetBadge(p);
     titleRow.appendChild(title);
     titleRow.appendChild(badge);
     const meta = document.createElement("div");
@@ -4428,27 +4417,30 @@ function renderPresetCards(targetId, selectable) {
 }
 function guardRuleRows(m) {
   const on = !!m && m.mode === "active",
-    off = __WEBUI_TEXT__("runtime.off_2"),
+    off = __WEBUI_TEXT__("home.rule_off"),
     f = (v) => (Number.isFinite(v) ? axisLabel(v, "g") : "\u2014");
   return [
     [
-      __WEBUI_TEXT__("runtime.fast"),
       "guardFast",
-      on && m.fast
-        ? sub(__WEBUI_TEXT__("home.rule_fast"), [f(m.ceil), m.prot, m.tMin, f(m.goal)])
-        : off,
+      __WEBUI_TEXT__("runtime.verdict_fast"),
+      on && sub(__WEBUI_TEXT__("home.rule_before"), [m.t1]),
+      on && m.fast && sub(__WEBUI_TEXT__("home.rule_fast"), [f(m.ceil)]),
     ],
     [
-      __WEBUI_TEXT__("runtime.bbw"),
       "guardBbw",
-      on ? sub(__WEBUI_TEXT__("home.rule_bbw"), [f(m.goal), m.tMin, m.tMax]) : off,
+      __WEBUI_TEXT__("runtime.verdict_on_recipe"),
+      on && sub(__WEBUI_TEXT__("home.rule_window"), [m.t1, m.t2]),
+      on && f(m.goal),
     ],
     [
-      __WEBUI_TEXT__("runtime.slow"),
       "guardSlow",
-      on && m.slow ? sub(__WEBUI_TEXT__("home.rule_slow"), [f(m.floor), m.tMax]) : off,
+      __WEBUI_TEXT__("runtime.verdict_slow"),
+      on && sub(__WEBUI_TEXT__("home.rule_after"), [m.t2]),
+      on && m.slow && sub(__WEBUI_TEXT__("home.rule_slow"), [f(m.floor)]),
     ],
-  ].map(([n, c, r]) => {
+  ]
+    .map(([c, label, when, detail]) => [when || label, c, when ? label + " · " + (detail || off) : off])
+    .map(([n, c, r]) => {
     const row = document.createElement("div");
     row.className = "guardRow " + c;
     const name = document.createElement("span");
@@ -4492,13 +4484,11 @@ function renderHomePresetAccordion() {
       name.className = "presetAccName";
       const badge = document.createElement("span");
       badge.className = "presetAccBadge";
-      const target = document.createElement("span");
-      target.className = "presetAccTarget";
       const chev = document.createElement("span");
       chev.className = "presetAccChev";
       chev.setAttribute("aria-hidden", "true");
       chev.textContent = "\u25be";
-      head.append(dot, name, badge, target, chev);
+      head.append(dot, name, badge, chev);
       const panel = document.createElement("div");
       panel.className = "presetAccPanel";
       const panelIn = document.createElement("div");
@@ -4517,10 +4507,7 @@ function renderHomePresetAccordion() {
     head.disabled = !active && !canSelect;
     head.classList.toggle("locked", head.disabled);
     head.children[1].textContent = p.name;
-    head.children[2].textContent = p.isFactory
-      ? __WEBUI_TEXT__("runtime.factory")
-      : __WEBUI_TEXT__("runtime.custom");
-    head.children[3].textContent = presetSummary(p);
+    head.children[2].textContent = presetBadge(p);
     head.onclick = () => {
       if (p.id !== openId) applyPreset(p.id);
     };
@@ -4528,7 +4515,19 @@ function renderHomePresetAccordion() {
       p.id === presetState.activeId && liveRuleModel && liveRuleModel.mode !== "empty"
         ? liveRuleModel
         : buildRuleChartModel(p);
-    item.lastChild.firstChild.firstChild.replaceChildren(...guardRuleRows(m));
+    const rows = guardRuleRows(m),
+      svg = $("shotGoalEdit")?.firstElementChild;
+    // The active preset's target opens the quick-weight sheet from here too.
+    if (p.id === presetState.activeId && m.mode === "active" && svg) {
+      const pen = document.createElement("button");
+      pen.type = "button";
+      pen.className = "qeditPen presetAccEdit";
+      pen.title = __WEBUI_TEXT__("runtime.change_target_yield");
+      pen.setAttribute("aria-label", pen.title);
+      pen.append(svg.cloneNode(true));
+      rows[1].append(pen);
+    }
+    item.lastChild.firstChild.firstChild.replaceChildren(...rows);
     nodes.push(item);
   }
   if (![...el.children].every((n, i) => n === nodes[i])) el.replaceChildren(...nodes);
@@ -4542,45 +4541,49 @@ function updateActiveBrewProfileHint() {
   if (!el) return;
   const p = presetState.items.find((x) => x.id === presetState.activeId);
   el.textContent =
-    __WEBUI_TEXT__("runtime.current_profile") +
+    __WEBUI_TEXT__("runtime.current_preset") +
     (p && p.name ? p.name : __WEBUI_TEXT__("runtime.unknown"));
 }
 function renderAllPresetUi() {
   renderPresetCards("presetCards", false);
+  renderPresetReview();
   renderHomePresetAccordion();
   updatePresetActionButtons();
   updateActiveBrewProfileHint();
 }
 const HOME_GUARD_SWITCHES = [
     [
+      "homeAutoToManualGuardEnabled",
+      "homeAutoToManualGuardEnabledState",
+      "autoToManualGuardEnabled",
+      __WEBUI_TEXT__("runtime.scale_loss_backup"),
+      true,
+    ],
+    [
       "homeFastExtractionGuardEnabled",
       "homeFastExtractionGuardEnabledState",
       "fastExtractionGuardEnabled",
-      __WEBUI_TEXT__("runtime.fast_extraction_guard"),
+      __WEBUI_TEXT__("runtime.fast_shot_protection"),
+    ],
+    [
+      "homeSlowExtractionGuardEnabled",
+      "homeSlowExtractionGuardEnabledState",
+      "slowExtractionGuardEnabled",
+      __WEBUI_TEXT__("runtime.slow_shot_protection"),
     ],
     [
       "homeAvoidAccidentalTouchEnabled",
       "homeAvoidAccidentalTouchEnabledState",
       "avoidAccidentalTouchEnabled",
       __WEBUI_TEXT__("runtime.avoid_accidental_touch"),
-    ],
-    [
-      "homeSlowExtractionGuardEnabled",
-      "homeSlowExtractionGuardEnabledState",
-      "slowExtractionGuardEnabled",
-      __WEBUI_TEXT__("runtime.slow_extraction_guard"),
-    ],
-    [
-      "homeAutoToManualGuardEnabled",
-      "homeAutoToManualGuardEnabledState",
-      "autoToManualGuardEnabled",
-      __WEBUI_TEXT__("runtime.a_to_m_time_guard"),
+      true,
     ],
     [
       "homeCupProtectionEnabled",
       "homeCupProtectionEnabledState",
       "cupProtectionEnabled",
       __WEBUI_TEXT__("runtime.cup_protection"),
+      true,
     ],
   ],
   homeSwitchPending = {};
@@ -4701,13 +4704,13 @@ function scheduleHomeGuardFlush() {
     flushHomeGuards();
   }, 350);
 }
-function persistHomeGuard(h, s, c, preset) {
+function persistHomeGuard(h, s, c) {
   const on = $(h).checked;
   beginHomeSwitchPending(h, on);
   if ($(c)) $(c).checked = on;
   updateConfigGroups();
-  if (preset) homeFlushPreset = true;
-  else homeFlushConfig = true;
+  if (HOME_GUARD_SWITCHES.find((x) => x[0] === h)[4]) homeFlushConfig = true;
+  else homeFlushPreset = true;
   scheduleHomeGuardFlush();
 }
 function persistHomeNoScaleBbw() {
@@ -4770,6 +4773,11 @@ function homeConfigPatch() {
     p.noScaleBbwMode = $("homeNoScaleBbwEnabled").checked ? nsm : "off";
     n++;
   }
+  for (const [h, , k, , device] of HOME_GUARD_SWITCHES)
+    if (device && homeSwitchPending[h]) {
+      p[k] = $(h).checked;
+      n++;
+    }
   return n ? withBaseRev(p) : null;
 }
 async function flushHomeGuards() {
@@ -4846,9 +4854,11 @@ function updatePresetActionButtons() {
     el.disabled =
       locked ||
       (el.id === "presetDeleteBtn" && (!p || factory)) ||
-      (el.id === "presetResetBtn" && !factory);
+      (el.id === "presetResetBtn" && !factory) ||
+      (el.id === "presetNewCoffeeBtn" && !p?.shotStats?.count);
   });
   $("presetResetBtn")?.classList.toggle("hidden", !factory);
+  $("presetDeleteBtn")?.classList.toggle("hidden", factory);
 }
 async function applyPreset(id, selectable) {
   id = +id;
@@ -4877,7 +4887,7 @@ async function applyPreset(id, selectable) {
   formRev = 0;
   const seq = ++homeAccApplySeq;
   homeAccPendingId = id;
-  renderHomePresetAccordion();
+  renderAllPresetUi();
   await command("/api/v1/presets", { action: "apply", id });
   if (seq === homeAccApplySeq) {
     homeAccPendingId = 0;
@@ -4885,8 +4895,8 @@ async function applyPreset(id, selectable) {
   }
 }
 async function saveBrewPreset(okMsg, failMsg) {
-  const ok = okMsg || __WEBUI_TEXT__("runtime.brew_settings_saved"),
-    fail = failMsg || __WEBUI_TEXT__("runtime.could_not_save_brew_settings");
+  const ok = okMsg || __WEBUI_TEXT__("runtime.preset_saved"),
+    fail = failMsg || __WEBUI_TEXT__("runtime.could_not_save_preset");
   try {
     await ensureSettingsHydrated();
   } catch (e) {
@@ -4903,6 +4913,15 @@ async function saveBrewPreset(okMsg, failMsg) {
     showFieldErrors(errs);
     return false;
   }
+  const saved = presetState.items.find((x) => x.id === bbwFormPresetId);
+  if (
+    saved &&
+    (number("fastBeforeS") !== saved.fastBeforeS ||
+      number("slowAfterS") !== saved.slowAfterS ||
+      Math.abs(number("goalWeightG") - saved.goalWeightG) > 1) &&
+    !confirm(__WEBUI_TEXT__("runtime.stats_reset_confirm"))
+  )
+    return false;
   clearFieldErrors();
   try {
     await command("/api/v1/presets", brewPayload(), 1, ok, fail, "saveBrewPresetButton");
@@ -4935,7 +4954,7 @@ function validateBullseyeClient() {
   return null;
 }
 async function saveMachineConfig() {
-  const fail = __WEBUI_TEXT__("runtime.could_not_save_machine_settings");
+  const fail = __WEBUI_TEXT__("runtime.could_not_save_shared_settings");
   try {
     await ensureSettingsHydrated();
   } catch (e) {
@@ -4958,7 +4977,7 @@ async function saveMachineConfig() {
       "/api/v1/config",
       payload,
       1,
-      __WEBUI_TEXT__("runtime.machine_settings_saved"),
+      __WEBUI_TEXT__("runtime.shared_settings_saved"),
       fail,
       "saveConfigButton",
     );
@@ -5074,6 +5093,7 @@ function ingestPresets(s) {
   const prev = presetState.activeId;
   presetState.activeId = s.presets.activeId || 0;
   presetState.items = s.presets.items || [];
+  presetState.cutRampS = s.presets.cutRampS;
   if (
     !presetState.activeId ||
     !presetState.items.some((x) => x.id === presetState.selectedId) ||
@@ -5098,28 +5118,320 @@ function ingestPresets(s) {
     $("lineaMicraBrewTargetC").value = active.lineaMicraBrewTargetC.toFixed(1);
 }
 
+// Cut line f(t), piecewise linear and non-increasing: the ceiling holds until
+// D s before the fast threshold, ramps to the target, holds through the
+// window, then ramps over D s to the floor. A side that is off is the target.
 function buildRuleChartModel(c) {
   if (!c) return { mode: "empty" };
   const N = (v) => (Number.isFinite(+v) ? +v : NaN),
-    bbw = !!c.brewByWeight,
-    fast = bbw && !!c.fastExtractionGuardEnabled,
-    slow = bbw && !!c.slowExtractionGuardEnabled,
-    tMin = N(c.minBbwBrewTimeMs) / 1e3,
-    tMax = N(c.maxBbwBrewTimeMs) / 1e3,
-    pv = N(c.bbwProtectionMs) / 1e3,
-    prot = Number.isFinite(pv) ? Math.max(0, Math.min(pv, tMin > 0 ? tMin : 1 / 0)) : 0;
-  if (!(N(c.operationalWallMs) > 0)) return { mode: "empty" };
+    goal = N(c.goalWeightG),
+    t1 = N(c.fastBeforeS),
+    t2 = N(c.slowAfterS),
+    prot = N(c.bbwProtectionMs) / 1e3,
+    wall = N(c.operationalWallMs) / 1e3,
+    d = N(presetState.cutRampS),
+    fast = !!c.fastExtractionGuardEnabled,
+    slow = !!c.slowExtractionGuardEnabled,
+    fastMargin = N(c.fastMarginG),
+    slowMargin = N(c.slowMarginG),
+    ceil = fast ? goal + fastMargin : goal,
+    floor = slow ? goal - slowMargin : goal;
+  if (![goal, t1, t2, prot, wall, d, ceil, floor].every(Number.isFinite) || !(prot < t1 && t1 < t2 && t2 < wall))
+    return { mode: "empty" };
   return {
-    mode: bbw ? "active" : "timerOnly",
+    mode: c.brewByWeight === false ? "timerOnly" : "active",
     fast,
     slow,
-    tMin,
-    tMax,
+    fastMargin,
+    slowMargin,
+    goal,
+    ceil,
+    floor,
+    t1,
+    t2,
     prot,
-    goal: N(c.goalWeightG),
-    floor: N(c.minRecoveryWeightG),
-    ceil: N(c.maxRecoveryWeightG),
+    wall,
+    d,
+    firstDrop: Math.max(0, N(c.firstDropS) || 0),
+    pts: [
+      [prot, ceil],
+      [Math.max(prot, t1 - d), ceil],
+      [t1, goal],
+      [t2, goal],
+      [Math.min(wall, t2 + d), floor],
+      [wall, floor],
+    ],
   };
+}
+// Cut weight (g) at time t (s), in the firmware's integer units (dg, ms):
+// each ramp is a smooth S-curve between the held ceiling or floor and the
+// target, which stays a straight line through the window. Products stay
+// below 2^53, so Number math is exact.
+function cutLine(t, m) {
+  const ms = (v) => Math.round(v * 1000),
+    dg = (v) => Math.round(v * 10),
+    now = ms(Math.max(m.prot, Math.min(m.wall, t))),
+    goal = dg(m.goal),
+    a = ms(Math.max(m.prot, m.t1 - m.d)),
+    t1 = ms(m.t1),
+    t2 = ms(m.t2),
+    b = ms(Math.min(m.wall, m.t2 + m.d));
+  if (now < t1) {
+    const up = m.fast ? dg(m.fastMargin) : 0,
+      n = Math.max(0, now - a),
+      d = t1 - a;
+    return (goal + Math.floor((up * (d ** 3 - 3 * n * n * d + 2 * n ** 3)) / d ** 3)) / 10;
+  }
+  if (now > t2) {
+    const down = m.slow ? dg(m.slowMargin) : 0,
+      n = Math.min(now, b) - t2,
+      d = b - t2;
+    return (goal - Math.floor((down * (3 * n * n * d - 2 * n ** 3)) / d ** 3)) / 10;
+  }
+  return goal / 10;
+}
+// Reference pace (illustrative shape): a shot that reaches the target at tArr
+// with a soft start. It is the corridor design's quadratic Bézier (control
+// point at PACE_SOFT of the target), so it draws exactly as one "Q" segment.
+const PACE_SOFT = 0.18;
+function referencePace(t, goal, tArr, t0 = 0) {
+  const u = Math.max(0, t - t0) / (tArr - t0);
+  return goal * (2 * PACE_SOFT * u + (1 - 2 * PACE_SOFT) * u * u);
+}
+// Review graph of the preset under review: pace curves fan out from the
+// origin into corridors whose boundaries are the preset's thresholds, colored
+// only under the cut line. Unsaved edits redraw live over the ghosted saved line.
+let reviewView = null,
+  reviewScrubS = 0;
+function renderPresetReview() {
+  const host = $("presetReviewGraph");
+  if (!host) return;
+  const goalNow = formNumber("goalWeightG"),
+    grams = (v) => (Number.isFinite(v) ? v.toFixed(1) : "\u2014");
+  for (const [id, key, w] of [
+    ["fastMarginResult", __WEBUI_TEXT__("runtime.margin_up_to"), goalNow + formNumber("fastMarginG")],
+    ["slowMarginResult", __WEBUI_TEXT__("runtime.margin_down_to"), goalNow - formNumber("slowMarginG")],
+  ])
+    $(id).textContent = sub(key, [grams(w), brewRatio(w, formNumber("doseG"))]);
+  const id = presetState.selectedId || presetState.activeId,
+    saved = presetState.items.find((x) => x.id === id),
+    savedModel = buildRuleChartModel(saved),
+    draft =
+      configLoaded && brewDirty && bbwFormPresetId === id
+        ? buildRuleChartModel({ ...saved, ...brewPayload() })
+        : null,
+    m = draft && draft.mode !== "empty" ? draft : savedModel,
+    ghost = JSON.stringify(m.pts) !== JSON.stringify(savedModel.pts) ? savedModel : null;
+  $("presetReview").hidden = savedModel.mode === "empty";
+  const statsLine = shotStatsLine(saved);
+  $("windowStatsText").textContent = statsLine || __WEBUI_TEXT__("runtime.no_shots_yet");
+  // Laid out in CSS pixels from the measured width (constant label size):
+  // full width, height 0.56 of it within 180–220 px, re-laid out on resize.
+  const W = host.clientWidth;
+  if (savedModel.mode === "empty" || !W) return;
+  const H = Math.round(Math.min(220, Math.max(180, W * 0.56))),
+    L = 34,
+    R = W - 10,
+    T = 14,
+    B = H - 18,
+    top = Math.ceil(Math.max(m.ceil, ghost ? ghost.ceil : 0) + 2),
+    step = top > 30 ? 10 : 5,
+    tMax = Math.max(m.wall, ghost ? ghost.wall : 0),
+    X = (t) => L + ((R - L) * t) / tMax,
+    Y = (g) => B - ((B - T) * g) / top,
+    n = (v) => +(+v).toFixed(1),
+    f = (v) => v.toFixed(1),
+    // Unrounded pixel coordinates: the curves are drawn exactly, never from
+    // decigram-rounded samples (the displayed numbers keep the integer law).
+    P = (t, g) => X(t).toFixed(2) + " " + Y(g).toFixed(2),
+    label = (x, y, s, cls = "", anchor = "middle") =>
+      `<text class="rvLbl ${cls}" x="${f(x)}" y="${f(y)}" text-anchor="${anchor}">${s}</text>`,
+    a = Math.max(m.prot, m.t1 - m.d),
+    b = Math.min(m.wall, m.t2 + m.d),
+    // Holds and the window are straight; each S-ramp is one cubic Bézier with
+    // control points (x0 + Δx/3, y0) and (x0 + 2Δx/3, y1): exactly smoothstep.
+    ramp = (x, t0, y0, t1, y1) =>
+      `C${P(t0 + (t1 - t0) / 3, y0)} ${P(t0 + (2 * (t1 - t0)) / 3, y1)} ${P(t1, y1)}`,
+    edges = (x) => {
+      const xa = Math.max(x.prot, x.t1 - x.d),
+        xb = Math.min(x.wall, x.t2 + x.d);
+      return [
+        `L${P(xa, x.ceil)}` + ramp(x, xa, x.ceil, x.t1, x.goal),
+        `L${P(x.t2, x.goal)}`,
+        ramp(x, x.t2, x.goal, xb, x.floor) + `L${P(x.wall, x.floor)}`,
+      ];
+    },
+    [fastEdge, windowEdge, slowEdge] = edges(m),
+    // Reference paces as exact quadratic Béziers on [0, end], ending where
+    // they leave the plot (or at the right edge).
+    t0 = m.firstDrop,
+    paceEnd = (ta) => {
+      const c = PACE_SOFT,
+        k = (top + 1) / m.goal;
+      return Math.min(tMax, t0 + ((ta - t0) * (Math.sqrt(4 * c * c + 4 * (1 - 2 * c) * k) - 2 * c)) / (2 * (1 - 2 * c)));
+    },
+    ctrl = (ta, end) => P(t0 + (end - t0) / 2, (m.goal * PACE_SOFT * (end - t0)) / (ta - t0)),
+    endOf = (ta, end = paceEnd(ta)) => P(end, referencePace(end, m.goal, ta, t0)),
+    paceTo = (ta, end = paceEnd(ta)) => `Q${ctrl(ta, end)} ${endOf(ta, end)}`,
+    paceBack = (ta, end = paceEnd(ta)) => `Q${ctrl(ta, end)} ${P(t0, 0)}`,
+    // Areas run along the baseline to the first drop; strokes start there.
+    O = `M${P(0, 0)}L${P(t0, 0)}`,
+    S = `M${P(t0, 0)}`,
+    corner = `L${P(tMax, top + 1)}`,
+    tA = Math.max(t0 + 0.5, m.t1 - m.d),
+    tB = m.t2 + m.d,
+    band = (cls, d, on) => `<path class="${on ? cls : "rvBandOff"}" d="${d}"/>`,
+    card = shotFrame?.card,
+    last = card?.valid && !card.live && card.presetName === saved.name ? shotFrame.curve : null,
+    // Past arrivals were judged against the saved target: hidden while it is edited.
+    arrivals = m.goal === savedModel.goal ? (saved.arrivalsS || []).filter((t) => t <= tMax) : [],
+    targetAbove = Y(m.goal) - 4 - T >= 16;
+  let marks = "",
+    lastX = -99;
+  for (let v = 0; v <= top; v += step)
+    marks +=
+      `<path class="rvGrid" d="M${L} ${f(Y(v))}H${R}"/>` +
+      label(L - 4, Y(v) + 3, v + (v + step > top ? " g" : ""), "", "end");
+  [0, m.prot, m.t1, m.t2, m.wall].forEach((t, i, ts) => {
+    if (X(t) - lastX < 14 && i < ts.length - 1) return;
+    lastX = X(t);
+    marks += label(X(t), B + 13, n(t) + (i === ts.length - 1 ? " s" : ""), i > 1 && i < 4 ? "strong" : "");
+  });
+  if (reviewScrubS < m.prot || reviewScrubS > m.wall || id !== reviewView?.id)
+    reviewScrubS = Math.max(m.prot, n(m.t1 - 0.6 * m.d));
+  host.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
+    '<defs><pattern id="rvHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="rvHatchLine" d="M0 0V6"/></pattern>' +
+    `<clipPath id="rvUnder"><path d="${O}L${P(0, m.ceil)}L${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}L${P(m.wall, 0)}Z"/></clipPath></defs>` +
+    `<g role="img" aria-label="${sub(__WEBUI_TEXT__("runtime.graph_summary"), [n(m.prot), n(m.ceil), n(a), n(m.goal), n(m.t1), n(m.t2), n(m.floor), n(b), n(m.wall)])} ${__WEBUI_TEXT__("runtime.graph_pace_note")}">` +
+    '<g clip-path="url(#rvUnder)">' +
+    band("rvFastFull", O + paceTo(tA) + `L${P(paceEnd(tA), top + 1)}L${P(0, top + 1)}Z`, m.fast) +
+    band("rvFastPart", O + paceTo(m.t1) + corner + `L${endOf(tA)}` + paceBack(tA) + "Z", m.fast) +
+    `<path class="rvWindow" d="${O + paceTo(m.t1, m.t1)}L${P(m.t2, m.goal)}${paceBack(m.t2, m.t2)}Z"/>` +
+    band("rvSlowPart", O + paceTo(m.t2) + corner + `L${endOf(tB)}` + paceBack(tB) + "Z", m.slow) +
+    band("rvSlowFull", O + paceTo(tB) + corner + `L${P(tMax, 0)}Z`, m.slow) +
+    `<path class="rvPace" d="${[tA, m.t1, m.t2, tB].map((ta) => S + paceTo(ta)).join("")}"><title>${__WEBUI_TEXT__("runtime.graph_pace_title")}</title></path>` +
+    "</g>" +
+    marks +
+    `<rect x="${L}" y="${T}" width="${f(X(m.prot) - L)}" height="${B - T}" fill="url(#rvHatch)"/>` +
+    `<path class="rvTarget" d="M${L} ${f(Y(m.goal))}H${R}"/><path class="rvMax" d="M${f(X(m.wall))} ${T}V${B}"/>` +
+    (ghost ? `<path class="rvGhost" d="M${P(ghost.prot, ghost.ceil)}${edges(ghost).join("")}"/>` : "") +
+    (last
+      ? `<path class="rvLast" d="${last.wAtMs
+          .map((t, i) => [t / 1000, last.wCg[i] / 100])
+          .filter(([t]) => t <= tMax)
+          .map(([t, g], i) => (i ? "L" : "M") + P(t, g))
+          .join("")}"/>`
+      : "") +
+    arrivals.map((t) => `<circle class="rvArrival" cx="${f(X(t))}" cy="${f(Y(m.goal))}" r="3"/>`).join("") +
+    `<path class="rvCut${m.fast ? "" : " off"}" d="M${P(m.prot, m.ceil)}${fastEdge}"/>` +
+    `<path class="rvCut" d="M${P(m.t1, m.goal)}${windowEdge}"/>` +
+    `<path class="rvCut${m.slow ? "" : " off"}" d="M${P(m.t2, m.goal)}${slowEdge}"/>` +
+    // The hatch keeps its inline name only where it fits; the legend names it too.
+    (X(m.prot) - L >= 96 ? label((L + X(m.prot)) / 2, (T + B) / 2, __WEBUI_TEXT__("runtime.graph_legend_no_cut"), "rvHalo") : "") +
+    // Below the line when it would run into "Max" at the top.
+    label(R - 2, Y(m.goal) + (targetAbove ? -4 : 13), sub(__WEBUI_TEXT__("runtime.graph_target"), [n(m.goal)]), "rvHalo strong rvTargetLbl", "end") +
+    label(X(m.wall), T - 4, sub(__WEBUI_TEXT__("runtime.graph_max"), [n(m.wall)]), "", "end") +
+    `</g><g id="reviewScrub" class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.prot}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvStop" r="3.5"/><circle class="rvHandle" r="5"/></g></svg>`;
+  reviewView = {
+    id,
+    m,
+    X,
+    Y,
+    W,
+    T,
+    B,
+    pace: (ta, end) => S + paceTo(ta, end),
+    tAt: (x) => ((x - L) * tMax) / (R - L),
+  };
+  const legend = $("presetReviewLegend");
+  if (!legend.childElementCount)
+    legend.innerHTML =
+      '<span class="rvLeg rvLegCut"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_cut") + "</span>" +
+      '<span class="rvLeg rvLegPace"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_pace") + "</span>" +
+      '<span class="rvLeg rvLegExample"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_example") + "</span>" +
+      '<span class="rvLeg rvLegLast"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_last") + "</span>" +
+      '<span class="rvLeg rvLegArrivals"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_arrivals") + "</span>" +
+      '<span class="rvLeg rvLegWindow"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_corridor") + "</span>" +
+      '<span class="rvLeg rvLegFast"><i></i><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_fast") + "</span>" +
+      '<span class="rvLeg rvLegSlow"><i></i><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_slow") + "</span>" +
+      '<span class="rvLeg rvLegNoCut"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_no_cut") + "</span>" +
+      '<span class="rvLeg rvLegSaved"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_saved") + "</span>" +
+      '<small class="rvNote">' + __WEBUI_TEXT__("runtime.graph_pace_note") + "</small>";
+  legend.classList.toggle("ghosted", !!ghost);
+  legend.classList.toggle("hasLast", !!last);
+  legend.classList.toggle("hasArrivals", arrivals.length > 0);
+  legend.classList.toggle("noFast", !m.fast);
+  legend.classList.toggle("noSlow", !m.slow);
+  if (!host.dataset.bound) {
+    host.dataset.bound = "1";
+    const scrub = (s) => {
+      reviewScrubS = Math.max(reviewView.m.prot, Math.min(reviewView.m.wall, Math.round(s * 10) / 10));
+      positionReviewScrub();
+    };
+    const move = (e) => scrub(reviewView.tAt(e.clientX - host.firstChild.getBoundingClientRect().left));
+    new ResizeObserver(() => host.clientWidth !== reviewView?.W && renderPresetReview()).observe(host);
+    host.addEventListener("pointerdown", (e) => {
+      host.setPointerCapture(e.pointerId);
+      $("reviewScrub")?.focus({ preventScroll: true });
+      move(e);
+    });
+    host.addEventListener("pointermove", (e) => host.hasPointerCapture(e.pointerId) && move(e));
+    host.addEventListener("keydown", (e) => {
+      const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5, PageUp: 5, PageDown: -5 }[e.key];
+      if (!step) return;
+      e.preventDefault();
+      scrub(reviewScrubS + step);
+    });
+  }
+  positionReviewScrub();
+}
+// The scrubber picks when a shot reaches the target. Its reference pace is
+// followed past the target until it meets the cut line (same cutLine), so
+// the readout says where that shot would really stop.
+function positionReviewScrub() {
+  const v = reviewView,
+    g = $("reviewScrub");
+  if (!v || !g) return;
+  const m = v.m,
+    tArr = reviewScrubS,
+    pace = (t) => referencePace(t, m.goal, tArr, m.firstDrop),
+    gap = (t) => pace(t) - cutLine(t, m);
+  let lo = m.prot,
+    hi = m.wall;
+  for (let i = 0; i < 40 && gap(lo) < 0 && gap(hi) > 0; i++) {
+    const mid = (lo + hi) / 2;
+    if (gap(mid) < 0) lo = mid;
+    else hi = mid;
+  }
+  const stop = gap(m.prot) >= 0 ? m.prot : gap(m.wall) <= 0 ? m.wall : hi,
+    w = pace(stop),
+    verdict =
+      gap(m.wall) < 0
+        ? __WEBUI_TEXT__("runtime.max_time")
+        : verdictLabel(tArr < m.t1 - 0.5 ? "fast" : tArr > m.t2 + 0.5 ? "slow" : "on_recipe"),
+    values = [+m.goal.toFixed(1), tArr.toFixed(1), verdict, w.toFixed(1), stop.toFixed(1)],
+    text =
+      Math.abs(w - m.goal) < 0.05
+        ? sub(__WEBUI_TEXT__("runtime.graph_readout_target"), values)
+        : stop >= tArr
+          ? sub(__WEBUI_TEXT__("runtime.graph_readout"), values)
+          : sub(__WEBUI_TEXT__("runtime.graph_readout_early"), values),
+    [guide, shot, stopDot, handle] = g.children,
+    targetLabel = g.ownerSVGElement.querySelector(".rvTargetLbl"),
+    box = targetLabel.getBBox(),
+    hx = v.X(tArr);
+  guide.setAttribute("d", `M${v.X(tArr).toFixed(1)} ${v.T}V${v.B}`);
+  shot.setAttribute("d", v.pace(tArr, stop));
+  stopDot.setAttribute("cx", v.X(stop).toFixed(2));
+  stopDot.setAttribute("cy", v.Y(w).toFixed(2));
+  handle.setAttribute("cx", v.X(tArr).toFixed(2));
+  handle.setAttribute("cy", v.Y(m.goal).toFixed(2));
+  // The handle rides the target line: the label steps aside under it.
+  targetLabel.style.opacity = hx > box.x - 8 && hx < box.x + box.width + 8 ? "0" : "";
+  g.setAttribute("aria-valuenow", tArr.toFixed(1));
+  g.setAttribute("aria-valuetext", text);
+  $("presetReviewReadout").textContent = text;
 }
 let liveRuleModel = null,
   homeAccSig = "",
@@ -5478,6 +5790,8 @@ function startUiStream() {
         // Navigation visibility is a Home-stream field; applying it here keeps
         // the Diagnostic menu entry live on every view without a REST probe.
         if ("diagnosticPageVisible" in data.changes) applyDiagnosticNavigation(homeFrame.status);
+        // The duration chart bands follow the active preset's window.
+        if ("presets" in data.changes && activeView === "stats") renderStatsDurChart();
         if (
           noScaleClock &&
           homeFrame.boot === noScaleClock.boot &&
@@ -6458,15 +6772,26 @@ function updateHomeGuardSubs(s, live) {
                 : __WEBUI_TEXT__("runtime.on_2"),
   );
   setHomeSub("homeNoScaleSub", formatNoScaleGuard(b ? s.noScaleShotGuard : { enabled: 0 }));
+  const m = liveRuleModel?.mode === "active" ? liveRuleModel : null,
+    n = (v) => +(+v).toFixed(1),
+    off = __WEBUI_TEXT__("runtime.off_2"),
+    sideOff = sub(__WEBUI_TEXT__("runtime.side_off"), [n(cfg.goalWeightG)]),
+    sl = s.scaleLoss || {};
+  setHomeSub(
+    "homeScaleLossSub",
+    b && cfg.autoToManualGuardEnabled && Number.isFinite(sl.projectedS)
+      ? sub(__WEBUI_TEXT__("runtime.scale_loss_sub"), [+sl.projectedS.toFixed(1)])
+      : off,
+  );
   setHomeSub(
     "homeFastSub",
-    formatExtractionGuard({
-      guardEnabled: b && !!cfg.fastExtractionGuardEnabled,
-      extended: live && c.extractionExtended,
-      goal: c.activeStopWeightG,
-      minBbwBrewRemainingMs: c.minBbwBrewTimeRemainingMs,
-      inShot: live,
-    }),
+    !b || !m
+      ? off
+      : !m.fast
+        ? sideOff
+        : live && c.extractionExtended
+          ? sub(__WEBUI_TEXT__("runtime.side_raising"), [n(c.activeStopWeightG)])
+          : sub(__WEBUI_TEXT__("runtime.fast_side_sub"), [n(m.ceil), n(m.t1)]),
   );
   setHomeSub(
     "homeTouchSub",
@@ -6478,21 +6803,13 @@ function updateHomeGuardSubs(s, live) {
   );
   setHomeSub(
     "homeSlowSub",
-    formatSlowExtractionGuard({
-      guardEnabled: b && !!cfg.slowExtractionGuardEnabled,
-      extended: live && c.slowExtractionExtended,
-      goal: c.activeStopWeightG,
-      inShot: live,
-    }),
-  );
-  setHomeSub(
-    "homeAtmSub",
-    formatAtmGuard({
-      atmEnabled: b && !!cfg.autoToManualGuardEnabled,
-      atmEnforced: live && c.autoToManualGuardEnforced,
-      atmArmed: live && c.autoToManualGuardArmed,
-      atmRemainingMs: c.autoToManualGuardRemainingMs,
-    }),
+    !b || !m
+      ? off
+      : !m.slow
+        ? sideOff
+        : live && c.slowExtractionExtended
+          ? sub(__WEBUI_TEXT__("runtime.side_lowering"), [n(c.activeStopWeightG)])
+          : sub(__WEBUI_TEXT__("runtime.slow_side_sub"), [n(m.floor), n(m.t2)]),
   );
   setHomeSub(
     "homeCupSub",
@@ -6514,7 +6831,10 @@ function renderShotHero(d) {
     wt = typeof d.weight === "number" ? d.weight : null,
     goal = d.goal,
     scale = wt !== null && goal > 0 ? Math.max(goal, wt) : 0,
-    err = scale ? (((wt - goal) / goal) * 100).toFixed(1) + "%" : "",
+    // Scale-loss backup: a finished shot shows its estimated yield, a live
+    // one its clock against the backup's stop time.
+    sl = d.scaleLoss,
+    est = !d.live && sl && sl.estimatedG != null ? Math.round(sl.estimatedG) : null,
     el = d.elapsedMs,
     drop = d.firstDropMs,
     flow = typeof d.averageFlowGps === "number" ? d.averageFlowGps : null,
@@ -6557,12 +6877,24 @@ function renderShotHero(d) {
   const label =
     t(
       "Weight",
-      noScale
+      est !== null
+        ? "~" + est + __WEBUI_TEXT__("runtime.g_2")
+        : noScale
         ? ms(el, 1) + __WEBUI_TEXT__("runtime.s_2")
         : wt === null
           ? __WEBUI_TEXT__("runtime.unknown")
           : wt.toFixed(1) + __WEBUI_TEXT__("runtime.g_2"),
-    ) + t("Goal", noScale ? "" : goal > 0 ? " / " + goal.toFixed(1) + " g" : "");
+    ) +
+    t(
+      "Goal",
+      noScale && est === null
+        ? d.live && sl && sl.state === "lost"
+          ? " / ~" + +sl.stopAtS.toFixed(1) + __WEBUI_TEXT__("runtime.s_2")
+          : ""
+        : goal > 0
+          ? " / " + goal.toFixed(1) + " g"
+          : "",
+    );
   const hTrack = $("shotHeroTrack");
   if (hTrack) {
     hTrack.style.setProperty("--goal-pct", (scale ? (goal / scale) * 100 : 100) + "%");
@@ -6574,7 +6906,7 @@ function renderShotHero(d) {
     e.hidden = !v;
     e.textContent = v || "";
   };
-  chip("Elapsed", !noScale && ms(el, 1) + __WEBUI_TEXT__("runtime.s_2"));
+  chip("Elapsed", (!noScale || est !== null) && ms(el, 1) + __WEBUI_TEXT__("runtime.s_2"));
   chip(
     "Drop",
     !noScale &&
@@ -6587,8 +6919,26 @@ function renderShotHero(d) {
       flow !== null &&
       __WEBUI_TEXT__("runtime.avg_flow") + " " + flow.toFixed(2) + __WEBUI_TEXT__("runtime.g_s"),
   );
-  chip("Error", !noScale && err && __WEBUI_TEXT__("home.hero_error") + " " + err);
   chip("Touch", !noScale && d.live && d.touchHold && __WEBUI_TEXT__("home.hero_touch_hold"));
+  // Pills only: the verdict, and how the cut line ended the shot when that
+  // differs from stopping at the target.
+  const kind = d.live ? "" : /wall_limit$/.test(d.endReason) ? "max_time" : d.verdict || "",
+    cut =
+      sl && sl.state !== "recovered"
+        ? __WEBUI_TEXT__("home.hero_no_scale")
+        : d.live
+          ? ""
+          : d.channeling
+            ? __WEBUI_TEXT__("runtime.cut_channeling")
+            : d.cutG > d.goal
+              ? __WEBUI_TEXT__("runtime.cut_extended")
+              : d.cutG > 0 && d.cutG < d.goal
+                ? __WEBUI_TEXT__("runtime.cut_stopped_early")
+                : "";
+  $("shotHeroPills").hidden = !kind && !cut;
+  chip("Pill", kind && (kind === "max_time" ? __WEBUI_TEXT__("runtime.max_time") : verdictLabel(kind)));
+  $("shotHeroPill").dataset.kind = kind;
+  chip("Cut", cut);
   const mode = noScale
     ? __WEBUI_TEXT__("home.hero_no_scale")
     : d.live
@@ -6598,8 +6948,8 @@ function renderShotHero(d) {
           manual: __WEBUI_TEXT__("runtime.manual"),
           rinse: __WEBUI_TEXT__("runtime.rinse"),
         }[(d.shotType || "").toLowerCase()] || ""
-      : formatShotEnded(d.endReason);
-  chip("Mode", mode !== __WEBUI_TEXT__("runtime.unknown") && mode);
+      : formatShotEnded(d.endReason, d.verdict);
+  chip("Mode", !kind && !cut && mode !== __WEBUI_TEXT__("runtime.unknown") && mode);
   const spark = $("shotHeroSpark");
   if (spark) {
     const segs = model && model.segs.filter((s) => s.pts.length > 1);
@@ -6632,6 +6982,68 @@ function renderShotHero(d) {
         '<line x1="0" y1="33.2" x2="120" y2="33.2" stroke="var(--on)" opacity=".25" stroke-width=".7"/></svg>';
     } else spark.replaceChildren();
   }
+}
+// Home cards: a grind hint when the active preset's shots drift, and the
+// one-time Scale-loss backup introduction. Dismissals stay in this browser.
+function cardDismissed(key) {
+  try {
+    return !!localStorage.getItem(key);
+  } catch (_) {
+    return false;
+  }
+}
+function dismissCard(key) {
+  try {
+    localStorage.setItem(key, "1");
+  } catch (_) {}
+  renderHomeCards();
+}
+function renderHomeCards() {
+  const p = presetState.items.find((x) => x.id === presetState.activeId),
+    hint = p && p.grindHintsEnabled && p.grindHint,
+    key = hint ? "ssCard:grind:" + p.id + ":" + hint.direction : "",
+    card = $("grindHintCard");
+  if (card) {
+    card.hidden = !hint || cardDismissed(key);
+    card.dataset.key = key;
+    if (hint)
+      $("grindHintText").textContent = sub(
+        hint.direction === "faster"
+          ? __WEBUI_TEXT__("runtime.grind_hint_faster")
+          : __WEBUI_TEXT__("runtime.grind_hint_slower"),
+        [hint.shots, +(+hint.medianS).toFixed(1), +(+p.fastBeforeS).toFixed(1), +(+p.slowAfterS).toFixed(1)],
+      );
+  }
+  if ($("scaleLossDiscovery"))
+    $("scaleLossDiscovery").hidden = cardDismissed("ssCard:scaleLossDiscovery");
+}
+// "New coffee or big grind change": starts the active preset's statistics over.
+async function startNewCoffee(id = presetState.activeId) {
+  const p = presetState.items.find((x) => x.id === id),
+    text = p && sub(__WEBUI_TEXT__("settings.new_coffee_confirm"), [p.name, p.shotStats?.count || 0]);
+  if (p && (await askConfirm(text, __WEBUI_TEXT__("settings.start_over"))))
+    command("/api/v1/presets", { action: "new_coffee", id });
+}
+// [Cancel][<ok>] confirmation in the shell dialog; resolves true on <ok>.
+function askConfirm(text, ok, danger = false) {
+  const d = $("confirmDialog"),
+    b = $("confirmOk");
+  $("confirmText").textContent = text;
+  b.firstChild.textContent = ok;
+  b.classList.toggle("btnInvert", !danger);
+  b.classList.toggle("btnDanger", danger);
+  d.returnValue = "";
+  d.showModal();
+  return new Promise((done) => d.addEventListener("close", () => done(d.returnValue === "ok"), { once: true }));
+}
+// "Last 10 shots: 28–33 s, median 30.4 s": arrival times since the preset's
+// statistics last started over. Empty until the first shot.
+function shotStatsLine(p) {
+  const st = p && p.shotStats,
+    n = (v) => +(+v).toFixed(1);
+  return st && st.count
+    ? sub(__WEBUI_TEXT__("runtime.shot_stats_line"), [Math.min(10, st.count), n(st.minS), n(st.maxS), n(st.medianS)])
+    : "";
 }
 function clearShotHero() {
   const hero = $("shotHero");
@@ -6732,8 +7144,6 @@ function loadSettingsConfig(c) {
     "bbwProtection",
     "retareStabilityMaxGap",
     "retareStabilityMinDuration",
-    "minBbwBrewTime",
-    "maxBbwBrewTime",
   ].forEach((k) => ($(k + "S").value = String(c[k + "Ms"] / 1000)));
   const paddleReturnReminderLimit = $("paddleReturnReminderMaxDurationMin");
   if (paddleReturnReminderLimit)
@@ -6744,8 +7154,6 @@ function loadSettingsConfig(c) {
     ["cupRemovedWeightG", -3],
     ["retareStabilitySamples", 3],
     ["retareStabilityToleranceG", 2],
-    ["maxRecoveryWeightG", 42],
-    ["minRecoveryWeightG", 34],
     ["scaleTimerStopExtraDelayMs", 0],
   ].forEach(([k, d]) => ($(k).value = String(c[k] ?? d)));
   $("dripDelayS").value = String((c.dripDelayMs ?? 3000) / 1000);
@@ -6768,6 +7176,7 @@ function loadSettingsConfig(c) {
     "avoidAccidentalTouchEnabled",
     "touchStopFallbackEnabled",
     "slowExtractionGuardEnabled",
+    "grindHintsEnabled",
     "autoToManualGuardEnabled",
     "cupProtectionEnabled",
     "stopIfCupRemoved",
@@ -6819,21 +7228,12 @@ function loadSettingsConfig(c) {
   if ($("assumeIdleWhenScaleConnects"))
     $("assumeIdleWhenScaleConnects").checked = c.assumeIdleWhenScaleConnects !== false;
   if ($("shotReactTimeoutS")) $("shotReactTimeoutS").value = String(c.shotReactTimeoutS ?? 12);
-  $("autoToManualGuardLimitMode").value =
-    c.autoToManualGuardLimitMode === "manual" ? "manual" : "auto";
-  $("autoToManualGuardManualLimitS").value = String(
-    (c.autoToManualGuardManualLimitMs ?? 32000) / 1000,
-  );
-  $("autoToManualGuardBaselineS").value = String(
-    (c.autoToManualGuardBaselineMs ?? c.autoToManualGuardManualLimitMs ?? 32000) / 1000,
-  );
+  for (const k of ["doseG", "fastBeforeS", "slowAfterS", "fastMarginG", "slowMarginG"])
+    $(k).value = (+c[k]).toFixed(1);
+  $("scaleLossFixedS").value = c.scaleLossFixedS > 0 ? String(c.scaleLossFixedS) : "";
   $("weightOffsetBaselineG").value = String(
     typeof c.weightOffsetBaselineG === "number" ? c.weightOffsetBaselineG : 1.5,
   );
-  $("autoToManualGuardTrendS").textContent =
-    typeof c.autoToManualGuardTrendMs === "number"
-      ? (c.autoToManualGuardTrendMs / 1000).toFixed(1) + __WEBUI_TEXT__("runtime.s_2")
-      : __WEBUI_TEXT__("runtime.unknown");
   formRev = c.revision;
   configRevision = c.revision;
   configLoaded = true;
@@ -6921,7 +7321,6 @@ function applyHomeStatus(s) {
   );
   $("scaleWeight").textContent = formatScaleWeight(s);
   $("scaleTimer").textContent = formatScaleTimer(s);
-  updateHomeGuardSubs(s, !!s.cycle?.active);
   paintUiStream();
   const rinseButton = $("rinseButton");
   if (rinseButton)
@@ -6953,6 +7352,8 @@ function applyHomeStatus(s) {
   }
   ingestPresets(s);
   updateRuleChartFromStatus(s);
+  updateHomeGuardSubs(s, !!s.cycle?.active);
+  renderHomeCards();
   applyHomeSwitchesFromConfig(s.config);
 }
 const MICRA_SWITCHES = [
@@ -7140,9 +7541,18 @@ function applySettingsStatus(s) {
   applyLineaMicraStatus(s);
   ingestPresets(s);
   updateBbwControls();
-  if (typeof s.config.autoToManualGuardTrendMs === "number")
-    $("autoToManualGuardTrendS").textContent =
-      (s.config.autoToManualGuardTrendMs / 1000).toFixed(1) + __WEBUI_TEXT__("runtime.s_2");
+  const sl = s.scaleLoss,
+    active = presetState.items.find((x) => x.id === presetState.activeId);
+  if (sl && active)
+    $("scaleLossProjection").textContent = sub(__WEBUI_TEXT__("runtime.scale_loss_projection"), [
+      active.name,
+      +sl.projectedS.toFixed(1),
+      {
+        history: __WEBUI_TEXT__("runtime.scale_loss_from_history"),
+        window: __WEBUI_TEXT__("runtime.scale_loss_from_window"),
+        fixed: __WEBUI_TEXT__("runtime.scale_loss_from_fixed"),
+      }[sl.source],
+    ]);
   if (configLoaded) {
     if (!configDirty) configBaseline = snapshotControls(settingsSectionEls("config"));
     if (!brewDirty) brewBaseline = snapshotControls(settingsSectionEls("brew"));
@@ -8538,10 +8948,16 @@ export {
   persistHomeGuard,
   persistHomeNoScaleBbw,
   persistHomeBrewByWeight,
+  HOME_GUARD_SWITCHES,
+  renderPresetReview,
+  dismissCard,
+  startNewCoffee,
   invalidateSettingsHydration,
   clearBrewDirty,
   presetState,
   selectedPreset,
+  askConfirm,
+  sub,
   formatExtractionGuard,
   formatSlowExtractionGuard,
   formatAtmGuard,

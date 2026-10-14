@@ -149,11 +149,12 @@
     throw new Error('Clearing Home must hide the shot hero');
   }
   const heroElements=new Map(),lookup=id=>{
-    if(!heroElements.has(id))heroElements.set(id,{hidden:false,textContent:'',style:{setProperty(){}},
+    if(!heroElements.has(id))heroElements.set(id,{hidden:false,textContent:'',dataset:{},style:{setProperty(){}},
       classList:{toggle(){},contains(){return false}},setAttribute(){},replaceChildren(){}});
     return heroElements.get(id);
   };
   const paint=new Function('$','buildShotSparkModel','formatShotEnded','ms',
+    blockAt(runtimeJs,'function verdictLabel(')+
     runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function shotPresetName('))+
     ';return renderShotHero;')(lookup,()=>null,()=>'',(v,n)=>(v/1000).toFixed(n));
   const card={live:true,weight:2,goal:36,elapsedMs:1000,firstDropMs:0,tareMs:null,averageFlowGps:null};
@@ -165,17 +166,30 @@
       lookup('shotHeroFlow').textContent!=='Avg flow 1.23 g/s')throw new Error('Home must render firmware event/flow validity');
   paint({...card,weight:36.2,elapsedMs:36800});
   if(lookup('shotHeroWeight').textContent!=='36.2 g'||lookup('shotHeroGoal').textContent!==' / 36.0 g'||
-      lookup('shotHeroElapsed').textContent!=='36.8 s'||lookup('shotHeroError').hidden||
-      lookup('shotHeroError').textContent!=='Err 0.6%')throw new Error('Home must label units and signed target error');
-  paint({...card,weight:35});
-  if(lookup('shotHeroError').textContent!=='Err -2.8%')throw new Error('Home must preserve undershoot error');
-  for(const missing of [{weight:null},{goal:0}]){
-    paint({...card,...missing});
-    if(!lookup('shotHeroError').hidden)throw new Error('Home must hide unavailable target error');
-  }
+      lookup('shotHeroElapsed').textContent!=='36.8 s'||!lookup('shotHeroPills').hidden)
+    throw new Error('Home must label units and keep pills off a live shot');
+  // A finished shot shows its verdict pill and, when the cut line moved, a cut pill.
+  const done={...card,live:false,weight:38.1,verdict:'fast',cutG:39.4};
+  paint(done);
+  if(lookup('shotHeroPill').textContent!=='Fast'||lookup('shotHeroPill').dataset.kind!=='fast'||
+      lookup('shotHeroCut').textContent!=='Extended')throw new Error('A fast shot must show Fast and Extended pills');
+  paint({...done,verdict:'slow',cutG:34});
+  if(lookup('shotHeroPill').textContent!=='Slow'||lookup('shotHeroCut').textContent!=='Stopped early')
+    throw new Error('A slow shot must show Slow and Stopped early pills');
+  paint({...done,verdict:'on_recipe',cutG:36});
+  if(lookup('shotHeroPill').textContent!=='On recipe'||!lookup('shotHeroCut').hidden)
+    throw new Error('An on-recipe shot cut at the target needs no cut pill');
+  paint({...done,channeling:true});
+  if(lookup('shotHeroCut').textContent!=='Channeling')throw new Error('Channeling must replace the cut pill');
+  paint({...done,verdict:null,cutG:null,endReason:'wall_limit'});
+  if(lookup('shotHeroPill').textContent!=='Max time')throw new Error('A wall stop must read Max time');
+  paint({...done,verdict:null,cutG:null,scaleAvailable:false,weight:null,
+    scaleLoss:{state:'finished',stopAtS:31,estimatedG:35.6}});
+  if(lookup('shotHeroWeight').textContent!=='~36 g'||lookup('shotHeroCut').textContent!=='No scale')
+    throw new Error('A scale-loss stop must show its estimate and the No scale pill');
   paint({...card,scaleAvailable:false,weight:null,elapsedMs:27400,firstDropMs:2000,averageFlowGps:1.5});
   if(lookup('shotHeroWeight').textContent!=='27.4 s'||lookup('shotHeroGoal').textContent!==''||
-      ['Elapsed','Drop','Flow','Error'].some(id=>!lookup('shotHero'+id).hidden)||
+      ['Elapsed','Drop','Flow'].some(id=>!lookup('shotHero'+id).hidden)||
       lookup('shotHeroMode').hidden||lookup('shotHeroMode').textContent!=='No scale')
     throw new Error('A shot started without a scale must turn the hero into a timer');
   paint({...card,scaleAvailable:true});
@@ -190,7 +204,7 @@
   if(!lookup('shotHeroTouch').hidden)throw new Error('A shot without a scale must never claim a touch hold');
   paint({...card});
   if(!lookup('shotHeroTouch').hidden)throw new Error('The touch-hold chip needs the firmware flag');
-  const chips=['Elapsed','Drop','Flow','Error','Touch','Mode'].map(id=>html.indexOf('id="shotHero'+id+'"'));
+  const chips=['Elapsed','Drop','Flow','Touch','Mode'].map(id=>html.indexOf('id="shotHero'+id+'"'));
   if(chips.some((pos,i)=>pos<0||(i&&pos<=chips[i-1])))throw new Error('Home shot chips must keep their reading order');
   const apply = new Function(runtimeJs.slice(runtimeJs.indexOf('function uiStreamFrame('),
     runtimeJs.indexOf('function startUiStream('))+';return uiStreamFrame;')();
@@ -733,26 +747,18 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
   }
 }
 if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
-    !codeIncludes(ui, 'id="autoToManualGuardLimitMode"') ||
-    !codeIncludes(ui, 'id="autoToManualGuardBaselineS"') ||
+    !codeIncludes(ui, 'id="scaleLossFixedS"') ||
     !codeIncludes(ui, 'id="scaleTimerStopExtraDelayMs"') ||
     !html.includes('Waits this extra time before stopping the scale') ||
     html.includes('Added after measured scale start lag') ||
     html.includes('Added after the scale timer catches up to circuit whole seconds') ||
     !codeIncludes(ui, 'id="dripDelayS" type="number" min="0" max="10" step="0.1"') ||
-    !codeIncludes(ui, 'id="autoToManualGuardManualLimitS"') ||
-    !codeIncludes(ui, 'id="autoToManualGuardTrendS"') ||
-    !codeIncludes(ui, 'id="resetGuardSamplesButton"') ||
-    html.indexOf('id="autoToManualGuardLimitMode"') >
-        html.indexOf('id="autoToManualGuardManualLimitS"') ||
-    html.indexOf('id="autoToManualGuardManualLimitS"') >
-        html.indexOf('id="autoToManualGuardTrendS"') ||
-    html.indexOf('id="autoToManualGuardTrendS"') >
-        html.indexOf('id="autoToManualGuardBaselineS"') ||
-    html.indexOf('id="autoToManualGuardBaselineS"') >
-        html.indexOf('id="resetGuardSamplesButton"') ||
-    !codeIncludes(ui, 'Reset A→M samples to baseline') ||
-    !codeIncludes(ui, 'id="homeAtmSub"') ||
+    !codeIncludes(ui, 'id="scaleLossFixedLink"') ||
+    html.indexOf('<summary>No-scale BBW</summary>') >
+        html.indexOf('<summary>Scale-loss backup</summary>') ||
+    html.indexOf('<summary>Scale-loss backup</summary>') >
+        html.indexOf('id="scaleLossProjection"') ||
+    !codeIncludes(ui, 'id="homeScaleLossSub"') ||
     !codeIncludes(ui, 'id="homeNoScaleSub"') ||
     !codeIncludes(ui, 'id="noScaleBbwMode"') ||
     !codeIncludes(ui, 'id="noScaleAllowRinseWhileArmed"') ||
@@ -767,7 +773,7 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !codeIncludes(ui, 'value="require_scale"') ||
     !codeIncludes(ui, 'function formatNoScaleGuard(') ||
     !codeIncludes(ui, 'function formatSlowExtractionGuard(') ||
-    !codeIncludes(ui, "setHomeSub('homeSlowSub',formatSlowExtractionGuard(") ||
+    !codeIncludes(ui, 'setHomeSub("homeSlowSub"') ||
     !codeIncludes(ui, 'updateHomeGuardSubs(s,!!s.cycle?.active)') ||
     codeIncludes(ui, 'function updateNoScaleGuard(') ||
     html.includes('id="shotAtmGuard"') ||
@@ -776,14 +782,14 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     html.includes('id="statusSlowExtractionGuard"') ||
     html.includes('id="statusAtmGuard"') ||
     html.includes('id="statusNoScaleGuard"') ||
-    html.indexOf('<legend>Machine and scale</legend>') >
+    html.indexOf('<legend>Shared settings ') >
         html.indexOf('<summary>Paddle</summary>') ||
     html.indexOf('<summary>Paddle</summary>') >
         html.indexOf('<summary>No-scale BBW</summary>') ||
-    html.indexOf('<summary>No-scale BBW</summary>') >
-        html.indexOf('<summary>Quick rinse</summary>') ||
+    html.indexOf('<summary>Quick rinse</summary>') >
+        html.indexOf('<summary>No-scale BBW</summary>') ||
     html.indexOf('id="noScaleBbwMode"') <
-        html.indexOf('<legend>Machine and scale</legend>') ||
+        html.indexOf('<legend>Shared settings ') ||
     html.indexOf('id="noScaleBbwMode"') >
         html.indexOf('id="noScaleAllowRinseWhileArmed"') ||
     html.indexOf('id="noScaleAllowRinseWhileArmed"') >
@@ -791,7 +797,7 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     html.indexOf('id="lastShotCooldownMin"') <
         html.indexOf('<summary>No-scale BBW</summary>') ||
     html.indexOf('id="lastShotCooldownMin"') >
-        html.indexOf('<summary>Quick rinse</summary>') ||
+        html.indexOf('<summary>Scale-loss backup</summary>') ||
     html.indexOf('id="paddleMode"') <
         html.indexOf('<summary>Paddle</summary>') ||
     html.indexOf('id="paddleMode"') >
@@ -846,7 +852,7 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !css.includes('grid-template-columns:repeat(2,minmax(0,1fr))') ||
     !codeIncludes(ui, 'yield_source') ||
     !network.includes('autoToManualGuardEnabled') ||
-    !network.includes('autoToManualGuardBaselineMs') ||
+    !network.includes('scaleLossFixedS') ||
     !network.includes('scaleTimerStopExtraDelayMs') ||
     !network.includes('dripDelayMs') ||
     !network.includes('autoToManualGuardTrendMs') ||
@@ -1182,54 +1188,37 @@ if (!codeIncludes(ui, 'id="learnedOffsetG"') ||
         html.indexOf('id="weightOffsetBaselineG"') ||
     html.indexOf('id="weightOffsetBaselineG"') >
         html.indexOf('id="resetCalibrationButton"') ||
-    !codeIncludes(ui, 'Reset learned stop offset') ||
-    codeIncludes(ui, 'Reset learned stop offset to baseline') ||
+    !codeIncludes(ui, 'Reset drip learning') ||
+    codeIncludes(ui, 'Reset learned stop offset') ||
     !css.includes('.bbwLearning .btnBar{max-width:22rem}') ||
     css.includes('#bbwAlgorithm{width:100%}') ||
-    !codeIncludes(ui, 'Save changed baseline values before resetting') ||
+    !codeIncludes(ui, 'Save changed starting values before resetting') ||
     !network.includes('weightOffsetBaselineG') ||
     !codeIncludes(ui, 'weightOffsetBaselineG')) {
-  throw new Error('Learned stop offset baseline must be wired like A→M baseline reset');
+  throw new Error('Learned drip baseline must be wired to Reset drip learning');
 }
-if (!html.includes('<summary>Cup</summary>') ||
+if (!html.includes('<summary>Cup detection</summary>') ||
     !html.includes('<summary>Tare</summary>') ||
-    html.indexOf('<summary>Cup</summary>') >
-        html.indexOf('<summary>Tare</summary>') ||
-    html.indexOf('id="minimumCupWeightG"') <
-        html.indexOf('<summary>Cup</summary>') ||
-    html.indexOf('id="minimumCupWeightG"') >
-        html.indexOf('<summary>Tare</summary>') ||
-    html.indexOf('id="cupRemovedWeightG"') <
-        html.indexOf('<summary>Cup</summary>') ||
-    html.indexOf('id="cupRemovedWeightG"') >
-        html.indexOf('<summary>Tare</summary>') ||
-    html.indexOf('id="retareStabilitySamples"') <
-        html.indexOf('<summary>Cup</summary>') ||
-    html.indexOf('id="retareStabilitySamples"') >
-        html.indexOf('<summary>Tare</summary>') ||
+    html.indexOf('<summary>Tare</summary>') >
+        html.indexOf('<summary>Cup detection</summary>') ||
+    ['minimumCupWeightG', 'cupRemovedWeightG', 'retareStabilitySamples',
+     'retareStabilityToleranceG', 'retareStabilityMaxGapS',
+     'retareStabilityMinDurationS'].some(id =>
+      html.indexOf(`id="${id}"`) < html.indexOf('<summary>Cup detection</summary>') ||
+      html.indexOf(`id="${id}"`) > html.indexOf('<summary>Cup protection</summary>')) ||
     !html.includes('<summary>Scales</summary>') ||
     html.includes('<summary>Scale & retare</summary>') ||
-    html.indexOf('<summary>Tare</summary>') >
-        html.indexOf('<summary>Scales</summary>') ||
     html.indexOf('<summary>Scales</summary>') >
+        html.indexOf('<summary>Tare</summary>') ||
+    html.indexOf('<summary>Tare</summary>') >
         html.indexOf('<summary>Alerts</summary>') ||
-    html.indexOf('id="autoTare"') > html.indexOf('<summary>Scales</summary>') ||
+    html.indexOf('id="autoTare"') < html.indexOf('<summary>Tare</summary>') ||
     html.indexOf('id="postTareBaselineGraceS"') <
         html.indexOf('id="autoTare"') ||
     html.indexOf('id="postTareBaselineGraceS"') >
         html.indexOf('id="autoRetare"') ||
-    html.indexOf('id="autoRetare"') > html.indexOf('<summary>Scales</summary>') ||
-    html.indexOf('id="retareWindowS"') > html.indexOf('<summary>Scales</summary>') ||
-    html.indexOf('id="minimumCupWeightG"') >
-        html.indexOf('<summary>Scales</summary>') ||
-    html.indexOf('id="retareStabilitySamples"') >
-        html.indexOf('<summary>Scales</summary>') ||
-    html.indexOf('id="retareStabilityToleranceG"') >
-        html.indexOf('<summary>Scales</summary>') ||
-    html.indexOf('id="retareStabilityMaxGapS"') >
-        html.indexOf('<summary>Scales</summary>') ||
-    html.indexOf('id="retareStabilityMinDurationS"') >
-        html.indexOf('<summary>Scales</summary>') ||
+    html.indexOf('id="autoRetare"') > html.indexOf('<summary>Cup detection</summary>') ||
+    html.indexOf('id="retareWindowS"') > html.indexOf('<summary>Cup detection</summary>') ||
     html.indexOf('id="scaleTimerStopExtraDelayMs"') <
         html.indexOf('<summary>Scales</summary>') ||
     html.indexOf('id="dripDelayS"') <

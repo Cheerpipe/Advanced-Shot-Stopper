@@ -458,6 +458,9 @@ void processWebCommand(const WebCommand &command) {
             candidateRecipe.weightOffsetBaselineG = preset->weightOffsetBaselineG;
           if (command.bbwAlphaBaseline != 0)
             candidateRecipe.bbwAlphaBaseline = command.bbwAlphaBaseline;
+          if (command.presetDoseDg != 0) candidateRecipe.doseDg = command.presetDoseDg;
+          if (command.presetGrindHints >= 0)
+            candidateRecipe.grindHintsEnabled = command.presetGrindHints != 0;
           // Form sends brewByWeight explicitly; do not use session Manual.
           candidateRecipe.brewByWeight = !command.config.timerOnly;
           ok = validateShotPresetRecipe(candidateRecipe,
@@ -475,6 +478,8 @@ void processWebCommand(const WebCommand &command) {
             ShotPreset previous = *preset;
             previous.weightOffsetBaselineG = candidateRecipe.weightOffsetBaselineG;
             previous.bbwAlphaBaseline = candidateRecipe.bbwAlphaBaseline;
+            previous.doseDg = candidateRecipe.doseDg;
+            previous.grindHintsEnabled = candidateRecipe.grindHintsEnabled;
             if (memcmp(&previous, &candidateRecipe, sizeof(previous)) != 0)
               bbwLearningBank.invalidate(preset->id, presetBank);
             *preset = candidateRecipe;

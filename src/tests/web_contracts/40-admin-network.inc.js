@@ -57,14 +57,11 @@ if (firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)'
     !codeIncludes(ui, 'function renderHomePresetAccordion(') ||
     !codeIncludes(ui, 'function guardRuleRows(') ||
     !codeIncludes(ui, 'function updateRuleChartFromStatus(') ||
-    !codeIncludes(ui, 'bbw&&!!c.fastExtractionGuardEnabled') ||
-    !codeIncludes(ui, 'bbw&&!!c.slowExtractionGuardEnabled') ||
+    !codeIncludes(ui, 'fast=!!c.fastExtractionGuardEnabled') ||
+    !codeIncludes(ui, 'slow=!!c.slowExtractionGuardEnabled') ||
     !codeIncludes(ui, "'timerOnly'") ||
     !codeIncludes(ui, "'active'") ||
-    !codeIncludes(ui, "Number.isFinite(pv)?Math.max(0,Math.min(pv") ||
-    !codeIncludes(ui, 'Cuts at {0} between {1} s and {2} s, or at {2} s with {3} or more') ||
-    !codeIncludes(ui, 'Cuts at {0} between {1} s and {2} s') ||
-    !codeIncludes(ui, 'Cuts at {0} or more from {1} s') ||
+    !codeIncludes(ui, 'function cutLine(t, m)') ||
     !codeIncludes(ui, 'bbwProtectionMs') ||
     !codeIncludes(runtimeJs, 'vector-effect="non-scaling-stroke"') ||
     !firmware.includes('SERIAL_DEBUG_ON') ||
@@ -92,30 +89,29 @@ if (firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)'
   const node = () => ({children: [], append(...children) { this.children.push(...children); }, setAttribute() {}});
   const saved = {id: 1, brewByWeight: true, fastExtractionGuardEnabled: true,
     slowExtractionGuardEnabled: true, operationalWallMs: 50000, bbwProtectionMs: 12000,
-    minBbwBrewTimeMs: 28000, maxBbwBrewTimeMs: 44000, goalWeightG: 36,
-    maxRecoveryWeightG: 42, minRecoveryWeightG: 34};
+    fastBeforeS: 27, slowAfterS: 34, goalWeightG: 36, fastMarginG: 4, slowMarginG: 3};
   const context = vm.createContext({__WEBUI_TEXT__: key => strings[key],
     document: {createElement: node, createTextNode: text => ({textContent: text})},
-    presetState: {activeId: 1, items: [saved]}, renderHomePresetAccordion() {}});
+    presetState: {activeId: 1, items: [saved], cutRampS: 5}, renderHomePresetAccordion() {}});
   vm.runInContext([runtimeJs.match(/^const sub = \(t, vals\).*$/m)[0],
     ...['axisLabel', 'guardRuleRows', 'buildRuleChartModel',
       'updateRuleChartFromStatus'].map((name) => blockAt(runtimeJs, 'function ' + name + '('))]
       .join('\n'), context);
+  // Each row names its time span and what the cut line does there.
   const rules = config => {
     context.status = {config};
     return Array.from(vm.runInContext('updateRuleChartFromStatus(status); guardRuleRows(liveRuleModel)', context),
-      row => row.children[1].textContent.replace(/\u00a0/g, ' '));
+      row => row.children[0].children[1] + ' · ' + row.children[1].textContent.replace(/\u00a0/g, ' '));
   };
   const home = {...saved}; delete home.bbwProtectionMs;
-  assert.deepStrictEqual(rules(home), ['Cuts at 42 g between 12 s and 28 s, or at 28 s with 36 g or more',
-    'Cuts at 36 g between 28 s and 44 s', 'Cuts at 34 g or more from 44 s']);
-  saved.bbwProtectionMs = 9000;
-  assert.deepStrictEqual(rules({...home, goalWeightG: 40, maxRecoveryWeightG: 47.5,
-    minRecoveryWeightG: 37.5, minBbwBrewTimeMs: 30000, maxBbwBrewTimeMs: 46000}),
-    ['Cuts at 47.5 g between 9 s and 30 s, or at 30 s with 40 g or more',
-      'Cuts at 40 g between 30 s and 46 s', 'Cuts at 37.5 g or more from 46 s']);
-  assert(rules({...home, bbwProtectionMs: 15000})[0].includes('between 15 s and 28 s'));
-  assert.deepStrictEqual(rules({...home, brewByWeight: false}), ['Off', 'Off', 'Off']);
+  assert.deepStrictEqual(rules(home), ['Before 27 s · Fast · up to 40 g',
+    '27–34 s · On recipe · 36 g', 'After 34 s · Slow · down to 33 g']);
+  assert.deepStrictEqual(rules({...home, goalWeightG: 40, fastMarginG: 7.5, slowMarginG: 2.5,
+    fastBeforeS: 30, slowAfterS: 46}), ['Before 30 s · Fast · up to 47.5 g',
+    '30–46 s · On recipe · 40 g', 'After 46 s · Slow · down to 37.5 g']);
+  assert.strictEqual(rules({...home, fastExtractionGuardEnabled: false})[0], 'Before 27 s · Fast · off');
+  assert.deepStrictEqual(rules({...home, brewByWeight: false}),
+    ['Fast · off', 'On recipe · off', 'Slow · off']);
 }
 if (!codeIncludes(ui, 'id="staIpMode"') ||
     !codeIncludes(ui, 'id="staStaticIp"') ||

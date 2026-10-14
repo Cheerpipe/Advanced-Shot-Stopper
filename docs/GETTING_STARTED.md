@@ -170,9 +170,10 @@ according to the selected [paddle](settings/paddle.md) or
 2. On a new controller, **Prefer selected → First detected** adopts the first
    compatible scale that connects successfully and then prefers it. To replace
    it or use several scales, follow [Scales](settings/scales.md).
-3. In **Settings → Brew**, load **Double** or **Single**. For your own recipe,
-   duplicate a preset, change the target and guards, and save.
-   [Presets](features/presets.md) lists the factory values.
+3. In **Settings → Presets**, tap **Double · Adaptive** or **Single · Adaptive**
+   (or a Fixed preset to always stop at the target). For your own recipe,
+   duplicate a preset, change its target yield and shot time window, and select
+   **Save preset**. [Presets](features/presets.md) lists the factory values.
 4. For a latch/paddle installation, start with **Natural**, the default mode.
    Momentary builds show **Switch** instead; use their
    [button and sensor settings](settings/momentary.md).
@@ -187,7 +188,8 @@ mode, and Quick rinse off:
 1. Place your cup on the scale.
 2. Move the paddle ON. The controller tares the scale and starts the timer.
 3. Leave it ON while brewing. The nominal goal is 36 g; the controller
-   compensates for dripping, and Fast/Slow guards may change the endpoint.
+   compensates for dripping, and a [fast or slow shot](features/fast-and-slow-shots.md)
+   may finish a little above or below it.
    To finish early in Natural mode, move the paddle OFF.
 4. After automatic stop, return the paddle to OFF before starting again.
 5. Leave the cup on the scale through the drip delay (default 3 s). The final
@@ -195,7 +197,10 @@ mode, and Quick rinse off:
 
 While brewing, a card at the top of Home follows the shot live — weight
 against the goal, elapsed time, flow, and the first drop. After the stop it
-keeps the result and shows the stop mode (BBW, Fast/Slow guard, A→M, manual).
+keeps the result: the weight, time chips and pills such as **FAST**,
+**ON RECIPE**, **SLOW** or **MAX TIME**, plus **EXTENDED**, **STOPPED EARLY**,
+**CHANNELING** or **NO SCALE** when they apply. A manual stop shows how the shot
+ended instead.
 The link at the bottom-right of the card opens the shot history on the Stats
 page. The card's elapsed time advances in whole seconds while brewing; when
 the shot ends, it shows the final duration with one decimal place.
@@ -211,9 +216,9 @@ before relying on automatic operation.
 | Situation | What to do |
 | --- | --- |
 | Cup placed after starting | Place it within the [retare window](features/tare-retare.md); later placement is not automatically corrected. |
-| Shot ends above or below target | Read the stop detail in [history](features/shot-history.md), then check Fast/Slow and learned offset. |
+| Shot ends above or below target | Read how it ended in [history](features/shot-history.md), then check [fast and slow shots](features/fast-and-slow-shots.md) and the learned drip. |
 | Scale unavailable before start | Follow [No-scale BBW](settings/no-scale-bbw.md); the default first attempt warns and blocks. |
-| Scale disconnects during brewing | Weight stop pauses; [A→M](features/auto-to-manual.md) may request a timed stop while reconnection continues. |
+| Scale disconnects during brewing | Weight stop pauses; the [scale-loss backup](features/auto-to-manual.md) may request a timed stop while reconnection continues. |
 | Need a timer-only session | Turn BBW off in Home Quick Settings. It does not rewrite the saved recipe. |
 | Cannot save a setting | Finish the cycle, return the activator to idle, reclaim the UI if necessary, and check Admin unlock for privileged settings. |
 | Cannot reach the controller | Use [network troubleshooting](FAQ.md#network-and-access) before considering a reset. |

@@ -122,7 +122,7 @@ struct NetworkWorkBuf {
   static constexpr size_t kStatusJson = 40960;
   // Worst case: 8 presets with fully escaped 23-char names plus every
   // per-preset rule field the Home accordion renders.
-  static constexpr size_t kPresetsJson = 3600;
+  static constexpr size_t kPresetsJson = 4096;
   static constexpr size_t kHistoryJson = 1400;
   // One full-capacity curve plus scalar fields per row; the 4 KiB headroom
   // (external memory) keeps a maximal row well under the client's frame
@@ -455,20 +455,20 @@ const char *configValidationMessage(ConfigValidationError error) {
       return "Retare min stable time must be ≤ retare window and ≤ "
              "samples × sample gap.";
     case ConfigValidationError::BBW_PROTECTION_TIMEOUT:
-      return "BBW protection must be from 0.5 to 30 s.";
+      return "Earliest weight stop must be from 0.5 to 30 s.";
     case ConfigValidationError::BBW_PROTECTION_RETARE_RELATION:
-      return "BBW protection must be at least effective retare "
+      return "Earliest weight stop must be at least the effective retare "
              "window + 3 s.";
     case ConfigValidationError::OPERATIONAL_WALL:
-      return "Max BBW time must be from 5 to 60 s.";
+      return "Max shot time must be from 5 to 60 s.";
     case ConfigValidationError::PADDLE_REMINDER_INTERVAL:
       return "Paddle reminder interval must be from 5 to 60 s.";
     case ConfigValidationError::PADDLE_REMINDER_MAX_DURATION:
       return "Paddle reminder limit must be from 1 to 60 min and at least "
              "the reminder interval.";
     case ConfigValidationError::TIMING_RELATION:
-      return "Required: rinse gesture < Max BBW time; rinse duration, retare "
-             "window, and BBW protection each ≤ Max BBW time.";
+      return "Required: rinse gesture < max shot time; rinse duration, retare "
+             "window, and earliest weight stop each ≤ max shot time.";
     case ConfigValidationError::COMBINED_TARE_REQUIRES_AUTOTARE:
       return "The Bookoo combined command requires automatic tare.";
     case ConfigValidationError::POST_TARE_BASELINE_GRACE:
@@ -504,10 +504,10 @@ const char *configValidationMessage(ConfigValidationError error) {
       return "Alert output channel must be scale_only, buzzer_only, or "
              "scale_priority.";
     case ConfigValidationError::EXTENDED_PULSE_RATE:
-      return "Extended shot pulse must be disabled, slow, medium, fast, or "
+      return "Fast-shot pulse must be disabled, slow, medium, fast, or "
              "rapid.";
     case ConfigValidationError::SLOW_EXTENDED_PULSE_RATE:
-      return "Slow extended pulse must be disabled, slow, medium, fast, or "
+      return "Slow-shot pulse must be disabled, slow, medium, fast, or "
              "rapid.";
     case ConfigValidationError::BOOKOO_CONNECT_BEEP_LEVEL:
       return "Bookoo scale volume must be disabled (0) or 1 to 5.";
@@ -541,65 +541,31 @@ const char *configValidationMessage(ConfigValidationError error) {
   return "Invalid configuration.";
 }
 
-// v1 preset wire fields, converted onto the schema-1 recipe once the whole
-// request is parsed: absolute recovery weights become margins relative to the
-// target, and a "manual" A->M limit becomes the fixed scale-loss stop time.
-struct V1RecipeWire {
-  bool maxSet = false, minSet = false, modeSet = false, manualSet = false;
-  bool manual = false;
-  float maxRecoveryG = 0.0f, minRecoveryG = 0.0f;
-  uint32_t manualLimitMs = 0;
-};
-
-bool parseV1RecipeWire(cJSON *root, V1RecipeWire &wire, bool requireAll) {
-  wire.maxSet = jsonFieldPresent(root, "maxRecoveryWeightG");
-  wire.minSet = jsonFieldPresent(root, "minRecoveryWeightG");
-  wire.modeSet = jsonFieldPresent(root, "autoToManualGuardLimitMode");
-  wire.manualSet = jsonFieldPresent(root, "autoToManualGuardManualLimitMs");
-  if (requireAll && !(wire.maxSet && wire.minSet && wire.modeSet && wire.manualSet))
+// Recipe fields arrive in grams and seconds with tenths and are stored as
+// decigrams and milliseconds; range checks stay in the recipe validator.
+bool jsonTenths(cJSON *object, const char *name, uint32_t limitTenths,
+                uint32_t &tenths) {
+  float value = 0.0f;
+  if (!jsonFloat(object, name, value) || value < 0.0f ||
+      value * 10.0f > static_cast<float>(limitTenths)) {
     return false;
-  if (wire.modeSet) {
-    cJSON *mode = cJSON_GetObjectItemCaseSensitive(root, "autoToManualGuardLimitMode");
-    if (!cJSON_IsString(mode) || mode->valuestring == nullptr ||
-        (strcmp(mode->valuestring, "manual") != 0 &&
-         strcmp(mode->valuestring, "auto") != 0))
-      return false;
-    wire.manual = strcmp(mode->valuestring, "manual") == 0;
   }
-  uint32_t baseline = 0;
-  return (!wire.maxSet || jsonFloat(root, "maxRecoveryWeightG", wire.maxRecoveryG)) &&
-         (!wire.minSet || jsonFloat(root, "minRecoveryWeightG", wire.minRecoveryG)) &&
-         (!wire.manualSet ||
-          jsonUint32(root, "autoToManualGuardManualLimitMs", wire.manualLimitMs)) &&
-         (!jsonFieldPresent(root, "autoToManualGuardBaselineMs") ||
-          jsonUint32(root, "autoToManualGuardBaselineMs", baseline));
+  tenths = static_cast<uint32_t>(lroundf(value * 10.0f));
+  return true;
 }
 
-uint16_t v1MarginDg(float otherG, int32_t goalDg, bool above, uint16_t stored,
-                    bool sideOn) {
-  if (!std::isfinite(otherG)) return sideOn ? 0 : stored;
-  const long otherDg = lroundf(otherG * 10.0f);
-  const long margin = above ? otherDg - goalDg : goalDg - otherDg;
-  // An off side keeps its stored margin when the legacy value is unusable.
-  if (margin <= 0) return sideOn ? 0 : stored;
-  return static_cast<uint16_t>(margin > 65535 ? 65535 : margin);
+bool jsonGramsDg(cJSON *object, const char *name, uint16_t &output) {
+  uint32_t tenths = 0;
+  if (!jsonTenths(object, name, UINT16_MAX, tenths)) return false;
+  output = static_cast<uint16_t>(tenths);
+  return true;
 }
 
-void applyV1RecipeWire(const V1RecipeWire &wire, RuntimeConfig &config) {
-  if (wire.maxSet)
-    config.fastMarginDg = v1MarginDg(wire.maxRecoveryG, config.goalWeightDg, true,
-                                     config.fastMarginDg, config.fastSideEnabled);
-  if (wire.minSet)
-    config.slowMarginDg = v1MarginDg(wire.minRecoveryG, config.goalWeightDg, false,
-                                     config.slowMarginDg, config.slowSideEnabled);
-  if (wire.modeSet || wire.manualSet) {
-    const bool manual = wire.modeSet ? wire.manual : config.scaleLossFixedMs != 0;
-    config.scaleLossFixedMs =
-        !manual ? 0U
-                : wire.manualSet ? wire.manualLimitMs
-                                 : (config.scaleLossFixedMs != 0 ? config.scaleLossFixedMs
-                                                                 : config.slowAfterMs);
-  }
+bool jsonSecondsMs(cJSON *object, const char *name, uint32_t &output) {
+  uint32_t tenths = 0;
+  if (!jsonTenths(object, name, UINT32_MAX / 100, tenths)) return false;
+  output = tenths * 100;
+  return true;
 }
 
 bool jsonNoScaleBbwMode(cJSON *object, const char *name, uint8_t &output) {
@@ -620,11 +586,6 @@ bool jsonNoScaleBbwMode(cJSON *object, const char *name, uint8_t &output) {
     return true;
   }
   return false;
-}
-
-// v1 wire: "manual" means the preset has a fixed scale-loss stop time.
-const char *autoToManualGuardLimitModeId(uint32_t scaleLossFixedMs) {
-  return scaleLossFixedMs != 0 ? "manual" : "auto";
 }
 
 bool jsonPaddleMode(cJSON *object, const char *name, uint8_t &output) {
@@ -1112,8 +1073,8 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
   buf[1] = '}';
   buf[2] = 0;
   size_t used = 0;
-  int n = snprintf(buf, cap, "{\"activeId\":%u,\"items\":[",
-                   static_cast<unsigned>(presets.activeId));
+  int n = snprintf(buf, cap, "{\"activeId\":%u,\"cutRampS\":%.1f,\"items\":[",
+                   static_cast<unsigned>(presets.activeId), corridor::RAMP_MS / 1000.0);
   if (n > 0) {
     used = static_cast<size_t>(n);
   }
@@ -1124,23 +1085,25 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
     n = snprintf(
         buf + used, cap - used,
         "%s{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s,\"brewByWeight\":%s,"
-        "\"goalWeightG\":%.1f,\"minBbwBrewTimeMs\":%lu,\"maxRecoveryWeightG\":%.1f,"
-        "\"minRecoveryWeightG\":%.1f,\"maxBbwBrewTimeMs\":%lu,"
+        "\"doseG\":%.1f,\"goalWeightG\":%.1f,\"fastBeforeS\":%.1f,"
+        "\"slowAfterS\":%.1f,\"fastMarginG\":%.1f,\"slowMarginG\":%.1f,"
         "\"operationalWallMs\":%lu,\"bbwProtectionMs\":%lu,"
         "\"fastExtractionGuardEnabled\":%s,\"slowExtractionGuardEnabled\":%s,"
+        "\"grindHintsEnabled\":%s,\"scaleLossFixedS\":%.1f,"
         "\"bbwAlgorithm\":\"%s\",\"bbwAlphaBaseline\":%.2f,"
         "\"lineaMicraBrewTargetC\":%.1f}",
         i == 0 ? "" : ",", static_cast<unsigned>(p.id), safeName,
         p.isFactory ? "true" : "false", p.brewByWeight ? "true" : "false",
+        static_cast<double>(goalWeightDgToGrams(p.doseDg)),
         static_cast<double>(goalWeightDgToGrams(p.goalWeightDg)),
-        static_cast<unsigned long>(p.fastBeforeMs),
-        static_cast<double>(goalWeightDgToGrams(p.goalWeightDg + p.fastMarginDg)),
-        static_cast<double>(goalWeightDgToGrams(p.goalWeightDg - p.slowMarginDg)),
-        static_cast<unsigned long>(p.slowAfterMs),
+        p.fastBeforeMs / 1000.0, p.slowAfterMs / 1000.0,
+        static_cast<double>(goalWeightDgToGrams(p.fastMarginDg)),
+        static_cast<double>(goalWeightDgToGrams(p.slowMarginDg)),
         static_cast<unsigned long>(p.operationalWallMs),
         static_cast<unsigned long>(p.bbwProtectionMs),
         p.fastSideEnabled ? "true" : "false",
         p.slowSideEnabled ? "true" : "false",
+        p.grindHintsEnabled ? "true" : "false", p.scaleLossFixedMs / 1000.0,
         bbwAlgorithmName(static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA)),
         p.bbwAlphaBaseline / 100.0,
         static_cast<double>(p.lineaMicraBrewTargetDeciC) / 10.0);

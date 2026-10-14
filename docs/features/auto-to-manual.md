@@ -1,7 +1,7 @@
-# A→M time guard
+# Scale-loss backup
 
-The scale-loss backup for brew-by-weight shots. If the scale drops out
-mid-shot, ShotStopper can no longer stop on weight, so it picks the best stop
+The scale-loss backup (formerly the A→M time guard) protects brew-by-weight
+shots. If the scale drops out mid-shot, ShotStopper can no longer stop on weight, so it picks the best stop
 time it can and stops the shot then, unless the scale comes back first.
 **On by default.**
 
@@ -27,8 +27,8 @@ drops again later, a new backup time is chosen from what is known then.
 
 ShotStopper uses the first of these that applies:
 
-1. **Fixed time.** If the preset has a fixed backup time (Limit mode
-   **Manual**), the shot stops at that time.
+1. **Fixed time.** If the preset has a time in **If the scale drops, stop at
+   (s)**, the shot stops at that time.
 2. **The shot was about to stop.** If the shot had already reached its cut
    line, it stops right away.
 3. **The flow it just saw.** If the coffee was flowing steadily and would have
@@ -47,10 +47,12 @@ before the first drops of coffee uses your recent shots or your window.
 
 | Setting | Default | Range / notes | Effect on the shot |
 | --- | --- | --- | --- |
-| **Enable A→M time guard** | ON | ON / OFF, shared by every preset; also on **Home → Quick Settings** | OFF: if the scale never returns, the shot runs until paddle OFF or the machine circuit / max shot time. |
-| **Limit mode** | Auto | Auto / Manual, per preset | **Auto** picks the backup time as described above. **Manual** always uses the fixed time. |
-| **Manual limit (s)** | 32 s | 10 s … Max BBW time | The fixed backup time used when Limit mode is Manual. |
-| **Trend (s)** | — | Read-only | The backup time the next shot would use if the scale dropped before the coffee starts flowing. |
+| **Finish by time if the scale drops** (**Settings → Shared settings → Scale-loss backup**) | ON | ON / OFF, shared by every preset; also **Home → Quick Settings → Scale-loss backup** | OFF: if the scale never returns, the shot runs until paddle OFF or the machine circuit / max shot time. |
+| **If the scale drops, stop at (s)** (**Settings → Presets → Shot limits**) | empty | Empty, or Earliest weight stop … Max shot time, per preset | Empty picks the backup time as described above. A time always stops the shot then. |
+
+While brewing by weight, the Quick Settings row shows when the next shot would
+stop if the scale dropped before the coffee starts flowing, for example
+**Stops at ~31.5 s if the scale drops**.
 
 The live panel shows `Off` / `Idle` / `Armed` / `A→M · Ns`. Shot history records
 `stop_detail = auto_to_manual` and `cut_type = limit`, along with how the
@@ -63,7 +65,8 @@ Shots stopped by this backup, by the max shot time or by hand do not count,
 and neither do rinses or shots where the coffee channeled.
 
 When you change beans or grind, tell ShotStopper so old shots stop counting:
-use **Reset A→M samples** (or the integration API's reset-guard-samples call).
+use **New coffee** in **Settings → Presets** or on Home's grind-hint card (or
+the integration API's reset-guard-samples call).
 Changing the preset's window or moving its target by more than 1 g starts
 fresh automatically.
 
@@ -76,5 +79,5 @@ back at 20 s with three good readings, weight stop resumes and the backup time
 is cancelled. If the scale is lost at 29 s while the coffee is flowing toward
 the target, the shot stops when the flow says it would have reached it.
 
-Related: [Brew by weight](brew-by-weight.md), [Alerts](../alerts.md)
-(ATM / manual-no-scale).
+Related: [Brew by weight](brew-by-weight.md), [Presets](presets.md),
+[Alerts](../alerts.md) (Scale-loss backup ended a shot).

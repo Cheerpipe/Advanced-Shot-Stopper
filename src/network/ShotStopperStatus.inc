@@ -327,13 +327,10 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"retareStabilityToleranceG\":%.1f,\"retareStabilityMaxGapMs\":%lu,"
         "\"retareStabilityMinDurationMs\":%lu,\"bbwProtectionMs\":%lu,"
         "\"operationalWallMs\":%lu,\"fastExtractionGuardEnabled\":%s,"
-        "\"maxRecoveryWeightG\":%.1f,\"minBbwBrewTimeMs\":%lu,"
-        "\"slowExtractionGuardEnabled\":%s,\"minRecoveryWeightG\":%.1f,"
-        "\"maxBbwBrewTimeMs\":%lu,\"autoToManualGuardEnabled\":%s,"
-        "\"autoToManualGuardLimitMode\":\"%s\","
-        "\"autoToManualGuardManualLimitMs\":%lu,"
-        "\"autoToManualGuardBaselineMs\":%lu,"
-        "\"autoToManualGuardTrendMs\":%lu,\"cupProtectionEnabled\":%s,"
+        "\"fastMarginG\":%.1f,\"fastBeforeS\":%.1f,"
+        "\"slowExtractionGuardEnabled\":%s,\"slowMarginG\":%.1f,"
+        "\"slowAfterS\":%.1f,\"scaleLossFixedS\":%.1f,"
+        "\"autoToManualGuardEnabled\":%s,\"cupProtectionEnabled\":%s,"
         "\"stopIfCupRemoved\":%s,\"requireCupToStart\":%s,"
         "\"avoidAccidentalTouchEnabled\":%s,"
         "\"touchStopFallbackEnabled\":%s,"
@@ -389,16 +386,13 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(control.config.bbwProtectionMs),
         static_cast<unsigned long>(control.config.operationalWallMs),
         control.config.fastSideEnabled ? "true" : "false",
-        static_cast<double>(goalWeightDgToGrams(control.config.goalWeightDg + control.config.fastMarginDg)),
-        static_cast<unsigned long>(control.config.fastBeforeMs),
+        static_cast<double>(goalWeightDgToGrams(control.config.fastMarginDg)),
+        control.config.fastBeforeMs / 1000.0,
         control.config.slowSideEnabled ? "true" : "false",
-        static_cast<double>(goalWeightDgToGrams(control.config.goalWeightDg - control.config.slowMarginDg)),
-        static_cast<unsigned long>(control.config.slowAfterMs),
+        static_cast<double>(goalWeightDgToGrams(control.config.slowMarginDg)),
+        control.config.slowAfterMs / 1000.0,
+        control.config.scaleLossFixedMs / 1000.0,
         control.config.scaleLossEnabled ? "true" : "false",
-        autoToManualGuardLimitModeId(control.config.scaleLossFixedMs),
-        static_cast<unsigned long>((control.config.scaleLossFixedMs != 0 ? control.config.scaleLossFixedMs : control.config.slowAfterMs)),
-        static_cast<unsigned long>(control.config.slowAfterMs),
-        static_cast<unsigned long>(control.autoToManualGuardTrendMs),
         control.config.cupProtectionEnabled ? "true" : "false",
         control.config.stopIfCupRemoved ? "true" : "false",
         control.config.requireCupToStart ? "true" : "false",
@@ -457,13 +451,18 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         ",\"scale\":{\"preferredMac\":\"%s\",\"preferredName\":\"%s\","
         "\"preferredFriendlyName\":\"%s\","
         "\"macCachePauseRemainingMs\":%lu,\"history\":%s},"
-        "\"presets\":%s,\"stopPulseMs\":%lu,\"maxSinglePressMs\":%lu,"
+        "\"presets\":%s,\"scaleLoss\":{\"enabled\":%s,\"projectedS\":%.1f,"
+        "\"source\":%s},\"stopPulseMs\":%lu,\"maxSinglePressMs\":%lu,"
         "\"momentaryStartEdge\":\"%s\",\"reedConfirmTimeoutMs\":%lu,"
         "\"assumeIdleWhenScaleConnects\":%s,\"shotReactTimeoutS\":%u",
         safePreferredScaleMac, safePreferredScaleName,
         safePreferredScaleFriendly,
         static_cast<unsigned long>(control.scaleMacCachePauseRemainingMs),
         g_work->historyJson, g_work->presetsJson,
+        control.config.scaleLossEnabled ? "true" : "false",
+        control.autoToManualGuardTrendMs / 1000.0,
+        shotLogScaleLossSourceJson(
+            static_cast<uint8_t>(control.scaleLossProjectedSource << 3)),
         static_cast<unsigned long>(runtimeStopPulseMs(control.config)),
         static_cast<unsigned long>(runtimeMaxSinglePressMs(control.config)),
         momentaryStartEdgeId(control.config.momentaryStartOnPress),

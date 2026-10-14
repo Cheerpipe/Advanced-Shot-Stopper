@@ -1,8 +1,8 @@
-# Cup
+# Cup detection
 
 Thresholds that decide whether a cup is **on the scale** or **lifted**. Used
-by idle cup-placement tare, late-cup retare, and shot protection. Machine-level, under
-**Settings → Machine and scale → Cup**.
+by idle cup-placement tare, late-cup retare, and shot protection. Shared by
+every preset, under **Settings → Shared settings → Cup detection**.
 
 How those detections protect the shot is explained in
 [Cup protection](../features/cup-protection.md). The cup protection

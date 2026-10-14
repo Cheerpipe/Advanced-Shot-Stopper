@@ -100,7 +100,7 @@ The two pages record different things and never substitute for each other:
 | | Stats (shot history) | History (activation diary) |
 | --- | --- | --- |
 | Records | Brews with a valid settled yield over 2 g | Confirmed activations and paddle attempts blocked by No-scale BBW protection |
-| Minimum duration | Longer than 12 seconds | Longer than the configured BBW protection window to carry a Shot label |
+| Minimum duration | Longer than 12 seconds | Longer than the configured earliest weight stop time to carry a Shot label |
 | Detail | Goal, yield, error, flow, guards, rating, curve | Time, duration, type |
 | Capacity | 100 shots | 1000 activations |
 

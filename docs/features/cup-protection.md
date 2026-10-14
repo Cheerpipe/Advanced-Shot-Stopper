@@ -2,9 +2,10 @@
 
 Cup protections handle missing cups, cup removal, and brief bumps. They apply
 to automatic brew-by-weight shots. The cup protection switches and **Avoid
-accidental touch** are shared by every preset; they are edited next to the
-preset options in **Settings → Brew**. Shared detection and tare timing live
-under **Settings → Machine and scale**.
+accidental touch** are shared by every preset, in **Settings → Shared
+settings → Cup protection**; detection thresholds are in **Cup detection** and
+tare timing in **Tare** of the same section. **Earliest weight stop** is saved
+with each preset under **Settings → Presets → Shot limits**.
 
 ## Choose the behavior
 
@@ -13,8 +14,8 @@ under **Settings → Machine and scale**.
 | **Cup protection** | On | Enables the cup-start/removal protections; also exposed in Home Quick Settings. |
 | **Stop if cup is removed** | On | Requests a stop when a cup is detected as lifted after tare. Requires cup protection. |
 | **Require cup to start** | Off | Blocks a start without a detected cup. Requires cup protection. If the scale was already tared before connecting, place the cup after connection so it can be detected. |
-| **Avoid accidental touch** | On | Rejects brief implausible bumps from weight-stop and guard decisions. This is a separate brew option. |
-| **BBW protection (s)** | 12 s | Blocks automatic weight stop at the beginning; first drops do not end the window. Maximum 30 s; minimum is enabled retare window + 3 s (3 s when retare is off). Must fit within Max BBW time. |
+| **Avoid accidental touch** | On | Rejects brief implausible bumps from weight-stop decisions, including fast and slow shot handling. Shared by every preset; also in Home Quick Settings. |
+| **Earliest weight stop (s)** | 12 s | Blocks automatic weight stop at the beginning; first drops do not end the window. Maximum 30 s; minimum is enabled retare window + 3 s (3 s when retare is off). Must fit within Max shot time. |
 
 A cup-start refusal holds the relay open for that attempt. Release the physical
 activator, correct the cup/scale condition, then activate again. A blocked
@@ -44,11 +45,11 @@ as a cup; the configured minimum added mass still applies.
 At shot start, the controller can tare immediately. If you place the cup within
 the retare window, a second tare can run once without restarting the timer.
 After each tare, a settle interval protects the weight readings. Independently,
-BBW protection delays weight-based stopping from the beginning of the shot.
+**Earliest weight stop** delays weight-based stopping from the beginning of the shot.
 
 Use [Tare settings](../settings/tare.md) for timing values and
-[Cup settings](../settings/cup.md) for detection thresholds. Timer-only and
-manual no-scale cycles skip late retare and initial BBW protection.
+[Cup detection settings](../settings/cup.md) for detection thresholds. Timer-only and
+manual no-scale cycles skip late retare and the initial earliest-weight-stop period.
 
 ## Examples
 

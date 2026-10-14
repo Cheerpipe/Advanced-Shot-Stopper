@@ -132,46 +132,13 @@ export function init() {
     };
   if ($("homeBrewByWeight")) $("homeBrewByWeight").onchange = R.persistHomeBrewByWeight;
   if ($("homeNoScaleBbwEnabled")) $("homeNoScaleBbwEnabled").onchange = R.persistHomeNoScaleBbw;
-  if ($("homeFastExtractionGuardEnabled"))
-    $("homeFastExtractionGuardEnabled").onchange = () =>
-      R.persistHomeGuard(
-        "homeFastExtractionGuardEnabled",
-        "homeFastExtractionGuardEnabledState",
-        "fastExtractionGuardEnabled",
-        1,
-      );
-  if ($("homeAvoidAccidentalTouchEnabled"))
-    $("homeAvoidAccidentalTouchEnabled").onchange = () =>
-      R.persistHomeGuard(
-        "homeAvoidAccidentalTouchEnabled",
-        "homeAvoidAccidentalTouchEnabledState",
-        "avoidAccidentalTouchEnabled",
-        1,
-      );
-  if ($("homeSlowExtractionGuardEnabled"))
-    $("homeSlowExtractionGuardEnabled").onchange = () =>
-      R.persistHomeGuard(
-        "homeSlowExtractionGuardEnabled",
-        "homeSlowExtractionGuardEnabledState",
-        "slowExtractionGuardEnabled",
-        1,
-      );
-  if ($("homeAutoToManualGuardEnabled"))
-    $("homeAutoToManualGuardEnabled").onchange = () =>
-      R.persistHomeGuard(
-        "homeAutoToManualGuardEnabled",
-        "homeAutoToManualGuardEnabledState",
-        "autoToManualGuardEnabled",
-        1,
-      );
-  if ($("homeCupProtectionEnabled"))
-    $("homeCupProtectionEnabled").onchange = () =>
-      R.persistHomeGuard(
-        "homeCupProtectionEnabled",
-        "homeCupProtectionEnabledState",
-        "cupProtectionEnabled",
-        1,
-      );
+  for (const [h, s, c] of R.HOME_GUARD_SWITCHES)
+    if ($(h)) $(h).onchange = () => R.persistHomeGuard(h, s, c);
+  if ($("grindHintNewBeans")) $("grindHintNewBeans").onclick = () => R.startNewCoffee();
+  if ($("grindHintLater"))
+    $("grindHintLater").onclick = () => R.dismissCard($("grindHintCard").dataset.key);
+  if ($("scaleLossDiscoveryOk"))
+    $("scaleLossDiscoveryOk").onclick = () => R.dismissCard("ssCard:scaleLossDiscovery");
   quickWeight = initQuickWeight();
   quickWeightWanted = new URLSearchParams(location.search).has("edit_weight");
 }
@@ -223,9 +190,8 @@ function initQuickWeight() {
     ticks.push({ d, node: tick, label });
   }
   scale.appendChild(inner);
-  // Editable range [lo, hi] in decigrams mirrors the Settings cross-field
-  // rules: while a guard is enabled the goal must stay strictly inside its
-  // recovery weight, so the dial can never offer a target Save would reject.
+  // Editable range [lo, hi] in decigrams mirrors the Settings rules for the
+  // relative margins, so the dial can never offer a target Save would reject.
   let lo = MIN * 10,
     hi = MAX * 10,
     value = MIN * 10,
@@ -254,16 +220,13 @@ function initQuickWeight() {
   const open = () => {
     const preset = R.presetState.items.find((x) => x.id === R.presetState.activeId);
     if (!preset || !preset.goalWeightG) return;
-    // Editable range mirrors the Settings cross-field rules: the goal stays
-    // strictly inside each enabled guard's recovery weight, so the dial can
-    // never offer a target Save would reject. Bounds land one decigram
-    // inside the recovery weights — the closest step the 0.1 form accepts.
-    const slow =
-        !!preset.slowExtractionGuardEnabled && Number.isFinite(+preset.minRecoveryWeightG),
-      fast =
-        !!preset.fastExtractionGuardEnabled && Number.isFinite(+preset.maxRecoveryWeightG);
-    lo = slow ? Math.min(MAX * 10, Math.ceil(+preset.minRecoveryWeightG * 10 - 1e-6) + 1) : MIN * 10;
-    hi = fast ? Math.max(MIN * 10, Math.floor(+preset.maxRecoveryWeightG * 10 + 1e-6) - 1) : MAX * 10;
+    // Margins are relative and follow the target: an enabled slow margin
+    // keeps 5 g in the cup, an enabled fast margin stays within a quarter
+    // of the target and the extra yield within the 200 g maximum.
+    const slow = !!preset.slowExtractionGuardEnabled && Number.isFinite(+preset.slowMarginG),
+      fast = !!preset.fastExtractionGuardEnabled && Number.isFinite(+preset.fastMarginG);
+    lo = Math.ceil(Math.max(MIN, slow ? +preset.slowMarginG + 5 : 0, fast ? 4 * preset.fastMarginG : 0) * 10 - 1e-6);
+    hi = Math.floor((MAX - (fast ? +preset.fastMarginG : 0)) * 10 + 1e-6);
     if (hi < lo) {
       lo = MIN * 10;
       hi = MAX * 10;
@@ -301,7 +264,7 @@ function initQuickWeight() {
       if (!(await R.saveBrewPreset())) field.value = rejected;
     } catch (e) {
       R.message(
-        R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_brew_settings"), e),
+        R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_preset"), e),
         "error",
       );
     }
@@ -412,13 +375,7 @@ function initQuickWeight() {
     paint();
   });
   pen.onclick = open;
-  // Only the already-active row's "Target XX g" opens the sheet: compare the
-  // stream-maintained presetState.activeId, not the .open class applyPreset
-  // paints on the tapped row before this bubble listener runs.
-  addEventListener("click", (e) => {
-    const item = e.target.closest(".presetAccTarget")?.closest(".presetAccItem");
-    if (item && +item.dataset.id === R.presetState.activeId) open();
-  });
+  addEventListener("click", (e) => e.target.closest(".presetAccEdit") && open());
   doneBtn.onclick = () => close(true);
   resetBtn.onclick = () => {
     value = openValue;

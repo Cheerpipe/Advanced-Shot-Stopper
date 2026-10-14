@@ -108,12 +108,12 @@ circuit and follow the [hardware safety guidance](docs/HARDWARE.md) before insta
 | Need | Feature |
 | --- | --- |
 | Stop near a recipe weight | [Brew by weight](docs/features/brew-by-weight.md), with learned drip compensation |
-| Use different recipes | [Presets](docs/features/presets.md), including factory Single and Double |
+| Use different recipes | [Presets](docs/features/presets.md), including factory Single and Double in Adaptive and Fixed versions |
 | Integrate with a Linea Micra | [La Marzocco Cloud](docs/settings/linea-micra.md) reads and sets preset brew-boiler temperatures and recognizes when the paddle is waking the machine instead of starting a brew |
 | Place the cup after starting | [Tare and retare](docs/features/tare-retare.md) |
 | Handle cup removal or bumps | [Cup protection](docs/features/cup-protection.md) |
-| Handle unexpectedly fast or slow shots | [Fast](docs/features/fast-extraction-guard.md) and [Slow](docs/features/slow-extraction-guard.md) guards |
-| Limit a shot after scale loss | [A→M time guard](docs/features/auto-to-manual.md) |
+| Handle unexpectedly fast or slow shots | [Fast and slow shots](docs/features/fast-and-slow-shots.md) |
+| Limit a shot after scale loss | [Scale-loss backup](docs/features/auto-to-manual.md) |
 | Rinse with a switch gesture | [Quick rinse](docs/settings/quick-rinse.md), with a machine-profile default |
 | Hear local feedback | [Alerts](docs/alerts.md), subject to scale/buzzer capabilities |
 | Review results | [Shot history and statistics](docs/features/shot-history.md) |
@@ -123,26 +123,25 @@ circuit and follow the [hardware safety guidance](docs/HARDWARE.md) before insta
 
 ## Main settings
 
-Recipe settings live in **Settings → Brew**. Machine and scale settings are
-shared across recipes. [Presets](docs/features/presets.md) explains what is saved
-and what a Home Quick Settings change affects.
+Recipe settings are saved with each preset in **Settings → Presets**. Everything
+under **Settings → Shared settings** applies to every preset.
+[Presets](docs/features/presets.md) explains what is saved and what a Home
+Quick Settings change affects.
 
 The [documentation index](docs/README.md#settings) links each settings group.
-Defaults are starting points; Fast and Slow guards can intentionally finish
-above or below the target weight.
+Defaults are starting points; on the Adaptive presets, fast shots can
+intentionally finish a little above the target and slow shots a little below it.
 
-### Brew by weight: offset and learning factor
+### Brew by weight: drip and learning speed
 
-**Linear regression + offset correction** (`legacy` in API/CSV) applies the
-full final-weight error to its learned stop offset. **Linear prediction +
-adaptive EWMA** applies a fraction, α, of that error. Both stop toward
-`target − learned offset`; **Baseline offset (g)** is the saved reset value
-for either method, not an additional compensation.
+Each shot stops toward `cut line − learned drip`. **Starting drip (g)** is the
+saved value that **Reset drip learning** restores, not an additional
+compensation. After an eligible shot, the learned drip moves by a fraction,
+the learning speed α, of that shot's error:
+`next drip = clamp(drip + α × (final − cut line), 0, 5)`.
+For example, with a 36 g cut line, final weight 36.20 g and drip 1.50 g:
 
-For an eligible EWMA shot, `next offset = clamp(offset + α × (final − target), 0, 5)`.
-For example, with target 36 g, final weight 36.20 g and offset 1.50 g:
-
-| Current α | Next offset |
+| Current α | Next drip |
 | --- | --- |
 | 0.10 | 1.52 g |
 | 0.30 | 1.56 g |
@@ -150,14 +149,14 @@ For example, with target 36 g, final weight 36.20 g and offset 1.50 g:
 
 A larger α responds faster to changes but also follows individual-shot noise
 more strongly. A smaller α smooths that noise but adapts more slowly. An
-underweight result reduces the offset so the next cutoff occurs later.
+underweight result reduces the drip so the next cutoff occurs later.
 α learns between shots; it does not filter live scale readings or guarantee
 better accuracy on a particular machine.
 
-**Baseline learning factor (α)** is saved per preset, from 0.01 to 1.00 in
-steps of 0.01, initially 0.30. Saving either base preserves current learning.
-**Reset learned stop offset to baseline** resets only the selected offset;
-EWMA keeps its current α. **Reset EWMA learning** restores both saved bases,
+**Starting learning speed** is saved per preset, from 0.01 to 1.00 in
+steps of 0.01, initially 0.30. Saving either starting value preserves current
+learning. **Reset drip learning** resets only the learned drip and keeps the
+current α. **Reset drip and learning speed** restores both starting values,
 marks α initial and clears its evidence. Automatic learning may subsequently
 choose 0.10, 0.30, 0.50 or 1.00; a custom α remains active until a candidate
 earns a switch. See [BBW learning](docs/features/brew-by-weight.md#cutoff-behavior-and-learning)
@@ -245,8 +244,8 @@ flash a board, operate the relay, or replace required HIL and manual evidence.
 
 | Term | Meaning in this project |
 | --- | --- |
-| α (alpha) | The learning factor used by adaptive EWMA. It controls how much the latest eligible shot changes the learned stop offset. |
-| A→M | **Automatic-to-manual** transition: brew-by-weight can no longer rely on the scale, so a time guard limits the remaining shot. |
+| α (alpha) | The learning speed used by adaptive EWMA. It controls how much the latest eligible shot changes the learned drip. |
+| A→M | **Automatic-to-manual** transition: brew-by-weight can no longer rely on the scale, so the scale-loss backup limits the remaining shot by time. |
 | Admin unlock | A password-protected authorization required for privileged Web UI actions; it is separate from claiming the browser session. |
 | AGPL-3.0 | GNU Affero General Public License version 3, the repository's current copyleft license. Network use of a modified version can require offering its corresponding source code. |
 | AI | Artificial intelligence. The README notes its use during project development. |

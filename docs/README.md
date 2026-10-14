@@ -16,8 +16,8 @@ needed rather than reading the entire directory.
 
 - [Brew by weight](features/brew-by-weight.md), [presets](features/presets.md)
 - [Tare and retare](features/tare-retare.md), [cup protection](features/cup-protection.md)
-- [Fast](features/fast-extraction-guard.md), [Slow](features/slow-extraction-guard.md),
-  [scale-loss time guard](features/auto-to-manual.md)
+- [Fast and slow shots](features/fast-and-slow-shots.md),
+  [scale-loss backup](features/auto-to-manual.md)
 - [Alerts](alerts.md), [shot history](features/shot-history.md),
   [activation history](features/activation-history.md)
 - [Home Assistant integration](features/home-assistant.md)

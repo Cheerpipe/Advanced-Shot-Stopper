@@ -1,7 +1,7 @@
 # No-scale BBW
 
-Machine-level protection for attempts to use Brew by weight without a usable
-scale. Configure it under **Settings → Machine and scale → No-scale BBW**.
+Protection for attempts to use Brew by weight without a usable scale, shared
+by every preset. Configure it under **Settings → Shared settings → No-scale BBW**.
 
 It applies only while **Brew by weight** is on. With BBW off, shots and rinses
 remain manual regardless of this setting. A scale is usable only when its link

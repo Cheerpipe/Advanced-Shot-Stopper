@@ -9,9 +9,9 @@ and local settings remain accessible.
 
 Which Bluetooth scale to use, how long to wait after a shot for drip, and
 Bookoo-specific volume / combined tare. Machine-level, under
-**Settings → Machine and scale → Scales**.
+**Settings → Shared settings → Scales**.
 
-Choose a **Preferred scale**, then press **Save machine settings** to apply it
+Choose a **Preferred scale**, then press **Save shared settings** to apply it
 together with the other machine and scale settings. Until you save, the
 controller keeps using the saved preference. The arrow beside Save discards
 unsaved changes. **Clear preferred** and **(rename)** are separate actions
@@ -164,10 +164,10 @@ the scale is charging.
 
 A usable scale is required for automatic brew-by-weight. If the scale is
 missing, see [No-scale BBW](no-scale-bbw.md). If it drops mid-shot, see
-[A→M time guard](../features/auto-to-manual.md).
+[Scale-loss backup](../features/auto-to-manual.md).
 
 **Drip delay** runs after machine circuit opens. It is used for Last Shot, history,
-offset learning, and eligible A→M samples.
+drip learning, and the scale-loss backup's recent shots.
 
 ## Parameters
 
@@ -242,7 +242,7 @@ rejects readings older than 1 s, before that link timeout. Check
 
 1. Turn off other compatible scales and close phone apps connected to the one
    you want.
-2. Select the intended remembered scale and press **Save machine settings**,
+2. Select the intended remembered scale and press **Save shared settings**,
    or choose **Clear preferred** for a new one.
    Clearing pauses discovery for 30 s; it does not erase scale history.
 3. With **Preferred only** and no saved preference, let the intended scale

@@ -164,7 +164,7 @@ startup, reset, and power loss.
 
 ## Scale-connected LED
 
-GPIO 1 is HIGH while a BLE scale is connected and **Settings → Alerts → Blue
+GPIO 1 is HIGH while a BLE scale is connected and **Settings → Shared settings → Alerts → Blue
 LED while scale connected** is on. It is diagnostic only and is never part of
 the machine-circuit decision.
 

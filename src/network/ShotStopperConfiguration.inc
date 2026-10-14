@@ -177,10 +177,8 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       "bbwProtectionMs", "fastExtractionGuardEnabled", "avoidAccidentalTouchEnabled",
       "touchStopFallbackEnabled", "cupProtectionEnabled", "stopIfCupRemoved",
       "requireCupToStart",
-      "maxRecoveryWeightG",
-      "minBbwBrewTimeMs", "slowExtractionGuardEnabled", "minRecoveryWeightG",
-      "maxBbwBrewTimeMs", "autoToManualGuardEnabled", "autoToManualGuardLimitMode",
-      "autoToManualGuardManualLimitMs", "autoToManualGuardBaselineMs",
+      "fastMarginG", "fastBeforeS", "slowExtractionGuardEnabled", "slowMarginG",
+      "slowAfterS", "autoToManualGuardEnabled", "scaleLossFixedS",
       "weightOffsetBaselineG", "timezoneId", "timezoneAutoInit",
       "timezoneDetected", "timezoneAutomatic", "ntpSyncEnabled",
       "ntpServerPreset",
@@ -190,7 +188,6 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       "serialLogLevel", "serialDebugOutput", "ringRetainLogLevel", "showDiagnosticPage",
       "powerManagementEnabled"};
   const char *parseError = nullptr;
-  V1RecipeWire v1Recipe;
   size_t settingFieldCount = 0;
   if (root != nullptr) {
     for (cJSON *item = root->child; item != nullptr; item = item->next) {
@@ -405,23 +402,29 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   } else if (jsonFieldPresent(root, "requireCupToStart") &&
              !jsonBoolean(root, "requireCupToStart", candidate.requireCupToStart)) {
     parseError = "requireCupToStart must be a boolean.";
-  } else if (jsonFieldPresent(root, "minBbwBrewTimeMs") &&
-             !jsonUint32(root, "minBbwBrewTimeMs", candidate.fastBeforeMs)) {
-    parseError = "minBbwBrewTimeMs must be an integer (milliseconds).";
+  } else if (jsonFieldPresent(root, "fastBeforeS") &&
+             !jsonSecondsMs(root, "fastBeforeS", candidate.fastBeforeMs)) {
+    parseError = "fastBeforeS must be a number of seconds.";
+  } else if (jsonFieldPresent(root, "fastMarginG") &&
+             !jsonGramsDg(root, "fastMarginG", candidate.fastMarginDg)) {
+    parseError = "fastMarginG must be a number of grams.";
   } else if (jsonFieldPresent(root, "slowExtractionGuardEnabled") &&
              !jsonBoolean(root, "slowExtractionGuardEnabled",
                           candidate.slowSideEnabled)) {
     parseError = "slowExtractionGuardEnabled must be a boolean.";
-  } else if (jsonFieldPresent(root, "maxBbwBrewTimeMs") &&
-             !jsonUint32(root, "maxBbwBrewTimeMs", candidate.slowAfterMs)) {
-    parseError = "maxBbwBrewTimeMs must be an integer (milliseconds).";
+  } else if (jsonFieldPresent(root, "slowAfterS") &&
+             !jsonSecondsMs(root, "slowAfterS", candidate.slowAfterMs)) {
+    parseError = "slowAfterS must be a number of seconds.";
+  } else if (jsonFieldPresent(root, "slowMarginG") &&
+             !jsonGramsDg(root, "slowMarginG", candidate.slowMarginDg)) {
+    parseError = "slowMarginG must be a number of grams.";
   } else if (jsonFieldPresent(root, "autoToManualGuardEnabled") &&
              !jsonBoolean(root, "autoToManualGuardEnabled",
                           candidate.scaleLossEnabled)) {
     parseError = "autoToManualGuardEnabled must be a boolean.";
-  } else if (!parseV1RecipeWire(root, v1Recipe, false)) {
-    parseError = "Recovery weights, A->M limit mode and limits must be numbers "
-                 "and \"manual\" or \"auto\".";
+  } else if (jsonFieldPresent(root, "scaleLossFixedS") &&
+             !jsonSecondsMs(root, "scaleLossFixedS", candidate.scaleLossFixedMs)) {
+    parseError = "scaleLossFixedS must be a number of seconds.";
   } else if (jsonFieldPresent(root, "weightOffsetBaselineG") &&
              !jsonFloat(root, "weightOffsetBaselineG",
                         candidate.weightOffsetBaselineG)) {
@@ -574,7 +577,6 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   if (brewByWeightPresent) {
     candidate.timerOnly = !brewByWeight;
   }
-  applyV1RecipeWire(v1Recipe, candidate);
   if (legacyNoScalePresent) {
     parsedNoScaleMode = static_cast<uint8_t>(
         legacyAvoidBbwShotWithoutScale ? NoScaleBbwMode::WARN_ONCE
@@ -925,7 +927,6 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
   char presetName[SHOT_PRESET_NAME_CAPACITY] = {};
   const char *parseError = nullptr;
   PresetAction presetAction = PresetAction::APPLY;
-  V1RecipeWire v1Recipe;
   WebCommand command;
   command.type = WebCommandType::PRESET_OP;
   command.requestId = self.allocateRequestId();
@@ -978,6 +979,7 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
       parseError = "id must be a non-zero integer.";
     } else {
       bool brewByWeight = true;
+      bool grindHints = true;
       if (!jsonBoolean(root, "brewByWeight", brewByWeight) ||
           !jsonGoalWeightDg(root, "goalWeightG", command.config.goalWeightDg) ||
           !jsonUint32(root, "operationalWallMs",
@@ -989,28 +991,22 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
                       command.config.weightOffsetBaselineG)) ||
           !jsonBoolean(root, "fastExtractionGuardEnabled",
                        command.config.fastSideEnabled) ||
-          !jsonUint32(root, "minBbwBrewTimeMs", command.config.fastBeforeMs) ||
+          !jsonSecondsMs(root, "fastBeforeS", command.config.fastBeforeMs) ||
+          !jsonGramsDg(root, "fastMarginG", command.config.fastMarginDg) ||
           !jsonBoolean(root, "slowExtractionGuardEnabled",
                        command.config.slowSideEnabled) ||
-          !jsonUint32(root, "maxBbwBrewTimeMs", command.config.slowAfterMs) ||
-          !parseV1RecipeWire(root, v1Recipe, true) ||
-          !jsonBoolean(root, "autoToManualGuardEnabled",
-                       command.config.scaleLossEnabled) ||
-          !jsonBoolean(root, "cupProtectionEnabled",
-                       command.config.cupProtectionEnabled) ||
-          !jsonBoolean(root, "stopIfCupRemoved",
-                       command.config.stopIfCupRemoved) ||
-          !jsonBoolean(root, "requireCupToStart",
-                       command.config.requireCupToStart) ||
-          !jsonBoolean(root, "avoidAccidentalTouchEnabled",
-                       command.config.avoidAccidentalTouchEnabled) ||
-          (jsonFieldPresent(root, "touchStopFallbackEnabled") &&
-           !jsonBoolean(root, "touchStopFallbackEnabled",
-                        command.config.touchStopFallbackEnabled))) {
-        parseError = "save requires the full Brew recipe field set.";
+          !jsonSecondsMs(root, "slowAfterS", command.config.slowAfterMs) ||
+          !jsonGramsDg(root, "slowMarginG", command.config.slowMarginDg) ||
+          !jsonSecondsMs(root, "scaleLossFixedS", command.config.scaleLossFixedMs) ||
+          (jsonFieldPresent(root, "doseG") &&
+           !jsonGramsDg(root, "doseG", command.presetDoseDg)) ||
+          (jsonFieldPresent(root, "grindHintsEnabled") &&
+           !jsonBoolean(root, "grindHintsEnabled", grindHints))) {
+        parseError = "save requires the full preset recipe field set.";
       } else {
         command.config.timerOnly = !brewByWeight;
-        applyV1RecipeWire(v1Recipe, command.config);
+        if (jsonFieldPresent(root, "grindHintsEnabled"))
+          command.presetGrindHints = grindHints ? 1 : 0;
         command.bbwBaselineSpecified = jsonFieldPresent(root, "weightOffsetBaselineG");
         const cJSON *alphaBase = cJSON_GetObjectItemCaseSensitive(root, "bbwAlphaBaseline");
         if (alphaBase && (!cJSON_IsNumber(alphaBase) ||

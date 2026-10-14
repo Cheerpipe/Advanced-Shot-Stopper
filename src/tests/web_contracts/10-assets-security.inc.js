@@ -132,12 +132,17 @@ for (const field of settingsHtml.matchAll(
   const container = start >= 0 && end >= field.index
     ? settingsHtml.slice(start, end)
     : '';
-  if (!container.includes('class="fieldHint')) {
+  // The shot-window inputs share the hint that follows their pair.
+  const pairEnd = settingsHtml.indexOf('</div>', field.index);
+  const sharedHint = settingsHtml.lastIndexOf('<div class="windowPair">', field.index) >
+      settingsHtml.lastIndexOf('</div>', field.index) &&
+    settingsHtml.startsWith('<small class="fieldHint', pairEnd + 6);
+  if (!container.includes('class="fieldHint') && !sharedHint) {
     throw new Error(`Settings field ${field[2]} must have a localized field hint`);
   }
 }
 for (const [id, names] of Object.entries({
-  autoToManualGuardLimitMode: ['Auto:', 'Manual:'], paddleMode: ['Natural:', 'Original:', 'Auto:'],
+  paddleMode: ['Natural:', 'Original:', 'Auto:'],
   momentaryStartEdge: ['Button press:', 'Button release:'],
   noScaleBbwMode: ['Allow manual brewing:', 'Warn once, then allow:', 'Require a scale:'],
   scalePreference: ['First available:', 'Prefer selected:', 'Preferred only:'],
@@ -579,8 +584,12 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // budgets re-measured below.
 // The audit table pager (prev/next buttons, page label) adds +290 measured
 // HTML bytes (92104); compressed budgets re-measured below.
-if (htmlBytes > 92300) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 92300)`);
+// The smooth-cut preset editor and Home (window pair, review graph host,
+// preset action bar with New coffee, scale-loss backup group, pills-only hero,
+// grind-hint and discovery cards) add +1011 measured HTML bytes (93115),
+// owner-authorized 2026-10-14; compressed budgets re-measured below.
+if (htmlBytes > 93300) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 93300)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -749,8 +758,13 @@ if (htmlBytes > 92300) {
 // The audit table pagination and change-gated repaint (page state, pager
 // renderer, selection-preserving fingerprint) add +1.4 KB measured (388629);
 // compressed budgets re-measured below.
-if (jsBytes > 390000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 390000)`);
+// The smooth-cut UI (integer cut-line model shared by the review graph, Home
+// preset rows and Quick Settings subtitles; responsive review graph with
+// scrubber; relative-margin validation; preset action bar dialogs; verdict
+// pills, grind-hint and scale-loss cards) adds +19964 measured JS bytes
+// (408593), owner-authorized 2026-10-14; compressed budgets re-measured below.
+if (jsBytes > 408800) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 408800)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -827,8 +841,10 @@ if (jsBytes > 390000) {
 // source allowance (~1.8 KB of JS plus the Export button markup).
 // The audit table pagination and change-gated repaint add their ~1.7 KB of
 // combined source allowance (pager markup plus the fingerprinted renderer).
-if (htmlBytes + jsBytes > 481500) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 481500)`);
+// The smooth-cut UI adds its ~21 KB of combined source allowance (501708
+// measured) described above.
+if (htmlBytes + jsBytes > 502000) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 502000)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
@@ -842,8 +858,8 @@ if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'buzzerSlowExtendedPulseRate') ||
     !html.includes('id="buzzerExtendedPulseRate"') ||
     !html.includes('id="buzzerSlowExtendedPulseRate"') ||
-    !html.includes('class="buzzerOpt scaleIncapableOpt">Extended shot pulse<select id="buzzerExtendedPulseRate"') ||
-    !html.includes('class="buzzerOpt scaleIncapableOpt">Slow extended pulse<select id="buzzerSlowExtendedPulseRate"') ||
+    !html.includes('class="buzzerOpt scaleIncapableOpt">Fast-shot pulse<select id="buzzerExtendedPulseRate"') ||
+    !html.includes('class="buzzerOpt scaleIncapableOpt">Slow-shot pulse<select id="buzzerSlowExtendedPulseRate"') ||
     !css.includes('color-scheme:light dark') ||
     !css.includes('html,input,select,textarea{color-scheme:dark}') ||
     !css.includes('--in:#fafafa') ||
@@ -889,11 +905,11 @@ if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
   throw new Error('Web UI must show paddle state, scale beep options, and buzzer alerts');
 }
 if (!codeIncludes(ui, 'id="operationalWallS" type="number" min="5" max="60"') ||
-    !codeIncludes(ui, 'Max BBW time (s)') ||
+    !codeIncludes(ui, 'Max shot time (s)') ||
     !codeIncludes(ui, 'sToMs(') ||
     !codeIncludes(ui, 'rinseGestureMs:sToMs') ||
-    !network.includes('Max BBW time must be from 5 to 60 s.')) {
-  throw new Error('Max BBW time must be capped at 60 s in the UI and API messages');
+    !network.includes('Max shot time must be from 5 to 60 s.')) {
+  throw new Error('Max shot time must be capped at 60 s in the UI and API messages');
 }
 if (!codeIncludes(ui, 'function rangeCheck(') ||
     !codeIncludes(ui, 'function showFieldError(') ||
@@ -941,11 +957,11 @@ if (!network.includes('"firstDropBeep"') ||
     !network.includes('"bbwProtectionMs"') ||
     !network.includes('"fastExtractionGuardEnabled"') ||
     !network.includes('"avoidAccidentalTouchEnabled"') ||
-    !network.includes('"maxRecoveryWeightG"') ||
-    !network.includes('"minBbwBrewTimeMs"') ||
+    !network.includes('"fastMarginG"') ||
+    !network.includes('"fastBeforeS"') ||
     !network.includes('"slowExtractionGuardEnabled"') ||
-    !network.includes('"minRecoveryWeightG"') ||
-    !network.includes('"maxBbwBrewTimeMs"') ||
+    !network.includes('"slowMarginG"') ||
+    !network.includes('"slowAfterS"') ||
     !network.includes('\\"extractionExtended\\"') ||
     !network.includes('\\"stopDetail\\"') ||
     !network.includes('"paddleReturnReminderIntervalMs"') ||
@@ -965,20 +981,20 @@ if (!network.includes('"firstDropBeep"') ||
     !codeIncludes(ui, 'id="autoRetare"') ||
     !codeIncludes(ui, 'id="fastExtractionGuardEnabled"') ||
     !codeIncludes(ui, 'id="avoidAccidentalTouchEnabled"') ||
-    !codeIncludes(ui, 'id="maxRecoveryWeightG"') ||
-    !codeIncludes(ui, 'id="minBbwBrewTimeS"') ||
-    !codeIncludes(ui, 'Fast extraction guard') ||
+    !codeIncludes(ui, 'id="fastMarginG"') ||
+    !codeIncludes(ui, 'id="fastBeforeS"') ||
+    !codeIncludes(ui, 'Fast shots') ||
     !codeIncludes(ui, 'id="slowExtractionGuardEnabled"') ||
-    !codeIncludes(ui, 'id="minRecoveryWeightG"') ||
-    !codeIncludes(ui, 'id="maxBbwBrewTimeS"') ||
-    !codeIncludes(ui, 'Slow extraction guard') ||
+    !codeIncludes(ui, 'id="slowMarginG"') ||
+    !codeIncludes(ui, 'id="slowAfterS"') ||
+    !codeIncludes(ui, 'Slow shots') ||
     !codeIncludes(ui, 'id="retareWindowS"') ||
     !codeIncludes(ui, 'id="minimumCupWeightG"') ||
     !codeIncludes(ui, 'id="retareStabilitySamples"') ||
     !codeIncludes(ui, 'id="retareStabilityToleranceG"') ||
     !codeIncludes(ui, 'id="retareStabilityMaxGapS"') ||
     !codeIncludes(ui, 'id="retareStabilityMinDurationS"') ||
-    !codeIncludes(ui, 'BBW protection (s)') ||
+    !codeIncludes(ui, 'Earliest weight stop (s)') ||
     !codeIncludes(ui, 'id="bbwProtectionS"') ||
     !codeIncludes(ui, 'Paddle reminder limit (min)') ||
     !codeIncludes(ui, 'id="paddleReturnReminderMaxDurationMin"') ||
@@ -1052,25 +1068,25 @@ if (!codeIncludes(ui, 'id="soundAlertsEnabled"') ||
   throw new Error('Sound alerts must be controlled from Settings, not Home Quick Settings');
 }
 
-if (html.indexOf('<summary>Brew by Weight</summary>') >
+if (html.indexOf('<summary>Tare</summary>') >
+        html.indexOf('<summary>Cup detection</summary>') ||
+    html.indexOf('<summary>Cup detection</summary>') >
         html.indexOf('<summary>Cup protection</summary>') ||
-    html.indexOf('<summary>Cup protection</summary>') >
-        html.indexOf('<summary>Fast extraction guard</summary>') ||
     !codeIncludes(ui, 'id="cupProtectionEnabled"') ||
     html.indexOf('id="cupProtectionEnabled"') >
         html.indexOf('id="stopIfCupRemoved"') ||
     html.indexOf('id="stopIfCupRemoved"') >
         html.indexOf('id="requireCupToStart"') ||
     html.indexOf('id="requireCupToStart"') >
-        html.indexOf('<summary>Fast extraction guard</summary>') ||
+        html.indexOf('<summary>No-scale BBW</summary>') ||
     !codeIncludes(ui, 'id="stopIfCupRemoved"') ||
     !codeIncludes(ui, 'id="requireCupToStart"') ||
     codeIncludes(ui, 'id="cupPresentWeightG"') ||
     html.includes('id="cupPresentWeightG"') ||
     html.indexOf('id="cupRemovedWeightG"') <
-        html.indexOf('<summary>Cup</summary>') ||
+        html.indexOf('<summary>Cup detection</summary>') ||
     html.indexOf('id="cupRemovedWeightG"') >
-        html.indexOf('<summary>Tare</summary>') ||
+        html.indexOf('<summary>Cup protection</summary>') ||
     html.includes('id="requireCupToStart" type="checkbox" checked') ||
     !codeIncludes(ui, 'id="cupProtectionEnabled" type="checkbox" checked> Cup protection') ||
     !codeIncludes(ui, 'cupProtectOpt') ||
@@ -1080,8 +1096,7 @@ if (html.indexOf('<summary>Brew by Weight</summary>') >
         html.indexOf('id="homeCupProtectionEnabled"') ||
     html.indexOf('id="homeCupProtectionEnabled"') >
         html.indexOf('id="homePresetBlock"') ||
-    !codeIncludes(ui, "persistHomeGuard('homeCupProtectionEnabled'") ||
-    !codeIncludes(ui, "'cupProtectionEnabled',1") ||
+    !codeIncludes(ui, '"homeCupProtectionEnabledState","cupProtectionEnabled"') ||
     !network.includes('cupProtectionEnabled') ||
     !network.includes('stopIfCupRemoved') ||
     !network.includes('requireCupToStart') ||

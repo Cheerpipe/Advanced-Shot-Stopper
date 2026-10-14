@@ -102,10 +102,10 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("config.brewByWeight", !bool(config.timerOnly));
   delta.field("config.goalWeightG", goalWeightDgToGrams(config.goalWeightDg));
   delta.field("config.operationalWallMs", "%lu", static_cast<unsigned long>(config.operationalWallMs));
-  delta.field("config.minBbwBrewTimeMs", "%lu", static_cast<unsigned long>(config.fastBeforeMs));
-  delta.field("config.maxBbwBrewTimeMs", "%lu", static_cast<unsigned long>(config.slowAfterMs));
-  delta.field("config.minRecoveryWeightG", goalWeightDgToGrams(config.goalWeightDg - config.slowMarginDg));
-  delta.field("config.maxRecoveryWeightG", goalWeightDgToGrams(config.goalWeightDg + config.fastMarginDg));
+  delta.field("config.fastBeforeS", config.fastBeforeMs / 1000.0f);
+  delta.field("config.slowAfterS", config.slowAfterMs / 1000.0f);
+  delta.field("config.fastMarginG", goalWeightDgToGrams(config.fastMarginDg));
+  delta.field("config.slowMarginG", goalWeightDgToGrams(config.slowMarginDg));
   delta.field("config.fastExtractionGuardEnabled", bool(config.fastSideEnabled));
   delta.field("config.slowExtractionGuardEnabled", bool(config.slowSideEnabled));
   delta.field("config.autoToManualGuardEnabled", bool(config.scaleLossEnabled));
@@ -178,10 +178,6 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("cycle.extractionExtended", bool(control.cycleExtractionExtended));
   delta.field("cycle.slowExtractionExtended", bool(control.cycleSlowExtractionExtended));
   delta.field("cycle.activeStopWeightG", control.cycleActiveStopWeightG);
-  delta.field("cycle.minBbwBrewTimeRemainingMs", "%lu", static_cast<unsigned long>(control.cycleMinBbwBrewTimeRemainingMs));
-  delta.field("cycle.autoToManualGuardArmed", bool(control.cycleAutoToManualGuardArmed));
-  delta.field("cycle.autoToManualGuardEnforced", bool(control.cycleAutoToManualGuardEnforced));
-  delta.field("cycle.autoToManualGuardRemainingMs", "%lu", static_cast<unsigned long>(control.cycleAutoToManualGuardRemainingMs));
   delta.field("cycle.accidentalTouchHolding", bool(control.cycleAccidentalTouchHolding));
   delta.field("lastShot.valid", bool(latest));
   delta.field("lastShot.endReason", "\"%s\"", latest ? shotLogStopDetailName(static_cast<ShotLogStopDetail>(latest->stopDetail)) : "none");
@@ -631,6 +627,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
     delta.field("guards.noScale.scaleWasAvailable",
                 bool(control.noScaleShotGuardScaleWasAvailable));
     delta.field("guards.atm.enabled", bool(config.scaleLossEnabled));
+    delta.field("scaleLoss.projectedS", control.autoToManualGuardTrendMs / 1000.0f);
     delta.field("guards.atm.armed", bool(control.cycleAutoToManualGuardArmed));
     delta.field("guards.atm.enforced", bool(control.cycleAutoToManualGuardEnforced));
     delta.field("guards.atm.remainingMs", "%lu",
@@ -1218,7 +1215,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
       "\"slowExtractionGuardEnabled\":%s,\"slowExtractionExtended\":%s,"
       "\"stopDetail\":\"%s\",\"cutLineG\":%s,\"arrivalS\":%s,"
       "\"verdict\":%s,\"channeling\":%s,\"scaleLossSource\":%s,"
-      "\"blind\":%s,\"fastBeforeS\":%.1f,\"slowAfterS\":%.1f,"
+      "\"estimatedG\":%s,\"blind\":%s,\"fastBeforeS\":%.1f,\"slowAfterS\":%.1f,"
       "\"fastMarginG\":%.1f,\"slowMarginG\":%.1f,\"delayS\":%.1f,"
       "\"wallS\":%.1f,\"cutRampS\":%.1f,"
       "\"actualWeightSource\":\"%s\",\"rating\":%u,%s}",
@@ -1246,6 +1243,9 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
       cutLine, arrival, shotLogVerdictJson(record.verdict),
       corridor::channelingOf(record.verdict) ? "true" : "false",
       scaleLoss ? shotLogScaleLossSourceJson(record.verdict) : "null",
+      // Only a projected stop time lands near the cut line.
+      scaleLoss && corridor::lossSourceOf(record.verdict) == corridor::LossSource::PROJECTION
+          ? cutLine : "null",
       corridor::blindOf(record.verdict) ? "true" : "false",
       record.fastBeforeDs / 10.0, record.slowAfterDs / 10.0,
       record.fastMarginDg / 10.0, record.slowMarginDg / 10.0,

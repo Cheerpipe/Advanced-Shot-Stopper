@@ -15,7 +15,10 @@ and the settings guides for current actions.
 
 ### Home
 
-Quick Settings, recipe, shot hero and connection status. Remote actions depend
+Quick Settings, presets, shot hero and connection status. The current Quick
+Settings list is Brew by weight, No-scale BBW, Scale-loss backup, Extend fast
+shots, Shorten slow shots, Avoid accidental touch and Cup protection; the
+captures predate those names. Remote actions depend
 on build policy and Admin unlock: the Actions panel is shown only when remote
 machine control is compiled in and Admin is unlocked.
 
@@ -23,8 +26,10 @@ machine control is compiled in and Admin is unlocked.
 
 ### Settings
 
-Recipe and machine/scale configuration. The current group depends on the
-compiled paddle or momentary machine type.
+The current page has two sections: **Presets**, saved with the selected
+preset, and **Shared settings**, which apply to every preset. The captures
+predate this layout and the old Brew / Machine and scale names. The physical
+switch group depends on the compiled paddle or momentary machine type.
 
 ![Historical dark Settings screen](images/screenshot-settings-dark.jpeg)
 

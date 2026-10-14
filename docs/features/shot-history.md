@@ -23,7 +23,7 @@ right corner.
 
 A confirmed, non-rinse cycle becomes a shot when it lasts **more than 12 seconds**
 and its settled final yield is valid and **more than 2 g**. Manual stops,
-timer-only brews, normal BBW cuts, guard stops, and time or safety limits all
+timer-only brews, weight stops on any part of the cut line, and time or safety limits all
 use this same rule. A cycle without a valid measured yield cannot qualify.
 The 12-second recording rule is fixed; changing BBW's start-of-shot protection
 time changes weight stopping, not which completed cycles are recorded.
@@ -33,8 +33,8 @@ duration, the exact preset name captured at shot start, goal and yield (the
 shot's actual output), error, average flow, first-drop time, the scale used
 (your chosen name, otherwise the suggested model name, or the advertised
 Bluetooth name when neither is available), the late-tare time when the cup was
-tared mid-shot, whether Fast/Slow
-guards ran or extended the shot, `shot_type`, `cut_type`
+tared mid-shot, how the shot ended (**Ended** shows the Fast, On recipe or
+Slow verdict for weight stops), the cut settings it ran with, `shot_type`, `cut_type`
 (`auto`, `manual`, `limit`), `stop_detail` (for example
 `normal_target`, `activator`, `web_stop`, `wall_limit`, `hard_limit`,
 `extended_max_weight`, `cup_removed`), and a manual `rating` from 0
@@ -74,6 +74,12 @@ appear in this order: elapsed time (**36.8 s**), **first drop**, **Avg flow**,
 **Err**, and the cutoff reason. First drop includes its time, such as
 **first drop 6.2 s**. Err shows the percentage above or below the target,
 such as **Err 0.6%**; unavailable measurements are hidden.
+On Home's last shot card, the cutoff reason appears as pills: **FAST**,
+**ON RECIPE**, **SLOW** or **MAX TIME**, plus **EXTENDED**, **STOPPED EARLY**,
+**CHANNELING** or **NO SCALE** when they apply (see
+[Fast and slow shots](fast-and-slow-shots.md)). When the scale dropped and the
+[scale-loss backup](auto-to-manual.md) finished the shot, the yield is shown as
+an estimate, such as **~36 g est.**, when one is known.
 The timer comes from the controller and pauses on screen if the connection is
 lost; **Reconnecting…** indicates that the displayed result may be stale.
 
@@ -83,7 +89,7 @@ recorded shot. A temporary reconnection preserves the remaining interval;
 reloading the page opens the latest recorded shot instead. Starting another
 activation immediately replaces the temporary result. Confirmed activations
 also appear in the separate [activation history](activation-history.md).
-BBW offset learning and A→M samples keep their own eligibility rules.
+Drip learning and the scale-loss backup's recent shots keep their own eligibility rules.
 
 The controller collects accepted scale readings in memory while the shot runs
 and saves the completed curve after the configured drip delay. Each reading
@@ -326,9 +332,9 @@ continuation. See
 | --- | --- |
 | `normal_target` | Normal weight endpoint, including offset/prediction |
 | `touch_weight_fallback` | Touch protection blocked the weight stop and the sustained-weight backup ended the shot; Ended shows Touch fallback on Home and Stats, matching Home Assistant's Last shot stop detail |
-| `extended_max_weight` / `extended_min_time` | Fast guard extended the shot |
-| `slow_max_time` / `slow_min_weight` | Slow guard reached its recovery boundary |
-| `auto_to_manual` | Scale-loss time guard |
+| `extended_max_weight` / `extended_min_time` | A fast shot stopped on a raised cut line (**EXTENDED**) |
+| `slow_max_time` / `slow_min_weight` | A slow shot stopped on a lowered cut line (**STOPPED EARLY**) |
+| `auto_to_manual` | The [scale-loss backup](auto-to-manual.md) finished the shot by time |
 | `activator` / `web_stop` | Physical / authenticated Web stop |
 | `wall_limit` / `hard_limit` | Operational / hard time limit |
 | `cup_removed` | Cup-removal protection requested stop |

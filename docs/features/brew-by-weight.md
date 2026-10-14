@@ -1,14 +1,15 @@
 # Brew by weight
 
 Automatic brew-by-weight (BBW) stops the shot where its weight meets the
-recipe's **cut line**, minus a learned drip offset. The cut line is your target
-while the shot is on time; with the Fast and Slow guards on it rises a little
+recipe's **cut line**, minus the learned drip. The cut line is your target
+yield while the shot is on recipe; on the Adaptive presets it rises a little
 for shots that run fast and drops a little for shots that run slow, always
-smoothly. It is **on by default**.
+smoothly. See [Fast and slow shots](fast-and-slow-shots.md). It is **on by
+default**.
 
 Turn it off if you want the paddle (or switch) and the firmware 60 s cap
 only. Tare and the shot timer still run; weight stop, cup protection at
-start, automatic retare, Max BBW time, and offset learning do not.
+start, automatic retare, Max shot time, and drip learning do not.
 
 ## When it applies
 
@@ -18,19 +19,19 @@ run on a rinse, a timer-only shot (BBW off), or a manual no-scale shot.
 Once the selected paddle mode permits weight stopping and the start-of-shot
 protection window ends (see
 [Cup protection](cup-protection.md)), two fresh scale samples at or above
-`cut line − learned offset` can request a stop. A prediction from the recent
+`cut line − learned drip` can request a stop. A prediction from the recent
 flow usually stops a moment earlier, so the coffee still in flight and the
-drip land on the cut line. The learned offset is capped at 5.0 g and can be
-reset to a baseline from the Web UI.
+drip land on the cut line. The learned drip is capped at 5.0 g and can be
+reset to its starting value from the Web UI.
 
 The protection window affects when BBW may stop the machine. It does not
 decide whether a completed cycle appears in [shot history](shot-history.md):
 recording always requires more than 12 seconds and a valid final yield over
 2 g, including for manual and timer-only endings.
 
-Automatic brew-by-weight cycles are limited by **Max BBW time** and a
+Automatic brew-by-weight cycles are limited by **Max shot time** and a
 firmware hard cap of **60 seconds**. Timer-only (BBW off) and manual
-no-scale shots skip Max BBW time. In Original paddle mode, weight stop and the
+no-scale shots skip Max shot time. In Original paddle mode, weight stop and the
 operational wall are held off
 while the paddle stays ON; the 60 s electrical cap remains. Momentary stop
 pulses depend on machine-state confirmation: see
@@ -39,43 +40,48 @@ pulses depend on machine-state confirmation: see
 ## Parameters
 
 Defaults below describe factory Double; see [Presets](presets.md) for Single.
-These live on the **active preset** under **Settings → Brew**, except where
+These are saved with each preset under **Settings → Presets**, except where
 noted. While you edit, values that conflict with another field are flagged
 in yellow right away — the same message Save would show — so you can fix
-them before saving. **Home → Quick Settings** can toggle brew by weight for
-the session
-(Manual). The **Presets** section below it summarizes how each recipe cuts as
-three short rules — Fast, BBW, and Slow — built from that recipe's saved
-settings; the active recipe arrives expanded.
+them before saving. **Home → Quick Settings → Brew by weight** turns brew by
+weight on or off for the session (Manual) without changing the preset.
 
-| Setting | Default | Range | Effect on the shot |
-| --- | --- | --- | --- |
-| **Brew by weight** | ON | ON / OFF | ON: stop by weight when a scale is usable. OFF: paddle, **Stop**, and the 60 s firmware cap only. Fast, Slow, A→M, Max BBW time, and No-scale BBW become read-only. |
-| **Stop after sustained weight** | ON | ON / OFF | A backup for a weight stop blocked by **Avoid accidental touch**. Fresh readings must stay above the applicable cut threshold for 1 second. Saved per preset; takes effect on the next shot. |
-| **Target (g)** | 36 g | 10–200 g in 0.1 g steps | Goal weight. Stop aims at `target − learned offset`. |
-| **Max BBW time (s)** | 50 s | 5–60 s | Operational time limit for an **automatic BBW** cycle. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
-| **Baseline offset (g)** | 1.5 g | 0–5 g | Seed used by **Reset learned stop offset**. Save this before reset. |
-| **Learned stop offset** | starts at 1.5 g | 0–5 g | Subtracted from the target (and from Fast/Slow recovery weights). Updated from eligible BBW measurements after the drip delay. |
-| **Learning factor (α)** | 0.30 initially | Read-only | EWMA only; current gain, initial/learned provenance and collecting/evaluating status. |
-| **Baseline learning factor (α)** | 0.30 | 0.01–1.00, step 0.01 | EWMA reset seed, saved per preset. Saving it preserves current offset, gain and evidence. |
+| Setting | Group | Default | Range | Effect on the shot |
+| --- | --- | --- | --- | --- |
+| **Brew by weight** | Recipe | ON | ON / OFF | ON: stop by weight when a scale is usable. OFF: paddle, **Stop**, and the 60 s firmware cap only; the fast and slow options, the scale-loss backup, Max shot time, and No-scale BBW become read-only. |
+| **Dose (g)** | Recipe | 18 g | 5–30 g in 0.1 g steps | Coffee in the basket. Shows your ratio; does not change the cut. |
+| **Target yield (g)** | Recipe | 36 g | 10–200 g in 0.1 g steps | Drink weight in the cup, drips included. The stop aims at `cut line − learned drip`. |
+| **Shot time window (s)** | Recipe | 27–34 s | See [Fast and slow shots](fast-and-slow-shots.md#settings) | Reaching the target inside the window is On recipe. |
+| **Earliest weight stop (s)** | Shot limits | 12 s | 0.5–30 s; see [Cup protection](cup-protection.md) | The scale cannot stop the shot before this, so tare and first drops cannot trigger it. |
+| **Max shot time (s)** | Shot limits | 50 s | 5–60 s | The shot always stops here, target reached or not. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
+| **If the scale drops, stop at (s)** | Shot limits | empty | Earliest weight stop to Max shot time | Leave empty to use your recent shots, or the middle of your window until there are enough. See [scale-loss backup](auto-to-manual.md). |
+| **Learned drip (g)** | Drip compensation | starts at 1.5 g | 0–5 g, read-only | Subtracted from the cut line. Updated from eligible weight-stopped shots after the drip delay. |
+| **Starting drip (g)** | Drip compensation | 1.5 g | 0–5 g | The drip restored by **Reset drip learning**. Save it before resetting. |
+| **Learning speed** | Drip compensation | 0.30 initially | Read-only | How strongly each shot moves the learned drip, with whether it is still the starting value or learned, and its collecting/evaluating status. |
+| **Starting learning speed** | Drip compensation | 0.30 | 0.01–1.00, step 0.01 | Restored by **Reset drip and learning speed**. Saving it keeps the current drip, speed and evidence. |
+| **Stop after sustained weight** | Shared settings → Cup protection | ON | ON / OFF | A backup for a weight stop blocked by **Avoid accidental touch**. Fresh readings must stay above the applicable cut threshold for 1 second. Applies to every preset; takes effect on the next shot. |
+
+**Home → Presets** shows how each recipe cuts as three rows, for example
+**Before 27 s · Fast · up to 40 g**, **27–34 s · On recipe · 36 g** and
+**After 34 s · Slow · down to 33 g**; a side that is switched off reads
+**off**. The active recipe arrives expanded.
 
 Fixed behavior (not separate settings):
 
-- Direct stop: two fresh samples at the threshold after BBW protection ends.
+- Direct stop: two fresh samples at the threshold after Earliest weight stop.
 - Predictive stop: from the flow of the last 3 seconds, it stops when the
   weight plus the coffee still in flight will meet the cut line.
 - Scale loss: weight control pauses; physical stop behavior and applicable time
   limits stay in force.
-  See [A→M time guard](auto-to-manual.md).
+  See [scale-loss backup](auto-to-manual.md).
 
 ## Example
 
-Double · Adaptive at 36 g, learned offset 1.5 g, shot time window 27–34 s.
+Double · Adaptive at 36 g, learned drip 1.5 g, shot time window 27–34 s.
 A shot reaching the target inside the window stops with about **34.5 g** on
 the scale, so the post-drip weight lands near 36 g. A shot running early gets
 a slightly higher cut line (up to 40 g), one running late a slightly lower one
-(down to 33 g); see [Fast](fast-extraction-guard.md) and
-[Slow](slow-extraction-guard.md).
+(down to 33 g); see [Fast and slow shots](fast-and-slow-shots.md).
 
 ## Cutoff behavior and learning
 
@@ -96,7 +102,7 @@ the weight may keep increasing. A brief spike, silence after one reading, a drop
 below the threshold, a new tare or a connection interruption cannot complete that
 interval. If touch protection releases sooner, normal stopping resumes immediately.
 
-The backup uses the cut line at each reading, minus the learned offset, so a
+The backup uses the cut line at each reading, minus the learned drip, so a
 fast shot can still run to its raised cut line and a slow one stops at its
 lowered line. When the cut line moves from one part to another (raised,
 target, lowered) the interval restarts. Delayed scale readings count only
@@ -107,8 +113,8 @@ uncertain shot over continuing to wait; it does not prove that the reading is
 coffee. Sampling, machine response and dripping mean the final yield can still
 overshoot. Under-reported weight or vibration repeatedly crossing below the
 threshold may prevent this backup from firing, so the existing time limits remain.
-Backup endings appear as **Touch fallback** and do not train the learned offset
-or the A→M duration trend.
+Backup endings appear as **Touch fallback** and do not train the learned drip
+or the scale-loss backup's recent shots.
 
 ### One cutoff algorithm
 
@@ -168,17 +174,18 @@ initial/learned provenance, but collects a fresh evidence window. Recipe or
 relevant tare/drip timing changes also restart evidence without erasing the
 offset or gain.
 
-The learned-offset readout shows the offset with α, its editable baseline and
-status alongside it. BBW OFF hides the learning fields. Polling preserves
-unsaved edits, and resets require a saved baseline and an editable, idle
-configuration.
+In **Settings → Presets → Drip compensation**, **Learned drip** shows the
+offset and **Learning speed** shows α with its status; **Starting drip** and
+**Starting learning speed** are their editable baselines. BBW OFF hides the
+learning fields. Polling preserves unsaved edits, and resets require a saved
+baseline and an editable, idle configuration.
 
-- **Reset learned stop offset** restores the offset to the saved baseline. It
+- **Reset drip learning** restores the offset to the saved Starting drip. It
   retains α and restarts evidence.
-- **Reset EWMA learning** restores offset and α to their saved baselines,
-  marks provenance initial, and clears evidence.
+- **Reset drip and learning speed** restores offset and α to their saved
+  starting values, marks provenance initial, and clears evidence.
 
-Save both bases before resetting; editing them alone leaves learned values
+Save both starting values before resetting; editing them alone leaves learned values
 and evidence intact. For the example above, α=0.10 gives a next offset of 1.52 g,
 α=0.30 gives 1.56 g and α=0.60 gives 1.62 g. Higher α reacts faster but follows
 shot noise more; lower α smooths more but adapts slower. The gain applies
@@ -190,5 +197,6 @@ initial gain must preserve valid retained learning. Nothing here changes guard,
 physical-stop, relay, watchdog or time-limit authority. No improved physical
 accuracy is claimed without representative machine/scale measurements.
 
-Related: [Cup protection](cup-protection.md), [Tare](../settings/tare.md),
+Related: [Fast and slow shots](fast-and-slow-shots.md),
+[Cup protection](cup-protection.md), [Tare](../settings/tare.md),
 [Scales](../settings/scales.md), [No-scale BBW](../settings/no-scale-bbw.md).

@@ -1,8 +1,8 @@
 # Quick rinse
 
 A firmware **rinse** keeps the group on for a configured duration, then turns
-it off. It is not a shot: no shot history, no last-shot overwrite, no A→M
-samples. Rinses do land in the [activation history](../features/activation-history.md)
+it off. It is not a shot: no shot history, no last-shot overwrite, and it does
+not count toward the scale-loss backup's recent shots. Rinses do land in the [activation history](../features/activation-history.md)
 as `rinse` entries.
 
 On Micra, a gesture that starts as a shot pauses cloud observation and API
@@ -20,7 +20,7 @@ from the original start, and the reported duration matches. A rinse that
 starts from idle (Button release hold, Armed, web) runs for the full duration
 from its start.
 
-**Settings → Machine and scale → Quick rinse** is shown on paddle, momentary,
+**Settings → Shared settings → Quick rinse** is shown on paddle, momentary,
 and reed firmware. Home **Start rinse** follows the same Quick rinse setting.
 
 ## When it applies
@@ -55,7 +55,7 @@ instead of the Actions panel. Web rinse is refused when Quick rinse is off.
 
 ## Parameters
 
-Machine-level, **Settings → Machine and scale → Quick rinse**.
+Machine-level, **Settings → Shared settings → Quick rinse**.
 
 | Setting | Default | Range | Effect |
 | --- | --- | --- | --- |

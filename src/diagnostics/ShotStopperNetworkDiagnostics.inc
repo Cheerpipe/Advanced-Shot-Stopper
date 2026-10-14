@@ -110,13 +110,10 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"paddleReturnReminderIntervalMs\":%lu,"
            "\"paddleReturnReminderMaxDurationMs\":%lu,"
            "\"bbwProtectionMs\":%lu,\"operationalWallMs\":%lu,"
-           "\"fastExtractionGuardEnabled\":%s,\"maxRecoveryWeightG\":%.1f,"
-           "\"minBbwBrewTimeMs\":%lu,\"slowExtractionGuardEnabled\":%s,"
-           "\"minRecoveryWeightG\":%.1f,\"maxBbwBrewTimeMs\":%lu,"
-           "\"autoToManualGuardEnabled\":%s,"
-           "\"autoToManualGuardLimitMode\":\"%s\","
-           "\"autoToManualGuardManualLimitMs\":%lu,"
-           "\"autoToManualGuardBaselineMs\":%lu,"
+           "\"fastExtractionGuardEnabled\":%s,\"fastMarginG\":%.1f,"
+           "\"fastBeforeMs\":%lu,\"slowExtractionGuardEnabled\":%s,"
+           "\"slowMarginG\":%.1f,\"slowAfterMs\":%lu,"
+           "\"autoToManualGuardEnabled\":%s,\"scaleLossFixedMs\":%lu,"
            "\"cupProtectionEnabled\":%s,\"stopIfCupRemoved\":%s,"
            "\"requireCupToStart\":%s,\"avoidAccidentalTouchEnabled\":%s,"
            "\"cupPresentWeightG\":%.1f,\"cupRemovedWeightG\":%.1f,"
@@ -148,15 +145,13 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<unsigned long>(c.config.bbwProtectionMs),
            static_cast<unsigned long>(c.config.operationalWallMs),
            c.config.fastSideEnabled ? "true" : "false",
-           static_cast<double>(goalWeightDgToGrams(c.config.goalWeightDg + c.config.fastMarginDg)),
+           static_cast<double>(goalWeightDgToGrams(c.config.fastMarginDg)),
            static_cast<unsigned long>(c.config.fastBeforeMs),
            c.config.slowSideEnabled ? "true" : "false",
-           static_cast<double>(goalWeightDgToGrams(c.config.goalWeightDg - c.config.slowMarginDg)),
+           static_cast<double>(goalWeightDgToGrams(c.config.slowMarginDg)),
            static_cast<unsigned long>(c.config.slowAfterMs),
            c.config.scaleLossEnabled ? "true" : "false",
-           autoToManualGuardLimitModeId(c.config.scaleLossFixedMs),
-           static_cast<unsigned long>((c.config.scaleLossFixedMs != 0 ? c.config.scaleLossFixedMs : c.config.slowAfterMs)),
-           static_cast<unsigned long>(c.config.slowAfterMs),
+           static_cast<unsigned long>(c.config.scaleLossFixedMs),
            c.config.cupProtectionEnabled ? "true" : "false",
            c.config.stopIfCupRemoved ? "true" : "false",
            c.config.requireCupToStart ? "true" : "false",

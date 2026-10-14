@@ -12,8 +12,8 @@ Check, in order:
 
 1. BBW is on in **Home Quick Settings**, not just in the saved recipe.
 2. Home shows fresh usable scale readings.
-3. Initial [BBW protection](features/cup-protection.md) has ended.
-4. [Fast guard](features/fast-extraction-guard.md) is not deliberately extending.
+3. The [Earliest weight stop](features/cup-protection.md) time has passed.
+4. A [fast shot](features/fast-and-slow-shots.md#fast-shots) is not deliberately running longer.
 5. [Original paddle mode](settings/paddle.md#original) is not waiting for OFF.
 6. On momentary firmware, the machine state permits an automatic stop pulse.
 
@@ -22,23 +22,25 @@ Use the stop action for your physical switch/mode if the result is unexpected.
 
 ### The shot ended above or below target
 
-Read the shot's stop detail on its Stats history card before changing calibration.
+Read how the shot **Ended** on its Stats history card (or the pills on Home's
+last shot card) before changing calibration.
 
 | Result | Likely check |
 | --- | --- |
-| Above target, fast shot | Fast guard may extend toward its recovery weight. |
-| Below target, slow shot | Slow guard may choose its recovery floor. |
-| Around 50 s on factory Double | Max BBW time; distinct from Slow's 44 s decision. |
-| After scale loss | A→M deadline is measured from shot start, not disconnect. |
+| Above target, **Fast** / **EXTENDED** | [Run fast shots longer](features/fast-and-slow-shots.md#fast-shots) raised the cut line, up to the preset's extra yield. |
+| Below target, **Slow** / **STOPPED EARLY** | [Stop slow shots sooner](features/fast-and-slow-shots.md#slow-shots) lowered the cut line, down to the preset's reduced yield. |
+| **CHANNELING** | A flow surge kept the cut line at the target. |
+| **MAX TIME**, around 50 s on factory Double | Max shot time, well after the 34 s window end. |
+| After scale loss (**NO SCALE**) | The [scale-loss backup](features/auto-to-manual.md) time is measured from shot start, not disconnect. |
 | Ordinary stop followed by extra dripping | Learned offset and drip delay; see [BBW](features/brew-by-weight.md). |
 
 Prediction, sample timing and dripping mean the weight at stop need not equal
-the final stored weight. Guard behavior does not guarantee extraction quality.
+the final stored weight. Fast and slow shot handling does not guarantee extraction quality.
 
 ### The scale disconnected
 
 Weight stop pauses while reconnection continues. Three coherent readings on
-the recovered link can restore it. [A→M](features/auto-to-manual.md) and other
+the recovered link can restore it. The [scale-loss backup](features/auto-to-manual.md) and other
 applicable limits still act. A steady unchanged weight is not a lost stream.
 
 If the scale was absent at start, [No-scale BBW](settings/no-scale-bbw.md)
@@ -52,7 +54,7 @@ automatically. Later placement is not covered. **Require cup to start** blocks
 the start instead.
 
 For a timer-only session, turn BBW off in Home. Tare/timer remain available
-when supported; weight stop, late retare and Max BBW time do not. Home's
+when supported; weight stop, late retare and Max shot time do not. Home's
 session selection does not overwrite the saved preset.
 
 ### Does the 60-second limit always stop water?

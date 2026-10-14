@@ -144,7 +144,7 @@ int main(){
   for (const id of ['hNvsEntries','hNvsTotal','hNvsNamespaces']) assert.equal($(id).textContent, 'runtime.unknown');
   status.nvs.statsValid=true;context.applyDiagnosticStatus(status);
   assert.equal($('hNvsNamespaces').textContent,'0');assert($('hNvsEntries').textContent.startsWith('0'));
-  const cup={__WEBUI_TEXT__:key=>key,$:()=>null,result:{},setHomeSub:(id,value)=>cup.result[id]=value,
+  const cup={__WEBUI_TEXT__:key=>key,$:()=>null,result:{},setHomeSub:(id,value)=>cup.result[id]=value,liveRuleModel:null,sub:key=>key,
     formatNoScaleGuard(){},formatExtractionGuard(){},formatAccidentalTouch(){},formatSlowExtractionGuard(){},formatAtmGuard(){}};
   vm.createContext(cup);
   vm.runInContext(section('function formatCupProtection(', 'function setHomeSub(')+

@@ -67,19 +67,21 @@ export function init() {
   if ($("saveBrewPresetButton")) $("saveBrewPresetButton").onclick = () => R.saveBrewPreset();
   if ($("revertBrewPresetButton")) $("revertBrewPresetButton").onclick = R.revertBrewPreset;
   if ($("presetResetBtn"))
-    $("presetResetBtn").onclick = () => {
+    $("presetResetBtn").onclick = async () => {
       const p = R.selectedPreset();
       if (!p || !p.isFactory) return;
-      if (!confirm(__WEBUI_TEXT__("settings.reset_this_factory_preset_to_its_default"))) return;
+      if (!(await R.askConfirm(R.sub(__WEBUI_TEXT__("settings.restore_confirm"), [p.name]), __WEBUI_TEXT__("settings.restore"))))
+        return;
       if (R.brewDirty) R.clearBrewDirty();
       R.invalidateSettingsHydration();
       R.command("/api/v1/presets", { action: "restore_factory_values", id: p.id });
     };
+  if ($("presetNewCoffeeBtn")) $("presetNewCoffeeBtn").onclick = () => R.startNewCoffee(R.selectedPreset().id);
   if ($("presetDeleteBtn"))
-    $("presetDeleteBtn").onclick = () => {
+    $("presetDeleteBtn").onclick = async () => {
       const p = R.selectedPreset();
       if (!p || p.isFactory) return;
-      if (confirm(__WEBUI_TEXT__("settings.delete_this_preset")))
+      if (await R.askConfirm(R.sub(__WEBUI_TEXT__("settings.delete_confirm"), [p.name]), __WEBUI_TEXT__("settings.delete"), true))
         R.command("/api/v1/presets", { action: "delete", id: p.id });
     };
   if ($("scalePreference"))
@@ -171,11 +173,13 @@ export function init() {
     R.updateConfigGroups();
     R.syncHomeGuardSwitchesFromSettings();
   };
-  $("autoToManualGuardLimitMode").onchange = () => {
-    R.updateConfigGroups();
-  };
-  $("autoToManualGuardEnabled").onchange = () => {
-    R.syncHomeGuardSwitchesFromSettings();
+  $("autoToManualGuardEnabled").onchange = R.syncHomeGuardSwitchesFromSettings;
+  // The device backup's per-preset fixed time lives in Shot limits.
+  $("scaleLossFixedLink").onclick = () => {
+    const field = $("scaleLossFixedS");
+    field.closest("details").open = true;
+    field.scrollIntoView({ block: "center" });
+    field.focus({ preventScroll: true });
   };
   if ($("cupProtectionEnabled"))
     $("cupProtectionEnabled").onchange = () => {
@@ -199,6 +203,7 @@ export function init() {
         // preview, which re-runs over the pending set as a whole.
         R.clearBrewFieldErrors();
         R.refreshBrewWarnings();
+        R.renderPresetReview();
       };
       el.addEventListener("input", fn);
       el.addEventListener("change", fn);
@@ -208,7 +213,7 @@ export function init() {
     if (
       confirm(
         __WEBUI_TEXT__("settings.reset_2") +
-          __WEBUI_TEXT__("settings.ewma") +
+          __WEBUI_TEXT__("settings.drip_learning") +
           __WEBUI_TEXT__("settings.offset_to") +
           R.number("weightOffsetBaselineG").toFixed(2) +
           __WEBUI_TEXT__("settings.g") +
@@ -222,21 +227,4 @@ export function init() {
   };
   $("resetCalibrationButton").onclick = () => resetBbw(false);
   $("resetEwmaButton").onclick = () => resetBbw(true);
-  $("resetGuardSamplesButton").onclick = () => {
-    if (R.brewDirty) {
-      R.message(__WEBUI_TEXT__("settings.save_the_preset_first"), "warn");
-      return;
-    }
-    const s = R.number("autoToManualGuardBaselineS");
-    if (!Number.isFinite(s)) {
-      R.message(__WEBUI_TEXT__("settings.set_a_valid_baseline"), "warn");
-      return;
-    }
-    if (
-      confirm(
-        __WEBUI_TEXT__("settings.reset_a_to_m_samples_to_5") + s + __WEBUI_TEXT__("settings.s"),
-      )
-    )
-      R.command("/api/v1/calibration/reset-guard-samples");
-  };
 }

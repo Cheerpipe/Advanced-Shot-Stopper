@@ -1,13 +1,14 @@
 {
   const childId = 'touchStopFallbackEnabled';
   const formatter = blockAt(runtimeJs, 'function formatShotEnded(');
-  const ended = new Function(formatter + ';return formatShotEnded;')();
+  const ended = new Function(blockAt(runtimeJs, 'function verdictLabel(') + formatter +
+    ';return formatShotEnded;')();
   for (const reason of ['touch_weight_fallback', 'TOUCH_WEIGHT_FALLBACK']) {
     if (ended(reason) !== 'Touch fallback')
       throw new Error('Ended must identify sustained-weight touch protection');
   }
-  if (!codeIncludes(runtimeJs, 'formatShotEnded(r.stopDetail)') ||
-      !codeIncludes(runtimeJs, 'formatShotEnded(d.endReason)')) {
+  if (!codeIncludes(runtimeJs, 'formatShotEnded(r.stopDetail, r.verdict)') ||
+      !codeIncludes(runtimeJs, 'formatShotEnded(d.endReason, d.verdict)')) {
     throw new Error('Stats and Home must share the Ended cause formatter');
   }
   if (html.indexOf(`id="${childId}"`) < html.indexOf('id="avoidAccidentalTouchEnabled"') ||
@@ -21,6 +22,15 @@
   const bindings = viewJs.settings.slice(
     viewJs.settings.search(/document\s*\.\s*querySelectorAll\(\s*['"]#workflowPanel input/),
     viewJs.settings.search(/const\s+resetBbw\s*=/));
+  // Shared switches save with Shared settings from their checkbox state, so
+  // a disabled touch fallback keeps its saved value.
+  const machine = blockAt(runtimeJs, 'function machinePayload(');
+  if (!['cupProtectionEnabled', 'stopIfCupRemoved', 'requireCupToStart',
+        'avoidAccidentalTouchEnabled', childId, 'autoToManualGuardEnabled']
+        .every(k => codeIncludes(machine, `"${k}",`)) ||
+      !codeIncludes(machine, '].map((k) => [k, $(k).checked]),')) {
+    throw new Error('Saving a disabled touch fallback must preserve its value');
+  }
   for (const parent of [false, true]) for (const saved of [false, true]) {
     for (const bbw of [false, true]) for (const mutable of [false, true]) {
       const nodes = {};
@@ -51,11 +61,12 @@
       }
       const result = new Function('$', 'number', 'sToMs', 'bbwFormPresetId', 'document',
         payload + ';return brewPayload();')(get, () => 36, () => 1000, 1, document);
-      if (result.touchStopFallbackEnabled !== saved || result.brewByWeight !== bbw ||
-          ['cupProtectionEnabled', 'stopIfCupRemoved', 'requireCupToStart'].some(k => result[k] !== saved) ||
-          ['operationalWallMs', 'bbwProtectionMs', 'minBbwBrewTimeMs', 'maxBbwBrewTimeMs',
-            'autoToManualGuardManualLimitMs', 'autoToManualGuardBaselineMs'].some(k => result[k] !== 1000)) {
-        throw new Error('Saving a disabled touch fallback must preserve its value');
+      if (result.brewByWeight !== bbw ||
+          [childId, 'cupProtectionEnabled', 'stopIfCupRemoved', 'requireCupToStart'].some(k => k in result) ||
+          ['operationalWallMs', 'bbwProtectionMs'].some(k => result[k] !== 1000) ||
+          ['doseG', 'goalWeightG', 'fastBeforeS', 'slowAfterS', 'fastMarginG', 'slowMarginG']
+            .some(k => result[k] !== 36)) {
+        throw new Error('The preset save must carry only the recipe');
       }
       if (mutable && parent) {
         const field = get('brewByWeight'), events = {};
@@ -64,7 +75,7 @@
         new Function('document', 'R', bindings)({querySelectorAll: () => [field]}, {
           settingsSectionOf: () => 'brew', markBrewDirty() {},
           clearBrewFieldErrors() {}, refreshBrewWarnings() {},
-          updateBbwControls() {}, updateConfigGroups: refresh
+          updateBbwControls() {}, updateConfigGroups: refresh, renderPresetReview() {}
         });
         for (const type of ['input', 'change']) {
           field.checked = !field.checked;
@@ -114,9 +125,10 @@
 }
 
 {
-  const ids = ['presetNewBtn', 'presetDupBtn', 'presetResetBtn', 'presetDeleteBtn'];
+  const ids = ['presetNewCoffeeBtn', 'presetNewBtn', 'presetDupBtn', 'presetResetBtn',
+    'presetDeleteBtn'];
   for (const id of ids) {
-    if (!partialHtml.settings.includes(`id="${id}" disabled`)) {
+    if (!new RegExp(`id="${id}"[^>]*\\bdisabled>`).test(partialHtml.settings)) {
       throw new Error(`${id} must start disabled before settings load`);
     }
   }
@@ -125,14 +137,14 @@
   const update = new Function('$', 'document', 'selectedPreset', 'controlsMutable', 'presetsLoaded',
     source + ';updatePresetActionButtons();');
   for (const loaded of [false, true]) for (const mutable of [false, true]) {
-    for (const preset of [null, {isFactory: true}, {isFactory: false}]) {
+    for (const preset of [null, {isFactory: true, shotStats: {count: 3}}, {isFactory: false}]) {
       const nodes = Object.fromEntries(ids.map(id => [id,
         {id, disabled: false, classList: {toggle() {}}}]));
       update(id => nodes[id], {querySelectorAll: () => ids.map(id => nodes[id])},
         () => preset, mutable, loaded);
       const ready = loaded && mutable;
-      const expected = [!ready, !ready, !ready || !preset?.isFactory,
-        !ready || !preset || !!preset.isFactory];
+      const expected = [!ready || !preset?.shotStats?.count, !ready, !ready,
+        !ready || !preset?.isFactory, !ready || !preset || !!preset.isFactory];
       if (ids.some((id, i) => nodes[id].disabled !== expected[i])) {
         throw new Error('Preset actions must wait for data and preserve editing restrictions');
       }
@@ -150,8 +162,8 @@ if (/R\.(homeFlushConfig|homeFlushPreset|configLoaded|formRev|brewDirty)\s*=/.te
   throw new Error(
       'View modules must call runtime helpers instead of assigning read-only ESM namespace exports');
 }
-if (!codeIncludes(ui, '<legend>Brew</legend>') ||
-    !codeIncludes(ui, '<legend>Machine and scale</legend>') ||
+if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
+    !codeIncludes(ui, '<legend>Shared settings <span class="hint">') ||
     !codeIncludes(ui, '<legend>Network</legend>') ||
     !codeIncludes(ui, '<legend>Device password</legend>') ||
     !codeIncludes(ui, '<legend>Frontend</legend>') ||
@@ -172,16 +184,16 @@ if (!codeIncludes(ui, '<legend>Brew</legend>') ||
     !html.includes('<span class="g">×</span>') ||
     !html.includes('<span class="g">✓</span>') ||
     codeIncludes(ui, '💾') || codeIncludes(ui, '⚡') ||
-    !codeIncludes(ui, 'Save brew settings') ||
+    !codeIncludes(ui, 'Save preset') ||
     !codeIncludes(ui, 'id="activeBrewProfileHint"') ||
-    !codeIncludes(ui, 'Current profile: ') ||
+    !codeIncludes(ui, 'Current preset: ') ||
     !codeIncludes(ui, 'function updateActiveBrewProfileHint(') ||
     html.indexOf('id="activeBrewProfileHint"') <
         html.indexOf('id="saveBrewPresetButton"') ||
     html.indexOf('id="saveBrewPresetButton"') <
-        html.indexOf('id="resetGuardSamplesButton"') ||
+        html.indexOf('id="resetCalibrationButton"') ||
     html.indexOf('id="saveBrewPresetButton"') >
-        html.indexOf('<legend>Machine and scale</legend>') ||
+        html.indexOf('<legend>Shared settings ') ||
     html.indexOf('id="saveConfigButton"') <
         html.indexOf('<summary>Alerts</summary>') ||
     html.indexOf('id="saveConfigButton"') >
@@ -204,7 +216,7 @@ if (!codeIncludes(ui, '<legend>Brew</legend>') ||
     !html.includes('id="homeTouchSub"') ||
     !codeIncludes(ui, 'function formatAccidentalTouch(') ||
     !html.includes('id="homeSlowSub"') ||
-    !html.includes('id="homeAtmSub"') ||
+    !html.includes('id="homeScaleLossSub"') ||
     !html.includes('id="homeCupSub"') ||
     html.includes('id="homeAlertsSub"') ||
     !html.includes('>Cup protection<span') ||
@@ -215,9 +227,11 @@ if (!codeIncludes(ui, '<legend>Brew</legend>') ||
     html.indexOf('id="homeNoScaleBbwMode"') >
         html.indexOf('id="homeAutoToManualGuardEnabled"') ||
     html.indexOf('id="homeAutoToManualGuardEnabled"') >
+        html.indexOf('id="homeFastExtractionGuardEnabled"') ||
+    html.indexOf('id="homeFastExtractionGuardEnabled"') >
         html.indexOf('id="homeSlowExtractionGuardEnabled"') ||
     html.indexOf('id="homeSlowExtractionGuardEnabled"') >
-        html.indexOf('id="homeFastExtractionGuardEnabled"') ||
+        html.indexOf('id="homeAvoidAccidentalTouchEnabled"') ||
     html.indexOf('id="homeFastExtractionGuardEnabled"') > html.indexOf('id="homePresetBlock"') ||
     !html.includes('class="homeGuardGrid"') ||
     html.indexOf('class="homeGuardGrid"') > html.indexOf('id="homeNoScaleBbwMode"') ||
@@ -230,9 +244,11 @@ if (!codeIncludes(ui, '<legend>Brew</legend>') ||
     html.indexOf('id="homeNoScaleBbwMode"') >
         html.indexOf('id="homeAutoToManualGuardEnabled"') ||
     html.indexOf('id="homeAutoToManualGuardEnabled"') >
+        html.indexOf('id="homeFastExtractionGuardEnabled"') ||
+    html.indexOf('id="homeFastExtractionGuardEnabled"') >
         html.indexOf('id="homeSlowExtractionGuardEnabled"') ||
     html.indexOf('id="homeSlowExtractionGuardEnabled"') >
-        html.indexOf('id="homeFastExtractionGuardEnabled"') ||
+        html.indexOf('id="homeAvoidAccidentalTouchEnabled"') ||
     html.indexOf('id="homeFastExtractionGuardEnabled"') >
         html.indexOf('id="homePresetBlock"') ||
     html.indexOf('id="homeFastExtractionGuardEnabled"') >
@@ -243,40 +259,40 @@ if (!codeIncludes(ui, '<legend>Brew</legend>') ||
         html.indexOf('id="homePresetBlock"') ||
     html.indexOf('id="homeFastExtractionGuardEnabled"') > html.indexOf('id="equipmentPanel"') ||
     !html.includes('>No-scale BBW<span') ||
-    !html.includes('>Fast extraction guard<span') ||
+    !html.includes('>Extend fast shots<span') ||
     !html.includes('>Avoid accidental touch<span') ||
-    !html.includes('>Slow extraction guard<span') ||
-    !html.includes('>A→M time guard<span') ||
+    !html.includes('>Shorten slow shots<span') ||
+    !html.includes('>Scale-loss backup<span') ||
     html.indexOf('<summary>No-scale BBW</summary>') < 0 ||
-    html.indexOf('<summary>Fast extraction guard</summary>') < 0 ||
+    html.indexOf('<summary>Fast shots</summary>') < 0 ||
     html.indexOf('<summary>Cup protection</summary>') < 0 ||
-    html.indexOf('<summary>Brew by Weight</summary>') >
+    html.indexOf('<summary>Recipe</summary>') >
+        html.indexOf('<summary>Fast shots</summary>') ||
+    html.indexOf('<summary>Fast shots</summary>') >
         html.indexOf('<summary>Cup protection</summary>') ||
-    html.indexOf('<summary>Cup protection</summary>') >
-        html.indexOf('<summary>Fast extraction guard</summary>') ||
     !codeIncludes(ui, 'id="cupProtectionEnabled"') ||
     html.indexOf('id="cupProtectionEnabled"') >
         html.indexOf('id="stopIfCupRemoved"') ||
     !codeIncludes(ui, 'id="stopIfCupRemoved"') ||
     !codeIncludes(ui, 'id="requireCupToStart"') ||
     html.indexOf('id="requireCupToStart"') >
-        html.indexOf('<summary>Fast extraction guard</summary>') ||
+        html.indexOf('<summary>No-scale BBW</summary>') ||
     codeIncludes(ui, 'id="cupPresentWeightG"') ||
     html.includes('id="cupPresentWeightG"') ||
     html.includes('id="requireCupToStart" type="checkbox" checked') ||
     !codeIncludes(ui, 'If the cup was already tared before connection, lift it and place it again.') ||
     !codeIncludes(ui, 'id="homeCupProtectionEnabled"') ||
-    html.indexOf('<summary>Slow extraction guard</summary>') < 0 ||
-    html.indexOf('<summary>A→M time guard</summary>') < 0 ||
+    html.indexOf('<summary>Slow shots</summary>') < 0 ||
+    html.indexOf('<summary>Scale-loss backup</summary>') < 0 ||
     html.includes('<summary>Avoid accidental touch</summary>') ||
-    html.indexOf('<summary>Brew by Weight</summary>') >
+    html.indexOf('<summary>Cup protection</summary>') >
         html.indexOf('id="avoidAccidentalTouchEnabled"') ||
     html.indexOf('id="avoidAccidentalTouchEnabled"') >
-        html.indexOf('<summary>Cup protection</summary>') ||
-    html.indexOf('<summary>Fast extraction guard</summary>') >
-        html.indexOf('<summary>Slow extraction guard</summary>') ||
-    html.indexOf('<summary>Slow extraction guard</summary>') >
-        html.indexOf('<summary>A→M time guard</summary>') ||
+        html.indexOf('<summary>No-scale BBW</summary>') ||
+    html.indexOf('<summary>Fast shots</summary>') >
+        html.indexOf('<summary>Slow shots</summary>') ||
+    html.indexOf('<summary>Slow shots</summary>') >
+        html.indexOf('<summary>Scale-loss backup</summary>') ||
     !codeIncludes(ui, 'function updateHomeGuardSwitchesLock(') ||
     !codeIncludes(ui, 'function persistHomeGuard(') ||
     !codeIncludes(ui, 'function flushHomeGuards(') ||
@@ -288,20 +304,14 @@ if (!codeIncludes(ui, '<legend>Brew</legend>') ||
     !codeIncludes(ui, 'Date.now()+5e3') ||
     !codeIncludes(ui, 'pollAt<p.until') ||
     !codeIncludes(ui, "classList.toggle('switchPending',!!on)") ||
-    !codeIncludes(ui, "persistHomeGuard('homeFastExtractionGuardEnabled'") ||
-    !codeIncludes(ui, "persistHomeGuard('homeAvoidAccidentalTouchEnabled'") ||
-    !codeIncludes(ui, "persistHomeGuard('homeSlowExtractionGuardEnabled'") ||
-    !codeIncludes(ui, "persistHomeGuard('homeAutoToManualGuardEnabled'") ||
-    !codeIncludes(ui, "persistHomeGuard('homeCupProtectionEnabled'") ||
+    !codeIncludes(ui, 'R.persistHomeGuard(h, s, c)') ||
     !codeIncludes(ui, 'onchange=R.persistHomeNoScaleBbw') ||
     !codeIncludes(ui, 'function persistHomeNoScaleBbw(') ||
     !codeIncludes(ui, "p.noScaleBbwMode=$('homeNoScaleBbwEnabled').checked?nsm:'off'") ||
     codeIncludes(ui, "persistHomeGuard('homeSoundAlertsEnabled'") ||
-    !codeIncludes(ui, "'fastExtractionGuardEnabled',1") ||
-    !codeIncludes(ui, "'avoidAccidentalTouchEnabled',1") ||
-    !codeIncludes(ui, "'slowExtractionGuardEnabled',1") ||
-    !codeIncludes(ui, "'autoToManualGuardEnabled',1") ||
-    !codeIncludes(ui, "'cupProtectionEnabled',1") ||
+    !['FastExtractionGuardEnabled', 'AvoidAccidentalTouchEnabled', 'SlowExtractionGuardEnabled',
+      'AutoToManualGuardEnabled', 'CupProtectionEnabled'].every(k => codeIncludes(ui,
+        `"home${k}State","${k[0].toLowerCase()}${k.slice(1)}"`)) ||
     !codeIncludes(ui, 'el.disabled=!controlsMutable||u||off') ||
     codeIncludes(ui, 'el.disabled=!controlsMutable||off||pend') ||
     !codeIncludes(ui, 'homeFlushBusy') ||
@@ -390,8 +400,8 @@ if (!codeIncludes(ui, '<legend>Brew</legend>') ||
     !codeIncludes(ui, "action:'restore_factory_values'") ||
     !codeIncludes(ui, 'function startRenamePreset(') ||
     !codeIncludes(ui, 'function updatePresetActionButtons(') ||
-    !codeIncludes(ui, "function presetSummary(p){return 'Target '+(p.goalWeightG ? p.goalWeightG.toFixed(1) : '?')+' g'}") ||
-    !codeIncludes(ui, "badge.textContent=p.isFactory?'factory':'custom'") ||
+    !codeIncludes(ui, 'function presetSummary(p)') ||
+    !codeIncludes(ui, 'badge.textContent = presetBadge(p)') ||
     !codeIncludes(ui, 'Discard them and switch presets') ||
     !codeIncludes(ui, 'saveBrewPreset') ||
     !codeIncludes(ui, '/api/v1/presets') ||
@@ -886,7 +896,7 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     codeIncludes(runtimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.liveShot)') ||
     codeIncludes(runtimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
     !codeIncludes(runtimeJs, 'drop=d.firstDropMs') ||
-    !codeIncludes(runtimeJs, 'formatShotEnded(r.stopDetail)') ||
+    !codeIncludes(runtimeJs, 'formatShotEnded(r.stopDetail, r.verdict)') ||
     !codeIncludes(js, "labels=['Time','Dur','Goal','Yield','Err%','Avg flow','Max flow','Tare time','1st drop','Ended','Shot','Preset','Scale'") ||
     codeIncludes(js, "labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||
     codeIncludes(js, "labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Guard','Ext','Stop','Shot','Cut']") ||
@@ -953,11 +963,11 @@ if (!codeIncludes(js, 'function commandOkMessage(') ||
     !codeIncludes(js, 'function homePendingPairs(') ||
     !codeIncludes(js, 'command(path,value={},soft,okMsg,failMsg,busyId)') ||
     codeIncludes(js, "message(e&&e.message?e.message:'Request failed.','error')") ||
-    !codeIncludes(js, 'Machine settings saved.') ||
-    !codeIncludes(js, "cn('save machine settings')") ||
-    !codeIncludes(js, 'Brew settings saved.') ||
-    !codeIncludes(js, "'save brew settings'") ||
-    !codeIncludes(js, "homeFastExtractionGuardEnabledState','fastExtractionGuardEnabled','Fast extraction guard'") ||
+    !codeIncludes(js, 'Shared settings saved.') ||
+    !codeIncludes(js, "cn('save shared settings')") ||
+    !codeIncludes(js, 'Preset saved.') ||
+    !codeIncludes(js, "'save the preset'") ||
+    !codeIncludes(js, "homeFastExtractionGuardEnabledState','fastExtractionGuardEnabled','Extend fast shots'") ||
     !codeIncludes(js, "label+(on?' enabled.':' disabled.')") ||
     !codeIncludes(js, "'Could not '+(on?'enable ':'disable ')+label+'.'") ||
     !codeIncludes(js, 'Wi-Fi settings saved. Restarting.') ||
@@ -1283,7 +1293,7 @@ if (!statsSection ||
     !statsSection[1].includes('id="statsAvgErr"') ||
     !statsSection[1].includes('id="statsAvgFlow"') ||
     !statsSection[1].includes('class="fieldHint"') ||
-    !statsSection[1].includes('Last 10 shots. BBW: 10 target cuts.') ||
+    !statsSection[1].includes('Last 10 shots. BBW: 10 shots stopped by weight.') ||
     !statsSection[1].includes('id="statsDurChart"') ||
     !codeIncludes(runtimeJs, 'function renderStatsDurChart(') ||
     !codeIncludes(viewJs.stats, 'R.renderStatsDurChart()') ||
@@ -1292,7 +1302,7 @@ if (!statsSection ||
     !codeIncludes(runtimeJs, 'fill-opacity') ||
     !codeIncludes(runtimeJs, 'statsDurSparkY') ||
     !codeIncludes(runtimeJs, 'renderStatsDurChart()') ||
-    !codeIncludes(runtimeJs, 'const BIN=0.5,tMax=6e4/1e3,tLow=28,tHigh=32') ||
+    !codeIncludes(runtimeJs, 'BIN=0.5,tMax=6e4/1e3,tLow=active?active.fastBeforeS:28,tHigh=active?active.slowAfterS:32') ||
     !codeIncludes(js, "fillChartTicks(host.lastChild,[[0,'0 s'],[tLow,L(tLow,'s')],[tHigh,L(tHigh,'s')],[tMax,L(tMax,'s')],],tMax") ||
     !css.includes('#statsDurChart{margin-top:') ||
     !css.includes('.shotCurve .shotSparkHost,#statsDurChartPlot{display:grid;') ||
@@ -1548,8 +1558,11 @@ if (!statsSection ||
     if (id === 'statsDurChartPlot') {
       return histPlot;
     }
-    return null;
+    return id === 'statsDurWindow' ? {} : null;
   };
+  global.homeStatusCache = () => null;
+  global.presetState = {};
+  global.sub = (t, vals) => t.replace(/\{(\d)\}/g, (_, i) => vals[+i]);
   global.shotStats = {durationsS: [30.2, 30.2, 27.1, 40]};
   global.fillChartTicks = () => {};
   helpers.renderStatsDurChart();
@@ -1567,9 +1580,8 @@ if (!statsSection ||
     throw new Error(
         'Duration histogram must paint an empty shell before shots load');
   }
-  delete global.$;
-  delete global.shotStats;
-  delete global.fillChartTicks;
+  for (const name of ['$', 'shotStats', 'fillChartTicks', 'homeStatusCache', 'presetState', 'sub'])
+    delete global[name];
 }
 
 if (!codeIncludes(ui, 'id="firmwareFooter"') ||

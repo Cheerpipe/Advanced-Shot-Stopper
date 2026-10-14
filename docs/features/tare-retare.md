@@ -48,7 +48,7 @@ including negative tare offsets. An empty-pan rebound never counts as a cup;
 the detector reuses the known reference, not the removal minimum. Without that
 reference or sufficient unloading evidence, remove the cup, let the empty pan
 settle, and replace it. A swap hidden between notifications cannot be guaranteed.
-See [Cup settings](../settings/cup.md#fast-replacement-outside-a-shot) for the
+See [Cup detection settings](../settings/cup.md#fast-replacement-outside-a-shot) for the
 unloading and stability requirements. A stable load change alone does not
 trigger tare with the accessory option OFF.
 
@@ -70,7 +70,7 @@ After the first cup placement, the empty reference remains fixed across larger
 disturbances. Let the empty pan settle before the next placement. Small, stable
 negative shifts before the first cup can qualify as an empty pan.
 Larger initial negative offsets without a preceding qualified zero cannot
-authorize relative placement; recovery is described in [Cup settings](../settings/cup.md).
+authorize relative placement; recovery is described in [Cup detection settings](../settings/cup.md).
 
 A known tared cup remains present at 0 g, so **Require cup to start** accepts
 it. If shot-start tare is enabled, starting the next shot still performs its
@@ -131,7 +131,7 @@ a replacement does not repeat either announcement.
 
 After the late tare, post-tare grace runs again so the empty-cup weight cannot
 cut the shot; [Cup protection](cup-protection.md) still blocks weight stop for the
-full BBW protection window. The tare moment is stored with the recorded shot
+full earliest-weight-stop period. The tare moment is stored with the recorded shot
 and shown as **Tare time** on the shot cards, with a scale marker at that
 instant on the shot chart. The time is measured from the machine circuit
 closing, when the tare command completes successfully. Failed commands and
@@ -145,13 +145,13 @@ Stopping the shot cancels a queued late tare that has not yet been sent.
 
 Initial tare can also run on a timer-only shot with a usable scale. Late retare
 requires automatic BBW; timer-only (BBW off) and manual no-scale cycles skip it
-and BBW protection. Shot post-tare grace is inactive when **Automatic tare at shot start** is off.
+and the earliest weight stop. Shot post-tare grace is inactive when **Automatic tare at shot start** is off.
 
 ## Parameters
 
-Configured under **Settings → Machine and scale → Tare** (and **Cup** for
+Configured under **Settings → Shared settings → Tare** (and **Cup detection** for
 presence thresholds). Full tables: [Tare](../settings/tare.md),
-[Cup](../settings/cup.md).
+[Cup detection](../settings/cup.md).
 
 ## Example
 
@@ -160,7 +160,7 @@ shot starts → shot-start tare → brew continues.
 
 Cup placed two seconds after paddle ON: start tare runs, then cup detection
 fires a second automatic tare inside the 4 s window. The shot timer does
-not restart; weight stop stays blocked until BBW protection ends.
+not restart; weight stop stays blocked until the earliest weight stop time.
 
 If you place a cup after the 4 s default window, automatic retare is no longer
 available for that placement. If **Automatic tare at shot start** is off, prepare the scale's
@@ -169,4 +169,4 @@ zero yourself; do not assume post-tare settling protection is active.
 want the cup in place before brewing.
 
 Related: [Cup protection](cup-protection.md), [Brew by weight](brew-by-weight.md),
-[Tare](../settings/tare.md), [Cup](../settings/cup.md).
+[Tare](../settings/tare.md), [Cup detection](../settings/cup.md).

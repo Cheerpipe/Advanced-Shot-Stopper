@@ -1,7 +1,7 @@
 # Momentary
 
 For firmware built with `OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=1` (button only) or `2`
-(button plus reed/hall sensor), use **Settings → Machine and scale → Switch**.
+(button plus reed/hall sensor), use **Settings → Shared settings → Switch**.
 Paddle firmware hides this group.
 
 `config/machines/rancilio-silvia-pro-x.json` and
@@ -48,7 +48,7 @@ ends a button press; it does **not** necessarily stop water flow.
 - **Button + reed:** sensor state is authoritative outside the brief
   confirmation window. Automatic cut also requires that a stable sensor OFF
   has been seen earlier this boot; a stuck-ON input is not blindly pulsed.
-- **BBW off / no scale:** no weight cut and no Max BBW time. The 60 s logical
+- **BBW off / no scale:** no weight cut and no Max shot time. The 60 s logical
   cap requests a stop only when the machine-state conditions allow it.
 - **Electrical cap:** holding the relay closed for 60 s opens K1 regardless.
   This limits the contact hold, not all possible machine brew durations.

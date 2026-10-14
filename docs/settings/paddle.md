@@ -1,7 +1,7 @@
 # Paddle
 
 For latch/paddle firmware (`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=0`), choose
-**Settings → Machine and scale → Paddle**. The mode is shared across presets.
+**Settings → Shared settings → Paddle**. The mode is shared across presets.
 Momentary builds show [Switch](momentary.md) instead.
 
 `config/machines/la-marzocco-linea-micra.json` selects this paddle topology for
@@ -11,7 +11,7 @@ mode, the 30-second return reminder with a 15-minute limit, and Quick rinse on
 by normal USB firmware installation. This integration is not described as hardware-qualified until
 its actual maintained-input circuit passes the manual checks.
 
-In **Settings → Alerts**, choose **Paddle-off reminder**: **OFF**, **15**, **30**,
+In **Settings → Shared settings → Alerts**, choose **Paddle-off reminder**: **OFF**, **15**, **30**,
 **60**, or **120** seconds. The reminder is on at 30 seconds after a factory
 reset. OFF silences it. The separate **Paddle reminder limit** still stops
 repeating beeps after the chosen number of minutes. Save the machine settings
@@ -37,7 +37,7 @@ do not assume returning the paddle to OFF will stop an automatic shot.
 Authenticated Web Stop and applicable limits remain available.
 
 Without a usable scale at start, or with BBW off, OFF ends the shot in all
-three modes. No-scale policy can block the start first. Max BBW time does not
+three modes. No-scale policy can block the start first. Max shot time does not
 apply to timer-only or manual no-scale shots; the electrical 60 s cap remains.
 
 ## Natural

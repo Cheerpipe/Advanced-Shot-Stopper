@@ -99,7 +99,11 @@ Its remaining entities are:
 - **Active preset**, a select populated from the controller's preset names.
 - **Brew by weight**, **No-scale BBW**, **A-to-M time guard**, **Slow
   extraction guard**, **Fast extraction guard**, **Avoid accidental touch**,
-  and **Cup protection** switches.
+  and **Cup protection** switches. Three of them keep their earlier names in
+  Home Assistant: **A-to-M time guard** is the controller's
+  [Scale-loss backup](auto-to-manual.md), **Fast extraction guard** is
+  **Extend fast shots**, and **Slow extraction guard** is **Shorten slow
+  shots** (see [Fast and slow shots](fast-and-slow-shots.md)).
 - **Restart Open Brew by Weight**, a configuration button.
 
 Selecting a preset waits for the controller to persist it and then refreshes
@@ -109,8 +113,8 @@ Assistant keeps the last confirmed option and shows an error.
 The Brew by weight switch changes the current session without rewriting the
 recipe. No-scale BBW is machine-level: turning it off selects `off`; turning it
 on restores the last observed non-off mode or `warn_once`. **Fast extraction
-guard** and **Slow extraction guard** update only the active preset and
-preserve its other recipe and learned values. **A-to-M time guard**, **Avoid
+guard** and **Slow extraction guard** switch the active preset's fast and slow
+shot handling and preserve its other recipe and learned values. **A-to-M time guard**, **Avoid
 accidental touch** and **Cup protection** are shared settings: changing one
 applies to every preset. All switches are unavailable during an active cycle, and the five guard
 switches plus No-scale BBW are also unavailable while effective BBW is off.

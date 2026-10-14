@@ -1285,15 +1285,15 @@ inline const char *configValidationErrorName(ConfigValidationError error) {
     case ConfigValidationError::NTP_SERVER_CUSTOM:
       return "ntpServerCustom";
     case ConfigValidationError::FAST_MARGIN:
-      return "maxRecoveryWeightG";
+      return "fastMarginG";
     case ConfigValidationError::FAST_BEFORE:
-      return "minBbwBrewTimeMs";
+      return "fastBeforeS";
     case ConfigValidationError::SLOW_MARGIN:
-      return "minRecoveryWeightG";
+      return "slowMarginG";
     case ConfigValidationError::SLOW_AFTER:
-      return "maxBbwBrewTimeMs";
+      return "slowAfterS";
     case ConfigValidationError::SCALE_LOSS_FIXED:
-      return "autoToManualGuardManualLimitMs";
+      return "scaleLossFixedS";
     case ConfigValidationError::WEIGHT_OFFSET_BASELINE:
       return "weightOffsetBaselineG";
     case ConfigValidationError::SCALE_MAC_CACHE_MODE:
@@ -1780,6 +1780,8 @@ struct WebCommand {
   bool persistPresets = false;
   bool bbwBaselineSpecified = true;
   uint8_t bbwAlphaBaseline = 0;  // Zero means omitted; valid bases are 1–100.
+  uint16_t presetDoseDg = 0;     // Zero means omitted.
+  int8_t presetGrindHints = -1;  // Negative means omitted.
   bool bbwFullReset = false;
   bool bbwResetRevisionSpecified = false;
   BuzzerPattern buzzerPattern = BuzzerPattern::NONE;

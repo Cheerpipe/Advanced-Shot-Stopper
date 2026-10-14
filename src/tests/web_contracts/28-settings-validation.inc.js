@@ -21,17 +21,17 @@
   // Field defaults mirror the Settings form: steps come from the shipped
   // inputs (asserted below) and values form one consistent stored state.
   const svFieldSpec = {
+    doseG: ['number', '0.1', '18'],
     goalWeightG: ['number', '0.1', '36'],
     operationalWallS: ['number', '1', '45'],
     bbwProtectionS: ['number', '0.1', '12'],
     weightOffsetBaselineG: ['number', '0.01', '1.5'],
     bbwAlphaBaseline: ['number', '0.01', '0.3'],
-    maxRecoveryWeightG: ['number', '0.1', '80'],
-    minBbwBrewTimeS: ['number', '0.5', '15'],
-    minRecoveryWeightG: ['number', '0.1', '34'],
-    maxBbwBrewTimeS: ['number', '0.5', '40'],
-    autoToManualGuardManualLimitS: ['number', '1', '30'],
-    autoToManualGuardBaselineS: ['number', '1', '25'],
+    fastBeforeS: ['number', '0.5', '27'],
+    slowAfterS: ['number', '0.5', '34'],
+    fastMarginG: ['number', '0.1', '4'],
+    slowMarginG: ['number', '0.1', '3'],
+    scaleLossFixedS: ['number', '0.1', ''],
     retareWindowS: ['number', '0.1', '5'],
     fastExtractionGuardEnabled: ['checkbox', '', true],
     slowExtractionGuardEnabled: ['checkbox', '', true],
@@ -58,144 +58,102 @@
     return {errors: api.validateBrewClient(), warnings: api.brewWarningList(),
             rules: api.rules};
   };
+  const svOne = (result, id, msg) => {
+    svAssert.equal(result.errors.length, 1, JSON.stringify(result.errors));
+    svAssert.equal(result.errors[0].id, id);
+    svAssert.equal(result.errors[0].msg, msg);
+  };
 
-  // (a) Editing only Target into conflict attributes the error to Target with
-  // the exact self-contained phrasing: the UI label with its unit, the limit
-  // with the 0.1-step precision, source field, and section.
+  // (a) The factory state is valid; a self-range violation is phrased with
+  // the field's UI label and unit.
+  svAssert.deepEqual(svValidate().errors, []);
   const svA = svValidate((f) => {
-    f.goalWeightG.value = '10';
-  });
-  svAssert.equal(svA.errors.length, 1, JSON.stringify(svA.errors));
-  svAssert.equal(svA.errors[0].id, 'goalWeightG');
-  svAssert.equal(svA.errors[0].msg,
-    'Target (g) must be greater than 34.0 g (Min recovery, Slow extraction guard).');
-
-  // (b) A self-range violation keeps its own field under its UI label; the
-  // cross-field consequence of the same edit follows.
-  const svB = svValidate((f) => {
     f.goalWeightG.value = '250';
   });
-  svAssert.equal(svB.errors[0].id, 'goalWeightG');
-  svAssert.equal(svB.errors[0].msg, 'Target (g) must be from 10 to 200 g.');
-  svAssert.equal(svB.errors[1].msg,
-    'Target (g) must be less than 80.0 g (Max recovery, Fast extraction guard).');
-  svAssert.ok(svB.errors.every((e) => e.id === 'goalWeightG'));
+  svOne(svA, 'goalWeightG', 'Target yield (g) must be from 10 to 200 g.');
 
-  // (b2) Tenths are the finest step the firmware stores; a finer value is
-  // rejected with the step spelled out.
-  const svB2 = svValidate((f) => {
+  // (b) Tenths are the finest step the firmware stores; a finer value is
+  // rejected with the step spelled out. An emptied field reports only its
+  // own required-value error: cross rules never compare Number("") === 0.
+  svOne(svValidate((f) => {
     f.goalWeightG.value = '36.55';
-  });
-  svAssert.equal(svB2.errors.length, 1, JSON.stringify(svB2.errors));
-  svAssert.equal(svB2.errors[0].msg,
-    'Target (g) must be from 10 to 200 g in 0.1 steps.');
+  }), 'goalWeightG', 'Target yield (g) must be from 10 to 200 g in 0.1 steps.');
+  svOne(svValidate((f) => {
+    f.fastBeforeS.value = '';
+  }), 'fastBeforeS', 'Window start (s) is required (2.5–58 s).');
 
-  // (c) Two edited fields in conflict produce two errors, one per side, each
-  // embedding the other field's value.
-  const svC = svValidate((f) => {
-    f.goalWeightG.value = '10';
-    f.minRecoveryWeightG.value = '40';
-  });
-  svAssert.equal(svC.errors.length, 2, JSON.stringify(svC.errors));
-  svAssert.deepEqual(svC.errors.map((e) => e.id),
-    ['minRecoveryWeightG', 'goalWeightG']);
-  svAssert.equal(svC.errors[0].msg,
-    'Min recovery (g) must be less than 10.0 g (Target, Brew by Weight).');
-  svAssert.equal(svC.errors[1].msg,
-    'Target (g) must be greater than 40.0 g (Min recovery, Slow extraction guard).');
+  // (c) The window starts at least 2 s after the earliest weight stop: the
+  // edited side is blamed, phrased from its own side with the offset named.
+  svOne(svValidate((f) => {
+    f.fastBeforeS.value = '13';
+  }), 'fastBeforeS',
+  'Window start (s) must be at least 14.0 s (Earliest weight stop + 2 s, Shot limits).');
+  svOne(svValidate((f) => {
+    f.bbwProtectionS.value = '26';
+  }), 'bbwProtectionS',
+  'Earliest weight stop (s) must not exceed 25.0 s (Window start − 2 s, Recipe).');
 
-  // An emptied participant reports only its own required-value error: the
-  // cross rules must not compare against Number("") === 0.
-  const svEmpty = svValidate((f) => {
-    f.goalWeightG.value = '';
-  });
-  svAssert.equal(svEmpty.errors.length, 1, JSON.stringify(svEmpty.errors));
-  svAssert.equal(svEmpty.errors[0].msg, 'Target (g) is required (10–200 g).');
+  // (d) The window ends at least 1 s after it starts and 1 s before the max
+  // shot time; a stored conflict with nothing edited blames the rule's owner.
+  svOne(svValidate((f) => {
+    f.slowAfterS.value = '27.5';
+  }), 'slowAfterS', 'The window must end at least 1 s after it starts (28 s or later).');
+  svOne(svValidate((f) => {
+    f.operationalWallS.value = '34';
+  }), 'operationalWallS',
+  'Max shot time (s) must be at least 35.0 s (Window end + 1 s, Recipe).');
+  svOne(svValidate(null, (f) => {
+    f.slowAfterS.value = '50';
+  }), 'slowAfterS',
+  'Window end (s) must not exceed 44.0 s (Max shot time − 1 s, Shot limits).');
 
-  // (d) A disabled guard skips both its self-range checks and its rules.
-  const svD = svValidate((f) => {
+  // (e) Margins are relative to the target and checked only while their side
+  // is on: extra yield up to a quarter of it, less yield leaving 5 g.
+  svOne(svValidate((f) => {
+    f.fastMarginG.value = '10';
+  }), 'fastMarginG',
+  'Extra yield, up to (g) must not exceed 9.0 g (25 % of Target yield, Recipe).');
+  svAssert.deepEqual(svValidate((f) => {
     f.fastExtractionGuardEnabled.checked = false;
-    f.maxRecoveryWeightG.value = '5';
-  });
-  svAssert.deepEqual(svD.errors, [], JSON.stringify(svD.errors));
+    f.fastMarginG.value = '50';
+  }).errors, []);
+  svOne(svValidate((f) => {
+    f.fastExtractionGuardEnabled.checked = false;
+    f.goalWeightG.value = '12';
+    f.slowMarginG.value = '9';
+  }), 'slowMarginG', 'Less yield, up to (g) must not exceed 7.0 g (Target yield − 5 g, Recipe).');
 
-  // (e) Editing Max BBW time below a guard's minimum time blames Max BBW time
-  // and embeds the blocking minimum with its 0.5-step precision.
-  const svE = svValidate((f) => {
-    f.slowExtractionGuardEnabled.checked = false;
-    f.operationalWallS.value = '25';
-  }, (f) => {
-    f.minBbwBrewTimeS.value = '28';
-    f.autoToManualGuardManualLimitS.value = '20';
-    f.autoToManualGuardBaselineS.value = '15';
-  });
-  svAssert.equal(svE.errors.length, 1, JSON.stringify(svE.errors));
-  svAssert.equal(svE.errors[0].id, 'operationalWallS');
-  svAssert.equal(svE.errors[0].msg,
-    'Max BBW time (s) must be greater than 28.0 s (Min BBW brew time, Fast extraction guard).');
-
-  // (f) A stored conflict with nothing edited falls back to the rule's owning
-  // field, phrased from that side.
-  const svF = svValidate(null, (f) => {
-    f.goalWeightG.value = '10';
-  });
-  svAssert.equal(svF.errors.length, 1, JSON.stringify(svF.errors));
-  svAssert.equal(svF.errors[0].id, 'minRecoveryWeightG');
-  svAssert.equal(svF.errors[0].msg,
-    'Min recovery (g) must be less than 10.0 g (Target, Brew by Weight).');
+  // (f) The fixed scale-loss time is optional; when set it stays between the
+  // earliest weight stop and the max shot time.
+  svOne(svValidate((f) => {
+    f.scaleLossFixedS.value = '5';
+  }), 'scaleLossFixedS', 'If the scale drops, stop at (s) must be from 12 to 45 s.');
 
   // (h) The retare floor rule shows its computation when auto-retare is on and
   // states the bare bound when it is off.
-  const svH1 = svValidate(null, (f) => {
+  svOne(svValidate(null, (f) => {
     f.bbwProtectionS.value = '5';
+    f.fastBeforeS.value = '7';
     f.autoRetare.checked = true;
-  });
-  svAssert.equal(svH1.errors.length, 1, JSON.stringify(svH1.errors));
-  svAssert.equal(svH1.errors[0].msg,
-    'BBW protection (s) must be at least 8.0 s (Retare window 5.0 s + 3 s, Tare).');
-  const svH2 = svValidate(null, (f) => {
+  }), 'bbwProtectionS',
+  'Earliest weight stop (s) must be at least 8.0 s (Retare window 5.0 s + 3 s, Tare).');
+  svOne(svValidate(null, (f) => {
     f.bbwProtectionS.value = '2';
-  });
-  svAssert.equal(svH2.errors.length, 1, JSON.stringify(svH2.errors));
-  svAssert.equal(svH2.errors[0].msg, 'BBW protection (s) must be at least 3.0 s.');
+  }), 'bbwProtectionS', 'Earliest weight stop (s) must be at least 3.0 s.');
 
-  // (i)/(j) The A→M ceiling conflict blames the edited side: the wall side
-  // gets "at least", the limit side gets the capped range wording.
-  const svI = svValidate((f) => {
-    f.operationalWallS.value = '40';
-  }, (f) => {
-    f.autoToManualGuardManualLimitS.value = '45';
-    f.maxBbwBrewTimeS.value = '20';
-  });
-  svAssert.equal(svI.errors.length, 1, JSON.stringify(svI.errors));
-  svAssert.equal(svI.errors[0].msg,
-    'Max BBW time (s) must be at least 45 s (Manual limit, A→M time guard).');
-  const svJ = svValidate((f) => {
-    f.autoToManualGuardManualLimitS.value = '70';
-  });
-  svAssert.deepEqual(svJ.errors.map((e) => e.id),
-    ['autoToManualGuardManualLimitS', 'autoToManualGuardManualLimitS']);
-  svAssert.equal(svJ.errors[1].msg,
-    'Manual limit (s) must be from 10 s to 45 s (up to Max BBW time, Brew by Weight).');
-
-  // (g) Rule-table completeness against the relation inventory: eleven rules
-  // (ten two-sided plus the single-sided retare floor), every referenced
-  // field a real Settings input with the steps the phrasing depends on, and
-  // every section reference a real section summary.
-  svAssert.equal(svA.rules.length, 11);
+  // (g) Rule-table completeness: three two-sided rules plus the single-sided
+  // retare floor, every referenced field a real Settings input with the steps
+  // the phrasing depends on, and every section a real section summary.
+  svAssert.equal(svA.rules.length, 4);
   svAssert.ok(svA.rules.some((r) => r[1] === 'retareFloor'));
-  for (const [id, step] of [['goalWeightG', '0.1'], ['operationalWallS', '1'],
-    ['bbwProtectionS', '0.1'], ['maxRecoveryWeightG', '0.1'],
-    ['minBbwBrewTimeS', '0.5'], ['minRecoveryWeightG', '0.1'],
-    ['maxBbwBrewTimeS', '0.5'], ['autoToManualGuardManualLimitS', '1'],
-    ['autoToManualGuardBaselineS', '1']]) {
+  for (const [id, [, step]] of Object.entries(svFieldSpec)) {
+    if (!step || id === 'weightOffsetBaselineG' || id === 'bbwAlphaBaseline') continue;
     const input = settingsHtml.match(new RegExp('id="' + id + '"[^>]*'));
     svAssert.ok(input, 'Settings input missing: ' + id);
     svAssert.ok(input[0].includes('step="' + step + '"'),
       id + ' must keep step ' + step + ' for message precision');
   }
-  for (const section of ['Brew by Weight', 'Fast extraction guard',
-    'Slow extraction guard', 'A→M time guard', 'Tare'])
+  for (const section of ['Recipe', 'Fast shots', 'Slow shots', 'Shot limits', 'Tare'])
     svAssert.ok(settingsHtml.includes('>' + section + '</summary>'),
       'Settings section summary missing: ' + section);
   svAssert.ok(codeIncludes(runtimeJs, 'const errs = validateBrewClient(); if (errs.length) {') &&
@@ -259,14 +217,15 @@
   // guard gating; the engine harness proves signature-skip rendering and the
   // conflict chip.
   {
-    // (w1) Editing only Target into conflict shows the same single verdict
-    // the save would produce, and the empty-field result is suppressed.
+    // (w1) Shrinking Target below four times the extra yield shows the same
+    // single verdict the save would produce, on the margin it invalidated;
+    // the empty-field result is suppressed.
     const w1 = svValidate((f) => {
       f.goalWeightG.value = '10';
     });
     svAssert.equal(w1.warnings.length, 1, JSON.stringify(w1.warnings));
     svAssert.equal(w1.warnings[0].msg,
-      'Target (g) must be greater than 34.0 g (Min recovery, Slow extraction guard).');
+      'Extra yield, up to (g) must not exceed 2.5 g (25 % of Target yield, Recipe).');
     const w1Empty = svValidate((f) => {
       f.goalWeightG.value = '';
     });
@@ -276,15 +235,15 @@
 
     // (w2) Resolving the other side clears the whole set without saving.
     const w2 = svValidate((f) => {
-      f.goalWeightG.value = '33';
-      f.minRecoveryWeightG.value = '32';
+      f.goalWeightG.value = '10';
+      f.fastMarginG.value = '2.5';
     });
     svAssert.deepEqual(w2.warnings, [], JSON.stringify(w2.warnings));
 
     // (w3) A disabled guard keeps producing no warnings at all.
     const w3 = svValidate((f) => {
       f.fastExtractionGuardEnabled.checked = false;
-      f.maxRecoveryWeightG.value = '5';
+      f.fastMarginG.value = '50';
     });
     svAssert.deepEqual(w3.warnings, []);
 

@@ -1,7 +1,7 @@
 # La Marzocco Linea Micra
 
 Firmware built for the **La Marzocco Linea Micra** shows its controls in
-**Settings → Machine and scale → La Marzocco Linea Micra**. Other machine
+**Settings → Shared settings → La Marzocco Linea Micra**. Other machine
 profiles omit the panel and its diagnostics.
 
 The integration reads the selected machine through La Marzocco's cloud
@@ -450,7 +450,7 @@ connected scale regardless of brand.
 
 ## Brew temperature in presets
 
-**Allow brew boiler temperature in presets** reveals a per-preset value from
+**Store brew boiler temperature in presets** reveals a per-preset value from
 80.0 to 100.0 °C in 0.1 °C steps. New and factory-reset presets start at 93.0 °C;
 duplicates copy the source value. Turning the option off or disconnecting the
 account keeps every saved preset value.

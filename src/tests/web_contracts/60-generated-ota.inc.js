@@ -410,8 +410,11 @@ if (cssRoundTrip !== generated.css) {
 // partial carried by the shell HTML (pencil button, inert sheet and backdrop):
 // +303 measured bytes. Cap raised to 4200; firmware image and OTA limits stay
 // fixed.
-if (generated.gzip.length > 4200) {
-  throw new Error('Compressed Web UI shell HTML exceeds the 4200-byte gzip budget');
+// The smooth-cut Home partial (pills-only hero, grind-hint and scale-loss
+// discovery cards, accordion pencil) measures 4440 bytes, owner-authorized
+// 2026-10-14. Cap raised to 4500.
+if (generated.gzip.length > 4500) {
+  throw new Error(`Compressed Web UI shell HTML exceeds the 4500-byte gzip budget (${generated.gzip.length})`);
 }
 if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
     !generated.html
@@ -493,8 +496,10 @@ if (generated.jsGzip.length > 5420) {
 // measures 11721. Cap raised to 11800.
 // The audit viewer's clickable rows, focus/hover tint, and detail-row styles
 // measure 11802. Cap raised to 11900.
-if (generated.cssGzip.length > 11900) {
-  throw new Error('Compressed Web CSS exceeds the 11900-byte gzip budget');
+// The smooth-cut styles (review graph, verdict pills, action bar, grind-hint
+// and discovery cards) measure 13107 bytes, owner-authorized 2026-10-14.
+if (generated.cssGzip.length > 13200) {
+  throw new Error(`Compressed Web CSS exceeds the 13200-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -588,8 +593,10 @@ if (generated.cssGzip.length > 11900) {
 // progressive page fill, fixed-position popover with live filtering and
 // quick reset) measure +814 compressed bytes. Cap raised to 51500
 // (pre-authorized raise, 2026-10-09).
-if (sentinelRuntimeGzip.length > 51500) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 51500-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The smooth-cut runtime (cut-line model, review graph, validation, hero and
+// cards) measures 56658 bytes, owner-authorized 2026-10-14.
+if (sentinelRuntimeGzip.length > 56800) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 56800-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -621,7 +628,7 @@ if (generated.secondaryGzip.length > 10900) {
   throw new Error(`Compressed secondary view JS exceeds the 10900-byte gzip budget (${generated.secondaryGzip.length})`);
 }
 if (generated.settingsGzip.length > 4096) {
-  throw new Error('Compressed settings view JS exceeds the 4 KiB gzip budget');
+  throw new Error(`Compressed settings view JS exceeds the 4 KiB gzip budget (${generated.settingsGzip.length})`);
 }
 // The PWA manifest and the 192 px home-screen icon are additive embedded
 // assets; they raise the combined cap from 66500 bytes. The 48 px favicon
@@ -754,8 +761,12 @@ if (generated.icon48Gzip.length > 3500) {
 // styles, page-state renderer, selection-preserving fingerprint) measure
 // 136315 combined. Cap raised to 136500; firmware image, memory placement,
 // and OTA partition limits stay fixed.
-if (generated.combined > 136500) {
-  throw new Error(`Combined Web UI gzip exceeds the 136500-byte flash budget (${generated.combined})`);
+// The smooth-cut Web UI (preset editor and review graph, Home pills and
+// cards, Shared settings regrouping, locales) measures 143513 combined,
+// owner-authorized 2026-10-14. Cap raised to 143700; the firmware image
+// allowance is raised alongside, OTA partition limits stay fixed.
+if (generated.combined > 143700) {
+  throw new Error(`Combined Web UI gzip exceeds the 143700-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
@@ -940,65 +951,57 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   if (start < 0 || end < 0 || end <= start) {
     throw new Error('Rule chart model helpers not found for matrix checks');
   }
-  const helpers = new Function(
+  const presetState = {cutRampS: 5};
+  const helpers = new Function('presetState',
       js.slice(start, end) +
-      ';return{buildRuleChartModel:buildRuleChartModel};')();
+      ';return{buildRuleChartModel:buildRuleChartModel,cutLine:cutLine};')(presetState);
   const base = {
     brewByWeight: true,
     fastExtractionGuardEnabled: true,
     slowExtractionGuardEnabled: true,
     operationalWallMs: 50000,
-    minBbwBrewTimeMs: 28000,
-    maxBbwBrewTimeMs: 44000,
+    fastBeforeS: 28,
+    slowAfterS: 44,
     bbwProtectionMs: 12000,
     goalWeightG: 36,
-    minRecoveryWeightG: 34,
-    maxRecoveryWeightG: 42.5,
+    fastMarginG: 6.5,
+    slowMarginG: 2,
   };
   const off = helpers.buildRuleChartModel({...base, brewByWeight: false});
-  if (off.mode !== 'timerOnly' || off.fast || off.slow) {
-    throw new Error('Rule chart: BBW off must be timerOnly (ignore guard flags)');
+  if (off.mode !== 'timerOnly') {
+    throw new Error('Rule chart: BBW off must be timerOnly');
   }
   const both = helpers.buildRuleChartModel(base);
   if (both.mode !== 'active' || !both.fast || !both.slow ||
-      both.tMin !== 28 || both.tMax !== 44 ||
-      both.prot !== 12 || both.goal !== 36 || both.floor !== 34 ||
-      both.ceil !== 42.5) {
+      both.t1 !== 28 || both.t2 !== 44 || both.prot !== 12 || both.wall !== 50 ||
+      both.goal !== 36 || both.floor !== 34 || both.ceil !== 42.5 || both.d !== 5) {
     throw new Error('Rule chart: every limit must come from settings, never baked in');
   }
-  const fastOnly = helpers.buildRuleChartModel({
-    ...base, slowExtractionGuardEnabled: false
-  });
-  if (fastOnly.fast !== true || fastOnly.slow !== false) {
-    throw new Error('Rule chart: Fast on / Slow off flags failed');
-  }
-  const slowOnly = helpers.buildRuleChartModel({
-    ...base, fastExtractionGuardEnabled: false
-  });
-  if (slowOnly.fast !== false || slowOnly.slow !== true) {
-    throw new Error('Rule chart: Fast off / Slow on flags failed');
+  // The cut line holds the ceiling until t1 - D, ramps to the target at t1,
+  // holds it through the window and ramps down to the floor by t2 + D.
+  const line = (t) => helpers.cutLine(t, both);
+  if (line(12) !== 42.5 || line(23) !== 42.5 || line(28) !== 36 || line(44) !== 36 ||
+      line(49) !== 34 || line(50) !== 34 || !(line(25.5) < 42.5 && line(25.5) > 36) ||
+      line(25.5) !== 39.2 || !(line(46.5) < 36 && line(46.5) > 34)) {
+    throw new Error('Rule chart: the cut line must follow the firmware smoothstep law');
   }
   const none = helpers.buildRuleChartModel({
     ...base, fastExtractionGuardEnabled: false,
     slowExtractionGuardEnabled: false
   });
-  if (none.fast !== false || none.slow !== false || none.mode !== 'active') {
-    throw new Error('Rule chart: both guards off must stay BBW-active');
+  if (none.fast !== false || none.slow !== false || none.mode !== 'active' ||
+      none.ceil !== 36 || none.floor !== 36 || helpers.cutLine(20, none) !== 36) {
+    throw new Error('Rule chart: both sides off must cut at the target');
   }
-  const noProtection = helpers.buildRuleChartModel({...base, bbwProtectionMs: undefined});
-  if (noProtection.prot !== 0) {
-    throw new Error('Rule chart: missing protection time must fall back to 0');
+  for (const bad of [{bbwProtectionMs: undefined}, {fastBeforeS: 12}, {slowAfterS: 28},
+    {operationalWallMs: 44000}]) {
+    if (helpers.buildRuleChartModel({...base, ...bad}).mode !== 'empty') {
+      throw new Error('Rule chart: an incomplete or out-of-order recipe must render nothing');
+    }
   }
-  const clamped = helpers.buildRuleChartModel({...base, bbwProtectionMs: 90000});
-  if (clamped.prot !== 28) {
-    throw new Error('Rule chart: protection time must clamp to the fast gate');
-  }
-  const ignoredGuards = helpers.buildRuleChartModel({
-    ...base, brewByWeight: false, fastExtractionGuardEnabled: true,
-    slowExtractionGuardEnabled: true
-  });
-  if (ignoredGuards.mode !== 'timerOnly' || ignoredGuards.fast) {
-    throw new Error('Rule chart: guards must be ignored when BBW is off');
+  presetState.cutRampS = undefined;
+  if (helpers.buildRuleChartModel(base).mode !== 'empty') {
+    throw new Error('Rule chart: the ramp length comes from the firmware');
   }
   const empty = helpers.buildRuleChartModel(null);
   if (empty.mode !== 'empty') {
@@ -1134,14 +1137,12 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   assert.deepEqual(slope.flowSegs[0].pts.map(p=>p.cg),[100,200,300],'no additional chart smoothing');
   const spike=model({wAtMs:[0,500,1000,1500,2000],wCg:[0,0,500,0,0],durationS:2});
   assert.deepEqual(spike.flowCurve,[null,null,5,0,0]);assert.equal(spike.maxFlow,5);
-  for (const flag of ['extractionExtended','slowExtractionExtended']) {
-    const colored=model(trace([0,500,1000,1500,2000,2500],{extendedS:1.2,extCg:9000,[flag]:true}));
+  // A shot is coloured by its own stored verdict, never re-judged later.
+  for (const [verdict,color] of [['fast','#d97706'],['slow','#6492d7']]) {
+    const colored=model(trace([0,500,1000,1500,2000,2500],{extendedS:1.2,extCg:9000,verdict}));
     assert.deepEqual(colored.flowCurve,[null,null,2,2,2,2]);
     assert.equal(colored.maxFlow,2);
-    assert.equal(colored.flowSegs.length,2);
-    assert.equal(colored.flowSegs[0].pts.at(-1).t,1.2);
-    assert.equal(colored.flowSegs[1].pts[0].t,1.2);
-    assert.equal(colored.flowSegs[1].color,flag==='extractionExtended'?'#d97706':'#6492d7');
+    assert.ok(colored.flowSegs.length>0&&colored.flowSegs.every(s=>s.color===color));
     colored.flowSegs.flatMap(s=>s.pts).forEach(p=>close(p.cg,200));
   }
   const atm=model(trace([0,500,1000,1500,2000,2500,3000,3500,4000],{atmS:1.2,atmCg:200,atmClearedS:2.2}));

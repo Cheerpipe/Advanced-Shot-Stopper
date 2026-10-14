@@ -514,13 +514,36 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   if (canonical ? latest.tareAtDs != SHOT_LOG_METRIC_MISSING
                 : card.tareElapsedMs != 0)
     snprintf(tare, sizeof(tare), "%lu", static_cast<unsigned long>(card.tareElapsedMs));
+  // Smooth-cut result: the stored verdict and cut line of a finished shot,
+  // or the scale-loss backup state of the live one. A scale-loss yield is
+  // estimated only when the flow projection chose the stop time.
+  char cutG[16] = "null", scaleLoss[80] = "null";
+  if (canonical) {
+    if (latest.cutLineCg > 0 &&
+        corridor::weightCutReason(shotLogArrivalRecord(latest).endReason))
+      snprintf(cutG, sizeof(cutG), "%.2f", latest.cutLineCg / 100.0);
+    if (latest.stopDetail == static_cast<uint8_t>(ShotLogStopDetail::AUTO_TO_MANUAL)) {
+      char estimate[16] = "null";
+      if (corridor::lossSourceOf(latest.verdict) == corridor::LossSource::PROJECTION)
+        snprintf(estimate, sizeof(estimate), "%.2f", latest.cutLineCg / 100.0);
+      snprintf(scaleLoss, sizeof(scaleLoss),
+               "{\"state\":\"finished\",\"stopAtS\":%.1f,\"estimatedG\":%s}",
+               latest.durationDs / 10.0, estimate);
+    }
+  } else if (live && control.cycleAutoToManualGuardEnforced) {
+    snprintf(scaleLoss, sizeof(scaleLoss), "{\"state\":\"lost\",\"stopAtS\":%.1f}",
+             (card.durationMs + control.cycleAutoToManualGuardRemainingMs) / 1000.0);
+  } else if (live && curve.atmClearedMs != SHOT_LOG_METRIC_MISSING) {
+    strcpy(scaleLoss, "{\"state\":\"recovered\"}");
+  }
   char *output = workBuf_->jsonItem;
   const int cardBytes = snprintf(output, NetworkWorkBuf::kJsonItem,
       "\"phase\":\"%s\",\"card\":{\"valid\":%s,\"live\":%s,\"weight\":%s,"
       "\"goal\":%.1f,\"elapsedMs\":%lu,\"firstDropMs\":%s,"
       "\"tareMs\":%s,\"presetName\":\"%s\","
       "\"scaleAvailable\":%s,\"shotType\":\"%s\",\"endReason\":\"%s\",\"averageFlowGps\":%s,"
-      "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,\"touchHold\":%s}",
+      "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,\"touchHold\":%s,"
+      "\"verdict\":%s,\"channeling\":%s,\"cutG\":%s,\"scaleLoss\":%s}",
       phase, card.valid ? "true" : "false", control.activeCycle ? "true" : "false",
       weight, static_cast<double>(goalWeightDgToGrams(card.goalWeightDg)),
       static_cast<unsigned long>(card.durationMs), drop, tare, preset,
@@ -532,7 +555,10 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
       flow, card.extractionExtended ? "true" : "false",
       card.slowExtractionExtended ? "true" : "false",
       control.activeCycle && control.cycleAccidentalTouchHolding ? "true"
-                                                                 : "false");
+                                                                 : "false",
+      canonical ? shotLogVerdictJson(latest.verdict) : "null",
+      canonical && corridor::channelingOf(latest.verdict) ? "true" : "false",
+      cutG, scaleLoss);
   if (cardBytes <= 0 || static_cast<size_t>(cardBytes) >= NetworkWorkBuf::kJsonItem)
     return true;
   const uint32_t markers = crc32Update(0xFFFFFFFFU,

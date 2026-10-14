@@ -101,8 +101,10 @@
     'Opening from the URL must strip the one-shot parameter');
   qwAssert.ok(codeIncludes(qwHomeJs, 'return { open, close };'),
     'The controller must expose open for the URL launcher');
-  qwAssert.ok(codeIncludes(qwHomeJs, '+item.dataset.id === R.presetState.activeId'),
-    'The accordion Target tap must match only the already-active preset row');
+  qwAssert.ok(codeIncludes(runtimeJs,
+      'if (p.id === presetState.activeId && m.mode === "active" && svg) {') &&
+      codeIncludes(qwHomeJs, 'e.target.closest(".presetAccEdit") && open()'),
+    'Only the already-active preset row may offer the quick-weight pencil');
 
   qwAssert.ok(/position:fixed[^}]*bottom:0/.test(qwCssRule('qwSheet')) &&
       /backdrop-filter:blur\(18px\)/.test(css),
@@ -129,13 +131,13 @@
     const qwLookup = (id) => {
       if (id === 'shotHero') return qwRoot;
       if (!qwElements.has(id))
-        qwElements.set(id, {hidden: false, textContent: '', style: {setProperty() {}},
+        qwElements.set(id, {hidden: false, textContent: '', dataset: {}, style: {setProperty() {}},
           classList: {toggle() {}, contains() {return false;}}, setAttribute() {},
           replaceChildren() {}});
       return qwElements.get(id);
     };
     const qwPaint = new Function('$', 'buildShotSparkModel', 'formatShotEnded', 'ms',
-      runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),
+      blockAt(runtimeJs, 'function verdictLabel(') + runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),
           runtimeJs.indexOf('function shotPresetName(')) + ';return renderShotHero;')(
         qwLookup, () => null, () => '', (v, n) => (v / 1000).toFixed(n));
     const qwCard = {live: false, weight: 36.2, goal: 36, elapsedMs: 36800,
@@ -318,26 +320,16 @@
     qwFire(qwEls.qwSheet, 'keydown', {key: 'Escape'});
     await new Promise((r) => setTimeout(r, 0));
 
-    // The active row's Target text is the third invocation point; other rows
-    // keep the accordion head's select behavior. The dispatch compares the
-    // row's preset id against the stream-maintained activeId, so a row that
-    // applyPreset just marked .open still cannot trigger the sheet.
-    const qwAccTap = (id) => ({
-      closest: (sel) => (sel === '.presetAccTarget'
-        ? {closest: (sel2) => (sel2 === '.presetAccItem' ? {dataset: {id}} : null)}
-        : null),
-    });
+    // The pencil on the active row's target is the third invocation point;
+    // only the active row renders it, and taps elsewhere never open the sheet.
     const qwAccClick = (target) =>
       (qwAccListeners.click || []).forEach((fn) => fn({target}));
-    qwAccClick(qwAccTap('5'));
-    qwAssert.ok(!qwEls.qwSheet.classes.has('open'),
-      'A non-active row Target must not open the sheet');
     qwAccClick({closest: () => null});
     qwAssert.ok(!qwEls.qwSheet.classes.has('open'),
-      'Taps off the Target text must not open the sheet');
-    qwAccClick(qwAccTap('2'));
+      'Taps off the pencil must not open the sheet');
+    qwAccClick({closest: (sel) => (sel === '.presetAccEdit' ? {} : null)});
     qwAssert.ok(qwEls.qwSheet.classes.has('open'),
-      'The already-active row Target text must open the sheet');
+      'The active row pencil must open the sheet');
     qwAssert.equal(qwEls.qwNum.textContent, '36.0',
       'The sheet still opens at the active preset goal');
     qwFire(qwEls.qwSheet, 'keydown', {key: 'Escape'});
@@ -379,22 +371,23 @@
       'A short grab drag must keep the sheet open');
     qwAssert.equal(qwRuntime.saved, 2, 'An unchanged sheet must not save on wiggle');
 
-    // Guard-bounded range: with both guards enabled the dial may only offer
-    // targets strictly inside the recovery weights, the limit pills mark the
-    // two ends, and the ruler tints reference zones outside the range.
+    // Margin-bounded range: with both sides on the dial offers only targets
+    // the firmware accepts for these margins (target ≥ 4 × extra yield and
+    // ≥ less yield + 5 g; target + extra yield ≤ 200 g), the limit pills mark
+    // the two ends, and the ruler tints reference zones outside the range.
     qwRuntime.presetState.items = [{
       id: 2, name: 'Espresso', goalWeightG: 36,
-      slowExtractionGuardEnabled: true, minRecoveryWeightG: 32,
-      fastExtractionGuardEnabled: true, maxRecoveryWeightG: 42,
+      slowExtractionGuardEnabled: true, slowMarginG: 3,
+      fastExtractionGuardEnabled: true, fastMarginG: 8,
     }];
     const qwZoneAttrs = {};
     qwEls.qwZone.setAttribute = (k, v) => { qwZoneAttrs[k] = String(v); };
     qwEls.shotGoalEdit.onclick();
     qwAssert.equal(qwEls.qwNum.textContent, '36.0', 'The sheet opens at the in-range goal');
-    qwAssert.equal(qwZoneAttrs['aria-valuemin'], '32.1',
-      'The slider floor sits one decigram above the Slow minimum recovery');
-    qwAssert.equal(qwZoneAttrs['aria-valuemax'], '41.9',
-      'The slider ceiling sits one decigram below the Fast maximum recovery');
+    qwAssert.equal(qwZoneAttrs['aria-valuemin'], '32.0',
+      'The slider floor keeps the extra yield within a quarter of the target');
+    qwAssert.equal(qwZoneAttrs['aria-valuemax'], '192.0',
+      'The slider ceiling keeps target plus extra yield within 200 g');
     qwAssert.equal(qwEls.qwLimitMin.hidden, true, 'The floor pill starts hidden');
     qwAssert.equal(qwEls.qwLimitMax.hidden, true, 'The ceiling pill starts hidden');
     const qwStrip = qwEls.qwScale.children[0].children;
@@ -403,25 +396,20 @@
       'In-range gram labels tint BBW green');
     qwAssert.ok(qwLabel('30') && qwLabel('30').classes.has('zSlow'),
       'Labels below the range tint Slow blue');
-    qwAssert.ok(qwLabel('45') && qwLabel('45').classes.has('zFast'),
+    qwAssert.ok(qwLabel('195') && qwLabel('195').classes.has('zFast'),
       'Labels above the range tint Fast amber');
     qwAssert.ok(!qwLabel('5') && !qwLabel('205'),
       'Filler ticks past the firmware bounds stay unlabeled');
     qwAssert.ok(qwStrip.some((n) => !n._text && n.classes.has('zOk')),
       'Minor ticks inside the range tint green as well');
-    qwDragZone([[600, 5], [600, 5], [600, 5], [600, 5]]);
-    qwAssert.equal(qwEls.qwNum.textContent, '41.9',
-      'The drag clamps one decigram below the Fast maximum recovery');
-    qwAssert.equal(qwEls.qwLimitMax.hidden, false,
-      'The ceiling pill appears at the top of the target range');
     qwDragZone([[-600, 5], [-600, 5], [-600, 5], [-600, 5]]);
-    qwAssert.equal(qwEls.qwNum.textContent, '32.1',
-      'The drag clamps one decigram above the Slow minimum recovery');
+    qwAssert.equal(qwEls.qwNum.textContent, '32.0',
+      'The drag clamps at the lowest target the margins allow');
     qwAssert.equal(qwEls.qwLimitMin.hidden, false,
       'The floor pill appears at the bottom of the target range');
     qwAssert.ok(qwEls.qwLimitMin.classes.has('toneSlow') &&
         qwEls.qwLimitMax.classes.has('toneFast'),
-      'Limit pills adopt the tint of the guard that bounds them');
+      'Limit pills adopt the tint of the side that bounds them');
     qwEls.qwReset.onclick();
     qwFire(qwEls.qwSheet, 'keydown', {key: 'Escape'});
     await new Promise((r) => setTimeout(r, 0));
