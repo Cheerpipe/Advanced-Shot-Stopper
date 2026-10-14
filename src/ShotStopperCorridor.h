@@ -34,7 +34,8 @@ constexpr uint8_t MAD_MIN_INNOVATIONS = 4;
 constexpr uint8_t MAX_CONSECUTIVE_REJECTIONS = 2;
 constexpr int32_t VERDICT_DEAD_BAND_MS = 500;
 constexpr int32_t ARRIVAL_CLAMP_MS = 5000;
-constexpr int32_t CHANNELING_RATE_X100 = 5000;
+// Replay-tuned (W3.1): 30 dg/s catches late surges a 50 dg/s floor misses.
+constexpr int32_t CHANNELING_RATE_X100 = 3000;
 constexpr int32_t CHANNELING_BASE_RATE_X100 = 500;
 constexpr int32_t CHANNELING_LOOKBACK_MS = 1000;
 constexpr uint8_t CHANNELING_CONFIRM_SAMPLES = 2;
@@ -244,7 +245,7 @@ struct RateEstimator {
     valid = true;
   }
 
-  // Predicate on consecutive accepted samples: q_raw >= 50 dg/s and >= 1.5x
+  // Predicate on consecutive accepted samples: q_raw >= 30 dg/s and >= 1.5x
   // the q_raw at least 1 s earlier, which itself was >= 5 dg/s.
   void updateChanneling() {
     bool surge = false;
