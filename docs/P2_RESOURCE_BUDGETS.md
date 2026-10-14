@@ -233,6 +233,12 @@ bytes, the flash-code allowance to 44,344 bytes and the rodata allowance to
 The Web UI follow-ups (review-graph window lines, toolbar spacing, hero
 copy) bring rodata to 623,980 bytes (36,628 over baseline); its allowance
 moves to 36,692 bytes.
+The Home **Stop the shot** card that replaces Quick Settings brings the
+reference development Micra build to 2,351,296 image, 2,351,171 linked,
+1,558,428 flash-code and 625,164 rodata bytes — 77,536/77,524/43,328/37,812
+over baseline. The image/linked allowances move to 77,600/77,588 bytes and the
+rodata allowance to 37,876 bytes, keeping the 64-byte headroom; flash-code
+stays inside its allowance.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
