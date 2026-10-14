@@ -66,7 +66,8 @@ class ShotLog
 
   // Smooth-cut arrival statistics of one preset since its epoch (plan §4.8).
   // Caller holds the store mutex.
-  corridor::ArrivalStats arrivalStats(uint8_t presetId, uint32_t epoch) const {
+  corridor::ArrivalStats arrivalStats(uint8_t presetId, uint32_t epoch,
+                                      int32_t *arrivalsOut = nullptr) const {
     const size_t count = store_.header.count;
     const size_t first =
         (store_.header.writeIndex + SHOT_LOG_CAPACITY - count) % SHOT_LOG_CAPACITY;
@@ -75,7 +76,7 @@ class ShotLog
         [this, first](size_t i) {
           return shotLogArrivalRecord(store_.records[(first + i) % SHOT_LOG_CAPACITY]);
         },
-        presetId, epoch);
+        presetId, epoch, arrivalsOut);
   }
 
   ShotStatsView statsView() const {

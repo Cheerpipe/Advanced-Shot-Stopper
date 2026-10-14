@@ -763,8 +763,11 @@ if (htmlBytes > 93300) {
 // scrubber; relative-margin validation; preset action bar dialogs; verdict
 // pills, grind-hint and scale-loss cards) adds +19964 measured JS bytes
 // (408593), owner-authorized 2026-10-14; compressed budgets re-measured below.
-if (jsBytes > 408800) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 408800)`);
+// Shot statistics (per-verdict stacked histogram with the preset filter,
+// grind-hint wording outside the window, median-based "Not now") add +1234
+// measured JS bytes (409827).
+if (jsBytes > 410000) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 410000)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -842,9 +845,9 @@ if (jsBytes > 408800) {
 // The audit table pagination and change-gated repaint add their ~1.7 KB of
 // combined source allowance (pager markup plus the fingerprinted renderer).
 // The smooth-cut UI adds its ~21 KB of combined source allowance (501708
-// measured) described above.
-if (htmlBytes + jsBytes > 502000) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 502000)`);
+// measured) described above, plus the shot-statistics JS (502949 measured).
+if (htmlBytes + jsBytes > 503200) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 503200)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

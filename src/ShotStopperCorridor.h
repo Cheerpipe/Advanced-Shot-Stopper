@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "ShotStopperBrewTypes.h"
 
@@ -348,6 +349,7 @@ struct ArrivalRecord {
   uint8_t endReason = 0;
   uint8_t verdict = 0;  // packed
   int32_t arrivalMs = 0;
+  int32_t firstDropMs = 0;  // 0 = not measured
 };
 
 struct ArrivalStats {
@@ -358,6 +360,8 @@ struct ArrivalStats {
   int32_t sigmaMs = 0;
   uint8_t recentN = 0;
   int32_t recentMedianMs = 0;
+  uint16_t total = 0;       // admissible shots since the epoch
+  int32_t firstDropMs = 0;  // median measured first drop, 0 = none
 };
 
 inline bool admissibleArrival(const ArrivalRecord &r, uint8_t presetId, uint32_t epoch) {
@@ -368,15 +372,18 @@ inline bool admissibleArrival(const ArrivalRecord &r, uint8_t presetId, uint32_t
 
 // Statistics over the newest <= 10 admissible arrivals of one preset; rowAt(i)
 // returns the i-th ArrivalRecord in any order (no copy of the whole log).
+// arrivalsOut, when given, receives the n kept arrivals in ascending order.
 template <typename RowAt>
 inline ArrivalStats arrivalStatsOf(size_t count, RowAt rowAt, uint8_t presetId,
-                                   uint32_t epoch) {
+                                   uint32_t epoch, int32_t *arrivalsOut = nullptr) {
   uint32_t ids[STATS_MAX_SHOTS] = {};
-  int32_t times[STATS_MAX_SHOTS] = {};
+  int32_t times[STATS_MAX_SHOTS] = {}, drops[STATS_MAX_SHOTS] = {};
   uint8_t n = 0;
+  uint16_t total = 0;
   for (size_t i = 0; i < count; ++i) {
     const ArrivalRecord r = rowAt(i);
     if (!admissibleArrival(r, presetId, epoch)) continue;
+    if (total < UINT16_MAX) ++total;
     uint8_t slot = n;
     if (n == STATS_MAX_SHOTS) {
       slot = 0;  // replace the oldest kept if this one is newer
@@ -387,13 +394,22 @@ inline ArrivalStats arrivalStatsOf(size_t count, RowAt rowAt, uint8_t presetId,
     }
     ids[slot] = r.recordId;
     times[slot] = r.arrivalMs;
+    drops[slot] = r.firstDropMs;
   }
   ArrivalStats out;
   out.n = n;
+  out.total = total;
   if (n == 0) return out;
-  int32_t sorted[STATS_MAX_SHOTS];
-  for (uint8_t i = 0; i < n; ++i) sorted[i] = times[i];
+  int32_t sorted[STATS_MAX_SHOTS], measured[STATS_MAX_SHOTS];
+  uint8_t dropN = 0;
+  for (uint8_t i = 0; i < n; ++i) {
+    sorted[i] = times[i];
+    if (drops[i] > 0) measured[dropN++] = drops[i];
+  }
   sortSmall(sorted, n);
+  if (arrivalsOut) memcpy(arrivalsOut, sorted, n * sizeof(int32_t));
+  sortSmall(measured, dropN);
+  if (dropN) out.firstDropMs = medianOfSorted(measured, dropN);
   out.minMs = sorted[0];
   out.maxMs = sorted[n - 1];
   out.medianMs = medianOfSorted(sorted, n);

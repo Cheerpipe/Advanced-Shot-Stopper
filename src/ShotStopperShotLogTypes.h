@@ -176,6 +176,12 @@ inline const char *shotLogStopDetailName(ShotLogStopDetail detail) {
   return "unknown";
 }
 
+// One preset's shot statistics for the Web UI (plan §4.10).
+struct PresetShotStats {
+  corridor::ArrivalStats stats;
+  int32_t arrivalsMs[corridor::STATS_MAX_SHOTS] = {};
+};
+
 // JSON values (quoted, or null) of the packed corridor verdict byte.
 inline const char *shotLogVerdictJson(uint8_t packed) {
   switch (packed & 3) {
@@ -415,6 +421,8 @@ inline corridor::ArrivalRecord shotLogArrivalRecord(const ShotLogRecord &record)
   out.verdict = record.verdict;
   out.arrivalMs = record.arrivalDs == SHOT_LOG_METRIC_MISSING
       ? 0 : static_cast<int32_t>(record.arrivalDs) * 100;
+  out.firstDropMs = record.firstDropDs == SHOT_LOG_METRIC_MISSING
+      ? 0 : static_cast<int32_t>(record.firstDropDs) * 100;
   return out;
 }
 

@@ -143,6 +143,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     } else {
       memset(&g_work->presetBank, 0, sizeof(g_work->presetBank));
     }
+    copyPresetStatsForJson(self.callbacks_, g_work->presetBank);
     buildSlimPresetsJson(g_work->presetBank);
   } else {
     g_work->presetsJson[0] = '{';
@@ -329,7 +330,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"operationalWallMs\":%lu,\"fastExtractionGuardEnabled\":%s,"
         "\"fastMarginG\":%.1f,\"fastBeforeS\":%.1f,"
         "\"slowExtractionGuardEnabled\":%s,\"slowMarginG\":%.1f,"
-        "\"slowAfterS\":%.1f,\"scaleLossFixedS\":%.1f,"
+        "\"slowAfterS\":%.1f,\"scaleLossFixedS\":%.1f,\"doseG\":%.1f,"
+        "\"grindHintsEnabled\":%s,"
         "\"autoToManualGuardEnabled\":%s,\"cupProtectionEnabled\":%s,"
         "\"stopIfCupRemoved\":%s,\"requireCupToStart\":%s,"
         "\"avoidAccidentalTouchEnabled\":%s,"
@@ -392,6 +394,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<double>(goalWeightDgToGrams(control.config.slowMarginDg)),
         control.config.slowAfterMs / 1000.0,
         control.config.scaleLossFixedMs / 1000.0,
+        // Preset-only recipe fields come from the active preset.
+        static_cast<double>(goalWeightDgToGrams(activeShotPreset(g_work->presetBank).doseDg)),
+        activeShotPreset(g_work->presetBank).grindHintsEnabled ? "true" : "false",
         control.config.scaleLossEnabled ? "true" : "false",
         control.config.cupProtectionEnabled ? "true" : "false",
         control.config.stopIfCupRemoved ? "true" : "false",

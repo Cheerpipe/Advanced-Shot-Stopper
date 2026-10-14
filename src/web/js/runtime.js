@@ -1288,32 +1288,46 @@ function renderStatsDurChart() {
     root.innerHTML =
       '<div class="ruleChartLegend" aria-hidden="true"><span class="ruleLeg ruleLegFast">' +
       __WEBUI_TEXT__("runtime.fast") +
-      '</span><span id="statsDurWindow" class="ruleLeg ruleLegBbw"></span><span class="ruleLeg ruleLegSlow">' +
+      '</span><span class="ruleLeg ruleLegBbw">' +
+      __WEBUI_TEXT__("runtime.verdict_on_recipe") +
+      '</span><span class="ruleLeg ruleLegSlow">' +
       __WEBUI_TEXT__("runtime.slow") +
-      '</span></div><div id="statsDurChartPlot" class="shotSparkHost"></div>';
+      '</span><span id="statsDurWindow" class="ruleLeg"></span><select id="statsPresetFilter" aria-label="' +
+      __WEBUI_TEXT__("runtime.stats_preset_filter") +
+      '"><option value="active">' +
+      __WEBUI_TEXT__("runtime.this_preset") +
+      '</option><option value="all">' +
+      __WEBUI_TEXT__("runtime.all_presets") +
+      '</option></select></div><div id="statsDurChartPlot" class="shotSparkHost"></div>';
     root.dataset.ready = "1";
+    $("statsPresetFilter").onchange = renderStatsDurChart;
   }
   const host = $("statsDurChartPlot");
   if (!host) return;
+  // Each shot keeps the verdict it was judged with; the window bands show
+  // only while every shown shot was judged against the same window.
   const presets = homeStatusCache()?.presets || presetState,
-    active = presets.items?.find((p) => p.id === presets.activeId),
+    filter = $("statsPresetFilter"),
+    only = filter && filter.value === "all" ? 0 : presets.activeId,
+    shots = (shotHistory.shots || []).filter(
+      (r) => r.arrivalS > 0 && r.verdict && (!only || r.presetId === only),
+    ),
+    shared = shots.length && shots.every((r) => r.fastBeforeS === shots[0].fastBeforeS && r.slowAfterS === shots[0].slowAfterS),
     BIN = 0.5,
     tMax = 6e4 / 1e3,
-    tLow = active ? active.fastBeforeS : 28,
-    tHigh = active ? active.slowAfterS : 32,
     bins = Math.round(tMax / BIN),
-    counts = new Array(bins).fill(0);
+    counts = Array.from({ length: bins }, () => ({ fast: 0, on_recipe: 0, slow: 0 }));
   let maxC = 0;
-  for (const d of active ? active.arrivalsS || [] : shotStats.durationsS || []) {
-    if (!isFinite(d) || d < 0) continue;
-    const i = Math.min(bins - 1, Math.floor(d / BIN));
-    counts[i]++;
-    if (counts[i] > maxC) maxC = counts[i];
+  for (const r of shots) {
+    const c = counts[Math.min(bins - 1, Math.floor(r.arrivalS / BIN))];
+    c[r.verdict]++;
+    maxC = Math.max(maxC, c.fast + c.on_recipe + c.slow);
   }
-  $("statsDurWindow").textContent = sub(__WEBUI_TEXT__("runtime.window_active_preset"), [tLow, tHigh]);
+  $("statsDurWindow").textContent = shared
+    ? sub(__WEBUI_TEXT__("runtime.window_label"), [shots[0].fastBeforeS, shots[0].slowAfterS])
+    : "";
   const scaleC = Math.max(maxC, 1),
-    colors = { bbw: "var(--ok)", fast: "#d97706", slow: "#6492d7" },
-    kind = (t) => (t < tLow ? "fast" : t <= tHigh ? "bbw" : "slow"),
+    colors = { on_recipe: "var(--ok)", fast: "#d97706", slow: "#6492d7" },
     L = axisLabel,
     W = 240,
     H = 36,
@@ -1322,55 +1336,30 @@ function renderStatsDurChart() {
     y = (c) => H - pad - (H - 2 * pad) * Math.max(0, Math.min(1, c / scaleC)),
     y0 = H - pad;
   let svg = '<svg class="shotSpark" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none">';
-  for (const s of [
-    [0, tLow, "fast"],
-    [tLow, tHigh, "bbw"],
-    [tHigh, tMax, "slow"],
-  ]) {
-    const c = colors[s[2]];
-    svg +=
-      '<path d="M' +
-      x(s[0]).toFixed(1) +
-      " " +
-      y0 +
-      " L" +
-      x(s[1]).toFixed(1) +
-      " " +
-      y0 +
-      '" fill="none" stroke="' +
-      c +
-      '" stroke-width="1.35" vector-effect="non-scaling-stroke" stroke-linecap="round"/>';
-  }
+  if (shared)
+    for (const [t0, t1, k] of [
+      [0, shots[0].fastBeforeS, "fast"],
+      [shots[0].fastBeforeS, shots[0].slowAfterS, "on_recipe"],
+      [shots[0].slowAfterS, tMax, "slow"],
+    ])
+      svg +=
+        '<path d="M' + x(t0).toFixed(1) + " " + y0 + " L" + x(t1).toFixed(1) + " " + y0 +
+        '" fill="none" stroke="' + colors[k] +
+        '" stroke-width="1.35" vector-effect="non-scaling-stroke" stroke-linecap="round"/>';
   for (let i = 0; i < bins; i++) {
-    const c = counts[i];
-    if (!c) continue;
     const t = (i + 0.5) * BIN,
-      col = colors[kind(t)],
       t0 = Math.max(0, t - BIN / 2),
-      t2 = Math.min(tMax, t + BIN / 2),
-      open =
-        "M" +
-        x(t0).toFixed(1) +
-        " " +
-        y0 +
-        " L" +
-        x(t).toFixed(1) +
-        " " +
-        y(c).toFixed(1) +
-        " L" +
-        x(t2).toFixed(1) +
-        " " +
-        y0;
-    svg +=
-      '<path d="' +
-      open +
-      ' Z" fill="' +
-      col +
-      '" fill-opacity=".22" stroke="none"/><path d="' +
-      open +
-      '" fill="none" stroke="' +
-      col +
-      '" stroke-width="1.35" vector-effect="non-scaling-stroke" stroke-linejoin="miter" stroke-miterlimit="1"/>';
+      t2 = Math.min(tMax, t + BIN / 2);
+    // Stacked per verdict: draw the tallest cumulative peak first.
+    let top = 0;
+    const layers = ["on_recipe", "fast", "slow"].map((k) => [k, (top += counts[i][k])]).filter(([k]) => counts[i][k]);
+    for (const [k, c] of layers.reverse()) {
+      const open = "M" + x(t0).toFixed(1) + " " + y0 + " L" + x(t).toFixed(1) + " " + y(c).toFixed(1) + " L" + x(t2).toFixed(1) + " " + y0;
+      svg +=
+        '<path d="' + open + ' Z" fill="' + colors[k] + '" fill-opacity=".22" stroke="none"/><path d="' + open +
+        '" fill="none" stroke="' + colors[k] +
+        '" stroke-width="1.35" vector-effect="non-scaling-stroke" stroke-linejoin="miter" stroke-miterlimit="1"/>';
+    }
   }
   svg += "</svg>";
   host.innerHTML =
@@ -1379,14 +1368,10 @@ function renderStatsDurChart() {
     "</div>" +
     svg +
     '<div class="ruleChartTicks"></div>';
+  const edges = shared ? [shots[0].fastBeforeS, shots[0].slowAfterS] : [];
   fillChartTicks(
     host.lastChild,
-    [
-      [0, "0 s"],
-      [tLow, L(tLow, "s")],
-      [tHigh, L(tHigh, "s")],
-      [tMax, L(tMax, "s")],
-    ],
+    [[0, "0 s"], ...edges.map((t) => [t, L(t, "s")]), [tMax, L(tMax, "s")]],
     tMax,
   );
 }
@@ -4855,7 +4840,7 @@ function updatePresetActionButtons() {
       locked ||
       (el.id === "presetDeleteBtn" && (!p || factory)) ||
       (el.id === "presetResetBtn" && !factory) ||
-      (el.id === "presetNewCoffeeBtn" && !p?.shotStats?.count);
+      (el.id === "presetNewCoffeeBtn" && !p?.shotStats?.total);
   });
   $("presetResetBtn")?.classList.toggle("hidden", !factory);
   $("presetDeleteBtn")?.classList.toggle("hidden", factory);
@@ -6987,40 +6972,46 @@ function renderShotHero(d) {
 // one-time Scale-loss backup introduction. Dismissals stay in this browser.
 function cardDismissed(key) {
   try {
-    return !!localStorage.getItem(key);
+    return localStorage.getItem(key) || "";
   } catch (_) {
-    return false;
+    return "";
   }
 }
-function dismissCard(key) {
+function dismissCard(key, value = "1") {
   try {
-    localStorage.setItem(key, "1");
+    localStorage.setItem(key, value);
   } catch (_) {}
   renderHomeCards();
 }
 function renderHomeCards() {
   const p = presetState.items.find((x) => x.id === presetState.activeId),
     hint = p && p.grindHintsEnabled && p.grindHint,
-    key = hint ? "ssCard:grind:" + p.id + ":" + hint.direction : "",
+    key = hint ? "ssCard:grind:" + p.id : "",
     card = $("grindHintCard");
   if (card) {
-    card.hidden = !hint || cardDismissed(key);
+    // "Not now" holds until the recent median moves by a second or more.
+    const seen = parseFloat(cardDismissed(key));
+    card.hidden = !hint || Math.abs(seen - hint.medianS) < 1;
     card.dataset.key = key;
+    card.dataset.median = hint ? hint.medianS : "";
     if (hint)
       $("grindHintText").textContent = sub(
-        hint.direction === "faster"
-          ? __WEBUI_TEXT__("runtime.grind_hint_faster")
-          : __WEBUI_TEXT__("runtime.grind_hint_slower"),
+        {
+          faster: __WEBUI_TEXT__("runtime.grind_hint_faster"),
+          slower: __WEBUI_TEXT__("runtime.grind_hint_slower"),
+          fasterout: __WEBUI_TEXT__("runtime.grind_hint_faster_window"),
+          slowerout: __WEBUI_TEXT__("runtime.grind_hint_slower_window"),
+        }[hint.direction + (hint.outside ? "out" : "")],
         [hint.shots, +(+hint.medianS).toFixed(1), +(+p.fastBeforeS).toFixed(1), +(+p.slowAfterS).toFixed(1)],
       );
   }
   if ($("scaleLossDiscovery"))
-    $("scaleLossDiscovery").hidden = cardDismissed("ssCard:scaleLossDiscovery");
+    $("scaleLossDiscovery").hidden = !!cardDismissed("ssCard:scaleLossDiscovery");
 }
 // "New coffee or big grind change": starts the active preset's statistics over.
 async function startNewCoffee(id = presetState.activeId) {
   const p = presetState.items.find((x) => x.id === id),
-    text = p && sub(__WEBUI_TEXT__("settings.new_coffee_confirm"), [p.name, p.shotStats?.count || 0]);
+    text = p && sub(__WEBUI_TEXT__("settings.new_coffee_confirm"), [p.name, p.shotStats?.total || 0]);
   if (p && (await askConfirm(text, __WEBUI_TEXT__("settings.start_over"))))
     command("/api/v1/presets", { action: "new_coffee", id });
 }
@@ -7041,8 +7032,8 @@ function askConfirm(text, ok, danger = false) {
 function shotStatsLine(p) {
   const st = p && p.shotStats,
     n = (v) => +(+v).toFixed(1);
-  return st && st.count
-    ? sub(__WEBUI_TEXT__("runtime.shot_stats_line"), [Math.min(10, st.count), n(st.minS), n(st.maxS), n(st.medianS)])
+  return st && st.n >= 3
+    ? sub(__WEBUI_TEXT__("runtime.shot_stats_line"), [st.n, n(st.minS), n(st.maxS), n(st.medianS)])
     : "";
 }
 function clearShotHero() {

@@ -510,6 +510,7 @@ void setup() {
     callbacks.copyScaleHistory = copyScaleHistory;
     callbacks.copyRecipeSnapshot = copyRecipeSnapshot;
     callbacks.copyPresetBank = copyPresetBank;
+    callbacks.copyPresetShotStats = copyPresetShotStats;
     callbacks.copyRuntimeConfig = copyRuntimeConfig;
     callbacks.copyBullseyeConfig = copyBullseyeConfig;
     callbacks.stageBullseyeConfig = stageBullseyeConfig;

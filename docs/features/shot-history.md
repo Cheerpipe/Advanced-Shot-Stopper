@@ -12,6 +12,13 @@ interface starts or after a dropped connection. From then on the data keeps
 refreshing in the background even while you are elsewhere in the interface, so
 the page always opens instantly with the latest shots.
 
+The Stats chart shows when shots reached their target. Each shot keeps the
+colour of the verdict it got when it was pulled — Fast, On recipe or Slow — so
+editing a preset's window later never recolours past shots. Use the selector
+beside the legend to show **This preset** (the active one) or **All presets**.
+When every shot shown was judged against the same window, the chart marks that
+window, for example **Window 27–34 s**; otherwise it shows the shots alone.
+
 Stopwatch and gram-weight icons sit beside the large duration and yield values
 in each shot card and beside Avg time and Avg yield in the Stats summary.
 Each icon and value are centered together within their column. The icons

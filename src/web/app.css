@@ -290,7 +290,6 @@ small{display:block;color:var(--mu)}
 .btnBar,.presetActions{display:flex;gap:.5rem;margin:.5rem 0 .25rem;width:100%}
 .btnBar{flex-wrap:wrap;align-items:center}
 .presetActions{flex-wrap:nowrap}
-.presetActions.glassBar>.btnGlyph{min-height:var(--tap);min-width:var(--tap)}
 .barSep{flex:0 0 1px;height:1.5rem;background:var(--ln)}
 menu.btnBar{padding:0;margin:.75rem 0 0}
 .btnGlyph{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;margin:0;border:1px solid var(--ln);border-radius:2rem;background:var(--bg);line-height:1.2;cursor:pointer;color:var(--ac);min-height:3rem;min-width:4.5rem;padding:.6rem .85rem;white-space:normal;flex:1}

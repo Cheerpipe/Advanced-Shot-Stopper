@@ -191,20 +191,24 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("noScaleShotGuard.scaleUsable", bool(control.scaleAvailable && control.weightStreamState == WeightStreamState::FRESH));
   if (callbacks_.copyPresetBank) callbacks_.copyPresetBank(&g_work->presetBank);
   else memset(&g_work->presetBank, 0, sizeof(g_work->presetBank));
+  copyPresetStatsForJson(callbacks_, g_work->presetBank);
   // Presets rarely change; skip the slim-JSON rebuild while the bank is
   // byte-identical to the last render AND the shared presetsJson buffer
   // still holds that render (the REST and integration handlers reuse the
   // buffer with other formats). The delta hash below is computed either
   // way, so frames stay byte-identical. Single-threaded: httpd dispatch.
   static ShotPresetBank renderedPresets;
+  static PresetShotStats renderedStats[MAX_SHOT_PRESETS];
   static uint32_t renderedPresetsHash = 0;
   const size_t renderedBytes = strlen(g_work->presetsJson);
   if (memcmp(&renderedPresets, &g_work->presetBank,
              sizeof(renderedPresets)) != 0 ||
+      memcmp(renderedStats, g_work->presetStats, sizeof(renderedStats)) != 0 ||
       crc32Update(0xFFFFFFFFU,
                   reinterpret_cast<const uint8_t *>(g_work->presetsJson),
                   renderedBytes) != renderedPresetsHash) {
     renderedPresets = g_work->presetBank;
+    memcpy(renderedStats, g_work->presetStats, sizeof(renderedStats));
     buildSlimPresetsJson(g_work->presetBank);
     renderedPresetsHash = crc32Update(0xFFFFFFFFU,
         reinterpret_cast<const uint8_t *>(g_work->presetsJson),

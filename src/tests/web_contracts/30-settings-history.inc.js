@@ -137,13 +137,13 @@
   const update = new Function('$', 'document', 'selectedPreset', 'controlsMutable', 'presetsLoaded',
     source + ';updatePresetActionButtons();');
   for (const loaded of [false, true]) for (const mutable of [false, true]) {
-    for (const preset of [null, {isFactory: true, shotStats: {count: 3}}, {isFactory: false}]) {
+    for (const preset of [null, {isFactory: true, shotStats: {total: 3}}, {isFactory: false}]) {
       const nodes = Object.fromEntries(ids.map(id => [id,
         {id, disabled: false, classList: {toggle() {}}}]));
       update(id => nodes[id], {querySelectorAll: () => ids.map(id => nodes[id])},
         () => preset, mutable, loaded);
       const ready = loaded && mutable;
-      const expected = [!ready || !preset?.shotStats?.count, !ready, !ready,
+      const expected = [!ready || !preset?.shotStats?.total, !ready, !ready,
         !ready || !preset?.isFactory, !ready || !preset || !!preset.isFactory];
       if (ids.some((id, i) => nodes[id].disabled !== expected[i])) {
         throw new Error('Preset actions must wait for data and preserve editing restrictions');
@@ -1302,8 +1302,8 @@ if (!statsSection ||
     !codeIncludes(runtimeJs, 'fill-opacity') ||
     !codeIncludes(runtimeJs, 'statsDurSparkY') ||
     !codeIncludes(runtimeJs, 'renderStatsDurChart()') ||
-    !codeIncludes(runtimeJs, 'BIN=0.5,tMax=6e4/1e3,tLow=active?active.fastBeforeS:28,tHigh=active?active.slowAfterS:32') ||
-    !codeIncludes(js, "fillChartTicks(host.lastChild,[[0,'0 s'],[tLow,L(tLow,'s')],[tHigh,L(tHigh,'s')],[tMax,L(tMax,'s')],],tMax") ||
+    !codeIncludes(runtimeJs, 'counts[Math.min(bins - 1, Math.floor(r.arrivalS / BIN))]') ||
+    !codeIncludes(js, "fillChartTicks(host.lastChild,[[0,'0 s'],...edges.map((t)=>[t,L(t,'s')]),[tMax,L(tMax,'s')]],tMax") ||
     !css.includes('#statsDurChart{margin-top:') ||
     !css.includes('.shotCurve .shotSparkHost,#statsDurChartPlot{display:grid;') ||
     !codeIncludes(runtimeJs, 'function renderShotStats(){') ||
@@ -1541,46 +1541,49 @@ if (!statsSection ||
   if (start < 0 || end < 0 || end <= start) {
     throw new Error('Duration histogram helpers not found for bin checks');
   }
+  // The stub below records the axis ticks in place of the DOM writer.
   const helpers = new Function(
-      runtimeJs.slice(start, end) +
+      runtimeJs.slice(start, end).replace('function fillChartTicks(', 'function domFillChartTicks(') +
       ';return{renderStatsDurChart:renderStatsDurChart};')();
-  const kind = new Function('t', 'return t<28?"fast":t<=32?"bbw":"slow"');
-  if (kind(27.9) !== 'fast' || kind(28) !== 'bbw' ||
-      kind(32) !== 'bbw' || kind(32.1) !== 'slow') {
-    throw new Error('Duration histogram zone colors must use 28/32 s thresholds');
-  }
   const histRoot = {dataset: {}, className: '', innerHTML: ''};
   const histPlot = {innerHTML: ''};
-  global.$ = (id) => {
-    if (id === 'statsDurChart') {
-      return histRoot;
-    }
-    if (id === 'statsDurChartPlot') {
-      return histPlot;
-    }
-    return id === 'statsDurWindow' ? {} : null;
-  };
+  const histWindow = {textContent: ''};
+  const histFilter = {value: 'active'};
+  const ticks = [];
+  global.$ = (id) => ({statsDurChart: histRoot, statsDurChartPlot: histPlot,
+    statsDurWindow: histWindow, statsPresetFilter: histFilter})[id] || null;
   global.homeStatusCache = () => null;
-  global.presetState = {};
+  global.presetState = {activeId: 1, items: []};
   global.sub = (t, vals) => t.replace(/\{(\d)\}/g, (_, i) => vals[+i]);
-  global.shotStats = {durationsS: [30.2, 30.2, 27.1, 40]};
-  global.fillChartTicks = () => {};
+  global.fillChartTicks = (host, marks) => ticks.splice(0, ticks.length,
+    ...marks.map(m => m[1].replace(/[\u00a0\u202f]/g, ' ')));
+  const shot = (presetId, arrivalS, verdict, window = [27, 34]) =>
+    ({presetId, arrivalS, verdict, fastBeforeS: window[0], slowAfterS: window[1]});
+  // Each shot keeps its own stored verdict, even inside today's window.
+  global.shotHistory = {shots: [shot(1, 30.2, 'on_recipe'), shot(1, 30.2, 'slow'),
+    shot(1, 26.1, 'fast'), shot(2, 40, 'slow', [25, 32]), shot(1, 0, null)]};
   helpers.renderStatsDurChart();
-  const filled = (histPlot.innerHTML.match(/fill-opacity=".22"/g) || []).length;
-  if (filled !== 3) {
-    throw new Error('Duration histogram must render every eligible shot type');
+  const fills = (color) => (histPlot.innerHTML.match(new RegExp(
+      'fill="' + color.replace(/[()]/g, '\\$&') + '" fill-opacity=".22"', 'g')) || []).length;
+  if (fills('var(--ok)') !== 1 || fills('#6492d7') !== 1 || fills('#d97706') !== 1 ||
+      !histPlot.innerHTML.includes('statsDurSparkY">2<')) {
+    throw new Error('Duration histogram must stack each shot by its own stored verdict');
   }
-  if (!histPlot.innerHTML.includes('statsDurSparkY">2<')) {
-    throw new Error('Duration histogram Y axis must scale to the max bin count');
+  if (histWindow.textContent !== 'Window 27–34 s' || ticks.join() !== '0 s,27 s,34 s,60 s') {
+    throw new Error('Duration histogram must label the window all shown shots share');
   }
-  global.shotStats = {};
+  histFilter.value = 'all';
+  helpers.renderStatsDurChart();
+  if (fills('#6492d7') !== 2 || histWindow.textContent !== '' || ticks.join() !== '0 s,60 s') {
+    throw new Error('All presets must include every preset and drop bands for mixed windows');
+  }
+  global.shotHistory = {shots: []};
   helpers.renderStatsDurChart();
   if ((histPlot.innerHTML.match(/fill-opacity=".22"/g) || []).length !== 0 ||
       !histPlot.innerHTML.includes('statsDurSparkY">0<')) {
-    throw new Error(
-        'Duration histogram must paint an empty shell before shots load');
+    throw new Error('Duration histogram must paint an empty shell before shots load');
   }
-  for (const name of ['$', 'shotStats', 'fillChartTicks', 'homeStatusCache', 'presetState', 'sub'])
+  for (const name of ['$', 'shotHistory', 'fillChartTicks', 'homeStatusCache', 'presetState', 'sub'])
     delete global[name];
 }
 

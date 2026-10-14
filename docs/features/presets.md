@@ -6,7 +6,8 @@ Presets store brew recipes. A new controller comes with four factory presets:
 slow shots a little sooner; Fixed presets always stop at the target (see
 [Fast and slow shots](fast-and-slow-shots.md)).
 
-Open **Settings → Presets** while the machine is idle. Each preset appears as a
+Open **Settings → Presets** while the machine is idle. The preset actions sit
+in a bar above the list (see [Preset actions](#preset-actions)). Each preset appears as a
 card with its name, an **Adaptive** or **Fixed** badge, and a summary such as
 **18 → 36 g · 1:2.0 · 27–34 s** (dose, target yield, ratio and shot time
 window). Tap a card to use and review it. Below the cards, **How this preset

@@ -237,6 +237,7 @@ struct NetworkBridgeCallbacks {
   void (*copyScaleHistory)(ScaleHistoryEntry *out) = nullptr;
   void (*copyRecipeSnapshot)(RecipeSnapshot *out) = nullptr;
   void (*copyPresetBank)(ShotPresetBank *out) = nullptr;
+  void (*copyPresetShotStats)(const ShotPresetBank &bank, PresetShotStats *out) = nullptr;
   void (*copyRuntimeConfig)(RuntimeConfig *out) = nullptr;
   void (*copyBullseyeConfig)(BullseyeMelodyConfig *out) = nullptr;
   bool (*stageBullseyeConfig)(const BullseyeMelodyConfig &config,

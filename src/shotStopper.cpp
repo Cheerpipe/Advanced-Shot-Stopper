@@ -1066,6 +1066,13 @@ size_t copyShotRecords(ShotLogRecord *output, size_t capacity) {
   return shotLog.copyNewestFirst(output, capacity);
 }
 
+void copyPresetShotStats(const ShotPresetBank &bank, PresetShotStats *out) {
+  TaskLockGuard lock(shotStoreMutex);
+  for (uint8_t i = 0; i < bank.count; ++i)
+    out[i].stats = shotLog.arrivalStats(bank.presets[i].id, bank.presets[i].learningEpoch,
+                                        out[i].arrivalsMs);
+}
+
 void copyShotStatsRecords(ShotStatsRecordsSnapshot &output) {
   TaskLockGuard lock(shotStoreMutex);
   output.stats = shotLog.statsView();

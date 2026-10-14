@@ -454,6 +454,29 @@ void testGrindHintReplay() {
   CHECK(fired > 0 && fired <= 5);
 }
 
+void testShotStatsSummary() {
+  // The Web UI's shot statistics: every admissible shot since the epoch
+  // counts in total, the newest ten feed the sorted arrivals, and the first
+  // drop median ignores unmeasured shots.
+  ArrivalRecord records[14];
+  size_t count = 0;
+  for (uint32_t id = 1; id <= 12; ++id)
+    records[count++] = {id, 1, 3, 0, static_cast<int32_t>(26000 + id * 500),
+                        id % 3 == 0 ? 0 : static_cast<int32_t>(5000 + id * 100)};
+  records[count++] = {13, 1, 3, packVerdict(Verdict::FAST, true, LossSource::PROJECTION, false),
+                      20000, 4000};  // channeling: never counted
+  records[count++] = {14, 2, 3, 0, 30000, 6000};  // another preset
+  int32_t arrivals[STATS_MAX_SHOTS] = {};
+  const ArrivalStats s =
+      arrivalStatsOf(count, [&](size_t i) { return records[i]; }, 1, 0, arrivals);
+  CHECK(s.n == STATS_MAX_SHOTS && s.total == 12);
+  CHECK(arrivals[0] == 27500 && arrivals[STATS_MAX_SHOTS - 1] == 32000);
+  for (uint8_t i = 1; i < s.n; ++i) CHECK(arrivals[i - 1] <= arrivals[i]);
+  // Kept ids 3..12 with drops measured on 4,5,7,8,10,11: median of 5450..6100.
+  CHECK(s.firstDropMs == (5700 + 5800) / 2);
+  CHECK(arrivalStats(records, count, 1, 13).total == 0);
+}
+
 }  // namespace
 
 int main() {
@@ -465,6 +488,7 @@ int main() {
   testChanneling();
   testVerdictPacking();
   testGrindHintReplay();
+  testShotStatsSummary();
   if (failures != 0) {
     std::cerr << failures << " corridor kernel check(s) failed\n";
     return 1;

@@ -136,7 +136,8 @@ export function init() {
     if ($(h)) $(h).onchange = () => R.persistHomeGuard(h, s, c);
   if ($("grindHintNewBeans")) $("grindHintNewBeans").onclick = () => R.startNewCoffee();
   if ($("grindHintLater"))
-    $("grindHintLater").onclick = () => R.dismissCard($("grindHintCard").dataset.key);
+    $("grindHintLater").onclick = () =>
+      R.dismissCard($("grindHintCard").dataset.key, $("grindHintCard").dataset.median);
   if ($("scaleLossDiscoveryOk"))
     $("scaleLossDiscoveryOk").onclick = () => R.dismissCard("ssCard:scaleLossDiscovery");
   quickWeight = initQuickWeight();

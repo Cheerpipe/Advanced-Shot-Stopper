@@ -85,8 +85,9 @@ The extra and reduced yields are amounts relative to the target, so they move
 with it when you change the target from Home or Settings. Fixed presets keep
 these amounts saved but switched off, so they always stop at the target.
 
-Below the window, a line such as **Last 10 shots: 28–33 s, median 30.4 s**
-shows when your recent shots on this preset reached the target. Changing the
+Once a preset has at least three shots, a line below the window such as
+**Last 10 shots: 28–33 s, median 30.4 s** shows when its recent shots (up to
+the last ten) reached the target. Changing the
 window, or moving the target by more than 1 g, asks to start these shot
 statistics over when you save.
 
@@ -104,9 +105,11 @@ statistics, grind hints or the scale-loss backup.
 With **Grind hints** on (Recipe group, on by default), Home shows a card when
 the median of your last five shots on the active preset sits outside the window
 or within 1 s of either edge, for example: *Your last 5 shots: median 27.6 s,
-at the fast edge of 27–34 s. Grind a touch finer?* The card never changes a
+at the fast edge of 27–34 s. Grind a touch finer?* or *…median 35.2 s, slower
+than your 27–34 s window. Grind a touch coarser?* The card never changes a
 setting. **New coffee** starts the preset's shot statistics over after you
-change beans or grind; **Not now** hides that suggestion in this browser.
+change beans or grind; **Not now** hides the card in this browser until the
+median of your recent shots moves by a second or more.
 
 ## Examples
 

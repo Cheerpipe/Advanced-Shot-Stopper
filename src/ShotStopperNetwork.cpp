@@ -121,8 +121,8 @@ struct NetworkWorkBuf {
   // share this buffer.
   static constexpr size_t kStatusJson = 40960;
   // Worst case: 8 presets with fully escaped 23-char names plus every
-  // per-preset rule field the Home accordion renders.
-  static constexpr size_t kPresetsJson = 4096;
+  // per-preset rule field and shot statistic the Web UI renders.
+  static constexpr size_t kPresetsJson = 6400;
   static constexpr size_t kHistoryJson = 1400;
   // One full-capacity curve plus scalar fields per row; the 4 KiB headroom
   // (external memory) keeps a maximal row well under the client's frame
@@ -134,6 +134,7 @@ struct NetworkWorkBuf {
   static constexpr size_t kOtaJson = 1664;
   char statusJson[kStatusJson]{};
   char presetsJson[kPresetsJson]{};
+  PresetShotStats presetStats[MAX_SHOT_PRESETS]{};
   char historyJson[kHistoryJson]{};
   // One-curve JSON scratch for the status page and the shots-list rows, kept
   // off the 8 KiB internal httpd stack like every other large JSON body.
@@ -1063,6 +1064,44 @@ bool statusJsonAppendScaleProfiler(size_t *used,
       canDelete ? "true" : "false", canDownload ? "true" : "false");
 }
 
+void copyPresetStatsForJson(const NetworkBridgeCallbacks &callbacks,
+                            const ShotPresetBank &bank) {
+  memset(g_work->presetStats, 0, sizeof(g_work->presetStats));
+  if (callbacks.copyPresetShotStats) callbacks.copyPresetShotStats(bank, g_work->presetStats);
+}
+
+// Shot statistics of one preset (plan §4.10): the last <= 10 arrivals, the
+// median first drop and the grind hint of the recent median.
+int formatPresetShotStats(char *out, size_t cap, const ShotPreset &p,
+                          const PresetShotStats &s) {
+  const corridor::ArrivalStats &st = s.stats;
+  char arrivals[corridor::STATS_MAX_SHOTS * 8 + 2] = "[";
+  for (uint8_t i = 0; i < st.n; ++i)
+    snprintf(arrivals + strlen(arrivals), sizeof(arrivals) - strlen(arrivals), "%s%.1f",
+             i ? "," : "", s.arrivalsMs[i] / 1000.0);
+  strcat(arrivals, "]");
+  corridor::Params window;
+  window.fastBeforeMs = static_cast<int32_t>(p.fastBeforeMs);
+  window.slowAfterMs = static_cast<int32_t>(p.slowAfterMs);
+  const corridor::GrindHint hint = corridor::grindHint(window, st);
+  char hintJson[96] = "null";
+  if (hint != corridor::GrindHint::NONE)
+    snprintf(hintJson, sizeof(hintJson),
+             "{\"direction\":\"%s\",\"outside\":%s,\"shots\":%u,\"medianS\":%.1f}",
+             hint == corridor::GrindHint::FAST_EDGE ||
+                     hint == corridor::GrindHint::FASTER_THAN_WINDOW ? "faster" : "slower",
+             hint == corridor::GrindHint::FASTER_THAN_WINDOW ||
+                     hint == corridor::GrindHint::SLOWER_THAN_WINDOW ? "true" : "false",
+             static_cast<unsigned>(st.recentN), st.recentMedianMs / 1000.0);
+  return snprintf(out, cap,
+      ",\"shotStats\":{\"n\":%u,\"total\":%u,\"minS\":%.1f,\"maxS\":%.1f,"
+      "\"medianS\":%.1f,\"recentMedianS\":%.1f},\"firstDropS\":%.1f,"
+      "\"arrivalsS\":%s,\"grindHint\":%s}",
+      static_cast<unsigned>(st.n), static_cast<unsigned>(st.total), st.minMs / 1000.0,
+      st.maxMs / 1000.0, st.medianMs / 1000.0, st.recentMedianMs / 1000.0,
+      st.firstDropMs / 1000.0, arrivals, hintJson);
+}
+
 void buildSlimPresetsJson(const ShotPresetBank &presets) {
   if (g_work == nullptr) {
     return;
@@ -1082,6 +1121,7 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
     const ShotPreset &p = presets.presets[i];
     char safeName[SHOT_PRESET_NAME_CAPACITY * 6] = {};
     escapeJsonString(p.name, safeName, sizeof(safeName));
+    const size_t itemStart = used;
     n = snprintf(
         buf + used, cap - used,
         "%s{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s,\"brewByWeight\":%s,"
@@ -1091,7 +1131,7 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
         "\"fastExtractionGuardEnabled\":%s,\"slowExtractionGuardEnabled\":%s,"
         "\"grindHintsEnabled\":%s,\"scaleLossFixedS\":%.1f,"
         "\"bbwAlgorithm\":\"%s\",\"bbwAlphaBaseline\":%.2f,"
-        "\"lineaMicraBrewTargetC\":%.1f}",
+        "\"lineaMicraBrewTargetC\":%.1f",
         i == 0 ? "" : ",", static_cast<unsigned>(p.id), safeName,
         p.isFactory ? "true" : "false", p.brewByWeight ? "true" : "false",
         static_cast<double>(goalWeightDgToGrams(p.doseDg)),
@@ -1108,6 +1148,12 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
         p.bbwAlphaBaseline / 100.0,
         static_cast<double>(p.lineaMicraBrewTargetDeciC) / 10.0);
     if (n < 0 || static_cast<size_t>(n) >= cap - used) {
+      break;
+    }
+    used += static_cast<size_t>(n);
+    n = formatPresetShotStats(buf + used, cap - used, p, g_work->presetStats[i]);
+    if (n < 0 || static_cast<size_t>(n) >= cap - used) {
+      used = itemStart;  // never leave an item unterminated
       break;
     }
     used += static_cast<size_t>(n);
