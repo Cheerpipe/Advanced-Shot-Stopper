@@ -45,7 +45,11 @@ configured and the scale is usable. Its switch turns the protection off or
 back on; pick the mode itself here in Settings.
 
 While **By weight** is selected and no usable scale is connected, a notice at
-the top of Home says what your next shot will do in the current mode.
+the top of Home says what your next shot will do. While protection is Armed,
+it warns that the next shot will be held back, or, in **Require a scale**, that
+you need to connect a scale to start. Once the warning is used up, or while
+manual brewing is temporarily allowed, the notice reminds you to stop the shot
+with the paddle instead.
 
 When a shot runs without a scale, Home turns the shot card into a timer: the
 large number counts the seconds of the pour, the target weight stays out of the

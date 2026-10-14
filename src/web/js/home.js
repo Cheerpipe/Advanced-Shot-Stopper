@@ -180,17 +180,18 @@ function renderReadyMsg(s, lm) {
   const msg = $("homeReadyMsg"),
     cfg = s?.config || {},
     sc = s?.scale || {},
+    g = s?.noScaleShotGuard || {},
     idle = !!s && !["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state),
     mins = Math.ceil(((lm?.boiler?.coffee?.readyAtUtcSec || 0) * 1000 - Date.now()) / 60000);
   if (!msg) return;
   const text = !idle
     ? ""
     : cfg.brewByWeight && !(sc.available && sc.streamState === "FRESH")
-      ? cfg.noScaleBbwMode === "require_scale"
-        ? __WEBUI_TEXT__("home.no_scale_required")
-        : cfg.noScaleBbwMode === "warn_once"
-          ? __WEBUI_TEXT__("home.no_scale_warn")
-          : __WEBUI_TEXT__("home.no_scale_manual")
+      ? !(g.enabled && g.armed)
+        ? __WEBUI_TEXT__("home.no_scale_manual")
+        : g.mode === "require_scale"
+          ? __WEBUI_TEXT__("home.no_scale_required")
+          : __WEBUI_TEXT__("home.no_scale_warn")
       : s.machineIntegration === "linea_micra_cloud" && lm?.accountConfigured && lm.observeState && lm.readiness === "warming_up"
         ? __WEBUI_TEXT__("home.machine_warming") +
           (mins > 0 ? " · " + __WEBUI_TEXT__("home.ready_in").replace("%1", mins) : "")

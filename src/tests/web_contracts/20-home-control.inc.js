@@ -1299,3 +1299,15 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
     html.includes('id="eclair')) {
   throw new Error('Machine settings must include an informational AtomHeart Eclair subgroup without settings');
 }
+{
+  const at = viewJs.home.indexOf('function renderReadyMsg(');
+  const msg = {hidden: true, textContent: ''};
+  const render = new Function('$', viewJs.home.slice(at, viewJs.home.indexOf('\n}', at) + 2) +
+    ';return renderReadyMsg;')(() => msg);
+  const show = (mode, enabled, armed) => (render({state: 'IDLE', config: {brewByWeight: true},
+    scale: {available: false}, noScaleShotGuard: {mode, enabled, armed}}), msg.hidden ? '' : msg.textContent);
+  if (!/held back/.test(show('warn_once', true, true)) || /held back/.test(show('warn_once', true, false)) ||
+      !/Connect a scale/.test(show('require_scale', true, true)) || /Connect a scale/.test(show('require_scale', true, false)) ||
+      !/paddle/.test(show('off', false, false)))
+    throw new Error('Home no-scale notice must follow the live guard: armed warns or requires, disarmed is manual');
+}

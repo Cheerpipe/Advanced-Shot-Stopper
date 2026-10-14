@@ -501,7 +501,7 @@
     "home.new_coffee_action": "New coffee",
     "home.no_scale_bbw": "No-scale BBW",
     "home.no_scale_manual": "No scale connected. Shots won't stop by weight until it's back, so stop them with the paddle.",
-    "home.no_scale_required": "No scale connected. Shots can't start until it's back.",
+    "home.no_scale_required": "No scale connected. Connect a scale to start a shot.",
     "home.no_scale_warn": "No scale connected. Your next shot is held back once with a warning; start it again to brew by hand.",
     "home.not_now": "Not now",
     "home.on": "On",
