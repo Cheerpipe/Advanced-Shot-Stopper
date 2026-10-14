@@ -683,7 +683,10 @@ shot types are `auto`, `timer_only`, and `manual`; supported stop details are
 `slow_max_time`, `slow_min_weight`, `cup_removed`, `activator`, `web_stop`,
 `web_heartbeat`, `physical_override`, `hard_limit`, `wall_limit`,
 `relay_safety`, `weight_anomaly`, `touch_weight_fallback`, and `other`. `prediction` is accepted as a
-legacy alias for `other`.
+legacy alias for `other`. These stop details, the Quick Settings names, the end
+event keys, and the Stats CSV columns are frozen by
+`src/tests/fixtures/wire_contracts_v1.json`; a change to any of them updates
+that fixture, this reference, and the Home Assistant integration together.
 `touch_weight_fallback` identifies a stop after sustained above-threshold
 readings while accidental-touch protection blocks the normal cut. REST `lastShot`,
 end webhooks and local history preserve this same value. Update strict receivers,
