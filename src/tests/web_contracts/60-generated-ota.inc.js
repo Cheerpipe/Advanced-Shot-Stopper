@@ -1005,6 +1005,31 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   if (helpers.buildRuleChartModel(base).mode !== 'empty') {
     throw new Error('Rule chart: the ramp length comes from the firmware');
   }
+  // The graph's cut line reproduces the firmware kernel's golden vectors
+  // exactly. legacy_step (D = 0) is the old step oracle; the firmware always
+  // serves its 5 s ramp to the UI.
+  const vectors = JSON.parse(fs.readFileSync(
+      path.join(sketchDir, 'tests/fixtures/corridor_vectors_v1.json'), 'utf8'));
+  let compared = 0;
+  for (const [name, p] of Object.entries(vectors.presets)) {
+    if (!p.rampMs) continue;
+    presetState.cutRampS = p.rampMs / 1000;
+    const m = helpers.buildRuleChartModel({brewByWeight: true,
+      fastExtractionGuardEnabled: p.fastOn, slowExtractionGuardEnabled: p.slowOn,
+      goalWeightG: p.goalDg / 10, fastMarginG: p.fastMarginDg / 10,
+      slowMarginG: p.slowMarginDg / 10, fastBeforeS: p.fastBeforeMs / 1000,
+      slowAfterS: p.slowAfterMs / 1000, bbwProtectionMs: p.delayMs,
+      operationalWallMs: p.wallMs});
+    if (m.mode !== 'active') throw new Error(`Rule chart: vector preset ${name} must be drawable`);
+    for (const [tMs, dg] of vectors.cutLine[name]) {
+      if (tMs < p.delayMs || tMs > p.wallMs) continue;  // the graph starts at the delay
+      const got = Math.round(helpers.cutLine(tMs / 1000, m) * 10);
+      ++compared;
+      if (got !== dg)
+        throw new Error(`Rule chart: ${name} at ${tMs} ms draws ${got} dg, firmware ${dg} dg`);
+    }
+  }
+  if (compared < 500) throw new Error(`Rule chart: only ${compared} golden points compared`);
   const empty = helpers.buildRuleChartModel(null);
   if (empty.mode !== 'empty') {
     throw new Error('Rule chart: no config must render nothing');
