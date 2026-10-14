@@ -8713,7 +8713,8 @@ async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
       const noReconnect =
           path.endsWith("/network") && value.action === "save" && value._noReconnectWait,
         firmwareModeSave = path.endsWith("/firmware-mode"),
-        waitForRevision = path.endsWith("/config") || path.endsWith("/presets"),
+        presetOp = path.endsWith("/presets"),
+        waitForRevision = presetOp || path.endsWith("/config"),
         previousRevision = configRevision;
       const payload = value;
       delete payload._noReconnectWait;
@@ -8738,8 +8739,9 @@ async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
           if (result?.requestId !== accepted.requestId) continue;
           if (result.state === "FAILED" || result.state === "CANCELED")
             throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));
+          // The device rejects a preset operation until the previous one is saved.
           if (
-            (result.state === "APPLIED" || result.state === "PERSISTED") &&
+            (result.state === "PERSISTED" || (!presetOp && result.state === "APPLIED")) &&
             configRevision !== previousRevision
           ) {
             applied = true;
