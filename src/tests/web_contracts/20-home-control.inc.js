@@ -834,7 +834,7 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !codeIncludes(ui, 'Scale lost ·') ||
     !codeIncludes(ui, 'function updateHomeGuardSubs(') ||
     !codeIncludes(ui, 'updateHomeGuardSubs(s,live)') ||
-    !codeIncludes(ui, "setHomeSub('homeBbwSub'") ||
+    codeIncludes(ui, "setHomeSub('homeBbwSub'") ||
     !codeIncludes(ui, "setHomeSub('homeCupSub'") ||
     codeIncludes(ui, "setHomeSub('homeAlertsSub'") ||
     !codeIncludes(ui, 'function formatCupProtection(') ||
@@ -847,9 +847,8 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !network.includes('shotLogStopDetailName(') ||
     !html.includes('option value="scale_priority">Scale priority') ||
     !css.includes('.swS') ||
-    !css.includes('.homeSwitchGrid .swS') ||
-    !css.includes('.homeGuardGrid{') ||
-    !css.includes('grid-template-columns:repeat(2,minmax(0,1fr))') ||
+    !css.includes('.protList .switchRow{') ||
+    !css.includes('#brewModeRow{position:relative;display:grid;grid-template-columns:1fr 1fr') ||
     !codeIncludes(ui, 'yield_source') ||
     !network.includes('autoToManualGuardEnabled') ||
     !network.includes('scaleLossFixedS') ||

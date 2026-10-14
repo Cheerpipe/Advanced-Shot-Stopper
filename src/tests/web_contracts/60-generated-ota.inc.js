@@ -413,8 +413,11 @@ if (cssRoundTrip !== generated.css) {
 // The smooth-cut Home partial (pills-only hero, grind-hint and scale-loss
 // discovery cards, accordion pencil) measures 4440 bytes, owner-authorized
 // 2026-10-14. Cap raised to 4500.
-if (generated.gzip.length > 4500) {
-  throw new Error(`Compressed Web UI shell HTML exceeds the 4500-byte gzip budget (${generated.gzip.length})`);
+// The Home "Stop the shot" card (segmented control, Protections row and
+// panel, off-confirmation, ready notice, preset-lock note, sheet ratio)
+// measures 4650 bytes, owner-authorized 2026-10-14. Cap raised to 4700.
+if (generated.gzip.length > 4700) {
+  throw new Error(`Compressed Web UI shell HTML exceeds the 4700-byte gzip budget (${generated.gzip.length})`);
 }
 if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
     !generated.html
@@ -458,8 +461,12 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // survives slow drags plus the direction-reversal speed reset) rides the
 // same inlined home module: 5408 measured.
 // Cap raised to 5420; the combined flash total stays fixed.
-if (generated.jsGzip.length > 5420) {
-  throw new Error(`Compressed Web UI shell JS exceeds the 5420-byte gzip budget (${generated.jsGzip.length})`);
+// The Home "Stop the shot" card (Protections wiring with off-confirmation,
+// no-scale and warm-up notice, target ratio, clean-form guard) rides the same
+// inlined home module: 5947 measured, owner-authorized 2026-10-14.
+// Cap raised to 5960.
+if (generated.jsGzip.length > 5960) {
+  throw new Error(`Compressed Web UI shell JS exceeds the 5960-byte gzip budget (${generated.jsGzip.length})`);
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -498,8 +505,11 @@ if (generated.jsGzip.length > 5420) {
 // measure 11802. Cap raised to 11900.
 // The smooth-cut styles (review graph, verdict pills, action bar, grind-hint
 // and discovery cards) measure 13107 bytes, owner-authorized 2026-10-14.
-if (generated.cssGzip.length > 13200) {
-  throw new Error(`Compressed Web CSS exceeds the 13200-byte gzip budget (${generated.cssGzip.length})`);
+// The Home "Stop the shot" card that replaces the Quick Settings grid
+// (segmented control, Protections row, dots, panel, confirm bar, notice)
+// measures 13397 bytes, owner-authorized 2026-10-14.
+if (generated.cssGzip.length > 13450) {
+  throw new Error(`Compressed Web CSS exceeds the 13450-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -596,8 +606,10 @@ if (generated.cssGzip.length > 13200) {
 // The smooth-cut runtime (cut-line model, review graph, validation, hero and
 // cards) measures 56658 bytes, owner-authorized 2026-10-14; the shot-statistics
 // histogram and grind-hint wording bring it to 56903.
-if (sentinelRuntimeGzip.length > 57100) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 57100-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Home "Stop the shot" card (Protections summary, preset-lock note,
+// clean-form guard) measures 57250 bytes, owner-authorized 2026-10-14.
+if (sentinelRuntimeGzip.length > 57300) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 57300-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -767,8 +779,11 @@ if (generated.icon48Gzip.length > 3500) {
 // owner-authorized 2026-10-14; the shot-statistics histogram and grind-hint
 // wording bring it to 143767. Cap raised to 144000; the firmware image
 // allowance is raised alongside, OTA partition limits stay fixed.
-if (generated.combined > 144000) {
-  throw new Error(`Combined Web UI gzip exceeds the 144000-byte flash budget (${generated.combined})`);
+// The Home "Stop the shot" card that replaces Quick Settings measures 145174
+// combined, owner-authorized 2026-10-14. Cap raised to 145300; OTA partition
+// limits stay fixed.
+if (generated.combined > 145300) {
+  throw new Error(`Combined Web UI gzip exceeds the 145300-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

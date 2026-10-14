@@ -47,10 +47,10 @@ before the first drops of coffee uses your recent shots or your window.
 
 | Setting | Default | Range / notes | Effect on the shot |
 | --- | --- | --- | --- |
-| **Finish by time if the scale drops** (**Settings → Shared settings → Scale-loss backup**) | ON | ON / OFF, shared by every preset; also **Home → Quick Settings → Scale-loss backup** | OFF: if the scale never returns, the shot runs until paddle OFF or the machine circuit / max shot time. |
+| **Finish by time if the scale drops** (**Settings → Shared settings → Scale-loss backup**) | ON | ON / OFF, shared by every preset; also **Home → Stop the shot → Protections → Scale-loss backup**, which asks before turning it off | OFF: if the scale never returns, the shot runs until paddle OFF or the machine circuit / max shot time. |
 | **If the scale drops, stop at (s)** (**Settings → Presets → Shot limits**) | empty | Empty, or Earliest weight stop … Max shot time, per preset | Empty picks the backup time as described above. A time always stops the shot then. |
 
-While brewing by weight, the Quick Settings row shows when the next shot would
+While brewing by weight, its row under **Protections** shows when the next shot would
 stop if the scale dropped before the coffee starts flowing, for example
 **Stops at ~31.5 s if the scale drops**.
 

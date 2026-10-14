@@ -465,7 +465,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       suppression.includes('bootWave')) {
     throw new Error('Loading must suppress control motion while preserving the loading wave');
   }
-  for (const selector of ['.ktrack', '.kknob']) {
+  for (const selector of ['.ktrack', '.ktrack:after']) {
     const rule = css.slice(css.indexOf(selector + '{')).split('}')[0];
     if (Number(rule.match(/transition:([\d.]+)s/)[1]) !== .2) {
       throw new Error('Normal toggle track and thumb animations must remain available after loading');
@@ -769,8 +769,13 @@ if (htmlBytes > 93300) {
 // empty chart bring it to 410360; the audit follow-ups (Home dial reset
 // notice, scale-back and weight-unknown hero copy, window lines in the review
 // graph) to 411004.
-if (jsBytes > 411300) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 411300)`);
+// The Home "Stop the shot" card that replaces Quick Settings (By weight |
+// Manual control, Protections summary with off-confirmation, no-scale and
+// warm-up notice, target ratio, clean-form guard for Home writes) adds
+// +3987 measured JS bytes (414991), owner-authorized 2026-10-14; compressed
+// budgets re-measured below.
+if (jsBytes > 415500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 415500)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -850,8 +855,10 @@ if (jsBytes > 411300) {
 // The smooth-cut UI adds its ~21 KB of combined source allowance (501708
 // measured) described above, plus the shot-statistics JS and audit
 // follow-ups (504126 measured).
-if (htmlBytes + jsBytes > 504400) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 504400)`);
+// The Home "Stop the shot" card adds its ~4 KB of combined source allowance
+// (508250 measured) described above.
+if (htmlBytes + jsBytes > 508600) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 508600)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

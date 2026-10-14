@@ -11,11 +11,15 @@ with each preset under **Settings → Presets → Shot limits**.
 
 | Control | Factory value | What it does |
 | --- | --- | --- |
-| **Cup protection** | On | Enables the cup-start/removal protections; also exposed in Home Quick Settings. |
+| **Cup protection** | On | Enables the cup-start/removal protections; also on Home under **Stop the shot → Protections**. |
 | **Stop if cup is removed** | On | Requests a stop when a cup is detected as lifted after tare. Requires cup protection. |
 | **Require cup to start** | Off | Blocks a start without a detected cup. Requires cup protection. If the scale was already tared before connecting, place the cup after connection so it can be detected. |
-| **Avoid accidental touch** | On | Rejects brief implausible bumps from weight-stop decisions, including fast and slow shot handling. Shared by every preset; also in Home Quick Settings. |
+| **Avoid accidental touch** | On | Rejects brief implausible bumps from weight-stop decisions, including fast and slow shot handling. Shared by every preset; also on Home under **Stop the shot → Protections**. |
 | **Earliest weight stop (s)** | 12 s | Blocks automatic weight stop at the beginning; first drops do not end the window. Maximum 30 s; minimum is enabled retare window + 3 s (3 s when retare is off). Must fit within Max shot time. |
+
+Turning **Cup protection** or **Avoid accidental touch** off from Home asks
+first, because the change applies to every preset; turning either on takes one
+tap. While a protection is off, the **Protections** row on Home names it.
 
 A cup-start refusal holds the relay open for that attempt. Release the physical
 activator, correct the cup/scale condition, then activate again. A blocked

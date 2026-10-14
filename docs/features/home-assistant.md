@@ -2,7 +2,7 @@
 
 The native **Open Brew by Weight** integration adds one controller device,
 live shot state, the newest recorded shot, an active-preset selector, seven
-Home Quick Settings switches, and a safe restart button. It
+switches that mirror Home's **Stop the shot** card, and a safe restart button. It
 does not create YAML helpers, template entities, REST commands, or automations,
 and it cannot start or stop the espresso machine.
 
@@ -99,7 +99,7 @@ Its remaining entities are:
 - **Active preset**, a select populated from the controller's preset names.
 - **Brew by weight**, **No-scale BBW**, **Scale-loss backup**, **Shorten
   slow shots**, **Extend fast shots**, **Avoid accidental touch**, and **Cup
-  protection** switches, named as in the Home Quick Settings (see
+  protection** switches, named as on Home's **Stop the shot** card (see
   [Scale-loss backup](auto-to-manual.md) and
   [Fast and slow shots](fast-and-slow-shots.md)). Existing installations keep
   their entity IDs; only the displayed names change.
@@ -114,8 +114,8 @@ or slow: a fast shot whose preset does not run fast shots longer still stops
 at the target and reports `normal_target`. The Fast / On recipe / Slow verdict
 appears in the Web UI.
 
-The Brew by weight switch changes the current session without rewriting the
-recipe. No-scale BBW is machine-level: turning it off selects `off`; turning it
+The Brew by weight switch matches Home's **By weight | Manual** choice: it is
+saved on the controller and never rewrites the recipe. No-scale BBW is machine-level: turning it off selects `off`; turning it
 on restores the last observed non-off mode or `warn_once`. **Extend fast
 shots** and **Shorten slow shots** switch the active preset's fast and slow
 shot handling and preserve its other recipe and learned values. **Scale-loss backup**, **Avoid

@@ -184,7 +184,9 @@ Requires `baseRevision` plus exactly one setting. Boolean settings are
 `cupProtectionEnabled`; `noScaleBbwMode` accepts `off`, `warn_once`, or
 `require_scale`. Extra, duplicate, or incorrectly typed fields are rejected.
 
-`brewByWeight` changes the current session override. `noScaleBbwMode`,
+`brewByWeight` sets Home's By weight / Manual choice. It is saved on the
+controller, stays on Manual across preset changes, and never rewrites a
+preset's own Brew by weight value. `noScaleBbwMode`,
 `autoToManualGuardEnabled` (the scale-loss backup), `avoidAccidentalTouchEnabled`
 and `cupProtectionEnabled` change shared settings that apply to every preset.
 `fastExtractionGuardEnabled` and `slowExtractionGuardEnabled` change only the

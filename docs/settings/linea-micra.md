@@ -172,7 +172,9 @@ shows a plain **On** rather than claiming readiness.
 The open machine panel adds one row per boiler. Each shows its state and,
 while heating, the machine's own estimate of the time remaining, for example
 `Warming up · ready in ~6 min`. The estimate counts down on the screen without
-extra network traffic. The steam row shows the steam level set in the app
+extra network traffic. While the brew boiler warms up, a notice at the top of
+Home says the same, for example **Machine warming up · ready in ~6 min**, so you
+don't need to open the panel. The steam row shows the steam level set in the app
 (level 1–3), because the Micra controls steam by level rather than by
 temperature; the current temperature of either boiler is not available through
 the cloud service.

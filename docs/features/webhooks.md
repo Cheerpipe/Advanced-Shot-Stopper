@@ -54,7 +54,7 @@ event, controller, boot, cycle, event uptime, wall-clock time, and send time.
 | `first_drop` | First qualifying flow was confirmed | first-drop time, weight, target, preset ID/name |
 | `end` | Settled final result after drip delay | duration, target, preset ID/name, type, stop detail, optional first drop/weight/flow |
 | `presets_changed` | Persisted preset inventory changed | active ID, revision, full bounded item list |
-| `quick_settings_changed` | Persisted Home Quick Settings changed | revision, active preset ID, mode, and all six boolean values |
+| `quick_settings_changed` | Persisted Home **Stop the shot** settings changed (By weight / Manual and the protection switches) | revision, active preset ID, mode, and all six boolean values |
 | `controller_started` | Network-ready controller boot asks a client to reconcile | boot ID and current configuration revision |
 | `integration_history_end` | New History entry, including Backflush and a No-scale BBW attempt stopped before brewing | ID, type, duration, and time |
 | `test` | Receiver connectivity check | optional correlation ID used by API clients |

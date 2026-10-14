@@ -34,7 +34,9 @@ function micraBoilerText(lm, boiler) {
 function renderMicraBoilers() {
   // Reads the live cache: once the stream is invalidated the cache is null
   // and the ticker leaves the reset placeholders alone.
-  const lm = R.homeStatusCache()?.lineaMicra;
+  const st = R.homeStatusCache(),
+    lm = st?.lineaMicra;
+  renderReadyMsg(st, lm);
   if (!lm) return;
   const brew = $("homeMicraBrewBoiler"),
     steam = $("homeMicraSteamBoiler");
@@ -130,10 +132,10 @@ export function init() {
       if (renameScaleLink.getAttribute("aria-disabled") === "true") return;
       R.renameScale();
     };
-  if ($("homeBrewByWeight")) $("homeBrewByWeight").onchange = R.persistHomeBrewByWeight;
+  if ($("homeBrewByWeight"))
+    $("homeBrewByWeight").onchange = $("homeBrewManual").onchange = R.persistHomeBrewByWeight;
   if ($("homeNoScaleBbwEnabled")) $("homeNoScaleBbwEnabled").onchange = R.persistHomeNoScaleBbw;
-  for (const [h, s, c] of R.HOME_GUARD_SWITCHES)
-    if ($(h)) $(h).onchange = () => R.persistHomeGuard(h, s, c);
+  initProtections();
   if ($("grindHintNewBeans")) $("grindHintNewBeans").onclick = () => R.startNewCoffee();
   if ($("grindHintLater"))
     $("grindHintLater").onclick = () =>
@@ -142,6 +144,59 @@ export function init() {
     $("scaleLossDiscoveryOk").onclick = () => R.dismissCard("ssCard:scaleLossDiscovery");
   quickWeight = initQuickWeight();
   quickWeightWanted = new URLSearchParams(location.search).has("edit_weight");
+}
+// Shared safety protections (the device-wide switches) ask before turning
+// off; turning anything on, or a preset's fast/slow side, stays one tap.
+function initProtections() {
+  const surface = $("stopSurface"),
+    row = $("protRow"),
+    confirmBar = $("protConfirm");
+  if (!surface || !row || !confirmBar) return;
+  let turnOff = null;
+  const settle = (off) => {
+    confirmBar.hidden = true;
+    if (off && turnOff) turnOff();
+    turnOff = null;
+  };
+  row.onclick = () => row.setAttribute("aria-expanded", surface.classList.toggle("open"));
+  $("protKeep").onclick = () => settle(false);
+  $("protOff").onclick = () => settle(true);
+  confirmBar.onkeydown = (e) => e.key === "Escape" && settle(false);
+  for (const [h, s, c, , shared] of R.HOME_GUARD_SWITCHES)
+    if ($(h))
+      $(h).onchange = () => {
+        if (!shared || $(h).checked) return R.persistHomeGuard(h, s, c);
+        $(h).checked = true;
+        turnOff = () => {
+          $(h).checked = false;
+          R.persistHomeGuard(h, s, c);
+        };
+        $(h).closest(".switchRow").after(confirmBar);
+        confirmBar.hidden = false;
+        $("protKeep").focus();
+      };
+}
+function renderReadyMsg(s, lm) {
+  const msg = $("homeReadyMsg"),
+    cfg = s?.config || {},
+    sc = s?.scale || {},
+    idle = !!s && !["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state),
+    mins = Math.ceil(((lm?.boiler?.coffee?.readyAtUtcSec || 0) * 1000 - Date.now()) / 60000);
+  if (!msg) return;
+  const text = !idle
+    ? ""
+    : cfg.brewByWeight && !(sc.available && sc.streamState === "FRESH")
+      ? cfg.noScaleBbwMode === "require_scale"
+        ? __WEBUI_TEXT__("home.no_scale_required")
+        : cfg.noScaleBbwMode === "warn_once"
+          ? __WEBUI_TEXT__("home.no_scale_warn")
+          : __WEBUI_TEXT__("home.no_scale_manual")
+      : s.machineIntegration === "linea_micra_cloud" && lm?.accountConfigured && lm.observeState && lm.readiness === "warming_up"
+        ? __WEBUI_TEXT__("home.machine_warming") +
+          (mins > 0 ? " · " + __WEBUI_TEXT__("home.ready_in").replace("%1", mins) : "")
+        : "";
+  msg.hidden = !text;
+  if (msg.textContent !== text) msg.textContent = text;
 }
 function initQuickWeight() {
   const sheet = $("qwSheet"),
@@ -158,7 +213,8 @@ function initQuickWeight() {
     presetEl = $("qwPreset"),
     doneBtn = $("qwDone"),
     limitMin = $("qwLimitMin"),
-    limitMax = $("qwLimitMax");
+    limitMax = $("qwLimitMax"),
+    ratio = $("qwRatio");
   // Firmware preset goal: decigrams, 10.0–200.0 g (settings validation).
   const MIN = 10,
     MAX = 200,
@@ -196,7 +252,8 @@ function initQuickWeight() {
   let lo = MIN * 10,
     hi = MAX * 10,
     value = MIN * 10,
-    openValue = MIN * 10;
+    openValue = MIN * 10,
+    dose = 0;
   const clamp = (d) => Math.max(lo, Math.min(hi, d));
   const speedMul = (v) => 1 + Math.min(SPEED_CAP - 1, Math.abs(v || 0) * SPEED_K);
   let nowIdx = -1;
@@ -211,6 +268,11 @@ function initQuickWeight() {
     nowIdx = value - base;
     ticks[nowIdx].node.classList.add("now");
     num.textContent = (value / 10).toFixed(1);
+    ratio.textContent = dose
+      ? __WEBUI_TEXT__("home.ratio_dose")
+          .replace("%1", (value / 10 / dose).toFixed(1))
+          .replace("%2", dose.toFixed(1))
+      : "";
     zone.setAttribute("aria-valuenow", (value / 10).toFixed(1));
     zone.setAttribute("aria-valuetext", (value / 10).toFixed(1) + " g");
     limitMin.hidden = value > lo;
@@ -242,6 +304,7 @@ function initQuickWeight() {
     limitMin.classList.toggle("toneSlow", slow);
     limitMax.classList.toggle("toneFast", fast);
     value = openValue = clamp(Math.round(+preset.goalWeightG * 10));
+    dose = +preset.doseG || 0;
     presetEl.textContent = preset.name || "";
     zone.setAttribute("aria-valuemin", (lo / 10).toFixed(1));
     zone.setAttribute("aria-valuemax", (hi / 10).toFixed(1));
@@ -255,7 +318,7 @@ function initQuickWeight() {
   };
   const commit = async (dg) => {
     try {
-      await R.ensureSettingsHydrated();
+      if (!(await R.cleanBrewForm())) return;
       const field = $("goalWeightG"),
         rejected = String(field.value);
       field.value = (dg / 10).toFixed(1);

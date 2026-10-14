@@ -38,10 +38,14 @@ warning when you start the gesture, then the rinse sound if you finish it.
 Home **Start rinse** follows the same choice. **Require a scale** still blocks
 rinse unless you complete the temporary physical override.
 
-Home shows the configured mode as a read-only summary. Its live status is
-**Off**, **Armed**, **Temporarily allowed** (with remaining time), **Scale
-required**, or **Ready** when Require scale is configured and the scale is
-usable.
+On Home, **Stop the shot → Protections → No-scale BBW** shows the configured
+mode with its live status: **Off**, **Armed**, **Temporarily allowed** (with
+remaining time), **Scale required**, or **Ready** when Require scale is
+configured and the scale is usable. Its switch turns the protection off or
+back on; pick the mode itself here in Settings.
+
+While **By weight** is selected and no usable scale is connected, a notice at
+the top of Home says what your next shot will do in the current mode.
 
 When a shot runs without a scale, Home turns the shot card into a timer: the
 large number counts the seconds of the pour, the target weight stays out of the

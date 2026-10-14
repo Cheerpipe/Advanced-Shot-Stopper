@@ -30,7 +30,8 @@ On Home, the **Presets** section lists the recipes as rows: the active one is
 marked with a filled circle and expands to show how it cuts, for example
 **Before 27 s · Fast · up to 40 g**, **27–34 s · On recipe · 36 g** and
 **After 34 s · Slow · down to 33 g**. Tapping another row applies that recipe
-when brew by weight is on. These rows show the recipe's own values; learned
+when **Stop the shot** is set to **By weight**; in Manual the list says so and
+keeps the active recipe. These rows show the recipe's own values; learned
 drip compensation and time limits still apply.
 
 The preset list and its action bar stay hidden behind a loading animation
@@ -103,8 +104,8 @@ preset survives reboot.
 | --- | --- |
 | Preset (**Settings → Presets**) | Brew by weight, dose, target yield, shot time window, grind hints, fast and slow shot options and amounts, earliest weight stop, max shot time, the optional scale-loss stop time, starting drip and learning speed, learned drip, learning speed and its provenance, and the preset's shot statistics; Linea Micra builds also retain a brew-boiler target |
 | **Shared settings** | Linea Micra, paddle or switch behavior, quick rinse, scales, tare, cup detection, cup protection (including avoid accidental touch and stop after sustained weight), No-scale BBW, the scale-loss backup switch, alerts; Bluetooth and network settings are in Admin |
-| Home session | Quick Settings **Brew by weight** affects the current workflow. Turning it off selects Manual without saving BBW off in the recipe. |
-| Home / Home Assistant | **Extend fast shots** and **Shorten slow shots** persist only in the active preset. **Scale-loss backup**, **Avoid accidental touch** and **Cup protection** change the shared setting for every preset. |
+| Home **Stop the shot** | **By weight \| Manual** is saved on the controller, so it survives a restart, and Manual stays on when you pick another preset. It never changes the preset's own Brew by weight setting; choosing **By weight** brings that back. |
+| Home **Protections** / Home Assistant | **Extend fast shots** and **Shorten slow shots** (listed under **This preset**) are saved in the active preset only. **No-scale BBW**, **Scale-loss backup**, **Avoid accidental touch** and **Cup protection** (under **All presets**) change the shared setting for every preset. |
 
 To make an intentional recipe change permanent, edit and save it in Settings;
 the target weight alone can also be set from Home as described above.

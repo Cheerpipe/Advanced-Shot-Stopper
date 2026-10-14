@@ -15,8 +15,8 @@
   qwAssert.ok(/<div id="qwBackdrop" class="qwBackdrop" inert>/.test(qwHomeHtml) &&
       /<section id="qwSheet" class="qwSheet" role="dialog" aria-modal="true"/.test(qwHomeHtml),
     'Sheet and backdrop must ship inert until opened');
-  for (const id of ['qwGrab', 'qwDone', 'qwHead', 'qwPreset', 'qwNum', 'qwDef', 'qwReset',
-    'qwZone', 'qwScale'])
+  for (const id of ['qwGrab', 'qwDone', 'qwHead', 'qwPreset', 'qwNum', 'qwRatio', 'qwDef',
+    'qwReset', 'qwZone', 'qwScale'])
     qwAssert.ok(qwHomeHtml.includes('id="' + id + '"'), 'Sheet element missing: ' + id);
   qwAssert.ok(/id="qwPreset".*<\/p><p class="qwLabel"/.test(qwHomeHtml) &&
       qwHomeHtml.indexOf('id="qwPreset"') < qwHomeHtml.indexOf('class="qwLabel"'),
@@ -48,11 +48,12 @@
       qwSettingsGoal[1] === '10' && qwSettingsGoal[2] === '200',
     'Sheet bounds must equal the firmware preset goal bounds');
 
-  // Commit order: hydrate the settings form, write the goal, save the preset.
+  // Commit order: clean (discard-or-cancel) and hydrate the settings form,
+  // write the goal, save the preset, so unsaved Settings edits never ride along.
   // A rejected save must put the previous value back so no phantom edit
   // lingers in the form (the live warnings and the brew baseline would
   // otherwise describe a value the device never accepted).
-  const qwHydrate = qwFirst('R.ensureSettingsHydrated()'),
+  const qwHydrate = qwFirst('if (!(await R.cleanBrewForm())) return;'),
     qwWrite = qwFirst('field.value = (dg / 10).toFixed(1)'),
     qwSave = qwFirst('R.saveBrewPreset(undefined, undefined, true)'),
     qwRestore = qwFirst('field.value = rejected;');
@@ -61,8 +62,8 @@
   qwAssert.ok(qwRestore > qwSave,
     'A rejected quick-weight save must restore the previous goal value');
   qwAssert.ok((runtimeJs.match(/export\s*\{[\s\S]*?\n\};/) || [''])[0]
-      .replace(/\s/g, '').includes('ensureSettingsHydrated'),
-    'Runtime must export ensureSettingsHydrated for the commit path');
+      .replace(/\s/g, '').includes('cleanBrewForm'),
+    'Runtime must export cleanBrewForm for the commit path');
 
   qwAssert.ok(codeIncludes(qwHomeJs, 'pending += dx * BASE_DG_PER_PX * speedMul(vel.v);') &&
       codeIncludes(qwHomeJs, 'value = clamp(value + Math.trunc(pending));') &&
@@ -200,7 +201,7 @@
         ? node.classes.has(c) ? node.classes.delete(c) : node.classes.add(c)
         : on ? node.classes.add(c) : node.classes.delete(c); },
     });
-    const qwIds = ['qwSheet', 'qwBackdrop', 'qwZone', 'qwScale', 'qwNum', 'qwDef',
+    const qwIds = ['qwSheet', 'qwBackdrop', 'qwZone', 'qwScale', 'qwNum', 'qwRatio', 'qwDef',
       'qwReset', 'qwPreset', 'qwDone', 'qwGrab', 'qwHead', 'shotGoalEdit',
       'goalWeightG', 'qwLimitMin', 'qwLimitMax'];
     const qwEls = Object.fromEntries(qwIds.map((id) => {
@@ -210,8 +211,8 @@
     }));
     let qwNow = 0;
     const qwRuntime = {
-      presetState: {activeId: 2, items: [{id: 2, name: 'Espresso', goalWeightG: 36}]},
-      ensureSettingsHydrated: async () => { qwRuntime.hydrated++; },
+      presetState: {activeId: 2, items: [{id: 2, name: 'Espresso', goalWeightG: 36, doseG: 18}]},
+      cleanBrewForm: async () => { qwRuntime.hydrated++; return true; },
       saveBrewPreset: async () => { qwRuntime.saved++; return true; },
       message: () => {},
       formatCommandError: (m) => m,
@@ -249,6 +250,7 @@
     qwAssert.ok(qwEls.qwSheet.classes.has('open'), 'The pencil must open the sheet');
     qwAssert.equal(qwEls.qwNum.textContent, '36.0', 'The sheet opens at the active preset goal');
     qwAssert.equal(qwEls.qwPreset.textContent, 'Espresso', 'The header shows the preset name');
+    qwAssert.equal(qwEls.qwRatio.textContent, '1:2.0 · 18.0 g in', 'The sheet shows ratio and dose');
     qwAssert.ok(!qwEls.qwReset.classes.has('show'), 'Reset stays hidden at the preset goal');
     qwAssert.ok(qwEls.qwDone.focused, 'Opening focuses Done');
 

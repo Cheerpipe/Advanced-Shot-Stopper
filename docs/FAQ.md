@@ -10,7 +10,7 @@ covers the normal path.
 
 Check, in order:
 
-1. BBW is on in **Home Quick Settings**, not just in the saved recipe.
+1. **Stop the shot** on Home is set to **By weight**, not **Manual**.
 2. Home shows fresh usable scale readings.
 3. The [Earliest weight stop](features/cup-protection.md) time has passed.
 4. A [fast shot](features/fast-and-slow-shots.md#fast-shots) is not deliberately running longer.

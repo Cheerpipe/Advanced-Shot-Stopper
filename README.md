@@ -125,8 +125,8 @@ circuit and follow the [hardware safety guidance](docs/HARDWARE.md) before insta
 
 Recipe settings are saved with each preset in **Settings → Presets**. Everything
 under **Settings → Shared settings** applies to every preset.
-[Presets](docs/features/presets.md) explains what is saved and what a Home
-Quick Settings change affects.
+[Presets](docs/features/presets.md) explains what is saved and what a change
+made on Home affects.
 
 The [documentation index](docs/README.md#settings) links each settings group.
 Defaults are starting points; on the Adaptive presets, fast shots can

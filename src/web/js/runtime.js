@@ -4458,6 +4458,8 @@ function renderHomePresetAccordion() {
   const canSelect = !!($("homeBrewByWeight") && $("homeBrewByWeight").checked && controlsMutable),
     openId = homeAccPendingId || presetState.activeId,
     sig = JSON.stringify([openId, canSelect, liveRuleModel, presetState.items]);
+  $("presetLockNote").hidden =
+    homeSwitchUnset("homeBrewByWeight") || $("homeBrewByWeight").checked || presetState.items.length < 2;
   if (sig === homeAccSig) return;
   homeAccSig = sig;
   const focusIdx = [...el.querySelectorAll(".presetAccHead")].indexOf(document.activeElement),
@@ -4663,7 +4665,7 @@ function applyHomeNoScaleFromConfig(c) {
 }
 function applyHomeSwitchesFromConfig(c) {
   if (!c) return;
-  [["homeBrewByWeight", "homeBrewByWeightState", "brewByWeight"], ...HOME_GUARD_SWITCHES].forEach(
+  [["homeBrewByWeight", "", "brewByWeight"], ...HOME_GUARD_SWITCHES].forEach(
     ([h, s, k]) => typeof c[k] === "boolean" && applyPolledHomeSwitch(h, s, c[k], k),
   );
   applyHomeNoScaleFromConfig(c);
@@ -4684,15 +4686,40 @@ function updateHomeGuardSwitchesLock() {
   const bbw = $("homeBrewByWeight"),
     x = homeSwitchUnset("homeBrewByWeight"),
     on = !x && !!bbw && bbw.checked;
-  if (bbw) bbw.disabled = !controlsMutable || x;
+  if (!bbw) return;
+  bbw.disabled = $("homeBrewManual").disabled = !controlsMutable || x;
+  $("homeBrewManual").checked = !x && !bbw.checked;
   [["homeNoScaleBbwEnabled"], ...HOME_GUARD_SWITCHES].forEach(([h]) => {
-    const el = $(h);
-    if (!el) return;
-    const u = homeSwitchUnset(h),
-      off = !u && !on;
-    el.disabled = !controlsMutable || u || off;
-    el.closest(".switchRow")?.classList.toggle("fieldOff", off);
+    const u = homeSwitchUnset(h);
+    $(h).disabled = !controlsMutable || u || (!u && !on);
   });
+  renderProtSummary(on || x);
+}
+// The Protections row shows the active preset's fast/slow sides and the four
+// shared protections as dots in panel order, and names any shared one that is
+// off, so the panel can stay closed.
+function renderProtSummary(bbwOn) {
+  const shared = [
+      ["homeNoScaleBbwEnabled", __WEBUI_TEXT__("runtime.no_scale_bbw")],
+      ...HOME_GUARD_SWITCHES.filter((x) => x[4]).map((x) => [x[0], x[3]]),
+    ],
+    offs = shared.filter(([h]) => !$(h).checked),
+    status = !bbwOn
+      ? __WEBUI_TEXT__("home.paused")
+      : offs.length
+        ? sub(__WEBUI_TEXT__("home.n_off"), [offs.length === 1 ? offs[0][1] : offs.length])
+        : "",
+    active = presetState.items.find((p) => p.id === presetState.activeId);
+  $("stopSurface").classList.toggle("manual", !bbwOn);
+  const dots = ["homeFastExtractionGuardEnabled", "homeSlowExtractionGuardEnabled", ...shared.map((x) => x[0])];
+  [...$("protDots").children].forEach((d, i) => d.classList.toggle("off", !$(dots[i]).checked));
+  $("protStatus").textContent = status;
+  $("protStatus").classList.toggle("warn", bbwOn && offs.length > 0);
+  $("protRow").setAttribute(
+    "aria-label",
+    __WEBUI_TEXT__("home.protections") + ": " + (status || __WEBUI_TEXT__("home.all_on")),
+  );
+  $("protPresetHead").textContent = sub(__WEBUI_TEXT__("home.this_preset"), [active?.name || ""]);
 }
 function scheduleHomeGuardFlush() {
   clearTimeout(homeFlushTimer);
@@ -4726,6 +4753,17 @@ function persistHomeBrewByWeight() {
   renderHomePresetAccordion();
   homeFlushConfig = true;
   scheduleHomeGuardFlush();
+}
+// Home writes reuse the Settings brew form: unsaved edits there must never
+// ride along, so the owner discards them first or the Home change is dropped.
+async function cleanBrewForm() {
+  if (brewDirty) {
+    if (!confirm(__WEBUI_TEXT__("runtime.you_have_unsaved_preset_changes_discard_them"))) return false;
+    clearBrewDirty();
+    invalidateSettingsHydration();
+  }
+  await ensureSettingsHydrated();
+  return true;
 }
 async function ensureSettingsHydrated() {
   if (configLoaded) return;
@@ -4816,10 +4854,13 @@ async function flushHomeGuards() {
       }
     }
     if (doPreset) {
+      let clean = false;
       try {
-        await ensureSettingsHydrated();
+        clean = await cleanBrewForm();
       } catch (e) {
         message(formatCommandError(msgs.fail, e), "error");
+      }
+      if (!clean) {
         clearHomePend();
         await refreshStatus();
         return;
@@ -6741,37 +6782,27 @@ function setHomeSub(id, v) {
   if (e && e.textContent !== v) e.textContent = v;
 }
 function updateHomeGuardSubs(s, live) {
-  const nl = {
-    off: __WEBUI_TEXT__("runtime.off_2"),
-    warn_once: __WEBUI_TEXT__("runtime.warn_once"),
-    require_scale: __WEBUI_TEXT__("runtime.require_scale"),
-  };
-  if ($("homeNoScaleBbwMode"))
-    $("homeNoScaleBbwMode").textContent =
-      nl[(s.config || {}).noScaleBbwMode] || __WEBUI_TEXT__("runtime.warn_once");
   const c = s.cycle || {},
     cfg = s.config || {},
     b = !!cfg.brewByWeight,
-    t = c.shotType,
     sc = s.scale || {},
-    ls = s.lastShot || {};
+    ls = s.lastShot || {},
+    paused = __WEBUI_TEXT__("home.paused");
+  // In Manual every protection waits: one word instead of per-row "Off"
+  // that would contradict a switch still showing on.
+  if (!b) {
+    for (const id of ["homeFastSub", "homeSlowSub", "homeNoScaleSub", "homeScaleLossSub", "homeTouchSub", "homeCupSub"])
+      setHomeSub(id, paused);
+    return;
+  }
+  const mode = {
+    warn_once: __WEBUI_TEXT__("runtime.warn_once"),
+    require_scale: __WEBUI_TEXT__("runtime.require_scale"),
+  }[cfg.noScaleBbwMode];
   setHomeSub(
-    "homeBbwSub",
-    !b
-      ? __WEBUI_TEXT__("runtime.off_2")
-      : !live
-        ? __WEBUI_TEXT__("runtime.idle")
-        : t === "auto"
-          ? __WEBUI_TEXT__("runtime.active")
-          : t === "timer_only"
-            ? __WEBUI_TEXT__("runtime.timer_only")
-            : t === "manual"
-              ? "Manual"
-              : t === "rinse"
-                ? __WEBUI_TEXT__("runtime.rinse")
-                : __WEBUI_TEXT__("runtime.on_2"),
+    "homeNoScaleSub",
+    mode ? mode + " · " + formatNoScaleGuard(s.noScaleShotGuard) : __WEBUI_TEXT__("runtime.off_2"),
   );
-  setHomeSub("homeNoScaleSub", formatNoScaleGuard(b ? s.noScaleShotGuard : { enabled: 0 }));
   const m = liveRuleModel?.mode === "active" ? liveRuleModel : null,
     n = (v) => +(+v).toFixed(1),
     off = __WEBUI_TEXT__("runtime.off_2"),
@@ -6779,13 +6810,13 @@ function updateHomeGuardSubs(s, live) {
     sl = s.scaleLoss || {};
   setHomeSub(
     "homeScaleLossSub",
-    b && cfg.autoToManualGuardEnabled && Number.isFinite(sl.projectedS)
+    cfg.autoToManualGuardEnabled && Number.isFinite(sl.projectedS)
       ? sub(__WEBUI_TEXT__("runtime.scale_loss_sub"), [+sl.projectedS.toFixed(1)])
       : off,
   );
   setHomeSub(
     "homeFastSub",
-    !b || !m
+    !m
       ? off
       : !m.fast
         ? sideOff
@@ -6796,14 +6827,14 @@ function updateHomeGuardSubs(s, live) {
   setHomeSub(
     "homeTouchSub",
     formatAccidentalTouch({
-      enabled: b && !!cfg.avoidAccidentalTouchEnabled,
+      enabled: !!cfg.avoidAccidentalTouchEnabled,
       holding: live && !!c.accidentalTouchHolding,
       inShot: live,
     }),
   );
   setHomeSub(
     "homeSlowSub",
-    !b || !m
+    !m
       ? off
       : !m.slow
         ? sideOff
@@ -6814,7 +6845,7 @@ function updateHomeGuardSubs(s, live) {
   setHomeSub(
     "homeCupSub",
     formatCupProtection({
-      enabled: b && !!cfg.cupProtectionEnabled,
+      enabled: !!cfg.cupProtectionEnabled,
       requireCupToStart: !!cfg.requireCupToStart,
       stopIfRemoved: !!cfg.stopIfCupRemoved,
       present: !!(s.cupPresence && s.cupPresence.present),
@@ -8916,7 +8947,7 @@ export {
   saveMachineConfig,
   saveDateTimeConfig,
   saveBrewPreset,
-  ensureSettingsHydrated,
+  cleanBrewForm,
   settingsSectionOf,
   snapshotControls,
   restoreSnapshot,

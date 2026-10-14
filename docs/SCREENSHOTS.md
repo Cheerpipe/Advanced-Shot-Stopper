@@ -15,10 +15,10 @@ and the settings guides for current actions.
 
 ### Home
 
-Quick Settings, presets, shot hero and connection status. The current Quick
-Settings list is Brew by weight, No-scale BBW, Scale-loss backup, Extend fast
-shots, Shorten slow shots, Avoid accidental touch and Cup protection; the
-captures predate those names. Remote actions depend
+Shot hero, presets and connection status. The captures predate the current
+**Stop the shot** card, which replaced Quick Settings with a **By weight |
+Manual** control and a **Protections** row that opens the preset and shared
+protection switches. Remote actions depend
 on build policy and Admin unlock: the Actions panel is shown only when remote
 machine control is compiled in and Admin is unlocked.
 
