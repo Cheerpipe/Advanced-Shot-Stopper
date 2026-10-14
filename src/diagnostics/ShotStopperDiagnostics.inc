@@ -457,14 +457,8 @@ void publishControlStatus() {
     next.cycleCupRemovedPending = session.cupRemovedPending;
     next.cycleBbwProtectionEnabled = session.bbwProtectionEnabled;
     next.cycleBbwProtectionEnded = session.bbwProtectionEnded;
-    if (session.autoToManualGuardEnforced) {
-      const uint32_t nowMs = millis();
-      next.cycleAutoToManualGuardRemainingMs =
-          static_cast<int32_t>(session.autoToManualGuardDeadlineAtMs -
-                               nowMs) <= 0
-              ? 0U
-              : session.autoToManualGuardDeadlineAtMs - nowMs;
-    }
+    if (session.autoToManualGuardEnforced)
+      next.cycleAutoToManualGuardRemainingMs = scaleLossBackupRemainingMs();
   }
   next.autoToManualGuardTrendMs =
       static_cast<uint32_t>(scaleLossProjection.deadlineMs);
@@ -504,7 +498,6 @@ void publishControlStatus() {
   next.bleScanEnabled = liveBleEnabled();
   next.debugEventsDropped =
       __atomic_load_n(&debugLogDroppedSnapshot, __ATOMIC_RELAXED) +
-      __atomic_load_n(&debugLogContentionDropped, __ATOMIC_RELAXED) +
       serialLogDroppedCount();
   lock.unlock();
   publishControlGate();

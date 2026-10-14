@@ -1,6 +1,304 @@
 // Web/control bridge
 // ---------------------------------------------------------------------------
 
+// Shot store access for the network task: every read and mutation holds
+// shotStoreMutex.
+size_t copyShotRecords(ShotLogRecord *output, size_t capacity) {
+  TaskLockGuard lock(shotStoreMutex);
+  return shotLog.copyNewestFirst(output, capacity);
+}
+
+void copyPresetShotStats(const ShotPresetBank &bank, PresetShotStats *out) {
+  TaskLockGuard lock(shotStoreMutex);
+  for (uint8_t i = 0; i < bank.count; ++i)
+    out[i].stats = shotLog.arrivalStats(bank.presets[i].id, bank.presets[i].learningEpoch,
+                                        out[i].arrivalsMs);
+}
+
+void copyShotStatsRecords(ShotStatsRecordsSnapshot &output) {
+  TaskLockGuard lock(shotStoreMutex);
+  output.stats = shotLog.statsView();
+  output.count = shotLog.copyNewestFirst(output.records, SHOT_LOG_CAPACITY);
+  output.epoch = shotLog.epoch();
+}
+
+bool copyShotCurveById(uint32_t shotId, ShotCurveRecord &curve) {
+  const uint32_t lockStartedUs = micros();
+  TaskLockGuard lock(shotStoreMutex);
+  noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs,
+                  micros() - lockStartedUs);
+  resetShotCurveRecord(curve);
+  return shotCurves.copyByShotId(shotId, curve);
+}
+
+bool copyHomeShot(ShotLogRecord &record, ShotCurveRecord &curve) {
+  TaskLockGuard lock(shotStoreMutex);
+  resetShotCurveRecord(curve);
+  if (!shotLog.copyNewestEligible(record)) return false;
+  (void)shotCurves.copyByShotId(record.id, curve);
+  return true;
+}
+
+bool shotLogSavePending() {
+  TaskLockGuard lock(shotStoreMutex);
+  return shotLog.dirty() || shotCurves.dirty();
+}
+
+void copyHistoryPage(HistoryPage &page, size_t offset, size_t limit,
+                     ShotLogSortDir dir) {
+  const uint32_t lockStartedUs = micros();
+  TaskLockGuard lock(shotStoreMutex);
+  noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs,
+                  micros() - lockStartedUs);
+  historyLog.copyPage(page, offset, limit, dir);
+}
+
+uint32_t copyHistoryEpoch() {
+  TaskLockGuard lock(shotStoreMutex);
+  return historyLog.epoch();
+}
+
+uint32_t copyShotLogEpoch() {
+  TaskLockGuard lock(shotStoreMutex);
+  return shotLog.epoch();
+}
+
+bool deleteHistoryRecord(uint32_t id) {
+  TaskLockGuard lock(shotStoreMutex);
+  const bool changed = historyLog.removeById(id, false);
+  if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return changed;
+}
+
+bool clearHistoryLog() {
+  TaskLockGuard lock(shotStoreMutex);
+  const bool changed = historyLog.clear(false);
+  if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return changed;
+}
+
+uint32_t copyShotLogBootIdCached() {
+  const uint32_t generation =
+      shotStoreDirtyGeneration.load(std::memory_order_acquire);
+  if (!shotLogBootIdCacheValid || shotLogBootIdCacheGeneration != generation) {
+    shotLogBootIdCache = copyShotLogBootId();
+    shotLogBootIdCacheGeneration = generation;
+    shotLogBootIdCacheValid = true;
+  }
+  return shotLogBootIdCache;
+}
+
+ShotStatsView copyShotStats() {
+  TaskLockGuard lock(shotStoreMutex);
+  return shotLog.statsView();
+}
+
+bool copyShotStoreStatus(uint32_t &bootId, PersistedLastShot &last,
+                         PersistedLastShot &good, ShotCurveRecord &goodCurve,
+                         HistoryRecord &newestActivation,
+                         bool &hasNewestActivation, bool includeGoodHistory) {
+  const uint32_t lockStartedUs = micros();
+  TaskLockGuard lock(shotStoreMutex);
+  noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs,
+                  micros() - lockStartedUs);
+  bootId = shotLog.bootId();
+  // Newest activation record rides the same critical section so the status
+  // publish needs no second shotStoreMutex acquisition.
+  hasNewestActivation = historyLog.copyNewest(newestActivation);
+  last = persistedLastShot;
+  // The star rating lives in the shot-log record once the shot is committed;
+  // mirror it into the status aggregate so the WebUI and HA see one value.
+  if (last.valid && last.shotLogId != 0) {
+    (void)shotLog.copyRatingById(last.shotLogId, last.rating);
+  }
+  good = persistedLastGoodShot;
+  good.rating = 0;
+  resetShotCurveRecord(goodCurve);
+  uint8_t rating = 0;
+  if (!includeGoodHistory || !publishableLastShot(good) ||
+      good.shotLogId == 0 ||
+      !shotLog.copyRatingById(good.shotLogId, rating))
+    return false;
+  good.rating = rating;
+  (void)shotCurves.copyByShotId(good.shotLogId, goodCurve);
+  return true;
+}
+
+bool deleteShotRecord(uint32_t id) {
+  TaskLockGuard lock(shotStoreMutex);
+  const bool hadCurve = shotCurves.containsShotId(id);
+  const bool hadLog = shotLog.containsId(id);
+  if (!hadLog && !hadCurve) {
+    return false;
+  }
+  if (hadCurve && !shotCurves.removeById(id, false)) {
+    return false;
+  }
+  if (hadLog && !shotLog.removeById(id, false)) {
+    return false;
+  }
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return true;
+}
+
+bool clearShotLog() {
+  TaskLockGuard lock(shotStoreMutex);
+  if (!shotCurves.clear(false)) {
+    return false;
+  }
+  if (!shotLog.clear(false)) return false;
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return true;
+}
+
+bool clearLastShot() {
+  TaskLockGuard lock(shotStoreMutex);
+  ShotLogRecord latest = {};
+  if (!shotLog.copyNewestEligible(latest)) return false;
+  if (shotCurves.containsShotId(latest.id) &&
+      !shotCurves.removeById(latest.id, false)) return false;
+  if (!shotLog.removeById(latest.id, false)) return false;
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return true;
+}
+
+void clearLastShotRuntimeState() {
+  lastShotNvsDirty = false;
+}
+
+#ifndef SHOT_STOPPER_HOST_TEST
+bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
+  TaskLockGuard lock(shotStoreMutex);
+  if (!resetAllDurableStores(settings, bleScanPersistedSettings, shotLog,
+                             historyLog, lastShotStore, shotCurves)) {
+    return false;
+  }
+  // The wiped stores are a mutation like any other: bump so the status
+  // gather guard re-fetches and the persistence fast path keeps flowing
+  // until the reset state is acknowledged as persisted.
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  // Factory reset includes the saved scale profile: drop its durable header
+  // and any frozen RAM copy left by an unsaved session.
+  if (!scaleProfiler().clearForFactoryReset()) {
+    return false;
+  }
+  scaleProfileRequest.store(ScaleProfilerRequest::NONE,
+                            std::memory_order_release);
+  // Drop transient dirty state only after the durable factory reset succeeds.
+  // A staged scan setting must not survive the reset's default write.
+  clearLastShotRuntimeState();
+  bleScanPersistMux.lock();
+  bleScanPersistPending = false;
+  bleScanEnabledPersistPending = false;
+  pendingBleScanRequestIdCount = 0;
+  bleScanPersistFailLatched = false;
+  bleScanPersistMux.unlock();
+  return true;
+}
+
+bool releaseNvsSpaceForFactoryResetForNetwork() {
+  TaskLockGuard lock(shotStoreMutex);
+  return releaseNvsSpaceForFactoryReset(lastShotStore);
+}
+#endif
+
+bool rateShotRecord(uint32_t id, uint8_t rating) {
+  TaskLockGuard lock(shotStoreMutex);
+  if (id == 0 || rating > SHOT_LOG_RATING_MAX) {
+    return false;
+  }
+  const bool changed = shotLog.updateRating(id, rating, false);
+  if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return changed;
+}
+
+bool rateLastShot(uint8_t rating) {
+  TaskLockGuard lock(shotStoreMutex);
+  ShotLogRecord latest = {};
+  if (rating > SHOT_LOG_RATING_MAX || !shotLog.copyNewestEligible(latest))
+    return false;
+  const bool changed = shotLog.updateRating(latest.id, rating, false);
+  if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  return changed;
+}
+
+// Recipe and Bullseye publication: the control task commits, the network
+// task copies under recipeMutex / bullseyeConfigMux.
+bool enqueueWebCommand(const WebCommand &command) {
+  return webCommandQueue != nullptr &&
+         xQueueSend(webCommandQueue, &command, 0) == pdTRUE;
+}
+
+void publishRecipeState() {
+  TaskLockGuard lock(recipeMutex);
+  publishedRuntimeConfig = runtimeConfig;
+  publishedPresetBank = presetBank;
+}
+
+void copyRecipeSnapshot(RecipeSnapshot *out) {
+  if (out == nullptr) return;
+  TaskLockGuard lock(recipeMutex);
+  out->presets = publishedPresetBank;
+  out->runtime = publishedRuntimeConfig;
+}
+
+void copyPresetBank(ShotPresetBank *out) {
+  if (out == nullptr) return;
+  TaskLockGuard lock(recipeMutex);
+  *out = publishedPresetBank;
+}
+
+void copyRuntimeConfig(RuntimeConfig *out) {
+  if (out == nullptr) return;
+  TaskLockGuard lock(recipeMutex);
+  *out = publishedRuntimeConfig;
+}
+
+void copyBullseyeConfig(BullseyeMelodyConfig *out) {
+  if (out == nullptr) return;
+  bullseyeConfigMux.lock();
+  *out = bullseyeMelodyConfig;
+  bullseyeConfigMux.unlock();
+}
+
+bool stageBullseyeConfig(const BullseyeMelodyConfig &config,
+                         uint32_t requestId) {
+  if (requestId == 0 || !validBullseyeMelodyConfig(config)) return false;
+  bullseyeConfigMux.lock();
+  stagedBullseyeMelodyConfig = config;
+  stagedBullseyeRequestId = requestId;
+  bullseyeConfigMux.unlock();
+  return true;
+}
+
+bool takeStagedBullseyeConfig(uint32_t requestId,
+                              BullseyeMelodyConfig &out) {
+  bool matched = false;
+  bullseyeConfigMux.lock();
+  if (requestId != 0 && stagedBullseyeRequestId == requestId) {
+    out = stagedBullseyeMelodyConfig;
+    stagedBullseyeRequestId = 0;
+    matched = true;
+  }
+  bullseyeConfigMux.unlock();
+  return matched;
+}
+
+void commitLiveBullseyeConfig(const BullseyeMelodyConfig &config) {
+  bullseyeConfigMux.lock();
+  const bool changed = bullseyeMelodyConfig.enabled != config.enabled ||
+      strncmp(bullseyeMelodyConfig.rtttl, config.rtttl,
+              sizeof(config.rtttl)) != 0;
+  if (changed) bullseyeMelodyConfig = config;
+  bullseyeConfigMux.unlock();
+  if (!changed) return;
+  (void)localBuzzer.configureBullseyeRtttl(bullseyeMelodyConfig.rtttl);
+  if (!bullseyeMelodyConfig.enabled) bullseyeTracker.clear();
+#ifndef SHOT_STOPPER_HOST_TEST
+  networkManager.syncLiveBullseye(bullseyeMelodyConfig);
+#endif
+}
+
 void maybeRequestNtpSyncOnActivity() {
 #ifndef SHOT_STOPPER_HOST_TEST
   networkManager.requestNtpSyncIfNeeded();
@@ -802,7 +1100,6 @@ void serviceShotStorePersistence() {
         shotStorePersistCleanGeneration = resultGeneration;
         if (shotStorePersistImageLastShotDirty) {
           lastShotNvsDirty = false;
-          lastShotPersistFailLatched = false;
         }
       }
     }
@@ -1006,7 +1303,6 @@ void completeMaintenanceLease(const WebCommand &result) {
     }
     runtimePersistFailed = true;
     // RUNTIME_PERSIST_FAILED already formats a detailed Serial line.
-    runtimePersistCandidate = maintenanceLease.command.config;
     runtimePersistPending = true;
     runtimePersistIoRetryMs = nextPersistenceIoRetry(
         runtimePersistIoRetryMs, RUNTIME_PERSIST_RETRY_MS);

@@ -163,7 +163,6 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   lastCycle = LastCycleSummary{};
   lastShotNvsDirty = false;
   activationStores.clearPersistFailLatches();
-  lastShotPersistFailLatched = false;
   controllerStartedPending = false;
   shotStorePersistRetryAtMs = 0;
   shotStorePersistIoRetryMs = 0;
@@ -273,7 +272,6 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   g_wallClock.reset();
   runtimePersistPending = false;
   runtimePersistFailed = false;
-  runtimePersistCandidate = RuntimeConfig{};
   pendingPresetPersistence = {};
   quickSettingsPersistPending = false;
   runtimePersistRetryAtMs = 0;
@@ -2227,13 +2225,13 @@ void r58_extended_shot_does_not_learn_weight_offset() {
   CHECK(runtimeConfig.weightOffsetG == originalOffset);
 }
 
-void r65_slow_extended_shot_does_not_learn_weight_offset() {
+void r65_non_weight_cut_does_not_learn_weight_offset() {
   resetHarness(false, true);
   reachReadyFromBoot();
   const float originalOffset = runtimeConfig.weightOffsetG;
   preparePendingBbwForTest();
+  // No weight cut fired (EndReason NONE): the drip offset must not learn.
   pendingFinalize.offsetAnalysis = true;
-  pendingFinalize.slowExtractionExtended = true;
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.endedWeightSequence = 0;
   pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
@@ -20182,7 +20180,7 @@ const TestCase testCases[] = {
     {"FF14", ff14_no_scale_first_drop_does_not_skip_stopper},
     {"FF15", ff15_orchestrate_post_tare_holds_cup_transitions},
     {"FF16", ff16_packet_gap_restarts_confirmation},
-    {"R65", r65_slow_extended_shot_does_not_learn_weight_offset},
+    {"R65", r65_non_weight_cut_does_not_learn_weight_offset},
     {"R32", r32_old_connection_generation_cannot_update_weight},
     {"R33", r33_weight_mailbox_keeps_latest_without_consumer_gap},
     {"R33b", r33b_stream_gap_counts_connected_inter_packet_silence},

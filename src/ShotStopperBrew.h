@@ -741,6 +741,13 @@ void enforceScaleLossBackup() {
                 nowMs, deadline.deadlineMs);
 }
 
+// Time left before the scale-loss backup stops the shot (0 once due).
+uint32_t scaleLossBackupRemainingMs() {
+  const int32_t left =
+      static_cast<int32_t>(session.autoToManualGuardDeadlineAtMs - millis());
+  return left > 0 ? static_cast<uint32_t>(left) : 0U;
+}
+
 bool autoToManualGuardDeadlineDue() {
   if (!session.active || !session.autoToManualGuardEnforced) {
     return false;

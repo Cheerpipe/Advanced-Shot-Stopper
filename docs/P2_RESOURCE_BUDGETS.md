@@ -230,6 +230,9 @@ bytes, the flash-code allowance to 44,344 bytes and the rodata allowance to
 36,564 bytes. The reference development Micra build measures 2,351,232 image,
 2,351,115 linked, 1,559,380 flash-code and 623,852 rodata bytes —
 77,472/77,468/44,280/36,500 over baseline, with the 64-byte headroom kept.
+The Web UI follow-ups (review-graph window lines, toolbar spacing, hero
+copy) bring rodata to 623,980 bytes (36,628 over baseline); its allowance
+moves to 36,692 bytes.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,

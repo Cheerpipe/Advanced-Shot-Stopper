@@ -113,8 +113,6 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
   pendingFinalize.extractionExtended = session.extractionExtended;
   pendingFinalize.slowExtractionGuardEnabled =
       session.config.slowSideEnabled;
-  pendingFinalize.slowExtractionExtended = session.slowExtractionExtended;
-  pendingFinalize.targetReachedEarly = session.targetReachedEarly;
   pendingFinalize.fastMarginDg = session.config.fastMarginDg;
   pendingFinalize.slowMarginDg = session.config.slowMarginDg;
   pendingFinalize.fastBeforeMs = session.config.fastBeforeMs;
@@ -143,14 +141,8 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
       session.config.scaleLossEnabled;
   pendingFinalize.autoToManualGuardEnforced = session.autoToManualGuardEnforced;
   pendingFinalize.autoToManualGuardArmed = session.autoToManualGuardArmed;
-  if (session.autoToManualGuardEnforced) {
-    const uint32_t nowMs = millis();
-    pendingFinalize.autoToManualGuardRemainingMs =
-        static_cast<int32_t>(session.autoToManualGuardDeadlineAtMs - nowMs) <=
-                0
-            ? 0U
-            : session.autoToManualGuardDeadlineAtMs - nowMs;
-  }
+  if (session.autoToManualGuardEnforced)
+    pendingFinalize.autoToManualGuardRemainingMs = scaleLossBackupRemainingMs();
   pendingFinalize.noScaleShotGuardEnabled =
       noScaleBbwEnabled(runtimeConfig.noScaleBbwMode);
   pendingFinalize.noScaleShotGuardArmed = noScaleShotGuardArmed;
@@ -158,8 +150,6 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   copyCString(pendingFinalize.scaleProtocol,
               sizeof(pendingFinalize.scaleProtocol), link.protocolName);
-  pendingFinalize.scaleProtocol[sizeof(pendingFinalize.scaleProtocol) - 1] =
-      '\0';
   copyCString(pendingFinalize.scaleName, sizeof(pendingFinalize.scaleName),
               session.scaleName);
   shotCurveSampler.snapshot(pendingFinalize.curve);
@@ -208,6 +198,169 @@ corridor::ArrivalVerdict pendingShotVerdict(const PendingShotFinalize &snapshot,
     return corridor::ArrivalVerdict{};
   return corridor::arrivalVerdict(pendingCutParams(snapshot), pendingCutMs(snapshot),
                                   rateX100);
+}
+
+void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
+                                 float finalWeightG, bool finalWeightValid) {
+  PersistedLastShot last = {};
+  last.valid = true;
+  last.cycleId = snapshot.cycleId;
+  last.endedAtUptimeMs = snapshot.endedAtMs;
+  last.presetId = snapshot.activePresetId;
+  copyCString(last.presetName, sizeof(last.presetName), snapshot.activePresetName);
+  last.durationMs = static_cast<uint32_t>(snapshot.durationDs) * 100U;
+  last.endReason = snapshot.endReason;
+  if (snapshot.endedAtHasWallTime) {
+    last.endedAtUnixSec = snapshot.endedAtUtcSec;
+    last.endedAtLocalSec =
+        shotLogLocalSecFromUtc(snapshot.endedAtUtcSec,
+                               snapshot.endedAtOffsetMinutes);
+    last.hasWallTime = 1;
+  }
+  last.weightValid = finalWeightValid;
+  last.currentWeightG = finalWeightValid ? finalWeightG : 0.0f;
+  last.goalWeightDg = snapshot.goalWeightDg;
+  last.extractionExtended =
+      snapshot.endReason == EndReason::FAST_EXTRACTION_MAX_WEIGHT;
+  last.slowExtractionExtended =
+      snapshot.endReason == EndReason::SLOW_EXTRACTION_MIN_WEIGHT;
+  last.activeStopWeightG = goalWeightDgToGrams(
+      last.extractionExtended ? snapshot.goalWeightDg + snapshot.fastMarginDg
+      : last.slowExtractionExtended ? snapshot.goalWeightDg - snapshot.slowMarginDg
+                                    : snapshot.goalWeightDg);
+  if (snapshot.firstDropDs != SHOT_LOG_METRIC_MISSING) {
+    last.firstDropElapsedMs =
+        static_cast<uint32_t>(snapshot.firstDropDs) * 100U;
+  }
+  if (snapshot.tareAtDs != SHOT_LOG_METRIC_MISSING) {
+    last.tareElapsedMs = static_cast<uint32_t>(snapshot.tareAtDs) * 100U;
+  }
+  copyCString(last.scaleName, sizeof(last.scaleName), snapshot.scaleName);
+  if (last.weightValid && last.firstDropElapsedMs != 0 &&
+      last.durationMs > last.firstDropElapsedMs + 500U &&
+      snapshot.scaleBaselineReady) {
+    const float delta = last.currentWeightG - snapshot.scaleBaselineG;
+    last.averageFlowGps =
+        delta * 1000.0f /
+        static_cast<float>(last.durationMs - last.firstDropElapsedMs);
+    last.averageFlowValid =
+        delta > 0.0f && std::isfinite(last.averageFlowGps);
+  }
+  last.retarePerformed = snapshot.retarePerformed;
+  last.shotType = static_cast<uint8_t>(lastShotTypeFromCycle(
+      snapshot.finalState, snapshot.startedWithScale, snapshot.timerOnly,
+      snapshot.automaticBrew));
+  last.scaleAvailable = snapshot.startedWithScale;
+  last.fastExtractionGuardEnabled = snapshot.extractionGuardEnabled;
+  last.slowExtractionGuardEnabled = snapshot.slowExtractionGuardEnabled;
+  last.autoToManualGuardEnabled = snapshot.autoToManualGuardEnabled;
+  last.autoToManualGuardEnforced = snapshot.autoToManualGuardEnforced;
+  last.autoToManualGuardArmed = snapshot.autoToManualGuardArmed;
+  last.autoToManualGuardRemainingMs = snapshot.autoToManualGuardRemainingMs;
+  last.noScaleShotGuardEnabled = snapshot.noScaleShotGuardEnabled;
+  last.noScaleShotGuardArmed = snapshot.noScaleShotGuardArmed;
+  last.noScaleBbwMode = snapshot.noScaleBbwMode;
+  copyCString(last.scaleProtocol, sizeof(last.scaleProtocol),
+              snapshot.scaleProtocol);
+  if (last.extractionExtended && last.durationMs < snapshot.fastBeforeMs)
+    last.minBbwBrewTimeRemainingMs = snapshot.fastBeforeMs - last.durationMs;
+  const corridor::ArrivalVerdict verdict =
+      pendingShotVerdict(snapshot, snapshot.rateAtStopX100);
+  last.verdict = static_cast<uint8_t>(verdict.verdict);
+  last.arrivalMs = verdict.verdict == corridor::Verdict::UNCLASSIFIED
+                       ? 0U : static_cast<uint32_t>(verdict.arrivalMs);
+  persistLastShotSnapshot(last);
+  if (homeCycleResult.cycleId == snapshot.cycleId) {
+    last.durationMs = homeCycleResult.durationMs;
+    last.firstDropElapsedMs = homeCycleResult.firstDropElapsedMs;
+    last.tareElapsedMs = homeCycleResult.tareElapsedMs;
+    homeCycleResult = last;
+    homeCycleResolvedAtMs = millis();
+  }
+}
+
+// Weight counts as registered for the ended cycle only when the scale
+// delivered a finite reading after the cycle started. Shared by the persisted
+// last shot, lastCycle, and the activation-history no-weight flag.
+bool endedCycleWeightValid() {
+  return currentWeightSequence != session.weightSequenceAtStart &&
+         std::isfinite(currentWeight) &&
+         static_cast<int32_t>(currentWeightReceivedAtMs - session.startedAtMs) >=
+             0;
+}
+
+PersistedLastShot lastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
+                                   const CycleWallTime *end = nullptr) {
+  const CycleWallTime wall = end != nullptr ? *end : captureCycleWallTime();
+  PersistedLastShot last = {};
+  last.valid = true;
+  last.cycleId = session.id;
+  last.endedAtUptimeMs = wall.endedAtMs;
+  last.presetId = session.activePresetId;
+  copyCString(last.presetName, sizeof(last.presetName), session.activePresetName);
+  last.durationMs = durationMs;
+  last.endReason = reason;
+  if (wall.available) {
+    last.endedAtUnixSec = wall.utcSec;
+    last.endedAtLocalSec =
+        shotLogLocalSecFromUtc(wall.utcSec, wall.offsetMinutes);
+    last.hasWallTime = 1;
+  }
+  last.weightValid = endedCycleWeightValid();
+  last.currentWeightG = last.weightValid ? currentWeight : 0.0f;
+  const bool lastAcceptedValid =
+      session.hasWeightAnchor && std::isfinite(session.lastAcceptedWeightG);
+  if (lastAcceptedValid &&
+      (!last.weightValid ||
+       !plausibleSettledBrewWeight(last.currentWeightG,
+                                   session.lastAcceptedWeightG, true))) {
+    last.weightValid = true;
+    last.currentWeightG = session.lastAcceptedWeightG;
+  }
+  last.goalWeightDg = session.config.goalWeightDg;
+  last.extractionExtended =
+      session.extractionExtended && session.config.fastSideEnabled;
+  last.slowExtractionExtended =
+      session.slowExtractionExtended &&
+      session.config.slowSideEnabled;
+  last.activeStopWeightG =
+      last.extractionExtended
+          ? goalWeightDgToGrams(session.config.goalWeightDg + session.config.fastMarginDg)
+          : (last.slowExtractionExtended
+                 ? goalWeightDgToGrams(session.config.goalWeightDg - session.config.slowMarginDg)
+                 : goalWeightDgToGrams(session.config.goalWeightDg));
+  const uint32_t startMs =
+      session.circuitClosedAtMs != 0U ? session.circuitClosedAtMs : session.startedAtMs;
+  if (session.firstDropMs != 0 &&
+      static_cast<int32_t>(session.firstDropMs - startMs) >= 0) {
+    last.firstDropElapsedMs = session.firstDropMs - startMs;
+  }
+  if (session.retareAtMs != 0 &&
+      static_cast<int32_t>(session.retareAtMs - startMs) >= 0) {
+    last.tareElapsedMs = session.retareAtMs - startMs;
+  }
+  last.retarePerformed = session.retarePerformed;
+  last.shotType = static_cast<uint8_t>(lastShotTypeFromCycle(
+      stopperState, session.startedWithScale, session.config.timerOnly,
+      shot.automaticBrew));
+  last.scaleAvailable = session.startedWithScale;
+  last.fastExtractionGuardEnabled = session.config.fastSideEnabled;
+  last.slowExtractionGuardEnabled = session.config.slowSideEnabled;
+  last.autoToManualGuardEnabled = session.config.scaleLossEnabled;
+  last.autoToManualGuardEnforced = session.autoToManualGuardEnforced;
+  last.autoToManualGuardArmed = session.autoToManualGuardArmed;
+  last.noScaleShotGuardEnabled = noScaleBbwEnabled(runtimeConfig.noScaleBbwMode);
+  last.noScaleShotGuardArmed = noScaleShotGuardArmed;
+  last.noScaleBbwMode = runtimeConfig.noScaleBbwMode;
+  if (session.autoToManualGuardEnforced)
+    last.autoToManualGuardRemainingMs = scaleLossBackupRemainingMs();
+  if (last.extractionExtended && durationMs < session.config.fastBeforeMs)
+    last.minBbwBrewTimeRemainingMs = session.config.fastBeforeMs - durationMs;
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  copyCString(last.scaleProtocol, sizeof(last.scaleProtocol),
+              link.protocolName);
+  copyCString(last.scaleName, sizeof(last.scaleName), session.scaleName);
+  return last;
 }
 
 void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeightG,

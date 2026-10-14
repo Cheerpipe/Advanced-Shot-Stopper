@@ -511,8 +511,7 @@ if (!buzzer.includes('struct RtttlCatalog') ||
         'debugLog.copyAfter(afterSequence, output, capacity, metadata)') ||
     firmwareCore.includes('portENTER_CRITICAL(&debugLogMux)') ||
     !firmwareCore.includes('debugLogDroppedSnapshot') ||
-    !firmwareCore.includes(
-        '__atomic_load_n(&debugLogContentionDropped, __ATOMIC_RELAXED)') ||
+    firmwareCore.includes('debugLogContentionDropped') ||
     firmwareCore.includes('__atomic_add_fetch(&debugLogDroppedSnapshot')) {
   throw new Error(
       'RTTTL catalog and active playback buffer must stay internal RAM — playback starts from the esp_timer task under a spinlock, and PSRAM is unreachable while flash writes disable the cache');

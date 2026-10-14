@@ -2,9 +2,78 @@
 // ---------------------------------------------------------------------------
 
 void requestRemoteTimerStop();
-void flushPendingScaleTimerStopNow();
-void scheduleScaleTimerStopAfterCycle(uint32_t internalElapsedMs);
-void servicePendingScaleTimerStop();
+
+// A cycle's scale-timer stop waits for the scale clock to reach the shot time,
+// then the configured extra delay.
+struct PendingScaleTimerStop {
+  bool pending = false;
+  uint32_t targetMs = 0;
+  uint32_t extraDelayMs = 0;
+  uint32_t catchupDeadlineAtMs = 0;
+  uint32_t extraDueAtMs = 0;
+};
+PendingScaleTimerStop pendingScaleTimerStop;
+
+void completePendingScaleTimerStop() {
+  pendingScaleTimerStop = PendingScaleTimerStop{};
+  requestRemoteTimerStop();
+}
+
+void flushPendingScaleTimerStopNow() {
+  if (pendingScaleTimerStop.pending) completePendingScaleTimerStop();
+}
+
+void armScaleTimerStopExtraDelay(uint32_t extraDelayMs) {
+  if (extraDelayMs == 0U) {
+    completePendingScaleTimerStop();
+    return;
+  }
+  pendingScaleTimerStop.pending = true;
+  pendingScaleTimerStop.extraDueAtMs = millis() + extraDelayMs;
+}
+
+void servicePendingScaleTimerStop() {
+  if (!pendingScaleTimerStop.pending) return;
+  const uint32_t nowMs = millis();
+  if (pendingScaleTimerStop.extraDueAtMs != 0U) {
+    if (static_cast<int32_t>(nowMs - pendingScaleTimerStop.extraDueAtMs) >= 0 ||
+        !scaleAvailable()) {
+      completePendingScaleTimerStop();
+    }
+    return;
+  }
+  if (!scaleAvailable()) {
+    completePendingScaleTimerStop();
+    return;
+  }
+  const bool timedOut =
+      static_cast<int32_t>(nowMs -
+                           pendingScaleTimerStop.catchupDeadlineAtMs) >= 0;
+  if (!session.remoteTimerStartSettled && !timedOut) return;
+  const uint32_t extraDelayMs = pendingScaleTimerStop.extraDelayMs;
+  if (session.remoteTimerStartSettled && !session.remoteTimerStarted) {
+    armScaleTimerStopExtraDelay(extraDelayMs);
+    return;
+  }
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  if (timedOut || !link.timerValid ||
+      link.timerMs >= pendingScaleTimerStop.targetMs) {
+    armScaleTimerStopExtraDelay(extraDelayMs);
+  }
+}
+
+void scheduleScaleTimerStopAfterCycle(uint32_t internalElapsedMs) {
+  if (!session.timerStartCommandQueued || session.stopTimerRequested) return;
+  pendingScaleTimerStop = PendingScaleTimerStop{};
+  pendingScaleTimerStop.pending = true;
+  // The scale displays whole seconds.
+  pendingScaleTimerStop.targetMs = (internalElapsedMs / 1000U) * 1000U;
+  pendingScaleTimerStop.extraDelayMs = session.config.scaleTimerStopExtraDelayMs;
+  pendingScaleTimerStop.catchupDeadlineAtMs =
+      millis() + MAX_SCALE_TIMER_STOP_CATCHUP_MS;
+  servicePendingScaleTimerStop();
+}
+
 uint32_t nextCupWeightRequestId = 0;
 uint32_t allocateCupWeightRequestId() {
   if (++nextCupWeightRequestId == 0) ++nextCupWeightRequestId;
@@ -30,7 +99,6 @@ bool requestRemoteTimerStart() {
                               ScaleProfileTareOrigin::SHOT_START));
     trackCupWeightTare(command.cupWeightRequestId);
   }
-  session.remoteTimerMayBeRunning = session.timerStartCommandQueued;
   return session.timerStartCommandQueued;
 }
 

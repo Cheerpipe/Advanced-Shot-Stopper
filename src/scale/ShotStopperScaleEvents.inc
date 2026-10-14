@@ -1,23 +1,6 @@
 // Scale connection and weight packets
 // ---------------------------------------------------------------------------
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 AlertChannelContext currentAlertChannelContext() {
   AlertChannelContext ctx;
   ctx.channel = currentAlertOutputChannel();
@@ -536,7 +519,6 @@ void processScaleWorkerEvents() {
                         event.tareAttempted || event.discardedStaleConnection,
                         event.preTareWeightG);
         if (event.cycleId == session.id) {
-          session.remoteTimerMayBeRunning = event.commandAttempted;
           session.remoteTimerStarted = event.writeSucceeded;
           session.remoteTimerStartSettled = true;
           if (event.tareSucceeded) applyShotTareResult(event);

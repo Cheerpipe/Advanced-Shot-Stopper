@@ -141,7 +141,7 @@ using namespace shotstopper;
 #include "ShotStopperRfCoex.h"
 
 // ---------------------------------------------------------------------------
-// User configuration
+// Control timing
 // ---------------------------------------------------------------------------
 
 constexpr uint32_t CONTROL_STATUS_REFRESH_WAIT_MS = 50;
@@ -184,23 +184,17 @@ static_assert(CONTROL_STATUS_REFRESH_WAIT_MS >= 20U &&
               "GET snapshot wait must cover one control tick without hanging httpd");
 
 // ---------------------------------------------------------------------------
-// Persistent storage and scale prediction
+// Persistent storage and the weight-trend window
 // ---------------------------------------------------------------------------
 
 constexpr size_t EEPROM_SIZE = 2;
 static_assert(MAX_SHOT_DATAPOINTS >= WEIGHT_TREND_POINT_COUNT,
-              "Shot trajectory must hold the prediction window");
+              "Shot trajectory must hold the weight-trend window");
 static_assert(SHOT_CURVE_MAX_POINTS == 1201,
               "ControlStatusSnapshot shotCurveWeightCg must match sampler");
 
-bool startExtendedPulseTrain(uint32_t durationMs);
-bool startPulseTrain(BuzzerPattern pattern, uint32_t durationMs);
 bool emitAlert(AlertEvent event, uint32_t cycleId = 0);
-bool commandAlertUsesBuzzer();
 void emitImmediateCommandAlertIfBuzzer(AlertEvent event);
-bool emitCircuitCycleAlert(AlertEvent event, bool preempt);
-void emitCommandAlert(AlertEvent event, bool commandAttempted,
-                      bool writeSucceeded, bool commandFeedbackExpected);
 
 enum class TimerStopResult : uint8_t {
   NOT_REQUIRED,
@@ -226,7 +220,6 @@ struct CycleSession {
   bool startedWithScale = false;
   bool scaleWasLost = false;
   bool timerStartCommandQueued = false;
-  bool remoteTimerMayBeRunning = false;
   bool remoteTimerStarted = false;
   bool remoteTimerStartSettled = false;
   bool stopTimerRequested = false;
@@ -342,8 +335,6 @@ struct PendingShotFinalize {
   bool extractionGuardEnabled = false;
   bool extractionExtended = false;
   bool slowExtractionGuardEnabled = false;
-  bool slowExtractionExtended = false;
-  bool targetReachedEarly = false;
   // Cut parameters in force for the shot (the record's snapshot).
   uint16_t fastMarginDg = DEFAULT_FAST_MARGIN_DG;
   uint16_t slowMarginDg = DEFAULT_SLOW_MARGIN_DG;
@@ -477,7 +468,6 @@ SHOT_STOPPER_PSRAM_BSS LastShotStore lastShotStore;
 const PersistedLastShot &persistedLastShot = lastShotStore.get();
 const PersistedLastShot &persistedLastGoodShot = lastShotStore.getGood();
 bool lastShotNvsDirty = false;
-bool lastShotPersistFailLatched = false;
 bool controllerStartedPending = false;
 uint32_t shotStorePersistRetryAtMs = 0;
 uint32_t shotStorePersistIoRetryMs = 0;
@@ -521,9 +511,7 @@ uint32_t observedWeightConnectionGeneration = 0;
 WeightStreamState weightStreamState = WeightStreamState::NO_SAMPLE;
 uint32_t nextCycleId = 1;
 QueueHandle_t webCommandQueue = nullptr;
-uint32_t debugLogContentionDropped = 0;
-// Snapshot of ring overwrites only. Contention drops are a separate monotonic
-// atomic counter so a producer cannot overwrite another producer's increment.
+// Snapshot of ring overwrites (producers serialize on debugLogMutex).
 uint32_t debugLogDroppedSnapshot = 0;
 bool pendingCupRemovedSettle = false;
 uint32_t scaleRecoveredStaleCount = 0;
@@ -606,7 +594,6 @@ struct PendingPresetPersistence {
 };
 PendingPresetPersistence pendingPresetPersistence;
 bool quickSettingsPersistPending = false;
-RuntimeConfig runtimePersistCandidate;
 uint32_t runtimePersistRetryAtMs = 0;
 uint32_t runtimePersistIoRetryMs = 0;
 int32_t runtimePersistReasonBits = 0;
@@ -807,15 +794,8 @@ void publishLogLevels(LogLevel serialLevel, LogLevel ringLevel) {
   __atomic_store(&serialLogLevel, &serialLevel, __ATOMIC_RELEASE);
 }
 
-bool beginMaintenanceLease(const WebCommand &networkCommand,
-                           bool applyRuntimeOnSuccess);
 void completeMaintenanceLease(const WebCommand &result);
 void rejectWebCommand(const WebCommand &command);
-void reportStationIpChange(const char *ip);
-void holdOrBeginPlannedRestart(const WebCommand &command);
-void servicePendingPlannedRestart();
-void holdOrBeginResetHistoryClear(const WebCommand &command);
-void servicePendingResetHistoryClear();
 void queueRuntimePersist(int32_t reasonBits);
 void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits);
 bool settingsPersistenceAvailable();
@@ -826,7 +806,6 @@ WebhookEvent baseWebhookEvent(WebhookEventType type, uint32_t cycleId,
 #ifndef SHOT_STOPPER_HOST_TEST
 SHOT_STOPPER_PSRAM_BSS PersistedSettings persistedSettings;
 ShotStopperNetwork networkManager;
-void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record);
 
 bool enqueueControllerStartedWebhook() {
   if (!controllerStartedPending) return true;
@@ -836,30 +815,6 @@ bool enqueueControllerStartedWebhook() {
   if (!networkManager.enqueueWebhook(started)) return false;
   controllerStartedPending = false;
   return true;
-}
-
-// Mirrors each activation-history entry to subscribed webhook receivers.
-void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record) {
-  const WebhookConfig config = networkManager.webhookConfig();
-  if (!config.enabled || !config.presetChanges) return;
-  WebhookEvent event =
-      baseWebhookEvent(WebhookEventType::ACTIVATION_HISTORY, 0, millis());
-  event.activationId = id;
-  event.activationEndedAtUnixSec = record.endedAtUnixSec;
-  event.activationEndedAtLocalSec = record.endedAtLocalSec;
-  event.durationMs = static_cast<uint32_t>(record.durationDs) * 100U;
-  event.activationType = record.type;
-  event.activationHasWallTime = (record.flags & HISTORY_FLAG_WALL_TIME) != 0;
-  (void)networkManager.enqueueWebhook(event);
-}
-
-void reportStationIpChange(const char *ip) {
-  if (ip == nullptr || ip[0] == '\0') return;
-  if (controlCriticalForLogging.load(std::memory_order_acquire)) return;
-  WebhookEvent changed =
-      baseWebhookEvent(WebhookEventType::IP_CHANGED, 0, millis());
-  copyCString(changed.ipAddress, sizeof(changed.ipAddress), ip);
-  (void)networkManager.enqueueWebhook(changed);
 }
 
 void syncScaleWorkerNetworkRf(bool scaleLinkOrConnecting,
@@ -894,29 +849,42 @@ bool enqueueControllerStartedWebhook() {
   return true;
 }
 
+#endif
+
+// Mirrors each activation-history entry to subscribed webhook receivers.
 void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record) {
-  hostActivationHistoryEvent =
+#ifndef SHOT_STOPPER_HOST_TEST
+  const WebhookConfig config = networkManager.webhookConfig();
+  if (!config.enabled || !config.presetChanges) return;
+#endif
+  WebhookEvent event =
       baseWebhookEvent(WebhookEventType::ACTIVATION_HISTORY, 0, millis());
-  hostActivationHistoryEvent.activationId = id;
-  hostActivationHistoryEvent.activationEndedAtUnixSec = record.endedAtUnixSec;
-  hostActivationHistoryEvent.activationEndedAtLocalSec =
-      record.endedAtLocalSec;
-  hostActivationHistoryEvent.durationMs =
-      static_cast<uint32_t>(record.durationDs) * 100U;
-  hostActivationHistoryEvent.activationType = record.type;
-  hostActivationHistoryEvent.activationHasWallTime =
-      (record.flags & HISTORY_FLAG_WALL_TIME) != 0;
+  event.activationId = id;
+  event.activationEndedAtUnixSec = record.endedAtUnixSec;
+  event.activationEndedAtLocalSec = record.endedAtLocalSec;
+  event.durationMs = static_cast<uint32_t>(record.durationDs) * 100U;
+  event.activationType = record.type;
+  event.activationHasWallTime = (record.flags & HISTORY_FLAG_WALL_TIME) != 0;
+#ifdef SHOT_STOPPER_HOST_TEST
+  hostActivationHistoryEvent = event;
   ++hostActivationHistoryWebhookCount;
+#else
+  (void)networkManager.enqueueWebhook(event);
+#endif
 }
 
 void reportStationIpChange(const char *ip) {
   if (ip == nullptr || ip[0] == '\0') return;
   if (controlCriticalForLogging.load(std::memory_order_acquire)) return;
+#ifdef SHOT_STOPPER_HOST_TEST
   ++hostIpChangedWebhookCount;
-  copyCString(hostIpChangedWebhookAddress, sizeof(hostIpChangedWebhookAddress),
-              ip);
-}
+  copyCString(hostIpChangedWebhookAddress, sizeof(hostIpChangedWebhookAddress), ip);
+#else
+  WebhookEvent changed = baseWebhookEvent(WebhookEventType::IP_CHANGED, 0, millis());
+  copyCString(changed.ipAddress, sizeof(changed.ipAddress), ip);
+  (void)networkManager.enqueueWebhook(changed);
 #endif
+}
 
 // The esp_timer callback independently opens the machine circuit at the hard limit even if the
 // normal control loop is delayed or unavailable.
@@ -935,14 +903,6 @@ uint32_t circuitClosedAtMs = 0;
 uint32_t relayHardLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS;
 uint32_t relayElectricalClosedAtMs = 0, relayElectricalOpenedAtMs = 0;
 RelayPurpose relayPurpose = RelayPurpose::NORMAL;
-struct PendingScaleTimerStop {
-  bool pending = false;
-  uint32_t targetMs = 0;
-  uint32_t extraDelayMs = 0;
-  uint32_t catchupDeadlineAtMs = 0;
-  uint32_t extraDueAtMs = 0;
-};
-PendingScaleTimerStop pendingScaleTimerStop;
 uint32_t operationalLimitAtArmMs = HARD_MAX_CIRCUIT_CLOSED_MS;
 RelaySafetyState relaySafetyState = RelaySafetyState::BOOT_SAFE;
 RelaySafetyFault relaySafetyFault = RelaySafetyFault::NONE;
@@ -1024,7 +984,6 @@ void copyControlGate(ControlGateSnapshot &output) {
   output = publishedControlGate;
 }
 
-
 void reportTaskWatchdogFault() {
   safetyEventFlags.set(SAFETY_EVENT_CRITICAL_TASK_WATCHDOG);
 }
@@ -1061,209 +1020,10 @@ extern "C" bool verifyRollbackLater() {
 }
 #endif
 
-size_t copyShotRecords(ShotLogRecord *output, size_t capacity) {
-  TaskLockGuard lock(shotStoreMutex);
-  return shotLog.copyNewestFirst(output, capacity);
-}
-
-void copyPresetShotStats(const ShotPresetBank &bank, PresetShotStats *out) {
-  TaskLockGuard lock(shotStoreMutex);
-  for (uint8_t i = 0; i < bank.count; ++i)
-    out[i].stats = shotLog.arrivalStats(bank.presets[i].id, bank.presets[i].learningEpoch,
-                                        out[i].arrivalsMs);
-}
-
-void copyShotStatsRecords(ShotStatsRecordsSnapshot &output) {
-  TaskLockGuard lock(shotStoreMutex);
-  output.stats = shotLog.statsView();
-  output.count = shotLog.copyNewestFirst(output.records, SHOT_LOG_CAPACITY);
-  output.epoch = shotLog.epoch();
-}
-
-bool copyShotCurveById(uint32_t shotId, ShotCurveRecord &curve) {
-  const uint32_t lockStartedUs = micros();
-  TaskLockGuard lock(shotStoreMutex);
-  noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs,
-                  micros() - lockStartedUs);
-  resetShotCurveRecord(curve);
-  return shotCurves.copyByShotId(shotId, curve);
-}
-
-bool copyHomeShot(ShotLogRecord &record, ShotCurveRecord &curve) {
-  TaskLockGuard lock(shotStoreMutex);
-  resetShotCurveRecord(curve);
-  if (!shotLog.copyNewestEligible(record)) return false;
-  (void)shotCurves.copyByShotId(record.id, curve);
-  return true;
-}
-
-bool shotLogSavePending() {
-  TaskLockGuard lock(shotStoreMutex);
-  return shotLog.dirty() || shotCurves.dirty();
-}
-
-void copyHistoryPage(HistoryPage &page, size_t offset, size_t limit,
-                     ShotLogSortDir dir) {
-  const uint32_t lockStartedUs = micros();
-  TaskLockGuard lock(shotStoreMutex);
-  noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs,
-                  micros() - lockStartedUs);
-  historyLog.copyPage(page, offset, limit, dir);
-}
-
-uint32_t copyHistoryEpoch() {
-  TaskLockGuard lock(shotStoreMutex);
-  return historyLog.epoch();
-}
-
-uint32_t copyShotLogEpoch() {
-  TaskLockGuard lock(shotStoreMutex);
-  return shotLog.epoch();
-}
-
-bool deleteHistoryRecord(uint32_t id) {
-  TaskLockGuard lock(shotStoreMutex);
-  const bool changed = historyLog.removeById(id, false);
-  if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
-  return changed;
-}
-
-bool clearHistoryLog() {
-  TaskLockGuard lock(shotStoreMutex);
-  const bool changed = historyLog.clear(false);
-  if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
-  return changed;
-}
-
 uint32_t copyShotLogBootId() {
   TaskLockGuard lock(shotStoreMutex);
   return shotLog.bootId();
 }
-
-uint32_t copyShotLogBootIdCached() {
-  const uint32_t generation =
-      shotStoreDirtyGeneration.load(std::memory_order_acquire);
-  if (!shotLogBootIdCacheValid || shotLogBootIdCacheGeneration != generation) {
-    shotLogBootIdCache = copyShotLogBootId();
-    shotLogBootIdCacheGeneration = generation;
-    shotLogBootIdCacheValid = true;
-  }
-  return shotLogBootIdCache;
-}
-
-ShotStatsView copyShotStats() {
-  TaskLockGuard lock(shotStoreMutex);
-  return shotLog.statsView();
-}
-
-bool copyShotStoreStatus(uint32_t &bootId, PersistedLastShot &last,
-                         PersistedLastShot &good, ShotCurveRecord &goodCurve,
-                         HistoryRecord &newestActivation,
-                         bool &hasNewestActivation, bool includeGoodHistory) {
-  const uint32_t lockStartedUs = micros();
-  TaskLockGuard lock(shotStoreMutex);
-  noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs,
-                  micros() - lockStartedUs);
-  bootId = shotLog.bootId();
-  // Newest activation record rides the same critical section so the status
-  // publish needs no second shotStoreMutex acquisition.
-  hasNewestActivation = historyLog.copyNewest(newestActivation);
-  last = persistedLastShot;
-  // The star rating lives in the shot-log record once the shot is committed;
-  // mirror it into the status aggregate so the WebUI and HA see one value.
-  if (last.valid && last.shotLogId != 0) {
-    (void)shotLog.copyRatingById(last.shotLogId, last.rating);
-  }
-  good = persistedLastGoodShot;
-  good.rating = 0;
-  resetShotCurveRecord(goodCurve);
-  uint8_t rating = 0;
-  if (!includeGoodHistory || !publishableLastShot(good) ||
-      good.shotLogId == 0 ||
-      !shotLog.copyRatingById(good.shotLogId, rating))
-    return false;
-  good.rating = rating;
-  (void)shotCurves.copyByShotId(good.shotLogId, goodCurve);
-  return true;
-}
-
-bool deleteShotRecord(uint32_t id) {
-  TaskLockGuard lock(shotStoreMutex);
-  const bool hadCurve = shotCurves.containsShotId(id);
-  const bool hadLog = shotLog.containsId(id);
-  if (!hadLog && !hadCurve) {
-    return false;
-  }
-  if (hadCurve && !shotCurves.removeById(id, false)) {
-    return false;
-  }
-  if (hadLog && !shotLog.removeById(id, false)) {
-    return false;
-  }
-  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
-  return true;
-}
-
-bool clearShotLog() {
-  TaskLockGuard lock(shotStoreMutex);
-  if (!shotCurves.clear(false)) {
-    return false;
-  }
-  if (!shotLog.clear(false)) return false;
-  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
-  return true;
-}
-
-bool clearLastShot() {
-  TaskLockGuard lock(shotStoreMutex);
-  ShotLogRecord latest = {};
-  if (!shotLog.copyNewestEligible(latest)) return false;
-  if (shotCurves.containsShotId(latest.id) &&
-      !shotCurves.removeById(latest.id, false)) return false;
-  if (!shotLog.removeById(latest.id, false)) return false;
-  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
-  return true;
-}
-
-void clearLastShotRuntimeState() {
-  lastShotNvsDirty = false;
-}
-
-#ifndef SHOT_STOPPER_HOST_TEST
-bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
-  TaskLockGuard lock(shotStoreMutex);
-  if (!resetAllDurableStores(settings, bleScanPersistedSettings, shotLog,
-                             historyLog, lastShotStore, shotCurves)) {
-    return false;
-  }
-  // The wiped stores are a mutation like any other: bump so the status
-  // gather guard re-fetches and the persistence fast path keeps flowing
-  // until the reset state is acknowledged as persisted.
-  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
-  // Factory reset includes the saved scale profile: drop its durable header
-  // and any frozen RAM copy left by an unsaved session.
-  if (!scaleProfiler().clearForFactoryReset()) {
-    return false;
-  }
-  scaleProfileRequest.store(ScaleProfilerRequest::NONE,
-                            std::memory_order_release);
-  // Drop transient dirty state only after the durable factory reset succeeds.
-  // A staged scan setting must not survive the reset's default write.
-  clearLastShotRuntimeState();
-  bleScanPersistMux.lock();
-  bleScanPersistPending = false;
-  bleScanEnabledPersistPending = false;
-  pendingBleScanRequestIdCount = 0;
-  bleScanPersistFailLatched = false;
-  bleScanPersistMux.unlock();
-  return true;
-}
-
-bool releaseNvsSpaceForFactoryResetForNetwork() {
-  TaskLockGuard lock(shotStoreMutex);
-  return releaseNvsSpaceForFactoryReset(lastShotStore);
-}
-#endif
 
 void persistLastShotSnapshot(const PersistedLastShot &snapshot) {
   TaskLockGuard lock(shotStoreMutex);
@@ -1272,303 +1032,14 @@ void persistLastShotSnapshot(const PersistedLastShot &snapshot) {
   shotStoreDirtyGeneration.fetch_add(1, std::memory_order_relaxed);
 }
 
-bool rateShotRecord(uint32_t id, uint8_t rating) {
-  TaskLockGuard lock(shotStoreMutex);
-  if (id == 0 || rating > SHOT_LOG_RATING_MAX) {
-    return false;
-  }
-  const bool changed = shotLog.updateRating(id, rating, false);
-  if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
-  return changed;
-}
-
-bool rateLastShot(uint8_t rating) {
-  TaskLockGuard lock(shotStoreMutex);
-  ShotLogRecord latest = {};
-  if (rating > SHOT_LOG_RATING_MAX || !shotLog.copyNewestEligible(latest))
-    return false;
-  const bool changed = shotLog.updateRating(latest.id, rating, false);
-  if (changed) shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
-  return changed;
-}
-
-corridor::ArrivalVerdict pendingShotVerdict(const PendingShotFinalize &snapshot,
-                                            int32_t rateX100);
-
-void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
-                                 float finalWeightG, bool finalWeightValid) {
-  PersistedLastShot last = {};
-  last.valid = true;
-  last.cycleId = snapshot.cycleId;
-  last.endedAtUptimeMs = snapshot.endedAtMs;
-  last.presetId = snapshot.activePresetId;
-  copyCString(last.presetName, sizeof(last.presetName), snapshot.activePresetName);
-  last.durationMs = static_cast<uint32_t>(snapshot.durationDs) * 100U;
-  last.endReason = snapshot.endReason;
-  if (snapshot.endedAtHasWallTime) {
-    last.endedAtUnixSec = snapshot.endedAtUtcSec;
-    last.endedAtLocalSec =
-        shotLogLocalSecFromUtc(snapshot.endedAtUtcSec,
-                               snapshot.endedAtOffsetMinutes);
-    last.hasWallTime = 1;
-  }
-  last.weightValid = finalWeightValid;
-  last.currentWeightG = finalWeightValid ? finalWeightG : 0.0f;
-  last.goalWeightDg = snapshot.goalWeightDg;
-  last.extractionExtended =
-      snapshot.endReason == EndReason::FAST_EXTRACTION_MAX_WEIGHT;
-  last.slowExtractionExtended =
-      snapshot.endReason == EndReason::SLOW_EXTRACTION_MIN_WEIGHT;
-  last.activeStopWeightG = goalWeightDgToGrams(
-      last.extractionExtended ? snapshot.goalWeightDg + snapshot.fastMarginDg
-      : last.slowExtractionExtended ? snapshot.goalWeightDg - snapshot.slowMarginDg
-                                    : snapshot.goalWeightDg);
-  if (snapshot.firstDropDs != SHOT_LOG_METRIC_MISSING) {
-    last.firstDropElapsedMs =
-        static_cast<uint32_t>(snapshot.firstDropDs) * 100U;
-  }
-  if (snapshot.tareAtDs != SHOT_LOG_METRIC_MISSING) {
-    last.tareElapsedMs = static_cast<uint32_t>(snapshot.tareAtDs) * 100U;
-  }
-  copyCString(last.scaleName, sizeof(last.scaleName), snapshot.scaleName);
-  if (last.weightValid && last.firstDropElapsedMs != 0 &&
-      last.durationMs > last.firstDropElapsedMs + 500U &&
-      snapshot.scaleBaselineReady) {
-    const float delta = last.currentWeightG - snapshot.scaleBaselineG;
-    last.averageFlowGps =
-        delta * 1000.0f /
-        static_cast<float>(last.durationMs - last.firstDropElapsedMs);
-    last.averageFlowValid =
-        delta > 0.0f && std::isfinite(last.averageFlowGps);
-  }
-  last.retarePerformed = snapshot.retarePerformed;
-  last.shotType = static_cast<uint8_t>(lastShotTypeFromCycle(
-      snapshot.finalState, snapshot.startedWithScale, snapshot.timerOnly,
-      snapshot.automaticBrew));
-  last.scaleAvailable = snapshot.startedWithScale;
-  last.fastExtractionGuardEnabled = snapshot.extractionGuardEnabled;
-  last.slowExtractionGuardEnabled = snapshot.slowExtractionGuardEnabled;
-  last.autoToManualGuardEnabled = snapshot.autoToManualGuardEnabled;
-  last.autoToManualGuardEnforced = snapshot.autoToManualGuardEnforced;
-  last.autoToManualGuardArmed = snapshot.autoToManualGuardArmed;
-  last.autoToManualGuardRemainingMs = snapshot.autoToManualGuardRemainingMs;
-  last.noScaleShotGuardEnabled = snapshot.noScaleShotGuardEnabled;
-  last.noScaleShotGuardArmed = snapshot.noScaleShotGuardArmed;
-  last.noScaleBbwMode = snapshot.noScaleBbwMode;
-  copyCString(last.scaleProtocol, sizeof(last.scaleProtocol),
-              snapshot.scaleProtocol);
-  last.scaleProtocol[sizeof(last.scaleProtocol) - 1] = '\0';
-  if (last.extractionExtended) {
-    last.minBbwBrewTimeRemainingMs =
-        last.durationMs >= snapshot.fastBeforeMs
-            ? 0U
-            : snapshot.fastBeforeMs - last.durationMs;
-  }
-  const corridor::ArrivalVerdict verdict =
-      pendingShotVerdict(snapshot, snapshot.rateAtStopX100);
-  last.verdict = static_cast<uint8_t>(verdict.verdict);
-  last.arrivalMs = verdict.verdict == corridor::Verdict::UNCLASSIFIED
-                       ? 0U : static_cast<uint32_t>(verdict.arrivalMs);
-  persistLastShotSnapshot(last);
-  if (homeCycleResult.cycleId == snapshot.cycleId) {
-    last.durationMs = homeCycleResult.durationMs;
-    last.firstDropElapsedMs = homeCycleResult.firstDropElapsedMs;
-    last.tareElapsedMs = homeCycleResult.tareElapsedMs;
-    homeCycleResult = last;
-    homeCycleResolvedAtMs = millis();
-  }
-}
-
-// Weight counts as registered for the ended cycle only when the scale
-// delivered a finite reading after the cycle started. Shared by the persisted
-// last shot, lastCycle, and the activation-history no-weight flag.
-bool endedCycleWeightValid() {
-  return currentWeightSequence != session.weightSequenceAtStart &&
-         std::isfinite(currentWeight) &&
-         static_cast<int32_t>(currentWeightReceivedAtMs - session.startedAtMs) >=
-             0;
-}
-
-PersistedLastShot lastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
-                                   const CycleWallTime *end = nullptr) {
-  const CycleWallTime wall = end != nullptr ? *end : captureCycleWallTime();
-  PersistedLastShot last = {};
-  last.valid = true;
-  last.cycleId = session.id;
-  last.endedAtUptimeMs = wall.endedAtMs;
-  last.presetId = session.activePresetId;
-  copyCString(last.presetName, sizeof(last.presetName), session.activePresetName);
-  last.durationMs = durationMs;
-  last.endReason = reason;
-  if (wall.available) {
-    last.endedAtUnixSec = wall.utcSec;
-    last.endedAtLocalSec =
-        shotLogLocalSecFromUtc(wall.utcSec, wall.offsetMinutes);
-    last.hasWallTime = 1;
-  }
-  last.weightValid = endedCycleWeightValid();
-  last.currentWeightG = last.weightValid ? currentWeight : 0.0f;
-  const bool lastAcceptedValid =
-      session.hasWeightAnchor && std::isfinite(session.lastAcceptedWeightG);
-  if (lastAcceptedValid &&
-      (!last.weightValid ||
-       !plausibleSettledBrewWeight(last.currentWeightG,
-                                   session.lastAcceptedWeightG, true))) {
-    last.weightValid = true;
-    last.currentWeightG = session.lastAcceptedWeightG;
-  }
-  last.goalWeightDg = session.config.goalWeightDg;
-  last.extractionExtended =
-      session.extractionExtended && session.config.fastSideEnabled;
-  last.slowExtractionExtended =
-      session.slowExtractionExtended &&
-      session.config.slowSideEnabled;
-  last.activeStopWeightG =
-      last.extractionExtended
-          ? goalWeightDgToGrams(session.config.goalWeightDg + session.config.fastMarginDg)
-          : (last.slowExtractionExtended
-                 ? goalWeightDgToGrams(session.config.goalWeightDg - session.config.slowMarginDg)
-                 : goalWeightDgToGrams(session.config.goalWeightDg));
-  const uint32_t startMs =
-      session.circuitClosedAtMs != 0U ? session.circuitClosedAtMs : session.startedAtMs;
-  if (session.firstDropMs != 0 &&
-      static_cast<int32_t>(session.firstDropMs - startMs) >= 0) {
-    last.firstDropElapsedMs = session.firstDropMs - startMs;
-  }
-  if (session.retareAtMs != 0 &&
-      static_cast<int32_t>(session.retareAtMs - startMs) >= 0) {
-    last.tareElapsedMs = session.retareAtMs - startMs;
-  }
-  last.retarePerformed = session.retarePerformed;
-  last.shotType = static_cast<uint8_t>(lastShotTypeFromCycle(
-      stopperState, session.startedWithScale, session.config.timerOnly,
-      shot.automaticBrew));
-  last.scaleAvailable = session.startedWithScale;
-  last.fastExtractionGuardEnabled = session.config.fastSideEnabled;
-  last.slowExtractionGuardEnabled = session.config.slowSideEnabled;
-  last.autoToManualGuardEnabled = session.config.scaleLossEnabled;
-  last.autoToManualGuardEnforced = session.autoToManualGuardEnforced;
-  last.autoToManualGuardArmed = session.autoToManualGuardArmed;
-  last.noScaleShotGuardEnabled = noScaleBbwEnabled(runtimeConfig.noScaleBbwMode);
-  last.noScaleShotGuardArmed = noScaleShotGuardArmed;
-  last.noScaleBbwMode = runtimeConfig.noScaleBbwMode;
-  if (session.autoToManualGuardEnforced) {
-    const uint32_t nowMs = millis();
-    last.autoToManualGuardRemainingMs =
-        static_cast<int32_t>(session.autoToManualGuardDeadlineAtMs - nowMs) <=
-                0
-            ? 0U
-            : session.autoToManualGuardDeadlineAtMs - nowMs;
-  }
-  if (last.extractionExtended) {
-    last.minBbwBrewTimeRemainingMs =
-        durationMs >= session.config.fastBeforeMs
-            ? 0U
-            : session.config.fastBeforeMs - durationMs;
-  }
-  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
-  copyCString(last.scaleProtocol, sizeof(last.scaleProtocol),
-              link.protocolName);
-  last.scaleProtocol[sizeof(last.scaleProtocol) - 1] = '\0';
-  copyCString(last.scaleName, sizeof(last.scaleName), session.scaleName);
-  return last;
-}
-
-bool controlAllowsConfigurationNow();
-RuntimeConfig effectiveRuntimeConfig();
-void resetCupPresence();
-
-bool enqueueWebCommand(const WebCommand &command) {
-  return webCommandQueue != nullptr &&
-         xQueueSend(webCommandQueue, &command, 0) == pdTRUE;
-}
-
 RuntimeConfig effectiveRuntimeConfig() {
   return composeEffectiveConfig(runtimeConfig, presetBank);
-}
-
-void publishRecipeState() {
-  TaskLockGuard lock(recipeMutex);
-  publishedRuntimeConfig = runtimeConfig;
-  publishedPresetBank = presetBank;
 }
 
 void requestActivePresetMachineTemperature() {
   const ShotPreset &preset = activeShotPreset(presetBank);
   requestMachineIntegrationPresetTemperature(
       preset.id, runtimeConfig.revision, preset.lineaMicraBrewTargetDeciC);
-}
-
-void copyRecipeSnapshot(RecipeSnapshot *out) {
-  if (out == nullptr) {
-    return;
-  }
-  TaskLockGuard lock(recipeMutex);
-  out->presets = publishedPresetBank;
-  out->runtime = publishedRuntimeConfig;
-}
-
-void copyPresetBank(ShotPresetBank *out) {
-  if (out == nullptr) return;
-  TaskLockGuard lock(recipeMutex);
-  *out = publishedPresetBank;
-}
-
-void copyRuntimeConfig(RuntimeConfig *out) {
-  if (out == nullptr) return;
-  TaskLockGuard lock(recipeMutex);
-  *out = publishedRuntimeConfig;
-}
-
-void copyBullseyeConfig(BullseyeMelodyConfig *out) {
-  if (out == nullptr) {
-    return;
-  }
-  bullseyeConfigMux.lock();
-  *out = bullseyeMelodyConfig;
-  bullseyeConfigMux.unlock();
-}
-
-bool stageBullseyeConfig(const BullseyeMelodyConfig &config,
-                         uint32_t requestId) {
-  if (requestId == 0 || !validBullseyeMelodyConfig(config)) {
-    return false;
-  }
-  bullseyeConfigMux.lock();
-  stagedBullseyeMelodyConfig = config;
-  stagedBullseyeRequestId = requestId;
-  bullseyeConfigMux.unlock();
-  return true;
-}
-
-bool takeStagedBullseyeConfig(uint32_t requestId,
-                              BullseyeMelodyConfig &out) {
-  bool matched = false;
-  bullseyeConfigMux.lock();
-  if (requestId != 0 && stagedBullseyeRequestId == requestId) {
-    out = stagedBullseyeMelodyConfig;
-    stagedBullseyeRequestId = 0;
-    matched = true;
-  }
-  bullseyeConfigMux.unlock();
-  return matched;
-}
-
-void commitLiveBullseyeConfig(const BullseyeMelodyConfig &config) {
-  bullseyeConfigMux.lock();
-  const bool changed = bullseyeMelodyConfig.enabled != config.enabled ||
-      strncmp(bullseyeMelodyConfig.rtttl, config.rtttl,
-              sizeof(config.rtttl)) != 0;
-  if (changed) bullseyeMelodyConfig = config;
-  bullseyeConfigMux.unlock();
-  if (!changed) return;
-  (void)localBuzzer.configureBullseyeRtttl(bullseyeMelodyConfig.rtttl);
-  if (!bullseyeMelodyConfig.enabled) {
-    bullseyeTracker.clear();
-  }
-#ifndef SHOT_STOPPER_HOST_TEST
-  networkManager.syncLiveBullseye(bullseyeMelodyConfig);
-#endif
 }
 
 bool scaleAvailable() {
@@ -1641,12 +1112,8 @@ bool observedWeightIsFresh(uint32_t now = millis(),
 
 WeightStreamState observedWeightStreamStateAt(uint32_t now,
                                               const ScaleLinkSnapshot &link) {
-  if (observedWeightSequence == 0) {
-    return WeightStreamState::NO_SAMPLE;
-  }
-  if (!observedWeightIsFresh(now, link)) {
-    return WeightStreamState::STALE;
-  }
+  if (observedWeightSequence == 0) return WeightStreamState::NO_SAMPLE;
+  if (!observedWeightIsFresh(now, link)) return WeightStreamState::STALE;
   return weightStreamState;
 }
 
@@ -1735,8 +1202,6 @@ bool scaleAutomationUnavailableForSession() {
              session.scaleDisconnectSequenceAtStart;
 }
 
-
-RelaySafetySnapshot getRelaySafetySnapshot();
 bool machineRunningElapsed(uint32_t &elapsedOut);
 uint32_t machineElapsedMs();
 bool machineIsRunning();
@@ -1746,17 +1211,11 @@ bool machineRequestStop();
 bool machineRequestWebStop();
 bool machineRequestForcedPulse();
 void requestRemoteTimerStop();
-uint32_t cycleShotElapsedMs();
+
+uint32_t cycleShotElapsedMs() { return session.active ? machineElapsedMs() : 0U; }
 
 float cycleElapsedSeconds() {
   return cycleShotElapsedMs() / 1000.0f;
-}
-
-uint32_t cycleShotElapsedMs() {
-  if (!session.active) {
-    return 0U;
-  }
-  return machineElapsedMs();
 }
 
 void captureCycleCircuitStart() {
@@ -1767,92 +1226,15 @@ void captureCycleCircuitStart() {
 
 uint32_t endedCycleDurationMs() {
   uint32_t durationMs = machineElapsedMs();
-  if (durationMs != 0U) {
-    return durationMs;
-  }
+  if (durationMs != 0U) return durationMs;
   const uint32_t startMs = session.circuitClosedAtMs != 0U
                                ? session.circuitClosedAtMs
                                : session.startedAtMs;
   return startMs != 0U ? elapsedMs(startMs) : 0U;
 }
 
-void flushPendingScaleTimerStopNow() {
-  if (!pendingScaleTimerStop.pending) {
-    return;
-  }
-  pendingScaleTimerStop = PendingScaleTimerStop{};
-  requestRemoteTimerStop();
-}
-
-uint32_t scaleTimerDisplayTargetMs(uint32_t internalMs) {
-  return (internalMs / 1000U) * 1000U;
-}
-
-void completePendingScaleTimerStop() {
-  pendingScaleTimerStop = PendingScaleTimerStop{};
-  requestRemoteTimerStop();
-}
-
-void armScaleTimerStopExtraDelay(uint32_t extraDelayMs) {
-  if (extraDelayMs == 0U) {
-    completePendingScaleTimerStop();
-    return;
-  }
-  pendingScaleTimerStop.pending = true;
-  pendingScaleTimerStop.extraDueAtMs = millis() + extraDelayMs;
-}
-
-void servicePendingScaleTimerStop() {
-  if (!pendingScaleTimerStop.pending) {
-    return;
-  }
-  const uint32_t nowMs = millis();
-  if (pendingScaleTimerStop.extraDueAtMs != 0U) {
-    if (static_cast<int32_t>(nowMs - pendingScaleTimerStop.extraDueAtMs) >= 0 ||
-        !scaleAvailable()) {
-      completePendingScaleTimerStop();
-    }
-    return;
-  }
-  if (!scaleAvailable()) {
-    completePendingScaleTimerStop();
-    return;
-  }
-  const bool timedOut =
-      static_cast<int32_t>(nowMs -
-                           pendingScaleTimerStop.catchupDeadlineAtMs) >= 0;
-  if (!session.remoteTimerStartSettled && !timedOut) {
-    return;
-  }
-  const uint32_t extraDelayMs = pendingScaleTimerStop.extraDelayMs;
-  if (session.remoteTimerStartSettled && !session.remoteTimerStarted) {
-    armScaleTimerStopExtraDelay(extraDelayMs);
-    return;
-  }
-  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
-  if (timedOut || !link.timerValid ||
-      link.timerMs >= pendingScaleTimerStop.targetMs) {
-    armScaleTimerStopExtraDelay(extraDelayMs);
-  }
-}
-
-void scheduleScaleTimerStopAfterCycle(uint32_t internalElapsedMs) {
-  if (!session.timerStartCommandQueued || session.stopTimerRequested) {
-    return;
-  }
-  pendingScaleTimerStop = PendingScaleTimerStop{};
-  pendingScaleTimerStop.pending = true;
-  pendingScaleTimerStop.targetMs = scaleTimerDisplayTargetMs(internalElapsedMs);
-  pendingScaleTimerStop.extraDelayMs = session.config.scaleTimerStopExtraDelayMs;
-  pendingScaleTimerStop.catchupDeadlineAtMs =
-      millis() + MAX_SCALE_TIMER_STOP_CATCHUP_MS;
-  servicePendingScaleTimerStop();
-}
-
 void transitionTo(StopperState nextState) {
-  if (stopperState == nextState) {
-    return;
-  }
+  if (stopperState == nextState) return;
 
   const StopperState previousState = stopperState;
   stopperState = nextState;
@@ -1877,25 +1259,19 @@ void initializeScaleConnectedLed() {
 
 ScaleConnectedLedPattern desiredScaleConnectedLedPattern(
     const ScaleLinkSnapshot &link) {
-  if (!runtimeConfig.scaleConnectedLed) {
-    return ScaleConnectedLedPattern::OFF;
-  }
+  if (!runtimeConfig.scaleConnectedLed) return ScaleConnectedLedPattern::OFF;
   if (link.state == ScaleLinkState::CONNECTED) {
     if (observedWeightStreamStateAt(millis(), link) == WeightStreamState::STALE) {
       return ScaleConnectedLedPattern::SLOW_BLINK;
     }
     return ScaleConnectedLedPattern::SOLID;
   }
-  if (link.connecting) {
-    return ScaleConnectedLedPattern::FAST_BLINK;
-  }
+  if (link.connecting) return ScaleConnectedLedPattern::FAST_BLINK;
   return ScaleConnectedLedPattern::OFF;
 }
 
 void serviceScaleConnectedLed(const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
-  if (!SCALE_STATUS_LED_PRESENT) {
-    return;
-  }
+  if (!SCALE_STATUS_LED_PRESENT) return;
   const ScaleConnectedLedPattern pattern = desiredScaleConnectedLedPattern(link);
   const uint32_t now = millis();
   bool on = false;
@@ -1981,9 +1357,6 @@ StopperState nextStateForUserHold(const MachineIntention &intent) {
   return intent.holdActive ? StopperState::REQUIRES_OFF : StopperState::READY;
 }
 
-// ---------------------------------------------------------------------------
-
-// Behavior-preserving service fragments; kept in this translation unit.
 void appendHistoryRecord(HistoryType type, uint32_t durationMs,
                          bool noWeight, const CycleWallTime *end = nullptr);
 
