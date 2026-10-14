@@ -170,3 +170,7 @@ target_link_libraries(json_arena_host_test PRIVATE "${CJSON_LIBRARY}")
 host_test(integration_request_host_test LABEL "host;network;safety")
 target_include_directories(integration_request_host_test PRIVATE "${CJSON_INCLUDE_DIR}")
 target_link_libraries(integration_request_host_test PRIVATE "${CJSON_LIBRARY}")
+host_test(corridor_host_test LABEL "host;control"
+  DEFINITIONS "CORRIDOR_FIXTURE_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/fixtures\"")
+target_include_directories(corridor_host_test PRIVATE "${CJSON_INCLUDE_DIR}")
+target_link_libraries(corridor_host_test PRIVATE "${CJSON_LIBRARY}")
