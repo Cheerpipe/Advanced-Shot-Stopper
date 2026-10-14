@@ -15703,6 +15703,15 @@ void s11_shot_log_record_includes_preset_snapshot() {
   CHECK(r.cutRampDs == 0 && shotLogFastGuardEnabled(r.sideFlags));
   CHECK(corridor::verdictOf(r.verdict) == corridor::Verdict::FAST);
   CHECK(r.arrivalDs == 226);  // 24.5 s - 4 g / 2.108 g/s.
+  CHECK(shotLogFastExtended(r.extractionExtended) && !shotLogSlowExtended(r.extractionExtended));
+  CHECK(r.errorCg == -100);  // 39 g against the 40 g cut line, not the target.
+  // Channeling caps the line at the target and marks the record.
+  shotLog.clear();
+  snapshot.channeling = true;
+  commitPendingShotLog(snapshot, 39.0f, true, ActualWeightSource::POST_DRIP);
+  CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
+  CHECK(stored[0].cutLineCg == 3600 && corridor::channelingOf(stored[0].verdict));
+  snapshot.channeling = false;
   // A wall stop is not classified.
   shotLog.clear();
   snapshot.endReason = EndReason::CONFIGURED_WALL_LIMIT;
@@ -19844,6 +19853,24 @@ void eq01_live_cut_equals_kernel_replay() {
   }
 }
 
+void ch01_channeling_caps_the_cut_line_at_the_target() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  runtimeConfig.fastSideEnabled = true;
+  startCycle();
+  advanceToBrew();
+  CHECK(session.cut.params.fastOn);
+  session.cut.rate.channeling = true;  // As latched by the estimator.
+  float weight = 0.0f;
+  for (unsigned i = 0; i < 30; ++i) {
+    hostMillis += 100;
+    markScaleWorkerProgress();
+    publishWeight(weight += 0.2f);
+  }
+  CHECK(!session.cut.params.fastOn);
+  CHECK(cutLineNowDg() == session.cut.params.goalDg);
+}
+
 const TestCase testCases[] = {
     {"HOME03", home03_active_flow_requires_fresh_baseline_and_confirmed_drop},
     {"HOME02", home02_nonqualifying_resolution_preserves_cutoff_and_endpoint},
@@ -19989,6 +20016,7 @@ const TestCase testCases[] = {
     {"R61b", r61b_slow_extended_pulse_uses_slow_rate_setting},
     {"TT01", tt01_smooth_cut_truth_table},
     {"EQ01", eq01_live_cut_equals_kernel_replay},
+    {"CH01", ch01_channeling_caps_the_cut_line_at_the_target},
     {"R61c", r61c_extended_pulse_resumes_after_scale_lost_alert},
     {"R61d", r61d_extended_pulse_pending_cleared_when_unwanted},
     {"R61e", r61e_extended_pulse_restarts_when_rate_setting_changes},

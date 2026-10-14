@@ -96,6 +96,12 @@ void updateCutPrediction(float weight, uint32_t receivedAtMs) {
       !cut.rate.valid) {
     return;
   }
+  // Channeling: f := min(f, target) for the rest of the shot.
+  if (cut.rate.channeling && cut.params.fastOn) {
+    cut.params.fastOn = false;
+    addDebugEvent(DebugCategory::SCALE, DebugCode::CHANNELING_DETECTED,
+                  cut.rate.rawX100, shotMs);
+  }
   int32_t crossing = 0;
   if (corridor::crossingMs(cut.params, shotMs, gramsToDg(weight),
                            cut.rate.rateX100, cut.tauMs, cut.offsetDg,

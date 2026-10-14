@@ -380,16 +380,20 @@ inline bool shotLogRecordEligible(const ShotLogRecord &record) {
 inline bool shotLogBbwErrorEligible(const ShotLogRecord &record) {
   const ShotLogStopDetail detail =
       static_cast<ShotLogStopDetail>(record.stopDetail);
+  // Every weight cut counts: target, raised or lowered segment.
   return shotLogType(record) == ShotLogType::AUTO && record.goalWeightDg > 0 &&
          (detail == ShotLogStopDetail::NORMAL_TARGET ||
-          detail == ShotLogStopDetail::PREDICTION);
+          detail == ShotLogStopDetail::EXTENDED_MAX_WEIGHT ||
+          detail == ShotLogStopDetail::SLOW_MIN_WEIGHT);
 }
 
+// Error in tenths of a percent against the planned stop (the cut line).
 inline uint32_t shotLogBbwErrorTenths(const ShotLogRecord &record) {
-  const int32_t error = static_cast<int32_t>(record.actualWeightCg) -
-                        static_cast<int32_t>(record.goalWeightDg) * 10;
-  return static_cast<uint32_t>(error < 0 ? -error : error) * 100U /
-         record.goalWeightDg;
+  const int32_t plannedCg = record.cutLineCg > 0
+      ? record.cutLineCg : static_cast<int32_t>(record.goalWeightDg) * 10;
+  const int32_t error = static_cast<int32_t>(record.actualWeightCg) - plannedCg;
+  return static_cast<uint32_t>(error < 0 ? -error : error) * 1000U /
+         static_cast<uint32_t>(plannedCg > 0 ? plannedCg : 1);
 }
 
 inline uint8_t shotLogPresetId(const ShotLogRecord &record);

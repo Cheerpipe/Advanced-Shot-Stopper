@@ -63,14 +63,16 @@ changed. On momentary machines, check the actual group and its state feedback.
 | **ATM / manual-no-scale** | (buzzer builds) | ON / OFF | Distinct RTTTL on the local buzzer when A→M ends or when BBW needs a scale that is missing. Disabled when Output channel is Scale only. |
 | **Scale connected** | ON (Buzzer only or Scale priority) | ON / OFF | Rising RTTTL when a scale connects or reconnects. Always the local buzzer. |
 | **Blue LED while scale connected** | ON | ON / OFF | Onboard GPIO 1 HIGH while a scale is BLE-connected. Independent of Sound alerts. |
-| **Extended shot pulse** | Fast | Disabled / Slow / Medium / Fast / Rapid | Local-buzzer pulses while Fast extraction guard keeps the shot running past the normal cut. Disabled when Output channel is Scale only. |
-| **Slow extended pulse** | Fast | Same rates | Same idea for Slow extraction guard. |
-| **Bullseye melody** | OFF | ON / OFF; Buzzer only | Plays the saved custom RTTTL tune once when a finished shot remains exactly at its target weight for at least 1 full second. The text is retained when disabled. |
+| **Extended shot pulse** | Fast | Disabled / Slow / Medium / Fast / Rapid | Local-buzzer pulses while a fast shot runs past the target because its cut line was raised. Disabled when Output channel is Scale only. |
+| **Slow extended pulse** | Fast | Same rates | Pulses while a slow shot's cut line has dropped below the target. |
+| **Bullseye melody** | OFF | ON / OFF; Buzzer only | Plays the saved custom RTTTL tune once when a shot stopped by weight **On recipe** remains exactly at its target weight for at least 1 full second. The text is retained when disabled. |
 | **Custom RTTTL** | empty | Up to 500 ASCII characters / 250 notes | Validated when saved and parsed into a fixed-capacity buffer. Editable only while Bullseye melody is enabled; otherwise it remains visible and read-only. |
 
 ## Bullseye timing
 
-Bullseye applies to automatic, timer-only, and manual shots, but not rinses.
+Bullseye applies only to automatic shots stopped by weight whose verdict is
+**On recipe** (they reached the target inside the shot time window); fast,
+slow, manual, timer-only and limit endings never play it, nor do rinses.
 It is active only when **Sound alerts** is on, **Output channel** is **Buzzer
 only**, and a local buzzer is compiled in.
 

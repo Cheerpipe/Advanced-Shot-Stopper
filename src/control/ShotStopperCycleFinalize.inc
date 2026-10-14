@@ -167,7 +167,7 @@ corridor::Params pendingCutParams(const PendingShotFinalize &snapshot) {
   p.goalDg = snapshot.goalWeightDg;
   p.fastMarginDg = snapshot.fastMarginDg;
   p.slowMarginDg = snapshot.slowMarginDg;
-  p.fastOn = snapshot.extractionGuardEnabled;
+  p.fastOn = snapshot.extractionGuardEnabled && !snapshot.channeling;
   p.slowOn = snapshot.slowExtractionGuardEnabled;
   p.delayMs = static_cast<int32_t>(snapshot.protectionMs);
   p.fastBeforeMs = static_cast<int32_t>(snapshot.fastBeforeMs);
@@ -235,8 +235,10 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
   copyCString(record.scaleName, sizeof(record.scaleName), snapshot.scaleName);
   record.sideFlags = shotLogPackGuardFlags(
       snapshot.extractionGuardEnabled, snapshot.slowExtractionGuardEnabled);
+  // Cut line above / below the target at the stop: the segment that fired.
   record.extractionExtended = shotLogPackExtendedFlags(
-      snapshot.extractionExtended, snapshot.slowExtractionExtended);
+      snapshot.endReason == EndReason::FAST_EXTRACTION_MAX_WEIGHT,
+      snapshot.endReason == EndReason::SLOW_EXTRACTION_MIN_WEIGHT);
   record.stopDetail = static_cast<uint8_t>(shotLogStopDetailFromEndReason(
       snapshot.endReason, snapshot.extractionGuardEnabled,
       snapshot.extractionExtended));
@@ -264,9 +266,11 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
     record.actualWeightCg = shotLogWeightToCentigrams(finalWeightG);
     if (finalWeightG > 2.0f && record.actualWeightCg <= 200)
       record.actualWeightCg = 201;
-    record.errorCg =
-        shotLogWeightToCentigrams(finalWeightG -
-                           goalWeightDgToGrams(snapshot.goalWeightDg));
+    // Error against the planned stop (the cut line), else the target.
+    record.errorCg = shotLogWeightToCentigrams(
+        finalWeightG - (shotLogWeightIsMissing(record.cutLineCg)
+                            ? goalWeightDgToGrams(snapshot.goalWeightDg)
+                            : record.cutLineCg / 100.0f));
     if (snapshot.firstDropDs != SHOT_LOG_METRIC_MISSING &&
         (weightSource == ActualWeightSource::POST_DRIP ||
          weightSource == ActualWeightSource::LAST_KNOWN)) {
@@ -286,7 +290,8 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
 
   const corridor::ArrivalVerdict verdict =
       pendingShotVerdict(snapshot, snapshot.rateAtStopX100);
-  record.verdict = static_cast<uint8_t>(verdict.verdict);
+  record.verdict = corridor::packVerdict(verdict.verdict, snapshot.channeling,
+                                         corridor::LossSource::PROJECTION, false);
   if (verdict.verdict != corridor::Verdict::UNCLASSIFIED)
     record.arrivalDs = static_cast<uint16_t>(verdict.arrivalMs / 100);
   const uint32_t newId = shotLog.nextRecordId();

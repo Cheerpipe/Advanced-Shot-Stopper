@@ -2125,7 +2125,7 @@ enum class DebugCode : uint8_t {
   FIRST_DROP_DURING_RETARE,
   FAST_EXTRACTION_ENTERED,
   FAST_EXTRACTION_STOP_MAX,
-  FAST_EXTRACTION_STOP_MIN_TIME,
+  CHANNELING_DETECTED,
   SLOW_EXTRACTION_ENTERED,
   SLOW_EXTRACTION_STOP_MAX_TIME,
   SLOW_EXTRACTION_STOP_MIN_WEIGHT,
@@ -2668,13 +2668,13 @@ inline const char *debugCodeName(DebugCode code) {
     case DebugCode::FIRST_DROP_DURING_RETARE:
       return "first coffee drop detected during retare";
     case DebugCode::FAST_EXTRACTION_ENTERED:
-      return "fast extraction guard extended shot";
+      return "cut line raised above the target";
     case DebugCode::FAST_EXTRACTION_STOP_MAX:
       return "fast extraction guard stopped at max weight";
-    case DebugCode::FAST_EXTRACTION_STOP_MIN_TIME:
-      return "fast extraction guard stopped at min BBW brew time";
+    case DebugCode::CHANNELING_DETECTED:
+      return "channeling: cut line capped at the target";
     case DebugCode::SLOW_EXTRACTION_ENTERED:
-      return "slow extraction guard extended shot";
+      return "cut line lowered below the target";
     case DebugCode::SLOW_EXTRACTION_STOP_MAX_TIME:
       return "slow extraction guard stopped at max BBW brew time";
     case DebugCode::SLOW_EXTRACTION_STOP_MIN_WEIGHT:

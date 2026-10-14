@@ -222,6 +222,7 @@ with the machine circuit isolated before the first smooth-cut release.
 | SC-04 | Pull a shot on one preset, then edit that preset's window and margins and pull another; export the Stats CSV. | Each row keeps the window, margins, delay, max shot time and side switches it ran with; editing the preset did not change the first row. |
 | SC-05 | With the machine circuit isolated, feed a scale ramp that reaches the target early, inside the window and late on Double · Adaptive, then repeat on Double · Fixed. | Adaptive: early shots stop above the target (at most the fast maximum), on-time shots at the target, late shots below it (at least the slow minimum), with `extended_max_weight` / `normal_target` / `slow_min_weight`; Fixed always stops at the target. The relay opens on every stop and the max shot time still stops a shot that never gets there. |
 | SC-06 | Pull at least 10 real shots on each Adaptive preset and compare final yield with the stored cut line (Stats CSV `cut_line_g`). | Final yield lands within about 1.5 g of the cut line on 95 % of shots once the drip offset has learned. |
+| SC-07 | With a local buzzer, pull a fast, an on-time and a slow shot on Double · Adaptive with both pulse settings on and Bullseye enabled. | The fast-shot pulse plays only while a fast shot's cut line is raised, the slow pulse only after a slow shot's line drops; Bullseye can play only after the On recipe shot. |
 
 ## Network, Web UI and access
 

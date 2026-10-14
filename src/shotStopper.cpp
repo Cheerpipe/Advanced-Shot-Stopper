@@ -1305,9 +1305,9 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
   last.currentWeightG = finalWeightValid ? finalWeightG : 0.0f;
   last.goalWeightDg = snapshot.goalWeightDg;
   last.extractionExtended =
-      snapshot.extractionExtended && snapshot.extractionGuardEnabled;
+      snapshot.endReason == EndReason::FAST_EXTRACTION_MAX_WEIGHT;
   last.slowExtractionExtended =
-      snapshot.slowExtractionExtended && snapshot.slowExtractionGuardEnabled;
+      snapshot.endReason == EndReason::SLOW_EXTRACTION_MIN_WEIGHT;
   last.activeStopWeightG = goalWeightDgToGrams(
       last.extractionExtended ? snapshot.goalWeightDg + snapshot.fastMarginDg
       : last.slowExtractionExtended ? snapshot.goalWeightDg - snapshot.slowMarginDg

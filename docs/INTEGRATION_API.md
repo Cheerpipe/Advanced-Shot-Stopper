@@ -114,8 +114,9 @@ the existing history record layout and schema.
 UI Stats page: `shotCount`, `totalDurationS`, `avgDurationS`, `avgYieldG`,
 `avgErrorPct`, `avgFlowGps`, `shotsPerDay`, and `durationsS` for the duration
 chart. The window is the newest ten eligible shot records, including manual and
-timer-only endings. `avgErrorPct` is the mean absolute percentage miss of only
-normal BBW target cuts in that window. Unavailable averages are `null`.
+timer-only endings. `avgErrorPct` is the mean absolute percentage miss of the
+weight cuts in that window (normal, raised or lowered cut line), measured
+against the cut line at the stop rather than the target. Unavailable averages are `null`.
 The controller derives these values from RAM; the Web UI streams the same
 object over its data WebSocket, and this payload carries it under `stats`,
 alongside `savePending`.

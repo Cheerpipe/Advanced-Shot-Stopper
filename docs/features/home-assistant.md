@@ -93,8 +93,9 @@ Its remaining entities are:
   change shot statistics.
 - **Stats** sensors — average duration, average yield, average BBW error, average
   flow, shots per day, and the shot count behind them. The controller computes
-  the summaries over its ten most recent recorded shots; BBW error uses only
-  normal target cuts in that window.
+  the summaries over its ten most recent recorded shots; BBW error uses the
+  shots stopped by weight in that window, measured against where each shot was
+  planned to stop.
 - **Active preset**, a select populated from the controller's preset names.
 - **Brew by weight**, **No-scale BBW**, **A-to-M time guard**, **Slow
   extraction guard**, **Fast extraction guard**, **Avoid accidental touch**,

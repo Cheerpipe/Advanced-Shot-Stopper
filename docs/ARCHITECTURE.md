@@ -198,7 +198,8 @@ than a lookup through the current preset bank.
 Stats values are derived under the store mutex from shot records in RAM;
 no aggregate is persisted. The read visits at most 100 ring entries and copies
 at most ten records for general metrics. BBW error has its own ten-cut window
-across the same ring, counting normal target or legacy prediction cuts only.
+across the same ring, counting every weight cut (target, raised or lowered
+segment) and measuring each against its stored cut line.
 Available flow is counted separately within the general window.
 
 The stats shot log, its curve sidecar, and the independent activation history

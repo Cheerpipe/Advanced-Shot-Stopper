@@ -305,7 +305,11 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   }
   scheduleScaleTimerStopAfterCycle(durationMs);
 
-  if (!rinseEnd && !brewEndIsAbandonedStart(reason) &&
+  // Bullseye celebrates an On recipe weight cut only.
+  if (!rinseEnd && corridor::weightCutReason(static_cast<uint8_t>(reason)) &&
+      corridor::arrivalVerdict(session.cut.params, static_cast<int32_t>(durationMs),
+                               session.cut.rate.valid ? session.cut.rate.rateX100 : 0)
+              .verdict == corridor::Verdict::ON_RECIPE &&
       bullseyeMelodyConfig.enabled && soundAlertsEnabled() &&
       currentAlertOutputChannel() == AlertOutputChannel::BUZZER_ONLY &&
       localBuzzer.ready) {

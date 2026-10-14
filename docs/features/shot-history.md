@@ -157,13 +157,14 @@ matter how the table displays it.
 
 Stats uses up to the newest **10 qualifying shots** for duration, yield, available
 flow, daily count, and the duration chart, regardless of how the table is
-sorted. **Avg BBW error** independently uses up to the newest **10 normal BBW
-target cuts** in the full history, skipping manual shots and Fast/Slow guard
-stops. It averages the absolute percentage miss, so overshoots and undershoots
-cannot cancel each other. It is unavailable when there is no qualifying BBW
-target cut. For example, a single 28.0 s Fast-guard shot yielding 36.9 g with
-1.42 g/s average flow shows those same three averages; **Avg BBW error** stays
-unavailable until a normal BBW target cut is recorded. **Daily shots**
+sorted. **Avg BBW error** independently uses up to the newest **10 shots
+stopped by weight** in the full history, skipping manual shots and time or
+safety stops. Each miss is measured against the planned stop — the cut line
+when the stop was commanded, which is above the target for a fast shot and
+below it for a slow one — and the absolute percentages are averaged, so
+overshoots and undershoots cannot cancel each other. It is unavailable when no
+shot has been stopped by weight yet. For example, a fast shot whose cut line
+stood at 38.0 g and that yielded 38.4 g counts as a 1.1 % miss. **Daily shots**
 averages the dated shots over the calendar days they span, including both ends.
 An erase-all firmware installation starts with empty shot history.
 If a low-weight older row is imported later, it remains in the table and CSV
