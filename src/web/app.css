@@ -572,21 +572,11 @@ body.qwOpen{overflow:hidden}
 .qwReset.show:active{transform:scale(.95)}
 .qwReset svg{width:.95rem;height:.95rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .qwReset b{font-variant-numeric:tabular-nums}
-.qwZone{position:relative;display:flex;flex-direction:column;justify-content:center;padding:1.5rem 0 .95rem;touch-action:none;cursor:ew-resize;user-select:none;-webkit-user-select:none}
-.qwScale{position:relative;height:2.15rem;overflow:hidden;-webkit-mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent);mask-image:linear-gradient(to right,transparent,#000 15%,#000 85%,transparent)}
-.qwScaleIn{position:absolute;inset:0;will-change:transform}
-.qwScaleIn i{position:absolute;top:0;width:1px;height:.7rem;background:var(--bd)}
-.qwScaleIn i.med{width:1.5px;height:1rem;background:var(--mu)}
-.qwScaleIn i.big{width:1.5px;height:1.25rem;background:var(--mu)}
-.qwScaleIn b{position:absolute;top:1.32rem;transform:translateX(-50%);font-size:.62rem;font-weight:700;line-height:1;color:var(--mu);font-variant-numeric:tabular-nums;white-space:nowrap}
-/* Guard zones: reference tints outside the editable range, BBW green inside */
-.qwScaleIn i.zOk{background:var(--ok)}
-.qwScaleIn i.zSlow{background:var(--gSlow)}
-.qwScaleIn i.zFast{background:var(--gFast)}
-.qwScaleIn b.zOk{color:var(--ok)}
-.qwScaleIn b.zSlow{color:var(--gSlow)}
-.qwScaleIn b.zFast{color:var(--gFast)}
-.qwScaleIn i.now{background:var(--ac);width:2.5px}
+.qwStep{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:.6rem;padding:.9rem 0 .4rem}
+.qwStep button{width:var(--tap);height:var(--tap);border:1.5px solid var(--ln);border-radius:50%;background:var(--sf);color:var(--fg);font:inherit;font-size:1.3rem;font-weight:700;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.qwStep button:active{transform:scale(.92)}
+#qwRange{width:100%;height:var(--tap);margin:0;accent-color:var(--ac);cursor:ew-resize}
+.qwStep button:focus-visible,#qwRange:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
 .qwLimit{display:inline-flex;align-items:center;min-height:2.1rem;margin:0;padding:0 .7rem;border:1.5px solid var(--ln);border-radius:2rem;font-size:.72rem;font-weight:700;color:var(--mu);white-space:nowrap}
 .qwLimit[hidden]{display:none}
 .qwLimit.toneSlow{border-color:var(--gSlow);color:var(--gSlow)}

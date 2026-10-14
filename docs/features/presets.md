@@ -54,18 +54,17 @@ preset and whether editing is allowed.
 When the last shot card on Home shows a target (a scale shot, while the
 machine is idle), a small pencil sits next to the target weight. The active
 preset's **On recipe** row in Home's **Presets** section has the same pencil.
-Tap either to open a sliding scale at the bottom of the screen:
+Tap either to open a panel at the bottom of the screen with the weight, its
+ratio and dose (for example **1:2.0 · 18.0 g in**), a slider and **−** / **+**
+buttons:
 
-- Drag slowly to move a tenth of a gram at a time; drag faster and the scale
-  accelerates so you can cross the range in a single gesture.
-- Every whole gram on the ruler carries its number, with smaller marks at the
-  half gram and the tenth. Green marks are targets the recipe accepts. Blue
-  marks below the range and amber marks above it lie outside what the
-  recipe's slow and fast settings allow — they are reference only, and the
-  scale cannot stop on them.
-- The scale only offers targets the recipe can actually use: from 10.0 g to
+- Drag the slider for big moves. Tap **−** or **+** to change the weight by a
+  tenth of a gram; hold either one and it repeats, then speeds up to a whole
+  gram at a time.
+- The panel only offers targets the recipe can actually use: from 10.0 g to
   200.0 g, in tenths of a gram. The extra and reduced yields for fast and
-  slow shots are kept as a distance from the target, so they move with it.
+  slow shots are kept as a distance from the target, so they move with it,
+  and the slider stops where the recipe's slow and fast settings allow.
   When you reach either end, a small **Target minimum** or **Target maximum**
   label appears next to the weight.
 - **Reset** appears once you move away from the recipe's weight; tap it to go
@@ -75,7 +74,7 @@ Tap either to open a sliding scale at the bottom of the screen:
   saving the target in Settings.
 
 The last shot card only appears after the controller has recorded a shot.
-Opening `http://<device-address>/?edit_weight=1` also opens the sliding scale.
+Opening `http://<device-address>/?edit_weight=1` also opens this panel.
 The address parameter is used once and removed, so refreshing the page
 afterwards shows the normal Home.
 
