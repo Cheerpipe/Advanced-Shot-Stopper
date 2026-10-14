@@ -311,7 +311,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     !css.includes('.ktrack:after{content:"";position:absolute;top:.15rem;left:.15rem;width:1rem;height:1rem;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:.2s}') ||
     !css.includes('.protList input:checked~.ktrack{background:var(--ac)}') ||
     !css.includes('.protList input:checked~.ktrack:after{transform:translateX(1rem)}') ||
-    !css.includes('.stopSurface{') ||
+    !css.includes('#stopPanel{') ||
     !css.includes('justify-content:space-between') ||
     css.includes('.homeSwitchGrid') ||
     !css.includes('border-bottom:1px solid') ||

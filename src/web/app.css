@@ -249,9 +249,7 @@ small{display:block;color:var(--mu)}
 .locked{opacity:.5}
 .switchRow{display:flex;align-items:center;gap:.75rem;margin:.4rem 0;min-height:var(--tap);justify-content:space-between}
 .readyMsg{margin:1rem 0 0;padding:.6rem .75rem;border:1px solid var(--ln);border-left:4px solid var(--wn);border-radius:var(--r);background:var(--mw);font-size:.86rem}
-.stopCard{margin:1rem 0}
-.smTitle{margin:0 .3rem .4rem;font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}
-.stopSurface{padding:.4rem;border:1px solid var(--ln);border-radius:1.25rem;background:var(--sf)}
+#stopPanel{padding:.4rem}
 #brewModeRow{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:0;margin:0;padding:.2rem;border:1px solid var(--ln);border-radius:2rem;background:var(--in)}
 #brewModeRow:before{content:"";position:absolute;top:.2rem;bottom:.2rem;left:.2rem;width:calc(50% - .2rem);border-radius:2rem;background:var(--ac);transition:transform .28s cubic-bezier(.32,.72,.32,1)}
 #brewModeRow:has(#homeBrewManual:checked):before{transform:translateX(100%)}
