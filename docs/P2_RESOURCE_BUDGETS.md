@@ -224,6 +224,12 @@ allowance to 36,052 bytes. The reference development Micra build measures
 separately). DIRAM (4,704 over baseline) and external BSS (771,816 of
 819,200) stay inside their existing allowances; control timing, OTA identity,
 and partitions are unchanged.
+Per-preset shot statistics and grind hints (presets JSON statistics, stacked
+per-verdict Stats chart) raise the image/linked allowances to 77,536/77,532
+bytes, the flash-code allowance to 44,344 bytes and the rodata allowance to
+36,564 bytes. The reference development Micra build measures 2,351,232 image,
+2,351,115 linked, 1,559,380 flash-code and 623,852 rodata bytes —
+77,472/77,468/44,280/36,500 over baseline, with the 64-byte headroom kept.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
