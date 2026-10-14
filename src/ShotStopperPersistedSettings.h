@@ -77,10 +77,10 @@ static_assert(offsetof(PersistedSettings, storageRevision) + sizeof(uint32_t) ==
 
 static_assert(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET,
               "PersistedSettings exceeds NVS dual-slot budget");
-static_assert(sizeof(PersistedSettings) == 3344,
-              "Settings v4 decigram goals; bump CONFIG_SCHEMA_VERSION on change");
-static_assert(offsetof(PersistedSettings, lineaMicra) == 3023);
-static_assert(offsetof(PersistedSettings, checksum) == 3336);
+static_assert(sizeof(PersistedSettings) == 3056,
+              "Settings schema 1; bump CONFIG_SCHEMA_VERSION on change");
+static_assert(offsetof(PersistedSettings, lineaMicra) == 2735);
+static_assert(offsetof(PersistedSettings, checksum) == 3048);
 
 inline uint32_t persistedSettingsChecksum(const PersistedSettings &settings) {
   return crc32(reinterpret_cast<const uint8_t *>(&settings),

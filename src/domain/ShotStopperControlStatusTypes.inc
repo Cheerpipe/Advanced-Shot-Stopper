@@ -153,7 +153,7 @@ struct ControlStatusFields : ScaleLinkMetrics {
   bool cycleCupRemovedPending = false;
   bool cycleBbwProtectionEnabled = false;
   bool cycleBbwProtectionEnded = false;
-  uint32_t autoToManualGuardTrendMs = DEFAULT_AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT_MS;
+  uint32_t autoToManualGuardTrendMs = 0;
   char scaleProtocol[20] = "none";
   char connectedScaleMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
   char preferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY] = {};

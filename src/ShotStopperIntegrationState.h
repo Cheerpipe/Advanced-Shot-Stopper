@@ -32,9 +32,9 @@ inline QuickSettingsSnapshot quickSettingsSnapshot(const RecipeSnapshot &recipe)
   snapshot.activePresetId = recipe.presets.activeId;
   snapshot.brewByWeight = !recipe.runtime.timerOnly;
   snapshot.noScaleBbwMode = recipe.runtime.noScaleBbwMode;
-  snapshot.autoToManualGuardEnabled = recipe.runtime.autoToManualGuardEnabled;
-  snapshot.slowExtractionGuardEnabled = recipe.runtime.slowExtractionGuardEnabled;
-  snapshot.fastExtractionGuardEnabled = recipe.runtime.fastExtractionGuardEnabled;
+  snapshot.autoToManualGuardEnabled = recipe.runtime.scaleLossEnabled;
+  snapshot.slowExtractionGuardEnabled = recipe.runtime.slowSideEnabled;
+  snapshot.fastExtractionGuardEnabled = recipe.runtime.fastSideEnabled;
   snapshot.avoidAccidentalTouchEnabled =
       recipe.runtime.avoidAccidentalTouchEnabled;
   snapshot.cupProtectionEnabled = recipe.runtime.cupProtectionEnabled;

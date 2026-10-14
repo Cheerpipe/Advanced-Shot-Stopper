@@ -5,7 +5,8 @@ by idle cup-placement tare, late-cup retare, and shot protection. Machine-level,
 **Settings → Machine and scale → Cup**.
 
 How those detections protect the shot is explained in
-[Cup protection](../features/cup-protection.md).
+[Cup protection](../features/cup-protection.md). The cup protection
+switches that act on these detections are also shared by every preset.
 
 ## When it applies
 

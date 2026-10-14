@@ -46,6 +46,7 @@ and [target traces](P2_TARGET_TRACE.md), not by a historical pass.
 
 - [Boot, electrical safety and reset](#boot-electrical-safety-and-reset)
 - [Brewing, cup, scale and presets](#brewing-cup-scale-and-presets)
+- [Smooth cut and factory presets](#smooth-cut-and-factory-presets)
 - [Network, Web UI and access](#network-web-ui-and-access)
 - [Recovery](#recovery)
 - [OTA and runtime qualification](#ota-and-runtime-qualification)
@@ -207,6 +208,17 @@ Additional Bookoo idle-tare checks (not hardware-qualified by host tests):
 | IT-M19 | Capture notifications around an idle tare, including a sample collected at the final pre-write check. Repeat with changed weight, radio pauses and normal Web activity. | Unapproved evidence defers the queued write; contradictory evidence cancels it. Pre-issuance zero cannot confirm the effect; an in-write zero may. Stale/No sample is distinguishable from usable connection. Fresh queued pre-deadline packets do not cause false timeout; invalid frames do not keep the link alive. |
 | IT-M20 | On the supported Bookoo firmware, use diagnostic timer start/stop/reset and combined tare-start; then exercise normal idle tare. Record firmware and packet captures. | Each command behaves as requested. Idle tare never starts the timer. Rejected-frame count stays stable for valid manufacturer weight frames. |
 | IT-M21 | After factory reset, confirm **Retare when adding or removing an accessory** is ON. Save it OFF and reboot to confirm OFF persists, then turn it ON. Tare an 80 g cup, add a stable 40 g accessory, then remove the accessory. Repeat by removing the cup first, removing both together, and using equal 80 g components. Place cup and accessory together before the first tare, remove only the accessory, then remove the rest and place a new cup. Repeat with the setting OFF, an unstable/under-minimum load, a scale reconnect, and during/after a shot. Finally remove the cup, press the scale's physical tare button and replace it. | Factory default is ON; saved OFF survives reboot. A separately measured accessory causes one additional tare on addition and another on its stable removal; the cup stays present and the timer does not start. Cup-first or full removal does not tare. Equal-weight or combined-placement partial removals do not tare; emptying the pan restores the next cup placement path. No accessory tare occurs when disabled, stale, unstable, or in-shot. The physical button press is not identified from weight alone; use Diagnostic with the pan empty to recover. |
+
+## Smooth cut and factory presets
+
+Rows in this section are **pending (user)**: they are run on the owner's bench
+with the machine circuit isolated before the first smooth-cut release.
+
+| ID | Procedure | Expected result |
+| --- | --- | --- |
+| SC-01 | Install the smooth-cut firmware over USB with `--erase-all`, restore Wi-Fi from the serial console and pair the scale. | The controller boots with factory settings and four factory presets: Double · Adaptive (active), Single · Adaptive, Double · Fixed and Single · Fixed. |
+| SC-02 | Toggle the Home Quick Settings A-to-M time guard, Avoid accidental touch and Cup protection, then apply another preset; repeat from Home Assistant. Toggle Fast and Slow on one preset. | The three shared switches keep their value on every preset; Fast and Slow change only the preset they were set on. |
+| SC-03 | Edit each factory preset, then use **Reset** on it; try to delete each one. | Reset restores the factory table values and keeps the name; factory presets cannot be deleted. |
 
 ## Network, Web UI and access
 

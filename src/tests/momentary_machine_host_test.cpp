@@ -16,7 +16,6 @@ namespace {
 
 int failures = 0;
 int testsRun = 0;
-uint8_t hostBbwAlgorithm = 0;
 
 #define CHECK(condition)                                                       \
   do {                                                                         \
@@ -80,13 +79,12 @@ void resetMomentaryHarness() {
   scaleWeightEventCount = 0;
   scaleWeightEventDrops = 0;
   runtimeConfig = RuntimeConfig{};
-  runtimeConfig.bbwAlgorithm = hostBbwAlgorithm;
   bbwLearningBank = BbwLearningBank{};
   runtimeConfig.autoTareOutsideBrew = false;
   runtimeConfig.requireCupToStart = false;
   runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);
-  runtimeConfig.fastExtractionGuardEnabled = false;
-  runtimeConfig.slowExtractionGuardEnabled = false;
+  runtimeConfig.fastSideEnabled = false;
+  runtimeConfig.slowSideEnabled = false;
   platformClockReady = true;
   persistenceReady = true;
   setScaleWorkerBleReadyForHost(true);
@@ -192,7 +190,6 @@ void resetMomentaryHarness() {
   runtimeConfig = composeEffectiveConfig(runtimeConfig, presetBank);
   runtimeConfig.requireCupToStart = false;
   runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);
-  mutableActiveShotPreset(presetBank).requireCupToStart = false;
   hostRelayClosedWrites = 0;
   hostRelayOpenWrites = 0;
   lastCycle = LastCycleSummary{};
@@ -410,8 +407,6 @@ void t_guard_reject_does_not_mirror() {
   resetMomentaryHarness();
   runtimeConfig.cupProtectionEnabled = true;
   runtimeConfig.requireCupToStart = true;
-  mutableActiveShotPreset(presetBank).cupProtectionEnabled = true;
-  mutableActiveShotPreset(presetBank).requireCupToStart = true;
   currentWeight = 0.0f;
   currentWeightReceivedAtMs = hostMillis;
   currentWeightSequence = 1;
@@ -1192,7 +1187,7 @@ void armLiveScaleTimerOnlyStart(float weight) {
   ShotPreset &preset = mutableActiveShotPreset(presetBank);
   preset.brewByWeight = false;
   preset.operationalWallMs = HARD_MAX_CIRCUIT_CLOSED_MS;
-  preset.autoToManualGuardEnabled = false;
+  runtimeConfig.scaleLossEnabled = false;
   runtimeConfig = composeEffectiveConfig(runtimeConfig, presetBank);
   seedFreshScaleWeight(weight);
 }
@@ -2516,15 +2511,12 @@ const TestCase kTests[] = {
 int main() {
   static_assert(SHOT_STOPPER_MACHINE_TYPE != 0,
                 "momentary host tests require SHOT_STOPPER_MACHINE_TYPE 1 or 2");
-  for (hostBbwAlgorithm = 0; hostBbwAlgorithm <= 1; ++hostBbwAlgorithm) {
-   for (const TestCase &test : kTests) {
+  for (const TestCase &test : kTests) {
     const int failuresBefore = failures;
     test.function();
     ++testsRun;
-    std::cout << bbwAlgorithmName(hostBbwAlgorithm) << ' ' << test.id
-              << (failures == failuresBefore ? " PASS" : " FAIL")
+    std::cout << test.id << (failures == failuresBefore ? " PASS" : " FAIL")
               << "\n";
-  }
   }
   deleteHostResources();
   std::cout << testsRun << " tests, " << failures << " failures\n";

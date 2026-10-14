@@ -66,7 +66,7 @@ namespace shotstopper {
 constexpr uint32_t SERIAL_BAUD = 115200;
 // Fresh schema epoch: blobs written by any earlier firmware are rejected, so
 // crossing the cutover requires the documented USB erase workflow.
-constexpr uint32_t CONFIG_SCHEMA_VERSION = 0;
+constexpr uint32_t CONFIG_SCHEMA_VERSION = 1;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 3600UL * 1000UL;
@@ -699,25 +699,16 @@ struct RuntimeConfig {
   uint8_t firstTimezoneAutoClockQuality = 0;  // 0 absent, 1 unknown, 2 device UTC
   uint8_t ntpServerPreset = static_cast<uint8_t>(NtpServerPreset::POOL);
   char ntpServerCustom[NTP_SERVER_HOST_CAPACITY] = {};
-  bool fastExtractionGuardEnabled = true;
-  float maxRecoveryWeightG = DEFAULT_MAX_RECOVERY_WEIGHT_G;
-  uint32_t minBbwBrewTimeMs = DEFAULT_MIN_BBW_BREW_TIME_MS;
-  bool slowExtractionGuardEnabled = true;
-  float minRecoveryWeightG = DEFAULT_MIN_RECOVERY_WEIGHT_G;
-  uint32_t maxBbwBrewTimeMs = DEFAULT_MAX_BBW_BREW_TIME_MS;
-  bool autoToManualGuardEnabled = true;
-  uint8_t autoToManualGuardLimitMode =
-      static_cast<uint8_t>(AutoToManualGuardLimitMode::AUTO);
-  uint32_t autoToManualGuardManualLimitMs =
-      DEFAULT_AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT_MS;
-  uint32_t autoToManualGuardBaselineMs =
-      DEFAULT_AUTO_TO_MANUAL_GUARD_BASELINE_MS;
-  uint16_t autoToManualGuardSamplesDs[AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT] = {
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS};
+  // Recipe mirror of the active preset (smooth-cut window and side margins).
+  bool fastSideEnabled = true;
+  uint16_t fastMarginDg = DEFAULT_FAST_MARGIN_DG;
+  uint32_t fastBeforeMs = DEFAULT_FAST_BEFORE_MS;
+  bool slowSideEnabled = true;
+  uint16_t slowMarginDg = DEFAULT_SLOW_MARGIN_DG;
+  uint32_t slowAfterMs = DEFAULT_SLOW_AFTER_MS;
+  uint32_t scaleLossFixedMs = 0;  // Recipe mirror; 0 = no fixed time.
+  // Device-level: the scale-loss backup applies to every preset.
+  bool scaleLossEnabled = true;
   uint8_t scaleMacCacheMode =
       static_cast<uint8_t>(ScaleMacCacheMode::PREFER);
   bool bookooMuteOnBuzzerOnly = true;
@@ -760,7 +751,6 @@ struct RuntimeConfig {
   bool showDiagnosticPage = false;
   // Retare even when no brew is active.
   bool autoTareOutsideBrew = true;
-  uint8_t bbwAlgorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
   bool ntpSyncEnabled = true;  // NTP sync master switch; Sync now still works.
 };
 
@@ -873,35 +863,24 @@ struct CycleConfigSnapshot {
   uint32_t retareStabilityMinDurationMs = DEFAULT_RETARE_STABILITY_MIN_DURATION_MS;
   uint32_t bbwProtectionMs = DEFAULT_BBW_PROTECTION_MS;
   uint32_t operationalWallMs = DEFAULT_OPERATIONAL_WALL_MS;
-  bool fastExtractionGuardEnabled = true;
-  float maxRecoveryWeightG = DEFAULT_MAX_RECOVERY_WEIGHT_G;
-  uint32_t minBbwBrewTimeMs = DEFAULT_MIN_BBW_BREW_TIME_MS;
-  bool slowExtractionGuardEnabled = true;
-  float minRecoveryWeightG = DEFAULT_MIN_RECOVERY_WEIGHT_G;
-  uint32_t maxBbwBrewTimeMs = DEFAULT_MAX_BBW_BREW_TIME_MS;
-  bool autoToManualGuardEnabled = true;
-  uint8_t autoToManualGuardLimitMode =
-      static_cast<uint8_t>(AutoToManualGuardLimitMode::AUTO);
-  uint32_t autoToManualGuardManualLimitMs =
-      DEFAULT_AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT_MS;
+  bool fastSideEnabled = true;
+  uint16_t fastMarginDg = DEFAULT_FAST_MARGIN_DG;
+  uint32_t fastBeforeMs = DEFAULT_FAST_BEFORE_MS;
+  bool slowSideEnabled = true;
+  uint16_t slowMarginDg = DEFAULT_SLOW_MARGIN_DG;
+  uint32_t slowAfterMs = DEFAULT_SLOW_AFTER_MS;
+  bool scaleLossEnabled = true;
+  uint32_t scaleLossFixedMs = 0;
   bool cupProtectionEnabled = true;
   bool stopIfCupRemoved = true;
   bool requireCupToStart = false;
   bool avoidAccidentalTouchEnabled = true;
   float cupPresentWeightG = DEFAULT_CUP_PRESENT_WEIGHT_G;
   float cupRemovedWeightG = DEFAULT_CUP_REMOVED_WEIGHT_G;
-  uint16_t autoToManualGuardSamplesDs[AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT] = {
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS,
-      AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS};
 };
 
 inline CycleConfigSnapshot snapshotConfig(const RuntimeConfig &config) {
   CycleConfigSnapshot snapshot;
-  snapshot.bbwAlgorithm = config.bbwAlgorithm;
-  snapshot.bbwProfileVersion = bbwAlgorithmVersion(config.bbwAlgorithm);
   snapshot.revision = config.revision;
   snapshot.goalWeightDg = config.goalWeightDg;
   snapshot.weightOffsetG = config.weightOffsetG;
@@ -929,16 +908,14 @@ inline CycleConfigSnapshot snapshotConfig(const RuntimeConfig &config) {
   snapshot.retareStabilityMinDurationMs = config.retareStabilityMinDurationMs;
   snapshot.bbwProtectionMs = config.bbwProtectionMs;
   snapshot.operationalWallMs = config.operationalWallMs;
-  snapshot.fastExtractionGuardEnabled = config.fastExtractionGuardEnabled;
-  snapshot.maxRecoveryWeightG = config.maxRecoveryWeightG;
-  snapshot.minBbwBrewTimeMs = config.minBbwBrewTimeMs;
-  snapshot.slowExtractionGuardEnabled = config.slowExtractionGuardEnabled;
-  snapshot.minRecoveryWeightG = config.minRecoveryWeightG;
-  snapshot.maxBbwBrewTimeMs = config.maxBbwBrewTimeMs;
-  snapshot.autoToManualGuardEnabled = config.autoToManualGuardEnabled;
-  snapshot.autoToManualGuardLimitMode = config.autoToManualGuardLimitMode;
-  snapshot.autoToManualGuardManualLimitMs =
-      config.autoToManualGuardManualLimitMs;
+  snapshot.fastSideEnabled = config.fastSideEnabled;
+  snapshot.fastMarginDg = config.fastMarginDg;
+  snapshot.fastBeforeMs = config.fastBeforeMs;
+  snapshot.slowSideEnabled = config.slowSideEnabled;
+  snapshot.slowMarginDg = config.slowMarginDg;
+  snapshot.slowAfterMs = config.slowAfterMs;
+  snapshot.scaleLossEnabled = config.scaleLossEnabled;
+  snapshot.scaleLossFixedMs = config.scaleLossFixedMs;
   snapshot.cupProtectionEnabled = config.cupProtectionEnabled;
   snapshot.stopIfCupRemoved = config.stopIfCupRemoved;
   snapshot.requireCupToStart = config.requireCupToStart;
@@ -946,8 +923,6 @@ inline CycleConfigSnapshot snapshotConfig(const RuntimeConfig &config) {
   snapshot.touchStopFallbackEnabled = config.touchStopFallbackEnabled;
   snapshot.cupPresentWeightG = config.cupPresentWeightG;
   snapshot.cupRemovedWeightG = config.cupRemovedWeightG;
-  memcpy(snapshot.autoToManualGuardSamplesDs, config.autoToManualGuardSamplesDs,
-         sizeof(snapshot.autoToManualGuardSamplesDs));
   return snapshot;
 }
 
@@ -976,15 +951,11 @@ enum class ConfigValidationError : uint8_t {
   TIMEZONE_ID,
   NTP_SERVER_PRESET,
   NTP_SERVER_CUSTOM,
-  MAX_RECOVERY_WEIGHT,
-  MIN_BBW_BREW_TIME,
-  FAST_EXTRACTION_GUARD_RELATION,
-  MIN_RECOVERY_WEIGHT,
-  MAX_BBW_BREW_TIME,
-  SLOW_EXTRACTION_GUARD_RELATION,
-  AUTO_TO_MANUAL_GUARD_MODE,
-  AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT,
-  AUTO_TO_MANUAL_GUARD_BASELINE,
+  FAST_MARGIN,
+  FAST_BEFORE,
+  SLOW_MARGIN,
+  SLOW_AFTER,
+  SCALE_LOSS_FIXED,
   WEIGHT_OFFSET_BASELINE,
   SCALE_MAC_CACHE_MODE,
   ALERT_OUTPUT_CHANNEL,
@@ -1002,71 +973,27 @@ enum class ConfigValidationError : uint8_t {
   STOP_PULSE,
   MAX_SINGLE_PRESS,
   REED_CONFIRM_TIMEOUT,
-  SHOT_REACT_TIMEOUT,
-  BBW_ALGORITHM
+  SHOT_REACT_TIMEOUT
 };
 
 constexpr size_t MAX_SHOT_PRESETS = 8;
 constexpr size_t SHOT_PRESET_NAME_CAPACITY = 24;
-constexpr uint8_t FACTORY_PRESET_ID_SINGLE = 1;
-constexpr uint8_t FACTORY_PRESET_ID_DOUBLE = 2;
+// Four permanent factory presets (Restore available, never deletable).
+constexpr uint8_t FACTORY_PRESET_ID_DOUBLE_ADAPTIVE = 1;
+constexpr uint8_t FACTORY_PRESET_ID_SINGLE_ADAPTIVE = 2;
+constexpr uint8_t FACTORY_PRESET_ID_DOUBLE_FIXED = 3;
+constexpr uint8_t FACTORY_PRESET_ID_SINGLE_FIXED = 4;
+constexpr uint8_t FACTORY_PRESET_COUNT = 4;
+inline bool factoryShotPresetId(uint8_t id) {
+  return id >= 1 && id <= FACTORY_PRESET_COUNT;
+}
 constexpr float FACTORY_SINGLE_WEIGHT_OFFSET_G = 0.5f;
 constexpr uint16_t FACTORY_SINGLE_GOAL_WEIGHT_DG = 180;
-constexpr float FACTORY_SINGLE_MAX_RECOVERY_WEIGHT_G = 20.0f;
-constexpr uint32_t FACTORY_SINGLE_MIN_BBW_BREW_TIME_MS = 28000;
-constexpr float FACTORY_SINGLE_MIN_RECOVERY_WEIGHT_G = 16.0f;
-constexpr float FACTORY_DOUBLE_MIN_RECOVERY_WEIGHT_G = 32.0f;
-constexpr uint32_t FACTORY_SINGLE_MAX_BBW_BREW_TIME_MS = 44000;
-
-inline void repairSlowExtractionGuard(RuntimeConfig &runtime) {
-  if (!runtime.slowExtractionGuardEnabled) {
-    return;
-  }
-  if (!std::isfinite(runtime.minRecoveryWeightG) ||
-      runtime.minRecoveryWeightG < MIN_MIN_RECOVERY_WEIGHT_G ||
-      runtime.minRecoveryWeightG > MAX_MIN_RECOVERY_WEIGHT_G ||
-      runtime.minRecoveryWeightG >= goalWeightDgToGrams(runtime.goalWeightDg)) {
-    const float repaired = goalWeightDgToGrams(runtime.goalWeightDg) - 0.1f;
-    if (repaired >= MIN_MIN_RECOVERY_WEIGHT_G &&
-        repaired <= MAX_MIN_RECOVERY_WEIGHT_G &&
-        repaired < goalWeightDgToGrams(runtime.goalWeightDg)) {
-      runtime.minRecoveryWeightG = repaired;
-    } else {
-      runtime.slowExtractionGuardEnabled = false;
-    }
-  }
-  if (runtime.maxBbwBrewTimeMs >= runtime.operationalWallMs) {
-    runtime.maxBbwBrewTimeMs = runtime.operationalWallMs > 1000
-                                ? runtime.operationalWallMs - 1000
-                                : DEFAULT_MAX_BBW_BREW_TIME_MS;
-  }
-  if (runtime.maxBbwBrewTimeMs < runtime.bbwProtectionMs) {
-    runtime.maxBbwBrewTimeMs = runtime.bbwProtectionMs;
-  }
-  if (runtime.fastExtractionGuardEnabled &&
-      runtime.maxBbwBrewTimeMs <= runtime.minBbwBrewTimeMs) {
-    const uint32_t repaired = runtime.minBbwBrewTimeMs + 1000;
-    if (repaired < runtime.operationalWallMs &&
-        repaired <= MAX_MAX_BBW_BREW_TIME_MS) {
-      runtime.maxBbwBrewTimeMs = repaired;
-    } else {
-      runtime.slowExtractionGuardEnabled = false;
-    }
-  }
-  if (runtime.slowExtractionGuardEnabled &&
-      (!std::isfinite(runtime.minRecoveryWeightG) ||
-       runtime.minRecoveryWeightG < MIN_MIN_RECOVERY_WEIGHT_G ||
-       runtime.minRecoveryWeightG > MAX_MIN_RECOVERY_WEIGHT_G ||
-       runtime.minRecoveryWeightG >= goalWeightDgToGrams(runtime.goalWeightDg) ||
-       runtime.maxBbwBrewTimeMs < MIN_MAX_BBW_BREW_TIME_MS ||
-       runtime.maxBbwBrewTimeMs > MAX_MAX_BBW_BREW_TIME_MS ||
-       runtime.maxBbwBrewTimeMs >= runtime.operationalWallMs ||
-       runtime.maxBbwBrewTimeMs < runtime.bbwProtectionMs ||
-       (runtime.fastExtractionGuardEnabled &&
-        runtime.maxBbwBrewTimeMs <= runtime.minBbwBrewTimeMs))) {
-    runtime.slowExtractionGuardEnabled = false;
-  }
-}
+constexpr uint16_t FACTORY_SINGLE_FAST_MARGIN_DG = 20;
+constexpr uint16_t FACTORY_SINGLE_SLOW_MARGIN_DG = 15;
+constexpr uint32_t FACTORY_SINGLE_FAST_BEFORE_MS = 23000;
+constexpr uint32_t FACTORY_SINGLE_SLOW_AFTER_MS = 32000;
+constexpr uint16_t FACTORY_SINGLE_DOSE_DG = 90;
 
 // NVS dual-slot budget headroom for PersistedSettings including the preset bank.
 // Settings v4 widens every preset goal to decigrams (+4 B × 8 presets); the
@@ -1105,8 +1032,6 @@ inline uint32_t minimumBbwProtectionMs(
 
 inline ConfigValidationError validateRuntimeConfig(
     const RuntimeConfig &config) {
-  if (config.bbwAlgorithm != static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA))
-    return ConfigValidationError::BBW_ALGORITHM;
   if (config.goalWeightDg < MIN_GOAL_WEIGHT_DG ||
       config.goalWeightDg > MAX_GOAL_WEIGHT_DG) {
     return ConfigValidationError::GOAL_WEIGHT;
@@ -1219,19 +1144,6 @@ inline ConfigValidationError validateRuntimeConfig(
       !validNtpHostname(config.ntpServerCustom)) {
     return ConfigValidationError::NTP_SERVER_CUSTOM;
   }
-  if (config.autoToManualGuardLimitMode >
-      static_cast<uint8_t>(AutoToManualGuardLimitMode::AUTO)) {
-    return ConfigValidationError::AUTO_TO_MANUAL_GUARD_MODE;
-  }
-  if (config.autoToManualGuardManualLimitMs <
-          MIN_AUTO_TO_MANUAL_GUARD_LIMIT_MS ||
-      config.autoToManualGuardManualLimitMs > config.operationalWallMs) {
-    return ConfigValidationError::AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT;
-  }
-  if (config.autoToManualGuardBaselineMs < MIN_AUTO_TO_MANUAL_GUARD_LIMIT_MS ||
-      config.autoToManualGuardBaselineMs > config.operationalWallMs) {
-    return ConfigValidationError::AUTO_TO_MANUAL_GUARD_BASELINE;
-  }
   if (!validScaleMacCacheMode(config.scaleMacCacheMode)) {
     return ConfigValidationError::SCALE_MAC_CACHE_MODE;
   }
@@ -1297,39 +1209,34 @@ inline ConfigValidationError validateRuntimeConfig(
       config.cupRemovedWeightG > MAX_CUP_REMOVED_WEIGHT_G) {
     return ConfigValidationError::CUP_REMOVED_WEIGHT;
   }
-  if (config.fastExtractionGuardEnabled) {
-    if (!std::isfinite(config.maxRecoveryWeightG) ||
-        config.maxRecoveryWeightG < MIN_MAX_RECOVERY_WEIGHT_G ||
-        config.maxRecoveryWeightG > MAX_MAX_RECOVERY_WEIGHT_G) {
-      return ConfigValidationError::MAX_RECOVERY_WEIGHT;
-    }
-    if (config.minBbwBrewTimeMs < MIN_MIN_BBW_BREW_TIME_MS ||
-        config.minBbwBrewTimeMs > MAX_MIN_BBW_BREW_TIME_MS) {
-      return ConfigValidationError::MIN_BBW_BREW_TIME;
-    }
-    if (config.maxRecoveryWeightG <= goalWeightDgToGrams(config.goalWeightDg) ||
-        config.minBbwBrewTimeMs >= config.operationalWallMs ||
-        config.minBbwBrewTimeMs < config.bbwProtectionMs) {
-      return ConfigValidationError::FAST_EXTRACTION_GUARD_RELATION;
-    }
+  // Smooth-cut recipe (schema 1): the window is always valid; a side's margin
+  // is checked only while that side is on.
+  if (config.fastSideEnabled &&
+      (config.fastMarginDg < MIN_SIDE_MARGIN_DG ||
+       config.fastMarginDg > MAX_SIDE_MARGIN_DG ||
+       config.fastMarginDg > config.goalWeightDg / 4 ||
+       config.goalWeightDg + config.fastMarginDg > MAX_GOAL_WEIGHT_DG)) {
+    return ConfigValidationError::FAST_MARGIN;
   }
-  if (config.slowExtractionGuardEnabled) {
-    if (!std::isfinite(config.minRecoveryWeightG) ||
-        config.minRecoveryWeightG < MIN_MIN_RECOVERY_WEIGHT_G ||
-        config.minRecoveryWeightG > MAX_MIN_RECOVERY_WEIGHT_G) {
-      return ConfigValidationError::MIN_RECOVERY_WEIGHT;
-    }
-    if (config.maxBbwBrewTimeMs < MIN_MAX_BBW_BREW_TIME_MS ||
-        config.maxBbwBrewTimeMs > MAX_MAX_BBW_BREW_TIME_MS) {
-      return ConfigValidationError::MAX_BBW_BREW_TIME;
-    }
-    if (config.minRecoveryWeightG >= goalWeightDgToGrams(config.goalWeightDg) ||
-        config.maxBbwBrewTimeMs >= config.operationalWallMs ||
-        config.maxBbwBrewTimeMs < config.bbwProtectionMs ||
-        (config.fastExtractionGuardEnabled &&
-         config.maxBbwBrewTimeMs <= config.minBbwBrewTimeMs)) {
-      return ConfigValidationError::SLOW_EXTRACTION_GUARD_RELATION;
-    }
+  if (config.slowSideEnabled &&
+      (config.slowMarginDg < MIN_SIDE_MARGIN_DG ||
+       config.slowMarginDg > MAX_SIDE_MARGIN_DG ||
+       config.goalWeightDg < MIN_SLOW_FLOOR_DG + config.slowMarginDg)) {
+    return ConfigValidationError::SLOW_MARGIN;
+  }
+  if (config.fastBeforeMs % WINDOW_STEP_MS != 0 ||
+      config.fastBeforeMs < config.bbwProtectionMs + MIN_WINDOW_AFTER_DELAY_MS ||
+      config.fastBeforeMs + MIN_WINDOW_SPAN_MS > config.slowAfterMs) {
+    return ConfigValidationError::FAST_BEFORE;
+  }
+  if (config.slowAfterMs % WINDOW_STEP_MS != 0 ||
+      config.slowAfterMs + MIN_WINDOW_BEFORE_WALL_MS > config.operationalWallMs) {
+    return ConfigValidationError::SLOW_AFTER;
+  }
+  if (config.scaleLossFixedMs != 0 &&
+      (config.scaleLossFixedMs < config.bbwProtectionMs ||
+       config.scaleLossFixedMs > config.operationalWallMs)) {
+    return ConfigValidationError::SCALE_LOSS_FIXED;
   }
   return ConfigValidationError::NONE;
 }
@@ -1376,24 +1283,16 @@ inline const char *configValidationErrorName(ConfigValidationError error) {
       return "ntpServerPreset";
     case ConfigValidationError::NTP_SERVER_CUSTOM:
       return "ntpServerCustom";
-    case ConfigValidationError::MAX_RECOVERY_WEIGHT:
+    case ConfigValidationError::FAST_MARGIN:
       return "maxRecoveryWeightG";
-    case ConfigValidationError::MIN_BBW_BREW_TIME:
+    case ConfigValidationError::FAST_BEFORE:
       return "minBbwBrewTimeMs";
-    case ConfigValidationError::FAST_EXTRACTION_GUARD_RELATION:
-      return "fastExtractionGuardRelation";
-    case ConfigValidationError::MIN_RECOVERY_WEIGHT:
+    case ConfigValidationError::SLOW_MARGIN:
       return "minRecoveryWeightG";
-    case ConfigValidationError::MAX_BBW_BREW_TIME:
+    case ConfigValidationError::SLOW_AFTER:
       return "maxBbwBrewTimeMs";
-    case ConfigValidationError::SLOW_EXTRACTION_GUARD_RELATION:
-      return "slowExtractionGuardRelation";
-    case ConfigValidationError::AUTO_TO_MANUAL_GUARD_MODE:
-      return "autoToManualGuardLimitMode";
-    case ConfigValidationError::AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT:
+    case ConfigValidationError::SCALE_LOSS_FIXED:
       return "autoToManualGuardManualLimitMs";
-    case ConfigValidationError::AUTO_TO_MANUAL_GUARD_BASELINE:
-      return "autoToManualGuardBaselineMs";
     case ConfigValidationError::WEIGHT_OFFSET_BASELINE:
       return "weightOffsetBaselineG";
     case ConfigValidationError::SCALE_MAC_CACHE_MODE:
@@ -1422,8 +1321,6 @@ inline const char *configValidationErrorName(ConfigValidationError error) {
       return "reedConfirmTimeoutMs";
     case ConfigValidationError::SHOT_REACT_TIMEOUT:
       return "shotReactTimeoutS";
-    case ConfigValidationError::BBW_ALGORITHM:
-      return "bbwAlgorithm";
     case ConfigValidationError::RING_RETAIN_LOG_LEVEL:
       return "ringRetainLogLevel";
     case ConfigValidationError::PADDLE_MODE:
@@ -1880,8 +1777,6 @@ struct WebCommand {
   uint16_t lineaMicraBrewTargetDeciC = 0;
   char presetName[24] = {};
   bool persistPresets = false;
-  bool bbwAlgorithmSpecified = false;
-  bool touchStopFallbackSpecified = false;
   bool bbwBaselineSpecified = true;
   uint8_t bbwAlphaBaseline = 0;  // Zero means omitted; valid bases are 1–100.
   bool bbwFullReset = false;

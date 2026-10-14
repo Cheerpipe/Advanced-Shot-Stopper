@@ -107,9 +107,11 @@ Assistant keeps the last confirmed option and shows an error.
 
 The Brew by weight switch changes the current session without rewriting the
 recipe. No-scale BBW is machine-level: turning it off selects `off`; turning it
-on restores the last observed non-off mode or `warn_once`. The five guard
-switches update only the active preset and preserve its other recipe and learned
-values. All switches are unavailable during an active cycle, and the five guard
+on restores the last observed non-off mode or `warn_once`. **Fast extraction
+guard** and **Slow extraction guard** update only the active preset and
+preserve its other recipe and learned values. **A-to-M time guard**, **Avoid
+accidental touch** and **Cup protection** are shared settings: changing one
+applies to every preset. All switches are unavailable during an active cycle, and the five guard
 switches plus No-scale BBW are also unavailable while effective BBW is off.
 
 The restart button uses the controller's existing queued restart. It may be

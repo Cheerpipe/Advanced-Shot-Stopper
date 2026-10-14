@@ -111,14 +111,14 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
   pendingFinalize.finalState = stopperState;
   pendingFinalize.endReason = reason;
   pendingFinalize.extractionGuardEnabled =
-      session.config.fastExtractionGuardEnabled;
+      session.config.fastSideEnabled;
   pendingFinalize.extractionExtended = session.extractionExtended;
   pendingFinalize.slowExtractionGuardEnabled =
-      session.config.slowExtractionGuardEnabled;
+      session.config.slowSideEnabled;
   pendingFinalize.slowExtractionExtended = session.slowExtractionExtended;
   pendingFinalize.targetReachedEarly = session.targetReachedEarly;
-  pendingFinalize.maxRecoveryWeightG = session.config.maxRecoveryWeightG;
-  pendingFinalize.minBbwBrewTimeMs = session.config.minBbwBrewTimeMs;
+  pendingFinalize.maxRecoveryWeightG = goalWeightDgToGrams(session.config.goalWeightDg + session.config.fastMarginDg);
+  pendingFinalize.minBbwBrewTimeMs = session.config.fastBeforeMs;
   pendingFinalize.protectionMs = session.config.bbwProtectionMs;
   if (session.targetReachedAtMs != 0 &&
       static_cast<int32_t>(session.targetReachedAtMs - shotAnchorMs) >= 0) {
@@ -135,9 +135,9 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
               sizeof(pendingFinalize.activePresetName), session.activePresetName);
   pendingFinalize.cycleId = session.id;
   pendingFinalize.retarePerformed = session.retarePerformed;
-  pendingFinalize.minRecoveryWeightG = session.config.minRecoveryWeightG;
+  pendingFinalize.minRecoveryWeightG = goalWeightDgToGrams(session.config.goalWeightDg - session.config.slowMarginDg);
   pendingFinalize.autoToManualGuardEnabled =
-      session.config.autoToManualGuardEnabled;
+      session.config.scaleLossEnabled;
   pendingFinalize.autoToManualGuardEnforced = session.autoToManualGuardEnforced;
   pendingFinalize.autoToManualGuardArmed = session.autoToManualGuardArmed;
   if (session.autoToManualGuardEnforced) {
@@ -401,51 +401,6 @@ void cancelPendingFinalize(const char *reason, uint32_t profileReason) {
   queueWebhookEnd(snapshot, weightG, valid);
 }
 
-void maybeQueueAutoToManualGuardSample(const PendingShotFinalize &snapshot,
-                                       float finalWeightG,
-                                       bool postDripWeightValid) {
-  if (!postDripWeightValid || snapshot.timerOnly ||
-      !shotLogBbwEligible(snapshot.startedWithScale, snapshot.timerOnly,
-                          snapshot.automaticBrew) ||
-      !std::isfinite(finalWeightG) || finalWeightG < 1.0f ||
-      snapshot.extractionExtended || snapshot.slowExtractionExtended ||
-      snapshot.endReason == EndReason::AUTO_TO_MANUAL_GUARD ||
-      snapshot.endReason == EndReason::TOUCH_WEIGHT_FALLBACK ||
-      pendingFinalizeIsRinse(snapshot) ||
-      brewEndIsAbandonedStart(snapshot.endReason) ||
-      snapshot.endReason == EndReason::SHORT_SHOT ||
-      static_cast<uint32_t>(snapshot.durationDs) * 100U <= snapshot.protectionMs ||
-      !autoToManualGuardSampleErrorOk(
-            finalWeightG, snapshot.goalWeightDg)) {
-    return;
-  }
-  ShotPreset *preset = mutableShotPreset(
-      presetBank, snapshot.activePresetId != 0 ? snapshot.activePresetId
-                                               : presetBank.activeId);
-  if (preset == nullptr) {
-    serialTrace(LogLevel::WARNING,
-                "A->M sample skipped; shot preset no longer exists");
-    return;
-  }
-  pushAutoToManualGuardSample(preset->autoToManualGuardSamplesDs,
-                              snapshot.durationDs);
-  RuntimeConfig candidate = runtimeConfig;
-  applyShotPresetToConfig(activeShotPreset(presetBank), candidate, true);
-  if (preset->id == presetBank.activeId) {
-    memcpy(candidate.autoToManualGuardSamplesDs, preset->autoToManualGuardSamplesDs,
-           sizeof(candidate.autoToManualGuardSamplesDs));
-  }
-  ++candidate.revision;
-  if (candidate.revision == 0) {
-    candidate.revision = 1;
-  }
-  commitLiveRuntimeConfig(candidate, RUNTIME_PERSIST_REASON_ATM_SAMPLES);
-  serialTracef(LogLevel::INFO, "A->M guard sample queued; trend ms=%lu",
-               static_cast<unsigned long>(autoToManualGuardTrendMs(
-                   preset->autoToManualGuardSamplesDs,
-                   preset->operationalWallMs)));
-}
-
 #include "ShotStopperBbwFinalize.inc"
 
 void pendingShotFinalizeTask() {
@@ -514,7 +469,6 @@ void pendingShotFinalizeTask() {
     commitPendingShotLog(snapshot, logWeightG, logWeightValid, weightSource);
   queueWebhookEnd(snapshot, logWeightG, logWeightValid);
 
-  maybeQueueAutoToManualGuardSample(snapshot, finalWeightG, postDripWeightValid);
 
 }
 

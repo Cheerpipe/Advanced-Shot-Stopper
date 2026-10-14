@@ -62,27 +62,16 @@ void p01_defaults_are_valid() {
   CHECK(idleAccessoryRetareEnabled(settings.runtime.noScaleBbwMode));
   CHECK(settings.runtime.powerManagementEnabled);
   CHECK(!settings.webhook.deferDuringShot);
-  CHECK(settings.runtime.fastExtractionGuardEnabled);
-  CHECK(std::fabs(settings.runtime.maxRecoveryWeightG -
-                  DEFAULT_MAX_RECOVERY_WEIGHT_G) < 0.001f);
-  CHECK(settings.runtime.minBbwBrewTimeMs == DEFAULT_MIN_BBW_BREW_TIME_MS);
-  CHECK(settings.runtime.slowExtractionGuardEnabled);
-  CHECK(std::fabs(settings.runtime.minRecoveryWeightG -
-                  DEFAULT_MIN_RECOVERY_WEIGHT_G) < 0.001f);
-  CHECK(settings.runtime.maxBbwBrewTimeMs == DEFAULT_MAX_BBW_BREW_TIME_MS);
-  CHECK(settings.runtime.autoToManualGuardEnabled);
-  CHECK(settings.runtime.autoToManualGuardLimitMode ==
-        static_cast<uint8_t>(AutoToManualGuardLimitMode::AUTO));
-  CHECK(settings.runtime.autoToManualGuardManualLimitMs ==
-        DEFAULT_AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT_MS);
-  CHECK(settings.runtime.autoToManualGuardBaselineMs ==
-        DEFAULT_AUTO_TO_MANUAL_GUARD_BASELINE_MS);
+  CHECK(settings.runtime.fastSideEnabled);
+  CHECK(settings.runtime.fastMarginDg == DEFAULT_FAST_MARGIN_DG);
+  CHECK(settings.runtime.fastBeforeMs == DEFAULT_FAST_BEFORE_MS);
+  CHECK(settings.runtime.slowSideEnabled);
+  CHECK(settings.runtime.slowMarginDg == DEFAULT_SLOW_MARGIN_DG);
+  CHECK(settings.runtime.slowAfterMs == DEFAULT_SLOW_AFTER_MS);
+  CHECK(settings.runtime.scaleLossEnabled);
+  CHECK(settings.runtime.scaleLossFixedMs == 0);
   CHECK(std::fabs(settings.runtime.weightOffsetBaselineG -
                   DEFAULT_WEIGHT_OFFSET_G) < 0.001f);
-  for (size_t i = 0; i < AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT; ++i) {
-    CHECK(settings.runtime.autoToManualGuardSamplesDs[i] ==
-          AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS);
-  }
   CHECK(validPersistedSettings(settings));
   CHECK(passwordIsFactoryDefault(settings));
   CHECK(passwordIsFactoryDefault(settings));
@@ -152,7 +141,6 @@ void p02_newest_valid_slot_is_loaded() {
   const uint32_t firstRevision = settings.storageRevision;
   settings.runtime.goalWeightDg = 470;
   settings.runtime.noScaleBbwMode &= ~IDLE_ACCESSORY_RETARE;
-  settings.runtime.maxRecoveryWeightG = 55.0f;
   settings.runtime.soundAlertsMuted = true;
   settings.runtime.cupProtectionEnabled = false;
   settings.runtime.stopIfCupRemoved = false;
@@ -160,10 +148,6 @@ void p02_newest_valid_slot_is_loaded() {
   settings.runtime.avoidAccidentalTouchEnabled = false;
   settings.runtime.cupPresentWeightG = 4.5f;
   settings.runtime.cupRemovedWeightG = -6.0f;
-  settings.presets.presets[0].cupProtectionEnabled = false;
-  settings.presets.presets[0].stopIfCupRemoved = false;
-  settings.presets.presets[0].requireCupToStart = true;
-  settings.presets.presets[0].avoidAccidentalTouchEnabled = false;
   settings.presets.presets[0].bbwEwmaOffsetG = 4.5f;
   settings.presets.presets[0].bbwEwmaAlpha = 50;
   settings.presets.presets[0].bbwAlphaLearned = 1;
@@ -181,10 +165,6 @@ void p02_newest_valid_slot_is_loaded() {
   CHECK(!loaded.runtime.avoidAccidentalTouchEnabled);
   CHECK(std::fabs(loaded.runtime.cupPresentWeightG - 4.5f) < 0.001f);
   CHECK(std::fabs(loaded.runtime.cupRemovedWeightG - (-6.0f)) < 0.001f);
-  CHECK(!loaded.presets.presets[0].cupProtectionEnabled);
-  CHECK(!loaded.presets.presets[0].stopIfCupRemoved);
-  CHECK(loaded.presets.presets[0].requireCupToStart);
-  CHECK(!loaded.presets.presets[0].avoidAccidentalTouchEnabled);
   CHECK(std::fabs(loaded.presets.presets[0].bbwEwmaOffsetG - 4.5f) < 0.001f);
   CHECK(loaded.presets.presets[0].bbwEwmaAlpha == 50);
   CHECK(loaded.presets.presets[0].bbwAlphaLearned == 1);
@@ -198,7 +178,6 @@ void p02b_save_uses_ram_revision_when_slots_unreadable() {
   CHECK(settings.storageRevision != 0);
   persistence_host::records.clear();
   settings.runtime.goalWeightDg = 410;
-  settings.runtime.maxRecoveryWeightG = 50.0f;
   CHECK(savePersistedSettings(settings));
   PersistedSettings loaded;
   CHECK(loadPersistedSettings(loaded));
@@ -221,7 +200,6 @@ void p02c_overlay_live_runtime_is_saved_not_stale_blob() {
 
   RuntimeConfig live = stale.runtime;
   live.goalWeightDg = 440;
-  live.maxRecoveryWeightG = 53.0f;
   ShotPresetBank livePresets = stale.presets;
   overlayLivePersistedSettings(stale, live, livePresets);
   CHECK(stale.runtime.goalWeightDg == 440);
@@ -243,7 +221,6 @@ void p02d_single_scratch_handles_wrap_and_external_destination() {
   PersistedSettings afterWrap = beforeWrap;
   afterWrap.storageRevision = 1;
   afterWrap.runtime.goalWeightDg = 480;
-  afterWrap.runtime.maxRecoveryWeightG = 55.0f;
   finalizePersistedSettings(afterWrap);
   persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &beforeWrap,
                            sizeof(beforeWrap));
@@ -266,7 +243,6 @@ void p03_corrupt_newest_slot_falls_back() {
   settings.runtime.goalWeightDg = 400;
   CHECK(savePersistedSettings(settings));
   settings.runtime.goalWeightDg = 480;
-  settings.runtime.maxRecoveryWeightG = 55.0f;
   CHECK(savePersistedSettings(settings));
   CHECK(persistence_host::corrupt(SETTINGS_NAMESPACE, SETTINGS_SLOT_B,
                                   offsetof(PersistedSettings, runtime)));
@@ -281,7 +257,6 @@ void p04_crc_and_semantic_validation_reject_corruption() {
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
   settings.runtime.goalWeightDg = 500;
-  settings.runtime.maxRecoveryWeightG = 58.0f;
   CHECK(!validPersistedSettings(settings));
   finalizePersistedSettings(settings);
   CHECK(validPersistedSettings(settings));
@@ -445,7 +420,6 @@ void p08_factory_reset_rebuilds_defaults() {
   CHECK(initializeDefaultSettings(settings));
   settings.runtime.noScaleBbwMode &= ~IDLE_ACCESSORY_RETARE;
   settings.runtime.goalWeightDg = 630;
-  settings.runtime.maxRecoveryWeightG = 70.0f;
   strcpy(settings.preferredScaleMac, "AA:BB:CC:DD:EE:FF");
   strcpy(settings.preferredScaleName, "Lunar");
   settings.runtime.scaleMacCacheMode =
@@ -457,8 +431,8 @@ void p08_factory_reset_rebuilds_defaults() {
   CHECK(settings.schemaVersion == CONFIG_SCHEMA_VERSION);
   CHECK(settings.staWifiSleep);
   CHECK(settings.runtime.goalWeightDg == DEFAULT_GOAL_WEIGHT_DG);
-  CHECK(settings.runtime.fastExtractionGuardEnabled);
-  CHECK(settings.runtime.autoToManualGuardEnabled);
+  CHECK(settings.runtime.fastSideEnabled);
+  CHECK(settings.runtime.scaleLossEnabled);
   CHECK(settings.preferredScaleMac[0] == '\0');
   CHECK(settings.preferredScaleName[0] == '\0');
   CHECK(settings.runtime.scaleMacCacheMode ==
@@ -503,7 +477,6 @@ void p64_factory_settings_overwrite_does_not_clear_ble_namespace() {
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
   settings.runtime.goalWeightDg = 630;
-  settings.runtime.maxRecoveryWeightG = 70.0f;
   finalizePersistedSettings(settings);
   CHECK(savePersistedSettings(settings));
   BleScanPersistedSettings ble;
@@ -597,7 +570,6 @@ void p65_factory_settings_survives_second_slot_write_fail() {
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
   settings.runtime.goalWeightDg = 630;
-  settings.runtime.maxRecoveryWeightG = 70.0f;
   finalizePersistedSettings(settings);
   CHECK(savePersistedSettings(settings));
   persistence_host::failNextWriteForKey = SETTINGS_SLOT_B;
@@ -726,65 +698,30 @@ void p66b_snapshot_acknowledgement_preserves_newest_generation() {
 }
 
 void p09_fast_extraction_guard_validation() {
+  // Schema 1 recipe: margins relative to the target, window in 0.5 s steps.
   RuntimeConfig config = {};
-  config.goalWeightDg = 360;
-  config.maxRecoveryWeightG = 42.5f;
-  config.minBbwBrewTimeMs = 26000;
-  config.fastExtractionGuardEnabled = true;
-  config.bbwProtectionMs = DEFAULT_BBW_PROTECTION_MS;
-  config.operationalWallMs = DEFAULT_OPERATIONAL_WALL_MS;
   CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
-  config.maxRecoveryWeightG = 36.0f;
-  CHECK(validateRuntimeConfig(config) ==
-        ConfigValidationError::FAST_EXTRACTION_GUARD_RELATION);
-
+  config.fastMarginDg = 0;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::FAST_MARGIN);
+  config.fastSideEnabled = false;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
   config = {};
-  config.goalWeightDg = 360;
-  config.minRecoveryWeightG = 30.0f;
-  config.maxBbwBrewTimeMs = 44000;
-  config.slowExtractionGuardEnabled = true;
-  config.bbwProtectionMs = DEFAULT_BBW_PROTECTION_MS;
-  config.operationalWallMs = DEFAULT_OPERATIONAL_WALL_MS;
-  CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
-  config.minRecoveryWeightG = 36.0f;
-  CHECK(validateRuntimeConfig(config) ==
-        ConfigValidationError::SLOW_EXTRACTION_GUARD_RELATION);
-  config.minRecoveryWeightG = 30.0f;
-  config.fastExtractionGuardEnabled = true;
-  config.maxRecoveryWeightG = 42.5f;
-  config.minBbwBrewTimeMs = 28000;
-  config.maxBbwBrewTimeMs = 28000;
-  CHECK(validateRuntimeConfig(config) ==
-        ConfigValidationError::SLOW_EXTRACTION_GUARD_RELATION);
+  config.slowMarginDg = 320;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::SLOW_MARGIN);
+  config = {};
+  config.slowAfterMs = config.fastBeforeMs;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::FAST_BEFORE);
+  config = {};
+  config.operationalWallMs = config.slowAfterMs;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::SLOW_AFTER);
 }
 
 void p10_auto_to_manual_guard_trend_and_validation() {
-  uint16_t samples[AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT] = {300, 300, 300, 300,
-                                                         300};
-  CHECK(autoToManualGuardTrendMs(samples, 60000) == 30000);
-  samples[0] = 200;
-  samples[1] = 220;
-  samples[2] = 240;
-  samples[3] = 260;
-  samples[4] = 280;
-  const uint32_t rising = autoToManualGuardTrendMs(samples, 60000);
-  CHECK(rising == 30000);
-
   RuntimeConfig config = {};
+  config.scaleLossFixedMs = 5000;  // Before the earliest weight stop.
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::SCALE_LOSS_FIXED);
+  config.scaleLossFixedMs = 30000;
   CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
-  config.autoToManualGuardManualLimitMs = 5000;
-  CHECK(validateRuntimeConfig(config) ==
-        ConfigValidationError::AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT);
-  config.autoToManualGuardManualLimitMs = 30000;
-  config.autoToManualGuardBaselineMs = 5000;
-  CHECK(validateRuntimeConfig(config) ==
-        ConfigValidationError::AUTO_TO_MANUAL_GUARD_BASELINE);
-  config.autoToManualGuardBaselineMs = 30000;
-  config.autoToManualGuardLimitMode = 9;
-  CHECK(validateRuntimeConfig(config) ==
-        ConfigValidationError::AUTO_TO_MANUAL_GUARD_MODE);
-  config.autoToManualGuardLimitMode =
-      static_cast<uint8_t>(AutoToManualGuardLimitMode::AUTO);
   config.weightOffsetBaselineG = -0.1f;
   CHECK(validateRuntimeConfig(config) ==
         ConfigValidationError::WEIGHT_OFFSET_BASELINE);
@@ -793,12 +730,6 @@ void p10_auto_to_manual_guard_trend_and_validation() {
         ConfigValidationError::WEIGHT_OFFSET_BASELINE);
   config.weightOffsetBaselineG = 2.25f;
   CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
-
-  uint16_t seeded[AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT] = {};
-  resetAutoToManualGuardSamples(seeded, 28000);
-  for (size_t i = 0; i < AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT; ++i) {
-    CHECK(seeded[i] == 280);
-  }
 }
 
 void p12_shot_log_persists_compact_blob() {
@@ -1096,9 +1027,9 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(ShotPreset) <= 136);
   CHECK(sizeof(ShotPresetBank) <= 1100);
   CHECK(sizeof(PersistedSettings) <= PERSISTED_SETTINGS_NVS_BUDGET);
-  CHECK(sizeof(PersistedSettings) == 3344);
-  CHECK(FLASH_IO_SCRATCH_BYTES == sizeof(PersistedSettings));
-  CHECK(sizeof(RuntimeConfig) == 344);
+  CHECK(sizeof(PersistedSettings) == 3056);
+  CHECK(FLASH_IO_SCRATCH_BYTES >= sizeof(PersistedSettings));
+  CHECK(sizeof(RuntimeConfig) == 312);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
   CHECK(sizeof(ControlStatusSnapshot) <= 6912);
   CHECK(sizeof(ControlGateSnapshot) <= 32);
@@ -1133,83 +1064,76 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(strcmp(formatted, "-21474836.48g") == 0);
   formatWeightCentigrams(INT32_MAX, formatted, sizeof(formatted));
   CHECK(strcmp(formatted, "21474836.47g") == 0);
+  // Fresh bank: four permanent factory presets, Double · Adaptive active.
   ShotPresetBank bank;
   seedDefaultShotPresetBank(bank);
-  CHECK(bank.count == 2);
-  CHECK(bank.activeId == FACTORY_PRESET_ID_DOUBLE);
-  CHECK(bank.presets[0].id == FACTORY_PRESET_ID_DOUBLE);
-  CHECK(bank.presets[1].id == FACTORY_PRESET_ID_SINGLE);
-  CHECK(bank.presets[0].slowExtractionGuardEnabled);
-  CHECK(std::fabs(bank.presets[0].minRecoveryWeightG -
-                  FACTORY_DOUBLE_MIN_RECOVERY_WEIGHT_G) < 0.001f);
-  CHECK(bank.presets[0].maxBbwBrewTimeMs == DEFAULT_MAX_BBW_BREW_TIME_MS);
-  CHECK(bank.presets[0].cupProtectionEnabled);
-  CHECK(bank.presets[0].stopIfCupRemoved);
-  CHECK(!bank.presets[0].requireCupToStart);
-  CHECK(bank.presets[0].avoidAccidentalTouchEnabled);
-  CHECK(bank.presets[0].bbwEwmaAlpha == DEFAULT_BBW_EWMA_ALPHA);
-  CHECK(bank.presets[0].bbwAlgorithm == 1);
-  CHECK(bank.presets[1].fastExtractionGuardEnabled);
-  CHECK(bank.presets[1].slowExtractionGuardEnabled);
-  CHECK(bank.presets[1].minBbwBrewTimeMs == FACTORY_SINGLE_MIN_BBW_BREW_TIME_MS);
-  CHECK(std::fabs(bank.presets[1].minRecoveryWeightG -
-                  FACTORY_SINGLE_MIN_RECOVERY_WEIGHT_G) < 0.001f);
-  CHECK(bank.presets[1].maxBbwBrewTimeMs == FACTORY_SINGLE_MAX_BBW_BREW_TIME_MS);
+  CHECK(bank.count == FACTORY_PRESET_COUNT && bank.nextId == 5);
+  CHECK(bank.activeId == FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
+  const struct {
+    const char *name;
+    uint16_t dose, goal, fast, slow;
+    uint32_t t1, t2;
+    bool sides;
+    float offset;
+  } factory[] = {
+      {"Double \xC2\xB7 Adaptive", 180, 360, 40, 30, 27000, 34000, true, 1.5f},
+      {"Single \xC2\xB7 Adaptive", 90, 180, 20, 15, 23000, 32000, true, 0.5f},
+      {"Double \xC2\xB7 Fixed", 180, 360, 40, 30, 27000, 34000, false, 1.5f},
+      {"Single \xC2\xB7 Fixed", 90, 180, 20, 15, 23000, 32000, false, 0.5f},
+  };
+  for (uint8_t i = 0; i < FACTORY_PRESET_COUNT; ++i) {
+    const ShotPreset &preset = bank.presets[i];
+    CHECK(preset.id == i + 1 && preset.isFactory && preset.brewByWeight);
+    CHECK(strcmp(preset.name, factory[i].name) == 0);
+    CHECK(preset.doseDg == factory[i].dose && preset.goalWeightDg == factory[i].goal);
+    CHECK(preset.fastMarginDg == factory[i].fast && preset.slowMarginDg == factory[i].slow);
+    CHECK(preset.fastBeforeMs == factory[i].t1 && preset.slowAfterMs == factory[i].t2);
+    CHECK(preset.fastSideEnabled == factory[i].sides &&
+          preset.slowSideEnabled == factory[i].sides);
+    CHECK(preset.bbwProtectionMs == DEFAULT_BBW_PROTECTION_MS &&
+          preset.operationalWallMs == DEFAULT_OPERATIONAL_WALL_MS);
+    CHECK(preset.scaleLossFixedMs == 0 && preset.grindHintsEnabled);
+    CHECK(preset.bbwEwmaOffsetG == factory[i].offset);
+    CHECK(preset.bbwEwmaAlpha == DEFAULT_BBW_EWMA_ALPHA);
+    CHECK(validateShotPresetRecipe(preset, DEFAULT_RETARE_WINDOW_MS, true));
+    CHECK(!deleteShotPreset(bank, preset.id));
+  }
 
   {
+    // Device-level protections never travel with a preset.
     ShotPreset recipe{};
     RuntimeConfig cfg{};
     cfg.cupProtectionEnabled = false;
-    cfg.stopIfCupRemoved = false;
     cfg.requireCupToStart = true;
     cfg.avoidAccidentalTouchEnabled = false;
-    cfg.cupPresentWeightG = 5.0f;
-    cfg.cupRemovedWeightG = -8.0f;
+    cfg.scaleLossEnabled = false;
+    cfg.scaleLossFixedMs = 30000;
     copyUserRecipeFromConfig(cfg, recipe);
-    CHECK(!recipe.cupProtectionEnabled);
-    CHECK(!recipe.stopIfCupRemoved);
-    CHECK(recipe.requireCupToStart);
-    CHECK(!recipe.avoidAccidentalTouchEnabled);
+    CHECK(recipe.scaleLossFixedMs == 30000);
     CHECK(recipe.bbwEwmaOffsetG == DEFAULT_WEIGHT_OFFSET_G);
-    CHECK(recipe.bbwEwmaAlpha == DEFAULT_BBW_EWMA_ALPHA);
-    applyShotPresetToConfig(recipe, cfg, false);
-    CHECK(!cfg.cupProtectionEnabled);
-    CHECK(!cfg.stopIfCupRemoved);
-    CHECK(cfg.requireCupToStart);
-    CHECK(!cfg.avoidAccidentalTouchEnabled);
-    CHECK(std::fabs(cfg.cupPresentWeightG - 5.0f) < 0.001f);
-    CHECK(std::fabs(cfg.cupRemovedWeightG - (-8.0f)) < 0.001f);
+    RuntimeConfig other{};
+    applyShotPresetToConfig(recipe, other, false);
+    CHECK(other.cupProtectionEnabled && !other.requireCupToStart);
+    CHECK(other.avoidAccidentalTouchEnabled && other.scaleLossEnabled);
+    CHECK(other.scaleLossFixedMs == 30000);
   }
 
   ShotPresetBank resetBank = bank;
-  ShotPreset *single = mutableShotPreset(resetBank, FACTORY_PRESET_ID_SINGLE);
+  ShotPreset *single = mutableShotPreset(resetBank, FACTORY_PRESET_ID_SINGLE_FIXED);
   CHECK(single != nullptr);
-  single->fastExtractionGuardEnabled = false;
-  single->slowExtractionGuardEnabled = false;
-  CHECK(restoreFactoryShotPresetValues(resetBank, FACTORY_PRESET_ID_SINGLE));
-  CHECK(findShotPreset(resetBank, FACTORY_PRESET_ID_SINGLE)->fastExtractionGuardEnabled);
-  CHECK(findShotPreset(resetBank, FACTORY_PRESET_ID_SINGLE)->slowExtractionGuardEnabled);
+  single->fastSideEnabled = true;
+  single->goalWeightDg = 200;
+  copyCString(single->name, sizeof(single->name), "My single");
+  CHECK(restoreFactoryShotPresetValues(resetBank, FACTORY_PRESET_ID_SINGLE_FIXED));
+  single = mutableShotPreset(resetBank, FACTORY_PRESET_ID_SINGLE_FIXED);
+  CHECK(!single->fastSideEnabled && single->goalWeightDg == 180);
+  CHECK(strcmp(single->name, "My single") == 0);
 
-  // Legacy Single-then-Double banks reorder on ensure.
-  ShotPresetBank legacy{};
-  legacy.count = 2;
-  legacy.activeId = FACTORY_PRESET_ID_DOUBLE;
-  legacy.nextId = 3;
-  fillFactorySinglePreset(legacy.presets[0]);
-  fillFactoryDoublePreset(legacy.presets[1]);
-  ensureShotPresetBank(legacy, DEFAULT_RETARE_WINDOW_MS, true);
-  CHECK(legacy.presets[0].id == FACTORY_PRESET_ID_DOUBLE);
-  CHECK(legacy.presets[1].id == FACTORY_PRESET_ID_SINGLE);
-
-  CHECK(!deleteShotPreset(bank, FACTORY_PRESET_ID_DOUBLE));
-  CHECK(!deleteShotPreset(bank, FACTORY_PRESET_ID_SINGLE));
-  CHECK(bank.count == 2);
-
-  ShotPreset *dbl = mutableShotPreset(bank, FACTORY_PRESET_ID_DOUBLE);
+  ShotPreset *dbl = mutableShotPreset(bank, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
   CHECK(dbl != nullptr);
   dbl->goalWeightDg = 40;
-  CHECK(restoreFactoryShotPresetValues(bank, FACTORY_PRESET_ID_DOUBLE));
-  CHECK(findShotPreset(bank, FACTORY_PRESET_ID_DOUBLE)->goalWeightDg ==
+  CHECK(restoreFactoryShotPresetValues(bank, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE));
+  CHECK(findShotPreset(bank, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE)->goalWeightDg ==
         DEFAULT_GOAL_WEIGHT_DG);
 
   uint8_t newId = 0;
@@ -1220,20 +1144,23 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(created != nullptr);
   CHECK(created->goalWeightDg == 360);
   CHECK(std::fabs(created->weightOffsetBaselineG - 1.5f) < 0.001f);
-  CHECK(std::fabs(created->weightOffsetG - 1.5f) < 0.001f);
+  CHECK(std::fabs(created->bbwEwmaOffsetG - 1.5f) < 0.001f);
+  CHECK(!created->isFactory && deleteShotPreset(bank, newId));
+  CHECK(createUntitledShotPreset(bank, newId));
 
   uint8_t copyId = 0;
-  CHECK(duplicateShotPreset(bank, FACTORY_PRESET_ID_DOUBLE, copyId));
+  CHECK(duplicateShotPreset(bank, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE, copyId));
   const ShotPreset *copy = findShotPreset(bank, copyId);
   CHECK(copy != nullptr);
-  CHECK(strcmp(copy->name, "Double copy") == 0);
+  // Long names keep a 15-byte base so " copy 99" always fits.
+  CHECK(strcmp(copy->name, "Double \xC2\xB7 Adapt copy") == 0);
   CHECK(!copy->isFactory);
 
   uint8_t copy2 = 0;
-  CHECK(duplicateShotPreset(bank, FACTORY_PRESET_ID_DOUBLE, copy2));
+  CHECK(duplicateShotPreset(bank, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE, copy2));
   const ShotPreset *copyB = findShotPreset(bank, copy2);
   CHECK(copyB != nullptr);
-  CHECK(strcmp(copyB->name, "Double copy 2") == 0);
+  CHECK(strcmp(copyB->name, "Double \xC2\xB7 Adapt copy 2") == 0);
 
   CHECK(renameShotPreset(bank, copyId, "Double light"));
   CHECK(strcmp(findShotPreset(bank, copyId)->name, "Double light") == 0);
@@ -1253,7 +1180,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   }
   uint8_t overflow = 0;
   CHECK(!createUntitledShotPreset(bank, overflow));
-  CHECK(!duplicateShotPreset(bank, FACTORY_PRESET_ID_SINGLE, overflow));
+  CHECK(!duplicateShotPreset(bank, FACTORY_PRESET_ID_SINGLE_ADAPTIVE, overflow));
 }
 
 
@@ -1262,10 +1189,10 @@ void p25_invalid_active_id_keeps_customs() {
   seedDefaultShotPresetBank(bank);
   uint8_t customId = 0;
   CHECK(createUntitledShotPreset(bank, customId));
-  CHECK(bank.count == 3);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 1);
   bank.activeId = 99;  // missing
   ensureShotPresetBank(bank, DEFAULT_RETARE_WINDOW_MS, true);
-  CHECK(bank.count == 3);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 1);
   CHECK(findShotPresetIndex(bank, customId) >= 0);
   CHECK(findShotPresetIndex(bank, bank.activeId) >= 0);
 
@@ -1275,10 +1202,10 @@ void p25_invalid_active_id_keeps_customs() {
   settings.presets.activeId = 99;
   settings.runtime.timerOnly = true;
   ensurePersistedPresetBank(settings);
-  CHECK(settings.presets.count >= 3);
+  CHECK(settings.presets.count >= FACTORY_PRESET_COUNT + 1);
   CHECK(findShotPresetIndex(settings.presets, customId) >= 0);
   const ShotPreset *dbl =
-      findShotPreset(settings.presets, FACTORY_PRESET_ID_DOUBLE);
+      findShotPreset(settings.presets, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
   CHECK(dbl != nullptr);
   CHECK(dbl->brewByWeight);  // must not inherit session Manual
 }
@@ -1286,7 +1213,7 @@ void p25_invalid_active_id_keeps_customs() {
 void p26_save_candidate_validation_does_not_require_live_mutation() {
   ShotPresetBank bank;
   seedDefaultShotPresetBank(bank);
-  ShotPreset *preset = mutableShotPreset(bank, FACTORY_PRESET_ID_DOUBLE);
+  ShotPreset *preset = mutableShotPreset(bank, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
   CHECK(preset != nullptr);
   const uint16_t originalGoal = preset->goalWeightDg;
   ShotPreset candidate = *preset;
@@ -1300,18 +1227,17 @@ void p35_invalid_fast_extraction_recipe_keeps_custom() {
   seedDefaultShotPresetBank(bank);
   uint8_t customId = 0;
   CHECK(createUntitledShotPreset(bank, customId));
-  CHECK(bank.count == 3);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 1);
   ShotPreset *custom = mutableShotPreset(bank, customId);
   CHECK(custom != nullptr);
-  custom->fastExtractionGuardEnabled = true;
-  custom->goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
-  custom->maxRecoveryWeightG = 30.0f;
+  custom->fastSideEnabled = true;
+  custom->fastMarginDg = 0;  // Unusable margin: the recipe resets, the slot stays.
   ensureShotPresetBank(bank, DEFAULT_RETARE_WINDOW_MS, true);
-  CHECK(bank.count == 3);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 1);
   const ShotPreset *kept = findShotPreset(bank, customId);
   CHECK(kept != nullptr);
-  CHECK(!kept->fastExtractionGuardEnabled ||
-        kept->maxRecoveryWeightG > goalWeightDgToGrams(kept->goalWeightDg));
+  CHECK(validateShotPresetRecipe(*kept, DEFAULT_RETARE_WINDOW_MS, true));
+  CHECK(kept->fastMarginDg == DEFAULT_FAST_MARGIN_DG);
 }
 
 void p38_invalid_slow_extraction_recipe_keeps_custom() {
@@ -1319,18 +1245,16 @@ void p38_invalid_slow_extraction_recipe_keeps_custom() {
   seedDefaultShotPresetBank(bank);
   uint8_t customId = 0;
   CHECK(createUntitledShotPreset(bank, customId));
-  CHECK(bank.count == 3);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 1);
   ShotPreset *custom = mutableShotPreset(bank, customId);
   CHECK(custom != nullptr);
-  custom->slowExtractionGuardEnabled = true;
-  custom->goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
-  custom->minRecoveryWeightG = 36.0f;
+  custom->slowAfterMs = custom->fastBeforeMs;  // Repaired to a 1 s window.
   ensureShotPresetBank(bank, DEFAULT_RETARE_WINDOW_MS, true);
-  CHECK(bank.count == 3);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 1);
   const ShotPreset *kept = findShotPreset(bank, customId);
   CHECK(kept != nullptr);
-  CHECK(!kept->slowExtractionGuardEnabled ||
-        kept->minRecoveryWeightG < goalWeightDgToGrams(kept->goalWeightDg));
+  CHECK(kept->slowAfterMs == kept->fastBeforeMs + MIN_WINDOW_SPAN_MS);
+  CHECK(validateShotPresetRecipe(*kept, DEFAULT_RETARE_WINDOW_MS, true));
 }
 
 void p16_static_ip_address_validation() {
@@ -2166,12 +2090,12 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
   constexpr size_t remainingRecords = lastShotEntries + 6U + 3U + 24U + 32U;
   constexpr size_t applicationEntries = settingsEntries + remainingRecords;
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
-  CHECK(sizeof(PersistedSettings) == 3344U);
-  CHECK(settingsEntries == 214U);
+  CHECK(sizeof(PersistedSettings) == 3056U);
+  CHECK(settingsEntries == 196U);
   CHECK(lastShotEntries == 13U);
-  CHECK(applicationEntries == 292U);
+  CHECK(applicationEntries == 274U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 2102U);
+  CHECK(conservativeEntries - applicationEntries == 2120U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {
@@ -2760,6 +2684,85 @@ void p61e_selective_curve_capture_preserves_retention_and_retry() {
   }
 }
 
+// Golden settings blob of schema 1, written once when the layout was cut over
+// (W4a). Every later firmware must load it unchanged: OTA updates between
+// releases keep settings. A schema-0 or old-size blob never loads.
+std::string goldenSettingsPath() {
+  const std::string file(__FILE__);
+  return file.substr(0, file.find_last_of('/')) + "/fixtures/settings_schema1_golden_hex.txt";
+}
+
+void p91_schema1_golden_settings_blob_loads() {
+  resetHostPersistence();
+  if (getenv("GOLDEN_SETTINGS_WRITE") != nullptr) {
+    PersistedSettings settings;
+    CHECK(initializeDefaultSettings(settings));
+    settings.runtime.scaleLossEnabled = false;
+    settings.runtime.cupProtectionEnabled = false;
+    settings.runtime.touchStopFallbackEnabled = false;
+    ShotPreset &dbl = *mutableShotPreset(settings.presets, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
+    dbl.fastBeforeMs = 26500;
+    dbl.fastMarginDg = 35;
+    dbl.scaleLossFixedMs = 31000;
+    dbl.doseDg = 185;
+    dbl.grindHintsEnabled = false;
+    dbl.learningEpoch = 42;
+    dbl.lineaMicraBrewTargetDeciC = 940;
+    uint8_t customId = 0;
+    CHECK(duplicateShotPreset(settings.presets, FACTORY_PRESET_ID_SINGLE_FIXED, customId));
+    CHECK(renameShotPreset(settings.presets, customId, "Golden"));
+    settings.presets.activeId = FACTORY_PRESET_ID_SINGLE_ADAPTIVE;
+    finalizePersistedSettings(settings);
+    FILE *out = fopen(goldenSettingsPath().c_str(), "w");
+    CHECK(out != nullptr);
+    if (out == nullptr) return;
+    const auto *bytes = reinterpret_cast<const uint8_t *>(&settings);
+    for (size_t i = 0; i < sizeof(settings); ++i)
+      fprintf(out, "%02x%s", bytes[i], (i + 1) % 32 == 0 ? "\n" : "");
+    fclose(out);
+  }
+  FILE *in = fopen(goldenSettingsPath().c_str(), "r");
+  CHECK(in != nullptr);
+  if (in == nullptr) return;
+  std::string hex;
+  for (int c; (c = fgetc(in)) != EOF;) if (c != '\n') hex += static_cast<char>(c);
+  fclose(in);
+  CHECK(hex.size() == 2 * sizeof(PersistedSettings));
+  PersistedSettings golden;
+  auto *bytes = reinterpret_cast<uint8_t *>(&golden);
+  for (size_t i = 0; i < sizeof(golden); ++i)
+    bytes[i] = static_cast<uint8_t>(strtoul(hex.substr(2 * i, 2).c_str(), nullptr, 16));
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &golden, sizeof(golden));
+  PersistedSettings loaded;
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.schemaVersion == 1 && loaded.runtime.goalWeightDg == DEFAULT_GOAL_WEIGHT_DG);
+  CHECK(!loaded.runtime.scaleLossEnabled && !loaded.runtime.cupProtectionEnabled);
+  CHECK(!loaded.runtime.touchStopFallbackEnabled && loaded.runtime.avoidAccidentalTouchEnabled);
+  CHECK(loaded.presets.count == FACTORY_PRESET_COUNT + 1);
+  CHECK(loaded.presets.activeId == FACTORY_PRESET_ID_SINGLE_ADAPTIVE);
+  const ShotPreset *dbl = findShotPreset(loaded.presets, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
+  CHECK(dbl != nullptr && dbl->fastBeforeMs == 26500 && dbl->fastMarginDg == 35);
+  CHECK(dbl->scaleLossFixedMs == 31000 && dbl->doseDg == 185 && !dbl->grindHintsEnabled);
+  CHECK(dbl->learningEpoch == 42 && dbl->lineaMicraBrewTargetDeciC == 940);
+  const ShotPreset *custom = findShotPreset(loaded.presets, FACTORY_PRESET_COUNT + 1);
+  CHECK(custom != nullptr && strcmp(custom->name, "Golden") == 0 && !custom->isFactory);
+  CHECK(!custom->fastSideEnabled && custom->goalWeightDg == FACTORY_SINGLE_GOAL_WEIGHT_DG);
+
+  // The same bytes stamped schema 0 (the 1.0 epoch) never load.
+  PersistedSettings stale = golden;
+  stale.schemaVersion = 0;
+  stale.checksum = persistedSettingsChecksum(stale);
+  resetHostPersistence();
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &stale, sizeof(stale));
+  CHECK(!loadPersistedSettings(loaded));
+  // A 1.0-sized blob (3344 bytes) is rejected by size before any field.
+  std::string legacy(3344, '\0');
+  memcpy(&legacy[0], &stale, sizeof(PersistedSettingsHeader));
+  resetHostPersistence();
+  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, legacy.data(), legacy.size());
+  CHECK(!loadPersistedSettings(loaded));
+}
+
 const TestCase tests[] = {
     {"P66C", p66c_activation_capture_skips_clean_payloads},
     {"P61E", p61e_selective_curve_capture_preserves_retention_and_retry},
@@ -2768,6 +2771,7 @@ const TestCase tests[] = {
     {"P90", p90_firmware_mode_store_round_trip_and_factory_reset},
     {"P86", p86_timezone_preference_and_durable_initialization},
     {"P85", p85_schema1_is_strict_and_micra_defaults_round_trip},
+    {"P91", p91_schema1_golden_settings_blob_loads},
     {"P82", p82_ble_scan_strict_versions_and_roundtrip},
     {"P82B", p82b_ble_scan_legacy_minute_bytes_stay_readable},
     {"P80", p80_boot_id_remains_dirty_until_durable},

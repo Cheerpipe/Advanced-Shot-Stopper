@@ -140,7 +140,6 @@ void resetHarness() {
                        runtimeConfig.autoRetare);
   runtimeConfig = composeEffectiveConfig(runtimeConfig, presetBank);
   runtimeConfig.requireCupToStart = false;
-  mutableActiveShotPreset(presetBank).requireCupToStart = false;
   publishRecipeState();
 }
 

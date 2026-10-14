@@ -11,13 +11,15 @@ credentials. Firmware on the flash is not erased.
 ## What is erased
 
 Wi-Fi (STA and last-known-good network), workflow settings, presets,
-calibration (including learned offset and A→M samples), preferred scale,
+calibration (including the learned offset), preferred scale,
 shot history, activation history, and saved crash records on 16 MB controllers.
 The saved time zone and its first-detection record are also erased; the next
 authorized Web UI setup can detect a zone again.
 On Linea Micra firmware it also erases
 the cloud account credentials, installation key, selected machine, and session.
-Its three integration options return to ON, and factory preset boiler targets return to
+Presets return to the four factory presets (Double · Adaptive, Single · Adaptive,
+Double · Fixed and Single · Fixed) with Double · Adaptive active. Its three
+integration options return to ON, and factory preset boiler targets return to
 93.0 °C. ESP32 power management, Wi-Fi sleep, and the BLE scan mode return to
 their factory values: ESP32 power management on, Wi-Fi sleep on, and Balanced
 scan mode. The machine-aware scale search options return to off. The device

@@ -120,22 +120,9 @@ int main() {
 
   PersistedSettings settings;
   assert(initializeDefaultSettings(settings));
-  assert(settings.runtime.bbwAlgorithm == 1);
   for (const auto &preset : settings.presets.presets) {
-    assert(preset.bbwAlgorithm == 1);
     assert(preset.bbwEwmaAlpha == 30);
-    assert(preset.weightOffsetG == preset.bbwEwmaOffsetG);
   }
-  // Validation rejects unknown algorithm ids outright; there is no
-  // slot-read aliasing path anymore.
-  settings.presets.presets[0].bbwAlgorithm = 255;
-  settings.checksum = persistedSettingsChecksum(settings);
-  assert(!validPersistedSettings(settings));
-  settings.presets.presets[0].bbwAlgorithm = 0;
-  settings.checksum = persistedSettingsChecksum(settings);
-  assert(!validPersistedSettings(settings));
-  settings.presets.presets[0].bbwAlgorithm = 1;
-  settings.checksum = persistedSettingsChecksum(settings);
   assert(validPersistedSettings(settings));
 
   ShotPresetBank bank = settings.presets;
@@ -153,8 +140,8 @@ int main() {
   uint8_t created = 0;
   assert(createUntitledShotPreset(bank, created));
   assert(findShotPreset(bank, created)->bbwAlphaBaseline == 30);
-  assert(restoreFactoryShotPresetValues(bank, FACTORY_PRESET_ID_DOUBLE));
-  assert(findShotPreset(bank, FACTORY_PRESET_ID_DOUBLE)->bbwAlphaBaseline == 30);
+  assert(restoreFactoryShotPresetValues(bank, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE));
+  assert(findShotPreset(bank, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE)->bbwAlphaBaseline == 30);
   assert(learning.forPreset(duplicate, bank).evidence.count == 0);
   state.evidence = noisy;
   unsigned char beforeOther[sizeof(state.evidence)];

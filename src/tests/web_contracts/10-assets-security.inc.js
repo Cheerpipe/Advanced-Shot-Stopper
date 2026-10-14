@@ -903,8 +903,8 @@ if (!codeIncludes(ui, 'function rangeCheck(') ||
     !codeIncludes(ui, 'id="goalWeightG" type="number" min="10" max="200" step="0.1"') ||
     !codeIncludes(ui, 'validateNetworkClient') ||
     !codeIncludes(ui, 'validateDevicePasswordClient') ||
-    !network.includes('Max recovery must be from 10 to 200 g.') ||
-    !network.includes('Fast guard requires max recovery') ||
+    !network.includes('Extra yield for fast shots must be 0.5 to 10 g') ||
+    !network.includes('The shot time window must start at least 2 s') ||
     !network.includes('SSID must be 1–32 characters.') ||
     !network.includes('configValidationErrorName(error)')) {
   throw new Error('UI/API must expose specific validation ranges, inline errors, and field-aware config errors');

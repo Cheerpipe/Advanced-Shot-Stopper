@@ -28,9 +28,6 @@ void resetSessionForNewCycle(ControlSource source) {
     ShotPreset &preset = mutableActiveShotPreset(presetBank);
     copyUserRecipeFromConfig(runtimeConfig, preset);
     preset.bbwEwmaOffsetG = runtimeConfig.weightOffsetG;
-    memcpy(preset.autoToManualGuardSamplesDs,
-           runtimeConfig.autoToManualGuardSamplesDs,
-           sizeof(preset.autoToManualGuardSamplesDs));
   }
 #endif
   session.config = snapshotConfig(effectiveRuntimeConfig());
@@ -38,7 +35,6 @@ void resetSessionForNewCycle(ControlSource source) {
   const ShotPreset &preset = activeShotPreset(presetBank);
   copyCString(session.activePresetName, sizeof(session.activePresetName), preset.name);
   session.config.bbwAlpha = preset.bbwEwmaAlpha;
-  session.config.bbwProfileVersion = bbwAlgorithmVersion(preset.bbwAlgorithm);
   session.config.bbwLearningGeneration = bbwLearningBank.forPreset(
       preset.id, presetBank).generations[1];
   session.endReason = EndReason::NONE;
@@ -334,7 +330,7 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
       event.presetId = session.activePresetId;
       snprintf(event.stopDetail, sizeof(event.stopDetail), "%s",
                shotLogStopDetailName(shotLogStopDetailFromEndReason(
-                   reason, session.config.fastExtractionGuardEnabled,
+                   reason, session.config.fastSideEnabled,
                    session.extractionExtended)));
       (void)networkManager.enqueueWebhook(event);
     }

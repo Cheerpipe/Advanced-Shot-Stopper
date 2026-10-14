@@ -183,6 +183,7 @@ void processWebCommand(const WebCommand &command) {
       candidate.dripDelayMs = command.config.dripDelayMs;
       candidate.soundAlertsMuted = command.config.soundAlertsMuted;
       candidate.firstDropBeep = command.config.firstDropBeep;
+      copyDeviceProtectionFromConfig(command.config, candidate);
       machineApplyWorkflowConfig(candidate, command.config);
       candidate.rinseDurationMs = command.config.rinseDurationMs;
       candidate.rinseEnabled = command.config.rinseEnabled;
@@ -330,19 +331,19 @@ void processWebCommand(const WebCommand &command) {
               (candidateRuntime.noScaleBbwMode & IDLE_ACCESSORY_RETARE);
           break;
         case QuickSettingField::AUTO_TO_MANUAL_GUARD:
-          preset.autoToManualGuardEnabled = enabled;
+          candidateRuntime.scaleLossEnabled = enabled;
           break;
         case QuickSettingField::SLOW_EXTRACTION_GUARD:
-          preset.slowExtractionGuardEnabled = enabled;
+          preset.slowSideEnabled = enabled;
           break;
         case QuickSettingField::FAST_EXTRACTION_GUARD:
-          preset.fastExtractionGuardEnabled = enabled;
+          preset.fastSideEnabled = enabled;
           break;
         case QuickSettingField::AVOID_ACCIDENTAL_TOUCH:
-          preset.avoidAccidentalTouchEnabled = enabled;
+          candidateRuntime.avoidAccidentalTouchEnabled = enabled;
           break;
         case QuickSettingField::CUP_PROTECTION:
-          preset.cupProtectionEnabled = enabled;
+          candidateRuntime.cupProtectionEnabled = enabled;
           break;
       }
       RuntimeConfig composed = composeEffectiveConfig(candidateRuntime, candidateBank);
@@ -402,11 +403,8 @@ void processWebCommand(const WebCommand &command) {
         return;
       }
       pendingFinalize.pending = false;
-      ShotPreset &preset = mutableActiveShotPreset(presetBank);
-      resetAutoToManualGuardSamples(preset.autoToManualGuardSamplesDs,
-                                    preset.autoToManualGuardBaselineMs);
       RuntimeConfig candidate = runtimeConfig;
-      applyShotPresetToConfig(preset, candidate, true);
+      applyShotPresetToConfig(activeShotPreset(presetBank), candidate, true);
       ++candidate.revision;
       if (candidate.revision == 0) {
         candidate.revision = 1;
@@ -445,13 +443,9 @@ void processWebCommand(const WebCommand &command) {
           }
           ShotPreset candidateRecipe = *preset;
           copyUserRecipeFromConfig(command.config, candidateRecipe);
-          if (!command.touchStopFallbackSpecified)
-            candidateRecipe.touchStopFallbackEnabled = preset->touchStopFallbackEnabled;
           if (command.lineaMicraBrewTargetSpecified)
             candidateRecipe.lineaMicraBrewTargetDeciC =
                 command.lineaMicraBrewTargetDeciC;
-          if (!command.bbwAlgorithmSpecified)
-            candidateRecipe.bbwAlgorithm = preset->bbwAlgorithm;
           if (!command.bbwBaselineSpecified)
             candidateRecipe.weightOffsetBaselineG = preset->weightOffsetBaselineG;
           if (command.bbwAlphaBaseline != 0)
@@ -463,16 +457,10 @@ void processWebCommand(const WebCommand &command) {
                                         runtimeConfig.autoRetare);
           if (ok) {
             ShotPreset previous = *preset;
-            previous.bbwAlgorithm = candidateRecipe.bbwAlgorithm;
             previous.weightOffsetBaselineG = candidateRecipe.weightOffsetBaselineG;
             previous.bbwAlphaBaseline = candidateRecipe.bbwAlphaBaseline;
             if (memcmp(&previous, &candidateRecipe, sizeof(previous)) != 0)
               bbwLearningBank.invalidate(preset->id, presetBank);
-            // Preserve learned fields from the live preset.
-            candidateRecipe.weightOffsetG = preset->weightOffsetG;
-            memcpy(candidateRecipe.autoToManualGuardSamplesDs,
-                   preset->autoToManualGuardSamplesDs,
-                   sizeof(candidateRecipe.autoToManualGuardSamplesDs));
             *preset = candidateRecipe;
             presetBank.activeId = preset->id;
           }
@@ -510,6 +498,9 @@ void processWebCommand(const WebCommand &command) {
       const bool presetChanged =
           memcmp(&quickBefore.presets, &presetBank, sizeof(presetBank)) != 0;
       RuntimeConfig candidate = runtimeConfig;
+      // The v1 preset form still carries the device-level switches.
+      if (action == PresetAction::SAVE)
+        copyDeviceProtectionFromConfig(command.config, candidate);
       applyShotPresetToConfig(activeShotPreset(presetBank), candidate, true);
       ++candidate.revision;
       if (candidate.revision == 0) {

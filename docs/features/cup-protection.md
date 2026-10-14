@@ -1,9 +1,10 @@
 # Cup protection
 
 Cup protections handle missing cups, cup removal, and brief bumps. They apply
-to automatic brew-by-weight shots. Configure recipe options in
-**Settings → Brew** and shared detection/tare timing under
-**Settings → Machine and scale**.
+to automatic brew-by-weight shots. The cup protection switches and **Avoid
+accidental touch** are shared by every preset; they are edited next to the
+preset options in **Settings → Brew**. Shared detection and tare timing live
+under **Settings → Machine and scale**.
 
 ## Choose the behavior
 

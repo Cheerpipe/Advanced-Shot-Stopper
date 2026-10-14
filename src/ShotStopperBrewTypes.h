@@ -56,18 +56,23 @@ constexpr uint16_t DEFAULT_GOAL_WEIGHT_DG = 360;
 inline float goalWeightDgToGrams(uint16_t goalWeightDg) {
   return static_cast<float>(goalWeightDg) * 0.1f;
 }
-constexpr float DEFAULT_MAX_RECOVERY_WEIGHT_G = 42.0f;
-constexpr float MIN_MAX_RECOVERY_WEIGHT_G = 10.0f;
-constexpr float MAX_MAX_RECOVERY_WEIGHT_G = 200.0f;
-constexpr uint32_t DEFAULT_MIN_BBW_BREW_TIME_MS = 28000;
-constexpr uint32_t MIN_MIN_BBW_BREW_TIME_MS = 5000;
-constexpr uint32_t MAX_MIN_BBW_BREW_TIME_MS = 55000;
-constexpr float DEFAULT_MIN_RECOVERY_WEIGHT_G = 34.0f;
-constexpr float MIN_MIN_RECOVERY_WEIGHT_G = 10.0f;
-constexpr float MAX_MIN_RECOVERY_WEIGHT_G = 200.0f;
-constexpr uint32_t DEFAULT_MAX_BBW_BREW_TIME_MS = 44000;
-constexpr uint32_t MIN_MAX_BBW_BREW_TIME_MS = 5000;
-constexpr uint32_t MAX_MAX_BBW_BREW_TIME_MS = 55000;
+// Smooth-cut recipe: a shot time window [t1, t2] and side margins relative to
+// the target (decigrams). Factory Double · Adaptive values are the defaults.
+constexpr uint32_t DEFAULT_FAST_BEFORE_MS = 27000;
+constexpr uint32_t DEFAULT_SLOW_AFTER_MS = 34000;
+constexpr uint16_t DEFAULT_FAST_MARGIN_DG = 40;
+constexpr uint16_t DEFAULT_SLOW_MARGIN_DG = 30;
+constexpr uint16_t DEFAULT_DOSE_DG = 180;
+constexpr uint16_t MIN_SIDE_MARGIN_DG = 5;
+constexpr uint16_t MAX_SIDE_MARGIN_DG = 100;
+// The slow side never stops below 5 g; the fast side extends at most 25 %.
+constexpr uint16_t MIN_SLOW_FLOOR_DG = 50;
+constexpr uint16_t MIN_DOSE_DG = 50;
+constexpr uint16_t MAX_DOSE_DG = 300;
+constexpr uint32_t WINDOW_STEP_MS = 500;
+constexpr uint32_t MIN_WINDOW_AFTER_DELAY_MS = 2000;
+constexpr uint32_t MIN_WINDOW_SPAN_MS = 1000;
+constexpr uint32_t MIN_WINDOW_BEFORE_WALL_MS = 1000;
 // Extra delay after the scale timer catches up to machine circuit time (whole seconds)
 // before sending STOP_TIMER. 0 stops in that same instant.
 constexpr uint32_t DEFAULT_SCALE_TIMER_STOP_EXTRA_DELAY_MS = 0;
@@ -79,13 +84,6 @@ constexpr uint32_t MAX_DRIP_DELAY_MS = 10000;
 constexpr uint32_t MAX_SCALE_TIMER_STOP_CATCHUP_MS = 2000;
 constexpr float MAX_OFFSET_G = 5.0f;
 constexpr float DEFAULT_WEIGHT_OFFSET_G = 1.5f;
-constexpr size_t AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT = 5;
-constexpr uint32_t DEFAULT_AUTO_TO_MANUAL_GUARD_BASELINE_MS = 32000;
-constexpr uint16_t AUTO_TO_MANUAL_GUARD_DEFAULT_SAMPLE_DS = 320;  // 32.0 s
-constexpr uint32_t DEFAULT_AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT_MS =
-    DEFAULT_AUTO_TO_MANUAL_GUARD_BASELINE_MS;
-constexpr uint32_t MIN_AUTO_TO_MANUAL_GUARD_LIMIT_MS = 10000;
-constexpr float AUTO_TO_MANUAL_GUARD_SAMPLE_MAX_ERROR_RATIO = 0.10f;
 
 enum class StopperState : uint8_t {
   REQUIRES_OFF,
@@ -260,100 +258,10 @@ inline bool brewEndIsAbandonedStart(EndReason reason) {
   return reason == EndReason::UNCONFIRMED_START;
 }
 
-enum class AutoToManualGuardLimitMode : uint8_t {
-  MANUAL = 0,
-  AUTO = 1
-};
-
 enum class ActualWeightSource : uint8_t {
   NONE = 0,
   POST_DRIP = 1,
   LAST_KNOWN = 2
 };
-
-inline uint16_t autoToManualGuardBaselineDs(uint32_t baselineMs) {
-  return static_cast<uint16_t>((baselineMs + 50U) / 100U);
-}
-
-inline void resetAutoToManualGuardSamples(
-    uint16_t samples[AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT],
-    uint32_t baselineMs = DEFAULT_AUTO_TO_MANUAL_GUARD_BASELINE_MS) {
-  const uint16_t seedDs = autoToManualGuardBaselineDs(baselineMs);
-  for (size_t index = 0; index < AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT; ++index) {
-    samples[index] = seedDs;
-  }
-}
-
-// Linear least-squares trend over x=0..4, predict x=5 (one step ahead).
-inline uint32_t autoToManualGuardTrendMs(
-    const uint16_t samples[AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT],
-    uint32_t operationalWallMs) {
-  // With n=5 and x=0..4: meanX=2, sum((x-meanX)^2)=10.
-  constexpr float meanX = 2.0f;
-  constexpr float denom = 10.0f;
-  float sumY = 0.0f;
-  for (size_t index = 0; index < AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT; ++index) {
-    sumY += static_cast<float>(samples[index]);
-  }
-  const float meanY = sumY / static_cast<float>(AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT);
-  float numer = 0.0f;
-  for (size_t index = 0; index < AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT; ++index) {
-    const float dx = static_cast<float>(index) - meanX;
-    numer += dx * (static_cast<float>(samples[index]) - meanY);
-  }
-  const float slope = numer / denom;
-  const float predictedDs = meanY + slope * (5.0f - meanX);
-  if (!std::isfinite(predictedDs)) {
-    return DEFAULT_AUTO_TO_MANUAL_GUARD_BASELINE_MS;
-  }
-  float predictedMs = predictedDs * 100.0f;
-  if (predictedMs < static_cast<float>(MIN_AUTO_TO_MANUAL_GUARD_LIMIT_MS)) {
-    predictedMs = static_cast<float>(MIN_AUTO_TO_MANUAL_GUARD_LIMIT_MS);
-  }
-  const uint32_t wallCap =
-      operationalWallMs < MIN_AUTO_TO_MANUAL_GUARD_LIMIT_MS
-          ? MIN_AUTO_TO_MANUAL_GUARD_LIMIT_MS
-          : operationalWallMs;
-  if (predictedMs > static_cast<float>(wallCap)) {
-    predictedMs = static_cast<float>(wallCap);
-  }
-  return static_cast<uint32_t>(predictedMs + 0.5f);
-}
-
-inline uint32_t autoToManualGuardLimitMs(
-    bool enabled, AutoToManualGuardLimitMode mode, uint32_t manualLimitMs,
-    const uint16_t samples[AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT],
-    uint32_t operationalWallMs) {
-  (void)enabled;
-  uint32_t limitMs =
-      mode == AutoToManualGuardLimitMode::MANUAL
-          ? manualLimitMs
-          : autoToManualGuardTrendMs(samples, operationalWallMs);
-  if (limitMs < MIN_AUTO_TO_MANUAL_GUARD_LIMIT_MS) {
-    limitMs = MIN_AUTO_TO_MANUAL_GUARD_LIMIT_MS;
-  }
-  if (limitMs > operationalWallMs) {
-    limitMs = operationalWallMs;
-  }
-  return limitMs;
-}
-
-inline bool autoToManualGuardSampleErrorOk(float actualWeightG,
-                                           uint16_t goalWeightDg) {
-  if (!std::isfinite(actualWeightG) || goalWeightDg == 0) {
-    return false;
-  }
-  const float goal = goalWeightDgToGrams(goalWeightDg);
-  return fabsf(actualWeightG - goal) <=
-         goal * AUTO_TO_MANUAL_GUARD_SAMPLE_MAX_ERROR_RATIO;
-}
-
-inline void pushAutoToManualGuardSample(
-    uint16_t samples[AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT], uint16_t durationDs) {
-  for (size_t index = 1; index < AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT; ++index) {
-    samples[index - 1] = samples[index];
-  }
-  samples[AUTO_TO_MANUAL_GUARD_SAMPLE_COUNT - 1] = durationDs;
-}
 
 }  // namespace shotstopper

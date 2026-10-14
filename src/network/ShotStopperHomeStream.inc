@@ -102,13 +102,13 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("config.brewByWeight", !bool(config.timerOnly));
   delta.field("config.goalWeightG", goalWeightDgToGrams(config.goalWeightDg));
   delta.field("config.operationalWallMs", "%lu", static_cast<unsigned long>(config.operationalWallMs));
-  delta.field("config.minBbwBrewTimeMs", "%lu", static_cast<unsigned long>(config.minBbwBrewTimeMs));
-  delta.field("config.maxBbwBrewTimeMs", "%lu", static_cast<unsigned long>(config.maxBbwBrewTimeMs));
-  delta.field("config.minRecoveryWeightG", config.minRecoveryWeightG);
-  delta.field("config.maxRecoveryWeightG", config.maxRecoveryWeightG);
-  delta.field("config.fastExtractionGuardEnabled", bool(config.fastExtractionGuardEnabled));
-  delta.field("config.slowExtractionGuardEnabled", bool(config.slowExtractionGuardEnabled));
-  delta.field("config.autoToManualGuardEnabled", bool(config.autoToManualGuardEnabled));
+  delta.field("config.minBbwBrewTimeMs", "%lu", static_cast<unsigned long>(config.fastBeforeMs));
+  delta.field("config.maxBbwBrewTimeMs", "%lu", static_cast<unsigned long>(config.slowAfterMs));
+  delta.field("config.minRecoveryWeightG", goalWeightDgToGrams(config.goalWeightDg - config.slowMarginDg));
+  delta.field("config.maxRecoveryWeightG", goalWeightDgToGrams(config.goalWeightDg + config.fastMarginDg));
+  delta.field("config.fastExtractionGuardEnabled", bool(config.fastSideEnabled));
+  delta.field("config.slowExtractionGuardEnabled", bool(config.slowSideEnabled));
+  delta.field("config.autoToManualGuardEnabled", bool(config.scaleLossEnabled));
   delta.field("config.cupProtectionEnabled", bool(config.cupProtectionEnabled));
   delta.field("config.stopIfCupRemoved", bool(config.stopIfCupRemoved));
   delta.field("config.requireCupToStart", bool(config.requireCupToStart));
@@ -630,17 +630,17 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
                 static_cast<unsigned long>(control.noScaleShotGuardCooldownRemainingMs / 60000 * 60000));
     delta.field("guards.noScale.scaleWasAvailable",
                 bool(control.noScaleShotGuardScaleWasAvailable));
-    delta.field("guards.atm.enabled", bool(config.autoToManualGuardEnabled));
+    delta.field("guards.atm.enabled", bool(config.scaleLossEnabled));
     delta.field("guards.atm.armed", bool(control.cycleAutoToManualGuardArmed));
     delta.field("guards.atm.enforced", bool(control.cycleAutoToManualGuardEnforced));
     delta.field("guards.atm.remainingMs", "%lu",
                 static_cast<unsigned long>(control.cycleAutoToManualGuardRemainingMs / 1000 * 1000));
-    delta.field("guards.slowExtraction.enabled", bool(config.slowExtractionGuardEnabled));
+    delta.field("guards.slowExtraction.enabled", bool(config.slowSideEnabled));
     delta.field("guards.slowExtraction.extended", bool(control.cycleSlowExtractionExtended));
     delta.field("guards.slowExtraction.targetReachedEarly", bool(control.cycleTargetReachedEarly));
     delta.field("guards.slowExtraction.activeStopWeightG",
                 static_cast<float>(control.cycleActiveStopWeightG));
-    delta.field("guards.fastExtraction.enabled", bool(config.fastExtractionGuardEnabled));
+    delta.field("guards.fastExtraction.enabled", bool(config.fastSideEnabled));
     delta.field("guards.fastExtraction.extended", bool(control.cycleExtractionExtended));
     delta.field("guards.fastExtraction.targetReachedEarly", bool(control.cycleTargetReachedEarly));
     delta.field("guards.fastExtraction.activeStopWeightG",

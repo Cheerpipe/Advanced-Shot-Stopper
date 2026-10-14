@@ -50,33 +50,37 @@ float effectiveStopThreshold() {
 }
 
 float effectiveMaxStopThreshold() {
-  return session.config.maxRecoveryWeightG - session.config.weightOffsetG;
+  return goalWeightDgToGrams(session.config.goalWeightDg +
+                             session.config.fastMarginDg) -
+         session.config.weightOffsetG;
 }
 
 float effectiveMinStopThreshold() {
-  return session.config.minRecoveryWeightG - session.config.weightOffsetG;
+  return goalWeightDgToGrams(session.config.goalWeightDg -
+                             session.config.slowMarginDg) -
+         session.config.weightOffsetG;
 }
 
 bool fastExtractionGuardSession() {
-  return session.active && session.config.fastExtractionGuardEnabled &&
+  return session.active && session.config.fastSideEnabled &&
          !session.config.timerOnly && session.startedWithScale;
 }
 
 bool slowExtractionGuardSession() {
-  return session.active && session.config.slowExtractionGuardEnabled &&
+  return session.active && session.config.slowSideEnabled &&
          !session.config.timerOnly && session.startedWithScale;
 }
 
 bool minBbwBrewTimeReached() {
   uint32_t elapsedMsValue = 0U;
   return machineRunningElapsed(elapsedMsValue) &&
-         elapsedMsValue >= session.config.minBbwBrewTimeMs;
+         elapsedMsValue >= session.config.fastBeforeMs;
 }
 
 bool maxBbwBrewTimeReached() {
   uint32_t elapsedMsValue = 0U;
   return machineRunningElapsed(elapsedMsValue) &&
-         elapsedMsValue >= session.config.maxBbwBrewTimeMs;
+         elapsedMsValue >= session.config.slowAfterMs;
 }
 
 bool targetWeightReached(float weight) {
@@ -148,8 +152,8 @@ EndReason touchStopPolicy(float weight, float &threshold, uint32_t atMs) {
   const uint32_t ageMs = millis() - atMs;
   const bool timed = machineRunningElapsed(runningMs) && ageMs <= runningMs;
   if (timed) runningMs -= ageMs;
-  const bool minReached = timed && runningMs >= session.config.minBbwBrewTimeMs;
-  const bool maxReached = timed && runningMs >= session.config.maxBbwBrewTimeMs;
+  const bool minReached = timed && runningMs >= session.config.fastBeforeMs;
+  const bool maxReached = timed && runningMs >= session.config.slowAfterMs;
   threshold = effectiveStopThreshold();
   if (fastExtractionGuardSession() && !minReached) {
     threshold = effectiveMaxStopThreshold();
@@ -680,18 +684,18 @@ void serviceCupStartGuard(const GuardInputs &inputs) {
   }
 }
 void armAutoToManualGuardForAutomaticBrew() {
-  if (!session.config.autoToManualGuardEnabled ||
+  if (!session.config.scaleLossEnabled ||
       session.config.timerOnly || !session.startedWithScale ||
       session.weightControlState == WeightControlState::INACTIVE) {
     return;
   }
-  const uint32_t limitMs = autoToManualGuardLimitMs(
-      true,
-      static_cast<AutoToManualGuardLimitMode>(
-          session.config.autoToManualGuardLimitMode),
-      session.config.autoToManualGuardManualLimitMs,
-      session.config.autoToManualGuardSamplesDs,
-      session.config.operationalWallMs);
+  // Until the scale-loss backup v2 lands: the preset's fixed time, else the
+  // end of the shot time window, never past the max shot time.
+  uint32_t limitMs = session.config.scaleLossFixedMs != 0
+                         ? session.config.scaleLossFixedMs
+                         : session.config.slowAfterMs;
+  if (limitMs > session.config.operationalWallMs)
+    limitMs = session.config.operationalWallMs;
   session.autoToManualGuardArmed = true;
   session.autoToManualGuardDeadlineAtMs = session.startedAtMs + limitMs;
   addDebugEvent(DebugCategory::SCALE, DebugCode::AUTO_TO_MANUAL_GUARD_ARMED,

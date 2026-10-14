@@ -342,8 +342,8 @@ struct PendingShotFinalize {
   bool slowExtractionExtended = false;
   bool targetReachedEarly = false;
   uint16_t targetReachedEarlyDs = SHOT_LOG_METRIC_MISSING;
-  float maxRecoveryWeightG = DEFAULT_MAX_RECOVERY_WEIGHT_G;
-  uint32_t minBbwBrewTimeMs = DEFAULT_MIN_BBW_BREW_TIME_MS;
+  float maxRecoveryWeightG = (DEFAULT_GOAL_WEIGHT_DG + DEFAULT_FAST_MARGIN_DG) * 0.1f;
+  uint32_t minBbwBrewTimeMs = DEFAULT_FAST_BEFORE_MS;
   uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS;
   bool lastKnownWeightValid = false;
   float lastKnownWeightG = 0.0f;
@@ -358,7 +358,7 @@ struct PendingShotFinalize {
   char scaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};
   uint32_t cycleId = 0;
   bool retarePerformed = false;
-  float minRecoveryWeightG = DEFAULT_MIN_RECOVERY_WEIGHT_G;
+  float minRecoveryWeightG = (DEFAULT_GOAL_WEIGHT_DG - DEFAULT_SLOW_MARGIN_DG) * 0.1f;
   bool autoToManualGuardEnabled = false;
   bool autoToManualGuardEnforced = false;
   bool autoToManualGuardArmed = false;
@@ -1395,15 +1395,15 @@ PersistedLastShot lastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
   }
   last.goalWeightDg = session.config.goalWeightDg;
   last.extractionExtended =
-      session.extractionExtended && session.config.fastExtractionGuardEnabled;
+      session.extractionExtended && session.config.fastSideEnabled;
   last.slowExtractionExtended =
       session.slowExtractionExtended &&
-      session.config.slowExtractionGuardEnabled;
+      session.config.slowSideEnabled;
   last.activeStopWeightG =
       last.extractionExtended
-          ? session.config.maxRecoveryWeightG
+          ? goalWeightDgToGrams(session.config.goalWeightDg + session.config.fastMarginDg)
           : (last.slowExtractionExtended
-                 ? session.config.minRecoveryWeightG
+                 ? goalWeightDgToGrams(session.config.goalWeightDg - session.config.slowMarginDg)
                  : goalWeightDgToGrams(session.config.goalWeightDg));
   const uint32_t startMs =
       session.circuitClosedAtMs != 0U ? session.circuitClosedAtMs : session.startedAtMs;
@@ -1420,9 +1420,9 @@ PersistedLastShot lastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
       stopperState, session.startedWithScale, session.config.timerOnly,
       shot.automaticBrew));
   last.scaleAvailable = session.startedWithScale;
-  last.fastExtractionGuardEnabled = session.config.fastExtractionGuardEnabled;
-  last.slowExtractionGuardEnabled = session.config.slowExtractionGuardEnabled;
-  last.autoToManualGuardEnabled = session.config.autoToManualGuardEnabled;
+  last.fastExtractionGuardEnabled = session.config.fastSideEnabled;
+  last.slowExtractionGuardEnabled = session.config.slowSideEnabled;
+  last.autoToManualGuardEnabled = session.config.scaleLossEnabled;
   last.autoToManualGuardEnforced = session.autoToManualGuardEnforced;
   last.autoToManualGuardArmed = session.autoToManualGuardArmed;
   last.noScaleShotGuardEnabled = noScaleBbwEnabled(runtimeConfig.noScaleBbwMode);
@@ -1438,9 +1438,9 @@ PersistedLastShot lastShotFromEndedCycle(EndReason reason, uint32_t durationMs,
   }
   if (last.extractionExtended) {
     last.minBbwBrewTimeRemainingMs =
-        durationMs >= session.config.minBbwBrewTimeMs
+        durationMs >= session.config.fastBeforeMs
             ? 0U
-            : session.config.minBbwBrewTimeMs - durationMs;
+            : session.config.fastBeforeMs - durationMs;
   }
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   copyCString(last.scaleProtocol, sizeof(last.scaleProtocol),

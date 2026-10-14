@@ -238,10 +238,10 @@ relay profile, or a different `--arch`. Development mode remains CLI-only and
 must never be added to a profile.
 
 Machine defaults seed a new installation and factory reset. Valid persisted
-settings survive ordinary boot and OTA. The settings, shot, and curve stores all
-use schema 0, the first version of the current schema epoch: blobs written by
-earlier firmware are rejected and replaced with factory defaults, so moving a
-device across the cutover requires the clean USB installation described below.
+settings survive ordinary boot and OTA. The settings store uses schema 1 (the
+smooth-cut preset layout); the shot and curve stores use schema 0. Blobs written
+by earlier firmware are rejected and replaced with factory defaults, so moving a
+device across a cutover requires the clean USB installation described below.
 Firmware identity is checked before
 writing the device. Older incompatible partition layouts require the clean USB
 installation described below; compatible OTA updates remain supported. The
@@ -514,9 +514,12 @@ profiles start empty. Nothing else on the flash changes.
 
 ### Other clean-install cutovers
 
-The current settings contract is schema 0, the first version of a fresh
-schema epoch: there is no upgrade path from earlier firmware, and adopting it
-requires the clean installation below with `--erase-all`. An installed 20 KiB NVS layout,
+The current settings contract is schema 1, introduced with the smooth-cut
+presets (shot time window, fast and slow side margins, four factory presets,
+device-level cup and scale-loss switches): there is no upgrade path from 1.0
+or earlier firmware, and adopting it requires the clean installation below with
+`--erase-all`. Updating to it over Wi-Fi is not supported: the controller would
+restart with factory settings, Wi-Fi included, and open its setup network. An installed 20 KiB NVS layout,
 or a current layout without the dedicated
 816 KiB `shotcurve` partition or the 32 KiB `shotlog` and `history` partitions,
 or an n16r8 layout without the new crash-history area,

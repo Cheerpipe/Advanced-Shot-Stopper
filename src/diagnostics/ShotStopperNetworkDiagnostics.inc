@@ -147,16 +147,16 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
                c.config.paddleReturnReminderMaxDurationMs),
            static_cast<unsigned long>(c.config.bbwProtectionMs),
            static_cast<unsigned long>(c.config.operationalWallMs),
-           c.config.fastExtractionGuardEnabled ? "true" : "false",
-           static_cast<double>(c.config.maxRecoveryWeightG),
-           static_cast<unsigned long>(c.config.minBbwBrewTimeMs),
-           c.config.slowExtractionGuardEnabled ? "true" : "false",
-           static_cast<double>(c.config.minRecoveryWeightG),
-           static_cast<unsigned long>(c.config.maxBbwBrewTimeMs),
-           c.config.autoToManualGuardEnabled ? "true" : "false",
-           autoToManualGuardLimitModeId(c.config.autoToManualGuardLimitMode),
-           static_cast<unsigned long>(c.config.autoToManualGuardManualLimitMs),
-           static_cast<unsigned long>(c.config.autoToManualGuardBaselineMs),
+           c.config.fastSideEnabled ? "true" : "false",
+           static_cast<double>(goalWeightDgToGrams(c.config.goalWeightDg + c.config.fastMarginDg)),
+           static_cast<unsigned long>(c.config.fastBeforeMs),
+           c.config.slowSideEnabled ? "true" : "false",
+           static_cast<double>(goalWeightDgToGrams(c.config.goalWeightDg - c.config.slowMarginDg)),
+           static_cast<unsigned long>(c.config.slowAfterMs),
+           c.config.scaleLossEnabled ? "true" : "false",
+           autoToManualGuardLimitModeId(c.config.scaleLossFixedMs),
+           static_cast<unsigned long>((c.config.scaleLossFixedMs != 0 ? c.config.scaleLossFixedMs : c.config.slowAfterMs)),
+           static_cast<unsigned long>(c.config.slowAfterMs),
            c.config.cupProtectionEnabled ? "true" : "false",
            c.config.stopIfCupRemoved ? "true" : "false",
            c.config.requireCupToStart ? "true" : "false",
@@ -196,26 +196,24 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
     ok = debugExportChunkf(
         request, buf, cap,
         "%s{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s,\"brewByWeight\":%s,"
-        "\"goalWeightG\":%.1f,\"minBbwBrewTimeMs\":%lu,\"maxBbwBrewTimeMs\":%lu,"
-        "\"maxRecoveryWeightG\":%.1f,\"minRecoveryWeightG\":%.1f,"
-        "\"fastExtractionGuardEnabled\":%s,\"slowExtractionGuardEnabled\":%s,"
-        "\"autoToManualGuardEnabled\":%s,\"autoToManualGuardSamplesDs\":[%u,%u,"
-        "%u,%u,%u]}",
+        "\"goalWeightG\":%.1f,\"doseG\":%.1f,\"fastBeforeMs\":%lu,"
+        "\"slowAfterMs\":%lu,\"fastSideEnabled\":%s,\"fastMarginG\":%.1f,"
+        "\"slowSideEnabled\":%s,\"slowMarginG\":%.1f,"
+        "\"scaleLossFixedMs\":%lu,\"learningEpoch\":%lu,"
+        "\"grindHintsEnabled\":%s}",
         i == 0 ? "" : ",", static_cast<unsigned>(p.id), safeName,
         p.isFactory ? "true" : "false", p.brewByWeight ? "true" : "false",
         static_cast<double>(goalWeightDgToGrams(p.goalWeightDg)),
-        static_cast<unsigned long>(p.minBbwBrewTimeMs),
-        static_cast<unsigned long>(p.maxBbwBrewTimeMs),
-        static_cast<double>(p.maxRecoveryWeightG),
-        static_cast<double>(p.minRecoveryWeightG),
-        p.fastExtractionGuardEnabled ? "true" : "false",
-        p.slowExtractionGuardEnabled ? "true" : "false",
-        p.autoToManualGuardEnabled ? "true" : "false",
-        static_cast<unsigned>(p.autoToManualGuardSamplesDs[0]),
-        static_cast<unsigned>(p.autoToManualGuardSamplesDs[1]),
-        static_cast<unsigned>(p.autoToManualGuardSamplesDs[2]),
-        static_cast<unsigned>(p.autoToManualGuardSamplesDs[3]),
-        static_cast<unsigned>(p.autoToManualGuardSamplesDs[4]));
+        static_cast<double>(goalWeightDgToGrams(p.doseDg)),
+        static_cast<unsigned long>(p.fastBeforeMs),
+        static_cast<unsigned long>(p.slowAfterMs),
+        p.fastSideEnabled ? "true" : "false",
+        static_cast<double>(goalWeightDgToGrams(p.fastMarginDg)),
+        p.slowSideEnabled ? "true" : "false",
+        static_cast<double>(goalWeightDgToGrams(p.slowMarginDg)),
+        static_cast<unsigned long>(p.scaleLossFixedMs),
+        static_cast<unsigned long>(p.learningEpoch),
+        p.grindHintsEnabled ? "true" : "false");
   }
   ok = ok && debugExportChunk(request, "]},");
 
@@ -417,15 +415,15 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
              static_cast<unsigned long>(
                  c.noScaleShotGuardCooldownRemainingMs),
              c.noScaleShotGuardScaleWasAvailable ? "true" : "false",
-             c.config.autoToManualGuardEnabled ? "true" : "false",
+             c.config.scaleLossEnabled ? "true" : "false",
              c.cycleAutoToManualGuardArmed ? "true" : "false",
              c.cycleAutoToManualGuardEnforced ? "true" : "false",
              static_cast<unsigned long>(c.cycleAutoToManualGuardRemainingMs),
-             c.config.slowExtractionGuardEnabled ? "true" : "false",
+             c.config.slowSideEnabled ? "true" : "false",
              c.cycleSlowExtractionExtended ? "true" : "false",
              c.cycleTargetReachedEarly ? "true" : "false",
              static_cast<double>(c.cycleActiveStopWeightG),
-             c.config.fastExtractionGuardEnabled ? "true" : "false",
+             c.config.fastSideEnabled ? "true" : "false",
              c.cycleExtractionExtended ? "true" : "false",
              c.cycleTargetReachedEarly ? "true" : "false",
              static_cast<double>(c.cycleActiveStopWeightG),

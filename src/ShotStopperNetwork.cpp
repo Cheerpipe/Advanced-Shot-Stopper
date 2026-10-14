@@ -482,27 +482,20 @@ const char *configValidationMessage(ConfigValidationError error) {
     case ConfigValidationError::NTP_SERVER_CUSTOM:
       return "Custom NTP hostname is invalid (letters, digits, '.', '-'; "
              "max 63 chars).";
-    case ConfigValidationError::MAX_RECOVERY_WEIGHT:
-      return "Max recovery must be from 10 to 200 g.";
-    case ConfigValidationError::MIN_BBW_BREW_TIME:
-      return "Min BBW brew time must be from 5 to 55 s.";
-    case ConfigValidationError::FAST_EXTRACTION_GUARD_RELATION:
-      return "Fast guard requires max recovery > target, min BBW brew time < Max BBW "
-             "time, and min BBW brew time ≥ BBW protection.";
-    case ConfigValidationError::MIN_RECOVERY_WEIGHT:
-      return "Min recovery must be from 10 to 200 g.";
-    case ConfigValidationError::MAX_BBW_BREW_TIME:
-      return "Max BBW brew time must be from 5 to 55 s.";
-    case ConfigValidationError::SLOW_EXTRACTION_GUARD_RELATION:
-      return "Slow guard requires min recovery < target, max BBW brew time < Max BBW "
-             "time, max BBW brew time ≥ BBW protection, and max BBW brew time > min BBW brew time "
-             "when Fast is on.";
-    case ConfigValidationError::AUTO_TO_MANUAL_GUARD_MODE:
-      return "A→M limit mode must be manual or auto.";
-    case ConfigValidationError::AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT:
-      return "A→M manual limit must be from 10 s up to Max BBW time.";
-    case ConfigValidationError::AUTO_TO_MANUAL_GUARD_BASELINE:
-      return "A→M baseline must be from 10 s up to Max BBW time.";
+    case ConfigValidationError::FAST_MARGIN:
+      return "Extra yield for fast shots must be 0.5 to 10 g, at most a quarter "
+             "of the target, and keep the target plus extra within 200 g.";
+    case ConfigValidationError::FAST_BEFORE:
+      return "The shot time window must start at least 2 s after the earliest "
+             "weight stop, end at least 1 s later, and use 0.5 s steps.";
+    case ConfigValidationError::SLOW_MARGIN:
+      return "Less yield for slow shots must be 0.5 to 10 g and leave at least 5 g.";
+    case ConfigValidationError::SLOW_AFTER:
+      return "The shot time window must end at least 1 s before the max shot "
+             "time, in 0.5 s steps.";
+    case ConfigValidationError::SCALE_LOSS_FIXED:
+      return "The scale-loss stop time must be empty or between the earliest "
+             "weight stop and the max shot time.";
     case ConfigValidationError::WEIGHT_OFFSET_BASELINE:
       return "Offset baseline must be from 0 to 5.0 g.";
     case ConfigValidationError::SCALE_MAC_CACHE_MODE:
@@ -544,27 +537,69 @@ const char *configValidationMessage(ConfigValidationError error) {
       return "Reed confirm timeout must be from 0.2 to 5 s.";
     case ConfigValidationError::SHOT_REACT_TIMEOUT:
       return "Shot reaction timeout must be 0 (compiled default) or from 3 to 30 s.";
-    case ConfigValidationError::BBW_ALGORITHM:
-      return "Cutoff algorithm must be legacy or linear_ewma.";
   }
   return "Invalid configuration.";
 }
 
-bool jsonAutoToManualGuardLimitMode(cJSON *object, const char *name,
-                                    uint8_t &output) {
-  cJSON *item = cJSON_GetObjectItemCaseSensitive(object, name);
-  if (!cJSON_IsString(item) || item->valuestring == nullptr) {
+// v1 preset wire fields, converted onto the schema-1 recipe once the whole
+// request is parsed: absolute recovery weights become margins relative to the
+// target, and a "manual" A->M limit becomes the fixed scale-loss stop time.
+struct V1RecipeWire {
+  bool maxSet = false, minSet = false, modeSet = false, manualSet = false;
+  bool manual = false;
+  float maxRecoveryG = 0.0f, minRecoveryG = 0.0f;
+  uint32_t manualLimitMs = 0;
+};
+
+bool parseV1RecipeWire(cJSON *root, V1RecipeWire &wire, bool requireAll) {
+  wire.maxSet = jsonFieldPresent(root, "maxRecoveryWeightG");
+  wire.minSet = jsonFieldPresent(root, "minRecoveryWeightG");
+  wire.modeSet = jsonFieldPresent(root, "autoToManualGuardLimitMode");
+  wire.manualSet = jsonFieldPresent(root, "autoToManualGuardManualLimitMs");
+  if (requireAll && !(wire.maxSet && wire.minSet && wire.modeSet && wire.manualSet))
     return false;
+  if (wire.modeSet) {
+    cJSON *mode = cJSON_GetObjectItemCaseSensitive(root, "autoToManualGuardLimitMode");
+    if (!cJSON_IsString(mode) || mode->valuestring == nullptr ||
+        (strcmp(mode->valuestring, "manual") != 0 &&
+         strcmp(mode->valuestring, "auto") != 0))
+      return false;
+    wire.manual = strcmp(mode->valuestring, "manual") == 0;
   }
-  if (strcmp(item->valuestring, "manual") == 0) {
-    output = static_cast<uint8_t>(AutoToManualGuardLimitMode::MANUAL);
-    return true;
+  uint32_t baseline = 0;
+  return (!wire.maxSet || jsonFloat(root, "maxRecoveryWeightG", wire.maxRecoveryG)) &&
+         (!wire.minSet || jsonFloat(root, "minRecoveryWeightG", wire.minRecoveryG)) &&
+         (!wire.manualSet ||
+          jsonUint32(root, "autoToManualGuardManualLimitMs", wire.manualLimitMs)) &&
+         (!jsonFieldPresent(root, "autoToManualGuardBaselineMs") ||
+          jsonUint32(root, "autoToManualGuardBaselineMs", baseline));
+}
+
+uint16_t v1MarginDg(float otherG, int32_t goalDg, bool above, uint16_t stored,
+                    bool sideOn) {
+  if (!std::isfinite(otherG)) return sideOn ? 0 : stored;
+  const long otherDg = lroundf(otherG * 10.0f);
+  const long margin = above ? otherDg - goalDg : goalDg - otherDg;
+  // An off side keeps its stored margin when the legacy value is unusable.
+  if (margin <= 0) return sideOn ? 0 : stored;
+  return static_cast<uint16_t>(margin > 65535 ? 65535 : margin);
+}
+
+void applyV1RecipeWire(const V1RecipeWire &wire, RuntimeConfig &config) {
+  if (wire.maxSet)
+    config.fastMarginDg = v1MarginDg(wire.maxRecoveryG, config.goalWeightDg, true,
+                                     config.fastMarginDg, config.fastSideEnabled);
+  if (wire.minSet)
+    config.slowMarginDg = v1MarginDg(wire.minRecoveryG, config.goalWeightDg, false,
+                                     config.slowMarginDg, config.slowSideEnabled);
+  if (wire.modeSet || wire.manualSet) {
+    const bool manual = wire.modeSet ? wire.manual : config.scaleLossFixedMs != 0;
+    config.scaleLossFixedMs =
+        !manual ? 0U
+                : wire.manualSet ? wire.manualLimitMs
+                                 : (config.scaleLossFixedMs != 0 ? config.scaleLossFixedMs
+                                                                 : config.slowAfterMs);
   }
-  if (strcmp(item->valuestring, "auto") == 0) {
-    output = static_cast<uint8_t>(AutoToManualGuardLimitMode::AUTO);
-    return true;
-  }
-  return false;
 }
 
 bool jsonNoScaleBbwMode(cJSON *object, const char *name, uint8_t &output) {
@@ -587,10 +622,9 @@ bool jsonNoScaleBbwMode(cJSON *object, const char *name, uint8_t &output) {
   return false;
 }
 
-const char *autoToManualGuardLimitModeId(uint8_t mode) {
-  return mode == static_cast<uint8_t>(AutoToManualGuardLimitMode::MANUAL)
-             ? "manual"
-             : "auto";
+// v1 wire: "manual" means the preset has a fixed scale-loss stop time.
+const char *autoToManualGuardLimitModeId(uint32_t scaleLossFixedMs) {
+  return scaleLossFixedMs != 0 ? "manual" : "auto";
 }
 
 bool jsonPaddleMode(cJSON *object, const char *name, uint8_t &output) {
@@ -1099,15 +1133,15 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
         i == 0 ? "" : ",", static_cast<unsigned>(p.id), safeName,
         p.isFactory ? "true" : "false", p.brewByWeight ? "true" : "false",
         static_cast<double>(goalWeightDgToGrams(p.goalWeightDg)),
-        static_cast<unsigned long>(p.minBbwBrewTimeMs),
-        static_cast<double>(p.maxRecoveryWeightG),
-        static_cast<double>(p.minRecoveryWeightG),
-        static_cast<unsigned long>(p.maxBbwBrewTimeMs),
+        static_cast<unsigned long>(p.fastBeforeMs),
+        static_cast<double>(goalWeightDgToGrams(p.goalWeightDg + p.fastMarginDg)),
+        static_cast<double>(goalWeightDgToGrams(p.goalWeightDg - p.slowMarginDg)),
+        static_cast<unsigned long>(p.slowAfterMs),
         static_cast<unsigned long>(p.operationalWallMs),
         static_cast<unsigned long>(p.bbwProtectionMs),
-        p.fastExtractionGuardEnabled ? "true" : "false",
-        p.slowExtractionGuardEnabled ? "true" : "false",
-        bbwAlgorithmName(p.bbwAlgorithm),
+        p.fastSideEnabled ? "true" : "false",
+        p.slowSideEnabled ? "true" : "false",
+        bbwAlgorithmName(static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA)),
         p.bbwAlphaBaseline / 100.0,
         static_cast<double>(p.lineaMicraBrewTargetDeciC) / 10.0);
     if (n < 0 || static_cast<size_t>(n) >= cap - used) {

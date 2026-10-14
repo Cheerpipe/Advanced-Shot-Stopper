@@ -147,14 +147,23 @@ Editing reset bases alone preserves current learning and evidence.
 Settings status publishes active-preset identity, both offsets, alpha baseline, gain/provenance
 and evidence count together in the existing coherent control snapshot.
 
-Settings schema 0 uses the current 344-byte `RuntimeConfig`, 108-byte
-`ShotPreset`, and 3,344-byte settings blob. Candidate
+Settings schema 1 uses the 312-byte `RuntimeConfig`, 76-byte `ShotPreset`, and
+3,056-byte settings blob. A preset stores the recipe: target, dose (reference
+only), shot time window (`fastBeforeMs`/`slowAfterMs`), fast and slow side
+switches with margins relative to the target (decigrams), weight-cut delay, max
+shot time, the optional fixed scale-loss stop time, drip compensation, grind
+hints and its statistics epoch (`learningEpoch`, a shot-log record id). Cup
+protection, accidental-touch, touch-stop fallback and the scale-loss backup
+switch are device-level `RuntimeConfig` fields and are never overlaid from a
+preset. A fresh or factory-reset bank holds four permanent factory presets (ids
+1–4: Double · Adaptive, Single · Adaptive, Double · Fixed, Single · Fixed);
+they can be restored but not deleted. A golden schema-1 blob in the host tests
+proves later firmware keeps settings across OTA. Candidate
 anchors/observations/generations are RAM only; deferred persistence retains
 offsets, gain/provenance, and profile through the existing dual-slot owner.
 `powerManagementEnabled`, webhook preset delivery, and Allow rinse while Armed
 are current explicit fields. Presets never copy the global power setting.
-`touchStopFallbackEnabled` is an explicit field in the runtime config and every
-preset, defaulting to true. Blob sizes, revisions and
+`touchStopFallbackEnabled` is a device-level runtime field, defaulting to true. Blob sizes, revisions and
 dual-slot ownership remain unchanged. Other lengths and schemas are rejected.
 The shot log is the authority for a completed shot: confirmed, non-rinse,
 strictly more than 12,000 ms of brewing and a finite settled yield strictly
@@ -352,14 +361,14 @@ scale's initial connection retain their
 own policy application paths. Persistence and status publication are independent
 of these operational triggers. No callbacks run from an ISR or across a flash
 write, and the OTA update path remains available. The settings layout is
-schema 0; blobs from earlier firmware are rejected.
+schema 1; blobs from earlier firmware are rejected.
 
 ## Residual qualification
 
-`RuntimeConfig` uses a 344-byte fixed layout inside the current schema-3
-settings blob. `autoTareOutsideBrew` remains a global machine setting rather
-than part of the per-shot/preset recipe snapshot. Only the explicitly supported
-same-layout schema-1/2 records are converted at boot. The optional idle accessory retare uses spare bit 6 of
+`RuntimeConfig` uses a 312-byte fixed layout inside the schema-1 settings blob.
+`autoTareOutsideBrew` remains a global machine setting rather than part of the
+per-shot/preset recipe snapshot. No records from earlier schemas are converted
+at boot. The optional idle accessory retare uses spare bit 6 of
 the already-packed `noScaleBbwMode` byte. New and factory-reset records default
 on; existing saved records retain their stored bit, including OFF. The bit is
 preserved when the no-scale mode changes; this bit itself does not alter the blob.

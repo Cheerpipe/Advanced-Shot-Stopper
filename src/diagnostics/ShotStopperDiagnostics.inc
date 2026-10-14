@@ -441,14 +441,14 @@ void publishControlStatus() {
         session.slowExtractionExtended && slowExtractionGuardSession();
     next.cycleTargetReachedEarly = session.targetReachedEarly;
     if (next.cycleExtractionExtended) {
-      next.cycleActiveStopWeightG = session.config.maxRecoveryWeightG;
+      next.cycleActiveStopWeightG = goalWeightDgToGrams(session.config.goalWeightDg + session.config.fastMarginDg);
       const uint32_t elapsed = next.cycleElapsedMs;
       next.cycleMinBbwBrewTimeRemainingMs =
-          elapsed >= session.config.minBbwBrewTimeMs
+          elapsed >= session.config.fastBeforeMs
               ? 0U
-              : session.config.minBbwBrewTimeMs - elapsed;
+              : session.config.fastBeforeMs - elapsed;
     } else if (next.cycleSlowExtractionExtended) {
-      next.cycleActiveStopWeightG = session.config.minRecoveryWeightG;
+      next.cycleActiveStopWeightG = goalWeightDgToGrams(session.config.goalWeightDg - session.config.slowMarginDg);
       next.cycleMinBbwBrewTimeRemainingMs = 0;
     } else {
       next.cycleActiveStopWeightG =
@@ -477,8 +477,10 @@ void publishControlStatus() {
   }
   {
     const ShotPreset &active = activeShotPreset(presetBank);
-    next.autoToManualGuardTrendMs = autoToManualGuardTrendMs(
-        active.autoToManualGuardSamplesDs, active.operationalWallMs);
+    // Interim scale-loss deadline: fixed time, else the window's end.
+    next.autoToManualGuardTrendMs = active.scaleLossFixedMs != 0
+                                         ? active.scaleLossFixedMs
+                                         : active.slowAfterMs;
   }
   next.noScaleShotGuardEnabled = noScaleBbwEnabled(runtimeConfig.noScaleBbwMode);
   next.noScaleShotGuardArmed = noScaleShotGuardArmed;

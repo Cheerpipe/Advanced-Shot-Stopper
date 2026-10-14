@@ -21,6 +21,16 @@ your network.
   and machine-profile compatibility ID, and must not be older than the running
   version (downgrades are refused).
 
+### Updating from 1.0
+
+The release with the smooth cut and four factory presets changes how settings
+are stored. Install it over USB with `--erase-all` (see
+[Build](../BUILD.md#other-clean-install-cutovers)). Updating over Wi-Fi from 1.0
+is not supported: the controller would restart with factory settings, Wi-Fi
+included, and open its setup network. If that happens, join the setup network
+and set up Wi-Fi again, or reinstall over USB. Export your shots first
+(**Stats → Export**); shot history is erased. Later updates work over Wi-Fi.
+
 Compatibility mode does not restrict updates: with the [firmware mode
 switch](../settings/firmware-mode.md) off, the Admin **Firmware update**
 section and the whole OTA pipeline keep working.

@@ -156,13 +156,17 @@ newly registered receiver is reachable.
 Returns a bounded snapshot:
 
 ```json
-{"apiVersion":1,"activeId":2,"revision":19,"items":[
-  {"id":2,"name":"Double","isFactory":true},
-  {"id":1,"name":"Single","isFactory":true}
+{"apiVersion":1,"activeId":1,"revision":19,"items":[
+  {"id":1,"name":"Double · Adaptive","isFactory":true},
+  {"id":2,"name":"Single · Adaptive","isFactory":true},
+  {"id":3,"name":"Double · Fixed","isFactory":true},
+  {"id":4,"name":"Single · Fixed","isFactory":true}
 ]}
 ```
 
-Preset IDs are stable while an item exists and names are unique.
+Preset IDs are stable while an item exists and names are unique. A fresh or
+factory-reset controller has the four factory presets above (ids 1–4), which can
+be restored but not deleted.
 
 ### `PUT /api/v1/integration/presets/active`
 
@@ -179,9 +183,11 @@ Requires `baseRevision` plus exactly one setting. Boolean settings are
 `cupProtectionEnabled`; `noScaleBbwMode` accepts `off`, `warn_once`, or
 `require_scale`. Extra, duplicate, or incorrectly typed fields are rejected.
 
-`brewByWeight` changes the current session override, `noScaleBbwMode` changes
-the shared machine policy, and the five guard values change only the active
-preset. The durable confirmation and authoritative-refresh rules are identical
+`brewByWeight` changes the current session override. `noScaleBbwMode`,
+`autoToManualGuardEnabled` (the scale-loss backup), `avoidAccidentalTouchEnabled`
+and `cupProtectionEnabled` change shared settings that apply to every preset.
+`fastExtractionGuardEnabled` and `slowExtractionGuardEnabled` change only the
+active preset's fast and slow sides. The durable confirmation and authoritative-refresh rules are identical
 to active-preset selection.
 
 ### `POST /api/v1/integration/restart`

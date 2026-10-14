@@ -5,84 +5,46 @@
 
 namespace shotstopper {
 
-inline void seedAutoToManualSamples(ShotPreset &preset) {
-  resetAutoToManualGuardSamples(preset.autoToManualGuardSamplesDs,
-                                preset.autoToManualGuardBaselineMs);
-}
-
+// Double · Adaptive recipe values; every new or reset preset starts here.
 inline void fillDoubleFirmwareDefaults(ShotPreset &preset) {
   preset = ShotPreset{};
-  preset.brewByWeight = true;
-  preset.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
-  preset.operationalWallMs = DEFAULT_OPERATIONAL_WALL_MS;
-  preset.bbwProtectionMs = DEFAULT_BBW_PROTECTION_MS;
   preset.weightOffsetBaselineG = DEFAULT_WEIGHT_OFFSET_G;
-  preset.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
-  preset.fastExtractionGuardEnabled = true;
-  preset.maxRecoveryWeightG = DEFAULT_MAX_RECOVERY_WEIGHT_G;
-  preset.minBbwBrewTimeMs = DEFAULT_MIN_BBW_BREW_TIME_MS;
-  preset.slowExtractionGuardEnabled = true;
-  preset.minRecoveryWeightG = DEFAULT_MIN_RECOVERY_WEIGHT_G;
-  preset.maxBbwBrewTimeMs = DEFAULT_MAX_BBW_BREW_TIME_MS;
-  preset.autoToManualGuardEnabled = true;
-  preset.autoToManualGuardLimitMode =
-      static_cast<uint8_t>(AutoToManualGuardLimitMode::AUTO);
-  preset.autoToManualGuardManualLimitMs =
-      DEFAULT_AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT_MS;
-  preset.autoToManualGuardBaselineMs =
-      DEFAULT_AUTO_TO_MANUAL_GUARD_BASELINE_MS;
-  preset.cupProtectionEnabled = true;
-  preset.stopIfCupRemoved = true;
-  preset.requireCupToStart = false;
-  preset.avoidAccidentalTouchEnabled = true;
-  preset.touchStopFallbackEnabled = true;
-  seedAutoToManualSamples(preset);
+  preset.bbwEwmaOffsetG = DEFAULT_WEIGHT_OFFSET_G;
 }
 
-inline void fillFactorySinglePreset(ShotPreset &preset) {
+inline void fillFactoryShotPreset(ShotPreset &preset, uint8_t id) {
   fillDoubleFirmwareDefaults(preset);
-  preset.id = FACTORY_PRESET_ID_SINGLE;
-  preset.operationalWallMs = DEFAULT_OPERATIONAL_WALL_MS;
-  preset.bbwProtectionMs = DEFAULT_BBW_PROTECTION_MS;
-  preset.brewByWeight = true;
+  preset.id = id;
   preset.isFactory = true;
-  copyCString(preset.name, SHOT_PRESET_NAME_CAPACITY, "Single");
-  preset.goalWeightDg = FACTORY_SINGLE_GOAL_WEIGHT_DG;
-  preset.maxRecoveryWeightG = FACTORY_SINGLE_MAX_RECOVERY_WEIGHT_G;
-  preset.minBbwBrewTimeMs = FACTORY_SINGLE_MIN_BBW_BREW_TIME_MS;
-  preset.minRecoveryWeightG = FACTORY_SINGLE_MIN_RECOVERY_WEIGHT_G;
-  preset.maxBbwBrewTimeMs = FACTORY_SINGLE_MAX_BBW_BREW_TIME_MS;
-  preset.weightOffsetBaselineG = FACTORY_SINGLE_WEIGHT_OFFSET_G;
-  preset.weightOffsetG = FACTORY_SINGLE_WEIGHT_OFFSET_G;
-  preset.bbwEwmaOffsetG = FACTORY_SINGLE_WEIGHT_OFFSET_G;
-  // Business rule: Single preset defaults keep both extraction guards enabled.
-  preset.fastExtractionGuardEnabled = true;
-  preset.slowExtractionGuardEnabled = true;
-  preset.autoToManualGuardEnabled = true;
-  preset.autoToManualGuardLimitMode =
-      static_cast<uint8_t>(AutoToManualGuardLimitMode::AUTO);
-  preset.autoToManualGuardManualLimitMs =
-      DEFAULT_AUTO_TO_MANUAL_GUARD_MANUAL_LIMIT_MS;
-  preset.autoToManualGuardBaselineMs =
-      DEFAULT_AUTO_TO_MANUAL_GUARD_BASELINE_MS;
-}
-
-inline void fillFactoryDoublePreset(ShotPreset &preset) {
-  fillDoubleFirmwareDefaults(preset);
-  preset.id = FACTORY_PRESET_ID_DOUBLE;
-  preset.isFactory = true;
-  copyCString(preset.name, SHOT_PRESET_NAME_CAPACITY, "Double");
-  preset.minRecoveryWeightG = FACTORY_DOUBLE_MIN_RECOVERY_WEIGHT_G;
+  const bool single = id == FACTORY_PRESET_ID_SINGLE_ADAPTIVE ||
+                      id == FACTORY_PRESET_ID_SINGLE_FIXED;
+  const bool adaptive = id == FACTORY_PRESET_ID_DOUBLE_ADAPTIVE ||
+                        id == FACTORY_PRESET_ID_SINGLE_ADAPTIVE;
+  copyCString(preset.name, SHOT_PRESET_NAME_CAPACITY,
+              single ? (adaptive ? "Single \xC2\xB7 Adaptive" : "Single \xC2\xB7 Fixed")
+                     : (adaptive ? "Double \xC2\xB7 Adaptive" : "Double \xC2\xB7 Fixed"));
+  if (single) {
+    preset.goalWeightDg = FACTORY_SINGLE_GOAL_WEIGHT_DG;
+    preset.doseDg = FACTORY_SINGLE_DOSE_DG;
+    preset.fastMarginDg = FACTORY_SINGLE_FAST_MARGIN_DG;
+    preset.slowMarginDg = FACTORY_SINGLE_SLOW_MARGIN_DG;
+    preset.fastBeforeMs = FACTORY_SINGLE_FAST_BEFORE_MS;
+    preset.slowAfterMs = FACTORY_SINGLE_SLOW_AFTER_MS;
+    preset.weightOffsetBaselineG = FACTORY_SINGLE_WEIGHT_OFFSET_G;
+    preset.bbwEwmaOffsetG = FACTORY_SINGLE_WEIGHT_OFFSET_G;
+  }
+  // Fixed presets keep their margins stored but always stop at the target.
+  preset.fastSideEnabled = adaptive;
+  preset.slowSideEnabled = adaptive;
 }
 
 inline void seedDefaultShotPresetBank(ShotPresetBank &bank) {
   bank = ShotPresetBank{};
-  bank.count = 2;
-  bank.activeId = FACTORY_PRESET_ID_DOUBLE;
-  bank.nextId = 3;
-  // Double first: primary / default recipe most users run.
-  fillFactoryDoublePreset(bank.presets[0]);
-  fillFactorySinglePreset(bank.presets[1]);
+  bank.count = FACTORY_PRESET_COUNT;
+  bank.activeId = FACTORY_PRESET_ID_DOUBLE_ADAPTIVE;
+  bank.nextId = FACTORY_PRESET_COUNT + 1;
+  for (uint8_t i = 0; i < FACTORY_PRESET_COUNT; ++i)
+    fillFactoryShotPreset(bank.presets[i], static_cast<uint8_t>(i + 1));
 }
 
 inline int findShotPresetIndex(const ShotPresetBank &bank, uint8_t id) {
@@ -92,17 +54,6 @@ inline int findShotPresetIndex(const ShotPresetBank &bank, uint8_t id) {
     }
   }
   return -1;
-}
-
-inline void preferDoubleBeforeSingle(ShotPresetBank &bank) {
-  const int singleIdx = findShotPresetIndex(bank, FACTORY_PRESET_ID_SINGLE);
-  const int doubleIdx = findShotPresetIndex(bank, FACTORY_PRESET_ID_DOUBLE);
-  if (singleIdx < 0 || doubleIdx < 0 || doubleIdx < singleIdx) {
-    return;
-  }
-  const ShotPreset tmp = bank.presets[singleIdx];
-  bank.presets[singleIdx] = bank.presets[doubleIdx];
-  bank.presets[doubleIdx] = tmp;
 }
 
 inline ShotPreset *mutableShotPreset(ShotPresetBank &bank, uint8_t id) {
@@ -139,41 +90,24 @@ inline bool validShotPresetName(const char *name) {
   return length > 0 && length < SHOT_PRESET_NAME_CAPACITY;
 }
 
+inline void applyShotPresetToConfig(const ShotPreset &preset,
+                                    RuntimeConfig &config,
+                                    bool keepSessionTimerOnly);
+
 inline bool validateShotPresetRecipe(const ShotPreset &preset,
                                      uint32_t machineRetareWindowMs,
                                      bool machineAutoRetare) {
-  if (preset.bbwAlgorithm != static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA) ||
-      !validBbwAlpha(preset.bbwEwmaAlpha) ||
-      !validBbwAlpha(preset.bbwAlphaBaseline) ||
-      preset.bbwAlphaLearned > 1 || preset.bbwProfileVersion != BBW_PROFILE_VERSION ||
-      preset.lineaMicraBrewTargetDeciC <
-          LINEA_MICRA_BREW_TARGET_MIN_DECI_C ||
-      preset.lineaMicraBrewTargetDeciC >
-          LINEA_MICRA_BREW_TARGET_MAX_DECI_C ||
+  if (!validBbwAlpha(preset.bbwEwmaAlpha) ||
+      !validBbwAlpha(preset.bbwAlphaBaseline) || preset.bbwAlphaLearned > 1 ||
+      preset.lineaMicraBrewTargetDeciC < LINEA_MICRA_BREW_TARGET_MIN_DECI_C ||
+      preset.lineaMicraBrewTargetDeciC > LINEA_MICRA_BREW_TARGET_MAX_DECI_C ||
+      preset.doseDg < MIN_DOSE_DG || preset.doseDg > MAX_DOSE_DG ||
       !std::isfinite(preset.bbwEwmaOffsetG) || preset.bbwEwmaOffsetG < 0.0f ||
       preset.bbwEwmaOffsetG > MAX_OFFSET_G) return false;
   RuntimeConfig probe;
-  probe.goalWeightDg = preset.goalWeightDg;
-  probe.weightOffsetG = preset.weightOffsetG;
-  probe.weightOffsetBaselineG = preset.weightOffsetBaselineG;
-  probe.timerOnly = !preset.brewByWeight;
-  probe.bbwProtectionMs = preset.bbwProtectionMs;
-  probe.operationalWallMs = preset.operationalWallMs;
-  probe.fastExtractionGuardEnabled = preset.fastExtractionGuardEnabled;
-  probe.maxRecoveryWeightG = preset.maxRecoveryWeightG;
-  probe.minBbwBrewTimeMs = preset.minBbwBrewTimeMs;
-  probe.slowExtractionGuardEnabled = preset.slowExtractionGuardEnabled;
-  probe.minRecoveryWeightG = preset.minRecoveryWeightG;
-  probe.maxBbwBrewTimeMs = preset.maxBbwBrewTimeMs;
-  probe.autoToManualGuardEnabled = preset.autoToManualGuardEnabled;
-  probe.autoToManualGuardLimitMode = preset.autoToManualGuardLimitMode;
-  probe.autoToManualGuardManualLimitMs = preset.autoToManualGuardManualLimitMs;
-  probe.autoToManualGuardBaselineMs = preset.autoToManualGuardBaselineMs;
   probe.autoRetare = machineAutoRetare;
   probe.retareWindowMs = machineRetareWindowMs;
-  // Machine defaults for fields validateRuntimeConfig still checks.
-  probe.rinseGestureMs = DEFAULT_RINSE_GESTURE_MS;
-  probe.rinseDurationMs = DEFAULT_RINSE_DURATION_MS;
+  applyShotPresetToConfig(preset, probe, false);
   return validateRuntimeConfig(probe) == ConfigValidationError::NONE;
 }
 
@@ -213,6 +147,12 @@ inline bool validateShotPresetBank(const ShotPresetBank &bank,
   return true;
 }
 
+inline uint32_t roundUpToWindowStep(uint32_t ms) {
+  return (ms + WINDOW_STEP_MS - 1) / WINDOW_STEP_MS * WINDOW_STEP_MS;
+}
+
+// Structural repair only; a recipe that still fails validation is reset to
+// its factory (or Double · Adaptive) values, keeping identity and name.
 inline void ensureShotPresetBank(ShotPresetBank &bank,
                                  uint32_t machineRetareWindowMs,
                                  bool machineAutoRetare) {
@@ -220,12 +160,9 @@ inline void ensureShotPresetBank(ShotPresetBank &bank,
     seedDefaultShotPresetBank(bank);
     return;
   }
-  preferDoubleBeforeSingle(bank);
-  // Invalid activeId: keep customs; retarget to the first slot.
   if (findShotPresetIndex(bank, bank.activeId) < 0) {
     bank.activeId = bank.presets[0].id;
   }
-  // Structural repair only — never wipe customs for cross-field clamp issues.
   for (uint8_t i = 0; i < bank.count; ++i) {
     ShotPreset &preset = bank.presets[i];
     if (!validShotPresetName(preset.name)) {
@@ -236,73 +173,47 @@ inline void ensureShotPresetBank(ShotPresetBank &bank,
         preset.operationalWallMs > HARD_MAX_CIRCUIT_CLOSED_MS) {
       preset.operationalWallMs = DEFAULT_OPERATIONAL_WALL_MS;
     }
-    if (preset.minBbwBrewTimeMs >= preset.operationalWallMs) {
-      preset.minBbwBrewTimeMs = preset.operationalWallMs > 1000
-                                 ? preset.operationalWallMs - 1000
-                                 : DEFAULT_MIN_BBW_BREW_TIME_MS;
-    }
     if (machineAutoRetare &&
         preset.bbwProtectionMs <
             machineRetareWindowMs + MIN_BBW_PROTECTION_AFTER_RETARE_MS) {
       preset.bbwProtectionMs =
           machineRetareWindowMs + MIN_BBW_PROTECTION_AFTER_RETARE_MS;
     }
-    if (preset.bbwProtectionMs > preset.operationalWallMs) {
-      preset.bbwProtectionMs = preset.operationalWallMs;
+    if (preset.fastBeforeMs < preset.bbwProtectionMs + MIN_WINDOW_AFTER_DELAY_MS) {
+      preset.fastBeforeMs =
+          roundUpToWindowStep(preset.bbwProtectionMs + MIN_WINDOW_AFTER_DELAY_MS);
     }
-    if (preset.minBbwBrewTimeMs < preset.bbwProtectionMs) {
-      preset.minBbwBrewTimeMs = preset.bbwProtectionMs;
+    if (preset.slowAfterMs < preset.fastBeforeMs + MIN_WINDOW_SPAN_MS) {
+      preset.slowAfterMs = preset.fastBeforeMs + MIN_WINDOW_SPAN_MS;
+    }
+    if (preset.scaleLossFixedMs != 0 &&
+        (preset.scaleLossFixedMs < preset.bbwProtectionMs ||
+         preset.scaleLossFixedMs > preset.operationalWallMs)) {
+      preset.scaleLossFixedMs = 0;
     }
     if (!std::isfinite(preset.weightOffsetBaselineG) ||
         preset.weightOffsetBaselineG < 0.0f ||
         preset.weightOffsetBaselineG > MAX_OFFSET_G) {
       preset.weightOffsetBaselineG = DEFAULT_WEIGHT_OFFSET_G;
     }
-    if (!std::isfinite(preset.weightOffsetG) || preset.weightOffsetG < 0.0f ||
-        preset.weightOffsetG > MAX_OFFSET_G) {
-      preset.weightOffsetG = preset.weightOffsetBaselineG;
-    }
-    if (preset.fastExtractionGuardEnabled) {
-      if (!std::isfinite(preset.maxRecoveryWeightG) ||
-          preset.maxRecoveryWeightG < MIN_MAX_RECOVERY_WEIGHT_G ||
-          preset.maxRecoveryWeightG > MAX_MAX_RECOVERY_WEIGHT_G ||
-          preset.maxRecoveryWeightG <=
-              goalWeightDgToGrams(preset.goalWeightDg)) {
-        const float repaired =
-            goalWeightDgToGrams(preset.goalWeightDg) + 0.1f;
-        if (repaired >= MIN_MAX_RECOVERY_WEIGHT_G &&
-            repaired <= MAX_MAX_RECOVERY_WEIGHT_G &&
-            repaired > goalWeightDgToGrams(preset.goalWeightDg)) {
-          preset.maxRecoveryWeightG = repaired;
-        } else {
-          preset.fastExtractionGuardEnabled = false;
-        }
+    if (!validateShotPresetRecipe(preset, machineRetareWindowMs,
+                                  machineAutoRetare)) {
+      ShotPreset reset;
+      if (factoryShotPresetId(preset.id) && preset.isFactory) {
+        fillFactoryShotPreset(reset, preset.id);
+      } else {
+        fillDoubleFirmwareDefaults(reset);
+        reset.id = preset.id;
       }
-      if (preset.fastExtractionGuardEnabled &&
-          !validateShotPresetRecipe(preset, machineRetareWindowMs,
-                                    machineAutoRetare)) {
-        preset.fastExtractionGuardEnabled = false;
+      memcpy(reset.name, preset.name, sizeof(reset.name));
+      reset.isFactory = preset.isFactory;
+      if (machineAutoRetare &&
+          reset.bbwProtectionMs <
+              machineRetareWindowMs + MIN_BBW_PROTECTION_AFTER_RETARE_MS) {
+        reset.bbwProtectionMs =
+            machineRetareWindowMs + MIN_BBW_PROTECTION_AFTER_RETARE_MS;
       }
-    }
-    if (preset.slowExtractionGuardEnabled) {
-      RuntimeConfig probe = {};
-      probe.goalWeightDg = preset.goalWeightDg;
-      probe.operationalWallMs = preset.operationalWallMs;
-      probe.bbwProtectionMs = preset.bbwProtectionMs;
-      probe.fastExtractionGuardEnabled = preset.fastExtractionGuardEnabled;
-      probe.minBbwBrewTimeMs = preset.minBbwBrewTimeMs;
-      probe.slowExtractionGuardEnabled = true;
-      probe.minRecoveryWeightG = preset.minRecoveryWeightG;
-      probe.maxBbwBrewTimeMs = preset.maxBbwBrewTimeMs;
-      repairSlowExtractionGuard(probe);
-      preset.slowExtractionGuardEnabled = probe.slowExtractionGuardEnabled;
-      preset.minRecoveryWeightG = probe.minRecoveryWeightG;
-      preset.maxBbwBrewTimeMs = probe.maxBbwBrewTimeMs;
-      if (preset.slowExtractionGuardEnabled &&
-          !validateShotPresetRecipe(preset, machineRetareWindowMs,
-                                    machineAutoRetare)) {
-        preset.slowExtractionGuardEnabled = false;
-      }
+      preset = reset;
     }
   }
   if (!shotPresetBankStructurallyValid(bank)) {
@@ -347,33 +258,24 @@ inline bool setShotPresetLineaMicraBrewTarget(ShotPresetBank &bank, uint8_t id,
   return true;
 }
 
+// Overlays the active preset's recipe on the device config. Device-level
+// fields (cup protection, touch, scale-loss switch) are never overlaid.
 inline void applyShotPresetToConfig(const ShotPreset &preset,
                                     RuntimeConfig &config,
                                     bool keepSessionTimerOnly) {
   const bool sessionManual = keepSessionTimerOnly && config.timerOnly;
   config.goalWeightDg = preset.goalWeightDg;
-  config.bbwAlgorithm = preset.bbwAlgorithm;
   config.weightOffsetG = preset.bbwEwmaOffsetG;
   config.weightOffsetBaselineG = preset.weightOffsetBaselineG;
   config.bbwProtectionMs = preset.bbwProtectionMs;
   config.operationalWallMs = preset.operationalWallMs;
-  config.fastExtractionGuardEnabled = preset.fastExtractionGuardEnabled;
-  config.maxRecoveryWeightG = preset.maxRecoveryWeightG;
-  config.minBbwBrewTimeMs = preset.minBbwBrewTimeMs;
-  config.slowExtractionGuardEnabled = preset.slowExtractionGuardEnabled;
-  config.minRecoveryWeightG = preset.minRecoveryWeightG;
-  config.maxBbwBrewTimeMs = preset.maxBbwBrewTimeMs;
-  config.autoToManualGuardEnabled = preset.autoToManualGuardEnabled;
-  config.autoToManualGuardLimitMode = preset.autoToManualGuardLimitMode;
-  config.autoToManualGuardManualLimitMs = preset.autoToManualGuardManualLimitMs;
-  config.autoToManualGuardBaselineMs = preset.autoToManualGuardBaselineMs;
-  config.cupProtectionEnabled = preset.cupProtectionEnabled;
-  config.stopIfCupRemoved = preset.stopIfCupRemoved;
-  config.requireCupToStart = preset.requireCupToStart;
-  config.avoidAccidentalTouchEnabled = preset.avoidAccidentalTouchEnabled;
-  config.touchStopFallbackEnabled = preset.touchStopFallbackEnabled;
-  memcpy(config.autoToManualGuardSamplesDs, preset.autoToManualGuardSamplesDs,
-         sizeof(config.autoToManualGuardSamplesDs));
+  config.fastSideEnabled = preset.fastSideEnabled;
+  config.fastMarginDg = preset.fastMarginDg;
+  config.fastBeforeMs = preset.fastBeforeMs;
+  config.slowSideEnabled = preset.slowSideEnabled;
+  config.slowMarginDg = preset.slowMarginDg;
+  config.slowAfterMs = preset.slowAfterMs;
+  config.scaleLossFixedMs = preset.scaleLossFixedMs;
   config.timerOnly = sessionManual ? true : !preset.brewByWeight;
 }
 
@@ -384,30 +286,32 @@ inline RuntimeConfig composeEffectiveConfig(const RuntimeConfig &machine,
   return effective;
 }
 
+// Device-level protections shared by every preset.
+inline void copyDeviceProtectionFromConfig(const RuntimeConfig &from,
+                                           RuntimeConfig &to) {
+  to.cupProtectionEnabled = from.cupProtectionEnabled;
+  to.stopIfCupRemoved = from.stopIfCupRemoved;
+  to.requireCupToStart = from.requireCupToStart;
+  to.avoidAccidentalTouchEnabled = from.avoidAccidentalTouchEnabled;
+  to.touchStopFallbackEnabled = from.touchStopFallbackEnabled;
+  to.scaleLossEnabled = from.scaleLossEnabled;
+}
+
+// Writes the editable recipe; learned drip state is never copied here.
 inline void copyUserRecipeFromConfig(const RuntimeConfig &config,
                                      ShotPreset &preset) {
-  preset.bbwAlgorithm = config.bbwAlgorithm;
   preset.brewByWeight = !config.timerOnly;
   preset.goalWeightDg = config.goalWeightDg;
   preset.operationalWallMs = config.operationalWallMs;
   preset.bbwProtectionMs = config.bbwProtectionMs;
   preset.weightOffsetBaselineG = config.weightOffsetBaselineG;
-  // Do not overwrite learned weightOffsetG or A→M samples here.
-  preset.fastExtractionGuardEnabled = config.fastExtractionGuardEnabled;
-  preset.maxRecoveryWeightG = config.maxRecoveryWeightG;
-  preset.minBbwBrewTimeMs = config.minBbwBrewTimeMs;
-  preset.slowExtractionGuardEnabled = config.slowExtractionGuardEnabled;
-  preset.minRecoveryWeightG = config.minRecoveryWeightG;
-  preset.maxBbwBrewTimeMs = config.maxBbwBrewTimeMs;
-  preset.autoToManualGuardEnabled = config.autoToManualGuardEnabled;
-  preset.autoToManualGuardLimitMode = config.autoToManualGuardLimitMode;
-  preset.autoToManualGuardManualLimitMs = config.autoToManualGuardManualLimitMs;
-  preset.autoToManualGuardBaselineMs = config.autoToManualGuardBaselineMs;
-  preset.cupProtectionEnabled = config.cupProtectionEnabled;
-  preset.stopIfCupRemoved = config.stopIfCupRemoved;
-  preset.requireCupToStart = config.requireCupToStart;
-  preset.avoidAccidentalTouchEnabled = config.avoidAccidentalTouchEnabled;
-  preset.touchStopFallbackEnabled = config.touchStopFallbackEnabled;
+  preset.fastSideEnabled = config.fastSideEnabled;
+  preset.fastMarginDg = config.fastMarginDg;
+  preset.fastBeforeMs = config.fastBeforeMs;
+  preset.slowSideEnabled = config.slowSideEnabled;
+  preset.slowMarginDg = config.slowMarginDg;
+  preset.slowAfterMs = config.slowAfterMs;
+  preset.scaleLossFixedMs = config.scaleLossFixedMs;
 }
 
 inline bool allocateShotPresetId(ShotPresetBank &bank, uint8_t &outId) {
@@ -596,9 +500,8 @@ inline bool deleteShotPreset(ShotPresetBank &bank, uint8_t id) {
   if (index < 0) {
     return false;
   }
-  // Factory Single/Double are permanent slots — edit or restore only.
-  if (bank.presets[index].isFactory || id == FACTORY_PRESET_ID_SINGLE ||
-      id == FACTORY_PRESET_ID_DOUBLE) {
+  // The four factory presets are permanent slots — edit or restore only.
+  if (bank.presets[index].isFactory || factoryShotPresetId(id)) {
     return false;
   }
   for (uint8_t i = static_cast<uint8_t>(index); i + 1 < bank.count; ++i) {
@@ -614,24 +517,14 @@ inline bool deleteShotPreset(ShotPresetBank &bank, uint8_t id) {
 
 inline bool restoreFactoryShotPresetValues(ShotPresetBank &bank, uint8_t id) {
   ShotPreset *preset = mutableShotPreset(bank, id);
-  if (preset == nullptr || !preset->isFactory) {
+  if (preset == nullptr || !preset->isFactory || !factoryShotPresetId(id)) {
     return false;
   }
   char name[SHOT_PRESET_NAME_CAPACITY];
   memcpy(name, preset->name, sizeof(name));
-  if (id == FACTORY_PRESET_ID_SINGLE) {
-    fillFactorySinglePreset(*preset);
-    preset->fastExtractionGuardEnabled = true;
-    preset->slowExtractionGuardEnabled = true;
-  } else if (id == FACTORY_PRESET_ID_DOUBLE) {
-    fillFactoryDoublePreset(*preset);
-  } else {
-    return false;
-  }
+  fillFactoryShotPreset(*preset, id);
   // Keep user-facing name.
   memcpy(preset->name, name, sizeof(preset->name));
-  preset->id = id;
-  preset->isFactory = true;
   return true;
 }
 

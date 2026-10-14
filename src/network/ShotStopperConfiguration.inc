@@ -175,7 +175,8 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       "retareStabilitySamples", "retareStabilityToleranceG",
       "retareStabilityMaxGapMs", "retareStabilityMinDurationMs",
       "bbwProtectionMs", "fastExtractionGuardEnabled", "avoidAccidentalTouchEnabled",
-      "touchStopFallbackEnabled",
+      "touchStopFallbackEnabled", "cupProtectionEnabled", "stopIfCupRemoved",
+      "requireCupToStart",
       "maxRecoveryWeightG",
       "minBbwBrewTimeMs", "slowExtractionGuardEnabled", "minRecoveryWeightG",
       "maxBbwBrewTimeMs", "autoToManualGuardEnabled", "autoToManualGuardLimitMode",
@@ -189,6 +190,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
       "serialLogLevel", "serialDebugOutput", "ringRetainLogLevel", "showDiagnosticPage",
       "powerManagementEnabled"};
   const char *parseError = nullptr;
+  V1RecipeWire v1Recipe;
   size_t settingFieldCount = 0;
   if (root != nullptr) {
     for (cJSON *item = root->child; item != nullptr; item = item->next) {
@@ -383,7 +385,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
     parseError = "bbwProtectionMs must be an integer (milliseconds).";
   } else if (jsonFieldPresent(root, "fastExtractionGuardEnabled") &&
              !jsonBoolean(root, "fastExtractionGuardEnabled",
-                          candidate.fastExtractionGuardEnabled)) {
+                          candidate.fastSideEnabled)) {
     parseError = "fastExtractionGuardEnabled must be a boolean.";
   } else if (jsonFieldPresent(root, "avoidAccidentalTouchEnabled") &&
              !jsonBoolean(root, "avoidAccidentalTouchEnabled",
@@ -393,43 +395,33 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
              !jsonBoolean(root, "touchStopFallbackEnabled",
                           candidate.touchStopFallbackEnabled)) {
     parseError = "touchStopFallbackEnabled must be a boolean.";
-  } else if (jsonFieldPresent(root, "maxRecoveryWeightG") &&
-             !jsonFloat(root, "maxRecoveryWeightG",
-                        candidate.maxRecoveryWeightG)) {
-    parseError = "maxRecoveryWeightG must be a number.";
+  } else if (jsonFieldPresent(root, "cupProtectionEnabled") &&
+             !jsonBoolean(root, "cupProtectionEnabled",
+                          candidate.cupProtectionEnabled)) {
+    parseError = "cupProtectionEnabled must be a boolean.";
+  } else if (jsonFieldPresent(root, "stopIfCupRemoved") &&
+             !jsonBoolean(root, "stopIfCupRemoved", candidate.stopIfCupRemoved)) {
+    parseError = "stopIfCupRemoved must be a boolean.";
+  } else if (jsonFieldPresent(root, "requireCupToStart") &&
+             !jsonBoolean(root, "requireCupToStart", candidate.requireCupToStart)) {
+    parseError = "requireCupToStart must be a boolean.";
   } else if (jsonFieldPresent(root, "minBbwBrewTimeMs") &&
-             !jsonUint32(root, "minBbwBrewTimeMs", candidate.minBbwBrewTimeMs)) {
+             !jsonUint32(root, "minBbwBrewTimeMs", candidate.fastBeforeMs)) {
     parseError = "minBbwBrewTimeMs must be an integer (milliseconds).";
   } else if (jsonFieldPresent(root, "slowExtractionGuardEnabled") &&
              !jsonBoolean(root, "slowExtractionGuardEnabled",
-                          candidate.slowExtractionGuardEnabled)) {
+                          candidate.slowSideEnabled)) {
     parseError = "slowExtractionGuardEnabled must be a boolean.";
-  } else if (jsonFieldPresent(root, "minRecoveryWeightG") &&
-             !jsonFloat(root, "minRecoveryWeightG",
-                        candidate.minRecoveryWeightG)) {
-    parseError = "minRecoveryWeightG must be a number.";
   } else if (jsonFieldPresent(root, "maxBbwBrewTimeMs") &&
-             !jsonUint32(root, "maxBbwBrewTimeMs", candidate.maxBbwBrewTimeMs)) {
+             !jsonUint32(root, "maxBbwBrewTimeMs", candidate.slowAfterMs)) {
     parseError = "maxBbwBrewTimeMs must be an integer (milliseconds).";
   } else if (jsonFieldPresent(root, "autoToManualGuardEnabled") &&
              !jsonBoolean(root, "autoToManualGuardEnabled",
-                          candidate.autoToManualGuardEnabled)) {
+                          candidate.scaleLossEnabled)) {
     parseError = "autoToManualGuardEnabled must be a boolean.";
-  } else if (jsonFieldPresent(root, "autoToManualGuardLimitMode") &&
-             !jsonAutoToManualGuardLimitMode(
-                 root, "autoToManualGuardLimitMode",
-                 candidate.autoToManualGuardLimitMode)) {
-    parseError = "autoToManualGuardLimitMode must be \"manual\" or \"auto\".";
-  } else if (jsonFieldPresent(root, "autoToManualGuardManualLimitMs") &&
-             !jsonUint32(root, "autoToManualGuardManualLimitMs",
-                         candidate.autoToManualGuardManualLimitMs)) {
-    parseError =
-        "autoToManualGuardManualLimitMs must be an integer (milliseconds).";
-  } else if (jsonFieldPresent(root, "autoToManualGuardBaselineMs") &&
-             !jsonUint32(root, "autoToManualGuardBaselineMs",
-                         candidate.autoToManualGuardBaselineMs)) {
-    parseError =
-        "autoToManualGuardBaselineMs must be an integer (milliseconds).";
+  } else if (!parseV1RecipeWire(root, v1Recipe, false)) {
+    parseError = "Recovery weights, A->M limit mode and limits must be numbers "
+                 "and \"manual\" or \"auto\".";
   } else if (jsonFieldPresent(root, "weightOffsetBaselineG") &&
              !jsonFloat(root, "weightOffsetBaselineG",
                         candidate.weightOffsetBaselineG)) {
@@ -582,6 +574,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   if (brewByWeightPresent) {
     candidate.timerOnly = !brewByWeight;
   }
+  applyV1RecipeWire(v1Recipe, candidate);
   if (legacyNoScalePresent) {
     parsedNoScaleMode = static_cast<uint8_t>(
         legacyAvoidBbwShotWithoutScale ? NoScaleBbwMode::WARN_ONCE
@@ -932,6 +925,7 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
   char presetName[SHOT_PRESET_NAME_CAPACITY] = {};
   const char *parseError = nullptr;
   PresetAction presetAction = PresetAction::APPLY;
+  V1RecipeWire v1Recipe;
   WebCommand command;
   command.type = WebCommandType::PRESET_OP;
   command.requestId = self.allocateRequestId();
@@ -989,24 +983,14 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
            !jsonFloat(root, "weightOffsetBaselineG",
                       command.config.weightOffsetBaselineG)) ||
           !jsonBoolean(root, "fastExtractionGuardEnabled",
-                       command.config.fastExtractionGuardEnabled) ||
-          !jsonFloat(root, "maxRecoveryWeightG",
-                     command.config.maxRecoveryWeightG) ||
-          !jsonUint32(root, "minBbwBrewTimeMs", command.config.minBbwBrewTimeMs) ||
+                       command.config.fastSideEnabled) ||
+          !jsonUint32(root, "minBbwBrewTimeMs", command.config.fastBeforeMs) ||
           !jsonBoolean(root, "slowExtractionGuardEnabled",
-                       command.config.slowExtractionGuardEnabled) ||
-          !jsonFloat(root, "minRecoveryWeightG",
-                     command.config.minRecoveryWeightG) ||
-          !jsonUint32(root, "maxBbwBrewTimeMs", command.config.maxBbwBrewTimeMs) ||
+                       command.config.slowSideEnabled) ||
+          !jsonUint32(root, "maxBbwBrewTimeMs", command.config.slowAfterMs) ||
+          !parseV1RecipeWire(root, v1Recipe, true) ||
           !jsonBoolean(root, "autoToManualGuardEnabled",
-                       command.config.autoToManualGuardEnabled) ||
-          !jsonAutoToManualGuardLimitMode(
-              root, "autoToManualGuardLimitMode",
-              command.config.autoToManualGuardLimitMode) ||
-          !jsonUint32(root, "autoToManualGuardManualLimitMs",
-                      command.config.autoToManualGuardManualLimitMs) ||
-          !jsonUint32(root, "autoToManualGuardBaselineMs",
-                      command.config.autoToManualGuardBaselineMs) ||
+                       command.config.scaleLossEnabled) ||
           !jsonBoolean(root, "cupProtectionEnabled",
                        command.config.cupProtectionEnabled) ||
           !jsonBoolean(root, "stopIfCupRemoved",
@@ -1021,17 +1005,17 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
         parseError = "save requires the full Brew recipe field set.";
       } else {
         command.config.timerOnly = !brewByWeight;
-        command.bbwAlgorithmSpecified = jsonFieldPresent(root, "bbwAlgorithm");
-        command.touchStopFallbackSpecified = jsonFieldPresent(root, "touchStopFallbackEnabled");
+        applyV1RecipeWire(v1Recipe, command.config);
         command.bbwBaselineSpecified = jsonFieldPresent(root, "weightOffsetBaselineG");
         const cJSON *alphaBase = cJSON_GetObjectItemCaseSensitive(root, "bbwAlphaBaseline");
         if (alphaBase && (!cJSON_IsNumber(alphaBase) ||
             !parseBbwAlphaBaseline(alphaBase->valuedouble, command.bbwAlphaBaseline)))
           parseError = "bbwAlphaBaseline must be 0.01–1.00 in steps of 0.01.";
-        char algorithm[20] = {};
-        if (command.bbwAlgorithmSpecified &&
-            (!jsonString(root, "bbwAlgorithm", algorithm, sizeof(algorithm), false) ||
-             !parseBbwAlgorithm(algorithm, command.config.bbwAlgorithm)))
+        uint8_t algorithm = 0;
+        char algorithmName[20] = {};
+        if (jsonFieldPresent(root, "bbwAlgorithm") &&
+            (!jsonString(root, "bbwAlgorithm", algorithmName, sizeof(algorithmName), false) ||
+             !parseBbwAlgorithm(algorithmName, algorithm)))
           parseError = "bbwAlgorithm must be legacy or linear_ewma.";
         if (jsonFieldPresent(root, "bbwAlpha") ||
             jsonFieldPresent(root, "bbwEwmaAlpha") ||

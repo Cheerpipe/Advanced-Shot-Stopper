@@ -22,7 +22,6 @@ namespace {
 int failures = 0;
 int testsRun = 0;
 bool hostAutoScaleWorkerProgress = true;
-uint8_t hostBbwAlgorithm = 1;
 
 #define CHECK(condition)                                                       \
   do {                                                                         \
@@ -134,7 +133,6 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   runtimeConfig = RuntimeConfig{};
   cupSettingsGeneration = 1;
   idleTareSettingsGeneration = 1;
-  runtimeConfig.bbwAlgorithm = hostBbwAlgorithm;
   bbwLearningBank = BbwLearningBank{};
   // Legacy scenarios opt out; dedicated idle-tare cases exercise the ON default.
   runtimeConfig.autoTareOutsideBrew = false;
@@ -144,8 +142,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
       static_cast<uint8_t>(AlertOutputChannel::SCALE_PRIORITY);
   runtimeConfig.autoRetare = false;
   runtimeConfig.bbwProtectionMs = 3000;
-  runtimeConfig.fastExtractionGuardEnabled = false;
-  runtimeConfig.slowExtractionGuardEnabled = false;
+  runtimeConfig.fastSideEnabled = false;
+  runtimeConfig.slowSideEnabled = false;
   runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);
   runtimeConfig.avoidAccidentalTouchEnabled = false;
   // Host scenarios assert immediate scale timer stop when the display is
@@ -442,22 +440,15 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   {
     ShotPreset &preset = mutableActiveShotPreset(presetBank);
     copyUserRecipeFromConfig(runtimeConfig, preset);
-    preset.weightOffsetG = runtimeConfig.weightOffsetG;
-    memcpy(preset.autoToManualGuardSamplesDs,
-           runtimeConfig.autoToManualGuardSamplesDs,
-           sizeof(preset.autoToManualGuardSamplesDs));
   }
   runtimeConfig = composeEffectiveConfig(runtimeConfig, presetBank);
   runtimeConfig.requireCupToStart = false;
-  mutableActiveShotPreset(presetBank).requireCupToStart = false;
   publishRecipeState();
 }
 
 void preparePendingBbwForTest() {
   pendingFinalize.pending = true;
   const ShotPreset &preset = activeShotPreset(presetBank);
-  pendingFinalize.bbwAlgorithm = preset.bbwAlgorithm;
-  pendingFinalize.bbwProfileVersion = bbwAlgorithmVersion(preset.bbwAlgorithm);
   pendingFinalize.bbwAlpha = preset.bbwEwmaAlpha;
   pendingFinalize.bbwLearningGeneration = bbwLearningBank.forPreset(
       preset.id, presetBank).generations[1];
@@ -1871,7 +1862,7 @@ void r05_regression_uses_last_ten_valid_samples() {
 
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.fastExtractionGuardEnabled = true;
+  runtimeConfig.fastSideEnabled = true;
   startCycle();
   session.extractionExtended = true;
   resetShotTrajectory(session.startedAtMs);
@@ -1879,11 +1870,11 @@ void r05_regression_uses_last_ten_valid_samples() {
     recordWeightSample(static_cast<float>(i) * 2.0f,
                        shot.startMs + static_cast<uint32_t>(i * 1000));
   }
-  CHECK(fabsf(shot.expectedEndS - 20.25f) < 0.001f);
+  CHECK(fabsf(shot.expectedEndS - 19.25f) < 0.001f);  // (40 g ceiling - 1.5 g) / 2 g/s
 
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.slowExtractionGuardEnabled = true;
+  runtimeConfig.slowSideEnabled = true;
   startCycle();
   session.slowExtractionExtended = true;
   resetShotTrajectory(session.startedAtMs);
@@ -1892,7 +1883,7 @@ void r05_regression_uses_last_ten_valid_samples() {
                        shot.startMs + static_cast<uint32_t>(i * 1000));
   }
   const float expectedSlowEndS =
-      (session.config.minRecoveryWeightG - session.config.weightOffsetG) /
+      (goalWeightDgToGrams(session.config.goalWeightDg - session.config.slowMarginDg) - session.config.weightOffsetG) /
       2.0f;
   CHECK(fabsf(shot.expectedEndS - expectedSlowEndS) < 0.001f);
 
@@ -2104,9 +2095,7 @@ void bbw01_snapshots_and_isolated_finalization() {
     const bool learn = !resetBeforeFinalize && reason == EndReason::SCALE_THRESHOLD;
     resetHarness(false, true);
     reachReadyFromBoot();
-    runtimeConfig.bbwAlgorithm = 1;
     ShotPreset &preset = mutableActiveShotPreset(presetBank);
-    preset.bbwAlgorithm = 1;
     preset.bbwEwmaAlpha = 50;
     preset.bbwAlphaLearned = 1;
     startCycle();
@@ -2126,7 +2115,7 @@ void bbw01_snapshots_and_isolated_finalization() {
     // A saved choice made after the shot does not redirect its captured policy.
     preset.bbwEwmaAlpha = 10;
     if (resetBeforeFinalize) bbwLearningBank.invalidate(origin, presetBank, 1);
-    setActiveShotPreset(presetBank, FACTORY_PRESET_ID_SINGLE);
+    setActiveShotPreset(presetBank, FACTORY_PRESET_ID_SINGLE_ADAPTIVE);
     hostMillis += 20;
     currentWeight = 36.2f;
     currentWeightReceivedAtMs = hostMillis;
@@ -2136,7 +2125,6 @@ void bbw01_snapshots_and_isolated_finalization() {
     const ShotPreset *after = mutableShotPreset(presetBank, origin);
     CHECK(fabsf(after->bbwEwmaOffsetG -
                 (learn ? used + 0.10f : used)) < 1e-5f);
-    CHECK(after->weightOffsetG == used);
     CHECK(activeShotPreset(presetBank).bbwEwmaOffsetG == 0.5f);
     ShotLogRecord record[1] = {};
     CHECK(shotLog.copyNewestFirst(record, 1) == 1);
@@ -2154,7 +2142,6 @@ void bbw02_freshness_reset_and_safety() {
   resetHarness(false, true);
   reachReadyFromBoot();
   ShotPreset &preset = mutableActiveShotPreset(presetBank);
-  preset.bbwAlgorithm = 1;
   preset.bbwEwmaAlpha = 50;
   preset.bbwAlphaLearned = 1;
   preset.bbwEwmaOffsetG = 2.0f;
@@ -2178,7 +2165,7 @@ void bbw02_freshness_reset_and_safety() {
   pendingFinalize.endReason = EndReason::ACTIVATOR;
   CHECK(!learnPendingBbw(pendingFinalize, currentWeight, true));
   CHECK(bbwLearningBank.forPreset(preset.id, presetBank).evidence.count == 0);
-  const ShotPreset other = *findShotPreset(presetBank, FACTORY_PRESET_ID_SINGLE);
+  const ShotPreset other = *findShotPreset(presetBank, FACTORY_PRESET_ID_SINGLE_ADAPTIVE);
   for (EndReason reason : {EndReason::CONFIGURED_WALL_LIMIT, EndReason::GLOBAL_LIMIT,
                            EndReason::RELAY_SAFETY_FAILURE, EndReason::CUP_REMOVED}) {
     pendingFinalize.endReason = reason;
@@ -2196,7 +2183,6 @@ void bbw02_freshness_reset_and_safety() {
   const float offsetBeforeReject = preset.bbwEwmaOffsetG;
   CHECK(!learnPendingBbw(legacy, currentWeight, true));
   CHECK(preset.bbwEwmaOffsetG == offsetBeforeReject);
-  const float retainedLegacyOffset = preset.weightOffsetG;
   auto &evidence = bbwLearningBank.forPreset(preset.id, presetBank);
   evidence.evidence.observe(2.1f, 2.0f, preset.bbwEwmaAlpha);
   const uint32_t beforeBaseGeneration = evidence.generations[1];
@@ -2232,13 +2218,12 @@ void bbw02_freshness_reset_and_safety() {
   reset.config.revision = runtimeConfig.revision;
   processWebCommand(reset);
   CHECK(preset.bbwEwmaAlpha == 37 && preset.bbwAlphaLearned == 0);
-  CHECK(preset.weightOffsetG == retainedLegacyOffset && preset.bbwEwmaOffsetG == 0.80f);
+  CHECK(preset.bbwEwmaOffsetG == 0.80f);
   CHECK(memcmp(&other, findShotPreset(presetBank, other.id), sizeof(other)) == 0);
   CHECK(bbwLearningBank.forPreset(preset.id, presetBank).evidence.count == 0);
   {
     resetHarness(false, true);
     reachReadyFromBoot();
-    runtimeConfig.bbwAlgorithm = 1;
     startCycle();
     advanceToBrew();
     endBbwProtectionForTests();
@@ -2709,7 +2694,7 @@ void w01_default_runtime_configuration_is_valid() {
   CHECK(config.operationalWallMs == DEFAULT_OPERATIONAL_WALL_MS);
   CHECK(config.rinseGestureMs == 1000);
   CHECK(!config.rinseEnabled);
-  CHECK(config.minBbwBrewTimeMs == 28000);
+  CHECK(config.fastBeforeMs == DEFAULT_FAST_BEFORE_MS);
   CHECK(config.canTareStartTimer);
   CHECK(config.postTareBaselineGraceMs == DEFAULT_POST_TARE_BASELINE_GRACE_MS);
   CHECK(config.scaleTimerStopExtraDelayMs ==
@@ -2742,11 +2727,11 @@ void w01_default_runtime_configuration_is_valid() {
                                 : AlertOutputChannel::SCALE_ONLY));
   CHECK(config.bookooMuteOnBuzzerOnly);
   CHECK(config.bookooConnectBeepLevel == DEFAULT_BOOKOO_CONNECT_BEEP_LEVEL);
-  CHECK(config.fastExtractionGuardEnabled);
-  CHECK(config.slowExtractionGuardEnabled);
-  CHECK(fabsf(config.minRecoveryWeightG - DEFAULT_MIN_RECOVERY_WEIGHT_G) <
-        0.001f);
-  CHECK(config.maxBbwBrewTimeMs == DEFAULT_MAX_BBW_BREW_TIME_MS);
+  CHECK(config.fastSideEnabled);
+  CHECK(config.slowSideEnabled);
+  CHECK(config.slowMarginDg == DEFAULT_SLOW_MARGIN_DG);
+  CHECK(config.slowAfterMs == DEFAULT_SLOW_AFTER_MS);
+  CHECK(config.scaleLossEnabled && config.scaleLossFixedMs == 0);
   CHECK(noScaleBbwModeValue(config.noScaleBbwMode) ==
         static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE));
   CHECK(idleAccessoryRetareEnabled(config.noScaleBbwMode));
@@ -2787,23 +2772,42 @@ void w02_each_runtime_field_is_validated() {
   config.bbwProtectionMs = MAX_BBW_PROTECTION_MS + 1;
   CHECK(validateRuntimeConfig(config) ==
         ConfigValidationError::BBW_PROTECTION_TIMEOUT);
+  // Smooth-cut edit rules (plan §4.3).
   config = RuntimeConfig{};
-  config.fastExtractionGuardEnabled = true;
-  config.maxRecoveryWeightG = 36.0f;
-  CHECK(validateRuntimeConfig(config) ==
-        ConfigValidationError::FAST_EXTRACTION_GUARD_RELATION);
+  config.fastMarginDg = 4;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::FAST_MARGIN);
+  config.fastMarginDg = 91;  // Over 25 % of a 36 g target.
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::FAST_MARGIN);
+  config.fastSideEnabled = false;  // An off side keeps an unchecked margin.
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
   config = RuntimeConfig{};
-  config.fastExtractionGuardEnabled = false;
-  config.slowExtractionGuardEnabled = true;
-  config.minRecoveryWeightG = 36.0f;
-  CHECK(validateRuntimeConfig(config) ==
-        ConfigValidationError::SLOW_EXTRACTION_GUARD_RELATION);
+  config.goalWeightDg = 1980;
+  config.fastMarginDg = 30;  // Target plus extra over 200 g.
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::FAST_MARGIN);
   config = RuntimeConfig{};
-  config.fastExtractionGuardEnabled = true;
-  config.slowExtractionGuardEnabled = true;
-  config.maxBbwBrewTimeMs = config.minBbwBrewTimeMs;
-  CHECK(validateRuntimeConfig(config) ==
-        ConfigValidationError::SLOW_EXTRACTION_GUARD_RELATION);
+  config.goalWeightDg = 100;
+  config.fastMarginDg = 20;
+  config.slowMarginDg = 51;  // Must leave 5 g.
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::SLOW_MARGIN);
+  config.slowMarginDg = 50;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
+  config = RuntimeConfig{};
+  config.fastBeforeMs = config.bbwProtectionMs + 1500;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::FAST_BEFORE);
+  config = RuntimeConfig{};
+  config.fastBeforeMs = 27250;  // 0.5 s steps.
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::FAST_BEFORE);
+  config = RuntimeConfig{};
+  config.slowAfterMs = config.fastBeforeMs + 500;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::FAST_BEFORE);
+  config = RuntimeConfig{};
+  config.slowAfterMs = config.operationalWallMs - 500;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::SLOW_AFTER);
+  config = RuntimeConfig{};
+  config.scaleLossFixedMs = config.bbwProtectionMs - 1;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::SCALE_LOSS_FIXED);
+  config.scaleLossFixedMs = config.operationalWallMs;
+  CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
 }
 
 void w03_runtime_timing_relations_are_transactional() {
@@ -3137,8 +3141,9 @@ void w10_cycle_configuration_snapshot_is_immutable() {
 void configureShortOperationalWallForManual() {
   runtimeConfig.operationalWallMs = 20000;
   runtimeConfig.bbwProtectionMs = 7000;
-  runtimeConfig.autoToManualGuardManualLimitMs = 15000;
-  runtimeConfig.autoToManualGuardBaselineMs = 15000;
+  runtimeConfig.fastBeforeMs = 9000;
+  runtimeConfig.slowAfterMs = 19000;
+  runtimeConfig.scaleLossFixedMs = 15000;
   CHECK(validateRuntimeConfig(runtimeConfig) == ConfigValidationError::NONE);
 }
 
@@ -3681,7 +3686,7 @@ void w34_calibration_reset_restores_baseline_and_cancels_analysis() {
   {
     ShotPreset &preset = mutableActiveShotPreset(presetBank);
     preset.weightOffsetBaselineG = 2.0f;
-    preset.weightOffsetG = 3.2f;
+    preset.bbwEwmaOffsetG = 3.2f;
   }
   const uint32_t previousRevision = runtimeConfig.revision;
   preparePendingBbwForTest();
@@ -4397,10 +4402,8 @@ void w55_local_buzzer_queues_second_triple_while_busy() {
 
 void w56_atm_beep_queued_when_scale_lost_after_deadline() {
   resetHarness(false, true);
-  runtimeConfig.autoToManualGuardEnabled = true;
-  runtimeConfig.autoToManualGuardLimitMode =
-      static_cast<uint8_t>(AutoToManualGuardLimitMode::MANUAL);
-  runtimeConfig.autoToManualGuardManualLimitMs = 15000;
+  runtimeConfig.scaleLossEnabled = true;
+  runtimeConfig.scaleLossFixedMs = 15000;
   reachReadyFromBoot();
   startCycle();
   advanceToBrew();
@@ -8142,7 +8145,7 @@ void r41_negative_weight_in_range_starts_automatic_cycle() {
   resetHarness(false, true);
   reachReadyFromBoot();
   runtimeConfig.requireCupToStart = false;
-  mutableActiveShotPreset(presetBank).requireCupToStart = false;
+  runtimeConfig.requireCupToStart = false;
   currentWeight = -236.0f;
   currentWeightReceivedAtMs = hostMillis;
   currentWeightSequence = 1;
@@ -8155,8 +8158,8 @@ void r41_negative_weight_in_range_starts_automatic_cycle() {
 void enableCupStartGuardForTest() {
   runtimeConfig.cupProtectionEnabled = true;
   runtimeConfig.requireCupToStart = true;
-  mutableActiveShotPreset(presetBank).cupProtectionEnabled = true;
-  mutableActiveShotPreset(presetBank).requireCupToStart = true;
+  runtimeConfig.cupProtectionEnabled = true;
+  runtimeConfig.requireCupToStart = true;
 }
 
 void attemptBlockedCupStart() {
@@ -8278,7 +8281,7 @@ void cp08_stop_if_cup_removed_off_keeps_negative_weight() {
   resetHarness(false, true);
   reachReadyFromBoot();
   runtimeConfig.stopIfCupRemoved = false;
-  mutableActiveShotPreset(presetBank).stopIfCupRemoved = false;
+  runtimeConfig.stopIfCupRemoved = false;
   seedCupPresence(80.0f);
   startCycle();
   advanceToBrew();
@@ -8328,7 +8331,7 @@ void cp11_master_off_allows_zero_pre_tare_start() {
   reachReadyFromBoot();
   enableCupStartGuardForTest();
   runtimeConfig.cupProtectionEnabled = false;
-  mutableActiveShotPreset(presetBank).cupProtectionEnabled = false;
+  runtimeConfig.cupProtectionEnabled = false;
   currentWeight = 0.0f;
   currentWeightReceivedAtMs = hostMillis;
   currentWeightSequence = 1;
@@ -8341,7 +8344,7 @@ void cp12_master_off_does_not_stop_on_negative_weight() {
   resetHarness(false, true);
   reachReadyFromBoot();
   runtimeConfig.cupProtectionEnabled = false;
-  mutableActiveShotPreset(presetBank).cupProtectionEnabled = false;
+  runtimeConfig.cupProtectionEnabled = false;
   seedCupPresence(80.0f);
   startCycle();
   advanceToBrew();
@@ -8356,7 +8359,7 @@ void cp13_pre_tare_negative_packets_do_not_abort() {
   resetHarness(false, true);
   reachReadyFromBoot();
   runtimeConfig.requireCupToStart = false;
-  mutableActiveShotPreset(presetBank).requireCupToStart = false;
+  runtimeConfig.requireCupToStart = false;
   currentWeight = -236.0f;
   currentWeightReceivedAtMs = hostMillis;
   currentWeightSequence = 1;
@@ -11261,7 +11264,7 @@ void r54_post_tare_baseline_keeps_weight_control() {
 
 void r66_post_tare_rejected_stream_does_not_enforce_atm() {
   resetHarness(false, true);
-  runtimeConfig.autoToManualGuardEnabled = true;
+  runtimeConfig.scaleLossEnabled = true;
   reachReadyFromBoot();
   currentWeight = 236.0f;
   currentWeightReceivedAtMs = hostMillis;
@@ -11293,10 +11296,8 @@ void r66_post_tare_rejected_stream_does_not_enforce_atm() {
 
 void r67_observed_silence_enforces_atm() {
   resetHarness(false, true);
-  runtimeConfig.autoToManualGuardEnabled = true;
-  runtimeConfig.autoToManualGuardLimitMode =
-      static_cast<uint8_t>(AutoToManualGuardLimitMode::MANUAL);
-  runtimeConfig.autoToManualGuardManualLimitMs = 20000;
+  runtimeConfig.scaleLossEnabled = true;
+  runtimeConfig.scaleLossFixedMs = 20000;
   reachReadyFromBoot();
   startCycle();
   advanceToBrew();
@@ -11317,7 +11318,7 @@ void r67_observed_silence_enforces_atm() {
 
 void r68_stable_accepted_weight_does_not_suspend() {
   resetHarness(false, true);
-  runtimeConfig.autoToManualGuardEnabled = true;
+  runtimeConfig.scaleLossEnabled = true;
   reachReadyFromBoot();
   startCycle();
   advanceToBrew();
@@ -13210,7 +13211,7 @@ void w90_save_unknown_preset_id_does_not_overwrite_active() {
   resetHarness(false, false);
   reachReadyFromBoot();
   const ShotPreset *dbl =
-      findShotPreset(presetBank, FACTORY_PRESET_ID_DOUBLE);
+      findShotPreset(presetBank, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
   CHECK(dbl != nullptr);
   const uint16_t originalGoal = dbl->goalWeightDg;
   WebCommand save;
@@ -13225,10 +13226,10 @@ void w90_save_unknown_preset_id_does_not_overwrite_active() {
   CHECK(hostLastForwardedNetworkCommand.resultState ==
         CommandResultState::FAILED);
   const ShotPreset *after =
-      findShotPreset(presetBank, FACTORY_PRESET_ID_DOUBLE);
+      findShotPreset(presetBank, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
   CHECK(after != nullptr);
   CHECK(after->goalWeightDg == originalGoal);
-  CHECK(presetBank.activeId == FACTORY_PRESET_ID_DOUBLE);
+  CHECK(presetBank.activeId == FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
 }
 
 void w91_preset_persistence_serializes_and_survives_retry() {
@@ -13238,7 +13239,7 @@ void w91_preset_persistence_serializes_and_survives_retry() {
   first.type = WebCommandType::PRESET_OP;
   first.requestId = 91;
   first.presetAction = static_cast<uint8_t>(PresetAction::APPLY);
-  first.presetId = FACTORY_PRESET_ID_SINGLE;
+  first.presetId = FACTORY_PRESET_ID_SINGLE_ADAPTIVE;
   processWebCommand(first);
   CHECK(pendingPresetPersistence.requestId == 91);
   CHECK(pendingPresetPersistence.revision == runtimeConfig.revision);
@@ -13248,9 +13249,9 @@ void w91_preset_persistence_serializes_and_survives_retry() {
 
   WebCommand competing = first;
   competing.requestId = 92;
-  competing.presetId = FACTORY_PRESET_ID_DOUBLE;
+  competing.presetId = FACTORY_PRESET_ID_DOUBLE_ADAPTIVE;
   processWebCommand(competing);
-  CHECK(presetBank.activeId == FACTORY_PRESET_ID_SINGLE);
+  CHECK(presetBank.activeId == FACTORY_PRESET_ID_SINGLE_ADAPTIVE);
   CHECK(hostLastForwardedNetworkCommand.requestId == 92);
   CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::FAILED);
   CHECK(pendingPresetPersistence.requestId == 91);
@@ -13266,9 +13267,9 @@ void w91_preset_persistence_serializes_and_survives_retry() {
   runLoopAfter(RUNTIME_PERSIST_RETRY_MS + 1);
   CHECK(!runtimePersistPending && !runtimePersistFailed);
   CHECK(pendingPresetPersistence.requestId == 0);
-  CHECK(hostLastFlushedPresets.activeId == FACTORY_PRESET_ID_SINGLE);
+  CHECK(hostLastFlushedPresets.activeId == FACTORY_PRESET_ID_SINGLE_ADAPTIVE);
   CHECK(hostMachineTemperatureRequestCount == 1);
-  CHECK(hostMachineTemperaturePresetId == FACTORY_PRESET_ID_SINGLE);
+  CHECK(hostMachineTemperaturePresetId == FACTORY_PRESET_ID_SINGLE_ADAPTIVE);
   CHECK(hostMachineTemperatureGeneration == runtimeConfig.revision);
   CHECK(hostMachineTemperatureTargetDeciC ==
         activeShotPreset(presetBank).lineaMicraBrewTargetDeciC);
@@ -13300,7 +13301,7 @@ void w90c_preset_temperature_presence_and_learning_invalidation() {
   processWebCommand(save);
   CHECK(preset.lineaMicraBrewTargetDeciC == 945);
   CHECK(hostMachineTemperatureRequestCount == 0);
-  CHECK(learning.generations[preset.bbwAlgorithm] != generation);
+  CHECK(learning.generations[1] != generation);
   runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
   CHECK(hostMachineTemperatureRequestCount == 1);
   CHECK(hostMachineTemperaturePresetId == preset.id);
@@ -13321,14 +13322,14 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   reachReadyFromBoot();
   runtimeConfig.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
   ShotPreset &initialPreset = mutableActiveShotPreset(presetBank);
-  initialPreset.autoToManualGuardEnabled = true;
-  initialPreset.slowExtractionGuardEnabled = true;
-  initialPreset.fastExtractionGuardEnabled = true;
-  initialPreset.avoidAccidentalTouchEnabled = true;
-  initialPreset.cupProtectionEnabled = true;
+  initialPreset.slowSideEnabled = true;
+  initialPreset.fastSideEnabled = true;
+  runtimeConfig.scaleLossEnabled = true;
+  runtimeConfig.avoidAccidentalTouchEnabled = true;
+  runtimeConfig.cupProtectionEnabled = true;
   applyShotPresetToConfig(initialPreset, runtimeConfig, true);
   const uint16_t goal = runtimeConfig.goalWeightDg;
-  const float learnedOffset = activeShotPreset(presetBank).weightOffsetG;
+  const float learnedOffset = activeShotPreset(presetBank).bbwEwmaOffsetG;
   const struct {
     QuickSettingField field;
     uint8_t value;
@@ -13361,13 +13362,13 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   CHECK(noScaleBbwModeValue(runtimeConfig.noScaleBbwMode) ==
         static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE));
   CHECK(idleAccessoryRetareEnabled(runtimeConfig.noScaleBbwMode));
-  CHECK(!runtimeConfig.autoToManualGuardEnabled);
-  CHECK(!runtimeConfig.slowExtractionGuardEnabled);
-  CHECK(!runtimeConfig.fastExtractionGuardEnabled);
+  CHECK(!runtimeConfig.scaleLossEnabled);
+  CHECK(!runtimeConfig.slowSideEnabled);
+  CHECK(!runtimeConfig.fastSideEnabled);
   CHECK(!runtimeConfig.avoidAccidentalTouchEnabled);
   CHECK(!runtimeConfig.cupProtectionEnabled);
   CHECK(runtimeConfig.goalWeightDg == goal);
-  CHECK(activeShotPreset(presetBank).weightOffsetG == learnedOffset);
+  CHECK(activeShotPreset(presetBank).bbwEwmaOffsetG == learnedOffset);
 
   WebCommand stale;
   stale.type = WebCommandType::QUICK_SETTING;
@@ -14802,7 +14803,7 @@ void s04c_delete_shot_record_removes_log_and_curve() {
   good.weightValid = true;
   good.currentWeightG = 36.5f;
   good.shotLogId = id;
-  good.presetId = FACTORY_PRESET_ID_DOUBLE;
+  good.presetId = FACTORY_PRESET_ID_DOUBLE_ADAPTIVE;
   persistLastShotSnapshot(good);
   CHECK(rateShotRecord(id, 4));
   CHECK(persistedLastGoodShot.rating == 0);
@@ -15420,13 +15421,9 @@ void f18_guard_early_rejection_matches_original_predicates() {
     for (unsigned mask = 0; mask != 256; ++mask) {
       runtimeConfig.timerOnly = (mask & 1U) != 0;
       presetBank.presets[0].brewByWeight = (mask & 2U) != 0;
-      presetBank.presets[0].cupProtectionEnabled = (mask & 4U) != 0;
-      presetBank.presets[0].requireCupToStart = (mask & 8U) != 0;
+      runtimeConfig.cupProtectionEnabled = (mask & 4U) != 0;
+      runtimeConfig.requireCupToStart = (mask & 8U) != 0;
       presetBank.presets[1].brewByWeight = !presetBank.presets[0].brewByWeight;
-      presetBank.presets[1].cupProtectionEnabled =
-          !presetBank.presets[0].cupProtectionEnabled;
-      presetBank.presets[1].requireCupToStart =
-          !presetBank.presets[0].requireCupToStart;
       inputs.scaleUsable = (mask & 16U) != 0;
       noScaleShotGuardArmed = (mask & 32U) != 0;
       noScaleShotGuardHold = (mask & 64U) != 0;
@@ -15778,7 +15775,7 @@ void s12d_rate_last_shot_and_history() {
   retained.durationMs = 13000;
   retained.weightValid = true;
   retained.currentWeightG = 36.0f;
-  retained.presetId = FACTORY_PRESET_ID_DOUBLE;
+  retained.presetId = FACTORY_PRESET_ID_DOUBLE_ADAPTIVE;
   persistLastShotSnapshot(retained);
   CHECK(!rateLastShot(3));
 
@@ -15826,7 +15823,7 @@ void s12e_history_rating_wins_after_last_shot_save_failure_and_reboot() {
   good.currentWeightG = 37.2f;
   good.shotLogId = stored[0].id;
   good.rating = 1;
-  good.presetId = FACTORY_PRESET_ID_DOUBLE;
+  good.presetId = FACTORY_PRESET_ID_DOUBLE_ADAPTIVE;
   lastShotStore.advance(good);
   CHECK(lastShotStore.save());
   CHECK(rateShotRecord(stored[0].id, 4));
@@ -15875,7 +15872,7 @@ void s12f_shot_store_snapshot_serializes_rating_and_finalize() {
   initial.weightValid = true;
   initial.currentWeightG = 31.0f;
   initial.shotLogId = stored[0].id;
-  initial.presetId = FACTORY_PRESET_ID_DOUBLE;
+  initial.presetId = FACTORY_PRESET_ID_DOUBLE_ADAPTIVE;
   persistLastShotSnapshot(initial);
 
   std::atomic<bool> start{false}, done{false};
@@ -16740,7 +16737,7 @@ void h11_status_store_cache_generation_guard() {
   good.weightValid = true;
   good.currentWeightG = 36.5f;
   good.shotLogId = storedShot.id;
-  good.presetId = FACTORY_PRESET_ID_DOUBLE;
+  good.presetId = FACTORY_PRESET_ID_DOUBLE_ADAPTIVE;
   persistLastShotSnapshot(good);
   CHECK(rateShotRecord(storedShot.id, 4));
   publishControlStatus();
@@ -16813,10 +16810,8 @@ void h07_mutex_wait_accounting_tracks_last_and_max() {
 
 void r51_auto_to_manual_guard_fires_while_scale_lost() {
   resetHarness(false, true);
-  runtimeConfig.autoToManualGuardEnabled = true;
-  runtimeConfig.autoToManualGuardLimitMode =
-      static_cast<uint8_t>(AutoToManualGuardLimitMode::MANUAL);
-  runtimeConfig.autoToManualGuardManualLimitMs = 15000;
+  runtimeConfig.scaleLossEnabled = true;
+  runtimeConfig.scaleLossFixedMs = 15000;
   reachReadyFromBoot();
   startCycle();
   advanceToBrew();
@@ -16834,10 +16829,8 @@ void r51_auto_to_manual_guard_fires_while_scale_lost() {
 
 void r52_auto_to_manual_guard_clears_on_scale_recovery() {
   resetHarness(false, true);
-  runtimeConfig.autoToManualGuardEnabled = true;
-  runtimeConfig.autoToManualGuardLimitMode =
-      static_cast<uint8_t>(AutoToManualGuardLimitMode::MANUAL);
-  runtimeConfig.autoToManualGuardManualLimitMs = 20000;
+  runtimeConfig.scaleLossEnabled = true;
+  runtimeConfig.scaleLossFixedMs = 20000;
   reachReadyFromBoot();
   startCycle();
   advanceToBrew();
@@ -16861,8 +16854,8 @@ void r52_auto_to_manual_guard_clears_on_scale_recovery() {
 
 void r53_auto_to_manual_guard_disabled_does_not_cut_early() {
   resetHarness(false, true);
-  runtimeConfig.autoToManualGuardEnabled = false;
-  runtimeConfig.autoToManualGuardManualLimitMs = 10000;
+  runtimeConfig.scaleLossEnabled = false;
+  runtimeConfig.scaleLossFixedMs = 10000;
   reachReadyFromBoot();
   startCycle();
   advanceToBrew();
@@ -16878,7 +16871,7 @@ void r53_auto_to_manual_guard_disabled_does_not_cut_early() {
 void r48_guard_disabled_stops_at_target_normally() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.fastExtractionGuardEnabled = false;
+  runtimeConfig.fastSideEnabled = false;
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
@@ -16893,9 +16886,9 @@ void r48_guard_disabled_stops_at_target_normally() {
 void r49_guard_extends_and_stops_at_max_weight() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.fastExtractionGuardEnabled = true;
-  runtimeConfig.maxRecoveryWeightG = 42.5f;
-  runtimeConfig.minBbwBrewTimeMs = 26000;
+  runtimeConfig.fastSideEnabled = true;
+  runtimeConfig.fastMarginDg = 65;  // 42.5 g at the 36 g target
+  runtimeConfig.fastBeforeMs = 26000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -16921,11 +16914,11 @@ void r49_guard_extends_and_stops_at_max_weight() {
 void r51_extended_pulse_respects_alert_flag_and_scale_only() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.fastExtractionGuardEnabled = true;
+  runtimeConfig.fastSideEnabled = true;
   runtimeConfig.buzzerExtendedPulseRate =
       static_cast<uint8_t>(ExtendedPulseRate::OFF);
-  runtimeConfig.maxRecoveryWeightG = 42.5f;
-  runtimeConfig.minBbwBrewTimeMs = 26000;
+  runtimeConfig.fastMarginDg = 65;  // 42.5 g at the 36 g target
+  runtimeConfig.fastBeforeMs = 26000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -16939,13 +16932,13 @@ void r51_extended_pulse_respects_alert_flag_and_scale_only() {
 
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.fastExtractionGuardEnabled = true;
+  runtimeConfig.fastSideEnabled = true;
   runtimeConfig.buzzerExtendedPulseRate =
       static_cast<uint8_t>(ExtendedPulseRate::FAST);
   runtimeConfig.alertOutputChannel =
       static_cast<uint8_t>(AlertOutputChannel::SCALE_ONLY);
-  runtimeConfig.maxRecoveryWeightG = 42.5f;
-  runtimeConfig.minBbwBrewTimeMs = 26000;
+  runtimeConfig.fastMarginDg = 65;  // 42.5 g at the 36 g target
+  runtimeConfig.fastBeforeMs = 26000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -16961,9 +16954,9 @@ void r51_extended_pulse_respects_alert_flag_and_scale_only() {
 void r50_guard_extends_and_stops_at_min_time() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.fastExtractionGuardEnabled = true;
-  runtimeConfig.maxRecoveryWeightG = 42.5f;
-  runtimeConfig.minBbwBrewTimeMs = 26000;
+  runtimeConfig.fastSideEnabled = true;
+  runtimeConfig.fastMarginDg = 65;  // 42.5 g at the 36 g target
+  runtimeConfig.fastBeforeMs = 26000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -16983,9 +16976,9 @@ void r50_guard_extends_and_stops_at_min_time() {
 void r56_guard_inhibits_bbw_weight_cut_before_min_time() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.fastExtractionGuardEnabled = true;
-  runtimeConfig.maxRecoveryWeightG = 42.5f;
-  runtimeConfig.minBbwBrewTimeMs = 26000;
+  runtimeConfig.fastSideEnabled = true;
+  runtimeConfig.fastMarginDg = 65;  // 42.5 g at the 36 g target
+  runtimeConfig.fastBeforeMs = 26000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17002,9 +16995,9 @@ void r56_guard_inhibits_bbw_weight_cut_before_min_time() {
 void r57_guard_max_weight_cut_from_predicted_time() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.fastExtractionGuardEnabled = true;
-  runtimeConfig.maxRecoveryWeightG = 42.5f;
-  runtimeConfig.minBbwBrewTimeMs = 26000;
+  runtimeConfig.fastSideEnabled = true;
+  runtimeConfig.fastMarginDg = 65;  // 42.5 g at the 36 g target
+  runtimeConfig.fastBeforeMs = 26000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17024,9 +17017,9 @@ void r57_guard_max_weight_cut_from_predicted_time() {
 void r59_slow_guard_on_time_bbw_is_scale_threshold() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.slowExtractionGuardEnabled = true;
-  runtimeConfig.minRecoveryWeightG = 30.0f;
-  runtimeConfig.maxBbwBrewTimeMs = 44000;
+  runtimeConfig.slowSideEnabled = true;
+  runtimeConfig.slowMarginDg = 60;  // 30 g at the 36 g target
+  runtimeConfig.slowAfterMs = 44000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17044,9 +17037,9 @@ void r59_slow_guard_on_time_bbw_is_scale_threshold() {
 void r60_slow_guard_cuts_at_max_time_when_above_floor() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.slowExtractionGuardEnabled = true;
-  runtimeConfig.minRecoveryWeightG = 30.0f;
-  runtimeConfig.maxBbwBrewTimeMs = 44000;
+  runtimeConfig.slowSideEnabled = true;
+  runtimeConfig.slowMarginDg = 60;  // 30 g at the 36 g target
+  runtimeConfig.slowAfterMs = 44000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17064,9 +17057,9 @@ void r60_slow_guard_cuts_at_max_time_when_above_floor() {
 void r61_slow_guard_extends_and_stops_at_min_weight() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.slowExtractionGuardEnabled = true;
-  runtimeConfig.minRecoveryWeightG = 30.0f;
-  runtimeConfig.maxBbwBrewTimeMs = 44000;
+  runtimeConfig.slowSideEnabled = true;
+  runtimeConfig.slowMarginDg = 60;  // 30 g at the 36 g target
+  runtimeConfig.slowAfterMs = 44000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17095,13 +17088,13 @@ void r61_slow_guard_extends_and_stops_at_min_weight() {
 void r61b_slow_extended_pulse_uses_slow_rate_setting() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.slowExtractionGuardEnabled = true;
+  runtimeConfig.slowSideEnabled = true;
   runtimeConfig.buzzerExtendedPulseRate =
       static_cast<uint8_t>(ExtendedPulseRate::FAST);
   runtimeConfig.buzzerSlowExtendedPulseRate =
       static_cast<uint8_t>(ExtendedPulseRate::RAPID);
-  runtimeConfig.minRecoveryWeightG = 30.0f;
-  runtimeConfig.maxBbwBrewTimeMs = 44000;
+  runtimeConfig.slowMarginDg = 60;  // 30 g at the 36 g target
+  runtimeConfig.slowAfterMs = 44000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17118,13 +17111,13 @@ void r61b_slow_extended_pulse_uses_slow_rate_setting() {
 
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.slowExtractionGuardEnabled = true;
+  runtimeConfig.slowSideEnabled = true;
   runtimeConfig.buzzerExtendedPulseRate =
       static_cast<uint8_t>(ExtendedPulseRate::FAST);
   runtimeConfig.buzzerSlowExtendedPulseRate =
       static_cast<uint8_t>(ExtendedPulseRate::OFF);
-  runtimeConfig.minRecoveryWeightG = 30.0f;
-  runtimeConfig.maxBbwBrewTimeMs = 44000;
+  runtimeConfig.slowMarginDg = 60;  // 30 g at the 36 g target
+  runtimeConfig.slowAfterMs = 44000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17141,10 +17134,10 @@ void r61b_slow_extended_pulse_uses_slow_rate_setting() {
 void r61c_extended_pulse_resumes_after_scale_lost_alert() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.fastExtractionGuardEnabled = true;
-  runtimeConfig.autoToManualGuardEnabled = false;
-  runtimeConfig.maxRecoveryWeightG = 42.5f;
-  runtimeConfig.minBbwBrewTimeMs = 26000;
+  runtimeConfig.fastSideEnabled = true;
+  runtimeConfig.scaleLossEnabled = false;
+  runtimeConfig.fastMarginDg = 65;  // 42.5 g at the 36 g target
+  runtimeConfig.fastBeforeMs = 26000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17222,12 +17215,12 @@ void r61e_extended_pulse_restarts_when_rate_setting_changes() {
 void r62_fast_extended_is_not_cut_by_slow() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.fastExtractionGuardEnabled = true;
-  runtimeConfig.slowExtractionGuardEnabled = true;
-  runtimeConfig.maxRecoveryWeightG = 42.5f;
-  runtimeConfig.minBbwBrewTimeMs = 26000;
-  runtimeConfig.minRecoveryWeightG = 30.0f;
-  runtimeConfig.maxBbwBrewTimeMs = 44000;
+  runtimeConfig.fastSideEnabled = true;
+  runtimeConfig.slowSideEnabled = true;
+  runtimeConfig.fastMarginDg = 65;  // 42.5 g at the 36 g target
+  runtimeConfig.fastBeforeMs = 26000;
+  runtimeConfig.slowMarginDg = 60;  // 30 g at the 36 g target
+  runtimeConfig.slowAfterMs = 44000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17257,7 +17250,7 @@ void r62_fast_extended_is_not_cut_by_slow() {
 void r63_slow_guard_disabled_continues_past_max_time() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.slowExtractionGuardEnabled = false;
+  runtimeConfig.slowSideEnabled = false;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17281,9 +17274,9 @@ void r63_slow_guard_disabled_continues_past_max_time() {
 void r64_slow_guard_min_weight_cut_from_predicted_time() {
   resetHarness(false, true);
   reachReadyFromBoot();
-  runtimeConfig.slowExtractionGuardEnabled = true;
-  runtimeConfig.minRecoveryWeightG = 30.0f;
-  runtimeConfig.maxBbwBrewTimeMs = 44000;
+  runtimeConfig.slowSideEnabled = true;
+  runtimeConfig.slowMarginDg = 60;  // 30 g at the 36 g target
+  runtimeConfig.slowAfterMs = 44000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17303,7 +17296,7 @@ void r64_slow_guard_min_weight_cut_from_predicted_time() {
 
 void enableAccidentalTouchForTest() {
   runtimeConfig.avoidAccidentalTouchEnabled = true;
-  mutableActiveShotPreset(presetBank).avoidAccidentalTouchEnabled = true;
+  runtimeConfig.avoidAccidentalTouchEnabled = true;
 }
 
 void publishControlRamp(float startG, float endG, float stepG, uint32_t intervalMs,
@@ -17364,11 +17357,6 @@ void at11_touch_fallback_only_when_both_enabled() {
       fallbackRecord.stopDetail = static_cast<uint8_t>(
           ShotLogStopDetail::TOUCH_WEIGHT_FALLBACK);
       CHECK(!shotLogBbwErrorEligible(fallbackRecord));
-      const auto before = activeShotPreset(presetBank);
-      maybeQueueAutoToManualGuardSample(pendingFinalize, 36.0f, true);
-      CHECK(memcmp(before.autoToManualGuardSamplesDs,
-                   activeShotPreset(presetBank).autoToManualGuardSamplesDs,
-                   sizeof(before.autoToManualGuardSamplesDs)) == 0);
       for (uint8_t algorithm : {0, 1}) {
         pendingFinalize.bbwAlgorithm = algorithm;
         CHECK(!learnPendingBbw(pendingFinalize, 36.0f, true));
@@ -17432,15 +17420,16 @@ void at12_touch_fallback_duration_and_evidence_resets() {
 void at13_touch_fallback_guard_thresholds() {
   for (unsigned scenario = 0; scenario < 5; ++scenario) {
     prepareTouchFallbackTest();
-    session.config.fastExtractionGuardEnabled = scenario < 3;
-    session.config.slowExtractionGuardEnabled = scenario >= 3;
-    session.config.minBbwBrewTimeMs = 28000;
-    session.config.maxBbwBrewTimeMs = 44000;
-    session.config.maxRecoveryWeightG = scenario == 0 ? 70.0f : 42.5f;
-    if (scenario == 2) session.config.minBbwBrewTimeMs = 5000;
+    session.config.fastSideEnabled = scenario < 3;
+    session.config.slowSideEnabled = scenario >= 3;
+    session.config.fastBeforeMs = 28000;
+    session.config.slowAfterMs = 44000;
+    session.config.fastMarginDg = scenario == 0 ? 340 : 65;  // 70 g / 42.5 g
+    if (scenario == 2) session.config.fastBeforeMs = 5000;
     if (scenario >= 3) {
-      session.config.maxBbwBrewTimeMs = 5000;
+      session.config.slowAfterMs = 5000;
       session.config.goalWeightDg = 600;
+      session.config.slowMarginDg = 260;  // Keeps the 34 g floor.
     }
     if (scenario == 4) session.slowExtractionExtended = true;
     for (unsigned i = 0; i <= 10; ++i) {
@@ -17458,8 +17447,8 @@ void at13_touch_fallback_guard_thresholds() {
   }
 
   prepareTouchFallbackTest();
-  session.config.fastExtractionGuardEnabled = true;
-  session.config.minBbwBrewTimeMs = elapsedMs(session.startedAtMs) + 900;
+  session.config.fastSideEnabled = true;
+  session.config.fastBeforeMs = elapsedMs(session.startedAtMs) + 900;
   publishWeight(44.0f, hostMillis + 100);
   publishWeight(48.0f, hostMillis + 400);
   CHECK(session.touchStop.samples == 2);
@@ -17502,15 +17491,18 @@ void at16_touch_fallback_uses_receive_time_for_guard_boundaries() {
   for (unsigned scenario = 0; scenario < 3; ++scenario) {
     const bool fast = scenario == 0;
     prepareTouchFallbackTest();
-    session.config.fastExtractionGuardEnabled = fast;
-    session.config.slowExtractionGuardEnabled = !fast;
-    session.config.maxRecoveryWeightG = 70;
-    if (!fast) session.config.goalWeightDg = 600;
+    session.config.fastSideEnabled = fast;
+    session.config.slowSideEnabled = !fast;
+    session.config.fastMarginDg = 340;  // 70 g at the 36 g target
+    if (!fast) {
+      session.config.goalWeightDg = 600;
+      session.config.slowMarginDg = 260;  // Keeps the 34 g floor.
+    }
     session.slowExtractionExtended = scenario == 2;
     hostMillis += 700;
     const uint32_t boundary = elapsedMs(session.startedAtMs) - 300;
-    session.config.minBbwBrewTimeMs = boundary;
-    session.config.maxBbwBrewTimeMs = boundary;
+    session.config.fastBeforeMs = boundary;
+    session.config.slowAfterMs = boundary;
     // Fresh but delayed delivery must not backdate the newly eligible policy.
     publishWeight(fast ? 40.0f : 35.0f, hostMillis - 500);
     CHECK(session.accidentalTouchHolding);
@@ -17522,24 +17514,24 @@ void at16_touch_fallback_uses_receive_time_for_guard_boundaries() {
 }
 
 void at15_touch_fallback_preset_presence() {
+  // Touch-stop fallback is device-level: the v1 preset form still carries it
+  // and the save writes the shared runtime value, never the preset.
   resetHarness(false, false);
   reachReadyFromBoot();
-  auto &preset = mutableActiveShotPreset(presetBank);
-  preset.touchStopFallbackEnabled = false;
+  runtimeConfig.touchStopFallbackEnabled = false;
+  const ShotPreset &preset = activeShotPreset(presetBank);
   WebCommand save;
   save.type = WebCommandType::PRESET_OP;
   save.presetAction = static_cast<uint8_t>(PresetAction::SAVE);
   save.presetId = preset.id;
   save.requestId = 950;
-  save.config = runtimeConfig; // Old clients omit the new field.
-  CHECK(save.config.touchStopFallbackEnabled);
+  save.config = runtimeConfig;
   processWebCommand(save);
-  CHECK(!preset.touchStopFallbackEnabled);
+  CHECK(!runtimeConfig.touchStopFallbackEnabled);
   runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
   save.requestId = 951;
-  save.touchStopFallbackSpecified = true;
+  save.config.touchStopFallbackEnabled = true;
   processWebCommand(save);
-  CHECK(preset.touchStopFallbackEnabled);
   CHECK(runtimeConfig.touchStopFallbackEnabled);
   CHECK(!runtimeConfig.avoidAccidentalTouchEnabled);
 }
@@ -17810,11 +17802,11 @@ void at05_spike_before_min_bbw_brew_time_does_not_enter_fast_extended() {
   resetHarness(false, true);
   reachReadyFromBoot();
   enableAccidentalTouchForTest();
-  runtimeConfig.fastExtractionGuardEnabled = true;
-  runtimeConfig.minBbwBrewTimeMs = 26000;
+  runtimeConfig.fastSideEnabled = true;
+  runtimeConfig.fastBeforeMs = 26000;
   runtimeConfig.goalWeightDg = 360;
-  mutableActiveShotPreset(presetBank).fastExtractionGuardEnabled = true;
-  mutableActiveShotPreset(presetBank).minBbwBrewTimeMs = 26000;
+  mutableActiveShotPreset(presetBank).fastSideEnabled = true;
+  mutableActiveShotPreset(presetBank).fastBeforeMs = 26000;
   mutableActiveShotPreset(presetBank).goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17832,9 +17824,9 @@ void at06_fast_extended_spike_does_not_cut_until_sustained() {
   resetHarness(false, true);
   reachReadyFromBoot();
   runtimeConfig.avoidAccidentalTouchEnabled = false;
-  runtimeConfig.fastExtractionGuardEnabled = true;
-  runtimeConfig.maxRecoveryWeightG = 42.5f;
-  runtimeConfig.minBbwBrewTimeMs = 26000;
+  runtimeConfig.fastSideEnabled = true;
+  runtimeConfig.fastMarginDg = 65;  // 42.5 g at the 36 g target
+  runtimeConfig.fastBeforeMs = 26000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -17935,9 +17927,9 @@ void at10_holding_does_not_block_slow_extended_at_max_time() {
   resetHarness(false, true);
   reachReadyFromBoot();
   enableAccidentalTouchForTest();
-  runtimeConfig.slowExtractionGuardEnabled = true;
-  runtimeConfig.minRecoveryWeightG = 30.0f;
-  runtimeConfig.maxBbwBrewTimeMs = 44000;
+  runtimeConfig.slowSideEnabled = true;
+  runtimeConfig.slowMarginDg = 60;  // 30 g at the 36 g target
+  runtimeConfig.slowAfterMs = 44000;
   runtimeConfig.goalWeightDg = 360;
   startCycle();
   advanceToBrew();
@@ -18985,7 +18977,7 @@ void pm09_apply_config_accepts_original_paddle_mode() {
 void configureOriginalBbwShortWall() {
   runtimeConfig.paddleMode = static_cast<uint8_t>(PaddleMode::ORIGINAL);
   runtimeConfig.operationalWallMs = 10000;
-  runtimeConfig.autoToManualGuardEnabled = false;
+  runtimeConfig.scaleLossEnabled = false;
 }
 
 void advanceToOriginalBbwOperationalWall() {
@@ -19285,7 +19277,6 @@ using TestFunction = void (*)();
 
 void bbw03_shared_guard_parity() {
   {
-    hostBbwAlgorithm = 1;
     for (auto test : {t06_paddle_off_during_brew,
                      t11_ble_loss_suspends_brew_without_late_stop,
                      t12_global_limit_opens_manual_and_brew_cycles,
@@ -19305,7 +19296,6 @@ void bbw03_shared_guard_parity() {
                      pm07_original_bbw_hard_limit_while_held,
                      pm11_original_bbw_release_honors_operational_wall}) test();
   }
-  hostBbwAlgorithm = 1;
 }
 
 void pow01_scale_disconnect_grace_and_rinse_clock() {
@@ -19913,10 +19903,135 @@ void home03_active_flow_requires_fresh_baseline_and_confirmed_drop() {
   CHECK(!publishedControlStatus.homeCycle.averageFlowValid);
 }
 
+// Captures the legacy Fast/Slow guard decisions on the schema-1 fields
+// (ceiling = target + fast margin, t1 = fastBeforeMs, ...) for the smooth-cut
+// D = 0 oracle. The timed (prediction) law is excluded: only the direct
+// weight law and the loop-time min/max-time guards decide. Samples are a
+// linear ramp from the first drop, optionally changing rate, every periodMs.
+struct LegacyGuardScenario {
+  const char *id;
+  uint16_t goalDg, fastMarginDg, slowMarginDg;
+  bool fastOn, slowOn;
+  uint32_t delayMs, fastBeforeMs, slowAfterMs, wallMs;
+  uint16_t offsetDg;
+  uint32_t firstDropMs;
+  uint16_t rateDgPerS;
+  uint32_t changeAtMs;
+  uint16_t rate2DgPerS;
+};
+
+constexpr LegacyGuardScenario kLegacyGuardScenarios[] = {
+    {"fast_extends_to_ceiling", 360, 65, 60, true, true, 12000, 26000, 44000, 50000, 15, 6000, 22, 0, 0},
+    {"fast_min_time", 360, 65, 60, true, true, 12000, 26000, 44000, 50000, 15, 6000, 19, 0, 0},
+    {"fast_off_target", 360, 65, 60, false, true, 12000, 26000, 44000, 50000, 15, 6000, 22, 0, 0},
+    {"on_recipe", 360, 65, 60, true, true, 12000, 26000, 44000, 50000, 15, 6000, 14, 0, 0},
+    {"slow_max_time_above_floor", 360, 65, 60, true, true, 12000, 26000, 44000, 50000, 15, 6000, 8, 0, 0},
+    {"slow_extends_to_floor", 360, 65, 60, true, true, 12000, 26000, 44000, 50000, 15, 6000, 7, 0, 0},
+    {"slow_off_target_late", 360, 65, 60, true, false, 12000, 26000, 44000, 50000, 15, 6000, 9, 0, 0},
+    {"slow_never_reaches_floor", 360, 65, 60, true, true, 12000, 26000, 44000, 50000, 15, 6000, 5, 0, 0},
+    {"single_fast_ceiling", 180, 20, 15, true, true, 12000, 23000, 32000, 50000, 5, 6000, 12, 0, 0},
+    {"single_slow_floor", 180, 20, 15, true, true, 12000, 23000, 32000, 50000, 5, 6000, 5, 0, 0},
+    {"double_factory_window", 360, 40, 30, true, true, 12000, 27000, 34000, 50000, 15, 6000, 16, 0, 0},
+    {"delay_inhibits_then_target", 360, 40, 30, false, true, 15000, 27000, 34000, 50000, 15, 6000, 50, 0, 0},
+    {"fast_then_stall_min_time", 360, 40, 30, true, true, 12000, 27000, 34000, 50000, 15, 6000, 25, 21000, 2},
+    {"slow_then_surge_floor", 360, 40, 30, true, true, 12000, 27000, 34000, 50000, 15, 6000, 8, 33000, 30},
+};
+constexpr uint32_t LEGACY_GUARD_SAMPLE_PERIOD_MS = 100;
+
+int32_t legacyGuardWeightDg(const LegacyGuardScenario &c, uint32_t t) {
+  if (t < c.firstDropMs) return 0;
+  if (c.changeAtMs == 0 || t < c.changeAtMs)
+    return static_cast<int32_t>(c.rateDgPerS * (t - c.firstDropMs) / 1000U);
+  return static_cast<int32_t>(c.rateDgPerS * (c.changeAtMs - c.firstDropMs) / 1000U +
+                              c.rate2DgPerS * (t - c.changeAtMs) / 1000U);
+}
+
+std::string captureLegacyGuardDecision(const LegacyGuardScenario &c) {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  runtimeConfig.goalWeightDg = c.goalDg;
+  runtimeConfig.fastMarginDg = c.fastMarginDg;
+  runtimeConfig.slowMarginDg = c.slowMarginDg;
+  runtimeConfig.fastSideEnabled = c.fastOn;
+  runtimeConfig.slowSideEnabled = c.slowOn;
+  runtimeConfig.bbwProtectionMs = c.delayMs;
+  runtimeConfig.fastBeforeMs = c.fastBeforeMs;
+  runtimeConfig.slowAfterMs = c.slowAfterMs;
+  runtimeConfig.operationalWallMs = c.wallMs;
+  runtimeConfig.weightOffsetG = c.offsetDg / 10.0f;
+  runtimeConfig.avoidAccidentalTouchEnabled = false;
+  runtimeConfig.touchStopFallbackEnabled = false;
+  startCycle();
+  advanceToBrew();
+  uint32_t running = 0;
+  machineRunningElapsed(running);
+  // Samples sit on a fixed grid from the machine running start.
+  uint32_t t = (running / LEGACY_GUARD_SAMPLE_PERIOD_MS + 1) * LEGACY_GUARD_SAMPLE_PERIOD_MS;
+  const uint32_t firstSampleMs = t;
+  for (; t <= c.wallMs + LEGACY_GUARD_SAMPLE_PERIOD_MS && stopperState == StopperState::BREW;
+       t += LEGACY_GUARD_SAMPLE_PERIOD_MS) {
+    machineRunningElapsed(running);
+    runLoopAfter(t - running);
+    if (stopperState != StopperState::BREW) break;
+    publishWeight(legacyGuardWeightDg(c, t) / 10.0f);
+    shot.expectedEndS = 1.0e9f;  // Prediction excluded.
+    loop();
+    if (stopperState != StopperState::BREW) break;
+  }
+  const uint32_t cutMs = t;
+  char row[512];
+  snprintf(row, sizeof(row),
+           "{\"id\":\"%s\",\"goalDg\":%u,\"fastMarginDg\":%u,\"slowMarginDg\":%u,"
+           "\"fastOn\":%s,\"slowOn\":%s,\"delayMs\":%lu,\"fastBeforeMs\":%lu,"
+           "\"slowAfterMs\":%lu,\"wallMs\":%lu,\"offsetDg\":%u,\"firstDropMs\":%lu,"
+           "\"rateDgPerS\":%u,\"changeAtMs\":%lu,\"rate2DgPerS\":%u,"
+           "\"firstSampleMs\":%lu,\"periodMs\":%lu,\"endReason\":%u,\"cutMs\":%lu,"
+           "\"cutWeightDg\":%ld}",
+           c.id, c.goalDg, c.fastMarginDg, c.slowMarginDg, c.fastOn ? "true" : "false",
+           c.slowOn ? "true" : "false", static_cast<unsigned long>(c.delayMs),
+           static_cast<unsigned long>(c.fastBeforeMs), static_cast<unsigned long>(c.slowAfterMs),
+           static_cast<unsigned long>(c.wallMs), c.offsetDg,
+           static_cast<unsigned long>(c.firstDropMs), c.rateDgPerS,
+           static_cast<unsigned long>(c.changeAtMs), c.rate2DgPerS,
+           static_cast<unsigned long>(firstSampleMs),
+           static_cast<unsigned long>(LEGACY_GUARD_SAMPLE_PERIOD_MS),
+           static_cast<unsigned>(session.endReason), static_cast<unsigned long>(cutMs),
+           static_cast<long>(lroundf(session.lastAcceptedWeightG * 10.0f)));
+  return row;
+}
+
+void lg01_legacy_guard_decisions_fixture() {
+  std::string json = "{\"version\":1,\"rows\":[\n";
+  for (const LegacyGuardScenario &scenario : kLegacyGuardScenarios) {
+    if (json.back() != '\n') json += ",\n";
+    json += captureLegacyGuardDecision(scenario);
+  }
+  json += "\n]}\n";
+  std::string path(__FILE__);
+  path = path.substr(0, path.find_last_of('/')) + "/fixtures/legacy_guard_decisions_v1.json";
+  if (getenv("LEGACY_GUARD_FIXTURE_WRITE") != nullptr) {
+    FILE *out = fopen(path.c_str(), "w");
+    CHECK(out != nullptr);
+    if (out != nullptr) {
+      fputs(json.c_str(), out);
+      fclose(out);
+    }
+  }
+  FILE *in = fopen(path.c_str(), "r");
+  CHECK(in != nullptr);
+  if (in == nullptr) return;
+  std::string committed;
+  char buffer[4096];
+  for (size_t n; (n = fread(buffer, 1, sizeof(buffer), in)) > 0;) committed.append(buffer, n);
+  fclose(in);
+  CHECK(committed == json);
+}
+
 const TestCase testCases[] = {
     {"HOME03", home03_active_flow_requires_fresh_baseline_and_confirmed_drop},
     {"HOME02", home02_nonqualifying_resolution_preserves_cutoff_and_endpoint},
     {"HOME01", home01_stream_lifecycle_uses_canonical_final_record},
+    {"LG01", lg01_legacy_guard_decisions_fixture},
     {"TF01", at11_touch_fallback_only_when_both_enabled},
     {"TF02", at12_touch_fallback_duration_and_evidence_resets},
     {"TF03", at13_touch_fallback_guard_thresholds},

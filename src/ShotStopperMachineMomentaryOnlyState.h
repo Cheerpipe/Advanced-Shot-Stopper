@@ -433,7 +433,7 @@ void serviceMomentaryRunSensors() {
   const float delta = weight - momentaryShotBaselineG;
   const bool inShotBand =
       delta >= MOMENTARY_CONFIRM_DELTA_G &&
-      delta <= runtimeConfig.maxRecoveryWeightG;
+      delta <= goalWeightDgToGrams(runtimeConfig.goalWeightDg + runtimeConfig.fastMarginDg);
   const bool canConfirmOn =
       (momentaryLogicalRunActive ||
        momentaryInferredState == MachineRunState::ASSUMED_ON ||
