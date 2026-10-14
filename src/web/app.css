@@ -524,7 +524,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .guardRow{display:grid;grid-template-columns:6.5rem 1fr;gap:.6rem;align-items:baseline;padding:.5rem 0;border-top:1px solid var(--ln)}
 .presetAccRows .guardRow:first-child{border-top:0}
 .guardRow:has(.presetAccEdit){grid-template-columns:6.5rem 1fr auto}
-.presetAccEdit.qeditPen{align-self:center;min-width:var(--tap);min-height:var(--tap);margin:-.6rem -.5rem -.6rem 0;transform:none}
+.presetAccEdit.qeditPen{align-self:center;min-width:var(--tap);min-height:var(--tap);margin:calc(var(--tap) / -2) -.5rem calc(var(--tap) / -2) 0;transform:none}
 .guardName{font-weight:700;font-size:.82rem;display:flex;align-items:center;gap:.35rem}
 .guardName i{width:.55rem;height:.55rem;border-radius:50%}
 .guardRule{font-size:.82rem;color:var(--fg)}
