@@ -1280,6 +1280,7 @@ function renderShotSpark(h, shot) {
   }
   return m;
 }
+let statsPresetFilter = "all";
 function renderStatsDurChart() {
   const root = $("statsDurChart");
   if (!root) return;
@@ -1292,31 +1293,42 @@ function renderStatsDurChart() {
       __WEBUI_TEXT__("runtime.verdict_on_recipe") +
       '</span><span class="ruleLeg ruleLegSlow">' +
       __WEBUI_TEXT__("runtime.slow") +
-      '</span><span id="statsDurWindow" class="ruleLeg"></span><select id="statsPresetFilter" aria-label="' +
+      '</span><span id="statsDurWindow" class="ruleLeg"></span></div><div id="statsPresetFilter" class="shotSort" role="group" aria-label="' +
       __WEBUI_TEXT__("runtime.stats_preset_filter") +
-      '"><option value="active">' +
-      __WEBUI_TEXT__("runtime.this_preset") +
-      '</option><option value="all">' +
+      '"><button type="button" data-v="all">' +
       __WEBUI_TEXT__("runtime.all_presets") +
-      '</option></select></div><div id="statsDurChartPlot" class="shotSparkHost"></div>';
+      '</button><button type="button" data-v="active">' +
+      __WEBUI_TEXT__("runtime.this_preset") +
+      '</button></div><div id="statsDurChartPlot" class="shotSparkHost"></div>';
     root.dataset.ready = "1";
-    $("statsPresetFilter").onchange = renderStatsDurChart;
+    for (const b of $("statsPresetFilter").children)
+      b.onclick = () => {
+        statsPresetFilter = b.dataset.v;
+        renderStatsDurChart();
+      };
   }
   const host = $("statsDurChartPlot");
   if (!host) return;
   // Each shot keeps the verdict it was judged with; the window bands show
   // only while every shown shot was judged against the same window.
   const presets = homeStatusCache()?.presets || presetState,
-    filter = $("statsPresetFilter"),
-    only = filter && filter.value === "all" ? 0 : presets.activeId,
-    shots = (shotHistory.shots || []).filter(
-      (r) => r.arrivalS > 0 && r.verdict && (!only || r.presetId === only),
-    ),
+    only = statsPresetFilter === "all" ? 0 : presets.activeId,
+    timed = (shotHistory.shots || []).filter((r) => r.arrivalS > 0 && r.verdict),
+    shots = timed.filter((r) => !only || r.presetId === only),
     shared = shots.length && shots.every((r) => r.fastBeforeS === shots[0].fastBeforeS && r.slowAfterS === shots[0].slowAfterS),
     BIN = 0.5,
     tMax = 6e4 / 1e3,
     bins = Math.round(tMax / BIN),
     counts = Array.from({ length: bins }, () => ({ fast: 0, on_recipe: 0, slow: 0 }));
+  // No timed shots: no chart at all; none for this preset: only the filter.
+  root.hidden = !timed.length;
+  host.hidden = !shots.length;
+  for (const b of $("statsPresetFilter").children)
+    b.setAttribute("aria-pressed", String(b.dataset.v === statsPresetFilter));
+  if (!shots.length) {
+    host.innerHTML = "";
+    return;
+  }
   let maxC = 0;
   for (const r of shots) {
     const c = counts[Math.min(bins - 1, Math.floor(r.arrivalS / BIN))];

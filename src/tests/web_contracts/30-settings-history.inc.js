@@ -1548,7 +1548,8 @@ if (!statsSection ||
   const histRoot = {dataset: {}, className: '', innerHTML: ''};
   const histPlot = {innerHTML: ''};
   const histWindow = {textContent: ''};
-  const histFilter = {value: 'active'};
+  const filterButton = (v) => ({dataset: {v}, attrs: {}, setAttribute(k, x) { this.attrs[k] = x; }});
+  const histFilter = {children: [filterButton('all'), filterButton('active')]};
   const ticks = [];
   global.$ = (id) => ({statsDurChart: histRoot, statsDurChartPlot: histPlot,
     statsDurWindow: histWindow, statsPresetFilter: histFilter})[id] || null;
@@ -1565,23 +1566,26 @@ if (!statsSection ||
   helpers.renderStatsDurChart();
   const fills = (color) => (histPlot.innerHTML.match(new RegExp(
       'fill="' + color.replace(/[()]/g, '\\$&') + '" fill-opacity=".22"', 'g')) || []).length;
-  if (fills('var(--ok)') !== 1 || fills('#6492d7') !== 1 || fills('#d97706') !== 1 ||
-      !histPlot.innerHTML.includes('statsDurSparkY">2<')) {
-    throw new Error('Duration histogram must stack each shot by its own stored verdict');
+  // All presets is the default: mixed windows draw the shots without bands.
+  if (histFilter.children[0].attrs['aria-pressed'] !== 'true' || fills('#6492d7') !== 2 ||
+      fills('var(--ok)') !== 1 || fills('#d97706') !== 1 || histWindow.textContent !== '' ||
+      ticks.join() !== '0 s,60 s' || !histPlot.innerHTML.includes('statsDurSparkY">2<')) {
+    throw new Error('All presets must stack every shot by its own verdict without bands');
   }
-  if (histWindow.textContent !== 'Window 27–34 s' || ticks.join() !== '0 s,27 s,34 s,60 s') {
-    throw new Error('Duration histogram must label the window all shown shots share');
+  histFilter.children[1].onclick();
+  if (histFilter.children[1].attrs['aria-pressed'] !== 'true' || fills('#6492d7') !== 1 ||
+      histWindow.textContent !== 'Window 27–34 s' || ticks.join() !== '0 s,27 s,34 s,60 s') {
+    throw new Error('This preset must label the window all shown shots share');
   }
-  histFilter.value = 'all';
+  global.presetState = {activeId: 3, items: []};
   helpers.renderStatsDurChart();
-  if (fills('#6492d7') !== 2 || histWindow.textContent !== '' || ticks.join() !== '0 s,60 s') {
-    throw new Error('All presets must include every preset and drop bands for mixed windows');
+  if (histRoot.hidden || !histPlot.hidden) {
+    throw new Error('A preset without timed shots keeps only the filter visible');
   }
-  global.shotHistory = {shots: []};
+  global.shotHistory = {shots: [shot(1, 0, null)]};
   helpers.renderStatsDurChart();
-  if ((histPlot.innerHTML.match(/fill-opacity=".22"/g) || []).length !== 0 ||
-      !histPlot.innerHTML.includes('statsDurSparkY">0<')) {
-    throw new Error('Duration histogram must paint an empty shell before shots load');
+  if (!histRoot.hidden) {
+    throw new Error('Without timed shots the chart must not show empty axes');
   }
   for (const name of ['$', 'shotHistory', 'fillChartTicks', 'homeStatusCache', 'presetState', 'sub'])
     delete global[name];

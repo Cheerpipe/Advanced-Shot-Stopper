@@ -97,13 +97,12 @@ Its remaining entities are:
   shots stopped by weight in that window, measured against where each shot was
   planned to stop.
 - **Active preset**, a select populated from the controller's preset names.
-- **Brew by weight**, **No-scale BBW**, **A-to-M time guard**, **Slow
-  extraction guard**, **Fast extraction guard**, **Avoid accidental touch**,
-  and **Cup protection** switches. Three of them keep their earlier names in
-  Home Assistant: **A-to-M time guard** is the controller's
-  [Scale-loss backup](auto-to-manual.md), **Fast extraction guard** is
-  **Extend fast shots**, and **Slow extraction guard** is **Shorten slow
-  shots** (see [Fast and slow shots](fast-and-slow-shots.md)).
+- **Brew by weight**, **No-scale BBW**, **Scale-loss backup**, **Shorten
+  slow shots**, **Extend fast shots**, **Avoid accidental touch**, and **Cup
+  protection** switches, named as in the Home Quick Settings (see
+  [Scale-loss backup](auto-to-manual.md) and
+  [Fast and slow shots](fast-and-slow-shots.md)). Existing installations keep
+  their entity IDs; only the displayed names change.
 - **Restart Open Brew by Weight**, a configuration button.
 
 Selecting a preset waits for the controller to persist it and then refreshes

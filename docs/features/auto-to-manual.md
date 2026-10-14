@@ -54,7 +54,7 @@ While brewing by weight, the Quick Settings row shows when the next shot would
 stop if the scale dropped before the coffee starts flowing, for example
 **Stops at ~31.5 s if the scale drops**.
 
-The live panel shows `Off` / `Idle` / `Armed` / `A→M · Ns`. Shot history records
+The Diagnostic page's guard panel shows `Off` / `Idle` / `Armed` / `Scale lost · Ns`. Shot history records
 `stop_detail = auto_to_manual` and `cut_type = limit`, along with how the
 backup time was chosen.
 

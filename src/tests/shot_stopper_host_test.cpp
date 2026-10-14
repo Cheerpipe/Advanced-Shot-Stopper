@@ -7162,7 +7162,7 @@ void w87b_runtime_persist_failure_is_logged_once_per_episode() {
   serviceRuntimePersistence();
   CHECK(!runtimePersistFailed);
   hostRuntimePersistSucceeds = false;
-  queueRuntimePersist(RUNTIME_PERSIST_REASON_ATM_SAMPLES);
+  queueRuntimePersist(RUNTIME_PERSIST_REASON_USER);
   hostMillis += RUNTIME_PERSIST_DEBOUNCE_MS;
   debugLog.clear();
   serviceRuntimePersistence();
@@ -15999,17 +15999,16 @@ void s13_persist_debug_messages_identify_origin() {
   DebugEvent runtimeEvent = {};
   runtimeEvent.code = DebugCode::RUNTIME_PERSIST_FAILED;
   runtimeEvent.argument1 = 9;
-  runtimeEvent.argument2 = RUNTIME_PERSIST_REASON_ATM_SAMPLES;
+  runtimeEvent.argument2 = RUNTIME_PERSIST_REASON_USER;
   CHECK(formatPersistDebugMessage(runtimeEvent, message, sizeof(message)));
   CHECK(strstr(message, "PERSIST_RUNTIME") != nullptr);
   CHECK(strstr(message, "settingsA/B") != nullptr);
-  CHECK(strstr(message, "A->M duration samples") != nullptr);
+  CHECK(strstr(message, "runtime config") != nullptr);
   CHECK(strstr(message, "learned weight offset") == nullptr);
 
-  runtimeEvent.argument2 =
-      RUNTIME_PERSIST_REASON_ATM_SAMPLES | RUNTIME_PERSIST_REASON_OFFSET;
+  runtimeEvent.argument2 = RUNTIME_PERSIST_REASON_USER | RUNTIME_PERSIST_REASON_OFFSET;
   CHECK(formatPersistDebugMessage(runtimeEvent, message, sizeof(message)));
-  CHECK(strstr(message, "A->M samples+offset") != nullptr);
+  CHECK(strstr(message, "learned weight offset") != nullptr);
   CHECK(strlen(message) < sizeof(message));
 }
 

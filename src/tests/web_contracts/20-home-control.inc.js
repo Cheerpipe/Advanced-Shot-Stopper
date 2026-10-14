@@ -831,7 +831,7 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !domain.includes('bool cupPresent = false') ||
     !domain.includes('MachineRunState machineRunState') ||
     !domain.includes('CupPresenceState cupPresenceState') ||
-    !codeIncludes(ui, 'A→M ·') ||
+    !codeIncludes(ui, 'Scale lost ·') ||
     !codeIncludes(ui, 'function updateHomeGuardSubs(') ||
     !codeIncludes(ui, 'updateHomeGuardSubs(s,live)') ||
     !codeIncludes(ui, "setHomeSub('homeBbwSub'") ||

@@ -245,6 +245,7 @@ small{display:block;color:var(--mu)}
 .fieldHint{display:block;font-size:.8125rem;color:var(--mu);margin:.3rem 0 .2rem;line-height:1.4;max-width:38rem;font-weight:400}
 .rtttlTest{display:inline-block;color:var(--ac);font-size:.82em;font-weight:600;text-decoration:none;cursor:pointer}.rtttlTest[aria-disabled=true]{color:var(--mu);pointer-events:none;cursor:default}
 #statsDurChart{margin-top:1.35rem}
+#statsPresetFilter{margin:0 0 .55rem}
 .locked{opacity:.5}
 .switchRow{display:flex;align-items:center;gap:.75rem;margin:.4rem 0;min-height:var(--tap);justify-content:space-between}
 .homeGuardGrid .switchRow input{position:absolute;opacity:0;width:0;height:0}

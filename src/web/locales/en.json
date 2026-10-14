@@ -548,7 +548,7 @@
     "ota.this_firmware_was_not_built_for_an": "This firmware was not built for an ESP32-S3.",
     "runtime.180": "180",
     "runtime.1st_drop": "1st drop",
-    "runtime.a_to_m_2": "A→M · ",
+    "runtime.a_to_m_2": "Scale lost · ",
     "runtime.absent": "Absent",
     "runtime.activation_history_cleared": "Activation history cleared.",
     "runtime.active": "Active",

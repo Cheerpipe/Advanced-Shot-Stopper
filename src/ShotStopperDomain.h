@@ -2127,11 +2127,11 @@ enum class DebugCode : uint8_t {
   TIME_SYNC_FAIL,
   FIRST_DROP_DURING_RETARE,
   FAST_EXTRACTION_ENTERED,
-  FAST_EXTRACTION_STOP_MAX,
+  FAST_EXTRACTION_STOP_MAX,  // retired; ordinal kept for exported logs
   CHANNELING_DETECTED,
   SLOW_EXTRACTION_ENTERED,
-  SLOW_EXTRACTION_STOP_MAX_TIME,
-  SLOW_EXTRACTION_STOP_MIN_WEIGHT,
+  SLOW_EXTRACTION_STOP_MAX_TIME,    // retired; ordinal kept for exported logs
+  SLOW_EXTRACTION_STOP_MIN_WEIGHT,  // retired; ordinal kept for exported logs
   ACCIDENTAL_TOUCH_HOLD,
   ACCIDENTAL_TOUCH_RELEASE,
   ACCIDENTAL_TOUCH_HANDOFF,
@@ -2209,7 +2209,6 @@ constexpr uint32_t HEALTH_LOOP_GAP_CLEAR_MS = 80;
 
 // Bitmask for argument2 on RUNTIME_PERSIST_FAILED (what was pending in NVS).
 constexpr int32_t RUNTIME_PERSIST_REASON_OFFSET = 1;
-constexpr int32_t RUNTIME_PERSIST_REASON_ATM_SAMPLES = 2;
 constexpr int32_t RUNTIME_PERSIST_REASON_USER = 4;
 constexpr int32_t RUNTIME_PERSIST_REASON_SCALE_MAC = 8;
 constexpr int32_t RUNTIME_PERSIST_REASON_BLE_SCAN = 16;
@@ -2599,8 +2598,12 @@ inline const char *debugCodeName(DebugCode code) {
     case DebugCode::CONFIG_REJECTED: return "configuration rejected";
     case DebugCode::WEIGHT_OFFSET_RESET:
       return "learned weight offset reset to default";
+    case DebugCode::FAST_EXTRACTION_STOP_MAX:
+    case DebugCode::SLOW_EXTRACTION_STOP_MAX_TIME:
+    case DebugCode::SLOW_EXTRACTION_STOP_MIN_WEIGHT:
+      return "retired event";
     case DebugCode::AUTO_TO_MANUAL_GUARD_SAMPLES_RESET:
-      return "auto-to-manual guard samples reset";
+      return "preset shot statistics restarted (new coffee)";
     case DebugCode::AUTO_TO_MANUAL_GUARD_ARMED:
       return "auto-to-manual guard armed";
     case DebugCode::AUTO_TO_MANUAL_GUARD_ENFORCED:
@@ -2672,16 +2675,10 @@ inline const char *debugCodeName(DebugCode code) {
       return "first coffee drop detected during retare";
     case DebugCode::FAST_EXTRACTION_ENTERED:
       return "cut line raised above the target";
-    case DebugCode::FAST_EXTRACTION_STOP_MAX:
-      return "fast extraction guard stopped at max weight";
     case DebugCode::CHANNELING_DETECTED:
       return "channeling: cut line capped at the target";
     case DebugCode::SLOW_EXTRACTION_ENTERED:
       return "cut line lowered below the target";
-    case DebugCode::SLOW_EXTRACTION_STOP_MAX_TIME:
-      return "slow extraction guard stopped at max BBW brew time";
-    case DebugCode::SLOW_EXTRACTION_STOP_MIN_WEIGHT:
-      return "slow extraction guard stopped at min weight";
     case DebugCode::ACCIDENTAL_TOUCH_HOLD:
       return "accidental touch holding weight cut";
     case DebugCode::ACCIDENTAL_TOUCH_RELEASE:
@@ -2776,19 +2773,8 @@ inline bool formatScaleSampleDebugMessage(const DebugEvent &event, char *message
 }
 
 inline const char *runtimePersistReasonLabel(int32_t reasonBits) {
-  const bool offset = (reasonBits & RUNTIME_PERSIST_REASON_OFFSET) != 0;
-  const bool samples =
-      (reasonBits & RUNTIME_PERSIST_REASON_ATM_SAMPLES) != 0;
-  if (offset && samples) {
-    return "A->M samples+offset";
-  }
-  if (samples) {
-    return "A->M duration samples";
-  }
-  if (offset) {
-    return "learned weight offset";
-  }
-  return "runtime config";
+  return (reasonBits & RUNTIME_PERSIST_REASON_OFFSET) != 0 ? "learned weight offset"
+                                                           : "runtime config";
 }
 
 // Builds Web UI /api/v1/log lines for NVS persist failures with origin clues.

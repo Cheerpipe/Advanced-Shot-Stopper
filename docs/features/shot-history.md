@@ -14,10 +14,11 @@ the page always opens instantly with the latest shots.
 
 The Stats chart shows when shots reached their target. Each shot keeps the
 colour of the verdict it got when it was pulled — Fast, On recipe or Slow — so
-editing a preset's window later never recolours past shots. Use the selector
-beside the legend to show **This preset** (the active one) or **All presets**.
-When every shot shown was judged against the same window, the chart marks that
-window, for example **Window 27–34 s**; otherwise it shows the shots alone.
+editing a preset's window later never recolours past shots. The chart starts
+on **All presets**; choose **This preset** to see only the active preset's
+shots. When every shot shown was judged against the same window, the chart
+marks that window, for example **Window 27–34 s**; otherwise it shows the shots
+alone. The chart appears once a shot has a measured arrival time.
 
 Stopwatch and gram-weight icons sit beside the large duration and yield values
 in each shot card and beside Avg time and Avg yield in the Stats summary.
