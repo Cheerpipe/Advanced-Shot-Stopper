@@ -58,8 +58,9 @@ Tap either to open a panel at the bottom of the screen. It shows the weight,
 the dose and the ratio as two small labels (for example **18.0 g in** and
 **1:2.0**), and a sliding scale between **−** and **+** buttons:
 
-- Drag the scale slowly to move a tenth of a gram at a time; drag faster and
-  it accelerates so you can cross the range in a single gesture.
+- The scale moves with your finger: drag it left for a higher weight, right
+  for a lower one. Slow drags follow your finger exactly, a tenth of a gram
+  at a time; a quick flick moves up to three times farther.
 - Tap **−** or **+** to change the weight by exactly a tenth of a gram. Hold
   either one and it repeats, then speeds up to a whole gram at a time.
 - Every whole gram on the scale carries its number, with smaller marks at the

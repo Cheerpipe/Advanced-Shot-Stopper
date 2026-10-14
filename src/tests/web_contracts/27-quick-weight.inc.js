@@ -67,13 +67,13 @@
       .replace(/\s/g, '').includes('cleanBrewForm'),
     'Runtime must export cleanBrewForm for the commit path');
 
-  qwAssert.ok(codeIncludes(qwHomeJs, 'pending += dx * BASE_DG_PER_PX * speedMul(vel.v);') &&
+  qwAssert.ok(codeIncludes(qwHomeJs, 'pending -= dx * BASE_DG_PER_PX * speedMul(vel.v);') &&
       codeIncludes(qwHomeJs, 'value = clamp(value + Math.trunc(pending));') &&
       codeIncludes(qwHomeJs, 'pending %= 1;') &&
       codeIncludes(qwHomeJs, 'if (dx * ctx.dx < 0) vel.v = 0;') &&
-      codeIncludes(qwHomeJs, 'BASE_DG_PER_PX = 0.05') &&
-      codeIncludes(qwHomeJs, 'SPEED_CAP = 8'),
-    'The drag must accrue sub-tenth motion, reverse cleanly, and keep the halved sensitivity and ×8 cap');
+      codeIncludes(qwHomeJs, 'BASE_DG_PER_PX = 1 / PX_PER_DG') &&
+      codeIncludes(qwHomeJs, 'SPEED_CAP = 3') && codeIncludes(qwHomeJs, 'SPEED_K = 1.5'),
+    'The drag must accrue sub-tenth motion, reverse cleanly, track the finger 1:1, and gear up gently to ×3');
   qwAssert.ok(codeIncludes(qwHomeJs, 'PX_PER_DG = 6'),
     'The ruler must spend 6 px per 0.1 g so tenths read clearly');
   qwAssert.ok(codeIncludes(qwHomeJs,
@@ -268,7 +268,7 @@
         if (dx * prev < 0) v = 0;
         prev = dx;
         v = 0.75 * v + 0.25 * (Math.abs(dx) / dt);
-        pending += dx * 0.05 * (1 + Math.min(7, Math.abs(v) * 14));
+        pending -= dx * (1 / 6) * (1 + Math.min(2, Math.abs(v) * 1.5));
         const step = Math.trunc(pending);
         pending -= step;
         value = Math.max(100, Math.min(2000, value + step));
@@ -287,7 +287,7 @@
 
     // A crawling drag (1 px per event, far below one tenth) must still move
     // the dial: sub-tenth credit accrues instead of dying in rounding.
-    const qwCrawl = Array.from({length: 40}, () => [1, 25]);
+    const qwCrawl = Array.from({length: 40}, () => [-1, 25]);
     qwDragZone(qwCrawl);
     qwAssert.equal(qwEls.qwNum.textContent, qwModel(qwCrawl),
       'A crawling drag must accumulate tenths');
@@ -302,10 +302,10 @@
 
     // Bounds: the firmware goal range clamps however far the drag runs.
     qwEls.qwReset.onclick();
-    qwDragZone([[600, 5], [600, 5], [600, 5], [600, 5], [600, 5], [600, 5], [600, 5]]);
-    qwAssert.equal(qwEls.qwNum.textContent, '200.0', 'The drag clamps at the 200 g ceiling');
+    qwDragZone([[-600, 5], [-600, 5], [-600, 5], [-600, 5], [-600, 5], [-600, 5], [-600, 5]]);
+    qwAssert.equal(qwEls.qwNum.textContent, '200.0', 'Dragging left clamps at the 200 g ceiling');
     qwEls.qwReset.onclick();
-    qwDragZone([[-600, 5], [-600, 5], [-600, 5], [-600, 5]]);
+    qwDragZone([[600, 5], [600, 5], [600, 5], [600, 5]]);
     qwAssert.equal(qwEls.qwNum.textContent, '10.0', 'The drag clamps at the 10 g floor');
 
     // −/+ taps step a tenth; Enter on a button does the same.
@@ -418,7 +418,7 @@
     qwAssert.ok(qwStrip.some((n) => !n._text && n.classes.has('out')) &&
         qwStrip.some((n) => !n._text && !n.classes.has('out')),
       'Minor ticks dim outside the range only');
-    qwDragZone([[-600, 5], [-600, 5], [-600, 5], [-600, 5]]);
+    qwDragZone([[600, 5], [600, 5], [600, 5], [600, 5]]);
     qwAssert.equal(qwEls.qwNum.textContent, '32.0',
       'The drag clamps at the lowest target the margins allow');
     qwAssert.equal(qwEls.qwLimitMin.hidden, false,

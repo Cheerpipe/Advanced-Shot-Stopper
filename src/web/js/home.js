@@ -220,9 +220,9 @@ function initQuickWeight() {
   const MIN = 10,
     MAX = 200,
     PX_PER_DG = 6, // 60 px per gram: tenths read clearly
-    BASE_DG_PER_PX = 0.05, // 20 px per tenth: ruler tracks the finger at 0.3×
-    SPEED_CAP = 8,
-    SPEED_K = 14;
+    BASE_DG_PER_PX = 1 / PX_PER_DG, // the ruler tracks the finger 1:1
+    SPEED_CAP = 3, // gentle gearing: only quick flicks go past 1:1
+    SPEED_K = 1.5;
   const inner = document.createElement("div");
   inner.className = "qwScaleIn";
   const ticks = [];
@@ -385,7 +385,9 @@ function initQuickWeight() {
       vel.t = now;
       // Sub-tenth motion accrues in pending instead of rounding away per
       // event, so slow drags still move the dial a tenth at a time.
-      pending += dx * BASE_DG_PER_PX * speedMul(vel.v);
+      // Direct manipulation: the finger carries the ruler, so dragging left
+      // brings higher grams under the needle.
+      pending -= dx * BASE_DG_PER_PX * speedMul(vel.v);
       value = clamp(value + Math.trunc(pending));
       pending %= 1;
       paint();
