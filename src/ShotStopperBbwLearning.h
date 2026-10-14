@@ -9,7 +9,7 @@ namespace shotstopper {
 struct BbwLearningBank {
   struct State {
     uint8_t id = 0;
-    uint32_t generations[2] = {};
+    uint32_t generation = 0;
     bbwEwma::Evidence evidence;
   } states[MAX_SHOT_PRESETS];
   uint32_t nextGeneration = 0;
@@ -25,8 +25,7 @@ struct BbwLearningBank {
       if (state.id == 0 || findShotPresetIndex(bank, state.id) < 0) {
         state = State{};
         state.id = id;
-        state.generations[0] = newGeneration();
-        state.generations[1] = newGeneration();
+        state.generation = newGeneration();
         return state;
       }
     }
@@ -34,12 +33,11 @@ struct BbwLearningBank {
     return states[0];
   }
 
-  void invalidate(uint8_t id, const ShotPresetBank &bank, int algorithm = -1) {
+  // Stale pending shots stop learning and the candidate evidence restarts.
+  void invalidate(uint8_t id, const ShotPresetBank &bank) {
     State &state = forPreset(id, bank);
-    for (int i = 0; i < 2; ++i) {
-      if (algorithm < 0 || algorithm == i) state.generations[i] = newGeneration();
-    }
-    if (algorithm != 0) state.evidence = bbwEwma::Evidence{};
+    state.generation = newGeneration();
+    state.evidence = bbwEwma::Evidence{};
   }
 };
 static_assert(sizeof(BbwLearningBank) <= 3000, "BBW per-preset RAM budget");

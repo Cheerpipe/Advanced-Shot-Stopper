@@ -6,14 +6,13 @@
 
 namespace shotstopper {
 
-// LINEAR_EWMA is the only cutoff algorithm. Numeric value 1 matches the
-// pre-removal persisted encoding; blobs storing 0 (removed regression mode)
-// are aliased to 1 by the settings-load repair path.
+// The single cutoff algorithm id (1). Its API name is "corridor" (the smooth
+// cut with drip-offset learning); "linear_ewma" and "legacy" stay accepted as
+// inputs and select it too.
 enum class BbwAlgorithm : uint8_t { LINEAR_EWMA = 1 };
 constexpr uint8_t DEFAULT_BBW_EWMA_ALPHA = 30;  // Hundredths, dimensionless.
-// v1 was the removed regression policy; stored shot logs keep whatever
-// version they were written with and are never recomputed.
-constexpr uint8_t BBW_PROFILE_VERSION = 2;
+// Profile 3: the drip-offset EWMA learning against the smooth-cut line.
+constexpr uint8_t BBW_PROFILE_VERSION = 3;
 constexpr uint8_t BBW_ALPHA_CANDIDATES[] = {10, 30, 50, 100};
 
 inline bool validBbwAlpha(uint8_t alpha) {
@@ -35,7 +34,7 @@ inline bool parseBbwAlphaBaseline(double value, uint8_t &out) {
 
 inline const char *bbwAlgorithmName(uint8_t algorithm) {
   return algorithm == static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA)
-             ? "linear_ewma"
+             ? "corridor"
              : "unknown";
 }
 
@@ -43,7 +42,8 @@ inline bool parseBbwAlgorithm(const char *name, uint8_t &algorithm) {
   if (name == nullptr) return false;
   // "legacy" (the removed regression mode) stays accepted so old clients and
   // scripts keep working; both names select the only remaining algorithm.
-  if (strcmp(name, "linear_ewma") == 0 || strcmp(name, "legacy") == 0) {
+  if (strcmp(name, "corridor") == 0 || strcmp(name, "linear_ewma") == 0 ||
+      strcmp(name, "legacy") == 0) {
     algorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
     return true;
   }

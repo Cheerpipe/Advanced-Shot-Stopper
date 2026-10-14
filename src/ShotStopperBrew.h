@@ -23,20 +23,6 @@
 // - Start-guard WouldBlock predicates are read-only. They must not call
 //   machineSet* or drive K1; the stopper composes them into the façade bit.
 
-bool fastExtractionGuardSession();
-bool slowExtractionGuardSession();
-float effectiveStopThreshold();
-float effectiveMaxStopThreshold();
-float effectiveMinStopThreshold();
-float activeWeightCutTargetG() {
-  if (session.extractionExtended && fastExtractionGuardSession()) {
-    return effectiveMaxStopThreshold();
-  }
-  if (session.slowExtractionExtended && slowExtractionGuardSession()) {
-    return effectiveMinStopThreshold();
-  }
-  return effectiveStopThreshold();
-}
 bool shouldTrackWeight() {
   return session.active && !session.config.timerOnly &&
          session.weightControlState != WeightControlState::INACTIVE &&
@@ -44,55 +30,82 @@ bool shouldTrackWeight() {
          stopperState == StopperState::BREW;
 }
 
+// Shot time (ms from the machine running start) of an observation stamped
+// atMs; false when the machine is not running or the stamp predates it.
+bool shotTimeAtMs(uint32_t atMs, int32_t &shotMs) {
+  uint32_t runningMs = 0;
+  const uint32_t ageMs = millis() - atMs;
+  if (!machineRunningElapsed(runningMs) || ageMs > runningMs) return false;
+  shotMs = static_cast<int32_t>(runningMs - ageMs);
+  return true;
+}
+
+int32_t gramsToDg(float grams) {
+  return static_cast<int32_t>(lroundf(grams * 10.0f));
+}
+
+// The smooth cut line f(t) of this shot (corridor kernel).
+int32_t cutLineAtDg(int32_t shotMs) {
+  return corridor::cutLineDg(session.cut.params, shotMs);
+}
+
+int32_t cutLineNowDg() {
+  int32_t shotMs = 0;
+  return cutLineAtDg(shotTimeAtMs(millis(), shotMs) ? shotMs : 0);
+}
+
+// Backstop direct-law threshold now: f(t) - r, without the prediction lead.
 float effectiveStopThreshold() {
-  return goalWeightDgToGrams(session.config.goalWeightDg) -
-         session.config.weightOffsetG;
+  return static_cast<float>(cutLineNowDg() - session.cut.offsetDg) / 10.0f;
 }
 
-float effectiveMaxStopThreshold() {
-  return goalWeightDgToGrams(session.config.goalWeightDg +
-                             session.config.fastMarginDg) -
-         session.config.weightOffsetG;
+// A weight cut reports the segment of f that fired (13 raised, 3 target,
+// 16 lowered).
+EndReason weightCutReasonNow() {
+  return corridor::cutReason(session.cut.params, cutLineNowDg());
 }
 
-float effectiveMinStopThreshold() {
-  return goalWeightDgToGrams(session.config.goalWeightDg -
-                             session.config.slowMarginDg) -
-         session.config.weightOffsetG;
+// Snapshot of the shot's cut parameters; the control task owns this state.
+// The stopper passes the connected scale protocol's sensor lag.
+void armSmoothCut(uint16_t sensorLagMs) {
+  corridor::CorridorState &cut = session.cut;
+  cut = corridor::CorridorState{};
+  cut.params.goalDg = session.config.goalWeightDg;
+  cut.params.fastMarginDg = session.config.fastMarginDg;
+  cut.params.slowMarginDg = session.config.slowMarginDg;
+  cut.params.fastOn = session.config.fastSideEnabled;
+  cut.params.slowOn = session.config.slowSideEnabled;
+  cut.params.delayMs = static_cast<int32_t>(session.config.bbwProtectionMs);
+  cut.params.fastBeforeMs = static_cast<int32_t>(session.config.fastBeforeMs);
+  cut.params.slowAfterMs = static_cast<int32_t>(session.config.slowAfterMs);
+  cut.params.wallMs = static_cast<int32_t>(session.config.operationalWallMs);
+  cut.tauMs = corridor::tauMs(sensorLagMs, machineStopCommandLatencyMs());
+  cut.offsetDg = gramsToDg(session.config.weightOffsetG);
 }
 
-bool fastExtractionGuardSession() {
-  return session.active && session.config.fastSideEnabled &&
-         !session.config.timerOnly && session.startedWithScale;
-}
-
-bool slowExtractionGuardSession() {
-  return session.active && session.config.slowSideEnabled &&
-         !session.config.timerOnly && session.startedWithScale;
-}
-
-bool minBbwBrewTimeReached() {
-  uint32_t elapsedMsValue = 0U;
-  return machineRunningElapsed(elapsedMsValue) &&
-         elapsedMsValue >= session.config.fastBeforeMs;
-}
-
-bool maxBbwBrewTimeReached() {
-  uint32_t elapsedMsValue = 0U;
-  return machineRunningElapsed(elapsedMsValue) &&
-         elapsedMsValue >= session.config.slowAfterMs;
-}
-
-bool targetWeightReached(float weight) {
-  return weight >= effectiveStopThreshold();
-}
-
-bool minRecoveryWeightReached(float weight) {
-  return weight >= effectiveMinStopThreshold();
+// After each accepted sample: the predicted stop-command time t* where the
+// projected weight plus in-flight lead and drip offset meets f. No valid rate
+// (or no crossing before the wall) leaves only the direct backstop.
+void updateCutPrediction(float weight, uint32_t receivedAtMs) {
+  shot.expectedEndS = NO_CUT_PREDICTION_S;
+  int32_t shotMs = 0;
+  corridor::CorridorState &cut = session.cut;
+  if (!shotTimeAtMs(receivedAtMs, shotMs) ||
+      cut.rate.push(shotMs, gramsToDg(weight)) !=
+          corridor::RateEstimator::Result::ACCEPTED ||
+      !cut.rate.valid) {
+    return;
+  }
+  int32_t crossing = 0;
+  if (corridor::crossingMs(cut.params, shotMs, gramsToDg(weight),
+                           cut.rate.rateX100, cut.tauMs, cut.offsetDg,
+                           crossing) &&
+      crossing < cut.params.wallMs) {
+    shot.expectedEndS = crossing / 1000.0f;
+  }
 }
 
 void enterBrewOrManualFromStart();
-void calculateExpectedEndTime(float cutTargetG);
 
 void resetFirstFlowDetector() {
   resetFirstFlowState(session.firstFlow);
@@ -147,27 +160,13 @@ bool accidentalTouchSessionActive() {
          session.weightControlState == WeightControlState::ACTIVE;
 }
 
-EndReason touchStopPolicy(float weight, float &threshold, uint32_t atMs) {
-  uint32_t runningMs = 0;
-  const uint32_t ageMs = millis() - atMs;
-  const bool timed = machineRunningElapsed(runningMs) && ageMs <= runningMs;
-  if (timed) runningMs -= ageMs;
-  const bool minReached = timed && runningMs >= session.config.fastBeforeMs;
-  const bool maxReached = timed && runningMs >= session.config.slowAfterMs;
-  threshold = effectiveStopThreshold();
-  if (fastExtractionGuardSession() && !minReached) {
-    threshold = effectiveMaxStopThreshold();
-    return EndReason::FAST_EXTRACTION_MAX_WEIGHT;
-  }
-  if (session.extractionExtended && fastExtractionGuardSession())
-    return EndReason::FAST_EXTRACTION_MIN_TIME;
-  if (slowExtractionGuardSession() && !session.extractionExtended && maxReached &&
-      (session.slowExtractionExtended || !targetWeightReached(weight))) {
-    threshold = effectiveMinStopThreshold();
-    return session.slowExtractionExtended ? EndReason::SLOW_EXTRACTION_MIN_WEIGHT
-                                          : EndReason::SLOW_EXTRACTION_MAX_TIME;
-  }
-  return EndReason::SCALE_THRESHOLD;
+// Touch fallback policy: the segment of f at the sample. f moves along a
+// ramp, so evidence compares the segment only and f is re-read at fire time.
+EndReason touchStopPolicy(float &threshold, uint32_t atMs) {
+  int32_t shotMs = 0;
+  const int32_t line = cutLineAtDg(shotTimeAtMs(atMs, shotMs) ? shotMs : 0);
+  threshold = static_cast<float>(line - session.cut.offsetDg) / 10.0f;
+  return corridor::cutReason(session.cut.params, line);
 }
 
 void considerTouchStopSample(float weight, uint32_t atMs, uint32_t sequence,
@@ -180,7 +179,7 @@ void considerTouchStopSample(float weight, uint32_t atMs, uint32_t sequence,
       static_cast<int32_t>(millis() - atMs) < 0 ||
       elapsedMs(atMs) > MAX_AUTOMATION_WEIGHT_AGE_MS) return;
   float threshold;
-  const EndReason policy = touchStopPolicy(weight, threshold, atMs);
+  const EndReason policy = touchStopPolicy(threshold, atMs);
   if (weight < threshold) return;
   const int32_t gap = static_cast<int32_t>(atMs - previous.lastAtMs);
   // Duplicate/out-of-order observations cannot start a new interval either.
@@ -188,7 +187,7 @@ void considerTouchStopSample(float weight, uint32_t atMs, uint32_t sequence,
       (gap <= 0 || static_cast<int32_t>(sequence - previous.packetSequence) <= 0))
     return;
   const bool continuous = previous.samples && previous.policy == policy &&
-      previous.thresholdG == threshold && generation == previous.connectionGeneration &&
+      generation == previous.connectionGeneration &&
       sequence == previous.packetSequence + 1U && gap > 0 &&
       static_cast<uint32_t>(gap) <= DIRECT_STOP_CONFIRMATION_WINDOW_MS;
   session.touchStop = {continuous ? previous.firstAtMs : atMs, atMs, sequence,
@@ -374,40 +373,37 @@ void serviceBbwProtectionPhases() {
     resetDirectStopConfirmation();
   }
 }
-void enterFastExtractionExtended(float weightG, uint32_t atMs) {
-  if (session.extractionExtended) {
-    return;
+// Latches when the cut line leaves the target: raised once the shot reaches
+// the target while f is above it, lowered once f has dropped below it.
+void noteCutLineSegment(int32_t weightDg, int32_t shotMs, uint32_t atMs) {
+  const corridor::Params &p = session.cut.params;
+  const int32_t line = cutLineAtDg(shotMs);
+  const bool reached = weightDg >= p.goalDg - session.cut.offsetDg;
+  if (!session.extractionExtended && reached && line > p.goalDg) {
+    session.extractionExtended = true;
+    session.targetReachedEarly = true;
+    session.targetReachedAtMs = atMs;
+    shotCurveSampler.latchExtended(atMs, weightDg / 10.0f);
+    addDebugEvent(DebugCategory::SCALE, DebugCode::FAST_EXTRACTION_ENTERED,
+                  weightDg * 10, shotMs);
+    if (runtimeConfig.buzzerExtendedPulseRate !=
+        static_cast<uint8_t>(ExtendedPulseRate::OFF)) {
+      emitAlert(AlertEvent::EXTENDED_PULSE, session.id);
+    }
+  } else if (!session.extractionExtended && !session.slowExtractionExtended &&
+             !reached && line < p.goalDg) {
+    session.slowExtractionExtended = true;
+    shotCurveSampler.latchExtended(atMs, weightDg / 10.0f);
+    addDebugEvent(DebugCategory::SCALE, DebugCode::SLOW_EXTRACTION_ENTERED,
+                  weightDg * 10, shotMs);
+    if (runtimeConfig.buzzerSlowExtendedPulseRate !=
+        static_cast<uint8_t>(ExtendedPulseRate::OFF)) {
+      emitAlert(AlertEvent::EXTENDED_PULSE, session.id);
+    }
   }
-  session.extractionExtended = true;
-  session.targetReachedEarly = true;
-  session.targetReachedAtMs = atMs;
-  shotCurveSampler.latchExtended(atMs, weightG);
-  addDebugEvent(DebugCategory::SCALE, DebugCode::FAST_EXTRACTION_ENTERED,
-                static_cast<int32_t>(weightG * 100.0f),
-                static_cast<int32_t>(elapsedMs(session.startedAtMs)));
-  if (runtimeConfig.buzzerExtendedPulseRate !=
-      static_cast<uint8_t>(ExtendedPulseRate::OFF)) {
-    emitAlert(AlertEvent::EXTENDED_PULSE, session.id);
-  }
-  calculateExpectedEndTime(activeWeightCutTargetG());
 }
 
-void enterSlowExtractionExtended(float weightG, uint32_t atMs) {
-  if (session.slowExtractionExtended || session.extractionExtended) {
-    return;
-  }
-  session.slowExtractionExtended = true;
-  shotCurveSampler.latchExtended(atMs, weightG);
-  addDebugEvent(DebugCategory::SCALE, DebugCode::SLOW_EXTRACTION_ENTERED,
-                static_cast<int32_t>(weightG * 100.0f),
-                static_cast<int32_t>(elapsedMs(session.startedAtMs)));
-  if (runtimeConfig.buzzerSlowExtendedPulseRate !=
-      static_cast<uint8_t>(ExtendedPulseRate::OFF)) {
-    emitAlert(AlertEvent::EXTENDED_PULSE, session.id);
-  }
-  calculateExpectedEndTime(activeWeightCutTargetG());
-}
-
+// Backstop direct law: two consecutive fresh samples at or above f(t) - r.
 void considerDirectStopSample(float weight, uint32_t receivedAtMs,
                               uint32_t packetSequence,
                               uint32_t connectionGeneration) {
@@ -427,14 +423,13 @@ void considerDirectStopSample(float weight, uint32_t receivedAtMs,
   if (overload && !active && !validating) {
     return;
   }
-  const bool overMax =
-      fastExtractionGuardSession() && session.extractionExtended &&
-      weight >= effectiveMaxStopThreshold();
-  const bool overMin =
-      slowExtractionGuardSession() && session.slowExtractionExtended &&
-      weight >= effectiveMinStopThreshold();
-  const bool overThreshold = weight >= effectiveStopThreshold();
-  if (!overThreshold && !overload && !overMax && !overMin) {
+  int32_t shotMs = 0;
+  const bool timed = shotTimeAtMs(receivedAtMs, shotMs);
+  const int32_t weightDg = gramsToDg(weight);
+  if (timed && !overload) noteCutLineSegment(weightDg, shotMs, receivedAtMs);
+  const bool overThreshold =
+      timed && weightDg >= cutLineAtDg(shotMs) - session.cut.offsetDg;
+  if (!overThreshold && !overload) {
     resetDirectStopConfirmation();
     return;
   }
@@ -468,36 +463,12 @@ void considerDirectStopSample(float weight, uint32_t receivedAtMs,
     return;
   }
 
-  if (overMax) {
-    session.directStopPending = true;
-    session.directStopReason = EndReason::FAST_EXTRACTION_MAX_WEIGHT;
-    addDebugEvent(DebugCategory::SCALE, DebugCode::FAST_EXTRACTION_STOP_MAX,
-                  static_cast<int32_t>(weight * 100.0f));
-    return;
-  }
-
-  if (overMin) {
-    session.directStopPending = true;
-    session.directStopReason = EndReason::SLOW_EXTRACTION_MIN_WEIGHT;
-    addDebugEvent(DebugCategory::SCALE,
-                  DebugCode::SLOW_EXTRACTION_STOP_MIN_WEIGHT,
-                  static_cast<int32_t>(weight * 100.0f));
-    return;
-  }
-
-  if (overThreshold && fastExtractionGuardSession() &&
-      (!minBbwBrewTimeReached() || session.extractionExtended)) {
-    enterFastExtractionExtended(weight, receivedAtMs);
-    resetDirectStopConfirmation();
-    return;
-  }
-
   session.directStopPending = true;
-  session.directStopReason = EndReason::SCALE_THRESHOLD;
+  session.directStopReason = weightCutReasonNow();
   // Arg2 is the firing law: 1 = confirmed weight samples (direct),
   // 2 = predicted end time.
   addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_THRESHOLD_CONFIRMED,
-                static_cast<int32_t>(weight * 100.0f), 1);
+                weightDg * 10, 1);
 }
 void armNoScaleShotGuard() {
   if (noScaleShotGuardArmed) {
@@ -730,17 +701,13 @@ bool automaticScaleStopDue() {
       !session.awaitingPostTareBaseline && !scaleAutomationUnavailableForSession()) {
     const TouchStopEvidence &evidence = session.touchStop;
     float threshold;
-    const EndReason policy = touchStopPolicy(evidence.weightG, threshold, millis());
-    if (policy == evidence.policy && threshold == evidence.thresholdG &&
+    const EndReason policy = touchStopPolicy(threshold, millis());
+    if (policy == evidence.policy &&
         evidence.connectionGeneration == session.ownedConnectionGeneration &&
         static_cast<int32_t>(millis() - evidence.lastAtMs) >= 0 &&
         elapsedMs(evidence.lastAtMs) <= MAX_AUTOMATION_WEIGHT_AGE_MS &&
         static_cast<uint32_t>(evidence.lastAtMs - evidence.firstAtMs) >=
             TOUCH_STOP_FALLBACK_MS) {
-      if (policy == EndReason::FAST_EXTRACTION_MAX_WEIGHT)
-        enterFastExtractionExtended(evidence.weightG, evidence.lastAtMs);
-      if (policy == EndReason::SLOW_EXTRACTION_MAX_TIME)
-        enterSlowExtractionExtended(evidence.weightG, evidence.lastAtMs);
       session.calibrationEligible = false;
       session.directStopPending = true;
       session.directStopReason = EndReason::TOUCH_WEIGHT_FALLBACK;
@@ -759,35 +726,6 @@ bool automaticScaleStopDue() {
     return true;
   }
 
-  if (session.extractionExtended && fastExtractionGuardSession()) {
-    if (minBbwBrewTimeReached() &&
-        targetWeightReached(session.lastAcceptedWeightG)) {
-      session.directStopPending = true;
-      session.directStopReason = EndReason::FAST_EXTRACTION_MIN_TIME;
-      addDebugEvent(DebugCategory::SCALE,
-                    DebugCode::FAST_EXTRACTION_STOP_MIN_TIME,
-                    static_cast<int32_t>(session.lastAcceptedWeightG * 100.0f),
-                    static_cast<int32_t>(elapsedMs(session.startedAtMs)));
-      return true;
-    }
-  }
-
-  if (slowExtractionGuardSession() && !session.extractionExtended &&
-      !session.slowExtractionExtended && maxBbwBrewTimeReached() &&
-      !targetWeightReached(session.lastAcceptedWeightG)) {
-    if (minRecoveryWeightReached(session.lastAcceptedWeightG)) {
-      session.directStopPending = true;
-      session.directStopReason = EndReason::SLOW_EXTRACTION_MAX_TIME;
-      addDebugEvent(DebugCategory::SCALE,
-                    DebugCode::SLOW_EXTRACTION_STOP_MAX_TIME,
-                    static_cast<int32_t>(session.lastAcceptedWeightG * 100.0f),
-                    static_cast<int32_t>(elapsedMs(session.startedAtMs)));
-      return true;
-    }
-    enterSlowExtractionExtended(session.lastAcceptedWeightG, millis());
-    return false;
-  }
-
   if (holding) {
     return false;
   }
@@ -798,37 +736,13 @@ bool automaticScaleStopDue() {
       scaleAutomationUnavailableForSession()) {
     return false;
   }
-  const float elapsedS = cycleElapsedSeconds();
-  if (elapsedS < shot.expectedEndS) {
+  // Timed law: the predicted stop-command time t* has arrived.
+  if (cycleElapsedSeconds() < shot.expectedEndS) {
     return false;
   }
-
-  if (fastExtractionGuardSession() && !minBbwBrewTimeReached() &&
-      !session.extractionExtended) {
-    enterFastExtractionExtended(session.lastAcceptedWeightG, millis());
-    return false;
-  }
-
-  if (session.extractionExtended && fastExtractionGuardSession()) {
-    session.directStopPending = true;
-    session.directStopReason = EndReason::FAST_EXTRACTION_MAX_WEIGHT;
-    addDebugEvent(DebugCategory::SCALE, DebugCode::FAST_EXTRACTION_STOP_MAX,
-                  static_cast<int32_t>(session.lastAcceptedWeightG * 100.0f));
-    return true;
-  }
-
-  if (session.slowExtractionExtended && slowExtractionGuardSession()) {
-    session.directStopPending = true;
-    session.directStopReason = EndReason::SLOW_EXTRACTION_MIN_WEIGHT;
-    addDebugEvent(DebugCategory::SCALE,
-                  DebugCode::SLOW_EXTRACTION_STOP_MIN_WEIGHT,
-                  static_cast<int32_t>(session.lastAcceptedWeightG * 100.0f));
-    return true;
-  }
-
   session.directStopPending = true;
-  session.directStopReason = EndReason::SCALE_THRESHOLD;
+  session.directStopReason = weightCutReasonNow();
   addDebugEvent(DebugCategory::SCALE, DebugCode::SCALE_THRESHOLD_CONFIRMED,
-                static_cast<int32_t>(session.lastAcceptedWeightG * 100.0f), 2);
+                gramsToDg(session.lastAcceptedWeightG) * 10, 2);
   return true;
 }

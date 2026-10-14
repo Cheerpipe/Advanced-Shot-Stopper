@@ -10,39 +10,6 @@ inline float clampOffset(float value, float minG = 0.0f) {
   return fmaxf(minG, fminf(MAX_OFFSET_G, value));
 }
 
-inline float predict(const float *timeS, const float *weightG, size_t count,
-                     float targetG, float fallbackS) {
-  if (!timeS || !weightG || count < WEIGHT_TREND_POINT_COUNT ||
-      !std::isfinite(targetG) || !std::isfinite(fallbackS) ||
-      weightG[count - 1] < WEIGHT_TREND_MIN_LAST_SAMPLE_G) return fallbackS;
-  const size_t first = count - WEIGHT_TREND_POINT_COUNT;
-  const float reference = timeS[count - 1];
-  float meanX = 0.0f, meanY = 0.0f;
-  for (size_t i = first; i < count; ++i) {
-    if (!std::isfinite(timeS[i]) || !std::isfinite(weightG[i]) ||
-        (i > first && timeS[i] <= timeS[i - 1])) return fallbackS;
-    meanX += timeS[i] - reference;
-    meanY += weightG[i];
-  }
-  meanX /= WEIGHT_TREND_POINT_COUNT;
-  meanY /= WEIGHT_TREND_POINT_COUNT;
-  float covariance = 0.0f, variance = 0.0f;
-  for (size_t i = first; i < count; ++i) {
-    const float dx = (timeS[i] - reference) - meanX;
-    covariance += dx * (weightG[i] - meanY);
-    variance += dx * dx;
-  }
-  // Legacy denominator = n * centered sum of squared seconds.
-  if (!std::isfinite(variance) || variance < 0.000001f / WEIGHT_TREND_POINT_COUNT)
-    return fallbackS;
-  const float slope = covariance / variance;
-  if (!std::isfinite(slope) || slope <= 0.0f) return fallbackS;
-  const float predicted = reference + meanX + (targetG - meanY) / slope;
-  return std::isfinite(predicted) &&
-                 predicted >= reference + WEIGHT_TREND_MIN_HORIZON_S
-             ? predicted : fallbackS;
-}
-
 inline bool learn(float offsetG, float finalWeightG, float goalG, uint8_t alpha,
                   bool acceptedFreshObservation, float &updatedOffset) {
   const float observation = offsetG + (finalWeightG - goalG);

@@ -275,7 +275,7 @@ void processWebCommand(const WebCommand &command) {
           candidate.retareWindowMs != runtimeConfig.retareWindowMs ||
           candidate.postTareBaselineGraceMs != runtimeConfig.postTareBaselineGraceMs) {
         for (uint8_t i = 0; i < presetBank.count; ++i)
-          bbwLearningBank.invalidate(presetBank.presets[i].id, presetBank, 1);
+          bbwLearningBank.invalidate(presetBank.presets[i].id, presetBank);
       }
       commitLiveRuntimeConfig(composed, RUNTIME_PERSIST_REASON_USER);
       if (command.preferredScaleSpecified) {
@@ -380,7 +380,7 @@ void processWebCommand(const WebCommand &command) {
         return;
       }
       ShotPreset &preset = mutableActiveShotPreset(presetBank);
-      bbwLearningBank.invalidate(preset.id, presetBank, 1);
+      bbwLearningBank.invalidate(preset.id, presetBank);
       preset.bbwEwmaOffsetG = preset.weightOffsetBaselineG;
       if (command.bbwFullReset) {
         preset.bbwEwmaAlpha = preset.bbwAlphaBaseline;

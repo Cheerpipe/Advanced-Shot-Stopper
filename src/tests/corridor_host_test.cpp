@@ -195,6 +195,102 @@ void testVectors() {
   cJSON_Delete(root);
 }
 
+// D = 0 oracle: with steps instead of ramps and the prediction lead excluded,
+// the kernel reproduces every legacy Fast/Slow decision captured from the 1.x
+// firmware harness (legacy_guard_decisions_v1.json). The legacy min-time (14)
+// and max-time (15) stops map to the target (3) and lowered (16) segments.
+void testLegacyOracle() {
+  std::ifstream file(CORRIDOR_FIXTURE_DIR "/legacy_guard_decisions_v1.json");
+  std::stringstream text;
+  text << file.rdbuf();
+  cJSON *root = cJSON_Parse(text.str().c_str());
+  CHECK(root != nullptr);
+  if (root == nullptr) return;
+  int rows = 0;
+  const cJSON *row = nullptr;
+  cJSON_ArrayForEach(row, cJSON_GetObjectItemCaseSensitive(root, "rows")) {
+    ++rows;
+    Params p;
+    p.goalDg = num(row, "goalDg");
+    p.fastMarginDg = num(row, "fastMarginDg");
+    p.slowMarginDg = num(row, "slowMarginDg");
+    p.fastOn = flag(row, "fastOn");
+    p.slowOn = flag(row, "slowOn");
+    p.delayMs = num(row, "delayMs");
+    p.fastBeforeMs = num(row, "fastBeforeMs");
+    p.slowAfterMs = num(row, "slowAfterMs");
+    p.wallMs = num(row, "wallMs");
+    p.rampMs = 0;
+    const int32_t r = num(row, "offsetDg"), first = num(row, "firstDropMs"),
+                  rate = num(row, "rateDgPerS"), change = num(row, "changeAtMs"),
+                  rate2 = num(row, "rate2DgPerS"), period = num(row, "periodMs");
+    auto weightAt = [&](int32_t t) {
+      if (t < first) return 0;
+      if (change == 0 || t < change) return rate * (t - first) / 1000;
+      return rate * (change - first) / 1000 + rate2 * (t - change) / 1000;
+    };
+    int32_t cutMs = -1, cutWeight = 0, lastW = 0;
+    EndReason reason = EndReason::NONE;
+    bool haveStar = false;
+    int32_t star = 0;
+    uint8_t confirmations = 0;
+    for (int32_t t = num(row, "firstSampleMs"); cutMs < 0; t += period) {
+      if (t >= p.wallMs) {
+        cutMs = p.wallMs;
+        cutWeight = lastW;
+        reason = EndReason::CONFIGURED_WALL_LIMIT;
+        break;
+      }
+      // Loop before the sample: timed law with zero rate and zero lead.
+      if (t >= p.delayMs && haveStar && t >= star) {
+        cutMs = t;
+        cutWeight = lastW;
+        reason = cutReason(p, cutLineDg(p, t));
+        break;
+      }
+      const int32_t w = weightAt(t);
+      if (t >= p.delayMs) {
+        confirmations = w >= backstopThresholdDg(p, t, r) ? confirmations + 1 : 0;
+        if (confirmations >= 2) {
+          cutMs = t;
+          cutWeight = w;
+          reason = cutReason(p, cutLineDg(p, t));
+          break;
+        }
+      }
+      lastW = w;
+      haveStar = false;
+      // Prediction excluded: only a later step of f can meet a weight that
+      // is below the line now (the legacy min/max-time stops).
+      for (int32_t s = t + 1; w + r < cutLineDg(p, t) && s <= p.wallMs && !haveStar; ++s)
+        if (w + r >= cutLineDg(p, s)) {
+          haveStar = true;
+          star = s;
+        }
+    }
+    int32_t legacy = num(row, "endReason");
+    if (legacy == static_cast<int32_t>(EndReason::FAST_EXTRACTION_MIN_TIME))
+      legacy = static_cast<int32_t>(EndReason::SCALE_THRESHOLD);
+    if (legacy == static_cast<int32_t>(EndReason::SLOW_EXTRACTION_MAX_TIME))
+      legacy = static_cast<int32_t>(EndReason::SLOW_EXTRACTION_MIN_WEIGHT);
+    // Legacy shared one confirmation counter between the target and ceiling
+    // checks, so a ceiling cut could fire on the first ceiling sample after
+    // an above-target one; the kernel backstop always needs two samples at
+    // the line, so on the raised segment it may cut one sample later.
+    const bool sameCut = cutMs == num(row, "cutMs") && cutWeight == num(row, "cutWeightDg");
+    const bool ceilingQuirk =
+        legacy == static_cast<int32_t>(EndReason::FAST_EXTRACTION_MAX_WEIGHT) &&
+        cutMs == num(row, "cutMs") + period;
+    const bool match = static_cast<int32_t>(reason) == legacy && (sameCut || ceilingQuirk);
+    if (!match)
+      std::cerr << cJSON_GetObjectItemCaseSensitive(row, "id")->valuestring << ": reason "
+                << static_cast<int>(reason) << " cut " << cutMs << " w " << cutWeight << "\n";
+    CHECK(match);
+  }
+  CHECK(rows == 14);
+  cJSON_Delete(root);
+}
+
 Params doubleAdaptive() {
   Params p;
   p.goalDg = 360;
@@ -362,6 +458,7 @@ void testGrindHintReplay() {
 
 int main() {
   testVectors();
+  testLegacyOracle();
   testStepsAndZeroLengthSegments();
   testSolverAgainstBruteForce();
   testEstimator();

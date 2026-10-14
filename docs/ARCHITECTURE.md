@@ -126,13 +126,18 @@ excluded from the scale inhibit so backflush supervision survives BLE acquisitio
 
 ## BBW policy and storage
 
-Brew-by-weight uses a single cutoff policy: linear prediction with adaptive
-EWMA learning (the regression mode was removed; persisted `algorithm=0`
-blobs are aliased to EWMA at settings load). Shared scale qualification,
-direct confirmation, guards, control arbitration and machine/safety authority
-remain outside the policy. The original trend fit remains shared with accidental
-touch sensing; only EWMA cutoff uses centered OLS. Strategies neither actuate
-hardware nor write flash.
+Brew-by-weight uses a single cutoff policy, the smooth cut (`corridor`): a
+pure integer kernel (`ShotStopperCorridor.h`: cut line f(t), time-window
+flow estimator with a MAD gate, crossing solver, verdict, channeling predicate,
+arrival statistics and the scale-loss deadline) with adaptive EWMA learning of
+the drip offset. The kernel holds no globals and allocates nothing; the control
+task owns the per-shot `CorridorState` (≤ 512 B) and is its only writer. Shared
+scale qualification, direct confirmation, control arbitration and
+machine/safety authority remain outside the kernel; it never actuates hardware
+or writes flash. The trend fit remains only for accidental-touch sensing. The
+`replay` host test fixed the timed law, D = 5 s and the channeling floor from a
+synthetic uncensored corpus, and a D = 0 oracle reproduces the captured legacy
+Fast/Slow decisions.
 
 Control owns `BbwLearningBank`: up to eight identity-keyed states, under 3,000
 bytes total, with 20 observations and five trajectory anchors per preset.
@@ -140,9 +145,9 @@ Four fixed gains compete against the current gain, including a custom incumbent.
 Scoring replays the retained window from its anchors and is bounded
 post-finalization work, with no allocation or per-sample persistence. The cycle
 and pending finalizer capture preset, algorithm/profile, full-precision offset,
-actual alpha and a per-learner generation. Learning checks the originating state;
-reset/delete/recreation or a conflicting update invalidates it. Recipe changes
-clear evidence; algorithm-only selection freezes/resumes retained EWMA state.
+actual alpha, the rate at the stop and a per-learner generation. Learning checks
+the originating state; reset/delete/recreation or a conflicting update
+invalidates it. Recipe changes clear evidence.
 Editing reset bases alone preserves current learning and evidence.
 Settings status publishes active-preset identity, both offsets, alpha baseline, gain/provenance
 and evidence count together in the existing coherent control snapshot.
@@ -180,7 +185,7 @@ starts both histories empty; no upgrade migration is required.
 History schema 0 keeps the current fixed records and entries. In shot-log
 records the side-flags byte (bits 0–1 fast/slow side on, 2–4 rating) uses bits 5–7 to encode
 profile (0 unknown, 1 pre-selector regression with unknown version, 2 regression v1,
-3 adaptive EWMA v1, 4 EWMA v2). Alpha is 0 unknown or 1–100 hundredths;
+3 adaptive EWMA v1, 4 EWMA v2, 5 smooth cut v1). Alpha is 0 unknown or 1–100 hundredths;
 extension bits 2–4 hold its low three bits, cut-type bits 4–7 its high four.
 Extension bits 5–6 encode learning application (0 unknown,
 1 skipped, 2 applied). Guard, rating, extension and weight-source meanings are

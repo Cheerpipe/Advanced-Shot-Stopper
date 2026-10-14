@@ -10,11 +10,6 @@
 using namespace shotstopper;
 
 int main() {
-  float times[10], weights[10];
-  for (int i = 0; i < 10; ++i) { times[i] = 20.0f + i; weights[i] = 10.0f + 2 * i; }
-  assert(std::fabs(bbwEwma::predict(times, weights, 10, 36, 50) - 33) < 1e-5f);
-  assert(bbwEwma::predict(times, weights, 9, 36, 50) == 50);
-  assert(bbwEwma::predict(times, weights, 10, 20, 50) == 50);
   // The removed regression mode must parse as an alias, never as value 0.
   uint8_t parsedAlgorithm = 2;
   assert(parseBbwAlgorithm("legacy", parsedAlgorithm) && parsedAlgorithm == 1);
@@ -22,35 +17,11 @@ int main() {
          parsedAlgorithm == 1);
   assert(!parseBbwAlgorithm("regression", parsedAlgorithm));
   assert(!parseBbwAlgorithm(nullptr, parsedAlgorithm));
-  assert(strcmp(bbwAlgorithmName(1), "linear_ewma") == 0);
+  assert(parseBbwAlgorithm("corridor", parsedAlgorithm) && parsedAlgorithm == 1);
+  assert(strcmp(bbwAlgorithmName(1), "corridor") == 0);
   assert(strcmp(bbwAlgorithmName(0), "unknown") == 0);
   assert(bbwAlgorithmVersion(0) == BBW_PROFILE_VERSION &&
          bbwAlgorithmVersion(1) == BBW_PROFILE_VERSION);
-  for (float &time : times) time += 10000.0f;
-  assert(std::fabs(bbwEwma::predict(times, weights, 10, 36, 50) - 10033) < 0.002f);
-  times[5] = times[4];
-  assert(bbwEwma::predict(times, weights, 10, 36, 50) == 50);
-  times[5] = NAN;
-  assert(bbwEwma::predict(times, weights, 10, 36, 50) == 50);
-  for (float &time : times) time = 1.0f;
-  assert(bbwEwma::predict(times, weights, 10, 36, 50) == 50);
-  double meanTime = 0, meanWeight = 0, numerator = 0, denominator = 0;
-  for (int i = 0; i < 10; ++i) {
-    times[i] = 50 + i * .17f + i * i * .01f;
-    weights[i] = 28 + (times[i] - 50) * 2 + (i % 3) * .03f;
-    meanTime += times[i] / 10.0;
-    meanWeight += weights[i] / 10.0;
-  }
-  for (int i = 0; i < 10; ++i) {
-    numerator += (times[i] - meanTime) * (weights[i] - meanWeight);
-    denominator += (times[i] - meanTime) * (times[i] - meanTime);
-  }
-  const double reference = meanTime + (36 - meanWeight) / (numerator / denominator);
-  assert(std::fabs(bbwEwma::predict(times, weights, 10, 36, 60) - reference) < 1e-5);
-  for (float &weight : weights) weight = 40 - weight;
-  assert(bbwEwma::predict(times, weights, 10, 36, 60) == 60);
-  weights[3] = INFINITY;
-  assert(bbwEwma::predict(times, weights, 10, 36, 60) == 60);
   float next = 0;
   assert(bbwEwma::learn(1.5f, 36.2f, 36, 30, true, next));
   assert(std::fabs(next - 1.56f) < 1e-5f);
@@ -128,10 +99,10 @@ int main() {
   ShotPresetBank bank = settings.presets;
   BbwLearningBank learning;
   auto &state = learning.forPreset(bank.presets[0].id, bank);
-  const uint32_t generation = state.generations[0];
+  const uint32_t generation = state.generation;
   state.evidence = noisy;
-  learning.invalidate(bank.presets[0].id, bank, 1);
-  assert(state.generations[0] == generation && state.evidence.count == 0);
+  learning.invalidate(bank.presets[0].id, bank);
+  assert(state.generation != generation && state.evidence.count == 0);
   uint8_t duplicate = 0;
   bank.presets[0].bbwAlphaBaseline = 37;
   assert(duplicateShotPreset(bank, bank.presets[0].id, duplicate));

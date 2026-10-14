@@ -848,8 +848,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
       scaleProfileNoteEvent(ScaleProfileEvent::TARE_BASELINE_CONFIRMED,
                             millis(), connectionGeneration, captureSequence,
                             weight, session.appliedTareRequestId, 0);
-      return acceptWeightIntoTrajectory(weight, receivedAtMs, packetSequence,
-                                        activeWeightCutTargetG());
+      return acceptWeightIntoTrajectory(weight, receivedAtMs, packetSequence);
     }
     rejectScaleSample(DebugCode::SCALE_SAMPLE_REJECTED_SLEW, weight,
                       POST_TARE_BASELINE_MAX_ABS_G);
@@ -973,8 +972,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   profileScaleWeightDecision(true, static_cast<DebugCode>(0), weight,
                              receivedAtMs, packetSequence, connectionGeneration,
                              captureSequence, 0);
-  return acceptWeightIntoTrajectory(weight, receivedAtMs, packetSequence,
-                                    activeWeightCutTargetG());
+  return acceptWeightIntoTrajectory(weight, receivedAtMs, packetSequence);
 }
 
 // Host-test-only entry point: the firmware path feeds weight through

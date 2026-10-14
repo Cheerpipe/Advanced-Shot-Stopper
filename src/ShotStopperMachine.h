@@ -100,6 +100,8 @@ inline void machineNoteActivatorReleased() {
 
 inline void machineOnActivatorReady() {}
 inline void machineOnBrewOutcome(bool) {}
+// Time from a stop command to the machine acting on it (none for a paddle).
+inline uint32_t machineStopCommandLatencyMs() { return 0; }
 inline bool machineSupportsRinse() { return runtimeConfig.rinseEnabled; }
 // A paddle ON may still classify as a short ON->OFF rinse. Keep a rejected
 // start pending until that gesture window has elapsed.
@@ -155,6 +157,10 @@ inline void machineCancelSettledWeightCutOff() {}
 #endif
 
 inline bool machineSupportsRinse() { return runtimeConfig.rinseEnabled; }
+// A momentary stop is a timed press: the machine acts after the pulse.
+inline uint32_t machineStopCommandLatencyMs() {
+  return runtimeStopPulseMs(runtimeConfig);
+}
 // A momentary start edge is already a complete attempt. In particular,
 // release mode has no active hold left by the time REQUEST_START is emitted.
 inline bool machineBlockedStartNeedsHoldQualification() { return false; }

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ShotStopperScaleTypes.h"
-#include "ShotStopperBbwEwma.h"
 #include "ShotStopperShotLogTypes.h"
 
 // =============================================================================
@@ -17,16 +16,10 @@
 
 void resetShotTrajectory(uint32_t startedAtMs) {
   shot.startMs = startedAtMs;
-  shot.expectedEndS = session.config.operationalWallMs / 1000.0f;
+  shot.expectedEndS = NO_CUT_PREDICTION_S;
   shot.datapoints = 0;
   shot.automaticBrew = false;
   shotCurveSampler.reset(startedAtMs);
-}
-
-void calculateExpectedEndTime(float cutTargetG) {
-  shot.expectedEndS = bbwEwma::predict(
-      shot.timeS, shot.weight, shot.datapoints, cutTargetG,
-      session.config.operationalWallMs / 1000.0f);
 }
 
 void rejectScaleSample(DebugCode code, float weightG, float referenceG = 0.0f) {
@@ -72,8 +65,7 @@ bool expirePostTareBaselineIfNeeded() {
 }
 
 bool acceptWeightIntoTrajectory(float weight, uint32_t receivedAtMs,
-                                uint32_t packetSequence,
-                                float cutTargetG = 0.0f) {
+                                uint32_t packetSequence) {
   if (shot.datapoints > 0 && receivedAtMs == session.lastAcceptedWeightAtMs) {
     // Re-transmitted timestamp: counts as freshness for staleness watchers,
     // but a zero-duration sample must not widen the trajectory fit.
@@ -102,7 +94,7 @@ bool acceptWeightIntoTrajectory(float weight, uint32_t receivedAtMs,
   session.lastAcceptedWeightAtMs = receivedAtMs;
   session.lastAcceptedWeightG = weight;
   session.lastAcceptedPacketSequence = packetSequence;
-  calculateExpectedEndTime(cutTargetG);
+  updateCutPrediction(weight, receivedAtMs);
 
   serialTracef(LogLevel::DEBUG, "%.2fg, t=%.2fs, expected end=%.2fs",
                weight, shot.timeS[index], shot.expectedEndS);

@@ -1,7 +1,10 @@
 # Brew by weight
 
-Automatic brew-by-weight (BBW) stops the shot when the scale reaches the
-recipe target, minus a learned drip offset. It is **on by default**.
+Automatic brew-by-weight (BBW) stops the shot where its weight meets the
+recipe's **cut line**, minus a learned drip offset. The cut line is your target
+while the shot is on time; with the Fast and Slow guards on it rises a little
+for shots that run fast and drops a little for shots that run slow, always
+smoothly. It is **on by default**.
 
 Turn it off if you want the paddle (or switch) and the firmware 60 s cap
 only. Tare and the shot timer still run; weight stop, cup protection at
@@ -15,10 +18,10 @@ run on a rinse, a timer-only shot (BBW off), or a manual no-scale shot.
 Once the selected paddle mode permits weight stopping and the start-of-shot
 protection window ends (see
 [Cup protection](cup-protection.md)), two fresh scale samples at or above
-`target − learned offset` can request a stop, subject to Fast/Slow guards.
-A short linear prediction can stop a moment earlier. The learned offset is
-capped at 5.0 g and can be reset to a
-baseline from the Web UI.
+`cut line − learned offset` can request a stop. A prediction from the recent
+flow usually stops a moment earlier, so the coffee still in flight and the
+drip land on the cut line. The learned offset is capped at 5.0 g and can be
+reset to a baseline from the Web UI.
 
 The protection window affects when BBW may stop the machine. It does not
 decide whether a completed cycle appears in [shot history](shot-history.md):
@@ -59,18 +62,20 @@ settings; the active recipe arrives expanded.
 Fixed behavior (not separate settings):
 
 - Direct stop: two fresh samples at the threshold after BBW protection ends.
-- Predictive stop: may request stop slightly before the threshold.
+- Predictive stop: from the flow of the last 3 seconds, it stops when the
+  weight plus the coffee still in flight will meet the cut line.
 - Scale loss: weight control pauses; physical stop behavior and applicable time
   limits stay in force.
   See [A→M time guard](auto-to-manual.md).
 
 ## Example
 
-Double recipe at 36 g, learned offset 1.5 g. After the protection window, the
-firmware treats about **34.5 g** as the cut point so post-drip weight lands
-near 36 g. This example assumes the Fast guard permits a normal stop and
-no other guard has requested an earlier end. If target arrives too early,
-Fast can deliberately extend the shot.
+Double · Adaptive at 36 g, learned offset 1.5 g, shot time window 27–34 s.
+A shot reaching the target inside the window stops with about **34.5 g** on
+the scale, so the post-drip weight lands near 36 g. A shot running early gets
+a slightly higher cut line (up to 40 g), one running late a slightly lower one
+(down to 33 g); see [Fast](fast-extraction-guard.md) and
+[Slow](slow-extraction-guard.md).
 
 ## Cutoff behavior and learning
 
@@ -91,11 +96,11 @@ the weight may keep increasing. A brief spike, silence after one reading, a drop
 below the threshold, a new tare or a connection interruption cannot complete that
 interval. If touch protection releases sooner, normal stopping resumes immediately.
 
-Fast still permits intentional extension: before its minimum time, the backup
-uses the maximum recovery threshold. After that time it can use the normal
-threshold. Slow uses its recovery threshold when recovery is applicable. The
-learned offset applies as usual, and a change of threshold restarts the interval.
-Delayed scale readings count only toward the threshold that applied when they arrived.
+The backup uses the cut line at each reading, minus the learned offset, so a
+fast shot can still run to its raised cut line and a slow one stops at its
+lowered line. When the cut line moves from one part to another (raised,
+target, lowered) the interval restarts. Delayed scale readings count only
+toward the part of the line that applied when they arrived.
 
 A finger held on the scale can also trigger this backup. It favors ending an
 uncertain shot over continuing to wait; it does not prove that the reading is
@@ -112,20 +117,23 @@ a device from a firmware that still had it is a fresh start: the installation
 uses `--erase-all`, saved recipes and shot history are not carried over, and
 brew-by-weight begins from the factory EWMA defaults.
 
-Every shot uses ten eligible samples, a positive linear trend, the existing
-minimum prediction horizon and two-sample direct confirmation. Invalid
-prediction falls back to direct stopping and the existing time limits. Sample
-times are centered before
-fitting, reducing floating-point cancellation:
+Every shot uses the smooth cut: a flow estimate `q` from a least-squares fit
+over the accepted samples of the last 3 seconds (at least four samples over at
+least 2 seconds, with outlying readings excluded), and the earliest stop time
+`t*` where
 
 ```text
-x = sample_time - latest_sample_time
-b = sum((x - mean(x)) * (weight - mean(weight))) / sum((x - mean(x))²)
-predicted_time = latest_sample_time + mean(x) + (cut_target - mean(weight)) / b
+weight + q × (t* − t_sample) + q × τ + offset ≥ cut_line(t*)
 ```
 
+`τ` is the scale's reporting lag plus 0.1 s for the valve (plus the stop pulse
+on push-button machines). Without a usable flow (below 0.3 g/s, or not enough
+samples) the shot stops by two-sample direct confirmation, and the existing time
+limits always apply.
+
 EWMA describes learning **between shots**, not live scale filtering. For
-captured offset `O`, target `G`, and final weight `W`, define error `e = W-G`
+captured offset `O`, the cut line at the stop `G`, and final weight `W`, define
+error `e = W-G`
 and effective compensation `z = O+e`. Reject nonfinite observations and
 `abs(z) > 5 g` before smoothing. Otherwise:
 
@@ -134,9 +142,10 @@ lower bound set by the connected scale's reporting lag: smaller gains smooth
 noise; larger gains respond faster. With `O=1.50 g`, `G=36 g`, `W=36.20 g`,
 α=0.30 learns **1.56 g**, and history retains **1.50 g** for that shot.
 EWMA requires the accepted post-drip measurement to remain fresh, with valid
-baseline and connection provenance, following a normal weight-target cut.
-Manual stops, time/safety limits, cup removal, excluded shots and Fast/Slow
-extensions do not train it: forced stops do not measure normal cutoff error.
+baseline and connection provenance, following a weight cut on any part of the
+cut line. Manual stops, time/safety limits, scale-loss stops, cup removal,
+detected channeling and excluded shots do not train it: forced stops do not
+measure normal cutoff error.
 
 Four candidate gains (0.10, 0.30, 0.50, 1.00) score compensation predictions
 before updating them. After 20 eligible EWMA observations, evaluation occurs

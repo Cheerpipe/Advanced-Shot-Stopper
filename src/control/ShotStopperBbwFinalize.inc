@@ -1,8 +1,11 @@
 // Control-owned post-shot learning; no actuation or direct flash writes.
 bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
                      bool postDripWeightValid) {
+  // r learns from weight cuts only (target, raised or lowered segment),
+  // never from channeling, scale loss, the wall or a manual stop.
   if (pendingFinalizeIsRinse(snapshot) || !snapshot.offsetAnalysis ||
-      snapshot.extractionExtended || snapshot.slowExtractionExtended) {
+      snapshot.channeling ||
+      !corridor::weightCutReason(static_cast<uint8_t>(snapshot.endReason))) {
     return false;
   }
 
@@ -22,21 +25,22 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
     return false;
   }
 
+  // Observation = offsetUsed + (final - f(t_cut)): the cut line at the stop.
+  const float cutLineG = corridor::cutLineDg(
+      pendingCutParams(snapshot), static_cast<int32_t>(snapshot.durationDs) * 100) /
+      10.0f;
   serialTracef(LogLevel::INFO,
-               "Final weight: %.2fg; cycle goal: %.2fg; cycle offset: %.2fg",
-               finalWeightG, goalWeightDgToGrams(snapshot.goalWeightDg),
-               snapshot.weightOffsetG);
+               "Final weight: %.2fg; cut line: %.2fg; cycle offset: %.2fg",
+               finalWeightG, cutLineG, snapshot.weightOffsetG);
 
   float updatedOffset = 0.0f;
   const bool acceptedFresh = postDripWeightValid && snapshot.scaleBaselineReady &&
-      snapshot.endReason == EndReason::SCALE_THRESHOLD &&
       shotLogBbwEligible(snapshot.startedWithScale, snapshot.timerOnly,
                          snapshot.automaticBrew) &&
       currentWeightIsFresh(millis()) &&
       currentWeightConnectionGeneration == snapshot.scaleConnectionGeneration &&
       snapshot.scaleConnectionGeneration == getScaleLinkSnapshot().connectionGeneration;
-  if (!bbwEwma::learn(snapshot.weightOffsetG, finalWeightG,
-                     goalWeightDgToGrams(snapshot.goalWeightDg),
+  if (!bbwEwma::learn(snapshot.weightOffsetG, finalWeightG, cutLineG,
                       snapshot.bbwAlpha, acceptedFresh, updatedOffset)) {
     serialTrace(LogLevel::WARNING,
                 "Calculated offset outside safe range; offset unchanged");
@@ -76,16 +80,15 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
           static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA) ||
       snapshot.bbwProfileVersion != bbwAlgorithmVersion(snapshot.bbwAlgorithm)) return false;
   auto &learning = bbwLearningBank.forPreset(preset->id, presetBank);
-  if (snapshot.bbwLearningGeneration != learning.generations[1])
+  if (snapshot.bbwLearningGeneration != learning.generation)
     return false;
   preset->bbwEwmaOffsetG = updatedOffset;
   const uint8_t nextAlpha = learning.evidence.observe(
-      snapshot.weightOffsetG +
-          (finalWeightG - goalWeightDgToGrams(snapshot.goalWeightDg)),
+      snapshot.weightOffsetG + (finalWeightG - cutLineG),
       snapshot.weightOffsetG, snapshot.bbwAlpha);
   if (nextAlpha != preset->bbwEwmaAlpha) preset->bbwAlphaLearned = 1;
   preset->bbwEwmaAlpha = nextAlpha;
-  learning.generations[1] = bbwLearningBank.newGeneration();
+  learning.generation = bbwLearningBank.newGeneration();
   RuntimeConfig candidate = runtimeConfig;
   applyShotPresetToConfig(activeShotPreset(presetBank), candidate, true);
   ++candidate.revision;

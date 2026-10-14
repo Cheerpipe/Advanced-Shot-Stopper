@@ -435,26 +435,14 @@ void publishControlStatus() {
     }
     home.extractionExtended = session.extractionExtended;
     home.slowExtractionExtended = session.slowExtractionExtended;
-    next.cycleExtractionExtended =
-        session.extractionExtended && fastExtractionGuardSession();
-    next.cycleSlowExtractionExtended =
-        session.slowExtractionExtended && slowExtractionGuardSession();
+    next.cycleExtractionExtended = session.extractionExtended;
+    next.cycleSlowExtractionExtended = session.slowExtractionExtended;
     next.cycleTargetReachedEarly = session.targetReachedEarly;
-    if (next.cycleExtractionExtended) {
-      next.cycleActiveStopWeightG = goalWeightDgToGrams(session.config.goalWeightDg + session.config.fastMarginDg);
-      const uint32_t elapsed = next.cycleElapsedMs;
-      next.cycleMinBbwBrewTimeRemainingMs =
-          elapsed >= session.config.fastBeforeMs
-              ? 0U
-              : session.config.fastBeforeMs - elapsed;
-    } else if (next.cycleSlowExtractionExtended) {
-      next.cycleActiveStopWeightG = goalWeightDgToGrams(session.config.goalWeightDg - session.config.slowMarginDg);
-      next.cycleMinBbwBrewTimeRemainingMs = 0;
-    } else {
-      next.cycleActiveStopWeightG =
-          goalWeightDgToGrams(session.config.goalWeightDg);
-      next.cycleMinBbwBrewTimeRemainingMs = 0;
-    }
+    // The live cut line f(t) (the planned stop weight before the drip offset).
+    next.cycleActiveStopWeightG = cutLineNowDg() / 10.0f;
+    next.cycleMinBbwBrewTimeRemainingMs =
+        next.cycleElapsedMs >= session.config.fastBeforeMs
+            ? 0U : session.config.fastBeforeMs - next.cycleElapsedMs;
     next.cycleAutoToManualGuardArmed = session.autoToManualGuardArmed;
     next.cycleAutoToManualGuardEnforced = session.autoToManualGuardEnforced;
     next.cycleAccidentalTouchHolding = session.accidentalTouchHolding;

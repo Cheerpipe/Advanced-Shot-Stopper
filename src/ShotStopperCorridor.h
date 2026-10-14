@@ -268,6 +268,8 @@ struct RateEstimator {
 struct CorridorState {
   Params params;
   RateEstimator rate;
+  int32_t tauMs = 0;           // sensor lag + stop latency (+ stop pulse)
+  int32_t offsetDg = 0;        // learned drip offset r
 };
 static_assert(sizeof(CorridorState) <= 512, "corridor state RAM budget");
 
@@ -483,4 +485,8 @@ inline LossDeadline lossDeadline(const Params &p, const LossInputs &in) {
 }
 
 }  // namespace corridor
+
+// Timed-law sentinel (s): past every wall, so only the direct backstop can cut.
+constexpr float NO_CUT_PREDICTION_S = HARD_MAX_CIRCUIT_CLOSED_MS / 1000.0f + 1.0f;
+
 }  // namespace shotstopper

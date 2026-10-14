@@ -127,18 +127,35 @@ weight control; rejected brew samples (post-tare, slew) and a stable
 accepted weight do not. The brew orchestrator stays in `BREW` and A→M may still
 cut later. Cup `REMOVED` can cut if that option is on.
 
-At cycle start, control snapshots the preset's BBW algorithm, profile, offset,
-actual gain and learning generation. Linear regression + offset correction
-(`legacy`, v1) and adaptive EWMA (v2) differ only in
-their mathematical prediction/learning policy; direct confirmation and guard
-precedence remain common. Prediction failure retains the selected identity and
-uses the existing fallback. Safety trips, hard/operational walls, physical stop,
-cup removal and Fast/Slow recovery retain their existing authority in both modes.
+At cycle start, control snapshots the preset's smooth-cut parameters into the
+control-owned corridor state: target, shot time window t1/t2, side switches and
+margins, weight-cut delay, max shot time, ramp length D (5 s), the drip offset r
+and τ (scale protocol sensor lag + 100 ms valve latency + the momentary stop
+pulse where the machine has one). The cut line f(t) holds the ceiling (target +
+fast margin) until t1 − D, eases into the target at t1, stays on the target
+through t2, eases down to the floor (target − slow margin) by t2 + D and holds
+it; a side that is off is the target line. All times are stop-command times
+from the machine running start.
+
+Two laws fire, both behind the existing BBW protection, freshness and `ACTIVE`
+gates. After each accepted sample a time-window least-squares flow estimate q̂
+(3 s, MAD-gated) predicts the earliest stop-command time t* where weight +
+q̂·(t − t_k) + q̂·τ + r reaches f(t); the timed law fires when the machine time
+reaches t*. Without a valid q̂ (or below 3 dg/s) only the direct backstop acts:
+two consecutive fresh samples at or above f(t) − r. While samples are rejected
+(`VALIDATING`) neither law fires. A weight cut reports the segment of f at the
+stop: `FAST_EXTRACTION_MAX_WEIGHT` above the target, `SCALE_THRESHOLD` on it,
+`SLOW_EXTRACTION_MIN_WEIGHT` below it; `FAST_EXTRACTION_MIN_TIME` and
+`SLOW_EXTRACTION_MAX_TIME` are no longer emitted. Late retare and scale recovery
+reset the estimator. Safety trips, hard/operational walls, physical stop, cup
+removal and A→M keep their existing authority; nothing in the smooth cut can
+suspend the wall or the circuit limit.
 
 After drip delay, history records captured values and whether learning applied.
-EWMA trains only after a normal weight-target cut; manual, time/safety-limit and
-cup-removal outcomes cannot adjust its offset or candidate evidence. Their
-existing history eligibility and regression learning rules remain unchanged.
+The drip offset learns from weight cuts on any segment, against the cut line at
+the stop (observation = offset used + final − f(t_cut)); channeling, manual,
+time/safety-limit, A→M and cup-removal outcomes cannot adjust it or its
+candidate evidence.
 EWMA reuses the accepted final observation and additionally requires fresh weight,
 valid baseline and matching connection provenance. Control updates only the
 originating preset/algorithm generation. Reset or deletion invalidates pending
@@ -650,12 +667,13 @@ with `avoidAccidentalTouchEnabled`. It does not modify this classifier. A
 `TOUCH` that blocks an otherwise eligible measured-weight stop starts bounded
 session evidence: at least three consecutive packet IDs in one connection
 generation, strictly increasing receive times, gaps no greater than 1000 ms,
-and at least 1000 ms above the offset-adjusted policy threshold. Normal release
+and at least 1000 ms above the cut line minus the drip offset. Normal release
 can stop sooner. Rejected non-touch data, reference/link discontinuity, expired
-freshness, lost eligibility and changed threshold/policy cannot carry evidence
-forward. Fast/Slow eligibility and machine automation permission still apply.
-Threshold timing uses each sample's receive time, so a delayed sample cannot
-count under a guard threshold that became eligible only after its arrival.
+freshness, lost eligibility and a changed cut-line segment cannot carry
+evidence forward; the line itself moves along a ramp, so only its segment is
+compared and f is re-read when the fallback fires. Machine automation
+permission still applies. Segment timing uses each sample's receive time, so a
+delayed sample cannot count under a segment that began only after its arrival.
 The fallback requests `TOUCH_WEIGHT_FALLBACK` through normal control arbitration,
 does not accept the rejected sample into the trajectory, and disables offset
 and A→M duration learning. Saved ON with parent OFF is dormant, not effective ON.

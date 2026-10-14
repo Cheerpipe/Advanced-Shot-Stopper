@@ -36,7 +36,8 @@ void resetSessionForNewCycle(ControlSource source) {
   copyCString(session.activePresetName, sizeof(session.activePresetName), preset.name);
   session.config.bbwAlpha = preset.bbwEwmaAlpha;
   session.config.bbwLearningGeneration = bbwLearningBank.forPreset(
-      preset.id, presetBank).generations[1];
+      preset.id, presetBank).generation;
+  armSmoothCut(getScaleLinkSnapshot().features.sensorLagMs);
   session.endReason = EndReason::NONE;
 }
 

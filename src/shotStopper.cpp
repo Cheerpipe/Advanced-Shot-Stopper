@@ -212,7 +212,7 @@ enum class TimerStopResult : uint8_t {
 
 struct ShotTrajectory {
   uint32_t startMs = 0;
-  float expectedEndS = DEFAULT_OPERATIONAL_WALL_MS / 1000.0f;
+  float expectedEndS = NO_CUT_PREDICTION_S;
   float weight[MAX_SHOT_DATAPOINTS] = {};
   float timeS[MAX_SHOT_DATAPOINTS] = {};
   size_t datapoints = 0;
@@ -285,6 +285,7 @@ struct CycleSession {
   FirstFlowState firstFlow = {};
   ControlSource source = ControlSource::NONE;
   CycleConfigSnapshot config = {};
+  corridor::CorridorState cut = {};  // Smooth-cut parameters and flow estimator.
   EndReason endReason = EndReason::NONE;
   bool extractionExtended = false;
   bool slowExtractionExtended = false;
@@ -348,7 +349,9 @@ struct PendingShotFinalize {
   uint32_t fastBeforeMs = DEFAULT_FAST_BEFORE_MS;
   uint32_t slowAfterMs = DEFAULT_SLOW_AFTER_MS;
   uint32_t wallMs = DEFAULT_OPERATIONAL_WALL_MS;
-  uint32_t rampMs = 0;  // The Fast/Slow guards cut on steps (D = 0).
+  uint32_t rampMs = 0;
+  int32_t rateAtStopX100 = 0;  // q-hat at the stop command; 0 = invalid.
+  bool channeling = false;
   uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS;
   bool lastKnownWeightValid = false;
   float lastKnownWeightG = 0.0f;
@@ -1350,10 +1353,8 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
             ? 0U
             : snapshot.fastBeforeMs - last.durationMs;
   }
-  const corridor::ArrivalVerdict verdict = pendingShotVerdict(
-      snapshot, last.averageFlowValid
-                    ? static_cast<int32_t>(lroundf(last.averageFlowGps * 1000.0f))
-                    : 0);
+  const corridor::ArrivalVerdict verdict =
+      pendingShotVerdict(snapshot, snapshot.rateAtStopX100);
   last.verdict = static_cast<uint8_t>(verdict.verdict);
   last.arrivalMs = verdict.verdict == corridor::Verdict::UNCLASSIFIED
                        ? 0U : static_cast<uint32_t>(verdict.arrivalMs);
@@ -1707,7 +1708,9 @@ void resetAccidentalTouchState() {
 
 void resetWeightTrend() {
   if (session.active) shotCurveSampler.markBreak();
-  shot.expectedEndS = session.config.operationalWallMs / 1000.0f;
+  // q-hat is invalid (no lead) until its window refills.
+  shot.expectedEndS = NO_CUT_PREDICTION_S;
+  session.cut.rate.reset();
   shot.datapoints = 0;
   resetAccidentalTouchState();
 }

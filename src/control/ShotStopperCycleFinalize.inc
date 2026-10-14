@@ -56,9 +56,7 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
   }
   const bool logEligible = shotLogEligible(reason, durationMs);
   const bool offsetAnalysis = shot.automaticBrew && !session.config.timerOnly &&
-                              session.calibrationEligible &&
-                              !session.extractionExtended &&
-                              !session.slowExtractionExtended;
+                              session.calibrationEligible;
   bool webhookEligible = false;
 #ifndef SHOT_STOPPER_HOST_TEST
   const WebhookConfig webhook = networkManager.webhookConfig();
@@ -122,6 +120,10 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
   pendingFinalize.fastBeforeMs = session.config.fastBeforeMs;
   pendingFinalize.slowAfterMs = session.config.slowAfterMs;
   pendingFinalize.wallMs = session.config.operationalWallMs;
+  pendingFinalize.rampMs = static_cast<uint32_t>(session.cut.params.rampMs);
+  pendingFinalize.rateAtStopX100 =
+      session.cut.rate.valid ? session.cut.rate.rateX100 : 0;
+  pendingFinalize.channeling = session.cut.rate.channeling;
   pendingFinalize.protectionMs = session.config.bbwProtectionMs;
   pendingFinalize.lastKnownWeightValid =
       session.hasWeightAnchor && std::isfinite(session.lastAcceptedWeightG);
@@ -282,11 +284,8 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
     }
   }
 
-  // Until the live flow estimator lands, the shot's average flow stands in
-  // for the rate at the cut (dg/s x 100 = cg/s x 10).
-  const corridor::ArrivalVerdict verdict = pendingShotVerdict(
-      snapshot, record.avgFlowCgS == SHOT_LOG_METRIC_MISSING
-                    ? 0 : static_cast<int32_t>(record.avgFlowCgS) * 10);
+  const corridor::ArrivalVerdict verdict =
+      pendingShotVerdict(snapshot, snapshot.rateAtStopX100);
   record.verdict = static_cast<uint8_t>(verdict.verdict);
   if (verdict.verdict != corridor::Verdict::UNCLASSIFIED)
     record.arrivalDs = static_cast<uint16_t>(verdict.arrivalMs / 100);

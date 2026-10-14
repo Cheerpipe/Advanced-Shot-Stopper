@@ -449,18 +449,21 @@ inline void shotLogSetPresetId(ShotLogRecord &record, uint8_t id) {
 }
 
 // Profile 0 unknown, 1 pre-selector Legacy (version unknown), 2 Legacy v1,
-// 3 adaptive EWMA v1, 4 adaptive EWMA v2. Alpha 0 unknown, 1–100 hundredths.
+// 3 adaptive EWMA v1, 4 adaptive EWMA v2, 5 smooth cut (corridor) v1.
+// Alpha 0 unknown, 1–100 hundredths.
 inline uint8_t shotLogBbwProfile(const ShotLogRecord &record) {
   return record.sideFlags >> 5;
 }
 inline const char *shotLogBbwAlgorithm(const ShotLogRecord &record) {
   const uint8_t profile = shotLogBbwProfile(record);
   return profile == 1 || profile == 2 ? "legacy"
-       : profile == 3 || profile == 4 ? "linear_ewma" : "unknown";
+       : profile == 3 || profile == 4 ? "linear_ewma"
+       : profile == 5 ? "corridor" : "unknown";
 }
 inline const char *shotLogBbwVersion(const ShotLogRecord &record) {
   const uint8_t profile = shotLogBbwProfile(record);
-  return profile == 4 ? "2" : profile == 2 || profile == 3 ? "1" : "null";
+  return profile == 4 ? "2" : profile == 2 || profile == 3 || profile == 5 ? "1"
+                                                                         : "null";
 }
 inline uint8_t shotLogBbwAlpha(const ShotLogRecord &record) {
   const uint8_t alpha = ((record.extractionExtended >> 2) & 7) | ((record.cutType >> 4) << 3);
@@ -474,7 +477,8 @@ inline void shotLogSetBbw(ShotLogRecord &record, uint8_t algorithm,
                           uint8_t version, uint8_t alpha, bool applied) {
   if (!validBbwAlpha(alpha)) alpha = 0;
   const uint8_t profile = version == 1 && algorithm <= 1 ? algorithm + 2
-      : version == 2 && algorithm == 1 ? 4 : 0;
+      : version == 2 && algorithm == 1 ? 4
+      : version == 3 && algorithm == 1 ? 5 : 0;
   record.cutType = (record.cutType & 15) | ((alpha >> 3) << 4);
   record.sideFlags = (record.sideFlags & 0x1f) | (profile << 5);
   record.extractionExtended = (record.extractionExtended & 3) |
