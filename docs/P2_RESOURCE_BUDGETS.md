@@ -239,6 +239,11 @@ reference development Micra build to 2,351,296 image, 2,351,171 linked,
 over baseline. The image/linked allowances move to 77,600/77,588 bytes and the
 rodata allowance to 37,876 bytes, keeping the 64-byte headroom; flash-code
 stays inside its allowance.
+The Home target sheet's ruler with hold-to-repeat −/+ buttons and dose/ratio
+pills brings the build to 2,351,520 image, 2,351,395 linked and 625,388 rodata
+bytes — 77,760/77,748/38,036 over baseline. The image/linked allowances move to
+77,824/77,812 bytes and the rodata allowance to 38,100 bytes, keeping the
+64-byte headroom.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
