@@ -53,7 +53,7 @@ again.
 | **Brew by weight** | Recipe | ON | ON / OFF | ON: stop by weight when a scale is usable. OFF: paddle, **Stop**, and the 60 s firmware cap only; the fast and slow options, the scale-loss backup, Max shot time, and No-scale BBW become read-only. |
 | **Dose (g)** | Recipe | 18 g | 5–30 g in 0.1 g steps | Coffee in the basket. Shows your ratio; does not change the cut. |
 | **Target yield (g)** | Recipe | 36 g | 10–200 g in 0.1 g steps | Drink weight in the cup, drips included. The stop aims at `cut line − learned drip`. |
-| **Shot time window (s)** | Recipe | 27–34 s | See [Fast and slow shots](fast-and-slow-shots.md#settings) | Reaching the target inside the window is On recipe. |
+| **Shot time window (s)** | Recipe | 27–36 s | See [Fast and slow shots](fast-and-slow-shots.md#settings) | Reaching the target inside the window is On recipe. |
 | **Earliest weight stop (s)** | Shot limits | 12 s | 0.5–30 s; see [Cup protection](cup-protection.md) | The scale cannot stop the shot before this, so tare and first drops cannot trigger it. |
 | **Max shot time (s)** | Shot limits | 50 s | 5–60 s | The shot always stops here, target reached or not. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
 | **If the scale drops, stop at (s)** | Shot limits | empty | Earliest weight stop to Max shot time | Leave empty to use your recent shots, or the middle of your window until there are enough. See [scale-loss backup](auto-to-manual.md). |
@@ -64,7 +64,7 @@ again.
 | **Stop after sustained weight** | Shared settings → Cup protection | ON | ON / OFF | A backup for a weight stop blocked by **Avoid accidental touch**. Fresh readings must stay above the applicable cut threshold for 1 second. Applies to every preset; takes effect on the next shot. |
 
 **Home → Presets** shows how each recipe cuts as three rows, for example
-**Before 27 s · Fast · up to 40 g**, **27–34 s · On recipe · 36 g** and
+**Before 27 s · Fast · up to 40 g**, **27–36 s · On recipe · 36 g** and
 **After 34 s · Slow · down to 33 g**; a side that is switched off reads
 **off**. The active recipe arrives expanded.
 
@@ -79,7 +79,7 @@ Fixed behavior (not separate settings):
 
 ## Example
 
-Double · Adaptive at 36 g, learned drip 1.5 g, shot time window 27–34 s.
+Double · Adaptive at 36 g, learned drip 1.5 g, shot time window 27–36 s.
 A shot reaching the target inside the window stops with about **34.5 g** on
 the scale, so the post-drip weight lands near 36 g. A shot running early gets
 a slightly higher cut line (up to 40 g), one running late a slightly lower one

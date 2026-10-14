@@ -1,7 +1,7 @@
 # Fast and slow shots
 
 Every preset has a **Target yield** and a **Shot time window**, such as
-27–34 s. When a shot reaches the target inside that window, it is
+27–36 s. When a shot reaches the target inside that window, it is
 **On recipe** and stops at the target. A shot that gets there before the window
 is **Fast**; one that gets there after it is **Slow**.
 
@@ -78,7 +78,7 @@ While you edit, the field result shows the resulting weight and ratio, such as
 
 | Setting | Default | Range | Effect |
 | --- | --- | --- | --- |
-| **Shot time window (s)** (Recipe) | 27 to 34 s | **Window start** at least 2 s after Earliest weight stop; **Window end** at least 1 s after Window start and at least 1 s before Max shot time; 0.5 s steps | Reaching the target inside the window is On recipe; earlier is Fast, later is Slow. |
+| **Shot time window (s)** (Recipe) | 27 to 36 s (doubles), 23 to 32 s (singles) | **Window start** at least 2 s after Earliest weight stop; **Window end** at least 1 s after Window start and at least 1 s before Max shot time; 0.5 s steps | Reaching the target inside the window is On recipe; earlier is Fast, later is Slow. |
 | **Run fast shots longer** | ON | ON / OFF | Lets fast shots go past the target. |
 | **Extra yield, up to (g)** | 4 g | 0.5–10 g in 0.1 g steps, and no more than a quarter of the target | The most a very fast shot gains over the target. |
 | **Stop slow shots sooner** | ON | ON / OFF | Lets slow shots stop before the target. |
@@ -108,15 +108,15 @@ statistics, grind hints or the scale-loss backup.
 With **Grind hints** on (Recipe group, on by default), Home shows a card when
 the median of your last five shots on the active preset sits outside the window
 or within 1 s of either edge, for example: *Your last 5 shots: median 27.6 s,
-at the fast edge of 27–34 s. Grind a touch finer?* or *…median 35.2 s, slower
-than your 27–34 s window. Grind a touch coarser?* The card never changes a
+at the fast edge of 27–36 s. Grind a touch finer?* or *…median 37.2 s, slower
+than your 27–36 s window. Grind a touch coarser?* The card never changes a
 setting. **New coffee** starts the preset's shot statistics over after you
 change beans or grind; **Not now** hides the card in this browser until the
 median of your recent shots moves by a second or more.
 
 ## Examples
 
-Factory Double · Adaptive: 36 g target, 27–34 s window, up to 4 g extra and
+Factory Double · Adaptive: 36 g target, 27–36 s window, up to 4 g extra and
 3 g less.
 
 - 36 g reached at 30 s: On recipe, stops at 36 g.

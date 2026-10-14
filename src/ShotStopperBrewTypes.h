@@ -59,7 +59,7 @@ inline float goalWeightDgToGrams(uint16_t goalWeightDg) {
 // Smooth-cut recipe: a shot time window [t1, t2] and side margins relative to
 // the target (decigrams). Factory Double · Adaptive values are the defaults.
 constexpr uint32_t DEFAULT_FAST_BEFORE_MS = 27000;
-constexpr uint32_t DEFAULT_SLOW_AFTER_MS = 34000;
+constexpr uint32_t DEFAULT_SLOW_AFTER_MS = 36000;
 constexpr uint16_t DEFAULT_FAST_MARGIN_DG = 40;
 constexpr uint16_t DEFAULT_SLOW_MARGIN_DG = 30;
 constexpr uint16_t DEFAULT_DOSE_DG = 180;

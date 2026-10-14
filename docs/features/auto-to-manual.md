@@ -72,7 +72,7 @@ fresh automatically.
 
 ## Example
 
-An automatic Double with a 27–34 s window loses Bluetooth at 12 s, before the
+An automatic Double with a 27–36 s window loses Bluetooth at 12 s, before the
 coffee is near its target. The last three shots finished around 30 s, so the
 backup time is about 31.5 s. ShotStopper keeps reconnecting; if the scale comes
 back at 20 s with three good readings, weight stop resumes and the backup time

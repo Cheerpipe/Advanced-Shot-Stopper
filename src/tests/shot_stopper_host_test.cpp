@@ -17064,7 +17064,7 @@ void tt01_smooth_cut_truth_table() {
       {20000, true, true, false, EndReason::FAST_EXTRACTION_MAX_WEIGHT},
       {24000, true, true, false, EndReason::FAST_EXTRACTION_MAX_WEIGHT},
       {30000, true, true, false, EndReason::SCALE_THRESHOLD},
-      {36000, true, true, false, EndReason::SLOW_EXTRACTION_MIN_WEIGHT},
+      {38000, true, true, false, EndReason::SLOW_EXTRACTION_MIN_WEIGHT},
       {41000, true, true, false, EndReason::SLOW_EXTRACTION_MIN_WEIGHT},
       {20000, false, true, false, EndReason::SCALE_THRESHOLD},
       {41000, true, false, false, EndReason::SCALE_THRESHOLD},

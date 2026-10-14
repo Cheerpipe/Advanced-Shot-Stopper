@@ -17,7 +17,7 @@ colour of the verdict it got when it was pulled — Fast, On recipe or Slow — 
 editing a preset's window later never recolours past shots. The chart starts
 on **All presets**; choose **This preset** to see only the active preset's
 shots. When every shot shown was judged against the same window, the chart
-marks that window, for example **Window 27–34 s**; otherwise it shows the shots
+marks that window, for example **Window 27–36 s**; otherwise it shows the shots
 alone. The chart appears once a shot has a measured arrival time.
 
 Stopwatch and gram-weight icons sit beside the large duration and yield values
