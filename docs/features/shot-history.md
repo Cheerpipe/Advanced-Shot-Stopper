@@ -119,8 +119,9 @@ and scale loss leave breaks in the curve. A healthy slow scale does not
 create a break merely because its readings are farther apart. An incomplete
 tail has no final-yield circle. Removing or replacing the cup ends drip capture.
 
-The first-drop marker and late-tare cup marker keep their event times. Fast,
-Slow and A-to-M colors identify changes without adding competing time labels;
+The first-drop marker and late-tare cup marker keep their event times. Each
+curve takes its shot's Fast, On recipe or Slow colour, and a scale-loss stretch
+its own colour, without adding competing time labels;
 the time axis uses 10-second references. Home shows the live memory curve
 during a shot and the newest eligible history row's exact curve while idle.
 
@@ -301,21 +302,19 @@ settings are reset; use the captured name when comparing historical shots.
 
 `offset_g` is the compensation captured at shot start, **before learning**,
 in grams at 0.01 g storage resolution. Zero is valid. It is not the baseline,
-next learned offset or measured post-shutdown water. `bbw_alpha` is also
-captured at shot start: **Linear regression + offset correction** (`legacy`, v1)
-uses 1.00; historical adaptive EWMA v1 may use 0.10, 0.30, 0.50 or 1.00.
-EWMA v2 supports exact hundredths from 0.01 through 1.00, including custom
-gains such as 0.37. It is not a gain selected after this shot's result.
+next learned offset or measured post-shutdown water. `bbw_alpha` is the drip
+learning speed captured at shot start, in exact hundredths from 0.01 through
+1.00 (for example 0.37). It is not a gain selected after this shot's result.
 Learning applied is `1`/`0` in CSV and true/false in JSON; a skipped shot still
 retains its assigned gain. For example, appended CSV values can be
-`linear_ewma,2,0.37,1` and later `linear_ewma,2,0.50,1` for the same preset.
+`corridor,1,0.37,1` and later `corridor,1,0.50,1` for the same preset.
 
 The one-time USB curve-layout update starts the old weight curves empty while
 preserving settings, shot summaries and activation history. Subsequent firmware
 updates can use OTA. See [Build](../BUILD.md#curve-layout-transition).
 The algorithm column is descriptive: it records the policy each shot ran
-under, including `legacy` for shots recorded before that mode was removed.
-It has been a read-only identity for a while and is not a setting.
+under, currently always `corridor` (the smooth cut). It is a read-only
+identity, not a setting.
 
 Algorithm identity describes the shot's configured policy even when a guard
 or manual action ends it; use `stop`, `shot_type` and `cut_type` to interpret

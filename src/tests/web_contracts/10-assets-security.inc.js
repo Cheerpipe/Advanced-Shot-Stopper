@@ -766,9 +766,11 @@ if (htmlBytes > 93300) {
 // Shot statistics (per-verdict stacked histogram with the preset filter,
 // grind-hint wording outside the window, median-based "Not now") add +1234
 // measured JS bytes (409827); the segmented preset filter and the hidden
-// empty chart bring it to 410360.
-if (jsBytes > 410600) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 410600)`);
+// empty chart bring it to 410360; the audit follow-ups (Home dial reset
+// notice, scale-back and weight-unknown hero copy, window lines in the review
+// graph) to 411004.
+if (jsBytes > 411300) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 411300)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -846,9 +848,10 @@ if (jsBytes > 410600) {
 // The audit table pagination and change-gated repaint add their ~1.7 KB of
 // combined source allowance (pager markup plus the fingerprinted renderer).
 // The smooth-cut UI adds its ~21 KB of combined source allowance (501708
-// measured) described above, plus the shot-statistics JS (503482 measured).
-if (htmlBytes + jsBytes > 503800) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 503800)`);
+// measured) described above, plus the shot-statistics JS and audit
+// follow-ups (504126 measured).
+if (htmlBytes + jsBytes > 504400) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 504400)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

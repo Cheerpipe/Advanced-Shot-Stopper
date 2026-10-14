@@ -15712,6 +15712,20 @@ void s11_shot_log_record_includes_preset_snapshot() {
   CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
   CHECK(stored[0].cutLineCg == 3600 && corridor::channelingOf(stored[0].verdict));
   snapshot.channeling = false;
+  // A latched weight cut records its exact line and judges the arrival from
+  // its exact moment, not the decisecond duration: 24.75 s at 2.0 g/s against
+  // the 40 g step ceiling arrives at 22.75 s (the duration alone gives 22.6 s).
+  shotLog.clear();
+  snapshot.cutStopMs = 24750;
+  snapshot.cutLineDg = 395;
+  snapshot.rateAtStopX100 = 2000;
+  commitPendingShotLog(snapshot, 39.0f, true, ActualWeightSource::POST_DRIP);
+  CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
+  CHECK(stored[0].cutLineCg == 3950);
+  CHECK(stored[0].arrivalDs == 227);
+  snapshot.cutStopMs = 0;
+  snapshot.cutLineDg = 0;
+  snapshot.rateAtStopX100 = 2108;
   // A wall stop is not classified.
   shotLog.clear();
   snapshot.endReason = EndReason::CONFIGURED_WALL_LIMIT;

@@ -4891,7 +4891,7 @@ async function applyPreset(id, selectable) {
     renderHomePresetAccordion();
   }
 }
-async function saveBrewPreset(okMsg, failMsg) {
+async function saveBrewPreset(okMsg, failMsg, fromDial = false) {
   const ok = okMsg || __WEBUI_TEXT__("runtime.preset_saved"),
     fail = failMsg || __WEBUI_TEXT__("runtime.could_not_save_preset");
   try {
@@ -4910,18 +4910,19 @@ async function saveBrewPreset(okMsg, failMsg) {
     showFieldErrors(errs);
     return false;
   }
-  const saved = presetState.items.find((x) => x.id === bbwFormPresetId);
-  if (
-    saved &&
-    (number("fastBeforeS") !== saved.fastBeforeS ||
-      number("slowAfterS") !== saved.slowAfterS ||
-      Math.abs(number("goalWeightG") - saved.goalWeightG) > 1) &&
-    !confirm(__WEBUI_TEXT__("runtime.stats_reset_confirm"))
-  )
-    return false;
+  // A new window or a target moved by more than 1 g restarts the preset's
+  // statistics: the editor asks first, the Home dial says so after saving.
+  const saved = presetState.items.find((x) => x.id === bbwFormPresetId),
+    restarts =
+      saved &&
+      (number("fastBeforeS") !== saved.fastBeforeS ||
+        number("slowAfterS") !== saved.slowAfterS ||
+        Math.abs(number("goalWeightG") - saved.goalWeightG) > 1);
+  if (restarts && !fromDial && !confirm(__WEBUI_TEXT__("runtime.stats_reset_confirm"))) return false;
   clearFieldErrors();
   try {
     await command("/api/v1/presets", brewPayload(), 1, ok, fail, "saveBrewPresetButton");
+    if (restarts && fromDial) message(__WEBUI_TEXT__("runtime.stats_reset_confirm"), "ok");
     clearBrewDirty();
     clearBrewWarnings();
     return true;
@@ -5312,6 +5313,8 @@ function renderPresetReview() {
     marks +
     `<rect x="${L}" y="${T}" width="${f(X(m.prot) - L)}" height="${B - T}" fill="url(#rvHatch)"/>` +
     `<path class="rvTarget" d="M${L} ${f(Y(m.goal))}H${R}"/><path class="rvMax" d="M${f(X(m.wall))} ${T}V${B}"/>` +
+    // The On recipe window: dotted verticals at its start and end.
+    `<path class="rvWin" d="M${f(X(m.t1))} ${T}V${B}M${f(X(m.t2))} ${T}V${B}"/>` +
     (ghost ? `<path class="rvGhost" d="M${P(ghost.prot, ghost.ceil)}${edges(ghost).join("")}"/>` : "") +
     (last
       ? `<path class="rvLast" d="${last.wAtMs
@@ -6876,6 +6879,8 @@ function renderShotHero(d) {
       "Weight",
       est !== null
         ? "~" + est + __WEBUI_TEXT__("runtime.g_2")
+        : sl && sl.state === "finished"
+        ? __WEBUI_TEXT__("runtime.weight_unknown")
         : noScale
         ? ms(el, 1) + __WEBUI_TEXT__("runtime.s_2")
         : wt === null
@@ -6936,7 +6941,9 @@ function renderShotHero(d) {
   chip("Pill", kind && (kind === "max_time" ? __WEBUI_TEXT__("runtime.max_time") : verdictLabel(kind)));
   $("shotHeroPill").dataset.kind = kind;
   chip("Cut", cut);
-  const mode = noScale
+  const mode = d.live && sl && sl.state === "recovered"
+    ? __WEBUI_TEXT__("runtime.scale_back")
+    : noScale
     ? __WEBUI_TEXT__("home.hero_no_scale")
     : d.live
       ? {

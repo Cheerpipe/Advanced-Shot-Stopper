@@ -477,6 +477,8 @@ struct CorridorState {
   int32_t offsetDg = 0;        // learned drip offset r
   bool crossingValid = false;  // t* from the last accepted sample
   int32_t crossingMs = 0;
+  int32_t stopMs = 0;          // the weight cut that fired: shot time and line
+  int32_t stopLineDg = 0;
   ArrivalStats history;        // this preset's recent arrivals (shot start)
 };
 static_assert(sizeof(CorridorState) <= 512, "corridor state RAM budget");

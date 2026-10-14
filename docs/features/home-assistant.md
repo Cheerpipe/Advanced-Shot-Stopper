@@ -109,11 +109,16 @@ Selecting a preset waits for the controller to persist it and then refreshes
 the authoritative value. If the machine is busy or the write fails, Home
 Assistant keeps the last confirmed option and shows an error.
 
+A shot's stop detail tells how the cut line ended it, not whether it was fast
+or slow: a fast shot whose preset does not run fast shots longer still stops
+at the target and reports `normal_target`. The Fast / On recipe / Slow verdict
+appears in the Web UI.
+
 The Brew by weight switch changes the current session without rewriting the
 recipe. No-scale BBW is machine-level: turning it off selects `off`; turning it
-on restores the last observed non-off mode or `warn_once`. **Fast extraction
-guard** and **Slow extraction guard** switch the active preset's fast and slow
-shot handling and preserve its other recipe and learned values. **A-to-M time guard**, **Avoid
+on restores the last observed non-off mode or `warn_once`. **Extend fast
+shots** and **Shorten slow shots** switch the active preset's fast and slow
+shot handling and preserve its other recipe and learned values. **Scale-loss backup**, **Avoid
 accidental touch** and **Cup protection** are shared settings: changing one
 applies to every preset. All switches are unavailable during an active cycle, and the five guard
 switches plus No-scale BBW are also unavailable while effective BBW is off.

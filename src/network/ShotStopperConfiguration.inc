@@ -1017,7 +1017,7 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
         if (jsonFieldPresent(root, "bbwAlgorithm") &&
             (!jsonString(root, "bbwAlgorithm", algorithmName, sizeof(algorithmName), false) ||
              !parseBbwAlgorithm(algorithmName, algorithm)))
-          parseError = "bbwAlgorithm must be legacy or linear_ewma.";
+          parseError = "bbwAlgorithm must be corridor (legacy and linear_ewma are accepted aliases).";
         if (jsonFieldPresent(root, "bbwAlpha") ||
             jsonFieldPresent(root, "bbwEwmaAlpha") ||
             jsonFieldPresent(root, "bbwAlphaLearned") ||

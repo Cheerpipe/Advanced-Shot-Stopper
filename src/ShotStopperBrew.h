@@ -61,8 +61,12 @@ float effectiveStopThreshold() {
 
 // A weight cut reports the segment of f that fired (13 raised, 3 target,
 // 16 lowered).
+// Latches the exact shot time and line, which the record and learning use.
 EndReason weightCutReasonNow() {
-  return corridor::cutReason(session.cut.params, cutLineNowDg());
+  corridor::CorridorState &cut = session.cut;
+  if (!shotTimeAtMs(millis(), cut.stopMs)) cut.stopMs = 0;
+  cut.stopLineDg = cutLineAtDg(cut.stopMs);
+  return corridor::cutReason(cut.params, cut.stopLineDg);
 }
 
 // Snapshot of the shot's cut parameters; the control task owns this state.

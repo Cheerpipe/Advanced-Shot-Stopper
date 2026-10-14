@@ -139,13 +139,13 @@ int main() {
     assert(shotLogCut(record) == ShotLogCut::LIMIT);
   }
   for (uint8_t gain = 1; gain <= 100; ++gain) {
-    shotLogSetBbw(record, 1, 2, gain, true);
+    shotLogSetBbw(record, 1, BBW_PROFILE_VERSION, gain, true);
     for (unsigned id = 0; id <= 255; ++id) {
       shotLogSetPresetId(record, static_cast<uint8_t>(id));
       assert(shotLogBbwAlpha(record) == gain && shotLogPresetId(record) == id);
       assert(shotLogCut(record) == ShotLogCut::LIMIT);
     }
-    assert(strcmp(shotLogBbwVersion(record), "2") == 0);
+    assert(strcmp(shotLogBbwVersion(record), "1") == 0);
     record.sideFlags = shotLogPackRating(record.sideFlags, 4);
     assert(shotLogRating(record.sideFlags) == 4);
     assert(shotLogFastGuardEnabled(record.sideFlags));

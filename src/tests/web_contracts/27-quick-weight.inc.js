@@ -54,7 +54,7 @@
   // otherwise describe a value the device never accepted).
   const qwHydrate = qwFirst('R.ensureSettingsHydrated()'),
     qwWrite = qwFirst('field.value = (dg / 10).toFixed(1)'),
-    qwSave = qwFirst('R.saveBrewPreset()'),
+    qwSave = qwFirst('R.saveBrewPreset(undefined, undefined, true)'),
     qwRestore = qwFirst('field.value = rejected;');
   qwAssert.ok(0 <= qwHydrate && qwHydrate < qwWrite && qwWrite < qwSave,
     'Closing must hydrate, then write the goal field, then save the preset');

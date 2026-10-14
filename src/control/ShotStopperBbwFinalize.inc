@@ -26,9 +26,7 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
   }
 
   // Observation = offsetUsed + (final - f(t_cut)): the cut line at the stop.
-  const float cutLineG = corridor::cutLineDg(
-      pendingCutParams(snapshot), static_cast<int32_t>(snapshot.durationDs) * 100) /
-      10.0f;
+  const float cutLineG = pendingCutLineDg(snapshot) / 10.0f;
   serialTracef(LogLevel::INFO,
                "Final weight: %.2fg; cut line: %.2fg; cycle offset: %.2fg",
                finalWeightG, cutLineG, snapshot.weightOffsetG);

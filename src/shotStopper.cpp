@@ -294,8 +294,7 @@ struct CycleSession {
   bool autoToManualGuardArmed = false;
   bool autoToManualGuardEnforced = false;
   uint32_t autoToManualGuardDeadlineAtMs = 0;
-  uint8_t scaleLossSource = 0;  // corridor::LossSource of the deadline.
-  bool scaleLossBlind = false;  // No valid flow when the scale dropped.
+  uint8_t scaleLossSource = 0; bool scaleLossBlind = false;  // deadline source; no valid flow
   uint8_t activePresetId = 0;
   char activePresetName[SHOT_PRESET_NAME_CAPACITY] = {};
   char scaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};
@@ -356,6 +355,7 @@ struct PendingShotFinalize {
   bool channeling = false;
   uint8_t scaleLossSource = 0;
   bool scaleLossBlind = false;
+  int32_t cutStopMs = 0, cutLineDg = 0;  // exact weight cut; 0 = none latched
   uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS;
   bool lastKnownWeightValid = false;
   float lastKnownWeightG = 0.0f;

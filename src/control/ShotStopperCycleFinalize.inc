@@ -125,6 +125,8 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
       session.cut.rate.valid ? session.cut.rate.rateX100 : 0;
   pendingFinalize.channeling = session.cut.rate.channeling;
   pendingFinalize.scaleLossSource = session.scaleLossSource;
+  pendingFinalize.cutStopMs = session.cut.stopMs;
+  pendingFinalize.cutLineDg = session.cut.stopMs > 0 ? session.cut.stopLineDg : 0;
   pendingFinalize.scaleLossBlind = session.scaleLossBlind;
   pendingFinalize.protectionMs = session.config.bbwProtectionMs;
   pendingFinalize.lastKnownWeightValid =
@@ -184,6 +186,19 @@ bool pendingShotScaleCut(const PendingShotFinalize &snapshot) {
                             snapshot.automaticBrew);
 }
 
+// The cut moment and line: exact when a weight cut latched them, otherwise
+// the end of the shot (time and scale-loss stops).
+int32_t pendingCutMs(const PendingShotFinalize &snapshot) {
+  return snapshot.cutLineDg > 0 ? snapshot.cutStopMs
+                                : static_cast<int32_t>(snapshot.durationDs) * 100;
+}
+
+int32_t pendingCutLineDg(const PendingShotFinalize &snapshot) {
+  return snapshot.cutLineDg > 0
+      ? snapshot.cutLineDg
+      : corridor::cutLineDg(pendingCutParams(snapshot), pendingCutMs(snapshot));
+}
+
 // Verdict of a weight cut by its arrival time (plan §4.6); every other end
 // is not classified.
 corridor::ArrivalVerdict pendingShotVerdict(const PendingShotFinalize &snapshot,
@@ -191,8 +206,7 @@ corridor::ArrivalVerdict pendingShotVerdict(const PendingShotFinalize &snapshot,
   if (!pendingShotScaleCut(snapshot) ||
       !brewWeightCutSettlesMachineOff(snapshot.endReason))
     return corridor::ArrivalVerdict{};
-  return corridor::arrivalVerdict(pendingCutParams(snapshot),
-                                  static_cast<int32_t>(snapshot.durationDs) * 100,
+  return corridor::arrivalVerdict(pendingCutParams(snapshot), pendingCutMs(snapshot),
                                   rateX100);
 }
 
@@ -244,10 +258,8 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
   record.stopDetail = static_cast<uint8_t>(shotLogStopDetailFromEndReason(
       snapshot.endReason, snapshot.extractionGuardEnabled,
       snapshot.extractionExtended));
-  const corridor::Params cut = pendingCutParams(snapshot);
   record.cutLineCg = pendingShotScaleCut(snapshot)
-      ? static_cast<int16_t>(corridor::cutLineDg(
-            cut, static_cast<int32_t>(snapshot.durationDs) * 100) * 10)
+      ? static_cast<int16_t>(pendingCutLineDg(snapshot) * 10)
       : SHOT_LOG_WEIGHT_MISSING;
   record.fastBeforeDs = static_cast<uint16_t>(snapshot.fastBeforeMs / 100U);
   record.slowAfterDs = static_cast<uint16_t>(snapshot.slowAfterMs / 100U);
