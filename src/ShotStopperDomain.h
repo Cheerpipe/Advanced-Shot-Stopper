@@ -1910,6 +1910,8 @@ struct PersistedLastShot {
   uint32_t endedAtUnixSec = 0;
   uint32_t endedAtLocalSec = 0;
   uint8_t hasWallTime = 0;
+  uint8_t verdict = 3;     // corridor::Verdict; 3 = not classified.
+  uint32_t arrivalMs = 0;  // Arrival at the target; 0 = unknown.
 };
 
 inline bool qualifyingGoodShot(const PersistedLastShot &shot, uint32_t protectionMs) {

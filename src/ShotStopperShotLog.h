@@ -15,8 +15,10 @@ namespace shotstopper {
 // Two 12 KiB slots fill the dedicated shotlog data partition.
 constexpr size_t SHOT_LOG_FLASH_SLOT_BYTES = 12288;
 constexpr size_t SHOT_LOG_FLASH_SLOT_COUNT = 2;
+static_assert(sizeof(ShotLogStore) <= SHOT_LOG_FLASH_SLOT_BYTES,
+              "Two shot-log slots of 100 records must fit the shotlog partition");
 
-// Only the fixed v2 layout is accepted; any older slot is discarded.
+// Only the current schema is accepted; any older slot is discarded.
 inline bool validShotLogStoreCurrent(const ShotLogStore &store) {
   return validShotLogStore(store);
 }
@@ -105,8 +107,8 @@ class ShotLog
     if (found == nullptr || rating > SHOT_LOG_RATING_MAX) {
       return false;
     }
-    found->extractionGuardEnabled =
-        shotLogPackRating(found->extractionGuardEnabled, rating);
+    found->sideFlags =
+        shotLogPackRating(found->sideFlags, rating);
     // The record bytes changed without moving count or nextRecordId, so bump
     // generation: the modified slot content must win dual-slot selection and
     // stream epochs hash these header words.
@@ -119,7 +121,7 @@ class ShotLog
     if (found == nullptr) {
       return false;
     }
-    rating = shotLogRating(found->extractionGuardEnabled);
+    rating = shotLogRating(found->sideFlags);
     return true;
   }
 

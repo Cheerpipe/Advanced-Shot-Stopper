@@ -881,7 +881,7 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     !codeIncludes(runtimeJs, 'shotDisplayFlowGS(r)') ||
     !codeIncludes(runtimeJs, 'shotMaxFlowGS(r)') ||
     !codeIncludes(runtimeJs, 'shotPresetName(r)') ||
-    !codeIncludes(runtimeJs, "'preset_id','scale_name','max_flow_g_s'") ||
+    !runtimeJs.includes('preset_id " +') || // Full header: 12-wire-freeze.
     !network.includes('const bool live = control.activeCycle || control.homePending') ||
     codeIncludes(runtimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.liveShot)') ||
     codeIncludes(runtimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
@@ -925,7 +925,7 @@ if (codeIncludes(ui, 'id="shotRating"') ||
     !codeIncludes(js, "dataset.label='Rate'") ||
     !codeIncludes(runtimeJs, 'function postShotRating(') ||
     !codeIncludes(runtimeJs, '{id,rating:n}') ||
-    !codeIncludes(runtimeJs, "'rating','ended_at_ms'") ||
+    !runtimeJs.includes('rating ended_at_ms') ||
     !css.includes('.starRate{display:inline-flex;align-items:center;margin:-.6rem 0 0 -.15rem}') ||
     !css.includes('.starRate button+button{margin-left:-.18rem}') ||
     !css.includes('.starRate button.on{color:var(--ac)}') ||
@@ -935,7 +935,7 @@ if (codeIncludes(ui, 'id="shotRating"') ||
     !network.includes('LAST_SHOT_NOT_FOUND') ||
     !network.includes('\\"rating\\":%u') ||
     !network.includes('\\"shotId\\":%lu') ||
-    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 0') ||
+    !lastShotIo.includes('LAST_SHOT_SCHEMA_VERSION = 1') ||
     !lastShotIo.includes(
         'void advance(const PersistedLastShot &shot,') ||
     !lastShotIo.includes('uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS') ||

@@ -3,6 +3,7 @@
 // Fixed v1 shot-log schema and domain helpers. No Preferences / NVS:
 // persistence lives in the dedicated shotlog flash partition (dual slot).
 
+#include "ShotStopperCorridor.h"
 #include "ShotStopperDomain.h"
 
 #include <cmath>
@@ -13,7 +14,7 @@
 namespace shotstopper {
 
 constexpr uint32_t SHOT_LOG_MAGIC = 0x534C4F47U;  // "SLOG"
-constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 0;
+constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 1;
 constexpr size_t SHOT_LOG_CAPACITY = 100;
 constexpr size_t SHOT_LOG_PAGE_DEFAULT = 10;
 // Maximum number of records in each independent read-time Stats window.
@@ -106,8 +107,8 @@ constexpr uint8_t SHOT_LOG_FAST_GUARD_BIT = 0x01;
 constexpr uint8_t SHOT_LOG_SLOW_GUARD_BIT = 0x02;
 constexpr uint8_t SHOT_LOG_FAST_EXTENDED_BIT = 0x01;
 constexpr uint8_t SHOT_LOG_SLOW_EXTENDED_BIT = 0x02;
-// User rating 0–5 remains packed into extractionGuardEnabled. Bits 0–1 remain
-// Fast/Slow guard flags.
+// User rating 0–5 is packed into sideFlags. Bits 0–1 are the fast/slow side
+// switches in force for the shot.
 constexpr uint8_t SHOT_LOG_RATING_SHIFT = 2;
 constexpr uint8_t SHOT_LOG_RATING_MASK = 0x1C;
 constexpr uint8_t SHOT_LOG_RATING_MAX = 5;
@@ -173,6 +174,25 @@ inline const char *shotLogStopDetailName(ShotLogStopDetail detail) {
     case ShotLogStopDetail::OTHER: return "other";
   }
   return "unknown";
+}
+
+// JSON values (quoted, or null) of the packed corridor verdict byte.
+inline const char *shotLogVerdictJson(uint8_t packed) {
+  switch (packed & 3) {
+    case 0: return "\"on_recipe\"";
+    case 1: return "\"fast\"";
+    case 2: return "\"slow\"";
+  }
+  return "null";
+}
+
+inline const char *shotLogScaleLossSourceJson(uint8_t packed) {
+  switch ((packed >> 3) & 3) {
+    case 0: return "\"projection\"";
+    case 1: return "\"history\"";
+    case 2: return "\"window\"";
+  }
+  return "\"fixed\"";
 }
 
 inline const char *actualWeightSourceName(ActualWeightSource source) {
@@ -312,6 +332,7 @@ struct ShotLogRecord {
   uint16_t durationDs;
   uint16_t goalWeightDg;
   uint8_t hasWallTime;
+  uint8_t verdict;  // corridor::packVerdict: verdict, channeling, scale loss.
   int16_t actualWeightCg;
   int16_t errorCg;
   int16_t offsetUsedCg;
@@ -319,25 +340,34 @@ struct ShotLogRecord {
   uint16_t avgFlowCgS;
   uint8_t shotType;  // Bits 0–1: type; 2–7: preset ID low six bits.
   uint8_t cutType;   // Bits 0–1: cut; 2–3: preset ID high bits; 4–7: alpha high bits.
-  // Bits 0–1: guards; 2–4: rating; 5–7: BBW profile.
-  uint8_t extractionGuardEnabled;
-  // Bits 0–1: extensions; 2–4: alpha low bits; 5–6: learning status.
+  // Bits 0–1: fast/slow side on; 2–4: rating; 5–7: BBW profile.
+  uint8_t sideFlags;
+  // Bits 0–1: cut line above/below the target at the cut; 2–4: alpha low
+  // bits; 5–6: learning status.
   uint8_t extractionExtended;
   uint8_t stopDetail;
-  // Placed in the former v5 padding byte so sizeof stays 48.
   uint8_t actualWeightSource;
-  int16_t maxRecoveryWeightCg;
-  uint16_t minBbwBrewTimeDs;
-  uint16_t targetReachedEarlyDs;
+  int16_t cutLineCg;     // Cut line f at the stop command; MISSING if none.
+  uint16_t fastBeforeDs;  // Shot time window start t1.
+  uint16_t arrivalDs;     // When the shot reached (or would reach) the target.
   // Deciseconds from the shot anchor to the late tare; MISSING = no tare.
   uint16_t tareAtDs;
   char presetName[SHOT_PRESET_NAME_CAPACITY];
   // Friendly name if set, else the BLE name, truncated; by value, empty = none.
   char scaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1];
+  // The rest of the cut parameters in force for this shot: every record is a
+  // self-contained snapshot, read without the (editable) preset.
+  uint16_t slowAfterDs;   // Shot time window end t2.
+  uint16_t delayDs;       // Weight-cut delay.
+  uint16_t wallDs;        // Max shot time.
+  uint8_t fastMarginDg;   // Relative to the target; meaningful with the side on.
+  uint8_t slowMarginDg;
+  uint8_t cutRampDs;      // Ramp length D (0 = step).
 };
 
-static_assert(sizeof(ShotLogRecord) == 108,
-              "Shot-log v3 decigram goals reuse the record's padding byte");
+static_assert(sizeof(ShotLogRecord) == 120, "Shot-log schema 1 record size");
+static_assert(offsetof(ShotLogRecord, verdict) == 27, "schema 1 verdict byte");
+static_assert(offsetof(ShotLogRecord, slowAfterDs) == 108, "schema 1 snapshot tail");
 
 inline ShotLogType shotLogType(const ShotLogRecord &record);
 
@@ -390,12 +420,17 @@ inline PersistedLastShot shotLogProjectLastShot(
   shot.averageFlowGps = shot.averageFlowValid
       ? record.avgFlowCgS / 100.0f : 0.0f;
   shot.fastExtractionGuardEnabled =
-      shotLogFastGuardEnabled(record.extractionGuardEnabled);
+      shotLogFastGuardEnabled(record.sideFlags);
   shot.slowExtractionGuardEnabled =
-      shotLogSlowGuardEnabled(record.extractionGuardEnabled);
+      shotLogSlowGuardEnabled(record.sideFlags);
   shot.extractionExtended = shotLogFastExtended(record.extractionExtended);
   shot.slowExtractionExtended = shotLogSlowExtended(record.extractionExtended);
-  shot.rating = shotLogRating(record.extractionGuardEnabled);
+  shot.rating = shotLogRating(record.sideFlags);
+  shot.verdict = record.verdict & 3;
+  shot.arrivalMs = record.arrivalDs == SHOT_LOG_METRIC_MISSING
+      ? 0U : static_cast<uint32_t>(record.arrivalDs) * 100U;
+  if (!shotLogWeightIsMissing(record.cutLineCg))
+    shot.activeStopWeightG = record.cutLineCg / 100.0f;
   return shot;
 }
 
@@ -416,7 +451,7 @@ inline void shotLogSetPresetId(ShotLogRecord &record, uint8_t id) {
 // Profile 0 unknown, 1 pre-selector Legacy (version unknown), 2 Legacy v1,
 // 3 adaptive EWMA v1, 4 adaptive EWMA v2. Alpha 0 unknown, 1–100 hundredths.
 inline uint8_t shotLogBbwProfile(const ShotLogRecord &record) {
-  return record.extractionGuardEnabled >> 5;
+  return record.sideFlags >> 5;
 }
 inline const char *shotLogBbwAlgorithm(const ShotLogRecord &record) {
   const uint8_t profile = shotLogBbwProfile(record);
@@ -441,7 +476,7 @@ inline void shotLogSetBbw(ShotLogRecord &record, uint8_t algorithm,
   const uint8_t profile = version == 1 && algorithm <= 1 ? algorithm + 2
       : version == 2 && algorithm == 1 ? 4 : 0;
   record.cutType = (record.cutType & 15) | ((alpha >> 3) << 4);
-  record.extractionGuardEnabled = (record.extractionGuardEnabled & 0x1f) | (profile << 5);
+  record.sideFlags = (record.sideFlags & 0x1f) | (profile << 5);
   record.extractionExtended = (record.extractionExtended & 3) |
       ((alpha & 7) << 2) | ((applied ? 2 : 1) << 5);
 }
@@ -465,8 +500,8 @@ inline void shotLogReverseRecords(ShotLogRecord *records, size_t count) {
 inline int shotLogCompareRatingOrder(const ShotLogRecord &left,
                                      const ShotLogRecord &right,
                                      ShotLogSortDir dir) {
-  const uint8_t leftRating = shotLogRating(left.extractionGuardEnabled);
-  const uint8_t rightRating = shotLogRating(right.extractionGuardEnabled);
+  const uint8_t leftRating = shotLogRating(left.sideFlags);
+  const uint8_t rightRating = shotLogRating(right.sideFlags);
   const bool leftUnrated = leftRating == 0;
   const bool rightUnrated = rightRating == 0;
   if (leftUnrated != rightUnrated) {

@@ -1156,9 +1156,8 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
   char flow[16] = "null";
   char firstDrop[16] = "null";
   char tareAt[16] = "null";
-  char maxRecovery[16] = "null";
-  char minBbwBrewTime[16] = "null";
-  char targetEarly[16] = "null";
+  char cutLine[16] = "null";
+  char arrival[16] = "null";
   char presetName[SHOT_PRESET_NAME_CAPACITY * 6] = {};
   char scaleNameJson[SCALE_FRIENDLY_NAME_MAX_LEN * 6 + 1] = {};
   escapeJsonString(record.presetName, presetName, sizeof(presetName));
@@ -1179,18 +1178,16 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
     snprintf(tareAt, sizeof(tareAt), "%.1f",
              static_cast<double>(record.tareAtDs) / 10.0);
   }
-  if (!shotLogWeightIsMissing(record.maxRecoveryWeightCg)) {
-    snprintf(maxRecovery, sizeof(maxRecovery), "%.2f",
-             static_cast<double>(record.maxRecoveryWeightCg) / 100.0);
+  if (!shotLogWeightIsMissing(record.cutLineCg)) {
+    snprintf(cutLine, sizeof(cutLine), "%.2f",
+             static_cast<double>(record.cutLineCg) / 100.0);
   }
-  if (record.minBbwBrewTimeDs != SHOT_LOG_METRIC_MISSING) {
-    snprintf(minBbwBrewTime, sizeof(minBbwBrewTime), "%.1f",
-             static_cast<double>(record.minBbwBrewTimeDs) / 10.0);
+  if (record.arrivalDs != SHOT_LOG_METRIC_MISSING) {
+    snprintf(arrival, sizeof(arrival), "%.1f",
+             static_cast<double>(record.arrivalDs) / 10.0);
   }
-  if (record.targetReachedEarlyDs != SHOT_LOG_METRIC_MISSING) {
-    snprintf(targetEarly, sizeof(targetEarly), "%.1f",
-             static_cast<double>(record.targetReachedEarlyDs) / 10.0);
-  }
+  const bool scaleLoss = static_cast<ShotLogStopDetail>(record.stopDetail) ==
+                         ShotLogStopDetail::AUTO_TO_MANUAL;
   ShotCurveRecord &emptyCurve = work.serializedCurve;
   resetShotCurveRecord(emptyCurve);
   if (curve == nullptr) {
@@ -1219,8 +1216,11 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
       "\"shotType\":\"%s\",\"cutType\":\"%s\","
       "\"extractionGuardEnabled\":%s,\"extractionExtended\":%s,"
       "\"slowExtractionGuardEnabled\":%s,\"slowExtractionExtended\":%s,"
-      "\"stopDetail\":\"%s\",\"maxRecoveryWeightG\":%s,"
-      "\"minBbwBrewTimeS\":%s,\"targetReachedEarlyS\":%s,"
+      "\"stopDetail\":\"%s\",\"cutLineG\":%s,\"arrivalS\":%s,"
+      "\"verdict\":%s,\"channeling\":%s,\"scaleLossSource\":%s,"
+      "\"blind\":%s,\"fastBeforeS\":%.1f,\"slowAfterS\":%.1f,"
+      "\"fastMarginG\":%.1f,\"slowMarginG\":%.1f,\"delayS\":%.1f,"
+      "\"wallS\":%.1f,\"cutRampS\":%.1f,"
       "\"actualWeightSource\":\"%s\",\"rating\":%u,%s}",
       static_cast<unsigned long>(record.id),
       static_cast<unsigned long>(record.bootId),
@@ -1238,14 +1238,20 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
       alphaJson, shotLogBbwLearningApplied(record), flow, firstDrop, tareAt,
       shotLogTypeName(shotLogType(record)),
       shotLogCutName(shotLogCut(record)),
-      shotLogFastGuardEnabled(record.extractionGuardEnabled) ? "true" : "false",
+      shotLogFastGuardEnabled(record.sideFlags) ? "true" : "false",
       shotLogFastExtended(record.extractionExtended) ? "true" : "false",
-      shotLogSlowGuardEnabled(record.extractionGuardEnabled) ? "true" : "false",
+      shotLogSlowGuardEnabled(record.sideFlags) ? "true" : "false",
       shotLogSlowExtended(record.extractionExtended) ? "true" : "false",
       shotLogStopDetailName(static_cast<ShotLogStopDetail>(record.stopDetail)),
-      maxRecovery, minBbwBrewTime, targetEarly,
+      cutLine, arrival, shotLogVerdictJson(record.verdict),
+      corridor::channelingOf(record.verdict) ? "true" : "false",
+      scaleLoss ? shotLogScaleLossSourceJson(record.verdict) : "null",
+      corridor::blindOf(record.verdict) ? "true" : "false",
+      record.fastBeforeDs / 10.0, record.slowAfterDs / 10.0,
+      record.fastMarginDg / 10.0, record.slowMarginDg / 10.0,
+      record.delayDs / 10.0, record.wallDs / 10.0, record.cutRampDs / 10.0,
       actualWeightSourceName(static_cast<ActualWeightSource>(record.actualWeightSource)),
-      static_cast<unsigned>(shotLogRating(record.extractionGuardEnabled)),
+      static_cast<unsigned>(shotLogRating(record.sideFlags)),
       curveJson);
   if (bytes <= 0 || static_cast<size_t>(bytes) >= NetworkWorkBuf::kJsonItem)
     return 0;
@@ -1358,7 +1364,7 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
                                     haveCurve ? cache.fetchCurve.count : 0);
         cache.curveHashes.insert(record.id, rowHash);
       }
-      const uint32_t row[2] = {record.id, record.extractionGuardEnabled};
+      const uint32_t row[2] = {record.id, record.sideFlags};
       fingerprint = crc32Update(fingerprint,
           reinterpret_cast<const uint8_t *>(row), sizeof(row));
       fingerprint = crc32Update(fingerprint,

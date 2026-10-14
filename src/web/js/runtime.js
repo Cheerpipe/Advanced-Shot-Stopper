@@ -1674,43 +1674,13 @@ async function exportShotsCsv() {
     const maxW = list.reduce((m, r) => Math.max(m, r.wCg?.length || 0), 0);
     const rows = [
       [
-        "id",
-        "boot_id",
-        "local_time",
-        "has_wall_time",
-        "ended_at_unix",
-        "tz_off",
-        "duration_s",
-        "goal_g",
-        "yield_g",
-        "error_g",
-        "error_pct",
-        "offset_g",
-        "avg_flow_g_s",
-        "first_drop_s",
-        "tare_s",
-        "ext_guard",
-        "ext",
-        "slow_guard",
-        "slow_ext",
-        "stop",
-        "max_rec_g",
-        "min_bbw_brew_s",
-        "early_s",
-        "shot_type",
-        "cut_type",
-        "yield_source",
-        "rating",
-        "ended_at_ms",
-        "bbw_algorithm",
-        "bbw_algorithm_version",
-        "bbw_alpha",
-        "bbw_learning_applied",
-        "preset_id",
-        "scale_name",
-        "max_flow_g_s",
-        "curve_truncated",
-        "curve_break_before",
+        ...("id boot_id local_time has_wall_time ended_at_unix tz_off duration_s goal_g " +
+          "yield_g error_g error_pct offset_g avg_flow_g_s first_drop_s tare_s fast_side " +
+          "cut_raised slow_side cut_lowered stop verdict channeling scale_loss_source " +
+          "cut_line_g arrival_s fast_before_s slow_after_s fast_margin_g slow_margin_g " +
+          "delay_s wall_s cut_ramp_s shot_type cut_type yield_source rating ended_at_ms " +
+          "bbw_algorithm bbw_algorithm_version bbw_alpha bbw_learning_applied preset_id " +
+          "scale_name max_flow_g_s curve_truncated curve_break_before").split(" "),
         ...Array.from({ length: maxW }, (_, i) => [
           "sample_" + (i + 1) + "_time_s",
           "sample_" + (i + 1) + "_weight_g",
@@ -1740,14 +1710,11 @@ async function exportShotsCsv() {
         shotDisplayFlowGS(r) ?? "",
         r.firstDropS ?? "",
         r.tareS ?? "",
-        r.extractionGuardEnabled ? "1" : "0",
-        r.extractionExtended ? "1" : "0",
-        r.slowExtractionGuardEnabled ? "1" : "0",
-        r.slowExtractionExtended ? "1" : "0",
-        r.stopDetail ?? "",
-        r.maxRecoveryWeightG ?? "",
-        r.minBbwBrewTimeS ?? "",
-        r.targetReachedEarlyS ?? "",
+        ...("extractionGuardEnabled extractionExtended slowExtractionGuardEnabled slowExtractionExtended " +
+          "stopDetail verdict channeling scaleLossSource cutLineG arrivalS fastBeforeS slowAfterS " +
+          "fastMarginG slowMarginG delayS wallS cutRampS")
+          .split(" ")
+          .map((k) => (typeof r[k] == "boolean" ? +r[k] : (r[k] ?? ""))),
         r.shotType,
         r.cutType,
         r.actualWeightSource ?? "",

@@ -219,6 +219,7 @@ with the machine circuit isolated before the first smooth-cut release.
 | SC-01 | Install the smooth-cut firmware over USB with `--erase-all`, restore Wi-Fi from the serial console and pair the scale. | The controller boots with factory settings and four factory presets: Double · Adaptive (active), Single · Adaptive, Double · Fixed and Single · Fixed. |
 | SC-02 | Toggle the Home Quick Settings A-to-M time guard, Avoid accidental touch and Cup protection, then apply another preset; repeat from Home Assistant. Toggle Fast and Slow on one preset. | The three shared switches keep their value on every preset; Fast and Slow change only the preset they were set on. |
 | SC-03 | Edit each factory preset, then use **Reset** on it; try to delete each one. | Reset restores the factory table values and keeps the name; factory presets cannot be deleted. |
+| SC-04 | Pull a shot on one preset, then edit that preset's window and margins and pull another; export the Stats CSV. | Each row keeps the window, margins, delay, max shot time and side switches it ran with; editing the preset did not change the first row. |
 
 ## Network, Web UI and access
 

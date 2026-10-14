@@ -65,6 +65,6 @@
 
   const runtimeJs = fs.readFileSync(path.join(sketchDir, 'web', 'js', 'runtime.js'), 'utf8');
   const header = runtimeJs.match(/async function exportShotsCsv\(\)[\s\S]*?const rows = \[\s*\[([\s\S]*?)\.\.\.Array/)[1];
-  same([...header.matchAll(/"([a-z0-9_]+)"/g)].map((m) => m[1]),
+  same([...header.matchAll(/"([a-z0-9_ ]+)"/g)].flatMap((m) => m[1].split(" ")).filter(Boolean),
        frozen.statsCsvColumns, 'Stats CSV columns');
 }

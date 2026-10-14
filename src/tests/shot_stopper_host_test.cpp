@@ -12521,7 +12521,7 @@ void s01f_curve_rollover_keeps_stats_windows_and_sorted_joins() {
     record.avgFlowCgS = id % 2 ? SHOT_LOG_METRIC_MISSING : 100;
     record.shotType = static_cast<uint8_t>(id % 3 ? ShotLogType::MANUAL : ShotLogType::AUTO);
     record.stopDetail = static_cast<uint8_t>(id % 3 ? ShotLogStopDetail::ACTIVATOR : ShotLogStopDetail::NORMAL_TARGET);
-    record.extractionGuardEnabled = shotLogPackRating(0, id % 6);
+    record.sideFlags = shotLogPackRating(0, id % 6);
     curve.shotId = shotLog.nextRecordId();
     curve.weightCg[1] = static_cast<int16_t>(curve.shotId);
     CHECK(shotLog.append(record, false));
@@ -15598,15 +15598,15 @@ void s04f_shot_log_sort_date_and_rating() {
 
   ShotLogRecord recs[5] = {};
   recs[0].id = 5;
-  recs[0].extractionGuardEnabled = shotLogPackRating(0, 3);
+  recs[0].sideFlags = shotLogPackRating(0, 3);
   recs[1].id = 4;
-  recs[1].extractionGuardEnabled = shotLogPackRating(0, 5);
+  recs[1].sideFlags = shotLogPackRating(0, 5);
   recs[2].id = 3;
-  recs[2].extractionGuardEnabled = shotLogPackRating(0, 0);
+  recs[2].sideFlags = shotLogPackRating(0, 0);
   recs[3].id = 2;
-  recs[3].extractionGuardEnabled = shotLogPackRating(0, 5);
+  recs[3].sideFlags = shotLogPackRating(0, 5);
   recs[4].id = 1;
-  recs[4].extractionGuardEnabled = shotLogPackRating(0, 1);
+  recs[4].sideFlags = shotLogPackRating(0, 1);
 
   ShotLogRecord dateDesc[5];
   memcpy(dateDesc, recs, sizeof(recs));
@@ -15624,29 +15624,29 @@ void s04f_shot_log_sort_date_and_rating() {
   memcpy(ratingDesc, recs, sizeof(recs));
   shotLogSortRecords(ratingDesc, 5, ShotLogSort::Rating, ShotLogSortDir::Desc);
   CHECK(ratingDesc[0].id == 4);
-  CHECK(shotLogRating(ratingDesc[0].extractionGuardEnabled) == 5);
+  CHECK(shotLogRating(ratingDesc[0].sideFlags) == 5);
   CHECK(ratingDesc[1].id == 2);
-  CHECK(shotLogRating(ratingDesc[1].extractionGuardEnabled) == 5);
+  CHECK(shotLogRating(ratingDesc[1].sideFlags) == 5);
   CHECK(ratingDesc[2].id == 5);
-  CHECK(shotLogRating(ratingDesc[2].extractionGuardEnabled) == 3);
+  CHECK(shotLogRating(ratingDesc[2].sideFlags) == 3);
   CHECK(ratingDesc[3].id == 1);
-  CHECK(shotLogRating(ratingDesc[3].extractionGuardEnabled) == 1);
+  CHECK(shotLogRating(ratingDesc[3].sideFlags) == 1);
   CHECK(ratingDesc[4].id == 3);
-  CHECK(shotLogRating(ratingDesc[4].extractionGuardEnabled) == 0);
+  CHECK(shotLogRating(ratingDesc[4].sideFlags) == 0);
 
   ShotLogRecord ratingAsc[5];
   memcpy(ratingAsc, recs, sizeof(recs));
   shotLogSortRecords(ratingAsc, 5, ShotLogSort::Rating, ShotLogSortDir::Asc);
   CHECK(ratingAsc[0].id == 1);
-  CHECK(shotLogRating(ratingAsc[0].extractionGuardEnabled) == 1);
+  CHECK(shotLogRating(ratingAsc[0].sideFlags) == 1);
   CHECK(ratingAsc[1].id == 5);
-  CHECK(shotLogRating(ratingAsc[1].extractionGuardEnabled) == 3);
+  CHECK(shotLogRating(ratingAsc[1].sideFlags) == 3);
   CHECK(ratingAsc[2].id == 4);
-  CHECK(shotLogRating(ratingAsc[2].extractionGuardEnabled) == 5);
+  CHECK(shotLogRating(ratingAsc[2].sideFlags) == 5);
   CHECK(ratingAsc[3].id == 2);
-  CHECK(shotLogRating(ratingAsc[3].extractionGuardEnabled) == 5);
+  CHECK(shotLogRating(ratingAsc[3].sideFlags) == 5);
   CHECK(ratingAsc[4].id == 3);
-  CHECK(shotLogRating(ratingAsc[4].extractionGuardEnabled) == 0);
+  CHECK(shotLogRating(ratingAsc[4].sideFlags) == 0);
 
   shotLogSortRecords(nullptr, 5, ShotLogSort::Rating, ShotLogSortDir::Desc);
   shotLogSortRecords(recs, 0, ShotLogSort::Rating, ShotLogSortDir::Desc);
@@ -15695,8 +15695,47 @@ void s08_shot_log_without_sync_has_no_wall_time() {
 }
 
 void s11_shot_log_record_includes_preset_snapshot() {
-  CHECK(sizeof(ShotLogRecord) == 108);
+  CHECK(sizeof(ShotLogRecord) == 120);
   CHECK(sizeof(ShotLogStore) % 4 == 0);
+  // A fast weight cut records its own cut parameters, cut line and verdict.
+  resetHarness(false, true);
+  shotLog.clear();
+  PendingShotFinalize snapshot = {};
+  snapshot.cycleId = 9;
+  snapshot.durationDs = 245;
+  snapshot.firstDropDs = 60;
+  snapshot.goalWeightDg = 360;
+  snapshot.startedWithScale = true;
+  snapshot.automaticBrew = true;
+  snapshot.scaleBaselineReady = true;
+  snapshot.finalState = StopperState::BREW;
+  snapshot.endReason = EndReason::FAST_EXTRACTION_MAX_WEIGHT;
+  snapshot.extractionGuardEnabled = true;
+  snapshot.slowExtractionGuardEnabled = true;
+  snapshot.extractionExtended = true;
+  snapshot.fastMarginDg = 40;
+  snapshot.slowMarginDg = 30;
+  snapshot.fastBeforeMs = 27000;
+  snapshot.slowAfterMs = 34000;
+  snapshot.protectionMs = 12000;
+  snapshot.wallMs = 50000;
+  commitPendingShotLog(snapshot, 39.0f, true, ActualWeightSource::POST_DRIP);
+  ShotLogRecord stored[1] = {};
+  CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
+  const ShotLogRecord &r = stored[0];
+  CHECK(r.cutLineCg == 4000);  // Ceiling before t1 (step guards, D = 0).
+  CHECK(r.fastBeforeDs == 270 && r.slowAfterDs == 340 && r.delayDs == 120);
+  CHECK(r.wallDs == 500 && r.fastMarginDg == 40 && r.slowMarginDg == 30);
+  CHECK(r.cutRampDs == 0 && shotLogFastGuardEnabled(r.sideFlags));
+  CHECK(corridor::verdictOf(r.verdict) == corridor::Verdict::FAST);
+  CHECK(r.arrivalDs == 226);  // 24.5 s - 4 g / 2.108 g/s.
+  // A wall stop is not classified.
+  shotLog.clear();
+  snapshot.endReason = EndReason::CONFIGURED_WALL_LIMIT;
+  commitPendingShotLog(snapshot, 39.0f, true, ActualWeightSource::POST_DRIP);
+  CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
+  CHECK(corridor::verdictOf(stored[0].verdict) == corridor::Verdict::UNCLASSIFIED);
+  CHECK(stored[0].arrivalDs == SHOT_LOG_METRIC_MISSING);
 }
 
 void s12_shot_rating_pack_preserves_guards() {
@@ -15717,15 +15756,15 @@ void s12b_shot_log_update_rating() {
   shotLog.clear();
   ShotLogRecord record = {};
   record.durationDs = 120;
-  record.extractionGuardEnabled = shotLogPackGuardFlags(true, false);
+  record.sideFlags = shotLogPackGuardFlags(true, false);
   CHECK(shotLog.append(record));
   ShotLogRecord stored[1] = {};
   CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
   CHECK(shotLog.updateRating(stored[0].id, 3));
   CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
-  CHECK(shotLogRating(stored[0].extractionGuardEnabled) == 3);
-  CHECK(shotLogFastGuardEnabled(stored[0].extractionGuardEnabled));
-  CHECK(!shotLogSlowGuardEnabled(stored[0].extractionGuardEnabled));
+  CHECK(shotLogRating(stored[0].sideFlags) == 3);
+  CHECK(shotLogFastGuardEnabled(stored[0].sideFlags));
+  CHECK(!shotLogSlowGuardEnabled(stored[0].sideFlags));
   CHECK(!shotLog.updateRating(stored[0].id, 6));
   CHECK(!shotLog.updateRating(99999U, 1));
 }
@@ -15756,7 +15795,7 @@ void s12c_finalize_links_exact_history_row() {
   commitPendingShotLog(snapshot, 36.1f, true, ActualWeightSource::POST_DRIP);
   ShotLogRecord stored[1] = {};
   CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
-  CHECK(shotLogRating(stored[0].extractionGuardEnabled) == 0);
+  CHECK(shotLogRating(stored[0].sideFlags) == 0);
   CHECK(persistedLastShot.shotLogId == stored[0].id);
   CHECK(persistedLastGoodShot.shotLogId == stored[0].id);
   CHECK(stored[0].endedAtUnixSec == snapshot.endedAtUtcSec);
@@ -15791,10 +15830,10 @@ void s12d_rate_last_shot_and_history() {
   CHECK(rateLastShot(5));
   CHECK(persistedLastGoodShot.rating == 0);
   CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
-  CHECK(shotLogRating(stored[0].extractionGuardEnabled) == 5);
+  CHECK(shotLogRating(stored[0].sideFlags) == 5);
   CHECK(rateShotRecord(stored[0].id, 2));
   CHECK(shotLog.copyNewestFirst(stored, 1) == 1);
-  CHECK(shotLogRating(stored[0].extractionGuardEnabled) == 2);
+  CHECK(shotLogRating(stored[0].sideFlags) == 2);
   uint32_t bootId = 0;
   PersistedLastShot last = {}, good = {};
   ShotCurveRecord curve = emptyShotCurveRecord();
@@ -15958,7 +15997,7 @@ void s12g_worker_acknowledgement_rechecks_generation_under_lock() {
     CHECK(shotCurves.count() == (mutation == 2 ? 1U : 0U));
     if (mutation == 2) {
       CHECK(shotLog.copyNewestFirst(&record, 1) == 1);
-      CHECK(shotLogRating(record.extractionGuardEnabled) == 5);
+      CHECK(shotLogRating(record.sideFlags) == 5);
     }
   }
 }
@@ -16094,9 +16133,9 @@ void sh02_stats_snapshot_captures_one_store_generation() {
   CHECK(fetched.weightCg[0] == record.actualWeightCg);
   CHECK(rateShotRecord(record.id, 5));
   CHECK(snapshot->epoch != copyShotLogEpoch());
-  CHECK(shotLogRating(snapshot->records[0].extractionGuardEnabled) == 0);
+  CHECK(shotLogRating(snapshot->records[0].sideFlags) == 0);
   copyShotStatsRecords(*snapshot);
-  CHECK(shotLogRating(snapshot->records[0].extractionGuardEnabled) == 5);
+  CHECK(shotLogRating(snapshot->records[0].sideFlags) == 5);
 }
 
 void s19_shot_store_persist_failure_logs_once_until_success() {

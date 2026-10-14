@@ -15,7 +15,9 @@ namespace shotstopper {
 
 constexpr uint32_t SHOT_CURVE_MAGIC = 0x53435256U;  // "SCRV"
 // Older stores are intentionally discarded.
-constexpr uint16_t SHOT_CURVE_SCHEMA_VERSION = 0;
+// Schema 1: the smooth-cut epoch; the "extended" event marks the cut line
+// leaving the target.
+constexpr uint16_t SHOT_CURVE_SCHEMA_VERSION = 1;
 constexpr uint32_t SHOT_CURVE_MAX_TIME_MS = 60000;
 // Capacity assumption only, never a sampling grid or rate limiter.
 constexpr size_t SHOT_CURVE_MAX_POINTS = SHOT_CURVE_MAX_TIME_MS / 50U + 1U;

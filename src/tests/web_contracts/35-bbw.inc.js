@@ -118,7 +118,7 @@
   assert.deepEqual(lines[0].slice(-14), ['curve_truncated', 'curve_break_before', ...Array.from({length:4}, (_,i)=>['sample_'+(i+1)+'_time_s','sample_'+(i+1)+'_weight_g','sample_'+(i+1)+'_flow_g_s']).flat()]);
   assert.deepEqual(lines[1].slice(-14), ['0', '', ...Array(12).fill('')]);
   assert.deepEqual(lines[2].slice(-14), ['0', '', '0', '0', '', '0.45', '15.2', '', '0.9', '31.05', '', '1.6', '36.2', '15.72']);
-  assert.equal(+lines[2][34], 15.716666666666665);
+  assert.equal(+lines[2][43], 15.716666666666665);
   assert.deepEqual(lines[3].slice(-14), ['0', '', '0', '0', '', '0.5', '8', '', ...Array(6).fill('')]);
   assert.deepEqual(lines[4].slice(-12), ['0','0','','0.137','1.37','','1.001','10.01','10.00','1.138','11.38','10.00']);
   records[1].wAtMs=Array.from({length:1201},(_,i)=>i*50);
@@ -126,11 +126,11 @@
   records[1].durationS=60;
   await vm.runInContext('exportShotsCsv()',context);
   const complete=(await blob.text()).split('\n')[2].split(',');
-  assert.equal(complete[35],'0');
-  assert.equal(complete[34],'2');
+  assert.equal(complete[44],'0');
+  assert.equal(complete[43],'2');
   assert.equal(complete.at(-3),'60');
   assert.equal(complete.at(-1),'2.00');
-  assert.equal(complete.slice(37).filter((v,i)=>i%3===2&&v==='2.00').length,1181);
+  assert.equal(complete.slice(46).filter((v,i)=>i%3===2&&v==='2.00').length,1181);
   for (const record of records) {
     record.wCg = Array(1201).fill(1234);
     record.wAtMs = Array.from({length:1201}, (_,i)=>i*50);
@@ -140,12 +140,12 @@
   await vm.runInContext('exportShotsCsv()', context);
   const maximum = (await blob.text()).split('\n').map(line=>line.split(','));
   assert.equal(maximum.length, 101);
-  assert.equal(maximum[0].length, 3640);
+  assert.equal(maximum[0].length, 3649);
   assert.equal(maximum[0].at(-3), 'sample_1201_time_s');
   for (const row of maximum.slice(1)) {
     assert.equal(row.length, maximum[0].length);
-    assert.equal(row[35], '1');
-    assert.equal(row[36].split(';').length, 1200);
+    assert.equal(row[44], '1');
+    assert.equal(row[45].split(';').length, 1200);
     assert.equal(row.at(-3), '60');
     assert.equal(row.at(-2), '12.34');
   }

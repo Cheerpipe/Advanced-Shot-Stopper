@@ -177,7 +177,8 @@ remains in the binary layout for internal completed-cycle diagnostics, but its
 separate good-shot field is not a public shot authority. An erase-all install
 starts both histories empty; no upgrade migration is required.
 
-History schema 0 keeps the current fixed records and entries. Guard byte bits 5–7 encode
+History schema 0 keeps the current fixed records and entries. In shot-log
+records the side-flags byte (bits 0–1 fast/slow side on, 2–4 rating) uses bits 5–7 to encode
 profile (0 unknown, 1 pre-selector regression with unknown version, 2 regression v1,
 3 adaptive EWMA v1, 4 EWMA v2). Alpha is 0 unknown or 1–100 hundredths;
 extension bits 2–4 hold its low three bits, cut-type bits 4–7 its high four.
@@ -225,14 +226,17 @@ changing the 32-byte record size or partition layout; see the
 Each inactive slot or used curve sector is
 erased one 4 KiB sector at a time, programmed one 1 KiB staged chunk at a time,
 and receives its validity-bearing header last; the worker rechecks the current
-machine and scale gates between steps. The shot log's whole 10,828-byte store and the
+machine and scale gates between steps. The shot log's whole 12,028-byte store and the
 16,024-byte activation-history store live in PSRAM and move to and from their
 slots in 1 KiB chunks staged through the small internal flash-I/O scratch only
 while that owner holds the flash lock. Each keeps two slots in its own data
 partition — 2×12 KiB for `shotlog`, 2×16 KiB for `history` — with generation
 and checksum selection preserving the atomic whole-store update; a failed
 write never erases the last-good slot. Writes remain deferred until the shot
-has ended. The shot log uses schema 0 in its dedicated partition; any other
+has ended. The shot log uses schema 1 in its dedicated partition (120-byte records, each
+a self-contained snapshot of the cut parameters in force: target, window,
+side switches, margins, delay, max shot time and ramp length, plus the cut
+line at the stop, arrival time and packed verdict byte); any other
 schema is discarded and the shot history starts empty.
 
 On n16r8, ESP-IDF writes one ELF core dump to a 640 KiB capture partition
@@ -247,7 +251,8 @@ by the boot ID and dump digest. HTTP download reads bounded chunks under the
 shared flash lock and releases the lock before sending each chunk. The raw
 archive requires Admin unlock because task stacks may contain secrets.
 
-The shot-curve sidecar uses schema 0. Each accepted extraction or drip weight is paired
+The shot-curve sidecar uses schema 1 (same layout; its extension event marks
+the cut line leaving the target). Each accepted extraction or drip weight is paired
 with its relative reception time in milliseconds; repeated weights and equal
 timestamps remain observations. The 1201-observation capacity covers a 60 s
 shot with observations at least 50 ms apart. That spacing is a capacity

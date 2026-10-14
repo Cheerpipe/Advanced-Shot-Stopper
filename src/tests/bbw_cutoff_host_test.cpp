@@ -157,7 +157,7 @@ int main() {
   store.header.writeIndex = 1;
   auto &record = store.records[0];
   record.offsetUsedCg = 0;
-  record.extractionGuardEnabled = shotLogPackRating(3, 5);
+  record.sideFlags = shotLogPackRating(3, 5);
   record.extractionExtended = 3;
   record.shotType = static_cast<uint8_t>(ShotLogType::AUTO);
   record.cutType = static_cast<uint8_t>(ShotLogCut::LIMIT);
@@ -175,9 +175,9 @@ int main() {
       assert(shotLogCut(record) == ShotLogCut::LIMIT);
     }
     assert(strcmp(shotLogBbwVersion(record), "2") == 0);
-    record.extractionGuardEnabled = shotLogPackRating(record.extractionGuardEnabled, 4);
-    assert(shotLogRating(record.extractionGuardEnabled) == 4);
-    assert(shotLogFastGuardEnabled(record.extractionGuardEnabled));
+    record.sideFlags = shotLogPackRating(record.sideFlags, 4);
+    assert(shotLogRating(record.sideFlags) == 4);
+    assert(shotLogFastGuardEnabled(record.sideFlags));
     assert(shotLogSlowExtended(record.extractionExtended));
     assert(shotLogBbwAlpha(record) == gain);
     assert(strcmp(shotLogBbwLearningApplied(record), "true") == 0);

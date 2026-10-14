@@ -117,14 +117,12 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
       session.config.slowSideEnabled;
   pendingFinalize.slowExtractionExtended = session.slowExtractionExtended;
   pendingFinalize.targetReachedEarly = session.targetReachedEarly;
-  pendingFinalize.maxRecoveryWeightG = goalWeightDgToGrams(session.config.goalWeightDg + session.config.fastMarginDg);
-  pendingFinalize.minBbwBrewTimeMs = session.config.fastBeforeMs;
+  pendingFinalize.fastMarginDg = session.config.fastMarginDg;
+  pendingFinalize.slowMarginDg = session.config.slowMarginDg;
+  pendingFinalize.fastBeforeMs = session.config.fastBeforeMs;
+  pendingFinalize.slowAfterMs = session.config.slowAfterMs;
+  pendingFinalize.wallMs = session.config.operationalWallMs;
   pendingFinalize.protectionMs = session.config.bbwProtectionMs;
-  if (session.targetReachedAtMs != 0 &&
-      static_cast<int32_t>(session.targetReachedAtMs - shotAnchorMs) >= 0) {
-    pendingFinalize.targetReachedEarlyDs = static_cast<uint16_t>(
-        (session.targetReachedAtMs - shotAnchorMs) / 100U);
-  }
   pendingFinalize.lastKnownWeightValid =
       session.hasWeightAnchor && std::isfinite(session.lastAcceptedWeightG);
   pendingFinalize.lastKnownWeightG = session.lastAcceptedWeightG;
@@ -135,7 +133,6 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
               sizeof(pendingFinalize.activePresetName), session.activePresetName);
   pendingFinalize.cycleId = session.id;
   pendingFinalize.retarePerformed = session.retarePerformed;
-  pendingFinalize.minRecoveryWeightG = goalWeightDgToGrams(session.config.goalWeightDg - session.config.slowMarginDg);
   pendingFinalize.autoToManualGuardEnabled =
       session.config.scaleLossEnabled;
   pendingFinalize.autoToManualGuardEnforced = session.autoToManualGuardEnforced;
@@ -160,6 +157,39 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
   copyCString(pendingFinalize.scaleName, sizeof(pendingFinalize.scaleName),
               session.scaleName);
   shotCurveSampler.snapshot(pendingFinalize.curve);
+}
+
+// The cut parameters the shot ran with, as the kernel sees them.
+corridor::Params pendingCutParams(const PendingShotFinalize &snapshot) {
+  corridor::Params p;
+  p.goalDg = snapshot.goalWeightDg;
+  p.fastMarginDg = snapshot.fastMarginDg;
+  p.slowMarginDg = snapshot.slowMarginDg;
+  p.fastOn = snapshot.extractionGuardEnabled;
+  p.slowOn = snapshot.slowExtractionGuardEnabled;
+  p.delayMs = static_cast<int32_t>(snapshot.protectionMs);
+  p.fastBeforeMs = static_cast<int32_t>(snapshot.fastBeforeMs);
+  p.slowAfterMs = static_cast<int32_t>(snapshot.slowAfterMs);
+  p.wallMs = static_cast<int32_t>(snapshot.wallMs);
+  p.rampMs = static_cast<int32_t>(snapshot.rampMs);
+  return p;
+}
+
+bool pendingShotScaleCut(const PendingShotFinalize &snapshot) {
+  return shotLogBbwEligible(snapshot.startedWithScale, snapshot.timerOnly,
+                            snapshot.automaticBrew);
+}
+
+// Verdict of a weight cut by its arrival time (plan §4.6); every other end
+// is not classified.
+corridor::ArrivalVerdict pendingShotVerdict(const PendingShotFinalize &snapshot,
+                                            int32_t rateX100) {
+  if (!pendingShotScaleCut(snapshot) ||
+      !brewWeightCutSettlesMachineOff(snapshot.endReason))
+    return corridor::ArrivalVerdict{};
+  return corridor::arrivalVerdict(pendingCutParams(snapshot),
+                                  static_cast<int32_t>(snapshot.durationDs) * 100,
+                                  rateX100);
 }
 
 void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeightG,
@@ -201,23 +231,29 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
   copyCString(record.presetName, sizeof(record.presetName),
               snapshot.activePresetName);
   copyCString(record.scaleName, sizeof(record.scaleName), snapshot.scaleName);
-  record.extractionGuardEnabled = shotLogPackGuardFlags(
+  record.sideFlags = shotLogPackGuardFlags(
       snapshot.extractionGuardEnabled, snapshot.slowExtractionGuardEnabled);
   record.extractionExtended = shotLogPackExtendedFlags(
       snapshot.extractionExtended, snapshot.slowExtractionExtended);
   record.stopDetail = static_cast<uint8_t>(shotLogStopDetailFromEndReason(
       snapshot.endReason, snapshot.extractionGuardEnabled,
       snapshot.extractionExtended));
-  if (snapshot.extractionGuardEnabled) {
-    record.maxRecoveryWeightCg =
-        shotLogWeightToCentigrams(snapshot.maxRecoveryWeightG);
-    record.minBbwBrewTimeDs =
-        static_cast<uint16_t>(snapshot.minBbwBrewTimeMs / 100U);
-  } else {
-    record.maxRecoveryWeightCg = SHOT_LOG_WEIGHT_MISSING;
-    record.minBbwBrewTimeDs = SHOT_LOG_METRIC_MISSING;
-  }
-  record.targetReachedEarlyDs = snapshot.targetReachedEarlyDs;
+  const corridor::Params cut = pendingCutParams(snapshot);
+  record.cutLineCg = pendingShotScaleCut(snapshot)
+      ? static_cast<int16_t>(corridor::cutLineDg(
+            cut, static_cast<int32_t>(snapshot.durationDs) * 100) * 10)
+      : SHOT_LOG_WEIGHT_MISSING;
+  record.fastBeforeDs = static_cast<uint16_t>(snapshot.fastBeforeMs / 100U);
+  record.slowAfterDs = static_cast<uint16_t>(snapshot.slowAfterMs / 100U);
+  record.delayDs = static_cast<uint16_t>(snapshot.protectionMs / 100U);
+  record.wallDs = static_cast<uint16_t>(snapshot.wallMs / 100U);
+  record.fastMarginDg = static_cast<uint8_t>(
+      snapshot.fastMarginDg > UINT8_MAX ? UINT8_MAX : snapshot.fastMarginDg);
+  record.slowMarginDg = static_cast<uint8_t>(
+      snapshot.slowMarginDg > UINT8_MAX ? UINT8_MAX : snapshot.slowMarginDg);
+  record.cutRampDs = static_cast<uint8_t>(snapshot.rampMs / 100U);
+  record.arrivalDs = SHOT_LOG_METRIC_MISSING;
+  record.verdict = static_cast<uint8_t>(corridor::Verdict::UNCLASSIFIED);
   record.actualWeightSource = static_cast<uint8_t>(weightSource);
   shotLogSetBbw(record, snapshot.bbwAlgorithm, snapshot.bbwProfileVersion,
                  snapshot.bbwAlpha, snapshot.bbwLearningApplied);
@@ -246,6 +282,14 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
     }
   }
 
+  // Until the live flow estimator lands, the shot's average flow stands in
+  // for the rate at the cut (dg/s x 100 = cg/s x 10).
+  const corridor::ArrivalVerdict verdict = pendingShotVerdict(
+      snapshot, record.avgFlowCgS == SHOT_LOG_METRIC_MISSING
+                    ? 0 : static_cast<int32_t>(record.avgFlowCgS) * 10);
+  record.verdict = static_cast<uint8_t>(verdict.verdict);
+  if (verdict.verdict != corridor::Verdict::UNCLASSIFIED)
+    record.arrivalDs = static_cast<uint16_t>(verdict.arrivalMs / 100);
   const uint32_t newId = shotLog.nextRecordId();
   if (!shotLog.append(record, false)) {
     const size_t nextCount =

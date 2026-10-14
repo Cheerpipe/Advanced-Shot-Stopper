@@ -237,6 +237,22 @@ recorded per shot.
 
 CSV retains the scalar shot columns, including `yield_g`,
 `yield_source`, `max_flow_g_s`, the BBW fields and `preset_id`.
+
+Every shot also keeps the cut settings it actually ran with, so editing or
+deleting a preset later never changes how a past shot reads:
+`fast_before_s` and `slow_after_s` (the shot time window), `fast_side` and
+`slow_side` (`1` when that side was on), `fast_margin_g` and `slow_margin_g`,
+`delay_s` (earliest weight stop), `wall_s` (max shot time) and `cut_ramp_s`.
+`cut_line_g` is where the cut line stood when the stop was commanded, and
+`cut_raised` / `cut_lowered` are `1` when it was above or below the target.
+`arrival_s` is when the shot reached the target, or would have reached it,
+and `verdict` is `fast`, `on_recipe` or `slow` for shots stopped by weight;
+other endings leave it empty. `channeling` is `1` when a flow surge was
+detected, and `scale_loss_source` names how the scale-loss backup chose its
+stop time (`projection`, `history`, `window` or `fixed`).
+Spreadsheets using the former `ext_guard`, `ext`, `slow_guard`, `slow_ext`,
+`max_rec_g`, `min_bbw_brew_s` and `early_s` columns must switch to these
+names.
 After those columns, `curve_truncated` reports `1` for an incomplete
 capture and `0` otherwise. `curve_break_before` lists the zero-based
 indices of readings starting a new segment, separated by semicolons.

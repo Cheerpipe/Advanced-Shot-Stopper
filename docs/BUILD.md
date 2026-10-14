@@ -238,8 +238,8 @@ relay profile, or a different `--arch`. Development mode remains CLI-only and
 must never be added to a profile.
 
 Machine defaults seed a new installation and factory reset. Valid persisted
-settings survive ordinary boot and OTA. The settings store uses schema 1 (the
-smooth-cut preset layout); the shot and curve stores use schema 0. Blobs written
+settings survive ordinary boot and OTA. The settings, shot-log, shot-curve and
+last-shot stores use schema 1 (the smooth-cut layouts). Blobs written
 by earlier firmware are rejected and replaced with factory defaults, so moving a
 device across a cutover requires the clean USB installation described below.
 Firmware identity is checked before

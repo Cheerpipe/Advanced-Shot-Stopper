@@ -239,9 +239,10 @@ struct RateEstimator {
     }
     if (sxx <= 0) return;
     const int64_t raw = sxy * 100000 / sxx;
-    rawX100 = raw > INT32_MAX / 2 ? INT32_MAX / 2 : raw < -INT32_MAX / 2 ? -INT32_MAX / 2
-                                                                       : static_cast<int32_t>(raw);
-    rateX100 = rawX100 < 0 ? 0 : rawX100 > MAX_RATE_X100 ? MAX_RATE_X100 : rawX100;
+    const int64_t bounded = raw > INT32_MAX / 2 ? INT32_MAX / 2 : raw;
+    rawX100 = static_cast<int32_t>(bounded < -INT32_MAX / 2 ? -INT32_MAX / 2 : bounded);
+    rateX100 = rawX100 < 0 ? 0 : rawX100;
+    if (rateX100 > MAX_RATE_X100) rateX100 = MAX_RATE_X100;
     valid = true;
   }
 
@@ -409,9 +410,10 @@ inline ArrivalStats arrivalStats(const ArrivalRecord *records, size_t count,
   bool taken[STATS_MAX_SHOTS] = {};
   uint8_t r = 0;
   for (; r < GRIND_HINT_RECENT_SHOTS && r < n; ++r) {
-    uint8_t best = STATS_MAX_SHOTS;
-    for (uint8_t j = 0; j < n; ++j)
-      if (!taken[j] && (best == STATS_MAX_SHOTS || ids[j] > ids[best])) best = j;
+    uint8_t best = 0;
+    while (best + 1 < n && taken[best]) ++best;
+    for (uint8_t j = best + 1; j < n; ++j)
+      if (!taken[j] && ids[j] > ids[best]) best = j;
     taken[best] = true;
     recent[r] = times[best];
   }

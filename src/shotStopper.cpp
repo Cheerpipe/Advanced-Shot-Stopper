@@ -113,6 +113,7 @@ HWCDC shotStopperUsbConsole;
 #include "ShotStopperSafety.h"
 #include "ShotStopperActivationStores.h"
 #include "ShotStopperShotLog.h"
+#include "ShotStopperCorridor.h"
 #include "ShotStopperShotCurve.h"
 #include "ShotStopperLastShot.h"
 #include "ShotStopperTime.h"
@@ -341,9 +342,13 @@ struct PendingShotFinalize {
   bool slowExtractionGuardEnabled = false;
   bool slowExtractionExtended = false;
   bool targetReachedEarly = false;
-  uint16_t targetReachedEarlyDs = SHOT_LOG_METRIC_MISSING;
-  float maxRecoveryWeightG = (DEFAULT_GOAL_WEIGHT_DG + DEFAULT_FAST_MARGIN_DG) * 0.1f;
-  uint32_t minBbwBrewTimeMs = DEFAULT_FAST_BEFORE_MS;
+  // Cut parameters in force for the shot (the record's snapshot).
+  uint16_t fastMarginDg = DEFAULT_FAST_MARGIN_DG;
+  uint16_t slowMarginDg = DEFAULT_SLOW_MARGIN_DG;
+  uint32_t fastBeforeMs = DEFAULT_FAST_BEFORE_MS;
+  uint32_t slowAfterMs = DEFAULT_SLOW_AFTER_MS;
+  uint32_t wallMs = DEFAULT_OPERATIONAL_WALL_MS;
+  uint32_t rampMs = 0;  // The Fast/Slow guards cut on steps (D = 0).
   uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS;
   bool lastKnownWeightValid = false;
   float lastKnownWeightG = 0.0f;
@@ -358,7 +363,6 @@ struct PendingShotFinalize {
   char scaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};
   uint32_t cycleId = 0;
   bool retarePerformed = false;
-  float minRecoveryWeightG = (DEFAULT_GOAL_WEIGHT_DG - DEFAULT_SLOW_MARGIN_DG) * 0.1f;
   bool autoToManualGuardEnabled = false;
   bool autoToManualGuardEnforced = false;
   bool autoToManualGuardArmed = false;
@@ -1274,6 +1278,9 @@ bool rateLastShot(uint8_t rating) {
   return changed;
 }
 
+corridor::ArrivalVerdict pendingShotVerdict(const PendingShotFinalize &snapshot,
+                                            int32_t rateX100);
+
 void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
                                  float finalWeightG, bool finalWeightValid) {
   PersistedLastShot last = {};
@@ -1298,12 +1305,10 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
       snapshot.extractionExtended && snapshot.extractionGuardEnabled;
   last.slowExtractionExtended =
       snapshot.slowExtractionExtended && snapshot.slowExtractionGuardEnabled;
-  last.activeStopWeightG =
-      last.extractionExtended
-          ? snapshot.maxRecoveryWeightG
-          : (last.slowExtractionExtended
-                 ? snapshot.minRecoveryWeightG
-                 : goalWeightDgToGrams(snapshot.goalWeightDg));
+  last.activeStopWeightG = goalWeightDgToGrams(
+      last.extractionExtended ? snapshot.goalWeightDg + snapshot.fastMarginDg
+      : last.slowExtractionExtended ? snapshot.goalWeightDg - snapshot.slowMarginDg
+                                    : snapshot.goalWeightDg);
   if (snapshot.firstDropDs != SHOT_LOG_METRIC_MISSING) {
     last.firstDropElapsedMs =
         static_cast<uint32_t>(snapshot.firstDropDs) * 100U;
@@ -1341,10 +1346,17 @@ void persistLastShotFromFinalize(const PendingShotFinalize &snapshot,
   last.scaleProtocol[sizeof(last.scaleProtocol) - 1] = '\0';
   if (last.extractionExtended) {
     last.minBbwBrewTimeRemainingMs =
-        last.durationMs >= snapshot.minBbwBrewTimeMs
+        last.durationMs >= snapshot.fastBeforeMs
             ? 0U
-            : snapshot.minBbwBrewTimeMs - last.durationMs;
+            : snapshot.fastBeforeMs - last.durationMs;
   }
+  const corridor::ArrivalVerdict verdict = pendingShotVerdict(
+      snapshot, last.averageFlowValid
+                    ? static_cast<int32_t>(lroundf(last.averageFlowGps * 1000.0f))
+                    : 0);
+  last.verdict = static_cast<uint8_t>(verdict.verdict);
+  last.arrivalMs = verdict.verdict == corridor::Verdict::UNCLASSIFIED
+                       ? 0U : static_cast<uint32_t>(verdict.arrivalMs);
   persistLastShotSnapshot(last);
   if (homeCycleResult.cycleId == snapshot.cycleId) {
     last.durationMs = homeCycleResult.durationMs;

@@ -65,7 +65,7 @@ void capture(ShotStatsRecordsSnapshot &out){
   out.epoch=storeEpoch;out.stats.shotCount=storeEpoch;out.count=3;
   for(size_t i=0;i<out.count;++i){
     out.records[i]={};out.records[i].id=3-i;out.records[i].actualWeightCg=storeEpoch*100+i;
-    out.records[i].extractionGuardEnabled=shotLogPackRating(0,i==0?1:i==1?5:0);
+    out.records[i].sideFlags=shotLogPackRating(0,i==0?1:i==1?5:0);
   }
 }
 bool curveById(uint32_t id,ShotCurveRecord &curve){

@@ -583,7 +583,7 @@ void p65_factory_settings_survives_second_slot_write_fail() {
 
 void p66_shot_log_dual_slot_generation_flip() {
   resetHostPersistence();
-  CHECK(sizeof(ShotLogStore) == 10828);
+  CHECK(sizeof(ShotLogStore) == 12028);
   CHECK(sizeof(ShotLogStore) % 4 == 0);
   CHECK(sizeof(ShotLogStore) <= SHOT_LOG_FLASH_SLOT_BYTES);
   CHECK(SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES <= 0x8000);
@@ -1689,7 +1689,8 @@ void p56_shot_log_stale_slot_and_foreign_schema_rejected() {
   foreign.header.checksum = 0;
   foreign.header.checksum = shotLogChecksum(foreign);
   CHECK(!validShotLogStore(foreign));
-  foreign.header.schemaVersion = 1;
+  foreign.header.schemaVersion = 0;  // The 1.0 epoch.
+  foreign.header.checksum = 0;
   foreign.header.checksum = shotLogChecksum(foreign);
   CHECK(!validShotLogStore(foreign));
 
@@ -2092,10 +2093,10 @@ void p71_nvs_capacity_budget_keeps_compaction_margin() {
   CHECK(EXPECTED_NVS_PARTITION_BYTES == 0x15000U);
   CHECK(sizeof(PersistedSettings) == 3056U);
   CHECK(settingsEntries == 196U);
-  CHECK(lastShotEntries == 13U);
-  CHECK(applicationEntries == 274U);
+  CHECK(lastShotEntries == 14U);
+  CHECK(applicationEntries == 275U);
   CHECK(conservativeEntries == 2394U);
-  CHECK(conservativeEntries - applicationEntries == 2120U);
+  CHECK(conservativeEntries - applicationEntries == 2119U);
 }
 
 void p72_factory_intent_recovers_only_from_nvs_no_space() {
@@ -2763,6 +2764,85 @@ void p91_schema1_golden_settings_blob_loads() {
   CHECK(!loadPersistedSettings(loaded));
 }
 
+// Golden shot-log blob of schema 1 (W4b): header plus two records, each a
+// self-contained snapshot of the cut parameters. Later firmware must accept it.
+std::string goldenShotLogPath() {
+  const std::string file(__FILE__);
+  return file.substr(0, file.find_last_of('/')) + "/fixtures/shotlog_schema1_golden_hex.txt";
+}
+
+void p92_schema1_golden_shot_log_loads() {
+  if (getenv("GOLDEN_SHOTLOG_WRITE") != nullptr) {
+    ShotLogStore store;
+    resetShotLogStore(store, 7);
+    for (uint16_t i = 0; i < 2; ++i) {
+      ShotLogRecord &r = store.records[i];
+      r.id = 41U + i;
+      r.bootId = 7;
+      r.durationDs = i == 0 ? 245 : 352;
+      r.goalWeightDg = 360;
+      r.actualWeightCg = i == 0 ? 3880 : 3340;
+      r.shotType = static_cast<uint8_t>(ShotLogType::AUTO);
+      shotLogSetPresetId(r, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
+      r.sideFlags = shotLogPackRating(shotLogPackGuardFlags(true, true), 4);
+      r.extractionExtended = shotLogPackExtendedFlags(i == 0, i == 1);
+      r.stopDetail = static_cast<uint8_t>(i == 0 ? ShotLogStopDetail::EXTENDED_MAX_WEIGHT
+                                                 : ShotLogStopDetail::SLOW_MIN_WEIGHT);
+      r.verdict = corridor::packVerdict(i == 0 ? corridor::Verdict::FAST
+                                               : corridor::Verdict::SLOW,
+                                        false, corridor::LossSource::PROJECTION, false);
+      r.cutLineCg = i == 0 ? 3850 : 3340;
+      r.arrivalDs = i == 0 ? 232 : 371;
+      r.fastBeforeDs = 270;
+      r.slowAfterDs = 340;
+      r.delayDs = 120;
+      r.wallDs = 500;
+      r.fastMarginDg = 40;
+      r.slowMarginDg = 30;
+      r.cutRampDs = 50;
+      copyCString(r.presetName, sizeof(r.presetName), "Double \xC2\xB7 Adaptive");
+      copyCString(r.scaleName, sizeof(r.scaleName), "Lunar");
+    }
+    store.header.count = 2;
+    store.header.writeIndex = 2;
+    store.header.nextRecordId = 43;
+    finalizeShotLogStore(store);
+    FILE *out = fopen(goldenShotLogPath().c_str(), "w");
+    CHECK(out != nullptr);
+    if (out == nullptr) return;
+    const auto *bytes = reinterpret_cast<const uint8_t *>(&store);
+    const size_t used = sizeof(ShotLogHeader) + 2 * sizeof(ShotLogRecord);
+    for (size_t i = 0; i < used; ++i)
+      fprintf(out, "%02x%s", bytes[i], (i + 1) % 32 == 0 ? "\n" : "");
+    fclose(out);
+  }
+  FILE *in = fopen(goldenShotLogPath().c_str(), "r");
+  CHECK(in != nullptr);
+  if (in == nullptr) return;
+  std::string hex;
+  for (int c; (c = fgetc(in)) != EOF;) if (c != '\n') hex += static_cast<char>(c);
+  fclose(in);
+  CHECK(hex.size() == 2 * (sizeof(ShotLogHeader) + 2 * sizeof(ShotLogRecord)));
+  static ShotLogStore store;
+  memset(&store, 0, sizeof(store));
+  auto *bytes = reinterpret_cast<uint8_t *>(&store);
+  for (size_t i = 0; i < hex.size() / 2; ++i)
+    bytes[i] = static_cast<uint8_t>(strtoul(hex.substr(2 * i, 2).c_str(), nullptr, 16));
+  CHECK(validShotLogStore(store));
+  CHECK(store.header.count == 2 && store.header.nextRecordId == 43);
+  const ShotLogRecord &fast = store.records[0];
+  CHECK(fast.id == 41 && corridor::verdictOf(fast.verdict) == corridor::Verdict::FAST);
+  CHECK(fast.cutLineCg == 3850 && fast.arrivalDs == 232 && shotLogRating(fast.sideFlags) == 4);
+  CHECK(fast.fastBeforeDs == 270 && fast.slowAfterDs == 340 && fast.delayDs == 120);
+  CHECK(fast.wallDs == 500 && fast.fastMarginDg == 40 && fast.slowMarginDg == 30);
+  CHECK(fast.cutRampDs == 50 && shotLogPresetId(fast) == FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
+  CHECK(corridor::verdictOf(store.records[1].verdict) == corridor::Verdict::SLOW);
+  store.header.schemaVersion = 0;  // The 1.0 epoch never loads.
+  store.header.checksum = 0;
+  store.header.checksum = shotLogChecksum(store);
+  CHECK(!validShotLogStore(store));
+}
+
 const TestCase tests[] = {
     {"P66C", p66c_activation_capture_skips_clean_payloads},
     {"P61E", p61e_selective_curve_capture_preserves_retention_and_retry},
@@ -2772,6 +2852,7 @@ const TestCase tests[] = {
     {"P86", p86_timezone_preference_and_durable_initialization},
     {"P85", p85_schema1_is_strict_and_micra_defaults_round_trip},
     {"P91", p91_schema1_golden_settings_blob_loads},
+    {"P92", p92_schema1_golden_shot_log_loads},
     {"P82", p82_ble_scan_strict_versions_and_roundtrip},
     {"P82B", p82b_ble_scan_legacy_minute_bytes_stay_readable},
     {"P80", p80_boot_id_remains_dirty_until_durable},
