@@ -276,6 +276,7 @@ function initQuickWeight() {
     limitMax.hidden = value < hi;
     def.textContent = (openValue / 10).toFixed(1);
     resetBtn.classList.toggle("show", value !== openValue);
+    doneBtn.disabled = value === openValue;
   };
   const open = () => {
     const preset = R.presetState.items.find((x) => x.id === R.presetState.activeId);
@@ -306,7 +307,7 @@ function initQuickWeight() {
     sheet.classList.add("open");
     backdrop.classList.add("show");
     document.body.classList.add("qwOpen");
-    doneBtn.focus();
+    zone.focus();
   };
   const commit = async (dg) => {
     try {
@@ -327,6 +328,7 @@ function initQuickWeight() {
   };
   const close = (save) => {
     if (!sheet.classList.contains("open")) return;
+    halt();
     stop();
     sheet.classList.remove("open");
     backdrop.classList.remove("show");
@@ -362,11 +364,34 @@ function initQuickWeight() {
     });
   };
   const vel = { t: 0, v: 0 };
-  let pending = 0;
+  let pending = 0,
+    fling = 0, // signed release speed, decigrams per ms
+    glide = 0;
+  const halt = () => globalThis.cancelAnimationFrame?.(glide);
+  // Inertia: a released flick keeps sliding and eases out with friction
+  // (about 200 ms of travel at release speed), stopping at either limit.
+  const coast = () => {
+    let last = performance.now();
+    const run = (now) => {
+      const dt = now - last;
+      last = now;
+      fling *= Math.pow(0.995, dt);
+      pending += fling * dt;
+      const next = clamp(value + Math.trunc(pending));
+      pending %= 1;
+      if (next === value && (value === lo || value === hi)) fling = 0;
+      value = next;
+      paint();
+      if (Math.abs(fling) > 0.002) glide = requestAnimationFrame(run);
+    };
+    if (Math.abs(fling) > 0.02) glide = requestAnimationFrame(run);
+  };
   drag(zone, {
     start: (e) => {
+      halt();
       vel.t = performance.now();
       vel.v = 0;
+      fling = 0;
       pending = 0;
       return { x: e.clientX, dx: 0 };
     },
@@ -387,10 +412,17 @@ function initQuickWeight() {
       // event, so slow drags still move the dial a tenth at a time.
       // Direct manipulation: the finger carries the ruler, so dragging left
       // brings higher grams under the needle.
-      pending -= dx * BASE_DG_PER_PX * speedMul(vel.v);
+      const step = -dx * BASE_DG_PER_PX * speedMul(vel.v);
+      fling = 0.75 * fling + (0.25 * step) / dt;
+      pending += step;
       value = clamp(value + Math.trunc(pending));
       pending %= 1;
       paint();
+    },
+    end: () => {
+      // A finger that rested before lifting leaves no inertia.
+      if (performance.now() - vel.t > 80) fling = 0;
+      else if (globalThis.requestAnimationFrame) coast();
     },
   });
   const dismissDrag = {
@@ -418,6 +450,7 @@ function initQuickWeight() {
   drag(grab, dismissDrag);
   drag(head, dismissDrag);
   const nudge = (d) => {
+    halt();
     value = clamp(value + d);
     paint();
   };
@@ -450,6 +483,7 @@ function initQuickWeight() {
   addEventListener("click", (e) => e.target.closest(".presetAccEdit") && open());
   doneBtn.onclick = () => close(true);
   resetBtn.onclick = () => {
+    halt();
     value = openValue;
     paint();
   };

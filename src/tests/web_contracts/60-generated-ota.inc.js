@@ -468,8 +468,10 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // The target sheet's neutral ruler flanked by hold-to-repeat −/+ buttons and
 // the dose/ratio pills measure 6071, owner-authorized 2026-10-14. Cap raised
 // to 6090.
-if (generated.jsGzip.length > 6090) {
-  throw new Error(`Compressed Web UI shell JS exceeds the 6090-byte gzip budget (${generated.jsGzip.length})`);
+// Release inertia on the target ruler measures 6241, owner-authorized
+// 2026-10-14. Cap raised to 6260.
+if (generated.jsGzip.length > 6260) {
+  throw new Error(`Compressed Web UI shell JS exceeds the 6260-byte gzip budget (${generated.jsGzip.length})`);
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.

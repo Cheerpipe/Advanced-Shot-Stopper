@@ -67,7 +67,7 @@
       .replace(/\s/g, '').includes('cleanBrewForm'),
     'Runtime must export cleanBrewForm for the commit path');
 
-  qwAssert.ok(codeIncludes(qwHomeJs, 'pending -= dx * BASE_DG_PER_PX * speedMul(vel.v);') &&
+  qwAssert.ok(codeIncludes(qwHomeJs, 'const step = -dx * BASE_DG_PER_PX * speedMul(vel.v);') &&
       codeIncludes(qwHomeJs, 'value = clamp(value + Math.trunc(pending));') &&
       codeIncludes(qwHomeJs, 'pending %= 1;') &&
       codeIncludes(qwHomeJs, 'if (dx * ctx.dx < 0) vel.v = 0;') &&
@@ -109,9 +109,9 @@
       codeIncludes(qwHomeJs, 'e.target.closest(".presetAccEdit") && open()'),
     'Only the already-active preset row may offer the quick-weight pencil');
 
-  qwAssert.ok(/position:fixed[^}]*bottom:0/.test(qwCssRule('qwSheet')) &&
-      /backdrop-filter:blur\(18px\)/.test(css),
-    'The sheet anchors to the viewport bottom with a frosted surface');
+  qwAssert.ok(/position:fixed[^}]*bottom:0[^}]*background:var\(--sf\)/.test(qwCssRule('qwSheet')) &&
+      !/\.qwSheet\{[^}]*backdrop-filter/.test(css),
+    'The sheet anchors to the viewport bottom on a solid surface, not frosted glass');
   qwAssert.ok(/touch-action:none/.test(qwCssRule('qwZone')),
     'The tick zone must own touch gestures');
   qwAssert.ok(/body\.qwOpen\{overflow:hidden\}/.test(css),
@@ -258,7 +258,8 @@
         qwEls.qwRatio.lastChild.textContent === '1:2.0',
       'The sheet shows dose, then ratio, as two pills');
     qwAssert.ok(!qwEls.qwReset.classes.has('show'), 'Reset stays hidden at the preset goal');
-    qwAssert.ok(qwEls.qwDone.focused, 'Opening focuses Done');
+    qwAssert.ok(qwEls.qwZone.focused && qwEls.qwDone.disabled,
+      'Opening focuses the ruler and keeps Save disabled until the value changes');
 
     // Slow drags stay surgical; fast drags gear up. Replicate the accepted
     // accumulator model to pin the exact deltas (values are decigrams).
@@ -280,10 +281,12 @@
     qwAssert.equal(qwEls.qwNum.textContent, qwModel(qwSlow),
       'A slow drag must follow the accepted fine sensitivity');
     qwAssert.ok(qwEls.qwReset.classes.has('show'), 'Editing away from the goal reveals Reset');
+    qwAssert.equal(qwEls.qwDone.disabled, false, 'A changed value enables Save');
     qwAssert.equal(qwEls.qwDef.textContent, '36.0', 'Reset offers the open value');
     qwEls.qwReset.onclick();
     qwAssert.equal(qwEls.qwNum.textContent, '36.0', 'Reset restores the open value');
     qwAssert.ok(!qwEls.qwReset.classes.has('show'), 'Reset hides again at the open value');
+    qwAssert.equal(qwEls.qwDone.disabled, true, 'Save disables again at the saved value');
 
     // A crawling drag (1 px per event, far below one tenth) must still move
     // the dial: sub-tenth credit accrues instead of dying in rounding.
@@ -299,6 +302,34 @@
     qwDragZone(qwFastMoves);
     qwAssert.equal(qwEls.qwNum.textContent, qwModel(qwFastMoves),
       'A fast drag must engage the acceleration gear');
+
+    // Inertia: a flick released mid-motion keeps sliding and eases to a stop;
+    // a finger that rests before lifting leaves none.
+    {
+      const frames = [];
+      globalThis.requestAnimationFrame = (fn) => frames.push(fn);
+      globalThis.cancelAnimationFrame = () => { frames.length = 0; };
+      qwEls.qwReset.onclick();
+      qwFire(qwEls.qwZone, 'pointerdown', {clientX: 300});
+      for (let i = 1; i <= 4; i++) {
+        qwNow += 10;
+        qwFire(qwEls.qwZone, 'pointermove', {clientX: 300 - 30 * i});
+      }
+      qwFire(qwEls.qwZone, 'pointerup', {});
+      const released = Number(qwEls.qwNum.textContent);
+      for (let n = 0; frames.length && n < 400; n++) { qwNow += 16; frames.shift()(qwNow); }
+      const settled = Number(qwEls.qwNum.textContent);
+      qwAssert.ok(settled > released && !frames.length,
+        'A released flick must coast further in the drag direction and stop');
+      qwFire(qwEls.qwZone, 'pointerdown', {clientX: 300});
+      qwNow += 10;
+      qwFire(qwEls.qwZone, 'pointermove', {clientX: 270});
+      qwNow += 200;
+      qwFire(qwEls.qwZone, 'pointerup', {});
+      qwAssert.equal(frames.length, 0, 'A resting finger must not leave inertia');
+      delete globalThis.requestAnimationFrame;
+      delete globalThis.cancelAnimationFrame;
+    }
 
     // Bounds: the firmware goal range clamps however far the drag runs.
     qwEls.qwReset.onclick();

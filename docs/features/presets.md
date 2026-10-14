@@ -29,7 +29,11 @@ Select **Save preset** to keep your edits; the line beside it reads
 On Home, the **Presets** section lists the recipes as rows: the active one is
 marked with a filled circle and expands to show how it cuts, for example
 **Before 27 s · Fast · up to 42 g**, **27–36 s · On recipe · 36 g** and
-**After 36 s · Slow · down to 33 g**. Tapping another row applies that recipe
+**After 36 s · Slow · down to 33 g**. Below these lines, a small chart shows
+the same cut line over the shot, the colored fast, on-recipe and slow zones,
+and the opening seconds where weight never stops the shot. It is a picture
+only; to try shot timings on it, use **How this preset cuts** in Settings.
+Tapping another row applies that recipe
 when **Stop the shot** is set to **By weight**; in Manual the list says so and
 keeps the active recipe. These rows show the recipe's own values; learned
 drip compensation and time limits still apply.
@@ -60,7 +64,9 @@ the dose and the ratio as two small labels (for example **18.0 g in** and
 
 - The scale moves with your finger: drag it left for a higher weight, right
   for a lower one. Slow drags follow your finger exactly, a tenth of a gram
-  at a time; a quick flick moves up to three times farther.
+  at a time; a quick flick moves up to three times farther. Let go of a
+  flick and the scale keeps sliding a little before it settles; touch it,
+  tap **−** / **+** or **Reset** to stop it at once.
 - Tap **−** or **+** to change the weight by exactly a tenth of a gram. Hold
   either one and it repeats, then speeds up to a whole gram at a time.
 - Every whole gram on the scale carries its number, with smaller marks at the
@@ -73,8 +79,9 @@ the dose and the ratio as two small labels (for example **18.0 g in** and
   label appears next to the weight.
 - **Reset** appears once you move away from the recipe's weight; tap it to go
   back.
-- Closing the panel — with **Save**, a swipe down, or tapping outside — saves
-  the new weight to the active recipe right away. The change is the same as
+- **Save** lights up once the weight differs from the recipe's. Closing the
+  panel — with **Save**, a swipe down, or tapping outside — saves the new
+  weight to the active recipe right away. The change is the same as
   saving the target in Settings.
 
 The last shot card only appears after the controller has recorded a shot.

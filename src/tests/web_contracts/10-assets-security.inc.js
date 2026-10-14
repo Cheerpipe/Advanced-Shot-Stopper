@@ -774,8 +774,11 @@ if (htmlBytes > 93300) {
 // warm-up notice, target ratio, clean-form guard for Home writes) adds
 // +3987 measured JS bytes (414991), owner-authorized 2026-10-14; compressed
 // budgets re-measured below.
-if (jsBytes > 415500) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 415500)`);
+// Release inertia on the target ruler (friction glide that stops at the
+// preset limits and yields to any other input) adds +1592 measured JS bytes
+// (416596), owner-authorized 2026-10-14.
+if (jsBytes > 416700) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 416700)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -857,8 +860,9 @@ if (jsBytes > 415500) {
 // follow-ups (504126 measured).
 // The Home "Stop the shot" card adds its ~4 KB of combined source allowance
 // (508250 measured) described above.
-if (htmlBytes + jsBytes > 508600) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 508600)`);
+// The target ruler's release inertia adds its ~1.1 KB (509705 measured).
+if (htmlBytes + jsBytes > 509800) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 509800)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
