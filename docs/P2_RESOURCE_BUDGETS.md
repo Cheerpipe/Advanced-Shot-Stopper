@@ -212,6 +212,18 @@ baseline, keeping the 64-byte padding-wobble headroom. Rodata (616,412,
 29,060 over baseline), DIRAM (4,704 over baseline) and external BSS
 (771,816 of 819,200) stay inside their existing allowances; control timing,
 OTA identity, and partitions are unchanged.
+The smooth-cut Web UI and its firmware wire (preset editor with the review
+graph, Home pills and cards, Shared settings regrouping, card and stats
+fields; owner-authorized 2026-10-14) raises the image/linked allowances to
+75,536/75,528 bytes, the flash-code allowance to 42,868 bytes and the rodata
+allowance to 36,052 bytes. The reference development Micra build measures
+2,349,232 image bytes, 2,349,111 linked bytes, 1,557,904 flash-code bytes and
+623,340 rodata bytes — 75,472/75,464/42,804/35,988 over baseline, keeping the
+64-byte padding-wobble headroom. The growth is mostly the embedded Web assets
+(143,513 bytes combined gzip, whose caps the Web contract gate enforces
+separately). DIRAM (4,704 over baseline) and external BSS (771,816 of
+819,200) stay inside their existing allowances; control timing, OTA identity,
+and partitions are unchanged.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
