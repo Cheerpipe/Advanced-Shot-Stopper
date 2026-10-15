@@ -467,14 +467,9 @@ void processWebCommand(const WebCommand &command) {
                                         runtimeConfig.retareWindowMs,
                                         runtimeConfig.autoRetare);
           if (ok) {
-            // A new window or a target moved by more than 1 g starts the
-            // preset's shot statistics over (plan §4.8).
-            const int goalChange = static_cast<int>(candidateRecipe.goalWeightDg) -
-                                   static_cast<int>(preset->goalWeightDg);
-            if (candidateRecipe.fastBeforeMs != preset->fastBeforeMs ||
-                candidateRecipe.slowAfterMs != preset->slowAfterMs ||
-                goalChange > 10 || goalChange < -10)
-              candidateRecipe.learningEpoch = shotStatisticsEpochNow();
+            // The epoch stays: arrival statistics count only shots judged
+            // against the current window and target (plan §4.8), and the
+            // first drop does not depend on either.
             ShotPreset previous = *preset;
             previous.weightOffsetBaselineG = candidateRecipe.weightOffsetBaselineG;
             previous.bbwAlphaBaseline = candidateRecipe.bbwAlphaBaseline;

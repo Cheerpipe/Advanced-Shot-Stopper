@@ -624,8 +624,9 @@ if (generated.cssGzip.length > 13700) {
 // owner-authorized 2026-10-14.
 // The Stats legend and cursor bring the runtime to 58454 compressed bytes; owner-authorized 2026-10-14.
 // The preset graph cut pill brings the runtime to 58655 compressed bytes; owner-authorized 2026-10-15.
-if (sentinelRuntimeGzip.length > 58700) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 58700-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The first-drop pace start brings the runtime to 58877 compressed bytes; owner-authorized 2026-10-15.
+if (sentinelRuntimeGzip.length > 58900) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 58900-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -807,8 +808,10 @@ if (generated.icon48Gzip.length > 3500) {
 // Combined gzip is at this build's cap after the cursor and Home graphs; owner-authorized 2026-10-14.
 // Partition limits stay fixed.
 // The preset graph cut pill brings combined gzip to 147070; owner-authorized 2026-10-15.
-if (generated.combined > 147100) {
-  throw new Error(`Combined Web UI gzip exceeds the 147100-byte flash budget (${generated.combined})`);
+// The first-drop pace start brings combined gzip to 147297; owner-authorized 2026-10-15.
+// Partition limits stay fixed.
+if (generated.combined > 147350) {
+  throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {
@@ -994,9 +997,10 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
     throw new Error('Rule chart model helpers not found for matrix checks');
   }
   const presetState = {cutRampS: 5};
-  const helpers = new Function('presetState',
+  const helpers = new Function('presetState', 'sub',
       js.slice(start, end) +
-      ';return{buildRuleChartModel:buildRuleChartModel,cutLine:cutLine};')(presetState);
+      ';return{buildRuleChartModel:buildRuleChartModel,cutLine:cutLine,paceStartNote:paceStartNote};')(
+      presetState, (s, v) => s.replace('{0}', v[0]));
   const base = {
     brewByWeight: true,
     fastExtractionGuardEnabled: true,
@@ -1034,6 +1038,21 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   if (none.fast !== false || none.slow !== false || none.mode !== 'active' ||
       none.ceil !== 36 || none.floor !== 36 || helpers.cutLine(20, none) !== 36) {
     throw new Error('Rule chart: both sides off must cut at the target');
+  }
+  // Paces start at the preset's usual first drop, at least 0.5 s before the
+  // window, and the scrubber never picks an arrival before that start.
+  const own = helpers.buildRuleChartModel({...base, firstDropS: 6.5, firstDropN: 4});
+  const late = helpers.buildRuleChartModel({...base, firstDropS: 15});
+  const past = helpers.buildRuleChartModel({...base, firstDropS: 31, firstDropN: 2});
+  if (own.firstDrop !== 6.5 || own.scrubMin !== 12 || late.firstDrop !== 15 ||
+      late.scrubMin !== 15.5 || past.firstDrop !== 27.5 || past.scrubMin !== 28 ||
+      both.firstDrop !== 0 || both.scrubMin !== 12) {
+    throw new Error('Rule chart: the pace start must follow the first drop, kept before the window');
+  }
+  const notes = [own, late, both].map(helpers.paceStartNote);
+  if (!notes[0].includes('6.5') || !notes[1].includes('15.0') || notes[1] === notes[0] ||
+      notes[2].includes('{0}') || new Set(notes).size !== 3) {
+    throw new Error('Rule chart: the pace start note must name its source');
   }
   for (const bad of [{bbwProtectionMs: undefined}, {fastBeforeS: 12}, {slowAfterS: 28},
     {operationalWallMs: 44000}]) {

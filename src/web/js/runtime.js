@@ -4623,7 +4623,9 @@ function renderHomePresetAccordion() {
       graph.id = "presetAccGraph" + key;
       const readout = document.createElement("p");
       readout.className = "presetAccReadout";
-      panelIn.append(rows, graph, readout);
+      const start = document.createElement("p");
+      start.className = "presetAccStart";
+      panelIn.append(rows, graph, readout, start);
       panel.appendChild(panelIn);
       item.append(head, panel);
       el.appendChild(item);
@@ -4657,6 +4659,7 @@ function renderHomePresetAccordion() {
     item.lastChild.firstChild.firstChild.replaceChildren(...rows);
     const graph = item.querySelector(".presetAccGraph");
     graph._m = m;
+    item.querySelector(".presetAccStart").textContent = m.mode === "empty" ? "" : paceStartNote(m);
     graph._draw = () => {
       if (graph._m.mode === "empty") graph.replaceChildren();
       else drawPresetGraph(graph, graph._m, {}, item.querySelector(".presetAccReadout"), key);
@@ -5309,7 +5312,9 @@ function buildRuleChartModel(c) {
     fastMargin = N(c.fastMarginG),
     slowMargin = N(c.slowMarginG),
     ceil = fast ? goal + fastMargin : goal,
-    floor = slow ? goal - slowMargin : goal;
+    floor = slow ? goal - slowMargin : goal,
+    // Paces start at the usual first drop, kept 0.5 s before the window.
+    start = Math.max(0, Math.min(N(c.firstDropS) || 0, t1 - 0.5));
   if (![goal, t1, t2, prot, wall, d, ceil, floor].every(Number.isFinite) || !(prot < t1 && t1 < t2 && t2 < wall))
     return { mode: "empty" };
   return {
@@ -5326,7 +5331,9 @@ function buildRuleChartModel(c) {
     prot,
     wall,
     d,
-    firstDrop: Math.max(0, N(c.firstDropS) || 0),
+    firstDrop: start,
+    firstDropN: N(c.firstDropN) || 0,
+    scrubMin: Math.max(prot, start + 0.5),
     pts: [
       [prot, ceil],
       [Math.max(prot, t1 - d), ceil],
@@ -5363,6 +5370,17 @@ function cutLine(t, m) {
     return (goal - Math.floor((down * (3 * n * n * d - 2 * n ** 3)) / d ** 3)) / 10;
   }
   return goal / 10;
+}
+// Where the paces start: this preset's first drops, else the others', else 0 s.
+function paceStartNote(m) {
+  return sub(
+    m.firstDropN > 0
+      ? __WEBUI_TEXT__("runtime.graph_start_preset")
+      : m.firstDrop > 0
+        ? __WEBUI_TEXT__("runtime.graph_start_others")
+        : __WEBUI_TEXT__("runtime.graph_start_none"),
+    [m.firstDrop.toFixed(1)],
+  );
 }
 // Reference pace (illustrative shape): a shot that reaches the target at tArr
 // with a soft start. It is the corridor design's quadratic Bézier (control
@@ -5471,7 +5489,7 @@ function presetGraph(host, m, x = {}) {
     `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     `<defs><pattern id="${u}Hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="rvHatchLine" d="M0 0V6"/></pattern>` +
     `<clipPath id="${u}Under"><path d="M${P(0, 0)}L${P(0, m.ceil)}L${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}L${P(m.wall, 0)}Z"/></clipPath></defs>` +
-    `<g role="img" aria-label="${sub(__WEBUI_TEXT__("runtime.graph_summary"), [n(m.prot), n(m.ceil), n(a), n(m.goal), n(m.t1), n(m.t2), n(m.floor), n(b), n(m.wall)])} ${__WEBUI_TEXT__("runtime.graph_pace_note")}">` +
+    `<g role="img" aria-label="${sub(__WEBUI_TEXT__("runtime.graph_summary"), [n(m.prot), n(m.ceil), n(a), n(m.goal), n(m.t1), n(m.t2), n(m.floor), n(b), n(m.wall)])} ${__WEBUI_TEXT__("runtime.graph_pace_note")}${compact ? "" : " " + paceStartNote(m)}">` +
     grid +
     `<g clip-path="url(#${u}Under)">` +
     band("rvFastFull", O + paceTo(tA) + `L${P(paceEnd(tA), top + 1)}L${P(0, top + 1)}Z`, m.fast) +
@@ -5500,7 +5518,7 @@ function presetGraph(host, m, x = {}) {
     (compact
       ? "</g></svg>"
       : label(X(m.wall), T - 4, sub(__WEBUI_TEXT__("runtime.graph_max"), [n(m.wall)]), "", "end") +
-        `</g><g class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.prot}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvStop" r="3.5"/><circle class="rvHandle" r="5"/><g class="rvPill"><rect y="-9" rx="9" height="18"/><text class="rvLbl strong" x="8" y="4"/></g></g></svg>`);
+        `</g><g class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.scrubMin}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvStop" r="3.5"/><circle class="rvHandle" r="5"/><g class="rvPill"><rect y="-9" rx="9" height="18"/><text class="rvLbl strong" x="8" y="4"/></g></g></svg>`);
   return {
     m,
     X,
@@ -5521,8 +5539,8 @@ function drawPresetGraph(host, m, x, readout, key) {
   host._w = host.clientWidth;
   const view = presetGraph(host, m, x);
   if (!view) return null;
-  if (host._key !== key || !(host._s >= m.prot && host._s <= m.wall))
-    host._s = Math.max(m.prot, +(m.t1 - 0.6 * m.d).toFixed(1));
+  if (host._key !== key || !(host._s >= m.scrubMin && host._s <= m.wall))
+    host._s = Math.max(m.scrubMin, +(m.t1 - 0.6 * m.d).toFixed(1));
   host._key = key;
   host._view = view;
   host._readout = readout;
@@ -5530,7 +5548,7 @@ function drawPresetGraph(host, m, x, readout, key) {
     host.dataset.bound = "1";
     observePresetHost(host);
     const scrub = (s) => {
-      host._s = Math.max(host._view.m.prot, Math.min(host._view.m.wall, Math.round(s * 10) / 10));
+      host._s = Math.max(host._view.m.scrubMin, Math.min(host._view.m.wall, Math.round(s * 10) / 10));
       positionPresetScrub(host);
     };
     const move = (e) => scrub(host._view.tAt(e.clientX - host.firstChild.getBoundingClientRect().left));
@@ -5610,7 +5628,8 @@ function renderPresetReview() {
       '<span class="rvLeg rvLegSlow"><i></i><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_slow") + "</span>" +
       '<span class="rvLeg rvLegNoCut"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_no_cut") + "</span>" +
       '<span class="rvLeg rvLegSaved"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_saved") + "</span>" +
-      '<small class="rvNote">' + __WEBUI_TEXT__("runtime.graph_pace_note") + "</small>";
+      '<small class="rvNote"></small>';
+  legend.lastChild.textContent = __WEBUI_TEXT__("runtime.graph_pace_note") + " " + paceStartNote(m);
   legend.classList.toggle("ghosted", !!ghost);
   legend.classList.toggle("hasLast", view.last);
   legend.classList.toggle("hasArrivals", view.arrivals > 0);

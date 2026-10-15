@@ -10,9 +10,13 @@ size_t copyShotRecords(ShotLogRecord *output, size_t capacity) {
 
 void copyPresetShotStats(const ShotPresetBank &bank, PresetShotStats *out) {
   TaskLockGuard lock(shotStoreMutex);
-  for (uint8_t i = 0; i < bank.count; ++i)
-    out[i].stats = shotLog.arrivalStats(bank.presets[i].id, bank.presets[i].learningEpoch,
-                                        out[i].arrivalsMs);
+  for (uint8_t i = 0; i < bank.count; ++i) {
+    const ShotPreset &p = bank.presets[i];
+    out[i].stats = shotLog.arrivalStats(p, out[i].arrivalsMs);
+    out[i].firstDrop = shotLog.firstDropStats(p);
+    if (out[i].firstDrop.n == 0)
+      out[i].firstDrop.medianMs = shotLog.firstDropStats(p, true).medianMs;
+  }
 }
 
 void copyShotStatsRecords(ShotStatsRecordsSnapshot &output) {

@@ -31,8 +31,9 @@ marked with a filled circle and expands to show how it cuts, for example
 **Before 27 s · Fast · up to 42 g**, **27–36 s · On recipe · 36 g** and
 **After 36 s · Slow · down to 33 g**. Below these lines, a small chart shows
 the same cut line over the shot, the colored fast, on-recipe and slow zones,
-and the opening seconds where weight never stops the shot. It is a picture
-only; to try shot timings on it, use **How this preset cuts** in Settings.
+and the opening seconds where weight never stops the shot. Drag along it to
+try shot timings, just like **How this preset cuts** in Settings; a note
+below it says where its reference pace starts.
 Tapping another row applies that recipe
 when **Stop the shot** is set to **By weight**; in Manual the list says so and
 keeps the active recipe. These rows show the recipe's own values; learned
@@ -47,7 +48,7 @@ preset and whether editing is allowed.
 
 | Action | What it does |
 | --- | --- |
-| **New coffee** | Tells ShotStopper you changed beans or made a big grind change. Grind hints and the scale-loss backup learn from your next shots; the shots so far are set aside. Your settings do not change. |
+| **New coffee** | Tells ShotStopper you changed beans or made a big grind change. Grind hints, the scale-loss backup and the usual first-drop time on the preset graph learn from your next shots; the shots so far are set aside. Your settings do not change. |
 | **New** | Creates an Untitled preset from the Double · Adaptive values. |
 | **Duplicate** | Copies the selected preset into a new one. |
 | **Restore** | Factory presets only: returns the preset to its factory values and starts its shot statistics over. Shared settings do not change. |
@@ -96,9 +97,11 @@ afterwards shows the normal Home.
    preset with the Double · Adaptive values.
 3. Rename the card, edit its settings, and select **Save preset**.
    While editing, values that conflict with another field are flagged in
-   yellow right away, before you save. If you changed the shot time window or
-   moved the target by more than 1 g, Save asks to start the preset's shot
-   statistics over.
+   yellow right away, before you save. Shot statistics only count shots made
+   with the preset's current window and a target within 1 g, so if you
+   changed the window or moved the target further, Save warns that they start
+   over. Going back to the earlier values brings those shots back. The usual
+   first-drop time does not depend on either and stays.
 4. Switch to another preset and back to check the saved recipe.
 
 Duplicate names receive a suffix, such as "Espresso copy 2"; long names are

@@ -789,8 +789,9 @@ if (htmlBytes > 93300) {
 // The compact Stats legend and cursor styles add 885 bytes (423322); owner-authorized 2026-10-14.
 // Home preset graphs become full copies of the Settings graph (same axis, scrubber, readout) and each graph keeps its own scrub state: +656 bytes (423978), owner-authorized 2026-10-15.
 // The preset graph cut pill shown while the scrubber is held: +527 bytes (424505), owner-authorized 2026-10-15.
-if (jsBytes > 424600) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 424600)`);
+// Preset graph paces start at the usual first drop, with its source note and the restart copy: +1082 bytes (425587), owner-authorized 2026-10-15.
+if (jsBytes > 425600) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 425600)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -881,8 +882,9 @@ if (jsBytes > 424600) {
 // Combined source at 516407 with the legend; owner-authorized 2026-10-14.
 // Combined source at 517073 with the copied Home graphs; owner-authorized 2026-10-15.
 // Combined source with the preset graph cut pill; owner-authorized 2026-10-15.
-if (htmlBytes + jsBytes > 517700) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 517700)`);
+// Combined source at 518682 with the first-drop pace start; owner-authorized 2026-10-15.
+if (htmlBytes + jsBytes > 518700) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 518700)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

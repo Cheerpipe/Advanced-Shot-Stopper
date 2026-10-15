@@ -665,19 +665,21 @@ void serviceCupStartGuard(const GuardInputs &inputs) {
   }
 }
 // "If the scale drops now" for an idle preset: its fixed time, recent shots
-// or the window midpoint. Cached until the preset, its epoch or the shot log
-// changes, so status publication never rescans the log.
+// or the window midpoint. Cached until the preset, its epoch, window, target
+// or the shot log changes, so status publication never rescans the log.
 corridor::LossDeadline idleScaleLossDeadline(const ShotPreset &preset) {
   static struct {
     uint8_t id = 0;
     uint32_t epoch = 0, generation = 0, fixedMs = 0, t1 = 0, t2 = 0, delay = 0, wall = 0;
+    uint16_t goal = 0;
     corridor::LossDeadline deadline;
   } cache;
   const uint32_t generation = shotStoreDirtyGeneration.load(std::memory_order_acquire);
   if (cache.id == preset.id && cache.epoch == preset.learningEpoch &&
       cache.generation == generation && cache.fixedMs == preset.scaleLossFixedMs &&
       cache.t1 == preset.fastBeforeMs && cache.t2 == preset.slowAfterMs &&
-      cache.delay == preset.bbwProtectionMs && cache.wall == preset.operationalWallMs)
+      cache.delay == preset.bbwProtectionMs && cache.wall == preset.operationalWallMs &&
+      cache.goal == preset.goalWeightDg)
     return cache.deadline;
   corridor::Params p;
   p.goalDg = preset.goalWeightDg;
@@ -690,11 +692,11 @@ corridor::LossDeadline idleScaleLossDeadline(const ShotPreset &preset) {
   in.beforeFirstDrops = true;
   {
     TaskLockGuard lock(shotStoreMutex);
-    in.history = shotLog.arrivalStats(preset.id, preset.learningEpoch);
+    in.history = shotLog.arrivalStats(preset);
   }
   cache = {preset.id, preset.learningEpoch, generation, preset.scaleLossFixedMs,
            preset.fastBeforeMs, preset.slowAfterMs, preset.bbwProtectionMs,
-           preset.operationalWallMs, corridor::lossDeadline(p, in)};
+           preset.operationalWallMs, preset.goalWeightDg, corridor::lossDeadline(p, in)};
   return cache.deadline;
 }
 

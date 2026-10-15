@@ -157,7 +157,11 @@ Settings schema 1 uses the 312-byte `RuntimeConfig`, 76-byte `ShotPreset`, and
 only), shot time window (`fastBeforeMs`/`slowAfterMs`), fast and slow side
 switches with margins relative to the target (decigrams), weight-cut delay, max
 shot time, the optional fixed scale-loss stop time, drip compensation, grind
-hints and its statistics epoch (`learningEpoch`, a shot-log record id). Cup
+hints and its statistics epoch (`learningEpoch`, a shot-log record id, moved
+only by New coffee, create, duplicate, restore and the reset-guard-samples
+command). Arrival statistics also require each shot's stored window and a
+target within 1 g of the preset's; the first-drop median ignores both and
+falls back to the other presets' shots while the preset has none. Cup
 protection, accidental-touch, touch-stop fallback and the scale-loss backup
 switch are device-level `RuntimeConfig` fields and are never overlaid from a
 preset. A fresh or factory-reset bank holds four permanent factory presets (ids

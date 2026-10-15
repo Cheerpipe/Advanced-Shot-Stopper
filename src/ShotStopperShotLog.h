@@ -64,19 +64,34 @@ class ShotLog
   // stores mutate only alongside these words. Caller holds the store mutex.
   uint32_t epoch() const { return dualSlotHeaderEpoch(store_.header); }
 
-  // Smooth-cut arrival statistics of one preset since its epoch (plan §4.8).
-  // Caller holds the store mutex.
-  corridor::ArrivalStats arrivalStats(uint8_t presetId, uint32_t epoch,
+  // The stored shots as corridor statistics rows, oldest first.
+  auto arrivalRows() const {
+    const size_t first = (store_.header.writeIndex + SHOT_LOG_CAPACITY -
+                          store_.header.count) % SHOT_LOG_CAPACITY;
+    return [this, first](size_t i) {
+      return shotLogArrivalRecord(store_.records[(first + i) % SHOT_LOG_CAPACITY]);
+    };
+  }
+
+  // Smooth-cut arrival statistics of one preset since its epoch, for its
+  // current window and target (plan §4.8). Caller holds the store mutex.
+  corridor::ArrivalStats arrivalStats(const ShotPreset &preset,
                                       int32_t *arrivalsOut = nullptr) const {
-    const size_t count = store_.header.count;
-    const size_t first =
-        (store_.header.writeIndex + SHOT_LOG_CAPACITY - count) % SHOT_LOG_CAPACITY;
-    return corridor::arrivalStatsOf(
-        count,
-        [this, first](size_t i) {
-          return shotLogArrivalRecord(store_.records[(first + i) % SHOT_LOG_CAPACITY]);
-        },
-        presetId, epoch, arrivalsOut);
+    corridor::StatsScope scope;
+    scope.presetId = preset.id;
+    scope.epoch = preset.learningEpoch;
+    scope.fastBeforeMs = static_cast<int32_t>(preset.fastBeforeMs);
+    scope.slowAfterMs = static_cast<int32_t>(preset.slowAfterMs);
+    scope.goalDg = preset.goalWeightDg;
+    return corridor::arrivalStatsOf(store_.header.count, arrivalRows(), scope, arrivalsOut);
+  }
+
+  // Median first drop of one preset since its epoch, or of the other presets.
+  // Caller holds the store mutex.
+  corridor::FirstDropStats firstDropStats(const ShotPreset &preset,
+                                          bool otherPresets = false) const {
+    return corridor::firstDropStatsOf(store_.header.count, arrivalRows(), preset.id,
+                                      preset.learningEpoch, otherPresets);
   }
 
   ShotStatsView statsView() const {

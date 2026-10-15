@@ -1103,10 +1103,11 @@ int formatPresetShotStats(char *out, size_t cap, const ShotPreset &p,
   return snprintf(out, cap,
       ",\"shotStats\":{\"n\":%u,\"total\":%u,\"minS\":%.1f,\"maxS\":%.1f,"
       "\"medianS\":%.1f,\"recentMedianS\":%.1f},\"firstDropS\":%.1f,"
-      "\"arrivalsS\":%s,\"grindHint\":%s}",
+      "\"firstDropN\":%u,\"arrivalsS\":%s,\"grindHint\":%s}",
       static_cast<unsigned>(st.n), static_cast<unsigned>(st.total), st.minMs / 1000.0,
       st.maxMs / 1000.0, st.medianMs / 1000.0, st.recentMedianMs / 1000.0,
-      st.firstDropMs / 1000.0, arrivals, hintJson);
+      s.firstDrop.medianMs / 1000.0, static_cast<unsigned>(s.firstDrop.n), arrivals,
+      hintJson);
 }
 
 void buildSlimPresetsJson(const ShotPresetBank &presets) {

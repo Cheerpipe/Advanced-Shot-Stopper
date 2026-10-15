@@ -34,6 +34,13 @@ than a fraction of a gram.
 preset. Drag the example shot to see where a shot reaching the target at a
 given time would stop.
 
+The example shot and the colored zones begin when coffee usually starts
+dripping for that preset, taken from its recent shots, so a single and a
+double each keep their own timing. Until a preset has a shot with a recorded
+first drop, the graph uses your other presets' usual time, or 0 s if no shot
+has one yet; the note under the graph says which. **New coffee** starts this
+timing over, while editing the window or the target keeps it.
+
 ## Fast shots
 
 Turn on **Run fast shots longer** (Settings → Presets → **Fast shots**) to let

@@ -41,7 +41,7 @@ void resetSessionForNewCycle(ControlSource source) {
   {
     // Recent arrivals of this preset, for the scale-loss history regime.
     TaskLockGuard lock(shotStoreMutex);
-    session.cut.history = shotLog.arrivalStats(preset.id, preset.learningEpoch);
+    session.cut.history = shotLog.arrivalStats(preset);
   }
   session.endReason = EndReason::NONE;
 }

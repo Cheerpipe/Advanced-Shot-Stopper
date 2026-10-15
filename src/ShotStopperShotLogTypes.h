@@ -180,6 +180,8 @@ inline const char *shotLogStopDetailName(ShotLogStopDetail detail) {
 struct PresetShotStats {
   corridor::ArrivalStats stats;
   int32_t arrivalsMs[corridor::STATS_MAX_SHOTS] = {};
+  // The preset's own first drops; without any, medianMs is the other presets'.
+  corridor::FirstDropStats firstDrop;
 };
 
 // JSON values (quoted, or null) of the packed corridor verdict byte.
@@ -423,6 +425,9 @@ inline corridor::ArrivalRecord shotLogArrivalRecord(const ShotLogRecord &record)
       ? 0 : static_cast<int32_t>(record.arrivalDs) * 100;
   out.firstDropMs = record.firstDropDs == SHOT_LOG_METRIC_MISSING
       ? 0 : static_cast<int32_t>(record.firstDropDs) * 100;
+  out.fastBeforeMs = static_cast<int32_t>(record.fastBeforeDs) * 100;
+  out.slowAfterMs = static_cast<int32_t>(record.slowAfterDs) * 100;
+  out.goalDg = record.goalWeightDg;
   return out;
 }
 
