@@ -33,7 +33,11 @@ it is less than **Minimum cup weight** above the previous one. This keeps
 automatic tare working when the pan settles a few grams away from where it was,
 or when the cup was tared with coffee in it. A higher stable reading could
 still be the pan with something on it, so the controller keeps waiting until
-the pan is cleared. Before the first cup is weighed, a
+the pan is cleared. While no cup is detected, a stable reading below the
+reference also replaces it, since nothing can be on a pan that reads less than
+empty. Outside a shot, a stable reading near zero replaces a reference far from
+zero, which is what pressing the scale's own tare button on an empty pan
+produces. Before the first cup is weighed, a
 small empty-pan offset can be accepted after stable readings; it must stay
 within 5 g of zero or half **Minimum cup weight**, whichever is smaller.
 Several small shifts cannot add up to move this band farther from zero.

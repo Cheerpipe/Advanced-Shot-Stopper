@@ -119,9 +119,12 @@ The integrated protocols currently do not report a verifiable physical-button
 tare event; a zero reading alone cannot distinguish that action from returning
 to the previous displayed weight. **Tared** on Home describes the controller's
 last known cup state, not proof that the physical button was or was not pressed.
-If you press the scale's button after removing the cup, reconnect the scale,
-let zero settle, and place the cup again. Accessory retare does
-not resolve this ambiguity.
+If you press the scale's button after removing the cup, let the empty pan settle
+at zero; the controller takes that zero as the new empty pan and the next cup
+tares normally. The flip side: if a cup of exactly the same weight is set down
+before the empty pan settles, it reads near that old zero and is taken for an
+empty pan, so **Cup tare** waits for a cup. Lift it, let the pan settle, and
+place it again. Accessory retare does not resolve this ambiguity.
 
 An accepted physical shot or Quick rinse start takes priority over a pending
 idle tare; use the normal paddle or button gesture without releasing and

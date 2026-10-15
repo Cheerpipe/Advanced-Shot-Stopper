@@ -10929,6 +10929,58 @@ void it68_plateau_above_anchor_plus_mincup_still_waits() {
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
 }
 
+void it69_button_zero_on_empty_pan_rearms_idle_tare() {
+  prepareIdleTare();
+  idleCup(250.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  // The lift reads off the anchor, so it is no fast-replacement unload; the
+  // scale's button is pressed before that plateau settles.
+  idleWeight(-247.0f);
+  idleWeight(-247.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(!cupPresence.weight.emptyValid);
+  CHECK(scaleProfiler().hostStartNoFlash(millis()));
+  idleCup(0.0f);
+  idleCup(0.0f);
+  CHECK(cupPresence.weight.emptyValid);
+  CHECK(cupPresence.emptyAnchorG == 0.0f);
+  CHECK(idleTare.absentObserved);
+  bool anchorEvent = false;
+  for (uint32_t i = 0; i < scaleProfiler().hostRecordCount(); ++i) {
+    const auto row = scaleProfiler().hostRecord(i);
+    anchorEvent |= row.kind == static_cast<uint16_t>(ScaleProfileEvent::CUP_ANCHOR_CHANGED) &&
+                   row.arg2 == 0;
+  }
+  CHECK(anchorEvent);
+  scaleProfiler().hostStop(ScaleProfilerStopReason::USER, millis());
+  idleCup(250.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  CHECK(captureCupTareDiagnostics().weightG == 250.0f);
+}
+
+void it70_equal_weight_swap_at_zero_shows_absent() {
+  // Trade-off of the external re-zero: an equal-weight cup set down before
+  // the pan settled reads near the old zero and is taken for an empty pan.
+  prepareIdleTare();
+  idleCup(250.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  idleWeight(-247.0f);
+  idleWeight(-247.0f);
+  idleCup(3.0f);  // Equal-weight cup set down before the empty pan settled.
+  idleCup(3.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(cupPresence.emptyAnchorG == 3.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleCup(-247.0f);  // Lift it and let the pan settle below that reference.
+  idleCup(-247.0f);
+  CHECK(cupPresence.emptyAnchorG == -247.0f);
+  idleCup(3.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+}
+
 void it71_tare_with_coffee_then_lift_recovers() {
   // The shot-start tare zeroes the cup, so lifting it with its coffee reads
   // below the translated anchor; that plateau must still rearm idle tare.
@@ -20815,6 +20867,8 @@ const TestCase testCases[] = {
     {"IT66", it66_initial_positive_return_requires_known_zero_and_subminimum_load},
     {"IT67", it67_offanchor_empty_plateau_requalifies_after_removal},
     {"IT68", it68_plateau_above_anchor_plus_mincup_still_waits},
+    {"IT69", it69_button_zero_on_empty_pan_rearms_idle_tare},
+    {"IT70", it70_equal_weight_swap_at_zero_shows_absent},
     {"IT71", it71_tare_with_coffee_then_lift_recovers},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},

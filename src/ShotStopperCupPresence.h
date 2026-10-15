@@ -125,7 +125,8 @@ bool cupWeightNearKnownEmpty(float weight) {
       cupPresence.weight.pendingId == 0 && weight <= cupPresence.emptyAnchorG + band;
 }
 
-void observeEmptyCupWeight(float weight, uint32_t atMs, bool initialRecovery) {
+void observeEmptyCupWeight(float weight, uint32_t atMs, bool initialRecovery,
+                           bool idle) {
   auto &mass = cupPresence.weight;
   const bool anchored = std::isfinite(cupPresence.emptyAnchorG);
   const float referenceG = anchored ? cupPresence.emptyAnchorG : 0.0f;
@@ -136,14 +137,21 @@ void observeEmptyCupWeight(float weight, uint32_t atMs, bool initialRecovery) {
       : fmaxf(anchored ? runtimeConfig.retareStabilityToleranceG
                        : FIRST_DROP_BASELINE_SETTLE_G, movementG);
   // After a lift the tare-translated anchor is only provisional: any plateau
-  // too low to be pan plus a cup may become the empty reference.
-  const bool provisional = cupPresence.inNegativeHole && anchored &&
-                           cupPresence.placementId != 0;
+  // too low to be pan plus a cup (or below the anchor) may become the empty
+  // reference.
+  const bool provisional = anchored && cupPresence.placementId != 0 &&
+      (cupPresence.inNegativeHole || weight < referenceG - toleranceG);
+  // An idle stable zero far from a large anchor is an external re-zero (the
+  // scale's button): it becomes the empty reference instead of a deadlock.
+  const bool externalZero = idle && anchored &&
+      fabsf(referenceG) >= runtimeConfig.minimumCupWeightG &&
+      fabsf(weight) <= fminf(5.0f, runtimeConfig.minimumCupWeightG / 2.0f);
   if (mass.pendingId != 0 || cupPresence.holdTransitions ||
       (cupPresence.inNegativeHole && !anchored &&
        weight >= cupPresence.holeWeightG + runtimeConfig.minimumCupWeightG) ||
-      (provisional && weight >= referenceG + runtimeConfig.minimumCupWeightG) ||
-      ((!cupPresence.inNegativeHole || anchored) && !provisional &&
+      (!externalZero && provisional &&
+       weight >= referenceG + runtimeConfig.minimumCupWeightG) ||
+      ((!cupPresence.inNegativeHole || anchored) && !provisional && !externalZero &&
        fabsf(weight - (initialZero ? 0.0f : referenceG)) > toleranceG)) {
     // Intermediate upward loads can be a placement ramp. A downward
     // disturbance must settle back at the anchor before rearming placement.
@@ -179,7 +187,15 @@ void observeEmptyCupWeight(float weight, uint32_t atMs, bool initialRecovery) {
   if (mass.emptySamples >= runtimeConfig.retareStabilitySamples &&
       static_cast<uint32_t>(atMs - mass.emptyStartedAtMs) >=
           runtimeConfig.retareStabilityMinDurationMs) {
-    if (!anchored || provisional || (movementG > 0.0f &&
+    if (externalZero) {
+      scaleProfileNoteEvent(ScaleProfileEvent::CUP_ANCHOR_CHANGED, millis(),
+                            mass.connectionGeneration, mass.sampleSequence, referenceG,
+                            cupPresence.placementId,
+                            static_cast<uint32_t>(weightToCentigrams(weight)));
+      cupPresence.inNegativeHole = false;
+      cupPresence.holeWeightG = 0.0f;
+    }
+    if (!anchored || provisional || externalZero || (movementG > 0.0f &&
                       weight < referenceG - runtimeConfig.retareStabilityToleranceG))
       cupPresence.emptyAnchorG = weight;
     mass.absent = CupStableWeight{cupPresence.emptyAnchorG, atMs, true};
@@ -418,7 +434,8 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   if (!placeCandidate) {
     if (cupPresence.weight.sampleSequence == packetSequence &&
         cupPresence.weight.sampleAtMs == receivedAtMs && packetSequence != 0)
-      observeEmptyCupWeight(weight, receivedAtMs, allowFastReplacement && initialPlacement);
+      observeEmptyCupWeight(weight, receivedAtMs, allowFastReplacement && initialPlacement,
+                            allowFastReplacement);
     resetCupPlaceStabilityStreak();
     return CupPresenceEvent::NONE;
   }
