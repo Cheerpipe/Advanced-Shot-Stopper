@@ -36,6 +36,7 @@ void reset(esp_ota_img_states_t state = ESP_OTA_IMG_VALID) {
   ota_host::state = state;
   g_hostFlashIoMutexAvailable = true;
   hostMillis = 100;
+  otaHostFullSlotHashes = 0;
 }
 
 struct Image {
@@ -182,6 +183,8 @@ void testCheckpointRecovery() {
       CHECK(ota->writeRange(offset, OTA_TRANSFER_CHUNK_BYTES, stream.io(), hostMillis) == OtaResult::OK);
     }
     CHECK(ota->snapshot().stagedValid && ota_host::invalidHandles == 0);
+    // Boot and staging read the appended digest instead of re-hashing slots.
+    CHECK(otaHostFullSlotHashes == 0 && std::strlen(ota->snapshot().stagedImageSha256) == 64);
     CHECK(std::equal(image.bytes.begin(), image.bytes.end(), ota_host::flash.begin()));
     CHECK(persistence_host::records.empty());
   }

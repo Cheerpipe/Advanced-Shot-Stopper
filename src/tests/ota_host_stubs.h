@@ -13,7 +13,6 @@ using esp_ota_handle_t = uint32_t;
 constexpr esp_err_t ESP_FAIL = -1;
 constexpr esp_err_t ESP_ERR_NOT_FOUND = 0x105;
 constexpr size_t OTA_WITH_SEQUENTIAL_WRITES = static_cast<size_t>(-2);
-constexpr int WIFI_PS_NONE = 0;
 
 enum esp_ota_img_states_t {
   ESP_OTA_IMG_NEW = 0,
@@ -25,7 +24,19 @@ enum esp_ota_img_states_t {
 };
 
 struct esp_partition_t {
+  uint32_t address = 0;
   uint32_t size = 4U * 1024U * 1024U;
+};
+struct esp_partition_pos_t {
+  uint32_t offset;
+  uint32_t size;
+};
+struct esp_image_header_t {
+  uint8_t hash_appended = 1;
+};
+struct esp_image_metadata_t {
+  esp_image_header_t image;
+  uint8_t image_digest[32];
 };
 
 inline esp_partition_t otaHostRunningPartition;
@@ -83,8 +94,16 @@ inline esp_err_t esp_partition_read(const esp_partition_t *, size_t offset, void
   return ESP_OK;
 }
 
+// Both report the slot's appended digest; only the first re-hashes the slot.
+inline unsigned otaHostFullSlotHashes = 0;
 inline esp_err_t esp_partition_get_sha256(const esp_partition_t *, uint8_t *out) {
+  ++otaHostFullSlotHashes;
   std::memset(out, 0xAB, 32);
+  return ESP_OK;
+}
+inline esp_err_t esp_image_get_metadata(const esp_partition_pos_t *,
+                                        esp_image_metadata_t *metadata) {
+  std::memset(metadata->image_digest, 0xAB, 32);
   return ESP_OK;
 }
 
@@ -154,7 +173,6 @@ inline esp_err_t esp_ota_mark_app_invalid_rollback() {
   ota_host::state = ESP_OTA_IMG_INVALID;
   return ESP_OK;
 }
-inline esp_err_t esp_wifi_set_ps(int) { return ESP_OK; }
 
 inline psa_status_t psa_hash_clone(const psa_hash_operation_t *source,
                                    psa_hash_operation_t *destination) {

@@ -3,9 +3,9 @@
 #if defined(SHOT_STOPPER_OTA_HOST_TEST)
 #include "tests/ota_host_stubs.h"
 #else
+#include <esp_image_format.h>
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
-#include <esp_wifi.h>
 #include <psa/crypto.h>
 #endif
 
@@ -216,6 +216,25 @@ bool clearJournal() {
   return removed;
 }
 
+// Same value esp_partition_get_sha256() returns for an app slot, without its
+// full-slot re-hash: the bootloader verified the running image and
+// esp_ota_end() the staged one. Images without an appended digest fall back.
+bool readImageDigest(const esp_partition_t *partition, char *hex) {
+  FlashIoGuard flash;
+  if (!flash.ok()) return false;
+  const esp_partition_pos_t position = {partition->address, partition->size};
+  esp_image_metadata_t metadata = {};
+  uint8_t digest[32] = {};
+  if (esp_image_get_metadata(&position, &metadata) == ESP_OK &&
+      metadata.image.hash_appended) {
+    memcpy(digest, metadata.image_digest, sizeof(digest));
+  } else if (esp_partition_get_sha256(partition, digest) != ESP_OK) {
+    return false;
+  }
+  sha256Hex(digest, hex);
+  return true;
+}
+
 bool abortOtaHandle(esp_ota_handle_t handle) {
   FlashIoGuard flash;
   const bool aborted = flash.ok() && esp_ota_abort(handle) == ESP_OK;
@@ -317,13 +336,7 @@ void ShotStopperOta::begin() {
   state_ = available_ ? OtaState::IDLE : OtaState::UNAVAILABLE;
 
   readBootState();
-  if (running != nullptr) {
-    FlashIoGuard flash;
-    uint8_t digest[32] = {};
-    if (flash.ok() && esp_partition_get_sha256(running, digest) == ESP_OK) {
-      sha256Hex(digest, runningImageSha256_);
-    }
-  }
+  if (running != nullptr) (void)readImageDigest(running, runningImageSha256_);
   if (available_ && confirmed_) {
     restoreSessionJournal();
   }
@@ -712,7 +725,7 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   busy_ = true;
   // XIP keeps cache available for most writes; mapping and driver exceptions
   // still require the buffer and hash state on the internal httpd stack.
-  (void)esp_wifi_set_ps(WIFI_PS_NONE);
+  // The network reconciler already holds Wi-Fi at full power while busy.
 
   const esp_partition_t *target =
       static_cast<const esp_partition_t *>(targetPartition_);
@@ -839,8 +852,8 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
         break;
       }
     }
-    if (io.progress != nullptr) io.progress(io.context, receivedBytes_, expectedBytes_);
   }
+  if (io.progress != nullptr) io.progress(io.context, receivedBytes_, expectedBytes_);
   uint8_t chunkDigest[32] = {};
   size_t chunkDigestLength = 0;
   const bool hashFinished =
@@ -920,13 +933,8 @@ OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
   }
   if (!verifySessionSha256()) return finishFailure(OtaResult::HASH_MISMATCH);
 
-  {
-    FlashIoGuard flash;
-    uint8_t digest[32] = {};
-    if (!flash.ok() || esp_partition_get_sha256(target, digest) != ESP_OK) {
-      return finishFailure(OtaResult::VERIFY_FAILED);
-    }
-    sha256Hex(digest, stagedImageSha256_);
+  if (!readImageDigest(target, stagedImageSha256_)) {
+    return finishFailure(OtaResult::VERIFY_FAILED);
   }
 
   // One last look at the machine before advertising the image as flashable.
