@@ -423,7 +423,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .shotPresetChart .rvLastDrip{stroke-width:1.5;stroke-dasharray:3 3;opacity:.55}
 .shotMore[hidden]{display:none}
 .shotMore{display:grid;gap:.65rem}
-.shotMoreBtn{position:relative;justify-self:stretch;min-height:1.75rem;padding:0;border:0;background:none;color:var(--mu);font:inherit;font-size:.78rem;cursor:pointer}
+.shotMoreBtn{position:relative;justify-self:stretch;min-height:1.75rem;padding:0;border:0;background:none;color:var(--mu);font:inherit;font-size:.78rem;text-decoration:underline;cursor:pointer}
 .shotMoreBtn::after{content:"";position:absolute;inset:-.5rem 0}
 .starRate{display:inline-flex;align-items:center;margin:-.6rem 0 0 -.15rem}
 .starRate button{padding:0;border:0;background:transparent;color:var(--bd);width:1.35rem;height:var(--tap);display:grid;place-items:center}

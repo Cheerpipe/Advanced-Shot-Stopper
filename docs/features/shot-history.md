@@ -197,8 +197,8 @@ move a cursor along the shot's curve. The line under the chart reads the time,
 the weight at that moment, and the cut line at that time. The cursor starts at
 the shot's stop point.
 
-Select **More charts** to open the flow and weight charts below it. Select
-**Fewer charts** to hide them again. The card remembers which shots are open
+Select **Show more** to open the flow and weight charts below it. Select
+**Show less** to hide them again. The card remembers which shots are open
 while the table refreshes.
 
 The Home shot card is unchanged: it keeps its weight and **Flow rate (g/s)**
