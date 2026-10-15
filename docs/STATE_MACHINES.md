@@ -412,7 +412,7 @@ Source: `OpenBrewByWeightScaleTypes.h`, `setWeightControlState()` in
 | State | Meaning |
 | --- | --- |
 | `INACTIVE` | This cycle will not stop on weight (no scale at start, or timer-only). |
-| `VALIDATING` | Last sample was implausible (range, slew, reconnect). Need coherent recovery samples before trusting a cut. |
+| `VALIDATING` | Last sample was implausible (range, slew, reconnect). Need coherent recovery samples before trusting a cut. Recovery may land below the last accepted weight, so releasing a heavy touch returns control to the pre-anomaly trajectory. |
 | `ACTIVE` | Samples are accepted into the trajectory; threshold/guards may cut. |
 | `SUSPENDED` | Link dropped, connection generation changed, or **notifications went silent** mid-shot (`observedWeight` older than 1 s). Rejected brew samples and unchanged grams do not suspend. A→M becomes **enforced** if it was armed. Reconnect with three coherent samples can return to `ACTIVE`. |
 | `FAULT_STOPPED` | Weight path gave up for this cycle (e.g. persistent overload policy). No further automatic cut from weight. |
@@ -424,7 +424,7 @@ Source: `OpenBrewByWeightScaleTypes.h`, `setWeightControlState()` in
 | Cycle start with usable scale + BBW | `INACTIVE`/`—` → `ACTIVE`. |
 | Cycle start without scale or timer-only | Stays `INACTIVE`. |
 | Notifications silent / disconnect / generation change | `ACTIVE`/`VALIDATING` → `SUSPENDED` (A→M armed → enforced). Parsed packets keep control off this path even if brew rejects them. |
-| Three coherent recovery samples | `SUSPENDED`/`VALIDATING` → `ACTIVE` (A→M enforcement cleared). |
+| Three coherent recovery samples | `SUSPENDED`/`VALIDATING` → `ACTIVE` (A→M enforcement cleared). Only `SUSPENDED` also requires the samples not to fall more than 2 g below the last accepted weight, because a stream gap can hide a cup lift. |
 | Out-of-range / overload sample | `ACTIVE` → `VALIDATING`, stream `OVERLOAD`. |
 | Tare / post-tare grace | May promote `VALIDATING` → `ACTIVE` so the new zero is used. |
 

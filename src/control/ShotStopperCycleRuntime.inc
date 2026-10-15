@@ -962,6 +962,10 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   if (session.weightControlState == WeightControlState::VALIDATING ||
       session.weightControlState == WeightControlState::SUSPENDED) {
     bool recoveryPlausible = plausible;
+    // Only a stream gap can hide a drop; a live anomaly (touch, overload) may
+    // recover below the rejected level once three coherent samples agree.
+    const bool dropFloor =
+        session.weightControlState == WeightControlState::SUSPENDED;
     if (session.recoveryConfirmations > 0) {
       const bool consecutive =
           packetSequence == session.recoveryLastPacketSequence + 1U;
@@ -975,10 +979,10 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
             MAX_AUTOMATION_WEIGHT_SLEW_G_PER_S *
                 static_cast<uint32_t>(signedDelta) / 1000.0f;
         const float change = weight - session.recoveryLastWeightG;
-        recoveryPlausible = change >= -MAX_RECOVERY_WEIGHT_DROP_G &&
+        recoveryPlausible = (!dropFloor || change >= -MAX_RECOVERY_WEIGHT_DROP_G) &&
                             change <= allowedIncrease;
       }
-    } else if (session.hasWeightAnchor) {
+    } else if (dropFloor && session.hasWeightAnchor) {
       recoveryPlausible = recoveryPlausible &&
           weight >= session.lastAcceptedWeightG - MAX_RECOVERY_WEIGHT_DROP_G;
     }

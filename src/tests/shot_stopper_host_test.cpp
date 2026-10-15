@@ -18162,6 +18162,62 @@ void at16_resting_finger_contained_by_direct_stop_law() {
   CHECK(!session.calibrationEligible);
 }
 
+void publishSequencedWeight(float weight, uint32_t &sequence,
+                            uint32_t intervalMs = 100) {
+  hostMillis += intervalMs;
+  markScaleWorkerProgress();
+  publishWeight(weight, hostMillis, 0, ++sequence);
+}
+
+void at17_heavy_touch_release_recovers_control() {
+  // A heavy step held for a second is accepted as a plateau; releasing it
+  // must return control to the original trajectory instead of locking
+  // VALIDATING behind the recovery drop floor.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  mutableActiveShotPreset(presetBank).goalWeightDg = 1000;
+  runtimeConfig.goalWeightDg = 1000;
+  startCycle();
+  advanceToBrew();
+  endBbwProtectionForTests();
+  publishControlRamp(1.0f, 20.0f, 0.5f, 100, 10);
+  const float base = session.lastAcceptedWeightG;
+  uint32_t seq = session.lastAcceptedPacketSequence;
+  for (int i = 0; i < 10; ++i) publishSequencedWeight(base + 35.0f, seq);
+  CHECK(session.weightControlState == WeightControlState::ACTIVE);
+  CHECK(session.lastAcceptedWeightG > base + 30.0f);
+  int recoveredAt = -1;
+  for (int i = 0; i < 6 && recoveredAt < 0; ++i) {
+    publishSequencedWeight(base + 0.1f * i, seq);
+    if (session.weightControlState == WeightControlState::ACTIVE &&
+        session.lastAcceptedWeightG < base + 1.0f) recoveredAt = i;
+  }
+  CHECK(recoveredAt >= 1 && recoveredAt <= 3);
+  CHECK(session.active);
+  const float threshold = effectiveStopThreshold();
+  for (float w = base + 1.0f; w < threshold - 1.0f; w += 1.0f)
+    publishSequencedWeight(w, seq);
+  publishSequencedWeight(threshold + 0.1f, seq);
+  publishSequencedWeight(threshold + 0.2f, seq);
+  loop();
+  CHECK(session.endReason == EndReason::SCALE_THRESHOLD);
+}
+
+void tr04_light_cup_pre_effect_packet_recovers() {
+  // A post-boundary packet from a light cup (40 g) arrives before the zero:
+  // control must settle on the real zero instead of locking VALIDATING.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  startCycle();
+  CHECK(executeNextScaleCommand());
+  establishPostTareBaseline(40.0f);
+  CHECK(!session.awaitingPostTareBaseline);
+  uint32_t seq = session.lastAcceptedPacketSequence;
+  for (int i = 0; i < 4; ++i) publishSequencedWeight(0.0f, seq);
+  CHECK(session.weightControlState == WeightControlState::ACTIVE);
+  CHECK(fabsf(session.lastAcceptedWeightG) < 0.5f);
+}
+
 void sk01_refused_start_releases_cup_hold() {
   // A start refused by relay safety must not leave the cup FSM held or
   // believing that the never-sent start tare zeroed the cup.
@@ -20346,6 +20402,8 @@ const TestCase testCases[] = {
     {"FF19", ff19_foreign_generation_cannot_latch_first_drop},
     {"FF20", ff20_seeking_fa_telemetry_args_and_rate_limit},
     {"AT16", at16_resting_finger_contained_by_direct_stop_law},
+    {"AT17", at17_heavy_touch_release_recovers_control},
+    {"TR04", tr04_light_cup_pre_effect_packet_recovers},
     {"SK01", sk01_refused_start_releases_cup_hold},
     {"SK02", sk02_overload_stops_while_touch_is_held},
     {"SK03", sk03_late_zero_after_grace_releases_cup_hold},
