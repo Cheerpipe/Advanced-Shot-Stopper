@@ -285,10 +285,14 @@ void notifyCupPresenceTare() {
   resetCupPlaceStabilityStreak();
 }
 
+// removalWhileAbsent: the caller vouches for a 0 g tare reference, so a
+// confirmed reading at or below the removed threshold is a lift even when no
+// placement was observed (the cup was already tared when the scale connected).
 CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
                                  uint32_t packetSequence, bool allowPlacement = true,
                                  bool allowFastReplacement = false,
-                                 bool protectedPartialUnload = false) {
+                                 bool protectedPartialUnload = false,
+                                 bool removalWhileAbsent = false) {
   if (!std::isfinite(weight)) {
     return CupPresenceEvent::NONE;
   }
@@ -334,7 +338,8 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
     return CupPresenceEvent::NONE;
   }
 
-  if (cupPresence.state == CupPresenceState::PRESENT) {
+  if (cupPresence.state == CupPresenceState::PRESENT ||
+      (removalWhileAbsent && weight <= removedG)) {
     if (!removalCandidate) {
       resetCupPlaceStabilityStreak();
       return CupPresenceEvent::NONE;

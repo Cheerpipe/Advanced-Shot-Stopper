@@ -814,7 +814,12 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                           placementInRange, !session.active,
                       !session.active &&
                           (idleKnownAccessoryRemoval(weight) ||
-                           idleAccessoryUnloadUnsettled(weight, receivedAtMs)))
+                           idleAccessoryUnloadUnsettled(weight, receivedAtMs)),
+                      // An unseen cup zeroed before connection reads ~0 g pre-tare.
+                      session.active && session.config.cupProtectionEnabled &&
+                          session.config.stopIfCupRemoved && session.scaleBaselineReady &&
+                          !session.awaitingPostTareBaseline &&
+                          fabsf(session.preTareWeightG) < runtimeConfig.minimumCupWeightG)
       : CupPresenceEvent::NONE;
   if (cupEvent == CupPresenceEvent::PLACED) {
     scaleProfileNoteEvent(ScaleProfileEvent::CUP_PLACED, millis(),

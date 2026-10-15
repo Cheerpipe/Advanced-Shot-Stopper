@@ -12,7 +12,7 @@ with each preset under **Settings → Presets → Time limits**.
 | Control | Factory value | What it does |
 | --- | --- | --- |
 | **Cup protection** | On | Enables the cup-start/removal protections; also on Home under **How shots stop → Protections**. |
-| **Stop if cup is removed** | On | Requests a stop when a cup is detected as lifted after tare. Requires cup protection. |
+| **Stop if cup is removed** | On | Requests a stop when a cup is detected as lifted after tare. This includes a cup that was already tared to 0 g before the scale connected: once the shot-start tare has settled near zero, a confirmed drop below the removed threshold stops the shot. Requires cup protection. |
 | **Require cup to start** | Off | Blocks a start without a detected cup. Requires cup protection. If the scale was already tared before connecting, place the cup after connection so it can be detected. |
 | **Avoid accidental touch** | On | Rejects brief implausible bumps from weight-stop decisions, including fast and slow shot handling. A light tap and a heavy hand on the cup are treated the same way: weight stops wait while the touch lasts, and a load that stays above the cut line can end the shot only through the [touch backup](brew-by-weight.md#when-touch-protection-delays-a-stop). Shared by every preset; also on Home under **How shots stop → Protections**. |
 | **Earliest weight stop (s)** | 12 s | Blocks automatic weight stop at the beginning; first drops do not end the window. Maximum 30 s; minimum is enabled retare window + 3 s (3 s when retare is off). Must fit within Max shot time. |

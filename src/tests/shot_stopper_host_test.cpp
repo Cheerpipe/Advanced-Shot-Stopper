@@ -8512,6 +8512,38 @@ void cp20_weight_at_present_threshold_starts_brew() {
   CHECK(session.active);
 }
 
+void cp22_zeroed_cup_lift_stops_without_placement() {
+  // The cup was tared before the scale connected, so the controller never
+  // saw it placed; after the shot-start zero, lifting it is still a removal.
+  for (bool protect : {true, false}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.cupProtectionEnabled = protect;
+    idleCup(0.0f);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    startCycle();
+    advanceToBrew();
+    publishWeight(-250.0f, hostMillis + 100, 1, 70);
+    publishWeight(-250.0f, hostMillis + 100, 1, 71);
+    runLoopAfter(1);
+    CHECK(session.endReason == (protect ? EndReason::CUP_REMOVED : EndReason::NONE));
+  }
+}
+
+void cp23_empty_pan_noise_never_removes() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  idleCup(0.0f);
+  startCycle();
+  advanceToBrew();
+  for (uint32_t i = 0; i < 20; ++i) {
+    publishWeight((i & 1) ? -1.0f : -0.4f, hostMillis + 100, 1, 70 + i);
+    runLoopAfter(1);
+  }
+  CHECK(session.active);
+  CHECK(session.endReason == EndReason::NONE);
+}
+
 void cp21_custom_present_threshold_is_honored() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -20757,6 +20789,8 @@ const TestCase testCases[] = {
     {"CP19", cp19_weight_below_present_threshold_blocks_brew},
     {"CP20", cp20_weight_at_present_threshold_starts_brew},
     {"CP21", cp21_custom_present_threshold_is_honored},
+    {"CP22", cp22_zeroed_cup_lift_stops_without_placement},
+    {"CP23", cp23_empty_pan_noise_never_removes},
     {"CF01", cup_fsm_boot_zero_is_absent},
     {"CF02", cup_fsm_stable_min_cup_is_present},
     {"CF03", cup_fsm_noise_does_not_remove},
