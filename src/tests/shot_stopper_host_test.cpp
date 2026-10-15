@@ -16627,11 +16627,12 @@ void h04_loop_phase_profiler_publishes_window_and_session_totals() {
             .averageExecutionUs == 0U);
   profiler.captureIntervalGap(1500U, 900U, 150U);
   profiler.publishIntervalGap(2U);
-  profiler.beginIteration(true, 1002000U);
+  profiler.beginIteration(true, 1002000U, 1002U);
   profiler.record(LoopPhase::DIAGNOSTICS, 10U, 2002000U);
   profiler.capturePeakGap(1U, 1000U, 900U, 80U);
   profiler.record(LoopPhase::DIAGNOSTICS, 10U, 3002000U);
   profiler.copySnapshot(snap);
+  CHECK(snap.peakGapAtMs == 1002U);  // The gap opened at that iteration's start.
   CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS_COMMIT)]
             .recentGapExecutionUs == 8U);
   CHECK(snap.rows[static_cast<uint8_t>(LoopPhase::HOUSEKEEPING_STATUS_GATHER)]
@@ -16649,7 +16650,7 @@ void h05_loop_phase_profiler_pairs_cpu_with_wall_maxima() {
   LoopPhaseProfiler profiler;
   LoopPhaseProfilerSnapshot snap;
   // Default cpuUs equals the wall duration (callers without a counter read).
-  profiler.beginIteration(true, 1000U);
+  profiler.beginIteration(true, 1000U, 5U);
   profiler.record(LoopPhase::INPUT_SCALE_EVENTS, 500U, 1500U);
   profiler.record(LoopPhase::INPUT_SCALE_EVENTS, 300U, 1800U);
   // Cross the 1 s window so the snapshot actually publishes.
@@ -16659,14 +16660,18 @@ void h05_loop_phase_profiler_pairs_cpu_with_wall_maxima() {
       snap.rows[static_cast<uint8_t>(LoopPhase::INPUT_SCALE_EVENTS)];
   CHECK(scaleEvents.maxExecutionUs == 500U);
   CHECK(scaleEvents.maxCpuUs == 500U);
+  CHECK(scaleEvents.maxAtMs == 5U);
   // A larger wall sample with a SMALLER cpu share replaces the pair: the
-  // stored cpu time belongs to the iteration that set the maximum.
+  // stored cpu time and iteration uptime belong to the iteration that set
+  // the maximum.
+  profiler.beginIteration(true, 2000U, 9U);
   profiler.record(LoopPhase::INPUT_SCALE_EVENTS, 900U, 2200U, 120U);
   profiler.record(LoopPhase::INPUT_SCALE_EVENTS, 400U, 2600U, 390U);
   profiler.record(LoopPhase::DIAGNOSTICS, 0U, 2001000U);
   profiler.copySnapshot(snap);
   CHECK(scaleEvents.maxExecutionUs == 900U);
   CHECK(scaleEvents.maxCpuUs == 120U);
+  CHECK(scaleEvents.maxAtMs == 9U);
   // The kernel folds own-CPU at switch-out: a fold that lands in this phase
   // can exceed its wall time, and the stored pair must clamp to the wall so
   // wall - cpu never goes negative.
@@ -16683,6 +16688,7 @@ void h05_loop_phase_profiler_pairs_cpu_with_wall_maxima() {
   profiler.copySnapshot(snap);
   CHECK(scaleEvents.maxExecutionUs == 0U);
   CHECK(scaleEvents.maxCpuUs == 0U);
+  CHECK(scaleEvents.maxAtMs == 0U);
 }
 
 void h06_loop_phase_input_subphases_report_individually() {

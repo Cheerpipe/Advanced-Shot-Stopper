@@ -714,7 +714,8 @@ void loop() {
     }
   }
   lastLoopAtMs = loopStartedAtMs;
-  loopPhaseProfiler.beginIteration(profileLoopPhases, loopStartedAtUs);
+  loopPhaseProfiler.beginIteration(profileLoopPhases, loopStartedAtUs,
+                                   loopStartedAtMs);
   // Relay and paddle control never wait for BLE. The worker owns every scale,
   // heartbeat, packet, timer and connection operation. Restart before heap
   // walks: a failed Wi-Fi stop can leave TLSF unwalkable.

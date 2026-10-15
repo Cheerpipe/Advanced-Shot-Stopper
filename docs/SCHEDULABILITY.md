@@ -155,7 +155,12 @@ the loop task's own CPU time and the loop core's idle-task time inside the
 gap, and the alert adds `flash=1` when the application flash I/O lock was held
 during it. Loop CPU near the gap means the loop itself ran; idle near the gap
 means the loop was blocked or sleeping; neither means another task on that
-core, or a stalled core, held it. Housekeeping has ten separate, non-overlapping
+core, or a stalled core, held it. Because both the peak gap and each phase's
+maximum are retained until reset, the export also stamps them with the uptime
+at which they were recorded (`peakGapAtMs` for the loop start that opened the
+peak gap; `maxAtMs` per phase row for the start of the iteration that set its
+maximum), so a peak seen hours later can be matched against the log ring and
+audit timestamps. Housekeeping has ten separate, non-overlapping
 rows: serial log, serial CLI, settings persistence, history persistence, scale
 identity persistence, weight telemetry, and LED service, plus the status
 publication's three contiguous sub-phases — owner snapshot gather, store

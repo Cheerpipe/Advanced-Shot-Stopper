@@ -894,7 +894,7 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
           "\"truncated\":%s,"
           "\"peakGapMs\":%lu,\"recentGapMs\":%lu,"
           "\"peakGapUs\":%lu,\"recentGapUs\":%lu,"
-          "\"peakGapCpuUs\":%lu,\"peakGapIdleUs\":%lu,"
+          "\"peakGapCpuUs\":%lu,\"peakGapIdleUs\":%lu,\"peakGapAtMs\":%lu,"
           "\"peakDelayUs\":%lu,\"recentDelayUs\":%lu,"
           "\"peakDispatchUs\":%lu,\"recentDispatchUs\":%lu",
           taskProfilerStateName(tasks.state),
@@ -910,6 +910,7 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
           static_cast<unsigned long>(tasks.loopPhases.recentGapUs),
           static_cast<unsigned long>(tasks.loopPhases.peakGapCpuUs),
           static_cast<unsigned long>(tasks.loopPhases.peakGapIdleUs),
+          static_cast<unsigned long>(tasks.loopPhases.peakGapAtMs),
           static_cast<unsigned long>(tasks.loopPhases.peakDelayUs),
           static_cast<unsigned long>(tasks.loopPhases.recentDelayUs),
           static_cast<unsigned long>(tasks.loopPhases.peakDispatchUs),
@@ -971,10 +972,11 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
     }
     if (full && !jsonScratchAppend(buf, cap, used,
             ",\"averageExecutionUs\":%lu,\"maxExecutionUs\":%lu,\"maxCpuUs\":%lu,"
-            "\"lastExecutionUs\":%lu",
+            "\"maxAtMs\":%lu,\"lastExecutionUs\":%lu",
             static_cast<unsigned long>(row.averageExecutionUs),
             static_cast<unsigned long>(row.maxExecutionUs),
             static_cast<unsigned long>(row.maxCpuUs),
+            static_cast<unsigned long>(row.maxAtMs),
             static_cast<unsigned long>(row.lastExecutionUs))) return false;
     if (!jsonScratchAppend(buf, cap, used, "}")) return false;
   }
@@ -996,10 +998,11 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
     }
     if (full && !jsonScratchAppend(buf, cap, used,
             ",\"averageExecutionUs\":%lu,\"maxExecutionUs\":%lu,\"maxCpuUs\":%lu,"
-            "\"lastExecutionUs\":%lu",
+            "\"maxAtMs\":%lu,\"lastExecutionUs\":%lu",
             static_cast<unsigned long>(row.averageExecutionUs),
             static_cast<unsigned long>(row.maxExecutionUs),
             static_cast<unsigned long>(row.maxCpuUs),
+            static_cast<unsigned long>(row.maxAtMs),
             static_cast<unsigned long>(row.lastExecutionUs))) return false;
     if (!jsonScratchAppend(buf, cap, used, "}")) return false;
   }

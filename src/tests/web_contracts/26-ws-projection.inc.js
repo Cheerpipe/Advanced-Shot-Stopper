@@ -37,7 +37,7 @@ ${body(read('network/ShotStopperHomeStream.inc'), 'size_t ShotStopperNetwork::fo
 int main(){
   TaskProfilerSnapshot tasks;
   tasks.rowCount=1;strcpy(tasks.rows[0].name,"worker");tasks.rows[0].stackMinBytes=1024;
-  tasks.loopPhases.rowCount=LOOP_PHASE_COUNT;
+  tasks.loopPhases.rowCount=LOOP_PHASE_COUNT;tasks.loopPhases.peakGapAtMs=4242;
   for(auto &row:tasks.loopPhases.rows){row.name="test";row.sampleCount=5;row.recentGapExecutionUs=12;}
   tasks.scaleWorkerPhases.rowCount=SCALE_WORKER_PHASE_COUNT;
   for(auto &row:tasks.scaleWorkerPhases.rows){row.name="sec";row.sampleCount=9;}
@@ -50,12 +50,13 @@ int main(){
   tasks.scaleEventsWaitLastUs=33;tasks.scaleEventsWaitMaxUs=44;
   tasks.shotStoreWaitLastUs=55;tasks.shotStoreWaitMaxUs=66;
   tasks.controlStatusWaitLastUs=77;tasks.controlStatusWaitMaxUs=88;
-  for(auto &row:tasks.loopPhases.rows)row.maxCpuUs=7;
+  for(auto &row:tasks.loopPhases.rows){row.maxCpuUs=7;row.maxAtMs=8;}
   for(auto &row:tasks.loopPhases.rows){row.averageExecutionUs=100;row.maxExecutionUs=1000;row.lastExecutionUs=500;}
   for(auto &row:tasks.scaleWorkerPhases.rows){row.averageExecutionUs=60;row.maxExecutionUs=700;row.lastExecutionUs=30;}
   assert(format(false)==live && format(true)!=full);
   const auto detailed=format(true);
-  assert(detailed.find("\\\"maxCpuUs\\\":7")!=std::string::npos);
+  assert(detailed.find("\\\"maxCpuUs\\\":7,\\\"maxAtMs\\\":8")!=std::string::npos);
+  assert(live.find("\\\"peakGapAtMs\\\":4242")!=std::string::npos);
   assert(detailed.find("\\\"lockWaits\\\":{\\\"micraBackflush\\\":{\\\"lastUs\\\":11,"
                       "\\\"maxUs\\\":22},\\\"scaleEvents\\\":{\\\"lastUs\\\":33,"
                       "\\\"maxUs\\\":44},\\\"shotStore\\\":{\\\"lastUs\\\":55,"

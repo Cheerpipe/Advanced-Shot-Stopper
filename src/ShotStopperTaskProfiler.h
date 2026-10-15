@@ -141,6 +141,9 @@ struct LoopPhaseProfilerRow {
   // Own-CPU time of the very iteration that set maxExecutionUs, so
   // preemption at the maximum is derivable by subtraction.
   uint32_t maxCpuUs = 0;
+  // Uptime (ms) at the start of the iteration that set maxExecutionUs, so a
+  // retained peak can be matched against log timestamps.
+  uint32_t maxAtMs = 0;
   uint32_t lastExecutionUs = 0;
   uint32_t peakGapExecutionUs = 0;
   uint32_t recentGapExecutionUs = 0;
@@ -158,6 +161,7 @@ struct PhaseProfilerSnapshot {
   // Loop-task CPU and loop-core idle time inside the peak gap.
   uint32_t peakGapCpuUs = 0;
   uint32_t peakGapIdleUs = 0;
+  uint32_t peakGapAtMs = 0;  // Uptime at the loop start that opened the peak gap.
   uint32_t peakDelayUs = 0;
   uint32_t recentDelayUs = 0;
   uint32_t peakDispatchUs = 0;
@@ -172,8 +176,9 @@ class PhaseProfiler {
  public:
   explicit PhaseProfiler(const char *(*nameFor)(uint8_t) = loopPhaseNameFor)
       : nameFor_(nameFor) {}
-  void beginIteration(bool enabled, uint32_t nowUs) {
+  void beginIteration(bool enabled, uint32_t nowUs, uint32_t nowMs = 0) {
     memset(iterationUs_, 0, sizeof(iterationUs_));
+    iterationAtMs_ = nowMs;
     if (enabled && !active_) {
       reset_(nowUs);
     } else if (!enabled && active_) {
@@ -203,6 +208,7 @@ class PhaseProfiler {
       // from earlier phases (cpuUs > wall); clamp so wall − cpu stays a
       // conservative lower bound of preemption.
       maxCpuUs_[index] = cpuUs > durationUs ? durationUs : cpuUs;
+      maxAtMs_[index] = iterationAtMs_;
     }
     if (active_) {
       totalsUs_[index] += durationUs;
@@ -220,21 +226,23 @@ class PhaseProfiler {
     if (!resetRequested_.exchange(false, std::memory_order_acq_rel)) return false;
     memset(maxUs_, 0, sizeof(maxUs_));
     memset(maxCpuUs_, 0, sizeof(maxCpuUs_));
+    memset(maxAtMs_, 0, sizeof(maxAtMs_));
     memset(peakGapUs_, 0, sizeof(peakGapUs_));
     peakGapMs_ = 0;
     peakGapDurationUs_ = 0;
-    peakGapCpuUs_ = peakGapIdleUs_ = 0;
+    peakGapCpuUs_ = peakGapIdleUs_ = peakGapAtMs_ = 0;
     peakDelayUs_ = 0;
     peakDispatchUs_ = 0;
     TaskLockGuard lock(snapshotMutex_);
     snapshot_.peakGapMs = 0;
     snapshot_.peakGapUs = 0;
-    snapshot_.peakGapCpuUs = snapshot_.peakGapIdleUs = 0;
+    snapshot_.peakGapCpuUs = snapshot_.peakGapIdleUs = snapshot_.peakGapAtMs = 0;
     snapshot_.peakDelayUs = 0;
     snapshot_.peakDispatchUs = 0;
     for (LoopPhaseProfilerRow &row : snapshot_.rows) {
       row.maxExecutionUs = 0;
       row.maxCpuUs = 0;
+      row.maxAtMs = 0;
       row.peakGapExecutionUs = 0;
     }
     return true;
@@ -248,6 +256,7 @@ class PhaseProfiler {
     peakGapDurationUs_ = gapUs;
     peakGapCpuUs_ = cpuUs;
     peakGapIdleUs_ = idleUs;
+    peakGapAtMs_ = iterationAtMs_;  // The gap opened at the previous iteration's start.
     peakDelayUs_ = delayUs;
     peakDispatchUs_ = dispatchUs;
   }
@@ -304,6 +313,7 @@ class PhaseProfiler {
     next.peakGapUs = peakGapDurationUs_;
     next.peakGapCpuUs = peakGapCpuUs_;
     next.peakGapIdleUs = peakGapIdleUs_;
+    next.peakGapAtMs = peakGapAtMs_;
     next.recentGapUs = recentGapDurationUs_;
     next.peakDelayUs = peakDelayUs_;
     next.recentDelayUs = recentDelayUs_;
@@ -317,6 +327,7 @@ class PhaseProfiler {
       row.recentGapExecutionUs = recentGapUs_[i];
       row.maxExecutionUs = maxUs_[i];
       row.maxCpuUs = maxCpuUs_[i];
+      row.maxAtMs = maxAtMs_[i];
       if (!active_) continue;
       row.sampleCount = sampleCounts_[i];
       row.averageExecutionUs = sampleCounts_[i] == 0
@@ -346,6 +357,9 @@ class PhaseProfiler {
   uint32_t sampleCounts_[PHASE_COUNT] = {};
   uint32_t maxUs_[PHASE_COUNT] = {};
   uint32_t maxCpuUs_[PHASE_COUNT] = {};
+  uint32_t maxAtMs_[PHASE_COUNT] = {};
+  uint32_t iterationAtMs_ = 0;
+  uint32_t peakGapAtMs_ = 0;
   uint32_t lastUs_[PHASE_COUNT] = {};
   uint32_t iterationUs_[PHASE_COUNT] = {};
   uint32_t peakGapUs_[PHASE_COUNT] = {};

@@ -2710,7 +2710,8 @@ void scaleWorkerTask(void *) {
     }
     sectionsEnabledPreviously = sectionsEnabled;
     (void)scaleWorkerPhaseProfiler.consumeReset();
-    scaleWorkerPhaseProfiler.beginIteration(sectionsEnabled, executionStartedUs);
+    scaleWorkerPhaseProfiler.beginIteration(sectionsEnabled, executionStartedUs,
+                                            millis());
     scaleSectionStartedAtUs = executionStartedUs;
 #if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
     scaleSectionCpuStartedUs = scaleWorkerTaskCpuUs();
