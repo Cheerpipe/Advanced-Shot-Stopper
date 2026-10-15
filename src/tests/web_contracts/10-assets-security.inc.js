@@ -143,10 +143,10 @@ for (const field of settingsHtml.matchAll(
 }
 for (const [id, names] of Object.entries({
   paddleMode: ['Natural:', 'Original:', 'Auto:'],
-  momentaryStartEdge: ['Button press:', 'Button release:'],
-  noScaleBbwMode: ['Allow manual brewing:', 'Warn once, then allow:', 'Require a scale:'],
-  scalePreference: ['First available:', 'Prefer selected:', 'Preferred only:'],
-  alertOutputChannel: ['Scale priority:', 'Buzzer only:', 'Scale only:'],
+  momentaryStartEdge: ['Pressed:', 'Released:'],
+  noScaleBbwMode: ['Brew manually:', 'Warn once, then allow:', 'Require a scale:'],
+  scalePreference: ['Any scale:', 'My scale first:', 'Only my scale:'],
+  alertOutputChannel: ['Scale first:', 'Buzzer only:', 'Scale only:'],
 })) {
   const start = settingsHtml.indexOf(`id="${id}"`);
   const help = settingsHtml.slice(start, settingsHtml.indexOf('</label>', start));
@@ -896,8 +896,8 @@ if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'buzzerSlowExtendedPulseRate') ||
     !html.includes('id="buzzerExtendedPulseRate"') ||
     !html.includes('id="buzzerSlowExtendedPulseRate"') ||
-    !html.includes('class="buzzerOpt scaleIncapableOpt">Fast-shot pulse<select id="buzzerExtendedPulseRate"') ||
-    !html.includes('class="buzzerOpt scaleIncapableOpt">Slow-shot pulse<select id="buzzerSlowExtendedPulseRate"') ||
+    !html.includes('class="buzzerOpt scaleIncapableOpt">Fast-shot beeps<select id="buzzerExtendedPulseRate"') ||
+    !html.includes('class="buzzerOpt scaleIncapableOpt">Slow-shot beeps<select id="buzzerSlowExtendedPulseRate"') ||
     !css.includes('color-scheme:light dark') ||
     !css.includes('html,input,select,textarea{color-scheme:dark}') ||
     !css.includes('--in:#fafafa') ||
@@ -912,7 +912,7 @@ if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     html.includes('id="ntpServerCustom" type="number"') ||
     !html.includes('id="staSsid" type="text" maxlength="32" autocomplete="off"') ||
     !html.includes('id="ntpServerCustom" type="text" maxlength="63" placeholder="e.g. ntp.example.com" autocomplete="off"') ||
-    !html.includes('> Scale lost<small class="fieldHint">When on, the built-in buzzer warns whenever the scale disconnects') ||
+    !html.includes('> Scale lost<small class="fieldHint">Warns when the scale disconnects') ||
     html.includes('Scale lost (BBW)') ||
     !html.includes('option value="fast" selected') ||
     !html.includes('option value="rapid">Rapid') ||
@@ -922,7 +922,7 @@ if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     codeIncludes(ui, 'querySelectorAll(\'.scaleIncapableOpt\').forEach(e=>{e.classList.toggle(\'fieldOff\',scaleOnly);e.querySelectorAll(\'input\').forEach') ||
     !codeIncludes(ui, 'alertOutputChannel') ||
     !codeIncludes(ui, 'buzzerSupported') ||
-    !codeIncludes(ui, 'Output channel') ||
+    !codeIncludes(ui, 'Play alerts on') ||
     !codeIncludes(ui, 'scale_priority') ||
     !codeIncludes(ui, 'Buzzer only') ||
     !codeIncludes(ui, 'class="fieldHint"') ||
@@ -931,14 +931,14 @@ if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !html.includes('id="bookooMuteOnBuzzerOnly" type="checkbox" checked') ||
     !html.includes('id="buzzerScaleConnectedBeep" type="checkbox" checked') ||
     !html.includes('id="scaleConnectedLed" type="checkbox" checked') ||
-    !html.includes('Blue LED while scale connected') ||
+    !html.includes('Blue light while connected') ||
     !html.includes('</div><label><input id="scaleConnectedLed"') ||
     !html.includes('class="buzzerOpt scaleIncapableOpt"><input id="buzzerScaleConnectedBeep"') ||
     html.includes('buzzerOnlyOpt') ||
     !html.includes('option value="4" selected') ||
-    !html.includes('silences the Bookoo speaker on its first connection') ||
-    !html.includes('Sets the Bookoo speaker volume when alerts use the scale. Disabled silences the scale but does not change the built-in buzzer (<strong>Scale only or Scale priority</strong>).') ||
-    !html.includes('<strong>Requires shot-start tare.</strong>') ||
+    !html.includes('Keeps the Bookoo silent so alerts play on the buzzer') ||
+    !html.includes('Alert volume on the Bookoo speaker (<strong>Scale first or Scale only</strong>).') ||
+    !html.includes('<strong>Needs tare at shot start.</strong>') ||
     !html.includes('Applies when <strong>Buzzer only</strong> is selected.')) {
   throw new Error('Web UI must show paddle state, scale beep options, and buzzer alerts');
 }
@@ -1128,7 +1128,7 @@ if (html.indexOf('<summary>Tare</summary>') >
     html.includes('id="requireCupToStart" type="checkbox" checked') ||
     !codeIncludes(ui, 'id="cupProtectionEnabled" type="checkbox" checked> Cup protection') ||
     !codeIncludes(ui, 'cupProtectOpt') ||
-    !codeIncludes(ui, 'If the cup was already tared before connection, lift it and place it again.') ||
+    !codeIncludes(ui, 'Already on? Lift and replace it.') ||
     !codeIncludes(ui, 'id="homeCupProtectionEnabled"') ||
     html.indexOf('id="homeAvoidAccidentalTouchEnabled"') >
         html.indexOf('id="homeCupProtectionEnabled"') ||

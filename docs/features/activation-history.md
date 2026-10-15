@@ -30,7 +30,7 @@ offset when the activation ends, as well as its duration and type:
 - **Power ON** — a paddle gesture recognized as a Linea Micra standby wake.
   It records how long the paddle kept the wake circuit active but never counts
   as a shot in Stats.
-- **No scale guard aborted** — a paddle attempt that No-scale BBW protection
+- **Blocked: no scale** — a paddle attempt that No-scale BBW protection
   prevented from starting. It records how long the attempt lasted, including
   repeated attempts in Require a scale mode, and never counts as a shot.
 
@@ -65,13 +65,13 @@ the rest of the week, "2 weeks ago" for older weeks, and a short date like
 The activation type sits below as a small label. Shots carry a coffee-cup
 icon on the left of the card. Rinses carry a droplet, and other
 activations carry a lightning bolt, Power ON entries use the power symbol,
-and No scale guard aborted entries show an X. When the clock
+and Blocked: no scale entries show an X. When the clock
 was not synced when the entry was recorded, the card shows "no time"
 instead of a date.
 
 Narrow the diary to what you care about with the Filter control next to the
 sort order. It opens a checklist of activation types — Shot, Rinse, Backflush,
-Power ON, Other, and No scale guard aborted — and you can tick as many as you
+Power ON, Other, and Blocked: no scale — and you can tick as many as you
 like. With nothing ticked the diary shows everything; ticking one or more
 types shows only those, and the list updates as you tick. While a filter is
 active the Filter button shows a count badge and stays highlighted, so the

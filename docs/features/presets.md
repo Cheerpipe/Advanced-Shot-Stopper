@@ -16,9 +16,9 @@ cuts** draws the preset's cut line, and the editor groups its settings:
 | Group | Settings |
 | --- | --- |
 | **Recipe** | Brew by weight, Dose (g), Target yield (g), Brew temperature (°C, Linea Micra only), Shot time window (s), Grind hints |
-| **Fast shots** | Run fast shots longer, Extra yield, up to (g) |
-| **Slow shots** | Stop slow shots sooner, Less yield, up to (g) |
-| **Shot limits** | Earliest weight stop (s), Max shot time (s), If the scale drops, stop at (s) |
+| **Fast shots** | Extend fast shots, Extend by up to (g) |
+| **Slow shots** | Shorten slow shots, Shorten by up to (g) |
+| **Time limits** | Earliest weight stop (s), Max shot time (s), Backup stop time (s) |
 | **Drip compensation** | Learned drip, Starting drip, Reset drip learning, Learning speed, Starting learning speed, Reset drip and learning speed |
 
 Select **Save preset** to keep your edits; the line beside it reads
@@ -34,7 +34,7 @@ the same cut line over the shot, the colored fast, on-recipe and slow zones,
 and the opening seconds where weight never stops the shot. It is a picture
 only; to try shot timings on it, use **How this preset cuts** in Settings.
 Tapping another row applies that recipe
-when **Stop the shot** is set to **By weight**; in Manual the list says so and
+when **How shots stop** is set to **By weight**; in Manual the list says so and
 keeps the active recipe. These rows show the recipe's own values; learned
 drip compensation and time limits still apply.
 
@@ -114,7 +114,7 @@ preset survives reboot.
 | --- | --- |
 | Preset (**Settings → Presets**) | Brew by weight, dose, target yield, shot time window, grind hints, fast and slow shot options and amounts, earliest weight stop, max shot time, the optional scale-loss stop time, starting drip and learning speed, learned drip, learning speed and its provenance, and the preset's shot statistics; Linea Micra builds also retain a brew-boiler target |
 | **Shared settings** | Linea Micra, paddle or switch behavior, quick rinse, scales, tare, cup detection, cup protection (including avoid accidental touch and stop after sustained weight), No-scale BBW, the scale-loss backup switch, alerts; Bluetooth and network settings are in Admin |
-| Home **Stop the shot** | **By weight \| Manual** is saved on the controller, so it survives a restart, and Manual stays on when you pick another preset. It never changes the preset's own Brew by weight setting; choosing **By weight** brings that back. |
+| Home **How shots stop** | **By weight \| Manual** is saved on the controller, so it survives a restart, and Manual stays on when you pick another preset. It never changes the preset's own Brew by weight setting; choosing **By weight** brings that back. |
 | Home **Protections** / Home Assistant | **Extend fast shots** and **Shorten slow shots** (listed under **This preset**) are saved in the active preset only. **No-scale BBW**, **Scale-loss backup**, **Avoid accidental touch** and **Cup protection** (under **All presets**) change the shared setting for every preset. |
 
 To make an intentional recipe change permanent, edit and save it in Settings;
@@ -134,7 +134,7 @@ The Linea Micra brew target accepts 80.0–100.0 °C in 0.1 °C steps and defaul
 to 93.0 °C for new and factory-reset recipes. Duplicating a preset copies this value;
 disabling the option or disconnecting the Micra account does not erase it. See
 [Linea Micra settings](../settings/linea-micra.md).
-With a connected Micra account and **Store brew boiler temperature in presets**
+With a connected Micra account and **Set brew temperature per preset**
 enabled, a persisted active-preset change applies that value through the cloud.
 A scale connection reapplies the active value. Shot or scale-connection activity
 defers the request, rapid changes keep only the newest target, and success is
@@ -147,8 +147,8 @@ reported only after the Micra dashboard confirms the same temperature.
 | Dose | 18 g | 9 g | 18 g | 9 g |
 | Target yield | 36 g | 18 g | 36 g | 18 g |
 | Shot time window | 27–36 s | 23–32 s | 27–36 s | 23–32 s |
-| Run fast shots longer: extra yield, up to | 6 g (42 g) | 4 g (22 g) | off (6 g saved) | off (4 g saved) |
-| Stop slow shots sooner: less yield, up to | 3 g (33 g) | 1.5 g (16.5 g) | off (3 g saved) | off (1.5 g saved) |
+| Extend fast shots: extend by up to | 6 g (42 g) | 4 g (22 g) | off (6 g saved) | off (4 g saved) |
+| Shorten slow shots: shorten by up to | 3 g (33 g) | 1.5 g (16.5 g) | off (3 g saved) | off (1.5 g saved) |
 | Starting drip | 1.5 g | 0.5 g | 1.5 g | 0.5 g |
 
 All four start with brew by weight and grind hints on, Max shot time 50 s,

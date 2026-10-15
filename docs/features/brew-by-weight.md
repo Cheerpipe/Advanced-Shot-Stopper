@@ -43,7 +43,7 @@ Defaults below describe factory Double; see [Presets](presets.md) for Single.
 These are saved with each preset under **Settings → Presets**, except where
 noted. While you edit, values that conflict with another field are flagged
 in yellow right away — the same message Save would show — so you can fix
-them before saving. **Home → Stop the shot** switches between **By weight** and
+them before saving. **Home → How shots stop** switches between **By weight** and
 **Manual** without changing the preset. The choice is saved on the controller,
 and Manual stays on when you pick another preset until you choose By weight
 again.
@@ -54,9 +54,9 @@ again.
 | **Dose (g)** | Recipe | 18 g | 5–30 g in 0.1 g steps | Coffee in the basket. Shows your ratio; does not change the cut. |
 | **Target yield (g)** | Recipe | 36 g | 10–200 g in 0.1 g steps | Drink weight in the cup, drips included. The stop aims at `cut line − learned drip`. |
 | **Shot time window (s)** | Recipe | 27–36 s | See [Fast and slow shots](fast-and-slow-shots.md#settings) | Reaching the target inside the window is On recipe. |
-| **Earliest weight stop (s)** | Shot limits | 12 s | 0.5–30 s; see [Cup protection](cup-protection.md) | The scale cannot stop the shot before this, so tare and first drops cannot trigger it. |
-| **Max shot time (s)** | Shot limits | 50 s | 5–60 s | The shot always stops here, target reached or not. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
-| **If the scale drops, stop at (s)** | Shot limits | empty | Earliest weight stop to Max shot time | Leave empty to use your recent shots, or the middle of your window until there are enough. See [scale-loss backup](auto-to-manual.md). |
+| **Earliest weight stop (s)** | Time limits | 12 s | 0.5–30 s; see [Cup protection](cup-protection.md) | The scale cannot stop the shot before this, so tare and first drops cannot trigger it. |
+| **Max shot time (s)** | Time limits | 50 s | 5–60 s | The shot always stops here, target reached or not. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
+| **Backup stop time (s)** | Time limits | empty | Earliest weight stop to Max shot time | Leave empty to use your recent shots, or the middle of your window until there are enough. See [scale-loss backup](auto-to-manual.md). |
 | **Learned drip (g)** | Drip compensation | starts at 1.5 g | 0–5 g, read-only | Subtracted from the cut line. Updated from eligible weight-stopped shots after the drip delay. |
 | **Starting drip (g)** | Drip compensation | 1.5 g | 0–5 g | The drip restored by **Reset drip learning**. Save it before resetting. |
 | **Learning speed** | Drip compensation | 0.30 initially | Read-only | How strongly each shot moves the learned drip, with whether it is still the starting value or learned, and its collecting/evaluating status. |

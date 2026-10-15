@@ -27,7 +27,7 @@ drops again later, a new backup time is chosen from what is known then.
 
 ShotStopper uses the first of these that applies:
 
-1. **Fixed time.** If the preset has a time in **If the scale drops, stop at
+1. **Fixed time.** If the preset has a time in **Backup stop time
    (s)**, the shot stops at that time.
 2. **The shot was about to stop.** If the shot had already reached its cut
    line, it stops right away.
@@ -47,8 +47,8 @@ before the first drops of coffee uses your recent shots or your window.
 
 | Setting | Default | Range / notes | Effect on the shot |
 | --- | --- | --- | --- |
-| **Finish by time if the scale drops** (**Settings → Shared settings → Scale-loss backup**) | ON | ON / OFF, shared by every preset; also **Home → Stop the shot → Protections → Scale-loss backup**, which asks before turning it off | OFF: if the scale never returns, the shot runs until paddle OFF or the machine circuit / max shot time. |
-| **If the scale drops, stop at (s)** (**Settings → Presets → Shot limits**) | empty | Empty, or Earliest weight stop … Max shot time, per preset | Empty picks the backup time as described above. A time always stops the shot then. |
+| **Finish by time if the scale drops** (**Settings → Shared settings → Finish by time**) | ON | ON / OFF, shared by every preset; also **Home → How shots stop → Protections → Scale-loss backup**, which asks before turning it off | OFF: if the scale never returns, the shot runs until paddle OFF or the machine circuit / max shot time. |
+| **Backup stop time (s)** (**Settings → Presets → Time limits**) | empty | Empty, or Earliest weight stop … Max shot time, per preset | Empty picks the backup time as described above. A time always stops the shot then. |
 
 While brewing by weight, its row under **Protections** shows when the next shot would
 stop if the scale dropped before the coffee starts flowing, for example
@@ -80,4 +80,4 @@ is cancelled. If the scale is lost at 29 s while the coffee is flowing toward
 the target, the shot stops when the flow says it would have reached it.
 
 Related: [Brew by weight](brew-by-weight.md), [Presets](presets.md),
-[Alerts](../alerts.md) (Scale-loss backup ended a shot).
+[Alerts](../alerts.md) (Shot finished by backup time).

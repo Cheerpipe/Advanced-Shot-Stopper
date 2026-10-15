@@ -10,7 +10,7 @@ covers the normal path.
 
 Check, in order:
 
-1. **Stop the shot** on Home is set to **By weight**, not **Manual**.
+1. **How shots stop** on Home is set to **By weight**, not **Manual**.
 2. Home shows fresh usable scale readings.
 3. The [Earliest weight stop](features/cup-protection.md) time has passed.
 4. A [fast shot](features/fast-and-slow-shots.md#fast-shots) is not deliberately running longer.
@@ -27,8 +27,8 @@ last shot card) before changing calibration.
 
 | Result | Likely check |
 | --- | --- |
-| Above target, **Fast** / **EXTENDED** | [Run fast shots longer](features/fast-and-slow-shots.md#fast-shots) raised the cut line, up to the preset's extra yield. |
-| Below target, **Slow** / **STOPPED EARLY** | [Stop slow shots sooner](features/fast-and-slow-shots.md#slow-shots) lowered the cut line, down to the preset's reduced yield. |
+| Above target, **Fast** / **EXTENDED** | [Extend fast shots](features/fast-and-slow-shots.md#fast-shots) raised the cut line, up to the preset's extra yield. |
+| Below target, **Slow** / **STOPPED EARLY** | [Shorten slow shots](features/fast-and-slow-shots.md#slow-shots) lowered the cut line, down to the preset's reduced yield. |
 | **CHANNELING** | A flow surge kept the cut line at the target. |
 | **MAX TIME**, around 50 s on factory Double | Max shot time, well after the 34 s window end. |
 | After scale loss (**NO SCALE**) | The [scale-loss backup](features/auto-to-manual.md) time is measured from shot start, not disconnect. |
@@ -126,7 +126,7 @@ much more. Compare the procedures before choosing one.
 
 ### Automatic tare does not happen after switching on
 
-Check **Home → Cup → Automatic tare** and the scale status. With a positive
+Check **Home → Cup → Cup tare** and the scale status. With a positive
 weight already present at startup, remove the cup, let the empty pan settle,
 and replace it. If the Bookoo zeroed a load already on its pan, wait for the
 initial zero to settle, remove it, let the negative empty reading settle, then

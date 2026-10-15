@@ -9,12 +9,12 @@ and local settings remain accessible.
 
 Which Bluetooth scale to use, how long to wait after a shot for drip, and
 Bookoo-specific volume / combined tare. Machine-level, under
-**Settings → Shared settings → Scales**.
+**Settings → Shared settings → Scale**.
 
-Choose a **Preferred scale**, then press **Save shared settings** to apply it
+Choose a **My scale**, then press **Save shared settings** to apply it
 together with the other machine and scale settings. Until you save, the
 controller keeps using the saved preference. The arrow beside Save discards
-unsaved changes. **Clear preferred** and **(rename)** are separate actions
+unsaved changes. **Forget scale** and **(rename)** are separate actions
 that take effect when confirmed.
 
 Daily defaults assume a **Bookoo** Themis Mini or Ultra. **Acaia**,
@@ -37,7 +37,7 @@ a physical start, and implausible or stale readings suspend weight control.
 Scales broadcast names such as `BOOKOO_SC 715097`; you may still want to
 distinguish two scales of the same model. Next
 to the preferred scale on **Home**, on **Diagnostic → Connected scale**, and beside
-**Preferred scale** in **Settings → Scales** — where the link follows the
+**My scale** in **Settings → Scale** — where the link follows the
 scale chosen in the dropdown, so you can rename any remembered scale, not
 just the one that is connected — choose **(rename)** to give that scale your
 own name, for example `Espresso corner scale`. Your name replaces the
@@ -77,7 +77,7 @@ counts pauses longer than 250 ms between consecutive readings while the scale
 is connected and ready for weight control. The count lasts until the controller
 restarts; it does not count individual missing packets or time disconnected.
 
-**Max scale gap** shows the longest of those pauses in milliseconds since
+**Longest gap** shows the longest of those pauses in milliseconds since
 startup or its last reset. Select **(Reset)** beside it to begin a new maximum
 measurement; this leaves the Scale gaps count unchanged. A value of **0 ms**
 means no qualifying pause has been recorded in that measurement period.
@@ -107,7 +107,7 @@ turning Bluetooth back on restores normal operation without a restart.
 
 ## Scale power-off support
 
-**Turn scale off when the machine powers off**
+**Turn the scale off with the Micra**
 ([La Marzocco Linea Micra](linea-micra.md#turn-scale-off-when-the-machine-powers-off))
 switches the connected scale off over Bluetooth, but only when the scale
 itself accepts a power-off command. The explicit support list:
@@ -173,13 +173,13 @@ drip learning, and the scale-loss backup's recent shots.
 
 | Setting | Default | Range / notes | Effect |
 | --- | --- | --- | --- |
-| **Scale preference** | Prefer selected | First available / Prefer selected / Preferred only | **First available** connects whichever compatible scale appears first and never locks it. **Prefer selected** waits briefly for the preferred scale, then accepts another. **Preferred only** connects only to the saved preferred scale. If either selected mode has no saved scale yet, it uses the bootstrap flow below. |
-| **Preferred scale** | First detected | First detected, No preferred, or a BLE-seen scale | **First detected** is shown only while no preferred MAC is saved and **Prefer selected** or **Preferred only** is active. The controller scans by compatible name and adopts the first scale that completes a successful connection; advertisements and failed connections are not enough. **First available** instead shows **No preferred** because that mode never locks a scale. **Clear preferred** pauses discovery for 30 s, keeps history, and keeps the current Scale preference. |
+| **Which scale** | My scale first | Any scale / My scale first / Only my scale | **Any scale** connects whichever compatible scale appears first and never locks it. **My scale first** waits briefly for the preferred scale, then accepts another. **Only my scale** connects only to the saved preferred scale. If either selected mode has no saved scale yet, it uses the bootstrap flow below. |
+| **My scale** | First detected | First detected, No preferred, or a BLE-seen scale | **First detected** is shown only while no preferred MAC is saved and **My scale first** or **Only my scale** is active. The controller scans by compatible name and adopts the first scale that completes a successful connection; advertisements and failed connections are not enough. **Any scale** instead shows **None saved** because that mode never locks a scale. **Forget scale** pauses discovery for 30 s, keeps history, and keeps the current Scale preference. |
 | **Drip delay (s)** | 3.0 s | 0–10 s | Wait after a shot ends before capturing the final post-drip weight. `0` finalizes on the next control loop with no intentional window. |
-| **Timer stop extra delay (ms)** | 0 ms | 0–1000 ms | Pad after the scale timer catches up to circuit whole seconds, before `STOP_TIMER`. `0` stops in that same instant. Does not delay the local machine circuit beep. |
+| **Scale timer stop delay (ms)** | 0 ms | 0–1000 ms | Pad after the scale timer catches up to circuit whole seconds, before `STOP_TIMER`. `0` stops in that same instant. Does not delay the local machine circuit beep. |
 | **Bookoo combined command** | ON | ON / OFF | Combined tare + start-timer. Requires automatic tare at shot start. Also listed under [Tare](tare.md). |
-| **Mute scale in Buzzer only** | ON | ON / OFF | Bookoo/generic: send silence (volume 0) after the first valid weight on the first connection of that scale in this Open Brew by Weight session. Reconnecting does not resend it. Applies only in **Buzzer only**. |
-| **Scale volume** | 3 | 1–5 or Disabled | Bookoo/generic: set after the first valid weight on the first connection of that scale in this Open Brew by Weight session. Mini accepts levels 1–5; Ultra accepts 1–3. **Disabled** sends volume 0. A previously saved 4 or 5 remains saved but is skipped with a warning on a recognized Ultra. Reconnecting does not resend it. Changes that alter the effective speaker volume also apply to a stable link; saving unrelated settings does not resend the command. Applies only in **Scale only** and **Scale priority**. |
+| **Mute the Bookoo speaker** | ON | ON / OFF | Bookoo/generic: send silence (volume 0) after the first valid weight on the first connection of that scale in this Open Brew by Weight session. Reconnecting does not resend it. Applies only in **Buzzer only**. |
+| **Scale volume** | 3 | 1–5 or Disabled | Bookoo/generic: set after the first valid weight on the first connection of that scale in this Open Brew by Weight session. Mini accepts levels 1–5; Ultra accepts 1–3. **Off** sends volume 0. A previously saved 4 or 5 remains saved but is skipped with a warning on a recognized Ultra. Reconnecting does not resend it. Changes that alter the effective speaker volume also apply to a stable link; saving unrelated settings does not resend the command. Applies only in **Scale only** and **Scale first**. |
 | **AtomHeart Eclair** | informational | — | Uses normal tare/timer commands. No configurable volume, beep, mode, combined command, or documented command sound. In Buzzer only and Scale priority, alerts use the local buzzer; Scale only omits unsupported sounds. |
 
 If the scale disconnects or **notifications go silent** during an automatic
@@ -196,7 +196,7 @@ a cup at zero after such a button press is therefore not supported by the
 current integration; weight alone cannot distinguish it from cup removal.
 Firmware idle tare preserves the known cup reference. See [Tare](tare.md).
 
-On a new controller, **Prefer selected** and **First detected** are selected.
+On a new controller, **My scale first** and **First detected** are selected.
 Turn on your Bookoo: after its first successful connection, its MAC and name
 replace **First detected** and are saved. From then on, the controller waits
 briefly for that scale before accepting another compatible one. After each shot, the firmware
@@ -207,10 +207,10 @@ scale opens a new first-connection session for it.
 
 If no compatible scale is available, the controller stays in the bootstrap
 name scan indefinitely and does not silently change the saved preference.
-Choosing **Prefer selected** before a scale has been adopted uses the same
+Choosing **My scale first** before a scale has been adopted uses the same
 bootstrap; after adoption, its normal preferred-first fallback applies.
 Saving a changed preference mode or selected scale restarts an in-progress
-search with the new filter. If **Preferred only** is enabled while a
+search with the new filter. If **Only my scale** is enabled while a
 different scale is connected, that connection is closed before directed
 discovery begins.
 
@@ -238,14 +238,14 @@ Home distinguishes **No sample** (connected but no accepted weight yet), **Stale
 weight does not prove the connection is usable. The first valid packet has a
 5 s deadline; Bookoo disconnects after 8 s without valid packets. Automation
 rejects readings older than 1 s, before that link timeout. Check
-**Cup → Automatic tare** for the separate placement/readiness requirements.
+**Cup → Cup tare** for the separate placement/readiness requirements.
 
 1. Turn off other compatible scales and close phone apps connected to the one
    you want.
 2. Select the intended remembered scale and press **Save shared settings**,
-   or choose **Clear preferred** for a new one.
+   or choose **Forget scale** for a new one.
    Clearing pauses discovery for 30 s; it does not erase scale history.
-3. With **Preferred only** and no saved preference, let the intended scale
+3. With **Only my scale** and no saved preference, let the intended scale
    complete its first connection. Check Home for fresh weight, not just a name.
 4. If discovery is slow, check **Admin → Power management → BLE scan mode**:
    factory **Balanced**, with **Aggressive** searching harder and **Relaxed**
@@ -269,7 +269,7 @@ for how to start, stop, and download the recording. Capture lasts until its
 recording space fills or you stop it; the page shows capacity used, elapsed
 time, and a smoothed estimate of time remaining based on the arriving data.
 
-Use **Diagnostic → Scale profiling** to investigate unexpected cup detection,
+Use **Diagnostic → Scale recording** to investigate unexpected cup detection,
 tare, or weight-controlled brewing. Start a capture, reproduce the behavior,
 stop the capture, and download the text file. For example, start with an empty
 pan, place a cup, wait for automatic tare, then lift the cup again.

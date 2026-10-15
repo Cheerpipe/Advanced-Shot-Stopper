@@ -51,12 +51,12 @@ EWMA learning** additionally resets the gain to the preset's saved alpha
 baseline and clears evidence. Neither is a device factory reset. See
 [BBW](../features/brew-by-weight.md#cutoff-behavior-and-learning).
 
-**Automatic tare outside a brew** and **Retare when adding or removing an
+**Tare when you place a cup** and **Retare when adding or removing an
 accessory** return to ON. See [Tare](tare.md) for the
 placement trigger and how a tared cup at zero satisfies the cup-start guard.
 
 Follow [first setup](../GETTING_STARTED.md) using the
-[factory AP connection](ap.md#first-connection). Scale preference returns to **Prefer selected**, with
+[factory AP connection](ap.md#first-connection). Which scale returns to **My scale first**, with
 **First detected** shown until the first compatible scale connects
 successfully. See [Scales](scales.md), [AP](ap.md), and the
 [README first connection](../../README.md#first-connection).

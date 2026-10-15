@@ -1,9 +1,9 @@
 # Tare and retare
 
-Three main settings control automatic zeroing: **Automatic tare outside a brew**
-on a new cup placement, **Automatic tare at shot start**, and **Late-cup retare
+Three main settings control automatic zeroing: **Tare when you place a cup**
+on a new cup placement, **Tare when the shot starts**, and **Late-cup retare
 during a shot** if you place the cup after the shot starts. An optional fourth
-switch, **Retare when adding or removing an accessory**, extends only the
+switch, **Tare items added to a cup**, extends only the
 outside-brew behavior.
 
 All four are **on by default**. Late retare also requires shot-start tare.
@@ -16,7 +16,7 @@ does not start the timer. A cup that remains on the scale after a shot never
 triggers this tare, even after the beverage becomes stable. Removing and
 replacing that full cup does trigger it.
 
-**Home → Cup → Automatic tare** shows readiness and what to do when tare cannot
+**Home → Cup → Cup tare** shows readiness and what to do when tare cannot
 proceed. If you switch on with a cup already showing a positive weight, remove
 it, let the empty scale settle near zero, then replace it. If the cup was already
 tared to zero before connecting, let the controller see its steady zero, then
@@ -27,7 +27,7 @@ negative, tare the empty scale using its button, reconnect it, wait for stable z
 Weight readings alone cannot distinguish an equal-weight replacement from the
 scale being moved and returned.
 If you move the empty scale after it was ready, leave it still near its original
-zero. Once the normal stability window completes, **Automatic tare** returns to
+zero. Once the normal stability window completes, **Cup tare** returns to
 **Ready for a cup** without sending a tare. A rebound away from that known zero
 can remain ambiguous; tare the empty pan on the scale and reconnect it in that case.
 Before the first cup has been weighed, recovery accepts the same small empty-pan
@@ -53,7 +53,7 @@ unloading and stability requirements. A stable load change alone does not
 trigger tare with the accessory option OFF.
 
 If you use a chilling bar or another accessory, keep the accessory option on
-under **Automatic tare outside a brew**. Let the cup auto-tare to zero, then
+under **Tare when you place a cup**. Let the cup auto-tare to zero, then
 add the accessory before brewing and wait for its added weight to stabilize.
 The controller tares one such addition per cup placement. Removing that known
 accessory before brewing causes another tare after its weight settles, while
@@ -132,7 +132,7 @@ a replacement does not repeat either announcement.
 After the late tare, post-tare grace runs again so the empty-cup weight cannot
 cut the shot; [Cup protection](cup-protection.md) still blocks weight stop for the
 full earliest-weight-stop period. The tare moment is stored with the recorded shot
-and shown as **Tare time** on the shot cards, with a scale marker at that
+and shown as **Late cup** on the shot cards, with a scale marker at that
 instant on the shot chart. The time is measured from the machine circuit
 closing, when the tare command completes successfully. Failed commands and
 tares completed after the shot ends do not add a tare time. A later Bluetooth
@@ -145,7 +145,7 @@ Stopping the shot cancels a queued late tare that has not yet been sent.
 
 Initial tare can also run on a timer-only shot with a usable scale. Late retare
 requires automatic BBW; timer-only (BBW off) and manual no-scale cycles skip it
-and the earliest weight stop. Shot post-tare grace is inactive when **Automatic tare at shot start** is off.
+and the earliest weight stop. Shot post-tare grace is inactive when **Tare when the shot starts** is off.
 
 ## Parameters
 
@@ -163,7 +163,7 @@ fires a second automatic tare inside the 4 s window. The shot timer does
 not restart; weight stop stays blocked until the earliest weight stop time.
 
 If you place a cup after the 4 s default window, automatic retare is no longer
-available for that placement. If **Automatic tare at shot start** is off, prepare the scale's
+available for that placement. If **Tare when the shot starts** is off, prepare the scale's
 zero yourself; do not assume post-tare settling protection is active.
 [Require cup to start](cup-protection.md) is an alternative when you always
 want the cup in place before brewing.

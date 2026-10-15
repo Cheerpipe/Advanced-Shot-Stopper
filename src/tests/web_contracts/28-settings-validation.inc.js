@@ -87,7 +87,7 @@
   svOne(svValidate((f) => {
     f.fastBeforeS.value = '13';
   }), 'fastBeforeS',
-  'Window start (s) must be at least 14.0 s (Earliest weight stop + 2 s, Shot limits).');
+  'Window start (s) must be at least 14.0 s (Earliest weight stop + 2 s, Time limits).');
   svOne(svValidate((f) => {
     f.bbwProtectionS.value = '26';
   }), 'bbwProtectionS',
@@ -105,14 +105,14 @@
   svOne(svValidate(null, (f) => {
     f.slowAfterS.value = '50';
   }), 'slowAfterS',
-  'Window end (s) must not exceed 44.0 s (Max shot time − 1 s, Shot limits).');
+  'Window end (s) must not exceed 44.0 s (Max shot time − 1 s, Time limits).');
 
   // (e) Margins are relative to the target and checked only while their side
   // is on: extra yield up to a quarter of it, less yield leaving 5 g.
   svOne(svValidate((f) => {
     f.fastMarginG.value = '10';
   }), 'fastMarginG',
-  'Extra yield, up to (g) must not exceed 9.0 g (25 % of Target yield, Recipe).');
+  'Extend by up to (g) must not exceed 9.0 g (25 % of Target yield, Recipe).');
   svAssert.deepEqual(svValidate((f) => {
     f.fastExtractionGuardEnabled.checked = false;
     f.fastMarginG.value = '50';
@@ -121,13 +121,13 @@
     f.fastExtractionGuardEnabled.checked = false;
     f.goalWeightG.value = '12';
     f.slowMarginG.value = '9';
-  }), 'slowMarginG', 'Less yield, up to (g) must not exceed 7.0 g (Target yield − 5 g, Recipe).');
+  }), 'slowMarginG', 'Shorten by up to (g) must not exceed 7.0 g (Target yield − 5 g, Recipe).');
 
   // (f) The fixed scale-loss time is optional; when set it stays between the
   // earliest weight stop and the max shot time.
   svOne(svValidate((f) => {
     f.scaleLossFixedS.value = '5';
-  }), 'scaleLossFixedS', 'If the scale drops, stop at (s) must be from 12 to 45 s.');
+  }), 'scaleLossFixedS', 'Backup stop time (s) must be from 12 to 45 s.');
 
   // (h) The retare floor rule shows its computation when auto-retare is on and
   // states the bare bound when it is off.
@@ -136,7 +136,7 @@
     f.fastBeforeS.value = '7';
     f.autoRetare.checked = true;
   }), 'bbwProtectionS',
-  'Earliest weight stop (s) must be at least 8.0 s (Retare window 5.0 s + 3 s, Tare).');
+  'Earliest weight stop (s) must be at least 8.0 s (Late cup time 5.0 s + 3 s, Tare).');
   svOne(svValidate(null, (f) => {
     f.bbwProtectionS.value = '2';
   }), 'bbwProtectionS', 'Earliest weight stop (s) must be at least 3.0 s.');
@@ -153,7 +153,7 @@
     svAssert.ok(input[0].includes('step="' + step + '"'),
       id + ' must keep step ' + step + ' for message precision');
   }
-  for (const section of ['Recipe', 'Fast shots', 'Slow shots', 'Shot limits', 'Tare'])
+  for (const section of ['Recipe', 'Fast shots', 'Slow shots', 'Time limits', 'Tare'])
     svAssert.ok(settingsHtml.includes('>' + section + '</summary>'),
       'Settings section summary missing: ' + section);
   svAssert.ok(codeIncludes(runtimeJs, 'const errs = validateBrewClient(); if (errs.length) {') &&
@@ -225,7 +225,7 @@
     });
     svAssert.equal(w1.warnings.length, 1, JSON.stringify(w1.warnings));
     svAssert.equal(w1.warnings[0].msg,
-      'Extra yield, up to (g) must not exceed 2.5 g (25 % of Target yield, Recipe).');
+      'Extend by up to (g) must not exceed 2.5 g (25 % of Target yield, Recipe).');
     const w1Empty = svValidate((f) => {
       f.goalWeightG.value = '';
     });

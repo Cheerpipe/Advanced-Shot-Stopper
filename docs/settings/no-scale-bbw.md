@@ -15,8 +15,8 @@ nor disarmed. See [Linea Micra](linea-micra.md#recognize-paddle-wake-gestures).
 
 | Mode | Shot without a scale | Rinse without a scale | Cooldown |
 | --- | --- | --- | --- |
-| **Allow manual brewing** | Allowed | Allowed | Not used |
-| **Warn once, then allow** (default) | First attempt is blocked and alerts; later attempts are manual | An Armed rinse does not run water. It uses up that warning so the next brew can be manual. Turn **Allow rinse while Armed** on if you want that rinse to run | Protection returns after the configured delay |
+| **Brew manually** | Allowed | Allowed | Not used |
+| **Warn once, then allow** (default) | First attempt is blocked and alerts; later attempts are manual | An Armed rinse does not run water. It uses up that warning so the next brew can be manual. Turn **Rinse without a scale** on if you want that rinse to run | Protection returns after the configured delay |
 | **Require a scale** | Blocked unless temporarily allowed with the physical gesture | Blocked unless temporarily allowed with the physical gesture | Protection returns after the configured delay |
 
 In **Require a scale**, shots and rinses cannot start until the scale is usable.
@@ -26,11 +26,11 @@ melody confirms that manual brewing is temporarily available. A fresh activation
 is required after the gesture, so its final movement never starts a shot. If the
 scale reconnects while the activator is held, release it before starting again.
 
-**Protection returns after (min)** applies to **Warn once, then allow** and the
+**Warning returns after (min)** applies to **Warn once, then allow** and the
 temporary **Require a scale** override. It defaults to 60 minutes and accepts
 5–240 minutes. Boot and scale reconnect re-arm protection immediately.
 
-**Allow rinse while Armed** is off by default. It applies only to **Warn once,
+**Rinse without a scale** is off by default. It applies only to **Warn once,
 then allow**. With it off, a rinse while the missing-scale warning is Armed
 does not run water. The gesture still uses up that warning, so the next brew
 can be manual. With it on, that rinse still runs. You hear the missing-scale
@@ -38,7 +38,7 @@ warning when you start the gesture, then the rinse sound if you finish it.
 Home **Start rinse** follows the same choice. **Require a scale** still blocks
 rinse unless you complete the temporary physical override.
 
-On Home, **Stop the shot → Protections → No-scale BBW** shows the configured
+On Home, **How shots stop → Protections → No-scale BBW** shows the configured
 mode with its live status: **Off**, **Armed**, **Temporarily allowed** (with
 remaining time), **Scale required**, or **Ready** when Require scale is
 configured and the scale is usable. Its switch turns the protection off or
@@ -69,7 +69,7 @@ time is still arriving, the number stays hidden until it is ready. Browsers
 set to reduce motion show the final time without the fade.
 
 Home Assistant presents this three-mode policy as one switch. Turning it OFF
-sets **Allow manual brewing**. Turning it ON restores the last non-off mode that
+sets **Brew manually**. Turning it ON restores the last non-off mode that
 Home Assistant observed, or **Warn once, then allow** when none is known. The
 switch is unavailable during an active cycle; changing it does not alter the
 active recipe.

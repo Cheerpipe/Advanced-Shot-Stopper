@@ -16,7 +16,7 @@ and the settings guides for current actions.
 ### Home
 
 Shot hero, presets and connection status. The captures predate the current
-**Stop the shot** card, which replaced Quick Settings with a **By weight |
+**How shots stop** card, which replaced Quick Settings with a **By weight |
 Manual** control and a **Protections** row that opens the preset and shared
 protection switches. Remote actions depend
 on build policy and Admin unlock: the Actions panel is shown only when remote

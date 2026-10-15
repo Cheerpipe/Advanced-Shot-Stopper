@@ -36,24 +36,24 @@ given time would stop.
 
 ## Fast shots
 
-Turn on **Run fast shots longer** (Settings → Presets → **Fast shots**) to let
+Turn on **Extend fast shots** (Settings → Presets → **Fast shots**) to let
 a fast shot keep going past the target. The cut line starts at the target plus
-**Extra yield, up to (g)**, then eases down to the target over the 5 seconds
+**Extend by up to (g)**, then eases down to the target over the 5 seconds
 before the window starts.
 
 - A shot that is well ahead of the window stops at the full extra yield.
 - A shot that is only a little early gets only a little more.
 - Turned off, a fast shot stops at the target.
 
-**Home → Stop the shot → Protections → Extend fast shots** (under **This
+**Home → How shots stop → Protections → Extend fast shots** (under **This
 preset**) switches the same option for the active preset. While a fast shot is running longer, its line reads
 **Running fast · going to 38 g**, and the last shot card shows **EXTENDED**.
 
 ## Slow shots
 
-Turn on **Stop slow shots sooner** (Settings → Presets → **Slow shots**) to
+Turn on **Shorten slow shots** (Settings → Presets → **Slow shots**) to
 stop a slow shot before the target. The cut line stays on the target until the
-window ends, then eases down by up to **Less yield, up to (g)** over the next
+window ends, then eases down by up to **Shorten by up to (g)** over the next
 5 seconds, where it stays.
 
 - A shot that is only a little late loses only a little yield.
@@ -61,7 +61,7 @@ window ends, then eases down by up to **Less yield, up to (g)** over the next
   gets there.
 - Turned off, a slow shot keeps going toward the target until Max shot time.
 
-**Home → Stop the shot → Protections → Shorten slow shots** (under **This
+**Home → How shots stop → Protections → Shorten slow shots** (under **This
 preset**) switches the same option for the active preset. Even with the panel
 closed, the first two dots on the **Protections** row show the active preset's
 choice: orange for fast shots and blue for slow shots, filled when on and
@@ -79,10 +79,10 @@ While you edit, the field result shows the resulting weight and ratio, such as
 | Setting | Default | Range | Effect |
 | --- | --- | --- | --- |
 | **Shot time window (s)** (Recipe) | 27 to 36 s (doubles), 23 to 32 s (singles) | **Window start** at least 2 s after Earliest weight stop; **Window end** at least 1 s after Window start and at least 1 s before Max shot time; 0.5 s steps | Reaching the target inside the window is On recipe; earlier is Fast, later is Slow. |
-| **Run fast shots longer** | ON | ON / OFF | Lets fast shots go past the target. |
-| **Extra yield, up to (g)** | 6 g | 0.5–10 g in 0.1 g steps, and no more than a quarter of the target | The most a very fast shot gains over the target. |
-| **Stop slow shots sooner** | ON | ON / OFF | Lets slow shots stop before the target. |
-| **Less yield, up to (g)** | 3 g | 0.5–10 g in 0.1 g steps, leaving at least 5 g in the cup | The most a very slow shot stops short of the target. |
+| **Extend fast shots** | ON | ON / OFF | Lets fast shots go past the target. |
+| **Extend by up to (g)** | 6 g | 0.5–10 g in 0.1 g steps, and no more than a quarter of the target | The most a very fast shot gains over the target. |
+| **Shorten slow shots** | ON | ON / OFF | Lets slow shots stop before the target. |
+| **Shorten by up to (g)** | 3 g | 0.5–10 g in 0.1 g steps, leaving at least 5 g in the cup | The most a very slow shot stops short of the target. |
 
 The extra and reduced yields are amounts relative to the target, so they move
 with it when you change the target from Home or Settings. Fixed presets keep
@@ -134,8 +134,8 @@ guaranteed yield.
 
 ## Alerts
 
-With a local buzzer, **Settings → Shared settings → Alerts → Fast-shot pulse**
-pulses while a fast shot continues past its target, and **Slow-shot pulse**
+With a local buzzer, **Settings → Shared settings → Alerts → Fast-shot beeps**
+pulses while a fast shot continues past its target, and **Slow-shot beeps**
 pulses while a slow shot is being stopped sooner. The **Bullseye melody** plays only
 after an On recipe shot. See [Alerts](../alerts.md).
 

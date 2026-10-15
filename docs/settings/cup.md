@@ -119,7 +119,7 @@ Acquisition requires stable absence or a newly qualified unload with a trusted
 anchor, followed by placement; tare alone cannot recover missing mass.
 Nothing is persisted across restarts.
 
-**Home → Cup → Automatic tare** explains readiness separately from presence and
+**Home → Cup → Cup tare** explains readiness separately from presence and
 mass. A cup already tared to zero when the controller connected can appear
 absent. If the controller first sees stable zero, then its continuous removal
 produces a stable negative reading, a different-weight replacement can be

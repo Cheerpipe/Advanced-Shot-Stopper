@@ -106,9 +106,9 @@
   for (const legacy of ['homeLastShot', 'homeHistoryLinked', 'safeHomeShot', '"\\"shotCurve']) assert(!rest.includes(legacy));
   const formatCleaning = context.formatMicraCleaning;
   const lm = {accountConfigured: true, observeState: true, connectionType: 'websocket', websocket: {cleaningAvailable: true}};
-  for (const [cleaning, expected] of [['inactive', 'Inactive'], ['waiting_for_paddle', 'Waiting for paddle'], ['cleaning', 'Cleaning in progress']])
+  for (const [cleaning, expected] of [['inactive', 'Not running'], ['waiting_for_paddle', 'Ready · paddle to ON'], ['cleaning', 'Running']])
     assert.equal(formatCleaning({...lm, websocket: {...lm.websocket, cleaning}}), expected);
-  assert.equal(formatCleaning({...lm, connectionType: 'api'}), 'Unavailable — requires WebSocket');
+  assert.equal(formatCleaning({...lm, connectionType: 'api'}), 'Needs WebSocket');
   assert.equal(formatCleaning({...lm, observeState: false}), 'Disabled');
   assert(codeIncludes(viewJs.diagnostic, "set('Cleaning',R.formatMicraCleaning(lm))"));
   assert(codeIncludes(viewJs.home, 'R.formatMicraCleaning(s.lineaMicra)'));

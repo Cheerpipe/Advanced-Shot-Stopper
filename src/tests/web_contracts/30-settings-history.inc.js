@@ -89,9 +89,9 @@
 }
 
 {
-  const labels = ['Automatic tare outside a brew',
-    'Retare when adding or removing an accessory', 'Automatic tare at shot start',
-    'Late-cup retare during a shot'];
+  const labels = ['Tare when you place a cup',
+    'Tare items added to a cup', 'Tare when the shot starts',
+    'Tare a late cup'];
   if (labels.some(label => !html.includes(label)) ||
       !html.includes('id="autoTareOutsideBrew" type="checkbox" checked') ||
       !html.includes('id="retareAccessoryOutsideBrew" type="checkbox" checked') ||
@@ -259,10 +259,10 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     codeIncludes(ui, 'id="cupPresentWeightG"') ||
     html.includes('id="cupPresentWeightG"') ||
     html.includes('id="requireCupToStart" type="checkbox" checked') ||
-    !codeIncludes(ui, 'If the cup was already tared before connection, lift it and place it again.') ||
+    !codeIncludes(ui, 'Already on? Lift and replace it.') ||
     !codeIncludes(ui, 'id="homeCupProtectionEnabled"') ||
     html.indexOf('<summary>Slow shots</summary>') < 0 ||
-    html.indexOf('<summary>Scale-loss backup</summary>') < 0 ||
+    html.indexOf('<summary>Finish by time</summary>') < 0 ||
     html.includes('<summary>Avoid accidental touch</summary>') ||
     html.indexOf('<summary>Cup protection</summary>') >
         html.indexOf('id="avoidAccidentalTouchEnabled"') ||
@@ -271,7 +271,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     html.indexOf('<summary>Fast shots</summary>') >
         html.indexOf('<summary>Slow shots</summary>') ||
     html.indexOf('<summary>Slow shots</summary>') >
-        html.indexOf('<summary>Scale-loss backup</summary>') ||
+        html.indexOf('<summary>Finish by time</summary>') ||
     !codeIncludes(ui, 'function updateHomeGuardSwitchesLock(') ||
     !codeIncludes(ui, 'function persistHomeGuard(') ||
     !codeIncludes(ui, 'function flushHomeGuards(') ||
@@ -460,7 +460,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
       !codeIncludes(ui, 'id="hLoopGap"') ||
       !codeIncludes(ui, 'id="hLoopMax"') ||
       !codeIncludes(ui, 'id="loopMaxResetButton"') ||
-      !diagHtml.includes('Max scale gap (<button id="scaleGapMaxResetButton" class="inlineAction diagCtl" type="button">Reset</button>)') ||
+      !diagHtml.includes('Longest gap (<button id="scaleGapMaxResetButton" class="inlineAction diagCtl" type="button">Reset</button>)') ||
       !codeIncludes(ui, 'id="hScaleGapMax"') ||
       !codeIncludes(ui, 'id="loopTimingTable"') ||
       !codeIncludes(ui, 'id="loopTimingBody"') ||
@@ -877,7 +877,7 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     codeIncludes(runtimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
     !codeIncludes(runtimeJs, 'drop=d.firstDropMs') ||
     !codeIncludes(runtimeJs, 'formatShotEnded(r.stopDetail, r.verdict)') ||
-    !codeIncludes(js, "labels=['Time','Dur','Goal','Yield','Err%','Avg flow','Max flow','Tare time','1st drop','Ended','Shot','Preset','Scale'") ||
+    !codeIncludes(js, "labels=['Date','Dur','Goal','Yield','Err%','Avg flow','Max flow','Late cup','1st drop','Ended','Shot','Preset','Scale'") ||
     codeIncludes(js, "labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||
     codeIncludes(js, "labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Guard','Ext','Stop','Shot','Cut']") ||
     partialHtml.stats.includes('<th>Guard</th>') ||
@@ -1031,7 +1031,7 @@ const shotLogTypes = fs.readFileSync(
     path.join(sketchDir, 'ShotStopperShotLogTypes.h'), 'utf8');
 if (!partialHtml.stats.includes('id="shotSort"') ||
     !partialHtml.stats.includes('class="shotSort"') ||
-    !partialHtml.stats.includes('aria-label="Sort history"') ||
+    !partialHtml.stats.includes('aria-label="Sort shots"') ||
     !css.includes('.shotSort{') ||
     !css.includes('.shotSort button[aria-pressed="true"]') ||
     !codeIncludes(runtimeJs, 'function setShotSort(') ||
@@ -1125,8 +1125,8 @@ const historyIo = fs.readFileSync(
 if (!historyTypesIo.includes('BACKFLUSH = 5') ||
     !codeIncludes(runtimeJs, 'HIST_TYPE_SVG.backflush=') ||
     !partialHtml.history.includes('id="hBF" viewBox="0 0 256 256"') ||
-    !codeIncludes(runtimeJs, 'Backflush in progress') ||
-    !codeIncludes(runtimeJs, 'Backflush unavailable')) {
+    !codeIncludes(runtimeJs, 'Backflush running') ||
+    !codeIncludes(runtimeJs, 'Backflush not confirmed')) {
   throw new Error('Backflush must preserve history ordinals, supplied icon and state-driven guidance');
 }
 {
@@ -1134,12 +1134,12 @@ if (!historyTypesIo.includes('BACKFLUSH = 5') ||
   const format = new Function(formatter + ';return formatBackflushState;')();
   for (const [state, backflush, expected] of [
     ['BACKFLUSH_CANDIDATE', {}, 'Checking backflush'],
-    ['BACKFLUSH_RUNNING', {}, 'Backflush in progress'],
-    ['REQUIRES_OFF', {stopReason: 'unconfirmed_end'}, 'Other activation'],
-    ['REQUIRES_OFF', {stopReason: 'supervision_lost'}, 'Activation interrupted'],
-    ['READY', {waiting: true, ready: true}, 'waiting for paddle'],
-    ['READY', {waiting: true, ready: false}, 'Backflush unavailable'],
-    ['READY', {unresolved: true}, 'Backflush unavailable'],
+    ['BACKFLUSH_RUNNING', {}, 'Backflush running'],
+    ['REQUIRES_OFF', {stopReason: 'unconfirmed_end'}, 'Not a backflush'],
+    ['REQUIRES_OFF', {stopReason: 'supervision_lost'}, 'Backflush stopped'],
+    ['READY', {waiting: true, ready: true}, 'paddle to ON'],
+    ['READY', {waiting: true, ready: false}, 'Backflush not confirmed'],
+    ['READY', {unresolved: true}, 'Backflush not confirmed'],
   ]) {
     if (!format({state, backflush}).includes(expected))
       throw new Error('Incorrect backflush state guidance for ' + state);
@@ -1189,7 +1189,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !codeIncludes(runtimeJs, 'function clearActivationHistory(') ||
     !codeIncludes(runtimeJs, "power_on:'Power ON'") ||
     !codeIncludes(runtimeJs, "HIST_TYPE_SVG.power_on='⏻'") ||
-    !codeIncludes(runtimeJs, 'No scale guard aborted') ||
+    !codeIncludes(runtimeJs, 'Blocked: no scale') ||
     !codeIncludes(runtimeJs, 'HIST_TYPE_SVG.no_scale_guard_aborted=') ||
     !partialHtml.history.includes('id="hNS" viewBox="82 82 204 204"') ||
     !historyTypesIo.includes('NO_SCALE_GUARD_ABORTED') ||
@@ -1211,8 +1211,8 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     // stream handler; dropping them by request id hangs the export.
     !codeIncludes(runtimeJs, 'historyExportWindow&&data.request===historyExportWindow.request') ||
     !codeIncludes(runtimeJs, 'historyVisibleRecords()') ||
-    !codeIncludes(runtimeJs, 'Could not export activation history.') ||
-    !codeIncludes(runtimeJs, 'No activations match the selected types.') ||
+    !codeIncludes(runtimeJs, 'Could not export history.') ||
+    !codeIncludes(runtimeJs, 'No activations of the selected types.') ||
     !css.includes('.histFilterPanel{') ||
     !css.includes('.histFilterCount{') ||
     network.includes('parseHistoryPageQuery') ||

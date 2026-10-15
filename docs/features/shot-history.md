@@ -4,7 +4,7 @@ Completed shots with a measured yield are stored on the controller and shown
 in the Web UI shot log. Use it to see how long a shot ran, why it ended, and
 how close it landed to the target when brew by weight was in use.
 
-When you open **Stats**, the Stats section, including its chart, and the
+When you open **Shots**, the Stats section, including its chart, and the
 Shot history section, including its sort, export, and clear controls, normally
 appear at once with their data. A brief loading animation covers them only
 while the device has not sent the shot data yet — for example right after the
@@ -57,7 +57,7 @@ not rewrite a shot's displayed name.
 even if the scale disconnects or is renamed later. **Rate** aligns with the
 middle column; long scale names wrap within the first column. Existing shots
 keep their original names. A Bluetooth name longer
-than the friendly-name limit is shortened to fit. **Tare time**, before
+than the friendly-name limit is shortened to fit. **Late cup**, before
 **1st drop**, shows the successful late tare's elapsed shot time, or **None**
 when no late tare succeeded. Its chart label always uses one decimal, such
 as **3.0 s**. The initial shot-start tare is not a late tare.
@@ -65,7 +65,7 @@ as **3.0 s**. The initial shot-start tare is not a late tare.
 If a late retare succeeds and a fresh reading confirms its new zero, an earlier
 first-drop time and marker are discarded. Later coffee can supply a new time
 and marker; without that replacement, first-drop time and **Avg flow** are
-unavailable. The rest of the shot curve is retained. **Tare time** records
+unavailable. The rest of the shot curve is retained. **Late cup** records
 successful command completion, so it can also appear when zero was not
 confirmed and the earlier first-drop record was kept.
 
@@ -147,7 +147,7 @@ pending, the API reports `savePending`; a failed write remains pending for retry
 Once saving completes, the newest shot and its curve survive a restart.
 Power loss before saving completes can still lose pending changes.
 
-When you first open **Stats**, both **Stats** and **Shot history** show a loading
+When you first open **Shots**, both **Stats** and **Shot history** show a loading
 wave. They fade away together once the summaries and history are ready. The
 wave over Stats does not add space to the panel or resize it when it disappears.
 With Wi-Fi sleep enabled, a large history may take a little longer to appear.

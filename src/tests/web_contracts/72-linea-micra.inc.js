@@ -72,9 +72,9 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const warming = {machineIntegration: 'linea_micra_cloud', state: 'READY',
     lineaMicra: {accountConfigured: true, observeState: true, powerState: 'ON', quality: 'current'}};
   for (const [readiness, expected, bad] of [
-    ['warming_up', 'Warming up', false],
-    ['waiting_for_steam', 'Waiting for steam', false],
-    ['needs_water', 'Needs water', true],
+    ['warming_up', 'Heating up', false],
+    ['waiting_for_steam', 'Steam heating up', false],
+    ['needs_water', 'No water', true],
     ['ready', 'Ready', false],
     ['unknown', 'On', false],
   ]) {
@@ -96,9 +96,9 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert.strictEqual(steamBoiler.textContent, 'Heating up');  // No estimate given.
   context.applyStatus(frame({state: 'ready'}, {state: 'no_water'}));
   assert.strictEqual(brewBoiler.textContent, 'Ready');
-  assert.strictEqual(steamBoiler.textContent, 'Needs water');
+  assert.strictEqual(steamBoiler.textContent, 'No water');
   context.applyStatus(frame({state: 'eco'}, {state: 'standby'}));
-  assert.strictEqual(brewBoiler.textContent, 'Energy saving');
+  assert.strictEqual(brewBoiler.textContent, 'Eco');
   assert.strictEqual(steamBoiler.textContent, 'Standby');
   context.applyStatus(frame({state: 'off'}, {state: 'unknown'}));
   assert.strictEqual(brewBoiler.textContent, 'Off');

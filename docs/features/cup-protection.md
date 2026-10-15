@@ -5,16 +5,16 @@ to automatic brew-by-weight shots. The cup protection switches and **Avoid
 accidental touch** are shared by every preset, in **Settings → Shared
 settings → Cup protection**; detection thresholds are in **Cup detection** and
 tare timing in **Tare** of the same section. **Earliest weight stop** is saved
-with each preset under **Settings → Presets → Shot limits**.
+with each preset under **Settings → Presets → Time limits**.
 
 ## Choose the behavior
 
 | Control | Factory value | What it does |
 | --- | --- | --- |
-| **Cup protection** | On | Enables the cup-start/removal protections; also on Home under **Stop the shot → Protections**. |
+| **Cup protection** | On | Enables the cup-start/removal protections; also on Home under **How shots stop → Protections**. |
 | **Stop if cup is removed** | On | Requests a stop when a cup is detected as lifted after tare. Requires cup protection. |
 | **Require cup to start** | Off | Blocks a start without a detected cup. Requires cup protection. If the scale was already tared before connecting, place the cup after connection so it can be detected. |
-| **Avoid accidental touch** | On | Rejects brief implausible bumps from weight-stop decisions, including fast and slow shot handling. Shared by every preset; also on Home under **Stop the shot → Protections**. |
+| **Avoid accidental touch** | On | Rejects brief implausible bumps from weight-stop decisions, including fast and slow shot handling. Shared by every preset; also on Home under **How shots stop → Protections**. |
 | **Earliest weight stop (s)** | 12 s | Blocks automatic weight stop at the beginning; first drops do not end the window. Maximum 30 s; minimum is enabled retare window + 3 s (3 s when retare is off). Must fit within Max shot time. |
 
 Turning **Cup protection** or **Avoid accidental touch** off from Home asks

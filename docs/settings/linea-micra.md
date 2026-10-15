@@ -1,7 +1,7 @@
 # La Marzocco Linea Micra
 
 Firmware built for the **La Marzocco Linea Micra** shows its controls in
-**Settings → Shared settings → La Marzocco Linea Micra**. Other machine
+**Settings → Shared settings → Linea Micra**. Other machine
 profiles omit the panel and its diagnostics.
 
 The integration reads the selected machine through La Marzocco's cloud
@@ -22,7 +22,7 @@ internet connection is unavailable.
    sign-in; both settle as soon as the machines are listed or the sign-in
    fails, and a failed sign-in also names the reason.
 3. Select the machine used with this controller.
-4. Choose **Use selected machine**. Only then can the Micra options be
+4. Choose **Use this machine**. Only then can the Micra options be
    edited and saved.
 
 While the account is signed in but no machine is saved yet, **Selected
@@ -37,11 +37,11 @@ disabled, so the defaults are clear without implying that the integration is
 already active.
 
 After a machine is selected, Settings hides the account email, password,
-**Connect**, machine list, and **Use selected machine** controls. **Selected
+**Connect**, machine list, and **Use this machine** controls. **Selected
 machine** shows the saved cloud account email, followed by the machine name and
 serial number. Choose **Disconnect** to remove the saved credentials and
 selected machine, stop cloud checks, and make the connection controls available
-again. The account status then reads **Unauthenticated**, and the Micra options
+again. The account status then reads **Not signed in**, and the Micra options
 become unavailable until you connect and select a machine again. The connection
 type preference is retained; a factory reset restores WebSocket.
 
@@ -49,8 +49,8 @@ With a machine selected, **Save Micra settings** saves **Connection type**, **Al
 temperature in presets**, **Monitor machine power state**, the two
 [Machine-aware scale search](#machine-aware-scale-search) options, **Recognize
 paddle wake gestures**, **Turn machine on when the scale powers on**,
-**Turn machine off when the scale powers off**, its **Machine shutdown delay**, and
-**Turn scale off when the machine powers off**.
+**Standby when the scale turns off**, its **Standby delay**, and
+**Turn the scale off with the Micra**.
 To switch between WebSocket and API, choose the connection type and save;
 your connected account and selected machine are kept. Saving does not sign in
 again, validate the cloud account, or reload the machine list.
@@ -84,7 +84,7 @@ safety, or local shot control.
 
 ## Monitor machine power state
 
-Enable **Monitor machine power state** and choose **Connection type**:
+Enable **Show power state** and choose **Connection type**:
 
 - **WebSocket** reads the current state through the API after each subscription
   starts, while receiving cloud updates in parallel. It is the default and
@@ -113,7 +113,7 @@ for that cancellation.
 Paddle wake gestures and starts blocked by a guard keep observation connected;
 they do not count as shots or rinses.
 
-Home shows **Machine power state** as **ON**, **OFF**, or **—** when unknown.
+Home shows **Power** as **ON**, **OFF**, or **—** when unknown.
 An active local estimate appears as **ON - Optimistic** or **OFF - Optimistic**.
 If observation pauses during that estimate, its effective value stays on screen
 with stale quality until a fresh power update arrives after reconnection.
@@ -130,7 +130,7 @@ Diagnostics → Machine distinguishes the last observed mode from its quality:
 In WebSocket mode, the initial API reading stays current while the subscription
 remains healthy, even if the machine sends no power update for several minutes
 or hours. The next power update replaces it. Diagnostics shows the source beside
-**Observed mode**, for example **StandBy (API)**, **StandBy (WebSocket)** or
+**Mode**, for example **StandBy (API)**, **StandBy (WebSocket)** or
 **StandBy (API via WebSocket)**. The last label means the initial API reading
 requested when the WebSocket subscription starts; a later manual API read shows
 **API**. The sample age keeps increasing; unrelated messages do not reset it.
@@ -163,10 +163,10 @@ existing shot into backflush. Transitions during a shot pause may be missed.
 
 While the machine is on, La Marzocco's cloud reports whether each boiler is
 still warming. Home uses that instead of assuming: the machine row reads
-**Warming up** while the brew boiler heats, **Waiting for steam** once shots
+**Heating up** while the brew boiler heats, **Steam heating up** once shots
 are possible but the steam boiler is still below temperature, and **Ready**
 only when both boilers report ready. When the water tank needs refilling the
-row reads **Needs water**, and while a wake-up is still being confirmed it
+row reads **No water**, and while a wake-up is still being confirmed it
 shows a plain **On** rather than claiming readiness.
 
 The open machine panel adds one row per boiler. Each shows its state and,
@@ -179,10 +179,10 @@ don't need to open the panel. The steam row shows the steam level set in the app
 temperature; the current temperature of either boiler is not available through
 the cloud service.
 
-Diagnostics groups every machine-reported state under **La Marzocco Micra**:
+Diagnostics groups every machine-reported state under **Linea Micra**:
 readiness, power state, observed mode, both boilers (with the brew target
 temperature and remaining estimate), water, cleaning, and observation quality.
-Connection and account details stay in **La Marzocco Cloud**.
+Connection and account details stay in **La Marzocco cloud**.
 
 These states are informational. Nothing about paddle handling, guards, brew
 control, or how the machine is turned on and off changes with them. In API
@@ -196,9 +196,9 @@ backflush selected in the La Marzocco app. Follow the machine's cleaning
 instructions and prepare the machine before requesting the program.
 
 1. Leave the paddle OFF and request automatic backflush in the app.
-2. Wait until Home reports **Backflush — waiting for paddle**, then move the
+2. Wait until Home reports **Backflush ready · paddle to ON**, then move the
    paddle ON within the opportunity offered by the app.
-3. Home first shows **Checking backflush**, then **Backflush in progress**
+3. Home first shows **Checking backflush**, then **Backflush running**
    when the machine confirms the program. Return the paddle OFF after it ends.
 
 The controller does not reproduce the app's start countdown. Until the program
@@ -240,12 +240,12 @@ duration cap and does not supervise automatic backflush.
 
 ### Cloud diagnostics and logs
 
-**Diagnostic → La Marzocco Cloud**, immediately above **MISC**, shows the saved
+**Diagnostic → La Marzocco cloud**, immediately above **MISC**, shows the saved
 account email and the active selected machine. The email is visible to anyone
 who can view diagnostics. The panel also shows the most recently completed
 cloud call: its start date and time in UTC, API name and HTTP method, result,
 HTTP status when available, and duration in milliseconds. Duration helps spot
-slow cloud connections. Before the first call, the panel reads **No calls yet**.
+slow cloud connections. Before the first call, the panel reads **None yet**.
 WebSocket connection state, retry time, message/power/pong ages, payload receive
 and transmit rates, totals, errors and stop latency appear separately.
 Two counters distinguish **Planned connections** from **Unexpected
@@ -282,12 +282,12 @@ or OFF observation is available.
 
 ## Machine-aware scale search
 
-Two checkboxes directly under **Monitor machine power state** tie scale
+Two checkboxes directly under **Show power state** tie scale
 discovery to the machine's power state:
 
-- **Boost scale detection when machine is on** — searches more actively for a
+- **Search harder while the Micra is on** — searches more actively for a
   scale while the machine is on, whatever the saved scan mode is.
-- **Reduce scale scanning when machine is off** — uses less Bluetooth
+- **Search less in standby** — uses less Bluetooth
   scanning time while the machine is off; finding a scale may take longer.
 
 Both start off on new installs, after a factory reset, and after updating
@@ -299,7 +299,7 @@ available — monitoring off, no account connected, the state unknown, or an
 unsupported reading — the saved [BLE scan mode](scales.md)
 applies unchanged.
 
-The options need **Monitor machine power state** on, because they read the
+The options need **Show power state** on, because they read the
 same observed state. With monitoring off both checkboxes are disabled but
 keep their saved choices. The options follow the same resolved state Home
 shows, including optimistic ON/OFF estimates and values retained through a
@@ -312,7 +312,7 @@ radio hardware policy (see [Power management](power-management.md)).
 
 ## Recognize paddle wake gestures
 
-Keep **Recognize paddle wake gestures** on to use a monitored OFF state. The
+Keep **Paddle wakes the Micra** on to use a monitored OFF state. The
 last confirmed OFF counts while it is current or stale, so the next physical
 paddle ON is then treated only as the Micra's standby wake
 gesture. The controller mirrors the paddle through its normal relay safety path,
@@ -346,7 +346,7 @@ recognition is inactive until monitoring produces a confirmed OFF observation.
 
 ## Turn machine on when the scale powers on
 
-Keep **Turn machine on when the scale powers on** on to wake the Micra when
+Keep **Turn the Micra on with the scale** on to wake the Micra when
 you switch the scale on. It is the mirror of the shutdown option above: the
 machine turns on — the same wake the La Marzocco app performs — when the
 scale comes back from its own power-off. A scale that merely reconnects after
@@ -377,7 +377,7 @@ while leaving the machine on.
 
 ## Turn machine off when the scale powers off
 
-Keep **Turn machine off when the scale powers off** on to put the Micra in
+Keep **Standby when the scale turns off** on to put the Micra in
 standby — the same state the La Marzocco app calls standby — when you switch
 the scale off. It reacts only to the scale being switched off by its own
 control: a scale that merely loses signal, stops reporting weight, or runs out
@@ -393,8 +393,8 @@ controller. Because the command travels through the La Marzocco cloud, a
 saved, connected account is required: without one the option stays disabled
 and has no effect even if it was on before the account was removed.
 
-When you enable the option, a **Machine shutdown delay** choice appears below it:
-**OFF**, **5 s**, **15 s**, **30 s**, or **60 s**. With **OFF** the machine
+When you enable the option, a **Standby delay** choice appears below it:
+**Immediately**, **5 s**, **15 s**, **30 s**, or **60 s**. With **OFF** the machine
 goes to standby as soon as the scale powers off. With a delay, the controller
 waits that long first, so switching the scale back on inside the window
 cancels the shutdown and nothing happens. The delay also covers an accidental
@@ -420,7 +420,7 @@ next read lands.
 
 ## Turn scale off when the machine powers off
 
-Keep **Turn scale off when the machine powers off** on and the connected
+Keep **Turn the scale off with the Micra** on and the connected
 scale switches itself off once the Micra is confirmed off — after the cloud
 dashboard reports standby following a confirmed on state. A stale or
 optimistic reading never triggers it, and it happens exactly once per
@@ -452,7 +452,7 @@ connected scale regardless of brand.
 
 ## Brew temperature in presets
 
-**Store brew boiler temperature in presets** reveals a per-preset value from
+**Set brew temperature per preset** reveals a per-preset value from
 80.0 to 100.0 °C in 0.1 °C steps. New and factory-reset presets start at 93.0 °C;
 duplicates copy the source value. Turning the option off or disconnecting the
 account keeps every saved preset value.
@@ -492,7 +492,7 @@ that trigger, avoiding repeated cloud requests. Selecting or saving a preset
 again, or reconnecting the scale, creates a new trigger. Turning this option
 off, disconnecting the account, losing station Wi-Fi, or entering setup AP mode
 prevents writes; saved preset values remain unchanged. Temperature application
-does not require **Monitor machine power state** to be enabled.
+does not require **Show power state** to be enabled.
 
 Factory reset removes the Micra cloud account, selected machine, installation
 key, and RAM session. The first three Micra options return to their checked

@@ -167,7 +167,7 @@ according to the selected [paddle](settings/paddle.md) or
 
 1. Check Home for a connected scale and a fresh weight reading. A Bluetooth
    connection alone is not sufficient for automatic weight control.
-2. On a new controller, **Prefer selected → First detected** adopts the first
+2. On a new controller, **My scale first → First detected** adopts the first
    compatible scale that connects successfully and then prefers it. To replace
    it or use several scales, follow [Scales](settings/scales.md).
 3. In **Settings → Presets**, tap **Double · Adaptive** or **Single · Adaptive**
@@ -219,7 +219,7 @@ before relying on automatic operation.
 | Shot ends above or below target | Read how it ended in [history](features/shot-history.md), then check [fast and slow shots](features/fast-and-slow-shots.md) and the learned drip. |
 | Scale unavailable before start | Follow [No-scale BBW](settings/no-scale-bbw.md); the default first attempt warns and blocks. |
 | Scale disconnects during brewing | Weight stop pauses; the [scale-loss backup](features/auto-to-manual.md) may request a timed stop while reconnection continues. |
-| Want to stop shots yourself | Choose **Manual** under **Stop the shot** on Home. It stays until you choose **By weight** again and does not rewrite the saved recipe. |
+| Want to stop shots yourself | Choose **Manual** under **How shots stop** on Home. It stays until you choose **By weight** again and does not rewrite the saved recipe. |
 | Cannot save a setting | Finish the cycle, return the activator to idle, reclaim the UI if necessary, and check Admin unlock for privileged settings. |
 | Cannot reach the controller | Use [network troubleshooting](FAQ.md#network-and-access) before considering a reset. |
 

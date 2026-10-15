@@ -18,7 +18,7 @@ alerts on both the local buzzer and the scale; the individual checkboxes are
 kept.
 
 Most sounds follow their event: tare/start/stop, first drop, paddle reminder,
-completion extra, and scale-loss / no-scale / scale-link alerts follow **Output channel** when a
+completion extra, and scale-loss / no-scale / scale-link alerts follow **Play alerts on** when a
 local buzzer is compiled in (hardware builds with a speaker; passive piezo
 with RTTTL). `-DOPEN_BREW_BY_WEIGHT_ENABLE_BUZZER=0` omits the local buzzer. Channel selection is independent
 of that flag, **except shot start and
@@ -44,7 +44,7 @@ the shot-start cue cuts it off and plays immediately. A sound that the scale
 itself has already started as command feedback cannot be recalled over
 Bluetooth, so that scale sound may finish while the local shot-start cue begins.
 
-Without buzzer support, Output channel and the local-only checkboxes are hidden.
+Without buzzer support, Play alerts on and the local-only checkboxes are hidden.
 The default channel is then **Scale only**.
 
 Start/stop cues are local feedback, not independent proof that water flow
@@ -55,17 +55,17 @@ changed. On momentary machines, check the actual group and its state feedback.
 | Setting | Default | Range / notes | Effect |
 | --- | --- | --- | --- |
 | **Sound alerts** | ON | ON / OFF | Master switch in **Settings → Shared settings → Alerts**. |
-| **Output channel** | **Buzzer only** with a local buzzer; **Scale only** without | Buzzer only / Scale only / Scale priority | Where most alerts play. **Buzzer only**: all sound on the local buzzer. **Scale only**: scale path; scale-incapable local cues are muted. **Scale priority**: scale when connected/able, else buzzer; never both for one event. Shot **start** and **stop** always use the local buzzer at machine circuit when a buzzer is compiled in. Shown only with buzzer support. |
-| **Beep when coffee starts** | ON | ON / OFF | One beep on first coffee drops during an automatic shot. Ignored when brew by weight is off. |
+| **Play alerts on** | **Buzzer only** with a local buzzer; **Scale only** without | Buzzer only / Scale only / Scale first | Where most alerts play. **Buzzer only**: all sound on the local buzzer. **Scale only**: scale path; scale-incapable local cues are muted. **Scale first**: scale when connected/able, else buzzer; never both for one event. Shot **start** and **stop** always use the local buzzer at machine circuit when a buzzer is compiled in. Shown only with buzzer support. |
+| **First drops** | ON | ON / OFF | One beep on first coffee drops during an automatic shot. Ignored when brew by weight is off. |
 | **Paddle-off reminder** | 30 s | OFF / 15 / 30 / 60 / 120 s | Repeat beeps at the chosen interval while the **physical paddle stays ON** and **machine circuit is already open**; OFF silences them. |
 | **Paddle reminder limit (min)** | 15 min | 1–60 min | Stop beeping after this time even if the paddle remains ON. |
-| **Scale lost** | (buzzer builds) | ON / OFF | Descending RTTTL on the local buzzer when the scale disconnects (idle or during a shot). Hidden / disabled when Output channel is Scale only. |
-| **Scale-loss backup ended a shot** | (buzzer builds) | ON / OFF | Distinct RTTTL on the local buzzer when the [scale-loss backup](features/auto-to-manual.md) finishes a shot by time after the scale dropped. Disabled when Output channel is Scale only. |
+| **Scale lost** | (buzzer builds) | ON / OFF | Descending RTTTL on the local buzzer when the scale disconnects (idle or during a shot). Hidden / disabled when Play alerts on is Scale only. |
+| **Shot finished by backup time** | (buzzer builds) | ON / OFF | Distinct RTTTL on the local buzzer when the [scale-loss backup](features/auto-to-manual.md) finishes a shot by time after the scale dropped. Disabled when Play alerts on is Scale only. |
 | **Manual without scale (BBW on)** | (buzzer builds) | ON / OFF | Warns on the local buzzer that Brew by weight cannot start normally because the scale is missing, including the first blocked attempt. See [No-scale BBW](settings/no-scale-bbw.md). |
-| **Scale connected** | ON (Buzzer only or Scale priority) | ON / OFF | Rising RTTTL when a scale connects or reconnects. Always the local buzzer. |
-| **Blue LED while scale connected** | ON | ON / OFF | Onboard GPIO 1 HIGH while a scale is BLE-connected. Independent of Sound alerts. |
-| **Fast-shot pulse** | Fast | Disabled / Slow / Medium / Fast / Rapid | Local-buzzer pulses while a fast shot continues past its target. Disabled when Output channel is Scale only. |
-| **Slow-shot pulse** | Fast | Same rates | Pulses while a shot runs past your shot time window. |
+| **Scale connected** | ON (Buzzer only or Scale first) | ON / OFF | Rising RTTTL when a scale connects or reconnects. Always the local buzzer. |
+| **Blue light while connected** | ON | ON / OFF | Onboard GPIO 1 HIGH while a scale is BLE-connected. Independent of Sound alerts. |
+| **Fast-shot beeps** | Fast | Disabled / Slow / Medium / Fast / Rapid | Local-buzzer pulses while a fast shot continues past its target. Disabled when Play alerts on is Scale only. |
+| **Slow-shot beeps** | Fast | Same rates | Pulses while a shot runs past your shot time window. |
 | **Bullseye melody** | OFF | ON / OFF; Buzzer only | Plays the saved custom RTTTL tune once when a shot stopped by weight **On recipe** remains exactly at its target weight for at least 1 full second. The text is retained when disabled. |
 | **Custom RTTTL** | empty | Up to 500 ASCII characters / 250 notes | Validated when saved and parsed into a fixed-capacity buffer. Editable only while Bullseye melody is enabled; otherwise it remains visible and read-only. |
 
@@ -74,7 +74,7 @@ changed. On momentary machines, check the actual group and its state feedback.
 Bullseye applies only to automatic shots stopped by weight whose verdict is
 **On recipe** (they reached the target inside the shot time window); fast,
 slow, manual, timer-only and limit endings never play it, nor do rinses.
-It is active only when **Sound alerts** is on, **Output channel** is **Buzzer
+It is active only when **Sound alerts** is on, **Play alerts on** is **Buzzer
 only**, and a local buzzer is compiled in.
 
 Tracking starts when the configured drip delay finishes. Repeated fresh scale
@@ -84,14 +84,14 @@ limit restarts the stability timer. There is no further time limit while the
 same cup remains on the scale. Removing or replacing that cup, or starting
 another cycle, discards the pending Bullseye.
 
-In **Buzzer only** (and Scale priority when the scale is not usable),
+In **Buzzer only** (and Scale first when the scale is not usable),
 tare/retare sounds follow paddle/retare immediately and do not wait for a
 Bluetooth round-trip. Shot **start** and **stop** always follow machine circuit on the
 local buzzer whenever one is compiled in, including Scale only and Scale
 priority with a connected scale. The scale timer may keep running briefly
 after machine circuit opens; that does not delay the stop beep.
 
-**Mute scale in Buzzer only** and **Scale volume** live under
+**Mute the Bookoo speaker** and **Scale volume** live under
 [Scales](settings/scales.md). They change scale speaker behavior, not this
 Alerts group.
 
@@ -104,7 +104,7 @@ the paddle to OFF.
 ## Choose an output
 
 Use **Buzzer only** for local cues with a compiled passive buzzer. Use
-**Scale only** if the scale supports the requested sound. **Scale priority**
+**Scale only** if the scale supports the requested sound. **Scale first**
 falls back to the buzzer for unsupported/unavailable scale sounds.
 Start/stop local cues are the exception described above.
 

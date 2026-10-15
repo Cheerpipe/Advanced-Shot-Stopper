@@ -17,7 +17,7 @@ running shot is demoted to a rinse (a paddle flip OFF inside the gesture
 window, or a momentary press hold reaching the threshold), the time already
 elapsed counts toward it: the group runs for the configured duration in total
 from the original start, and the reported duration matches. A rinse that
-starts from idle (Button release hold, Armed, web) runs for the full duration
+starts from idle (Released hold, Armed, web) runs for the full duration
 from its start.
 
 **Settings → Shared settings → Quick rinse** is shown on paddle, momentary,
@@ -42,8 +42,8 @@ See [Linea Micra](linea-micra.md#recognize-paddle-wake-gestures).
   circuit). An Armed rinse from Ready does not run water unless **Allow rinse
   while Armed** is on; the gesture still uses up the missing-scale warning.
 - **Momentary / reed:** a long-press that **starts from idle** (off / confirmed
-  off) and reaches the gesture time is a rinse. In **Button press** the shot
-  starts on press and demotes to rinse at the threshold. In **Button release**
+  off) and reaches the gesture time is a rinse. In **Pressed** the shot
+  starts on press and demotes to rinse at the threshold. In **Released**
   rinse starts directly (never a shot). A long-press during assumed/confirmed
   on of an existing shot is not a rinse. The same Armed-rinse rule applies:
   default off keeps the group from running and uses up the warning; the option
@@ -70,15 +70,15 @@ Rinses are excluded from shot history by cycle type, not just by duration.
 Default 1 s gesture / 4 s duration, with **Quick rinse** on. On paddle, flip
 ON and back OFF within a second: the group runs for four seconds in total
 (about three more after you flip OFF), then opens. On momentary, hold the
-switch for at least a second from idle in Button press: the shot demotes and
-the group runs for four seconds in total from the press. In Button release
+switch for at least a second from idle in Pressed mode: the shot demotes and
+the group runs for four seconds in total from the press. In Released mode
 the rinse starts from idle and runs for the full four seconds, then pulses
 stop.
 
 If a long button hold starts during an existing shot, it is not the idle rinse
 gesture. If **Require a scale** blocks the attempt, rinse is also blocked unless
 the physical temporary override was deliberately completed. If **Warn once, then
-allow** is Armed and **Allow rinse while Armed** is off, the rinse gesture uses
+allow** is Armed and **Rinse without a scale** is off, the rinse gesture uses
 up the warning and does not run water.
 
 Related: [Paddle](paddle.md), [Momentary](momentary.md), [No-scale BBW](no-scale-bbw.md),

@@ -2,7 +2,7 @@
 
 The native **Open Brew by Weight** integration adds one controller device,
 live shot state, the newest recorded shot, an active-preset selector, seven
-switches that mirror Home's **Stop the shot** card, and a safe restart button. It
+switches that mirror Home's **How shots stop** card, and a safe restart button. It
 does not create YAML helpers, template entities, REST commands, or automations,
 and it cannot start or stop the espresso machine.
 
@@ -99,7 +99,7 @@ Its remaining entities are:
 - **Active preset**, a select populated from the controller's preset names.
 - **Brew by weight**, **No-scale BBW**, **Scale-loss backup**, **Shorten
   slow shots**, **Extend fast shots**, **Avoid accidental touch**, and **Cup
-  protection** switches, named as on Home's **Stop the shot** card (see
+  protection** switches, named as on Home's **How shots stop** card (see
   [Scale-loss backup](auto-to-manual.md) and
   [Fast and slow shots](fast-and-slow-shots.md)). Existing installations keep
   their entity IDs; only the displayed names change.

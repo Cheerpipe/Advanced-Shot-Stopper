@@ -3,7 +3,7 @@
 Four controls distinguish cup-placement tare outside a brew, optional accessory
 retare while idle, shot-start tare, and late-cup retare. Machine-level, under
 **Settings → Shared settings → Tare**, except **Earliest weight stop**, which is
-saved with each preset under **Settings → Presets → Shot limits**.
+saved with each preset under **Settings → Presets → Time limits**.
 
 Initial weight-stop protection is a separate brew setting; its range and
 interactions are in [Cup protection](../features/cup-protection.md).
@@ -16,7 +16,7 @@ Together with [Cup detection](cup.md), this is the setting side of
 
 Initial tare and timer commands can also run on timer-only shots with a usable
 scale. Late retare and **Earliest weight stop** apply to automatic BBW, not timer-only or
-manual no-scale cycles. Shot **Post-tare grace** is inactive when **Automatic tare at shot start**
+manual no-scale cycles. Shot **Post-tare grace** is inactive when **Tare when the shot starts**
 is off.
 
 First-drop / first-flow detection still runs against the tare zero even while
@@ -32,16 +32,16 @@ controller does not promise another automatic tare outside that window.
 
 | Setting | Default | Range | Effect on the shot |
 | --- | --- | --- | --- |
-| **Automatic tare outside a brew** | ON | ON / OFF | Tare once on a new stable cup placement while idle, independently of shot-start tare, BBW, and cup protection. Never tares merely because a shot ends. |
-| **Retare when adding or removing an accessory** | ON | ON / OFF | Before brewing, tare a stable added load on a cup already tared outside a brew, then retare its known removal while the cup remains. Requires **Automatic tare outside a brew**. |
-| **Automatic tare at shot start** | ON | ON / OFF | Tare at shot start when a usable scale supports it, including timer-only shots. |
+| **Tare when you place a cup** | ON | ON / OFF | Tare once on a new stable cup placement while idle, independently of shot-start tare, BBW, and cup protection. Never tares merely because a shot ends. |
+| **Tare items added to a cup** | ON | ON / OFF | Before brewing, tare a stable added load on a cup already tared outside a brew, then retare its known removal while the cup remains. Requires **Tare when you place a cup**. |
+| **Tare when the shot starts** | ON | ON / OFF | Tare at shot start when a usable scale supports it, including timer-only shots. |
 | **Post-tare grace (s)** | 2 s | 0.5–10 s | After a tare (start or late-cup retare), wait this long for ~0 g before using weight for **stop/control**. |
-| **Late-cup retare during a shot** | ON | ON / OFF | Allow one qualified late-cup retare within the original window, even after first drop was detected. Requires automatic BBW and shot-start tare. |
-| **Retare window (s)** | 4 s | 0.5–10 s | Time after shot start to detect and retare a late-placed cup. |
-| **Bookoo combined command** | ON | ON / OFF | Use the scale’s combined tare + start-timer command at shot start. Requires shot-start tare. Idle tare never starts the timer. Bookoo only. |
+| **Tare a late cup** | ON | ON / OFF | Allow one qualified late-cup retare within the original window, even after first drop was detected. Requires automatic BBW and shot-start tare. |
+| **Late cup time (s)** | 4 s | 0.5–10 s | Time after shot start to detect and retare a late-placed cup. |
+| **Bookoo combined command** | ON | ON / OFF | Use the scale’s combined tare + start-timer command at shot start. Needs tare at shot start. Idle tare never starts the timer. Bookoo only. |
 
 All tare switches are shared machine settings, not preset values. Save changes
-while idle. **Automatic tare outside a brew** defaults ON on first setup, factory
+while idle. **Tare when you place a cup** defaults ON on first setup, factory
 reset, and upgrade from a configuration without this field. A saved OFF value
 survives reboot and later upgrades. Enabling it with a cup already present does
 not tare that cup. Accessory retare defaults ON after installation or factory
@@ -61,7 +61,7 @@ Either placement path triggers another tare, even if the cup contains coffee.
 With accessory retare OFF, adding coffee or a spoon while the cup stays present
 does not tare.
 
-With **Retare when adding or removing an accessory** ON, place and let the cup
+With **Tare items added to a cup** ON, place and let the cup
 auto-tare first. Add the accessory before starting the shot, then wait for its
 added weight to meet **Minimum cup weight** and the configured stability window.
 The controller tares that addition once; the cup remains present and its
@@ -85,7 +85,7 @@ automatic placement can resume.
 
 Moving an empty scale and returning it near its previously stable zero does not
 authorize an idle tare. Let it settle through the normal stability window;
-**Automatic tare** returns to **Ready for a cup**, including after positive and
+**Cup tare** returns to **Ready for a cup**, including after positive and
 negative fluctuations before the first cup has been weighed. Small stable
 empty-pan offsets use the same near-zero range as at connection; recovery adds
 no delay to the usual stability or cup-placement timing. If zero was already
@@ -167,7 +167,7 @@ pre-write check, within its original expiry. Contradictory evidence cancels it.
 Other tracked tares invalidate the anchor and cup mass when that evidence is
 missing; they do not fabricate a new empty zero.
 
-**Home → Cup → Automatic tare** shows whether the empty pan must settle, the
+**Home → Cup → Cup tare** shows whether the empty pan must settle, the
 controller is ready for a cup, the machine must turn off, tare is pending, or the
 cup needs removal and replacement. An uncertain reference asks you to tare the
 empty scale and reconnect it. **Stale**, **No sample**, and **Disconnected** take
@@ -198,7 +198,7 @@ An earlier first-drop detection does not prevent a qualified cup placement
 from triggering retare. The earlier time and chart marker are replaced only
 after successful retare and a fresh reading near zero within **Post-tare grace**.
 If no new first drop follows, its time and average flow remain unavailable.
-Failure or an unconfirmed zero preserves the earlier record. **Tare time**
+Failure or an unconfirmed zero preserves the earlier record. **Late cup**
 still reports successful command completion, so it can appear without a
 confirmed zero. The retare deadline, shot timer, and stop protections stay
 the same. See [Tare and retare](../features/tare-retare.md#automatic-late-cup-retare)

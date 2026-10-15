@@ -487,7 +487,7 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     statusSection[1].includes('id="statusExtractionGuard"') ||
     !scaleSection || !scaleSection[1].includes('class="lampState"') ||
     (scaleSection[1].match(/class="metric"/g) || []).length !== 3 ||
-    !scaleSection[1].includes('<strong>Preferred</strong>') ||
+    !scaleSection[1].includes('<strong>My scale</strong>') ||
     !scaleSection[1].includes('<strong>Weight</strong>') ||
     !scaleSection[1].includes('<strong>Timer</strong>') ||
     scaleSection[1].includes('data-label="Status"') ||
@@ -515,13 +515,13 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     !codeIncludes(ui, 'id="preferredScaleBootstrapHint"') ||
     !codeIncludes(ui, 'id="scalePreference"') ||
     !codeIncludes(ui, 'id="forgetPairedScale"') ||
-    !codeIncludes(ui, 'Scale preference') ||
-    !codeIncludes(ui, 'First available') ||
+    !codeIncludes(ui, 'Which scale') ||
+    !codeIncludes(ui, 'Any scale') ||
     !codeIncludes(ui, 'First detected') ||
-    !codeIncludes(ui, 'Prefer selected') ||
-    !codeIncludes(ui, 'Preferred only') ||
-    !codeIncludes(ui, 'Preferred scale') ||
-    !codeIncludes(ui, 'Clear preferred') ||
+    !codeIncludes(ui, 'My scale first') ||
+    !codeIncludes(ui, 'Only my scale') ||
+    !codeIncludes(ui, 'My scale') ||
+    !codeIncludes(ui, 'Forget scale') ||
     !codeIncludes(ui, 'scaleMacCacheMode') ||
     !codeIncludes(ui, '/api/v1/scale/preferred/clear') ||
     codeIncludes(ui, "command('/api/v1/scale/preferred/select'") ||
@@ -531,11 +531,11 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     !codeIncludes(ui, "if(!preferred||(keep&&!prev)){const first=document.createElement('option')") ||
     !codeIncludes(ui, "first.textContent=mode==='only'||mode==='prefer'?") ||
     !codeIncludes(ui, 'empty.textContent=bootstrap?') ||
-    !codeIncludes(ui, 'First detected') || !codeIncludes(ui, 'No preferred') ||
+    !codeIncludes(ui, 'First detected') || !codeIncludes(ui, 'None saved') ||
     codeIncludes(ui, "msg:'Select a preferred scale first.'") ||
-    !codeIncludes(ui, '<option value="prefer" selected>Prefer selected</option>') ||
-    codeIncludes(ui, '<option value="first" selected>First available</option>') ||
-    codeIncludes(ui, '<option value="only" selected>Preferred only</option>') ||
+    !codeIncludes(ui, '<option value="prefer" selected>My scale first</option>') ||
+    codeIncludes(ui, '<option value="first" selected>Any scale</option>') ||
+    codeIncludes(ui, '<option value="only" selected>Only my scale</option>') ||
     codeIncludes(ui, "if(!canPrefer&&(sel.value==='prefer'||sel.value==='only'))") ||
     codeIncludes(ui, "o.disabled=!canPrefer||!controlsMutable") ||
     // Regression: missing ';' after `prev` concatenated into
@@ -550,7 +550,7 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     codeIncludes(ui, 'Always use this scale') ||
     !codeIncludes(ui, 'function selectPreferredScale(') ||
     !codeIncludes(ui, 'function forgetPairedScale(') ||
-    !codeIncludes(ui, 'Saved scale history is kept') ||
+    !codeIncludes(ui, 'Saved scales stay in the list') ||
     !codeIncludes(ui, 'formatPreferredScale(s)') ||
     !codeIncludes(ui, 'macCachePauseRemainingMs>0') ||
     codeIncludes(ui, 'id="preferredScaleSettings"') ||
@@ -728,7 +728,7 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
     !network.includes('delta.field("maintenance.persistPending"') ||
     !network.includes('delta.field("maintenance.persistFailed"') ||
     !codeIncludes(ui, 'persistFailed') ||
-    !codeIncludes(ui, 'Saving...') ||
+    !codeIncludes(ui, 'Saving…') ||
     !network.includes('delta.field("cycle.active"') ||
     !network.includes('extractionExtended') ||
     !codeIncludes(ui, 'paintUiStream()')) {
@@ -747,14 +747,14 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
 if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !codeIncludes(ui, 'id="scaleLossFixedS"') ||
     !codeIncludes(ui, 'id="scaleTimerStopExtraDelayMs"') ||
-    !html.includes('Waits this extra time before stopping the scale') ||
+    !html.includes('Delays only the scale') ||
     html.includes('Added after measured scale start lag') ||
     html.includes('Added after the scale timer catches up to circuit whole seconds') ||
     !codeIncludes(ui, 'id="dripDelayS" type="number" min="0" max="10" step="0.1"') ||
     !codeIncludes(ui, 'id="scaleLossFixedLink"') ||
     html.indexOf('<summary>Scale guard</summary>') >
-        html.indexOf('<summary>Scale-loss backup</summary>') ||
-    html.indexOf('<summary>Scale-loss backup</summary>') >
+        html.indexOf('<summary>Finish by time</summary>') ||
+    html.indexOf('<summary>Finish by time</summary>') >
         html.indexOf('id="scaleLossProjection"') ||
     !codeIncludes(ui, 'id="homeScaleLossSub"') ||
     !codeIncludes(ui, 'id="homeNoScaleSub"') ||
@@ -762,8 +762,8 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !codeIncludes(ui, 'id="noScaleAllowRinseWhileArmed"') ||
     !codeIncludes(ui, 'id="lastShotCooldownMin"') ||
     !codeIncludes(ui, 'When no scale') ||
-    !codeIncludes(ui, 'Protection returns after') ||
-    !codeIncludes(ui, 'Allow rinse while Armed') ||
+    !codeIncludes(ui, 'Warning returns after') ||
+    !codeIncludes(ui, 'Rinse without a scale') ||
     !codeIncludes(ui, "noScaleAllowRinseWhileArmed:$('noScaleAllowRinseWhileArmed').checked") ||
     !codeIncludes(ui, "'rinseEnabled','noScaleAllowRinseWhileArmed'") ||
     !codeIncludes(ui, 'id="noScaleBbwMode"') ||
@@ -795,7 +795,7 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     html.indexOf('id="lastShotCooldownMin"') <
         html.indexOf('<summary>Scale guard</summary>') ||
     html.indexOf('id="lastShotCooldownMin"') >
-        html.indexOf('<summary>Scale-loss backup</summary>') ||
+        html.indexOf('<summary>Finish by time</summary>') ||
     html.indexOf('id="paddleMode"') <
         html.indexOf('<summary>Paddle</summary>') ||
     html.indexOf('id="paddleMode"') >
@@ -837,13 +837,13 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     codeIncludes(ui, "setHomeSub('homeAlertsSub'") ||
     !codeIncludes(ui, 'function formatCupProtection(') ||
     codeIncludes(ui, 'function formatAlertsChannel(') ||
-    !/Can\\?'t brew — no cup/.test(ui) ||
+    !/Place a cup to start/.test(ui) ||
     !codeIncludes(ui, 'Shot aborted') ||
     !codeIncludes(ui, 'Brew allowed') ||
     !codeIncludes(ui, "c.state==='PRESENT'||c.present?") ||
     !codeIncludes(ui, 'Present') || !codeIncludes(ui, 'Absent') ||
     !network.includes('shotLogStopDetailName(') ||
-    !html.includes('option value="scale_priority">Scale priority') ||
+    !html.includes('option value="scale_priority">Scale first') ||
     !css.includes('.swS') ||
     !css.includes('.protList .switchRow{') ||
     !css.includes('#brewModeRow{position:relative;display:grid;grid-template-columns:1fr 1fr') ||
@@ -899,12 +899,12 @@ if (!html.includes('<summary>Paddle</summary>') ||
         paddleHelp.indexOf('<strong>Original:</strong>') ||
     paddleHelp.indexOf('<strong>Original:</strong>') >
         paddleHelp.indexOf('<strong>Auto:</strong>') ||
-    !html.includes('ON starts and OFF stops') ||
-    !html.includes('promotes that shot to Natural') ||
-    !html.includes('Until the first OFF, automatic stopping waits') ||
-    !html.includes('OFF after the rinse window demotes the current shot to Original-style hands-off automation') ||
-    !html.includes('Neither transition stops early') ||
-    !html.includes('early ON→OFF demotes the tentative shot to a rinse') ||
+    !html.includes('ON starts, OFF stops') ||
+    !html.includes('To stop early, ON then OFF again') ||
+    !html.includes('Left ON, it runs to the 60 s safety limit') ||
+    !html.includes('wherever the paddle is') ||
+    !html.includes('after the first second the paddle') ||
+    !html.includes('OFF in the first second stops it, or starts a rinse if Quick rinse is on') ||
     !html.includes('Without weight control, OFF stops normally') ||
     !codeIncludes(ui, "paddleMode:$('paddleMode')?['auto','natural','original']") ||
     !codeIncludes(ui, "if($('paddleMode'))$('paddleMode').value=") ||
@@ -1002,20 +1002,20 @@ if (!html.includes('<summary>Switch</summary>') ||
     !html.includes('class="switchOnly"') ||
     !html.includes('class="cfgGroup momentaryOnly"') ||
     !html.includes('Auto-stop pulse') ||
-    !html.includes('Single-press limit') ||
+    !html.includes('Longest tap') ||
     !html.includes('Start/stop on') ||
-    !html.includes('Reed confirm timeout') ||
-    !html.includes('Button press') ||
-    !html.includes('Button release') ||
-    !html.includes('<strong>Button press:</strong>') ||
-    !html.includes('<strong>Button release:</strong>') ||
-    !html.includes('shot state start or stop when the button is pressed') ||
-    !html.includes('demotes the tentative shot to a rinse') ||
-    !html.includes('only after a short release') ||
-    !html.includes('starts a rinse directly, never a shot') ||
-    !html.includes('machine sensor to confirm that water started or stopped') ||
-    !html.includes('the displayed state follows the sensor') ||
-    !html.includes('Longer holds remain manual') ||
+    !html.includes('Brew sensor wait') ||
+    !html.includes('Pressed') ||
+    !html.includes('Released') ||
+    !html.includes('<strong>Pressed:</strong>') ||
+    !html.includes('<strong>Released:</strong>') ||
+    !html.includes('Starts or stops on press') ||
+    !html.includes('a hold from idle becomes a rinse') ||
+    !html.includes('Starts or stops on a short release') ||
+    !html.includes('starts a rinse, never a shot') ||
+    !html.includes('brew sensor has to confirm a start or stop') ||
+    !html.includes('After that, it decides') ||
+    !html.includes('Longer holds go to the machine') ||
     html.includes('<summary>Momentary</summary>') ||
     html.indexOf('<summary>Paddle</summary>') >
         html.indexOf('<summary>Switch</summary>') ||
@@ -1024,12 +1024,12 @@ if (!html.includes('<summary>Switch</summary>') ||
     html.indexOf('id="stopPulseMs"') >
         html.indexOf('<summary>Scale guard</summary>') ||
     !html.includes(
-        'How long the controller holds the machine button when stopping automatically') ||
+        'How long the controller presses the button to stop') ||
     !codeIncludes(ui, "stopPulseMs:$('stopPulseMs')?number(") ||
     !codeIncludes(ui, "if($('stopPulseMs'))$('stopPulseMs').value=") ||
     !codeIncludes(ui, 'Auto-stop pulse') ||
-    !codeIncludes(ui, 'Single-press limit') ||
-    !codeIncludes(ui, 'Reed confirm timeout') ||
+    !codeIncludes(ui, 'Longest tap') ||
+    !codeIncludes(ui, 'Brew sensor wait') ||
     !codeIncludes(ui, 'momentaryStartEdge:') ||
     !codeIncludes(ui, 'reedConfirmTimeoutMs:') ||
     !codeIncludes(ui, 'assumeIdleWhenScaleConnects:') ||
@@ -1046,12 +1046,12 @@ if (!html.includes('<summary>Switch</summary>') ||
     codeIncludes(ui, 'id="overrideBrewingButton"') ||
     codeIncludes(ui, "d.classList.contains('momentaryMachine')&&!d.classList.contains('reedMachine')") ||
     !html.includes('Assume idle when the scale connects') ||
-    !html.includes('marks the machine as idle without pressing its button') ||
+    !html.includes('Marks the machine idle when a scale connects') ||
     !html.includes('Shot reaction timeout') ||
     !html.includes(
-        'If the scale shows no coffee for this long after Start') ||
-    !html.includes('Override idle') ||
-    !html.includes('Override brewing') ||
+        'No coffee on the scale this long after Start') ||
+    !html.includes('Mark as idle') ||
+    !html.includes('Mark as running') ||
     !css.includes('html.reedMachine .switchOnly') ||
     !css.includes('html:not(.momentaryMachine) .switchOnly') ||
     !css.includes('#machineStateValue .switchOnly') ||
@@ -1128,10 +1128,10 @@ if (!html.includes('class="cfgGroup paddleOnly"><summary>Paddle</summary>') ||
     html.indexOf('<summary>Quick rinse</summary>') >
         html.indexOf('id="rinseEnabled"') ||
     !html.includes('id="rinseEnabled" type="checkbox"> Quick rinse') ||
-    !html.includes('Lets you flush the group with a short paddle flip') ||
-    !html.includes('Lets you flush the group with a long press from idle') ||
-    !html.includes('How long to hold the switch from idle before a rinse starts') ||
-    !html.includes('How long water runs after a Quick rinse begins') ||
+    !html.includes('Flick the paddle ON and straight back OFF to rinse') ||
+    !html.includes('Hold the switch from idle to rinse') ||
+    !html.includes('Hold this long from idle to start a rinse') ||
+    !html.includes('Water runs this long, then stops') ||
     !html.includes('a long press is left to the machine') ||
     !html.includes('id="rinseButton" class="btnGlyph" title="Start rinse"') ||
     html.includes('id="rinseButton" class="btnGlyph paddleOnly"') ||
@@ -1146,7 +1146,7 @@ if (!html.includes('class="cfgGroup paddleOnly"><summary>Paddle</summary>') ||
     !html.includes('class="cfgGroup momentaryOnly"><summary>Switch</summary>') ||
     !html.includes('Paddle-off reminder<select id="paddleReturnReminder">') ||
     !html.includes('<option value="0">OFF</option><option value="15">15</option><option value="30" selected>30</option><option value="60">60</option><option value="120">120</option>') ||
-    !html.includes('When on, repeating beeps remind you to return the paddle after an automatic stop while it is still ON. Turn off to silence this reminder.') ||
+    !html.includes('After an automatic stop, beeps at this interval until the paddle is back at OFF.') ||
     html.includes('id="paddleReturnReminderBeep"') ||
     html.includes('id="paddleReturnReminderIntervalS"') ||
     !codeIncludes(runtimeJs, 'paddleReturnReminderBeep:reminder?!!+reminder.value:undefined') ||
@@ -1189,7 +1189,7 @@ if (!codeIncludes(ui, 'id="learnedOffsetG"') ||
     codeIncludes(ui, 'Reset learned stop offset') ||
     !css.includes('.bbwLearning .btnBar{max-width:22rem}') ||
     css.includes('#bbwAlgorithm{width:100%}') ||
-    !codeIncludes(ui, 'Save changed starting values before resetting') ||
+    !codeIncludes(ui, 'Save new reset values first') ||
     !network.includes('weightOffsetBaselineG') ||
     !codeIncludes(ui, 'weightOffsetBaselineG')) {
   throw new Error('Learned drip baseline must be wired to Reset drip learning');
@@ -1203,9 +1203,9 @@ if (!html.includes('<summary>Cup detection</summary>') ||
      'retareStabilityMinDurationS'].some(id =>
       html.indexOf(`id="${id}"`) < html.indexOf('<summary>Cup detection</summary>') ||
       html.indexOf(`id="${id}"`) > html.indexOf('<summary>Cup protection</summary>')) ||
-    !html.includes('<summary>Scales</summary>') ||
+    !html.includes('<summary>Scale</summary>') ||
     html.includes('<summary>Scale & retare</summary>') ||
-    html.indexOf('<summary>Scales</summary>') >
+    html.indexOf('<summary>Scale</summary>') >
         html.indexOf('<summary>Tare</summary>') ||
     html.indexOf('<summary>Tare</summary>') >
         html.indexOf('<summary>Alerts</summary>') ||
@@ -1217,19 +1217,19 @@ if (!html.includes('<summary>Cup detection</summary>') ||
     html.indexOf('id="autoRetare"') > html.indexOf('<summary>Cup detection</summary>') ||
     html.indexOf('id="retareWindowS"') > html.indexOf('<summary>Cup detection</summary>') ||
     html.indexOf('id="scaleTimerStopExtraDelayMs"') <
-        html.indexOf('<summary>Scales</summary>') ||
+        html.indexOf('<summary>Scale</summary>') ||
     html.indexOf('id="dripDelayS"') <
         html.indexOf('id="scaleTimerStopExtraDelayMs"') ||
     html.indexOf('id="scalePreference"') <
         html.indexOf('id="dripDelayS"') ||
     html.indexOf('id="scalePreference"') <
-        html.indexOf('<summary>Scales</summary>') ||
+        html.indexOf('<summary>Scale</summary>') ||
     html.indexOf('id="preferredScaleSelect"') <
-        html.indexOf('<summary>Scales</summary>') ||
+        html.indexOf('<summary>Scale</summary>') ||
     html.indexOf('id="forgetPairedScale"') <
-        html.indexOf('<summary>Scales</summary>') ||
+        html.indexOf('<summary>Scale</summary>') ||
     html.indexOf('<summary>Bookoo</summary>') <
-        html.indexOf('<summary>Scales</summary>') ||
+        html.indexOf('<summary>Scale</summary>') ||
     html.indexOf('id="canTareStartTimer"') <
         html.indexOf('<summary>Bookoo</summary>') ||
     html.indexOf('id="canTareStartTimer"') >
@@ -1242,17 +1242,17 @@ if (!html.includes('<summary>Cup detection</summary>') ||
         html.indexOf('<summary>Bookoo</summary>') ||
     html.indexOf('id="bookooConnectBeepLevel"') >
         html.indexOf('<summary>Acaia</summary>') ||
-    html.indexOf('<strong>Requires shot-start tare.</strong>') <
+    html.indexOf('<strong>Needs tare at shot start.</strong>') <
         html.indexOf('<summary>Bookoo</summary>') ||
-    html.indexOf('<strong>Requires shot-start tare.</strong>') >
+    html.indexOf('<strong>Needs tare at shot start.</strong>') >
         html.indexOf('<summary>Acaia</summary>') ||
     html.indexOf('Applies when <strong>Buzzer only</strong> is selected.') <
         html.indexOf('<summary>Bookoo</summary>') ||
     html.indexOf('Applies when <strong>Buzzer only</strong> is selected.') >
         html.indexOf('<summary>Acaia</summary>') ||
-    html.indexOf('<strong>Scale only or Scale priority</strong>') <
+    html.indexOf('<strong>Scale first or Scale only</strong>') <
         html.indexOf('<summary>Bookoo</summary>') ||
-    html.indexOf('<strong>Scale only or Scale priority</strong>') >
+    html.indexOf('<strong>Scale first or Scale only</strong>') >
         html.indexOf('<summary>Acaia</summary>') ||
     html.indexOf('<summary>Acaia</summary>') <
         html.indexOf('<summary>Bookoo</summary>') ||
@@ -1281,7 +1281,7 @@ if (!html.includes('id="postTareBaselineGraceS" type="number" min="0.5" max="10"
 if (!codeIncludes(ui, "rangeCheck('dripDelayS',0,10,'Drip delay',{unit:'s',}") ||
     !codeIncludes(ui, "dripDelayMs:sToMs('dripDelayS')") ||
     !codeIncludes(ui, "$('dripDelayS').value=String((c.dripDelayMs??3000)/1000)") ||
-    !codeIncludes(ui, 'How long to wait after water stops before recording the final drink weight and learning from it.') ||
+    !codeIncludes(ui, 'The yield is recorded this long after the stop.') ||
     !network.includes('\\"dripDelayMs\\":%lu') ||
     !network.includes('Drip delay must be from 0 to 10 s.') ||
     !network.includes('candidate.dripDelayMs')) {
@@ -1304,9 +1304,9 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
     ';return renderReadyMsg;')(() => msg);
   const show = (mode, enabled, armed) => (render({state: 'IDLE', config: {brewByWeight: true},
     scale: {available: false}, noScaleShotGuard: {mode, enabled, armed}}), msg.hidden ? '' : msg.textContent);
-  if (!/held back/.test(show('warn_once', true, true)) || /held back/.test(show('warn_once', true, false)) ||
+  if (!/blocked once/.test(show('warn_once', true, true)) || /blocked once/.test(show('warn_once', true, false)) ||
       !/Connect a scale/.test(show('require_scale', true, true)) || /Connect a scale/.test(show('require_scale', true, false)) ||
-      !/paddle/.test(show('off', false, false)))
+      !/yourself/.test(show('off', false, false)))
     throw new Error('Home no-scale notice must follow the live guard: armed warns or requires, disarmed is manual');
 }
 {
