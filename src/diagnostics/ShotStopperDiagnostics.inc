@@ -26,7 +26,7 @@ void profileControlState(uint32_t captureSequence, uint32_t evidenceConnection) 
       {S::CUP_TARED, cupPresenceIsTared()}, {S::EMPTY_READY, cup.weight.emptyValid},
       {S::EMPTY_SETTLING, cup.weight.emptySamples != 0 && !cup.weight.emptyValid},
       {S::EMPTY_REFERENCE_BLOCKED, presentation.emptyReferenceBlocked},
-      {S::CUP_NEGATIVE_HOLE, cup.inNegativeHole}, {S::CUP_REMOVAL_ARMED, cup.removedArmed},
+      {S::CUP_NEGATIVE_HOLE, cup.inNegativeHole},
       {S::UNLOAD_QUALIFIED, cup.weight.unloadQualified},
       {S::CUP_SETTLING, cup.placeStabilitySamples != 0},
       {S::CUP_REMOVAL_PENDING, cup.removedConfirmations != 0},

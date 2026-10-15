@@ -53,7 +53,6 @@ struct CupPresenceRuntime {
   CupPresenceState state = CupPresenceState::ABSENT;
   bool holdTransitions = false;
   bool inNegativeHole = false;
-  bool removedArmed = false;
   // True after a tare while the cup is already PRESENT. 0 g then means "cup
   // tared on the pan", so removal requires the negative hole. Untared PRESENT
   // treats a stable empty pan (~0 g) as REMOVED.
@@ -250,7 +249,6 @@ void resyncCupPresenceIfPanEmpty(float weight) {
   invalidateCupWeight();
   cupPresence.taredWhilePresent = false;
   cupPresence.inNegativeHole = false;
-  cupPresence.removedArmed = false;
   cupPresence.removedConfirmations = 0;
   cupPresence.lastRemovedAtMs = 0;
   cupPresence.lastRemovedPacketSequence = 0;
@@ -327,7 +325,6 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
        weight < minCupG));
 
   if (!removalCandidate) {
-    cupPresence.removedArmed = true;
     cupPresence.removedConfirmations = 0;
     cupPresence.lastRemovedAtMs = 0;
     cupPresence.lastRemovedPacketSequence = 0;
@@ -342,10 +339,6 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
       resetCupPlaceStabilityStreak();
       return CupPresenceEvent::NONE;
     }
-    if (!cupPresence.removedArmed) {
-      return CupPresenceEvent::NONE;
-    }
-
     const bool consecutive = cupPresence.removedConfirmations > 0 &&
         static_cast<int32_t>(receivedAtMs - cupPresence.lastRemovedAtMs) >= 0 &&
         static_cast<uint32_t>(receivedAtMs - cupPresence.lastRemovedAtMs) <=
@@ -520,7 +513,6 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
   cupPresence.taredWhilePresent = cupPresence.placeCandidateWeightG < minCupG;
   cupPresence.inNegativeHole = false;
   cupPresence.holeWeightG = 0.0f;
-  cupPresence.removedArmed = true;
   resetCupPlaceStabilityStreak();
   return CupPresenceEvent::PLACED;
 }

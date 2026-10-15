@@ -181,7 +181,7 @@ fresh removal/placement evidence. After a successful tare, the message stays
 message also shows how far the reading is from the empty reference; a reading
 well above it usually means something is still on the pan.
 
-Debug export schema 1 includes `idleTare`: request/placement IDs, eligibility
+The debug export includes `idleTare`: request/placement IDs, eligibility
 and terminal reasons, reference confidence, qualifying weight range, capture
 and command times, sequence boundary, dropped/rejected sample counts, and
 `anchorDeltaG` (the idle reading minus the empty reference while it waits for

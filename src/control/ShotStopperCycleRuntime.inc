@@ -390,7 +390,6 @@ CupTareDiagnostics captureCupTareDiagnostics() {
   out.cupState = static_cast<uint8_t>(cupPresenceState());
   out.holdTransitions = cupPresence.holdTransitions;
   out.inNegativeHole = cupPresence.inNegativeHole;
-  out.removedArmed = cupPresence.removedArmed;
   out.tared = cupPresenceIsTared();
   out.referenceKnown = cupPresenceIsKnown();
   out.emptyReferenceBlocked = !session.active &&
@@ -474,7 +473,6 @@ void copyDebugExportExtras(DebugExportExtras &out,
     out.cupState = cup.cupState;
     out.cupHoldTransitions = cup.holdTransitions;
     out.cupInNegativeHole = cup.inNegativeHole;
-    out.cupRemovedArmed = cup.removedArmed;
     out.cupRemovedConfirmations = cup.removedConfirmations;
     out.cupPlaceStabilitySamples = cup.stabilitySamples;
     out.cupHoleWeightG = cup.holeWeightG;

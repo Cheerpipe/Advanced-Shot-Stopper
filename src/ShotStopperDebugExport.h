@@ -16,7 +16,7 @@
 
 namespace shotstopper {
 
-constexpr uint32_t DEBUG_EXPORT_SCHEMA_VERSION = 3;
+constexpr uint32_t DEBUG_EXPORT_SCHEMA_VERSION = 4;
 constexpr size_t DEBUG_EXPORT_SHOT_SUMMARY_LIMIT = 10;
 
 // Internals not fully represented on ControlStatusSnapshot / status APIs.
@@ -51,7 +51,6 @@ struct DebugExportExtras {
   uint8_t cupState = 0;
   bool cupHoldTransitions = false;
   bool cupInNegativeHole = false;
-  bool cupRemovedArmed = false;
   uint8_t cupRemovedConfirmations = 0;
   uint8_t cupPlaceStabilitySamples = 0;
   float cupHoleWeightG = 0.0f;

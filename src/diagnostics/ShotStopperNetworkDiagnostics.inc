@@ -445,13 +445,12 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
        debugExportChunkf(
            request, buf, cap,
            "\"cupPresence\":{\"state\":\"%s\",\"holdTransitions\":%s,"
-           "\"inNegativeHole\":%s,\"removedArmed\":%s,"
+           "\"inNegativeHole\":%s,"
            "\"removedConfirmations\":%u,\"placeStabilitySamples\":%u,"
            "\"holeWeightG\":%.2f,\"placeCandidateWeightG\":%.2f},",
            cupPresenceStateName(static_cast<CupPresenceState>(x.cupState)),
            x.cupHoldTransitions ? "true" : "false",
            x.cupInNegativeHole ? "true" : "false",
-           x.cupRemovedArmed ? "true" : "false",
            static_cast<unsigned>(x.cupRemovedConfirmations),
            static_cast<unsigned>(x.cupPlaceStabilitySamples),
            static_cast<double>(x.cupHoleWeightG),

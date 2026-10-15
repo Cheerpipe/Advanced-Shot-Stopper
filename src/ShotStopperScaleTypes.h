@@ -344,7 +344,6 @@ inline bool plausibleSettledBrewWeight(float candidateG, float lastKnownG,
 }
 constexpr size_t WEIGHT_TREND_POINT_COUNT = 10;
 constexpr float WEIGHT_TREND_MIN_LAST_SAMPLE_G = 10.0f;
-constexpr float WEIGHT_TREND_MIN_HORIZON_S = 0.25f;
 constexpr float ACCIDENTAL_TOUCH_RESIDUAL_G = 1.5f;
 constexpr float ACCIDENTAL_TOUCH_STARTUP_MIN_DELTA_G = 2.0f;
 constexpr float ACCIDENTAL_TOUCH_STARTUP_MAX_RATE_G_S = 8.0f;
@@ -405,7 +404,6 @@ struct CupTareDiagnostics {
   uint8_t cupState = 0;
   bool holdTransitions = false;
   bool inNegativeHole = false;
-  bool removedArmed = false;
   bool tared = false;
   bool referenceKnown = true;
   bool emptyReferenceBlocked = false;
