@@ -215,6 +215,10 @@ Related: [Wi-Fi](../settings/wifi.md), [AP](../settings/ap.md),
 6. For `NO_IDENTITY` or a controller without the resumable session schema,
    install one current image over USB. Do not use `--no-check` or a legacy OTA
    fallback to bypass the incompatibility.
+7. For `OTA_ALREADY_FLASHED`, the new firmware is already selected and only a
+   restart is missing. Restart the controller to start it; repeating the CLI
+   flash also requests the restart again. A new upload or **Discard** is
+   refused until then.
 
 ## Protocol details and verification
 

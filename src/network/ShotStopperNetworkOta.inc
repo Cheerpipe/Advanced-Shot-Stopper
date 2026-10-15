@@ -943,7 +943,8 @@ const char *otaResultHttpStatus(OtaResult result) {
     case OtaResult::PENDING_VERIFY:
     case OtaResult::SAFETY_LOST:
     case OtaResult::NO_IDENTITY:
-    case OtaResult::NOTHING_STAGED: return STATUS_CONFLICT;
+    case OtaResult::NOTHING_STAGED:
+    case OtaResult::COMMITTED: return STATUS_CONFLICT;
     case OtaResult::SESSION_REQUIRED:
     case OtaResult::SESSION_CONFLICT:
     case OtaResult::SESSION_IDENTITY_MISMATCH:
@@ -1032,6 +1033,9 @@ const char *otaResultMessage(OtaResult result) {
              "→ NVS; the running firmware was not replaced.";
     case OtaResult::INTERNAL:
       return "This firmware cannot verify updates. Reflash over USB.";
+    case OtaResult::COMMITTED:
+      return "A new firmware image is already flashed. Restart the controller "
+             "to start it.";
   }
   return "The firmware update failed.";
 }
@@ -1357,7 +1361,7 @@ esp_err_t ShotStopperNetwork::otaPatchHandler(httpd_req_t *request) {
   io.stillSafe = otaTransferStillSafe;
   io.progress = otaTransferProgress;
   io.context = &transfer;
-  const OtaResult result = ota.writeRange(offset, rangeLength, io, millis());
+  const OtaResult result = ota.writeRange(transferId, offset, rangeLength, io, millis());
   if (result != OtaResult::OK) {
     const OtaStatusSnapshot failed = ota.snapshot();
     self.log(DebugCategory::NETWORK, DebugCode::OTA_UPLOAD_REJECTED,
@@ -1399,13 +1403,16 @@ esp_err_t ShotStopperNetwork::otaFlashHandler(httpd_req_t *request) {
   self.finishOwnedHeapLifecycle(
       self.otaHeap_, result == OtaResult::OK ? HeapLifecycleResult::SUCCESS
                                              : HeapLifecycleResult::FAILURE);
-  if (result != OtaResult::OK) {
+  // A retried flash after a failed restart request asks for the restart again.
+  if (result != OtaResult::OK && result != OtaResult::COMMITTED) {
     return sendError(request, otaResultHttpStatus(result),
                      ShotStopperOta::resultName(result),
                      otaResultMessage(result));
   }
-  self.log(DebugCategory::NETWORK, DebugCode::OTA_FLASH_COMMITTED,
-           static_cast<int32_t>(staged.packed));
+  if (result == OtaResult::OK) {
+    self.log(DebugCategory::NETWORK, DebugCode::OTA_FLASH_COMMITTED,
+             static_cast<int32_t>(staged.packed));
+  }
 
   // The restart runs through the ordinary maintenance lease after the shot
   // (if any) ends. The control task will not open K1 to make way for it.
@@ -1434,8 +1441,13 @@ esp_err_t ShotStopperNetwork::otaAbortHandler(httpd_req_t *request) {
                      "Stop the cycle and wait for Ready before updating firmware.");
   }
   self.beginOwnedHeapLifecycle(self.otaHeap_, HeapLifecycleEvent::OTA_ABORT);
-  ShotStopperOta::instance().discard();
-  self.finishOwnedHeapLifecycle(self.otaHeap_, HeapLifecycleResult::SUCCESS);
+  const OtaResult result = ShotStopperOta::instance().discard();
+  self.finishOwnedHeapLifecycle(self.otaHeap_, result == OtaResult::OK
+      ? HeapLifecycleResult::SUCCESS : HeapLifecycleResult::FAILURE);
+  if (result != OtaResult::OK) {
+    return sendError(request, otaResultHttpStatus(result),
+                     ShotStopperOta::resultName(result), otaResultMessage(result));
+  }
   return self.sendOtaSnapshot(request, STATUS_OK);
 }
 

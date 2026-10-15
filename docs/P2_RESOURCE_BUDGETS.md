@@ -308,6 +308,9 @@ stay inside their allowances.
 Tolerant Micra dashboard decoding and the connect-relative STOMP handshake
 timeout bring flash code to 1,563,344 bytes (48,244 over baseline); the
 flash-code allowance moves to 48,308 bytes, keeping the 64-byte headroom.
+The OTA committed-state result and the transfer-id check inside writeRange
+bring flash code to 1,563,488 bytes (48,388 over baseline); the flash-code
+allowance moves to 48,452 bytes, keeping the 64-byte headroom.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,

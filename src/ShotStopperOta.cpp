@@ -584,7 +584,8 @@ OtaResult ShotStopperOta::createSession(const OtaSessionIdentity &identity,
           OTA_SESSION_TTL_MS) {
     finishFailure(OtaResult::SESSION_EXPIRED);
   }
-  if (busy_ || state_ == OtaState::COMMITTED) {
+  if (state_ == OtaState::COMMITTED) return OtaResult::COMMITTED;
+  if (busy_) {
     return OtaResult::BUSY;
   }
   // esp_ota_begin refuses to write while the running slot is still
@@ -693,11 +694,16 @@ void ShotStopperOta::clearSessionSha256() {
   sessionSha256_.reset();
 }
 
-OtaResult ShotStopperOta::writeRange(uint32_t offset, uint32_t contentLength,
+OtaResult ShotStopperOta::writeRange(const char *transferId, uint32_t offset,
+                                     uint32_t contentLength,
                                      const OtaStreamIo &io, uint32_t now) {
   TaskLockGuard lock(mutex_);
   if (!sessionActive_) {
     return OtaResult::SESSION_REQUIRED;
+  }
+  if (transferId == nullptr ||
+      strncmp(session_.transferId, transferId, OTA_TRANSFER_ID_CAPACITY) != 0) {
+    return OtaResult::SESSION_IDENTITY_MISMATCH;
   }
   if (static_cast<uint32_t>(now - sessionLastActivityMs_) >=
       OTA_SESSION_TTL_MS) {
@@ -990,6 +996,7 @@ OtaResult ShotStopperOta::commit() {
   if (busy_ || sessionActive_) {
     return OtaResult::BUSY;
   }
+  if (state_ == OtaState::COMMITTED) return OtaResult::COMMITTED;
   if (!stagedValid_) {
     return OtaResult::NOTHING_STAGED;
   }
@@ -1012,11 +1019,10 @@ OtaResult ShotStopperOta::commit() {
   return OtaResult::OK;
 }
 
-void ShotStopperOta::discard() {
+OtaResult ShotStopperOta::discard() {
   TaskLockGuard lock(mutex_);
-  if (busy_ || state_ == OtaState::COMMITTED) {
-    return;
-  }
+  if (state_ == OtaState::COMMITTED) return OtaResult::COMMITTED;
+  if (busy_) return OtaResult::BUSY;
   clearSession(true);
   stagedValid_ = false;
   stagedTag_ = OtaImageTag{};
@@ -1025,6 +1031,7 @@ void ShotStopperOta::discard() {
   expectedBytes_ = 0;
   state_ = available_ ? OtaState::IDLE : OtaState::UNAVAILABLE;
   publishState();
+  return OtaResult::OK;
 }
 
 bool ShotStopperOta::confirmRunningImage() {
@@ -1191,6 +1198,7 @@ const char *ShotStopperOta::resultName(OtaResult result) {
     case OtaResult::SESSION_EXPIRED: return "OTA_SESSION_EXPIRED";
     case OtaResult::JOURNAL_FAILED: return "OTA_JOURNAL_FAILED";
     case OtaResult::INTERNAL: return "INTERNAL";
+    case OtaResult::COMMITTED: return "OTA_ALREADY_FLASHED";
   }
   return "UNKNOWN";
 }

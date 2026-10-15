@@ -24,6 +24,7 @@ struct OtaHostTestAccess {
 }  // namespace shotstopper
 
 using namespace shotstopper;
+const char *const kTransfer = "test-transfer-012345";
 
 #define CHECK(condition) do { if (!(condition)) { \
   std::cerr << __func__ << ':' << __LINE__ << ": " << #condition << '\n'; \
@@ -101,14 +102,23 @@ void testFragmentedHeaderAndTail() {
   CHECK(ota->createSession(image.identity, hostMillis) == OtaResult::OK);
   Stream stream{image.bytes};
   stream.readLimit = 100;
-  CHECK(ota->writeRange(0, 65536, stream.io(), hostMillis) == OtaResult::OK);
+  CHECK(ota->writeRange(kTransfer, 0, 65536, stream.io(), hostMillis) == OtaResult::OK);
   CHECK(ota_host::writes == 16);
-  CHECK(ota->writeRange(65536, 31, stream.io(), hostMillis) == OtaResult::OK);
+  // The id is rechecked under the OTA mutex: a foreign range writes nothing.
+  CHECK(ota->writeRange("other-transfer-01234", 65536, 31, stream.io(), hostMillis) ==
+        OtaResult::SESSION_IDENTITY_MISMATCH);
+  CHECK(ota_host::writes == 16 && stream.position == 65536);
+  CHECK(ota->writeRange(kTransfer, 65536, 31, stream.io(), hostMillis) == OtaResult::OK);
   CHECK(ota->snapshot().state == OtaState::STAGED);
   CHECK(ota_host::ends == 1 && ota_host::aborts == 0);
   CHECK(std::equal(image.bytes.begin(), image.bytes.end(), ota_host::flash.begin()));
   CHECK(ota->commit() == OtaResult::OK);
   CHECK(ota->snapshot().state == OtaState::COMMITTED);
+  // After a commit only a restart remains; every retry path says so.
+  CHECK(ota->commit() == OtaResult::COMMITTED);
+  CHECK(ota->createSession(image.identity, hostMillis) == OtaResult::COMMITTED);
+  CHECK(ota->discard() == OtaResult::COMMITTED);
+  CHECK(std::string(ShotStopperOta::resultName(OtaResult::COMMITTED)) == "OTA_ALREADY_FLASHED");
 }
 
 void testInterruptedRangeAndAlignment() {
@@ -117,17 +127,17 @@ void testInterruptedRangeAndAlignment() {
   Image image;
   CHECK(ota->createSession(image.identity, hostMillis) == OtaResult::OK);
   Stream stream{image.bytes};
-  CHECK(ota->writeRange(0, 5000, stream.io(), hostMillis) == OtaResult::INVALID_RANGE);
+  CHECK(ota->writeRange(kTransfer, 0, 5000, stream.io(), hostMillis) == OtaResult::INVALID_RANGE);
   CHECK(ota_host::begins == 0 && stream.position == 0);
   stream.failAt = 4096 + 100;
-  CHECK(ota->writeRange(0, image.identity.size, stream.io(), hostMillis) == OtaResult::RECEIVE_FAILED);
+  CHECK(ota->writeRange(kTransfer, 0, image.identity.size, stream.io(), hostMillis) == OtaResult::RECEIVE_FAILED);
   auto status = ota->snapshot();
   CHECK(status.sessionActive && status.nextOffset == 4096 && status.busy);
   CHECK(status.lastResult == OtaResult::RECEIVE_FAILED && ota_host::aborts == 0);
   CHECK(ota_host::flash[4096] == 0xFF);
   stream.position = status.nextOffset;
   stream.failAt = SIZE_MAX;
-  CHECK(ota->writeRange(4096, image.identity.size - 4096, stream.io(), hostMillis) == OtaResult::OK);
+  CHECK(ota->writeRange(kTransfer, 4096, image.identity.size - 4096, stream.io(), hostMillis) == OtaResult::OK);
   CHECK(ota->snapshot().stagedValid);
 }
 
@@ -145,7 +155,7 @@ void testSafetyAndFatalFailures() {
     if (failure == 4) image.bytes[0] = 0;
     const OtaResult expected[] = {OtaResult::SAFETY_LOST, OtaResult::WRITE_FAILED,
         OtaResult::VERIFY_FAILED, OtaResult::HASH_MISMATCH, OtaResult::BAD_IMAGE};
-    CHECK(ota->writeRange(0, image.identity.size, stream.io(), hostMillis) == expected[failure]);
+    CHECK(ota->writeRange(kTransfer, 0, image.identity.size, stream.io(), hostMillis) == expected[failure]);
     CHECK(!ota->snapshot().sessionActive && !ota->snapshot().stagedValid);
     CHECK(!ota_host::active && ota_host::invalidHandles == 0);
     if (failure == 0 || failure == 4) CHECK(ota_host::begins == 0 && ota_host::writes == 0);
@@ -163,7 +173,7 @@ void testCheckpointRecovery() {
     Stream stream{image.bytes};
     for (uint32_t offset = 0; offset < OTA_JOURNAL_CHECKPOINT_BYTES + OTA_TRANSFER_CHUNK_BYTES;
          offset += OTA_TRANSFER_CHUNK_BYTES) {
-      CHECK(ota->writeRange(offset, OTA_TRANSFER_CHUNK_BYTES, stream.io(), hostMillis) == OtaResult::OK);
+      CHECK(ota->writeRange(kTransfer, offset, OTA_TRANSFER_CHUNK_BYTES, stream.io(), hostMillis) == OtaResult::OK);
     }
     ota.reset();  // Volatile state dies; flash and journal survive.
     if (corrupt) ota_host::flash[8000] ^= 1;
@@ -180,7 +190,7 @@ void testCheckpointRecovery() {
     stream.position = OTA_JOURNAL_CHECKPOINT_BYTES;
     for (uint32_t offset = OTA_JOURNAL_CHECKPOINT_BYTES; offset < image.bytes.size();
          offset += OTA_TRANSFER_CHUNK_BYTES) {
-      CHECK(ota->writeRange(offset, OTA_TRANSFER_CHUNK_BYTES, stream.io(), hostMillis) == OtaResult::OK);
+      CHECK(ota->writeRange(kTransfer, offset, OTA_TRANSFER_CHUNK_BYTES, stream.io(), hostMillis) == OtaResult::OK);
     }
     CHECK(ota->snapshot().stagedValid && ota_host::invalidHandles == 0);
     // Boot and staging read the appended digest instead of re-hashing slots.
@@ -216,7 +226,7 @@ void testNewSessionClearsStaleJournal() {
   Stream stream{first.bytes};
   for (uint32_t offset = 0; offset <= OTA_JOURNAL_CHECKPOINT_BYTES;
        offset += OTA_TRANSFER_CHUNK_BYTES) {
-    CHECK(ota->writeRange(offset, OTA_TRANSFER_CHUNK_BYTES, stream.io(), hostMillis) == OtaResult::OK);
+    CHECK(ota->writeRange(kTransfer, offset, OTA_TRANSFER_CHUNK_BYTES, stream.io(), hostMillis) == OtaResult::OK);
   }
   CHECK(persistence_host::records.size() == 2);
   ota.reset();  // The next boot cannot restore before confirmation.

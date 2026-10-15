@@ -92,6 +92,9 @@ enum class OtaResult : uint8_t {
   SESSION_EXPIRED,
   JOURNAL_FAILED,
   INTERNAL,
+  // A verified image is already selected for the next boot; only a restart
+  // remains. Appended so existing numeric results keep their values.
+  COMMITTED,
 };
 
 constexpr size_t OTA_TRANSFER_ID_CAPACITY = 65;
@@ -265,8 +268,10 @@ class ShotStopperOta {
   // Writes exactly one contiguous range. `offset` must be nextOffset(). A
   // completed duplicate is reported as OFFSET_MISMATCH to the HTTP layer,
   // which answers 208 without touching flash.
-  OtaResult writeRange(uint32_t offset, uint32_t contentLength,
-                       const OtaStreamIo &io, uint32_t now);
+  // `transferId` is re-checked under the OTA mutex against the active session.
+  OtaResult writeRange(const char *transferId, uint32_t offset,
+                       uint32_t contentLength, const OtaStreamIo &io,
+                       uint32_t now);
   // Expires an abandoned session. When flash writes are allowed it also
   // erases a journal left by a discard or failure. With `wait` false it never
   // blocks behind an HTTP upload holding the OTA mutex.
@@ -275,7 +280,7 @@ class ShotStopperOta {
   // Points the bootloader at the staged image. The caller performs the
   // restart, so machine circuit can be opened first.
   OtaResult commit();
-  void discard();
+  OtaResult discard();
 
   bool runningImageConfirmed() const;
   bool runningImageRejected() const;
