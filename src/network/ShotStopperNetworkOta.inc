@@ -610,6 +610,17 @@ class ScaleProfileTextSink {
     return true;
   }
 
+  // printf-style line; formatting errors and truncation fail the export.
+  __attribute__((format(printf, 2, 3))) bool linef(const char *format, ...) {
+    char text[256];
+    va_list args;
+    va_start(args, format);
+    const int written = vsnprintf(text, sizeof(text), format, args);
+    va_end(args);
+    return written > 0 && unsigned(written) < sizeof(text) &&
+           line(text, static_cast<size_t>(written));
+  }
+
   bool flush() {
     if (used_ == 0) return true;
     const bool ok = sendChunk(request_, buffer_, used_) == ESP_OK;
@@ -705,49 +716,31 @@ esp_err_t ShotStopperNetwork::scaleProfileDownloadHandler(
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   ScaleProfileTextSink sink(request);
   char line[192];
-  int written = snprintf(line, sizeof(line), "# ShotStopper scale profile");
-  bool ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+  bool ok = sink.linef("# ShotStopper scale profile") &&
+            sink.linef("sessionId=%lu", static_cast<unsigned long>(sessionId));
   if (ok) {
-    written = snprintf(line, sizeof(line), "sessionId=%lu",
-                       static_cast<unsigned long>(sessionId));
-    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+    ok = utcStartSec != 0
+             ? sink.linef("utcStart=%lu",
+                          static_cast<unsigned long>(utcStartSec))
+             : sink.linef("utcStart=unknown");
   }
-  if (ok) {
-    written = utcStartSec != 0
-                  ? snprintf(line, sizeof(line), "utcStart=%lu",
-                             static_cast<unsigned long>(utcStartSec))
-                  : snprintf(line, sizeof(line), "utcStart=unknown");
-    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
-  }
-  if (ok) {
-    written = snprintf(line, sizeof(line), "durationMs=%llu stopReason=%s",
-                       static_cast<unsigned long long>(durationMs),
-                       scaleProfilerStopReasonName(
-                           static_cast<ScaleProfilerStopReason>(stopReason)));
-    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
-  }
-  if (ok) {
-    written = snprintf(line, sizeof(line),
-                       "records=%lu weights=%lu events=%lu losses=%lu",
-                       static_cast<unsigned long>(recordCount),
-                       static_cast<unsigned long>(weightCount),
-                       static_cast<unsigned long>(eventCount),
-                       static_cast<unsigned long>(lostCount));
-    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
-  }
+  ok = ok && sink.linef("durationMs=%llu stopReason=%s",
+                        static_cast<unsigned long long>(durationMs),
+                        scaleProfilerStopReasonName(
+                            static_cast<ScaleProfilerStopReason>(stopReason)));
+  ok = ok && sink.linef("records=%lu weights=%lu events=%lu losses=%lu",
+                        static_cast<unsigned long>(recordCount),
+                        static_cast<unsigned long>(weightCount),
+                        static_cast<unsigned long>(eventCount),
+                        static_cast<unsigned long>(lostCount));
   if (ok) {
     const char *savedLabel =
         fromRam ? (status.persistence == ScaleProfilerPersistence::FAILED
                        ? "no (save failed)"
                        : "no (not yet saved)")
                 : "yes";
-    written = snprintf(line, sizeof(line), "saved=%s", savedLabel);
-    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
-  }
-  if (ok) {
-    written = snprintf(line, sizeof(line),
-                       "units=grams precision=float32 time=sessionMs");
-    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
+    ok = sink.linef("saved=%s", savedLabel) &&
+         sink.linef("units=grams precision=float32 time=sessionMs");
   }
   for (const char *c = context; ok && c != nullptr && *c != '\0';) {
     const char *end = strchr(c, '\n');
@@ -817,26 +810,16 @@ esp_err_t ShotStopperNetwork::auditLogExportHandler(httpd_req_t *request) {
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   ScaleProfileTextSink sink(request);
-  char line[256];
-  int written = snprintf(line, sizeof(line), "# Open Brew by Weight audit log");
-  bool ok = written > 0 && sink.line(line, static_cast<size_t>(written));
-  if (ok) {
-    written = snprintf(line, sizeof(line),
-                       "# state=%s retained=%lu seqHigh=%lu",
-                       store.state == AuditStoreState::READY ? "ready"
-                           : store.state == AuditStoreState::UNSUPPORTED
-                                 ? "ram-only"
-                                 : "io-error",
-                       static_cast<unsigned long>(store.retained),
-                       static_cast<unsigned long>(store.seqHigh));
-    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
-  }
-  if (ok) {
-    written = snprintf(line, sizeof(line),
-                       "# when (unset = clock not synchronized at capture)"
-                       "\tlevel\tcategory\tevent\tdetail");
-    ok = written > 0 && sink.line(line, static_cast<size_t>(written));
-  }
+  bool ok =
+      sink.linef("# Open Brew by Weight audit log") &&
+      sink.linef("# state=%s retained=%lu seqHigh=%lu",
+                 store.state == AuditStoreState::READY ? "ready"
+                 : store.state == AuditStoreState::UNSUPPORTED ? "ram-only"
+                                                               : "io-error",
+                 static_cast<unsigned long>(store.retained),
+                 static_cast<unsigned long>(store.seqHigh)) &&
+      sink.linef("# when (unset = clock not synchronized at capture)"
+                 "\tlevel\tcategory\tevent\tdetail");
   AuditRecord batch[16];
   uint32_t after = 0;
   while (ok) {
@@ -860,14 +843,12 @@ esp_err_t ShotStopperNetwork::auditLogExportHandler(httpd_req_t *request) {
       }
       char detail[128];
       formatAuditRecordDetail(record, detail, sizeof(detail));
-      written = snprintf(line, sizeof(line), "%s\t%s\t%s\t%s\t%s", when,
-                         logLevelName(static_cast<LogLevel>(record.level)),
-                         debugCategoryName(
-                             static_cast<DebugCategory>(record.category)),
-                         debugCodeName(static_cast<DebugCode>(record.code)),
-                         detail);
-      ok = written > 0 && written < static_cast<int>(sizeof(line)) &&
-           sink.line(line, static_cast<size_t>(written));
+      ok = sink.linef("%s\t%s\t%s\t%s\t%s", when,
+                      logLevelName(static_cast<LogLevel>(record.level)),
+                      debugCategoryName(
+                          static_cast<DebugCategory>(record.category)),
+                      debugCodeName(static_cast<DebugCode>(record.code)),
+                      detail);
       after = record.sequence;
     }
     if (count < 16) break;

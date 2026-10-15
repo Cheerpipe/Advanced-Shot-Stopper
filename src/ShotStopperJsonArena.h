@@ -191,13 +191,15 @@ inline bool jsonNestingWithinLimit(const char *body, size_t length) {
   return true;
 }
 
-inline bool jsonValuesWithinLimit(const char *body, size_t length,
-                                  size_t maxValues) {
+// Malformed documents are rejected here, before cJSON allocates: the scanner
+// is stricter than cJSON, so delegating them would bypass the value budget.
+// overBudget separates budget overruns (size-limit rejections) from syntax.
+inline bool jsonStructureAccepted(const char *body, size_t length,
+                                  size_t maxValues, bool &overBudget) {
   JsonStructureScanner scanner{body, length, maxValues};
-  // Syntax failures are delegated to cJSON, which retains its detailed and
-  // compatible JSON validation. A false result here is only used as an early
-  // rejection after the value budget is exceeded.
-  return scanner.scanDocument() || scanner.values <= JSON_DOCUMENT_MAX_VALUES;
+  const bool accepted = scanner.scanDocument();
+  overBudget = scanner.values > maxValues;
+  return accepted;
 }
 
 inline void noteJsonLimitRejection() {
@@ -230,13 +232,13 @@ inline cJSON *parseJsonDocumentWithinLimits(const char *body, size_t maxBytes,
   if (body == nullptr || maxBytes == 0 || maxValues == 0) return nullptr;
 
   const size_t length = strnlen(body, maxBytes + 1);
-  if (length > maxBytes ||
-      !detail::jsonNestingWithinLimit(body, length) ||
-      !detail::jsonValuesWithinLimit(body, length, maxValues)) {
-    detail::noteJsonLimitRejection();
-    return nullptr;
-  }
-  return cJSON_ParseWithLengthOpts(body, length + 1, nullptr, 1);
+  bool overLimit = true;
+  const bool accepted =
+      length <= maxBytes && detail::jsonNestingWithinLimit(body, length) &&
+      detail::jsonStructureAccepted(body, length, maxValues, overLimit);
+  if (!accepted && overLimit) detail::noteJsonLimitRejection();
+  return accepted ? cJSON_ParseWithLengthOpts(body, length + 1, nullptr, 1)
+                  : nullptr;
 }
 
 inline cJSON *parseJsonDocument(const char *body) {

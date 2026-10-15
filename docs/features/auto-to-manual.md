@@ -67,8 +67,9 @@ and neither do rinses or shots where the coffee channeled.
 When you change beans or grind, tell ShotStopper so old shots stop counting:
 use **New coffee** in **Settings → Presets** or on Home's grind-hint card (or
 the integration API's reset-guard-samples call).
-Changing the preset's window or moving its target by more than 1 g starts
-fresh automatically.
+Only shots made with the preset's current window and a target within 1 g
+count, so changing the window or moving the target further starts fresh
+automatically; going back to the earlier values counts those shots again.
 
 ## Example
 

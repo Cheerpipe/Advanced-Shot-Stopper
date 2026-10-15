@@ -114,12 +114,21 @@ bool scanWindow(const esp_partition_t *part) {
     g_status.writeCursor = last.end;
   }
   g_status.seqHigh = 0;
+  uint32_t drop = 0;
   for (uint32_t index = g_status.windowStart; index < g_status.writeCursor;
        ++index) {
     if (!readSlot(part, index, slot) || !auditStoreDecodeRecord(slot, record)) {
       return false;
     }
+    if (drop == 0 && record.sequence < g_status.seqHigh) drop = index;
     if (record.sequence > g_status.seqHigh) g_status.seqHigh = record.sequence;
+  }
+  // A full ring (cursor on a not-yet-erased sector) is one run starting at
+  // slot 0: the oldest record sits where the sequence drops, not at slot 0.
+  if (drop != 0 && g_status.writeCursor - g_status.windowStart ==
+                       AUDIT_STORE_RECORD_CAPACITY) {
+    g_status.windowStart = drop;
+    g_status.writeCursor = AUDIT_STORE_RECORD_CAPACITY + drop;
   }
   return true;
 }
@@ -203,15 +212,17 @@ bool auditStoreAppend(const AuditRecord &record) {
     if (ok && !auditStoreSlotEmpty(probe)) {
       ok = esp_partition_erase_range(part, offset, AUDIT_STORE_SECTOR_BYTES) ==
            ESP_OK;
-      if (ok) {
+      // Before the first lap the sector holds no window records (only stale or
+      // torn bytes), so nothing retires and the subtraction cannot wrap.
+      if (ok && g_status.writeCursor >= AUDIT_STORE_RECORD_CAPACITY) {
         const uint32_t retiredThrough = g_status.writeCursor -
                                         AUDIT_STORE_RECORD_CAPACITY +
                                         kRecordsPerSector - 1;
         if (g_status.windowStart <= retiredThrough) {
           g_status.windowStart = retiredThrough + 1;
         }
-        feedFlashIoWatchdog();
       }
+      if (ok) feedFlashIoWatchdog();
     }
   }
   uint8_t slot[AUDIT_STORE_RECORD_BYTES];

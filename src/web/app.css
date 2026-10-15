@@ -414,6 +414,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .shotPresetChart[data-zone=fast] .rvWindow,.shotPresetChart[data-zone=fast] .rvSlowPart,.shotPresetChart[data-zone=fast] .rvSlowFull,.shotPresetChart[data-zone=slow] .rvWindow,.shotPresetChart[data-zone=slow] .rvFastPart,.shotPresetChart[data-zone=slow] .rvFastFull,.shotPresetChart[data-zone=on_recipe] .rvFastPart,.shotPresetChart[data-zone=on_recipe] .rvFastFull,.shotPresetChart[data-zone=on_recipe] .rvSlowPart,.shotPresetChart[data-zone=on_recipe] .rvSlowFull,.shotPresetChart[data-zone=none] .rvWindow,.shotPresetChart[data-zone=none] .rvFastPart,.shotPresetChart[data-zone=none] .rvFastFull,.shotPresetChart[data-zone=none] .rvSlowPart,.shotPresetChart[data-zone=none] .rvSlowFull{fill-opacity:0}
 .presetAccGraph{margin:0 .6rem}
 .presetAccReadout{margin:.35rem .6rem .6rem;font-size:.78rem;color:var(--mu);font-variant-numeric:tabular-nums}
+.presetAccStart{margin:-.35rem .6rem .6rem;font-size:.72rem;color:var(--mu)}
 .shotLegend{display:flex;flex-wrap:wrap;gap:.2rem .7rem;font-size:.72rem;color:var(--mu)}
 .shotLegend .rvLegLast i{height:0;border-top:2.5px dashed var(--gLast)}
 .shotCursorText{margin:0;font-size:.72rem;color:var(--mu);font-variant-numeric:tabular-nums}

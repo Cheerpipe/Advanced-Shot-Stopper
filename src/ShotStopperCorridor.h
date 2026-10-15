@@ -350,6 +350,21 @@ struct ArrivalRecord {
   uint8_t verdict = 0;  // packed
   int32_t arrivalMs = 0;
   int32_t firstDropMs = 0;  // 0 = not measured
+  // The window and target the shot was judged against.
+  int32_t fastBeforeMs = 0;
+  int32_t slowAfterMs = 0;
+  int32_t goalDg = 0;
+};
+
+// Which shots count for a preset: its own since its epoch (New coffee), judged
+// against its current window and a target within STATS_GOAL_TOLERANCE_DG.
+constexpr int32_t STATS_GOAL_TOLERANCE_DG = 10;
+struct StatsScope {
+  uint8_t presetId = 0;
+  uint32_t epoch = 0;
+  int32_t fastBeforeMs = 0;
+  int32_t slowAfterMs = 0;
+  int32_t goalDg = 0;
 };
 
 struct ArrivalStats {
@@ -360,12 +375,29 @@ struct ArrivalStats {
   int32_t sigmaMs = 0;
   uint8_t recentN = 0;
   int32_t recentMedianMs = 0;
-  uint16_t total = 0;       // admissible shots since the epoch
-  int32_t firstDropMs = 0;  // median measured first drop, 0 = none
+  uint16_t total = 0;  // admissible shots since the epoch
 };
 
-inline bool admissibleArrival(const ArrivalRecord &r, uint8_t presetId, uint32_t epoch) {
-  return r.presetId == presetId && r.recordId >= epoch && weightCutReason(r.endReason) &&
+// Slot for recordId among the newest STATS_MAX_SHOTS kept ids: a free slot
+// until full, then the oldest one if recordId is newer, else -1.
+inline int newestSlot(uint32_t *ids, uint8_t &n, uint32_t recordId) {
+  uint8_t slot = n;
+  if (n == STATS_MAX_SHOTS) {
+    slot = 0;
+    for (uint8_t j = 1; j < n; ++j) if (ids[j] < ids[slot]) slot = j;
+    if (ids[slot] >= recordId) return -1;
+  } else {
+    ++n;
+  }
+  ids[slot] = recordId;
+  return slot;
+}
+
+inline bool admissibleArrival(const ArrivalRecord &r, const StatsScope &s) {
+  return r.presetId == s.presetId && r.recordId >= s.epoch &&
+         r.fastBeforeMs == s.fastBeforeMs && r.slowAfterMs == s.slowAfterMs &&
+         r.goalDg - s.goalDg <= STATS_GOAL_TOLERANCE_DG &&
+         s.goalDg - r.goalDg <= STATS_GOAL_TOLERANCE_DG && weightCutReason(r.endReason) &&
          verdictOf(r.verdict) != Verdict::UNCLASSIFIED && !channelingOf(r.verdict) &&
          !blindOf(r.verdict) && r.arrivalMs > 0;
 }
@@ -374,42 +406,27 @@ inline bool admissibleArrival(const ArrivalRecord &r, uint8_t presetId, uint32_t
 // returns the i-th ArrivalRecord in any order (no copy of the whole log).
 // arrivalsOut, when given, receives the n kept arrivals in ascending order.
 template <typename RowAt>
-inline ArrivalStats arrivalStatsOf(size_t count, RowAt rowAt, uint8_t presetId,
-                                   uint32_t epoch, int32_t *arrivalsOut = nullptr) {
+inline ArrivalStats arrivalStatsOf(size_t count, RowAt rowAt, const StatsScope &scope,
+                                   int32_t *arrivalsOut = nullptr) {
   uint32_t ids[STATS_MAX_SHOTS] = {};
-  int32_t times[STATS_MAX_SHOTS] = {}, drops[STATS_MAX_SHOTS] = {};
+  int32_t times[STATS_MAX_SHOTS] = {};
   uint8_t n = 0;
   uint16_t total = 0;
   for (size_t i = 0; i < count; ++i) {
     const ArrivalRecord r = rowAt(i);
-    if (!admissibleArrival(r, presetId, epoch)) continue;
+    if (!admissibleArrival(r, scope)) continue;
     if (total < UINT16_MAX) ++total;
-    uint8_t slot = n;
-    if (n == STATS_MAX_SHOTS) {
-      slot = 0;  // replace the oldest kept if this one is newer
-      for (uint8_t j = 1; j < n; ++j) if (ids[j] < ids[slot]) slot = j;
-      if (ids[slot] >= r.recordId) continue;
-    } else {
-      ++n;
-    }
-    ids[slot] = r.recordId;
-    times[slot] = r.arrivalMs;
-    drops[slot] = r.firstDropMs;
+    const int slot = newestSlot(ids, n, r.recordId);
+    if (slot >= 0) times[slot] = r.arrivalMs;
   }
   ArrivalStats out;
   out.n = n;
   out.total = total;
   if (n == 0) return out;
-  int32_t sorted[STATS_MAX_SHOTS], measured[STATS_MAX_SHOTS];
-  uint8_t dropN = 0;
-  for (uint8_t i = 0; i < n; ++i) {
-    sorted[i] = times[i];
-    if (drops[i] > 0) measured[dropN++] = drops[i];
-  }
+  int32_t sorted[STATS_MAX_SHOTS];
+  memcpy(sorted, times, n * sizeof(int32_t));
   sortSmall(sorted, n);
   if (arrivalsOut) memcpy(arrivalsOut, sorted, n * sizeof(int32_t));
-  sortSmall(measured, dropN);
-  if (dropN) out.firstDropMs = medianOfSorted(measured, dropN);
   out.minMs = sorted[0];
   out.maxMs = sorted[n - 1];
   out.medianMs = medianOfSorted(sorted, n);
@@ -436,8 +453,39 @@ inline ArrivalStats arrivalStatsOf(size_t count, RowAt rowAt, uint8_t presetId,
 
 inline ArrivalStats arrivalStats(const ArrivalRecord *records, size_t count,
                                  uint8_t presetId, uint32_t epoch) {
-  return arrivalStatsOf(count, [records](size_t i) { return records[i]; },
-                        presetId, epoch);
+  StatsScope scope;
+  scope.presetId = presetId;
+  scope.epoch = epoch;
+  return arrivalStatsOf(count, [records](size_t i) { return records[i]; }, scope);
+}
+
+// Median of the newest <= 10 measured first drops of one preset since its
+// epoch, or with otherPresets of every other preset's shots (the fallback for
+// a preset without any). Unlike arrivals it ignores the window, target and
+// how the shot ended: none of them moves the first drop.
+struct FirstDropStats {
+  uint8_t n = 0;
+  int32_t medianMs = 0;  // 0 = none
+};
+
+template <typename RowAt>
+inline FirstDropStats firstDropStatsOf(size_t count, RowAt rowAt, uint8_t presetId,
+                                       uint32_t epoch, bool otherPresets) {
+  uint32_t ids[STATS_MAX_SHOTS] = {};
+  int32_t drops[STATS_MAX_SHOTS] = {};
+  uint8_t n = 0;
+  for (size_t i = 0; i < count; ++i) {
+    const ArrivalRecord r = rowAt(i);
+    const bool own = r.presetId == presetId;
+    if (r.firstDropMs <= 0 || (otherPresets ? own : !own || r.recordId < epoch)) continue;
+    const int slot = newestSlot(ids, n, r.recordId);
+    if (slot >= 0) drops[slot] = r.firstDropMs;
+  }
+  sortSmall(drops, n);
+  FirstDropStats out;
+  out.n = n;
+  out.medianMs = medianOfSorted(drops, n);
+  return out;
 }
 
 enum class GrindHint : uint8_t { NONE, FAST_EDGE, SLOW_EDGE, FASTER_THAN_WINDOW, SLOWER_THAN_WINDOW };

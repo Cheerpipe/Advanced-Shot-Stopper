@@ -249,6 +249,13 @@ and the frosted-glass removal bring the build to 2,351,616 image, 2,351,491
 linked and 625,484 rodata bytes — 77,856/77,844/38,132 over baseline. The
 image/linked allowances move to 77,920/77,908 bytes and the rodata allowance to
 38,196 bytes, keeping the 64-byte headroom.
+The preset graph cut pill, Home graph copies and memory-audit hardening bring
+the build to 2,352,224 image, 2,352,111 linked and 627,100 rodata bytes, and
+the preset graph's first-drop pace start to 2,353,136 image, 2,353,015 linked
+and 627,260 rodata bytes — 79,376/79,368/39,908 over baseline. The
+image/linked allowances move to 79,440/79,432 bytes and the rodata allowance to
+39,972 bytes, keeping the 64-byte headroom; flash-code stays inside its
+allowance.
 Shorter Web UI strings (en.json value-only change) and the other session's changes bring the
 build to 2,351,760 image, 2,351,643 linked and 625,644 rodata bytes on this branch, 78,000/77,996/38,292
 over baseline (main at d535c6ad measures 2,353,200 image, 79,440 over). The image/linked/rodata allowances

@@ -636,9 +636,12 @@ class TaskProfiler {
   }
 
   // TaskStatus_t only has a core field when FREERTOS_VTASKLIST_INCLUDE_COREID
-  // is on. xTaskGetCoreID is always present on ESP-IDF.
+  // is on. xTaskGetCoreID is always present on ESP-IDF. A deleted task's TCB
+  // (handle and name) may be freed by IDLE after the snapshot: never read it.
   static int8_t coreOf_(const TaskStatus_t &task) {
-    return coreFor_(xTaskGetCoreID(task.xHandle));
+    return task.eCurrentState == eDeleted
+               ? -1
+               : coreFor_(xTaskGetCoreID(task.xHandle));
   }
 
   static void seedTracked_(TrackedTask &tracked, const TaskStatus_t &task) {
@@ -647,7 +650,7 @@ class TaskProfiler {
     tracked.previousCounter = static_cast<uint32_t>(task.ulRunTimeCounter);
     tracked.stackMinBytes = static_cast<uint32_t>(task.usStackHighWaterMark);
     tracked.core = coreOf_(task);
-    if (task.pcTaskName != nullptr) {
+    if (task.pcTaskName != nullptr && task.eCurrentState != eDeleted) {
       copyCString(tracked.name, sizeof(tracked.name), task.pcTaskName);
     }
     tracked.idle = idleTaskName_(tracked.name);

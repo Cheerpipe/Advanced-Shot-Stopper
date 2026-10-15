@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "maximumExternalBssBytes": 819200,
   "allowedGrowthBytes": {
-    "image": 78064,
-    "total_size": 78060,
+    "image": 79440,
+    "total_size": 79432,
     "used_diram": 8192,
     "flash_code": 44344,
-    "flash_rodata": 38356
+    "flash_rodata": 39972
   },
   "targets": {
     "n8r4": {

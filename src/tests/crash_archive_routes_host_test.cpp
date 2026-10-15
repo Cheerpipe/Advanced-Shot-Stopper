@@ -104,8 +104,9 @@ int main() {
   entry.sequence = 3;
   entry.bootId = 8;
   entry.dumpBytes = fakeDump.size();
-  entry.addresses.count = 1;
-  entry.addresses.addresses[0] = 0x42001234;
+  entry.addresses.count = CRASH_ADDRESS_CAPACITY;
+  for (size_t i = 0; i < CRASH_ADDRESS_CAPACITY; ++i)
+    entry.addresses.addresses[i] = 0x42001234 + i;
   fakeStatus.entries[1] = entry;
   fakeStatus.entries[1].sequence = 2;
 
@@ -135,6 +136,13 @@ int main() {
       check(length == fakeDump.size() &&
                 std::memcmp(header + 512, fakeDump.data(), length) == 0,
             "raw dump changed in TAR");
+    const std::string payload(header + 512, length);
+    if (names.back().find("/addresses.txt") != std::string::npos)
+      check(payload.find("0x4200126f\n") != std::string::npos,
+            "full address list truncated");
+    if (names.back().find("/manifest.txt") != std::string::npos)
+      check(payload.find("other affected tasks.\n") != std::string::npos,
+            "manifest truncated");
     position += (length + 511) / 512 * 512;
   }
   check(names.size() == 6 && names[0] == "crash-3/manifest.txt" &&

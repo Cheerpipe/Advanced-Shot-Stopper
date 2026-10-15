@@ -2670,22 +2670,15 @@ void scaleWorkerTask(void *) {
     logEmit(LogLevel::ERROR, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,
             BOOT_SUBSYSTEM_BLE, 0);
     if (watchdogSubscribed) (void)feedCurrentTaskWatchdog();
-    const bool runtimeStopped =
-        shotStopperBleRuntimeStop(BLE_STACK_STOP_WAIT_MS);
+    (void)shotStopperBleRuntimeStop(BLE_STACK_STOP_WAIT_MS);
     if (watchdogSubscribed && esp_task_wdt_delete(nullptr) != ESP_OK)
       reportTaskWatchdogFault();
     {
       TaskLockGuard lock(scaleWorkerTaskHandleMutex);
       scaleWorkerTaskHandle.store(nullptr, std::memory_order_release);
     }
-    // Callback queues may be released only after the native host proves it is
-    // quiescent. Retain them on a stop timeout so late callbacks stay safe.
-    if (runtimeStopped) {
-      if (scaleCommandQueue != nullptr) vQueueDelete(scaleCommandQueue);
-      if (scaleEventQueue != nullptr) vQueueDelete(scaleEventQueue);
-      scaleCommandQueue = nullptr;
-      scaleEventQueue = nullptr;
-    }
+    // Queues stay allocated for the process lifetime: setup() may already
+    // have timed out, so the control loop and HTTP tasks can hold the handles.
     scaleWorkerStartupFinished.store(true, std::memory_order_release);
     vTaskDelete(nullptr);
     return;

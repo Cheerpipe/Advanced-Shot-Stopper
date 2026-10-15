@@ -117,7 +117,7 @@ void ShotStopperMicraService::stopWebSocket(bool release) {
       websocketStatus_.workspaceExternal = false;
     }
     buffer->~WebSocketBuffer();
-    free(buffer);
+    heapCapsFree(buffer);
   }
 }
 

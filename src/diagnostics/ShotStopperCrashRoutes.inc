@@ -67,7 +67,9 @@ esp_err_t ShotStopperNetwork::crashArchiveDownloadHandler(
   for (uint8_t i = 0; i < archive.count; ++i) {
     const CrashArchiveEntry &entry = archive.entries[i];
     char path[80];
-    char text[2048];
+    // Fits the manifest (~600 B) and 60 addresses (~730 B); it also stages the
+    // core dump, keeping the internal httpd stack frame near 1 KiB.
+    char text[1024];
     char sha[65], elf[65];
     crashHex(entry.dumpSha256, sizeof(entry.dumpSha256), sha);
     crashHex(entry.elfSha256, sizeof(entry.elfSha256), elf);
@@ -105,12 +107,11 @@ esp_err_t ShotStopperNetwork::crashArchiveDownloadHandler(
     snprintf(path, sizeof(path), "crash-%lu/coredump.bin",
              static_cast<unsigned long>(entry.sequence));
     if (!crashTarHeader(request, path, entry.dumpBytes)) return ESP_FAIL;
-    char chunk[1024];
-    for (size_t done = 0; done < entry.dumpBytes; done += sizeof(chunk)) {
-      const size_t bytes = entry.dumpBytes - done < sizeof(chunk)
-                               ? entry.dumpBytes - done : sizeof(chunk);
-      if (!crashArchiveRead(archive.slots[i], done, chunk, bytes) ||
-          !crashTarChunk(request, chunk, bytes)) return ESP_FAIL;
+    for (size_t done = 0; done < entry.dumpBytes; done += sizeof(text)) {
+      const size_t bytes = entry.dumpBytes - done < sizeof(text)
+                               ? entry.dumpBytes - done : sizeof(text);
+      if (!crashArchiveRead(archive.slots[i], done, text, bytes) ||
+          !crashTarChunk(request, text, bytes)) return ESP_FAIL;
     }
     if (!crashTarPadding(request, entry.dumpBytes)) return ESP_FAIL;
   }

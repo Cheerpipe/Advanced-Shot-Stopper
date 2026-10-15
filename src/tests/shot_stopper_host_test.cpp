@@ -6962,6 +6962,26 @@ void r23_maintenance_is_canceled_fail_open_by_physical_paddle() {
   CHECK(!getRelaySafetySnapshot().closed);
 }
 
+// A paused shot-store image must be acknowledged before maintenance (factory
+// reset) runs, or the resumed write would land over the reset slot.
+void r23b_maintenance_waits_for_shot_store_persist() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  WebCommand command;
+  command.type = WebCommandType::RESTART;
+  command.requestId = 78;
+  processWebCommand(command);
+  CHECK(maintenanceLease.active);
+  shotStorePersistInFlight = true;
+  runLoopAfter(MAINTENANCE_LEASE_SETTLE_MS + 1);
+  runLoopAfter(1);
+  CHECK(maintenanceLease.active);
+  CHECK(!maintenanceLease.forwarded);
+  shotStorePersistInFlight = false;
+  runLoopAfter(1);
+  CHECK(!maintenanceLease.active || maintenanceLease.forwarded);
+}
+
 void w86_config_applies_to_ram_immediately_and_coalesces() {
   resetHarness(false, false);
   reachReadyFromBoot();
@@ -19930,13 +19950,16 @@ void sl01_scale_loss_regimes() {
   CHECK(scaleLossDeadlineShotMsForTest() ==
         (session.cut.params.fastBeforeMs + session.cut.params.slowAfterMs) / 2);
 
-  // R2: three recent arrivals of this preset since its epoch.
+  // R2: three recent arrivals of this preset since its epoch, judged against
+  // its current window and target.
   resetHarness(false, true);
   reachReadyFromBoot();
   shotLog.clear(false);
   ShotLogRecord record = {};
   record.durationDs = 300;
-  record.goalWeightDg = 360;
+  record.goalWeightDg = activeShotPreset(presetBank).goalWeightDg;
+  record.fastBeforeDs = static_cast<uint16_t>(activeShotPreset(presetBank).fastBeforeMs / 100);
+  record.slowAfterDs = static_cast<uint16_t>(activeShotPreset(presetBank).slowAfterMs / 100);
   record.actualWeightCg = 3600;
   record.stopDetail = static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET);
   shotLogSetPresetId(record, presetBank.activeId);
@@ -19981,7 +20004,9 @@ void sl02_new_coffee_restarts_the_statistics_epoch() {
   processWebCommand(command);
   CHECK(activeShotPreset(presetBank).learningEpoch == shotLog.nextRecordId());
   runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
-  // A target move of more than 1 g restarts it again after more shots.
+  // A window or target edit keeps it: arrivals filter by each shot's own
+  // window and target instead, and first drops do not depend on them.
+  const uint32_t epoch = activeShotPreset(presetBank).learningEpoch;
   CHECK(shotLog.append(record, false));
   WebCommand save;
   save.type = WebCommandType::PRESET_OP;
@@ -19991,7 +20016,8 @@ void sl02_new_coffee_restarts_the_statistics_epoch() {
   save.config = runtimeConfig;
   save.config.goalWeightDg = runtimeConfig.goalWeightDg + 20;
   processWebCommand(save);
-  CHECK(activeShotPreset(presetBank).learningEpoch == shotLog.nextRecordId());
+  CHECK(activeShotPreset(presetBank).learningEpoch == epoch);
+  CHECK(epoch != shotLog.nextRecordId());
 }
 
 const TestCase testCases[] = {
@@ -20109,6 +20135,7 @@ const TestCase testCases[] = {
     {"R21", r21_automatic_control_requires_fresh_weight},
     {"R22", r22_confirmed_implausible_weight_does_not_stop},
     {"R23", r23_maintenance_is_canceled_fail_open_by_physical_paddle},
+    {"R23b", r23b_maintenance_waits_for_shot_store_persist},
     {"R24", r24_web_control_is_available_without_session_owner},
     {"R25", r25_critical_scale_mailbox_never_blocks_and_keeps_latest},
     {"RACE01", race01_idle_tare_validates_after_command_spacing},

@@ -458,7 +458,7 @@ void testShotStatsSummary() {
   // The Web UI's shot statistics: every admissible shot since the epoch
   // counts in total, the newest ten feed the sorted arrivals, and the first
   // drop median ignores unmeasured shots.
-  ArrivalRecord records[14];
+  ArrivalRecord records[16];
   size_t count = 0;
   for (uint32_t id = 1; id <= 12; ++id)
     records[count++] = {id, 1, 3, 0, static_cast<int32_t>(26000 + id * 500),
@@ -466,15 +466,32 @@ void testShotStatsSummary() {
   records[count++] = {13, 1, 3, packVerdict(Verdict::FAST, true, LossSource::PROJECTION, false),
                       20000, 4000};  // channeling: never counted
   records[count++] = {14, 2, 3, 0, 30000, 6000};  // another preset
+  // Same preset, other window or a target 1.1 g away: arrivals skip them,
+  // first drops keep them.
+  records[count++] = {15, 1, 3, 0, 31000, 9000, 1000};
+  records[count++] = {16, 1, 3, 0, 31000, 9000, 0, 0, 11};
+  const auto rows = [&](size_t i) { return records[i]; };
   int32_t arrivals[STATS_MAX_SHOTS] = {};
-  const ArrivalStats s =
-      arrivalStatsOf(count, [&](size_t i) { return records[i]; }, 1, 0, arrivals);
+  StatsScope scope;
+  scope.presetId = 1;
+  const ArrivalStats s = arrivalStatsOf(count, rows, scope, arrivals);
   CHECK(s.n == STATS_MAX_SHOTS && s.total == 12);
   CHECK(arrivals[0] == 27500 && arrivals[STATS_MAX_SHOTS - 1] == 32000);
   for (uint8_t i = 1; i < s.n; ++i) CHECK(arrivals[i - 1] <= arrivals[i]);
-  // Kept ids 3..12 with drops measured on 4,5,7,8,10,11: median of 5450..6100.
-  CHECK(s.firstDropMs == (5700 + 5800) / 2);
+  scope.goalDg = 10;  // 1 g away still counts
+  CHECK(arrivalStatsOf(count, rows, scope).total == 13);
   CHECK(arrivalStats(records, count, 1, 13).total == 0);
+  // First drops: the newest ten measured, whatever the window, target or
+  // ending (ids 2,4,5,7,8,10,11,13,15,16): median of 5700 and 5800.
+  const FirstDropStats own = firstDropStatsOf(count, rows, 1, 0, false);
+  CHECK(own.n == STATS_MAX_SHOTS && own.medianMs == (5700 + 5800) / 2);
+  // New coffee (epoch 15) keeps only the shots after it.
+  const FirstDropStats fresh = firstDropStatsOf(count, rows, 1, 15, false);
+  CHECK(fresh.n == 2 && fresh.medianMs == 9000);
+  CHECK(firstDropStatsOf(count, rows, 1, 17, false).n == 0);
+  // The fallback reads only the other presets, whatever their epoch.
+  const FirstDropStats others = firstDropStatsOf(count, rows, 1, 99, true);
+  CHECK(others.n == 1 && others.medianMs == 6000);
 }
 
 }  // namespace

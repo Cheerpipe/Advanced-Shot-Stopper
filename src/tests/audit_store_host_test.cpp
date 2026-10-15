@@ -191,6 +191,49 @@ static void testMissingHeaderScan() {
         "recovered records must page in order");
 }
 
+// Torn header with the cursor on a not-yet-erased sector: every slot decodes,
+// so the scan must rotate the window to the sequence drop.
+static void testFullRingScanFindsOldest() {
+  resetStore();
+  AuditLogLatch latch;
+  uint32_t pendingAfter = 0;
+  auditStoreBootOpen(latch, pendingAfter);
+  const uint32_t total = AUDIT_STORE_RECORD_CAPACITY + 2 * kRecordsPerSector;
+  for (uint32_t seq = 1; seq <= total; ++seq) {
+    check(auditStoreAppend(makeRecord(seq, 1)), "append failed");
+  }
+  std::fill(fakeAuditLog.bytes.begin(),
+            fakeAuditLog.bytes.begin() + AUDIT_STORE_HEADER_BYTES, 0xFF);
+  AuditLogLatch recovered;
+  auditStoreBootOpen(recovered, pendingAfter);
+  AuditRecord page[2];
+  check(auditStoreStatus().retained == AUDIT_STORE_RECORD_CAPACITY &&
+            auditStoreCopyAfter(0, page, 2) == 2 &&
+            page[0].sequence == total - AUDIT_STORE_RECORD_CAPACITY + 1,
+        "a full-ring scan must start the window at the oldest record");
+  check(auditStoreAppend(makeRecord(total + 1, 1)) &&
+            auditStoreCopyAfter(total, page, 2) == 1,
+        "the next append must land after the newest record");
+}
+
+// Stale bytes in the first lap's next sector must not retire the window.
+static void testFirstLapStaleSectorKeepsWindow() {
+  resetStore();
+  std::fill(fakeAuditLog.bytes.begin() + slotOffset(kRecordsPerSector),
+            fakeAuditLog.bytes.begin() + slotOffset(2 * kRecordsPerSector),
+            0x00);
+  AuditLogLatch latch;
+  uint32_t pendingAfter = 0;
+  auditStoreBootOpen(latch, pendingAfter);
+  for (uint32_t seq = 1; seq <= kRecordsPerSector + 1; ++seq) {
+    check(auditStoreAppend(makeRecord(seq, 1)), "append failed");
+  }
+  AuditRecord page[2];
+  check(auditStoreStatus().retained == kRecordsPerSector + 1 &&
+            auditStoreCopyAfter(0, page, 2) == 2 && page[0].sequence == 1,
+        "erasing a stale first-lap sector must keep the window");
+}
+
 static void testAbsentPartitionAndClear() {
   resetStore();
   fakeAuditLogPresent = false;
@@ -243,6 +286,8 @@ int main() {
   testUncommittedAppendRecovery();
   testFullWrap();
   testMissingHeaderScan();
+  testFullRingScanFindsOldest();
+  testFirstLapStaleSectorKeepsWindow();
   testAbsentPartitionAndClear();
   testIoFailureLeavesWindowConsistent();
   std::cout << "audit_store_host_test PASSED\n";

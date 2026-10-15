@@ -335,7 +335,11 @@ void ShotStopperOta::removeSessionJournal() { clearJournal(); }
 bool ShotStopperOta::persistSession() {
   if (!sessionActive_) return true;
   if (!sessionSha256_) return false;
+  // Zero padding first: the checksum and NVS blob cover every byte.
   OtaJournalRecord record;
+  memset(&record, 0, sizeof(record));
+  record.magic = OTA_JOURNAL_MAGIC;
+  record.version = OTA_JOURNAL_VERSION;
   record.generation = ++sessionGeneration_;
   record.received = receivedBytes_;
   record.identity = session_;

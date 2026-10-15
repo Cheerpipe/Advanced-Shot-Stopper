@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <new>
 
 #include "ShotStopperFlashIoScratch.h"
 #include "ShotStopperPsram.h"
@@ -1245,7 +1246,9 @@ class ScaleProfiler {
   }
 
   void beginRecordingLocked_(uint32_t nowMs) {
-    *workspace_ = Workspace{};  // Records carry floats; avoid memset-on-float.
+    // Construct in place: a 256 KiB Workspace{} temporary must never reach the
+    // stack (records carry floats, so memset is not used either).
+    new (workspace_) Workspace();
     uint32_t utcStartSec = 0;
     if (contextProvider_ != nullptr) {
       utcStartSec =
@@ -1476,7 +1479,7 @@ class ScaleProfiler {
     if (block == nullptr) return false;
     workspace_ = static_cast<Workspace *>(block);
     records_ = workspace_->records;
-    *workspace_ = Workspace{};
+    new (workspace_) Workspace();
     return true;
   }
 

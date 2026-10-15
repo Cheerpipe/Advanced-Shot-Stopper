@@ -25,8 +25,8 @@ inline uint32_t resetHistoryStoreChecksum(const ResetHistoryStoreBlob &blob) {
 }
 
 #ifndef SHOT_STOPPER_HOST_TEST
-static ResetHistoryStoreBlob resetHistoryStoreLive;
-static std::atomic<uint32_t> resetHistoryStoreLastCheckpointMs{0};
+inline ResetHistoryStoreBlob resetHistoryStoreLive;
+inline std::atomic<uint32_t> resetHistoryStoreLastCheckpointMs{0};
 #endif
 
 inline bool validResetHistoryStore(const ResetHistoryStoreBlob &blob) {
