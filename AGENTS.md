@@ -52,6 +52,16 @@ Never flash hardware, run OTA, control the relay, or execute HIL unless the user
 explicitly requests it. Never expose credentials in argv, logs, or artifacts.
 Unknown paths are R3; risk overrides may only increase risk.
 
+Hardware tests that read the serial console require a `--development` build,
+which is the only profile that compiles in the USB Serial/JTAG console
+(`--development` = `--no-auth-admin --jtag`). Build and flash with it in the same
+run, for example `./scripts/dev build flash --development --confirm --hardware
+esp32-s3-relay-x1-speaker --machine la-marzocco-linea-micra --port <port>`.
+`--development` is build-only: standalone `flash` rejects it, so the image must
+come from a `--development` build. Never assume console output from a release
+image; the GPIO4 console jumper is the only other route (see
+[USB console jumper](docs/HARDWARE.md#usb-console-jumper)).
+
 ## OTA capability is preserved
 
 Wi-Fi OTA is a supported, shipping workflow alongside USB flash. Never disable,
