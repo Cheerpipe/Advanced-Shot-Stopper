@@ -5341,7 +5341,7 @@ function renderPresetReview() {
   host.innerHTML =
     `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     '<defs><pattern id="rvHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="rvHatchLine" d="M0 0V6"/></pattern>' +
-    `<clipPath id="rvUnder"><path d="${O}L${P(0, m.ceil)}L${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}L${P(m.wall, 0)}Z"/></clipPath></defs>` +
+    `<clipPath id="rvUnder"><path d="M${P(0, 0)}L${P(0, m.ceil)}L${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}L${P(m.wall, 0)}Z"/></clipPath></defs>` +
     `<g role="img" aria-label="${sub(__WEBUI_TEXT__("runtime.graph_summary"), [n(m.prot), n(m.ceil), n(a), n(m.goal), n(m.t1), n(m.t2), n(m.floor), n(b), n(m.wall)])} ${__WEBUI_TEXT__("runtime.graph_pace_note")}">` +
     '<g clip-path="url(#rvUnder)">' +
     band("rvFastFull", O + paceTo(tA) + `L${P(paceEnd(tA), top + 1)}L${P(0, top + 1)}Z`, m.fast) +
