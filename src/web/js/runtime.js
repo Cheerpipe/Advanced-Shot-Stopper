@@ -5326,11 +5326,12 @@ function renderPresetReview() {
     arrivals = m.goal === savedModel.goal ? (saved.arrivalsS || []).filter((t) => t <= tMax) : [],
     targetAbove = Y(m.goal) - 4 - T >= 16;
   let marks = "",
+    grid = "",
     lastX = -99;
-  for (let v = 0; v <= top; v += step)
-    marks +=
-      `<path class="rvGrid" d="M${L} ${f(Y(v))}H${R}"/>` +
-      label(L - 4, Y(v) + 3, v + " g", "", "end");
+  for (let v = 0; v <= top; v += step) {
+    grid += `<path class="rvGrid" d="M${L} ${f(Y(v))}H${R}"/>`;
+    marks += label(L - 4, Y(v) + 3, v + " g", "", "end");
+  }
   [0, m.prot, m.t1, m.t2, m.wall].forEach((t, i, ts) => {
     if (X(t) - lastX < 14 && i < ts.length - 1) return;
     lastX = X(t);
@@ -5343,6 +5344,7 @@ function renderPresetReview() {
     '<defs><pattern id="rvHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="rvHatchLine" d="M0 0V6"/></pattern>' +
     `<clipPath id="rvUnder"><path d="M${P(0, 0)}L${P(0, m.ceil)}L${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}L${P(m.wall, 0)}Z"/></clipPath></defs>` +
     `<g role="img" aria-label="${sub(__WEBUI_TEXT__("runtime.graph_summary"), [n(m.prot), n(m.ceil), n(a), n(m.goal), n(m.t1), n(m.t2), n(m.floor), n(b), n(m.wall)])} ${__WEBUI_TEXT__("runtime.graph_pace_note")}">` +
+    grid +
     '<g clip-path="url(#rvUnder)">' +
     band("rvFastFull", O + paceTo(tA) + `L${P(paceEnd(tA), top + 1)}L${P(0, top + 1)}Z`, m.fast) +
     band("rvFastPart", O + paceTo(m.t1) + corner + `L${endOf(tA)}` + paceBack(tA) + "Z", m.fast) +

@@ -650,7 +650,7 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
     !css.includes('#shotTable td.shotSparkCell{grid-area:spark;display:grid;gap:.65rem') ||
     !css.includes('#shotTable tr.noSpark{') ||
     !css.includes('.shotSpark{grid-area:plot;display:block;width:100%;height:100%;color:var(--ok);overflow:visible}') ||
-    !css.includes('.shotGrid{stroke:var(--ln);stroke-width:.8;opacity:.7}') ||
+    !css.includes('.shotGrid,.rvGrid{stroke:var(--ln);stroke-width:.8;opacity:.7}') ||
     !css.includes('.shotGrid,.shotTrace{vector-effect:non-scaling-stroke}') ||
     !css.includes('grid-template-rows:max(2.55rem,var(--shot-plot-min,0rem)) auto') ||
     css.includes('.shotEventTicks') ||
