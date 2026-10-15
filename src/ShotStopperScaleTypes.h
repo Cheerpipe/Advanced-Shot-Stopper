@@ -304,6 +304,9 @@ constexpr float MAX_PARSED_WEIGHT_G = 10000.0f;
 constexpr uint8_t DIRECT_STOP_CONFIRMATION_SAMPLES = 2;
 constexpr uint8_t WEIGHT_RECOVERY_CONFIRMATION_SAMPLES = 3;
 constexpr uint32_t DIRECT_STOP_CONFIRMATION_WINDOW_MS = 1000;
+// An in-shot dip shallower than half the known cup mass (a tilt) must persist.
+constexpr uint8_t CUP_PARTIAL_REMOVAL_SAMPLES = 3;
+constexpr uint32_t CUP_PARTIAL_REMOVAL_MS = 400;
 constexpr float FIRST_DROP_THRESHOLD_G = 0.3f;
 // Noise-adaptive floor: the effective first-drop threshold is
 // max(FIRST_DROP_THRESHOLD_G, k·σ̂) once the noise estimator warms up.

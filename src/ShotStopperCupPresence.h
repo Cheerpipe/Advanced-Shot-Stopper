@@ -64,10 +64,13 @@ struct CupPresenceRuntime {
   uint8_t placeStabilitySamples = 0;
   uint32_t lastRemovedAtMs = 0;
   uint32_t lastRemovedPacketSequence = 0;
+  uint32_t removedStartedAtMs = 0;
   uint32_t placeStabilityStartedAtMs = 0;
   uint32_t placeLastSampleAtMs = 0;
   uint32_t placementId = 0;
   float holeWeightG = 0.0f;
+  // Last reading that was not a removal; a lift must step down from it.
+  float lastPresentWeightG = NAN;
   float placeCandidateWeightG = 0.0f;
   float placeMinimumG = 0.0f;
   float placeMaximumG = 0.0f;
@@ -202,7 +205,9 @@ void observeEmptyCupWeight(float weight, uint32_t atMs, bool initialRecovery,
   }
 }
 
+// A changed tare reference also invalidates the reading a lift steps from.
 void restoreCupTareReference(bool previouslyTared, float previousReferenceG) {
+  cupPresence.lastPresentWeightG = NAN;
   if (cupPresence.state == CupPresenceState::PRESENT) {
     cupPresence.taredWhilePresent = previouslyTared;
     cupPresence.occupiedReferenceG = previousReferenceG;
@@ -214,6 +219,7 @@ void markCupTareReferenceUncertain() {
   const ProfileControlObservation profile;
   invalidateCupWeight();
   cupPresence.emptyAnchorG = NAN;
+  cupPresence.lastPresentWeightG = NAN;
   cupPresence.initialZeroRecoveryAllowed = false;
   if (cupPresence.state == CupPresenceState::PRESENT) {
     cupPresence.referenceUncertain = true;
@@ -269,6 +275,7 @@ void holdCupPresenceTransitions(bool hold) {
 }
 
 void notifyCupPresenceTare() {
+  cupPresence.lastPresentWeightG = NAN;
   cupPresence.weight.unloadSamples = 0;
   cupPresence.weight.unloadQualified = false;
   cupPresence.removedConfirmations = 0;
@@ -333,6 +340,9 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
     cupPresence.lastRemovedAtMs = 0;
     cupPresence.lastRemovedPacketSequence = 0;
   }
+  if (cupPresence.state == CupPresenceState::PRESENT
+          ? !removalCandidate && !protectedPartialUnload : weight > removedG)
+    cupPresence.lastPresentWeightG = weight;
 
   if (cupPresence.holdTransitions) {
     return CupPresenceEvent::NONE;
@@ -342,6 +352,11 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
       (removalWhileAbsent && weight <= removedG)) {
     if (!removalCandidate) {
       resetCupPlaceStabilityStreak();
+      return CupPresenceEvent::NONE;
+    }
+    // A slow creep across the removed threshold is not a lift.
+    if (cupPresence.lastPresentWeightG - weight < fminf(fabsf(removedG), minCupG / 2.0f)) {
+      cupPresence.removedConfirmations = 0;
       return CupPresenceEvent::NONE;
     }
     const bool consecutive = cupPresence.removedConfirmations > 0 &&
@@ -356,8 +371,14 @@ CupPresenceEvent feedCupPresence(float weight, uint32_t receivedAtMs,
         : 1U;
     cupPresence.lastRemovedAtMs = receivedAtMs;
     cupPresence.lastRemovedPacketSequence = packetSequence;
-
-    if (cupPresence.removedConfirmations < DIRECT_STOP_CONFIRMATION_SAMPLES) {
+    if (cupPresence.removedConfirmations == 1) cupPresence.removedStartedAtMs = receivedAtMs;
+    // In a shot, a dip shallower than half the known cup mass is a tilt until
+    // it persists; a full lift still confirms on the usual two samples.
+    const bool partial = !allowFastReplacement && mass.valid && mass.weightG >= minCupG &&
+        weight > cupPresence.occupiedReferenceG - mass.weightG / 2.0f;
+    if (cupPresence.removedConfirmations <
+            (partial ? CUP_PARTIAL_REMOVAL_SAMPLES : DIRECT_STOP_CONFIRMATION_SAMPLES) ||
+        (partial && receivedAtMs - cupPresence.removedStartedAtMs < CUP_PARTIAL_REMOVAL_MS)) {
       return CupPresenceEvent::NONE;
     }
 

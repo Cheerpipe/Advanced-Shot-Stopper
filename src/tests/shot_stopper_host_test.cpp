@@ -7331,6 +7331,7 @@ void r24_web_control_is_available_without_session_owner() {
 
 void prepareIdleTare();
 void idleCup(float weight);
+void idleWeight(float weight, uint32_t dtMs = 150);
 
 void race01_idle_tare_validates_after_command_spacing() {
   for (bool expire : {false, true}) {
@@ -8544,6 +8545,68 @@ void cp23_empty_pan_noise_never_removes() {
   CHECK(session.endReason == EndReason::NONE);
 }
 
+void startShotWithKnownCupMass(float cupG) {
+  prepareIdleTare();
+  idleCup(cupG);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  CHECK(captureCupTareDiagnostics().weightValid);
+  CHECK(captureCupTareDiagnostics().weightG == cupG);
+  startCycle();
+  while (executeNextScaleCommand()) {}
+  for (int i = 0; i < 5; ++i) idleWeight(0.0f, 100);  // Continuous stream.
+  CHECK(stopperState == StopperState::BREW && !session.awaitingPostTareBaseline);
+  CHECK(captureCupTareDiagnostics().weightValid);
+}
+
+void cp24_cup_tilt_does_not_abort() {
+  // A 250 g cup tilted by a hand reads -8 g for 300 ms: shallower than half
+  // its mass, so it must persist 400 ms before it counts as a lift.
+  startShotWithKnownCupMass(250.0f);
+  for (int i = 0; i < 3; ++i) idleWeight(-8.0f, 100);
+  idleWeight(0.0f, 100);
+  runLoopAfter(1);
+  CHECK(session.active);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  for (int i = 0; i < 5; ++i) idleWeight(-8.0f, 100);
+  runLoopAfter(1);
+  CHECK(session.endReason == EndReason::CUP_REMOVED);
+}
+
+void cp25_full_lift_stops_fast() {
+  startShotWithKnownCupMass(250.0f);
+  idleWeight(-240.0f, 100);
+  idleWeight(-240.0f, 100);
+  runLoopAfter(1);
+  CHECK(session.endReason == EndReason::CUP_REMOVED);
+}
+
+void cp26_unknown_mass_keeps_legacy_depth() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  seedCupPresence(80.0f);
+  CHECK(!captureCupTareDiagnostics().weightValid);
+  startCycle();
+  advanceToBrew();
+  publishWeight(-8.0f, hostMillis + 100, 1, 70);
+  publishWeight(-8.0f, hostMillis + 100, 1, 71);
+  runLoopAfter(1);
+  CHECK(session.endReason == EndReason::CUP_REMOVED);
+}
+
+void cp27_slow_creep_below_removed_is_not_a_lift() {
+  prepareIdleTare();
+  idleCup(250.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  CHECK(cupPresenceIsTared());
+  for (int i = 1; i <= 400; ++i) idleWeight(-0.01f * i, 100);  // -0.1 g/s, 40 s.
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  idleWeight(-250.0f, 100);
+  idleWeight(-250.0f, 100);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+}
+
 void cp21_custom_present_threshold_is_honored() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -8646,7 +8709,7 @@ void cup_fsm_tared_zero_survives_guarded_start() {
   }
 }
 
-void idleWeight(float weight, uint32_t dtMs = 150) {
+void idleWeight(float weight, uint32_t dtMs) {
   hostMillis += dtMs;
   markScaleWorkerProgress();
   publishWeight(weight);
@@ -20791,6 +20854,10 @@ const TestCase testCases[] = {
     {"CP21", cp21_custom_present_threshold_is_honored},
     {"CP22", cp22_zeroed_cup_lift_stops_without_placement},
     {"CP23", cp23_empty_pan_noise_never_removes},
+    {"CP24", cp24_cup_tilt_does_not_abort},
+    {"CP25", cp25_full_lift_stops_fast},
+    {"CP26", cp26_unknown_mass_keeps_legacy_depth},
+    {"CP27", cp27_slow_creep_below_removed_is_not_a_lift},
     {"CF01", cup_fsm_boot_zero_is_absent},
     {"CF02", cup_fsm_stable_min_cup_is_present},
     {"CF03", cup_fsm_noise_does_not_remove},

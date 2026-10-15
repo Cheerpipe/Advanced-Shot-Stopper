@@ -17,8 +17,13 @@ tare will not recognize that cup.
 
 Detection runs while idle and during brewing. A stable increase from the last
 qualified absent reading, at or above the minimum cup weight, counts as **placed**.
-A confirmed weight at or below the removed threshold
-counts as **lifted**. Placement also requires a short run of stable samples.
+A confirmed reading at or below the removed threshold counts as **lifted** when
+it arrives as a drop: at least the threshold's size (or half **Minimum cup
+weight**, if smaller) below the previous reading. A slow drift across the
+threshold does not count. During a shot, if the cup's weight is known, a dip of
+less than half of it—a tilted cup, for example—must last at least 0.4 s; a full
+lift still counts after two readings. Placement also requires a short run of
+stable samples.
 After a known tare, a cup at 0 g stays present; **Require cup to start** does
 not require positive net weight. Replacement into a negative tare offset can
 also count as placed. The same stability settings qualify initial absence and
@@ -159,7 +164,7 @@ calculated mass, to qualify its one outside-shot tare.
 | Setting | Default | Range / notes | Effect on the shot |
 | --- | --- | --- | --- |
 | **Minimum cup weight (g)** | 10 g | 1–500 g | Stable load that counts as a cup being placed. Shared detection threshold used by first-flow and retare. |
-| **Cup-removed threshold (g)** | −3 g | −50 to −0.1 g | Confirmed weight at or below this means the cup was lifted. |
+| **Cup-removed threshold (g)** | −3 g | −50 to −0.1 g | A confirmed drop to at or below this means the cup was lifted. |
 | **Placement samples** | 3 | 2–10 | Number of stable samples required before cup-present. |
 | **Placement tolerance (g)** | 2.0 g | 0.1–20 g | Maximum difference between the lowest and highest reading across the qualifying window, including while idle tare is queued. |
 | **Max sample gap (s)** | 0.5 s | 0.1–5 s | Maximum gap between those samples. |
