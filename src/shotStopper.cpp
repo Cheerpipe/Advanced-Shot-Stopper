@@ -724,7 +724,8 @@ bool healthStackAlertLatched = false;
 bool healthLoopGapAlertLatched = false;
 Hwmon hwmon;
 HwmonSnapshot hwmonSnapshot = {};
-TaskProfiler taskProfiler;
+SHOT_STOPPER_PSRAM_BSS TaskProfilerSnapshot taskProfilerReport;
+TaskProfiler taskProfiler(taskProfilerReport);
 LoopPhaseProfiler loopPhaseProfiler;
 // Shared wall/own-CPU timeline for loop-phase recording, kept at file scope
 // (not as loop() locals) so publishControlStatus can close the status gather

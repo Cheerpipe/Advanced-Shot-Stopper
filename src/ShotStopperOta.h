@@ -363,8 +363,10 @@ class ShotStopperOta {
   // not force every consumer to include PSA Crypto internals.
   UniqueResource<void *, OtaSha256Deleter> sessionSha256_;
   uint32_t journaledBytes_ = 0;
-  std::atomic<uint32_t> publishedFlags_{0};
-  mutable TaskMutex mutex_;
+  // Kernel/atomic state stays in internal DRAM while the singleton's bulk
+  // state (identity, tags, journal, scanner) lives in PSRAM BSS.
+  static std::atomic<uint32_t> publishedFlags_;
+  static TaskMutex mutex_;
 };
 
 }  // namespace shotstopper

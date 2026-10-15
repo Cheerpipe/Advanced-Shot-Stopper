@@ -254,8 +254,15 @@ void OtaSha256Deleter::operator()(void *context) const {
   heapCapsFree(context);
 }
 
+std::atomic<uint32_t> ShotStopperOta::publishedFlags_{0};
+TaskMutex ShotStopperOta::mutex_;
+
 ShotStopperOta &ShotStopperOta::instance() {
-  static ShotStopperOta shared;
+  // Task-only state, never a flash DMA source or destination (chunks and
+  // re-reads use internal buffers). The scanner's runtime constructor keeps
+  // the object dynamically initialised, so its non-zero defaults survive the
+  // NOLOAD external BSS section.
+  SHOT_STOPPER_PSRAM_BSS static ShotStopperOta shared;
   return shared;
 }
 

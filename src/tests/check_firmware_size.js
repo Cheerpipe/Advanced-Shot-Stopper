@@ -60,10 +60,12 @@ for (const name of ['localBuzzer', 'taskProfiler', 'publishedControlStatus',
     failures.push(`${name} must remain in internal SRAM`);
   }
 }
-const curveAddress = symbolAddress('publishedControlCurve');
-if (curveAddress < symbolAddress('_ext_ram_bss_start') ||
-    curveAddress >= symbolAddress('_ext_ram_bss_end')) {
-  failures.push('publishedControlCurve must reside in external BSS');
+for (const name of ['publishedControlCurve', 'taskProfilerReport']) {
+  const address = symbolAddress(name);
+  if (address < symbolAddress('_ext_ram_bss_start') ||
+      address >= symbolAddress('_ext_ram_bss_end')) {
+    failures.push(`${name} must reside in external BSS`);
+  }
 }
 console.log(`external BSS: ${externalBssBytes} (budget ${config.maximumExternalBssBytes})`);
 if (actual.image > slotLimits[arch]) {

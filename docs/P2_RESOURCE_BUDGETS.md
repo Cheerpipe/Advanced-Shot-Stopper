@@ -311,6 +311,13 @@ flash-code allowance moves to 48,308 bytes, keeping the 64-byte headroom.
 The OTA committed-state result and the transfer-id check inside writeRange
 bring flash code to 1,563,488 bytes (48,388 over baseline); the flash-code
 allowance moves to 48,452 bytes, keeping the 64-byte headroom.
+Moving the task-profiler published report (2,512 bytes) and the OTA state
+singleton (about 1.6 KiB) into PSRAM BSS, with their mutexes and atomic flags
+kept in internal statics, lowers DIRAM to 183,206 bytes (−4,160 from 187,366)
+and raises external BSS to 776,008 bytes; image and flash code shrink slightly
+and stay inside their allowances. The DIRAM baseline moves down to 183,206
+bytes with its unchanged 8,192-byte allowance so the saving cannot regress
+unnoticed.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
@@ -325,8 +332,9 @@ matched target memory, settings latency and loop-gap measurements remain
 required before qualification. PSRAM access may slow NVS integer operations.
 
 Both linker maps must also keep external BSS at or below 800 KiB (819,200 bytes) and retain
-`localBuzzer` and `taskProfiler` in internal DRAM. Moving their enclosing
-objects to PSRAM would move synchronization state accessed under spinlocks.
+`localBuzzer` and `taskProfiler` in internal DRAM: both hold synchronization
+state (mutexes, atomics) that must not live in PSRAM. The profiler's published
+report (`taskProfilerReport`) must instead reside in external BSS.
 The same map check now requires the published control scalars, control gate and
 their mutexes to stay internal, and the published curve payload to reside in
 external BSS. Runtime session fingerprints remain part of the explicitly
@@ -410,6 +418,8 @@ cases also remain pending; the successful full transfer does not qualify them.
 | Micra SDK transport buffers | HTTP RX/TX 4096 B each; WebSocket RX/TX 4096 B each plus a separate 4096 B upgrade buffer. Ordinary malloc prefers PSRAM above ALWAYSINTERNAL=2048, with possible internal fallback. The 6144 B internal WebSocket task stack remains on core 0 priority 1; event/transport objects and WSS TLS are separate; dynamic SDK buffers and auto-reconnect disabled |
 | Micra TLS allocations | external through the Micra profile's mbedTLS allocator (`CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC` from `sdkconfig.defaults.micra`); dynamic record, certificate, handshake, and session objects use PSRAM without internal fallback. Generic webhooks accept HTTP only and do not create TLS handshakes |
 | Profiler processing workspace | external, at most 4 KiB, only while running |
+| Profiler published report | external BSS, 2,512 bytes; written and copied under the profiler's internal mutex by tasks only |
+| OTA state singleton | external BSS, about 1.6 KiB (identity, tags, journal bookkeeping, tag scanner); its mutex and published flags are internal statics, and chunk buffers, SHA context and tag re-reads use internal memory |
 | Scale profiler workspace | external, only while a manual capture exists: 256 KiB record buffer, header/context and a bounded per-signal observation cache (32 bytes per signal), and a 32 KiB ordering index after stop (combined ceiling 320 KiB, enforced including the index); freed after the trace is saved and no download is streaming it; capture storage is a dedicated 260 KiB flash partition with a header-last commit |
 | Profiler kernel capture | internal, at most 4 KiB, only while running |
 | Settings handoff | one external mailbox for the 3,312-byte settings blob and revision, and one internal byte queued; no full settings copy in the queue or receiver |
@@ -534,7 +544,7 @@ maximum free-block increase. Sampling occurs outside owner locks and outside
 OTA chunk/cache-off work; only the fixed result is copied under the existing
 owner mutex.
 
-The current n16r8 Micra development+JTAG build measures 182,518 linked DIRAM bytes.
+The current n16r8 Micra development+JTAG build measures 183,206 linked DIRAM bytes.
 The one-record scratch reserves 3,328 bytes in its lazy runtime allocation,
 while the disabled-USB path avoids the 2,064-byte serial payload. Their actual
 free/largest-block effects remain target measurements, not linked-memory claims.

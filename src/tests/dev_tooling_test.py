@@ -252,7 +252,7 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp"
         "0x3fc80000 localBuzzer\n0x3fc80010 taskProfiler\n"
         "0x3fc80020 publishedControlStatus\n0x3fc80030 controlStatusMutex\n"
         "0x3fc80040 publishedControlGate\n0x3fc80050 controlGateMutex\n"
-        "0x3c000004 publishedControlCurve\n")
+        "0x3c000004 publishedControlCurve\n0x3c000008 taskProfilerReport\n")
     size = build / "size.json"
     metrics = {"total_size": 1, "used_diram": 1, "flash_code": 1, "flash_rodata": 1}
     size.write_text(json.dumps(metrics))

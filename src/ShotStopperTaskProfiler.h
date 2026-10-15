@@ -476,6 +476,11 @@ struct TaskProfilerSnapshot {
 
 class TaskProfiler {
  public:
+  // The published report (~2.5 KiB) is copied under reportMutex_ by tasks
+  // only, so its storage may live in PSRAM BSS (zeroed at boot: zero state is
+  // NEVER). The mutex, the loop-phase flag and the scalars stay in this
+  // internal object.
+  explicit TaskProfiler(TaskProfilerSnapshot &report) : report_(report) {}
   ~TaskProfiler() { releaseWorkspace_(); }
 
   bool start(uint32_t nowMs) {
@@ -884,7 +889,7 @@ class TaskProfiler {
   void releaseWorkspace_() {}
 #endif
 
-  TaskProfilerSnapshot report_ = {};
+  TaskProfilerSnapshot &report_;
   std::atomic<bool> loopPhaseEnabled_{false};
   mutable TaskMutex reportMutex_;
 };
