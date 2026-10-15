@@ -18218,6 +18218,25 @@ void tr04_light_cup_pre_effect_packet_recovers() {
   CHECK(fabsf(session.lastAcceptedWeightG) < 0.5f);
 }
 
+void tr05_light_cup_pre_effect_packet_is_not_a_baseline() {
+  // The start tare zeroed a 40 g cup: a post-boundary 40 g packet is the
+  // pre-effect load, not the new zero; the baseline waits for the real 0 g.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  idleCup(40.0f);
+  startCycle();
+  CHECK(executeNextScaleCommand());
+  CHECK(fabsf(session.preTareWeightG - 40.0f) < 0.2f);
+  establishPostTareBaseline(40.0f);
+  CHECK(session.awaitingPostTareBaseline);
+  establishPostTareBaseline(0.0f);
+  CHECK(!session.awaitingPostTareBaseline);
+  CHECK(session.weightControlState == WeightControlState::ACTIVE);
+  CHECK(fabsf(session.lastAcceptedWeightG) < 0.01f);
+  simulateFirstDrops(0.0f, session.lastAcceptedPacketSequence + 1U);
+  CHECK(session.firstDropMs != 0);
+}
+
 void sk01_refused_start_releases_cup_hold() {
   // A start refused by relay safety must not leave the cup FSM held or
   // believing that the never-sent start tare zeroed the cup.
@@ -20404,6 +20423,7 @@ const TestCase testCases[] = {
     {"AT16", at16_resting_finger_contained_by_direct_stop_law},
     {"AT17", at17_heavy_touch_release_recovers_control},
     {"TR04", tr04_light_cup_pre_effect_packet_recovers},
+    {"TR05", tr05_light_cup_pre_effect_packet_is_not_a_baseline},
     {"SK01", sk01_refused_start_releases_cup_hold},
     {"SK02", sk02_overload_stops_while_touch_is_held},
     {"SK03", sk03_late_zero_after_grace_releases_cup_hold},

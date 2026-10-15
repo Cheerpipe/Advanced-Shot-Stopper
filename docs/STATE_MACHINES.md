@@ -626,6 +626,8 @@ A qualified late PLACED event remains eligible after FIRE within the original
 retare window. The old timestamp/curve marker survives admission and write
 failure. Matching successful completion plus a fresh near-zero sample captured
 after the write boundary, within the completion-anchored baseline grace,
+and, when the tared load was at least the minimum cup weight, at least half
+that minimum below it (the same rule as the shot-start baseline),
 invalidates that record and resets the same detector. Control retains one
 near-zero sample while completion is pending, including one observed during
 the write. Pre-write, wrong-link, expired, or post-end samples cannot confirm.

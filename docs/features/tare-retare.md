@@ -103,8 +103,10 @@ indistinguishable from some additions to the same cup.
 When an automatic shot begins with a usable scale, the firmware sends tare
 so the empty pan (or cup already on the scale) reads ~0 g. After that,
 **Post-tare grace** waits for the reading to settle before weight is used
-to stop or control the shot. First-drop detection still runs against that
-tare zero.
+to stop or control the shot. If a cup was on the scale when the tare was
+sent, the new zero is accepted only once the reading has clearly dropped
+from the cup's weight, so a late reading that still shows the cup is never
+mistaken for zero. First-drop detection still runs against that tare zero.
 
 ## Automatic late-cup retare
 

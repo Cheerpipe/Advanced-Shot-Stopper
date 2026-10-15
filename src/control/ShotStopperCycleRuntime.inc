@@ -576,6 +576,14 @@ void orchestratePostTareBaselineArm() {
 
 void confirmLateRetareBaseline();
 
+// A light cup's pre-zero packet can sit inside the baseline band; after
+// taring a cup, the baseline must have dropped by half a minimum cup.
+bool postTareBaselinePlausible(float weightG) {
+  return fabsf(weightG) <= POST_TARE_BASELINE_MAX_ABS_G &&
+      !(session.preTareWeightG >= runtimeConfig.minimumCupWeightG &&
+        weightG > session.preTareWeightG - runtimeConfig.minimumCupWeightG / 2.0f);
+}
+
 void applyShotTareResult(const ScaleEvent &event) {
   const bool lateRetare = session.retarePerformed &&
       event.cupWeightRequestId == session.retareRequestId;
@@ -593,6 +601,7 @@ void applyShotTareResult(const ScaleEvent &event) {
   session.appliedTareRequestId = event.cupWeightRequestId;
   session.tareCaptureBoundary = event.captureSequence;
   session.tareConnectionGeneration = event.connectionGeneration;
+  session.preTareWeightG = event.preTareWeightG;
   session.retareEffectPending = lateRetare;
   if (!ended) {
     orchestratePostTareBaselineArm();
@@ -619,8 +628,7 @@ void confirmLateRetareBaseline() {
       static_cast<int32_t>(atMs - session.postTareBaselineDeadlineMs) >= 0 ||
       static_cast<int32_t>(millis() - atMs) < 0 ||
       elapsedMs(atMs) > MAX_AUTOMATION_WEIGHT_AGE_MS ||
-      !std::isfinite(zero.weightG) ||
-      fabsf(zero.weightG) > POST_TARE_BASELINE_MAX_ABS_G ||
+      !std::isfinite(zero.weightG) || !postTareBaselinePlausible(zero.weightG) ||
       (!session.active && (!pendingFinalize.pending ||
        pendingFinalize.cycleId != session.id ||
        static_cast<int32_t>(atMs - pendingFinalize.endedAtMs) > 0))) return;
@@ -759,7 +767,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   }
   if (session.retarePerformed &&
       (session.retareEffectPending || session.appliedTareRequestId != session.retareRequestId) &&
-      fabsf(weight) <= POST_TARE_BASELINE_MAX_ABS_G &&
+      postTareBaselinePlausible(weight) &&
       connectionGeneration == getScaleLinkSnapshot().connectionGeneration &&
       (!session.hasWeightAnchor ||
        (static_cast<int32_t>(receivedAtMs - session.lastAcceptedWeightAtMs) > 0 &&
@@ -909,7 +917,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
       shotCurveSampler.markBreak();
       return false;
     }
-    if (fabsf(weight) <= POST_TARE_BASELINE_MAX_ABS_G) {
+    if (postTareBaselinePlausible(weight)) {
       session.awaitingPostTareBaseline = false;
       holdCupPresenceTransitions(false);
       weightStreamState = WeightStreamState::FRESH;
