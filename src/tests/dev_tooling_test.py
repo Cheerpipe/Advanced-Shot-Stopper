@@ -1521,7 +1521,7 @@ cleanup_order = [cleanup.index(token) for token in (
     "feedCurrentTaskWatchdog()", "shotStopperBleRuntimeStop(BLE_STACK_STOP_WAIT_MS)",
     "esp_task_wdt_delete(nullptr)", "scaleWorkerTaskHandle.store(nullptr")]
 assert cleanup_order == sorted(cleanup_order)
-assert "if (runtimeStopped)" in cleanup
+assert "vQueueDelete" not in cleanup
 assert "std::atomic<TaskHandle_t> scaleWorkerTaskHandle" in scale_worker
 assert "TaskLockGuard lock(scaleWorkerTaskHandleMutex)" in cleanup
 reset_history = (ROOT / "src/ShotStopperResetHistoryStore.h").read_text()

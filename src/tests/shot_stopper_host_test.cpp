@@ -6962,6 +6962,26 @@ void r23_maintenance_is_canceled_fail_open_by_physical_paddle() {
   CHECK(!getRelaySafetySnapshot().closed);
 }
 
+// A paused shot-store image must be acknowledged before maintenance (factory
+// reset) runs, or the resumed write would land over the reset slot.
+void r23b_maintenance_waits_for_shot_store_persist() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  WebCommand command;
+  command.type = WebCommandType::RESTART;
+  command.requestId = 78;
+  processWebCommand(command);
+  CHECK(maintenanceLease.active);
+  shotStorePersistInFlight = true;
+  runLoopAfter(MAINTENANCE_LEASE_SETTLE_MS + 1);
+  runLoopAfter(1);
+  CHECK(maintenanceLease.active);
+  CHECK(!maintenanceLease.forwarded);
+  shotStorePersistInFlight = false;
+  runLoopAfter(1);
+  CHECK(!maintenanceLease.active || maintenanceLease.forwarded);
+}
+
 void w86_config_applies_to_ram_immediately_and_coalesces() {
   resetHarness(false, false);
   reachReadyFromBoot();
@@ -20109,6 +20129,7 @@ const TestCase testCases[] = {
     {"R21", r21_automatic_control_requires_fresh_weight},
     {"R22", r22_confirmed_implausible_weight_does_not_stop},
     {"R23", r23_maintenance_is_canceled_fail_open_by_physical_paddle},
+    {"R23b", r23b_maintenance_waits_for_shot_store_persist},
     {"R24", r24_web_control_is_available_without_session_owner},
     {"R25", r25_critical_scale_mailbox_never_blocks_and_keeps_latest},
     {"RACE01", race01_idle_tare_validates_after_command_spacing},

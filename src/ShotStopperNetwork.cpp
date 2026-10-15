@@ -161,6 +161,12 @@ struct NetworkWorkBuf {
   TaskProfilerSnapshot taskProfiler{};
   DebugExportExtras debugExport{};
   ShotPresetBank presetBank{};
+  // Integration snapshot pieces, kept off the internal httpd stack.
+  RecipeSnapshot recipe{};
+  char integrationLastShot[768]{};
+  char integrationQuickSettings[384]{};
+  char integrationStats[384]{};
+  char integrationLastActivation[192]{};
   ScaleHistoryEntry scaleHistory[SCALE_HISTORY_CAPACITY]{};
   BullseyeMelodyConfig bullseyeMelody{};
   char safeBullseyeRtttl[BULLSEYE_RTTTL_CAPACITY]{};
@@ -1075,7 +1081,8 @@ void copyPresetStatsForJson(const NetworkBridgeCallbacks &callbacks,
 int formatPresetShotStats(char *out, size_t cap, const ShotPreset &p,
                           const PresetShotStats &s) {
   const corridor::ArrivalStats &st = s.stats;
-  char arrivals[corridor::STATS_MAX_SHOTS * 8 + 2] = "[";
+  // Worst case per arrival: "," + "-2147483.6" (any int32 ms), so it never truncates.
+  char arrivals[corridor::STATS_MAX_SHOTS * 11 + 2] = "[";
   for (uint8_t i = 0; i < st.n; ++i)
     snprintf(arrivals + strlen(arrivals), sizeof(arrivals) - strlen(arrivals), "%s%.1f",
              i ? "," : "", s.arrivalsMs[i] / 1000.0);

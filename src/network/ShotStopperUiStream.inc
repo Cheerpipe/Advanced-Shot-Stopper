@@ -593,7 +593,8 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
       static_cast<unsigned long>(card.shotLogId),
       control.snapshotStale ? "true" : "false", base, curve.count);
   size_t used = static_cast<size_t>(cardBytes);
-  bool ok = formatted && envelopeBytes > 0 && static_cast<size_t>(envelopeBytes) < sizeof(envelope);
+  bool ok = formatted && envelopeBytes > 0 && static_cast<size_t>(envelopeBytes) < sizeof(envelope) &&
+      used + envelopeBytes < NetworkWorkBuf::kJsonItem;
   if (ok) {
     memmove(output + envelopeBytes, output, used + 1);
     memcpy(output, envelope, envelopeBytes);

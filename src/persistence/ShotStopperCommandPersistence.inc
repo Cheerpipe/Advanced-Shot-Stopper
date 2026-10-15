@@ -486,6 +486,13 @@ void serviceMaintenanceLease() {
           MAINTENANCE_LEASE_SETTLE_MS) {
     return;
   }
+  // The worker abandons a paused shot-store image under a lease; forward only
+  // after its result is acknowledged so maintenance never overlaps the write.
+  shotStorePersistMux.lock();
+  const bool shotStoreBusy =
+      shotStorePersistInFlight || shotStorePersistResultReady;
+  shotStorePersistMux.unlock();
+  if (shotStoreBusy) return;
   if (forwardAcceptedNetworkCommand(maintenanceLease.command)) {
     maintenanceLease.forwarded = true;
 #ifdef SHOT_STOPPER_HOST_TEST
@@ -548,22 +555,28 @@ void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits) 
 bool serviceBleScanPersist();
 
 #ifndef SHOT_STOPPER_HOST_TEST
-bool shotStoreWorkerWriteAllowed() {
+bool shotStoreWorkerWriteAllowed(bool &maintenance) {
   ControlGateSnapshot control;
   copyControlGate(control);
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
-  return !control.maintenanceLeaseActive &&
+  maintenance = control.maintenanceLeaseActive;
+  return !maintenance &&
          durableFlashWriteAllowed(control.activeCycle || control.relayClosed ||
                                       control.machineRunning ||
                                       control.physicalActivatorOn,
                                   link.connecting);
 }
 
-void waitForShotStoreWriteGate() {
-  while (!shotStoreWorkerWriteAllowed()) {
+// With abandonOnMaintenance, returns false once a maintenance lease closes the
+// gate: a paused shot-store write must not resume over a factory reset.
+bool waitForShotStoreWriteGate(bool abandonOnMaintenance = false) {
+  bool maintenance = false;
+  while (!shotStoreWorkerWriteAllowed(maintenance)) {
+    if (abandonOnMaintenance && maintenance) return false;
     feedOrTripCurrentTaskWatchdog();
     vTaskDelay(pdMS_TO_TICKS(25));
   }
+  return true;
 }
 #endif
 
@@ -572,19 +585,22 @@ void persistShotStoreImage() {
   ActivationStoresFlushReport report;
   do {
 #ifndef SHOT_STOPPER_HOST_TEST
-    waitForShotStoreWriteGate();
+    if (!waitForShotStoreWriteGate(true)) {
+      report.anyFail = true;
+      break;
+    }
 #endif
     report = shotStorePersistImage->serviceStep(FLASH_IO_LOCK_TIMEOUT_MS,
                                                 addDebugEvent);
     if (!report.complete && !report.anyFail) yieldFlashIo();
   } while (!report.complete && !report.anyFail);
   bool ok = !report.anyFail;
-  if (shotStorePersistImageLastShotDirty) {
+  if (ok && shotStorePersistImageLastShotDirty) {
 #ifndef SHOT_STOPPER_HOST_TEST
-    waitForShotStoreWriteGate();
+    ok = waitForShotStoreWriteGate(true);
     yieldFlashIo();
 #endif
-    if (!lastShotPersistImage->save(FLASH_IO_LOCK_TIMEOUT_MS)) ok = false;
+    if (!ok || !lastShotPersistImage->save(FLASH_IO_LOCK_TIMEOUT_MS)) ok = false;
   }
   shotStorePersistMux.lock();
   shotStorePersistResultReady = true;

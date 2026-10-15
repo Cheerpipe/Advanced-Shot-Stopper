@@ -145,15 +145,12 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
   if (apiUriMatches(uri, "/api/v1/integration") &&
       request->method == HTTP_GET) {
     if (!self.lockWorkBufForStatus()) return self.workBufBusy(request);
-    ControlStatusSnapshot &control = self.workBuf_->control;
+    NetworkWorkBuf &work = *self.workBuf_;
+    ControlStatusSnapshot &control = work.control;
     self.loadControlStatus(control);
-    RecipeSnapshot recipe;
+    RecipeSnapshot &recipe = work.recipe;
     if (self.callbacks_.copyRecipeSnapshot != nullptr)
       self.callbacks_.copyRecipeSnapshot(&recipe);
-    char lastShotJson[768] = {};
-    char quickSettingsJson[384] = {};
-    char statsJson[384] = {};
-    char lastActivationJson[192] = {};
     ShotLogRecord latestShot = {};
     ShotCurveRecord &latestCurve = self.workBuf_->homeCurve;
     resetShotCurveRecord(latestCurve);
@@ -167,17 +164,18 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
             static_cast<ShotLogStopDetail>(latestShot.stopDetail)) : "none",
         self.callbacks_.shotLogSavePending != nullptr &&
             self.callbacks_.shotLogSavePending(),
-        lastShotJson, sizeof(lastShotJson));
+        work.integrationLastShot, sizeof(work.integrationLastShot));
     const bool quickSettingsOk = buildIntegrationQuickSettings(
-        quickSettingsSnapshot(recipe), quickSettingsJson,
-        sizeof(quickSettingsJson));
+        quickSettingsSnapshot(recipe), work.integrationQuickSettings,
+        sizeof(work.integrationQuickSettings));
     ShotStatsView stats = {};
     if (self.callbacks_.copyShotStats != nullptr)
       stats = self.callbacks_.copyShotStats();
-    const bool statsOk =
-        buildIntegrationStats(stats, statsJson, sizeof(statsJson));
+    const bool statsOk = buildIntegrationStats(stats, work.integrationStats,
+                                               sizeof(work.integrationStats));
     const bool lastActivationOk = buildIntegrationLastActivation(
-        control, lastActivationJson, sizeof(lastActivationJson));
+        control, work.integrationLastActivation,
+        sizeof(work.integrationLastActivation));
     const NetworkStatusSnapshot network = self.snapshot();
     char id[18] = {};
     char currentIp[16] = {};
@@ -212,8 +210,9 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         control.activeCycle ? "brewing" : "idle",
         static_cast<unsigned long>(control.bootId),
         static_cast<unsigned>(recipe.presets.activeId),
-        static_cast<unsigned long>(recipe.runtime.revision), quickSettingsJson,
-        lastShotJson, lastActivationJson, statsJson,
+        static_cast<unsigned long>(recipe.runtime.revision),
+        work.integrationQuickSettings, work.integrationLastShot,
+        work.integrationLastActivation, work.integrationStats,
         static_cast<unsigned long>(network.lastCommandRequestId),
         commandResultStateName(network.lastCommandState));
     const bool ok = lastShotOk && quickSettingsOk &&
@@ -230,7 +229,7 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
   if (apiUriMatches(uri, "/api/v1/integration/presets") &&
       request->method == HTTP_GET) {
     if (!self.lockWorkBuf()) return self.workBufBusy(request);
-    RecipeSnapshot recipe;
+    RecipeSnapshot &recipe = self.workBuf_->recipe;
     if (self.callbacks_.copyRecipeSnapshot != nullptr)
       self.callbacks_.copyRecipeSnapshot(&recipe);
     const bool ok = buildIntegrationPresets(

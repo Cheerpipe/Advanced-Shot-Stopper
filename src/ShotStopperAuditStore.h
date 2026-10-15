@@ -19,7 +19,7 @@ constexpr size_t AUDIT_STORE_PARTITION_BYTES = 0x10000;
 constexpr size_t AUDIT_STORE_HEADER_BYTES = 4096;
 constexpr size_t AUDIT_STORE_SECTOR_BYTES = 4096;
 // u8 version, u8 level, u8 category, u8 code, u32 seq, u32 wallSec, u32 atMs,
-// i32 arg1, i32 arg2, u8 textLen, text[<=24], u16 checksum — padded to a
+// i32 arg1, i32 arg2, u8 textLen, text[<24], u16 checksum — padded to a
 // 64-byte slot so every record lives inside one 4 KiB erase sector and both
 // boot-scan directions stay trivially parseable.
 constexpr size_t AUDIT_STORE_RECORD_BYTES = 64;
@@ -63,7 +63,7 @@ inline bool auditStoreDecodeRecord(const uint8_t *slot, AuditRecord &record) {
   for (int shift = 0; shift < 32; shift += 8) arg1 |= uint32_t(*cursor++) << shift;
   for (int shift = 0; shift < 32; shift += 8) arg2 |= uint32_t(*cursor++) << shift;
   const uint8_t textLen = *cursor++;
-  if (version != AUDIT_STORE_SCHEMA_VERSION || textLen > AUDIT_EXCERPT_BYTES) {
+  if (version != AUDIT_STORE_SCHEMA_VERSION || textLen >= AUDIT_EXCERPT_BYTES) {
     return false;
   }
   for (uint8_t i = 0; i < textLen; ++i) record.text[i] = static_cast<char>(*cursor++);

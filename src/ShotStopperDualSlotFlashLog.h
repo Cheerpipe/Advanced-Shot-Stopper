@@ -81,8 +81,12 @@ class DualSlotFlashLog {
     return true;
 #else
     if (!lockFlashIo()) {
-      Traits::reset(store_);
-      dirty_ = false;
+      // A busy lock must not regress a live store (generation, bootId,
+      // records): keep RAM and retry the flush. Only a never-loaded (zeroed)
+      // store takes the empty default.
+      const bool live = store_.header.generation != 0;
+      if (!live) Traits::reset(store_);
+      dirty_ = live;
       return false;
     }
     const esp_partition_t *part = flashLogPartition();

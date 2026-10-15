@@ -164,6 +164,21 @@ void testStringsEscapesAndInvalidDocuments() {
   CHECK(!shotstopper::jsonDocumentLimitRejectedRecently());
 }
 
+// cJSON tolerates raw control characters; the stricter scanner must not hand
+// such a document over, or its trailing array escapes the value budget.
+void testMalformedDocumentCannotBypassValueBudget() {
+  const auto owner = static_cast<size_t>(shotstopper::AllocationOwner::JSON);
+  const uint32_t before = shotstopper::detail::g_allocations[owner].successes.load();
+  const std::string body = "{\"a\":\"\t\",\"b\":" + repeatedArrayValues(400) + "}";
+  CHECK(shotstopper::parseJsonDocument(body.c_str()) == nullptr);
+  CHECK(shotstopper::parseJsonDocument("[01]") == nullptr);
+  CHECK(shotstopper::detail::g_allocations[owner].successes.load() == before);
+  CHECK(!shotstopper::jsonDocumentLimitRejectedRecently());
+  CHECK(shotstopper::parseJsonDocumentWithinLimits(
+            repeatedArrayValues(8).c_str(), 2047, 8) == nullptr);
+  CHECK(shotstopper::jsonDocumentLimitRejectedRecently());
+}
+
 void testAllocationFailureLeavesOtherDocumentsAlive() {
   cJSON *prior = shotstopper::parseJsonDocument("{\"keep\":17}");
   CHECK(prior != nullptr);
@@ -199,6 +214,7 @@ int main() {
   testExplicitResponseLimitsDoNotRelaxRequestDefaults();
   testValueLimitAtBoundaryForArraysAndObjects();
   testStringsEscapesAndInvalidDocuments();
+  testMalformedDocumentCannotBypassValueBudget();
   testAllocationFailureLeavesOtherDocumentsAlive();
   if (failures != 0) {
     std::cerr << failures << " JSON parser host test(s) failed\n";
