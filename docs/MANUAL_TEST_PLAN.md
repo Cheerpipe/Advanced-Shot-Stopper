@@ -209,6 +209,22 @@ Additional Bookoo idle-tare checks (not hardware-qualified by host tests):
 | IT-M20 | On the supported Bookoo firmware, use diagnostic timer start/stop/reset and combined tare-start; then exercise normal idle tare. Record firmware and packet captures. | Each command behaves as requested. Idle tare never starts the timer. Rejected-frame count stays stable for valid manufacturer weight frames. |
 | IT-M21 | After factory reset, confirm **Tare items added to a cup** is ON. Save it OFF and reboot to confirm OFF persists, then turn it ON. Tare an 80 g cup, add a stable 40 g accessory, then remove the accessory. Repeat by removing the cup first, removing both together, and using equal 80 g components. Place cup and accessory together before the first tare, remove only the accessory, then remove the rest and place a new cup. Repeat with the setting OFF, an unstable/under-minimum load, a scale reconnect, and during/after a shot. Finally remove the cup, press the scale's physical tare button and replace it. | Factory default is ON; saved OFF survives reboot. A separately measured accessory causes one additional tare on addition and another on its stable removal; the cup stays present and the timer does not start. Cup-first or full removal does not tare. Equal-weight or combined-placement partial removals do not tare; emptying the pan restores the next cup placement path. No accessory tare occurs when disabled, stale, unstable, or in-shot. The physical button press is not identified from weight alone; use Diagnostic with the pan empty to recover. |
 
+## Cup, touch and auto-tare robustness
+
+Run these hardware checks only with explicit authorization, with Avoid
+accidental touch, its sustained-weight backup, cup protection and Stop if cup
+is removed ON unless a row says otherwise. Record scale model, firmware,
+machine type and build.
+
+| ID | Action | Expected result |
+| --- | --- | --- |
+| M121 | During a shot, press firmly on the cup (+30 to +40 g) for about 1 s and release; repeat below and above the cut line, and once with the backup OFF. | Below the line the shot continues and returns to normal weight control within a few readings after release. Above the line it ends only as **Touch fallback** after about one second (not a normal stop) and does not train the drip offset. With the backup OFF, a held load above the line still ends the shot after the hold releases. |
+| M122 | Tare a cup idle, lift it, and press the scale's tare button before the pan settles; then place the cup. Repeat with an equal-weight cup set down before the pan settles, then lift it and replace it. | The button zero becomes the new empty pan and the next cup tares without reconnecting. The equal-weight swap shows **Empty scale must settle** (with its offset) until the cup is lifted and replaced, after which it tares. |
+| M123 | With a known cup mass, tilt the cup during a shot (a few grams below zero for under half a second), then lift it fully; separately let a tared cup drift slowly below −3 g while idle. | The tilt does not stop the shot; the full lift stops it within two readings. A slow drift never reports the cup as removed. |
+| M124 | Make the shot-start tare fail or stay ineffective with a 250 g cup on the pan (for example a scale that rejects the command); repeat with a scale that zeroes later than Post-tare grace. | The shot continues measured from the pre-tare weight: no instant first drop, no immediate stop, normal stop at the target, and lifting the cup still stops it. A zero that arrives after grace is treated like a lift and stops the shot; raising Post-tare grace avoids it. |
+| M125 | On a pre-infusing machine, start without a cup and place it after Late cup time but before first drops; repeat after first drops. Separately start without a cup and let coffee fill the empty pan. | Before first drops the late cup is tared once and the shot stops at the target; after first drops it is not tared. Coffee building up on the empty pan is never tared away. |
+| M126 | With Tare items added to a cup ON, pour milk slowly into a tared cup; then set a spoon down in one motion on another tared cup. | The pour is not tared; the spoon is tared once. |
+
 ## Smooth cut and factory presets
 
 Rows in this section are **pending (user)**: they are run on the owner's bench
