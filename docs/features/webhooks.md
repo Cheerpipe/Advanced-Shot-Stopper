@@ -14,7 +14,8 @@ be used as a safety signal. Keep the controller and receiver on a trusted LAN.
 While the machine is idle, open **Admin → Webhooks**, enter a reachable
 `http://` URL, choose the events, and save. **Send test** delivers a message
 without shot measurements. The status below the controls shows the latest
-delivery result and drop count.
+delivery result and drop count. The drop count only includes events you
+selected that could not be delivered; events you did not select are not counted.
 
 The controller supports one callback. Changing it replaces the previous
 receiver. Enable **Queue webhooks during shots** only when the receiver's
@@ -24,7 +25,16 @@ Scale acquisition always pauses delivery, independently of this option, from
 the first eligible advertisement through setup and the Bluetooth quiet interval.
 Unsent events remain queued. An interrupted request may already have reached
 the receiver: diagnostics report an unknown delivery result, and the controller
-does not replay it automatically.
+does not replay it automatically. A message that never reached the receiver,
+for example because its name could not be found or the connection was
+refused, is reported as not sent.
+
+Each message opens a fresh connection, so receivers that close idle
+connections never cause a lost event. A receiver name such as
+`homeassistant.local` works; the controller looks it up without holding up a
+shot, but a name that cannot be found within the delivery time limit (just under two seconds)
+makes that message fail. For the most dependable delivery, reserve an IP
+address for the receiver on your router and use it in the URL.
 
 After a failed attempt, diagnostic status identifies the event, request phase,
 transport result, and HTTP status.
@@ -88,6 +98,7 @@ enumeration, security, and compatibility contract.
 | Symptom | Check |
 | --- | --- |
 | Test fails | Receiver address is HTTP, reachable from the controller, and listening on the configured port |
+| Messages fail with a receiver name but work with its IP address | The name is not resolvable from the controller's network; use the reserved IP address |
 | Test works but shots do not arrive | Webhooks and the required event selections are enabled |
 | Some measurements are absent | Optional measurements are omitted when the scale did not provide a valid value |
 | Messages arrive late | Disable queuing unless your scale link needs it |

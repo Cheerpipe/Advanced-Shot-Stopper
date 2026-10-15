@@ -102,8 +102,10 @@ bool WebhookDispatcher::stop() {
   }
   worker = task_;
   if (worker != nullptr) {
+    mux_.lock();
     workerState_ = WorkerState::STOPPING;
     stopAfterDrain_ = false;
+    mux_.unlock();
   }
   xSemaphoreGive(lifecycleMutex_);
 
@@ -126,17 +128,16 @@ bool WebhookDispatcher::stop() {
 bool WebhookDispatcher::startWorker() {
   if (lifecycleMutex_ == nullptr ||
       xSemaphoreTake(lifecycleMutex_, portMAX_DELAY) != pdTRUE) return false;
-  if (workerState_ == WorkerState::READY) {
+  // Enabling while a disabled test drains keeps the running worker alive.
+  mux_.lock();
+  if (config_.enabled) stopAfterDrain_ = false;
+  const WorkerState state = workerState_;
+  if (state == WorkerState::STOPPED) workerState_ = WorkerState::STARTING;
+  mux_.unlock();
+  if (state != WorkerState::STOPPED) {
     xSemaphoreGive(lifecycleMutex_);
-    return true;
+    return state == WorkerState::READY;
   }
-  if (workerState_ == WorkerState::STARTING ||
-      workerState_ == WorkerState::STOPPING) {
-    xSemaphoreGive(lifecycleMutex_);
-    return false;
-  }
-  workerState_ = WorkerState::STARTING;
-  stopAfterDrain_ = false;
   // A worker disabled by setConfig() may have left an unconsumed completion.
   // Never let that stale acknowledgement satisfy a later stop()/join.
   if (workerStopped_ != nullptr) (void)xSemaphoreTake(workerStopped_, 0);
@@ -206,6 +207,7 @@ void WebhookDispatcher::releaseWorkerFromTask() {
   char *payload = nullptr;
   if (lifecycleMutex_ != nullptr &&
       xSemaphoreTake(lifecycleMutex_, portMAX_DELAY) == pdTRUE) {
+    mux_.lock();
     queue = queue_;
     queueStorage = queueStorage_;
     payload = payload_;
@@ -215,7 +217,6 @@ void WebhookDispatcher::releaseWorkerFromTask() {
     task_ = nullptr;
     workerState_ = WorkerState::STOPPED;
     stopAfterDrain_ = false;
-    mux_.lock();
     status_.workerReady = false;
     status_.sending = false;
     ++status_.workerStops;
@@ -246,10 +247,15 @@ esp_http_client_handle_t WebhookDispatcher::ensureHttpClient(const char *url) {
   // perform preserves header/body offsets across EAGAIN, including plain HTTP.
   config.is_async = true;
   config.disable_auto_redirect = true;
+  config.event_handler = httpEvent;
+  config.user_data = this;
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (client == nullptr) return nullptr;
+  // Reconnect per delivery: receivers close idle keep-alive sockets (Home
+  // Assistant after 75 s), and a write into one loses the event.
   if (esp_http_client_set_header(client, "Content-Type", "application/json") !=
           ESP_OK ||
+      esp_http_client_set_header(client, "Connection", "close") != ESP_OK ||
       esp_http_client_set_header(client, "User-Agent", "OpenBrewByWeight/1") !=
           ESP_OK) {
     (void)esp_http_client_cleanup(client);
@@ -263,6 +269,57 @@ esp_http_client_handle_t WebhookDispatcher::ensureHttpClient(const char *url) {
   ++status_.clientCreates;
   mux_.unlock();
   return client;
+}
+
+esp_err_t WebhookDispatcher::httpEvent(esp_http_client_event_t *event) {
+  if (event->event_id == HTTP_EVENT_HEADERS_SENT)
+    static_cast<WebhookDispatcher *>(event->user_data)->requestSent_ = true;
+  return ESP_OK;
+}
+
+void WebhookDispatcher::lookupDone(const char *, const ip_addr_t *address,
+                                   void *self) {
+  static_cast<WebhookDispatcher *>(self)->hostLookup_.store(
+      address != nullptr ? HostLookup::RESOLVED : HostLookup::FAILED);
+}
+
+void WebhookDispatcher::lookupStart(void *self) {
+  auto *dispatcher = static_cast<WebhookDispatcher *>(self);
+  ip_addr_t address;
+  const err_t result = dns_gethostbyname(dispatcher->lookupHost_, &address,
+                                         lookupDone, self);
+  if (result != ERR_INPROGRESS) lookupDone(nullptr,
+      result == ERR_OK ? &address : nullptr, self);
+}
+
+// getaddrinfo() inside perform() blocks for lwIP's whole DNS retry window,
+// beyond the delivery deadline and the admission gate. Resolve through the
+// asynchronous lwIP API first so perform() is answered from the DNS cache.
+template <typename Admitted>
+bool WebhookDispatcher::resolveHost(const char *url, uint32_t started,
+                                    Admitted admitted) {
+  const char *host = url + 7;
+  if (*host == '[') return true;
+  const size_t length = strcspn(host, ":/?");
+  for (;;) {
+    const HostLookup state = hostLookup_.load();
+    const bool current = strncmp(lookupHost_, host, length) == 0 &&
+        lookupHost_[length] == '\0';
+    if (state != HostLookup::PENDING && (!current || state == HostLookup::IDLE)) {
+      memcpy(lookupHost_, host, length);
+      lookupHost_[length] = '\0';
+      hostLookup_.store(HostLookup::PENDING);
+      if (tcpip_try_callback(lookupStart, this) == ERR_OK) continue;
+      hostLookup_.store(HostLookup::IDLE);
+      return false;
+    }
+    if (state != HostLookup::PENDING) {
+      hostLookup_.store(HostLookup::IDLE);
+      return state == HostLookup::RESOLVED;
+    }
+    if (!admitted() || millis() - started >= kWebhookTimeoutMs) return false;
+    vTaskDelay(pdMS_TO_TICKS(10));
+  }
 }
 
 void WebhookDispatcher::cleanupHttpClient() {
@@ -290,6 +347,8 @@ void WebhookDispatcher::setConfig(const WebhookConfig &config) {
   mux_.lock();
   changed = memcmp(&config_, &config, sizeof(config)) != 0;
   if (changed) {
+    if (!config.enabled || strcmp(config_.url, config.url) != 0)
+      cleanupRequested_.store(true, std::memory_order_release);
     config_ = config;
     deferDuringShot_.store(config.deferDuringShot, std::memory_order_release);
     ++configGeneration_;
@@ -344,18 +403,9 @@ bool WebhookDispatcher::enqueue(const WebhookEvent &event) {
   queued.event = event;
   QueueHandle_t queue = nullptr;
   WorkerState workerState = WorkerState::STOPPED;
-  if (lifecycleMutex_ == nullptr ||
-      xSemaphoreTake(lifecycleMutex_, 0) != pdTRUE) {
-    mux_.lock();
-    ++status_.dropped;
-    mux_.unlock();
-    return false;
-  }
   mux_.lock();
   live = config_;
   queued.configGeneration = configGeneration_;
-  queue = queue_;
-  workerState = workerState_;
   mux_.unlock();
   bool selected = event.type == WebhookEventType::TEST;
   if (event.type == WebhookEventType::BREWING ||
@@ -368,21 +418,29 @@ bool WebhookDispatcher::enqueue(const WebhookEvent &event) {
       event.type == WebhookEventType::IP_CHANGED ||
       event.type == WebhookEventType::ACTIVATION_HISTORY)
     selected = live.presetChanges;
-  if (workerState != WorkerState::READY || queue == nullptr ||
-      !validWebhookUrl(live.url) ||
-      (event.type != WebhookEventType::TEST && (!live.enabled || !selected)) ||
-      xQueueSend(queue, &queued, 0) != pdTRUE) {
-    xSemaphoreGive(lifecycleMutex_);
+  // An event the receiver did not subscribe to is consumed, not dropped.
+  if (event.type != WebhookEventType::TEST && (!live.enabled || !selected))
+    return true;
+  // The worker never holds lifecycleMutex_ while idle or sending, so this
+  // non-blocking take only fails during a worker start/stop transition.
+  const bool locked = lifecycleMutex_ != nullptr &&
+      xSemaphoreTake(lifecycleMutex_, 0) == pdTRUE;
+  if (locked) {
     mux_.lock();
-    ++status_.dropped;
+    queue = queue_;
+    workerState = workerState_;
     mux_.unlock();
-    return false;
   }
-  if (event.type == WebhookEventType::TEST && !live.enabled) {
+  const bool accepted = locked && workerState == WorkerState::READY &&
+      queue != nullptr && validWebhookUrl(live.url) &&
+      xQueueSend(queue, &queued, 0) == pdTRUE;
+  mux_.lock();
+  if (!accepted) ++status_.dropped;
+  else if (event.type == WebhookEventType::TEST && !live.enabled)
     stopAfterDrain_ = true;
-  }
-  xSemaphoreGive(lifecycleMutex_);
-  return true;
+  mux_.unlock();
+  if (locked) xSemaphoreGive(lifecycleMutex_);
+  return accepted;
 }
 
 void WebhookDispatcher::taskEntry(void *parameter) {
@@ -393,15 +451,13 @@ void WebhookDispatcher::task() {
   QueuedWebhook queued;
   bool haveQueued = false;
   for (;;) {
-    QueueHandle_t queue = nullptr;
-    WorkerState state = WorkerState::STOPPED;
-    if (lifecycleMutex_ != nullptr &&
-        xSemaphoreTake(lifecycleMutex_, portMAX_DELAY) == pdTRUE) {
-      queue = queue_;
-      state = workerState_;
-      xSemaphoreGive(lifecycleMutex_);
-    }
+    mux_.lock();
+    QueueHandle_t queue = queue_;
+    WorkerState state = workerState_;
+    mux_.unlock();
     if (state == WorkerState::STOPPING || queue == nullptr) break;
+    if (cleanupRequested_.exchange(false, std::memory_order_acq_rel))
+      cleanupHttpClient();
     if (!dispatchAllowed()) {
       if (httpClient_) (void)esp_http_client_close(httpClient_.get());
       completeOutboundAcquisitionPause(OutboundClient::WEBHOOK, millis());
@@ -427,13 +483,19 @@ void WebhookDispatcher::task() {
     } else if (haveQueued || !waitedForQueue) {
       vTaskDelay(pdMS_TO_TICKS(25));
     }
-    if (lifecycleMutex_ != nullptr &&
-        xSemaphoreTake(lifecycleMutex_, portMAX_DELAY) == pdTRUE) {
-      if (workerState_ == WorkerState::READY && stopAfterDrain_ && !haveQueued &&
+    mux_.lock();
+    const bool drainStop = stopAfterDrain_ && !haveQueued;
+    mux_.unlock();
+    // Only a disabled test drain takes the lifecycle lock, so enqueue() can
+    // never append to a queue that is about to be released.
+    if (drainStop && xSemaphoreTake(lifecycleMutex_, portMAX_DELAY) == pdTRUE) {
+      mux_.lock();
+      if (workerState_ == WorkerState::READY && stopAfterDrain_ &&
           uxQueueMessagesWaiting(queue_) == 0) {
         workerState_ = WorkerState::STOPPING;
       }
       state = workerState_;
+      mux_.unlock();
       xSemaphoreGive(lifecycleMutex_);
     }
     if (state == WorkerState::STOPPING) break;
@@ -612,6 +674,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
 
   bool ok = false;
   bool dispatched = false;
+  bool interrupted = false;
   WebhookCancellationReason cancellation = WebhookCancellationReason::NONE;
   const uint32_t acquisitionGeneration = outboundAcquisitionGeneration.load(std::memory_order_acquire);
   const auto admitted = [&] {
@@ -624,7 +687,12 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   if (WiFi.status() == WL_CONNECTED && validWebhookUrl(live.url) &&
       buildPayload(event, payload_, kWebhookPayloadCapacity)) {
     phase = WebhookRequestPhase::CLIENT;
-    esp_http_client_handle_t client = ensureHttpClient(live.url);
+    const uint32_t started = millis();
+    const bool resolved = resolveHost(live.url, started, admitted);
+    esp_http_client_handle_t client =
+        resolved ? ensureHttpClient(live.url) : nullptr;
+    if (!resolved) error = ESP_ERR_HTTP_CONNECT;
+    interrupted = !resolved && !admitted();
     if (client != nullptr) {
       phase = WebhookRequestPhase::CONFIGURE;
       error = static_cast<esp_err_t>(configureWebhookHttpRequest(
@@ -637,22 +705,18 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
                 client, payload_, strlen(payload_)));
           }));
       if (error == ESP_OK) {
-        phase = WebhookRequestPhase::DISPATCH;
         phase = WebhookRequestPhase::PERFORM;
-        const uint32_t started = millis();
         error = ESP_ERR_HTTP_EAGAIN;
+        requestSent_ = false;
         while (error == ESP_ERR_HTTP_EAGAIN && admitted() &&
                millis() - started < kWebhookTimeoutMs) {
-          dispatched = true;
           error = esp_http_client_perform(client);
           if (error == ESP_ERR_HTTP_EAGAIN) vTaskDelay(pdMS_TO_TICKS(1));
         }
-        if (!admitted()) {
-          cancellation = acquisitionGeneration != outboundAcquisitionGeneration.load() ||
-              outboundScaleInhibited() ? WebhookCancellationReason::SCALE_CONNECTING
-                                           : WebhookCancellationReason::CONTROL_CRITICAL;
-          error = ESP_ERR_INVALID_STATE;
-        }
+        // Connect and DNS failures never reach the receiver: not sent.
+        dispatched = requestSent_;
+        interrupted = !admitted();
+        if (interrupted) error = ESP_ERR_INVALID_STATE;
         else if (error == ESP_ERR_HTTP_EAGAIN ||
                  (error == ESP_OK && millis() - started >= kWebhookTimeoutMs))
           error = ESP_ERR_TIMEOUT;
@@ -680,6 +744,13 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
     }
   }
 
+  if (interrupted) {
+    cancellation = acquisitionGeneration != outboundAcquisitionGeneration.load() ||
+        outboundScaleInhibited() ? WebhookCancellationReason::SCALE_CONNECTING
+                                 : WebhookCancellationReason::CONTROL_CRITICAL;
+    if (phase == WebhookRequestPhase::CLIENT)
+      completeOutboundAcquisitionPause(OutboundClient::WEBHOOK, millis());
+  }
   const HeapCapSnapshot heapAfter = sampleHeapCaps();
 #if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
   if (!ok) {

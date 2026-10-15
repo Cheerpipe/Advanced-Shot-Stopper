@@ -280,6 +280,13 @@ linked, 1,561,516 flash-code and 626,252 rodata bytes —
 81,760/81,748/46,416/38,900 over baseline. The image/linked allowances move
 to 81,824/81,812 bytes, keeping the 64-byte headroom; flash code and rodata
 stay inside their allowances.
+The webhook reliability change (asynchronous receiver lookup, one connection
+per delivery, lock-free worker state reads) brings the build to 2,356,480
+image, 2,356,367 linked, 1,562,424 flash-code and 626,316 rodata bytes —
+82,720/82,720/47,324/38,964 over baseline, measured from a Git worktree whose
+longer source paths add 144 rodata bytes. The image/linked/flash-code
+allowances move to 82,784/82,784/47,388 bytes, keeping the 64-byte headroom;
+rodata stays inside its allowance.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,

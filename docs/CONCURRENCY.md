@@ -297,9 +297,12 @@ write-error path prints signed Upgrade headers; application diagnostics retain
 safe status/reason fields.
 
 Owner completion telemetry certifies transport teardown, not RF or DNS
-silence. An SDK resolution already submitted can finish. No DNS-specific gate,
-resolver replacement or global DNS-cache mutation is introduced. Webhooks
-progress plain HTTP asynchronously on the pinned IDF 6.1 transport, keep one
+silence. An SDK resolution already submitted can finish. No resolver
+replacement or global DNS-cache mutation is introduced. Webhooks resolve the
+receiver through lwIP's asynchronous resolver, polled under the admission gate
+and the delivery deadline, so the transport's own lookup is answered from the
+cache instead of blocking the worker. They progress plain HTTP asynchronously
+on the pinned IDF 6.1 transport with one connection per POST, keep one
 absolute 1800-ms deadline and do not replay an ambiguously dispatched POST.
 NTP closes callback acceptance before owner stop. OTA publishes its own atomic
 busy gate; maintenance parks and frees the Micra workspaces without delaying

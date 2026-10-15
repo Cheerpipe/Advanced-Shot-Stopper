@@ -19,7 +19,9 @@ struct TestSemaphore { unsigned count; };
 using SemaphoreHandle_t = TestSemaphore *;
 inline SemaphoreHandle_t xSemaphoreCreateMutex() { return new TestSemaphore{1}; }
 inline SemaphoreHandle_t xSemaphoreCreateBinary() { return new TestSemaphore{0}; }
+inline unsigned semaphoreTakes = 0;
 inline int xSemaphoreTake(SemaphoreHandle_t s, TickType_t) {
+  ++semaphoreTakes;
   if (!s->count) return 0;
   --s->count;
   return pdTRUE;
@@ -79,14 +81,19 @@ inline TestWifi WiFi;
 using esp_err_t = int;
 constexpr int ESP_OK = 0, ESP_FAIL = -1, ESP_ERR_INVALID_STATE = -2;
 constexpr int ESP_ERR_HTTP_EAGAIN = -3, ESP_ERR_TIMEOUT = -4;
+constexpr int ESP_ERR_HTTP_CONNECT = -5;
 constexpr int ESP_MAC_WIFI_STA = 0, HTTP_METHOD_POST = 1;
-constexpr int HTTP_EVENT_ERROR = 0, HTTP_EVENT_DISCONNECTED = 1;
-struct TestHttpClient {};
+constexpr int HTTP_EVENT_HEADERS_SENT = 2;
+struct TestHttpClient;
 using esp_http_client_handle_t = TestHttpClient *;
 struct esp_http_client_event_t {
-  void *user_data;
   int event_id;
   esp_http_client_handle_t client;
+  void *user_data;
+};
+struct TestHttpClient {
+  esp_err_t (*handler)(esp_http_client_event_t *);
+  void *user;
 };
 struct esp_http_client_config_t {
   const char *url = nullptr;
@@ -96,11 +103,12 @@ struct esp_http_client_config_t {
   void *user_data = nullptr;
   esp_err_t (*event_handler)(esp_http_client_event_t *) = nullptr;
 };
-inline bool failHttpAllocation = false;
+inline bool failHttpAllocation = false, httpHeadersSent = true;
 inline int httpResult = ESP_OK, httpStatus = 200;
-inline esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *) {
+inline esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *config) {
   workerTrace.push_back("allocate");
-  return failHttpAllocation ? nullptr : new TestHttpClient{};
+  return failHttpAllocation ? nullptr
+                            : new TestHttpClient{config->event_handler, config->user_data};
 }
 inline int esp_http_client_cleanup(esp_http_client_handle_t c) { delete c; return ESP_OK; }
 inline int esp_http_client_close(esp_http_client_handle_t) { return ESP_OK; }
@@ -108,10 +116,31 @@ inline int esp_http_client_cancel_request(esp_http_client_handle_t) { return ESP
 inline int esp_http_client_set_method(esp_http_client_handle_t, int) { return ESP_OK; }
 inline int esp_http_client_set_header(esp_http_client_handle_t, const char *, const char *) { return ESP_OK; }
 inline int esp_http_client_set_post_field(esp_http_client_handle_t, const char *, int) { workerTrace.push_back("post"); return ESP_OK; }
-inline int esp_http_client_perform(esp_http_client_handle_t) {
+inline int esp_http_client_perform(esp_http_client_handle_t c) {
   workerTrace.push_back("perform");
+  esp_http_client_event_t sent{HTTP_EVENT_HEADERS_SENT, c, c->user};
+  if (httpHeadersSent) c->handler(&sent);
   if (duringPerform) duringPerform();
   return httpResult;
 }
 inline int esp_http_client_get_status_code(esp_http_client_handle_t) { return httpStatus; }
 inline int esp_read_mac(uint8_t *mac, int) { memset(mac, 0xAB, 6); return ESP_OK; }
+// lwIP asynchronous resolver: immediate unless a test holds the answer.
+struct ip_addr_t {};
+using err_t = int;
+constexpr err_t ERR_OK = 0, ERR_INPROGRESS = -5, ERR_ARG = -16;
+using dns_found_callback = void (*)(const char *, const ip_addr_t *, void *);
+inline bool dnsHeld = false, dnsFails = false;
+inline std::function<void()> dnsAnswer;
+inline err_t tcpip_try_callback(void (*function)(void *), void *context) {
+  function(context);
+  return ERR_OK;
+}
+inline err_t dns_gethostbyname(const char *, ip_addr_t *,
+                               dns_found_callback found, void *argument) {
+  static ip_addr_t resolved;
+  workerTrace.push_back("resolve");
+  if (!dnsHeld) return dnsFails ? ERR_ARG : ERR_OK;
+  dnsAnswer = [=] { found(nullptr, dnsFails ? nullptr : &resolved, argument); };
+  return ERR_INPROGRESS;
+}

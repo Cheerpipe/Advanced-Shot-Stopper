@@ -20,6 +20,8 @@
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
 #include <Arduino.h>
 #include <esp_http_client.h>
+#include <lwip/dns.h>
+#include <lwip/tcpip.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
@@ -337,6 +339,7 @@ class WebhookDispatcher {
   };
 
   enum class WorkerState : uint8_t { STOPPED, STARTING, READY, STOPPING };
+  enum class HostLookup : uint8_t { IDLE, PENDING, RESOLVED, FAILED };
 
   bool startWorker();
   void releaseWorkerFromTask();
@@ -344,6 +347,11 @@ class WebhookDispatcher {
   void task();
   bool send(const QueuedWebhook &queued);
   esp_http_client_handle_t ensureHttpClient(const char *url);
+  template <typename Admitted>
+  bool resolveHost(const char *url, uint32_t started, Admitted admitted);
+  static void lookupStart(void *self);
+  static void lookupDone(const char *, const ip_addr_t *address, void *self);
+  static esp_err_t httpEvent(esp_http_client_event_t *event);
   void cleanupHttpClient();
   bool buildPayload(const WebhookEvent &event, char *output, size_t capacity);
   bool dispatchAllowed() const;
@@ -364,6 +372,12 @@ class WebhookDispatcher {
   char *payload_ = nullptr;
   std::atomic<bool> controlCritical_{false};
   std::atomic<bool> deferDuringShot_{false};
+  std::atomic<bool> cleanupRequested_{false};
+  // Set by the client event handler once request headers reach the socket.
+  bool requestSent_ = false;
+  // lwIP's DNS cache warmed off the worker so perform() never blocks in DNS.
+  std::atomic<HostLookup> hostLookup_{HostLookup::IDLE};
+  char lookupHost_[WEBHOOK_URL_CAPACITY] = {};
   // Worker-owned and reused for every request with the same URL. The owner is
   // a final rollback guard; normal cleanup still runs after join so its result
   // can be published in WebhookStatus.

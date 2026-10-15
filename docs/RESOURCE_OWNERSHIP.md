@@ -78,7 +78,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | BLE modem sleep / scan and Wi-Fi sleep | ScaleService / NetworkService respectively | owner-local application, live link/connecting gates, saved preferences restored when PM is off; see [Power management](settings/power-management.md) |
 | scale NimBLE peer procedure | EspressoScaleBLE client, called only by ScaleService | owns final admission and retains pending link cleanup until closure is confirmed; scanning/reconnection wait for cleanup and the full 3,000 ms quiet interval from GAP completion (or completion of an already-admitted submission); callbacks publish evidence, while only the owner submits deferred termination |
 | Micra cloud HTTPS client | build-selected `OpenBrewByWeightMicraService` worker | boot-lifetime 8 KiB task; a lazy 6,344-byte external work buffer holds identity, tokens, authorization header, and client state, while request E/S uses one transient 16 KiB external union; HTTP/TLS library allocations are separate; connected-scale shot transitions cancel active I/O, while Disconnect, disabled observation, STA loss, and AP entry wipe/free both workspaces and destroy the client handle |
-| webhook `esp_http_client` | `WebhookDispatcher::httpClient_` (`UniqueResource`) | normal cleanup after worker join; destructor is final rollback |
+| webhook `esp_http_client` | `WebhookDispatcher::httpClient_` (`UniqueResource`) | normal cleanup after worker join, or on the worker's next pass after webhooks are disabled or the URL changes; destructor is final rollback |
 | OTA write handle | `OpenBrewByWeightOta::otaHandle_` (`UniqueResource`) | abort under `FlashIoGuard`; `release()` transfers it exactly once to `esp_ota_end` |
 | OTA SHA context | `OpenBrewByWeightOta::sessionSha256_` (`UniqueResource`) | `psa_hash_abort` then capability-aware heap free |
 | Network command queue and lifecycle semaphores | `OpenBrewByWeightNetwork` (`UniqueResource`) | acquired before task creation; reset in reverse order after manager join |
@@ -172,9 +172,11 @@ idempotent reset and scope rollback. Target resource counts remain part of the
 combined soak gate.
 
 The webhook worker keeps a dequeued event pending while the configured shot
-gate is closed; stop-after-drain includes that locally held event. An empty 50
-ms queue wait is followed by the lifecycle check without an additional 25 ms
-delay. The 25 ms gated wait and the gate check before starting delivery remain;
+gate is closed; stop-after-drain includes that locally held event. The worker
+reads its queue and state under the state mutex and takes the lifecycle mutex
+only to end a disabled test drain, so a control enqueue never fails on worker
+contention. An empty 50 ms queue wait is followed by the drain check without
+an additional 25 ms delay. The 25 ms gated wait and the gate check before starting delivery remain;
 delivery checks admission between asynchronous progress calls and after the
 final call. The absolute 1800 ms deadline also rejects a late successful return.
 Interrupted, possibly dispatched POSTs are dropped without replay; unsent

@@ -634,6 +634,10 @@ concurrent `scaleSetup`, `bleQuiet`, `shot` and `maintenance` gates, and per-cli
 applicability and owner completion/latency. `requested` and `completed` refer to
 the acquisition generation; completion excludes residual DNS work.
 Webhook status distinguishes `lastDispatched` and `lastDeliveryUnknown`.
+`lastDispatched` becomes true only once the request headers reached the socket,
+so DNS and connection failures report "not sent" rather than an unknown result.
+`dropped` counts only subscribed events that could not be queued or delivered;
+events the receiver did not select are not counted.
 
 ## Webhook version 1
 

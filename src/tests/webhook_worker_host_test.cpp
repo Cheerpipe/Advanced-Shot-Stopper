@@ -35,6 +35,7 @@ struct WebhookDispatcherTest {
   static void stopOnNextIteration(WebhookDispatcher &d) {
     d.workerState_ = WebhookDispatcher::WorkerState::STOPPING;
   }
+  static bool stopAfterDrain(WebhookDispatcher &d) { return d.stopAfterDrain_; }
   static bool payload(WebhookDispatcher &d, const WebhookEvent &event,
                       char *output, size_t capacity) {
     return d.buildPayload(event, output, capacity);
@@ -59,6 +60,9 @@ static void resetPlatform() {
   httpStatus = 200;
   wifiStatus = WL_CONNECTED;
   failHttpAllocation = false;
+  httpHeadersSent = true;
+  dnsHeld = dnsFails = false;
+  dnsAnswer = {};
 }
 static void testSamplingAndAccounting() {
   for (unsigned scenario = 0; scenario != 5; ++scenario) {
@@ -184,10 +188,16 @@ static void testHeldItemSurvivesDrainAndGate() {
       }
       assert(delays <= 2);
     };
-    // Configuring enabled clears stopAfterDrain; stop after the stale drop.
-    if (changeConfig) afterTimeout = [&]() { WebhookDispatcherTest::stopOnNextIteration(d); };
+    // Enabling during the drain keeps the worker running after the stale drop.
+    bool keptRunning = false;
+    if (changeConfig) afterTimeout = [&]() {
+      assert(d.status().workerStops == 0 && !WebhookDispatcherTest::stopAfterDrain(d));
+      keptRunning = true;
+      WebhookDispatcherTest::stopOnNextIteration(d);
+    };
     WebhookDispatcherTest::run(d);
-    assert(delays == 2 && d.status().workerStops == 1);
+    assert(delays == 2 && keptRunning == changeConfig);
+    assert(d.status().workerStops == 1);
     assert(d.status().sent == (changeConfig ? 0U : 1U));
     assert(d.status().staleConfigDropped == (changeConfig ? 1U : 0U));
     assert(d.stop());
@@ -214,7 +224,8 @@ static void testActivationHistorySubscription() {
   event.type = WebhookEventType::ACTIVATION_HISTORY;
   event.activationId = 7;
   event.activationType = static_cast<uint8_t>(HistoryType::RINSE);
-  assert(!d.enqueue(event));
+  assert(d.enqueue(event)); // Unsubscribed: consumed without a drop.
+  assert(d.status().dropped == 0);
   live.presetChanges = true;
   d.setConfig(live);
   assert(d.enqueue(event));
@@ -224,8 +235,83 @@ static void testActivationHistorySubscription() {
   afterReceive = [&]() { wifiStatus = WL_CONNECTED; };
   afterTimeout = [&]() { WebhookDispatcherTest::stopOnNextIteration(d); };
   WebhookDispatcherTest::run(d);
-  assert(d.status().sent == 2 && d.status().dropped == 1);
+  assert(d.status().sent == 2 && d.status().dropped == 0);
   assert(d.stop());
+}
+static void testWorkerLeavesLifecycleLockToEnqueue() {
+  resetPlatform();
+  WebhookDispatcher d;
+  assert(d.begin(config(true)));
+  WebhookEvent event;
+  event.type = WebhookEventType::BREWING;
+  unsigned timeouts = 0, base = 0;
+  afterTimeout = [&]() {
+    if (++timeouts == 1) {
+      base = semaphoreTakes;
+      assert(d.enqueue(event));
+      return;
+    }
+    // Receive, send and idle passes take no lock beyond enqueue's own.
+    assert(semaphoreTakes - base == 1);
+    WebhookDispatcherTest::stopOnNextIteration(d);
+  };
+  WebhookDispatcherTest::run(d);
+  assert(d.status().sent == 1 && d.status().dropped == 0);
+  assert(d.stop());
+}
+static void testDisableReleasesClient() {
+  resetPlatform();
+  WebhookDispatcher d;
+  assert(d.begin(config(true)));
+  assert(WebhookDispatcherTest::send(d));
+  assert(d.status().clientCreates == 1);
+  d.setConfig(config(false));
+  afterTimeout = [&]() {
+    assert(d.status().clientCleanups == 1);
+    WebhookDispatcherTest::stopOnNextIteration(d);
+  };
+  WebhookDispatcherTest::run(d);
+  assert(d.status().clientCleanups == 1);
+  assert(d.stop());
+}
+static void testUnsentRequestsAreNotUnknown() {
+  for (unsigned scenario = 0; scenario != 2; ++scenario) {
+    resetPlatform();
+    WebhookDispatcher d;
+    assert(d.begin(config(true)));
+    if (scenario == 0) {
+      httpHeadersSent = false;
+      httpResult = ESP_ERR_HTTP_CONNECT;
+    } else {
+      dnsFails = true;
+    }
+    assert(!WebhookDispatcherTest::send(d));
+    const auto status = d.status();
+    assert(!status.lastDispatched && !status.lastDeliveryUnknown);
+    assert(status.lastError == ESP_ERR_HTTP_CONNECT && status.dropped == 1);
+    assert(std::count(workerTrace.begin(), workerTrace.end(), "perform") ==
+           (scenario == 0 ? 1 : 0));
+    WebhookDispatcherTest::finish(d);
+  }
+}
+static void testSlowLookupYieldsToShotWithinOnePoll() {
+  resetPlatform();
+  WebhookDispatcher d;
+  assert(d.begin(config(true, true)));
+  dnsHeld = true;
+  afterDelay = [&]() { d.setControlCritical(true); };
+  assert(!WebhookDispatcherTest::send(d));
+  auto status = d.status();
+  assert(workerNow == 10);
+  assert(status.lastCancellation == WebhookCancellationReason::CONTROL_CRITICAL);
+  assert(!status.lastDispatched && status.dropped == 0);
+  assert(std::count(workerTrace.begin(), workerTrace.end(), "perform") == 0);
+  afterDelay = {};
+  d.setControlCritical(false);
+  dnsAnswer();
+  assert(WebhookDispatcherTest::send(d));
+  assert(std::count(workerTrace.begin(), workerTrace.end(), "resolve") == 1);
+  WebhookDispatcherTest::finish(d);
 }
 static void testBootHintWaitsForSta() {
   resetPlatform();
@@ -338,6 +424,10 @@ int main() {
   testHeldItemSurvivesDrainAndGate();
   testQueueCapacity();
   testActivationHistorySubscription();
+  testWorkerLeavesLifecycleLockToEnqueue();
+  testDisableReleasesClient();
+  testUnsentRequestsAreNotUnknown();
+  testSlowLookupYieldsToShotWithinOnePoll();
   testBootHintWaitsForSta();
   testSecretWebhookEndpointRedacted();
   testIntegrationPayloads();
