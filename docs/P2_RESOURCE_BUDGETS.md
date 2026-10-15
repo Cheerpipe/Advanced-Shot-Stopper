@@ -249,6 +249,13 @@ and the frosted-glass removal bring the build to 2,351,616 image, 2,351,491
 linked and 625,484 rodata bytes — 77,856/77,844/38,132 over baseline. The
 image/linked allowances move to 77,920/77,908 bytes and the rodata allowance to
 38,196 bytes, keeping the 64-byte headroom.
+The preset graph cut pill, Home graph copies and memory-audit hardening bring
+the build to 2,352,224 image, 2,352,111 linked and 627,100 rodata bytes, and
+the preset graph's first-drop pace start to 2,353,136 image, 2,353,015 linked
+and 627,260 rodata bytes — 79,376/79,368/39,908 over baseline. The
+image/linked allowances move to 79,440/79,432 bytes and the rodata allowance to
+39,972 bytes, keeping the 64-byte headroom; flash-code stays inside its
+allowance.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
