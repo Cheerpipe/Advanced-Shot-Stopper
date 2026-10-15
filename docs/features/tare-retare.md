@@ -10,7 +10,7 @@ All four are **on by default**. Late retare also requires shot-start tare.
 
 ## Automatic tare outside a brew
 
-With the machine confirmed off, a qualified stable empty pan followed by a stable
+When no shot or rinse is running, a qualified stable empty pan followed by a stable
 placement triggers one tare using the same cup detector as late retare. It
 does not start the timer. A cup that remains on the scale after a shot never
 triggers this tare, even after the beverage becomes stable. Removing and

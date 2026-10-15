@@ -32,7 +32,7 @@ bool momentaryGestureRestoreRunning = false;
 bool momentaryRinseRequested = false;
 bool momentaryRinseHoldFromIdle = false;
 bool momentaryRinseEmittedThisHold = false;
-MachineRunState momentaryGesturePreState = MachineRunState::CONFIRMED_OFF;
+MachineRunState momentaryGesturePreState = MachineRunState::IDLE;
 uint32_t momentaryGesturePreStartedAtMs = 0;
 uint32_t momentaryGesturePreLimitMs = HARD_MAX_CIRCUIT_CLOSED_MS;
 enum class FirmwarePulseKind : uint8_t { START, STOP, FORCED };

@@ -161,7 +161,7 @@ void endMomentaryLogicalRunForWall() {
     noteMomentaryLogicalStop();
     return;
   }
-  if (momentaryInferredState != MachineRunState::CONFIRMED_OFF) {
+  if (momentaryInferredState != MachineRunState::IDLE) {
     momentaryOrphanRun = true;
   }
 }

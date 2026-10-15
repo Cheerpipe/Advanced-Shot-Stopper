@@ -167,7 +167,7 @@ struct ControlStatusFields : ScaleLinkMetrics {
   bool noScaleShotGuardScaleWasAvailable = false;
   uint32_t noScaleShotGuardCooldownRemainingMs = 0;
   bool cupStartGuardHold = false;
-  MachineRunState machineRunState = MachineRunState::CONFIRMED_OFF;
+  MachineRunState machineRunState = MachineRunState::IDLE;
   bool machineStartAckPending = false;
   bool machineStopAckPending = false;
   bool machineOrphanRun = false;

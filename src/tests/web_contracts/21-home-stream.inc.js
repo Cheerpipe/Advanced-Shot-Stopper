@@ -32,7 +32,7 @@
     adminUnlocked: false, snapshotStale: false, config: {soundAlertsEnabled: true, revision: 1},
     safety: {state: 'READY'}, scale: {available: true, streamState: 'FRESH', observedWeightG: 12, timerMs: 1000},
     presets: {activeId: 1, items: []}, cycle: {active: false}, lastShot: {valid: false},
-    noScaleShotGuard: {enabled: true}, machineState: 'CONFIRMED_OFF', cupPresence: {present: false}};
+    noScaleShotGuard: {enabled: true}, machineState: 'IDLE', cupPresence: {present: false}};
   const flatten = (value, prefix = '', output = {}) => {
     for (const [key, item] of Object.entries(value)) {
       const name = prefix + key;
@@ -44,7 +44,7 @@
   const initial = {v: 1, type: 'home', boot: 7, snapshot: true, changes: flatten(status)};
   const first = context.statusStreamFrame(null, initial);
   const patch = {v: 1, type: 'home', boot: 7, snapshot: false,
-    changes: {'scale.observedWeightG': 12.1, 'machineState': 'CONFIRMED_ON'}};
+    changes: {'scale.observedWeightG': 12.1, 'machineState': 'RUNNING'}};
   const second = context.statusStreamFrame(first, patch);
   assert.equal(second.status.scale.timerMs, 1000);
   assert.equal(second.status.scale.observedWeightG, 12.1);
@@ -70,7 +70,7 @@
   assert.equal(context.statusUtcAnchorAt, 1234);
   assert.equal(rendered.at(-1).timeUtcSec, undefined, 'cached Home status must not reset the shared clock anchor');
   sockets[0].onmessage({data: JSON.stringify(patch)});
-  assert.equal(rendered.at(-1).machineState, 'CONFIRMED_ON');
+  assert.equal(rendered.at(-1).machineState, 'RUNNING');
   vm.runInNewContext("activeView='settings'", context);
   context.statusUtcAnchorSec += 10;
   const paints = rendered.length, reachBefore = reachOk;

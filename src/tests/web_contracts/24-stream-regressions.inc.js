@@ -167,7 +167,7 @@ int main(){
     context.startDiagnosticStream();
     assert.equal(socket.sent.filter(m=>m.op==='diagnostic').length,1,'subscribing twice must be idempotent');
     const deliver=changes=>socket.onmessage({data:JSON.stringify({v:1,type:'diagnostic',boot:193,snapshot:false,changes})});
-    socket.onmessage({data:JSON.stringify({v:1,type:'diagnostic',boot:193,snapshot:true,changes:{state:'READY',machineState:'CONFIRMED_OFF',relayClosed:false,controlSource:'none','cupPresence.state':'UNKNOWN','safety.state':'OPEN','scale.streamState':'NO_SAMPLE'}})});
+    socket.onmessage({data:JSON.stringify({v:1,type:'diagnostic',boot:193,snapshot:true,changes:{state:'READY',machineState:'IDLE',relayClosed:false,controlSource:'none','cupPresence.state':'UNKNOWN','safety.state':'OPEN','scale.streamState':'NO_SAMPLE'}})});
     context.paintDiagnosticStream();await Promise.resolve();
     assert(!settled&&paints.length===0,'the initial base frame lacks sampled metrics');
     deliver({'health.loopMaxGapMs':12,'health.hwmon':{},nvs:{}});

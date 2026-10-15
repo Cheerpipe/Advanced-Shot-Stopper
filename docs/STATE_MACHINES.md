@@ -105,7 +105,7 @@ not mean the group is idle. See section 3 before applying this sequence to a
 button machine.
 
 **Idle.** The brew orchestrator is `READY`. Relay safety is `OPEN`. Machine run state
-is `CONFIRMED_OFF`. The scale link may be `CONNECTED` or
+is `IDLE`. The scale link may be `CONNECTED` or
 `DISCONNECTED`; that only matters when a shot starts.
 
 **Start.** A debounced activator ON (or a Web start, if remote machine control is
@@ -115,8 +115,8 @@ ON→OFF in its window becomes `RINSE`.
 
 If the start is accepted, the brew orchestrator calls `machineRequestStart`.
 On paddle, relay safety goes `OPEN → ARMING → CLOSED` (or refuses and the brew orchestrator
-goes to `REQUIRES_OFF`). Machine run state follows: `ASSUMED_ON` while
-arming, then `CONFIRMED_ON`.
+goes to `REQUIRES_OFF`). Machine run state follows: `RUNNING_UNCONFIRMED` while
+arming, then `RUNNING`.
 
 **During a shot.** The brew orchestrator is `BREW` or `MANUAL_NO_SCALE`. Weight
 control is `ACTIVE` only if the cycle started with a usable scale and
@@ -268,9 +268,10 @@ The brew orchestrator observes trips on the next control-loop pass.
 
 ## 3. Machine run state (`MachineRunState`)
 
-**Purpose.** A coarse, UI-facing view of “is the group brewing?”,
-without exposing ARMING vs CLOSED vs TRIPPED. It does not command
-GPIO.
+**Purpose.** A coarse, UI-facing view of “is water running through the
+group (shot or rinse)?”, without exposing ARMING vs CLOSED vs TRIPPED. It
+does not describe machine power: a powered-on machine is normally `IDLE`.
+It does not command GPIO.
 
 Source: `OpenBrewByWeightMachineTypes.h`, `machineRunState()` in
 `OpenBrewByWeightMachinePaddleState.h` (included from `OpenBrewByWeightMachine.h`).
@@ -280,10 +281,10 @@ Config lock uses `machineIsRunning()`, which for paddle equals machine circuit c
 
 | State | Meaning |
 | --- | --- |
-| `CONFIRMED_OFF` | Relay not closed. Safety is OPEN, or tripped/lockout with contact open. |
-| `ASSUMED_ON` | Safety is `ARMING`: close is in flight, echo may not yet match. Reed: configured start edge (press or release), reed still off, within confirm timeout. |
-| `CONFIRMED_ON` | Safety `CLOSED` or `relay.closed`. Reed: reed is on (outside an assumed-off window). |
-| `ASSUMED_OFF` | Reed: configured stop edge (press or release), reed still on, within confirm timeout. Switch-only: quiet START nack (no espresso-like flow before the shot-reaction timeout), or a logical STOP still settling (pan not yet quiet). Momentary-only: cup `REMOVED` while in this state confirms off immediately (no quiet wait). |
+| `IDLE` | Relay not closed. Safety is OPEN, or tripped/lockout with contact open. |
+| `RUNNING_UNCONFIRMED` | Safety is `ARMING`: close is in flight, echo may not yet match. Reed: configured start edge (press or release), reed still off, within confirm timeout. |
+| `RUNNING` | Safety `CLOSED` or `relay.closed`. Reed: reed is on (outside an `IDLE_UNCONFIRMED` window). |
+| `IDLE_UNCONFIRMED` | Reed: configured stop edge (press or release), reed still on, within confirm timeout. Switch-only: quiet START nack (no espresso-like flow before the shot-reaction timeout), or a logical STOP still settling (pan not yet quiet). Momentary-only: cup `REMOVED` while in this state settles to `IDLE` immediately (no quiet wait). |
 | `UNKNOWN` | Paddle / momentary-only: safety TRIPPED/LOCKOUT but the contact still reads closed (should not last). Reed builds do not use this: K1 trip does not hide the reed. |
 
 ### Command vs pin vs paddle
@@ -297,63 +298,63 @@ Two different “desync” stories. Do not mix them:
 | Momentary-only (`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=1`) | Inferred | Yes, outside reed | N/A |
 
 On **momentary-only** builds (`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=1`) these labels are
-inferred from brew-accepted weight, not from K1. Boot is `CONFIRMED_OFF`. A
-START pulse goes to `ASSUMED_ON`. Espresso-like flow (about 0.60 g/s, below
+inferred from brew-accepted weight, not from K1. Boot is `IDLE`. A
+START pulse goes to `RUNNING_UNCONFIRMED`. Espresso-like flow (about 0.60 g/s, below
 the finger-jump rate, ≥1 g
 above the shot baseline, after 800 ms of logical run) is the only path to
-`CONFIRMED_ON`, including recovery from `ASSUMED_OFF`. That ON expires if
+`RUNNING`, including recovery from `IDLE_UNCONFIRMED`. `RUNNING` expires if
 flow stays below 0.20 g/s for 500 ms, so auto-cut cannot pulse a stopped
 group. A START that stays on the shot baseline for the shot-reaction
-timeout (default 12 s, setting 3–30 s) is nacked to `ASSUMED_OFF` — not
-Confirmed off — so a late first drop can still confirm ON without a second
-pulse. A START nack (or Assumed on that never left a 1 g band around the
+timeout (default 12 s, setting 3–30 s) is nacked to `IDLE_UNCONFIRMED` — not
+`IDLE` — so a late first drop can still confirm ON without a second
+pulse. A START nack (or `RUNNING_UNCONFIRMED` that never left a 1 g band around the
 shot baseline) that lasts until the compiled hard cap
-(`HARD_MAX_CIRCUIT_CLOSED_MS`, 60 s) still settles to Confirmed off with
+(`HARD_MAX_CIRCUIT_CLOSED_MS`, 60 s) still settles to `IDLE` with
 no relay pulse and no beep; the brew orchestrator abandons the cycle so the next
-press is a new Start (tare + timer). A logical STOP (user or firmware) goes to `ASSUMED_OFF` while the
+press is a new Start (tare + timer). A logical STOP (user or firmware) goes to `IDLE_UNCONFIRMED` while the
 pan settles. A STOP ack needs a quiet pan; timeout without quiet does
-**not** force Idle, but later quiet still settles to Confirmed off. A START
-nack that stays `ASSUMED_OFF` without stop-settling does **not** idle on
+**not** force Idle, but later quiet still settles to `IDLE`. A START
+nack that stays `IDLE_UNCONFIRMED` without stop-settling does **not** idle on
 quiet — late espresso-like flow still confirms ON with no extra pulse. Cup
-presence `REMOVED` while `ASSUMED_OFF` settles immediately to Confirmed off
-(no quiet wait); this does not apply from `ASSUMED_ON` / `CONFIRMED_ON` and
+presence `REMOVED` while `IDLE_UNCONFIRMED` settles immediately to `IDLE`
+(no quiet wait); this does not apply from `RUNNING_UNCONFIRMED` / `RUNNING` and
 has no effect on reed builds. If
 espresso-like flow continues after an assumed user STOP, polarity is
-wrong: go to `CONFIRMED_ON` without an extra pulse. Firmware-cut stop
+wrong: go to `RUNNING` without an extra pulse. Firmware-cut stop
 retries still pulse while the stop-ack window is open. Scale connect can
-settle to Confirmed off when
+settle to `IDLE` when
 **Assume idle when the scale connects** is on and no brew cycle is active
 (no relay pulse). A successful BBW or extraction-guard cut
 (`SCALE_THRESHOLD`, `FAST_EXTRACTION_*`, `SLOW_EXTRACTION_*`) plus a quiet
 pan (live, or at drip delay with a plausible settled weight) settles to
-Confirmed off. A short shot that never schedules drip-delay finalize still
+`IDLE`. A short shot that never schedules drip-delay finalize still
 settles on a quiet pan. Home
 **Override idle** / **Override brewing** are the manual escape hatch when
 the group is electrically ON with no coffee; they do not pulse. An
-operational wall without `CONFIRMED_ON` and with a scale still leaves an
+operational wall without `RUNNING` and with a scale still leaves an
 orphan run: settings stay locked and a later user Stop may pulse; firmware
 auto-cut does not. Max BBW time is not armed on timer-only or no-scale
-shots. At the 60 s hard cap without Confirmed on, firmware settles to
-Confirmed off with no stop pulse so the next press is Start.
+shots. At the 60 s hard cap without `RUNNING`, firmware settles to
+`IDLE` with no stop pulse so the next press is Start.
 
 On **momentary+reed** builds (`OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=2`) the reed is
 canonical except for a short assumed window after the configured start/stop
 edge (press or release per Start/stop on — not the 1:1 relay close; button
 → solenoid → reed lag). Reed is polled every control loop (`digitalRead`
 plus 30 ms debounce); a sticky level is not missed. Outside assumed, reed
-off is `CONFIRMED_OFF` and reed on is `CONFIRMED_ON`. If the reed reaches
+off is `IDLE` and reed on is `RUNNING`. If the reed reaches
 the expected level during the window, confirm immediately. If the
 reed-confirm timeout elapses (default 1 s, setting 0.2–5 s, reed-only),
-confirm the **actual** reed: assumed-on + reed still off → `CONFIRMED_OFF`
+confirm the **actual** reed: `RUNNING_UNCONFIRMED` + reed still off → `IDLE`
 (clear logical run, one-cycle `REQUEST_STOP`, no extra stop pulse);
-assumed-off + reed still on → `CONFIRMED_ON`. Boot with the reed already
-on is `CONFIRMED_ON`. K1 `TRIPPED`/`LOCKOUT` does not override the reed.
+`IDLE_UNCONFIRMED` + reed still on → `RUNNING`. Boot with the reed already
+on is `RUNNING`. K1 `TRIPPED`/`LOCKOUT` does not override the reed.
 Firmware auto-cut still requires a stable reed off earlier this boot.
 
-`machineIsRunning()` is logical run, stop-ack, orphan, `CONFIRMED_ON`, or
-`ASSUMED_ON`. On reed builds it is also true while the reed is on, so
-`ASSUMED_OFF` stays running until the reed drops. Home shows Assumed on,
-Assumed off, and Confirmed on. Diagnostic JSON also reports
+`machineIsRunning()` is logical run, stop-ack, orphan, `RUNNING`, or
+`RUNNING_UNCONFIRMED`. On reed builds it is also true while the reed is on, so
+`IDLE_UNCONFIRMED` stays running until the reed drops. Home shows these as Idle, Starting, Running, and Stopping;
+Diagnostic shows the raw state name. Diagnostic JSON also reports
 `machineStartAck`, `machineStopAck`, and `machineOrphan`.
 
 ### Events
@@ -583,7 +584,7 @@ placement candidate, not PRESENT. Ending a shot never creates a placement.
 
 Idle tare requires current-connection absence evidence followed by PLACED while
 READY, or after a normal shot stop in REQUIRES_OFF awaiting paddle release,
-with machine CONFIRMED_OFF and no active cycle, safety trip, or maintenance.
+with machine run state `IDLE` and no active cycle, safety trip, or maintenance.
 A placement outside eligibility is consumed, not deferred. Observed removal or
 placement during drip finalization commits captured last-known weight instead of
 the replacement cup, independently of the idle-tare setting. One fresh credible

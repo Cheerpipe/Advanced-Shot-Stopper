@@ -811,7 +811,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   }
   if (cupEvent == CupPresenceEvent::REMOVED) {
     bullseyeTracker.clear();
-    // Run-state settle for momentary-only ASSUMED_OFF — independent of cut.
+    // Momentary-only IDLE_UNCONFIRMED run-state settle — independent of cut.
     pendingCupRemovedSettle = true;
     if (session.active && stopperState == StopperState::BREW &&
         !session.config.timerOnly && session.config.cupProtectionEnabled &&

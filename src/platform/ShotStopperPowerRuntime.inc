@@ -4,7 +4,7 @@ bool servicePowerManagement(bool physicalEdge = false) {
   PowerInputs inputs;
   inputs.enabled = runtimeConfig.powerManagementEnabled;
   inputs.machineBusy = session.active ||
-      machineRunState() != MachineRunState::CONFIRMED_OFF ||
+      machineRunState() != MachineRunState::IDLE ||
       getRelaySafetySnapshot().closed;
   inputs.scaleBusy = link.connecting || scaleLinkAvailable(link) ||
                      powerScaleBusy.load(std::memory_order_acquire);

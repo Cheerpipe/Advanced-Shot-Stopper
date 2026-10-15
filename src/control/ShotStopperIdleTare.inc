@@ -73,7 +73,7 @@ IdleTareReason idleTareEligibilityReason() {
     return IdleTareReason::RELAY_BLOCKED;
   if (stopperState != StopperState::READY && !endedAwaitingRelease)
     return IdleTareReason::STOP_STATE;
-  if (machineRunState() != MachineRunState::CONFIRMED_OFF)
+  if (machineRunState() != MachineRunState::IDLE)
     return IdleTareReason::MACHINE_NOT_OFF;
   if (!scaleLinkAvailable(getScaleLinkSnapshot()))
     return IdleTareReason::SCALE_UNAVAILABLE;

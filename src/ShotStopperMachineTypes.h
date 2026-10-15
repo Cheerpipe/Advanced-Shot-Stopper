@@ -34,12 +34,15 @@ constexpr uint32_t DEFAULT_OPERATIONAL_WALL_MS =
 constexpr uint32_t DEFAULT_RINSE_GESTURE_MS =
     SHOT_STOPPER_DEFAULT_RINSE_GESTURE_MS;
 
+// Whether water is running through the group (shot or rinse), and whether that
+// is confirmed. Not machine power: a powered-on machine is normally IDLE.
+// Numeric values are stored in diagnostics snapshots; keep them stable.
 enum class MachineRunState : uint8_t {
-  CONFIRMED_OFF = 0,
-  ASSUMED_ON = 1,
-  CONFIRMED_ON = 2,
+  IDLE = 0,
+  RUNNING_UNCONFIRMED = 1,
+  RUNNING = 2,
   UNKNOWN = 3,
-  ASSUMED_OFF = 4
+  IDLE_UNCONFIRMED = 4
 };
 
 // Weight/brew snapshot the stopper pushes into machine each loop. Momentary
@@ -53,13 +56,13 @@ struct MachineSense {
   // control-loop resamples of the same packet; paddle does not read it.
   uint32_t weightSequence = 0;
   // Brew has latched first drops this cycle. Momentary uses it to pulse a
-  // weight cut even if inferred state already fell back to ASSUMED_ON.
+  // weight cut even if inferred state already fell back to RUNNING_UNCONFIRMED.
   bool firstDropSeen = false;
   // One control-loop tick: scale just became CONNECTED. Set by the stopper
   // after consuming a BLE-worker pending flag — never mutated on the BLE task.
   bool scaleConnectedEdge = false;
   // One control-loop tick: cup presence emitted REMOVED. Momentary-only uses
-  // this to settle ASSUMED_OFF → CONFIRMED_OFF without waiting for quiet pan.
+  // this to settle IDLE_UNCONFIRMED → IDLE without waiting for quiet pan.
   bool cupRemovedEdge = false;
 };
 
@@ -78,11 +81,11 @@ enum class UserIntent : uint8_t {
 
 inline const char *machineRunStateName(MachineRunState state) {
   switch (state) {
-    case MachineRunState::CONFIRMED_OFF: return "CONFIRMED_OFF";
-    case MachineRunState::ASSUMED_ON: return "ASSUMED_ON";
-    case MachineRunState::CONFIRMED_ON: return "CONFIRMED_ON";
+    case MachineRunState::IDLE: return "IDLE";
+    case MachineRunState::RUNNING_UNCONFIRMED: return "RUNNING_UNCONFIRMED";
+    case MachineRunState::RUNNING: return "RUNNING";
     case MachineRunState::UNKNOWN: return "UNKNOWN";
-    case MachineRunState::ASSUMED_OFF: return "ASSUMED_OFF";
+    case MachineRunState::IDLE_UNCONFIRMED: return "IDLE_UNCONFIRMED";
   }
   return "UNKNOWN";
 }

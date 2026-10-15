@@ -36,15 +36,15 @@ inline MachineRunState machineRunState() {
   const RelaySafetySnapshot relay = getRelaySafetySnapshot();
   if (relay.state == RelaySafetyState::LOCKOUT ||
       relay.state == RelaySafetyState::TRIPPED) {
-    return relay.closed ? MachineRunState::UNKNOWN : MachineRunState::CONFIRMED_OFF;
+    return relay.closed ? MachineRunState::UNKNOWN : MachineRunState::IDLE;
   }
   if (relay.state == RelaySafetyState::ARMING) {
-    return MachineRunState::ASSUMED_ON;
+    return MachineRunState::RUNNING_UNCONFIRMED;
   }
   if (relay.closed || relay.state == RelaySafetyState::CLOSED) {
-    return MachineRunState::CONFIRMED_ON;
+    return MachineRunState::RUNNING;
   }
-  return MachineRunState::CONFIRMED_OFF;
+  return MachineRunState::IDLE;
 }
 
 inline void machineFillInferenceStatus(ControlStatusFields &status) {

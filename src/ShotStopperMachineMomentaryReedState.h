@@ -3,18 +3,19 @@
 // =============================================================================
 // SPECIALIZATION: Momentary + reed — run view (state)
 // =============================================================================
-// WHAT: Outside an assumed window, the reed is canonical: OFF → CONFIRMED_OFF,
-//       ON → CONFIRMED_ON. Boot with the reed already ON is CONFIRMED_ON.
+// WHAT: Outside an unconfirmed window, the reed is canonical: OFF → IDLE,
+//       ON → RUNNING. Boot with the reed already ON is RUNNING.
 //       K1 TRIPPED/LOCKOUT does not hide the reed. Firmware auto-cut still
 //       requires a stable OFF earlier this boot (reedSawStableOff) so a
 //       stuck-ON reed is not pulsed.
 //
-//       ASSUMED_ON/OFF is the short window after the shot start/stop edge — the
-//       same press or release chosen by momentaryStartOnPress — where machine
-//       may disagree with reed (solenoid lag). The confirm-timeout clock starts
-//       at that logical edge, not at the 1:1 relay close. If reed matches the
-//       expected level, confirm immediately. If the timeout elapses, confirm
-//       the actual reed.
+//       RUNNING_UNCONFIRMED / IDLE_UNCONFIRMED is the short window after the
+//       shot start/stop edge — the same press or release chosen by
+//       momentaryStartOnPress — where machine may disagree with reed
+//       (solenoid lag). The confirm-timeout clock starts at that logical
+//       edge, not at the 1:1 relay close. If reed matches the expected
+//       level, confirm immediately. If the timeout elapses, confirm the
+//       actual reed.
 //
 //       GRACE_ON/OFF is the same timeout after a press that exceeded
 //       Single-press limit: machine holds the pre-press run/idle view, then
@@ -86,7 +87,7 @@ void beginReedAssume(ReedAssume assume) {
 }
 
 void noteMomentaryLogicalStart() {
-  // Arm ASSUMED_ON here: this is the shot-start edge (press or release).
+  // Arm RUNNING_UNCONFIRMED here: shot-start edge (press or release).
   momentaryStopRetryPending = false;
   momentaryFirmwareStopIssued = false;
   sampleReed();
@@ -204,16 +205,16 @@ inline bool machineIsRunning() {
 inline MachineRunState machineRunState() {
   if ((reedAssume == ReedAssume::ON || reedAssume == ReedAssume::GRACE_ON) &&
       !reedOn) {
-    return MachineRunState::ASSUMED_ON;
+    return MachineRunState::RUNNING_UNCONFIRMED;
   }
   if ((reedAssume == ReedAssume::OFF || reedAssume == ReedAssume::GRACE_OFF) &&
       reedOn) {
-    return MachineRunState::ASSUMED_OFF;
+    return MachineRunState::IDLE_UNCONFIRMED;
   }
   if (reedOn) {
-    return MachineRunState::CONFIRMED_ON;
+    return MachineRunState::RUNNING;
   }
-  return MachineRunState::CONFIRMED_OFF;
+  return MachineRunState::IDLE;
 }
 
 inline void machineFillInferenceStatus(ControlStatusFields &status) {

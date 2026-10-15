@@ -99,7 +99,7 @@ complete the stability window before placing the cup. A larger negative reading 
 seen at boot/reconnect, without a preceding qualified zero and continuous unload,
 requires an empty-pan tare on the scale, a reconnect, and stable zero; see [Cup detection](cup.md).
 
-The machine must be confirmed off. A new placement can tare after a normal
+No shot or rinse may be running. A new placement can tare after a normal
 shot stop while the paddle is still ON; the paddle still must be released before
 another shot. Rinse, active shots, uncertain stop state, safety failures, and
 maintenance exclude idle tare. An excluded placement is not replayed later.

@@ -471,7 +471,7 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     (statusSection[1].match(/class="metric[ "]/g) || []).length !== 6 ||
     !statusSection[1].includes('id="machineRowState"') ||
     !statusSection[1].includes('id="machineStateValue"') ||
-    !statusSection[1].includes('<strong>Machine</strong>') ||
+    !statusSection[1].includes('<strong>Activity</strong>') ||
     !statusSection[1].includes('<strong>Brew</strong>') ||
     statusSection[1].includes('<strong>Cup</strong>') ||
     statusSection[1].includes('data-label="Machine"') ||
@@ -501,10 +501,10 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     !codeIncludes(ui, 'function formatScaleStatus(') ||
     !codeIncludes(ui, 'function formatScaleTimer(') ||
     !codeIncludes(ui, 'function formatMachineState(') ||
-    !codeIncludes(ui, 'CONFIRMED_OFF:') || !codeIncludes(ui, 'Idle') ||
-    !codeIncludes(ui, 'ASSUMED_ON:') || !codeIncludes(ui, 'Assumed on') ||
-    !codeIncludes(ui, 'CONFIRMED_ON:') || !codeIncludes(ui, 'Confirmed on') ||
-    !codeIncludes(ui, 'ASSUMED_OFF:') || !codeIncludes(ui, 'Assumed off') ||
+    !codeIncludes(ui, 'IDLE:') || !codeIncludes(ui, 'Idle') ||
+    !codeIncludes(ui, 'RUNNING_UNCONFIRMED:') || !codeIncludes(ui, 'Starting') ||
+    !codeIncludes(ui, 'RUNNING:') || !codeIncludes(ui, 'Running') ||
+    !codeIncludes(ui, 'IDLE_UNCONFIRMED:') || !codeIncludes(ui, 'Stopping') ||
     !codeIncludes(ui, 'function formatCupState(') ||
     !codeIncludes(ui, 'lastDisconnectReasonName') ||
     !codeIncludes(ui, 'Stale') || !codeIncludes(ui, 'No sample') ||
@@ -575,7 +575,7 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     !network.includes('\\"history\\"') ||
     network.includes('Preferred scale cache cannot be cleared') ||
     !network.includes('\\"timerMs\\"')) {
-  throw new Error('Home Status must show Machine/Brew/Cup and a Scale panel with one value per label');
+  throw new Error('Home Status must show Activity/Brew/Cup and a Scale panel with one value per label');
 }
 if (!codeIncludes(ui, 'id="renameScaleLink"') ||
     !codeIncludes(ui, 'id="preferredScaleRenameWrap"') ||

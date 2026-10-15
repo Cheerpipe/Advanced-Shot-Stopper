@@ -26,7 +26,7 @@
   };
   vm.runInNewContext(source, context);
   const changes = {
-    'state': 'READY', 'machineState': 'CONFIRMED_OFF', 'relayClosed': false,
+    'state': 'READY', 'machineState': 'IDLE', 'relayClosed': false,
     'controlSource': 'none', 'physicalActivatorOn': false, 'reedOn': false,
     'backflush.stopReason': 'none',
     'cupPresence.state': 'ABSENT', 'cupPresence.present': false,

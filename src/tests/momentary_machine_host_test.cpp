@@ -142,7 +142,7 @@ void resetMomentaryHarness() {
   machineSetActivatorDriveAllowed(true);
   machineNoteActivatorReleased();
 #if SHOT_STOPPER_MACHINE_TYPE == 1
-  momentaryInferredState = MachineRunState::CONFIRMED_OFF;
+  momentaryInferredState = MachineRunState::IDLE;
   momentarySawScale = false;
   momentaryEspressoConfirmed = false;
   momentaryHadEspressoConfirm = false;
@@ -359,7 +359,7 @@ void t_idle_tare_yields_to_configured_start_edge() {
     CHECK(machineElapsedMs() >= 125);
 #if SHOT_STOPPER_MACHINE_TYPE == 2
     setRawReed(true);
-    CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+    CHECK(machineRunState() == MachineRunState::RUNNING);
 #endif
   }
 }
@@ -544,11 +544,11 @@ void t_long_press_mirrors_from_first_instant() {
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   CHECK(getRelaySafetySnapshot().closed);
   CHECK(session.active);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   runLoopAfter(COMPILED_MAX_SINGLE_PRESS_MS + 20);
   CHECK(getRelaySafetySnapshot().closed);
   CHECK(!session.active);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!machineIsRunning());
   setRawPaddle(false);
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
@@ -824,7 +824,7 @@ void t_rinse_web_over_running_shot_keeps_full_duration() {
 }
 
 #if SHOT_STOPPER_MACHINE_TYPE == 1
-void t_only_auto_cut_needs_confirmed_on() {
+void t_only_auto_cut_needs_running() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
@@ -847,7 +847,7 @@ void t_only_auto_cut_needs_confirmed_on() {
     ++currentWeightSequence;
     runLoopAfter(100);
   }
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   const size_t closedAtConfirm = hostRelayClosedWrites;
   CHECK(machineRequestStop());
   CHECK(hostRelayClosedWrites > closedAtConfirm);
@@ -911,18 +911,18 @@ void t_tare_rebases_flow_signature() {
     ++currentWeightSequence;
     runLoopAfter(100);
   }
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   currentWeight = 0.2f;
   currentWeightReceivedAtMs = hostMillis;
   ++currentWeightSequence;
   runLoopAfter(50);
-  CHECK(machineRunState() != MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() != MachineRunState::RUNNING);
   const size_t closedQuiet = hostRelayClosedWrites;
   CHECK(machineRequestStop());
   CHECK(hostRelayClosedWrites == closedQuiet);
 }
 
-void t_fast_control_loop_still_confirms_on() {
+void t_fast_control_loop_still_confirms_running() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
@@ -938,7 +938,7 @@ void t_fast_control_loop_still_confirms_on() {
       runLoopAfter(10);
     }
   }
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(machineAllowsFirmwareStopPulse());
   const size_t closedBefore = hostRelayClosedWrites;
   CHECK(machineRequestStop());
@@ -953,25 +953,25 @@ void t_start_tare_drop_rebases_then_confirms() {
   currentWeightReceivedAtMs = hostMillis;
   currentWeightSequence = 1;
   runLoopAfter(100);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   currentWeight = 0.2f;
   currentWeightReceivedAtMs = hostMillis;
   ++currentWeightSequence;
   runLoopAfter(100);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   for (int step = 0; step < 8; ++step) {
     currentWeight += 0.45f;
     currentWeightReceivedAtMs = hostMillis;
     ++currentWeightSequence;
     runLoopAfter(100);
   }
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   const size_t closedBefore = hostRelayClosedWrites;
   CHECK(machineRequestStop());
   CHECK(hostRelayClosedWrites == closedBefore + 1);
 }
 
-void t_user_stop_does_not_extra_pulse_when_assumed_on() {
+void t_user_stop_does_not_extra_pulse_when_running_unconfirmed() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
@@ -980,7 +980,7 @@ void t_user_stop_does_not_extra_pulse_when_assumed_on() {
   currentWeightSequence = 1;
   runLoopAfter(50);
   CHECK(machineIsRunning());
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   const size_t closedBefore = hostRelayClosedWrites;
   CHECK(machineRequestStop());
   CHECK(hostRelayClosedWrites == closedBefore);
@@ -1025,7 +1025,7 @@ void t_user_press_wins_over_firmware_pulse() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
-  momentaryInferredState = MachineRunState::CONFIRMED_ON;
+  momentaryInferredState = MachineRunState::RUNNING;
   CHECK(machineRequestStop());
   CHECK(pulseOutputActive || getRelaySafetySnapshot().closed);
   pressDown();
@@ -1037,7 +1037,7 @@ void t_user_press_wins_over_firmware_pulse() {
 #endif
 
 #if SHOT_STOPPER_MACHINE_TYPE == 2
-void t_reed_boot_on_is_confirmed_on() {
+void t_reed_boot_on_is_running() {
   resetMomentaryHarness();
   hostPinLevel[REED_GPIO] = REED_ACTIVE_LEVEL;
   reedRawOn = false;
@@ -1046,7 +1046,7 @@ void t_reed_boot_on_is_confirmed_on() {
   reedChangedAtMs = millis();
   loop();
   runLoopAfter(REED_DEBOUNCE_MS + 1);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(machineIsRunning());
   momentaryUserStopThisCycle = true;
   const size_t closedBefore = hostRelayClosedWrites;
@@ -1058,17 +1058,17 @@ void t_reed_safety_trip_follows_reed() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   setRawReed(true);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   relaySafetyState = RelaySafetyState::TRIPPED;
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(machineRunState() != MachineRunState::UNKNOWN);
   relaySafetyState = RelaySafetyState::LOCKOUT;
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   setRawReed(false);
   relaySafetyState = RelaySafetyState::LOCKOUT;
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   relaySafetyState = RelaySafetyState::TRIPPED;
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
 }
 
 void t_reed_off_wins_over_rising_weight() {
@@ -1091,14 +1091,14 @@ void t_reed_off_wins_over_rising_weight() {
   CHECK(hostRelayClosedWrites == closedBefore);
 }
 
-void t_assumed_on_offers_web_stop() {
+void t_running_unconfirmed_offers_web_stop() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   CHECK(momentaryLogicalRunActive);
   CHECK(!reedIsOn());
   CHECK(machineIsRunning());
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
 }
 #endif
 
@@ -1211,31 +1211,31 @@ void t_start_ack_stays_assumed_without_flow() {
   currentWeightReceivedAtMs = hostMillis;
   currentWeightSequence = 1;
   runLoopAfter(COMPILED_STOP_PULSE_MS + 50);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   currentWeightReceivedAtMs = hostMillis;
   ++currentWeightSequence;
   runLoopAfter(800);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   CHECK(!machineAllowsFirmwareStopPulse());
 }
 
-void t_confirmed_on_expires_without_flow() {
+void t_running_expires_without_flow() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   confirmEspressoFlow();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   const float held = currentWeight;
   for (int step = 0; step < 6; ++step) {
     dripFreshWeight(held, 100);
   }
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   const size_t closedQuiet = hostRelayClosedWrites;
   CHECK(machineRequestStop());
   CHECK(hostRelayClosedWrites == closedQuiet);
 }
 
-void t_stop_ack_quiet_confirms_off() {
+void t_stop_ack_quiet_confirms_idle() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
@@ -1250,24 +1250,24 @@ void t_stop_ack_quiet_confirms_off() {
   for (int step = 0; step < 8; ++step) {
     dripFreshWeight(held, 100);
   }
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!machineIsRunning());
 }
 
-void t_stop_ack_timeout_without_quiet_stays_assumed_off() {
+void t_stop_ack_timeout_without_quiet_stays_idle_unconfirmed() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   confirmEspressoFlow();
   CHECK(machineRequestStop());
   CHECK(machineIsRunning());
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   for (int step = 0; step < 4; ++step) {
     dripFreshWeight(currentWeight + 0.6f, 600);
   }
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   CHECK(!machineIsRunning());
-  CHECK(machineRunState() != MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() != MachineRunState::IDLE);
 }
 
 void t_start_preinfusion_quiet_stays_assumed() {
@@ -1281,11 +1281,11 @@ void t_start_preinfusion_quiet_stays_assumed() {
   for (int step = 0; step < 40; ++step) {
     dripFreshWeight(0.0f, 200);
   }
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   CHECK(machineIsRunning());
 }
 
-void t_start_nack_long_baseline_confirms_off() {
+void t_start_nack_long_baseline_confirms_idle() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
@@ -1296,7 +1296,7 @@ void t_start_nack_long_baseline_confirms_off() {
   for (int step = 0; step < 61; ++step) {
     dripFreshWeight(0.0f, 200);
   }
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   CHECK(!machineIsRunning());
 }
 
@@ -1312,10 +1312,10 @@ void t_start_nack_timeout_follows_setting() {
   for (int step = 0; step < 16; ++step) {
     dripFreshWeight(0.0f, 200);
   }
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
 }
 
-void t_flow_after_assumed_off_confirms_on_without_pulse() {
+void t_flow_after_idle_unconfirmed_confirms_running_without_pulse() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
@@ -1326,7 +1326,7 @@ void t_flow_after_assumed_off_confirms_on_without_pulse() {
   for (int step = 0; step < 61; ++step) {
     dripFreshWeight(0.0f, 200);
   }
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   const size_t closedBefore = hostRelayClosedWrites;
   currentWeight = 0.2f;
   currentWeightReceivedAtMs = hostMillis;
@@ -1335,7 +1335,7 @@ void t_flow_after_assumed_off_confirms_on_without_pulse() {
   for (int step = 0; step < 12; ++step) {
     dripFreshWeight(currentWeight + 0.45f, 100);
   }
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(hostRelayClosedWrites == closedBefore);
 }
 
@@ -1350,11 +1350,11 @@ void t_start_nack_quiet_does_not_idle() {
   for (int step = 0; step < 61; ++step) {
     dripFreshWeight(0.0f, 200);
   }
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   CHECK(!momentaryStopSettling);
   holdStableWeight(2000);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
-  CHECK(machineRunState() != MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
+  CHECK(machineRunState() != MachineRunState::IDLE);
 }
 
 float noFlowIdleFlatWeight(uint32_t) { return 0.0f; }
@@ -1381,7 +1381,7 @@ void t_no_flow_hard_cap_idles_after_nack() {
   const uint32_t beepsAfterStart = localBuzzer.acceptedRequests;
   const size_t closedBefore = hostRelayClosedWrites;
   dripUntilHardCap(noFlowIdleFlatWeight);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!session.active);
   CHECK(!machineIsRunning());
   CHECK(lastCycle.endReason == EndReason::UNCONFIRMED_START);
@@ -1393,21 +1393,21 @@ void t_no_flow_hard_cap_idles_after_nack() {
   shortPress(150);
   CHECK(session.active);
   CHECK(stopperState == StopperState::BREW);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   CHECK(session.timerStartCommandQueued);
 }
 
-void t_no_flow_hard_cap_idles_assumed_on_noise() {
+void t_no_flow_hard_cap_idles_running_unconfirmed_noise() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   armLiveScaleTimerOnlyStart(0.8f);
   shortPress(150);
   CHECK(session.active);
   CHECK(stopperState == StopperState::BREW);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   const size_t closedBefore = hostRelayClosedWrites;
   dripUntilHardCap(noFlowIdleNoiseWeight);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!session.active);
   CHECK(!machineIsRunning());
   CHECK(lastCycle.endReason == EndReason::UNCONFIRMED_START);
@@ -1421,14 +1421,14 @@ void t_no_flow_hard_cap_skips_when_espresso_confirmed() {
   shortPress(150);
   CHECK(stopperState == StopperState::BREW);
   confirmEspressoFlow();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   const float held = currentWeight;
   while (elapsedMs(momentaryLogicalRunStartedAtMs) + 1000U <
          HARD_MAX_CIRCUIT_CLOSED_MS) {
     dripFreshWeight(held, 200);
   }
   CHECK(session.active);
-  CHECK(machineRunState() != MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() != MachineRunState::IDLE);
   while (elapsedMs(momentaryLogicalRunStartedAtMs) < HARD_MAX_CIRCUIT_CLOSED_MS) {
     dripFreshWeight(held, 200);
   }
@@ -1443,10 +1443,10 @@ void t_no_flow_hard_cap_skips_after_espresso_pan_returns() {
   shortPress(150);
   CHECK(stopperState == StopperState::BREW);
   confirmEspressoFlow();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   dripFreshWeight(0.0f, 200);
   dripFreshWeight(0.0f, 400);
-  CHECK(machineRunState() != MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() != MachineRunState::RUNNING);
   CHECK(momentaryHadEspressoConfirm);
   dripUntilHardCap(noFlowIdleFlatWeight);
   CHECK(lastCycle.endReason != EndReason::UNCONFIRMED_START);
@@ -1460,7 +1460,7 @@ void t_no_flow_hard_cap_skips_when_mass_above_band() {
   CHECK(stopperState == StopperState::BREW);
   dripUntilHardCap(noFlowIdleDripWeight);
   CHECK(lastCycle.endReason != EndReason::UNCONFIRMED_START);
-  CHECK(machineRunState() != MachineRunState::CONFIRMED_OFF ||
+  CHECK(machineRunState() != MachineRunState::IDLE ||
         lastCycle.endReason == EndReason::GLOBAL_LIMIT);
 }
 
@@ -1474,7 +1474,7 @@ void t_no_flow_hard_cap_skips_when_stale() {
   dripFreshWeight(0.0f, 50);
   runLoopAfter(3000);
   CHECK(session.active);
-  CHECK(machineRunState() != MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() != MachineRunState::IDLE);
   CHECK(lastCycle.endReason != EndReason::UNCONFIRMED_START);
 }
 
@@ -1486,21 +1486,21 @@ void pushCupRemovedSettleEdge() {
   serviceMomentaryRunSensors();
 }
 
-void t_cup_removed_settles_assumed_off_after_stop() {
+void t_cup_removed_settles_idle_unconfirmed_after_stop() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   confirmEspressoFlow();
   CHECK(machineRequestStop());
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   CHECK(momentaryStopSettling);
   pushCupRemovedSettleEdge();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!momentaryStopSettling);
   CHECK(!machineIsRunning());
 }
 
-void t_cup_removed_settles_start_nack_assumed_off() {
+void t_cup_removed_settles_start_nack_idle_unconfirmed() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   seedPresentCup();
@@ -1509,32 +1509,32 @@ void t_cup_removed_settles_start_nack_assumed_off() {
   for (int step = 0; step < 70; ++step) {
     dripFreshWeight(80.0f, 200);
   }
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   CHECK(!momentaryStopSettling);
   CHECK(cupPresenceState() == CupPresenceState::PRESENT);
   liftPresentCup();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
 }
 
-void t_cup_removed_event_settles_assumed_off_after_stop() {
+void t_cup_removed_event_settles_idle_unconfirmed_after_stop() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   seedPresentCup();
   shortPress(150);
   confirmEspressoFlow();
   CHECK(machineRequestStop());
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   CHECK(momentaryStopSettling);
   CHECK(cupPresenceState() == CupPresenceState::PRESENT);
   runLoopAfter(runtimeConfig.postTareBaselineGraceMs + 50);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   liftPresentCup();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!momentaryStopSettling);
   CHECK(!machineIsRunning());
 }
 
-void t_cup_removed_ignored_while_assumed_on() {
+void t_cup_removed_ignored_while_running_unconfirmed() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
@@ -1542,19 +1542,19 @@ void t_cup_removed_ignored_while_assumed_on() {
   currentWeightReceivedAtMs = hostMillis;
   currentWeightSequence = 1;
   runLoopAfter(COMPILED_STOP_PULSE_MS + 50);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   pushCupRemovedSettleEdge();
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
 }
 
-void t_cup_removed_ignored_while_confirmed_on() {
+void t_cup_removed_ignored_while_running() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   confirmEspressoFlow();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   pushCupRemovedSettleEdge();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
 }
 
 void t_firmware_cut_settles_off_after_drip() {
@@ -1562,21 +1562,21 @@ void t_firmware_cut_settles_off_after_drip() {
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   confirmEspressoFlow();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   machineArmSettledWeightCutOff();
   const size_t closedBefore = hostRelayClosedWrites;
   CHECK(machineRequestStop());
   CHECK(hostRelayClosedWrites == closedBefore + 1);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   CHECK(momentaryStopSettling);
   for (int step = 0; step < 4; ++step) {
     dripFreshWeight(currentWeight + 0.6f, 600);
   }
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   CHECK(!machineIsRunning());
   CHECK(momentarySettledWeightCutArmed);
   holdStableWeight(1200);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!momentarySettledWeightCutArmed);
   CHECK(!momentaryStopSettling);
   CHECK(hostRelayClosedWrites == closedBefore + 1);
@@ -1587,7 +1587,7 @@ void t_firmware_cut_settles_off_without_pending_finalize() {
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   confirmEspressoFlow();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   session.extractionExtended = true;
   session.startedWithScale = true;
   shot.automaticBrew = true;
@@ -1599,30 +1599,30 @@ void t_firmware_cut_settles_off_without_pending_finalize() {
   CHECK(!pendingFinalize.pending);
   CHECK(momentarySettledWeightCutArmed);
   CHECK(hostRelayClosedWrites == closedBefore + 1);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   for (int step = 0; step < 4; ++step) {
     dripFreshWeight(currentWeight + 0.6f, 600);
   }
   CHECK(!machineIsRunning());
   holdStableWeight(1200);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(hostRelayClosedWrites == closedBefore + 1);
 }
 
-void t_firmware_cut_stale_weight_stays_assumed_off() {
+void t_firmware_cut_stale_weight_stays_idle_unconfirmed() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   confirmEspressoFlow();
   machineArmSettledWeightCutOff();
   CHECK(machineRequestStop());
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   runLoopAfter(3000);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   CHECK(machineRunState() != MachineRunState::UNKNOWN);
 }
 
-void t_gusher_flow_confirms_on() {
+void t_gusher_flow_confirms_running() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
@@ -1633,7 +1633,7 @@ void t_gusher_flow_confirms_on() {
   for (int step = 0; step < 8; ++step) {
     dripFreshWeight(currentWeight + 1.0f, 100);
   }
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
 }
 
 void t_override_sets_inferred_idle_and_brewing_without_pulse() {
@@ -1643,12 +1643,12 @@ void t_override_sets_inferred_idle_and_brewing_without_pulse() {
   WebCommand brewing;
   brewing.type = WebCommandType::STATE_OVERRIDE_ON;
   processWebCommand(brewing);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(machineIsRunning());
   WebCommand idle;
   idle.type = WebCommandType::STATE_OVERRIDE_OFF;
   processWebCommand(idle);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!machineIsRunning());
   CHECK(hostRelayClosedWrites == closedBefore);
 }
@@ -1665,7 +1665,7 @@ void t_remote_start_emits_synthetic_start_pulse() {
   CHECK(!getRelaySafetySnapshot().closed);
 }
 
-void t_web_stop_emits_pulse_while_assumed_on() {
+void t_web_stop_emits_pulse_while_running_unconfirmed() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   seedFreshScaleWeight(0.0f);
@@ -1679,7 +1679,7 @@ void t_web_stop_emits_pulse_while_assumed_on() {
   for (int sample = 0; sample < 60; ++sample) {
     seedFreshScaleWeight(0.0f);
   }
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   const size_t closedBeforeStop = hostRelayClosedWrites;
   WebCommand stop;
   stop.type = WebCommandType::STOP;
@@ -1694,31 +1694,31 @@ void t_scale_connect_settles_idle_when_idle() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   CHECK(session.active);
   setScaleLinkState(ScaleLinkState::DISCONNECTED);
   runLoopAfter(10);
   setScaleLinkState(ScaleLinkState::CONNECTED);
   runLoopAfter(10);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   session.active = false;
   setScaleLinkState(ScaleLinkState::DISCONNECTED);
   runLoopAfter(10);
   setScaleLinkState(ScaleLinkState::CONNECTED);
   runLoopAfter(10);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
 }
 
-void t_settled_weight_cut_confirms_off() {
+void t_settled_weight_cut_confirms_idle() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   confirmEspressoFlow();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   holdStableWeight(1200);
   machineArmSettledWeightCutOff();
   machineNoteSettledWeightCutOff();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
 }
 
 void t_settled_weight_cut_stays_armed_while_pouring() {
@@ -1726,18 +1726,18 @@ void t_settled_weight_cut_stays_armed_while_pouring() {
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   confirmEspressoFlow();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   machineArmSettledWeightCutOff();
   machineNoteSettledWeightCutOff();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(momentarySettledWeightCutArmed);
   for (int step = 0; step < 8; ++step) {
     dripFreshWeight(currentWeight + 0.45f, 100);
   }
-  CHECK(machineRunState() != MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() != MachineRunState::IDLE);
   CHECK(momentarySettledWeightCutArmed);
   holdStableWeight(1200);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!momentarySettledWeightCutArmed);
 }
 
@@ -1745,7 +1745,7 @@ void t_settled_weight_cut_flow_is_not_polarity() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   machineArmSettledWeightCutOff();
   const size_t closedBefore = hostRelayClosedWrites;
   CHECK(machineRequestStop());
@@ -1758,7 +1758,7 @@ void t_settled_weight_cut_flow_is_not_polarity() {
   for (int step = 0; step < 12; ++step) {
     dripFreshWeight(currentWeight + 0.45f, 100);
   }
-  CHECK(machineRunState() != MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() != MachineRunState::RUNNING);
   CHECK(momentarySettledWeightCutArmed);
   CHECK(hostRelayClosedWrites == closedBefore);
 }
@@ -1768,20 +1768,20 @@ void t_weight_cut_pulses_after_confirmed_expires_to_assumed() {
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   confirmEspressoFlow();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   holdStableWeight(600);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   machineArmSettledWeightCutOff();
   const size_t closedBefore = hostRelayClosedWrites;
   CHECK(machineRequestStop());
   CHECK(hostRelayClosedWrites == closedBefore + 1);
 }
 
-void t_weight_cut_pulses_on_assumed_on_after_first_drop() {
+void t_weight_cut_pulses_on_running_unconfirmed_after_first_drop() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   session.firstDropMs = millis();
   runLoopAfter(20);
   CHECK(!machineAllowsFirmwareStopPulse());
@@ -1802,7 +1802,7 @@ void t_user_stop_after_preinfusion_does_not_pulse() {
   for (int step = 0; step < 41; ++step) {
     dripFreshWeight(0.0f, 200);
   }
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   momentaryUserStopThisCycle = true;
   const size_t closedBefore = hostRelayClosedWrites;
   CHECK(machineRequestStop());
@@ -1821,7 +1821,7 @@ void t_accidental_touch_does_not_confirm_on() {
   for (int step = 0; step < 8; ++step) {
     dripFreshWeight(currentWeight + 0.45f, 100);
   }
-  CHECK(machineRunState() != MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() != MachineRunState::RUNNING);
 }
 
 void t_gap_skip_does_not_confirm_from_step() {
@@ -1833,7 +1833,7 @@ void t_gap_skip_does_not_confirm_from_step() {
   currentWeightSequence = 1;
   runLoopAfter(50);
   dripFreshWeight(2.2f, 600);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
 }
 
 void t_accepted_weight_drives_confirm_on() {
@@ -1852,7 +1852,7 @@ void t_accepted_weight_drives_confirm_on() {
     ++currentWeightSequence;
     runLoopAfter(100);
   }
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
 }
 
 void t_logical_elapsed_after_start_pulse_opens() {
@@ -1893,9 +1893,9 @@ void t_brief_stale_demotes_confirmed_not_unknown() {
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   confirmEspressoFlow();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   runLoopAfter(1200);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   CHECK(machineRunState() != MachineRunState::UNKNOWN);
   runLoopAfter(1600);
   CHECK(machineRunState() == MachineRunState::UNKNOWN);
@@ -1912,7 +1912,7 @@ void t_small_delta_does_not_confirm_on() {
   for (int step = 0; step < 8; ++step) {
     dripFreshWeight(currentWeight + 0.08f, 100);
   }
-  CHECK(machineRunState() != MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() != MachineRunState::RUNNING);
 }
 
 void t_confirmed_wall_pulses_once_and_ends_session() {
@@ -1923,7 +1923,7 @@ void t_confirmed_wall_pulses_once_and_ends_session() {
   shortPress(150);
   runLoopAfter(COMPILED_STOP_PULSE_MS + 50);
   confirmEspressoFlow();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(session.active);
   const size_t closedAtConfirm = hostRelayClosedWrites;
   for (int step = 0; step < 14; ++step) {
@@ -1961,7 +1961,7 @@ void t_noscale_hard_cap_idles_without_pulse_and_next_press_starts() {
   }
   runLoopAfter(50);
   CHECK(!session.active);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!momentaryOrphanRun);
   CHECK(!machineIsRunning());
   CHECK(hostRelayClosedWrites == closedBeforeWall);
@@ -1980,7 +1980,7 @@ void t_timer_only_confirmed_skips_operational_wall_pulses_at_hard_cap() {
   shortPress(150);
   runLoopAfter(COMPILED_STOP_PULSE_MS + 50);
   confirmEspressoFlow();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(session.active);
   CHECK(session.config.timerOnly);
   const size_t closedAtConfirm = hostRelayClosedWrites;
@@ -2011,7 +2011,7 @@ void t_timer_only_unconfirmed_idles_at_hard_cap_without_pulse() {
   CHECK(session.config.timerOnly);
   const size_t closedBefore = hostRelayClosedWrites;
   dripUntilHardCap(noFlowIdleFlatWeight);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!session.active);
   CHECK(!machineIsRunning());
   CHECK(lastCycle.endReason == EndReason::UNCONFIRMED_START);
@@ -2095,19 +2095,19 @@ void t_reed_polarity_stop_when_running() {
   CHECK(momentaryUserStopThisCycle || !activatorOn);
 }
 
-void t_reed_stays_assumed_on_until_timeout_then_confirms_off() {
+void t_reed_stays_running_unconfirmed_until_timeout_then_confirms_idle() {
   resetMomentaryHarness();
   runtimeConfig.reedConfirmTimeoutHundredMs = 2;
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   pressDown();
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   CHECK(session.active);
   CHECK(!reedIsOn());
   runLoopAfter(100);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   const size_t closedBefore = hostRelayClosedWrites;
   runLoopAfter(150);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!session.active);
   CHECK(!machineIsRunning());
   CHECK(hostRelayClosedWrites == closedBefore);
@@ -2118,24 +2118,24 @@ void t_reed_on_during_window_confirms_immediately() {
   runtimeConfig.reedConfirmTimeoutHundredMs = 20;
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   pressDown();
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   setRawReed(true);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(reedIsOn());
 }
 
-void t_reed_stop_assumed_off_until_reed_matches() {
+void t_reed_stop_idle_unconfirmed_until_reed_matches() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   pressDown();
   setRawReed(true);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   releaseUp();
   pressDown();
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   CHECK(reedIsOn());
   setRawReed(false);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
 }
 
 void t_reed_stop_timeout_confirms_actual_on() {
@@ -2146,20 +2146,20 @@ void t_reed_stop_timeout_confirms_actual_on() {
   setRawReed(true);
   releaseUp();
   pressDown();
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   runLoopAfter(250);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(reedIsOn());
 }
 
 void t_reed_outside_assumed_follows_reed() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   setRawReed(true);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   setRawReed(false);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
 }
 
 void t_reed_release_mode_assume_clock_starts_on_release() {
@@ -2168,18 +2168,18 @@ void t_reed_release_mode_assume_clock_starts_on_release() {
   runtimeConfig.reedConfirmTimeoutHundredMs = 5;
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   pressDown();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!session.active);
   runLoopAfter(400);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!session.active);
   releaseUp();
   CHECK(session.active);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   runLoopAfter(150);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   runLoopAfter(400);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!session.active);
 }
 
@@ -2190,13 +2190,13 @@ void t_reed_release_mode_stop_assume_starts_on_release() {
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
   setRawReed(true);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(session.active);
   pressDown();
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(reedIsOn());
   releaseUp();
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   CHECK(reedIsOn());
 }
 
@@ -2207,16 +2207,16 @@ void t_reed_disqualified_press_grace_then_reed_canonical() {
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   pressDown();
   CHECK(session.active);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING_UNCONFIRMED);
   runLoopAfter(250);
   CHECK(!session.active);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
   CHECK(!machineIsRunning());
   setRawReed(true);
-  CHECK(machineRunState() == MachineRunState::ASSUMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
   CHECK(!machineIsRunning());
   runLoopAfter(400);
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   CHECK(machineIsRunning());
   CHECK(!session.active);
 }
@@ -2288,17 +2288,17 @@ void t_reed_getters_use_sampled_state() {
   machineSampleInput();
   CHECK(reedOn);
   CHECK(machineIsRunning());
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   hostPinLevel[REED_GPIO] = !REED_ACTIVE_LEVEL;
   CHECK(reedOn);
   CHECK(machineIsRunning());
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_ON);
+  CHECK(machineRunState() == MachineRunState::RUNNING);
   serviceMomentaryRunSensors();
   hostMillis += REED_DEBOUNCE_MS + 1;
   serviceMomentaryRunSensors();
   CHECK(!reedOn);
   CHECK(!machineIsRunning());
-  CHECK(machineRunState() == MachineRunState::CONFIRMED_OFF);
+  CHECK(machineRunState() == MachineRunState::IDLE);
 }
 #endif
 
@@ -2418,49 +2418,49 @@ const TestCase kTests[] = {
     {"P65", t_rinse_end_aborts_start_pulse_for_stop_pulse},
     {"P68", t_rinse_web_over_running_shot_keeps_full_duration},
 #if SHOT_STOPPER_MACHINE_TYPE == 1
-    {"P04", t_only_auto_cut_needs_confirmed_on},
+    {"P04", t_only_auto_cut_needs_running},
     {"P05", t_quiet_pan_does_not_force_cut_when_unknown},
     {"P09", t_tare_rebases_flow_signature},
-    {"P09B", t_fast_control_loop_still_confirms_on},
+    {"P09B", t_fast_control_loop_still_confirms_running},
     {"P09C", t_start_tare_drop_rebases_then_confirms},
-    {"P10", t_user_stop_does_not_extra_pulse_when_assumed_on},
+    {"P10", t_user_stop_does_not_extra_pulse_when_running_unconfirmed},
     {"P11", t_wall_with_quiet_pan_does_not_auto_pulse},
     {"P12", t_settings_lock_follows_logical_run},
     {"P13", t_polarity_resyncs_to_running_machine},
     {"P14", t_user_press_wins_over_firmware_pulse},
     {"P18", t_start_ack_stays_assumed_without_flow},
-    {"P21", t_confirmed_on_expires_without_flow},
-    {"P22", t_stop_ack_quiet_confirms_off},
-    {"P23", t_stop_ack_timeout_without_quiet_stays_assumed_off},
+    {"P21", t_running_expires_without_flow},
+    {"P22", t_stop_ack_quiet_confirms_idle},
+    {"P23", t_stop_ack_timeout_without_quiet_stays_idle_unconfirmed},
     {"P24", t_start_preinfusion_quiet_stays_assumed},
-    {"P25", t_start_nack_long_baseline_confirms_off},
+    {"P25", t_start_nack_long_baseline_confirms_idle},
     {"P25B", t_start_nack_timeout_follows_setting},
-    {"P25C", t_flow_after_assumed_off_confirms_on_without_pulse},
+    {"P25C", t_flow_after_idle_unconfirmed_confirms_running_without_pulse},
     {"P25I", t_start_nack_quiet_does_not_idle},
     {"P25I7", t_no_flow_hard_cap_idles_after_nack},
-    {"P25I8", t_no_flow_hard_cap_idles_assumed_on_noise},
+    {"P25I8", t_no_flow_hard_cap_idles_running_unconfirmed_noise},
     {"P25I9", t_no_flow_hard_cap_skips_when_espresso_confirmed},
     {"P25I12", t_no_flow_hard_cap_skips_after_espresso_pan_returns},
     {"P25I10", t_no_flow_hard_cap_skips_when_mass_above_band},
     {"P25I11", t_no_flow_hard_cap_skips_when_stale},
-    {"P25I2", t_cup_removed_settles_assumed_off_after_stop},
-    {"P25I3", t_cup_removed_settles_start_nack_assumed_off},
-    {"P25I4", t_cup_removed_ignored_while_assumed_on},
-    {"P25I5", t_cup_removed_ignored_while_confirmed_on},
-    {"P25I6", t_cup_removed_event_settles_assumed_off_after_stop},
+    {"P25I2", t_cup_removed_settles_idle_unconfirmed_after_stop},
+    {"P25I3", t_cup_removed_settles_start_nack_idle_unconfirmed},
+    {"P25I4", t_cup_removed_ignored_while_running_unconfirmed},
+    {"P25I5", t_cup_removed_ignored_while_running},
+    {"P25I6", t_cup_removed_event_settles_idle_unconfirmed_after_stop},
     {"P25J", t_firmware_cut_settles_off_after_drip},
     {"P25K", t_firmware_cut_settles_off_without_pending_finalize},
-    {"P25L", t_firmware_cut_stale_weight_stays_assumed_off},
-    {"P25M", t_gusher_flow_confirms_on},
+    {"P25L", t_firmware_cut_stale_weight_stays_idle_unconfirmed},
+    {"P25M", t_gusher_flow_confirms_running},
     {"P25D", t_override_sets_inferred_idle_and_brewing_without_pulse},
     {"P25R", t_remote_start_emits_synthetic_start_pulse},
-    {"P25S", t_web_stop_emits_pulse_while_assumed_on},
+    {"P25S", t_web_stop_emits_pulse_while_running_unconfirmed},
     {"P25E", t_scale_connect_settles_idle_when_idle},
-    {"P25F", t_settled_weight_cut_confirms_off},
+    {"P25F", t_settled_weight_cut_confirms_idle},
     {"P25G", t_settled_weight_cut_stays_armed_while_pouring},
     {"P25H", t_settled_weight_cut_flow_is_not_polarity},
     {"P25N", t_weight_cut_pulses_after_confirmed_expires_to_assumed},
-    {"P25O", t_weight_cut_pulses_on_assumed_on_after_first_drop},
+    {"P25O", t_weight_cut_pulses_on_running_unconfirmed_after_first_drop},
     {"P26", t_user_stop_after_preinfusion_does_not_pulse},
     {"P27", t_accidental_touch_does_not_confirm_on},
     {"P28", t_gap_skip_does_not_confirm_from_step},
@@ -2484,16 +2484,16 @@ const TestCase kTests[] = {
 #if SHOT_STOPPER_MACHINE_TYPE == 2
     {"P06", t_reed_off_blocks_firmware_cut},
     {"P07", t_reed_on_allows_firmware_cut},
-    {"P15", t_reed_boot_on_is_confirmed_on},
+    {"P15", t_reed_boot_on_is_running},
     {"P15B", t_reed_safety_trip_follows_reed},
     {"P16", t_reed_off_wins_over_rising_weight},
-    {"P17", t_assumed_on_offers_web_stop},
+    {"P17", t_running_unconfirmed_offers_web_stop},
     {"P19", t_reed_polarity_stop_when_running},
     {"P35", t_reed_wall_pulses_once_and_ends_session},
     {"P57", t_reed_manual_skips_operational_wall_pulses_at_hard_cap},
-    {"P42", t_reed_stays_assumed_on_until_timeout_then_confirms_off},
+    {"P42", t_reed_stays_running_unconfirmed_until_timeout_then_confirms_idle},
     {"P43", t_reed_on_during_window_confirms_immediately},
-    {"P44", t_reed_stop_assumed_off_until_reed_matches},
+    {"P44", t_reed_stop_idle_unconfirmed_until_reed_matches},
     {"P45", t_reed_stop_timeout_confirms_actual_on},
     {"P46", t_reed_outside_assumed_follows_reed},
     {"P47", t_reed_release_mode_assume_clock_starts_on_release},

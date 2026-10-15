@@ -2329,10 +2329,10 @@ function formatScaleStatus(s) {
 function formatMachineState(s) {
   return (
     {
-      CONFIRMED_OFF: __WEBUI_TEXT__("runtime.idle"),
-      ASSUMED_ON: __WEBUI_TEXT__("runtime.assumed_on"),
-      CONFIRMED_ON: __WEBUI_TEXT__("runtime.confirmed_on"),
-      ASSUMED_OFF: __WEBUI_TEXT__("runtime.assumed_off"),
+      IDLE: __WEBUI_TEXT__("runtime.idle"),
+      RUNNING_UNCONFIRMED: __WEBUI_TEXT__("runtime.group_starting"),
+      RUNNING: __WEBUI_TEXT__("runtime.group_running"),
+      IDLE_UNCONFIRMED: __WEBUI_TEXT__("runtime.group_stopping"),
       UNKNOWN: __WEBUI_TEXT__("runtime.unknown_4"),
     }[s.machineState] || __WEBUI_TEXT__("runtime.unknown_4")
   );

@@ -3,23 +3,24 @@
 // =============================================================================
 // SPECIALIZATION: Momentary-only — run view (state)
 // =============================================================================
-// WHAT: MachineRunState without reed. Never canonical: boot is OFF, a missing
-//       scale is UNKNOWN (no auto-cut), quiet pan reinforces OFF, and
-//       espresso-like rising flow (g/s) is the only path to CONFIRMED_ON.
+// WHAT: MachineRunState without reed. Never canonical: boot is IDLE, a missing
+//       scale is UNKNOWN (no auto-cut), quiet pan reinforces IDLE, and
+//       espresso-like rising flow (g/s) is the only path to RUNNING.
 //       Flow uses BLE sample spacing, not the control-loop period: a still-
 //       fresh reading resampled every few ms must not reset the rising window,
-//       or the state stays ASSUMED_ON and auto-cut never pulses. A tare-like
-//       drop to ~0 g rebases the shot baseline even before CONFIRMED_ON, so
-//       start tare / late-cup retare are visible to inference. CONFIRMED_ON
-//       expires without recent flow so auto-cut cannot pulse a stopped group.
-//       A logical stop goes to ASSUMED_OFF (stop-settling) until the pan is
-//       quiet, including after the stop-ack timeout. Cup REMOVED while
-//       ASSUMED_OFF settles to CONFIRMED_OFF immediately (MachineSense edge).
+//       or the state stays RUNNING_UNCONFIRMED and auto-cut never pulses. A
+//       tare-like drop to ~0 g rebases the shot baseline even before
+//       RUNNING, so start tare / late-cup retare are visible to inference.
+//       RUNNING expires without recent flow so auto-cut cannot pulse a
+//       stopped group.
+//       A logical stop goes to IDLE_UNCONFIRMED (stop-settling) until the pan
+//       is quiet, including after the stop-ack timeout. Cup REMOVED while
+//       IDLE_UNCONFIRMED settles to IDLE immediately (MachineSense edge).
 //       A Start that never confirms espresso and stays within 1 g of the shot
-//       baseline until HARD_MAX_CIRCUIT_CLOSED_MS settles to CONFIRMED_OFF
+//       baseline until HARD_MAX_CIRCUIT_CLOSED_MS settles to IDLE
 //       (no pulse) so the stopper can abandon the cycle. Espresso-like confirm
-//       vetoes that idle for the rest of the logical run, even after Confirmed
-//       on expires. Consumes MachineSense pushed by the stopper.
+//       vetoes that idle for the rest of the logical run, even after RUNNING
+//       expires. Consumes MachineSense pushed by the stopper.
 //
 // BOUNDARY: This file alone determines momentary-only run state. Do not put
 // reed GPIO here (that is MomentaryReedState). Do not put paddle latch logic
@@ -41,7 +42,7 @@ constexpr uint32_t MOMENTARY_STOP_RETRY_AFTER_MS = 600;
 constexpr uint32_t MOMENTARY_CONFIRM_MIN_RUN_MS = 800;
 constexpr uint32_t MOMENTARY_STALE_UNKNOWN_MS = 1500;
 
-MachineRunState momentaryInferredState = MachineRunState::CONFIRMED_OFF;
+MachineRunState momentaryInferredState = MachineRunState::IDLE;
 bool momentarySawScale = false;
 bool momentaryEspressoConfirmed = false;
 bool momentaryHadEspressoConfirm = false;
@@ -77,7 +78,7 @@ void noteMomentaryEspressoConfirmed() {
 }
 
 void noteMomentaryLogicalStart() {
-  momentaryInferredState = MachineRunState::ASSUMED_ON;
+  momentaryInferredState = MachineRunState::RUNNING_UNCONFIRMED;
   momentaryEspressoConfirmed = false;
   momentaryHadEspressoConfirm = false;
   momentarySawEspresso = false;
@@ -109,7 +110,7 @@ void noteMomentaryLogicalStart() {
 
 void noteMomentaryLogicalStop() {
   if (!momentaryLogicalRunActive &&
-      momentaryInferredState == MachineRunState::CONFIRMED_OFF &&
+      momentaryInferredState == MachineRunState::IDLE &&
       !momentaryStartAwaitingAck) {
     return;
   }
@@ -123,17 +124,17 @@ void noteMomentaryLogicalStop() {
   if (!machineSense.weightFresh) {
     momentaryStopAwaitingAck = false;
     if (momentarySettledWeightCutArmed) {
-      momentaryInferredState = MachineRunState::ASSUMED_OFF;
+      momentaryInferredState = MachineRunState::IDLE_UNCONFIRMED;
       return;
     }
     momentaryStopSettling = false;
     momentaryInferredState = momentarySawScale ? MachineRunState::UNKNOWN
-                                       : MachineRunState::CONFIRMED_OFF;
+                                       : MachineRunState::IDLE;
     return;
   }
   momentaryStopAwaitingAck = true;
   momentaryStopAwaitingSinceMs = millis();
-  momentaryInferredState = MachineRunState::ASSUMED_OFF;
+  momentaryInferredState = MachineRunState::IDLE_UNCONFIRMED;
 }
 
 void noteMomentaryLogicalStartCanceled() {
@@ -148,7 +149,7 @@ void noteMomentaryLogicalStartCanceled() {
   momentaryOrphanRun = false;
   momentaryStopSettling = false;
   momentaryNoFlowIdlePending = false;
-  momentaryInferredState = MachineRunState::CONFIRMED_OFF;
+  momentaryInferredState = MachineRunState::IDLE;
 }
 
 void noteMomentaryDisqualifiedPress(bool restoreRunning) {
@@ -163,8 +164,8 @@ void noteMomentaryDisqualifiedPress(bool restoreRunning) {
   momentaryOrphanRun = false;
   momentaryStopSettling = false;
   momentaryInferredState = momentaryGesturePreState;
-  if (momentaryInferredState == MachineRunState::CONFIRMED_OFF) {
-    momentaryInferredState = MachineRunState::ASSUMED_ON;
+  if (momentaryInferredState == MachineRunState::IDLE) {
+    momentaryInferredState = MachineRunState::RUNNING_UNCONFIRMED;
   }
 }
 
@@ -184,7 +185,7 @@ void settleMomentaryInferredOff() {
   momentarySettledWeightCutArmed = false;
   momentaryStopSettling = false;
   momentaryNoFlowIdlePending = false;
-  momentaryInferredState = MachineRunState::CONFIRMED_OFF;
+  momentaryInferredState = MachineRunState::IDLE;
 }
 
 void machineOverrideInferredOff() { settleMomentaryInferredOff(); }
@@ -200,7 +201,7 @@ void machineOverrideInferredOn() {
   momentaryStopSettling = false;
   momentaryNoFlowIdlePending = false;
   noteMomentaryEspressoConfirmed();
-  momentaryInferredState = MachineRunState::CONFIRMED_ON;
+  momentaryInferredState = MachineRunState::RUNNING;
   momentaryLogicalRunActive = true;
   momentaryLogicalRunStartedAtMs = millis();
 }
@@ -229,8 +230,8 @@ void maybeSettleMomentaryNoFlowIdle(float weight) {
       momentaryHadEspressoConfirm) {
     return;
   }
-  if (momentaryInferredState != MachineRunState::ASSUMED_ON &&
-      momentaryInferredState != MachineRunState::ASSUMED_OFF) {
+  if (momentaryInferredState != MachineRunState::RUNNING_UNCONFIRMED &&
+      momentaryInferredState != MachineRunState::IDLE_UNCONFIRMED) {
     return;
   }
   if (momentaryLogicalRunStartedAtMs == 0 ||
@@ -259,14 +260,14 @@ void serviceMomentaryRunSensors() {
     settleMomentaryInferredOff();
   }
   if (machineSense.cupRemovedEdge &&
-      momentaryInferredState == MachineRunState::ASSUMED_OFF) {
+      momentaryInferredState == MachineRunState::IDLE_UNCONFIRMED) {
     settleMomentaryInferredOff();
   }
   if (momentaryLogicalRunActive &&
-      momentaryInferredState == MachineRunState::CONFIRMED_OFF &&
+      momentaryInferredState == MachineRunState::IDLE &&
       !momentaryStopAwaitingAck && !momentaryStopSettling &&
       momentaryStartAwaitingAck) {
-    momentaryInferredState = MachineRunState::ASSUMED_ON;
+    momentaryInferredState = MachineRunState::RUNNING_UNCONFIRMED;
   }
   if (machineSense.firstDropSeen) {
     momentarySawEspresso = true;
@@ -277,10 +278,10 @@ void serviceMomentaryRunSensors() {
     }
     const bool settling =
         momentaryStopSettling || momentarySettledWeightCutArmed;
-    if (momentaryInferredState == MachineRunState::CONFIRMED_ON) {
+    if (momentaryInferredState == MachineRunState::RUNNING) {
       momentaryEspressoConfirmed = false;
-      momentaryInferredState = settling ? MachineRunState::ASSUMED_OFF
-                                        : MachineRunState::ASSUMED_ON;
+      momentaryInferredState = settling ? MachineRunState::IDLE_UNCONFIRMED
+                                        : MachineRunState::RUNNING_UNCONFIRMED;
     }
     if (!settling && (momentaryLogicalRunActive || momentarySawScale) &&
         elapsedMs(momentaryStaleSinceMs) >= MOMENTARY_STALE_UNKNOWN_MS) {
@@ -311,7 +312,7 @@ void serviceMomentaryRunSensors() {
   const bool accidental = machineSense.accidentalHold;
   // Same BLE packet re-pushed every control-loop tick. Do not treat that as a
   // new sample: after ~40 ms the dt would look like 0 g/s and reset rising,
-  // so the state would stay ASSUMED_ON for the whole shot.
+  // so the state would stay RUNNING_UNCONFIRMED for the whole shot.
   const bool sameSample =
       !uninitialized && machineSense.weightSequence != 0 &&
       machineSense.weightSequence == momentaryLastWeightSequence;
@@ -334,8 +335,8 @@ void serviceMomentaryRunSensors() {
     momentaryEspressoConfirmed = false;
     momentaryRisingSinceMs = 0;
     momentaryLowFlowSinceMs = 0;
-    if (momentaryInferredState == MachineRunState::CONFIRMED_ON) {
-      momentaryInferredState = MachineRunState::ASSUMED_ON;
+    if (momentaryInferredState == MachineRunState::RUNNING) {
+      momentaryInferredState = MachineRunState::RUNNING_UNCONFIRMED;
     }
   }
 
@@ -356,13 +357,13 @@ void serviceMomentaryRunSensors() {
   if (quietPan && !momentaryStartAwaitingAck &&
       (momentaryStopAwaitingAck || momentaryOrphanRun ||
        (!momentaryLogicalRunActive &&
-        momentaryInferredState != MachineRunState::CONFIRMED_ON &&
-        momentaryInferredState != MachineRunState::ASSUMED_ON &&
-        momentaryInferredState != MachineRunState::ASSUMED_OFF))) {
+        momentaryInferredState != MachineRunState::RUNNING &&
+        momentaryInferredState != MachineRunState::RUNNING_UNCONFIRMED &&
+        momentaryInferredState != MachineRunState::IDLE_UNCONFIRMED))) {
     momentaryStopAwaitingAck = false;
     momentaryOrphanRun = false;
     momentaryEspressoConfirmed = false;
-    momentaryInferredState = MachineRunState::CONFIRMED_OFF;
+    momentaryInferredState = MachineRunState::IDLE;
   }
 
   if (momentaryStopAwaitingAck) {
@@ -377,7 +378,7 @@ void serviceMomentaryRunSensors() {
         momentaryStopAwaitingAck = false;
         momentaryStopSettling = false;
         noteMomentaryEspressoConfirmed();
-        momentaryInferredState = MachineRunState::CONFIRMED_ON;
+        momentaryInferredState = MachineRunState::RUNNING;
         momentaryLogicalRunActive = true;
         if (momentaryLogicalRunStartedAtMs == 0) {
           momentaryLogicalRunStartedAtMs = now;
@@ -400,14 +401,14 @@ void serviceMomentaryRunSensors() {
         momentaryLogicalRunActive = false;
         momentaryEspressoConfirmed = false;
         momentaryOrphanRun = false;
-        momentaryInferredState = MachineRunState::ASSUMED_OFF;
+        momentaryInferredState = MachineRunState::IDLE_UNCONFIRMED;
       }
     } else {
       momentaryStartBaselineSinceMs = 0;
     }
   }
 
-  if (momentaryInferredState == MachineRunState::CONFIRMED_ON &&
+  if (momentaryInferredState == MachineRunState::RUNNING &&
       !momentaryStopAwaitingAck && !skipFlow) {
     if (flowGps < MOMENTARY_FLOW_OFF_G_S) {
       if (momentaryLowFlowSinceMs == 0) {
@@ -420,13 +421,13 @@ void serviceMomentaryRunSensors() {
         momentaryLowFlowSinceMs = 0;
         if (!keepConfirmed) {
           momentaryEspressoConfirmed = false;
-          momentaryInferredState = MachineRunState::ASSUMED_ON;
+          momentaryInferredState = MachineRunState::RUNNING_UNCONFIRMED;
         }
       }
     } else {
       momentaryLowFlowSinceMs = 0;
     }
-  } else if (momentaryInferredState != MachineRunState::CONFIRMED_ON) {
+  } else if (momentaryInferredState != MachineRunState::RUNNING) {
     momentaryLowFlowSinceMs = 0;
   }
 
@@ -436,11 +437,11 @@ void serviceMomentaryRunSensors() {
       delta <= goalWeightDgToGrams(runtimeConfig.goalWeightDg + runtimeConfig.fastMarginDg);
   const bool canConfirmOn =
       (momentaryLogicalRunActive ||
-       momentaryInferredState == MachineRunState::ASSUMED_ON ||
-       momentaryInferredState == MachineRunState::ASSUMED_OFF) &&
+       momentaryInferredState == MachineRunState::RUNNING_UNCONFIRMED ||
+       momentaryInferredState == MachineRunState::IDLE_UNCONFIRMED) &&
       !finger && !accidental && !skipFlow && !momentaryStopAwaitingAck &&
       !momentarySettledWeightCutArmed &&
-      momentaryInferredState != MachineRunState::CONFIRMED_OFF && inShotBand &&
+      momentaryInferredState != MachineRunState::IDLE && inShotBand &&
       flowGps >= MOMENTARY_FLOW_ON_G_S &&
       flowGps <= MOMENTARY_FLOW_CONFIRM_MAX_G_S;
   if (canConfirmOn) {
@@ -450,12 +451,12 @@ void serviceMomentaryRunSensors() {
     if (elapsedMs(momentaryRisingSinceMs) >= MOMENTARY_FLOW_HOLD_MS &&
         elapsedMs(momentaryLogicalRunStartedAtMs) >= MOMENTARY_CONFIRM_MIN_RUN_MS) {
       const bool recoverFromAssumedOff =
-          momentaryInferredState == MachineRunState::ASSUMED_OFF;
+          momentaryInferredState == MachineRunState::IDLE_UNCONFIRMED;
       noteMomentaryEspressoConfirmed();
       momentaryStartAwaitingAck = false;
       momentaryStartBaselineSinceMs = 0;
       momentaryStopSettling = false;
-      momentaryInferredState = MachineRunState::CONFIRMED_ON;
+      momentaryInferredState = MachineRunState::RUNNING;
       if (recoverFromAssumedOff) {
         momentaryLogicalRunActive = true;
         if (momentaryLogicalRunStartedAtMs == 0) {
@@ -481,20 +482,21 @@ bool machineAllowsFirmwareStopPulse() {
   if (momentaryPhysicalOn) {
     return false;
   }
-  if (momentaryInferredState == MachineRunState::CONFIRMED_ON) {
+  if (momentaryInferredState == MachineRunState::RUNNING) {
     return true;
   }
   // Weight cut after coffee was on the pan: flow may already have dropped to
-  // ASSUMED_ON. Do not pulse walls or user-stop from a never-confirmed start.
+  // RUNNING_UNCONFIRMED. Do not pulse walls or user-stop from a
+  // never-confirmed start.
   return momentarySettledWeightCutArmed && momentarySawEspresso &&
-         momentaryInferredState == MachineRunState::ASSUMED_ON;
+         momentaryInferredState == MachineRunState::RUNNING_UNCONFIRMED;
 }
 
 inline bool machineRunningElapsed(uint32_t &elapsedOut) {
   if (!(momentaryLogicalRunActive || momentaryStopAwaitingAck ||
         momentaryOrphanRun ||
-        momentaryInferredState == MachineRunState::CONFIRMED_ON ||
-        momentaryInferredState == MachineRunState::ASSUMED_ON)) {
+        momentaryInferredState == MachineRunState::RUNNING ||
+        momentaryInferredState == MachineRunState::RUNNING_UNCONFIRMED)) {
     elapsedOut = 0U;
     return false;
   }
@@ -505,8 +507,8 @@ inline bool machineRunningElapsed(uint32_t &elapsedOut) {
 inline bool machineIsRunning() {
   return momentaryLogicalRunActive || momentaryStopAwaitingAck ||
          momentaryOrphanRun ||
-         momentaryInferredState == MachineRunState::CONFIRMED_ON ||
-         momentaryInferredState == MachineRunState::ASSUMED_ON;
+         momentaryInferredState == MachineRunState::RUNNING ||
+         momentaryInferredState == MachineRunState::RUNNING_UNCONFIRMED;
 }
 
 inline MachineRunState machineRunState() {
@@ -514,7 +516,7 @@ inline MachineRunState machineRunState() {
   if (relay.state == RelaySafetyState::LOCKOUT ||
       relay.state == RelaySafetyState::TRIPPED) {
     return momentaryLogicalRunActive ? MachineRunState::UNKNOWN
-                                 : MachineRunState::CONFIRMED_OFF;
+                                 : MachineRunState::IDLE;
   }
   return momentaryInferredState;
 }
