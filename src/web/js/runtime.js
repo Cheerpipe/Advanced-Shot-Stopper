@@ -1186,6 +1186,7 @@ function renderShotSpark(h, shot) {
     preset._w = preset.clientWidth;
     preset._view = presetGraph(preset, rule, {
       compact: true,
+      tens: true,
       last: m.segs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
       drip: m.dripSegs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
       arrivals: shot.arrivalS > 0 ? [shot.arrivalS] : [],
@@ -4620,7 +4621,9 @@ function renderHomePresetAccordion() {
       const graph = document.createElement("div");
       graph.className = "presetAccGraph";
       graph.id = "presetAccGraph" + key;
-      panelIn.append(rows, graph);
+      const readout = document.createElement("p");
+      readout.className = "presetAccReadout";
+      panelIn.append(rows, graph, readout);
       panel.appendChild(panelIn);
       item.append(head, panel);
       el.appendChild(item);
@@ -4655,14 +4658,9 @@ function renderHomePresetAccordion() {
     const graph = item.querySelector(".presetAccGraph");
     graph._m = m;
     graph._draw = () => {
-      graph._w = graph.clientWidth;
       if (graph._m.mode === "empty") graph.replaceChildren();
-      else presetGraph(graph, graph._m, { compact: true });
+      else drawPresetGraph(graph, graph._m, {}, item.querySelector(".presetAccReadout"), key);
     };
-    if (!graph.dataset.observed) {
-      graph.dataset.observed = "1";
-      observePresetHost(graph);
-    }
     graph._draw();
     nodes.push(item);
   }
@@ -5375,10 +5373,10 @@ function referencePace(t, goal, tArr, t0 = 0) {
   return goal * (2 * PACE_SOFT * u + (1 - 2 * PACE_SOFT) * u * u);
 }
 // One preset graph for Settings (review, with scrubber) and for a Stats shot
-// (compact, no scrubber, no no-cut hatch, 10 s ticks). Laid out in CSS pixels
+// (compact, no scrubber, no no-cut hatch; Stats adds 10 s ticks). Laid out in CSS pixels
 // from the measured width; null while the host is hidden.
 function presetGraph(host, m, x = {}) {
-  const { ghost, arrivals = [], last = [], drip = [], maxG = 0, compact } = x,
+  const { ghost, arrivals = [], last = [], drip = [], maxG = 0, compact, tens } = x,
     W = host.clientWidth;
   if (!W) return null;
   const u = host.id,
@@ -5453,12 +5451,12 @@ function presetGraph(host, m, x = {}) {
     grid += `<path class="rvGrid" d="M${L} ${f(Y(v))}H${R}"/>`;
     marks += label(L - 4, Y(v) + 3, v + " g", "", "end");
   }
-  (compact ? Array.from({ length: Math.floor(tMax / 10) + 1 }, (_, i) => i * 10) : [0, m.prot, m.t1, m.t2, m.wall]).forEach(
+  (tens ? Array.from({ length: Math.floor(tMax / 10) + 1 }, (_, i) => i * 10) : [0, m.prot, m.t1, m.t2, m.wall]).forEach(
     (t, i, ts) => {
       if (X(t) - lastX < 14 && i < ts.length - 1) return;
       lastX = X(t);
-      if (compact) grid += `<path class="rvGrid" d="M${f(X(t))} ${T}V${B}"/>`;
-      marks += label(X(t), B + 13, n(t) + (compact || i === ts.length - 1 ? " s" : ""), !compact && i > 1 && i < 4 ? "strong" : "");
+      if (tens) grid += `<path class="rvGrid" d="M${f(X(t))} ${T}V${B}"/>`;
+      marks += label(X(t), B + 13, n(t) + (tens || i === ts.length - 1 ? " s" : ""), !tens && i > 1 && i < 4 ? "strong" : "");
     },
   );
   host.innerHTML =
@@ -5494,7 +5492,7 @@ function presetGraph(host, m, x = {}) {
     (compact
       ? "</g></svg>"
       : label(X(m.wall), T - 4, sub(__WEBUI_TEXT__("runtime.graph_max"), [n(m.wall)]), "", "end") +
-        `</g><g id="reviewScrub" class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.prot}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvStop" r="3.5"/><circle class="rvHandle" r="5"/></g></svg>`);
+        `</g><g class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.prot}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvStop" r="3.5"/><circle class="rvHandle" r="5"/></g></svg>`);
   return {
     m,
     X,
@@ -5511,8 +5509,45 @@ function presetGraph(host, m, x = {}) {
 // Review graph of the preset under review: pace curves fan out from the
 // origin into corridors whose boundaries are the preset's thresholds, colored
 // only under the cut line. Unsaved edits redraw live over the ghosted saved line.
-let reviewView = null,
-  reviewScrubS = 0;
+// One preset graph with its scrubber, used by the Settings review and by each
+// Home preset panel: same drawing, axis, and scrub behavior. The scrub state
+// lives on the host, so every graph scrubs on its own.
+function drawPresetGraph(host, m, x, readout, key) {
+  host._w = host.clientWidth;
+  const view = presetGraph(host, m, x);
+  if (!view) return null;
+  if (host._key !== key || !(host._s >= m.prot && host._s <= m.wall))
+    host._s = Math.max(m.prot, +(m.t1 - 0.6 * m.d).toFixed(1));
+  host._key = key;
+  host._view = view;
+  host._readout = readout;
+  if (!host.dataset.bound) {
+    host.dataset.bound = "1";
+    observePresetHost(host);
+    const scrub = (s) => {
+      host._s = Math.max(host._view.m.prot, Math.min(host._view.m.wall, Math.round(s * 10) / 10));
+      positionPresetScrub(host);
+    };
+    const move = (e) => scrub(host._view.tAt(e.clientX - host.firstChild.getBoundingClientRect().left));
+    host.addEventListener("pointerdown", (e) => {
+      host.setPointerCapture(e.pointerId);
+      host.querySelector(".rvScrub")?.focus({ preventScroll: true });
+      move(e);
+    });
+    host.addEventListener("pointermove", (e) => host.hasPointerCapture(e.pointerId) && move(e));
+    host.addEventListener("keydown", (e) => {
+      const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5, PageUp: 5, PageDown: -5 }[e.key];
+      if (!step) return;
+      e.preventDefault();
+      scrub(host._s + step);
+    });
+  }
+  positionPresetScrub(host);
+  return view;
+}
+// Review graph of the preset under review: pace curves fan out from the
+// origin into corridors whose boundaries are the preset's thresholds, colored
+// only under the cut line. Unsaved edits redraw live over the ghosted saved line.
 function renderPresetReview() {
   const host = $("presetReviewGraph");
   if (!host) return;
@@ -5540,16 +5575,20 @@ function renderPresetReview() {
     last = card?.valid && !card.live && card.presetName === saved.name ? shotFrame.curve : null,
     // Past arrivals were judged against the saved target: hidden while it is edited.
     arrivals = m.goal === savedModel.goal ? saved.arrivalsS || [] : [];
-  if (reviewScrubS < m.prot || reviewScrubS > m.wall || id !== reviewView?.id)
-    reviewScrubS = Math.max(m.prot, +(m.t1 - 0.6 * m.d).toFixed(1));
-  const view = presetGraph(host, m, {
-    ghost,
-    arrivals,
-    last: last ? [last.wAtMs.map((t, i) => [t / 1000, last.wCg[i] / 100])] : [],
-    maxG: last ? Math.max(0, ...last.wCg) / 100 : 0,
-  });
+  host._draw = renderPresetReview;
+  const view = drawPresetGraph(
+    host,
+    m,
+    {
+      ghost,
+      arrivals,
+      last: last ? [last.wAtMs.map((t, i) => [t / 1000, last.wCg[i] / 100])] : [],
+      maxG: last ? Math.max(0, ...last.wCg) / 100 : 0,
+    },
+    $("presetReviewReadout"),
+    id,
+  );
   if (!view) return;
-  reviewView = { ...view, id };
   const legend = $("presetReviewLegend");
   if (!legend.childElementCount)
     legend.innerHTML =
@@ -5569,38 +5608,16 @@ function renderPresetReview() {
   legend.classList.toggle("hasArrivals", view.arrivals > 0);
   legend.classList.toggle("noFast", !m.fast);
   legend.classList.toggle("noSlow", !m.slow);
-  if (!host.dataset.bound) {
-    host.dataset.bound = "1";
-    const scrub = (s) => {
-      reviewScrubS = Math.max(reviewView.m.prot, Math.min(reviewView.m.wall, Math.round(s * 10) / 10));
-      positionReviewScrub();
-    };
-    const move = (e) => scrub(reviewView.tAt(e.clientX - host.firstChild.getBoundingClientRect().left));
-    new ResizeObserver(() => host.clientWidth !== reviewView?.W && renderPresetReview()).observe(host);
-    host.addEventListener("pointerdown", (e) => {
-      host.setPointerCapture(e.pointerId);
-      $("reviewScrub")?.focus({ preventScroll: true });
-      move(e);
-    });
-    host.addEventListener("pointermove", (e) => host.hasPointerCapture(e.pointerId) && move(e));
-    host.addEventListener("keydown", (e) => {
-      const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5, PageUp: 5, PageDown: -5 }[e.key];
-      if (!step) return;
-      e.preventDefault();
-      scrub(reviewScrubS + step);
-    });
-  }
-  positionReviewScrub();
 }
 // The scrubber picks when a shot reaches the target. Its reference pace is
 // followed past the target until it meets the cut line (same cutLine), so
 // the readout says where that shot would really stop.
-function positionReviewScrub() {
-  const v = reviewView,
-    g = $("reviewScrub");
+function positionPresetScrub(host) {
+  const v = host._view,
+    g = host.querySelector(".rvScrub");
   if (!v || !g) return;
   const m = v.m,
-    tArr = reviewScrubS,
+    tArr = host._s,
     pace = (t) => referencePace(t, m.goal, tArr, m.firstDrop),
     gap = (t) => pace(t) - cutLine(t, m);
   let lo = m.prot,
@@ -5637,7 +5654,7 @@ function positionReviewScrub() {
   targetLabel.style.opacity = hx > box.x - 8 && hx < box.x + box.width + 8 ? "0" : "";
   g.setAttribute("aria-valuenow", tArr.toFixed(1));
   g.setAttribute("aria-valuetext", text);
-  $("presetReviewReadout").textContent = text;
+  if (host._readout) host._readout.textContent = text;
 }
 let liveRuleModel = null,
   homeAccSig = "",

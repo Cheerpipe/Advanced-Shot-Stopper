@@ -787,8 +787,9 @@ if (htmlBytes > 93300) {
 // The Stats shot-curve cursor (tap, drag, keys, readout) adds 2563 bytes (422437);
 // owner-authorized 2026-10-14.
 // The compact Stats legend and cursor styles add 885 bytes (423322); owner-authorized 2026-10-14.
-if (jsBytes > 423500) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 423500)`);
+// Home preset graphs become full copies of the Settings graph (same axis, scrubber, readout) and each graph keeps its own scrub state: +656 bytes (423978), owner-authorized 2026-10-15.
+if (jsBytes > 424300) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 424300)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -877,8 +878,9 @@ if (jsBytes > 423500) {
 // Home preset graphs bring the combined source to 512959; owner-authorized 2026-10-14.
 // The Stats cursor brings the combined source to 515522; owner-authorized 2026-10-14.
 // Combined source at 516407 with the legend; owner-authorized 2026-10-14.
-if (htmlBytes + jsBytes > 516600) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 516600)`);
+// Combined source at 517073 with the copied Home graphs; owner-authorized 2026-10-15.
+if (htmlBytes + jsBytes > 517300) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 517300)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
