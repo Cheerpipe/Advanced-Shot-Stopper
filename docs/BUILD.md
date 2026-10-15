@@ -491,6 +491,12 @@ app0 only on a readable installed layout.
 
 ### Partition-layout updates
 
+The installer compares the controller's partition table with the current
+layout in `idf/partitions-<arch>.csv` and with earlier project layouts kept
+in `idf/partition-history/`. When a partition table changes, record the
+layout it replaces there, and decide in the same change how the installer
+treats controllers that still have it.
+
 ### Curve-layout transition
 
 The timestamped curve format requires a one-time USB installation of the full

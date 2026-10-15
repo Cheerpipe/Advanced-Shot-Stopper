@@ -510,10 +510,10 @@ flash_idf = (INTERNAL / "flash-idf").read_text()
 for required in ("read-flash 0x8000 0x1000", "installed_nvs_bytes != 0x15000",
                  "installed_layout=blank", "installed_shotcurve_row",
                  "installed_scaleprof_row",
-                 "required_shotcurve_offset=0x69E000", "0x63E000",
-                 "required_scaleprof_offset=0x76A000", "0x70A000",
+                 'current_csv="$IDF_PROJECT/partitions-$SHOTSTOPPER_ARCH.csv"',
+                 "partition-history/$SHOTSTOPPER_ARCH-pre-curve.csv",
                  "profiler_layout_transition",
-                 "erase-region \"$required_scaleprof_offset\" 0x41000",
+                 'erase-region "$required_scaleprof_offset" "$required_scaleprof_size"',
                  "erase-flash",
                  '"$installed_app0_offset" "$image"'):
     assert required in flash_idf, f"flash-idf erase-all contract missing: {required}"
@@ -1349,17 +1349,12 @@ def flash_command(layout: str, *extra: str, arch: str = "n8r4"):
             "f'shotcurve,{part_type},{subtype},{offset},{size}\\n'\n"
             "Path(sys.argv[-1]).write_text('nvs,data,nvs,0x9000,0x15000\\n'"
             "+'app0,app,ota_0,0x20000,0x330000\\n'+curve)\n"
-            "if os.environ['FLASH_LAYOUT'] == 'legacy':\n"
-            f"    text = Path({str(ROOT / 'idf')!r}, 'partitions-' + os.environ['EXPECTED_ARCH'] + '.csv').read_text()\n"
-            "    text = text.replace('0x69E000,0xCC000', '0x680000,0xE000').replace('0x7BB000,0x35000', '0x69E000,0x152000')\n"
-            "    text = text.replace('0x63E000,0xCC000', '0x620000,0xE000').replace('0x75B000,0x6A5000', '0x63E000,0x7C2000')\n"
-            "    text = ''.join(l for l in text.splitlines(True) if not l.startswith(('scaleprof', 'auditlog')))\n"
-            "    Path(sys.argv[-1]).write_text(text)\n"
-            "if os.environ['FLASH_LAYOUT'] == 'predecessor':\n"
-            f"    text = Path({str(ROOT / 'idf')!r}, 'partitions-' + os.environ['EXPECTED_ARCH'] + '.csv').read_text()\n"
-            "    text = text.replace('0x7BB000,0x35000', '0x76A000,0x86000').replace('0x75B000,0x6A5000', '0x70A000,0x6F6000')\n"
-            "    text = ''.join(l for l in text.splitlines(True) if not l.startswith(('scaleprof', 'auditlog')))\n"
-            "    Path(sys.argv[-1]).write_text(text)\n")
+            "history = {'legacy': 'pre-curve', 'predecessor': 'pre-scaleprof'}\n"
+            "if os.environ['FLASH_LAYOUT'] in history:\n"
+            "    Path(sys.argv[-1]).write_text(Path('idf/partition-history', "
+            "os.environ['EXPECTED_ARCH'] + '-' + history[os.environ['FLASH_LAYOUT']] + '.csv').read_text())\n")
+        shutil.copytree(ROOT / "idf/partition-history", root / "idf/partition-history")
+        shutil.copy(ROOT / f"idf/partitions-{arch}.csv", root / "idf")
         (tools / "idf.py").write_text(
             "#!/bin/sh\n"
             f'printf "idf:%s\\n" "$*" >>"{log}"\n'
@@ -1413,17 +1408,21 @@ assert external_result.returncode == 0 and \
     not any(" flash" in line for line in external_flash if line.startswith("idf:")), \
     external_flash
 for architecture in ('n8r4', 'n16r8'):
+    current = partition_rows(f"partitions-{architecture}.csv")
+    curve_erase, profile_erase = (
+        "erase-region 0x{:X} 0x{:X}".format(*current[name])
+        for name in ("shotcurve", "scaleprof"))
     result, commands = flash_command('legacy', arch=architecture)
     assert result.returncode == 0 and 'settings, Wi-Fi' in result.stdout, result.stderr
-    assert any('erase-region' in line and '0xCC000' in line for line in commands)
-    assert any('erase-region' in line and '0x41000' in line for line in commands)
+    assert any(line.endswith(curve_erase) for line in commands), commands
+    assert any(line.endswith(profile_erase) for line in commands), commands
     assert not any('erase-flash' in line for line in commands)
     result, commands = flash_command('legacy', '--image', 'placeholder', arch=architecture)
     assert result.returncode == 1 and not any('write-flash' in line for line in commands)
     result, commands = flash_command('predecessor', arch=architecture)
     assert result.returncode == 0 and 'scale profile store starts empty' in result.stdout, result.stderr
-    assert any('erase-region' in line and '0x41000' in line for line in commands)
-    assert not any('erase-region' in line and '0xCC000' in line for line in commands)
+    assert any(line.endswith(profile_erase) for line in commands), commands
+    assert not any(line.endswith(curve_erase) for line in commands), commands
     assert not any('erase-flash' in line for line in commands)
 for incompatible_layout in ("missing", "wrong", "type", "subtype", "size"):
     for extra in ((), ("--image", "placeholder")):
