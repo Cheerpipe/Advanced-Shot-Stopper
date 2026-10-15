@@ -182,6 +182,7 @@ class ShotStopperMicraService {
   LineaMicraPowerStateTracker powerState_;
   MicraObservationFence observationFence_;
   MachineBackflushObservations backflush_;
+  MachineBackflushSnapshot idleBackflush_;  // Control task only; see backflush().
   std::atomic<uint32_t> tokenIssuedAtMs_{0};
   std::atomic<bool> tokenAvailable_{false};
   MicraObservationStamp snapshotStamp_;  // Protected by mux_, captured at subscription.

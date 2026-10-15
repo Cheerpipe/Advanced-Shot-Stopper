@@ -42,9 +42,14 @@ class MachineBackflushObservations {
   uint32_t ingressAttempt() const {
     return __atomic_load_n(&attemptCounter_, __ATOMIC_ACQUIRE);
   }
+  // Set by every mutation that can alter status(); cleared by the owner under
+  // its mutex once it has read an unchanging snapshot. Readable without it.
+  bool changed() const { return __atomic_load_n(&changed_, __ATOMIC_ACQUIRE); }
+  void settle() { __atomic_store_n(&changed_, false, __ATOMIC_RELEASE); }
 
   void invalidate() {
     if (state_.phase == MachineBackflushPhase::UNSUPPORTED) return;
+    if (state_.valid || state_.phase != MachineBackflushPhase::UNKNOWN) markChanged();
     if (state_.valid || state_.count || state_.permit.extendable) {
       advance(state_.permit.continuity);
       state_.count = 0;
@@ -58,12 +63,14 @@ class MachineBackflushObservations {
   // Explicit provider/configuration replacement retires unresolved cleaning.
   // Keep a live attempt until control sees invalidation and opens the relay.
   void reset() {
+    markChanged();
     invalidate();
     state_.unresolved = state_.consumed = false;
     state_.phase = MachineBackflushPhase::UNSUPPORTED;
   }
 
   void observe(MachineBackflushPhase phase, uint32_t ingressAttempt) {
+    markChanged();
     if (state_.phase == MachineBackflushPhase::UNSUPPORTED) {
       state_.phase = MachineBackflushPhase::UNKNOWN;
       advance(state_.permit.continuity);
@@ -101,6 +108,7 @@ class MachineBackflushObservations {
 
   // Every evaluated edge fences bytes already in flight, even a normal start.
   MachineBackflushPermit start() {
+    markChanged();
     advanceAttempt();
     if (!state_.valid || state_.phase != MachineBackflushPhase::AWAITING ||
         state_.consumed) return {};
@@ -112,6 +120,7 @@ class MachineBackflushObservations {
   }
 
   void finish(uint32_t attempt) {
+    markChanged();
     if (state_.permit.attempt == attempt) state_.permit.attempt = 0;
     advanceAttempt();
   }
@@ -124,6 +133,7 @@ class MachineBackflushObservations {
 
  private:
   static void advance(uint32_t &value) { if (++value == 0) ++value; }
+  void markChanged() { __atomic_store_n(&changed_, true, __ATOMIC_RELEASE); }
   void advanceAttempt() {
     if (__atomic_add_fetch(&attemptCounter_, 1U, __ATOMIC_RELEASE) == 0)
       (void)__atomic_add_fetch(&attemptCounter_, 1U, __ATOMIC_RELEASE);
@@ -131,6 +141,7 @@ class MachineBackflushObservations {
   MachineBackflushSnapshot state_;
   uint32_t attemptCounter_ = 0;
   bool inactiveSeen_ = false;
+  bool changed_ = true;
 };
 
 }  // namespace shotstopper

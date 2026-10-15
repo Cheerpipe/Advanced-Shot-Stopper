@@ -701,6 +701,57 @@ struct MicraWebSocketTest {
     }
     outboundScaleConnected.store(false);
   }
+  static void backflushIdlePoll() {
+    const char *standby = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"StandBy"}}]})";
+    const char *requested = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
+    const char *inactive = R"({"widgets":[{"code":"CMBackFlush","output":{"status":"Off"}}]})";
+    static unsigned locks;
+    TaskMutex::hostObserver = [](const TaskMutex *, bool acquired) { locks += acquired; };
+    const auto poll = [](ShotStopperMicraService &service, bool locking) {
+      const unsigned before = locks;
+      const auto result = service.backflush(true);
+      assert((locks != before) == locking);
+      const auto reference = service.backflush();  // Locked read; never caches.
+      assert(result.valid == reference.valid && result.phase == reference.phase &&
+             result.sequence == reference.sequence && result.ready == reference.ready &&
+             result.unresolved == reference.unresolved && result.consumed == reference.consumed &&
+             result.permit.continuity == reference.permit.continuity &&
+             result.permit.attempt == reference.permit.attempt);
+      return result;
+    };
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.tokenAvailable_.store(true);
+    service.tokenIssuedAtMs_.store(millis());
+    service.serviceWebSocket();
+    subscribe(service);
+    poll(service, true);  // First poll always reads under the lock.
+    poll(service, false);
+    deliver(service, observation(service, requested));
+    assert(poll(service, true).count == 1);  // Consumed exactly once.
+    assert(poll(service, true).count == 0);  // Valid state keeps qualifying.
+    deliver(service, observation(service, standby));
+    assert(poll(service, true).unresolved);  // Busy never takes the shortcut.
+    poll(service, true);
+    deliver(service, observation(service, inactive));
+    poll(service, true);
+    deliver(service, observation(service, standby));
+    assert(!poll(service, true).valid);
+    poll(service, false);
+    poll(service, false);
+    {
+      TaskLockGuard lock(service.mux_);
+      service.backflush_.finish(0);  // Any mutation re-arms the locked read.
+    }
+    poll(service, true);
+    poll(service, false);
+    TaskMutex::hostObserver = nullptr;
+    service.stopWebSocket(true);
+    delete service.work_;
+  }
   static void concurrentStatusLifecycle() {
     now = 1000;
     ShotStopperMicraService service;
@@ -785,6 +836,7 @@ int main() {
   shotstopper::MicraWebSocketTest::connectionClassification();
   shotstopper::MicraWebSocketTest::initialSynchronization();
   shotstopper::MicraWebSocketTest::backflushContract();
+  shotstopper::MicraWebSocketTest::backflushIdlePoll();
   shotstopper::MicraWebSocketTest::pongPublicationRace();
   shotstopper::MicraWebSocketTest::concurrentStatusLifecycle();
   shotstopper::MicraWebSocketTest::setupAdmissionAndBackoff();

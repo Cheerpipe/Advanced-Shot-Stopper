@@ -774,6 +774,13 @@ bool ShotStopperMicraService::backflushReadyLocked() const {
 }
 
 MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
+  // An invalid, idle handoff (machine off or unobserved) cannot be qualified
+  // further or become ready, so the control loop's consuming poll reuses its
+  // last locked read until a mutation marks a change.
+  if (consume && !backflush_.changed()) {
+    noteMutexWaitUs(micraBackflushWaitLastUsStat(), micraBackflushWaitMaxUsStat(), 0);
+    return idleBackflush_;
+  }
   // The control loop polls this every iteration; record how long the
   // blocking acquisition waited so a backflush phase maximum can blame it.
   const uint32_t muxLockStartedUs = micros();
@@ -786,6 +793,10 @@ MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
   qualifyBackflushLocked();
   auto result = consume ? backflush_.take() : backflush_.status();
   result.ready = backflushReadyLocked();
+  if (consume && !result.valid && !result.busy() && result.count == 0) {
+    idleBackflush_ = result;
+    backflush_.settle();
+  }
   return result;
 }
 
