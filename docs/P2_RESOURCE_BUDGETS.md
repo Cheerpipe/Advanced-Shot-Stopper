@@ -323,6 +323,13 @@ Keeping the unused RMT driver's ISR and encoder code in flash
 grows flash code to 1,567,988 bytes (52,888 over baseline), so the flash-code
 allowance moves to 52,952 bytes, keeping the 64-byte headroom; the DIRAM
 baseline moves to 178,410 bytes.
+Keeping the GDMA control and ISR code in flash (with the SPI master/slave ISR
+options that would force it back into IRAM) lowers DIRAM to 177,434 bytes
+(−976) and brings flash code to 1,569,100 bytes (54,000 over baseline), the
+image to 2,357,200 bytes (83,440 over) and the linked size to 2,357,075 bytes
+(83,428 over); those allowances move to 54,064/83,504/83,492 bytes, keeping
+the 64-byte headroom, and the DIRAM baseline moves to 177,434 bytes. Across the
+three steps linked DIRAM falls 9,932 bytes; IRAM text is now 123,595 bytes.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
@@ -549,7 +556,7 @@ maximum free-block increase. Sampling occurs outside owner locks and outside
 OTA chunk/cache-off work; only the fixed result is copied under the existing
 owner mutex.
 
-The current n16r8 Micra development+JTAG build measures 178,410 linked DIRAM bytes.
+The current n16r8 Micra development+JTAG build measures 177,434 linked DIRAM bytes.
 The one-record scratch reserves 3,328 bytes in its lazy runtime allocation,
 while the disabled-USB path avoids the 2,064-byte serial payload. Their actual
 free/largest-block effects remain target measurements, not linked-memory claims.

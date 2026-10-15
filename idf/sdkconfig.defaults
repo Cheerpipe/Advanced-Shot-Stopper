@@ -223,3 +223,12 @@ CONFIG_GPTIMER_ISR_HANDLER_IN_IRAM=y
 # CONFIG_RMT_TX_ISR_HANDLER_IN_IRAM is not set
 # CONFIG_RMT_RX_ISR_HANDLER_IN_IRAM is not set
 # CONFIG_RMT_ENCODER_FUNC_IN_IRAM is not set
+# GDMA only feeds the hardware SHA/AES engines (TLS, OTA digests), which the
+# crypto port drives by polling from task context with caches enabled: no GDMA
+# interrupt is registered and no DMA runs inside a cache-off flash window. The
+# SPI master/slave ISR options are cleared only because they would force the
+# GDMA code back into IRAM; no SPI peripheral driver is used.
+# CONFIG_SPI_MASTER_ISR_IN_IRAM is not set
+# CONFIG_SPI_SLAVE_ISR_IN_IRAM is not set
+# CONFIG_GDMA_CTRL_FUNC_IN_IRAM is not set
+# CONFIG_GDMA_ISR_HANDLER_IN_IRAM is not set

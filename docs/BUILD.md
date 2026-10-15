@@ -373,7 +373,7 @@ mDNS dynamic responder allocations in PSRAM — the mDNS task stack follows the
 variant: PSRAM on n8r4, internal RAM on n16r8 because flash core dumps cannot
 read a stack in cache-backed PSRAM — the pinned boot/task/interrupt watchdog
 and panic settings, and the GPTimer ISR handler in IRAM, while the unused RMT
-driver stays in flash. Other application,
+driver and the GDMA control and interrupt code stay in flash. Other application,
 NimBLE/VHCI, HTTP, persistence, control, and flash-writing stacks remain
 internal. These checks verify current hardware settings; they do not retune
 clocks, partitions, or watchdog durations.
