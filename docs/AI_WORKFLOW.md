@@ -82,10 +82,15 @@ to read or work with that record. Limit access to the requested files or stated
 scope. Do not open, search, summarize, or load these directories as background
 context during orientation, general discovery, or session recovery.
 
+A record that the requested record directly references by path or link is
+within scope: read it when the requested work needs it. For example, a request
+to implement plan A permits reading audit or plan B when A links to B. This
+grant covers only direct references from the requested record; references found
+in B do not extend it. If a reference is ambiguous, ask before reading.
+
 File availability, a similar task name, an instruction to maintain records, or a
-link in another document does not grant access. A request to change plan/audit
-policies is not a request to read stored plans or audits. Do not automatically
-follow references to other records beyond the user's requested scope.
+link in any other document does not grant access. A request to change plan/audit
+policies is not a request to read stored plans or audits.
 
 Without an explicit request, continue from the conversation and canonical
 documentation. Creating and updating the current task's record from information

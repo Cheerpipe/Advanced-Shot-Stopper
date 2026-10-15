@@ -5,8 +5,10 @@
 Read only this file, `docs/README.md`, and the nearest scoped `AGENTS.md` for
 the area being changed. Expand context only when those files point to it.
 Never read `docs/plans/` or `docs/audits/` content proactively for context.
-Read a plan or audit only when the user explicitly asks to read or work with it;
-documentation links, task similarity, and session recovery do not grant access.
+Read a plan or audit only when the user explicitly asks to read or work with it,
+or when that explicitly requested record directly references it by path or link
+and the work needs it. Other documentation links, task similarity, and session
+recovery do not grant access.
 
 ## Language
 

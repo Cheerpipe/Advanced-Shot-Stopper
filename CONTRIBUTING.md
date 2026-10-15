@@ -18,8 +18,9 @@ changing a dependency.
    safety-related documentation can also be R3. State affected invariants.
 3. Before multi-step implementation, create a plan in `docs/plans/`;
    before an audit, create its file in `docs/audits/`. Read or resume existing
-   plans/audits only when the user explicitly asks to read or work with them;
-   never load them proactively as context. Follow
+   plans/audits only when the user explicitly asks to read or work with them, or
+   when such a requested record directly references them; never load them
+   proactively as context. Follow
    [the shared tracking and handoff contract](docs/AI_WORKFLOW.md#plans-audits-and-session-handoff).
    Track every step and substep with a status and checkbox; update completed work
    immediately and keep the recovery checkpoint in the same file current.

@@ -43,7 +43,8 @@ Temporary working files live in Git-ignored `temp/` inside the local project.
 Development plans live in Git-ignored `docs/plans/`, and audits in Git-ignored
 `docs/audits/`. Each plan or audit is its own progress record and session handoff.
 Their contents are not onboarding or background context: read them only when the
-user explicitly requests reading or working with a plan or audit. See the
+user explicitly requests reading or working with a plan or audit, or when that
+requested record directly references them. See the
 [record access rule](AI_WORKFLOW.md#explicit-access-to-plans-and-audits).
 See the [shared format and recovery procedure](AI_WORKFLOW.md#plans-audits-and-session-handoff).
 All three directories belong to the local project and remain accessible from
