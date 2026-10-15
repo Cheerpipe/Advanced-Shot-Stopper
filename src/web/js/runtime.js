@@ -1200,6 +1200,7 @@ function renderShotSpark(h, shot) {
   };
   preset.addEventListener("pointerdown", (e) => {
     if (!preset._view) return;
+    e.preventDefault();
     preset.setPointerCapture(e.pointerId);
     preset.focus({ preventScroll: true });
     seek(preset._view.tAt(e.clientX - preset.firstChild.getBoundingClientRect().left));
