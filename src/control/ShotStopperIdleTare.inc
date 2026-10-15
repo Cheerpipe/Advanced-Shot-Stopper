@@ -22,6 +22,7 @@ struct IdleTareRuntime {
   uint32_t accessoryCycleId = 0;
   uint32_t accessoryStartedAtMs = 0;
   uint32_t accessoryLastAtMs = 0;
+  uint32_t accessoryBelowAtMs = 0;  // Last reading below the minimum cup.
   uint32_t unloadStartedAtMs = 0;
   uint32_t unloadLastAtMs = 0;
   float previousReferenceG = 0.0f;
@@ -31,6 +32,7 @@ struct IdleTareRuntime {
   float lastWeightG = 0.0f;
   float accessoryMinimumG = 0.0f;
   float accessoryMaximumG = 0.0f;
+  float accessoryBelowG = 0.0f;
   float knownAccessoryMassG = 0.0f;
   float unloadMinimumG = 0.0f;
   float unloadMaximumG = 0.0f;
@@ -429,6 +431,10 @@ bool idleAccessoryUnloadUnsettled(float weight, uint32_t atMs) {
 }
 
 void observeIdleAccessory(float weight, uint32_t atMs) {
+  if (weight < runtimeConfig.minimumCupWeightG) {
+    idleTare.accessoryBelowG = weight;
+    idleTare.accessoryBelowAtMs = atMs;
+  }
   if (idleTare.requestId == 0 && cupPresence.weight.valid &&
       fabsf(weight) <= FIRST_DROP_BASELINE_SETTLE_G) {
     if (idleTare.knownAccessoryMassG == 0.0f) idleTare.accessoryUsed = false;
@@ -458,6 +464,11 @@ void observeIdleAccessory(float weight, uint32_t atMs) {
                                 runtimeConfig.retareStabilityMaxGapMs
                                 ? IdleTareReason::SAMPLE_GAP : IdleTareReason::UNSTABLE));
     idleTare.accessorySamples = 0;
+    // An accessory lands as a step from below the minimum; a pour (milk,
+    // syrup, coffee) ramps across it and must not start a tare window.
+    if (weight > 0.0f &&
+        (atMs - idleTare.accessoryBelowAtMs > runtimeConfig.retareStabilityMaxGapMs ||
+         weight - idleTare.accessoryBelowG < runtimeConfig.minimumCupWeightG / 2.0f)) return;
     idleTare.accessoryStartedAtMs = atMs;
     idleTare.accessoryMinimumG = idleTare.accessoryMaximumG = weight;
   }

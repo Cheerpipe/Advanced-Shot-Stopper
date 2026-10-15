@@ -69,9 +69,12 @@ calculated load includes the accessory. If you then remove that accessory before
 brewing, a matching stable weight drop triggers another tare while the cup stays
 present. You can add the accessory again after that removal. A second addition
 without an intervening known removal, or any change during or after its shot,
-does not trigger this option. Because the scale reports weight
-rather than what was added, a stable addition of coffee can also be tared.
-Leave this option OFF if you put ingredients in the cup before brewing.
+does not trigger this option. Only an addition that lands in one motion is
+tared, so set the accessory down rather than easing it on; a pour that builds
+up gradually (milk, syrup, coffee) is not tared. Because the scale reports
+weight rather than what was added, a quick splash can still look like an
+accessory. Leave this option OFF if you put ingredients in the cup before
+brewing.
 Disconnected, stale, uncertain, or interrupted readings cannot authorize it.
 
 When the cup and accessory were placed together, the controller knows only their

@@ -11135,6 +11135,25 @@ void it37_accessory_retare_is_opt_in_and_once_before_shot() {
   }
 }
 
+void it72_accessory_ramp_is_not_tared() {
+  for (bool ramp : {true, false}) {
+    prepareIdleTare();
+    runtimeConfig.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
+    idleCup(80.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+    if (ramp) {  // Milk poured into the tared cup: +0.4 g per reading.
+      for (float w = 0.4f; w <= 15.0f; w += 0.4f) idleWeight(w, 100);
+      idleCup(15.0f);
+    } else {  // A spoon set down in one motion.
+      idleWeight(12.0f, 100);
+      idleCup(12.0f);
+    }
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (ramp ? 0U : 1U));
+  }
+}
+
 void it38_accessory_retare_requires_continuous_confirmed_placement() {
   for (unsigned mode = 0; mode < 4; ++mode) {
     prepareIdleTare();
@@ -20973,6 +20992,7 @@ const TestCase testCases[] = {
     {"IT69", it69_button_zero_on_empty_pan_rearms_idle_tare},
     {"IT70", it70_equal_weight_swap_at_zero_shows_absent},
     {"IT71", it71_tare_with_coffee_then_lift_recovers},
+    {"IT72", it72_accessory_ramp_is_not_tared},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},
