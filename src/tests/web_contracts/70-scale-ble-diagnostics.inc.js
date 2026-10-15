@@ -27,8 +27,9 @@
   const first = source.indexOf('function formatScaleStatus(');
   const last = source.indexOf('function formatScaleTimer(', first);
   const elements = {cupWeight: {textContent: 'old'}, dCupWeight: {textContent: 'old'}, idleTareStatus: {textContent: 'old'}};
-  const helpers = new Function('$', source.slice(first, last) +
-    ';return {formatCupWeight,clearCupWeights,formatIdleTare};')(id => elements[id]);
+  const helpers = new Function('$', 'sub', source.slice(first, last) +
+    ';return {formatCupWeight,clearCupWeights,formatIdleTare};')(id => elements[id],
+    (t, vals) => t.replace(/\{(\d)\}/g, (_, i) => vals[+i]));
   const good = {scale: {available: true, streamState: 'FRESH'},
     cupPresence: {present: true, weightValid: true, weightG: 80, placementId: 1}};
   if (helpers.formatCupWeight(good) !== '≈ 80.0 g') throw new Error('Cup weight format');
@@ -55,6 +56,17 @@
   ]) {
     const s = {...good, cupPresence: {present: false, idleTare: state}};
     if (helpers.formatIdleTare(s) !== expected) throw new Error('Idle tare readiness: ' + expected);
+  }
+  for (const [delta, expected] of [
+    [52, 'Empty scale must settle (reads 52.0 g above empty)'],
+    [-12.04, 'Empty scale must settle (reads 12.0 g below empty)'],
+    [0.2, 'Empty scale must settle'], [null, 'Empty scale must settle'],
+  ]) {
+    const s = {...good, cupPresence: {present: false, idleTare: 'empty', anchorDeltaG: delta}};
+    if (helpers.formatIdleTare(s) !== expected) throw new Error('Idle tare empty offset: ' + expected);
+  }
+  if (!network.includes('delta.field("cupPresence.anchorDeltaG"')) {
+    throw new Error('Home cup delta must carry the empty-reference offset');
   }
   for (const reason of ['remove', 'retry']) {
     const s = {...good, cupPresence: {present: true, idleTare: reason}};

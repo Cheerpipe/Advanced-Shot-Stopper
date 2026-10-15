@@ -173,6 +173,8 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("cupPresence.weightValid", bool(control.cupPresent && tare.weightValid && std::isfinite(tare.weightG)));
   delta.field("cupPresence.idleTare", "\"%s\"", idleCode == IDLE_WAITING_FOR_SETTLE ? "empty" :
       idleCode == IDLE_READY_FOR_CUP ? "ready" : idleTarePresentationName(idleCode));
+  if (std::isfinite(tare.anchorDeltaG)) delta.field("cupPresence.anchorDeltaG", tare.anchorDeltaG);
+  else delta.field("cupPresence.anchorDeltaG", "null");
   delta.field("cycle.active", bool(control.activeCycle));
   delta.field("cycle.shotType", "\"%s\"", activeCycleShotTypeLabel(control));
   delta.field("cycle.extractionExtended", bool(control.cycleExtractionExtended));

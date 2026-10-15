@@ -10922,10 +10922,12 @@ void it68_plateau_above_anchor_plus_mincup_still_waits() {
   CHECK(cupPresenceState() == CupPresenceState::ABSENT);
   CHECK(!cupPresence.weight.emptyValid);
   CHECK(cupPresence.emptyAnchorG == -250.0f);
+  CHECK(captureCupTareDiagnostics().anchorDeltaG == 50.0f);
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
   idleCup(-300.0f);  // Lifting that load reveals an empty plateau again.
   CHECK(cupPresence.weight.emptyValid);
   CHECK(cupPresence.emptyAnchorG == -300.0f);
+  CHECK(std::isnan(captureCupTareDiagnostics().anchorDeltaG));
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
 }
 

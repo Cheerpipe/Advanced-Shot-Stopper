@@ -177,11 +177,15 @@ empty scale and reconnect it. **Stale**, **No sample**, and **Disconnected** tak
 precedence when scale data is unavailable. A smoothly displayed weight does not
 prove a qualifying placement: a gap longer than **Max sample gap** also requires
 fresh removal/placement evidence. After a successful tare, the message stays
-**Tared** while that cup remains present.
+**Tared** while that cup remains present. While the empty pan must settle, the
+message also shows how far the reading is from the empty reference; a reading
+well above it usually means something is still on the pan.
 
 Debug export schema 1 includes `idleTare`: request/placement IDs, eligibility
 and terminal reasons, reference confidence, qualifying weight range, capture
-and command times, sequence boundary, and dropped/rejected sample counts.
+and command times, sequence boundary, dropped/rejected sample counts, and
+`anchorDeltaG` (the idle reading minus the empty reference while it waits for
+the pan to settle, otherwise `null`).
 These fields come from the control snapshot. `effect_unconfirmed`, `unstable`,
 `stale_sample`, `sample_gap`, and `removed` distinguish common incomplete
 attempts. `qualificationMinG`/`qualificationMaxG` describe the observed window,
@@ -191,7 +195,8 @@ is performed.
 
 Both Home and full Web status payloads additionally expose `cupPresence.idleTare`
 as a presentation code: `empty`, `ready`, `pending`, `tared`, `remove`,
-`retry`, `uncertain`, or the existing eligibility reason. It is derived from the
+`retry`, `uncertain`, or the existing eligibility reason, and
+`cupPresence.anchorDeltaG` with the same meaning as in the debug export. It is derived from the
 same control snapshot; it neither authorizes commands nor changes the separate
 integration API. Clients must also check scale availability and stream state.
 

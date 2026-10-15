@@ -410,6 +410,9 @@ CupTareDiagnostics captureCupTareDiagnostics() {
   out.requestMinimumG = idleTare.requestMinimumG;
   out.requestMaximumG = idleTare.requestMaximumG;
   out.lastWeightG = idleTare.lastWeightG;
+  out.anchorDeltaG = !session.active && cupPresenceState() == CupPresenceState::ABSENT &&
+      !cupPresence.weight.emptyValid && std::isfinite(cupPresence.emptyAnchorG)
+      ? idleTare.lastWeightG - cupPresence.emptyAnchorG : NAN;
   out.placementId = cupPresencePlacementId();
   out.requestPlacementId = idleTare.placementId;
   out.requestId = idleTare.requestId;

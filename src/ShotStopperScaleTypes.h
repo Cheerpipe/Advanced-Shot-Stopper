@@ -421,6 +421,7 @@ struct CupTareDiagnostics {
   float requestMinimumG = 0.0f;
   float requestMaximumG = 0.0f;
   float lastWeightG = 0.0f;
+  float anchorDeltaG = NAN;  // Idle reading minus the empty reference while it waits.
   uint32_t placementId = 0;
   uint32_t requestPlacementId = 0;
   uint32_t requestId = 0;
