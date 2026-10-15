@@ -621,11 +621,12 @@ inline FirstFlowClass stepFirstFlow(
       firstFlowPacketsConsecutive(state, receivedAtMs, packetSequence);
 
   if (state.phase == FirstFlowPhase::SEEKING) {
-    if (delta < thresholdG) {
+    // Vibration alternates sign; flow never steps down inside a streak.
+    if (delta < thresholdG || (state.hasLastSample && step < 0.0f)) {
       // σ̂ is fed only by idle sub-threshold samples — real packets, never
       // the monotone lock minimum — capped, and frozen during a live streak
       // and through rising runs.
-      if (state.confirmations == 0 &&
+      if (delta < thresholdG && state.confirmations == 0 &&
           state.riseRun < FIRST_DROP_NOISE_RISE_FREEZE) {
         noteFirstFlowNoiseSample(
             state, fminf(fabsf(delta), FIRST_DROP_NOISE_MAX_DEVIATION_G));
@@ -637,25 +638,16 @@ inline FirstFlowClass stepFirstFlow(
       noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
       return FirstFlowClass::NONE;
     }
-    // A finger is a fast step; the same step spread over a packet gap is
-    // coffee that accumulated while the stream was silent.
-    const float stepDtS = state.hasLastSample
-        ? fmaxf(static_cast<uint32_t>(receivedAtMs - state.lastAtMs) / 1000.0f, 0.1f) : 0.0f;
+    // A finger is a fast step (8 g/s); the same step spread over a packet
+    // gap is coffee that accumulated while the stream was silent.
+    const uint32_t stepMs = receivedAtMs - state.lastAtMs;
     if ((step >= FIRST_DROP_FINGER_STEP_G &&
-         (!state.hasLastSample || step / stepDtS > ACCIDENTAL_TOUCH_STARTUP_MAX_RATE_G_S)) ||
+         (!state.hasLastSample || step * 125.0f > (stepMs > 100U ? stepMs : 100U))) ||
         delta >= objectMinG) {
       const FirstFlowClass classified =
           enterFirstFlowTouch(state, weight, receivedAtMs);
       noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
       return classified;
-    }
-    // Vibration alternates sign; flow never steps down inside a streak.
-    if (state.hasLastSample && step < 0.0f) {
-      state.confirmations = 0;
-      state.candidateMs = 0;
-      state.candidateWeightG = 0.0f;
-      noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
-      return FirstFlowClass::NONE;
     }
     state.confirmations =
         consecutive && state.confirmations > 0
