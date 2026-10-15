@@ -472,7 +472,8 @@ partition_contracts = {
                  "shotlog": (0x62E000, 0x8000),
                  "history": (0x636000, 0x8000),
                  "scaleprof": (0x70A000, 0x41000),
-                 "ffat": (0x74B000, 0x6B5000),
+                 "auditlog": (0x74B000, 0x10000),
+                 "ffat": (0x75B000, 0x6A5000),
                  "coredump": (0xE00000, 0xA0000),
                  "crashhist": (0xEA0000, 0x160000)},
     },
@@ -484,7 +485,8 @@ partition_contracts = {
                  "shotlog": (0x68E000, 0x8000),
                  "history": (0x696000, 0x8000),
                  "scaleprof": (0x76A000, 0x41000),
-                 "spiffs": (0x7AB000, 0x45000),
+                 "auditlog": (0x7AB000, 0x10000),
+                 "spiffs": (0x7BB000, 0x35000),
                  "coredump": (0x7F0000, 0x10000)},
     },
 }
@@ -1349,14 +1351,14 @@ def flash_command(layout: str, *extra: str, arch: str = "n8r4"):
             "+'app0,app,ota_0,0x20000,0x330000\\n'+curve)\n"
             "if os.environ['FLASH_LAYOUT'] == 'legacy':\n"
             f"    text = Path({str(ROOT / 'idf')!r}, 'partitions-' + os.environ['EXPECTED_ARCH'] + '.csv').read_text()\n"
-            "    text = text.replace('0x69E000,0xCC000', '0x680000,0xE000').replace('0x7AB000,0x45000', '0x69E000,0x152000')\n"
-            "    text = text.replace('0x63E000,0xCC000', '0x620000,0xE000').replace('0x74B000,0x6B5000', '0x63E000,0x7C2000')\n"
-            "    text = ''.join(l for l in text.splitlines(True) if not l.startswith('scaleprof'))\n"
+            "    text = text.replace('0x69E000,0xCC000', '0x680000,0xE000').replace('0x7BB000,0x35000', '0x69E000,0x152000')\n"
+            "    text = text.replace('0x63E000,0xCC000', '0x620000,0xE000').replace('0x75B000,0x6A5000', '0x63E000,0x7C2000')\n"
+            "    text = ''.join(l for l in text.splitlines(True) if not l.startswith(('scaleprof', 'auditlog')))\n"
             "    Path(sys.argv[-1]).write_text(text)\n"
             "if os.environ['FLASH_LAYOUT'] == 'predecessor':\n"
             f"    text = Path({str(ROOT / 'idf')!r}, 'partitions-' + os.environ['EXPECTED_ARCH'] + '.csv').read_text()\n"
-            "    text = text.replace('0x7AB000,0x45000', '0x76A000,0x86000').replace('0x74B000,0x6B5000', '0x70A000,0x6F6000')\n"
-            "    text = ''.join(l for l in text.splitlines(True) if not l.startswith('scaleprof'))\n"
+            "    text = text.replace('0x7BB000,0x35000', '0x76A000,0x86000').replace('0x75B000,0x6A5000', '0x70A000,0x6F6000')\n"
+            "    text = ''.join(l for l in text.splitlines(True) if not l.startswith(('scaleprof', 'auditlog')))\n"
             "    Path(sys.argv[-1]).write_text(text)\n")
         (tools / "idf.py").write_text(
             "#!/bin/sh\n"
