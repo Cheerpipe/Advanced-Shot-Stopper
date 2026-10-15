@@ -86,9 +86,13 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
   if (widgets != nullptr && !cJSON_IsArray(widgets)) return false;
   const cJSON *widget = nullptr;
   cJSON_ArrayForEach(widget, widgets) {
-    if (!cJSON_IsObject(widget)) return false;
+    // A widget without a string code cannot be one this decoder relies on;
+    // skip it so one new vendor widget shape cannot stall observation.
+    if (!cJSON_IsObject(widget)) continue;
+    // A repeated code is ambiguous (it may name a control widget): reject.
+    if (duplicated(find(widget, "code"), "code")) return false;
     const char *code = text(widget, "code");
-    if (code == nullptr) return false;
+    if (code == nullptr) continue;
     const bool power = strcmp(code, "CMMachineStatus") == 0;
     const bool boiler = strcmp(code, "CMCoffeeBoiler") == 0;
     const bool steam = strcmp(code, "CMSteamBoilerLevel") == 0;
@@ -164,7 +168,7 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
   if (removed != nullptr && !cJSON_IsArray(removed)) return false;
   cJSON_ArrayForEach(widget, removed) {
     const char *code = cJSON_IsString(widget) ? widget->valuestring : text(widget, "code");
-    if (code == nullptr) return false;
+    if (code == nullptr) continue;
     if (strcmp(code, "CMMachineStatus") == 0) {
       next.powerPresent = true;
       next.mode = LineaMicraObservedMode::NONE;

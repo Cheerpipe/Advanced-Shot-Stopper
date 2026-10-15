@@ -244,6 +244,22 @@ struct MicraWebSocketTest {
     service.stopWebSocket(true);
     delete service.work_;
   }
+  static void slowHandshakeIsNotAReconnect() {
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.serviceWebSocket();
+    const auto stopsBefore = stops;
+    now += 12000;  // Slow DNS/TLS: the transport is still connecting.
+    service.serviceWebSocket();
+    assert(stops == stopsBefore && service.websocket_ && service.websocket_->client);
+    subscribe(service);
+    assert(stops == stopsBefore && service.websocketStatus().unexpectedConnections == 0);
+    service.stopWebSocket(true);
+    delete service.work_;
+  }
   static void connectionClassification() {
     now = 1000;
     ShotStopperMicraService service;
@@ -855,6 +871,7 @@ int main() {
   shotstopper::MicraWebSocketTest::run();
   shotstopper::MicraWebSocketTest::lifecycleRegressions();
   shotstopper::MicraWebSocketTest::connectionClassification();
+  shotstopper::MicraWebSocketTest::slowHandshakeIsNotAReconnect();
   shotstopper::MicraWebSocketTest::initialSynchronization();
   shotstopper::MicraWebSocketTest::backflushContract();
   shotstopper::MicraWebSocketTest::backflushIdlePoll();

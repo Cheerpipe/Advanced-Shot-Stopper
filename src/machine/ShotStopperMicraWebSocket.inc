@@ -429,7 +429,10 @@ void ShotStopperMicraService::serviceWebSocket() {
           websocket_->disconnectGeneration != disconnectGeneration_.load();
     }
     now = millis();  // Callback timestamps in the snapshot can postdate the first sample.
-    const bool timeout = (!subscribed && now - websocket_->setupAtMs >= 10000) ||
+    // The STOMP handshake gets 10 s from transport connect; before that the
+    // SDK's own 10 s network timeout plus DNS bounds the connect itself.
+    const bool timeout = (!subscribed && (connectedAtMs
+        ? now - connectedAtMs >= 10000 : now - websocket_->setupAtMs >= 25000)) ||
         (partialPending && now - partial >= 10000) ||
         (subscribed && now - (pongAtMs ? pongAtMs : connectedAtMs) >= 30000);
     const bool renew = work_ && micra_timing::accessTokenRefreshDue(now - work_->accessTokenIssuedAtMs);
@@ -536,6 +539,7 @@ void ShotStopperMicraService::serviceWebSocket() {
     buffer.stamp = observationFence_.stamp(identityGeneration_, powerState_.generation());
     websocketStatus_.epoch = buffer.stamp.epoch;
     websocketStatus_.pauseAtMs = 0;
+    websocketStatus_.connectedAtMs = 0;
     snprintf(buffer.subscription, sizeof(buffer.subscription), "micra-%lu", static_cast<unsigned long>(buffer.stamp.epoch));
   }
   const int destinationLength = snprintf(buffer.destination, sizeof(buffer.destination),

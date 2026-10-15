@@ -129,6 +129,13 @@ int main() {
   assert(!update.powerPresent);  // No partial publication from invalid data.
   assert(!decode(R"({"widgets":[{"code":"CMCoffeeBoiler","output":{"targetTemperature":100.1}}]})", update));
   assert(decode(R"({"connected":false,"widgets":[{"code":"FutureWidget"}]})", update));
+  // Malformed widgets the decoder does not use are skipped, not fatal.
+  {
+    MicraObservation tolerant;
+    assert(decode(R"({"widgets":[{"code":7},"note",{"output":{}},{"code":"CMMachineStatus","output":{"mode":"StandBy"}}]})", tolerant));
+    assert(tolerant.powerPresent);
+    assert(decode(R"({"removedWidgets":[{"name":"Future"},"CMBackFlush"]})", tolerant));
+  }
   assert(update.connectedPresent && !update.connected && !update.powerPresent);
   update = {};
   assert(!decode(R"({"connected":true,"connected":false})", update));

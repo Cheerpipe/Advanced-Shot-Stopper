@@ -305,6 +305,9 @@ edge-gated Wi-Fi power-save reconciliation bring flash code to 1,563,272
 bytes (48,172 over baseline, same worktree). The flash-code allowance moves
 to 48,236 bytes, keeping the 64-byte headroom; image, linked size and rodata
 stay inside their allowances.
+Tolerant Micra dashboard decoding and the connect-relative STOMP handshake
+timeout bring flash code to 1,563,344 bytes (48,244 over baseline); the
+flash-code allowance moves to 48,308 bytes, keeping the 64-byte headroom.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
