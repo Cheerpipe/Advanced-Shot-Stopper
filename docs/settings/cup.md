@@ -27,7 +27,13 @@ undershoot followed by an empty-pan rebound does not count as another placement.
 Without an absent baseline at boot, a stable absolute reading above the minimum
 can establish presence, but cannot establish cup mass.
 
-The empty reference stays fixed once a cup has been weighed. Before that, a
+Once a cup has been weighed, the empty reference changes only after that cup
+is lifted: the pan's next stable reading becomes the new reference, provided
+it is less than **Minimum cup weight** above the previous one. This keeps
+automatic tare working when the pan settles a few grams away from where it was,
+or when the cup was tared with coffee in it. A higher stable reading could
+still be the pan with something on it, so the controller keeps waiting until
+the pan is cleared. Before the first cup is weighed, a
 small empty-pan offset can be accepted after stable readings; it must stay
 within 5 g of zero or half **Minimum cup weight**, whichever is smaller.
 Several small shifts cannot add up to move this band farther from zero.

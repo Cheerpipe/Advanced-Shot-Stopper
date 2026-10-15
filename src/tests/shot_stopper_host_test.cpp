@@ -9273,23 +9273,23 @@ void cw25_lost_samples_cannot_learn_a_negative_empty_reference() {
   }
 }
 
-void cw26_tare_anchor_rejects_stable_removal_undershoot() {
+void cw26_stable_removal_undershoot_becomes_empty_reference() {
+  // After a lift the tare-translated anchor is provisional: a stable empty
+  // plateau below it (something else was removed too) is the new reference,
+  // so the next load is measured from it.
   prepareIdleTare();
   idleCup(300.0f);
   CHECK(executeNextScaleCommand());
   idleCup(0.0f);
   CHECK(cupPresence.emptyAnchorG == -300.0f);
   idleCup(-400.0f);
-  idleCup(-400.0f); // Even a full stable undershoot cannot replace the anchor.
-  CHECK(!cupPresence.weight.emptyValid);
+  idleCup(-400.0f);
+  CHECK(cupPresence.weight.emptyValid);
+  CHECK(cupPresence.emptyAnchorG == -400.0f);
   idleCup(-300.0f);
-  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
-  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
-  idleCup(50.0f);
-  CHECK(captureCupTareDiagnostics().weightG == 350.0f);
-  CHECK(executeNextScaleCommand());
-  idleCup(0.0f);
-  CHECK(cupPresence.emptyAnchorG == -350.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(captureCupTareDiagnostics().weightG == 100.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
 }
 
 void cw14_heavy_tare_offsets_preserve_replacement_mass() {
@@ -10892,6 +10892,64 @@ void it63_initial_recovery_respects_stability_and_zero_boundaries() {
       CHECK(commandCount(ScaleCommandType::TARE_ONLY) == (outside ? 0U : 1U));
     }
   }
+}
+
+void it67_offanchor_empty_plateau_requalifies_after_removal() {
+  for (float empty : {-247.0f, -262.0f}) {
+    prepareIdleTare();
+    idleCup(250.0f);
+    CHECK(executeNextScaleCommand());
+    idleCup(0.0f);
+    CHECK(cupPresence.emptyAnchorG == -250.0f);
+    idleCup(empty);  // Lift, then let the empty pan settle.
+    idleCup(empty);
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    CHECK(cupPresence.weight.emptyValid);
+    CHECK(cupPresence.emptyAnchorG == empty);
+    CHECK(idleTare.absentObserved);
+    idleCup(empty + 250.0f);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+    CHECK(captureCupTareDiagnostics().weightG == 250.0f);
+  }
+}
+
+void it68_plateau_above_anchor_plus_mincup_still_waits() {
+  prepareIdleTare();
+  idleCup(250.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  idleCup(-200.0f);  // Could be the pan plus a 50 g load: not an empty pan.
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(!cupPresence.weight.emptyValid);
+  CHECK(cupPresence.emptyAnchorG == -250.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  idleCup(-300.0f);  // Lifting that load reveals an empty plateau again.
+  CHECK(cupPresence.weight.emptyValid);
+  CHECK(cupPresence.emptyAnchorG == -300.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+}
+
+void it71_tare_with_coffee_then_lift_recovers() {
+  // The shot-start tare zeroes the cup, so lifting it with its coffee reads
+  // below the translated anchor; that plateau must still rearm idle tare.
+  prepareIdleTare();
+  idleCup(300.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  startCycle();
+  while (executeNextScaleCommand()) {}
+  establishPostTareBaseline();
+  CHECK(cupPresence.emptyAnchorG == -300.0f);
+  CHECK(finalizeCycle(EndReason::ACTIVATOR, StopperState::READY));
+  idleCup(36.0f);
+  idleCup(-336.0f);  // Lift the cup with its coffee, then let the pan settle.
+  idleCup(-336.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  CHECK(cupPresence.weight.emptyValid);
+  CHECK(cupPresence.emptyAnchorG == -336.0f);
+  idleCup(-36.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  CHECK(captureCupTareDiagnostics().weightG == 300.0f);
 }
 
 void it37_accessory_retare_is_opt_in_and_once_before_shot() {
@@ -20683,7 +20741,7 @@ const TestCase testCases[] = {
     {"CW23", cw23_invalid_numeric_samples_break_confirmations},
     {"CW24", cw24_minimum_mass_is_independent_of_stability_tolerance},
     {"CW25", cw25_lost_samples_cannot_learn_a_negative_empty_reference},
-    {"CW26", cw26_tare_anchor_rejects_stable_removal_undershoot},
+    {"CW26", cw26_stable_removal_undershoot_becomes_empty_reference},
     {"IT02", it02_idle_zero_allows_guarded_start},
     {"IT03", it03_shot_end_never_tares_remaining_cup},
     {"IT04", it04_reconnect_and_setting_changes_do_not_place},
@@ -20755,6 +20813,9 @@ const TestCase testCases[] = {
     {"IT64", it64_bookoo_handling_profile_tares_first_stable_cup},
     {"IT65", it65_profile5_handling_tares_first_physical_cup},
     {"IT66", it66_initial_positive_return_requires_known_zero_and_subminimum_load},
+    {"IT67", it67_offanchor_empty_plateau_requalifies_after_removal},
+    {"IT68", it68_plateau_above_anchor_plus_mincup_still_waits},
+    {"IT71", it71_tare_with_coffee_then_lift_recovers},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},
