@@ -777,8 +777,11 @@ if (htmlBytes > 93300) {
 // Release inertia on the target ruler (friction glide that stops at the
 // preset limits and yields to any other input) adds +1592 measured JS bytes
 // (416596), owner-authorized 2026-10-14.
-if (jsBytes > 416700) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 416700)`);
+// The Stats shot card's own preset graph with its "More charts" toggle, and the
+// shared preset graph that Settings now draws through it, add +2360 measured JS
+// bytes (419060), owner-authorized 2026-10-14.
+if (jsBytes > 419100) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 419100)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -861,8 +864,10 @@ if (jsBytes > 416700) {
 // The Home "Stop the shot" card adds its ~4 KB of combined source allowance
 // (508250 measured) described above.
 // The target ruler's release inertia adds its ~1.1 KB (509705 measured).
-if (htmlBytes + jsBytes > 509800) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 509800)`);
+// The Stats preset graph and its toggle (same +2360 JS bytes as above) bring it
+// to 512167; owner-authorized 2026-10-14.
+if (htmlBytes + jsBytes > 512200) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 512200)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

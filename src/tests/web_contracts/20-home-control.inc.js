@@ -13,7 +13,9 @@
 {
   const helpers = runtimeJs.slice(runtimeJs.indexOf('function lastCurveWeightG('),
       runtimeJs.indexOf('async function populateTimezoneOptions('));
-  const renderer = runtimeJs.slice(runtimeJs.indexOf('function renderShotSpark('),
+  const preset = runtimeJs.slice(runtimeJs.indexOf('function buildRuleChartModel('),
+      runtimeJs.indexOf('function renderPresetReview('));
+  const renderer = runtimeJs.slice(runtimeJs.indexOf('function shotRuleModel('),
       runtimeJs.indexOf('function renderStatsDurChart('));
   const ticks = [[], []], markers = [], charts = [];
   let markup = '';
@@ -24,13 +26,14 @@
     set innerHTML(value){markup=value;markers.length=0;charts.length=0;for(const part of value.split('<div class="shotCurve">').slice(1)){const y=(part.match(/class="shotYTick"/g)||[]).map(()=>({style:{},dataset:{},textContent:'0'})),style={setProperty(k,v){this[k]=v}};charts.push({style,querySelectorAll(){return y},querySelector(){return axisStub}})}},
     hidden:true, replaceChildren(){this.innerHTML=''},
     querySelector(){return {appendChild(item){markers.push(item)},dataset:{}}},
+    append(){},
     querySelectorAll(selector){if(selector==='.shotSparkHost')return charts;return ticks.map((items) => ({
       replaceChildren(){items.length=0}, appendChild(item){items.push(item)},
       setAttribute() {}, removeAttribute() {}, dataset: {}
     }))},
   };
   const render = new Function('document', 'ResizeObserver', '$', 'requestAnimationFrame',
-      helpers + renderer + ';return renderShotSpark;')(
+      'const presetState={cutRampS:0.5};' + helpers + preset + renderer + ';return renderShotSpark;')(
       document, class{observe(){}}, ()=>({}), ()=>{});
   const observed = render(host, {wCg:[0,100,100,200], wAtMs:[0,100,600,600],
     wBreakBefore:[2], wTruncated:true, durationS:1});
@@ -49,10 +52,8 @@
       !weight.includes('class="shotSparkY"') || !flow.includes('class="shotSparkY shotSparkFlowY"') ||
       !flow.includes('d="M1.5 34.5 L48.9 34.5 L60.8 1.5"') ||
       !flow.includes('d="M60.8 1.5 L84.4 1.5"') ||
-      !weight.includes('shotDropOverlay') || flow.includes('shotDropOverlay') ||
-      markers.length !== 1 || !markers[0].innerHTML.includes('fill="#38bdf8"') ||
-      !markers[0].innerHTML.includes('2.0 s') || markers[0].innerHTML.includes('1st') ||
-      flow.includes('shotFirstDrop') ||
+      weight.includes('shotDropOverlay') || flow.includes('shotDropOverlay') ||
+      markers.length !== 0 || flow.includes('shotFirstDrop') || weight.includes('shotFirstDrop') ||
       host.innerHTML.indexOf('class="shotGrid"') > host.innerHTML.indexOf('class="shotTrace"') ||
       !host.innerHTML.includes('M1.5 1.5V34.5M238.5 1.5V34.5') ||
       charts[0].style['--shot-plot-min'] !== '1.10rem' || charts[1].style['--shot-plot-min'] !== '2.20rem' ||
@@ -118,14 +119,11 @@
     throw new Error('Flat measured zero flow must remain visible');
   const tared=render(host,{wCg:[0,100,200],wAtMs:[0,500,1000],durationS:10,
     firstDropS:2,dropCg:50,tareS:3.4});
-  if(tared.tareS!==3.4 || markers.length!==2 ||
-      !markers[1].innerHTML.includes('fill="var(--fg)"') ||
-      !markers[1].innerHTML.includes('>3.4 s</span>') ||
-      Math.abs(parseFloat(markers[1].style.left)-34.2)>.001)
-    throw new Error('Tare marker must retain its recorded time and theme color');
+  if(tared.tareS!==3.4 || markers.length || host.innerHTML.includes('shotTareIcon'))
+    throw new Error('The weight-only chart must not draw first-drop or tare markers; the card keeps them as fields');
   render(host,{wCg:[0,100,200],wAtMs:[0,500,1000],durationS:3,tareS:1});
-  if(markers.length!==1 || !markers[0].innerHTML.includes('>1.0 s</span>'))
-    throw new Error('Whole-second tare labels must retain one decimal');
+  if(markers.length)
+    throw new Error('Whole-second tare times must not draw a weight-only marker');
   const rounded=render(host,{wCg:[0,1200,2500,3900],wAtMs:[0,3775,7550,11325],
     durationS:15.1,goalG:36});
   if(rounded.timeMax!==20 || rounded.maxW!==40 || rounded.flowMax!==4 ||
@@ -674,12 +672,12 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
     !codeIncludes(runtimeJs, 'Flow rate (g/s)') ||
     !codeIncludes(runtimeJs, "querySelectorAll('.ruleChartTicks')") ||
     codeIncludes(runtimeJs, "['.ruleChartTicks',xt]") || codeIncludes(runtimeJs, "'.shotEventTicks'") ||
-    codeIncludes(runtimeJs, "'1st '+L(") || !codeIncludes(runtimeJs, "label=time.toFixed(1)+' s'") ||
+    codeIncludes(runtimeJs, "'1st '+L(") ||
     codeIncludes(runtimeJs, 'fillChartTicks($(\'shotBarTicks\')') ||
     !codeIncludes(runtimeJs, 'raw.sort(') ||
     codeIncludes(runtimeJs, 'shotIdle') ||
     codeIncludes(runtimeJs, "last?'Last shot.'") ||
-    !css.includes('.shotFirstDrop{') ||
+    css.includes('.shotFirstDrop') ||
     codeIncludes(runtimeJs, 'stroke="currentColor"') ||
     !codeIncludes(runtimeJs, "if(spark.hidden)row.classList.add('noSpark')") ||
     !css.includes('.shotCard{') ||

@@ -406,12 +406,17 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .shotSpark{grid-area:plot;display:block;width:100%;height:100%;color:var(--ok);overflow:visible}
 .shotGrid,.rvGrid{stroke:var(--ln);stroke-width:.8;opacity:.7}.shotGrid,.shotTrace{vector-effect:non-scaling-stroke}
 .shotDropOverlay{grid-area:plot;position:relative}
-.shotFirstDrop{position:absolute;bottom:10%;white-space:nowrap;font-size:.68rem;color:var(--mu)}
 .chartMeasure{visibility:hidden}
-.shotFirstDrop svg{vertical-align:middle}
-.shotTareIcon{width:34.125px;height:14px}
 .shotSparkHost .ruleChartTicks,#shotTable td.shotSparkCell .ruleChartTicks{grid-area:x}
 .shotSparkCell::before{content:none}
+/* min-width:0 lets the fixed-width preset SVG shrink with its grid cell. */
+.shotPresetChart,.shotMore{min-width:0}
+.shotPresetChart .rvLast{stroke-width:2.5;stroke-dasharray:5 4}
+.shotPresetChart .rvLastDrip{stroke-width:1.5;stroke-dasharray:3 3;opacity:.55}
+.shotMore[hidden]{display:none}
+.shotMore{display:grid;gap:.65rem}
+.shotMoreBtn{position:relative;justify-self:stretch;min-height:1.75rem;padding:0;border:0;background:none;color:var(--mu);font:inherit;font-size:.78rem;cursor:pointer}
+.shotMoreBtn::after{content:"";position:absolute;inset:-.5rem 0}
 .starRate{display:inline-flex;align-items:center;margin:-.6rem 0 0 -.15rem}
 .starRate button{padding:0;border:0;background:transparent;color:var(--bd);width:1.35rem;height:var(--tap);display:grid;place-items:center}
 .starRate button+button{margin-left:-.18rem}

@@ -1274,7 +1274,7 @@ if (!statsSection ||
     !statsSection[1].includes('id="statsAvgErr"') ||
     !statsSection[1].includes('id="statsAvgFlow"') ||
     !statsSection[1].includes('class="fieldHint"') ||
-    !statsSection[1].includes('Last 10 shots. BBW: 10 shots stopped by weight.') ||
+    !statsSection[1].includes('Averages from your last 10 shots stopped by weight.') ||
     !statsSection[1].includes('id="statsDurChart"') ||
     !codeIncludes(runtimeJs, 'function renderStatsDurChart(') ||
     !codeIncludes(viewJs.stats, 'R.renderStatsDurChart()') ||

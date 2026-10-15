@@ -1107,15 +1107,84 @@ async function syncTimezone(c) {
     autoInitPending = false;
   }
 }
+// A shot's own preset graph, from its stored snapshot (never the live preset).
+// Timer-only shots draw every cut segment off; the verdict zone is not colored yet.
+function shotRuleModel(r) {
+  const timer = (r.shotType || "").toLowerCase() === "timer_only";
+  return buildRuleChartModel({
+    goalWeightG: r.goalG,
+    fastBeforeS: r.fastBeforeS,
+    slowAfterS: r.slowAfterS,
+    bbwProtectionMs: r.delayS * 1e3,
+    operationalWallMs: r.wallS * 1e3,
+    cutRampS: r.cutRampS,
+    fastExtractionGuardEnabled: !timer && r.extractionGuardEnabled,
+    slowExtractionGuardEnabled: !timer && r.slowExtractionGuardEnabled,
+    fastMarginG: r.fastMarginG,
+    slowMarginG: r.slowMarginG,
+    firstDropS: r.firstDropS,
+    brewByWeight: !timer,
+  });
+}
+const shotMoreOpen = new Set();
+let shotPresetObserver = null;
 function renderShotSpark(h, shot) {
   if (!h) return null;
   const m = buildShotSparkModel(shot);
+  h.replaceChildren();
   if (!m) {
-    h.replaceChildren();
     h.hidden = true;
     return null;
   }
   h.hidden = false;
+  const rule = shotRuleModel(shot);
+  if (rule.mode === "empty") return fillShotCharts(h, m, ["weight", "flow"]);
+  const preset = document.createElement("div"),
+    btn = document.createElement("button"),
+    more = document.createElement("div"),
+    draw = () => {
+      preset._w = preset.clientWidth;
+      presetGraph(preset, rule, {
+        compact: true,
+        last: m.segs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
+        drip: m.dripSegs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
+        arrivals: shot.arrivalS > 0 ? [shot.arrivalS] : [],
+        maxG: m.rawMaxW,
+      });
+    };
+  preset.className = "shotPresetChart";
+  preset.id = "shotRv" + shot.id;
+  btn.type = "button";
+  btn.className = "shotMoreBtn";
+  more.className = "shotMore";
+  more.id = "shotMore" + shot.id;
+  btn.setAttribute("aria-controls", more.id);
+  const sync = (open) => {
+    btn.setAttribute("aria-expanded", open);
+    btn.textContent = open ? __WEBUI_TEXT__("runtime.fewer_charts") : __WEBUI_TEXT__("runtime.more_charts");
+    more.hidden = !open;
+    if (open && !more.childElementCount) fillShotCharts(more, m, ["flow", "weight"]);
+  };
+  btn.onclick = () => {
+    const open = !shotMoreOpen.has(shot.id);
+    if (open) shotMoreOpen.add(shot.id);
+    else shotMoreOpen.delete(shot.id);
+    sync(open);
+  };
+  h.append(preset, btn, more);
+  sync(shotMoreOpen.has(shot.id));
+  // One shared observer re-lays out the graphs once they get a width; detached rows drop out.
+  shotPresetObserver ??= new ResizeObserver((entries) => {
+    for (const e of entries) {
+      if (!e.target.isConnected) shotPresetObserver.unobserve(e.target);
+      else if (e.target.clientWidth !== e.target._w) e.target._draw();
+    }
+  });
+  preset._draw = draw;
+  shotPresetObserver.observe(preset);
+  draw();
+}
+function fillShotCharts(h, m, keys) {
   const W = 240,
     H = 36,
     p = 1.5,
@@ -1198,15 +1267,17 @@ function renderShotSpark(h, shot) {
       "</div>" +
       svg +
       "</svg>" +
-      (weight && (m.firstDropS > 0 || m.tareS > 0 || m.finalPoint)
-        ? '<div class="shotDropOverlay"></div>'
-        : "") +
+      (weight && m.finalPoint ? '<div class="shotDropOverlay"></div>' : "") +
       '<div class="ruleChartTicks"></div></div></div>'
     );
   }
-  h.innerHTML =
-    chart(m.segs, m.maxW, 10, __WEBUI_TEXT__("runtime.g"), 1) +
-    chart(m.flowSegs, m.flowMax, 0.5, "g/s");
+  h.innerHTML = keys
+    .map((k) =>
+      k === "weight"
+        ? chart(m.segs, m.maxW, 10, __WEBUI_TEXT__("runtime.g"), 1)
+        : chart(m.flowSegs, m.flowMax, 0.5, "g/s"),
+    )
+    .join("");
   for (const c of h.querySelectorAll(".shotSparkHost")) {
     const y = c.querySelectorAll(".shotYTick"),
       n = y.length - 1,
@@ -1229,34 +1300,6 @@ function renderShotSpark(h, shot) {
       m.timeMax,
       true,
     );
-  for (const [time, tare] of [
-    [m.firstDropS, 0],
-    [m.tareS, 1],
-  ]) {
-    if (!(time > 0)) continue;
-    const d = document.createElement("span"),
-      late = time / m.timeMax > 0.75;
-    d.className = "shotFirstDrop";
-    const icon = tare
-        ? '<svg class="shotTareIcon" viewBox="8 14 49 28" aria-hidden="true"><path d="M8 14H46V26A16 16 0 0 1 30 42H24A16 16 0 0 1 8 26ZM18 19V24H24.5V35H29.5V24H36V19ZM46 18h4a7 7 0 0 1 0 14h-5v-4h5a3 3 0 0 0 0-6h-4Z" fill="var(--fg)"/></svg>'
-        : '<svg width="15.6" height="20.8" viewBox="0 0 12 16" aria-hidden="true"><path d="M6 0C5 4 1 7 1 10a5 5 0 0 0 10 0C11 7 7 4 6 0Z" fill="#38bdf8"/></svg>',
-      label = time.toFixed(1) + " s",
-      value =
-        '<span data-p="' +
-        (tare ? 40 : 50) +
-        '" data-k="' +
-        (tare ? "tare" : "drop") +
-        '" aria-hidden="true" class="chartMeasure">>' +
-        label +
-        "</span>";
-    d.innerHTML = late ? value + " " + icon : icon + " " + value;
-    d.style.left = (X(time) / W) * 100 + "%";
-    d.style.transform =
-      "translateX(calc(" + (late ? "-100% + " : "0% - ") + (tare ? 17.0625 : 7.8) + "px))";
-    const overlay = h.querySelector(".shotDropOverlay");
-    overlay.appendChild(d);
-    watchChartLabels(overlay);
-  }
   if (m.finalPoint) {
     const d = document.createElement("span");
     d.className = "shotFinalPoint";
@@ -5168,7 +5211,7 @@ function buildRuleChartModel(c) {
     t2 = N(c.slowAfterS),
     prot = N(c.bbwProtectionMs) / 1e3,
     wall = N(c.operationalWallMs) / 1e3,
-    d = N(presetState.cutRampS),
+    d = N(c.cutRampS ?? presetState.cutRampS),
     fast = !!c.fastExtractionGuardEnabled,
     slow = !!c.slowExtractionGuardEnabled,
     fastMargin = N(c.fastMarginG),
@@ -5237,6 +5280,140 @@ function referencePace(t, goal, tArr, t0 = 0) {
   const u = Math.max(0, t - t0) / (tArr - t0);
   return goal * (2 * PACE_SOFT * u + (1 - 2 * PACE_SOFT) * u * u);
 }
+// One preset graph for Settings (review, with scrubber) and for a Stats shot
+// (compact, no scrubber, no no-cut hatch, 10 s ticks). Laid out in CSS pixels
+// from the measured width; null while the host is hidden.
+function presetGraph(host, m, x = {}) {
+  const { ghost, arrivals = [], last = [], drip = [], maxG = 0, compact } = x,
+    W = host.clientWidth;
+  if (!W) return null;
+  const u = host.id,
+    H = Math.round(compact ? Math.min(180, Math.max(140, W * 0.48)) : Math.min(220, Math.max(180, W * 0.56))),
+    L = 34,
+    R = W - 10,
+    T = 14,
+    B = H - 18,
+    top = Math.ceil(Math.max(m.ceil, ghost ? ghost.ceil : 0, maxG) + 2),
+    step = top > 30 ? 10 : 5,
+    tMax = Math.max(m.wall, ghost ? ghost.wall : 0),
+    X = (t) => L + ((R - L) * t) / tMax,
+    Y = (g) => B - ((B - T) * g) / top,
+    n = (v) => +(+v).toFixed(1),
+    f = (v) => v.toFixed(1),
+    // Unrounded pixel coordinates: the curves are drawn exactly, never from
+    // decigram-rounded samples (the displayed numbers keep the integer law).
+    P = (t, g) => X(t).toFixed(2) + " " + Y(g).toFixed(2),
+    label = (x, y, s, cls = "", anchor = "middle") =>
+      `<text class="rvLbl ${cls}" x="${f(x)}" y="${f(y)}" text-anchor="${anchor}">${s}</text>`,
+    a = Math.max(m.prot, m.t1 - m.d),
+    b = Math.min(m.wall, m.t2 + m.d),
+    // Holds and the window are straight; each S-ramp is one cubic Bézier with
+    // control points (x0 + Δx/3, y0) and (x0 + 2Δx/3, y1): exactly smoothstep.
+    ramp = (t0, y0, t1, y1) =>
+      `C${P(t0 + (t1 - t0) / 3, y0)} ${P(t0 + (2 * (t1 - t0)) / 3, y1)} ${P(t1, y1)}`,
+    edges = (x) => {
+      const xa = Math.max(x.prot, x.t1 - x.d),
+        xb = Math.min(x.wall, x.t2 + x.d);
+      return [
+        `L${P(xa, x.ceil)}` + ramp(xa, x.ceil, x.t1, x.goal),
+        `L${P(x.t2, x.goal)}`,
+        ramp(x.t2, x.goal, xb, x.floor) + `L${P(x.wall, x.floor)}`,
+      ];
+    },
+    [fastEdge, windowEdge, slowEdge] = edges(m),
+    // Reference paces as exact quadratic Béziers on [0, end], ending where
+    // they leave the plot (or at the right edge).
+    t0 = m.firstDrop,
+    paceEnd = (ta) => {
+      const c = PACE_SOFT,
+        k = (top + 1) / m.goal;
+      return Math.min(tMax, t0 + ((ta - t0) * (Math.sqrt(4 * c * c + 4 * (1 - 2 * c) * k) - 2 * c)) / (2 * (1 - 2 * c)));
+    },
+    ctrl = (ta, end) => P(t0 + (end - t0) / 2, (m.goal * PACE_SOFT * (end - t0)) / (ta - t0)),
+    endOf = (ta, end = paceEnd(ta)) => P(end, referencePace(end, m.goal, ta, t0)),
+    paceTo = (ta, end = paceEnd(ta)) => `Q${ctrl(ta, end)} ${endOf(ta, end)}`,
+    paceBack = (ta, end = paceEnd(ta)) => `Q${ctrl(ta, end)} ${P(t0, 0)}`,
+    // Areas run along the baseline to the first drop; strokes start there.
+    O = `M${P(0, 0)}L${P(t0, 0)}`,
+    S = `M${P(t0, 0)}`,
+    corner = `L${P(tMax, top + 1)}`,
+    tA = Math.max(t0 + 0.5, m.t1 - m.d),
+    tB = m.t2 + m.d,
+    band = (cls, d, on) => `<path class="${on ? cls : "rvBandOff"}" d="${d}"/>`,
+    curves = (lines, cls) =>
+      lines
+        .map(
+          (pl) =>
+            `<path class="${cls}" d="${pl
+              .filter(([t]) => t <= tMax)
+              .map(([t, g], i) => (i ? "L" : "M") + P(t, g))
+              .join("")}"/>`,
+        )
+        .join(""),
+    shown = arrivals.filter((t) => t <= tMax),
+    targetAbove = compact || Y(m.goal) - 4 - T >= 16;
+  let marks = "",
+    grid = "",
+    lastX = -99;
+  for (let v = 0; v <= top; v += step) {
+    grid += `<path class="rvGrid" d="M${L} ${f(Y(v))}H${R}"/>`;
+    marks += label(L - 4, Y(v) + 3, v + " g", "", "end");
+  }
+  (compact ? Array.from({ length: Math.floor(tMax / 10) + 1 }, (_, i) => i * 10) : [0, m.prot, m.t1, m.t2, m.wall]).forEach(
+    (t, i, ts) => {
+      if (X(t) - lastX < 14 && i < ts.length - 1) return;
+      lastX = X(t);
+      if (compact) grid += `<path class="rvGrid" d="M${f(X(t))} ${T}V${B}"/>`;
+      marks += label(X(t), B + 13, n(t) + (compact || i === ts.length - 1 ? " s" : ""), !compact && i > 1 && i < 4 ? "strong" : "");
+    },
+  );
+  host.innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
+    `<defs><pattern id="${u}Hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="rvHatchLine" d="M0 0V6"/></pattern>` +
+    `<clipPath id="${u}Under"><path d="M${P(0, 0)}L${P(0, m.ceil)}L${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}L${P(m.wall, 0)}Z"/></clipPath></defs>` +
+    `<g role="img" aria-label="${sub(__WEBUI_TEXT__("runtime.graph_summary"), [n(m.prot), n(m.ceil), n(a), n(m.goal), n(m.t1), n(m.t2), n(m.floor), n(b), n(m.wall)])} ${__WEBUI_TEXT__("runtime.graph_pace_note")}">` +
+    grid +
+    `<g clip-path="url(#${u}Under)">` +
+    band("rvFastFull", O + paceTo(tA) + `L${P(paceEnd(tA), top + 1)}L${P(0, top + 1)}Z`, m.fast) +
+    band("rvFastPart", O + paceTo(m.t1) + corner + `L${endOf(tA)}` + paceBack(tA) + "Z", m.fast) +
+    `<path class="rvWindow" d="${O + paceTo(m.t1, m.t1)}L${P(m.t2, m.goal)}${paceBack(m.t2, m.t2)}Z"/>` +
+    band("rvSlowPart", O + paceTo(m.t2) + corner + `L${endOf(tB)}` + paceBack(tB) + "Z", m.slow) +
+    band("rvSlowFull", O + paceTo(tB) + corner + `L${P(tMax, 0)}Z`, m.slow) +
+    `<path class="rvPace" d="${[tA, m.t1, m.t2, tB].map((ta) => S + paceTo(ta)).join("")}"><title>${__WEBUI_TEXT__("runtime.graph_pace_title")}</title></path>` +
+    "</g>" +
+    marks +
+    (compact ? "" : `<rect x="${L}" y="${T}" width="${f(X(m.prot) - L)}" height="${B - T}" fill="url(#${u}Hatch)"/>`) +
+    `<path class="rvTarget" d="M${L} ${f(Y(m.goal))}H${R}"/><path class="rvMax" d="M${f(X(m.wall))} ${T}V${B}"/>` +
+    // The On recipe window: dotted verticals at its start and end.
+    `<path class="rvWin" d="M${f(X(m.t1))} ${T}V${B}M${f(X(m.t2))} ${T}V${B}"/>` +
+    (ghost ? `<path class="rvGhost" d="M${P(ghost.prot, ghost.ceil)}${edges(ghost).join("")}"/>` : "") +
+    curves(last, "rvLast") +
+    curves(drip, "rvLast rvLastDrip") +
+    shown.map((t) => `<circle class="rvArrival" cx="${f(X(t))}" cy="${f(Y(m.goal))}" r="3"/>`).join("") +
+    `<path class="rvCut${m.fast ? "" : " off"}" d="M${P(m.prot, m.ceil)}${fastEdge}"/>` +
+    `<path class="rvCut${m.mode === "timerOnly" ? " off" : ""}" d="M${P(m.t1, m.goal)}${windowEdge}"/>` +
+    `<path class="rvCut${m.slow ? "" : " off"}" d="M${P(m.t2, m.goal)}${slowEdge}"/>` +
+    // The hatch keeps its inline name only where it fits; the legend names it too.
+    (!compact && X(m.prot) - L >= 96 ? label((L + X(m.prot)) / 2, (T + B) / 2, __WEBUI_TEXT__("runtime.graph_legend_no_cut"), "rvHalo") : "") +
+    // Below the line when it would run into "Max" at the top (Settings only).
+    label(R - 2, Y(m.goal) + (targetAbove ? -4 : 13), sub(__WEBUI_TEXT__("runtime.graph_target"), [n(m.goal)]), "rvHalo strong rvTargetLbl", "end") +
+    (compact
+      ? "</g></svg>"
+      : label(X(m.wall), T - 4, sub(__WEBUI_TEXT__("runtime.graph_max"), [n(m.wall)]), "", "end") +
+        `</g><g id="reviewScrub" class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.prot}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvStop" r="3.5"/><circle class="rvHandle" r="5"/></g></svg>`);
+  return {
+    m,
+    X,
+    Y,
+    W,
+    T,
+    B,
+    pace: (ta, end) => S + paceTo(ta, end),
+    tAt: (px) => ((px - L) * tMax) / (R - L),
+    last: last.length > 0,
+    arrivals: shown.length,
+  };
+}
 // Review graph of the preset under review: pace curves fan out from the
 // origin into corridors whose boundaries are the preset's thresholds, colored
 // only under the cut line. Unsaved edits redraw live over the ghosted saved line.
@@ -5264,129 +5441,21 @@ function renderPresetReview() {
   $("presetReview").hidden = savedModel.mode === "empty";
   const statsLine = shotStatsLine(saved);
   $("windowStatsText").textContent = statsLine || __WEBUI_TEXT__("runtime.no_shots_yet");
-  // Laid out in CSS pixels from the measured width (constant label size):
-  // full width, height 0.56 of it within 180–220 px, re-laid out on resize.
-  const W = host.clientWidth;
-  if (savedModel.mode === "empty" || !W) return;
-  const H = Math.round(Math.min(220, Math.max(180, W * 0.56))),
-    L = 34,
-    R = W - 10,
-    T = 14,
-    B = H - 18,
-    top = Math.ceil(Math.max(m.ceil, ghost ? ghost.ceil : 0) + 2),
-    step = top > 30 ? 10 : 5,
-    tMax = Math.max(m.wall, ghost ? ghost.wall : 0),
-    X = (t) => L + ((R - L) * t) / tMax,
-    Y = (g) => B - ((B - T) * g) / top,
-    n = (v) => +(+v).toFixed(1),
-    f = (v) => v.toFixed(1),
-    // Unrounded pixel coordinates: the curves are drawn exactly, never from
-    // decigram-rounded samples (the displayed numbers keep the integer law).
-    P = (t, g) => X(t).toFixed(2) + " " + Y(g).toFixed(2),
-    label = (x, y, s, cls = "", anchor = "middle") =>
-      `<text class="rvLbl ${cls}" x="${f(x)}" y="${f(y)}" text-anchor="${anchor}">${s}</text>`,
-    a = Math.max(m.prot, m.t1 - m.d),
-    b = Math.min(m.wall, m.t2 + m.d),
-    // Holds and the window are straight; each S-ramp is one cubic Bézier with
-    // control points (x0 + Δx/3, y0) and (x0 + 2Δx/3, y1): exactly smoothstep.
-    ramp = (x, t0, y0, t1, y1) =>
-      `C${P(t0 + (t1 - t0) / 3, y0)} ${P(t0 + (2 * (t1 - t0)) / 3, y1)} ${P(t1, y1)}`,
-    edges = (x) => {
-      const xa = Math.max(x.prot, x.t1 - x.d),
-        xb = Math.min(x.wall, x.t2 + x.d);
-      return [
-        `L${P(xa, x.ceil)}` + ramp(x, xa, x.ceil, x.t1, x.goal),
-        `L${P(x.t2, x.goal)}`,
-        ramp(x, x.t2, x.goal, xb, x.floor) + `L${P(x.wall, x.floor)}`,
-      ];
-    },
-    [fastEdge, windowEdge, slowEdge] = edges(m),
-    // Reference paces as exact quadratic Béziers on [0, end], ending where
-    // they leave the plot (or at the right edge).
-    t0 = m.firstDrop,
-    paceEnd = (ta) => {
-      const c = PACE_SOFT,
-        k = (top + 1) / m.goal;
-      return Math.min(tMax, t0 + ((ta - t0) * (Math.sqrt(4 * c * c + 4 * (1 - 2 * c) * k) - 2 * c)) / (2 * (1 - 2 * c)));
-    },
-    ctrl = (ta, end) => P(t0 + (end - t0) / 2, (m.goal * PACE_SOFT * (end - t0)) / (ta - t0)),
-    endOf = (ta, end = paceEnd(ta)) => P(end, referencePace(end, m.goal, ta, t0)),
-    paceTo = (ta, end = paceEnd(ta)) => `Q${ctrl(ta, end)} ${endOf(ta, end)}`,
-    paceBack = (ta, end = paceEnd(ta)) => `Q${ctrl(ta, end)} ${P(t0, 0)}`,
-    // Areas run along the baseline to the first drop; strokes start there.
-    O = `M${P(0, 0)}L${P(t0, 0)}`,
-    S = `M${P(t0, 0)}`,
-    corner = `L${P(tMax, top + 1)}`,
-    tA = Math.max(t0 + 0.5, m.t1 - m.d),
-    tB = m.t2 + m.d,
-    band = (cls, d, on) => `<path class="${on ? cls : "rvBandOff"}" d="${d}"/>`,
-    card = shotFrame?.card,
+  if (savedModel.mode === "empty") return;
+  const card = shotFrame?.card,
     last = card?.valid && !card.live && card.presetName === saved.name ? shotFrame.curve : null,
     // Past arrivals were judged against the saved target: hidden while it is edited.
-    arrivals = m.goal === savedModel.goal ? (saved.arrivalsS || []).filter((t) => t <= tMax) : [],
-    targetAbove = Y(m.goal) - 4 - T >= 16;
-  let marks = "",
-    grid = "",
-    lastX = -99;
-  for (let v = 0; v <= top; v += step) {
-    grid += `<path class="rvGrid" d="M${L} ${f(Y(v))}H${R}"/>`;
-    marks += label(L - 4, Y(v) + 3, v + " g", "", "end");
-  }
-  [0, m.prot, m.t1, m.t2, m.wall].forEach((t, i, ts) => {
-    if (X(t) - lastX < 14 && i < ts.length - 1) return;
-    lastX = X(t);
-    marks += label(X(t), B + 13, n(t) + (i === ts.length - 1 ? " s" : ""), i > 1 && i < 4 ? "strong" : "");
-  });
+    arrivals = m.goal === savedModel.goal ? saved.arrivalsS || [] : [];
   if (reviewScrubS < m.prot || reviewScrubS > m.wall || id !== reviewView?.id)
-    reviewScrubS = Math.max(m.prot, n(m.t1 - 0.6 * m.d));
-  host.innerHTML =
-    `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
-    '<defs><pattern id="rvHatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="rvHatchLine" d="M0 0V6"/></pattern>' +
-    `<clipPath id="rvUnder"><path d="M${P(0, 0)}L${P(0, m.ceil)}L${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}L${P(m.wall, 0)}Z"/></clipPath></defs>` +
-    `<g role="img" aria-label="${sub(__WEBUI_TEXT__("runtime.graph_summary"), [n(m.prot), n(m.ceil), n(a), n(m.goal), n(m.t1), n(m.t2), n(m.floor), n(b), n(m.wall)])} ${__WEBUI_TEXT__("runtime.graph_pace_note")}">` +
-    grid +
-    '<g clip-path="url(#rvUnder)">' +
-    band("rvFastFull", O + paceTo(tA) + `L${P(paceEnd(tA), top + 1)}L${P(0, top + 1)}Z`, m.fast) +
-    band("rvFastPart", O + paceTo(m.t1) + corner + `L${endOf(tA)}` + paceBack(tA) + "Z", m.fast) +
-    `<path class="rvWindow" d="${O + paceTo(m.t1, m.t1)}L${P(m.t2, m.goal)}${paceBack(m.t2, m.t2)}Z"/>` +
-    band("rvSlowPart", O + paceTo(m.t2) + corner + `L${endOf(tB)}` + paceBack(tB) + "Z", m.slow) +
-    band("rvSlowFull", O + paceTo(tB) + corner + `L${P(tMax, 0)}Z`, m.slow) +
-    `<path class="rvPace" d="${[tA, m.t1, m.t2, tB].map((ta) => S + paceTo(ta)).join("")}"><title>${__WEBUI_TEXT__("runtime.graph_pace_title")}</title></path>` +
-    "</g>" +
-    marks +
-    `<rect x="${L}" y="${T}" width="${f(X(m.prot) - L)}" height="${B - T}" fill="url(#rvHatch)"/>` +
-    `<path class="rvTarget" d="M${L} ${f(Y(m.goal))}H${R}"/><path class="rvMax" d="M${f(X(m.wall))} ${T}V${B}"/>` +
-    // The On recipe window: dotted verticals at its start and end.
-    `<path class="rvWin" d="M${f(X(m.t1))} ${T}V${B}M${f(X(m.t2))} ${T}V${B}"/>` +
-    (ghost ? `<path class="rvGhost" d="M${P(ghost.prot, ghost.ceil)}${edges(ghost).join("")}"/>` : "") +
-    (last
-      ? `<path class="rvLast" d="${last.wAtMs
-          .map((t, i) => [t / 1000, last.wCg[i] / 100])
-          .filter(([t]) => t <= tMax)
-          .map(([t, g], i) => (i ? "L" : "M") + P(t, g))
-          .join("")}"/>`
-      : "") +
-    arrivals.map((t) => `<circle class="rvArrival" cx="${f(X(t))}" cy="${f(Y(m.goal))}" r="3"/>`).join("") +
-    `<path class="rvCut${m.fast ? "" : " off"}" d="M${P(m.prot, m.ceil)}${fastEdge}"/>` +
-    `<path class="rvCut" d="M${P(m.t1, m.goal)}${windowEdge}"/>` +
-    `<path class="rvCut${m.slow ? "" : " off"}" d="M${P(m.t2, m.goal)}${slowEdge}"/>` +
-    // The hatch keeps its inline name only where it fits; the legend names it too.
-    (X(m.prot) - L >= 96 ? label((L + X(m.prot)) / 2, (T + B) / 2, __WEBUI_TEXT__("runtime.graph_legend_no_cut"), "rvHalo") : "") +
-    // Below the line when it would run into "Max" at the top.
-    label(R - 2, Y(m.goal) + (targetAbove ? -4 : 13), sub(__WEBUI_TEXT__("runtime.graph_target"), [n(m.goal)]), "rvHalo strong rvTargetLbl", "end") +
-    label(X(m.wall), T - 4, sub(__WEBUI_TEXT__("runtime.graph_max"), [n(m.wall)]), "", "end") +
-    `</g><g id="reviewScrub" class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.prot}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvStop" r="3.5"/><circle class="rvHandle" r="5"/></g></svg>`;
-  reviewView = {
-    id,
-    m,
-    X,
-    Y,
-    W,
-    T,
-    B,
-    pace: (ta, end) => S + paceTo(ta, end),
-    tAt: (x) => ((x - L) * tMax) / (R - L),
-  };
+    reviewScrubS = Math.max(m.prot, +(m.t1 - 0.6 * m.d).toFixed(1));
+  const view = presetGraph(host, m, {
+    ghost,
+    arrivals,
+    last: last ? [last.wAtMs.map((t, i) => [t / 1000, last.wCg[i] / 100])] : [],
+    maxG: last ? Math.max(0, ...last.wCg) / 100 : 0,
+  });
+  if (!view) return;
+  reviewView = { ...view, id };
   const legend = $("presetReviewLegend");
   if (!legend.childElementCount)
     legend.innerHTML =
@@ -5402,8 +5471,8 @@ function renderPresetReview() {
       '<span class="rvLeg rvLegSaved"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_saved") + "</span>" +
       '<small class="rvNote">' + __WEBUI_TEXT__("runtime.graph_pace_note") + "</small>";
   legend.classList.toggle("ghosted", !!ghost);
-  legend.classList.toggle("hasLast", !!last);
-  legend.classList.toggle("hasArrivals", arrivals.length > 0);
+  legend.classList.toggle("hasLast", view.last);
+  legend.classList.toggle("hasArrivals", view.arrivals > 0);
   legend.classList.toggle("noFast", !m.fast);
   legend.classList.toggle("noSlow", !m.slow);
   if (!host.dataset.bound) {
