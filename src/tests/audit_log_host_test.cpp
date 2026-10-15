@@ -132,6 +132,12 @@ static void testFormatAuditRecordDetail() {
   record.argument1 = 320;
   formatAuditRecordDetail(record, detail, sizeof(detail));
   assert(strcmp(detail, "health loop gap high max=320 ms (limit 200 ms)") == 0);
+  record.argument2 = 1500;
+  record.textLen = 22;
+  memcpy(record.text, "idle=300000 us flash=1", 22);
+  formatAuditRecordDetail(record, detail, sizeof(detail));
+  assert(strcmp(detail, "health loop gap high max=320 ms (limit 200 ms)"
+                        " loop cpu=1500 us idle=300000 us flash=1") == 0);
 
   record = AuditRecord{};
   record.code = static_cast<uint8_t>(DebugCode::MACHINE_MUX_WAIT);

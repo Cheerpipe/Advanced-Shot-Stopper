@@ -2915,12 +2915,17 @@ inline bool formatLifecycleDebugMessage(const DebugEvent &event, char *message,
                static_cast<long>(event.argument1),
                static_cast<long>(event.argument2));
       return true;
-    case DebugCode::HEALTH_LOOP_GAP:
-      snprintf(message, capacity,
-               "health loop gap high max=%ld ms (limit %lu ms)",
-               static_cast<long>(event.argument1),
-               static_cast<unsigned long>(HEALTH_LOOP_GAP_ALERT_MS));
+    case DebugCode::HEALTH_LOOP_GAP: {
+      // argument2 is the loop's own CPU inside the gap; older records hold 0.
+      const int used = snprintf(message, capacity,
+                                "health loop gap high max=%ld ms (limit %lu ms)",
+                                static_cast<long>(event.argument1),
+                                static_cast<unsigned long>(HEALTH_LOOP_GAP_ALERT_MS));
+      if (event.argument2 > 0 && used > 0 && static_cast<size_t>(used) < capacity)
+        snprintf(message + used, capacity - used, " loop cpu=%ld us",
+                 static_cast<long>(event.argument2));
       return true;
+    }
     case DebugCode::MACHINE_MUX_WAIT:
       snprintf(message, capacity,
                "machine service mux wait=%ld us hold=%ld us",

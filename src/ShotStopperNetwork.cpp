@@ -894,6 +894,7 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
           "\"truncated\":%s,"
           "\"peakGapMs\":%lu,\"recentGapMs\":%lu,"
           "\"peakGapUs\":%lu,\"recentGapUs\":%lu,"
+          "\"peakGapCpuUs\":%lu,\"peakGapIdleUs\":%lu,"
           "\"peakDelayUs\":%lu,\"recentDelayUs\":%lu,"
           "\"peakDispatchUs\":%lu,\"recentDispatchUs\":%lu",
           taskProfilerStateName(tasks.state),
@@ -907,6 +908,8 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
           static_cast<unsigned long>(tasks.loopPhases.recentGapMs),
           static_cast<unsigned long>(tasks.loopPhases.peakGapUs),
           static_cast<unsigned long>(tasks.loopPhases.recentGapUs),
+          static_cast<unsigned long>(tasks.loopPhases.peakGapCpuUs),
+          static_cast<unsigned long>(tasks.loopPhases.peakGapIdleUs),
           static_cast<unsigned long>(tasks.loopPhases.peakDelayUs),
           static_cast<unsigned long>(tasks.loopPhases.recentDelayUs),
           static_cast<unsigned long>(tasks.loopPhases.peakDispatchUs),

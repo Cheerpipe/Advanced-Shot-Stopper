@@ -20,6 +20,7 @@
 #include <esp_memory_utils.h>
 #include <esp_partition.h>
 #include <esp_task_wdt.h>
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #include <freertos/task.h>
@@ -97,6 +98,33 @@ inline uint32_t flashIoLockTimeouts() {
   return flashIoLockTimeoutCount().load(std::memory_order_relaxed);
 }
 
+// Flash I/O activity for loop-gap attribution, written by the lock holder:
+// heldSinceMs is nonzero while held and releasedAtMs is the last release.
+struct FlashIoActivity {
+  std::atomic<uint32_t> heldSinceMs{0}, releasedAtMs{0};
+  uint8_t depth = 0;
+};
+
+inline FlashIoActivity &flashIoActivity() {
+  static FlashIoActivity activity;
+  return activity;
+}
+
+inline void noteFlashIoHeld(bool held, uint32_t nowMs) {
+  FlashIoActivity &activity = flashIoActivity();
+  if (held ? activity.depth++ != 0
+           : activity.depth == 0 || --activity.depth != 0) return;
+  if (!held) activity.releasedAtMs.store(nowMs, std::memory_order_relaxed);
+  activity.heldSinceMs.store(held ? nowMs | 1U : 0U, std::memory_order_release);
+}
+
+inline bool flashIoActiveSince(uint32_t sinceMs) {
+  const FlashIoActivity &activity = flashIoActivity();
+  return activity.heldSinceMs.load(std::memory_order_acquire) != 0 ||
+         static_cast<int32_t>(activity.releasedAtMs.load(
+             std::memory_order_relaxed) - sinceMs) >= 0;
+}
+
 #if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
 inline SemaphoreHandle_t &flashIoMutexSlot() {
@@ -124,7 +152,9 @@ inline void forbidFlashIoFromCurrentTask() {
   flashIoForbiddenTaskSlot() = xTaskGetCurrentTaskHandle();
 }
 
-inline bool tryLockFlashIo(uint32_t timeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
+// Out of line: flash I/O sites are many and the activity note is not free.
+[[gnu::noinline]] inline bool tryLockFlashIo(
+    uint32_t timeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
   if (flashIoForbiddenTaskSlot() == xTaskGetCurrentTaskHandle()) {
     flashIoForbiddenAttemptCount().fetch_add(1, std::memory_order_relaxed);
     return false;
@@ -138,15 +168,17 @@ inline bool tryLockFlashIo(uint32_t timeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
       xSemaphoreGiveRecursive(handle);
       return false;
     }
+    noteFlashIoHeld(true, static_cast<uint32_t>(esp_timer_get_time() / 1000));
     return true;
   }
   flashIoLockTimeoutCount().fetch_add(1, std::memory_order_relaxed);
   return false;
 }
 
-inline void unlockFlashIo() {
+[[gnu::noinline]] inline void unlockFlashIo() {
   SemaphoreHandle_t handle = flashIoMutexHandle();
   if (handle != nullptr) {
+    noteFlashIoHeld(false, static_cast<uint32_t>(esp_timer_get_time() / 1000));
     xSemaphoreGiveRecursive(handle);
   }
 }

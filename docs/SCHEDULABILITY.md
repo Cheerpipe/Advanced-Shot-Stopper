@@ -149,7 +149,13 @@ recent Loop gap value. Both gaps include scheduling and waiting beyond phase
 execution. The breakdown captures the delay call, the dispatch time from its
 return to the next loop start, and the remaining unphased work. The delay call
 includes scheduler time until the task runs again; it does not identify which
-task ran during that interval. Housekeeping has ten separate, non-overlapping
+task ran during that interval. To narrow that down, every `health loop gap
+high` alert and the exported peak gap (`peakGapCpuUs`, `peakGapIdleUs`) carry
+the loop task's own CPU time and the loop core's idle-task time inside the
+gap, and the alert adds `flash=1` when the application flash I/O lock was held
+during it. Loop CPU near the gap means the loop itself ran; idle near the gap
+means the loop was blocked or sleeping; neither means another task on that
+core, or a stalled core, held it. Housekeeping has ten separate, non-overlapping
 rows: serial log, serial CLI, settings persistence, history persistence, scale
 identity persistence, weight telemetry, and LED service, plus the status
 publication's three contiguous sub-phases — owner snapshot gather, store

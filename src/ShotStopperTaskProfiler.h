@@ -155,6 +155,9 @@ struct PhaseProfilerSnapshot {
   uint32_t recentGapMs = 0;
   uint32_t peakGapUs = 0;
   uint32_t recentGapUs = 0;
+  // Loop-task CPU and loop-core idle time inside the peak gap.
+  uint32_t peakGapCpuUs = 0;
+  uint32_t peakGapIdleUs = 0;
   uint32_t peakDelayUs = 0;
   uint32_t recentDelayUs = 0;
   uint32_t peakDispatchUs = 0;
@@ -220,11 +223,13 @@ class PhaseProfiler {
     memset(peakGapUs_, 0, sizeof(peakGapUs_));
     peakGapMs_ = 0;
     peakGapDurationUs_ = 0;
+    peakGapCpuUs_ = peakGapIdleUs_ = 0;
     peakDelayUs_ = 0;
     peakDispatchUs_ = 0;
     TaskLockGuard lock(snapshotMutex_);
     snapshot_.peakGapMs = 0;
     snapshot_.peakGapUs = 0;
+    snapshot_.peakGapCpuUs = snapshot_.peakGapIdleUs = 0;
     snapshot_.peakDelayUs = 0;
     snapshot_.peakDispatchUs = 0;
     for (LoopPhaseProfilerRow &row : snapshot_.rows) {
@@ -236,10 +241,13 @@ class PhaseProfiler {
   }
 
   void capturePeakGap(uint32_t gapMs, uint32_t gapUs, uint32_t delayUs,
-                      uint32_t dispatchUs) {
+                      uint32_t dispatchUs, uint32_t cpuUs = 0,
+                      uint32_t idleUs = 0) {
     memcpy(peakGapUs_, iterationUs_, sizeof(peakGapUs_));
     peakGapMs_ = gapMs;
     peakGapDurationUs_ = gapUs;
+    peakGapCpuUs_ = cpuUs;
+    peakGapIdleUs_ = idleUs;
     peakDelayUs_ = delayUs;
     peakDispatchUs_ = dispatchUs;
   }
@@ -294,6 +302,8 @@ class PhaseProfiler {
     next.peakGapMs = peakGapMs_;
     next.recentGapMs = recentGapMs_;
     next.peakGapUs = peakGapDurationUs_;
+    next.peakGapCpuUs = peakGapCpuUs_;
+    next.peakGapIdleUs = peakGapIdleUs_;
     next.recentGapUs = recentGapDurationUs_;
     next.peakDelayUs = peakDelayUs_;
     next.recentDelayUs = recentDelayUs_;
@@ -344,6 +354,8 @@ class PhaseProfiler {
   uint32_t peakGapMs_ = 0;
   uint32_t recentGapMs_ = 0;
   uint32_t peakGapDurationUs_ = 0;
+  uint32_t peakGapCpuUs_ = 0;
+  uint32_t peakGapIdleUs_ = 0;
   uint32_t recentGapDurationUs_ = 0;
   uint32_t intervalGapDurationUs_ = 0;
   uint32_t peakDelayUs_ = 0;

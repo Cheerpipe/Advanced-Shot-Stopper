@@ -334,6 +334,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   loopMaxGapMs = 0;
   loopIntervalGapMs = 0;
   healthIntervalMaxGapMs = 0;
+  healthIntervalGapCpuUs = healthIntervalGapIdleUs = 0;
+  healthIntervalGapFlash = false;
   healthHeapAlertLatched = false;
   healthHeapRestartLatched = false;
   healthStackAlertLatched = false;
@@ -16244,14 +16246,33 @@ void h01_health_threshold_alerts_fire_once_per_crossing() {
   serviceHealthThresholdAlerts(0);
   CHECK(!healthStackAlertLatched);
 
+  healthIntervalGapCpuUs = 1500;
+  healthIntervalGapIdleUs = 190000;
+  healthIntervalGapFlash = true;
   serviceHealthThresholdAlerts(HEALTH_LOOP_GAP_ALERT_MS);
   CHECK(debugEventExists(DebugCode::HEALTH_LOOP_GAP,
-                         static_cast<int32_t>(HEALTH_LOOP_GAP_ALERT_MS)));
+                         static_cast<int32_t>(HEALTH_LOOP_GAP_ALERT_MS), 1500));
+  {
+    DebugEvent events[DEBUG_EVENT_CAPACITY] = {};
+    const size_t count = copyDebugEvents(0, events, DEBUG_EVENT_CAPACITY);
+    CHECK(count > 0 && strstr(events[count - 1].text,
+                              "idle=190000 us flash=1") != nullptr);
+  }
   debugLog.clear();
   serviceHealthThresholdAlerts(HEALTH_LOOP_GAP_ALERT_MS);
   CHECK(!debugEventExists(DebugCode::HEALTH_LOOP_GAP));
   serviceHealthThresholdAlerts(HEALTH_LOOP_GAP_CLEAR_MS);
   CHECK(!healthLoopGapAlertLatched);
+
+  noteFlashIoHeld(true, 1000);
+  noteFlashIoHeld(true, 1001);
+  noteFlashIoHeld(false, 1002);  // Recursive release keeps the hold open.
+  CHECK(flashIoActiveSince(5000));
+  noteFlashIoHeld(false, 1010);
+  CHECK(flashIoActiveSince(1010) && !flashIoActiveSince(1011));
+  noteFlashIoHeld(false, 1020);  // Unbalanced release is ignored.
+  CHECK(!flashIoActiveSince(1011));
+  flashIoActivity().releasedAtMs.store(0);
 }
 
 void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {

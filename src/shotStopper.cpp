@@ -664,6 +664,10 @@ uint32_t loopDeadlineMisses = 0;
 uint32_t loopMaxExecutionUs = 0;
 uint32_t loopIntervalGapMs = 0;
 uint32_t healthIntervalMaxGapMs = 0;
+// Attribution of healthIntervalMaxGapMs: loop CPU, loop-core idle, flash I/O.
+uint32_t healthIntervalGapCpuUs = 0;
+uint32_t healthIntervalGapIdleUs = 0;
+bool healthIntervalGapFlash = false;
 uint32_t loopStackMinBytes = UINT32_MAX;
 constexpr uint32_t HEALTH_SAMPLE_STALE_MS = 3U * HEALTH_TELEMETRY_INTERVAL_MS;
 enum class HealthProfilerRequest : uint8_t { NONE, START, STOP };
@@ -740,6 +744,16 @@ static uint32_t loopPhaseCpuStartedUs = 0;
 static uint32_t loopTaskCpuUs() {
   TaskStatus_t status;
   vTaskGetInfo(nullptr, &status, pdFALSE, eRunning);
+  return static_cast<uint32_t>(status.ulRunTimeCounter);
+}
+
+// The loop core's idle-task runtime, read the same way (a non-eInvalid state
+// skips the state lookup). Read from the loop, the idle task is switched out.
+static uint32_t loopCoreIdleUs() {
+  static const TaskHandle_t idle =
+      xTaskGetIdleTaskHandleForCore(xPortGetCoreID());
+  TaskStatus_t status;
+  vTaskGetInfo(idle, &status, pdFALSE, eReady);
   return static_cast<uint32_t>(status.ulRunTimeCounter);
 }
 #endif

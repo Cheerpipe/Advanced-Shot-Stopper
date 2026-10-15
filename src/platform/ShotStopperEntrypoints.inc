@@ -649,8 +649,13 @@ void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs) {
   const bool gapClear = intervalMaxGapMs <= HEALTH_LOOP_GAP_CLEAR_MS;
   if (gapHigh && !healthLoopGapAlertLatched) {
     healthLoopGapAlertLatched = true;
-    addDebugEvent(DebugCategory::SYSTEM, DebugCode::HEALTH_LOOP_GAP,
-                  static_cast<int32_t>(intervalMaxGapMs), 0);
+    char detail[24];
+    snprintf(detail, sizeof(detail), "idle=%lu us flash=%u",
+             static_cast<unsigned long>(healthIntervalGapIdleUs),
+             healthIntervalGapFlash ? 1U : 0U);
+    addDebugEventDetail(DebugCategory::SYSTEM, DebugCode::HEALTH_LOOP_GAP,
+                        static_cast<int32_t>(intervalMaxGapMs),
+                        static_cast<int32_t>(healthIntervalGapCpuUs), detail);
   } else if (gapClear) {
     healthLoopGapAlertLatched = false;
   }
@@ -679,21 +684,32 @@ void loop() {
   if (resetLoopMax) loopMaxGapMs = 0;
   const bool profileLoopPhases = taskProfiler.loopPhaseProfilingEnabled();
   loopPhaseStartedAtUs = loopStartedAtUs;
+  uint32_t gapCpuUs = 0, gapIdleUs = 0;
 #if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+  static uint32_t lastLoopCpuUs = 0, lastLoopIdleUs = 0;
   loopPhaseCpuStartedUs = loopTaskCpuUs();
+  const uint32_t loopIdleUs = loopCoreIdleUs();
+  gapCpuUs = loopPhaseCpuStartedUs - lastLoopCpuUs;
+  gapIdleUs = loopIdleUs - lastLoopIdleUs;
+  lastLoopCpuUs = loopPhaseCpuStartedUs;
+  lastLoopIdleUs = loopIdleUs;
 #endif
   recordResetUptime(loopStartedAtMs);
   if (lastLoopAtMs != 0) {
     const uint32_t gap = loopStartedAtMs - lastLoopAtMs;
     if (!resetLoopMax && gap > loopMaxGapMs) {
       loopMaxGapMs = gap;
-      loopPhaseProfiler.capturePeakGap(gap, gapUs, delayUs, dispatchUs);
+      loopPhaseProfiler.capturePeakGap(gap, gapUs, delayUs, dispatchUs,
+                                       gapCpuUs, gapIdleUs);
     }
     if (gap > CONTROL_SERVICE_DEADLINE_MS) {
       ++loopDeadlineMisses;
     }
     if (gap > healthIntervalMaxGapMs) {
       healthIntervalMaxGapMs = gap;
+      healthIntervalGapCpuUs = gapCpuUs;
+      healthIntervalGapIdleUs = gapIdleUs;
+      healthIntervalGapFlash = flashIoActiveSince(lastLoopAtMs);
       loopPhaseProfiler.captureIntervalGap(gapUs, delayUs, dispatchUs);
     }
   }
