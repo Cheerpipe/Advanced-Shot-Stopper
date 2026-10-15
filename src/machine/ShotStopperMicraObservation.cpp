@@ -157,13 +157,7 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
           : strcmp(label, "Requested") == 0 ? MicraCleaningState::REQUESTED
           : strcmp(label, "Cleaning") == 0 ? MicraCleaningState::CLEANING
           : MicraCleaningState::UNKNOWN;
-      size_t length = std::strlen(label);
-      if (length >= sizeof(next.cleaningLabel)) {
-        length = sizeof(next.cleaningLabel) - 1;
-        while (length && (static_cast<unsigned char>(label[length]) & 0xc0) == 0x80) --length;
-      }
-      std::memcpy(next.cleaningLabel, label, length);
-      next.cleaningLabel[length] = '\0';
+      copyMicraText(next.cleaningLabel, sizeof(next.cleaningLabel), label);
     }
   }
   const cJSON *removed = find(root, "removedWidgets");

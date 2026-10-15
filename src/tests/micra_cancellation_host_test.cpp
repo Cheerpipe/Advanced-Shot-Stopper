@@ -12,7 +12,8 @@
 #include "ShotStopperOutboundAdmission.h"
 
 // Only scheduling and transport are simulated; extracted service code is unchanged.
-uint32_t millis() { return 1000; }
+static uint32_t testNowMs = 1000, performAdvanceMs = 0, lastWaitTicks = 0;
+uint32_t millis() { return testNowMs; }
 void xTaskNotifyGive(TaskHandle_t) {}
 constexpr int ESP_OK = 0, ESP_FAIL = -1, ESP_ERR_HTTP_EAGAIN = 1;
 constexpr int ESP_ERR_HTTP_READ_TIMEOUT = 2, pdTRUE = 1;
@@ -26,10 +27,15 @@ static std::function<bool(const shotstopper::MicraObservationStamp *)> dashboard
 static unsigned authentications = 0, retries = 0, failures = 0;
 static unsigned waits = 0;
 static unsigned websocketStops = 0;
-int esp_http_client_perform(void *) { return performHook(); }
+int esp_http_client_perform(void *) {
+  const int result = performHook();
+  testNowMs += performAdvanceMs;
+  return result;
+}
 void esp_http_client_cleanup(void *) {}
 unsigned ulTaskNotifyTake(int, uint32_t ticks) {
   if (ticks == 250) throw WorkerStopped{};
+  lastWaitTicks = ticks;
   ++waits;
   return 0;
 }
@@ -84,6 +90,8 @@ struct MicraCancellationTest {
   static void initializationRetries();
   static void queuedObservationAndPowerOrdering();
   static void unscaledShotAdmission();
+  static void lateResponseAndResultLabels(ShotStopperMicraService &service);
+  static void invalidAuthLatchesApiObservation();
   static void run();
 };
 }
@@ -125,6 +133,7 @@ void MicraCancellationTest::progress(ShotStopperMicraService &service, int outco
   assert(performed == (cancel ? ESP_FAIL : ESP_OK));
   assert(calls == (blockedBefore ? 0U : cancel || outcome != ESP_ERR_HTTP_EAGAIN ? 1U : 2U));
   assert(waits == (cancel || outcome != ESP_ERR_HTTP_EAGAIN ? 0U : 1U));
+  assert(waits == 0 || lastWaitTicks == 10);  // Cancellation notifies; no 1 ms spin.
   if ((scale || abortOnly) && websocketAdmitted())
     assert(websocketStops == stopsBefore);  // HTTP cancellation cannot stop admitted WSS.
   performHook = {};
@@ -248,6 +257,7 @@ void MicraCancellationTest::run() {
   service.publishNetworkState(true, false, false, false);
   service.abortRequested_.store(false);
   progress(service, ESP_ERR_HTTP_EAGAIN, false, false);
+  lateResponseAndResultLabels(service);
 
   // A canceled API observation retains evidence even after a short pause ends.
   service.pending_ = {};
@@ -543,8 +553,46 @@ void MicraCancellationTest::queuedObservationAndPowerOrdering() {
   executeHook = {};
 }
 
+void MicraCancellationTest::lateResponseAndResultLabels(ShotStopperMicraService &service) {
+  performAdvanceMs = 20000;  // A complete response after the deadline is used.
+  progress(service, ESP_OK, false, false);
+  performAdvanceMs = 0;
+  testNowMs = 1000;
+  assert(std::strcmp(micraCloudCallResult(false, false, false, 401), "http_error") == 0);
+  assert(std::strcmp(micraCloudCallResult(false, false, false, 0), "transport_error") == 0);
+  assert(std::strcmp(micraCloudCallResult(false, true, false, 200), "response_too_large") == 0);
+  assert(std::strcmp(micraCloudCallResult(false, false, true, 200), "success") == 0);
+}
+
+void MicraCancellationTest::invalidAuthLatchesApiObservation() {
+  ShotStopperMicraService service;
+  service.task_ = &service;
+  LineaMicraPersistedSettings settings;
+  settings.accountConfigured = true;
+  std::strcpy(settings.selectedSerial, "TEST");
+  settings.options = LINEA_MICRA_OBSERVE_STATE;
+  settings.connectionType = static_cast<uint8_t>(MicraConnectionType::API);
+  service.publishConfig(settings, 1);
+  LineaMicraStatus status = service.published_;
+  status.error = LineaMicraError::INVALID_AUTH;
+  service.publish(status);
+  service.scheduleAutomatic(millis(), false);
+  assert(!service.observationSchedule_.automaticDue(millis() + 3600000));
+  status.error = LineaMicraError::NONE;  // A manual refresh succeeded.
+  service.publish(status);
+  service.scheduleAutomatic(millis(), false);
+  assert(service.observationSchedule_.automaticDue(millis() + 3600000));
+  status.error = LineaMicraError::INVALID_AUTH;
+  service.publish(status);
+  service.scheduleAutomatic(millis(), true);
+  std::strcpy(settings.selectedSerial, "OTHER");  // Editing the account re-arms.
+  service.publishConfig(settings, 2);
+  assert(service.observationSchedule_.automaticDue(millis()));
+}
+
 int main() {
   MicraCancellationTest::retireBackflushConfiguration();
+  MicraCancellationTest::invalidAuthLatchesApiObservation();
   MicraCancellationTest::run();
   MicraCancellationTest::initializationAndGates();
   MicraCancellationTest::unscaledShotAdmission();

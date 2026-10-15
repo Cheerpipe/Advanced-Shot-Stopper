@@ -86,7 +86,10 @@ class ObservationSchedule {
     return false;
   }
 
+  // A completed observation (including a manual refresh after rejected
+  // credentials) resumes periodic polling.
   void scheduleNext(uint32_t now) {
+    periodic_ = true;
     if (!postWakePending_) automaticAtMs_ = now + kStatePollMs;
   }
 

@@ -60,7 +60,8 @@ editable, even when no option has changed.
 If the account returns no Linea Micra machines, the account is not enabled and
 the machine-specific options remain unavailable. Accounts with several Micras
 show each returned name and serial number so the intended machine can be
-selected explicitly.
+selected explicitly. A very long machine name is shortened to 48 bytes, and a
+machine without a name is listed by its serial number.
 
 The email, password, selected machine, and device installation key are stored
 in the controller so it can sign in again after a restart. Settings and
@@ -144,8 +145,11 @@ four attempts with 3, 6 and 9 second delays. Regular API polling resumes its
 UNKNOWN unless a paused value is being retained. A failed WebSocket initialization does not
 start recurring API polls or discard valid power updates already received.
 WebSocket losses retain the last effective value as stale and retry with the
-same delays, followed by a 60-second cooldown after exhaustion. Invalid
-credentials require reconnecting the account or a manual refresh.
+same delays, followed by a 60-second cooldown after exhaustion. In both modes,
+rejected credentials (for example after changing the La Marzocco password)
+stop automatic sign-in attempts so the account is not locked by repeated
+failures. Reconnect the account with the new password, or use
+**(Refresh)** once the password is fixed, to resume.
 Pauses and network recovery preserve this authentication stop; they do not
 restart automatic sign-in attempts.
 **(Refresh)** adds a gated dashboard read. It follows the same shot, scale,

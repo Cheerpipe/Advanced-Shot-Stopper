@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstring>
+
 #include "ShotStopperMicraPowerState.h"
 
 struct cJSON;
@@ -43,6 +45,18 @@ struct MicraObservation {
 };
 
 bool decodeMicraDashboard(const cJSON *root, MicraObservation &update);
+
+// Copies vendor text, truncating an over-long value at a UTF-8 character
+// boundary instead of rejecting it.
+inline void copyMicraText(char *destination, size_t capacity, const char *source) {
+  size_t length = std::strlen(source);
+  if (length >= capacity) {
+    length = capacity - 1;
+    while (length && (static_cast<unsigned char>(source[length]) & 0xc0) == 0x80) --length;
+  }
+  std::memcpy(destination, source, length);
+  destination[length] = '\0';
+}
 
 // The facade owns this revision fence and the authoritative status; no copy
 // of machine power lives in an adapter. Call only under the facade mutex.

@@ -9,7 +9,7 @@ text = source.read_text()
 
 def definition(name, text=text, source=source):
     # Top-level definitions end at column zero; keep their bodies verbatim.
-    match = re.search(r"^(?:bool|void|uint8_t|struct|LineaMicraStatus|MachineBackflushSnapshot|MachinePhysicalStartDisposition) " + re.escape(name)
+    match = re.search(r"^(?:const char \*|(?:bool|void|uint8_t|struct|LineaMicraStatus|MachineBackflushSnapshot|MachinePhysicalStartDisposition) )" + re.escape(name)
                       + r"(?:\(| \{)", text, re.M)
     if match is None:
         raise ValueError(f"Missing production definition: {name}")
@@ -20,7 +20,8 @@ def definition(name, text=text, source=source):
     return f'#line {line} "{source.as_posix()}"\n' + text[match.start():end]
 
 
-names = ["secureWipe", "powerOptionBit", "sameSessionIdentity", "sameCommandRequest"]
+names = ["secureWipe", "powerOptionBit", "sameSessionIdentity", "sameCommandRequest",
+         "micraCloudCallResult"]
 names += ["ShotStopperMicraService::" + name for name in
           ["WorkBuffer", "publishConfig", "publishNetworkState", "queue", "networkEligible",
            "taskLoop", "clearSession", "deferObservation", "executeObservation",

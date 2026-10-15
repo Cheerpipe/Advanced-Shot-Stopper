@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstring>
 #include <mutex>
+#include <string>
 #include <thread>
 
 using namespace shotstopper;
@@ -382,4 +383,12 @@ int main() {
     assert(power.effectiveStatus(state, true, 112000).effectiveOn);
   }
   receiver.join();
+
+  // Discovery keeps an over-long UTF-8 machine name, cut at a character edge.
+  std::string name;
+  for (unsigned i = 0; i < 30; ++i) name += "\xc3\xa9";  // 60 bytes of "é".
+  char machine[LINEA_MICRA_NAME_CAPACITY];
+  copyMicraText(machine, sizeof(machine), name.c_str());
+  assert(std::strlen(machine) == (LINEA_MICRA_NAME_CAPACITY - 1) / 2 * 2);
+  assert(std::strncmp(machine, name.c_str(), std::strlen(machine)) == 0);
 }

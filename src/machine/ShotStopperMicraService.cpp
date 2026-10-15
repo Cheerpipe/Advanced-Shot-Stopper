@@ -307,8 +307,25 @@ bool sameSessionIdentity(const LineaMicraPersistedSettings &left,
          strcmp(left.selectedSerial, right.selectedSerial) == 0;
 }
 
+// IDF aborts perform() on a 401 (auth support compiled out), so an HTTP
+// status, not the transport result, names what the server answered.
+const char *micraCloudCallResult(bool canceled, bool overflow, bool ok,
+                                 uint16_t httpStatus) {
+  return canceled ? "canceled"
+      : overflow ? "response_too_large"
+      : ok ? "success"
+      : httpStatus != 0 ? "http_error" : "transport_error";
+}
+
 }  // namespace
 
+// The POST body and the response share storage: perform() sends the whole
+// body before the first response byte. A redirect or an auth challenge would
+// resend the body after the response began overwriting it.
+#if defined(CONFIG_ESP_HTTP_CLIENT_ENABLE_BASIC_AUTH) || \
+    defined(CONFIG_ESP_HTTP_CLIENT_ENABLE_DIGEST_AUTH)
+#error "Micra IoBuffer aliases body and response; HTTP client auth retries would corrupt the body"
+#endif
 struct ShotStopperMicraService::IoBuffer {
   union {
     char response[kResponseCapacity];
@@ -564,7 +581,8 @@ void ShotStopperMicraService::publishNetworkState(bool staConnected,
   } else if (eligible && !wasEligible) {
     TaskLockGuard lock(mux_);
     if (config_.accountConfigured &&
-        (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0) {
+        (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0 &&
+        published_.error != LineaMicraError::INVALID_AUTH) {
       observationSchedule_.dueNow(millis());
     }
     if (desiredTemperature_.present) {
@@ -1747,7 +1765,11 @@ void ShotStopperMicraService::fail(LineaMicraStatus &status,
 
 void ShotStopperMicraService::scheduleAutomatic(uint32_t now, bool failed) {
   TaskLockGuard lock(mux_);
-  if (config_.connectionType == static_cast<uint8_t>(MicraConnectionType::WEBSOCKET)) {
+  // Rejected credentials latch like the WebSocket lane: retrying would only
+  // repeat sign-ins until the vendor locks the account. An account edit or a
+  // manual refresh re-arms observation.
+  if (config_.connectionType == static_cast<uint8_t>(MicraConnectionType::WEBSOCKET) ||
+      published_.error == LineaMicraError::INVALID_AUTH) {
     observationSchedule_.suspendPeriodic();
   } else if (failed) {
     observationSchedule_.dueNow(now + micra_timing::kExhaustedCooldownMs);
@@ -1935,11 +1957,9 @@ bool ShotStopperMicraService::listMachines(
       continue;
     }
     LineaMicraMachineSummary &machine = result.machines[result.count];
-    if (!secureCopy(machine.serial, sizeof(machine.serial), serial) ||
-        !secureCopy(machine.name, sizeof(machine.name),
-                    name == nullptr ? serial : name)) {
-      continue;
-    }
+    if (!secureCopy(machine.serial, sizeof(machine.serial), serial)) continue;
+    copyMicraText(machine.name, sizeof(machine.name),
+                  name == nullptr || name[0] == '\0' ? serial : name);
     ++result.count;
   }
   cJSON_Delete(root);
@@ -2304,13 +2324,12 @@ bool ShotStopperMicraService::request(
       canceled = true;
       performed = ESP_FAIL;
       break;
-    } else if (performed == ESP_OK &&
-               static_cast<uint32_t>(millis() - requestStartedAtMs) >=
-                   micra_timing::kHttpTimeoutMs) {
-      performed = ESP_ERR_HTTP_READ_TIMEOUT;
     }
+    // The deadline bounds waiting only: a complete late response is used.
+    // Every cancel source notifies this task, so a longer wait adds no
+    // cancellation latency while sparing ~1000 wakeups/s during TLS setup.
     if (performed == ESP_ERR_HTTP_EAGAIN) {
-      (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1));
+      (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10));
     }
   }
   const HeapCapSnapshot heapAfter = sampleHeapCaps();
@@ -2346,10 +2365,8 @@ bool ShotStopperMicraService::request(
                   work_->httpStatus >= 200 && work_->httpStatus < 300;
   pendingCloudCall_.httpStatus = work_->httpStatus;
   pendingCloudCall_.transportStatus = performed;
-  pendingCloudCall_.result = canceled ? "canceled"
-      : work_->responseOverflow ? "response_too_large"
-      : work_->transportFailure ? "transport_error"
-      : ok ? "success" : "http_error";
+  pendingCloudCall_.result = micraCloudCallResult(
+      canceled, work_->responseOverflow, ok, work_->httpStatus);
   if (installationInit) {
     secureWipe(io_->response, sizeof(io_->response));
     work_->responseUsed = 0;

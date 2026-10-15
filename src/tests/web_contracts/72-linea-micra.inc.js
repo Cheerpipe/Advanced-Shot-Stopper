@@ -250,8 +250,9 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert.strictEqual((micraService.match(/releaseIoBuffer\(false\)/g) || []).length, 1,
       'Invalid machine lists and dashboards must be reported as errors');
   assert(micraService.includes('releaseIoBuffer(decoded)'));
-  assert(micraService.includes('work_->responseOverflow ? "response_too_large"'));
-  assert(micraService.includes('work_->transportFailure ? "transport_error"'));
+  assert(micraService.includes(': overflow ? "response_too_large"') &&
+      micraService.includes('canceled, work_->responseOverflow, ok, work_->httpStatus'));
+  assert(micraService.includes(': httpStatus != 0 ? "http_error" : "transport_error"'));
 }
 const deferObservation = micraService.slice(
   micraService.indexOf('void ShotStopperMicraService::deferObservation('),
@@ -295,7 +296,7 @@ const micraNetworkState = micraService.slice(
     micraService.indexOf('bool ShotStopperMicraService::queueConnect('));
 if (!micraService.includes('config.is_async = true;') ||
     !micraService.includes('while (performed == ESP_ERR_HTTP_EAGAIN)') ||
-    !micraService.includes('(void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(1));') ||
+    !micraService.includes('(void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10));') ||
     !micraService.includes('millis() - requestStartedAtMs') ||
     micraPublishAt < 0 ||
     !micraNetworkState.includes('abortRequested_.store(true,') ||
