@@ -487,40 +487,47 @@ The installer reads the partition-table sector first. Project builds always use
 the existing `flash_args`, which transfers the bootloader, partition table,
 initial OTA metadata and application without invoking a build. `--no-check`
 only skips local identity verification. An external `--image` still replaces
-app0 only on a readable installed layout.
+app0 only, and only on a known installed layout (see the table below).
 
 ### Partition-layout updates
 
-The installer compares the controller's partition table with the current
-layout in `idf/partitions-<arch>.csv` and with earlier project layouts kept
-in `idf/partition-history/`. When a partition table changes, record the
-layout it replaces there, and decide in the same change how the installer
-treats controllers that still have it.
+The installer flashes in place only when the controller's partition table
+exactly matches a project layout it knows: the current layout in
+`idf/partitions-<arch>.csv`, or one of the earlier layouts recorded in
+`idf/partition-history/`. Every partition must agree in name, type, subtype,
+offset and size. Any other table is refused with a pointer to `--erase-all`,
+so a near match never gets flashed over by accident. When a partition table
+changes, record the layout it replaces there, and decide in the same change
+how the installer treats controllers that still have it.
 
-### Curve-layout transition
+### Moving up from an earlier layout
 
-The timestamped curve format requires a one-time USB installation of the full
-project build. Build for your hardware and machine, then use the ordinary USB
-flash command without `--erase-all`:
+Controllers on an earlier project layout move to the current one with a
+one-time USB installation of the full project build. Build for your hardware
+and machine, then use the ordinary USB flash command without `--erase-all`:
 
 ```sh
 ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \
   --hardware esp32-s3-relay-x1-speaker --machine la-marzocco-linea-micra
 ```
 
-For the exact preceding project layout, the installer reports that old curves
-will start empty and erases only the new curve region. It preserves settings,
-Wi-Fi credentials, presets, calibration, shot summaries, activation history,
-both application slots and crash storage. This consumes previously unused,
-unmounted filesystem space. After this installation, ordinary OTA updates
-remain available. App-only `--image` and OTA cannot change the partition table.
-Any other incompatible layout is rejected; review its data-loss consequences
-before explicitly choosing a clean installation.
+The installer names the layout it found and what starts empty, clears only the
+storage areas that layout lacks, then installs the firmware:
 
-The scale-profile partition uses the same one-time mechanism: coming from the
-current curve layout, the installer erases only the new 260 KiB profile region
-(previously reserved, unmounted filesystem space) and reports that saved scale
-profiles start empty. Nothing else on the flash changes.
+| Installed layout | Starts empty | `--image` (app-only) |
+| --- | --- | --- |
+| Current | Nothing | Allowed |
+| Before the persistent audit log | Audit log | Allowed; the audit log stays in memory only and is lost on restart |
+| Before scale profiling | Scale profiles and audit log | Allowed; no scale profiling, and the audit log stays in memory only |
+| Before timestamped curves | Previous shot curves, scale profiles and audit log | Refused; the curve storage is too small |
+
+In every case settings, Wi-Fi credentials, presets, calibration, shot
+summaries, activation history, both application slots and crash storage are
+preserved: the cleared areas were unused space in the older layout. After this
+installation, ordinary OTA updates remain available. App-only `--image` and OTA
+cannot change the partition table, so a controller updated that way keeps its
+older layout until a full USB installation. Any other layout is refused; review
+its data-loss consequences before explicitly choosing a clean installation.
 
 ### Other clean-install cutovers
 

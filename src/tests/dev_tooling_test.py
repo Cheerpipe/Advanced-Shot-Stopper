@@ -507,13 +507,11 @@ for filename, contract in partition_contracts.items():
     assert rows["scaleprof"][1] == 0x41000, "scale-profile partition changed"
 
 flash_idf = (INTERNAL / "flash-idf").read_text()
-for required in ("read-flash 0x8000 0x1000", "installed_nvs_bytes != 0x15000",
-                 "installed_layout=blank", "installed_shotcurve_row",
-                 "installed_scaleprof_row",
+for required in ("read-flash 0x8000 0x1000", "installed_layout=blank",
                  'current_csv="$IDF_PROJECT/partitions-$SHOTSTOPPER_ARCH.csv"',
-                 "partition-history/$SHOTSTOPPER_ARCH-pre-curve.csv",
-                 "profiler_layout_transition",
-                 'erase-region "$required_scaleprof_offset" "$required_scaleprof_size"',
+                 'partition-history/$SHOTSTOPPER_ARCH"-pre-*.csv',
+                 "*-pre-auditlog.csv)", "*-pre-scaleprof.csv)", "*-pre-curve.csv)",
+                 'erase-region "$region_offset" "$region_size"',
                  "erase-flash",
                  '"$installed_app0_offset" "$image"'):
     assert required in flash_idf, f"flash-idf erase-all contract missing: {required}"
@@ -1336,23 +1334,25 @@ def flash_command(layout: str, *extra: str, arch: str = "n8r4"):
         (idf / "export.sh").write_text("return 99\n")
         (python_env / "python").write_text("#!/bin/sh\nexit 0\n")
         (python_env / "python").chmod(0o755)
+        # Emits the selected recorded or current layout the way gen_esp32part
+        # prints it (decimal subtypes, K sizes), or a current-layout mutation.
         partition_tool.write_text(
             "from pathlib import Path\nimport os,sys\n"
-            "offset = '0x69E000' if os.environ['EXPECTED_ARCH'] == 'n8r4' "
-            "else '0x63E000'\n"
-            "if os.environ['FLASH_LAYOUT'] == 'wrong': "
-            "offset = '0x63E000' if offset == '0x69E000' else '0x69E000'\n"
-            "part_type = 'app' if os.environ['FLASH_LAYOUT'] == 'type' else 'data'\n"
-            "subtype = '65' if os.environ['FLASH_LAYOUT'] == 'subtype' else '64'\n"
-            "size = '36K' if os.environ['FLASH_LAYOUT'] == 'size' else '816K'\n"
-            "curve = '' if os.environ['FLASH_LAYOUT'] == 'missing' else "
-            "f'shotcurve,{part_type},{subtype},{offset},{size}\\n'\n"
-            "Path(sys.argv[-1]).write_text('nvs,data,nvs,0x9000,0x15000\\n'"
-            "+'app0,app,ota_0,0x20000,0x330000\\n'+curve)\n"
-            "history = {'legacy': 'pre-curve', 'predecessor': 'pre-scaleprof'}\n"
-            "if os.environ['FLASH_LAYOUT'] in history:\n"
-            "    Path(sys.argv[-1]).write_text(Path('idf/partition-history', "
-            "os.environ['EXPECTED_ARCH'] + '-' + history[os.environ['FLASH_LAYOUT']] + '.csv').read_text())\n")
+            "arch, layout = os.environ['EXPECTED_ARCH'], os.environ['FLASH_LAYOUT']\n"
+            "history = {'legacy': 'pre-curve', 'predecessor': 'pre-scaleprof', "
+            "'auditlog': 'pre-auditlog'}\n"
+            "source = Path('idf/partition-history', f'{arch}-{history[layout]}.csv') "
+            "if layout in history else Path('idf', f'partitions-{arch}.csv')\n"
+            "rows = [[cell.strip() for cell in line.split(',')][:5] for line in "
+            "source.read_text().splitlines() if line and not line.startswith('#')]\n"
+            "edits = {'wrong': (6, 3, '0x69F000'), 'type': (6, 1, 'app'), "
+            "'subtype': (6, 2, '0x41'), 'size': (6, 4, '0xE000'), 'nvs': (0, 4, '0x5000')}\n"
+            "if layout in edits: row, column, value = edits[layout]; rows[row][column] = value\n"
+            "drop = {'missing': 'shotcurve', 'loose': 'auditlog'}.get(layout)\n"
+            "rows = [row for row in rows if row[0] != drop]\n"
+            "fmt = lambda value: str(int(value, 0)) if value.startswith('0x') else value\n"
+            "Path(sys.argv[-1]).write_text(''.join(f'{n},{ty},{fmt(st)},{o},{int(sz, 0) // 1024}K\\n' "
+            "for n, ty, st, o, sz in rows))\n")
         shutil.copytree(ROOT / "idf/partition-history", root / "idf/partition-history")
         shutil.copy(ROOT / f"idf/partitions-{arch}.csv", root / "idf")
         (tools / "idf.py").write_text(
@@ -1409,27 +1409,33 @@ assert external_result.returncode == 0 and \
     external_flash
 for architecture in ('n8r4', 'n16r8'):
     current = partition_rows(f"partitions-{architecture}.csv")
-    curve_erase, profile_erase = (
+    curve_erase, profile_erase, audit_erase = (
         "erase-region 0x{:X} 0x{:X}".format(*current[name])
-        for name in ("shotcurve", "scaleprof"))
-    result, commands = flash_command('legacy', arch=architecture)
-    assert result.returncode == 0 and 'settings, Wi-Fi' in result.stdout, result.stderr
-    assert any(line.endswith(curve_erase) for line in commands), commands
-    assert any(line.endswith(profile_erase) for line in commands), commands
-    assert not any('erase-flash' in line for line in commands)
-    result, commands = flash_command('legacy', '--image', 'placeholder', arch=architecture)
-    assert result.returncode == 1 and not any('write-flash' in line for line in commands)
-    result, commands = flash_command('predecessor', arch=architecture)
-    assert result.returncode == 0 and 'scale profile store starts empty' in result.stdout, result.stderr
-    assert any(line.endswith(profile_erase) for line in commands), commands
-    assert not any(line.endswith(curve_erase) for line in commands), commands
-    assert not any('erase-flash' in line for line in commands)
-for incompatible_layout in ("missing", "wrong", "type", "subtype", "size"):
+        for name in ("shotcurve", "scaleprof", "auditlog"))
+    for layout, erased, message in (
+            ('legacy', (curve_erase, profile_erase, audit_erase), 'previous shot curves'),
+            ('predecessor', (profile_erase, audit_erase), 'scale profile store'),
+            ('auditlog', (audit_erase,), 'audit log starts empty')):
+        result, commands = flash_command(layout, arch=architecture)
+        assert result.returncode == 0 and message in result.stdout, result.stderr
+        assert [line[line.index('erase-region'):] for line in commands
+                if 'erase-region' in line] == list(erased), (layout, commands)
+        assert any(line.endswith('write-flash @flash_args') for line in commands), commands
+        assert not any('erase-flash' in line for line in commands)
+        result, commands = flash_command(layout, '--image', 'placeholder', arch=architecture)
+        assert not any('erase-region' in line for line in commands), (layout, commands)
+        if layout == 'legacy':
+            assert result.returncode == 1 and not any('write-flash' in line for line in commands)
+        else:
+            assert result.returncode == 0 and 'RAM only' in result.stdout and \
+                any('write-flash 0x20000' in line for line in commands), (layout, commands)
+for incompatible_layout in ("missing", "wrong", "type", "subtype", "size", "nvs", "loose"):
     for extra in ((), ("--image", "placeholder")):
         rejected, commands = flash_command(incompatible_layout, *extra)
-        assert rejected.returncode == 1 and "required n8r4 shotcurve" in rejected.stderr, \
-            (incompatible_layout, extra, rejected.stderr)
-        assert not any("write-flash" in line for line in commands), commands
+        assert rejected.returncode == 1 and \
+            "not a known n8r4 project layout" in rejected.stderr and \
+            "--erase-all" in rejected.stderr, (incompatible_layout, extra, rejected.stderr)
+        assert not any("write-flash" in line or "erase" in line for line in commands), commands
 flash_language = subprocess.run(
     [str(INTERNAL / "flash-idf"), "--webui-language", "en"],
     cwd=ROOT, capture_output=True, text=True)
