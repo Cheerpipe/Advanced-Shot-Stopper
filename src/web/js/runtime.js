@@ -5456,7 +5456,15 @@ function presetGraph(host, m, x = {}) {
       if (X(t) - lastX < 14 && i < ts.length - 1) return;
       lastX = X(t);
       if (tens) grid += `<path class="rvGrid" d="M${f(X(t))} ${T}V${B}"/>`;
-      marks += label(X(t), B + 13, n(t) + (tens || i === ts.length - 1 ? " s" : ""), !tens && i > 1 && i < 4 ? "strong" : "");
+      // A tick at the right edge ends there instead of spilling past the SVG.
+      const edge = X(t) > W - 14;
+      marks += label(
+        edge ? W - 1 : X(t),
+        B + 13,
+        n(t) + (tens || i === ts.length - 1 ? " s" : ""),
+        !tens && i > 1 && i < 4 ? "strong" : "",
+        edge ? "end" : "middle",
+      );
     },
   );
   host.innerHTML =
