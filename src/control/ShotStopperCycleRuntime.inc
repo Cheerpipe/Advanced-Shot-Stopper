@@ -900,10 +900,10 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     return false;
   }
 
-  if (session.awaitingPostTareBaseline && session.retareEffectPending) {
-    if (static_cast<int32_t>(receivedAtMs - session.postTareBaselineDeadlineMs) >= 0)
-      expirePostTareBaselineIfNeeded();
-  }
+  if (session.awaitingPostTareBaseline && session.retareEffectPending &&
+      static_cast<int32_t>(receivedAtMs - session.postTareBaselineDeadlineMs) >= 0 &&
+      expirePostTareBaselineIfNeeded())
+    holdCupPresenceTransitions(false);
   if (session.awaitingPostTareBaseline) {
     if (session.retareEffectPending) {
       shotCurveSampler.markBreak();

@@ -134,10 +134,7 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
   session.calibrationEligible = session.automaticEnabled;
   if (session.startedWithScale) {
     resyncCupPresenceIfPanEmpty(currentWeight);
-    if (session.config.autoTare) {
-      orchestratePostTareBaselineArm();
-      markTareZeroReady();
-    } else {
+    if (!session.config.autoTare) {
       session.hasWeightAnchor = true;
       session.lastAcceptedWeightG = currentWeight;
       session.lastAcceptedWeightAtMs = currentWeightReceivedAtMs;
@@ -170,6 +167,12 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
     return;
   }
   captureCycleCircuitStart();
+  // Arm the tare baseline only for a started cycle: a refused start must not
+  // leave the cup FSM held or believing an unsent tare happened.
+  if (session.startedWithScale && session.config.autoTare) {
+    orchestratePostTareBaselineArm();
+    markTareZeroReady();
+  }
 
   emitCircuitCycleAlert(session.startedWithScale && session.config.autoTare &&
                             session.config.canTareStartTimer

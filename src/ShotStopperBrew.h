@@ -790,7 +790,9 @@ bool automaticScaleStopDue() {
       directStopFresh &&
       (session.directStopReason == EndReason::WEIGHT_ANOMALY ||
        session.weightControlState == WeightControlState::ACTIVE);
-  if (!holding && directStopHonored) {
+  // An overload ends the shot even while a touch hold is latched.
+  if (directStopHonored &&
+      (!holding || session.directStopReason == EndReason::WEIGHT_ANOMALY)) {
     return true;
   }
 

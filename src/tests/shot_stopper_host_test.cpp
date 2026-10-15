@@ -18162,6 +18162,83 @@ void at16_resting_finger_contained_by_direct_stop_law() {
   CHECK(!session.calibrationEligible);
 }
 
+void sk01_refused_start_releases_cup_hold() {
+  // A start refused by relay safety must not leave the cup FSM held or
+  // believing that the never-sent start tare zeroed the cup.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  runtimeConfig.autoTareOutsideBrew = true;
+  idleCup(0.0f);
+  idleCup(250.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+  runtimeConfig.autoTareOutsideBrew = false;
+  hostEspTimerStartSucceeds = false;
+  currentWeightReceivedAtMs = hostMillis;
+  ++currentWeightSequence;
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(stopperState == StopperState::REQUIRES_OFF);
+  CHECK(session.endReason == EndReason::RELAY_SAFETY_FAILURE);
+  CHECK(!cupPresence.holdTransitions);
+  hostEspTimerStartSucceeds = true;
+  setRawPaddle(false);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(stopperState == StopperState::READY);
+  runtimeConfig.autoTareOutsideBrew = true;
+  idleCup(-250.0f);
+  CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+  idleCup(0.0f);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+}
+
+void sk02_overload_stops_while_touch_is_held() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  enableAccidentalTouchForTest();
+  startCycle();
+  advanceToBrew();
+  endBbwProtectionForTests();
+  hostMillis += 100;
+  publishWeight(40.0f, hostMillis, 1, 70);
+  CHECK(session.accidentalTouchHolding);
+  publishWeight(MAX_AUTOMATION_WEIGHT_G + 100.0f, hostMillis + 100, 1, 71);
+  publishWeight(MAX_AUTOMATION_WEIGHT_G + 100.0f, hostMillis + 100, 1, 72);
+  CHECK(session.accidentalTouchHolding);
+  loop();
+  CHECK(session.endReason == EndReason::WEIGHT_ANOMALY);
+  CHECK(!getRelaySafetySnapshot().closed);
+}
+
+void sk03_late_zero_after_grace_releases_cup_hold() {
+  // The late-retare zero arrives after the grace: expiry on the sample path
+  // must release the cup hold so a later lift still stops the shot.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  runtimeConfig.autoRetare = true;
+  runtimeConfig.retareWindowMs = 4000;
+  runtimeConfig.bbwProtectionMs = minimumBbwProtectionMs(runtimeConfig);
+  startCycle();
+  CHECK(executeNextScaleCommand());
+  establishPostTareBaseline();
+  hostMillis = session.startedAtMs + 1500U;
+  publishStableCupWeight(80.0f, 30);
+  CHECK(session.retarePerformed);
+  CHECK(executeNextScaleCommand());
+  CHECK(cupPresence.holdTransitions);
+  hostMillis = session.postTareBaselineDeadlineMs + 10U;
+  markScaleWorkerProgress();
+  publishWeight(0.0f, hostMillis, 1, 50);
+  CHECK(!session.awaitingPostTareBaseline);
+  CHECK(!cupPresence.holdTransitions);
+  publishWeight(-80.0f, hostMillis + 100, 1, 51);
+  publishWeight(-80.0f, hostMillis + 100, 1, 52);
+  runLoopAfter(1);
+  CHECK(session.endReason == EndReason::CUP_REMOVED);
+}
+
 void fw01_median_final_weight_filters_dip() {
   // Post-stop drip tail with one -1.9 g dip constituent: the median of the
   // last five plausible samples swallows it, and learning consumes the
@@ -20269,6 +20346,9 @@ const TestCase testCases[] = {
     {"FF19", ff19_foreign_generation_cannot_latch_first_drop},
     {"FF20", ff20_seeking_fa_telemetry_args_and_rate_limit},
     {"AT16", at16_resting_finger_contained_by_direct_stop_law},
+    {"SK01", sk01_refused_start_releases_cup_hold},
+    {"SK02", sk02_overload_stops_while_touch_is_held},
+    {"SK03", sk03_late_zero_after_grace_releases_cup_hold},
     {"FW01", fw01_median_final_weight_filters_dip},
     {"FW02", fw02_offset_floor_from_sensor_lag},
     {"FW03", fw03_dense_tail_decimates_to_reachable_median},
