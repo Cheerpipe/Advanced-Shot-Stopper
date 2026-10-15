@@ -667,8 +667,16 @@ re-anchors at the recovered level.
 | Class | Meaning |
 | --- | --- |
 | `OK` | Sample looks like brew flow. Stop logic may run. |
-| `TOUCH` | Anomalous spike; **hold** cuts (`accidentalTouchHolding`). |
-| `SUSTAINED` | Several similar anomalous samples — treated as a held finger, not a one-sample glitch. |
+| `TOUCH` | Anomalous spike; **hold** cuts (`accidentalTouchHolding`). A flat plateau 5 g or more from the anchor stays `TOUCH` (a resting load, not a spurt). |
+| `SUSTAINED` | Three anomalous samples within 1 g of each other and less than 5 g from the anchor: a spurt-sized step accepted as weight. The cycle becomes ineligible for offset learning. Above the cut line, with the touch fallback effective, it is reclassified `TOUCH` and counts as fallback evidence instead of allowing a direct cut. |
+
+While holding, a sample above the cut line also stays `TOUCH` when the touch
+fallback is effective, so a hold never releases into a direct cut there; it
+releases when the reading returns below the line. Below the line (or with the
+fallback off) a hold can also release by rate dilution: the classifier measures
+the step against the last accepted sample, so as time passes its implied rate
+falls under the limits and the held level is accepted as weight (seconds for a
+10 g load at 1.5 g/s flow).
 
 The default-on, per-preset `touchStopFallbackEnabled` option is effective only
 with `avoidAccidentalTouchEnabled`. It does not modify this classifier. A

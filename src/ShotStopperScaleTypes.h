@@ -352,6 +352,8 @@ constexpr float ACCIDENTAL_TOUCH_TREND_MIN_RATE_G_S = 3.0f;
 constexpr float ACCIDENTAL_TOUCH_RATE_FACTOR = 3.0f;
 constexpr float ACCIDENTAL_TOUCH_MIN_SLOPE_G_S = 0.2f;
 constexpr float ACCIDENTAL_TOUCH_SUSTAINED_SPAN_G = 1.0f;
+// A flat plateau this far from the anchor is a resting load, never a spurt.
+constexpr float ACCIDENTAL_TOUCH_SUSTAINED_MAX_DELTA_G = 5.0f;
 constexpr uint8_t ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES = 3;
 constexpr size_t ACCIDENTAL_TOUCH_RATE_WINDOW = 4;
 
@@ -873,10 +875,12 @@ inline float accidentalTouchMedianControlRate(const float *timeS,
   return 0.5f * (rates[count / 2U - 1U] + rates[count / 2U]);
 }
 
-// The direct weight-stop law (automaticScaleStopDue) refuses to honor any
-// stop while the classifier holds TOUCH/SUSTAINED, and the touch fallback
-// marks the shot calibration-ineligible: a finger resting on the platform
-// must never stop the machine through its own mass. Host tests pin this.
+// TOUCH holds the direct weight-stop law (automaticScaleStopDue); only the
+// touch fallback, calibration-ineligible, may end the shot from a hold. A
+// SUSTAINED spurt-sized plateau is accepted as weight but never trains
+// learning, and the stopper treats one above the cut line as touch evidence:
+// a finger resting on the platform must never stop the machine through its
+// own mass. Host tests pin this.
 inline AccidentalTouchClass classifyAccidentalTouch(
     AccidentalTouchPhase phase, const float *timeS, const float *weightG,
     size_t datapoints, float weight, float timeSNow, bool hasAnchor,
@@ -934,7 +938,8 @@ inline AccidentalTouchClass classifyAccidentalTouch(
   }
   if (static_cast<uint8_t>(pendingTouchCount + 1U) >=
           ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES &&
-      (hi - lo) <= ACCIDENTAL_TOUCH_SUSTAINED_SPAN_G) {
+      (hi - lo) <= ACCIDENTAL_TOUCH_SUSTAINED_SPAN_G &&
+      fabsf(delta) < ACCIDENTAL_TOUCH_SUSTAINED_MAX_DELTA_G) {
     return AccidentalTouchClass::SUSTAINED;
   }
   return AccidentalTouchClass::TOUCH;

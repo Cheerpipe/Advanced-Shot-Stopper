@@ -17420,11 +17420,16 @@ void at12_touch_fallback_duration_and_evidence_resets() {
   prepareTouchFallbackTest();
   hostMillis += 100;
   publishWeight(40.0f);
+  const uint32_t heldAt = hostMillis;
   publishWeight(40.1f, hostMillis + 100);
-  publishWeight(40.2f, hostMillis + 100); // Existing sustained release wins.
+  publishWeight(40.2f, hostMillis + 100); // A flat plateau above f stays held.
   publishWeight(40.3f, hostMillis + 100);
   loop();
-  CHECK(session.endReason == EndReason::SCALE_THRESHOLD);
+  CHECK(session.active && session.accidentalTouchHolding);
+  for (uint32_t at = hostMillis + 100; at <= heldAt + TOUCH_STOP_FALLBACK_MS; at += 100)
+    publishWeight(40.3f, at);
+  loop();
+  CHECK(session.endReason == EndReason::TOUCH_WEIGHT_FALLBACK);
 }
 
 void at13_touch_fallback_guard_thresholds() {
@@ -17736,6 +17741,10 @@ void at01_classifier_startup_and_trend_math() {
   const float pending[2] = {13.0f, 13.1f};
   CHECK(classifyAccidentalTouch(AccidentalTouchPhase::STARTUP, times, weights, 2,
                                13.2f, 1.3f, true, 5.0f, 1.0f, pending, 2) ==
+        AccidentalTouchClass::TOUCH);  // A flat 8 g load is a resting touch.
+  const float spurt[2] = {9.0f, 9.1f};
+  CHECK(classifyAccidentalTouch(AccidentalTouchPhase::STARTUP, times, weights, 2,
+                               9.2f, 1.3f, true, 5.0f, 1.0f, spurt, 2) ==
         AccidentalTouchClass::SUSTAINED);
   CHECK(classifyAccidentalTouch(
             AccidentalTouchPhase::TREND, times, weights,
@@ -17863,15 +17872,18 @@ void at06_fast_extended_spike_does_not_cut_until_sustained() {
   CHECK(stopperState == StopperState::BREW);
   CHECK(session.endReason == EndReason::NONE);
   CHECK(session.accidentalTouchHolding);
-  hostMillis += 100;
-  publishWeight(maxThreshold + 0.5f);
-  hostMillis += 100;
-  publishWeight(maxThreshold + 0.6f);
-  hostMillis += 100;
-  publishWeight(maxThreshold + 0.6f);
-  loop();
+  // A held plateau above the ceiling is touch evidence: it ends the shot
+  // only through the labelled fallback after one second on one segment.
+  const uint32_t first = hostMillis;
+  while (stopperState == StopperState::BREW && hostMillis < first + 3000U) {
+    hostMillis += 100;
+    publishWeight(maxThreshold + 0.6f);
+    loop();
+  }
+  CHECK(hostMillis >= first + TOUCH_STOP_FALLBACK_MS);
   CHECK(stopperState == StopperState::REQUIRES_OFF);
-  CHECK(session.endReason == EndReason::FAST_EXTRACTION_MAX_WEIGHT);
+  CHECK(session.endReason == EndReason::TOUCH_WEIGHT_FALLBACK);
+  CHECK(!session.calibrationEligible);
 }
 
 void at07_feature_off_matches_legacy_threshold_cut() {
@@ -18221,6 +18233,83 @@ void at17_heavy_touch_release_recovers_control() {
   publishSequencedWeight(threshold + 0.2f, seq);
   loop();
   CHECK(session.endReason == EndReason::SCALE_THRESHOLD);
+}
+
+void at19_late_cup_step_held() {
+  // A cup set down after the retare window is a 250 g step: the slew guard
+  // rejects it until it becomes plausible (~2.3 s), then it is held as a
+  // touch and ends the shot only through the labelled fallback.
+  prepareTouchFallbackTest();
+  CHECK(!retareWindowOpen());
+  const float base = session.lastAcceptedWeightG;
+  uint32_t seq = session.lastAcceptedPacketSequence;
+  bool due = false;
+  for (int i = 0; i < 40 && !due; ++i) {
+    publishSequencedWeight(base + 250.0f, seq);
+    due = automaticScaleStopDue();
+  }
+  CHECK(due);
+  CHECK(session.directStopReason == EndReason::TOUCH_WEIGHT_FALLBACK);
+  CHECK(!session.retarePerformed);
+  CHECK(!session.calibrationEligible);
+}
+
+void startSlowFlowForTouch(float goalG) {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  enableAccidentalTouchForTest();
+  mutableActiveShotPreset(presetBank).goalWeightDg = gramsToDg(goalG);
+  runtimeConfig.goalWeightDg = gramsToDg(goalG);
+  startCycle();
+  advanceToBrew();
+  endBbwProtectionForTests();
+  publishControlRamp(0.15f, 12.0f, 0.15f, 100, 10);  // 1.5 g/s at 10 Hz.
+  CHECK(session.accidentalTouchPhase == AccidentalTouchPhase::TREND);
+}
+
+void at20_resting_load_under_flow_stays_held() {
+  // A hand resting on the cup while coffee keeps flowing is a flat-ish
+  // +28 g plateau: it stays a held touch, never a SUSTAINED new weight.
+  startSlowFlowForTouch(100.0f);
+  const float base = session.lastAcceptedWeightG;
+  uint32_t seq = session.lastAcceptedPacketSequence;
+  for (int i = 1; i <= 10; ++i) {
+    publishSequencedWeight(base + 28.0f + 0.15f * i, seq);
+    CHECK(session.accidentalTouchHolding);
+    CHECK(session.accidentalTouchClass == AccidentalTouchClass::TOUCH);
+    CHECK(!automaticScaleStopDue());
+  }
+  CHECK(session.lastAcceptedWeightG < base + 0.01f);
+  CHECK(session.active);
+}
+
+void at21_spurt_plateau_is_accepted_without_learning() {
+  startSlowFlowForTouch(100.0f);
+  CHECK(session.calibrationEligible);
+  const float base = session.lastAcceptedWeightG;
+  uint32_t seq = session.lastAcceptedPacketSequence;
+  for (int i = 0; i < 3; ++i) publishSequencedWeight(base + 3.0f, seq);
+  CHECK(session.accidentalTouchClass == AccidentalTouchClass::SUSTAINED);
+  CHECK(!session.accidentalTouchHolding);
+  CHECK(fabsf(session.lastAcceptedWeightG - (base + 3.0f)) < 0.01f);
+  CHECK(!session.calibrationEligible);
+}
+
+void at22_held_touch_below_line_releases_by_rate_dilution() {
+  // Below the cut line a touch that never lifts is eventually accepted as
+  // weight once its rate from the last accepted sample looks like flow;
+  // the direct law can then stop on it, so the extra mass ends the shot
+  // early rather than letting it overflow.
+  startSlowFlowForTouch(100.0f);
+  const float base = session.lastAcceptedWeightG;
+  uint32_t seq = session.lastAcceptedPacketSequence;
+  int releasedAt = -1;
+  for (int i = 1; i <= 80 && releasedAt < 0; ++i) {
+    publishSequencedWeight(base + 10.0f + 0.15f * i, seq);
+    if (!session.accidentalTouchHolding) releasedAt = i;
+  }
+  CHECK(releasedAt > 10 && releasedAt <= 60);
+  CHECK(session.lastAcceptedWeightG > base + 10.0f);
 }
 
 void tr04_light_cup_pre_effect_packet_recovers() {
@@ -20443,6 +20532,10 @@ const TestCase testCases[] = {
     {"AT16", at16_resting_finger_contained_by_direct_stop_law},
     {"AT17", at17_heavy_touch_release_recovers_control},
     {"AT18", at18_heavy_touch_is_held_then_fallback},
+    {"AT19", at19_late_cup_step_held},
+    {"AT20", at20_resting_load_under_flow_stays_held},
+    {"AT21", at21_spurt_plateau_is_accepted_without_learning},
+    {"AT22", at22_held_touch_below_line_releases_by_rate_dilution},
     {"TR04", tr04_light_cup_pre_effect_packet_recovers},
     {"TR05", tr05_light_cup_pre_effect_packet_is_not_a_baseline},
     {"SK01", sk01_refused_start_releases_cup_hold},

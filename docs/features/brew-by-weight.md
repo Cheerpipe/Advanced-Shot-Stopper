@@ -102,7 +102,13 @@ only when touch protection rejects weight that would otherwise allow a stop.
 Fresh readings must remain above the applicable threshold for at least one second;
 the weight may keep increasing. A brief spike, silence after one reading, a drop
 below the threshold, a new tare or a connection interruption cannot complete that
-interval. If touch protection releases sooner, normal stopping resumes immediately.
+interval. When the hand is lifted and the reading returns to the coffee's weight,
+touch protection releases and normal stopping resumes immediately. While the
+reading stays above the threshold, touch protection keeps holding, so a resting
+hand or a cup set down mid-shot ends the shot through this backup rather than
+as a normal stop. Below the threshold, a hand left on the scale for a few
+seconds is eventually counted as coffee, which can end the shot early; with the
+backup off, the same happens above the threshold.
 
 The backup uses the cut line at each reading, minus the learned drip, so a
 fast shot can still run to its raised cut line and a slow one stops at its

@@ -233,6 +233,7 @@ void noteAccidentalTouchClass(AccidentalTouchClass classified, float weight) {
   session.accidentalTouchHolding = false;
   session.accidentalTouchPendingCount = 0;
   if (classified == AccidentalTouchClass::SUSTAINED) {
+    session.calibrationEligible = false;
     addDebugEvent(DebugCategory::SCALE, DebugCode::ACCIDENTAL_TOUCH_SUSTAINED,
                   weightToCentigrams(weight));
     scaleProfileNoteEvent(ScaleProfileEvent::TOUCH_SUSTAINED, millis(), 0, 0,
@@ -265,10 +266,19 @@ AccidentalTouchClass evaluateAccidentalTouchSample(float weight,
   const float lastS =
       static_cast<int32_t>(session.lastAcceptedWeightAtMs - shot.startMs) /
       1000.0f;
-  const AccidentalTouchClass classified = classifyAccidentalTouch(
+  AccidentalTouchClass classified = classifyAccidentalTouch(
       session.accidentalTouchPhase, shot.timeS, shot.weight, shot.datapoints,
       weight, nowS, session.hasWeightAnchor, session.lastAcceptedWeightG, lastS,
       session.accidentalTouchPendingG, session.accidentalTouchPendingCount);
+  // With the touch fallback on, a plateau or a hold above the cut line stays
+  // touch evidence (labelled fallback) instead of releasing into a direct cut.
+  float threshold = 0.0f;
+  if (classified != AccidentalTouchClass::TOUCH &&
+      session.config.touchStopFallbackEnabled &&
+      (classified == AccidentalTouchClass::SUSTAINED || session.accidentalTouchHolding)) {
+    touchStopPolicy(threshold, receivedAtMs);
+    if (weight >= threshold) classified = AccidentalTouchClass::TOUCH;
+  }
   noteAccidentalTouchClass(classified, weight);
   return classified;
 }
