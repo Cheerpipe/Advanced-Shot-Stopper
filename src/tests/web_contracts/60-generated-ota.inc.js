@@ -623,8 +623,9 @@ if (generated.cssGzip.length > 13700) {
 // The Stats shot cursor and Home graphs bring the runtime to 58319 compressed bytes;
 // owner-authorized 2026-10-14.
 // The Stats legend and cursor bring the runtime to 58454 compressed bytes; owner-authorized 2026-10-14.
-if (sentinelRuntimeGzip.length > 58600) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 58600-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The preset graph cut pill brings the runtime to 58655 compressed bytes; owner-authorized 2026-10-15.
+if (sentinelRuntimeGzip.length > 58700) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 58700-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -805,8 +806,9 @@ if (generated.icon48Gzip.length > 3500) {
 // Cap raised to 145900; partition limits stay fixed.
 // Combined gzip is at this build's cap after the cursor and Home graphs; owner-authorized 2026-10-14.
 // Partition limits stay fixed.
-if (generated.combined > 147000) {
-  throw new Error(`Combined Web UI gzip exceeds the 147000-byte flash budget (${generated.combined})`);
+// The preset graph cut pill brings combined gzip to 147070; owner-authorized 2026-10-15.
+if (generated.combined > 147100) {
+  throw new Error(`Combined Web UI gzip exceeds the 147100-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

@@ -505,6 +505,8 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .rvStop{fill:var(--fg);stroke:var(--sf);stroke-width:1.5}
 .rvHandle{fill:var(--sf);stroke:var(--ac);stroke-width:2.5}
 .rvScrub:focus-visible .rvHandle{stroke:var(--fg);stroke-width:3.5}
+.rvPill{visibility:hidden;pointer-events:none}.rvHeld .rvPill{visibility:visible}
+.rvPill rect{fill:var(--sf);stroke:var(--ac);stroke-width:1.5}.rvPill text{font-variant-numeric:tabular-nums}
 .reviewReadout{margin:.15rem 0 .3rem;text-align:center;font-size:11px;font-weight:700;line-height:1.35;font-variant-numeric:tabular-nums}
 .reviewLegend{display:flex;flex-wrap:wrap;justify-content:center;gap:.3rem .85rem;font-size:.75rem;color:var(--mu)}
 .rvLeg{display:inline-flex;align-items:center;gap:.25rem}

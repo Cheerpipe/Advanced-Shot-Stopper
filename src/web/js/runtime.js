@@ -5500,7 +5500,7 @@ function presetGraph(host, m, x = {}) {
     (compact
       ? "</g></svg>"
       : label(X(m.wall), T - 4, sub(__WEBUI_TEXT__("runtime.graph_max"), [n(m.wall)]), "", "end") +
-        `</g><g class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.prot}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvStop" r="3.5"/><circle class="rvHandle" r="5"/></g></svg>`);
+        `</g><g class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.prot}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvStop" r="3.5"/><circle class="rvHandle" r="5"/><g class="rvPill"><rect y="-9" rx="9" height="18"/><text class="rvLbl strong" x="8" y="4"/></g></g></svg>`);
   return {
     m,
     X,
@@ -5514,9 +5514,6 @@ function presetGraph(host, m, x = {}) {
     arrivals: shown.length,
   };
 }
-// Review graph of the preset under review: pace curves fan out from the
-// origin into corridors whose boundaries are the preset's thresholds, colored
-// only under the cut line. Unsaved edits redraw live over the ghosted saved line.
 // One preset graph with its scrubber, used by the Settings review and by each
 // Home preset panel: same drawing, axis, and scrub behavior. The scrub state
 // lives on the host, so every graph scrubs on its own.
@@ -5541,9 +5538,11 @@ function drawPresetGraph(host, m, x, readout, key) {
       e.preventDefault();
       host.setPointerCapture(e.pointerId);
       host.querySelector(".rvScrub")?.focus({ preventScroll: true });
+      host.classList.add("rvHeld");
       move(e);
     });
     host.addEventListener("pointermove", (e) => host.hasPointerCapture(e.pointerId) && move(e));
+    host.addEventListener("lostpointercapture", () => host.classList.remove("rvHeld"));
     host.addEventListener("keydown", (e) => {
       const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5, PageUp: 5, PageDown: -5 }[e.key];
       if (!step) return;
@@ -5649,16 +5648,21 @@ function positionPresetScrub(host) {
         : stop >= tArr
           ? sub(__WEBUI_TEXT__("runtime.graph_readout"), values)
           : sub(__WEBUI_TEXT__("runtime.graph_readout_early"), values),
-    [guide, shot, stopDot, handle] = g.children,
+    [guide, shot, stopDot, handle, pill] = g.children,
     targetLabel = g.ownerSVGElement.querySelector(".rvTargetLbl"),
     box = targetLabel.getBBox(),
     hx = v.X(tArr);
-  guide.setAttribute("d", `M${v.X(tArr).toFixed(1)} ${v.T}V${v.B}`);
+  guide.setAttribute("d", `M${hx.toFixed(1)} ${v.T}V${v.B}`);
   shot.setAttribute("d", v.pace(tArr, stop));
   stopDot.setAttribute("cx", v.X(stop).toFixed(2));
   stopDot.setAttribute("cy", v.Y(w).toFixed(2));
-  handle.setAttribute("cx", v.X(tArr).toFixed(2));
+  handle.setAttribute("cx", hx.toFixed(2));
   handle.setAttribute("cy", v.Y(m.goal).toFixed(2));
+  // While held, the cut shows left of the handle, clear of a right thumb.
+  pill.lastChild.textContent = sub(__WEBUI_TEXT__("runtime.graph_cut_pill"), values);
+  const pw = pill.lastChild.getBBox().width + 16;
+  pill.firstChild.setAttribute("width", pw);
+  pill.setAttribute("transform", `translate(${Math.max(1, hx - 11 - pw)} ${v.Y(m.goal)})`);
   // The handle rides the target line: the label steps aside under it.
   targetLabel.style.opacity = hx > box.x - 8 && hx < box.x + box.width + 8 ? "0" : "";
   g.setAttribute("aria-valuenow", tArr.toFixed(1));

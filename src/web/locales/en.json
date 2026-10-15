@@ -725,6 +725,7 @@
     "runtime.g_s": " g/s",
     "runtime.gateway_must_not_use_softap_subnet_192": "Gateway must not use SoftAP subnet 192.168.4.x.",
     "runtime.goal": "Goal",
+    "runtime.graph_cut_pill": "Cut {4} s · {3} g",
     "runtime.graph_legend_arrivals": "Last 10 arrivals",
     "runtime.graph_legend_corridor": "On-recipe corridor",
     "runtime.graph_legend_cut": "Cut line",
