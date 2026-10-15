@@ -216,3 +216,10 @@ CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 CONFIG_BOOTLOADER_WDT_ENABLE=y
 CONFIG_BOOTLOADER_WDT_TIME_MS=9000
 CONFIG_GPTIMER_ISR_HANDLER_IN_IRAM=y
+
+# IRAM budget. The RMT driver is linked only through the Arduino HAL (the
+# buzzer uses LEDC) and nothing in the firmware uses it, so its ISR and encoder
+# code stays in flash instead of costing ~3.6 KB of internal RAM.
+# CONFIG_RMT_TX_ISR_HANDLER_IN_IRAM is not set
+# CONFIG_RMT_RX_ISR_HANDLER_IN_IRAM is not set
+# CONFIG_RMT_ENCODER_FUNC_IN_IRAM is not set

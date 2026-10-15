@@ -507,6 +507,9 @@ ss_idf_verify_production_profile() {
     "CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT=y"
     "CONFIG_ESP_SYSTEM_PANIC_REBOOT_DELAY_SECONDS=0"
     "CONFIG_GPTIMER_ISR_HANDLER_IN_IRAM=y"
+    "# CONFIG_RMT_TX_ISR_HANDLER_IN_IRAM is not set"
+    "# CONFIG_RMT_RX_ISR_HANDLER_IN_IRAM is not set"
+    "# CONFIG_RMT_ENCODER_FUNC_IN_IRAM is not set"
     "# CONFIG_LWIP_IPV6 is not set"
     "CONFIG_LWIP_MAX_SOCKETS=10"
     "CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=8"
@@ -552,7 +555,7 @@ ss_idf_verify_production_profile() {
     echo "Production profile mismatch for $arch: unexpected ${opposite_mode} PSRAM mode" >&2
     return 1
   fi
-  echo "sdkconfig: verified exact $arch flash/PSRAM, partition, MMU, rollback, watchdog, panic, and GPTimer profile"
+  echo "sdkconfig: verified exact $arch flash/PSRAM, partition, MMU, rollback, watchdog, panic, GPTimer, and IRAM placement profile"
 }
 
 ss_idf_verify_firmware() {
