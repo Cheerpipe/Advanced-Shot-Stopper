@@ -462,6 +462,10 @@ struct TaskProfilerSnapshot {
   // input sub-phases: last and observed-maximum wait time.
   uint32_t micraBackflushWaitLastUs = 0;
   uint32_t micraBackflushWaitMaxUs = 0;
+  // How long the control task itself owned the Micra mutex inside the
+  // backflush poll: the window the wait telemetry cannot see.
+  uint32_t micraBackflushHoldLastUs = 0;
+  uint32_t micraBackflushHoldMaxUs = 0;
   uint32_t scaleEventsWaitLastUs = 0;
   uint32_t scaleEventsWaitMaxUs = 0;
   uint32_t shotStoreWaitLastUs = 0;

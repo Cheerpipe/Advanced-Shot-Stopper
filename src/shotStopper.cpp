@@ -966,6 +966,10 @@ void copyTaskProfiler(TaskProfilerSnapshot &output) {
       micraBackflushWaitLastUsStat().load(std::memory_order_relaxed);
   output.micraBackflushWaitMaxUs =
       micraBackflushWaitMaxUsStat().load(std::memory_order_relaxed);
+  output.micraBackflushHoldLastUs =
+      micraBackflushHoldLastUsStat().load(std::memory_order_relaxed);
+  output.micraBackflushHoldMaxUs =
+      micraBackflushHoldMaxUsStat().load(std::memory_order_relaxed);
   output.scaleEventsWaitLastUs =
       scaleCriticalEventWaitLastUsStat().load(std::memory_order_relaxed);
   output.scaleEventsWaitMaxUs =

@@ -782,13 +782,16 @@ MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
   if (consume && !backflush_.changed() &&
       (!idleBackflush_.valid || powerOff_.load(std::memory_order_acquire))) {
     noteMutexWaitUs(micraBackflushWaitLastUsStat(), micraBackflushWaitMaxUsStat(), 0);
+    noteMutexWaitUs(micraBackflushHoldLastUsStat(), micraBackflushHoldMaxUsStat(), 0);
     return idleBackflush_;
   }
   // The control loop polls this every iteration; record how long the
-  // blocking acquisition waited so a backflush phase maximum can blame it.
+  // blocking acquisition waited, and then how long this task owned the
+  // mutex, so a backflush phase maximum can blame either window.
   const uint32_t muxLockStartedUs = micros();
   TaskLockGuard lock(mux_);
-  const uint32_t waitedUs = micros() - muxLockStartedUs;
+  const uint32_t lockedAtUs = micros();
+  const uint32_t waitedUs = lockedAtUs - muxLockStartedUs;
   noteMutexWaitUs(micraBackflushWaitLastUsStat(), micraBackflushWaitMaxUsStat(),
                   waitedUs);
   static uint32_t lastMuxWaitReportAtMs = 0;
@@ -801,6 +804,8 @@ MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
     idleBackflush_ = result;
     backflush_.settle();
   }
+  noteMutexWaitUs(micraBackflushHoldLastUsStat(), micraBackflushHoldMaxUsStat(),
+                  micros() - lockedAtUs);
   return result;
 }
 

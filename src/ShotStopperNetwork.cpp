@@ -921,7 +921,8 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
   if (full && !jsonScratchAppend(buf, cap, used,
           ",\"stackUnit\":\"bytes\",\"remainingMs\":%lu,\"sampleCount\":%lu,"
           "\"averageTotalCpuPct\":%.1f,\"lastCaptureUs\":%lu,\"maxCaptureUs\":%lu,"
-          "\"lockWaits\":{\"micraBackflush\":{\"lastUs\":%lu,\"maxUs\":%lu},"
+          "\"lockWaits\":{\"micraBackflush\":{\"lastUs\":%lu,\"maxUs\":%lu,"
+          "\"holdLastUs\":%lu,\"holdMaxUs\":%lu},"
           "\"scaleEvents\":{\"lastUs\":%lu,\"maxUs\":%lu},"
           "\"shotStore\":{\"lastUs\":%lu,\"maxUs\":%lu},"
           "\"controlStatus\":{\"lastUs\":%lu,\"maxUs\":%lu}}",
@@ -932,6 +933,8 @@ bool formatTaskProfilerObject(char *buf, size_t cap, size_t *used,
           static_cast<unsigned long>(tasks.maxCaptureUs),
           static_cast<unsigned long>(tasks.micraBackflushWaitLastUs),
           static_cast<unsigned long>(tasks.micraBackflushWaitMaxUs),
+          static_cast<unsigned long>(tasks.micraBackflushHoldLastUs),
+          static_cast<unsigned long>(tasks.micraBackflushHoldMaxUs),
           static_cast<unsigned long>(tasks.scaleEventsWaitLastUs),
           static_cast<unsigned long>(tasks.scaleEventsWaitMaxUs),
           static_cast<unsigned long>(tasks.shotStoreWaitLastUs),

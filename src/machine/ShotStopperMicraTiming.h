@@ -21,6 +21,15 @@ inline std::atomic<uint32_t> &micraBackflushWaitMaxUsStat() {
   static std::atomic<uint32_t> value{0};
   return value;
 }
+// Ownership time of the same mutex by the control task inside the poll.
+inline std::atomic<uint32_t> &micraBackflushHoldLastUsStat() {
+  static std::atomic<uint32_t> value{0};
+  return value;
+}
+inline std::atomic<uint32_t> &micraBackflushHoldMaxUsStat() {
+  static std::atomic<uint32_t> value{0};
+  return value;
+}
 
 }  // namespace shotstopper
 
