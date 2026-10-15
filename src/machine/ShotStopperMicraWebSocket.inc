@@ -210,6 +210,7 @@ bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &f
   const bool wasOffline = self.observationFence_.offline;
   if (!self.observationFence_.merge(self.published_, self.powerState_, update,
                                     true)) return true;
+  self.mirrorPowerLocked();
   if (self.observationFence_.offline) self.snapshotPending_ = false;
   else if (wasOffline && !self.observationFence_.synchronized) {
     self.snapshotStamp_ = self.observationFence_.stamp(self.identityGeneration_, self.powerState_.generation());

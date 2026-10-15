@@ -183,6 +183,13 @@ class ShotStopperMicraService {
   MicraObservationFence observationFence_;
   MachineBackflushObservations backflush_;
   MachineBackflushSnapshot idleBackflush_;  // Control task only; see backflush().
+  // Mirrors published_.powerState == OFF for the lock-free poll; written
+  // under mux_ wherever published_.powerState changes.
+  std::atomic<bool> powerOff_{false};
+  void mirrorPowerLocked() {
+    powerOff_.store(published_.powerState == LineaMicraPowerState::OFF,
+                    std::memory_order_release);
+  }
   std::atomic<uint32_t> tokenIssuedAtMs_{0};
   std::atomic<bool> tokenAvailable_{false};
   MicraObservationStamp snapshotStamp_;  // Protected by mux_, captured at subscription.

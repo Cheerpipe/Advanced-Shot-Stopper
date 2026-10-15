@@ -394,6 +394,7 @@ void ShotStopperMicraService::publishConfig(
       ++identityGeneration_;
       ++observationFence_.epoch;
       published_ = {};
+      mirrorPowerLocked();
       websocketStatus_.cleaningAvailable = false;
       websocketStatus_.cleaningAtMs = websocketStatus_.messageAtMs = websocketStatus_.powerAtMs = 0;
       websocketStatus_.connectedAtMs = websocketStatus_.pongAtMs = 0;
@@ -774,10 +775,12 @@ bool ShotStopperMicraService::backflushReadyLocked() const {
 }
 
 MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
-  // An invalid, idle handoff (machine off or unobserved) cannot be qualified
-  // further or become ready, so the control loop's consuming poll reuses its
-  // last locked read until a mutation marks a change.
-  if (consume && !backflush_.changed()) {
+  // An idle handoff cannot become ready without a mutation when it is invalid
+  // or the machine is off (readiness requires power ON), so the control
+  // loop's consuming poll reuses its last locked read until a mutation marks
+  // a change or the power mirror flips back on.
+  if (consume && !backflush_.changed() &&
+      (!idleBackflush_.valid || powerOff_.load(std::memory_order_acquire))) {
     noteMutexWaitUs(micraBackflushWaitLastUsStat(), micraBackflushWaitMaxUsStat(), 0);
     return idleBackflush_;
   }
@@ -793,7 +796,8 @@ MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
   qualifyBackflushLocked();
   auto result = consume ? backflush_.take() : backflush_.status();
   result.ready = backflushReadyLocked();
-  if (consume && !result.valid && !result.busy() && result.count == 0) {
+  if (consume && !result.busy() && result.count == 0 &&
+      (!result.valid || published_.powerState == LineaMicraPowerState::OFF)) {
     idleBackflush_ = result;
     backflush_.settle();
   }
@@ -1724,6 +1728,7 @@ void ShotStopperMicraService::fail(LineaMicraStatus &status,
         config_.connectionType == static_cast<uint8_t>(MicraConnectionType::API)) {
       published_.quality = status.quality;
       published_.powerState = status.powerState;
+      mirrorPowerLocked();
       published_.effectiveOn = status.effectiveOn;
     }
   }
@@ -1984,6 +1989,7 @@ bool ShotStopperMicraService::readDashboard(
       (config_.options & LINEA_MICRA_OBSERVE_STATE) != 0;
   const uint32_t onlineRevision = observationFence_.onlineRevision;
   if (!observationFence_.merge(published_, powerState_, update, observing, true)) return false;
+  mirrorPowerLocked();
   if (observationFence_.onlineRevision != onlineRevision) {
     websocketStatus_.machineConnectedKnown = true;
     websocketStatus_.machineConnected = !observationFence_.offline;

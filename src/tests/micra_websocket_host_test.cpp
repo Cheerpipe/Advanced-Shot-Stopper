@@ -748,6 +748,21 @@ struct MicraWebSocketTest {
     }
     poll(service, true);
     poll(service, false);
+    // A StandBy dashboard that still carries the cleaning widget keeps the
+    // handoff valid; the shortcut engages on power OFF regardless, and the
+    // INACTIVE provenance survives for the next request after power ON.
+    const char *standbyOff = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"StandBy"}},{"code":"CMBackFlush","output":{"status":"Off"}}]})";
+    const char *brewing = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}}]})";
+    deliver(service, observation(service, standbyOff));
+    assert(poll(service, true).count == 1);
+    assert(poll(service, true).valid);  // Idle read settles valid while OFF.
+    poll(service, false);
+    deliver(service, observation(service, brewing));
+    poll(service, true);  // Power ON re-arms without a handoff mutation.
+    poll(service, true);  // Valid while ON never shortcuts.
+    deliver(service, observation(service, requested));
+    const auto armed = poll(service, true);
+    assert(armed.count == 1 && armed.permit.extendable);
     TaskMutex::hostObserver = nullptr;
     service.stopWebSocket(true);
     delete service.work_;
