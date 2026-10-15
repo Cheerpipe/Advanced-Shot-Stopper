@@ -5330,7 +5330,7 @@ function renderPresetReview() {
   for (let v = 0; v <= top; v += step)
     marks +=
       `<path class="rvGrid" d="M${L} ${f(Y(v))}H${R}"/>` +
-      label(L - 4, Y(v) + 3, v + (v + step > top ? " g" : ""), "", "end");
+      label(L - 4, Y(v) + 3, v + " g", "", "end");
   [0, m.prot, m.t1, m.t2, m.wall].forEach((t, i, ts) => {
     if (X(t) - lastX < 14 && i < ts.length - 1) return;
     lastX = X(t);
