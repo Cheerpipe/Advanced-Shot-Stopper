@@ -275,6 +275,11 @@ to 2,355,408 image, 2,355,287 linked, 1,561,552 flash-code and 626,108
 rodata bytes — 81,648/81,640/46,452/38,756 over baseline. The
 image/linked/flash-code allowances move to 81,712/81,704/46,516 bytes,
 keeping the 64-byte headroom; rodata stays inside its allowance.
+The Stats shot cursor pill brings the build to 2,355,520 image, 2,355,395
+linked, 1,561,516 flash-code and 626,252 rodata bytes —
+81,760/81,748/46,416/38,900 over baseline. The image/linked allowances move
+to 81,824/81,812 bytes, keeping the 64-byte headroom; flash code and rodata
+stay inside their allowances.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
