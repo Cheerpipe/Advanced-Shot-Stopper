@@ -260,6 +260,15 @@ Shorter Web UI strings (en.json value-only change) and the other session's chang
 build to 2,351,760 image, 2,351,643 linked and 625,644 rodata bytes on this branch, 78,000/77,996/38,292
 over baseline (main at d535c6ad measures 2,353,200 image, 79,440 over). The image/linked/rodata allowances
 move to 78,064/78,060/38,356 bytes, keeping the 64-byte headroom.
+The cup, touch and auto-tare robustness series (cup removal as a drop step,
+provisional empty anchors, touch handling of heavy steps, software zero after
+a failed start tare, first-drop hardening, and the empty-offset diagnostic)
+adds about 2.5 KB of control code and brings the build to 2,354,400 image,
+2,354,279 linked, 1,560,672 flash-code and 626,012 rodata bytes —
+80,640/80,632/45,572/38,660 over baseline (the parent commit de305462 measures
+2,351,904 image and 1,558,260 flash code). The image/linked/flash-code
+allowances move to 80,704/80,696/45,636 bytes, keeping the 64-byte headroom;
+rodata stays inside its allowance.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
