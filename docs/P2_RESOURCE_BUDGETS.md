@@ -299,6 +299,12 @@ UI stream budget bring the build to 2,357,072 image, 2,356,955 linked,
 83,312/83,308/47,816/39,060 over baseline. The image/linked/flash-code
 allowances move to 83,376/83,372/47,880 bytes, keeping the 64-byte headroom;
 rodata stays inside its allowance.
+Moving the Home preset render caches into the PSRAM network work buffer
+lowers DIRAM to 187,366 bytes (−1,280), while trailer-digest OTA reads and
+edge-gated Wi-Fi power-save reconciliation bring flash code to 1,563,272
+bytes (48,172 over baseline, same worktree). The flash-code allowance moves
+to 48,236 bytes, keeping the 64-byte headroom; image, linked size and rodata
+stay inside their allowances.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,

@@ -422,12 +422,23 @@ void ShotStopperNetwork::applyWifiPowerSave(bool apStarting) {
   const wifi_ps_type_t desiredPs = desired == WifiPowerSaveMode::MIN_MODEM
                                        ? WIFI_PS_MIN_MODEM
                                        : WIFI_PS_NONE;
+  const uint8_t inputs = static_cast<uint8_t>(
+      (static_cast<uint8_t>(mode) << 4) | (sleepAllowed << 3) |
+      (apActive << 2) | (staAssociated << 1) | otaBusy);
+  const uint32_t now = millis();
+  // Called every 50 ms service pass: query the driver only on a state edge
+  // or once per retry interval, not on every pass.
+  if (lastAppliedWifiPsValid_ && inputs == lastWifiPsInputs_ &&
+      static_cast<int32_t>(now - wifiPsNextWriteAtMs_) < 0) {
+    return;
+  }
+  lastWifiPsInputs_ = inputs;
   wifi_ps_type_t current = WIFI_PS_NONE;
   if (esp_wifi_get_ps(&current) == ESP_OK && lastAppliedWifiPsValid_ &&
       current == desiredPs && lastAppliedWifiPs_ == desiredPs) {
+    wifiPsNextWriteAtMs_ = now + WIFI_PS_RETRY_MS;
     return;
   }
-  const uint32_t now = millis();
   if (!apStarting && lastAppliedWifiPs_ == desiredPs &&
       wifiPsNextWriteAtMs_ != 0 &&
       static_cast<int32_t>(now - wifiPsNextWriteAtMs_) < 0) {
@@ -698,19 +709,18 @@ void ShotStopperNetwork::armSoftApIdleDeadline(uint32_t now) {
   lastApClients_ = 0;
 }
 
-void ShotStopperNetwork::serviceSoftApIdle(uint32_t now) {
-  NetworkStatusSnapshot status = snapshot();
-  if (!status.apActive || apKeepRequested_) {
-    if (!status.apActive) {
+void ShotStopperNetwork::serviceSoftApIdle(uint32_t now, bool apActive,
+                                           uint8_t clients) {
+  if (!apActive || apKeepRequested_) {
+    if (!apActive) {
       clearSoftApIdleState();
     } else {
-      lastApClients_ = status.apClients;
+      lastApClients_ = clients;
       apIdleDeadlineMs_ = 0;
     }
     return;
   }
 
-  const uint8_t clients = status.apClients;
   if (clients > 0) {
     // Someone joined the setup network: retry the saved network promptly.
     if (lastApClients_ == 0) staReconnectIntervalMs_ = STA_RECONNECT_INTERVAL_MS;
@@ -733,8 +743,10 @@ void ShotStopperNetwork::serviceSoftApIdle(uint32_t now) {
   apAutoRaiseExhausted_ = true;
   clearSoftApIdleState();
   lifecycleLog("WiFi SoftAP idle timeout; SoftAP down for rest of boot");
-  const bool staUp = status.staState == StaState::CONNECTED &&
-                     WiFi.status() == WL_CONNECTED;
+  dataMux_.lock();
+  const bool staConnected = status_.staState == StaState::CONNECTED;
+  dataMux_.unlock();
+  const bool staUp = staConnected && WiFi.status() == WL_CONNECTED;
   if (staUp) {
     stopSoftApLeaveHttp();
   } else {

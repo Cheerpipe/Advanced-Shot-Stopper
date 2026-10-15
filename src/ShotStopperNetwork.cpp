@@ -161,6 +161,10 @@ struct NetworkWorkBuf {
   TaskProfilerSnapshot taskProfiler{};
   DebugExportExtras debugExport{};
   ShotPresetBank presetBank{};
+  // Home stream's last slim-presets render, compared to skip rebuilds.
+  ShotPresetBank renderedPresets{};
+  PresetShotStats renderedStats[MAX_SHOT_PRESETS]{};
+  uint32_t renderedPresetsHash = 0;
   // Integration snapshot pieces, kept off the internal httpd stack.
   RecipeSnapshot recipe{};
   char integrationLastShot[768]{};

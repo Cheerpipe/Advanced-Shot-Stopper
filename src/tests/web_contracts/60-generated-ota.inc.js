@@ -1455,7 +1455,7 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
     throw new Error(
         'SAFETY_LOST must tell the operator the paddle aborted the upload');
   }
-  if (!network.includes('devicePasswordsMatch(password, expected)')) {
+  if (!network.includes('secretsMatch(password, expected)')) {
     throw new Error(
       'OTA authentication must compare the device password in constant time');
   }
@@ -1692,7 +1692,7 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   }
   if (!codeIncludes(js, 'xhr.setRequestHeader(WEB_UI_CLIENT_HEADER,webUiClientId)') ||
       !network.includes('adminUnlockAllowed(request)') ||
-      !network.includes('devicePasswordsMatch(password, expected)') ||
+      !network.includes('secretsMatch(password, expected)') ||
       !network.includes('X-Device-Password')) {
     throw new Error(
       'OTA must accept an admin unlock session or the device password header');

@@ -935,10 +935,6 @@ bool parseContentRange(const char *value, uint32_t &offset, uint32_t &end,
          parseOtaUint32(last, end) && parseOtaUint32(size, total) && end >= offset;
 }
 
-bool devicePasswordsMatch(const char *candidate, const char *expected) {
-  return secretsMatch(candidate, expected);
-}
-
 const char *otaResultHttpStatus(OtaResult result) {
   switch (result) {
     case OtaResult::OK: return STATUS_OK;
@@ -1083,7 +1079,7 @@ bool ShotStopperNetwork::authorizeOtaRequest(httpd_req_t *request) {
     dataMux_.lock();
     memcpy(expected, settings_.devicePassword, sizeof(expected));
     dataMux_.unlock();
-    passwordAuthorized = devicePasswordsMatch(password, expected);
+    passwordAuthorized = secretsMatch(password, expected);
   }
   memset(password, 0, sizeof(password));
   memset(expected, 0, sizeof(expected));

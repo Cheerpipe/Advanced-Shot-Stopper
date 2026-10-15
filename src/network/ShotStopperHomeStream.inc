@@ -200,9 +200,9 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   // still holds that render (the REST and integration handlers reuse the
   // buffer with other formats). The delta hash below is computed either
   // way, so frames stay byte-identical. Single-threaded: httpd dispatch.
-  static ShotPresetBank renderedPresets;
-  static PresetShotStats renderedStats[MAX_SHOT_PRESETS];
-  static uint32_t renderedPresetsHash = 0;
+  ShotPresetBank &renderedPresets = g_work->renderedPresets;
+  PresetShotStats (&renderedStats)[MAX_SHOT_PRESETS] = g_work->renderedStats;
+  uint32_t &renderedPresetsHash = g_work->renderedPresetsHash;
   const size_t renderedBytes = strlen(g_work->presetsJson);
   if (memcmp(&renderedPresets, &g_work->presetBank,
              sizeof(renderedPresets)) != 0 ||

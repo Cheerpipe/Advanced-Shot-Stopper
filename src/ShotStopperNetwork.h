@@ -474,6 +474,9 @@ class ShotStopperNetwork {
   std::atomic<uint32_t> rfGateGeneration_{0};
   std::atomic<bool> scaleHuntRfActive_{false};
   wifi_ps_type_t lastAppliedWifiPs_{WIFI_PS_NONE};
+  // Inputs of the last verified power-save write; the driver is re-read only
+  // when they change or once per WIFI_PS_RETRY_MS.
+  uint8_t lastWifiPsInputs_ = 0xFF;
   bool lastAppliedWifiPsValid_{false};
   uint32_t wifiPsNextWriteAtMs_{0};
   bool mdnsActive_ = false;
@@ -590,7 +593,7 @@ class ShotStopperNetwork {
   std::atomic<bool> portalExitRequested_{false};
   void clearSoftApIdleState();
   void armSoftApIdleDeadline(uint32_t now);
-  void serviceSoftApIdle(uint32_t now);
+  void serviceSoftApIdle(uint32_t now, bool apActive, uint8_t clients);
   bool wifiScanInProgress();
   void abortWifiScan(uint32_t now, bool logTimeout);
   void stopNetwork();

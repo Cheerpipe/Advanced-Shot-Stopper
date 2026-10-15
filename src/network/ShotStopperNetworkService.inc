@@ -745,7 +745,7 @@ void ShotStopperNetwork::service() {
   dataMux_.lock();
   status_.apClients = apClients;
   dataMux_.unlock();
-  serviceSoftApIdle(now);
+  serviceSoftApIdle(now, networkSnapshot.apActive, apClients);
   if (extendedStatusAtMs_ == 0 ||
       static_cast<uint32_t>(now - extendedStatusAtMs_) >=
           NETWORK_EXTENDED_STATUS_INTERVAL_MS) {
