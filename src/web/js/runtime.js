@@ -515,6 +515,8 @@ function verdictLabel(v) {
   );
 }
 function formatShotEnded(d, verdict) {
+  const k = String(d || "").toLowerCase().replace(/_(failure|timeout)$/, "");
+  if (/^(ext|fast_|slow_)/.test(k)) return verdictLabel(k[0] === "s" ? "slow" : "fast");
   return (
     {
       paddle: __WEBUI_TEXT__("runtime.manual"),
@@ -526,16 +528,14 @@ function formatShotEnded(d, verdict) {
       cup_removed: __WEBUI_TEXT__("runtime.cup"),
       web_stop: __WEBUI_TEXT__("runtime.web"),
       web_heartbeat: __WEBUI_TEXT__("runtime.heartbeat"),
-      web_heartbeat_timeout: __WEBUI_TEXT__("runtime.heartbeat"),
       hard_limit: __WEBUI_TEXT__("runtime.hard_limit"),
       global_limit: __WEBUI_TEXT__("runtime.hard_limit"),
       wall_limit: __WEBUI_TEXT__("runtime.max_time"),
       configured_wall_limit: __WEBUI_TEXT__("runtime.max_time"),
       relay_safety: __WEBUI_TEXT__("runtime.relay"),
-      relay_safety_failure: __WEBUI_TEXT__("runtime.relay"),
       weight_anomaly: __WEBUI_TEXT__("runtime.anomaly"),
       touch_weight_fallback: __WEBUI_TEXT__("runtime.touch_stop_fallback"),
-    }[String(d || "").toLowerCase()] || __WEBUI_TEXT__("runtime.unknown")
+    }[k] || __WEBUI_TEXT__("runtime.unknown")
   );
 }
 function lastCurveWeightG(w) {

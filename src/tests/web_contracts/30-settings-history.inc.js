@@ -7,6 +7,11 @@
     if (ended(reason) !== 'Touch fallback')
       throw new Error('Ended must identify sustained-weight touch protection');
   }
+  for (const [reason, label] of [['extended_max_weight', 'Fast'], ['FAST_EXTRACTION_MIN_TIME', 'Fast'],
+      ['slow_min_weight', 'Slow'], ['SLOW_EXTRACTION_MAX_TIME', 'Slow']]) {
+    if (ended(reason, 'on_recipe') !== label)
+      throw new Error('Ended must show Fast or Slow for extended and lowered cut stops');
+  }
   if (!codeIncludes(runtimeJs, 'formatShotEnded(r.stopDetail, r.verdict)') ||
       !codeIncludes(runtimeJs, 'formatShotEnded(d.endReason, d.verdict)')) {
     throw new Error('Stats and Home must share the Ended cause formatter');
