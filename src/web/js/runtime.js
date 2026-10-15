@@ -5538,6 +5538,7 @@ function drawPresetGraph(host, m, x, readout, key) {
     };
     const move = (e) => scrub(host._view.tAt(e.clientX - host.firstChild.getBoundingClientRect().left));
     host.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
       host.setPointerCapture(e.pointerId);
       host.querySelector(".rvScrub")?.focus({ preventScroll: true });
       move(e);
