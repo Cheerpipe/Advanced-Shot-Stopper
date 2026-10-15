@@ -166,6 +166,7 @@ persist.
 | `HEAP` | none | Internal memory heap summary plus the list of free blocks (size and start address, up to 12) so you can see which gaps bound the largest allocation. Reports `freeBlocksTruncated` when more free blocks exist |
 | `BOOT_HEAP` | none | Retained memory samples from the current boot, including the startup reservation and first network/cloud/WebSocket stages. Works with debug traces off |
 | `AUDIT_DUMP` | optional count | Prints the curated audit log (newest first), at most the given number of records (default 24, capped at 128), with the store state, retained count, and dropped/rate-limited counters |
+| `TASK_PROFILE` | optional `on`/`off` | `on` starts the task profiler (it stops itself after 5 minutes) and `off` stops it. Without a parameter it prints every task's lowest free stack in bytes and its CPU share, then the control-loop peak gap and each loop phase's longest run. Stack minimums are only collected while the profiler runs |
 | `AUDIT_CLEAR` | none | Erases the durable audit log and the RAM latch immediately |
 | `AUDIT_VERBOSE` | optional `on`/`off` | Arms (default) or stops a 30-minute verbose hunt session: marked debug events join the audit log. Needs a synchronized clock |
 

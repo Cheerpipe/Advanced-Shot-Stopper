@@ -330,6 +330,29 @@ image to 2,357,200 bytes (83,440 over) and the linked size to 2,357,075 bytes
 (83,428 over); those allowances move to 54,064/83,504/83,492 bytes, keeping
 the 64-byte headroom, and the DIRAM baseline moves to 177,434 bytes. Across the
 three steps linked DIRAM falls 9,932 bytes; IRAM text is now 123,595 bytes.
+The `TASK_PROFILE` USB command brings the image to 2,358,400 bytes (84,640
+over baseline), the linked size to 2,358,287 bytes (84,640 over) and flash
+code to 1,569,816 bytes (54,716 over); those allowances move to
+84,704/84,704/54,780 bytes, keeping the 64-byte headroom. Its 2,512-byte copy
+of the profiler report lives in external BSS (778,520 bytes); DIRAM is
+unchanged.
+On the reference board, after a 75 s settle and 200 s of three concurrent
+Web UI clients, the same session on the earlier and the reduced image
+measured:
+
+| Measurement | Before (187,366 B DIRAM) | After (177,434 B DIRAM) |
+|---|---:|---:|
+| Internal free heap after load | 85,803 | 96,035 |
+| Largest internal block after load | 43,008 | 43,008 |
+| Lifetime minimum internal heap | 38,160 | 39,828 |
+| Boot reservation minimum free | 38,991 | 50,091 |
+| Control-loop maximum gap | 11 ms | 11 ms |
+| Lowest application stack (webhook) | not measured | 1,588 |
+
+The extra free memory lies outside the largest block, so the fragmentation
+ratio rises from 498 to 552 per mille although no free extent shrank. Shot,
+webhook delivery, settings writes, OTA and BLE scale workloads, and the 8-hour
+soak, are not covered by this measurement.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,

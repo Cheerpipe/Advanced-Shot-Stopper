@@ -14809,6 +14809,7 @@ void sc10_help_prints_one_line_per_command() {
   CHECK(serialTxContains("SCALE_STATUS  BLE scale link"));
   CHECK(serialTxContains("NTP_STATUS  wall clock"));
   CHECK(serialTxContains("HEAP  internal heap free-block layout"));
+  CHECK(serialTxContains("TASK_PROFILE [on|off]  task stacks/CPU"));
   CHECK(serialTxContains("e.g. SET_WIFI CafeLAN CafePass1"));
   CHECK(Serial.tx.size() <= SERIAL_CLI_OUTPUT_CAPACITY);
   CHECK(session.active);

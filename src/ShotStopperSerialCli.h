@@ -51,6 +51,7 @@ enum class SerialCliVerb : uint8_t {
   NTP_STATUS,
   HEAP,
   BOOT_HEAP,
+  TASK_PROFILE,
   AUDIT_DUMP,
   AUDIT_CLEAR,
   AUDIT_VERBOSE,
@@ -109,6 +110,7 @@ inline const char *serialCliVerbName(SerialCliVerb verb) {
     case SerialCliVerb::NTP_STATUS: return "NTP_STATUS";
     case SerialCliVerb::HEAP: return "HEAP";
     case SerialCliVerb::BOOT_HEAP: return "BOOT_HEAP";
+    case SerialCliVerb::TASK_PROFILE: return "TASK_PROFILE";
     case SerialCliVerb::AUDIT_DUMP: return "AUDIT_DUMP";
     case SerialCliVerb::AUDIT_CLEAR: return "AUDIT_CLEAR";
     case SerialCliVerb::AUDIT_VERBOSE: return "AUDIT_VERBOSE";
@@ -373,15 +375,17 @@ inline bool serialCliParseLine(const char *line, SerialCliRequest &request) {
   if (serialCliEqualsIgnoreCase(verb, "audit_clear")) {
     return requireNoArgs(SerialCliVerb::AUDIT_CLEAR);
   }
-  if (serialCliEqualsIgnoreCase(verb, "audit_verbose")) {
+  const bool auditVerbose = serialCliEqualsIgnoreCase(verb, "audit_verbose");
+  if (auditVerbose || serialCliEqualsIgnoreCase(verb, "task_profile")) {
     if (argCount > 1 ||
         (argCount == 1 && !serialCliEqualsIgnoreCase(args[0], "on") &&
          !serialCliEqualsIgnoreCase(args[0], "off"))) {
       request.verb = SerialCliVerb::INVALID_ARGS;
-      request.error = "AUDIT_VERBOSE takes an optional on/off argument";
+      request.error = auditVerbose ? "AUDIT_VERBOSE takes an optional on/off argument"
+                                   : "TASK_PROFILE takes an optional on/off argument";
       return true;
     }
-    request.verb = SerialCliVerb::AUDIT_VERBOSE;
+    request.verb = auditVerbose ? SerialCliVerb::AUDIT_VERBOSE : SerialCliVerb::TASK_PROFILE;
     if (argCount == 1) copyCString(request.arg1, sizeof(request.arg1), args[0]);
     return true;
   }
@@ -506,6 +510,7 @@ inline void serialCliPrintHelp() {
   Serial.println(
       "HEAP  internal heap free-block layout  e.g. HEAP");
   Serial.println("BOOT_HEAP  retained startup memory capture  e.g. BOOT_HEAP");
+  Serial.println("TASK_PROFILE [on|off]  task stacks/CPU, loop-phase peaks  e.g. TASK_PROFILE on");
 }
 
 inline const char *serialCliWifiModeName(uint8_t mode) {

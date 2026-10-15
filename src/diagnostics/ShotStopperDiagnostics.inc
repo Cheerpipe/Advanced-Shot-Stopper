@@ -728,6 +728,47 @@ void serialCliAuditVerbose(const char *modeArg) {
                     : "OK audit verbose session stopped");
 }
 
+// Task stacks/CPU and control-loop phase peaks from the existing profiler
+// (5 min cap). The copy lands in PSRAM BSS: the loop stack cannot hold it.
+void serialCliTaskProfile(const char *modeArg) {
+  if (modeArg != nullptr && modeArg[0] != '\0') {
+    const bool on = serialCliEqualsIgnoreCase(modeArg, "on");
+    healthProfilerRequest.store(on ? HealthProfilerRequest::START : HealthProfilerRequest::STOP,
+                                std::memory_order_release);
+    serialCliReply(on ? "OK task profiler start requested" : "OK task profiler stop requested");
+    return;
+  }
+  static SHOT_STOPPER_PSRAM_BSS TaskProfilerSnapshot cliProfile;
+  copyTaskProfiler(cliProfile);
+  const LoopPhaseProfilerSnapshot &loop = cliProfile.loopPhases;
+  char line[128];
+  snprintf(line, sizeof(line), "TASK_PROFILE state=%s stop=%s elapsedMs=%lu samples=%lu truncated=%d",
+           taskProfilerStateName(cliProfile.state), taskProfilerStopReasonName(cliProfile.stopReason),
+           static_cast<unsigned long>(cliProfile.elapsedMs),
+           static_cast<unsigned long>(cliProfile.sampleCount), cliProfile.truncated ? 1 : 0);
+  Serial.println(line);
+  Serial.println("task,core,stackMinBytes,cpuNowPct,cpuAvgPct");
+  for (uint8_t i = 0; i < cliProfile.rowCount && i < TASK_PROFILER_MAX_ROWS; ++i) {
+    const TaskProfilerRow &row = cliProfile.rows[i];
+    snprintf(line, sizeof(line), "%s,%d,%lu,%.2f,%.2f", row.name, static_cast<int>(row.core),
+             static_cast<unsigned long>(row.stackMinBytes), row.currentCpuPct, row.averageCpuPct);
+    Serial.println(line);
+  }
+  snprintf(line, sizeof(line), "loopPeakGapUs=%lu peakDelayUs=%lu peakDispatchUs=%lu peakGapCpuUs=%lu",
+           static_cast<unsigned long>(loop.peakGapUs), static_cast<unsigned long>(loop.peakDelayUs),
+           static_cast<unsigned long>(loop.peakDispatchUs), static_cast<unsigned long>(loop.peakGapCpuUs));
+  Serial.println(line);
+  Serial.println("phase,maxUs,maxCpuUs,avgUs,peakGapUs");
+  for (uint8_t i = 0; i < loop.rowCount && i < LOOP_PHASE_COUNT; ++i) {
+    const LoopPhaseProfilerRow &row = loop.rows[i];
+    snprintf(line, sizeof(line), "%s,%lu,%lu,%lu,%lu", row.name != nullptr ? row.name : "-",
+             static_cast<unsigned long>(row.maxExecutionUs), static_cast<unsigned long>(row.maxCpuUs),
+             static_cast<unsigned long>(row.averageExecutionUs),
+             static_cast<unsigned long>(row.peakGapExecutionUs));
+    Serial.println(line);
+  }
+}
+
 void serialCliPrintLiveHealth() {
   SerialCliHealthDump dump;
   dump.freeHeapBytes = freeHeapBytes;
@@ -1060,6 +1101,9 @@ void dispatchSerialCliRequest(SerialCliRequest &request) {
       return;
     case SerialCliVerb::BOOT_HEAP:
       serialCliPrintBootHeap();
+      return;
+    case SerialCliVerb::TASK_PROFILE:
+      serialCliTaskProfile(request.arg1);
       return;
     case SerialCliVerb::AUDIT_DUMP:
       serialCliPrintAuditDump(request.arg1);

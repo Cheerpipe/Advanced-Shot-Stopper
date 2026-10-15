@@ -35,6 +35,10 @@ int main() {
   assert(request.verb == SerialCliVerb::BOOT_HEAP);
   assert(!serialCliParseLine("BOOT_HEAP extra", request));
   assert(request.verb == SerialCliVerb::INVALID_ARGS);
+  assert(serialCliParseLine("task_profile ON", request));
+  assert(request.verb == SerialCliVerb::TASK_PROFILE && strcmp(request.arg1, "ON") == 0);
+  assert(serialCliParseLine("TASK_PROFILE maybe", request));
+  assert(request.verb == SerialCliVerb::INVALID_ARGS);
 
   recordBootHeap(BootHeapStage::RESERVE_BEFORE, BootHeapResult::OK, 100, heap(120000, 66000));
   recordBootHeap(BootHeapStage::RESERVE_AFTER, BootHeapResult::OK, 101,
