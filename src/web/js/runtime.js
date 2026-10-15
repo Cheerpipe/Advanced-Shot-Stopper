@@ -1441,7 +1441,7 @@ function renderStatsDurChart() {
     timed = (shotHistory.shots || []).filter((r) => r.arrivalS > 0 && r.verdict),
     shots = timed.filter((r) => !only || r.presetId === only),
     shared = shots.length && shots.every((r) => r.fastBeforeS === shots[0].fastBeforeS && r.slowAfterS === shots[0].slowAfterS),
-    BIN = 0.5,
+    BIN = 1,
     tMax = 6e4 / 1e3,
     bins = Math.round(tMax / BIN),
     counts = Array.from({ length: bins }, () => ({ fast: 0, on_recipe: 0, slow: 0 }));
@@ -1464,7 +1464,7 @@ function renderStatsDurChart() {
     ? sub(__WEBUI_TEXT__("runtime.window_label"), [shots[0].fastBeforeS, shots[0].slowAfterS])
     : "";
   const scaleC = Math.max(maxC, 1),
-    colors = { on_recipe: "var(--ok)", fast: "var(--gFast)", slow: "var(--gSlow)" },
+    colors = { on_recipe: "var(--ok)", fast: "var(--gFast)", slow: "var(--gSlow)", axis: "var(--mu)" },
     L = axisLabel,
     W = 240,
     H = 36,
@@ -1473,25 +1473,25 @@ function renderStatsDurChart() {
     y = (c) => H - pad - (H - 2 * pad) * Math.max(0, Math.min(1, c / scaleC)),
     y0 = H - pad;
   let svg = '<svg class="shotSpark" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none">';
-  if (shared)
-    for (const [t0, t1, k] of [
-      [0, shots[0].fastBeforeS, "fast"],
-      [shots[0].fastBeforeS, shots[0].slowAfterS, "on_recipe"],
-      [shots[0].slowAfterS, tMax, "slow"],
-    ])
+  for (const [t0, t1, k] of shared
+    ? [
+        [0, shots[0].fastBeforeS, "fast"],
+        [shots[0].fastBeforeS, shots[0].slowAfterS, "on_recipe"],
+        [shots[0].slowAfterS, tMax, "slow"],
+      ]
+    : [[0, tMax, "axis"]])
       svg +=
         '<path d="M' + x(t0).toFixed(1) + " " + y0 + " L" + x(t1).toFixed(1) + " " + y0 +
         '" fill="none" stroke="' + colors[k] +
         '" stroke-width="1.35" vector-effect="non-scaling-stroke" stroke-linecap="round"/>';
   for (let i = 0; i < bins; i++) {
-    const t = (i + 0.5) * BIN,
-      t0 = Math.max(0, t - BIN / 2),
-      t2 = Math.min(tMax, t + BIN / 2);
-    // Stacked per verdict: draw the tallest cumulative peak first.
+    const t0 = i * BIN,
+      t2 = Math.min(tMax, t0 + BIN);
+    // Stacked per verdict: draw the tallest cumulative bar first.
     let top = 0;
     const layers = ["on_recipe", "fast", "slow"].map((k) => [k, (top += counts[i][k])]).filter(([k]) => counts[i][k]);
     for (const [k, c] of layers.reverse()) {
-      const open = "M" + x(t0).toFixed(1) + " " + y0 + " L" + x(t).toFixed(1) + " " + y(c).toFixed(1) + " L" + x(t2).toFixed(1) + " " + y0;
+      const open = "M" + x(t0).toFixed(1) + " " + y0 + " V" + y(c).toFixed(1) + " H" + x(t2).toFixed(1) + " V" + y0;
       svg +=
         '<path d="' + open + ' Z" fill="' + colors[k] + '" fill-opacity=".22" stroke="none"/><path d="' + open +
         '" fill="none" stroke="' + colors[k] +

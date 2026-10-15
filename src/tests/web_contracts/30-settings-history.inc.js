@@ -1555,8 +1555,9 @@ if (!statsSection ||
   // All presets is the default: mixed windows draw the shots without bands.
   if (histFilter.children[0].attrs['aria-pressed'] !== 'true' || fills('var(--gSlow)') !== 2 ||
       fills('var(--ok)') !== 1 || fills('var(--gFast)') !== 1 || histWindow.textContent !== '' ||
-      ticks.join() !== '0 s,60 s' || !histPlot.innerHTML.includes('statsDurSparkY">2<')) {
-    throw new Error('All presets must stack every shot by its own verdict without bands');
+      ticks.join() !== '0 s,60 s' || !histPlot.innerHTML.includes('statsDurSparkY">2<') ||
+      !histPlot.innerHTML.includes('stroke="var(--mu)"')) {
+    throw new Error('All presets must stack every shot by its own verdict on a neutral baseline');
   }
   histFilter.children[1].onclick();
   if (histFilter.children[1].attrs['aria-pressed'] !== 'true' || fills('var(--gSlow)') !== 1 ||
