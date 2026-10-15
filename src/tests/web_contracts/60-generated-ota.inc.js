@@ -515,8 +515,10 @@ if (generated.jsGzip.length > 6260) {
 // measures 13397 bytes, owner-authorized 2026-10-14.
 // The target sheet's −/+ buttons and dose/ratio pills measure 13474 bytes,
 // owner-authorized 2026-10-14.
-if (generated.cssGzip.length > 13500) {
-  throw new Error(`Compressed Web CSS exceeds the 13500-byte gzip budget (${generated.cssGzip.length})`);
+// The Stats legend, cursor handle, and shot-line styles measure 13593 bytes;
+// owner-authorized 2026-10-14.
+if (generated.cssGzip.length > 13700) {
+  throw new Error(`Compressed Web CSS exceeds the 13700-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -615,8 +617,14 @@ if (generated.cssGzip.length > 13500) {
 // histogram and grind-hint wording bring it to 56903.
 // The Home "Stop the shot" card (Protections summary, preset-lock note,
 // clean-form guard) measures 57250 bytes, owner-authorized 2026-10-14.
-if (sentinelRuntimeGzip.length > 57300) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 57300-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Stats shot preset graph, More charts toggle, and the shared preset graph
+// measure 57584 compressed bytes; owner-authorized 2026-10-14.
+// The verdict-zone fill brings the runtime to 57622 compressed bytes; owner-authorized 2026-10-14.
+// The Stats shot cursor and Home graphs bring the runtime to 58319 compressed bytes;
+// owner-authorized 2026-10-14.
+// The Stats legend and cursor bring the runtime to 58454 compressed bytes; owner-authorized 2026-10-14.
+if (sentinelRuntimeGzip.length > 58600) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 58600-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -791,8 +799,14 @@ if (generated.icon48Gzip.length > 3500) {
 // limits stay fixed.
 // The target sheet's ruler with −/+ buttons and dose/ratio pills measures
 // 145458 combined, owner-authorized 2026-10-14. Cap raised to 145500.
-if (generated.combined > 145500) {
-  throw new Error(`Combined Web UI gzip exceeds the 145500-byte flash budget (${generated.combined})`);
+// The Stats shot preset graph and its toggle measure 145724 combined;
+// owner-authorized 2026-10-14. Cap raised to 145800; partition limits stay fixed.
+// The verdict-zone fill brings the combined gzip to 145881; owner-authorized 2026-10-14.
+// Cap raised to 145900; partition limits stay fixed.
+// Combined gzip is at this build's cap after the cursor and Home graphs; owner-authorized 2026-10-14.
+// Partition limits stay fixed.
+if (generated.combined > 147000) {
+  throw new Error(`Combined Web UI gzip exceeds the 147000-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
     network.includes('#include "ShotStopperWebAssets.h"')) {

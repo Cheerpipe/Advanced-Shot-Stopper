@@ -958,6 +958,8 @@
     "runtime.shared_settings_saved": "Shared settings saved.",
     "runtime.shot": "Shot",
     "runtime.shot_aborted": "Shot aborted",
+    "runtime.shot_cursor": "{0} s · {1} g · cut line {2}",
+    "runtime.shot_cursor_label": "Time on this shot\u2019s curve",
     "runtime.shot_deleted": "Shot deleted.",
     "runtime.shot_history_cleared": "Shot history cleared.",
     "runtime.shot_paused": "Paused during shot",

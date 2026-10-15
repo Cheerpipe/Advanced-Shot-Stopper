@@ -780,8 +780,15 @@ if (htmlBytes > 93300) {
 // The Stats shot card's own preset graph with its "More charts" toggle, and the
 // shared preset graph that Settings now draws through it, add +2360 measured JS
 // bytes (419060), owner-authorized 2026-10-14.
-if (jsBytes > 419100) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 419100)`);
+// The verdict-zone fill on the Stats preset chart adds 178 bytes (419278);
+// owner-authorized 2026-10-14.
+// The Home preset-card graphs (compact, one per preset) add 596 bytes (419874);
+// owner-authorized 2026-10-14.
+// The Stats shot-curve cursor (tap, drag, keys, readout) adds 2563 bytes (422437);
+// owner-authorized 2026-10-14.
+// The compact Stats legend and cursor styles add 885 bytes (423322); owner-authorized 2026-10-14.
+if (jsBytes > 423500) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 423500)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -866,8 +873,12 @@ if (jsBytes > 419100) {
 // The target ruler's release inertia adds its ~1.1 KB (509705 measured).
 // The Stats preset graph and its toggle (same +2360 JS bytes as above) bring it
 // to 512167; owner-authorized 2026-10-14.
-if (htmlBytes + jsBytes > 512200) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 512200)`);
+// The verdict-zone fill (+178 bytes) brings it to 512363; owner-authorized 2026-10-14.
+// Home preset graphs bring the combined source to 512959; owner-authorized 2026-10-14.
+// The Stats cursor brings the combined source to 515522; owner-authorized 2026-10-14.
+// Combined source at 516407 with the legend; owner-authorized 2026-10-14.
+if (htmlBytes + jsBytes > 516600) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 516600)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
@@ -1101,7 +1112,7 @@ if (html.indexOf('<summary>Tare</summary>') >
     html.indexOf('id="stopIfCupRemoved"') >
         html.indexOf('id="requireCupToStart"') ||
     html.indexOf('id="requireCupToStart"') >
-        html.indexOf('<summary>No-scale BBW</summary>') ||
+        html.indexOf('<summary>Scale guard</summary>') ||
     !codeIncludes(ui, 'id="stopIfCupRemoved"') ||
     !codeIncludes(ui, 'id="requireCupToStart"') ||
     codeIncludes(ui, 'id="cupPresentWeightG"') ||

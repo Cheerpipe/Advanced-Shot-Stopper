@@ -1108,7 +1108,7 @@ async function syncTimezone(c) {
   }
 }
 // A shot's own preset graph, from its stored snapshot (never the live preset).
-// Timer-only shots draw every cut segment off; the verdict zone is not colored yet.
+// Timer-only shots draw every cut segment off.
 function shotRuleModel(r) {
   const timer = (r.shotType || "").toLowerCase() === "timer_only";
   return buildRuleChartModel({
@@ -1128,6 +1128,16 @@ function shotRuleModel(r) {
 }
 const shotMoreOpen = new Set();
 let shotPresetObserver = null;
+// One shared observer re-lays out preset graphs once they get a width; detached hosts drop out.
+function observePresetHost(host) {
+  shotPresetObserver ??= new ResizeObserver((entries) => {
+    for (const e of entries) {
+      if (!e.target.isConnected) shotPresetObserver.unobserve(e.target);
+      else if (e.target.clientWidth !== e.target._w) e.target._draw();
+    }
+  });
+  shotPresetObserver.observe(host);
+}
 function renderShotSpark(h, shot) {
   if (!h) return null;
   const m = buildShotSparkModel(shot);
@@ -1140,20 +1150,79 @@ function renderShotSpark(h, shot) {
   const rule = shotRuleModel(shot);
   if (rule.mode === "empty") return fillShotCharts(h, m, ["weight", "flow"]);
   const preset = document.createElement("div"),
+    readout = document.createElement("p"),
     btn = document.createElement("button"),
     more = document.createElement("div"),
-    draw = () => {
-      preset._w = preset.clientWidth;
-      presetGraph(preset, rule, {
-        compact: true,
-        last: m.segs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
-        drip: m.dripSegs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
-        arrivals: shot.arrivalS > 0 ? [shot.arrivalS] : [],
-        maxG: m.rawMaxW,
-      });
+    // The cursor rides this shot's own curve; it starts at the stop point (D7).
+    curve = m.pts.map((q) => ({ t: q.t, cg: q.cg })).sort((a, b) => a.t - b.t),
+    weightAt = (t) => {
+      let i = 0;
+      while (i < curve.length - 2 && curve[i + 1].t < t) i++;
+      const a = curve[i],
+        b = curve[i + 1] ?? a,
+        k = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 0;
+      return (a.cg + (b.cg - a.cg) * k) / 100;
     };
+  let cursorT = curve.at(-1).t;
+  const place = () => {
+    const v = preset._view,
+      g = preset.querySelector(".shotCursor");
+    if (!v || !g) return;
+    const t = cursorT,
+      w = weightAt(t),
+      cut = rule.mode === "active" ? cutLine(t, rule).toFixed(1) + " g" : "\u2014";
+    g.children[0].setAttribute("d", `M${v.X(t).toFixed(1)} ${v.T}V${v.B}`);
+    g.children[1].setAttribute("cx", v.X(t).toFixed(2));
+    g.children[1].setAttribute("cy", v.Y(w).toFixed(2));
+    preset.setAttribute("aria-valuenow", t.toFixed(1));
+    preset.setAttribute("aria-valuetext", sub(__WEBUI_TEXT__("runtime.shot_cursor"), [t.toFixed(1), w.toFixed(1), cut]));
+    readout.textContent = sub(__WEBUI_TEXT__("runtime.shot_cursor"), [t.toFixed(1), w.toFixed(1), cut]);
+  };
+  const seek = (t) => {
+    cursorT = Math.round(Math.max(curve[0].t, Math.min(curve.at(-1).t, t)) * 10) / 10;
+    place();
+  };
+  const draw = () => {
+    preset._w = preset.clientWidth;
+    preset._view = presetGraph(preset, rule, {
+      compact: true,
+      last: m.segs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
+      drip: m.dripSegs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
+      arrivals: shot.arrivalS > 0 ? [shot.arrivalS] : [],
+      maxG: m.rawMaxW,
+    });
+    preset.querySelector("svg")?.insertAdjacentHTML(
+      "beforeend",
+      '<g class="shotCursor"><path class="rvGuide"/><circle class="rvHandle" r="5"/></g>',
+    );
+    place();
+  };
+  preset.addEventListener("pointerdown", (e) => {
+    if (!preset._view) return;
+    preset.setPointerCapture(e.pointerId);
+    preset.focus({ preventScroll: true });
+    seek(preset._view.tAt(e.clientX - preset.firstChild.getBoundingClientRect().left));
+  });
+  preset.addEventListener("pointermove", (e) => {
+    if (preset.hasPointerCapture(e.pointerId))
+      seek(preset._view.tAt(e.clientX - preset.firstChild.getBoundingClientRect().left));
+  });
+  preset.addEventListener("keydown", (e) => {
+    const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5, PageUp: 5, PageDown: -5 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    seek(cursorT + step);
+  });
   preset.className = "shotPresetChart";
   preset.id = "shotRv" + shot.id;
+  preset.tabIndex = 0;
+  preset.setAttribute("role", "slider");
+  preset.setAttribute("aria-label", __WEBUI_TEXT__("runtime.shot_cursor_label"));
+  preset.setAttribute("aria-valuemin", curve[0].t.toFixed(1));
+  preset.setAttribute("aria-valuemax", curve.at(-1).t.toFixed(1));
+  readout.className = "shotCursorText";
+  // Only the zone the shot ended in keeps its fill (CSS); timer-only shots keep none.
+  preset.dataset.zone = (shot.shotType || "").toLowerCase() === "timer_only" ? "none" : shot.verdict === "fast" || shot.verdict === "slow" ? shot.verdict : "on_recipe";
   btn.type = "button";
   btn.className = "shotMoreBtn";
   more.className = "shotMore";
@@ -1171,17 +1240,27 @@ function renderShotSpark(h, shot) {
     else shotMoreOpen.delete(shot.id);
     sync(open);
   };
-  h.append(preset, btn, more);
+  // Compact legend (D5): the cut line, only the zone this shot ended in, the shot, and arrivals.
+  const zone = preset.dataset.zone,
+    legend = document.createElement("div");
+  legend.className = "shotLegend";
+  legend.innerHTML =
+    '<span class="rvLeg rvLegCut"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_cut") + "</span>" +
+    (zone === "fast"
+      ? '<span class="rvLeg rvLegFast"><i></i><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_fast") + "</span>"
+      : zone === "slow"
+        ? '<span class="rvLeg rvLegSlow"><i></i><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_slow") + "</span>"
+        : zone === "on_recipe"
+          ? '<span class="rvLeg rvLegWindow"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_corridor") + "</span>"
+          : "") +
+    '<span class="rvLeg rvLegLast"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_last") + "</span>" +
+    (shot.arrivalS > 0
+      ? '<span class="rvLeg rvLegArrivals"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_arrivals") + "</span>"
+      : "");
+  h.append(preset, readout, legend, btn, more);
   sync(shotMoreOpen.has(shot.id));
-  // One shared observer re-lays out the graphs once they get a width; detached rows drop out.
-  shotPresetObserver ??= new ResizeObserver((entries) => {
-    for (const e of entries) {
-      if (!e.target.isConnected) shotPresetObserver.unobserve(e.target);
-      else if (e.target.clientWidth !== e.target._w) e.target._draw();
-    }
-  });
   preset._draw = draw;
-  shotPresetObserver.observe(preset);
+  observePresetHost(preset);
   draw();
 }
 function fillShotCharts(h, m, keys) {
@@ -4538,7 +4617,10 @@ function renderHomePresetAccordion() {
       const rows = document.createElement("div");
       rows.className = "presetAccRows";
       rows.setAttribute("aria-live", "polite");
-      panelIn.appendChild(rows);
+      const graph = document.createElement("div");
+      graph.className = "presetAccGraph";
+      graph.id = "presetAccGraph" + key;
+      panelIn.append(rows, graph);
       panel.appendChild(panelIn);
       item.append(head, panel);
       el.appendChild(item);
@@ -4570,6 +4652,18 @@ function renderHomePresetAccordion() {
       rows[1].append(pen);
     }
     item.lastChild.firstChild.firstChild.replaceChildren(...rows);
+    const graph = item.querySelector(".presetAccGraph");
+    graph._m = m;
+    graph._draw = () => {
+      graph._w = graph.clientWidth;
+      if (graph._m.mode === "empty") graph.replaceChildren();
+      else presetGraph(graph, graph._m, { compact: true });
+    };
+    if (!graph.dataset.observed) {
+      graph.dataset.observed = "1";
+      observePresetHost(graph);
+    }
+    graph._draw();
     nodes.push(item);
   }
   if (![...el.children].every((n, i) => n === nodes[i])) el.replaceChildren(...nodes);

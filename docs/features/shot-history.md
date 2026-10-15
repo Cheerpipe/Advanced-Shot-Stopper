@@ -185,8 +185,24 @@ An erase-all firmware installation starts with empty shot history.
 If a low-weight older row is imported later, it remains in the table and CSV
 but does not enter Home or these summaries.
 
-Every available weight curve has a **Flow rate (g/s)** chart directly below it
-on Home and in its Stats history card. Both charts share a time axis, including
+In its Stats history card, each shot with a weight curve shows its **preset
+chart** first: the preset's cut line, its on-recipe corridor, and the shot's own
+weight curve drawn over it. The chart always uses the preset as it was when that
+shot was brewed, so editing or deleting the preset later never changes it. Only
+the zone the shot ended in is colored: fast, slow, or on recipe. Timer-only
+shots show every cut line as off and no colored zone.
+
+Tap or drag anywhere on the chart, or use the arrow keys when it has focus, to
+move a cursor along the shot's curve. The line under the chart reads the time,
+the weight at that moment, and the cut line at that time. The cursor starts at
+the shot's stop point.
+
+Select **More charts** to open the flow and weight charts below it. Select
+**Fewer charts** to hide them again. The card remembers which shots are open
+while the table refreshes.
+
+The Home shot card is unchanged: it keeps its weight and **Flow rate (g/s)**
+charts directly below the shot. Both charts share a time axis, including
 any recorded drip tail, with reference lines every 10 seconds. The Weight chart adds lines every 10 g, and
 Flow rate adds them every 0.5 g/s. Each displayed range rounds up to the next
 reference interval and each chart grows vertically when all required labels

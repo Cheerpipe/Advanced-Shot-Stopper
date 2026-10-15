@@ -752,7 +752,7 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     html.includes('Added after the scale timer catches up to circuit whole seconds') ||
     !codeIncludes(ui, 'id="dripDelayS" type="number" min="0" max="10" step="0.1"') ||
     !codeIncludes(ui, 'id="scaleLossFixedLink"') ||
-    html.indexOf('<summary>No-scale BBW</summary>') >
+    html.indexOf('<summary>Scale guard</summary>') >
         html.indexOf('<summary>Scale-loss backup</summary>') ||
     html.indexOf('<summary>Scale-loss backup</summary>') >
         html.indexOf('id="scaleLossProjection"') ||
@@ -761,7 +761,7 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !codeIncludes(ui, 'id="noScaleBbwMode"') ||
     !codeIncludes(ui, 'id="noScaleAllowRinseWhileArmed"') ||
     !codeIncludes(ui, 'id="lastShotCooldownMin"') ||
-    !codeIncludes(ui, 'When BBW has no scale') ||
+    !codeIncludes(ui, 'When no scale') ||
     !codeIncludes(ui, 'Protection returns after') ||
     !codeIncludes(ui, 'Allow rinse while Armed') ||
     !codeIncludes(ui, "noScaleAllowRinseWhileArmed:$('noScaleAllowRinseWhileArmed').checked") ||
@@ -783,9 +783,9 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     html.indexOf('<legend>Shared settings ') >
         html.indexOf('<summary>Paddle</summary>') ||
     html.indexOf('<summary>Paddle</summary>') >
-        html.indexOf('<summary>No-scale BBW</summary>') ||
+        html.indexOf('<summary>Scale guard</summary>') ||
     html.indexOf('<summary>Quick rinse</summary>') >
-        html.indexOf('<summary>No-scale BBW</summary>') ||
+        html.indexOf('<summary>Scale guard</summary>') ||
     html.indexOf('id="noScaleBbwMode"') <
         html.indexOf('<legend>Shared settings ') ||
     html.indexOf('id="noScaleBbwMode"') >
@@ -793,13 +793,13 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     html.indexOf('id="noScaleAllowRinseWhileArmed"') >
         html.indexOf('id="lastShotCooldownMin"') ||
     html.indexOf('id="lastShotCooldownMin"') <
-        html.indexOf('<summary>No-scale BBW</summary>') ||
+        html.indexOf('<summary>Scale guard</summary>') ||
     html.indexOf('id="lastShotCooldownMin"') >
         html.indexOf('<summary>Scale-loss backup</summary>') ||
     html.indexOf('id="paddleMode"') <
         html.indexOf('<summary>Paddle</summary>') ||
     html.indexOf('id="paddleMode"') >
-        html.indexOf('<summary>No-scale BBW</summary>') ||
+        html.indexOf('<summary>Scale guard</summary>') ||
     html.indexOf('id="noScaleBbwMode"') <
         html.indexOf('id="saveBrewPresetButton"') ||
     !network.includes('avoidBbwShotWithoutScale') ||
@@ -1020,9 +1020,9 @@ if (!html.includes('<summary>Switch</summary>') ||
     html.indexOf('<summary>Paddle</summary>') >
         html.indexOf('<summary>Switch</summary>') ||
     html.indexOf('<summary>Switch</summary>') >
-        html.indexOf('<summary>No-scale BBW</summary>') ||
+        html.indexOf('<summary>Scale guard</summary>') ||
     html.indexOf('id="stopPulseMs"') >
-        html.indexOf('<summary>No-scale BBW</summary>') ||
+        html.indexOf('<summary>Scale guard</summary>') ||
     !html.includes(
         'How long the controller holds the machine button when stopping automatically') ||
     !codeIncludes(ui, "stopPulseMs:$('stopPulseMs')?number(") ||
@@ -1308,4 +1308,34 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
       !/Connect a scale/.test(show('require_scale', true, true)) || /Connect a scale/.test(show('require_scale', true, false)) ||
       !/paddle/.test(show('off', false, false)))
     throw new Error('Home no-scale notice must follow the live guard: armed warns or requires, disarmed is manual');
+}
+{
+  // Stats shot preset chart (plan AC1-AC3, AC5, AC8-AC9): the model comes from the
+  // shot's stored snapshot, never the live preset; invalid snapshots keep the old card.
+  const presetModel = runtimeJs.slice(runtimeJs.indexOf('function buildRuleChartModel('),
+      runtimeJs.indexOf('function renderPresetReview('));
+  const shotModel = runtimeJs.slice(runtimeJs.indexOf('function shotRuleModel('),
+      runtimeJs.indexOf('function renderShotSpark('));
+  const {shotRuleModel} = new Function('presetState',
+      presetModel + shotModel + ';return {shotRuleModel};')({cutRampS: 0.5, items: [{id: 1, name: 'Live', goalWeightG: 99}]});
+  const row = {goalG: 36, fastBeforeS: 10, slowAfterS: 20, delayS: 5, wallS: 30, cutRampS: 1,
+    extractionGuardEnabled: true, slowExtractionGuardEnabled: true, fastMarginG: 2, slowMarginG: 2,
+    firstDropS: 3, shotType: 'auto', verdict: 'on_recipe'};
+  const live = shotRuleModel(row);
+  if (live.mode !== 'active' || live.goal !== 36 || live.t1 !== 10 || live.d !== 1 || live.prot !== 5 || live.wall !== 30)
+    throw new Error('A Stats shot must chart its own stored snapshot');
+  const timer = shotRuleModel({...row, shotType: 'timer_only'});
+  if (timer.mode !== 'timerOnly' || timer.fast || timer.slow)
+    throw new Error('Timer-only shots must draw every cut segment off');
+  if (shotRuleModel({...row, delayS: 12}).mode !== 'empty')
+    throw new Error('An invalid snapshot (delay not before the window) must render without the preset chart');
+  const cardSrc = runtimeJs.slice(runtimeJs.indexOf('function renderShotSpark('), runtimeJs.indexOf('function fillShotCharts('));
+  if (!cardSrc.includes('aria-controls') || !cardSrc.includes('aria-expanded') ||
+      !/"role",\s*"slider"/.test(cardSrc) ||
+      !cardSrc.includes('shotMoreOpen.add') || !cardSrc.includes('dataset.zone') ||
+      !cardSrc.includes('observePresetHost(preset)') || cardSrc.includes('hatch'))
+    throw new Error('The Stats preset card needs an accessible More charts toggle, a keyboard cursor, a verdict zone, and no no-cut hatch');
+  if (!css.includes('.shotPresetChart[data-zone=fast] .rvWindow') || !css.includes('.shotMore[hidden]{display:none}') ||
+      !css.includes('--gCut:#d1101f') || !css.includes('--gCut:#9e1c22') || !css.includes('.rvCut{fill:none;stroke:var(--gCut)'))
+    throw new Error('Stats preset styles must color only the verdict zone and use the red cut-line token in both themes');
 }

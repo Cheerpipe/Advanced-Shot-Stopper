@@ -237,12 +237,12 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     html.indexOf('id="homeAvoidAccidentalTouchEnabled"') > html.indexOf('id="homeCupProtectionEnabled"') ||
     html.indexOf('id="homeCupProtectionEnabled"') > html.indexOf('id="homePresetBlock"') ||
     html.indexOf('id="homePresetBlock"') > html.indexOf('id="equipmentPanel"') ||
-    !html.includes('>No-scale BBW<span') ||
+    !html.includes('>Scale guard<span') ||
     !html.includes('>Extend fast shots<span') ||
     !html.includes('>Avoid accidental touch<span') ||
     !html.includes('>Shorten slow shots<span') ||
     !html.includes('>Scale-loss backup<span') ||
-    html.indexOf('<summary>No-scale BBW</summary>') < 0 ||
+    html.indexOf('<summary>Scale guard</summary>') < 0 ||
     html.indexOf('<summary>Fast shots</summary>') < 0 ||
     html.indexOf('<summary>Cup protection</summary>') < 0 ||
     html.indexOf('<summary>Recipe</summary>') >
@@ -255,7 +255,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     !codeIncludes(ui, 'id="stopIfCupRemoved"') ||
     !codeIncludes(ui, 'id="requireCupToStart"') ||
     html.indexOf('id="requireCupToStart"') >
-        html.indexOf('<summary>No-scale BBW</summary>') ||
+        html.indexOf('<summary>Scale guard</summary>') ||
     codeIncludes(ui, 'id="cupPresentWeightG"') ||
     html.includes('id="cupPresentWeightG"') ||
     html.includes('id="requireCupToStart" type="checkbox" checked') ||
@@ -267,7 +267,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     html.indexOf('<summary>Cup protection</summary>') >
         html.indexOf('id="avoidAccidentalTouchEnabled"') ||
     html.indexOf('id="avoidAccidentalTouchEnabled"') >
-        html.indexOf('<summary>No-scale BBW</summary>') ||
+        html.indexOf('<summary>Scale guard</summary>') ||
     html.indexOf('<summary>Fast shots</summary>') >
         html.indexOf('<summary>Slow shots</summary>') ||
     html.indexOf('<summary>Slow shots</summary>') >
@@ -1266,7 +1266,7 @@ if (!statsSection ||
     !statsSection[1].includes('<strong>Avg time</strong>') ||
     !statsSection[1].includes('<strong>Avg yield</strong>') ||
     !statsSection[1].includes('<strong>Daily shots</strong>') ||
-    !statsSection[1].includes('<strong>Avg BBW error</strong>') ||
+    !statsSection[1].includes('<strong>Avg error %</strong>') ||
     !statsSection[1].includes('<strong>Avg flow</strong>') ||
     !statsSection[1].includes('id="statsAvgDur"') ||
     !statsSection[1].includes('id="statsAvgWeight"') ||
