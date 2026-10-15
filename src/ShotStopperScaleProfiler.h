@@ -109,6 +109,7 @@ enum class ScaleProfileEvent : uint16_t {
   CUP_RESET,
   FINALIZE_CANCELLED,
   FIRST_DROP_SEEKING_FA,
+  CUP_ANCHOR_REJECTED,
 };
 
 // Append-only signal IDs. Values are scalars, not another control state machine.
@@ -276,6 +277,7 @@ inline const char *scaleProfileEventName(ScaleProfileEvent kind) {
     case ScaleProfileEvent::CUP_RESET: return "CUP_RESET";
     case ScaleProfileEvent::FINALIZE_CANCELLED: return "FINALIZE_CANCELLED";
     case ScaleProfileEvent::FIRST_DROP_SEEKING_FA: return "FIRST_DROP_SEEKING_FA";
+    case ScaleProfileEvent::CUP_ANCHOR_REJECTED: return "CUP_ANCHOR_REJECTED";
   }
   return "UNKNOWN";
 }
@@ -1692,6 +1694,12 @@ inline size_t formatScaleProfileRow(char *out, size_t capacity,
       snprintf(suffix, sizeof(suffix), " context=%lu reason=%s pkt=%lu",
                static_cast<unsigned long>(record.arg1),
                idleTareReasonName(static_cast<uint8_t>(record.arg2)),
+               static_cast<unsigned long>(record.sequence));
+      break;
+    case ScaleProfileEvent::CUP_ANCHOR_REJECTED:
+      snprintf(suffix, sizeof(suffix), " placement=%lu offset_cg=%ld pkt=%lu",
+               static_cast<unsigned long>(record.arg1),
+               static_cast<long>(static_cast<int32_t>(record.arg2)),
                static_cast<unsigned long>(record.sequence));
       break;
     case ScaleProfileEvent::CUP_RESET:

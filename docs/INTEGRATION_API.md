@@ -308,7 +308,9 @@ when they occur between control observations. Its ID belongs to the idle-tare
 request namespace; `boundary` is a capture sequence. `TARE_REJECTED` identifies
 the placement in `context`; `CUP_QUALIFICATION_RESET` uses context 0 for empty
 pan, 1 for cup placement, and 2 for accessory settling. Their `pkt` is the
-control packet sequence. `CUP_RESET` is a logical reset, not proof of physical
+control packet sequence. `CUP_ANCHOR_REJECTED` marks one steady empty-pan
+plateau rejected as off the empty reference, with its `placement` and signed
+`offset_cg`. `CUP_RESET` is a logical reset, not proof of physical
 removal. `FINALIZE_CANCELLED` distinguishes cup continuity, a new cycle, and
 rinse. Existing shot-end reasons continue to describe guard stop outcomes.
 

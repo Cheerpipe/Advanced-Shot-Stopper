@@ -11026,6 +11026,47 @@ void it68_plateau_above_anchor_plus_mincup_still_waits() {
   CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
 }
 
+uint32_t profileEventCount(ScaleProfileEvent kind, uint32_t *arg2 = nullptr) {
+  uint32_t count = 0;
+  for (uint32_t i = 0; i < scaleProfiler().hostRecordCount(); ++i) {
+    const auto row = scaleProfiler().hostRecord(i);
+    if (row.kind != static_cast<uint16_t>(kind)) continue;
+    ++count;
+    if (arg2 != nullptr) *arg2 = row.arg2;
+  }
+  return count;
+}
+
+void it73_off_anchor_wait_age_and_profiler_event() {
+  // F8: a stable plateau rejected as off the empty reference reports how long
+  // it has waited and marks the profiler once; requalifying clears the age.
+  prepareIdleTare();
+  idleCup(250.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  CHECK(scaleProfiler().hostStartNoFlash(hostMillis));
+  CHECK(captureCupTareDiagnostics().anchorWaitMs == 0);
+  idleCup(-200.0f);  // The last sample confirms the lift and starts the wait.
+  CHECK(profileEventCount(ScaleProfileEvent::CUP_ANCHOR_REJECTED) == 0);
+  idleCup(-200.0f);
+  CHECK(captureCupTareDiagnostics().anchorWaitMs == 450);
+  idleCup(-200.0f);
+  CHECK(captureCupTareDiagnostics().anchorWaitMs == 900);
+  uint32_t deltaCg = 0;
+  CHECK(profileEventCount(ScaleProfileEvent::CUP_ANCHOR_REJECTED, &deltaCg) == 1);
+  CHECK(deltaCg == 5000);
+  ScaleProfileRecord row{};
+  row.kind = static_cast<uint16_t>(ScaleProfileEvent::CUP_ANCHOR_REJECTED);
+  row.arg2 = static_cast<uint32_t>(-5000);
+  char line[192] = {};
+  CHECK(formatScaleProfileRow(line, sizeof(line), row) > 0);
+  CHECK(strstr(line, "CUP_ANCHOR_REJECTED placement=0 offset_cg=-5000") != nullptr);
+  idleCup(-300.0f);
+  CHECK(cupPresence.weight.emptyValid);
+  CHECK(captureCupTareDiagnostics().anchorWaitMs == 0);
+  CHECK(profileEventCount(ScaleProfileEvent::CUP_ANCHOR_REJECTED) == 1);
+}
+
 void it69_button_zero_on_empty_pan_rearms_idle_tare() {
   prepareIdleTare();
   idleCup(250.0f);
@@ -21123,6 +21164,7 @@ const TestCase testCases[] = {
     {"IT70", it70_equal_weight_swap_at_zero_shows_absent},
     {"IT71", it71_tare_with_coffee_then_lift_recovers},
     {"IT72", it72_accessory_ramp_is_not_tared},
+    {"IT73", it73_off_anchor_wait_age_and_profiler_event},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},

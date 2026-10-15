@@ -2446,14 +2446,17 @@ function formatCupState(s) {
 function formatIdleTare(s) {
   const t = (s.cupPresence || {}).idleTare,
     d = (s.cupPresence || {}).anchorDeltaG,
+    w = (s.cupPresence || {}).anchorWaitS,
     sc = s.scale || {};
   if (!t) return __WEBUI_TEXT__("runtime.unknown");
   if (t === "disabled") return __WEBUI_TEXT__("runtime.off_2");
   if (!sc.available || sc.streamState !== "FRESH") return formatScaleStatus(s);
   if (t === "empty" && typeof d === "number" && Math.abs(d) >= 0.5)
     return sub(
-      d > 0 ? __WEBUI_TEXT__("runtime.idle_tare_empty_above") : __WEBUI_TEXT__("runtime.idle_tare_empty_below"),
-      [Math.abs(d).toFixed(1)],
+      w >= 1
+        ? d > 0 ? __WEBUI_TEXT__("runtime.idle_tare_empty_above_for") : __WEBUI_TEXT__("runtime.idle_tare_empty_below_for")
+        : d > 0 ? __WEBUI_TEXT__("runtime.idle_tare_empty_above") : __WEBUI_TEXT__("runtime.idle_tare_empty_below"),
+      [Math.abs(d).toFixed(1), w],
     );
   return (
     {

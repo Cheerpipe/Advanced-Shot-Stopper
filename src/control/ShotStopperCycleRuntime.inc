@@ -412,6 +412,8 @@ CupTareDiagnostics captureCupTareDiagnostics() {
   out.anchorDeltaG = !session.active && cupPresenceState() == CupPresenceState::ABSENT &&
       !cupPresence.weight.emptyValid && std::isfinite(cupPresence.emptyAnchorG)
       ? idleTare.lastWeightG - cupPresence.emptyAnchorG : NAN;
+  out.anchorWaitMs = std::isfinite(out.anchorDeltaG) && cupPresence.weight.offAnchorSamples != 0
+      ? millis() - cupPresence.weight.offAnchorStartedAtMs : 0;
   out.placementId = cupPresencePlacementId();
   out.requestPlacementId = idleTare.placementId;
   out.requestId = idleTare.requestId;

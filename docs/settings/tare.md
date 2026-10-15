@@ -186,14 +186,18 @@ precedence when scale data is unavailable. A smoothly displayed weight does not
 prove a qualifying placement: a gap longer than **Max sample gap** also requires
 fresh removal/placement evidence. After a successful tare, the message stays
 **Tared** while that cup remains present. While the empty pan must settle, the
-message also shows how far the reading is from the empty reference; a reading
-well above it usually means something is still on the pan.
+message also shows how far the reading is from the empty reference and, once
+the reading has held steady there for a second or more, for how long; a reading
+well above it that does not change usually means something is still on the pan.
 
 The debug export includes `idleTare`: request/placement IDs, eligibility
 and terminal reasons, reference confidence, qualifying weight range, capture
 and command times, sequence boundary, dropped/rejected sample counts, and
 `anchorDeltaG` (the idle reading minus the empty reference while it waits for
-the pan to settle, otherwise `null`).
+the pan to settle, otherwise `null`) with `anchorWaitMs` (how long that steady
+off-reference reading has lasted, otherwise 0). The scale profiler records one
+`CUP_ANCHOR_REJECTED` event per steady reading rejected as off the empty
+reference, with the placement ID and the offset in centigrams.
 These fields come from the control snapshot. `effect_unconfirmed`, `unstable`,
 `stale_sample`, `sample_gap`, and `removed` distinguish common incomplete
 attempts. `qualificationMinG`/`qualificationMaxG` describe the observed window,
@@ -204,7 +208,8 @@ is performed.
 Both Home and full Web status payloads additionally expose `cupPresence.idleTare`
 as a presentation code: `empty`, `ready`, `pending`, `tared`, `remove`,
 `retry`, `uncertain`, or the existing eligibility reason, and
-`cupPresence.anchorDeltaG` with the same meaning as in the debug export. It is derived from the
+`cupPresence.anchorDeltaG` with the same meaning as in the debug export, plus
+`cupPresence.anchorWaitS`, the same wait in whole seconds. They are derived from the
 same control snapshot; it neither authorizes commands nor changes the separate
 integration API. Clients must also check scale availability and stream state.
 

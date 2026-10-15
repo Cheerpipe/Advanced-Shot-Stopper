@@ -31,6 +31,13 @@ struct CupWeightRuntime {
   uint32_t emptyLastAtMs = 0;
   uint8_t emptySamples = 0;
   bool emptyValid = false;
+  // Stable plateau rejected as off the empty reference, for diagnostics only.
+  float offAnchorMinimumG = 0.0f;
+  float offAnchorMaximumG = 0.0f;
+  uint32_t offAnchorStartedAtMs = 0;
+  uint32_t offAnchorLastAtMs = 0;
+  uint8_t offAnchorSamples = 0;
+  bool offAnchorReported = false;
   bool unloadQualified = false;
   uint8_t unloadSamples = 0;
   uint32_t unloadAtMs = 0;
@@ -113,6 +120,7 @@ void invalidateCupWeight() {
   cupPresence.weight.present.valid = false;
   cupPresence.weight.emptyValid = false;
   cupPresence.weight.emptySamples = 0;
+  cupPresence.weight.offAnchorSamples = 0;
   cupPresence.weight.unloadSamples = 0;
   cupPresence.weight.unloadQualified = false;
   if (cupPresence.placementId == 0) cupPresence.inNegativeHole = false;
@@ -125,6 +133,33 @@ bool cupWeightNearKnownEmpty(float weight) {
       std::isfinite(cupPresence.emptyAnchorG) &&
       !cupPresence.referenceUncertain && !cupPresence.holdTransitions &&
       cupPresence.weight.pendingId == 0 && weight <= cupPresence.emptyAnchorG + band;
+}
+
+// Ages the current rejected plateau and profiles it once when it is stable.
+void noteOffAnchorEmptyWeight(float weight, uint32_t atMs, float referenceG) {
+  auto &mass = cupPresence.weight;
+  if (mass.offAnchorSamples == 0 ||
+      static_cast<uint32_t>(atMs - mass.offAnchorLastAtMs) > runtimeConfig.retareStabilityMaxGapMs ||
+      fmaxf(weight, mass.offAnchorMaximumG) - fminf(weight, mass.offAnchorMinimumG) >
+          runtimeConfig.retareStabilityToleranceG) {
+    mass.offAnchorSamples = 0;
+    mass.offAnchorReported = false;
+    mass.offAnchorStartedAtMs = atMs;
+    mass.offAnchorMinimumG = mass.offAnchorMaximumG = weight;
+  }
+  mass.offAnchorMinimumG = fminf(mass.offAnchorMinimumG, weight);
+  mass.offAnchorMaximumG = fmaxf(mass.offAnchorMaximumG, weight);
+  mass.offAnchorLastAtMs = atMs;
+  if (mass.offAnchorSamples < UINT8_MAX) ++mass.offAnchorSamples;
+  if (!mass.offAnchorReported && mass.offAnchorSamples >= runtimeConfig.retareStabilitySamples &&
+      static_cast<uint32_t>(atMs - mass.offAnchorStartedAtMs) >=
+          runtimeConfig.retareStabilityMinDurationMs) {
+    mass.offAnchorReported = true;
+    scaleProfileNoteEvent(ScaleProfileEvent::CUP_ANCHOR_REJECTED, millis(),
+                          mass.connectionGeneration, mass.sampleSequence, weight,
+                          cupPresence.placementId,
+                          static_cast<uint32_t>(weightToCentigrams(weight - referenceG)));
+  }
 }
 
 void observeEmptyCupWeight(float weight, uint32_t atMs, bool initialRecovery,
@@ -160,8 +195,12 @@ void observeEmptyCupWeight(float weight, uint32_t atMs, bool initialRecovery,
     if (!anchored || weight < referenceG || mass.pendingId != 0 || cupPresence.holdTransitions)
       mass.emptyValid = false;
     mass.emptySamples = 0;
+    if (mass.pendingId == 0 && !cupPresence.holdTransitions)
+      noteOffAnchorEmptyWeight(weight, atMs, referenceG);
+    else mass.offAnchorSamples = 0;
     return;
   }
+  mass.offAnchorSamples = 0;
   if (mass.emptyValid) {
     // Requalify a small downward shift before the first cup placement.
     if (!anchored || weight >= referenceG - runtimeConfig.retareStabilityToleranceG)

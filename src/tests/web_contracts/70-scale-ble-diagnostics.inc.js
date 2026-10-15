@@ -57,16 +57,20 @@
     const s = {...good, cupPresence: {present: false, idleTare: state}};
     if (helpers.formatIdleTare(s) !== expected) throw new Error('Idle tare readiness: ' + expected);
   }
-  for (const [delta, expected] of [
+  for (const [delta, expected, waitS] of [
     [52, 'Empty scale must settle (reads 52.0 g above empty)'],
     [-12.04, 'Empty scale must settle (reads 12.0 g below empty)'],
     [0.2, 'Empty scale must settle'], [null, 'Empty scale must settle'],
+    [52, 'Empty scale must settle (reads 52.0 g above empty for 4 s)', 4],
+    [-12.04, 'Empty scale must settle (reads 12.0 g below empty for 61 s)', 61],
+    [0.2, 'Empty scale must settle', 9],
   ]) {
-    const s = {...good, cupPresence: {present: false, idleTare: 'empty', anchorDeltaG: delta}};
+    const s = {...good, cupPresence: {present: false, idleTare: 'empty', anchorDeltaG: delta, anchorWaitS: waitS}};
     if (helpers.formatIdleTare(s) !== expected) throw new Error('Idle tare empty offset: ' + expected);
   }
-  if (!network.includes('delta.field("cupPresence.anchorDeltaG"')) {
-    throw new Error('Home cup delta must carry the empty-reference offset');
+  if (!network.includes('delta.field("cupPresence.anchorDeltaG"') ||
+      !network.includes('delta.field("cupPresence.anchorWaitS"')) {
+    throw new Error('Home cup delta must carry the empty-reference offset and wait');
   }
   for (const reason of ['remove', 'retry']) {
     const s = {...good, cupPresence: {present: true, idleTare: reason}};

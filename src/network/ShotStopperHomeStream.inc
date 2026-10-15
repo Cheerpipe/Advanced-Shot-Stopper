@@ -175,6 +175,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
       idleCode == IDLE_READY_FOR_CUP ? "ready" : idleTarePresentationName(idleCode));
   if (std::isfinite(tare.anchorDeltaG)) delta.field("cupPresence.anchorDeltaG", tare.anchorDeltaG);
   else delta.field("cupPresence.anchorDeltaG", "null");
+  delta.field("cupPresence.anchorWaitS", "%lu", static_cast<unsigned long>(tare.anchorWaitMs / 1000U));
   delta.field("cycle.active", bool(control.activeCycle));
   delta.field("cycle.shotType", "\"%s\"", activeCycleShotTypeLabel(control));
   delta.field("cycle.extractionExtended", bool(control.cycleExtractionExtended));

@@ -468,7 +468,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
       "\"eligibilityReason\":\"%s\",\"lastReason\":\"%s\","
       "\"referenceKnown\":%s,\"tared\":%s,\"absentObserved\":%s,"
       "\"referenceG\":%.2f,\"qualificationMinG\":%.2f,\"qualificationMaxG\":%.2f,\"lastWeightG\":%.2f,"
-      "\"anchorDeltaG\":%s,",
+      "\"anchorDeltaG\":%s,\"anchorWaitMs\":%lu,",
       static_cast<unsigned long>(tare.requestId),
       static_cast<unsigned long>(tare.placementId),
       static_cast<unsigned long>(tare.requestPlacementId), static_cast<unsigned>(tare.phase),
@@ -477,7 +477,8 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
       tare.absentObserved ? "true" : "false",
       static_cast<double>(tare.occupiedReferenceG),
       static_cast<double>(tare.requestMinimumG), static_cast<double>(tare.requestMaximumG),
-      static_cast<double>(tare.lastWeightG), anchorDeltaJson);
+      static_cast<double>(tare.lastWeightG), anchorDeltaJson,
+      static_cast<unsigned long>(tare.anchorWaitMs));
   ok = ok && debugExportChunkf(
       request, buf, cap,
       "\"connectionGeneration\":%lu,\"configRevision\":%lu,\"requestedAtMs\":%lu,"
