@@ -42,6 +42,17 @@ class TaskMutex {
 #endif
   }
 
+  // Non-blocking acquire for owners that must never wait behind the holder.
+  bool tryLock() {
+#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+    if (!mutex_.try_lock()) return false;
+    if (hostObserver != nullptr) hostObserver(this, true);
+    return true;
+#else
+    return tryLock_();
+#endif
+  }
+
   void unlock() {
 #if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
     if (hostObserver != nullptr) hostObserver(this, false);
@@ -76,6 +87,7 @@ class TaskMutex {
   // Out-of-line: with the telemetry inside, inlining these at every
   // TaskLockGuard site costs ~25 KB of flash.
   void lock_();
+  bool tryLock_();
   void unlock_();
   StaticSemaphore_t storage_ = {};
   SemaphoreHandle_t handle_ = nullptr;

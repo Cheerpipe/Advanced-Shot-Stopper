@@ -1227,7 +1227,8 @@ esp_err_t ShotStopperNetwork::otaStatusHandler(httpd_req_t *request) {
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
                      "Send the device password, or unlock administration first.");
   }
-  ShotStopperOta::instance().expireSession(millis());
+  ShotStopperOta::instance().expireSession(
+      millis(), controlAllowsConfiguration(self.controlGate()));
   return self.sendOtaSnapshot(request, STATUS_OK);
 }
 esp_err_t ShotStopperNetwork::otaUploadHandler(httpd_req_t *request) {
@@ -1245,8 +1246,14 @@ esp_err_t ShotStopperNetwork::otaSessionHandler(httpd_req_t *request) {
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
                      "Send the device password, or unlock administration first.");
   }
-  if (request->method == HTTP_GET) return self.sendOtaSnapshot(request, STATUS_OK);
   const ControlGateSnapshot control = self.controlGate();
+  if (request->method == HTTP_GET) {
+    // The Web UI and the OTA script poll this route; expire abandoned
+    // sessions here so OTA busy never outlives its timeout.
+    ShotStopperOta::instance().expireSession(millis(),
+                                             controlAllowsConfiguration(control));
+    return self.sendOtaSnapshot(request, STATUS_OK);
+  }
   if (!controlAllowsConfiguration(control)) {
     return sendError(request, STATUS_CONFLICT, "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
                      "Stop the cycle and wait for Ready before updating firmware.");
@@ -1334,7 +1341,7 @@ esp_err_t ShotStopperNetwork::otaPatchHandler(httpd_req_t *request) {
                        "PATCH must contain matching offset, length, and Content-Range headers.");
   }
   ShotStopperOta &ota = ShotStopperOta::instance();
-  ota.expireSession(millis());
+  ota.expireSession(millis(), true);
   const OtaStatusSnapshot snapshot = ota.snapshot();
   if (strncmp(snapshot.session.transferId, transferId, sizeof(transferId)) != 0 ||
       snapshot.expectedBytes != declaredTotal) {
@@ -1426,6 +1433,10 @@ esp_err_t ShotStopperNetwork::otaAbortHandler(httpd_req_t *request) {
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
                      "Send the device password, or unlock administration first.");
   }
+  if (!controlAllowsConfiguration(self.controlGate())) {
+    return sendError(request, STATUS_CONFLICT, "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
+                     "Stop the cycle and wait for Ready before updating firmware.");
+  }
   self.beginOwnedHeapLifecycle(self.otaHeap_, HeapLifecycleEvent::OTA_ABORT);
   ShotStopperOta::instance().discard();
   self.finishOwnedHeapLifecycle(self.otaHeap_, HeapLifecycleResult::SUCCESS);
@@ -1446,10 +1457,11 @@ void ShotStopperNetwork::serviceOtaRollback(uint32_t now) {
   }
 
   ShotStopperOta &ota = ShotStopperOta::instance();
-  const OtaPublishedState otaStatus = ota.publishedState();
-  // Never wait behind an HTTP upload's OTA mutex in this watchdog task.
-  if (otaStatus.rejected || otaStatus.confirmed || otaStatus.busy) return;
   const ControlGateSnapshot control = controlGate();
+  // Never wait behind an HTTP upload's OTA mutex in this watchdog task.
+  ota.expireSession(now, controlAllowsConfiguration(control), false);
+  const OtaPublishedState otaStatus = ota.publishedState();
+  if (otaStatus.rejected || otaStatus.confirmed || otaStatus.busy) return;
   const OtaBootStatus boot = ota.serviceBoot(now,
       control.bootState == BootState::READY && startupComplete_ && server_ != nullptr,
       control.activeCycle || control.machineRunning || control.physicalActivatorOn,

@@ -1723,3 +1723,19 @@ console.log(
   console.error(error);
   process.exitCode = 1;
 });
+{
+  const handler = (name) => {
+    const start = network.indexOf('esp_err_t ShotStopperNetwork::' + name);
+    return network.slice(start, network.indexOf('\nesp_err_t ShotStopperNetwork::', start + 1));
+  };
+  const session = handler('otaSessionHandler');
+  const abort = handler('otaAbortHandler');
+  if (session.indexOf('expireSession(') < 0 ||
+      session.indexOf('expireSession(') > session.indexOf('sendOtaSnapshot(') ||
+      !network.includes('ota.expireSession(now, controlAllowsConfiguration(control), false)') ||
+      abort.indexOf('CONFIG_LOCKED_DURING_ACTIVE_CYCLE') < 0 ||
+      abort.indexOf('controlAllowsConfiguration') > abort.indexOf('discard()')) {
+    throw new Error('OTA sessions must expire on the polled session route and the network tick, ' +
+                    'and abort must respect the control gate');
+  }
+}

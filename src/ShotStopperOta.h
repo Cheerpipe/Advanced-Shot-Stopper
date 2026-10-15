@@ -267,7 +267,10 @@ class ShotStopperOta {
   // which answers 208 without touching flash.
   OtaResult writeRange(uint32_t offset, uint32_t contentLength,
                        const OtaStreamIo &io, uint32_t now);
-  void expireSession(uint32_t now);
+  // Expires an abandoned session. When flash writes are allowed it also
+  // erases a journal left by a discard or failure. With `wait` false it never
+  // blocks behind an HTTP upload holding the OTA mutex.
+  void expireSession(uint32_t now, bool flashAllowed, bool wait = true);
   bool isDuplicateRange(uint32_t offset, uint32_t contentLength) const;
   // Points the bootloader at the staged image. The caller performs the
   // restart, so machine circuit can be opened first.
@@ -308,7 +311,7 @@ class ShotStopperOta {
   void clearSessionSha256();
   void clearSession(bool abortHandle);
   bool persistSession();
-  void removeSessionJournal();
+  bool removeSessionJournal();
   void restoreSessionJournal();
   void publishState();
   bool readBootState();
@@ -323,6 +326,9 @@ class ShotStopperOta {
   bool confirmed_ = false;
   bool rejected_ = false;
   bool stagedValid_ = false;
+  // A discarded or failed session's journal awaits erasure: discard and
+  // SAFETY_LOST can happen during a pour, when flash erases are not allowed.
+  bool journalStale_ = false;
   OtaBootStatus bootStatus_;
   uint32_t bootLastAttemptMs_ = 0;
   bool bootAttempted_ = false;

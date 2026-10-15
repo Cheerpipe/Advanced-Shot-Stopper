@@ -287,6 +287,12 @@ image, 2,356,367 linked, 1,562,424 flash-code and 626,316 rodata bytes —
 longer source paths add 144 rodata bytes. The image/linked/flash-code
 allowances move to 82,784/82,784/47,388 bytes, keeping the 64-byte headroom;
 rodata stays inside its allowance.
+OTA session expiry on the polled routes and the network tick, the gated
+abort and deferred journal erasure bring the build to 2,356,672 image,
+2,356,551 linked, 1,562,624 flash-code and 626,300 rodata bytes (same
+worktree) — 82,912/82,904/47,524/38,948 over baseline. The
+image/linked/flash-code allowances move to 82,976/82,968/47,588 bytes,
+keeping the 64-byte headroom; rodata stays inside its allowance.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,

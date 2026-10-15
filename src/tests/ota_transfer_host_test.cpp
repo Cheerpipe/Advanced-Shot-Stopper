@@ -187,6 +187,50 @@ void testCheckpointRecovery() {
   }
 }
 
+void testAbandonedSessionExpiresAndErasesLazily() {
+  reset();
+  auto ota = OtaHostTestAccess::fresh();
+  Image image;
+  CHECK(ota->createSession(image.identity, hostMillis) == OtaResult::OK);
+  CHECK(ota->busy() && !persistence_host::records.empty());
+  const uint32_t expired = hostMillis + OTA_SESSION_TTL_MS;
+  ota->expireSession(expired, false, false);  // A pour forbids the erase.
+  CHECK(!ota->busy() && !persistence_host::records.empty());
+  ota->expireSession(expired, true, false);
+  CHECK(persistence_host::records.empty());
+  CHECK(ota->createSession(image.identity, expired) == OtaResult::OK);
+  ota->discard();  // Abort leaves the erase to the next allowed tick.
+  CHECK(!ota->busy() && !persistence_host::records.empty());
+  ota->expireSession(expired, true, false);
+  CHECK(persistence_host::records.empty());
+}
+
+void testNewSessionClearsStaleJournal() {
+  reset();
+  auto ota = OtaHostTestAccess::fresh();
+  Image first(OTA_JOURNAL_CHECKPOINT_BYTES + 2 * OTA_TRANSFER_CHUNK_BYTES);
+  CHECK(ota->createSession(first.identity, hostMillis) == OtaResult::OK);
+  Stream stream{first.bytes};
+  for (uint32_t offset = 0; offset <= OTA_JOURNAL_CHECKPOINT_BYTES;
+       offset += OTA_TRANSFER_CHUNK_BYTES) {
+    CHECK(ota->writeRange(offset, OTA_TRANSFER_CHUNK_BYTES, stream.io(), hostMillis) == OtaResult::OK);
+  }
+  CHECK(persistence_host::records.size() == 2);
+  ota.reset();  // The next boot cannot restore before confirmation.
+  ota_host::state = ESP_OTA_IMG_PENDING_VERIFY;
+  ota = OtaHostTestAccess::fresh();
+  CHECK(ota->serviceBoot(15000, true, false, false, false, 15000, 180000).state ==
+        ESP_OTA_IMG_VALID);
+  Image second;
+  std::strcpy(second.identity.transferId, "second-transfer-0123");
+  CHECK(ota->createSession(second.identity, hostMillis) == OtaResult::OK);
+  CHECK(persistence_host::records.size() == 1);
+  ota.reset();
+  ota = OtaHostTestAccess::fresh();
+  CHECK(ota->snapshot().sessionActive);
+  CHECK(std::string(ota->snapshot().session.transferId) == "second-transfer-0123");
+}
+
 OtaBootStatus service(ShotStopperOta &ota, uint32_t now, bool http = true,
                       bool cycle = false, bool relay = false, bool ble = false) {
   return ota.serviceBoot(now, http, cycle, relay, ble, 15000, 180000);
@@ -290,6 +334,8 @@ int main() {
   testInterruptedRangeAndAlignment();
   testSafetyAndFatalFailures();
   testCheckpointRecovery();
+  testAbandonedSessionExpiresAndErasesLazily();
+  testNewSessionClearsStaleJournal();
   testJournalFailureHasDistinctResult();
   testConfirmationGatesAndDiagnostics();
   testConfirmationRetryAndStateRecovery();

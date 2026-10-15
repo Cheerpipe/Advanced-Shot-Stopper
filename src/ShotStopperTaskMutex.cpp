@@ -13,6 +13,12 @@ void TaskMutex::lock_() {
   ownedSinceUs_ = static_cast<uint32_t>(esp_timer_get_time());
 }
 
+bool TaskMutex::tryLock_() {
+  if (xSemaphoreTake(handle_, 0) != pdTRUE) return false;
+  ownedSinceUs_ = static_cast<uint32_t>(esp_timer_get_time());
+  return true;
+}
+
 void TaskMutex::unlock_() {
   // Snapshot telemetry before releasing: the fields are only touched while
   // the mutex is held, so the mutex itself serializes every access. The

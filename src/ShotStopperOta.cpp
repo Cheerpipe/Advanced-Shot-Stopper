@@ -327,10 +327,14 @@ void ShotStopperOta::begin() {
   if (available_ && confirmed_) {
     restoreSessionJournal();
   }
+  if (journalStale_) (void)removeSessionJournal();
   publishState();
 }
 
-void ShotStopperOta::removeSessionJournal() { clearJournal(); }
+bool ShotStopperOta::removeSessionJournal() {
+  journalStale_ = !clearJournal();
+  return !journalStale_;
+}
 
 bool ShotStopperOta::persistSession() {
   if (!sessionActive_) return true;
@@ -534,7 +538,7 @@ void ShotStopperOta::clearSession(bool abortHandle) {
   scanner_.reset();
   clearSessionSha256();
   journaledBytes_ = 0;
-  removeSessionJournal();
+  journalStale_ = true;
 }
 
 bool ShotStopperOta::isDuplicateRange(uint32_t offset,
@@ -545,14 +549,15 @@ bool ShotStopperOta::isDuplicateRange(uint32_t offset,
          offset + contentLength == receivedBytes_;
 }
 
-void ShotStopperOta::expireSession(uint32_t now) {
-  TaskLockGuard lock(mutex_);
-  if (!sessionActive_) {
-    return;
-  }
-  if (static_cast<uint32_t>(now - sessionLastActivityMs_) >= OTA_SESSION_TTL_MS) {
+void ShotStopperOta::expireSession(uint32_t now, bool flashAllowed, bool wait) {
+  if (wait) mutex_.lock();
+  else if (!mutex_.tryLock()) return;
+  if (sessionActive_ &&
+      static_cast<uint32_t>(now - sessionLastActivityMs_) >= OTA_SESSION_TTL_MS) {
     finishFailure(OtaResult::SESSION_EXPIRED);
   }
+  if (flashAllowed && journalStale_ && !sessionActive_) (void)removeSessionJournal();
+  mutex_.unlock();
 }
 
 OtaResult ShotStopperOta::createSession(const OtaSessionIdentity &identity,
@@ -604,6 +609,9 @@ OtaResult ShotStopperOta::createSession(const OtaSessionIdentity &identity,
                                            : OtaResult::SESSION_CONFLICT;
   }
 
+  // A record surviving an earlier discard or a failed boot-time read could
+  // otherwise shadow this session's lower generation until its checkpoint.
+  if (!removeSessionJournal()) return OtaResult::JOURNAL_FAILED;
   session_ = identity;
   ++sessionGeneration_;
   sessionActive_ = true;
