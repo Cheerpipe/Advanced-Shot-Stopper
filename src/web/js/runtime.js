@@ -5514,9 +5514,8 @@ function presetGraph(host, m, x = {}) {
     curves(last, "rvLast") +
     curves(drip, "rvLast rvLastDrip") +
     shown.map((t) => `<circle class="rvArrival" cx="${f(X(t))}" cy="${f(Y(m.goal))}" r="3"/>`).join("") +
-    `<path class="rvCut${m.fast ? "" : " off"}" d="M${P(m.prot, m.ceil)}${fastEdge}"/>` +
-    `<path class="rvCut${m.mode === "timerOnly" ? " off" : ""}" d="M${P(m.t1, m.goal)}${windowEdge}"/>` +
-    `<path class="rvCut${m.slow ? "" : " off"}" d="M${P(m.t2, m.goal)}${slowEdge}"/>` +
+    // One cut line from the weight-cut delay to Max: a side that is off still cuts at the target.
+    `<path class="rvCut${m.mode === "timerOnly" ? " off" : ""}" d="M${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}"/>` +
     // The hatch keeps its inline name only where it fits; the legend names it too.
     (!compact && X(m.prot) - L >= 96 ? label((L + X(m.prot)) / 2, (T + B) / 2, __WEBUI_TEXT__("runtime.graph_legend_no_cut"), "rvHalo") : "") +
     // Below the line when it would run into "Max" at the top (Settings only).
