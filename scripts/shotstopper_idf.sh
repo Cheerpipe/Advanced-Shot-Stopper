@@ -256,7 +256,7 @@ ss_idf_audit_translation_units() {
 # IDF_IMAGE, IDF_ELF, IDF_MAP, IDF_SDKCONFIG, IDF_SDKCONFIG_DEFAULTS.
 ss_idf_resolve_paths() {
   IDF_PROJECT="$SS_CLI_ROOT/idf"
-  IDF_BUILD_DIR="$SS_CLI_ROOT/build-idf/${SHOTSTOPPER_VARIANT:-$SHOTSTOPPER_ARCH}"
+  IDF_BUILD_DIR="$SS_IDF_BUILD_ROOT/${SHOTSTOPPER_VARIANT:-$SHOTSTOPPER_ARCH}"
   IDF_IMAGE="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.bin"
   IDF_ELF="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.elf"
   IDF_MAP="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.map"
@@ -273,12 +273,17 @@ ss_idf_resolve_paths() {
   # wins over every earlier default file. It must live outside the build dir:
   # ss_idf_prepare_set_target wipes that directory and idf.py requires every
   # SDKCONFIG_DEFAULTS entry to exist while set-target runs its first cmake.
-  IDF_OPT_OVERLAY="$SS_CLI_ROOT/build-idf/.defaults/${SHOTSTOPPER_VARIANT:-$SHOTSTOPPER_ARCH}.optlevel"
+  IDF_OPT_OVERLAY="$SS_IDF_BUILD_ROOT/.defaults/${SHOTSTOPPER_VARIANT:-$SHOTSTOPPER_ARCH}.optlevel"
   IDF_SDKCONFIG_DEFAULTS="$IDF_SDKCONFIG_DEFAULTS;$IDF_OPT_OVERLAY"
 }
 
 ss_idf_py_args() {
   ss_idf_resolve_paths
+  # Optional accelerator: an installed ccache turns full rebuilds after flag or
+  # sdkconfig changes into cache hits. IDF_CCACHE_ENABLE=0 opts out.
+  if [[ -z "${IDF_CCACHE_ENABLE:-}" ]] && command -v ccache >/dev/null 2>&1; then
+    export IDF_CCACHE_ENABLE=1
+  fi
   # Exported to the wrapper that sources this helper.
   # shellcheck disable=SC2034
   IDF_PY_ARGS=(

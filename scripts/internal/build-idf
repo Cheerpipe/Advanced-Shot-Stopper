@@ -81,10 +81,10 @@ if [[ "${SS_BUILD_LOCKED:-}" != "1" ]]; then
   # shellcheck disable=SC2086  # names list is meant to word-split
   { [[ -z "$state_vars" ]] || declare -p $state_vars 2>/dev/null; } \
     >"$SS_BUILD_STATE_FILE" || true
-  mkdir -p "$SS_CLI_ROOT/build-idf/.locks"
+  mkdir -p "$SS_IDF_BUILD_ROOT/.locks"
   SS_BUILD_LOCKED=1 SS_BUILD_STATE_FILE="$SS_BUILD_STATE_FILE" \
     exec python3 "$SCRIPT_DIR/internal/with-flock" \
-    "$SS_CLI_ROOT/build-idf/.locks/$SHOTSTOPPER_VARIANT.lock" \
+    "$SS_IDF_BUILD_ROOT/.locks/$SHOTSTOPPER_VARIANT.lock" \
     bash "$SCRIPT_DIR/internal/${0##*/}"
 fi
 
@@ -162,7 +162,7 @@ fi
 python3 ./scripts/resolve_build_profiles.py \
   --hardware "$(ss_get hardware_config)" \
   --machine "$(ss_get machine_config)" \
-  --flags="$effective_flags" --output-root "$root/build-idf" >/dev/null
+  --flags="$effective_flags" --output-root "$SS_IDF_BUILD_ROOT" >/dev/null
 
 # The generated overlay lives outside the variant tree cleared by set-target.
 ss_idf_emit_opt_overlay

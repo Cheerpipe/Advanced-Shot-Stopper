@@ -13,6 +13,9 @@ source "$SCRIPT_DIR/shotstopper_cli.sh"
 
 readonly ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 readonly OUTPUT_DIR="reports/gcc-warnings"
+# A separate tree keeps -Wunused-parameter from reconfiguring build-idf/<variant>.
+export SHOTSTOPPER_IDF_BUILD_ROOT="$ROOT/build-idf/warnings"
+SS_IDF_BUILD_ROOT="$SHOTSTOPPER_IDF_BUILD_ROOT"
 
 usage() {
   cat <<EOF

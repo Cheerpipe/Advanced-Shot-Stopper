@@ -37,8 +37,12 @@ macOS, with Homebrew installed:
 
 ```sh
 xcode-select --install   # only if Command Line Tools are missing
-brew install git python cmake ninja cjson node cppcheck
+brew install git python cmake ninja cjson node cppcheck ccache
 ```
+
+`ccache` is optional on both systems. Firmware builds use it automatically
+when it is installed, and rebuilds after a flag or configuration change are
+much faster.
 
 <a id="linux"></a>
 

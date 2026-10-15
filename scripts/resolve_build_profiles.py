@@ -641,10 +641,13 @@ def main() -> int:
         output_dir = args.output_root / resolved["variant"] / "generated"
         if not args.check_only:
             output_dir.mkdir(parents=True, exist_ok=True)
-            (output_dir / "ShotStopperBuildProfileGenerated.h").write_text(
-                header_for(resolved), encoding="utf-8")
-            (output_dir / "build-profile.json").write_text(
-                json.dumps(resolved, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+            # Rewrite only on change so unchanged builds do not recompile includers.
+            for path, text in (
+                    (output_dir / "ShotStopperBuildProfileGenerated.h", header_for(resolved)),
+                    (output_dir / "build-profile.json",
+                     json.dumps(resolved, indent=2, ensure_ascii=False) + "\n")):
+                if not path.is_file() or path.read_text(encoding="utf-8") != text:
+                    path.write_text(text, encoding="utf-8")
     except ProfileError as error:
         print(f"Profile error: {error}", file=sys.stderr)
         return 2

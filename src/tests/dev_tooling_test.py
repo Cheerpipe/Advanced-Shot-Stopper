@@ -979,11 +979,13 @@ assert invalid_language.returncode == 2 and "Invalid WebUI language" in invalid_
 
 
 def validate_language_steps(args: list[str], environment: str | None = None,
-                            risk: str = "R3"):
+                            risk: str = "R3", lanes: bool = False):
     captured = {}
 
-    def capture(command, risk, steps, verbosity, manual=None, prelude=None):
-        captured.update(command=command, risk=risk, steps=steps)
+    def capture(command, risk, steps, verbosity, manual=None, prelude=None,
+                lanes=None):
+        assert lanes is None or steps == [s for lane in lanes for s in lane]
+        captured.update(command=command, risk=risk, steps=steps, lanes=lanes)
         return 0
 
     main = dev_module["main"]
@@ -995,7 +997,7 @@ def validate_language_steps(args: list[str], environment: str | None = None,
         else:
             os.environ["SHOTSTOPPER_WEBUI_LANGUAGE"] = environment
         assert main() == 0
-    return captured["steps"]
+    return captured["lanes"] if lanes else captured["steps"]
 
 
 for validate_args, environment, expected in (
@@ -1018,6 +1020,40 @@ r2_steps = validate_language_steps(["src/web/app.js"], risk="R2")
 r2_builds = [argv for name, argv in r2_steps if name.startswith("idf-")]
 assert len(r2_builds) == 3, r2_builds
 assert all("--development" in argv for argv in r2_builds), r2_builds
+
+# Host tests and firmware work run as two parallel lanes. Every step that
+# touches IDF trees, the shared Web UI header, or the CLI store stays serial in
+# the firmware lane: route capacity before Web contracts, then per variant the
+# budget build, cppcheck over its database, and the separate warnings build.
+host_lane, firmware_lane = validate_language_steps(["src/web/app.js"], lanes=True)
+assert [name for name, _ in host_lane] == [
+    f"{stage}-{preset}" for preset in ("normal", "asan-ubsan", "tsan")
+    for stage in ("configure", "build", "test")] + ["architecture"], host_lane
+firmware_names = [name for name, _ in firmware_lane]
+assert firmware_names[:2] == ["http-route-capacity", "web-contracts"], firmware_names
+assert firmware_names[2:] == [f"{kind}-{hardware}--{machine}"
+                              for hardware, machine in dev_module["BUILD_PROFILES"]
+                              for kind in ("idf", "cppcheck", "warnings")], firmware_names
+assert all(argv[-2:] == ["-j", str(os.cpu_count() or 1)]
+           for name, argv in host_lane if name.startswith("test-")), host_lane
+assert validate_language_steps(["src/web/app.js"], risk="R1", lanes=True) is None
+
+# A failing lane stops every lane from starting another step, while the step
+# already running finishes and its whole output stays one contiguous block.
+with tempfile.TemporaryDirectory(prefix="shotstopper-lanes-") as temporary:
+    marker = Path(temporary) / "late"
+    with patch.dict(dev_module["execute"].__globals__,
+                    ROOT=Path(temporary), write_summary=lambda *a: Path(temporary) / "s.json"), \
+            patch("builtins.print"):
+        (Path(temporary) / "artifacts/runs").mkdir(parents=True)
+        slow = ("slow", ["sh", "-c", "echo one; sleep 1; echo two"])
+        late = ("late", ["sh", "-c", f"touch {marker}"])
+        fail = ("fail", ["sh", "-c", "echo broken; exit 3"])
+        code = dev_module["execute"](["x"], "R2", [], "compact",
+                                     lanes=[[slow, late], [fail]])
+    assert code == 1 and not marker.exists()
+    log = next(Path(temporary).glob("artifacts/runs/*/run.log")).read_text()
+    assert "==> slow: sh -c echo one; sleep 1; echo two\none\ntwo\n" in log, log
 
 
 def dispatched(stages: tuple[str, ...], args: list[str], fail: str = "",

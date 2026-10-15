@@ -117,6 +117,14 @@ default. These options are compile-time only and are never persisted.
 
 `./scripts/dev validate --risk R2` builds each official validation pair;
 `--risk R3` also checks each pair with Cppcheck and a GCC warning build.
+R2 and R3 run two lanes at once: the host tests, and the firmware steps in a
+fixed order (route capacity, Web contracts, then each pair's build, Cppcheck,
+and warning build). Each step's output appears in the log as one block when
+the step finishes. After any failure neither lane starts another step;
+steps already running finish first. The warning build uses its own tree,
+`build-idf/warnings/<hardware>--<machine>/`, so the gate's
+`build-idf/<hardware>--<machine>/` images stay incremental. Host tests and
+Cppcheck use one job per CPU.
 
 The supported transient options are `--webui-language`, `--flags`, `--o0`,
 `--og`, `--o2`, and `--os`. The build also accepts
@@ -139,7 +147,10 @@ Use `./scripts/dev doctor` to inspect local tooling and
 required validation gate. Missing dependencies are reported as failures;
 scripts never install them automatically. `doctor` also reports each tool's
 resolved path and version and warns when a Homebrew-managed tool is outdated,
-so checks always run against the machine's current releases.
+so checks always run against the machine's current releases. It also shows
+whether the optional `ccache` is installed: when it is, firmware builds use it
+automatically, which makes rebuilds after a flag or configuration change much
+faster. Set `IDF_CCACHE_ENABLE=0` to build without it.
 
 Node.js and Cppcheck carry no project version pin: every script resolves them
 from `PATH`, so install current releases with your package manager (see

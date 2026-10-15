@@ -13,6 +13,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from urllib.parse import unquote, urlsplit
 
@@ -269,50 +270,80 @@ def write_summary(command: list[str], risk: str, status: str, started: float,
 def execute(command: list[str], risk: str, steps: list[tuple[str, list[str]]],
             verbosity: str, manual: list[str] | None = None,
             prelude: list[str] | None = None, interactive: bool = False,
-            env_extra: dict[str, str] | None = None) -> int:
+            env_extra: dict[str, str] | None = None,
+            lanes: list[list[tuple[str, list[str]]]] | None = None) -> int:
+    """Run steps in order, or each lane in parallel with whole-step log blocks.
+    After a failure no lane starts another step; running steps finish."""
     started = time.monotonic()
     run_id = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"-{os.getpid()}"
     run_dir = ROOT / "artifacts/runs" / run_id
     run_dir.mkdir(parents=True, exist_ok=False)
     log_path = run_dir / "run.log"
     lines = list(prelude or [])
+    lanes = lanes or [steps]
+    order = {name: i for i, (name, _) in enumerate(s for lane in lanes for s in lane)}
     checks: list[dict[str, str]] = []
-    code = 0
+    failures: list[tuple[int, list[str]]] = []
+    lock = threading.Lock()
+    live = len(lanes) == 1
     with log_path.open("w") as log:
         for initial in lines:
             log.write(redact(initial) + "\n")
-        for name, argv in steps:
-            marker = f"==> {name}: {' '.join(safe_args(argv))}"
-            log.write(marker + "\n")
-            if verbosity != "compact":
-                print(painted(marker), flush=True)
-            child_env = {**os.environ, **(env_extra or {})}
-            if interactive:
-                child_env.pop("SHOTSTOPPER_NONINTERACTIVE", None)
-            else:
-                child_env["SHOTSTOPPER_NONINTERACTIVE"] = "1"
-            process = subprocess.Popen(argv, cwd=ROOT, text=True,
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT,
-                                       env=child_env)
-            assert process.stdout is not None
-            for raw in process.stdout:
-                clean = redact(raw.rstrip("\n"))
+
+        def emit(block: list[str]) -> None:
+            for clean in block:
                 log.write(clean + "\n")
                 lines.append(clean)
                 if verbosity != "compact":
                     print(painted(clean), flush=True)
-            child_code = process.wait()
-            checks.append({"name": name, "status": "passed" if child_code == 0 else "failed"})
-            if child_code:
-                code = child_code if child_code in {2, 127} else 1
-                break
+
+        def run_lane(lane: list[tuple[str, list[str]]]) -> None:
+            for name, argv in lane:
+                with lock:
+                    if failures:
+                        return
+                block = [f"==> {name}: {' '.join(safe_args(argv))}"]
+                child_env = {**os.environ, **(env_extra or {})}
+                if interactive:
+                    child_env.pop("SHOTSTOPPER_NONINTERACTIVE", None)
+                else:
+                    child_env["SHOTSTOPPER_NONINTERACTIVE"] = "1"
+                process = subprocess.Popen(argv, cwd=ROOT, text=True,
+                                           stdout=subprocess.PIPE,
+                                           stderr=subprocess.STDOUT,
+                                           env=child_env)
+                assert process.stdout is not None
+                if live:
+                    emit(block)
+                for raw in process.stdout:
+                    block.append(redact(raw.rstrip("\n")))
+                    if live:
+                        emit(block[-1:])
+                child_code = process.wait()
+                with lock:
+                    if not live:
+                        emit(block)
+                    checks.append({"name": name,
+                                   "status": "passed" if child_code == 0 else "failed"})
+                    if child_code:
+                        failures.append((child_code, block))
+                        return
+
+        threads = [threading.Thread(target=run_lane, args=(lane,), daemon=True)
+                   for lane in lanes]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+    checks.sort(key=lambda check: order[check["name"]])
+    child_code = failures[0][0] if failures else 0
+    code = child_code if child_code in {0, 2, 127} else 1
     status = "passed" if code == 0 else ("missing_dependency" if code == 127 else "failed")
     summary = write_summary(command, risk, status, started, checks, log_path,
                             manual or [], {"verbosity": verbosity})
     if verbosity == "compact":
         limit = 20 if code == 0 else 80
-        shown = lines[-max(0, limit - 3):]
+        shown = (failures[0][1] if failures else lines)[-max(0, limit - 3):]
         headline = f"{status.upper()}: {' '.join(safe_args(command))}"
         print(painted(headline))
         if code:
@@ -423,7 +454,7 @@ def validate_firmware_options(stages: tuple[str, ...], args: list[str]) -> None:
 
 
 def cmake_steps(preset: str, label: str | None = None) -> list[tuple[str, list[str]]]:
-    tests = ["ctest", "--preset", preset]
+    tests = ["ctest", "--preset", preset, "-j", str(os.cpu_count() or 1)]
     if label:
         tests += ["-L", label]
     return [
@@ -510,6 +541,8 @@ def main() -> int:
                 detail = f" ({banner[0]})" if banner else ""
                 lines.append(f"{tool}: {path}{detail}")
             missing = require(tools[:5])
+            lines.append(f"ccache: {shutil.which('ccache')}" if shutil.which("ccache") else
+                         "ccache: not installed (optional; speeds up firmware rebuilds)")
             if shutil.which("brew") is not None:
                 stale = subprocess.run(
                     ["brew", "outdated", "--formula", "node", "cppcheck",
@@ -643,28 +676,32 @@ def main() -> int:
                 return record(command, risk, verbosity, doc_errors, 1, "docs-and-paths")
             if risk == "R0":
                 return record(command, risk, verbosity, prelude + ["documentation links and context paths: OK"])
-            steps = cmake_steps("normal")
+            # Host tests and firmware work share no outputs, so they run as two
+            # parallel lanes; firmware steps stay serial because every IDF
+            # build regenerates the shared Web UI header under src/.
+            host = cmake_steps("normal")
+            firmware: list[tuple[str, list[str]]] = []
             if risk in {"R2", "R3"}:
-                steps += cmake_steps("asan-ubsan") + cmake_steps("tsan")
-                steps += [HTTP_ROUTE_CAPACITY_STEP,
-                          ("architecture", ["python3", "scripts/check_architecture.py"]),
-                          ("web-contracts", ["node", "src/tests/check_web_assets.js"])]
+                host += cmake_steps("asan-ubsan") + cmake_steps("tsan") + [
+                    ("architecture", ["python3", "scripts/check_architecture.py"])]
+                firmware = [HTTP_ROUTE_CAPACITY_STEP,
+                            ("web-contracts", ["node", "src/tests/check_web_assets.js"])]
                 for hardware, machine in BUILD_PROFILES:
-                    steps.append((f"idf-{hardware}--{machine}", [
+                    variant = f"{hardware}--{machine}"
+                    firmware.append((f"idf-{variant}", [
                         "./scripts/internal/build-idf", "--hardware", hardware,
                         "--machine", machine, "--webui-language", webui_language,
                         *FIRMWARE_BUDGET_OPTIONS]))
-            if risk == "R3":
-                for hardware, machine in BUILD_PROFILES:
-                    variant = f"{hardware}--{machine}"
-                    steps += [(f"cppcheck-{variant}", ["./scripts/static-idf",
-                                "--arch", "n16r8", "--build-dir", f"build-idf/{variant}"]),
-                              (f"warnings-{variant}", ["./scripts/warnings-idf",
-                                "--hardware", hardware, "--machine", machine,
-                                "--webui-language", webui_language,
-                                *FIRMWARE_BUDGET_OPTIONS])]
+                    if risk == "R3":
+                        firmware += [(f"cppcheck-{variant}", ["./scripts/static-idf",
+                                      "--arch", "n16r8", "--build-dir", f"build-idf/{variant}"]),
+                                     (f"warnings-{variant}", ["./scripts/warnings-idf",
+                                      "--hardware", hardware, "--machine", machine,
+                                      "--webui-language", webui_language,
+                                      *FIRMWARE_BUDGET_OPTIONS])]
             manual = ["Complete and attach applicable HIL/manual evidence"] if risk == "R3" else []
-            return execute(command, risk, steps, verbosity, manual, prelude)
+            return execute(command, risk, host + firmware, verbosity, manual, prelude,
+                           lanes=[host, firmware] if firmware else None)
 
         if verb in FIRMWARE_STAGES:
             ensure_no_secret_argv(args)

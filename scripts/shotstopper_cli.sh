@@ -36,6 +36,9 @@ if [[ -z "${SS_CLI_ROOT:-}" ]]; then
   SS_CLI_ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
 SS_CLI_STORE="$SS_CLI_ROOT/.shotstopper"
+# Analysis builds (warnings-idf) point this at their own tree so toggling
+# analysis-only flags never reconfigures the gate's variant builds.
+SS_IDF_BUILD_ROOT="${SHOTSTOPPER_IDF_BUILD_ROOT:-$SS_CLI_ROOT/build-idf}"
 
 ss_upper() {
   printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
@@ -484,7 +487,7 @@ ss_cli_resolve_profiles() {
   [[ "$mode" == "check" ]] && resolver_flags+=(--check-only)
   SS_PROFILE_OUTPUT="$(python3 "$SS_CLI_ROOT/scripts/resolve_build_profiles.py" \
     --hardware "$(ss_get hardware_config)" --machine "$(ss_get machine_config)" \
-    --flags="$flags" --output-root "$SS_CLI_ROOT/build-idf" \
+    --flags="$flags" --output-root "$SS_IDF_BUILD_ROOT" \
     ${resolver_flags[@]+"${resolver_flags[@]}"})" || return $?
   resolved_arch="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^arch=//p')"
   SHOTSTOPPER_VARIANT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^variant=//p')"

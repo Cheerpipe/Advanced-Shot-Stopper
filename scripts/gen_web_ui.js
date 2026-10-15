@@ -482,7 +482,9 @@ ${emitGzipConst('SHOT_STOPPER_WEB_ICON_48_GZIP', icon48Gzip)}
 }  // namespace shotstopper
 `;
 
-  if (write) {
+  // Rewrite only on change so unchanged builds do not recompile includers.
+  if (write && !(fs.existsSync(outputPath) &&
+                 fs.readFileSync(outputPath, 'utf8') === body)) {
     const temporaryOutput = `${outputPath}.tmp`;
     fs.writeFileSync(temporaryOutput, body);
     fs.renameSync(temporaryOutput, outputPath);
