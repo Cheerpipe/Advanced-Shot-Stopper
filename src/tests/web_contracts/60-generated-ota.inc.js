@@ -625,8 +625,9 @@ if (generated.cssGzip.length > 13700) {
 // The Stats legend and cursor bring the runtime to 58454 compressed bytes; owner-authorized 2026-10-14.
 // The preset graph cut pill brings the runtime to 58655 compressed bytes; owner-authorized 2026-10-15.
 // The first-drop pace start brings the runtime to 58877 compressed bytes; owner-authorized 2026-10-15.
-if (sentinelRuntimeGzip.length > 58900) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 58900-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Stats shot cursor pill brings the runtime to 58924 compressed bytes; owner-authorized 2026-10-15.
+if (sentinelRuntimeGzip.length > 59000) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 59000-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

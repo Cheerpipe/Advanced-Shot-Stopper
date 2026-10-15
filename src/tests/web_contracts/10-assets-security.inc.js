@@ -790,8 +790,9 @@ if (htmlBytes > 93300) {
 // Home preset graphs become full copies of the Settings graph (same axis, scrubber, readout) and each graph keeps its own scrub state: +656 bytes (423978), owner-authorized 2026-10-15.
 // The preset graph cut pill shown while the scrubber is held: +527 bytes (424505), owner-authorized 2026-10-15.
 // Preset graph paces start at the usual first drop, with its source note and the restart copy: +1082 bytes (425587), owner-authorized 2026-10-15.
-if (jsBytes > 425600) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 425600)`);
+// The Stats shot cursor pill, sharing the cut pill helper: +33 bytes (425620), owner-authorized 2026-10-15.
+if (jsBytes > 425700) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 425700)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.

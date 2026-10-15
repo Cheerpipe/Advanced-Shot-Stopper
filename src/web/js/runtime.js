@@ -1174,9 +1174,10 @@ function renderShotSpark(h, shot) {
     g.children[0].setAttribute("d", `M${v.X(t).toFixed(1)} ${v.T}V${v.B}`);
     g.children[1].setAttribute("cx", v.X(t).toFixed(2));
     g.children[1].setAttribute("cy", v.Y(w).toFixed(2));
+    placePill(g.children[2], sub(__WEBUI_TEXT__("runtime.shot_cursor_pill"), [t.toFixed(1), w.toFixed(1)]), v.X(t), v.Y(w));
     preset.setAttribute("aria-valuenow", t.toFixed(1));
-    preset.setAttribute("aria-valuetext", sub(__WEBUI_TEXT__("runtime.shot_cursor"), [t.toFixed(1), w.toFixed(1), cut]));
     readout.textContent = sub(__WEBUI_TEXT__("runtime.shot_cursor"), [t.toFixed(1), w.toFixed(1), cut]);
+    preset.setAttribute("aria-valuetext", readout.textContent);
   };
   const seek = (t) => {
     cursorT = Math.round(Math.max(curve[0].t, Math.min(curve.at(-1).t, t)) * 10) / 10;
@@ -1194,21 +1195,21 @@ function renderShotSpark(h, shot) {
     });
     preset.querySelector("svg")?.insertAdjacentHTML(
       "beforeend",
-      '<g class="shotCursor"><path class="rvGuide"/><circle class="rvHandle" r="5"/></g>',
+      `<g class="shotCursor"><path class="rvGuide"/><circle class="rvHandle" r="5"/>${PILL}</g>`,
     );
     place();
   };
+  const move = (e) => seek(preset._view.tAt(e.clientX - preset.firstChild.getBoundingClientRect().left));
   preset.addEventListener("pointerdown", (e) => {
     if (!preset._view) return;
     e.preventDefault();
     preset.setPointerCapture(e.pointerId);
     preset.focus({ preventScroll: true });
-    seek(preset._view.tAt(e.clientX - preset.firstChild.getBoundingClientRect().left));
+    preset.classList.add("rvHeld");
+    move(e);
   });
-  preset.addEventListener("pointermove", (e) => {
-    if (preset.hasPointerCapture(e.pointerId))
-      seek(preset._view.tAt(e.clientX - preset.firstChild.getBoundingClientRect().left));
-  });
+  preset.addEventListener("pointermove", (e) => preset.hasPointerCapture(e.pointerId) && move(e));
+  preset.addEventListener("lostpointercapture", () => preset.classList.remove("rvHeld"));
   preset.addEventListener("keydown", (e) => {
     const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5, PageUp: 5, PageDown: -5 }[e.key];
     if (!step) return;
@@ -5527,7 +5528,7 @@ function presetGraph(host, m, x = {}) {
     (compact
       ? "</g></svg>"
       : label(X(m.wall), T - 4, sub(__WEBUI_TEXT__("runtime.graph_max"), [n(m.wall)]), "", "end") +
-        `</g><g class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.scrubMin}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvStop" r="3.5"/><circle class="rvHandle" r="5"/><g class="rvPill"><rect y="-9" rx="9" height="18"/><text class="rvLbl strong" x="8" y="4"/></g></g></svg>`);
+        `</g><g class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.scrubMin}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvStop" r="3.5"/><circle class="rvHandle" r="5"/>${PILL}</g></svg>`);
   return {
     m,
     X,
@@ -5540,6 +5541,14 @@ function presetGraph(host, m, x = {}) {
     last: last.length > 0,
     arrivals: shown.length,
   };
+}
+// While held, a pill left of the handle (clear of a right thumb) shows its point.
+const PILL = '<g class="rvPill"><rect y="-9" rx="9" height="18"/><text class="rvLbl strong" x="8" y="4"/></g>';
+function placePill(pill, text, x, y) {
+  pill.lastChild.textContent = text;
+  const pw = pill.lastChild.getBBox().width + 16;
+  pill.firstChild.setAttribute("width", pw);
+  pill.setAttribute("transform", `translate(${Math.max(1, x - 11 - pw)} ${y})`);
 }
 // One preset graph with its scrubber, used by the Settings review and by each
 // Home preset panel: same drawing, axis, and scrub behavior. The scrub state
@@ -5686,11 +5695,7 @@ function positionPresetScrub(host) {
   stopDot.setAttribute("cy", v.Y(w).toFixed(2));
   handle.setAttribute("cx", hx.toFixed(2));
   handle.setAttribute("cy", v.Y(m.goal).toFixed(2));
-  // While held, the cut shows left of the handle, clear of a right thumb.
-  pill.lastChild.textContent = sub(__WEBUI_TEXT__("runtime.graph_cut_pill"), values);
-  const pw = pill.lastChild.getBBox().width + 16;
-  pill.firstChild.setAttribute("width", pw);
-  pill.setAttribute("transform", `translate(${Math.max(1, hx - 11 - pw)} ${v.Y(m.goal)})`);
+  placePill(pill, sub(__WEBUI_TEXT__("runtime.graph_cut_pill"), values), hx, v.Y(m.goal));
   // The handle rides the target line: the label steps aside under it.
   targetLabel.style.opacity = hx > box.x - 8 && hx < box.x + box.width + 8 ? "0" : "";
   g.setAttribute("aria-valuenow", tArr.toFixed(1));
