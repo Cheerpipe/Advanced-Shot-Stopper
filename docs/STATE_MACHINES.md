@@ -607,7 +607,7 @@ Source: `OpenBrewByWeightScaleTypes.h` (`stepFirstFlow`).
 | State | Meaning |
 | --- | --- |
 | `SEEKING` | Looking for a small step above tare zero (default 0.3 g) that is below cup mass and below a 2 g finger step. |
-| `TOUCH` | A ≥2 g jump or cup-sized mass; wait for release or leftover coffee. |
+| `TOUCH` | A ≥2 g jump faster than 8 g/s (a slower step across a packet gap is coffee that arrived while the stream was silent) or cup-sized mass; wait for release or leftover coffee. |
 
 ### Events / classes (`FirstFlowClass`)
 
@@ -620,7 +620,10 @@ Source: `OpenBrewByWeightScaleTypes.h` (`stepFirstFlow`).
 
 `FIRE` is emitted when the qualifying sequence is confirmed, but the recorded
 first-drop time and weight come from the first sample in that uninterrupted
-sequence. A packet or timing gap starts a new sequence.
+sequence. A packet or timing gap starts a new sequence, and so does any
+downward step: vibration alternates sign, flow does not. The confirmation
+counter saturates, so a long sub-rate creep keeps its first sample as the
+candidate.
 
 A qualified late PLACED event remains eligible after FIRE within the original
 retare window. The old timestamp/curve marker survives admission and write

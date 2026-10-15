@@ -637,15 +637,31 @@ inline FirstFlowClass stepFirstFlow(
       noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
       return FirstFlowClass::NONE;
     }
-    if (step >= FIRST_DROP_FINGER_STEP_G || delta >= objectMinG) {
+    // A finger is a fast step; the same step spread over a packet gap is
+    // coffee that accumulated while the stream was silent.
+    const float stepDtS = state.hasLastSample
+        ? fmaxf(static_cast<uint32_t>(receivedAtMs - state.lastAtMs) / 1000.0f, 0.1f) : 0.0f;
+    if ((step >= FIRST_DROP_FINGER_STEP_G &&
+         (!state.hasLastSample || step / stepDtS > ACCIDENTAL_TOUCH_STARTUP_MAX_RATE_G_S)) ||
+        delta >= objectMinG) {
       const FirstFlowClass classified =
           enterFirstFlowTouch(state, weight, receivedAtMs);
       noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
       return classified;
     }
+    // Vibration alternates sign; flow never steps down inside a streak.
+    if (state.hasLastSample && step < 0.0f) {
+      state.confirmations = 0;
+      state.candidateMs = 0;
+      state.candidateWeightG = 0.0f;
+      noteFirstFlowSample(state, weight, receivedAtMs, packetSequence);
+      return FirstFlowClass::NONE;
+    }
     state.confirmations =
         consecutive && state.confirmations > 0
-            ? static_cast<uint8_t>(state.confirmations + 1U)
+            ? static_cast<uint8_t>(state.confirmations < FIRST_DROP_CONFIRMATION_SAMPLES
+                                       ? state.confirmations + 1U
+                                       : FIRST_DROP_CONFIRMATION_SAMPLES)
             : 1U;
     if (state.confirmations == 1U) {
       state.candidateMs = receivedAtMs;

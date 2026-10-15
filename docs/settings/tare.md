@@ -21,8 +21,10 @@ is off.
 
 First-drop / first-flow detection still runs against the tare zero even while
 the grace window is open. A small stream of coffee does not wait for the
-scale to settle. The detector rejects typical cup jumps and finger taps, but
-weight alone cannot identify every disturbance. An earlier first-drop detection
+scale to settle. The detector rejects typical cup jumps, finger taps and
+vibration that shakes the reading up and down, and it still recognizes coffee
+that arrived during a brief pause in the scale's readings. Weight alone cannot
+identify every disturbance. An earlier first-drop detection
 does not block a qualified late cup within the retare window.
 
 For a cup placed after the retare window, stop and restart correctly; the

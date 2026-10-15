@@ -18337,6 +18337,51 @@ void ff17_noise_adaptive_threshold_and_rate_gate() {
   }
 }
 
+void ff21_first_flow_hardening() {
+  // F25: a creeping streak above threshold never wraps its confirmation
+  // counter, so its candidate time stays the first sample of the streak.
+  {
+    FirstFlowState state;
+    bool fired = false;
+    uint32_t atMs = 1000;
+    for (int i = 0; i < 600; ++i, atMs += 100) {
+      fired |= stepFirstFlow(state, 0.4f + 0.0003f * i, atMs, i + 1, 0.0f) ==
+               FirstFlowClass::FIRE;
+    }
+    CHECK(!fired);
+    CHECK(state.confirmations == FIRST_DROP_CONFIRMATION_SAMPLES);
+    CHECK(state.candidateMs == 1000);
+  }
+  // F24: 6 g that accumulated over a 2 s packet gap is flow, not a finger;
+  // the same step within 100 ms is a touch.
+  for (uint32_t gapMs : {2000U, 100U}) {
+    FirstFlowState state;
+    CHECK(stepFirstFlow(state, 0.0f, 1000, 1, 0.0f) == FirstFlowClass::NONE);
+    const FirstFlowClass jump = stepFirstFlow(state, 6.0f, 1000 + gapMs, 2, 0.0f);
+    CHECK((jump == FirstFlowClass::TOUCH) == (gapMs == 100U));
+    if (gapMs == 2000U) {
+      CHECK(state.phase == FirstFlowPhase::SEEKING);
+      CHECK(stepFirstFlow(state, 6.3f, 1100 + gapMs, 3, 0.0f) == FirstFlowClass::FIRE);
+    }
+  }
+  // F23: a vibration burst alternating around an offset never confirms;
+  // a monotone onset still fires on its second sample.
+  {
+    FirstFlowState state;
+    bool fired = false;
+    uint32_t atMs = 1000;
+    int seq = 1;
+    for (float w : {0.5f, 0.4f, 0.9f, 0.4f, 0.9f, 0.4f, 0.9f, 0.4f}) {
+      fired |= stepFirstFlow(state, w, atMs, seq++, 0.0f) == FirstFlowClass::FIRE;
+      atMs += 100;
+    }
+    CHECK(!fired);
+    FirstFlowState onset;
+    CHECK(stepFirstFlow(onset, 0.4f, 1000, 1, 0.0f) == FirstFlowClass::CANDIDATE);
+    CHECK(stepFirstFlow(onset, 0.6f, 1100, 2, 0.0f) == FirstFlowClass::FIRE);
+  }
+}
+
 void ff18_duplicate_timestamp_pairs() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -20844,6 +20889,7 @@ const TestCase testCases[] = {
     {"FF18", ff18_duplicate_timestamp_pairs},
     {"FF19", ff19_foreign_generation_cannot_latch_first_drop},
     {"FF20", ff20_seeking_fa_telemetry_args_and_rate_limit},
+    {"FF21", ff21_first_flow_hardening},
     {"AT16", at16_resting_finger_contained_by_direct_stop_law},
     {"AT17", at17_heavy_touch_release_recovers_control},
     {"AT18", at18_heavy_touch_is_held_then_fallback},
