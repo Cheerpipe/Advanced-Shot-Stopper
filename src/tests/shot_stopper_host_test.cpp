@@ -18346,6 +18346,70 @@ void tr05_light_cup_pre_effect_packet_is_not_a_baseline() {
   CHECK(session.firstDropMs != 0);
 }
 
+// A 250 g cup sits untared on the scale when the shot starts and the start
+// tare fails; grace then expires with the cup still on the scale.
+void startShotWithFailedTare(float cupG) {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  idleCup(cupG);
+  CHECK(cupPresenceState() == CupPresenceState::PRESENT);
+  startCycle();
+  scale.tareSucceeds = false;
+  CHECK(executeNextScaleCommand());
+  CHECK(session.awaitingPostTareBaseline);
+  const uint32_t deadline = session.postTareBaselineDeadlineMs;
+  while (static_cast<int32_t>(hostMillis - deadline) < 0) {
+    runLoopAfter(100);
+    publishWeight(cupG);
+  }
+  runLoopAfter(1);
+  CHECK(!session.awaitingPostTareBaseline);
+  CHECK(fabsf(session.softwareZeroG - cupG) < 0.2f);
+  CHECK(!cupPresence.holdTransitions);
+  CHECK(!cupPresenceIsTared());
+}
+
+void tr01_failed_start_tare_uses_software_zero() {
+  startShotWithFailedTare(250.0f);
+  CHECK(session.firstDropMs == 0);
+  for (float w : {250.35f, 250.40f, 250.45f}) idleWeight(w, 100);
+  CHECK(session.firstDropMs != 0);
+  endBbwProtectionForTests();
+  CHECK(session.active);
+  const float threshold = effectiveStopThreshold();
+  for (float w = 1.0f; w < threshold - 0.5f; w += 0.5f) {
+    idleWeight(250.0f + w, 100);
+    loop();
+    CHECK(session.active);
+  }
+  idleWeight(250.0f + threshold + 0.1f, 100);
+  idleWeight(250.0f + threshold + 0.2f, 100);
+  loop();
+  CHECK(session.endReason == EndReason::SCALE_THRESHOLD);
+}
+
+void tr02_late_zero_after_grace_is_ignored() {
+  // Once the software zero is applied, a later zero is only a reading: no
+  // second baseline is taken and the software zero stays in force.
+  startShotWithFailedTare(250.0f);
+  session.config.stopIfCupRemoved = false;
+  publishWeight(0.0f, hostMillis + 100);
+  publishWeight(0.0f, hostMillis + 100);
+  CHECK(!session.awaitingPostTareBaseline);
+  CHECK(fabsf(session.softwareZeroG - 250.0f) < 0.2f);
+  CHECK(session.scaleBaselineG == 0.0f);
+  CHECK(session.active);
+}
+
+void tr03_failed_start_tare_cup_lift_stops() {
+  startShotWithFailedTare(250.0f);
+  publishWeight(250.2f, hostMillis + 100);
+  publishWeight(0.1f, hostMillis + 100);
+  publishWeight(0.0f, hostMillis + 100);
+  runLoopAfter(1);
+  CHECK(session.endReason == EndReason::CUP_REMOVED);
+}
+
 void sk01_refused_start_releases_cup_hold() {
   // A start refused by relay safety must not leave the cup FSM held or
   // believing that the never-sent start tare zeroed the cup.
@@ -20536,6 +20600,9 @@ const TestCase testCases[] = {
     {"AT20", at20_resting_load_under_flow_stays_held},
     {"AT21", at21_spurt_plateau_is_accepted_without_learning},
     {"AT22", at22_held_touch_below_line_releases_by_rate_dilution},
+    {"TR01", tr01_failed_start_tare_uses_software_zero},
+    {"TR02", tr02_late_zero_after_grace_is_ignored},
+    {"TR03", tr03_failed_start_tare_cup_lift_stops},
     {"TR04", tr04_light_cup_pre_effect_packet_recovers},
     {"TR05", tr05_light_cup_pre_effect_packet_is_not_a_baseline},
     {"SK01", sk01_refused_start_releases_cup_hold},

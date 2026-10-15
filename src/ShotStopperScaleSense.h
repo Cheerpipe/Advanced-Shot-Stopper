@@ -31,6 +31,7 @@ void rejectScaleSample(DebugCode code, float weightG, float referenceG = 0.0f) {
 void armPostTareBaselineWindow() {
   markShotCurveBreak();
   session.awaitingPostTareBaseline = true;
+  session.softwareZeroG = 0.0f;
   session.postTareBaselineDeadlineMs =
       millis() + session.config.postTareBaselineGraceMs;
   session.hasWeightAnchor = false;
@@ -43,7 +44,7 @@ void armPostTareBaselineWindow() {
   }
 }
 
-bool expirePostTareBaselineIfNeeded() {
+bool expirePostTareBaselineIfNeeded(float softwareZeroG = NAN) {
   if (!session.awaitingPostTareBaseline) {
     return false;
   }
@@ -54,7 +55,7 @@ bool expirePostTareBaselineIfNeeded() {
   session.awaitingPostTareBaseline = false;
   session.retareEffectPending = false;
   scaleProfileNoteEvent(ScaleProfileEvent::TARE_BASELINE_TIMEOUT, millis(),
-                        session.ownedConnectionGeneration, 0, NAN,
+                        session.ownedConnectionGeneration, 0, softwareZeroG,
                         session.appliedTareRequestId,
                         static_cast<uint32_t>(IdleTareReason::EFFECT_UNCONFIRMED));
   addDebugEvent(DebugCategory::SCALE,

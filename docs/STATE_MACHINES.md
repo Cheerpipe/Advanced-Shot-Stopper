@@ -426,7 +426,7 @@ Source: `OpenBrewByWeightScaleTypes.h`, `setWeightControlState()` in
 | Notifications silent / disconnect / generation change | `ACTIVE`/`VALIDATING` → `SUSPENDED` (A→M armed → enforced). Parsed packets keep control off this path even if brew rejects them. |
 | Three coherent recovery samples | `SUSPENDED`/`VALIDATING` → `ACTIVE` (A→M enforcement cleared). Only `SUSPENDED` also requires the samples not to fall more than 2 g below the last accepted weight, because a stream gap can hide a cup lift. |
 | Out-of-range / overload sample | `ACTIVE` → `VALIDATING`, stream `OVERLOAD`. |
-| Tare / post-tare grace | May promote `VALIDATING` → `ACTIVE` so the new zero is used. |
+| Tare / post-tare grace | May promote `VALIDATING` → `ACTIVE` so the new zero is used. If the shot-start grace expires while the latest reading is still within half a minimum cup of the pre-tare load (at least the minimum cup), that load becomes a software zero subtracted from shot samples, first flow restarts on it, and the cup is restored as an untared presence (`TARE_BASELINE_TIMEOUT` carries the zero). |
 
 ---
 

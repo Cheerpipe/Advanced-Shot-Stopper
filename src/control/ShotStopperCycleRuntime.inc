@@ -568,6 +568,22 @@ void pushActivatorDrivePermission(const ScaleLinkSnapshot &link) {
       session.active || !guardsWouldBlockActivatorDrive(loopGuardInputs));
 }
 
+// Grace ended without a zero. If the shot-start tare left the tared load on
+// the scale, measure the shot from it (software zero) so the cup can neither
+// cut nor mark first drop, and keep it removable as an untared cup.
+void expirePostTareBaseline() {
+  const float zero = session.preTareWeightG;
+  const float minCupG = runtimeConfig.minimumCupWeightG;
+  const bool software = !session.retarePerformed && zero >= minCupG &&
+                        observedWeight >= zero - minCupG / 2.0f;
+  if (!expirePostTareBaselineIfNeeded(software ? zero : NAN)) return;
+  holdCupPresenceTransitions(false);
+  if (!software) return;
+  session.softwareZeroG = zero;
+  markTareZeroReady();
+  restoreCupTareReference(false, zero);
+}
+
 void orchestratePostTareBaselineArm() {
   armPostTareBaselineWindow();
   notifyCupPresenceTare();
@@ -601,7 +617,8 @@ void applyShotTareResult(const ScaleEvent &event) {
   session.appliedTareRequestId = event.cupWeightRequestId;
   session.tareCaptureBoundary = event.captureSequence;
   session.tareConnectionGeneration = event.connectionGeneration;
-  session.preTareWeightG = event.preTareWeightG;
+  if (lateRetare || std::isfinite(event.preTareWeightG))
+    session.preTareWeightG = event.preTareWeightG;
   session.retareEffectPending = lateRetare;
   if (!ended) {
     orchestratePostTareBaselineArm();
@@ -837,6 +854,9 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     performAutomaticRetare();
   }
 
+  // Shot (and its drip tail) in shot coordinates after a software zero.
+  if (session.active || pendingFinalize.pending) weight -= session.softwareZeroG;
+
   // First-flow markers belong to the connection that owns this cycle; a
   // foreign generation must not latch a first-drop timestamp.
   if (session.active && session.startedWithScale &&
@@ -909,9 +929,8 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   }
 
   if (session.awaitingPostTareBaseline && session.retareEffectPending &&
-      static_cast<int32_t>(receivedAtMs - session.postTareBaselineDeadlineMs) >= 0 &&
-      expirePostTareBaselineIfNeeded())
-    holdCupPresenceTransitions(false);
+      static_cast<int32_t>(receivedAtMs - session.postTareBaselineDeadlineMs) >= 0)
+    expirePostTareBaseline();
   if (session.awaitingPostTareBaseline) {
     if (session.retareEffectPending) {
       shotCurveSampler.markBreak();

@@ -170,6 +170,7 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
   // Arm the tare baseline only for a started cycle: a refused start must not
   // leave the cup FSM held or believing an unsent tare happened.
   if (session.startedWithScale && session.config.autoTare) {
+    session.preTareWeightG = currentWeight;
     orchestratePostTareBaselineArm();
     markTareZeroReady();
   }
@@ -760,9 +761,7 @@ void stateMachineTask() {
         }
       }
 
-      if (expirePostTareBaselineIfNeeded()) {
-        holdCupPresenceTransitions(false);
-      }
+      expirePostTareBaseline();
       serviceBbwProtectionPhases();
 
       if (session.cupRemovedPending) {

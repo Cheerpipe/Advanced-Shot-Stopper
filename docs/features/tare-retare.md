@@ -108,6 +108,14 @@ sent, the new zero is accepted only once the reading has clearly dropped
 from the cup's weight, so a late reading that still shows the cup is never
 mistaken for zero. First-drop detection still runs against that tare zero.
 
+If that tare does not take effect—the scale rejects it, or still shows the
+cup when post-tare grace ends—the shot keeps going and is measured from the
+weight shown just before the tare. The cup's own weight then cannot stop the
+shot or be mistaken for first drops, and lifting the cup still stops it. A
+scale that only reaches zero after the grace period looks the same as a lifted
+cup and stops the shot, so raise **Post-tare grace** if your scale is slow to
+settle.
+
 ## Automatic late-cup retare
 
 If the cup is not on the scale yet, you can place it after the shot has
