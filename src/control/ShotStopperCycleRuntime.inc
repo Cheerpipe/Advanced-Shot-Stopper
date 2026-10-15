@@ -1025,11 +1025,16 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     session.scaleDisconnectSequenceAtStart =
         getScaleLinkSnapshot().disconnectSequence;
     session.recoveryConfirmations = 0;
-    resetWeightTrend();
-    session.hasWeightAnchor = true;
-    session.lastAcceptedWeightG = weight;
-    session.lastAcceptedWeightAtMs = receivedAtMs;
-    session.lastAcceptedPacketSequence = packetSequence;
+    // A live anomaly keeps the pre-anomaly anchor and trend so the touch
+    // classifier below judges the recovered level as a step, not a plateau.
+    if (dropFloor || !session.hasWeightAnchor ||
+        !session.config.avoidAccidentalTouchEnabled) {
+      resetWeightTrend();
+      session.hasWeightAnchor = true;
+      session.lastAcceptedWeightG = weight;
+      session.lastAcceptedWeightAtMs = receivedAtMs;
+      session.lastAcceptedPacketSequence = packetSequence;
+    }
     setWeightControlState(WeightControlState::ACTIVE);
   }
 

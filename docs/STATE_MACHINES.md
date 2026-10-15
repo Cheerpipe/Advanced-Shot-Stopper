@@ -648,7 +648,12 @@ without ending the shot. Complements BBW protection (time window) with
 a live rate/residual check.
 
 Source: `OpenBrewByWeightScaleTypes.h`. Only runs while weight control is
-`ACTIVE` and the setting is on.
+`ACTIVE` and the setting is on. A step large enough to trip the slew guard
+first puts control in `VALIDATING`; when three coherent samples recover it,
+the pre-anomaly anchor and trend are kept, so the recovered level is
+classified here as a step (heavy and light touches share the hold/fallback
+path) instead of being accepted as a new plateau. Recovery from `SUSPENDED`
+re-anchors at the recovered level.
 
 ### States (`AccidentalTouchPhase`)
 

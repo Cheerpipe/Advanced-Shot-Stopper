@@ -17914,7 +17914,16 @@ void at08_retare_and_cup_remove_still_work_with_touch_guard() {
   CHECK(session.endReason == EndReason::CUP_REMOVED);
 }
 
+void publishSequencedWeight(float weight, uint32_t &sequence,
+                            uint32_t intervalMs = 100) {
+  hostMillis += intervalMs;
+  markScaleWorkerProgress();
+  publishWeight(weight, hostMillis, 0, ++sequence);
+}
+
 void at09_slew_recovery_advances_control_weight() {
+  // A single implausible packet followed by samples that continue the flow
+  // recovers control onto the advancing trajectory, not onto the spike.
   resetHarness(false, true);
   reachReadyFromBoot();
   enableAccidentalTouchForTest();
@@ -17927,18 +17936,36 @@ void at09_slew_recovery_advances_control_weight() {
   hostMillis += 100;
   publishWeight(lastAccepted + 35.0f, hostMillis, 0, seq + 1);
   CHECK(session.weightControlState == WeightControlState::VALIDATING);
-  hostMillis += 100;
-  publishWeight(lastAccepted + 35.5f, hostMillis, 0, seq + 2);
-  hostMillis += 100;
-  publishWeight(lastAccepted + 36.0f, hostMillis, 0, seq + 3);
-  hostMillis += 100;
-  publishWeight(lastAccepted + 36.5f, hostMillis, 0, seq + 4);
+  for (uint32_t i = 2; i <= 4; ++i) {
+    hostMillis += 100;
+    publishWeight(lastAccepted + 0.4f * i, hostMillis, 0, seq + i);
+  }
   CHECK(session.weightControlState == WeightControlState::ACTIVE);
   CHECK(!session.accidentalTouchHolding);
-  CHECK(session.lastAcceptedWeightG > lastAccepted + 30.0f);
+  CHECK(session.lastAcceptedWeightG > lastAccepted + 1.5f);
   hostMillis += 100;
-  publishWeight(lastAccepted + 37.0f, hostMillis, 0, seq + 5);
-  CHECK(session.lastAcceptedWeightG > lastAccepted + 36.0f);
+  publishWeight(lastAccepted + 2.0f, hostMillis, 0, seq + 5);
+  CHECK(session.lastAcceptedWeightG > lastAccepted + 1.9f);
+}
+
+void at18_heavy_touch_is_held_then_fallback() {
+  // A heavy hand on the cup trips the slew guard first; once the stream is
+  // coherent again the step still goes through the touch classifier, so it
+  // can only end the shot through the labelled touch fallback.
+  prepareTouchFallbackTest();
+  const float base = session.lastAcceptedWeightG;
+  uint32_t seq = session.lastAcceptedPacketSequence;
+  CHECK(base + 35.0f > effectiveStopThreshold());
+  bool due = false;
+  for (int i = 0; i < 20 && !due; ++i) {
+    publishSequencedWeight(base + 35.0f + ((i & 1) ? 1.5f : 0.0f), seq);
+    due = automaticScaleStopDue();
+  }
+  CHECK(due);
+  CHECK(session.directStopReason == EndReason::TOUCH_WEIGHT_FALLBACK);
+  CHECK(session.touchStop.lastAtMs - session.touchStop.firstAtMs >=
+        TOUCH_STOP_FALLBACK_MS);
+  CHECK(!session.calibrationEligible);
 }
 
 void at11_pre_cycle_anchor_does_not_treat_first_pour_as_touch() {
@@ -18160,13 +18187,6 @@ void at16_resting_finger_contained_by_direct_stop_law() {
   CHECK(automaticScaleStopDue());
   CHECK(session.directStopReason == EndReason::TOUCH_WEIGHT_FALLBACK);
   CHECK(!session.calibrationEligible);
-}
-
-void publishSequencedWeight(float weight, uint32_t &sequence,
-                            uint32_t intervalMs = 100) {
-  hostMillis += intervalMs;
-  markScaleWorkerProgress();
-  publishWeight(weight, hostMillis, 0, ++sequence);
 }
 
 void at17_heavy_touch_release_recovers_control() {
@@ -20422,6 +20442,7 @@ const TestCase testCases[] = {
     {"FF20", ff20_seeking_fa_telemetry_args_and_rate_limit},
     {"AT16", at16_resting_finger_contained_by_direct_stop_law},
     {"AT17", at17_heavy_touch_release_recovers_control},
+    {"AT18", at18_heavy_touch_is_held_then_fallback},
     {"TR04", tr04_light_cup_pre_effect_packet_recovers},
     {"TR05", tr05_light_cup_pre_effect_packet_is_not_a_baseline},
     {"SK01", sk01_refused_start_releases_cup_hold},
