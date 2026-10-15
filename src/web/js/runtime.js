@@ -4665,7 +4665,7 @@ function renderHomePresetAccordion() {
       pen.title = __WEBUI_TEXT__("runtime.change_target_yield");
       pen.setAttribute("aria-label", pen.title);
       pen.append(svg.cloneNode(true));
-      rows[1].append(pen);
+      rows[1].lastChild.append(pen);
     }
     item.lastChild.firstChild.firstChild.replaceChildren(...rows);
     const graph = item.querySelector(".presetAccGraph");
