@@ -754,7 +754,7 @@ function buildShotSparkModel(shot) {
   )
     return null;
   const breaks = new Set(markers),
-    colors = { bbw: "var(--ok)", fast: "#d97706", slow: "#6492d7", atm: "var(--mu)" },
+    colors = { bbw: "var(--ok)", fast: "var(--gFast)", slow: "var(--gSlow)", atm: "var(--mu)" },
     num = (v) => (v == null || !Number.isFinite(+v) ? null : +v);
   const end = num(shot.endS),
     duration = num(shot.durationS),
@@ -1464,7 +1464,7 @@ function renderStatsDurChart() {
     ? sub(__WEBUI_TEXT__("runtime.window_label"), [shots[0].fastBeforeS, shots[0].slowAfterS])
     : "";
   const scaleC = Math.max(maxC, 1),
-    colors = { on_recipe: "var(--ok)", fast: "#d97706", slow: "#6492d7" },
+    colors = { on_recipe: "var(--ok)", fast: "var(--gFast)", slow: "var(--gSlow)" },
     L = axisLabel,
     W = 240,
     H = 36,

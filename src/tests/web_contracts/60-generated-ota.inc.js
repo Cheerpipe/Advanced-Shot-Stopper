@@ -1225,7 +1225,7 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   const spike=model({wAtMs:[0,500,1000,1500,2000],wCg:[0,0,500,0,0],durationS:2});
   assert.deepEqual(spike.flowCurve,[null,null,5,0,0]);assert.equal(spike.maxFlow,5);
   // A shot is coloured by its own stored verdict, never re-judged later.
-  for (const [verdict,color] of [['fast','#d97706'],['slow','#6492d7']]) {
+  for (const [verdict,color] of [['fast','var(--gFast)'],['slow','var(--gSlow)']]) {
     const colored=model(trace([0,500,1000,1500,2000,2500],{extendedS:1.2,extCg:9000,verdict}));
     assert.deepEqual(colored.flowCurve,[null,null,2,2,2,2]);
     assert.equal(colored.maxFlow,2);

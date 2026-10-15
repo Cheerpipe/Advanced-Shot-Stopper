@@ -196,9 +196,9 @@ summary::marker{color:var(--ac)}
 
 
 .shotHero .heroPills{display:flex;flex-wrap:wrap;gap:.4rem;margin:.5rem 0 .1rem}
-.heroPill{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .65rem;border-radius:2rem;background:var(--on);color:#424242;font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
-.shotHero .heroPill:before{content:"";width:.55rem;height:.55rem;border-radius:50%;background:currentColor}
-.shotHero .heroPill[data-kind=fast]{color:#b45309}.shotHero .heroPill[data-kind=on_recipe]{color:#087f23}.shotHero .heroPill[data-kind=slow]{color:#2f5fb0}
+.heroPill{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .65rem;border-radius:2rem;background:var(--on);color:color-mix(in srgb,var(--z,#555) 78%,#000);font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.shotHero .heroPill:before{content:"";width:.55rem;height:.55rem;border-radius:50%;background:var(--z,currentColor)}
+.shotHero .heroPill[data-kind=fast]{--z:var(--gFast)}.shotHero .heroPill[data-kind=on_recipe]{--z:var(--ok)}.shotHero .heroPill[data-kind=slow]{--z:var(--gSlow)}
 
 .homeCard{margin:1rem 0;padding:.8rem 1rem .4rem;border:1px solid var(--ln);border-left:4px solid var(--ok);border-radius:var(--r);background:var(--sf)}
 .homeCard p{margin:0;font-size:.9rem}
