@@ -755,6 +755,20 @@ float postStopFinalWeightG(const PendingShotFinalize &pending,
              : median;
 }
 
+// Coffee filling a cup-less pan can look stable over the placement window;
+// a late cup must stand half a minimum cup above the lowest accepted reading
+// of the second before that window started.
+bool cupPlacementIsStep(float weight, uint32_t placementStartedAtMs) {
+  const float startS = static_cast<int32_t>(placementStartedAtMs - shot.startMs) / 1000.0f;
+  float baseG = INFINITY;
+  for (size_t i = shot.datapoints; i-- > 0;) {
+    if (shot.timeS[i] >= startS) continue;
+    baseG = fminf(baseG, shot.weight[i]);
+    if (shot.timeS[i] < startS - 1.0f) break;
+  }
+  return !std::isfinite(baseG) || baseG < weight - runtimeConfig.minimumCupWeightG / 2.0f;
+}
+
 bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
                                       uint32_t packetSequence,
                                       uint32_t connectionGeneration,
@@ -807,6 +821,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   if (cupSampleValid && !session.active && idleTare.requestId != 0)
     approveIdleScaleTareSample(idleTare.requestId, packetSequence);
   const bool observedUnload = cupSampleValid && cupWeightNearKnownEmpty(weight);
+  const uint32_t placementStartedAtMs = cupPresence.placeStabilityStartedAtMs;
   const CupPresenceEvent cupEvent = cupSampleValid ?
       feedCupPresence(weight, receivedAtMs, packetSequence,
                       session.active ||
@@ -856,7 +871,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   if (cupEvent == CupPresenceEvent::PLACED && session.active &&
       session.startedWithScale && retareWindowOpen() &&
       !session.awaitingPostTareBaseline && weight >= MIN_AUTOMATION_WEIGHT_G &&
-      weight <= MAX_AUTOMATION_WEIGHT_G) {
+      weight <= MAX_AUTOMATION_WEIGHT_G && cupPlacementIsStep(weight, placementStartedAtMs)) {
     performAutomaticRetare();
   }
 

@@ -123,7 +123,9 @@ started. Cup-presence detection watches for a stable load at or above
 **Minimum cup weight** (`minimumCupWeightG`, default **10 g**; cardboard
 cups around 12–20 g use this same setting). When a cup is **placed** inside
 the **retare window** (default **4 s**), the firmware tares again
-once—automatically—without restarting the shot timer.
+once—automatically—without restarting the shot timer. The cup must arrive as a
+step: coffee gradually building up on an empty pan is not mistaken for a late
+cup and is never tared away.
 
 An earlier first-drop detection does not block a qualified late cup, whether
 it is a light cardboard cup or a heavier ceramic cup. Weight readings alone

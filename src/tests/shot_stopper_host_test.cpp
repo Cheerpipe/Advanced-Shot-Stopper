@@ -19289,6 +19289,31 @@ void rt17_light_cup_landing_and_overshoot_retares() {
   expectRetareWithoutFirstDrop();
 }
 
+void rt22_inshot_coffee_ramp_is_not_a_late_cup() {
+  // No cup at start: coffee filling the pan at 3 g/s crosses the minimum cup
+  // weight looking stable, but it is a ramp, not a placement step.
+  for (bool ramp : {true, false}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.autoRetare = true;
+    runtimeConfig.retareWindowMs = 8000;
+    runtimeConfig.bbwProtectionMs = minimumBbwProtectionMs(runtimeConfig);
+    startCycle();
+    CHECK(executeNextScaleCommand());
+    establishPostTareBaseline();
+    CHECK(cupPresenceState() == CupPresenceState::ABSENT);
+    if (ramp) {
+      for (int i = 1; i <= 50; ++i) idleWeight(0.3f * i, 100);
+      CHECK(retareWindowOpen());
+      CHECK(!session.retarePerformed);
+    } else {
+      for (int i = 0; i < 10; ++i) idleWeight(0.0f, 100);
+      publishStableCupWeight(250.0f, cupPresence.weight.sampleSequence + 1U);
+      CHECK(session.retarePerformed);
+    }
+  }
+}
+
 void rt18_late_combined_start_does_not_rearm_after_retare() {
   prepareOpenRetareWindow(10.0f);
   publishStableCupWeight(15.0f, 10);
@@ -21035,6 +21060,7 @@ const TestCase testCases[] = {
     {"RT18", rt18_late_combined_start_does_not_rearm_after_retare},
     {"RT19", rt19_late_cup_then_zero_lift_allows_next_shot_retare},
     {"RT20", rt20_late_combined_start_does_not_rearm_when_cup_absent},
+    {"RT22", rt22_inshot_coffee_ramp_is_not_a_late_cup},
     {"RT21", rt21_empty_pan_at_cycle_start_resyncs_stuck_present},
     {"RS01", rs01_fast_samples_wait_for_min_duration},
     {"RS02", rs02_slow_samples_meet_min_duration_at_third_sample},
