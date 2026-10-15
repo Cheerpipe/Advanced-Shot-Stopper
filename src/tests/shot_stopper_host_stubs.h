@@ -122,7 +122,7 @@ inline void digitalWrite(uint8_t pin, uint8_t level) {
 }
 
 inline size_t hostLedcAttachCalls = 0;
-inline double hostLedcLastFreq = 0;
+inline uint32_t hostLedcLastFreq = 0;
 
 inline bool ledcAttach(uint8_t pin, double freq, uint8_t resolution) {
   (void)freq;
@@ -133,9 +133,10 @@ inline bool ledcAttach(uint8_t pin, double freq, uint8_t resolution) {
   return true;
 }
 
-inline void ledcWriteTone(uint8_t pin, double freq) {
+inline uint32_t ledcWriteTone(uint8_t pin, uint32_t freq) {
   hostLedcLastFreq = freq;
-  digitalWrite(pin, freq > 0.0 ? HIGH : LOW);
+  digitalWrite(pin, freq > 0 ? HIGH : LOW);
+  return freq;
 }
 
 inline bool hostCpuFrequencySetSucceeds = true;

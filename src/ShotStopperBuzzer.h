@@ -112,6 +112,8 @@ struct LocalBuzzer {
   // Tests must start immediately so restoring the saved custom tune cannot
   // change a queued request. Normal shot completion may use the pending slot.
   bool requestBullseye(bool allowQueue = true);
+  // True when a request would start now instead of waiting in the pending slot.
+  bool canStartNow() const;
   void stopIf(BuzzerPattern pattern);
   void stopIfCue(BuzzerCue cue);
   void stopAll();
@@ -134,6 +136,10 @@ struct LocalBuzzer {
   }
 
  private:
+  bool canStartNowLocked() const {
+    return (active == BuzzerPattern::NONE && activeCue == BuzzerCue::NONE) ||
+           buzzerPatternIsPulseTrain(active) || (looping && rtttlPlayback);
+  }
   void startTone();
   void stopTone();
   void applyDeadline(uint32_t durationMs, uint32_t nowMs);
@@ -387,8 +393,12 @@ inline void LocalBuzzer::applyRtttlNote(uint8_t index) {
     onMs = 0;
     gapMs = rtttlBuf[index].durationMs;
   } else {
-    onMs = rtttlBuf[index].durationMs;
-    gapMs = 0;
+    // A repeated pitch needs a short break, or the two notes merge into one.
+    const uint32_t noteMs = rtttlBuf[index].durationMs;
+    gapMs = index + 1U < rtttlCount && rtttlBuf[index + 1U].freqHz == toneHz
+                ? noteMs / 10U
+                : 0;
+    onMs = noteMs - gapMs;
   }
 }
 
@@ -511,6 +521,12 @@ inline bool LocalBuzzer::acceptLocked(BuzzerPattern pattern, BuzzerCue cue,
                                       const BuzzerToneCommand *cmd) {
   const uint32_t nowMs = millis();
   const uint8_t pulseRate = cmd != nullptr ? cmd->pulseRate : 0;
+  // A long custom melody must not hold back a high-priority alert.
+  if (activeCue == BuzzerCue::BULLSEYE && cue != BuzzerCue::BULLSEYE &&
+      buzzerRequestIsHighPriority(pattern, cue)) {
+    stopTone();
+    clearPlayback();
+  }
   bool started = false;
   bool accepted = false;
   if (buzzerPatternIsPulseTrain(active) || (looping && rtttlPlayback)) {
@@ -632,11 +648,16 @@ inline bool LocalBuzzer::requestBullseye(bool allowQueue) {
     return false;
   }
   TaskLockGuard lock(mutex);
-  const bool canStartNow =
-      (active == BuzzerPattern::NONE && activeCue == BuzzerCue::NONE) ||
-      buzzerPatternIsPulseTrain(active) || (looping && rtttlPlayback);
-  return canStartNow &&
+  return canStartNowLocked() &&
          acceptLocked(BuzzerPattern::NONE, cmd.cue, 0, true, &cmd);
+}
+
+inline bool LocalBuzzer::canStartNow() const {
+  if (!BUZZER_SUPPORT_ENABLED || !ready) {
+    return false;
+  }
+  TaskLockGuard lock(mutex);
+  return canStartNowLocked();
 }
 
 inline void LocalBuzzer::stopAll() {

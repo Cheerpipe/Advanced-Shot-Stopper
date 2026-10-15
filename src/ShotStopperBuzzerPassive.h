@@ -16,7 +16,7 @@ inline bool buzzerPassiveBegin(uint8_t pin) {
 }
 
 inline void buzzerPassiveSetTone(uint8_t pin, uint32_t freqHz) {
-  ledcWriteTone(pin, static_cast<double>(freqHz));
+  ledcWriteTone(pin, freqHz);
 }
 
 }  // namespace shotstopper

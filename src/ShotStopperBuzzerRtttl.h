@@ -35,18 +35,18 @@ constexpr const char *RTTTL_TARE = "tare:d=16,o=5,b=220:g";
 constexpr const char *RTTTL_START_TIMER = "start:d=16,o=5,b=220:c6";
 // Stop timer
 constexpr const char *RTTTL_STOP_TIMER = "stop:d=16,o=5,b=220:g";
-// Tare + start combinado
+// Combined tare + start
 constexpr const char *RTTTL_TARE_START = "tare_start:d=16,o=5,b=220:g,c6";
-// Primeras gotas
+// First drops
 constexpr const char *RTTTL_FIRST_DROP = "first_drop:d=32,o=6,b=240:c,e";
-// Recordatorio paddle-off
+// Paddle-off reminder
 constexpr const char *RTTTL_PADDLE_OFF = "paddle_off:d=16,o=5,b=180:g,16p,g";
-// Extra de fin de shot (descendente: inverso de tare_start g→c6)
+// Shot end (descending: reverse of tare_start g→c6)
 constexpr const char *RTTTL_SHOT_END = "shot_end:d=16,o=5,b=220:c6,g";
-// Balanza conectada
+// Scale connected
 constexpr const char *RTTTL_SCALE_CONNECTED =
     "scale_connected:d=8,o=5,b=150:c,e,g,c6";
-// Arranque bloqueado por taza ausente
+// Start blocked: no cup
 constexpr const char *RTTTL_NO_CUP = "no_cup:d=8,o=4,b=180:g,16p,g";
 // Extended-shot pulses: B4 (same pitch as the former ABNORMAL cues) with
 // on/gap close to the debug 2/3/4/5 Hz trains (20 ms on, b=375 → 32nd=20 ms).
@@ -58,17 +58,17 @@ constexpr const char *RTTTL_EXTENDED_PULSE_FAST =
     "abnormal_fast:d=32,o=4,b=375:b,3p,32p";
 constexpr const char *RTTTL_EXTENDED_PULSE_RAPID =
     "abnormal_rapid:d=32,o=4,b=375:b,4p,32p";
-// Balanza perdida / desconectada
+// Scale lost / disconnected
 constexpr const char *RTTTL_SCALE_LOST = "scale_lost:d=8,o=5,b=150:c6,g,e,c";
-// Fin por guarda A→M
+// Shot ended by the auto-to-manual guard
 constexpr const char *RTTTL_GUARD_STOP =
     "guard_stop:d=32,o=6,b=240:g,e,16c,32p,16f#";
-// Manual sin balanza (BBW on)
+// Manual shot without a scale (BBW on)
 constexpr const char *RTTTL_NO_SCALE = "no_scale:d=8,o=4,b=180:g,32p,g,32p,g";
-// Recovery: gesto de arranque
+// Recovery: start gesture
 constexpr const char *RTTTL_RECOVERY_START =
     "recovery_start:d=16,o=5,b=200:c,g,c6";
-// Recovery: reset de red OK
+// Recovery: network reset OK
 constexpr const char *RTTTL_NETWORK_RESET_OK =
     "network_reset_ok:d=16,o=5,b=220:c,e,g,c6";
 // Recovery: factory reset OK

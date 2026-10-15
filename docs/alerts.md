@@ -66,7 +66,7 @@ changed. On momentary machines, check the actual group and its state feedback.
 | **Blue light while connected** | ON | ON / OFF | Onboard GPIO 1 HIGH while a scale is BLE-connected. Independent of Sound alerts. |
 | **Fast-shot beeps** | Fast | Disabled / Slow / Medium / Fast / Rapid | Local-buzzer pulses while a fast shot continues past its target. Disabled when Play alerts on is Scale only. |
 | **Slow-shot beeps** | Fast | Same rates | Pulses while a shot runs past your shot time window. |
-| **Bullseye melody** | OFF | ON / OFF; Buzzer only | Plays the saved custom RTTTL tune once when a shot stopped by weight **On recipe** remains exactly at its target weight for at least 1 full second. The text is retained when disabled. |
+| **Bullseye melody** | OFF | ON / OFF; Buzzer only | Plays the saved custom RTTTL tune once when a shot stopped by weight **On recipe** remains exactly at its target weight for at least 1 full second. Important alerts, such as a lost scale, interrupt the melody so you never miss them. The text is retained when disabled. |
 | **Custom RTTTL** | empty | Up to 500 ASCII characters / 250 notes | Validated when saved and parsed into a fixed-capacity buffer. Editable only while Bullseye melody is enabled; otherwise it remains visible and read-only. |
 
 ## Bullseye timing
@@ -114,6 +114,10 @@ before changing wiring.
 A scale can support tare/timer without supporting arbitrary beeps.
 Custom RTTTL follows `name:defaults:notes`, for example
 `done:d=8,o=5,b=120:c,e,g`; save it with Bullseye enabled to test its validation.
+The defaults section accepts only `d=` (note length, 1–64), `o=` (octave, 4–8)
+and `b=` (tempo, 25–900 beats per minute); a tune with any other setting or an
+out-of-range value is rejected instead of playing at the wrong speed or pitch.
+Two identical notes in a row play as two separate notes, with a short break between them.
 
 Related: [scale-loss backup](features/auto-to-manual.md),
 [fast and slow shots](features/fast-and-slow-shots.md),

@@ -6671,6 +6671,46 @@ void w99f_bullseye_rtttl_is_bounded_and_plays_without_allocation() {
   memset(unterminated, 'c', sizeof(unterminated));
   CHECK(!parseRtttlBounded(unterminated, nullptr,
                            BULLSEYE_RTTTL_MAX_NOTES, count));
+  for (const char *badHeader :
+       {"x:b=1000:c", "x:d=0:c", "x:o=3:c", "x:b=:c", "x:q=4:c", "x:d=4 5:c",
+        "x:b=4294967396:c", "x:d4:c"}) {
+    CHECK(!parseRtttlBounded(badHeader, nullptr, BULLSEYE_RTTTL_MAX_NOTES,
+                             count));
+  }
+  RtttlNote notes[RTTTL_MAX_NOTES];
+  CHECK(parseRtttl("x::c", notes, count) && count == 1);
+  CHECK(notes[0].durationMs == 952);
+  CHECK(parseRtttl("x: D=8 , o=5 ,B=120 :c", notes, count) && count == 1);
+  CHECK(notes[0].durationMs == 250);
+
+  // A repeated pitch keeps a short break; a pitch change stays legato.
+  localBuzzer.stopAll();
+  CHECK(localBuzzer.configureBullseyeRtttl("x:d=4,o=5,b=60:c,c,e"));
+  CHECK(localBuzzer.requestBullseye(/*allowQueue=*/false));
+  CHECK(localBuzzer.onMs == 900 && localBuzzer.gapMs == 100);
+  hostMillis += 900;
+  localBuzzer.service();
+  CHECK(hostPinLevel[BUZZER_GPIO] == LOW);
+  CHECK(localBuzzer.activeCue == BuzzerCue::BULLSEYE);
+  hostMillis += 100;
+  localBuzzer.service();
+  CHECK(hostPinLevel[BUZZER_GPIO] == HIGH);
+  CHECK(localBuzzer.beepIndex == 1);
+  CHECK(localBuzzer.onMs == 1000 && localBuzzer.gapMs == 0);
+
+  // A weak cue waits for the melody; a high-priority alert interrupts it and
+  // keeps the waiting cue.
+  const BuzzerToneCommand tare =
+      deriveBuzzerTone(AlertEvent::TARE, false, 0, 0);
+  CHECK(localBuzzer.requestTone(tare));
+  CHECK(localBuzzer.activeCue == BuzzerCue::BULLSEYE);
+  CHECK(localBuzzer.pendingCue == BuzzerCue::TARE);
+  BuzzerToneCommand guard;
+  guard.cue = BuzzerCue::GUARD_STOP;
+  guard.valid = true;
+  CHECK(localBuzzer.requestTone(guard));
+  CHECK(localBuzzer.activeCue == BuzzerCue::GUARD_STOP);
+  CHECK(localBuzzer.pendingCue == BuzzerCue::TARE);
 }
 
 void w99i_bullseye_test_never_queues_mutable_custom_notes() {
@@ -6680,11 +6720,13 @@ void w99i_bullseye_test_never_queues_mutable_custom_notes() {
   const BuzzerToneCommand tare =
       deriveBuzzerTone(AlertEvent::TARE, false, 0, 0);
   CHECK(localBuzzer.requestTone(tare));
+  CHECK(!localBuzzer.canStartNow());
   CHECK(!localBuzzer.requestBullseye(/*allowQueue=*/false));
   CHECK(localBuzzer.activeCue == BuzzerCue::TARE);
   CHECK(localBuzzer.pendingCue == BuzzerCue::NONE);
 
   localBuzzer.stopAll();
+  CHECK(localBuzzer.canStartNow());
   CHECK(localBuzzer.requestBullseye(/*allowQueue=*/false));
   CHECK(localBuzzer.activeCue == BuzzerCue::BULLSEYE);
   CHECK(localBuzzer.rtttlCount == 3);

@@ -54,34 +54,29 @@ inline bool parseRtttlBounded(const char *rtttl, RtttlNote *out,
   uint8_t defaultDuration = 4;
   uint8_t defaultOctave = 6;
   uint16_t bpm = 63;
+  // Header: comma-separated d=/o=/b= entries. Anything else is rejected so a
+  // typo cannot silently fall back to a different tempo or pitch.
   for (const char *p = firstColon + 1; p < secondColon; ++p) {
-    if ((*p == 'd' || *p == 'D') && p[1] == '=') {
-      unsigned value = 0;
-      p += 2;
-      while (p < secondColon && *p >= '0' && *p <= '9') {
-        value = value * 10U + static_cast<unsigned>(*p - '0');
-        ++p;
-      }
-      if (value > 0 && value <= 64) defaultDuration = static_cast<uint8_t>(value);
-      --p;
-    } else if ((*p == 'o' || *p == 'O') && p[1] == '=') {
-      unsigned value = 0;
-      p += 2;
-      while (p < secondColon && *p >= '0' && *p <= '9') {
-        value = value * 10U + static_cast<unsigned>(*p - '0');
-        ++p;
-      }
-      if (value >= 4 && value <= 8) defaultOctave = static_cast<uint8_t>(value);
-      --p;
-    } else if ((*p == 'b' || *p == 'B') && p[1] == '=') {
-      unsigned value = 0;
-      p += 2;
-      while (p < secondColon && *p >= '0' && *p <= '9') {
-        value = value * 10U + static_cast<unsigned>(*p - '0');
-        ++p;
-      }
-      if (value >= 25 && value <= 900) bpm = static_cast<uint16_t>(value);
-      --p;
+    while (p < secondColon && (*p == ' ' || *p == '\t')) ++p;
+    if (p == secondColon) break;
+    const char key = static_cast<char>(*p | 0x20);
+    if (p + 1 == secondColon || p[1] != '=') return false;
+    p += 2;
+    const char *const digits = p;
+    unsigned value = 0;
+    while (p < secondColon && *p >= '0' && *p <= '9' && value <= 900U) {
+      value = value * 10U + static_cast<unsigned>(*p++ - '0');
+    }
+    while (p < secondColon && (*p == ' ' || *p == '\t')) ++p;
+    if (p == digits || (p < secondColon && *p != ',')) return false;
+    if (key == 'd' && value >= 1 && value <= 64) {
+      defaultDuration = static_cast<uint8_t>(value);
+    } else if (key == 'o' && value >= 4 && value <= 8) {
+      defaultOctave = static_cast<uint8_t>(value);
+    } else if (key == 'b' && value >= 25 && value <= 900) {
+      bpm = static_cast<uint16_t>(value);
+    } else {
+      return false;
     }
   }
 

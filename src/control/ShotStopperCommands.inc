@@ -647,15 +647,17 @@ void processWebCommand(const WebCommand &command) {
           rejectWebCommand(command);
           return;
         }
-        accepted = localBuzzer.configureBullseyeRtttl(testBullseye.rtttl) &&
-                   localBuzzer.requestBullseye(/*allowQueue=*/false);
-        // An accepted test has already copied its notes to the active playback
-        // buffer. A busy finite cue rejects the test instead of queueing a cue
-        // whose source would change when the live tune is restored. The live
-        // config has a single writer on this control task, so no stack copy is
-        // needed here.
-        (void)localBuzzer.configureBullseyeRtttl(
-            bullseyeMelodyConfig.rtttl);
+        // A busy finite cue rejects the test before the tune is swapped: only
+        // this control task queues Bullseye, so an idle buzzer has none queued
+        // that the phase timer could start with the test notes. An accepted
+        // test has already copied its notes to the active playback buffer, and
+        // the live config has a single writer here, so no stack copy is needed.
+        if (localBuzzer.canStartNow()) {
+          accepted = localBuzzer.configureBullseyeRtttl(testBullseye.rtttl) &&
+                     localBuzzer.requestBullseye(/*allowQueue=*/false);
+          (void)localBuzzer.configureBullseyeRtttl(
+              bullseyeMelodyConfig.rtttl);
+        }
       } else {
         accepted = buzzerPatternIsPulseTrain(command.buzzerPattern)
                        ? startPulseTrain(command.buzzerPattern,
