@@ -1411,3 +1411,6 @@ if (html.includes('id="rememberMe"') ||
 }
 const statusSection = html.match(/<details id="machineRow" class="lampRow">([\s\S]*?)<\/details>/);
 const scaleSection = html.match(/<details id="scaleRow" class="lampRow">([\s\S]*?)<\/details>/);
+if (network.includes('Access-Control-Allow-Origin')) {
+  throw new Error('LAN API responses must not grant cross-origin browser reads');
+}

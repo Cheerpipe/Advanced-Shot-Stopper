@@ -18,6 +18,9 @@ or directly actuate the machine.
   `{"error":"STABLE_CODE","message":"English diagnostic"}`.
 - All routes are open on the trusted LAN and use no token, pairing window, or
   authorization header.
+- Responses carry no cross-origin (CORS) headers, so a web page served from
+  another site cannot read the API through a visitor's browser. Call it from a
+  LAN client such as Home Assistant, a script, or the controller's own Web UI.
 - Durable mutations return `202` and a `requestId`; this acknowledges only that
   the existing control queue accepted the operation. Poll the request-status
   route until it reports `PERSISTED`. A mutation is not successful before that

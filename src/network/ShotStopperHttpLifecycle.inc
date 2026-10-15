@@ -1263,7 +1263,6 @@ esp_err_t ShotStopperNetwork::sendJson(httpd_req_t *request,
   // Close after each API response so keep-alive does not pin sockets on the
   // ESP while BLE/Wi-Fi coex delays responses.
   httpd_resp_set_hdr(request, "Connection", "close");
-  httpd_resp_set_hdr(request, "Access-Control-Allow-Origin", "*");
   const size_t length = json == nullptr ? 0 : strlen(json);
   return sendBody(request, json, length);
 }

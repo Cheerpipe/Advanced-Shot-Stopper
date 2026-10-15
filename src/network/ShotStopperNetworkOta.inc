@@ -323,7 +323,6 @@ esp_err_t ShotStopperNetwork::wifiScanStatusHandler(httpd_req_t *request) {
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   httpd_resp_set_hdr(request, "Connection", "close");
-  httpd_resp_set_hdr(request, "Access-Control-Allow-Origin", "*");
   char prefix[128] = {};
   snprintf(prefix, sizeof(prefix),
            "{\"state\":\"%s\",\"updatedAtMs\":%lu,\"networks\":[",
