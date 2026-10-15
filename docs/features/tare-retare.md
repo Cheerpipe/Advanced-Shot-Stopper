@@ -131,7 +131,10 @@ An earlier first-drop detection does not block a qualified late cup, whether
 it is a light cardboard cup or a heavier ceramic cup. Weight readings alone
 cannot always distinguish coffee from pressure or handling. A stable load
 that meets the cup-placement rules can trigger retare within the original
-window; detecting first drop does not extend that window.
+window; detecting first drop does not shorten that window. If no first drop
+has been detected yet, the window stays open past **Late cup time** until
+**Earliest weight stop** ends, so a pre-infusing machine still gets its late
+cup tared.
 
 The earlier first-drop time stays recorded until the retare succeeds and a
 fresh reading confirms the new zero within post-tare grace. Then its time and

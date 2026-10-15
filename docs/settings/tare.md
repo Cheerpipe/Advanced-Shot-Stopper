@@ -27,8 +27,11 @@ that arrived during a brief pause in the scale's readings. Weight alone cannot
 identify every disturbance. An earlier first-drop detection
 does not block a qualified late cup within the retare window.
 
-For a cup placed after the retare window, stop and restart correctly; the
-controller does not promise another automatic tare outside that window.
+Until first drops are detected, the late-cup window stays open past **Late
+cup time** for as long as **Earliest weight stop** still blocks weight stops,
+which covers machines that pre-infuse. For a cup placed after first drops and
+after the retare window, stop and restart correctly; the controller does not
+promise another automatic tare outside that window.
 
 ## Parameters
 
@@ -39,7 +42,7 @@ controller does not promise another automatic tare outside that window.
 | **Tare when the shot starts** | ON | ON / OFF | Tare at shot start when a usable scale supports it, including timer-only shots. |
 | **Post-tare grace (s)** | 2 s | 0.5–10 s | After a tare (start or late-cup retare), wait this long for ~0 g before using weight for **stop/control**. If the shot-start tare has not zeroed a cup by then, the shot is measured from the weight before the tare. Raise it if your scale is slow to show zero. |
 | **Tare a late cup** | ON | ON / OFF | Allow one qualified late-cup retare within the original window, even after first drop was detected. Requires automatic BBW and shot-start tare. |
-| **Late cup time (s)** | 4 s | 0.5–10 s | Time after shot start to detect and retare a late-placed cup. |
+| **Late cup time (s)** | 4 s | 0.5–10 s | Time after shot start to detect and retare a late-placed cup. Until first drops are detected, the window extends to **Earliest weight stop**. |
 | **Bookoo combined command** | ON | ON / OFF | Use the scale’s combined tare + start-timer command at shot start. Needs tare at shot start. Idle tare never starts the timer. Bookoo only. |
 
 All tare switches are shared machine settings, not preset values. Save changes

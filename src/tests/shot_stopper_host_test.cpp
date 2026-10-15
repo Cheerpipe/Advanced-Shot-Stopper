@@ -12084,11 +12084,13 @@ void rt10_first_drops_beep_during_bbw_protection() {
   establishPostTareBaseline();
   CHECK(!session.awaitingPostTareBaseline);
   runLoopAfter(runtimeConfig.rinseGestureMs + 1);
-  waitForRetareEnded();
+  reachSessionElapsed(runtimeConfig.retareWindowMs + 100);
+  CHECK(retareWindowOpen());  // No coffee yet: a late cup may still tare.
   CHECK(!session.bbwProtectionEnded);
   simulateFirstDrops(0.0f, 10);
   CHECK(session.firstDropMs != 0);
   CHECK(scaleBeepPending);
+  CHECK(!retareWindowOpen());
   CHECK(!session.bbwProtectionEnded);
   CHECK(bbwWeightStopInhibited());
   waitForBbwProtectionEnded();
@@ -19359,6 +19361,44 @@ void rt22_inshot_coffee_ramp_is_not_a_late_cup() {
   }
 }
 
+void rt23_late_cup_before_first_drop_retares() {
+  // Pre-infusion: no coffee by 6 s, past the 4 s late-cup time. A cup placed
+  // now is still tared; once first drop was seen, it no longer is.
+  for (bool drops : {false, true}) {
+    resetHarness(false, true);
+    reachReadyFromBoot();
+    runtimeConfig.autoRetare = true;
+    runtimeConfig.retareWindowMs = 4000;
+    runtimeConfig.bbwProtectionMs = 12000;
+    startCycle();
+    CHECK(executeNextScaleCommand());
+    establishPostTareBaseline();
+    if (drops) {
+      reachSessionElapsed(5000);
+      simulateFirstDrops(0.0f, 10);
+      CHECK(session.firstDropMs != 0);
+    }
+    reachSessionElapsed(6000);
+    CHECK(retareWindowOpen() == !drops);
+    publishStableCupWeight(250.0f, 30);
+    CHECK(session.retarePerformed == !drops);
+    if (drops) continue;
+    CHECK(executeNextScaleCommand());
+    establishPostTareBaseline();
+    endBbwProtectionForTests();
+    const float threshold = effectiveStopThreshold();
+    for (float w = 0.5f; w < threshold - 0.5f; w += 0.5f) {
+      idleWeight(w, 100);
+      loop();
+      CHECK(session.active);
+    }
+    idleWeight(threshold + 0.1f, 100);
+    idleWeight(threshold + 0.2f, 100);
+    loop();
+    CHECK(session.endReason == EndReason::SCALE_THRESHOLD);
+  }
+}
+
 void rt18_late_combined_start_does_not_rearm_after_retare() {
   prepareOpenRetareWindow(10.0f);
   publishStableCupWeight(15.0f, 10);
@@ -21107,6 +21147,7 @@ const TestCase testCases[] = {
     {"RT19", rt19_late_cup_then_zero_lift_allows_next_shot_retare},
     {"RT20", rt20_late_combined_start_does_not_rearm_when_cup_absent},
     {"RT22", rt22_inshot_coffee_ramp_is_not_a_late_cup},
+    {"RT23", rt23_late_cup_before_first_drop_retares},
     {"RT21", rt21_empty_pan_at_cycle_start_resyncs_stuck_present},
     {"RS01", rs01_fast_samples_wait_for_min_duration},
     {"RS02", rs02_slow_samples_meet_min_duration_at_third_sample},

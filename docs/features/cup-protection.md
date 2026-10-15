@@ -62,9 +62,13 @@ manual no-scale cycles skip late retare and the initial earliest-weight-stop per
 - **Cup placed at 2 s:** with the default 4 s retare window, stable placement
   triggers one retare. Weight stop remains blocked until the 12 s protection
   window ends.
-- **Cup placed after the retare window:** no automatic late tare is promised.
-  Stop and restart with the cup correctly placed rather than interpreting its
-  mass as coffee.
+- **Cup placed after the retare window, before any coffee:** on a machine that
+  pre-infuses, the first drops can come later than the retare window. Until
+  first drops are detected, a cup placed during the earliest-weight-stop
+  period still triggers the one late retare.
+- **Cup placed after first drops and after the retare window:** no automatic
+  late tare is promised. Stop and restart with the cup correctly placed rather
+  than interpreting its mass as coffee.
 - **Cup lifted during brewing:** with cup protection and removal stop enabled,
   the controller requests stop. The physical stop mechanism depends on the
   [machine type](../../README.md#machine-types).

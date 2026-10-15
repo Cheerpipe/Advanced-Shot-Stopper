@@ -294,7 +294,11 @@ bool retareWindowOpen() {
   if (session.retareEnded || session.retarePerformed) {
     return false;
   }
-  return elapsedMs(session.startedAtMs) < session.config.retareWindowMs;
+  // A pre-infusing machine may show no coffee for seconds: until first drop,
+  // a late cup may still be tared while weight stops remain inhibited.
+  const uint32_t elapsed = elapsedMs(session.startedAtMs);
+  return elapsed < session.config.retareWindowMs ||
+         (!session.firstDropObserved && elapsed < session.config.bbwProtectionMs);
 }
 
 bool bbwProtectionActive() {
@@ -383,8 +387,7 @@ void serviceBbwProtectionPhases() {
   }
   const uint32_t nowMs = millis();
   if (!session.retareEnded && session.config.autoRetare &&
-      !session.retarePerformed &&
-      elapsedMs(session.startedAtMs) >= session.config.retareWindowMs) {
+      !session.retarePerformed && !retareWindowOpen()) {
     markRetareEnded(nowMs);
   }
   if (!session.bbwProtectionEnded &&
