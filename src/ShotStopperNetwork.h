@@ -142,6 +142,7 @@ struct NetworkStatusSnapshot {
   int32_t wifiStatus = 6;
   uint32_t staConnectAgeMs = 0;
   uint32_t staReconnectAgeMs = 0;
+  uint32_t staReconnectDelayMs = 0;
   NetworkInterfaceSnapshot iface = {};
   char deviceName[DEVICE_NAME_CAPACITY] = {};
   char mdnsHost[DEVICE_NAME_CAPACITY] = {};
@@ -305,7 +306,10 @@ class ShotStopperNetwork {
   // association progress.
   static constexpr uint32_t LIVE_APPLY_ATTEMPT_MS = 20000;
   static constexpr uint32_t STA_CONFIRM_TIMEOUT_MS = 180000;
+  // Automatic STA retries back off from 10 s to 120 s while the network
+  // stays unreachable; every retry costs an all-channel scan.
   static constexpr uint32_t STA_RECONNECT_INTERVAL_MS = 10000;
+  static constexpr uint32_t STA_RECONNECT_MAX_INTERVAL_MS = 120000;
   // Auto SoftAP shuts down after this long with zero SoftAP stations.
   // Resets when the last client leaves; skipped while AP_START keep is set.
   static constexpr uint32_t SOFTAP_IDLE_TIMEOUT_MS = 180000;
@@ -506,6 +510,7 @@ class ShotStopperNetwork {
   uint8_t lastApClients_ = 0;
   uint32_t staConnectStartedAtMs_ = 0;
   uint32_t staReconnectAttemptAtMs_ = 0;
+  uint32_t staReconnectIntervalMs_ = STA_RECONNECT_INTERVAL_MS;
   uint32_t extendedStatusAtMs_ = 0;
   uint32_t staRssiSampledAtMs_ = 0;
   uint32_t staConfirmDeadlineMs_ = 0;

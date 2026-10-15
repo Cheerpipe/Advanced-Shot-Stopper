@@ -646,6 +646,7 @@ void serialCliFillNetworkDump(SerialCliNetworkDump &dump) {
   dump.lastCommandRequestId = snap.lastCommandRequestId;
   dump.staConnectAgeMs = snap.staConnectAgeMs;
   dump.staReconnectAgeMs = snap.staReconnectAgeMs;
+  dump.staReconnectDelayMs = snap.staReconnectDelayMs;
   dump.lastCommandState = snap.lastCommandState;
   dump.iface = snap.iface;
 #else

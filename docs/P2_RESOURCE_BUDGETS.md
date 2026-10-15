@@ -293,6 +293,12 @@ abort and deferred journal erasure bring the build to 2,356,672 image,
 worktree) — 82,912/82,904/47,524/38,948 over baseline. The
 image/linked/flash-code allowances move to 82,976/82,968/47,588 bytes,
 keeping the 64-byte headroom; rodata stays inside its allowance.
+Wi-Fi reconnect backoff, the same-origin UI stream check and the per-dispatch
+UI stream budget bring the build to 2,357,072 image, 2,356,955 linked,
+1,562,916 flash-code and 626,412 rodata bytes (same worktree) —
+83,312/83,308/47,816/39,060 over baseline. The image/linked/flash-code
+allowances move to 83,376/83,372/47,880 bytes, keeping the 64-byte headroom;
+rodata stays inside its allowance.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,

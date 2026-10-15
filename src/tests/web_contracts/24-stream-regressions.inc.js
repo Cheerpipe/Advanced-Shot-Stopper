@@ -192,3 +192,15 @@ int main(){
     context.stopUiStream();
   })().catch(error=>{console.error(error);process.exitCode=1;});
 }
+{
+  const send = network.slice(network.indexOf('void ShotStopperNetwork::sendUiStream('),
+                             network.indexOf('bool ShotStopperNetwork::sendShotCard('));
+  const stages = ['sendShotCard(', 'sendDiagnosticStream(', 'sendHistoryStream(',
+                  'sendStatsStream(', 'sendLogStream('];
+  if (!network.includes('constexpr uint32_t kUiStreamDispatchBudgetMs = 800;') ||
+      stages.some(stage => !send.includes('within() && ' + stage)) ||
+      !send.includes('if (!open) httpd_sess_trigger_close(server_, session.fd);')) {
+    throw new Error('A stalled UI stream peer must be closed once it exceeds the ' +
+                    'per-dispatch budget instead of holding the httpd task');
+  }
+}

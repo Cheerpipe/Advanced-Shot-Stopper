@@ -29,9 +29,12 @@ bool uiStreamIntInRange(const cJSON *node, double low, double high) {
           node->valuedouble <= high && floor(node->valuedouble) == node->valuedouble);
 }
 
+// Router DNS names and reverse-proxy hosts are longer than the device name.
+constexpr size_t UI_STREAM_ORIGIN_CAPACITY = 128;
+
 bool uiStreamOriginMatches(const char *origin, const char *host) {
   if (!host || !host[0]) return false;
-  char accepted[DEVICE_NAME_CAPACITY + 24];
+  char accepted[UI_STREAM_ORIGIN_CAPACITY + 12];
   snprintf(accepted, sizeof(accepted), "http://%s", host);
   if (strcmp(origin, accepted) == 0) return true;
   snprintf(accepted, sizeof(accepted), "http://%s:80", host);
@@ -70,16 +73,25 @@ void sendUiStreamTakeoverClose(httpd_handle_t server, int fd) {
 
 esp_err_t ShotStopperNetwork::uiStreamHandshake(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
-  char origin[DEVICE_NAME_CAPACITY + 24] = {}, local[DEVICE_NAME_CAPACITY + 8] = {};
+  char origin[UI_STREAM_ORIGIN_CAPACITY] = {}, host[UI_STREAM_ORIGIN_CAPACITY] = {};
+  char local[DEVICE_NAME_CAPACITY + 8] = {};
   const size_t length = httpd_req_get_hdr_value_len(request, "Origin");
   if (length == 0 || length >= sizeof(origin) ||
       httpd_req_get_hdr_value_str(request, "Origin", origin, sizeof(origin)) != ESP_OK)
     return ESP_FAIL;
+  // Same-origin first: the page's Origin names the host the browser used,
+  // whether an IP, mDNS name, router DNS name or reverse proxy.
+  if (httpd_req_get_hdr_value_str(request, "Host", host, sizeof(host)) != ESP_OK)
+    host[0] = '\0';
   const NetworkStatusSnapshot network = self.snapshot();
   snprintf(local, sizeof(local), "%s.local", network.mdnsHost);
-  if (!uiStreamOriginMatches(origin, network.iface.staIp) &&
+  if (!uiStreamOriginMatches(origin, host) &&
+      !uiStreamOriginMatches(origin, network.iface.staIp) &&
       !uiStreamOriginMatches(origin, network.iface.apIp) &&
-      !uiStreamOriginMatches(origin, local)) return ESP_FAIL;
+      !uiStreamOriginMatches(origin, local)) {
+    self.lifecycleLog("UI stream rejected: page Origin does not match this controller");
+    return ESP_FAIL;
+  }
   TaskLockGuard lock(self.dataMux_);
   for (auto &session : self.uiStreams_) {
     if (session.fd != -1) continue;
@@ -442,30 +454,18 @@ void ShotStopperNetwork::sendUiStream(UiStreamSession &session,
                                       const ShotLogRecord &latest, bool eligible) {
   // Home first, then the shot card: the client's setup window waits for both
   // and must not queue behind record pages, which can pace across dispatches.
-  if (!sendHomeStream(session, control, network, eligible ? &latest : nullptr)) {
-    httpd_sess_trigger_close(server_, session.fd);
-    return;
-  }
-  if (!sendShotCard(session, control, latest, eligible)) {
-    httpd_sess_trigger_close(server_, session.fd);
-    return;
-  }
-  if (session.diagnostic && !sendDiagnosticStream(session, control, network)) {
-    httpd_sess_trigger_close(server_, session.fd);
-    return;
-  }
-  if (session.historyOn && !sendHistoryStream(session, control)) {
-    httpd_sess_trigger_close(server_, session.fd);
-    return;
-  }
-  if (session.statsOn && !sendStatsStream(session, control)) {
-    httpd_sess_trigger_close(server_, session.fd);
-    return;
-  }
-  if (session.logOn && !sendLogStream(session, control)) {
-    httpd_sess_trigger_close(server_, session.fd);
-    return;
-  }
+  // A stalled peer can hold each frame for up to 500 ms on the single httpd
+  // task; past the dispatch budget, close it instead of serializing more.
+  const uint32_t started = millis();
+  const auto within = [&] { return millis() - started < kUiStreamDispatchBudgetMs; };
+  bool open = sendHomeStream(session, control, network, eligible ? &latest : nullptr) &&
+      within() && sendShotCard(session, control, latest, eligible);
+  if (open && session.diagnostic)
+    open = within() && sendDiagnosticStream(session, control, network);
+  if (open && session.historyOn) open = within() && sendHistoryStream(session, control);
+  if (open && session.statsOn) open = within() && sendStatsStream(session, control);
+  if (open && session.logOn) open = within() && sendLogStream(session, control);
+  if (!open) httpd_sess_trigger_close(server_, session.fd);
 }
 
 bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,

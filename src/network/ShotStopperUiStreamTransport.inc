@@ -2,6 +2,7 @@
 constexpr size_t kUiStreamHeaderMax = 14;
 constexpr uint32_t kUiStreamHeaderWaitMs = 100, kUiStreamPayloadWaitMs = 500;
 constexpr uint32_t kStatsStreamPaceMs = 100;
+constexpr uint32_t kUiStreamDispatchBudgetMs = 800;
 bool uiStreamSendCleanAbort = false;
 const char *uiStreamSendKind = "control";
 

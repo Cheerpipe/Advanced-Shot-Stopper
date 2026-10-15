@@ -189,7 +189,8 @@
   const homeStream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperHomeStream.inc'), 'utf8');
   assert(stream.includes('strcmp(op->valuestring, "diagnostic")'));
   assert(stream.includes('session->diagnostic = cJSON_IsTrue(on)'));
-  assert(stream.includes('session.diagnostic && !sendDiagnosticStream(session, control, network)'),
+  assert(stream.includes('if (open && session.diagnostic)') &&
+      stream.includes('within() && sendDiagnosticStream(session, control, network)'),
       'the diagnostic delta rides the existing dispatch under the status workspace');
   // Record-stream no-change bookkeeping: the suppression path must adopt a
   // moved epoch, and every standing-window send (snapshots included) must
@@ -215,11 +216,11 @@
       'a deferred stats frame must roll its buffered rows back');
   // Dispatch order: the client's setup window waits for Home and the shot
   // card, so record pages — which may pace across dispatch ticks — go last.
-  const homeCall = stream.indexOf('if (!sendHomeStream(session, control,');
-  const cardCall = stream.indexOf('if (!sendShotCard(session, control,');
-  const diagCall = stream.indexOf('session.diagnostic && !sendDiagnosticStream(session, control, network)');
-  const historyCall = stream.indexOf('session.historyOn && !sendHistoryStream(session, control)');
-  const statsCall = stream.indexOf('session.statsOn && !sendStatsStream(session, control)');
+  const homeCall = stream.indexOf('bool open = sendHomeStream(session, control,');
+  const cardCall = stream.indexOf('within() && sendShotCard(session, control,');
+  const diagCall = stream.indexOf('within() && sendDiagnosticStream(session, control, network)');
+  const historyCall = stream.indexOf('within() && sendHistoryStream(session, control)');
+  const statsCall = stream.indexOf('within() && sendStatsStream(session, control)');
   assert(homeCall >= 0 && cardCall > homeCall && diagCall > cardCall &&
          historyCall > diagCall && statsCall > historyCall,
       'dispatch must send home, card, diagnostic, history, stats in order');

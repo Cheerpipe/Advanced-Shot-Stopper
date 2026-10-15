@@ -583,6 +583,9 @@ bool ShotStopperNetwork::beginStationConnect(const NetworkSettingsSnapshot &sett
 
   staConnectStartedAtMs_ = millis();
   staReconnectAttemptAtMs_ = staConnectStartedAtMs_;
+  // A user action, link loss or settings change starts a fresh backoff;
+  // the automatic retry path doubles it after this call returns.
+  staReconnectIntervalMs_ = STA_RECONNECT_INTERVAL_MS;
   lifecycleLog("WiFi STA associating with all-channel RSSI sort");
   // begin(false): enable STA and wait for STA_START without connect().
   // WiFi.begin() uses begin(true) then connect(ssid), and that extra connect()
@@ -709,6 +712,8 @@ void ShotStopperNetwork::serviceSoftApIdle(uint32_t now) {
 
   const uint8_t clients = status.apClients;
   if (clients > 0) {
+    // Someone joined the setup network: retry the saved network promptly.
+    if (lastApClients_ == 0) staReconnectIntervalMs_ = STA_RECONNECT_INTERVAL_MS;
     apIdleDeadlineMs_ = 0;
     lastApClients_ = clients;
     return;
@@ -1216,8 +1221,10 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       !staReconnectHeld_ && !wifiScanInProgress() && !brewRf &&
       !scaleConnecting &&
       static_cast<uint32_t>(now - staReconnectAttemptAtMs_) >=
-          STA_RECONNECT_INTERVAL_MS) {
-    beginStationConnect(networkSettingsSnapshot(), now);
+          staReconnectIntervalMs_) {
+    const uint32_t next = staReconnectIntervalMs_ >= STA_RECONNECT_MAX_INTERVAL_MS / 2U
+        ? STA_RECONNECT_MAX_INTERVAL_MS : staReconnectIntervalMs_ * 2U;
+    if (beginStationConnect(networkSettingsSnapshot(), now)) staReconnectIntervalMs_ = next;
   }
 }
 

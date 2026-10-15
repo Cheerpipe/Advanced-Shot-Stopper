@@ -37,6 +37,7 @@ stays available.
 | **Boot with no credentials** | SoftAP up | SoftAP at boot with a **3 min** idle shutdown when no SoftAP stations are associated. See [AP](ap.md). |
 | **Boot with credentials** | STA first | SoftAP only if STA does not associate in about **25 s** (and STA never joined this boot). Then AP+STA until STA connects or SoftAP idle-stops; SoftAP is then stopped. |
 | **STA drops after a successful join** | retry STA only | SoftAP is **not** raised automatically. Use USB `AP_START` or reboot. |
+| **Saved network unreachable** | retry every 10 s, slowing to every 2 min | Each retry searches every channel, so while your router stays down the controller waits twice as long after each failed attempt, up to 2 minutes, to leave airtime for the scale and save power. The interval returns to 10 s when you connect or save from the Web UI, when the link drops after working, or when a phone joins the setup network. Once the router is back, expect the controller to rejoin within that interval. |
 | **Automatic time zone** (Admin → Date and time) | On for a fresh installation | Follows the phone or computer using the Web UI. Turn off to choose a zone manually, then **Save settings**. |
 | **Time zone** (Admin → Date and time) | Detected from the browser | Saves a region/city such as `America/Santiago`. Read-only while automatic mode is on. The controller applies that zone's daylight saving rules to new local times. Until a zone is configured, it uses UTC. |
 | **Automatic date & time** (Admin → Date and time) | On | Keeps the controller clock accurate by syncing with the NTP server below. Turn off to stop automatic syncing; **Sync now** still sets the clock once on demand. |
@@ -98,7 +99,9 @@ shows up under **Discovered** without typing an address.
 Discovery relies on mDNS, which most home routers, computers (macOS,
 Windows 10+, Linux with Avahi), and Android 12+ phones support out of the
 box. If your phone or browser cannot open `.local` addresses, use the IP
-address shown in Admin → Network. Discovery keeps working with
+address shown in Admin → Network. The Web UI also works when opened through
+another name for the controller, such as one your router assigns or a reverse
+proxy on your network. Discovery keeps working with
 [Wi-Fi sleep](power-management.md) enabled; first responses can take a
 moment longer while the radio sleeps between the router's beacons.
 

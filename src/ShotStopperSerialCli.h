@@ -585,6 +585,7 @@ struct SerialCliNetworkDump {
   uint32_t lastCommandRequestId = 0;
   uint32_t staConnectAgeMs = 0;
   uint32_t staReconnectAgeMs = 0;
+  uint32_t staReconnectDelayMs = 0;
   CommandResultState lastCommandState = CommandResultState::NONE;
   NetworkInterfaceSnapshot iface = {};
 };
@@ -727,6 +728,8 @@ inline void serialCliPrintWifiStatus(const SerialCliNetworkDump &dump) {
   Serial.println(static_cast<unsigned long>(dump.staConnectAgeMs));
   Serial.print("staReconnectAgeMs=");
   Serial.println(static_cast<unsigned long>(dump.staReconnectAgeMs));
+  Serial.print("staReconnectDelayMs=");
+  Serial.println(static_cast<unsigned long>(dump.staReconnectDelayMs));
   Serial.print("startupFailures=");
   Serial.println(static_cast<unsigned long>(dump.startupFailures));
   Serial.print("scanState=");

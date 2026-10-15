@@ -852,6 +852,7 @@ void ShotStopperNetwork::refreshExtendedStatus(uint32_t now) {
       staReconnectAttemptAtMs_ != 0
           ? static_cast<uint32_t>(now - staReconnectAttemptAtMs_)
           : 0;
+  status_.staReconnectDelayMs = staReconnectIntervalMs_;
   memset(status_.iface.staMac, 0, sizeof(status_.iface.staMac));
   memset(status_.iface.staBssid, 0, sizeof(status_.iface.staBssid));
   memset(status_.iface.apMac, 0, sizeof(status_.iface.apMac));
