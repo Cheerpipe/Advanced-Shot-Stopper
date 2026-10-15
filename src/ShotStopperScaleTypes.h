@@ -596,7 +596,8 @@ inline void noteFirstFlowNoiseSample(FirstFlowState &state, float deviationG) {
 // SEEKING: small coffee steps (< 2 g, below cup min) confirm first flow.
 // TOUCH: a ≥2 g jump or mass ≥ cup min is a finger or cup, not first drop.
 // Residual FIRE only if leftover is coffee-sized and the peak was below cup min.
-// Through FIRE only while current weight is still below cup min.
+// Through FIRE only below cup min, or within 2 g above the rise needed after
+// the jump, so a small cup min or a large jump keeps a non-empty window.
 inline FirstFlowClass stepFirstFlow(
     FirstFlowState &state, float weight, uint32_t receivedAtMs,
     uint32_t packetSequence, float baselineG,
@@ -724,7 +725,8 @@ inline FirstFlowClass stepFirstFlow(
     return FirstFlowClass::NONE;
   }
 
-  if (delta < objectMinG &&
+  if (delta < fmaxf(objectMinG, state.postJumpG - baselineG +
+                                    2.0f * FIRST_DROP_FINGER_STEP_G) &&
       weight >= state.postJumpG + FIRST_DROP_FINGER_STEP_G &&
       step < FIRST_DROP_FINGER_STEP_G) {
     state.residualConfirmations = 0;

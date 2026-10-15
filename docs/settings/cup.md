@@ -190,6 +190,9 @@ configured separately in [Cup protection](../features/cup-protection.md).
 
 If a light cup is below the configured minimum, placement will not qualify.
 Choose a threshold below its stable empty weight, within the allowed range.
+A very small threshold, even 1–2 g, does not stop the controller from
+spotting the first drops: when coffee keeps flowing after a sudden step, the
+first drops are still recognized.
 Do not change stability parameters to compensate for an unstable surface.
 Stable time must also fit inside the retare window and cannot exceed placement
 samples × maximum sample gap. The server rejects inconsistent combinations.

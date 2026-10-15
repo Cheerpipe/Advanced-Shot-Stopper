@@ -607,7 +607,7 @@ Source: `OpenBrewByWeightScaleTypes.h` (`stepFirstFlow`).
 | State | Meaning |
 | --- | --- |
 | `SEEKING` | Looking for a small step above tare zero (default 0.3 g) that is below cup mass and below a 2 g finger step. |
-| `TOUCH` | A ≥2 g jump faster than 8 g/s (a slower step across a packet gap is coffee that arrived while the stream was silent) or cup-sized mass; wait for release or leftover coffee. |
+| `TOUCH` | A ≥2 g jump faster than 8 g/s (a slower step across a packet gap is coffee that arrived while the stream was silent) or cup-sized mass; wait for release or leftover coffee. Coffee that keeps rising at least 2 g above the jump fires while the reading stays below cup mass or less than 4 g above the jump, so a small minimum cup weight or a large onset step still reaches `FIRE`. |
 
 ### Events / classes (`FirstFlowClass`)
 

@@ -18384,6 +18384,24 @@ void ff21_first_flow_hardening() {
   }
 }
 
+void ff22_small_cup_min_gush_fires_through_touch() {
+  // F24: with a 2 g minimum cup, a fast gush or cup step enters TOUCH;
+  // coffee rising on top still fires, a flat finger or resting cup never does.
+  for (float rise : {0.3f, 0.0f}) {
+    for (float jumpG : {8.0f, 12.0f}) {
+      FirstFlowState state;
+      CHECK(stepFirstFlow(state, 0.0f, 1000, 1, 0.0f, 2.0f) == FirstFlowClass::NONE);
+      CHECK(stepFirstFlow(state, jumpG, 1100, 2, 0.0f, 2.0f) == FirstFlowClass::TOUCH);
+      bool fired = false;
+      for (int i = 1; i <= 12; ++i) {
+        fired |= stepFirstFlow(state, jumpG + rise * i, 1100 + 100 * i, 2 + i,
+                               0.0f, 2.0f) == FirstFlowClass::FIRE;
+      }
+      CHECK(fired == (rise > 0.0f));
+    }
+  }
+}
+
 void ff18_duplicate_timestamp_pairs() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -20930,6 +20948,7 @@ const TestCase testCases[] = {
     {"FF19", ff19_foreign_generation_cannot_latch_first_drop},
     {"FF20", ff20_seeking_fa_telemetry_args_and_rate_limit},
     {"FF21", ff21_first_flow_hardening},
+    {"FF22", ff22_small_cup_min_gush_fires_through_touch},
     {"AT16", at16_resting_finger_contained_by_direct_stop_law},
     {"AT17", at17_heavy_touch_release_recovers_control},
     {"AT18", at18_heavy_touch_is_held_then_fallback},
