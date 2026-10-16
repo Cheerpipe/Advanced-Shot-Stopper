@@ -358,6 +358,14 @@ rodata bytes (73,632/73,628/60,088/23,440 over baseline). The flash-code
 allowance moves to 60,152 bytes, keeping the 64-byte headroom; the other
 allowances are unchanged. The presets JSON buffer grows to 7,168 bytes
 (+768 bytes of external BSS) for eight presets with the larger hint object.
+The Home hero cut line drawn from the UI stream card (`20d045d7`, which
+serializes each stored shot's preset rule into the card) adds flash code on
+top of the shot-card change that had moved the allowance to 60,296 bytes.
+Serving the Web UI from one generated asset table (`1e984a9c`) removes 548
+bytes of per-asset handlers. With both, the development Micra build measures
+1,575,436 flash-code bytes (60,336 over baseline); the flash-code allowance
+moves to 60,400 bytes, keeping the 64-byte headroom. The other allowances
+are unchanged.
 On the reference board, after a 75 s settle and 200 s of three concurrent
 Web UI clients, the same session on the earlier and the reduced image
 measured:
