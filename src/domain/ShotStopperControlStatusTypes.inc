@@ -145,6 +145,7 @@ struct ControlStatusFields : ScaleLinkMetrics {
   bool cycleSlowExtractionExtended = false;
   bool cycleTargetReachedEarly = false;
   float cycleActiveStopWeightG = 0.0f;
+  uint32_t cycleExpectedEndMs = 0;  // Forecast cut on the shot clock; 0 = none.
   uint32_t cycleMinBbwBrewTimeRemainingMs = 0;
   bool cycleAutoToManualGuardArmed = false;
   bool cycleAutoToManualGuardEnforced = false;

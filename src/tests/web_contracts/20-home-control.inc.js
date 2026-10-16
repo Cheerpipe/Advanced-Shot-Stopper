@@ -158,62 +158,102 @@
   }
   const heroElements=new Map(),lookup=id=>{
     if(!heroElements.has(id))heroElements.set(id,{hidden:false,textContent:'',dataset:{},style:{setProperty(){}},
-      classList:{toggle(){},contains(){return false}},setAttribute(){},replaceChildren(){}});
+      classList:{toggle(){},contains(){return false}},setAttribute(){},
+      replaceChildren(...n){this.textContent=n.map(x=>typeof x==='string'?x:x.textContent).join('');},
+      append(...n){this.textContent+=n.map(x=>typeof x==='string'?x:x.textContent).join('');}});
     return heroElements.get(id);
   };
-  const paint=new Function('$','buildShotSparkModel','formatShotEnded','ms',
+  let tintMode=null;
+  const rule={mode:'active',t1:27,t2:36,prot:3,wall:60,d:5,ceil:38.5};
+  const env={liveRuleModel:null};
+  const paint=(d)=>new Function('$','buildShotSparkModel','formatShotEnded','ms','localStorage','document',
+    'liveRuleModel','historyData','shotRuleModel','scheduleShotPaint','heroFastState',
     blockAt(runtimeJs,'function verdictLabel(')+
-    runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function shotPresetName('))+
-    ';return renderShotHero;')(lookup,()=>null,()=>'',(v,n)=>(v/1000).toFixed(n));
-  const card={live:true,weight:2,goal:36,elapsedMs:1000,firstDropMs:0,tareMs:null,averageFlowGps:null};
-  paint(card);
-  if(lookup('shotHeroDrop').hidden||lookup('shotHeroDrop').textContent!=='first drop 0.0 s'||
-      !lookup('shotHeroFlow').hidden)throw new Error('A measured zero event must remain visible without inventing flow');
-  paint({...card,firstDropMs:null,averageFlowGps:1.23});
-  if(!lookup('shotHeroDrop').hidden||lookup('shotHeroFlow').hidden||
-      lookup('shotHeroFlow').textContent!=='Avg flow 1.23 g/s')throw new Error('Home must render firmware event/flow validity');
+    runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function shotPresetName('))
+      .replace('let heroFast = { el: 0, since: -1, on: false };','let heroFast = heroFastState.v;')+
+    ';const r=renderShotHero(arguments[11]);heroFastState.v=heroFast;return r;')(lookup,()=>null,()=>'',
+      (v,n)=>(v/1000).toFixed(n),{getItem:()=>tintMode,setItem(){}},{createElement:()=>({})},
+      env.liveRuleModel,{records:[]},()=>null,()=>{},fast,d);
+  const fast={v:{el:0,since:-1,on:false}};
+  const card={live:true,weight:2,goal:36,elapsedMs:1000,firstDropMs:0,tareMs:null,averageFlowGps:null,shotType:'auto'};
+  const heroEl=()=>lookup('shotHero');
   paint({...card,weight:36.2,elapsedMs:36800});
   if(lookup('shotHeroWeight').textContent!=='36.2 g'||lookup('shotHeroGoal').textContent!==' / 36.0 g'||
       lookup('shotHeroElapsed').textContent!=='36.8 s'||!lookup('shotHeroPills').hidden)
     throw new Error('Home must label units and keep pills off a live shot');
-  // A finished shot shows its verdict pill and, when the cut line moved, a cut pill.
+  if(lookup('shotHeroState').textContent!=='Brewing'||heroEl().dataset.tint!=='neutral')
+    throw new Error('A live shot without a cut line must read Brewing on the neutral colour');
+  // A finished shot reads its verdict in the label, takes its colour, and keeps a cut pill.
   const done={...card,live:false,weight:38.1,verdict:'fast',cutG:39.4};
   paint(done);
-  if(lookup('shotHeroPill').textContent!=='Fast'||lookup('shotHeroPill').dataset.kind!=='fast'||
-      lookup('shotHeroCut').textContent!=='Extended')throw new Error('A fast shot must show Fast and Extended pills');
+  if(lookup('shotHeroState').textContent!=='Fast'||heroEl().dataset.tint!=='fast'||
+      lookup('shotHeroCut').textContent!=='Extended')throw new Error('A fast shot must read Fast, turn red and keep Extended');
   paint({...done,verdict:'slow',cutG:34});
-  if(lookup('shotHeroPill').textContent!=='Slow'||lookup('shotHeroCut').textContent!=='Stopped early')
-    throw new Error('A slow shot must show Slow and Stopped early pills');
+  if(lookup('shotHeroState').textContent!=='Slow'||heroEl().dataset.tint!=='slow'||lookup('shotHeroCut').textContent!=='Stopped early')
+    throw new Error('A slow shot must read Slow, turn blue and keep Stopped early');
   paint({...done,verdict:'on_recipe',cutG:36});
-  if(lookup('shotHeroPill').textContent!=='On recipe'||!lookup('shotHeroCut').hidden)
+  if(lookup('shotHeroState').textContent!=='On recipe'||heroEl().dataset.tint!=='on_recipe'||!lookup('shotHeroCut').hidden)
     throw new Error('An on-recipe shot cut at the target needs no cut pill');
   paint({...done,channeling:true});
   if(lookup('shotHeroCut').textContent!=='Channeling')throw new Error('Channeling must replace the cut pill');
   paint({...done,verdict:null,cutG:null,endReason:'wall_limit'});
-  if(lookup('shotHeroPill').textContent!=='Max time')throw new Error('A wall stop must read Max time');
+  if(lookup('shotHeroState').textContent!=='Max time'||heroEl().dataset.tint!=='neutral')
+    throw new Error('A wall stop must read Max time');
+  tintMode='brand';
+  paint(done);
+  if(heroEl().dataset.tint!=='brand'||lookup('shotHeroState').textContent!=='Fast')
+    throw new Error('Brand colours must keep the brand gradient and still name the verdict');
+  tintMode=null;
+  // Live colour: red only after the forecast stays before the window for 1.5 s.
+  env.liveRuleModel=rule;
+  paint({...card,elapsedMs:10000,expectedEndMs:22000});
+  paint({...card,elapsedMs:11400,expectedEndMs:22500});
+  if(heroEl().dataset.tint!=='neutral')throw new Error('One early forecast must not turn the hero red');
+  paint({...card,elapsedMs:11500,expectedEndMs:22400});
+  if(heroEl().dataset.tint!=='fast'||lookup('shotHeroState').textContent!=='Running fast')
+    throw new Error('A forecast held 1.5 s before the window must read Running fast');
+  paint({...card,elapsedMs:12000,expectedEndMs:0});
+  if(heroEl().dataset.tint!=='fast')throw new Error('Running fast must hold for the rest of the shot');
+  paint({...card,elapsedMs:5000,expectedEndMs:26800});
+  if(heroEl().dataset.tint!=='neutral')throw new Error('A new shot must restart neutral; a forecast inside the dead band is not fast');
+  paint({...card,elapsedMs:30000});
+  if(heroEl().dataset.tint!=='neutral')throw new Error('By forecast must not turn green before the shot stops');
+  paint({...card,elapsedMs:36500});
+  if(heroEl().dataset.tint!=='slow'||lookup('shotHeroState').textContent!=='Past window')
+    throw new Error('Passing the window uncut must read Past window in blue');
+  tintMode='window';
+  paint({...card,elapsedMs:2000});
+  paint({...card,elapsedMs:30000});
+  if(heroEl().dataset.tint!=='on_recipe'||lookup('shotHeroState').textContent!=='In window')
+    throw new Error('By time window must turn green inside the window');
+  paint({...card,elapsedMs:31000,shotType:'manual'});
+  if(heroEl().dataset.tint!=='neutral')throw new Error('Only automatic shots follow the cut line colours');
+  tintMode=null;
+  env.liveRuleModel=null;
   paint({...done,verdict:null,cutG:null,scaleAvailable:false,weight:null,
     scaleLoss:{state:'finished',stopAtS:31,estimatedG:35.6}});
   if(lookup('shotHeroWeight').textContent!=='~36 g'||lookup('shotHeroCut').textContent!=='No scale')
     throw new Error('A scale-loss stop must show its estimate and the No scale pill');
   paint({...card,scaleAvailable:false,weight:null,elapsedMs:27400,firstDropMs:2000,averageFlowGps:1.5});
   if(lookup('shotHeroWeight').textContent!=='27.4 s'||lookup('shotHeroGoal').textContent!==''||
-      ['Elapsed','Drop','Flow'].some(id=>!lookup('shotHero'+id).hidden)||
+      !lookup('shotHeroElapsed').hidden||
       lookup('shotHeroMode').hidden||lookup('shotHeroMode').textContent!=='No scale')
     throw new Error('A shot started without a scale must turn the hero into a timer');
   paint({...card,scaleAvailable:true});
   if(lookup('shotHeroWeight').textContent!=='2.0 g'||lookup('shotHeroGoal').textContent!==' / 36.0 g'||
-      lookup('shotHeroElapsed').hidden)throw new Error('A scale shot must keep the weight layout');
+      lookup('shotHeroElapsed').hidden||!lookup('shotHeroMode').hidden)
+    throw new Error('A scale shot must keep the weight layout and no BBW pill');
   paint({...card,touchHold:true});
   if(lookup('shotHeroTouch').hidden||lookup('shotHeroTouch').textContent!=='touch hold')
     throw new Error('A live sustained touch must surface on the shot hero');
   paint({...card,touchHold:true,live:false});
-  if(!lookup('shotHeroTouch').hidden)throw new Error('The touch-hold chip must be live-only');
+  if(!lookup('shotHeroTouch').hidden)throw new Error('The touch-hold pill must be live-only');
   paint({...card,touchHold:true,scaleAvailable:false,weight:null,elapsedMs:27400,firstDropMs:2000,averageFlowGps:1.5});
   if(!lookup('shotHeroTouch').hidden)throw new Error('A shot without a scale must never claim a touch hold');
   paint({...card});
-  if(!lookup('shotHeroTouch').hidden)throw new Error('The touch-hold chip needs the firmware flag');
-  const chips=['Elapsed','Drop','Flow','Touch','Mode'].map(id=>html.indexOf('id="shotHero'+id+'"'));
-  if(chips.some((pos,i)=>pos<0||(i&&pos<=chips[i-1])))throw new Error('Home shot chips must keep their reading order');
+  if(!lookup('shotHeroTouch').hidden)throw new Error('The touch-hold pill needs the firmware flag');
+  const chips=['Cut','Touch','Mode'].map(id=>html.indexOf('id="shotHero'+id+'"'));
+  if(chips.some((pos,i)=>pos<0||(i&&pos<=chips[i-1])))throw new Error('Home shot pills must keep their reading order');
   const apply = new Function(runtimeJs.slice(runtimeJs.indexOf('function uiStreamFrame('),
     runtimeJs.indexOf('function startUiStream('))+';return uiStreamFrame;')();
   const snapshot={v:1,boot:7,seq:1,base:0,revision:1,snapshot:true,cycle:19,shotId:0,
@@ -642,7 +682,7 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
     css.includes('content:"Weight (g)"') ||
     css.includes('#shotIdle') ||
     codeIncludes(ui, 'shotMark') ||
-    !codeIncludes(ui, 'Math.max(goal,wt)') ||
+    !codeIncludes(ui, 'cutLine(v, m)') ||
     css.includes('.shotTrack') ||
     css.includes('#shotBarTicks') ||
     css.includes('.shotMark') ||

@@ -85,17 +85,27 @@ The log holds up to **100** shots. The following are never stored:
 
 Home shows the current activation as it happens. After the machine stops, its
 duration stays fixed while accepted drip readings continue updating the curve.
-The shot card shows yield and target, such as **36.2 g / 36 g**. Its capsules
-appear in this order: elapsed time (**36.8 s**), **first drop**, **Avg flow**,
-**Err**, and the cutoff reason. First drop includes its time, such as
-**first drop 6.2 s**. Err shows the percentage above or below the target,
-such as **Err 0.6%**; unavailable measurements are hidden.
-On Home's last shot card, the cutoff reason appears as pills: **FAST**,
-**ON RECIPE**, **SLOW** or **MAX TIME**, plus **EXTENDED**, **STOPPED EARLY**,
-**CHANNELING** or **NO SCALE** when they apply (see
-[Fast and slow shots](fast-and-slow-shots.md)). When the scale dropped and the
-[scale-loss backup](auto-to-manual.md) finished the shot, the yield is shown as
-an estimate, such as **~36 g est.**, when one is known.
+The shot card shows the yield with its target, such as **36.2 g / 36 g**, next
+to the shot time, such as **30.4 s**. Below them, a chart draws the shot's
+weight over time on top of the preset's cut line (dashed) and its shot time
+window (the shaded band), so you can see at a glance where the shot landed
+against the recipe. A finished shot is drawn against the preset as it was when
+you pulled it. First drop, average flow and the difference from the target are
+on the shot's card in Stats.
+
+The top line of the card names the result: **On recipe**, **Fast**, **Slow**
+or **Max time**. When the cut line did not stop the shot at the target, a pill
+on the right says why: **Extended**, **Stopped early**, **Channeling** or
+**No scale** (see [Fast and slow shots](fast-and-slow-shots.md)). When the
+scale dropped and the [scale-loss backup](auto-to-manual.md) finished the shot,
+the yield is shown as an estimate, such as **~36 g est.**, when one is known.
+
+The card's color follows the result: green on recipe, red when fast and blue
+when slow. While a shot runs, the card is coffee brown. It turns red as soon as
+the controller is sure the shot is running fast and reads **Running fast**, and
+blue once the shot passes its time window without stopping (**Past window**).
+You can choose other colors, or keep the usual brand color, in
+[Admin → Frontend → Shot card colors](../settings/theme.md#shot-card-colors).
 The timer comes from the controller and pauses on screen if the connection is
 lost; **Reconnecting…** indicates that the displayed result may be stale.
 
@@ -224,15 +234,10 @@ without a preset chart show only this chart below their details.
 
 Every filled chart in the Web UI uses that same fading shade: this chart, the
 preset charts in Stats, Home and Settings, the Stats arrival-time density, and
-the small curve on the Home shot card.
+the curve and the recipe window on the Home shot card.
 On a narrow screen, a few numbers beside these charts may be hidden when they
 would overlap. The lines and measurements stay in place, and more numbers
-appear again when there is room. Home applies the same rule to the time and
-weight references above the shot on its hero card, which always pairs the
-measured weight with the target, shown as `35.4 / 36 g` where the shot
-actually landed, while the target alone still marks its own position; when the
-two labels are too close, the paired measured/target label is the one that
-stays visible. The hero keeps showing the exact measured weight.
+appear again when there is room.
 
 The Flow rate chart measures the weight change over the preceding second using
 the readings' actual arrival times. If a second starts between two readings,

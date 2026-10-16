@@ -543,7 +543,7 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
       "\"tareMs\":%s,\"presetName\":\"%s\","
       "\"scaleAvailable\":%s,\"shotType\":\"%s\",\"endReason\":\"%s\",\"averageFlowGps\":%s,"
       "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,\"touchHold\":%s,"
-      "\"verdict\":%s,\"channeling\":%s,\"cutG\":%s,\"scaleLoss\":%s}",
+      "\"verdict\":%s,\"channeling\":%s,\"cutG\":%s,\"scaleLoss\":%s,\"expectedEndMs\":%lu}",
       phase, card.valid ? "true" : "false", control.activeCycle ? "true" : "false",
       weight, static_cast<double>(goalWeightDgToGrams(card.goalWeightDg)),
       static_cast<unsigned long>(card.durationMs), drop, tare, preset,
@@ -558,7 +558,9 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
                                                                  : "false",
       canonical ? shotLogVerdictJson(latest.verdict) : "null",
       canonical && corridor::channelingOf(latest.verdict) ? "true" : "false",
-      cutG, scaleLoss);
+      cutG, scaleLoss,
+      // The cut forecast on the shot clock while brewing; 0 = none.
+      static_cast<unsigned long>(control.activeCycle ? control.cycleExpectedEndMs : 0U));
   if (cardBytes <= 0 || static_cast<size_t>(cardBytes) >= NetworkWorkBuf::kJsonItem)
     return true;
   const uint32_t markers = crc32Update(0xFFFFFFFFU,

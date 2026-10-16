@@ -446,6 +446,8 @@ void publishControlStatus() {
     next.cycleTargetReachedEarly = session.targetReachedEarly;
     // The live cut line f(t) (the planned stop weight before the drip offset).
     next.cycleActiveStopWeightG = cutLineNowDg() / 10.0f;
+    next.cycleExpectedEndMs = shot.expectedEndS < NO_CUT_PREDICTION_S
+        ? static_cast<uint32_t>(shot.expectedEndS * 1000.0f) : 0U;
     next.cycleMinBbwBrewTimeRemainingMs =
         next.cycleElapsedMs >= session.config.fastBeforeMs
             ? 0U : session.config.fastBeforeMs - next.cycleElapsedMs;

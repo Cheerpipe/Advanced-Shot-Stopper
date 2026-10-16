@@ -55,6 +55,9 @@ before the window starts.
 
 While a fast shot is running longer, its line reads
 **Running fast · going to 38 g**, and the last shot card shows **EXTENDED**.
+Home's shot card usually warns you earlier: it reads **Running fast** and
+turns red as soon as the controller is sure the shot will reach the target
+before the window.
 
 ## Slow shots
 
@@ -71,6 +74,8 @@ window ends, then eases down by up to **Shorten by up to (g)** over the next
 While a slow shot is stopping sooner, its line reads
 **Running slow · stopping at 34 g**, and the last shot card shows
 **STOPPED EARLY**.
+Home's shot card reads **Past window** and turns blue as soon as the window
+ends without a stop.
 
 ## Settings
 

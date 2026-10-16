@@ -22,3 +22,23 @@ and a laptop can use different themes with the same controller. It lives in
 the browser's local storage rather than the controller's saved
 configuration: clearing the site's browser data returns the interface to
 Auto, and a [factory reset](factory-reset.md) does not change it.
+
+## Shot card colors
+
+**Admin → Frontend → Shot card colors** chooses how the Home shot card uses
+color. Every finished shot takes the color of its result: green on recipe,
+red when fast, blue when slow. The options differ in what you see while a shot
+is running:
+
+- **By forecast** (default) keeps the card coffee brown during the shot. It
+  turns red only once the controller is sure the shot is running fast, and blue
+  once the shot passes its time window without stopping. Green appears when a
+  shot stops inside the window, so the card never jumps between colors.
+- **By time window** works the same way and also turns the card green while
+  the shot is inside its time window, before it stops.
+- **Fixed color** keeps the usual brand color for every shot; the card still
+  names the result in words.
+
+Color changes fade in quickly; with reduced motion turned on in your system
+settings they switch at once. Like the theme, this choice is saved in this
+browser only.

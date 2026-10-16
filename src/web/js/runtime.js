@@ -3355,7 +3355,7 @@ function setMutable(enabled) {
       e.disabled = !webUiOwner;
       return;
     }
-    if (e.id === "shotFsButton" || e.id === "shotFsClose") return;
+    if (e.id === "shotFsClose") return;
     if (
       e.classList.contains("taskProfilerCtl") ||
       e.classList.contains("scaleProfileCtl") ||
@@ -5750,6 +5750,7 @@ function paintUiStream() {
     renderShotHero({
       ...shotFrame.card,
       ...shotFrame.curve,
+      shotId: shotFrame.shotId,
       elapsedMs: noScaleClock || noScaleFinish ? noScaleTimerElapsed() : shotFrame.card.elapsedMs,
     }),
       shotStale
@@ -6205,8 +6206,7 @@ function exitShotFullScreen() {
       }
       hero.classList.remove("fs", "fsOut");
       document.body.classList.remove("shotFs");
-      const open = $("shotFsButton");
-      if (open) open.focus();
+      hero.focus();
     };
   if (
     !body ||
@@ -6247,9 +6247,18 @@ function initShotFullScreen() {
   const hero = $("shotHero");
   if (!hero || hero.dataset.fsBound) return;
   hero.dataset.fsBound = "1";
-  const open = $("shotFsButton"),
-    close = $("shotFsClose");
-  if (open) open.onclick = () => enterShotFullScreen();
+  const close = $("shotFsClose");
+  let tap = 0;
+  // A double tap or double click toggles full screen; Enter opens it from the keyboard.
+  hero.addEventListener("pointerup", (e) => {
+    if (e.target.closest("a,button")) return;
+    if (e.timeStamp - tap > 350) return void (tap = e.timeStamp);
+    tap = 0;
+    shotFsActive ? close.onclick() : enterShotFullScreen();
+  });
+  hero.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target === hero) enterShotFullScreen();
+  });
   if (close)
     close.onclick = () => {
       if (!shotFsActive) return;
@@ -6533,6 +6542,7 @@ function applyHistoryStream(message) {
     },
     mode,
   );
+  scheduleShotPaint(); // The hero draws its preset from these records.
   historyStreamBoot = message.boot;
   historyStreamEpoch = message.epoch;
   historyFetchOffset = -1;
@@ -6886,14 +6896,12 @@ function renderShotHero(d) {
   const t = (id, v) => ($("shotHero" + id).textContent = v),
     wt = typeof d.weight === "number" ? d.weight : null,
     goal = d.goal,
-    scale = wt !== null && goal > 0 ? Math.max(goal, wt) : 0,
     // Scale-loss backup: a finished shot shows its estimated yield, a live
     // one its clock against the backup's stop time.
     sl = d.scaleLoss,
     est = !d.live && sl && sl.estimatedG != null ? Math.round(sl.estimatedG) : null,
     el = d.elapsedMs,
     drop = d.firstDropMs,
-    flow = typeof d.averageFlowGps === "number" ? d.averageFlowGps : null,
     model = buildShotSparkModel({
       wCg: d.wCg,
       wAtMs: d.wAtMs,
@@ -6918,7 +6926,6 @@ function renderShotHero(d) {
     });
   hero.hidden = false;
   hero.classList.toggle("live", !!d.live);
-  t("State", d.live ? __WEBUI_TEXT__("home.hero_brewing") : __WEBUI_TEXT__("home.hero_last_shot"));
   t(
     "Preset",
     d.presetName && d.presetName !== __WEBUI_TEXT__("runtime.unknown")
@@ -6930,8 +6937,17 @@ function renderShotHero(d) {
   if (goalEdit)
     goalEdit.hidden =
       d.live || noScale || !(goal > 0) || hero.classList.contains("fs");
+  // Numbers keep their full text; a trailing unit is set smaller.
+  const num = (id, v) => {
+    const e = $("shotHero" + id),
+      [, n, u] = /^(.*\d)(\s?[gs])$/.exec(v || "") || [, v || ""];
+    e.hidden = !v;
+    e.replaceChildren(n);
+    if (u) e.append(Object.assign(document.createElement("small"), { textContent: u }));
+    return v;
+  };
   const label =
-    t(
+    num(
       "Weight",
       est !== null
         ? "~" + est + __WEBUI_TEXT__("runtime.g_2")
@@ -6953,33 +6969,14 @@ function renderShotHero(d) {
           ? " / " + goal.toFixed(1) + " g"
           : "",
     );
-  const hTrack = $("shotHeroTrack");
-  if (hTrack) {
-    hTrack.style.setProperty("--goal-pct", (scale ? (goal / scale) * 100 : 100) + "%");
-    hTrack.setAttribute("aria-label", label);
-  }
-  $("shotHeroBar").style.width = (scale ? (wt / scale) * 100 : 0) + "%";
   const chip = (id, v) => {
     const e = $("shotHero" + id);
     e.hidden = !v;
     e.textContent = v || "";
   };
-  chip("Elapsed", (!noScale || est !== null) && ms(el, 1) + __WEBUI_TEXT__("runtime.s_2"));
-  chip(
-    "Drop",
-    !noScale &&
-      drop != null &&
-      __WEBUI_TEXT__("home.hero_first_drop") + " " + ms(drop, 1) + __WEBUI_TEXT__("runtime.s_2"),
-  );
-  chip(
-    "Flow",
-    !noScale &&
-      flow !== null &&
-      __WEBUI_TEXT__("runtime.avg_flow") + " " + flow.toFixed(2) + __WEBUI_TEXT__("runtime.g_s"),
-  );
+  num("Elapsed", (!noScale || est !== null) && ms(el, 1) + __WEBUI_TEXT__("runtime.s_2"));
   chip("Touch", !noScale && d.live && d.touchHold && __WEBUI_TEXT__("home.hero_touch_hold"));
-  // Pills only: the verdict, and how the cut line ended the shot when that
-  // differs from stopping at the target.
+  // Pills say how the cut line ended the shot when not at the target.
   const kind = d.live ? "" : /wall_limit$/.test(d.endReason) ? "max_time" : d.verdict || "",
     cut =
       sl && sl.state !== "recovered"
@@ -6993,9 +6990,6 @@ function renderShotHero(d) {
               : d.cutG > 0 && d.cutG < d.goal
                 ? __WEBUI_TEXT__("runtime.cut_stopped_early")
                 : "";
-  $("shotHeroPills").hidden = !kind && !cut;
-  chip("Pill", kind && (kind === "max_time" ? __WEBUI_TEXT__("runtime.max_time") : verdictLabel(kind)));
-  $("shotHeroPill").dataset.kind = kind;
   chip("Cut", cut);
   const mode = d.live && sl && sl.state === "recovered"
     ? __WEBUI_TEXT__("runtime.scale_back")
@@ -7009,41 +7003,120 @@ function renderShotHero(d) {
           rinse: __WEBUI_TEXT__("runtime.rinse"),
         }[(d.shotType || "").toLowerCase()] || ""
       : formatShotEnded(d.endReason, d.verdict);
-  chip("Mode", !kind && !cut && mode !== __WEBUI_TEXT__("runtime.unknown") && mode);
-  const spark = $("shotHeroSpark");
-  if (spark) {
-    const segs = model && model.segs.filter((s) => s.pts.length > 1);
-    if (segs && segs.length) {
-      const W = 120,
-        H = 34,
-        P = 1,
-        X = (v) => P + (W - 2 * P) * Math.min(1, v / model.timeMax),
-        Y = (c) => H - P - (H - 2 * P) * Math.min(1, Math.max(0, c / 100 / model.maxW));
-      spark.innerHTML =
-        '<svg viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true"><defs>' +
-        fadeFill("heroFade", "var(--on)", 0.4) +
-        "</defs>" +
-        segs
-          .map((s) => {
-            const p = s.pts
-              .map((q, i) => (i ? "L" : "M") + X(q.t).toFixed(1) + " " + Y(q.cg).toFixed(1))
-              .join("");
-            return (
-              '<path d="' +
-              p +
-              "V" +
-              H +
-              "H" +
-              X(s.pts[0].t).toFixed(1) +
-              'Z" fill="url(#heroFade)" stroke="none"/><path d="' +
-              p +
-              '" fill="none" stroke="var(--on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
-            );
-          })
-          .join("") +
-        '<line x1="0" y1="33.2" x2="120" y2="33.2" stroke="var(--on)" opacity=".25" stroke-width=".7"/></svg>';
-    } else spark.replaceChildren();
+  chip(
+    "Mode",
+    !kind && !cut && mode !== __WEBUI_TEXT__("runtime.unknown") && mode !== __WEBUI_TEXT__("runtime.bbw") && mode,
+  );
+  $("shotHeroPills").hidden = ["Cut", "Touch", "Mode"].every((id) => $("shotHero" + id).hidden);
+  const m = d.live ? liveRuleModel : heroShotRule(d.shotId),
+    tint = heroTint(d, m, kind, el, noScale);
+  hero.dataset.tint = tint;
+  t(
+    "State",
+    d.live
+      ? tint === "fast"
+        ? __WEBUI_TEXT__("home.hero_running_fast")
+        : tint === "on_recipe"
+          ? __WEBUI_TEXT__("home.hero_in_window")
+          : tint === "slow"
+            ? __WEBUI_TEXT__("home.hero_past_window")
+            : __WEBUI_TEXT__("home.hero_brewing")
+      : kind === "max_time"
+        ? __WEBUI_TEXT__("runtime.max_time")
+        : kind
+          ? verdictLabel(kind)
+          : __WEBUI_TEXT__("home.hero_last_shot"),
+  );
+  renderHeroChart($("shotHeroSpark"), model, !noScale && m && m.mode === "active" ? m : null, goal, label);
+}
+// Hero colour. Live red needs the cut forecast before the window for 1.5 s.
+const HERO_TINT_KEY = "ssHeroTint",
+  HERO_TINT_MODES = ["forecast", "window", "brand"];
+let heroFast = { el: 0, since: -1, on: false };
+function heroTintMode() {
+  try {
+    const v = localStorage.getItem(HERO_TINT_KEY);
+    return HERO_TINT_MODES.includes(v) ? v : "forecast";
+  } catch (_) {
+    return "forecast";
   }
+}
+function setHeroTintMode(v) {
+  try {
+    localStorage.setItem(HERO_TINT_KEY, HERO_TINT_MODES.includes(v) ? v : "forecast");
+  } catch (_) {}
+  scheduleShotPaint();
+}
+function heroTint(d, m, kind, el, noScale) {
+  const mode = heroTintMode(),
+    v = ["fast", "on_recipe", "slow"].find((x) => x === kind || x === d.verdict);
+  if (mode === "brand") return "brand";
+  if (!d.live) return v || "neutral";
+  if (el < heroFast.el) heroFast = { el: 0, since: -1, on: false };
+  heroFast.el = el;
+  if (noScale || !m || m.mode !== "active" || (d.shotType || "").toLowerCase() !== "auto") return "neutral";
+  const early =
+    d.extractionExtended || (d.expectedEndMs > 0 && d.expectedEndMs < (m.t1 - 0.5) * 1000);
+  if (!early) heroFast.since = -1;
+  else if (heroFast.since < 0) heroFast.since = el;
+  heroFast.on ||= !!d.extractionExtended || (early && el - heroFast.since >= 1500);
+  const at = el / 1000;
+  return heroFast.on ? "fast" : at > m.t2 ? "slow" : mode === "window" && at >= m.t1 ? "on_recipe" : "neutral";
+}
+// A finished shot draws its own preset snapshot, from the history record.
+function heroShotRule(id) {
+  const r = historyData.records.find((x) => x.id === id);
+  return r ? shotRuleModel(r) : null;
+}
+// Curve, cut line and window; overlays use CSSOM (the CSP blocks inline styles).
+function renderHeroChart(host, model, m, goal, label) {
+  if (!host) return;
+  host.setAttribute("aria-label", label);
+  const segs = model && model.segs.filter((s) => s.pts.length > 1);
+  if (!segs || !segs.length) return void host.replaceChildren();
+  const end = segs.at(-1).pts.at(-1),
+    xMax = Math.max(model.timeMax, m ? Math.min(m.wall, m.t2 + m.d + 4) : 0),
+    yMax = 1.15 * Math.max(model.maxW, m ? m.ceil : 0, goal > 0 ? goal : 0),
+    X = (v) => (100 * Math.min(v, xMax)) / xMax,
+    Y = (g) => 100 - (100 * Math.max(0, g)) / yMax,
+    path = (pts) => pts.map((q, i) => (i ? "L" : "M") + X(q[0]).toFixed(2) + " " + Y(q[1]).toFixed(2)).join(""),
+    stroke = 'stroke="var(--on)" vector-effect="non-scaling-stroke"',
+    put = (cls, text, x, y) => {
+      const e = Object.assign(document.createElement("span"), { className: cls, textContent: text });
+      e.style.left = x.toFixed(2) + "%";
+      if (y != null) e.style.top = y.toFixed(2) + "%";
+      return e;
+    };
+  let svg =
+    '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs>' +
+    fadeFill("heroFade", "var(--on)", 0.38) +
+    '<linearGradient id="heroWin" x1="0" y1="0" x2="0" y2="1"><stop stop-color="var(--on)" stop-opacity="0"/><stop offset=".32" stop-color="var(--on)" stop-opacity=".15"/><stop offset="1" stop-color="var(--on)" stop-opacity="0"/></linearGradient></defs>';
+  const over = [];
+  if (m) {
+    const line = Array.from({ length: 97 }, (_, i) => {
+      const v = m.prot + ((xMax - m.prot) * i) / 96;
+      return [v, cutLine(v, m)];
+    });
+    svg +=
+      `<rect x="${X(m.t1).toFixed(2)}" width="${(X(m.t2) - X(m.t1)).toFixed(2)}" height="100" fill="url(#heroWin)"/>` +
+      `<path d="${path(line)}" fill="none" ${stroke} stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+    const legend = put("leg", "", 0);
+    legend.append(document.createElement("i"), __WEBUI_TEXT__("home.hero_cut_line"));
+    over.push(legend, put("xl", String(m.t1), X(m.t1)), put("xl", m.t2 + __WEBUI_TEXT__("runtime.s_2"), X(m.t2)));
+  }
+  host.innerHTML =
+    svg +
+    segs
+      .map((s) => {
+        const p = path(s.pts.map((q) => [q.t, q.cg / 100]));
+        return (
+          `<path d="${p}V100H${X(s.pts[0].t).toFixed(2)}Z" fill="url(#heroFade)"/>` +
+          `<path d="${p}" fill="none" ${stroke} stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`
+        );
+      })
+      .join("") +
+    `<line x1="0" y1="99.6" x2="100" y2="99.6" ${stroke} stroke-opacity=".3"/></svg>`;
+  host.append(...over, put("end", "", X(end.t), Y(end.cg / 100)));
 }
 // Home cards: a grind hint when the active preset's shots drift, and the
 // one-time Scale-loss backup introduction. Dismissals stay in this browser.
@@ -9072,6 +9145,8 @@ export {
   themeMode,
   paintTheme,
   setTheme,
+  heroTintMode,
+  setHeroTintMode,
   cycleTheme,
   otaUpload,
   otaFlash,

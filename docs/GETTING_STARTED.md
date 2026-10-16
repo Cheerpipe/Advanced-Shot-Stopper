@@ -56,11 +56,11 @@ brew states; on a Linea Micra, it also shows power and **Machine cleaning
 (backflush)**, with the same cleaning state shown in Diagnostics. Cleaning status
 requires the Micra WebSocket connection and state observation to be enabled.
 
-On a phone or tablet, the shot card has a small expand button in its top-right
-corner. Tap it to spread the card across the whole screen, always in landscape,
-with the same live readings and proportions as the Home card. Tap the × in the
-corner, or use your device's back gesture, to leave the full-screen view; it
-closes like a panel and does not leave Home.
+Double-tap the shot card (double-click it on a computer, or select it and
+press Enter) to spread it across the whole screen, always in landscape, with
+the same live readings and proportions as the Home card. Double-tap again, tap
+the × in the corner, or use your device's back gesture to leave the full-screen
+view; it closes like a panel and does not leave Home.
 
 The header shows the controller's home-network Wi-Fi signal and its Bluetooth
 link to the scale. More lit arcs or bars mean a stronger signal; amber means

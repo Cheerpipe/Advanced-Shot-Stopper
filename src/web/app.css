@@ -1,5 +1,5 @@
-:root{--gLast:#0e7490;--gCut:#d1101f;--bandFull:.14;--bandPart:.07;--bandWin:.26;--bg:#f5f5f5;--sf:#fff;--in:#fafafa;--fg:#242424;--mu:#636363;--ln:#dadada;--bd:#7d7d7d;--ac:#a83b21;--pri:#a83b21;--on:#fff;--ok:#41ab5d;--dn:#a62632;--wn:#7b4a09;--me:#fceef0;--mo:#eaf5ee;--mw:#fff4de;--pa:#f4e8e2;--gFast:#d7301f;--gSlow:#2c7fb8;--gFlow:#7a7a7a;--ah:0 -4px 14px rgba(36,36,36,.1);--r:.75rem;--tap:2.75rem;--hdr:5rem}
-@media(prefers-color-scheme:dark){html:not(.theme-light){--gLast:#38bdf8;--gCut:#9e1c22;--bandFull:.22;--bandPart:.11;--bandWin:.32;--bg:#151515;--sf:#1d1d1d;--in:#242424;--fg:#efefef;--mu:#b2b2b2;--ln:#3c3c3c;--bd:#7d7d7d;--ac:#c45c38;--pri:#c45c38;--ok:#74d68c;--gFast:#ff6b4a;--gSlow:#6cb6e6;--gFlow:#b8b8b8;--dn:#ffadb5;--wn:#edc17d;--me:#351f23;--mo:#193024;--mw:#33291b;--pa:#352820;--ah:0 -4px 14px rgba(0,0,0,.35)}}
+:root{--tk:80%;--cf:#5b3f2e;--gLast:#0e7490;--gCut:#d1101f;--bandFull:.14;--bandPart:.07;--bandWin:.26;--bg:#f5f5f5;--sf:#fff;--in:#fafafa;--fg:#242424;--mu:#636363;--ln:#dadada;--bd:#7d7d7d;--ac:#a83b21;--pri:#a83b21;--on:#fff;--ok:#41ab5d;--dn:#a62632;--wn:#7b4a09;--me:#fceef0;--mo:#eaf5ee;--mw:#fff4de;--pa:#f4e8e2;--gFast:#d7301f;--gSlow:#2c7fb8;--gFlow:#7a7a7a;--ah:0 -4px 14px rgba(36,36,36,.1);--r:.75rem;--tap:2.75rem;--hdr:5rem}
+@media(prefers-color-scheme:dark){html:not(.theme-light){--tk:58%;--cf:#523a2c;--gLast:#38bdf8;--gCut:#9e1c22;--bandFull:.22;--bandPart:.11;--bandWin:.32;--bg:#151515;--sf:#1d1d1d;--in:#242424;--fg:#efefef;--mu:#b2b2b2;--ln:#3c3c3c;--bd:#7d7d7d;--ac:#c45c38;--pri:#c45c38;--ok:#74d68c;--gFast:#ff6b4a;--gSlow:#6cb6e6;--gFlow:#b8b8b8;--dn:#ffadb5;--wn:#edc17d;--me:#351f23;--mo:#193024;--mw:#33291b;--pa:#352820;--ah:0 -4px 14px rgba(0,0,0,.35)}}
 html{background:var(--bg);color-scheme:light dark;--nav-space:calc(5.75rem + env(safe-area-inset-bottom));--nav-offset:calc(4.25rem + env(safe-area-inset-bottom));scroll-padding-bottom:var(--nav-space)}
 *,*:before,*:after{box-sizing:border-box}
 body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--nav-space);color:var(--fg);background:var(--bg);font-size:1rem;line-height:1.45}
@@ -238,24 +238,35 @@ summary::marker{color:var(--ac)}
 .shotCard > :nth-child(3){grid-area:goal}
 .shotCard > :nth-child(4){grid-area:err}
 .shotCard > :nth-child(5){grid-area:avgflow}
-.shotHero{--w78:color-mix(in srgb,var(--on) 78%,transparent);position:relative;overflow:hidden;margin:1rem 0;padding:1.05rem 1.1rem;border-radius:calc(var(--r) + .25rem);background:linear-gradient(150deg,color-mix(in srgb,var(--ac) 82%,#000),var(--ac) 55%,color-mix(in srgb,var(--ac) 80%,#fff));color:var(--on);box-shadow:var(--ah)}
+/* --tint is registered so the hero gradient cross-fades between shot states;
+   the longhand transition survives the CSS minifier, the shorthand does not. */
+@property --tint{syntax:"<color>";inherits:true;initial-value:#a83b21}
+.shotHero{--w78:color-mix(in srgb,var(--on) 78%,transparent);--tint:var(--ac);position:relative;overflow:hidden;margin:1rem 0;padding:1.05rem 1.1rem;border-radius:calc(var(--r) + .25rem);background:linear-gradient(150deg,color-mix(in srgb,var(--tint) 82%,#000),var(--tint) 55%,color-mix(in srgb,var(--tint) 80%,#fff));color:var(--on);box-shadow:var(--ah);transition-property:--tint;transition-duration:.4s;touch-action:manipulation;user-select:none}
+.shotHero[data-tint=neutral]{--tint:var(--cf)}
+.shotHero[data-tint=on_recipe]{--tint:color-mix(in srgb,var(--ok) var(--tk),#000)}
+.shotHero[data-tint=fast]{--tint:color-mix(in srgb,var(--gFast) var(--tk),#000)}
+.shotHero[data-tint=slow]{--tint:color-mix(in srgb,var(--gSlow) var(--tk),#000)}
 .shotHero p{margin:0}
-.shotHero .heroLabel{display:flex;align-items:center;gap:.45rem;font-size:.72rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--w78)}
+.shotHero .heroLabel{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;font-size:.72rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--w78)}
 .shotHero .heroDot{flex:none;width:.55rem;height:.55rem;border-radius:50%;background:var(--on)}
 .shotHero.live .heroDot{animation:hPulse 1.6s ease-in-out infinite}
 @keyframes hPulse{50%{opacity:.3}}
-.shotHero .heroNum{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .45rem;font-variant-numeric:tabular-nums;line-height:1}
-.shotHero .heroNum b{font-size:3.1rem;font-weight:800;letter-spacing:-.03em;overflow-wrap:anywhere}
-.shotHero .heroNum span{font-size:1.05rem;font-weight:700;color:var(--w78)}
-.shotHero .heroTrack{position:relative;height:.65rem;margin:.7rem 0;border-radius:1rem;background:color-mix(in srgb,var(--on) 25%,transparent)}
-.shotHero .heroTrack i{position:absolute;top:0;bottom:0;left:0;width:0;border-radius:1rem;background:var(--on);transition:width .6s linear}
-.shotHero .heroTrack:after{content:"";position:absolute;top:-.3rem;bottom:-.3rem;left:var(--goal-pct,100%);width:2px;background:color-mix(in srgb,var(--on) 60%,transparent)}
-.shotHero .heroChips{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.65rem}
-.shotHero .heroChip{display:inline-block;padding:.32rem .7rem;border:1px solid color-mix(in srgb,var(--on) 35%,transparent);border-radius:2rem;background:color-mix(in srgb,var(--on) 14%,transparent);font-size:.78rem;font-weight:600;line-height:1.2;white-space:nowrap}
-.shotHero .heroChip.mode{background:color-mix(in srgb,var(--on) 26%,transparent);font-weight:700}
+.shotHero .heroNums{display:flex;justify-content:space-between;align-items:baseline;gap:.3rem 1rem;margin-top:.6rem}
+.shotHero .heroNum{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .4rem;min-width:0;line-height:1}
+.shotHero .heroNum b,.shotHero .heroTime{font-size:2.35rem;font-weight:800;letter-spacing:-.03em;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.heroNums small{display:inline;font-size:.42em;color:var(--w78)}
+.shotHero .heroNum span{font-size:.95rem;font-weight:700;color:var(--w78)}
+.shotHero .heroChart{position:relative;height:5.6rem;margin:.75rem 0 1.6rem}
+.heroChart svg{display:block;width:100%;height:100%;overflow:visible}
+.heroChart .end{position:absolute;width:.65rem;height:.65rem;margin:-.325rem 0 0 -.325rem;border-radius:50%;background:var(--on);box-shadow:0 0 0 3px color-mix(in srgb,var(--on) 30%,transparent)}
+.heroChart .xl,.heroChart .leg{position:absolute;top:calc(100% + .3rem);font-size:.66rem;font-weight:700;color:var(--w78);white-space:nowrap}
+.heroChart .xl{transform:translateX(-50%)}
+.heroChart .leg{display:flex;align-items:center;gap:.35rem;color:var(--on)}
+.heroChart .leg i{width:1rem;border-top:1.5px dashed}
 
 
-.shotHero .heroPills{display:flex;flex-wrap:wrap;gap:.4rem;margin:.5rem 0 .1rem}
+.shotHero .heroPills{display:flex;flex-wrap:wrap;gap:.4rem;margin-left:auto}
+.shotHero .heroPill:before{display:none}
 .heroPill{display:inline-flex;align-items:center;gap:.35rem;padding:.2rem .65rem;border-radius:2rem;background:var(--on);color:color-mix(in srgb,var(--z,#555) 78%,#000);font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
 .heroPill:before{content:"";width:.55rem;height:.55rem;border-radius:50%;background:var(--z,currentColor)}
 .heroPill[data-kind=fast]{--z:var(--gFast)}.heroPill[data-kind=on_recipe]{--z:var(--ok)}.heroPill[data-kind=slow]{--z:var(--gSlow)}
@@ -289,7 +300,6 @@ summary::marker{color:var(--ac)}
 .ghAxis span:nth-child(2){font-weight:700}
 .ghCard .btnBar{max-width:none}
 .ghCard .ghost{border-color:var(--ln);color:var(--mu)}
-.shotHero .heroSpark svg{display:block;width:100%;height:2.6rem;margin-top:.7rem}
 .shotHero .heroHistory{display:block;margin-top:.55rem;text-align:right;font-size:.78rem;font-weight:650;color:var(--w78);text-decoration:underline}
 .heroFsBtn{position:absolute;top:.55rem;right:.55rem;z-index:2;display:none;align-items:center;justify-content:center;width:var(--tap);height:var(--tap);padding:0;border:0;background:none;color:var(--on);cursor:pointer}
 .heroFsClose{border:1px solid color-mix(in srgb,var(--on) 35%,transparent);border-radius:50%;background:color-mix(in srgb,var(--on) 14%,transparent)}
@@ -297,14 +307,12 @@ summary::marker{color:var(--ac)}
 .heroFsClose svg{fill:none;stroke:currentColor}
 .heroFsBtn:not(:disabled):hover{background:color-mix(in srgb,var(--on) 30%,transparent)}
 .heroFsBtn:not(:disabled):active{transform:scale(.93)}
-@media(any-hover:none),(any-pointer:coarse){#shotFsButton{display:inline-flex}.shotHero .heroLabel{padding-right:calc(var(--tap) + .75rem)}}
-.shotHero.fs .heroFsBtn,.shotHero.fs #shotFsButton{display:none}
 .shotHero.fs .heroFsClose{display:inline-flex}
 body.shotFs{overflow:hidden}
 .shotHero.fs{position:fixed;top:0;left:0;width:100vw;height:100vh;width:100dvw;height:100dvh;z-index:30;display:flex;margin:0;border-radius:0;box-shadow:none}
 .shotHero.fs .heroBody{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:clamp(.5rem,2.4vmin,2rem);--hpad:max(3.4vmin,env(safe-area-inset-top),env(safe-area-inset-bottom),env(safe-area-inset-left),env(safe-area-inset-right));padding:calc(var(--hpad) + 8vmin) var(--hpad) var(--hpad);animation:heroFsIn .26s ease-out}
 .shotHero.fs .heroBody>*{flex:none}
-.shotHero.fs .heroSpark{flex:1 1 auto;min-height:6vmin}
+.shotHero.fs .heroChart{flex:1 1 auto;min-height:6vmin;height:auto;margin:0 0 1.6em}
 @keyframes heroFsIn{from{opacity:0;transform:scale(.965)}}
 .shotHero.fs.fsOut .heroBody{animation:heroFsOut .2s ease-in forwards}
 @keyframes heroFsOut{to{opacity:0;transform:scale(.965)}}
@@ -313,17 +321,14 @@ body.shotFs{overflow:hidden}
 .shotHero.fs .heroFsBtn svg{width:45%;height:45%}
 .shotHero.fs .heroLabel{font-size:clamp(.75rem,3.8vmin,2.1rem);padding-right:clamp(calc(var(--tap) + .75rem),11vmin,5.5rem)}
 .shotHero.fs .heroDot{width:clamp(.55rem,2.6vmin,1.5rem);height:clamp(.55rem,2.6vmin,1.5rem)}
-.shotHero.fs .heroNum b{font-size:clamp(3.4rem,25vmin,13rem)}
-.shotHero.fs .heroNum span{font-size:clamp(1.05rem,8vmin,4.2rem)}
-.shotHero.fs .heroTrack{height:clamp(.65rem,3vmin,1.6rem);margin:0}
-.shotHero.fs .heroChips{gap:clamp(.4rem,1.6vmin,1.1rem);margin:0}
-.shotHero.fs .heroChip{padding:clamp(.32rem,1.4vmin,1rem) clamp(.7rem,2.8vmin,2.2rem);font-size:clamp(.78rem,4.4vmin,2.5rem)}
-.shotHero.fs .heroSpark svg{height:100%;min-height:clamp(2.6rem,12vmin,13rem);margin-top:0}
+.shotHero.fs .heroNum b,.shotHero.fs .heroTime{font-size:clamp(3.4rem,20vmin,11rem)}
+.shotHero.fs .heroNum span{font-size:clamp(1.05rem,6vmin,3.4rem)}
+.shotHero.fs .heroPill,.shotHero.fs .heroChart .xl,.shotHero.fs .heroChart .leg{font-size:clamp(.66rem,3.2vmin,1.6rem)}
 .shotHero.fs .heroHistory{display:none}
 /* The vh/vw fallback only matters on engines older than dvh support, which
    already lack the :has() and color-mix() this interface requires. */
 @media(orientation:portrait){.shotHero.fs{width:100vh;width:100dvh;height:100vw;height:100dvw;transform-origin:top left;transform:rotate(90deg) translateY(-100%)}}
-@media(prefers-reduced-motion:reduce){.shotHero.fs .heroBody,.shotHero.fs.fsOut .heroBody{animation:none}}
+@media(prefers-reduced-motion:reduce){.shotHero.fs .heroBody,.shotHero.fs.fsOut .heroBody{animation:none}.shotHero{transition:none}}
 #log{width:100%;height:14rem;white-space:pre;overflow:auto;border:1px solid var(--bd);border-radius:.5rem;background:var(--in);color:var(--fg)}
 #log,#bullseyeRtttl{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 small{display:block;color:var(--mu)}
@@ -662,7 +667,7 @@ body.qwOpen{overflow:hidden}
 html,input,select,textarea{color-scheme:dark}
 }
 html.theme-light{color-scheme:light}
-html.theme-dark{--gLast:#38bdf8;--gCut:#9e1c22;--bandFull:.22;--bandPart:.11;--bandWin:.32;--bg:#151515;--sf:#1d1d1d;--in:#242424;--fg:#efefef;--mu:#b2b2b2;--ln:#3c3c3c;--bd:#7d7d7d;--ac:#c45c38;--pri:#c45c38;--ok:#74d68c;--gFast:#ff6b4a;--gSlow:#6cb6e6;--gFlow:#b8b8b8;--dn:#ffadb5;--wn:#edc17d;--me:#351f23;--mo:#193024;--mw:#33291b;--pa:#352820;--ah:0 -4px 14px rgba(0,0,0,.35)}
+html.theme-dark{--tk:58%;--cf:#523a2c;--gLast:#38bdf8;--gCut:#9e1c22;--bandFull:.22;--bandPart:.11;--bandWin:.32;--bg:#151515;--sf:#1d1d1d;--in:#242424;--fg:#efefef;--mu:#b2b2b2;--ln:#3c3c3c;--bd:#7d7d7d;--ac:#c45c38;--pri:#c45c38;--ok:#74d68c;--gFast:#ff6b4a;--gSlow:#6cb6e6;--gFlow:#b8b8b8;--dn:#ffadb5;--wn:#edc17d;--me:#351f23;--mo:#193024;--mw:#33291b;--pa:#352820;--ah:0 -4px 14px rgba(0,0,0,.35)}
 html.theme-light input,html.theme-light select,html.theme-light textarea{color-scheme:light}
 html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark textarea{color-scheme:dark}
 @media(max-width:480px){:root{--bandFull:.18;--bandPart:.08;--bandWin:.28}#shotTable tr,fieldset{padding-inline:.5rem}.presetAccGraph{margin-inline:.2rem}}

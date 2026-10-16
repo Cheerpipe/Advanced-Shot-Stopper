@@ -201,6 +201,7 @@ async function saveFrontendSettings() {
       }
     }
     if (controlChanged("uiTheme", R.frontendBaseline)) R.setTheme($("uiTheme").value);
+    if (controlChanged("heroTint", R.frontendBaseline)) R.setHeroTintMode($("heroTint").value);
     if (ok) R.clearFrontendDirty();
   } finally {
     b.classList.remove("busy");
@@ -546,4 +547,5 @@ export function init() {
   R.populateTimezoneOptions().catch(() => {});
   const themeSel = $("uiTheme");
   if (themeSel) themeSel.value = R.themeMode();
+  $("heroTint").value = R.heroTintMode();
 }

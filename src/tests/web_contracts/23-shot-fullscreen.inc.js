@@ -69,10 +69,15 @@
       contains: c => set.has(c),
       toggle() {},
     });
+    const handlers = {};
     const element = () => ({onclick: null, dataset: {}, focus() {},
-      addEventListener() {}, querySelector: () => null});
+      addEventListener: (type, fn) => { handlers[type] = fn; }, querySelector: () => null});
     const hero = Object.assign(element(), {classList: stubClasses(heroClasses)});
-    const els = {shotHero: hero, shotFsButton: element(), shotFsClose: element()};
+    const els = {shotHero: hero, shotFsClose: element()};
+    const card = {closest: () => null}, link = {closest: () => ({})};
+    let clock = 1000;
+    const tap = (target = card, gap = 200) => handlers.pointerup({target, timeStamp: clock += gap});
+    const doubleTap = () => { tap(card, 1000); tap(); };
     const api = new Function('$', 'history', 'location', 'document', 'setTimeout', 'clearTimeout',
         runtimeJs.slice(runtimeJs.search(/let\s+shotFsActive\s*=/),
             runtimeJs.indexOf('// The diagnostic stream rides')) +
@@ -87,18 +92,28 @@
     api.init();
     assert.equal(api.pop(), false, 'a pop without full screen reaches the router');
 
-    els.shotFsButton.onclick();
-    assert.ok(heroClasses.has('fs') && bodyClasses.has('shotFs'));
+    tap(card, 1000); tap(card, 400);
+    assert.ok(!heroClasses.has('fs'), 'two slow taps must not open full screen');
+    tap(link, 1000); tap(link);
+    assert.ok(!heroClasses.has('fs'), 'taps on links and buttons keep their own action');
+    doubleTap();
+    assert.ok(heroClasses.has('fs') && bodyClasses.has('shotFs'), 'a double tap opens full screen');
     assert.equal(history.pushed, 1, 'entering pushes one history entry');
     assert.equal(api.pop(), true, 'the back gesture exits full screen');
     assert.ok(!heroClasses.has('fs') && !bodyClasses.has('shotFs'));
 
     // The X button exits via history.back(); that pop must be swallowed once.
-    els.shotFsButton.onclick();
+    handlers.keydown({key: 'Enter', target: hero});
+    assert.ok(heroClasses.has('fs'), 'Enter on the focused card opens full screen');
     els.shotFsClose.onclick();
     assert.ok(!heroClasses.has('fs'), 'the X button exits full screen');
     assert.equal(history.back, 1, 'the X exit consumes its pushed entry');
     assert.equal(api.pop(), true, 'the X-driven pop is consumed');
     assert.equal(api.pop(), false, 'the next pop reaches the router');
+    // A double tap inside full screen exits like the X.
+    doubleTap();
+    doubleTap();
+    assert.ok(!heroClasses.has('fs') && history.back === 2, 'a second double tap leaves full screen');
+    assert.equal(api.pop(), true, 'the double-tap exit consumes its pushed entry');
   }
 }

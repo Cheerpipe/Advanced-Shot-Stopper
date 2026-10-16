@@ -1386,6 +1386,7 @@ if (!statsSection ||
         applyCommonStatus: () => events.push('state'),
         applyHistoryPage: (data, mode) => {context.historyLoaded = true; events.push('records:' + mode);},
         renderHistory: () => events.push('render:' + context.controlsMutable),
+        scheduleShotPaint() {},
         updateHeaderSignals() {}, updateFirmwareFooter() {}, noteReachOk() {},
         __WEBUI_TEXT__: key => key});
       const stream = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function historyStreamFrame('),

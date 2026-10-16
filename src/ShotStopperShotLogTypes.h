@@ -457,6 +457,8 @@ inline PersistedLastShot shotLogProjectLastShot(
   shot.durationMs = static_cast<uint32_t>(record.durationDs) * 100U;
   shot.currentWeightG = record.actualWeightCg / 100.0f;
   shot.weightValid = true;
+  // Only shots with a measured yield are logged, so every record had a scale.
+  shot.scaleAvailable = true;
   shot.goalWeightDg = record.goalWeightDg;
   shot.presetId = shotLogPresetId(record);
   copyCString(shot.presetName, sizeof(shot.presetName), record.presetName);
