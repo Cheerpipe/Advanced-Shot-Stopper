@@ -368,11 +368,14 @@ if (generated.icon192Raw.readUInt32BE(16) !== 192 ||
     iconRow0[1] > 0xb0 || iconRow0[2] > 0xa0) {
   throw new Error('The 192 px icon must be an opaque 192x192 PNG with the tile colour at its canvas corner');
 }
-if (codeIncludes(generated.runtimeJs, '__FW_RELEASE__') ||
-    !codeIncludes(generated.runtimeJs, 'ssFwReload') ||
-    !codeIncludes(generated.runtimeJs, 'location.replace(') ||
-    (generated.version !== 'dev' &&
-     !codeIncludes(generated.runtimeJs, generated.version))) {
+// A fixed release keeps this independent of the generated version header,
+// which a fresh checkout lacks ("dev" folds the self-heal away).
+const releaseRuntime =
+    (await webUi.generate({versionOverride: '9.8.7+contract', write: false})).runtimeJs;
+if (codeIncludes(releaseRuntime, '__FW_RELEASE__') ||
+    !codeIncludes(releaseRuntime, 'ssFwReload') ||
+    !codeIncludes(releaseRuntime, 'location.replace(') ||
+    !codeIncludes(releaseRuntime, '9.8.7+contract')) {
   throw new Error('Runtime must bake the firmware release version for cached-shell self-heal');
 }
 for (const name of webUi.LAZY_PARTIALS) {
@@ -1283,8 +1286,9 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   const otaHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperOta.h'), 'utf8');
   const otaImage = fs.readFileSync(
     path.join(sketchDir, 'ShotStopperOtaImage.h'), 'utf8');
+  // The generator, not its git-ignored output, so a fresh checkout is checked too.
   const version = fs.readFileSync(
-    path.join(sketchDir, 'ShotStopperVersion.h'), 'utf8');
+    path.join(sketchDir, '..', 'scripts', 'gen_version.sh'), 'utf8');
 
   // The transfer must target the spare slot, never the one that is executing.
   if (!ota.includes('esp_ota_get_next_update_partition(nullptr)') ||
