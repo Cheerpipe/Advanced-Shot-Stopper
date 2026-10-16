@@ -480,7 +480,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .shotPresetChart .shotCursor .rvGuide{stroke:var(--fg);stroke-opacity:.5;stroke-width:1;fill:none}
 .shotPresetChart{touch-action:pan-y;outline-offset:2px}
 .shotPresetChart .rvLast{stroke-width:2.5;stroke-dasharray:5 4}
-.shotPresetChart .rvLastDrip{stroke-width:1.5;stroke-dasharray:3 3;opacity:.55}
+.shotPresetChart .rvLastDrip{stroke-dasharray:3}
 .starRate{display:inline-flex;align-items:center;margin:0 -.15rem 0 0}
 .starRate button{padding:0;border:0;background:transparent;color:var(--bd);width:1.35rem;height:var(--tap);display:grid;place-items:center}
 .starRate button+button{margin-left:-.18rem}

@@ -121,7 +121,7 @@
   if(drip.flowCurve.join('|')!=='||2|1.4|0.5' || drip.maxFlow!==2 || drip.segs[0].pts.length!==3 ||
       drip.dripSegs[0].pts.length!==3 || drip.finalPoint.t!==2 || drip.finalPoint.cg!==250 ||
       (dripChart.match(/class="shotTrace shotDripTrace"/g)||[]).length!==2 ||
-      !dripChart.includes('stroke-dasharray="3 3" opacity=".55"') ||
+      !dripChart.includes('stroke-dasharray="3 3"/>') || dripChart.includes('opacity=".55"') ||
       markers.length!==1 || markers[0].className!=='shotFinalPoint' ||
       fills()!==2 || drip.dripFlowSegs[0].pts[0].t!==1 ||
       (dripChart.match(/shotDropOverlay/g)||[]).length!==1 || markers[0].style.width!=='6px' || markers[0].style.height!=='6px')

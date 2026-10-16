@@ -1471,7 +1471,7 @@ function fillShotCharts(h, m) {
         '" fill="none" stroke="' +
         c +
         '" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round"' +
-        (drip ? ' stroke-dasharray="3 3" opacity=".55"' : "") +
+        (drip ? ' stroke-dasharray="3 3"' : "") +
         "/>"
       );
     }
@@ -7168,7 +7168,7 @@ function renderHeroChart(host, model, m, goal, label) {
       })
       .join("") +
     drip
-      .map((s) => `<path d="${curve(s)}" fill="none" ${stroke} stroke-opacity=".55" stroke-width="2.4" stroke-dasharray="3 3"/>`)
+      .map((s) => `<path d="${curve(s)}" fill="none" ${stroke} stroke-width="2.4" stroke-dasharray="3 3"/>`)
       .join("") +
     (drip.length ? `<path d="${path([[cut.t, cut.cg / 100]])}h0" ${stroke} stroke-width="6" stroke-linecap="round"/>` : "") +
     `<line x1="0" y1="99.6" x2="100" y2="99.6" ${stroke} stroke-opacity=".3"/></svg>`;
