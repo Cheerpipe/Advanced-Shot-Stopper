@@ -5166,26 +5166,25 @@ function presetGraph(host, m, x = {}) {
     targetAbove = compact || Y(m.goal) - 4 - T >= 16;
   let marks = "",
     grid = "",
-    lastX = -99;
+    lastR = -99;
   for (let v = 0; v <= top; v += step) {
     grid += `<path class="rvGrid" d="M${L} ${f(Y(v))}H${R}"/>`;
     marks += label(L - 4, Y(v) + 3, v + " g", "", "end");
   }
   (tens ? Array.from({ length: Math.floor(tMax / 10) + 1 }, (_, i) => i * 10) : [0, m.prot, m.t1, m.t2, m.wall]).forEach(
     (t, i, ts) => {
-      if (X(t) - lastX < 14 && i < ts.length - 1) return;
-      lastX = X(t);
+      // Every tick carries its unit. The zero tick starts at the y axis (clear
+      // of "0 g"), like the shot charts; a tick that would spill past the SVG
+      // ends at its edge; a tick that would overlap the previous one is dropped
+      // (never the last). Widths are estimated at ~6.5 px per 11 px glyph.
+      const s = n(t) + " s",
+        w = s.length * 6.5,
+        edge = X(t) + w / 2 > W - 1,
+        x0 = edge ? W - 1 - w : i ? X(t) - w / 2 : X(t);
+      if (x0 < lastR + 4 && i < ts.length - 1) return;
+      lastR = x0 + w;
       if (tens) grid += `<path class="rvGrid" d="M${f(X(t))} ${T}V${B}"/>`;
-      // The zero tick starts at the y axis (clear of "0 g"), like the shot charts;
-      // a tick at the right edge ends there instead of spilling past the SVG.
-      const edge = X(t) > W - 14;
-      marks += label(
-        edge ? W - 1 : X(t),
-        B + 13,
-        n(t) + (tens || i === ts.length - 1 ? " s" : ""),
-        !tens && i > 1 && i < 4 ? "strong" : "",
-        edge ? "end" : i ? "middle" : "start",
-      );
+      marks += label(edge ? W - 1 : X(t), B + 13, s, "", edge ? "end" : i ? "middle" : "start");
     },
   );
   host.innerHTML =
