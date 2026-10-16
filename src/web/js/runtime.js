@@ -7131,7 +7131,7 @@ function renderHomeCards() {
   const v = grindHintView(presetState.items.find((x) => x.id === presetState.activeId)),
     card = $("grindHintCard");
   if (card) {
-    card.hidden = !v || !!cardDismissed(v.key);
+    reveal(card, !!v && !cardDismissed(v.key));
     if (v) {
       card.dataset.key = v.key;
       card.className = "homeCard ghCard " + v.cls;
@@ -7149,8 +7149,7 @@ function renderHomeCards() {
       $("ghActions").hidden = !v.actions;
     }
   }
-  if ($("scaleLossDiscovery"))
-    $("scaleLossDiscovery").hidden = !!cardDismissed("ssCard:scaleLossDiscovery");
+  reveal($("scaleLossDiscovery"), !cardDismissed("ssCard:scaleLossDiscovery"));
 }
 // Relearn (a new bag, dose, basket or grinder): starts the preset's statistics over.
 async function startNewCoffee(id = presetState.activeId) {

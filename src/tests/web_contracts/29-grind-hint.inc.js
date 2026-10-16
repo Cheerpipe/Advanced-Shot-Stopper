@@ -57,6 +57,6 @@
       !codeIncludes(viewJs.home, '$("grindHintNewBeans").onclick = () => R.startNewCoffee()') ||
       !partialHtml.home.includes('<button id="grindHintLater" class="btnGlyph ghost" type="button"><span class="t">Ignore</span>') ||
       !partialHtml.home.includes('<span class="t">Relearn</span>') ||
-      !codeIncludes(runtimeJs, 'card.hidden = !v || !!cardDismissed(v.key)'))
+      !codeIncludes(runtimeJs, 'reveal(card, !!v && !cardDismissed(v.key))'))
     throw new Error('Grind hint card must offer Relearn and Ignore, and Ignore must hold per advice (D6)');
 }
