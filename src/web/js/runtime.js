@@ -7074,12 +7074,16 @@ function renderHeroChart(host, model, m, goal, label) {
   host.setAttribute("aria-label", label);
   const segs = model && model.segs.filter((s) => s.pts.length > 1);
   if (!segs || !segs.length) return void host.replaceChildren();
-  const end = segs.at(-1).pts.at(-1),
+  // A finished shot's drip tail runs dashed from the cut to the settled weight.
+  const cut = segs.at(-1).pts.at(-1),
+    drip = model.finalPoint ? model.dripSegs : [],
+    end = model.finalPoint || cut,
     xMax = Math.max(model.timeMax, m ? Math.min(m.wall, m.t2 + m.d + 4) : 0),
     yMax = 1.15 * Math.max(model.maxW, m ? m.ceil : 0, goal > 0 ? goal : 0),
     X = (v) => (100 * Math.min(v, xMax)) / xMax,
     Y = (g) => 100 - (100 * Math.max(0, g)) / yMax,
     path = (pts) => pts.map((q, i) => (i ? "L" : "M") + X(q[0]).toFixed(2) + " " + Y(q[1]).toFixed(2)).join(""),
+    curve = (s) => path(s.pts.map((q) => [q.t, q.cg / 100])),
     stroke = 'stroke="var(--on)" vector-effect="non-scaling-stroke"',
     put = (cls, text, x, y) => {
       const e = Object.assign(document.createElement("span"), { className: cls, textContent: text });
@@ -7108,13 +7112,17 @@ function renderHeroChart(host, model, m, goal, label) {
     svg +
     segs
       .map((s) => {
-        const p = path(s.pts.map((q) => [q.t, q.cg / 100]));
+        const p = curve(s);
         return (
           `<path d="${p}V100H${X(s.pts[0].t).toFixed(2)}Z" fill="url(#heroFade)"/>` +
           `<path d="${p}" fill="none" ${stroke} stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`
         );
       })
       .join("") +
+    drip
+      .map((s) => `<path d="${curve(s)}" fill="none" ${stroke} stroke-opacity=".55" stroke-width="2.4" stroke-dasharray="3 3"/>`)
+      .join("") +
+    (drip.length ? `<path d="${path([[cut.t, cut.cg / 100]])}h0" ${stroke} stroke-width="6" stroke-linecap="round"/>` : "") +
     `<line x1="0" y1="99.6" x2="100" y2="99.6" ${stroke} stroke-opacity=".3"/></svg>`;
   host.append(...over, put("end", "", X(end.t), Y(end.cg / 100)));
 }

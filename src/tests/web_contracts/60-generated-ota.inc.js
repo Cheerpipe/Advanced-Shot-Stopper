@@ -643,8 +643,9 @@ if (generated.cssGzip.length > 14170) {
 // The Quick Settings Duration selector and revert note bring the runtime to 59524 compressed bytes; owner-authorized 2026-10-16.
 // The grind hint v2 card (four states, size and confidence wording, window bar) brings the runtime to 60236 compressed bytes; owner-authorized 2026-10-16.
 // The Home hero cut-line chart, verdict colours and fast forecast bring the runtime to 61520 compressed bytes; owner-authorized 2026-10-16.
-if (sentinelRuntimeGzip.length > 61530) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 61530-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Home hero drip tail brings the runtime to 61586 compressed bytes; owner-authorized 2026-10-16.
+if (sentinelRuntimeGzip.length > 61586) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 61586-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
