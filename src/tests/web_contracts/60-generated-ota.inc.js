@@ -475,8 +475,10 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // 2026-10-14. Cap raised to 6260.
 // Dragging the navigation pill measures 6594, owner-authorized 2026-10-16.
 // Cap raised to 6615: the stamped asset tag moves it by a few bytes.
-if (generated.jsGzip.length > 6615) {
-  throw new Error(`Compressed Web UI shell JS exceeds the 6615-byte gzip budget (${generated.jsGzip.length})`);
+// The mercury navigation pill (spring, teardrop SVG shape, settling loop)
+// measures 7229, owner-authorized 2026-10-16. Cap raised to 7250.
+if (generated.jsGzip.length > 7250) {
+  throw new Error(`Compressed Web UI shell JS exceeds the 7250-byte gzip budget (${generated.jsGzip.length})`);
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.

@@ -795,8 +795,9 @@ if (htmlBytes > 93300) {
 // The Home cup light coloured by whether a shot can start: +518 bytes (435641), owner-authorized 2026-10-16.
 // Held touch readings off the weight line and out of flow, their markers, legend and CSV column: +1631 bytes (437272), owner-authorized 2026-10-16.
 // Keeping the screen on in full screen (Wake Lock or an inline keep-awake video) and Esc to leave it: +2411 bytes (439683), owner-authorized 2026-10-16.
-if (jsBytes > 439683) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 439683)`);
+// The mercury navigation pill (spring, teardrop SVG shape, settling loop): +1962 bytes (441645), owner-authorized 2026-10-16.
+if (jsBytes > 441645) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 441645)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -892,8 +893,9 @@ if (jsBytes > 439683) {
 // Combined source at 520986 with the Home cup light states; owner-authorized 2026-10-16.
 // Combined source at 522617 with the held touch readings; owner-authorized 2026-10-16.
 // Combined source at 525028 with the full-screen keep-awake; owner-authorized 2026-10-16.
-if (htmlBytes + jsBytes > 525028) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 525028)`);
+// Combined source at 526990 with the mercury navigation pill; owner-authorized 2026-10-16.
+if (htmlBytes + jsBytes > 526990) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 526990)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

@@ -86,7 +86,9 @@ window narrows, the icons disappear first. When the names no longer fit, the
 bar moves to the bottom and shows icons only. The current page is highlighted.
 You can also drag that highlight sideways with a finger or the mouse: each
 section opens as the highlight settles over it, and you stay on the last one
-when you let go.
+when you let go. The highlight moves like a drop of liquid: it stretches as it
+travels and settles with a gentle bounce. If your device is set to reduce
+motion, it jumps straight to the new section instead.
 With navigation in the header, the gray area is visible at the top of the page.
 As you scroll, the logo and connection indicators move out of view while the
 menu floats over the content near the top of the screen. Return to the top to

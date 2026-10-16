@@ -173,7 +173,8 @@ document.querySelectorAll("a[data-route]").forEach((a) => {
 });
 const root = document.documentElement,
   nav = document.querySelector(".pageNav"),
-  mobile = window.matchMedia("(max-width: 699px)");
+  mobile = window.matchMedia("(max-width: 699px)"),
+  still = window.matchMedia("(prefers-reduced-motion: reduce)");
 function updateNavigationLayout() {
   const data = root.dataset;
   for (const mode of mobile.matches ? ["bottom"] : ["icons", "text", "bottom"]) {
@@ -185,34 +186,73 @@ function updateNavigationLayout() {
 function sizeHeader() {
   root.style.setProperty("--menu-offset", nav.offsetTop + "px");
 }
+// The selection pill is a drop of mercury: one spring carries its centre and
+// width, it stretches into a teardrop while moving and squashes as it brakes.
 let pillPlaced = false,
   drag = null,
-  dragged = false;
-const pill = nav ? Object.assign(document.createElement("div"), { className: "pill" }) : null;
+  dragged = false,
+  pillFrame = 0;
+const goo = { c: 0, w: 0, tc: 0, tw: 0, sq: 0, cv: 0, wv: 0, sqv: 0, dir: 1, t: 0 },
+  svgEl = (tag) => document.createElementNS("http://www.w3.org/2000/svg", tag),
+  pill = nav ? svgEl("svg") : null,
+  pillPath = pill && pill.appendChild(svgEl("path"));
 if (pill) {
+  pill.setAttribute("class", "pill");
   nav.append(pill);
   nav.classList.add("pillNav");
+}
+function drawPill() {
+  const sp = Math.min(1, Math.abs(goo.cv) / 1100),
+    len = goo.w * (1 + sp * 0.3 + goo.sq),
+    r = Math.min(goo.h * Math.min(1, Math.max(0.7, (goo.tw / len) ** 0.5)), len / 2),
+    x0 = goo.c - len / 2,
+    a = x0 + r,
+    b = x0 + len - r,
+    p = [];
+  for (let k = 0; k < 2; k++)
+    for (let i = 0; i < 16; i++) {
+      const t = (k - 0.5 + (i - 8) / 8) * Math.PI,
+        x = i <= 8 ? (k ? b + ((a - b) * i) / 8 : a + ((b - a) * i) / 8) : (k ? a : b) + r * Math.cos(t),
+        u = (goo.dir > 0 ? x - x0 : x0 + len - x) / len;
+      p.push([x, goo.cy + (i <= 8 ? (k ? r : -r) : r * Math.sin(t)) *
+        (1 - sp * 0.45 * Math.max(0, 1 - u) ** 1.6 + sp * 0.12 * Math.exp(-(((u - 0.8) / 0.18) ** 2)))]);
+    }
+  const mid = (i) => p[i % 32].map((v, j) => ((v + p[(i + 1) % 32][j]) / 2).toFixed(1));
+  pillPath.setAttribute("d", p.reduce((d, q, i) => `${d}Q${q.map((v) => v.toFixed(1))} ${mid(i)}`, `M${mid(31)}`));
+}
+function settlePill() {
+  Object.assign(goo, { c: goo.tc, w: goo.tw, cv: 0, wv: 0, sq: 0, sqv: 0, t: 0 });
+}
+function pillTick(now) {
+  const dt = goo.t ? Math.min(1 / 30, (now - goo.t) / 1000) : 0;
+  goo.t = now;
+  for (let n = Math.ceil(dt * 240), i = 0; i < n; i++) {
+    const h = dt / n, v0 = goo.cv;
+    if (Math.abs(goo.tc - goo.c) > 2) goo.dir = Math.sign(goo.tc - goo.c);
+    for (const k of ["c", "w"]) {
+      goo[k + "v"] += ((goo["t" + k] - goo[k]) * 520 - goo[k + "v"] * 31) * h;
+      goo[k] += goo[k + "v"] * h;
+    }
+    const acc = (goo.cv - v0) / h;
+    goo.sqv += (-goo.sq * 400 - goo.sqv * 8.8 + Math.abs(acc) * (acc * goo.cv < 0 ? -3.5e-5 : 3.5e-5)) * h;
+    goo.sq = Math.min(0.25, Math.max(-0.2, goo.sq + goo.sqv * h));
+  }
+  const rest = Math.abs(goo.tc - goo.c) + Math.abs(goo.tw - goo.w) < 0.1 &&
+    Math.abs(goo.cv) + Math.abs(goo.wv) < 2 && Math.abs(goo.sq) + Math.abs(goo.sqv) < 0.002;
+  if (rest) settlePill();
+  drawPill();
+  pillFrame = rest ? 0 : requestAnimationFrame(pillTick);
 }
 function placePill(animate) {
   const a = nav && nav.querySelector("a.active");
   if (!pill || !a || (drag && dragged)) return;
-  if (!pillPlaced) {
-    animate = false;
-    pillPlaced = true;
-  }
-  if (!animate) pill.style.transition = "none";
+  Object.assign(goo, { tc: a.offsetLeft + a.offsetWidth / 2, tw: a.offsetWidth, cy: a.offsetTop + a.offsetHeight / 2, h: a.offsetHeight / 2 });
+  if (pillPlaced && animate && !still.matches) pillFrame ||= requestAnimationFrame(pillTick);
   else {
-    const travel = Math.abs(a.offsetLeft - (parseFloat(pill.style.translate) || 0));
-    pill.style.transitionDuration = `${Math.min(480, Math.max(280, travel * 0.85))}ms`;
+    pillPlaced = true;
+    settlePill();
+    drawPill();
   }
-  pill.style.width = `${a.offsetWidth}px`;
-  pill.style.translate = `${a.offsetLeft}px 0`;
-  if (!animate)
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => {
-        pill.style.transition = "";
-      }),
-    );
 }
 function markNavActive(path) {
   document.querySelectorAll(".pageNav a").forEach((a) => {
@@ -231,7 +271,7 @@ if (nav) {
   // toward their centre (slope 0.35 there, 1 at their edges, so it never jumps).
   nav.addEventListener("pointerdown", (e) => {
     if (!e.isPrimary || e.button || !e.target.closest("a.active")) return;
-    drag = { x: e.clientX, c: (parseFloat(pill.style.translate) || 0) + pill.offsetWidth / 2 };
+    drag = { x: e.clientX, c: goo.tc };
     nav.setPointerCapture(e.pointerId);
   });
   nav.addEventListener("pointermove", (e) => {
@@ -239,7 +279,6 @@ if (nav) {
     if (!drag || (!dragged && Math.abs(dx) < 6)) return;
     dragged = true;
     nav.classList.add("dragging");
-    pill.style.transition = "none";
     const links = [...nav.querySelectorAll("a")]
         .filter((l) => l.offsetWidth)
         .sort((p, q) => p.offsetLeft - q.offsetLeft),
@@ -253,8 +292,9 @@ if (nav) {
       n = links[i + Math.sign(t)] || h,
       w = h.offsetWidth + ((n.offsetWidth - h.offsetWidth) * t * t) / 2,
       c = h.offsetLeft + hw + t * hw * (0.35 + 0.65 * t * t);
-    pill.style.width = `${w}px`;
-    pill.style.translate = `${Math.min(Math.max(c - w / 2, lo), hi - w)}px 0`;
+    goo.tc = Math.min(Math.max(c - w / 2, lo), hi - w) + w / 2;
+    goo.tw = w;
+    pillFrame ||= requestAnimationFrame(pillTick);
     if (h.classList.contains("active")) return;
     markNavActive(h.dataset.route);
     navigate(h.dataset.route, drag.moved);
@@ -264,7 +304,6 @@ if (nav) {
     if (!drag) return;
     drag = null;
     nav.classList.remove("dragging");
-    pill.style.transition = "";
     placePill(true);
     setTimeout(() => (dragged = false));
   };
@@ -278,12 +317,8 @@ if (nav) {
   new ResizeObserver(updateNavigationLayout).observe(document.getElementById("app"));
   new ResizeObserver(sizeHeader).observe(document.querySelector(".topBar"));
   const pillAnchor = new ResizeObserver(() => {
-    const a = nav.querySelector("a.active"); // Bold active labels resize their links; the placement already targets the post-toggle geometry, so only genuine resizes re-anchor (style.translate reads back normalized)
-    if (
-      a &&
-      pill.style.width === `${a.offsetWidth}px` &&
-      parseFloat(pill.style.translate) === a.offsetLeft
-    )
+    const a = nav.querySelector("a.active"); // Bold active labels resize their links; the placement already targets the post-toggle geometry, so only genuine resizes re-anchor
+    if (a && goo.tw === a.offsetWidth && goo.tc === a.offsetLeft + a.offsetWidth / 2 && goo.h === a.offsetHeight / 2)
       return;
     placePill(false);
   });

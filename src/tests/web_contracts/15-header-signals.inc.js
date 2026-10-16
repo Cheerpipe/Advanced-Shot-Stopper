@@ -130,7 +130,7 @@
   const assert = require('assert').strict, vm = require('vm');
   const geometry = {}, header = {}, root = {dataset: {}, style: {setProperty: (name, value) => {geometry[name] = value;}}}, app = {clientWidth: 760}, callbacks = {};
   const links = [42, 34, 48, 60, 78, 46].map(width => ({
-    hidden: false, suppressed: false, width, textContent: 'Section', offsetLeft: 2, offsetWidth: 130,
+    hidden: false, suppressed: false, width, textContent: 'Section', offsetLeft: 2, offsetWidth: 130, offsetTop: 2, offsetHeight: 44,
   }));
   const nav = {offsetTop: 72, setAttribute() {}, appended: [], classes: [], append(el) {this.appended.push(el);},
     listeners: {}, addEventListener(name, fn) {this.listeners[name] = fn;},
@@ -147,8 +147,10 @@
   const mobile = {matches: false, addEventListener: (name, fn) => {
     assert.equal(name, 'change'); callbacks.breakpoint = fn;
   }};
-  const context = vm.createContext({root, nav, mobile, __WEBUI_TEXT__: key => key,
-    document: {documentElement: root, createElement: () => ({className: '', style: {}}),
+  const svg = () => ({attrs: {}, setAttribute(name, value) {this.attrs[name] = value;}, appendChild: child => child});
+  const still = {matches: false};
+  const context = vm.createContext({root, nav, mobile, still, __WEBUI_TEXT__: key => key,
+    document: {documentElement: root, createElementNS: (ns, tag) => (assert.equal(ns, 'http://www.w3.org/2000/svg'), svg()),
       querySelector: selector => {assert.equal(selector, '.topBar'); return header;}, getElementById: id => {assert.equal(id, 'app'); return app;},
       fonts: {ready: {then: fn => {callbacks.fonts = fn;}}}},
     requestAnimationFrame() {},
@@ -166,18 +168,19 @@
   vm.runInContext(appJsSource.slice(start, msgElAt < 0 ? undefined : msgElAt + start), context);
   assert.equal(root.dataset.navLayout, 'icons', 'Wide header retains section icons and names');
   assert.equal(geometry['--menu-offset'], '72px', 'Initial header measures its actual menu row');
-  assert.deepEqual(nav.appended.map(el => el.className), ['pill'], 'Script enhancement adds the sliding selection pill');
+  assert.deepEqual(nav.appended.map(el => el.attrs.class), ['pill'], 'Script enhancement adds the liquid selection pill');
   assert.deepEqual(nav.classes, ['pillNav'], 'Pill navigation takes over the active background');
   assert.deepEqual(Object.keys(nav.listeners).sort(),
     ['click', 'pointercancel', 'pointerdown', 'pointermove', 'pointerup'],
     'The pill can be dragged between sections');
+  const goo = () => Array.from(vm.runInContext('[goo.c, goo.w, goo.tc]', context));
   callbacks.fonts();
-  assert.equal(nav.appended[0].style.width, '130px', 'Font settling re-anchors the pill instantly');
-  assert.equal(nav.appended[0].style.translate, '2px 0', 'First placement matches the active destination');
-  assert.equal(nav.appended[0].style.transition, 'none', 'First placement skips the slide');
+  assert.deepEqual(goo(), [67, 130, 67], 'Font settling re-anchors the pill instantly on the active destination');
+  assert.match(vm.runInContext('pillPath.attrs.d', context), /^M19\.8,2\.8(Q[^Q]+){32}$/, 'The pill is drawn as one closed shape');
   links[0].offsetLeft = 525; context.placePill(true);
-  assert.equal(nav.appended[0].style.transitionDuration, '444.55ms', 'Cross-bar slides scale with travel distance');
-  assert.equal(nav.appended[0].style.translate, '525px 0', 'Animated placement targets the active destination');
+  assert.deepEqual(goo(), [67, 130, 590], 'Animated placement springs toward the active destination');
+  still.matches = true; context.placePill(true);
+  assert.deepEqual(goo(), [590, 130, 590], 'Reduced motion places the pill without the liquid travel');
   nav.offsetTop = 80; callbacks.geometry();
   assert.equal(geometry['--menu-offset'], '80px', 'Header resizing updates the floating offset');
   for (const [width, expected] of [[602, 'icons'], [601, 'text'], [410, 'text'], [409, 'bottom'], [760, 'icons']]) {
