@@ -21,8 +21,10 @@ const manifestPath = path.join(repoRoot, 'src', 'web', 'manifest.webmanifest');
 const icon192Path = path.join(repoRoot, 'resources', 'icons', 'android',
     'launchericon-192x192.png');
 // The browser-tab favicon is the brand mark on a transparent background, so
-// tab bars show the drop itself instead of a square plate; the opaque 192 px
-// artwork stays reserved for home-screen icons.
+// tab bars show the drop itself instead of a square plate. A thin cream rim
+// keeps enough contrast that Safari's dark tab bar does not add its own light
+// plate behind the low-luminance terracotta. The opaque 192 px artwork stays
+// reserved for home-screen icons.
 const icon48Path = path.join(repoRoot, 'resources', 'icons', 'favicon-48.png');
 const versionPath = path.join(repoRoot, 'src', 'ShotStopperVersion.h');
 const outputPath =
