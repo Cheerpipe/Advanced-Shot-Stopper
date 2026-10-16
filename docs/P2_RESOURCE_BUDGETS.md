@@ -342,6 +342,13 @@ bytes and rodata to 627,656 bytes; the Stats arrival-time density curve adds
 bytes (85,184/85,184/40,432 over baseline). The image/linked/rodata
 allowances move to 85,248/85,248/40,496 bytes, keeping the 64-byte headroom;
 flash code and DIRAM are unchanged.
+The Manual factory preset and its boot-time upgrade add 876 bytes of flash
+code (measured on top of `1012a79e`). On `7a1b42e1` with it, the image is
+2,359,744 bytes, the linked size 2,359,627 bytes, flash code 1,570,692 bytes
+and rodata 627,704 bytes (85,984/85,980/55,592/40,352 over baseline). The
+image/linked/flash-code allowances move to 86,048/86,044/55,656 bytes, keeping
+the 64-byte headroom; rodata, DIRAM and external BSS stay within their
+allowances.
 On the reference board, after a 75 s settle and 200 s of three concurrent
 Web UI clients, the same session on the earlier and the reduced image
 measured:

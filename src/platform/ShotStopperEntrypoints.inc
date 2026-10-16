@@ -321,6 +321,7 @@ void setup() {
     presetBank = persistedSettings.presets;
     ensureShotPresetBank(presetBank, runtimeConfig.retareWindowMs,
                          runtimeConfig.autoRetare);
+    addMissingManualShotPreset(presetBank);
     scaleWorkerLoadPreferred(persistedSettings.preferredScaleMac,
                              persistedSettings.preferredScaleName,
                              persistedSettings.scaleHistory);

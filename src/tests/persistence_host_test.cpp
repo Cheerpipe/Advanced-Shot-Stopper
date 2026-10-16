@@ -1064,10 +1064,10 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(strcmp(formatted, "-21474836.48g") == 0);
   formatWeightCentigrams(INT32_MAX, formatted, sizeof(formatted));
   CHECK(strcmp(formatted, "21474836.47g") == 0);
-  // Fresh bank: four permanent factory presets, Double · Adaptive active.
+  // Fresh bank: five permanent factory presets, Double · Adaptive active.
   ShotPresetBank bank;
   seedDefaultShotPresetBank(bank);
-  CHECK(bank.count == FACTORY_PRESET_COUNT && bank.nextId == 5);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 1 && bank.nextId == 5);
   CHECK(bank.activeId == FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
   const struct {
     const char *name;
@@ -1097,6 +1097,27 @@ void p24_preset_bank_size_and_crud_budgets() {
     CHECK(preset.bbwEwmaAlpha == DEFAULT_BBW_EWMA_ALPHA);
     CHECK(validateShotPresetRecipe(preset, DEFAULT_RETARE_WINDOW_MS, true));
     CHECK(!deleteShotPreset(bank, preset.id));
+  }
+  {
+    // Manual: Double · Adaptive values that never stop by weight.
+    const ShotPreset &manual = bank.presets[FACTORY_PRESET_COUNT];
+    CHECK(manual.id == FACTORY_PRESET_ID_MANUAL && manual.isFactory);
+    CHECK(strcmp(manual.name, "Manual") == 0 && !manual.brewByWeight);
+    CHECK(!manual.fastSideEnabled && !manual.slowSideEnabled);
+    CHECK(manual.goalWeightDg == factory[0].goal && manual.fastBeforeMs == factory[0].t1);
+    CHECK(validateShotPresetRecipe(manual, DEFAULT_RETARE_WINDOW_MS, true));
+    CHECK(!deleteShotPreset(bank, manual.id));
+    ShotPresetBank restored = bank;
+    mutableShotPreset(restored, FACTORY_PRESET_ID_MANUAL)->brewByWeight = true;
+    CHECK(restoreFactoryShotPresetValues(restored, FACTORY_PRESET_ID_MANUAL));
+    CHECK(!findShotPreset(restored, FACTORY_PRESET_ID_MANUAL)->brewByWeight);
+    restored.activeId = FACTORY_PRESET_ID_MANUAL;
+    CHECK(composeEffectiveConfig(RuntimeConfig{}, restored).timerOnly);
+    // Wrapped allocation never hands a user preset a factory id.
+    restored.nextId = FACTORY_PRESET_ID_MANUAL;
+    uint8_t wrappedId = 0;
+    CHECK(createUntitledShotPreset(restored, wrappedId));
+    CHECK(wrappedId == FACTORY_PRESET_COUNT + 1);
   }
 
   {
@@ -1189,10 +1210,10 @@ void p25_invalid_active_id_keeps_customs() {
   seedDefaultShotPresetBank(bank);
   uint8_t customId = 0;
   CHECK(createUntitledShotPreset(bank, customId));
-  CHECK(bank.count == FACTORY_PRESET_COUNT + 1);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 2);
   bank.activeId = 99;  // missing
   ensureShotPresetBank(bank, DEFAULT_RETARE_WINDOW_MS, true);
-  CHECK(bank.count == FACTORY_PRESET_COUNT + 1);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 2);
   CHECK(findShotPresetIndex(bank, customId) >= 0);
   CHECK(findShotPresetIndex(bank, bank.activeId) >= 0);
 
@@ -1202,7 +1223,7 @@ void p25_invalid_active_id_keeps_customs() {
   settings.presets.activeId = 99;
   settings.runtime.timerOnly = true;
   ensurePersistedPresetBank(settings);
-  CHECK(settings.presets.count >= FACTORY_PRESET_COUNT + 1);
+  CHECK(settings.presets.count == FACTORY_PRESET_COUNT + 2);
   CHECK(findShotPresetIndex(settings.presets, customId) >= 0);
   const ShotPreset *dbl =
       findShotPreset(settings.presets, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
@@ -1227,13 +1248,13 @@ void p35_invalid_fast_extraction_recipe_keeps_custom() {
   seedDefaultShotPresetBank(bank);
   uint8_t customId = 0;
   CHECK(createUntitledShotPreset(bank, customId));
-  CHECK(bank.count == FACTORY_PRESET_COUNT + 1);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 2);
   ShotPreset *custom = mutableShotPreset(bank, customId);
   CHECK(custom != nullptr);
   custom->fastSideEnabled = true;
   custom->fastMarginDg = 0;  // Unusable margin: the recipe resets, the slot stays.
   ensureShotPresetBank(bank, DEFAULT_RETARE_WINDOW_MS, true);
-  CHECK(bank.count == FACTORY_PRESET_COUNT + 1);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 2);
   const ShotPreset *kept = findShotPreset(bank, customId);
   CHECK(kept != nullptr);
   CHECK(validateShotPresetRecipe(*kept, DEFAULT_RETARE_WINDOW_MS, true));
@@ -1245,12 +1266,12 @@ void p38_invalid_slow_extraction_recipe_keeps_custom() {
   seedDefaultShotPresetBank(bank);
   uint8_t customId = 0;
   CHECK(createUntitledShotPreset(bank, customId));
-  CHECK(bank.count == FACTORY_PRESET_COUNT + 1);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 2);
   ShotPreset *custom = mutableShotPreset(bank, customId);
   CHECK(custom != nullptr);
   custom->slowAfterMs = custom->fastBeforeMs;  // Repaired to a 1 s window.
   ensureShotPresetBank(bank, DEFAULT_RETARE_WINDOW_MS, true);
-  CHECK(bank.count == FACTORY_PRESET_COUNT + 1);
+  CHECK(bank.count == FACTORY_PRESET_COUNT + 2);
   const ShotPreset *kept = findShotPreset(bank, customId);
   CHECK(kept != nullptr);
   CHECK(kept->slowAfterMs == kept->fastBeforeMs + MIN_WINDOW_SPAN_MS);
@@ -2748,6 +2769,23 @@ void p91_schema1_golden_settings_blob_loads() {
   const ShotPreset *custom = findShotPreset(loaded.presets, FACTORY_PRESET_COUNT + 1);
   CHECK(custom != nullptr && strcmp(custom->name, "Golden") == 0 && !custom->isFactory);
   CHECK(!custom->fastSideEnabled && custom->goalWeightDg == FACTORY_SINGLE_GOAL_WEIGHT_DG);
+  {
+    // A bank saved before Manual existed gains it on boot, after its customs.
+    ShotPresetBank upgraded = loaded.presets;
+    addMissingManualShotPreset(upgraded);
+    addMissingManualShotPreset(upgraded);
+    CHECK(upgraded.count == loaded.presets.count + 1);
+    CHECK(upgraded.presets[loaded.presets.count].id == FACTORY_PRESET_ID_MANUAL);
+    CHECK(strcmp(findShotPreset(upgraded, FACTORY_PRESET_COUNT + 1)->name, "Golden") == 0);
+    ShotPresetBank named = loaded.presets;
+    CHECK(renameShotPreset(named, FACTORY_PRESET_COUNT + 1, "Manual"));
+    addMissingManualShotPreset(named);
+    CHECK(named.count == loaded.presets.count);
+    ShotPresetBank full = loaded.presets;
+    for (uint8_t id = 0; full.count < MAX_SHOT_PRESETS;) CHECK(createUntitledShotPreset(full, id));
+    addMissingManualShotPreset(full);
+    CHECK(findShotPresetIndex(full, FACTORY_PRESET_ID_MANUAL) < 0);
+  }
 
   // The same bytes stamped schema 0 (the 1.0 epoch) never load.
   PersistedSettings stale = golden;

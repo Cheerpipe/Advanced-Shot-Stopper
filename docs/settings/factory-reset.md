@@ -17,8 +17,8 @@ The saved time zone and its first-detection record are also erased; the next
 authorized Web UI setup can detect a zone again.
 On Linea Micra firmware it also erases
 the cloud account credentials, installation key, selected machine, and session.
-Presets return to the four factory presets (Double · Adaptive, Single · Adaptive,
-Double · Fixed and Single · Fixed) with Double · Adaptive active. Its three
+Presets return to the five factory presets (Double · Adaptive, Single · Adaptive,
+Double · Fixed, Single · Fixed and Manual) with Double · Adaptive active. Its three
 integration options return to ON, and factory preset boiler targets return to
 93.0 °C. ESP32 power management, Wi-Fi sleep, and the BLE scan mode return to
 their factory values: ESP32 power management on, Wi-Fi sleep on, and Balanced

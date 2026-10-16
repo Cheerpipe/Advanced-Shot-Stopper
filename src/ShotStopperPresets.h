@@ -12,7 +12,8 @@ inline void fillDoubleFirmwareDefaults(ShotPreset &preset) {
   preset.bbwEwmaOffsetG = DEFAULT_WEIGHT_OFFSET_G;
 }
 
-inline void fillFactoryShotPreset(ShotPreset &preset, uint8_t id) {
+// Cold path (seed, restore, repair, boot upgrade): kept out of line for flash.
+[[gnu::noinline]] inline void fillFactoryShotPreset(ShotPreset &preset, uint8_t id) {
   fillDoubleFirmwareDefaults(preset);
   preset.id = id;
   preset.isFactory = true;
@@ -20,9 +21,11 @@ inline void fillFactoryShotPreset(ShotPreset &preset, uint8_t id) {
                       id == FACTORY_PRESET_ID_SINGLE_FIXED;
   const bool adaptive = id == FACTORY_PRESET_ID_DOUBLE_ADAPTIVE ||
                         id == FACTORY_PRESET_ID_SINGLE_ADAPTIVE;
+  const bool manual = id == FACTORY_PRESET_ID_MANUAL;
   copyCString(preset.name, SHOT_PRESET_NAME_CAPACITY,
-              single ? (adaptive ? "Single \xC2\xB7 Adaptive" : "Single \xC2\xB7 Fixed")
-                     : (adaptive ? "Double \xC2\xB7 Adaptive" : "Double \xC2\xB7 Fixed"));
+              manual   ? "Manual"
+              : single ? (adaptive ? "Single \xC2\xB7 Adaptive" : "Single \xC2\xB7 Fixed")
+                       : (adaptive ? "Double \xC2\xB7 Adaptive" : "Double \xC2\xB7 Fixed"));
   if (single) {
     preset.goalWeightDg = FACTORY_SINGLE_GOAL_WEIGHT_DG;
     preset.doseDg = FACTORY_SINGLE_DOSE_DG;
@@ -33,18 +36,21 @@ inline void fillFactoryShotPreset(ShotPreset &preset, uint8_t id) {
     preset.weightOffsetBaselineG = FACTORY_SINGLE_WEIGHT_OFFSET_G;
     preset.bbwEwmaOffsetG = FACTORY_SINGLE_WEIGHT_OFFSET_G;
   }
-  // Fixed presets keep their margins stored but always stop at the target.
+  // Fixed presets keep their margins stored but always stop at the target;
+  // Manual keeps the Double recipe but never stops by weight.
   preset.fastSideEnabled = adaptive;
   preset.slowSideEnabled = adaptive;
+  preset.brewByWeight = !manual;
 }
 
 inline void seedDefaultShotPresetBank(ShotPresetBank &bank) {
   bank = ShotPresetBank{};
-  bank.count = FACTORY_PRESET_COUNT;
+  bank.count = FACTORY_PRESET_COUNT + 1;
   bank.activeId = FACTORY_PRESET_ID_DOUBLE_ADAPTIVE;
   bank.nextId = FACTORY_PRESET_COUNT + 1;
   for (uint8_t i = 0; i < FACTORY_PRESET_COUNT; ++i)
     fillFactoryShotPreset(bank.presets[i], static_cast<uint8_t>(i + 1));
+  fillFactoryShotPreset(bank.presets[FACTORY_PRESET_COUNT], FACTORY_PRESET_ID_MANUAL);
 }
 
 inline int findShotPresetIndex(const ShotPresetBank &bank, uint8_t id) {
@@ -220,6 +226,23 @@ inline void ensureShotPresetBank(ShotPresetBank &bank,
     // Last resort only when structurally irreparable.
     seedDefaultShotPresetBank(bank);
   }
+}
+
+// Boot-time upgrade for banks saved before Manual existed. Appends it when a
+// slot is free and neither its id nor the name "Manual" is taken; a skipped
+// bank retries on the next boot.
+inline void addMissingManualShotPreset(ShotPresetBank &bank) {
+  if (bank.count >= MAX_SHOT_PRESETS ||
+      findShotPresetIndex(bank, FACTORY_PRESET_ID_MANUAL) >= 0) {
+    return;
+  }
+  ShotPreset &slot = bank.presets[bank.count];
+  fillFactoryShotPreset(slot, FACTORY_PRESET_ID_MANUAL);
+  if (shotPresetNameExists(bank, slot.name, 0)) {
+    slot = ShotPreset{};
+    return;
+  }
+  ++bank.count;
 }
 
 inline const ShotPreset &activeShotPreset(const ShotPresetBank &bank) {
@@ -500,7 +523,7 @@ inline bool deleteShotPreset(ShotPresetBank &bank, uint8_t id) {
   if (index < 0) {
     return false;
   }
-  // The four factory presets are permanent slots — edit or restore only.
+  // Factory presets are permanent slots — edit or restore only.
   if (bank.presets[index].isFactory || factoryShotPresetId(id)) {
     return false;
   }

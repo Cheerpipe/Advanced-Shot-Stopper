@@ -978,14 +978,18 @@ enum class ConfigValidationError : uint8_t {
 
 constexpr size_t MAX_SHOT_PRESETS = 8;
 constexpr size_t SHOT_PRESET_NAME_CAPACITY = 24;
-// Four permanent factory presets (Restore available, never deletable).
+// Permanent factory presets (Restore available, never deletable): ids 1–4 and
+// Manual. Manual uses a reserved id because user presets are allocated from 5
+// and shot history is keyed by preset id.
 constexpr uint8_t FACTORY_PRESET_ID_DOUBLE_ADAPTIVE = 1;
 constexpr uint8_t FACTORY_PRESET_ID_SINGLE_ADAPTIVE = 2;
 constexpr uint8_t FACTORY_PRESET_ID_DOUBLE_FIXED = 3;
 constexpr uint8_t FACTORY_PRESET_ID_SINGLE_FIXED = 4;
 constexpr uint8_t FACTORY_PRESET_COUNT = 4;
+constexpr uint8_t FACTORY_PRESET_ID_MANUAL = 255;
 inline bool factoryShotPresetId(uint8_t id) {
-  return id >= 1 && id <= FACTORY_PRESET_COUNT;
+  return (id >= 1 && id <= FACTORY_PRESET_COUNT) ||
+         id == FACTORY_PRESET_ID_MANUAL;
 }
 constexpr float FACTORY_SINGLE_WEIGHT_OFFSET_G = 0.5f;
 constexpr uint16_t FACTORY_SINGLE_GOAL_WEIGHT_DG = 180;

@@ -4489,6 +4489,7 @@ function brewRatio(yieldG, doseG) {
   return yieldG > 0 && doseG > 0 ? (yieldG / doseG).toFixed(1) : "?";
 }
 function presetBadge(p) {
+  if (!p.brewByWeight) return __WEBUI_TEXT__("runtime.manual");
   return p.fastExtractionGuardEnabled || p.slowExtractionGuardEnabled
     ? __WEBUI_TEXT__("runtime.badge_adaptive")
     : __WEBUI_TEXT__("runtime.badge_fixed");

@@ -164,13 +164,17 @@ Returns a bounded snapshot:
   {"id":1,"name":"Double · Adaptive","isFactory":true},
   {"id":2,"name":"Single · Adaptive","isFactory":true},
   {"id":3,"name":"Double · Fixed","isFactory":true},
-  {"id":4,"name":"Single · Fixed","isFactory":true}
+  {"id":4,"name":"Single · Fixed","isFactory":true},
+  {"id":255,"name":"Manual","isFactory":true}
 ]}
 ```
 
 Preset IDs are stable while an item exists and names are unique. A fresh or
-factory-reset controller has the four factory presets above (ids 1–4), which can
-be restored but not deleted.
+factory-reset controller has the five factory presets above (ids 1–4 and 255),
+which can be restored but not deleted. User presets never receive a factory id.
+Manual (id 255) has brew by weight off. A controller updated from earlier
+firmware appends it on restart when a slot is free and no preset is named
+"Manual".
 
 ### `PUT /api/v1/integration/presets/active`
 

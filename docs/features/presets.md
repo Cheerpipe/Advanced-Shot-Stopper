@@ -1,14 +1,16 @@
 # Presets
 
-Presets store brew recipes. A new controller comes with four factory presets:
-**Double · Adaptive** (active), **Single · Adaptive**, **Double · Fixed** and
-**Single · Fixed**. Adaptive presets run fast shots a little longer and stop
-slow shots a little sooner; Fixed presets always stop at the target (see
-[Fast and slow shots](fast-and-slow-shots.md)).
+Presets store brew recipes. A new controller comes with five factory presets:
+**Double · Adaptive** (active), **Single · Adaptive**, **Double · Fixed**,
+**Single · Fixed** and **Manual**. Adaptive presets run fast shots a little
+longer and stop slow shots a little sooner; Fixed presets always stop at the
+target (see [Fast and slow shots](fast-and-slow-shots.md)). **Manual** never
+stops the shot for you: pick it when you want to end each shot yourself, then
+switch back to a brewing preset to stop by weight again.
 
 Open **Settings → Presets** while the machine is idle. The preset actions sit
 in a bar above the list (see [Preset actions](#preset-actions)). Each preset appears as a
-card with its name, an **Adaptive** or **Fixed** badge, and a summary such as
+card with its name, an **Adaptive**, **Fixed** or **Manual** badge, and a summary such as
 **18 → 36 g · 1:2.0 · 27–36 s** (dose, target yield, ratio and shot time
 window). Tap a card to use and review it. Below the cards, **How this preset
 cuts** draws the preset's cut line, and the editor groups its settings:
@@ -106,7 +108,7 @@ afterwards shows the normal Home.
 
 Duplicate names receive a suffix, such as "Espresso copy 2"; long names are
 shortened so the suffix fits. You can keep up to eight presets in total, the
-four factory presets included. Once you have eight, New
+five factory presets included. Once you have eight, New
 and Duplicate stop creating cards — delete one of your own presets to make room
 for a new one. Factory presets can be restored but not deleted. The active
 preset survives reboot.
@@ -157,8 +159,22 @@ reported only after the Micra dashboard confirms the same temperature.
 All four start with brew by weight and grind hints on, Max shot time 50 s,
 Earliest weight stop 12 s, and no fixed scale-loss stop time. The Fixed
 presets keep their fast and slow amounts saved but switched off, so they always
-stop at the target — useful while dialing in a new coffee. The four factory
-presets can be returned to these values with **Restore** but never deleted.
+stop at the target — useful while dialing in a new coffee.
+
+**Manual** keeps the Double · Adaptive values, but brew by weight, Extend fast
+shots and Shorten slow shots are off, so the shot runs until you stop it. Its
+card still shows the Double recipe for reference. Protections such as cup
+protection belong to the whole controller, not to a preset, so choosing Manual
+does not change them.
+
+Every factory preset, Manual included, can be returned to these values with
+**Restore** but never deleted.
+
+If you update a controller that already has presets, Manual appears at the
+end of your list after the update restarts it. It is added only when there is
+a free slot and none of your presets is already called "Manual"; otherwise
+your list stays as it is, and Manual appears after a later restart once a slot
+is free and the name is available.
 
 Learning follows the preset. New and factory recipes seed the offset from
 the table above and use current/base α=0.30. Duplicating a preset copies the
