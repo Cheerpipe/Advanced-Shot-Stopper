@@ -117,7 +117,7 @@ preset survives reboot.
 | --- | --- |
 | Preset (**Settings → Presets**) | Brew by weight, dose, target yield, shot time window, grind hints, fast and slow shot options and amounts, earliest weight stop, max shot time, the optional scale-loss stop time, starting drip and learning speed, learned drip, learning speed and its provenance, and the preset's shot statistics; Linea Micra builds also retain a brew-boiler target |
 | **Shared settings** | Linea Micra, paddle or switch behavior, quick rinse, scales, tare, cup detection, cup protection (including avoid accidental touch and stop after sustained weight), No-scale BBW, the scale-loss backup switch, alerts; Bluetooth and network settings are in Admin |
-| Home Assistant switches | **Extend fast shots** and **Shorten slow shots** are saved in the active preset only. **No-scale BBW**, **Scale-loss backup**, **Avoid accidental touch** and **Cup protection** change the shared setting for every preset. |
+| Header panel / Home Assistant switches | Temporary: **By weight / Manual** and the six guards change only until you pick another preset or restart. Nothing is saved to the preset or to Settings, and picking a preset brings back its saved values. |
 
 To make an intentional recipe change permanent, edit and save it in Settings;
 the target weight alone can also be set from Home as described above.

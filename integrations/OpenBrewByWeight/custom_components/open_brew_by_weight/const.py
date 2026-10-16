@@ -3,7 +3,7 @@
 import re
 
 DOMAIN = "open_brew_by_weight"
-PLATFORMS = ["sensor", "binary_sensor", "select", "switch", "button"]
+PLATFORMS = ["sensor", "select", "switch", "button"]
 CONF_DEVICE_ID = "device_id"
 CONF_WEBHOOK_ID = "webhook_id"
 API_VERSION = 1

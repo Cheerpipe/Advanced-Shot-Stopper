@@ -38,6 +38,8 @@ void valid_quick_settings_map_exactly() {
     QuickSettingField field;
     uint8_t value;
   } cases[] = {
+      {R"({"baseRevision":7,"brewByWeight":false})",
+       QuickSettingField::BREW_BY_WEIGHT, 0},
       {R"({"baseRevision":7,"noScaleBbwMode":"require_scale"})",
        QuickSettingField::NO_SCALE_BBW_MODE,
        static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE)},
@@ -64,8 +66,7 @@ void valid_quick_settings_map_exactly() {
 void malformed_quick_settings_fail_closed() {
   const char *cases[] = {
       "{}",
-      // Stop mode belongs to the active preset; the session switch is retired.
-      R"({"baseRevision":7,"brewByWeight":true})",
+      R"({"baseRevision":7,"brewByWeight":1})",
       R"({"baseRevision":7})",
       R"({"baseRevision":7,"autoToManualGuardEnabled":true,"cupProtectionEnabled":true})",
       R"({"baseRevision":7,"cupProtectionEnabled":true,"extra":false})",

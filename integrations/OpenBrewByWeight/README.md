@@ -2,9 +2,8 @@
 
 This HACS custom integration connects Home Assistant 2026.9 or newer to one
 Open Brew by Weight controller over the local network. It provides live shot
-state, controller-restored shot measurements, durable preset selection, a
-read-only Brew by weight state, six protection switches, and a safe restart
-button. It never starts or
+state, controller-restored shot measurements, durable preset selection, seven
+Home Quick Settings switches, and a safe restart button. It never starts or
 stops the espresso machine.
 
 ## Install
@@ -37,9 +36,9 @@ webhook ID is not included in entities or diagnostics.
 - Last completed and last qualifying-good shot values: duration, final and
   target weight, average flow, first drop, type, stop detail, and preset name.
 - A non-optimistic **Active preset** select backed by stable preset IDs.
-- A read-only **Brew by weight** state that follows the active preset (choose
-  the **Manual** preset to stop shots by hand), six non-optimistic protection
-  switches, and a shot-safe **Restart Open Brew by Weight** button.
+- Seven non-optimistic Quick Settings switches that mirror the Web UI header
+  panel (temporary changes, reset by a preset change or restart) and a
+  shot-safe **Restart Open Brew by Weight** button.
 - Immediate webhook updates with bounded reconciliation after commands,
   revision gaps, controller startup, or runtime failure; no periodic polling.
 - Transactional address/webhook reconfiguration, redacted diagnostics, clean

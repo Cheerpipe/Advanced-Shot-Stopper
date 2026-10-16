@@ -15,12 +15,14 @@ const RuntimeSettingsSubscription runtimeSettingsSubscribers[] = {
 #ifndef SHOT_STOPPER_HOST_TEST
     {ShotStopperNetwork::ntpSettingsChanged,
      [](const RuntimeConfig &, const RuntimeConfig &after) {
-       networkManager.syncLiveRuntime(after, &presetBank, true);
+       networkManager.syncLiveRuntime(
+           overlaySessionQuickSettings(sessionQuickSettings, after, true), &presetBank, true);
      }},
     {[](const RuntimeConfig &a, const RuntimeConfig &b) {
        return !ShotStopperNetwork::ntpSettingsChanged(a, b);
      }, [](const RuntimeConfig &, const RuntimeConfig &after) {
-       networkManager.syncLiveRuntime(after, &presetBank, false);
+       networkManager.syncLiveRuntime(
+           overlaySessionQuickSettings(sessionQuickSettings, after, true), &presetBank, false);
      }},
 #endif
     {[](const RuntimeConfig &a, const RuntimeConfig &b) {

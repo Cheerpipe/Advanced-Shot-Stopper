@@ -9,7 +9,8 @@ Fast shots are often a grind that is too coarse, slow shots a grind that is too
 fine. On the Adaptive presets, ShotStopper softens both: a fast shot runs a few
 grams longer, and a slow shot stops a few grams sooner. This cannot guarantee a
 better-tasting cup; use a Fixed preset, or turn both options off, to always stop
-at the target.
+at the target. To skip them for a few shots without changing the preset, turn
+them off in the header's [guard panel](brew-by-weight.md#change-how-shots-stop-for-now).
 
 ## When it applies
 

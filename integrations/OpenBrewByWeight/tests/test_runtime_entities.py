@@ -6,25 +6,17 @@ import asyncio
 import json
 from dataclasses import replace
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant.const import EntityCategory
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.open_brew_by_weight.api import CannotConnect, RequestRejected
-from custom_components.open_brew_by_weight.binary_sensor import (
-    async_setup_entry as async_setup_binary_sensors,
-)
 from custom_components.open_brew_by_weight.button import RestartButton
-from custom_components.open_brew_by_weight.const import (
-    ACTIVATION_TYPES,
-    DOMAIN,
-    STOP_DETAILS,
-)
+from custom_components.open_brew_by_weight.const import ACTIVATION_TYPES, STOP_DETAILS
 from custom_components.open_brew_by_weight.coordinator import (
     OpenBrewByWeightCoordinator,
 )
@@ -615,8 +607,7 @@ async def test_switches_and_restart_button(hass) -> None:
     coordinator, api, _entry = _coordinator(hass)
     coordinator.async_confirmed_command = AsyncMock()
     switches = [QuickSettingSwitch(coordinator, item) for item in DESCRIPTIONS]
-    assert len(switches) == 6
-    assert "brew_by_weight" not in {item.entity_description.key for item in switches}
+    assert len(switches) == 7
     assert all(item.available for item in switches)
     assert all(item.is_on for item in switches)
     no_scale = next(
@@ -634,6 +625,12 @@ async def test_switches_and_restart_button(hass) -> None:
         "noScaleBbwMode", "warn_once", 19
     )
 
+    brew = switches[0]
+    await brew.async_turn_off()
+    command = coordinator.async_confirmed_command.await_args.args[0]
+    await command()
+    api.async_set_quick_setting.assert_awaited_with("brewByWeight", False, 19)
+
     button = RestartButton(coordinator)
     assert button.unique_id.endswith("_restart")
     await button.async_press()
@@ -641,36 +638,9 @@ async def test_switches_and_restart_button(hass) -> None:
 
     coordinator.async_confirmed_command.side_effect = RequestRejected("FAILED", 500)
     with pytest.raises(HomeAssistantError):
-        await no_scale.async_turn_on()
+        await brew.async_turn_on()
     with pytest.raises(HomeAssistantError):
         await button.async_press()
-
-
-async def test_brew_by_weight_is_read_only_and_retires_the_switch(hass) -> None:
-    """Stop mode follows the active preset; the former switch leaves the registry."""
-    coordinator, _api, entry = _coordinator(hass)
-    entry.add_to_hass(hass)
-    entry.runtime_data = MagicMock(coordinator=coordinator)
-    registry = er.async_get(hass)
-    retired = registry.async_get_or_create(
-        "switch",
-        DOMAIN,
-        f"{coordinator.data.snapshot.device_id}_brew_by_weight",
-        config_entry=entry,
-    )
-    add = MagicMock()
-    await async_setup_binary_sensors(hass, entry, add)
-    assert registry.async_get(retired.entity_id) is None
-    sensor = add.call_args.args[0][0]
-    assert sensor.is_on
-    quick = replace(coordinator.data.snapshot.quick_settings, brew_by_weight=False)
-    coordinator.async_set_updated_data(
-        replace(
-            coordinator.data,
-            snapshot=replace(coordinator.data.snapshot, quick_settings=quick),
-        )
-    )
-    assert not sensor.is_on
 
 
 async def test_switch_availability_matches_home_quick_settings(hass) -> None:
@@ -688,6 +658,7 @@ async def test_switch_availability_matches_home_quick_settings(hass) -> None:
         item.entity_description.key: item.available for item in switches
     }
     assert availability == {
+        "brew_by_weight": True,
         "no_scale_bbw": False,
         "auto_to_manual_guard": False,
         "slow_extraction_guard": False,

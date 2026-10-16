@@ -274,6 +274,8 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   runtimePersistFailed = false;
   pendingPresetPersistence = {};
   quickSettingsPersistPending = false;
+  sessionQuickSettings = SessionQuickSettings{};
+  runtimePersistRevision = 0;
   runtimePersistRetryAtMs = 0;
   runtimePersistIoRetryMs = 0;
   runtimePersistReasonBits = 0;
@@ -13621,7 +13623,7 @@ void w90c_preset_temperature_presence_and_learning_invalidation() {
   CHECK(hostMachineTemperatureRequestCount == 1);
 }
 
-void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
+void hq01_quick_settings_are_session_only() {
   resetHarness(false, false);
   reachReadyFromBoot();
   runtimeConfig.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
@@ -13632,12 +13634,15 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   runtimeConfig.avoidAccidentalTouchEnabled = true;
   runtimeConfig.cupProtectionEnabled = true;
   applyShotPresetToConfig(initialPreset, runtimeConfig);
-  const uint16_t goal = runtimeConfig.goalWeightDg;
-  const float learnedOffset = activeShotPreset(presetBank).bbwEwmaOffsetG;
+  const RuntimeConfig saved = runtimeConfig;
+  const ShotPreset savedPreset = activeShotPreset(presetBank);
+  const uint32_t persistAttempts = hostRuntimePersistAttempts;
+  const uint32_t webhookCount = hostQuickSettingsWebhookCount;
   const struct {
     QuickSettingField field;
     uint8_t value;
   } changes[] = {
+      {QuickSettingField::BREW_BY_WEIGHT, 0},
       {QuickSettingField::NO_SCALE_BBW_MODE,
        static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE)},
       {QuickSettingField::AUTO_TO_MANUAL_GUARD, 0},
@@ -13657,36 +13662,63 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
     const uint32_t previousRevision = runtimeConfig.revision;
     processWebCommand(command);
     CHECK(runtimeConfig.revision == previousRevision + 1);
-    CHECK(pendingPresetPersistence.requestId == command.requestId);
-    runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
+    CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::PERSISTED);
     CHECK(pendingPresetPersistence.requestId == 0);
+    CHECK(!runtimePersistPending);
+    runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
   }
-  CHECK(!runtimeConfig.timerOnly);
+  // Live everywhere the shot reads it, mirrored to integrations, never saved.
+  const RuntimeConfig effective = effectiveRuntimeConfig();
+  CHECK(runtimeConfig.timerOnly && effective.timerOnly);
+  CHECK(!effective.fastSideEnabled && !effective.slowSideEnabled);
   CHECK(noScaleBbwModeValue(runtimeConfig.noScaleBbwMode) ==
         static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE));
   CHECK(idleAccessoryRetareEnabled(runtimeConfig.noScaleBbwMode));
   CHECK(!runtimeConfig.scaleLossEnabled);
-  CHECK(!runtimeConfig.slowSideEnabled);
-  CHECK(!runtimeConfig.fastSideEnabled);
   CHECK(!runtimeConfig.avoidAccidentalTouchEnabled);
   CHECK(!runtimeConfig.cupProtectionEnabled);
-  CHECK(runtimeConfig.goalWeightDg == goal);
-  CHECK(activeShotPreset(presetBank).bbwEwmaOffsetG == learnedOffset);
+  RecipeSnapshot recipe;
+  copyRecipeSnapshot(&recipe);
+  const QuickSettingsSnapshot mirrored = quickSettingsSnapshot(recipe);
+  CHECK(!mirrored.brewByWeight && !mirrored.cupProtectionEnabled);
+  RuntimeConfig published;
+  copyRuntimeConfig(&published);
+  CHECK(!published.timerOnly && published.cupProtectionEnabled &&
+        published.scaleLossEnabled);
+  CHECK(hostRuntimePersistAttempts == persistAttempts);
+  CHECK(hostQuickSettingsWebhookCount == webhookCount + 7);
+  CHECK(activeShotPreset(presetBank).brewByWeight == savedPreset.brewByWeight);
+  CHECK(activeShotPreset(presetBank).fastSideEnabled);
+  CHECK(activeShotPreset(presetBank).slowSideEnabled);
 
-  // Stop mode belongs to the active preset: the retired session switch is refused.
-  WebCommand retired;
-  retired.type = WebCommandType::QUICK_SETTING;
-  retired.requestId = requestId++;
-  retired.config.revision = runtimeConfig.revision;
-  retired.presetAction = static_cast<uint8_t>(QuickSettingField::BREW_BY_WEIGHT);
-  retired.presetId = 0;
-  processWebCommand(retired);
-  CHECK(!runtimeConfig.timerOnly);
-  CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::FAILED);
+  // An unrelated persisted change flushes the saved values, overrides stay live.
+  RuntimeConfig unrelated = runtimeConfig;
+  unrelated.dripDelayMs += 100;
+  unrelated.revision = runtimeConfig.revision + 1;
+  commitLiveRuntimeConfig(unrelated, RUNTIME_PERSIST_REASON_USER);
+  runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
+  CHECK(hostRuntimePersistAttempts == persistAttempts + 1);
+  CHECK(hostLastFlushedRuntime.cupProtectionEnabled == saved.cupProtectionEnabled);
+  CHECK(hostLastFlushedRuntime.noScaleBbwMode == saved.noScaleBbwMode);
+  CHECK(hostLastFlushedRuntime.timerOnly == saved.timerOnly);
+  CHECK(!runtimeConfig.cupProtectionEnabled && runtimeConfig.timerOnly);
+
+  // A Settings edit built on the saved config replaces only the field it changed.
+  RuntimeConfig incoming = published;
+  incoming.cupProtectionEnabled = false;
+  RuntimeConfig edited = runtimeConfig;
+  edited.cupProtectionEnabled = incoming.cupProtectionEnabled;
+  edited.avoidAccidentalTouchEnabled = incoming.avoidAccidentalTouchEnabled;
+  edited.revision = runtimeConfig.revision + 1;
+  commitLiveRuntimeConfig(edited, RUNTIME_PERSIST_REASON_USER, &incoming);
+  runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
+  CHECK(!hostLastFlushedRuntime.cupProtectionEnabled);
+  CHECK(hostLastFlushedRuntime.avoidAccidentalTouchEnabled);
+  CHECK(!runtimeConfig.avoidAccidentalTouchEnabled);
 
   WebCommand stale;
   stale.type = WebCommandType::QUICK_SETTING;
-  stale.requestId = requestId;
+  stale.requestId = ++requestId;
   stale.config.revision = runtimeConfig.revision - 1;
   stale.presetAction = static_cast<uint8_t>(QuickSettingField::CUP_PROTECTION);
   stale.presetId = 1;
@@ -13698,11 +13730,10 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   unchanged.requestId = ++requestId;
   unchanged.config.revision = runtimeConfig.revision;
   unchanged.presetId = 0;
+  const uint32_t unchangedRevision = runtimeConfig.revision;
   processWebCommand(unchanged);
-  CHECK(!runtimeConfig.cupProtectionEnabled);
-  CHECK(pendingPresetPersistence.requestId == 0);
-  CHECK(hostLastForwardedNetworkCommand.resultState ==
-        CommandResultState::PERSISTED);
+  CHECK(runtimeConfig.revision == unchangedRevision);
+  CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::PERSISTED);
 
   session.active = true;
   WebCommand active = unchanged;
@@ -13710,29 +13741,19 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   active.presetId = 1;
   processWebCommand(active);
   CHECK(!runtimeConfig.cupProtectionEnabled);
-  CHECK(pendingPresetPersistence.requestId == 0);
   CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::FAILED);
-
   session.active = false;
-  WebCommand delayed;
-  delayed.type = WebCommandType::QUICK_SETTING;
-  delayed.requestId = ++requestId;
-  delayed.config.revision = runtimeConfig.revision;
-  delayed.presetAction = static_cast<uint8_t>(QuickSettingField::CUP_PROTECTION);
-  delayed.presetId = 1;
-  const uint32_t webhookCount = hostQuickSettingsWebhookCount;
-  hostRuntimePersistSucceeds = false;
-  processWebCommand(delayed);
-  CHECK(quickSettingsPersistPending);
-  CHECK(hostQuickSettingsWebhookCount == webhookCount);
-  runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
-  CHECK(runtimePersistFailed);
-  CHECK(quickSettingsPersistPending);
-  CHECK(hostQuickSettingsWebhookCount == webhookCount);
-  hostRuntimePersistSucceeds = true;
-  runLoopAfter(RUNTIME_PERSIST_RETRY_MS + 1);
-  CHECK(!quickSettingsPersistPending);
-  CHECK(hostQuickSettingsWebhookCount == webhookCount + 1);
+
+  // Switching presets restores every saved value.
+  presetBank.activeId = presetBank.presets[1].id;
+  RuntimeConfig switched = composeEffectiveConfig(runtimeConfig, presetBank);
+  switched.revision = runtimeConfig.revision + 1;
+  commitLiveRuntimeConfig(switched, RUNTIME_PERSIST_REASON_USER);
+  CHECK(sessionQuickSettings.mask == 0);
+  CHECK(runtimeConfig.timerOnly == !activeShotPreset(presetBank).brewByWeight);
+  CHECK(runtimeConfig.scaleLossEnabled == saved.scaleLossEnabled);
+  CHECK(runtimeConfig.avoidAccidentalTouchEnabled == saved.avoidAccidentalTouchEnabled);
+  CHECK(runtimeConfig.noScaleBbwMode == saved.noScaleBbwMode);
 }
 
 void s20_last_good_shot_advances_independently() {
@@ -21445,7 +21466,7 @@ const TestCase testCases[] = {
     {"W90b", w91_preset_persistence_serializes_and_survives_retry},
     {"W90c", w90c_preset_temperature_presence_and_learning_invalidation},
     {"W87c", w87c_runtime_persist_io_backoff_is_bounded_and_resets},
-    {"HQ01", hq01_quick_settings_are_revisioned_and_preserve_recipe_fields},
+    {"HQ01", hq01_quick_settings_are_session_only},
     {"S03", s03_shot_log_clear_empties_records},
     {"S03B", s03b_good_shot_records_stats_and_history},
     {"S03C", s03c_short_activation_is_other_in_history_only},

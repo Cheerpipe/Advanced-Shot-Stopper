@@ -281,7 +281,7 @@ void processWebCommand(const WebCommand &command) {
         for (uint8_t i = 0; i < presetBank.count; ++i)
           bbwLearningBank.invalidate(presetBank.presets[i].id, presetBank);
       }
-      commitLiveRuntimeConfig(composed, RUNTIME_PERSIST_REASON_USER);
+      commitLiveRuntimeConfig(composed, RUNTIME_PERSIST_REASON_USER, &command.config);
       if (command.preferredScaleSpecified) {
         selectPreferredScale(command.preferredScaleMac, nullptr);
         servicePreferredScaleMacPersistence();
@@ -299,81 +299,39 @@ void processWebCommand(const WebCommand &command) {
     }
 
     case WebCommandType::QUICK_SETTING: {
+      // Home Quick Settings are session-only overrides: applied live, never
+      // written to flash or the preset (see SessionQuickSettings).
       if (pendingPresetPersistence.requestId != 0 ||
           !persistentConfigurationMutationAllowed(command) ||
           command.config.revision != runtimeConfig.revision) {
         rejectWebCommand(command);
         return;
       }
-      RecipeSnapshot before;
-      before.presets = presetBank;
-      before.runtime = runtimeConfig;
-      RuntimeConfig candidateRuntime = runtimeConfig;
-      ShotPresetBank candidateBank = presetBank;
-      ShotPreset &preset = mutableActiveShotPreset(candidateBank);
       const auto quickField = static_cast<QuickSettingField>(command.presetAction);
-      const bool enabled = command.presetId != 0;
       if (quickField > QuickSettingField::CUP_PROTECTION ||
-          (quickField != QuickSettingField::NO_SCALE_BBW_MODE &&
-           command.presetId > 1)) {
+          command.presetId > (quickField == QuickSettingField::NO_SCALE_BBW_MODE
+                                  ? static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE)
+                                  : 1)) {
         rejectWebCommand(command);
         return;
       }
-      switch (quickField) {
-        case QuickSettingField::BREW_BY_WEIGHT:
-          // Stop mode belongs to the active preset; there is no session Manual.
+      if (quickSettingValue(runtimeConfig, quickField) != command.presetId) {
+        RuntimeConfig candidate = runtimeConfig;
+        SessionQuickSettings session = sessionQuickSettings;
+        setSessionQuickSetting(session, presetBank.activeId, candidate, quickField,
+                               command.presetId);
+        if (validateRuntimeConfig(candidate) != ConfigValidationError::NONE) {
           rejectWebCommand(command);
           return;
-        case QuickSettingField::NO_SCALE_BBW_MODE:
-          if (command.presetId >
-              static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE)) {
-            rejectWebCommand(command);
-            return;
-          }
-          candidateRuntime.noScaleBbwMode = packNoScaleBbwMode(
-              command.presetId,
-              noScaleAllowRinseWhileArmed(candidateRuntime.noScaleBbwMode)) |
-              (candidateRuntime.noScaleBbwMode & IDLE_ACCESSORY_RETARE);
-          break;
-        case QuickSettingField::AUTO_TO_MANUAL_GUARD:
-          candidateRuntime.scaleLossEnabled = enabled;
-          break;
-        case QuickSettingField::SLOW_EXTRACTION_GUARD:
-          preset.slowSideEnabled = enabled;
-          break;
-        case QuickSettingField::FAST_EXTRACTION_GUARD:
-          preset.fastSideEnabled = enabled;
-          break;
-        case QuickSettingField::AVOID_ACCIDENTAL_TOUCH:
-          candidateRuntime.avoidAccidentalTouchEnabled = enabled;
-          break;
-        case QuickSettingField::CUP_PROTECTION:
-          candidateRuntime.cupProtectionEnabled = enabled;
-          break;
+        }
+        sessionQuickSettings = session;
+        candidate.revision = runtimeConfig.revision + 1;
+        if (candidate.revision == 0) candidate.revision = 1;
+        commitLiveRuntimeConfig(candidate, 0);
+        queueWebhookQuickSettingsChanged();
       }
-      RuntimeConfig composed = composeEffectiveConfig(candidateRuntime, candidateBank);
-      if (validateRuntimeConfig(composed) != ConfigValidationError::NONE ||
-          !validateShotPresetBank(candidateBank, candidateRuntime.retareWindowMs,
-                                  candidateRuntime.autoRetare)) {
-        rejectWebCommand(command);
-        return;
-      }
-      RecipeSnapshot after;
-      after.presets = candidateBank;
-      after.runtime = composed;
-      if (quickSettingsEqual(quickSettingsSnapshot(before),
-                             quickSettingsSnapshot(after))) {
-        reportControlCommandResult(command, CommandResultState::PERSISTED);
-        return;
-      }
-      presetBank = candidateBank;
-      composed.revision = runtimeConfig.revision + 1;
-      if (composed.revision == 0) composed.revision = 1;
-      commitLiveRuntimeConfig(composed, RUNTIME_PERSIST_REASON_USER);
-      quickSettingsPersistPending = true;
-      pendingPresetPersistence = {command.requestId, composed.revision, false,
-                                  false};
-      reportControlCommandResult(command, CommandResultState::APPLIED);
+      // Nothing to save: the change is complete once it is live.
+      reportControlCommandResult(command, CommandResultState::PERSISTED);
       return;
     }
 

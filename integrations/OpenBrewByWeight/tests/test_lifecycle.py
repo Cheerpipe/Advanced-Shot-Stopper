@@ -7,14 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 
 from custom_components.open_brew_by_weight import (
     async_remove_entry,
     async_setup_entry,
     async_unload_entry,
-)
-from custom_components.open_brew_by_weight.binary_sensor import (
-    async_setup_entry as async_setup_binary_sensors,
 )
 from custom_components.open_brew_by_weight.button import (
     async_setup_entry as async_setup_button,
@@ -28,6 +26,8 @@ from custom_components.open_brew_by_weight.sensor import (
     async_setup_entry as async_setup_sensors,
 )
 from custom_components.open_brew_by_weight.switch import (
+    DESCRIPTIONS,
+    QuickSettingSwitch,
     async_setup_entry as async_setup_switches,
 )
 
@@ -195,11 +195,13 @@ async def test_platform_factories(hass) -> None:
     await async_setup_select(hass, entry, add)
     assert len(add.call_args.args[0]) == 1
     add.reset_mock()
-    await async_setup_binary_sensors(hass, entry, add)
-    assert len(add.call_args.args[0]) == 1
-    add.reset_mock()
+    registry = er.async_get(hass)
+    retired = registry.async_get_or_create(
+        "binary_sensor", DOMAIN, QuickSettingSwitch(runtime.coordinator, DESCRIPTIONS[0]).unique_id
+    )
     await async_setup_switches(hass, entry, add)
-    assert len(list(add.call_args.args[0])) == 6
+    assert len(list(add.call_args.args[0])) == 7
+    assert registry.async_get(retired.entity_id) is None
     add.reset_mock()
     await async_setup_button(hass, entry, add)
     assert len(add.call_args.args[0]) == 1

@@ -543,6 +543,7 @@ ControlGateSnapshot publishedControlGate;
 TaskMutex controlGateMutex;
 bool controlStatusPublishRequested = false;
 SHOT_STOPPER_PSRAM_BSS RuntimeConfig publishedRuntimeConfig;
+SessionQuickSettings publishedSessionQuickSettings;
 SHOT_STOPPER_PSRAM_BSS ShotPresetBank publishedPresetBank;
 TaskMutex recipeMutex;
 BootCapabilities bootCapabilities;
@@ -596,6 +597,11 @@ struct PendingPresetPersistence {
 };
 PendingPresetPersistence pendingPresetPersistence;
 bool quickSettingsPersistPending = false;
+// Control-task owned; RAM only by design (see SessionQuickSettings).
+SessionQuickSettings sessionQuickSettings;
+// Revision of the newest change that must reach flash; session-only
+// revisions advance runtimeConfig.revision without moving it.
+uint32_t runtimePersistRevision = 0;
 uint32_t runtimePersistRetryAtMs = 0;
 uint32_t runtimePersistIoRetryMs = 0;
 int32_t runtimePersistReasonBits = 0;
@@ -814,7 +820,8 @@ void publishLogLevels(LogLevel serialLevel, LogLevel ringLevel) {
 void completeMaintenanceLease(const WebCommand &result);
 void rejectWebCommand(const WebCommand &command);
 void queueRuntimePersist(int32_t reasonBits);
-void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits);
+void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits,
+                             const RuntimeConfig *savedEdit = nullptr);
 bool settingsPersistenceAvailable();
 void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs);
 
@@ -1054,7 +1061,8 @@ void persistLastShotSnapshot(const PersistedLastShot &snapshot) {
 }
 
 RuntimeConfig effectiveRuntimeConfig() {
-  return composeEffectiveConfig(runtimeConfig, presetBank);
+  return overlaySessionQuickSettings(sessionQuickSettings,
+                                     composeEffectiveConfig(runtimeConfig, presetBank));
 }
 
 void requestActivePresetMachineTemperature() {

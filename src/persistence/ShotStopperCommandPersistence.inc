@@ -235,7 +235,8 @@ bool enqueueWebCommand(const WebCommand &command) {
 
 void publishRecipeState() {
   TaskLockGuard lock(recipeMutex);
-  publishedRuntimeConfig = runtimeConfig;
+  publishedRuntimeConfig = overlaySessionQuickSettings(sessionQuickSettings, runtimeConfig, true);
+  publishedSessionQuickSettings = sessionQuickSettings;
   publishedPresetBank = presetBank;
 }
 
@@ -243,7 +244,7 @@ void copyRecipeSnapshot(RecipeSnapshot *out) {
   if (out == nullptr) return;
   TaskLockGuard lock(recipeMutex);
   out->presets = publishedPresetBank;
-  out->runtime = publishedRuntimeConfig;
+  out->runtime = overlaySessionQuickSettings(publishedSessionQuickSettings, publishedRuntimeConfig);
 }
 
 void copyPresetBank(ShotPresetBank *out) {
@@ -512,7 +513,7 @@ void serviceMaintenanceLease() {
         forwardedType == WebCommandType::RESET_DEVICE_PASSWORD ||
         forwardedType == WebCommandType::RESET_NETWORK_AP ||
         forwardedType == WebCommandType::RESTART) {
-      hostLastFlushedRuntime = runtimeConfig;
+      hostLastFlushedRuntime = overlaySessionQuickSettings(sessionQuickSettings, runtimeConfig, true);
       hostLastFlushedPresets = presetBank;
       hostLastFlushIncludedLive = true;
       ++hostRuntimePersistAttempts;
@@ -537,22 +538,28 @@ void serviceMaintenanceLease() {
 }
 
 void queueRuntimePersist(int32_t reasonBits) {
+  runtimePersistRevision = runtimeConfig.revision;
   runtimePersistPending = true;
   runtimePersistReasonBits |= reasonBits;
   runtimePersistIoRetryMs = 0;
   runtimePersistRetryAtMs = millis() + RUNTIME_PERSIST_DEBOUNCE_MS;
 }
 
-void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits) {
+// reasonBits == 0 commits a session-only change: live and published, never
+// queued for flash. savedEdit is the saved config a Settings edit was built on.
+void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits,
+                             const RuntimeConfig *savedEdit) {
   const RuntimeConfig previous = runtimeConfig;
   runtimeConfig = composed;
+  reconcileSessionQuickSettings(sessionQuickSettings, activeShotPreset(presetBank),
+                                savedEdit, runtimeConfig);
   dispatchRuntimeSettingsChanges(previous, runtimeConfig,
                                  runtimeSettingsSubscribers);
   addDebugEvent(DebugCategory::CONFIG, DebugCode::CONFIG_ACCEPTED,
                 static_cast<int32_t>(runtimeConfig.revision));
   scaleProfileNoteEvent(ScaleProfileEvent::SETTINGS_CHANGED, millis(), 0, 0,
                         NAN, runtimeConfig.revision, 0);
-  queueRuntimePersist(reasonBits);
+  if (reasonBits != 0) queueRuntimePersist(reasonBits);
   publishRecipeState();
 }
 
@@ -938,14 +945,14 @@ void serviceSettingsPersistResult() {
         runtimePersistReasonBits |= RUNTIME_PERSIST_REASON_SCALE_MAC;
       }
     }
-    if (runtimeConfig.revision != runtimeRevision) {
+    if (static_cast<int32_t>(runtimePersistRevision - runtimeRevision) > 0) {
       runtimePersistPending = true;
       runtimePersistIoRetryMs = 0;
       runtimePersistRetryAtMs = millis();
     } else if (!runtimePersistPending) {
       runtimePersistReasonBits = 0;
     }
-    if (runtimeConfig.revision == runtimeRevision &&
+    if (static_cast<int32_t>(runtimePersistRevision - runtimeRevision) <= 0 &&
         quickSettingsPersistPending) {
       quickSettingsPersistPending = false;
       queueWebhookQuickSettingsChanged();
@@ -978,7 +985,7 @@ bool dispatchSettingsPersist() {
   }
   SettingsPersistRequest &request = settingsPersistRequest;
   networkManager.copySettings(request.blob);
-  request.blob.runtime = runtimeConfig;
+  request.blob.runtime = overlaySessionQuickSettings(sessionQuickSettings, runtimeConfig, true);
   request.blob.bullseyeMelody = bullseyeMelodyConfig;
   request.blob.presets = presetBank;
   copyPreferredScaleMac(request.blob.preferredScaleMac,
@@ -1264,7 +1271,7 @@ void serviceRuntimePersistence(
     runtimePersistRetryAtMs = millis() + runtimePersistIoRetryMs;
     return;
   }
-  hostLastFlushedRuntime = runtimeConfig;
+  hostLastFlushedRuntime = overlaySessionQuickSettings(sessionQuickSettings, runtimeConfig, true);
   hostLastFlushedPresets = presetBank;
   hostLastFlushIncludedLive = true;
   runtimePersistPending = false;

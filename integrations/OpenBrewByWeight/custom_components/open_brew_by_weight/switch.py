@@ -1,4 +1,8 @@
-"""Protection Quick Settings switches for Open Brew by Weight."""
+"""Home Quick Settings switches for Open Brew by Weight.
+
+They mirror the Web UI header panel: changes are session-only on the
+controller, never saved to a preset, and reset on preset change or restart.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +12,7 @@ from homeassistant.components.switch import SwitchEntity, SwitchEntityDescriptio
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import ApiError
@@ -30,6 +35,13 @@ class QuickSettingDescription(SwitchEntityDescription):
 
 
 DESCRIPTIONS = (
+    QuickSettingDescription(
+        key="brew_by_weight",
+        translation_key="brew_by_weight",
+        api_field="brewByWeight",
+        state_field="brew_by_weight",
+        icon="mdi:scale",
+    ),
     QuickSettingDescription(
         key="no_scale_bbw",
         translation_key="no_scale_bbw",
@@ -88,9 +100,15 @@ async def async_setup_entry(
     entry: ConfigEntry[OpenBrewByWeightRuntimeData],
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Create all six confirmed-state switches."""
+    """Create all seven confirmed-state switches."""
     coordinator = entry.runtime_data.coordinator
-    async_add_entities(QuickSettingSwitch(coordinator, item) for item in DESCRIPTIONS)
+    switches = [QuickSettingSwitch(coordinator, item) for item in DESCRIPTIONS]
+    # Retire the read-only Brew by weight sensor an earlier release created.
+    registry = er.async_get(hass)
+    for switch in switches:
+        if retired := registry.async_get_entity_id("binary_sensor", DOMAIN, switch.unique_id or ""):
+            registry.async_remove(retired)
+    async_add_entities(switches)
 
 
 class QuickSettingSwitch(OpenBrewByWeightEntity, SwitchEntity):

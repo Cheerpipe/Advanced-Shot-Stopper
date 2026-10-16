@@ -186,19 +186,25 @@ candidate as confirmed.
 ### `PUT /api/v1/integration/quick-settings`
 
 Requires `baseRevision` plus exactly one setting. Boolean settings are
-`autoToManualGuardEnabled`, `slowExtractionGuardEnabled`,
+`brewByWeight`, `autoToManualGuardEnabled`, `slowExtractionGuardEnabled`,
 `fastExtractionGuardEnabled`, `avoidAccidentalTouchEnabled`, and
 `cupProtectionEnabled`; `noScaleBbwMode` accepts `off`, `warn_once`, or
 `require_scale`. Extra, duplicate, or incorrectly typed fields are rejected.
 
-`brewByWeight` is read-only: snapshots and webhooks report whether the active
-preset stops shots by weight. Select the Manual preset to stop shots by hand;
-a request that sets `brewByWeight` is rejected. `noScaleBbwMode`,
-`autoToManualGuardEnabled` (the scale-loss backup), `avoidAccidentalTouchEnabled`
-and `cupProtectionEnabled` change shared settings that apply to every preset.
-`fastExtractionGuardEnabled` and `slowExtractionGuardEnabled` change only the
-active preset's fast and slow sides. The durable confirmation and authoritative-refresh rules are identical
-to active-preset selection.
+These are the same session-only overrides as the Web UI header panel. A change
+applies to the next shot immediately and is never written to flash, a preset,
+or the shared settings: it lasts until the active preset changes or the
+controller restarts, which restores the saved values. `brewByWeight=false`
+stops shots manually for now without changing the preset. Snapshots and
+webhooks report the effective values, overrides included, so the Web UI and
+every integration show the same state. Overrides are refused during an active
+cycle. A later Settings save that changes the same shared setting, or an edit
+of the active preset's Brew by weight, fast or slow choice, replaces the
+override with the saved value.
+
+The command completes as soon as it is live, so its `lastCommand` reaches
+`PERSISTED` without a flash write; an unchanged value completes immediately.
+Authoritative-refresh rules are otherwise identical to active-preset selection.
 
 ### `POST /api/v1/integration/restart`
 
@@ -655,8 +661,10 @@ and contains `activeId`, monotonic `revision`, and the same bounded `items`
 array as the presets route. It is disabled for migrated webhook configurations
 and enabled explicitly by the native integration.
 
-`quick_settings_changed` is likewise emitted only after persistence. Its complete
-Quick Settings snapshot is flat in the event envelope:
+`quick_settings_changed` is emitted as soon as a session override is live, and
+after persistence when a saved change (a Settings save or a preset change)
+alters the effective values. Its complete Quick Settings snapshot is flat in
+the event envelope:
 
 ```json
 {

@@ -256,7 +256,121 @@ function updateHeaderSignals(s = {}) {
     if (detail) detail.textContent = label;
   }
 }
+// Home Quick Settings in the header mirror the Integration API (and Home
+// Assistant): every change is a session-only override on the controller.
+const QUICK_GUARDS = [
+  "fastExtractionGuardEnabled",
+  "slowExtractionGuardEnabled",
+  "noScaleBbwMode",
+  "autoToManualGuardEnabled",
+  "avoidAccidentalTouchEnabled",
+  "cupProtectionEnabled",
+];
+const QUICK_ICONS = {
+  weight: "M12 4v16M6 20h12M5 7h14M5 7l-3 6.5a3 3 0 0 0 6 0zM19 7l-3 6.5a3 3 0 0 0 6 0z",
+  hand: "M8 13V6a1.5 1.5 0 0 1 3 0v5M11 10.5V4.5a1.5 1.5 0 0 1 3 0V11M14 10.5V6a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7 6 6 0 0 1-5.2-3L3 14.5a1.5 1.5 0 0 1 2.5-1.6L8 15",
+  shield: "M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6z",
+  fastExtractionGuardEnabled: "M13 3 5 14h6l-1 7 8-11h-6z",
+  slowExtractionGuardEnabled: "M7 3h10M7 21h10M8 3v3l4 6-4 6v3M16 3v3l-4 6 4 6v3",
+  noScaleBbwMode: "M4 19h16l-2.2-9H6.2zM12 10V5M9 5h6",
+  autoToManualGuardEnabled: "M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5M12 8v4l3 2",
+  avoidAccidentalTouchEnabled:
+    "M9 12V5.5a1.5 1.5 0 0 1 3 0V12M12 11V9.5a1.5 1.5 0 0 1 3 0V12M15 11.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L4 15a1.5 1.5 0 0 1 2.5-1.6L9 16",
+  cupProtectionEnabled: "M5 9h11v4a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10.5h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5v2.5M11.5 3.5v2.5",
+};
+const quickIcon = (k, cls = "") =>
+  `<svg class="qsI ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${QUICK_ICONS[k]}"/></svg>`;
+function buildQuickSettings() {
+  const names = {
+      fastExtractionGuardEnabled: __WEBUI_TEXT__("runtime.quick_extend_fast_shots"),
+      slowExtractionGuardEnabled: __WEBUI_TEXT__("runtime.quick_shorten_slow_shots"),
+      noScaleBbwMode: __WEBUI_TEXT__("runtime.quick_scale_guard"),
+      autoToManualGuardEnabled: __WEBUI_TEXT__("runtime.quick_scale_loss_backup"),
+      avoidAccidentalTouchEnabled: __WEBUI_TEXT__("runtime.quick_avoid_accidental_touch"),
+      cupProtectionEnabled: __WEBUI_TEXT__("runtime.quick_cup_protection"),
+    },
+    modes = quickIcon("weight", "qsW") + quickIcon("hand", "qsM"),
+    mode = (value, icon, name, hint) =>
+      `<button type="button" role="radio" data-quick="brewByWeight" data-value="${value}">${quickIcon(icon)}<b>${name}</b><small>${hint}</small></button>`;
+  $("modeSignal").innerHTML = modes;
+  $("guardSignal").innerHTML =
+    quickIcon("shield", "qsShield") +
+    `<span class="qsStack">${QUICK_GUARDS.map((k) => `<i data-quick="${k}">${quickIcon(k)}</i>`).join("")}</span>`;
+  const panel = document.createElement("section");
+  panel.id = "quickPanel";
+  panel.className = "signalDetails quickPanel";
+  panel.hidden = true;
+  panel.setAttribute("aria-labelledby", "quickTitle");
+  panel.innerHTML =
+    `<header><span class="qsIc">${modes}</span><span><strong id="quickTitle"><span class="qsW">${__WEBUI_TEXT__("runtime.quick_shots_stop_by_weight")}</span><span class="qsM">${__WEBUI_TEXT__("runtime.quick_shots_stop_manually")}</span></strong><small id="quickStatus"></small></span></header>` +
+    `<div class="qsModes" role="radiogroup" aria-label="${$("modeSignal").getAttribute("aria-label")}">${mode(true, "weight", __WEBUI_TEXT__("runtime.quick_by_weight_mode"), __WEBUI_TEXT__("runtime.quick_by_weight_mode_hint"))}${mode(false, "hand", __WEBUI_TEXT__("runtime.quick_manual_mode"), __WEBUI_TEXT__("runtime.quick_manual_mode_hint"))}</div>` +
+    `<p class="qsSub">${$("guardSignal").getAttribute("aria-label")}</p><div class="qsGuards">` +
+    QUICK_GUARDS.map(
+      (k) =>
+        `<button type="button" class="qsRow" role="switch" data-quick="${k}"><span class="qsGi">${quickIcon(k)}</span><span>${names[k]}</span><i class="qsSw" aria-hidden="true"></i></button>`,
+    ).join("") +
+    `</div><p class="qsNote"><span class="qsW">${__WEBUI_TEXT__("runtime.quick_temporary_note")}</span><span class="qsM">${__WEBUI_TEXT__("runtime.quick_paused_note")}</span></p>`;
+  $("headerSignals").append(panel);
+  panel.addEventListener("click", (e) => {
+    const button = e.target.closest("button[data-quick]");
+    if (button && !button.disabled) setQuickSetting(button);
+  });
+}
+let quickNoScaleMode = "warn_once",
+  quickBusy = false,
+  quickStatus = {};
+const quickOn = (c, k) => (k === "noScaleBbwMode" ? !!c[k] && c[k] !== "off" : !!c[k]);
+function updateQuickSettings(s = quickStatus) {
+  const c = s.config || {},
+    root = $("headerSignals");
+  if (!root || typeof c.brewByWeight !== "boolean") return;
+  quickStatus = s;
+  if (quickOn(c, "noScaleBbwMode")) quickNoScaleMode = c.noScaleBbwMode;
+  const manual = !c.brewByWeight,
+    on = QUICK_GUARDS.filter((k) => quickOn(c, k)).length,
+    locked = quickBusy || !controlsMutable || !!s.cycle?.active,
+    status = manual
+      ? __WEBUI_TEXT__("runtime.quick_manual_status")
+      : on === QUICK_GUARDS.length
+        ? __WEBUI_TEXT__("runtime.quick_all_guards_on")
+        : on
+          ? __WEBUI_TEXT__("runtime.quick_some_guards_on").replace("{n}", on)
+          : __WEBUI_TEXT__("runtime.quick_no_guards_on");
+  root.dataset.mode = manual ? "manual" : "weight";
+  $("modeSignal").hidden = $("guardSignal").hidden = false;
+  $("guardSignal").dataset.level = on === QUICK_GUARDS.length ? "all" : on ? "some" : "none";
+  $("guardSignal").title = $("quickStatus").textContent = status;
+  root.querySelectorAll("[data-quick]").forEach((el) => {
+    const k = el.dataset.quick,
+      v = k === "brewByWeight" ? String(c.brewByWeight) === el.dataset.value : quickOn(c, k);
+    el.classList.toggle("off", !v);
+    if (el.tagName !== "BUTTON") return;
+    el.setAttribute("aria-checked", String(v));
+    el.disabled = locked || (manual && k !== "brewByWeight");
+  });
+}
+async function setQuickSetting(button) {
+  const k = button.dataset.quick,
+    on = button.getAttribute("aria-checked") === "true",
+    value =
+      k === "brewByWeight" ? button.dataset.value === "true" : k === "noScaleBbwMode" ? (on ? "off" : quickNoScaleMode) : !on;
+  if (k === "brewByWeight" && on) return;
+  quickBusy = true;
+  updateQuickSettings();
+  try {
+    await api("/api/v1/integration/quick-settings", {
+      method: "PUT",
+      body: body({ baseRevision: configRevision, [k]: value }),
+    });
+  } catch (err) {
+    message(err.message, "error");
+  } finally {
+    quickBusy = false;
+    updateQuickSettings();
+  }
+}
 export function initHeaderSignals() {
+  if ($("modeSignal")) buildQuickSettings();
   const buttons = [...document.querySelectorAll(".signalIndicator[aria-controls]")];
   function close() {
     for (const button of buttons) {
@@ -6990,6 +7104,7 @@ function applyCommonStatus(s) {
   syncTimezone(c);
   lastCommandStatus = s.lastCommand || null;
   if (typeof c.revision === "number") configRevision = c.revision;
+  updateQuickSettings(s);
   if (typeof s.timeUtcSec === "number") {
     statusUtcAnchorSec = s.timeUtcSec;
     statusUtcAnchorAt = performance.now();

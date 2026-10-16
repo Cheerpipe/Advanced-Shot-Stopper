@@ -31,6 +31,7 @@ inline bool parseIntegrationQuickSettingRequest(
       QuickSettingField field;
     };
     static constexpr BooleanField fields[] = {
+        {"brewByWeight", QuickSettingField::BREW_BY_WEIGHT},
         {"autoToManualGuardEnabled", QuickSettingField::AUTO_TO_MANUAL_GUARD},
         {"slowExtractionGuardEnabled", QuickSettingField::SLOW_EXTRACTION_GUARD},
         {"fastExtractionGuardEnabled", QuickSettingField::FAST_EXTRACTION_GUARD},

@@ -43,9 +43,25 @@ Defaults below describe factory Double; see [Presets](presets.md) for Single.
 These are saved with each preset under **Settings → Presets**, except where
 noted. While you edit, values that conflict with another field are flagged
 in yellow right away — the same message Save would show — so you can fix
-them before saving. How a shot stops always follows the active preset: to
-stop shots yourself, choose the **Manual** preset, then pick a brewing preset
-to stop by weight again.
+them before saving. How a shot stops follows the active preset: choose the
+**Manual** preset to stop shots yourself every time, or switch for now from the
+header (see below).
+
+### Change how shots stop for now
+
+Two icons sit next to the Wi‑Fi indicator at the top of every page. The scale
+means shots stop by weight; it turns into a grey hand when you stop them
+yourself. The shield shows your guards: green when all six are on, orange when
+some are off, and faded when none are on. On a wider screen the shield opens
+up into the six guard icons, so you can see at a glance which one is off.
+
+Tap either icon to open the panel. There you can switch between **By weight**
+and **Manual**, and turn each guard on or off. These changes are temporary:
+they apply to your next shots right away but are never saved to the preset or
+to Settings. Picking another preset or restarting the controller brings back
+your saved values. Home Assistant shows and changes the same switches, so both
+always agree. The panel can't be used during a shot, and the guards are paused
+while shots stop manually.
 
 | Setting | Group | Default | Range | Effect on the shot |
 | --- | --- | --- | --- | --- |
