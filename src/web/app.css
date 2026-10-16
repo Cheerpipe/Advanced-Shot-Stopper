@@ -41,16 +41,16 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 .qsGuardSig[data-level=some] .qsShield{fill:color-mix(in srgb,var(--gFast) 22%,transparent)}
 .qsStack{display:none}
 @media(max-width:480px){.headerSignals .signalIndicator{width:1.85rem}}
+.headerSignals .qsSig{width:auto;gap:.15rem;padding:0 .3rem}
+.qsSig>span{display:flex}
 @media(min-width:700px){
-  .qsGuardSig.signalIndicator{width:auto;padding:0 .3rem}
   .qsGuardSig>.qsShield{display:none}
   .qsStack{display:flex;padding-left:.6rem}
-  .qsStack i{display:grid;place-items:center;width:1.85rem;height:1.85rem;margin-left:-.6rem;border:2.5px solid var(--bg);border-radius:50%;background:color-mix(in srgb,var(--c,var(--ok)) 18%,var(--sf));color:var(--c,var(--ok));transition:margin .25s}
+  .qsStack i{display:grid;place-items:center;width:1.85rem;height:1.85rem;margin-left:-.6rem;border:2.5px solid var(--bg);border-radius:50%;background:color-mix(in srgb,var(--c,var(--ok)) 18%,var(--sf));color:var(--c,var(--ok))}
   .qsStack .qsI{width:1rem;height:1rem;stroke-width:2.1}
   .qsStack i.off,[data-mode=manual] .qsStack i{background:var(--in);color:var(--mu)}
   .qsStack i.off{box-shadow:inset 0 0 0 1.5px var(--ln)}
-  .qsGuardSig:is(:hover,[aria-expanded=true]) .qsStack i:not(:first-child){margin-left:.1rem}
-  .qsGuardSig.signalIndicator:is(:hover,[aria-expanded=true]){background:none}
+  .qsSig:is(:hover,[aria-expanded=true]) .qsStack i{border-color:var(--sf)}
 }
 .quickPanel{width:min(24rem,calc(100vw - 1.5rem));white-space:normal;max-width:none;padding:1rem 1rem .8rem;border-radius:1.4rem;box-shadow:0 1rem 2.6rem #0004;font-size:inherit}
 .quickPanel p{display:block}

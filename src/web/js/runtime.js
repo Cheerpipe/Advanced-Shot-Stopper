@@ -303,8 +303,8 @@ function buildQuickSettings() {
   panel.setAttribute("aria-labelledby", "quickTitle");
   panel.innerHTML =
     `<header><span class="qsIc">${modes}</span><span><strong id="quickTitle"><span class="qsW">${__WEBUI_TEXT__("runtime.quick_shots_stop_by_weight")}</span><span class="qsM">${__WEBUI_TEXT__("runtime.quick_shots_stop_manually")}</span></strong><small id="quickStatus"></small></span></header>` +
-    `<div class="qsModes" role="radiogroup" aria-label="${$("modeSignal").getAttribute("aria-label")}">${mode(true, "weight", __WEBUI_TEXT__("runtime.quick_by_weight_mode"), __WEBUI_TEXT__("runtime.quick_by_weight_mode_hint"))}${mode(false, "hand", __WEBUI_TEXT__("runtime.quick_manual_mode"), __WEBUI_TEXT__("runtime.quick_manual_mode_hint"))}</div>` +
-    `<p class="qsSub">${$("guardSignal").getAttribute("aria-label")}</p><div class="qsGuards">` +
+    `<div class="qsModes" role="radiogroup" aria-label="${$("modeSignal").dataset.label}">${mode(true, "weight", __WEBUI_TEXT__("runtime.quick_by_weight_mode"), __WEBUI_TEXT__("runtime.quick_by_weight_mode_hint"))}${mode(false, "hand", __WEBUI_TEXT__("runtime.quick_manual_mode"), __WEBUI_TEXT__("runtime.quick_manual_mode_hint"))}</div>` +
+    `<p class="qsSub">${$("guardSignal").dataset.label}</p><div class="qsGuards">` +
     QUICK_GUARDS.map(
       (k) =>
         `<button type="button" class="qsRow" role="switch" data-quick="${k}"><span class="qsGi">${quickIcon(k)}</span><span>${names[k]}</span><i class="qsSw" aria-hidden="true"></i></button>`,
@@ -350,9 +350,9 @@ function updateQuickSettings(s = quickStatus) {
           ? __WEBUI_TEXT__("runtime.quick_some_guards_on").replace("{n}", on)
           : __WEBUI_TEXT__("runtime.quick_no_guards_on");
   root.dataset.mode = manual ? "manual" : "weight";
-  $("modeSignal").hidden = $("guardSignal").hidden = false;
+  $("quickSignal").hidden = false;
   $("guardSignal").dataset.level = on === QUICK_GUARDS.length ? "all" : on ? "some" : "none";
-  $("guardSignal").title = $("quickStatus").textContent = status;
+  $("quickSignal").title = $("quickStatus").textContent = status;
   root.querySelectorAll("[data-quick]").forEach((el) => {
     const k = el.dataset.quick,
       v = k === "brewByWeight" ? String(c.brewByWeight) === el.dataset.value : quickOn(c, k);
