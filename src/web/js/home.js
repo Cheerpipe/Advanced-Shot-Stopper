@@ -184,8 +184,8 @@ function renderReadyMsg(s, lm) {
         ? __WEBUI_TEXT__("home.machine_warming") +
           (mins > 0 ? " · " + __WEBUI_TEXT__("home.ready_in").replace("%1", mins) : "")
         : "";
-  msg.hidden = !text;
-  if (msg.textContent !== text) msg.textContent = text;
+  if (text && msg.textContent !== text) msg.textContent = text;
+  R.reveal(msg, !!text);
 }
 function initQuickWeight() {
   const sheet = $("qwSheet"),

@@ -2762,18 +2762,46 @@ function showFieldErrors(list) {
   }
   message(text, "error");
 }
+// Top messages open or close their measured box while they fade, on one shared
+// duration. The space leads on entry and trails on exit so the fade stays visible.
+const REVEAL_BOX = ["height", "minHeight", "paddingTop", "paddingBottom", "borderTopWidth", "borderBottomWidth", "marginTop", "marginBottom"];
+function reveal(el, show, done) {
+  if (!el) return;
+  const run = el.getAnimations().find((a) => a.id.startsWith("reveal"));
+  if ((run ? run.id === "reveal-in" : !el.hidden) === show) return run || done?.();
+  if (!el.animate || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+    el.hidden = !show;
+    return done?.();
+  }
+  const box = (c) => Object.fromEntries(REVEAL_BOX.map((k) => [k, c ? c[k] : "0px"])),
+    cs = getComputedStyle(el),
+    from = el.hidden ? box() : box(cs),
+    fade = [{ opacity: el.hidden ? 0 : cs.opacity }, { opacity: +show }];
+  el.getAnimations().forEach((a) => a.id.startsWith("reveal") && a.cancel());
+  el.hidden = false;
+  el.style.overflow = "hidden";
+  const t = show ? [480, "cubic-bezier(.2,0,0,1)", "cubic-bezier(.7,0,.3,1)"] : [400, "cubic-bezier(.4,0,1,1)", "cubic-bezier(0,0,.2,1)"],
+    id = show ? "reveal-in" : "reveal-out";
+  el.animate(fade, { duration: t[0], easing: t[2], id });
+  el.animate([from, show ? box(getComputedStyle(el)) : box()], { duration: t[0], easing: t[1], id }).onfinish = () => {
+    el.style.overflow = "";
+    el.hidden = !show;
+    done?.();
+  };
+}
 function clearMessage() {
   clearTimeout(messageTimer);
   messageTimer = 0;
   const e = $("message");
-  if (!e) return;
-  const t = $("messageText");
-  if (t) t.textContent = "";
-  e.className = "";
-  e.hidden = true;
+  reveal(e, false, () => {
+    const t = $("messageText");
+    if (t) t.textContent = "";
+    e.className = "";
+  });
 }
 function message(text, kind = "") {
   if (kind === "error") hideHomeBoot();
+  if (!text) return clearMessage();
   clearTimeout(messageTimer);
   messageTimer = 0;
   const e = $("message");
@@ -2782,11 +2810,10 @@ function message(text, kind = "") {
   if (t) t.textContent = text;
   else e.textContent = text;
   e.className = kind;
-  e.hidden = !text;
+  reveal(e, true);
   e.setAttribute("role", kind === "error" ? "alert" : "status");
   e.setAttribute("aria-live", kind === "error" ? "assertive" : "polite");
   if (kind === "error") e.scrollIntoView({ block: "nearest" });
-  if (!text) return;
   const ms =
     kind === "ok"
       ? 5e3
@@ -8951,6 +8978,7 @@ export {
   body,
   number,
   message,
+  reveal,
   formatCommandError,
   showFieldError,
   clearFieldErrors,

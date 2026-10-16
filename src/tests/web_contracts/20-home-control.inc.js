@@ -1301,8 +1301,8 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
 {
   const at = viewJs.home.indexOf('function renderReadyMsg(');
   const msg = {hidden: true, textContent: ''};
-  const render = new Function('$', viewJs.home.slice(at, viewJs.home.indexOf('\n}', at) + 2) +
-    ';return renderReadyMsg;')(() => msg);
+  const render = new Function('$', 'R', viewJs.home.slice(at, viewJs.home.indexOf('\n}', at) + 2) +
+    ';return renderReadyMsg;')(() => msg, {reveal: (el, show) => { el.hidden = !show; }});
   const show = (mode, enabled, armed) => (render({state: 'IDLE', config: {brewByWeight: true},
     scale: {available: false}, noScaleShotGuard: {mode, enabled, armed}}), msg.hidden ? '' : msg.textContent);
   if (!/blocked once/.test(show('warn_once', true, true)) || /blocked once/.test(show('warn_once', true, false)) ||
