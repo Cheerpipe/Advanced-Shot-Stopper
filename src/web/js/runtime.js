@@ -1475,6 +1475,8 @@ function fillShotCharts(h, m) {
   c.style.setProperty("--shot-plot-min", (n * 1.1).toFixed(2) + "rem");
   for (const axis of c.querySelectorAll(".shotSparkY")) {
     const y = axis.querySelectorAll(".shotYTick");
+    // Each axis is as wide as its longest label (about .85ch per glyph), at least the preset chart's 30px.
+    axis.style.width = `max(30px,${Math.max(...[...y].map((e) => e.textContent.length)) * 0.85}ch)`;
     y.forEach((e, i) => {
       e.style.top = (i / n) * 100 + "%";
       e.dataset.p = i === n ? 80 : i === 0 ? 70 : 20;

@@ -31,7 +31,7 @@
   const host = {
     get innerHTML(){return markup},
     set innerHTML(value){markup=value;markers.length=0;axes.length=0;
-      for(const part of value.split('<div class="shotSparkY').slice(1)){const y=(part.split('</div>')[0].match(/class="shotYTick"/g)||[]).map(()=>({style:{},dataset:{},textContent:'0'}));axes.push({querySelectorAll(){return y},setAttribute(){},dataset:{}})}
+      for(const part of value.split('<div class="shotSparkY').slice(1)){const y=(part.split('</div>')[0].match(/class="shotYTick"/g)||[]).map(()=>({style:{},dataset:{},textContent:'0'}));axes.push({querySelectorAll(){return y},setAttribute(){},dataset:{},style:{}})}
       plot=value.includes('class="shotSparkHost"')?{style:{setProperty(k,v){this[k]=v}},querySelectorAll(){return axes},
         querySelector(){return tickSink}}:null},
     hidden:true, replaceChildren(){this.innerHTML=''},
