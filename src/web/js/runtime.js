@@ -5358,11 +5358,11 @@ function presetGraph(host, m, x = {}) {
     // The On recipe window: dotted verticals at its start and end.
     `<path class="rvWin" d="M${f(X(m.t1))} ${T}V${B}M${f(X(m.t2))} ${T}V${B}"/>` +
     (ghost ? `<path class="rvGhost" d="M${P(ghost.prot, ghost.ceil)}${edges(ghost).join("")}"/>` : "") +
+    // One cut line from the weight-cut delay to Max, drawn under the shot data it frames.
+    `<path class="rvCut${m.mode === "timerOnly" ? " off" : ""}" d="M${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}"/>` +
     curves(last, "rvLast") +
     curves(drip, "rvLast rvLastDrip") +
     shown.map((t) => `<circle class="rvArrival" cx="${f(X(t))}" cy="${f(Y(m.goal))}" r="3"/>`).join("") +
-    // One cut line from the weight-cut delay to Max: a side that is off still cuts at the target.
-    `<path class="rvCut${m.mode === "timerOnly" ? " off" : ""}" d="M${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}"/>` +
     // The hatch keeps its inline name only where it fits; the legend names it too.
     (!compact && X(m.prot) - L >= 96 ? label((L + X(m.prot)) / 2, (T + B) / 2, __WEBUI_TEXT__("runtime.graph_legend_no_cut"), "rvHalo") : "") +
     // Below the line when it would run into "Max" at the top (Settings only).
