@@ -1147,6 +1147,8 @@ bool ShotStopperNetwork::startHttpServer() {
   // long browser headers have returned 431 Request Header Fields Too Large.
   config.max_req_hdr_len = 2048;
   config.max_resp_headers = 12;
+  // Queued connections already hold lwIP netconns (one per
+  // CONFIG_LWIP_MAX_SOCKETS), so a deeper backlog would starve other sockets.
   config.backlog_conn = 4;
   config.lru_purge_enable = true;
   // Keep stuck clients from occupying sockets under BLE/Wi-Fi coex stalls.

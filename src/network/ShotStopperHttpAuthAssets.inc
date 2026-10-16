@@ -512,13 +512,15 @@ static bool ifNoneMatchEquals(httpd_req_t *request, const char *etag) {
 static esp_err_t serveImmutableGzip(httpd_req_t *request, const char *contentType,
                                     const uint8_t *data, size_t length) {
   // WEB_UI_ETAG is bake-time (FW_VERSION + asset tag); immutable ?v= busts
-  // after reflashes without snprintf on each request.
+  // after reflashes without snprintf on each request. The shell and assets
+  // keep the connection open so a page load reuses its handshakes; the
+  // bound ui-stream refreshes its LRU slot, so lru_purge evicts idle asset
+  // sockets first. API JSON and OTA responses still close.
   if (ifNoneMatchEquals(request, WEB_UI_ETAG)) {
     httpd_resp_set_status(request, STATUS_NOT_MODIFIED);
     httpd_resp_set_hdr(request, "Cache-Control",
                        "public, max-age=31536000, immutable");
     httpd_resp_set_hdr(request, "ETag", WEB_UI_ETAG);
-    httpd_resp_set_hdr(request, "Connection", "close");
     return httpd_resp_send(request, nullptr, 0);
   }
   httpd_resp_set_type(request, contentType);
@@ -528,7 +530,6 @@ static esp_err_t serveImmutableGzip(httpd_req_t *request, const char *contentTyp
   httpd_resp_set_hdr(request, "ETag", WEB_UI_ETAG);
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   httpd_resp_set_hdr(request, "X-Frame-Options", "DENY");
-  httpd_resp_set_hdr(request, "Connection", "close");
   return sendBody(request, data, length);
 }
 
@@ -546,7 +547,6 @@ esp_err_t ShotStopperNetwork::rootHandler(httpd_req_t *request) {
     httpd_resp_set_hdr(request, "Cache-Control",
                        "public, max-age=86400, stale-if-error=604800");
     httpd_resp_set_hdr(request, "ETag", WEB_UI_ETAG);
-    httpd_resp_set_hdr(request, "Connection", "close");
     return httpd_resp_send(request, nullptr, 0);
   }
   httpd_resp_set_type(request, "text/html; charset=utf-8");
@@ -560,7 +560,6 @@ esp_err_t ShotStopperNetwork::rootHandler(httpd_req_t *request) {
       request, "Content-Security-Policy",
       "default-src 'self'; script-src 'self'; style-src 'self'; "
       "connect-src 'self'; media-src data:; frame-ancestors 'none'");
-  httpd_resp_set_hdr(request, "Connection", "close");
   return sendBody(request, SHOT_STOPPER_WEB_UI_GZIP,
                         SHOT_STOPPER_WEB_UI_GZIP_LEN);
 }

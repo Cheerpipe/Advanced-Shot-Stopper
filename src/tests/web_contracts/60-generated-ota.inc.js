@@ -943,11 +943,10 @@ if (rootHandler.includes('no-store') ||
     !rootHandler.includes('ETag') ||
     !rootHandler.includes("style-src 'self'") ||
     !rootHandler.includes("script-src 'self'") ||
-    !rootHandler.includes('"Connection"') ||
-    !rootHandler.includes('"close"') ||
+    rootHandler.includes('"Connection"') ||
     rootHandler.includes("script-src 'unsafe-inline'") ||
     rootHandler.includes('HTTPD_RESP_USE_STRLEN')) {
-  throw new Error('GET / must serve a cacheable shell with ETag/304, CSP script/style self, Connection close, and gzip by length');
+  throw new Error('GET / must serve a cacheable keep-alive shell with ETag/304, CSP script/style self, and gzip by length');
 }
 // Only the inline keep-awake video may load as media; no outside origin.
 if (!rootHandler.includes("media-src data:;") || /media-src[^;]*(\*|https?:|'self')/.test(rootHandler))
@@ -956,9 +955,8 @@ if (serveImmutable.includes('no-store') ||
     !serveImmutable.includes('max-age=31536000') ||
     !serveImmutable.includes('immutable') ||
     !serveImmutable.includes('STATUS_NOT_MODIFIED') ||
-    !serveImmutable.includes('"Connection"') ||
-    !serveImmutable.includes('"close"')) {
-  throw new Error('Immutable gzip assets must use long-cache ETag/304 and Connection close');
+    serveImmutable.includes('"Connection"')) {
+  throw new Error('Immutable gzip assets must use long-cache ETag/304 on kept-alive connections');
 }
 if (!jsHandler.includes('SHOT_STOPPER_WEB_JS_GZIP') ||
     !jsHandler.includes('application/javascript')) {
