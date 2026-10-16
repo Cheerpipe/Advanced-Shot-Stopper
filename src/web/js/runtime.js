@@ -2780,7 +2780,7 @@ function reveal(el, show, done) {
   el.getAnimations().forEach((a) => a.id.startsWith("reveal") && a.cancel());
   el.hidden = false;
   el.style.overflow = "hidden";
-  const t = show ? [480, "cubic-bezier(.2,0,0,1)", "cubic-bezier(.7,0,.3,1)"] : [400, "cubic-bezier(.4,0,1,1)", "cubic-bezier(0,0,.2,1)"],
+  const t = show ? [250, "cubic-bezier(.2,0,0,1)", "cubic-bezier(.7,0,.3,1)"] : [250, "cubic-bezier(.4,0,1,1)", "cubic-bezier(0,0,.2,1)"],
     id = show ? "reveal-in" : "reveal-out";
   el.animate(fade, { duration: t[0], easing: t[2], id });
   el.animate([from, show ? box(getComputedStyle(el)) : box()], { duration: t[0], easing: t[1], id }).onfinish = () => {
