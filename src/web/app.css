@@ -85,7 +85,7 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 .qsRev{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:.2rem;margin-top:.5rem;padding:.2rem;border-radius:.9rem;background:var(--in)}
 .qsRev button,.qsReset{padding:.5rem 0;border:0;border-radius:.7rem;background:none;color:var(--mu);font:inherit;font-weight:700;cursor:pointer}
 .qsReset{padding:0;color:var(--ac)}
-.qsRev [aria-checked=true]{background:var(--sf);color:var(--fg)}
+.qsRev [aria-checked=true]{background:var(--ac);color:var(--on)}
 .qsNote{margin:.6rem 0 0;padding:.55rem .7rem;border-radius:.7rem;background:var(--in);color:var(--mu);font-size:.76rem}
 .pageNav{display:flex;position:fixed;left:50%;bottom:max(.75rem,calc(env(safe-area-inset-bottom) + .5rem));transform:translateX(-50%);width:calc(100% - max(1.5rem,env(safe-area-inset-left) + env(safe-area-inset-right)));max-width:30rem;padding:.125rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);box-shadow:0 .3rem 1.5rem #0003;overflow:hidden;isolation:isolate}
 .pageNav a{display:flex;flex:1;align-items:center;justify-content:center;min-width:0;min-height:var(--tap);border-radius:1.5rem;color:var(--mu);text-decoration:none;font-size:.875rem;font-weight:600;white-space:nowrap}
