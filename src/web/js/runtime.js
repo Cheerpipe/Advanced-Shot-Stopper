@@ -5176,14 +5176,15 @@ function presetGraph(host, m, x = {}) {
       if (X(t) - lastX < 14 && i < ts.length - 1) return;
       lastX = X(t);
       if (tens) grid += `<path class="rvGrid" d="M${f(X(t))} ${T}V${B}"/>`;
-      // A tick at the right edge ends there instead of spilling past the SVG.
+      // The zero tick starts at the y axis (clear of "0 g"), like the shot charts;
+      // a tick at the right edge ends there instead of spilling past the SVG.
       const edge = X(t) > W - 14;
       marks += label(
         edge ? W - 1 : X(t),
         B + 13,
         n(t) + (tens || i === ts.length - 1 ? " s" : ""),
         !tens && i > 1 && i < 4 ? "strong" : "",
-        edge ? "end" : "middle",
+        edge ? "end" : i ? "middle" : "start",
       );
     },
   );
