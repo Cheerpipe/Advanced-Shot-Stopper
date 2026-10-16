@@ -5553,7 +5553,7 @@ function drawPresetGraph(host, m, x, readout, key) {
   const view = presetGraph(host, m, x);
   if (!view) return null;
   if (host._key !== key || !(host._s >= m.scrubMin && host._s <= m.wall))
-    host._s = Math.max(m.scrubMin, +(m.t1 - 0.6 * m.d).toFixed(1));
+    host._s = Math.max(m.scrubMin, Math.round((m.t1 + m.t2) * 5) / 10);
   host._key = key;
   host._view = view;
   host._readout = readout;
