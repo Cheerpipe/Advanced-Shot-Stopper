@@ -465,12 +465,6 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       suppression.includes('bootWave')) {
     throw new Error('Loading must suppress control motion while preserving the loading wave');
   }
-  for (const selector of ['.ktrack', '.ktrack:after']) {
-    const rule = css.slice(css.indexOf(selector + '{')).split('}')[0];
-    if (Number(rule.match(/transition:([\d.]+)s/)[1]) !== .2) {
-      throw new Error('Normal toggle track and thumb animations must remain available after loading');
-    }
-  }
   if (fade !== .25 ||
       !codeIncludes(runtimeJs, "document.body.classList.remove('pageLoading')}}," + Math.round(fade * 1000) + ')') ||
       !css.includes('transition:.01ms!important')) {
@@ -1101,7 +1095,6 @@ if (!codeIncludes(ui, 'id="soundAlertsEnabled"') ||
     codeIncludes(ui, 'id="homeAlertsSub"') ||
     codeIncludes(ui, "setHomeSub('homeAlertsSub'") ||
     codeIncludes(ui, 'function formatAlertsChannel(') ||
-    codeIncludes(ui, "persistHomeGuard('homeSoundAlertsEnabled'") ||
     !codeIncludes(ui, 'soundAlertsEnabled:$(\'soundAlertsEnabled\').checked') ||
     codeIncludes(ui, 'p.soundAlertsEnabled=$(\'homeSoundAlertsEnabled\').checked') ||
     codeIncludes(ui, "k!=='soundAlertsEnabled'") ||
@@ -1134,17 +1127,11 @@ if (html.indexOf('<summary>Tare</summary>') >
     !codeIncludes(ui, 'id="cupProtectionEnabled" type="checkbox" checked> Cup protection') ||
     !codeIncludes(ui, 'cupProtectOpt') ||
     !codeIncludes(ui, 'Already on? Lift and replace it.') ||
-    !codeIncludes(ui, 'id="homeCupProtectionEnabled"') ||
-    html.indexOf('id="homeAvoidAccidentalTouchEnabled"') >
-        html.indexOf('id="homeCupProtectionEnabled"') ||
-    html.indexOf('id="homeCupProtectionEnabled"') >
-        html.indexOf('id="homePresetBlock"') ||
-    !codeIncludes(ui, '"homeCupProtectionEnabledState","cupProtectionEnabled"') ||
     !network.includes('cupProtectionEnabled') ||
     !network.includes('stopIfCupRemoved') ||
     !network.includes('requireCupToStart') ||
     !network.includes('cupRemovedWeightG')) {
-  throw new Error('Cup protection master must precede Stop if cup is removed and Require cup to start; Home mirrors the master after accidental touch');
+  throw new Error('Cup protection master must precede Stop if cup is removed and Require cup to start');
 }
 
 if (codeIncludes(ui, 'bleCompanionEnabled') ||

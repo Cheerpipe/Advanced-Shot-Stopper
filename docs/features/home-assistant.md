@@ -1,8 +1,8 @@
 # Home Assistant
 
 The native **Open Brew by Weight** integration adds one controller device,
-live shot state, the newest recorded shot, an active-preset selector, seven
-switches that mirror Home's **How shots stop** card, and a safe restart button. It
+live shot state, the newest recorded shot, an active-preset selector, a
+Brew by weight state, six protection switches, and a safe restart button. It
 does not create YAML helpers, template entities, REST commands, or automations,
 and it cannot start or stop the espresso machine.
 
@@ -97,10 +97,13 @@ Its remaining entities are:
   shots stopped by weight in that window, measured against where each shot was
   planned to stop.
 - **Active preset**, a select populated from the controller's preset names.
-- **Brew by weight**, **No-scale BBW**, **Scale-loss backup**, **Shorten
-  slow shots**, **Extend fast shots**, **Avoid accidental touch**, and **Cup
-  protection** switches, named as on Home's **How shots stop** card (see
-  [Scale-loss backup](auto-to-manual.md) and
+- **Brew by weight**, a read-only state that is on when the active preset
+  stops shots by weight. To stop shots yourself, choose the **Manual** preset
+  in **Active preset**. It replaces the earlier Brew by weight switch, which
+  the update removes, so update any automation that used that switch.
+- **No-scale BBW**, **Scale-loss backup**, **Shorten slow shots**, **Extend
+  fast shots**, **Avoid accidental touch**, and **Cup protection** switches,
+  named as in Settings (see [Scale-loss backup](auto-to-manual.md) and
   [Fast and slow shots](fast-and-slow-shots.md)). Existing installations keep
   their entity IDs; only the displayed names change.
 - **Restart Open Brew by Weight**, a configuration button.
@@ -114,14 +117,13 @@ or slow: a fast shot whose preset does not run fast shots longer still stops
 at the target and reports `normal_target`. The Fast / On recipe / Slow verdict
 appears in the Web UI.
 
-The Brew by weight switch matches Home's **By weight | Manual** choice: it is
-saved on the controller and never rewrites the recipe. No-scale BBW is machine-level: turning it off selects `off`; turning it
+No-scale BBW is machine-level: turning it off selects `off`; turning it
 on restores the last observed non-off mode or `warn_once`. **Extend fast
 shots** and **Shorten slow shots** switch the active preset's fast and slow
 shot handling and preserve its other recipe and learned values. **Scale-loss backup**, **Avoid
 accidental touch** and **Cup protection** are shared settings: changing one
-applies to every preset. All switches are unavailable during an active cycle, and the five guard
-switches plus No-scale BBW are also unavailable while effective BBW is off.
+applies to every preset. All switches are unavailable during an active cycle
+and while the active preset does not stop by weight.
 
 The restart button uses the controller's existing queued restart. It may be
 pressed during a shot, but restart waits for that shot to finish. It cannot

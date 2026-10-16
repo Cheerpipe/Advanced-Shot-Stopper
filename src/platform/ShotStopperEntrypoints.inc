@@ -322,6 +322,9 @@ void setup() {
     ensureShotPresetBank(presetBank, runtimeConfig.retareWindowMs,
                          runtimeConfig.autoRetare);
     addMissingManualShotPreset(presetBank);
+    // Earlier firmware could save a controller-wide Manual; stop mode now
+    // follows the active preset only.
+    runtimeConfig.timerOnly = !activeShotPreset(presetBank).brewByWeight;
     scaleWorkerLoadPreferred(persistedSettings.preferredScaleMac,
                              persistedSettings.preferredScaleName,
                              persistedSettings.scaleHistory);

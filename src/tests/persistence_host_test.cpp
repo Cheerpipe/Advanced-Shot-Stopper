@@ -1133,7 +1133,7 @@ void p24_preset_bank_size_and_crud_budgets() {
     CHECK(recipe.scaleLossFixedMs == 30000);
     CHECK(recipe.bbwEwmaOffsetG == DEFAULT_WEIGHT_OFFSET_G);
     RuntimeConfig other{};
-    applyShotPresetToConfig(recipe, other, false);
+    applyShotPresetToConfig(recipe, other);
     CHECK(other.cupProtectionEnabled && !other.requireCupToStart);
     CHECK(other.avoidAccidentalTouchEnabled && other.scaleLossEnabled);
     CHECK(other.scaleLossFixedMs == 30000);
@@ -1190,9 +1190,9 @@ void p24_preset_bank_size_and_crud_budgets() {
   RuntimeConfig machine = {};
   machine.retareWindowMs = DEFAULT_RETARE_WINDOW_MS;
   machine.autoRetare = true;
-  machine.timerOnly = true;  // session Manual
+  machine.timerOnly = true;  // stale controller-wide Manual from earlier firmware
   RuntimeConfig composed = composeEffectiveConfig(machine, bank);
-  CHECK(composed.timerOnly);  // Manual preserved
+  CHECK(!composed.timerOnly);  // stop mode follows the active preset only
   CHECK(composed.goalWeightDg == activeShotPreset(bank).goalWeightDg);
 
   while (bank.count < MAX_SHOT_PRESETS) {
@@ -1228,7 +1228,7 @@ void p25_invalid_active_id_keeps_customs() {
   const ShotPreset *dbl =
       findShotPreset(settings.presets, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
   CHECK(dbl != nullptr);
-  CHECK(dbl->brewByWeight);  // must not inherit session Manual
+  CHECK(dbl->brewByWeight);  // a stale controller-wide Manual never leaks in
 }
 
 void p26_save_candidate_validation_does_not_require_live_mutation() {

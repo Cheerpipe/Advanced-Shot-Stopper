@@ -120,8 +120,6 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   if (self.callbacks_.copyRuntimeConfig != nullptr) {
     self.callbacks_.copyRuntimeConfig(&candidate);
   }
-  bool brewByWeightPresent = false;
-  bool brewByWeight = !candidate.timerOnly;
   bool baseRevisionPresent = false;
   uint32_t baseRevision = 0;
   char preferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
@@ -159,7 +157,7 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   static const char *const fields[] = {
       "baseRevision", "goalWeightG", "rinseEnabled", "rinseGestureMs", "rinseDurationMs",
       "operationalWallMs", "autoTare", "autoTareOutsideBrew", "retareAccessoryOutsideBrew", "postTareBaselineGraceMs",
-      "brewByWeight", "canTareStartTimer",
+      "canTareStartTimer",
       "scaleTimerStopExtraDelayMs",       "dripDelayMs", "soundAlertsEnabled",
       "firstDropBeep", "scaleConnectedLed",
       "paddleReturnReminderBeep",
@@ -236,9 +234,6 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
              !jsonUint32(root, "postTareBaselineGraceMs",
                          candidate.postTareBaselineGraceMs)) {
     parseError = "postTareBaselineGraceMs must be an integer (milliseconds).";
-  } else if (jsonFieldPresent(root, "brewByWeight") &&
-             !jsonBoolean(root, "brewByWeight", brewByWeight)) {
-    parseError = "brewByWeight must be a boolean.";
   } else if (jsonFieldPresent(root, "canTareStartTimer") &&
              !jsonBoolean(root, "canTareStartTimer",
                           candidate.canTareStartTimer)) {
@@ -533,7 +528,6 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
         ((timezoneAutoInit && !durableTimezoneSaved().load()) ||
          (timezoneDetected && candidate.timezoneAutomatic)) &&
         jsonHasOnlyUniqueFields(root, browserFields, 4);
-    brewByWeightPresent = jsonFieldPresent(root, "brewByWeight");
     baseRevisionPresent = jsonFieldPresent(root, "baseRevision");
     legacyNoScalePresent =
         jsonFieldPresent(root, "avoidBbwShotWithoutScale");
@@ -573,9 +567,6 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   if (timezoneIdPresent) {
     candidate.timezoneSource = timezoneAutoInit ? 3 :
         timezoneDetected ? (browserTimezonePatch ? 4 : 1) : 2;
-  }
-  if (brewByWeightPresent) {
-    candidate.timerOnly = !brewByWeight;
   }
   if (legacyNoScalePresent) {
     parsedNoScaleMode = static_cast<uint8_t>(

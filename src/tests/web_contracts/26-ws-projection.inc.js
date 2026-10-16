@@ -147,12 +147,10 @@ int main(){
   for (const id of ['hNvsEntries','hNvsTotal','hNvsNamespaces']) assert.equal($(id).textContent, 'runtime.unknown');
   status.nvs.statsValid=true;context.applyDiagnosticStatus(status);
   assert.equal($('hNvsNamespaces').textContent,'0');assert($('hNvsEntries').textContent.startsWith('0'));
-  const cup={__WEBUI_TEXT__:key=>key,$:()=>null,result:{},setHomeSub:(id,value)=>cup.result[id]=value,liveRuleModel:null,sub:key=>key,
-    formatNoScaleGuard(){},formatExtractionGuard(){},formatAccidentalTouch(){},formatSlowExtractionGuard(){},formatAtmGuard(){}};
+  const cup={__WEBUI_TEXT__:key=>key,$:()=>null,sub:key=>key};
   vm.createContext(cup);
-  vm.runInContext(section('function formatCupProtection(', 'function setHomeSub(')+
-    section('function updateHomeGuardSubs(', 'function renderShotHero('),cup);
-  const home={config:{brewByWeight:true,cupProtectionEnabled:true},lastShot:{valid:true,endReason:'cup_removed'},scale:{},cupPresence:{}};
-  cup.updateHomeGuardSubs(home,false);assert.equal(cup.result.homeCupSub,'runtime.shot_aborted');
-  home.lastShot.endReason='target';cup.updateHomeGuardSubs(home,false);assert.equal(cup.result.homeCupSub,'runtime.brew_allowed');
+  vm.runInContext(section('function formatCupProtection(', 'function setHomeSub('),cup);
+  const idle={enabled:true,requireCupToStart:false,stopIfRemoved:false,present:false,scaleUsable:false,inShot:false};
+  assert.equal(cup.formatCupProtection({...idle,aborted:true}),'runtime.shot_aborted');
+  assert.equal(cup.formatCupProtection({...idle,aborted:false}),'runtime.brew_allowed');
 }

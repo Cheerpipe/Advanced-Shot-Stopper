@@ -62,9 +62,9 @@
       "machine": {"name": "Machine"},
       "ip": {"name": "Controller IP"}
     },
+    "binary_sensor": {"brew_by_weight": {"name": "Brew by weight"}},
     "select": {"active_preset": {"name": "Active preset"}},
     "switch": {
-      "brew_by_weight": {"name": "Brew by weight"},
       "no_scale_bbw": {"name": "No-scale BBW"},
       "auto_to_manual_guard": {"name": "Scale-loss backup"},
       "slow_extraction_guard": {"name": "Shorten slow shots"},

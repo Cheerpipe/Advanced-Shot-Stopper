@@ -186,14 +186,14 @@ candidate as confirmed.
 ### `PUT /api/v1/integration/quick-settings`
 
 Requires `baseRevision` plus exactly one setting. Boolean settings are
-`brewByWeight`, `autoToManualGuardEnabled`, `slowExtractionGuardEnabled`,
+`autoToManualGuardEnabled`, `slowExtractionGuardEnabled`,
 `fastExtractionGuardEnabled`, `avoidAccidentalTouchEnabled`, and
 `cupProtectionEnabled`; `noScaleBbwMode` accepts `off`, `warn_once`, or
 `require_scale`. Extra, duplicate, or incorrectly typed fields are rejected.
 
-`brewByWeight` sets Home's By weight / Manual choice. It is saved on the
-controller, stays on Manual across preset changes, and never rewrites a
-preset's own Brew by weight value. `noScaleBbwMode`,
+`brewByWeight` is read-only: snapshots and webhooks report whether the active
+preset stops shots by weight. Select the Manual preset to stop shots by hand;
+a request that sets `brewByWeight` is rejected. `noScaleBbwMode`,
 `autoToManualGuardEnabled` (the scale-loss backup), `avoidAccidentalTouchEnabled`
 and `cupProtectionEnabled` change shared settings that apply to every preset.
 `fastExtractionGuardEnabled` and `slowExtractionGuardEnabled` change only the

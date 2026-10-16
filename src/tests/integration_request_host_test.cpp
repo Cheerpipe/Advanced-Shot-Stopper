@@ -38,8 +38,6 @@ void valid_quick_settings_map_exactly() {
     QuickSettingField field;
     uint8_t value;
   } cases[] = {
-      {R"({"baseRevision":7,"brewByWeight":true})",
-       QuickSettingField::BREW_BY_WEIGHT, 1},
       {R"({"baseRevision":7,"noScaleBbwMode":"require_scale"})",
        QuickSettingField::NO_SCALE_BBW_MODE,
        static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE)},
@@ -66,15 +64,17 @@ void valid_quick_settings_map_exactly() {
 void malformed_quick_settings_fail_closed() {
   const char *cases[] = {
       "{}",
+      // Stop mode belongs to the active preset; the session switch is retired.
+      R"({"baseRevision":7,"brewByWeight":true})",
       R"({"baseRevision":7})",
-      R"({"baseRevision":7,"brewByWeight":true,"cupProtectionEnabled":true})",
-      R"({"baseRevision":7,"brewByWeight":true,"extra":false})",
-      R"({"baseRevision":7,"brewByWeight":true,"brewByWeight":false})",
-      R"({"baseRevision":true,"brewByWeight":true})",
-      R"({"baseRevision":1.5,"brewByWeight":true})",
-      R"({"baseRevision":-1,"brewByWeight":true})",
-      R"({"baseRevision":4294967296,"brewByWeight":true})",
-      R"({"baseRevision":7,"brewByWeight":1})",
+      R"({"baseRevision":7,"autoToManualGuardEnabled":true,"cupProtectionEnabled":true})",
+      R"({"baseRevision":7,"cupProtectionEnabled":true,"extra":false})",
+      R"({"baseRevision":7,"cupProtectionEnabled":true,"cupProtectionEnabled":false})",
+      R"({"baseRevision":true,"cupProtectionEnabled":true})",
+      R"({"baseRevision":1.5,"cupProtectionEnabled":true})",
+      R"({"baseRevision":-1,"cupProtectionEnabled":true})",
+      R"({"baseRevision":4294967296,"cupProtectionEnabled":true})",
+      R"({"baseRevision":7,"cupProtectionEnabled":1})",
       R"({"baseRevision":7,"noScaleBbwMode":"invalid"})",
       R"({"baseRevision":7,"noScaleBbwMode":false})",
       "[]",

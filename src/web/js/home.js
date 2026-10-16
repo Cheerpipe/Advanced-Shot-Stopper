@@ -132,10 +132,6 @@ export function init() {
       if (renameScaleLink.getAttribute("aria-disabled") === "true") return;
       R.renameScale();
     };
-  if ($("homeBrewByWeight"))
-    $("homeBrewByWeight").onchange = $("homeBrewManual").onchange = R.persistHomeBrewByWeight;
-  if ($("homeNoScaleBbwEnabled")) $("homeNoScaleBbwEnabled").onchange = R.persistHomeNoScaleBbw;
-  initProtections();
   if ($("grindHintNewBeans")) $("grindHintNewBeans").onclick = () => R.startNewCoffee();
   if ($("grindHintLater"))
     $("grindHintLater").onclick = () =>
@@ -144,37 +140,6 @@ export function init() {
     $("scaleLossDiscoveryOk").onclick = () => R.dismissCard("ssCard:scaleLossDiscovery");
   quickWeight = initQuickWeight();
   quickWeightWanted = new URLSearchParams(location.search).has("edit_weight");
-}
-// Shared safety protections (the device-wide switches) ask before turning
-// off; turning anything on, or a preset's fast/slow side, stays one tap.
-function initProtections() {
-  const surface = $("stopSurface"),
-    row = $("protRow"),
-    confirmBar = $("protConfirm");
-  if (!surface || !row || !confirmBar) return;
-  let turnOff = null;
-  const settle = (off) => {
-    confirmBar.hidden = true;
-    if (off && turnOff) turnOff();
-    turnOff = null;
-  };
-  row.onclick = () => row.setAttribute("aria-expanded", surface.classList.toggle("open"));
-  $("protKeep").onclick = () => settle(false);
-  $("protOff").onclick = () => settle(true);
-  confirmBar.onkeydown = (e) => e.key === "Escape" && settle(false);
-  for (const [h, s, c, , shared] of R.HOME_GUARD_SWITCHES)
-    if ($(h))
-      $(h).onchange = () => {
-        if (!shared || $(h).checked) return R.persistHomeGuard(h, s, c);
-        $(h).checked = true;
-        turnOff = () => {
-          $(h).checked = false;
-          R.persistHomeGuard(h, s, c);
-        };
-        $(h).closest(".switchRow").after(confirmBar);
-        confirmBar.hidden = false;
-        $("protKeep").focus();
-      };
 }
 function renderReadyMsg(s, lm) {
   const msg = $("homeReadyMsg"),

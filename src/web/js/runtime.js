@@ -201,10 +201,6 @@ let bootId = 0,
   pollChain = Promise.resolve(),
   commandChain = Promise.resolve(),
   commandBusy = false,
-  homeFlushTimer = 0,
-  homeFlushConfig = false,
-  homeFlushPreset = false,
-  homeFlushBusy = false,
   lastStatusAt = 0,
   statusLiveShot = false,
   deviceInFlight = 0,
@@ -408,7 +404,7 @@ function releaseDeviceSlot() {
   drainDeviceSlots();
 }
 function statusPollDue() {
-  return !commandBusy && !homeFlushBusy && !otaBusy && Date.now() - lastStatusAt >= 900;
+  return !commandBusy && !otaBusy && Date.now() - lastStatusAt >= 900;
 }
 function statusIntervalMs() {
   return document.hidden ? 12e3 : statusLiveShot ? 2500 : 4e3;
@@ -3124,8 +3120,6 @@ function deactivateWebUi() {
   webUiInactivityTimer = 0;
   clearTimeout(scanTimer);
   scanTimer = 0;
-  clearTimeout(homeFlushTimer);
-  homeFlushTimer = 0;
   stopViewPolls();
   lockAdminUi();
   setMutable(false);
@@ -3254,7 +3248,6 @@ function setMutable(enabled) {
   if ($("staIpMode")) updateStaticIpFieldsState();
   if ($("autoTare")) updateConfigGroups();
   updatePresetActionButtons();
-  updateHomeGuardSwitchesLock();
   updateWifiSleepState();
   updateTimezoneControls();
   if (was !== canEdit && activeView === "stats" && $("shotRows")) renderShots();
@@ -3482,7 +3475,6 @@ function revertBrewPreset() {
   clearFieldErrors();
   updateConfigGroups();
   refreshBrewWarnings();
-  syncHomeGuardSwitchesFromSettings();
   refreshStatus();
 }
 function revertMachineConfig() {
@@ -3498,7 +3490,6 @@ function revertMachineConfig() {
   // R2's inputs (retare window, auto-retare) live in this section: restoring
   // them can change the retare floor, so the warnings re-run here.
   refreshBrewWarnings();
-  syncHomeGuardSwitchesFromSettings();
   refreshStatus();
 }
 function revertLineaMicra() {
@@ -4020,7 +4011,6 @@ function validateDateTimeClient() {
   return null;
 }
 function machinePayload() {
-  if (HOME_GUARD_SWITCHES.some(([h]) => homeSwitchPending[h])) syncSettingsFromHomeSwitches();
   const reminder = $("paddleReturnReminder");
   return {
     rinseEnabled: $("rinseEnabled").checked,
@@ -4593,11 +4583,9 @@ function guardRuleRows(m) {
 function renderHomePresetAccordion() {
   const el = $("homePresetAcc");
   if (!el) return;
-  const canSelect = !!($("homeBrewByWeight") && $("homeBrewByWeight").checked && controlsMutable),
+  const canSelect = controlsMutable,
     openId = homeAccPendingId || presetState.activeId,
     sig = JSON.stringify([openId, canSelect, liveRuleModel, presetState.items]);
-  $("presetLockNote").hidden =
-    homeSwitchUnset("homeBrewByWeight") || $("homeBrewByWeight").checked || presetState.items.length < 2;
   if (sig === homeAccSig) return;
   homeAccSig = sig;
   const focusIdx = [...el.querySelectorAll(".presetAccHead")].indexOf(document.activeElement),
@@ -4703,210 +4691,6 @@ function renderAllPresetUi() {
   updatePresetActionButtons();
   updateActiveBrewProfileHint();
 }
-const HOME_GUARD_SWITCHES = [
-    [
-      "homeAutoToManualGuardEnabled",
-      "homeAutoToManualGuardEnabledState",
-      "autoToManualGuardEnabled",
-      __WEBUI_TEXT__("runtime.scale_loss_backup"),
-      true,
-    ],
-    [
-      "homeFastExtractionGuardEnabled",
-      "homeFastExtractionGuardEnabledState",
-      "fastExtractionGuardEnabled",
-      __WEBUI_TEXT__("runtime.fast_shot_protection"),
-    ],
-    [
-      "homeSlowExtractionGuardEnabled",
-      "homeSlowExtractionGuardEnabledState",
-      "slowExtractionGuardEnabled",
-      __WEBUI_TEXT__("runtime.slow_shot_protection"),
-    ],
-    [
-      "homeAvoidAccidentalTouchEnabled",
-      "homeAvoidAccidentalTouchEnabledState",
-      "avoidAccidentalTouchEnabled",
-      __WEBUI_TEXT__("runtime.avoid_accidental_touch"),
-      true,
-    ],
-    [
-      "homeCupProtectionEnabled",
-      "homeCupProtectionEnabledState",
-      "cupProtectionEnabled",
-      __WEBUI_TEXT__("runtime.cup_protection"),
-      true,
-    ],
-  ],
-  homeSwitchPending = {};
-let nsm = "warn_once";
-function homePendingPairs() {
-  const rows = [
-      ["homeBrewByWeight", __WEBUI_TEXT__("runtime.brew_by_weight")],
-      ["homeNoScaleBbwEnabled", __WEBUI_TEXT__("runtime.no_scale_bbw")],
-      ...HOME_GUARD_SWITCHES.map((x) => [x[0], x[3]]),
-    ],
-    ok = [],
-    fail = [];
-  for (const [id, label] of rows) {
-    const p = homeSwitchPending[id];
-    if (!p) continue;
-    ok.push(toggleOk(label, p.expected));
-    fail.push(toggleFail(label, p.expected));
-  }
-  return {
-    ok: ok.length ? ok.join(" ") : __WEBUI_TEXT__("runtime.quick_settings_saved"),
-    fail: fail.length === 1 ? fail[0] : __WEBUI_TEXT__("runtime.could_not_update_quick_settings"),
-  };
-}
-function homeSwitchUnset(id) {
-  return !$(id)?.closest(".switchRow")?.classList.contains("swR");
-}
-function syncHomeSwitch(h, s, on) {
-  const el = $(h);
-  if (!el) return;
-  el.checked = !!on;
-  el.closest(".switchRow")?.classList.add("swR");
-  if ($(s)) $(s).textContent = on ? __WEBUI_TEXT__("runtime.on") : __WEBUI_TEXT__("runtime.off");
-}
-function pendVis(id, on) {
-  const el = $(id);
-  if (!el) return;
-  const r = el.closest(".switchRow");
-  if (r) r.classList.toggle("switchPending", !!on);
-}
-function endHomeSwitchPending(id) {
-  const p = homeSwitchPending[id];
-  if (p && p.timer) clearTimeout(p.timer);
-  delete homeSwitchPending[id];
-  pendVis(id, 0);
-}
-function beginHomeSwitchPending(id, expected) {
-  endHomeSwitchPending(id);
-  const p = {
-    expected: !!expected,
-    until: Date.now() + 5e3,
-    timer: setTimeout(() => {
-      if (homeSwitchPending[id] === p) refreshStatus();
-    }, 5e3),
-  };
-  homeSwitchPending[id] = p;
-  pendVis(id, 1);
-  if ($(id + "State"))
-    $(id + "State").textContent = expected
-      ? __WEBUI_TEXT__("runtime.on")
-      : __WEBUI_TEXT__("runtime.off");
-  updateHomeGuardSwitchesLock();
-}
-function applyPolledHomeSwitch(h, s, on, cfgKey) {
-  const p = homeSwitchPending[h];
-  if (p) {
-    if (!!on !== p.expected && (Date.now() < p.until || pollAt < p.until)) return;
-    endHomeSwitchPending(h);
-    if (cfgKey && $(cfgKey)) {
-      $(cfgKey).checked = !!on;
-      updateConfigGroups();
-    }
-  }
-  syncHomeSwitch(h, s, on);
-}
-function applyHomeNoScaleFromConfig(c) {
-  const mode = c.noScaleBbwMode || "off",
-    on = mode !== "off";
-  if (on) nsm = mode;
-  applyPolledHomeSwitch("homeNoScaleBbwEnabled", "", on);
-}
-function applyHomeSwitchesFromConfig(c) {
-  if (!c) return;
-  [["homeBrewByWeight", "", "brewByWeight"], ...HOME_GUARD_SWITCHES].forEach(
-    ([h, s, k]) => typeof c[k] === "boolean" && applyPolledHomeSwitch(h, s, c[k], k),
-  );
-  applyHomeNoScaleFromConfig(c);
-  updateHomeGuardSwitchesLock();
-  renderHomePresetAccordion();
-}
-function syncHomeGuardSwitchesFromSettings() {
-  HOME_GUARD_SWITCHES.forEach(([h, s, c]) => {
-    if (!homeSwitchPending[h]) syncHomeSwitch(h, s, $(c) && $(c).checked);
-  });
-  if (!homeSwitchPending.homeNoScaleBbwEnabled && $("noScaleBbwMode")) {
-    const mode = $("noScaleBbwMode").value;
-    if (mode !== "off") nsm = mode;
-    syncHomeSwitch("homeNoScaleBbwEnabled", "", mode !== "off");
-  }
-}
-function updateHomeGuardSwitchesLock() {
-  const bbw = $("homeBrewByWeight"),
-    x = homeSwitchUnset("homeBrewByWeight"),
-    on = !x && !!bbw && bbw.checked;
-  if (!bbw) return;
-  bbw.disabled = $("homeBrewManual").disabled = !controlsMutable || x;
-  $("homeBrewManual").checked = !x && !bbw.checked;
-  [["homeNoScaleBbwEnabled"], ...HOME_GUARD_SWITCHES].forEach(([h]) => {
-    const u = homeSwitchUnset(h);
-    $(h).disabled = !controlsMutable || u || (!u && !on);
-  });
-  renderProtSummary(on || x);
-}
-// The Protections row shows the active preset's fast/slow sides and the four
-// shared protections as dots in panel order, and names any shared one that is
-// off, so the panel can stay closed.
-function renderProtSummary(bbwOn) {
-  const shared = [
-      ["homeNoScaleBbwEnabled", __WEBUI_TEXT__("runtime.no_scale_bbw")],
-      ...HOME_GUARD_SWITCHES.filter((x) => x[4]).map((x) => [x[0], x[3]]),
-    ],
-    offs = shared.filter(([h]) => !$(h).checked),
-    status = !bbwOn
-      ? __WEBUI_TEXT__("home.paused")
-      : offs.length
-        ? sub(__WEBUI_TEXT__("home.n_off"), [offs.length === 1 ? offs[0][1] : offs.length])
-        : "",
-    active = presetState.items.find((p) => p.id === presetState.activeId);
-  $("stopSurface").classList.toggle("manual", !bbwOn);
-  const dots = ["homeFastExtractionGuardEnabled", "homeSlowExtractionGuardEnabled", ...shared.map((x) => x[0])];
-  [...$("protDots").children].forEach((d, i) => d.classList.toggle("off", !$(dots[i]).checked));
-  $("protStatus").textContent = status;
-  $("protStatus").classList.toggle("warn", bbwOn && offs.length > 0);
-  $("protRow").setAttribute(
-    "aria-label",
-    __WEBUI_TEXT__("home.protections") + ": " + (status || __WEBUI_TEXT__("home.all_on")),
-  );
-  $("protPresetHead").textContent = sub(__WEBUI_TEXT__("home.this_preset"), [active?.name || ""]);
-}
-function scheduleHomeGuardFlush() {
-  clearTimeout(homeFlushTimer);
-  homeFlushTimer = setTimeout(() => {
-    homeFlushTimer = 0;
-    flushHomeGuards();
-  }, 350);
-}
-function persistHomeGuard(h, s, c) {
-  const on = $(h).checked;
-  beginHomeSwitchPending(h, on);
-  if ($(c)) $(c).checked = on;
-  updateConfigGroups();
-  if (HOME_GUARD_SWITCHES.find((x) => x[0] === h)[4]) homeFlushConfig = true;
-  else homeFlushPreset = true;
-  scheduleHomeGuardFlush();
-}
-function persistHomeNoScaleBbw() {
-  const el = $("homeNoScaleBbwEnabled");
-  if (!el) return;
-  beginHomeSwitchPending("homeNoScaleBbwEnabled", el.checked);
-  if ($("noScaleBbwMode")) $("noScaleBbwMode").value = el.checked ? nsm : "off";
-  updateConfigGroups();
-  homeFlushConfig = true;
-  scheduleHomeGuardFlush();
-}
-function persistHomeBrewByWeight() {
-  const el = $("homeBrewByWeight");
-  if (!el) return;
-  beginHomeSwitchPending("homeBrewByWeight", el.checked);
-  renderHomePresetAccordion();
-  homeFlushConfig = true;
-  scheduleHomeGuardFlush();
-}
 // Home writes reuse the Settings brew form: unsaved edits there must never
 // ride along, so the owner discards them first or the Home change is dropped.
 async function cleanBrewForm() {
@@ -4931,104 +4715,9 @@ async function ensureSettingsHydrated() {
   if (!brewDirty) brewBaseline = snapshotControls(settingsSectionEls("brew"));
   if (s.presets) ingestPresets(s);
 }
-function clearHomePend() {
-  ["homeBrewByWeight", "homeNoScaleBbwEnabled", ...HOME_GUARD_SWITCHES.map((x) => x[0])].forEach(
-    endHomeSwitchPending,
-  );
-}
-function syncSettingsFromHomeSwitches() {
-  if ($("homeBrewByWeight") && $("brewByWeight"))
-    $("brewByWeight").checked = $("homeBrewByWeight").checked;
-  HOME_GUARD_SWITCHES.forEach(([h, , k]) => {
-    if ($(h) && $(k)) $(k).checked = $(h).checked;
-  });
-}
 function withBaseRev(p) {
   if (configRevision) p.baseRevision = configRevision;
   return p;
-}
-function isConfigStale(e) {
-  return !!(e && (e.message || "").includes("Config changed"));
-}
-function homeConfigPatch() {
-  const p = {};
-  let n = 0;
-  if (homeSwitchPending.homeBrewByWeight) {
-    p.brewByWeight = $("homeBrewByWeight").checked;
-    n++;
-  }
-  if (homeSwitchPending.homeNoScaleBbwEnabled) {
-    p.noScaleBbwMode = $("homeNoScaleBbwEnabled").checked ? nsm : "off";
-    n++;
-  }
-  for (const [h, , k, , device] of HOME_GUARD_SWITCHES)
-    if (device && homeSwitchPending[h]) {
-      p[k] = $(h).checked;
-      n++;
-    }
-  return n ? withBaseRev(p) : null;
-}
-async function flushHomeGuards() {
-  if (homeFlushBusy) {
-    scheduleHomeGuardFlush();
-    return;
-  }
-  homeFlushBusy = true;
-  updateHomeGuardSwitchesLock();
-  const doConfig = homeFlushConfig,
-    doPreset = homeFlushPreset;
-  homeFlushConfig = false;
-  homeFlushPreset = false;
-  const msgs = homePendingPairs();
-  try {
-    if (doConfig) {
-      for (let i = 0; i < 2; i++) {
-        const patch = homeConfigPatch();
-        if (!patch) break;
-        try {
-          await command(
-            "/api/v1/config",
-            patch,
-            1,
-            doPreset ? "" : msgs.ok,
-            doPreset ? "" : msgs.fail,
-          );
-          syncSettingsFromHomeSwitches();
-          break;
-        } catch (e) {
-          await refreshStatus();
-          if (i || !isConfigStale(e)) {
-            message(formatCommandError(msgs.fail, e), "error");
-            clearHomePend();
-            await refreshStatus();
-            return;
-          }
-        }
-      }
-    }
-    if (doPreset) {
-      let clean = false;
-      try {
-        clean = await cleanBrewForm();
-      } catch (e) {
-        message(formatCommandError(msgs.fail, e), "error");
-      }
-      if (!clean) {
-        clearHomePend();
-        await refreshStatus();
-        return;
-      }
-      syncSettingsFromHomeSwitches();
-      if ((await saveBrewPreset(msgs.ok, msgs.fail)) === false) {
-        clearHomePend();
-        await refreshStatus();
-      }
-    }
-  } finally {
-    homeFlushBusy = false;
-    updateHomeGuardSwitchesLock();
-    if (homeFlushConfig || homeFlushPreset) scheduleHomeGuardFlush();
-  }
 }
 function recipeBrewByWeight() {
   const active = presetState.items.find((x) => x.id === presetState.activeId);
@@ -5094,8 +4783,6 @@ async function saveBrewPreset(okMsg, failMsg, fromDial = false) {
     message(formatCommandError(fail, e), "error");
     return false;
   }
-  if (HOME_GUARD_SWITCHES.some(([h]) => homeSwitchPending[h]) || homeSwitchPending.homeBrewByWeight)
-    syncSettingsFromHomeSwitches();
   const errs = validateBrewClient();
   if (errs.length) {
     // The red report replaces the yellow preview (same sentences): drop the
@@ -7013,80 +6700,6 @@ function setHomeSub(id, v) {
   const e = $(id);
   if (e && e.textContent !== v) e.textContent = v;
 }
-function updateHomeGuardSubs(s, live) {
-  const c = s.cycle || {},
-    cfg = s.config || {},
-    b = !!cfg.brewByWeight,
-    sc = s.scale || {},
-    ls = s.lastShot || {},
-    paused = __WEBUI_TEXT__("home.paused");
-  // In Manual every protection waits: one word instead of per-row "Off"
-  // that would contradict a switch still showing on.
-  if (!b) {
-    for (const id of ["homeFastSub", "homeSlowSub", "homeNoScaleSub", "homeScaleLossSub", "homeTouchSub", "homeCupSub"])
-      setHomeSub(id, paused);
-    return;
-  }
-  const mode = {
-    warn_once: __WEBUI_TEXT__("runtime.warn_once"),
-    require_scale: __WEBUI_TEXT__("runtime.require_scale"),
-  }[cfg.noScaleBbwMode];
-  setHomeSub(
-    "homeNoScaleSub",
-    mode ? mode + " · " + formatNoScaleGuard(s.noScaleShotGuard) : __WEBUI_TEXT__("runtime.off_2"),
-  );
-  const m = liveRuleModel?.mode === "active" ? liveRuleModel : null,
-    n = (v) => +(+v).toFixed(1),
-    off = __WEBUI_TEXT__("runtime.off_2"),
-    sideOff = sub(__WEBUI_TEXT__("runtime.side_off"), [n(cfg.goalWeightG)]),
-    sl = s.scaleLoss || {};
-  setHomeSub(
-    "homeScaleLossSub",
-    cfg.autoToManualGuardEnabled && Number.isFinite(sl.projectedS)
-      ? sub(__WEBUI_TEXT__("runtime.scale_loss_sub"), [+sl.projectedS.toFixed(1)])
-      : off,
-  );
-  setHomeSub(
-    "homeFastSub",
-    !m
-      ? off
-      : !m.fast
-        ? sideOff
-        : live && c.extractionExtended
-          ? sub(__WEBUI_TEXT__("runtime.side_raising"), [n(c.activeStopWeightG)])
-          : sub(__WEBUI_TEXT__("runtime.fast_side_sub"), [n(m.ceil), n(m.t1)]),
-  );
-  setHomeSub(
-    "homeTouchSub",
-    formatAccidentalTouch({
-      enabled: !!cfg.avoidAccidentalTouchEnabled,
-      holding: live && !!c.accidentalTouchHolding,
-      inShot: live,
-    }),
-  );
-  setHomeSub(
-    "homeSlowSub",
-    !m
-      ? off
-      : !m.slow
-        ? sideOff
-        : live && c.slowExtractionExtended
-          ? sub(__WEBUI_TEXT__("runtime.side_lowering"), [n(c.activeStopWeightG)])
-          : sub(__WEBUI_TEXT__("runtime.slow_side_sub"), [n(m.floor), n(m.t2)]),
-  );
-  setHomeSub(
-    "homeCupSub",
-    formatCupProtection({
-      enabled: !!cfg.cupProtectionEnabled,
-      requireCupToStart: !!cfg.requireCupToStart,
-      stopIfRemoved: !!cfg.stopIfCupRemoved,
-      present: !!(s.cupPresence && s.cupPresence.present),
-      scaleUsable: !!(sc.available && sc.streamState === "FRESH"),
-      inShot: live,
-      aborted: !live && !!ls.valid && ls.endReason === "cup_removed",
-    }),
-  );
-}
 function renderShotHero(d) {
   const hero = $("shotHero");
   if (!hero) return;
@@ -7515,8 +7128,6 @@ function loadSettingsConfig(c) {
     setSaveDirty("saveConfigButton", "configDirtyHint", false);
   }
   updateConfigGroups();
-  syncHomeGuardSwitchesFromSettings();
-  updateHomeGuardSwitchesLock();
 }
 function loadAdminConfig(c) {
   if (!c || !$("timezoneId")) return;
@@ -7625,9 +7236,8 @@ function applyHomeStatus(s) {
   }
   ingestPresets(s);
   updateRuleChartFromStatus(s);
-  updateHomeGuardSubs(s, !!s.cycle?.active);
   renderHomeCards();
-  applyHomeSwitchesFromConfig(s.config);
+  renderHomePresetAccordion();
 }
 const MICRA_SWITCHES = [
   "ApplyTemperature",
@@ -9219,11 +8829,6 @@ export {
   populateTimezoneOptions,
   timeZoneSelectionChanged,
   changeTimezoneMode,
-  syncHomeGuardSwitchesFromSettings,
-  persistHomeGuard,
-  persistHomeNoScaleBbw,
-  persistHomeBrewByWeight,
-  HOME_GUARD_SWITCHES,
   renderPresetReview,
   dismissCard,
   startNewCoffee,

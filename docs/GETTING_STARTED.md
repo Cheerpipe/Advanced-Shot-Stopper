@@ -219,7 +219,7 @@ before relying on automatic operation.
 | Shot ends above or below target | Read how it ended in [history](features/shot-history.md), then check [fast and slow shots](features/fast-and-slow-shots.md) and the learned drip. |
 | Scale unavailable before start | Follow [No-scale BBW](settings/no-scale-bbw.md); the default first attempt warns and blocks. |
 | Scale disconnects during brewing | Weight stop pauses; the [scale-loss backup](features/auto-to-manual.md) may request a timed stop while reconnection continues. |
-| Want to stop shots yourself | Choose **Manual** under **How shots stop** on Home. It stays until you choose **By weight** again and does not rewrite the saved recipe. |
+| Want to stop shots yourself | Choose the **Manual** preset on Home or in **Settings → Presets**. Choose a brewing preset again to stop by weight. |
 | Cannot save a setting | Finish the cycle, return the activator to idle, reclaim the UI if necessary, and check Admin unlock for privileged settings. |
 | Cannot reach the controller | Use [network troubleshooting](FAQ.md#network-and-access) before considering a reset. |
 

@@ -43,10 +43,9 @@ Defaults below describe factory Double; see [Presets](presets.md) for Single.
 These are saved with each preset under **Settings → Presets**, except where
 noted. While you edit, values that conflict with another field are flagged
 in yellow right away — the same message Save would show — so you can fix
-them before saving. **Home → How shots stop** switches between **By weight** and
-**Manual** without changing the preset. The choice is saved on the controller,
-and Manual stays on when you pick another preset until you choose By weight
-again.
+them before saving. How a shot stops always follows the active preset: to
+stop shots yourself, choose the **Manual** preset, then pick a brewing preset
+to stop by weight again.
 
 | Setting | Group | Default | Range | Effect on the shot |
 | --- | --- | --- | --- | --- |

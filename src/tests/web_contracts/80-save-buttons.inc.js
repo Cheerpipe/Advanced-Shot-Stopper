@@ -133,7 +133,7 @@
       updateScaleRenameUi: (_, mac) => {context.renameMac = mac;},
       setSaveDirty() {}, confirm: () => true, clearFieldErrors() {},
       refreshBrewWarnings() {},
-      updateConfigGroups() {}, syncHomeGuardSwitchesFromSettings() {},
+      updateConfigGroups() {},
       ensureSettingsHydrated: async () => {}, validateMachineClient: () => null,
       validateBullseyeClient: () => null, machinePayload: () => ({scaleMacCacheMode: 'only'}),
       addBullseyePayload: p => p, withBaseRev: p => ({...p, baseRevision: 7}),

@@ -1,4 +1,4 @@
-"""Home Quick Settings switches for Open Brew by Weight."""
+"""Protection Quick Settings switches for Open Brew by Weight."""
 
 from __future__ import annotations
 
@@ -30,13 +30,6 @@ class QuickSettingDescription(SwitchEntityDescription):
 
 
 DESCRIPTIONS = (
-    QuickSettingDescription(
-        key="brew_by_weight",
-        translation_key="brew_by_weight",
-        api_field="brewByWeight",
-        state_field="brew_by_weight",
-        icon="mdi:scale",
-    ),
     QuickSettingDescription(
         key="no_scale_bbw",
         translation_key="no_scale_bbw",
@@ -95,7 +88,7 @@ async def async_setup_entry(
     entry: ConfigEntry[OpenBrewByWeightRuntimeData],
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Create all seven confirmed-state switches."""
+    """Create all six confirmed-state switches."""
     coordinator = entry.runtime_data.coordinator
     async_add_entities(QuickSettingSwitch(coordinator, item) for item in DESCRIPTIONS)
 

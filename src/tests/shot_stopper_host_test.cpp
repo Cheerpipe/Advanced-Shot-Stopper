@@ -13631,14 +13631,13 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   runtimeConfig.scaleLossEnabled = true;
   runtimeConfig.avoidAccidentalTouchEnabled = true;
   runtimeConfig.cupProtectionEnabled = true;
-  applyShotPresetToConfig(initialPreset, runtimeConfig, true);
+  applyShotPresetToConfig(initialPreset, runtimeConfig);
   const uint16_t goal = runtimeConfig.goalWeightDg;
   const float learnedOffset = activeShotPreset(presetBank).bbwEwmaOffsetG;
   const struct {
     QuickSettingField field;
     uint8_t value;
   } changes[] = {
-      {QuickSettingField::BREW_BY_WEIGHT, 0},
       {QuickSettingField::NO_SCALE_BBW_MODE,
        static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE)},
       {QuickSettingField::AUTO_TO_MANUAL_GUARD, 0},
@@ -13662,7 +13661,7 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
     runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
     CHECK(pendingPresetPersistence.requestId == 0);
   }
-  CHECK(runtimeConfig.timerOnly);
+  CHECK(!runtimeConfig.timerOnly);
   CHECK(noScaleBbwModeValue(runtimeConfig.noScaleBbwMode) ==
         static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE));
   CHECK(idleAccessoryRetareEnabled(runtimeConfig.noScaleBbwMode));
@@ -13674,14 +13673,25 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   CHECK(runtimeConfig.goalWeightDg == goal);
   CHECK(activeShotPreset(presetBank).bbwEwmaOffsetG == learnedOffset);
 
+  // Stop mode belongs to the active preset: the retired session switch is refused.
+  WebCommand retired;
+  retired.type = WebCommandType::QUICK_SETTING;
+  retired.requestId = requestId++;
+  retired.config.revision = runtimeConfig.revision;
+  retired.presetAction = static_cast<uint8_t>(QuickSettingField::BREW_BY_WEIGHT);
+  retired.presetId = 0;
+  processWebCommand(retired);
+  CHECK(!runtimeConfig.timerOnly);
+  CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::FAILED);
+
   WebCommand stale;
   stale.type = WebCommandType::QUICK_SETTING;
   stale.requestId = requestId;
   stale.config.revision = runtimeConfig.revision - 1;
-  stale.presetAction = static_cast<uint8_t>(QuickSettingField::BREW_BY_WEIGHT);
+  stale.presetAction = static_cast<uint8_t>(QuickSettingField::CUP_PROTECTION);
   stale.presetId = 1;
   processWebCommand(stale);
-  CHECK(runtimeConfig.timerOnly);
+  CHECK(!runtimeConfig.cupProtectionEnabled);
   CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::FAILED);
 
   WebCommand unchanged = stale;
@@ -13689,7 +13699,7 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   unchanged.config.revision = runtimeConfig.revision;
   unchanged.presetId = 0;
   processWebCommand(unchanged);
-  CHECK(runtimeConfig.timerOnly);
+  CHECK(!runtimeConfig.cupProtectionEnabled);
   CHECK(pendingPresetPersistence.requestId == 0);
   CHECK(hostLastForwardedNetworkCommand.resultState ==
         CommandResultState::PERSISTED);
@@ -13699,7 +13709,7 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   active.requestId = ++requestId;
   active.presetId = 1;
   processWebCommand(active);
-  CHECK(runtimeConfig.timerOnly);
+  CHECK(!runtimeConfig.cupProtectionEnabled);
   CHECK(pendingPresetPersistence.requestId == 0);
   CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::FAILED);
 
@@ -13708,7 +13718,7 @@ void hq01_quick_settings_are_revisioned_and_preserve_recipe_fields() {
   delayed.type = WebCommandType::QUICK_SETTING;
   delayed.requestId = ++requestId;
   delayed.config.revision = runtimeConfig.revision;
-  delayed.presetAction = static_cast<uint8_t>(QuickSettingField::BREW_BY_WEIGHT);
+  delayed.presetAction = static_cast<uint8_t>(QuickSettingField::CUP_PROTECTION);
   delayed.presetId = 1;
   const uint32_t webhookCount = hostQuickSettingsWebhookCount;
   hostRuntimePersistSucceeds = false;

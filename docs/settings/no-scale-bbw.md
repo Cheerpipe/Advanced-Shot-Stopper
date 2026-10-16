@@ -38,12 +38,6 @@ warning when you start the gesture, then the rinse sound if you finish it.
 Home **Start rinse** follows the same choice. **Require a scale** still blocks
 rinse unless you complete the temporary physical override.
 
-On Home, **How shots stop → Protections → No-scale BBW** shows the configured
-mode with its live status: **Off**, **Armed**, **Temporarily allowed** (with
-remaining time), **Scale required**, or **Ready** when Require scale is
-configured and the scale is usable. Its switch turns the protection off or
-back on; pick the mode itself here in Settings.
-
 While **By weight** is selected and no usable scale is connected, a notice at
 the top of Home says what your next shot will do. While protection is Armed,
 it warns that the next shot will be held back, or, in **Require a scale**, that

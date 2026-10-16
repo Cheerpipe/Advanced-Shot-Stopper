@@ -88,7 +88,7 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
   preset->bbwEwmaAlpha = nextAlpha;
   learning.generation = bbwLearningBank.newGeneration();
   RuntimeConfig candidate = runtimeConfig;
-  applyShotPresetToConfig(activeShotPreset(presetBank), candidate, true);
+  applyShotPresetToConfig(activeShotPreset(presetBank), candidate);
   ++candidate.revision;
   if (candidate.revision == 0) {
     candidate.revision = 1;

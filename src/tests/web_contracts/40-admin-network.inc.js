@@ -742,9 +742,7 @@ if (!codeIncludes(ui, 'function withPollGate(') ||
     !codeIncludes(ui, "throw new Error('Invalid status')") ||
     !codeIncludes(ui, "await loadDiagnosticStatus():await api('/api/v1/status/'+v)") ||
     !codeIncludes(ui, 'function ensureSettingsHydrated(') ||
-    !codeIncludes(ui, 'function homeConfigPatch(') ||
     !codeIncludes(ui, 'function withBaseRev(') ||
-    !codeIncludes(ui, 'function isConfigStale(') ||
     !codeIncludes(ui, 'formRev') ||
     !codeIncludes(ui, 'formRev===c.revision') ||
     !codeIncludes(ui, 'baseRevision') ||

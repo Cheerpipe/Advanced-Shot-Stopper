@@ -160,20 +160,9 @@ export function init() {
       hint.parentNode.insertBefore(link, hint.nextSibling);
     }
   }
-  $("fastExtractionGuardEnabled").onchange = () => {
-    R.updateConfigGroups();
-    R.syncHomeGuardSwitchesFromSettings();
-  };
-  if ($("avoidAccidentalTouchEnabled"))
-    $("avoidAccidentalTouchEnabled").onchange = () => {
-      R.updateConfigGroups();
-      R.syncHomeGuardSwitchesFromSettings();
-    };
-  $("slowExtractionGuardEnabled").onchange = () => {
-    R.updateConfigGroups();
-    R.syncHomeGuardSwitchesFromSettings();
-  };
-  $("autoToManualGuardEnabled").onchange = R.syncHomeGuardSwitchesFromSettings;
+  $("fastExtractionGuardEnabled").onchange = R.updateConfigGroups;
+  if ($("avoidAccidentalTouchEnabled")) $("avoidAccidentalTouchEnabled").onchange = R.updateConfigGroups;
+  $("slowExtractionGuardEnabled").onchange = R.updateConfigGroups;
   // The device backup's per-preset fixed time lives in Shot limits.
   $("scaleLossFixedLink").onclick = () => {
     const field = $("scaleLossFixedS");
@@ -181,11 +170,7 @@ export function init() {
     field.scrollIntoView({ block: "center" });
     field.focus({ preventScroll: true });
   };
-  if ($("cupProtectionEnabled"))
-    $("cupProtectionEnabled").onchange = () => {
-      R.updateConfigGroups();
-      R.syncHomeGuardSwitchesFromSettings();
-    };
+  if ($("cupProtectionEnabled")) $("cupProtectionEnabled").onchange = R.updateConfigGroups;
   $("operationalWallS").addEventListener("input", R.updateConfigGroups);
   document
     .querySelectorAll("#workflowPanel input,#workflowPanel select,#workflowPanel textarea")

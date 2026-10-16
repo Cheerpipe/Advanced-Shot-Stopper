@@ -10,7 +10,7 @@ covers the normal path.
 
 Check, in order:
 
-1. **How shots stop** on Home is set to **By weight**, not **Manual**.
+1. The active preset stops by weight: it is not **Manual**, and its **Brew by weight** is on.
 2. Home shows fresh usable scale readings.
 3. The [Earliest weight stop](features/cup-protection.md) time has passed.
 4. A [fast shot](features/fast-and-slow-shots.md#fast-shots) is not deliberately running longer.

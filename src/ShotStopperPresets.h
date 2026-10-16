@@ -97,8 +97,7 @@ inline bool validShotPresetName(const char *name) {
 }
 
 inline void applyShotPresetToConfig(const ShotPreset &preset,
-                                    RuntimeConfig &config,
-                                    bool keepSessionTimerOnly);
+                                    RuntimeConfig &config);
 
 inline bool validateShotPresetRecipe(const ShotPreset &preset,
                                      uint32_t machineRetareWindowMs,
@@ -113,7 +112,7 @@ inline bool validateShotPresetRecipe(const ShotPreset &preset,
   RuntimeConfig probe;
   probe.autoRetare = machineAutoRetare;
   probe.retareWindowMs = machineRetareWindowMs;
-  applyShotPresetToConfig(preset, probe, false);
+  applyShotPresetToConfig(preset, probe);
   return validateRuntimeConfig(probe) == ConfigValidationError::NONE;
 }
 
@@ -282,11 +281,10 @@ inline bool setShotPresetLineaMicraBrewTarget(ShotPresetBank &bank, uint8_t id,
 }
 
 // Overlays the active preset's recipe on the device config. Device-level
-// fields (cup protection, touch, scale-loss switch) are never overlaid.
+// fields (cup protection, touch, scale-loss switch) are never overlaid; the
+// stop mode comes only from the preset (Manual is a preset, not a session).
 inline void applyShotPresetToConfig(const ShotPreset &preset,
-                                    RuntimeConfig &config,
-                                    bool keepSessionTimerOnly) {
-  const bool sessionManual = keepSessionTimerOnly && config.timerOnly;
+                                    RuntimeConfig &config) {
   config.goalWeightDg = preset.goalWeightDg;
   config.weightOffsetG = preset.bbwEwmaOffsetG;
   config.weightOffsetBaselineG = preset.weightOffsetBaselineG;
@@ -299,13 +297,13 @@ inline void applyShotPresetToConfig(const ShotPreset &preset,
   config.slowMarginDg = preset.slowMarginDg;
   config.slowAfterMs = preset.slowAfterMs;
   config.scaleLossFixedMs = preset.scaleLossFixedMs;
-  config.timerOnly = sessionManual ? true : !preset.brewByWeight;
+  config.timerOnly = !preset.brewByWeight;
 }
 
 inline RuntimeConfig composeEffectiveConfig(const RuntimeConfig &machine,
                                             const ShotPresetBank &bank) {
   RuntimeConfig effective = machine;
-  applyShotPresetToConfig(activeShotPreset(bank), effective, true);
+  applyShotPresetToConfig(activeShotPreset(bank), effective);
   return effective;
 }
 

@@ -13,6 +13,9 @@ from custom_components.open_brew_by_weight import (
     async_setup_entry,
     async_unload_entry,
 )
+from custom_components.open_brew_by_weight.binary_sensor import (
+    async_setup_entry as async_setup_binary_sensors,
+)
 from custom_components.open_brew_by_weight.button import (
     async_setup_entry as async_setup_button,
 )
@@ -192,8 +195,11 @@ async def test_platform_factories(hass) -> None:
     await async_setup_select(hass, entry, add)
     assert len(add.call_args.args[0]) == 1
     add.reset_mock()
+    await async_setup_binary_sensors(hass, entry, add)
+    assert len(add.call_args.args[0]) == 1
+    add.reset_mock()
     await async_setup_switches(hass, entry, add)
-    assert len(list(add.call_args.args[0])) == 7
+    assert len(list(add.call_args.args[0])) == 6
     add.reset_mock()
     await async_setup_button(hass, entry, add)
     assert len(add.call_args.args[0]) == 1

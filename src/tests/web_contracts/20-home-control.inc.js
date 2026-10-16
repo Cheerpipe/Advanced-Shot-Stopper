@@ -683,7 +683,7 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
     !css.includes('.shotCard{') ||
     !css.includes('.metric,.shotCard > *{') ||
     !css.includes('.metric strong,.shotCard strong{') ||
-    !css.includes('.metric > div,.shotCard > * > div,.swS{') ||
+    !css.includes('.metric > div,.shotCard > * > div{') ||
     css.includes('#diagnosticsPanel .metric,#statusPanel .metric,#scalePanel .metric,.shotCard > *{') ||
     css.includes('#statusPanel .metric::before,#scalePanel .metric::before,.shotCard > *::before{') ||
     css.includes('font-size:1rem;font-weight:700;color:var(--mu)') ||
@@ -756,8 +756,6 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
         html.indexOf('<summary>Finish by time</summary>') ||
     html.indexOf('<summary>Finish by time</summary>') >
         html.indexOf('id="scaleLossProjection"') ||
-    !codeIncludes(ui, 'id="homeScaleLossSub"') ||
-    !codeIncludes(ui, 'id="homeNoScaleSub"') ||
     !codeIncludes(ui, 'id="noScaleBbwMode"') ||
     !codeIncludes(ui, 'id="noScaleAllowRinseWhileArmed"') ||
     !codeIncludes(ui, 'id="lastShotCooldownMin"') ||
@@ -771,8 +769,6 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !codeIncludes(ui, 'value="require_scale"') ||
     !codeIncludes(ui, 'function formatNoScaleGuard(') ||
     !codeIncludes(ui, 'function formatSlowExtractionGuard(') ||
-    !codeIncludes(ui, 'setHomeSub("homeSlowSub"') ||
-    !codeIncludes(ui, 'updateHomeGuardSubs(s,!!s.cycle?.active)') ||
     codeIncludes(ui, 'function updateNoScaleGuard(') ||
     html.includes('id="shotAtmGuard"') ||
     html.includes('id="shotNoScaleGuard"') ||
@@ -830,10 +826,7 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !domain.includes('MachineRunState machineRunState') ||
     !domain.includes('CupPresenceState cupPresenceState') ||
     !codeIncludes(ui, 'Scale lost ·') ||
-    !codeIncludes(ui, 'function updateHomeGuardSubs(') ||
-    !codeIncludes(ui, 'updateHomeGuardSubs(s,live)') ||
     codeIncludes(ui, "setHomeSub('homeBbwSub'") ||
-    !codeIncludes(ui, "setHomeSub('homeCupSub'") ||
     codeIncludes(ui, "setHomeSub('homeAlertsSub'") ||
     !codeIncludes(ui, 'function formatCupProtection(') ||
     codeIncludes(ui, 'function formatAlertsChannel(') ||
@@ -844,9 +837,6 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !codeIncludes(ui, 'Present') || !codeIncludes(ui, 'Absent') ||
     !network.includes('shotLogStopDetailName(') ||
     !html.includes('option value="scale_priority">Scale first') ||
-    !css.includes('.swS') ||
-    !css.includes('.protList .switchRow{') ||
-    !css.includes('#brewModeRow{position:relative;display:grid;grid-template-columns:1fr 1fr') ||
     !codeIncludes(ui, 'yield_source') ||
     !network.includes('autoToManualGuardEnabled') ||
     !network.includes('scaleLossFixedS') ||

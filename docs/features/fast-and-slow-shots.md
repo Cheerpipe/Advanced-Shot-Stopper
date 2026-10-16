@@ -52,8 +52,7 @@ before the window starts.
 - A shot that is only a little early gets only a little more.
 - Turned off, a fast shot stops at the target.
 
-**Home → How shots stop → Protections → Extend fast shots** (under **This
-preset**) switches the same option for the active preset. While a fast shot is running longer, its line reads
+While a fast shot is running longer, its line reads
 **Running fast · going to 38 g**, and the last shot card shows **EXTENDED**.
 
 ## Slow shots
@@ -68,11 +67,7 @@ window ends, then eases down by up to **Shorten by up to (g)** over the next
   gets there.
 - Turned off, a slow shot keeps going toward the target until Max shot time.
 
-**Home → How shots stop → Protections → Shorten slow shots** (under **This
-preset**) switches the same option for the active preset. Even with the panel
-closed, the first two dots on the **Protections** row show the active preset's
-choice: orange for fast shots and blue for slow shots, filled when on and
-hollow when off. While a slow shot is stopping sooner, its line reads
+While a slow shot is stopping sooner, its line reads
 **Running slow · stopping at 34 g**, and the last shot card shows
 **STOPPED EARLY**.
 

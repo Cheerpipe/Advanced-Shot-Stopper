@@ -252,8 +252,6 @@ void processWebCommand(const WebCommand &command) {
       candidate.ringRetainLogLevel = command.config.ringRetainLogLevel;
       candidate.showDiagnosticPage = command.config.showDiagnosticPage;
       candidate.powerManagementEnabled = command.config.powerManagementEnabled;
-      // Session Manual switch may arrive via brewByWeight on Home; keep as timerOnly.
-      candidate.timerOnly = command.config.timerOnly;
 #if defined(SHOT_STOPPER_HOST_TEST)
       // Host APPLY_CONFIG still carries brew fields; update the active recipe.
       {
@@ -323,8 +321,9 @@ void processWebCommand(const WebCommand &command) {
       }
       switch (quickField) {
         case QuickSettingField::BREW_BY_WEIGHT:
-          candidateRuntime.timerOnly = !enabled;
-          break;
+          // Stop mode belongs to the active preset; there is no session Manual.
+          rejectWebCommand(command);
+          return;
         case QuickSettingField::NO_SCALE_BBW_MODE:
           if (command.presetId >
               static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE)) {
@@ -393,7 +392,7 @@ void processWebCommand(const WebCommand &command) {
         preset.bbwAlphaLearned = 0;
       }
       RuntimeConfig candidate = runtimeConfig;
-      applyShotPresetToConfig(preset, candidate, true);
+      applyShotPresetToConfig(preset, candidate);
       ++candidate.revision;
       if (candidate.revision == 0) {
         candidate.revision = 1;
@@ -412,7 +411,7 @@ void processWebCommand(const WebCommand &command) {
       pendingFinalize.pending = false;
       mutableActiveShotPreset(presetBank).learningEpoch = shotStatisticsEpochNow();
       RuntimeConfig candidate = runtimeConfig;
-      applyShotPresetToConfig(activeShotPreset(presetBank), candidate, true);
+      applyShotPresetToConfig(activeShotPreset(presetBank), candidate);
       ++candidate.revision;
       if (candidate.revision == 0) {
         candidate.revision = 1;
@@ -461,7 +460,7 @@ void processWebCommand(const WebCommand &command) {
           if (command.presetDoseDg != 0) candidateRecipe.doseDg = command.presetDoseDg;
           if (command.presetGrindHints >= 0)
             candidateRecipe.grindHintsEnabled = command.presetGrindHints != 0;
-          // Form sends brewByWeight explicitly; do not use session Manual.
+          // The preset form carries its Brew by weight in timerOnly.
           candidateRecipe.brewByWeight = !command.config.timerOnly;
           ok = validateShotPresetRecipe(candidateRecipe,
                                         runtimeConfig.retareWindowMs,
@@ -529,7 +528,7 @@ void processWebCommand(const WebCommand &command) {
       // The v1 preset form still carries the device-level switches.
       if (action == PresetAction::SAVE)
         copyDeviceProtectionFromConfig(command.config, candidate);
-      applyShotPresetToConfig(activeShotPreset(presetBank), candidate, true);
+      applyShotPresetToConfig(activeShotPreset(presetBank), candidate);
       ++candidate.revision;
       if (candidate.revision == 0) {
         candidate.revision = 1;

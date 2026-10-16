@@ -113,12 +113,11 @@
   const payloadLine = blockAt(allJs, 'function machinePayload()');
   if (!payloadLine) throw new Error('Missing machine payload function');
   const makePayload = new Function('$', 'number', 'sToMs', 'extRate',
-    'HOME_GUARD_SWITCHES', 'homeSwitchPending', 'syncSettingsFromHomeSwitches',
     payloadLine + ';return machinePayload();');
   for (const idleOn of [false, true]) for (const accessoryOn of [false, true]) {
     const payload = makePayload(id => ({checked: (id === 'autoTareOutsideBrew' && idleOn) ||
       (id === 'retareAccessoryOutsideBrew' && accessoryOn),
-      value: 'off'}), () => 1, () => 1000, value => value, [], {}, () => {});
+      value: 'off'}), () => 1, () => 1000, value => value);
     if (payload.autoTareOutsideBrew !== idleOn ||
         payload.retareAccessoryOutsideBrew !== accessoryOn || payload.autoTare !== false) {
       throw new Error('Idle/accessory tare payload must be independent of shot-start tare');
@@ -161,7 +160,6 @@
 }
 
 if (/R\.(homeFlushConfig|homeFlushPreset|configLoaded|formRev|brewDirty)\s*=/.test(js) ||
-    !codeIncludes(js, 'function persistHomeBrewByWeight(') ||
     !codeIncludes(js, 'function invalidateSettingsHydration(') ||
     !codeIncludes(js, 'function clearBrewDirty(')) {
   throw new Error(
@@ -211,42 +209,15 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     html.indexOf('id="presetPanel"') > html.indexOf('<legend>Presets</legend>') ||
     html.indexOf('<legend>Presets</legend>') > html.indexOf('id="homePresetAcc"') ||
     html.indexOf('id="homePresetBlock"') > html.indexOf('id="homePresetAcc"') ||
-    !codeIncludes(ui, 'id="homeBrewByWeight"') ||
-    !codeIncludes(ui, 'id="homeBrewManual"') ||
-    !codeIncludes(ui, 'id="homeNoScaleBbwEnabled"') ||
     codeIncludes(ui, 'id="quickSettingsPanel"') ||
-    !html.includes('<div id="stopSurface" class="stopSurface">') ||
-    !html.includes('class="protList"') ||
+    codeIncludes(ui, 'id="stopPanel"') || codeIncludes(ui, 'homeBrewByWeight') ||
+    codeIncludes(ui, 'HOME_GUARD_SWITCHES') || codeIncludes(ui, 'presetLockNote') ||
     html.includes('id="homeBbwSub"') ||
     html.includes('id="homeNoScaleBbwMode"') ||
-    !html.includes('id="homeNoScaleSub"') ||
-    !html.includes('id="homeFastSub"') ||
-    !html.includes('id="homeTouchSub"') ||
     !codeIncludes(ui, 'function formatAccidentalTouch(') ||
-    !html.includes('id="homeSlowSub"') ||
-    !html.includes('id="homeScaleLossSub"') ||
-    !html.includes('id="homeCupSub"') ||
     html.includes('id="homeAlertsSub"') ||
-    !html.includes('>Cup protection<span') ||
     html.includes('>Alerts<span') ||
-    !html.includes('class="swS"') ||
-    !html.includes('id="protConfirm" class="protConfirm" role="alert" hidden') ||
-    !html.includes('id="presetLockNote" class="fieldHint" hidden') ||
-    html.indexOf('id="homeBrewByWeight"') > html.indexOf('id="homeBrewManual"') ||
-    html.indexOf('id="homeBrewManual"') > html.indexOf('id="protRow"') ||
-    html.indexOf('id="protRow"') > html.indexOf('id="homeFastExtractionGuardEnabled"') ||
-    html.indexOf('id="homeFastExtractionGuardEnabled"') > html.indexOf('id="homeSlowExtractionGuardEnabled"') ||
-    html.indexOf('id="homeSlowExtractionGuardEnabled"') > html.indexOf('id="homeNoScaleBbwEnabled"') ||
-    html.indexOf('id="homeNoScaleBbwEnabled"') > html.indexOf('id="homeAutoToManualGuardEnabled"') ||
-    html.indexOf('id="homeAutoToManualGuardEnabled"') > html.indexOf('id="homeAvoidAccidentalTouchEnabled"') ||
-    html.indexOf('id="homeAvoidAccidentalTouchEnabled"') > html.indexOf('id="homeCupProtectionEnabled"') ||
-    html.indexOf('id="homeCupProtectionEnabled"') > html.indexOf('id="homePresetBlock"') ||
     html.indexOf('id="homePresetBlock"') > html.indexOf('id="equipmentPanel"') ||
-    !html.includes('>Scale guard<span') ||
-    !html.includes('>Extend fast shots<span') ||
-    !html.includes('>Avoid accidental touch<span') ||
-    !html.includes('>Shorten slow shots<span') ||
-    !html.includes('>Scale-loss backup<span') ||
     html.indexOf('<summary>Scale guard</summary>') < 0 ||
     html.indexOf('<summary>Fast shots</summary>') < 0 ||
     html.indexOf('<summary>Cup protection</summary>') < 0 ||
@@ -265,7 +236,6 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     html.includes('id="cupPresentWeightG"') ||
     html.includes('id="requireCupToStart" type="checkbox" checked') ||
     !codeIncludes(ui, 'Already on? Lift and replace it.') ||
-    !codeIncludes(ui, 'id="homeCupProtectionEnabled"') ||
     html.indexOf('<summary>Slow shots</summary>') < 0 ||
     html.indexOf('<summary>Finish by time</summary>') < 0 ||
     html.includes('<summary>Avoid accidental touch</summary>') ||
@@ -277,59 +247,17 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
         html.indexOf('<summary>Slow shots</summary>') ||
     html.indexOf('<summary>Slow shots</summary>') >
         html.indexOf('<summary>Finish by time</summary>') ||
-    !codeIncludes(ui, 'function updateHomeGuardSwitchesLock(') ||
-    !codeIncludes(ui, 'function persistHomeGuard(') ||
-    !codeIncludes(ui, 'function flushHomeGuards(') ||
-    !codeIncludes(ui, 'function scheduleHomeGuardFlush(') ||
     !codeIncludes(ui, 'function withCommandGate(') ||
-    !codeIncludes(ui, 'function beginHomeSwitchPending(') ||
-    !codeIncludes(ui, 'function applyPolledHomeSwitch(') ||
-    !codeIncludes(ui, 'function applyHomeSwitchesFromConfig(') ||
-    !codeIncludes(ui, 'Date.now()+5e3') ||
-    !codeIncludes(ui, 'pollAt<p.until') ||
-    !codeIncludes(ui, "classList.toggle('switchPending',!!on)") ||
-    !codeIncludes(ui, 'R.persistHomeGuard(h, s, c)') ||
-    !codeIncludes(ui, 'onchange=R.persistHomeNoScaleBbw') ||
-    !codeIncludes(ui, 'function persistHomeNoScaleBbw(') ||
-    !codeIncludes(ui, "p.noScaleBbwMode=$('homeNoScaleBbwEnabled').checked?nsm:'off'") ||
-    codeIncludes(ui, "persistHomeGuard('homeSoundAlertsEnabled'") ||
-    !['FastExtractionGuardEnabled', 'AvoidAccidentalTouchEnabled', 'SlowExtractionGuardEnabled',
-      'AutoToManualGuardEnabled', 'CupProtectionEnabled'].every(k => codeIncludes(ui,
-        `"home${k}State","${k[0].toLowerCase()}${k.slice(1)}"`)) ||
-    !codeIncludes(ui, '$(h).disabled=!controlsMutable||u||(!u&&!on)') ||
     codeIncludes(ui, 'el.disabled=!controlsMutable||off||pend') ||
-    !codeIncludes(ui, 'homeFlushBusy') ||
-    !codeIncludes(ui, 'scheduleHomeGuardFlush()') ||
     !codeIncludes(ui, "classList.toggle('fieldOff',off)") ||
-    !codeIncludes(ui, "bbw.disabled=$('homeBrewManual').disabled=!controlsMutable||x") ||
-    !codeIncludes(ui, 'function renderProtSummary(') ||
     !codeIncludes(ui, 'function cleanBrewForm(') ||
-    !codeIncludes(ui, 'function homeSwitchUnset(') ||
-    !codeIncludes(ui, "classList.add('swR')") ||
-    !codeIncludes(ui, "typeof c[k]==='boolean'") ||
-    !html.includes('id="homeBrewByWeight" type="radio" name="homeStop">') ||
-    !html.includes('id="homeNoScaleBbwEnabled" type="checkbox" role="switch">') ||
     html.includes('id="homeSoundAlertsEnabled"') ||
-    html.includes('id="homeCupProtectionEnabled" type="checkbox" role="switch" checked') ||
-    !css.includes('.switchRow.switchPending') ||
-    !css.includes('.ktrack{position:relative;flex:none;width:2.3rem;height:1.3rem;border-radius:2rem;background:var(--bd);transition:.2s}') ||
-    !css.includes('.ktrack:after{content:"";position:absolute;top:.15rem;left:.15rem;width:1rem;height:1rem;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:.2s}') ||
-    !css.includes('.protList input:checked~.ktrack{background:var(--ac)}') ||
-    !css.includes('.protList input:checked~.ktrack:after{transform:translateX(1rem)}') ||
-    !css.includes('#stopPanel{') ||
     !css.includes('justify-content:space-between') ||
     css.includes('.homeSwitchGrid') ||
     !css.includes('border-bottom:1px solid') ||
     css.includes('.switchState') ||
-    !css.includes('.swS{') ||
     css.includes('.homeGuardGrid') ||
-    !css.includes('#brewModeRow:has(#homeBrewManual:checked):before{transform:translateX(100%)}') ||
-    !css.includes('#brewModeRow input:checked+label{color:var(--on)}') ||
     css.includes('.ruleChartHead') || css.includes('.ruleChartMode') ||
-    !css.includes('.protList .switchRow.switchPending .ktrack{background:repeating-linear-gradient(-45deg,var(--bd)') ||
-    !codeIncludes(ui, 'function persistHomeBrewByWeight(') ||
-    !codeIncludes(ui, "onchange=R.persistHomeBrewByWeight") ||
-    !codeIncludes(ui, 'beginHomeSwitchPending(h,on)') ||
     codeIncludes(ui, 'id="clearLastShotButton"') ||
     css.includes('#shotPanel') ||
     !css.includes('#shotTable .btnGlyph{border:0;border-radius:2rem;min-height:var(--tap);min-width:var(--tap);padding:0;flex:0 0 auto;background:none;box-shadow:none;filter:none') ||
@@ -945,14 +873,12 @@ if (codeIncludes(ui, 'id="shotRating"') ||
 if (!codeIncludes(js, 'function commandOkMessage(') ||
     !codeIncludes(js, 'function commandFailMessage(') ||
     !codeIncludes(js, 'function formatCommandError(') ||
-    !codeIncludes(js, 'function homePendingPairs(') ||
     !codeIncludes(js, 'command(path,value={},soft,okMsg,failMsg,busyId)') ||
     codeIncludes(js, "message(e&&e.message?e.message:'Request failed.','error')") ||
     !codeIncludes(js, 'Shared settings saved.') ||
     !codeIncludes(js, "cn('save shared settings')") ||
     !codeIncludes(js, 'Preset saved.') ||
     !codeIncludes(js, "'save the preset'") ||
-    !codeIncludes(js, "homeFastExtractionGuardEnabledState','fastExtractionGuardEnabled','Extend fast shots'") ||
     !codeIncludes(js, "label+(on?' enabled.':' disabled.')") ||
     !codeIncludes(js, "'Could not '+(on?'enable ':'disable ')+label+'.'") ||
     !codeIncludes(js, 'Wi-Fi settings saved. Restarting.') ||
