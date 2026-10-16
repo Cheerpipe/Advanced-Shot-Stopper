@@ -422,7 +422,6 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .shotCard .shotDur,.shotCard .shotActual,#shotTable .shotDur,#shotTable .shotActual{display:grid;grid-template-columns:1.5rem auto;gap:.08rem .5rem;justify-self:center;text-align:left}
 .shotMetricIcon{grid-column:1;grid-row:2;align-self:center;width:1.5rem;height:1.5rem}
 #shotTable .shotVal{white-space:nowrap}
-#shotTable small{display:inline;font-size:.6em;color:var(--mu)}
 .shotCard :is(.shotDur,.shotActual)>strong,#shotTable :is(.shotDur,.shotActual)::before{grid-column:1/-1;padding-left:2rem}
 .shotCard :is(.shotDur,.shotActual)>div{grid-column:2;grid-row:2}
 #shotTable .shotDur::before,#shotTable .shotActual::before{font-size:.6875rem;font-weight:700;color:var(--mu);letter-spacing:.04em}

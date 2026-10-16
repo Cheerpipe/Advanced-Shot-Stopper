@@ -1678,11 +1678,10 @@ function renderShots() {
     if (l) e.dataset.label = l;
     if (c) e.className = c;
     e.textContent = v;
-    // The headline numbers keep their unit, set smaller so the value reads first.
     if (c === "shotDur" || c === "shotActual")
       e.innerHTML =
         '<span class="shotVal">' +
-        e.innerHTML.replace(/(\d)([sg])$/, "$1<small>$2</small>") +
+        e.innerHTML +
         '</span><svg class="shotMetricIcon" width="1.85rem" height="1.85rem" fill="currentColor" aria-hidden="true"><use href="#shotMetric' +
         (c === "shotDur" ? "Time" : "Weight") +
         '"/></svg>';
