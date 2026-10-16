@@ -407,19 +407,31 @@ inline uint32_t shotLogBbwErrorTenths(const ShotLogRecord &record) {
 inline uint8_t shotLogPresetId(const ShotLogRecord &record);
 
 // A stored shot as the corridor statistics see it: weight cuts carry their
-// segment's EndReason, everything else is inadmissible.
+// segment's EndReason; time limits and manual stops of automatic shots carry
+// theirs for the grind hint's censored shots; everything else is NONE.
 inline corridor::ArrivalRecord shotLogArrivalRecord(const ShotLogRecord &record) {
   corridor::ArrivalRecord out;
   out.recordId = record.id;
   out.presetId = shotLogPresetId(record);
   const auto detail = static_cast<ShotLogStopDetail>(record.stopDetail);
+  const bool automatic = shotLogType(record) == ShotLogType::AUTO;
   out.endReason = static_cast<uint8_t>(
       detail == ShotLogStopDetail::NORMAL_TARGET ? EndReason::SCALE_THRESHOLD
       : detail == ShotLogStopDetail::EXTENDED_MAX_WEIGHT
           ? EndReason::FAST_EXTRACTION_MAX_WEIGHT
       : detail == ShotLogStopDetail::SLOW_MIN_WEIGHT
           ? EndReason::SLOW_EXTRACTION_MIN_WEIGHT
+      : !automatic ? EndReason::NONE
+      : detail == ShotLogStopDetail::WALL_LIMIT ? EndReason::CONFIGURED_WALL_LIMIT
+      : detail == ShotLogStopDetail::HARD_LIMIT ? EndReason::GLOBAL_LIMIT
+      : detail == ShotLogStopDetail::SLOW_MAX_TIME ? EndReason::SLOW_EXTRACTION_MAX_TIME
+      : detail == ShotLogStopDetail::ACTIVATOR ? EndReason::ACTIVATOR
+      : detail == ShotLogStopDetail::WEB_STOP ? EndReason::WEB_STOP
+      : detail == ShotLogStopDetail::PHYSICAL_OVERRIDE ? EndReason::PHYSICAL_OVERRIDE
           : EndReason::NONE);
+  out.durationMs = static_cast<int32_t>(record.durationDs) * 100;
+  out.finalWeightDg = shotLogWeightIsMissing(record.actualWeightCg)
+      ? 0 : record.actualWeightCg / 10;
   out.verdict = record.verdict;
   out.arrivalMs = record.arrivalDs == SHOT_LOG_METRIC_MISSING
       ? 0 : static_cast<int32_t>(record.arrivalDs) * 100;

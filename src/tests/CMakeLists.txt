@@ -175,3 +175,4 @@ host_test(corridor_host_test LABEL "host;control"
 target_include_directories(corridor_host_test PRIVATE "${CJSON_INCLUDE_DIR}")
 target_link_libraries(corridor_host_test PRIVATE "${CJSON_LIBRARY}")
 host_test(corridor_replay_host_test LABEL "host;control")
+host_test(corridor_hint_loop_host_test LABEL "host;control")

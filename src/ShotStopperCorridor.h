@@ -48,6 +48,31 @@ constexpr uint8_t GRIND_HINT_RECENT_SHOTS = 5;
 constexpr int32_t GRIND_HINT_EDGE_MS = 1000;
 constexpr int32_t PROJECTION_HORIZON_MS = 3000;
 constexpr int32_t HISTORY_MARGIN_MS = 500;
+// Grind hint (times in ms, ratios in permille): the level averages the newest
+// HINT_LEVEL_SHOTS of a segment; F_n is its standard error per sigma and
+// G_n = sqrt(1 + F_n^2) that of one new shot against it (n = 1..6).
+constexpr uint8_t HINT_LEVEL_SHOTS = 6;
+constexpr int16_t HINT_F[HINT_LEVEL_SHOTS] = {1000, 709, 669, 548, 478, 432};
+constexpr int16_t HINT_G[HINT_LEVEL_SHOTS] = {1414, 1226, 1203, 1140, 1108, 1089};
+constexpr uint8_t HINT_SIGMA_SHOTS = 10;
+constexpr uint8_t HINT_SIGMA_MIN_DIFFERENCES = 6;
+constexpr uint8_t HINT_SIGMA_SEGMENT_SHOTS = 5;
+constexpr uint8_t HINT_DIAL_IN_SHOTS = 12;
+constexpr uint8_t HINT_REPEAT_SHOTS = 3;
+constexpr uint8_t HINT_VARY_SHOTS = 6;
+constexpr uint8_t CP_ARMED_SHOTS = 3;
+constexpr int32_t HINT_SIGMA_FLOOR_MS = 1000;
+constexpr int32_t HINT_SIGMA_PRIOR_MS = 2000;
+constexpr int32_t HINT_SIGMA_CAP_MS = 3000;
+constexpr int32_t HINT_BAND_FLOOR_MS = 750;
+constexpr int32_t HINT_FIRST_SHOT_MS = 3000;
+constexpr int32_t Z_TENTATIVE = 1000;
+constexpr int32_t Z_LIKELY = 1645;
+constexpr int32_t Z_CONFIDENT = 2330;
+constexpr int32_t R_MOVED = 1250;  // residuals in permille of sigma * G_n
+constexpr int32_t R_SINGLE = 2000;
+constexpr int32_t R_UNARMED = 2500;
+constexpr int32_t HINT_CENSORED_KEY = 1 << 24;  // sorts a censored shot slowest
 
 struct Params {
   int32_t goalDg = 0;
@@ -354,6 +379,8 @@ struct ArrivalRecord {
   int32_t fastBeforeMs = 0;
   int32_t slowAfterMs = 0;
   int32_t goalDg = 0;
+  int32_t durationMs = 0;     // shot time at the stop
+  int32_t finalWeightDg = 0;  // 0 = not measured
 };
 
 // Which shots count for a preset: its own since its epoch (New coffee), judged
@@ -393,13 +420,39 @@ inline int newestSlot(uint32_t *ids, uint8_t &n, uint32_t recordId) {
   return slot;
 }
 
+// A slow shot cut short (design 3.3): max time or a manual stop after t2 with
+// 10-100 % of the target in the cup. Slow evidence only: its arrival is at
+// least the shot time, past t2.
+inline bool censoredArrival(const ArrivalRecord &r) {
+  const auto e = static_cast<EndReason>(r.endReason);
+  return (e == EndReason::CONFIGURED_WALL_LIMIT || e == EndReason::GLOBAL_LIMIT ||
+          e == EndReason::SLOW_EXTRACTION_MAX_TIME || e == EndReason::ACTIVATOR ||
+          e == EndReason::WEB_STOP || e == EndReason::PHYSICAL_OVERRIDE) &&
+         r.durationMs > r.slowAfterMs && r.finalWeightDg * 10 >= r.goalDg &&
+         r.finalWeightDg < r.goalDg;
+}
+inline int32_t hintArrivalMs(const ArrivalRecord &r) {
+  return censoredArrival(r) && r.durationMs > r.arrivalMs ? r.durationMs : r.arrivalMs;
+}
+// The projection hit the +-5 s clamp (both stored times truncate to 0.1 s).
+inline bool clampedArrival(const ArrivalRecord &r) {
+  const int32_t shift = r.arrivalMs - r.durationMs;
+  return r.durationMs > 0 && r.arrivalMs > 0 &&
+         (shift >= ARRIVAL_CLAMP_MS - 100 || -shift >= ARRIVAL_CLAMP_MS - 100);
+}
+
+// The grind hint reads the scope's shots before the epoch too (the spread
+// belongs to the shooter, not the coffee) and admits censored shots.
+inline bool hintAdmissible(const ArrivalRecord &r, const StatsScope &s) {
+  return r.presetId == s.presetId && r.fastBeforeMs == s.fastBeforeMs &&
+         r.slowAfterMs == s.slowAfterMs && r.goalDg - s.goalDg <= STATS_GOAL_TOLERANCE_DG &&
+         s.goalDg - r.goalDg <= STATS_GOAL_TOLERANCE_DG && !channelingOf(r.verdict) &&
+         !blindOf(r.verdict) &&
+         (censoredArrival(r) || (weightCutReason(r.endReason) &&
+                                 verdictOf(r.verdict) != Verdict::UNCLASSIFIED && r.arrivalMs > 0));
+}
 inline bool admissibleArrival(const ArrivalRecord &r, const StatsScope &s) {
-  return r.presetId == s.presetId && r.recordId >= s.epoch &&
-         r.fastBeforeMs == s.fastBeforeMs && r.slowAfterMs == s.slowAfterMs &&
-         r.goalDg - s.goalDg <= STATS_GOAL_TOLERANCE_DG &&
-         s.goalDg - r.goalDg <= STATS_GOAL_TOLERANCE_DG && weightCutReason(r.endReason) &&
-         verdictOf(r.verdict) != Verdict::UNCLASSIFIED && !channelingOf(r.verdict) &&
-         !blindOf(r.verdict) && r.arrivalMs > 0;
+  return r.recordId >= s.epoch && weightCutReason(r.endReason) && hintAdmissible(r, s);
 }
 
 // Statistics over the newest <= 10 admissible arrivals of one preset; rowAt(i)
@@ -499,6 +552,382 @@ inline GrindHint grindHint(const Params &p, const ArrivalStats &stats) {
   if (recent < p.fastBeforeMs + GRIND_HINT_EDGE_MS) return GrindHint::FAST_EDGE;
   if (recent > p.slowAfterMs - GRIND_HINT_EDGE_MS) return GrindHint::SLOW_EDGE;
   return GrindHint::NONE;
+}
+
+// Grind hint v2 (design 2026-10-16): the trimmed level of the newest <= 6 shots
+// on the current grind setting (a "segment") against the middle c of the
+// window, in standard errors of the shooter's own spread. A pure replay of the
+// preset's shot log; nothing is stored.
+enum class HintState : uint8_t { NONE, DIAL_IN, MAINTENANCE, CHECKING, VARY };
+enum class HintDirection : uint8_t { NONE, FINER, COARSER };
+enum class HintTier : uint8_t { NONE, TENTATIVE, LIKELY, CONFIDENT };
+enum class HintBin : uint8_t { NONE, SMALL, MEDIUM, LARGE };
+
+inline HintTier tierOf(int32_t zPermille) {
+  return zPermille >= Z_CONFIDENT ? HintTier::CONFIDENT
+       : zPermille >= Z_LIKELY    ? HintTier::LIKELY
+       : zPermille >= Z_TENTATIVE ? HintTier::TENTATIVE
+                                  : HintTier::NONE;
+}
+
+// Comfort band half-width b = max(h/2, h - 2 sigma), at least 750 ms.
+inline int32_t bandHalfMs(int32_t halfMs, int32_t sigmaMs) {
+  const int32_t b = halfMs - 2 * sigmaMs > halfMs / 2 ? halfMs - 2 * sigmaMs : halfMs / 2;
+  return b > HINT_BAND_FLOOR_MS ? b : HINT_BAND_FLOOR_MS;
+}
+
+// The window is tighter than the shooter's long-run spread (design 5.4):
+// sigmaLong > 0.8 h. Never the recent spread, which an undetected step inflates.
+inline bool hintVaries(int32_t sigmaLongMs, int32_t halfMs) { return 10 * sigmaLongMs > 8 * halfMs; }
+
+// Size of a distance D from c: a touch below h, medium below max(2h, c/5).
+inline HintBin binOf(int32_t distanceMs, int32_t middleMs, int32_t halfMs) {
+  if (distanceMs < halfMs) return HintBin::SMALL;
+  return distanceMs < (2 * halfMs > middleMs / 5 ? 2 * halfMs : middleMs / 5) ? HintBin::MEDIUM
+                                                                               : HintBin::LARGE;
+}
+
+// Level of 1..6 sort keys: the shot, the mean of two, else the mean without
+// the fastest and the slowest (a censored key sorts slowest).
+inline int32_t trimmedLevelMs(int32_t *keys, uint8_t n) {
+  sortSmall(keys, n);
+  const uint8_t trim = n > 2 ? 1 : 0;
+  int64_t sum = 0;
+  for (uint8_t i = trim; i + trim < n; ++i) sum += keys[i] % HINT_CENSORED_KEY;
+  return static_cast<int32_t>(sum / (n - 2 * trim));
+}
+
+// The one spread estimator (sigmaLong and sigma_recent): consecutive
+// differences, 1.4826 MAD / sqrt(2). A step between two shots moves one
+// difference, not the whole scale (sorted in place).
+inline int32_t differenceSigmaMs(int32_t *differences, uint8_t n) {
+  sortSmall(differences, n);
+  const int64_t mad = madOf(differences, n, medianOfSorted(differences, n));
+  return static_cast<int32_t>(mad * 1483 / 1000 * 7071 / 10000);
+}
+
+// One evaluation's inputs: the level of the newest n segment shots, the
+// median of the segment's last three (0 below three), sigma_use and sigmaLong.
+struct HintEvidence {
+  bool dialIn = true;
+  uint8_t n = 0;
+  uint8_t censored = 0;  // censored shots in the level
+  int32_t levelMs = 0;
+  int32_t lastThreeMs = 0;
+  int32_t sigmaMs = HINT_SIGMA_PRIOR_MS;
+  int32_t sigmaLongMs = HINT_SIGMA_PRIOR_MS;
+  HintDirection advised = HintDirection::NONE;  // announced in this segment
+};
+
+struct HintDecision {
+  HintDirection direction = HintDirection::NONE;  // the level's side of c
+  HintTier tier = HintTier::NONE;  // NONE: below the phase's threshold
+  HintBin bin = HintBin::NONE;
+  int32_t z = 0;  // level past the band on that side, permille SE
+};
+
+// Decision rules (design 4.3-5.4, 8.1) for a window [t1, t2].
+inline HintDecision hintDecision(const HintEvidence &e, const StatsScope &w) {
+  HintDecision d;
+  if (e.n == 0) return d;
+  const int32_t c = (w.fastBeforeMs + w.slowAfterMs) / 2, h = (w.slowAfterMs - w.fastBeforeMs) / 2;
+  const int32_t se = e.sigmaMs * HINT_F[e.n - 1] / 1000;
+  const bool slow = e.levelMs > c;
+  const int32_t past = slow ? e.levelMs - c : c - e.levelMs;
+  d.direction = slow ? HintDirection::COARSER : HintDirection::FINER;
+  d.z = static_cast<int32_t>(static_cast<int64_t>(past - bandHalfMs(h, e.sigmaMs)) * 1000 / se);
+  if (hintVaries(e.sigmaLongMs, h)) {
+    if (static_cast<int64_t>(past - h) * 1000 / se >= Z_CONFIDENT) d.tier = HintTier::CONFIDENT;
+  } else {
+    if (!e.dialIn)
+      d.tier = e.n >= 3 && d.z >= Z_LIKELY ? tierOf(d.z) : HintTier::NONE;
+    else if (e.n == 1)
+      d.tier = past >= h + (2 * e.sigmaMs > HINT_FIRST_SHOT_MS ? 2 * e.sigmaMs : HINT_FIRST_SHOT_MS)
+                   ? HintTier::TENTATIVE : HintTier::NONE;
+    else
+      d.tier = e.n == 2 && d.z >= Z_TENTATIVE ? HintTier::TENTATIVE : tierOf(d.z);
+    // Hard fallback: the last three's median outside the window by > SE.
+    const int32_t se3 = e.sigmaMs * HINT_F[2] / 1000;
+    if (e.lastThreeMs > 0 && d.tier < HintTier::LIKELY &&
+        (slow ? e.lastThreeMs - w.slowAfterMs : w.fastBeforeMs - e.lastThreeMs) > se3)
+      d.tier = HintTier::LIKELY;
+  }
+  // Two censored shots: coarser at likely (the level is then always slow).
+  if (e.censored >= 2 && slow && d.tier < HintTier::LIKELY) d.tier = HintTier::LIKELY;
+  if (e.advised != HintDirection::NONE && d.direction != e.advised) d.tier = HintTier::NONE;
+  int32_t distance = past;
+  if (!e.dialIn) distance -= Z_LIKELY * se / 1000;
+  d.bin = binOf(distance > 0 ? distance : 0, c, h);
+  return d;
+}
+
+struct GrindHintV2 {
+  HintState state = HintState::NONE;
+  HintDirection direction = HintDirection::NONE;
+  HintTier tier = HintTier::NONE;
+  HintBin bin = HintBin::NONE;
+  uint8_t n = 0;          // shots in the level
+  bool atLeast = false;   // a clamped or censored shot among them
+  int32_t offsetMs = 0;   // level - c
+  uint32_t segmentStartId = 0;
+};
+
+// Replays one preset's hint-admissible shots, oldest first, through change
+// points, spread, decision and the hint lifecycle (design 4-7). It lives for
+// one evaluation; the closed-loop test feeds it shot by shot.
+struct GrindHintReplay {
+  static constexpr uint8_t RING = 16;
+  static constexpr uint32_t NO_SHOT = UINT32_MAX;
+  struct Shot {
+    uint32_t id;
+    uint32_t segment;  // sequence number of its segment's first shot
+    int32_t key;       // arrival, + HINT_CENSORED_KEY when censored
+    bool clamped;
+  };
+  struct Level {
+    uint8_t n = 0;
+    uint8_t censored = 0;
+    bool atLeast = false;
+    int32_t ms = 0;
+  };
+
+  StatsScope scope;
+  Shot shots[RING] = {};
+  uint32_t pushed = 0;  // shot k sits at shots[k % RING]
+  uint32_t segmentStart = 0;
+  uint32_t segmentStartId = 0;
+  uint32_t epochStart = NO_SHOT;  // first shot since the epoch
+  uint32_t candidate = NO_SHOT;   // first shot after the latest announcement
+  uint32_t announceId = 0;        // record of the latest announcement
+  int32_t sigmaLongMs = HINT_SIGMA_PRIOR_MS;
+  int32_t sigmaMs = HINT_SIGMA_PRIOR_MS;  // sigma_use after the latest shot
+  int32_t movedPermille = 0;  // latest shot's residual, advised side
+  bool sigmaSeeded = false;
+  bool segmentCounted = false;  // this segment already fed sigmaLong
+  bool dialIn = true;
+  bool armedPending = false;
+  int8_t unarmedSide = 0;
+  uint8_t dialInShots = 0;
+  uint8_t armedLeft = 0;
+  uint8_t sinceAnnounce = 0;
+  uint8_t repeats = 0;
+  HintDirection hint = HintDirection::NONE;     // shown
+  HintDirection advised = HintDirection::NONE;  // announced in this segment
+  HintTier announcedTier = HintTier::NONE;
+  HintBin announcedBin = HintBin::NONE;
+  GrindHintV2 out;
+
+  explicit GrindHintReplay(const StatsScope &s) : scope(s) {}
+
+  const Shot &at(uint32_t k) const { return shots[k % RING]; }
+
+  // Level of the newest <= 6 kept shots in [from, to], skipping one.
+  Level levelOf(uint32_t from, uint32_t to, uint32_t skip = NO_SHOT) const {
+    Level l;
+    int32_t keys[HINT_LEVEL_SHOTS];
+    for (uint32_t k = to + 1; k-- > from && k + RING >= pushed && l.n < HINT_LEVEL_SHOTS;) {
+      if (k == skip) continue;
+      keys[l.n++] = at(k).key;
+      if (at(k).key >= HINT_CENSORED_KEY) ++l.censored;
+      l.atLeast = l.atLeast || at(k).clamped || at(k).key >= HINT_CENSORED_KEY;
+    }
+    if (l.n > 0) l.ms = trimmedLevelMs(keys, l.n);
+    return l;
+  }
+
+  // A new segment from shot first on: the advice and its arming end there.
+  void startSegment(uint32_t first) {
+    for (uint32_t k = first + RING < pushed ? pushed - RING : first; k < pushed; ++k)
+      shots[k % RING].segment = first;
+    segmentStart = first;
+    candidate = NO_SHOT;
+    hint = advised = HintDirection::NONE;
+    segmentCounted = armedPending = false;
+    unarmedSide = 0;
+    armedLeft = repeats = 0;
+  }
+
+  // Change points (design 6.2) from the new shot's residual against the
+  // segment, leaving out a pending first of a pair.
+  void detectChange(int32_t arrivalMs) {
+    const uint32_t k = pushed;
+    const Level ref = levelOf(segmentStart, k - 1, armedPending || unarmedSide ? k - 1 : NO_SHOT);
+    if (ref.n == 0) return;
+    const int32_t r = static_cast<int32_t>(static_cast<int64_t>(arrivalMs - ref.ms) * 1000000 /
+                                           (static_cast<int64_t>(sigmaMs) * HINT_G[ref.n - 1]));
+    // Finer makes shots slower.
+    const int32_t advisedR = advised == HintDirection::FINER ? r
+                           : advised == HintDirection::COARSER ? -r : 0;
+    if (hint != HintDirection::NONE) movedPermille = advisedR;
+    if (armedLeft > 0 || movedPermille >= R_MOVED) {
+      if (armedLeft > 0 && advisedR >= R_SINGLE) {
+        startSegment(k);
+        return;
+      }
+      if (armedPending && advisedR >= R_MOVED) {
+        startSegment(k - 1);
+        return;
+      }
+      armedPending = advisedR >= R_MOVED;
+      armedLeft = static_cast<uint8_t>(armedLeft > 1 ? armedLeft - 1 : armedPending ? 1 : 0);
+    }
+    const int8_t side = ref.n < 4 ? 0 : r >= R_UNARMED ? 1 : r <= -R_UNARMED ? -1 : 0;
+    if (side != 0 && side == unarmedSide) {
+      startSegment(k - 1);
+      return;
+    }
+    unarmedSide = side;
+  }
+
+  // sigma_use = max(1 s, sigmaLong, sigma_recent) (design 4.2).
+  void updateSigma() {
+    if (!segmentCounted) {
+      // sigma_seg: differences of consecutive uncensored shots up to the
+      // segment's fifth uncensored one.
+      int32_t differences[HINT_SIGMA_SEGMENT_SHOTS];
+      uint8_t n = 0, shots = 0;
+      for (uint32_t k = segmentStart; k < pushed && shots < HINT_SIGMA_SEGMENT_SHOTS; ++k) {
+        if (k + RING < pushed || at(k).key >= HINT_CENSORED_KEY) continue;
+        if (shots++ > 0 && at(k - 1).key < HINT_CENSORED_KEY)
+          differences[n++] = at(k).key - at(k - 1).key;
+      }
+      if (shots == HINT_SIGMA_SEGMENT_SHOTS) {
+        const int32_t segment = differenceSigmaMs(differences, n);
+        sigmaLongMs = sigmaSeeded ? (3 * sigmaLongMs + segment) / 4 : segment;
+        if (sigmaLongMs > HINT_SIGMA_CAP_MS) sigmaLongMs = HINT_SIGMA_CAP_MS;
+        sigmaSeeded = segmentCounted = true;
+      }
+    }
+    // sigma_recent: differences of consecutive uncensored shots of one
+    // segment of >= 3, over the newest 10 shots.
+    int32_t differences[HINT_SIGMA_SHOTS];
+    uint8_t n = 0;
+    uint32_t end = pushed;
+    for (uint32_t k = pushed; k-- > 1 && k + HINT_SIGMA_SHOTS > pushed;) {
+      const Shot &a = at(k - 1), &b = at(k);
+      if (k + 1 < pushed && at(k + 1).segment != b.segment) end = k + 1;
+      if (a.segment == b.segment && end - b.segment >= 3 && a.key < HINT_CENSORED_KEY &&
+          b.key < HINT_CENSORED_KEY)
+        differences[n++] = b.key - a.key;
+    }
+    const int32_t recent = n >= HINT_SIGMA_MIN_DIFFERENCES ? differenceSigmaMs(differences, n) : 0;
+    sigmaMs = sigmaLongMs > HINT_SIGMA_FLOOR_MS ? sigmaLongMs : HINT_SIGMA_FLOOR_MS;
+    if (recent > sigmaMs) sigmaMs = recent;
+  }
+
+  HintDecision decide(const Level &level, int32_t lastThreeMs) const {
+    HintEvidence e;
+    e.dialIn = dialIn;
+    e.n = level.n;
+    e.censored = level.censored;
+    e.levelMs = level.ms;
+    e.lastThreeMs = lastThreeMs;
+    e.sigmaMs = sigmaMs;
+    e.sigmaLongMs = sigmaLongMs;
+    e.advised = advised;
+    return hintDecision(e, scope);
+  }
+
+  void push(const ArrivalRecord &r) {
+    const int32_t arrival = hintArrivalMs(r);
+    movedPermille = 0;
+    if (pushed == 0 || (r.recordId >= scope.epoch && at(pushed - 1).id < scope.epoch)) {
+      if (r.recordId >= scope.epoch) epochStart = pushed;
+      startSegment(pushed);
+      dialIn = true;
+      dialInShots = 0;
+    } else {
+      detectChange(arrival);
+    }
+    shots[pushed % RING] = {r.recordId, segmentStart,
+                            censoredArrival(r) ? arrival + HINT_CENSORED_KEY : arrival,
+                            clampedArrival(r)};
+    ++pushed;
+    updateSigma();
+    // Reversal (design 6.3): the shots since the latest announcement alone,
+    // confidently on the other side, start a segment at the first of them.
+    if (advised != HintDirection::NONE && candidate != NO_SHOT && pushed - candidate >= 3 &&
+        candidate + RING >= pushed) {
+      const HintDecision post = decide(levelOf(candidate, pushed - 1), 0);
+      if (post.direction != advised && post.z >= Z_CONFIDENT) startSegment(candidate);
+    }
+    evaluate(r.recordId);
+  }
+
+  // Lifecycle (design 7): announce on reaching the phase's tier, again on a
+  // higher tier or bin and once after 3 unmoved shots; stand while z >= 0;
+  // never on a shot that moved the advised way, which shows "checking".
+  void evaluate(uint32_t id) {
+    const uint32_t last = pushed - 1, segmentShots = pushed - segmentStart;
+    if (segmentStart + RING >= pushed) segmentStartId = at(segmentStart).id;
+    const Level level = levelOf(segmentStart, last);
+    const HintDecision d = decide(level, segmentShots >= 3 ? levelOf(last - 2, last).ms : 0);
+    const bool moved = movedPermille >= R_MOVED;
+    const bool checking = hint != HintDirection::NONE && moved;
+    if (hint != HintDirection::NONE && !checking && (d.direction != hint || d.z < 0))
+      hint = HintDirection::NONE;
+    if (sinceAnnounce < UINT8_MAX) ++sinceAnnounce;
+    if (d.tier != HintTier::NONE && !moved) {
+      const bool fresh = hint == HintDirection::NONE;
+      const bool escalated = !fresh && (d.tier > announcedTier || d.bin > announcedBin);
+      const bool repeat = !fresh && !escalated && sinceAnnounce >= HINT_REPEAT_SHOTS &&
+                          d.tier >= HintTier::LIKELY && repeats == 0;
+      if (fresh || escalated || repeat) {
+        if (repeat) ++repeats;
+        if (fresh || d.tier > announcedTier) announcedTier = d.tier;
+        if (fresh || d.bin > announcedBin) announcedBin = d.bin;
+        hint = advised = d.direction;
+        armedLeft = CP_ARMED_SHOTS;
+        armedPending = false;
+        sinceAnnounce = 0;
+        candidate = pushed;
+        announceId = id;
+      }
+    }
+    if (dialInShots < UINT8_MAX) ++dialInShots;
+    const int32_t c = (scope.fastBeforeMs + scope.slowAfterMs) / 2;
+    const int32_t h = (scope.slowAfterMs - scope.fastBeforeMs) / 2;
+    out = GrindHintV2{};
+    if (epochStart != NO_SHOT) {
+      out.n = level.n;
+      out.atLeast = level.atLeast;
+      out.offsetMs = level.ms - c;
+      out.segmentStartId = segmentStartId;
+      if (hint != HintDirection::NONE) {
+        out.state = checking ? HintState::CHECKING
+                  : dialIn   ? HintState::DIAL_IN
+                             : HintState::MAINTENANCE;
+        out.direction = hint;
+        out.tier = HintTier::TENTATIVE;
+        if (d.direction == hint) {
+          if (level.n >= 3 && tierOf(d.z) > out.tier) out.tier = tierOf(d.z);
+          if (d.tier > out.tier) out.tier = d.tier;
+        }
+        out.bin = d.bin;
+      } else if (hintVaries(sigmaLongMs, h) && segmentShots >= HINT_VARY_SHOTS) {
+        out.state = HintState::VARY;
+      }
+    }
+    const int32_t fromMiddle = level.ms > c ? level.ms - c : c - level.ms;
+    if (dialIn && (dialInShots >= HINT_DIAL_IN_SHOTS ||
+                   (segmentShots >= 3 && fromMiddle <= bandHalfMs(h, sigmaMs))))
+      dialIn = false;
+  }
+};
+
+// The preset's grind hint: its shots replayed oldest first (rowAt in log
+// order; a row not newer than the previous kept one is skipped).
+template <typename RowAt>
+inline GrindHintV2 grindHintOf(size_t count, RowAt rowAt, const StatsScope &scope) {
+  GrindHintReplay replay(scope);
+  uint32_t newest = 0;
+  for (size_t i = 0; i < count; ++i) {
+    const ArrivalRecord r = rowAt(i);
+    if (!hintAdmissible(r, scope) || (replay.pushed > 0 && r.recordId <= newest)) continue;
+    newest = r.recordId;
+    replay.push(r);
+  }
+  return replay.out;
 }
 
 struct LossInputs {

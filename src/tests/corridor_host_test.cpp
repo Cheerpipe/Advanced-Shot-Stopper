@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 using namespace shotstopper::corridor;
 using shotstopper::EndReason;
@@ -23,8 +24,8 @@ int failures = 0;
     }                                                                        \
   } while (false)
 
-cJSON *loadVectors() {
-  std::ifstream file(CORRIDOR_FIXTURE_DIR "/corridor_vectors_v1.json");
+cJSON *loadVectors(const char *name = "corridor_vectors_v1.json") {
+  std::ifstream file(std::string(CORRIDOR_FIXTURE_DIR "/") + name);
   std::stringstream text;
   text << file.rdbuf();
   return cJSON_Parse(text.str().c_str());
@@ -435,23 +436,224 @@ void testVerdictPacking() {
   CHECK(leadDg(4000, 2000) == MAX_LEAD_DG);
 }
 
+// Grind hint v2 vectors: every rule of design sections 4-8.
+template <typename Enum, size_t N>
+Enum enumOf(const cJSON *object, const char *key, const char *const (&names)[N]) {
+  const cJSON *item = cJSON_GetObjectItemCaseSensitive(object, key);
+  for (size_t i = 0; item != nullptr && i < N; ++i)
+    if (std::string(names[i]) == item->valuestring) return static_cast<Enum>(i);
+  return static_cast<Enum>(0);
+}
+const char *const STATES[] = {"none", "dial_in", "maintenance", "checking", "vary"};
+const char *const DIRECTIONS[] = {"none", "finer", "coarser"};
+const char *const TIERS[] = {"none", "tentative", "likely", "confident"};
+const char *const BINS[] = {"none", "small", "medium", "large"};
+
+int32_t numOr(const cJSON *object, const char *key, int32_t fallback) {
+  return cJSON_GetObjectItemCaseSensitive(object, key) ? num(object, key) : fallback;
+}
+
+StatsScope hintScope(const cJSON *root, const cJSON *item) {
+  const cJSON *w = cJSON_GetObjectItemCaseSensitive(root, "window");
+  StatsScope scope;
+  scope.presetId = static_cast<uint8_t>(num(w, "presetId"));
+  scope.goalDg = num(w, "goalDg");
+  const cJSON *own = cJSON_GetObjectItemCaseSensitive(item, "window");
+  scope.fastBeforeMs = own ? cJSON_GetArrayItem(own, 0)->valueint : num(w, "fastBeforeMs");
+  scope.slowAfterMs = own ? cJSON_GetArrayItem(own, 1)->valueint : num(w, "slowAfterMs");
+  scope.epoch = static_cast<uint32_t>(numOr(item, "epoch", 0));
+  return scope;
+}
+
+// A weight cut at its arrival, or {censoredMs}: a max-time stop with 30 g of 36 g.
+ArrivalRecord hintShot(const StatsScope &scope, uint32_t id, const cJSON *shot) {
+  ArrivalRecord r;
+  r.recordId = id;
+  r.presetId = scope.presetId;
+  r.fastBeforeMs = scope.fastBeforeMs;
+  r.slowAfterMs = scope.slowAfterMs;
+  r.goalDg = scope.goalDg;
+  r.finalWeightDg = 300;
+  if (cJSON_IsNumber(shot)) {
+    r.endReason = static_cast<uint8_t>(EndReason::SCALE_THRESHOLD);
+    r.verdict = static_cast<uint8_t>(Verdict::ON_RECIPE);
+    r.arrivalMs = r.durationMs = shot->valueint;
+  } else {
+    r.endReason = static_cast<uint8_t>(EndReason::CONFIGURED_WALL_LIMIT);
+    r.verdict = static_cast<uint8_t>(Verdict::UNCLASSIFIED);
+    r.durationMs = num(shot, "censoredMs");
+  }
+  return r;
+}
+
+bool sameHint(const GrindHintV2 &a, const GrindHintV2 &b) {
+  return a.state == b.state && a.direction == b.direction && a.tier == b.tier && a.bin == b.bin &&
+         a.n == b.n && a.atLeast == b.atLeast && a.offsetMs == b.offsetMs &&
+         a.segmentStartId == b.segmentStartId;
+}
+
+// Fields an expectation names; the enums default to none, atLeast to false.
+void checkHint(const GrindHintV2 &o, const cJSON *e) {
+  CHECK(o.state == enumOf<HintState>(e, "state", STATES));
+  CHECK(o.direction == enumOf<HintDirection>(e, "direction", DIRECTIONS));
+  if (cJSON_GetObjectItemCaseSensitive(e, "tier")) CHECK(o.tier == enumOf<HintTier>(e, "tier", TIERS));
+  if (cJSON_GetObjectItemCaseSensitive(e, "bin")) CHECK(o.bin == enumOf<HintBin>(e, "bin", BINS));
+  if (cJSON_GetObjectItemCaseSensitive(e, "n")) CHECK(o.n == num(e, "n"));
+  if (cJSON_GetObjectItemCaseSensitive(e, "offsetMs")) CHECK(o.offsetMs == num(e, "offsetMs"));
+  CHECK(o.atLeast == flag(e, "atLeast"));
+  CHECK(o.segmentStartId == static_cast<uint32_t>(num(e, "segmentStartId")));
+}
+
+// Replays a vector's shots one by one (applying a white-box advice after
+// adviseAfter shots); the pure function must agree after every shot.
+template <typename AfterShot>
+GrindHintReplay replayVector(const cJSON *root, const cJSON *item, AfterShot afterShot) {
+  const StatsScope scope = hintScope(root, item);
+  GrindHintReplay replay(scope);
+  std::vector<ArrivalRecord> log;
+  const cJSON *shot = nullptr;
+  cJSON_ArrayForEach(shot, cJSON_GetObjectItemCaseSensitive(item, "shots")) {
+    log.push_back(hintShot(scope, static_cast<uint32_t>(log.size() + 1), shot));
+    replay.push(log.back());
+    if (static_cast<int32_t>(log.size()) == numOr(item, "adviseAfter", -1)) {
+      replay.advised = enumOf<HintDirection>(item, "advised", DIRECTIONS);
+      replay.candidate = replay.pushed;
+    }
+    if (numOr(item, "adviseAfter", -1) < 0)
+      CHECK(sameHint(replay.out,
+                     grindHintOf(log.size(), [&log](size_t i) { return log[i]; }, scope)));
+    afterShot(replay, log.size() - 1);
+  }
+  return replay;
+}
+
+void testHintVectors() {
+  cJSON *root = loadVectors("corridor_vectors_v2.json");
+  CHECK(root != nullptr);
+  if (root == nullptr) return;
+  const cJSON *item = nullptr;
+  cJSON_ArrayForEach(item, cJSON_GetObjectItemCaseSensitive(root, "trimmed")) {
+    int32_t keys[HINT_LEVEL_SHOTS];
+    uint8_t n = 0;
+    const cJSON *v = nullptr;
+    cJSON_ArrayForEach(v, cJSON_GetObjectItemCaseSensitive(item, "keys")) keys[n++] = v->valueint;
+    cJSON_ArrayForEach(v, cJSON_GetObjectItemCaseSensitive(item, "censored"))
+      keys[n++] = v->valueint + HINT_CENSORED_KEY;
+    CHECK(trimmedLevelMs(keys, n) == num(item, "levelMs"));
+  }
+  cJSON_ArrayForEach(item, cJSON_GetObjectItemCaseSensitive(root, "band"))
+    CHECK(bandHalfMs(num(item, "halfMs"), num(item, "sigmaMs")) == num(item, "bandMs"));
+  cJSON_ArrayForEach(item, cJSON_GetObjectItemCaseSensitive(root, "tiers"))
+    CHECK(std::string(TIERS[static_cast<int>(tierOf(cJSON_GetArrayItem(item, 0)->valueint))]) ==
+          cJSON_GetArrayItem(item, 1)->valuestring);
+  cJSON_ArrayForEach(item, cJSON_GetObjectItemCaseSensitive(root, "bins"))
+    CHECK(binOf(num(item, "distanceMs"), num(item, "middleMs"), num(item, "halfMs")) ==
+          enumOf<HintBin>(item, "bin", BINS));
+  cJSON_ArrayForEach(item, cJSON_GetObjectItemCaseSensitive(root, "rules")) {
+    HintEvidence e;
+    e.dialIn = flag(item, "dialIn");
+    e.n = static_cast<uint8_t>(num(item, "n"));
+    e.censored = static_cast<uint8_t>(numOr(item, "censored", 0));
+    e.levelMs = num(item, "levelMs");
+    e.lastThreeMs = numOr(item, "lastThreeMs", 0);
+    e.sigmaMs = num(item, "sigmaMs");
+    e.sigmaLongMs = numOr(item, "sigmaLongMs", e.sigmaMs);
+    e.advised = enumOf<HintDirection>(item, "advised", DIRECTIONS);
+    const HintDecision d = hintDecision(e, hintScope(root, item));
+    const bool ok = d.direction == enumOf<HintDirection>(item, "direction", DIRECTIONS) &&
+                    d.tier == enumOf<HintTier>(item, "tier", TIERS) &&
+                    d.bin == enumOf<HintBin>(item, "bin", BINS) && d.z == num(item, "z");
+    if (!ok) std::cerr << "rule: " << cJSON_GetObjectItemCaseSensitive(item, "case")->valuestring << "\n";
+    CHECK(ok);
+  }
+  const StatsScope scope = hintScope(root, nullptr);
+  cJSON_ArrayForEach(item, cJSON_GetObjectItemCaseSensitive(root, "censoring")) {
+    ArrivalRecord r;
+    r.recordId = 1;
+    r.presetId = scope.presetId;
+    r.endReason = static_cast<uint8_t>(num(item, "endReason"));
+    r.verdict = static_cast<uint8_t>(num(item, "verdict"));
+    r.arrivalMs = num(item, "arrivalMs");
+    r.durationMs = num(item, "durationMs");
+    r.finalWeightDg = num(item, "finalWeightDg");
+    r.fastBeforeMs = scope.fastBeforeMs;
+    r.slowAfterMs = scope.slowAfterMs;
+    r.goalDg = scope.goalDg;
+    const bool ok = censoredArrival(r) == flag(item, "censored") &&
+                    clampedArrival(r) == flag(item, "clamped") &&
+                    hintAdmissible(r, scope) == flag(item, "admissible") &&
+                    hintArrivalMs(r) == num(item, "hintArrivalMs");
+    if (!ok) std::cerr << "censoring: " << cJSON_GetObjectItemCaseSensitive(item, "case")->valuestring << "\n";
+    CHECK(ok);
+  }
+  for (const char *section : {"sigma", "changePoints"}) {
+    cJSON_ArrayForEach(item, cJSON_GetObjectItemCaseSensitive(root, section)) {
+      const GrindHintReplay replay = replayVector(root, item, [](const GrindHintReplay &, size_t) {});
+      bool ok = numOr(item, "sigmaLongMs", replay.sigmaLongMs) == replay.sigmaLongMs &&
+                numOr(item, "sigmaMs", replay.sigmaMs) == replay.sigmaMs &&
+                numOr(item, "segmentStartId", static_cast<int32_t>(replay.out.segmentStartId)) ==
+                    static_cast<int32_t>(replay.out.segmentStartId) &&
+                numOr(item, "n", replay.out.n) == replay.out.n;
+      if (cJSON_GetObjectItemCaseSensitive(item, "state")) {
+        const int before = failures;
+        checkHint(replay.out, item);
+        ok = ok && failures == before;
+      }
+      if (!ok) std::cerr << section << ": " << cJSON_GetObjectItemCaseSensitive(item, "case")->valuestring << "\n";
+      CHECK(ok);
+    }
+  }
+  cJSON_ArrayForEach(item, cJSON_GetObjectItemCaseSensitive(root, "lifecycle")) {
+    const cJSON *expected = cJSON_GetObjectItemCaseSensitive(item, "expected");
+    const int before = failures;
+    replayVector(root, item, [expected](const GrindHintReplay &replay, size_t shot) {
+      const cJSON *e = cJSON_GetArrayItem(expected, static_cast<int>(shot));
+      checkHint(replay.out, e);
+      CHECK((replay.announceId == shot + 1) == flag(e, "announced"));
+    });
+    if (failures != before)
+      std::cerr << "lifecycle: " << cJSON_GetObjectItemCaseSensitive(item, "case")->valuestring << "\n";
+  }
+  cJSON_Delete(root);
+}
+
 void testGrindHintReplay() {
-  // Recent medians >= 1 s inside both edges never fire; a drift to the fast
-  // edge fires within five shots.
+  // The hint reads only its preset's rows for the current window and target,
+  // in log order: other presets, windows, channeling, blind or out-of-order
+  // rows change nothing. A dialled-in coffee that turns fast is advised finer.
   const Params p = doubleAdaptive();
-  ArrivalRecord records[40];
-  size_t count = 0;
-  for (uint32_t id = 1; id <= 20; ++id) {
-    records[count++] = {id, 1, 3, 0, static_cast<int32_t>(28000 + (id * 977) % 5000)};
-    CHECK(grindHint(p, arrivalStats(records, count, 1, 0)) == GrindHint::NONE);
+  StatsScope scope;
+  scope.presetId = 1;
+  scope.fastBeforeMs = p.fastBeforeMs;
+  scope.slowAfterMs = p.slowAfterMs;
+  scope.goalDg = p.goalDg;
+  std::vector<ArrivalRecord> clean, mixed;
+  int shown = -1;
+  for (uint32_t id = 1; id <= 30; ++id) {
+    ArrivalRecord r{id, 1, 3, 0, id <= 20 ? 30500 + static_cast<int32_t>(id * 377 % 1200) - 600 : 26000,
+                    0, p.fastBeforeMs, p.slowAfterMs, p.goalDg};
+    r.durationMs = r.arrivalMs;
+    clean.push_back(r);
+    ArrivalRecord other = r;
+    other.presetId = 2;
+    mixed.push_back(other);
+    other = r;
+    other.slowAfterMs += 1000;
+    mixed.push_back(other);
+    other = r;
+    other.verdict = packVerdict(Verdict::FAST, true, LossSource::PROJECTION, false);
+    mixed.push_back(other);
+    mixed.push_back(r);
+    other = r;
+    other.verdict = packVerdict(Verdict::FAST, false, LossSource::HISTORY, true);
+    mixed.push_back(other);
+    if (id > 1) mixed.push_back(clean[id - 2]);
+    const GrindHintV2 h = grindHintOf(clean.size(), [&clean](size_t i) { return clean[i]; }, scope);
+    CHECK(sameHint(h, grindHintOf(mixed.size(), [&mixed](size_t i) { return mixed[i]; }, scope)));
+    if (id <= 20) CHECK(h.state == HintState::NONE);
+    if (shown < 0 && h.direction == HintDirection::FINER) shown = static_cast<int>(id - 20);
   }
-  int fired = -1;
-  for (uint32_t id = 21; id <= 30; ++id) {
-    records[count++] = {id, 1, 3, 0, 27300};
-    if (fired < 0 && grindHint(p, arrivalStats(records, count, 1, 0)) == GrindHint::FAST_EDGE)
-      fired = static_cast<int>(id - 20);
-  }
-  CHECK(fired > 0 && fired <= 5);
+  CHECK(shown > 0 && shown <= 5);
 }
 
 void testShotStatsSummary() {
@@ -504,6 +706,7 @@ int main() {
   testEstimator();
   testChanneling();
   testVerdictPacking();
+  testHintVectors();
   testGrindHintReplay();
   testShotStatsSummary();
   if (failures != 0) {
