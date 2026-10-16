@@ -1,8 +1,8 @@
 // Home uses the existing owned socket, with independent scalar and curve state.
 {
   const assert = require('assert').strict, vm = require('vm');
-  const source = runtimeJs.slice(runtimeJs.search(/let\s+homeFrame\s*=/),
-    runtimeJs.indexOf('function formatExtractionGuard(')).replace(/export /g, '');
+  const source = runtimeStateDecl + runtimeJs.slice(runtimeJs.search(/let\s+homeFrame\s*=/),
+    runtimeJs.indexOf('function setHomeSub(')).replace(/export /g, '');
   const validator = runtimeJs.slice(runtimeJs.indexOf('function statusPageOk('),
     runtimeJs.indexOf('async function loadStatus('));
   const sockets = [], timers = new Map(), rendered = [], common = [];

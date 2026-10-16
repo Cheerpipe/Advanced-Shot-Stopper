@@ -104,11 +104,17 @@ function renderMicra() {
 }
 
 function renderMicraScript() {
-  const runtime = read('src/web/js/runtime.js'), diagnostic = read('src/web/js/diagnostic.js');
-  const content = runtime.slice(runtime.indexOf('const MICRA_SWITCHES='), runtime.indexOf('function renderLineaMicraDiagnostic(')) +
-      diagnostic.slice(0, diagnostic.indexOf('function formatScaleDisconnect('));
+  // The Micra settings code lives in the Settings module; the preview runs it
+  // as plain globals, so module qualifiers are dropped.
+  const settings = read('src/web/js/settings.js'), diagnostic = read('src/web/js/diagnostic.js');
+  const runtime = read('src/web/js/runtime.js'), cleaning = runtime.indexOf('export function formatMicraCleaning(');
+  const content = (runtime.slice(cleaning, runtime.indexOf('\n}\n', cleaning) + 3).replace(/^export /, '') +
+      settings.slice(settings.search(/const\s+MICRA_SWITCHES\s*=/),
+      settings.indexOf('function loadBullseyeConfig(')) +
+      diagnostic.slice(0, diagnostic.search(/^\(?["']use strict["']\)?;/m)))
+      .replace(/\bR\.(?:uiState\.)?/g, '');
   const extra = mockup('micra.js');
-  return renderSources([{file: 'src/web/js/runtime.js', type: 'js', content}],
+  return 'const __LINEA_MICRA__ = true;\n' + renderSources([{file: 'src/web/js/settings.js', type: 'js', content}],
       {language: 'en', allowUnused: true}).sources[0].content + (extra ? '\n' + extra : '');
 }
 

@@ -129,7 +129,7 @@
   // renderer (runtime.js applyDiagnosticLive), shared with the socket stream.
   const runtimeSource = runtimeJs;
   const first = runtimeSource.indexOf('function applyDiagnosticLive(');
-  const last = runtimeSource.indexOf('function applyDiagnosticStatus(', first);
+  const last = runtimeSource.indexOf('\n}', first) + 2;
   if (first < 0 || last < first) throw new Error('Missing scale diagnostic formatters');
   const elements = {};
   const live = new Function('$', '__WEBUI_TEXT__', 'formatBackflushState',

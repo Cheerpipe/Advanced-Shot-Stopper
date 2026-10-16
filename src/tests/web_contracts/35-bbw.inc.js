@@ -28,12 +28,12 @@
   const ewma = element('ewma', ['bbwEwma']);
   ewma.querySelectorAll = () => [elements.get('bbwAlphaBaseline'), elements.get('resetEwmaButton')];
   const context = vm.createContext({$: id => elements.get(id), controlsMutable: true,
-    brewDirty: false, configDirty: false, configLoaded: true, formRev: 1,
+    uiState: {brewDirty: false, configDirty: false, bbwReadback: null}, configLoaded: true, formRev: 1,
     document: {querySelectorAll: () => [learning, ewma]}});
-  const start = runtimeJs.search(/let\s+bbwReadback\s*=/);
+  const start = runtimeJs.search(/let\s+bbwFormPresetId\s*=/);
   const end = runtimeJs.indexOf('function soundAlertsAreOn', start);
   vm.runInContext(runtimeJs.slice(start, end), context);
-  vm.runInContext('bbwFormPresetId=2;bbwReadback={bbwPresetId:2,bbwAlgorithm:"linear_ewma",bbwEwmaOffsetG:1.56,bbwAlpha:0.3,bbwAlphaSource:"initial",bbwEvidenceCount:0}', context);
+  vm.runInContext('bbwFormPresetId=2;uiState.bbwReadback={bbwPresetId:2,bbwAlgorithm:"linear_ewma",bbwEwmaOffsetG:1.56,bbwAlpha:0.3,bbwAlphaSource:"initial",bbwEvidenceCount:0}', context);
   elements.get('brewByWeight').checked = true;
   const refresh = () => vm.runInContext('updateBbwControls()', context);
   refresh();
@@ -41,7 +41,7 @@
   assert.equal(elements.get('learnedOffsetG').textContent, '1.56 g');
   assert(!ewma.classList.contains('hidden'));
   assert(!elements.get('resetCalibrationButton').disabled);
-  vm.runInContext('bbwReadback.bbwAlpha=.5;bbwReadback.bbwAlphaSource="learned";bbwReadback.bbwEvidenceCount=20', context);
+  vm.runInContext('uiState.bbwReadback.bbwAlpha=.5;uiState.bbwReadback.bbwAlphaSource="learned";uiState.bbwReadback.bbwEvidenceCount=20', context);
   refresh();
   assert.equal(elements.get('bbwAlpha').textContent, '0.50');
   assert.equal(elements.get('bbwAlphaStatus').textContent, 'Learned \u00b7 Evaluating');
@@ -53,13 +53,13 @@
   context.controlsMutable = false;
   refresh();
   assert(elements.get('resetEwmaButton').disabled);
-  vm.runInContext('bbwReadback.bbwPresetId=1', context);
+  vm.runInContext('uiState.bbwReadback.bbwPresetId=1', context);
   refresh();
   assert.equal(elements.get('bbwAlpha').textContent, '\u2014');
   assert.equal(elements.get('learnedOffsetG').textContent, '\u2014');
   const load = blockAt(runtimeJs, 'function loadSettingsConfig(');
   vm.runInContext(load, context);
-  context.brewDirty = true;
+  context.uiState.brewDirty = true;
   vm.runInContext('loadSettingsConfig({goalWeightG:36,revision:5,bbwAlgorithm:"linear_ewma"})', context);
 
   const payload = blockAt(runtimeJs, 'function brewPayload(');
@@ -109,7 +109,8 @@
   vm.runInContext(runtimeJs.slice(runtimeJs.indexOf('function lastCurveWeightG('),
     runtimeJs.indexOf('async function populateTimezoneOptions(')), context);
   vm.runInContext(blockAt(runtimeJs, 'function downloadCsv('), context);
-  vm.runInContext(blockAt(runtimeJs, 'async function exportShotsCsv('), context);
+  vm.runInContext('var R = this;' + blockAt(viewJs.stats, 'function shotFlowCurveGS('), context);
+  vm.runInContext(blockAt(viewJs.stats, 'async function exportShotsCsv('), context);
   await vm.runInContext('exportShotsCsv()', context);
   const lines = (await blob.text()).split('\n').map(line => line.split(','));
   assert.equal(lines.length, 101);

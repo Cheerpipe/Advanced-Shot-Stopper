@@ -1,6 +1,1119 @@
 "use strict";
 import * as R from "./runtime.js?v=__FW_ASSET_TAG__";
 const $ = R.$;
+function timeZoneSelectionChanged() {
+  markDateTimeDirty();
+  R.refreshTimezonePreview();
+}
+async function changeTimezoneMode() {
+  markDateTimeDirty();
+  R.updateTimezoneControls();
+  if (!$("timezoneAutomatic").checked) return;
+  const select = $("timezoneId");
+  try {
+    await R.populateTimezoneOptions();
+  } catch (_) {}
+  if (!$("timezoneAutomatic").checked) return;
+  const id = R.browserTimezone();
+  select.value = R.timezoneCatalog?.includes(id) ? id : "";
+  if (!select.value) R.message(__WEBUI_TEXT__("runtime.timezone_detection_unavailable"), "error");
+  R.refreshTimezonePreview();
+}
+function lockAdmin() {
+  if (R.developmentMode) return;
+  clearTimeout(R.uiState.scanTimer);
+  R.uiState.scanTimer = 0;
+  R.api("/api/v1/admin/lock", { method: "POST", body: R.body({}) })
+    .then(() => {
+      R.lockAdminUi();
+      R.noteReachOk();
+      R.message(__WEBUI_TEXT__("runtime.administration_locked"), "ok");
+      return R.refreshStatus();
+    })
+    .catch((e) =>
+      R.message(
+        R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_lock_administration"), e),
+        "error",
+      ),
+    );
+}
+function markDateTimeDirty() {
+  R.uiState.dateTimeDirty = true;
+  R.setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", true);
+}
+function markBleDirty() {
+  R.uiState.bleDirty = true;
+  R.setSaveDirty("saveBleButton", "bleDirtyHint", true);
+}
+function markPowerDirty() {
+  R.uiState.powerDirty = true;
+  R.setSaveDirty("savePowerButton", "powerDirtyHint", true);
+}
+function markFrontendDirty() {
+  R.uiState.frontendDirty = true;
+  R.setSaveDirty("saveFrontendButton", "frontendDirtyHint", true);
+}
+function clearBleDirty() {
+  R.uiState.bleDirty = false;
+  R.setSaveDirty("saveBleButton", "bleDirtyHint", false);
+}
+function clearPowerDirty() {
+  R.uiState.powerDirty = false;
+  R.setSaveDirty("savePowerButton", "powerDirtyHint", false);
+}
+function clearFrontendDirty() {
+  R.uiState.frontendDirty = false;
+  R.setSaveDirty("saveFrontendButton", "frontendDirtyHint", false);
+}
+function revertDateTimeConfig() {
+  if (!R.uiState.dateTimeDirty) return;
+  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
+  R.restoreSnapshot(R.uiState.dateTimeBaseline);
+  R.uiState.dateTimeBaseline = null;
+  R.uiState.dateTimeDirty = false;
+  R.setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", false);
+  R.clearFieldErrors();
+  R.refreshTimezonePreview();
+  R.updateTimezoneControls();
+  R.refreshStatus();
+}
+function networkControls() {
+  return [...document.querySelectorAll("#networkPanel input,#networkPanel select")].filter(
+    (el) => el.id && el.id !== "staNetwork",
+  );
+}
+function revertNetworkConfig() {
+  if ($("saveNetworkButton").dataset.dirty !== "1") return;
+  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
+  R.restoreSnapshot(R.uiState.networkBaseline);
+  R.setSaveDirty("saveNetworkButton", "", false);
+  R.clearFieldErrors();
+  R.updateNetworkPasswordState();
+  R.updateStaticIpFieldsState();
+  R.updateWifiSleepState();
+  R.resetNetworkAddressLoaded();
+  R.refreshStatus();
+}
+function validNtpHostnameClient(host) {
+  const t = String(host || "");
+  if (!t || t.length > 63) return false;
+  if (t[0] === "-" || t[0] === "." || t[t.length - 1] === "-" || t[t.length - 1] === ".")
+    return false;
+  return /^[A-Za-z0-9.-]+$/.test(t);
+}
+function validDeviceNameClient(name) {
+  const t = String(name || "").trim();
+  if (!t || t.length > 32) return false;
+  if (t[0] === " " || t[0] === "-" || t[t.length - 1] === " " || t[t.length - 1] === "-")
+    return false;
+  return /^[A-Za-z0-9 -]+$/.test(t);
+}
+function validateDateTimeClient() {
+  const tz = $("timezoneId").value;
+  if (
+    (tz && !R.timezoneCatalog?.includes(tz)) ||
+    (!tz && (R.uiState.savedTimezoneId || $("timezoneAutomatic").checked))
+  )
+    return { id: "timezoneId", msg: __WEBUI_TEXT__("runtime.select_timezone") };
+  const preset = $("ntpServerPreset").value;
+  if (!["pool", "google", "cloudflare", "nist"].includes(preset))
+    return { id: "ntpServerPreset", msg: __WEBUI_TEXT__("runtime.select_a_valid_ntp_server") };
+  const custom = $("ntpServerCustom").value.trim();
+  if (custom && !validNtpHostnameClient(custom))
+    return { id: "ntpServerCustom", msg: __WEBUI_TEXT__("runtime.custom_ntp_must_be_empty_or_a") };
+  return null;
+}
+function dateTimePayload() {
+  const auto = $("timezoneAutomatic").checked,
+    value = {
+      timezoneAutomatic: auto,
+      ntpSyncEnabled: $("ntpSyncEnabled").checked,
+      ntpServerPreset: $("ntpServerPreset").value,
+      ntpServerCustom: $("ntpServerCustom").value.trim(),
+    };
+  const zone = $("timezoneId").value;
+  if (zone) {
+    value.timezoneId = zone;
+    if (auto) value.timezoneDetected = true;
+  }
+  return value;
+}
+function parseIpv4Client(text) {
+  const m = String(text || "")
+    .trim()
+    .match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return null;
+  const p = m.slice(1).map(Number);
+  return p.some((n) => n > 255) ? null : p;
+}
+function ipv4ToInt(p) {
+  return ((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]) >>> 0;
+}
+function validNetmaskClient(p) {
+  const m = ipv4ToInt(p);
+  if (!m) return false;
+  const i = ~m >>> 0;
+  return (i & (i + 1)) === 0;
+}
+function validateNetworkClient() {
+  const dn = $("deviceName") ? $("deviceName").value.trim() : "";
+  if ($("deviceName") && !validDeviceNameClient(dn))
+    return { id: "deviceName", msg: __WEBUI_TEXT__("runtime.device_name_must_be_1_32_letters") };
+  const ssid = $("staSsid").value,
+    open = $("staOpen").checked,
+    pw = $("staPassword").value,
+    keep = !!R.uiState.savedStaSsid && ssid === R.uiState.savedStaSsid && !pw && open === R.uiState.savedStaOpen;
+  if (!ssid || ssid.length > 32)
+    return { id: "staSsid", msg: __WEBUI_TEXT__("runtime.ssid_must_be_1_32_characters") };
+  if (open && pw)
+    return {
+      id: "staPassword",
+      msg: __WEBUI_TEXT__("runtime.open_network_password_must_be_empty"),
+    };
+  if (!open && !keep && (pw.length < 8 || pw.length > 63))
+    return { id: "staPassword", msg: __WEBUI_TEXT__("runtime.wi_fi_password_must_be_8_63") };
+  if ($("staIpMode").value !== "static") return null;
+  const ip = parseIpv4Client($("staStaticIp").value),
+    mask = parseIpv4Client($("staNetmask").value),
+    gw = parseIpv4Client($("staGateway").value),
+    dns1 = parseIpv4Client($("staDns1").value),
+    d2 = $("staDns2").value.trim(),
+    dns2 = d2 ? parseIpv4Client(d2) : [0, 0, 0, 0];
+  if (!ip) return { id: "staStaticIp", msg: __WEBUI_TEXT__("runtime.enter_a_valid_ipv4_address") };
+  if (!mask || !validNetmaskClient(mask))
+    return { id: "staNetmask", msg: __WEBUI_TEXT__("runtime.enter_a_valid_subnet_mask") };
+  if (!gw)
+    return { id: "staGateway", msg: __WEBUI_TEXT__("runtime.enter_a_valid_gateway_address") };
+  if (!dns1) return { id: "staDns1", msg: __WEBUI_TEXT__("runtime.enter_a_valid_primary_dns") };
+  if (d2 && !dns2)
+    return { id: "staDns2", msg: __WEBUI_TEXT__("runtime.enter_a_valid_secondary_dns_or_leave") };
+  if (ip[0] === 192 && ip[1] === 168 && ip[2] === 4)
+    return { id: "staStaticIp", msg: __WEBUI_TEXT__("runtime.sta_must_not_use_softap_subnet_192") };
+  if (gw[0] === 192 && gw[1] === 168 && gw[2] === 4)
+    return {
+      id: "staGateway",
+      msg: __WEBUI_TEXT__("runtime.gateway_must_not_use_softap_subnet_192"),
+    };
+  if (ipv4ToInt(ip) === ipv4ToInt(gw))
+    return { id: "staStaticIp", msg: __WEBUI_TEXT__("runtime.ip_and_gateway_must_differ") };
+  const m = ipv4ToInt(mask);
+  if ((ipv4ToInt(ip) & m) !== (ipv4ToInt(gw) & m))
+    return { id: "staGateway", msg: __WEBUI_TEXT__("runtime.ip_and_gateway_must_share_a_subnet") };
+  const h = ipv4ToInt(ip) & (~m >>> 0);
+  if (!h || h === ~m >>> 0)
+    return { id: "staStaticIp", msg: __WEBUI_TEXT__("runtime.ip_must_not_be_network_broadcast") };
+  return null;
+}
+function networkSavePayload() {
+  const p = {
+    action: "save",
+    ssid: $("staSsid").value,
+    password: $("staPassword").value,
+    open: $("staOpen").checked,
+    wifiSleep: R.uiState.savedStaWifiSleep,
+    name: $("deviceName") ? $("deviceName").value.trim() : "",
+    ipMode: $("staIpMode").value,
+  };
+  if (p.ipMode === "static") {
+    p.ip = $("staStaticIp").value.trim();
+    p.netmask = $("staNetmask").value.trim();
+    p.gateway = $("staGateway").value.trim();
+    p.dns1 = $("staDns1").value.trim();
+    const d = $("staDns2").value.trim();
+    if (d) p.dns2 = d;
+  }
+  return p;
+}
+function networkPreferencesOnly(p) {
+  return (
+    !!R.uiState.savedStaSsid &&
+    p.ssid === R.uiState.savedStaSsid &&
+    !p.password &&
+    p.open === R.uiState.savedStaOpen &&
+    p.ipMode === R.uiState.savedStaAddr.split("|")[0] &&
+    netAddrKey() === R.uiState.savedStaAddr
+  );
+}
+function netAddrKey() {
+  const m = $("staIpMode").value;
+  return m !== "static"
+    ? m
+    : m +
+        "|" +
+        $("staStaticIp").value.trim() +
+        "|" +
+        $("staNetmask").value.trim() +
+        "|" +
+        $("staGateway").value.trim() +
+        "|" +
+        $("staDns1").value.trim() +
+        "|" +
+        $("staDns2").value.trim();
+}
+function validateDevicePasswordClient() {
+  const n = $("newDevicePassword").value,
+    c = $("confirmDevicePassword").value;
+  if (n.length < 8 || n.length > 63)
+    return {
+      id: "newDevicePassword",
+      msg: __WEBUI_TEXT__("runtime.new_device_password_must_be_8_63"),
+    };
+  if (n === "ineedacoffee")
+    return {
+      id: "newDevicePassword",
+      msg: __WEBUI_TEXT__("runtime.new_device_password_cannot_be_the_factory"),
+    };
+  if (n !== c)
+    return {
+      id: "confirmDevicePassword",
+      msg: __WEBUI_TEXT__("runtime.the_new_device_passwords_do_not_match"),
+    };
+  return null;
+}
+function selectDetectedNetwork() {
+  const o = $("staNetwork").selectedOptions[0];
+  if (!o || !o.value) return;
+  $("staSsid").value = o.value;
+  $("staOpen").checked = o.dataset.open === "true";
+  $("staPassword").value = "";
+  R.updateNetworkPasswordState();
+}
+function showScanResults(d) {
+  const select = $("staNetwork");
+  select.replaceChildren();
+  const prompt = document.createElement("option");
+  prompt.value = "";
+  prompt.textContent = d.networks.length
+    ? __WEBUI_TEXT__("runtime.select_network")
+    : __WEBUI_TEXT__("runtime.no_networks_found");
+  select.appendChild(prompt);
+  for (const n of d.networks) {
+    const o = document.createElement("option");
+    o.value = n.ssid;
+    o.dataset.open = String(n.open);
+    o.textContent =
+      n.ssid +
+      __WEBUI_TEXT__("runtime.symbol_9") +
+      n.rssi +
+      __WEBUI_TEXT__("runtime.dbm_channel") +
+      n.channel +
+      (n.open ? __WEBUI_TEXT__("runtime.open") : __WEBUI_TEXT__("runtime.secured")) +
+      __WEBUI_TEXT__("runtime.symbol_10");
+    select.appendChild(o);
+  }
+}
+async function refreshWifiScan() {
+  if (R.uiState.scanBusy || !R.webUiPollingActive()) return;
+  return R.withPollGate(async () => {
+    if (R.uiState.scanBusy || !R.webUiPollingActive()) return;
+    R.uiState.scanBusy = true;
+    try {
+      const d = await R.api("/api/v1/network/scan");
+      $("scanStatus").textContent =
+        d.state === "READY"
+          ? __WEBUI_TEXT__("runtime.ready") +
+            d.networks.length +
+            __WEBUI_TEXT__("runtime.network_s")
+          : d.state;
+      if (d.state === "READY") showScanResults(d);
+      if (R.webUiPollingActive() && (d.state === "QUEUED" || d.state === "RUNNING"))
+        R.uiState.scanTimer = setTimeout(refreshWifiScan, 500);
+    } catch (e) {
+      R.message(e.message, "error");
+    } finally {
+      R.uiState.scanBusy = false;
+    }
+  });
+}
+async function startWifiScan() {
+  if (R.uiState.scanBusy) return;
+  clearTimeout(R.uiState.scanTimer);
+  $("scanStatus").textContent = __WEBUI_TEXT__("runtime.requesting");
+  return R.withPollGate(async () => {
+    try {
+      await R.api("/api/v1/network/scan", { method: "POST", body: "{}" });
+      R.message(__WEBUI_TEXT__("runtime.wi_fi_scan_started"), "ok");
+      R.uiState.scanTimer = setTimeout(refreshWifiScan, 100);
+    } catch (e) {
+      R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_start_wi_fi_scan"), e), "error");
+      $("scanStatus").textContent = __WEBUI_TEXT__("runtime.error");
+    }
+  });
+}
+function loadNetworkAddress(n) {
+  if (!n || R.uiState.networkAddressLoaded) return;
+  R.uiState.networkAddressLoaded = true;
+  R.uiState.savedStaSsid = n.wifiConfigured && n.ssid ? n.ssid : "";
+  R.uiState.savedStaOpen = !!(n.wifiConfigured && n.open);
+  R.uiState.savedStaWifiSleep = !!n.wifiSleep;
+  R.uiState.savedDeviceName = n.deviceName || "";
+  if ($("deviceName")) $("deviceName").value = R.uiState.savedDeviceName;
+  if ($("staWifiSleep") && !R.uiState.powerDirty) $("staWifiSleep").checked = R.uiState.savedStaWifiSleep;
+  if (R.uiState.savedStaSsid) {
+    $("staSsid").value = R.uiState.savedStaSsid;
+    $("staOpen").checked = R.uiState.savedStaOpen;
+    R.updateNetworkPasswordState();
+  }
+  $("staIpMode").value = n.ipMode === "static" ? "static" : "dhcp";
+  if (n.ipMode === "static") {
+    $("staStaticIp").value = n.configuredIp || "";
+    $("staNetmask").value = n.configuredNetmask || "";
+    $("staGateway").value = n.configuredGateway || "";
+    $("staDns1").value = n.configuredDns1 || "";
+    $("staDns2").value = n.configuredDns2 || "";
+  }
+  R.uiState.savedStaAddr = netAddrKey();
+  R.updateStaticIpFieldsState();
+  R.updateWifiSleepState();
+  R.uiState.networkBaseline = R.snapshotControls(networkControls());
+}
+async function setWifiSleep() {
+  const el = $("staWifiSleep");
+  if (!el || !R.uiState.savedStaSsid) return;
+  const a = R.uiState.savedStaAddr.split("|"),
+    p = {
+      action: "save",
+      ssid: R.uiState.savedStaSsid,
+      password: "",
+      open: R.uiState.savedStaOpen,
+      wifiSleep: el.checked,
+      ipMode: a[0],
+    };
+  if (p.ipMode === "static") {
+    p.ip = a[1];
+    p.netmask = a[2];
+    p.gateway = a[3];
+    p.dns1 = a[4];
+    if (a[5]) p.dns2 = a[5];
+  }
+  p._noReconnectWait = true;
+  const ok = await R.command(
+    "/api/v1/network",
+    p,
+    false,
+    __WEBUI_TEXT__("runtime.wi_fi_sleep_saved"),
+  );
+  if (!ok) el.checked = R.uiState.savedStaWifiSleep;
+  return ok;
+}
+function formatNetworkStatus(n) {
+  let t = "STA: " + n.staState;
+  if (n.ssid) t += " — " + n.ssid;
+  if (n.staState === "CONNECTED" && typeof n.channel === "number" && n.channel > 0)
+    t += " — channel " + n.channel;
+  if (n.staIp) t += " — " + n.staIp;
+  if (n.mdnsHost) t += " — " + n.mdnsHost + ".local";
+  if (typeof n.signalQualityPct === "number" && typeof n.rssi === "number")
+    t += " — signal " + n.signalQualityPct + "% (" + n.rssi + " dBm)";
+  t +=
+    (n.wifiConfigured ? __WEBUI_TEXT__("runtime.credentials_saved") : "") +
+    " — " +
+    (n.ipMode === "static" ? __WEBUI_TEXT__("runtime.static_ip") : "DHCP");
+  if (n.wifiSleep) t += __WEBUI_TEXT__("runtime.sleep_on");
+  if (n.configState === "PENDING")
+    t +=
+      __WEBUI_TEXT__("runtime.pending_confirm") +
+      (n.confirmRemainingMs ? " " + Math.ceil(n.confirmRemainingMs / 1000) + "s" : "");
+  return t;
+}
+async function saveDateTimeConfig() {
+  const fail = __WEBUI_TEXT__("runtime.could_not_save_date_and_time_settings");
+  const err = validateDateTimeClient();
+  if (err) {
+    R.showFieldError(err.id, err.msg);
+    return;
+  }
+  R.clearFieldErrors();
+  const payload = dateTimePayload();
+  try {
+    await R.command(
+      "/api/v1/config",
+      R.withBaseRev({ ...payload }),
+      1,
+      __WEBUI_TEXT__("runtime.date_and_time_settings_saved"),
+      fail,
+      "saveDateTimeButton",
+    );
+    if (JSON.stringify(dateTimePayload()) === JSON.stringify(payload)) {
+      R.uiState.dateTimeDirty = false;
+      R.setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", false);
+    }
+    await R.refreshStatus();
+  } catch (e) {
+    R.message(R.formatCommandError(fail, e), "error");
+    await R.refreshStatus();
+  }
+}
+function setHeroTintMode(v) {
+  try {
+    localStorage.setItem(R.HERO_TINT_KEY, R.HERO_TINT_MODES.includes(v) ? v : "forecast");
+  } catch (_) {}
+  R.scheduleShotPaint();
+}
+function developmentActive() {
+  return R.developmentMode;
+}
+function loadAdminConfig(c) {
+  if (!c || !$("timezoneId")) return;
+  const select = $("timezoneId"),
+    previous = select.value;
+  R.uiState.savedTimezoneId = c.timezoneId || "";
+  R.populateTimezoneOptions().catch(() => {});
+  if (!R.uiState.dateTimeDirty) {
+    select.value = c.timezoneId || "";
+    $("timezoneAutomatic").checked = !!c.timezoneAutomatic;
+    $("ntpSyncEnabled").checked = c.ntpSyncEnabled !== false;
+    R.setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", false);
+  }
+  const state = $("timezoneSaveState");
+  if (state)
+    state.textContent = c.persistFailed
+      ? __WEBUI_TEXT__("runtime.timezone_save_failed")
+      : c.persistPending
+        ? __WEBUI_TEXT__("runtime.timezone_saving")
+        : c.timezoneId
+          ? __WEBUI_TEXT__("runtime.timezone_saved") + c.timezoneId
+          : __WEBUI_TEXT__("runtime.timezone_pending");
+  if (previous !== select.value || (!R.timezonePreviewAnchor && !R.timezonePreviewPending))
+    R.refreshTimezonePreview();
+  R.updateTimezoneControls();
+}
+function applyAdminStatus(s) {
+  const unlocked = !!s.adminUnlocked;
+  R.syncAdminSessionUi(unlocked);
+  const hint = $("adminConfirmHint");
+  if (hint) {
+    const pending = s.network && s.network.configState === "PENDING";
+    hint.classList.toggle("hidden", unlocked || !pending);
+    if (pending && !unlocked) {
+      const sec = s.network.confirmRemainingMs ? Math.ceil(s.network.confirmRemainingMs / 1000) : 0;
+      hint.textContent =
+        __WEBUI_TEXT__("runtime.pending_wi_fi_confirm_this_window_will") +
+        (sec ? ". " + sec + __WEBUI_TEXT__("runtime.s_remaining") : ".");
+    }
+  }
+  if (!unlocked) return;
+  ensureUiOverridePanel();
+  {
+    const op = $("uiOverridePanel"),
+      ob = $("uiOverrideButton"),
+      oh = $("uiOverrideHint");
+    if (op) op.classList.toggle("hidden", !!s.configMutable);
+    if (ob) {
+      const r = typeof s.webUiOverrideRemainingMs === "number" ? s.webUiOverrideRemainingMs : 0,
+        a = !!s.webUiOverrideActive && r > 0,
+        n = a ? Math.ceil(r / 1e3) : 0,
+        t = ob.querySelector(".t");
+      if (t)
+        t.textContent = a
+          ? n + __WEBUI_TEXT__("runtime.s")
+          : __WEBUI_TEXT__("runtime.unlock_1_min");
+      if (oh)
+        oh.textContent = a
+          ? n + __WEBUI_TEXT__("runtime.s_restart")
+          : __WEBUI_TEXT__("runtime.config_lock_override_for_1_min");
+    }
+  }
+  $("networkStatus").textContent = formatNetworkStatus(s.network);
+  loadNetworkAddress(s.network);
+  $("apStatus").textContent =
+    __WEBUI_TEXT__("runtime.ap") +
+    (s.network.apActive ? __WEBUI_TEXT__("runtime.active_2") : __WEBUI_TEXT__("runtime.inactive")) +
+    __WEBUI_TEXT__("runtime.advancedshotstopperap_2") +
+    (s.network.apSsid || __WEBUI_TEXT__("runtime.advancedshotstopperap")) +
+    __WEBUI_TEXT__("runtime.advancedshotstopperap_2") +
+    s.network.apIp +
+    __WEBUI_TEXT__("runtime.unknown_3") +
+    s.network.apClients +
+    __WEBUI_TEXT__("runtime.client_s");
+  if (!R.uiState.powerDirty) {
+    if ($("bleScanIntensity"))
+      $("bleScanIntensity").value = (s.bleScan && s.bleScan.scanIntensity) || "balanced";
+  }
+  if (!R.uiState.bleDirty && $("bleEnabled"))
+    $("bleEnabled").checked = !(s.bleScan && s.bleScan.enabled === false);
+  if (!R.uiState.bleDirty)
+    R.uiState.bleBaseline = R.snapshotControls(document.querySelectorAll("#blePanel input,#blePanel select"));
+  if (!R.uiState.powerDirty)
+    R.uiState.powerBaseline = R.snapshotControls(
+      document.querySelectorAll("#powerPanel input,#powerPanel select"),
+    );
+  if (!R.uiState.frontendDirty)
+    R.uiState.frontendBaseline = R.snapshotControls(
+      document.querySelectorAll("#frontendPanel input,#frontendPanel select"),
+    );
+  $("restartButton").disabled = !R.controlsMutable;
+  applyOtaStatus(s.ota);
+  loadAdminConfig(s.config);
+  if (!R.uiState.dateTimeDirty)
+    R.uiState.dateTimeBaseline = R.snapshotControls(
+      document.querySelectorAll(
+        "#dateTimePanel input,#dateTimePanel select,#dateTimePanel textarea",
+      ),
+    );
+  const sync = s.time?.lastSyncUtcSec || 0;
+  if (sync && sync !== R.uiState.timezonePreviewSync) {
+    R.uiState.timezonePreviewSync = sync;
+    R.refreshTimezonePreview();
+  } else R.renderTimezonePreview();
+}
+const OTA_UPLOAD_TIMEOUT_MS = 15 * 60 * 1000;
+const OTA_COMMAND_TIMEOUT_MS = 60 * 1000;
+function otaTagText(t) {
+  return t
+    ? t.version + __WEBUI_TEXT__("runtime.symbol_8") + t.arch
+    : __WEBUI_TEXT__("runtime.unknown");
+}
+function otaKib(n) {
+  return typeof n === "number" && isFinite(n)
+    ? Math.round(n / 1024) + " KiB"
+    : __WEBUI_TEXT__("runtime.unknown_size");
+}
+function otaStatusText(o) {
+  const pending = otaCommitStored();
+  if (pending) return otaCheckBoot(pending, o);
+  if (!o.available) return __WEBUI_TEXT__("runtime.this_controller_has_no_spare_firmware_slot");
+  if (o.restartPending) return __WEBUI_TEXT__("runtime.flashed_restart_waits_until_the_shot_ends");
+  if (!o.confirmed)
+    return (
+      __WEBUI_TEXT__("runtime.firmware_confirmation_pending") +
+      (o.confirmBlockReason || __WEBUI_TEXT__("runtime.waiting_for_startup")) +
+      __WEBUI_TEXT__("runtime.symbol_12") +
+      (o.confirmLastError ? __WEBUI_TEXT__("runtime.esp_idf_error") + o.confirmLastError + "." : "")
+    );
+  if (o.state === "receiving") return __WEBUI_TEXT__("runtime.receiving_a_firmware_image");
+  if (o.state === "staged") return __WEBUI_TEXT__("runtime.verified_and_waiting_for_you_to_flash");
+  if (!o.safe)
+    return (
+      __WEBUI_TEXT__("runtime.waiting_for_idle") +
+      o.lockReason +
+      __WEBUI_TEXT__("runtime.symbol_12")
+    );
+  return __WEBUI_TEXT__("runtime.ready_for_a_firmware_image");
+}
+function applyOtaStatus(o) {
+  if (!$("otaPanel")) return;
+  if (!o) {
+    $("otaStatus").textContent = __WEBUI_TEXT__("runtime.firmware_updates_are_unavailable");
+    ["otaVerifyButton", "otaFlashButton", "otaDiscardButton", "otaFile"].forEach((id) => {
+      if ($(id)) $(id).disabled = true;
+    });
+    return;
+  }
+  R.uiState.otaLastStatus = o;
+  const staged = o.state === "staged" && o.staged ? o.staged : null,
+    active = !!o.sessionActive;
+  $("otaStatus").textContent =
+    otaStatusText(o) +
+    (active
+      ? __WEBUI_TEXT__("runtime.resumable_transfer") +
+        otaKib(o.nextOffset || 0) +
+        __WEBUI_TEXT__("runtime.symbol_11") +
+        otaKib(o.expectedBytes || 0)
+      : "");
+  $("otaRunning").textContent =
+    __WEBUI_TEXT__("runtime.running") +
+    otaTagText(o.running) +
+    __WEBUI_TEXT__("runtime.update_slot") +
+    otaKib(o.slotBytes);
+  $("otaStaged").textContent = staged
+    ? __WEBUI_TEXT__("runtime.verified_image") +
+      otaTagText(staged) +
+      __WEBUI_TEXT__("runtime.unknown_3") +
+      otaKib(o.receivedBytes)
+    : active
+      ? __WEBUI_TEXT__("runtime.transfer") +
+        (o.transferId || "") +
+        __WEBUI_TEXT__("runtime.expires_in") +
+        Math.ceil((o.sessionExpiresInMs || 0) / 6e4) +
+        __WEBUI_TEXT__("runtime.min_3")
+      : __WEBUI_TEXT__("runtime.no_verified_image");
+  const ready =
+    R.controlsMutable && o.available && o.safe && o.confirmed && !o.restartPending && !R.uiState.otaBusy;
+  $("otaFile").disabled = !ready;
+  $("otaVerifyButton").disabled = !ready;
+  $("otaFlashButton").disabled = !ready || !staged;
+  $("otaDiscardButton").disabled = !ready || (!staged && !active);
+  if (active && o.expectedBytes)
+    $("otaProgress").value = Math.round((100 * (o.nextOffset || 0)) / o.expectedBytes);
+}
+function otaSend(path, payload, onProgress, timeoutMs, method = "POST", headers = {}) {
+  return R.acquireDeviceSlot().then(() =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(method, path, true);
+      xhr.timeout = timeoutMs;
+      xhr.setRequestHeader(R.WEB_UI_CLIENT_HEADER, R.webUiClientId);
+      Object.keys(headers).forEach((k) => xhr.setRequestHeader(k, headers[k]));
+      if (payload && !headers["Content-Type"])
+        xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      if (onProgress && xhr.upload)
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) onProgress(Math.round((e.loaded * 100) / e.total));
+        };
+      xhr.onload = () => {
+        let data = {};
+        try {
+          data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+        } catch (_) {
+          const e = new Error(
+            __WEBUI_TEXT__("runtime.invalid_response_http") +
+              xhr.status +
+              __WEBUI_TEXT__("runtime.symbol_10"),
+          );
+          e.status = xhr.status;
+          reject(e);
+          return;
+        }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+        else {
+          const e = new Error(
+            data.message || data.error || __WEBUI_TEXT__("runtime.http") + xhr.status,
+          );
+          e.status = xhr.status;
+          e.code = data.error || "";
+          reject(e);
+        }
+      };
+      xhr.onerror = () => reject(new Error(__WEBUI_TEXT__("runtime.device_unreachable")));
+      xhr.ontimeout = () => reject(new Error(__WEBUI_TEXT__("runtime.device_timeout")));
+      xhr.onabort = () => reject(new Error(__WEBUI_TEXT__("runtime.the_upload_was_cancelled")));
+      xhr.send(payload || null);
+    }).finally(() => R.releaseDeviceSlot()),
+  );
+}
+function otaBeginBusy() {
+  R.uiState.otaBusy = true;
+  applyOtaStatus(R.uiState.otaLastStatus);
+}
+function otaEndBusy(data, fallbackText, kind) {
+  R.uiState.otaBusy = false;
+  $("otaProgress").classList.add("hidden");
+  $("otaProgress").value = 0;
+  if (data) applyOtaStatus(data);
+  else applyOtaStatus(R.uiState.otaLastStatus);
+  if (fallbackText) R.message(fallbackText, kind || "");
+  R.refreshStatus();
+}
+function otaTransferId() {
+  const b = new Uint8Array(18);
+  crypto.getRandomValues(b);
+  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+function otaStored() {
+  try {
+    return JSON.parse(localStorage.getItem("ssOtaSession") || "null");
+  } catch (_) {
+    return null;
+  }
+}
+function otaStore(v) {
+  try {
+    localStorage.setItem("ssOtaSession", JSON.stringify(v));
+  } catch (_) {}
+}
+function otaClearStore() {
+  try {
+    localStorage.removeItem("ssOtaSession");
+  } catch (_) {}
+}
+const OTA_PROTOCOL_VERSION = 3;
+async function otaFileIdentity(file) {
+  return (await import("/js/ota-image.js?v=__FW_ASSET_TAG__")).otaFileIdentity(file);
+}
+function otaRemoteMatches(identity, status) {
+  return !!(
+    status &&
+    status.transferId &&
+    (!identity.transferId || status.transferId === identity.transferId) &&
+    status.sha256 === identity.sha256 &&
+    status.expectedBytes === identity.size &&
+    status.sessionArch === identity.arch &&
+    status.sessionHardware === identity.hardware &&
+    status.sessionMachine === identity.machine &&
+    status.sessionVersion === identity.version
+  );
+}
+function otaSessionIdentity(identity, status) {
+  if (!status || status.otaProtocolVersion !== OTA_PROTOCOL_VERSION)
+    throw new Error(__WEBUI_TEXT__("runtime.this_controller_does_not_support_the_resumable"));
+  if (status.runningIdentityValid !== true)
+    throw new Error(__WEBUI_TEXT__("runtime.the_running_firmware_has_no_usable_image"));
+  if (
+    !status.running ||
+    identity.hardware !== status.running.hardware ||
+    identity.machine !== status.running.machine
+  )
+    throw new Error(__WEBUI_TEXT__("runtime.the_running_firmware_has_no_usable_image"));
+  const occupied = status.sessionActive || status.state === "staged";
+  if (occupied) {
+    if (!otaRemoteMatches(identity, status))
+      throw new Error(__WEBUI_TEXT__("runtime.another_firmware_image_owns_the_update_slot"));
+    return { ...identity, transferId: status.transferId };
+  }
+  const saved = otaStored(),
+    same =
+      saved &&
+      saved.size === identity.size &&
+      saved.sha256 === identity.sha256 &&
+      saved.arch === identity.arch &&
+      saved.hardware === identity.hardware &&
+      saved.machine === identity.machine &&
+      saved.version === identity.version &&
+      saved.transferId;
+  return { ...identity, transferId: same ? saved.transferId : otaTransferId() };
+}
+function otaSessionBody(session) {
+  const { size, sha256, arch, hardware, machine, version, transferId } = session;
+  return JSON.stringify({ size, sha256, arch, hardware, machine, version, transferId });
+}
+function otaValidOffset(offset, size) {
+  return (
+    Number.isInteger(offset) &&
+    offset >= 0 &&
+    offset <= size &&
+    (offset === size || offset % 4096 === 0)
+  );
+}
+function otaRecoverable(session, status) {
+  return (
+    otaRemoteMatches(session, status) &&
+    status.sessionActive === true &&
+    status.state === "receiving" &&
+    otaValidOffset(status.nextOffset, session.size)
+  );
+}
+function otaUploadErrorText(session, status, error) {
+  if (error.otaFileChanged) return error.message;
+  if (
+    error.code === "OTA_SESSION_EXPIRED" ||
+    (status && status.lastResult === "OTA_SESSION_EXPIRED")
+  )
+    return __WEBUI_TEXT__("runtime.the_firmware_upload_session_expired_choose_the");
+  if (error.message === "The upload was cancelled.")
+    return __WEBUI_TEXT__("runtime.the_firmware_upload_was_cancelled");
+  if (error.status >= 400 && error.status < 500 && error.code !== "RECEIVE_FAILED")
+    return __WEBUI_TEXT__("runtime.the_firmware_upload_was_rejected");
+  if (session && otaRecoverable(session, status))
+    return __WEBUI_TEXT__("runtime.the_firmware_upload_paused_choose_the_same");
+  if (session && otaRemoteMatches(session, status) && status.state === "staged")
+    return __WEBUI_TEXT__("runtime.the_firmware_is_verified_refresh_its_status");
+  if (error.status) return __WEBUI_TEXT__("runtime.the_firmware_upload_was_rejected");
+  if (session && !status) return __WEBUI_TEXT__("runtime.the_upload_result_could_not_be_checked");
+  if (session && status && !status.sessionActive)
+    return __WEBUI_TEXT__("runtime.the_firmware_upload_session_no_longer_exists");
+  return __WEBUI_TEXT__("runtime.the_firmware_upload_failed");
+}
+async function otaUpload() {
+  const files = $("otaFile").files,
+    file = files && files[0];
+  if (!file) {
+    R.showFieldError("otaFile", __WEBUI_TEXT__("runtime.choose_the_firmware_bin_file_to_upload"));
+    return;
+  }
+  R.clearFieldErrors();
+  const slot = R.uiState.otaLastStatus && R.uiState.otaLastStatus.slotBytes;
+  if (typeof slot === "number" && file.size > slot) {
+    R.showFieldError(
+      "otaFile",
+      __WEBUI_TEXT__("runtime.that_file_is") +
+        otaKib(file.size) +
+        __WEBUI_TEXT__("runtime.larger_than_the") +
+        otaKib(slot) +
+        __WEBUI_TEXT__("runtime.update_slot_2"),
+    );
+    return;
+  }
+  const bar = $("otaProgress");
+  bar.value = 0;
+  bar.classList.remove("hidden");
+  otaBeginBusy();
+  let session = null,
+    status = null;
+  try {
+    R.message(__WEBUI_TEXT__("runtime.checking_firmware_identity"));
+    const identity = await otaFileIdentity(file),
+      remote = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+    session = otaSessionIdentity(identity, remote);
+    status = await otaSend(
+      "/api/v1/ota/session",
+      otaSessionBody(session),
+      null,
+      OTA_COMMAND_TIMEOUT_MS,
+      "POST",
+      { "Content-Type": "application/json" },
+    );
+    if (!otaRemoteMatches(session, status))
+      throw new Error(__WEBUI_TEXT__("runtime.the_controller_returned_a_different_or_incomplete"));
+    let offset = status.nextOffset,
+      highWater = offset,
+      failures = 0;
+    if (!otaValidOffset(offset, file.size))
+      throw new Error(__WEBUI_TEXT__("runtime.the_controller_reported_an_invalid_firmware_offset"));
+    otaStore(session);
+    otaCommitStore(null);
+    while (offset < file.size) {
+      const end = Math.min(file.size, offset + 65536);
+      if (!(await session.verifyRange(offset, end))) {
+        const changed = new Error(__WEBUI_TEXT__("runtime.the_firmware_file_changed_while_it_was"));
+        changed.otaFileChanged = true;
+        throw changed;
+      }
+      const chunk = file.slice(offset, end),
+        headers = {
+          "X-OTA-Transfer": session.transferId,
+          "X-OTA-Offset": String(offset),
+          "X-OTA-Length": String(file.size),
+          "Content-Range": "bytes " + offset + "-" + (end - 1) + "/" + file.size,
+        };
+      let reconciled = false;
+      try {
+        status = await otaSend("/api/v1/ota", chunk, null, OTA_UPLOAD_TIMEOUT_MS, "PATCH", headers);
+      } catch (e) {
+        failures++;
+        status = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+        if (
+          !otaRemoteMatches(session, status) ||
+          (!otaRecoverable(session, status) && status.state !== "staged")
+        )
+          throw e;
+        if (failures >= 3 && status.nextOffset !== file.size) throw e;
+        reconciled = true;
+      }
+      const next = status.nextOffset;
+      if (
+        !otaRemoteMatches(session, status) ||
+        !otaValidOffset(next, file.size) ||
+        next > end ||
+        (!reconciled && next !== end)
+      )
+        throw new Error(__WEBUI_TEXT__("runtime.the_controller_did_not_confirm_a_valid"));
+      // Recovery may go backwards to the last durable checkpoint. Only new
+      // progress beyond the high-water mark resets the bounded retry budget.
+      if (next > highWater) {
+        highWater = next;
+        failures = 0;
+      }
+      offset = next;
+      bar.value = Math.round((100 * offset) / file.size);
+    }
+    if (
+      status.state !== "staged" ||
+      !status.staged ||
+      status.staged.arch !== identity.arch ||
+      status.staged.version !== identity.version ||
+      status.staged.packed !== identity.packed
+    )
+      throw new Error(__WEBUI_TEXT__("runtime.the_controller_did_not_report_the_expected"));
+    otaEndBusy(
+      status,
+      __WEBUI_TEXT__("runtime.firmware_verified") +
+        otaTagText(status.staged) +
+        ". Review it, then flash.",
+      "ok",
+    );
+  } catch (e) {
+    let current = null;
+    if (session) {
+      try {
+        current = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+      } catch (_) {}
+    }
+    otaEndBusy(current, R.formatCommandError(otaUploadErrorText(session, current, e), e), "error");
+  }
+}
+function otaCommitStored() {
+  try {
+    return JSON.parse(localStorage.getItem("ssOtaCommit") || "null");
+  } catch (_) {
+    return null;
+  }
+}
+function otaCommitStore(value) {
+  try {
+    if (value) localStorage.setItem("ssOtaCommit", JSON.stringify(value));
+    else localStorage.removeItem("ssOtaCommit");
+  } catch (_) {}
+}
+function otaCheckBoot(expected, status) {
+  if (
+    !Number.isInteger(expected.bootId) ||
+    !Number.isInteger(status.bootId) ||
+    !expected.imageSha256 ||
+    !status.running ||
+    !status.running.imageSha256
+  )
+    return __WEBUI_TEXT__("runtime.update_result_unverified_firmware_does_not_expose");
+  if (status.bootId === expected.bootId)
+    return status.restartPending || status.state === "committed"
+      ? __WEBUI_TEXT__("runtime.flashed_waiting_for_the_controller_to_restart")
+      : __WEBUI_TEXT__("runtime.commit_not_yet_verified_refresh_status_before");
+  if (status.running.imageSha256 !== expected.imageSha256)
+    return __WEBUI_TEXT__("runtime.the_controller_restarted_into_another_image_the");
+  if (!status.confirmed)
+    return (
+      __WEBUI_TEXT__("runtime.expected_firmware_booted_confirmation_pending") +
+      (status.confirmBlockReason || "startup") +
+      ")." +
+      (status.confirmLastError
+        ? __WEBUI_TEXT__("runtime.esp_idf_error") + status.confirmLastError + "."
+        : "")
+    );
+  otaCommitStore(null);
+  otaClearStore();
+  R.message(__WEBUI_TEXT__("runtime.ota_confirmed_by_the_rebooted_firmware"), "ok");
+  return __WEBUI_TEXT__("runtime.ota_confirmed_by_the_rebooted_firmware");
+}
+async function otaFlash() {
+  const current = R.uiState.otaLastStatus,
+    staged = current && current.state === "staged" && current.staged;
+  if (!staged) {
+    R.message(__WEBUI_TEXT__("runtime.upload_and_verify_a_firmware_image_first"), "warn");
+    return;
+  }
+  if (
+    !confirm(
+      __WEBUI_TEXT__("runtime.flash") +
+        otaTagText(staged) +
+        __WEBUI_TEXT__("runtime.and_restart_the_controller"),
+    )
+  )
+    return;
+  const saved = otaStored(),
+    session = {
+      size: current.expectedBytes,
+      sha256: current.sha256,
+      arch: current.sessionArch,
+      hardware: current.sessionHardware,
+      machine: current.sessionMachine,
+      version: current.sessionVersion,
+      transferId: current.transferId,
+    },
+    expected = {
+      ...session,
+      bootId: current.bootId,
+      imageSha256:
+        saved && otaRemoteMatches(saved, current) ? saved.imageSha256 : staged.imageSha256 || "",
+    };
+  otaBeginBusy();
+  let data = null;
+  try {
+    data = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+    if (!otaRemoteMatches(session, data) || data.state !== "staged")
+      throw new Error(__WEBUI_TEXT__("runtime.the_staged_transfer_changed_before_flash"));
+    expected.bootId = data.bootId;
+    otaCommitStore(expected);
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        data = await otaSend("/api/v1/ota/flash", null, null, OTA_COMMAND_TIMEOUT_MS);
+        if (!otaRemoteMatches(session, data))
+          throw new Error(__WEBUI_TEXT__("runtime.the_commit_response_did_not_identify_the"));
+        break;
+      } catch (error) {
+        data = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+        const rebooted =
+          Number.isInteger(expected.bootId) &&
+          Number.isInteger(data.bootId) &&
+          data.bootId !== expected.bootId;
+        if (rebooted) break;
+        if (!otaRemoteMatches(session, data)) throw error;
+        if (data.restartPending || data.state === "committed") break;
+        if (data.state !== "staged" || attempt === 3) throw error;
+      }
+    }
+    otaEndBusy(data, otaCheckBoot(expected, data), "");
+  } catch (e) {
+    otaEndBusy(
+      data,
+      R.formatCommandError(__WEBUI_TEXT__("runtime.the_flash_result_is_unverified_reconnect_to"), e),
+      "error",
+    );
+  }
+}
+function otaDiscard() {
+  otaBeginBusy();
+  otaSend("/api/v1/ota/abort", null, null, OTA_COMMAND_TIMEOUT_MS)
+    .then((data) => {
+      otaClearStore();
+      otaCommitStore(null);
+      $("otaFile").value = "";
+      otaEndBusy(data, __WEBUI_TEXT__("runtime.the_verified_image_was_discarded"), "ok");
+    })
+    .catch((e) => {
+      otaEndBusy(
+        null,
+        R.formatCommandError(__WEBUI_TEXT__("runtime.the_image_could_not_be_discarded"), e),
+        "error",
+      );
+    });
+}
+async function setBleScanIntensity() {
+  const sel = $("bleScanIntensity");
+  if (!sel) return;
+  const wanted = sel.value;
+  try {
+    await R.api("/api/v1/admin/ble-scan", { method: "PUT", body: R.body({ scanIntensity: wanted }) });
+    R.noteReachOk();
+    R.message(__WEBUI_TEXT__("runtime.ble_scan_mode_saved"), "ok");
+    await R.refreshStatus();
+    return true;
+  } catch (x) {
+    R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_ble_scan_mode"), x), "error");
+    await R.refreshStatus();
+    return false;
+  }
+}
+async function setBleEnabled() {
+  const el = $("bleEnabled");
+  if (!el) return;
+  const wanted = el.checked;
+  try {
+    await R.api("/api/v1/admin/ble-scan", { method: "PUT", body: R.body({ enabled: wanted }) });
+    R.noteReachOk();
+    R.message(
+      wanted
+        ? __WEBUI_TEXT__("runtime.ble_enabled_saved")
+        : __WEBUI_TEXT__("runtime.ble_disabled_saved"),
+      "ok",
+    );
+    await R.refreshStatus();
+    return true;
+  } catch (x) {
+    el.checked = !wanted;
+    R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_ble_setting"), x), "error");
+    await R.refreshStatus();
+    return false;
+  }
+}
+function ensureUiOverridePanel() {
+  if (R.developmentMode || $("uiOverridePanel")) return;
+  const p = document.createElement("fieldset");
+  p.id = "uiOverridePanel";
+  p.innerHTML =
+    "<legend>" +
+    __WEBUI_TEXT__("runtime.ui_override") +
+    '</legend><div class="btnBar"><button id="uiOverrideButton" class="btnGlyph btnWarn" type="button"><span class="g">' +
+    __WEBUI_TEXT__("runtime.symbol_13") +
+    '</span><span class="t">' +
+    __WEBUI_TEXT__("runtime.unlock_1_min") +
+    '</span></button></div><small id="uiOverrideHint"></small>';
+  const s = document.querySelector("#adminControls .adminSession");
+  if (s) s.after(p);
+  const b = $("uiOverrideButton");
+  if (b && !b.dataset.bound) {
+    b.dataset.bound = "1";
+    b.onclick = () =>
+      R.api("/api/v1/ui/unlock", { method: "POST", body: R.body({ confirm: "UNSAFE_WEBUI_OVERRIDE" }) })
+        .then(() => {
+          R.noteReachOk();
+          R.message(__WEBUI_TEXT__("runtime.override_on"), "ok");
+          return R.refreshStatus();
+        })
+        .catch((e) =>
+          R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.override_failed"), e), "error"),
+        );
+  }
+}
 let ready = false;
 let webhookDirty = false,
   webhookBaseline = null;
@@ -14,7 +1127,7 @@ const WEBHOOK_IDS = [
   "webhookEnd",
 ];
 export function applyStatus(s) {
-  R.applyAdminStatus(s);
+  applyAdminStatus(s);
   const compat = !!s.compatibilityMode;
   ["blePanel", "dateTimePanel", "webhookPanel"].forEach((id) => {
     const el = $(id);
@@ -40,7 +1153,7 @@ export function applyStatus(s) {
     if (
       el &&
       typeof v === "boolean" &&
-      !(id === "powerManagementEnabled" ? R.powerDirty : R.frontendDirty)
+      !(id === "powerManagementEnabled" ? R.uiState.powerDirty : R.uiState.frontendDirty)
     )
       el.checked = v;
   }
@@ -151,25 +1264,25 @@ async function saveDurableConfigKey(key) {
   });
 }
 async function saveBleSettings() {
-  if (!R.bleDirty) return;
+  if (!R.uiState.bleDirty) return;
   const b = $("saveBleButton");
   b.classList.add("busy");
   let ok = true;
   try {
-    if (controlChanged("bleEnabled", R.bleBaseline) && !(await R.setBleEnabled())) ok = false;
-    if (ok) R.clearBleDirty();
+    if (controlChanged("bleEnabled", R.uiState.bleBaseline) && !(await setBleEnabled())) ok = false;
+    if (ok) clearBleDirty();
   } finally {
     b.classList.remove("busy");
   }
   return ok;
 }
 async function savePowerSettings() {
-  if (!R.powerDirty) return;
+  if (!R.uiState.powerDirty) return;
   const b = $("savePowerButton");
   b.classList.add("busy");
   let ok = true;
   try {
-    if (controlChanged("powerManagementEnabled", R.powerBaseline)) {
+    if (controlChanged("powerManagementEnabled", R.uiState.powerBaseline)) {
       try {
         await saveDurableConfigKey("powerManagementEnabled");
       } catch (e) {
@@ -177,22 +1290,22 @@ async function savePowerSettings() {
         ok = false;
       }
     }
-    if (controlChanged("bleScanIntensity", R.powerBaseline) && !(await R.setBleScanIntensity()))
+    if (controlChanged("bleScanIntensity", R.uiState.powerBaseline) && !(await setBleScanIntensity()))
       ok = false;
-    if (controlChanged("staWifiSleep", R.powerBaseline) && !(await R.setWifiSleep())) ok = false;
-    if (ok) R.clearPowerDirty();
+    if (controlChanged("staWifiSleep", R.uiState.powerBaseline) && !(await setWifiSleep())) ok = false;
+    if (ok) clearPowerDirty();
   } finally {
     b.classList.remove("busy");
   }
   return ok;
 }
 async function saveFrontendSettings() {
-  if (!R.frontendDirty) return;
+  if (!R.uiState.frontendDirty) return;
   const b = $("saveFrontendButton");
   b.classList.add("busy");
   let ok = true;
   try {
-    if (controlChanged("showDiagnosticPage", R.frontendBaseline)) {
+    if (controlChanged("showDiagnosticPage", R.uiState.frontendBaseline)) {
       try {
         await saveDurableConfigKey("showDiagnosticPage");
       } catch (e) {
@@ -200,36 +1313,36 @@ async function saveFrontendSettings() {
         ok = false;
       }
     }
-    if (controlChanged("uiTheme", R.frontendBaseline)) R.setTheme($("uiTheme").value);
-    if (controlChanged("heroTint", R.frontendBaseline)) R.setHeroTintMode($("heroTint").value);
-    if (ok) R.clearFrontendDirty();
+    if (controlChanged("uiTheme", R.uiState.frontendBaseline)) R.setTheme($("uiTheme").value);
+    if (controlChanged("heroTint", R.uiState.frontendBaseline)) setHeroTintMode($("heroTint").value);
+    if (ok) clearFrontendDirty();
   } finally {
     b.classList.remove("busy");
   }
   return ok;
 }
 function revertBleSettings() {
-  if (!R.bleDirty) return;
+  if (!R.uiState.bleDirty) return;
   if (!confirm(__WEBUI_TEXT__("admin.discard_unsaved_changes"))) return;
-  R.restoreSnapshot(R.bleBaseline);
-  R.clearBleDirty();
+  R.restoreSnapshot(R.uiState.bleBaseline);
+  clearBleDirty();
   R.clearFieldErrors();
   R.refreshStatus();
 }
 function revertPowerSettings() {
-  if (!R.powerDirty) return;
+  if (!R.uiState.powerDirty) return;
   if (!confirm(__WEBUI_TEXT__("admin.discard_unsaved_changes"))) return;
-  R.restoreSnapshot(R.powerBaseline);
-  R.clearPowerDirty();
+  R.restoreSnapshot(R.uiState.powerBaseline);
+  clearPowerDirty();
   R.clearFieldErrors();
   R.refreshStatus();
 }
 function revertFrontendSettings() {
-  if (!R.frontendDirty) return;
+  if (!R.uiState.frontendDirty) return;
   if (!confirm(__WEBUI_TEXT__("admin.discard_unsaved_changes"))) return;
-  R.restoreSnapshot(R.frontendBaseline);
+  R.restoreSnapshot(R.uiState.frontendBaseline);
   R.paintTheme($("uiTheme").value);
-  R.clearFrontendDirty();
+  clearFrontendDirty();
   R.clearFieldErrors();
   R.refreshStatus();
 }
@@ -300,9 +1413,9 @@ export function init() {
       el.addEventListener("change", mark);
     });
   };
-  sectionChanged("#blePanel", R.markBleDirty);
-  sectionChanged("#powerPanel", R.markPowerDirty);
-  sectionChanged("#frontendPanel", R.markFrontendDirty);
+  sectionChanged("#blePanel", markBleDirty);
+  sectionChanged("#powerPanel", markPowerDirty);
+  sectionChanged("#frontendPanel", markFrontendDirty);
   $("saveBleButton").onclick = saveBleSettings;
   $("revertBleButton").onclick = revertBleSettings;
   $("savePowerButton").onclick = savePowerSettings;
@@ -345,7 +1458,7 @@ export function init() {
     R.refreshStatus();
   };
   const unlock = () => {
-    if (R.developmentActive()) return;
+    if (developmentActive()) return;
     const pw = $("adminUnlockPassword").value;
     if (!pw) {
       R.showFieldError("adminUnlockPassword", __WEBUI_TEXT__("admin.device_password_is_required"));
@@ -373,23 +1486,23 @@ export function init() {
       unlock();
     }
   });
-  $("adminLockButton").onclick = R.lockAdmin;
+  $("adminLockButton").onclick = lockAdmin;
   $("restartButton").onclick = () => {
     if (confirm(__WEBUI_TEXT__("admin.restart_the_controller")))
       R.command("/api/v1/control/restart");
   };
-  $("scanNetworkButton").onclick = R.startWifiScan;
-  $("staNetwork").onchange = R.selectDetectedNetwork;
+  $("scanNetworkButton").onclick = startWifiScan;
+  $("staNetwork").onchange = selectDetectedNetwork;
   $("staOpen").onchange = R.updateNetworkPasswordState;
   $("staIpMode").onchange = R.updateStaticIpFieldsState;
-  $("saveDateTimeButton").onclick = R.saveDateTimeConfig;
-  $("revertDateTimeButton").onclick = R.revertDateTimeConfig;
-  $("timezoneId").addEventListener("change", R.timeZoneSelectionChanged);
-  $("timezoneAutomatic").onchange = R.changeTimezoneMode;
+  $("saveDateTimeButton").onclick = saveDateTimeConfig;
+  $("revertDateTimeButton").onclick = revertDateTimeConfig;
+  $("timezoneId").addEventListener("change", timeZoneSelectionChanged);
+  $("timezoneAutomatic").onchange = changeTimezoneMode;
   $("ntpSyncEnabled").onchange =
     $("ntpServerPreset").onchange =
     $("ntpServerCustom").oninput =
-      R.markDateTimeDirty;
+      markDateTimeDirty;
   const networkChanged = () => R.setSaveDirty("saveNetworkButton", "", true);
   document.querySelectorAll("#networkPanel input,#networkPanel select").forEach((el) => {
     el.addEventListener("input", networkChanged);
@@ -462,14 +1575,14 @@ export function init() {
       __WEBUI_TEXT__("admin.webhook_test_queued"),
     );
   $("saveNetworkButton").onclick = () => {
-    const err = R.validateNetworkClient();
+    const err = validateNetworkClient();
     if (err) {
       R.showFieldError(err.id, err.msg);
       return;
     }
     R.clearFieldErrors();
-    const payload = R.networkSavePayload(),
-      prefsOnly = R.networkPreferencesOnly(payload);
+    const payload = networkSavePayload(),
+      prefsOnly = networkPreferencesOnly(payload);
     if (!prefsOnly) {
       const staticMode = $("staIpMode").value === "static";
       if (
@@ -502,7 +1615,7 @@ export function init() {
       );
   };
   $("changeDevicePasswordButton").onclick = () => {
-    const err = R.validateDevicePasswordClient();
+    const err = validateDevicePasswordClient();
     if (err) {
       R.showFieldError(err.id, err.msg);
       return;
@@ -530,16 +1643,16 @@ export function init() {
     R.clearFieldErrors();
     R.refreshStatus();
   };
-  $("revertNetworkButton").onclick = R.revertNetworkConfig;
+  $("revertNetworkButton").onclick = revertNetworkConfig;
   $("revertDevicePasswordButton").onclick = () => {
     if (!$("newDevicePassword").value && !$("confirmDevicePassword").value) return;
     if (!confirm(__WEBUI_TEXT__("admin.discard_unsaved_changes"))) return;
     ["newDevicePassword", "confirmDevicePassword"].forEach((id) => ($(id).value = ""));
     R.setSaveDirty("changeDevicePasswordButton", "", false);
   };
-  $("otaVerifyButton").onclick = R.otaUpload;
-  $("otaFlashButton").onclick = R.otaFlash;
-  $("otaDiscardButton").onclick = R.otaDiscard;
+  $("otaVerifyButton").onclick = otaUpload;
+  $("otaFlashButton").onclick = otaFlash;
+  $("otaDiscardButton").onclick = otaDiscard;
   $("factoryResetButton").onclick = () => {
     if (confirm(__WEBUI_TEXT__("admin.restore_all_factory_settings_this_erases_wi")))
       R.command("/api/v1/factory-reset", { confirm: "ERASE_ALL_SETTINGS" });

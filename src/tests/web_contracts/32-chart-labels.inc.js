@@ -149,7 +149,7 @@
     if (shown.length !== 1 || shown[0] !== '36 g')
       throw new Error('A merged range that cannot fit must fall back: ' + shown);
   }
-  if (!codeIncludes(runtimeJs, "fillChartTicks($('ruleChartTicks')") &&
+  if (!codeIncludes(js, "fillChartTicks($('ruleChartTicks')") &&
       !codeIncludes(runtimeJs, "fillChartTicks(c.querySelector('.ruleChartTicks'),"))
     throw new Error('Chart tick rendering must stay shared with the shot charts');
 }

@@ -1,10 +1,6 @@
 {
-  const machineFn = runtimeJs.slice(
-      runtimeJs.indexOf('function machinePayload('),
-      runtimeJs.indexOf('function dateTimePayload('));
-  const dateTimeFn = runtimeJs.slice(
-      runtimeJs.indexOf('function dateTimePayload('),
-      runtimeJs.indexOf('function brewPayload('));
+  const machineFn = blockAt(viewJs.settings, 'function machinePayload(');
+  const dateTimeFn = blockAt(viewJs.admin, 'function dateTimePayload(');
   if (!codeIncludes(machineFn, "scaleConnectedLed:$('scaleConnectedLed').checked") ||
       machineFn.includes('ntpServerPreset') ||
       machineFn.includes('timezoneOffsetMinutes') ||
@@ -19,9 +15,7 @@
       !codeIncludes(ui, "saveDateTimeButton').onclick=R.saveDateTimeConfig") ||
       codeIncludes(ui, "saveDateTimeButton').onclick=R.saveMachineConfig") ||
       (codeIncludes(ui, "function markConfigDirty(") &&
-       runtimeJs.slice(runtimeJs.indexOf('function markConfigDirty('),
-                       runtimeJs.indexOf('function markDateTimeDirty('))
-           .includes('dateTimeDirtyHint'))) {
+       blockAt(viewJs.settings, 'function markConfigDirty(').includes('dateTimeDirtyHint'))) {
     throw new Error(
         'Save machine must send only machine fields; Date & time has its own payload and dirty flag');
   }

@@ -192,13 +192,13 @@
   const rule={mode:'active',t1:27,t2:36,prot:3,wall:60,d:5,ceil:38.5};
   const env={liveRuleModel:null},ruleArgs=[];
   const paint=(d)=>new Function('$','buildShotSparkModel','formatShotEnded','ms','localStorage','document',
-    'liveRuleModel','shotHistory','shotRuleModel','scheduleShotPaint','heroFastState',
+    'liveRuleModel','uiState','shotRuleModel','scheduleShotPaint','heroFastState',
     blockAt(runtimeJs,'function verdictLabel(')+
     runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function shotPresetName('))
       .replace('let heroFast = { el: 0, since: -1, on: false };','let heroFast = heroFastState.v;')+
     ';const r=renderShotHero(arguments[11]);heroFastState.v=heroFast;return r;')(lookup,()=>null,()=>'',
       (v,n)=>(v/1000).toFixed(n),{getItem:()=>tintMode,setItem(){}},{createElement:()=>({})},
-      env.liveRuleModel,{shots:[]},r=>(ruleArgs.push(r),null),()=>{},fast,d);
+      env.liveRuleModel,{shotHistory:{shots:[]}},r=>(ruleArgs.push(r),null),()=>{},fast,d);
   const fast={v:{el:0,since:-1,on:false}};
   const card={live:true,weight:2,goal:36,elapsedMs:1000,firstDropMs:0,tareMs:null,averageFlowGps:null,shotType:'auto'};
   const heroEl=()=>lookup('shotHero');
@@ -341,7 +341,7 @@
   const listeners={};
   const controller=new Function('WebSocket','location','document','window','setTimeout','clearTimeout',
     'requestAnimationFrame','webUiPollingActive','webUiClientId','activeView','$','webUiPowerSeconds','invalidateHomeStream',
-    'let homeFrame=null,homeStale=true,homeReady,homeResolve=()=>{};function noteReachFail(){}'+runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),runtimeJs.indexOf('function formatExtractionGuard('))+
+    runtimeStateDecl+'let homeFrame=null,homeStale=true,homeReady,homeResolve=()=>{};function noteReachFail(){}'+runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),runtimeJs.indexOf('function setHomeSub('))+
     ';return{start:startUiStream,stop:stopUiStream,frame:()=>shotFrame,stale:()=>shotStale};')(
     Socket,{protocol:'http:',host:'device.local'},
     {hidden:false,addEventListener:(name,fn)=>listeners[name]=fn},
@@ -367,7 +367,7 @@
   owner=false;controller.stop();controller.start();
   if(sockets.length!==2||rebound.readyState!==3)throw new Error('Inactive owner cannot retain/reopen stream');
   if(codeIncludes(runtimeJs, 'let shotTick=')||codeIncludes(runtimeJs, 'runShot(live?s:0)')||
-      !codeIncludes(runtimeJs, 'stopUiStream();')||!codeIncludes(runtimeJs, 'startUiStream();')||
+      !codeIncludes(runtimeJs, 'stopUiStream();')||!codeIncludes(js, 'startUiStream();')||
       !codeIncludes(runtimeJs, "op:'bind',client:webUiClientId")||
       !codeIncludes(runtimeJs, '"op":"resync"'))
     throw new Error('Firmware timer and stream must follow ownership/visibility lifecycle');
@@ -1223,8 +1223,8 @@ if (!html.includes('class="cfgGroup paddleOnly"><summary>Paddle</summary>') ||
     !html.includes('After an automatic stop, beeps at this interval until the paddle is back at OFF.') ||
     html.includes('id="paddleReturnReminderBeep"') ||
     html.includes('id="paddleReturnReminderIntervalS"') ||
-    !codeIncludes(runtimeJs, 'paddleReturnReminderBeep:reminder?!!+reminder.value:undefined') ||
-    !codeIncludes(runtimeJs, 'paddleReturnReminderIntervalMs:reminder?(+reminder.value||30)*1000:undefined') ||
+    !codeIncludes(js, 'paddleReturnReminderBeep:reminder?!!+reminder.value:undefined') ||
+    !codeIncludes(js, 'paddleReturnReminderIntervalMs:reminder?(+reminder.value||30)*1000:undefined') ||
     html.includes('cfgGroup paddleOnly momentaryOnly') ||
     html.includes('cfgGroup momentaryOnly paddleOnly') ||
     !css.includes('html.momentaryMachine .paddleOnly') ||
@@ -1409,14 +1409,14 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
       !cardSrc.includes('observePresetHost(preset)') || cardSrc.includes('hatch') ||
       !cardSrc.includes('h.append(preset, readout, legend, combo);') || !cardSrc.includes('fillShotCharts(combo, m);') ||
       !cardSrc.includes('if (preset._view) h.style.setProperty("--shot-plot-h", preset._view.B - preset._view.T + "px");') ||
-      !runtimeJs.includes('rate.className = "shotRateCell";') || runtimeJs.includes('shotInfo') ||
-      !runtimeJs.includes('<span class="heroPill" data-kind="'))
+      !js.includes('rate.className = "shotRateCell";') || runtimeJs.includes('shotInfo') ||
+      !js.includes('<span class="heroPill" data-kind="'))
     throw new Error('The Stats preset card must show its details, preset chart and combined weight/flow chart at once (same plot height), plus a keyboard cursor, a verdict zone and pill, and no no-cut hatch');
   if (!css.includes('.shotPresetChart:not([data-zone=on_recipe]) .rvWindow') || css.includes('.shotMore') ||
       css.includes('aria-expanded=false') ||
       !css.includes('.shotComboHost{padding-top:1rem}') ||
       !css.includes('.heroPill[data-kind=fast]{--z:var(--gFast)}') || !css.includes('#shotTable .heroPill{') ||
-      !runtimeJs.includes('fill="url(#${u + cls})"') || !runtimeJs.includes('`calc(var(--band${b}) * 2.2)`') ||
+      !js.includes('fill="url(#${u + cls})"') || !js.includes('`calc(var(--band${b}) * 2.2)`') ||
       !css.includes('margin:.55rem 0 0;z-index:1;background:var(--sf)}') ||
       !css.includes('--gCut:#d1101f') || !css.includes('--gCut:#9e1c22') || !css.includes('.rvCut{fill:none;stroke:var(--gCut)'))
     throw new Error('Stats preset styles must color only the verdict zone and use the red cut-line token in both themes');

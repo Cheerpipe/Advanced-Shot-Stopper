@@ -12,12 +12,13 @@
   const svValidatorSrc =
     svCut('function rangeCheck(', 'function formNumber(') +
     svCut('function number(', 'function sToMs(') +
-    svCut('function formNumber(', 'function validNtpHostnameClient(') +
-    svCut('const sub = (t, vals)', 'function validateDateTimeClient') +
-    // The live-warning twin sits before the rule table in the source; the
-    // harness compiles it in so the executable cases below run the exact
-    // production filter, not a copy.
-    svCut('function brewWarningList(', 'function clearBrewWarnings(');
+    svCut('function formNumber(', 'const sub = (t, vals)') +
+    runtimeJs.slice(runtimeJs.indexOf('const sub = (t, vals)'),
+        runtimeJs.indexOf('\n}', runtimeJs.indexOf('function validateBrewClient(')) + 2) +
+    // The live-warning twin lives in the Settings module; the harness
+    // compiles it in so the executable cases below run the exact production
+    // filter, not a copy.
+    ';const R={validateBrewClient};' + blockAt(viewJs.settings, 'function brewWarningList(');
   // Field defaults mirror the Settings form: steps come from the shipped
   // inputs (asserted below) and values form one consistent stored state.
   const svFieldSpec = {
@@ -37,6 +38,14 @@
     slowExtractionGuardEnabled: ['checkbox', '', true],
     autoRetare: ['checkbox', '', false],
   };
+  // The live brew-warning engine spans the runtime (shared aria and clear
+  // helpers) and the Settings module (signature-gated refresh and clears).
+  const svEngineSrc = runtimeStateDecl +
+    ['refreshFieldAria', 'clearBrewWarningsDom', 'clearBrewWarnings']
+        .map((n) => blockAt(runtimeJs, `function ${n}(`)).join('\n') +
+    ';const R={uiState,validateBrewClient,settingsSectionEls,refreshFieldAria,clearBrewWarningsDom};' +
+    ['brewWarningList', 'refreshBrewWarnings', 'clearBrewFieldErrors']
+        .map((n) => blockAt(viewJs.settings, `function ${n}(`)).join('\n');
   const svValidate = (edit, setup) => {
     const fields = {};
     for (const [id, [type, step, init]] of Object.entries(svFieldSpec))
@@ -48,13 +57,13 @@
     for (const el of Object.values(fields))
       baseline[el.id] = el.type === 'checkbox' ? el.checked : el.value;
     if (edit) edit(fields);
-    const api = new Function('$', 'document', 'settingsSectionEls', 'brewBaseline',
+    const api = new Function('$', 'document', 'settingsSectionEls', 'uiState',
       svValidatorSrc +
       ';return {validateBrewClient, brewWarningList, rules: BREW_CROSS_RULES};')(
       (id) => fields[id],
       {documentElement: {classList: {contains: () => false}}},
       (section) => (section === 'brew' ? Object.values(fields) : []),
-      baseline);
+      {brewBaseline: baseline});
     return {errors: api.validateBrewClient(), warnings: api.brewWarningList(),
             rules: api.rules};
   };
@@ -163,7 +172,7 @@
       'brewBaseline[el.id] !== (el.type === "checkbox" ? el.checked : el.value)'),
     'Attribution must diff the live form against the clean brew baseline');
   svAssert.equal(
-    (runtimeJs.match(/brewBaseline = snapshotControls\(/g) || []).length, 2,
+    (js.match(/brewBaseline = (?:R\.)?snapshotControls\(/g) || []).length, 2,
     'The brew baseline must be captured on hydration as well as on clean polls');
 
   // Multi-error UI: inline marking per field with focus on the first offender
@@ -251,8 +260,7 @@
     // (signature skip) and check the chip text/count and hidden-at-zero.
     const strings = JSON.parse(
       fs.readFileSync(path.join(sketchDir, 'web/locales/en.json'), 'utf8')).strings;
-    const engineSrc = runtimeJs.slice(runtimeJs.indexOf('let brewWarnSig'),
-      runtimeJs.indexOf('function revertBrewPreset()'));
+    const engineSrc = svEngineSrc;
     const mkField = (id) => {
       const el = {id, attrs: {},
         classList: {add: () => {}, remove: () => {}},
@@ -326,8 +334,7 @@
   // exercise refreshFieldAria's query, so drive it through the real
   // clearBrewFieldErrors with a host that reports one surviving red small).
   {
-    const engineSrc = runtimeJs.slice(runtimeJs.indexOf('let brewWarnSig'),
-      runtimeJs.indexOf('function revertBrewPreset()'));
+    const engineSrc = svEngineSrc;
     const survivor = {id: 'fieldErr7', remove: () => {}};
     const el = {id: 'goalWeightG', attrs: {},
       classList: {add: () => {}, remove: () => {}},
@@ -351,17 +358,16 @@
   // Structural pins: wiring, styles, chip, hooks, and symmetric aria.
   {
     const settingsJsSrc = viewJs.settings || '';
-    const engineSrc = runtimeJs.slice(runtimeJs.indexOf('let brewWarnSig'),
-      runtimeJs.indexOf('function revertBrewPreset()'));
+    const engineSrc = svEngineSrc;
     svAssert.ok(codeIncludes(settingsJsSrc,
       'R.clearBrewFieldErrors();R.refreshBrewWarnings();'),
       'The shared settings listener must clear stale red marks and refresh warnings');
-    svAssert.ok(codeIncludes(blockAt(runtimeJs, 'function applySettingsStatus(s) {'),
+    svAssert.ok(codeIncludes(blockAt(viewJs.settings, 'function applySettingsStatus(s) {'),
       'refreshBrewWarnings();'),
       'applySettingsStatus must refresh warnings after re-capturing baselines');
-    svAssert.ok(codeIncludes(blockAt(runtimeJs, 'function revertBrewPreset() {'),
+    svAssert.ok(codeIncludes(blockAt(viewJs.settings, 'function revertBrewPreset() {'),
       'refreshBrewWarnings();'));
-    svAssert.ok(codeIncludes(blockAt(runtimeJs, 'function revertMachineConfig() {'),
+    svAssert.ok(codeIncludes(blockAt(viewJs.settings, 'function revertMachineConfig() {'),
       'refreshBrewWarnings();'));
     svAssert.ok(codeIncludes(blockAt(runtimeJs, 'function saveBrewPreset('),
       'clearBrewWarnings();'),
@@ -369,7 +375,7 @@
     svAssert.ok(engineSrc.includes('aria-invalid') &&
                 engineSrc.includes('aria-describedby'),
       'Yellow warnings must mark their input for assistive tech');
-    svAssert.ok(blockAt(runtimeJs, 'function clearBrewFieldErrors(')
+    svAssert.ok(blockAt(viewJs.settings, 'function clearBrewFieldErrors(')
         .includes('small.fieldError'),
       'The scoped red clear must remove the brew smalls, not just the class');
     svAssert.ok(css.includes('.fieldWarning{') && css.includes('.fieldWarn{') &&

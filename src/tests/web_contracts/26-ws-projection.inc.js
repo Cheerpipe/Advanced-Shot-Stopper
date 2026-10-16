@@ -137,10 +137,12 @@ int main(){
   const nodes = new Map(), $ = id => {
     if (!nodes.has(id)) nodes.set(id, {textContent: ''});return nodes.get(id);
   };
-  const context = {$, __WEBUI_TEXT__: key => key, syncAdminSessionUi(){}, diagnosticPublicView:false,
+  const context = {$, __WEBUI_TEXT__: key => key,
+    R: {syncAdminSessionUi(){}, message(){}, uiState: {diagnosticPublicView: false}},
     updH(){},ntpStateLabel(){},formatDiagnosticTimezoneOffset(){},renderDiagClock(){}};
   vm.createContext(context);
-  vm.runInContext(section('function applyDiagnosticStatus(', 'function applyAdminStatus('), context);
+  vm.runInContext(blockAt(fs.readFileSync(path.join(sketchDir, 'web/js/diagnostic.js'), 'utf8'),
+      'function applyDiagnosticStatus('), context);
   const status = {adminUnlocked:true,health:{},safety:{},maintenance:{},network:{},time:{},scale:{},
     config:{},nvs:{statsValid:false,usedEntries:0,availableEntries:20,freeEntries:0,totalEntries:20,namespaces:0}};
   context.applyDiagnosticStatus(status);
@@ -149,7 +151,8 @@ int main(){
   assert.equal($('hNvsNamespaces').textContent,'0');assert($('hNvsEntries').textContent.startsWith('0'));
   const cup={__WEBUI_TEXT__:key=>key,$:()=>null,sub:key=>key};
   vm.createContext(cup);
-  vm.runInContext(section('function formatCupProtection(', 'function setHomeSub('),cup);
+  vm.runInContext(blockAt(fs.readFileSync(path.join(sketchDir, 'web/js/diagnostic.js'), 'utf8'),
+      'function formatCupProtection('),cup);
   const idle={enabled:true,requireCupToStart:false,stopIfRemoved:false,present:false,scaleUsable:false,inShot:false};
   assert.equal(cup.formatCupProtection({...idle,aborted:true}),'runtime.shot_aborted');
   assert.equal(cup.formatCupProtection({...idle,aborted:false}),'runtime.brew_allowed');

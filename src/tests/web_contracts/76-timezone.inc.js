@@ -51,9 +51,17 @@
 {
   const assert = require('assert').strict, vm = require('vm');
   const slice = (a, b) => rawRuntimeJs.slice(rawRuntimeJs.indexOf(a), rawRuntimeJs.indexOf(b));
-  const source = slice('async function populateTimezoneOptions(', 'function renderShotSpark(') +
-      slice('function loadAdminConfig(', 'function updateHomeAdminActions(') +
-      slice('async function saveDateTimeConfig(', 'function commitRenamePreset(');
+  // The timezone helpers stay in the runtime; the Admin module owns the
+  // selector handlers, config load, and save. Shared state and runtime
+  // references resolve to this harness's globals.
+  const source = runtimeStateGlobals +
+      // Top-level lets become globals so R.<binding> reads them like the
+      // module namespace does.
+      slice('async function populateTimezoneOptions(', 'function renderShotSpark(')
+          .replace(/^let /gm, 'var ') +
+      ['function timeZoneSelectionChanged(', 'async function changeTimezoneMode(',
+        'function loadAdminConfig(', 'async function saveDateTimeConfig(']
+          .map((marker) => blockAt(rawViewJs.admin, marker)).join('\n');
   const flush = async () => { for (let i = 0; i < 12; ++i) await Promise.resolve(); };
   const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return {promise, resolve}; };
   function harness() {
@@ -200,7 +208,7 @@
       gate.resolve(); await save; assert.equal(h.c.dateTimeDirty, true);
     }],
     ['a command rejection cannot be acknowledged by an unrelated revision', async () => {
-      const code = slice('async function command(', 'async function setBleScanIntensity(');
+      const code = blockAt(rawRuntimeJs, 'async function command(');
       let polls = 0;
       const c = vm.createContext({configRevision: 10, lastCommandStatus: null,
         withCommandGate: fn => fn(), api: async () => ({requestId: 7}), body: JSON.stringify,
@@ -215,7 +223,7 @@
       assert.equal(polls, 2);
     }],
     ['command success waits for its own applied result', async () => {
-      const code = slice('async function command(', 'async function setBleScanIntensity(');
+      const code = blockAt(rawRuntimeJs, 'async function command(');
       let polls = 0;
       const c = vm.createContext({configRevision: 10, lastCommandStatus: null,
         withCommandGate: fn => fn(), api: async () => ({requestId: 7}), body: JSON.stringify,

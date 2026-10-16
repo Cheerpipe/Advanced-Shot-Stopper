@@ -57,10 +57,10 @@
   assert(codeIncludes(viewJs.settings, 
       "if(el.id==='presetRenameInput')return"),
       'The preset rename dialog input must not dirty the machine-config section');
-  assert(codeIncludes(runtimeJs, 'e.dataset.dirty!=null') &&
-         codeIncludes(runtimeJs, "setSaveDirty('saveConfigButton','configDirtyHint',false)") &&
-         codeIncludes(runtimeJs, "setSaveDirty('saveDateTimeButton','dateTimeDirtyHint',false)") &&
-         codeIncludes(runtimeJs, 'await refreshStatus();return false') &&
+  assert(codeIncludes(js, 'e.dataset.dirty!=null') &&
+         codeIncludes(js, "setSaveDirty('saveConfigButton','configDirtyHint',false)") &&
+         codeIncludes(js, "setSaveDirty('saveDateTimeButton','dateTimeDirtyHint',false)") &&
+         codeIncludes(js, 'await refreshStatus();return false') &&
          codeIncludes(adminUi, "const networkChanged=()=>R.setSaveDirty('saveNetworkButton','',true)") &&
          codeIncludes(adminUi, "R.setSaveDirty('saveWebhookButton','webhookDirtyHint',true)") &&
          codeIncludes(adminUi, "R.setSaveDirty('changeDevicePasswordButton','',false)") &&
@@ -72,35 +72,35 @@
          codeIncludes(adminUi, "const b=$('savePowerButton');b.classList.add('busy')") &&
          css.includes('.btnGlyph:disabled{opacity:.4;cursor:not-allowed}'),
   'Save actions must enable on edits, disable only after success, and look disabled');
-  assert(codeIncludes(runtimeJs, 'function snapshotControls(') &&
-         codeIncludes(runtimeJs, 'function restoreSnapshot(') &&
-         codeIncludes(runtimeJs, "if(!configDirty)configBaseline=snapshotControls(settingsSectionEls('config'))") &&
-         codeIncludes(runtimeJs, 'if(!dateTimeDirty)dateTimeBaseline=snapshotControls(') &&
-         codeIncludes(runtimeJs, 'if(!bleDirty)bleBaseline=snapshotControls(') &&
-         codeIncludes(runtimeJs, 'if(!powerDirty)powerBaseline=snapshotControls(') &&
-         codeIncludes(runtimeJs, 'if(!frontendDirty)frontendBaseline=snapshotControls(') &&
-         codeIncludes(runtimeJs, 'networkBaseline=snapshotControls(networkControls())') &&
+  assert(codeIncludes(js, 'function snapshotControls(') &&
+         codeIncludes(js, 'function restoreSnapshot(') &&
+         codeIncludes(js, "if(!configDirty)configBaseline=snapshotControls(settingsSectionEls('config'))") &&
+         codeIncludes(js, 'if(!dateTimeDirty)dateTimeBaseline=snapshotControls(') &&
+         codeIncludes(js, 'if(!bleDirty)bleBaseline=snapshotControls(') &&
+         codeIncludes(js, 'if(!powerDirty)powerBaseline=snapshotControls(') &&
+         codeIncludes(js, 'if(!frontendDirty)frontendBaseline=snapshotControls(') &&
+         codeIncludes(js, 'networkBaseline=snapshotControls(networkControls())') &&
          codeIncludes(adminUi, 'webhookBaseline=R.snapshotControls(WEBHOOK_IDS.map((id)=>$(id)))') &&
-         codeIncludes(runtimeJs, 'confirm("Discard unsaved changes?")') &&
+         codeIncludes(js, 'confirm("Discard unsaved changes?")') &&
          codeIncludes(adminUi, 'confirm("Discard unsaved changes?")') &&
-         codeIncludes(runtimeJs, 'revertLineaMicra') &&
+         codeIncludes(js, 'revertLineaMicra') &&
          css.includes('.btnGlyph.btnRevert{'),
     'Revert buttons must confirm, then restore the snapshot taken when the section was last hydrated clean');
 
-  assert(codeIncludes(runtimeJs, 'command(path,value={},soft,okMsg,failMsg,busyId)') &&
-         codeIncludes(runtimeJs, 'busyId?$(busyId):null') &&
-         !codeIncludes(runtimeJs, 'function busyBtn') &&
-         codeIncludes(runtimeJs, "classList.remove('busy')") &&
+  assert(codeIncludes(js, 'command(path,value={},soft,okMsg,failMsg,busyId)') &&
+         codeIncludes(js, 'busyId?$(busyId):null') &&
+         !codeIncludes(js, 'function busyBtn') &&
+         codeIncludes(js, "classList.remove('busy')") &&
          css.includes('.btnGlyph.busy{pointer-events:none}') &&
          css.includes('.btnGlyph.busy .g:after') &&
          css.includes('@keyframes busySpin') &&
          css.includes('.btnGlyph.busy .g:after{animation:none}'),
     'Busy save buttons must spin in the glyph slot, block repeat clicks, and respect reduced motion');
   const busyCalls = [
-    [runtimeJs, '/api/v1/config', 'saveConfigButton'],
-    [runtimeJs, '/api/v1/config', 'saveDateTimeButton'],
+    [viewJs.settings, '/api/v1/config', 'saveConfigButton'],
+    [adminUi, '/api/v1/config', 'saveDateTimeButton'],
     [runtimeJs, '/api/v1/presets', 'saveBrewPresetButton'],
-    [runtimeJs, '/api/v1/machine/linea-micra', 'lineaMicraSaveButton'],
+    [viewJs.settings, '/api/v1/machine/linea-micra', 'lineaMicraSaveButton'],
     [adminUi, '/api/v1/network', 'saveNetworkButton'],
     [adminUi, '/api/v1/device/password', 'changeDevicePasswordButton']];
   for (const [source, endpoint, id] of busyCalls)
@@ -150,13 +150,17 @@
     const status = (history = [a, b]) => ({config: {scaleMacCacheMode: 'only'},
       scale: {preferredMac: applied, history: history.map(mac => ({mac, name: mac}))}});
     const take = (start, end) => runtimeJs.slice(runtimeJs.indexOf(start), runtimeJs.indexOf(end));
+    const settingsTake = (start, end) => viewJs.settings.slice(
+        viewJs.settings.indexOf(start), viewJs.settings.indexOf(end));
+    // Shared state and runtime references resolve to this harness's globals.
     vm.runInContext([
-      take('function scaleHistoryLabel(', 'function formatScaleWeight('),
+      runtimeStateGlobals,
       take('function settingsSectionEls(', 'function setSaveDirty('),
-      take('function markConfigDirty(', 'function markDateTimeDirty('),
-      blockAt(runtimeJs, 'function revertMachineConfig('),
-      take('function selectPreferredScale(', 'async function command('),
-      take('async function saveMachineConfig(', 'async function saveDateTimeConfig(')
+      settingsTake('function scaleHistoryLabel(', 'function markConfigDirty('),
+      settingsTake('function markConfigDirty(', 'function brewWarningList('),
+      blockAt(viewJs.settings, 'function revertMachineConfig('),
+      blockAt(viewJs.settings, 'function selectPreferredScale('),
+      blockAt(viewJs.settings, 'async function saveMachineConfig(')
     ].join('\n'), context);
     context.updatePreferredScaleSelect(status());
     context.configBaseline = context.snapshotControls(context.settingsSectionEls('config'));

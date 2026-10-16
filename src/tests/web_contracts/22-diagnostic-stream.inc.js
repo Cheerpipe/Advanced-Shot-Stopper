@@ -2,8 +2,8 @@
 // socket only while the view is shown; every navigation unsubscribes.
 {
   const assert = require('assert').strict, vm = require('vm');
-  const source = runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('), runtimeJs.indexOf('function renderHomeStream(')) + runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),
-    runtimeJs.indexOf('function formatExtractionGuard('));
+  const source = runtimeStateDecl + runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('), runtimeJs.indexOf('function renderHomeStream(')) + runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),
+    runtimeJs.indexOf('function setHomeSub('));
   const sockets = [], timers = new Map(); let timer = 0, owner = true;
   const applied = [], frames = [];
   class Socket {
@@ -123,7 +123,7 @@
          diagnosticSrc.includes('auditDetailRow'),
       'audit rows must expand to their full detail');
   assert(partialHtml.diagnostic.includes('id="auditExportButton"') &&
-         diagnosticSrc.includes("R.apiBinary(\"/api/v1/diagnostic/audit\")"),
+         codeIncludes(diagnosticSrc, "R.apiBinary(\"/api/v1/diagnostic/audit\")"),
       'the audit export must download the full text log');
   const routes = fs.readFileSync(
       path.join(sketchDir, 'network/ShotStopperHttpAuthAssets.inc'), 'utf8');
@@ -144,8 +144,8 @@
   // already localized, so expectations use the baked-in English literals.
   const assert = require('assert').strict;
   const first = runtimeJs.indexOf('function formatScaleWeight(');
-  const rrRel = runtimeJs.slice(first).search(/const\s+RR\s*=/);
-  const last = rrRel < 0 ? -1 : rrRel + first;
+  const timerAt = runtimeJs.indexOf('function formatScaleTimer(');
+  const last = runtimeJs.indexOf('\n}', timerAt) + 2;
   const formatters = new Function('pad2',
     runtimeJs.slice(first, last) + ';return {formatScaleWeight,formatScaleTimer};')(
     n => String(n).padStart(2, '0'));
@@ -158,9 +158,9 @@
   assert.equal(formatters.formatScaleWeight({scale: {observedWeightG: null}}), '—');
   // The stream is the only writer: the view handler rides the socket cache
   // and the REST fallback painter is gone along with the route.
-  assert(!codeIncludes(runtimeJs, "api('/api/v1/status/diagnostic'"),
+  assert(!codeIncludes(js, "api('/api/v1/status/diagnostic'"),
       'the Diagnostic view must not read REST status');
-  assert(!codeIncludes(runtimeJs, "api('/api/v1/log'"),
+  assert(!codeIncludes(js, "api('/api/v1/log'"),
       'the Diagnostic view must not poll the REST log');
   assert(codeIncludes(runtimeJs, 'if(apply&&diagnosticReady())apply(diagFrame.status)'),
       'the full view waits for all diagnostic sections');
@@ -173,9 +173,9 @@
   const assert = require('assert').strict;
   const source = fs.readFileSync(path.join(sketchDir, 'web/js/diagnostic.js'), 'utf8');
   const controls = {serialLogLevel: {}, ringRetainLogLevel: {}};
-  const apply = new Function('R', '$', source.slice(source.indexOf('export function applyStatus('),
+  const apply = new Function('applyDiagnosticStatus', '$', source.slice(source.indexOf('export function applyStatus('),
       source.indexOf('export function init(')).replace('export ', '') + ';return applyStatus;')(
-      {applyDiagnosticStatus() {}}, id => controls[id]);
+      () => {}, id => controls[id]);
   apply({config: {serialLogLevel: 'warning', ringRetainLogLevel: 'debug'}});
   assert.equal(controls.serialLogLevel.value, 'warning');
   assert.equal(controls.ringRetainLogLevel.value, 'debug');

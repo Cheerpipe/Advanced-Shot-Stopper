@@ -552,8 +552,9 @@ if (generated.jsGzip.length > 7330) {
 // The Home cup light warning tone measures 14236 bytes; owner-authorized 2026-10-16.
 // The held touch reading legend measures 14250 bytes; owner-authorized 2026-10-16.
 // The full-screen keep-awake video layer measures 14268 bytes; owner-authorized 2026-10-16.
-if (generated.cssGzip.length > 14268) {
-  throw new Error(`Compressed Web CSS exceeds the 14268-byte gzip budget (${generated.cssGzip.length})`);
+// The wider gap before the header guard indicators (f5ccfc6f) measures 14269 bytes.
+if (generated.cssGzip.length > 14269) {
+  throw new Error(`Compressed Web CSS exceeds the 14269-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -672,8 +673,9 @@ if (generated.cssGzip.length > 14268) {
 // Held touch readings in the shot charts, Max flow and CSV bring the runtime to 61933 compressed bytes; owner-authorized 2026-10-16.
 // The full-screen keep-awake (Wake Lock, inline video, Esc) brings the runtime to 62758 compressed bytes; owner-authorized 2026-10-16.
 // Reading the build version from the shell brings the runtime to 62759 compressed bytes; frontend audit 2026-10-16.
-if (sentinelRuntimeGzip.length > 62759) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 62759-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// View-only code moves to the lazy view modules (frontend audit 2026-10-16).
+if (sentinelRuntimeGzip.length > 48300) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 48300-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -701,11 +703,14 @@ if (generated.otaImageGzip.length > 3072) {
 // the full-log Export download measure 10638. Cap raised to 10700.
 // The audit table pagination and change-gated repaint (page state, pager
 // renderer, selection-preserving fingerprint) measure 10839. Cap raised to 10900.
-if (generated.secondaryGzip.length > 10900) {
-  throw new Error(`Compressed secondary view JS exceeds the 10900-byte gzip budget (${generated.secondaryGzip.length})`);
+// Moving view-only code out of the always-loaded runtime (frontend audit
+// 2026-10-16) brings the Stats/History/Diagnostic/Admin logic here: 22138.
+if (generated.secondaryGzip.length > 22200) {
+  throw new Error(`Compressed secondary view JS exceeds the 22200-byte gzip budget (${generated.secondaryGzip.length})`);
 }
-if (generated.settingsGzip.length > 4096) {
-  throw new Error(`Compressed settings view JS exceeds the 4 KiB gzip budget (${generated.settingsGzip.length})`);
+// The Settings logic moved out of the runtime measures 7185 bytes.
+if (generated.settingsGzip.length > 7250) {
+  throw new Error(`Compressed settings view JS exceeds the 7250-byte gzip budget (${generated.settingsGzip.length})`);
 }
 // The PWA manifest and the 192 px home-screen icon are additive embedded
 // assets; they raise the combined cap from 66500 bytes. The 48 px favicon
@@ -1375,15 +1380,15 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
     throw new Error(
       'OTA status must expose protocol and complete resumable identity');
   }
-  if (!codeIncludes(runtimeJs, 'function otaRemoteMatches(') ||
-      (runtimeJs.match(/!otaRemoteMatches\(session,\s*status\)/g) || []).length < 2) {
+  if (!codeIncludes(js, 'function otaRemoteMatches(') ||
+      (js.match(/!(?:R\.)?otaRemoteMatches\(session,\s*status\)/g) || []).length < 2) {
     throw new Error(
       'Web OTA must bind session creation and reconciliation to the requested transferId');
   }
   if (!network.includes('sessionHardware') ||
       !network.includes('sessionMachine') ||
-      !codeIncludes(runtimeJs, 'status.sessionHardware===identity.hardware') ||
-      !codeIncludes(runtimeJs, 'status.sessionMachine===identity.machine')) {
+      !codeIncludes(js, 'status.sessionHardware===identity.hardware') ||
+      !codeIncludes(js, 'status.sessionMachine===identity.machine')) {
     throw new Error(
       'OTA sessions must bind hardware and machine profile compatibility');
   }
@@ -1490,9 +1495,9 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
     throw new Error(
         'Web UI must say the paddle aborts OTA and that restart waits for the shot');
   }
-  if (!codeIncludes(runtimeJs, "Flashed. Restart waits until the shot ends.") ||
+  if (!codeIncludes(js, "Flashed. Restart waits until the shot ends.") ||
       codeIncludes(runtimeJs, 'Locked while the machine is busy') ||
-      !codeIncludes(runtimeJs, 'Waiting for idle (') ||
+      !codeIncludes(js, 'Waiting for idle (') ||
       !codeIncludes(runtimeJs, 'Restart after the shot.')) {
     throw new Error(
         'OTA status must wait for the shot, not claim the machine is locked');

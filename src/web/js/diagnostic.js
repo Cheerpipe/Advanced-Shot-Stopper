@@ -179,6 +179,430 @@ function applyScaleCommands(scale) {
 ("use strict");
 import * as R from "./runtime.js?v=__FW_ASSET_TAG__";
 const $ = R.$;
+async function apiBinary(path, onProgress) {
+  if (!R.webUiPollingActive())
+    throw new Error(__WEBUI_TEXT__("runtime.this_window_is_inactive_reload_to_continue"));
+  await R.acquireDeviceSlot();
+  const ac = new AbortController(),
+    timer = setTimeout(() => ac.abort(), 12e4);
+  try {
+    const response = await fetch(path, {
+      headers: { [R.WEB_UI_CLIENT_HEADER]: R.webUiClientId },
+      signal: ac.signal,
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      let data = {};
+      try {
+        data = await response.json();
+      } catch (_) {}
+      throw new Error(
+        data.message || data.error || __WEBUI_TEXT__("runtime.http") + response.status,
+      );
+    }
+    if (!onProgress || !response.body) return await response.blob();
+    const reader = response.body.getReader(),
+      chunks = [];
+    let loaded = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      loaded += value.byteLength;
+      onProgress(loaded);
+    }
+    return new Blob(chunks, {
+      type: response.headers.get("Content-Type") || "application/octet-stream",
+    });
+  } finally {
+    clearTimeout(timer);
+    R.releaseDeviceSlot();
+  }
+}
+function formatWallTime(unixSec, tz) {
+  return R.formatWallTimeLocal(unixSec + tz * 60);
+}
+function formatDiagnosticTimezoneOffset(c) {
+  if (c.timezoneOffsetKnown) return R.formatTzLabel(c.appliedTimezoneOffsetMinutes);
+  if (c.timezoneResolution === "clock_unavailable") return __WEBUI_TEXT__("runtime.unknown");
+  const reason = {
+    unconfigured: __WEBUI_TEXT__("runtime.timezone_unconfigured"),
+    unknown_zone: __WEBUI_TEXT__("runtime.timezone_unknown_zone"),
+    rules_out_of_range: __WEBUI_TEXT__("runtime.timezone_rules_out_of_range"),
+  }[c.timezoneResolution];
+  return R.formatTzLabel(0) + (reason ? " — " + reason : "");
+}
+function clearLogView() {
+  R.uiState.logEvents = [];
+  R.uiState.logMissed = 0;
+  const d = $("logDropped"),
+    el = $("log");
+  if (d) d.hidden = true;
+  if (el) el.value = "";
+}
+function ntpStateLabel(t) {
+  if (!t) return__WEBUI_TEXT__("runtime.not_available");
+  return (
+    {
+      SYNCED: __WEBUI_TEXT__("runtime.synced"),
+      STALE: __WEBUI_TEXT__("runtime.stale"),
+      SYNCING: __WEBUI_TEXT__("runtime.syncing"),
+      FAILED: __WEBUI_TEXT__("runtime.failed"),
+      OFF: __WEBUI_TEXT__("runtime.not_synced_2"),
+    }[t.state] || __WEBUI_TEXT__("runtime.waiting_for_network")
+  );
+}
+const RR = "?|Pwr|Ext|SW|Panic|IWDT|TWDT|WDT|Sleep|Brn|SDIO|USB|JTAG|eFuse|Glitch|Lock".split("|");
+function formatUptime(ms) {
+  let x = ~~(ms / 1e3),
+    p = [],
+    d = ~~(x / 86400);
+  x %= 86400;
+  const h = ~~(x / 3600);
+  x %= 3600;
+  const m = ~~(x / 60);
+  if (d) p.push(d + "d");
+  if (d || h) p.push(h + "h");
+  if (d || h || m) p.push(m + "m");
+  p.push((x % 60) + "s");
+  return p.join(__WEBUI_TEXT__("runtime.symbol_3"));
+}
+function updH(h, s) {
+  function b(n, k = false) {
+    return !Number.isFinite(n) || n < 0
+      ? "—"
+      : k
+        ? (n / 1024).toFixed(1) + " KB"
+        : n >= 1048576
+          ? (n / 1048576).toFixed(1) + "M"
+          : n >= 1024
+            ? Math.round(n / 1024) + "K"
+            : n + "b";
+  }
+  const kb = (n) => b(n, true);
+  const t = (i, v) => ($(i).textContent = v || __WEBUI_TEXT__("runtime.unknown"));
+  const cpu = [
+    "hCpu5s",
+    "hCpu1m",
+    "hCpu5m",
+    "hCpuMhz",
+    "hTemp",
+    "hTPeak",
+    "hRamT",
+    "hRamU",
+    "hRamF",
+  ];
+  if (!h) {
+    cpu
+      .concat([
+        "hHeapMin",
+        "hHeapLargest",
+        "hPsramT",
+        "hPsramF",
+        "hPsramL",
+        "hUptime",
+        "hResetReason",
+      ])
+      .forEach((i) => t(i, __WEBUI_TEXT__("runtime.unknown")));
+    return;
+  }
+  t(
+    "hUptime",
+    typeof h.uptimeMs === "number" && h.uptimeMs >= 0
+      ? formatUptime(h.uptimeMs)
+      : __WEBUI_TEXT__("runtime.unknown"),
+  );
+  t("hResetReason", s ? RR[s.resetReasonCode] || __WEBUI_TEXT__("runtime.symbol_7") : "");
+  t("hHeapMin", kb(h.minimumFreeHeapBytes));
+  t("hHeapLargest", kb(h.largestFreeHeapBlockBytes) + (h.heap ? " · " + h.heap : ""));
+  t("hPsramT", b(h.psramSizeBytes));
+  t("hPsramF", b(h.psramFreeBytes));
+  t("hPsramL", kb(h.psramLargestFreeBlockBytes));
+  const w = h.hwmon;
+  if (!w) {
+    cpu.forEach((i) => t(i, __WEBUI_TEXT__("runtime.unknown")));
+    return;
+  }
+  const load = (v) => (w.cpuLoadValid && typeof v === "number" ? v.toFixed(2) : "");
+  const split = (t, a, b) => {
+    t = load(t);
+    return t && typeof a === "number" && typeof b === "number"
+      ? t + " (" + a.toFixed(2) + " + " + b.toFixed(2) + ")"
+      : t;
+  };
+  t("hCpu5s", split(w.cpuLoad5s, w.cpu0Busy, w.cpu1Busy));
+  t("hCpu1m", load(w.cpuLoad1m));
+  t("hCpu5m", load(w.cpuLoad5m));
+  t(
+    "hCpuMhz",
+    typeof w.cpuMhz === "number" && w.cpuMhz > 0
+      ? w.cpuMhz + __WEBUI_TEXT__("runtime.mhz")
+      : __WEBUI_TEXT__("runtime.unknown"),
+  );
+  t("hTemp", w.tempValid ? w.tempC.toFixed(1) + __WEBUI_TEXT__("runtime.c") : "");
+  t("hTPeak", w.tempValid ? w.tempPeakC.toFixed(1) + __WEBUI_TEXT__("runtime.c") : "");
+  t("hRamT", b(w.ramTotalBytes));
+  t("hRamU", b(w.ramUsedBytes));
+  t("hRamF", b(w.ramFreeBytes));
+}
+function formatExtractionGuard(d) {
+  return !d.guardEnabled
+    ? __WEBUI_TEXT__("runtime.off_2")
+    : d.extended
+      ? __WEBUI_TEXT__("runtime.ext") +
+        (d.goal ?? __WEBUI_TEXT__("runtime.unknown")) +
+        __WEBUI_TEXT__("runtime.g_or") +
+        R.ms(d.minBbwBrewRemainingMs, 1) +
+        __WEBUI_TEXT__("runtime.s_left")
+      : d.inShot
+        ? __WEBUI_TEXT__("runtime.on_2")
+        : __WEBUI_TEXT__("runtime.idle");
+}
+function formatSlowExtractionGuard(d) {
+  return !d.guardEnabled
+    ? __WEBUI_TEXT__("runtime.off_2")
+    : d.extended
+      ? __WEBUI_TEXT__("runtime.ext") +
+        (d.goal ?? __WEBUI_TEXT__("runtime.unknown")) +
+        __WEBUI_TEXT__("runtime.g")
+      : d.inShot
+        ? __WEBUI_TEXT__("runtime.on_2")
+        : __WEBUI_TEXT__("runtime.idle");
+}
+function formatAtmGuard(d) {
+  return !d.atmEnabled
+    ? __WEBUI_TEXT__("runtime.off_2")
+    : d.atmEnforced
+      ? __WEBUI_TEXT__("runtime.a_to_m_2") + R.ms(d.atmRemainingMs, 0) + __WEBUI_TEXT__("runtime.s")
+      : d.atmArmed
+        ? __WEBUI_TEXT__("runtime.armed")
+        : __WEBUI_TEXT__("runtime.idle");
+}
+function formatNoScaleGuard(g) {
+  if (!g || !g.enabled) return__WEBUI_TEXT__("runtime.off_2");
+  if (!g.armed)
+    return__WEBUI_TEXT__("runtime.temporarily_allowed") +
+      Math.ceil(g.cooldownRemainingMs / 6e4) +
+      __WEBUI_TEXT__("runtime.min_2");
+  return g.mode === "require_scale"
+    ? g.scaleUsable
+      ? __WEBUI_TEXT__("runtime.ready_2")
+      : __WEBUI_TEXT__("runtime.scale_required")
+    : __WEBUI_TEXT__("runtime.armed");
+}
+function formatAccidentalTouch(d) {
+  return !d.enabled
+    ? __WEBUI_TEXT__("runtime.off_2")
+    : d.holding
+      ? __WEBUI_TEXT__("runtime.holding")
+      : d.inShot
+        ? __WEBUI_TEXT__("runtime.active")
+        : __WEBUI_TEXT__("runtime.idle");
+}
+function formatCupProtection(d) {
+  return !d.enabled
+    ? __WEBUI_TEXT__("runtime.off_2")
+    : d.inShot
+      ? d.stopIfRemoved
+        ? __WEBUI_TEXT__("runtime.armed")
+        : __WEBUI_TEXT__("runtime.brew_allowed")
+      : d.requireCupToStart && d.scaleUsable && !d.present
+        ? __WEBUI_TEXT__("runtime.can_t_brew_no_cup")
+        : d.aborted
+          ? __WEBUI_TEXT__("runtime.shot_aborted")
+          : __WEBUI_TEXT__("runtime.brew_allowed");
+}
+function renderDiagClock() {
+  const t = (i) => (v) => {
+    const e = $(i);
+    if (e) e.textContent = v || __WEBUI_TEXT__("runtime.unknown");
+  };
+  const u =
+      R.statusUtcAnchorSec > 0
+        ? R.statusUtcAnchorSec + Math.floor((performance.now() - R.statusUtcAnchorAt) / 1000)
+        : 0,
+    utc = u && formatWallTime(u, 0),
+    local = u && formatWallTime(u, R.statusTimezoneOffsetMinutes);
+  t("ut")(utc && utc.slice(11));
+  t("ud")(utc && utc.slice(0, 10));
+  t("lt")(local && local.slice(11));
+  t("ld")(local && local.slice(0, 10));
+  R.renderLineaMicraDiagnostic();
+}
+function applyDiagnosticStatus(s) {
+  if (!s) return;
+  const u = !!s.adminUnlocked,
+    p = !!s.diagnosticPublic;
+  R.syncAdminSessionUi(u);
+  R.uiState.diagnosticPublicView = p;
+  if (!u && !p) return;
+  const t = (i, v) => ($(i).textContent = v || __WEBUI_TEXT__("runtime.unknown"));
+  t("hFirmware", s.firmwareVersion);
+  t("hBoot", typeof s.bootId === "number" && s.bootId ? "#" + s.bootId : "");
+  const m = s.maintenance;
+  t(
+    "maintenance",
+    m.active
+      ? __WEBUI_TEXT__("runtime.reserved")
+      : m.persistFailed
+        ? __WEBUI_TEXT__("runtime.save_failed")
+        : m.persistPending
+          ? __WEBUI_TEXT__("runtime.saving")
+          : __WEBUI_TEXT__("runtime.idle"),
+  );
+  t("hLease", m.active ? String(m.leaseId) : "");
+  t("hLoopMax", s.health.loopMaxGapMs + __WEBUI_TEXT__("runtime.ms_2"));
+  updH(s.health, s.safety);
+  const nv = s.nvs || {},
+    nf = nv.lastFailure;
+  t(
+    "hNvsLayout",
+    nv.layoutExpected ? __WEBUI_TEXT__("runtime.expected") : __WEBUI_TEXT__("runtime.mismatch"),
+  );
+  t(
+    "hNvsSize",
+    typeof nv.partitionBytes === "number"
+      ? Math.round(nv.partitionBytes / 1024) + __WEBUI_TEXT__("runtime.kib")
+      : "",
+  );
+  t(
+    "hNvsEntries",
+    nv.statsValid && typeof nv.usedEntries === "number"
+      ? nv.usedEntries + __WEBUI_TEXT__("runtime.symbol_11") + nv.availableEntries
+      : "",
+  );
+  t(
+    "hNvsTotal",
+    nv.statsValid && typeof nv.freeEntries === "number"
+      ? nv.freeEntries + __WEBUI_TEXT__("runtime.symbol_11") + nv.totalEntries
+      : "",
+  );
+  t(
+    "hNvsNamespaces",
+    nv.statsValid && typeof nv.namespaces === "number" ? String(nv.namespaces) : "",
+  );
+  t("hNvsFailures", typeof nv.failures === "number" ? String(nv.failures) : "");
+  t(
+    "hNvsLastFailure",
+    nf
+      ? nf.subsystem +
+          __WEBUI_TEXT__("runtime.symbol_8") +
+          nf.operation +
+          __WEBUI_TEXT__("runtime.symbol_8") +
+          nf.errorName
+      : __WEBUI_TEXT__("runtime.none_2"),
+  );
+  t(
+    "hNvsLockTimeouts",
+    typeof nv.flashIoLockTimeouts === "number" ? String(nv.flashIoLockTimeouts) : "",
+  );
+  t(
+    "lastCommand",
+    s.lastCommand && s.lastCommand.requestId
+      ? String(s.lastCommand.requestId)
+      : __WEBUI_TEXT__("runtime.none"),
+  );
+  t("lastCommandState", s.lastCommand && s.lastCommand.requestId ? s.lastCommand.state || "" : "");
+  if (
+    s.lastCommand &&
+    (s.lastCommand.state === "FAILED" || s.lastCommand.state === "CANCELED") &&
+    s.lastCommand.requestId &&
+    s.lastCommand.requestId !== window.__lastCmdFailShown
+  ) {
+    window.__lastCmdFailShown = s.lastCommand.requestId;
+    R.message(
+      __WEBUI_TEXT__("runtime.last_command") + s.lastCommand.state.toLowerCase() + ".",
+      "error",
+    );
+  }
+  const time = s.time;
+  t("ntpStatus", ntpStateLabel(time));
+  t("ntpServer", time && time.activeServer);
+  t("zoneName", s.config.timezoneId || __WEBUI_TEXT__("runtime.timezone_pending"));
+  t("uo", formatDiagnosticTimezoneOffset(s.config));
+  t(
+    "lastSync",
+    time?.lastSyncUtcSec &&
+      s.config.lastSyncOffsetKnown &&
+      formatWallTime(time.lastSyncUtcSec, s.config.lastSyncAppliedTimezoneOffsetMinutes),
+  );
+  renderDiagClock();
+  const n = s.network;
+  t("hWifiState", n.staState);
+  t("hWifiPs", n.wifiPs);
+  t("hWifiCoex", n.wifiCoex);
+  t("hSsid", n.ssid);
+  t(
+    "hWifiChannel",
+    n.staState === "CONNECTED" && typeof n.channel === "number" && n.channel > 0
+      ? String(n.channel)
+      : "",
+  );
+  t("hWifiIp", n.staIp);
+  t(
+    "hWifiSignal",
+    typeof n.signalQualityPct === "number"
+      ? n.signalQualityPct + __WEBUI_TEXT__("runtime.symbol_4")
+      : "",
+  );
+  t("hWifiRssi", typeof n.rssi === "number" ? n.rssi + __WEBUI_TEXT__("runtime.dbm") : "");
+  t(
+    "hWifiCreds",
+    n.wifiConfigured ? __WEBUI_TEXT__("runtime.saved") : __WEBUI_TEXT__("runtime.none_2"),
+  );
+  t(
+    "hWifiIpMode",
+    n.ipMode === "static" ? __WEBUI_TEXT__("runtime.static_ip") : __WEBUI_TEXT__("runtime.dhcp"),
+  );
+  t(
+    "hWifiConfirm",
+    n.configState === "PENDING"
+      ? __WEBUI_TEXT__("runtime.pending") +
+          (n.confirmRemainingMs
+            ? __WEBUI_TEXT__("runtime.symbol_3") +
+              Math.ceil(n.confirmRemainingMs / 1000) +
+              __WEBUI_TEXT__("runtime.s")
+            : "")
+      : "",
+  );
+  t(
+    "hApState",
+    n.apActive ? __WEBUI_TEXT__("runtime.active_2") : __WEBUI_TEXT__("runtime.inactive"),
+  );
+  t("hApSsid", n.apSsid || __WEBUI_TEXT__("runtime.advancedshotstopperap"));
+  t("hApIp", n.apIp);
+  t("hApClients", String(n.apClients));
+  const ser = s.serial || {};
+  t(
+    "dSerialIo4",
+    { closed: __WEBUI_TEXT__("runtime.closed"), open: __WEBUI_TEXT__("runtime.open_2") }[ser.io4] ||
+      __WEBUI_TEXT__("runtime.unknown"),
+  );
+  t(
+    "dSerialState",
+    {
+      enabled_jtag: __WEBUI_TEXT__("runtime.enabled_compile_flag"),
+      enabled_io4: __WEBUI_TEXT__("runtime.enabled_io04"),
+      disabled: __WEBUI_TEXT__("runtime.disabled"),
+    }[ser.state] || __WEBUI_TEXT__("runtime.unknown"),
+  );
+  const f = s.compileFlags || {};
+  t("dBz", f.buzzer);
+  t(
+    "dCircuit",
+    f.remoteMachineControl
+      ? __WEBUI_TEXT__("runtime.enabled")
+      : __WEBUI_TEXT__("runtime.disabled_2"),
+  );
+  t(
+    "dArch",
+    [
+      f.arch,
+      "HW: " + f.hardwareProfile,
+      "Machine: " + f.machineBrand + " " + f.machineModel + " (" + f.machineProfile + ")",
+    ].join(" · "),
+  );
+}
 let ready = false;
 const flags = (o, ...keys) => keys.map((k) => k + "=" + (o[k] ? "1" : "0")).join(" ");
 function fmtTaskPct(n) {
@@ -280,12 +704,12 @@ function applyDiagnosticGuards(s) {
     };
   t(
     "dGuardNoScaleUser",
-    R.formatNoScaleGuard(b ? { ...ns, scaleUsable: !!g.scaleUsable } : { enabled: false }),
+    formatNoScaleGuard(b ? { ...ns, scaleUsable: !!g.scaleUsable } : { enabled: false }),
   );
   t("dGuardNoScaleRaw", flags(ns, "enabled", "armed", "hold", "scaleWasAvailable"));
   t(
     "dGuardAtmUser",
-    R.formatAtmGuard({
+    formatAtmGuard({
       atmEnabled: b && !!atm.enabled,
       atmEnforced: live && !!atm.enforced,
       atmArmed: live && !!atm.armed,
@@ -300,7 +724,7 @@ function applyDiagnosticGuards(s) {
   );
   t(
     "dGuardSlowUser",
-    R.formatSlowExtractionGuard({
+    formatSlowExtractionGuard({
       guardEnabled: b && !!slow.enabled,
       extended: live && !!slow.extended,
       goal: slow.activeStopWeightG,
@@ -317,7 +741,7 @@ function applyDiagnosticGuards(s) {
   );
   t(
     "dGuardFastUser",
-    R.formatExtractionGuard({
+    formatExtractionGuard({
       guardEnabled: b && !!fast.enabled,
       extended: live && !!fast.extended,
       goal: fast.activeStopWeightG,
@@ -337,7 +761,7 @@ function applyDiagnosticGuards(s) {
   );
   t(
     "dGuardTouchUser",
-    R.formatAccidentalTouch({
+    formatAccidentalTouch({
       enabled: b && !!touch.enabled,
       holding: live && !!touch.holding,
       inShot: live,
@@ -355,7 +779,7 @@ function applyDiagnosticGuards(s) {
   );
   t(
     "dGuardCupUser",
-    R.formatCupProtection({
+    formatCupProtection({
       enabled: b && !!cup.enabled,
       requireCupToStart: !!cup.requireCupToStart,
       stopIfRemoved: !!cup.stopIfRemoved,
@@ -554,7 +978,7 @@ async function exportAudit() {
   auditBusy = true;
   R.message(__WEBUI_TEXT__("diagnostic.downloading"));
   try {
-    const b = await R.apiBinary("/api/v1/diagnostic/audit"),
+    const b = await apiBinary("/api/v1/diagnostic/audit"),
       u = URL.createObjectURL(new Blob([b], { type: "text/plain" })),
       a = Object.assign(document.createElement("a"), {
         href: u,
@@ -623,7 +1047,7 @@ async function emptyAudit() {
   }
 }
 export function applyStatus(s) {
-  R.applyDiagnosticStatus(s);
+  applyDiagnosticStatus(s);
   for (const id of ["serialLogLevel", "ringRetainLogLevel"])
     if ($(id)) $(id).value = s?.config?.[id] || "none";
   if (!s || !(s.adminUnlocked || s.diagnosticPublic)) return;
@@ -642,7 +1066,7 @@ export function applyStatus(s) {
     for (const e of s.resetHistory || []) {
       const r = b.insertRow();
       r.insertCell().textContent = e.reason;
-      r.insertCell().textContent = R.formatUptime(e.uptimeMs);
+      r.insertCell().textContent = formatUptime(e.uptimeMs);
     }
   }
 }
@@ -651,7 +1075,7 @@ export function init() {
   ready = true;
   R.registerViewStatus("diagnostic", applyStatus);
   setInterval(() => {
-    if (!document.hidden) R.renderDiagClock();
+    if (!document.hidden) renderDiagClock();
   }, 1000);
   const controls = $("diagnosticControls");
   if (controls) controls.classList.remove("hidden");
@@ -678,7 +1102,7 @@ export function init() {
   $("logFilter").onchange = R.renderLog;
   $("logLevelFilter").onchange = R.renderLog;
   $("copyLogButton").onclick = () => copyText($("log").value);
-  $("clearLogButton").onclick = () => R.clearLogView();
+  $("clearLogButton").onclick = () => clearLogView();
   $("auditVerboseButton").onclick = () => toggleAuditHunt();
   $("auditClearButton").onclick = () => emptyAudit();
   $("auditExportButton").onclick = () => exportAudit();
@@ -802,7 +1226,7 @@ function applyScaleProfile(p) {
       (VN[vi] ? " · " + VN[vi] : "") +
       (error ? " · " + error : ""),
   );
-  set("Elapsed", R.formatUptime(p.elapsedMs));
+  set("Elapsed", formatUptime(p.elapsedMs));
   set(
     "Capacity",
     p.recordCapacity
@@ -815,7 +1239,7 @@ function applyScaleProfile(p) {
     p.state === "recording"
       ? eta == null
         ? __WEBUI_TEXT__("diagnostic.profile_estimating")
-        : "≈ " + R.formatUptime(Math.ceil(eta / 5e3) * 5e3)
+        : "≈ " + formatUptime(Math.ceil(eta / 5e3) * 5e3)
       : "—",
   );
   set(
@@ -836,7 +1260,7 @@ async function downloadScaleProfile() {
   profileBusy = true;
   R.message(__WEBUI_TEXT__("diagnostic.downloading"));
   try {
-    const b = await R.apiBinary("/api/v1/diagnostic/scale-profile/download"),
+    const b = await apiBinary("/api/v1/diagnostic/scale-profile/download"),
       u = URL.createObjectURL(new Blob([b], { type: "text/plain" })),
       a = Object.assign(document.createElement("a"), {
         href: u,
@@ -913,7 +1337,7 @@ async function downloadCrashes() {
   R.message(__WEBUI_TEXT__("diagnostic.downloading"));
   try {
     let last = 0;
-    const tar = await R.apiBinary("/api/v1/diagnostic/crashes", (bytes) => {
+    const tar = await apiBinary("/api/v1/diagnostic/crashes", (bytes) => {
         if (bytes - last >= 65536) {
           last = bytes;
           R.message(

@@ -100,46 +100,6 @@ function newWebUiClientId() {
   return [...b].map((v) => v.toString(16).padStart(2, "0")).join("");
 }
 const webUiClientId = newWebUiClientId();
-export async function apiBinary(path, onProgress) {
-  if (!webUiPollingActive())
-    throw new Error(__WEBUI_TEXT__("runtime.this_window_is_inactive_reload_to_continue"));
-  await acquireDeviceSlot();
-  const ac = new AbortController(),
-    timer = setTimeout(() => ac.abort(), 12e4);
-  try {
-    const response = await fetch(path, {
-      headers: { [WEB_UI_CLIENT_HEADER]: webUiClientId },
-      signal: ac.signal,
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      let data = {};
-      try {
-        data = await response.json();
-      } catch (_) {}
-      throw new Error(
-        data.message || data.error || __WEBUI_TEXT__("runtime.http") + response.status,
-      );
-    }
-    if (!onProgress || !response.body) return await response.blob();
-    const reader = response.body.getReader(),
-      chunks = [];
-    let loaded = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      loaded += value.byteLength;
-      onProgress(loaded);
-    }
-    return new Blob(chunks, {
-      type: response.headers.get("Content-Type") || "application/octet-stream",
-    });
-  } finally {
-    clearTimeout(timer);
-    releaseDeviceSlot();
-  }
-}
 let webUiOwner = false,
   webUiClaiming = false,
   webUiInactivityTimer = 0,
@@ -150,53 +110,72 @@ let webUiOwner = false,
   networkReconnectTimer = 0,
   networkReconnectPollTimer = 0,
   compatMode = false;
+// Shared UI state that view modules update in place (an imported binding
+// cannot be reassigned by its importer).
+const uiState = {
+  logEvents: [],
+  logMissed: 0,
+  shotSortDir: "desc",
+  shotSort: "date",
+  historyData: { bootId: 0, total: 0, hasMore: false, records: [] },
+  historyExportWindow: null,
+  historyNextRequest: 0,
+  preferredScaleSelectSyncing: false,
+  scanTimer: 0,
+  configDirty: false,
+  dateTimeDirty: false,
+  bleDirty: false,
+  powerDirty: false,
+  frontendDirty: false,
+  brewDirty: false,
+  brewWarnSig: "",
+  brewWarnSeq: 0,
+  configBaseline: null,
+  micraBaseline: null,
+  micraDirty: false,
+  dateTimeBaseline: null,
+  scanBusy: false,
+  networkAddressLoaded: false,
+  savedStaSsid: "",
+  savedStaOpen: false,
+  savedStaWifiSleep: false,
+  savedDeviceName: "",
+  savedStaAddr: "",
+  networkBaseline: null,
+  statsFetchMark: null,
+  statsExportRequest: 0,
+  statsNextRequest: 0,
+  statsExportResolve: null,
+  savedTimezoneId: "",
+  bbwReadback: null,
+  brewBaseline: null,
+  diagnosticPublicView: false,
+  bleBaseline: null,
+  powerBaseline: null,
+  frontendBaseline: null,
+  timezonePreviewSync: 0,
+  otaLastStatus: null,
+  otaBusy: false,
+  shotHistory: { bootId: 0, total: 0, hasMore: false, shots: [] },
+  shotStats: {},
+};
 let bootId = 0,
   logBootId = 0,
   lastLog = 0,
-  logMissed = 0,
   configRevision = 0,
   lastCommandStatus = null,
   formRev = 0,
   configLoaded = false,
-  configDirty = false,
-  brewDirty = false,
-  micraDirty = false,
   micraDiagnosticStatus = null,
-  dateTimeDirty = false,
-  bleDirty = false,
-  powerDirty = false,
-  frontendDirty = false,
-  configBaseline = null,
-  brewBaseline = null,
-  micraBaseline = null,
-  dateTimeBaseline = null,
-  bleBaseline = null,
-  powerBaseline = null,
-  frontendBaseline = null,
-  networkBaseline = null,
-  networkAddressLoaded = false,
-  savedStaSsid = "",
-  savedStaOpen = false,
-  savedStaWifiSleep = false,
-  savedDeviceName = "",
-  savedStaAddr = "",
   statusBusy = false,
   pollAt = 0,
-  scanBusy = false,
-  scanTimer = 0,
   messageTimer = 0,
   controlsMutable = false,
   statusTimezoneOffsetMinutes = 0,
   statusUtcAnchorSec = 0,
   statusUtcAnchorAt = 0,
   firmwareVersion = "",
-  shotHistory = { bootId: 0, total: 0, hasMore: false, shots: [] },
-  shotStats = {},
-  shotSort = "date",
-  shotSortDir = "desc",
-  historyData = { bootId: 0, total: 0, hasMore: false, records: [] },
   historyDir = "desc",
-  logEvents = [],
   reachFails = 0,
   pollChain = Promise.resolve(),
   commandChain = Promise.resolve(),
@@ -205,9 +184,7 @@ let bootId = 0,
   statusLiveShot = false,
   deviceInFlight = 0,
   deviceWaiters = [],
-  preferredScaleSelectSyncing = false,
   diagnosticUnlocked = false,
-  diagnosticPublicView = false,
   developmentMode = false,
   outOfReachOverlay = false,
   shotsLoaded = false,
@@ -544,7 +521,7 @@ function releaseDeviceSlot() {
   drainDeviceSlots();
 }
 function statusPollDue() {
-  return !commandBusy && !otaBusy && Date.now() - lastStatusAt >= 900;
+  return !commandBusy && !uiState.otaBusy && Date.now() - lastStatusAt >= 900;
 }
 function statusIntervalMs() {
   return document.hidden ? 12e3 : statusLiveShot ? 2500 : 4e3;
@@ -569,9 +546,6 @@ function formatTzLabel(min) {
     __WEBUI_TEXT__("runtime.symbol") +
     pad2(abs % 60)
   );
-}
-function formatWallTime(unixSec, tz) {
-  return formatWallTimeLocal(unixSec + tz * 60);
 }
 function formatWallTimeLocal(unixLocalSec) {
   const d = new Date(0);
@@ -639,10 +613,6 @@ function wrapTimeEl(td, r) {
 function formatShotTime(r) {
   if (r.hasWallTime && r.endedAtLocalSec) return formatHumanTime(r.endedAtLocalSec);
   return "#" + r.bootId + __WEBUI_TEXT__("runtime.no_time");
-}
-function formatShotTimeCsv(r) {
-  if (r.hasWallTime && r.endedAtLocalSec) return formatWallTimeLocal(r.endedAtLocalSec);
-  return "";
 }
 function verdictLabel(v) {
   return (
@@ -1095,10 +1065,6 @@ function shotMaxFlowGS(shot) {
   const model = buildShotSparkModel(shot);
   return model ? model.maxFlow : null;
 }
-function shotFlowCurveGS(shot) {
-  const model = buildShotSparkModel(shot);
-  return model ? model.flowCurve : [];
-}
 async function populateTimezoneOptions() {
   const select = $("timezoneId");
   if (!timezoneCatalogPromise)
@@ -1114,7 +1080,7 @@ async function populateTimezoneOptions() {
       });
   const ids = await timezoneCatalogPromise;
   if (!select || !select.isConnected || select.options.length > 1) return;
-  const draft = dateTimeDirty ? select.value : savedTimezoneId;
+  const draft = uiState.dateTimeDirty ? select.value : uiState.savedTimezoneId;
   const fragment = document.createDocumentFragment();
   fragment.appendChild(new Option(__WEBUI_TEXT__("runtime.select_timezone"), ""));
   for (const id of ids) fragment.appendChild(new Option(id.replaceAll("_", " "), id));
@@ -1124,10 +1090,8 @@ async function populateTimezoneOptions() {
 }
 
 let timezoneCatalog = null,
-  timezoneCatalogPromise = null,
-  savedTimezoneId = "";
+  timezoneCatalogPromise = null;
 let timezonePreviewSeq = 0,
-  timezonePreviewSync = 0,
   timezonePreviewAnchor = null,
   timezonePreviewPending = false,
   timezonePreviewLoad = null,
@@ -1160,17 +1124,6 @@ function renderTimezonePreview() {
     formatTzLabel(a.offsetMinutes) +
     ")" +
     (a.clockSource === "browser" ? __WEBUI_TEXT__("runtime.timezone_preview_browser") : "");
-}
-
-function formatDiagnosticTimezoneOffset(c) {
-  if (c.timezoneOffsetKnown) return formatTzLabel(c.appliedTimezoneOffsetMinutes);
-  if (c.timezoneResolution === "clock_unavailable") return __WEBUI_TEXT__("runtime.unknown");
-  const reason = {
-    unconfigured: __WEBUI_TEXT__("runtime.timezone_unconfigured"),
-    unknown_zone: __WEBUI_TEXT__("runtime.timezone_unknown_zone"),
-    rules_out_of_range: __WEBUI_TEXT__("runtime.timezone_rules_out_of_range"),
-  }[c.timezoneResolution];
-  return formatTzLabel(0) + (reason ? " — " + reason : "");
 }
 
 async function refreshTimezonePreview() {
@@ -1215,29 +1168,10 @@ async function refreshTimezonePreview() {
   }
 }
 
-function timeZoneSelectionChanged() {
-  markDateTimeDirty();
-  refreshTimezonePreview();
-}
 function updateTimezoneControls() {
   const select = $("timezoneId");
   if (select) select.disabled = !controlsMutable || !!$("timezoneAutomatic")?.checked;
 }
-async function changeTimezoneMode() {
-  markDateTimeDirty();
-  updateTimezoneControls();
-  if (!$("timezoneAutomatic").checked) return;
-  const select = $("timezoneId");
-  try {
-    await populateTimezoneOptions();
-  } catch (_) {}
-  if (!$("timezoneAutomatic").checked) return;
-  const id = browserTimezone();
-  select.value = timezoneCatalog?.includes(id) ? id : "";
-  if (!select.value) message(__WEBUI_TEXT__("runtime.timezone_detection_unavailable"), "error");
-  refreshTimezonePreview();
-}
-
 async function syncTimezone(c) {
   if (
     compatMode ||
@@ -1246,7 +1180,7 @@ async function syncTimezone(c) {
     autoInitPending ||
     !controlsMutable ||
     commandBusy ||
-    (c.timezoneInitialized && (!c.timezoneAutomatic || dateTimeDirty))
+    (c.timezoneInitialized && (!c.timezoneAutomatic || uiState.dateTimeDirty))
   )
     return;
   const id = browserTimezone();
@@ -1257,7 +1191,7 @@ async function syncTimezone(c) {
     if (
       !timezoneCatalog?.includes(id) ||
       !controlsMutable ||
-      (c.timezoneInitialized && dateTimeDirty)
+      (c.timezoneInitialized && uiState.dateTimeDirty)
     )
       return;
     await command(
@@ -1606,7 +1540,7 @@ function renderStatsDurChart() {
   if (!host) return;
   const presets = homeStatusCache()?.presets || presetState,
     only = statsPresetFilter === "all" ? 0 : presets.activeId,
-    timed = (shotHistory.shots || []).filter((r) => r.arrivalS > 0 && r.verdict),
+    timed = (uiState.shotHistory.shots || []).filter((r) => r.arrivalS > 0 && r.verdict),
     shots = timed.filter((r) => !only || r.presetId === only);
   // No timed shots: no chart at all; none for this preset: only the filter.
   root.hidden = !timed.length;
@@ -1672,7 +1606,7 @@ function renderStatsDurChart() {
 }
 function renderShotStats() {
   const z = "—",
-    s = shotStats || {},
+    s = uiState.shotStats || {},
     q = (i, v, c) => {
       const e = $("statsAvg" + i);
       if (e) {
@@ -1718,7 +1652,7 @@ function renderShots() {
     p.appendChild(e);
     return e;
   };
-  const rows = shotHistory.shots.filter((r) => {
+  const rows = uiState.shotHistory.shots.filter((r) => {
     const y = r.estimatedG ?? shotDisplayActualG(r.actualG, r.wCg);
     return y != null && y >= 1;
   });
@@ -1810,61 +1744,21 @@ function renderShots() {
 }
 function updateFirmwareFooter() {
   const fw = firmwareVersion || "—";
-  const boot = bootId || shotHistory.bootId ? "#" + (bootId || shotHistory.bootId) : "—";
+  const boot = bootId || uiState.shotHistory.bootId ? "#" + (bootId || uiState.shotHistory.bootId) : "—";
   const text = __WEBUI_TEXT__("runtime.firmware") + fw + " · Boot " + boot;
   const el = $("firmwareFooter");
   if (el) el.textContent = text;
   const inactive = $("inactiveFirmware");
   if (inactive) inactive.textContent = text;
 }
-function clearLogView() {
-  logEvents = [];
-  logMissed = 0;
-  const d = $("logDropped"),
-    el = $("log");
-  if (d) d.hidden = true;
-  if (el) el.value = "";
-}
 function resetNetworkAddressLoaded() {
-  networkAddressLoaded = false;
-}
-function syncShotSortButtons() {
-  const d = $("sortDateButton"),
-    r = $("sortRatingButton"),
-    desc = shotSortDir === "desc",
-    arrow = desc ? __WEBUI_TEXT__("runtime.down") : __WEBUI_TEXT__("runtime.symbol_5"),
-    // Each label names the order pressing that button will produce: the active
-    // criterion flips the direction, the other one switches keeping it.
-    sync = (b, on, name, after) => {
-      b.setAttribute("aria-pressed", on);
-      b.textContent = on ? name + " " + arrow : name;
-      if (!on) {
-        b.removeAttribute("aria-label");
-        b.removeAttribute("title");
-      } else {
-        b.setAttribute("aria-label", after);
-        b.title = after;
-      }
-    };
-  if (d)
-    sync(d, shotSort === "date", __WEBUI_TEXT__("stats.date"),
-      desc ? __WEBUI_TEXT__("runtime.oldest_first") : __WEBUI_TEXT__("runtime.newest_first"));
-  if (r)
-    sync(r, shotSort === "rating", __WEBUI_TEXT__("stats.rating"),
-      desc ? __WEBUI_TEXT__("runtime.lowest_rating") : __WEBUI_TEXT__("runtime.highest_rating"));
-}
-function setShotSort(field) {
-  if (field !== "date" && field !== "rating") return;
-  if (shotSort === field) shotSortDir = shotSortDir === "desc" ? "asc" : "desc";
-  else shotSort = field;
-  syncShotSortButtons();
-  statsSendSubscribe();
+  uiState.networkAddressLoaded = false;
 }
 function updateShotLogSentinel() {
   const el = $("shotLogSentinel");
   if (el) {
-    el.hidden = !shotHistory.hasMore;
-    el.textContent = shotHistory.hasMore ? __WEBUI_TEXT__("runtime.more") : "";
+    el.hidden = !uiState.shotHistory.hasMore;
+    el.textContent = uiState.shotHistory.hasMore ? __WEBUI_TEXT__("runtime.more") : "";
   }
 }
 function applyShotPage(d, mode) {
@@ -1872,43 +1766,28 @@ function applyShotPage(d, mode) {
   const a = d.shots,
     t = d.total;
   bootId = d.bootId;
-  if (d.stats) shotStats = d.stats;
+  if (d.stats) uiState.shotStats = d.stats;
   if (mode === "append" && t) {
     const s = {};
-    for (const x of shotHistory.shots) s[x.id] = 1;
+    for (const x of uiState.shotHistory.shots) s[x.id] = 1;
     let n = 0;
     for (const x of a)
       if (!s[x.id]) {
         s[x.id] = 1;
-        shotHistory.shots.push(x);
+        uiState.shotHistory.shots.push(x);
         n++;
       }
-    shotHistory.total = t;
-    shotHistory.hasMore = !!n && !!d.hasMore;
+    uiState.shotHistory.total = t;
+    uiState.shotHistory.hasMore = !!n && !!d.hasMore;
     return;
   }
-  shotHistory = { bootId: d.bootId, total: t, hasMore: !!d.hasMore && !!t, shots: t ? a : [] };
+  uiState.shotHistory = { bootId: d.bootId, total: t, hasMore: !!d.hasMore && !!t, shots: t ? a : [] };
 }
 function shotStatsViewActive() {
   if (activeView !== "stats" || !webUiPollingActive()) return false;
   const view = $("view-stats");
   return !!(view && !view.classList.contains("hidden"));
 }
-const loadMoreShots = () => {
-  if (shotHistory.hasMore && shotStatsViewActive() && !statsFetchMark && !statsExportInFlight) {
-    statsFetchMark = { request: ++statsNextRequest, offset: shotHistory.shots.length };
-    sendUiOperation({
-      op: "stats",
-      on: true,
-      fetch: true,
-      request: statsFetchMark.request,
-      offset: statsFetchMark.offset,
-      limit: SHOTS_PAGE_SIZE,
-      sort: shotSort,
-      dir: shotSortDir,
-    });
-  }
-};
 // Arms a list-end sentinel once so its view loads the next page whenever
 // the sentinel scrolls close enough to the viewport.
 function armListSentinel(id, onLoad) {
@@ -1940,89 +1819,6 @@ function downloadCsv(name, rows) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
-async function exportShotsCsv() {
-  try {
-    const list = await statsFrameWindow(0, SHOTS_EXPORT_LIMIT, "date", "desc", 90e3);
-    if (!list) throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
-    const maxW = list.reduce((m, r) => Math.max(m, r.wCg?.length || 0), 0);
-    const rows = [
-      [
-        ...("id boot_id local_time has_wall_time ended_at_unix tz_off duration_s goal_g " +
-          "yield_g error_g error_pct offset_g avg_flow_g_s first_drop_s tare_s fast_side " +
-          "cut_raised slow_side cut_lowered stop verdict channeling scale_loss_source " +
-          "cut_line_g arrival_s fast_before_s slow_after_s fast_margin_g slow_margin_g " +
-          "delay_s wall_s cut_ramp_s shot_type cut_type yield_source rating ended_at_ms " +
-          "bbw_algorithm bbw_algorithm_version bbw_alpha bbw_learning_applied preset_id " +
-          "scale_name max_flow_g_s curve_truncated curve_break_before curve_held").split(" "),
-        ...Array.from({ length: maxW }, (_, i) => [
-          "sample_" + (i + 1) + "_time_s",
-          "sample_" + (i + 1) + "_weight_g",
-          "sample_" + (i + 1) + "_flow_g_s",
-        ]).flat(),
-      ],
-    ];
-    for (const r of list) {
-      const w = Array.isArray(r.wCg) ? r.wCg : [],
-        f = shotFlowCurveGS(r),
-        actual = shotDisplayActualG(r.actualG, r.wCg);
-      const errorG = actual === null || r.goalG == null ? null : actual - r.goalG;
-      const errorPct = errorG === null || !r.goalG ? null : (errorG / r.goalG) * 100;
-      rows.push([
-        r.id,
-        r.bootId,
-        formatShotTimeCsv(r),
-        r.hasWallTime ? "1" : "0",
-        r.endedAtUnixSec || "",
-        r.hasWallTime ? (r.timezoneOffsetMinutesAtCommit ?? "") : "",
-        r.durationS,
-        r.goalG.toFixed(1),
-        actual ?? "",
-        errorG ?? "",
-        errorPct ?? "",
-        r.offsetG,
-        shotDisplayFlowGS(r) ?? "",
-        r.firstDropS ?? "",
-        r.tareS ?? "",
-        ...("extractionGuardEnabled extractionExtended slowExtractionGuardEnabled slowExtractionExtended " +
-          "stopDetail verdict channeling scaleLossSource cutLineG arrivalS fastBeforeS slowAfterS " +
-          "fastMarginG slowMarginG delayS wallS cutRampS")
-          .split(" ")
-          .map((k) => (typeof r[k] == "boolean" ? +r[k] : (r[k] ?? ""))),
-        r.shotType,
-        r.cutType,
-        r.actualWeightSource ?? "",
-        r.rating ?? 0,
-        r.endedAtMs,
-        r.bbwAlgorithm ?? "",
-        r.bbwAlgorithmVersion ?? "",
-        r.bbwAlpha == null ? "" : Number(r.bbwAlpha).toFixed(2),
-        r.bbwLearningApplied == null ? "" : r.bbwLearningApplied ? "1" : "0",
-        r.presetId || "",
-        r.scaleName || "",
-        shotMaxFlowGS(r) ?? "",
-        r.wTruncated ? "1" : "0",
-        (r.wBreakBefore || []).join(";"),
-        (r.wHeld || []).join(";"),
-        ...Array.from({ length: maxW }, (_, i) =>
-          i < w.length
-            ? [
-                r.wAtMs?.[i] == null ? "" : r.wAtMs[i] / 1000,
-                w[i] / 100,
-                f[i] == null ? "" : f[i].toFixed(2),
-              ]
-            : ["", "", ""],
-        ).flat(),
-      ]);
-    }
-    downloadCsv("shot-history.csv", rows);
-  } catch (e) {
-    message(
-      formatCommandError(__WEBUI_TEXT__("runtime.could_not_export_shot_history"), e),
-      "error",
-    );
-  }
-}
-
 const historyTypeLabel = (t) =>
   ({
     shot: __WEBUI_TEXT__("runtime.type_shot"),
@@ -2067,8 +1863,8 @@ const toggleHistoryDir = () => {
 const updateHistorySentinel = () => {
   const el = $("historySentinel");
   if (el) {
-    el.hidden = !historyData.hasMore;
-    el.textContent = historyData.hasMore ? __WEBUI_TEXT__("runtime.more") : "";
+    el.hidden = !uiState.historyData.hasMore;
+    el.textContent = uiState.historyData.hasMore ? __WEBUI_TEXT__("runtime.more") : "";
   }
 };
 function applyHistoryPage(d, mode) {
@@ -2078,19 +1874,19 @@ function applyHistoryPage(d, mode) {
   bootId = d.bootId;
   if (mode === "append" && t) {
     const s = {};
-    for (const x of historyData.records) s[x.id] = 1;
+    for (const x of uiState.historyData.records) s[x.id] = 1;
     let n = 0;
     for (const x of a)
       if (!s[x.id]) {
         s[x.id] = 1;
-        historyData.records.push(x);
+        uiState.historyData.records.push(x);
         n++;
       }
-    historyData.total = t;
-    historyData.hasMore = !!n && !!d.hasMore;
+    uiState.historyData.total = t;
+    uiState.historyData.hasMore = !!n && !!d.hasMore;
     return;
   }
-  historyData = { bootId: d.bootId, total: t, hasMore: !!d.hasMore && !!t, records: t ? a : [] };
+  uiState.historyData = { bootId: d.bootId, total: t, hasMore: !!d.hasMore && !!t, records: t ? a : [] };
 }
 const historyViewActive = () => activeView === "history" && webUiPollingActive();
 function renderHistory() {
@@ -2142,25 +1938,25 @@ function renderHistory() {
     "historyTableState",
     rows.length
       ? null
-      : historyTypeFilter.size && (historyData.records.length || historyData.hasMore)
+      : historyTypeFilter.size && (uiState.historyData.records.length || uiState.historyData.hasMore)
         ? __WEBUI_TEXT__("runtime.no_activations_match_filter")
         : __WEBUI_TEXT__("runtime.no_recorded_activations_yet"),
   );
   updateHistorySentinel();
   // A filter can hide every loaded record of a rare type, so keep filling
   // pages until one page of matches is visible or the log is exhausted.
-  if (historyTypeFilter.size && rows.length < HISTORY_PAGE_SIZE && historyData.hasMore)
+  if (historyTypeFilter.size && rows.length < HISTORY_PAGE_SIZE && uiState.historyData.hasMore)
     loadMoreHistory();
 }
 const loadMoreHistory = () => {
   if (
-    historyData.hasMore &&
+    uiState.historyData.hasMore &&
     historyViewActive() &&
     historyFetchOffset < 0 &&
-    !historyExportWindow
+    !uiState.historyExportWindow
   ) {
-    historyFetchOffset = historyData.records.length;
-    historyFetchRequest = ++historyNextRequest;
+    historyFetchOffset = uiState.historyData.records.length;
+    historyFetchRequest = ++uiState.historyNextRequest;
     sendUiOperation({
       op: "history",
       on: true,
@@ -2171,30 +1967,14 @@ const loadMoreHistory = () => {
   }
 };
 const refreshHistory = () => (historyViewActive() ? startHistoryStream(true) : Promise.resolve(false));
-async function clearActivationHistory() {
-  if (!confirm(__WEBUI_TEXT__("runtime.clear_all_recorded_activation_history_this"))) return;
-  return withCommandGate(async () => {
-    try {
-      await api("/api/v1/history/clear", {
-        method: "POST",
-        body: body({ confirm: "CLEAR_HISTORY" }),
-      });
-      historyData = { bootId: historyData.bootId || 0, total: 0, hasMore: false, records: [] };
-      renderHistory();
-      message(__WEBUI_TEXT__("runtime.activation_history_cleared"), "ok");
-    } catch (e) {
-      message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_clear_history"), e), "error");
-    }
-  });
-}
 async function deleteOneHistory(id) {
   if (!id || !confirm(__WEBUI_TEXT__("runtime.delete_this_history_record"))) return;
   return withCommandGate(async () => {
     try {
       await api("/api/v1/history/delete", { method: "POST", body: body({ id }) });
-      historyData.records = historyData.records.filter((r) => r.id !== id);
-      if (typeof historyData.total === "number" && historyData.total > 0) historyData.total--;
-      historyData.hasMore = historyData.records.length < historyData.total;
+      uiState.historyData.records = uiState.historyData.records.filter((r) => r.id !== id);
+      if (typeof uiState.historyData.total === "number" && uiState.historyData.total > 0) uiState.historyData.total--;
+      uiState.historyData.hasMore = uiState.historyData.records.length < uiState.historyData.total;
       renderHistory();
       message(__WEBUI_TEXT__("runtime.history_record_deleted"), "ok");
     } catch (e) {
@@ -2204,61 +1984,6 @@ async function deleteOneHistory(id) {
       );
     }
   });
-}
-// CSV export rides the standing subscription's one-shot fetch windows, like
-// the Stats export: one window at a time, superseded (resolved empty) whenever
-// a re-subscribe claims the session fetch slot.
-let historyExportWindow = null;
-function fetchHistoryWindow(offset) {
-  return new Promise((resolve) => {
-    const done = (page) => {
-      clearTimeout(timer);
-      historyExportWindow = null;
-      resolve(page);
-    };
-    const timer = setTimeout(() => done(null), 12e3);
-    historyExportWindow = { request: ++historyNextRequest, resolve: done };
-    sendUiOperation({
-      op: "history",
-      on: true,
-      fetch: true,
-      request: historyExportWindow.request,
-      offset,
-    });
-  });
-}
-async function exportActivationHistory() {
-  if (historyExportWindow) return;
-  try {
-    if (!shotWs || shotWs.readyState !== 1)
-      throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
-    const rows = [
-      ["id", "local_time", "ended_at_unix_sec", "has_wall_time", "duration_s", "type"],
-    ];
-    let offset = 0,
-      total = Infinity,
-      hasMore = true;
-    while (hasMore && offset < total && rows.length - 1 < HISTORY_EXPORT_LIMIT) {
-      const page = await fetchHistoryWindow(offset);
-      if (!page) throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
-      total = page.total;
-      hasMore = page.hasMore;
-      for (const r of page.records)
-        rows.push([
-          r.id,
-          r.hasWallTime ? formatWallTimeLocal(r.endedAtLocalSec) : "",
-          r.endedAtUnixSec,
-          r.hasWallTime ? 1 : 0,
-          r.durationS.toFixed(1),
-          r.type,
-        ]);
-      offset += page.records.length;
-      if (!page.records.length) break;
-    }
-    downloadCsv("activation-history.csv", rows);
-  } catch (e) {
-    message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_export_history"), e), "error");
-  }
 }
 // Type filter: an empty selection shows everything; checking one or more types
 // narrows the list to them. The button carries the active count.
@@ -2273,8 +1998,8 @@ const HISTORY_TYPE_KEYS = [
 const historyTypeFilter = new Set();
 const historyVisibleRecords = () =>
   historyTypeFilter.size
-    ? historyData.records.filter((r) => historyTypeFilter.has(r.type))
-    : historyData.records;
+    ? uiState.historyData.records.filter((r) => historyTypeFilter.has(r.type))
+    : uiState.historyData.records;
 let historyFilterPanel = null;
 function syncHistoryFilterButton() {
   const b = $("historyFilterButton");
@@ -2387,19 +2112,6 @@ document.addEventListener("keydown", (e) => {
 window.addEventListener("scroll", repositionHistoryFilter, { passive: true });
 window.addEventListener("resize", repositionHistoryFilter, { passive: true });
 
-function ntpStateLabel(t) {
-  if (!t) return__WEBUI_TEXT__("runtime.not_available");
-  return (
-    {
-      SYNCED: __WEBUI_TEXT__("runtime.synced"),
-      STALE: __WEBUI_TEXT__("runtime.stale"),
-      SYNCING: __WEBUI_TEXT__("runtime.syncing"),
-      FAILED: __WEBUI_TEXT__("runtime.failed"),
-      OFF: __WEBUI_TEXT__("runtime.not_synced_2"),
-    }[t.state] || __WEBUI_TEXT__("runtime.waiting_for_network")
-  );
-}
-
 function scaleDisplayName(sc) {
   const fr = (sc && sc.preferredFriendlyName && String(sc.preferredFriendlyName).trim()) || "";
   if (fr) return fr;
@@ -2455,88 +2167,6 @@ function formatPreferredScale(s) {
   return mode === "only" || mode === "prefer"
     ? __WEBUI_TEXT__("runtime.first_detected")
     : __WEBUI_TEXT__("runtime.none");
-}
-function scaleHistoryLabel(e) {
-  const m = (e && e.mac) || "";
-  if (!m) return "";
-  return (
-    ((e.friendlyName && String(e.friendlyName).trim()) ||
-      (e.name && String(e.name).trim()) ||
-      __WEBUI_TEXT__("runtime.unknown_2")) +
-    __WEBUI_TEXT__("runtime.unknown_3") +
-    m
-  );
-}
-function updatePreferredScaleSelect(s) {
-  const sel = $("preferredScaleSelect"),
-    hint = $("preferredScalePauseHint");
-  if (!sel) return;
-  preferredScaleSelectSyncing = true;
-  const pauseMs = (s.scale && s.scale.macCachePauseRemainingMs) || 0;
-  if (hint)
-    hint.textContent =
-      pauseMs > 0
-        ? __WEBUI_TEXT__("runtime.waiting") +
-          Math.ceil(pauseMs / 1000) +
-          __WEBUI_TEXT__("runtime.s_before_looking_for_a_scale")
-        : "";
-  sel.disabled = !controlsMutable;
-  const history = s.scale && Array.isArray(s.scale.history) ? s.scale.history : [],
-    preferred = (s.scale && s.scale.preferredMac) || "",
-    prev = sel.value,
-    keep = sel.dataset.pending === "1",
-    draft = sel.selectedOptions && sel.selectedOptions[0];
-  sel.innerHTML = "";
-  if (!preferred || (keep && !prev)) {
-    const first = document.createElement("option"),
-      mode = s.config && s.config.scaleMacCacheMode;
-    first.value = "";
-    first.textContent =
-      mode === "only" || mode === "prefer"
-        ? __WEBUI_TEXT__("runtime.first_detected")
-        : __WEBUI_TEXT__("runtime.no_preferred");
-    sel.appendChild(first);
-  }
-  const seen = {};
-  history.forEach((e) => {
-    const mac = e && e.mac;
-    if (!mac || seen[mac]) return;
-    seen[mac] = 1;
-    const o = document.createElement("option");
-    o.value = mac;
-    o.dataset.name = (e.name && String(e.name).trim()) || "";
-    o.textContent = scaleHistoryLabel(e);
-    sel.appendChild(o);
-  });
-  if (preferred && !seen[preferred]) {
-    const o = document.createElement("option");
-    o.value = preferred;
-    o.dataset.name =
-      (s.scale && s.scale.preferredName && String(s.scale.preferredName).trim()) || "";
-    o.textContent =
-      ((s.scale && s.scale.preferredName && String(s.scale.preferredName).trim()) ||
-        __WEBUI_TEXT__("runtime.unknown_2")) +
-      __WEBUI_TEXT__("runtime.unknown_3") +
-      preferred;
-    sel.appendChild(o);
-  }
-  if (keep && prev && !seen[prev] && prev !== preferred && draft) {
-    const o = document.createElement("option");
-    o.value = prev;
-    o.dataset.name = draft.dataset.name || "";
-    o.textContent = draft.textContent;
-    sel.appendChild(o);
-  }
-  sel.value = keep ? prev : preferred || "";
-  updateScalePreferenceOptions();
-  sel.dataset.applied = preferred;
-  const opt = sel.selectedOptions && sel.selectedOptions[0];
-  updateScaleRenameUi(
-    "preferredScaleRenameWrap",
-    sel.value || "",
-    opt && opt.dataset ? String(opt.dataset.name || "") : "",
-  );
-  preferredScaleSelectSyncing = false;
 }
 function formatScaleWeight(s) {
   if (!s.scale) return__WEBUI_TEXT__("runtime.unknown");
@@ -2639,99 +2269,6 @@ function formatScaleTimer(s) {
     "." +
     (totalTenths % 10)
   );
-}
-const RR = "?|Pwr|Ext|SW|Panic|IWDT|TWDT|WDT|Sleep|Brn|SDIO|USB|JTAG|eFuse|Glitch|Lock".split("|");
-export function formatUptime(ms) {
-  let x = ~~(ms / 1e3),
-    p = [],
-    d = ~~(x / 86400);
-  x %= 86400;
-  const h = ~~(x / 3600);
-  x %= 3600;
-  const m = ~~(x / 60);
-  if (d) p.push(d + "d");
-  if (d || h) p.push(h + "h");
-  if (d || h || m) p.push(m + "m");
-  p.push((x % 60) + "s");
-  return p.join(__WEBUI_TEXT__("runtime.symbol_3"));
-}
-function updH(h, s) {
-  function b(n, k = false) {
-    return !Number.isFinite(n) || n < 0
-      ? "—"
-      : k
-        ? (n / 1024).toFixed(1) + " KB"
-        : n >= 1048576
-          ? (n / 1048576).toFixed(1) + "M"
-          : n >= 1024
-            ? Math.round(n / 1024) + "K"
-            : n + "b";
-  }
-  const kb = (n) => b(n, true);
-  const t = (i, v) => ($(i).textContent = v || __WEBUI_TEXT__("runtime.unknown"));
-  const cpu = [
-    "hCpu5s",
-    "hCpu1m",
-    "hCpu5m",
-    "hCpuMhz",
-    "hTemp",
-    "hTPeak",
-    "hRamT",
-    "hRamU",
-    "hRamF",
-  ];
-  if (!h) {
-    cpu
-      .concat([
-        "hHeapMin",
-        "hHeapLargest",
-        "hPsramT",
-        "hPsramF",
-        "hPsramL",
-        "hUptime",
-        "hResetReason",
-      ])
-      .forEach((i) => t(i, __WEBUI_TEXT__("runtime.unknown")));
-    return;
-  }
-  t(
-    "hUptime",
-    typeof h.uptimeMs === "number" && h.uptimeMs >= 0
-      ? formatUptime(h.uptimeMs)
-      : __WEBUI_TEXT__("runtime.unknown"),
-  );
-  t("hResetReason", s ? RR[s.resetReasonCode] || __WEBUI_TEXT__("runtime.symbol_7") : "");
-  t("hHeapMin", kb(h.minimumFreeHeapBytes));
-  t("hHeapLargest", kb(h.largestFreeHeapBlockBytes) + (h.heap ? " · " + h.heap : ""));
-  t("hPsramT", b(h.psramSizeBytes));
-  t("hPsramF", b(h.psramFreeBytes));
-  t("hPsramL", kb(h.psramLargestFreeBlockBytes));
-  const w = h.hwmon;
-  if (!w) {
-    cpu.forEach((i) => t(i, __WEBUI_TEXT__("runtime.unknown")));
-    return;
-  }
-  const load = (v) => (w.cpuLoadValid && typeof v === "number" ? v.toFixed(2) : "");
-  const split = (t, a, b) => {
-    t = load(t);
-    return t && typeof a === "number" && typeof b === "number"
-      ? t + " (" + a.toFixed(2) + " + " + b.toFixed(2) + ")"
-      : t;
-  };
-  t("hCpu5s", split(w.cpuLoad5s, w.cpu0Busy, w.cpu1Busy));
-  t("hCpu1m", load(w.cpuLoad1m));
-  t("hCpu5m", load(w.cpuLoad5m));
-  t(
-    "hCpuMhz",
-    typeof w.cpuMhz === "number" && w.cpuMhz > 0
-      ? w.cpuMhz + __WEBUI_TEXT__("runtime.mhz")
-      : __WEBUI_TEXT__("runtime.unknown"),
-  );
-  t("hTemp", w.tempValid ? w.tempC.toFixed(1) + __WEBUI_TEXT__("runtime.c") : "");
-  t("hTPeak", w.tempValid ? w.tempPeakC.toFixed(1) + __WEBUI_TEXT__("runtime.c") : "");
-  t("hRamT", b(w.ramTotalBytes));
-  t("hRamU", b(w.ramUsedBytes));
-  t("hRamF", b(w.ramFreeBytes));
 }
 function clearFieldErrors() {
   document.querySelectorAll(".fieldError").forEach((e) => e.remove());
@@ -3278,24 +2815,6 @@ function lockAdminUi() {
   });
   resetNetworkAddressLoaded();
 }
-function lockAdmin() {
-  if (developmentMode) return;
-  clearTimeout(scanTimer);
-  scanTimer = 0;
-  api("/api/v1/admin/lock", { method: "POST", body: body({}) })
-    .then(() => {
-      lockAdminUi();
-      noteReachOk();
-      message(__WEBUI_TEXT__("runtime.administration_locked"), "ok");
-      return refreshStatus();
-    })
-    .catch((e) =>
-      message(
-        formatCommandError(__WEBUI_TEXT__("runtime.could_not_lock_administration"), e),
-        "error",
-      ),
-    );
-}
 function deactivateWebUi() {
   if (!webUiOwner) return;
   webUiOwner = false;
@@ -3303,8 +2822,8 @@ function deactivateWebUi() {
   webUiActiveUntil = 0;
   clearTimeout(webUiInactivityTimer);
   webUiInactivityTimer = 0;
-  clearTimeout(scanTimer);
-  scanTimer = 0;
+  clearTimeout(uiState.scanTimer);
+  uiState.scanTimer = 0;
   stopViewPolls();
   lockAdminUi();
   setMutable(false);
@@ -3507,38 +3026,6 @@ function setSaveDirty(id, hintId, dirty) {
   }
   if (hintId) $(hintId)?.classList.toggle("hidden", !dirty);
 }
-function markConfigDirty() {
-  configDirty = true;
-  setSaveDirty("saveConfigButton", "configDirtyHint", true);
-}
-function markDateTimeDirty() {
-  dateTimeDirty = true;
-  setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", true);
-}
-function markBleDirty() {
-  bleDirty = true;
-  setSaveDirty("saveBleButton", "bleDirtyHint", true);
-}
-function markPowerDirty() {
-  powerDirty = true;
-  setSaveDirty("savePowerButton", "powerDirtyHint", true);
-}
-function markFrontendDirty() {
-  frontendDirty = true;
-  setSaveDirty("saveFrontendButton", "frontendDirtyHint", true);
-}
-function clearBleDirty() {
-  bleDirty = false;
-  setSaveDirty("saveBleButton", "bleDirtyHint", false);
-}
-function clearPowerDirty() {
-  powerDirty = false;
-  setSaveDirty("savePowerButton", "powerDirtyHint", false);
-}
-function clearFrontendDirty() {
-  frontendDirty = false;
-  setSaveDirty("saveFrontendButton", "frontendDirtyHint", false);
-}
 function updateScalePreferenceOptions() {
   const sel = $("scalePreference");
   if (!sel) return;
@@ -3559,20 +3046,15 @@ function updateScalePreferenceOptions() {
       ? __WEBUI_TEXT__("runtime.first_detected_is_shown_until_a_compatible")
       : __WEBUI_TEXT__("runtime.first_available_does_not_save_a_preferred");
 }
-function markBrewDirty() {
-  brewDirty = true;
-  setSaveDirty("saveBrewPresetButton", "brewDirtyHint", true);
-}
 function clearBrewDirty() {
-  brewDirty = false;
+  uiState.brewDirty = false;
   setSaveDirty("saveBrewPresetButton", "brewDirtyHint", false);
 }
 // Live brew warnings: the save validator's verdict, rendered in yellow while
 // editing instead of red after Save. Same rules, same edited-field
 // attribution — only the presentation differs, so the preview can never
 // drift from what Save would reject.
-let brewWarnSig = "",
-  brewWarnSeq = 0;
+
 // Re-point an input's aria pairing at whichever message smalls remain in its
 // label — yellow survivors after a red clear, red survivors after a yellow
 // clear, or nothing (attributes removed).
@@ -3587,12 +3069,6 @@ function refreshFieldAria(el) {
     el.removeAttribute("aria-describedby");
   }
 }
-function brewWarningList() {
-  // Suppress only the empty-field "is required" result: it fires mid-typing
-  // and is self-evident. Everything else is a true statement about the
-  // pending set as a whole and self-clears as typing completes.
-  return validateBrewClient().filter((e) => !e.required);
-}
 function clearBrewWarningsDom() {
   document.querySelectorAll("#workflowPanel .fieldWarning").forEach((e) => e.remove());
   document.querySelectorAll("#workflowPanel .fieldWarn").forEach((e) => {
@@ -3602,127 +3078,14 @@ function clearBrewWarningsDom() {
   $("brewConflictChip")?.classList.add("hidden");
 }
 function clearBrewWarnings() {
-  brewWarnSig = "";
+  uiState.brewWarnSig = "";
   clearBrewWarningsDom();
-}
-function refreshBrewWarnings() {
-  if (!$("goalWeightG")) return;
-  const warnings = brewWarningList(),
-    sig = warnings.map((e) => e.id + "\u0001" + e.msg).join("\u0002");
-  // Unchanged signature ⇒ zero DOM writes: poll refreshes never flicker the
-  // warnings and never disturb red save errors on other fields.
-  if (sig === brewWarnSig) return;
-  brewWarnSig = sig;
-  clearBrewWarningsDom();
-  for (const {id, msg} of warnings) {
-    const el = $(id);
-    if (!el) continue;
-    el.classList.add("fieldWarn");
-    el.setAttribute("aria-invalid", "true");
-    const s = document.createElement("small");
-    s.className = "fieldWarning";
-    s.id = "brewWarn" + ++brewWarnSeq;
-    s.textContent = msg;
-    (el.closest("label") || el.parentElement).appendChild(s);
-    // One field can carry several warnings; link them all like markFieldError.
-    const prev = el.getAttribute("aria-describedby");
-    el.setAttribute("aria-describedby", (prev ? prev + " " : "") + s.id);
-  }
-  const chip = $("brewConflictChip");
-  if (chip) {
-    chip.classList.toggle("hidden", !warnings.length);
-    chip.textContent =
-      warnings.length === 1
-        ? __WEBUI_TEXT__("settings.conflict_will_block_saving").replace("{0}", 1)
-        : warnings.length > 1
-          ? __WEBUI_TEXT__("settings.conflicts_will_block_saving").replace("{0}", warnings.length)
-          : "";
-  }
-}
-// After a failed save, red brew errors hand over to the live yellow state on
-// the next edit anywhere in the panel. Scoped to brew fields so machine
-// config red errors survive brew keystrokes.
-function clearBrewFieldErrors() {
-  for (const el of settingsSectionEls("brew")) {
-    el.classList.remove("invalid");
-    const host = el.closest("label") || el.parentElement;
-    host.querySelectorAll("small.fieldError").forEach((s) => s.remove());
-    // Rebuild the aria pairing from the smalls that survive the handover:
-    // the signature-skip renderer will not rewrite an unchanged set.
-    refreshFieldAria(el);
-  }
-}
-function revertBrewPreset() {
-  if (!brewDirty) return;
-  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
-  restoreSnapshot(brewBaseline);
-  clearBrewDirty();
-  clearFieldErrors();
-  updateConfigGroups();
-  refreshBrewWarnings();
-  refreshStatus();
-}
-function revertMachineConfig() {
-  if (!configDirty) return;
-  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
-  restoreSnapshot(configBaseline);
-  if ($("preferredScaleSelect")) $("preferredScaleSelect").dataset.pending = "0";
-  configBaseline = null;
-  configDirty = false;
-  setSaveDirty("saveConfigButton", "configDirtyHint", false);
-  clearFieldErrors();
-  updateConfigGroups();
-  // R2's inputs (retare window, auto-retare) live in this section: restoring
-  // them can change the retare floor, so the warnings re-run here.
-  refreshBrewWarnings();
-  refreshStatus();
-}
-function revertLineaMicra() {
-  if (!micraDirty) return;
-  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
-  restoreSnapshot(micraBaseline);
-  micraBaseline = null;
-  micraDirty = false;
-  updateMicraRevertButton();
-  clearFieldErrors();
-  updateMicraShutdownControls();
-  refreshStatus();
-}
-function revertDateTimeConfig() {
-  if (!dateTimeDirty) return;
-  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
-  restoreSnapshot(dateTimeBaseline);
-  dateTimeBaseline = null;
-  dateTimeDirty = false;
-  setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", false);
-  clearFieldErrors();
-  refreshTimezonePreview();
-  updateTimezoneControls();
-  refreshStatus();
-}
-function networkControls() {
-  return [...document.querySelectorAll("#networkPanel input,#networkPanel select")].filter(
-    (el) => el.id && el.id !== "staNetwork",
-  );
-}
-function revertNetworkConfig() {
-  if ($("saveNetworkButton").dataset.dirty !== "1") return;
-  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
-  restoreSnapshot(networkBaseline);
-  setSaveDirty("saveNetworkButton", "", false);
-  clearFieldErrors();
-  updateNetworkPasswordState();
-  updateStaticIpFieldsState();
-  updateWifiSleepState();
-  resetNetworkAddressLoaded();
-  refreshStatus();
 }
 function invalidateSettingsHydration() {
   configLoaded = false;
   formRev = 0;
 }
-let bbwReadback = null,
-  bbwFormPresetId = 0;
+let bbwFormPresetId = 0;
 function updateBbwControls() {
   if (!$("brewByWeight")) return;
   const on = !!$("brewByWeight").checked;
@@ -3733,7 +3096,7 @@ function updateBbwControls() {
       (input) => (input.disabled = hidden || !controlsMutable),
     );
   });
-  const c = bbwReadback && bbwReadback.bbwPresetId === bbwFormPresetId ? bbwReadback : null;
+  const c = uiState.bbwReadback && uiState.bbwReadback.bbwPresetId === bbwFormPresetId ? uiState.bbwReadback : null;
   const offset = c && c.bbwEwmaOffsetG;
   $("learnedOffsetG").textContent =
     typeof offset === "number"
@@ -3751,7 +3114,7 @@ function updateBbwControls() {
         : __WEBUI_TEXT__("runtime.collecting_samples"))
     : __WEBUI_TEXT__("runtime.unavailable");
   $("resetCalibrationButton").disabled =
-    !on || !controlsMutable || brewDirty || !c;
+    !on || !controlsMutable || uiState.brewDirty || !c;
   $("resetEwmaButton").disabled = $("resetCalibrationButton").disabled;
 }
 function soundAlertsAreOn() {
@@ -3865,156 +3228,6 @@ function formNumber(id) {
   const v = Number(el.value);
   return Number.isFinite(v) ? v : NaN;
 }
-function validNtpHostnameClient(host) {
-  const t = String(host || "");
-  if (!t || t.length > 63) return false;
-  if (t[0] === "-" || t[0] === "." || t[t.length - 1] === "-" || t[t.length - 1] === ".")
-    return false;
-  return /^[A-Za-z0-9.-]+$/.test(t);
-}
-function validDeviceNameClient(name) {
-  const t = String(name || "").trim();
-  if (!t || t.length > 32) return false;
-  if (t[0] === " " || t[0] === "-" || t[t.length - 1] === " " || t[t.length - 1] === "-")
-    return false;
-  return /^[A-Za-z0-9 -]+$/.test(t);
-}
-function validateMachineClient() {
-  const m = document.documentElement.classList.contains("momentaryMachine");
-  const reedMachine = m && document.documentElement.classList.contains("reedMachine");
-  let e =
-    rangeCheck("rinseGestureS", 0.1, 5, __WEBUI_TEXT__("runtime.rinse_gesture"), {
-      unit: __WEBUI_TEXT__("runtime.s"),
-    }) ||
-    rangeCheck("rinseDurationS", 0.5, 10, __WEBUI_TEXT__("runtime.rinse_duration"), {
-      unit: __WEBUI_TEXT__("runtime.s"),
-    }) ||
-    (m
-      ? rangeCheck("stopPulseMs", 50, 1000, __WEBUI_TEXT__("runtime.auto_stop_pulse"), {
-          int: 1,
-        }) ||
-        rangeCheck("maxSinglePressMs", 100, 5000, __WEBUI_TEXT__("runtime.single_press_limit"), {
-          int: 1,
-        }) ||
-        (reedMachine
-          ? rangeCheck(
-              "reedConfirmTimeoutS",
-              0.2,
-              5,
-              __WEBUI_TEXT__("runtime.reed_confirm_timeout"),
-              { unit: __WEBUI_TEXT__("runtime.s") },
-            )
-          : "") ||
-        rangeCheck("shotReactTimeoutS", 3, 30, __WEBUI_TEXT__("runtime.shot_reaction_timeout"), {
-          int: 1,
-          unit: __WEBUI_TEXT__("runtime.s"),
-        })
-      : rangeCheck(
-          "paddleReturnReminderMaxDurationMin",
-          1,
-          60,
-          __WEBUI_TEXT__("runtime.paddle_limit"),
-          { int: 1, unit: __WEBUI_TEXT__("runtime.min") },
-        )) ||
-    rangeCheck("retareWindowS", 0.5, 10, __WEBUI_TEXT__("runtime.retare_window"), {
-      unit: __WEBUI_TEXT__("runtime.s"),
-    }) ||
-    rangeCheck("postTareBaselineGraceS", 0.5, 10, __WEBUI_TEXT__("runtime.post_tare_grace"), {
-      unit: __WEBUI_TEXT__("runtime.s"),
-    }) ||
-    rangeCheck("minimumCupWeightG", 1, 500, __WEBUI_TEXT__("runtime.min_cup_weight"), {
-      unit: __WEBUI_TEXT__("runtime.g"),
-    }) ||
-    rangeCheck("cupRemovedWeightG", -50, -0.1, __WEBUI_TEXT__("runtime.cup_removed"), {
-      unit: __WEBUI_TEXT__("runtime.g"),
-    }) ||
-    rangeCheck("retareStabilitySamples", 2, 10, __WEBUI_TEXT__("runtime.retare_samples"), {
-      int: 1,
-    }) ||
-    rangeCheck("retareStabilityToleranceG", 0.1, 20, __WEBUI_TEXT__("runtime.retare_tolerance"), {
-      unit: __WEBUI_TEXT__("runtime.g"),
-    }) ||
-    rangeCheck("retareStabilityMaxGapS", 0.1, 5, __WEBUI_TEXT__("runtime.retare_sample_gap"), {
-      unit: __WEBUI_TEXT__("runtime.s"),
-    }) ||
-    rangeCheck(
-      "retareStabilityMinDurationS",
-      0,
-      2,
-      __WEBUI_TEXT__("runtime.retare_min_stable_time"),
-      { unit: __WEBUI_TEXT__("runtime.s") },
-    ) ||
-    rangeCheck(
-      "scaleTimerStopExtraDelayMs",
-      0,
-      1000,
-      __WEBUI_TEXT__("runtime.scale_timer_stop_extra_delay"),
-      { int: 1, unit: __WEBUI_TEXT__("runtime.ms") },
-    ) ||
-    rangeCheck("dripDelayS", 0, 10, __WEBUI_TEXT__("runtime.drip_delay"), {
-      unit: __WEBUI_TEXT__("runtime.s"),
-    }) ||
-    rangeCheck("lastShotCooldownMin", 5, 240, __WEBUI_TEXT__("runtime.last_shot_cooldown"), {
-      int: 1,
-      unit: __WEBUI_TEXT__("runtime.min"),
-    });
-  if (e) return e;
-  const rg = number("rinseGestureS"),
-    rd = number("rinseDurationS"),
-    rw = number("retareWindowS"),
-    wall = formNumber("operationalWallS"),
-    samples = number("retareStabilitySamples"),
-    gap = number("retareStabilityMaxGapS"),
-    minStab = number("retareStabilityMinDurationS");
-  if (Number.isFinite(wall)) {
-    if (!m) {
-      if (!(rg < wall))
-        return {
-          id: "rinseGestureS",
-          msg:
-            __WEBUI_TEXT__("runtime.rinse_gesture_must_be_machine_circuit_limit") + wall + " s).",
-        };
-      if (rd > wall)
-        return {
-          id: "rinseDurationS",
-          msg:
-            __WEBUI_TEXT__("runtime.rinse_duration_must_be_machine_circuit_limit") + wall + " s).",
-        };
-    }
-    if (rw > wall)
-      return {
-        id: "retareWindowS",
-        msg: __WEBUI_TEXT__("runtime.retare_window_must_be_machine_circuit_limit") + wall + " s).",
-      };
-  }
-  if (minStab > rw)
-    return {
-      id: "retareStabilityMinDurationS",
-      msg: __WEBUI_TEXT__("runtime.stable_time_must_fit_the_retare_window"),
-    };
-  if (minStab > 0 && minStab > samples * gap)
-    return {
-      id: "retareStabilityMinDurationS",
-      msg: __WEBUI_TEXT__("runtime.stable_time_must_fit_samples_sample_gap"),
-    };
-  if ($("canTareStartTimer").checked && !$("autoTare").checked)
-    return {
-      id: "canTareStartTimer",
-      msg: __WEBUI_TEXT__("runtime.bookoo_combination_requires_shot_start_tare"),
-    };
-  if (!m) {
-    const iv = +$("paddleReturnReminder").value || 0,
-      lim = $("paddleReturnReminderMaxDurationMin")
-        ? number("paddleReturnReminderMaxDurationMin")
-        : 0;
-    if (lim * 60 < iv)
-      return {
-        id: "paddleReturnReminderMaxDurationMin",
-        msg: __WEBUI_TEXT__("runtime.paddle_limit_must_be_reminder_interval") + iv + " s).",
-      };
-  }
-  return null;
-}
 const sub = (t, vals) => t.replace(/\{(\d)\}/g, (_, i) => vals[+i]);
 // Brew validation message values: formatted per the input's step so every
 // number shows the precision the field itself uses ("34.0 g", never "34 g"
@@ -4085,9 +3298,9 @@ function brewCrossErr(kind, id, other, off = 0) {
 // programmatic writes (the Home quick-weight sheet) count as edits too.
 function editedBrewFields() {
   const edited = new Set();
-  if (!brewBaseline) return edited;
+  if (!uiState.brewBaseline) return edited;
   for (const el of settingsSectionEls("brew"))
-    if (el.id && brewBaseline[el.id] !== (el.type === "checkbox" ? el.checked : el.value))
+    if (el.id && uiState.brewBaseline[el.id] !== (el.type === "checkbox" ? el.checked : el.value))
       edited.add(el.id);
   return edited;
 }
@@ -4180,111 +3393,6 @@ function validateBrewClient() {
     });
   return errors;
 }
-function validateDateTimeClient() {
-  const tz = $("timezoneId").value;
-  if (
-    (tz && !timezoneCatalog?.includes(tz)) ||
-    (!tz && (savedTimezoneId || $("timezoneAutomatic").checked))
-  )
-    return { id: "timezoneId", msg: __WEBUI_TEXT__("runtime.select_timezone") };
-  const preset = $("ntpServerPreset").value;
-  if (!["pool", "google", "cloudflare", "nist"].includes(preset))
-    return { id: "ntpServerPreset", msg: __WEBUI_TEXT__("runtime.select_a_valid_ntp_server") };
-  const custom = $("ntpServerCustom").value.trim();
-  if (custom && !validNtpHostnameClient(custom))
-    return { id: "ntpServerCustom", msg: __WEBUI_TEXT__("runtime.custom_ntp_must_be_empty_or_a") };
-  return null;
-}
-function machinePayload() {
-  const reminder = $("paddleReturnReminder");
-  return {
-    rinseEnabled: $("rinseEnabled").checked,
-    rinseGestureMs: sToMs("rinseGestureS"),
-    rinseDurationMs: sToMs("rinseDurationS"),
-    retareWindowMs: sToMs("retareWindowS"),
-    minimumCupWeightG: number("minimumCupWeightG"),
-    cupRemovedWeightG: number("cupRemovedWeightG"),
-    retareStabilitySamples: number("retareStabilitySamples"),
-    retareStabilityToleranceG: number("retareStabilityToleranceG"),
-    retareStabilityMaxGapMs: sToMs("retareStabilityMaxGapS"),
-    retareStabilityMinDurationMs: sToMs("retareStabilityMinDurationS"),
-    autoTare: $("autoTare").checked,
-    autoTareOutsideBrew: $("autoTareOutsideBrew").checked,
-    retareAccessoryOutsideBrew: $("retareAccessoryOutsideBrew").checked,
-    postTareBaselineGraceMs: sToMs("postTareBaselineGraceS"),
-    scaleMacCacheMode: ["first", "prefer", "only"].includes($("scalePreference")?.value)
-      ? $("scalePreference").value
-      : "only",
-    paddleMode: $("paddleMode")
-      ? ["auto", "natural", "original"].includes($("paddleMode").value)
-        ? $("paddleMode").value
-        : "natural"
-      : undefined,
-    stopPulseMs: $("stopPulseMs") ? number("stopPulseMs") : undefined,
-    maxSinglePressMs: $("maxSinglePressMs") ? number("maxSinglePressMs") : undefined,
-    momentaryStartEdge: $("momentaryStartEdge")
-      ? ["press", "release"].includes($("momentaryStartEdge").value)
-        ? $("momentaryStartEdge").value
-        : "press"
-      : undefined,
-    reedConfirmTimeoutMs: $("reedConfirmTimeoutS") ? sToMs("reedConfirmTimeoutS") : undefined,
-    assumeIdleWhenScaleConnects: $("assumeIdleWhenScaleConnects")?.checked ?? true,
-    shotReactTimeoutS: $("shotReactTimeoutS") ? number("shotReactTimeoutS") || 0 : undefined,
-    canTareStartTimer: $("canTareStartTimer").checked,
-    bookooMuteOnBuzzerOnly: $("bookooMuteOnBuzzerOnly").checked,
-    bookooConnectBeepLevel: Number($("bookooConnectBeepLevel").value),
-    scaleTimerStopExtraDelayMs: number("scaleTimerStopExtraDelayMs"),
-    dripDelayMs: sToMs("dripDelayS"),
-    soundAlertsEnabled: $("soundAlertsEnabled").checked,
-    firstDropBeep: $("firstDropBeep").checked,
-    scaleConnectedLed: $("scaleConnectedLed").checked,
-    paddleReturnReminderBeep: reminder ? !!+reminder.value : undefined,
-    buzzerScaleLostBeep: $("buzzerScaleLostBeep").checked,
-    buzzerAutoToManualGuardEndBeep: $("buzzerAutoToManualGuardEndBeep").checked,
-    buzzerManualNoScaleBeep: $("buzzerManualNoScaleBeep").checked,
-    buzzerScaleConnectedBeep: $("buzzerScaleConnectedBeep").checked,
-    buzzerExtendedPulseRate: extRate($("buzzerExtendedPulseRate").value),
-    buzzerSlowExtendedPulseRate: extRate($("buzzerSlowExtendedPulseRate").value),
-    alertOutputChannel: ["scale_only", "buzzer_only", "scale_priority"].includes(
-      $("alertOutputChannel").value,
-    )
-      ? $("alertOutputChannel").value
-      : "scale_priority",
-    autoRetare: $("autoRetare").checked,
-    paddleReturnReminderIntervalMs: reminder ? (+reminder.value || 30) * 1000 : undefined,
-    paddleReturnReminderMaxDurationMs: Math.round(
-      number("paddleReturnReminderMaxDurationMin") * 60000,
-    ),
-    noScaleBbwMode: $("noScaleBbwMode").value,
-    noScaleAllowRinseWhileArmed: $("noScaleAllowRinseWhileArmed").checked,
-    lastShotCooldownMs: Math.round(number("lastShotCooldownMin") * 6e4),
-    ...Object.fromEntries(
-      [
-        "cupProtectionEnabled",
-        "stopIfCupRemoved",
-        "requireCupToStart",
-        "avoidAccidentalTouchEnabled",
-        "touchStopFallbackEnabled",
-        "autoToManualGuardEnabled",
-      ].map((k) => [k, $(k).checked]),
-    ),
-  };
-}
-function dateTimePayload() {
-  const auto = $("timezoneAutomatic").checked,
-    value = {
-      timezoneAutomatic: auto,
-      ntpSyncEnabled: $("ntpSyncEnabled").checked,
-      ntpServerPreset: $("ntpServerPreset").value,
-      ntpServerCustom: $("ntpServerCustom").value.trim(),
-    };
-  const zone = $("timezoneId").value;
-  if (zone) {
-    value.timezoneId = zone;
-    if (auto) value.timezoneDetected = true;
-  }
-  return value;
-}
 function brewPayload() {
   return {
     ...Object.fromEntries([
@@ -4308,23 +3416,6 @@ function brewPayload() {
       : {}),
   };
 }
-function parseIpv4Client(text) {
-  const m = String(text || "")
-    .trim()
-    .match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (!m) return null;
-  const p = m.slice(1).map(Number);
-  return p.some((n) => n > 255) ? null : p;
-}
-function ipv4ToInt(p) {
-  return ((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]) >>> 0;
-}
-function validNetmaskClient(p) {
-  const m = ipv4ToInt(p);
-  if (!m) return false;
-  const i = ~m >>> 0;
-  return (i & (i + 1)) === 0;
-}
 function updateStaticIpFieldsState() {
   if (!$("staIpMode")) return;
   const on = $("staIpMode").value === "static";
@@ -4334,121 +3425,6 @@ function updateStaticIpFieldsState() {
       i.disabled = !controlsMutable || !on;
     });
   });
-}
-function validateNetworkClient() {
-  const dn = $("deviceName") ? $("deviceName").value.trim() : "";
-  if ($("deviceName") && !validDeviceNameClient(dn))
-    return { id: "deviceName", msg: __WEBUI_TEXT__("runtime.device_name_must_be_1_32_letters") };
-  const ssid = $("staSsid").value,
-    open = $("staOpen").checked,
-    pw = $("staPassword").value,
-    keep = !!savedStaSsid && ssid === savedStaSsid && !pw && open === savedStaOpen;
-  if (!ssid || ssid.length > 32)
-    return { id: "staSsid", msg: __WEBUI_TEXT__("runtime.ssid_must_be_1_32_characters") };
-  if (open && pw)
-    return {
-      id: "staPassword",
-      msg: __WEBUI_TEXT__("runtime.open_network_password_must_be_empty"),
-    };
-  if (!open && !keep && (pw.length < 8 || pw.length > 63))
-    return { id: "staPassword", msg: __WEBUI_TEXT__("runtime.wi_fi_password_must_be_8_63") };
-  if ($("staIpMode").value !== "static") return null;
-  const ip = parseIpv4Client($("staStaticIp").value),
-    mask = parseIpv4Client($("staNetmask").value),
-    gw = parseIpv4Client($("staGateway").value),
-    dns1 = parseIpv4Client($("staDns1").value),
-    d2 = $("staDns2").value.trim(),
-    dns2 = d2 ? parseIpv4Client(d2) : [0, 0, 0, 0];
-  if (!ip) return { id: "staStaticIp", msg: __WEBUI_TEXT__("runtime.enter_a_valid_ipv4_address") };
-  if (!mask || !validNetmaskClient(mask))
-    return { id: "staNetmask", msg: __WEBUI_TEXT__("runtime.enter_a_valid_subnet_mask") };
-  if (!gw)
-    return { id: "staGateway", msg: __WEBUI_TEXT__("runtime.enter_a_valid_gateway_address") };
-  if (!dns1) return { id: "staDns1", msg: __WEBUI_TEXT__("runtime.enter_a_valid_primary_dns") };
-  if (d2 && !dns2)
-    return { id: "staDns2", msg: __WEBUI_TEXT__("runtime.enter_a_valid_secondary_dns_or_leave") };
-  if (ip[0] === 192 && ip[1] === 168 && ip[2] === 4)
-    return { id: "staStaticIp", msg: __WEBUI_TEXT__("runtime.sta_must_not_use_softap_subnet_192") };
-  if (gw[0] === 192 && gw[1] === 168 && gw[2] === 4)
-    return {
-      id: "staGateway",
-      msg: __WEBUI_TEXT__("runtime.gateway_must_not_use_softap_subnet_192"),
-    };
-  if (ipv4ToInt(ip) === ipv4ToInt(gw))
-    return { id: "staStaticIp", msg: __WEBUI_TEXT__("runtime.ip_and_gateway_must_differ") };
-  const m = ipv4ToInt(mask);
-  if ((ipv4ToInt(ip) & m) !== (ipv4ToInt(gw) & m))
-    return { id: "staGateway", msg: __WEBUI_TEXT__("runtime.ip_and_gateway_must_share_a_subnet") };
-  const h = ipv4ToInt(ip) & (~m >>> 0);
-  if (!h || h === ~m >>> 0)
-    return { id: "staStaticIp", msg: __WEBUI_TEXT__("runtime.ip_must_not_be_network_broadcast") };
-  return null;
-}
-function networkSavePayload() {
-  const p = {
-    action: "save",
-    ssid: $("staSsid").value,
-    password: $("staPassword").value,
-    open: $("staOpen").checked,
-    wifiSleep: savedStaWifiSleep,
-    name: $("deviceName") ? $("deviceName").value.trim() : "",
-    ipMode: $("staIpMode").value,
-  };
-  if (p.ipMode === "static") {
-    p.ip = $("staStaticIp").value.trim();
-    p.netmask = $("staNetmask").value.trim();
-    p.gateway = $("staGateway").value.trim();
-    p.dns1 = $("staDns1").value.trim();
-    const d = $("staDns2").value.trim();
-    if (d) p.dns2 = d;
-  }
-  return p;
-}
-function networkPreferencesOnly(p) {
-  return (
-    !!savedStaSsid &&
-    p.ssid === savedStaSsid &&
-    !p.password &&
-    p.open === savedStaOpen &&
-    p.ipMode === savedStaAddr.split("|")[0] &&
-    netAddrKey() === savedStaAddr
-  );
-}
-function netAddrKey() {
-  const m = $("staIpMode").value;
-  return m !== "static"
-    ? m
-    : m +
-        "|" +
-        $("staStaticIp").value.trim() +
-        "|" +
-        $("staNetmask").value.trim() +
-        "|" +
-        $("staGateway").value.trim() +
-        "|" +
-        $("staDns1").value.trim() +
-        "|" +
-        $("staDns2").value.trim();
-}
-function validateDevicePasswordClient() {
-  const n = $("newDevicePassword").value,
-    c = $("confirmDevicePassword").value;
-  if (n.length < 8 || n.length > 63)
-    return {
-      id: "newDevicePassword",
-      msg: __WEBUI_TEXT__("runtime.new_device_password_must_be_8_63"),
-    };
-  if (n === "ineedacoffee")
-    return {
-      id: "newDevicePassword",
-      msg: __WEBUI_TEXT__("runtime.new_device_password_cannot_be_the_factory"),
-    };
-  if (n !== c)
-    return {
-      id: "confirmDevicePassword",
-      msg: __WEBUI_TEXT__("runtime.the_new_device_passwords_do_not_match"),
-    };
-  return null;
 }
 function updateStateTone(s) {
   const sr = $("scaleRow");
@@ -4476,7 +3452,7 @@ function renderLog() {
     m = +$("logLevelFilter").value,
     r = { critical: 0, error: 1, warning: 2, info: 3, debug: 4 };
   let o = "";
-  for (const e of logEvents) {
+  for (const e of uiState.logEvents) {
     if (f && e.category !== f) continue;
     if ((r[e.level] ?? 3) > m) continue;
     o +=
@@ -4499,7 +3475,7 @@ function updateLogHealth(d) {
     e = $("logDropped");
   if (d.historyOverwritten)
     a.push(__WEBUI_TEXT__("runtime.history_rotated") + d.historyOverwritten);
-  if (logMissed) a.push(__WEBUI_TEXT__("runtime.missed_while_disconnected") + logMissed);
+  if (uiState.logMissed) a.push(__WEBUI_TEXT__("runtime.missed_while_disconnected") + uiState.logMissed);
   if (d.serialDropped) a.push(__WEBUI_TEXT__("runtime.serial_dropped") + d.serialDropped);
   if (!e) return;
   e.hidden = !a.length;
@@ -4509,156 +3485,9 @@ function updateNetworkPasswordState() {
   if (!$("staPassword")) return;
   $("staPassword").disabled = !controlsMutable || $("staOpen").checked;
 }
-function selectDetectedNetwork() {
-  const o = $("staNetwork").selectedOptions[0];
-  if (!o || !o.value) return;
-  $("staSsid").value = o.value;
-  $("staOpen").checked = o.dataset.open === "true";
-  $("staPassword").value = "";
-  updateNetworkPasswordState();
-}
-function showScanResults(d) {
-  const select = $("staNetwork");
-  select.replaceChildren();
-  const prompt = document.createElement("option");
-  prompt.value = "";
-  prompt.textContent = d.networks.length
-    ? __WEBUI_TEXT__("runtime.select_network")
-    : __WEBUI_TEXT__("runtime.no_networks_found");
-  select.appendChild(prompt);
-  for (const n of d.networks) {
-    const o = document.createElement("option");
-    o.value = n.ssid;
-    o.dataset.open = String(n.open);
-    o.textContent =
-      n.ssid +
-      __WEBUI_TEXT__("runtime.symbol_9") +
-      n.rssi +
-      __WEBUI_TEXT__("runtime.dbm_channel") +
-      n.channel +
-      (n.open ? __WEBUI_TEXT__("runtime.open") : __WEBUI_TEXT__("runtime.secured")) +
-      __WEBUI_TEXT__("runtime.symbol_10");
-    select.appendChild(o);
-  }
-}
-async function refreshWifiScan() {
-  if (scanBusy || !webUiPollingActive()) return;
-  return withPollGate(async () => {
-    if (scanBusy || !webUiPollingActive()) return;
-    scanBusy = true;
-    try {
-      const d = await api("/api/v1/network/scan");
-      $("scanStatus").textContent =
-        d.state === "READY"
-          ? __WEBUI_TEXT__("runtime.ready") +
-            d.networks.length +
-            __WEBUI_TEXT__("runtime.network_s")
-          : d.state;
-      if (d.state === "READY") showScanResults(d);
-      if (webUiPollingActive() && (d.state === "QUEUED" || d.state === "RUNNING"))
-        scanTimer = setTimeout(refreshWifiScan, 500);
-    } catch (e) {
-      message(e.message, "error");
-    } finally {
-      scanBusy = false;
-    }
-  });
-}
-async function startWifiScan() {
-  if (scanBusy) return;
-  clearTimeout(scanTimer);
-  $("scanStatus").textContent = __WEBUI_TEXT__("runtime.requesting");
-  return withPollGate(async () => {
-    try {
-      await api("/api/v1/network/scan", { method: "POST", body: "{}" });
-      message(__WEBUI_TEXT__("runtime.wi_fi_scan_started"), "ok");
-      scanTimer = setTimeout(refreshWifiScan, 100);
-    } catch (e) {
-      message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_start_wi_fi_scan"), e), "error");
-      $("scanStatus").textContent = __WEBUI_TEXT__("runtime.error");
-    }
-  });
-}
-function loadNetworkAddress(n) {
-  if (!n || networkAddressLoaded) return;
-  networkAddressLoaded = true;
-  savedStaSsid = n.wifiConfigured && n.ssid ? n.ssid : "";
-  savedStaOpen = !!(n.wifiConfigured && n.open);
-  savedStaWifiSleep = !!n.wifiSleep;
-  savedDeviceName = n.deviceName || "";
-  if ($("deviceName")) $("deviceName").value = savedDeviceName;
-  if ($("staWifiSleep") && !powerDirty) $("staWifiSleep").checked = savedStaWifiSleep;
-  if (savedStaSsid) {
-    $("staSsid").value = savedStaSsid;
-    $("staOpen").checked = savedStaOpen;
-    updateNetworkPasswordState();
-  }
-  $("staIpMode").value = n.ipMode === "static" ? "static" : "dhcp";
-  if (n.ipMode === "static") {
-    $("staStaticIp").value = n.configuredIp || "";
-    $("staNetmask").value = n.configuredNetmask || "";
-    $("staGateway").value = n.configuredGateway || "";
-    $("staDns1").value = n.configuredDns1 || "";
-    $("staDns2").value = n.configuredDns2 || "";
-  }
-  savedStaAddr = netAddrKey();
-  updateStaticIpFieldsState();
-  updateWifiSleepState();
-  networkBaseline = snapshotControls(networkControls());
-}
 function updateWifiSleepState() {
   const el = $("staWifiSleep");
-  if (el) el.disabled = !controlsMutable || !savedStaSsid;
-}
-
-async function setWifiSleep() {
-  const el = $("staWifiSleep");
-  if (!el || !savedStaSsid) return;
-  const a = savedStaAddr.split("|"),
-    p = {
-      action: "save",
-      ssid: savedStaSsid,
-      password: "",
-      open: savedStaOpen,
-      wifiSleep: el.checked,
-      ipMode: a[0],
-    };
-  if (p.ipMode === "static") {
-    p.ip = a[1];
-    p.netmask = a[2];
-    p.gateway = a[3];
-    p.dns1 = a[4];
-    if (a[5]) p.dns2 = a[5];
-  }
-  p._noReconnectWait = true;
-  const ok = await command(
-    "/api/v1/network",
-    p,
-    false,
-    __WEBUI_TEXT__("runtime.wi_fi_sleep_saved"),
-  );
-  if (!ok) el.checked = savedStaWifiSleep;
-  return ok;
-}
-function formatNetworkStatus(n) {
-  let t = "STA: " + n.staState;
-  if (n.ssid) t += " — " + n.ssid;
-  if (n.staState === "CONNECTED" && typeof n.channel === "number" && n.channel > 0)
-    t += " — channel " + n.channel;
-  if (n.staIp) t += " — " + n.staIp;
-  if (n.mdnsHost) t += " — " + n.mdnsHost + ".local";
-  if (typeof n.signalQualityPct === "number" && typeof n.rssi === "number")
-    t += " — signal " + n.signalQualityPct + "% (" + n.rssi + " dBm)";
-  t +=
-    (n.wifiConfigured ? __WEBUI_TEXT__("runtime.credentials_saved") : "") +
-    " — " +
-    (n.ipMode === "static" ? __WEBUI_TEXT__("runtime.static_ip") : "DHCP");
-  if (n.wifiSleep) t += __WEBUI_TEXT__("runtime.sleep_on");
-  if (n.configState === "PENDING")
-    t +=
-      __WEBUI_TEXT__("runtime.pending_confirm") +
-      (n.confirmRemainingMs ? " " + Math.ceil(n.confirmRemainingMs / 1000) + "s" : "");
-  return t;
+  if (el) el.disabled = !controlsMutable || !uiState.savedStaSsid;
 }
 
 let presetState = { activeId: 0, items: [], selectedId: 0 },
@@ -4885,7 +3714,7 @@ function renderAllPresetUi() {
 // Home writes reuse the Settings brew form: unsaved edits there must never
 // ride along, so the owner discards them first or the Home change is dropped.
 async function cleanBrewForm() {
-  if (brewDirty) {
+  if (uiState.brewDirty) {
     if (!confirm(__WEBUI_TEXT__("runtime.you_have_unsaved_preset_changes_discard_them"))) return false;
     clearBrewDirty();
     invalidateSettingsHydration();
@@ -4903,7 +3732,7 @@ async function ensureSettingsHydrated() {
   // The hydrated form is clean, so snapshot the brew baseline here as well:
   // a Home quick-weight write that follows must count as an edited field for
   // error attribution even when the Settings view has never been polled.
-  if (!brewDirty) brewBaseline = snapshotControls(settingsSectionEls("brew"));
+  if (!uiState.brewDirty) uiState.brewBaseline = snapshotControls(settingsSectionEls("brew"));
   if (s.presets) ingestPresets(s);
 }
 function withBaseRev(p) {
@@ -4945,7 +3774,7 @@ async function applyPreset(id, selectable) {
     return;
   }
   if (
-    brewDirty &&
+    uiState.brewDirty &&
     !confirm(__WEBUI_TEXT__("runtime.you_have_unsaved_preset_changes_discard_them"))
   ) {
     presetState.selectedId = presetState.activeId;
@@ -5002,99 +3831,6 @@ async function saveBrewPreset(okMsg, failMsg, fromDial = false) {
     message(formatCommandError(fail, e), "error");
     await refreshStatus();
     return false;
-  }
-}
-function addBullseyePayload(p) {
-  p.bullseyeMelodyEnabled = $("bullseyeMelodyEnabled").checked;
-  p.bullseyeRtttl = $("bullseyeRtttl").value;
-  return p;
-}
-function validateBullseyeClient() {
-  const text = $("bullseyeRtttl").value;
-  if (text.length > 500)
-    return {
-      id: "bullseyeRtttl",
-      msg: __WEBUI_TEXT__("runtime.rtttl_must_be_at_most_500_characters"),
-    };
-  if ($("bullseyeMelodyEnabled").checked && !text.trim())
-    return {
-      id: "bullseyeRtttl",
-      msg: __WEBUI_TEXT__("runtime.paste_an_rtttl_tune_before_enabling_bullseye"),
-    };
-  return null;
-}
-async function saveMachineConfig() {
-  const fail = __WEBUI_TEXT__("runtime.could_not_save_shared_settings");
-  try {
-    await ensureSettingsHydrated();
-  } catch (e) {
-    message(formatCommandError(fail, e), "error");
-    return;
-  }
-  const err = validateMachineClient() || validateBullseyeClient();
-  if (err) {
-    showFieldError(err.id, err.msg);
-    return;
-  }
-  clearFieldErrors();
-  const snapshot = snapshotControls(settingsSectionEls("config")),
-    sel = $("preferredScaleSelect"),
-    payload = withBaseRev(addBullseyePayload(machinePayload()));
-  if (sel && sel.dataset.pending === "1" && sel.value !== (sel.dataset.applied || ""))
-    payload.preferredScaleMac = sel.value || "";
-  try {
-    await command(
-      "/api/v1/config",
-      payload,
-      1,
-      __WEBUI_TEXT__("runtime.shared_settings_saved"),
-      fail,
-      "saveConfigButton",
-    );
-    if (
-      payload.preferredScaleMac !== undefined &&
-      sel.dataset.applied.toUpperCase() !== payload.preferredScaleMac.toUpperCase()
-    )
-      throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));
-    if (
-      JSON.stringify(snapshotControls(settingsSectionEls("config"))) === JSON.stringify(snapshot)
-    ) {
-      if (sel) sel.dataset.pending = "0";
-      configDirty = false;
-      setSaveDirty("saveConfigButton", "configDirtyHint", false);
-      await refreshStatus();
-    }
-  } catch (e) {
-    message(formatCommandError(fail, e), "error");
-    await refreshStatus();
-  }
-}
-async function saveDateTimeConfig() {
-  const fail = __WEBUI_TEXT__("runtime.could_not_save_date_and_time_settings");
-  const err = validateDateTimeClient();
-  if (err) {
-    showFieldError(err.id, err.msg);
-    return;
-  }
-  clearFieldErrors();
-  const payload = dateTimePayload();
-  try {
-    await command(
-      "/api/v1/config",
-      withBaseRev({ ...payload }),
-      1,
-      __WEBUI_TEXT__("runtime.date_and_time_settings_saved"),
-      fail,
-      "saveDateTimeButton",
-    );
-    if (JSON.stringify(dateTimePayload()) === JSON.stringify(payload)) {
-      dateTimeDirty = false;
-      setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", false);
-    }
-    await refreshStatus();
-  } catch (e) {
-    message(formatCommandError(fail, e), "error");
-    await refreshStatus();
   }
 }
 function commitRenamePreset(p, name) {
@@ -5177,11 +3913,11 @@ function ingestPresets(s) {
     liveRuleModel = null;
   }
   renderAllPresetUi();
-  if ($("brewByWeight") && !brewDirty) $("brewByWeight").checked = recipeBrewByWeight();
+  if ($("brewByWeight") && !uiState.brewDirty) $("brewByWeight").checked = recipeBrewByWeight();
   const active = presetState.items.find((x) => x.id === presetState.activeId);
   if (
     $("lineaMicraBrewTargetC") &&
-    !brewDirty &&
+    !uiState.brewDirty &&
     active &&
     typeof active.lineaMicraBrewTargetC === "number"
   )
@@ -5523,7 +4259,7 @@ function renderPresetReview() {
     saved = presetState.items.find((x) => x.id === id),
     savedModel = buildRuleChartModel(saved),
     draft =
-      configLoaded && brewDirty && bbwFormPresetId === id
+      configLoaded && uiState.brewDirty && bbwFormPresetId === id
         ? buildRuleChartModel({ ...saved, ...brewPayload() })
         : null,
     m = draft && draft.mode !== "empty" ? draft : savedModel,
@@ -5747,11 +4483,11 @@ function resetUiStream() {
   diagResolve = null;
   historyFetchOffset = -1;
   historyResolve?.(false);
-  statsFetchMark = null;
+  uiState.statsFetchMark = null;
   statsPage = null;
   statsLastSeq = 0;
   statsResolve?.(false);
-  statsExportResolve?.(null);
+  uiState.statsExportResolve?.(null);
   // A closed socket ends every subscription generation: nothing stays synced
   // until socket.onopen replays the wanted subscriptions.
   historySynced = statsSynced = false;
@@ -5934,7 +4670,7 @@ function startUiStream() {
           !(
             data.request === historyRequest ||
             (historyFetchOffset >= 0 && data.request === historyFetchRequest) ||
-            (historyExportWindow && data.request === historyExportWindow.request)
+            (uiState.historyExportWindow && data.request === uiState.historyExportWindow.request)
           )
         )
           return;
@@ -5949,7 +4685,7 @@ function startUiStream() {
       if (data.type === "stats") {
         if (
           !statsStreamWanted ||
-          ![statsRequest, statsFetchMark?.request, statsExportRequest || -1].includes(data.request)
+          ![statsRequest, uiState.statsFetchMark?.request, uiState.statsExportRequest || -1].includes(data.request)
         )
           return;
         applyStatsStream(statsStreamFrame(data));
@@ -5962,8 +4698,8 @@ function startUiStream() {
         homeFrame = statusStreamFrame(shotGotHome ? homeFrame : null, data);
         if (logStreamWanted && logBootId && logBootId !== homeFrame.boot) {
           logBootId = homeFrame.boot;
-          logEvents = [];
-          lastLog = logMissed = 0;
+          uiState.logEvents = [];
+          lastLog = uiState.logMissed = 0;
           sendUiOperation({ op: "log", on: true, after: 0 });
         }
         if ("timeUtcSec" in data.changes) {
@@ -6053,9 +4789,9 @@ function requestShotResync() {
   shotResync = true;
   shotGotHome = shotGotShot = false;
   historyFetchOffset = -1;
-  statsFetchMark = null;
+  uiState.statsFetchMark = null;
   statsPage = null;
-  statsExportResolve?.(null);
+  uiState.statsExportResolve?.(null);
   historySynced = statsSynced = false;
   homeResolve(false);
   homeReady = new Promise((r) => (homeResolve = r));
@@ -6421,7 +5157,7 @@ function sendUiOperation(op) {
   if (shotWs && shotWs.readyState === 1) shotWs.send(JSON.stringify(op));
 }
 function startLogStream() {
-  if (webUiPollingActive() && (diagnosticUnlocked || diagnosticPublicView || developmentMode)) {
+  if (webUiPollingActive() && (diagnosticUnlocked || uiState.diagnosticPublicView || developmentMode)) {
     if (!logStreamWanted) {
       logStreamWanted = true;
       sendUiOperation({ op: "log", on: true, after: lastLog });
@@ -6461,18 +5197,18 @@ function logStreamFrame(m) {
 function applyLogFrame(m) {
   const b = +m.bootId;
   if ((logBootId && b && b !== logBootId) || m.cursorInvalid) {
-    logEvents = [];
-    lastLog = logMissed = 0;
+    uiState.logEvents = [];
+    lastLog = uiState.logMissed = 0;
   }
   bootId = logBootId = b;
-  logMissed += m.missedEvents || 0;
+  uiState.logMissed += m.missedEvents || 0;
   for (const e of m.events) {
     if (lastLog && ((e.sequence - lastLog) | 0) <= 0) continue;
-    logEvents.push(e);
+    uiState.logEvents.push(e);
     lastLog = e.sequence;
   }
-  if (logEvents.length > LOG_EVENTS_CAPACITY)
-    logEvents.splice(0, logEvents.length - LOG_EVENTS_CAPACITY);
+  if (uiState.logEvents.length > LOG_EVENTS_CAPACITY)
+    uiState.logEvents.splice(0, uiState.logEvents.length - LOG_EVENTS_CAPACITY);
   updateLogHealth(m);
   renderLog();
   updateFirmwareFooter();
@@ -6503,14 +5239,13 @@ let historyStreamWanted = false,
   historyStreamEpoch = 0,
   historyRequest = 0,
   historyFetchRequest = 0,
-  historyNextRequest = 0,
   historyResolve = null;
 function historySendSubscribe() {
   if (!shotWs || shotWs.readyState !== 1) return;
-  historyExportWindow?.resolve(null);
+  uiState.historyExportWindow?.resolve(null);
   historyFetchOffset = -1;
   historySynced = false;
-  historyRequest = ++historyNextRequest;
+  historyRequest = ++uiState.historyNextRequest;
   sendUiOperation({
     op: "history",
     on: true,
@@ -6597,8 +5332,8 @@ function historyStreamFrame(message) {
   return message;
 }
 function applyHistoryStream(message) {
-  if (historyExportWindow && message.request === historyExportWindow.request) {
-    historyExportWindow.resolve(message);
+  if (uiState.historyExportWindow && message.request === uiState.historyExportWindow.request) {
+    uiState.historyExportWindow.resolve(message);
     return;
   }
   const fetch = historyFetchOffset >= 0 && message.request === historyFetchRequest;
@@ -6636,31 +5371,27 @@ function applyHistoryStream(message) {
 // statsSynced mirrors historySynced for the shot page cache.
 let statsStreamWanted = false,
   statsSynced = false,
-  statsFetchMark = null,
   statsStreamBoot = 0,
   statsStreamEpoch = 0,
   statsRequest = 0,
-  statsNextRequest = 0,
-  statsExportRequest = 0,
   statsLastSeq = 0,
   statsPage = null,
-  statsResolve = null,
-  statsExportResolve = null;
+  statsResolve = null;
 function statsSendSubscribe() {
   if (!shotWs || shotWs.readyState !== 1) return;
-  statsFetchMark = null;
+  uiState.statsFetchMark = null;
   statsPage = null;
-  statsExportResolve?.(null);
+  uiState.statsExportResolve?.(null);
   statsSynced = false;
-  statsRequest = ++statsNextRequest;
+  statsRequest = ++uiState.statsNextRequest;
   sendUiOperation({
     op: "stats",
     on: true,
     request: statsRequest,
     offset: 0,
     limit: SHOTS_PAGE_SIZE,
-    sort: shotSort,
-    dir: shotSortDir,
+    sort: uiState.shotSort,
+    dir: uiState.shotSortDir,
   });
 }
 // The Stats subscription is session-standing, like History above.
@@ -6692,37 +5423,6 @@ function startStatsStream(force) {
     ensureStatsStream(force);
     return ready;
   });
-}
-// One export window at a time: a second request reuses the pending promise
-// instead of orphaning the first to its timeout.
-let statsExportInFlight = null;
-function statsFrameWindow(offset, limit, sort, dir, timeoutMs) {
-  if (statsExportInFlight) return statsExportInFlight;
-  statsFetchMark = null;
-  statsExportRequest = ++statsNextRequest;
-  const pending = (statsExportInFlight = new Promise((resolve) => {
-    const timer = setTimeout(() => statsExportResolve?.(null), timeoutMs);
-    statsExportResolve = (rows) => {
-      clearTimeout(timer);
-      statsExportResolve = null;
-      statsExportRequest = 0;
-      resolve(rows);
-    };
-    sendUiOperation({
-      op: "stats",
-      on: true,
-      fetch: true,
-      request: statsExportRequest,
-      offset,
-      limit,
-      sort,
-      dir,
-    });
-  }));
-  pending.then(() => {
-    statsExportInFlight = null;
-  });
-  return pending;
 }
 function statsRowOk(r) {
   if (
@@ -6819,9 +5519,9 @@ function statsStreamFrame(message) {
 function applyStatsStream(message) {
   if (!statsPage || statsPage.seq !== message.seq) {
     const mode =
-      message.request === statsExportRequest
+      message.request === uiState.statsExportRequest
         ? "export"
-        : message.request === statsFetchMark?.request
+        : message.request === uiState.statsFetchMark?.request
           ? "append"
           : "replace";
     if (mode === "append" && message.epoch !== statsStreamEpoch) {
@@ -6849,10 +5549,10 @@ function applyStatsStream(message) {
   statsPage = null;
   statsLastSeq = page.seq;
   if (page.mode === "export") {
-    statsExportResolve?.(page.rows);
+    uiState.statsExportResolve?.(page.rows);
     return;
   }
-  statsFetchMark = null;
+  uiState.statsFetchMark = null;
   statsStreamBoot = message.boot;
   statsStreamEpoch = page.epoch;
   applyShotPage(
@@ -6896,73 +5596,6 @@ window.addEventListener("pagehide", stopUiStream);
 window.addEventListener("pageshow", () => {
   if (webUiPollingActive()) startUiStream();
 });
-function formatExtractionGuard(d) {
-  return !d.guardEnabled
-    ? __WEBUI_TEXT__("runtime.off_2")
-    : d.extended
-      ? __WEBUI_TEXT__("runtime.ext") +
-        (d.goal ?? __WEBUI_TEXT__("runtime.unknown")) +
-        __WEBUI_TEXT__("runtime.g_or") +
-        ms(d.minBbwBrewRemainingMs, 1) +
-        __WEBUI_TEXT__("runtime.s_left")
-      : d.inShot
-        ? __WEBUI_TEXT__("runtime.on_2")
-        : __WEBUI_TEXT__("runtime.idle");
-}
-function formatSlowExtractionGuard(d) {
-  return !d.guardEnabled
-    ? __WEBUI_TEXT__("runtime.off_2")
-    : d.extended
-      ? __WEBUI_TEXT__("runtime.ext") +
-        (d.goal ?? __WEBUI_TEXT__("runtime.unknown")) +
-        __WEBUI_TEXT__("runtime.g")
-      : d.inShot
-        ? __WEBUI_TEXT__("runtime.on_2")
-        : __WEBUI_TEXT__("runtime.idle");
-}
-function formatAtmGuard(d) {
-  return !d.atmEnabled
-    ? __WEBUI_TEXT__("runtime.off_2")
-    : d.atmEnforced
-      ? __WEBUI_TEXT__("runtime.a_to_m_2") + ms(d.atmRemainingMs, 0) + __WEBUI_TEXT__("runtime.s")
-      : d.atmArmed
-        ? __WEBUI_TEXT__("runtime.armed")
-        : __WEBUI_TEXT__("runtime.idle");
-}
-function formatNoScaleGuard(g) {
-  if (!g || !g.enabled) return__WEBUI_TEXT__("runtime.off_2");
-  if (!g.armed)
-    return__WEBUI_TEXT__("runtime.temporarily_allowed") +
-      Math.ceil(g.cooldownRemainingMs / 6e4) +
-      __WEBUI_TEXT__("runtime.min_2");
-  return g.mode === "require_scale"
-    ? g.scaleUsable
-      ? __WEBUI_TEXT__("runtime.ready_2")
-      : __WEBUI_TEXT__("runtime.scale_required")
-    : __WEBUI_TEXT__("runtime.armed");
-}
-function formatAccidentalTouch(d) {
-  return !d.enabled
-    ? __WEBUI_TEXT__("runtime.off_2")
-    : d.holding
-      ? __WEBUI_TEXT__("runtime.holding")
-      : d.inShot
-        ? __WEBUI_TEXT__("runtime.active")
-        : __WEBUI_TEXT__("runtime.idle");
-}
-function formatCupProtection(d) {
-  return !d.enabled
-    ? __WEBUI_TEXT__("runtime.off_2")
-    : d.inShot
-      ? d.stopIfRemoved
-        ? __WEBUI_TEXT__("runtime.armed")
-        : __WEBUI_TEXT__("runtime.brew_allowed")
-      : d.requireCupToStart && d.scaleUsable && !d.present
-        ? __WEBUI_TEXT__("runtime.can_t_brew_no_cup")
-        : d.aborted
-          ? __WEBUI_TEXT__("runtime.shot_aborted")
-          : __WEBUI_TEXT__("runtime.brew_allowed");
-}
 function setHomeSub(id, v) {
   const e = $(id);
   if (e && e.textContent !== v) e.textContent = v;
@@ -7120,12 +5753,6 @@ function heroTintMode() {
   } catch (_) {
     return "forecast";
   }
-}
-function setHeroTintMode(v) {
-  try {
-    localStorage.setItem(HERO_TINT_KEY, HERO_TINT_MODES.includes(v) ? v : "forecast");
-  } catch (_) {}
-  scheduleShotPaint();
 }
 function heroTint(d, m, kind, el, noScale) {
   const mode = heroTintMode(),
@@ -7346,12 +5973,12 @@ function checkFirmwareReload(version) {
   if (
     !version ||
     SHELL_FW_VERSION === "dev" ||
-    configDirty ||
-    brewDirty ||
-    dateTimeDirty ||
-    bleDirty ||
-    powerDirty ||
-    frontendDirty
+    uiState.configDirty ||
+    uiState.brewDirty ||
+    uiState.dateTimeDirty ||
+    uiState.bleDirty ||
+    uiState.powerDirty ||
+    uiState.frontendDirty
   )
     return;
   if (version === SHELL_FW_VERSION) {
@@ -7371,9 +5998,6 @@ function checkFirmwareReload(version) {
     // changed URL is a new cache key and forces a request to the device.
     location.replace(location.pathname + "?fw=" + version);
   }
-}
-function developmentActive() {
-  return developmentMode;
 }
 function applyCommonStatus(s) {
   if (s.connections || s.snapshotStale) updateHeaderSignals(s);
@@ -7401,7 +6025,7 @@ function applyCommonStatus(s) {
   }
   if (typeof c.appliedTimezoneOffsetMinutes === "number")
     statusTimezoneOffsetMinutes = c.appliedTimezoneOffsetMinutes;
-  if (!dateTimeDirty) {
+  if (!uiState.dateTimeDirty) {
     if (c.ntpServerPreset != null && $("ntpServerPreset"))
       $("ntpServerPreset").value = c.ntpServerPreset || "pool";
     if (c.ntpServerCustom != null && $("ntpServerCustom"))
@@ -7422,7 +6046,7 @@ function applyMachineTypeUi(s) {
 }
 function loadSettingsConfig(c) {
   if (!c || typeof c.goalWeightG !== "number" || !$("goalWeightG")) return;
-  if (configLoaded && (configDirty || brewDirty || formRev === c.revision)) return;
+  if (configLoaded && (uiState.configDirty || uiState.brewDirty || formRev === c.revision)) return;
   bbwFormPresetId = c.bbwPresetId || 0;
   $("bbwAlphaBaseline").value = c.bbwAlphaBaseline ?? 0.3;
   $("goalWeightG").value = c.goalWeightG.toFixed(1);
@@ -7528,36 +6152,11 @@ function loadSettingsConfig(c) {
   formRev = c.revision;
   configRevision = c.revision;
   configLoaded = true;
-  if (!brewDirty) {
-    configDirty = false;
+  if (!uiState.brewDirty) {
+    uiState.configDirty = false;
     setSaveDirty("saveConfigButton", "configDirtyHint", false);
   }
   updateConfigGroups();
-}
-function loadAdminConfig(c) {
-  if (!c || !$("timezoneId")) return;
-  const select = $("timezoneId"),
-    previous = select.value;
-  savedTimezoneId = c.timezoneId || "";
-  populateTimezoneOptions().catch(() => {});
-  if (!dateTimeDirty) {
-    select.value = c.timezoneId || "";
-    $("timezoneAutomatic").checked = !!c.timezoneAutomatic;
-    $("ntpSyncEnabled").checked = c.ntpSyncEnabled !== false;
-    setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", false);
-  }
-  const state = $("timezoneSaveState");
-  if (state)
-    state.textContent = c.persistFailed
-      ? __WEBUI_TEXT__("runtime.timezone_save_failed")
-      : c.persistPending
-        ? __WEBUI_TEXT__("runtime.timezone_saving")
-        : c.timezoneId
-          ? __WEBUI_TEXT__("runtime.timezone_saved") + c.timezoneId
-          : __WEBUI_TEXT__("runtime.timezone_pending");
-  if (previous !== select.value || (!timezonePreviewAnchor && !timezonePreviewPending))
-    refreshTimezonePreview();
-  updateTimezoneControls();
 }
 function updateHomeAdminActions(unlocked, remoteEnabled) {
   const panel = __REMOTE_CONTROL__ && $("actionsPanel");
@@ -7644,162 +6243,6 @@ function applyHomeStatus(s) {
   renderHomeCards();
   renderHomePresetAccordion();
 }
-const MICRA_SWITCHES = [
-  "ApplyTemperature",
-  "ObserveState",
-  "BoostScaleDetectionWhenOn",
-  "ReduceScaleScanningWhenOff",
-  "RecognizeWake",
-  "PowerOnWithScale",
-  "ShutdownWithScale",
-  "ScaleOffWithMachine",
-];
-function micraOptionField(id) {
-  return id[0].toLowerCase() + id.slice(1) + (id === "RecognizeWake" ? "Gesture" : "");
-}
-function applyLineaMicraStatus(s) {
-  const m = __LINEA_MICRA__ && s.lineaMicra;
-  if (!m) return;
-  document.documentElement.classList.toggle(
-    "micraTemperatureEnabled",
-    m.applyTemperature && m.accountConfigured,
-  );
-  const machines = m.machines || [],
-    select = $("lineaMicraMachine"),
-    previous = select.value;
-  select.textContent = "";
-  if (!machines.length)
-    select.add(new Option(__WEBUI_TEXT__("runtime.connect_to_load_machines"), ""));
-  else
-    machines.forEach((x) =>
-      select.add(new Option(x.name ? x.name + " · " + x.serial : x.serial, x.serial)),
-    );
-  if (machines.some((x) => x.serial === previous)) select.value = previous;
-  if (!micraDirty) {
-    $("lineaMicraConnectionType").value = m.connectionType || "websocket";
-    for (const id of MICRA_SWITCHES) $("lineaMicra" + id).checked = !!m[micraOptionField(id)];
-    $("lineaMicraShutdownGrace").value = String(m.shutdownGraceSeconds || 0);
-  }
-  const canEdit = controlsMutable,
-    connected = m.accountConfigured,
-    session = !connected && machines.length > 0,
-    target = m.targetValid
-      ? __WEBUI_TEXT__("runtime.target") + " " + (m.targetDeciC / 10).toFixed(1) + " °C"
-      : "",
-    temperature =
-      m.temperatureState && m.temperatureState !== "disabled"
-        ? __WEBUI_TEXT__("runtime.brew_temperature") +
-          " " +
-          m.temperatureState +
-          (m.requestedTargetDeciC ? " " + (m.requestedTargetDeciC / 10).toFixed(1) + " °C" : "")
-        : "";
-  $("lineaMicraIdentity").innerText = connected
-    ? m.email + "\n" + m.selectedName + " - " + m.selectedSerial
-    : session
-      ? __WEBUI_TEXT__("runtime.signed_in_select_machine")
-      : __WEBUI_TEXT__("runtime.not_connected");
-  $("lineaMicraStatus").textContent = [
-    connected || m.phase !== "disabled" ? m.phase : __WEBUI_TEXT__("runtime.unauthenticated"),
-    m.error === "none" ? "" : m.error,
-    target,
-    temperature,
-    m.apActive ? __WEBUI_TEXT__("runtime.ap_mode_paused") : "",
-    m.shotPaused ? __WEBUI_TEXT__("runtime.shot_paused") : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  for (let e = $("lineaMicraUsername").parentElement, n = 5; n--; e = e.nextSibling)
-    e.hidden = connected;
-  $("lineaMicraConnectButton").disabled = !canEdit || !m.staConnected || m.apActive;
-  $("lineaMicraConnectButton").classList.toggle(
-    "busy",
-    !connected && ["queued", "authenticating", "listing"].includes(m.phase),
-  );
-  select.disabled = !canEdit || !machines.length;
-  $("lineaMicraSelectButton").disabled = !canEdit || !machines.length || !select.value;
-  $("lineaMicraConnectionType").disabled = !canEdit || (!connected && !session);
-  const scanGate = !canEdit || !connected || !$("lineaMicraObserveState").checked;
-  for (const id of MICRA_SWITCHES) $("lineaMicra" + id).disabled = !canEdit || !connected;
-  $("lineaMicraBoostScaleDetectionWhenOn").disabled = scanGate;
-  $("lineaMicraReduceScaleScanningWhenOff").disabled = scanGate;
-  updateMicraShutdownControls(canEdit, connected);
-  $("lineaMicraSaveButton").disabled = !canEdit || !connected;
-  updateMicraRevertButton();
-  $("lineaMicraDisconnectButton").disabled = !canEdit || (!connected && !machines.length);
-}
-function markLineaMicraDirty() {
-  micraDirty = true;
-  $("lineaMicraSaveButton").disabled = !controlsMutable || $("lineaMicraObserveState").disabled;
-  updateMicraRevertButton();
-}
-function updateMicraRevertButton() {
-  const r = $("revertLineaMicraButton");
-  if (r) {
-    r.dataset.dirty = +micraDirty;
-    r.disabled = !controlsMutable || !micraDirty;
-  }
-}
-function updateMicraShutdownControls(canEdit = controlsMutable, connected = true) {
-  const on = $("lineaMicraShutdownWithScale").checked;
-  $("lineaMicraShutdownWithScale").disabled = !canEdit || !connected;
-  $("lineaMicraShutdownGrace").disabled = !canEdit || !connected || !on;
-  $("lineaMicraShutdownGraceWrap").classList.toggle("hidden", !on);
-}
-async function connectLineaMicra() {
-  const username = $("lineaMicraUsername").value.trim(),
-    password = $("lineaMicraPassword").value;
-  if (!username || !$("lineaMicraUsername").validity.valid) {
-    showFieldError("lineaMicraUsername", __WEBUI_TEXT__("runtime.enter_valid_email"));
-    return false;
-  }
-  if (!password) {
-    showFieldError("lineaMicraPassword", __WEBUI_TEXT__("runtime.enter_password"));
-    return false;
-  }
-  $("lineaMicraConnectButton").classList.add("busy");
-  const ok = await command(
-    "/api/v1/machine/linea-micra",
-    { action: "connect", username, password },
-    false,
-    __WEBUI_TEXT__("runtime.micra_connection_queued"),
-    __WEBUI_TEXT__("runtime.micra_action_failed"),
-  );
-  $("lineaMicraPassword").value = "";
-  return ok;
-}
-async function selectLineaMicra() {
-  const serial = $("lineaMicraMachine").value;
-  return serial ? saveLineaMicraSettings("select", serial) : false;
-}
-async function saveLineaMicraSettings(action = "save", serial = "") {
-  const ok = await command(
-    "/api/v1/machine/linea-micra",
-    {
-      action,
-      ...(action === "select" ? { serial } : {}),
-      ...Object.fromEntries(
-        MICRA_SWITCHES.map((id) => [micraOptionField(id), $("lineaMicra" + id).checked]),
-      ),
-      connectionType: $("lineaMicraConnectionType").value,
-      shutdownGraceSeconds: Number($("lineaMicraShutdownGrace").value) || 0,
-    },
-    false,
-    __WEBUI_TEXT__("runtime.micra_settings_queued"),
-    __WEBUI_TEXT__("runtime.could_not_save_micra"),
-    action === "save" ? "lineaMicraSaveButton" : undefined,
-  );
-  if (ok) micraDirty = false;
-  return ok;
-}
-async function disconnectLineaMicra() {
-  const ok = await lineaMicraAction("disconnect");
-  if (ok) {
-    $("lineaMicraUsername").value = "";
-    $("lineaMicraPassword").value = "";
-    micraDirty = false;
-  }
-  return ok;
-}
 function lineaMicraAction(action) {
   return command(
     "/api/v1/machine/linea-micra",
@@ -7808,45 +6251,6 @@ function lineaMicraAction(action) {
     "",
     __WEBUI_TEXT__("runtime.micra_action_failed"),
   );
-}
-function loadBullseyeConfig(c) {
-  if (!c || configDirty || !$("bullseyeMelodyEnabled")) return;
-  $("bullseyeMelodyEnabled").checked = !!c.bullseyeMelodyEnabled;
-  $("bullseyeRtttl").value = typeof c.bullseyeRtttl === "string" ? c.bullseyeRtttl : "";
-  updateBullseyeControls();
-}
-function applySettingsStatus(s) {
-  bbwReadback = s.config;
-  updatePreferredScaleSelect(s);
-  const sc = s.scale || {};
-  if ($("forgetPairedScale"))
-    $("forgetPairedScale").disabled = !(
-      controlsMutable &&
-      (sc.preferredMac || sc.macCachePauseRemainingMs > 0)
-    );
-  loadSettingsConfig(s.config);
-  loadBullseyeConfig(s.config);
-  applyLineaMicraStatus(s);
-  ingestPresets(s);
-  updateBbwControls();
-  const sl = s.scaleLoss,
-    active = presetState.items.find((x) => x.id === presetState.activeId);
-  if (sl && active)
-    $("scaleLossProjection").textContent = sub(__WEBUI_TEXT__("runtime.scale_loss_projection"), [
-      active.name,
-      +sl.projectedS.toFixed(1),
-      {
-        history: __WEBUI_TEXT__("runtime.scale_loss_from_history"),
-        window: __WEBUI_TEXT__("runtime.scale_loss_from_window"),
-        fixed: __WEBUI_TEXT__("runtime.scale_loss_from_fixed"),
-      }[sl.source],
-    ]);
-  if (configLoaded) {
-    if (!configDirty) configBaseline = snapshotControls(settingsSectionEls("config"));
-    if (!brewDirty) brewBaseline = snapshotControls(settingsSectionEls("brew"));
-    if (!micraDirty) micraBaseline = snapshotControls(settingsSectionEls("micra"));
-  }
-  refreshBrewWarnings();
 }
 function renderLineaMicraDiagnostic() {
   const lm = __LINEA_MICRA__ && micraDiagnosticStatus;
@@ -8038,768 +6442,6 @@ function applyDiagnosticLive(s) {
   t("dScaleWeight", formatScaleWeight(s));
   t("dScaleTimer", formatScaleTimer(s));
 }
-function renderDiagClock() {
-  const t = (i) => (v) => {
-    const e = $(i);
-    if (e) e.textContent = v || __WEBUI_TEXT__("runtime.unknown");
-  };
-  const u =
-      statusUtcAnchorSec > 0
-        ? statusUtcAnchorSec + Math.floor((performance.now() - statusUtcAnchorAt) / 1000)
-        : 0,
-    utc = u && formatWallTime(u, 0),
-    local = u && formatWallTime(u, statusTimezoneOffsetMinutes);
-  t("ut")(utc && utc.slice(11));
-  t("ud")(utc && utc.slice(0, 10));
-  t("lt")(local && local.slice(11));
-  t("ld")(local && local.slice(0, 10));
-  renderLineaMicraDiagnostic();
-}
-function applyDiagnosticStatus(s) {
-  if (!s) return;
-  const u = !!s.adminUnlocked,
-    p = !!s.diagnosticPublic;
-  syncAdminSessionUi(u);
-  diagnosticPublicView = p;
-  if (!u && !p) return;
-  const t = (i, v) => ($(i).textContent = v || __WEBUI_TEXT__("runtime.unknown"));
-  t("hFirmware", s.firmwareVersion);
-  t("hBoot", typeof s.bootId === "number" && s.bootId ? "#" + s.bootId : "");
-  const m = s.maintenance;
-  t(
-    "maintenance",
-    m.active
-      ? __WEBUI_TEXT__("runtime.reserved")
-      : m.persistFailed
-        ? __WEBUI_TEXT__("runtime.save_failed")
-        : m.persistPending
-          ? __WEBUI_TEXT__("runtime.saving")
-          : __WEBUI_TEXT__("runtime.idle"),
-  );
-  t("hLease", m.active ? String(m.leaseId) : "");
-  t("hLoopMax", s.health.loopMaxGapMs + __WEBUI_TEXT__("runtime.ms_2"));
-  updH(s.health, s.safety);
-  const nv = s.nvs || {},
-    nf = nv.lastFailure;
-  t(
-    "hNvsLayout",
-    nv.layoutExpected ? __WEBUI_TEXT__("runtime.expected") : __WEBUI_TEXT__("runtime.mismatch"),
-  );
-  t(
-    "hNvsSize",
-    typeof nv.partitionBytes === "number"
-      ? Math.round(nv.partitionBytes / 1024) + __WEBUI_TEXT__("runtime.kib")
-      : "",
-  );
-  t(
-    "hNvsEntries",
-    nv.statsValid && typeof nv.usedEntries === "number"
-      ? nv.usedEntries + __WEBUI_TEXT__("runtime.symbol_11") + nv.availableEntries
-      : "",
-  );
-  t(
-    "hNvsTotal",
-    nv.statsValid && typeof nv.freeEntries === "number"
-      ? nv.freeEntries + __WEBUI_TEXT__("runtime.symbol_11") + nv.totalEntries
-      : "",
-  );
-  t(
-    "hNvsNamespaces",
-    nv.statsValid && typeof nv.namespaces === "number" ? String(nv.namespaces) : "",
-  );
-  t("hNvsFailures", typeof nv.failures === "number" ? String(nv.failures) : "");
-  t(
-    "hNvsLastFailure",
-    nf
-      ? nf.subsystem +
-          __WEBUI_TEXT__("runtime.symbol_8") +
-          nf.operation +
-          __WEBUI_TEXT__("runtime.symbol_8") +
-          nf.errorName
-      : __WEBUI_TEXT__("runtime.none_2"),
-  );
-  t(
-    "hNvsLockTimeouts",
-    typeof nv.flashIoLockTimeouts === "number" ? String(nv.flashIoLockTimeouts) : "",
-  );
-  t(
-    "lastCommand",
-    s.lastCommand && s.lastCommand.requestId
-      ? String(s.lastCommand.requestId)
-      : __WEBUI_TEXT__("runtime.none"),
-  );
-  t("lastCommandState", s.lastCommand && s.lastCommand.requestId ? s.lastCommand.state || "" : "");
-  if (
-    s.lastCommand &&
-    (s.lastCommand.state === "FAILED" || s.lastCommand.state === "CANCELED") &&
-    s.lastCommand.requestId &&
-    s.lastCommand.requestId !== window.__lastCmdFailShown
-  ) {
-    window.__lastCmdFailShown = s.lastCommand.requestId;
-    message(
-      __WEBUI_TEXT__("runtime.last_command") + s.lastCommand.state.toLowerCase() + ".",
-      "error",
-    );
-  }
-  const time = s.time;
-  t("ntpStatus", ntpStateLabel(time));
-  t("ntpServer", time && time.activeServer);
-  t("zoneName", s.config.timezoneId || __WEBUI_TEXT__("runtime.timezone_pending"));
-  t("uo", formatDiagnosticTimezoneOffset(s.config));
-  t(
-    "lastSync",
-    time?.lastSyncUtcSec &&
-      s.config.lastSyncOffsetKnown &&
-      formatWallTime(time.lastSyncUtcSec, s.config.lastSyncAppliedTimezoneOffsetMinutes),
-  );
-  renderDiagClock();
-  const n = s.network;
-  t("hWifiState", n.staState);
-  t("hWifiPs", n.wifiPs);
-  t("hWifiCoex", n.wifiCoex);
-  t("hSsid", n.ssid);
-  t(
-    "hWifiChannel",
-    n.staState === "CONNECTED" && typeof n.channel === "number" && n.channel > 0
-      ? String(n.channel)
-      : "",
-  );
-  t("hWifiIp", n.staIp);
-  t(
-    "hWifiSignal",
-    typeof n.signalQualityPct === "number"
-      ? n.signalQualityPct + __WEBUI_TEXT__("runtime.symbol_4")
-      : "",
-  );
-  t("hWifiRssi", typeof n.rssi === "number" ? n.rssi + __WEBUI_TEXT__("runtime.dbm") : "");
-  t(
-    "hWifiCreds",
-    n.wifiConfigured ? __WEBUI_TEXT__("runtime.saved") : __WEBUI_TEXT__("runtime.none_2"),
-  );
-  t(
-    "hWifiIpMode",
-    n.ipMode === "static" ? __WEBUI_TEXT__("runtime.static_ip") : __WEBUI_TEXT__("runtime.dhcp"),
-  );
-  t(
-    "hWifiConfirm",
-    n.configState === "PENDING"
-      ? __WEBUI_TEXT__("runtime.pending") +
-          (n.confirmRemainingMs
-            ? __WEBUI_TEXT__("runtime.symbol_3") +
-              Math.ceil(n.confirmRemainingMs / 1000) +
-              __WEBUI_TEXT__("runtime.s")
-            : "")
-      : "",
-  );
-  t(
-    "hApState",
-    n.apActive ? __WEBUI_TEXT__("runtime.active_2") : __WEBUI_TEXT__("runtime.inactive"),
-  );
-  t("hApSsid", n.apSsid || __WEBUI_TEXT__("runtime.advancedshotstopperap"));
-  t("hApIp", n.apIp);
-  t("hApClients", String(n.apClients));
-  const ser = s.serial || {};
-  t(
-    "dSerialIo4",
-    { closed: __WEBUI_TEXT__("runtime.closed"), open: __WEBUI_TEXT__("runtime.open_2") }[ser.io4] ||
-      __WEBUI_TEXT__("runtime.unknown"),
-  );
-  t(
-    "dSerialState",
-    {
-      enabled_jtag: __WEBUI_TEXT__("runtime.enabled_compile_flag"),
-      enabled_io4: __WEBUI_TEXT__("runtime.enabled_io04"),
-      disabled: __WEBUI_TEXT__("runtime.disabled"),
-    }[ser.state] || __WEBUI_TEXT__("runtime.unknown"),
-  );
-  const f = s.compileFlags || {};
-  t("dBz", f.buzzer);
-  t(
-    "dCircuit",
-    f.remoteMachineControl
-      ? __WEBUI_TEXT__("runtime.enabled")
-      : __WEBUI_TEXT__("runtime.disabled_2"),
-  );
-  t(
-    "dArch",
-    [
-      f.arch,
-      "HW: " + f.hardwareProfile,
-      "Machine: " + f.machineBrand + " " + f.machineModel + " (" + f.machineProfile + ")",
-    ].join(" · "),
-  );
-}
-function applyAdminStatus(s) {
-  const unlocked = !!s.adminUnlocked;
-  syncAdminSessionUi(unlocked);
-  const hint = $("adminConfirmHint");
-  if (hint) {
-    const pending = s.network && s.network.configState === "PENDING";
-    hint.classList.toggle("hidden", unlocked || !pending);
-    if (pending && !unlocked) {
-      const sec = s.network.confirmRemainingMs ? Math.ceil(s.network.confirmRemainingMs / 1000) : 0;
-      hint.textContent =
-        __WEBUI_TEXT__("runtime.pending_wi_fi_confirm_this_window_will") +
-        (sec ? ". " + sec + __WEBUI_TEXT__("runtime.s_remaining") : ".");
-    }
-  }
-  if (!unlocked) return;
-  ensureUiOverridePanel();
-  {
-    const op = $("uiOverridePanel"),
-      ob = $("uiOverrideButton"),
-      oh = $("uiOverrideHint");
-    if (op) op.classList.toggle("hidden", !!s.configMutable);
-    if (ob) {
-      const r = typeof s.webUiOverrideRemainingMs === "number" ? s.webUiOverrideRemainingMs : 0,
-        a = !!s.webUiOverrideActive && r > 0,
-        n = a ? Math.ceil(r / 1e3) : 0,
-        t = ob.querySelector(".t");
-      if (t)
-        t.textContent = a
-          ? n + __WEBUI_TEXT__("runtime.s")
-          : __WEBUI_TEXT__("runtime.unlock_1_min");
-      if (oh)
-        oh.textContent = a
-          ? n + __WEBUI_TEXT__("runtime.s_restart")
-          : __WEBUI_TEXT__("runtime.config_lock_override_for_1_min");
-    }
-  }
-  $("networkStatus").textContent = formatNetworkStatus(s.network);
-  loadNetworkAddress(s.network);
-  $("apStatus").textContent =
-    __WEBUI_TEXT__("runtime.ap") +
-    (s.network.apActive ? __WEBUI_TEXT__("runtime.active_2") : __WEBUI_TEXT__("runtime.inactive")) +
-    __WEBUI_TEXT__("runtime.advancedshotstopperap_2") +
-    (s.network.apSsid || __WEBUI_TEXT__("runtime.advancedshotstopperap")) +
-    __WEBUI_TEXT__("runtime.advancedshotstopperap_2") +
-    s.network.apIp +
-    __WEBUI_TEXT__("runtime.unknown_3") +
-    s.network.apClients +
-    __WEBUI_TEXT__("runtime.client_s");
-  if (!powerDirty) {
-    if ($("bleScanIntensity"))
-      $("bleScanIntensity").value = (s.bleScan && s.bleScan.scanIntensity) || "balanced";
-  }
-  if (!bleDirty && $("bleEnabled"))
-    $("bleEnabled").checked = !(s.bleScan && s.bleScan.enabled === false);
-  if (!bleDirty)
-    bleBaseline = snapshotControls(document.querySelectorAll("#blePanel input,#blePanel select"));
-  if (!powerDirty)
-    powerBaseline = snapshotControls(
-      document.querySelectorAll("#powerPanel input,#powerPanel select"),
-    );
-  if (!frontendDirty)
-    frontendBaseline = snapshotControls(
-      document.querySelectorAll("#frontendPanel input,#frontendPanel select"),
-    );
-  $("restartButton").disabled = !controlsMutable;
-  applyOtaStatus(s.ota);
-  loadAdminConfig(s.config);
-  if (!dateTimeDirty)
-    dateTimeBaseline = snapshotControls(
-      document.querySelectorAll(
-        "#dateTimePanel input,#dateTimePanel select,#dateTimePanel textarea",
-      ),
-    );
-  const sync = s.time?.lastSyncUtcSec || 0;
-  if (sync && sync !== timezonePreviewSync) {
-    timezonePreviewSync = sync;
-    refreshTimezonePreview();
-  } else renderTimezonePreview();
-}
-const OTA_UPLOAD_TIMEOUT_MS = 15 * 60 * 1000;
-const OTA_COMMAND_TIMEOUT_MS = 60 * 1000;
-let otaBusy = false,
-  otaLastStatus = null;
-function otaTagText(t) {
-  return t
-    ? t.version + __WEBUI_TEXT__("runtime.symbol_8") + t.arch
-    : __WEBUI_TEXT__("runtime.unknown");
-}
-function otaKib(n) {
-  return typeof n === "number" && isFinite(n)
-    ? Math.round(n / 1024) + " KiB"
-    : __WEBUI_TEXT__("runtime.unknown_size");
-}
-function otaStatusText(o) {
-  const pending = otaCommitStored();
-  if (pending) return otaCheckBoot(pending, o);
-  if (!o.available) return __WEBUI_TEXT__("runtime.this_controller_has_no_spare_firmware_slot");
-  if (o.restartPending) return __WEBUI_TEXT__("runtime.flashed_restart_waits_until_the_shot_ends");
-  if (!o.confirmed)
-    return (
-      __WEBUI_TEXT__("runtime.firmware_confirmation_pending") +
-      (o.confirmBlockReason || __WEBUI_TEXT__("runtime.waiting_for_startup")) +
-      __WEBUI_TEXT__("runtime.symbol_12") +
-      (o.confirmLastError ? __WEBUI_TEXT__("runtime.esp_idf_error") + o.confirmLastError + "." : "")
-    );
-  if (o.state === "receiving") return __WEBUI_TEXT__("runtime.receiving_a_firmware_image");
-  if (o.state === "staged") return __WEBUI_TEXT__("runtime.verified_and_waiting_for_you_to_flash");
-  if (!o.safe)
-    return (
-      __WEBUI_TEXT__("runtime.waiting_for_idle") +
-      o.lockReason +
-      __WEBUI_TEXT__("runtime.symbol_12")
-    );
-  return __WEBUI_TEXT__("runtime.ready_for_a_firmware_image");
-}
-function applyOtaStatus(o) {
-  if (!$("otaPanel")) return;
-  if (!o) {
-    $("otaStatus").textContent = __WEBUI_TEXT__("runtime.firmware_updates_are_unavailable");
-    ["otaVerifyButton", "otaFlashButton", "otaDiscardButton", "otaFile"].forEach((id) => {
-      if ($(id)) $(id).disabled = true;
-    });
-    return;
-  }
-  otaLastStatus = o;
-  const staged = o.state === "staged" && o.staged ? o.staged : null,
-    active = !!o.sessionActive;
-  $("otaStatus").textContent =
-    otaStatusText(o) +
-    (active
-      ? __WEBUI_TEXT__("runtime.resumable_transfer") +
-        otaKib(o.nextOffset || 0) +
-        __WEBUI_TEXT__("runtime.symbol_11") +
-        otaKib(o.expectedBytes || 0)
-      : "");
-  $("otaRunning").textContent =
-    __WEBUI_TEXT__("runtime.running") +
-    otaTagText(o.running) +
-    __WEBUI_TEXT__("runtime.update_slot") +
-    otaKib(o.slotBytes);
-  $("otaStaged").textContent = staged
-    ? __WEBUI_TEXT__("runtime.verified_image") +
-      otaTagText(staged) +
-      __WEBUI_TEXT__("runtime.unknown_3") +
-      otaKib(o.receivedBytes)
-    : active
-      ? __WEBUI_TEXT__("runtime.transfer") +
-        (o.transferId || "") +
-        __WEBUI_TEXT__("runtime.expires_in") +
-        Math.ceil((o.sessionExpiresInMs || 0) / 6e4) +
-        __WEBUI_TEXT__("runtime.min_3")
-      : __WEBUI_TEXT__("runtime.no_verified_image");
-  const ready =
-    controlsMutable && o.available && o.safe && o.confirmed && !o.restartPending && !otaBusy;
-  $("otaFile").disabled = !ready;
-  $("otaVerifyButton").disabled = !ready;
-  $("otaFlashButton").disabled = !ready || !staged;
-  $("otaDiscardButton").disabled = !ready || (!staged && !active);
-  if (active && o.expectedBytes)
-    $("otaProgress").value = Math.round((100 * (o.nextOffset || 0)) / o.expectedBytes);
-}
-function otaSend(path, payload, onProgress, timeoutMs, method = "POST", headers = {}) {
-  return acquireDeviceSlot().then(() =>
-    new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open(method, path, true);
-      xhr.timeout = timeoutMs;
-      xhr.setRequestHeader(WEB_UI_CLIENT_HEADER, webUiClientId);
-      Object.keys(headers).forEach((k) => xhr.setRequestHeader(k, headers[k]));
-      if (payload && !headers["Content-Type"])
-        xhr.setRequestHeader("Content-Type", "application/octet-stream");
-      if (onProgress && xhr.upload)
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) onProgress(Math.round((e.loaded * 100) / e.total));
-        };
-      xhr.onload = () => {
-        let data = {};
-        try {
-          data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
-        } catch (_) {
-          const e = new Error(
-            __WEBUI_TEXT__("runtime.invalid_response_http") +
-              xhr.status +
-              __WEBUI_TEXT__("runtime.symbol_10"),
-          );
-          e.status = xhr.status;
-          reject(e);
-          return;
-        }
-        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
-        else {
-          const e = new Error(
-            data.message || data.error || __WEBUI_TEXT__("runtime.http") + xhr.status,
-          );
-          e.status = xhr.status;
-          e.code = data.error || "";
-          reject(e);
-        }
-      };
-      xhr.onerror = () => reject(new Error(__WEBUI_TEXT__("runtime.device_unreachable")));
-      xhr.ontimeout = () => reject(new Error(__WEBUI_TEXT__("runtime.device_timeout")));
-      xhr.onabort = () => reject(new Error(__WEBUI_TEXT__("runtime.the_upload_was_cancelled")));
-      xhr.send(payload || null);
-    }).finally(() => releaseDeviceSlot()),
-  );
-}
-function otaBeginBusy() {
-  otaBusy = true;
-  applyOtaStatus(otaLastStatus);
-}
-function otaEndBusy(data, fallbackText, kind) {
-  otaBusy = false;
-  $("otaProgress").classList.add("hidden");
-  $("otaProgress").value = 0;
-  if (data) applyOtaStatus(data);
-  else applyOtaStatus(otaLastStatus);
-  if (fallbackText) message(fallbackText, kind || "");
-  refreshStatus();
-}
-function otaTransferId() {
-  const b = new Uint8Array(18);
-  crypto.getRandomValues(b);
-  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
-}
-function otaStored() {
-  try {
-    return JSON.parse(localStorage.getItem("ssOtaSession") || "null");
-  } catch (_) {
-    return null;
-  }
-}
-function otaStore(v) {
-  try {
-    localStorage.setItem("ssOtaSession", JSON.stringify(v));
-  } catch (_) {}
-}
-function otaClearStore() {
-  try {
-    localStorage.removeItem("ssOtaSession");
-  } catch (_) {}
-}
-const OTA_PROTOCOL_VERSION = 3;
-async function otaFileIdentity(file) {
-  return (await import("/js/ota-image.js?v=__FW_ASSET_TAG__")).otaFileIdentity(file);
-}
-function otaRemoteMatches(identity, status) {
-  return !!(
-    status &&
-    status.transferId &&
-    (!identity.transferId || status.transferId === identity.transferId) &&
-    status.sha256 === identity.sha256 &&
-    status.expectedBytes === identity.size &&
-    status.sessionArch === identity.arch &&
-    status.sessionHardware === identity.hardware &&
-    status.sessionMachine === identity.machine &&
-    status.sessionVersion === identity.version
-  );
-}
-function otaSessionIdentity(identity, status) {
-  if (!status || status.otaProtocolVersion !== OTA_PROTOCOL_VERSION)
-    throw new Error(__WEBUI_TEXT__("runtime.this_controller_does_not_support_the_resumable"));
-  if (status.runningIdentityValid !== true)
-    throw new Error(__WEBUI_TEXT__("runtime.the_running_firmware_has_no_usable_image"));
-  if (
-    !status.running ||
-    identity.hardware !== status.running.hardware ||
-    identity.machine !== status.running.machine
-  )
-    throw new Error(__WEBUI_TEXT__("runtime.the_running_firmware_has_no_usable_image"));
-  const occupied = status.sessionActive || status.state === "staged";
-  if (occupied) {
-    if (!otaRemoteMatches(identity, status))
-      throw new Error(__WEBUI_TEXT__("runtime.another_firmware_image_owns_the_update_slot"));
-    return { ...identity, transferId: status.transferId };
-  }
-  const saved = otaStored(),
-    same =
-      saved &&
-      saved.size === identity.size &&
-      saved.sha256 === identity.sha256 &&
-      saved.arch === identity.arch &&
-      saved.hardware === identity.hardware &&
-      saved.machine === identity.machine &&
-      saved.version === identity.version &&
-      saved.transferId;
-  return { ...identity, transferId: same ? saved.transferId : otaTransferId() };
-}
-function otaSessionBody(session) {
-  const { size, sha256, arch, hardware, machine, version, transferId } = session;
-  return JSON.stringify({ size, sha256, arch, hardware, machine, version, transferId });
-}
-function otaValidOffset(offset, size) {
-  return (
-    Number.isInteger(offset) &&
-    offset >= 0 &&
-    offset <= size &&
-    (offset === size || offset % 4096 === 0)
-  );
-}
-function otaRecoverable(session, status) {
-  return (
-    otaRemoteMatches(session, status) &&
-    status.sessionActive === true &&
-    status.state === "receiving" &&
-    otaValidOffset(status.nextOffset, session.size)
-  );
-}
-function otaUploadErrorText(session, status, error) {
-  if (error.otaFileChanged) return error.message;
-  if (
-    error.code === "OTA_SESSION_EXPIRED" ||
-    (status && status.lastResult === "OTA_SESSION_EXPIRED")
-  )
-    return __WEBUI_TEXT__("runtime.the_firmware_upload_session_expired_choose_the");
-  if (error.message === "The upload was cancelled.")
-    return __WEBUI_TEXT__("runtime.the_firmware_upload_was_cancelled");
-  if (error.status >= 400 && error.status < 500 && error.code !== "RECEIVE_FAILED")
-    return __WEBUI_TEXT__("runtime.the_firmware_upload_was_rejected");
-  if (session && otaRecoverable(session, status))
-    return __WEBUI_TEXT__("runtime.the_firmware_upload_paused_choose_the_same");
-  if (session && otaRemoteMatches(session, status) && status.state === "staged")
-    return __WEBUI_TEXT__("runtime.the_firmware_is_verified_refresh_its_status");
-  if (error.status) return __WEBUI_TEXT__("runtime.the_firmware_upload_was_rejected");
-  if (session && !status) return __WEBUI_TEXT__("runtime.the_upload_result_could_not_be_checked");
-  if (session && status && !status.sessionActive)
-    return __WEBUI_TEXT__("runtime.the_firmware_upload_session_no_longer_exists");
-  return __WEBUI_TEXT__("runtime.the_firmware_upload_failed");
-}
-async function otaUpload() {
-  const files = $("otaFile").files,
-    file = files && files[0];
-  if (!file) {
-    showFieldError("otaFile", __WEBUI_TEXT__("runtime.choose_the_firmware_bin_file_to_upload"));
-    return;
-  }
-  clearFieldErrors();
-  const slot = otaLastStatus && otaLastStatus.slotBytes;
-  if (typeof slot === "number" && file.size > slot) {
-    showFieldError(
-      "otaFile",
-      __WEBUI_TEXT__("runtime.that_file_is") +
-        otaKib(file.size) +
-        __WEBUI_TEXT__("runtime.larger_than_the") +
-        otaKib(slot) +
-        __WEBUI_TEXT__("runtime.update_slot_2"),
-    );
-    return;
-  }
-  const bar = $("otaProgress");
-  bar.value = 0;
-  bar.classList.remove("hidden");
-  otaBeginBusy();
-  let session = null,
-    status = null;
-  try {
-    message(__WEBUI_TEXT__("runtime.checking_firmware_identity"));
-    const identity = await otaFileIdentity(file),
-      remote = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
-    session = otaSessionIdentity(identity, remote);
-    status = await otaSend(
-      "/api/v1/ota/session",
-      otaSessionBody(session),
-      null,
-      OTA_COMMAND_TIMEOUT_MS,
-      "POST",
-      { "Content-Type": "application/json" },
-    );
-    if (!otaRemoteMatches(session, status))
-      throw new Error(__WEBUI_TEXT__("runtime.the_controller_returned_a_different_or_incomplete"));
-    let offset = status.nextOffset,
-      highWater = offset,
-      failures = 0;
-    if (!otaValidOffset(offset, file.size))
-      throw new Error(__WEBUI_TEXT__("runtime.the_controller_reported_an_invalid_firmware_offset"));
-    otaStore(session);
-    otaCommitStore(null);
-    while (offset < file.size) {
-      const end = Math.min(file.size, offset + 65536);
-      if (!(await session.verifyRange(offset, end))) {
-        const changed = new Error(__WEBUI_TEXT__("runtime.the_firmware_file_changed_while_it_was"));
-        changed.otaFileChanged = true;
-        throw changed;
-      }
-      const chunk = file.slice(offset, end),
-        headers = {
-          "X-OTA-Transfer": session.transferId,
-          "X-OTA-Offset": String(offset),
-          "X-OTA-Length": String(file.size),
-          "Content-Range": "bytes " + offset + "-" + (end - 1) + "/" + file.size,
-        };
-      let reconciled = false;
-      try {
-        status = await otaSend("/api/v1/ota", chunk, null, OTA_UPLOAD_TIMEOUT_MS, "PATCH", headers);
-      } catch (e) {
-        failures++;
-        status = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
-        if (
-          !otaRemoteMatches(session, status) ||
-          (!otaRecoverable(session, status) && status.state !== "staged")
-        )
-          throw e;
-        if (failures >= 3 && status.nextOffset !== file.size) throw e;
-        reconciled = true;
-      }
-      const next = status.nextOffset;
-      if (
-        !otaRemoteMatches(session, status) ||
-        !otaValidOffset(next, file.size) ||
-        next > end ||
-        (!reconciled && next !== end)
-      )
-        throw new Error(__WEBUI_TEXT__("runtime.the_controller_did_not_confirm_a_valid"));
-      // Recovery may go backwards to the last durable checkpoint. Only new
-      // progress beyond the high-water mark resets the bounded retry budget.
-      if (next > highWater) {
-        highWater = next;
-        failures = 0;
-      }
-      offset = next;
-      bar.value = Math.round((100 * offset) / file.size);
-    }
-    if (
-      status.state !== "staged" ||
-      !status.staged ||
-      status.staged.arch !== identity.arch ||
-      status.staged.version !== identity.version ||
-      status.staged.packed !== identity.packed
-    )
-      throw new Error(__WEBUI_TEXT__("runtime.the_controller_did_not_report_the_expected"));
-    otaEndBusy(
-      status,
-      __WEBUI_TEXT__("runtime.firmware_verified") +
-        otaTagText(status.staged) +
-        ". Review it, then flash.",
-      "ok",
-    );
-  } catch (e) {
-    let current = null;
-    if (session) {
-      try {
-        current = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
-      } catch (_) {}
-    }
-    otaEndBusy(current, formatCommandError(otaUploadErrorText(session, current, e), e), "error");
-  }
-}
-function otaCommitStored() {
-  try {
-    return JSON.parse(localStorage.getItem("ssOtaCommit") || "null");
-  } catch (_) {
-    return null;
-  }
-}
-function otaCommitStore(value) {
-  try {
-    if (value) localStorage.setItem("ssOtaCommit", JSON.stringify(value));
-    else localStorage.removeItem("ssOtaCommit");
-  } catch (_) {}
-}
-function otaCheckBoot(expected, status) {
-  if (
-    !Number.isInteger(expected.bootId) ||
-    !Number.isInteger(status.bootId) ||
-    !expected.imageSha256 ||
-    !status.running ||
-    !status.running.imageSha256
-  )
-    return __WEBUI_TEXT__("runtime.update_result_unverified_firmware_does_not_expose");
-  if (status.bootId === expected.bootId)
-    return status.restartPending || status.state === "committed"
-      ? __WEBUI_TEXT__("runtime.flashed_waiting_for_the_controller_to_restart")
-      : __WEBUI_TEXT__("runtime.commit_not_yet_verified_refresh_status_before");
-  if (status.running.imageSha256 !== expected.imageSha256)
-    return __WEBUI_TEXT__("runtime.the_controller_restarted_into_another_image_the");
-  if (!status.confirmed)
-    return (
-      __WEBUI_TEXT__("runtime.expected_firmware_booted_confirmation_pending") +
-      (status.confirmBlockReason || "startup") +
-      ")." +
-      (status.confirmLastError
-        ? __WEBUI_TEXT__("runtime.esp_idf_error") + status.confirmLastError + "."
-        : "")
-    );
-  otaCommitStore(null);
-  otaClearStore();
-  message(__WEBUI_TEXT__("runtime.ota_confirmed_by_the_rebooted_firmware"), "ok");
-  return __WEBUI_TEXT__("runtime.ota_confirmed_by_the_rebooted_firmware");
-}
-async function otaFlash() {
-  const current = otaLastStatus,
-    staged = current && current.state === "staged" && current.staged;
-  if (!staged) {
-    message(__WEBUI_TEXT__("runtime.upload_and_verify_a_firmware_image_first"), "warn");
-    return;
-  }
-  if (
-    !confirm(
-      __WEBUI_TEXT__("runtime.flash") +
-        otaTagText(staged) +
-        __WEBUI_TEXT__("runtime.and_restart_the_controller"),
-    )
-  )
-    return;
-  const saved = otaStored(),
-    session = {
-      size: current.expectedBytes,
-      sha256: current.sha256,
-      arch: current.sessionArch,
-      hardware: current.sessionHardware,
-      machine: current.sessionMachine,
-      version: current.sessionVersion,
-      transferId: current.transferId,
-    },
-    expected = {
-      ...session,
-      bootId: current.bootId,
-      imageSha256:
-        saved && otaRemoteMatches(saved, current) ? saved.imageSha256 : staged.imageSha256 || "",
-    };
-  otaBeginBusy();
-  let data = null;
-  try {
-    data = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
-    if (!otaRemoteMatches(session, data) || data.state !== "staged")
-      throw new Error(__WEBUI_TEXT__("runtime.the_staged_transfer_changed_before_flash"));
-    expected.bootId = data.bootId;
-    otaCommitStore(expected);
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        data = await otaSend("/api/v1/ota/flash", null, null, OTA_COMMAND_TIMEOUT_MS);
-        if (!otaRemoteMatches(session, data))
-          throw new Error(__WEBUI_TEXT__("runtime.the_commit_response_did_not_identify_the"));
-        break;
-      } catch (error) {
-        data = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
-        const rebooted =
-          Number.isInteger(expected.bootId) &&
-          Number.isInteger(data.bootId) &&
-          data.bootId !== expected.bootId;
-        if (rebooted) break;
-        if (!otaRemoteMatches(session, data)) throw error;
-        if (data.restartPending || data.state === "committed") break;
-        if (data.state !== "staged" || attempt === 3) throw error;
-      }
-    }
-    otaEndBusy(data, otaCheckBoot(expected, data), "");
-  } catch (e) {
-    otaEndBusy(
-      data,
-      formatCommandError(__WEBUI_TEXT__("runtime.the_flash_result_is_unverified_reconnect_to"), e),
-      "error",
-    );
-  }
-}
-function otaDiscard() {
-  otaBeginBusy();
-  otaSend("/api/v1/ota/abort", null, null, OTA_COMMAND_TIMEOUT_MS)
-    .then((data) => {
-      otaClearStore();
-      otaCommitStore(null);
-      $("otaFile").value = "";
-      otaEndBusy(data, __WEBUI_TEXT__("runtime.the_verified_image_was_discarded"), "ok");
-    })
-    .catch((e) => {
-      otaEndBusy(
-        null,
-        formatCommandError(__WEBUI_TEXT__("runtime.the_image_could_not_be_discarded"), e),
-        "error",
-      );
-    });
-}
 function statusPageOk(v, s) {
   const c = s && s.config;
   if (!c || typeof s.configMutable !== "boolean") return !1;
@@ -8906,35 +6548,14 @@ function refreshStatus() {
   );
 }
 
-async function clearShotHistory() {
-  if (!confirm(__WEBUI_TEXT__("runtime.clear_all_recorded_shot_history_this_cannot"))) return;
-  return withCommandGate(async () => {
-    try {
-      await api("/api/v1/stats/clear", {
-        method: "POST",
-        body: body({ confirm: "CLEAR_SHOT_LOG" }),
-      });
-      shotHistory = { bootId: shotHistory.bootId || 0, total: 0, hasMore: false, shots: [] };
-      shotStats = {};
-      renderShots();
-      message(__WEBUI_TEXT__("runtime.shot_history_cleared"), "ok");
-    } catch (e) {
-      message(
-        formatCommandError(__WEBUI_TEXT__("runtime.could_not_clear_shot_history"), e),
-        "error",
-      );
-    }
-  });
-}
-
 async function deleteOneShot(id) {
   if (!id || !confirm(__WEBUI_TEXT__("runtime.delete_this_shot_record"))) return;
   return withCommandGate(async () => {
     try {
       await api("/api/v1/stats/delete", { method: "POST", body: body({ id }) });
-      shotHistory.shots = shotHistory.shots.filter((s) => s.id !== id);
-      if (typeof shotHistory.total === "number" && shotHistory.total > 0) shotHistory.total--;
-      shotHistory.hasMore = shotHistory.shots.length < shotHistory.total;
+      uiState.shotHistory.shots = uiState.shotHistory.shots.filter((s) => s.id !== id);
+      if (typeof uiState.shotHistory.total === "number" && uiState.shotHistory.total > 0) uiState.shotHistory.total--;
+      uiState.shotHistory.hasMore = uiState.shotHistory.shots.length < uiState.shotHistory.total;
       renderShots();
       message(__WEBUI_TEXT__("runtime.shot_deleted"), "ok");
     } catch (e) {
@@ -8956,31 +6577,14 @@ async function postShotRating(p, undo) {
   });
 }
 function rateHistoryShot(id, n) {
-  const s = shotHistory.shots.find((x) => x && x.id === id),
+  const s = uiState.shotHistory.shots.find((x) => x && x.id === id),
     p = s && s.rating;
   if (s) s.rating = n;
   renderShots();
   return postShotRating({ id, rating: n }, () => {
     if (s) s.rating = p;
     renderShots();
-  }).then((ok) => ok && shotSort === "rating" && refreshShots());
-}
-async function forgetPairedScale() {
-  if (!confirm(__WEBUI_TEXT__("runtime.clear_the_preferred_scale_discovery_pauses_for"))) return;
-  await command("/api/v1/scale/preferred/clear", {});
-}
-function selectPreferredScale() {
-  const sel = $("preferredScaleSelect");
-  if (!sel || preferredScaleSelectSyncing) return;
-  const mac = sel.value || "";
-  sel.dataset.pending = "1";
-  markConfigDirty();
-  const opt = sel.selectedOptions && sel.selectedOptions[0];
-  updateScaleRenameUi(
-    "preferredScaleRenameWrap",
-    mac,
-    opt && opt.dataset ? String(opt.dataset.name || "") : "",
-  );
+  }).then((ok) => ok && uiState.shotSort === "rating" && refreshShots());
 }
 async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
   return withCommandGate(async () => {
@@ -8999,7 +6603,7 @@ async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
       const accepted = await api(path, { method: "POST", body: body(payload) });
       clearFieldErrors();
       noteReachOk();
-      if (noReconnect) savedStaWifiSleep = !!$("staWifiSleep").checked;
+      if (noReconnect) uiState.savedStaWifiSleep = !!$("staWifiSleep").checked;
       if (path.endsWith("/network") && value.action === "save" && !noReconnect) {
         beginNetworkReconnectWait();
         return true;
@@ -9049,74 +6653,6 @@ async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
     }
   });
 }
-async function setBleScanIntensity() {
-  const sel = $("bleScanIntensity");
-  if (!sel) return;
-  const wanted = sel.value;
-  try {
-    await api("/api/v1/admin/ble-scan", { method: "PUT", body: body({ scanIntensity: wanted }) });
-    noteReachOk();
-    message(__WEBUI_TEXT__("runtime.ble_scan_mode_saved"), "ok");
-    await refreshStatus();
-    return true;
-  } catch (x) {
-    message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_ble_scan_mode"), x), "error");
-    await refreshStatus();
-    return false;
-  }
-}
-async function setBleEnabled() {
-  const el = $("bleEnabled");
-  if (!el) return;
-  const wanted = el.checked;
-  try {
-    await api("/api/v1/admin/ble-scan", { method: "PUT", body: body({ enabled: wanted }) });
-    noteReachOk();
-    message(
-      wanted
-        ? __WEBUI_TEXT__("runtime.ble_enabled_saved")
-        : __WEBUI_TEXT__("runtime.ble_disabled_saved"),
-      "ok",
-    );
-    await refreshStatus();
-    return true;
-  } catch (x) {
-    el.checked = !wanted;
-    message(formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_ble_setting"), x), "error");
-    await refreshStatus();
-    return false;
-  }
-}
-function ensureUiOverridePanel() {
-  if (developmentMode || $("uiOverridePanel")) return;
-  const p = document.createElement("fieldset");
-  p.id = "uiOverridePanel";
-  p.innerHTML =
-    "<legend>" +
-    __WEBUI_TEXT__("runtime.ui_override") +
-    '</legend><div class="btnBar"><button id="uiOverrideButton" class="btnGlyph btnWarn" type="button"><span class="g">' +
-    __WEBUI_TEXT__("runtime.symbol_13") +
-    '</span><span class="t">' +
-    __WEBUI_TEXT__("runtime.unlock_1_min") +
-    '</span></button></div><small id="uiOverrideHint"></small>';
-  const s = document.querySelector("#adminControls .adminSession");
-  if (s) s.after(p);
-  const b = $("uiOverrideButton");
-  if (b && !b.dataset.bound) {
-    b.dataset.bound = "1";
-    b.onclick = () =>
-      api("/api/v1/ui/unlock", { method: "POST", body: body({ confirm: "UNSAFE_WEBUI_OVERRIDE" }) })
-        .then(() => {
-          noteReachOk();
-          message(__WEBUI_TEXT__("runtime.override_on"), "ok");
-          return refreshStatus();
-        })
-        .catch((e) =>
-          message(formatCommandError(__WEBUI_TEXT__("runtime.override_failed"), e), "error"),
-        );
-  }
-}
-
 export {
   $,
   webUiOwner,
@@ -9126,7 +6662,6 @@ export {
   claimWebUiOwnership,
   setMutable,
   controlsMutable,
-  lockAdmin,
   showPageBoot,
   hideHomeBoot,
   withPollGate,
@@ -9150,93 +6685,40 @@ export {
   loadStatus,
   armStatusTimer,
   stopDiagnosticStream,
-  renderDiagClock,
   startLogStream,
   stopLogStream,
   startHistoryStream,
   startStatsStream,
   ensureBackgroundRecordStreams,
   renderLog,
-  clearLogView,
-  loadMoreShots,
   armListSentinel,
-  exportShotsCsv,
-  clearShotHistory,
   renderStatsDurChart,
   loadMoreHistory,
-  clearActivationHistory,
-  exportActivationHistory,
   toggleHistoryFilter,
   syncHistoryFilterButton,
   toggleHistoryDir,
   syncHistoryDirButton,
-  setShotSort,
-  syncShotSortButtons,
   resetNetworkAddressLoaded,
   formatWallTimeLocal,
   applyHomeStatus,
-  applySettingsStatus,
-  applyAdminStatus,
-  applyDiagnosticStatus,
   updateConfigGroups,
   updateScalePreferenceOptions,
   setSaveDirty,
-  markConfigDirty,
-  markDateTimeDirty,
-  markBleDirty,
-  markPowerDirty,
-  markFrontendDirty,
-  clearBleDirty,
-  clearPowerDirty,
-  clearFrontendDirty,
-  markBrewDirty,
-  refreshBrewWarnings,
-  clearBrewFieldErrors,
-  saveMachineConfig,
-  saveDateTimeConfig,
   saveBrewPreset,
   cleanBrewForm,
   settingsSectionOf,
   snapshotControls,
   restoreSnapshot,
-  revertBrewPreset,
-  revertMachineConfig,
-  revertDateTimeConfig,
-  revertNetworkConfig,
-  markLineaMicraDirty,
-  revertLineaMicra,
-  updateMicraShutdownControls,
-  connectLineaMicra,
-  selectLineaMicra,
-  saveLineaMicraSettings,
-  disconnectLineaMicra,
   lineaMicraAction,
-  validateNetworkClient,
-  validateDevicePasswordClient,
-  networkSavePayload,
-  networkPreferencesOnly,
-  startWifiScan,
-  selectDetectedNetwork,
   updateNetworkPasswordState,
   updateStaticIpFieldsState,
-  forgetPairedScale,
-  selectPreferredScale,
   renameScale,
-  setBleScanIntensity,
-  setBleEnabled,
-  setWifiSleep,
   themeMode,
   paintTheme,
   setTheme,
   heroTintMode,
-  setHeroTintMode,
   cycleTheme,
-  otaUpload,
-  otaFlash,
-  otaDiscard,
   populateTimezoneOptions,
-  timeZoneSelectionChanged,
-  changeTimezoneMode,
   renderPresetReview,
   dismissCard,
   startNewCoffee,
@@ -9246,23 +6728,62 @@ export {
   selectedPreset,
   askConfirm,
   sub,
-  formatExtractionGuard,
-  formatSlowExtractionGuard,
-  formatAtmGuard,
-  formatNoScaleGuard,
-  formatAccidentalTouch,
-  formatCupProtection,
   bootId,
   formRev,
-  configDirty,
-  brewDirty,
-  bleDirty,
-  powerDirty,
-  frontendDirty,
-  bleBaseline,
-  powerBaseline,
-  frontendBaseline,
   noteReachOk,
   noteReachFail,
-  developmentActive,
+  uiState,
+  buildShotSparkModel,
+  statsSendSubscribe,
+  shotStatsViewActive,
+  SHOTS_PAGE_SIZE,
+  sendUiOperation,
+  SHOTS_EXPORT_LIMIT,
+  shotDisplayActualG,
+  shotDisplayFlowGS,
+  shotMaxFlowGS,
+  downloadCsv,
+  renderShots,
+  renderHistory,
+  shotWs,
+  HISTORY_EXPORT_LIMIT,
+  acquireDeviceSlot,
+  WEB_UI_CLIENT_HEADER,
+  webUiClientId,
+  releaseDeviceSlot,
+  formatTzLabel,
+  ms,
+  statusUtcAnchorSec,
+  statusUtcAnchorAt,
+  statusTimezoneOffsetMinutes,
+  renderLineaMicraDiagnostic,
+  syncAdminSessionUi,
+  refreshTimezonePreview,
+  updateTimezoneControls,
+  browserTimezone,
+  timezoneCatalog,
+  developmentMode,
+  lockAdminUi,
+  updateWifiSleepState,
+  HERO_TINT_KEY,
+  HERO_TINT_MODES,
+  scheduleShotPaint,
+  timezonePreviewAnchor,
+  timezonePreviewPending,
+  renderTimezonePreview,
+  updateScaleRenameUi,
+  validateBrewClient,
+  clearBrewWarningsDom,
+  settingsSectionEls,
+  refreshFieldAria,
+  rangeCheck,
+  formNumber,
+  sToMs,
+  extRate,
+  ensureSettingsHydrated,
+  updateBullseyeControls,
+  loadSettingsConfig,
+  ingestPresets,
+  updateBbwControls,
+  configLoaded,
 };

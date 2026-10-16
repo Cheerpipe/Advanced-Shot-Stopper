@@ -29,7 +29,7 @@
     viewJs.settings.search(/const\s+resetBbw\s*=/));
   // Shared switches save with Shared settings from their checkbox state, so
   // a disabled touch fallback keeps its saved value.
-  const machine = blockAt(runtimeJs, 'function machinePayload(');
+  const machine = blockAt(viewJs.settings, 'function machinePayload(');
   if (!['cupProtectionEnabled', 'stopIfCupRemoved', 'requireCupToStart',
         'avoidAccidentalTouchEnabled', childId, 'autoToManualGuardEnabled']
         .every(k => codeIncludes(machine, `"${k}",`)) ||
@@ -77,7 +77,10 @@
         const field = get('brewByWeight'), events = {};
         field.id = 'brewByWeight';
         field.addEventListener = (type, fn) => events[type] = fn;
-        new Function('document', 'R', bindings)({querySelectorAll: () => [field]}, {
+        // Settings-owned helpers are module locals; the rest come from R.
+        new Function('document', 'R',
+            'const {markBrewDirty, clearBrewFieldErrors, refreshBrewWarnings} = R;' + bindings)(
+            {querySelectorAll: () => [field]}, {
           settingsSectionOf: () => 'brew', markBrewDirty() {},
           clearBrewFieldErrors() {}, refreshBrewWarnings() {},
           updateBbwControls() {}, updateConfigGroups: refresh, renderPresetReview() {}
@@ -110,7 +113,8 @@
       !firmwareCore.includes('candidate.autoTareOutsideBrew = command.config.autoTareOutsideBrew;')) {
     throw new Error('Idle tare must have an independent default-ON machine setting');
   }
-  const payloadLine = blockAt(allJs, 'function machinePayload()');
+  // Runtime helpers are injected as parameters, so drop the module qualifier.
+  const payloadLine = blockAt(allJs, 'function machinePayload()').replace(/\bR\./g, '');
   if (!payloadLine) throw new Error('Missing machine payload function');
   const makePayload = new Function('$', 'number', 'sToMs', 'extRate',
     payloadLine + ';return machinePayload();');
@@ -578,7 +582,9 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
   const last = ui.indexOf('const HUMAN_WD', first);
   if (first < 0 || last < first) throw new Error('Missing wall-time formatter');
   const {formatWallTime, formatWallTimeLocal} = new Function('__WEBUI_TEXT__',
-      ui.slice(first, last) + ';return {formatWallTime,formatWallTimeLocal};')(
+      ui.slice(first, last) +
+      blockAt(viewJs.diagnostic, 'function formatWallTime(').replace(/\bR\./g, '') +
+      ';return {formatWallTime,formatWallTimeLocal};')(
       key => ({'runtime.symbol': ':', 'runtime.symbol_2': '-',
         'runtime.symbol_3': ' '}[key] || ''));
   assert.equal(formatWallTimeLocal(1704069000), '2024-01-01 00:30:00');
@@ -599,7 +605,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     'hProfileCapacity', 'hProfileRemaining', 'scaleProfileStartButton', 'scaleProfileStopButton',
     'scaleProfileDeleteButton', 'scaleProfileDownloadButton'].map(id => [id, {}]));
   const runtime = {webUiOwner: true, formatUptime: ms => `${ms / 1000}s`};
-  const render = new Function('$', 'R', '__WEBUI_TEXT__',
+  const render = new Function('$', 'R', '__WEBUI_TEXT__', 'const {formatUptime} = R;' +
     source.slice(source.indexOf('function applyScaleProfile('),
       source.indexOf('async function downloadScaleProfile(')) + ';return applyScaleProfile;')(
       id => nodes[id], runtime, key => key);
@@ -804,7 +810,7 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     !codeIncludes(runtimeJs, 'shotDisplayFlowGS(r)') ||
     !codeIncludes(runtimeJs, 'shotMaxFlowGS(r)') ||
     !codeIncludes(runtimeJs, 'shotPresetName(r)') ||
-    !runtimeJs.includes('preset_id " +') || // Full header: 12-wire-freeze.
+    !js.includes('preset_id " +') || // Full header: 12-wire-freeze.
     !network.includes('const bool live = control.activeCycle || control.homePending') ||
     codeIncludes(runtimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.liveShot)') ||
     codeIncludes(runtimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
@@ -848,7 +854,7 @@ if (codeIncludes(ui, 'id="shotRating"') ||
     !codeIncludes(js, "dataset.label='Rate'") ||
     !codeIncludes(runtimeJs, 'function postShotRating(') ||
     !codeIncludes(runtimeJs, '{id,rating:n}') ||
-    !runtimeJs.includes('rating ended_at_ms') ||
+    !js.includes('rating ended_at_ms') ||
     !css.includes('.starRate{display:inline-flex;align-items:center;margin:0 -.15rem 0 0}') ||
     !css.includes('.starRate button+button{margin-left:-.18rem}') ||
     !css.includes('.starRate button.on{color:var(--ac)}') ||
@@ -926,10 +932,10 @@ if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
     !codeIncludes(runtimeJs, 'function statsStreamFrame(') ||
     !codeIncludes(runtimeJs, 'function applyStatsStream(') ||
     !codeIncludes(runtimeJs, 'if(statsStreamWanted)statsSendSubscribe()') ||
-    !codeIncludes(runtimeJs, 'if(statsExportInFlight)return statsExportInFlight') ||
+    !codeIncludes(js, 'if(statsExportInFlight)return statsExportInFlight') ||
     !codeIncludes(runtimeJs, 'statsRequest=++statsNextRequest') ||
-    !codeIncludes(runtimeJs, "sendUiOperation({op:'stats',on:true,fetch:true,request:statsFetchMark.request,offset:statsFetchMark.offset,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir,}") ||
-    !codeIncludes(runtimeJs, "statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',90e3)") ||
+    !codeIncludes(js, "sendUiOperation({op:'stats',on:true,fetch:true,request:statsFetchMark.request,offset:statsFetchMark.offset,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir,}") ||
+    !codeIncludes(js, "statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',90e3)") ||
     !codeIncludes(runtimeJs, 'function shotStatsViewActive(){') ||
     !codeIncludes(runtimeJs, 'function renderShots(') ||
     !codeIncludes(runtimeJs, 'function armListSentinel(') ||
@@ -965,10 +971,10 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !partialHtml.stats.includes('aria-label="Sort shots"') ||
     !css.includes('.shotSort{') ||
     !css.includes('.shotSort button[aria-pressed="true"]') ||
-    !codeIncludes(runtimeJs, 'function setShotSort(') ||
-    !codeIncludes(runtimeJs, 'function syncShotSortButtons(') ||
-    !codeIncludes(runtimeJs, 'syncShotSortButtons();statsSendSubscribe()') ||
-    !codeIncludes(runtimeJs, "'date','desc'") ||
+    !codeIncludes(js, 'function setShotSort(') ||
+    !codeIncludes(js, 'function syncShotSortButtons(') ||
+    !codeIncludes(js, 'syncShotSortButtons();statsSendSubscribe()') ||
+    !codeIncludes(js, "'date','desc'") ||
     !codeIncludes(runtimeJs, "shotSort==='rating'") ||
     !codeIncludes(js, 'Highest rating') ||
     !codeIncludes(js, 'Oldest first') ||
@@ -980,7 +986,7 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     // the direction arrow lives inside the active criterion button.
     !codeIncludes(viewJs.stats, '<span class="sortLbl">') ||
     !css.includes('.shotSort .sortLbl{') ||
-    !codeIncludes(runtimeJs, 'b.textContent = on ? name + " " + arrow : name;') ||
+    !codeIncludes(js, 'b.textContent = on ? name + " " + arrow : name;') ||
     !partialHtml.history.includes('<span class="sortLbl">Sort</span>') ||
     !/<button id="historyDirButton"[^>]*>Date /.test(partialHtml.history) ||
     !codeIncludes(js, 'Newest first') ||
@@ -1017,24 +1023,24 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     removeAttribute(name) {delete this.attributes[name];}});
   const sortButtons = {sortDateButton: button(), sortRatingButton: button()};
   let subscriptions = 0;
+  const sortState = {shotSort: 'date', shotSortDir: 'desc'};
   const sortContext = vm.createContext({
-    shotSort: 'date', shotSortDir: 'desc',
     $: (id) => sortButtons[id] || null,
-    statsSendSubscribe: () => {subscriptions++;},
+    R: {uiState: sortState, statsSendSubscribe: () => {subscriptions++;}},
   });
   vm.runInContext(
-      blockAt(runtimeJs, 'function syncShotSortButtons(') +
-      blockAt(runtimeJs, 'function setShotSort('), sortContext);
+      blockAt(viewJs.stats, 'function syncShotSortButtons(') +
+      blockAt(viewJs.stats, 'function setShotSort('), sortContext);
   const state = () => [
     sortButtons.sortDateButton.textContent, sortButtons.sortDateButton.attributes['aria-pressed'],
     sortButtons.sortRatingButton.textContent, sortButtons.sortRatingButton.attributes['aria-pressed']];
   sortContext.setShotSort('date');
-  assert.deepEqual([sortContext.shotSort, sortContext.shotSortDir], ['date', 'asc'],
+  assert.deepEqual([sortState.shotSort, sortState.shotSortDir], ['date', 'asc'],
       'pressing the active criterion must toggle the direction');
   assert.deepEqual(state(), ['Date ↑', 'true', 'Rating', 'false']);
   assert.equal(sortButtons.sortDateButton.attributes['aria-label'], 'Newest first');
   sortContext.setShotSort('rating');
-  assert.deepEqual([sortContext.shotSort, sortContext.shotSortDir], ['rating', 'asc'],
+  assert.deepEqual([sortState.shotSort, sortState.shotSortDir], ['rating', 'asc'],
       'switching criteria must keep the current direction');
   assert.deepEqual(state(), ['Date', 'false', 'Rating ↑', 'true']);
   assert.equal(sortButtons.sortRatingButton.attributes['aria-label'], 'Highest rating');
@@ -1045,7 +1051,7 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
   assert.deepEqual(state(), ['Date ↓', 'true', 'Rating', 'false']);
   assert.equal(sortButtons.sortDateButton.attributes['aria-label'], 'Oldest first');
   sortContext.setShotSort('duration');
-  assert.deepEqual([sortContext.shotSort, sortContext.shotSortDir], ['date', 'desc'],
+  assert.deepEqual([sortState.shotSort, sortState.shotSortDir], ['date', 'desc'],
       'unknown sort fields must be ignored');
   assert.equal(subscriptions, 4, 'every sort change must resubscribe the stats stream');
 }
@@ -1117,16 +1123,16 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !codeIncludes(runtimeJs, 'function applyHistoryPage(') ||
     !codeIncludes(runtimeJs, 'function renderHistory(') ||
     !codeIncludes(runtimeJs, 'function deleteOneHistory(') ||
-    !codeIncludes(runtimeJs, 'function clearActivationHistory(') ||
+    !codeIncludes(js, 'function clearActivationHistory(') ||
     !codeIncludes(runtimeJs, "power_on:'Power ON'") ||
     !codeIncludes(runtimeJs, "HIST_TYPE_SVG.power_on='⏻'") ||
     !codeIncludes(runtimeJs, 'Blocked: no scale') ||
     !codeIncludes(runtimeJs, 'HIST_TYPE_SVG.no_scale_guard_aborted=') ||
     !partialHtml.history.includes('id="hNS" viewBox="82 82 204 204"') ||
     !historyTypesIo.includes('NO_SCALE_GUARD_ABORTED') ||
-    !codeIncludes(runtimeJs, "confirm:'CLEAR_HISTORY'") ||
+    !codeIncludes(js, "confirm:'CLEAR_HISTORY'") ||
     !codeIncludes(runtimeJs, "'/api/v1/history/delete'") ||
-    !codeIncludes(runtimeJs, "'/api/v1/history/clear'") ||
+    !codeIncludes(js, "'/api/v1/history/clear'") ||
     !codeIncludes(runtimeJs, 'const toggleHistoryDir=()=>{') ||
     !codeIncludes(runtimeJs, "sendUiOperation({op:'history',on:true,fetch:true,request:historyFetchRequest,offset:historyFetchOffset,}") ||
     !partialHtml.history.includes('id="historyFilterButton"') ||
@@ -1134,15 +1140,15 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !partialHtml.history.includes('id="hFl"') ||
     !codeIncludes(viewJs.history, 'R.exportActivationHistory') ||
     !codeIncludes(viewJs.history, 'R.toggleHistoryFilter') ||
-    !codeIncludes(runtimeJs, 'function exportActivationHistory(') ||
+    !codeIncludes(js, 'function exportActivationHistory(') ||
     !codeIncludes(runtimeJs, 'function toggleHistoryFilter(') ||
-    !codeIncludes(runtimeJs, 'function fetchHistoryWindow(') ||
+    !codeIncludes(js, 'function fetchHistoryWindow(') ||
     !codeIncludes(runtimeJs, 'historyExportWindow?.resolve(null)') ||
     // The owned-socket dispatcher must route export windows to the history
     // stream handler; dropping them by request id hangs the export.
     !codeIncludes(runtimeJs, 'historyExportWindow&&data.request===historyExportWindow.request') ||
     !codeIncludes(runtimeJs, 'historyVisibleRecords()') ||
-    !codeIncludes(runtimeJs, 'Could not export history.') ||
+    !codeIncludes(js, 'Could not export history.') ||
     !codeIncludes(runtimeJs, 'No activations of the selected types.') ||
     !css.includes('.histFilterPanel{') ||
     !css.includes('.histFilterCount{') ||
@@ -1283,9 +1289,13 @@ if (!statsSection ||
         renderShots: () => events.push('render:' + context.controlsMutable),
         updateHeaderSignals() {}, updateFirmwareFooter() {}, noteReachOk() {},
         __WEBUI_TEXT__: key => key});
-      const stream = rawRuntimeJs.slice(rawRuntimeJs.search(/let\s+statsStreamWanted\s*=/),
+      // Shared state and runtime references resolve to this harness's globals.
+      const stream = runtimeStateGlobals +
+          rawRuntimeJs.slice(rawRuntimeJs.search(/let\s+statsStreamWanted\s*=/),
           rawRuntimeJs.search(/document\.addEventListener\(\s*['"]visibilitychange['"]/)) + '\n' +
-          blockAt(rawRuntimeJs, 'const loadMoreShots') +
+          rawViewJs.stats.slice(rawViewJs.stats.indexOf('let statsExportInFlight'),
+              rawViewJs.stats.indexOf('async function clearShotHistory(')) + '\n' +
+          blockAt(rawViewJs.stats, 'const loadMoreShots') +
           '\nthis.loadMoreShots=loadMoreShots;';
       vm.runInContext(stream, context);
       const loading = context.startStatsStream();
@@ -1389,7 +1399,7 @@ if (!statsSection ||
         renderHistory: () => events.push('render:' + context.controlsMutable),
         updateHeaderSignals() {}, updateFirmwareFooter() {}, noteReachOk() {},
         __WEBUI_TEXT__: key => key});
-      const stream = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function historyStreamFrame('),
+      const stream = runtimeStateGlobals + rawRuntimeJs.slice(rawRuntimeJs.indexOf('function historyStreamFrame('),
           rawRuntimeJs.search(/document\.addEventListener\(\s*['"]visibilitychange['"]/));
       vm.runInContext(stream, context);
       const frame = extras => Object.assign({v: 1, type: 'history', boot: 9, snapshot: true,
@@ -1454,7 +1464,8 @@ if (!statsSection ||
     throw new Error('Stats density curve helpers not found');
   }
   // The stub below records the axis ticks in place of the DOM writer.
-  const helpers = new Function(
+  // Shared state reads come from the globals this harness sets.
+  const helpers = new Function('const uiState = globalThis;' +
       runtimeJs.slice(start, end).replace('function fillChartTicks(', 'function domFillChartTicks(') +
       ';return{renderStatsDurChart:renderStatsDurChart};')();
   const histRoot = {dataset: {}, className: '', innerHTML: ''};

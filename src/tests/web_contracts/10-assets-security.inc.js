@@ -25,6 +25,9 @@ for (const name of VIEW_NAMES) {
       path.join(sketchDir, 'web', 'js', name + '.js'), 'utf8');
 }
 const runtimeConsumers = rawAppJsSource + '\n' + Object.values(rawViewJs).join('\n');
+// Raw (unlocalized) JS of every module, for presence checks that do not
+// care which module owns the code.
+const rawAllJs = [rawAppJsSource, rawRuntimeJs, ...Object.values(rawViewJs)].join('\n');
 const runtimeReferences = new Set([...runtimeConsumers.matchAll(
   /\bR\.([A-Za-z_$][\w$]*)(?![\w$])/g)].map((match) => match[1]));
 const runtimeExports = [
@@ -42,8 +45,11 @@ for (const name of runtimeExports) {
 // comparison so the readable formatting style cannot break them. Semicolons
 // and quote characters are stripped from both haystack and needle: formatters
 // add statement terminators the historic minified needles omit and normalize
-// string quotes.
-const compactSource = (source) => source.replace(/[\s;'"]/g, '');
+// string quotes. The runtime module qualifier (R.) and the shared uiState
+// container are stripped too: they only say which module owns a function or
+// a flag, so code keeps matching when it moves between runtime and a view.
+const compactSource = (source) =>
+  source.replace(/\b(?:R\.|uiState\.)/g, '').replace(/[\s;'"]/g, '');
 const codeIncludes = (source, needle) =>
   compactSource(source).includes(compactSource(needle));
 // Extract a top-level declaration block from an authoring source by cutting
@@ -99,9 +105,21 @@ const partialHtml = {};
 for (const name of VIEW_NAMES) partialHtml[name] = localizedSources[localizedAt++].content;
 const appJsSource = localizedSources[localizedAt++].content;
 const runtimeJs = localizedSources[localizedAt++].content;
+// Harnesses that run a slice of the runtime prepend its shared UI state.
+const runtimeStateDecl = blockAt(runtimeJs, 'const uiState = {') + ';\n';
+// Harnesses that keep state as vm globals alias uiState and R to the global
+// object and seed the shared-state defaults they do not set themselves.
+const runtimeStateGlobals = 'var uiState = this, R = this;for (const [k, v] of Object.entries(' +
+    runtimeStateDecl.replace(/^const uiState = /, '').replace(/;\n$/, '') +
+    ')) if (!(k in this)) this[k] = v;\n';
 const otaImageJs = localizedSources[localizedAt++].content;
 const viewJs = {};
 for (const name of VIEW_NAMES) viewJs[name] = localizedSources[localizedAt++].content;
+// The Stats export window lives in the Stats module; stream harnesses that
+// already declare uiState append it with its two runtime dependencies.
+const statsExportJs = '\nconst R = {uiState, sendUiOperation};\n' +
+    viewJs.stats.slice(viewJs.stats.indexOf('let statsExportInFlight'),
+        viewJs.stats.indexOf('async function clearShotHistory('));
 const css = localizedSources[localizedAt].content;
 const allHtml = shellHtml.replace(
     /<section id="view-([a-z]+)" class="view" data-view="\1"><\/section>/g,
@@ -296,7 +314,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       noteReachOk() {}, noteReachFail() {}});
     const logFns = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function logStreamFrame('),
         rawRuntimeJs.indexOf('function diagSnapshotOk('));
-    vm.runInContext(logFns, logContext);
+    vm.runInContext(runtimeStateGlobals + logFns, logContext);
     const event = sequence => ({sequence, atMs: 1, wallSec: 0, localSec: 0,
       level: 'info', category: 'web', message: 'm'});
     const frame = {v: 1, type: 'log', bootId: 3, historyOverwritten: 0,
@@ -353,8 +371,8 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
 
     // Record pages have no REST reads left; the remaining per-view fetches
     // are the claim-gated status pages, exercised by the lifecycle suites.
-    assert(!codeIncludes(rawRuntimeJs, '/api/v1/stats?offset=') &&
-           !codeIncludes(rawRuntimeJs, '/api/v1/history?offset='),
+    assert(!codeIncludes(rawAllJs, '/api/v1/stats?offset=') &&
+           !codeIncludes(rawAllJs, '/api/v1/history?offset='),
         'record pages must subscribe over the owned WebSocket, not read REST');
 
     const assets = {stats: deferred(), history: deferred()}, secondary = deferred(),
@@ -468,7 +486,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     throw new Error('Loading must suppress control motion while preserving the loading wave');
   }
   if (fade !== .25 ||
-      !codeIncludes(runtimeJs, "document.body.classList.remove('pageLoading')}}," + Math.round(fade * 1000) + ')') ||
+      !codeIncludes(js, "document.body.classList.remove('pageLoading')}}," + Math.round(fade * 1000) + ')') ||
       !css.includes('transition:.01ms!important')) {
     throw new Error('Splash removal must follow the immediate 250 ms fade and restore control motion');
   }
@@ -809,8 +827,10 @@ if (htmlBytes > 93300) {
 // Loading the opening view during the claim and delaying background record subscribes: +419 bytes (442064), requested with the load-latency plan 2026-10-16.
 // Reading the build version from the revalidated shell instead of baking it into the runtime: +26 bytes (442090), frontend audit 2026-10-16.
 // Compile-time remote-control and Linea Micra guards: +60 bytes (442150), frontend audit 2026-10-16.
-if (jsBytes > 442150) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 442150)`);
+// Moving view-only code into the view modules adds module qualifiers (R.,
+// uiState.): +2548 bytes (444698), frontend audit 2026-10-16.
+if (jsBytes > 444698) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 444698)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -910,8 +930,9 @@ if (jsBytes > 442150) {
 // Combined source at 527476 with the runtime preload and opening-view load; requested with the load-latency plan 2026-10-16.
 // The shell's build version and versioned manifest link: 527554, frontend audit 2026-10-16.
 // Compile-time remote-control and Linea Micra guards: 527614, frontend audit 2026-10-16.
-if (htmlBytes + jsBytes > 527614) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 527614)`);
+// View-only code moved into the view modules: 530162, frontend audit 2026-10-16.
+if (htmlBytes + jsBytes > 530162) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 530162)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
