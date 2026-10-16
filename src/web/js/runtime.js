@@ -5459,28 +5459,21 @@ function renderPresetReview() {
   legend.classList.toggle("noFast", !m.fast);
   legend.classList.toggle("noSlow", !m.slow);
 }
-// The scrubber picks when a shot reaches the target. Its reference pace is
-// followed past the target until it meets the cut line (same cutLine), so
-// the readout says where that shot would really stop.
+// The scrubber rides the cut line: it picks when a shot is cut, and so the
+// weight it stops at. The reference pace through that point (inverting
+// referencePace) gives when the shot would have reached the target.
 function positionPresetScrub(host) {
   const v = host._view,
     g = host.querySelector(".rvScrub");
   if (!v || !g) return;
   const m = v.m,
-    tArr = host._s,
-    pace = (t) => referencePace(t, m.goal, tArr, m.firstDrop),
-    gap = (t) => pace(t) - cutLine(t, m);
-  let lo = m.prot,
-    hi = m.wall;
-  for (let i = 0; i < 40 && gap(lo) < 0 && gap(hi) > 0; i++) {
-    const mid = (lo + hi) / 2;
-    if (gap(mid) < 0) lo = mid;
-    else hi = mid;
-  }
-  const stop = gap(m.prot) >= 0 ? m.prot : gap(m.wall) <= 0 ? m.wall : hi,
-    w = pace(stop),
+    stop = host._s,
+    w = cutLine(stop, m),
+    c = PACE_SOFT,
+    u = (Math.sqrt(4 * c * c + (4 * (1 - 2 * c) * w) / m.goal) - 2 * c) / (2 * (1 - 2 * c)),
+    tArr = m.firstDrop + (stop - m.firstDrop) / u,
     verdict =
-      gap(m.wall) < 0
+      stop >= m.wall
         ? __WEBUI_TEXT__("runtime.max_time")
         : verdictLabel(tArr < m.t1 - 0.5 ? "fast" : tArr > m.t2 + 0.5 ? "slow" : "on_recipe"),
     values = [+m.goal.toFixed(1), tArr.toFixed(1), verdict, w.toFixed(1), stop.toFixed(1)],
@@ -5493,17 +5486,20 @@ function positionPresetScrub(host) {
     [guide, shot, stopDot, handle, pill] = g.children,
     targetLabel = g.ownerSVGElement.querySelector(".rvTargetLbl"),
     box = targetLabel.getBBox(),
-    hx = v.X(tArr);
+    hx = v.X(stop),
+    dx = v.X(tArr);
   guide.setAttribute("d", `M${hx.toFixed(1)} ${v.T}V${v.B}`);
   shot.setAttribute("d", v.pace(tArr, stop));
-  stopDot.setAttribute("cx", v.X(stop).toFixed(2));
-  stopDot.setAttribute("cy", v.Y(w).toFixed(2));
+  // The dot marks the target arrival, hidden once it falls past the plot.
+  stopDot.setAttribute("cx", dx.toFixed(2));
+  stopDot.setAttribute("cy", v.Y(m.goal).toFixed(2));
+  stopDot.style.display = dx > v.W - 10 ? "none" : "";
   handle.setAttribute("cx", hx.toFixed(2));
-  handle.setAttribute("cy", v.Y(m.goal).toFixed(2));
-  placePill(pill, sub(__WEBUI_TEXT__("runtime.graph_cut_pill"), values), hx, v.Y(m.goal));
-  // The handle rides the target line: the label steps aside under it.
-  targetLabel.style.opacity = hx > box.x - 8 && hx < box.x + box.width + 8 ? "0" : "";
-  g.setAttribute("aria-valuenow", tArr.toFixed(1));
+  handle.setAttribute("cy", v.Y(w).toFixed(2));
+  placePill(pill, sub(__WEBUI_TEXT__("runtime.graph_cut_pill"), values), hx, v.Y(w));
+  // The dot rides the target line: the label steps aside under it.
+  targetLabel.style.opacity = dx > box.x - 8 && dx < box.x + box.width + 8 ? "0" : "";
+  g.setAttribute("aria-valuenow", stop.toFixed(1));
   g.setAttribute("aria-valuetext", text);
   if (host._readout) host._readout.textContent = text;
 }

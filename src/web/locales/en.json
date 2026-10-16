@@ -719,7 +719,7 @@
     "runtime.graph_readout": "Reaches {0} g at {1} s → {2} · stops near {3} g at {4} s",
     "runtime.graph_readout_early": "Heading for {0} g at {1} s → {2} · stops near {3} g at {4} s",
     "runtime.graph_readout_target": "Reaches {0} g at {1} s → {2} · stops at {3} g",
-    "runtime.graph_scrub": "Time the shot reaches the target",
+    "runtime.graph_scrub": "Time the shot is cut",
     "runtime.graph_start_none": "Reference pace starts at 0 s until a shot records its first drop.",
     "runtime.graph_start_others": "Reference pace starts at {0} s, when first drops usually fall on your other presets, until this one records its own.",
     "runtime.graph_start_preset": "Reference pace starts at {0} s, when this preset's first drops usually fall.",
