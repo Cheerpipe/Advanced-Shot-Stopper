@@ -468,7 +468,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 /* The weight/flow chart opens its own block under the preset chart's legend. */
 .shotComboHost{padding-top:1rem}
 .rvLeg .shotKey{height:2px;border-radius:0}
-.shotLegDrip i{height:0;border-top:2px dashed var(--mu);border-radius:0}
+.shotLegend .shotLegDrip i{height:0;border-top:2px dashed var(--mu);border-radius:0}
 .shotCurve .shotLegend{margin-top:.6rem}
 .shotPresetChart:not([data-zone=fast]) :is(.rvFastPart,.rvFastFull),.shotPresetChart:not([data-zone=slow]) :is(.rvSlowPart,.rvSlowFull),.shotPresetChart:not([data-zone=on_recipe]) .rvWindow{fill-opacity:0}
 .presetAccGraph{margin:0 .6rem}
