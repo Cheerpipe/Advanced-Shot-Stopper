@@ -3,11 +3,20 @@ const VIEW_NAMES = webUi.VIEW_NAMES;
 (async () => {
   const assert = require('assert').strict, generated = await webUi.generate();
   const runtime = 'data:text/javascript,' + encodeURIComponent('export const $=()=>null;');
-  const code = generated.secondaryJs.replace(/(['"])\/js\/runtime\.js\?[^'"]*\1/, JSON.stringify(runtime));
+  // The records bundle evaluates on its own and hands app.js each view's
+  // init and markup; single-view modules export both at top level.
+  const code = generated.modules.records.replace(/(['"])\/js\/runtime\.js\?[^'"]*\1/, JSON.stringify(runtime));
   const {views} = await import('data:text/javascript,' + encodeURIComponent(code));
-  assert.deepEqual(Object.keys(views).sort(), [...webUi.SECONDARY_VIEWS].sort());
-  for (const name of webUi.SECONDARY_VIEWS) {
+  assert.deepEqual(Object.keys(views).sort(), [...webUi.VIEW_MODULES.records].sort());
+  for (const name of webUi.VIEW_MODULES.records) {
     assert.equal(typeof views[name].init, 'function', name + ': lazy view must initialize');
+    assert.equal(views[name].markup, generated.partials[name], name + ': lazy view must carry its markup');
+  }
+  for (const [file, [name]] of Object.entries(webUi.VIEW_MODULES).filter(([, n]) => n.length === 1)) {
+    assert(/\bexport function init\(/.test(generated.modules[file]) &&
+        /\bexport const markup=/.test(generated.modules[file]), file + '.js must export init and markup');
+    assert(generated.modules[file].includes(generated.partials[name].slice(0, 40)),
+        file + '.js must carry its view markup');
   }
 })().catch(error => {console.error(error); process.exitCode = 1;});
 const rawPartialHtml = {};
@@ -65,8 +74,8 @@ if (codeIncludes(rawAppJsSource, 'htmlCache') ||
     !compactSource(rawAppJsSource).includes('viewLoads.set(name,load)') ||
     !compactSource(rawAppJsSource).includes('finally{viewLoads.delete(name)') ||
     !compactSource(rawAppJsSource)
-        .includes('jsMods.has(name)&&htmlLoaded.has(name)')) {
-  throw new Error('Partial loading must coalesce in flight and release text/promises after insertion');
+        .includes('if(jsMods.has(name))returnjsMods.get(name)')) {
+  throw new Error('View loading must coalesce in flight and release promises after insertion');
 }
 const diagnosticCompact = compactSource(rawViewJs.diagnostic);
 const diagnosticDownload = diagnosticCompact.match(
@@ -375,34 +384,36 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
            !codeIncludes(rawAllJs, '/api/v1/history?offset='),
         'record pages must subscribe over the owned WebSocket, not read REST');
 
-    const assets = {stats: deferred(), history: deferred()}, secondary = deferred(),
-      assetEvents = [], initialized = [], sections = {};
+    // Stats and History share one module; the browser's module map
+    // deduplicates a URL, which importModule mirrors here.
+    const records = deferred(), modules = new Map(), assetEvents = [], initialized = [], sections = {};
     for (const name of ['stats', 'history']) sections['view-' + name] = {
-      set innerHTML(html) {assetEvents.push('insert-' + name);},
+      set innerHTML(html) {assetEvents.push('insert-' + name + ':' + html);},
     };
-    const assetContext = vm.createContext({jsMods: new Map(), htmlLoaded: new Set(['home']),
-      viewLoads: new Map(), SECONDARY: new Set(['stats', 'history']), secondaryViews: null, bootFetch: null,
+    const assetContext = vm.createContext({jsMods: new Map(), viewLoads: new Map(),
+      BUNDLES: {stats: 'records', history: 'records'}, bootFetch: null,
       assetQuery: '?v=test', document: {getElementById: id => sections[id]},
       __WEBUI_TEXT__: key => key,
-      loadPartial: name => {assetEvents.push('html-' + name); return assets[name].promise;},
-      importModule: () => {assetEvents.push('js'); return secondary.promise;}});
+      importModule: url => {
+        if (!modules.has(url)) {assetEvents.push('js ' + url); modules.set(url, records.promise);}
+        return modules.get(url);
+      }});
     const ensureSource = appJsSource.slice(appJsSource.indexOf('function fetchView('),
       appJsSource.indexOf('R.setEnsureViewHook')).replace(/import\(/g, 'importModule(');
     vm.runInContext(ensureSource, assetContext);
     assetContext.bootFetch = ['history', assetContext.fetchView('history')];
     const firstStats = assetContext.ensureView('stats'), againStats = assetContext.ensureView('stats'),
       firstHistory = assetContext.ensureView('history');
-    assert.deepEqual(assetEvents, ['html-history', 'js', 'html-stats'], 'The opening view prefetch, HTML, and shared module download together and deduplicate');
+    assert.deepEqual(assetEvents, ['js /js/records.js?v=test'],
+        'The opening view prefetch and the shared module download once');
     assert.equal(assetContext.bootFetch, null, 'The opening view consumes its prefetch once');
-    secondary.resolve({views: Object.fromEntries(['stats', 'history'].map(name => [name, {
-      init: () => {assert.equal(assetEvents.includes('insert-' + name), true); initialized.push(name);},
+    records.resolve({views: Object.fromEntries(['stats', 'history'].map(name => [name, {
+      markup: '<div>' + name + '</div>',
+      init: () => {assert.equal(assetEvents.includes('insert-' + name + ':<div>' + name + '</div>'), true); initialized.push(name);},
     }]))});
-    await flush(); assert.deepEqual(initialized, [], 'Module must not initialize before its markup');
-    assets.stats.resolve('<div>Stats</div>'); assets.history.resolve('<div>History</div>');
     await Promise.all([firstStats, againStats, firstHistory]);
     await assetContext.ensureView('stats'); await assetContext.ensureView('history');
-    assert.deepEqual(initialized, ['stats', 'history'], 'Revisits reuse each initialized view');
-    assert.equal(assetEvents.filter(event => event === 'js').length, 1);
+    assert.deepEqual(initialized.sort(), ['history', 'stats'], 'Revisits reuse each initialized view');
 
     for (const view of ['home', 'settings', 'stats', 'history', 'diagnostic', 'admin']) {
       const events = [], markup = deferred(), status = deferred(), data = deferred(), bodyClasses = new Set();
@@ -1434,7 +1445,8 @@ if (codeIncludes(ui, 'authenticatedOnly') ||
     !codeIncludes(ui, 'href="/" data-route="/"') ||
     !codeIncludes(ui, "querySelectorAll('a[data-route]')") ||
     !codeIncludes(ui, 'ensureView') ||
-    !codeIncludes(ui, '/partials/') ||
+    !codeIncludes(ui, 'section.innerHTML=mod.markup') ||
+    codeIncludes(ui, '/partials/') ||
     !network.includes('HTTPD_404_NOT_FOUND') ||
     !network.includes('notFoundHandler')) {
   throw new Error('Web UI must expose public SPA routes and redirect unknown paths to /');

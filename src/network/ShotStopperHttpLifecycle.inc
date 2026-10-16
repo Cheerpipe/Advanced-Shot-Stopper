@@ -1171,38 +1171,21 @@ bool ShotStopperNetwork::startHttpServer() {
       registerHandler(server_, "/admin", HTTP_GET, rootHandler) &&
       registerHandler(server_, "/settings", HTTP_GET, rootHandler) &&
       registerHandler(server_, "/setup", HTTP_GET, rootHandler) &&
-      registerHandler(server_, "/app.js", HTTP_GET, jsHandler) &&
-      registerHandler(server_, "/app.css", HTTP_GET, cssHandler) &&
-      registerHandler(server_, "/js/runtime.js", HTTP_GET, runtimeJsHandler) &&
-      registerHandler(server_, "/js/ota-image.js", HTTP_GET, otaImageJsHandler) &&
-      registerHandler(server_, "/js/secondary.js", HTTP_GET,
-                      secondaryJsHandler) &&
-      registerHandler(server_, "/partials/stats.html", HTTP_GET,
-                      partialStatsHandler) &&
-      registerHandler(server_, "/partials/history.html", HTTP_GET,
-                      partialHistoryHandler) &&
-      registerHandler(server_, "/partials/diagnostic.html", HTTP_GET,
-                      partialDiagnosticHandler) &&
-      registerHandler(server_, "/partials/settings.html", HTTP_GET,
-                      partialSettingsHandler) &&
-      registerHandler(server_, "/partials/admin.html", HTTP_GET,
-                      partialAdminHandler) &&
-      registerHandler(server_, "/partials/setup.html", HTTP_GET,
-                      partialSetupHandler) &&
-      registerHandler(server_, "/js/settings.js", HTTP_GET,
-                      viewSettingsHandler) &&
-      registerHandler(server_, "/js/setup.js", HTTP_GET,
-                      viewSetupHandler) &&
-      registerHandler(server_, "/manifest.webmanifest", HTTP_GET,
-                      manifestHandler) &&
-      registerHandler(server_, "/icons/icon-192.png", HTTP_GET,
-                      iconHandler) &&
-      registerHandler(server_, "/favicon.ico", HTTP_GET,
-                      browserIconHandler) &&
-      // iOS probes size-specific paths like /apple-touch-icon-120x120.png that
-      // ignore the shell's <link> tags; one wildcard covers every variant.
-      registerHandler(server_, "/apple-touch-icon*", HTTP_GET,
-                      browserIconHandler) &&
+      // One exact route per WEB_ASSETS row (scripts/gen_web_ui.js); the
+      // wildcard covers the size-specific iOS icon probes.
+      registerHandler(server_, "/app.js", HTTP_GET, assetHandler) &&
+      registerHandler(server_, "/app.css", HTTP_GET, assetHandler) &&
+      registerHandler(server_, "/js/runtime.js", HTTP_GET, assetHandler) &&
+      registerHandler(server_, "/js/ota-image.js", HTTP_GET, assetHandler) &&
+      registerHandler(server_, "/js/records.js", HTTP_GET, assetHandler) &&
+      registerHandler(server_, "/js/diagnostic.js", HTTP_GET, assetHandler) &&
+      registerHandler(server_, "/js/admin.js", HTTP_GET, assetHandler) &&
+      registerHandler(server_, "/js/settings.js", HTTP_GET, assetHandler) &&
+      registerHandler(server_, "/js/setup.js", HTTP_GET, assetHandler) &&
+      registerHandler(server_, "/manifest.webmanifest", HTTP_GET, assetHandler) &&
+      registerHandler(server_, "/icons/icon-192.png", HTTP_GET, assetHandler) &&
+      registerHandler(server_, "/favicon.ico", HTTP_GET, assetHandler) &&
+      registerHandler(server_, "/apple-touch-icon*", HTTP_GET, assetHandler) &&
       registerHandler(server_, "/api/v1/ui/claim", HTTP_POST, claimHandler) &&
       registerHandler(server_, "/api/v1/ui/ui-stream", HTTP_GET,
                       uiStreamHandler, true, uiStreamHandshake) &&

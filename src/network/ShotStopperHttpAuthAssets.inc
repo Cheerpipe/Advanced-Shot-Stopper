@@ -517,8 +517,7 @@ static bool requestsCurrentAssetTag(httpd_req_t *request) {
          strcmp(query + 3, WEB_UI_ASSET_TAG) == 0;
 }
 
-static esp_err_t serveImmutableGzip(httpd_req_t *request, const char *contentType,
-                                    const uint8_t *data, size_t length) {
+static esp_err_t serveWebAsset(httpd_req_t *request, const WebAsset &asset) {
   // Only the URL naming these exact bytes may be cached as immutable. Any
   // other ?v= (a stale shell after OTA or rollback) or a bare probe path gets
   // the current bytes uncached, so no cache key ever holds a body it does
@@ -535,15 +534,17 @@ static esp_err_t serveImmutableGzip(httpd_req_t *request, const char *contentTyp
     httpd_resp_set_hdr(request, "ETag", WEB_UI_ETAG);
     return httpd_resp_send(request, nullptr, 0);
   }
-  httpd_resp_set_type(request, contentType);
-  httpd_resp_set_hdr(request, "Content-Encoding", "gzip");
+  httpd_resp_set_type(request, asset.contentType);
+  if (asset.gzip) {
+    httpd_resp_set_hdr(request, "Content-Encoding", "gzip");
+  }
   httpd_resp_set_hdr(request, "Cache-Control", cacheControl);
   if (current) {
     httpd_resp_set_hdr(request, "ETag", WEB_UI_ETAG);
   }
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   httpd_resp_set_hdr(request, "X-Frame-Options", "DENY");
-  return sendBody(request, data, length);
+  return sendBody(request, asset.data, asset.length);
 }
 
 esp_err_t ShotStopperNetwork::rootHandler(httpd_req_t *request) {
@@ -577,111 +578,20 @@ esp_err_t ShotStopperNetwork::rootHandler(httpd_req_t *request) {
                         SHOT_STOPPER_WEB_UI_GZIP_LEN);
 }
 
-esp_err_t ShotStopperNetwork::jsHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "application/javascript; charset=utf-8",
-                            SHOT_STOPPER_WEB_JS_GZIP,
-                            SHOT_STOPPER_WEB_JS_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::cssHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "text/css; charset=utf-8",
-                            SHOT_STOPPER_WEB_CSS_GZIP,
-                            SHOT_STOPPER_WEB_CSS_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::runtimeJsHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "application/javascript; charset=utf-8",
-                            SHOT_STOPPER_WEB_RUNTIME_GZIP,
-                            SHOT_STOPPER_WEB_RUNTIME_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::otaImageJsHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "application/javascript; charset=utf-8", SHOT_STOPPER_WEB_OTA_IMAGE_GZIP, SHOT_STOPPER_WEB_OTA_IMAGE_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::secondaryJsHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "application/javascript; charset=utf-8",
-                            SHOT_STOPPER_WEB_SECONDARY_GZIP,
-                            SHOT_STOPPER_WEB_SECONDARY_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::partialStatsHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "text/html; charset=utf-8",
-                            SHOT_STOPPER_WEB_PARTIAL_STATS_GZIP,
-                            SHOT_STOPPER_WEB_PARTIAL_STATS_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::partialHistoryHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "text/html; charset=utf-8",
-                            SHOT_STOPPER_WEB_PARTIAL_HISTORY_GZIP,
-                            SHOT_STOPPER_WEB_PARTIAL_HISTORY_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::partialDiagnosticHandler(httpd_req_t *request) {
-  // The Diagnostic page stays reachable at /diagnostic; the visibility toggle
-  // only hides the menu entry.
-  return serveImmutableGzip(request, "text/html; charset=utf-8",
-                            SHOT_STOPPER_WEB_PARTIAL_DIAGNOSTIC_GZIP,
-                            SHOT_STOPPER_WEB_PARTIAL_DIAGNOSTIC_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::partialSettingsHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "text/html; charset=utf-8",
-                            SHOT_STOPPER_WEB_PARTIAL_SETTINGS_GZIP,
-                            SHOT_STOPPER_WEB_PARTIAL_SETTINGS_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::partialAdminHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "text/html; charset=utf-8",
-                            SHOT_STOPPER_WEB_PARTIAL_ADMIN_GZIP,
-                            SHOT_STOPPER_WEB_PARTIAL_ADMIN_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::partialSetupHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "text/html; charset=utf-8",
-                            SHOT_STOPPER_WEB_PARTIAL_SETUP_GZIP,
-                            SHOT_STOPPER_WEB_PARTIAL_SETUP_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::viewSettingsHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "application/javascript; charset=utf-8",
-                            SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP,
-                            SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::viewSetupHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "application/javascript; charset=utf-8",
-                            SHOT_STOPPER_WEB_VIEW_SETUP_GZIP,
-                            SHOT_STOPPER_WEB_VIEW_SETUP_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::manifestHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "application/manifest+json",
-                            SHOT_STOPPER_WEB_MANIFEST_GZIP,
-                            SHOT_STOPPER_WEB_MANIFEST_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::iconHandler(httpd_req_t *request) {
-  return serveImmutableGzip(request, "image/png",
-                            SHOT_STOPPER_WEB_ICON_192_GZIP,
-                            SHOT_STOPPER_WEB_ICON_192_GZIP_LEN);
-}
-
-esp_err_t ShotStopperNetwork::browserIconHandler(httpd_req_t *request) {
-  // Clients that ignore the shell's <link> tags probe these unversioned paths
-  // directly; serve the real artwork (uncached, as they carry no ?v=) instead
-  // of an empty 204.
-  if (strncmp(request->uri, "/favicon.ico", 12) == 0 && (request->uri[12] == '\0' || request->uri[12] == '?')) {
-    return serveImmutableGzip(request, "image/png",
-                              SHOT_STOPPER_WEB_ICON_48_GZIP,
-                              SHOT_STOPPER_WEB_ICON_48_GZIP_LEN);
+// Every embedded asset except the shell is one row of the generated
+// WEB_ASSETS table; a row ending in '*' prefix-matches its probe variants.
+esp_err_t ShotStopperNetwork::assetHandler(httpd_req_t *request) {
+  const size_t length = strcspn(request->uri, "?");
+  for (const WebAsset &asset : WEB_ASSETS) {
+    const size_t pathLength = strlen(asset.path);
+    const bool prefix = asset.path[pathLength - 1] == '*';
+    if (prefix ? strncmp(request->uri, asset.path, pathLength - 1) == 0
+               : pathLength == length &&
+                     strncmp(request->uri, asset.path, length) == 0) {
+      return serveWebAsset(request, asset);
+    }
   }
-  // The /apple-touch-icon* wildcard lands here with the full size-specific
-  // URI (e.g. /apple-touch-icon-167x167-precomposed.png); every variant
-  // serves the same 192px artwork.
-  return serveImmutableGzip(request, "image/png",
-                            SHOT_STOPPER_WEB_ICON_192_GZIP,
-                            SHOT_STOPPER_WEB_ICON_192_GZIP_LEN);
+  return notFoundHandler(request, HTTPD_404_NOT_FOUND);
 }
 
 namespace {

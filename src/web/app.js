@@ -9,11 +9,10 @@ document.addEventListener("click", (e) => {
 });
 const assetQuery = new URL(import.meta.url).search;
 const jsMods = new Map();
-const htmlLoaded = new Set(["home"]);
 const viewLoads = new Map();
 let bootFetch = null;
-const SECONDARY = new Set(["stats", "history", "diagnostic", "admin"]);
-let secondaryViews = null;
+// Stats and History share one module; every other view is its own module.
+const BUNDLES = { stats: "records", history: "records" };
 let routeSeq = 0;
 let activeView = "";
 const ROUTES = {
@@ -36,28 +35,14 @@ function viewToPath(view) {
   }
   return "/";
 }
-async function loadPartial(name) {
-  const response = await fetch("/partials/" + name + ".html" + assetQuery);
-  if (!response.ok) throw new Error(__WEBUI_TEXT__("shell.failed_to_load_view_markup"));
-  return response.text();
-}
+// A view module carries its own markup, so a view loads in one request.
 function fetchView(name) {
-  const markup = htmlLoaded.has(name) ? null : loadPartial(name),
-    module = SECONDARY.has(name)
-      ? (
-          secondaryViews ||
-          (secondaryViews = import("/js/secondary.js" + assetQuery)
-            .then((sec) => sec.views)
-            .catch((e) => {
-              secondaryViews = null;
-              throw e;
-            }))
-        ).then((views) => views[name])
-      : import("/js/" + name + ".js" + assetQuery);
-  return Promise.all([markup, module]);
+  return import("/js/" + (BUNDLES[name] || name) + ".js" + assetQuery).then((m) =>
+    m.views ? m.views[name] : m,
+  );
 }
 async function ensureView(name) {
-  if (jsMods.has(name) && htmlLoaded.has(name)) return jsMods.get(name);
+  if (jsMods.has(name)) return jsMods.get(name);
   if (viewLoads.has(name)) return viewLoads.get(name);
   const load = (async () => {
     const section = document.getElementById("view-" + name);
@@ -69,12 +54,9 @@ async function ensureView(name) {
     }
     const boot = bootFetch?.[0] === name && bootFetch[1];
     if (boot) bootFetch = null;
-    const [html, mod] = await (boot || fetchView(name));
+    const mod = await (boot || fetchView(name));
     if (!mod) throw new Error(__WEBUI_TEXT__("shell.missing_secondary_view") + name);
-    if (html !== null) {
-      section.innerHTML = html;
-      htmlLoaded.add(name);
-    }
+    section.innerHTML = mod.markup;
     if (mod.init) mod.init();
     jsMods.set(name, mod);
     return mod;

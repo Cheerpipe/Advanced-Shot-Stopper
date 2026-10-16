@@ -1087,7 +1087,7 @@ if (!historyTypesIo.includes('BACKFLUSH = 5') ||
 if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !shellHtml.includes('<section id="view-history" class="view" data-view="history"></section>') ||
     !codeIncludes(appJsSource, "'/history':'history'") ||
-    !codeIncludes(appJsSource, "SECONDARY=new Set(['stats','history','diagnostic','admin'])") ||
+    !codeIncludes(appJsSource, "BUNDLES={stats:'records',history:'records'}") ||
     !codeIncludes(appJsSource, 'R.startHistoryStream()') ||
     codeIncludes(appJsSource, 'historyTimer') ||
     codeIncludes(appJsSource, '/api/v1/status/home') ||

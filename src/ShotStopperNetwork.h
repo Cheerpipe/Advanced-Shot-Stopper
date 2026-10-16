@@ -645,27 +645,12 @@ class ShotStopperNetwork {
   uint32_t allocateRequestId();
 
   static esp_err_t rootHandler(httpd_req_t *request);
-  static esp_err_t jsHandler(httpd_req_t *request);
-  static esp_err_t cssHandler(httpd_req_t *request);
-  static esp_err_t runtimeJsHandler(httpd_req_t *request);
-  static esp_err_t otaImageJsHandler(httpd_req_t *request);
-  static esp_err_t secondaryJsHandler(httpd_req_t *request);
-  static esp_err_t partialStatsHandler(httpd_req_t *request);
-  static esp_err_t partialHistoryHandler(httpd_req_t *request);
-  static esp_err_t partialDiagnosticHandler(httpd_req_t *request);
   static esp_err_t crashArchiveDownloadHandler(httpd_req_t *request);
   static esp_err_t crashArchiveClearHandler(httpd_req_t *request);
   static esp_err_t auditLogClearHandler(httpd_req_t *request);
   static esp_err_t auditLogExportHandler(httpd_req_t *request);
   static esp_err_t auditVerboseHandler(httpd_req_t *request);
-  static esp_err_t partialSettingsHandler(httpd_req_t *request);
-  static esp_err_t partialAdminHandler(httpd_req_t *request);
-  static esp_err_t partialSetupHandler(httpd_req_t *request);
-  static esp_err_t viewSettingsHandler(httpd_req_t *request);
-  static esp_err_t viewSetupHandler(httpd_req_t *request);
-  static esp_err_t manifestHandler(httpd_req_t *request);
-  static esp_err_t iconHandler(httpd_req_t *request);
-  static esp_err_t browserIconHandler(httpd_req_t *request);
+  static esp_err_t assetHandler(httpd_req_t *request);
   static esp_err_t notFoundHandler(httpd_req_t *request, httpd_err_code_t error);
   static esp_err_t claimHandler(httpd_req_t *request);
   static esp_err_t uiStreamHandshake(httpd_req_t *request);

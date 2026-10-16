@@ -1519,7 +1519,6 @@
     "shell.close": "Close",
     "shell.close_2": "×",
     "shell.diagnostic": "Diagnostic",
-    "shell.failed_to_load_view_markup": "Failed to load view markup",
     "shell.firmware_boot": "Firmware — · Boot —",
     "shell.github": "GitHub",
     "shell.guards": "Guards",

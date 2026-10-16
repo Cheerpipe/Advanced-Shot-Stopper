@@ -29,8 +29,22 @@ const outputPath =
     path.join(repoRoot, 'src', 'ShotStopperWebAssetsGzip.h');
 
 const VIEW_NAMES = ['home', 'stats', 'history', 'diagnostic', 'settings', 'admin', 'setup'];
-const LAZY_PARTIALS = ['stats', 'history', 'diagnostic', 'settings', 'admin', 'setup'];
-const SECONDARY_VIEWS = ['stats', 'history', 'diagnostic', 'admin'];
+// Each lazy view ships as one module that carries its own markup, so opening
+// a view costs one request. Stats and History are small and visited
+// together, so they share the records bundle; the rest load on their own.
+const VIEW_MODULES = {
+  records: ['stats', 'history'],
+  diagnostic: ['diagnostic'],
+  admin: ['admin'],
+  settings: ['settings'],
+  setup: ['setup'],
+};
+const JS_TYPE = 'application/javascript; charset=utf-8';
+// Served paths of the WEB_ASSETS rows, in table order; the firmware registers
+// one exact route per path.
+const ASSET_PATHS = ['/app.js', '/app.css', '/js/runtime.js', '/js/ota-image.js',
+  ...Object.keys(VIEW_MODULES).map((file) => `/js/${file}.js`),
+  '/manifest.webmanifest', '/icons/icon-192.png', '/favicon.ico', '/apple-touch-icon*'];
 
 // Machine-type exclusive markup classes. Sources stay type-agnostic and hide
 // excluded elements via CSS at runtime; typed builds strip them at generation
@@ -192,13 +206,20 @@ function injectHomePartial(shellHtml, homePartial) {
   return shellHtml.replace(re, `$1${homePartial}$2`);
 }
 
-function inlineHomeModule(appSrc, homeSrc) {
-  const body = homeSrc
-      .replace(/^['"]use strict['"];\s*/m, '')
+// Give a view module its own scope inside a bundle: top-level names stay
+// private to the view, and the bundle supplies the runtime import.
+function scopedView(name, src, exports) {
+  const body = src
+      .replace(/^\(?['"]use strict['"]\)?;\s*/m, '')
       .replace(/import\s*\*\s*as\s+R\s+from\s*['"][^'"]+['"];\s*/m, '')
-      .replace(/export\s+function\s+/g, 'function ');
-  const iife =
-      `const __homeModule=(()=>{${body}\nreturn{init,applyStatus};})();`;
+      .replace(/export\s+(function|const|let)\s+/g, '$1 ');
+  if (/\bimport\s*\*/.test(body)) {
+    throw new Error(`View ${name} retained its runtime import`);
+  }
+  return `const ${name}=(()=>{${body}\nreturn{${exports.join(',')}};})();`;
+}
+
+function inlineHomeModule(appSrc, homeSrc) {
   if (!appSrc.includes('__homeModule')) {
     throw new Error('app.js must reference __homeModule for home cold path');
   }
@@ -206,58 +227,23 @@ function inlineHomeModule(appSrc, homeSrc) {
   if (!marker.test(appSrc)) {
     throw new Error('app.js runtime import not found');
   }
-  return appSrc.replace(marker, (m) => m + iife + '\n');
+  return appSrc.replace(marker, (m) =>
+    m + scopedView('__homeModule', homeSrc, ['init', 'applyStatus']) + '\n');
 }
 
-function buildSecondaryJs(viewJsRaw) {
-  const parts = [
-    `'use strict';`,
+// A single-view module exports its markup next to init; the records bundle
+// exposes each of its views under `views`.
+function buildViewModule(views, viewJsRaw, partials) {
+  if (views.length === 1) {
+    return `${viewJsRaw[views[0]]}\nexport const markup=${JSON.stringify(partials[views[0]])};`;
+  }
+  return [
     `import * as R from '/js/runtime.js?v=${ASSET_TAG_PLACEHOLDER}';`,
-    `const $=R.$;`,
-  ];
-  for (const name of SECONDARY_VIEWS) {
-    const body = viewJsRaw[name]
-        .replace(/^['"]use strict['"];\s*/m, '')
-        .replace(/import\s*\*\s*as\s+R\s+from\s*['"][^'"]+['"];\s*/m, '')
-        .replace(/const\s+\$\s*=\s*R\.\$;\s*/m, '')
-        .replace(/export\s+function\s+applyStatus/g, `function ${name}ApplyStatus`)
-        .replace(/export\s+function\s+init/g, `function ${name}Init`)
-        .replace(/\blet\s+ready\s*=/g, `let ${name}Ready=`)
-        .replace(/\bif\s*\(\s*ready\s*\)/g, `if(${name}Ready)`)
-        .replace(/\bready\s*=\s*true\b/g, `${name}Ready=true`)
-        .replace(
-            new RegExp(
-                `registerViewStatus\\(\\s*['"]${name}['"]\\s*,\\s*applyStatus\\s*\\)`,
-                'g'),
-            `registerViewStatus('${name}',${name}ApplyStatus)`);
-    // The registration rewrite must keep landing; a miss would leave the
-    // bundled view calling the renamed-away applyStatus identifier.
-    if (body.includes('registerViewStatus') &&
-        !body.includes(`registerViewStatus('${name}',${name}ApplyStatus)`)) {
-      throw new Error(
-          `Secondary view ${name} lost its status-handler registration rewrite`);
-    }
-    // Whitespace-tolerant renames must keep landing; a miss would collide
-    // the per-view ready flag across bundled views.
-    for (const token of [`let ${name}Ready=`, `if(${name}Ready)`,
-      `${name}Ready=true`]) {
-      if (!body.includes(token)) {
-        throw new Error(
-            `Secondary view ${name} lost its ready-state rename (${token})`);
-      }
-    }
-    if (/\bimport\s*\*/.test(body)) {
-      throw new Error(`Secondary view ${name} retained its runtime import`);
-    }
-    parts.push(`// ${name}`, body);
-  }
-  parts.push('export const views={');
-  for (const name of SECONDARY_VIEWS) {
-    parts.push(
-        `  ${name}:{init:${name}Init},`);
-  }
-  parts.push('};');
-  return parts.join('\n');
+    ...views.map((name) => scopedView(`__${name}`,
+        `${viewJsRaw[name]}\nconst markup=${JSON.stringify(partials[name])};`,
+        ['init', 'markup'])),
+    `export const views={${views.map((name) => `${name}:__${name}`).join(',')}};`,
+  ].join('\n');
 }
 
 async function generate(options = {}) {
@@ -340,13 +326,14 @@ async function generate(options = {}) {
     appJs: await minifyJs(inlineHomeModule(localizedAppJs, viewJsRaw.home), options),
     runtimeJs: await minifyJs(localizedRuntime, options),
     otaImageJs: await minifyJs(localizedOtaImage, options),
-    secondaryJs: await minifyJs(buildSecondaryJs(viewJsRaw), options),
-    settingsJs: await minifyJs(viewJsRaw.settings, options),
-    setupJs: await minifyJs(viewJsRaw.setup, options),
     css: minifyCss(stripMachineTypeCss(options.remoteControl === false
         ? stripRemoteControlCss(localizedCss) : localizedCss, options.machineType)),
     manifest: JSON.stringify(manifestObject),
   };
+  const modules = {};
+  for (const [file, views] of Object.entries(VIEW_MODULES)) {
+    modules[file] = await minifyJs(buildViewModule(views, viewJsRaw, partials), options);
+  }
 
   // The tag fingerprints the exact bytes served (with the placeholder still
   // in place), so every ?v= URL names one immutable body. The firmware
@@ -354,17 +341,21 @@ async function generate(options = {}) {
   // keep every cached asset.
   const hash = crypto.createHash('sha256');
   for (const text of Object.values(out)) hash.update(text);
-  for (const text of Object.values(partials)) hash.update(text);
+  for (const text of Object.values(modules)) hash.update(text);
   hash.update(icon192Raw);
   hash.update(icon48Raw);
   const assetTag = hash.digest('hex').slice(0, 8);
   for (const key of Object.keys(out)) {
     out[key] = out[key].split(ASSET_TAG_PLACEHOLDER).join(assetTag);
   }
+  for (const key of Object.keys(modules)) {
+    modules[key] = modules[key].split(ASSET_TAG_PLACEHOLDER).join(assetTag);
+  }
   out.shellHtml = out.shellHtml.split('__FW_RELEASE__').join(version);
 
   return finish({
     ...out,
+    modules,
     partials,
     icon192Raw,
     icon48Raw,
@@ -377,29 +368,49 @@ async function generate(options = {}) {
   });
 }
 
-async function finish({shellHtml, partials, appJs, runtimeJs, otaImageJs, secondaryJs,
-                       settingsJs, setupJs, css, manifest, icon192Raw, icon48Raw, assetTag,
+// Every asset except the shell is one row of the WEB_ASSETS table the
+// firmware serves from. PNG artwork is already compressed, so it ships raw.
+async function finish({shellHtml, partials, appJs, runtimeJs, otaImageJs, modules,
+                       css, manifest, icon192Raw, icon48Raw, assetTag,
                        version, inputLanguage, requestedLanguage,
                        resolvedLanguage, write}) {
-  const shellGzip = await gzipBuffer(Buffer.from(shellHtml, 'utf8'));
-  const cssGzip = await gzipBuffer(Buffer.from(css, 'utf8'));
-  const appJsGzip = await gzipBuffer(Buffer.from(appJs, 'utf8'));
-  const runtimeGzip = await gzipBuffer(Buffer.from(runtimeJs, 'utf8'));
-  const otaImageGzip = await gzipBuffer(Buffer.from(otaImageJs, 'utf8'));
-  const secondaryGzip = await gzipBuffer(Buffer.from(secondaryJs, 'utf8'));
-  const settingsGzip = await gzipBuffer(Buffer.from(settingsJs, 'utf8'));
-  const setupGzip = await gzipBuffer(Buffer.from(setupJs, 'utf8'));
-  const manifestGzip = await gzipBuffer(Buffer.from(manifest, 'utf8'));
-  const icon192Gzip = await gzipBuffer(icon192Raw);
-  const icon48Gzip = await gzipBuffer(icon48Raw);
-  const partialGzip = {};
-  for (const name of LAZY_PARTIALS) {
-    partialGzip[name] =
-        await gzipBuffer(Buffer.from(partials[name], 'utf8'));
+  const text = (path, contentType, value) =>
+    ({path, contentType, text: value, raw: Buffer.from(value, 'utf8'), gzip: true});
+  const assets = [
+    text('/app.js', JS_TYPE, appJs),
+    text('/app.css', 'text/css; charset=utf-8', css),
+    text('/js/runtime.js', JS_TYPE, runtimeJs),
+    text('/js/ota-image.js', JS_TYPE, otaImageJs),
+    ...Object.entries(modules).map(([file, js]) => text(`/js/${file}.js`, JS_TYPE, js)),
+    text('/manifest.webmanifest', 'application/manifest+json', manifest),
+    {path: '/icons/icon-192.png', contentType: 'image/png', raw: icon192Raw, gzip: false},
+    {path: '/favicon.ico', contentType: 'image/png', raw: icon48Raw, gzip: false},
+    // iOS probes size-specific /apple-touch-icon* paths that ignore the
+    // shell's <link>; the trailing '*' row prefix-matches every variant.
+    {path: '/apple-touch-icon*', contentType: 'image/png', raw: icon192Raw, gzip: false},
+  ];
+  if (assets.map((asset) => asset.path).join() !== ASSET_PATHS.join()) {
+    throw new Error('WEB_ASSETS rows must follow ASSET_PATHS');
   }
+  const symbols = new Map();
+  for (const asset of assets) {
+    asset.body = asset.gzip ? await gzipBuffer(asset.raw) : asset.raw;
+    if (!symbols.has(asset.raw)) {
+      symbols.set(asset.raw, 'WEB_ASSET_' +
+          asset.path.replace(/\*$/, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').toUpperCase());
+    }
+    asset.symbol = symbols.get(asset.raw);
+  }
+  const shellGzip = await gzipBuffer(Buffer.from(shellHtml, 'utf8'));
+  const emitted = new Set();
+  const arrays = assets.filter((asset) => !emitted.has(asset.symbol) && emitted.add(asset.symbol))
+      .map((asset) => emitGzipConst(asset.symbol, asset.body)).join('\n');
+  const rows = assets.map((asset) =>
+    `    {"${asset.path}", "${asset.contentType}", ${asset.symbol}, ${asset.symbol}_LEN, ${asset.gzip}},`)
+      .join('\n');
 
   const cacheVersion = `${version}.${assetTag}`;
-  let body = `#pragma once
+  const body = `#pragma once
 
 #include <pgmspace.h>
 #include <stddef.h>
@@ -413,25 +424,19 @@ constexpr char WEB_UI_ASSET_TAG[] = "${assetTag}";
 constexpr char WEB_UI_ETAG[] = ${JSON.stringify('"' + cacheVersion + '"')};
 
 ${emitGzipConst('SHOT_STOPPER_WEB_UI_GZIP', shellGzip)}
-${emitGzipConst('SHOT_STOPPER_WEB_JS_GZIP', appJsGzip)}
-${emitGzipConst('SHOT_STOPPER_WEB_RUNTIME_GZIP', runtimeGzip)}
-${emitGzipConst('SHOT_STOPPER_WEB_OTA_IMAGE_GZIP', otaImageGzip)}
-${emitGzipConst('SHOT_STOPPER_WEB_CSS_GZIP', cssGzip)}
-${emitGzipConst('SHOT_STOPPER_WEB_SECONDARY_GZIP', secondaryGzip)}
-${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP', settingsGzip)}
-${emitGzipConst('SHOT_STOPPER_WEB_VIEW_SETUP_GZIP', setupGzip)}
-${emitGzipConst('SHOT_STOPPER_WEB_MANIFEST_GZIP', manifestGzip)}
-${emitGzipConst('SHOT_STOPPER_WEB_ICON_192_GZIP', icon192Gzip)}
-${emitGzipConst('SHOT_STOPPER_WEB_ICON_48_GZIP', icon48Gzip)}
-`;
+${arrays}
+struct WebAsset {
+  const char *path;
+  const char *contentType;
+  const uint8_t *data;
+  size_t length;
+  bool gzip;
+};
 
-  for (const name of LAZY_PARTIALS) {
-    const upper = name.toUpperCase();
-    body += emitGzipConst(
-        `SHOT_STOPPER_WEB_PARTIAL_${upper}_GZIP`, partialGzip[name]);
-  }
+const WebAsset WEB_ASSETS[] = {
+${rows}
+};
 
-  body += `
 }  // namespace shotstopper
 `;
 
@@ -443,39 +448,31 @@ ${emitGzipConst('SHOT_STOPPER_WEB_ICON_48_GZIP', icon48Gzip)}
     fs.renameSync(temporaryOutput, outputPath);
   }
 
-  let combined = shellGzip.length + appJsGzip.length + runtimeGzip.length +
-      otaImageGzip.length +
-      cssGzip.length + secondaryGzip.length + settingsGzip.length +
-      setupGzip.length + manifestGzip.length + icon192Gzip.length + icon48Gzip.length;
-  for (const name of LAZY_PARTIALS) {
-    combined += partialGzip[name].length;
-  }
+  const byPath = (path) => assets.find((asset) => asset.path === path).body;
+  const moduleGzip = Object.fromEntries(Object.keys(modules).map(
+      (file) => [file, byPath(`/js/${file}.js`)]));
+  const combined = shellGzip.length + [...new Set(assets.map((asset) => asset.body))]
+      .reduce((sum, bytes) => sum + bytes.length, 0);
 
   return {
     html: shellHtml,
     js: appJs,
     runtimeJs,
     otaImageJs,
-    secondaryJs,
-    settingsJs,
-    setupJs,
+    modules,
     css,
     manifest,
     icon192Raw,
     icon48Raw,
     partials,
+    assets,
     gzip: shellGzip,
-    jsGzip: appJsGzip,
-    runtimeGzip,
-    otaImageGzip,
-    secondaryGzip,
-    settingsGzip,
-    setupGzip,
-    manifestGzip,
-    icon192Gzip,
-    icon48Gzip,
-    partialGzip,
-    cssGzip,
+    jsGzip: byPath('/app.js'),
+    runtimeGzip: byPath('/js/runtime.js'),
+    otaImageGzip: byPath('/js/ota-image.js'),
+    moduleGzip,
+    manifestGzip: byPath('/manifest.webmanifest'),
+    cssGzip: byPath('/app.css'),
     assetTag,
     cacheVersion,
     etag: `"${cacheVersion}"`,
@@ -489,8 +486,7 @@ ${emitGzipConst('SHOT_STOPPER_WEB_ICON_48_GZIP', icon48Gzip)}
     inputLanguage,
     resolvedLanguage,
     VIEW_NAMES,
-    LAZY_PARTIALS,
-    SECONDARY_VIEWS,
+    VIEW_MODULES,
   };
 }
 
@@ -505,8 +501,8 @@ module.exports = {
   cssSourcePath,
   outputPath,
   VIEW_NAMES,
-  LAZY_PARTIALS,
-  SECONDARY_VIEWS,
+  VIEW_MODULES,
+  ASSET_PATHS,
   htmlDir,
   jsDir,
   gzipBuffer,
@@ -551,21 +547,8 @@ if (require.main === module) {
       lineaMicra, versionOverride});
   })
       .then((result) => {
-        const parts = [
-          `shell ${result.gzip.length} B`,
-          `app.js ${result.jsGzip.length} B`,
-          `runtime ${result.runtimeGzip.length} B`,
-          `ota-image.js ${result.otaImageGzip.length} B`,
-          `css ${result.cssGzip.length} B`,
-          `secondary.js ${result.secondaryGzip.length} B`,
-          `settings.js ${result.settingsGzip.length} B`,
-          `manifest ${result.manifestGzip.length} B`,
-          `icon-192 ${result.icon192Gzip.length} B`,
-          `icon-48 ${result.icon48Gzip.length} B`,
-        ];
-        for (const name of LAZY_PARTIALS) {
-          parts.push(`${name}.html ${result.partialGzip[name].length} B`);
-        }
+        const parts = [`shell ${result.gzip.length} B`,
+          ...result.assets.map((asset) => `${asset.path} ${asset.body.length} B`)];
         console.log(
             `Generated ${result.outputPath} ` +
                 `(${parts.join(', ')}, combined ${result.combined} B gzip, ` +

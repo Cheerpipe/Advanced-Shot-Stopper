@@ -22,9 +22,9 @@ if (firmware.includes('maybeCaptureScaleStartLag') ||
 
 (async () => {
 const generated = await webUi.generate();
-if (!generated.secondaryJs.includes('new CompressionStream("gzip")') ||
-    !generated.secondaryJs.includes('shotstopper-crashes.tar') ||
-    !generated.secondaryJs.includes('?".gz":""')) {
+if (!generated.modules.diagnostic.includes('new CompressionStream("gzip")') ||
+    !generated.modules.diagnostic.includes('shotstopper-crashes.tar') ||
+    !generated.modules.diagnostic.includes('?".gz":""')) {
   throw new Error('Crash download must gzip in the browser with a TAR fallback');
 }
 const tarFixture = Buffer.alloc(1024);
@@ -220,11 +220,12 @@ if (!codeIncludes(generated.js, 'import') ||
     !codeIncludes(generated.runtimeJs, 'export') ||
     !codeIncludes(generated.js, '/api/v1/control/paddle') ||
     codeIncludes(generated.js, '/js/home.js') ||
-    !generated.secondaryJs.includes('export') ||
-    !generated.secondaryJs.includes('views') ||
+    !generated.modules.records.includes('export') ||
+    !generated.modules.records.includes('views') ||
     !codeIncludes(appJsSource, '__homeModule') ||
-    !codeIncludes(appJsSource, '/js/secondary.js')) {
-  throw new Error('Generated Web UI JS must remain ES modules (shell + runtime + secondary)');
+    !codeIncludes(appJsSource, "BUNDLES={stats:'records',history:'records'}") ||
+    codeIncludes(appJsSource, '/js/secondary.js')) {
+  throw new Error('Generated Web UI JS must remain ES modules (shell + runtime + view modules)');
 }
 const runtimeRoundTrip = zlib.gunzipSync(generated.runtimeGzip).toString('utf8');
 if (runtimeRoundTrip !== generated.runtimeJs) {
@@ -329,15 +330,18 @@ for (const badBody of [
     throw new Error('Web OTA parser must reject a corrupt appended image hash');
   }
 }
-const secondaryRoundTrip =
-    zlib.gunzipSync(generated.secondaryGzip).toString('utf8');
-if (secondaryRoundTrip !== generated.secondaryJs) {
-  throw new Error('Generated gzip secondary JS does not round-trip');
+// Every WEB_ASSETS row round-trips to the bytes it names; PNG rows ship raw
+// because the artwork is already compressed.
+for (const asset of generated.assets) {
+  const served = asset.gzip ? zlib.gunzipSync(asset.body) : asset.body;
+  if (!served.equals(asset.raw) || asset.gzip !== (asset.contentType !== 'image/png')) {
+    throw new Error('Generated asset does not round-trip: ' + asset.path);
+  }
 }
-const settingsRoundTrip =
-    zlib.gunzipSync(generated.settingsGzip).toString('utf8');
-if (settingsRoundTrip !== generated.settingsJs) {
-  throw new Error('Generated gzip settings JS does not round-trip');
+for (const [file, js] of Object.entries(generated.modules)) {
+  if (zlib.gunzipSync(generated.moduleGzip[file]).toString('utf8') !== js) {
+    throw new Error('Generated gzip view module does not round-trip: ' + file);
+  }
 }
 const manifestRoundTrip =
     zlib.gunzipSync(generated.manifestGzip).toString('utf8');
@@ -349,12 +353,6 @@ if (!generated.manifest.includes('"display":"standalone"') ||
         .includes(`"/icons/icon-192.png?v=${generated.assetTag}"`) ||
     generated.manifest.includes('__FW_VERSION__')) {
   throw new Error('PWA manifest must be install-capable and version its icon URL');
-}
-if (!zlib.gunzipSync(generated.icon192Gzip).equals(generated.icon192Raw)) {
-  throw new Error('Generated gzip icon does not round-trip to the PNG bytes');
-}
-if (!zlib.gunzipSync(generated.icon48Gzip).equals(generated.icon48Raw)) {
-  throw new Error('Generated gzip 48 px icon does not round-trip to the PNG bytes');
 }
 // iOS composites the home-screen icon onto white and only rounds its own
 // corners, so the 192 px asset must stay opaque and full-bleed: truecolour
@@ -392,12 +390,6 @@ if (!release.html.includes('data-fw="9.8.7+contract"') ||
     release.etag === otherRelease.etag) {
   throw new Error('Shell must carry the firmware version for cached-shell self-heal; asset tags must ignore it');
 }
-for (const name of webUi.LAZY_PARTIALS) {
-  const partialRt = zlib.gunzipSync(generated.partialGzip[name]).toString('utf8');
-  if (partialRt !== generated.partials[name]) {
-    throw new Error('Generated gzip partial does not round-trip: ' + name);
-  }
-}
 // A top-level name shared by two secondary view modules collides inside the
 // concatenated bundle after mangling, and the browser then refuses the whole
 // module when any secondary tab loads. Parse every generated module before
@@ -407,8 +399,7 @@ for (const name of webUi.LAZY_PARTIALS) {
   const os = require('os');
   for (const [moduleName, code] of Object.entries({
     app: generated.js, runtime: generated.runtimeJs,
-    'ota-image': generated.otaImageJs, secondary: generated.secondaryJs,
-    settings: generated.settingsJs,
+    'ota-image': generated.otaImageJs, ...generated.modules,
   })) {
     const file = path.join(os.tmpdir(), `ss-webui-${moduleName}-${process.pid}.mjs`);
     fs.writeFileSync(file, code);
@@ -703,14 +694,14 @@ if (generated.otaImageGzip.length > 3072) {
 // the full-log Export download measure 10638. Cap raised to 10700.
 // The audit table pagination and change-gated repaint (page state, pager
 // renderer, selection-preserving fingerprint) measure 10839. Cap raised to 10900.
-// Moving view-only code out of the always-loaded runtime (frontend audit
-// 2026-10-16) brings the Stats/History/Diagnostic/Admin logic here: 22138.
-if (generated.secondaryGzip.length > 22200) {
-  throw new Error(`Compressed secondary view JS exceeds the 22200-byte gzip budget (${generated.secondaryGzip.length})`);
-}
-// The Settings logic moved out of the runtime measures 7185 bytes.
-if (generated.settingsGzip.length > 7250) {
-  throw new Error(`Compressed settings view JS exceeds the 7250-byte gzip budget (${generated.settingsGzip.length})`);
+// Each lazy view module carries its logic and markup (frontend audit
+// 2026-10-16); Stats/History measure 4403, Diagnostic 12370, Admin 14127,
+// Settings 14074 and Setup 3552 gzip bytes.
+const viewModuleBudgets = {records: 4500, diagnostic: 12450, admin: 14200, settings: 14150, setup: 3600};
+for (const [file, budget] of Object.entries(viewModuleBudgets)) {
+  if (generated.moduleGzip[file].length > budget) {
+    throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
+  }
 }
 // The PWA manifest and the 192 px home-screen icon are additive embedded
 // assets; they raise the combined cap from 66500 bytes. The 48 px favicon
@@ -718,11 +709,11 @@ if (generated.settingsGzip.length > 7250) {
 if (generated.manifestGzip.length > 1024) {
   throw new Error('Compressed PWA manifest exceeds the 1024-byte gzip budget');
 }
-if (generated.icon192Gzip.length > 31500) {
-  throw new Error('Compressed 192 px icon exceeds the 31500-byte gzip budget');
+if (generated.icon192Raw.length > 31500) {
+  throw new Error('The 192 px icon exceeds its 31500-byte budget');
 }
-if (generated.icon48Gzip.length > 3500) {
-  throw new Error('Compressed 48 px icon exceeds the 3500-byte gzip budget');
+if (generated.icon48Raw.length > 3500) {
+  throw new Error('The 48 px icon exceeds its 3500-byte budget');
 }
 // Continuous color-segment flow curves close each segment at its boundary,
 // raising the combined cap from 66400 to 66500 bytes; the PWA manifest and
@@ -871,17 +862,9 @@ if (!network.includes('#include "ShotStopperWebAssetsGzip.h"') ||
 }
 if (!network.includes('SHOT_STOPPER_WEB_UI_GZIP') ||
     !network.includes('SHOT_STOPPER_WEB_UI_GZIP_LEN') ||
-    !network.includes('SHOT_STOPPER_WEB_JS_GZIP') ||
-    !network.includes('SHOT_STOPPER_WEB_JS_GZIP_LEN') ||
-    !network.includes('SHOT_STOPPER_WEB_RUNTIME_GZIP') ||
-    !network.includes('SHOT_STOPPER_WEB_OTA_IMAGE_GZIP') ||
-    !network.includes('SHOT_STOPPER_WEB_CSS_GZIP') ||
-    !network.includes('SHOT_STOPPER_WEB_SECONDARY_GZIP') ||
-    !network.includes('SHOT_STOPPER_WEB_VIEW_SETTINGS_GZIP') ||
-    !network.includes('SHOT_STOPPER_WEB_MANIFEST_GZIP') ||
-    !network.includes('SHOT_STOPPER_WEB_ICON_192_GZIP') ||
-    !network.includes('SHOT_STOPPER_WEB_ICON_48_GZIP') ||
-    !network.includes('SHOT_STOPPER_WEB_PARTIAL_SETTINGS_GZIP') ||
+    !network.includes('for (const WebAsset &asset : WEB_ASSETS)') ||
+    !generatedHeader.includes('const WebAsset WEB_ASSETS[] = {') ||
+    generatedHeader.includes('_PARTIAL_') ||
     !network.includes('WEB_UI_ETAG') ||
     network.includes('SHOT_STOPPER_WEB_PARTIAL_HOME_GZIP') ||
     network.includes('SHOT_STOPPER_WEB_VIEW_HOME_GZIP') ||
@@ -889,16 +872,14 @@ if (!network.includes('SHOT_STOPPER_WEB_UI_GZIP') ||
     network.includes('SHOT_STOPPER_WEB_LOGO_GZIP') ||
     !network.includes('"Content-Encoding"') ||
     !network.includes('"gzip"')) {
-  throw new Error('GET /, assets, partials, and view modules must send precompressed gzip bodies without logo');
+  throw new Error('GET / and the WEB_ASSETS table must send precompressed bodies without logo');
 }
 if (network.includes('zlib.h') || network.includes('miniz.h') ||
     /mz_compress|deflateInit|gzipCompress/.test(network)) {
   throw new Error('Firmware must not compress the Web UI at runtime');
 }
 if (!network.includes('sendBody(request, SHOT_STOPPER_WEB_UI_GZIP') ||
-    !network.includes('serveImmutableGzip') ||
-    !network.includes('SHOT_STOPPER_WEB_JS_GZIP') ||
-    !network.includes('SHOT_STOPPER_WEB_CSS_GZIP') ||
+    !network.includes('return sendBody(request, asset.data, asset.length)') ||
     !network.includes('return sendBody(request, json, length)') ||
     !network.includes(
         'return httpd_resp_send(request, static_cast<const char *>(data), length)') ||
@@ -919,41 +900,20 @@ if (!network.includes('If-None-Match')) {
   throw new Error('GET / must honor If-None-Match for cached Web UI revalidation');
 }
 const rootHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::rootHandler');
-const jsHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::jsHandler');
-const cssHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::cssHandler');
-const runtimeHandlerStart =
-    network.indexOf('esp_err_t ShotStopperNetwork::runtimeJsHandler');
-const manifestHandlerStart =
-    network.indexOf('esp_err_t ShotStopperNetwork::manifestHandler');
-const iconHandlerStart =
-    network.indexOf('esp_err_t ShotStopperNetwork::iconHandler');
-const browserIconHandlerStart =
-    network.indexOf('esp_err_t ShotStopperNetwork::browserIconHandler');
+const assetHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::assetHandler');
 const notFoundHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::notFoundHandler');
-const serveImmutableStart = network.indexOf('static esp_err_t serveImmutableGzip');
-if (rootHandlerStart < 0 || jsHandlerStart < 0 || cssHandlerStart < 0 ||
-    runtimeHandlerStart < 0 || manifestHandlerStart < 0 ||
-    iconHandlerStart < 0 || browserIconHandlerStart < 0 ||
-    notFoundHandlerStart < 0 ||
+const serveImmutableStart = network.indexOf('static esp_err_t serveWebAsset');
+if (rootHandlerStart < 0 || assetHandlerStart < 0 || notFoundHandlerStart < 0 ||
     statusHandlerStart < 0 || serveImmutableStart < 0 ||
     network.includes('logoHandler') ||
     network.includes('loginHandler') ||
-    !(rootHandlerStart < jsHandlerStart && jsHandlerStart < cssHandlerStart &&
-      cssHandlerStart < runtimeHandlerStart &&
-      runtimeHandlerStart < manifestHandlerStart &&
-      manifestHandlerStart < iconHandlerStart &&
-      iconHandlerStart < browserIconHandlerStart &&
-      browserIconHandlerStart < notFoundHandlerStart &&
-      notFoundHandlerStart < statusHandlerStart)) {
-  throw new Error('rootHandler/jsHandler/cssHandler/runtime/notFoundHandler order not found');
+    !(serveImmutableStart < rootHandlerStart && rootHandlerStart < assetHandlerStart &&
+      assetHandlerStart < notFoundHandlerStart && notFoundHandlerStart < statusHandlerStart)) {
+  throw new Error('serveWebAsset/rootHandler/assetHandler/notFoundHandler order not found');
 }
-const rootHandler = network.slice(rootHandlerStart, jsHandlerStart);
+const rootHandler = network.slice(rootHandlerStart, assetHandlerStart);
 const serveImmutable = network.slice(serveImmutableStart, rootHandlerStart);
-const jsHandler = network.slice(jsHandlerStart, cssHandlerStart);
-const cssHandler = network.slice(cssHandlerStart, runtimeHandlerStart);
-const manifestHandler = network.slice(manifestHandlerStart, iconHandlerStart);
-const iconHandler = network.slice(iconHandlerStart, browserIconHandlerStart);
-const browserIconHandler = network.slice(browserIconHandlerStart, notFoundHandlerStart);
+const assetHandler = network.slice(assetHandlerStart, notFoundHandlerStart);
 const notFoundHandler = network.slice(notFoundHandlerStart, statusHandlerStart);
 if (rootHandler.includes('no-store') ||
     !rootHandler.includes('max-age=86400') ||
@@ -980,33 +940,25 @@ if (!serveImmutable.includes('requestsCurrentAssetTag(request)') ||
     serveImmutable.includes('"Connection"')) {
   throw new Error('Immutable gzip assets must long-cache only their current ?v= tag (else no-store) with ETag/304 on kept-alive connections');
 }
-if (!jsHandler.includes('SHOT_STOPPER_WEB_JS_GZIP') ||
-    !jsHandler.includes('application/javascript')) {
-  throw new Error('GET /app.js must serve immutable gzip JS');
-}
-if (!cssHandler.includes('SHOT_STOPPER_WEB_CSS_GZIP') ||
-    !cssHandler.includes('text/css')) {
-  throw new Error('GET /app.css must serve immutable gzip CSS');
-}
-if (!manifestHandler.includes('SHOT_STOPPER_WEB_MANIFEST_GZIP') ||
-    !manifestHandler.includes('application/manifest+json')) {
-  throw new Error('GET /manifest.webmanifest must serve the immutable gzip manifest');
-}
-if (!iconHandler.includes('SHOT_STOPPER_WEB_ICON_192_GZIP') ||
-    !iconHandler.includes('image/png')) {
-  throw new Error('GET /icons/icon-192.png must serve the immutable gzip PNG icon');
+// One exact route per WEB_ASSETS row, every row typed and only PNG rows raw;
+// the icon probe rows serve the real artwork, never a redirect.
+const assetRows = [...generatedHeader.matchAll(
+    /^    \{"([^"]+)", "([^"]+)", (\w+), \w+_LEN, (true|false)\},$/gm)];
+if (assetRows.map((row) => row[1]).join() !== webUi.ASSET_PATHS.join() ||
+    assetRows.some((row) => (row[4] === 'true') === (row[2] === 'image/png')) ||
+    webUi.ASSET_PATHS.some((assetPath) =>
+      !network.includes(`registerHandler(server_, "${assetPath}", HTTP_GET, assetHandler)`)) ||
+    (network.match(/HTTP_GET, assetHandler\)/g) || []).length !== webUi.ASSET_PATHS.length ||
+    !assetHandler.includes('strcspn(request->uri, "?")') ||
+    !assetHandler.includes("asset.path[pathLength - 1] == '*'") ||
+    !assetHandler.includes('return serveWebAsset(request, asset)') ||
+    !assetHandler.includes('return notFoundHandler(request, HTTPD_404_NOT_FOUND)') ||
+    !serveImmutable.includes('if (asset.gzip)') ||
+    assetHandler.includes('302 Found') || assetHandler.includes('Location')) {
+  throw new Error('Web assets must be served from the generated WEB_ASSETS table on exact routes');
 }
 if (network.includes('logoHandler') || network.includes('SHOT_STOPPER_WEB_LOGO')) {
   throw new Error('Firmware must not serve /logo.svg');
-}
-if (!browserIconHandler.includes('SHOT_STOPPER_WEB_ICON_48_GZIP') ||
-    !browserIconHandler.includes('SHOT_STOPPER_WEB_ICON_192_GZIP') ||
-    !browserIconHandler.includes('serveImmutableGzip') ||
-    !browserIconHandler.includes('image/png') ||
-    browserIconHandler.includes('STATUS_NO_CONTENT') ||
-    browserIconHandler.includes('302 Found') ||
-    browserIconHandler.includes('Location')) {
-  throw new Error('Icon probe paths must serve the real PNG artwork through the immutable gzip contract and must not 302 to /');
 }
 if (!notFoundHandler.includes('302 Found') ||
     !notFoundHandler.includes('Location') ||
@@ -1773,10 +1725,10 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
 }
 
 console.log(
-  `Embedded Web UI: modules+partials valid, ${htmlBytes} bytes HTML / ${jsBytes} bytes JS source, ` +
+  `Embedded Web UI: modules valid, ${htmlBytes} bytes HTML / ${jsBytes} bytes JS source, ` +
   `${generated.gzip.length} bytes shell gzip, ${generated.jsGzip.length} bytes app.js gzip, ` +
   `${generated.runtimeGzip.length} bytes runtime gzip, ${generated.otaImageGzip.length} bytes OTA image gzip, ` +
-  `${generated.secondaryGzip.length} bytes secondary gzip, ` +
+  `view modules ${Object.entries(generated.moduleGzip).map(([f, b]) => f + ' ' + b.length).join(', ')} bytes gzip, ` +
   `${generated.cssGzip.length} bytes CSS gzip, combined ${generated.combined} bytes gzip, ` +
   `${expected.size} routes checked`
 );
