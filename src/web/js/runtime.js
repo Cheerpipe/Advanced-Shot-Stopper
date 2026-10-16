@@ -5382,7 +5382,40 @@ function drawPresetGraph(host, m, x, readout, key) {
       host.classList.add("rvHeld");
       move(e);
     });
-    host.addEventListener("pointermove", (e) => host.hasPointerCapture(e.pointerId) && move(e));
+    // A touch that grabs the handle keeps the page still while it stays over
+    // the graph; once it leaves the graph above or below, it scrolls the page.
+    let held = 0,
+      lastY = 0;
+    host.addEventListener(
+      "touchstart",
+      (e) => {
+        const t = e.touches[0],
+          h = host.querySelector(".rvHandle")?.getBoundingClientRect();
+        held =
+          e.touches.length === 1 && h && Math.hypot(t.clientX - h.x - h.width / 2, t.clientY - h.y - h.height / 2) < 28
+            ? 1
+            : 0;
+        lastY = t.clientY;
+      },
+      { passive: true },
+    );
+    host.addEventListener(
+      "touchmove",
+      (e) => {
+        if (!held) return;
+        const y = e.touches[0].clientY,
+          r = host.getBoundingClientRect();
+        if (e.cancelable) e.preventDefault();
+        if (held === 1 && (y < r.top || y > r.bottom)) held = 2;
+        if (held === 2) window.scrollBy(0, lastY - y);
+        lastY = y;
+      },
+      { passive: false },
+    );
+    host.addEventListener(
+      "pointermove",
+      (e) => host.hasPointerCapture(e.pointerId) && (held === 2 ? host.releasePointerCapture(e.pointerId) : move(e)),
+    );
     host.addEventListener("lostpointercapture", () => host.classList.remove("rvHeld"));
     host.addEventListener("keydown", (e) => {
       const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5, PageUp: 5, PageDown: -5 }[e.key];
