@@ -23,6 +23,10 @@ struct ControlStatusFields : ScaleLinkMetrics {
   bool maintenanceLeaseActive = false;
   uint32_t maintenanceLeaseId = 0;
   uint32_t maintenanceStartedAtMs = 0;
+  // Quick Settings Duration: policy, live overrides, time left.
+  uint8_t quickRevertPolicy = 0;
+  bool quickOverridesActive = false;
+  uint32_t quickRevertRemainingMs = 0;
   uint32_t circuitElapsedMs = 0;
   RelaySafetyState safetyState = RelaySafetyState::BOOT_SAFE;
   RelaySafetyFault safetyFault = RelaySafetyFault::NONE;

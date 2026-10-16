@@ -376,7 +376,8 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     self.unlockJsonBody();
     if (!parsed)
       return sendError(request, STATUS_BAD_REQUEST, "INVALID_REQUEST",
-                       "Provide baseRevision and exactly one valid Quick Settings field.");
+                       "Provide baseRevision and exactly one valid Quick Settings field, "
+                       "revertAfter, or revertNow.");
     RecipeSnapshot recipe;
     if (self.callbacks_.copyRecipeSnapshot != nullptr)
       self.callbacks_.copyRecipeSnapshot(&recipe);
@@ -387,7 +388,8 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     command.type = WebCommandType::QUICK_SETTING;
     command.requestId = self.allocateRequestId();
     command.config = recipe.runtime;
-    command.presetAction = static_cast<uint8_t>(parsedRequest.field);
+    command.presetAction = parsedRequest.revertAction != 0
+        ? parsedRequest.revertAction : static_cast<uint8_t>(parsedRequest.field);
     command.presetId = parsedRequest.value;
     self.dataMux_.lock();
     const bool available = self.stagedPresetRequestId_ == 0;

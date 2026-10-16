@@ -806,6 +806,7 @@ void loop() {
   serviceMaintenanceCancellation();
   finishLoopPhase(LoopPhase::COMMANDS_GATE_MAINTENANCE);
   processWebCommands();
+  serviceQuickSettingsRevert();
   serviceControlCommandResult();
   serviceMaintenanceLease();
   finishLoopPhase(LoopPhase::COMMANDS_WEB);

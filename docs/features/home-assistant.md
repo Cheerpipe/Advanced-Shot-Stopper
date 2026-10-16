@@ -118,7 +118,9 @@ appears in the Web UI.
 The switches are exact mirrors of the header panel in the Web UI: a change
 from either place shows up in both, and it is temporary. Nothing is saved to
 the preset or to Settings; the change lasts until you pick another preset or
-the controller restarts, which brings back the saved values. Turning **Brew by
+the controller restarts, which brings back the saved values. If you choose a
+shorter **Duration** in the Web UI panel, such as **Next shot** or **30 min**,
+changes made from Home Assistant end at that time too. Turning **Brew by
 weight** off stops shots manually for now without changing the preset.
 No-scale BBW turning off selects `off`; turning it on restores the last
 observed non-off mode or `warn_once`. All switches are unavailable during an

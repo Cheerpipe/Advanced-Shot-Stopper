@@ -61,11 +61,10 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 [data-mode=manual] .qsIc{background:var(--in);color:var(--fg)}
 #quickTitle{display:block;font-size:1.05rem}
 #quickStatus{display:block;margin-top:.1rem;color:var(--mu);font-size:.78rem}
-.qsNote span{color:var(--mu)}
 .qsModes{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
 .qsModes button{display:grid;justify-items:start;gap:.15rem;padding:.75rem .8rem;border:1.5px solid var(--ln);border-radius:1rem;background:var(--bg);color:var(--fg);font:inherit;text-align:left;cursor:pointer}
 .qsModes .qsI{width:1.3rem;height:1.3rem;margin-bottom:.25rem;color:var(--mu)}
-.qsModes b{font-size:.92rem;font-weight:700;text-align:left}
+.qsModes b{font-size:.92rem;font-weight:700}
 .qsModes small{color:var(--mu);font-size:.72rem;line-height:1.25}
 .qsModes [aria-checked=true]{border-color:var(--ac);background:var(--pa)}
 .qsModes [aria-checked=true] :is(.qsI,b){color:var(--ac)}
@@ -83,6 +82,10 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 .qsRow.off .qsSw:after{transform:none}
 .qsRow.off .qsGi{background:var(--in);color:var(--mu)}
 .quickPanel button:disabled{cursor:default}
+.qsRev{display:grid;grid-template-columns:1.4fr repeat(4,1fr);gap:.2rem;margin-top:.5rem;padding:.2rem;border-radius:.9rem;background:var(--in)}
+.qsRev button,.qsReset{padding:.5rem 0;border:0;border-radius:.7rem;background:none;color:var(--mu);font:inherit;font-weight:700;cursor:pointer}
+.qsReset{padding:0;color:var(--ac)}
+.qsRev [aria-checked=true]{background:var(--sf);color:var(--fg)}
 .qsNote{margin:.6rem 0 0;padding:.55rem .7rem;border-radius:.7rem;background:var(--in);color:var(--mu);font-size:.76rem}
 .pageNav{display:flex;position:fixed;left:50%;bottom:max(.75rem,calc(env(safe-area-inset-bottom) + .5rem));transform:translateX(-50%);width:calc(100% - max(1.5rem,env(safe-area-inset-left) + env(safe-area-inset-right)));max-width:30rem;padding:.125rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);box-shadow:0 .3rem 1.5rem #0003;overflow:hidden;isolation:isolate}
 .pageNav a{display:flex;flex:1;align-items:center;justify-content:center;min-width:0;min-height:var(--tap);border-radius:1.5rem;color:var(--mu);text-decoration:none;font-size:.875rem;font-weight:600;white-space:nowrap}

@@ -54,6 +54,7 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
   if (brewEndIsAbandonedStart(reason) || endingRinseCycle(reason)) {
     return;
   }
+  sessionQuickSettings.shotEnded = sessionQuickSettings.mask != 0;
   const bool logEligible = shotLogEligible(reason, durationMs);
   const bool offsetAnalysis = shot.automaticBrew && !session.config.timerOnly &&
                               session.calibrationEligible;

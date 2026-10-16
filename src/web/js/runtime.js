@@ -309,12 +309,25 @@ function buildQuickSettings() {
       (k) =>
         `<button type="button" class="qsRow" role="switch" data-quick="${k}"><span class="qsGi">${quickIcon(k)}</span><span>${names[k]}</span><i class="qsSw" aria-hidden="true"></i></button>`,
     ).join("") +
-    `</div><p class="qsNote"><span class="qsW">${__WEBUI_TEXT__("runtime.quick_temporary_note")}</span><span class="qsM">${__WEBUI_TEXT__("runtime.quick_paused_note")}</span></p>`;
+    `</div><p class="qsSub">${__WEBUI_TEXT__("runtime.quick_duration")}</p>` +
+    `<div class="qsRev" role="radiogroup" aria-label="${__WEBUI_TEXT__("runtime.quick_duration")}">` +
+    QUICK_REVERT.map((k, i) => `<button type="button" role="radio" data-revert="${k}">${__WEBUI_TEXT__("runtime.quick_duration_options").split("|")[i]}</button>`).join("") +
+    `</div><p class="qsNote"><span id="quickRevertNote"></span> <button type="button" class="qsReset" id="quickRevertNow" hidden>${__WEBUI_TEXT__("runtime.quick_reset_now")}</button></p>`;
   $("headerSignals").append(panel);
   panel.addEventListener("click", (e) => {
-    const button = e.target.closest("button[data-quick]");
-    if (button && !button.disabled) setQuickSetting(button);
+    const button = e.target.closest("button");
+    if (!button || button.disabled) return;
+    if (button.dataset.quick) setQuickSetting(button);
+    else if (button.dataset.revert) putQuickSettings({ revertAfter: button.dataset.revert });
+    else if (button.id === "quickRevertNow") putQuickSettings({ revertNow: true });
   });
+}
+const QUICK_REVERT = ["next_shot", "15m", "30m", "60m", "keep"];
+function quickRevertNote(r, i) {
+  const when = r.pending && i && i < 4
+    ? __WEBUI_TEXT__("runtime.quick_revert_in").replace("{n}", Math.max(1, Math.ceil((r.remainingS || 0) / 60)))
+    : __WEBUI_TEXT__("runtime.quick_revert_when").split("|")[i];
+  return (r.pending ? __WEBUI_TEXT__("runtime.quick_revert_pending") : __WEBUI_TEXT__("runtime.quick_revert_hint")).replace("{when}", when);
 }
 let quickNoScaleMode = "warn_once",
   quickBusy = false,
@@ -348,6 +361,15 @@ function updateQuickSettings(s = quickStatus) {
     el.setAttribute("aria-checked", String(v));
     el.disabled = locked || (manual && k !== "brewByWeight");
   });
+  const r = s.quickRevert || {},
+    i = QUICK_REVERT.includes(r.after) ? QUICK_REVERT.indexOf(r.after) : 4;
+  root.querySelectorAll("[data-revert]").forEach((el) => {
+    el.setAttribute("aria-checked", String(el.dataset.revert === QUICK_REVERT[i]));
+    el.disabled = locked;
+  });
+  $("quickRevertNote").textContent = quickRevertNote(r, i);
+  $("quickRevertNow").hidden = !r.pending;
+  $("quickRevertNow").disabled = locked;
 }
 async function setQuickSetting(button) {
   const k = button.dataset.quick,
@@ -355,12 +377,16 @@ async function setQuickSetting(button) {
     value =
       k === "brewByWeight" ? button.dataset.value === "true" : k === "noScaleBbwMode" ? (on ? "off" : quickNoScaleMode) : !on;
   if (k === "brewByWeight" && on) return;
+  await putQuickSettings({ [k]: value });
+}
+async function putQuickSettings(change) {
   quickBusy = true;
+  if (change.revertAfter) quickStatus.quickRevert = { ...quickStatus.quickRevert, after: change.revertAfter };
   updateQuickSettings();
   try {
     await api("/api/v1/integration/quick-settings", {
       method: "PUT",
-      body: body({ baseRevision: configRevision, [k]: value }),
+      body: body({ baseRevision: configRevision, ...change }),
     });
   } catch (err) {
     message(err.message, "error");

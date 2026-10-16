@@ -236,6 +236,13 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         static_cast<unsigned long>(powerCooldownRemainingMs.load()));
   }
   if (ok) {
+    ok = statusJsonAppend(
+        &used, ",\"quickRevert\":{\"after\":\"%s\",\"pending\":%s,\"remainingS\":%lu}",
+        quickRevertPolicyId(control.quickRevertPolicy),
+        control.quickOverridesActive ? "true" : "false",
+        static_cast<unsigned long>((control.quickRevertRemainingMs + 999) / 1000));
+  }
+  if (ok) {
     ok = statusJsonAppend(&used, ",\"diagnosticPageVisible\":%s",
                           self.diagnosticPageEnabled() ? "true" : "false");
   }

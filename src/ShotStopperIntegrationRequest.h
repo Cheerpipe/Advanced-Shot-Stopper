@@ -12,6 +12,8 @@ struct IntegrationQuickSettingRequest {
   uint32_t baseRevision = 0;
   QuickSettingField field = QuickSettingField::BREW_BY_WEIGHT;
   uint8_t value = 0;
+  // QUICK_REVERT_*_ACTION for `revertAfter` / `revertNow`, else 0.
+  uint8_t revertAction = 0;
 };
 
 inline bool parseIntegrationQuickSettingRequest(
@@ -59,6 +61,20 @@ inline bool parseIntegrationQuickSettingRequest(
       } else {
         return false;
       }
+      matched = true;
+    }
+    if (!matched && strcmp(item->string, "revertAfter") == 0) {
+      if (!cJSON_IsString(item) || item->valuestring == nullptr) return false;
+      for (uint8_t policy = 0; policy < QUICK_REVERT_POLICY_COUNT && !matched; ++policy) {
+        matched = strcmp(item->valuestring, QUICK_REVERT_POLICY_IDS[policy]) == 0;
+        output.value = policy;
+      }
+      if (!matched) return false;
+      output.revertAction = QUICK_REVERT_POLICY_ACTION;
+    }
+    if (!matched && strcmp(item->string, "revertNow") == 0) {
+      if (!cJSON_IsTrue(item)) return false;
+      output.revertAction = QUICK_REVERT_NOW_ACTION;
       matched = true;
     }
     if (!matched || ++selected != 1) return false;

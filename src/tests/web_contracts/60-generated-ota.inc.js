@@ -519,8 +519,10 @@ if (generated.jsGzip.length > 6260) {
 // owner-authorized 2026-10-14.
 // Folding the Stats card details behind Show more measures 13717 bytes;
 // owner-authorized 2026-10-15.
-if (generated.cssGzip.length > 13750) {
-  throw new Error(`Compressed Web CSS exceeds the 13750-byte gzip budget (${generated.cssGzip.length})`);
+// The Quick Settings Duration selector and Reset now measure 13797 bytes;
+// owner-authorized 2026-10-16.
+if (generated.cssGzip.length > 13800) {
+  throw new Error(`Compressed Web CSS exceeds the 13800-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -631,8 +633,9 @@ if (generated.cssGzip.length > 13750) {
 // Folding the Stats card details behind Show more brings the runtime to 59286 compressed bytes; owner-authorized 2026-10-15.
 // The Stats arrival-time density curve brings the runtime to 59356 compressed bytes; owner-authorized 2026-10-16.
 // The fast-to-slow Stats card fold with fading details and charts brings the runtime to 59457 compressed bytes; owner-authorized 2026-10-15.
-if (sentinelRuntimeGzip.length > 59500) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 59500-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Quick Settings Duration selector and revert note bring the runtime to 59524 compressed bytes; owner-authorized 2026-10-16.
+if (sentinelRuntimeGzip.length > 59550) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 59550-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

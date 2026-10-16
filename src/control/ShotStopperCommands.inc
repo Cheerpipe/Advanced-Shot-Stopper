@@ -39,6 +39,29 @@ uint32_t shotStatisticsEpochNow() {
   return shotLog.nextRecordId();
 }
 
+// Commits a session-only Quick Settings change: live and announced, never saved.
+void commitSessionQuickSettings(RuntimeConfig candidate) {
+  candidate.revision = runtimeConfig.revision + 1;
+  if (candidate.revision == 0) candidate.revision = 1;
+  commitLiveRuntimeConfig(candidate, 0);
+  queueWebhookQuickSettingsChanged();
+}
+
+// Drops every session override and restores the saved values.
+void revertSessionQuickSettings() {
+  if (sessionQuickSettings.mask == 0) return;
+  const RuntimeConfig saved = overlaySessionQuickSettings(sessionQuickSettings, runtimeConfig, true);
+  sessionQuickSettings.mask = 0;
+  commitSessionQuickSettings(saved);
+}
+
+// Runs the Duration revert here so it happens with no Web UI open. A due
+// revert waits until no cycle is active and the relay is open.
+void serviceQuickSettingsRevert() {
+  if (!session.active && !getRelaySafetySnapshot().closed && quickRevertDue(sessionQuickSettings, millis()))
+    revertSessionQuickSettings();
+}
+
 void processWebCommand(const WebCommand &command) {
   if (firmwareCompatibilityMode() &&
       webCommandBlockedInCompatibilityMode(command.type)) {
@@ -308,14 +331,20 @@ void processWebCommand(const WebCommand &command) {
         return;
       }
       const auto quickField = static_cast<QuickSettingField>(command.presetAction);
-      if (quickField > QuickSettingField::CUP_PROTECTION ||
-          command.presetId > (quickField == QuickSettingField::NO_SCALE_BBW_MODE
-                                  ? static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE)
-                                  : 1)) {
+      if (command.presetAction == QUICK_REVERT_NOW_ACTION) {
+        revertSessionQuickSettings();
+      } else if (command.presetAction == QUICK_REVERT_POLICY_ACTION &&
+                 command.presetId < QUICK_REVERT_POLICY_COUNT) {
+        sessionQuickSettings.revertPolicy = static_cast<QuickRevertPolicy>(command.presetId);
+        sessionQuickSettings.changedAtMs = millis();
+        sessionQuickSettings.shotEnded = false;
+      } else if (quickField > QuickSettingField::CUP_PROTECTION ||
+                 command.presetId > (quickField == QuickSettingField::NO_SCALE_BBW_MODE
+                                         ? static_cast<uint8_t>(NoScaleBbwMode::REQUIRE_SCALE)
+                                         : 1)) {
         rejectWebCommand(command);
         return;
-      }
-      if (quickSettingValue(runtimeConfig, quickField) != command.presetId) {
+      } else if (quickSettingValue(runtimeConfig, quickField) != command.presetId) {
         RuntimeConfig candidate = runtimeConfig;
         SessionQuickSettings session = sessionQuickSettings;
         setSessionQuickSetting(session, presetBank.activeId, candidate, quickField,
@@ -324,11 +353,10 @@ void processWebCommand(const WebCommand &command) {
           rejectWebCommand(command);
           return;
         }
+        session.changedAtMs = millis();
+        session.shotEnded = false;
         sessionQuickSettings = session;
-        candidate.revision = runtimeConfig.revision + 1;
-        if (candidate.revision == 0) candidate.revision = 1;
-        commitLiveRuntimeConfig(candidate, 0);
-        queueWebhookQuickSettingsChanged();
+        commitSessionQuickSettings(candidate);
       }
       // Nothing to save: the change is complete once it is live.
       reportControlCommandResult(command, CommandResultState::PERSISTED);

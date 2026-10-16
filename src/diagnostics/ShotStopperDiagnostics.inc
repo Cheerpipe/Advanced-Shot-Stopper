@@ -229,6 +229,9 @@ void publishControlStatus() {
   next.maintenanceLeaseId = maintenanceLease.active ? maintenanceLease.id : 0;
   next.maintenanceStartedAtMs =
       maintenanceLease.active ? maintenanceLease.startedAtMs : 0;
+  next.quickRevertPolicy = static_cast<uint8_t>(sessionQuickSettings.revertPolicy);
+  next.quickOverridesActive = sessionQuickSettings.mask != 0;
+  next.quickRevertRemainingMs = quickRevertRemainingMs(sessionQuickSettings, millis());
   next.safetyState = relay.state;
   next.safetyFault = relay.fault;
   next.safetyGeneration = relay.generation;

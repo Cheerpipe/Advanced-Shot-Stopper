@@ -58,10 +58,23 @@ up into the six guard icons, so you can see at a glance which one is off.
 Tap either icon to open the panel. There you can switch between **By weight**
 and **Manual**, and turn each guard on or off. These changes are temporary:
 they apply to your next shots right away but are never saved to the preset or
-to Settings. Picking another preset or restarting the controller brings back
-your saved values. Home Assistant shows and changes the same switches, so both
-always agree. The panel can't be used during a shot, and the guards are paused
-while shots stop manually.
+to Settings. Picking another preset or restarting the controller always brings
+back your saved values. Home Assistant shows and changes the same switches, so
+both always agree. The panel can't be used during a shot, and the guards are
+paused while shots stop manually.
+
+**Duration** chooses when your changes undo themselves:
+
+- **Next shot**: after the next shot you pull. Rinses don't count.
+- **15 min**, **30 min**, or **1 h**: that long after your last change. Every
+  new change starts the countdown again, and everything goes back together.
+- **Keep** (the default): until you pick another preset or restart.
+
+The note at the bottom of the panel tells you when your changes end, and
+**Reset now** brings back the preset's settings straight away. The controller
+keeps time on its own, so this works even when no browser is open. If the time
+runs out during a shot, the settings change back once the shot ends. Your
+Duration choice returns to **Keep** after a restart.
 
 | Setting | Group | Default | Range | Effect on the shot |
 | --- | --- | --- | --- | --- |

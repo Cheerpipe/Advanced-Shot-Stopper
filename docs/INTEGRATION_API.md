@@ -190,11 +190,19 @@ Requires `baseRevision` plus exactly one setting. Boolean settings are
 `fastExtractionGuardEnabled`, `avoidAccidentalTouchEnabled`, and
 `cupProtectionEnabled`; `noScaleBbwMode` accepts `off`, `warn_once`, or
 `require_scale`. Extra, duplicate, or incorrectly typed fields are rejected.
+Instead of a setting, the single field may be `revertAfter` (`next_shot`,
+`15m`, `30m`, `60m`, or `keep`) to choose how long overrides last, or
+`revertNow: true` to drop every override at once.
 
 These are the same session-only overrides as the Web UI header panel. A change
 applies to the next shot immediately and is never written to flash, a preset,
 or the shared settings: it lasts until the active preset changes or the
-controller restarts, which restores the saved values. `brewByWeight=false`
+controller restarts, which restores the saved values. `revertAfter` can end it
+sooner: after the next shot that ends (rinses and abandoned starts excluded),
+or 15, 30, or 60 minutes after the last override change, each change restarting
+one shared timer. The controller performs the revert itself, waits for an
+active cycle to end and the relay to open, and then emits
+`quick_settings_changed`. The policy is RAM-only and returns to `keep` at boot. `brewByWeight=false`
 stops shots manually for now without changing the preset. Snapshots and
 webhooks report the effective values, overrides included, so the Web UI and
 every integration show the same state. Overrides are refused during an active

@@ -73,15 +73,45 @@ constexpr uint8_t QUICK_SETTING_FIELD_COUNT =
   }
 }
 
+// How long session overrides last (Web UI "Duration"). One timer covers every
+// override and restarts on each change; KEEP waits for a preset change or reboot.
+enum class QuickRevertPolicy : uint8_t { NEXT_SHOT, MINUTES_15, MINUTES_30, MINUTES_60, KEEP };
+constexpr uint8_t QUICK_REVERT_POLICY_COUNT = static_cast<uint8_t>(QuickRevertPolicy::KEEP) + 1;
+constexpr const char *QUICK_REVERT_POLICY_IDS[QUICK_REVERT_POLICY_COUNT] = {
+    "next_shot", "15m", "30m", "60m", "keep"};
+inline const char *quickRevertPolicyId(uint8_t policy) {
+  return QUICK_REVERT_POLICY_IDS[policy < QUICK_REVERT_POLICY_COUNT ? policy : QUICK_REVERT_POLICY_COUNT - 1];
+}
+// Quick Settings command actions past the fields: set the policy, revert now.
+constexpr uint8_t QUICK_REVERT_POLICY_ACTION = 0x80;
+constexpr uint8_t QUICK_REVERT_NOW_ACTION = 0x81;
+
 // Quick Settings changed for this session only. RAM-resident, never persisted:
-// a preset change or reboot drops them. `saved` holds the persisted value each
-// override hides, so persistence and Settings edits never see the override.
+// the revert policy, a preset change, or a reboot drops them. `saved` holds the
+// persisted value each override hides, so persistence and Settings edits never
+// see the override.
 struct SessionQuickSettings {
   uint8_t mask = 0;
   uint8_t presetId = 0;
   uint8_t value[QUICK_SETTING_FIELD_COUNT] = {};
   uint8_t saved[QUICK_SETTING_FIELD_COUNT] = {};
+  QuickRevertPolicy revertPolicy = QuickRevertPolicy::KEEP;
+  uint32_t changedAtMs = 0;
+  bool shotEnded = false;
 };
+
+inline uint32_t quickRevertRemainingMs(const SessionQuickSettings &session, uint32_t nowMs) {
+  static constexpr uint8_t minutes[QUICK_REVERT_POLICY_COUNT] = {0, 15, 30, 60, 0};
+  const uint32_t delayMs = minutes[static_cast<uint8_t>(session.revertPolicy)] * 60000UL;
+  const uint32_t elapsed = nowMs - session.changedAtMs;
+  return session.mask == 0 || delayMs == 0 || elapsed >= delayMs ? 0 : delayMs - elapsed;
+}
+
+inline bool quickRevertDue(const SessionQuickSettings &session, uint32_t nowMs) {
+  if (session.mask == 0 || session.revertPolicy == QuickRevertPolicy::KEEP) return false;
+  return session.revertPolicy == QuickRevertPolicy::NEXT_SHOT ? session.shotEnded
+                                                               : quickRevertRemainingMs(session, nowMs) == 0;
+}
 
 // Brew by weight and the fast/slow sides belong to the active preset; the
 // other fields are device settings.

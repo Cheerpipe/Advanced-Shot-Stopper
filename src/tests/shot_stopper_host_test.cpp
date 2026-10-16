@@ -13756,6 +13756,79 @@ void hq01_quick_settings_are_session_only() {
   CHECK(runtimeConfig.noScaleBbwMode == saved.noScaleBbwMode);
 }
 
+void hq02_quick_settings_revert_after_duration() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  const RuntimeConfig saved = runtimeConfig;
+  uint32_t requestId = 300;
+  const auto quick = [&](uint8_t action, uint8_t value) {
+    WebCommand command;
+    command.type = WebCommandType::QUICK_SETTING;
+    command.requestId = requestId++;
+    command.config.revision = runtimeConfig.revision;
+    command.presetAction = action;
+    command.presetId = value;
+    processWebCommand(command);
+    CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::PERSISTED);
+  };
+  const auto policy = [&](QuickRevertPolicy value) {
+    quick(QUICK_REVERT_POLICY_ACTION, static_cast<uint8_t>(value));
+  };
+  const auto toggle = [&](QuickSettingField field) {
+    quick(static_cast<uint8_t>(field), !quickSettingValue(runtimeConfig, field));
+  };
+  const auto restored = [&]() {
+    return sessionQuickSettings.mask == 0 &&
+           runtimeConfig.scaleLossEnabled == saved.scaleLossEnabled &&
+           runtimeConfig.avoidAccidentalTouchEnabled == saved.avoidAccidentalTouchEnabled;
+  };
+  const uint32_t minute = 60000;
+
+  // One shared timer, restarted by every change, reverts everything together.
+  policy(QuickRevertPolicy::MINUTES_15);
+  toggle(QuickSettingField::AUTO_TO_MANUAL_GUARD);
+  runLoopAfter(10 * minute);
+  toggle(QuickSettingField::AVOID_ACCIDENTAL_TOUCH);
+  runLoopAfter(10 * minute);
+  CHECK(sessionQuickSettings.mask != 0);
+  CHECK(quickRevertRemainingMs(sessionQuickSettings, hostMillis) == 5 * minute);
+  const uint32_t webhooks = hostQuickSettingsWebhookCount;
+  runLoopAfter(5 * minute);
+  CHECK(restored());
+  CHECK(hostQuickSettingsWebhookCount == webhooks + 1);
+  CHECK(quickRevertRemainingMs(sessionQuickSettings, hostMillis) == 0);
+
+  // Keep has no timer; Reset now reverts at once.
+  policy(QuickRevertPolicy::KEEP);
+  toggle(QuickSettingField::AUTO_TO_MANUAL_GUARD);
+  runLoopAfter(61 * minute);
+  CHECK(sessionQuickSettings.mask != 0);
+  quick(QUICK_REVERT_NOW_ACTION, 0);
+  CHECK(restored());
+
+  // A due revert waits for the cycle to end.
+  policy(QuickRevertPolicy::MINUTES_15);
+  toggle(QuickSettingField::AUTO_TO_MANUAL_GUARD);
+  runLoopAfter(15 * minute - 1000);
+  uint32_t rawOnAtMs = startCycle();
+  runLoopAfter(2000);
+  CHECK(session.active && sessionQuickSettings.mask != 0);
+  releaseAtPhysicalDuration(rawOnAtMs, 20000);
+  CHECK(!session.active && restored());
+
+  // Next shot reverts once a shot made after the change ends.
+  policy(QuickRevertPolicy::NEXT_SHOT);
+  toggle(QuickSettingField::AUTO_TO_MANUAL_GUARD);
+  runLoopAfter(61 * minute);
+  CHECK(sessionQuickSettings.mask != 0);
+  rawOnAtMs = startCycle();
+  runLoopAfter(2000);
+  CHECK(sessionQuickSettings.mask != 0);
+  releaseAtPhysicalDuration(rawOnAtMs, 20000);
+  CHECK(restored());
+  CHECK(sessionQuickSettings.revertPolicy == QuickRevertPolicy::NEXT_SHOT);
+}
+
 void s20_last_good_shot_advances_independently() {
   resetHarness(false, false);
   PersistedLastShot good = {};
@@ -21467,6 +21540,7 @@ const TestCase testCases[] = {
     {"W90c", w90c_preset_temperature_presence_and_learning_invalidation},
     {"W87c", w87c_runtime_persist_io_backoff_is_bounded_and_resets},
     {"HQ01", hq01_quick_settings_are_session_only},
+    {"HQ02", hq02_quick_settings_revert_after_duration},
     {"S03", s03_shot_log_clear_empties_records},
     {"S03B", s03b_good_shot_records_stats_and_history},
     {"S03C", s03c_short_activation_is_other_in_history_only},

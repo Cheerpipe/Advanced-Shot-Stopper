@@ -60,7 +60,15 @@ void valid_quick_settings_map_exactly() {
     CHECK(request.baseRevision == 7);
     CHECK(request.field == item.field);
     CHECK(request.value == item.value);
+    CHECK(request.revertAction == 0);
   }
+  IntegrationQuickSettingRequest revert;
+  CHECK(parse(R"({"baseRevision":7,"revertAfter":"30m"})", revert));
+  CHECK(revert.revertAction == QUICK_REVERT_POLICY_ACTION);
+  CHECK(revert.value == static_cast<uint8_t>(QuickRevertPolicy::MINUTES_30));
+  IntegrationQuickSettingRequest now;
+  CHECK(parse(R"({"baseRevision":7,"revertNow":true})", now));
+  CHECK(now.revertAction == QUICK_REVERT_NOW_ACTION);
 }
 
 void malformed_quick_settings_fail_closed() {
@@ -78,6 +86,10 @@ void malformed_quick_settings_fail_closed() {
       R"({"baseRevision":7,"cupProtectionEnabled":1})",
       R"({"baseRevision":7,"noScaleBbwMode":"invalid"})",
       R"({"baseRevision":7,"noScaleBbwMode":false})",
+      R"({"baseRevision":7,"revertAfter":"2h"})",
+      R"({"baseRevision":7,"revertAfter":15})",
+      R"({"baseRevision":7,"revertNow":false})",
+      R"({"baseRevision":7,"revertNow":true,"revertAfter":"keep"})",
       "[]",
       "null",
   };
