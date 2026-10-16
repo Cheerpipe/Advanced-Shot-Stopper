@@ -188,8 +188,9 @@ static_assert(CONTROL_STATUS_REFRESH_WAIT_MS >= 20U &&
 // ---------------------------------------------------------------------------
 
 constexpr size_t EEPROM_SIZE = 2;
-static_assert(MAX_SHOT_DATAPOINTS >= WEIGHT_TREND_POINT_COUNT,
-              "Shot trajectory must hold the weight-trend window");
+static_assert(MAX_SHOT_DATAPOINTS * 0.1f >
+                  ACCIDENTAL_TOUCH_REFERENCE_LAG_S + ACCIDENTAL_TOUCH_FLOW_WINDOW_S,
+              "Shot trajectory must span the touch reference window at 10 Hz");
 static_assert(SHOT_CURVE_MAX_POINTS == 1201,
               "ControlStatusSnapshot shotCurveWeightCg must match sampler");
 
@@ -299,7 +300,9 @@ struct CycleSession {
   bool accidentalTouchHolding = false;
   TouchStopEvidence touchStop = {};
   uint8_t accidentalTouchPendingCount = 0;
-  float accidentalTouchPendingG[ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES] = {};
+  float accidentalTouchPendingG[ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES] = {};  // residuals
+  uint32_t accidentalTouchHeldSinceMs = 0;
+  float accidentalTouchEpochS = 0.0f;  // trend start: last accepted level shift
 };
 
 struct PendingShotFinalize {
@@ -1202,6 +1205,7 @@ void resetAccidentalTouchState() {
   session.accidentalTouchClass = AccidentalTouchClass::OK;
   session.accidentalTouchHolding = false;
   session.accidentalTouchPendingCount = 0;
+  session.accidentalTouchEpochS = 0.0f;
 }
 
 void resetWeightTrend() {

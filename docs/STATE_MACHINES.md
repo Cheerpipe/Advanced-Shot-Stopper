@@ -648,7 +648,7 @@ command-completion diagnostic.
 
 **Purpose.** Hold automatic **weight stop** if the pan is being poked,
 without ending the shot. Complements BBW protection (time window) with
-a live rate/residual check.
+a live residual check against the accepted flow trend.
 
 Source: `OpenBrewByWeightScaleTypes.h`. Only runs while weight control is
 `ACTIVE` and the setting is on. A step large enough to trip the slew guard
@@ -658,28 +658,41 @@ classified here as a step (heavy and light touches share the hold/fallback
 path) instead of being accepted as a new plateau. Recovery from `SUSPENDED`
 re-anchors at the recovered level.
 
+Each sample is judged by its **residual** against the accepted trend:
+`residual = w − (w_ref + m · (t − t_ref))`. The reference is the newest
+accepted point at least 0.5 s older than the anchor (last accepted sample),
+so it moves only when the anchor does: held samples never drag it. The flow
+`m` is the secant of the accepted points over the second ending at the
+reference (with younger history, the secant up to the newest point; never
+negative). Neither reaches behind the last accepted level shift. A sample is
+anomalous at `|residual| ≥ 1.5 g`; once holding it stays anomalous down to
+1.0 g (hysteresis). An empty trajectory (pre-cycle anchor) is never judged.
+When a hold begins, the anchor's own sample leaves the trend if it was already
+1.0 g or more off it in the same direction: a contact's leading edge cannot
+later become the reference for clean flow.
+
 ### States (`AccidentalTouchPhase`)
 
 | State | Meaning |
 | --- | --- |
-| `STARTUP` | Early in the trajectory: large delta vs last accepted sample vs a high rate limit. |
-| `TREND` | Enough points to fit a slope; residual vs expected line plus rate. |
+| `STARTUP` | No accepted point is yet 0.5 s older than the anchor (start of shot or right after a level shift): the anchor is the reference. |
+| `TREND` | A lagged reference exists; it stays frozen while a hold lasts. |
 
 ### Classes
 
 | Class | Meaning |
 | --- | --- |
 | `OK` | Sample looks like brew flow. Stop logic may run. |
-| `TOUCH` | Anomalous spike; **hold** cuts (`accidentalTouchHolding`). A flat plateau 5 g or more from the anchor stays `TOUCH` (a resting load, not a spurt). |
-| `SUSTAINED` | Three anomalous samples within 1 g of each other and less than 5 g from the anchor: a spurt-sized step accepted as weight. The cycle becomes ineligible for offset learning. Above the cut line, with the touch fallback effective, it is reclassified `TOUCH` and counts as fallback evidence instead of allowing a direct cut. |
+| `TOUCH` | Anomalous sample; **hold** cuts (`accidentalTouchHolding`). It is not accepted into the trajectory. A plateau 5 g or more off the trend stays `TOUCH` (a resting load, not a spurt). |
+| `SUSTAINED` | An accepted level shift: ten held residuals within 1 g of each other and under 5 g (one second of a flat offset riding on the flow), or any hold that reaches 2.5 s. The sample is accepted as weight, starts a new trend epoch and curve segment, and the cycle becomes ineligible for offset learning. Above the cut line, with the touch fallback effective, it is reclassified `TOUCH` and counts as fallback evidence instead of allowing a direct cut. |
 
 While holding, a sample above the cut line also stays `TOUCH` when the touch
 fallback is effective, so a hold never releases into a direct cut there; it
 releases when the reading returns below the line. Below the line (or with the
-fallback off) a hold can also release by rate dilution: the classifier measures
-the step against the last accepted sample, so as time passes its implied rate
-falls under the limits and the held level is accepted as weight (seconds for a
-10 g load at 1.5 g/s flow).
+fallback off) a hold releases when the reading returns within 1.0 g of the
+trend, or as `SUSTAINED` after the bounded 2.5 s hold, so held mass that never
+lifts is accepted as weight and can still end the shot instead of letting the
+cup overflow.
 
 The default-on, per-preset `touchStopFallbackEnabled` option is effective only
 with `avoidAccidentalTouchEnabled`. It does not modify this classifier. A

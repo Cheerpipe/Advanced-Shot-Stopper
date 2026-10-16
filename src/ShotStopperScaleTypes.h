@@ -345,19 +345,18 @@ inline bool plausibleSettledBrewWeight(float candidateG, float lastKnownG,
   }
   return candidateG >= lastKnownG - MAX_RECOVERY_WEIGHT_DROP_G;
 }
-constexpr size_t WEIGHT_TREND_POINT_COUNT = 10;
-constexpr float WEIGHT_TREND_MIN_LAST_SAMPLE_G = 10.0f;
+// The touch reference lags the anchor so a contact cannot drag it; flow is
+// the secant of the accepted second ending at the reference.
+constexpr float ACCIDENTAL_TOUCH_REFERENCE_LAG_S = 0.5f;
+constexpr float ACCIDENTAL_TOUCH_FLOW_WINDOW_S = 1.0f;
+constexpr float ACCIDENTAL_TOUCH_MIN_FLOW_SPAN_S = 0.2f;
 constexpr float ACCIDENTAL_TOUCH_RESIDUAL_G = 1.5f;
-constexpr float ACCIDENTAL_TOUCH_STARTUP_MIN_DELTA_G = 2.0f;
-constexpr float ACCIDENTAL_TOUCH_STARTUP_MAX_RATE_G_S = 8.0f;
-constexpr float ACCIDENTAL_TOUCH_TREND_MIN_RATE_G_S = 3.0f;
-constexpr float ACCIDENTAL_TOUCH_RATE_FACTOR = 3.0f;
-constexpr float ACCIDENTAL_TOUCH_MIN_SLOPE_G_S = 0.2f;
+constexpr float ACCIDENTAL_TOUCH_HOLD_RESIDUAL_G = 1.0f;
+constexpr uint32_t ACCIDENTAL_TOUCH_MAX_HOLD_MS = 2500;
 constexpr float ACCIDENTAL_TOUCH_SUSTAINED_SPAN_G = 1.0f;
-// A flat plateau this far from the anchor is a resting load, never a spurt.
+// A flat plateau this far from the trend is a resting load, never a spurt.
 constexpr float ACCIDENTAL_TOUCH_SUSTAINED_MAX_DELTA_G = 5.0f;
-constexpr uint8_t ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES = 3;
-constexpr size_t ACCIDENTAL_TOUCH_RATE_WINDOW = 4;
+constexpr uint8_t ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES = 10;
 
 // Sliding window for brew-by-weight prediction. Keep this tiny and in
 // internal RAM — do not allocate on heap or PSRAM on the weight path.
@@ -784,175 +783,81 @@ inline const char *weightControlStateName(WeightControlState state) {
   return "UNKNOWN";
 }
 
-struct WeightTrendFit {
-  bool valid = false;
-  float slope = 0.0f;
-  // Intercept is the fitted weight at referenceS, not at t=0.
-  float intercept = 0.0f;
-  float referenceS = 0.0f;
+struct AccidentalTouchResidual {
+  bool frozen = false;  // A lagged reference exists (TREND phase).
+  float residualG = 0.0f;
 };
 
-inline WeightTrendFit fitWeightTrend(const float *timeS, const float *weightG,
-                                     size_t datapoints) {
-  WeightTrendFit fit;
-  if (timeS == nullptr || weightG == nullptr ||
-      datapoints < WEIGHT_TREND_POINT_COUNT) {
-    return fit;
-  }
-  if (weightG[datapoints - 1] < WEIGHT_TREND_MIN_LAST_SAMPLE_G) {
-    return fit;
-  }
-
-  // Center time on the newest sample: raw shot times (~60 s) would burn
-  // float precision in the cross products below.
-  fit.referenceS = timeS[datapoints - 1];
-  float sumXY = 0.0f;
-  float sumX = 0.0f;
-  float sumY = 0.0f;
-  float sumSquaredX = 0.0f;
-  const size_t first = datapoints - WEIGHT_TREND_POINT_COUNT;
-  for (size_t i = first; i < datapoints; ++i) {
-    if (!std::isfinite(timeS[i]) || !std::isfinite(weightG[i])) {
-      return fit;
+// Residual of a candidate against the accepted trend since the last level
+// shift (epochS). The reference is the newest accepted point at least
+// REFERENCE_LAG_S older than the anchor, so it moves only with the anchor and
+// held samples never shift it; until one exists the anchor is the reference.
+// An empty trajectory (pre-cycle anchor) carries no trend: residual 0.
+inline AccidentalTouchResidual accidentalTouchResidual(
+    const float *timeS, const float *weightG, size_t datapoints, float epochS,
+    float anchorG, float anchorS, float weight, float nowS) {
+  AccidentalTouchResidual out;
+  if (timeS == nullptr || weightG == nullptr || datapoints == 0) return out;
+  const size_t newest = datapoints - 1U;
+  size_t first = newest;
+  while (first > 0 && timeS[first - 1U] >= epochS) --first;
+  size_t end = newest;
+  float refG = anchorG;
+  float refS = anchorS;
+  for (size_t i = datapoints; i-- > first;) {
+    if (timeS[i] <= anchorS - ACCIDENTAL_TOUCH_REFERENCE_LAG_S) {
+      out.frozen = true;
+      end = i;
+      refG = weightG[i];
+      refS = timeS[i];
+      break;
     }
-    const float t = timeS[i] - fit.referenceS;
-    sumXY += t * weightG[i];
-    sumX += t;
-    sumY += weightG[i];
-    sumSquaredX += t * t;
   }
-
-  const float n = static_cast<float>(WEIGHT_TREND_POINT_COUNT);
-  const float denominator = n * sumSquaredX - sumX * sumX;
-  if (fabsf(denominator) < 0.000001f) {
-    return fit;
+  size_t lo = end;
+  while (lo > first &&
+         timeS[lo - 1U] >= timeS[end] - ACCIDENTAL_TOUCH_FLOW_WINDOW_S) {
+    --lo;
   }
-
-  const float slope = (n * sumXY - sumX * sumY) / denominator;
-  if (slope <= 0.0f || !std::isfinite(slope)) {
-    return fit;
-  }
-
-  const float meanX = sumX / n;
-  const float meanY = sumY / n;
-  fit.slope = slope;
-  fit.intercept = meanY - slope * meanX;
-  fit.valid = std::isfinite(fit.intercept);
-  return fit;
-}
-
-inline bool accidentalTouchTrendReady(const float *timeS, const float *weightG,
-                                      size_t datapoints) {
-  return fitWeightTrend(timeS, weightG, datapoints).valid;
-}
-
-inline float accidentalTouchMedianControlRate(const float *timeS,
-                                              const float *weightG,
-                                              size_t datapoints) {
-  if (timeS == nullptr || weightG == nullptr || datapoints < 4) {
-    return 0.0f;
-  }
-  float rates[ACCIDENTAL_TOUCH_RATE_WINDOW];
-  size_t count = 0;
-  const size_t first =
-      datapoints > ACCIDENTAL_TOUCH_RATE_WINDOW
-          ? datapoints - ACCIDENTAL_TOUCH_RATE_WINDOW
-          : 1U;
-  for (size_t i = first; i < datapoints && count < ACCIDENTAL_TOUCH_RATE_WINDOW;
-       ++i) {
-    if (!std::isfinite(timeS[i]) || !std::isfinite(timeS[i - 1]) ||
-        !std::isfinite(weightG[i]) || !std::isfinite(weightG[i - 1])) {
-      continue;
-    }
-    float dt = timeS[i] - timeS[i - 1];
-    if (dt <= 0.0f) {
-      dt = 0.001f;
-    }
-    rates[count++] = (weightG[i] - weightG[i - 1]) / dt;
-  }
-  if (count < 3) {
-    return 0.0f;
-  }
-  for (size_t i = 1; i < count; ++i) {
-    const float value = rates[i];
-    size_t j = i;
-    while (j > 0 && rates[j - 1] > value) {
-      rates[j] = rates[j - 1];
-      --j;
-    }
-    rates[j] = value;
-  }
-  if ((count % 2U) == 1U) {
-    return rates[count / 2U];
-  }
-  return 0.5f * (rates[count / 2U - 1U] + rates[count / 2U]);
+  // Young or sparse history: the only flow evidence reaches the newest point.
+  if (timeS[end] - timeS[lo] < ACCIDENTAL_TOUCH_MIN_FLOW_SPAN_S) end = newest;
+  const float span = timeS[end] - timeS[lo];
+  const float flow = span >= ACCIDENTAL_TOUCH_MIN_FLOW_SPAN_S
+                         ? fmaxf((weightG[end] - weightG[lo]) / span, 0.0f)
+                         : 0.0f;
+  out.residualG = weight - (refG + flow * (nowS - refS));
+  return out;
 }
 
 // TOUCH holds the direct weight-stop law (automaticScaleStopDue); only the
 // touch fallback, calibration-ineligible, may end the shot from a hold. A
-// SUSTAINED spurt-sized plateau is accepted as weight but never trains
-// learning, and the stopper treats one above the cut line as touch evidence:
-// a finger resting on the platform must never stop the machine through its
-// own mass. Host tests pin this.
+// hold releases on returning to the trend (hysteresis), as a SUSTAINED level
+// shift once its residual stays flat for SUSTAINED_SAMPLES, or as SUSTAINED
+// after MAX_HOLD_MS so held mass below the cut line still ends the shot. A
+// SUSTAINED shift is accepted as weight but never trains learning, and the
+// stopper treats one above the cut line as touch evidence: a finger resting
+// on the platform must never stop the machine through its own mass. Host
+// tests pin this.
 inline AccidentalTouchClass classifyAccidentalTouch(
-    AccidentalTouchPhase phase, const float *timeS, const float *weightG,
-    size_t datapoints, float weight, float timeSNow, bool hasAnchor,
-    float lastAcceptedWeightG, float lastAcceptedTimeS,
-    const float *pendingTouchG, uint8_t pendingTouchCount) {
-  if (!hasAnchor || !std::isfinite(weight) || !std::isfinite(timeSNow) ||
-      !std::isfinite(lastAcceptedWeightG) || !std::isfinite(lastAcceptedTimeS)) {
+    float residualG, bool holding, uint32_t heldMs,
+    const float *pendingResidualG, uint8_t pendingCount) {
+  if (!std::isfinite(residualG) ||
+      fabsf(residualG) < (holding ? ACCIDENTAL_TOUCH_HOLD_RESIDUAL_G
+                                  : ACCIDENTAL_TOUCH_RESIDUAL_G)) {
     return AccidentalTouchClass::OK;
   }
-
-  float dt = timeSNow - lastAcceptedTimeS;
-  if (dt <= 0.0f) {
-    dt = 0.001f;
+  if (holding && heldMs >= ACCIDENTAL_TOUCH_MAX_HOLD_MS) {
+    return AccidentalTouchClass::SUSTAINED;
   }
-  const float delta = weight - lastAcceptedWeightG;
-  const float instantRate = delta / dt;
-  const float medianRate =
-      accidentalTouchMedianControlRate(timeS, weightG, datapoints);
-  const float startupLimit = fmaxf(
-      ACCIDENTAL_TOUCH_STARTUP_MAX_RATE_G_S,
-      ACCIDENTAL_TOUCH_RATE_FACTOR * fmaxf(medianRate, 0.0f));
-  const bool startupTouch =
-      fabsf(delta) >= ACCIDENTAL_TOUCH_STARTUP_MIN_DELTA_G &&
-      fabsf(instantRate) > startupLimit;
-
-  bool anomalous = startupTouch;
-  const WeightTrendFit fit = fitWeightTrend(timeS, weightG, datapoints);
-  if (phase == AccidentalTouchPhase::TREND && fit.valid) {
-    const float expected =
-        fit.intercept + fit.slope * (timeSNow - fit.referenceS);
-    const float residual = weight - expected;
-    const float trendLimit = fmaxf(
-        ACCIDENTAL_TOUCH_TREND_MIN_RATE_G_S,
-        ACCIDENTAL_TOUCH_RATE_FACTOR *
-            fmaxf(fit.slope, ACCIDENTAL_TOUCH_MIN_SLOPE_G_S));
-    anomalous =
-        (residual > ACCIDENTAL_TOUCH_RESIDUAL_G && instantRate > trendLimit) ||
-        (residual < -ACCIDENTAL_TOUCH_RESIDUAL_G && instantRate < -trendLimit);
+  float lo = residualG;
+  float hi = residualG;
+  for (uint8_t i = 0; pendingResidualG != nullptr && i < pendingCount; ++i) {
+    lo = fminf(lo, pendingResidualG[i]);
+    hi = fmaxf(hi, pendingResidualG[i]);
   }
-
-  if (!anomalous) {
-    return AccidentalTouchClass::OK;
-  }
-
-  float lo = weight;
-  float hi = weight;
-  if (pendingTouchG != nullptr) {
-    for (uint8_t i = 0; i < pendingTouchCount; ++i) {
-      if (!std::isfinite(pendingTouchG[i])) {
-        continue;
-      }
-      lo = fminf(lo, pendingTouchG[i]);
-      hi = fmaxf(hi, pendingTouchG[i]);
-    }
-  }
-  if (static_cast<uint8_t>(pendingTouchCount + 1U) >=
+  if (static_cast<uint8_t>(pendingCount + 1U) >=
           ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES &&
       (hi - lo) <= ACCIDENTAL_TOUCH_SUSTAINED_SPAN_G &&
-      fabsf(delta) < ACCIDENTAL_TOUCH_SUSTAINED_MAX_DELTA_G) {
+      fabsf(residualG) < ACCIDENTAL_TOUCH_SUSTAINED_MAX_DELTA_G) {
     return AccidentalTouchClass::SUSTAINED;
   }
   return AccidentalTouchClass::TOUCH;

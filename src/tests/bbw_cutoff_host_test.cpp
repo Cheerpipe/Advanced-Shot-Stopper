@@ -164,35 +164,6 @@ int main() {
     decoded.header.schemaVersion = 5;
     assert(!validShotLogStore(decoded));
   }
-  // Reference-relative fitWeightTrend must agree with the exact absolute-time
-  // regression on shot-scale times (~60 s) within 0.01 g at every probe.
-  {
-    float t[WEIGHT_TREND_POINT_COUNT], w[WEIGHT_TREND_POINT_COUNT];
-    for (size_t i = 0; i < WEIGHT_TREND_POINT_COUNT; ++i) {
-      t[i] = 55.0f + 0.45f * static_cast<float>(i);
-      w[i] = 20.0f + 1.7f * (t[i] - 55.0f) + 0.05f * std::sin(static_cast<float>(i));
-    }
-    w[WEIGHT_TREND_POINT_COUNT - 1] = 28.6f;  // Last-sample gate passes.
-    const WeightTrendFit fit = fitWeightTrend(t, w, WEIGHT_TREND_POINT_COUNT);
-    assert(fit.valid);
-    assert(fabsf(fit.referenceS - t[WEIGHT_TREND_POINT_COUNT - 1]) < 1e-6f);
-    double sx = 0, sy = 0, sxx = 0, sxy = 0;
-    const double n = static_cast<double>(WEIGHT_TREND_POINT_COUNT);
-    for (size_t i = 0; i < WEIGHT_TREND_POINT_COUNT; ++i) {
-      sx += t[i];
-      sy += w[i];
-      sxx += static_cast<double>(t[i]) * t[i];
-      sxy += static_cast<double>(t[i]) * w[i];
-    }
-    const double slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
-    const double intercept = sy / n - slope * (sx / n);
-    for (float probe : {55.0f, 57.5f, 59.1f, 60.0f}) {
-      const double expectedG = intercept + slope * probe;
-      const float gotG = fit.intercept + fit.slope * (probe - fit.referenceS);
-      assert(std::fabs(gotG - expectedG) < 0.01);
-    }
-  }
-
   // The per-protocol sensor-lag priors must keep reproducing the flat
   // Single/Double seed magnitudes from reference-pair flows; a table edit
   // that breaks this invalidates the documented seed policy.

@@ -205,7 +205,8 @@ void considerTouchStopSample(float weight, uint32_t atMs, uint32_t sequence,
       static_cast<uint8_t>(continuous ? (previous.samples < 3 ? previous.samples + 1 : 3) : 1)};
 }
 
-void noteAccidentalTouchClass(AccidentalTouchClass classified, float weight) {
+void noteAccidentalTouchClass(AccidentalTouchClass classified, float weight,
+                              float residualG, uint32_t atMs) {
   const bool wasHolding = session.accidentalTouchHolding;
   session.accidentalTouchClass = classified;
   if (classified == AccidentalTouchClass::TOUCH) {
@@ -213,15 +214,16 @@ void noteAccidentalTouchClass(AccidentalTouchClass classified, float weight) {
     if (session.accidentalTouchPendingCount <
         ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES) {
       session.accidentalTouchPendingG[session.accidentalTouchPendingCount++] =
-          weight;
+          residualG;
     } else {
       memmove(&session.accidentalTouchPendingG[0],
               &session.accidentalTouchPendingG[1],
               (ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES - 1U) * sizeof(float));
       session.accidentalTouchPendingG[ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES - 1U] =
-          weight;
+          residualG;
     }
     if (!wasHolding) {
+      session.accidentalTouchHeldSinceMs = atMs;
       addDebugEvent(DebugCategory::SCALE, DebugCode::ACCIDENTAL_TOUCH_HOLD,
                     weightToCentigrams(weight));
       scaleProfileNoteEvent(ScaleProfileEvent::TOUCH_HOLD, millis(), 0, 0,
@@ -233,6 +235,10 @@ void noteAccidentalTouchClass(AccidentalTouchClass classified, float weight) {
   session.accidentalTouchHolding = false;
   session.accidentalTouchPendingCount = 0;
   if (classified == AccidentalTouchClass::SUSTAINED) {
+    // An accepted level shift starts a new trend epoch and a curve segment.
+    session.accidentalTouchEpochS =
+        static_cast<int32_t>(atMs - shot.startMs) / 1000.0f;
+    shotCurveSampler.markBreak();
     session.calibrationEligible = false;
     addDebugEvent(DebugCategory::SCALE, DebugCode::ACCIDENTAL_TOUCH_SUSTAINED,
                   weightToCentigrams(weight));
@@ -246,29 +252,29 @@ void noteAccidentalTouchClass(AccidentalTouchClass classified, float weight) {
   }
 }
 
-void maybeHandoffAccidentalTouchPhase() {
-  if (session.accidentalTouchPhase != AccidentalTouchPhase::STARTUP) {
-    return;
-  }
-  if (!accidentalTouchTrendReady(shot.timeS, shot.weight, shot.datapoints)) {
-    return;
-  }
-  session.accidentalTouchPhase = AccidentalTouchPhase::TREND;
-  addDebugEvent(DebugCategory::SCALE, DebugCode::ACCIDENTAL_TOUCH_HANDOFF,
-                static_cast<int32_t>(shot.datapoints));
-}
-
 AccidentalTouchClass evaluateAccidentalTouchSample(float weight,
                                                    uint32_t receivedAtMs) {
-  maybeHandoffAccidentalTouchPhase();
   const float nowS =
       static_cast<int32_t>(receivedAtMs - shot.startMs) / 1000.0f;
   const float lastS =
       static_cast<int32_t>(session.lastAcceptedWeightAtMs - shot.startMs) /
       1000.0f;
+  const AccidentalTouchResidual trend = accidentalTouchResidual(
+      shot.timeS, shot.weight, session.hasWeightAnchor ? shot.datapoints : 0,
+      session.accidentalTouchEpochS, session.lastAcceptedWeightG, lastS, weight,
+      nowS);
+  const AccidentalTouchPhase phase = trend.frozen
+                                         ? AccidentalTouchPhase::TREND
+                                         : AccidentalTouchPhase::STARTUP;
+  if (phase == AccidentalTouchPhase::TREND &&
+      session.accidentalTouchPhase == AccidentalTouchPhase::STARTUP) {
+    addDebugEvent(DebugCategory::SCALE, DebugCode::ACCIDENTAL_TOUCH_HANDOFF,
+                  static_cast<int32_t>(shot.datapoints));
+  }
+  session.accidentalTouchPhase = phase;
   AccidentalTouchClass classified = classifyAccidentalTouch(
-      session.accidentalTouchPhase, shot.timeS, shot.weight, shot.datapoints,
-      weight, nowS, session.hasWeightAnchor, session.lastAcceptedWeightG, lastS,
+      trend.residualG, session.accidentalTouchHolding,
+      receivedAtMs - session.accidentalTouchHeldSinceMs,
       session.accidentalTouchPendingG, session.accidentalTouchPendingCount);
   // With the touch fallback on, a plateau or a hold above the cut line stays
   // touch evidence (labelled fallback) instead of releasing into a direct cut.
@@ -279,7 +285,21 @@ AccidentalTouchClass evaluateAccidentalTouchSample(float weight,
     touchStopPolicy(threshold, receivedAtMs);
     if (weight >= threshold) classified = AccidentalTouchClass::TOUCH;
   }
-  noteAccidentalTouchClass(classified, weight);
+  // A contact's leading edge may slip under the gate one sample early; keep
+  // it out of the trend so it can never become the reference for clean flow.
+  if (classified == AccidentalTouchClass::TOUCH &&
+      !session.accidentalTouchHolding && shot.datapoints > 0 &&
+      shot.timeS[shot.datapoints - 1U] == lastS) {
+    const float edgeG = accidentalTouchResidual(
+        shot.timeS, shot.weight, shot.datapoints, session.accidentalTouchEpochS,
+        session.lastAcceptedWeightG, lastS, session.lastAcceptedWeightG,
+        lastS).residualG;
+    if (edgeG * trend.residualG > 0.0f &&
+        fabsf(edgeG) >= ACCIDENTAL_TOUCH_HOLD_RESIDUAL_G) {
+      --shot.datapoints;
+    }
+  }
+  noteAccidentalTouchClass(classified, weight, trend.residualG, receivedAtMs);
   return classified;
 }
 

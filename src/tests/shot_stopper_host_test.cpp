@@ -7751,7 +7751,7 @@ void r29_direct_threshold_stops_before_regression_is_ready() {
   startCycle();
   advanceToBrew();
   endBbwProtectionForTests();
-  CHECK(shot.datapoints < WEIGHT_TREND_POINT_COUNT);
+  CHECK(shot.expectedEndS == NO_CUT_PREDICTION_S);
   const float threshold = effectiveStopThreshold();
   publishWeight(threshold + 0.1f);
   CHECK(getRelaySafetySnapshot().closed);
@@ -17865,8 +17865,12 @@ void at14_touch_fallback_respects_inhibitions_and_rollover() {
     if (scenario == 3) stopperState = StopperState::MANUAL_NO_SCALE;
     if (scenario == 4) session.awaitingPostTareBaseline = true;
     if (scenario == 5) machineCyclePaddleMode = static_cast<uint8_t>(PaddleMode::ORIGINAL);
-    for (unsigned i = 0; i <= 10; ++i)
+    for (unsigned i = 0; i <= 10; ++i) {
+      // A pending baseline is consumed by its first plausible sample; keep it
+      // pending so the whole held burst runs under the inhibition.
+      if (scenario == 4) session.awaitingPostTareBaseline = true;
       publishWeight(40.0f + 2.0f * i, hostMillis + 100);
+    }
     CHECK(session.touchStop.samples == 0);
     CHECK(session.endReason == EndReason::NONE);
   }
@@ -17876,6 +17880,9 @@ void at14_touch_fallback_respects_inhibitions_and_rollover() {
   shot.startMs = session.startedAtMs;
   resetWeightTrend();
   session.lastAcceptedWeightAtMs = hostMillis;
+  hostMillis += 100;
+  markScaleWorkerProgress();
+  publishWeight(session.lastAcceptedWeightG);  // Re-seed the rebased trend.
   for (unsigned i = 0; i <= 10; ++i) {
     hostMillis += 100;
     markScaleWorkerProgress();
@@ -18104,38 +18111,51 @@ void ff15_orchestrate_post_tare_holds_cup_transitions() {
 }
 
 void at01_classifier_startup_and_trend_math() {
-  float times[WEIGHT_TREND_POINT_COUNT];
-  float weights[WEIGHT_TREND_POINT_COUNT];
-  for (size_t i = 0; i < WEIGHT_TREND_POINT_COUNT; ++i) {
-    times[i] = static_cast<float>(i + 1);
-    weights[i] = static_cast<float>(i + 1) * 2.0f;
+  // 1.5 g/s from 10 g sampled at 10 Hz; the anchor is the newest point.
+  float times[20];
+  float weights[20];
+  for (size_t i = 0; i < 20; ++i) {
+    times[i] = 0.1f * static_cast<float>(i);
+    weights[i] = 10.0f + 1.5f * times[i];
   }
-  CHECK(accidentalTouchTrendReady(times, weights, WEIGHT_TREND_POINT_COUNT));
-  CHECK(classifyAccidentalTouch(AccidentalTouchPhase::STARTUP, times, weights, 2,
-                               5.2f, 1.1f, true, 5.0f, 1.0f, nullptr, 0) ==
+  auto residual = [&](size_t n, float epochS, float weight, float nowS) {
+    return accidentalTouchResidual(times, weights, n, epochS, weights[n - 1],
+                                   times[n - 1], weight, nowS);
+  };
+  AccidentalTouchResidual r = residual(20, 0.0f, 13.0f, 2.0f);
+  CHECK(r.frozen && fabsf(r.residualG) < 0.01f);
+  CHECK(fabsf(residual(20, 0.0f, 16.0f, 2.0f).residualG - 3.0f) < 0.01f);
+  CHECK(fabsf(residual(20, 0.0f, 11.0f, 2.0f).residualG + 2.0f) < 0.01f);
+  r = residual(3, 0.0f, 10.45f, 0.3f);  // Young: flow from the whole history.
+  CHECK(!r.frozen && fabsf(r.residualG) < 0.01f);
+  CHECK(!residual(20, 1.55f, 13.0f, 2.0f).frozen);  // Level shift at 1.55 s.
+  r = accidentalTouchResidual(times, weights, 0, 0.0f, 0.0f, -0.3f, 2.0f, 0.0f);
+  CHECK(!r.frozen && r.residualG == 0.0f);  // Pre-cycle anchor: no trend.
+
+  CHECK(classifyAccidentalTouch(1.4f, false, 0, nullptr, 0) ==
         AccidentalTouchClass::OK);
-  CHECK(classifyAccidentalTouch(AccidentalTouchPhase::STARTUP, times, weights, 2,
-                               13.0f, 1.1f, true, 5.0f, 1.0f, nullptr, 0) ==
+  CHECK(classifyAccidentalTouch(1.5f, false, 0, nullptr, 0) ==
         AccidentalTouchClass::TOUCH);
-  const float pending[2] = {13.0f, 13.1f};
-  CHECK(classifyAccidentalTouch(AccidentalTouchPhase::STARTUP, times, weights, 2,
-                               13.2f, 1.3f, true, 5.0f, 1.0f, pending, 2) ==
-        AccidentalTouchClass::TOUCH);  // A flat 8 g load is a resting touch.
-  const float spurt[2] = {9.0f, 9.1f};
-  CHECK(classifyAccidentalTouch(AccidentalTouchPhase::STARTUP, times, weights, 2,
-                               9.2f, 1.3f, true, 5.0f, 1.0f, spurt, 2) ==
-        AccidentalTouchClass::SUSTAINED);
-  CHECK(classifyAccidentalTouch(
-            AccidentalTouchPhase::TREND, times, weights,
-            WEIGHT_TREND_POINT_COUNT, 20.2f, 10.1f, true, 20.0f, 10.0f, nullptr,
-            0) == AccidentalTouchClass::OK);
-  CHECK(classifyAccidentalTouch(
-            AccidentalTouchPhase::TREND, times, weights,
-            WEIGHT_TREND_POINT_COUNT, 28.0f, 10.1f, true, 20.0f, 10.0f, nullptr,
-            0) == AccidentalTouchClass::TOUCH);
-  CHECK(classifyAccidentalTouch(AccidentalTouchPhase::STARTUP, times, weights, 2,
-                               7.0f, 0.2f, true, 5.0f, -0.1f, nullptr, 0) ==
+  CHECK(classifyAccidentalTouch(-1.5f, false, 0, nullptr, 0) ==
+        AccidentalTouchClass::TOUCH);
+  CHECK(classifyAccidentalTouch(1.2f, true, 300, nullptr, 0) ==
+        AccidentalTouchClass::TOUCH);  // Hysteresis keeps the hold.
+  CHECK(classifyAccidentalTouch(0.9f, true, 300, nullptr, 0) ==
         AccidentalTouchClass::OK);
+  CHECK(classifyAccidentalTouch(28.0f, true, ACCIDENTAL_TOUCH_MAX_HOLD_MS,
+                                nullptr, 0) == AccidentalTouchClass::SUSTAINED);
+  float flat[ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES - 1U];
+  for (float &value : flat) value = 3.0f;
+  CHECK(classifyAccidentalTouch(3.2f, true, 900, flat, 8) ==
+        AccidentalTouchClass::TOUCH);
+  CHECK(classifyAccidentalTouch(3.2f, true, 900, flat, 9) ==
+        AccidentalTouchClass::SUSTAINED);
+  flat[0] = 4.5f;  // Not flat: still a contact.
+  CHECK(classifyAccidentalTouch(3.2f, true, 900, flat, 9) ==
+        AccidentalTouchClass::TOUCH);
+  for (float &value : flat) value = 8.0f;  // A flat resting load.
+  CHECK(classifyAccidentalTouch(8.0f, true, 900, flat, 9) ==
+        AccidentalTouchClass::TOUCH);
 }
 
 void at02_early_spike_skips_control_trajectory() {
@@ -18179,7 +18199,7 @@ void at03_late_spike_does_not_cut_then_recovers() {
   CHECK(session.endReason == EndReason::NONE);
   CHECK(session.accidentalTouchHolding);
   hostMillis += 100;
-  publishWeight(20.2f);
+  publishWeight(21.5f);  // Back on the 5 g/s trend.
   CHECK(!session.accidentalTouchHolding);
   CHECK(stopperState == StopperState::BREW);
 }
@@ -18372,6 +18392,7 @@ void at11_pre_cycle_anchor_does_not_treat_first_pour_as_touch() {
   session.hasWeightAnchor = true;
   session.lastAcceptedWeightG = 0.0f;
   session.lastAcceptedWeightAtMs = session.startedAtMs - ACTIVATOR_DEBOUNCE_MS;
+  shot.datapoints = 0;  // The anchor predates the cycle's trajectory.
   hostMillis += 300;
   publishWeight(2.0f);
   CHECK(!session.accidentalTouchHolding);
@@ -18725,23 +18746,92 @@ void at20_resting_load_under_flow_stays_held() {
   CHECK(session.active);
 }
 
+size_t shotCurveBreakCount() {
+  size_t breaks = 0;
+  for (size_t i = 1; i < shotCurveSampler.count; ++i)
+    breaks += (shotCurveSampler.breakBefore[i / 8U] >> (i % 8U)) & 1U;
+  return breaks;
+}
+
+// Feeds a contact on top of a steady flow: `profile` holds the extra grams of
+// each 100 ms sample, followed by ten samples `tailG` off the trend.
+struct HandContactResult {
+  int leakedSamples;     // accepted more than 0.3 g above the trend
+  float worstLeakG;
+  bool anchorMovedWhileHeld;
+  size_t breaks;
+};
+
+HandContactResult runHandContact(float cupG, float flowGS, const float *profile,
+                                 size_t profileCount, float tailG = 0.0f) {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  enableAccidentalTouchForTest();
+  mutableActiveShotPreset(presetBank).goalWeightDg = 1000;
+  runtimeConfig.goalWeightDg = 1000;
+  startCycle();
+  advanceToBrew();
+  endBbwProtectionForTests();
+  const float step = flowGS * 0.1f;
+  publishControlRamp(step, cupG, step, 100, 10);
+  HandContactResult result = {0, 0.0f, false, 0};
+  CHECK_VALUE(session.accidentalTouchPhase == AccidentalTouchPhase::TREND, result);
+  CHECK_VALUE(session.calibrationEligible, result);
+  const float base = session.lastAcceptedWeightG;
+  const uint32_t baseAtMs = session.lastAcceptedWeightAtMs;
+  const size_t breaksBefore = shotCurveBreakCount();
+  for (size_t i = 1; i <= profileCount + 10U; ++i) {
+    const float trendG = base + step * static_cast<float>(i);
+    const float extraG = i <= profileCount ? profile[i - 1U] : tailG;
+    const uint32_t anchorAtMs = session.lastAcceptedWeightAtMs;
+    const float expectedEnd = shot.expectedEndS;
+    const bool wasHolding = session.accidentalTouchHolding;
+    hostMillis += 100;
+    markScaleWorkerProgress();
+    publishWeight(trendG + extraG);
+    loop();
+    CHECK_VALUE(stopperState == StopperState::BREW, result);
+    if (session.lastAcceptedWeightAtMs != anchorAtMs) {
+      const float acceptedTrendG =
+          base + flowGS * (session.lastAcceptedWeightAtMs - baseAtMs) / 1000.0f;
+      const float leakG = session.lastAcceptedWeightG - acceptedTrendG;
+      if (fabsf(leakG) > 0.3f) ++result.leakedSamples;
+      result.worstLeakG = fmaxf(result.worstLeakG, fabsf(leakG));
+    } else if (wasHolding &&
+               fabsf(shot.expectedEndS - expectedEnd) > 0.001f) {
+      result.anchorMovedWhileHeld = true;
+    }
+  }
+  CHECK_VALUE(!session.accidentalTouchHolding, result);
+  result.breaks = shotCurveBreakCount() - breaksBefore;
+  return result;
+}
+
 void at21_spurt_plateau_is_accepted_without_learning() {
+  // A persistent +3 g step riding on the flow is a real level shift: it is
+  // accepted after a one-second flat residual, calibration-ineligible.
   startSlowFlowForTouch(100.0f);
   CHECK(session.calibrationEligible);
   const float base = session.lastAcceptedWeightG;
+  const size_t breaksBefore = shotCurveBreakCount();
   uint32_t seq = session.lastAcceptedPacketSequence;
-  for (int i = 0; i < 3; ++i) publishSequencedWeight(base + 3.0f, seq);
+  for (int i = 1; i < ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES; ++i) {
+    publishSequencedWeight(base + 3.0f + 0.15f * i, seq);
+    CHECK(session.accidentalTouchHolding);
+  }
+  publishSequencedWeight(base + 3.0f + 0.15f * ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES,
+                         seq);
   CHECK(session.accidentalTouchClass == AccidentalTouchClass::SUSTAINED);
   CHECK(!session.accidentalTouchHolding);
-  CHECK(fabsf(session.lastAcceptedWeightG - (base + 3.0f)) < 0.01f);
+  CHECK(fabsf(session.lastAcceptedWeightG - (base + 4.5f)) < 0.01f);
   CHECK(!session.calibrationEligible);
+  CHECK(shotCurveBreakCount() == breaksBefore + 1U);  // A new segment.
 }
 
-void at22_held_touch_below_line_releases_by_rate_dilution() {
-  // Below the cut line a touch that never lifts is eventually accepted as
-  // weight once its rate from the last accepted sample looks like flow;
-  // the direct law can then stop on it, so the extra mass ends the shot
-  // early rather than letting it overflow.
+void at22_held_touch_below_line_releases_after_bounded_hold() {
+  // Below the cut line a touch that never lifts is accepted as weight once
+  // the hold reaches its bound; the direct law can then stop on it, so the
+  // extra mass ends the shot early rather than letting it overflow.
   startSlowFlowForTouch(100.0f);
   const float base = session.lastAcceptedWeightG;
   uint32_t seq = session.lastAcceptedPacketSequence;
@@ -18750,8 +18840,61 @@ void at22_held_touch_below_line_releases_by_rate_dilution() {
     publishSequencedWeight(base + 10.0f + 0.15f * i, seq);
     if (!session.accidentalTouchHolding) releasedAt = i;
   }
-  CHECK(releasedAt > 10 && releasedAt <= 60);
+  CHECK(releasedAt == ACCIDENTAL_TOUCH_MAX_HOLD_MS / 100 + 1);
+  CHECK(session.accidentalTouchClass == AccidentalTouchClass::SUSTAINED);
   CHECK(session.lastAcceptedWeightG > base + 10.0f);
+  CHECK(!session.calibrationEligible);
+}
+
+void at23_hand_contact_is_absorbed_at_low_and_high_cup_weight() {
+  // +3 g rising over two samples, resting 0.5 s, released: neither a 4 g cup
+  // on a 0.4 g/s shot nor a 20 g cup at 1.5 g/s may take the contact as flow.
+  // Only the leading sample can reach the gate (+1.5 g), and nothing after it.
+  const float contact[] = {1.5f, 3.0f, 3.0f, 3.0f, 3.0f, 3.0f, 3.0f, 1.5f};
+  const float shotShapes[2][2] = {{4.0f, 0.4f}, {20.0f, 1.5f}};
+  for (const auto &shape : shotShapes) {
+    const HandContactResult r = runHandContact(shape[0], shape[1], contact, 8);
+    CHECK(r.leakedSamples <= 1);
+    CHECK(r.worstLeakG <= ACCIDENTAL_TOUCH_RESIDUAL_G + 0.01f);
+    CHECK(!r.anchorMovedWhileHeld);
+    CHECK(r.breaks == 0);
+    CHECK(session.calibrationEligible);
+  }
+  // A leading edge just under the gate is accepted once, but kept out of the
+  // trend: it must not later pose as the reference and hold clean flow.
+  const float edge[] = {1.4f, 3.0f, 3.0f, 3.0f, 3.0f, 3.0f, 3.0f, 1.5f};
+  const HandContactResult edged = runHandContact(4.0f, 0.4f, edge, 8);
+  CHECK(edged.leakedSamples == 1);
+  CHECK(edged.breaks == 0);
+  CHECK(session.calibrationEligible);
+  // A step rising in one sample is held from its first sample.
+  const float sharp[] = {3.0f, 3.0f, 3.0f, 3.0f, 3.0f, 3.0f};
+  const HandContactResult r = runHandContact(4.0f, 0.4f, sharp, 6);
+  CHECK(r.leakedSamples == 0);
+  CHECK(r.breaks == 0);
+}
+
+void at24_ramped_contact_and_lift_are_held() {
+  // +1 g per sample (10 g/s) is no espresso flow: held once 1.5 g off trend.
+  const float ramp[] = {1.0f, 2.0f, 3.0f, 3.0f, 3.0f, 1.5f};
+  HandContactResult r = runHandContact(4.0f, 0.4f, ramp, 6);
+  CHECK(r.leakedSamples <= 1);
+  CHECK(r.worstLeakG < ACCIDENTAL_TOUCH_RESIDUAL_G);
+  CHECK(!r.anchorMovedWhileHeld);
+  // Lifting the chilling ball briefly: -2 g held, resumes on the trend.
+  const float lift[] = {-2.0f, -2.0f, -2.0f, -2.0f, -2.0f};
+  r = runHandContact(4.0f, 0.4f, lift, 5);
+  CHECK(r.leakedSamples == 0);
+  CHECK(r.breaks == 0);
+}
+
+void at25_real_spurt_is_accepted_as_flow() {
+  // A +1.4 g spurt over 0.2 s stays under the gate: accepted sample by sample.
+  const float spurt[] = {0.7f};
+  const HandContactResult r = runHandContact(20.0f, 1.5f, spurt, 1, 1.4f);
+  CHECK(r.breaks == 0);
+  CHECK(session.accidentalTouchClass == AccidentalTouchClass::OK);
+  CHECK(session.calibrationEligible);
 }
 
 void tr04_light_cup_pre_effect_packet_recovers() {
@@ -21106,7 +21249,10 @@ const TestCase testCases[] = {
     {"AT19", at19_late_cup_step_held},
     {"AT20", at20_resting_load_under_flow_stays_held},
     {"AT21", at21_spurt_plateau_is_accepted_without_learning},
-    {"AT22", at22_held_touch_below_line_releases_by_rate_dilution},
+    {"AT22", at22_held_touch_below_line_releases_after_bounded_hold},
+    {"AT23", at23_hand_contact_is_absorbed_at_low_and_high_cup_weight},
+    {"AT24", at24_ramped_contact_and_lift_are_held},
+    {"AT25", at25_real_spurt_is_accepted_as_flow},
     {"TR01", tr01_failed_start_tare_uses_software_zero},
     {"TR02", tr02_late_zero_after_grace_is_ignored},
     {"TR03", tr03_failed_start_tare_cup_lift_stops},
