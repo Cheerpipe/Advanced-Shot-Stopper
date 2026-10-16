@@ -1279,6 +1279,7 @@ if (!statsSection ||
         syncTimezone: () => {}, checkFirmwareReload: () => {}, applyMachineTypeUi() {}, applyDiagnosticNavigation() {},
         applyCommonStatus: () => events.push('state'),
         applyShotPage: (data, mode) => {context.shotsLoaded = true; events.push('records:' + mode);},
+        scheduleShotPaint() {},
         renderShots: () => events.push('render:' + context.controlsMutable),
         updateHeaderSignals() {}, updateFirmwareFooter() {}, noteReachOk() {},
         __WEBUI_TEXT__: key => key});
@@ -1386,7 +1387,6 @@ if (!statsSection ||
         applyCommonStatus: () => events.push('state'),
         applyHistoryPage: (data, mode) => {context.historyLoaded = true; events.push('records:' + mode);},
         renderHistory: () => events.push('render:' + context.controlsMutable),
-        scheduleShotPaint() {},
         updateHeaderSignals() {}, updateFirmwareFooter() {}, noteReachOk() {},
         __WEBUI_TEXT__: key => key});
       const stream = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function historyStreamFrame('),

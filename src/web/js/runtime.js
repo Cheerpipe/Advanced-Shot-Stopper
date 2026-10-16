@@ -6542,7 +6542,6 @@ function applyHistoryStream(message) {
     },
     mode,
   );
-  scheduleShotPaint(); // The hero draws its preset from these records.
   historyStreamBoot = message.boot;
   historyStreamEpoch = message.epoch;
   historyFetchOffset = -1;
@@ -6789,6 +6788,7 @@ function applyStatsStream(message) {
     },
     page.mode,
   );
+  scheduleShotPaint(); // The hero draws its preset from these records.
   // The model updates on every view; only the hidden view's DOM work and
   // reachability signal wait until Stats is actually open.
   if (shotStatsViewActive()) {
@@ -7065,7 +7065,7 @@ function heroTint(d, m, kind, el, noScale) {
 }
 // A finished shot draws its own preset snapshot, from the history record.
 function heroShotRule(id) {
-  const r = historyData.records.find((x) => x.id === id);
+  const r = shotHistory.shots.find((x) => x.id === id);
   return r ? shotRuleModel(r) : null;
 }
 // Curve, cut line and window; overlays use CSSOM (the CSP blocks inline styles).

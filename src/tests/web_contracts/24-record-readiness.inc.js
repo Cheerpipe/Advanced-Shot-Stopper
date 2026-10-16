@@ -29,6 +29,7 @@
       shotsLoaded: false, historyLoaded: false, historyExportWindow: null,
       applyCommonStatus() {},
       applyShotPage: () => { context.shotsLoaded = true; applied.push('stats'); },
+      scheduleShotPaint() {},
       applyHistoryPage: () => { context.historyLoaded = true; applied.push('history'); },
       renderShots: () => applied.push('render-stats'), renderHistory: () => applied.push('render-history'),
       updateFirmwareFooter() {}, noteReachOk() {},

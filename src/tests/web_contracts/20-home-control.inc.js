@@ -167,13 +167,13 @@
   const rule={mode:'active',t1:27,t2:36,prot:3,wall:60,d:5,ceil:38.5};
   const env={liveRuleModel:null};
   const paint=(d)=>new Function('$','buildShotSparkModel','formatShotEnded','ms','localStorage','document',
-    'liveRuleModel','historyData','shotRuleModel','scheduleShotPaint','heroFastState',
+    'liveRuleModel','shotHistory','shotRuleModel','scheduleShotPaint','heroFastState',
     blockAt(runtimeJs,'function verdictLabel(')+
     runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function shotPresetName('))
       .replace('let heroFast = { el: 0, since: -1, on: false };','let heroFast = heroFastState.v;')+
     ';const r=renderShotHero(arguments[11]);heroFastState.v=heroFast;return r;')(lookup,()=>null,()=>'',
       (v,n)=>(v/1000).toFixed(n),{getItem:()=>tintMode,setItem(){}},{createElement:()=>({})},
-      env.liveRuleModel,{records:[]},()=>null,()=>{},fast,d);
+      env.liveRuleModel,{shots:[]},()=>null,()=>{},fast,d);
   const fast={v:{el:0,since:-1,on:false}};
   const card={live:true,weight:2,goal:36,elapsedMs:1000,firstDropMs:0,tareMs:null,averageFlowGps:null,shotType:'auto'};
   const heroEl=()=>lookup('shotHero');

@@ -141,11 +141,11 @@
       return qwElements.get(id);
     };
     const qwPaint = new Function('$', 'buildShotSparkModel', 'formatShotEnded', 'ms', 'localStorage',
-      'document', 'liveRuleModel', 'historyData', 'shotRuleModel',
+      'document', 'liveRuleModel', 'shotHistory', 'shotRuleModel',
       blockAt(runtimeJs, 'function verdictLabel(') + runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),
           runtimeJs.indexOf('function shotPresetName(')) + ';return renderShotHero;')(
         qwLookup, () => null, () => '', (v, n) => (v / 1000).toFixed(n), {getItem: () => null},
-        {createElement: () => ({})}, null, {records: []}, () => null);
+        {createElement: () => ({})}, null, {shots: []}, () => null);
     const qwCard = {live: false, weight: 36.2, goal: 36, elapsedMs: 36800,
       firstDropMs: null, averageFlowGps: null, presetName: 'Espresso'};
     qwPaint(qwCard);
