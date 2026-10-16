@@ -50,7 +50,9 @@ resolve the same way, so adding or removing a mockup never requires a
 server change.
 
 The preview does not connect to a device or change its settings; the
-values it shows are illustrative. Mockups and assets created for the
+values it shows are illustrative. The header's **How shots stop** icons and
+panel run against a small simulated controller in the page, so you can try
+the mode and guard switches; reloading starts over. Mockups and assets created for the
 preview are development resources, not product files: they must not
 generate commits, documentation updates, or tests, and they never ship in
 firmware assets. Bringing a finished design into the product is a

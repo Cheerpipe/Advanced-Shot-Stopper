@@ -50,11 +50,32 @@ function renderHome() {
       .replace(/__FW_VERSION__/g, 'design-preview');
 }
 
+// Header signals and Quick Settings run against an in-memory controller: the
+// preview never connects to a device, so writes only change these values.
+const PREVIEW_HEADER_PRELUDE = `window.$ ??= id => document.getElementById(id);
+let controlsMutable = true, configRevision = 1;
+const previewStatus = {config: {revision: 1, brewByWeight: true, noScaleBbwMode: 'warn_once',
+  fastExtractionGuardEnabled: true, slowExtractionGuardEnabled: true, autoToManualGuardEnabled: true,
+  avoidAccidentalTouchEnabled: true, cupProtectionEnabled: true}};
+const body = values => JSON.stringify(values), message = text => console.info(text);
+async function api(path, options) {
+  const {baseRevision, ...change} = JSON.parse(options.body);
+  Object.assign(previewStatus.config, change, {revision: (configRevision = baseRevision + 1)});
+  setTimeout(() => updateQuickSettings(structuredClone(previewStatus)));
+}
+// Runs even if an optional webui-mockups/header.js fixture throws.
+document.addEventListener('DOMContentLoaded', () => {
+  if (!document.getElementById('quickPanel')) initHeaderSignals();
+  updateQuickSettings(structuredClone(previewStatus));
+});
+`;
+
 function renderSignals() {
   const runtime = read('src/web/js/runtime.js');
-  const content = runtime.slice(runtime.indexOf('function updateHeaderSignals('),
-      runtime.indexOf('\nlet homeBootDone=')).replace(/^export /gm, '');
-  return renderSources([{file: 'src/web/js/runtime.js', type: 'js', content}],
+  const start = runtime.indexOf('function updateHeaderSignals('), end = runtime.search(/^let homeBootDone\b/m);
+  if (start < 0 || end < start) throw new Error('runtime.js header signal block not found');
+  const content = runtime.slice(start, end).replace(/^export /gm, '');
+  return PREVIEW_HEADER_PRELUDE + renderSources([{file: 'src/web/js/runtime.js', type: 'js', content}],
       {language: 'en', allowUnused: true}).sources[0].content;
 }
 
@@ -113,7 +134,7 @@ function createServer() {
       const body = micraScript ? renderMicraScript() : micra ? renderMicra() : mobileMenu ? renderMobileMenu()
           : signals ? renderSignals() + (mockup('header.js') ? '\n' + mockup('header.js') : '')
           : appCss ? read('src/web/app.css') : file ? fs.readFileSync(file[0]) : renderHome();
-      res.writeHead(200, {'Content-Type': micraScript ? 'text/javascript' : appCss ? 'text/css'
+      res.writeHead(200, {'Content-Type': micraScript || signals ? 'text/javascript' : appCss ? 'text/css'
           : file ? file[1] : 'text/html; charset=utf-8',
         'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
         'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; frame-ancestors 'self'; form-action 'none'"});
