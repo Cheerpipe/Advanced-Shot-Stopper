@@ -1464,7 +1464,7 @@ function fillShotCharts(h, m) {
       ? '<span class="rvLeg shotLegDrip"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_drip") + "</span>"
       : "") +
     (m.held.length ? '<span class="rvLeg rvLegHeld"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_held") + "</span>" : "") +
-    (m.truncated ? '<span class="rvLeg">Incomplete curve</span>' : "") +
+    (m.truncated ? '<span class="rvLeg">' + __WEBUI_TEXT__("runtime.graph_legend_incomplete") + "</span>" : "") +
     "</div></div>";
   // The firmware CSP drops style attributes parsed from markup; CSSOM writes still apply.
   const c = h.querySelector(".shotSparkHost"),
