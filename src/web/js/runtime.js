@@ -931,7 +931,7 @@ function buildShotSparkModel(shot) {
       const k = kind(q.t),
         s = segments.at(-1);
       if (!s || !previous || s.kind !== k)
-        segments.push({ kind: k, color: flow ? "#38bdf8" : colors[k], pts: [q] });
+        segments.push({ kind: k, color: flow ? "var(--gFlow)" : colors[k], pts: [q] });
       else s.pts.push(q);
       previous = q;
     };
@@ -1458,7 +1458,7 @@ function fillShotCharts(h, m) {
           { t: m.firstDropS, cg: 0 },
           ...(flow && m.flowStart ? [m.flowStart] : []),
         ],
-        flow ? "#38bdf8" : "var(--ok)",
+        flow ? "var(--gFlow)" : "var(--ok)",
       );
     for (const s of segs) svg += path(s.pts, s.color);
     for (const s of drips) svg += path(s.pts, s.color, true);
@@ -1487,7 +1487,7 @@ function fillShotCharts(h, m) {
       : colors[0] || "var(--ok)") +
     '"></i>' +
     __WEBUI_TEXT__("home.weight_g") +
-    ' <i class="shotKey" style="--c:#38bdf8"></i>' +
+    ' <i class="shotKey" style="--c:var(--gFlow)"></i>' +
     __WEBUI_TEXT__("runtime.flow_rate_g_s") +
     (m.truncated ? " · Incomplete curve" : "") +
     '</div><div class="shotSparkHost"><div class="shotSparkY">' +

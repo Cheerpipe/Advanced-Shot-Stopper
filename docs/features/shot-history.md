@@ -216,9 +216,9 @@ how the shot actually poured: the weight curve and the flow rate together, on
 one time line that includes any recorded drip tail. Read weight on the left
 scale and flow on the right one; both share the same reference lines, one
 every 10 g, with the flow scale chosen so its values fall on those same lines.
-The weight curve uses the same colors as the preset chart, turning orange or
-blue from the moment a fast or slow guard stepped in, and flow is always light
-blue. Both fill with a soft shade that fades toward the bottom. The chart is as
+The weight curve uses the same colors as the preset chart, turning red or
+blue from the moment a fast or slow guard stepped in, and flow is always grey.
+Both fill with a soft shade that fades toward the bottom. The chart is as
 tall as the preset chart above it, so grams look the same size in both. Shots
 without a preset chart show only this chart below their details.
 

@@ -51,7 +51,7 @@ header (see below).
 
 Two icons sit next to the Wi‑Fi indicator at the top of every page. The scale
 means shots stop by weight; it turns into a grey hand when you stop them
-yourself. The shield shows your guards: green when all six are on, orange when
+yourself. The shield shows your guards: green when all six are on, red when
 some are off, and faded when none are on. On a wider screen the shield opens
 up into the six guard icons, so you can see at a glance which one is off.
 

@@ -1238,7 +1238,7 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
     const colored=model(trace([0,500,1000,1500,2000,2500],{extendedS:1.2,extCg:9000,verdict}));
     assert.deepEqual(colored.flowCurve,[null,null,2,2,2,2]);
     assert.equal(colored.maxFlow,2);
-    assert.ok(colored.flowSegs.length>0&&colored.flowSegs.every(s=>s.color==='#38bdf8'));
+    assert.ok(colored.flowSegs.length>0&&colored.flowSegs.every(s=>s.color==='var(--gFlow)'));
     colored.flowSegs.flatMap(s=>s.pts).forEach(p=>close(p.cg,200));
     const line=colored.segs.filter(s=>s.pts.length>1);
     assert.deepEqual(line.map(s=>s.color),['var(--ok)',color],'guard color starts at extendedS');

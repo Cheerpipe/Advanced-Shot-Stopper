@@ -57,7 +57,7 @@
       !combined.includes('<span class="shotYTick">1 g/s</span><span class="shotYTick">0 g/s</span>') ||
       !combined.includes('d="M1.5 34.5 L48.9 34.5 L60.8 1.5"') ||
       !combined.includes('d="M60.8 1.5 L84.4 1.5"') ||
-      combined.indexOf('stroke="#38bdf8"') > combined.indexOf('stroke="var(--ok)"') ||
+      combined.indexOf('stroke="var(--gFlow)"') > combined.indexOf('stroke="var(--ok)"') ||
       combined.includes('shotDropOverlay') || markers.length !== 0 || combined.includes('shotFirstDrop') ||
       combined.indexOf('class="shotGrid"') > combined.indexOf('class="shotTrace"') ||
       !combined.includes('M1.5 1.5V34.5M238.5 1.5V34.5') ||
