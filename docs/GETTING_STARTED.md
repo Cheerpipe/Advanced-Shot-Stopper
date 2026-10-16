@@ -59,8 +59,10 @@ requires the Micra WebSocket connection and state observation to be enabled.
 Double-tap the shot card (double-click it on a computer, or select it and
 press Enter) to spread it across the whole screen, always in landscape, with
 the same live readings and proportions as the Home card. Double-tap again, tap
-the × in the corner, or use your device's back gesture to leave the full-screen
-view; it closes like a panel and does not leave Home.
+the × in the corner, press Esc on a keyboard, or use your device's back
+gesture to leave the full-screen view; it closes like a panel and does not
+leave Home. While the card fills the screen, your phone's screen stays on, so
+you can watch the whole shot.
 
 The header shows the controller's home-network Wi-Fi signal and its Bluetooth
 link to the scale. More lit arcs or bars mean a stronger signal; amber means

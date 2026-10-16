@@ -559,7 +559,7 @@ esp_err_t ShotStopperNetwork::rootHandler(httpd_req_t *request) {
   httpd_resp_set_hdr(
       request, "Content-Security-Policy",
       "default-src 'self'; script-src 'self'; style-src 'self'; "
-      "connect-src 'self'; frame-ancestors 'none'");
+      "connect-src 'self'; media-src data:; frame-ancestors 'none'");
   httpd_resp_set_hdr(request, "Connection", "close");
   return sendBody(request, SHOT_STOPPER_WEB_UI_GZIP,
                         SHOT_STOPPER_WEB_UI_GZIP_LEN);

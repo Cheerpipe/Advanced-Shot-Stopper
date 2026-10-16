@@ -6215,7 +6215,32 @@ let shotFsActive = false,
   shotFsPushed = false,
   shotFsConsumed = false,
   shotFsTimer = 0,
-  shotFsExitEnd = null;
+  shotFsExitEnd = null,
+  shotFsLock = null,
+  shotFsVideo = null;
+// Keeps the phone screen on while the card is full screen. Plain HTTP has no
+// Wake Lock API, so a muted looping video covering the card stands in.
+function keepShotFsAwake(on) {
+  if (!on) {
+    if (shotFsLock) shotFsLock.release().catch(() => {});
+    shotFsLock = null;
+    if (shotFsVideo) shotFsVideo.pause();
+    return;
+  }
+  if (navigator.wakeLock)
+    return void navigator.wakeLock
+      .request("screen")
+      .then((l) => (shotFsActive ? (shotFsLock = l) : l.release()), () => {});
+  if (!shotFsVideo) {
+    shotFsVideo = document.createElement("video");
+    shotFsVideo.className = "heroAwake";
+    shotFsVideo.muted = shotFsVideo.loop = shotFsVideo.playsInline = true;
+    shotFsVideo.setAttribute("aria-hidden", "true");
+    shotFsVideo.src = "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMsbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAld0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAAAAABAAAAAAHPbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAgABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABem1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAATpzdGJsAAAAunN0c2QAAAAAAAAAAQAAAKphdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2MS4xOS4xMDEgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAMGF2Y0MBQsAK/+EAF2dCwAqmEXsBEAAAAwAQAAADACDxImEYAQAGaMhCDxMgAAAAEHBhc3AAAAABAAAAAQAAABRidHJ0AAAAAAAAAHgAAAAAAAAAGHN0dHMAAAAAAAAAAQAAAAIAAEAAAAAAFHN0c3MAAAAAAAAAAQAAAAEAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAIAAAABAAAAHHN0c3oAAAAAAAAAAAAAAAIAAAATAAAACwAAABRzdGNvAAAAAAAAAAEAAANcAAAAYXVkdGEAAABZbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAsaWxzdAAAACSpdG9vAAAAHGRhdGEAAAABAAAAAExhdmY2MS43LjEwMwAAAAhmcmVlAAAAJm1kYXQAAAAPZYiCAvnP//+HooAAq8/AAAAAB0GaHAXznUA=";
+    $("shotHero").append(shotFsVideo);
+  }
+  shotFsVideo.play().catch(() => {});
+}
 function enterShotFullScreen() {
   const hero = $("shotHero");
   if (!hero || shotFsActive) return;
@@ -6229,6 +6254,7 @@ function enterShotFullScreen() {
   hero.classList.remove("fsOut");
   hero.classList.add("fs");
   document.body.classList.add("shotFs");
+  keepShotFsAwake(true);
   const close = $("shotFsClose");
   if (close) close.focus();
   shotFsPushed = false;
@@ -6241,6 +6267,7 @@ function exitShotFullScreen() {
   const hero = $("shotHero");
   if (!hero || !shotFsActive) return;
   shotFsActive = false;
+  keepShotFsAwake(false);
   clearTimeout(shotFsTimer);
   const body = hero.querySelector(".heroBody"),
     finish = () => {
@@ -6301,8 +6328,11 @@ function initShotFullScreen() {
     tap = 0;
     shotFsActive ? close.onclick() : enterShotFullScreen();
   });
-  hero.addEventListener("keydown", (e) => {
+  // Escape leaves full screen unless an open sheet or dialog takes it first.
+  document.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && e.target === hero) enterShotFullScreen();
+    if (e.key === "Escape" && shotFsActive && !e.target.closest("[role=dialog],dialog"))
+      close?.onclick();
   });
   if (close)
     close.onclick = () => {
@@ -6859,6 +6889,7 @@ function ensureBackgroundRecordStreams() {
 }
 // Back from the background: resync the live socket; rebuild only if it died hidden.
 document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && shotFsActive) keepShotFsAwake(true);
   if (!document.hidden && webUiPollingActive())
     shotWs && shotWs.readyState === 1 ? (requestShotResync(), shotActivity()) : startUiStream();
 });

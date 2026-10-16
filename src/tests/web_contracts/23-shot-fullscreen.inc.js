@@ -72,22 +72,32 @@
     const handlers = {};
     const element = () => ({onclick: null, dataset: {}, focus() {},
       addEventListener: (type, fn) => { handlers[type] = fn; }, querySelector: () => null});
-    const hero = Object.assign(element(), {classList: stubClasses(heroClasses)});
+    const appended = [];
+    const hero = Object.assign(element(), {classList: stubClasses(heroClasses),
+      append: el => appended.push(el)});
+    const docHandlers = {}, nav = {}, video = {plays: 0, pauses: 0, attrs: {},
+      play() { this.plays++; return Promise.resolve(); }, pause() { this.pauses++; },
+      setAttribute(k, v) { this.attrs[k] = v; }};
     const els = {shotHero: hero, shotFsClose: element()};
     const card = {closest: () => null}, link = {closest: () => ({})};
     let clock = 1000;
     const tap = (target = card, gap = 200) => handlers.pointerup({target, timeStamp: clock += gap});
     const doubleTap = () => { tap(card, 1000); tap(); };
     const api = new Function('$', 'history', 'location', 'document', 'setTimeout', 'clearTimeout',
+        'navigator',
         runtimeJs.slice(runtimeJs.search(/let\s+shotFsActive\s*=/),
             runtimeJs.indexOf('// The diagnostic stream rides')) +
         ';return{enter:enterShotFullScreen,exit:exitShotFullScreen' +
-        ',pop:exitFullScreenOnPop,init:initShotFullScreen}')(
+        ',pop:exitFullScreenOnPop,init:initShotFullScreen,awake:keepShotFsAwake}')(
         id => els[id],
         {pushState: () => history.pushed++, back: () => history.back++},
         {href: '/'},
-        {body: {classList: stubClasses(bodyClasses)}},
-        () => 0, () => {});
+        {body: {classList: stubClasses(bodyClasses)},
+          addEventListener: (type, fn) => { docHandlers[type] = fn; },
+          createElement: tag => { assert.equal(tag, 'video'); return video; }},
+        () => 0, () => {}, nav);
+    const key = (k, target) => docHandlers.keydown({key: k, target});
+    const plain = {closest: () => null}, sheet = {closest: () => ({})};
 
     api.init();
     assert.equal(api.pop(), false, 'a pop without full screen reaches the router');
@@ -103,7 +113,7 @@
     assert.ok(!heroClasses.has('fs') && !bodyClasses.has('shotFs'));
 
     // The X button exits via history.back(); that pop must be swallowed once.
-    handlers.keydown({key: 'Enter', target: hero});
+    key('Enter', hero);
     assert.ok(heroClasses.has('fs'), 'Enter on the focused card opens full screen');
     els.shotFsClose.onclick();
     assert.ok(!heroClasses.has('fs'), 'the X button exits full screen');
@@ -115,5 +125,63 @@
     doubleTap();
     assert.ok(!heroClasses.has('fs') && history.back === 2, 'a second double tap leaves full screen');
     assert.equal(api.pop(), true, 'the double-tap exit consumes its pushed entry');
+
+    // Escape leaves full screen from anywhere, consuming its history entry,
+    // but an open sheet or dialog takes it first.
+    key('Escape', plain);
+    assert.equal(history.back, 2, 'Escape outside full screen does nothing');
+    key('Enter', plain);
+    assert.ok(!heroClasses.has('fs'), 'Enter opens full screen only from the focused card');
+    doubleTap();
+    key('Escape', sheet);
+    assert.ok(heroClasses.has('fs'), 'Escape inside a sheet or dialog keeps full screen');
+    key('Escape', plain);
+    assert.ok(!heroClasses.has('fs') && history.back === 3, 'Escape with focus on the page exits');
+    assert.equal(api.pop(), true, 'the Escape exit consumes its pushed entry');
+
+    // Plain HTTP has no Wake Lock API: a muted looping video keeps the screen
+    // on, invisible and untouchable, and pauses on exit.
+    const plays = video.plays;
+    doubleTap();
+    assert.equal(appended.length, 1, 'the keep-awake video is added once');
+    assert.ok(video.className === 'heroAwake' && video.muted && video.loop && video.playsInline &&
+        video.attrs['aria-hidden'] === 'true' && /^data:video\/mp4;base64,/.test(video.src));
+    assert.equal(video.plays, plays + 1, 'entering plays the keep-awake video');
+    els.shotFsClose.onclick();
+    assert.ok(video.pauses >= 1, 'leaving pauses the keep-awake video');
+    api.pop();
   }
+
+  // With the Wake Lock API the screen lock is taken on entry, released on
+  // exit, re-taken when the page returns, and never kept after a late grant.
+  (async () => {
+    let requests = 0, releases = 0, grant = null;
+    const lock = {release: () => { releases++; return Promise.resolve(); }};
+    const els = {shotHero: {classList: {add() {}, remove() {}}, querySelector: () => null, focus() {}},
+      shotFsClose: {focus() {}}};
+    const api = new Function('$', 'history', 'location', 'document', 'setTimeout', 'clearTimeout',
+        'navigator',
+        runtimeJs.slice(runtimeJs.search(/let\s+shotFsActive\s*=/),
+            runtimeJs.indexOf('// The diagnostic stream rides')) +
+        ';return{enter:enterShotFullScreen,exit:exitShotFullScreen,awake:keepShotFsAwake}')(
+        id => els[id], {pushState() {}, back() {}}, {href: '/'},
+        {body: {classList: {add() {}, remove() {}}}, createElement() { throw Error('no video'); }},
+        () => 0, () => {},
+        {wakeLock: {request: type => { assert.equal(type, 'screen'); requests++;
+          return new Promise(resolve => { grant = () => resolve(lock); }); }}});
+    const settle = () => new Promise(resolve => setImmediate(resolve));
+    api.enter();
+    grant(); await settle();
+    assert.equal(requests, 1, 'entering requests a screen wake lock');
+    api.exit();
+    assert.equal(releases, 1, 'exiting releases the wake lock');
+    api.enter();
+    api.awake(true);  // The page became visible again while full screen.
+    assert.equal(requests, 3, 'returning to the page re-takes the lock');
+    api.exit();
+    grant(); await settle();
+    assert.equal(releases, 2, 'a lock granted after exit is released at once');
+    assert.ok(codeIncludes(runtimeJs, 'if (!document.hidden && shotFsActive) keepShotFsAwake(true);'),
+        'the visibility handler re-takes the lock in full screen');
+  })().catch(error => {console.error(error); process.exitCode = 1;});
 }

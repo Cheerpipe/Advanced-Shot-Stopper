@@ -533,8 +533,9 @@ if (generated.jsGzip.length > 6615) {
 // The draggable navigation pill measures 14204 bytes; owner-authorized 2026-10-16.
 // The Home cup light warning tone measures 14236 bytes; owner-authorized 2026-10-16.
 // The held touch reading legend measures 14250 bytes; owner-authorized 2026-10-16.
-if (generated.cssGzip.length > 14250) {
-  throw new Error(`Compressed Web CSS exceeds the 14250-byte gzip budget (${generated.cssGzip.length})`);
+// The full-screen keep-awake video layer measures 14268 bytes; owner-authorized 2026-10-16.
+if (generated.cssGzip.length > 14268) {
+  throw new Error(`Compressed Web CSS exceeds the 14268-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -651,8 +652,9 @@ if (generated.cssGzip.length > 14250) {
 // The Home hero drip tail brings the runtime to 61586 compressed bytes; owner-authorized 2026-10-16.
 // The Home cup light states bring the runtime to 61656 compressed bytes; owner-authorized 2026-10-16.
 // Held touch readings in the shot charts, Max flow and CSV bring the runtime to 61933 compressed bytes; owner-authorized 2026-10-16.
-if (sentinelRuntimeGzip.length > 61933) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 61933-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The full-screen keep-awake (Wake Lock, inline video, Esc) brings the runtime to 62758 compressed bytes; owner-authorized 2026-10-16.
+if (sentinelRuntimeGzip.length > 62758) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 62758-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -943,6 +945,9 @@ if (rootHandler.includes('no-store') ||
     rootHandler.includes('HTTPD_RESP_USE_STRLEN')) {
   throw new Error('GET / must serve a cacheable shell with ETag/304, CSP script/style self, Connection close, and gzip by length');
 }
+// Only the inline keep-awake video may load as media; no outside origin.
+if (!rootHandler.includes("media-src data:;") || /media-src[^;]*(\*|https?:|'self')/.test(rootHandler))
+  throw new Error('GET / may allow only data: media, for the full-screen keep-awake video');
 if (serveImmutable.includes('no-store') ||
     !serveImmutable.includes('max-age=31536000') ||
     !serveImmutable.includes('immutable') ||
