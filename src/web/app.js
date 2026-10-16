@@ -225,10 +225,8 @@ function markNavActive(path) {
 }
 if (nav) {
   nav.setAttribute("aria-label", __WEBUI_TEXT__("shell.primary"));
-  nav.querySelectorAll("a").forEach((a) => {
-    a.title = a.textContent;
-    a.draggable = false;
-  });
+  nav.querySelectorAll("a").forEach((a) => (a.title = a.textContent));
+  nav.ondragstart = () => false;
   // Dragging the pill sideways opens each link it settles on; links pull it
   // toward their centre (slope 0.35 there, 1 at their edges, so it never jumps).
   nav.addEventListener("pointerdown", (e) => {
