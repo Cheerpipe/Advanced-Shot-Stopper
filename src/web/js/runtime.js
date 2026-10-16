@@ -1238,10 +1238,30 @@ function renderShotSpark(h, shot) {
     if (open && !more.childElementCount) fillShotCharts(more, m, ["flow", "weight"]);
   };
   btn.onclick = () => {
-    const open = !shotMoreOpen.has(shot.id);
+    const open = !shotMoreOpen.has(shot.id),
+      row = h.parentElement,
+      info = [...row.querySelectorAll(".shotInfo")],
+      span = (a, b) => (open ? [a, b] : [b, a]),
+      fx = { duration: 250, easing: "ease-out", fill: "forwards" };
     if (open) shotMoreOpen.add(shot.id);
     else shotMoreOpen.delete(shot.id);
-    sync(open);
+    for (const a of h._fx || []) a.cancel();
+    if (matchMedia("(prefers-reduced-motion:reduce)").matches) return sync(open);
+    // Both ways play in the open layout: the card resizes, the charts slide, the details grow in the gap.
+    sync(false);
+    const h0 = row.offsetHeight,
+      y0 = h.offsetTop;
+    sync(true);
+    const top = Math.min(...info.map((c) => c.offsetTop));
+    h._fx = [
+      row.animate({ height: span(h0 + "px", row.offsetHeight + "px"), overflow: ["hidden", "hidden"] }, fx),
+      h.animate({ translate: span(`0 ${y0 - h.offsetTop}px`, "0") }, fx),
+      ...info.map((c) => c.animate({ scale: span("1 0", "1"), opacity: span(0, 1), transformOrigin: Array(2).fill(`0 ${top - c.offsetTop}px`) }, fx)),
+    ];
+    h._fx[0].onfinish = () => {
+      if (!open) sync(false);
+      for (const a of h._fx) a.cancel();
+    };
   };
   // Compact legend (D5): the cut line, only the zone this shot ended in, the shot, and arrivals.
   const zone = preset.dataset.zone,
@@ -1607,25 +1627,19 @@ function renderShots() {
         shotPresetName(r),
         r.scaleName || __WEBUI_TEXT__("runtime.none"),
       ];
+      // shotInfo cells stay folded behind Show more on cards with a preset chart.
       const cls = [
         "",
         "shotDur",
-        "",
+        "shotInfo",
         "shotActual",
-        errN > 0 ? "shotErrHi" : errN < 0 ? "shotErrLo" : "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
+        "shotInfo " + (errN > 0 ? "shotErrHi" : errN < 0 ? "shotErrLo" : ""),
+        ...Array(8).fill("shotInfo"),
       ];
       vals.forEach((v, i) => td(row, labels[i], v, cls[i]));
       wrapTimeEl(row.cells[0], r);
       const rate = document.createElement("td");
-      rate.className = "shotRateCell";
+      rate.className = "shotRateCell shotInfo";
       rate.dataset.label = __WEBUI_TEXT__("runtime.rate");
       const rateHost = document.createElement("div");
       rate.appendChild(rateHost);

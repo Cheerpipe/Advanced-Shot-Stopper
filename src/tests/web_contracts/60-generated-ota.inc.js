@@ -517,8 +517,10 @@ if (generated.jsGzip.length > 6260) {
 // owner-authorized 2026-10-14.
 // The Stats legend, cursor handle, and shot-line styles measure 13593 bytes;
 // owner-authorized 2026-10-14.
-if (generated.cssGzip.length > 13700) {
-  throw new Error(`Compressed Web CSS exceeds the 13700-byte gzip budget (${generated.cssGzip.length})`);
+// Folding the Stats card details behind Show more measures 13717 bytes;
+// owner-authorized 2026-10-15.
+if (generated.cssGzip.length > 13750) {
+  throw new Error(`Compressed Web CSS exceeds the 13750-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -626,8 +628,9 @@ if (generated.cssGzip.length > 13700) {
 // The preset graph cut pill brings the runtime to 58655 compressed bytes; owner-authorized 2026-10-15.
 // The first-drop pace start brings the runtime to 58877 compressed bytes; owner-authorized 2026-10-15.
 // The Stats shot cursor pill brings the runtime to 58924 compressed bytes; owner-authorized 2026-10-15.
-if (sentinelRuntimeGzip.length > 59000) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 59000-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Folding the Stats card details behind Show more brings the runtime to 59286 compressed bytes; owner-authorized 2026-10-15.
+if (sentinelRuntimeGzip.length > 59400) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 59400-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

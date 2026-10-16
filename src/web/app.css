@@ -385,6 +385,8 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .statsDurSparkY{display:flex;flex-direction:column;justify-content:space-between;padding:.02rem 0}
 .statsDurSparkY:after{content:__WEBUI_CSS_TEXT__("css.0")}
 #shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate rate rate"}
+#shotTable tr:has([aria-expanded=false]){grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "spark spark spark spark spark spark"}
+#shotTable tr:has([aria-expanded=false]) .shotInfo{display:none}
 #historySentinel{min-height:1px}
 #historyTable{width:100%;border-collapse:collapse;font-size:.82rem}
 #historyTable thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}

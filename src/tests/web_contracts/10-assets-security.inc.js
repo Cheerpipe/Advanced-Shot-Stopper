@@ -791,8 +791,9 @@ if (htmlBytes > 93300) {
 // The preset graph cut pill shown while the scrubber is held: +527 bytes (424505), owner-authorized 2026-10-15.
 // Preset graph paces start at the usual first drop, with its source note and the restart copy: +1082 bytes (425587), owner-authorized 2026-10-15.
 // The Stats shot cursor pill, sharing the cut pill helper: +33 bytes (425620), owner-authorized 2026-10-15.
-if (jsBytes > 425700) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 425700)`);
+// Show more also folds the Stats card details, with a 0.25 s expand and fade: +1089 bytes (426776), owner-authorized 2026-10-15.
+if (jsBytes > 426800) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 426800)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.

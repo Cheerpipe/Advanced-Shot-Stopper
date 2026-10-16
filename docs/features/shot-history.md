@@ -185,8 +185,9 @@ An erase-all firmware installation starts with empty shot history.
 If a low-weight older row is imported later, it remains in the table and CSV
 but does not enter Home or these summaries.
 
-In its Stats history card, each shot with a weight curve shows its **preset
-chart** first: the preset's cut line, its on-recipe corridor, and the shot's own
+In its Stats history card, each shot with a weight curve starts compact: its
+duration, yield, and when you pulled it, followed by its **preset chart**: the
+preset's cut line, its on-recipe corridor, and the shot's own
 weight curve drawn over it. The chart always uses the preset as it was when that
 shot was brewed, so editing or deleting the preset later never changes it. Only
 the zone the shot ended in is colored: fast, slow, or on recipe. Timer-only
@@ -198,9 +199,12 @@ the weight at that moment, and the cut line at that time. While your finger or
 mouse is on the chart, a small bubble beside the cursor shows the same time and
 weight. The cursor starts at the shot's stop point.
 
-Select **Show more** to open the flow and weight charts below it. Select
-**Show less** to hide them again. The card remembers which shots are open
-while the table refreshes.
+Select **Show more** to unfold the rest of the shot: its target, error, flow,
+late cup, first drop, how it ended, shot type, preset, scale, and your rating
+appear below the time, and the flow and weight charts open under the preset
+chart. Select **Show less** to fold them away again. The card remembers which
+shots are open while the table refreshes. Shots without a preset chart always
+show every detail.
 
 The Home shot card is unchanged: it keeps its weight and **Flow rate (g/s)**
 charts directly below the shot. Both charts share a time axis, including

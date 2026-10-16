@@ -1333,9 +1333,12 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
   if (!cardSrc.includes('aria-controls') || !cardSrc.includes('aria-expanded') ||
       !/"role",\s*"slider"/.test(cardSrc) ||
       !cardSrc.includes('shotMoreOpen.add') || !cardSrc.includes('dataset.zone') ||
-      !cardSrc.includes('observePresetHost(preset)') || cardSrc.includes('hatch'))
-    throw new Error('The Stats preset card needs an accessible More charts toggle, a keyboard cursor, a verdict zone, and no no-cut hatch');
+      !cardSrc.includes('observePresetHost(preset)') || cardSrc.includes('hatch') ||
+      !cardSrc.includes('duration: 250, easing: "ease-out"') || !cardSrc.includes('prefers-reduced-motion') ||
+      !runtimeJs.includes('rate.className = "shotRateCell shotInfo"') || !runtimeJs.includes('...Array(8).fill("shotInfo")'))
+    throw new Error('The Stats preset card needs an accessible Show more toggle that also folds the details, animated 0.25 s ease-out, plus a keyboard cursor, a verdict zone, and no no-cut hatch');
   if (!css.includes('.shotPresetChart[data-zone=fast] .rvWindow') || !css.includes('.shotMore[hidden]{display:none}') ||
+      !css.includes('#shotTable tr:has([aria-expanded=false]) .shotInfo{display:none}') ||
       !css.includes('--gCut:#d1101f') || !css.includes('--gCut:#9e1c22') || !css.includes('.rvCut{fill:none;stroke:var(--gCut)'))
     throw new Error('Stats preset styles must color only the verdict zone and use the red cut-line token in both themes');
 }
