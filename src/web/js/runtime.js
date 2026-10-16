@@ -900,8 +900,19 @@ function buildShotSparkModel(shot) {
     atm = num(shot.atmS),
     clear = num(shot.atmClearedS),
     limit = Math.round((end ?? duration ?? Infinity) * 1000);
-  const verdict = { fast: "fast", slow: "slow" }[shot.verdict] || "bbw",
-    kind = (t) => (atm != null && t >= atm && (clear == null || t < clear) ? "atm" : verdict);
+  // Weight stays on-recipe until a guard fires at extendedS; only then does it
+  // take that guard's color. The flow line is always drawn on-recipe blue.
+  const guard = shot.extractionExtended
+      ? "fast"
+      : shot.slowExtractionExtended
+        ? "slow"
+        : { fast: "fast", slow: "slow" }[shot.verdict] || "bbw",
+    kind = (t) =>
+      atm != null && t >= atm && (clear == null || t < clear)
+        ? "atm"
+        : ext != null && t >= ext
+          ? guard
+          : "bbw";
   const transitions = [ext, atm, clear].filter((t) => t != null).sort((a, b) => a - b),
     segs = [],
     dripSegs = [],
@@ -920,7 +931,7 @@ function buildShotSparkModel(shot) {
       const k = kind(q.t),
         s = segments.at(-1);
       if (!s || !previous || s.kind !== k)
-        segments.push({ kind: k, color: flow && k === "bbw" ? "#38bdf8" : colors[k], pts: [q] });
+        segments.push({ kind: k, color: flow ? "#38bdf8" : colors[k], pts: [q] });
       else s.pts.push(q);
       previous = q;
     };

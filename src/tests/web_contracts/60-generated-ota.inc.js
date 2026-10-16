@@ -1232,13 +1232,19 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   assert.deepEqual(slope.flowSegs[0].pts.map(p=>p.cg),[100,200,300],'no additional chart smoothing');
   const spike=model({wAtMs:[0,500,1000,1500,2000],wCg:[0,0,500,0,0],durationS:2});
   assert.deepEqual(spike.flowCurve,[null,null,5,0,0]);assert.equal(spike.maxFlow,5);
-  // A shot is coloured by its own stored verdict, never re-judged later.
+  // Weight is on-recipe green until the guard fires, then takes the guard's color;
+  // flow is always on-recipe blue.
   for (const [verdict,color] of [['fast','var(--gFast)'],['slow','var(--gSlow)']]) {
     const colored=model(trace([0,500,1000,1500,2000,2500],{extendedS:1.2,extCg:9000,verdict}));
     assert.deepEqual(colored.flowCurve,[null,null,2,2,2,2]);
     assert.equal(colored.maxFlow,2);
-    assert.ok(colored.flowSegs.length>0&&colored.flowSegs.every(s=>s.color===color));
+    assert.ok(colored.flowSegs.length>0&&colored.flowSegs.every(s=>s.color==='#38bdf8'));
     colored.flowSegs.flatMap(s=>s.pts).forEach(p=>close(p.cg,200));
+    const line=colored.segs.filter(s=>s.pts.length>1);
+    assert.deepEqual(line.map(s=>s.color),['var(--ok)',color],'guard color starts at extendedS');
+    close(line[1].pts[0].t,1.2);
+    assert.ok(model(trace([0,500,1000,1500],{verdict})).segs.every(s=>s.color==='var(--ok)'),
+      'no guard fired: the whole weight line stays on-recipe');
   }
   const atm=model(trace([0,500,1000,1500,2000,2500,3000,3500,4000],{atmS:1.2,atmCg:200,atmClearedS:2.2}));
   assert.deepEqual(atm.flowCurve,[null,null,2,null,null,null,null,2,2]);
