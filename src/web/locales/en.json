@@ -714,6 +714,7 @@
     "runtime.graph_legend_arrivals": "Recent shots",
     "runtime.graph_legend_corridor": "On-recipe window",
     "runtime.graph_legend_cut": "Stop at",
+    "runtime.graph_legend_drip": "Drip after the stop",
     "runtime.graph_legend_example": "Example shot (drag)",
     "runtime.graph_legend_fast": "Extend (full / partial)",
     "runtime.graph_legend_held": "Touch ignored",

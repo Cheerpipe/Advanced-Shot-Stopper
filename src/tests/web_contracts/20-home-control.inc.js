@@ -738,7 +738,7 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
     css.includes('.shotEventTicks') ||
     !css.includes('.shotYTick{position:absolute;right:0;white-space:nowrap;transform:translateY(-50%)}') ||
     css.includes('.shotYTick:first-child') || css.includes('.shotYTick:last-child') ||
-    !css.includes('.ruleChartLabel{font-size:.78rem;font-weight:700;margin:0 0 .75rem') ||
+    css.includes('.ruleChartLabel') || !css.includes('.shotLegDrip i{') ||
     !codeIncludes(ui, 'function renderShotSpark(') ||
     !codeIncludes(runtimeJs, 'function buildShotSparkModel(') ||
     !codeIncludes(runtimeJs, 'function axisLabel(') ||

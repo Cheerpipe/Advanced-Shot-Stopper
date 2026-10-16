@@ -468,7 +468,9 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .shotPresetChart{min-width:0}
 /* The weight/flow chart opens its own block under the preset chart's legend. */
 .shotComboHost{padding-top:1rem}
-.shotKey{display:inline-block;width:.75rem;height:2px;margin:0 .3rem 0 0;vertical-align:middle}
+.rvLeg .shotKey{height:2px;border-radius:0}
+.shotLegDrip i{height:0;border-top:2px dashed var(--mu);border-radius:0}
+.shotCurve .shotLegend{margin-top:.6rem}
 .shotPresetChart:not([data-zone=fast]) :is(.rvFastPart,.rvFastFull),.shotPresetChart:not([data-zone=slow]) :is(.rvSlowPart,.rvSlowFull),.shotPresetChart:not([data-zone=on_recipe]) .rvWindow{fill-opacity:0}
 .presetAccGraph{margin:0 .6rem}
 .presetAccReadout{margin:.35rem .6rem .6rem;font-size:.78rem;color:var(--mu);font-variant-numeric:tabular-nums}
@@ -656,7 +658,6 @@ body.qwOpen{overflow:hidden}
 .qwLimit.toneFast{border-color:var(--gFast);color:var(--gFast)}
 
 .ruleChart{margin:.35rem 0 .15rem}
-.ruleChartLabel{font-size:.78rem;font-weight:700;margin:0 0 .75rem;color:var(--fg)}
 .ruleChartTicks{position:relative;height:1.05rem;margin:.15rem .1rem 0;font-size:.68rem;color:var(--mu);overflow:hidden}
 .ruleTick{position:absolute;transform:translateX(-50%);white-space:nowrap;top:0}
 .ruleTick:first-child{transform:translateX(0)}

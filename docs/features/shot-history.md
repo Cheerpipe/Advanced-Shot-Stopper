@@ -230,9 +230,10 @@ the weight at that moment, and the cut line at that time. While your finger or
 mouse is on the chart, a small bubble beside the cursor shows the same time and
 weight. The cursor starts at the shot's stop point.
 
-Under the preset chart, a single **Weight (g) · Flow rate (g/s)** chart shows
-how the shot actually poured: the weight curve and the flow rate together, on
-one time line that includes any recorded drip tail. Read weight on the left
+Under the preset chart, a single weight and flow chart shows how the shot
+actually poured: the weight curve and the flow rate together, on one time line
+that includes any recorded drip tail. Like the preset chart, its legend sits
+below it and names each line, including the dashed **Drip after the stop**. Read weight on the left
 scale and flow on the right one; both share the same reference lines, one
 every 10 g, with the flow scale chosen so its values fall on those same lines.
 The weight curve uses the same colors as the preset chart, turning red or

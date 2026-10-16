@@ -1441,12 +1441,7 @@ function fillShotCharts(h, m) {
     // Flow is drawn first so the weight curve and its fill stay on top.
     body = series(m.flowSegs, m.dripFlowSegs, step * n, true) + series(m.segs, m.dripSegs, m.maxW);
   h.innerHTML =
-    '<div class="shotCurve"><div class="ruleChartLabel"><i class="shotKey"></i>' +
-    __WEBUI_TEXT__("home.weight_g") +
-    ' <i class="shotKey"></i>' +
-    __WEBUI_TEXT__("runtime.flow_rate_g_s") +
-    (m.truncated ? " · Incomplete curve" : "") +
-    '</div><div class="shotSparkHost"><div class="shotSparkY">' +
+    '<div class="shotCurve"><div class="shotSparkHost"><div class="shotSparkY">' +
     ticks(yt.map((q) => q[1])) +
     '</div><svg class="shotSpark" viewBox="0 0 ' +
     W +
@@ -1462,7 +1457,15 @@ function fillShotCharts(h, m) {
     ticks(yt.map((q, i) => +(i * step).toFixed(2) + " g/s")) +
     "</div>" +
     (m.finalPoint ? '<div class="shotDropOverlay"></div>' : "") +
-    '<div class="ruleChartTicks"></div></div></div>';
+    '<div class="ruleChartTicks"></div></div><div class="shotLegend">' +
+    '<span class="rvLeg"><i class="shotKey"></i>' + __WEBUI_TEXT__("home.weight_g") + "</span>" +
+    '<span class="rvLeg"><i class="shotKey"></i>' + __WEBUI_TEXT__("runtime.flow_rate_g_s") + "</span>" +
+    (m.dripSegs.length || m.dripFlowSegs.length
+      ? '<span class="rvLeg shotLegDrip"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_drip") + "</span>"
+      : "") +
+    (m.held.length ? '<span class="rvLeg rvLegHeld"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_held") + "</span>" : "") +
+    (m.truncated ? '<span class="rvLeg">Incomplete curve</span>' : "") +
+    "</div></div>";
   // The firmware CSP drops style attributes parsed from markup; CSSOM writes still apply.
   const c = h.querySelector(".shotSparkHost"),
     [kw, kf] = h.querySelectorAll(".shotKey");
