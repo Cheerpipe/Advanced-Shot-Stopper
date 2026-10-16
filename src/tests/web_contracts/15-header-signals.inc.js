@@ -177,7 +177,9 @@
   callbacks.fonts();
   assert.deepEqual(goo(), [67, 130, 67], 'Font settling re-anchors the pill instantly on the active destination');
   assert.match(vm.runInContext('pillPath.attrs.d', context), /^M19\.8,2\.8(Q[^Q]+){32}$/, 'The pill is drawn as one closed shape');
-  links[0].offsetLeft = 525; context.placePill(true);
+  links[0].offsetWidth = 0; context.placePill(false);
+  assert.deepEqual(goo(), [67, 130, 67], 'An unlaid-out active link keeps the last drawn pill');
+  links[0].offsetWidth = 130; links[0].offsetLeft = 525; context.placePill(true);
   assert.deepEqual(goo(), [67, 130, 590], 'Animated placement springs toward the active destination');
   still.matches = true; context.placePill(true);
   assert.deepEqual(goo(), [590, 130, 590], 'Reduced motion places the pill without the liquid travel');

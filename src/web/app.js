@@ -250,8 +250,8 @@ function pillTick(now) {
   pillFrame = rest ? 0 : requestAnimationFrame(pillTick);
 }
 function placePill(animate) {
-  const a = nav && nav.querySelector("a.active");
-  if (!pill || !a || (drag && dragged)) return;
+  const a = pill && nav.querySelector("a.active");
+  if (!a?.offsetWidth || (drag && dragged)) return;
   Object.assign(goo, { tc: a.offsetLeft + a.offsetWidth / 2, tw: a.offsetWidth, cy: a.offsetTop + a.offsetHeight / 2, h: a.offsetHeight / 2 });
   if (pillPlaced && animate && !still.matches) pillFrame ||= requestAnimationFrame(pillTick);
   else {
@@ -323,7 +323,7 @@ if (nav) {
   new ResizeObserver(updateNavigationLayout).observe(document.getElementById("app"));
   new ResizeObserver(sizeHeader).observe(document.querySelector(".topBar"));
   const pillAnchor = new ResizeObserver(() => {
-    const a = nav.querySelector("a.active"); // Bold active labels resize their links; the placement already targets the post-toggle geometry, so only genuine resizes re-anchor
+    const a = nav.querySelector("a.active"); // Bold active labels resize their links; placement already targets the post-toggle geometry, so only real resizes re-anchor
     if (a && goo.tw === a.offsetWidth && goo.tc === a.offsetLeft + a.offsetWidth / 2 && goo.h === a.offsetHeight / 2)
       return;
     placePill(false);
