@@ -555,6 +555,7 @@
     "runtime.1st_drop": "1st drop",
     "runtime.a_to_m_2": "Scale lost · ",
     "runtime.absent": "Absent",
+    "runtime.absent_cup_required": "Absent - cup required",
     "runtime.activation_history_cleared": "History cleared.",
     "runtime.active": "Active",
     "runtime.active_2": "active",

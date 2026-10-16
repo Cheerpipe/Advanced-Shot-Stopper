@@ -2561,10 +2561,14 @@ function formatCupWeight(s) {
 }
 function formatCupState(s) {
   if (!s.scale?.available) return __WEBUI_TEXT__("runtime.unknown_4");
-  const c = s.cupPresence || {};
+  const c = s.cupPresence || {},
+    k = s.config || {},
+    required = k.cupProtectionEnabled && k.requireCupToStart && k.brewByWeight !== false;
   return c.state === "PRESENT" || c.present
     ? __WEBUI_TEXT__("runtime.present")
-    : __WEBUI_TEXT__("runtime.absent");
+    : required
+      ? __WEBUI_TEXT__("runtime.absent_cup_required")
+      : __WEBUI_TEXT__("runtime.absent");
 }
 function formatIdleTare(s) {
   const t = (s.cupPresence || {}).idleTare,
@@ -4420,14 +4424,20 @@ function updateStateTone(s) {
   if (sr) sr.classList.toggle("lampBad", !(s.scale && s.scale.available));
   const cr = $("cupRow");
   if (cr) {
-    const cp = s.cupPresence || {};
-    cr.classList.toggle(
-      "lampBad",
-      !(
-        cp.present ||
-        (cp.idleTare === "ready" && s.scale && s.scale.available && s.scale.streamState === "FRESH")
-      ),
-    );
+    // Mirrors cupStartGuardWouldBlock(): red only when the firmware refuses
+    // the shot, amber when a shot can start without a confirmed cup.
+    const cp = s.cupPresence || {},
+      k = s.config || {},
+      scale = !!(s.scale && s.scale.available),
+      present = scale && (cp.state === "PRESENT" || !!cp.present),
+      blocks =
+        scale &&
+        !present &&
+        !!k.cupProtectionEnabled &&
+        !!k.requireCupToStart &&
+        k.brewByWeight !== false;
+    cr.classList.toggle("lampBad", blocks);
+    cr.classList.toggle("lampWarn", !present && !blocks);
   }
 }
 function renderLog() {

@@ -9,6 +9,11 @@
         throw new Error('Disconnected cup status must be Unknown; connected presence must be preserved');
     }
   }
+  const required = {cupProtectionEnabled:true, requireCupToStart:true};
+  if (format({scale:{available:true}, cupPresence:{present:false}, config:required}) !== 'Absent - cup required' ||
+      format({scale:{available:true}, cupPresence:{present:false}, config:{...required, cupProtectionEnabled:false}}) !== 'Absent' ||
+      format({scale:{available:true}, cupPresence:{present:false}, config:{...required, brewByWeight:false}}) !== 'Absent')
+    throw new Error('An absent cup must say it is required only when cup protection requires it');
 }
 {
   const helpers = runtimeJs.slice(runtimeJs.indexOf('function lastCurveWeightG('),
