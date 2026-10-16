@@ -507,6 +507,10 @@ if (!shellHtml.includes('type="module"') ||
     /<script(?![^>]*\bsrc=)[^>]*>\s*\S/i.test(shellHtml)) {
   throw new Error('Web UI must load same-origin /app.js as a module (no inline script body)');
 }
+// The firmware CSP (script-src/style-src 'self') blocks inline handlers and style attributes.
+if (/<[^>]*\s(?:style|on[a-z]+)\s*=/i.test(allHtml)) {
+  throw new Error('Web UI markup must not use inline style attributes or event handlers');
+}
 // The runtime downloads with app.js instead of after it, and the view the
 // page opens on downloads while the ownership claim is in flight.
 if (!shellHtml.includes('<link rel="modulepreload" href="/js/runtime.js?v=__FW_ASSET_TAG__">') ||
