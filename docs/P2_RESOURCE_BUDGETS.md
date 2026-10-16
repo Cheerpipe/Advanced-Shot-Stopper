@@ -517,9 +517,16 @@ rejected. The connection byte uses prior padding; the checksum stays at offset
 
 History V5 retains an exact bounded preset-name snapshot and transfers through
 the shared chunked flash-I/O path. The separate last-shot V4 record retains the
-same provenance. The English authoring caps are 82,000 HTML bytes, 237,000 JavaScript bytes and
-319,000 combined source bytes. Compressed runtime remains capped at 44,000,
-secondary modules at 9,800 and combined assets at 116,000 bytes. The selectable
+same provenance. The Web UI size caps live in the Web contracts
+(`src/tests/web_contracts/10-assets-security.inc.js` and
+`60-generated-ota.inc.js`) and are the authority; as of the frontend audit
+(2026-10-16) the English authoring caps are 93,300 HTML bytes, 444,698
+JavaScript bytes and 530,162 combined source bytes. Compressed, the always
+loaded runtime is capped at 48,300 bytes and the cold Home download (shell,
+CSS, app and runtime) at 74,000 bytes. Each lazy view module carries its own
+cap: Stats and History 4,500, Diagnostic 12,450, Admin 14,200, Settings
+14,150 and Setup 3,600 bytes. All embedded assets together are capped at
+147,350 bytes. The selectable
 WS implementation and its correctness fixes are included in the reviewed flash
 baseline above. The OTA-slot, DIRAM, external-BSS and other asset limits remain
 unchanged. The reference clean development build with WS measures 2,273,760 image
