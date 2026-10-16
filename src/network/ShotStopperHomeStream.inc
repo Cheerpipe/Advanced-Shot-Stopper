@@ -243,6 +243,9 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
               lineaMicraBoilerStateName(micra.coffeeBoiler));
   delta.field("lineaMicra.boiler.coffee.readyAtUtcSec", "%lu",
               static_cast<unsigned long>(micra.coffeeReadyAtUtcSec));
+  // 0 when the machine has not reported a brew target; the Home row hides it.
+  delta.field("lineaMicra.boiler.coffee.targetDeciC", "%u",
+              static_cast<unsigned>(micra.targetValid ? micra.targetDeciC : 0));
   delta.field("lineaMicra.boiler.steam.state", "\"%s\"",
               lineaMicraBoilerStateName(micra.steamBoiler));
   delta.field("lineaMicra.boiler.steam.readyAtUtcSec", "%lu",

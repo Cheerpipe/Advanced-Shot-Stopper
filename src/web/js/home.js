@@ -31,6 +31,30 @@ function micraBoilerText(lm, boiler) {
   return label;
 }
 
+// Equipment row summaries: "<scale name> - 34g", "Present - 46g". Runtime
+// already wrote the bare state; only fresh, valid weights get the suffix.
+function grams(g) {
+  return typeof g === "number" && Number.isFinite(g) ? " - " + (Math.round(g) || 0) + "g" : "";
+}
+function renderEquipmentWeights(s) {
+  const sc = s.scale || {},
+    c = s.cupPresence || {};
+  if (!sc.available || sc.streamState !== "FRESH") return;
+  const w = typeof sc.observedWeightG === "number" ? sc.observedWeightG : sc.currentWeightG,
+    name =
+      String(sc.preferredFriendlyName || "").trim() || String(sc.preferredName || "").trim();
+  if (name) $("scale").textContent = name + grams(w);
+  else $("scale").textContent += grams(w);
+  if ((c.state === "PRESENT" || c.present) && c.weightValid === true)
+    $("cupState").textContent += grams(c.weightG);
+}
+
+// " - 93°" from the brew boiler target, only on machines that report one.
+function micraTargetSuffix(lm) {
+  const d = lm && lm.boiler && lm.boiler.coffee ? lm.boiler.coffee.targetDeciC : 0;
+  return typeof d === "number" && d > 0 ? " - " + Math.round(d / 10) + "°" : "";
+}
+
 function renderMicraBoilers() {
   // Reads the live cache: once the stream is invalidated the cache is null
   // and the ticker leaves the reset placeholders alone.
@@ -46,6 +70,7 @@ function renderMicraBoilers() {
 
 export function applyStatus(s) {
   R.applyHomeStatus(s);
+  renderEquipmentWeights(s);
   const brewing = ["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state);
   if (quickWeight && brewing) quickWeight.close();
   // URL launcher: on a controller with no shots yet the hero card is absent,
@@ -85,7 +110,7 @@ export function applyStatus(s) {
     rs.textContent = off
       ? __WEBUI_TEXT__("home.turned_off")
       : rdy
-        ? __WEBUI_TEXT__("runtime.ready_2")
+        ? __WEBUI_TEXT__("runtime.ready_2") + micraTargetSuffix(micraActive && lm)
         : labels[lm.readiness] ||
           (power.indexOf("ON") === 0 ? __WEBUI_TEXT__("home.on") : st.textContent);
     rs.classList.toggle("stateReady", rdy);
