@@ -519,8 +519,19 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   // Smooth-cut result: the stored verdict and cut line of a finished shot,
   // or the scale-loss backup state of the live one. A scale-loss yield is
   // estimated only when the flow projection chose the stop time.
-  char cutG[16] = "null", scaleLoss[80] = "null";
+  // A stored shot also carries its preset snapshot, so the hero draws the cut
+  // line on first paint without waiting for the Stats records.
+  char cutG[16] = "null", scaleLoss[80] = "null", rule[256] = "null";
   if (canonical) {
+    snprintf(rule, sizeof(rule),
+             "{\"fastBeforeS\":%.1f,\"slowAfterS\":%.1f,\"fastMarginG\":%.1f,"
+             "\"slowMarginG\":%.1f,\"delayS\":%.1f,\"wallS\":%.1f,\"cutRampS\":%.1f,"
+             "\"extractionGuardEnabled\":%s,\"slowExtractionGuardEnabled\":%s}",
+             latest.fastBeforeDs / 10.0, latest.slowAfterDs / 10.0,
+             latest.fastMarginDg / 10.0, latest.slowMarginDg / 10.0,
+             latest.delayDs / 10.0, latest.wallDs / 10.0, latest.cutRampDs / 10.0,
+             shotLogFastGuardEnabled(latest.sideFlags) ? "true" : "false",
+             shotLogSlowGuardEnabled(latest.sideFlags) ? "true" : "false");
     if (latest.cutLineCg > 0 &&
         corridor::weightCutReason(shotLogArrivalRecord(latest).endReason))
       snprintf(cutG, sizeof(cutG), "%.2f", latest.cutLineCg / 100.0);
@@ -545,7 +556,7 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
       "\"tareMs\":%s,\"presetName\":\"%s\","
       "\"scaleAvailable\":%s,\"shotType\":\"%s\",\"endReason\":\"%s\",\"averageFlowGps\":%s,"
       "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,\"touchHold\":%s,"
-      "\"verdict\":%s,\"channeling\":%s,\"cutG\":%s,\"scaleLoss\":%s,\"expectedEndMs\":%lu}",
+      "\"verdict\":%s,\"channeling\":%s,\"cutG\":%s,\"scaleLoss\":%s,\"expectedEndMs\":%lu,\"rule\":%s}",
       phase, card.valid ? "true" : "false", control.activeCycle ? "true" : "false",
       weight, static_cast<double>(goalWeightDgToGrams(card.goalWeightDg)),
       static_cast<unsigned long>(card.durationMs), drop, tare, preset,
@@ -562,7 +573,7 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
       canonical && corridor::channelingOf(latest.verdict) ? "true" : "false",
       cutG, scaleLoss,
       // The cut forecast on the shot clock while brewing; 0 = none.
-      static_cast<unsigned long>(control.activeCycle ? control.cycleExpectedEndMs : 0U));
+      static_cast<unsigned long>(control.activeCycle ? control.cycleExpectedEndMs : 0U), rule);
   if (cardBytes <= 0 || static_cast<size_t>(cardBytes) >= NetworkWorkBuf::kJsonItem)
     return true;
   const uint32_t markers = crc32Update(0xFFFFFFFFU,

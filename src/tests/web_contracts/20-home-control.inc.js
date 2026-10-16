@@ -190,7 +190,7 @@
   };
   let tintMode=null;
   const rule={mode:'active',t1:27,t2:36,prot:3,wall:60,d:5,ceil:38.5};
-  const env={liveRuleModel:null};
+  const env={liveRuleModel:null},ruleArgs=[];
   const paint=(d)=>new Function('$','buildShotSparkModel','formatShotEnded','ms','localStorage','document',
     'liveRuleModel','shotHistory','shotRuleModel','scheduleShotPaint','heroFastState',
     blockAt(runtimeJs,'function verdictLabel(')+
@@ -198,7 +198,7 @@
       .replace('let heroFast = { el: 0, since: -1, on: false };','let heroFast = heroFastState.v;')+
     ';const r=renderShotHero(arguments[11]);heroFastState.v=heroFast;return r;')(lookup,()=>null,()=>'',
       (v,n)=>(v/1000).toFixed(n),{getItem:()=>tintMode,setItem(){}},{createElement:()=>({})},
-      env.liveRuleModel,{shots:[]},()=>null,()=>{},fast,d);
+      env.liveRuleModel,{shots:[]},r=>(ruleArgs.push(r),null),()=>{},fast,d);
   const fast={v:{el:0,since:-1,on:false}};
   const card={live:true,weight:2,goal:36,elapsedMs:1000,firstDropMs:0,tareMs:null,averageFlowGps:null,shotType:'auto'};
   const heroEl=()=>lookup('shotHero');
@@ -213,6 +213,11 @@
   paint(done);
   if(lookup('shotHeroState').textContent!=='Fast'||heroEl().dataset.tint!=='fast'||
       lookup('shotHeroCut').textContent!=='Extended')throw new Error('A fast shot must read Fast, turn red and keep Extended');
+  // The stored shot's own rule draws the cut line on first paint, without the Stats records.
+  paint({...done,rule:{fastBeforeS:27,slowAfterS:36,cutRampS:2}});
+  if(ruleArgs.length!==1||ruleArgs[0].goalG!==36||ruleArgs[0].fastBeforeS!==27||
+      ruleArgs[0].shotType!=='auto'||ruleArgs[0].firstDropS!==0)
+    throw new Error('A finished shot must build its cut line from the card rule');
   paint({...done,verdict:'slow',cutG:34});
   if(lookup('shotHeroState').textContent!=='Slow'||heroEl().dataset.tint!=='slow'||lookup('shotHeroCut').textContent!=='Stopped early')
     throw new Error('A slow shot must read Slow, turn blue and keep Stopped early');
@@ -328,6 +333,9 @@
       !streamSource.includes('kUiStreamLiveMs = 100, kUiStreamIdleMs = 250')||
       !streamSource.includes('controlCriticalRfActive_.load'))
     throw new Error('Bind/resync must share the coalesced publication cadence');
+  if(!/rule\[256\] = "null";\n  if \(canonical\) \{\n    snprintf\(rule,/.test(streamSource)||
+      !streamSource.includes('\\"expectedEndMs\\":%lu,\\"rule\\":%s}'))
+    throw new Error('Only a stored shot card may carry its preset rule');
   const sockets=[],timers=new Map();let timerId=0,owner=true;
   class Socket{static OPEN=1;constructor(url){this.url=url;this.readyState=1;this.sent=[];sockets.push(this)}send(body){this.sent.push(JSON.parse(body))}close(){this.readyState=3;this.onclose?.()}}
   const listeners={};

@@ -6865,7 +6865,6 @@ function applyStatsStream(message) {
     },
     page.mode,
   );
-  scheduleShotPaint(); // The hero draws its preset from these records.
   // The model updates on every view; only the hidden view's DOM work and
   // reachability signal wait until Stats is actually open.
   if (shotStatsViewActive()) {
@@ -7087,7 +7086,9 @@ function renderShotHero(d) {
     !kind && !cut && mode !== __WEBUI_TEXT__("runtime.unknown") && mode !== __WEBUI_TEXT__("runtime.bbw") && mode,
   );
   $("shotHeroPills").hidden = ["Cut", "Touch", "Mode"].every((id) => $("shotHero" + id).hidden);
-  const m = d.live ? liveRuleModel : heroShotRule(d.shotId),
+  const m = d.live
+      ? liveRuleModel
+      : d.rule && shotRuleModel({ ...d.rule, goalG: d.goal, shotType: d.shotType, firstDropS: d.firstDropMs / 1e3 }),
     tint = heroTint(d, m, kind, el, noScale);
   hero.dataset.tint = tint;
   t(
@@ -7141,11 +7142,6 @@ function heroTint(d, m, kind, el, noScale) {
   heroFast.on ||= !!d.extractionExtended || (early && el - heroFast.since >= 1500);
   const at = el / 1000;
   return heroFast.on ? "fast" : at > m.t2 ? "slow" : mode === "window" && at >= m.t1 ? "on_recipe" : "neutral";
-}
-// A finished shot draws its own preset snapshot, from the history record.
-function heroShotRule(id) {
-  const r = shotHistory.shots.find((x) => x.id === id);
-  return r ? shotRuleModel(r) : null;
 }
 // Curve, cut line and window; overlays use CSSOM (the CSP blocks inline styles).
 function renderHeroChart(host, model, m, goal, label) {
