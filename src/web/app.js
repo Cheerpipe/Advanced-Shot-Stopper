@@ -152,10 +152,10 @@ async function renderRoute(pathname) {
       R.message(e && e.message ? e.message : __WEBUI_TEXT__("shell.unable_to_load_view"), "error");
   }
 }
-function navigate(path) {
+function navigate(path, replace) {
   const known = knownPath(path);
   const target = known ? known : "/";
-  if (location.pathname !== target) history.pushState({}, "", target);
+  if (location.pathname !== target) history[replace ? "replaceState" : "pushState"]({}, "", target);
   renderRoute(target);
 }
 R.setViewPollHooks({
@@ -185,7 +185,9 @@ function updateNavigationLayout() {
 function sizeHeader() {
   root.style.setProperty("--menu-offset", nav.offsetTop + "px");
 }
-let pillPlaced = false;
+let pillPlaced = false,
+  drag = null,
+  dragged = false;
 const pill = nav ? Object.assign(document.createElement("div"), { className: "pill" }) : null;
 if (pill) {
   nav.append(pill);
@@ -193,7 +195,7 @@ if (pill) {
 }
 function placePill(animate) {
   const a = nav && nav.querySelector("a.active");
-  if (!pill || !a) return;
+  if (!pill || !a || (drag && dragged)) return;
   if (!pillPlaced) {
     animate = false;
     pillPlaced = true;
@@ -225,7 +227,56 @@ if (nav) {
   nav.setAttribute("aria-label", __WEBUI_TEXT__("shell.primary"));
   nav.querySelectorAll("a").forEach((a) => {
     a.title = a.textContent;
+    a.draggable = false;
   });
+  // Dragging the pill sideways opens each link it settles on; links pull it
+  // toward their centre (slope 0.35 there, 1 at their edges, so it never jumps).
+  nav.addEventListener("pointerdown", (e) => {
+    if (!e.isPrimary || e.button || !e.target.closest("a.active")) return;
+    drag = { x: e.clientX, c: (parseFloat(pill.style.translate) || 0) + pill.offsetWidth / 2 };
+    nav.setPointerCapture(e.pointerId);
+  });
+  nav.addEventListener("pointermove", (e) => {
+    const dx = drag ? e.clientX - drag.x : 0;
+    if (!drag || (!dragged && Math.abs(dx) < 6)) return;
+    dragged = true;
+    nav.classList.add("dragging");
+    pill.style.transition = "none";
+    const links = [...nav.querySelectorAll("a")]
+        .filter((l) => l.offsetWidth)
+        .sort((p, q) => p.offsetLeft - q.offsetLeft),
+      lo = links[0].offsetLeft,
+      hi = links.at(-1).offsetLeft + links.at(-1).offsetWidth,
+      c0 = Math.min(Math.max(drag.c + dx, lo), hi - 1),
+      i = links.findIndex((l) => c0 < l.offsetLeft + l.offsetWidth),
+      h = links[i],
+      hw = h.offsetWidth / 2,
+      t = (c0 - h.offsetLeft - hw) / hw,
+      n = links[i + Math.sign(t)] || h,
+      w = h.offsetWidth + ((n.offsetWidth - h.offsetWidth) * t * t) / 2,
+      c = h.offsetLeft + hw + t * hw * (0.35 + 0.65 * t * t);
+    pill.style.width = `${w}px`;
+    pill.style.translate = `${Math.min(Math.max(c - w / 2, lo), hi - w)}px 0`;
+    if (h.classList.contains("active")) return;
+    markNavActive(h.dataset.route);
+    navigate(h.dataset.route, drag.moved);
+    drag.moved = true;
+  });
+  const endDrag = () => {
+    if (!drag) return;
+    drag = null;
+    nav.classList.remove("dragging");
+    pill.style.transition = "";
+    placePill(true);
+    setTimeout(() => (dragged = false));
+  };
+  nav.addEventListener("pointerup", endDrag);
+  nav.addEventListener("pointercancel", endDrag);
+  nav.addEventListener(
+    "click",
+    (e) => dragged && (e.preventDefault(), e.stopImmediatePropagation()),
+    true,
+  );
   new ResizeObserver(updateNavigationLayout).observe(document.getElementById("app"));
   new ResizeObserver(sizeHeader).observe(document.querySelector(".topBar"));
   const pillAnchor = new ResizeObserver(() => {
