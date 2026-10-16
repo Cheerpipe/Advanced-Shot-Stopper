@@ -791,8 +791,9 @@ if (htmlBytes > 93300) {
 // Top messages open and close their measured space while they fade: +1483 bytes (428893), owner-authorized 2026-10-16.
 // Home hero card with the cut-line chart, verdict colours, the fast forecast and its Admin colour choice: 432551 bytes, owner-authorized 2026-10-16.
 // The Home hero drip tail, from a cut dot to the settled weight: +468 bytes (433028), owner-authorized 2026-10-16.
-if (jsBytes > 433028) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 433028)`);
+// Dragging the navigation pill between sections: +2095 bytes (435123), owner-authorized 2026-10-16.
+if (jsBytes > 435123) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 435123)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -884,8 +885,9 @@ if (jsBytes > 433028) {
 // Combined source at 517073 with the copied Home graphs; owner-authorized 2026-10-15.
 // Combined source with the preset graph cut pill; owner-authorized 2026-10-15.
 // Combined source at 518682 with the first-drop pace start; owner-authorized 2026-10-15.
-if (htmlBytes + jsBytes > 518700) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 518700)`);
+// Combined source at 520468 with the draggable navigation pill; owner-authorized 2026-10-16.
+if (htmlBytes + jsBytes > 520468) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 520468)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

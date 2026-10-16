@@ -133,6 +133,7 @@
     hidden: false, suppressed: false, width, textContent: 'Section', offsetLeft: 2, offsetWidth: 130,
   }));
   const nav = {offsetTop: 72, setAttribute() {}, appended: [], classes: [], append(el) {this.appended.push(el);},
+    listeners: {}, addEventListener(name, fn) {this.listeners[name] = fn;},
     classList: {add: name => nav.classes.push(name)},
     querySelector: selector => {assert.equal(selector, 'a.active'); return links[0];},
     querySelectorAll: () => links,
@@ -167,6 +168,9 @@
   assert.equal(geometry['--menu-offset'], '72px', 'Initial header measures its actual menu row');
   assert.deepEqual(nav.appended.map(el => el.className), ['pill'], 'Script enhancement adds the sliding selection pill');
   assert.deepEqual(nav.classes, ['pillNav'], 'Pill navigation takes over the active background');
+  assert.deepEqual(Object.keys(nav.listeners).sort(),
+    ['click', 'pointercancel', 'pointerdown', 'pointermove', 'pointerup'],
+    'The pill can be dragged between sections');
   callbacks.fonts();
   assert.equal(nav.appended[0].style.width, '130px', 'Font settling re-anchors the pill instantly');
   assert.equal(nav.appended[0].style.translate, '2px 0', 'First placement matches the active destination');

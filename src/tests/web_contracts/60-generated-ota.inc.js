@@ -473,8 +473,9 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
 // to 6090.
 // Release inertia on the target ruler measures 6241, owner-authorized
 // 2026-10-14. Cap raised to 6260.
-if (generated.jsGzip.length > 6260) {
-  throw new Error(`Compressed Web UI shell JS exceeds the 6260-byte gzip budget (${generated.jsGzip.length})`);
+// Dragging the navigation pill measures 6594, owner-authorized 2026-10-16.
+if (generated.jsGzip.length > 6594) {
+  throw new Error(`Compressed Web UI shell JS exceeds the 6594-byte gzip budget (${generated.jsGzip.length})`);
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -528,8 +529,9 @@ if (generated.jsGzip.length > 6260) {
 // four state colours) measures 14099 bytes; owner-authorized 2026-10-16.
 // The Home hero cut-line chart, verdict colours and their cross-fade measure
 // 14164 bytes; owner-authorized 2026-10-16.
-if (generated.cssGzip.length > 14170) {
-  throw new Error(`Compressed Web CSS exceeds the 14170-byte gzip budget (${generated.cssGzip.length})`);
+// The draggable navigation pill measures 14204 bytes; owner-authorized 2026-10-16.
+if (generated.cssGzip.length > 14204) {
+  throw new Error(`Compressed Web CSS exceeds the 14204-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
