@@ -210,6 +210,13 @@ cycle. A later Settings save that changes the same shared setting, or an edit
 of the active preset's Brew by weight, fast or slow choice, replaces the
 override with the saved value.
 
+The Web UI status (`/api/v1/status/{page}`) and the Home stream report the
+overrides as `quickRevert.overrides`, a bit mask in field order: `brewByWeight`
+(1), `noScaleBbwMode` (2), `autoToManualGuardEnabled` (4),
+`slowExtractionGuardEnabled` (8), `fastExtractionGuardEnabled` (16),
+`avoidAccidentalTouchEnabled` (32), and `cupProtectionEnabled` (64); 0 means no
+override is active.
+
 The command completes as soon as it is live, so its `lastCommand` reaches
 `PERSISTED` without a flash write; an unchanged value completes immediately.
 Authoritative-refresh rules are otherwise identical to active-preset selection.

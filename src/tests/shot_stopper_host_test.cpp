@@ -13687,6 +13687,11 @@ void hq01_quick_settings_are_session_only() {
         published.scaleLossEnabled);
   CHECK(hostRuntimePersistAttempts == persistAttempts);
   CHECK(hostQuickSettingsWebhookCount == webhookCount + 7);
+  // Settings learns which values are overridden from the published mask.
+  publishControlStatus();
+  ControlStatusSnapshot overrideStatus;
+  copyControlStatus(overrideStatus);
+  CHECK(overrideStatus.quickOverrideMask == (1U << QUICK_SETTING_FIELD_COUNT) - 1);
   CHECK(activeShotPreset(presetBank).brewByWeight == savedPreset.brewByWeight);
   CHECK(activeShotPreset(presetBank).fastSideEnabled);
   CHECK(activeShotPreset(presetBank).slowSideEnabled);

@@ -324,10 +324,10 @@ function buildQuickSettings() {
 }
 const QUICK_REVERT = ["next_shot", "15m", "30m", "60m", "keep"];
 function quickRevertNote(r, i) {
-  const when = r.pending && i && i < 4
+  const when = r.overrides && i && i < 4
     ? __WEBUI_TEXT__("runtime.quick_revert_in").replace("{n}", Math.max(1, Math.ceil((r.remainingS || 0) / 60)))
     : __WEBUI_TEXT__("runtime.quick_revert_when").split("|")[i];
-  return (r.pending ? __WEBUI_TEXT__("runtime.quick_revert_pending") : __WEBUI_TEXT__("runtime.quick_revert_hint")).replace("{when}", when);
+  return (r.overrides ? __WEBUI_TEXT__("runtime.quick_revert_pending") : __WEBUI_TEXT__("runtime.quick_revert_hint")).replace("{when}", when);
 }
 let quickNoScaleMode = "warn_once",
   quickBusy = false,
@@ -368,7 +368,7 @@ function updateQuickSettings(s = quickStatus) {
     el.disabled = locked;
   });
   $("quickRevertNote").textContent = quickRevertNote(r, i);
-  $("quickRevertNow").hidden = !r.pending;
+  $("quickRevertNow").hidden = !r.overrides;
   $("quickRevertNow").disabled = locked;
 }
 async function setQuickSetting(button) {

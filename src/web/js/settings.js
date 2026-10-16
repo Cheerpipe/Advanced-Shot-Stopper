@@ -4,6 +4,7 @@ const $ = R.$;
 let ready = false;
 export function applyStatus(s) {
   R.applySettingsStatus(s);
+  updateSettingsOverrides(s);
   updateCupMinGuidance(s);
   const reminder = $("paddleReturnReminder");
   if (reminder && !R.configDirty && !R.brewDirty) {
@@ -19,6 +20,57 @@ export function applyStatus(s) {
   if (link && typeof s.diagnosticPageVisible === "boolean")
     link.classList.toggle("hidden", !s.diagnosticPageVisible);
 }
+
+// Settings shows saved values; a note flags the ones a header-panel override
+// currently hides (mask bits follow the firmware QuickSettingField order).
+const QUICK_FIELDS = [
+  "brewByWeight",
+  "noScaleBbwMode",
+  "autoToManualGuardEnabled",
+  "slowExtractionGuardEnabled",
+  "fastExtractionGuardEnabled",
+  "avoidAccidentalTouchEnabled",
+  "cupProtectionEnabled",
+];
+let overrideStatus = {};
+function updateSettingsOverrides(s = overrideStatus) {
+  overrideStatus = s;
+  const mask = s.quickRevert?.overrides | 0,
+    activePreset = (R.presetState.selectedId || R.presetState.activeId) === R.presetState.activeId;
+  QUICK_FIELDS.forEach((k, bit) => {
+    const label = $(k)?.closest("label");
+    if (!label) return;
+    let note = label.nextElementSibling?.classList.contains("qsOverride") ? label.nextElementSibling : null;
+    const presetField = bit === 0 || bit === 3 || bit === 4;
+    if (!(mask & (1 << bit)) || (presetField && !activePreset)) return note?.remove();
+    if (!note) {
+      note = document.createElement("p");
+      note.className = "fieldWarning qsOverride";
+      note.innerHTML = `${__WEBUI_TEXT__("settings.quick_override_note")} <button type="button" class="qsReset" data-saved="${k}">${__WEBUI_TEXT__("settings.quick_override_use_saved")}</button>`;
+      label.after(note);
+    }
+    note.querySelector("button").disabled = !R.controlsMutable || !!s.cycle?.active;
+  });
+}
+// The control shows the saved value, so sending it drops that override.
+document.addEventListener("click", async (e) => {
+  const button = e.target.closest?.(".qsOverride button[data-saved]");
+  if (!button) return;
+  const input = $(button.dataset.saved);
+  button.disabled = true;
+  try {
+    await R.api("/api/v1/integration/quick-settings", {
+      method: "PUT",
+      body: R.body({
+        baseRevision: overrideStatus.config?.revision,
+        [input.id]: input.type === "checkbox" ? input.checked : input.value,
+      }),
+    });
+  } catch (err) {
+    R.message(err.message, "error");
+    button.disabled = false;
+  }
+});
 
 // Setup help: something rests on the platform but reads below the configured
 // cup minimum, so cup detection and late tare will not see it as a cup.
@@ -39,6 +91,7 @@ export function init() {
   if (ready) return;
   ready = true;
   R.registerViewStatus("settings", applyStatus);
+  $("presetCards")?.addEventListener("click", () => setTimeout(updateSettingsOverrides));
   $("saveConfigButton").onclick = R.saveMachineConfig;
   $("revertConfigButton").onclick = R.revertMachineConfig;
   if ($("presetNewBtn"))

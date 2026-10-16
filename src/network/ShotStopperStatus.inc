@@ -237,9 +237,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   }
   if (ok) {
     ok = statusJsonAppend(
-        &used, ",\"quickRevert\":{\"after\":\"%s\",\"pending\":%s,\"remainingS\":%lu}",
+        &used, ",\"quickRevert\":{\"after\":\"%s\",\"overrides\":%u,\"remainingS\":%lu}",
         quickRevertPolicyId(control.quickRevertPolicy),
-        control.quickOverridesActive ? "true" : "false",
+        static_cast<unsigned>(control.quickOverrideMask),
         static_cast<unsigned long>((control.quickRevertRemainingMs + 999) / 1000));
   }
   if (ok) {

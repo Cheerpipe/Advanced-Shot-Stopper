@@ -117,7 +117,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("config.scaleMacCacheMode", "\"%s\"", scaleMacCacheModeId(config.scaleMacCacheMode));
   delta.field("config.rinseEnabled", bool(config.rinseEnabled));
   delta.field("quickRevert.after", "\"%s\"", quickRevertPolicyId(control.quickRevertPolicy));
-  delta.field("quickRevert.pending", bool(control.quickOverridesActive));
+  delta.field("quickRevert.overrides", "%u", static_cast<unsigned>(control.quickOverrideMask));
   delta.field("quickRevert.remainingS", "%lu", static_cast<unsigned long>((control.quickRevertRemainingMs + 999) / 1000));
   delta.field("state", "\"%s\"", stopperStateName(control.state));
   delta.field("stateLabel", "\"%s\"", stateLabel(control.state));

@@ -76,6 +76,11 @@ keeps time on its own, so this works even when no browser is open. If the time
 runs out during a shot, the settings change back once the shot ends. Your
 Duration choice returns to **Keep** after a restart.
 
+Settings keeps showing your saved values. When one of them is changed for now
+from the panel, an orange note appears right below it; **Use saved setting**
+there undoes just that change. For Brew by weight, fast and slow shots, the note
+appears while you are looking at the active preset.
+
 | Setting | Group | Default | Range | Effect on the shot |
 | --- | --- | --- | --- | --- |
 | **Brew by weight** | Recipe | ON | ON / OFF | ON: stop by weight when a scale is usable. OFF: paddle, **Stop**, and the 60 s firmware cap only; the fast and slow options, the scale-loss backup, Max shot time, and No-scale BBW become read-only. |

@@ -1317,6 +1317,8 @@
     "settings.presets_scope_hint": "Saved with the selected preset.",
     "settings.protection_returns_after_hint": "After a warning or override, brewing without a scale stays allowed this long.",
     "settings.protection_returns_after_min": "Warning returns after (min)",
+    "settings.quick_override_note": "Changed for now from the header. This shows your saved setting.",
+    "settings.quick_override_use_saved": "Use saved setting",
     "settings.quick_rinse": "Quick rinse",
     "settings.rapid": "Rapid",
     "settings.recipe": "Recipe",
