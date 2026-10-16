@@ -208,7 +208,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !codeIncludes(runtimeJs, "location.replace(location.pathname+'?fw='+version)") ||
     !codeIncludes(appJsSource, 'boot=R.showPageBoot();R.stopViewPolls();') ||
     !codeIncludes(appJsSource, 'if(ok){R.hideHomeBoot(boot);') ||
-    !codeIncludes(appJsSource, 'if(view!=="setup")R.ensureBackgroundRecordStreams();')) {
+    !codeIncludes(appJsSource, 'if(view!=="setup")setTimeout(R.ensureBackgroundRecordStreams,3e3);')) {
   throw new Error(
       'Every view must reuse the Home splash and fade immediately after data loads, preserving firmware reload and inactive overlay handoff');
 }
@@ -363,17 +363,19 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       set innerHTML(html) {assetEvents.push('insert-' + name);},
     };
     const assetContext = vm.createContext({jsMods: new Map(), htmlLoaded: new Set(['home']),
-      viewLoads: new Map(), SECONDARY: new Set(['stats', 'history']), secondaryViews: null,
+      viewLoads: new Map(), SECONDARY: new Set(['stats', 'history']), secondaryViews: null, bootFetch: null,
       assetQuery: '?v=test', document: {getElementById: id => sections[id]},
       __WEBUI_TEXT__: key => key,
       loadPartial: name => {assetEvents.push('html-' + name); return assets[name].promise;},
       importModule: () => {assetEvents.push('js'); return secondary.promise;}});
-    const ensureSource = appJsSource.slice(appJsSource.indexOf('async function ensureView('),
+    const ensureSource = appJsSource.slice(appJsSource.indexOf('function fetchView('),
       appJsSource.indexOf('R.setEnsureViewHook')).replace(/import\(/g, 'importModule(');
     vm.runInContext(ensureSource, assetContext);
+    assetContext.bootFetch = ['history', assetContext.fetchView('history')];
     const firstStats = assetContext.ensureView('stats'), againStats = assetContext.ensureView('stats'),
       firstHistory = assetContext.ensureView('history');
-    assert.deepEqual(assetEvents, ['html-stats', 'js', 'html-history'], 'HTML and shared module download together and deduplicate');
+    assert.deepEqual(assetEvents, ['html-history', 'js', 'html-stats'], 'The opening view prefetch, HTML, and shared module download together and deduplicate');
+    assert.equal(assetContext.bootFetch, null, 'The opening view consumes its prefetch once');
     secondary.resolve({views: Object.fromEntries(['stats', 'history'].map(name => [name, {
       init: () => {assert.equal(assetEvents.includes('insert-' + name), true); initialized.push(name);},
     }]))});
@@ -392,7 +394,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
         ROUTES: {[path]: view}, knownPath: () => path, viewToPath: () => path,
         location: {pathname: path}, history: {}, stopExtraPolls() {}, placePill() {}, markNavActive() {},
         ensureView: () => {events.push('markup'); return markup.promise;},
-        document: {hidden: false, querySelectorAll: () => [], body: {classList: classList(bodyClasses)}}, setInterval: () => 1,
+        document: {hidden: false, querySelectorAll: () => [], body: {classList: classList(bodyClasses)}}, setInterval: () => 1, setTimeout: () => 1,
         __WEBUI_TEXT__: key => key,
         R: {showPageBoot: () => {events.push('show'); return 1;}, stopViewPolls() {},
           api: async () => {throw new Error('record views must not probe REST status');}, compatibilityModeOn: () => false,
@@ -475,6 +477,14 @@ if (!shellHtml.includes('type="module"') ||
     !shellHtml.includes('src="/app.js?v=__FW_VERSION__"') ||
     /<script(?![^>]*\bsrc=)[^>]*>\s*\S/i.test(shellHtml)) {
   throw new Error('Web UI must load same-origin /app.js as a module (no inline script body)');
+}
+// The runtime downloads with app.js instead of after it, and the view the
+// page opens on downloads while the ownership claim is in flight.
+if (!shellHtml.includes('<link rel="modulepreload" href="/js/runtime.js?v=__FW_ASSET_TAG__">') ||
+    !codeIncludes(appJsSource, 'import * as R from "/js/runtime.js?v=__FW_ASSET_TAG__";') ||
+    !codeIncludes(appJsSource, 'bootFetch=[bootView,fetchView(bootView)];bootFetch[1].catch(()=>{});}R.claimWebUiOwnership();') ||
+    !codeIncludes(appJsSource, 'const boot=bootFetch?.[0]===name&&bootFetch[1];if(boot)bootFetch=null;')) {
+  throw new Error('Shell must preload the runtime app.js imports, and the boot view must load alongside the claim');
 }
 if (!shellHtml.includes('rel="manifest" href="/manifest.webmanifest"') ||
     !shellHtml.includes('rel="apple-touch-icon"') ||
@@ -796,8 +806,9 @@ if (htmlBytes > 93300) {
 // Held touch readings off the weight line and out of flow, their markers, legend and CSV column: +1631 bytes (437272), owner-authorized 2026-10-16.
 // Keeping the screen on in full screen (Wake Lock or an inline keep-awake video) and Esc to leave it: +2411 bytes (439683), owner-authorized 2026-10-16.
 // The mercury navigation pill (spring, teardrop SVG shape, settling loop): +1962 bytes (441645), owner-authorized 2026-10-16.
-if (jsBytes > 441645) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 441645)`);
+// Loading the opening view during the claim and delaying background record subscribes: +419 bytes (442064), requested with the load-latency plan 2026-10-16.
+if (jsBytes > 442064) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 442064)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -894,8 +905,9 @@ if (jsBytes > 441645) {
 // Combined source at 522617 with the held touch readings; owner-authorized 2026-10-16.
 // Combined source at 525028 with the full-screen keep-awake; owner-authorized 2026-10-16.
 // Combined source at 526990 with the mercury navigation pill; owner-authorized 2026-10-16.
-if (htmlBytes + jsBytes > 526990) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 526990)`);
+// Combined source at 527476 with the runtime preload and opening-view load; requested with the load-latency plan 2026-10-16.
+if (htmlBytes + jsBytes > 527476) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 527476)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

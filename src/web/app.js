@@ -11,6 +11,7 @@ const assetQuery = new URL(import.meta.url).search;
 const jsMods = new Map();
 const htmlLoaded = new Set(["home"]);
 const viewLoads = new Map();
+let bootFetch = null;
 const SECONDARY = new Set(["stats", "history", "diagnostic", "admin"]);
 let secondaryViews = null;
 let routeSeq = 0;
@@ -40,6 +41,21 @@ async function loadPartial(name) {
   if (!response.ok) throw new Error(__WEBUI_TEXT__("shell.failed_to_load_view_markup"));
   return response.text();
 }
+function fetchView(name) {
+  const markup = htmlLoaded.has(name) ? null : loadPartial(name),
+    module = SECONDARY.has(name)
+      ? (
+          secondaryViews ||
+          (secondaryViews = import("/js/secondary.js" + assetQuery)
+            .then((sec) => sec.views)
+            .catch((e) => {
+              secondaryViews = null;
+              throw e;
+            }))
+        ).then((views) => views[name])
+      : import("/js/" + name + ".js" + assetQuery);
+  return Promise.all([markup, module]);
+}
 async function ensureView(name) {
   if (jsMods.has(name) && htmlLoaded.has(name)) return jsMods.get(name);
   if (viewLoads.has(name)) return viewLoads.get(name);
@@ -51,19 +67,9 @@ async function ensureView(name) {
       jsMods.set("home", __homeModule);
       return __homeModule;
     }
-    const markup = htmlLoaded.has(name) ? null : loadPartial(name),
-      module = SECONDARY.has(name)
-        ? (
-            secondaryViews ||
-            (secondaryViews = import("/js/secondary.js" + assetQuery)
-              .then((sec) => sec.views)
-              .catch((e) => {
-                secondaryViews = null;
-                throw e;
-              }))
-          ).then((views) => views[name])
-        : import("/js/" + name + ".js" + assetQuery);
-    const [html, mod] = await Promise.all([markup, module]);
+    const boot = bootFetch?.[0] === name && bootFetch[1];
+    if (boot) bootFetch = null;
+    const [html, mod] = await (boot || fetchView(name));
     if (!mod) throw new Error(__WEBUI_TEXT__("shell.missing_secondary_view") + name);
     if (html !== null) {
       section.innerHTML = html;
@@ -139,12 +145,12 @@ async function renderRoute(pathname) {
   try {
     const [, ok] = await Promise.all([ready, startView(view)]);
     if (seq !== routeSeq) return;
-    // Record pages subscribe in the background once the active view's
-    // initial load is done, so they stay fresh without slowing first paint.
+    // Record pages subscribe in the background 3 s after the active view's
+    // load, so they stay fresh without delaying first paint or first clicks.
     // Setup (captive portal) skips them: sockets are scarce on the SoftAP.
     if (ok) {
       R.hideHomeBoot(boot);
-      if (view !== "setup") R.ensureBackgroundRecordStreams();
+      if (view !== "setup") setTimeout(R.ensureBackgroundRecordStreams, 3e3);
     } else if (R.webUiPollingActive())
       R.message(__WEBUI_TEXT__("shell.unable_to_load_view"), "error");
   } catch (e) {
@@ -369,4 +375,10 @@ document.addEventListener("input", R.noteWebUiInteraction, true);
 document.addEventListener("change", R.noteWebUiInteraction, true);
 document.addEventListener("keydown", R.noteWebUiInteraction, true);
 R.setMutable(false);
+// The opening view downloads while the ownership claim is in flight.
+const bootView = ROUTES[knownPath(location.pathname)];
+if (bootView && bootView !== "home") {
+  bootFetch = [bootView, fetchView(bootView)];
+  bootFetch[1].catch(() => {});
+}
 R.claimWebUiOwnership();

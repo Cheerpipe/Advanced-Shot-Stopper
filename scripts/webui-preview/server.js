@@ -46,7 +46,7 @@ function renderHome() {
       .replace('</head>', '<link rel="stylesheet" href="/header.css"></head>')
       .replace('<script type="module" src="/app.js?v=__FW_VERSION__"></script>',
           '<script src="/preview.js" defer></script>')
-      .replace(/<link rel="(?:manifest|icon|apple-touch-icon)"[^>]*>/g, '')
+      .replace(/<link rel="(?:manifest|icon|apple-touch-icon|modulepreload)"[^>]*>/g, '')
       .replace(/__FW_VERSION__/g, 'design-preview');
 }
 
