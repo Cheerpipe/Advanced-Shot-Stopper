@@ -45,7 +45,7 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 .qsSig>span{display:flex}
 @media(min-width:700px){
   .qsGuardSig>.qsShield{display:none}
-  .qsStack{display:flex;padding-left:.6rem}
+  .qsStack{display:flex;padding-left:.95rem}
   .qsStack i{display:grid;place-items:center;width:1.85rem;height:1.85rem;margin-left:-.6rem;border:2.5px solid var(--bg);border-radius:50%;background:color-mix(in srgb,var(--c,var(--ok)) 18%,var(--sf));color:var(--c,var(--ok))}
   .qsStack .qsI{width:1rem;height:1rem;stroke-width:2.1}
   .qsStack i.off,[data-mode=manual] .qsStack i{background:var(--in);color:var(--mu)}
