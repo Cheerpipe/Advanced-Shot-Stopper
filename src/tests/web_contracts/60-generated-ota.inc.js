@@ -853,6 +853,15 @@ if (generated.icon48Raw.length > 3500) {
 // The preset graph cut pill brings combined gzip to 147070; owner-authorized 2026-10-15.
 // The first-drop pace start brings combined gzip to 147297; owner-authorized 2026-10-15.
 // Partition limits stay fixed.
+// What a cold Home load downloads before it can paint (shell, CSS, app and
+// runtime) is the budget users feel; view-only code belongs in the lazy view
+// modules. Record why a cap moves in the commit, not in comments here.
+// Measured 73846 bytes after the frontend audit (2026-10-16).
+const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
+    generated.jsGzip.length + generated.runtimeGzip.length;
+if (coldHomeGzip > 74000) {
+  throw new Error(`Cold Home download exceeds the 74000-byte gzip budget (${coldHomeGzip})`);
+}
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);
 }
