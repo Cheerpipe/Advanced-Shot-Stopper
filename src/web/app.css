@@ -8,7 +8,8 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 .brand a{color:var(--ac);text-decoration:none;display:flex;align-items:center;gap:var(--brandGap)}
 .brandMark{width:2.35rem;height:3.1rem;flex:0 0 auto;display:block;overflow:visible;fill:currentColor}
 .brand span{display:flex;flex-direction:column;justify-content:center;gap:.08rem;min-width:0;line-height:1.05;font-size:1.4rem;font-weight:800;letter-spacing:-.02em;white-space:nowrap}
-.brand small{font-size:.84rem;font-weight:600;letter-spacing:.02em}
+.brand small{font-size:1rem;font-weight:300;letter-spacing:.01em;color:var(--fg)}
+.spriteDefs{position:absolute}
 .headerSignals{position:relative;display:flex;align-items:center;gap:0;padding-left:.5rem;flex-shrink:0;z-index:22;margin-left:auto}
 .signalIndicator{display:flex;align-items:center;justify-content:center;width:2.25rem;height:var(--tap);padding:0;border:0;background:transparent;color:var(--fg);border-radius:.5rem;cursor:pointer}
 .signalIndicator svg{width:1.45rem;height:1.45rem;overflow:visible}
@@ -55,7 +56,7 @@ body.devBuild #adminLockPanel{display:none}
 .brand{flex-shrink:0;--brandGap:.65rem}
 .brandMark{width:2.55rem;height:3.35rem}
 .brand span{font-size:1.5rem;gap:.1rem}
-.brand small{font-size:.9rem}
+.brand small{font-size:1.08rem}
 }
 .pageFooter{margin:.85rem 0 .4rem;color:var(--mu);font-size:.85rem;text-align:center}
 .pageFooter a{color:var(--ac);text-decoration:none}
@@ -591,14 +592,14 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 :where(a,button,input,select,textarea,summary):focus-visible{outline:3px solid var(--ac);outline-offset:2px}
 .btnGlyph:not(:disabled):hover{filter:brightness(.95)}
 @media(max-width:699px){
-.topBar{--logo-w:2.35rem;--logo-h:3.1rem;--brand-font:1.4rem;--brand-small:.84rem;--compact:var(--header-progress,0);min-height:calc(5rem - 1.25rem * var(--compact));transition:min-height .12s linear}
+.topBar{--logo-w:2.35rem;--logo-h:3.1rem;--brand-font:1.4rem;--brand-small:1rem;--compact:var(--header-progress,0);min-height:calc(5rem - 1.25rem * var(--compact));transition:min-height .12s linear}
 .topBar .brandMark{width:calc(var(--logo-w) - (var(--logo-w) - 1.65rem) * var(--compact));height:calc(var(--logo-h) - (var(--logo-h) - 2.2rem) * var(--compact));transition:width .12s linear,height .12s linear}
 .topBar .brand span{font-size:calc(var(--brand-font) - (var(--brand-font) - 1.05rem) * var(--compact));transition:font-size .12s linear}
-.topBar .brand small{font-size:calc(var(--brand-small) - (var(--brand-small) - .65rem) * var(--compact));transition:font-size .12s linear}
+.topBar .brand small{font-size:calc(var(--brand-small) - (var(--brand-small) - .76rem) * var(--compact));transition:font-size .12s linear}
 .configSaveBar{padding-bottom:.65rem}
 }
 @media(max-width:340px){body{padding-inline:.75rem}.topBar{margin-inline:-.75rem;padding-inline:.75rem}.statusColumn{grid-template-columns:1fr}}
-@media(max-width:380px){.topBar{gap:.15rem;--logo-w:1.85rem;--logo-h:2.5rem;--brand-font:1.15rem;--brand-small:.73rem}.headerSignals{padding-left:.25rem}}
+@media(max-width:380px){.topBar{gap:.15rem;--logo-w:1.85rem;--logo-h:2.5rem;--brand-font:1.15rem;--brand-small:.83rem}.headerSignals{padding-left:.25rem}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:.01ms!important}.bootWave i{animation:none}.btnGlyph.busy .g:after{animation:none}}
 @media(forced-colors:active){input[type=checkbox]{appearance:auto}.btnGlyph,.presetCard,.heroFsBtn,input,select,textarea{border-color:ButtonText}}
 /* /setup onboarding (SoftAP captive portal): menu-less centered card. */

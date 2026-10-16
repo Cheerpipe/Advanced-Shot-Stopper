@@ -161,13 +161,13 @@ if (css.includes('.brandLogo') || allHtml.includes('logo.svg') || allHtml.includ
 }
 if (!css.includes('.brand') || !css.includes('inline-flex') ||
     !css.includes('.brandMark') || !shellHtml.includes('class="brandMark"') ||
-    !shellHtml.includes('<svg') ||    !shellHtml.includes('<small>Open</small>Brew by Weight') ||
+    !shellHtml.includes('<svg') ||    !shellHtml.includes('<small>Open Brew</small>by Weight') ||
     shellHtml.includes('logo.svg')) {
   throw new Error('Brand lockup must use inline SVG mark plus HTML wordmark');
 }
-if (shellHtml.split('M10 3h16v16H10z').length !== 2 ||
+if (shellHtml.split('mask="url(#brandCut)"').length !== 2 ||
     shellHtml.split('class="brandMark"').length !== 4 ||
-    !shellHtml.includes('<svg hidden><symbol id="brandMark" viewBox="0 0 36 48">') ||
+    !shellHtml.includes('<svg class="spriteDefs" width="0" height="0" aria-hidden="true" focusable="false"><symbol id="brandMark" viewBox="12 4 40 56">') ||
     !shellHtml.includes('<use href="#brandMark"/>')) {
   throw new Error(
       'Brand mark must be defined once as an inline symbol sprite and referenced from the header, the loading view, and the inactive overlay');
@@ -1379,7 +1379,7 @@ if (codeIncludes(ui, 'authenticatedOnly') ||
     !codeIncludes(ui, 'function knownPath(') ||
     !codeIncludes(ui, 'class="brand"') ||
     !codeIncludes(ui, 'class="brandMark"') ||
-    !codeIncludes(ui, '<small>Open</small>Brew by Weight') ||
+    !codeIncludes(ui, '<small>Open Brew</small>by Weight') ||
     !codeIncludes(ui, 'href="/" data-route="/"') ||
     !codeIncludes(ui, "querySelectorAll('a[data-route]')") ||
     !codeIncludes(ui, 'ensureView') ||

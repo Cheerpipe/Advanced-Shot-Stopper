@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Open Brew by Weight">
+  <title>Open Brew by Weight</title>
+  <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+    <rect width="64" height="64" fill="#fff"/>
+    <path fill="none" stroke="#000" stroke-width="7.13" d="M32 0v27.55m0 20.9V64"/>
+    <path fill="none" stroke="#000" stroke-width="7.6" stroke-linecap="round" d="M32 48.45 21.62 36.08"/>
+    <circle cx="32" cy="27.55" r="6.27"/>
+    <circle cx="31.34" cy="48.45" r="6.27"/>
+  </mask>
+  <path fill="#a83b21" mask="url(#cut)" d="M32 5s20 16 20 34a20 20 0 0 1-40 0C12 21 32 5 32 5z"/>
+</svg>

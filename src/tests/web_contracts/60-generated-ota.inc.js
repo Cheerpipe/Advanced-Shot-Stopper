@@ -176,7 +176,7 @@ try {
 
 const generatedHeaderPath = path.join(sketchDir, 'ShotStopperWebAssetsGzip.h');
 const generatedHeader = fs.readFileSync(generatedHeaderPath, 'utf8');
-for (const forbidden of ['__WEBUI_', '{{webui:', 'schemaVersion', 'shell.advanced']) {
+for (const forbidden of ['__WEBUI_', '{{webui:', 'schemaVersion', 'shell.open_brew']) {
   localeAssert.ok(!generatedHeader.includes(forbidden),
       `Generated firmware assets must not embed localization token ${forbidden}`);
 }
