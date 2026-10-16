@@ -1262,7 +1262,7 @@ if (!statsSection ||
       const row = id => ({id, bootId: 9, endedAtMs: 30000 + id, hasWallTime: true,
         endedAtLocalSec: 1790794385, endedAtUnixSec: 1790809185,
         timezoneOffsetMinutesAtCommit: -180, durationS: 28.5,
-        wCg: [100, 200], wAtMs: [1000, 2000], wBreakBefore: [], rating: 0});
+        wCg: [100, 200], wAtMs: [1000, 2000], wBreakBefore: [], wHeld: [], rating: 0});
       const context = vm.createContext({activeView: 'stats',
         viewReady: Promise.resolve(),
         shotHistory: {bootId: 0, total: 2, hasMore: true, shots: [{id: 2}, {id: 1}]}, shotsLoaded: false,

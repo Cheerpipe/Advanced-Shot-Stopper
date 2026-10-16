@@ -873,23 +873,28 @@ function fillStarRate(h, r, off, fn) {
   }
 }
 // Derive one estimate per distinct accepted endpoint, without resampling weights.
+// Held readings (a hand on the cup) are what the scale showed, not coffee: they
+// sit beside the weight line and no flow window may touch them.
 function buildShotSparkModel(shot) {
   if (!shot) return null;
   const w = Array.isArray(shot.wCg) ? shot.wCg : [],
     at = shot.wAtMs,
-    markers = shot.wBreakBefore ?? [];
+    markers = shot.wBreakBefore ?? [],
+    heldIndex = shot.wHeld ?? [],
+    indices = (list) =>
+      !Array.isArray(list) ||
+      list.some((v, i) => !Number.isInteger(v) || v < 0 || v >= w.length || (i && v <= list[i - 1]));
   if (
     !Array.isArray(at) ||
     at.length !== w.length ||
     w.length > 1201 ||
-    !Array.isArray(markers) ||
-    markers.some(
-      (v, i) => !Number.isInteger(v) || v < 0 || v >= w.length || (i && v <= markers[i - 1]),
-    ) ||
+    indices(markers) ||
+    indices(heldIndex) ||
     at.some((t, i) => !Number.isInteger(t) || t < 0 || t > 60000 || (i && t < at[i - 1]))
   )
     return null;
   const breaks = new Set(markers),
+    held = new Set(heldIndex),
     colors = { bbw: "var(--ok)", fast: "var(--gFast)", slow: "var(--gSlow)", atm: "var(--mu)" },
     num = (v) => (v == null || !Number.isFinite(+v) ? null : +v);
   const end = num(shot.endS),
@@ -920,7 +925,10 @@ function buildShotSparkModel(shot) {
     flowSegs = [],
     dripFlowSegs = [],
     flowCurve = Array(w.length).fill(null),
-    observations = [];
+    observations = [],
+    heldPts = [],
+    // A contact's leading edge may pass as weight one sample early.
+    touched = [];
   let maxFlow = null,
     plotMaxFlow = 0,
     segment = 0,
@@ -959,6 +967,13 @@ function buildShotSparkModel(shot) {
       continue;
     }
     const p = { t: at[i] / 1000, cg: w[i] };
+    if (held.has(i)) {
+      if (breaks.has(i)) weightPrevious = null;
+      if (touched.at(-1)?.[1] >= at[i] - 500) touched.at(-1)[1] = at[i];
+      else touched.push([at[i] - 500, at[i]]);
+      heldPts.push(p);
+      continue;
+    }
     if (breaks.has(i)) weightPrevious = null;
     if (drip && !dripSegs.length && weightPrevious) append(dripSegs, weightPrevious, null, false);
     append(drip ? dripSegs : segs, p, weightPrevious, false);
@@ -1001,7 +1016,12 @@ function buildShotSparkModel(shot) {
     while (boundary + 1 < i && observations[boundary + 1].t <= start) boundary++;
     const a = observations[boundary],
       b = observations[boundary + 1];
-    if (a.segment !== p.segment || a.t > start || (drop != null && a.t < Math.round(drop * 1000))) {
+    if (
+      a.segment !== p.segment ||
+      a.t > start ||
+      (drop != null && a.t < Math.round(drop * 1000)) ||
+      touched.some(([from, to]) => start <= to && p.t >= from)
+    ) {
       previousFlow = null;
       continue;
     }
@@ -1060,6 +1080,7 @@ function buildShotSparkModel(shot) {
     dripSegs,
     finalPoint,
     pts,
+    held: heldPts,
     rawMaxW,
     maxW: Math.max(10, Math.ceil(rawMaxW / 10) * 10),
     flowSegs,
@@ -1335,6 +1356,7 @@ function renderShotSpark(h, shot) {
       tens: true,
       last: m.segs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
       drip: m.dripSegs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
+      held: m.held.map((q) => [q.t, q.cg / 100]),
       arrivals: shot.arrivalS > 0 ? [shot.arrivalS] : [],
       maxG: m.rawMaxW,
     });
@@ -1389,6 +1411,9 @@ function renderShotSpark(h, shot) {
     '<span class="rvLeg rvLegLast"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_last") + "</span>" +
     (shot.arrivalS > 0
       ? '<span class="rvLeg rvLegArrivals"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_arrivals") + "</span>"
+      : "") +
+    (m.held.length
+      ? '<span class="rvLeg rvLegHeld"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_held") + "</span>"
       : "");
   combo.className = "shotComboHost";
   h.append(preset, readout, legend, combo);
@@ -1462,6 +1487,11 @@ function fillShotCharts(h, m) {
       );
     for (const s of segs) svg += path(s.pts, s.color);
     for (const s of drips) svg += path(s.pts, s.color, true);
+    if (!flow && m.held.length)
+      svg +=
+        '<path class="shotHeld" d="' +
+        m.held.map((q) => "M" + X(q.t).toFixed(1) + " " + Y(q.cg).toFixed(1) + "h0").join("") +
+        '" stroke="var(--mu)" stroke-width="2" stroke-linecap="round" opacity=".6" vector-effect="non-scaling-stroke"/>';
     return svg;
   }
   const grid = xt
@@ -1923,7 +1953,7 @@ async function exportShotsCsv() {
           "cut_line_g arrival_s fast_before_s slow_after_s fast_margin_g slow_margin_g " +
           "delay_s wall_s cut_ramp_s shot_type cut_type yield_source rating ended_at_ms " +
           "bbw_algorithm bbw_algorithm_version bbw_alpha bbw_learning_applied preset_id " +
-          "scale_name max_flow_g_s curve_truncated curve_break_before").split(" "),
+          "scale_name max_flow_g_s curve_truncated curve_break_before curve_held").split(" "),
         ...Array.from({ length: maxW }, (_, i) => [
           "sample_" + (i + 1) + "_time_s",
           "sample_" + (i + 1) + "_weight_g",
@@ -1972,6 +2002,7 @@ async function exportShotsCsv() {
         shotMaxFlowGS(r) ?? "",
         r.wTruncated ? "1" : "0",
         (r.wBreakBefore || []).join(";"),
+        (r.wHeld || []).join(";"),
         ...Array.from({ length: maxW }, (_, i) =>
           i < w.length
             ? [
@@ -5256,7 +5287,7 @@ function referencePace(t, goal, tArr, t0 = 0) {
 // (compact, no scrubber, no no-cut hatch; Stats adds 10 s ticks). Laid out in CSS pixels
 // from the measured width; null while the host is hidden.
 function presetGraph(host, m, x = {}) {
-  const { ghost, arrivals = [], last = [], drip = [], maxG = 0, compact, tens } = x,
+  const { ghost, arrivals = [], last = [], drip = [], held = [], maxG = 0, compact, tens } = x,
     W = host.clientWidth;
   if (!W) return null;
   const u = host.id,
@@ -5372,6 +5403,7 @@ function presetGraph(host, m, x = {}) {
     `<path class="rvCut${m.mode === "timerOnly" ? " off" : ""}" d="M${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}"/>` +
     curves(last, "rvLast") +
     curves(drip, "rvLast rvLastDrip") +
+    held.map(([t, g]) => `<circle cx="${f(X(t))}" cy="${f(Y(g))}" r="2" fill="var(--mu)" opacity=".6"/>`).join("") +
     shown.map((t) => `<circle class="rvArrival" cx="${f(X(t))}" cy="${f(Y(m.goal))}" r="3"/>`).join("") +
     // The hatch keeps its inline name only where it fits; the legend names it too.
     (!compact && X(m.prot) - L >= 96 ? label((L + X(m.prot)) / 2, (T + B) / 2, __WEBUI_TEXT__("runtime.graph_legend_no_cut"), "rvHalo") : "") +
@@ -5813,7 +5845,9 @@ function uiStreamFrame(e, t) {
     s.wCg.length !== t.cursor - t.curveBase ||
     s.wCg.some((e) => !o(e, 32767, -32767)) ||
     s.wAtMs.some((e, t) => !o(e, 6e4) || (t && e < s.wAtMs[t - 1])) ||
-    s.wBreakBefore.some((e) => !o(e, 1200) || 0 === e || e < t.curveBase || e >= t.cursor)
+    s.wBreakBefore.some((e) => !o(e, 1200) || 0 === e || e < t.curveBase || e >= t.cursor) ||
+    !Array.isArray(s.wHeld) ||
+    s.wHeld.some((e) => !o(e, 1200) || e < t.curveBase || e >= t.cursor)
   )
     throw Error();
   if (t.snapshot) {
@@ -5838,6 +5872,7 @@ function uiStreamFrame(e, t) {
       wCg: [...e.curve.wCg, ...s.wCg],
       wAtMs: [...e.curve.wAtMs, ...s.wAtMs],
       wBreakBefore: [...e.curve.wBreakBefore, ...s.wBreakBefore],
+      wHeld: [...e.curve.wHeld, ...s.wHeld],
     },
   };
 }
@@ -6693,7 +6728,9 @@ function statsRowOk(r) {
   }
   return (
     Array.isArray(r.wBreakBefore) &&
-    r.wBreakBefore.every((v) => Number.isInteger(v) && v > 0 && v < w.length)
+    r.wBreakBefore.every((v) => Number.isInteger(v) && v > 0 && v < w.length) &&
+    Array.isArray(r.wHeld) &&
+    r.wHeld.every((v) => Number.isInteger(v) && v >= 0 && v < w.length)
   );
 }
 function statsStreamFrame(message) {
@@ -6916,6 +6953,7 @@ function renderShotHero(d) {
       wCg: d.wCg,
       wAtMs: d.wAtMs,
       wBreakBefore: d.wBreakBefore,
+      wHeld: d.wHeld,
       wTruncated: d.wTruncated,
       wDtS: d.wDtS,
       durationS: typeof el === "number" ? el / 1000 : null,

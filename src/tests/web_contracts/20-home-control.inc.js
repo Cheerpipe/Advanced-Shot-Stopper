@@ -48,6 +48,26 @@
   if (!observed || observed.flowCurve.some(v=>v!==null) ||
       observed.segs.length !== 2 || !host.innerHTML.includes('Incomplete curve'))
     throw new Error('Actual observation times and breaks cannot fabricate startup rates');
+  // The reference shot: 0.4 g/s, a +3 g hand contact at 8.5 s whose leading
+  // edge slipped through as weight before the firmware held the rest.
+  const ramp = Array.from({length:201},(_,i)=>Math.round(Math.max(0,(i-50)*4))),
+    rampAt = Array.from({length:201},(_,i)=>i*100),
+    touched = ramp.map((v,i)=>v+(i===85||i===92?150:i>85&&i<92?300:0)),
+    held = [86,87,88,89,90,91,92];
+  const contact = render(host, {wCg:touched, wAtMs:rampAt, wHeld:held, durationS:20});
+  const contactChart = host.innerHTML;
+  if (!contact || contact.maxFlow > 0.6 || contact.segs.length !== 1 ||
+      contact.held.length !== 7 || contact.pts.some((p)=>p.t>8.55&&p.t<9.25) ||
+      held.some((i)=>contact.flowCurve[i]!==null) ||
+      !contactChart.includes('class="shotHeld"') ||
+      render(host, {wCg:touched, wAtMs:rampAt, durationS:20}).maxFlow < 2.5)
+    throw new Error('Held readings must stay off the weight line and out of every flow window');
+  const clean = render(host, {wCg:ramp, wAtMs:rampAt, wHeld:[], durationS:20});
+  const spurt = render(host, {wCg:ramp.map((v,i)=>v+(i>=120?140:i===119?70:0)),
+    wAtMs:rampAt, wHeld:[], durationS:20});
+  if (Math.abs(clean.maxFlow-0.4) > 0.01 || host.innerHTML.includes('shotHeld') ||
+      spurt.maxFlow < 1.7)
+    throw new Error('Clean ramps and real spurts keep their measured flow');
   const maximum = render(host, {wCg:Array(1201).fill(100),
     wAtMs:Array.from({length:1201},(_,i)=>i*50),durationS:60});
   if (maximum?.flowCurve.length !== 1201 || maximum.maxFlow !== 0)
@@ -263,14 +283,14 @@
     runtimeJs.indexOf('function startUiStream('))+';return uiStreamFrame;')();
   const snapshot={v:1,boot:7,seq:1,base:0,revision:1,snapshot:true,cycle:19,shotId:0,
     phase:'active',curveBase:0,cursor:2,card:{valid:true,live:true,weight:1,elapsedMs:1000,averageFlowGps:null,firstDropMs:null,tareMs:null},
-    curve:{wCg:[100,100],wAtMs:[100,700],wBreakBefore:[],dropS:null,endS:null}};
+    curve:{wCg:[100,100],wAtMs:[100,700],wBreakBefore:[],wHeld:[],dropS:null,endS:null}};
   const first=apply(null,snapshot);
   const update={...snapshot,seq:2,base:1,snapshot:false,curveBase:2,cursor:4,
-    card:{...snapshot.card,elapsedMs:1100},curve:{wCg:[100,120],wAtMs:[800,900],wBreakBefore:[2],dropS:.8,endS:null}};
+    card:{...snapshot.card,elapsedMs:1100},curve:{wCg:[100,120],wAtMs:[800,900],wBreakBefore:[2],wHeld:[3],dropS:.8,endS:null}};
   const next=apply(first,update);
   if(next.curve.wCg.join()!=='100,100,100,120'||next.curve.wAtMs.join()!=='100,700,800,900'||
-      next.curve.wBreakBefore.join()!=='2'||next.curve.dropS!==.8||first.cursor!==2)
-    throw new Error('Stream must atomically append all samples, equal weights, breaks and metadata');
+      next.curve.wBreakBefore.join()!=='2'||next.curve.wHeld.join()!=='3'||next.curve.dropS!==.8||first.cursor!==2)
+    throw new Error('Stream must atomically append all samples, equal weights, breaks, held readings and metadata');
   if(apply(next,update)!==next)throw new Error('Duplicates must not append');
   const corrected=apply(next,{...snapshot,seq:3,revision:3,curve:{...snapshot.curve,dropS:null}});
   if(corrected.cursor!==2||corrected.curve.dropS!==null)throw new Error('Corrected markers require replacement');
@@ -291,7 +311,7 @@
     if(!rejected)throw new Error('Invalid/gapped stream must request recovery');
   }
   const maximum=apply(null,{...snapshot,cursor:1201,curve:{wCg:Array(1201).fill(100),
-    wAtMs:Array.from({length:1201},(_,i)=>i*50),wBreakBefore:[],wTruncated:true}});
+    wAtMs:Array.from({length:1201},(_,i)=>i*50),wBreakBefore:[],wHeld:[],wTruncated:true}});
   if(maximum.curve.wCg.length!==1201)throw new Error('Maximum curve must stay bounded and complete');
   const events=apply(null,{...snapshot,card:{...snapshot.card,firstDropMs:0,tareMs:60000}});
   if(events.card.firstDropMs!==0||events.card.tareMs!==60000||first.card.firstDropMs!==null)

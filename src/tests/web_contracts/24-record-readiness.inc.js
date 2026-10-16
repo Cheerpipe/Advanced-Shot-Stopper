@@ -47,7 +47,7 @@
   }
   const statsRow = id => ({id, bootId: 9, endedAtMs: 30000 + id, hasWallTime: false,
     endedAtLocalSec: 0, endedAtUnixSec: 0, durationS: 28, rating: 0,
-    wCg: [100, 200], wAtMs: [1000, 2000], wBreakBefore: []});
+    wCg: [100, 200], wAtMs: [1000, 2000], wBreakBefore: [], wHeld: []});
   const statsFrame = extras => Object.assign({v: 1, type: 'stats', boot: 9, snapshot: true,
     epoch: 5, seq: 1, request: 1, ui: {}, total: 2, offset: 0, limit: 10, hasMore: false,
     rows: [statsRow(2), statsRow(1)], rowBase: 0, more: false}, extras);

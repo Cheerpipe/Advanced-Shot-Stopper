@@ -716,6 +716,7 @@
     "runtime.graph_legend_cut": "Stop at",
     "runtime.graph_legend_example": "Example shot (drag)",
     "runtime.graph_legend_fast": "Extend (full / partial)",
+    "runtime.graph_legend_held": "Touch ignored",
     "runtime.graph_legend_last": "Last shot",
     "runtime.graph_legend_no_cut": "No weight cut",
     "runtime.graph_legend_pace": "Typical pace",

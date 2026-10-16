@@ -117,6 +117,7 @@
     "scale_name",
     "max_flow_g_s",
     "curve_truncated",
-    "curve_break_before"
+    "curve_break_before",
+    "curve_held"
   ]
 }

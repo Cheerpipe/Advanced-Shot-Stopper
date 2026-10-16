@@ -531,8 +531,9 @@ if (generated.jsGzip.length > 6594) {
 // 14164 bytes; owner-authorized 2026-10-16.
 // The draggable navigation pill measures 14204 bytes; owner-authorized 2026-10-16.
 // The Home cup light warning tone measures 14236 bytes; owner-authorized 2026-10-16.
-if (generated.cssGzip.length > 14236) {
-  throw new Error(`Compressed Web CSS exceeds the 14236-byte gzip budget (${generated.cssGzip.length})`);
+// The held touch reading legend measures 14250 bytes; owner-authorized 2026-10-16.
+if (generated.cssGzip.length > 14250) {
+  throw new Error(`Compressed Web CSS exceeds the 14250-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -648,8 +649,9 @@ if (generated.cssGzip.length > 14236) {
 // The Home hero cut-line chart, verdict colours and fast forecast bring the runtime to 61520 compressed bytes; owner-authorized 2026-10-16.
 // The Home hero drip tail brings the runtime to 61586 compressed bytes; owner-authorized 2026-10-16.
 // The Home cup light states bring the runtime to 61656 compressed bytes; owner-authorized 2026-10-16.
-if (sentinelRuntimeGzip.length > 61656) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 61656-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Held touch readings in the shot charts, Max flow and CSV bring the runtime to 61933 compressed bytes; owner-authorized 2026-10-16.
+if (sentinelRuntimeGzip.length > 61933) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 61933-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

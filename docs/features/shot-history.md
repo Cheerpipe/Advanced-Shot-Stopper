@@ -129,6 +129,15 @@ curve; no drip tail is reconstructed from the final weight alone.
 Isolated readings and event weights appear as small dots at the curve's line
 thickness, including when the chart is stretched across a wide screen.
 
+When you steady the cup or move a chilling ball during a shot, the scale
+briefly reads your hand as well as the coffee. With **Avoid accidental touch**
+on, the controller recognizes those readings and does not count them as coffee.
+The chart still shows them as faint grey dots, labelled **Touch ignored**, so
+you can see when it happened, while the weight line continues straight
+through as if your hand had not been there. A reading or two at the very start
+of a touch can still nudge the line. A load that stays on the scale is
+eventually counted as weight, and the line starts a new segment there.
+
 A curve can hold 1201 readings within 60 seconds of shot start, including
 the drip tail. If the readings exceed either limit, the captured prefix
 remains available and the chart says **Incomplete curve**. Brew stopping and
@@ -247,7 +256,9 @@ or after a known rejection, tare or scale-loss break, measured flow is unavailab
 The flat line before first drop is only a visual reference. With uninterrupted
 readings, a short visual connection joins it to the first available flow point.
 That connection is not a measured rate and does not contribute to Max flow or
-the CSV export. Known interruptions remain gaps.
+the CSV export. Known interruptions remain gaps. Flow is not measured across an
+ignored touch or the half second before it, so a hand on the cup never shows up
+as a burst of flow; the flow line has a short gap there instead.
 
 Each estimate is drawn at the middle of its measurement window, usually half a
 second before the latest reading. With a healthy scale reporting less often
@@ -311,6 +322,8 @@ names.
 After those columns, `curve_truncated` reports `1` for an incomplete
 capture and `0` otherwise. `curve_break_before` lists the zero-based
 indices of readings starting a new segment, separated by semicolons.
+`curve_held` lists, the same way, the readings ignored as a touch: their
+weight columns show what the scale read, and their flow columns stay empty.
 
 Each reading has an ordinal group: `sample_1_time_s`,
 `sample_1_weight_g`, `sample_1_flow_g_s`, then the same three columns
@@ -327,7 +340,8 @@ creating a column for every distinct arrival time.
 
 The underlying curve JSON pairs centigram weights in `wCg` with integer
 elapsed milliseconds in `wAtMs`. `wBreakBefore` supplies the same
-segment-start indices and `wTruncated` reports completeness.
+segment-start indices, `wHeld` the ignored-touch indices, and `wTruncated`
+reports completeness.
 Spreadsheets using the former `yield_dt_s`, `yield_<time>s` or
 `flow_<time>s` columns must switch to these ordinal sample groups.
 
