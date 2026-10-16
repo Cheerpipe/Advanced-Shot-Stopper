@@ -5521,12 +5521,12 @@ function positionPresetScrub(host) {
         ? __WEBUI_TEXT__("runtime.max_time")
         : verdictLabel(tArr < m.t1 - 0.5 ? "fast" : tArr > m.t2 + 0.5 ? "slow" : "on_recipe"),
     values = [+m.goal.toFixed(1), tArr.toFixed(1), verdict, w.toFixed(1), stop.toFixed(1)],
-    text =
+    text = sub(
       Math.abs(w - m.goal) < 0.05
-        ? sub(__WEBUI_TEXT__("runtime.graph_readout_target"), values)
-        : stop >= tArr
-          ? sub(__WEBUI_TEXT__("runtime.graph_readout"), values)
-          : sub(__WEBUI_TEXT__("runtime.graph_readout_early"), values),
+        ? __WEBUI_TEXT__("runtime.graph_readout_target")
+        : __WEBUI_TEXT__("runtime.graph_readout"),
+      values,
+    ),
     [guide, shot, stopDot, handle, pill] = g.children,
     targetLabel = g.ownerSVGElement.querySelector(".rvTargetLbl"),
     box = targetLabel.getBBox(),
