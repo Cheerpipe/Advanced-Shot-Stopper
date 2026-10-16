@@ -7564,7 +7564,7 @@ function loadAdminConfig(c) {
   updateTimezoneControls();
 }
 function updateHomeAdminActions(unlocked, remoteEnabled) {
-  const panel = $("actionsPanel");
+  const panel = __REMOTE_CONTROL__ && $("actionsPanel");
   if (!panel) return;
   const show = !!unlocked && !!remoteEnabled;
   panel.classList.toggle("hidden", !show);
@@ -7662,7 +7662,7 @@ function micraOptionField(id) {
   return id[0].toLowerCase() + id.slice(1) + (id === "RecognizeWake" ? "Gesture" : "");
 }
 function applyLineaMicraStatus(s) {
-  const m = s.lineaMicra;
+  const m = __LINEA_MICRA__ && s.lineaMicra;
   if (!m) return;
   document.documentElement.classList.toggle(
     "micraTemperatureEnabled",
@@ -7853,7 +7853,7 @@ function applySettingsStatus(s) {
   refreshBrewWarnings();
 }
 function renderLineaMicraDiagnostic() {
-  const lm = micraDiagnosticStatus;
+  const lm = __LINEA_MICRA__ && micraDiagnosticStatus;
   if (!lm || !$("dMicraPowerValue")) return;
   const age = lm.sampleValid ? lm.sampleAgeMs + Math.max(0, Date.now() - lm.receivedAtMs) : 0,
     stale =

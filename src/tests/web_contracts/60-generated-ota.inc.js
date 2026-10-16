@@ -143,6 +143,13 @@ for (const remoteControl of [false, true]) {
     throw new Error('no-remote-control runtime must drop the action-bar helper');
   }
 }
+// Only Linea Micra cloud builds ship the Micra status and diagnostics code.
+const noMicra = await webUi.generate({webUiLanguage: 'EN', lineaMicra: false, write: false});
+if (!codeIncludes(generated.runtimeJs, 'dMicraPowerValue') ||
+    codeIncludes(noMicra.runtimeJs, 'dMicraPowerValue') ||
+    /__LINEA_MICRA__|__REMOTE_CONTROL__/.test(noMicra.runtimeJs + generated.runtimeJs)) {
+  throw new Error('Linea Micra code must fold away in builds without the integration');
+}
 localeAssert.equal(normalizedEnglish.resolvedLanguage, 'en');
 localeAssert.equal(regionalEnglish.requestedLanguage, 'en-en');
 localeAssert.equal(regionalEnglish.resolvedLanguage, 'en');

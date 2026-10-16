@@ -383,7 +383,7 @@ for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
 {
   const assert = require('assert'), vm = require('vm');
   const nodes = new Map();
-  const context = {Date: {now: () => 3600100}, controlsMutable: true,
+  const context = {__LINEA_MICRA__: true, Date: {now: () => 3600100}, controlsMutable: true,
     $: id => {
       if (id === 'lineaMicraRefreshLink') return null;
       if (!nodes.has(id)) nodes.set(id, {textContent: ''});
@@ -477,7 +477,7 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     let label = get('lineaMicraUsername').parentElement;
     for (let i = 0; i < 5; i++) { label.nextSibling = {}; label = label.nextSibling; }
     const classes = new Set([theme]);
-    const context = vm.createContext({$: get, controlsMutable: true, micraDirty: false,
+    const context = vm.createContext({__LINEA_MICRA__: true, $: get, controlsMutable: true, micraDirty: false,
       document: {documentElement: {classList: {toggle(name, on) {
         if (on) classes.add(name); else classes.delete(name);
       }}}},

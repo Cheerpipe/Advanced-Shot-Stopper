@@ -1105,7 +1105,7 @@ if (!html.includes('<summary>Switch</summary>') ||
     !codeIncludes(ui, 'id="machineStateValue"') ||
     !codeIncludes(ui, '/api/v1/control/state-override') ||
     !codeIncludes(ui, 'updateHomeAdminActions') ||
-    !codeIncludes(ui, 'function updateHomeAdminActions(unlocked,remoteEnabled){const panel=$(') ||
+    !codeIncludes(ui, 'function updateHomeAdminActions(unlocked,remoteEnabled){const panel=__REMOTE_CONTROL__&&$(') ||
     !codeIncludes(ui, 'show=!!unlocked&&!!remoteEnabled') ||
     !codeIncludes(ui, 'syncAdminSessionUi(admin,remoteReady)') ||
     codeIncludes(ui, 'id="overrideIdleButton"') ||
@@ -1179,7 +1179,7 @@ if (!html.includes('<summary>Switch</summary>') ||
 {
   const assert = require('assert'), vm = require('vm'), classes = new Set(['hidden']);
   const toggle = (name, on) => on ? classes.add(name) : classes.delete(name);
-  const context = vm.createContext({$: () => ({classList: {toggle}}),
+  const context = vm.createContext({__REMOTE_CONTROL__: true, $: () => ({classList: {toggle}}),
     document: {body: {classList: {toggle: () => {}}}}});
   vm.runInContext(blockAt(runtimeJs, 'function updateHomeAdminActions('), context);
   const visible = (admin, remote) => { vm.runInContext(`updateHomeAdminActions(${admin},${remote})`, context); return !classes.has('hidden'); };

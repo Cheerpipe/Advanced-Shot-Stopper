@@ -194,11 +194,17 @@ esac
 webui_remote_flag=''
 grep -q -- '-DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=1' <<<"$effective_flags" \
   || webui_remote_flag='--no-remote-control'
+# Only Linea Micra cloud builds ship the Micra settings and diagnostics code.
+webui_micra_flag='--no-linea-micra'
+[[ "$(sed -n 's/^#define SHOT_STOPPER_MACHINE_INTEGRATION //p' \
+  "$SHOTSTOPPER_GENERATED_DIR/ShotStopperBuildProfileGenerated.h" 2>/dev/null)" == 1 ]] \
+  && webui_micra_flag=''
 # shellcheck disable=SC2086  # flags hold zero or one complete token
 node ./scripts/gen_web_ui.js \
   --version "$(sed -n 's/^#define FW_VERSION_STRING "\(.*\)"$/\1/p' \
     "$SHOTSTOPPER_GENERATED_DIR/ShotStopperVersion.h")" \
-  --webui-language "$(ss_get webui_language)" $webui_dev_flag $webui_type_flag $webui_remote_flag
+  --webui-language "$(ss_get webui_language)" $webui_dev_flag $webui_type_flag $webui_remote_flag \
+  $webui_micra_flag
 
 ss_idf_commit_extra_flags_stamp
 

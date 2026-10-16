@@ -808,8 +808,9 @@ if (htmlBytes > 93300) {
 // The mercury navigation pill (spring, teardrop SVG shape, settling loop): +1962 bytes (441645), owner-authorized 2026-10-16.
 // Loading the opening view during the claim and delaying background record subscribes: +419 bytes (442064), requested with the load-latency plan 2026-10-16.
 // Reading the build version from the revalidated shell instead of baking it into the runtime: +26 bytes (442090), frontend audit 2026-10-16.
-if (jsBytes > 442090) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 442090)`);
+// Compile-time remote-control and Linea Micra guards: +60 bytes (442150), frontend audit 2026-10-16.
+if (jsBytes > 442150) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 442150)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -908,8 +909,9 @@ if (jsBytes > 442090) {
 // Combined source at 526990 with the mercury navigation pill; owner-authorized 2026-10-16.
 // Combined source at 527476 with the runtime preload and opening-view load; requested with the load-latency plan 2026-10-16.
 // The shell's build version and versioned manifest link: 527554, frontend audit 2026-10-16.
-if (htmlBytes + jsBytes > 527554) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 527554)`);
+// Compile-time remote-control and Linea Micra guards: 527614, frontend audit 2026-10-16.
+if (htmlBytes + jsBytes > 527614) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 527614)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

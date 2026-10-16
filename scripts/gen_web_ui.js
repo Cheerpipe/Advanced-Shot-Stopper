@@ -98,24 +98,6 @@ function stripRemoteControlCss(css) {
     REMOTE_CONTROL_CSS_RE.test(rule) ? '' : rule);
 }
 
-// Drop the runtime helper that toggles the action bar and its call sites;
-// without the panel they are dead bytes in every non-remote build. The
-// definition may sit on one line (minified authoring) or close at a
-// column-0 brace (formatted authoring); call-site args never contain ';'.
-function stripRemoteControlJs(js) {
-  const defRe = /function updateHomeAdminActions\([^)]*\)\s*\{.*\}(?=\n)|function updateHomeAdminActions\([^)]*\)\s*\{[\s\S]*?\n\}/;
-  const callRe = /updateHomeAdminActions\([^;]*?\);/g;
-  const withoutDef = js.replace(defRe, '');
-  if (withoutDef === js) {
-    throw new Error('Remote-control JS strip: definition not found');
-  }
-  const stripped = withoutDef.replace(callRe, '');
-  if (stripped === withoutDef) {
-    throw new Error('Remote-control JS strip: no call site removed');
-  }
-  return stripped;
-}
-
 function readFirmwareVersion() {
   if (!fs.existsSync(versionPath)) {
     return 'dev';
@@ -146,10 +128,16 @@ function minifyCss(css) {
   return out.styles;
 }
 
-async function minifyJs(js) {
+// Build-profile flags are compile-time constants: Terser folds the guarded
+// branches away, so a build ships no code for features it was compiled
+// without (remote machine control, the Linea Micra cloud integration).
+async function minifyJs(js, flags = {}) {
   const result = await terserMinify(js, {
     module: true,
-    compress: {passes: 2},
+    compress: {passes: 2, global_defs: {
+      __REMOTE_CONTROL__: flags.remoteControl !== false,
+      __LINEA_MICRA__: flags.lineaMicra !== false,
+    }},
     mangle: true,
     format: {comments: false},
     ecma: 2018,
@@ -349,13 +337,12 @@ async function generate(options = {}) {
     shellHtml: injectHomePartial(await minifyHtml(shellHtmlRaw
         .split('{{webui-meta:development-class}}')
         .join(options.developmentMode === true ? 'devBuild' : '')), partials.home),
-    appJs: await minifyJs(inlineHomeModule(localizedAppJs, viewJsRaw.home)),
-    runtimeJs: await minifyJs(options.remoteControl === false
-        ? stripRemoteControlJs(localizedRuntime) : localizedRuntime),
-    otaImageJs: await minifyJs(localizedOtaImage),
-    secondaryJs: await minifyJs(buildSecondaryJs(viewJsRaw)),
-    settingsJs: await minifyJs(viewJsRaw.settings),
-    setupJs: await minifyJs(viewJsRaw.setup),
+    appJs: await minifyJs(inlineHomeModule(localizedAppJs, viewJsRaw.home), options),
+    runtimeJs: await minifyJs(localizedRuntime, options),
+    otaImageJs: await minifyJs(localizedOtaImage, options),
+    secondaryJs: await minifyJs(buildSecondaryJs(viewJsRaw), options),
+    settingsJs: await minifyJs(viewJsRaw.settings, options),
+    setupJs: await minifyJs(viewJsRaw.setup, options),
     css: minifyCss(stripMachineTypeCss(options.remoteControl === false
         ? stripRemoteControlCss(localizedCss) : localizedCss, options.machineType)),
     manifest: JSON.stringify(manifestObject),
@@ -531,6 +518,7 @@ if (require.main === module) {
     let developmentMode;
     let machineType;
     let remoteControl;
+    let lineaMicra;
     let versionOverride;
     for (let i = 2; i < process.argv.length; i++) {
       const arg = process.argv[i];
@@ -541,6 +529,8 @@ if (require.main === module) {
         webUiLanguage = arg.slice('--webui-language='.length);
       } else if (arg === '--no-remote-control') {
         remoteControl = false;
+      } else if (arg === '--no-linea-micra') {
+        lineaMicra = false;
       } else if (arg === '--development') {
         developmentMode = true;
       } else if (arg === '--machine-type') {
@@ -557,7 +547,8 @@ if (require.main === module) {
         throw new Error(`Unknown argument: ${arg}`);
       }
     }
-    return generate({webUiLanguage, developmentMode, machineType, remoteControl, versionOverride});
+    return generate({webUiLanguage, developmentMode, machineType, remoteControl,
+      lineaMicra, versionOverride});
   })
       .then((result) => {
         const parts = [
