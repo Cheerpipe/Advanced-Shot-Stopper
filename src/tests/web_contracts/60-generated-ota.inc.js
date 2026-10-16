@@ -546,8 +546,10 @@ if (generated.jsGzip.length > 7330) {
 // The wider gap before the header guard indicators (f5ccfc6f) measures 14269 bytes.
 // The shot weight/flow legend below its chart measures 14284 bytes;
 // owner-authorized 2026-10-16.
-if (generated.cssGzip.length > 14284) {
-  throw new Error(`Compressed Web CSS exceeds the 14284-byte gzip budget (${generated.cssGzip.length})`);
+// The quick-settings duration selection styled as the mode card measures
+// 14286 bytes; owner-authorized 2026-10-16.
+if (generated.cssGzip.length > 14286) {
+  throw new Error(`Compressed Web CSS exceeds the 14286-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
