@@ -659,7 +659,7 @@ esp_err_t ShotStopperNetwork::browserIconHandler(httpd_req_t *request) {
   // Clients that ignore the shell's <link> tags probe these paths directly;
   // serve the real artwork with the same immutable gzip contract as the rest
   // of the Web UI assets instead of an empty 204.
-  if (strcmp(request->uri, "/favicon.ico") == 0) {
+  if (strncmp(request->uri, "/favicon.ico", 12) == 0 && (request->uri[12] == '\0' || request->uri[12] == '?')) {
     return serveImmutableGzip(request, "image/png",
                               SHOT_STOPPER_WEB_ICON_48_GZIP,
                               SHOT_STOPPER_WEB_ICON_48_GZIP_LEN);
