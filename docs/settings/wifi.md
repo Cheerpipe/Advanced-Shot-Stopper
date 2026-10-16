@@ -105,6 +105,15 @@ proxy on your network. Discovery keeps working with
 [Wi-Fi sleep](power-management.md) enabled; first responses can take a
 moment longer while the radio sleeps between the router's beacons.
 
+Some programs pause for about five seconds every time they open a `.local`
+name: command-line tools such as `curl`, scripts, and some apps and browsers
+that use the computer's standard name lookup. Besides the controller's normal
+address they also ask for an IPv6 address, which the controller does not use,
+and wait for that question to time out. Safari and Chrome do not wait. If
+something you use keeps stalling like this, reserve a fixed IP address for the
+controller in your router (often called a DHCP reservation) and use that
+address instead. With `curl`, adding `-4` also avoids the wait.
+
 When a service browser or Home Assistant lists the controller, it shows the
 device name as you wrote it, with each word capitalized — `Cafe Bar` appears
 as `Cafe Bar`, and the default name appears as `Openbrewbyweight`. Only the
