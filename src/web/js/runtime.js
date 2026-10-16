@@ -1400,7 +1400,7 @@ function renderShotSpark(h, shot) {
 // Every filled chart fades vertically: its color at the top of the shape, gone at the base.
 let fadeSeq = 0;
 function fadeFill(id, color, top, base = 0) {
-  return `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop style="stop-color:${color};stop-opacity:${top}"/><stop offset="1" style="stop-color:${color};stop-opacity:${base}"/></linearGradient>`;
+  return `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${color}" stop-opacity="${top}"/><stop offset="1" stop-color="${color}" stop-opacity="${base}"/></linearGradient>`;
 }
 // One chart for both series: weight on the left axis, flow on the right one,
 // sharing the weight grid (10 g per line; flow takes the smallest step that fits).
@@ -1481,13 +1481,9 @@ function fillShotCharts(h, m) {
     // Flow is drawn first so the weight curve and its fill stay on top.
     body = series(m.flowSegs, m.dripFlowSegs, step * n, true) + series(m.segs, m.dripSegs, m.maxW);
   h.innerHTML =
-    '<div class="shotCurve"><div class="ruleChartLabel"><i class="shotKey" style="--c:' +
-    (colors.length > 1
-      ? `linear-gradient(90deg,${colors[0]} 50%,${colors.at(-1)} 50%)`
-      : colors[0] || "var(--ok)") +
-    '"></i>' +
+    '<div class="shotCurve"><div class="ruleChartLabel"><i class="shotKey"></i>' +
     __WEBUI_TEXT__("home.weight_g") +
-    ' <i class="shotKey" style="--c:var(--gFlow)"></i>' +
+    ' <i class="shotKey"></i>' +
     __WEBUI_TEXT__("runtime.flow_rate_g_s") +
     (m.truncated ? " · Incomplete curve" : "") +
     '</div><div class="shotSparkHost"><div class="shotSparkY">' +
@@ -1507,7 +1503,12 @@ function fillShotCharts(h, m) {
     "</div>" +
     (m.finalPoint ? '<div class="shotDropOverlay"></div>' : "") +
     '<div class="ruleChartTicks"></div></div></div>';
-  const c = h.querySelector(".shotSparkHost");
+  // The firmware CSP drops style attributes parsed from markup; CSSOM writes still apply.
+  const c = h.querySelector(".shotSparkHost"),
+    [kw, kf] = h.querySelectorAll(".shotKey");
+  kw.style.background =
+    colors.length > 1 ? `linear-gradient(90deg,${colors[0]} 50%,${colors.at(-1)} 50%)` : colors[0] || "var(--ok)";
+  kf.style.background = "var(--gFlow)";
   c.style.setProperty("--shot-plot-min", (n * 1.1).toFixed(2) + "rem");
   for (const axis of c.querySelectorAll(".shotSparkY")) {
     const y = axis.querySelectorAll(".shotYTick");

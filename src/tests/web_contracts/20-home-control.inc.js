@@ -18,7 +18,7 @@
   const renderer = runtimeJs.slice(runtimeJs.indexOf('function shotRuleModel('),
       runtimeJs.indexOf('function renderStatsDurChart('));
   // One combined chart: a weight axis, a flow axis, one time axis and the final-yield overlay.
-  const ticks = [], markers = [], axes = [];
+  const ticks = [], markers = [], axes = [], keys = [{style:{}}, {style:{}}];
   let markup = '', plot = null;
   const document = {createElement(){return {style:{},dataset:{},setAttribute(){}}}};
   const tickSink = {replaceChildren(){ticks.length=0}, appendChild(item){ticks.push(item)},
@@ -31,6 +31,7 @@
         querySelector(){return tickSink}}:null},
     hidden:true, replaceChildren(){this.innerHTML=''},
     querySelector(selector){return selector==='.shotSparkHost'?plot:selector==='.shotDropOverlay'?{appendChild(item){markers.push(item)}}:{}},
+    querySelectorAll(){return keys},
     append(){},
   };
   const fills = () => (markup.match(/fill="url\(#sc/g)||[]).length;
@@ -63,6 +64,7 @@
       !combined.includes('M1.5 1.5V34.5M238.5 1.5V34.5') ||
       fills() !== 3 || (combined.match(/<linearGradient /g) || []).length !== 3 || combined.includes('fill-opacity') ||
       plot.style['--shot-plot-min'] !== '1.10rem' ||
+      keys[0].style.background !== 'var(--ok)' || keys[1].style.background !== 'var(--gFlow)' ||
       ticks.map(item=>item.textContent).join('|')!=='0 s|10 s') {
     throw new Error('The combined shot chart must keep both axes, draw flow under weight with fading fills, and plot measured rates at window midpoints');
   }
@@ -672,8 +674,8 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
     !codeIncludes(runtimeJs, 'style.left=') ||
     !codeIncludes(runtimeJs, "style.setProperty('--shot-plot-min'") ||
     !codeIncludes(runtimeJs, '.style.top=') ||
- codeIncludes(runtimeJs, 'style="--shot-plot-min:') ||
-    codeIncludes(runtimeJs, "style=\"left:") ||
+    // The firmware CSP (style-src 'self') drops style attributes parsed from markup.
+    codeIncludes(runtimeJs, 'style="') ||
     !codeIncludes(runtimeJs, 'function shotDisplayFlowGS(') ||
     !codeIncludes(runtimeJs, 'if(!pts.length||dur<=0)return null') ||
     !codeIncludes(runtimeJs, 'm.firstDropS>0') ||
@@ -1337,7 +1339,7 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
       !runtimeJs.includes('rate.className = "shotRateCell";') || runtimeJs.includes('shotInfo') ||
       !runtimeJs.includes('<span class="heroPill" data-kind="'))
     throw new Error('The Stats preset card must show its details, preset chart and combined weight/flow chart at once (same plot height), plus a keyboard cursor, a verdict zone and pill, and no no-cut hatch');
-  if (!css.includes('.shotPresetChart[data-zone=fast] .rvWindow') || css.includes('.shotMore') ||
+  if (!css.includes('.shotPresetChart:not([data-zone=on_recipe]) .rvWindow') || css.includes('.shotMore') ||
       css.includes('aria-expanded=false') ||
       !css.includes('.shotComboHost{padding-top:1rem}') ||
       !css.includes('.heroPill[data-kind=fast]{--z:var(--gFast)}') || !css.includes('#shotTable .heroPill{') ||
