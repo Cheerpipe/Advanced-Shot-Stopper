@@ -630,8 +630,9 @@ if (generated.cssGzip.length > 13750) {
 // The Stats shot cursor pill brings the runtime to 58924 compressed bytes; owner-authorized 2026-10-15.
 // Folding the Stats card details behind Show more brings the runtime to 59286 compressed bytes; owner-authorized 2026-10-15.
 // The Stats arrival-time density curve brings the runtime to 59356 compressed bytes; owner-authorized 2026-10-16.
-if (sentinelRuntimeGzip.length > 59400) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 59400-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The fast-to-slow Stats card fold with fading details and charts brings the runtime to 59457 compressed bytes; owner-authorized 2026-10-15.
+if (sentinelRuntimeGzip.length > 59500) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 59500-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

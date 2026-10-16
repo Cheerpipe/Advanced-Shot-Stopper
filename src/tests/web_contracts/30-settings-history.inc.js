@@ -857,8 +857,8 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     !codeIncludes(js, "'shotDur'") ||
     !codeIncludes(js, "'shotActual'") ||
     !css.includes('#shotTable .shotDur,#shotTable .shotActual') ||
-    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate rate rate" "spark spark spark spark spark spark"') ||
-    !css.includes('#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate rate rate"}') ||
+    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "time time time rate rate rate" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale scale scale scale scale" "spark spark spark spark spark spark"') ||
+    !css.includes('#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time rate rate rate" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale scale scale scale scale"}') ||
     css.includes('grid-area:guard') ||
     css.includes('grid-area:ext') ||
     css.includes('grid-area:stop') ||
@@ -921,11 +921,11 @@ if (codeIncludes(ui, 'id="shotRating"') ||
     !codeIncludes(runtimeJs, 'function postShotRating(') ||
     !codeIncludes(runtimeJs, '{id,rating:n}') ||
     !runtimeJs.includes('rating ended_at_ms') ||
-    !css.includes('.starRate{display:inline-flex;align-items:center;margin:-.6rem 0 0 -.15rem}') ||
+    !css.includes('.starRate{display:inline-flex;align-items:center;margin:0 -.15rem 0 0}') ||
     !css.includes('.starRate button+button{margin-left:-.18rem}') ||
     !css.includes('.starRate button.on{color:var(--ac)}') ||
     css.includes('.shotCard .shotRate') ||
-    !css.includes('#shotTable td.shotRateCell{grid-area:rate}') ||
+    !css.includes('#shotTable td.shotRateCell{grid-area:rate;justify-self:end;align-self:center}') ||
     !network.includes('shotsRateHandler') ||
     !network.includes('LAST_SHOT_NOT_FOUND') ||
     !network.includes('\\"rating\\":%u') ||

@@ -1241,27 +1241,35 @@ function renderShotSpark(h, shot) {
     const open = !shotMoreOpen.has(shot.id),
       row = h.parentElement,
       info = [...row.querySelectorAll(".shotInfo")],
+      E = "cubic-bezier(.22,1,.36,1)",
       span = (a, b) => (open ? [a, b] : [b, a]),
-      fx = { duration: 250, easing: "ease-out", fill: "forwards" };
+      // Opacity eases out; opening settles position and scale with a light spring.
+      fade = (el, t, from) => [
+        el.animate({ opacity: span(0, 1) }, { ...t, easing: E, fill: "both" }),
+        el.animate({ translate: span("0 -10px", "0"), scale: span(from, "1") }, { ...t, easing: open ? "cubic-bezier(.3,1.3,.6,1)" : E, fill: "both" }),
+      ];
     if (open) shotMoreOpen.add(shot.id);
     else shotMoreOpen.delete(shot.id);
     for (const a of h._fx || []) a.cancel();
     if (matchMedia("(prefers-reduced-motion:reduce)").matches) return sync(open);
-    // Both ways play in the open layout: the card resizes, the charts slide, the details grow in the gap.
+    // Both ways play in the open layout, fast then settling: the opaque charts slide over the
+    // details like a drawer while the details (a short cascade) and extra charts fade in or out.
     sync(false);
     const h0 = row.offsetHeight,
-      y0 = h.offsetTop;
+      y0 = h.offsetTop,
+      fx = { duration: 600, easing: E, fill: "both" };
     sync(true);
-    const top = Math.min(...info.map((c) => c.offsetTop));
+    const lines = [...new Set(info.map((c) => c.offsetTop))].sort((a, b) => a - b);
     h._fx = [
       row.animate({ height: span(h0 + "px", row.offsetHeight + "px"), overflow: ["hidden", "hidden"] }, fx),
       h.animate({ translate: span(`0 ${y0 - h.offsetTop}px`, "0") }, fx),
-      ...info.map((c) => c.animate({ scale: span("1 0", "1"), opacity: span(0, 1), transformOrigin: Array(2).fill(`0 ${top - c.offsetTop}px`) }, fx)),
+      ...fade(more, open ? { duration: 450, delay: 60 } : { duration: 260 }, "1"),
+      ...info.flatMap((c) => fade(c, open ? { duration: 450, delay: lines.indexOf(c.offsetTop) * 30 } : { duration: 260 }, ".96")),
     ];
-    h._fx[0].onfinish = () => {
+    Promise.all(h._fx.map((a) => a.finished)).then(() => {
       if (!open) sync(false);
       for (const a of h._fx) a.cancel();
-    };
+    }, () => {});
   };
   // Compact legend (D5): the cut line, only the zone this shot ended in, the shot, and arrivals.
   const zone = preset.dataset.zone,
@@ -1620,7 +1628,7 @@ function renderShots() {
       vals.forEach((v, i) => td(row, labels[i], v, cls[i]));
       wrapTimeEl(row.cells[0], r);
       const rate = document.createElement("td");
-      rate.className = "shotRateCell shotInfo";
+      rate.className = "shotRateCell";
       rate.dataset.label = __WEBUI_TEXT__("runtime.rate");
       const rateHost = document.createElement("div");
       rate.appendChild(rateHost);

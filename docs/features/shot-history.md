@@ -62,8 +62,8 @@ card and on every Stats history card. Renaming or deleting a preset later does
 not rewrite a shot's displayed name.
 
 **Scale** appears after **Preset** and keeps the name captured for that shot,
-even if the scale disconnects or is renamed later. **Rate** aligns with the
-middle column; long scale names wrap within the first column. Existing shots
+even if the scale disconnects or is renamed later. It uses the full width of
+the card, so long scale names have room before they wrap. Existing shots
 keep their original names. A Bluetooth name longer
 than the friendly-name limit is shortened to fit. **Late cup**, before
 **1st drop**, shows the successful late tare's elapsed shot time, or **None**
@@ -194,7 +194,8 @@ If a low-weight older row is imported later, it remains in the table and CSV
 but does not enter Home or these summaries.
 
 In its Stats history card, each shot with a weight curve starts compact: its
-duration, yield, and when you pulled it, followed by its **preset chart**: the
+duration and yield, when you pulled it with your star rating beside it, then
+its **preset chart**: the
 preset's cut line, its on-recipe corridor, and the shot's own
 weight curve drawn over it. The chart always uses the preset as it was when that
 shot was brewed, so editing or deleting the preset later never changes it. Only
@@ -208,9 +209,10 @@ mouse is on the chart, a small bubble beside the cursor shows the same time and
 weight. The cursor starts at the shot's stop point.
 
 Select **Show more** to unfold the rest of the shot: its target, error, flow,
-late cup, first drop, how it ended, shot type, preset, scale, and your rating
-appear below the time, and the flow and weight charts open under the preset
-chart. Select **Show less** to fold them away again. The card remembers which
+late cup, first drop, how it ended, shot type, preset, and scale fade in below
+the time, and the flow and weight charts open under the preset chart. Select
+**Show less** to fold them away again. Your rating stays visible either way, so
+you can rate a shot without opening it. The card remembers which
 shots are open while the table refreshes. Shots without a preset chart always
 show every detail.
 
