@@ -785,8 +785,8 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     !codeIncludes(js, "'shotDur'") ||
     !codeIncludes(js, "'shotActual'") ||
     !css.includes('#shotTable .shotDur,#shotTable .shotActual') ||
-    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "time time time rate rate rate" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale scale scale scale scale" "spark spark spark spark spark spark"') ||
-    !css.includes('#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time rate rate rate" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale scale scale scale scale"}') ||
+    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate . ." "spark spark spark spark spark spark"') ||
+    !css.includes('#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate . ."}') ||
     css.includes('grid-area:guard') ||
     css.includes('grid-area:ext') ||
     css.includes('grid-area:stop') ||
@@ -853,7 +853,7 @@ if (codeIncludes(ui, 'id="shotRating"') ||
     !css.includes('.starRate button+button{margin-left:-.18rem}') ||
     !css.includes('.starRate button.on{color:var(--ac)}') ||
     css.includes('.shotCard .shotRate') ||
-    !css.includes('#shotTable td.shotRateCell{grid-area:rate;justify-self:end;align-self:center}') ||
+    !css.includes('#shotTable td.shotRateCell{grid-area:rate}') ||
     !network.includes('shotsRateHandler') ||
     !network.includes('LAST_SHOT_NOT_FOUND') ||
     !network.includes('\\"rating\\":%u') ||
@@ -1475,7 +1475,7 @@ if (!statsSection ||
     ({presetId, arrivalS, verdict, fastBeforeS: window[0], slowAfterS: window[1]});
   const zones = () => [...histPlot.innerHTML.matchAll(/<b>(\d+)%<\/b>(\d+) ([A-Za-z ]+)</g)]
       .map(m => m[1] + '%/' + m[2] + '/' + m[3]).join();
-  const fills = () => (histPlot.innerHTML.match(/fill-opacity=".22"/g) || []).length;
+  const fills = () => (histPlot.innerHTML.match(/fill="url\(#sd(fast|on_recipe|slow)\)"/g) || []).length;
   // Each shot keeps its own stored verdict, even inside today's window.
   global.shotHistory = {shots: [shot(1, 30.2, 'on_recipe'), shot(1, 36, 'slow'),
     shot(1, 24.1, 'fast'), shot(1, 31, 'on_recipe'), shot(2, 40, 'slow', [25, 32]), shot(1, 0, null)]};

@@ -193,9 +193,12 @@ An erase-all firmware installation starts with empty shot history.
 If a low-weight older row is imported later, it remains in the table and CSV
 but does not enter Home or these summaries.
 
-In its Stats history card, each shot with a weight curve starts compact: its
-duration and yield, when you pulled it with your star rating beside it, then
-its **preset chart**: the
+In its Stats history card, each shot shows everything at once. At the top are
+its duration and yield in large numbers, then when you pulled it, with a
+colored badge saying whether it landed **Fast**, **On recipe** or **Slow**.
+Below come its target, error, flow, late cup, first drop, how it ended, shot
+type, preset, scale and your star rating, which you can change right there.
+Then comes its **preset chart**: the
 preset's cut line, its on-recipe corridor, and the shot's own
 weight curve drawn over it. The chart always uses the preset as it was when that
 shot was brewed, so editing or deleting the preset later never changes it. Only
@@ -208,20 +211,20 @@ the weight at that moment, and the cut line at that time. While your finger or
 mouse is on the chart, a small bubble beside the cursor shows the same time and
 weight. The cursor starts at the shot's stop point.
 
-Select **Show more** to unfold the rest of the shot: its target, error, flow,
-late cup, first drop, how it ended, shot type, preset, and scale fade in below
-the time, and the flow and weight charts open under the preset chart. Select
-**Show less** to fold them away again. Your rating stays visible either way, so
-you can rate a shot without opening it. The card remembers which
-shots are open while the table refreshes. Shots without a preset chart always
-show every detail.
+Under the preset chart, a single **Weight (g) · Flow rate (g/s)** chart shows
+how the shot actually poured: the weight curve and the flow rate together, on
+one time line that includes any recorded drip tail. Read weight on the left
+scale and flow on the right one; both share the same reference lines, one
+every 10 g, with the flow scale chosen so its values fall on those same lines.
+The weight curve uses the same colors as the preset chart, turning orange or
+blue from the moment a fast or slow guard stepped in, and flow is always light
+blue. Both fill with a soft shade that fades toward the bottom. The chart is as
+tall as the preset chart above it, so grams look the same size in both. Shots
+without a preset chart show only this chart below their details.
 
-The Home shot card is unchanged: it keeps its weight and **Flow rate (g/s)**
-charts directly below the shot. Both charts share a time axis, including
-any recorded drip tail, with reference lines every 10 seconds. The Weight chart adds lines every 10 g, and
-Flow rate adds them every 0.5 g/s. Each displayed range rounds up to the next
-reference interval and each chart grows vertically when all required labels
-would not fit at its normal compact height.
+Every filled chart in the Web UI uses that same fading shade: this chart, the
+preset charts in Stats, Home and Settings, the Stats arrival-time density, and
+the small curve on the Home shot card.
 On a narrow screen, a few numbers beside these charts may be hidden when they
 would overlap. The lines and measurements stay in place, and more numbers
 appear again when there is room. Home applies the same rule to the time and

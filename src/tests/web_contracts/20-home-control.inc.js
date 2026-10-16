@@ -17,21 +17,23 @@
       runtimeJs.indexOf('function renderPresetReview('));
   const renderer = runtimeJs.slice(runtimeJs.indexOf('function shotRuleModel('),
       runtimeJs.indexOf('function renderStatsDurChart('));
-  const ticks = [[], []], markers = [], charts = [];
-  let markup = '';
-  const axisStub = {setAttribute() {}, dataset: {}};
+  // One combined chart: a weight axis, a flow axis, one time axis and the final-yield overlay.
+  const ticks = [], markers = [], axes = [];
+  let markup = '', plot = null;
   const document = {createElement(){return {style:{},dataset:{},setAttribute(){}}}};
+  const tickSink = {replaceChildren(){ticks.length=0}, appendChild(item){ticks.push(item)},
+    setAttribute() {}, removeAttribute() {}, dataset: {}};
   const host = {
     get innerHTML(){return markup},
-    set innerHTML(value){markup=value;markers.length=0;charts.length=0;for(const part of value.split('<div class="shotCurve">').slice(1)){const y=(part.match(/class="shotYTick"/g)||[]).map(()=>({style:{},dataset:{},textContent:'0'})),style={setProperty(k,v){this[k]=v}};charts.push({style,querySelectorAll(){return y},querySelector(){return axisStub}})}},
+    set innerHTML(value){markup=value;markers.length=0;axes.length=0;
+      for(const part of value.split('<div class="shotSparkY').slice(1)){const y=(part.split('</div>')[0].match(/class="shotYTick"/g)||[]).map(()=>({style:{},dataset:{},textContent:'0'}));axes.push({querySelectorAll(){return y},setAttribute(){},dataset:{}})}
+      plot=value.includes('class="shotSparkHost"')?{style:{setProperty(k,v){this[k]=v}},querySelectorAll(){return axes},
+        querySelector(){return tickSink}}:null},
     hidden:true, replaceChildren(){this.innerHTML=''},
-    querySelector(){return {appendChild(item){markers.push(item)},dataset:{}}},
+    querySelector(selector){return selector==='.shotSparkHost'?plot:selector==='.shotDropOverlay'?{appendChild(item){markers.push(item)}}:{}},
     append(){},
-    querySelectorAll(selector){if(selector==='.shotSparkHost')return charts;return ticks.map((items) => ({
-      replaceChildren(){items.length=0}, appendChild(item){items.push(item)},
-      setAttribute() {}, removeAttribute() {}, dataset: {}
-    }))},
   };
+  const fills = () => (markup.match(/fill="url\(#sc/g)||[]).length;
   const render = new Function('document', 'ResizeObserver', '$', 'requestAnimationFrame',
       'const presetState={cutRampS:0.5};' + helpers + preset + renderer + ';return renderShotSpark;')(
       document, class{observe(){}}, ()=>({}), ()=>{});
@@ -46,22 +48,26 @@
     throw new Error('Full-capacity actual-time curves must remain usable');
   const basic = render(host, {wCg:[0,0,50,150,250], wAtMs:[0,1000,2000,3000,4000],
     durationS:4, firstDropS:2, dropCg:50});
-  const [weight, flow] = host.innerHTML.split('<div class="shotCurve">').slice(1);
+  const combined = host.innerHTML;
   if (host.hidden || !basic || basic.timeMax !== 10 || basic.maxW !== 10 || basic.flowMax !== 1 ||
-      !weight.includes('Weight (g)') || !flow.includes('Flow rate (g/s)') ||
-      !weight.includes('class="shotSparkY"') || !flow.includes('class="shotSparkY shotSparkFlowY"') ||
-      !flow.includes('d="M1.5 34.5 L48.9 34.5 L60.8 1.5"') ||
-      !flow.includes('d="M60.8 1.5 L84.4 1.5"') ||
-      weight.includes('shotDropOverlay') || flow.includes('shotDropOverlay') ||
-      markers.length !== 0 || flow.includes('shotFirstDrop') || weight.includes('shotFirstDrop') ||
-      host.innerHTML.indexOf('class="shotGrid"') > host.innerHTML.indexOf('class="shotTrace"') ||
-      !host.innerHTML.includes('M1.5 1.5V34.5M238.5 1.5V34.5') ||
-      charts[0].style['--shot-plot-min'] !== '1.10rem' || charts[1].style['--shot-plot-min'] !== '2.20rem' ||
-      ticks.some(items=>items.map(item=>item.textContent).join('|')!=='0 s|10 s')) {
-    throw new Error('Shot charts must retain axes/drop annotation and plot measured rates at window midpoints');
+      combined.split('<div class="shotCurve">').length !== 2 ||
+      !combined.includes('Weight (g)') || !combined.includes('Flow rate (g/s)') ||
+      !combined.includes('class="shotSparkY"') || !combined.includes('class="shotSparkY shotSparkFlowY"') ||
+      axes.length !== 2 || axes.some((axis) => axis.querySelectorAll().length !== 2) ||
+      !combined.includes('<span class="shotYTick">1 g/s</span><span class="shotYTick">0 g/s</span>') ||
+      !combined.includes('d="M1.5 34.5 L48.9 34.5 L60.8 1.5"') ||
+      !combined.includes('d="M60.8 1.5 L84.4 1.5"') ||
+      combined.indexOf('stroke="#38bdf8"') > combined.indexOf('stroke="var(--ok)"') ||
+      combined.includes('shotDropOverlay') || markers.length !== 0 || combined.includes('shotFirstDrop') ||
+      combined.indexOf('class="shotGrid"') > combined.indexOf('class="shotTrace"') ||
+      !combined.includes('M1.5 1.5V34.5M238.5 1.5V34.5') ||
+      fills() !== 3 || (combined.match(/<linearGradient /g) || []).length !== 3 || combined.includes('fill-opacity') ||
+      plot.style['--shot-plot-min'] !== '1.10rem' ||
+      ticks.map(item=>item.textContent).join('|')!=='0 s|10 s') {
+    throw new Error('The combined shot chart must keep both axes, draw flow under weight with fading fills, and plot measured rates at window midpoints');
   }
-  if (weight.includes('<circle') || !weight.includes('d="M48.9 32.9h0"') ||
-      !weight.includes('stroke-linecap="round"'))
+  if (combined.includes('<circle') || !combined.includes('d="M48.9 32.9h0"') ||
+      !combined.includes('stroke-linecap="round"'))
     throw new Error('Event annotations must use line-width non-scaling strokes, not stretched filled circles');
   for (const interruption of [
     {wBreakBefore:[3]}, {wCg:[0,0,50,NaN,250,350,450]},
@@ -84,14 +90,14 @@
     throw new Error('A single supported flow estimate must render as a point without invented endpoints');
   const dripShot={wCg:[0,100,200,240,250],wAtMs:[0,500,1000,1500,2000],
     durationS:1,endS:1,endCg:250};
-  const drip=render(host,dripShot),[dripWeight,dripFlow]=host.innerHTML.split('<div class="shotCurve">').slice(1);
+  const drip=render(host,dripShot),dripChart=host.innerHTML;
   if(drip.flowCurve.join('|')!=='||2|1.4|0.5' || drip.maxFlow!==2 || drip.segs[0].pts.length!==3 ||
       drip.dripSegs[0].pts.length!==3 || drip.finalPoint.t!==2 || drip.finalPoint.cg!==250 ||
-      !dripWeight.includes('class="shotTrace shotDripTrace"') || !dripWeight.includes('stroke-dasharray="3 3" opacity=".55"') ||
+      (dripChart.match(/class="shotTrace shotDripTrace"/g)||[]).length!==2 ||
+      !dripChart.includes('stroke-dasharray="3 3" opacity=".55"') ||
       markers.length!==1 || markers[0].className!=='shotFinalPoint' ||
-      (dripWeight.match(/fill-opacity/g)||[]).length!==1 || !dripFlow.includes('shotDripTrace') ||
-      (dripFlow.match(/fill-opacity/g)||[]).length!==1 || drip.dripFlowSegs[0].pts[0].t!==1 ||
-      dripFlow.includes('shotDropOverlay') || markers[0].style.width!=='6px' || markers[0].style.height!=='6px')
+      fills()!==2 || drip.dripFlowSegs[0].pts[0].t!==1 ||
+      (dripChart.match(/shotDropOverlay/g)||[]).length!==1 || markers[0].style.width!=='6px' || markers[0].style.height!=='6px')
     throw new Error('Real drip readings must form unfilled dashed weight/flow tails and a fixed-size weight ring');
   const interrupted=render(host,{...dripShot,wBreakBefore:[3]});
   if(interrupted.dripSegs[0].pts[0].t!==1.5 || interrupted.dripFlowSegs.length ||
@@ -114,7 +120,7 @@
   if(recovered.dripFlowSegs[0].pts[0].t!==2 || recovered.flowCurve[3]!==null || recovered.flowCurve[4]!==null)
     throw new Error('Drip flow must regain a full supported window after an interruption without bridging cutoff');
   render(host, {wCg:[0,0,0],wAtMs:[0,1000,2000],durationS:2});
-  if(host.hidden || markers.length || host.innerHTML.includes('fill-opacity') ||
+  if(host.hidden || markers.length || fills() ||
       !host.innerHTML.includes('d="M13.4 34.5 L37.0 34.5"'))
     throw new Error('Flat measured zero flow must remain visible');
   const tared=render(host,{wCg:[0,100,200],wAtMs:[0,500,1000],durationS:10,
@@ -128,12 +134,14 @@
     durationS:15.1,goalG:36});
   if(rounded.timeMax!==20 || rounded.maxW!==40 || rounded.flowMax!==4 ||
       rounded.maxFlow<=3.7 || rounded.maxFlow>=3.8 ||
-      charts[0].style['--shot-plot-min']!=='4.40rem' || charts[1].style['--shot-plot-min']!=='8.80rem')
-    throw new Error('Non-multiple domains must round up and grow chart axes independently');
+      plot.style['--shot-plot-min']!=='4.40rem' ||
+      !host.innerHTML.includes('<span class="shotYTick">4 g/s</span><span class="shotYTick">3 g/s</span>'))
+    throw new Error('Non-multiple domains must round up; flow takes the step that fits the shared weight grid');
   const exact=render(host,{wCg:[1000,2000,3000,4000],wAtMs:[0,10000,20000,30000],durationS:40});
   if(exact.timeMax!==40 || exact.maxW!==40 || exact.flowMax!==1 ||
-      charts[0].style['--shot-plot-min']!=='4.40rem' || charts[1].style['--shot-plot-min']!=='2.20rem')
-    throw new Error('Exact axis boundaries must retain compact minimums');
+      plot.style['--shot-plot-min']!=='4.40rem' ||
+      !host.innerHTML.includes('<span class="shotYTick">1 g/s</span><span class="shotYTick">0.75 g/s</span>'))
+    throw new Error('Exact axis boundaries must retain compact minimums and a quarter-step flow axis');
   render(host, null);
   if (!host.hidden || host.innerHTML) throw new Error('Missing shot data must still hide the charts');
 }
@@ -650,7 +658,8 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
     !css.includes('.shotSpark{grid-area:plot;display:block;width:100%;height:100%;color:var(--ok);overflow:visible}') ||
     !css.includes('.shotGrid,.rvGrid{stroke:var(--ln);stroke-width:.8;opacity:.7}') ||
     !css.includes('.shotGrid,.shotTrace{vector-effect:non-scaling-stroke}') ||
-    !css.includes('grid-template-rows:max(2.55rem,var(--shot-plot-min,0rem)) auto') ||
+    !css.includes('grid-template-rows:var(--shot-plot-h,max(7rem,var(--shot-plot-min,0rem))) auto') ||
+    !css.includes('grid-template-areas:"y plot f" ". x ."') ||
     css.includes('.shotEventTicks') ||
     !css.includes('.shotYTick{position:absolute;right:0;white-space:nowrap;transform:translateY(-50%)}') ||
     css.includes('.shotYTick:first-child') || css.includes('.shotYTick:last-child') ||
@@ -668,9 +677,9 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
     !codeIncludes(runtimeJs, 'function shotDisplayFlowGS(') ||
     !codeIncludes(runtimeJs, 'if(!pts.length||dur<=0)return null') ||
     !codeIncludes(runtimeJs, 'm.firstDropS>0') ||
-    !codeIncludes(runtimeJs, 'm.flowSegs,m.flowMax') ||
+    !codeIncludes(runtimeJs, 'series(m.flowSegs,m.dripFlowSegs,step*n,true)') ||
     !codeIncludes(runtimeJs, 'Flow rate (g/s)') ||
-    !codeIncludes(runtimeJs, "querySelectorAll('.ruleChartTicks')") ||
+    !codeIncludes(runtimeJs, "querySelector('.ruleChartTicks')") ||
     codeIncludes(runtimeJs, "['.ruleChartTicks',xt]") || codeIncludes(runtimeJs, "'.shotEventTicks'") ||
     codeIncludes(runtimeJs, "'1st '+L(") ||
     codeIncludes(runtimeJs, 'fillChartTicks($(\'shotBarTicks\')') ||
@@ -1320,17 +1329,19 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
   if (shotRuleModel({...row, delayS: 12}).mode !== 'empty')
     throw new Error('An invalid snapshot (delay not before the window) must render without the preset chart');
   const cardSrc = runtimeJs.slice(runtimeJs.indexOf('function renderShotSpark('), runtimeJs.indexOf('function fillShotCharts('));
-  if (!cardSrc.includes('aria-controls') || !cardSrc.includes('aria-expanded') ||
-      !/"role",\s*"slider"/.test(cardSrc) ||
-      !cardSrc.includes('shotMoreOpen.add') || !cardSrc.includes('dataset.zone') ||
+  if (cardSrc.includes('aria-expanded') || cardSrc.includes('shotMore') ||
+      !/"role",\s*"slider"/.test(cardSrc) || !cardSrc.includes('dataset.zone') ||
       !cardSrc.includes('observePresetHost(preset)') || cardSrc.includes('hatch') ||
-      !cardSrc.includes('E = "cubic-bezier(.22,1,.36,1)"') || !cardSrc.includes('duration: 600, easing: E') ||
-      !cardSrc.includes('...fade(more,') || !cardSrc.includes('prefers-reduced-motion') ||
-      !runtimeJs.includes('rate.className = "shotRateCell";') || !runtimeJs.includes('...Array(8).fill("shotInfo")'))
-    throw new Error('The Stats preset card needs an accessible Show more toggle that folds the details and extra charts with an ease-out resize and fades, keeps the rating visible, plus a keyboard cursor, a verdict zone, and no no-cut hatch');
-  if (!css.includes('.shotPresetChart[data-zone=fast] .rvWindow') || !css.includes('.shotMore[hidden]{display:none}') ||
-      !css.includes('#shotTable tr:has([aria-expanded=false]) .shotInfo{display:none}') ||
-      !css.includes('"dur dur dur actual actual actual" "time time time rate rate rate" "spark spark spark spark spark spark"') ||
+      !cardSrc.includes('h.append(preset, readout, legend, combo);') || !cardSrc.includes('fillShotCharts(combo, m);') ||
+      !cardSrc.includes('if (preset._view) h.style.setProperty("--shot-plot-h", preset._view.B - preset._view.T + "px");') ||
+      !runtimeJs.includes('rate.className = "shotRateCell";') || runtimeJs.includes('shotInfo') ||
+      !runtimeJs.includes('<span class="heroPill" data-kind="'))
+    throw new Error('The Stats preset card must show its details, preset chart and combined weight/flow chart at once (same plot height), plus a keyboard cursor, a verdict zone and pill, and no no-cut hatch');
+  if (!css.includes('.shotPresetChart[data-zone=fast] .rvWindow') || css.includes('.shotMore') ||
+      css.includes('aria-expanded=false') ||
+      !css.includes('.shotComboHost{padding-top:1rem}') ||
+      !css.includes('.heroPill[data-kind=fast]{--z:var(--gFast)}') || !css.includes('#shotTable .heroPill{') ||
+      !runtimeJs.includes('fill="url(#${u + cls})"') || !runtimeJs.includes('`calc(var(--band${b}) * 2.2)`') ||
       !css.includes('margin:.55rem 0 0;z-index:1;background:var(--sf)}') ||
       !css.includes('--gCut:#d1101f') || !css.includes('--gCut:#9e1c22') || !css.includes('.rvCut{fill:none;stroke:var(--gCut)'))
     throw new Error('Stats preset styles must color only the verdict zone and use the red cut-line token in both themes');

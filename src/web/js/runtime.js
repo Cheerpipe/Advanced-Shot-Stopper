@@ -1273,7 +1273,6 @@ function shotRuleModel(r) {
     brewByWeight: !timer,
   });
 }
-const shotMoreOpen = new Set();
 let shotPresetObserver = null;
 // One shared observer re-lays out preset graphs once they get a width; detached hosts drop out.
 function observePresetHost(host) {
@@ -1295,11 +1294,10 @@ function renderShotSpark(h, shot) {
   }
   h.hidden = false;
   const rule = shotRuleModel(shot);
-  if (rule.mode === "empty") return fillShotCharts(h, m, ["weight", "flow"]);
+  if (rule.mode === "empty") return fillShotCharts(h, m);
   const preset = document.createElement("div"),
     readout = document.createElement("p"),
-    btn = document.createElement("button"),
-    more = document.createElement("div"),
+    combo = document.createElement("div"),
     // The cursor rides this shot's own curve; it starts at the stop point (D7).
     curve = m.pts.map((q) => ({ t: q.t, cg: q.cg })).sort((a, b) => a.t - b.t),
     weightAt = (t) => {
@@ -1340,6 +1338,8 @@ function renderShotSpark(h, shot) {
       arrivals: shot.arrivalS > 0 ? [shot.arrivalS] : [],
       maxG: m.rawMaxW,
     });
+    // The weight/flow chart below matches this plot's height, so grams read alike in both.
+    if (preset._view) h.style.setProperty("--shot-plot-h", preset._view.B - preset._view.T + "px");
     preset.querySelector("svg")?.insertAdjacentHTML(
       "beforeend",
       `<g class="shotCursor"><path class="rvGuide"/><circle class="rvHandle" r="5"/>${PILL}</g>`,
@@ -1373,51 +1373,6 @@ function renderShotSpark(h, shot) {
   readout.className = "shotCursorText";
   // Only the zone the shot ended in keeps its fill (CSS); timer-only shots keep none.
   preset.dataset.zone = (shot.shotType || "").toLowerCase() === "timer_only" ? "none" : shot.verdict === "fast" || shot.verdict === "slow" ? shot.verdict : "on_recipe";
-  btn.type = "button";
-  btn.className = "shotMoreBtn";
-  more.className = "shotMore";
-  more.id = "shotMore" + shot.id;
-  btn.setAttribute("aria-controls", more.id);
-  const sync = (open) => {
-    btn.setAttribute("aria-expanded", open);
-    btn.textContent = open ? __WEBUI_TEXT__("runtime.fewer_charts") : __WEBUI_TEXT__("runtime.more_charts");
-    more.hidden = !open;
-    if (open && !more.childElementCount) fillShotCharts(more, m, ["flow", "weight"]);
-  };
-  btn.onclick = () => {
-    const open = !shotMoreOpen.has(shot.id),
-      row = h.parentElement,
-      info = [...row.querySelectorAll(".shotInfo")],
-      E = "cubic-bezier(.22,1,.36,1)",
-      span = (a, b) => (open ? [a, b] : [b, a]),
-      // Opacity eases out; opening settles position and scale with a light spring.
-      fade = (el, t, from) => [
-        el.animate({ opacity: span(0, 1) }, { ...t, easing: E, fill: "both" }),
-        el.animate({ translate: span("0 -10px", "0"), scale: span(from, "1") }, { ...t, easing: open ? "cubic-bezier(.3,1.3,.6,1)" : E, fill: "both" }),
-      ];
-    if (open) shotMoreOpen.add(shot.id);
-    else shotMoreOpen.delete(shot.id);
-    for (const a of h._fx || []) a.cancel();
-    if (matchMedia("(prefers-reduced-motion:reduce)").matches) return sync(open);
-    // Both ways play in the open layout, fast then settling: the opaque charts slide over the
-    // details like a drawer while the details (a short cascade) and extra charts fade in or out.
-    sync(false);
-    const h0 = row.offsetHeight,
-      y0 = h.offsetTop,
-      fx = { duration: 600, easing: E, fill: "both" };
-    sync(true);
-    const lines = [...new Set(info.map((c) => c.offsetTop))].sort((a, b) => a - b);
-    h._fx = [
-      row.animate({ height: span(h0 + "px", row.offsetHeight + "px"), overflow: ["hidden", "hidden"] }, fx),
-      h.animate({ translate: span(`0 ${y0 - h.offsetTop}px`, "0") }, fx),
-      ...fade(more, open ? { duration: 450, delay: 60 } : { duration: 260 }, "1"),
-      ...info.flatMap((c) => fade(c, open ? { duration: 450, delay: lines.indexOf(c.offsetTop) * 30 } : { duration: 260 }, ".96")),
-    ];
-    Promise.all(h._fx.map((a) => a.finished)).then(() => {
-      if (!open) sync(false);
-      for (const a of h._fx) a.cancel();
-    }, () => {});
-  };
   // Compact legend (D5): the cut line, only the zone this shot ended in, the shot, and arrivals.
   const zone = preset.dataset.zone,
     legend = document.createElement("div");
@@ -1435,37 +1390,55 @@ function renderShotSpark(h, shot) {
     (shot.arrivalS > 0
       ? '<span class="rvLeg rvLegArrivals"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_arrivals") + "</span>"
       : "");
-  h.append(preset, readout, legend, btn, more);
-  sync(shotMoreOpen.has(shot.id));
+  combo.className = "shotComboHost";
+  h.append(preset, readout, legend, combo);
+  fillShotCharts(combo, m);
   preset._draw = draw;
   observePresetHost(preset);
   draw();
 }
-function fillShotCharts(h, m, keys) {
+// Every filled chart fades vertically: its color at the top of the shape, gone at the base.
+let fadeSeq = 0;
+function fadeFill(id, color, top, base = 0) {
+  return `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop style="stop-color:${color};stop-opacity:${top}"/><stop offset="1" style="stop-color:${color};stop-opacity:${base}"/></linearGradient>`;
+}
+// One chart for both series: weight on the left axis, flow on the right one,
+// sharing the weight grid (10 g per line; flow takes the smallest step that fits).
+function fillShotCharts(h, m) {
   const W = 240,
     H = 36,
     p = 1.5,
     X = (t) => p + (W - 2 * p) * Math.min(1, t / m.timeMax),
-    xt = fixedChartTicks(m.timeMax, 10, "s");
-  function chart(segs, max, step, unit, weight) {
-    const Y = (v) => H - p - (H - 2 * p) * Math.max(0, Math.min(1, v / 100 / max)),
-      yt = fixedChartTicks(max, step, unit);
+    xt = fixedChartTicks(m.timeMax, 10, "s"),
+    yt = fixedChartTicks(m.maxW, 10, __WEBUI_TEXT__("runtime.g")),
+    n = m.maxW / 10,
+    step = [0.25, 0.5, 1, 2, 5].find((s) => s * n >= m.flowMax) ?? Math.ceil(m.flowMax / n),
+    u = "sc" + ++fadeSeq,
+    colors = [...new Set(m.segs.filter((s) => s.pts.length > 1).map((s) => s.color))];
+  let defs = "";
+  function series(segs, drips, max, flow) {
+    const Y = (v) => H - p - (H - 2 * p) * Math.max(0, Math.min(1, v / 100 / max));
     function path(a, c, drip) {
       const d =
         a.map((q, i) => (i ? "L" : "M") + X(q.t).toFixed(1) + " " + Y(q.cg).toFixed(1)).join(" ") +
         (a.length === 1 ? "h0" : "");
+      let fill = "";
+      if (!drip && a.length > 1 && a.some((q) => q.cg > 0)) {
+        const id = u + "-" + defs.length;
+        defs += fadeFill(id, c, flow ? 0.42 : 0.36, flow ? 0.02 : 0);
+        fill =
+          '<path d="' +
+          d +
+          "V" +
+          (H - p) +
+          "H" +
+          X(a[0].t).toFixed(1) +
+          'Z" fill="url(#' +
+          id +
+          ')"/>';
+      }
       return (
-        (!drip && a.length > 1 && a.some((q) => q.cg > 0)
-          ? '<path d="' +
-            d +
-            "V" +
-            (H - p) +
-            "H" +
-            X(a[0].t).toFixed(1) +
-            'Z" fill="' +
-            c +
-            '" fill-opacity=".22"/>'
-          : "") +
+        fill +
         '<path class="shotTrace' +
         (drip ? " shotDripTrace" : "") +
         '" d="' +
@@ -1477,69 +1450,67 @@ function fillShotCharts(h, m, keys) {
         "/>"
       );
     }
-    const grid = xt
-        .map((q) => {
-          const z = X(q[0]).toFixed(1);
-          return "M" + z + " " + p + "V" + (H - p);
-        })
-        .concat(
-          yt.map((q) => {
-            const z = Y(q[0] * 100).toFixed(1);
-            return "M" + p + " " + z + "H" + (W - p);
-          }),
-        )
-        .join(""),
-      labels = yt
-        .slice()
-        .reverse()
-        .map((q) => '<span class="shotYTick">' + q[1] + "</span>")
-        .join("");
-    let svg =
-      '<svg class="shotSpark" viewBox="0 0 ' +
-      W +
-      " " +
-      H +
-      '" preserveAspectRatio="none"><path class="shotGrid" d="' +
-      grid +
-      '"/>';
+    let svg = "";
     if (m.firstDropS > 0)
       svg += path(
         [
           { t: 0, cg: 0 },
           { t: m.firstDropS, cg: 0 },
-          ...(!weight && m.flowStart ? [m.flowStart] : []),
+          ...(flow && m.flowStart ? [m.flowStart] : []),
         ],
-        weight ? "var(--ok)" : "#38bdf8",
+        flow ? "#38bdf8" : "var(--ok)",
       );
     for (const s of segs) svg += path(s.pts, s.color);
-    for (const s of weight ? m.dripSegs : m.dripFlowSegs) svg += path(s.pts, s.color, true);
-    return (
-      '<div class="shotCurve"><div class="ruleChartLabel">' +
-      (weight ? __WEBUI_TEXT__("home.weight_g") : __WEBUI_TEXT__("runtime.flow_rate_g_s")) +
-      (m.truncated ? " · Incomplete curve" : "") +
-      '</div><div class="shotSparkHost"><div class="shotSparkY' +
-      (weight ? "" : " shotSparkFlowY") +
-      '">' +
-      labels +
-      "</div>" +
-      svg +
-      "</svg>" +
-      (weight && m.finalPoint ? '<div class="shotDropOverlay"></div>' : "") +
-      '<div class="ruleChartTicks"></div></div></div>'
-    );
+    for (const s of drips) svg += path(s.pts, s.color, true);
+    return svg;
   }
-  h.innerHTML = keys
-    .map((k) =>
-      k === "weight"
-        ? chart(m.segs, m.maxW, 10, __WEBUI_TEXT__("runtime.g"), 1)
-        : chart(m.flowSegs, m.flowMax, 0.5, "g/s"),
-    )
-    .join("");
-  for (const c of h.querySelectorAll(".shotSparkHost")) {
-    const y = c.querySelectorAll(".shotYTick"),
-      n = y.length - 1,
-      axis = c.querySelector(".shotSparkY");
-    c.style.setProperty("--shot-plot-min", (n * 1.1).toFixed(2) + "rem");
+  const grid = xt
+      .map((q) => "M" + X(q[0]).toFixed(1) + " " + p + "V" + (H - p))
+      .concat(
+        yt.map(
+          (q, i) => "M" + p + " " + (H - p - ((H - 2 * p) * i) / n).toFixed(1) + "H" + (W - p),
+        ),
+      )
+      .join(""),
+    ticks = (labels) =>
+      labels
+        .slice()
+        .reverse()
+        .map((q) => '<span class="shotYTick">' + q + "</span>")
+        .join(""),
+    // Flow is drawn first so the weight curve and its fill stay on top.
+    body = series(m.flowSegs, m.dripFlowSegs, step * n, true) + series(m.segs, m.dripSegs, m.maxW);
+  h.innerHTML =
+    '<div class="shotCurve"><div class="ruleChartLabel"><i class="shotKey" style="--c:' +
+    (colors.length > 1
+      ? `linear-gradient(90deg,${colors[0]} 50%,${colors.at(-1)} 50%)`
+      : colors[0] || "var(--ok)") +
+    '"></i>' +
+    __WEBUI_TEXT__("home.weight_g") +
+    ' <i class="shotKey" style="--c:#38bdf8"></i>' +
+    __WEBUI_TEXT__("runtime.flow_rate_g_s") +
+    (m.truncated ? " · Incomplete curve" : "") +
+    '</div><div class="shotSparkHost"><div class="shotSparkY">' +
+    ticks(yt.map((q) => q[1])) +
+    '</div><svg class="shotSpark" viewBox="0 0 ' +
+    W +
+    " " +
+    H +
+    '" preserveAspectRatio="none"><defs>' +
+    defs +
+    '</defs><path class="shotGrid" d="' +
+    grid +
+    '"/>' +
+    body +
+    '</svg><div class="shotSparkY shotSparkFlowY">' +
+    ticks(yt.map((q, i) => +(i * step).toFixed(2) + " g/s")) +
+    "</div>" +
+    (m.finalPoint ? '<div class="shotDropOverlay"></div>' : "") +
+    '<div class="ruleChartTicks"></div></div></div>';
+  const c = h.querySelector(".shotSparkHost");
+  c.style.setProperty("--shot-plot-min", (n * 1.1).toFixed(2) + "rem");
+  for (const axis of c.querySelectorAll(".shotSparkY")) {
+    const y = axis.querySelectorAll(".shotYTick");
     y.forEach((e, i) => {
       e.style.top = (i / n) * 100 + "%";
       e.dataset.p = i === n ? 80 : i === 0 ? 70 : 20;
@@ -1550,13 +1521,12 @@ function fillShotCharts(h, m, keys) {
     axis.setAttribute("aria-label", [...y].map((e) => e.textContent).join(", "));
     watchChartLabels(axis);
   }
-  for (const t of h.querySelectorAll(".ruleChartTicks"))
-    fillChartTicks(
-      t,
-      xt.map((q, i) => [...q, i === 0 ? 80 : i === xt.length - 1 ? 70 : 20, "time-" + q[0]]),
-      m.timeMax,
-      true,
-    );
+  fillChartTicks(
+    c.querySelector(".ruleChartTicks"),
+    xt.map((q, i) => [...q, i === 0 ? 80 : i === xt.length - 1 ? 70 : 20, "time-" + q[0]]),
+    m.timeMax,
+    true,
+  );
   if (m.finalPoint) {
     const d = document.createElement("span");
     d.className = "shotFinalPoint";
@@ -1647,7 +1617,8 @@ function renderStatsDurChart() {
   for (const [k, t0, t1, c, name] of zones) {
     const line = [t0, ...xs.filter((t) => t > t0 && t < t1), t1].map((t) => x(t) + " " + (50 - (46 * dens(t)) / peak).toFixed(2)).join(" L");
     svg +=
-      '<path d="M' + x(t0) + " 50 L" + line + " L" + x(t1) + ' 50Z" fill="' + c + '" fill-opacity=".22"/><path d="M' + line +
+      fadeFill("sd" + k, c, 0.45, 0.02) +
+      '<path d="M' + x(t0) + " 50 L" + line + " L" + x(t1) + ' 50Z" fill="url(#sd' + k + ')"/><path d="M' + line +
       '" fill="none" stroke="' + c + '" stroke-width="1.35" vector-effect="non-scaling-stroke"/>';
     tops += "<span><b>" + pct[k] + "%</b>" + n[k] + " " + name + "</span>";
   }
@@ -1706,9 +1677,12 @@ function renderShots() {
     if (l) e.dataset.label = l;
     if (c) e.className = c;
     e.textContent = v;
+    // The headline numbers keep their unit, set smaller so the value reads first.
     if (c === "shotDur" || c === "shotActual")
-      e.innerHTML +=
-        '<svg class="shotMetricIcon" width="1.85rem" height="1.85rem" fill="currentColor" aria-hidden="true"><use href="#shotMetric' +
+      e.innerHTML =
+        '<span class="shotVal">' +
+        e.innerHTML.replace(/(\d)([sg])$/, "$1<small>$2</small>") +
+        '</span><svg class="shotMetricIcon" width="1.85rem" height="1.85rem" fill="currentColor" aria-hidden="true"><use href="#shotMetric' +
         (c === "shotDur" ? "Time" : "Weight") +
         '"/></svg>';
     p.appendChild(e);
@@ -1763,17 +1737,15 @@ function renderShots() {
         shotPresetName(r),
         r.scaleName || __WEBUI_TEXT__("runtime.none"),
       ];
-      // shotInfo cells stay folded behind Show more on cards with a preset chart.
-      const cls = [
-        "",
-        "shotDur",
-        "shotInfo",
-        "shotActual",
-        "shotInfo " + (errN > 0 ? "shotErrHi" : errN < 0 ? "shotErrLo" : ""),
-        ...Array(8).fill("shotInfo"),
-      ];
+      const cls = ["", "shotDur", "", "shotActual", errN > 0 ? "shotErrHi" : errN < 0 ? "shotErrLo" : ""];
       vals.forEach((v, i) => td(row, labels[i], v, cls[i]));
       wrapTimeEl(row.cells[0], r);
+      // The verdict sits beside the time so each card says at a glance how the shot landed.
+      if (r.arrivalS > 0 && ["fast", "on_recipe", "slow"].includes(r.verdict))
+        row.cells[0].insertAdjacentHTML(
+          "beforeend",
+          '<span class="heroPill" data-kind="' + r.verdict + '">' + verdictLabel(r.verdict) + "</span>",
+        );
       const rate = document.createElement("td");
       rate.className = "shotRateCell";
       rate.dataset.label = __WEBUI_TEXT__("runtime.rate");
@@ -5302,7 +5274,7 @@ function presetGraph(host, m, x = {}) {
     corner = `L${P(tMax, top + 1)}`,
     tA = Math.max(t0 + 0.5, m.t1 - m.d),
     tB = m.t2 + m.d,
-    band = (cls, d, on) => `<path class="${on ? cls : "rvBandOff"}" d="${d}"/>`,
+    band = (cls, d, on) => `<path class="${on ? cls : "rvBandOff"}" d="${d}" fill="url(#${u + cls})"/>`,
     curves = (lines, cls) =>
       lines
         .map(
@@ -5340,14 +5312,15 @@ function presetGraph(host, m, x = {}) {
   );
   host.innerHTML =
     `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
-    `<defs><pattern id="${u}Hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="rvHatchLine" d="M0 0V6"/></pattern>` +
+    // Each band fades from twice its flat strength at the top to almost nothing at the base.
+    `<defs>${[["rvFastFull", "gFast", "Full"], ["rvFastPart", "gFast", "Part"], ["rvWindow", "ok", "Win"], ["rvSlowPart", "gSlow", "Part"], ["rvSlowFull", "gSlow", "Full"]].map(([c, k, b]) => fadeFill(u + c, `var(--${k})`, `calc(var(--band${b}) * 2.2)`, 0.03)).join("")}<pattern id="${u}Hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="rvHatchLine" d="M0 0V6"/></pattern>` +
     `<clipPath id="${u}Under"><path d="M${P(0, 0)}L${P(0, m.ceil)}L${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}L${P(m.wall, 0)}Z"/></clipPath></defs>` +
     `<g role="img" aria-label="${sub(__WEBUI_TEXT__("runtime.graph_summary"), [n(m.prot), n(m.ceil), n(a), n(m.goal), n(m.t1), n(m.t2), n(m.floor), n(b), n(m.wall)])} ${__WEBUI_TEXT__("runtime.graph_pace_note")}${compact ? "" : " " + paceStartNote(m)}">` +
     grid +
     `<g clip-path="url(#${u}Under)">` +
     band("rvFastFull", O + paceTo(tA) + `L${P(paceEnd(tA), top + 1)}L${P(0, top + 1)}Z`, m.fast) +
     band("rvFastPart", O + paceTo(m.t1) + corner + `L${endOf(tA)}` + paceBack(tA) + "Z", m.fast) +
-    `<path class="rvWindow" d="${O + paceTo(m.t1, m.t1)}L${P(m.t2, m.goal)}${paceBack(m.t2, m.t2)}Z"/>` +
+    band("rvWindow", O + paceTo(m.t1, m.t1) + `L${P(m.t2, m.goal)}` + paceBack(m.t2, m.t2) + "Z", true) +
     band("rvSlowPart", O + paceTo(m.t2) + corner + `L${endOf(tB)}` + paceBack(tB) + "Z", m.slow) +
     band("rvSlowFull", O + paceTo(tB) + corner + `L${P(tMax, 0)}Z`, m.slow) +
     `<path class="rvPace" d="${[tA, m.t1, m.t2, tB].map((ta) => S + paceTo(ta)).join("")}"><title>${__WEBUI_TEXT__("runtime.graph_pace_title")}</title></path>` +
@@ -7020,7 +6993,9 @@ function renderShotHero(d) {
         X = (v) => P + (W - 2 * P) * Math.min(1, v / model.timeMax),
         Y = (c) => H - P - (H - 2 * P) * Math.min(1, Math.max(0, c / 100 / model.maxW));
       spark.innerHTML =
-        '<svg viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">' +
+        '<svg viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true"><defs>' +
+        fadeFill("heroFade", "var(--on)", 0.4) +
+        "</defs>" +
         segs
           .map((s) => {
             const p = s.pts
@@ -7033,7 +7008,7 @@ function renderShotHero(d) {
               H +
               "H" +
               X(s.pts[0].t).toFixed(1) +
-              'Z" fill="var(--on)" opacity=".18" stroke="none"/><path d="' +
+              'Z" fill="url(#heroFade)" stroke="none"/><path d="' +
               p +
               '" fill="none" stroke="var(--on)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
             );
