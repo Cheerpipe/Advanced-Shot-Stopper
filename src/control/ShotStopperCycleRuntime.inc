@@ -1084,6 +1084,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
     const AccidentalTouchClass classified =
         evaluateAccidentalTouchSample(weight, receivedAtMs);
     if (classified == AccidentalTouchClass::TOUCH) {
+      shotCurveSampler.accept(weight, receivedAtMs, true);
       resetDirectStopConfirmation();
       if (touchProvenanceValid) considerTouchStopSample(weight, receivedAtMs, packetSequence,
                               connectionGeneration, previousTouchStop);

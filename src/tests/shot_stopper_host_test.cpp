@@ -18746,11 +18746,15 @@ void at20_resting_load_under_flow_stays_held() {
   CHECK(session.active);
 }
 
+size_t shotCurveBitCount(const uint8_t *bits, size_t from = 1) {
+  size_t set = 0;
+  for (size_t i = from; i < shotCurveSampler.count; ++i)
+    set += (bits[i / 8U] >> (i % 8U)) & 1U;
+  return set;
+}
+
 size_t shotCurveBreakCount() {
-  size_t breaks = 0;
-  for (size_t i = 1; i < shotCurveSampler.count; ++i)
-    breaks += (shotCurveSampler.breakBefore[i / 8U] >> (i % 8U)) & 1U;
-  return breaks;
+  return shotCurveBitCount(shotCurveSampler.breakBefore);
 }
 
 // Feeds a contact on top of a steady flow: `profile` holds the extra grams of
@@ -18825,7 +18829,11 @@ void at21_spurt_plateau_is_accepted_without_learning() {
   CHECK(!session.accidentalTouchHolding);
   CHECK(fabsf(session.lastAcceptedWeightG - (base + 4.5f)) < 0.01f);
   CHECK(!session.calibrationEligible);
-  CHECK(shotCurveBreakCount() == breaksBefore + 1U);  // A new segment.
+  CHECK(shotCurveBreakCount() == breaksBefore + 1U);  // A new segment...
+  const size_t last = shotCurveSampler.count - 1U;  // ...on the accepted shift,
+  CHECK((shotCurveSampler.breakBefore[last / 8U] >> (last % 8U)) & 1U);
+  CHECK(shotCurveBitCount(shotCurveSampler.held, 0) ==  // after its held run.
+        ACCIDENTAL_TOUCH_SUSTAINED_SAMPLES - 1U);
 }
 
 void at22_held_touch_below_line_releases_after_bounded_hold() {
@@ -18872,6 +18880,7 @@ void at23_hand_contact_is_absorbed_at_low_and_high_cup_weight() {
   const HandContactResult r = runHandContact(4.0f, 0.4f, sharp, 6);
   CHECK(r.leakedSamples == 0);
   CHECK(r.breaks == 0);
+  CHECK(shotCurveBitCount(shotCurveSampler.held, 0) == 6);  // Recorded, flagged.
 }
 
 void at24_ramped_contact_and_lift_are_held() {

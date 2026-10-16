@@ -47,8 +47,9 @@ uint32_t uiStreamCurveHash(const ShotCurveRecord &curve, uint16_t count) {
   hash = crc32Update(hash, reinterpret_cast<const uint8_t *>(curve.atMs),
                     count * sizeof(uint16_t));
   for (uint16_t i = 0; i < count; ++i) {
-    const uint8_t split = shotCurveBreakBefore(curve, i) ? 1 : 0;
-    hash = crc32Update(hash, &split, 1);
+    const uint8_t flags = (shotCurveBreakBefore(curve, i) ? 1 : 0) |
+                          (shotCurveHeld(curve, i) ? 2 : 0);
+    hash = crc32Update(hash, &flags, 1);
   }
   return hash;
 }
@@ -493,7 +494,8 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
         control.shotCurveExtendedMs, control.shotCurveExtendedCg,
         control.shotCurveAtmMs, control.shotCurveAtmCg, control.shotCurveAtmClearedMs,
         control.shotCurveEndedMs, control.shotCurveEndedCg, control.shotCurveWeightCg,
-        SHOT_CURVE_MAX_POINTS, control.shotCurveAtMs, control.shotCurveBreakBefore);
+        SHOT_CURVE_MAX_POINTS, control.shotCurveAtMs, control.shotCurveBreakBefore,
+        control.shotCurveHeld);
   } else if (eligible) {
     const auto &linked = control.lastShot.shotLogId == latest.id
         ? control.lastShot : control.lastGoodShot;

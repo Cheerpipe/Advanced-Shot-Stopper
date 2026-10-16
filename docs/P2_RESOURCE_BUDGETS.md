@@ -537,8 +537,8 @@ tests, so one asset cannot consume all combined headroom.
 
 Both supported partition tables reserve `shotcurve` at custom subtype
 `0x40`, exactly `0xCC000` (816 KiB): 101 × 8192-byte record blocks
-plus two separate 4096-byte epoch sectors. The maximum used record is 5012
-bytes, leaving 3180 reserved bytes per block. A shorter curve erases/programs
+plus two separate 4096-byte epoch sectors. The maximum used record is 5160
+bytes, leaving 3032 reserved bytes per block. A shorter curve erases/programs
 only its used length and ignores stale bytes beyond it. On n8r4 the partition
 occupies `0x69E000`–`0x769FFF`; on n16r8 it occupies
 `0x63E000`–`0x709FFF`. The unmounted filesystem reservation shrinks;

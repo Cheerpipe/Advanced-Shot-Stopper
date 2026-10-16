@@ -14,17 +14,18 @@
 namespace shotstopper {
 
 constexpr uint32_t SHOT_CURVE_MAGIC = 0x53435256U;  // "SCRV"
-// Older stores are intentionally discarded.
 // Schema 1: the smooth-cut epoch; the "extended" event marks the cut line
-// leaving the target.
-constexpr uint16_t SHOT_CURVE_SCHEMA_VERSION = 1;
+// leaving the target. Schema 2 adds the per-sample held bitmap; schema-1
+// blocks still load (nothing held) so an update keeps the shot history.
+constexpr uint16_t SHOT_CURVE_SCHEMA_VERSION = 2;
 constexpr uint32_t SHOT_CURVE_MAX_TIME_MS = 60000;
 // Capacity assumption only, never a sampling grid or rate limiter.
 constexpr size_t SHOT_CURVE_MAX_POINTS = SHOT_CURVE_MAX_TIME_MS / 50U + 1U;
 constexpr size_t SHOT_CURVE_BREAK_BYTES = (SHOT_CURVE_MAX_POINTS + 7U) / 8U;
 constexpr size_t SHOT_CURVE_CAPACITY = SHOT_LOG_CAPACITY;
-// Worst case: 1201 × (7 weight + 6 time + 5 break-index characters), plus events.
-constexpr size_t SHOT_CURVE_JSON_CAPACITY = 22016;
+// Worst case: 1201 × (7 weight + 6 time + 5 break-index + 5 held-index
+// characters), plus events.
+constexpr size_t SHOT_CURVE_JSON_CAPACITY = 28032;
 
 struct ShotCurveEvent {
   uint16_t atMs;
@@ -59,6 +60,8 @@ struct ShotCurveRecord {
   int16_t weightCg[SHOT_CURVE_MAX_POINTS];
   uint16_t atMs[SHOT_CURVE_MAX_POINTS];
   uint8_t breakBefore[SHOT_CURVE_BREAK_BYTES];
+  // Samples the touch classifier held: recorded, never control weight.
+  uint8_t held[SHOT_CURVE_BREAK_BYTES];
 };
 
 // Network-owned PSRAM copy, captured with one store lock; never a stack
@@ -88,7 +91,7 @@ inline ShotCurveRecord emptyShotCurveRecord() {
   return curve;
 }
 
-static_assert(sizeof(ShotCurveRecord) == 4984,
+static_assert(sizeof(ShotCurveRecord) == 5132,
               "ShotCurveRecord packing is part of the flash sidecar schema");
 
 struct ShotCurveHeader {
@@ -113,7 +116,7 @@ static_assert(sizeof(ShotCurveStore) ==
                   sizeof(ShotCurveHeader) +
                       sizeof(ShotCurveRecord) * SHOT_CURVE_CAPACITY,
               "ShotCurveStore packing must stay 4-byte aligned for chunked flash I/O");
-static_assert(sizeof(ShotCurveStore) == 498420,
+static_assert(sizeof(ShotCurveStore) == 513220,
               "ShotCurveStore packing is part of the flash sidecar schema");
 
 inline uint32_t shotCurveChecksum(const ShotCurveStore &store) {
@@ -161,7 +164,8 @@ inline void compactShotCurveStore(ShotCurveStore &store) {
 
 template <typename Curve>
 inline bool appendShotCurveObservation(Curve &curve, float weight,
-                                       uint32_t elapsed, bool split) {
+                                       uint32_t elapsed, bool split,
+                                       bool held = false) {
   if (curve.truncated) return false;
   const int16_t cg = shotLogWeightToCentigrams(weight);
   if (shotLogWeightIsMissing(cg) ||
@@ -174,6 +178,7 @@ inline bool appendShotCurveObservation(Curve &curve, float weight,
   curve.atMs[curve.count] = static_cast<uint16_t>(elapsed);
   if (split && curve.count != 0)
     curve.breakBefore[curve.count / 8U] |= static_cast<uint8_t>(1U << (curve.count % 8U));
+  if (held) curve.held[curve.count / 8U] |= static_cast<uint8_t>(1U << (curve.count % 8U));
   ++curve.count;
   return true;
 }
@@ -192,6 +197,7 @@ struct ShotCurveSampler {
   int16_t weightCg[SHOT_CURVE_MAX_POINTS] = {};
   uint16_t atMs[SHOT_CURVE_MAX_POINTS] = {};
   uint8_t breakBefore[SHOT_CURVE_BREAK_BYTES] = {};
+  uint8_t held[SHOT_CURVE_BREAK_BYTES] = {};
 
   void reset(uint32_t startedAtMs) {
     startMs = startedAtMs;
@@ -207,6 +213,7 @@ struct ShotCurveSampler {
     memset(weightCg, 0, sizeof(weightCg));
     memset(atMs, 0, sizeof(atMs));
     memset(breakBefore, 0, sizeof(breakBefore));
+    memset(held, 0, sizeof(held));
   }
 
   bool elapsedMsFrom(uint32_t atMs, uint16_t &outMs) const {
@@ -272,10 +279,13 @@ struct ShotCurveSampler {
 
   void markBreak() { if (active) pendingBreak = true; }
 
-  void accept(float weight, uint32_t receivedAtMs) {
+  // A pending break waits for the next accepted sample: held samples sit
+  // beside the weight line, never start a segment.
+  void accept(float weight, uint32_t receivedAtMs, bool isHeld = false) {
     if (!active || truncated) return;
-    pendingBreak = !appendShotCurveObservation(*this, weight,
-                                               receivedAtMs - startMs, pendingBreak);
+    const bool appended = appendShotCurveObservation(
+        *this, weight, receivedAtMs - startMs, pendingBreak && !isHeld, isHeld);
+    pendingBreak = isHeld ? pendingBreak || !appended : !appended;
   }
 
   void captureEnd(uint32_t at, float weight = NAN) {
@@ -299,6 +309,7 @@ struct ShotCurveSampler {
     memcpy(record.weightCg, weightCg, sizeof(weightCg));
     memcpy(record.atMs, atMs, sizeof(atMs));
     memcpy(record.breakBefore, breakBefore, sizeof(breakBefore));
+    memcpy(record.held, held, sizeof(held));
   }
 };
 
@@ -314,6 +325,11 @@ inline bool settleShotCurveEndWeight(ShotCurveRecord &curve, float weight) {
 inline bool shotCurveBreakBefore(const ShotCurveRecord &curve, size_t index) {
   return index < curve.count &&
          (curve.breakBefore[index / 8U] & (1U << (index % 8U))) != 0;
+}
+
+inline bool shotCurveHeld(const ShotCurveRecord &curve, size_t index) {
+  return index < curve.count &&
+         (curve.held[index / 8U] & (1U << (index % 8U))) != 0;
 }
 
 inline bool validShotCurveRecord(const ShotCurveRecord &curve) {
@@ -394,6 +410,15 @@ inline bool formatShotCurveJsonBody(char *out, size_t capacity,
     if (!append(piece)) return false;
     first = false;
   }
+  if (!append("],\"wHeld\":[")) return false;
+  first = true;
+  for (size_t i = start; i < count; ++i) {
+    if (!shotCurveHeld(curve, i)) continue;
+    snprintf(piece, sizeof(piece), "%s%u", first ? "" : ",",
+             static_cast<unsigned>(i));
+    if (!append(piece)) return false;
+    first = false;
+  }
   snprintf(piece, sizeof(piece), "],\"wTruncated\":%s",
            curve.truncated ? "true" : "false");
   if (!append(piece)) return false;
@@ -422,7 +447,7 @@ inline void copyShotCurveRecordToStatusFields(
     int16_t &extendedCg, uint16_t &atmMs, int16_t &atmCg,
     uint16_t &atmClearedMs, uint16_t &endedMs, int16_t &endedCg,
     int16_t *weightCg, size_t weightCapacity,
-    uint16_t *atMs, uint8_t *breakBefore) {
+    uint16_t *atMs, uint8_t *breakBefore, uint8_t *held) {
   count = curve.count;
   truncated = curve.truncated;
   firstDropMs = curve.firstDrop.atMs;
@@ -443,6 +468,7 @@ inline void copyShotCurveRecordToStatusFields(
   memcpy(weightCg, curve.weightCg, copy * sizeof(int16_t));
   memcpy(atMs, curve.atMs, copy * sizeof(uint16_t));
   memcpy(breakBefore, curve.breakBefore, SHOT_CURVE_BREAK_BYTES);
+  memcpy(held, curve.held, SHOT_CURVE_BREAK_BYTES);
 }
 
 inline void shotCurveRecordFromStatusFields(
@@ -450,7 +476,7 @@ inline void shotCurveRecordFromStatusFields(
     uint16_t extendedMs, int16_t extendedCg, uint16_t atmMs, int16_t atmCg,
     uint16_t atmClearedMs, uint16_t endedMs, int16_t endedCg,
     const int16_t *weightCg, size_t weightCount,
-    const uint16_t *atMs, const uint8_t *breakBefore) {
+    const uint16_t *atMs, const uint8_t *breakBefore, const uint8_t *held) {
   resetShotCurveRecord(curve);
   // Clamp at the boundary: weightCg only holds SHOT_CURVE_MAX_POINTS samples,
   // and count arrives from Web-UI status input.
@@ -472,6 +498,7 @@ inline void shotCurveRecordFromStatusFields(
     memcpy(curve.weightCg, weightCg, copy * sizeof(int16_t));
     memcpy(curve.atMs, atMs, copy * sizeof(uint16_t));
     memcpy(curve.breakBefore, breakBefore, SHOT_CURVE_BREAK_BYTES);
+    memcpy(curve.held, held, SHOT_CURVE_BREAK_BYTES);
   }
 }
 

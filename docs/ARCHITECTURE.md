@@ -268,17 +268,20 @@ by the boot ID and dump digest. HTTP download reads bounded chunks under the
 shared flash lock and releases the lock before sending each chunk. The raw
 archive requires Admin unlock because task stacks may contain secrets.
 
-The shot-curve sidecar uses schema 1 (same layout; its extension event marks
-the cut line leaving the target). Each accepted extraction or drip weight is paired
-with its relative reception time in milliseconds; repeated weights and equal
-timestamps remain observations. The 1201-observation capacity covers a 60 s
+The shot-curve sidecar writes schema 2: schema 1 (its extension event marks
+the cut line leaving the target) plus a per-observation held bitmap. Schema-1
+blocks still load with nothing held, so an update keeps stored curves. Each
+accepted extraction or drip weight, and each reading the accidental-touch
+classifier held, is paired with its relative reception time in milliseconds;
+repeated weights and equal timestamps remain observations. Held readings are
+flagged, never control weight, and never start a segment. The 1201-observation capacity covers a 60 s
 shot with observations at least 50 ms apart. That spacing is a capacity
 assumption, not a grid or rate limiter. Known rejected observations, reference
 changes and link discontinuities mark the next accepted observation as a new
 segment. Overflow preserves the prefix, marks it incomplete and leaves control
 and scalar history running.
 
-The 4984-byte RAM record and 498420-byte 100-record cache live in PSRAM.
+The 5132-byte RAM record and 513220-byte 100-record cache live in PSRAM.
 Curve events also preserve elapsed milliseconds in 16-bit fields, with
 `UINT16_MAX` reserved for unavailable values. Sidecar schema 0 distinguishes
 these fields from previous decisecond events; older curve records are discarded
@@ -287,7 +290,7 @@ Curve JSON keeps the seconds-based `dropS`, `extendedS`, `atmS`, `atmClearedS`
 and `endS` fields with three decimal places; scalar shot metrics retain their
 existing precision and meaning.
 An 816 KiB dedicated partition holds 101 reserved 8 KiB data blocks and two
-4 KiB clear-epoch sectors. A maximum-size record occupies 5012 bytes. Writes
+4 KiB clear-epoch sectors. A maximum-size record occupies 5160 bytes. Writes
 erase only its one or two used physical sectors, transfer only the used record
 through the existing internal 1 KiB scratch, and commit the checksum-bearing
 header last. A replacement uses the spare block, retaining the previous 100
@@ -307,7 +310,8 @@ original time; accepted post-drip yield updates its separate weight annotation.
 No schema, record-size or partition change is required, and existing records
 remain readable after OTA. Curve
 JSON exposes aligned `wCg`/`wAtMs`, segment-start indices in
-`wBreakBefore`, and `wTruncated`. Weight and flow consumers use actual
+`wBreakBefore`, held-reading indices in `wHeld`, and `wTruncated`. Weight
+and flow consumers use actual
 times; event annotations never become observed samples. The Web weight chart
 draws post-cutoff observations dashed without fill and uses a fixed-size hollow
 marker only when the complete tail's last observation matches settled yield.

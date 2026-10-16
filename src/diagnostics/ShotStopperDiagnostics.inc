@@ -384,7 +384,8 @@ void publishControlStatus() {
         next.shotCurveAtmClearedMs, next.shotCurveEndedMs,
         next.shotCurveEndedCg, publishedControlCurve.shotCurveWeightCg,
         SHOT_CURVE_MAX_POINTS, publishedControlCurve.shotCurveAtMs,
-        publishedControlCurve.shotCurveBreakBefore);
+        publishedControlCurve.shotCurveBreakBefore,
+        publishedControlCurve.shotCurveHeld);
   }
   copyCString(next.scaleProtocol, sizeof(next.scaleProtocol),
               scaleLink.protocolName);

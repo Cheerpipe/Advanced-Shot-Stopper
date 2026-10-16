@@ -43,6 +43,7 @@ class ShotCurveLog {
   static void corruptHostByte(size_t offset) {
     if (offset < sizeof(hostFlash_)) hostFlash_[offset] ^= 0x80;
   }
+  static uint8_t *hostFlashForTest() { return hostFlash_; }
 #endif
 
   bool load() {
@@ -316,7 +317,7 @@ class ShotCurveLog {
   static constexpr uint32_t kEpochMagic = 0x53434550;
   static constexpr uint32_t kCommitted = UINT32_MAX - 1U;
   static constexpr uint32_t kDeleted = UINT32_MAX - 3U;
-  static constexpr size_t kDiskCapacity = 5088;
+  static constexpr size_t kDiskCapacity = 5240;
   bool deletionPending(uint32_t id) const {
     for (size_t i = 0; i < deletionCount_; ++i)
       if (deletions_[i] == id) return true;
@@ -329,7 +330,8 @@ class ShotCurveLog {
     return ~crc32Update(0xffffffffU, reinterpret_cast<const uint8_t *>(meta), 8);
   }
   static bool validHeader(const ShotCurveBlockHeader &h) {
-    return h.magic == SHOT_CURVE_MAGIC && h.schema == SHOT_CURVE_SCHEMA_VERSION &&
+    return h.magic == SHOT_CURVE_MAGIC &&
+           (h.schema == 1U || h.schema == SHOT_CURVE_SCHEMA_VERSION) &&
            h.bytes >= sizeof(h) + 18U && h.bytes <= kDiskCapacity &&
            h.bytes <= SHOT_CURVE_BLOCK_BYTES && h.bytes % 4U == 0 &&
            h.shotId != 0 && h.sequence != 0 && h.floor <= h.sequence &&
@@ -361,6 +363,7 @@ class ShotCurveLog {
     }
     size_t bits = (r.count + 7U) / 8U;
     memcpy(p, r.breakBefore, bits); p += bits;
+    memcpy(p, r.held, bits); p += bits;
     h->magic = SHOT_CURVE_MAGIC;
     h->schema = SHOT_CURVE_SCHEMA_VERSION;
     h->bytes = static_cast<uint16_t>((p - disk_ + 3U) & ~size_t(3U));
@@ -380,15 +383,19 @@ class ShotCurveLog {
     const uint8_t *p = disk_ + sizeof(*h);
     r.count = h->count;
     r.truncated = (h->flags & 2U) != 0;
-    const size_t expected = (sizeof(*h) + 18U + r.count * 4U +
-                             (r.count + 7U) / 8U + 3U) & ~size_t(3U);
+    // Schema 1 predates the held bitmap: every sample was accepted weight.
+    const size_t bits = (r.count + 7U) / 8U;
+    const size_t bitmaps = h->schema == 1U ? 1U : 2U;
+    const size_t expected = (sizeof(*h) + 18U + r.count * 4U + bitmaps * bits +
+                             3U) & ~size_t(3U);
     if (h->bytes != expected) return false;
     memcpy(&r.atmClearedMs, p, 18); p += 18;
     for (size_t i = 0; i < r.count; ++i) {
       memcpy(&r.atMs[i], p, 2); p += 2;
       memcpy(&r.weightCg[i], p, 2); p += 2;
     }
-    memcpy(r.breakBefore, p, (r.count + 7U) / 8U);
+    memcpy(r.breakBefore, p, bits); p += bits;
+    if (bitmaps == 2U) memcpy(r.held, p, bits);
     return validShotCurveRecord(r);
   }
 

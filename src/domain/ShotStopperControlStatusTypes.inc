@@ -197,6 +197,7 @@ struct ControlStatusCurve {
   int16_t shotCurveWeightCg[1201] = {};
   uint16_t shotCurveAtMs[1201] = {};
   uint8_t shotCurveBreakBefore[151] = {};
+  uint8_t shotCurveHeld[151] = {};
 };
 struct ControlStatusSnapshot : ControlStatusFields, ControlStatusCurve {};
 static_assert(sizeof(ControlStatusFields) <= 2048,

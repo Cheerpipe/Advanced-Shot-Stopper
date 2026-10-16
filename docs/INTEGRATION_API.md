@@ -521,10 +521,14 @@ must use the stream described below for reads and keep the POST URLs
 The public `/api/v1/integration` endpoints are unchanged.
 
 Stats shot records and Home's WebSocket `curve` carry paired `wCg` and `wAtMs`
-arrays: accepted centigram weights and their elapsed reception times in integer
+arrays: recorded centigram weights and their elapsed reception times in integer
 milliseconds, with up to 1201 observations. Use those times instead of the
 removed shared `wDtS` interval. `wBreakBefore` lists zero-based indices that
-start new continuous segments; `wTruncated` identifies an incomplete capture.
+start new continuous segments. `wHeld` lists the indices of readings the
+accidental-touch guard held (a hand on the cup or scale): they are what the
+scale showed, not coffee weight, and belong to no segment. Curves recorded
+before this field existed report it empty. `wTruncated` identifies an
+incomplete capture.
 Curve event fields such as `dropS` and `endS` remain seconds and retain three
 decimal places. Events are annotations, not extra received observations.
 The [shot-history export contract](features/shot-history.md#read-a-result)
