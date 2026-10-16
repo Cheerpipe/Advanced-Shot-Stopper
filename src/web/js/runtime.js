@@ -7122,10 +7122,10 @@ function renderHeroChart(host, model, m, goal, label) {
   host.setAttribute("aria-label", label);
   const segs = model && model.segs.filter((s) => s.pts.length > 1);
   if (!segs || !segs.length) return void host.replaceChildren();
-  // A finished shot's drip tail runs dashed from the cut to the settled weight.
+  // After the cut, the drip tail runs dashed to the last weight on the scale.
   const cut = segs.at(-1).pts.at(-1),
-    drip = model.finalPoint ? model.dripSegs : [],
-    end = model.finalPoint || cut,
+    drip = model.dripSegs,
+    end = drip.at(-1)?.pts.at(-1) || cut,
     xMax = Math.max(model.timeMax, m ? Math.min(m.wall, m.t2 + m.d + 4) : 0),
     yMax = 1.15 * Math.max(model.maxW, m ? m.ceil : 0, goal > 0 ? goal : 0),
     X = (v) => (100 * Math.min(v, xMax)) / xMax,
