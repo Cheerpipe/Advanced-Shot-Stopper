@@ -44,8 +44,6 @@ constexpr uint8_t STATS_MAX_SHOTS = 10;
 constexpr int32_t STATS_SIGMA_FLOOR_MS = 750;
 constexpr uint8_t SCALE_LOSS_MIN_SHOTS = 3;
 constexpr uint8_t SHOT_STATS_MIN_SHOTS = 3;
-constexpr uint8_t GRIND_HINT_RECENT_SHOTS = 5;
-constexpr int32_t GRIND_HINT_EDGE_MS = 1000;
 constexpr int32_t PROJECTION_HORIZON_MS = 3000;
 constexpr int32_t HISTORY_MARGIN_MS = 500;
 // Grind hint (times in ms, ratios in permille): the level averages the newest
@@ -400,8 +398,6 @@ struct ArrivalStats {
   int32_t maxMs = 0;
   int32_t medianMs = 0;
   int32_t sigmaMs = 0;
-  uint8_t recentN = 0;
-  int32_t recentMedianMs = 0;
   uint16_t total = 0;  // admissible shots since the epoch
 };
 
@@ -486,21 +482,6 @@ inline ArrivalStats arrivalStatsOf(size_t count, RowAt rowAt, const StatsScope &
   const int32_t sigma = static_cast<int32_t>(
       static_cast<int64_t>(madOf(sorted, n, out.medianMs)) * 14826 / 10000);
   out.sigmaMs = sigma > STATS_SIGMA_FLOOR_MS ? sigma : STATS_SIGMA_FLOOR_MS;
-  // Recent median: the newest GRIND_HINT_RECENT_SHOTS by record id.
-  int32_t recent[GRIND_HINT_RECENT_SHOTS];
-  bool taken[STATS_MAX_SHOTS] = {};
-  uint8_t r = 0;
-  for (; r < GRIND_HINT_RECENT_SHOTS && r < n; ++r) {
-    uint8_t best = 0;
-    while (best + 1 < n && taken[best]) ++best;
-    for (uint8_t j = best + 1; j < n; ++j)
-      if (!taken[j] && ids[j] > ids[best]) best = j;
-    taken[best] = true;
-    recent[r] = times[best];
-  }
-  sortSmall(recent, r);
-  out.recentN = r;
-  out.recentMedianMs = medianOfSorted(recent, r);
   return out;
 }
 
@@ -541,20 +522,7 @@ inline FirstDropStats firstDropStatsOf(size_t count, RowAt rowAt, uint8_t preset
   return out;
 }
 
-enum class GrindHint : uint8_t { NONE, FAST_EDGE, SLOW_EDGE, FASTER_THAN_WINDOW, SLOWER_THAN_WINDOW };
-
-// Compares the median of the last 5 arrivals with the window edges.
-inline GrindHint grindHint(const Params &p, const ArrivalStats &stats) {
-  if (stats.recentN < GRIND_HINT_RECENT_SHOTS) return GrindHint::NONE;
-  const int32_t recent = stats.recentMedianMs;
-  if (recent < p.fastBeforeMs) return GrindHint::FASTER_THAN_WINDOW;
-  if (recent > p.slowAfterMs) return GrindHint::SLOWER_THAN_WINDOW;
-  if (recent < p.fastBeforeMs + GRIND_HINT_EDGE_MS) return GrindHint::FAST_EDGE;
-  if (recent > p.slowAfterMs - GRIND_HINT_EDGE_MS) return GrindHint::SLOW_EDGE;
-  return GrindHint::NONE;
-}
-
-// Grind hint v2 (design 2026-10-16): the trimmed level of the newest <= 6 shots
+// Grind hint (design 2026-10-16): the trimmed level of the newest <= 6 shots
 // on the current grind setting (a "segment") against the middle c of the
 // window, in standard errors of the shooter's own spread. A pure replay of the
 // preset's shot log; nothing is stored.
@@ -669,6 +637,7 @@ struct GrindHintV2 {
   uint8_t n = 0;          // shots in the level
   bool atLeast = false;   // a clamped or censored shot among them
   int32_t offsetMs = 0;   // level - c
+  int32_t bandMs = 0;     // comfort band half-width b
   uint32_t segmentStartId = 0;
 };
 
@@ -892,6 +861,7 @@ struct GrindHintReplay {
       out.n = level.n;
       out.atLeast = level.atLeast;
       out.offsetMs = level.ms - c;
+      out.bandMs = bandHalfMs(h, sigmaMs);
       out.segmentStartId = segmentStartId;
       if (hint != HintDirection::NONE) {
         out.state = checking ? HintState::CHECKING

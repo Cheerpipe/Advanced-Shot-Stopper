@@ -7034,36 +7034,103 @@ function dismissCard(key, value = "1") {
   } catch (_) {}
   renderHomeCards();
 }
+// Grind hint card: the firmware decides (state, direction, tier, size,
+// level, band); this only words it and places it on the window bar.
+function grindHintView(p) {
+  const h = p && p.grindHintsEnabled && p.grindHint;
+  if (!h) return null;
+  const t1 = +p.fastBeforeS,
+    t2 = +p.slowAfterS,
+    c = (t1 + t2) / 2,
+    level = c + +h.offsetS,
+    n = (v) => +(+v).toFixed(1),
+    at = (s) => Math.min(99, Math.max(1, 12 + (76 * (s - t1)) / (t2 - t1 || 1))),
+    fine = h.direction === "finer",
+    v = {
+      // Ignore holds for this advice: preset, grind setting, direction, tier.
+      key: ["ssCard:grind", p.id, h.segmentStartId, h.direction || h.state, h.tier || ""].join(":"),
+      cls: { checking: "isCheck", vary: "isSpread" }[h.state] || (fine ? "isFast" : "isSlow"),
+      level: at(level),
+      band: [at(c - h.bandS), 100 - at(c + h.bandS)],
+      axis: [n(t1) + " s", n(c), n(t2) + " s"],
+      shots: h.shots === 1 ? __WEBUI_TEXT__("runtime.grind_shots_one") : sub(__WEBUI_TEXT__("runtime.grind_shots"), [h.shots]),
+      actions: h.state !== "checking",
+    };
+  if (h.state === "vary")
+    return Object.assign(v, {
+      tag: __WEBUI_TEXT__("runtime.grind_tag_vary"),
+      conf: "",
+      dir: __WEBUI_TEXT__("runtime.grind_vary"),
+      mag: "",
+      text: sub(__WEBUI_TEXT__("runtime.grind_vary_sub"), [n(t1), n(t2)]),
+    });
+  if (h.state === "checking")
+    return Object.assign(v, {
+      tag: __WEBUI_TEXT__("runtime.grind_tag_checking"),
+      conf: __WEBUI_TEXT__("runtime.grind_next_shot"),
+      shots: "",
+      dir: __WEBUI_TEXT__("runtime.grind_checking"),
+      mag: sub(__WEBUI_TEXT__("runtime.grind_now"), [n(level)]),
+      text: __WEBUI_TEXT__("runtime.grind_checking_sub"),
+    });
+  const secs = [Math.max(1, Math.round(Math.abs(h.offsetS)))];
+  return Object.assign(v, {
+    tag: h.state === "dial_in" ? __WEBUI_TEXT__("runtime.grind_tag_dial_in") : __WEBUI_TEXT__("runtime.grind_tag_hint"),
+    conf: {
+      tentative: __WEBUI_TEXT__("runtime.grind_tier_tentative"),
+      likely: __WEBUI_TEXT__("runtime.grind_tier_likely"),
+      confident: __WEBUI_TEXT__("runtime.grind_tier_confident"),
+    }[h.tier],
+    dir: (fine
+      ? {
+          small: __WEBUI_TEXT__("runtime.grind_finer_small"),
+          medium: __WEBUI_TEXT__("runtime.grind_finer_medium"),
+          large: __WEBUI_TEXT__("runtime.grind_finer_large"),
+        }
+      : {
+          small: __WEBUI_TEXT__("runtime.grind_coarser_small"),
+          medium: __WEBUI_TEXT__("runtime.grind_coarser_medium"),
+          large: __WEBUI_TEXT__("runtime.grind_coarser_large"),
+        })[h.bin],
+    mag: fine
+      ? sub(h.atLeast ? __WEBUI_TEXT__("runtime.grind_fast_at_least") : __WEBUI_TEXT__("runtime.grind_fast"), secs)
+      : sub(h.atLeast ? __WEBUI_TEXT__("runtime.grind_slow_at_least") : __WEBUI_TEXT__("runtime.grind_slow"), secs),
+    text:
+      h.shots === 1
+        ? sub(__WEBUI_TEXT__("runtime.grind_text_one"), [n(p.goalWeightG), n(level), n(t1), n(t2)])
+        : sub(__WEBUI_TEXT__("runtime.grind_text"), [h.shots, n(level), n(t1), n(t2), n(c)]),
+  });
+}
 function renderHomeCards() {
-  const p = presetState.items.find((x) => x.id === presetState.activeId),
-    hint = p && p.grindHintsEnabled && p.grindHint,
-    key = hint ? "ssCard:grind:" + p.id : "",
+  const v = grindHintView(presetState.items.find((x) => x.id === presetState.activeId)),
     card = $("grindHintCard");
   if (card) {
-    // "Not now" holds until the recent median moves by a second or more.
-    const seen = parseFloat(cardDismissed(key));
-    card.hidden = !hint || Math.abs(seen - hint.medianS) < 1;
-    card.dataset.key = key;
-    card.dataset.median = hint ? hint.medianS : "";
-    if (hint)
-      $("grindHintText").textContent = sub(
-        {
-          faster: __WEBUI_TEXT__("runtime.grind_hint_faster"),
-          slower: __WEBUI_TEXT__("runtime.grind_hint_slower"),
-          fasterout: __WEBUI_TEXT__("runtime.grind_hint_faster_window"),
-          slowerout: __WEBUI_TEXT__("runtime.grind_hint_slower_window"),
-        }[hint.direction + (hint.outside ? "out" : "")],
-        [hint.shots, +(+hint.medianS).toFixed(1), +(+p.fastBeforeS).toFixed(1), +(+p.slowAfterS).toFixed(1)],
-      );
+    card.hidden = !v || !!cardDismissed(v.key);
+    if (v) {
+      card.dataset.key = v.key;
+      card.className = "homeCard ghCard " + v.cls;
+      $("ghTag").textContent = v.tag;
+      const b = document.createElement("b");
+      b.textContent = v.shots;
+      $("ghConf").replaceChildren(v.conf && v.shots ? v.conf + " · " : v.conf, b);
+      $("ghDir").textContent = v.dir;
+      $("ghMag").textContent = v.mag && "· " + v.mag;
+      $("ghText").textContent = v.text;
+      $("ghBand").style.left = v.band[0] + "%";
+      $("ghBand").style.right = v.band[1] + "%";
+      $("ghLevel").style.left = v.level + "%";
+      $("ghAxis").replaceChildren(...v.axis.map((t) => Object.assign(document.createElement("span"), { textContent: t })));
+      $("ghActions").hidden = !v.actions;
+    }
   }
   if ($("scaleLossDiscovery"))
     $("scaleLossDiscovery").hidden = !!cardDismissed("ssCard:scaleLossDiscovery");
 }
-// "New coffee or big grind change": starts the active preset's statistics over.
+// Relearn (a new bag, dose, basket or grinder): starts the preset's statistics over.
 async function startNewCoffee(id = presetState.activeId) {
   const p = presetState.items.find((x) => x.id === id),
     text = p && sub(__WEBUI_TEXT__("settings.new_coffee_confirm"), [p.name, p.shotStats?.total || 0]);
-  if (p && (await askConfirm(text, __WEBUI_TEXT__("settings.start_over"))))
+  if (p && (await askConfirm(text, __WEBUI_TEXT__("settings.new_coffee"))))
     command("/api/v1/presets", { action: "new_coffee", id });
 }
 // [Cancel][<ok>] confirmation in the shell dialog; resolves true on <ok>.

@@ -182,6 +182,7 @@ struct PresetShotStats {
   int32_t arrivalsMs[corridor::STATS_MAX_SHOTS] = {};
   // The preset's own first drops; without any, medianMs is the other presets'.
   corridor::FirstDropStats firstDrop;
+  corridor::GrindHintV2 grindHint;  // NONE while the preset's hints are off
 };
 
 // JSON values (quoted, or null) of the packed corridor verdict byte.

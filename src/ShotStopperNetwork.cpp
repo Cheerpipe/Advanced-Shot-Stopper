@@ -122,7 +122,8 @@ struct NetworkWorkBuf {
   static constexpr size_t kStatusJson = 40960;
   // Worst case: 8 presets with fully escaped 23-char names plus every
   // per-preset rule field and shot statistic the Web UI renders.
-  static constexpr size_t kPresetsJson = 6400;
+  // Eight realistic items with the grind hint object: ~6.2 KB.
+  static constexpr size_t kPresetsJson = 7168;
   static constexpr size_t kHistoryJson = 1400;
   // One full-capacity curve plus scalar fields per row; the 4 KiB headroom
   // (external memory) keeps a maximal row well under the client's frame
@@ -1089,10 +1090,29 @@ void copyPresetStatsForJson(const NetworkBridgeCallbacks &callbacks,
   if (callbacks.copyPresetShotStats) callbacks.copyPresetShotStats(bank, g_work->presetStats);
 }
 
+// Grind hint JSON (null when there is none): enum names by value.
+void formatGrindHint(char *out, size_t cap, const corridor::GrindHintV2 &h) {
+  static const char *const kStates[] = {"none", "dial_in", "maintenance", "checking", "vary"};
+  static const char *const kDirections[] = {"null", "\"finer\"", "\"coarser\""};
+  static const char *const kTiers[] = {"null", "\"tentative\"", "\"likely\"", "\"confident\""};
+  static const char *const kBins[] = {"null", "\"small\"", "\"medium\"", "\"large\""};
+  if (h.state == corridor::HintState::NONE) {
+    snprintf(out, cap, "null");
+    return;
+  }
+  snprintf(out, cap,
+           "{\"state\":\"%s\",\"direction\":%s,\"tier\":%s,\"bin\":%s,\"shots\":%u,"
+           "\"offsetS\":%.1f,\"bandS\":%.1f,\"atLeast\":%s,\"segmentStartId\":%lu}",
+           kStates[static_cast<uint8_t>(h.state)], kDirections[static_cast<uint8_t>(h.direction)],
+           kTiers[static_cast<uint8_t>(h.tier)], kBins[static_cast<uint8_t>(h.bin)],
+           static_cast<unsigned>(h.n), h.offsetMs / 1000.0, h.bandMs / 1000.0,
+           h.atLeast ? "true" : "false",
+           static_cast<unsigned long>(h.segmentStartId));
+}
+
 // Shot statistics of one preset (plan §4.10): the last <= 10 arrivals, the
-// median first drop and the grind hint of the recent median.
-int formatPresetShotStats(char *out, size_t cap, const ShotPreset &p,
-                          const PresetShotStats &s) {
+// median first drop and the grind hint.
+int formatPresetShotStats(char *out, size_t cap, const PresetShotStats &s) {
   const corridor::ArrivalStats &st = s.stats;
   // Worst case per arrival: "," + "-2147483.6" (any int32 ms), so it never truncates.
   char arrivals[corridor::STATS_MAX_SHOTS * 11 + 2] = "[";
@@ -1100,25 +1120,14 @@ int formatPresetShotStats(char *out, size_t cap, const ShotPreset &p,
     snprintf(arrivals + strlen(arrivals), sizeof(arrivals) - strlen(arrivals), "%s%.1f",
              i ? "," : "", s.arrivalsMs[i] / 1000.0);
   strcat(arrivals, "]");
-  corridor::Params window;
-  window.fastBeforeMs = static_cast<int32_t>(p.fastBeforeMs);
-  window.slowAfterMs = static_cast<int32_t>(p.slowAfterMs);
-  const corridor::GrindHint hint = corridor::grindHint(window, st);
-  char hintJson[96] = "null";
-  if (hint != corridor::GrindHint::NONE)
-    snprintf(hintJson, sizeof(hintJson),
-             "{\"direction\":\"%s\",\"outside\":%s,\"shots\":%u,\"medianS\":%.1f}",
-             hint == corridor::GrindHint::FAST_EDGE ||
-                     hint == corridor::GrindHint::FASTER_THAN_WINDOW ? "faster" : "slower",
-             hint == corridor::GrindHint::FASTER_THAN_WINDOW ||
-                     hint == corridor::GrindHint::SLOWER_THAN_WINDOW ? "true" : "false",
-             static_cast<unsigned>(st.recentN), st.recentMedianMs / 1000.0);
+  char hintJson[192];
+  formatGrindHint(hintJson, sizeof(hintJson), s.grindHint);
   return snprintf(out, cap,
       ",\"shotStats\":{\"n\":%u,\"total\":%u,\"minS\":%.1f,\"maxS\":%.1f,"
-      "\"medianS\":%.1f,\"recentMedianS\":%.1f},\"firstDropS\":%.1f,"
+      "\"medianS\":%.1f},\"firstDropS\":%.1f,"
       "\"firstDropN\":%u,\"arrivalsS\":%s,\"grindHint\":%s}",
       static_cast<unsigned>(st.n), static_cast<unsigned>(st.total), st.minMs / 1000.0,
-      st.maxMs / 1000.0, st.medianMs / 1000.0, st.recentMedianMs / 1000.0,
+      st.maxMs / 1000.0, st.medianMs / 1000.0,
       s.firstDrop.medianMs / 1000.0, static_cast<unsigned>(s.firstDrop.n), arrivals,
       hintJson);
 }
@@ -1172,7 +1181,7 @@ void buildSlimPresetsJson(const ShotPresetBank &presets) {
       break;
     }
     used += static_cast<size_t>(n);
-    n = formatPresetShotStats(buf + used, cap - used, p, g_work->presetStats[i]);
+    n = formatPresetShotStats(buf + used, cap - used, g_work->presetStats[i]);
     if (n < 0 || static_cast<size_t>(n) >= cap - used) {
       used = itemStart;  // never leave an item unterminated
       break;

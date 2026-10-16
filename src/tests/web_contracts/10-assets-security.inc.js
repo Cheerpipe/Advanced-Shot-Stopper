@@ -787,8 +787,9 @@ if (htmlBytes > 93300) {
 // The Stats shot cursor pill, sharing the cut pill helper: +33 bytes (425620), owner-authorized 2026-10-15.
 // Show more also folds the Stats card details, with a 0.25 s expand and fade: +1089 bytes (426776), owner-authorized 2026-10-15.
 // The Stats card fold settles fast-to-slow with fading details and charts, and keeps the rating visible: 426981 bytes, owner-authorized 2026-10-15.
-if (jsBytes > 427000) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 427000)`);
+// Grind hints v2 Home card (four states, window bar, Relearn/Ignore) replaces the median card: 427586 bytes, owner-authorized 2026-10-16 (grind hint v2 card).
+if (jsBytes > 427600) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 427600)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.

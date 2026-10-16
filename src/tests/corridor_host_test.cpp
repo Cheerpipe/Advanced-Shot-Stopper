@@ -158,20 +158,7 @@ void testVectors() {
       CHECK(s.maxMs == num(e, "maxMs"));
       CHECK(s.medianMs == num(e, "medianMs"));
       CHECK(s.sigmaMs == num(e, "sigmaMs"));
-      CHECK(s.recentN == num(e, "recentN"));
-      CHECK(s.recentMedianMs == num(e, "recentMedianMs"));
     }
-  }
-
-  const char *hintNames[] = {"none", "fast_edge", "slow_edge", "faster_than_window",
-                             "slower_than_window"};
-  cJSON_ArrayForEach(item, cJSON_GetObjectItemCaseSensitive(root, "grindHint")) {
-    const Params p = paramsOf(presets, cJSON_GetObjectItemCaseSensitive(item, "preset")->valuestring);
-    ArrivalStats s;
-    s.recentN = static_cast<uint8_t>(num(item, "recentN"));
-    s.recentMedianMs = num(item, "recentMedianMs");
-    CHECK(std::string(hintNames[static_cast<int>(grindHint(p, s))]) ==
-          cJSON_GetObjectItemCaseSensitive(item, "hint")->valuestring);
   }
 
   cJSON_ArrayForEach(item, cJSON_GetObjectItemCaseSensitive(root, "deadline")) {

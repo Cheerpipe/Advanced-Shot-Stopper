@@ -263,6 +263,32 @@ summary::marker{color:var(--ac)}
 .homeCard{margin:1rem 0;padding:.8rem 1rem .4rem;border:1px solid var(--ln);border-left:4px solid var(--ok);border-radius:var(--r);background:var(--sf)}
 .homeCard p{margin:0;font-size:.9rem}
 .homeCard a.btnGlyph{text-decoration:none}
+/* Grind hint card: neutral text; the edge and the level dot carry the colour. */
+.ghCard{--z:var(--bd);border-left-color:var(--z)}
+.ghCard.isFast{--z:var(--gFast)}
+.ghCard.isSlow{--z:var(--gSlow)}
+.ghCard.isCheck{--z:var(--ok)}
+.ghCard.isSpread{--z:var(--wn)}
+.ghTop{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.35rem}
+.ghTag{padding:.18rem .6rem;border-radius:2rem;font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;background:var(--in);color:var(--mu);border:1px solid var(--ln)}
+.ghConf{margin-left:auto;font-size:.74rem;color:var(--mu);white-space:nowrap}
+.ghConf b{color:var(--fg)}
+.ghCard .ghMain{font-size:1.05rem;font-weight:700;line-height:1.25}
+.ghMain .dir{font-weight:800}
+.ghMain .mag{font-weight:600;color:var(--mu)}
+.ghCard .ghSub{margin-top:.2rem;color:var(--mu);font-size:.84rem}
+.ghBar{position:relative;height:1.35rem;margin:.65rem 0 .1rem}
+.ghBar span{position:absolute;top:.45rem;height:.45rem}
+.ghBar .win{left:12%;right:12%;background:var(--ok);opacity:var(--bandPart)}
+.ghBar .fastZ,.ghBar .slowZ{width:12%;opacity:var(--bandFull)}
+.ghBar .fastZ{left:0;border-radius:.3rem 0 0 .3rem;background:var(--gFast)}
+.ghBar .slowZ{right:0;border-radius:0 .3rem .3rem 0;background:var(--gSlow)}
+.ghBar .band{border-radius:.3rem;background:var(--ok);opacity:var(--bandWin)}
+.ghBar .lvl{top:.1rem;width:1.1rem;height:1.1rem;margin-left:-.55rem;border-radius:50%;background:var(--z);border:2px solid var(--sf);box-shadow:0 0 0 1px var(--ln)}
+.ghAxis{display:flex;justify-content:space-between;font-size:.66rem;color:var(--mu);padding:0 12%}
+.ghAxis span:nth-child(2){font-weight:700}
+.ghCard .btnBar{max-width:none}
+.ghCard .ghost{border-color:var(--ln);color:var(--mu)}
 .shotHero .heroSpark svg{display:block;width:100%;height:2.6rem;margin-top:.7rem}
 .shotHero .heroHistory{display:block;margin-top:.55rem;text-align:right;font-size:.78rem;font-weight:650;color:var(--w78);text-decoration:underline}
 .heroFsBtn{position:absolute;top:.55rem;right:.55rem;z-index:2;display:none;align-items:center;justify-content:center;width:var(--tap);height:var(--tap);padding:0;border:0;background:none;color:var(--on);cursor:pointer}

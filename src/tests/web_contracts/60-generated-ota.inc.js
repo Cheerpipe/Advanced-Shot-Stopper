@@ -521,8 +521,10 @@ if (generated.jsGzip.length > 6260) {
 // owner-authorized 2026-10-15.
 // The Quick Settings Duration selector and Reset now measure 13797 bytes;
 // owner-authorized 2026-10-16.
-if (generated.cssGzip.length > 13800) {
-  throw new Error(`Compressed Web CSS exceeds the 13800-byte gzip budget (${generated.cssGzip.length})`);
+// The grind hint v2 card (tag, confidence, window bar with band and level,
+// four state colours) measures 14099 bytes; owner-authorized 2026-10-16.
+if (generated.cssGzip.length > 14100) {
+  throw new Error(`Compressed Web CSS exceeds the 14100-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -634,8 +636,9 @@ if (generated.cssGzip.length > 13800) {
 // The Stats arrival-time density curve brings the runtime to 59356 compressed bytes; owner-authorized 2026-10-16.
 // The fast-to-slow Stats card fold with fading details and charts brings the runtime to 59457 compressed bytes; owner-authorized 2026-10-15.
 // The Quick Settings Duration selector and revert note bring the runtime to 59524 compressed bytes; owner-authorized 2026-10-16.
-if (sentinelRuntimeGzip.length > 59550) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 59550-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The grind hint v2 card (four states, size and confidence wording, window bar) brings the runtime to 60236 compressed bytes; owner-authorized 2026-10-16.
+if (sentinelRuntimeGzip.length > 60250) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 60250-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');

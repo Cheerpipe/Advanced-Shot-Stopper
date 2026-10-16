@@ -158,9 +158,7 @@ export function init() {
       R.renameScale();
     };
   if ($("grindHintNewBeans")) $("grindHintNewBeans").onclick = () => R.startNewCoffee();
-  if ($("grindHintLater"))
-    $("grindHintLater").onclick = () =>
-      R.dismissCard($("grindHintCard").dataset.key, $("grindHintCard").dataset.median);
+  if ($("grindHintLater")) $("grindHintLater").onclick = () => R.dismissCard($("grindHintCard").dataset.key);
   if ($("scaleLossDiscoveryOk"))
     $("scaleLossDiscoveryOk").onclick = () => R.dismissCard("ssCard:scaleLossDiscovery");
   quickWeight = initQuickWeight();

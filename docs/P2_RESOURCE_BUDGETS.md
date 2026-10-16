@@ -349,6 +349,15 @@ and rodata 627,704 bytes (85,984/85,980/55,592/40,352 over baseline). The
 image/linked/flash-code allowances move to 86,048/86,044/55,656 bytes, keeping
 the 64-byte headroom; rodata, DIRAM and external BSS stay within their
 allowances.
+The grind hint v2 (the shot-log replay that derives segments, spread, tiers
+and the hint lifecycle for each preset's status, about 4.66 KB of code, less
+the removed median-of-5 hint) adds 4,496 bytes of flash code. On `f6605b69`
+with the status JSON and Home card change, the development Micra build
+measures 2,347,392 image, 2,347,275 linked, 1,575,188 flash-code and 610,792
+rodata bytes (73,632/73,628/60,088/23,440 over baseline). The flash-code
+allowance moves to 60,152 bytes, keeping the 64-byte headroom; the other
+allowances are unchanged. The presets JSON buffer grows to 7,168 bytes
+(+768 bytes of external BSS) for eight presets with the larger hint object.
 On the reference board, after a 75 s settle and 200 s of three concurrent
 Web UI clients, the same session on the earlier and the reduced image
 measured:

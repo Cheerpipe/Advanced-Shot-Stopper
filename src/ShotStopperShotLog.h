@@ -73,17 +73,28 @@ class ShotLog
     };
   }
 
-  // Smooth-cut arrival statistics of one preset since its epoch, for its
-  // current window and target (plan §4.8). Caller holds the store mutex.
-  corridor::ArrivalStats arrivalStats(const ShotPreset &preset,
-                                      int32_t *arrivalsOut = nullptr) const {
+  static corridor::StatsScope statsScope(const ShotPreset &preset) {
     corridor::StatsScope scope;
     scope.presetId = preset.id;
     scope.epoch = preset.learningEpoch;
     scope.fastBeforeMs = static_cast<int32_t>(preset.fastBeforeMs);
     scope.slowAfterMs = static_cast<int32_t>(preset.slowAfterMs);
     scope.goalDg = preset.goalWeightDg;
-    return corridor::arrivalStatsOf(store_.header.count, arrivalRows(), scope, arrivalsOut);
+    return scope;
+  }
+
+  // Smooth-cut arrival statistics of one preset since its epoch, for its
+  // current window and target (plan §4.8). Caller holds the store mutex.
+  corridor::ArrivalStats arrivalStats(const ShotPreset &preset,
+                                      int32_t *arrivalsOut = nullptr) const {
+    return corridor::arrivalStatsOf(store_.header.count, arrivalRows(), statsScope(preset),
+                                    arrivalsOut);
+  }
+
+  // The preset's grind hint, replayed from the stored shots (nothing is
+  // persisted). Caller holds the store mutex.
+  corridor::GrindHintV2 grindHint(const ShotPreset &preset) const {
+    return corridor::grindHintOf(store_.header.count, arrivalRows(), statsScope(preset));
   }
 
   // Median first drop of one preset since its epoch, or of the other presets.

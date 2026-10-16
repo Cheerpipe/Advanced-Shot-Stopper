@@ -16,6 +16,7 @@ void copyPresetShotStats(const ShotPresetBank &bank, PresetShotStats *out) {
     out[i].firstDrop = shotLog.firstDropStats(p);
     if (out[i].firstDrop.n == 0)
       out[i].firstDrop.medianMs = shotLog.firstDropStats(p, true).medianMs;
+    if (p.grindHintsEnabled) out[i].grindHint = shotLog.grindHint(p);
   }
 }
 
