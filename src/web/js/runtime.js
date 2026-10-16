@@ -1291,7 +1291,6 @@ function renderShotSpark(h, shot) {
       last: m.segs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
       drip: m.dripSegs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
       held: m.held.map((q) => [q.t, q.cg / 100]),
-      arrivals: shot.arrivalS > 0 ? [shot.arrivalS] : [],
       maxG: m.rawMaxW,
     });
     // The weight/flow chart below matches this plot's height, so grams read alike in both.
@@ -1329,7 +1328,7 @@ function renderShotSpark(h, shot) {
   readout.className = "shotCursorText";
   // Only the zone the shot ended in keeps its fill (CSS); timer-only shots keep none.
   preset.dataset.zone = (shot.shotType || "").toLowerCase() === "timer_only" ? "none" : shot.verdict === "fast" || shot.verdict === "slow" ? shot.verdict : "on_recipe";
-  // Compact legend (D5): the cut line, only the zone this shot ended in, the shot, and arrivals.
+  // Compact legend (D5): the cut line, only the zone this shot ended in, the shot, and held weight.
   const zone = preset.dataset.zone,
     legend = document.createElement("div");
   legend.className = "shotLegend";
@@ -1343,9 +1342,6 @@ function renderShotSpark(h, shot) {
           ? '<span class="rvLeg rvLegWindow"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_corridor") + "</span>"
           : "") +
     '<span class="rvLeg rvLegLast"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_last") + "</span>" +
-    (shot.arrivalS > 0
-      ? '<span class="rvLeg rvLegArrivals"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_arrivals") + "</span>"
-      : "") +
     (m.held.length
       ? '<span class="rvLeg rvLegHeld"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_held") + "</span>"
       : "");
