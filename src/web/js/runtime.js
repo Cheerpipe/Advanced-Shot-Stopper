@@ -92,7 +92,7 @@ function webUiPowerSeconds() {
 }
 const WEB_UI_INACTIVITY_MS = 15 * 60 * 1000;
 const NETWORK_RECONNECT_WAIT_MS = 180000;
-const BAKED_FW_VERSION = "__FW_RELEASE__";
+const SHELL_FW_VERSION = document.documentElement.dataset.fw || "dev";
 function newWebUiClientId() {
   const b = new Uint8Array(12);
   if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(b);
@@ -7349,7 +7349,7 @@ function shotPresetName(shot) {
 function checkFirmwareReload(version) {
   if (
     !version ||
-    BAKED_FW_VERSION === "dev" ||
+    SHELL_FW_VERSION === "dev" ||
     configDirty ||
     brewDirty ||
     dateTimeDirty ||
@@ -7358,7 +7358,7 @@ function checkFirmwareReload(version) {
     frontendDirty
   )
     return;
-  if (version === BAKED_FW_VERSION) {
+  if (version === SHELL_FW_VERSION) {
     try {
       sessionStorage.removeItem("ssFwReload");
     } catch (_) {}

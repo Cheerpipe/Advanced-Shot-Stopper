@@ -36,12 +36,13 @@ if (!zlib.gunzipSync(Buffer.from(browserGzip)).equals(tarFixture)) {
   throw new Error('Browser gzip must preserve TAR bytes');
 }
 if (!generated.assetTag || !generated.cacheVersion ||
-    !generated.html.includes(`v=${generated.cacheVersion}`) ||
+    !generated.html.includes(`src="/app.js?v=${generated.assetTag}"`) ||
+    generated.html.includes(`v=${generated.cacheVersion}`) ||
     !fs.readFileSync(path.join(sketchDir, 'ShotStopperWebAssetsGzip.h'), 'utf8')
          .includes(`WEB_UI_ASSET_TAG[] = "${generated.assetTag}"`) ||
     !fs.readFileSync(path.join(sketchDir, 'ShotStopperWebAssetsGzip.h'), 'utf8')
          .includes(`WEB_UI_ETAG[] = ${JSON.stringify('"' + generated.cacheVersion + '"')}`)) {
-  throw new Error('Web UI cache-buster must embed FW version + asset content tag');
+  throw new Error('Asset URLs must carry the content tag alone; the ETag embeds FW version + tag');
 }
 const normalizedEnglish = await webUi.generate({webUiLanguage: 'EN', write: false});
 const regionalEnglish = await webUi.generate({webUiLanguage: 'En_en', write: false});
@@ -338,7 +339,7 @@ if (manifestRoundTrip !== generated.manifest) {
 }
 if (!generated.manifest.includes('"display":"standalone"') ||
     !generated.manifest
-        .includes(`"/icons/icon-192.png?v=${generated.cacheVersion}"`) ||
+        .includes(`"/icons/icon-192.png?v=${generated.assetTag}"`) ||
     generated.manifest.includes('__FW_VERSION__')) {
   throw new Error('PWA manifest must be install-capable and version its icon URL');
 }
@@ -369,14 +370,20 @@ if (generated.icon192Raw.readUInt32BE(16) !== 192 ||
   throw new Error('The 192 px icon must be an opaque 192x192 PNG with the tile colour at its canvas corner');
 }
 // A fixed release keeps this independent of the generated version header,
-// which a fresh checkout lacks ("dev" folds the self-heal away).
-const releaseRuntime =
-    (await webUi.generate({versionOverride: '9.8.7+contract', write: false})).runtimeJs;
-if (codeIncludes(releaseRuntime, '__FW_RELEASE__') ||
-    !codeIncludes(releaseRuntime, 'ssFwReload') ||
-    !codeIncludes(releaseRuntime, 'location.replace(') ||
-    !codeIncludes(releaseRuntime, '9.8.7+contract')) {
-  throw new Error('Runtime must bake the firmware release version for cached-shell self-heal');
+// which a fresh checkout lacks ("dev" folds the self-heal away). Only the
+// revalidated shell carries the version; assets stay version-free so a
+// firmware-only release keeps them cached under the same ?v= tag.
+const release = await webUi.generate({versionOverride: '9.8.7+contract', write: false});
+const otherRelease = await webUi.generate({versionOverride: '9.8.8+contract', write: false});
+if (!release.html.includes('data-fw="9.8.7+contract"') ||
+    codeIncludes(release.runtimeJs, '9.8.7+contract') ||
+    codeIncludes(release.runtimeJs, '__FW_RELEASE__') ||
+    !codeIncludes(release.runtimeJs, 'dataset.fw') ||
+    !codeIncludes(release.runtimeJs, 'ssFwReload') ||
+    !codeIncludes(release.runtimeJs, 'location.replace(') ||
+    release.assetTag !== otherRelease.assetTag ||
+    release.etag === otherRelease.etag) {
+  throw new Error('Shell must carry the firmware version for cached-shell self-heal; asset tags must ignore it');
 }
 for (const name of webUi.LAZY_PARTIALS) {
   const partialRt = zlib.gunzipSync(generated.partialGzip[name]).toString('utf8');
@@ -422,9 +429,9 @@ if (cssRoundTrip !== generated.css) {
 if (generated.gzip.length > 4700) {
   throw new Error(`Compressed Web UI shell HTML exceeds the 4700-byte gzip budget (${generated.gzip.length})`);
 }
-if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest"') ||
+if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest?v=' + generated.assetTag + '"') ||
     !generated.html
-        .includes('href="/icons/icon-192.png?v=' + generated.cacheVersion + '"') ||
+        .includes('href="/icons/icon-192.png?v=' + generated.assetTag + '"') ||
     !generated.html.includes('rel="apple-touch-icon"') ||
     !generated.html.includes('name="theme-color"') ||
     !generated.html.includes('name="apple-mobile-web-app-capable"')) {
@@ -657,8 +664,9 @@ if (generated.cssGzip.length > 14268) {
 // The Home cup light states bring the runtime to 61656 compressed bytes; owner-authorized 2026-10-16.
 // Held touch readings in the shot charts, Max flow and CSV bring the runtime to 61933 compressed bytes; owner-authorized 2026-10-16.
 // The full-screen keep-awake (Wake Lock, inline video, Esc) brings the runtime to 62758 compressed bytes; owner-authorized 2026-10-16.
-if (sentinelRuntimeGzip.length > 62758) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 62758-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Reading the build version from the shell brings the runtime to 62759 compressed bytes; frontend audit 2026-10-16.
+if (sentinelRuntimeGzip.length > 62759) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 62759-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -951,12 +959,14 @@ if (rootHandler.includes('no-store') ||
 // Only the inline keep-awake video may load as media; no outside origin.
 if (!rootHandler.includes("media-src data:;") || /media-src[^;]*(\*|https?:|'self')/.test(rootHandler))
   throw new Error('GET / may allow only data: media, for the full-screen keep-awake video');
-if (serveImmutable.includes('no-store') ||
+if (!serveImmutable.includes('requestsCurrentAssetTag(request)') ||
+    !network.includes('strcmp(query + 3, WEB_UI_ASSET_TAG) == 0') ||
+    !serveImmutable.includes('current ? "public, max-age=31536000, immutable" : "no-store"') ||
     !serveImmutable.includes('max-age=31536000') ||
     !serveImmutable.includes('immutable') ||
     !serveImmutable.includes('STATUS_NOT_MODIFIED') ||
     serveImmutable.includes('"Connection"')) {
-  throw new Error('Immutable gzip assets must use long-cache ETag/304 on kept-alive connections');
+  throw new Error('Immutable gzip assets must long-cache only their current ?v= tag (else no-store) with ETag/304 on kept-alive connections');
 }
 if (!jsHandler.includes('SHOT_STOPPER_WEB_JS_GZIP') ||
     !jsHandler.includes('application/javascript')) {

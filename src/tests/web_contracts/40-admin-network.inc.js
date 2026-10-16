@@ -345,11 +345,11 @@ if (!firmwareCore.includes('command.network.commitConfirmed = true') ||
   }
 }
 if (!/<script\s+type="module"\s+src="\/app\.js\?v=/.test(shellHtml) &&
-    !shellHtml.includes('src="/app.js?v=__FW_VERSION__"')) {
+    !shellHtml.includes('src="/app.js?v=__FW_ASSET_TAG__"')) {
   throw new Error('Web UI must load same-origin /app.js with a firmware version query');
 }
 if (!/<link\s+rel="stylesheet"\s+href="\/app\.css\?v=/.test(shellHtml) &&
-    !shellHtml.includes('href="/app.css?v=__FW_VERSION__"')) {
+    !shellHtml.includes('href="/app.css?v=__FW_ASSET_TAG__"')) {
   throw new Error('Web UI must load same-origin /app.css with a firmware version query');
 }
 if (!shellHtml.includes('name="color-scheme" content="light dark"')) {

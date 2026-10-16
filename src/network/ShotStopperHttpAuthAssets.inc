@@ -509,25 +509,38 @@ static bool ifNoneMatchEquals(httpd_req_t *request, const char *etag) {
   return strcmp(value, etag) == 0;
 }
 
+// Generated URLs carry exactly ?v=<WEB_UI_ASSET_TAG>, the hash of this
+// build's asset bytes; httpd matches handlers on the path alone.
+static bool requestsCurrentAssetTag(httpd_req_t *request) {
+  const char *query = strchr(request->uri, '?');
+  return query != nullptr && strncmp(query, "?v=", 3) == 0 &&
+         strcmp(query + 3, WEB_UI_ASSET_TAG) == 0;
+}
+
 static esp_err_t serveImmutableGzip(httpd_req_t *request, const char *contentType,
                                     const uint8_t *data, size_t length) {
-  // WEB_UI_ETAG is bake-time (FW_VERSION + asset tag); immutable ?v= busts
-  // after reflashes without snprintf on each request. The shell and assets
-  // keep the connection open so a page load reuses its handshakes; the
-  // bound ui-stream refreshes its LRU slot, so lru_purge evicts idle asset
-  // sockets first. API JSON and OTA responses still close.
-  if (ifNoneMatchEquals(request, WEB_UI_ETAG)) {
+  // Only the URL naming these exact bytes may be cached as immutable. Any
+  // other ?v= (a stale shell after OTA or rollback) or a bare probe path gets
+  // the current bytes uncached, so no cache key ever holds a body it does
+  // not name. The shell and assets keep the connection open so a page load
+  // reuses its handshakes; the bound ui-stream refreshes its LRU slot, so
+  // lru_purge evicts idle asset sockets first. API JSON and OTA responses
+  // still close.
+  const bool current = requestsCurrentAssetTag(request);
+  const char *cacheControl =
+      current ? "public, max-age=31536000, immutable" : "no-store";
+  if (current && ifNoneMatchEquals(request, WEB_UI_ETAG)) {
     httpd_resp_set_status(request, STATUS_NOT_MODIFIED);
-    httpd_resp_set_hdr(request, "Cache-Control",
-                       "public, max-age=31536000, immutable");
+    httpd_resp_set_hdr(request, "Cache-Control", cacheControl);
     httpd_resp_set_hdr(request, "ETag", WEB_UI_ETAG);
     return httpd_resp_send(request, nullptr, 0);
   }
   httpd_resp_set_type(request, contentType);
   httpd_resp_set_hdr(request, "Content-Encoding", "gzip");
-  httpd_resp_set_hdr(request, "Cache-Control",
-                     "public, max-age=31536000, immutable");
-  httpd_resp_set_hdr(request, "ETag", WEB_UI_ETAG);
+  httpd_resp_set_hdr(request, "Cache-Control", cacheControl);
+  if (current) {
+    httpd_resp_set_hdr(request, "ETag", WEB_UI_ETAG);
+  }
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   httpd_resp_set_hdr(request, "X-Frame-Options", "DENY");
   return sendBody(request, data, length);
@@ -655,9 +668,9 @@ esp_err_t ShotStopperNetwork::iconHandler(httpd_req_t *request) {
 }
 
 esp_err_t ShotStopperNetwork::browserIconHandler(httpd_req_t *request) {
-  // Clients that ignore the shell's <link> tags probe these paths directly;
-  // serve the real artwork with the same immutable gzip contract as the rest
-  // of the Web UI assets instead of an empty 204.
+  // Clients that ignore the shell's <link> tags probe these unversioned paths
+  // directly; serve the real artwork (uncached, as they carry no ?v=) instead
+  // of an empty 204.
   if (strncmp(request->uri, "/favicon.ico", 12) == 0 && (request->uri[12] == '\0' || request->uri[12] == '?')) {
     return serveImmutableGzip(request, "image/png",
                               SHOT_STOPPER_WEB_ICON_48_GZIP,

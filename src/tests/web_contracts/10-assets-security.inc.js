@@ -474,7 +474,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
   }
 }
 if (!shellHtml.includes('type="module"') ||
-    !shellHtml.includes('src="/app.js?v=__FW_VERSION__"') ||
+    !shellHtml.includes('src="/app.js?v=__FW_ASSET_TAG__"') ||
     /<script(?![^>]*\bsrc=)[^>]*>\s*\S/i.test(shellHtml)) {
   throw new Error('Web UI must load same-origin /app.js as a module (no inline script body)');
 }
@@ -486,9 +486,9 @@ if (!shellHtml.includes('<link rel="modulepreload" href="/js/runtime.js?v=__FW_A
     !codeIncludes(appJsSource, 'const boot=bootFetch?.[0]===name&&bootFetch[1];if(boot)bootFetch=null;')) {
   throw new Error('Shell must preload the runtime app.js imports, and the boot view must load alongside the claim');
 }
-if (!shellHtml.includes('rel="manifest" href="/manifest.webmanifest"') ||
+if (!shellHtml.includes('rel="manifest" href="/manifest.webmanifest?v=__FW_ASSET_TAG__"') ||
     !shellHtml.includes('rel="apple-touch-icon"') ||
-    !shellHtml.includes('href="/icons/icon-192.png?v=__FW_VERSION__"') ||
+    !shellHtml.includes('href="/icons/icon-192.png?v=__FW_ASSET_TAG__"') ||
     !shellHtml.includes('name="theme-color"') ||
     !shellHtml.includes('name="apple-mobile-web-app-capable"')) {
   throw new Error('Shell head must declare the PWA manifest, icon, and home-screen metadata');
@@ -807,8 +807,9 @@ if (htmlBytes > 93300) {
 // Keeping the screen on in full screen (Wake Lock or an inline keep-awake video) and Esc to leave it: +2411 bytes (439683), owner-authorized 2026-10-16.
 // The mercury navigation pill (spring, teardrop SVG shape, settling loop): +1962 bytes (441645), owner-authorized 2026-10-16.
 // Loading the opening view during the claim and delaying background record subscribes: +419 bytes (442064), requested with the load-latency plan 2026-10-16.
-if (jsBytes > 442064) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 442064)`);
+// Reading the build version from the revalidated shell instead of baking it into the runtime: +26 bytes (442090), frontend audit 2026-10-16.
+if (jsBytes > 442090) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 442090)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -906,8 +907,9 @@ if (jsBytes > 442064) {
 // Combined source at 525028 with the full-screen keep-awake; owner-authorized 2026-10-16.
 // Combined source at 526990 with the mercury navigation pill; owner-authorized 2026-10-16.
 // Combined source at 527476 with the runtime preload and opening-view load; requested with the load-latency plan 2026-10-16.
-if (htmlBytes + jsBytes > 527476) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 527476)`);
+// The shell's build version and versioned manifest link: 527554, frontend audit 2026-10-16.
+if (htmlBytes + jsBytes > 527554) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 527554)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

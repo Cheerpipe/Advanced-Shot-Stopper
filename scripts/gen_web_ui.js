@@ -182,9 +182,7 @@ function formatByteArray(buffer) {
   return lines.join('\n');
 }
 
-function stampAssetTag(source, assetTag) {
-  return source.split('__FW_ASSET_TAG__').join(assetTag);
-}
+const ASSET_TAG_PLACEHOLDER = '__FW_ASSET_TAG__';
 
 function emitGzipConst(name, buffer) {
   return `constexpr size_t ${name}_LEN = ${buffer.length};
@@ -206,9 +204,8 @@ function injectHomePartial(shellHtml, homePartial) {
   return shellHtml.replace(re, `$1${homePartial}$2`);
 }
 
-function inlineHomeModule(appSrc, homeSrc, assetTag) {
-  const stamped = stampAssetTag(homeSrc, assetTag);
-  const body = stamped
+function inlineHomeModule(appSrc, homeSrc) {
+  const body = homeSrc
       .replace(/^['"]use strict['"];\s*/m, '')
       .replace(/import\s*\*\s*as\s+R\s+from\s*['"][^'"]+['"];\s*/m, '')
       .replace(/export\s+function\s+/g, 'function ');
@@ -224,15 +221,14 @@ function inlineHomeModule(appSrc, homeSrc, assetTag) {
   return appSrc.replace(marker, (m) => m + iife + '\n');
 }
 
-function buildSecondaryJs(viewJsRaw, assetTag) {
+function buildSecondaryJs(viewJsRaw) {
   const parts = [
     `'use strict';`,
-    `import * as R from '/js/runtime.js?v=${assetTag}';`,
+    `import * as R from '/js/runtime.js?v=${ASSET_TAG_PLACEHOLDER}';`,
     `const $=R.$;`,
   ];
   for (const name of SECONDARY_VIEWS) {
-    let body = stampAssetTag(viewJsRaw[name], assetTag);
-    body = body
+    const body = viewJsRaw[name]
         .replace(/^['"]use strict['"];\s*/m, '')
         .replace(/import\s*\*\s*as\s+R\s+from\s*['"][^'"]+['"];\s*/m, '')
         .replace(/const\s+\$\s*=\s*R\.\$;\s*/m, '')
@@ -345,74 +341,44 @@ async function generate(options = {}) {
     }
   }
 
-  // Fingerprint unstamped sources so import ?v= tags stay stable and match
-  // WEB_UI_ASSET_TAG embedded in the firmware header.
-  const hash = crypto.createHash('sha256');
-  hash.update(shellHtmlRaw);
-  for (const name of VIEW_NAMES) hash.update(partialsRaw[name]);
-  hash.update(localizedAppJs);
-  hash.update(localizedRuntime);
-  hash.update(localizedOtaImage);
-  for (const name of VIEW_NAMES) hash.update(viewJsRaw[name]);
-  hash.update(localizedCss);
-  hash.update(JSON.stringify(manifestObject));
-  hash.update(icon192Raw);
-  hash.update(icon48Raw);
-  const assetTag = hash.digest('hex').slice(0, 8);
-
-  // The manifest is served with the same global ETag, so its icon URL carries
-  // the same cacheVersion as the shell asset references.
-  const manifest =
-      JSON.stringify(manifestObject)
-          .split('__FW_VERSION__')
-          .join(`${version}.${assetTag}`);
-
   const partials = {};
   for (const name of VIEW_NAMES) {
     partials[name] = await minifyHtml(partialsRaw[name]);
   }
+  const out = {
+    shellHtml: injectHomePartial(await minifyHtml(shellHtmlRaw
+        .split('{{webui-meta:development-class}}')
+        .join(options.developmentMode === true ? 'devBuild' : '')), partials.home),
+    appJs: await minifyJs(inlineHomeModule(localizedAppJs, viewJsRaw.home)),
+    runtimeJs: await minifyJs(options.remoteControl === false
+        ? stripRemoteControlJs(localizedRuntime) : localizedRuntime),
+    otaImageJs: await minifyJs(localizedOtaImage),
+    secondaryJs: await minifyJs(buildSecondaryJs(viewJsRaw)),
+    settingsJs: await minifyJs(viewJsRaw.settings),
+    setupJs: await minifyJs(viewJsRaw.setup),
+    css: minifyCss(stripMachineTypeCss(options.remoteControl === false
+        ? stripRemoteControlCss(localizedCss) : localizedCss, options.machineType)),
+    manifest: JSON.stringify(manifestObject),
+  };
 
-  let shellHtml = await minifyHtml(
-      stampAssetTag(shellHtmlRaw, assetTag)
-          .split('__FW_VERSION__')
-          .join(`${version}.${assetTag}`)
-          .split('{{webui-meta:development-class}}')
-          .join(options.developmentMode === true ? 'devBuild' : ''));
-  shellHtml = injectHomePartial(shellHtml, partials.home);
-
-  const appWithHome =
-      inlineHomeModule(stampAssetTag(localizedAppJs, assetTag), viewJsRaw.home, assetTag);
-  const appJs = await minifyJs(appWithHome);
-  // The runtime bakes the release version alone (no asset tag) so it can
-  // compare it against the firmwareVersion reported by the status API.
-  const runtimeJs = await minifyJs(stampAssetTag(
-      options.remoteControl === false ? stripRemoteControlJs(localizedRuntime)
-                                      : localizedRuntime,
-      assetTag)
-      .split('__FW_RELEASE__').join(version));
-  const otaImageJs = await minifyJs(localizedOtaImage);
-  const secondaryJs =
-      await minifyJs(buildSecondaryJs(viewJsRaw, assetTag));
-  const settingsJs =
-      await minifyJs(stampAssetTag(viewJsRaw.settings, assetTag));
-  const setupJs =
-      await minifyJs(stampAssetTag(viewJsRaw.setup, assetTag));
-  let css = localizedCss;
-  if (options.remoteControl === false) css = stripRemoteControlCss(css);
-  if (options.machineType) css = stripMachineTypeCss(css, options.machineType);
-  css = minifyCss(css);
+  // The tag fingerprints the exact bytes served (with the placeholder still
+  // in place), so every ?v= URL names one immutable body. The firmware
+  // version lives only in the revalidated shell, so firmware-only releases
+  // keep every cached asset.
+  const hash = crypto.createHash('sha256');
+  for (const text of Object.values(out)) hash.update(text);
+  for (const text of Object.values(partials)) hash.update(text);
+  hash.update(icon192Raw);
+  hash.update(icon48Raw);
+  const assetTag = hash.digest('hex').slice(0, 8);
+  for (const key of Object.keys(out)) {
+    out[key] = out[key].split(ASSET_TAG_PLACEHOLDER).join(assetTag);
+  }
+  out.shellHtml = out.shellHtml.split('__FW_RELEASE__').join(version);
 
   return finish({
-    shellHtml,
+    ...out,
     partials,
-    appJs,
-    runtimeJs,
-    otaImageJs,
-    secondaryJs,
-    settingsJs,
-    setupJs,
-    css,
-    manifest,
     icon192Raw,
     icon48Raw,
     assetTag,

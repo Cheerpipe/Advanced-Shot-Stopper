@@ -44,10 +44,10 @@ function renderHome() {
       .replace('<section id="view-home" class="view" data-view="home"></section>',
           `<section id="view-home" class="view" data-view="home">${home.content}</section>`)
       .replace('</head>', '<link rel="stylesheet" href="/header.css"></head>')
-      .replace('<script type="module" src="/app.js?v=__FW_VERSION__"></script>',
+      .replace('<script type="module" src="/app.js?v=__FW_ASSET_TAG__"></script>',
           '<script src="/preview.js" defer></script>')
       .replace(/<link rel="(?:manifest|icon|apple-touch-icon|modulepreload)"[^>]*>/g, '')
-      .replace(/__FW_VERSION__/g, 'design-preview');
+      .replace(/__FW_(?:ASSET_TAG|RELEASE)__/g, 'design-preview');
 }
 
 // Header signals and Quick Settings run against an in-memory controller: the
