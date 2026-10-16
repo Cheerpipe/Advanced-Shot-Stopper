@@ -60,9 +60,9 @@ Recent shots are the newest ten weight-stopped shots on the same preset.
 Shots stopped by this backup, by the max shot time or by hand do not count,
 and neither do rinses or shots where the coffee channeled.
 
-When you change beans or grind, tell ShotStopper so old shots stop counting:
-use **New coffee** in **Settings → Presets** or on Home's grind-hint card (or
-the integration API's reset-guard-samples call).
+After a new bag or a change to your dose, basket or grinder, tell ShotStopper
+so old shots stop counting: use **Relearn** in **Settings → Presets** or on
+Home's grind-hint card (or the integration API's reset-guard-samples call).
 Only shots made with the preset's current window and a target within 1 g
 count, so changing the window or moving the target further starts fresh
 automatically; going back to the earlier values counts those shots again.

@@ -48,7 +48,7 @@ preset and whether editing is allowed.
 
 | Action | What it does |
 | --- | --- |
-| **New coffee** | Tells ShotStopper you changed beans or made a big grind change. Grind hints, the scale-loss backup and the usual first-drop time on the preset graph learn from your next shots; the shots so far are set aside. Your settings do not change. |
+| **Relearn** | Use after a new bag or a change to your dose, basket or grinder. Grind hints, the scale-loss backup and the usual first-drop time on the preset graph learn from your next shots; the shots so far are set aside. Your settings do not change. Ordinary grind tweaks don't need it: grind hints notice them on their own. |
 | **New** | Creates an Untitled preset from the Double · Adaptive values. |
 | **Duplicate** | Copies the selected preset into a new one. |
 | **Restore** | Factory presets only: returns the preset to its factory values and starts its shot statistics over. Shared settings do not change. |

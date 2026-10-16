@@ -39,7 +39,7 @@ The example shot and the colored zones begin when coffee usually starts
 dripping for that preset, taken from its recent shots, so a single and a
 double each keep their own timing. Until a preset has a shot with a recorded
 first drop, the graph uses your other presets' usual time, or 0 s if no shot
-has one yet; the note under the graph says which. **New coffee** starts this
+has one yet; the note under the graph says which. **Relearn** starts this
 timing over, while editing the window or the target keeps it.
 
 ## Fast shots
@@ -108,14 +108,38 @@ statistics, grind hints or the scale-loss backup.
 
 ## Grind hints
 
-With **Grind hints** on (Recipe group, on by default), Home shows a card when
-the median of your last five shots on the active preset sits outside the window
-or within 1 s of either edge, for example: *Your last 5 shots: median 27.6 s,
-at the fast edge of 27–36 s. Grind a touch finer?* or *…median 37.2 s, slower
-than your 27–36 s window. Grind a touch coarser?* The card never changes a
-setting. **New coffee** starts the preset's shot statistics over after you
-change beans or grind; **Not now** hides the card in this browser until the
-median of your recent shots moves by a second or more.
+With **Grind hints** on (Recipe group, on by default), ShotStopper looks at
+when your recent shots on the active preset reached the target, on the grind
+setting you are using now, and compares their average with the middle of your
+shot time window. It leaves out the fastest and the slowest of those shots, so
+one odd shot does not steer it. A shot that runs into the max shot time, or that
+you stop by hand after the window, counts as slow, so a choked shot still shows
+up. When your shots run clearly fast or slow, Home shows a card:
+
+- **Dialling in**: after **Relearn**. A single shot far outside the window is
+  enough for a first suggestion, so a new bag gets advice from its first shot.
+- **Grind hint**: the coffee was dialled in and has drifted, for example as the
+  beans age. This card waits until several shots agree.
+- **Checking your change**: your last shot moved the way the card suggested. No
+  new advice until the next shot confirms the new setting.
+- **Shots vary**: your shots spread more than this window allows. A grind
+  change can't fix that; weigh each dose, check your puck prep, or widen the
+  window.
+
+The card says which way to go and roughly how far, in seconds only, for
+example *Grind a touch coarser · about 3 s slow*; it says *at least* when one
+of those shots hit the max shot time, was stopped by hand, or ran too far off
+for an exact estimate. It also says how sure it is (**Early read**,
+**Likely** or **Confident**) and from how many shots. A bar shows your window,
+the comfortable middle of it and where your shots sit. The card never changes
+a setting and never counts clicks or steps: only you know your grinder.
+
+You don't need to tell ShotStopper when you adjust the grind; it notices the
+change from your next shots and starts reading the new setting. Use
+**Relearn**, on the card or in **Settings → Presets**, after a new bag or a
+change to your dose, basket or grinder. **Ignore** hides the card in this
+browser until the advice changes: another direction, a firmer suggestion or a
+new grind setting brings it back.
 
 ## Examples
 
