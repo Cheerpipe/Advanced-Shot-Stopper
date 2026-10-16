@@ -43,9 +43,6 @@ if (firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)'
     html.indexOf('id="homePresetAcc"') > html.indexOf('id="equipmentPanel"') ||
     html.includes('Extraction rules') ||
     !css.includes('.ruleChart') ||
-    !css.includes('.ruleLegFast:before{background:var(--gFast)}') ||
-    !css.includes('.ruleLegBbw:before{background:var(--ok)}') ||
-    !css.includes('.ruleLegSlow:before{background:var(--gSlow)}') ||
     css.includes('.ruleSeg') || css.includes('.ruleChartTrack') ||
     css.includes('.ruleTable') ||
     !css.includes('.presetAccItem.open .presetAccDot') ||

@@ -629,6 +629,7 @@ if (generated.cssGzip.length > 13750) {
 // The first-drop pace start brings the runtime to 58877 compressed bytes; owner-authorized 2026-10-15.
 // The Stats shot cursor pill brings the runtime to 58924 compressed bytes; owner-authorized 2026-10-15.
 // Folding the Stats card details behind Show more brings the runtime to 59286 compressed bytes; owner-authorized 2026-10-15.
+// The Stats arrival-time density curve brings the runtime to 59356 compressed bytes; owner-authorized 2026-10-16.
 if (sentinelRuntimeGzip.length > 59400) {
   throw new Error(`Compressed Web UI runtime JS exceeds the 59400-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }

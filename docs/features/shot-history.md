@@ -12,13 +12,21 @@ interface starts or after a dropped connection. From then on the data keeps
 refreshing in the background even while you are elsewhere in the interface, so
 the page always opens instantly with the latest shots.
 
-The Stats chart shows when shots reached their target. Each shot keeps the
-colour of the verdict it got when it was pulled — Fast, On recipe or Slow — so
-editing a preset's window later never recolours past shots. The chart starts
-on **All presets**; choose **This preset** to see only the active preset's
-shots. When every shot shown was judged against the same window, the chart
-marks that window, for example **Window 27–36 s**; otherwise it shows the shots
-alone. The chart appears once a shot has a measured arrival time.
+The Stats chart shows how your shots land against the shot time window. Each
+part of the chart shows its share of your shots and how many there were: Fast
+before the window, On recipe inside it and Slow after it. Below those numbers,
+a smooth curve rises where your shot times cluster: a tall, narrow peak means
+consistent shots, while a low, wide curve means they vary from shot to shot.
+Each shot keeps the verdict it got when it was pulled, so editing a preset's
+window later never changes past shots.
+
+The chart starts on **All presets**; choose **Current preset** to see only the
+active preset's shots. When every shot shown used the same window, the time
+axis is in seconds and marks the window's edges, for example 27 s and 34 s.
+When the shots come from presets with different windows, each shot is placed
+against its own window instead: the axis shows **Window start** and
+**Window end**, and how many seconds before or after the window a shot reached
+its target. The chart appears once a shot has a measured arrival time.
 
 Stopwatch and gram-weight icons sit beside the large duration and yield values
 in each shot card and beside Avg time and Avg yield in the Stats summary.
@@ -171,7 +179,7 @@ time to the second, and the CSV export always keeps that full detail no
 matter how the table displays it.
 
 Stats uses up to the newest **10 qualifying shots** for duration, yield, available
-flow, daily count, and the duration chart, regardless of how the table is
+flow, daily count, and the Stats chart, regardless of how the table is
 sorted. **Avg BBW error** independently uses up to the newest **10 shots
 stopped by weight** in the full history, skipping manual shots and time or
 safety stops. Each miss is measured against the planned stop — the cut line

@@ -1432,19 +1432,13 @@ function renderStatsDurChart() {
   if (!root.dataset.ready) {
     root.className = "ruleChart";
     root.innerHTML =
-      '<div class="ruleChartLegend" aria-hidden="true"><span class="ruleLeg ruleLegFast">' +
-      __WEBUI_TEXT__("runtime.fast") +
-      '</span><span class="ruleLeg ruleLegBbw">' +
-      __WEBUI_TEXT__("runtime.verdict_on_recipe") +
-      '</span><span class="ruleLeg ruleLegSlow">' +
-      __WEBUI_TEXT__("runtime.slow") +
-      '</span><span id="statsDurWindow" class="ruleLeg"></span></div><div id="statsPresetFilter" class="shotSort" role="group" aria-label="' +
+      '<div id="statsPresetFilter" class="shotSort" role="group" aria-label="' +
       __WEBUI_TEXT__("runtime.stats_preset_filter") +
       '"><button type="button" data-v="all">' +
       __WEBUI_TEXT__("runtime.all_presets") +
       '</button><button type="button" data-v="active">' +
       __WEBUI_TEXT__("runtime.this_preset") +
-      '</button></div><div id="statsDurChartPlot" class="shotSparkHost"></div>';
+      '</button></div><div id="statsDurChartPlot"></div>';
     root.dataset.ready = "1";
     for (const b of $("statsPresetFilter").children)
       b.onclick = () => {
@@ -1454,17 +1448,10 @@ function renderStatsDurChart() {
   }
   const host = $("statsDurChartPlot");
   if (!host) return;
-  // Each shot keeps the verdict it was judged with; the window bands show
-  // only while every shown shot was judged against the same window.
   const presets = homeStatusCache()?.presets || presetState,
     only = statsPresetFilter === "all" ? 0 : presets.activeId,
     timed = (shotHistory.shots || []).filter((r) => r.arrivalS > 0 && r.verdict),
-    shots = timed.filter((r) => !only || r.presetId === only),
-    shared = shots.length && shots.every((r) => r.fastBeforeS === shots[0].fastBeforeS && r.slowAfterS === shots[0].slowAfterS),
-    BIN = 1,
-    tMax = 6e4 / 1e3,
-    bins = Math.round(tMax / BIN),
-    counts = Array.from({ length: bins }, () => ({ fast: 0, on_recipe: 0, slow: 0 }));
+    shots = timed.filter((r) => !only || r.presetId === only);
   // No timed shots: no chart at all; none for this preset: only the filter.
   root.hidden = !timed.length;
   host.hidden = !shots.length;
@@ -1474,63 +1461,57 @@ function renderStatsDurChart() {
     host.innerHTML = "";
     return;
   }
-  let maxC = 0;
-  for (const r of shots) {
-    const c = counts[Math.min(bins - 1, Math.floor(r.arrivalS / BIN))];
-    c[r.verdict]++;
-    maxC = Math.max(maxC, c.fast + c.on_recipe + c.slow);
+  // Each shot sits in its own judged window, scaled to their mean width.
+  const shared = shots.every((r) => r.fastBeforeS === shots[0].fastBeforeS && r.slowAfterS === shots[0].slowAfterS),
+    a = shared ? shots[0].fastBeforeS : 0,
+    b = shared ? shots[0].slowAfterS : Math.round(shots.reduce((s, r) => s + r.slowAfterS - r.fastBeforeS, 0) / shots.length),
+    ts = shots.map(({ arrivalS: t, fastBeforeS: f, slowAfterS: s }) =>
+      t < f ? a + t - f : t > s ? b + t - s : a + ((t - f) / (s - f)) * (b - a),
+    ),
+    lo = Math.floor(Math.min(a - 5, ...ts) - 1),
+    hi = Math.ceil(Math.max(b + 5, ...ts) + 1),
+    x = (t) => (((t - lo) / (hi - lo)) * 100).toFixed(2),
+    dens = (t) => ts.reduce((s, v) => s + Math.exp(-0.5 * ((t - v) / Math.max(0.7, (hi - lo) / 28)) ** 2), 0),
+    xs = Array.from({ length: 121 }, (_, i) => lo + ((hi - lo) * i) / 120),
+    peak = Math.max(...xs.map(dens)),
+    n = { fast: 0, on_recipe: 0, slow: 0 },
+    pct = {},
+    L = axisLabel;
+  for (const r of shots) n[r.verdict]++;
+  // Rounding the running total keeps the shares adding up to 100%.
+  let sum = 0,
+    done = 0;
+  for (const k in n) done += pct[k] = Math.round((100 * (sum += n[k])) / shots.length) - done;
+  const zones = [
+    ["fast", lo, a, "var(--gFast)", __WEBUI_TEXT__("runtime.fast")],
+    ["on_recipe", a, b, "var(--ok)", __WEBUI_TEXT__("runtime.verdict_on_recipe")],
+    ["slow", b, hi, "var(--gSlow)", __WEBUI_TEXT__("runtime.slow")],
+  ];
+  let svg = "",
+    tops = "";
+  for (const [k, t0, t1, c, name] of zones) {
+    const line = [t0, ...xs.filter((t) => t > t0 && t < t1), t1].map((t) => x(t) + " " + (50 - (46 * dens(t)) / peak).toFixed(2)).join(" L");
+    svg +=
+      '<path d="M' + x(t0) + " 50 L" + line + " L" + x(t1) + ' 50Z" fill="' + c + '" fill-opacity=".22"/><path d="M' + line +
+      '" fill="none" stroke="' + c + '" stroke-width="1.35" vector-effect="non-scaling-stroke"/>';
+    tops += "<span><b>" + pct[k] + "%</b>" + n[k] + " " + name + "</span>";
   }
-  $("statsDurWindow").textContent = shared
-    ? sub(__WEBUI_TEXT__("runtime.window_label"), [shots[0].fastBeforeS, shots[0].slowAfterS])
-    : "";
-  const scaleC = Math.max(maxC, 1),
-    colors = { on_recipe: "var(--ok)", fast: "var(--gFast)", slow: "var(--gSlow)", axis: "var(--mu)" },
-    L = axisLabel,
-    W = 240,
-    H = 36,
-    pad = 1.5,
-    x = (t) => pad + (W - 2 * pad) * Math.min(1, Math.max(0, t / tMax)),
-    y = (c) => H - pad - (H - 2 * pad) * Math.max(0, Math.min(1, c / scaleC)),
-    y0 = H - pad;
-  let svg = '<svg class="shotSpark" viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none">';
-  for (const [t0, t1, k] of shared
-    ? [
-        [0, shots[0].fastBeforeS, "fast"],
-        [shots[0].fastBeforeS, shots[0].slowAfterS, "on_recipe"],
-        [shots[0].slowAfterS, tMax, "slow"],
-      ]
-    : [[0, tMax, "axis"]])
-      svg +=
-        '<path d="M' + x(t0).toFixed(1) + " " + y0 + " L" + x(t1).toFixed(1) + " " + y0 +
-        '" fill="none" stroke="' + colors[k] +
-        '" stroke-width="1.35" vector-effect="non-scaling-stroke" stroke-linecap="round"/>';
-  for (let i = 0; i < bins; i++) {
-    const t0 = i * BIN,
-      t2 = Math.min(tMax, t0 + BIN);
-    // Stacked per verdict: draw the tallest cumulative bar first.
-    let top = 0;
-    const layers = ["on_recipe", "fast", "slow"].map((k) => [k, (top += counts[i][k])]).filter(([k]) => counts[i][k]);
-    for (const [k, c] of layers.reverse()) {
-      const open = "M" + x(t0).toFixed(1) + " " + y0 + " V" + y(c).toFixed(1) + " H" + x(t2).toFixed(1) + " V" + y0;
-      svg +=
-        '<path d="' + open + ' Z" fill="' + colors[k] + '" fill-opacity=".22" stroke="none"/><path d="' + open +
-        '" fill="none" stroke="' + colors[k] +
-        '" stroke-width="1.35" vector-effect="non-scaling-stroke" stroke-linejoin="miter" stroke-miterlimit="1"/>';
-    }
-  }
-  svg += "</svg>";
+  // Ticks step out from the window edges: seconds when shared, offsets otherwise.
+  const ticks = [
+    [a, shared ? L(a, "s") : __WEBUI_TEXT__("runtime.window_start"), 80],
+    [b, shared ? L(b, "s") : __WEBUI_TEXT__("runtime.window_end"), 80],
+  ];
+  for (let d = 5; d < hi - lo; d += 5)
+    ticks.push([a - d, shared ? L(a - d, "s") : "−" + L(d, "s"), 20], [b + d, shared ? L(b + d, "s") : "+" + L(d, "s"), 20]);
+  host.style.setProperty("--zf", x(a) + "%");
+  host.style.setProperty("--zo", x(b) - x(a) + "%");
   host.innerHTML =
-    '<div class="shotSparkY statsDurSparkY">' +
-    maxC +
-    "</div>" +
+    '<div class="statsDensZones">' +
+    tops +
+    '</div><svg class="statsDensPlot" viewBox="0 0 100 50" preserveAspectRatio="none" aria-hidden="true">' +
     svg +
-    '<div class="ruleChartTicks"></div>';
-  const edges = shared ? [shots[0].fastBeforeS, shots[0].slowAfterS] : [];
-  fillChartTicks(
-    host.lastChild,
-    [[0, "0 s"], ...edges.map((t) => [t, L(t, "s")]), [tMax, L(tMax, "s")]],
-    tMax,
-  );
+    '</svg><div class="ruleChartTicks"></div>';
+  fillChartTicks(host.lastChild, ticks.filter(([t]) => t > lo && t < hi).map(([t, s, p]) => [t - lo, s, p]), hi - lo, true);
 }
 function renderShotStats() {
   const z = "—",

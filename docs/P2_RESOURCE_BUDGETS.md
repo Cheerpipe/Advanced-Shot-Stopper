@@ -336,6 +336,12 @@ code to 1,569,816 bytes (54,716 over); those allowances move to
 84,704/84,704/54,780 bytes, keeping the 64-byte headroom. Its 2,512-byte copy
 of the profiler report lives in external BSS (778,520 bytes); DIRAM is
 unchanged.
+Folding the Stats card details behind Show more brings the image to 2,358,816
+bytes and rodata to 627,656 bytes; the Stats arrival-time density curve adds
+128 bytes to each, for 2,358,944 image, 2,358,831 linked and 627,784 rodata
+bytes (85,184/85,184/40,432 over baseline). The image/linked/rodata
+allowances move to 85,248/85,248/40,496 bytes, keeping the 64-byte headroom;
+flash code and DIRAM are unchanged.
 On the reference board, after a 75 s settle and 200 s of three concurrent
 Web UI clients, the same session on the earlier and the reduced image
 measured:

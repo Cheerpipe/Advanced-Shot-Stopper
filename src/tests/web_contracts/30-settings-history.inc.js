@@ -1284,14 +1284,13 @@ if (!statsSection ||
     !codeIncludes(runtimeJs, 'function renderStatsDurChart(') ||
     !codeIncludes(viewJs.stats, 'R.renderStatsDurChart()') ||
     !codeIncludes(runtimeJs, 'statsDurChartPlot') ||
-    !codeIncludes(runtimeJs, 'shotSparkHost') ||
-    !codeIncludes(runtimeJs, 'fill-opacity') ||
-    !codeIncludes(runtimeJs, 'statsDurSparkY') ||
+    !codeIncludes(runtimeJs, 'statsDensPlot') ||
+    !codeIncludes(runtimeJs, 'statsDensZones') ||
     !codeIncludes(runtimeJs, 'renderStatsDurChart()') ||
-    !codeIncludes(runtimeJs, 'counts[Math.min(bins - 1, Math.floor(r.arrivalS / BIN))]') ||
-    !codeIncludes(js, "fillChartTicks(host.lastChild,[[0,'0 s'],...edges.map((t)=>[t,L(t,'s')]),[tMax,L(tMax,'s')]],tMax") ||
+    codeIncludes(runtimeJs, 'statsDurSparkY') ||
     !css.includes('#statsDurChart{margin-top:') ||
-    !css.includes('.shotCurve .shotSparkHost,#statsDurChartPlot{display:grid;') ||
+    !css.includes('.statsDensPlot{display:block;width:100%;height:3.75rem}') ||
+    css.includes('#statsDurChartPlot{display:grid') ||
     !codeIncludes(runtimeJs, 'function renderShotStats(){') ||
     !codeIncludes(runtimeJs, 's.avgDurationS') ||
     !codeIncludes(runtimeJs, 'shotStats=d.stats') ||
@@ -1311,7 +1310,7 @@ if (!statsSection ||
     shotLogTypes.includes('updateShotLogStats') ||
     !shotLogTypes.includes('shotLogBbwErrorEligible')) {
   throw new Error(
-      'Stats view must be a 2+3 shotCard, duration histogram, and firmware-computed stats aggregate (no client recompute or second fetch)');
+      'Stats view must be a 2+3 shotCard, arrival-time density curve, and firmware-computed stats aggregate (no client recompute or second fetch)');
 }
 
 {
@@ -1525,44 +1524,59 @@ if (!statsSection ||
   const start = runtimeJs.indexOf('function axisLabel(');
   const end = runtimeJs.indexOf('function renderShotStats(');
   if (start < 0 || end < 0 || end <= start) {
-    throw new Error('Duration histogram helpers not found for bin checks');
+    throw new Error('Stats density curve helpers not found');
   }
   // The stub below records the axis ticks in place of the DOM writer.
   const helpers = new Function(
       runtimeJs.slice(start, end).replace('function fillChartTicks(', 'function domFillChartTicks(') +
       ';return{renderStatsDurChart:renderStatsDurChart};')();
   const histRoot = {dataset: {}, className: '', innerHTML: ''};
-  const histPlot = {innerHTML: ''};
-  const histWindow = {textContent: ''};
+  const histPlot = {innerHTML: '', style: {setProperty(k, v) { this[k] = v; }}};
   const filterButton = (v) => ({dataset: {v}, attrs: {}, setAttribute(k, x) { this.attrs[k] = x; }});
   const histFilter = {children: [filterButton('all'), filterButton('active')]};
   const ticks = [];
+  let tickMax = 0;
   global.$ = (id) => ({statsDurChart: histRoot, statsDurChartPlot: histPlot,
-    statsDurWindow: histWindow, statsPresetFilter: histFilter})[id] || null;
+    statsPresetFilter: histFilter})[id] || null;
   global.homeStatusCache = () => null;
   global.presetState = {activeId: 1, items: []};
   global.sub = (t, vals) => t.replace(/\{(\d)\}/g, (_, i) => vals[+i]);
-  global.fillChartTicks = (host, marks) => ticks.splice(0, ticks.length,
-    ...marks.map(m => m[1].replace(/[\u00a0\u202f]/g, ' ')));
+  global.fillChartTicks = (host, marks, max) => {
+    tickMax = max;
+    ticks.splice(0, ticks.length, ...marks.map(m => m[1].replace(/[  ]/g, ' ')));
+  };
   const shot = (presetId, arrivalS, verdict, window = [27, 34]) =>
     ({presetId, arrivalS, verdict, fastBeforeS: window[0], slowAfterS: window[1]});
+  const zones = () => [...histPlot.innerHTML.matchAll(/<b>(\d+)%<\/b>(\d+) ([A-Za-z ]+)</g)]
+      .map(m => m[1] + '%/' + m[2] + '/' + m[3]).join();
+  const fills = () => (histPlot.innerHTML.match(/fill-opacity=".22"/g) || []).length;
   // Each shot keeps its own stored verdict, even inside today's window.
-  global.shotHistory = {shots: [shot(1, 30.2, 'on_recipe'), shot(1, 30.2, 'slow'),
-    shot(1, 26.1, 'fast'), shot(2, 40, 'slow', [25, 32]), shot(1, 0, null)]};
+  global.shotHistory = {shots: [shot(1, 30.2, 'on_recipe'), shot(1, 36, 'slow'),
+    shot(1, 24.1, 'fast'), shot(1, 31, 'on_recipe'), shot(2, 40, 'slow', [25, 32]), shot(1, 0, null)]};
   helpers.renderStatsDurChart();
-  const fills = (color) => (histPlot.innerHTML.match(new RegExp(
-      'fill="' + color.replace(/[()]/g, '\\$&') + '" fill-opacity=".22"', 'g')) || []).length;
-  // All presets is the default: mixed windows draw the shots without bands.
-  if (histFilter.children[0].attrs['aria-pressed'] !== 'true' || fills('var(--gSlow)') !== 2 ||
-      fills('var(--ok)') !== 1 || fills('var(--gFast)') !== 1 || histWindow.textContent !== '' ||
-      ticks.join() !== '0 s,60 s' || !histPlot.innerHTML.includes('statsDurSparkY">2<') ||
-      !histPlot.innerHTML.includes('stroke="var(--mu)"')) {
-    throw new Error('All presets must stack every shot by its own verdict on a neutral baseline');
+  // All presets is the default: mixed windows place each shot against its own window.
+  if (histFilter.children[0].attrs['aria-pressed'] !== 'true' || fills() !== 3 ||
+      zones() !== '20%/1/Fast,40%/2/On recipe,40%/2/Slow' ||
+      !histPlot.innerHTML.includes('<div class="statsDensZones"><span>') ||
+      ticks.join() !== 'Window start,Window end,−5 s,+5 s' || tickMax !== 22) {
+    throw new Error('All presets must share out every shot by its own verdict against its own window');
   }
   histFilter.children[1].onclick();
-  if (histFilter.children[1].attrs['aria-pressed'] !== 'true' || fills('var(--gSlow)') !== 1 ||
-      histWindow.textContent !== 'Window 27–34 s' || ticks.join() !== '0 s,27 s,34 s,60 s') {
-    throw new Error('This preset must label the window all shown shots share');
+  if (histFilter.children[1].attrs['aria-pressed'] !== 'true' ||
+      zones() !== '25%/1/Fast,50%/2/On recipe,25%/1/Slow' ||
+      ticks.join() !== '27 s,34 s,22 s,39 s' || tickMax !== 19 ||
+      histPlot.style['--zf'] !== '31.58%' || parseFloat(histPlot.style['--zo']).toFixed(2) !== '36.84') {
+    throw new Error('Current preset must draw its shared window in seconds');
+  }
+  global.shotHistory = {shots: [shot(1, 25, 'fast'), shot(1, 30, 'on_recipe'), shot(1, 36, 'slow')]};
+  helpers.renderStatsDurChart();
+  if (zones() !== '33%/1/Fast,34%/1/On recipe,33%/1/Slow') {
+    throw new Error('Verdict shares must always add up to 100%');
+  }
+  global.shotHistory = {shots: [shot(1, 30, 'on_recipe')]};
+  helpers.renderStatsDurChart();
+  if (zones() !== '0%/0/Fast,100%/1/On recipe,0%/0/Slow' || fills() !== 3) {
+    throw new Error('A single shot still draws all three zones');
   }
   global.presetState = {activeId: 3, items: []};
   helpers.renderStatsDurChart();
