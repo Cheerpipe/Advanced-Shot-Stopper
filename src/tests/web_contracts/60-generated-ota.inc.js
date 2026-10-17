@@ -548,8 +548,10 @@ if (generated.jsGzip.length > 7330) {
 // owner-authorized 2026-10-16.
 // The quick-settings duration selection styled as the mode card measures
 // 14286 bytes; owner-authorized 2026-10-16.
-if (generated.cssGzip.length > 14286) {
-  throw new Error(`Compressed Web CSS exceeds the 14286-byte gzip budget (${generated.cssGzip.length})`);
+// The header mode pill joined to the guard stack measures 14313 bytes;
+// owner-authorized 2026-10-16.
+if (generated.cssGzip.length > 14313) {
+  throw new Error(`Compressed Web CSS exceeds the 14313-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
