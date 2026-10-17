@@ -339,4 +339,5 @@ export function init() {
     syncHistoryDirButton();
   }
   R.armListSentinel("historySentinel", R.loadMoreHistory);
+  R.armStickyBar("historyStickySentinel");
 }

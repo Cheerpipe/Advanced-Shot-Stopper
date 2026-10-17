@@ -1001,5 +1001,6 @@ export function init() {
     syncShotSortButtons();
   }
   R.armListSentinel("shotLogSentinel", loadMoreShots);
+  R.armStickyBar("shotStickySentinel");
   renderStatsDurChart();
 }

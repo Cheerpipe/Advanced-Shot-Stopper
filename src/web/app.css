@@ -358,7 +358,9 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .btnGlyph .t{font-size:.86rem;font-weight:600;letter-spacing:0;text-transform:none;line-height:1.2}
 /* Floating glass toolbars: shot/history list controls, diagnostics actions, preset actions */
 .glassBar{align-items:center;gap:.25rem;width:fit-content;max-width:100%;padding:.25rem .35rem;border:1px solid var(--ln);border-radius:2rem;background:var(--sf);box-shadow:var(--ah)}
-#shotLogPanel .glassBar,#historyPanel .glassBar{position:sticky;top:var(--hdr);z-index:6;margin:0 0 .75rem}
+#shotLogPanel .glassBar,#historyPanel .glassBar{position:sticky;top:var(--hdr);z-index:6;margin:0 0 .75rem;transition:box-shadow .3s ease}
+.stickyBarSentinel{height:1px}
+#shotLogPanel .glassBar.isStuck,#historyPanel .glassBar.isStuck{box-shadow:0 8px 28px #0002}
 .glassBar>.btnGlyph{flex:0 0 auto;min-height:2.1rem;min-width:0;padding:0 .8rem;border:0;border-radius:1.6rem;background:transparent;color:var(--ac);white-space:nowrap}
 .glassBar>.btnGlyph .t{font-size:.8rem}
 .glassBar>.btnGlyph:not(:disabled):hover{background:var(--pa)}

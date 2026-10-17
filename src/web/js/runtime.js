@@ -1109,6 +1109,29 @@ function armListSentinel(id, onLoad) {
     rootMargin: "240px",
   }).observe(el);
 }
+// Arms a bar-top sentinel so the sticky toolbar after it carries the popup
+// shadow only while detached from its in-flow slot. Re-armed when the
+// --hdr breakpoint flips so the trigger keeps matching the sticky offset.
+function armStickyBar(id) {
+  const s = $(id),
+    bar = s && s.nextElementSibling;
+  if (!bar || s.dataset.armed) return;
+  s.dataset.armed = 1;
+  let io;
+  const arm = () => {
+    io?.disconnect();
+    const cs = getComputedStyle(document.documentElement);
+    // IO rootMargin accepts only px/%, so resolve --hdr (rem) against the root font.
+    const hdrPx = parseFloat(cs.getPropertyValue("--hdr")) * parseFloat(cs.fontSize);
+    io = new IntersectionObserver(
+      (es) => es.forEach((e) => bar.classList.toggle("isStuck", !e.isIntersecting)),
+      // Bare unitless zeros are rejected here too; every value needs a unit.
+      {rootMargin: "-" + hdrPx + "px 0px 0px 0px"});
+    io.observe(s);
+  };
+  arm();
+  window.matchMedia("(min-width: 700px)").addEventListener("change", arm);
+}
 function refreshShots() {
   return shotStatsViewActive() ? startStatsStream(true) : Promise.resolve(false);
 }
@@ -5522,6 +5545,7 @@ export {
   ensureBackgroundRecordStreams,
   renderLog,
   armListSentinel,
+  armStickyBar,
   setStatsRenderers,
   setHistoryRenderer,
   loadMoreHistory,
