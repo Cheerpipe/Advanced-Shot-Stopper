@@ -632,7 +632,28 @@ bool ShotStopperMicraService::queueConnect(uint32_t requestId,
 }
 
 bool ShotStopperMicraService::queue(const LineaMicraRequest &request) {
+  // Edge-triggered mutations stay blocking, but the anomaly report must not
+  // nest logging inside mux_: gate and gather under the lock, emit after it.
+  const uint32_t muxLockStartedUs = micros();
   TaskLockGuard lock(mux_);
+  const uint32_t waitedUs = micros() - muxLockStartedUs;
+  static uint32_t lastMuxWaitReportAtMs = 0;
+  const bool reportMuxWait =
+      muxWaitAnomalyDue(waitedUs, lastMuxWaitReportAtMs, millis());
+  char muxWaitHolder[16] = {};
+  uint32_t muxWaitHoldUs = 0;
+  if (reportMuxWait) {
+    snprintf(muxWaitHolder, sizeof(muxWaitHolder), "%s", mux_.lastOwnerName());
+    muxWaitHoldUs = mux_.lastHoldUs();
+  }
+  const bool accepted = queueLocked(request);
+  lock.unlock();
+  if (reportMuxWait)
+    reportMuxWaitAnomaly(waitedUs, muxWaitHolder, muxWaitHoldUs);
+  return accepted;
+}
+
+bool ShotStopperMicraService::queueLocked(const LineaMicraRequest &request) {
   if (request.type == LineaMicraRequestType::APPLY_TEMPERATURE) {
     if (task_ == nullptr || !config_.accountConfigured ||
         (config_.options & LINEA_MICRA_APPLY_TEMPERATURE) == 0 ||
@@ -823,17 +844,25 @@ MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
     noteMutexWaitUs(micraBackflushHoldLastUsStat(), micraBackflushHoldMaxUsStat(), 0);
     return idleBackflush_;
   }
-  // The control loop polls this every iteration; record how long the
-  // blocking acquisition waited, and then how long this task owned the
-  // mutex, so a backflush phase maximum can blame either window.
+  // The control loop polls this every iteration and must not wait behind a
+  // core-0 holder: the wait stat keeps recording the acquisition attempt
+  // (microseconds uncontended), the hold stat the locked section.
   const uint32_t muxLockStartedUs = micros();
-  TaskLockGuard lock(mux_);
+  if (!mux_.tryLock()) {
+    noteMutexWaitUs(micraBackflushWaitLastUsStat(), micraBackflushWaitMaxUsStat(),
+                    micros() - muxLockStartedUs);
+    noteMutexWaitUs(micraBackflushHoldLastUsStat(), micraBackflushHoldMaxUsStat(), 0);
+    // Busy, no new edges: transitions keep accumulating in the bounded ring
+    // while validity and permits stay the last locked resolution's. The
+    // idle handoff is never served here; mid-episode it is stale and would
+    // trip spurious supervision aborts.
+    MachineBackflushSnapshot missed = lastPollSnapshot_;
+    missed.count = 0;
+    return missed;
+  }
   const uint32_t lockedAtUs = micros();
-  const uint32_t waitedUs = lockedAtUs - muxLockStartedUs;
   noteMutexWaitUs(micraBackflushWaitLastUsStat(), micraBackflushWaitMaxUsStat(),
-                  waitedUs);
-  static uint32_t lastMuxWaitReportAtMs = 0;
-  reportMuxWaitAnomaly(waitedUs, mux_, lastMuxWaitReportAtMs, millis());
+                  lockedAtUs - muxLockStartedUs);
   qualifyBackflushLocked();
   auto result = consume ? backflush_.take() : backflush_.status();
   result.ready = backflushReadyLocked();
@@ -844,12 +873,13 @@ MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
   }
   noteMutexWaitUs(micraBackflushHoldLastUsStat(), micraBackflushHoldMaxUsStat(),
                   micros() - lockedAtUs);
+  lastPollSnapshot_ = result;
+  mux_.unlock();
   return result;
 }
 
-void ShotStopperMicraService::reportMuxWaitAnomaly(
-    uint32_t waitedUs, const TaskMutex &mutex, uint32_t &lastReportAtMs,
-    uint32_t nowMs) {
+bool ShotStopperMicraService::muxWaitAnomalyDue(
+    uint32_t waitedUs, uint32_t &lastReportAtMs, uint32_t nowMs) {
   // Normal waits are microseconds; 2 ms is the abnormality bar for any
   // control-loop phase, so a wait at or past it names the holder and the
   // phase maximum can be attributed after the fact. Rate-limited to keep a
@@ -859,21 +889,28 @@ void ShotStopperMicraService::reportMuxWaitAnomaly(
   constexpr uint32_t kMuxWaitReportPeriodMs = 10000;
   if (waitedUs < kMuxWaitReportUs ||
       nowMs - lastReportAtMs < kMuxWaitReportPeriodMs) {
-    return;
+    return false;
   }
   lastReportAtMs = nowMs;
+  return true;
+}
+
+void ShotStopperMicraService::reportMuxWaitAnomaly(
+    uint32_t waitedUs, const char *holder, uint32_t holdUs) {
+  // Must run after unlock(): the logging path takes locks of its own, and
+  // the holder attribution was copied while mux_ was held (unlock overwrites
+  // it with the releasing task's own telemetry).
   serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
-                       "Micra backflush mux wait=%lu us holder=%s hold=%lu us",
-                       static_cast<unsigned long>(waitedUs),
-                       mutex.lastOwnerName(),
-                       static_cast<unsigned long>(mutex.lastHoldUs()));
+                       "Micra mux wait=%lu us holder=%s hold=%lu us",
+                       static_cast<unsigned long>(waitedUs), holder,
+                       static_cast<unsigned long>(holdUs));
   // The audit excerpt keeps only what the packed args cannot carry: who held
   // the lock. Magnitudes rebuild from the arguments at the JSON surface.
-  char holder[AUDIT_EXCERPT_BYTES] = {};
-  snprintf(holder, sizeof(holder), "holder=%s", mutex.lastOwnerName());
+  char excerpt[AUDIT_EXCERPT_BYTES] = {};
+  snprintf(excerpt, sizeof(excerpt), "holder=%s", holder);
   addDebugEventDetail(DebugCategory::NETWORK, DebugCode::MACHINE_MUX_WAIT,
                       static_cast<int32_t>(waitedUs),
-                      static_cast<int32_t>(mutex.lastHoldUs()), holder);
+                      static_cast<int32_t>(holdUs), excerpt);
 }
 
 void ShotStopperMicraService::finishBackflush(uint32_t attempt) {
@@ -882,7 +919,29 @@ void ShotStopperMicraService::finishBackflush(uint32_t attempt) {
 }
 
 MachinePhysicalStartDisposition ShotStopperMicraService::physicalStart(MachineBackflushPermit *permit) {
+  // Edge-triggered mutations stay blocking, but the anomaly report must not
+  // nest logging inside mux_: gate and gather under the lock, emit after it.
+  const uint32_t muxLockStartedUs = micros();
   TaskLockGuard lock(mux_);
+  const uint32_t waitedUs = micros() - muxLockStartedUs;
+  static uint32_t lastMuxWaitReportAtMs = 0;
+  const bool reportMuxWait =
+      muxWaitAnomalyDue(waitedUs, lastMuxWaitReportAtMs, millis());
+  char muxWaitHolder[16] = {};
+  uint32_t muxWaitHoldUs = 0;
+  if (reportMuxWait) {
+    snprintf(muxWaitHolder, sizeof(muxWaitHolder), "%s", mux_.lastOwnerName());
+    muxWaitHoldUs = mux_.lastHoldUs();
+  }
+  const auto disposition = physicalStartLocked(permit);
+  lock.unlock();
+  if (reportMuxWait)
+    reportMuxWaitAnomaly(waitedUs, muxWaitHolder, muxWaitHoldUs);
+  return disposition;
+}
+
+MachinePhysicalStartDisposition ShotStopperMicraService::physicalStartLocked(
+    MachineBackflushPermit *permit) {
   const uint32_t now = millis();
   qualifyBackflushLocked();
   const bool ready = backflushReadyLocked();
@@ -894,8 +953,11 @@ MachinePhysicalStartDisposition ShotStopperMicraService::physicalStart(MachineBa
     desiredPower_ = {};
     if (powerActive_.load() || temperatureActive_.load())
       abortRequested_.store(true, std::memory_order_release);
-    if (admitted.attempt && ready)
+    if (admitted.attempt && ready) {
+      // Admission-time poll misses must serve the post-admission resolution.
+      lastPollSnapshot_ = backflush_.status();
       return MachinePhysicalStartDisposition::BACKFLUSH_CANDIDATE;
+    }
     backflush_.finish(admitted.attempt);
     if (permit) *permit = {};
     return MachinePhysicalStartDisposition::BLOCKED_CLEANING;

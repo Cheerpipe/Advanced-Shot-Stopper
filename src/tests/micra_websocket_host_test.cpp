@@ -37,6 +37,11 @@ void serialTraceCategoryf(shotstopper::LogLevel level, shotstopper::DebugCategor
 static int muxWaitEvents = 0;
 static int32_t lastMuxWaitArgs[2] = {0, 0};
 static std::string lastMuxWaitDetail;
+// Lock depth across every TaskMutex, kept by the observer tests install, and
+// the burn countdown that forces a deterministic >=2 ms acquisition wait.
+static int muxObserverDepth = 0;
+static int muxBurnMicrosCalls = 0;
+static int muxWaitDepthAtEvent = -1;
 void addDebugEvent(shotstopper::DebugCategory category,
                    shotstopper::DebugCode code, int32_t argument1,
                    int32_t argument2) {
@@ -56,6 +61,7 @@ void addDebugEventDetail(shotstopper::DebugCategory category,
     lastMuxWaitArgs[0] = argument1;
     lastMuxWaitArgs[1] = argument2;
     lastMuxWaitDetail = detail != nullptr ? detail : "";
+    muxWaitDepthAtEvent = muxObserverDepth;
   }
 }
 static int sendLimit = -1;
@@ -833,40 +839,34 @@ struct MicraWebSocketTest {
     disconnectLog.clear();
     lastMuxWaitDetail.clear();
     ShotStopperMicraService service;
-    // The uncontended poll wires the detector into backflush(); with the
-    // stub clock each micros() call is 1 ms, so the wait stays ~1 ms and
-    // reports nothing.
+    // With the stub clock each micros() call is 1 ms, so an uncontended
+    // acquisition waits ~1 ms and stays below the 2 ms report bar.
     service.backflush(false);
     assert(muxWaitEvents == 0);
     assert(disconnectLog.empty());
     uint32_t latch = 0;
-    // Just below the 2 ms threshold: still silent.
-    ShotStopperMicraService::reportMuxWaitAnomaly(1999, service.mux_, latch,
-                                                  now);
+    // Just below the 2 ms threshold: not due.
+    assert(!ShotStopperMicraService::muxWaitAnomalyDue(1999, latch, now));
     assert(muxWaitEvents == 0);
-    // At and past the threshold the report names the previous holder and
+    // At and past the threshold the report names the gathered holder and
     // carries the wait as the ring event's first argument; the audit excerpt
     // keeps the holder for the detail view.
-    ShotStopperMicraService::reportMuxWaitAnomaly(31000, service.mux_, latch,
-                                                  now);
+    assert(ShotStopperMicraService::muxWaitAnomalyDue(31000, latch, now));
+    ShotStopperMicraService::reportMuxWaitAnomaly(31000, "host", 0);
     assert(muxWaitEvents == 1);
-    assert(lastMuxWaitArgs[0] == 31000);
+    assert(lastMuxWaitArgs[0] == 31000 && lastMuxWaitArgs[1] == 0);
     assert(lastMuxWaitDetail == "holder=host");
-    assert(disconnectLog.find("Micra backflush mux wait=") != std::string::npos);
+    assert(disconnectLog.find("Micra mux wait=31000 us") != std::string::npos);
     assert(disconnectLog.find("holder=host") != std::string::npos);
-    // Rate limit: a second anomaly inside the 10 s window stays silent...
+    // Rate limit: a second anomaly inside the 10 s window stays due-false...
     now += 100;
-    disconnectLog.clear();
-    ShotStopperMicraService::reportMuxWaitAnomaly(31000, service.mux_, latch,
-                                                  now);
+    assert(!ShotStopperMicraService::muxWaitAnomalyDue(31000, latch, now));
     assert(muxWaitEvents == 1);
-    assert(disconnectLog.empty());
-    // ...and fires again once the window has passed. The re-fire waits
-    // exactly at the threshold, probing the boundary after the 1999 probe
-    // below it.
+    // ...and clears once the window has passed. The re-fire waits exactly at
+    // the threshold, probing the boundary after the 1999 probe below it.
     now += 10000;
-    ShotStopperMicraService::reportMuxWaitAnomaly(2000, service.mux_, latch,
-                                                  now);
+    assert(ShotStopperMicraService::muxWaitAnomalyDue(2000, latch, now));
+    ShotStopperMicraService::reportMuxWaitAnomaly(2000, "host", 0);
     assert(muxWaitEvents == 2);
     assert(lastMuxWaitArgs[0] == 2000);
   }
@@ -932,6 +932,405 @@ struct MicraWebSocketTest {
     ++now;
     assert(service.statusPollStale());
   }
+  // Forces a deterministic >=2 ms acquisition wait (each micros() call is
+  // 1 ms on the stub clock) on the next armed acquire, while keeping the
+  // lock depth the mux-wait assertions read at event time.
+  static void armMuxWaitBurn(int calls) {
+    muxBurnMicrosCalls = calls;
+    TaskMutex::hostObserver = [](const TaskMutex *, bool acquired) {
+      muxObserverDepth += acquired ? 1 : -1;
+      if (acquired && muxBurnMicrosCalls > 0) {
+        while (muxBurnMicrosCalls-- > 0) (void)micros();
+      }
+    };
+  }
+  static void backflushForcedMissDuringEpisode() {
+    const char *inactive = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Off"}}]})";
+    const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
+    const char *active = R"({"widgets":[{"code":"CMBackFlush","output":{"status":"Cleaning"}}]})";
+    muxWaitEvents = 0;
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.tokenAvailable_.store(true);
+    service.tokenIssuedAtMs_.store(millis());
+    service.serviceWebSocket();
+    subscribe(service);
+    deliver(service, observation(service, inactive));
+    deliver(service, observation(service, awaiting));
+    (void)service.backflush(true);  // Consume the AWAITING edge under the lock.
+    MachineBackflushPermit permit;
+    service.active_ = true;
+    assert(service.physicalStart(&permit) == MachinePhysicalStartDisposition::BACKFLUSH_CANDIDATE);
+    service.active_ = false;
+    deliver(service, observation(service, active));
+    const auto batch = service.backflush(true);
+    assert(batch.valid && batch.count == 1 && batch.busy());
+    // A mutex held by another task serves the last locked snapshot with no
+    // new edges; repeated misses are stable and never re-serve drained ones.
+    std::atomic<bool> held{false}, release{false};
+    std::thread holder([&] {
+      TaskLockGuard lock(service.mux_);
+      held.store(true);
+      while (!release.load()) std::this_thread::yield();
+    });
+    while (!held.load()) std::this_thread::yield();
+    const auto first = service.backflush(true);
+    const auto second = service.backflush(true);
+    release.store(true);
+    holder.join();
+    assert(first.valid && first.count == 0 && first.busy() == batch.busy());
+    assert(first.busy() && first.phase == batch.phase &&
+           first.permit.continuity == batch.permit.continuity &&
+           first.permit.episode == batch.permit.episode &&
+           first.permit.attempt == batch.permit.attempt &&
+           first.permit.sequence == batch.permit.sequence);
+    assert(second.valid && second.count == 0 && second.busy() == first.busy());
+    assert(second.permit.continuity == first.permit.continuity &&
+           second.permit.episode == first.permit.episode &&
+           second.permit.attempt == first.permit.attempt &&
+           second.permit.sequence == first.permit.sequence &&
+           second.phase == first.phase);
+    assert(muxWaitEvents == 0);  // The detector no longer lives in backflush().
+    service.stopWebSocket(true);
+    delete service.work_;
+  }
+  static void backflushForcedMissAfterConsume() {
+    const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.tokenAvailable_.store(true);
+    service.tokenIssuedAtMs_.store(millis());
+    service.serviceWebSocket();
+    subscribe(service);
+    deliver(service, observation(service, awaiting));
+    const auto batch = service.backflush(true);  // Drains the AWAITING edge.
+    assert(batch.valid && batch.count == 1);
+    // The holder publishes the next edge under the lock, as the cloud
+    // callback would; the miss must not observe or re-serve it.
+    std::atomic<bool> held{false}, release{false};
+    std::thread holder([&] {
+      TaskLockGuard lock(service.mux_);
+      service.backflush_.observe(MachineBackflushPhase::ACTIVE, 0);
+      held.store(true);
+      while (!release.load()) std::this_thread::yield();
+    });
+    while (!held.load()) std::this_thread::yield();
+    const auto missed = service.backflush(true);
+    assert(missed.count == 0 && missed.sequence == batch.sequence);
+    release.store(true);
+    holder.join();
+    // After release the accumulated edge arrives exactly once, sequenced.
+    const auto next = service.backflush(true);
+    assert(next.valid && next.count == 1);
+    assert(next.changes[0].sequence == batch.sequence + 1);
+    assert(service.backflush(true).count == 0);
+    service.stopWebSocket(true);
+    delete service.work_;
+  }
+  static void backflushMissNeverServesIdleSnapshot() {
+    const char *standbyOff = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"StandBy"}},{"code":"CMBackFlush","output":{"status":"Off"}}]})";
+    const char *brewing = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}}]})";
+    const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
+    const char *active = R"({"widgets":[{"code":"CMBackFlush","output":{"status":"Cleaning"}}]})";
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.tokenAvailable_.store(true);
+    service.tokenIssuedAtMs_.store(millis());
+    service.serviceWebSocket();
+    subscribe(service);
+    deliver(service, observation(service, standbyOff));
+    const auto drained = service.backflush(true);  // Drains the INACTIVE edge.
+    assert(drained.valid && drained.phase == MachineBackflushPhase::INACTIVE &&
+           drained.count == 1);
+    const auto idle = service.backflush(true);  // Settles the idle handoff.
+    assert(idle.valid && idle.phase == MachineBackflushPhase::INACTIVE);
+    deliver(service, observation(service, brewing));
+    deliver(service, observation(service, awaiting));
+    (void)service.backflush(true);
+    MachineBackflushPermit permit;
+    service.active_ = true;
+    assert(service.physicalStart(&permit) == MachinePhysicalStartDisposition::BACKFLUSH_CANDIDATE);
+    service.active_ = false;
+    deliver(service, observation(service, active));
+    const auto batch = service.backflush(true);
+    assert(batch.valid && batch.busy());
+    std::atomic<bool> held{false}, release{false};
+    std::thread holder([&] {
+      TaskLockGuard lock(service.mux_);
+      held.store(true);
+      while (!release.load()) std::this_thread::yield();
+    });
+    while (!held.load()) std::this_thread::yield();
+    const auto missed = service.backflush(true);
+    release.store(true);
+    holder.join();
+    // Mid-episode the miss is the live snapshot, never the stale idle one.
+    assert(service.idleBackflush_.phase == MachineBackflushPhase::INACTIVE);
+    assert(missed.valid && missed.phase != MachineBackflushPhase::INACTIVE);
+    assert(missed.phase == batch.phase && missed.count == 0);
+    service.stopWebSocket(true);
+    delete service.work_;
+  }
+  static void backflushMissSurvivesLongHold() {
+    const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
+    const char *active = R"({"widgets":[{"code":"CMBackFlush","output":{"status":"Cleaning"}}]})";
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.tokenAvailable_.store(true);
+    service.tokenIssuedAtMs_.store(millis());
+    service.serviceWebSocket();
+    subscribe(service);
+    deliver(service, observation(service, awaiting));
+    (void)service.backflush(true);
+    MachineBackflushPermit permit;
+    service.active_ = true;
+    assert(service.physicalStart(&permit) == MachinePhysicalStartDisposition::BACKFLUSH_CANDIDATE);
+    service.active_ = false;
+    deliver(service, observation(service, active));
+    const auto batch = service.backflush(true);
+    assert(batch.valid && batch.busy());
+    std::atomic<bool> held{false}, release{false};
+    std::thread holder([&] {
+      TaskLockGuard lock(service.mux_);
+      held.store(true);
+      while (!release.load()) std::this_thread::yield();
+    });
+    while (!held.load()) std::this_thread::yield();
+    const auto beforeAging = service.backflush(true);
+    now += 60000;  // Far past every freshness window a locked poll would
+                   // qualify against; the miss path never qualifies.
+    const auto afterAging = service.backflush(true);
+    release.store(true);
+    holder.join();
+    assert(afterAging.valid && afterAging.count == 0);
+    assert(std::memcmp(&beforeAging, &afterAging, sizeof(afterAging)) == 0);
+    // The first uncontended poll after release does qualify and invalidates.
+    assert(!service.backflush(true).valid);
+    service.stopWebSocket(true);
+    delete service.work_;
+  }
+  static void backflushDetectorSilentAfterConversion() {
+    muxWaitEvents = 0;
+    disconnectLog.clear();
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.tokenAvailable_.store(true);
+    service.tokenIssuedAtMs_.store(millis());
+    service.serviceWebSocket();
+    subscribe(service);
+    (void)service.backflush();
+    (void)service.backflush(true);
+    std::atomic<bool> held{false}, release{false};
+    std::thread holder([&] {
+      TaskLockGuard lock(service.mux_);
+      held.store(true);
+      while (!release.load()) std::this_thread::yield();
+    });
+    while (!held.load()) std::this_thread::yield();
+    (void)service.backflush();
+    (void)service.backflush(true);
+    release.store(true);
+    holder.join();
+    assert(muxWaitEvents == 0);
+    assert(disconnectLog.empty());
+    service.stopWebSocket(true);
+    delete service.work_;
+  }
+  static void queueMuxWaitDetectorFires() {
+    now = 20000;  // Past the zero-initialized latch's rate-limit window.
+    muxWaitEvents = 0;
+    disconnectLog.clear();
+    lastMuxWaitDetail.clear();
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.config_.options |= LINEA_MICRA_SHUTDOWN_WITH_SCALE;
+    service.task_ = reinterpret_cast<TaskHandle_t>(1);
+    LineaMicraRequest request;
+    request.type = LineaMicraRequestType::SET_STANDBY;
+    // Uncontended (~1 ms on the stub clock): accepted, no report.
+    armMuxWaitBurn(0);
+    assert(service.queue(request));
+    assert(muxWaitEvents == 0 && disconnectLog.empty());
+    // One burned micros() call lands the wait exactly at the 2 ms bar.
+    armMuxWaitBurn(1);
+    assert(service.queue(request));
+    assert(muxWaitEvents == 1);
+    assert(lastMuxWaitArgs[0] == 2000 && lastMuxWaitArgs[1] == 0);
+    assert(lastMuxWaitDetail == "holder=host");
+    assert(disconnectLog.find("Micra mux wait=2000 us") != std::string::npos);
+    assert(disconnectLog.find("holder=host") != std::string::npos);
+    // Rate limit: a second forced wait inside the 10 s window stays silent.
+    armMuxWaitBurn(1);
+    assert(service.queue(request));
+    assert(muxWaitEvents == 1);
+    // ...and fires again once the window has passed.
+    now += 10000;
+    armMuxWaitBurn(1);
+    assert(service.queue(request));
+    assert(muxWaitEvents == 2 && lastMuxWaitArgs[0] == 2000);
+    TaskMutex::hostObserver = nullptr;
+  }
+  static void physicalStartMuxWaitDetectorFires() {
+    now = 30000;  // Fresh per-site latch; past its rate-limit window.
+    muxWaitEvents = 0;
+    disconnectLog.clear();
+    lastMuxWaitDetail.clear();
+    // Reference outcome on an identically prepared, unforced service.
+    ShotStopperMicraService reference;
+    reference.config_.accountConfigured = true;
+    MachineBackflushPermit referencePermit{};
+    const auto referenceDisposition = reference.physicalStart(&referencePermit);
+    assert(muxWaitEvents == 0);
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    MachineBackflushPermit permit{};
+    armMuxWaitBurn(2);  // Two burned calls: 3 ms, past the bar.
+    const auto disposition = service.physicalStart(&permit);
+    assert(muxWaitEvents == 1);
+    assert(lastMuxWaitArgs[0] == 3000);
+    assert(lastMuxWaitDetail == "holder=host");
+    assert(disconnectLog.find("Micra mux wait=3000 us") != std::string::npos);
+    // Instrumentation does not bend the disposition or the permit.
+    assert(disposition == referenceDisposition);
+    assert(permit.continuity == referencePermit.continuity &&
+           permit.episode == referencePermit.episode &&
+           permit.attempt == referencePermit.attempt &&
+           permit.sequence == referencePermit.sequence &&
+           permit.extendable == referencePermit.extendable);
+    TaskMutex::hostObserver = nullptr;
+  }
+  static void muxWaitReportEmittedAfterUnlock() {
+    now = 50000;  // Clears both per-site latches' rate-limit windows.
+    muxWaitEvents = 0;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    service.config_.options |= LINEA_MICRA_SHUTDOWN_WITH_SCALE;
+    service.task_ = reinterpret_cast<TaskHandle_t>(1);
+    LineaMicraRequest request;
+    request.type = LineaMicraRequestType::SET_STANDBY;
+    armMuxWaitBurn(1);
+    assert(service.queue(request));
+    assert(muxWaitEvents == 1 && muxWaitDepthAtEvent == 0);
+    now += 10000;
+    armMuxWaitBurn(2);
+    (void)service.physicalStart(nullptr);
+    assert(muxWaitEvents == 2 && muxWaitDepthAtEvent == 0);
+    TaskMutex::hostObserver = nullptr;
+  }
+  static void backflushConsumeFastPathUnchanged() {
+    const char *standbyOff = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"StandBy"}},{"code":"CMBackFlush","output":{"status":"Off"}}]})";
+    static unsigned locks;
+    TaskMutex::hostObserver = [](const TaskMutex *, bool acquired) { locks += acquired; };
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.tokenAvailable_.store(true);
+    service.tokenIssuedAtMs_.store(millis());
+    service.serviceWebSocket();
+    subscribe(service);
+    deliver(service, observation(service, standbyOff));
+    assert(service.backflush(true).count == 1);  // Drain the INACTIVE edge.
+    const auto settled = service.backflush(true);  // Latches the idle handoff.
+    assert(settled.valid && settled.phase == MachineBackflushPhase::INACTIVE &&
+           settled.count == 0);
+    {
+      // Even with mux_ held the shortcut neither locks nor waits.
+      TaskLockGuard lock(service.mux_);
+      const unsigned before = locks;
+      const auto served = service.backflush(true);
+      assert(locks == before);
+      assert(std::memcmp(&served, &service.idleBackflush_, sizeof(served)) == 0);
+      assert(served.valid && served.phase == MachineBackflushPhase::INACTIVE);
+    }
+    TaskMutex::hostObserver = nullptr;
+    service.stopWebSocket(true);
+    delete service.work_;
+  }
+  static void backflushMissAfterAdmission() {
+    const char *inactive = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Off"}}]})";
+    const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.tokenAvailable_.store(true);
+    service.tokenIssuedAtMs_.store(millis());
+    service.serviceWebSocket();
+    subscribe(service);
+    deliver(service, observation(service, inactive));
+    deliver(service, observation(service, awaiting));
+    (void)service.backflush(true);  // The cached poll still shows attempt 0.
+    assert(service.lastPollSnapshot_.valid &&
+           service.lastPollSnapshot_.permit.attempt == 0);
+    MachineBackflushPermit permit;
+    service.active_ = true;
+    assert(service.physicalStart(&permit) == MachinePhysicalStartDisposition::BACKFLUSH_CANDIDATE);
+    service.active_ = false;
+    assert(permit.attempt != 0);
+    // The admission-following poll (WakeGesture calls it consume=false) may
+    // miss; without the admission-time cache write that miss would fail
+    // backflushProvenanceCurrent and the next supervision tick would abort
+    // with supervision_lost.
+    std::atomic<bool> held{false}, release{false};
+    std::thread holder([&] {
+      TaskLockGuard lock(service.mux_);
+      held.store(true);
+      while (!release.load()) std::this_thread::yield();
+    });
+    while (!held.load()) std::this_thread::yield();
+    const auto missed = service.backflush();
+    release.store(true);
+    holder.join();
+    assert(missed.valid && missed.count == 0);
+    assert(missed.phase == MachineBackflushPhase::AWAITING);
+    assert(missed.permit.continuity == permit.continuity &&
+           missed.permit.episode == permit.episode &&
+           missed.permit.attempt == permit.attempt &&
+           missed.permit.sequence == permit.sequence);
+    service.stopWebSocket(true);
+    delete service.work_;
+  }
+  static void backflushMissBeforeFirstPoll() {
+    // A miss before any successful poll serves the untouched cache: invalid,
+    // not busy, in both consume modes — the same fail-closed snapshot an
+    // uncontended poll of an empty ring produces. The miss never stamps it.
+    now = 1000;
+    ShotStopperMicraService service;
+    std::atomic<bool> held{false}, release{false};
+    std::thread holder([&] {
+      TaskLockGuard lock(service.mux_);
+      held.store(true);
+      while (!release.load()) std::this_thread::yield();
+    });
+    while (!held.load()) std::this_thread::yield();
+    const auto missed = service.backflush(true);
+    const auto missedIdle = service.backflush();
+    release.store(true);
+    holder.join();
+    assert(!missed.valid && !missed.busy() && missed.count == 0);
+    assert(missed.phase == MachineBackflushPhase::UNSUPPORTED);
+    assert(std::memcmp(&missed, &missedIdle, sizeof(missed)) == 0);
+    assert(!service.lastPollSnapshot_.valid);
+  }
 };
 }
 int main() {
@@ -948,4 +1347,15 @@ int main() {
   shotstopper::MicraWebSocketTest::setupAdmissionAndBackoff();
   shotstopper::MicraWebSocketTest::backflushWaitAttribution();
   shotstopper::MicraWebSocketTest::statusPollCache();
+  shotstopper::MicraWebSocketTest::backflushForcedMissDuringEpisode();
+  shotstopper::MicraWebSocketTest::backflushForcedMissAfterConsume();
+  shotstopper::MicraWebSocketTest::backflushMissNeverServesIdleSnapshot();
+  shotstopper::MicraWebSocketTest::backflushMissSurvivesLongHold();
+  shotstopper::MicraWebSocketTest::backflushDetectorSilentAfterConversion();
+  shotstopper::MicraWebSocketTest::queueMuxWaitDetectorFires();
+  shotstopper::MicraWebSocketTest::physicalStartMuxWaitDetectorFires();
+  shotstopper::MicraWebSocketTest::muxWaitReportEmittedAfterUnlock();
+  shotstopper::MicraWebSocketTest::backflushConsumeFastPathUnchanged();
+  shotstopper::MicraWebSocketTest::backflushMissAfterAdmission();
+  shotstopper::MicraWebSocketTest::backflushMissBeforeFirstPoll();
 }

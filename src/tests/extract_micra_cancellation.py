@@ -23,18 +23,24 @@ def definition(name, text=text, source=source):
 names = ["secureWipe", "powerOptionBit", "sameSessionIdentity", "sameCommandRequest",
          "micraCloudCallResult"]
 names += ["ShotStopperMicraService::" + name for name in
-          ["WorkBuffer", "publishConfig", "publishNetworkState", "queue", "networkEligible",
+          ["WorkBuffer", "publishConfig", "publishNetworkState", "queue",
+           "queueLocked", "muxWaitAnomalyDue", "reportMuxWaitAnomaly",
+           "networkEligible",
            "taskLoop", "clearSession", "deferObservation", "executeObservation",
-           "observationCurrent", "powerRequestCurrent", "publish", "scheduleAutomatic"]]
+           "observationCurrent", "powerRequestCurrent", "publish",
+           "scheduleAutomatic"]]
 output.mkdir(parents=True, exist_ok=True)
 (output / "micra_websocket_work.inc").write_text(
     "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
     + definition("ShotStopperMicraService::WorkBuffer") + "\n}\n")
 (output / "micra_websocket_status.inc").write_text(
+    definition("powerOptionBit") + "\n" +
     "\n".join(definition("ShotStopperMicraService::" + name) for name in
               ("status", "statusLocked", "statusPoll", "statusPollStale",
+               "queue", "queueLocked", "muxWaitAnomalyDue",
                "qualifyBackflushLocked", "backflushReadyLocked", "backflush",
-               "reportMuxWaitAnomaly", "finishBackflush", "physicalStart")) + "\n")
+               "reportMuxWaitAnomaly", "finishBackflush", "physicalStart",
+               "physicalStartLocked")) + "\n")
 (output / "micra_cancellation_methods.inc").write_text(
     "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
     + "\n".join(map(definition, names)) + "\n"

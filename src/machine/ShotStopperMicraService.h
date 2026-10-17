@@ -140,12 +140,18 @@ class ShotStopperMicraService {
   void clearRequestState();
   bool networkEligible(LineaMicraError &error, bool observation = false) const;
   LineaMicraStatus statusLocked() const;
+  bool queueLocked(const LineaMicraRequest &request);
   void qualifyBackflushLocked();
   bool backflushReadyLocked() const;
-  // Anomaly report for the poll's mutex acquisition wait; the caller holds
-  // the mutex, whose telemetry attributes the previous holder.
-  static void reportMuxWaitAnomaly(uint32_t waitedUs, const TaskMutex &mutex,
-                                   uint32_t &lastReportAtMs, uint32_t nowMs);
+  MachinePhysicalStartDisposition physicalStartLocked(
+      MachineBackflushPermit *permit);
+  // Anomaly gating runs while the caller holds mux_ (which serializes the
+  // latch); reportMuxWaitAnomaly must run after unlock so logging never
+  // nests inside mux_, with the holder attribution gathered under the lock.
+  static bool muxWaitAnomalyDue(uint32_t waitedUs, uint32_t &lastReportAtMs,
+                                uint32_t nowMs);
+  static void reportMuxWaitAnomaly(uint32_t waitedUs, const char *holder,
+                                   uint32_t holdUs);
   bool ensureIoBuffer();
   bool ensureWorkBuffer();
   void clearSession();
@@ -189,6 +195,10 @@ class ShotStopperMicraService {
   MicraObservationFence observationFence_;
   MachineBackflushObservations backflush_;
   MachineBackflushSnapshot idleBackflush_;  // Control task only; see backflush().
+  // Control task only, like idleBackflush_: backflush()'s slow path stores
+  // its last locked snapshot here and the same task reads it on tryLock
+  // misses, with count zeroed so no stale edges are re-served.
+  MachineBackflushSnapshot lastPollSnapshot_;
   // Control task only, like idleBackflush_: statusPoll() writes both under
   // mux_ and the same task reads them, so nothing else guards them.
   mutable LineaMicraStatus statusCache_ = {};

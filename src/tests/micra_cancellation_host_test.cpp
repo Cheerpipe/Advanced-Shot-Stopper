@@ -9,12 +9,18 @@
 #include <sys/time.h>
 #include "machine/ShotStopperMicraPublicIdentityCache.h"
 #include "machine/ShotStopperMicraService.h"
+#include "ShotStopperAuditLog.h"
 #include "ShotStopperOutboundAdmission.h"
 
 // Only scheduling and transport are simulated; extracted service code is unchanged.
 static uint32_t testNowMs = 1000, performAdvanceMs = 0, lastWaitTicks = 0;
 uint32_t millis() { return testNowMs; }
 void xTaskNotifyGive(TaskHandle_t) {}
+// The queue() mux-wait detector's emit path; uncontended waits never reach it.
+void serialTraceCategoryf(shotstopper::LogLevel, shotstopper::DebugCategory,
+                          const char *, ...) {}
+void addDebugEventDetail(shotstopper::DebugCategory, shotstopper::DebugCode,
+                         int32_t, int32_t, const char *) {}
 constexpr int ESP_OK = 0, ESP_FAIL = -1, ESP_ERR_HTTP_EAGAIN = 1;
 constexpr int ESP_ERR_HTTP_READ_TIMEOUT = 2, pdTRUE = 1;
 uint32_t pdMS_TO_TICKS(uint32_t ms) { return ms; }
