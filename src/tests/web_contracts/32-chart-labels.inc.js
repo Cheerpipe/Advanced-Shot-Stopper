@@ -1,5 +1,5 @@
 {
-  const start = runtimeJs.search(/let\s+chartFrame\s*=/), end = runtimeJs.indexOf('function fixedChartTicks(', start);
+  const start = viewJs.stats.search(/let\s+chartFrame\s*=/), end = viewJs.stats.indexOf('function fixedChartTicks(', start);
   if (start < 0 || end < 0) throw new Error('Chart label layout helpers are missing');
   const roots = [], frames = [];
   const fakeDocument = {
@@ -24,7 +24,7 @@
   };
   const {fillChartTicks, layoutChartLabels} = new Function(
       'document', 'ResizeObserver', 'requestAnimationFrame', '$',
-      runtimeJs.slice(start, end) + ';return {fillChartTicks,layoutChartLabels}')(
+      viewJs.stats.slice(start, end) + ';return {fillChartTicks,layoutChartLabels}')(
       fakeDocument, class { observe() {} }, cb => frames.push(cb), () => ({}));
   const root = width => {
     const e = {

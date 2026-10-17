@@ -143,7 +143,7 @@
     const qwPaint = new Function('$', 'buildShotSparkModel', 'formatShotEnded', 'ms', 'localStorage',
       'document', 'liveRuleModel', 'uiState', 'shotRuleModel',
       blockAt(runtimeJs, 'function verdictLabel(') + runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),
-          runtimeJs.indexOf('function shotPresetName(')) + ';return renderShotHero;')(
+          runtimeJs.indexOf('function checkFirmwareReload(')) + ';return renderShotHero;')(
         qwLookup, () => null, () => '', (v, n) => (v / 1000).toFixed(n), {getItem: () => null},
         {createElement: () => ({})}, null, {shotHistory: {shots: []}}, () => null);
     const qwCard = {live: false, weight: 36.2, goal: 36, elapsedMs: 36800,

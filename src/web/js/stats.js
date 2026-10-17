@@ -1,6 +1,209 @@
 "use strict";
 import * as R from "./runtime.js?v=__FW_ASSET_TAG__";
 const $ = R.$;
+function formatShotTime(r) {
+  if (r.hasWallTime && r.endedAtLocalSec) return R.formatHumanTime(r.endedAtLocalSec);
+  return "#" + r.bootId + __WEBUI_TEXT__("runtime.no_time");
+}
+function lastCurveWeightG(w) {
+  if (!Array.isArray(w)) return null;
+  for (let i = w.length - 1; i >= 0; i--) {
+    if (typeof w[i] === "number" && w[i] !== 0) return w[i] / 100;
+  }
+  return null;
+}
+let chartFrame = 0,
+  chartObserver;
+function layoutChartLabels() {
+  if (chartFrame) return;
+  chartFrame = requestAnimationFrame(() => {
+    chartFrame = 0;
+    for (const e of document.querySelectorAll("[data-chart-axis]")) {
+      const b = e.getBoundingClientRect();
+      if (!b.width || !b.height) continue;
+      const tk = [];
+      for (const o of e.querySelectorAll("[data-p]")) o.dataset.m ? o.remove() : tk.push(o);
+      const rect = (n) => {
+        if (!n.dataset.m) n.style.transform = "";
+        let r = n.getBoundingClientRect();
+        if (n.classList.contains("ruleTick") && (r.left < b.left - 1 || r.right > b.right + 1)) {
+          n.style.transform = r.left < b.left ? "translateX(0)" : "translateX(-100%)";
+          r = n.getBoundingClientRect();
+        }
+        return r;
+      };
+      if (e.dataset.chartMerge !== undefined && tk.length > 1) {
+        const R = tk.map(rect),
+          runs = [];
+        let s = 0;
+        for (let i = 1; i <= tk.length; i++)
+          if (i === tk.length || R[i].left >= R[i - 1].right + 4) {
+            if (i - s > 1) runs.push(tk.slice(s, i));
+            s = i;
+          }
+        for (const ru of runs) {
+          const f = ru[0],
+            l = ru.at(-1),
+            tx = ru.map((x) => x.textContent),
+            mm = tx.map((t) => t.split(/ (?=\S+$)/)),
+            u = mm[0][1],
+            n = document.createElement("span");
+          n.className = "ruleTick";
+          n.dataset.m = "1";
+          n.dataset.p = Math.max(...ru.map((x) => +x.dataset.p)) + 1;
+          n.dataset.k = "m" + f.dataset.k + "|" + l.dataset.k;
+          n.textContent =
+            u && mm.every((p) => p[1] === u)
+              ? mm.map((p) => p[0]).join("–") + " " + u
+              : tx.join(" – ");
+          n.style.left = (parseFloat(f.style.left) + parseFloat(l.style.left)) / 2 + "%";
+          n.style.transform = "translateX(-50%)";
+          e.appendChild(n);
+          tk.push(n);
+        }
+      }
+      const used = [],
+        next = new Set(),
+        old = e._shown;
+      for (const n of tk.sort((a, b) => b.dataset.p - a.dataset.p)) {
+        if (n.dataset.k === "tare") {
+          const t = n.parentElement;
+          t.style.bottom = "";
+          // The drop is rendered first; both markers share bottom:10%.
+          if (tk.length > 1) {
+            const d = e.firstElementChild.getBoundingClientRect(),
+              r = t.getBoundingClientRect();
+            if (r.left < d.right && d.left < r.right)
+              t.style.bottom = "calc(10% + " + (d.height + 8) + "px)";
+          }
+        }
+        const r = rect(n),
+          gap = old && !old.has(n.dataset.k) ? 8 : 4,
+          ok =
+            r.left >= b.left - 1 &&
+            r.right <= b.right + 1 &&
+            used.every(
+              (q) =>
+                r.right + gap <= q.left ||
+                q.right + gap <= r.left ||
+                r.bottom + gap <= q.top ||
+                q.bottom + gap <= r.top,
+            );
+        if (ok) {
+          used.push(r);
+          next.add(n.dataset.k);
+        }
+        n.style.visibility = ok ? "visible" : "hidden";
+      }
+      e._shown = next;
+    }
+  });
+}
+function watchChartLabels(e) {
+  e.dataset.chartAxis = "";
+  if (!chartObserver) {
+    chartObserver = new ResizeObserver(layoutChartLabels);
+    chartObserver.observe($("app"));
+    document.fonts?.ready.then(layoutChartLabels);
+  }
+  layoutChartLabels();
+}
+function fillChartTicks(e, l, m, avoidOverlap, mg) {
+  if (!e) return;
+  e.replaceChildren();
+  if (!(m > 0)) {
+    e.removeAttribute("role");
+    e.removeAttribute("aria-label");
+    delete e.dataset.chartAxis;
+    delete e.dataset.chartMerge;
+    delete e._shown;
+    return;
+  }
+  const s = {},
+    raw = [];
+  for (const t of l || []) {
+    const a = +t[0];
+    if (!isFinite(a)) continue;
+    const k = avoidOverlap ? a + "|" + t[1] : ~~(a * 10);
+    if (s[k]) continue;
+    s[k] = 1;
+    raw.push([Math.max(0, Math.min(1, a / m)), "" + t[1], t[2] || 0, t[3] || "" + t[1]]);
+  }
+  raw.sort((a, b) => a[0] - b[0]);
+  if (avoidOverlap) {
+    e.setAttribute("role", "img");
+    e.setAttribute("aria-label", raw.map((t) => t[1]).join(", "));
+  }
+  for (const t of raw) {
+    const n = document.createElement("span");
+    n.className = "ruleTick";
+    n.textContent = t[1];
+    n.style.left = t[0] * 100 + "%";
+    if (avoidOverlap) {
+      n.dataset.p = t[2];
+      n.dataset.k = t[3];
+      n.style.visibility = "hidden";
+    }
+    e.appendChild(n);
+  }
+  if (mg) e.dataset.chartMerge = "";
+  if (avoidOverlap) watchChartLabels(e);
+}
+function fixedChartTicks(max, step, unit) {
+  const ticks = [];
+  for (let v = 0; v <= max + 1e-6; v += step) ticks.push([v, R.axisLabel(v, unit)]);
+  return ticks;
+}
+function shotDisplayActualG(actual, wCg) {
+  if (typeof actual === "number" && actual !== 0) return actual;
+  const fromCurve = lastCurveWeightG(wCg);
+  return fromCurve !== null ? fromCurve : typeof actual === "number" ? actual : null;
+}
+function shotDisplayFlowGS(shot) {
+  if (!shot) return null;
+  if (typeof shot.avgFlowGS === "number" && Number.isFinite(shot.avgFlowGS)) return shot.avgFlowGS;
+  const actual = shotDisplayActualG(shot.actualG, shot.wCg);
+  const dur = typeof shot.durationS === "number" ? shot.durationS : null;
+  const drop =
+    typeof shot.firstDropS === "number"
+      ? shot.firstDropS
+      : typeof shot.dropS === "number"
+        ? shot.dropS
+        : null;
+  if (actual == null || dur == null || drop == null || !(dur - drop > 0.5) || !(actual > 0))
+    return null;
+  return actual / (dur - drop);
+}
+function fillStarRate(h, r, off, fn) {
+  if (!h) return;
+  const n = Math.max(0, Math.min(5, +r || 0));
+  h.classList.add("starRate");
+  h.setAttribute("role", "radiogroup");
+  h.setAttribute("aria-label", __WEBUI_TEXT__("runtime.shot_rating"));
+  h.dataset.rating = "" + n;
+  h.replaceChildren();
+  for (let i = 1; i <= 5; i++) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = i <= n ? "on" : "";
+    b.disabled = !!off;
+    b.setAttribute(
+      "aria-label",
+      i + __WEBUI_TEXT__("runtime.star") + (i > 1 ? __WEBUI_TEXT__("runtime.s") : ""),
+    );
+    b.innerHTML =
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.7 6.2 6.7.7-5.1 4.4 1.5 6.6L12 17.2 6.2 20.5l1.5-6.6L2.6 9.5l6.7-.7z"/></svg>';
+    b.onclick = () => fn && fn(i === n ? 0 : i);
+    h.appendChild(b);
+  }
+}
+function shotMaxFlowGS(shot) {
+  const model = R.buildShotSparkModel(shot);
+  return model ? model.maxFlow : null;
+}
+function shotPresetName(shot) {
+  return (shot && shot.presetName) || __WEBUI_TEXT__("runtime.unknown");
+}
 function formatShotTimeCsv(r) {
   if (r.hasWallTime && r.endedAtLocalSec) return R.formatWallTimeLocal(r.endedAtLocalSec);
   return "";
@@ -144,8 +347,8 @@ function fillShotCharts(h, m) {
     p = 1.5,
     X = (t) => p + (W - 2 * p) * Math.min(1, t / m.timeMax),
     Y = (v, max) => H - p - (H - 2 * p) * Math.max(0, Math.min(1, v / max)),
-    xt = R.fixedChartTicks(m.timeMax, 10, "s"),
-    yt = R.fixedChartTicks(m.maxW, 10, __WEBUI_TEXT__("runtime.g")),
+    xt = fixedChartTicks(m.timeMax, 10, "s"),
+    yt = fixedChartTicks(m.maxW, 10, __WEBUI_TEXT__("runtime.g")),
     n = m.maxW / 10,
     step = [0.25, 0.5, 1, 2, 5].find((s) => s * n >= m.flowMax) ?? Math.ceil(m.flowMax / n),
     u = "sc" + ++fadeSeq,
@@ -267,9 +470,9 @@ function fillShotCharts(h, m) {
     });
     axis.setAttribute("role", "img");
     axis.setAttribute("aria-label", [...y].map((e) => e.textContent).join(", "));
-    R.watchChartLabels(axis);
+    watchChartLabels(axis);
   }
-  R.fillChartTicks(
+  fillChartTicks(
     c.querySelector(".ruleChartTicks"),
     xt.map((q, i) => [...q, i === 0 ? 80 : i === xt.length - 1 ? 70 : 20, "time-" + q[0]]),
     m.timeMax,
@@ -413,7 +616,7 @@ function renderStatsDurChart() {
     '</div><svg class="statsDensPlot" viewBox="0 0 100 50" preserveAspectRatio="none" aria-hidden="true">' +
     svg +
     '</svg><div class="ruleChartTicks"></div>';
-  R.fillChartTicks(host.lastChild, ticks.filter(([t]) => t > lo && t < hi).map(([t, s, p]) => [t - lo, s, p]), hi - lo, true);
+  fillChartTicks(host.lastChild, ticks.filter(([t]) => t > lo && t < hi).map(([t, s, p]) => [t - lo, s, p]), hi - lo, true);
 }
 function renderShotStats() {
   const z = "—",
@@ -458,7 +661,7 @@ function renderShots() {
     return e;
   };
   const rows = R.uiState.shotHistory.shots.filter((r) => {
-    const y = r.estimatedG ?? R.shotDisplayActualG(r.actualG, r.wCg);
+    const y = r.estimatedG ?? shotDisplayActualG(r.actualG, r.wCg);
     return y != null && y >= 1;
   });
   if (rows.length) {
@@ -481,14 +684,14 @@ function renderShots() {
       const row = document.createElement("tr");
       // A scale-loss shot has no weighed yield: only its estimate, no error.
       const estimated = r.actualG == null && r.estimatedG != null,
-        actual = estimated ? null : R.shotDisplayActualG(r.actualG, r.wCg),
+        actual = estimated ? null : shotDisplayActualG(r.actualG, r.wCg),
         planned = r.cutLineG > 0 ? r.cutLineG : r.goalG;
       const errN = actual === null || !planned ? null : ((actual - planned) / planned) * 100;
       const err = errN === null ? "—" : errN.toFixed(1) + "%";
-      const flow = R.shotDisplayFlowGS(r),
-        maxFlow = R.shotMaxFlowGS(r);
+      const flow = shotDisplayFlowGS(r),
+        maxFlow = shotMaxFlowGS(r);
       const vals = [
-        R.formatShotTime(r),
+        formatShotTime(r),
         r.durationS.toFixed(1) + "s",
         r.goalG.toFixed(1) + "g",
         estimated
@@ -503,7 +706,7 @@ function renderShots() {
         r.firstDropS === null ? "—" : r.firstDropS.toFixed(1) + "s",
         R.formatShotEnded(r.stopDetail, r.verdict),
         r.shotType,
-        R.shotPresetName(r),
+        shotPresetName(r),
         r.scaleName || __WEBUI_TEXT__("runtime.none"),
       ];
       const cls = ["", "shotDur", "", "shotActual", errN > 0 ? "shotErrHi" : errN < 0 ? "shotErrLo" : ""];
@@ -520,7 +723,7 @@ function renderShots() {
       rate.dataset.label = __WEBUI_TEXT__("runtime.rate");
       const rateHost = document.createElement("div");
       rate.appendChild(rateHost);
-      R.fillStarRate(rateHost, r.rating || 0, !R.controlsMutable, (n) => rateHistoryShot(r.id, n));
+      fillStarRate(rateHost, r.rating || 0, !R.controlsMutable, (n) => rateHistoryShot(r.id, n));
       row.appendChild(rate);
       const spark = document.createElement("td");
       spark.className = "shotSparkCell";
@@ -663,7 +866,7 @@ async function exportShotsCsv() {
     for (const r of list) {
       const w = Array.isArray(r.wCg) ? r.wCg : [],
         f = shotFlowCurveGS(r),
-        actual = R.shotDisplayActualG(r.actualG, r.wCg);
+        actual = shotDisplayActualG(r.actualG, r.wCg);
       const errorG = actual === null || r.goalG == null ? null : actual - r.goalG;
       const errorPct = errorG === null || !r.goalG ? null : (errorG / r.goalG) * 100;
       rows.push([
@@ -679,7 +882,7 @@ async function exportShotsCsv() {
         errorG ?? "",
         errorPct ?? "",
         r.offsetG,
-        R.shotDisplayFlowGS(r) ?? "",
+        shotDisplayFlowGS(r) ?? "",
         r.firstDropS ?? "",
         r.tareS ?? "",
         ...("extractionGuardEnabled extractionExtended slowExtractionGuardEnabled slowExtractionExtended " +
@@ -698,7 +901,7 @@ async function exportShotsCsv() {
         r.bbwLearningApplied == null ? "" : r.bbwLearningApplied ? "1" : "0",
         r.presetId || "",
         r.scaleName || "",
-        R.shotMaxFlowGS(r) ?? "",
+        shotMaxFlowGS(r) ?? "",
         r.wTruncated ? "1" : "0",
         (r.wBreakBefore || []).join(";"),
         (r.wHeld || []).join(";"),
@@ -777,7 +980,11 @@ let ready = false;
 export function init() {
   if (ready) return;
   ready = true;
-  R.setStatsRenderers({ renderShots, renderStatsDurChart });
+  R.setStatsRenderers({
+    renderShots,
+    renderStatsDurChart,
+    relayoutCharts: () => chartObserver && layoutChartLabels(),
+  });
   $("exportShotsButton").onclick = exportShotsCsv;
   $("clearShotsButton").onclick = clearShotHistory;
   const h = $("shotSort");

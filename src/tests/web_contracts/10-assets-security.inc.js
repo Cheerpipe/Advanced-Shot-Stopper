@@ -133,6 +133,10 @@ const statsExportJs = '\nconst R = {uiState, sendUiOperation};\n' +
 const statsRuntimeJs = runtimeJs + '\n' + viewJs.stats;
 // History renders its rows with runtime helpers; text contracts on that code read both.
 const historyRuntimeJs = runtimeJs + '\n' + viewJs.history;
+// The Stats chart and shot-row helpers open the Stats module; harnesses run them
+// beside the runtime slices they used to share a range with.
+const statsChartJs = viewJs.stats.slice(viewJs.stats.indexOf('function formatShotTime('),
+    viewJs.stats.indexOf('function formatShotTimeCsv('));
 const css = localizedSources[localizedAt].content;
 const allHtml = shellHtml.replace(
     /<section id="view-([a-z]+)" class="view" data-view="\1"><\/section>/g,

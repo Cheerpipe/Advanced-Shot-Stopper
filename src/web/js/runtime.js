@@ -12,9 +12,10 @@ function setEnsureViewHook(fn) {
 // History likewise installs its row renderer on init.
 let renderShots = () => {},
   renderStatsDurChart = () => {},
+  relayoutCharts = () => {},
   renderHistory = () => {};
 function setStatsRenderers(r) {
-  ({ renderShots, renderStatsDurChart } = r);
+  ({ renderShots, renderStatsDurChart, relayoutCharts } = r);
 }
 function setHistoryRenderer(fn) {
   renderHistory = fn;
@@ -40,7 +41,7 @@ function setActiveView(name, ready = Promise.resolve()) {
   if (shotFsActive && activeView !== "home") exitShotFullScreen();
   viewReady = ready;
   viewSeq++;
-  if (chartObserver) layoutChartLabels();
+  relayoutCharts();
 }
 let stopExtraPollsHook = () => {};
 let startViewHook = () => {};
@@ -620,10 +621,6 @@ function wrapTimeEl(td, r) {
   td.title = formatWallTimeLocal(r.endedAtLocalSec) + " (" + formatTzLabel(offset) + ")";
   td.replaceChildren(t);
 }
-function formatShotTime(r) {
-  if (r.hasWallTime && r.endedAtLocalSec) return formatHumanTime(r.endedAtLocalSec);
-  return "#" + r.bootId + __WEBUI_TEXT__("runtime.no_time");
-}
 function verdictLabel(v) {
   return (
     { fast: __WEBUI_TEXT__("runtime.verdict_fast"), slow: __WEBUI_TEXT__("runtime.verdict_slow") }[v] ||
@@ -654,203 +651,11 @@ function formatShotEnded(d, verdict) {
     }[k] || __WEBUI_TEXT__("runtime.unknown")
   );
 }
-function lastCurveWeightG(w) {
-  if (!Array.isArray(w)) return null;
-  for (let i = w.length - 1; i >= 0; i--) {
-    if (typeof w[i] === "number" && w[i] !== 0) return w[i] / 100;
-  }
-  return null;
-}
 function axisLabel(v, u) {
   v = Math.round(+v * 10) / 10;
   return isFinite(v)
     ? v + __WEBUI_TEXT__("runtime.symbol_3") + u
     : __WEBUI_TEXT__("runtime.unknown");
-}
-let chartFrame = 0,
-  chartObserver;
-function layoutChartLabels() {
-  if (chartFrame) return;
-  chartFrame = requestAnimationFrame(() => {
-    chartFrame = 0;
-    for (const e of document.querySelectorAll("[data-chart-axis]")) {
-      const b = e.getBoundingClientRect();
-      if (!b.width || !b.height) continue;
-      const tk = [];
-      for (const o of e.querySelectorAll("[data-p]")) o.dataset.m ? o.remove() : tk.push(o);
-      const rect = (n) => {
-        if (!n.dataset.m) n.style.transform = "";
-        let r = n.getBoundingClientRect();
-        if (n.classList.contains("ruleTick") && (r.left < b.left - 1 || r.right > b.right + 1)) {
-          n.style.transform = r.left < b.left ? "translateX(0)" : "translateX(-100%)";
-          r = n.getBoundingClientRect();
-        }
-        return r;
-      };
-      if (e.dataset.chartMerge !== undefined && tk.length > 1) {
-        const R = tk.map(rect),
-          runs = [];
-        let s = 0;
-        for (let i = 1; i <= tk.length; i++)
-          if (i === tk.length || R[i].left >= R[i - 1].right + 4) {
-            if (i - s > 1) runs.push(tk.slice(s, i));
-            s = i;
-          }
-        for (const ru of runs) {
-          const f = ru[0],
-            l = ru.at(-1),
-            tx = ru.map((x) => x.textContent),
-            mm = tx.map((t) => t.split(/ (?=\S+$)/)),
-            u = mm[0][1],
-            n = document.createElement("span");
-          n.className = "ruleTick";
-          n.dataset.m = "1";
-          n.dataset.p = Math.max(...ru.map((x) => +x.dataset.p)) + 1;
-          n.dataset.k = "m" + f.dataset.k + "|" + l.dataset.k;
-          n.textContent =
-            u && mm.every((p) => p[1] === u)
-              ? mm.map((p) => p[0]).join("–") + " " + u
-              : tx.join(" – ");
-          n.style.left = (parseFloat(f.style.left) + parseFloat(l.style.left)) / 2 + "%";
-          n.style.transform = "translateX(-50%)";
-          e.appendChild(n);
-          tk.push(n);
-        }
-      }
-      const used = [],
-        next = new Set(),
-        old = e._shown;
-      for (const n of tk.sort((a, b) => b.dataset.p - a.dataset.p)) {
-        if (n.dataset.k === "tare") {
-          const t = n.parentElement;
-          t.style.bottom = "";
-          // The drop is rendered first; both markers share bottom:10%.
-          if (tk.length > 1) {
-            const d = e.firstElementChild.getBoundingClientRect(),
-              r = t.getBoundingClientRect();
-            if (r.left < d.right && d.left < r.right)
-              t.style.bottom = "calc(10% + " + (d.height + 8) + "px)";
-          }
-        }
-        const r = rect(n),
-          gap = old && !old.has(n.dataset.k) ? 8 : 4,
-          ok =
-            r.left >= b.left - 1 &&
-            r.right <= b.right + 1 &&
-            used.every(
-              (q) =>
-                r.right + gap <= q.left ||
-                q.right + gap <= r.left ||
-                r.bottom + gap <= q.top ||
-                q.bottom + gap <= r.top,
-            );
-        if (ok) {
-          used.push(r);
-          next.add(n.dataset.k);
-        }
-        n.style.visibility = ok ? "visible" : "hidden";
-      }
-      e._shown = next;
-    }
-  });
-}
-function watchChartLabels(e) {
-  e.dataset.chartAxis = "";
-  if (!chartObserver) {
-    chartObserver = new ResizeObserver(layoutChartLabels);
-    chartObserver.observe($("app"));
-    document.fonts?.ready.then(layoutChartLabels);
-  }
-  layoutChartLabels();
-}
-function fillChartTicks(e, l, m, avoidOverlap, mg) {
-  if (!e) return;
-  e.replaceChildren();
-  if (!(m > 0)) {
-    e.removeAttribute("role");
-    e.removeAttribute("aria-label");
-    delete e.dataset.chartAxis;
-    delete e.dataset.chartMerge;
-    delete e._shown;
-    return;
-  }
-  const s = {},
-    raw = [];
-  for (const t of l || []) {
-    const a = +t[0];
-    if (!isFinite(a)) continue;
-    const k = avoidOverlap ? a + "|" + t[1] : ~~(a * 10);
-    if (s[k]) continue;
-    s[k] = 1;
-    raw.push([Math.max(0, Math.min(1, a / m)), "" + t[1], t[2] || 0, t[3] || "" + t[1]]);
-  }
-  raw.sort((a, b) => a[0] - b[0]);
-  if (avoidOverlap) {
-    e.setAttribute("role", "img");
-    e.setAttribute("aria-label", raw.map((t) => t[1]).join(", "));
-  }
-  for (const t of raw) {
-    const n = document.createElement("span");
-    n.className = "ruleTick";
-    n.textContent = t[1];
-    n.style.left = t[0] * 100 + "%";
-    if (avoidOverlap) {
-      n.dataset.p = t[2];
-      n.dataset.k = t[3];
-      n.style.visibility = "hidden";
-    }
-    e.appendChild(n);
-  }
-  if (mg) e.dataset.chartMerge = "";
-  if (avoidOverlap) watchChartLabels(e);
-}
-function fixedChartTicks(max, step, unit) {
-  const ticks = [];
-  for (let v = 0; v <= max + 1e-6; v += step) ticks.push([v, axisLabel(v, unit)]);
-  return ticks;
-}
-function shotDisplayActualG(actual, wCg) {
-  if (typeof actual === "number" && actual !== 0) return actual;
-  const fromCurve = lastCurveWeightG(wCg);
-  return fromCurve !== null ? fromCurve : typeof actual === "number" ? actual : null;
-}
-function shotDisplayFlowGS(shot) {
-  if (!shot) return null;
-  if (typeof shot.avgFlowGS === "number" && Number.isFinite(shot.avgFlowGS)) return shot.avgFlowGS;
-  const actual = shotDisplayActualG(shot.actualG, shot.wCg);
-  const dur = typeof shot.durationS === "number" ? shot.durationS : null;
-  const drop =
-    typeof shot.firstDropS === "number"
-      ? shot.firstDropS
-      : typeof shot.dropS === "number"
-        ? shot.dropS
-        : null;
-  if (actual == null || dur == null || drop == null || !(dur - drop > 0.5) || !(actual > 0))
-    return null;
-  return actual / (dur - drop);
-}
-function fillStarRate(h, r, off, fn) {
-  if (!h) return;
-  const n = Math.max(0, Math.min(5, +r || 0));
-  h.classList.add("starRate");
-  h.setAttribute("role", "radiogroup");
-  h.setAttribute("aria-label", __WEBUI_TEXT__("runtime.shot_rating"));
-  h.dataset.rating = "" + n;
-  h.replaceChildren();
-  for (let i = 1; i <= 5; i++) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = i <= n ? "on" : "";
-    b.disabled = !!off;
-    b.setAttribute(
-      "aria-label",
-      i + __WEBUI_TEXT__("runtime.star") + (i > 1 ? __WEBUI_TEXT__("runtime.s") : ""),
-    );
-    b.innerHTML =
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.7 6.2 6.7.7-5.1 4.4 1.5 6.6L12 17.2 6.2 20.5l1.5-6.6L2.6 9.5l6.7-.7z"/></svg>';
-    b.onclick = () => fn && fn(i === n ? 0 : i);
-    h.appendChild(b);
-  }
 }
 // Derive one estimate per distinct accepted endpoint, without resampling weights.
 // Held readings (a hand on the cup) are what the scale showed, not coffee: they
@@ -1070,10 +875,6 @@ function buildShotSparkModel(shot) {
     maxFlow,
     flowMax: Math.max(0.5, Math.ceil(plotMaxFlow / 0.5) * 0.5),
   };
-}
-function shotMaxFlowGS(shot) {
-  const model = buildShotSparkModel(shot);
-  return model ? model.maxFlow : null;
 }
 async function populateTimezoneOptions() {
   const select = $("timezoneId");
@@ -5226,9 +5027,6 @@ function clearShotHero() {
   const hero = $("shotHero");
   if (hero) hero.hidden = true;
 }
-function shotPresetName(shot) {
-  return (shot && shot.presetName) || __WEBUI_TEXT__("runtime.unknown");
-}
 function checkFirmwareReload(version) {
   if (
     !version ||
@@ -5772,9 +5570,6 @@ export {
   SHOTS_PAGE_SIZE,
   sendUiOperation,
   SHOTS_EXPORT_LIMIT,
-  shotDisplayActualG,
-  shotDisplayFlowGS,
-  shotMaxFlowGS,
   downloadCsv,
   shotRuleModel,
   cutLine,
@@ -5782,18 +5577,12 @@ export {
   PILL,
   presetGraph,
   observePresetHost,
-  fixedChartTicks,
-  watchChartLabels,
-  fillChartTicks,
   fadeFill,
   axisLabel,
   shotsLoaded,
-  formatShotTime,
   formatShotEnded,
-  shotPresetName,
   wrapTimeEl,
   verdictLabel,
-  fillStarRate,
   setEmptyState,
   refreshShots,
   shotWs,

@@ -16,8 +16,8 @@
     throw new Error('An absent cup must say it is required only when cup protection requires it');
 }
 {
-  const helpers = runtimeJs.slice(runtimeJs.indexOf('function lastCurveWeightG('),
-      runtimeJs.indexOf('async function populateTimezoneOptions('));
+  const helpers = runtimeJs.slice(runtimeJs.indexOf('function axisLabel('),
+      runtimeJs.indexOf('async function populateTimezoneOptions(')) + statsChartJs;
   const preset = runtimeJs.slice(runtimeJs.indexOf('function buildRuleChartModel('),
       runtimeJs.indexOf('function renderPresetReview('));
   // The shot chart renderer lives in the Stats module; its runtime helpers reach it through R.
@@ -51,7 +51,7 @@
       'const presetState={cutRampS:0.5};' + helpers + preset + renderer +
       runtimeJs.slice(runtimeJs.indexOf('const sub = '), runtimeJs.indexOf('\n', runtimeJs.indexOf('const sub = '))) +
       ';const R={buildShotSparkModel,shotRuleModel,cutLine,placePill,sub,PILL,presetGraph,observePresetHost,' +
-      'fixedChartTicks,watchChartLabels,fillChartTicks,fadeFill};return renderShotSpark;')(
+      'axisLabel,fadeFill};return renderShotSpark;')(
       document, class{observe(){}}, ()=>({}), ()=>{});
   const observed = render(host, {wCg:[0,100,100,200], wAtMs:[0,100,600,600],
     wBreakBefore:[2], wTruncated:true, durationS:1});
@@ -191,7 +191,7 @@
 
 {
   const clearSource = runtimeJs.slice(runtimeJs.indexOf('function clearShotHero('),
-      runtimeJs.indexOf('function shotPresetName('));
+      runtimeJs.indexOf('function checkFirmwareReload('));
   const hero = {hidden: false};
   new Function('$','runShot', clearSource + ';clearShotHero();')(id => hero, () => {});
   if (!hero.hidden) {
@@ -210,7 +210,7 @@
   const paint=(d)=>new Function('$','buildShotSparkModel','formatShotEnded','ms','localStorage','document',
     'liveRuleModel','uiState','shotRuleModel','scheduleShotPaint','heroFastState',
     blockAt(runtimeJs,'function verdictLabel(')+
-    runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function shotPresetName('))
+    runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function checkFirmwareReload('))
       .replace('let heroFast = { el: 0, since: -1, on: false };','let heroFast = heroFastState.v;')+
     ';const r=renderShotHero(arguments[11]);heroFastState.v=heroFast;return r;')(lookup,()=>null,()=>'',
       (v,n)=>(v/1000).toFixed(n),{getItem:()=>tintMode,setItem(){}},{createElement:()=>({})},

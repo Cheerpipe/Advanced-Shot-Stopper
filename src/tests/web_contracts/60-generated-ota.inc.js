@@ -677,8 +677,9 @@ if (generated.cssGzip.length > 14313) {
 // Moving the Stats shot charts and list into the Stats module brings the runtime to 43906 compressed bytes (2026-10-16).
 // Moving the History rows and type filter into the History module brings it to 41386 (2026-10-16).
 // Moving the Diagnostic live renderer into the Diagnostic module brings it to 39982 (2026-10-16).
-if (sentinelRuntimeGzip.length > 40050) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 40050-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Moving the Stats chart and shot-row helpers into the Stats module brings it to 38465 (2026-10-16).
+if (sentinelRuntimeGzip.length > 38500) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 38500-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -712,7 +713,8 @@ if (generated.otaImageGzip.length > 3072) {
 // moved out of the runtime bring Stats/History to 9865 (2026-10-16).
 // The History rows and type filter moved out of the runtime bring it to 12143 (2026-10-16).
 // The Diagnostic live renderer moved out of the runtime brings Diagnostic to 13626 (2026-10-16).
-const viewModuleBudgets = {records: 12200, diagnostic: 13700, admin: 14200, settings: 14150, setup: 3600};
+// The Stats chart and shot-row helpers moved out of the runtime bring Stats/History to 13436 (2026-10-16).
+const viewModuleBudgets = {records: 13500, diagnostic: 13700, admin: 14200, settings: 14150, setup: 3600};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -874,8 +876,8 @@ if (generated.icon48Raw.length > 3500) {
 // Measured 73846 bytes after the frontend audit (2026-10-16).
 const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
     generated.jsGzip.length + generated.runtimeGzip.length;
-if (coldHomeGzip > 65650) {
-  throw new Error(`Cold Home download exceeds the 65650-byte gzip budget (${coldHomeGzip})`);
+if (coldHomeGzip > 64150) {
+  throw new Error(`Cold Home download exceeds the 64150-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);
@@ -1127,13 +1129,14 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
 }
 
 {
-  const start = js.indexOf('function lastCurveWeightG(');
-  const end = js.indexOf('async function populateTimezoneOptions(');
+  const start = runtimeJs.indexOf('function axisLabel(');
+  const end = runtimeJs.indexOf('async function populateTimezoneOptions(');
   if (start < 0 || end < 0 || end <= start) {
     throw new Error('Shot spark helpers not found for matrix checks');
   }
   const helpers = new Function(
-      '"use strict";' + js.slice(start, end) +
+      '"use strict";' + runtimeJs.slice(start, end) + statsChartJs +
+      ';const R={axisLabel,buildShotSparkModel}' +
       ';return{buildShotSparkModel:buildShotSparkModel,shotDisplayFlowGS:shotDisplayFlowGS,fillChartTicks:fillChartTicks};')();
   if (helpers.buildShotSparkModel(null) !== null) {
     throw new Error('Spark model must tolerate a null shot (idle Home panel)');

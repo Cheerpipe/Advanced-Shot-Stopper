@@ -106,8 +106,8 @@
     document: {createElement: () => ({click() {}})},
     message: message => {throw new Error(message);}, formatCommandError: (_, e) => e.message
   });
-  vm.runInContext(runtimeJs.slice(runtimeJs.indexOf('function lastCurveWeightG('),
-    runtimeJs.indexOf('async function populateTimezoneOptions(')), context);
+  vm.runInContext(runtimeJs.slice(runtimeJs.indexOf('function axisLabel('),
+    runtimeJs.indexOf('async function populateTimezoneOptions(')) + statsChartJs, context);
   vm.runInContext(blockAt(runtimeJs, 'function downloadCsv('), context);
   vm.runInContext('var R = this;' + blockAt(viewJs.stats, 'function shotFlowCurveGS('), context);
   vm.runInContext(blockAt(viewJs.stats, 'async function exportShotsCsv('), context);

@@ -1469,10 +1469,10 @@ if (!statsSection ||
   // Shared state reads come from the globals this harness sets; the Stats
   // module reaches runtime helpers through R, live for reassigned globals.
   const helpers = new Function('const uiState = globalThis;' +
-      runtimeJs.slice(start, end).replace('function fillChartTicks(', 'function domFillChartTicks(') +
+      runtimeJs.slice(start, end) +
       viewJs.stats.slice(chartAt, chartEnd) +
       ';const R = {uiState, axisLabel, fadeFill, get homeStatusCache() { return homeStatusCache; },' +
-      'get presetState() { return presetState; }, get fillChartTicks() { return fillChartTicks; }};' +
+      'get presetState() { return presetState; }};' +
       'return{renderStatsDurChart:renderStatsDurChart};')();
   const histRoot = {dataset: {}, className: '', innerHTML: ''};
   const histPlot = {innerHTML: '', style: {setProperty(k, v) { this[k] = v; }}};
