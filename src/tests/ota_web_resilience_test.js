@@ -7,11 +7,14 @@ const path = require('path');
 const vm = require('vm');
 const crypto = require('crypto');
 const jsDir = path.join(__dirname, '../web/js');
-const runtime = fs.readFileSync(path.join(jsDir, 'runtime.js'), 'utf8');
+// The OTA client lives in the Admin view module and reaches the shared
+// runtime through its R namespace; the harness below provides that
+// namespace instead of the real runtime.js imports.
+const admin = fs.readFileSync(path.join(jsDir, 'admin.js'), 'utf8');
 const locale = JSON.parse(fs.readFileSync(
     path.join(jsDir, '../locales/en.json'), 'utf8')).strings;
-const otaSource = runtime.slice(runtime.search(/const\s+OTA_UPLOAD_TIMEOUT_MS\s*=/),
-    runtime.indexOf('function statusPageOk('));
+const otaSource = admin.slice(admin.search(/const\s+OTA_UPLOAD_TIMEOUT_MS\s*=/),
+    admin.indexOf('async function setBleScanIntensity('));
 const parser = new Function(fs.readFileSync(path.join(jsDir, 'ota-image.js'), 'utf8')
     .replace(/export\s+/g, '') + ';return otaFileIdentity;')();
 
@@ -47,6 +50,9 @@ async function harness(mode) {
     staged: {arch: identity.arch, hardware: identity.hardware,
       machine: identity.machine, version: identity.version, packed: identity.packed,
       imageSha256: identity.imageSha256}});
+  const R = {uiState: {}, controlsMutable: true,
+    message: text => messages.push(text), clearFieldErrors() {}, showFieldError() {},
+    formatCommandError: (text, error) => text + ' ' + error.message, refreshStatus() {}};
   const context = vm.createContext({console, crypto: crypto.webcrypto,
   __WEBUI_TEXT__: key => locale[key] || key, localStorage: {
     getItem: key => items.get(key) || null,
@@ -54,13 +60,10 @@ async function harness(mode) {
   $: key => {
     if (!nodes.has(key)) nodes.set(key, {files: [uploadFile], value: 0, classList: {add() {}, remove() {}}});
     return nodes.get(key);
-  }, message: text => messages.push(text), clearFieldErrors() {}, showFieldError() {},
-  formatCommandError: (text, error) => text + ' ' + error.message,
-  refreshStatus() {}, confirm: () => true, controlsMutable: true});
+  }, confirm: () => true, R});
   vm.runInContext(otaSource, context);
-  context.parseFile = parser;
-  vm.runInContext('otaFileIdentity=parseFile;applyOtaStatus=function(o){if(o)otaLastStatus=o};', context);
-  context.send = async (url, body, progress, timeout, method = 'POST', headers = {}) => {
+  context.otaFileIdentity = parser;
+  const send = async (url, body, progress, timeout, method = 'POST', headers = {}) => {
     if (method === 'POST' && url.endsWith('/session')) {
       posts++;
       const request = JSON.parse(body); payloads.push(request);
@@ -95,7 +98,7 @@ async function harness(mode) {
     }
     throw new Error('Unexpected request');
   };
-  vm.runInContext('otaSend=send;', context);
+  context.otaSend = send;
   return {context, session, identity, items, messages, patches, payloads, file,
     status, setOffset: value => {offset = value;}, commits: () => commits};
 }
@@ -132,9 +135,8 @@ async function harness(mode) {
   for (const mode of ['lost-commit', 'wrong-commit', 'booted-commit']) {
     const h = await harness(mode);
     h.setOffset(h.file.size);
-    h.context.initial = h.status();
     h.items.set('ssOtaSession', JSON.stringify(h.session));
-    vm.runInContext('otaLastStatus=initial;', h.context);
+    h.context.R.uiState.otaLastStatus = h.status();
     await vm.runInContext('otaFlash()', h.context);
     assert.equal(h.commits(), 1);
     assert.match(h.messages.at(-1), mode === 'wrong-commit' ? /unverified/ :
