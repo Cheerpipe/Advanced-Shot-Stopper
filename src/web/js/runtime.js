@@ -1250,6 +1250,8 @@ function renderShotSpark(h, shot) {
   h.hidden = false;
   const rule = shotRuleModel(shot);
   if (rule.mode === "empty") return fillShotCharts(h, m);
+  // Both charts span this shot's own max time, or longer when its data runs past it.
+  m.timeMax = Math.max(rule.wall, m.dur);
   const preset = document.createElement("div"),
     readout = document.createElement("p"),
     combo = document.createElement("div"),
@@ -1292,6 +1294,7 @@ function renderShotSpark(h, shot) {
       drip: m.dripSegs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
       held: m.held.map((q) => [q.t, q.cg / 100]),
       maxG: m.rawMaxW,
+      maxT: m.timeMax,
     });
     // The weight/flow chart below matches this plot's height, so grams read alike in both.
     if (preset._view) h.style.setProperty("--shot-plot-h", preset._view.B - preset._view.T + "px");
@@ -4024,7 +4027,7 @@ function referencePace(t, goal, tArr, t0 = 0) {
 // (compact, no scrubber, no no-cut hatch; Stats adds 10 s ticks). Laid out in CSS pixels
 // from the measured width; null while the host is hidden.
 function presetGraph(host, m, x = {}) {
-  const { ghost, arrivals = [], last = [], drip = [], held = [], maxG = 0, compact, tens } = x,
+  const { ghost, arrivals = [], last = [], drip = [], held = [], maxG = 0, maxT = 0, compact, tens } = x,
     W = host.clientWidth;
   if (!W) return null;
   const u = host.id,
@@ -4035,7 +4038,7 @@ function presetGraph(host, m, x = {}) {
     B = H - 18,
     top = Math.ceil(Math.max(m.ceil, ghost ? ghost.ceil : 0, maxG) + 2),
     step = top > 30 ? 10 : 5,
-    tMax = Math.max(m.wall, ghost ? ghost.wall : 0),
+    tMax = Math.max(m.wall, ghost ? ghost.wall : 0, maxT),
     X = (t) => L + ((R - L) * t) / tMax,
     Y = (g) => B - ((B - T) * g) / top,
     n = (v) => +(+v).toFixed(1),

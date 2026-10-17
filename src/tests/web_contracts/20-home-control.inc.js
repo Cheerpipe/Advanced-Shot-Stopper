@@ -1409,9 +1409,10 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
       !cardSrc.includes('observePresetHost(preset)') || cardSrc.includes('hatch') ||
       !cardSrc.includes('h.append(preset, readout, legend, combo);') || !cardSrc.includes('fillShotCharts(combo, m);') ||
       !cardSrc.includes('if (preset._view) h.style.setProperty("--shot-plot-h", preset._view.B - preset._view.T + "px");') ||
+      !cardSrc.includes('m.timeMax = Math.max(rule.wall, m.dur);') || !cardSrc.includes('maxT: m.timeMax,') ||
       !js.includes('rate.className = "shotRateCell";') || runtimeJs.includes('shotInfo') ||
       !js.includes('<span class="heroPill" data-kind="'))
-    throw new Error('The Stats preset card must show its details, preset chart and combined weight/flow chart at once (same plot height), plus a keyboard cursor, a verdict zone and pill, and no no-cut hatch');
+    throw new Error('The Stats preset card must show its details, preset chart and combined weight/flow chart at once (same plot height and time axis), plus a keyboard cursor, a verdict zone and pill, and no no-cut hatch');
   if (!css.includes('.shotPresetChart:not([data-zone=on_recipe]) .rvWindow') || css.includes('.shotMore') ||
       css.includes('aria-expanded=false') ||
       !css.includes('.shotComboHost{padding-top:1rem}') ||
