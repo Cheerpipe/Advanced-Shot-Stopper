@@ -12,7 +12,7 @@
     if (ended(reason, 'on_recipe') !== label)
       throw new Error('Ended must show Fast or Slow for extended and lowered cut stops');
   }
-  if (!codeIncludes(runtimeJs, 'formatShotEnded(r.stopDetail, r.verdict)') ||
+  if (!codeIncludes(statsRuntimeJs, 'formatShotEnded(r.stopDetail, r.verdict)') ||
       !codeIncludes(runtimeJs, 'formatShotEnded(d.endReason, d.verdict)')) {
     throw new Error('Stats and Home must share the Ended cause formatter');
   }
@@ -800,22 +800,22 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     !css.includes('#shotTable .shotDel') ||
     !css.includes('#shotTable td.shotDel,#shotTable td.shotDel>.btnGlyph{background:transparent!important}') ||
     !codeIncludes(js, "className='shotDel'") ||
-    codeIncludes(runtimeJs, '<span class="t">Delete</span>') ||
+    codeIncludes(statsRuntimeJs, '<span class="t">Delete</span>') ||
     !codeIncludes(ui, 'formatShotTime(r)') ||
-    !codeIncludes(runtimeJs, 'function formatShotEnded(') ||
-    !codeIncludes(runtimeJs, 'function shotDisplayActualG(') ||
-    !codeIncludes(runtimeJs, 'shotDisplayActualG(r.actualG,r.wCg)') ||
-    !codeIncludes(runtimeJs, 'shotFrame.card') ||
-    !codeIncludes(runtimeJs, 'return y!=null&&y>=1') ||
-    !codeIncludes(runtimeJs, 'shotDisplayFlowGS(r)') ||
-    !codeIncludes(runtimeJs, 'shotMaxFlowGS(r)') ||
-    !codeIncludes(runtimeJs, 'shotPresetName(r)') ||
+    !codeIncludes(statsRuntimeJs, 'function formatShotEnded(') ||
+    !codeIncludes(statsRuntimeJs, 'function shotDisplayActualG(') ||
+    !codeIncludes(statsRuntimeJs, 'shotDisplayActualG(r.actualG,r.wCg)') ||
+    !codeIncludes(statsRuntimeJs, 'shotFrame.card') ||
+    !codeIncludes(statsRuntimeJs, 'return y!=null&&y>=1') ||
+    !codeIncludes(statsRuntimeJs, 'shotDisplayFlowGS(r)') ||
+    !codeIncludes(statsRuntimeJs, 'shotMaxFlowGS(r)') ||
+    !codeIncludes(statsRuntimeJs, 'shotPresetName(r)') ||
     !js.includes('preset_id " +') || // Full header: 12-wire-freeze.
     !network.includes('const bool live = control.activeCycle || control.homePending') ||
-    codeIncludes(runtimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.liveShot)') ||
-    codeIncludes(runtimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
-    !codeIncludes(runtimeJs, 'drop=d.firstDropMs') ||
-    !codeIncludes(runtimeJs, 'formatShotEnded(r.stopDetail, r.verdict)') ||
+    codeIncludes(statsRuntimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.liveShot)') ||
+    codeIncludes(statsRuntimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
+    !codeIncludes(statsRuntimeJs, 'drop=d.firstDropMs') ||
+    !codeIncludes(statsRuntimeJs, 'formatShotEnded(r.stopDetail, r.verdict)') ||
     !codeIncludes(js, "labels=['Date','Dur','Goal','Yield','Err%','Avg flow','Max flow','Late cup','1st drop','Ended','Shot','Preset','Scale'") ||
     codeIncludes(js, "labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||
     codeIncludes(js, "labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Guard','Ext','Stop','Shot','Cut']") ||
@@ -846,14 +846,14 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
 if (codeIncludes(ui, 'id="shotRating"') ||
     partialHtml.home.includes('<strong>Rate</strong>') ||
     !partialHtml.stats.includes('<th>Rate</th>') ||
-    !codeIncludes(runtimeJs, 'function fillStarRate(') ||
-    !codeIncludes(runtimeJs, '0 0 24 24') ||
-    codeIncludes(runtimeJs, 'star.jpg') ||
-    codeIncludes(runtimeJs, 'star.png') ||
-    !codeIncludes(runtimeJs, "className='shotRateCell'") ||
+    !codeIncludes(statsRuntimeJs, 'function fillStarRate(') ||
+    !codeIncludes(statsRuntimeJs, '0 0 24 24') ||
+    codeIncludes(statsRuntimeJs, 'star.jpg') ||
+    codeIncludes(statsRuntimeJs, 'star.png') ||
+    !codeIncludes(statsRuntimeJs, "className='shotRateCell'") ||
     !codeIncludes(js, "dataset.label='Rate'") ||
-    !codeIncludes(runtimeJs, 'function postShotRating(') ||
-    !codeIncludes(runtimeJs, '{id,rating:n}') ||
+    !codeIncludes(statsRuntimeJs, 'function postShotRating(') ||
+    !codeIncludes(statsRuntimeJs, '{id,rating:n}') ||
     !js.includes('rating ended_at_ms') ||
     !css.includes('.starRate{display:inline-flex;align-items:center;margin:0 -.15rem 0 0}') ||
     !css.includes('.starRate button+button{margin-left:-.18rem}') ||
@@ -933,12 +933,12 @@ if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
     !codeIncludes(runtimeJs, 'function applyStatsStream(') ||
     !codeIncludes(runtimeJs, 'if(statsStreamWanted)statsSendSubscribe()') ||
     !codeIncludes(js, 'if(statsExportInFlight)return statsExportInFlight') ||
-    !codeIncludes(runtimeJs, 'statsRequest=++statsNextRequest') ||
+    !codeIncludes(statsRuntimeJs, 'statsRequest=++statsNextRequest') ||
     !codeIncludes(js, "sendUiOperation({op:'stats',on:true,fetch:true,request:statsFetchMark.request,offset:statsFetchMark.offset,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir,}") ||
     !codeIncludes(js, "statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',90e3)") ||
-    !codeIncludes(runtimeJs, 'function shotStatsViewActive(){') ||
-    !codeIncludes(runtimeJs, 'function renderShots(') ||
-    !codeIncludes(runtimeJs, 'function armListSentinel(') ||
+    !codeIncludes(statsRuntimeJs, 'function shotStatsViewActive(){') ||
+    !codeIncludes(statsRuntimeJs, 'function renderShots(') ||
+    !codeIncludes(statsRuntimeJs, 'function armListSentinel(') ||
     !codeIncludes(viewJs.stats, 'R.armListSentinel("shotLogSentinel", R.loadMoreShots)') ||
     !partialHtml.stats.includes('id="shotLogSentinel"') ||
     !css.includes('#shotLogSentinel{min-height:1px') ||
@@ -958,10 +958,10 @@ if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
     // (server rows are bounded by the external kJsonItem workspace), and a
     // tab returning from the background resyncs the owned socket instead of
     // tearing it down.
-    !codeIncludes(runtimeJs, 'event.data.length>28672') ||
-    !codeIncludes(runtimeJs, 'function requestShotResync(') ||
-    !codeIncludes(runtimeJs, 'function shotActivity(') ||
-    codeIncludes(runtimeJs, 'stopUiStream();startUiStream()')) {
+    !codeIncludes(statsRuntimeJs, 'event.data.length>28672') ||
+    !codeIncludes(statsRuntimeJs, 'function requestShotResync(') ||
+    !codeIncludes(statsRuntimeJs, 'function shotActivity(') ||
+    codeIncludes(statsRuntimeJs, 'stopUiStream();startUiStream()')) {
   throw new Error('Shot history must page 10 shots over the owned WebSocket with infinite scroll and a streamed export');
 }
 const shotLogTypes = fs.readFileSync(
@@ -975,7 +975,7 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !codeIncludes(js, 'function syncShotSortButtons(') ||
     !codeIncludes(js, 'syncShotSortButtons();statsSendSubscribe()') ||
     !codeIncludes(js, "'date','desc'") ||
-    !codeIncludes(runtimeJs, "shotSort==='rating'") ||
+    !codeIncludes(statsRuntimeJs, "shotSort==='rating'") ||
     !codeIncludes(js, 'Highest rating') ||
     !codeIncludes(js, 'Oldest first') ||
     !codeIncludes(js, 'Lowest rating') ||
@@ -1213,22 +1213,22 @@ if (!statsSection ||
     !statsSection[1].includes('class="fieldHint"') ||
     !statsSection[1].includes('Averages from your last 10 shots stopped by weight.') ||
     !statsSection[1].includes('id="statsDurChart"') ||
-    !codeIncludes(runtimeJs, 'function renderStatsDurChart(') ||
+    !codeIncludes(statsRuntimeJs, 'function renderStatsDurChart(') ||
     !codeIncludes(viewJs.stats, 'R.renderStatsDurChart()') ||
-    !codeIncludes(runtimeJs, 'statsDurChartPlot') ||
-    !codeIncludes(runtimeJs, 'statsDensPlot') ||
-    !codeIncludes(runtimeJs, 'statsDensZones') ||
-    !codeIncludes(runtimeJs, 'renderStatsDurChart()') ||
-    codeIncludes(runtimeJs, 'statsDurSparkY') ||
+    !codeIncludes(statsRuntimeJs, 'statsDurChartPlot') ||
+    !codeIncludes(statsRuntimeJs, 'statsDensPlot') ||
+    !codeIncludes(statsRuntimeJs, 'statsDensZones') ||
+    !codeIncludes(statsRuntimeJs, 'renderStatsDurChart()') ||
+    codeIncludes(statsRuntimeJs, 'statsDurSparkY') ||
     !css.includes('#statsDurChart{margin-top:') ||
     !css.includes('.statsDensPlot{display:block;width:100%;height:3.75rem}') ||
     css.includes('#statsDurChartPlot{display:grid') ||
-    !codeIncludes(runtimeJs, 'function renderShotStats(){') ||
-    !codeIncludes(runtimeJs, 's.avgDurationS') ||
-    !codeIncludes(runtimeJs, 'shotStats=d.stats') ||
-    !codeIncludes(runtimeJs, 'renderShotStats();') ||
-    codeIncludes(runtimeJs, 'slice(0,20)') ||
-    codeIncludes(runtimeJs, "shotsUrl(0,SHOTS_PAGE_SIZE,'date','desc')") ||
+    !codeIncludes(statsRuntimeJs, 'function renderShotStats(){') ||
+    !codeIncludes(statsRuntimeJs, 's.avgDurationS') ||
+    !codeIncludes(statsRuntimeJs, 'shotStats=d.stats') ||
+    !codeIncludes(statsRuntimeJs, 'renderShotStats();') ||
+    codeIncludes(statsRuntimeJs, 'slice(0,20)') ||
+    codeIncludes(statsRuntimeJs, "shotsUrl(0,SHOTS_PAGE_SIZE,'date','desc')") ||
     !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal err err avgflow avgflow"') ||
     css.includes('.shotCard:has(') ||
     css.includes('#shotStatsPanel') ||
@@ -1459,15 +1459,21 @@ if (!statsSection ||
 }
 {
   const start = runtimeJs.indexOf('function axisLabel(');
-  const end = runtimeJs.indexOf('function renderShotStats(');
-  if (start < 0 || end < 0 || end <= start) {
+  const end = runtimeJs.indexOf('function setEmptyState(');
+  const chartAt = viewJs.stats.indexOf('let statsPresetFilter');
+  const chartEnd = viewJs.stats.indexOf('function renderShotStats(');
+  if (start < 0 || end <= start || chartAt < 0 || chartEnd <= chartAt) {
     throw new Error('Stats density curve helpers not found');
   }
   // The stub below records the axis ticks in place of the DOM writer.
-  // Shared state reads come from the globals this harness sets.
+  // Shared state reads come from the globals this harness sets; the Stats
+  // module reaches runtime helpers through R, live for reassigned globals.
   const helpers = new Function('const uiState = globalThis;' +
       runtimeJs.slice(start, end).replace('function fillChartTicks(', 'function domFillChartTicks(') +
-      ';return{renderStatsDurChart:renderStatsDurChart};')();
+      viewJs.stats.slice(chartAt, chartEnd) +
+      ';const R = {uiState, axisLabel, fadeFill, get homeStatusCache() { return homeStatusCache; },' +
+      'get presetState() { return presetState; }, get fillChartTicks() { return fillChartTicks; }};' +
+      'return{renderStatsDurChart:renderStatsDurChart};')();
   const histRoot = {dataset: {}, className: '', innerHTML: ''};
   const histPlot = {innerHTML: '', style: {setProperty(k, v) { this[k] = v; }}};
   const filterButton = (v) => ({dataset: {v}, attrs: {}, setAttribute(k, x) { this.attrs[k] = x; }});

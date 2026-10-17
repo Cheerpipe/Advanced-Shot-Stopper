@@ -57,7 +57,7 @@
   const source = runtimeStateGlobals +
       // Top-level lets become globals so R.<binding> reads them like the
       // module namespace does.
-      slice('async function populateTimezoneOptions(', 'function renderShotSpark(')
+      slice('async function populateTimezoneOptions(', 'function setEmptyState(')
           .replace(/^let /gm, 'var ') +
       ['function timeZoneSelectionChanged(', 'async function changeTimezoneMode(',
         'function loadAdminConfig(', 'async function saveDateTimeConfig(']

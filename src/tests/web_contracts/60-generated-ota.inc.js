@@ -670,8 +670,9 @@ if (generated.cssGzip.length > 14286) {
 // Reading the build version from the shell brings the runtime to 62759 compressed bytes; frontend audit 2026-10-16.
 // View-only code moves to the lazy view modules (frontend audit 2026-10-16).
 // The shot weight/flow chart cursor raises the runtime to 48830 compressed bytes; owner-authorized 2026-10-16.
-if (sentinelRuntimeGzip.length > 48830) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 48830-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Moving the Stats shot charts and list into the Stats module brings the runtime to 43906 compressed bytes (2026-10-16).
+if (sentinelRuntimeGzip.length > 43950) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 43950-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -701,8 +702,9 @@ if (generated.otaImageGzip.length > 3072) {
 // renderer, selection-preserving fingerprint) measure 10839. Cap raised to 10900.
 // Each lazy view module carries its logic and markup (frontend audit
 // 2026-10-16); Stats/History measure 4403, Diagnostic 12370, Admin 14127,
-// Settings 14074 and Setup 3552 gzip bytes.
-const viewModuleBudgets = {records: 4500, diagnostic: 12450, admin: 14200, settings: 14150, setup: 3600};
+// Settings 14074 and Setup 3552 gzip bytes. The Stats shot charts and list
+// moved out of the runtime bring Stats/History to 9865 (2026-10-16).
+const viewModuleBudgets = {records: 9900, diagnostic: 12450, admin: 14200, settings: 14150, setup: 3600};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -864,8 +866,8 @@ if (generated.icon48Raw.length > 3500) {
 // Measured 73846 bytes after the frontend audit (2026-10-16).
 const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
     generated.jsGzip.length + generated.runtimeGzip.length;
-if (coldHomeGzip > 74450) {
-  throw new Error(`Cold Home download exceeds the 74450-byte gzip budget (${coldHomeGzip})`);
+if (coldHomeGzip > 69550) {
+  throw new Error(`Cold Home download exceeds the 69550-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

@@ -9,6 +9,589 @@ function shotFlowCurveGS(shot) {
   const model = R.buildShotSparkModel(shot);
   return model ? model.flowCurve : [];
 }
+// The value of a time-sorted curve at t, linear between samples and held at its ends.
+function curveAt(curve, t) {
+  let i = 0;
+  while (i < curve.length - 2 && curve[i + 1].t < t) i++;
+  const a = curve[i],
+    b = curve[i + 1] ?? a,
+    k = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 0;
+  return (a.cg + (b.cg - a.cg) * k) / 100;
+}
+// Both shot charts scrub alike: drag anywhere on the chart, or arrow keys once focused.
+function bindShotScrub(node, tAt, seek, now) {
+  const move = (e) => seek(tAt(e.clientX));
+  node.addEventListener("pointerdown", (e) => {
+    if (tAt(e.clientX) == null) return;
+    e.preventDefault();
+    node.setPointerCapture(e.pointerId);
+    node.focus({ preventScroll: true });
+    node.classList.add("rvHeld");
+    move(e);
+  });
+  node.addEventListener("pointermove", (e) => node.hasPointerCapture(e.pointerId) && move(e));
+  node.addEventListener("lostpointercapture", () => node.classList.remove("rvHeld"));
+  node.addEventListener("keydown", (e) => {
+    const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5, PageUp: 5, PageDown: -5 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    seek(now() + step);
+  });
+  node.tabIndex = 0;
+  node.setAttribute("role", "slider");
+  node.setAttribute("aria-label", __WEBUI_TEXT__("runtime.shot_cursor_label"));
+}
+function renderShotSpark(h, shot) {
+  if (!h) return null;
+  const m = R.buildShotSparkModel(shot);
+  h.replaceChildren();
+  if (!m) {
+    h.hidden = true;
+    return null;
+  }
+  h.hidden = false;
+  const rule = R.shotRuleModel(shot);
+  if (rule.mode === "empty") return fillShotCharts(h, m);
+  // Both charts span this shot's own max time, or longer when its data runs past it.
+  m.timeMax = Math.max(rule.wall, m.dur);
+  const preset = document.createElement("div"),
+    readout = document.createElement("p"),
+    combo = document.createElement("div"),
+    // The cursor rides this shot's own curve; it starts at the stop point (D7).
+    curve = m.pts.slice().sort((a, b) => a.t - b.t);
+  let cursorT = curve.at(-1).t;
+  const place = () => {
+    const v = preset._view,
+      g = preset.querySelector(".shotCursor");
+    if (!v || !g) return;
+    const t = cursorT,
+      w = curveAt(curve, t),
+      cut = rule.mode === "active" ? R.cutLine(t, rule).toFixed(1) + " g" : "\u2014";
+    g.children[0].setAttribute("d", `M${v.X(t).toFixed(1)} ${v.T}V${v.B}`);
+    g.children[1].setAttribute("cx", v.X(t).toFixed(2));
+    g.children[1].setAttribute("cy", v.Y(w).toFixed(2));
+    R.placePill(g.children[2], R.sub(__WEBUI_TEXT__("runtime.shot_cursor_pill"), [t.toFixed(1), w.toFixed(1)]), v.X(t), v.Y(w));
+    preset.setAttribute("aria-valuenow", t.toFixed(1));
+    readout.textContent = R.sub(__WEBUI_TEXT__("runtime.shot_cursor"), [t.toFixed(1), w.toFixed(1), cut]);
+    preset.setAttribute("aria-valuetext", readout.textContent);
+  };
+  const seek = (t) => {
+    cursorT = Math.round(Math.max(curve[0].t, Math.min(curve.at(-1).t, t)) * 10) / 10;
+    place();
+  };
+  const draw = () => {
+    preset._w = preset.clientWidth;
+    preset._view = R.presetGraph(preset, rule, {
+      compact: true,
+      tens: true,
+      last: m.segs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
+      drip: m.dripSegs.map((s) => s.pts.map((q) => [q.t, q.cg / 100])),
+      held: m.held.map((q) => [q.t, q.cg / 100]),
+      maxG: m.rawMaxW,
+      maxT: m.timeMax,
+    });
+    // The weight/flow chart below matches this plot's height, so grams read alike in both.
+    if (preset._view) h.style.setProperty("--shot-plot-h", preset._view.B - preset._view.T + "px");
+    preset.querySelector("svg")?.insertAdjacentHTML(
+      "beforeend",
+      `<g class="shotCursor"><path class="rvGuide"/><circle class="rvHandle" r="5"/>${R.PILL}</g>`,
+    );
+    place();
+  };
+  bindShotScrub(
+    preset,
+    (x) => preset._view?.tAt(x - preset.firstChild.getBoundingClientRect().left),
+    seek,
+    () => cursorT,
+  );
+  preset.className = "shotPresetChart";
+  preset.id = "shotRv" + shot.id;
+  preset.setAttribute("aria-valuemin", curve[0].t.toFixed(1));
+  preset.setAttribute("aria-valuemax", curve.at(-1).t.toFixed(1));
+  readout.className = "shotCursorText";
+  // Only the zone the shot ended in keeps its fill (CSS); timer-only shots keep none.
+  preset.dataset.zone = (shot.shotType || "").toLowerCase() === "timer_only" ? "none" : shot.verdict === "fast" || shot.verdict === "slow" ? shot.verdict : "on_recipe";
+  // Compact legend (D5): the cut line, only the zone this shot ended in, the shot, and held weight.
+  const zone = preset.dataset.zone,
+    legend = document.createElement("div");
+  legend.className = "shotLegend";
+  legend.innerHTML =
+    '<span class="rvLeg rvLegCut"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_cut") + "</span>" +
+    (zone === "fast"
+      ? '<span class="rvLeg rvLegFast"><i></i><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_fast") + "</span>"
+      : zone === "slow"
+        ? '<span class="rvLeg rvLegSlow"><i></i><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_slow") + "</span>"
+        : zone === "on_recipe"
+          ? '<span class="rvLeg rvLegWindow"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_corridor") + "</span>"
+          : "") +
+    '<span class="rvLeg rvLegLast"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_last") + "</span>" +
+    (m.held.length
+      ? '<span class="rvLeg rvLegHeld"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_held") + "</span>"
+      : "");
+  combo.className = "shotComboHost";
+  h.append(preset, readout, legend, combo);
+  fillShotCharts(combo, m);
+  preset._draw = draw;
+  R.observePresetHost(preset);
+  draw();
+}
+let fadeSeq = 0;
+// One chart for both series: weight on the left axis, flow on the right one,
+// sharing the weight grid (10 g per line; flow takes the smallest step that fits).
+function fillShotCharts(h, m) {
+  const W = 240,
+    H = 36,
+    p = 1.5,
+    X = (t) => p + (W - 2 * p) * Math.min(1, t / m.timeMax),
+    Y = (v, max) => H - p - (H - 2 * p) * Math.max(0, Math.min(1, v / max)),
+    xt = R.fixedChartTicks(m.timeMax, 10, "s"),
+    yt = R.fixedChartTicks(m.maxW, 10, __WEBUI_TEXT__("runtime.g")),
+    n = m.maxW / 10,
+    step = [0.25, 0.5, 1, 2, 5].find((s) => s * n >= m.flowMax) ?? Math.ceil(m.flowMax / n),
+    u = "sc" + ++fadeSeq,
+    colors = [...new Set(m.segs.filter((s) => s.pts.length > 1).map((s) => s.color))];
+  let defs = "";
+  function series(segs, drips, max, flow) {
+    function path(a, c, drip) {
+      const d =
+        a.map((q, i) => (i ? "L" : "M") + X(q.t).toFixed(1) + " " + Y(q.cg / 100, max).toFixed(1)).join(" ") +
+        (a.length === 1 ? "h0" : "");
+      let fill = "";
+      if (!drip && a.length > 1 && a.some((q) => q.cg > 0)) {
+        const id = u + "-" + defs.length;
+        defs += R.fadeFill(id, c, flow ? 0.42 : 0.36, flow ? 0.02 : 0);
+        fill =
+          '<path d="' +
+          d +
+          "V" +
+          (H - p) +
+          "H" +
+          X(a[0].t).toFixed(1) +
+          'Z" fill="url(#' +
+          id +
+          ')"/>';
+      }
+      return (
+        fill +
+        '<path class="shotTrace' +
+        (drip ? " shotDripTrace" : "") +
+        '" d="' +
+        d +
+        '" fill="none" stroke="' +
+        c +
+        '" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round"' +
+        (drip ? ' stroke-dasharray="3 3"' : "") +
+        "/>"
+      );
+    }
+    let svg = "";
+    if (m.firstDropS > 0)
+      svg += path(
+        [
+          { t: 0, cg: 0 },
+          { t: m.firstDropS, cg: 0 },
+          ...(flow && m.flowStart ? [m.flowStart] : []),
+        ],
+        flow ? "var(--gFlow)" : "var(--ok)",
+      );
+    for (const s of segs) svg += path(s.pts, s.color);
+    for (const s of drips) svg += path(s.pts, s.color, true);
+    if (!flow && m.held.length)
+      svg +=
+        '<path class="shotHeld" d="' +
+        m.held.map((q) => "M" + X(q.t).toFixed(1) + " " + Y(q.cg / 100, max).toFixed(1) + "h0").join("") +
+        '" stroke="var(--mu)" stroke-width="2" stroke-linecap="round" opacity=".6" vector-effect="non-scaling-stroke"/>';
+    return svg;
+  }
+  const grid = xt
+      .map((q) => "M" + X(q[0]).toFixed(1) + " " + p + "V" + (H - p))
+      .concat(
+        yt.map(
+          (q, i) => "M" + p + " " + (H - p - ((H - 2 * p) * i) / n).toFixed(1) + "H" + (W - p),
+        ),
+      )
+      .join(""),
+    ticks = (labels) =>
+      labels
+        .slice()
+        .reverse()
+        .map((q) => '<span class="shotYTick">' + q + "</span>")
+        .join(""),
+    // Flow is drawn first so the weight curve and its fill stay on top.
+    body = series(m.flowSegs, m.dripFlowSegs, step * n, true) + series(m.segs, m.dripSegs, m.maxW);
+  h.innerHTML =
+    '<div class="shotCurve"><div class="shotSparkHost"><div class="shotSparkY">' +
+    ticks(yt.map((q) => q[1])) +
+    '</div><svg class="shotSpark" viewBox="0 0 ' +
+    W +
+    " " +
+    H +
+    '" preserveAspectRatio="none"><defs>' +
+    defs +
+    '</defs><path class="shotGrid" d="' +
+    grid +
+    '"/>' +
+    body +
+    // The cursor lives in its own unstretched layer, so its dots stay round.
+    '</svg><svg class="shotSpark shotSparkCursor" aria-hidden="true"><g class="shotCursor"><line class="rvGuide" y1="0" y2="100%"/><circle class="rvHandle" r="5"/><circle class="rvHandle" r="5"/>' +
+    R.PILL +
+    '</g></svg><div class="shotSparkY shotSparkFlowY">' +
+    ticks(yt.map((q, i) => +(i * step).toFixed(2) + " g/s")) +
+    "</div>" +
+    (m.finalPoint ? '<div class="shotDropOverlay"></div>' : "") +
+    '<div class="ruleChartTicks"></div></div><div class="shotLegend">' +
+    '<span class="rvLeg"><i class="shotKey"></i>' + __WEBUI_TEXT__("home.weight_g") + "</span>" +
+    '<span class="rvLeg"><i class="shotKey"></i>' + __WEBUI_TEXT__("runtime.flow_rate_g_s") + "</span>" +
+    (m.dripSegs.length || m.dripFlowSegs.length
+      ? '<span class="rvLeg shotLegDrip"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_drip") + "</span>"
+      : "") +
+    (m.held.length ? '<span class="rvLeg rvLegHeld"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_held") + "</span>" : "") +
+    (m.truncated ? '<span class="rvLeg">' + __WEBUI_TEXT__("runtime.graph_legend_incomplete") + "</span>" : "") +
+    "</div></div>";
+  // The firmware CSP drops style attributes parsed from markup; CSSOM writes still apply.
+  const c = h.querySelector(".shotSparkHost"),
+    [kw, kf] = h.querySelectorAll(".shotKey");
+  kw.style.background =
+    colors.length > 1 ? `linear-gradient(90deg,${colors[0]} 50%,${colors.at(-1)} 50%)` : colors[0] || "var(--ok)";
+  kf.style.background = "var(--gFlow)";
+  c.style.setProperty("--shot-plot-min", (n * 1.1).toFixed(2) + "rem");
+  for (const axis of c.querySelectorAll(".shotSparkY")) {
+    const y = axis.querySelectorAll(".shotYTick");
+    // Each axis is as wide as its longest label (about .85ch per glyph), at least the preset chart's 30px.
+    axis.style.width = `max(30px,${Math.max(...[...y].map((e) => e.textContent.length)) * 0.85}ch)`;
+    y.forEach((e, i) => {
+      e.style.top = (i / n) * 100 + "%";
+      e.dataset.p = i === n ? 80 : i === 0 ? 70 : 20;
+      e.dataset.k = e.textContent;
+      e.style.visibility = "hidden";
+    });
+    axis.setAttribute("role", "img");
+    axis.setAttribute("aria-label", [...y].map((e) => e.textContent).join(", "));
+    R.watchChartLabels(axis);
+  }
+  R.fillChartTicks(
+    c.querySelector(".ruleChartTicks"),
+    xt.map((q, i) => [...q, i === 0 ? 80 : i === xt.length - 1 ? 70 : 20, "time-" + q[0]]),
+    m.timeMax,
+    true,
+  );
+  if (m.finalPoint) {
+    const d = document.createElement("span");
+    d.className = "shotFinalPoint";
+    d.style.left = (X(m.finalPoint.t) / W) * 100 + "%";
+    d.style.top = (Y(m.finalPoint.cg / 100, m.maxW) / H) * 100 + "%";
+    Object.assign(d.style, {
+      position: "absolute",
+      width: "6px",
+      height: "6px",
+      boxSizing: "border-box",
+      border: "1.35px solid " + m.dripSegs.at(-1).color,
+      borderRadius: "50%",
+      background: "var(--sf)",
+      transform: "translate(-50%,-50%)",
+      pointerEvents: "none",
+    });
+    d.setAttribute("aria-hidden", "true");
+    h.querySelector(".shotDropOverlay").appendChild(d);
+  }
+  // Weight and flow dots share the cursor's time; the pill reads both, framed in the weight color.
+  const cur = c.querySelector(".shotSparkCursor"),
+    [guide, dotW, dotF, pill] = cur.firstChild.children,
+    weight = m.pts.slice().sort((a, b) => a.t - b.t),
+    flow = m.flowSegs.concat(m.dripFlowSegs).flatMap((s) => s.pts).sort((a, b) => a.t - b.t),
+    attrs = (e, o) => Object.entries(o).forEach(([k, v]) => e.setAttribute(k, v));
+  let cursorT = weight.at(-1).t;
+  dotF.style.setProperty("--c", "var(--gFlow)");
+  const seek = (t, held = true) => {
+    cursorT = t = Math.round(Math.max(weight[0].t, Math.min(weight.at(-1).t, t)) * 10) / 10;
+    const w = curveAt(weight, t),
+      f = t >= flow[0]?.t && t <= flow.at(-1).t ? curveAt(flow, t) : null,
+      x = (X(t) / W) * 100 + "%",
+      yW = Y(w, m.maxW) / H,
+      yF = f == null ? 1 : Y(f, step * n) / H,
+      color = m.segs.concat(m.dripSegs).findLast((s) => s.pts[1] && s.pts[0].t <= t)?.color ?? "var(--ok)",
+      text = (a, b) => R.sub(__WEBUI_TEXT__("runtime.shot_flow_pill"), [t.toFixed(1), a, w.toFixed(1), b, f?.toFixed(1) ?? "\u2014"]),
+      dot = (c) => `<tspan fill="${c}">\u25CF</tspan>`;
+    attrs(guide, { x1: x, x2: x });
+    attrs(dotW, { cx: x, cy: yW * 100 + "%" });
+    attrs(dotF, { cx: x, cy: yF * 100 + "%", visibility: f == null ? "hidden" : "visible" });
+    attrs(c, { "aria-valuenow": t.toFixed(1), "aria-valuetext": text("\u00B7", "\u00B7") });
+    cur.style.setProperty("--c", color);
+    if (!held) return;
+    const box = cur.getBoundingClientRect();
+    R.placePill(pill, text(dot(color), dot("var(--gFlow)")), (X(t) / W) * box.width, Math.min(yW, yF) * box.height);
+  };
+  bindShotScrub(c, (x) => (((x - cur.getBoundingClientRect().left) / cur.clientWidth) * W - p) / (W - 2 * p) * m.timeMax, seek, () => cursorT);
+  attrs(c, { "aria-valuemin": weight[0].t.toFixed(1), "aria-valuemax": weight.at(-1).t.toFixed(1) });
+  seek(cursorT, false);
+  return m;
+}
+let statsPresetFilter = "all";
+function renderStatsDurChart() {
+  const root = $("statsDurChart");
+  if (!root) return;
+  if (!root.dataset.ready) {
+    root.className = "ruleChart";
+    root.innerHTML =
+      '<div id="statsPresetFilter" class="shotSort" role="group" aria-label="' +
+      __WEBUI_TEXT__("runtime.stats_preset_filter") +
+      '"><button type="button" data-v="all">' +
+      __WEBUI_TEXT__("runtime.all_presets") +
+      '</button><button type="button" data-v="active">' +
+      __WEBUI_TEXT__("runtime.this_preset") +
+      '</button></div><div id="statsDurChartPlot"></div>';
+    root.dataset.ready = "1";
+    for (const b of $("statsPresetFilter").children)
+      b.onclick = () => {
+        statsPresetFilter = b.dataset.v;
+        renderStatsDurChart();
+      };
+  }
+  const host = $("statsDurChartPlot");
+  if (!host) return;
+  const presets = R.homeStatusCache()?.presets || R.presetState,
+    only = statsPresetFilter === "all" ? 0 : presets.activeId,
+    timed = (R.uiState.shotHistory.shots || []).filter((r) => r.arrivalS > 0 && r.verdict),
+    shots = timed.filter((r) => !only || r.presetId === only);
+  // No timed shots: no chart at all; none for this preset: only the filter.
+  root.hidden = !timed.length;
+  host.hidden = !shots.length;
+  for (const b of $("statsPresetFilter").children)
+    b.setAttribute("aria-pressed", String(b.dataset.v === statsPresetFilter));
+  if (!shots.length) {
+    host.innerHTML = "";
+    return;
+  }
+  // Each shot sits in its own judged window, scaled to their mean width.
+  const shared = shots.every((r) => r.fastBeforeS === shots[0].fastBeforeS && r.slowAfterS === shots[0].slowAfterS),
+    a = shared ? shots[0].fastBeforeS : 0,
+    b = shared ? shots[0].slowAfterS : Math.round(shots.reduce((s, r) => s + r.slowAfterS - r.fastBeforeS, 0) / shots.length),
+    ts = shots.map(({ arrivalS: t, fastBeforeS: f, slowAfterS: s }) =>
+      t < f ? a + t - f : t > s ? b + t - s : a + ((t - f) / (s - f)) * (b - a),
+    ),
+    lo = Math.floor(Math.min(a - 5, ...ts) - 1),
+    hi = Math.ceil(Math.max(b + 5, ...ts) + 1),
+    x = (t) => (((t - lo) / (hi - lo)) * 100).toFixed(2),
+    dens = (t) => ts.reduce((s, v) => s + Math.exp(-0.5 * ((t - v) / Math.max(0.7, (hi - lo) / 28)) ** 2), 0),
+    xs = Array.from({ length: 121 }, (_, i) => lo + ((hi - lo) * i) / 120),
+    peak = Math.max(...xs.map(dens)),
+    n = { fast: 0, on_recipe: 0, slow: 0 },
+    pct = {},
+    L = R.axisLabel;
+  for (const r of shots) n[r.verdict]++;
+  // Rounding the running total keeps the shares adding up to 100%.
+  let sum = 0,
+    done = 0;
+  for (const k in n) done += pct[k] = Math.round((100 * (sum += n[k])) / shots.length) - done;
+  const zones = [
+    ["fast", lo, a, "var(--gFast)", __WEBUI_TEXT__("runtime.fast")],
+    ["on_recipe", a, b, "var(--ok)", __WEBUI_TEXT__("runtime.verdict_on_recipe")],
+    ["slow", b, hi, "var(--gSlow)", __WEBUI_TEXT__("runtime.slow")],
+  ];
+  let svg = "",
+    tops = "";
+  for (const [k, t0, t1, c, name] of zones) {
+    const line = [t0, ...xs.filter((t) => t > t0 && t < t1), t1].map((t) => x(t) + " " + (50 - (46 * dens(t)) / peak).toFixed(2)).join(" L");
+    svg +=
+      R.fadeFill("sd" + k, c, 0.45, 0.02) +
+      '<path d="M' + x(t0) + " 50 L" + line + " L" + x(t1) + ' 50Z" fill="url(#sd' + k + ')"/><path d="M' + line +
+      '" fill="none" stroke="' + c + '" stroke-width="1.35" vector-effect="non-scaling-stroke"/>';
+    tops += "<span><b>" + pct[k] + "%</b>" + n[k] + " " + name + "</span>";
+  }
+  // Ticks step out from the window edges: seconds when shared, offsets otherwise.
+  const ticks = [
+    [a, shared ? L(a, "s") : __WEBUI_TEXT__("runtime.window_start"), 80],
+    [b, shared ? L(b, "s") : __WEBUI_TEXT__("runtime.window_end"), 80],
+  ];
+  for (let d = 5; d < hi - lo; d += 5)
+    ticks.push([a - d, shared ? L(a - d, "s") : "−" + L(d, "s"), 20], [b + d, shared ? L(b + d, "s") : "+" + L(d, "s"), 20]);
+  host.style.setProperty("--zf", x(a) + "%");
+  host.style.setProperty("--zo", x(b) - x(a) + "%");
+  host.innerHTML =
+    '<div class="statsDensZones">' +
+    tops +
+    '</div><svg class="statsDensPlot" viewBox="0 0 100 50" preserveAspectRatio="none" aria-hidden="true">' +
+    svg +
+    '</svg><div class="ruleChartTicks"></div>';
+  R.fillChartTicks(host.lastChild, ticks.filter(([t]) => t > lo && t < hi).map(([t, s, p]) => [t - lo, s, p]), hi - lo, true);
+}
+function renderShotStats() {
+  const z = "—",
+    s = R.uiState.shotStats || {},
+    q = (i, v, c) => {
+      const e = $("statsAvg" + i);
+      if (e) {
+        e.textContent = v;
+        if (c != null) {
+          e.classList.toggle("shotErrHi", c > 0);
+          e.classList.toggle("shotErrLo", c < 0);
+        }
+      }
+    },
+    f = (v, p, u) => (v == null ? z : v.toFixed(p) + u);
+  q(__WEBUI_TEXT__("runtime.dur"), f(s.avgDurationS, 1, __WEBUI_TEXT__("runtime.s")));
+  q(__WEBUI_TEXT__("runtime.weight"), f(s.avgYieldG, 1, __WEBUI_TEXT__("runtime.g")));
+  q("Daily", s.shotsPerDay == null ? z : s.shotsPerDay.toFixed(1));
+  q("Err", f(s.avgErrorPct, 1, __WEBUI_TEXT__("runtime.symbol_4")), s.avgErrorPct);
+  q(__WEBUI_TEXT__("runtime.flow"), f(s.avgFlowGps, 2, __WEBUI_TEXT__("runtime.g_s")));
+  renderStatsDurChart();
+}
+function renderShots() {
+  renderShotStats();
+  if (!R.shotsLoaded) return;
+  const body = $("shotRows");
+  if (!body) return;
+  body.replaceChildren();
+  const td = (p, l, v, c) => {
+    const e = document.createElement("td");
+    if (l) e.dataset.label = l;
+    if (c) e.className = c;
+    e.textContent = v;
+    if (c === "shotDur" || c === "shotActual")
+      e.innerHTML =
+        '<span class="shotVal">' +
+        e.innerHTML +
+        '</span><svg class="shotMetricIcon" width="1.85rem" height="1.85rem" fill="currentColor" aria-hidden="true"><use href="#shotMetric' +
+        (c === "shotDur" ? "Time" : "Weight") +
+        '"/></svg>';
+    p.appendChild(e);
+    return e;
+  };
+  const rows = R.uiState.shotHistory.shots.filter((r) => {
+    const y = r.estimatedG ?? R.shotDisplayActualG(r.actualG, r.wCg);
+    return y != null && y >= 1;
+  });
+  if (rows.length) {
+    const labels = [
+      __WEBUI_TEXT__("runtime.time"),
+      __WEBUI_TEXT__("runtime.dur"),
+      __WEBUI_TEXT__("runtime.goal"),
+      __WEBUI_TEXT__("runtime.yield"),
+      __WEBUI_TEXT__("runtime.err"),
+      __WEBUI_TEXT__("runtime.avg_flow"),
+      __WEBUI_TEXT__("runtime.max_flow"),
+      __WEBUI_TEXT__("runtime.tare_time"),
+      __WEBUI_TEXT__("runtime.1st_drop"),
+      __WEBUI_TEXT__("runtime.ended"),
+      __WEBUI_TEXT__("runtime.shot"),
+      __WEBUI_TEXT__("runtime.preset"),
+      __WEBUI_TEXT__("runtime.scale"),
+    ];
+    for (const r of rows) {
+      const row = document.createElement("tr");
+      // A scale-loss shot has no weighed yield: only its estimate, no error.
+      const estimated = r.actualG == null && r.estimatedG != null,
+        actual = estimated ? null : R.shotDisplayActualG(r.actualG, r.wCg),
+        planned = r.cutLineG > 0 ? r.cutLineG : r.goalG;
+      const errN = actual === null || !planned ? null : ((actual - planned) / planned) * 100;
+      const err = errN === null ? "—" : errN.toFixed(1) + "%";
+      const flow = R.shotDisplayFlowGS(r),
+        maxFlow = R.shotMaxFlowGS(r);
+      const vals = [
+        R.formatShotTime(r),
+        r.durationS.toFixed(1) + "s",
+        r.goalG.toFixed(1) + "g",
+        estimated
+          ? R.sub(__WEBUI_TEXT__("runtime.yield_estimated"), [Math.round(r.estimatedG)])
+          : actual === null
+            ? "—"
+            : actual.toFixed(1) + "g",
+        err,
+        flow === null ? "—" : flow.toFixed(2) + " g/s",
+        maxFlow === null ? "—" : maxFlow.toFixed(2) + " g/s" + (r.wTruncated ? " (recorded)" : ""),
+        r.tareS == null ? __WEBUI_TEXT__("runtime.none") : r.tareS.toFixed(1) + "s",
+        r.firstDropS === null ? "—" : r.firstDropS.toFixed(1) + "s",
+        R.formatShotEnded(r.stopDetail, r.verdict),
+        r.shotType,
+        R.shotPresetName(r),
+        r.scaleName || __WEBUI_TEXT__("runtime.none"),
+      ];
+      const cls = ["", "shotDur", "", "shotActual", errN > 0 ? "shotErrHi" : errN < 0 ? "shotErrLo" : ""];
+      vals.forEach((v, i) => td(row, labels[i], v, cls[i]));
+      R.wrapTimeEl(row.cells[0], r);
+      // The verdict sits beside the time so each card says at a glance how the shot landed.
+      if (r.arrivalS > 0 && ["fast", "on_recipe", "slow"].includes(r.verdict))
+        row.cells[0].insertAdjacentHTML(
+          "beforeend",
+          '<span class="heroPill" data-kind="' + r.verdict + '">' + R.verdictLabel(r.verdict) + "</span>",
+        );
+      const rate = document.createElement("td");
+      rate.className = "shotRateCell";
+      rate.dataset.label = __WEBUI_TEXT__("runtime.rate");
+      const rateHost = document.createElement("div");
+      rate.appendChild(rateHost);
+      R.fillStarRate(rateHost, r.rating || 0, !R.controlsMutable, (n) => rateHistoryShot(r.id, n));
+      row.appendChild(rate);
+      const spark = document.createElement("td");
+      spark.className = "shotSparkCell";
+      renderShotSpark(spark, r);
+      if (spark.hidden) row.classList.add("noSpark");
+      else row.appendChild(spark);
+      const del = document.createElement("td");
+      del.className = "shotDel";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btnGlyph btnDanger";
+      btn.title = __WEBUI_TEXT__("runtime.delete");
+      btn.setAttribute("aria-label", __WEBUI_TEXT__("runtime.delete"));
+      btn.innerHTML = '<span class="g">' + __WEBUI_TEXT__("runtime.close") + "</span>";
+      btn.onclick = () => deleteOneShot(r.id);
+      del.appendChild(btn);
+      row.appendChild(del);
+      body.appendChild(row);
+    }
+  }
+  R.setEmptyState(
+    "shotTableState",
+    rows.length ? null : __WEBUI_TEXT__("runtime.no_recorded_shots_yet"),
+  );
+  updateShotLogSentinel();
+}
+function updateShotLogSentinel() {
+  const el = $("shotLogSentinel");
+  if (el) {
+    el.hidden = !R.uiState.shotHistory.hasMore;
+    el.textContent = R.uiState.shotHistory.hasMore ? __WEBUI_TEXT__("runtime.more") : "";
+  }
+}
+async function deleteOneShot(id) {
+  if (!id || !confirm(__WEBUI_TEXT__("runtime.delete_this_shot_record"))) return;
+  return R.withCommandGate(async () => {
+    try {
+      await R.api("/api/v1/stats/delete", { method: "POST", body: R.body({ id }) });
+      R.uiState.shotHistory.shots = R.uiState.shotHistory.shots.filter((s) => s.id !== id);
+      if (typeof R.uiState.shotHistory.total === "number" && R.uiState.shotHistory.total > 0) R.uiState.shotHistory.total--;
+      R.uiState.shotHistory.hasMore = R.uiState.shotHistory.shots.length < R.uiState.shotHistory.total;
+      renderShots();
+      R.message(__WEBUI_TEXT__("runtime.shot_deleted"), "ok");
+    } catch (e) {
+      R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_delete_shot"), e), "error");
+    }
+  });
+}
+async function postShotRating(p, undo) {
+  return R.withCommandGate(async () => {
+    try {
+      await R.api("/api/v1/stats/rate", { method: "POST", body: R.body(p) });
+      R.noteReachOk();
+      return true;
+    } catch (e) {
+      if (undo) undo();
+      R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_shot_rating"), e), "error");
+      return false;
+    }
+  });
+}
+function rateHistoryShot(id, n) {
+  const s = R.uiState.shotHistory.shots.find((x) => x && x.id === id),
+    p = s && s.rating;
+  if (s) s.rating = n;
+  renderShots();
+  return postShotRating({ id, rating: n }, () => {
+    if (s) s.rating = p;
+    renderShots();
+  }).then((ok) => ok && R.uiState.shotSort === "rating" && R.refreshShots());
+}
 function syncShotSortButtons() {
   const d = $("sortDateButton"),
     r = $("sortRatingButton"),
@@ -180,7 +763,7 @@ async function clearShotHistory() {
       });
       R.uiState.shotHistory = { bootId: R.uiState.shotHistory.bootId || 0, total: 0, hasMore: false, shots: [] };
       R.uiState.shotStats = {};
-      R.renderShots();
+      renderShots();
       R.message(__WEBUI_TEXT__("runtime.shot_history_cleared"), "ok");
     } catch (e) {
       R.message(
@@ -194,6 +777,7 @@ let ready = false;
 export function init() {
   if (ready) return;
   ready = true;
+  R.setStatsRenderers({ renderShots, renderStatsDurChart });
   $("exportShotsButton").onclick = exportShotsCsv;
   $("clearShotsButton").onclick = clearShotHistory;
   const h = $("shotSort");
@@ -210,5 +794,5 @@ export function init() {
     syncShotSortButtons();
   }
   R.armListSentinel("shotLogSentinel", loadMoreShots);
-  R.renderStatsDurChart();
+  renderStatsDurChart();
 }

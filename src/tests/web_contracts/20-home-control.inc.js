@@ -20,8 +20,11 @@
       runtimeJs.indexOf('async function populateTimezoneOptions('));
   const preset = runtimeJs.slice(runtimeJs.indexOf('function buildRuleChartModel('),
       runtimeJs.indexOf('function renderPresetReview('));
+  // The shot chart renderer lives in the Stats module; its runtime helpers reach it through R.
   const renderer = runtimeJs.slice(runtimeJs.indexOf('function shotRuleModel('),
-      runtimeJs.indexOf('function renderStatsDurChart('));
+      runtimeJs.indexOf('function setEmptyState(')) +
+    viewJs.stats.slice(viewJs.stats.indexOf('// The value of a time-sorted curve'),
+      viewJs.stats.indexOf('let statsPresetFilter'));
   // One combined chart: a weight axis, a flow axis, one time axis and the final-yield overlay.
   const ticks = [], markers = [], axes = [], keys = [{style:{}}, {style:{}}];
   let markup = '', plot = null;
@@ -47,7 +50,8 @@
   const render = new Function('document', 'ResizeObserver', '$', 'requestAnimationFrame',
       'const presetState={cutRampS:0.5};' + helpers + preset + renderer +
       runtimeJs.slice(runtimeJs.indexOf('const sub = '), runtimeJs.indexOf('\n', runtimeJs.indexOf('const sub = '))) +
-      ';return renderShotSpark;')(
+      ';const R={buildShotSparkModel,shotRuleModel,cutLine,placePill,sub,PILL,presetGraph,observePresetHost,' +
+      'fixedChartTicks,watchChartLabels,fillChartTicks,fadeFill};return renderShotSpark;')(
       document, class{observe(){}}, ()=>({}), ()=>{});
   const observed = render(host, {wCg:[0,100,100,200], wAtMs:[0,100,600,600],
     wBreakBefore:[2], wTruncated:true, durationS:1});
@@ -752,30 +756,30 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
     css.includes('.shotYTick:first-child') || css.includes('.shotYTick:last-child') ||
     css.includes('.ruleChartLabel') || !css.includes('.shotLegDrip i{') ||
     !codeIncludes(ui, 'function renderShotSpark(') ||
-    !codeIncludes(runtimeJs, 'function buildShotSparkModel(') ||
-    !codeIncludes(runtimeJs, 'function axisLabel(') ||
-    !codeIncludes(runtimeJs, 'function fillChartTicks(') ||
-    codeIncludes(runtimeJs, 's[a=') ||
-    !codeIncludes(runtimeJs, 'style.left=') ||
-    !codeIncludes(runtimeJs, "style.setProperty('--shot-plot-min'") ||
-    !codeIncludes(runtimeJs, '.style.top=') ||
+    !codeIncludes(statsRuntimeJs, 'function buildShotSparkModel(') ||
+    !codeIncludes(statsRuntimeJs, 'function axisLabel(') ||
+    !codeIncludes(statsRuntimeJs, 'function fillChartTicks(') ||
+    codeIncludes(statsRuntimeJs, 's[a=') ||
+    !codeIncludes(statsRuntimeJs, 'style.left=') ||
+    !codeIncludes(statsRuntimeJs, "style.setProperty('--shot-plot-min'") ||
+    !codeIncludes(statsRuntimeJs, '.style.top=') ||
     // The firmware CSP (style-src 'self') drops style attributes parsed from markup.
-    codeIncludes(runtimeJs, 'style="') ||
-    !codeIncludes(runtimeJs, 'function shotDisplayFlowGS(') ||
-    !codeIncludes(runtimeJs, 'if(!pts.length||dur<=0)return null') ||
-    !codeIncludes(runtimeJs, 'm.firstDropS>0') ||
-    !codeIncludes(runtimeJs, 'series(m.flowSegs,m.dripFlowSegs,step*n,true)') ||
-    !codeIncludes(runtimeJs, 'Flow rate (g/s)') ||
-    !codeIncludes(runtimeJs, "querySelector('.ruleChartTicks')") ||
-    codeIncludes(runtimeJs, "['.ruleChartTicks',xt]") || codeIncludes(runtimeJs, "'.shotEventTicks'") ||
-    codeIncludes(runtimeJs, "'1st '+L(") ||
-    codeIncludes(runtimeJs, 'fillChartTicks($(\'shotBarTicks\')') ||
-    !codeIncludes(runtimeJs, 'raw.sort(') ||
-    codeIncludes(runtimeJs, 'shotIdle') ||
-    codeIncludes(runtimeJs, "last?'Last shot.'") ||
+    codeIncludes(statsRuntimeJs, 'style="') ||
+    !codeIncludes(statsRuntimeJs, 'function shotDisplayFlowGS(') ||
+    !codeIncludes(statsRuntimeJs, 'if(!pts.length||dur<=0)return null') ||
+    !codeIncludes(statsRuntimeJs, 'm.firstDropS>0') ||
+    !codeIncludes(statsRuntimeJs, 'series(m.flowSegs,m.dripFlowSegs,step*n,true)') ||
+    !codeIncludes(statsRuntimeJs, 'Flow rate (g/s)') ||
+    !codeIncludes(statsRuntimeJs, "querySelector('.ruleChartTicks')") ||
+    codeIncludes(statsRuntimeJs, "['.ruleChartTicks',xt]") || codeIncludes(statsRuntimeJs, "'.shotEventTicks'") ||
+    codeIncludes(statsRuntimeJs, "'1st '+L(") ||
+    codeIncludes(statsRuntimeJs, 'fillChartTicks($(\'shotBarTicks\')') ||
+    !codeIncludes(statsRuntimeJs, 'raw.sort(') ||
+    codeIncludes(statsRuntimeJs, 'shotIdle') ||
+    codeIncludes(statsRuntimeJs, "last?'Last shot.'") ||
     css.includes('.shotFirstDrop') ||
-    codeIncludes(runtimeJs, 'stroke="currentColor"') ||
-    !codeIncludes(runtimeJs, "if(spark.hidden)row.classList.add('noSpark')") ||
+    codeIncludes(statsRuntimeJs, 'stroke="currentColor"') ||
+    !codeIncludes(statsRuntimeJs, "if(spark.hidden)row.classList.add('noSpark')") ||
     !css.includes('.shotCard{') ||
     !css.includes('.metric,.shotCard > *{') ||
     !css.includes('.metric strong,.shotCard strong{') ||
@@ -834,8 +838,8 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
   const curveTypes = fs.readFileSync(path.join(sketchDir, 'ShotStopperShotCurveTypes.h'), 'utf8');
   const record = curveTypes.slice(curveTypes.indexOf('struct ShotCurveRecord'),
       curveTypes.indexOf('inline ShotCurveRecord emptyShotCurveRecord'));
-  if (!codeIncludes(runtimeJs, "spark.className='shotSparkCell'") ||
-      !codeIncludes(runtimeJs, "renderShotSpark(spark,r)") ||
+  if (!codeIncludes(statsRuntimeJs, "spark.className='shotSparkCell'") ||
+      !codeIncludes(statsRuntimeJs, "renderShotSpark(spark,r)") ||
       /flow/i.test(record) || network.includes('\"flowCg\"') || network.includes('\"flowDtS\"')) {
     throw new Error('Stats must share the ordered Weight/Flow chart renderer without a persisted flow series');
   }
@@ -1401,7 +1405,7 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
   const presetModel = runtimeJs.slice(runtimeJs.indexOf('function buildRuleChartModel('),
       runtimeJs.indexOf('function renderPresetReview('));
   const shotModel = runtimeJs.slice(runtimeJs.indexOf('function shotRuleModel('),
-      runtimeJs.indexOf('function renderShotSpark('));
+      runtimeJs.indexOf('let shotPresetObserver'));
   const {shotRuleModel} = new Function('presetState',
       presetModel + shotModel + ';return {shotRuleModel};')({cutRampS: 0.5, items: [{id: 1, name: 'Live', goalWeightG: 99}]});
   const row = {goalG: 36, fastBeforeS: 10, slowAfterS: 20, delayS: 5, wallS: 30, cutRampS: 1,
@@ -1415,9 +1419,9 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
     throw new Error('Timer-only shots must draw every cut segment off');
   if (shotRuleModel({...row, delayS: 12}).mode !== 'empty')
     throw new Error('An invalid snapshot (delay not before the window) must render without the preset chart');
-  const cardSrc = runtimeJs.slice(runtimeJs.indexOf('function renderShotSpark('), runtimeJs.indexOf('function fillShotCharts('));
+  const cardSrc = viewJs.stats.slice(viewJs.stats.indexOf('function renderShotSpark('), viewJs.stats.indexOf('function fillShotCharts('));
   if (cardSrc.includes('aria-expanded') || cardSrc.includes('shotMore') ||
-      !cardSrc.includes('bindShotScrub(') || !/"role",\s*"slider"/.test(runtimeJs) || !cardSrc.includes('dataset.zone') ||
+      !cardSrc.includes('bindShotScrub(') || !/"role",\s*"slider"/.test(viewJs.stats) || !cardSrc.includes('dataset.zone') ||
       !cardSrc.includes('observePresetHost(preset)') || cardSrc.includes('hatch') ||
       !cardSrc.includes('h.append(preset, readout, legend, combo);') || !cardSrc.includes('fillShotCharts(combo, m);') ||
       !cardSrc.includes('if (preset._view) h.style.setProperty("--shot-plot-h", preset._view.B - preset._view.T + "px");') ||

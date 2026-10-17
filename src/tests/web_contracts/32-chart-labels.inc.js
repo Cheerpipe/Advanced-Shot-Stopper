@@ -150,6 +150,6 @@
       throw new Error('A merged range that cannot fit must fall back: ' + shown);
   }
   if (!codeIncludes(js, "fillChartTicks($('ruleChartTicks')") &&
-      !codeIncludes(runtimeJs, "fillChartTicks(c.querySelector('.ruleChartTicks'),"))
+      !codeIncludes(viewJs.stats, "fillChartTicks(c.querySelector('.ruleChartTicks'),"))
     throw new Error('Chart tick rendering must stay shared with the shot charts');
 }

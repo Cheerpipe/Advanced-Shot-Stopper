@@ -42,7 +42,7 @@ if (!codeIncludes(ui, 'async function loadStatus(){') ||
   })();
   if (statsStart.includes('R.loadStatus()') || !statsStart.includes('R.startStatsStream()') ||
       !codeIncludes(runtimeJs, "was!==canEdit&&activeView==='stats'") ||
-      !codeIncludes(runtimeJs, "fillStarRate(rateHost,r.rating||0,!controlsMutable,")) {
+      !codeIncludes(statsRuntimeJs, "fillStarRate(rateHost,r.rating||0,!controlsMutable,")) {
     throw new Error(
         'Stats must load its own state with records, and re-render rating stars when mutable flips');
   }
