@@ -365,6 +365,12 @@ bytes of per-asset handlers. With both, the development Micra build measures
 1,575,436 flash-code bytes (60,336 over baseline); the flash-code allowance
 moves to 60,400 bytes, keeping the 64-byte headroom. The other allowances
 are unchanged.
+The schema-3 shot-curve delta encoding (`e584e0cf`) adds 820 bytes of flash
+code over the last budgeted build, and the staged non-blocking Micra
+status-poll conversion adds 152 bytes more. With it staged, the development
+Micra build measures 1,576,404 flash-code bytes (61,304 over baseline); the
+flash-code allowance moves to 61,368 bytes, keeping the 64-byte headroom.
+The other allowances are unchanged.
 On the reference board, after a 75 s settle and 200 s of three concurrent
 Web UI clients, the same session on the earlier and the reduced image
 measured:
