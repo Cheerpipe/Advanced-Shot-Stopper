@@ -156,7 +156,7 @@ int main(){
     setTimeout:(fn,delay)=>{timers.set(++nextTimer,{fn,delay});return nextTimer;},clearTimeout:id=>timers.delete(id),
     requestAnimationFrame:()=>1,webUiPollingActive:()=>true,webUiClientId:'owner',webUiPowerSeconds:()=>0,
     activeView:'diagnostic',viewReady:Promise.resolve(),homeResolve(){},invalidateHomeStream(){},noteReachFail(){},
-    applyDiagnosticLive(){},viewStatusHandlers:{diagnostic:s=>{assert(s.health);assert(s.tasks);paints.push(s);}}});
+    viewStatusHandlers:{diagnostic:s=>{assert(s.health);assert(s.tasks);paints.push(s);}}});
   vm.runInContext(runtimeStateDecl+runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('),runtimeJs.indexOf('function renderHomeStream('))+
       runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),runtimeJs.indexOf('function setHomeSub('))+statsExportJs,context);
   (async()=>{

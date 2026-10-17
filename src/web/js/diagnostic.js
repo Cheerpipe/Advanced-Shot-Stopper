@@ -427,7 +427,198 @@ function renderDiagClock() {
   t("ud")(utc && utc.slice(0, 10));
   t("lt")(local && local.slice(11));
   t("ld")(local && local.slice(0, 10));
-  R.renderLineaMicraDiagnostic();
+  renderLineaMicraDiagnostic();
+}
+let micraDiagnosticStatus = null;
+function renderLineaMicraDiagnostic() {
+  const lm = __LINEA_MICRA__ && micraDiagnosticStatus;
+  if (!lm || !$("dMicraPowerValue")) return;
+  const age = lm.sampleValid ? lm.sampleAgeMs + Math.max(0, Date.now() - lm.receivedAtMs) : 0,
+    stale =
+      lm.freshnessPolicy !== "connection" && lm.quality === "current" && age >= lm.freshnessMs,
+    power = lm.powerState,
+    source = {
+      api: "API",
+      websocket: "WebSocket",
+      api_initial: __WEBUI_TEXT__("diagnostic.api_via_websocket"),
+    }[lm.powerSource],
+    busy = ["queued", "authenticating", "listing", "running", "backoff"].includes(lm.phase),
+    unavailable = !lm.accountConfigured
+      ? __WEBUI_TEXT__("runtime.not_connected")
+      : !lm.observeState
+        ? __WEBUI_TEXT__("runtime.disabled")
+        : "";
+  $("dMicraPowerValue").textContent = power || __WEBUI_TEXT__("runtime.unknown");
+  const brief = $("dMicraPowerBrief");
+  if (brief) brief.textContent = power || __WEBUI_TEXT__("runtime.unknown");
+  $("dMicraMode").textContent =
+    (lm.observedMode || __WEBUI_TEXT__("runtime.unknown")) + (source ? " (" + source + ")" : "");
+  $("dMicraQuality").textContent =
+    (stale ? "stale" : lm.quality) || __WEBUI_TEXT__("runtime.unknown");
+  $("dMicraAge").textContent =
+    lm.temperatureState +
+    "/" +
+    lm.temperatureError +
+    " · " +
+    (lm.sampleValid
+      ? Math.floor(age / 1000) + __WEBUI_TEXT__("runtime.s_ago")
+      : __WEBUI_TEXT__("runtime.no_sample"));
+  const boiler = lm.boiler || {},
+    coffee = boiler.coffee || {},
+    steam = boiler.steam || {},
+    boilerAge = boiler.sampleAgeMs
+      ? Math.floor((boiler.sampleAgeMs + Math.max(0, Date.now() - lm.receivedAtMs)) / 1000)
+      : 0,
+    readinessLabel = __WEBUI_TEXT__("diagnostic.readiness_states").split("|")[
+      ["off", "warming_up", "waiting_for_steam", "ready", "needs_water", "unknown"].indexOf(lm.readiness)
+    ],
+    waterLabel = __WEBUI_TEXT__("diagnostic.water_states").split("|")[
+      [coffee.state, steam.state].includes("no_water")
+        ? 1
+        : [coffee.state, steam.state].some(
+              (x) => x && x !== "unknown" && x !== "unsupported",
+            )
+          ? 0
+          : 2
+    ],
+    // The absolute readyAt timestamp lets the remaining time tick locally
+    // without stream frames; the sample age interpolates the same way.
+    boilerRow = (b, qualifier) => {
+      if (unavailable) return unavailable;
+      const parts = [];
+      if (b.state) parts.push(b.state.replace(/_/g, " "));
+      if (qualifier) parts.push(qualifier);
+      const left = Math.max(
+        0,
+        b.readyAtUtcSec ? b.readyAtUtcSec - Math.floor(Date.now() / 1000) : 0,
+      );
+      if ((b.state === "heating_up" || b.state === "eco") && b.readyAtUtcSec)
+        parts.push(
+          __WEBUI_TEXT__("diagnostic.ready_in").replace(
+            "%1",
+            Math.floor(left / 60) + "m " + (left % 60) + "s",
+          ) +
+            " (" +
+            R.formatWallTimeLocal(b.readyAtUtcSec) +
+            " UTC)",
+        );
+      if (boilerAge) parts.push(boilerAge + __WEBUI_TEXT__("runtime.s_ago"));
+      return parts.length ? parts.join(" · ") : __WEBUI_TEXT__("runtime.unknown");
+    };
+  $("dMicraReadiness").textContent =
+    unavailable || readinessLabel || lm.readiness || __WEBUI_TEXT__("runtime.unknown");
+  $("dMicraBrewBoiler").textContent = boilerRow(
+    coffee,
+    coffee.targetDeciC ? (coffee.targetDeciC / 10).toFixed(1) + " °C" : "",
+  );
+  $("dMicraSteamBoiler").textContent = boilerRow(
+    steam,
+    steam.level && steam.level !== "unknown" && steam.level !== "unsupported"
+      ? steam.level.replace("level_", "level ")
+      : "",
+  );
+  $("dMicraWater").textContent = unavailable || waterLabel;
+  const refresh = $("lineaMicraRefreshLink");
+  if (refresh) {
+    const disabled = !R.controlsMutable || !lm.observeState || !lm.accountConfigured || busy;
+    refresh.setAttribute("aria-disabled", String(disabled));
+    refresh.tabIndex = disabled ? -1 : 0;
+  }
+}
+// Diagnostic sections are painted only from the owned WebSocket cache.
+function applyDiagnosticLive(s) {
+  const t = (i, v) => {
+      const e = $(i);
+      if (e) e.textContent = v || __WEBUI_TEXT__("runtime.unknown");
+    },
+    sf = s.safety || {},
+    sc = s.scale || {},
+    cp = s.cupPresence || {};
+  t("dMachine", s.machineState);
+  const lm = s.lineaMicra;
+  if (lm) {
+    micraDiagnosticStatus = { ...lm, receivedAtMs: Date.now() };
+    renderLineaMicraDiagnostic();
+  }
+  t("dBrew", R.formatBackflushState(s) || s.state);
+  t("dCup", cp.state);
+  t(
+    "dScaleName",
+    sc.connectedMac
+      ? sc.connectedFriendlyName || __WEBUI_TEXT__("runtime.unknown")
+      : __WEBUI_TEXT__("runtime.not_connected"),
+  );
+  R.updateScaleRenameUi(
+    "dScaleNameRenameWrap",
+    sc.connectedMac || "",
+    sc.connectedFriendlyName || "",
+  );
+  t("dCupWeight", R.formatCupWeight(s));
+  t(
+    "dActivator",
+    s.physicalActivatorOn ? __WEBUI_TEXT__("runtime.on") : __WEBUI_TEXT__("runtime.off"),
+  );
+  if ($("dReed"))
+    t("dReed", s.reedOn ? __WEBUI_TEXT__("runtime.on") : __WEBUI_TEXT__("runtime.off"));
+  t("dRelay", s.relayClosed ? __WEBUI_TEXT__("runtime.on") : __WEBUI_TEXT__("runtime.off"));
+  t("dSource", s.controlSource);
+  t(
+    "dSafety",
+    sf.state +
+      (s.backflush
+        ? " · " +
+          s.backflush.hardLimitMs / 1000 +
+          " s max · " +
+          Math.ceil(s.backflush.remainingMs / 1000) +
+          " s left"
+        : ""),
+  );
+  t("dFault", sf.fault !== "NONE" ? sf.fault : s.backflush?.stopReason || sf.fault);
+  t(
+    "dWatchdog",
+    sf.taskWatchdogReady ? __WEBUI_TEXT__("runtime.ready_3") : __WEBUI_TEXT__("runtime.fault"),
+  );
+  t(
+    "dExternal",
+    sf.externalHardware
+      ? __WEBUI_TEXT__("runtime.present_2")
+      : __WEBUI_TEXT__("runtime.not_configured"),
+  );
+  t(
+    "dRecovery",
+    sf.recoveryRequired ? __WEBUI_TEXT__("runtime.required") : __WEBUI_TEXT__("runtime.none_2"),
+  );
+  t("dStream", sc.streamState);
+  t("dControl", sc.controlState);
+  t("dScaleRssi", typeof sc.rssi === "number" ? sc.rssi + __WEBUI_TEXT__("runtime.dbm") : "");
+  t("hRecoveredStales", String(sc.recoveredStaleCount));
+  t(
+    "hStaleTime",
+    typeof sc.recoveredStaleMs === "number"
+      ? sc.recoveredStaleMs + __WEBUI_TEXT__("runtime.ms_2")
+      : "",
+  );
+  const wi = sc.weightUpdateIntervalMs;
+  t(
+    "hScaleRate",
+    typeof wi === "number" && wi > 0
+      ? (1000 / wi).toFixed(1) + __WEBUI_TEXT__("runtime.hz") + wi + __WEBUI_TEXT__("runtime.ms_3")
+      : "",
+  );
+  t("hScaleGaps", String(sc.packetGaps));
+  t("hScaleGapMax", sc.maxPacketGapMs + __WEBUI_TEXT__("runtime.ms_2"));
+  t("hScaleRejected", String(sc.rejectedPackets));
+  t("hScaleReconnects", String(sc.reconnects));
+  t(
+    "hLastDisconnect",
+    sc.lastDisconnect?.summary ||
+      sc.lastDisconnectReasonName ||
+      __WEBUI_TEXT__("diagnostic.none_2"),
+  );
+  t("hScaleCommandFailure", sc.lastCommandFailure?.summary || __WEBUI_TEXT__("diagnostic.none_3"));
+  t("hEventsDropped", String(sc.eventsDropped));
+  t("dScaleWeight", R.formatScaleWeight(s));
+  t("dScaleTimer", R.formatScaleTimer(s));
 }
 function applyDiagnosticStatus(s) {
   if (!s) return;
@@ -1074,6 +1265,7 @@ export function init() {
   if (ready) return;
   ready = true;
   R.registerViewStatus("diagnostic", applyStatus);
+  R.registerViewStatus("diagnosticLive", applyDiagnosticLive);
   setInterval(() => {
     if (!document.hidden) renderDiagClock();
   }, 1000);

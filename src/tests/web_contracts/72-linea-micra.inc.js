@@ -391,8 +391,9 @@ for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
     }, __WEBUI_TEXT__: key => key === 'runtime.s_ago' ? ' s ago'
       : key === 'diagnostic.ready_in' ? 'ready in %1' : key};
   context.formatWallTimeLocal = seconds => 'T' + seconds;
+  context.R = context;
   vm.createContext(context);
-  vm.runInContext(blockAt(rawRuntimeJs, 'function renderLineaMicraDiagnostic('), context);
+  vm.runInContext(blockAt(rawViewJs.diagnostic, 'function renderLineaMicraDiagnostic('), context);
   for (const policy of ['connection', 'time', undefined]) {
     for (const quality of ['current', 'stale', 'optimistic', 'unsupported']) {
       context.micraDiagnosticStatus = {sampleValid: true, sampleAgeMs: 0, receivedAtMs: 100,
@@ -602,13 +603,13 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !micraSettingsHtml.includes('<option value="60">') ||
     micraSettingsHtml.includes('id="lineaMicraShutdownWithScale" type="checkbox" checked') ||
     !codeIncludes(rawAllJs, "$('lineaMicraDisconnectButton').disabled=!canEdit||(!connected&&!machines.length)") ||
-    !codeIncludes(rawRuntimeJs, "$('dMicraPowerValue').textContent=power") ||
+    !codeIncludes(rawViewJs.diagnostic, "$('dMicraPowerValue').textContent=power") ||
     !codeIncludes(rawAllJs, "m.temperatureState&&m.temperatureState!=='disabled'") ||
-    !codeIncludes(rawRuntimeJs, "$('dMicraAge').textContent=lm.temperatureState+'/'+lm.temperatureError+' · '") ||
-    !codeIncludes(rawRuntimeJs, "refresh.setAttribute('aria-disabled',String(disabled))") ||
-    codeIncludes(rawRuntimeJs, "expired?'UNKNOWN':lm.powerState") ||
-    !codeIncludes(rawRuntimeJs, 'power=lm.powerState') ||
-    !codeIncludes(rawRuntimeJs, "stale=lm.freshnessPolicy!=='connection'&&lm.quality==='current'&&age>=lm.freshnessMs") ||
+    !codeIncludes(rawViewJs.diagnostic, "$('dMicraAge').textContent=lm.temperatureState+'/'+lm.temperatureError+' · '") ||
+    !codeIncludes(rawViewJs.diagnostic, "refresh.setAttribute('aria-disabled',String(disabled))") ||
+    codeIncludes(rawViewJs.diagnostic, "expired?'UNKNOWN':lm.powerState") ||
+    !codeIncludes(rawViewJs.diagnostic, 'power=lm.powerState') ||
+    !codeIncludes(rawViewJs.diagnostic, "stale=lm.freshnessPolicy!=='connection'&&lm.quality==='current'&&age>=lm.freshnessMs") ||
     !micraSettingsHtml.includes('id="lineaMicraApplyTemperature" type="checkbox" checked') ||
     !micraSettingsHtml.includes('id="lineaMicraObserveState" type="checkbox" checked') ||
     !micraSettingsHtml.includes('id="lineaMicraRecognizeWake" type="checkbox" checked')) {

@@ -91,7 +91,7 @@
       !/<legend>Scale<\/legend>[\s\S]*?id="dCupWeight"/.test(diagnostic) ||
       !diagnostic.includes('id="dCup"') || diagnostic.includes('id="scaleTareButton"') ||
       !codeIncludes(source, "$('cupWeight').textContent=formatCupWeight(s)") ||
-      !codeIncludes(source, "t('dCupWeight',formatCupWeight(s))") ||
+      !codeIncludes(viewJs.diagnostic, "t('dCupWeight',R.formatCupWeight(s))") ||
       !codeIncludes(source, 'function noteReachFail(err,force){clearCupWeights();') ||
       !codeIncludes(source, 'function stopViewPolls(){clearCupWeights();')) {
     throw new Error('Home and Diagnostic cup panel contract');
@@ -126,19 +126,18 @@
 
 {
   // Historical disconnect/command summaries render through the shared live
-  // renderer (runtime.js applyDiagnosticLive), shared with the socket stream.
-  const runtimeSource = runtimeJs;
+  // renderer (diagnostic.js applyDiagnosticLive), shared with the socket stream.
+  const runtimeSource = viewJs.diagnostic;
   const first = runtimeSource.indexOf('function applyDiagnosticLive(');
   const last = runtimeSource.indexOf('\n}', first) + 2;
   if (first < 0 || last < first) throw new Error('Missing scale diagnostic formatters');
   const elements = {};
-  const live = new Function('$', '__WEBUI_TEXT__', 'formatBackflushState',
-    'formatCupWeight', 'formatScaleWeight', 'formatScaleTimer',
-    'updateScaleRenameUi', 'renderLineaMicraDiagnostic',
+  const live = new Function('$', '__WEBUI_TEXT__', 'R', 'renderLineaMicraDiagnostic',
     runtimeSource.slice(first, last) + ';return applyDiagnosticLive;')(
     id => elements[id] || (elements[id] = {textContent: ''}),
     key => ({'diagnostic.none_2': 'NONE', 'diagnostic.none_3': 'none'}[key] || key),
-    () => '', () => '', () => '', () => '', () => {}, () => {});
+    {formatBackflushState: () => '', formatCupWeight: () => '', formatScaleWeight: () => '',
+      formatScaleTimer: () => '', updateScaleRenameUi() {}}, () => {});
   const record = lastDisconnect => live({lineaMicra: null, safety: {}, scale: {
     lastDisconnect, lastDisconnectReasonName: lastDisconnect ? undefined : 'NONE',
     lastCommandFailure: {sequence: 1, summary: 'volume · status 15 · 0ms'},

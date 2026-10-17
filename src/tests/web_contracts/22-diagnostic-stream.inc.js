@@ -21,8 +21,7 @@
     webUiPollingActive: () => owner, webUiClientId: '0123456789abcdef', webUiPowerSeconds: () => 30,
     activeView: 'diagnostic', viewSeq: 1, viewReady: Promise.resolve(), lastStatusAt: 0,
     performance: {now: () => 1234}, invalidateHomeStream() {}, noteReachFail() {}, homeResolve() {},
-    applyDiagnosticLive: status => applied.push(status),
-    viewStatusHandlers: {diagnostic: () => {}},
+    viewStatusHandlers: {diagnostic: () => {}, diagnosticLive: status => applied.push(status)},
   };
   vm.runInNewContext(source, context);
   const changes = {
@@ -255,8 +254,8 @@
       'the Micra sample age must quantize to whole seconds so an idle stream'
       + ' does not emit one frame per dispatch tick');
   assert(diagRegion.includes('session.diagBoot = control.bootId'));
-  assert(codeIncludes(runtimeJs, "t('dScaleTimer',formatScaleTimer(s))") &&
-         codeIncludes(runtimeJs, "t('dScaleWeight',formatScaleWeight(s))"),
+  assert(codeIncludes(viewJs.diagnostic, "t('dScaleTimer',R.formatScaleTimer(s))") &&
+         codeIncludes(viewJs.diagnostic, "t('dScaleWeight',R.formatScaleWeight(s))"),
       'the shared live renderer paints the Scale timer and weight');
   assert(codeIncludes(appJsSource, 'R.stopDiagnosticStream()'),
       'leaving the view must unsubscribe');

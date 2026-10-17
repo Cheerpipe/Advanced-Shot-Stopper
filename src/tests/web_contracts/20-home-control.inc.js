@@ -699,7 +699,7 @@ if (!codeIncludes(ui, 'id="renameScaleLink"') ||
     !network.includes('The scale name cannot be changed while a cycle') ||
     !network.includes('connectedFriendlyName') ||
     !network.includes('connectedMac') ||
-    !codeIncludes(runtimeJs, "updateScaleRenameUi('dScaleNameRenameWrap',sc.connectedMac||'',sc.connectedFriendlyName||''") ||
+    !codeIncludes(viewJs.diagnostic, "R.updateScaleRenameUi('dScaleNameRenameWrap',sc.connectedMac||'',sc.connectedFriendlyName||''") ||
     !network.includes('\\"preferredFriendlyName\\"') ||
     !scaleWorker.includes('bool setScaleFriendlyName(') ||
     codeIncludes(ui, "label.split(' — ')")) {
