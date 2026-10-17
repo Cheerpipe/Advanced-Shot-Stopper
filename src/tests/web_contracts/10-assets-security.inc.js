@@ -856,8 +856,9 @@ if (htmlBytes > 93300) {
 // Moving the Stats shot charts and list into the Stats module adds its qualifiers and runtime exports: +720 bytes (447893), 2026-10-16.
 // Moving the History rows and type filter into the History module adds its qualifiers and runtime exports: +289 bytes (448182), 2026-10-16.
 // Moving the Diagnostic live renderer into the Diagnostic module adds its qualifiers and runtime exports: +147 bytes (448329), 2026-10-16.
-if (jsBytes > 448329) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 448329)`);
+// The gradual forecast hero tint with the window-mode fast alert restored: 451129 bytes, owner-authorized 2026-10-17.
+if (jsBytes > 451129) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 451129)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -962,8 +963,9 @@ if (jsBytes > 448329) {
 // The Stats shot charts and list moved into the Stats module: 533350, 2026-10-16.
 // The History rows and type filter moved into the History module: 533639, 2026-10-16.
 // The Diagnostic live renderer moved into the Diagnostic module: 533786, 2026-10-16.
-if (htmlBytes + jsBytes > 533786) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 533786)`);
+// The gradual forecast hero tint with the window-mode fast alert restored: 536959, owner-authorized 2026-10-17.
+if (htmlBytes + jsBytes > 536959) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 536959)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

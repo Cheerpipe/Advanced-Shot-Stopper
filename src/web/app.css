@@ -241,11 +241,14 @@ summary::marker{color:var(--ac)}
 /* --tint is registered so the hero gradient cross-fades between shot states;
    the longhand transition survives the CSS minifier, the shorthand does not. */
 @property --tint{syntax:"<color>";inherits:true;initial-value:#a83b21}
-.shotHero{--w78:color-mix(in srgb,var(--on) 78%,transparent);--tint:var(--ac);position:relative;overflow:hidden;margin:1rem 0;padding:1.05rem 1.1rem;border-radius:calc(var(--r) + .25rem);background:linear-gradient(150deg,color-mix(in srgb,var(--tint) 82%,#000),var(--tint) 55%,color-mix(in srgb,var(--tint) 80%,#fff));color:var(--on);box-shadow:var(--ah);transition-property:--tint;transition-duration:.4s;touch-action:manipulation;user-select:none}
+/* --tp is the live forecast blend: 100% = the full predicted colour, lower
+   fades it toward the brand brown (the firmware streams the percent). */
+@property --tp{syntax:"<percentage>";inherits:true;initial-value:100%}
+.shotHero{--w78:color-mix(in srgb,var(--on) 78%,transparent);--tint:var(--ac);--tp:100%;position:relative;overflow:hidden;margin:1rem 0;padding:1.05rem 1.1rem;border-radius:calc(var(--r) + .25rem);background:linear-gradient(150deg,color-mix(in srgb,var(--tint) 82%,#000),var(--tint) 55%,color-mix(in srgb,var(--tint) 80%,#fff));color:var(--on);box-shadow:var(--ah);transition-property:--tint,--tp;transition-duration:.4s;touch-action:manipulation;user-select:none}
 .shotHero[data-tint=neutral]{--tint:var(--cf)}
-.shotHero[data-tint=on_recipe]{--tint:color-mix(in srgb,var(--ok) var(--tk),#000)}
-.shotHero[data-tint=fast]{--tint:color-mix(in srgb,var(--gFast) var(--tk),#000)}
-.shotHero[data-tint=slow]{--tint:color-mix(in srgb,var(--gSlow) var(--tk),#000)}
+.shotHero[data-tint=on_recipe]{--tint:color-mix(in srgb,var(--cf) calc(100% - var(--tp)),color-mix(in srgb,var(--ok) var(--tk),#000) var(--tp))}
+.shotHero[data-tint=fast]{--tint:color-mix(in srgb,var(--cf) calc(100% - var(--tp)),color-mix(in srgb,var(--gFast) var(--tk),#000) var(--tp))}
+.shotHero[data-tint=slow]{--tint:color-mix(in srgb,var(--cf) calc(100% - var(--tp)),color-mix(in srgb,var(--gSlow) var(--tk),#000) var(--tp))}
 .shotHero p{margin:0}
 .shotHero .heroLabel{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem;font-size:.72rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--w78)}
 .shotHero .heroDot{flex:none;width:.55rem;height:.55rem;border-radius:50%;background:var(--on)}

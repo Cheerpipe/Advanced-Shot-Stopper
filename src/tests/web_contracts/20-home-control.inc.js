@@ -198,7 +198,7 @@
     throw new Error('Clearing Home must hide the shot hero');
   }
   const heroElements=new Map(),lookup=id=>{
-    if(!heroElements.has(id))heroElements.set(id,{hidden:false,textContent:'',dataset:{},style:{setProperty(){}},
+    if(!heroElements.has(id))heroElements.set(id,{hidden:false,textContent:'',dataset:{},style:{tp:null,setProperty(k,v){this[k==='--tp'?'tp':k]=v;}},
       classList:{toggle(){},contains(){return false}},setAttribute(){},
       replaceChildren(...n){this.textContent=n.map(x=>typeof x==='string'?x:x.textContent).join('');},
       append(...n){this.textContent+=n.map(x=>typeof x==='string'?x:x.textContent).join('');}});
@@ -208,14 +208,13 @@
   const rule={mode:'active',t1:27,t2:36,prot:3,wall:60,d:5,ceil:38.5};
   const env={liveRuleModel:null},ruleArgs=[];
   const paint=(d)=>new Function('$','buildShotSparkModel','formatShotEnded','ms','localStorage','document',
-    'liveRuleModel','uiState','shotRuleModel','scheduleShotPaint','heroFastState',
+    'liveRuleModel','uiState','shotRuleModel','scheduleShotPaint','sub','d',
     blockAt(runtimeJs,'function verdictLabel(')+
-    runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function checkFirmwareReload('))
-      .replace('let heroFast = { el: 0, since: -1, on: false };','let heroFast = heroFastState.v;')+
-    ';const r=renderShotHero(arguments[11]);heroFastState.v=heroFast;return r;')(lookup,()=>null,()=>'',
+    runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function checkFirmwareReload('))+
+    ';return renderShotHero(d);')(lookup,()=>null,()=>'',
       (v,n)=>(v/1000).toFixed(n),{getItem:()=>tintMode,setItem(){}},{createElement:()=>({})},
-      env.liveRuleModel,{shotHistory:{shots:[]}},r=>(ruleArgs.push(r),null),()=>{},fast,d);
-  const fast={v:{el:0,since:-1,on:false}};
+      env.liveRuleModel,{shotHistory:{shots:[]}},r=>(ruleArgs.push(r),null),()=>null,
+      (t,vals)=>t.replace(/\{(\d)\}/g,(_,i)=>vals[+i]),d);
   const card={live:true,weight:2,goal:36,elapsedMs:1000,firstDropMs:0,tareMs:null,averageFlowGps:null,shotType:'auto'};
   const heroEl=()=>lookup('shotHero');
   paint({...card,weight:36.2,elapsedMs:36800});
@@ -250,23 +249,40 @@
   if(heroEl().dataset.tint!=='brand'||lookup('shotHeroState').textContent!=='Fast')
     throw new Error('Brand colours must keep the brand gradient and still name the verdict');
   tintMode=null;
-  // Live colour: red only after the forecast stays before the window for 1.5 s.
+  // Live colour in forecast mode is the firmware's: class + blend percent.
   env.liveRuleModel=rule;
-  paint({...card,elapsedMs:10000,expectedEndMs:22000});
-  paint({...card,elapsedMs:11400,expectedEndMs:22500});
-  if(heroEl().dataset.tint!=='neutral')throw new Error('One early forecast must not turn the hero red');
-  paint({...card,elapsedMs:11500,expectedEndMs:22400});
+  paint({...card,elapsedMs:15000,tintClass:'on_recipe',tintPct:40});
+  if(heroEl().dataset.tint!=='on_recipe'||heroEl().style.tp!=='40%')
+    throw new Error('A live forecast tint must paint the streamed class at its blend percent');
+  paint({...card,elapsedMs:15000,tintClass:'neutral',tintPct:0});
+  if(heroEl().dataset.tint!=='neutral'||lookup('shotHeroState').textContent!=='Brewing')
+    throw new Error('A young forecast stays neutral coffee');
+  paint({...card,elapsedMs:15000});
+  if(heroEl().dataset.tint!=='neutral')
+    throw new Error('A stream without tint fields must stay neutral (legacy)');
+  paint({...card,elapsedMs:24000,tintClass:'on_recipe',tintPct:60,expectedEndMs:29400});
+  if(!/^~29 s$/.test(lookup('shotHeroState').textContent))
+    throw new Error('A confident green shows the landing estimate');
+  paint({...card,elapsedMs:26000,tintClass:'slow',tintPct:80,weight:28,averageFlowGps:1.4,expectedEndMs:39500});
+  if(!/Slow — about 42 g at 36 s/.test(lookup('shotHeroState').textContent))
+    throw new Error('A flowing slow shot shows the projected weight at the window end');
+  paint({...card,elapsedMs:26000,tintClass:'slow',tintPct:80,weight:28,averageFlowGps:0.5,tintNote:'stalled'});
+  if(!/Stalled — tracking to ~45 g/.test(lookup('shotHeroState').textContent))
+    throw new Error('A stalled shot tracks to its projected wall weight');
+  paint({...card,elapsedMs:26000,tintClass:'slow',tintPct:80,weight:28,averageFlowGps:1.4,expectedEndMs:39500,tintNote:'recovered'});
+  if(!/Slow — about 42 g at 36 s · Flow rose/.test(lookup('shotHeroState').textContent))
+    throw new Error('A recovered slow shows the flow-rose note');
+  paint({...card,elapsedMs:26000,tintClass:'fast',tintPct:100});
   if(heroEl().dataset.tint!=='fast'||lookup('shotHeroState').textContent!=='Running fast')
-    throw new Error('A forecast held 1.5 s before the window must read Running fast');
-  paint({...card,elapsedMs:12000,expectedEndMs:0});
-  if(heroEl().dataset.tint!=='fast')throw new Error('Running fast must hold for the rest of the shot');
-  paint({...card,elapsedMs:5000,expectedEndMs:26800});
-  if(heroEl().dataset.tint!=='neutral')throw new Error('A new shot must restart neutral; a forecast inside the dead band is not fast');
-  paint({...card,elapsedMs:30000});
-  if(heroEl().dataset.tint!=='neutral')throw new Error('By forecast must not turn green before the shot stops');
-  paint({...card,elapsedMs:36500});
-  if(heroEl().dataset.tint!=='slow'||lookup('shotHeroState').textContent!=='Past window')
-    throw new Error('Passing the window uncut must read Past window in blue');
+    throw new Error('A streamed fast tint reads Running fast');
+  paint({...card,elapsedMs:26000,tintClass:'on_recipe',tintPct:40,expectedEndMs:29400});
+  // window mode ignores the stream's tint and uses the clock
+  tintMode='window';
+  paint({...card,elapsedMs:1500});
+  paint({...card,elapsedMs:30000,tintClass:'fast',tintPct:100});
+  if(heroEl().dataset.tint!=='on_recipe')throw new Error('By time window must keep its clock colour');
+  if(heroEl().style.tp!=='100%')throw new Error('Non-forecast modes keep the full blend');
+  tintMode=null;
   tintMode='window';
   paint({...card,elapsedMs:2000});
   paint({...card,elapsedMs:30000});
@@ -350,8 +366,9 @@
       !streamSource.includes('controlCriticalRfActive_.load'))
     throw new Error('Bind/resync must share the coalesced publication cadence');
   if(!/rule\[256\] = "null";\n  if \(canonical\) \{\n    snprintf\(rule,/.test(streamSource)||
-      !streamSource.includes('\\"expectedEndMs\\":%lu,\\"rule\\":%s}'))
-    throw new Error('Only a stored shot card may carry its preset rule');
+      !streamSource.includes('\\"expectedEndMs\\":%lu,\\"rule\\":%s,"')||
+      !streamSource.includes('\\"tintClass\\":\\"%s\\",\\"tintPct\\":%u,\\"tintNote\\":\\"%s\\"}'))
+    throw new Error('Only a stored shot card may carry its preset rule and live tint');
   const sockets=[],timers=new Map();let timerId=0,owner=true;
   class Socket{static OPEN=1;constructor(url){this.url=url;this.readyState=1;this.sent=[];sockets.push(this)}send(body){this.sent.push(JSON.parse(body))}close(){this.readyState=3;this.onclose?.()}}
   const listeners={};

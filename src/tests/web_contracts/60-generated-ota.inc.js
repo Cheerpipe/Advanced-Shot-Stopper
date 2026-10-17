@@ -552,10 +552,11 @@ if (generated.jsGzip.length > 7330) {
 // 14286 bytes; owner-authorized 2026-10-16.
 // The header mode pill joined to the guard stack measures 14313 bytes;
 // owner-authorized 2026-10-16.
+// The gradual forecast hero tint (registered --tp blend percent) brings the CSS to 14384 bytes; owner-authorized 2026-10-17.
 // The shot card header with a large faint metric glyph measures 14322 bytes;
 // owner-authorized 2026-10-16.
-if (generated.cssGzip.length > 14322) {
-  throw new Error(`Compressed Web CSS exceeds the 14322-byte gzip budget (${generated.cssGzip.length})`);
+if (generated.cssGzip.length > 14384) {
+  throw new Error(`Compressed Web CSS exceeds the 14384-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -680,8 +681,9 @@ if (generated.cssGzip.length > 14322) {
 // Moving the History rows and type filter into the History module brings it to 41386 (2026-10-16).
 // Moving the Diagnostic live renderer into the Diagnostic module brings it to 39982 (2026-10-16).
 // Moving the Stats chart and shot-row helpers into the Stats module brings it to 38465 (2026-10-16).
-if (sentinelRuntimeGzip.length > 38500) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 38500-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The gradual forecast hero tint (firmware-owned tintClass/tintPct, advisories, landing estimate) with the window-mode fast alert restored brings the runtime to 38895 compressed bytes; owner-authorized 2026-10-17.
+if (sentinelRuntimeGzip.length > 38895) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 38895-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -716,7 +718,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The History rows and type filter moved out of the runtime bring it to 12143 (2026-10-16).
 // The Diagnostic live renderer moved out of the runtime brings Diagnostic to 13626 (2026-10-16).
 // The Stats chart and shot-row helpers moved out of the runtime bring Stats/History to 13436 (2026-10-16).
-const viewModuleBudgets = {records: 13500, diagnostic: 13700, admin: 14200, settings: 14150, setup: 3600};
+// The gradual forecast Admin hint text adds a few bytes to admin.js (14226); owner-authorized 2026-10-17.
+const viewModuleBudgets = {records: 13500, diagnostic: 13700, admin: 14226, settings: 14150, setup: 3600};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -878,8 +881,9 @@ if (generated.icon48Raw.length > 3500) {
 // Measured 73846 bytes after the frontend audit (2026-10-16).
 const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
     generated.jsGzip.length + generated.runtimeGzip.length;
-if (coldHomeGzip > 64150) {
-  throw new Error(`Cold Home download exceeds the 64150-byte gzip budget (${coldHomeGzip})`);
+// The gradual forecast hero tint brings the cold Home download to 64613 gzip bytes with the window-mode fast alert restored; owner-authorized 2026-10-17.
+if (coldHomeGzip > 64613) {
+  throw new Error(`Cold Home download exceeds the 64613-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

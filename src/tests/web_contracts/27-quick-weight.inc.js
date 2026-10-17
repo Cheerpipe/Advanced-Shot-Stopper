@@ -126,6 +126,7 @@
     const qwRoot = {
       hidden: false,
       dataset: {},
+      style: {setProperty() {}},
       classList: {
         toggle(cls, on) { on ? qwHeroClasses.add(cls) : qwHeroClasses.delete(cls); },
         contains: (cls) => qwHeroClasses.has(cls),

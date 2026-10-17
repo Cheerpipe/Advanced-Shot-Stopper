@@ -4806,18 +4806,28 @@ function renderShotHero(d) {
   const m = d.live
       ? liveRuleModel
       : d.rule && shotRuleModel({ ...d.rule, goalG: d.goal, shotType: d.shotType, firstDropS: d.firstDropMs / 1e3 }),
-    tint = heroTint(d, m, kind, el, noScale);
+    tintMode = heroTintMode(),
+    tint = heroTint(d, m, kind, el, noScale, tintMode);
   hero.dataset.tint = tint;
+  // Live forecast fades brand brown into the predicted colour; the firmware
+  // owns the blend percent, the browser just renders it.
+  hero.style.setProperty(
+    "--tp",
+    (d.live && tintMode === "forecast" && d.tintClass
+      ? Math.max(0, Math.min(100, +d.tintPct || 0))
+      : 100) + "%",
+  );
   t(
     "State",
     d.live
-      ? tint === "fast"
-        ? __WEBUI_TEXT__("home.hero_running_fast")
-        : tint === "on_recipe"
-          ? __WEBUI_TEXT__("home.hero_in_window")
-          : tint === "slow"
-            ? __WEBUI_TEXT__("home.hero_past_window")
-            : __WEBUI_TEXT__("home.hero_brewing")
+      ? heroStateText(d, tint, m, el, tintMode) ||
+        (tint === "fast"
+          ? __WEBUI_TEXT__("home.hero_running_fast")
+          : tint === "on_recipe"
+            ? __WEBUI_TEXT__("home.hero_in_window")
+            : tint === "slow"
+              ? __WEBUI_TEXT__("home.hero_past_window")
+              : __WEBUI_TEXT__("home.hero_brewing"))
       : kind === "max_time"
         ? __WEBUI_TEXT__("runtime.max_time")
         : kind
@@ -4826,10 +4836,12 @@ function renderShotHero(d) {
   );
   renderHeroChart($("shotHeroSpark"), model, !noScale && m && m.mode === "active" ? m : null, goal, label);
 }
-// Hero colour. Live red needs the cut forecast before the window for 1.5 s.
+// Hero colour. In forecast mode the firmware's shot predictor owns the live
+// colour class and blend percent (tintClass/tintPct on the card); window and
+// brand modes keep their local rules.
 const HERO_TINT_KEY = "ssHeroTint",
   HERO_TINT_MODES = ["forecast", "window", "brand"];
-let heroFast = { el: 0, since: -1, on: false };
+let heroWindowRed = { el: 0, since: -1, on: false };
 function heroTintMode() {
   try {
     const v = localStorage.getItem(HERO_TINT_KEY);
@@ -4838,21 +4850,50 @@ function heroTintMode() {
     return "forecast";
   }
 }
-function heroTint(d, m, kind, el, noScale) {
-  const mode = heroTintMode(),
-    v = ["fast", "on_recipe", "slow"].find((x) => x === kind || x === d.verdict);
+function heroTint(d, m, kind, el, noScale, mode) {
+  const v = ["fast", "on_recipe", "slow"].find((x) => x === kind || x === d.verdict);
   if (mode === "brand") return "brand";
   if (!d.live) return v || "neutral";
-  if (el < heroFast.el) heroFast = { el: 0, since: -1, on: false };
-  heroFast.el = el;
-  if (noScale || !m || m.mode !== "active" || (d.shotType || "").toLowerCase() !== "auto") return "neutral";
+  if (mode === "forecast")
+    return ["neutral", "fast", "on_recipe", "slow"].includes(d.tintClass)
+      ? d.tintClass
+      : "neutral";
+  if (noScale || !m || m.mode !== "active" || (d.shotType || "").toLowerCase() !== "auto")
+    return "neutral";
+  if (el < heroWindowRed.el) heroWindowRed = { el: 0, since: -1, on: false };
+  heroWindowRed.el = el;
+  // Window mode keeps its local fast alert: the forecast held before the
+  // window for 1.5 s turns the card red.
   const early =
     d.extractionExtended || (d.expectedEndMs > 0 && d.expectedEndMs < (m.t1 - 0.5) * 1000);
-  if (!early) heroFast.since = -1;
-  else if (heroFast.since < 0) heroFast.since = el;
-  heroFast.on ||= !!d.extractionExtended || (early && el - heroFast.since >= 1500);
+  if (!early) heroWindowRed.since = -1;
+  else if (heroWindowRed.since < 0) heroWindowRed.since = el;
+  heroWindowRed.on ||= !!d.extractionExtended || (early && el - heroWindowRed.since >= 1500);
+  if (heroWindowRed.on) return "fast";
   const at = el / 1000;
-  return heroFast.on ? "fast" : at > m.t2 ? "slow" : mode === "window" && at >= m.t1 ? "on_recipe" : "neutral";
+  return at > m.t2 ? "slow" : mode === "window" && at >= m.t1 ? "on_recipe" : "neutral";
+}
+// Live state copy: names the predicted class; on slow adds the barista
+// advisory (projected weight at the window end, or tracking-to for stalls).
+function heroStateText(d, tint, m, el, mode) {
+  const note = { recovered: __WEBUI_TEXT__("runtime.flow_rose") }[d.tintNote] || "";
+  const suffix = note ? " · " + note : "";
+  if (tint !== "slow") {
+    if (tint === "on_recipe" && mode === "forecast" && d.tintPct >= 50 && d.expectedEndMs > 0)
+      return "~" + ms(d.expectedEndMs, 0) + __WEBUI_TEXT__("runtime.s_2") + suffix;
+    return null;  // caller falls back to the stock labels
+  }
+  const q = d.averageFlowGps,
+    at = el / 1000;
+  if (mode === "forecast" && q > 0 && m && typeof d.weight === "number") {
+    const stalled = d.tintNote === "stalled",
+      until = stalled ? m.wall : m.t2,
+      x = Math.round(d.weight + q * Math.max(0, until - at));
+    return stalled
+      ? sub(__WEBUI_TEXT__("runtime.stalled_tracking"), [x]) + suffix
+      : sub(__WEBUI_TEXT__("runtime.slow_about_xg"), [x, m.t2]) + suffix;
+  }
+  return null;
 }
 // Curve, cut line and window; overlays use CSSOM (the CSP blocks inline styles).
 function renderHeroChart(host, model, m, goal, label) {
