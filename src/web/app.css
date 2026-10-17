@@ -47,7 +47,7 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
   .qsGuardSig>.qsShield{display:none}
   .qsStack{display:flex}
   .qsStack i,.qsModeSig{display:grid;place-items:center;width:1.85rem;height:1.85rem;margin-left:-.6rem;border:2.5px solid var(--bg);border-radius:50%;background:color-mix(in srgb,var(--c,var(--ok)) 18%,var(--sf));color:var(--c,var(--ok))}
-  .qsModeSig{--c:var(--ac);justify-content:center;width:3.7rem;margin:0 -.15rem 0 0;border-radius:1rem}
+  .qsModeSig{--c:var(--ac);justify-content:center;width:2.775rem;margin:0 -.15rem 0 0;border-radius:1rem}
   .qsSig .qsI{width:1rem;height:1rem;stroke-width:2.1}
   .qsStack i.off,[data-mode=manual] .qsSig :is(i,.qsModeSig){background:var(--in);color:var(--mu)}
   .qsStack i.off{box-shadow:inset 0 0 0 1.5px var(--ln)}
