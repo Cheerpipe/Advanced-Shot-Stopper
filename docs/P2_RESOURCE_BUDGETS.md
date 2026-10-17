@@ -371,6 +371,12 @@ status-poll conversion adds 152 bytes more. With it staged, the development
 Micra build measures 1,576,404 flash-code bytes (61,304 over baseline); the
 flash-code allowance moves to 61,368 bytes, keeping the 64-byte headroom.
 The other allowances are unchanged.
+The staged backflush poll conversion (tryLock with a conservative miss
+projection, the admission-cache stamp, and the split >=2 ms mux-wait detector
+relocated to queue()/physicalStart()) adds 500 bytes more: the development
+Micra build measures 1,576,904 flash-code bytes (61,804 over baseline); the
+flash-code allowance moves to 61,868 bytes, keeping the 64-byte headroom.
+The other allowances are unchanged.
 On the reference board, after a 75 s settle and 200 s of three concurrent
 Web UI clients, the same session on the earlier and the reduced image
 measured:
