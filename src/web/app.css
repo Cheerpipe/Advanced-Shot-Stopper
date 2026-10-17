@@ -37,8 +37,7 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 .qsGuardSig[data-level=all]{color:var(--ok)}
 .qsGuardSig[data-level=some]{color:var(--gFast)}
 .qsGuardSig[data-level=none]{color:var(--mu);opacity:.4}
-.qsGuardSig[data-level=all] .qsShield{fill:color-mix(in srgb,var(--ok) 22%,transparent)}
-.qsGuardSig[data-level=some] .qsShield{fill:color-mix(in srgb,var(--gFast) 22%,transparent)}
+.qsGuardSig[data-level=all] .qsShield,.qsGuardSig[data-level=some] .qsShield{fill:color-mix(in srgb,currentColor 22%,transparent)}
 .qsStack{display:none}
 @media(max-width:480px){.headerSignals .signalIndicator{width:1.85rem}}
 .headerSignals .qsSig{width:auto;gap:.15rem;padding:0 .3rem}
@@ -398,13 +397,13 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .btnBar .shotSort:not(:last-child){margin-right:.1rem;padding-right:.4rem;border-right:1px solid var(--ln)}
 .panelWrap:has(>table){margin:.5rem 0}
 #shotLogSentinel{min-height:1px;padding:.35rem 0 .8rem;text-align:center;color:var(--mu);font-size:.8rem}
-#shotTable{width:100%;border-collapse:collapse;font-size:.82rem}
-#shotTable thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-#shotTable,#shotTable tbody{display:block}
+#shotTable,#historyTable{width:100%;border-collapse:collapse;font-size:.82rem}
+:is(#shotTable,#historyTable) thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+#shotTable,#historyTable,:is(#shotTable,#historyTable) tbody{display:block}
 #shotTable tr{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate . ." "spark spark spark spark spark spark";gap:.6rem .5rem;align-items:start;position:relative;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1rem;margin:0 0 .75rem}
-#shotTable th,#shotTable td{border:0;padding:0;text-align:left;white-space:normal;overflow-wrap:anywhere}
-#shotTable td{display:flex;flex-direction:column;gap:.08rem;min-width:0;font-weight:650;color:var(--mu)}
-#shotTable td::before{content:attr(data-label);font-size:.62rem;font-weight:600;color:var(--mu);letter-spacing:.02em;text-transform:uppercase}
+:is(#shotTable,#historyTable) :is(th,td){border:0;padding:0;text-align:left;white-space:normal;overflow-wrap:anywhere}
+:is(#shotTable,#historyTable) td{display:flex;flex-direction:column;gap:.08rem;min-width:0;font-weight:650;color:var(--mu)}
+:is(#shotTable,#historyTable) td::before{content:attr(data-label);font-size:.62rem;font-weight:600;color:var(--mu);letter-spacing:.02em;text-transform:uppercase}
 #shotTable td:nth-child(1){grid-area:time}
 #shotTable td:nth-child(2){grid-area:dur}
 #shotTable td:nth-child(3){grid-area:goal}
@@ -423,8 +422,9 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #shotTable td:first-child{display:block;font-size:.8rem;font-weight:600;color:var(--mu);align-self:center}
 #shotTable td:first-child::before{content:none}
 #shotTable .heroPill{margin-left:.5rem;background:color-mix(in srgb,var(--z) 13%,var(--sf));color:color-mix(in srgb,var(--z) 80%,var(--fg))}
-#shotTable .shotDel{position:absolute;top:.15rem;right:.15rem;z-index:1;align-items:center;justify-content:center}
+#shotTable .shotDel,#historyTable .shotDel{position:absolute;top:.15rem;right:.15rem;z-index:1;align-items:center;justify-content:center}
 #shotTable td.shotDel,#shotTable td.shotDel>.btnGlyph{background:transparent!important}
+#historyTable td.shotDel,#historyTable td.shotDel>.btnGlyph{background:transparent!important}
 #shotTable .shotDur,#shotTable .shotActual,.shotCard .shotDur > div,.shotCard .shotActual > div{font-size:1.85rem;font-weight:750;line-height:1.1;color:var(--mu);letter-spacing:-.02em;padding-bottom:.1rem;font-variant-numeric:tabular-nums}
 .shotCard .shotDur,.shotCard .shotActual,#shotTable .shotDur,#shotTable .shotActual{display:grid;grid-template-columns:1.5em auto;gap:.08rem .5rem;justify-self:center;text-align:left}
 #shotTable .shotMetricIcon{grid-row:1/3;opacity:.2}
@@ -443,20 +443,12 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .shotSparkFlowY{grid-area:f}.shotSparkFlowY .shotYTick{right:auto;left:0}
 #shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate . ."}
 #historySentinel{min-height:1px}
-#historyTable{width:100%;border-collapse:collapse;font-size:.82rem}
-#historyTable thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-#historyTable,#historyTable tbody{display:block}
 #historyTable tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"icon dur time" "icon type time";gap:.6rem .8rem;align-items:start;position:relative;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1rem 3rem 1rem 1rem;margin:0 0 .75rem}
-#historyTable th,#historyTable td{border:0;padding:0;text-align:left;white-space:normal;overflow-wrap:anywhere}
-#historyTable td{display:flex;flex-direction:column;gap:.08rem;min-width:0;font-weight:650;color:var(--mu)}
-#historyTable td::before{content:attr(data-label);font-size:.62rem;font-weight:600;color:var(--mu);letter-spacing:.02em;text-transform:uppercase}
 #historyTable td.histTime{grid-area:time;font-size:.8rem;font-weight:600;color:var(--mu);justify-self:end}
 #historyTable td.shotDur{grid-area:dur;font-size:1.85rem;font-weight:750;line-height:1.1;letter-spacing:-.02em;padding-bottom:.1rem;font-variant-numeric:tabular-nums}
 #historyTable td.shotDur::before{font-size:.6875rem;font-weight:700;color:var(--mu);letter-spacing:.04em}
 #historyTable td.histType{grid-area:type;font-size:.75rem;font-weight:600;color:var(--mu)}
 #historyTable td.histTime::before,#historyTable td.histIcon::before{content:none}
-#historyTable .shotDel{position:absolute;top:.15rem;right:.15rem;z-index:1;align-items:center;justify-content:center}
-#historyTable td.shotDel,#historyTable td.shotDel>.btnGlyph{background:transparent!important}
 .histBadge{align-self:flex-start;display:inline-block;font-size:.6875rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
 #historyTable td.histIcon{grid-area:icon;align-self:center;width:2.6rem;height:2.6rem;font:2.6rem/1 a}
 #historyTable td.histIcon svg{width:100%;height:100%;fill:currentColor}
