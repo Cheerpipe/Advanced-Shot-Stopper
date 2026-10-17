@@ -427,7 +427,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #historyTable td.shotDel,#historyTable td.shotDel>.btnGlyph{background:transparent!important}
 #shotTable .shotDur,#shotTable .shotActual,.shotCard .shotDur > div,.shotCard .shotActual > div{font-size:1.85rem;font-weight:750;line-height:1.1;color:var(--mu);letter-spacing:-.02em;padding-bottom:.1rem;font-variant-numeric:tabular-nums}
 .shotCard .shotDur,.shotCard .shotActual,#shotTable .shotDur,#shotTable .shotActual{display:grid;grid-template-columns:1.5em auto;gap:.08rem .5rem;justify-self:center;text-align:left}
-#shotTable .shotMetricIcon{grid-row:1/3;opacity:.2}
+#shotTable .shotMetricIcon{grid-row:1/3}
 .shotMetricIcon{grid-column:1;grid-row:2;align-self:center;width:1.5em;height:1.5em;color:var(--mu)}
 #shotTable .shotVal{white-space:nowrap;font-size:1.15em;padding-bottom:.8rem}
 .shotCard :is(.shotDur,.shotActual)>strong{grid-column:1/-1;padding-left:2rem}
