@@ -131,6 +131,8 @@ const statsExportJs = '\nconst R = {uiState, sendUiOperation};\n' +
         viewJs.stats.indexOf('async function clearShotHistory('));
 // Stats renders its shots with runtime helpers; text contracts on that code read both.
 const statsRuntimeJs = runtimeJs + '\n' + viewJs.stats;
+// History renders its rows with runtime helpers; text contracts on that code read both.
+const historyRuntimeJs = runtimeJs + '\n' + viewJs.history;
 const css = localizedSources[localizedAt].content;
 const allHtml = shellHtml.replace(
     /<section id="view-([a-z]+)" class="view" data-view="\1"><\/section>/g,
@@ -848,8 +850,9 @@ if (htmlBytes > 93300) {
 // uiState.): +2548 bytes (444698), frontend audit 2026-10-16.
 // The shot weight/flow chart cursor (shared-time dots, two-value pill, shared scrub helper): +2475 bytes (447173), owner-requested 2026-10-16.
 // Moving the Stats shot charts and list into the Stats module adds its qualifiers and runtime exports: +720 bytes (447893), 2026-10-16.
-if (jsBytes > 447893) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 447893)`);
+// Moving the History rows and type filter into the History module adds its qualifiers and runtime exports: +289 bytes (448182), 2026-10-16.
+if (jsBytes > 448182) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 448182)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -952,8 +955,9 @@ if (jsBytes > 447893) {
 // View-only code moved into the view modules: 530162, frontend audit 2026-10-16.
 // The shot weight/flow chart cursor: 532630, owner-requested 2026-10-16.
 // The Stats shot charts and list moved into the Stats module: 533350, 2026-10-16.
-if (htmlBytes + jsBytes > 533350) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 533350)`);
+// The History rows and type filter moved into the History module: 533639, 2026-10-16.
+if (htmlBytes + jsBytes > 533639) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 533639)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

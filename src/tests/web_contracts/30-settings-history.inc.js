@@ -1060,7 +1060,7 @@ const historyTypesIo = fs.readFileSync(
 const historyIo = fs.readFileSync(
     path.join(sketchDir, 'ShotStopperHistory.h'), 'utf8');
 if (!historyTypesIo.includes('BACKFLUSH = 5') ||
-    !codeIncludes(runtimeJs, 'HIST_TYPE_SVG.backflush=') ||
+    !codeIncludes(viewJs.history, 'HIST_TYPE_SVG.backflush=') ||
     !partialHtml.history.includes('id="hBF" viewBox="0 0 256 256"') ||
     !codeIncludes(runtimeJs, 'Backflush running') ||
     !codeIncludes(runtimeJs, 'Backflush not confirmed')) {
@@ -1096,8 +1096,8 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     codeIncludes(appJsSource, 'R.stopStatsStream()') ||
     !codeIncludes(viewJs.history, 'R.armListSentinel("historySentinel", R.loadMoreHistory)') ||
     !codeIncludes(viewJs.history, 'R.clearActivationHistory') ||
-    !codeIncludes(viewJs.history, 'R.toggleHistoryDir') ||
-    !codeIncludes(viewJs.history, 'R.syncHistoryDirButton()') ||
+    !codeIncludes(viewJs.history, '.onclick=toggleHistoryDir') ||
+    !codeIncludes(viewJs.history, 'syncHistoryDirButton()') ||
     !partialHtml.history.includes('id="historyPanel"') ||
     !partialHtml.history.includes('id="historyTable"') ||
     !partialHtml.history.includes('id="historyRows"') ||
@@ -1121,35 +1121,35 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !codeIncludes(runtimeJs, 'if(diagStreamWanted){if(!diagResolve)armDiagnosticReady();') ||
     !codeIncludes(runtimeJs, 'if(historyStreamWanted)historySendSubscribe()') ||
     !codeIncludes(runtimeJs, 'function applyHistoryPage(') ||
-    !codeIncludes(runtimeJs, 'function renderHistory(') ||
-    !codeIncludes(runtimeJs, 'function deleteOneHistory(') ||
+    !codeIncludes(historyRuntimeJs, 'function renderHistory(') ||
+    !codeIncludes(historyRuntimeJs, 'function deleteOneHistory(') ||
     !codeIncludes(js, 'function clearActivationHistory(') ||
-    !codeIncludes(runtimeJs, "power_on:'Power ON'") ||
-    !codeIncludes(runtimeJs, "HIST_TYPE_SVG.power_on='⏻'") ||
-    !codeIncludes(runtimeJs, 'Blocked: no scale') ||
-    !codeIncludes(runtimeJs, 'HIST_TYPE_SVG.no_scale_guard_aborted=') ||
+    !codeIncludes(historyRuntimeJs, "power_on:'Power ON'") ||
+    !codeIncludes(historyRuntimeJs, "HIST_TYPE_SVG.power_on='⏻'") ||
+    !codeIncludes(historyRuntimeJs, 'Blocked: no scale') ||
+    !codeIncludes(historyRuntimeJs, 'HIST_TYPE_SVG.no_scale_guard_aborted=') ||
     !partialHtml.history.includes('id="hNS" viewBox="82 82 204 204"') ||
     !historyTypesIo.includes('NO_SCALE_GUARD_ABORTED') ||
     !codeIncludes(js, "confirm:'CLEAR_HISTORY'") ||
-    !codeIncludes(runtimeJs, "'/api/v1/history/delete'") ||
+    !codeIncludes(historyRuntimeJs, "'/api/v1/history/delete'") ||
     !codeIncludes(js, "'/api/v1/history/clear'") ||
-    !codeIncludes(runtimeJs, 'const toggleHistoryDir=()=>{') ||
+    !codeIncludes(historyRuntimeJs, 'const toggleHistoryDir=()=>{') ||
     !codeIncludes(runtimeJs, "sendUiOperation({op:'history',on:true,fetch:true,request:historyFetchRequest,offset:historyFetchOffset,}") ||
     !partialHtml.history.includes('id="historyFilterButton"') ||
     !partialHtml.history.includes('id="exportHistoryButton"') ||
     !partialHtml.history.includes('id="hFl"') ||
     !codeIncludes(viewJs.history, 'R.exportActivationHistory') ||
-    !codeIncludes(viewJs.history, 'R.toggleHistoryFilter') ||
+    !codeIncludes(viewJs.history, '.onclick=toggleHistoryFilter') ||
     !codeIncludes(js, 'function exportActivationHistory(') ||
-    !codeIncludes(runtimeJs, 'function toggleHistoryFilter(') ||
+    !codeIncludes(historyRuntimeJs, 'function toggleHistoryFilter(') ||
     !codeIncludes(js, 'function fetchHistoryWindow(') ||
     !codeIncludes(runtimeJs, 'historyExportWindow?.resolve(null)') ||
     // The owned-socket dispatcher must route export windows to the history
     // stream handler; dropping them by request id hangs the export.
     !codeIncludes(runtimeJs, 'historyExportWindow&&data.request===historyExportWindow.request') ||
-    !codeIncludes(runtimeJs, 'historyVisibleRecords()') ||
+    !codeIncludes(historyRuntimeJs, 'historyVisibleRecords()') ||
     !codeIncludes(js, 'Could not export history.') ||
-    !codeIncludes(runtimeJs, 'No activations of the selected types.') ||
+    !codeIncludes(historyRuntimeJs, 'No activations of the selected types.') ||
     !css.includes('.histFilterPanel{') ||
     !css.includes('.histFilterCount{') ||
     network.includes('parseHistoryPageQuery') ||
