@@ -193,7 +193,7 @@ means the loop was preempted or stalled while holding it, which the wait
 figure alone cannot show. Every task mutex additionally remembers the name and tenure of
 its previous holder — written under the lock, so the next acquirer reads
 it race-free — and the backflush poll reports an acquisition wait of
-20 ms or more as it happens: a warning on the serial log names the
+2 ms or more as it happens: a warning on the serial log names the
 holder, and a `machine mux wait` debug-ring event stamps the moment with
 the wait and tenure as its arguments, rate-limited to one report per
 10 s. The same event also enters the curated audit latch: a small RAM ring

@@ -836,8 +836,8 @@ struct MicraWebSocketTest {
     assert(muxWaitEvents == 0);
     assert(disconnectLog.empty());
     uint32_t latch = 0;
-    // Just below the 20 ms threshold: still silent.
-    ShotStopperMicraService::reportMuxWaitAnomaly(19999, service.mux_, latch,
+    // Just below the 2 ms threshold: still silent.
+    ShotStopperMicraService::reportMuxWaitAnomaly(1999, service.mux_, latch,
                                                   now);
     assert(muxWaitEvents == 0);
     // At and past the threshold the report names the previous holder and
@@ -857,12 +857,14 @@ struct MicraWebSocketTest {
                                                   now);
     assert(muxWaitEvents == 1);
     assert(disconnectLog.empty());
-    // ...and fires again once the window has passed.
+    // ...and fires again once the window has passed. The re-fire waits
+    // exactly at the threshold, probing the boundary after the 1999 probe
+    // below it.
     now += 10000;
-    ShotStopperMicraService::reportMuxWaitAnomaly(20000, service.mux_, latch,
+    ShotStopperMicraService::reportMuxWaitAnomaly(2000, service.mux_, latch,
                                                   now);
     assert(muxWaitEvents == 2);
-    assert(lastMuxWaitArgs[0] == 20000);
+    assert(lastMuxWaitArgs[0] == 2000);
   }
 };
 }

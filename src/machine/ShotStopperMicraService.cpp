@@ -830,12 +830,12 @@ MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
 void ShotStopperMicraService::reportMuxWaitAnomaly(
     uint32_t waitedUs, const TaskMutex &mutex, uint32_t &lastReportAtMs,
     uint32_t nowMs) {
-  // Normal waits are microseconds and the control contract caps blocking at
-  // 50 ms; a wait at or past a fifth of that budget names the holder so a
+  // Normal waits are microseconds; 2 ms is the abnormality bar for any
+  // control-loop phase, so a wait at or past it names the holder and the
   // phase maximum can be attributed after the fact. Rate-limited to keep a
   // systematically stalled holder from flooding the log. Callers hold the
   // mutex, which also serializes the latch.
-  constexpr uint32_t kMuxWaitReportUs = 20000;
+  constexpr uint32_t kMuxWaitReportUs = 2000;
   constexpr uint32_t kMuxWaitReportPeriodMs = 10000;
   if (waitedUs < kMuxWaitReportUs ||
       nowMs - lastReportAtMs < kMuxWaitReportPeriodMs) {
