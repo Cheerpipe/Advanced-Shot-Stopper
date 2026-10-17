@@ -187,16 +187,27 @@ and reports the last and maximum mutex-acquisition wait recorded at the
 instrumented control-loop sites: the Micra backflush poll and the scale
 critical-event drain (other acquisitions of the same mutexes, such as the
 machine-guards backflush poll or the diagnostics tare capture, are not
-counted). The backflush poll also reports how long the control task itself
-owned that mutex (`holdLastUs`, `holdMaxUs`): a long hold with a short wait
-means the loop was preempted or stalled while holding it, which the wait
-figure alone cannot show. Every task mutex additionally remembers the name and tenure of
+counted). The Micra status and backflush polls never wait: they acquire the
+facade mutex with a zero-timeout take, and on contention serve the control
+task's cached snapshot — the last locked status resolution (a poll cache
+older than 250 ms counts as unknown, never as machine-off) or the last
+backflush resolution with a zeroed change count, so a stretched core-0
+holder can no longer stall a loop iteration; a cleaning admission stamps
+the post-admission resolution into that cache so a post-admission miss
+stays provenance-current. Because of this, the backflush poll's wait figure
+measures only the acquisition attempt (microseconds uncontended); its hold
+figure (`holdLastUs`, `holdMaxUs`) still reports the locked section, and a
+long hold means the loop was preempted or stalled while holding the mutex.
+Every task mutex additionally remembers the name and tenure of
 its previous holder — written under the lock, so the next acquirer reads
-it race-free — and the backflush poll reports an acquisition wait of
+it race-free — and the remaining blocking Micra edges (queuing a request
+and a cleaning admission) report an acquisition wait of
 2 ms or more as it happens: a warning on the serial log names the
 holder, and a `machine mux wait` debug-ring event stamps the moment with
-the wait and tenure as its arguments, rate-limited to one report per
-10 s. The same event also enters the curated audit latch: a small RAM ring
+the wait and tenure as its arguments, rate-limited to one report per 10 s
+per site, with the report gathered under the lock and emitted after it so
+logging never nests inside the facade mutex. The same event also enters
+the curated audit latch: a small RAM ring
 of classified rare events (every error plus a maintained allowlist of
 warnings) that the common ring's rotation cannot evict, captured in the
 same critical section and exported as the `audit` section of the debug

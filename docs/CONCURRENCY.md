@@ -22,7 +22,13 @@ Locks are normally acquired one at a time. The only permitted nesting is:
 2. network work-buffer mutex → JSON document lifetime;
 3. OTA task mutex → flash-I/O recursive mutex;
 4. NimBLE advertisement mutex → NimBLE client-state mutex; and
-5. native BLE host-task lifetime mutex → native BLE runtime state spinlock.
+5. native BLE host-task lifetime mutex → native BLE runtime state spinlock;
+6. Micra facade mutex → debug log mutex, only in the deferred
+   temperature/power failure publishers, which log while still holding the
+   facade. The control-loop-facing paths never nest: the status and
+   backflush polls take the facade with a zero-timeout acquire, and the
+   mux-wait anomaly report gathers under the facade lock but emits only
+   after releasing it.
 
 No reverse edge is permitted. A callback that would require one must publish a
 queue item or atomic latch for the owner instead.
@@ -234,7 +240,15 @@ independent power, temperature and online-evidence revisions prevent older
 results overwriting newer evidence. A repeated online report advances its own
 revision without blocking initial power from the API. Diagnostic readers only
 copy under the facade mutex; socket generations are initialized under that same
-mutex before startup. Receive-path subscription checks copy only the subscribed
+mutex before startup. The control loop never blocks on the facade: its status
+poll and backflush poll take the mutex with a zero-timeout acquire and, on
+contention, serve the loop-owned cache — the last locked status resolution
+(with a poll cache older than 250 ms counting as unknown, so the effectively-
+off shortcut can only fail toward queueing a server-revalidated StandBy) or
+the last backflush resolution with a zeroed change count, which hides new
+ring edges for one poll instead of re-serving drained ones; a cleaning
+admission stamps the post-admission resolution into that cache. Receive-path
+subscription checks copy only the subscribed
 flag under that mutex; traffic-rate aggregation belongs to diagnostic reads.
 WS transport operations use the SDK's 10-second timeout, including initial TLS
 and Upgrade. The connected SDK task normally polls input every second; a TLS
