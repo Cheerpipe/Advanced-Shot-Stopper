@@ -179,7 +179,6 @@ void testTagBodyRejectsMalformedInput() {
 
 void testArchUsability() {
   CHECK(shotstopper::otaArchIsUsable("n16r8"));
-  CHECK(shotstopper::otaArchIsUsable("n8r4"));
   CHECK(!shotstopper::otaArchIsUsable("unknown"));
   CHECK(!shotstopper::otaArchIsUsable(""));
   CHECK(!shotstopper::otaArchIsUsable(nullptr));
@@ -234,11 +233,11 @@ bool scanEverySplit(const std::string &stream, OtaImageTag &tagOut,
 void testScannerFindsTagAcrossEveryChunkBoundary() {
   const std::string stream =
       std::string("\xE9\x00 padding before ") +
-      makeTag("n8r4", "2.0.1+deadbee", "33554433") + "\x00 trailing bytes";
+      makeTag("n16r8", "2.0.1+deadbee", "33554433") + "\x00 trailing bytes";
   OtaImageTag tag;
   uint32_t offset = 0;
   CHECK(scanEverySplit(stream, tag, offset));
-  CHECK(std::string(tag.arch) == "n8r4");
+  CHECK(std::string(tag.arch) == "n16r8");
   CHECK(std::string(tag.version) == "2.0.1+deadbee");
   CHECK(tag.packed == 33554433U);
   CHECK(offset == stream.find(tagPrefix()));
@@ -285,22 +284,22 @@ void testScannerRejectsNulInsideCandidate() {
   invalid.push_back('\0');
   invalid += "|arch=n16r8|ver=1.0.0|packed=1|END";
   const std::string stream = invalid + "filler" +
-      makeTag("n8r4", "2.0.0+abcdef0", "33554432");
+      makeTag("n16r8", "2.0.0+abcdef0", "33554432");
   OtaImageTag tag;
   uint32_t offset = 0;
   CHECK(scanEverySplit(stream, tag, offset));
-  CHECK(std::string(tag.arch) == "n8r4");
+  CHECK(std::string(tag.arch) == "n16r8");
   CHECK(offset == invalid.size() + 6);
 }
 
 void testScannerSkipsMalformedTagBeforeValidOne() {
   const std::string stream =
       makeTag("n16r8", "1.0.0", "not-a-number") + "----" +
-      makeTag("n8r4", "3.1.4+1234567", "50397188");
+      makeTag("n16r8", "3.1.4+1234567", "50397188");
   OtaImageTag tag;
   uint32_t offset = 0;
   CHECK(scanEverySplit(stream, tag, offset));
-  CHECK(std::string(tag.arch) == "n8r4");
+  CHECK(std::string(tag.arch) == "n16r8");
   CHECK(tag.packed == 50397188U);
 }
 
@@ -330,12 +329,12 @@ void testScannerIgnoresOversizedCandidate() {
 }
 
 void testScannerFindsTagAfterUnparseableCandidate() {
-  const std::string valid = makeTag("n8r4", "2.0.0", "33554432");
+  const std::string valid = makeTag("n16r8", "2.0.0", "33554432");
   const std::string stream = tagPrefix() + "+Vna" + valid;
   OtaImageTag tag;
   uint32_t offset = 0;
   CHECK(scanEverySplit(stream, tag, offset));
-  CHECK(std::string(tag.arch) == "n8r4");
+  CHECK(std::string(tag.arch) == "n16r8");
 }
 
 void testScannerBoundsReplaysOnAdversarialCandidates() {
@@ -347,11 +346,11 @@ void testScannerBoundsReplaysOnAdversarialCandidates() {
     stream += makeTag("n16r8", "1.0.0", "not-a-number");
     stream += std::to_string(i);
   }
-  stream += makeTag("n8r4", "3.1.4+1234567", "50397188");
+  stream += makeTag("n16r8", "3.1.4+1234567", "50397188");
   OtaImageTag tag;
   uint32_t offset = 0;
   CHECK(scanEverySplit(stream, tag, offset));
-  CHECK(std::string(tag.arch) == "n8r4");
+  CHECK(std::string(tag.arch) == "n16r8");
   CHECK(tag.packed == 50397188U);
 }
 
@@ -452,13 +451,11 @@ void testOtaJournalUsesBoundedCheckpoints() {
 
 void testOtaJournalBudgetCoversEverySupportedSlot() {
   constexpr uint32_t n16r8SlotBytes = 0x300000U;
-  constexpr uint32_t n8r4SlotBytes = 0x330000U;
   CHECK(shotstopper::otaJournalMaxDurableWrites(0) == 0U);
   CHECK(shotstopper::otaJournalMaxDurableWrites(1) == 1U);
   CHECK(shotstopper::otaJournalMaxDurableWrites(n16r8SlotBytes) == 6U);
-  CHECK(shotstopper::otaJournalMaxDurableWrites(n8r4SlotBytes) == 7U);
-  CHECK(shotstopper::OTA_SUPPORTED_MAX_SLOT_BYTES == n8r4SlotBytes);
-  CHECK(shotstopper::OTA_JOURNAL_MAX_WRITES_PER_SESSION == 7U);
+  CHECK(shotstopper::OTA_SUPPORTED_MAX_SLOT_BYTES == n16r8SlotBytes);
+  CHECK(shotstopper::OTA_JOURNAL_MAX_WRITES_PER_SESSION == 6U);
   CHECK(shotstopper::OTA_JOURNAL_ERASE_KEYS_PER_SESSION == 2U);
 }
 

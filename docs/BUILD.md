@@ -359,32 +359,33 @@ never persisted. They work through a generated defaults file appended to
 build recreates the configuration so the requested level takes effect, which
 discards local `menuconfig` choices stored in that file. A later
 build without a level option restores `-O2` the same way.
-The current n16r8 image and memory baselines were measured with `-O2` and
-apply to `--development -O2` builds. The historical n8r4 baselines retain
-their `--development -Os` scope. Normal release builds and other optimization
+The versioned image and memory baselines were measured with `-O2` and
+apply to `--development -O2` builds. Normal release builds and other
+optimization
 levels still check the OTA partition limit, external BSS ceiling, and required
 internal-memory placement; their image sizes do not establish a versioned
 resource baseline.
 
 The final verifier also rejects drift from the qualified production profile:
-n8r4 uses 8 MB flash, `partitions-n8r4.csv`, and QUAD PSRAM; n16r8 uses 16 MB
-flash, `partitions-n16r8.csv`, and OCT PSRAM. Both require DIO/80 MHz flash,
+the supported build uses 16 MB flash, `partitions-n16r8.csv`, and OCT PSRAM,
+and requires DIO/80 MHz flash,
 80 MHz PSRAM, a 32 KiB internal reserve, a 2 KiB malloc threshold above which
 `malloc()` prefers PSRAM, 64 KiB MMU pages, rollback support,
-mDNS dynamic responder allocations in PSRAM — the mDNS task stack follows the
-variant: PSRAM on n8r4, internal RAM on n16r8 because flash core dumps cannot
-read a stack in cache-backed PSRAM — the pinned boot/task/interrupt watchdog
+mDNS dynamic responder allocations in PSRAM, and an internal-RAM mDNS task
+stack because flash core dumps cannot
+read a stack in cache-backed PSRAM — plus
+the pinned boot/task/interrupt watchdog
 and panic settings, and the GPTimer ISR handler in IRAM, while the unused RMT
 driver and the GDMA control and interrupt code stay in flash. Other application,
 NimBLE/VHCI, HTTP, persistence, control, and flash-writing stacks remain
 internal. These checks verify current hardware settings; they do not retune
 clocks, partitions, or watchdog durations.
 
-N16R8 builds map flash code and read-only data into PSRAM at startup and
-execute from there, reserving roughly 1.9 MiB of PSRAM ahead of the heap.
-N8R4 builds keep this option disabled. Flash operations still disable both
+The supported build maps flash code and read-only data into PSRAM at startup
+and executes from there, reserving roughly 1.9 MiB of PSRAM ahead of the heap.
+Flash operations still disable both
 caches while they run, so this mapping does not change which code may run
-during a write. An existing N16R8 build tree is regenerated when its selected
+during a write. An existing build tree is regenerated when its selected
 defaults change. A successful build verifies configuration and memory limits;
 only an on-device comparison can establish whether loop gaps improve.
 
@@ -429,14 +430,12 @@ installation.
 The build renders the selected catalog into
 `src/OpenBrewByWeightWebAssetsGzip.h`, generates version identity and
 `build-idf/<hardware-id>--<machine-id>/openbrewbyweight.bin`, then checks image and
-memory budgets. Use only the image for the intended profile pair. The supported partition layouts have
+memory budgets. Use only the image for the intended profile pair. The supported partition layout has
 two app slots; arbitrary 4 MB layouts cannot hold this firmware.
 
-The n16r8 layout reserves 640 KiB for a temporary ESP-IDF core dump and
+The layout reserves 640 KiB for a temporary ESP-IDF core dump and
 1,408 KiB for two saved crash records. Its unused FFAT area is 7,128 KiB
-(`0x6F6000` bytes). Both layouts reserve 816 KiB for shot curves. The n8r4
-layout keeps its existing 64 KiB core-dump
-partition but does not enable persistent crash capture. On n16r8, the mDNS
+(`0x6F6000` bytes), and 816 KiB is reserved for shot curves. The mDNS
 task stack is internal so that stack remains available to a core dump.
 
 Build the supported built-in pairs listed in

@@ -33,7 +33,7 @@ $(ss_flag_help)
 
 Examples:
   ./scripts/static-idf --arch n16r8
-  ./scripts/static-idf -a n8r4 -o reports/analysis-idf-n8r4
+  ./scripts/static-idf -a n16r8 -o reports/analysis-idf-n16r8
 EOF
 }
 

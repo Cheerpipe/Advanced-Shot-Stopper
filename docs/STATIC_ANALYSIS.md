@@ -43,7 +43,7 @@ Prepare the database once, then run any tool:
   --build-dir build-idf/esp32-s3-relay-x1-speaker--la-marzocco-linea-micra
 ```
 
-`--arch` is `n8r4` or `n16r8`; see [Build scripts](SCRIPTS.md) for how
+`--arch` is `n16r8`; see [Build scripts](SCRIPTS.md) for how
 parameters resolve. `--build-dir` and `--output-dir` are one-shot overrides on
 the analysis scripts and are never persisted to `.openbrewbyweight`. Without
 `--build-dir`, the analysis scripts use the most recently built firmware

@@ -5,27 +5,22 @@
 # There is deliberately no default architecture and no automatic port pick.
 # Every caller resolves those through scripts/shotstopper_cli.sh.
 
-# N8R4: 8 MB QSPI flash + 4 MB QSPI PSRAM. default_8MB is the normal 8 MB OTA
-# table (two ~3.2 MB app slots).
 # N16R8: 16 MB QSPI flash + 8 MB OPI PSRAM. app3M_fat9M_16MB is the normal
 # 16 MB OTA table (two 3 MB app slots). min_spiffs is no longer used.
 # CDCOnBoot=default: app CDC is off until the GPIO4–GND jumper is present at
 # boot. ROM USB download (BOOT+RST) still enumerates without the jumper.
-SHOTSTOPPER_FQBN_N8R4="esp32:esp32:esp32s3:PSRAM=enabled,FlashMode=qio,FlashSize=8M,PartitionScheme=default_8MB,CDCOnBoot=default"
 SHOTSTOPPER_FQBN_N16R8="esp32:esp32:esp32s3:PSRAM=opi,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=default"
 
 # Usable bytes of a single OTA app slot, used by the OTA client for a local
 # size pre-check before uploading anything to the controller.
-SHOTSTOPPER_SLOT_BYTES_N8R4=3342336
 SHOTSTOPPER_SLOT_BYTES_N16R8=3145728
 
 shotstopper_arch_help() {
   cat <<'EOF'
-Supported architectures (ESP32-S3 with PSRAM only):
-  n8r4   ESP32-S3, 8 MB flash, 4 MB QSPI PSRAM
+Supported architecture (ESP32-S3 with PSRAM only):
   n16r8  ESP32-S3, 16 MB flash, 8 MB OPI PSRAM
 
-Aliases: esp32s3 and esp32s3-n16r8 → n16r8; esp32s3-n8r4 → n8r4.
+Aliases: esp32s3 and esp32s3-n16r8 → n16r8.
 Classic ESP32 and Nano ESP32 are no longer supported.
 EOF
 }
@@ -55,12 +50,6 @@ shotstopper_detect_ports() {
 shotstopper_resolve_board() {
   local arch="${1:-}"
   case "$arch" in
-    n8r4|esp32s3-n8r4)
-      SHOTSTOPPER_ARCH="n8r4"
-      SHOTSTOPPER_FQBN="$SHOTSTOPPER_FQBN_N8R4"
-      SHOTSTOPPER_BUILD_DIR="build/n8r4"
-      SHOTSTOPPER_SLOT_BYTES="$SHOTSTOPPER_SLOT_BYTES_N8R4"
-      ;;
     n16r8|esp32s3-n16r8|esp32s3)
       SHOTSTOPPER_ARCH="n16r8"
       SHOTSTOPPER_FQBN="$SHOTSTOPPER_FQBN_N16R8"
@@ -69,11 +58,11 @@ shotstopper_resolve_board() {
       ;;
     esp32|esp32c3|nanoesp32|"")
       echo "Unsupported architecture: ${arch:-<empty>}." >&2
-      echo "Open Brew by Weight only supports ESP32-S3 with PSRAM (n8r4 or n16r8)." >&2
+      echo "Open Brew by Weight only supports ESP32-S3 n16r8 with PSRAM." >&2
       return 2
       ;;
     *)
-      echo "Unsupported architecture: $arch (use n8r4 or n16r8)." >&2
+      echo "Unsupported architecture: $arch (use n16r8)." >&2
       return 2
       ;;
   esac

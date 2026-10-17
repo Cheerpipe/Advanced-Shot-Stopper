@@ -3,8 +3,8 @@
 #
 # Usage: gen_version.sh [board_arch] [hardware_compat] [machine_compat] [output]
 #
-# board_arch is the OTA compatibility key (n8r4 / n16r8). It is baked into the
-# image tag so the controller can refuse a binary built for the other board.
+# board_arch is the OTA compatibility key (n16r8). It is baked into the
+# image tag so the controller can refuse a binary built for another board.
 # Callers that do not produce a flashable image (host tests) may omit it; the
 # resulting "unknown" arch never matches a real controller, which is the safe
 # outcome.
@@ -18,9 +18,9 @@ arch=${1:-unknown}
 hardware_compat=${2:-legacy}
 machine_compat=${3:-legacy}
 case "$arch" in
-  n8r4|n16r8|unknown) ;;
+  n16r8|unknown) ;;
   *)
-    echo "Invalid board arch: '$arch' (expected n8r4, n16r8 or unknown)" >&2
+    echo "Invalid board arch: '$arch' (expected n16r8 or unknown)" >&2
     exit 1
     ;;
 esac

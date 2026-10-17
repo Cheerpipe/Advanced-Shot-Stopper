@@ -320,7 +320,7 @@ ss_idf_require_image() {
 # Drop the cache when the stamp changes. Do not write the stamp here:
 # idf.py set-target runs fullclean, which refuses a non-empty directory that
 # is not a CMake build (no CMakeCache.txt). Writing the stamp first made the
-# first n16r8/n8r4 tree fail. Call ss_idf_commit_extra_flags_stamp after
+# first n16r8 tree fail. Call ss_idf_commit_extra_flags_stamp after
 # set-target. CMake still reads SHOT_STOPPER_EXTRA_FLAGS from the environment.
 ss_idf_sync_extra_flags() {
   ss_idf_resolve_paths
@@ -455,19 +455,12 @@ PY
 ss_idf_verify_production_profile() {
   local arch="${1:-$SHOTSTOPPER_ARCH}"
   local sdkconfig="${2:-$IDF_SDKCONFIG}"
-  local flash_size partition psram_mode opposite_mode selector
+  local flash_size partition psram_mode selector
   case "$arch" in
-    n8r4)
-      flash_size=8
-      partition=partitions-n8r4.csv
-      psram_mode=QUAD
-      opposite_mode=OCT
-      ;;
     n16r8)
       flash_size=16
       partition=partitions-n16r8.csv
       psram_mode=OCT
-      opposite_mode=QUAD
       ;;
     *)
       echo "Unsupported production architecture: $arch" >&2
@@ -529,17 +522,9 @@ ss_idf_verify_production_profile() {
     "CONFIG_BT_CTRL_MODEM_SLEEP=y"
     "CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y"
   )
-  if [[ "$arch" == "n16r8" ]]; then
-    required+=("CONFIG_SPIRAM_XIP_FROM_PSRAM=y"
-               "CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y"
-               "CONFIG_MDNS_TASK_CREATE_FROM_INTERNAL=y")
-  else
-    required+=("CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM=y")
-    if grep -Fqx 'CONFIG_SPIRAM_XIP_FROM_PSRAM=y' "$sdkconfig"; then
-      echo "Production profile mismatch for $arch: unexpected CONFIG_SPIRAM_XIP_FROM_PSRAM=y" >&2
-      return 1
-    fi
-  fi
+  required+=("CONFIG_SPIRAM_XIP_FROM_PSRAM=y"
+             "CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y"
+             "CONFIG_MDNS_TASK_CREATE_FROM_INTERNAL=y")
   if [[ "${SHOTSTOPPER_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]]; then
     required+=("CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y"
       "CONFIG_MBEDTLS_DYNAMIC_BUFFER=y"
@@ -555,8 +540,8 @@ ss_idf_verify_production_profile() {
       return 1
     fi
   done
-  if grep -Fqx "CONFIG_SPIRAM_MODE_${opposite_mode}=y" "$sdkconfig"; then
-    echo "Production profile mismatch for $arch: unexpected ${opposite_mode} PSRAM mode" >&2
+  if grep -Fqx 'CONFIG_SPIRAM_MODE_QUAD=y' "$sdkconfig"; then
+    echo "Production profile mismatch for $arch: unexpected QUAD PSRAM mode" >&2
     return 1
   fi
   echo "sdkconfig: verified exact $arch flash/PSRAM, partition, MMU, rollback, watchdog, panic, GPTimer, and IRAM placement profile"

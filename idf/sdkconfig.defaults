@@ -1,6 +1,6 @@
 # Shared ESP-IDF defaults for Shot Stopper (Arduino-ESP32 as a component).
-# Architecture-specific flash/PSRAM overlays live in sdkconfig.defaults.n16r8
-# and sdkconfig.defaults.n8r4. Do not put CONFIG_IDF_TARGET here: idf.py
+# Architecture-specific flash/PSRAM overlays live in sdkconfig.defaults.n16r8.
+# Do not put CONFIG_IDF_TARGET here: idf.py
 # set-target writes it into sdkconfig.
 #
 # Official supported firmware builds use ./scripts/dev build. The legacy
@@ -35,7 +35,7 @@ CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_80=y
 # differs from the requested level.
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
 
-# Qualified flash/MMU profile shared by both supported S3 variants.
+# Qualified flash/MMU profile for the supported S3 variant.
 CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
 CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 CONFIG_MMU_PAGE_SIZE_64KB=y
@@ -57,8 +57,9 @@ CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y
 CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
 # Task stacks stay internal: plain xTaskCreate still allocates internal stacks.
 # CONFIG_FREERTOS_TASK_CREATE_ALLOW_EXT_MEM=y (legacy alias
-# CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY) exists only so the n8r4 mDNS task
-# stack may live in PSRAM. Do not create other tasks with PSRAM stacks
+# CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY) exists only so an mDNS task stack
+# may live in PSRAM on modules without XIP. Do not create other tasks with
+# PSRAM stacks
 # (xTaskCreateWithCaps(..., MALLOC_CAP_SPIRAM)): flash writes disable both
 # caches while IDF asserts the writing task's stack is internal, so
 # flash-writing tasks (loop, network, httpd, persist) and VHCI paths fault.

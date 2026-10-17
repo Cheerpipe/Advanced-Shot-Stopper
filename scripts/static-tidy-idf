@@ -34,7 +34,7 @@ $(ss_flag_help)
 
 Examples:
   ./scripts/static-tidy-idf --arch n16r8
-  ./scripts/static-tidy-idf -a n8r4 -o reports/static-tidy-n8r4
+  ./scripts/static-tidy-idf -a n16r8 -o reports/static-tidy-n16r8
 EOF
 }
 

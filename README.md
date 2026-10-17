@@ -281,7 +281,7 @@ flash a board, operate the relay, or replace required HIL and manual evidence.
 | MIT License | The permissive license that applies to identified upstream portions and historical snapshots, not to the repository's current work as a whole. |
 | Momentary machine / pulse | A momentary machine changes state after a brief button-like electrical signal, called a pulse, rather than following a maintained switch position. |
 | MQTT | Message Queuing Telemetry Transport, a publish/subscribe messaging protocol; persistent MQTT remote control is outside this project's goals. |
-| n8r4 / n16r8 | Supported memory variants: the number after `n` is flash capacity in MB and the number after `r` is PSRAM capacity in MB. |
+| n16r8 | The supported ESP32-S3 memory variant: 16 MB flash and 8 MB PSRAM. |
 | OTA | Over-the-air update: installing firmware over Wi-Fi into an inactive firmware slot, followed by boot verification and possible rollback. |
 | Paddle / latch | A maintained physical switch: its state directly represents the requested brew state. |
 | PETG | Polyethylene terephthalate glycol, a 3D-printing material recommended for the thicker enclosure parts in warmer installations. |

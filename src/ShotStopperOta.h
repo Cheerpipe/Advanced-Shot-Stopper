@@ -106,10 +106,10 @@ constexpr uint32_t OTA_WRITE_ALIGNMENT = 4096;
 // six durable writes (the empty record plus five progress checkpoints), not
 // one write and a full-prefix rehash for every HTTP range.
 constexpr uint32_t OTA_JOURNAL_CHECKPOINT_BYTES = 512U * 1024U;
-// Largest OTA app slot in the two supported partition tables (n8r4). Keep the
+// Largest OTA app slot in the supported partition table (n16r8). Keep the
 // endurance budget coupled to that upper bound: adding a larger supported
 // slot must deliberately update the budget and its tests.
-constexpr uint32_t OTA_SUPPORTED_MAX_SLOT_BYTES = 0x330000U;
+constexpr uint32_t OTA_SUPPORTED_MAX_SLOT_BYTES = 0x300000U;
 constexpr uint32_t OTA_JOURNAL_ERASE_KEYS_PER_SESSION = 2U;
 
 // One initial record plus one record for every full checkpoint strictly before
@@ -124,7 +124,7 @@ constexpr uint32_t otaJournalMaxDurableWrites(uint32_t imageBytes) {
 constexpr uint32_t OTA_JOURNAL_MAX_WRITES_PER_SESSION =
     otaJournalMaxDurableWrites(OTA_SUPPORTED_MAX_SLOT_BYTES);
 
-static_assert(OTA_JOURNAL_MAX_WRITES_PER_SESSION == 7U,
+static_assert(OTA_JOURNAL_MAX_WRITES_PER_SESSION == 6U,
               "OTA NVS endurance budget changed; review P2 qualification");
 
 inline bool otaJournalCheckpointDue(uint32_t received, uint32_t persisted,

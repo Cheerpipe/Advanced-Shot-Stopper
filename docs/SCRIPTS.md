@@ -137,8 +137,8 @@ input fingerprint. Regeneration discards local `menuconfig` choices; an
 unchanged variant retains them. The flag is rejected for standalone flash, OTA,
 and monitor. The stored device password is never accepted on a
 command line; use the hidden prompt or the documented USB serial procedure.
-The current n16r8 resource baseline applies to the default `-O2` builds;
-the historical n8r4 baseline applies to `-Os`. Other optimization levels
+The current n16r8 resource baseline applies to the default `-O2` builds.
+Other optimization levels
 retain the physical image and memory placement checks; see [Build](BUILD.md#compiler-optimization-and-existing-sdkconfig).
 
 ## Diagnostics and recovery

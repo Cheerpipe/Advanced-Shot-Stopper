@@ -15,7 +15,7 @@
 
 - Automated checks and run summaries:
 - [ ] Generated assets updated and checked when applicable
-- [ ] n8r4 and n16r8 built when required
+- [ ] n16r8 built when required
 - [ ] Size/memory budgets checked when required
 
 ## Hardware and documentation

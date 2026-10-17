@@ -74,7 +74,7 @@ golden = {
     "src/ShotStopperNetwork.cpp": "R2",
     "src/ShotStopperOta.cpp": "R2",
     "src/ShotStopperMachineRelay.h": "R3",
-    "idf/partitions-n8r4.csv": "R3",
+    "idf/partitions-n16r8.csv": "R3",
     "unknown/new.file": "R3",
 }
 for path, expected in golden.items():
@@ -85,7 +85,7 @@ for path, expected in golden.items():
 lower = run("validate", "--risk", "R0", "src/ShotStopperMachineRelay.h")
 assert lower.returncode == 2 and "cannot lower" in lower.stderr
 
-unsafe = run("flash", "--arch", "n8r4")
+unsafe = run("flash", "--arch", "n16r8")
 assert unsafe.returncode == 2 and "requires --confirm" in unsafe.stderr
 secret = run("ota", "--confirm", "--password", "do-not-log")
 assert secret.returncode == 2 and "never argv" in secret.stderr
@@ -290,7 +290,7 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp"
     assert "total_size 3000000 > baseline budget" in check_size(development=True).stderr
     sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_SIZE=y\n")
     assert check_size().returncode == 0
-    assert "total_size 3000000 > baseline budget" in check_size("n8r4", development=True).stderr
+    assert check_size(development=True).returncode == 0
     image.write_bytes(b"x" * 3_145_729)
     assert "image 3145729 > OTA slot 3145728" in check_size().stderr
 
@@ -476,18 +476,6 @@ partition_contracts = {
                  "ffat": (0x75B000, 0x6A5000),
                  "coredump": (0xE00000, 0xA0000),
                  "crashhist": (0xEA0000, 0x160000)},
-    },
-    "partitions-n8r4.csv": {
-        "flash": 0x800000,
-        "rows": {"nvs": (0x9000, 0x15000), "otadata": (0x1E000, 0x2000),
-                 "app0": (0x20000, 0x330000), "app1": (0x350000, 0x330000),
-                 "shotcurve": (0x69E000, 0xCC000),
-                 "shotlog": (0x68E000, 0x8000),
-                 "history": (0x696000, 0x8000),
-                 "scaleprof": (0x76A000, 0x41000),
-                 "auditlog": (0x7AB000, 0x10000),
-                 "spiffs": (0x7BB000, 0x35000),
-                 "coredump": (0x7F0000, 0x10000)},
     },
 }
 for filename, contract in partition_contracts.items():
@@ -1315,7 +1303,7 @@ assert selection.returncode == 0 and selection.stdout == (
     f"{fallback_root}|{expected}"), selection.stderr
 
 
-def flash_command(layout: str, *extra: str, arch: str = "n8r4"):
+def flash_command(layout: str, *extra: str, arch: str = "n16r8"):
     with tempfile.TemporaryDirectory(prefix="shotstopper-flash-") as temporary:
         root = Path(temporary)
         idf = root / "fake-idf"
@@ -1395,8 +1383,6 @@ present_result, present_flash = flash_command("present")
 assert present_result.returncode == 0 and \
     any("write-flash @flash_args" in line for line in present_flash) and \
     not any(" flash" in line for line in present_flash if line.startswith("idf:")), present_flash
-present_n16_result, _ = flash_command("present", arch="n16r8")
-assert present_n16_result.returncode == 0, present_n16_result.stderr
 unchecked_result, unchecked_flash = flash_command("present", "--no-check")
 assert unchecked_result.returncode == 0 and \
     any("write-flash @flash_args" in line for line in unchecked_flash) and \
@@ -1407,7 +1393,7 @@ assert external_result.returncode == 0 and \
     any("write-flash 0x20000" in line for line in external_flash) and \
     not any(" flash" in line for line in external_flash if line.startswith("idf:")), \
     external_flash
-for architecture in ('n8r4', 'n16r8'):
+for architecture in ('n16r8',):
     current = partition_rows(f"partitions-{architecture}.csv")
     curve_erase, profile_erase, audit_erase = (
         "erase-region 0x{:X} 0x{:X}".format(*current[name])
@@ -1433,7 +1419,7 @@ for incompatible_layout in ("missing", "wrong", "type", "subtype", "size", "nvs"
     for extra in ((), ("--image", "placeholder")):
         rejected, commands = flash_command(incompatible_layout, *extra)
         assert rejected.returncode == 1 and \
-            "not a known n8r4 project layout" in rejected.stderr and \
+            "not a known n16r8 project layout" in rejected.stderr and \
             "--erase-all" in rejected.stderr, (incompatible_layout, extra, rejected.stderr)
         assert not any("write-flash" in line or "erase" in line for line in commands), commands
 flash_language = subprocess.run(
@@ -1520,20 +1506,14 @@ profile_common = [
     'CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y',
 ]
 profile_arch = {
-    "n8r4": ['CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y',
-              'CONFIG_ESPTOOLPY_FLASHSIZE="8MB"',
-              'CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-n8r4.csv"',
-              'CONFIG_PARTITION_TABLE_FILENAME="partitions-n8r4.csv"',
-              'CONFIG_SPIRAM_MODE_QUAD=y',
-              'CONFIG_MDNS_TASK_CREATE_FROM_SPIRAM=y'],
     "n16r8": ['CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y',
-               'CONFIG_ESPTOOLPY_FLASHSIZE="16MB"',
-               'CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-n16r8.csv"',
-               'CONFIG_PARTITION_TABLE_FILENAME="partitions-n16r8.csv"',
-               'CONFIG_SPIRAM_MODE_OCT=y',
-               'CONFIG_SPIRAM_XIP_FROM_PSRAM=y',
-               'CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y',
-               'CONFIG_MDNS_TASK_CREATE_FROM_INTERNAL=y'],
+              'CONFIG_ESPTOOLPY_FLASHSIZE="16MB"',
+              'CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions-n16r8.csv"',
+              'CONFIG_PARTITION_TABLE_FILENAME="partitions-n16r8.csv"',
+              'CONFIG_SPIRAM_MODE_OCT=y',
+              'CONFIG_SPIRAM_XIP_FROM_PSRAM=y',
+              'CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y',
+              'CONFIG_MDNS_TASK_CREATE_FROM_INTERNAL=y'],
 }
 for arch, arch_selectors in profile_arch.items():
     selectors = profile_common + arch_selectors
@@ -1542,13 +1522,8 @@ for arch, arch_selectors in profile_arch.items():
         result = verify_production_profile(
             arch, [item for item in selectors if item != selector])
         assert result.returncode == 1 and "Production profile mismatch" in result.stderr
-    opposite = "OCT" if arch == "n8r4" else "QUAD"
     assert verify_production_profile(
-        arch, selectors + [f"CONFIG_SPIRAM_MODE_{opposite}=y"]).returncode == 1
-    if arch == "n8r4":
-        mismatch = verify_production_profile(
-            arch, selectors + ["CONFIG_SPIRAM_XIP_FROM_PSRAM=y"])
-        assert "unexpected CONFIG_SPIRAM_XIP_FROM_PSRAM=y" in mismatch.stderr
+        arch, selectors + ["CONFIG_SPIRAM_MODE_QUAD=y"]).returncode == 1
     micra = selectors + ["CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y",
                          "CONFIG_MBEDTLS_DYNAMIC_BUFFER=y",
                          "CONFIG_WS_BUFFER_SIZE=4096",

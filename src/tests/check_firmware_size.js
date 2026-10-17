@@ -4,16 +4,15 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..', '..');
-const slotLimits = {n16r8: 3145728, n8r4: 3342336};
+const slotLimits = {n16r8: 3145728};
 const binPath = process.argv[2] || path.join(root, 'build-idf', 'n16r8', 'shotstopper.bin');
 const normalized = binPath.replace(/\\/g, '/');
 const explicitArch = process.argv[3] === '--arch' ? process.argv[4] : '';
 const arch = slotLimits[explicitArch] ? explicitArch :
-  normalized.includes('/n8r4/') ? 'n8r4' :
   normalized.includes('/n16r8/') ? 'n16r8' : null;
 
 if (!arch) {
-  console.error('Firmware path must identify n8r4 or n16r8');
+  console.error('Firmware path must identify n16r8');
   process.exit(2);
 }
 const sizePath = path.join(path.dirname(binPath), 'size.json');
@@ -28,9 +27,8 @@ if (optimization.length !== 1) {
   console.error(`Firmware optimization config must select one supported level: ${sdkconfigPath}`);
   process.exit(2);
 }
-const baselineLevel = arch === 'n16r8' ? 'PERF' : 'SIZE';
 const qualifiedSizeProfile = process.argv.includes('--development') &&
-  optimization[0] === `CONFIG_COMPILER_OPTIMIZATION_${baselineLevel}=y`;
+  optimization[0] === 'CONFIG_COMPILER_OPTIMIZATION_PERF=y';
 
 const config = JSON.parse(fs.readFileSync(
   path.join(root, 'config', 'resource-baselines.json'), 'utf8'));

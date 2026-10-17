@@ -603,7 +603,7 @@ ss_can_prompt() {
 ss_prompt_text() {
   case "$1" in
     port) printf 'Serial port' ;;
-    arch) printf 'Architecture (n8r4 or n16r8)' ;;
+    arch) printf 'Architecture (n16r8)' ;;
     speed) printf 'Monitor baud rate' ;;
     host) printf 'Controller address (IP or hostname)' ;;
     password) printf 'Device password' ;;
@@ -619,7 +619,7 @@ ss_prompt_text() {
 
 # Suggestion shown in [brackets] and used when the user presses Enter.
 ss_prompt_suggestion() {
-  local key="$1" current detected arch_s
+  local key="$1" current detected
   ss_is_secret "$key" && return 0
 
   # Port prompts always prefer a live USB-CDC device over a stale saved path.
@@ -661,14 +661,7 @@ ss_prompt_suggestion() {
     host) printf '192.168.4.1' ;;
     password) return 0 ;;
     flags) printf '%s' "$SS_CLI_DEFAULT_FLAGS" ;;
-    build_dir)
-      arch_s="$(ss_get arch)"
-      [[ -n "$arch_s" ]] || arch_s="n16r8"
-      case "$arch_s" in
-        n8r4|esp32s3-n8r4) printf 'build/n8r4' ;;
-        *) printf 'build/n16r8' ;;
-      esac
-      ;;
+    build_dir) printf 'build/n16r8' ;;
     output_dir) printf 'reports/static-analysis' ;;
     webui_language) printf 'en' ;;
     *) printf '' ;;
@@ -690,7 +683,7 @@ ss_prompt_hint() {
       fi
       ;;
     arch)
-      printf 'n8r4 = 8 MB flash / 4 MB PSRAM; n16r8 = 16 MB flash / 8 MB PSRAM\n' > /dev/tty
+      printf 'n16r8 = 16 MB flash / 8 MB PSRAM\n' > /dev/tty
       ;;
   esac
 }

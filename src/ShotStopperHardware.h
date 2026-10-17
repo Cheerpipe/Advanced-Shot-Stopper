@@ -13,7 +13,7 @@ namespace shotstopper {
 #error "Unsupported board: Shot Stopper requires ESP32-S3 (esp32:esp32:esp32s3)"
 #endif
 #if !defined(BOARD_HAS_PSRAM)
-#error "Shot Stopper requires PSRAM. Compile n8r4 (QSPI 4MB) or n16r8 (OPI 8MB)"
+#error "Shot Stopper requires PSRAM. Compile n16r8 (OPI 8MB)"
 #endif
 #endif
 

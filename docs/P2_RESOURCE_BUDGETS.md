@@ -6,8 +6,8 @@ an implementation contract, not a substitute for target/HIL evidence.
 
 ## Firmware image and static regions
 
-`config/resource-baselines.json` records the current n16r8 `-O2` baseline and
-the historical n8r4 `-Os` baseline. Every test or review that measures these
+`config/resource-baselines.json` records the current n16r8 `-O2` baseline.
+Every test or review that measures these
 budgets must compile with the
 `--development` profile; it enables the admin unlock and the USB Serial/JTAG
 console and gives a reproducible comparison profile. This is enforced, not
@@ -21,9 +21,8 @@ supported build emits `size.json` from the linker map and
 records image bytes, total linked bytes, DIRAM, flash code, and flash rodata.
 The verifier requires valid measurements for all five metrics at every
 optimization level.
-The versioned n16r8 baseline comparisons apply to `--development -O2` builds;
-the n8r4 comparisons retain their historical `--development -Os` scope. Normal
-release builds and other optimization levels retain the OTA-slot, external-BSS,
+The versioned baseline comparisons apply to `--development -O2` builds.
+Normal release builds and other optimization levels retain the OTA-slot, external-BSS,
 and internal-placement checks. The development and release Web UIs differ, so
 the development image is not always the larger one.
 Small reviewed growth allowances catch regressions without coupling unrelated
@@ -386,7 +385,7 @@ soak, are not covered by this measurement.
 
 The n16r8 PSRAM XIP profile moves flash instructions and read-only data to
 PSRAM at startup and prefers PSRAM for the NVS page cache and key hash list,
-with internal fallback. N8R4 retains its prior mapping and NVS allocation.
+with internal fallback.
 The n16r8 Micra development+JTAG build (`esp32-s3-relay-x1-speaker-reed` /
 `la-marzocco-linea-micra`, ESP-IDF 6.1, validation at `79c4788-dirty`)
 measured 2,123,936 image bytes, 2,123,811 linked bytes, 1,444,516 flash-code
@@ -472,7 +471,7 @@ cases also remain pending; the successful full transfer does not qualify them.
 |---|---|
 | Network work buffer | external, bounded at 640 KiB; includes the existing 498,400-byte curve read copy in a reusable coherent Stats capture, 22,016-byte curve JSON, 26,112-byte row JSON, 40,960-byte status JSON, dedicated curve staging, 2,816 bytes of session fingerprints and a bounded page header/cache key; handlers share the work-buffer mutex. The earlier 629,376-byte measurement predates this layout; verify the current size in the matched firmware build |
 | HTTP response send | complete assets and JSON use HTTPD Content-Length responses; streamed bodies retain chunked transfer. Source buffers pass directly to HTTPD's default socket send, which copies into lwIP; no application bounce buffer or extra copy |
-| NVS metadata cache | PSRAM preferred with internal fallback on n16r8; n8r4 retains its existing placement; flash I/O still uses the internal scratch below |
+| NVS metadata cache | PSRAM preferred with internal fallback; flash I/O still uses the internal scratch below |
 | Shot-curve store | external, 498,420-byte cache for 100 records of 4,984 bytes; bounded block-header index and two 5,088-byte disk/verification workspaces belong to the same owner; immutable worker image is separately external |
 | Curve capture/finalization | external task-owned 1201-observation sampler and pending/finalization snapshots; the published scalar status stays internal, bounded at 2,048 bytes; its 4,955-byte curve array payload moves to PSRAM (plus alignment), with the same mutex/version covering both parts. The full reader snapshot stays bounded at 6,912 bytes in the external HTTP workspace; no control-path allocation or large stack local |
 | Home live stream | two fixed internal session contexts and one coalesced dispatch on the existing priority-1 tasks; 128 Home and 224 Diagnostic field fingerprints per session occupy 2,816 bytes in the external workspace; boot/clock anchors stay internal. Shared 26,112-byte external row workspace and 22,016-byte curve scratch, with no extra TX allocation; 1201 curve points maximum, 100 ms progress cadence and no unchanged data; four HTTP sockets retained |
@@ -493,7 +492,7 @@ cases also remain pending; the successful full transfer does not qualify them.
 | Wi-Fi static pools | eight RX and sixteen TX internal DMA buffers reserved while Wi-Fi is initialized, approximately 1.6 KB each; about 19.2 KB more internal RAM than the former six RX/six TX pools |
 | Wi-Fi packet queues | dynamic RX and cache TX each bounded at 32 packets; RX block-ack window 16. Cache TX holds overflow packets when static TX buffers are busy; it is not an equivalent preallocated DMA pool |
 | TCP capacity | 16 KiB send/receive limits and a 16-entry receive mailbox per connection; payload memory grows under load, with PSRAM preferred where supported. Fully loaded bidirectional payload capacity is 27,008 bytes higher per connection than the former 2,880-byte limits, before metadata |
-| mDNS responder | NetworkService-owned; mDNS 1.13.1 places its 4096-byte priority-1 task stack on core 0 in internal RAM on n16r8 for core dumps, and in PSRAM on n8r4; dynamic responder allocations remain in PSRAM; one persistent UDP socket; freed once in `OpenBrewByWeightNetwork::stop()` |
+| mDNS responder | NetworkService-owned; mDNS 1.13.1 places its 4096-byte priority-1 task stack on core 0 in internal RAM for core dumps; dynamic responder allocations remain in PSRAM; one persistent UDP socket; freed once in `OpenBrewByWeightNetwork::stop()` |
 | Fixed buzzer melodies | at most 8 notes each; custom tune capacity remains 250 notes |
 | JSON parser | PSRAM only; Web input remains at most 2047 bytes / 128 values; the Micra worker explicitly admits at most 16 KiB / 1024 values for bounded cloud responses; nesting remains 32 |
 | BBW adaptive candidates | control-owned fixed RAM, at most 3,000 bytes for eight presets; 20 observations and five trajectory anchors each |
@@ -554,8 +553,7 @@ Both supported partition tables reserve `shotcurve` at custom subtype
 `0x40`, exactly `0xCC000` (816 KiB): 101 × 8192-byte record blocks
 plus two separate 4096-byte epoch sectors. The maximum used record is 5160
 bytes, leaving 3032 reserved bytes per block. A shorter curve erases/programs
-only its used length and ignores stale bytes beyond it. On n8r4 the partition
-occupies `0x69E000`–`0x769FFF`; on n16r8 it occupies
+only its used length and ignores stale bytes beyond it. The partition occupies
 `0x63E000`–`0x709FFF`. The unmounted filesystem reservation shrinks;
 NVS, both OTA slots, shot summaries, activation history and crash storage
 retain their addresses. The installer permits the exact previous project
@@ -631,7 +629,6 @@ do not each cause an NVS write or a full-prefix rehash.
 | Board | OTA slot | Maximum journal `putBytes` per attempt | Key removals on close |
 |---|---:|---:|---:|
 | n16r8 | 0x300000 (3 MiB) | 6 | up to 2 |
-| n8r4 | 0x330000 (3.1875 MiB) | 7 | up to 2 |
 
 The write count is `1 + floor((imageBytes - 1) / 512 KiB)`: one empty-session
 record and checkpoints strictly before completion. `esp_ota_end()` validates

@@ -34,7 +34,7 @@ $(ss_flag_help)
 
 Examples:
   ./scripts/iwyu-idf --arch n16r8
-  ./scripts/iwyu-idf -a n8r4 -o reports/iwyu-n8r4
+  ./scripts/iwyu-idf -a n16r8 -o reports/iwyu-n16r8
 EOF
 }
 

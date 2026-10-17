@@ -9,13 +9,6 @@
     "flash_rodata": 40496
   },
   "targets": {
-    "n8r4": {
-      "image": 1933104,
-      "total_size": 1932983,
-      "used_diram": 164026,
-      "flash_code": 1353712,
-      "flash_rodata": 425576
-    },
     "n16r8": {
       "image": 2273760,
       "total_size": 2273647,
