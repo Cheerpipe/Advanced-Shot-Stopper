@@ -403,7 +403,7 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #shotTable,#shotTable tbody{display:block}
 #shotTable tr{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate . ." "spark spark spark spark spark spark";gap:.6rem .5rem;align-items:start;position:relative;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1rem;margin:0 0 .75rem}
 #shotTable th,#shotTable td{border:0;padding:0;text-align:left;white-space:normal;overflow-wrap:anywhere}
-#shotTable td{display:flex;flex-direction:column;gap:.08rem;min-width:0;font-weight:650}
+#shotTable td{display:flex;flex-direction:column;gap:.08rem;min-width:0;font-weight:650;color:var(--mu)}
 #shotTable td::before{content:attr(data-label);font-size:.62rem;font-weight:600;color:var(--mu);letter-spacing:.02em;text-transform:uppercase}
 #shotTable td:nth-child(1){grid-area:time}
 #shotTable td:nth-child(2){grid-area:dur}
@@ -425,9 +425,9 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #shotTable .heroPill{margin-left:.5rem;background:color-mix(in srgb,var(--z) 13%,var(--sf));color:color-mix(in srgb,var(--z) 80%,var(--fg))}
 #shotTable .shotDel{position:absolute;top:.15rem;right:.15rem;z-index:1;align-items:center;justify-content:center}
 #shotTable td.shotDel,#shotTable td.shotDel>.btnGlyph{background:transparent!important}
-#shotTable .shotDur,#shotTable .shotActual,.shotCard .shotDur > div,.shotCard .shotActual > div{font-size:1.85rem;font-weight:750;line-height:1.1;color:var(--fg);letter-spacing:-.02em;padding-bottom:.1rem;font-variant-numeric:tabular-nums}
+#shotTable .shotDur,#shotTable .shotActual,.shotCard .shotDur > div,.shotCard .shotActual > div{font-size:1.85rem;font-weight:750;line-height:1.1;color:var(--mu);letter-spacing:-.02em;padding-bottom:.1rem;font-variant-numeric:tabular-nums}
 .shotCard .shotDur,.shotCard .shotActual,#shotTable .shotDur,#shotTable .shotActual{display:grid;grid-template-columns:1.5rem auto;gap:.08rem .5rem;justify-self:center;text-align:left}
-.shotMetricIcon{grid-column:1;grid-row:2;align-self:center;width:1.5rem;height:1.5rem}
+.shotMetricIcon{grid-column:1;grid-row:2;align-self:center;width:1.5rem;height:1.5rem;color:var(--mu)}
 #shotTable .shotVal{white-space:nowrap}
 .shotCard :is(.shotDur,.shotActual)>strong,#shotTable :is(.shotDur,.shotActual)::before{grid-column:1/-1;padding-left:2rem}
 .shotCard :is(.shotDur,.shotActual)>div{grid-column:2;grid-row:2}
@@ -447,10 +447,10 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #historyTable,#historyTable tbody{display:block}
 #historyTable tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"icon dur time" "icon type time";gap:.6rem .8rem;align-items:start;position:relative;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1rem 3rem 1rem 1rem;margin:0 0 .75rem}
 #historyTable th,#historyTable td{border:0;padding:0;text-align:left;white-space:normal;overflow-wrap:anywhere}
-#historyTable td{display:flex;flex-direction:column;gap:.08rem;min-width:0;font-weight:650}
+#historyTable td{display:flex;flex-direction:column;gap:.08rem;min-width:0;font-weight:650;color:var(--mu)}
 #historyTable td::before{content:attr(data-label);font-size:.62rem;font-weight:600;color:var(--mu);letter-spacing:.02em;text-transform:uppercase}
 #historyTable td.histTime{grid-area:time;font-size:.8rem;font-weight:600;color:var(--mu);justify-self:end}
-#historyTable td.shotDur{grid-area:dur;font-size:1.85rem;font-weight:750;line-height:1.1;color:var(--fg);letter-spacing:-.02em;padding-bottom:.1rem;font-variant-numeric:tabular-nums}
+#historyTable td.shotDur{grid-area:dur;font-size:1.85rem;font-weight:750;line-height:1.1;letter-spacing:-.02em;padding-bottom:.1rem;font-variant-numeric:tabular-nums}
 #historyTable td.shotDur::before{font-size:.6875rem;font-weight:700;color:var(--mu);letter-spacing:.04em}
 #historyTable td.histType{grid-area:type;font-size:.75rem;font-weight:600;color:var(--mu)}
 #historyTable td.histTime::before,#historyTable td.histIcon::before{content:none}
