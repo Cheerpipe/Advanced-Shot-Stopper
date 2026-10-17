@@ -669,8 +669,9 @@ if (generated.cssGzip.length > 14286) {
 // The full-screen keep-awake (Wake Lock, inline video, Esc) brings the runtime to 62758 compressed bytes; owner-authorized 2026-10-16.
 // Reading the build version from the shell brings the runtime to 62759 compressed bytes; frontend audit 2026-10-16.
 // View-only code moves to the lazy view modules (frontend audit 2026-10-16).
-if (sentinelRuntimeGzip.length > 48300) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 48300-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The shot weight/flow chart cursor raises the runtime to 48830 compressed bytes; owner-authorized 2026-10-16.
+if (sentinelRuntimeGzip.length > 48830) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 48830-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -863,8 +864,8 @@ if (generated.icon48Raw.length > 3500) {
 // Measured 73846 bytes after the frontend audit (2026-10-16).
 const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
     generated.jsGzip.length + generated.runtimeGzip.length;
-if (coldHomeGzip > 74000) {
-  throw new Error(`Cold Home download exceeds the 74000-byte gzip budget (${coldHomeGzip})`);
+if (coldHomeGzip > 74450) {
+  throw new Error(`Cold Home download exceeds the 74450-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

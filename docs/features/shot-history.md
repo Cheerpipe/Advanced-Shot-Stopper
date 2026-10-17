@@ -242,6 +242,14 @@ Both fill with a soft shade that fades toward the bottom. The chart is as
 tall as the preset chart above it, so grams look the same size in both. Shots
 without a preset chart show only this chart below their details.
 
+This chart has a cursor too, and it works the same way: tap or drag anywhere
+on it, or use the arrow keys. Two dots move together, one on the weight curve
+and one on the flow curve, so you can read both at the same moment. While your
+finger or mouse is on the chart, a bubble shows the time, the weight and the
+flow rate, each value marked with its line's color. Where there is no flow
+reading, such as before the first drops, the flow dot hides and the bubble
+shows a dash instead. The cursor starts at the shot's stop point.
+
 Every filled chart in the Web UI uses that same fading shade: this chart, the
 preset charts in Stats, Home and Settings, the Stats arrival-time density, and
 the curve and the recipe window on the Home shot card.

@@ -998,6 +998,7 @@
     "runtime.shot_cursor_label": "Time on this shot\u2019s curve",
     "runtime.shot_cursor_pill": "{0} s · {1} g",
     "runtime.shot_deleted": "Shot deleted.",
+    "runtime.shot_flow_pill": "{0} s {1} {2} g {3} {4} g/s",
     "runtime.shot_history_cleared": "Shot history cleared.",
     "runtime.shot_paused": "Paused during shot",
     "runtime.shot_rating": "Shot rating",

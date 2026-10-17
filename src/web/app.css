@@ -477,9 +477,9 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .shotLegend{display:flex;flex-wrap:wrap;gap:.2rem .7rem;font-size:.72rem;color:var(--mu)}
 .shotLegend .rvLegLast i{height:0;border-top:2.5px dashed var(--gLast)}
 .shotCursorText{margin:0;font-size:.72rem;color:var(--mu);font-variant-numeric:tabular-nums}
-.shotPresetChart .shotCursor .rvHandle{fill:var(--gLast);stroke:var(--sf);stroke-width:1.5}
-.shotPresetChart .shotCursor .rvPill rect{stroke:var(--gLast)}
-.shotPresetChart .shotCursor .rvGuide{stroke:var(--fg);stroke-opacity:.5;stroke-width:1;fill:none}
+.shotCursor .rvHandle{fill:var(--c,var(--gLast));stroke:var(--sf);stroke-width:1.5}
+.shotCursor .rvPill rect{stroke:var(--c,var(--gLast))}
+.shotCursor .rvGuide{stroke:var(--fg);stroke-opacity:.5;stroke-width:1;fill:none}
 .shotPresetChart{touch-action:pan-y;outline-offset:2px}
 .shotPresetChart .rvLast{stroke-width:2.5;stroke-dasharray:5 4}
 .shotPresetChart .rvLastDrip{stroke-dasharray:3}

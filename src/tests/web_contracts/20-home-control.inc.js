@@ -25,6 +25,8 @@
   // One combined chart: a weight axis, a flow axis, one time axis and the final-yield overlay.
   const ticks = [], markers = [], axes = [], keys = [{style:{}}, {style:{}}];
   let markup = '', plot = null;
+  const dots = [0,1,2,3].map(()=>({attrs:{},style:{setProperty(){}},setAttribute(k,v){this.attrs[k]=v}})),
+    cursor = {firstChild:{children:dots}, style:{setProperty(){}}};
   const document = {createElement(){return {style:{},dataset:{},setAttribute(){}}}};
   const tickSink = {replaceChildren(){ticks.length=0}, appendChild(item){ticks.push(item)},
     setAttribute() {}, removeAttribute() {}, dataset: {}};
@@ -33,15 +35,19 @@
     set innerHTML(value){markup=value;markers.length=0;axes.length=0;
       for(const part of value.split('<div class="shotSparkY').slice(1)){const y=(part.split('</div>')[0].match(/class="shotYTick"/g)||[]).map(()=>({style:{},dataset:{},textContent:'0'}));axes.push({querySelectorAll(){return y},setAttribute(){},dataset:{},style:{}})}
       plot=value.includes('class="shotSparkHost"')?{style:{setProperty(k,v){this[k]=v}},querySelectorAll(){return axes},
-        querySelector(){return tickSink}}:null},
+        attrs:{},setAttribute(k,v){this.attrs[k]=v},addEventListener(){},
+        querySelector(s){return s==='.shotSparkCursor'?cursor:tickSink}}:null},
     hidden:true, replaceChildren(){this.innerHTML=''},
     querySelector(selector){return selector==='.shotSparkHost'?plot:selector==='.shotDropOverlay'?{appendChild(item){markers.push(item)}}:{}},
     querySelectorAll(){return keys},
     append(){},
   };
+  const stretched = (s) => s.split('shotSparkCursor')[0];
   const fills = () => (markup.match(/fill="url\(#sc/g)||[]).length;
   const render = new Function('document', 'ResizeObserver', '$', 'requestAnimationFrame',
-      'const presetState={cutRampS:0.5};' + helpers + preset + renderer + ';return renderShotSpark;')(
+      'const presetState={cutRampS:0.5};' + helpers + preset + renderer +
+      runtimeJs.slice(runtimeJs.indexOf('const sub = '), runtimeJs.indexOf('\n', runtimeJs.indexOf('const sub = '))) +
+      ';return renderShotSpark;')(
       document, class{observe(){}}, ()=>({}), ()=>{});
   const observed = render(host, {wCg:[0,100,100,200], wAtMs:[0,100,600,600],
     wBreakBefore:[2], wTruncated:true, durationS:1});
@@ -93,9 +99,15 @@
       ticks.map(item=>item.textContent).join('|')!=='0 s|10 s') {
     throw new Error('The combined shot chart must keep both axes, draw flow under weight with fading fills, and plot measured rates at window midpoints');
   }
-  if (combined.includes('<circle') || !combined.includes('d="M48.9 32.9h0"') ||
+  if (stretched(combined).includes('<circle') || !combined.includes('d="M48.9 32.9h0"') ||
       !combined.includes('stroke-linecap="round"'))
     throw new Error('Event annotations must use line-width non-scaling strokes, not stretched filled circles');
+  // The cursor starts at the stop point: both dots at 4 s, flow hidden past its last estimate.
+  if (!combined.includes('<svg class="shotSpark shotSparkCursor" aria-hidden="true"><g class="shotCursor">') ||
+      (combined.match(/class="rvHandle/g) || []).length !== 2 || !combined.includes('class="rvPill"') ||
+      plot.attrs['aria-valuenow'] !== '4.0' || plot.attrs['aria-valuetext'] !== '4.0 s \u00B7 2.5 g \u00B7 \u2014 g/s' ||
+      dots[1].attrs.cx !== dots[0].attrs.x1 || dots[2].attrs.visibility !== 'hidden')
+    throw new Error('The weight/flow chart must carry the preset chart\u2019s cursor: a shared-time guide, a weight and a flow dot, and one pill');
   for (const interruption of [
     {wBreakBefore:[3]}, {wCg:[0,0,50,NaN,250,350,450]},
     {atmS:2.5,atmClearedS:3.5},
@@ -106,13 +118,13 @@
       throw new Error('Startup reference must not bridge rejection, tare or scale-loss gaps');
   }
   const annotations=render(host,{wCg:[0,100,200],wAtMs:[0,500,1000],durationS:1,endS:1,endCg:500});
-  if(host.innerHTML.includes('<circle') || host.innerHTML.includes('d="M25.2 18.0h0"') ||
+  if(stretched(host.innerHTML).includes('<circle') || host.innerHTML.includes('d="M25.2 18.0h0"') ||
       annotations.segs.length!==1 || annotations.pts.at(-1).cg!==200 ||
       annotations.maxFlow!==2 || annotations.flowCurve[2]!==2 ||
       new Function(helpers+';return shotDisplayActualG(5,[0,100,200]);')()!==5)
     throw new Error('Weight trace must end at its last sample while summary yield and flow stay unchanged');
   const single = render(host, {wCg:[0,100,200],wAtMs:[0,500,1000],durationS:1});
-  if(single.flowSegs[0].pts.length!==1 || host.innerHTML.includes('<circle') ||
+  if(single.flowSegs[0].pts.length!==1 || stretched(host.innerHTML).includes('<circle') ||
       !host.innerHTML.includes('d="M13.4 1.5h0"'))
     throw new Error('A single supported flow estimate must render as a point without invented endpoints');
   const dripShot={wCg:[0,100,200,240,250],wAtMs:[0,500,1000,1500,2000],
@@ -1405,7 +1417,7 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
     throw new Error('An invalid snapshot (delay not before the window) must render without the preset chart');
   const cardSrc = runtimeJs.slice(runtimeJs.indexOf('function renderShotSpark('), runtimeJs.indexOf('function fillShotCharts('));
   if (cardSrc.includes('aria-expanded') || cardSrc.includes('shotMore') ||
-      !/"role",\s*"slider"/.test(cardSrc) || !cardSrc.includes('dataset.zone') ||
+      !cardSrc.includes('bindShotScrub(') || !/"role",\s*"slider"/.test(runtimeJs) || !cardSrc.includes('dataset.zone') ||
       !cardSrc.includes('observePresetHost(preset)') || cardSrc.includes('hatch') ||
       !cardSrc.includes('h.append(preset, readout, legend, combo);') || !cardSrc.includes('fillShotCharts(combo, m);') ||
       !cardSrc.includes('if (preset._view) h.style.setProperty("--shot-plot-h", preset._view.B - preset._view.T + "px");') ||

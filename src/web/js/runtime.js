@@ -1239,6 +1239,38 @@ function observePresetHost(host) {
   });
   shotPresetObserver.observe(host);
 }
+// The value of a time-sorted curve at t, linear between samples and held at its ends.
+function curveAt(curve, t) {
+  let i = 0;
+  while (i < curve.length - 2 && curve[i + 1].t < t) i++;
+  const a = curve[i],
+    b = curve[i + 1] ?? a,
+    k = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 0;
+  return (a.cg + (b.cg - a.cg) * k) / 100;
+}
+// Both shot charts scrub alike: drag anywhere on the chart, or arrow keys once focused.
+function bindShotScrub(node, tAt, seek, now) {
+  const move = (e) => seek(tAt(e.clientX));
+  node.addEventListener("pointerdown", (e) => {
+    if (tAt(e.clientX) == null) return;
+    e.preventDefault();
+    node.setPointerCapture(e.pointerId);
+    node.focus({ preventScroll: true });
+    node.classList.add("rvHeld");
+    move(e);
+  });
+  node.addEventListener("pointermove", (e) => node.hasPointerCapture(e.pointerId) && move(e));
+  node.addEventListener("lostpointercapture", () => node.classList.remove("rvHeld"));
+  node.addEventListener("keydown", (e) => {
+    const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5, PageUp: 5, PageDown: -5 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    seek(now() + step);
+  });
+  node.tabIndex = 0;
+  node.setAttribute("role", "slider");
+  node.setAttribute("aria-label", __WEBUI_TEXT__("runtime.shot_cursor_label"));
+}
 function renderShotSpark(h, shot) {
   if (!h) return null;
   const m = buildShotSparkModel(shot);
@@ -1256,22 +1288,14 @@ function renderShotSpark(h, shot) {
     readout = document.createElement("p"),
     combo = document.createElement("div"),
     // The cursor rides this shot's own curve; it starts at the stop point (D7).
-    curve = m.pts.map((q) => ({ t: q.t, cg: q.cg })).sort((a, b) => a.t - b.t),
-    weightAt = (t) => {
-      let i = 0;
-      while (i < curve.length - 2 && curve[i + 1].t < t) i++;
-      const a = curve[i],
-        b = curve[i + 1] ?? a,
-        k = b.t > a.t ? Math.min(1, Math.max(0, (t - a.t) / (b.t - a.t))) : 0;
-      return (a.cg + (b.cg - a.cg) * k) / 100;
-    };
+    curve = m.pts.slice().sort((a, b) => a.t - b.t);
   let cursorT = curve.at(-1).t;
   const place = () => {
     const v = preset._view,
       g = preset.querySelector(".shotCursor");
     if (!v || !g) return;
     const t = cursorT,
-      w = weightAt(t),
+      w = curveAt(curve, t),
       cut = rule.mode === "active" ? cutLine(t, rule).toFixed(1) + " g" : "\u2014";
     g.children[0].setAttribute("d", `M${v.X(t).toFixed(1)} ${v.T}V${v.B}`);
     g.children[1].setAttribute("cx", v.X(t).toFixed(2));
@@ -1304,28 +1328,14 @@ function renderShotSpark(h, shot) {
     );
     place();
   };
-  const move = (e) => seek(preset._view.tAt(e.clientX - preset.firstChild.getBoundingClientRect().left));
-  preset.addEventListener("pointerdown", (e) => {
-    if (!preset._view) return;
-    e.preventDefault();
-    preset.setPointerCapture(e.pointerId);
-    preset.focus({ preventScroll: true });
-    preset.classList.add("rvHeld");
-    move(e);
-  });
-  preset.addEventListener("pointermove", (e) => preset.hasPointerCapture(e.pointerId) && move(e));
-  preset.addEventListener("lostpointercapture", () => preset.classList.remove("rvHeld"));
-  preset.addEventListener("keydown", (e) => {
-    const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5, PageUp: 5, PageDown: -5 }[e.key];
-    if (!step) return;
-    e.preventDefault();
-    seek(cursorT + step);
-  });
+  bindShotScrub(
+    preset,
+    (x) => preset._view?.tAt(x - preset.firstChild.getBoundingClientRect().left),
+    seek,
+    () => cursorT,
+  );
   preset.className = "shotPresetChart";
   preset.id = "shotRv" + shot.id;
-  preset.tabIndex = 0;
-  preset.setAttribute("role", "slider");
-  preset.setAttribute("aria-label", __WEBUI_TEXT__("runtime.shot_cursor_label"));
   preset.setAttribute("aria-valuemin", curve[0].t.toFixed(1));
   preset.setAttribute("aria-valuemax", curve.at(-1).t.toFixed(1));
   readout.className = "shotCursorText";
@@ -1367,6 +1377,7 @@ function fillShotCharts(h, m) {
     H = 36,
     p = 1.5,
     X = (t) => p + (W - 2 * p) * Math.min(1, t / m.timeMax),
+    Y = (v, max) => H - p - (H - 2 * p) * Math.max(0, Math.min(1, v / max)),
     xt = fixedChartTicks(m.timeMax, 10, "s"),
     yt = fixedChartTicks(m.maxW, 10, __WEBUI_TEXT__("runtime.g")),
     n = m.maxW / 10,
@@ -1375,10 +1386,9 @@ function fillShotCharts(h, m) {
     colors = [...new Set(m.segs.filter((s) => s.pts.length > 1).map((s) => s.color))];
   let defs = "";
   function series(segs, drips, max, flow) {
-    const Y = (v) => H - p - (H - 2 * p) * Math.max(0, Math.min(1, v / 100 / max));
     function path(a, c, drip) {
       const d =
-        a.map((q, i) => (i ? "L" : "M") + X(q.t).toFixed(1) + " " + Y(q.cg).toFixed(1)).join(" ") +
+        a.map((q, i) => (i ? "L" : "M") + X(q.t).toFixed(1) + " " + Y(q.cg / 100, max).toFixed(1)).join(" ") +
         (a.length === 1 ? "h0" : "");
       let fill = "";
       if (!drip && a.length > 1 && a.some((q) => q.cg > 0)) {
@@ -1423,7 +1433,7 @@ function fillShotCharts(h, m) {
     if (!flow && m.held.length)
       svg +=
         '<path class="shotHeld" d="' +
-        m.held.map((q) => "M" + X(q.t).toFixed(1) + " " + Y(q.cg).toFixed(1) + "h0").join("") +
+        m.held.map((q) => "M" + X(q.t).toFixed(1) + " " + Y(q.cg / 100, max).toFixed(1) + "h0").join("") +
         '" stroke="var(--mu)" stroke-width="2" stroke-linecap="round" opacity=".6" vector-effect="non-scaling-stroke"/>';
     return svg;
   }
@@ -1456,7 +1466,10 @@ function fillShotCharts(h, m) {
     grid +
     '"/>' +
     body +
-    '</svg><div class="shotSparkY shotSparkFlowY">' +
+    // The cursor lives in its own unstretched layer, so its dots stay round.
+    '</svg><svg class="shotSpark shotSparkCursor" aria-hidden="true"><g class="shotCursor"><line class="rvGuide" y1="0" y2="100%"/><circle class="rvHandle" r="5"/><circle class="rvHandle" r="5"/>' +
+    PILL +
+    '</g></svg><div class="shotSparkY shotSparkFlowY">' +
     ticks(yt.map((q, i) => +(i * step).toFixed(2) + " g/s")) +
     "</div>" +
     (m.finalPoint ? '<div class="shotDropOverlay"></div>' : "") +
@@ -1500,9 +1513,7 @@ function fillShotCharts(h, m) {
     const d = document.createElement("span");
     d.className = "shotFinalPoint";
     d.style.left = (X(m.finalPoint.t) / W) * 100 + "%";
-    d.style.top =
-      ((H - p - (H - 2 * p) * Math.max(0, Math.min(1, m.finalPoint.cg / 100 / m.maxW))) / H) * 100 +
-      "%";
+    d.style.top = (Y(m.finalPoint.cg / 100, m.maxW) / H) * 100 + "%";
     Object.assign(d.style, {
       position: "absolute",
       width: "6px",
@@ -1517,6 +1528,36 @@ function fillShotCharts(h, m) {
     d.setAttribute("aria-hidden", "true");
     h.querySelector(".shotDropOverlay").appendChild(d);
   }
+  // Weight and flow dots share the cursor's time; the pill reads both, framed in the weight color.
+  const cur = c.querySelector(".shotSparkCursor"),
+    [guide, dotW, dotF, pill] = cur.firstChild.children,
+    weight = m.pts.slice().sort((a, b) => a.t - b.t),
+    flow = m.flowSegs.concat(m.dripFlowSegs).flatMap((s) => s.pts).sort((a, b) => a.t - b.t),
+    attrs = (e, o) => Object.entries(o).forEach(([k, v]) => e.setAttribute(k, v));
+  let cursorT = weight.at(-1).t;
+  dotF.style.setProperty("--c", "var(--gFlow)");
+  const seek = (t, held = true) => {
+    cursorT = t = Math.round(Math.max(weight[0].t, Math.min(weight.at(-1).t, t)) * 10) / 10;
+    const w = curveAt(weight, t),
+      f = t >= flow[0]?.t && t <= flow.at(-1).t ? curveAt(flow, t) : null,
+      x = (X(t) / W) * 100 + "%",
+      yW = Y(w, m.maxW) / H,
+      yF = f == null ? 1 : Y(f, step * n) / H,
+      color = m.segs.concat(m.dripSegs).findLast((s) => s.pts[1] && s.pts[0].t <= t)?.color ?? "var(--ok)",
+      text = (a, b) => sub(__WEBUI_TEXT__("runtime.shot_flow_pill"), [t.toFixed(1), a, w.toFixed(1), b, f?.toFixed(1) ?? "\u2014"]),
+      dot = (c) => `<tspan fill="${c}">\u25CF</tspan>`;
+    attrs(guide, { x1: x, x2: x });
+    attrs(dotW, { cx: x, cy: yW * 100 + "%" });
+    attrs(dotF, { cx: x, cy: yF * 100 + "%", visibility: f == null ? "hidden" : "visible" });
+    attrs(c, { "aria-valuenow": t.toFixed(1), "aria-valuetext": text("\u00B7", "\u00B7") });
+    cur.style.setProperty("--c", color);
+    if (!held) return;
+    const box = cur.getBoundingClientRect();
+    placePill(pill, text(dot(color), dot("var(--gFlow)")), (X(t) / W) * box.width, Math.min(yW, yF) * box.height);
+  };
+  bindShotScrub(c, (x) => (((x - cur.getBoundingClientRect().left) / cur.clientWidth) * W - p) / (W - 2 * p) * m.timeMax, seek, () => cursorT);
+  attrs(c, { "aria-valuemin": weight[0].t.toFixed(1), "aria-valuemax": weight.at(-1).t.toFixed(1) });
+  seek(cursorT, false);
   return m;
 }
 let statsPresetFilter = "all";
@@ -4168,11 +4209,12 @@ function presetGraph(host, m, x = {}) {
 }
 // While held, a pill left of the handle (clear of a right thumb) shows its point.
 const PILL = '<g class="rvPill"><rect y="-9" rx="9" height="18"/><text class="rvLbl strong" x="8" y="4"/></g>';
+// Near the left edge it flips to the right of the handle instead of covering it.
 function placePill(pill, text, x, y) {
-  pill.lastChild.textContent = text;
+  pill.lastChild.innerHTML = text;
   const pw = pill.lastChild.getBBox().width + 16;
   pill.firstChild.setAttribute("width", pw);
-  pill.setAttribute("transform", `translate(${Math.max(1, x - 11 - pw)} ${y})`);
+  pill.setAttribute("transform", `translate(${x - 11 - pw < 1 ? x + 11 : x - 11 - pw} ${y})`);
 }
 // One preset graph with its scrubber, used by the Settings review and by each
 // Home preset panel: same drawing, axis, and scrub behavior. The scrub state

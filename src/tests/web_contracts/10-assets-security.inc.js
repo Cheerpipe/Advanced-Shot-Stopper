@@ -844,8 +844,9 @@ if (htmlBytes > 93300) {
 // Compile-time remote-control and Linea Micra guards: +60 bytes (442150), frontend audit 2026-10-16.
 // Moving view-only code into the view modules adds module qualifiers (R.,
 // uiState.): +2548 bytes (444698), frontend audit 2026-10-16.
-if (jsBytes > 444698) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 444698)`);
+// The shot weight/flow chart cursor (shared-time dots, two-value pill, shared scrub helper): +2475 bytes (447173), owner-requested 2026-10-16.
+if (jsBytes > 447173) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 447173)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -946,8 +947,9 @@ if (jsBytes > 444698) {
 // The shell's build version and versioned manifest link: 527554, frontend audit 2026-10-16.
 // Compile-time remote-control and Linea Micra guards: 527614, frontend audit 2026-10-16.
 // View-only code moved into the view modules: 530162, frontend audit 2026-10-16.
-if (htmlBytes + jsBytes > 530162) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 530162)`);
+// The shot weight/flow chart cursor: 532630, owner-requested 2026-10-16.
+if (htmlBytes + jsBytes > 532630) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 532630)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
