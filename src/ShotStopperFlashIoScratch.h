@@ -28,8 +28,9 @@
 
 namespace shotstopper {
 
-// One staged step of a partition-store transfer. 4-byte alignment keeps every
-// esp_partition_read/write call word-aligned; store sizes are multiples of 4.
+// One staged step of a partition-store transfer. Store sizes stay multiples
+// of 4: IDF 6.1 plain (non-encrypted) writes accept any alignment, but
+// word-sized chunks keep the transfer path uniform and fast.
 constexpr size_t FLASH_IO_CHUNK_BYTES = 1024;
 constexpr size_t FLASH_IO_SECTOR_BYTES = 4096;
 // Settings slots are processed sequentially; the shared internal workspace

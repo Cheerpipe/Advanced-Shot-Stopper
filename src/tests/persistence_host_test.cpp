@@ -1976,11 +1976,53 @@ void p61b_shot_curve_failed_compaction_restores_durable_ring() {
   }
 }
 
+// Golden pre-schema-3 block, hand-built with the absolute point layout older
+// firmware wrote (schema 1 has no held bitmap; schema 2 adds it).
+void writeLegacyCurveBlock(uint8_t *block, const ShotCurveRecord &r,
+                           uint16_t schema, uint32_t sequence) {
+  memset(block, 0xff, SHOT_CURVE_BLOCK_BYTES);
+  uint8_t *p = block + sizeof(ShotCurveBlockHeader);
+  memcpy(p, &r.atmClearedMs, 18); p += 18;
+  for (size_t i = 0; i < r.count; ++i) {
+    memcpy(p, &r.atMs[i], 2); p += 2;
+    memcpy(p, &r.weightCg[i], 2); p += 2;
+  }
+  const size_t bits = (r.count + 7U) / 8U;
+  memcpy(p, r.breakBefore, bits); p += bits;
+  if (schema == 2U) { memcpy(p, r.held, bits); p += bits; }
+  ShotCurveBlockHeader h = {};
+  h.magic = SHOT_CURVE_MAGIC;
+  h.schema = schema;
+  h.bytes = static_cast<uint16_t>((p - block + 3U) & ~size_t(3U));
+  h.epoch = 0;
+  h.sequence = sequence;
+  h.floor = 0;
+  h.shotId = r.shotId;
+  h.count = r.count;
+  h.flags = 1;
+  h.validity = UINT32_MAX - 1U;  // kCommitted
+  memcpy(block, &h, sizeof(h));
+  uint32_t crc = crc32Update(0xffffffffU, block, offsetof(ShotCurveBlockHeader, checksum));
+  h.checksum = ~crc32Update(crc, block + sizeof(h), h.bytes - sizeof(h));
+  memcpy(block, &h, sizeof(h));
+}
+
+uint8_t *findCurveBlock(uint32_t shotId) {
+  uint8_t *flash = ShotCurveLog::hostFlashForTest();
+  for (size_t b = 0; b < SHOT_CURVE_BLOCK_COUNT; ++b) {
+    uint8_t *block = flash + 2U * FLASH_IO_SECTOR_BYTES + b * SHOT_CURVE_BLOCK_BYTES;
+    ShotCurveBlockHeader h = {};
+    memcpy(&h, block, sizeof(h));
+    if (h.magic == SHOT_CURVE_MAGIC && h.shotId == shotId &&
+        h.validity == UINT32_MAX - 1U) return block;
+  }
+  return nullptr;
+}
+
 void p61c_shot_curve_schema_1_blocks_survive_update() {
-  // Curves written before the held bitmap must still load after an update.
+  // Curves written before the held bitmap and before delta encoding must
+  // still load after an update, beside current-schema records.
   resetHostPersistence();
-  ShotCurveLog curves;
-  CHECK(curves.load());
   ShotCurveRecord legacy = emptyShotCurveRecord();
   legacy.shotId = 41;
   legacy.count = 9;  // Two bitmap bytes: the schemas differ in length.
@@ -1989,46 +2031,38 @@ void p61c_shot_curve_schema_1_blocks_survive_update() {
     legacy.weightCg[i] = static_cast<int16_t>(i * 40U);
   }
   legacy.breakBefore[1] = 0x01;  // Index 8 starts a segment.
-  CHECK(curves.append(legacy));
+  ShotCurveRecord held = legacy;
+  held.shotId = 42;
+  held.held[0] = 0x0c;  // Indices 2 and 3 were held.
   uint8_t *flash = ShotCurveLog::hostFlashForTest();
-  uint8_t *block = nullptr;
-  for (size_t b = 0; b < SHOT_CURVE_BLOCK_COUNT && block == nullptr; ++b) {
-    uint8_t *candidate = flash + 2U * FLASH_IO_SECTOR_BYTES + b * SHOT_CURVE_BLOCK_BYTES;
-    ShotCurveBlockHeader h = {};
-    memcpy(&h, candidate, sizeof(h));
-    if (h.magic == SHOT_CURVE_MAGIC && h.shotId == 41) block = candidate;
-  }
-  CHECK(block != nullptr);
-  ShotCurveBlockHeader h = {};
-  memcpy(&h, block, sizeof(h));
-  CHECK(h.schema == SHOT_CURVE_SCHEMA_VERSION && h.bytes == 96);
-  // Rewrite it as schema 1: identical but without the held bitmap.
-  h.schema = 1;
-  h.bytes = 92;
-  memset(block + 92, 0xff, 4);
-  memcpy(block, &h, sizeof(h));
-  uint32_t crc = crc32Update(0xffffffffU, block, offsetof(ShotCurveBlockHeader, checksum));
-  h.checksum = ~crc32Update(crc, block + sizeof(h), h.bytes - sizeof(h));
-  memcpy(block, &h, sizeof(h));
+  writeLegacyCurveBlock(flash + 2U * FLASH_IO_SECTOR_BYTES, legacy, 1, 1);
+  writeLegacyCurveBlock(flash + 2U * FLASH_IO_SECTOR_BYTES + SHOT_CURVE_BLOCK_BYTES,
+                        held, 2, 2);
 
   ShotCurveLog updated;
   CHECK(updated.load());
+  CHECK(updated.count() == 2);
   ShotCurveRecord loaded = {};
   CHECK(updated.copyByShotId(41, loaded));
   CHECK(loaded.count == 9 && loaded.weightCg[8] == 320);
   CHECK(shotCurveBreakBefore(loaded, 8) && !shotCurveBreakBefore(loaded, 7));
   for (size_t i = 0; i < loaded.count; ++i) CHECK(!shotCurveHeld(loaded, i));
+  CHECK(updated.copyByShotId(42, loaded));
+  CHECK(shotCurveHeld(loaded, 2) && shotCurveHeld(loaded, 3) &&
+        !shotCurveHeld(loaded, 4) && shotCurveBreakBefore(loaded, 8));
 
-  // New records are written as schema 2 and keep their held samples.
+  // New records are written as the current schema into the same mixed store;
+  // every schema must stay enumerated or older blocks silently disappear.
   ShotCurveRecord current = legacy;
-  current.shotId = 42;
-  current.held[0] = 0x0c;  // Indices 2 and 3 were held.
+  current.shotId = 43;
+  current.held[0] = 0x0c;
   CHECK(updated.append(current));
   ShotCurveLog reloaded;
   CHECK(reloaded.load());
-  CHECK(reloaded.count() == 2);
+  CHECK(reloaded.count() == 3);
   CHECK(reloaded.copyByShotId(41, loaded) && !shotCurveHeld(loaded, 2));
-  CHECK(reloaded.copyByShotId(42, loaded));
+  CHECK(reloaded.copyByShotId(42, loaded) && shotCurveHeld(loaded, 2));
+  CHECK(reloaded.copyByShotId(43, loaded));
   CHECK(shotCurveHeld(loaded, 2) && shotCurveHeld(loaded, 3) &&
         !shotCurveHeld(loaded, 4) && shotCurveBreakBefore(loaded, 8));
   char json[SHOT_CURVE_JSON_CAPACITY] = {};
@@ -2509,7 +2543,12 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
   complete.truncated = false;
   ShotCurveLog::resetHostStorage();
   ShotCurveLog maximum;
+  const size_t denseErased = ShotCurveLog::hostEraseBytes();
+  const size_t denseWritten = ShotCurveLog::hostWriteBytes();
   CHECK(maximum.load() && maximum.append(complete) && maximum.load());
+  // Dense curves commit in one sector: the delta stream halves the payload.
+  CHECK(ShotCurveLog::hostEraseBytes() - denseErased == 4096);
+  CHECK(ShotCurveLog::hostWriteBytes() - denseWritten == 2760);
   ShotCurveRecord restored;
   CHECK(maximum.copyByShotId(101, restored));
   CHECK(restored.count == 1201 && !restored.truncated && restored.atMs[1200] == 60000);
@@ -2546,7 +2585,7 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
     const bool committed = reloaded.containsShotId(101);
     CHECK(reloaded.containsShotId(1) != committed);
     CHECK(ShotCurveLog::hostEraseBytes() - erased <= 8192);
-    CHECK(ShotCurveLog::hostWriteBytes() - written <= 5160);
+    CHECK(ShotCurveLog::hostWriteBytes() - written <= 2760);
     if (committed) {
       ShotCurveRecord out;
       CHECK(reloaded.copyByShotId(101, out));
@@ -2683,6 +2722,240 @@ void p61d_clear_epochs_and_stale_worker_images() {
   CHECK(ShotCurveLog::hostWriteBytes() == writes && live.count() == 2);
 }
 
+uint32_t curveFuzzState = 0x9E3779B9U;
+uint32_t curveFuzzRand() {
+  return curveFuzzState = curveFuzzState * 1664525U + 1013904223U;
+}
+
+// Deterministic firmware-producible record: monotonic atMs <= 60000,
+// non-missing weights, bitmap bits only below count (clean tails).
+ShotCurveRecord curveFuzzRecord(uint32_t id) {
+  ShotCurveRecord r = emptyShotCurveRecord();
+  r.shotId = id;
+  r.truncated = (curveFuzzRand() & 1U) != 0U;
+  r.firstDrop.atMs = static_cast<uint16_t>(curveFuzzRand() % 60000U);
+  r.firstDrop.weightCg = static_cast<int16_t>(curveFuzzRand() % 30000U);
+  r.extended.atMs = static_cast<uint16_t>(curveFuzzRand() % 60000U);
+  r.extended.weightCg = static_cast<int16_t>(curveFuzzRand() % 30000U);
+  uint32_t at = 0;
+  int32_t weight = 0;
+  const uint16_t wanted = static_cast<uint16_t>(curveFuzzRand() % 260U);
+  size_t i = 0;
+  for (; i < wanted; ++i) {
+    at += curveFuzzRand() % 700U;
+    if (at > 60000U) break;
+    int32_t dw = static_cast<int32_t>(curveFuzzRand() % 512U) - 256;
+    if (curveFuzzRand() % 16U == 0U) dw = (curveFuzzRand() & 1U) ? 20000 : -20000;
+    weight += dw;
+    if (weight > 32767) weight -= 40000;
+    else if (weight < -32767) weight += 40000;
+    r.atMs[i] = static_cast<uint16_t>(at);
+    r.weightCg[i] = static_cast<int16_t>(weight);
+    if (curveFuzzRand() & 1U)
+      r.breakBefore[i / 8U] |= static_cast<uint8_t>(1U << (i % 8U));
+    if (curveFuzzRand() & 2U)
+      r.held[i / 8U] |= static_cast<uint8_t>(1U << (i % 8U));
+  }
+  r.count = static_cast<uint16_t>(i);
+  return r;
+}
+
+// Boundary deltas: dt 254/255/256 and 128 (byte 0x80 in time position),
+// dw +/-127/+/-128, dw -1 (byte 0xFF in weight position), escaped absolutes
+// with low bytes 0xFF/0x80, the maximum domain gap, and full int16 swing.
+ShotCurveRecord curveBoundaryRecord(uint32_t id) {
+  static const uint16_t at[9] = {0, 254, 509, 765, 893, 1404, 1404, 1915, 60000};
+  static const int16_t weight[9] = {0, 127, 0, 255, 127, 126, 510, -32767, 32767};
+  ShotCurveRecord r = emptyShotCurveRecord();
+  r.shotId = id;
+  r.count = 9;  // Two bitmap bytes exercise tail masking (9 % 8 == 1).
+  for (size_t i = 0; i < 9; ++i) {
+    r.atMs[i] = at[i];
+    r.weightCg[i] = weight[i];
+  }
+  r.breakBefore[1] = 0x01;  // Index 8 starts a segment.
+  r.held[0] = 0x81;         // Indices 0 and 7 were held.
+  return r;
+}
+
+void p61f_shot_curve_schema3_round_trip_is_lossless() {
+  resetHostPersistence();
+  ShotCurveLog log;
+  CHECK(log.load());
+  ShotCurveRecord records[52] = {};
+  size_t n = 0;
+  records[n] = emptyShotCurveRecord();  // Zero points is a legal curve.
+  records[n++].shotId = 1;
+  records[n] = emptyShotCurveRecord();
+  records[n].shotId = 2;
+  records[n].count = 1;
+  records[n].atMs[0] = 60000;
+  records[n++].weightCg[0] = -32767;
+  records[n++] = curveBoundaryRecord(3);
+  records[n] = emptyShotCurveRecord();  // Typical dense curve, all direct.
+  records[n].shotId = 4;
+  records[n].count = SHOT_CURVE_MAX_POINTS;
+  for (size_t i = 0; i < SHOT_CURVE_MAX_POINTS; ++i) {
+    records[n].atMs[i] = static_cast<uint16_t>(i * 50U);
+    records[n].weightCg[i] = 1234;
+  }
+  ++n;
+  for (uint32_t id = 5; id <= 52; ++id) records[n++] = curveFuzzRecord(id);
+  for (size_t i = 0; i < n; ++i) CHECK(log.append(records[i], false));
+  CHECK(log.flush());
+  ShotCurveLog reloaded;
+  CHECK(reloaded.load());
+  CHECK(reloaded.count() == n);
+  for (size_t i = 0; i < n; ++i) {
+    ShotCurveRecord out = {};
+    CHECK(reloaded.copyByShotId(records[i].shotId, out));
+    CHECK(memcmp(&out, &records[i], sizeof(out)) == 0);
+  }
+}
+
+// Escaped stream: 1000 ms gaps with one weight escape. Counts 3 and 5 land
+// byte-exact (no padding); count 4 leaves two padding bytes.
+ShotCurveRecord curveEscapeRecord(uint32_t id, uint16_t count) {
+  ShotCurveRecord r = emptyShotCurveRecord();
+  r.shotId = id;
+  r.count = count;
+  for (size_t i = 0; i < count; ++i) {
+    r.atMs[i] = i >= 3 ? 3100 : static_cast<uint16_t>(1000U * (i + 1U));
+    r.weightCg[i] = i == 1 ? 3000 : 0;
+  }
+  r.breakBefore[0] = 0x04;
+  r.held[0] = 0x02;
+  return r;
+}
+
+void resealCurveBlock(uint8_t *block) {
+  ShotCurveBlockHeader h = {};
+  memcpy(&h, block, sizeof(h));
+  uint32_t crc = crc32Update(0xffffffffU, block, offsetof(ShotCurveBlockHeader, checksum));
+  h.checksum = ~crc32Update(crc, block + sizeof(h), h.bytes - sizeof(h));
+  memcpy(block, &h, sizeof(h));
+}
+
+void p61g_shot_curve_schema3_worst_case_stays_within_budget() {
+  resetHostPersistence();
+  ShotCurveLog log;
+  CHECK(log.load());
+  ShotCurveRecord r = emptyShotCurveRecord();
+  r.shotId = 1;
+  r.count = SHOT_CURVE_MAX_POINTS;
+  // Byte-maximum valid record: 235 time escapes (255 ms each stay under the
+  // 60000 ms domain; more are impossible) and a weight escape on every point.
+  for (size_t i = 0; i < r.count; ++i) {
+    r.atMs[i] = static_cast<uint16_t>(i < 235U ? 255U * (i + 1U) : 59925U);
+    r.weightCg[i] = static_cast<int16_t>(i % 2U == 0U ? 32767 : -32767);
+  }
+  const size_t erased = ShotCurveLog::hostEraseBytes();
+  const size_t written = ShotCurveLog::hostWriteBytes();
+  CHECK(log.append(r));
+  CHECK(ShotCurveLog::hostEraseBytes() - erased <= 8192);
+  CHECK(ShotCurveLog::hostWriteBytes() - written == 5632);
+  const uint8_t *block = findCurveBlock(1);
+  CHECK(block != nullptr);
+  ShotCurveBlockHeader h = {};
+  memcpy(&h, block, sizeof(h));
+  CHECK(h.schema == 3 && h.count == SHOT_CURVE_MAX_POINTS && h.flags == 1U);
+  CHECK(h.bytes == 5632 && h.bytes <= 7564);
+  ShotCurveLog reloaded;
+  CHECK(reloaded.load() && reloaded.count() == 1);
+  ShotCurveRecord out = {};
+  CHECK(reloaded.copyByShotId(1, out));
+  CHECK(memcmp(&out, &r, sizeof(out)) == 0);
+}
+
+void p61h_shot_curve_schema3_malformed_blocks_are_rejected() {
+  // CRC is recomputed after every mutation: it is not a semantic gate.
+  // Out-of-bounds walking is caught by the ASan/UBSan profile.
+  for (int kind = 0; kind < 5; ++kind) {
+    ShotCurveLog::resetHostStorage();
+    ShotCurveLog log;
+    CHECK(log.load());
+    const uint16_t baseCount = kind <= 1 ? 5 : kind == 2 ? 4 : 3;
+    CHECK(log.append(curveEscapeRecord(1, baseCount)));
+    uint8_t *block = findCurveBlock(1);
+    CHECK(block != nullptr);
+    ShotCurveBlockHeader h = {};
+    memcpy(&h, block, sizeof(h));
+    if (kind == 0) h.count = 6;  // Stream shorter than count implies.
+    else if (kind == 1) block[73] = 0x80;  // Marker as the final stream byte.
+    else if (kind == 2) block[75] = 0x40;  // Nonzero padding byte.
+    else if (kind == 3) { block[65] = 0x64; block[66] = 0x00; }  // atMs[2] -> 100.
+    else h.bytes = 76;  // bytes/count mismatch.
+    memcpy(block, &h, sizeof(h));
+    resealCurveBlock(block);
+    ShotCurveLog reloaded;
+    CHECK(reloaded.load());
+    CHECK(!reloaded.containsShotId(1));
+    CHECK(reloaded.count() == 0);
+  }
+}
+
+void p61i_shot_curve_schema3_wire_format_is_pinned() {
+  // Hand-built golden schema-3 block: the wire format is pinned from the
+  // outside, so a symmetric encode/decode bug (both sides wrong the same
+  // way) cannot hide. Marker bytes appear in both positions (dt 128 stores
+  // 0x80, dw -1 stores 0xFF), escapes store little-endian absolutes, the
+  // block carries zero padding, and dirty bitmap tail bits must load masked.
+  static const uint8_t stream[36] = {
+      0x00, 0x00,                             // dt 0, dw 0
+      0xFE, 0x7F,                             // dt 254, dw +127
+      0xFF, 0xFD, 0x01, 0x80, 0xFF, 0x00,     // dt 255 (509), dw +128 (255)
+      0xFF, 0xFD, 0x02, 0x80, 0x7F, 0x00,     // dt 256 (765), dw -128 (127)
+      0x80, 0xFF,                             // dt 128, dw -1
+      0xFF, 0x7C, 0x05, 0x80, 0xFE, 0x01,     // dt 511 (1404), dw +384 (510)
+      0x00, 0xFF,                             // dt 0, dw -1
+      0x7F, 0x80, 0x01, 0x80,                 // dt 127, dw -33276 (-32767)
+      0xFF, 0x60, 0xEA, 0x80, 0xFF, 0x7F};    // dt 58469 (60000), dw +65534
+  static const uint16_t at[9] = {0, 254, 509, 765, 893, 1404, 1404, 1531, 60000};
+  static const int16_t weight[9] = {0, 127, 255, 127, 126, 510, 509, -32767, 32767};
+  ShotCurveRecord expected = emptyShotCurveRecord();
+  expected.shotId = 44;
+  expected.count = 9;
+  for (size_t i = 0; i < 9; ++i) {
+    expected.atMs[i] = at[i];
+    expected.weightCg[i] = weight[i];
+  }
+  expected.breakBefore[0] = 0x08;
+  expected.breakBefore[1] = 0x01;  // Index 8 starts a segment.
+  expected.held[0] = 0x81;         // Indices 0 and 7 were held.
+
+  resetHostPersistence();
+  uint8_t *block = ShotCurveLog::hostFlashForTest() + 2U * FLASH_IO_SECTOR_BYTES;
+  memset(block, 0xff, SHOT_CURVE_BLOCK_BYTES);
+  memcpy(block + sizeof(ShotCurveBlockHeader), &expected.atmClearedMs, 18);
+  memcpy(block + 54, stream, sizeof(stream));
+  block[90] = expected.breakBefore[0];
+  block[91] = 0xFF;  // Index 8 plus dirty tail bits 9-15.
+  block[92] = expected.held[0];
+  block[93] = 0xFE;  // Dirty tail bits 9-15; index 8 was never held.
+  block[94] = block[95] = 0;  // Padding past the bitmaps must be zero.
+  ShotCurveBlockHeader h = {};
+  h.magic = SHOT_CURVE_MAGIC;
+  h.schema = 3;
+  h.bytes = 96;  // 54 header+fixed + 36 stream + 4 bitmaps + 2 zero padding.
+  h.epoch = 0;
+  h.sequence = 1;
+  h.floor = 0;
+  h.shotId = 44;
+  h.count = 9;
+  h.flags = 1;
+  h.validity = UINT32_MAX - 1U;  // kCommitted
+  memcpy(block, &h, sizeof(h));
+  resealCurveBlock(block);
+
+  ShotCurveLog golden;
+  CHECK(golden.load());
+  CHECK(golden.count() == 1);
+  ShotCurveRecord loaded = {};
+  CHECK(golden.copyByShotId(44, loaded));
+  CHECK(memcmp(&loaded, &expected, sizeof(loaded)) == 0);
+  CHECK(shotCurveBreakBefore(loaded, 8));
+  CHECK(shotCurveHeld(loaded, 7) && !shotCurveHeld(loaded, 8));
+}
 
 void p66c_activation_capture_skips_clean_payloads() {
   resetHostPersistence();
@@ -3022,6 +3295,10 @@ const TestCase tests[] = {
     {"P61", p61_shot_curve_dual_slot_round_trip_and_delete},
     {"P61B", p61b_shot_curve_failed_compaction_restores_durable_ring},
     {"P61C", p61c_shot_curve_schema_1_blocks_survive_update},
+    {"P61F", p61f_shot_curve_schema3_round_trip_is_lossless},
+    {"P61G", p61g_shot_curve_schema3_worst_case_stays_within_budget},
+    {"P61H", p61h_shot_curve_schema3_malformed_blocks_are_rejected},
+    {"P61I", p61i_shot_curve_schema3_wire_format_is_pinned},
     {"P62", p62_shot_curve_foreign_schema_is_rejected},
     {"P63", p63_flash_io_lock_fails_closed_without_mutex},
 };
