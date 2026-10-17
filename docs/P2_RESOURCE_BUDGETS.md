@@ -63,6 +63,19 @@ rodata measures 599,364 bytes within its existing allowance. The combined
 compressed Web asset cap remains 120,700 bytes; 100 bytes of unused shell
 allowance move to the runtime cap. Firmware task ownership, control timing,
 OTA identity and partitions remain unchanged.
+The live shot predictor (a read-only, per-sample forecast of how the shot
+ends, its uncertainty and its hero-tint blend, plus the Web UI's gradual
+forecast coloring, slow/stalled advisories and landing estimate) adds 9,240
+image and 9,244 linked bytes and 9,796 flash-code bytes over the previous
+allowances. The development Micra build measures 2,366,160 image bytes,
+2,366,035 linked bytes, 1,586,764 flash-code bytes and 618,153 rodata bytes
+(92,400/92,388/71,664/30,801 over baseline). The image, linked and
+flash-code allowances move to 92,464, 92,452 and 71,728 bytes, keeping the
+64-byte headroom; rodata and DIRAM stay within their allowances. The
+predictor is integer-only with no heap or mid-shot flash writes; the
+ControlStatus snapshot grows 8 bytes (external work area) and the compressed
+Web asset caps rise with dated owner-authorized entries in the contract
+tests.
 Urgent control-gate publication and the no-scale timer's stop fade add another
 640 bytes of reviewed image/linked allowance, to 44,976 and 44,968 bytes.
 The mobile full-screen Home shot card and the Brew by Weight master toggle

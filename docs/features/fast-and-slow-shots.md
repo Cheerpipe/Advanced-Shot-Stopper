@@ -55,9 +55,9 @@ before the window starts.
 
 While a fast shot is running longer, its line reads
 **Running fast · going to 38 g**, and the last shot card shows **EXTENDED**.
-Home's shot card usually warns you earlier: it reads **Running fast** and
-turns red as soon as the controller is sure the shot will reach the target
-before the window.
+Home's shot card usually warns you earlier: with the default **By forecast**
+colors it fades toward red while it gains confidence the shot will reach the
+target before the window, and reads **Running fast** once it is sure.
 
 ## Slow shots
 

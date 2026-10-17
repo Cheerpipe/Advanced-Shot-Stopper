@@ -101,10 +101,12 @@ scale dropped and the [scale-loss backup](auto-to-manual.md) finished the shot,
 the yield is shown as an estimate, such as **~36 g est.**, when one is known.
 
 The card's color follows the result: green on recipe, red when fast and blue
-when slow. While a shot runs, the card is coffee brown. It turns red as soon as
-the controller is sure the shot is running fast and reads **Running fast**, and
-blue once the shot passes its time window without stopping (**Past window**).
-You can choose other colors, or keep the usual brand color, in
+when slow. While a shot runs with the default **By forecast** colors, the card
+fades from coffee brown toward the color the controller expects — growing
+stronger as the shot progresses and its confidence grows — and a slow shot
+shows the weight it is heading for (**Slow — about 28 g at 36 s**), while a
+stalled one says what it is tracking to (**Stalled — tracking to ~22 g**).
+You can choose clock-based colors, or keep the usual brand color, in
 [Admin → Frontend → Shot card colors](../settings/theme.md#shot-card-colors).
 The timer comes from the controller and pauses on screen if the connection is
 lost; **Reconnecting…** indicates that the displayed result may be stale.
