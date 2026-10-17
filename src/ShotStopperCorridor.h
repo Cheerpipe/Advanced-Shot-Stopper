@@ -379,6 +379,7 @@ struct ArrivalRecord {
   int32_t goalDg = 0;
   int32_t durationMs = 0;     // shot time at the stop
   int32_t finalWeightDg = 0;  // 0 = not measured
+  uint16_t avgFlowCgS = 0;    // post-first-drop average flow; 0 = missing
 };
 
 // Which shots count for a preset: its own since its epoch (New coffee), judged
@@ -454,6 +455,28 @@ inline bool admissibleArrival(const ArrivalRecord &r, const StatsScope &s) {
 // Statistics over the newest <= 10 admissible arrivals of one preset; rowAt(i)
 // returns the i-th ArrivalRecord in any order (no copy of the whole log).
 // arrivalsOut, when given, receives the n kept arrivals in ascending order.
+// The preset's reference plateau flow q_p (rateX100) from the same
+// admissible rows: median of avgFlow scaled by the ramp shape. avgFlow is
+// the post-first-drop mean of a ramp-then-plateau curve, so the plateau it
+// undershoots is ~4/3 of it (linear ramp over half the flow time; the gate
+// that consumes q_p has multi-second margins). 0 when no row has a flow.
+template <typename RowAt>
+inline int32_t plateauFlowX100(size_t count, RowAt rowAt, const StatsScope &scope) {
+  uint32_t ids[STATS_MAX_SHOTS] = {};
+  int32_t flows[STATS_MAX_SHOTS] = {};
+  uint8_t n = 0;
+  for (size_t i = 0; i < count; ++i) {
+    const ArrivalRecord r = rowAt(i);
+    if (!hintAdmissible(r, scope) || r.avgFlowCgS == 0) continue;
+    const int slot = newestSlot(ids, n, r.recordId);
+    if (slot < 0) continue;
+    flows[slot] = static_cast<int32_t>(r.avgFlowCgS) * 40 / 3;
+  }
+  if (n == 0) return 0;
+  sortSmall(flows, n);
+  return medianOfSorted(flows, n);
+}
+
 template <typename RowAt>
 inline ArrivalStats arrivalStatsOf(size_t count, RowAt rowAt, const StatsScope &scope,
                                    int32_t *arrivalsOut = nullptr) {

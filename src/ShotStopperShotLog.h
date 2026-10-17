@@ -91,6 +91,13 @@ class ShotLog
                                     arrivalsOut);
   }
 
+  // The preset's reference plateau flow (rateX100) for the shot predictor's
+  // stalled-shot physics gate. Caller holds the store mutex.
+  int32_t plateauFlowX100(const ShotPreset &preset) const {
+    return corridor::plateauFlowX100(store_.header.count, arrivalRows(),
+                                     statsScope(preset));
+  }
+
   // The preset's grind hint, replayed from the stored shots (nothing is
   // persisted). Caller holds the store mutex.
   corridor::GrindHintV2 grindHint(const ShotPreset &preset) const {

@@ -146,6 +146,11 @@ struct ControlStatusFields : ScaleLinkMetrics {
   bool cycleTargetReachedEarly = false;
   float cycleActiveStopWeightG = 0.0f;
   uint32_t cycleExpectedEndMs = 0;  // Forecast cut on the shot clock; 0 = none.
+  // Live hero tint from the shot predictor (0 neutral, 1 fast, 2 on_recipe,
+  // 3 slow), blend percent 0..100, and note badge (ShotTintNote).
+  uint8_t cycleTintClass = 0;
+  uint8_t cycleTintPct = 0;
+  uint8_t cycleTintNote = 0;
   uint32_t cycleMinBbwBrewTimeRemainingMs = 0;
   bool cycleAutoToManualGuardArmed = false;
   bool cycleAutoToManualGuardEnforced = false;
@@ -202,7 +207,9 @@ struct ControlStatusCurve {
 struct ControlStatusSnapshot : ControlStatusFields, ControlStatusCurve {};
 static_assert(sizeof(ControlStatusFields) <= 2048,
               "Control status exceeds its internal publication budget");
-static_assert(sizeof(ControlStatusSnapshot) <= 6912,
+// 6920: +8 bytes for the shot predictor's live hero tint (class, blend
+// percent, note) — external work-area growth, internal budget unchanged.
+static_assert(sizeof(ControlStatusSnapshot) <= 6920,
               "ControlStatusSnapshot exceeds its external workspace budget");
 
 // Gate checks use this compact internal view. The full scalar/curve snapshot

@@ -113,6 +113,32 @@ void updateCutPrediction(float weight, uint32_t receivedAtMs) {
   if (cut.crossingValid && cut.crossingMs < cut.params.wallMs) {
     shot.expectedEndS = cut.crossingMs / 1000.0f;
   }
+  // Read-only shot-end prediction for the hero tint (never actuates).
+  {
+    const uint32_t uptime = millis();
+    predictor::PredictorInputs in;
+    in.cut = &cut;
+    in.nowMs = shotMs;
+    in.weightDg = gramsToDg(weight);
+    in.firstDropMs = session.firstDropMs > session.circuitClosedAtMs &&
+                             session.circuitClosedAtMs != 0
+                         ? static_cast<int32_t>(session.firstDropMs -
+                                                session.circuitClosedAtMs)
+                         : 0;
+    in.qPX100 = session.predictorQpX100;
+    in.autoMode = session.automaticEnabled && session.startedWithScale &&
+                  !session.config.timerOnly;
+    in.scaleOk = true;  // runs only on accepted weights
+    in.retarePending = session.retareEffectPending;
+    in.sampleDtMs = session.predictor.lastSampleMs != 0 &&
+                            uptime > session.predictor.lastSampleMs
+                        ? static_cast<int32_t>(uptime -
+                                               session.predictor.lastSampleMs)
+                        : 100;
+    if (in.sampleDtMs > 2000) in.sampleDtMs = 2000;
+    session.predictor.lastSampleMs = uptime;
+    predictor::updateShotPredictor(session.predictor, in);
+  }
 }
 
 void enterBrewOrManualFromStart();

@@ -38,10 +38,13 @@ void resetSessionForNewCycle(ControlSource source) {
   session.config.bbwLearningGeneration = bbwLearningBank.forPreset(
       preset.id, presetBank).generation;
   armSmoothCut(getScaleLinkSnapshot().features.sensorLagMs);
+  predictor::armShotPredictor(session.predictor);
   {
-    // Recent arrivals of this preset, for the scale-loss history regime.
+    // Recent arrivals of this preset, for the scale-loss history regime and
+    // the shot predictor's reference plateau flow.
     TaskLockGuard lock(shotStoreMutex);
     session.cut.history = shotLog.arrivalStats(preset);
+    session.predictorQpX100 = shotLog.plateauFlowX100(preset);
   }
   session.endReason = EndReason::NONE;
 }

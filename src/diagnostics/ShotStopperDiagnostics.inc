@@ -449,6 +449,9 @@ void publishControlStatus() {
     next.cycleActiveStopWeightG = cutLineNowDg() / 10.0f;
     next.cycleExpectedEndMs = shot.expectedEndS < NO_CUT_PREDICTION_S
         ? static_cast<uint32_t>(shot.expectedEndS * 1000.0f) : 0U;
+    next.cycleTintClass = static_cast<uint8_t>(session.predictor.tintClass);
+    next.cycleTintPct = session.predictor.tintPct;
+    next.cycleTintNote = static_cast<uint8_t>(session.predictor.tintNote);
     next.cycleMinBbwBrewTimeRemainingMs =
         next.cycleElapsedMs >= session.config.fastBeforeMs
             ? 0U : session.config.fastBeforeMs - next.cycleElapsedMs;

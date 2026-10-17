@@ -63,6 +63,7 @@
 #endif
 
 #include "ShotStopperDomain.h"
+#include "ShotStopperShotPredictor.h"
 #include "ShotStopperAuditLog.h"
 #include "ShotStopperOutboundAdmission.h"
 #include "ShotStopperFirmwareMode.h"
@@ -282,6 +283,9 @@ struct CycleSession {
   ControlSource source = ControlSource::NONE;
   CycleConfigSnapshot config = {};
   corridor::CorridorState cut = {};  // Smooth-cut parameters and flow estimator.
+  // Read-only shot-end prediction (hero tint and future consumers).
+  predictor::ShotPredictor predictor = {};
+  int32_t predictorQpX100 = 0;  // Preset plateau flow; 0 = no history.
   EndReason endReason = EndReason::NONE;
   bool extractionExtended = false;
   bool slowExtractionExtended = false;

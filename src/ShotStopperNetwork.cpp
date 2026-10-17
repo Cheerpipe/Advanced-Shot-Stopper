@@ -9,6 +9,7 @@
 #include "machine/ShotStopperMachineIntegration.h"
 #include "machine/ShotStopperMicraTiming.h"
 #include "ShotStopperJsonArena.h"
+#include "ShotStopperShotPredictor.h"
 #include "ShotStopperOta.h"
 #include "ShotStopperPreferences.h"
 #include "ShotStopperPowerManagement.h"

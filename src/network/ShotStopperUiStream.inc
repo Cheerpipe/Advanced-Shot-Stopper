@@ -556,7 +556,8 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
       "\"tareMs\":%s,\"presetName\":\"%s\","
       "\"scaleAvailable\":%s,\"shotType\":\"%s\",\"endReason\":\"%s\",\"averageFlowGps\":%s,"
       "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,\"touchHold\":%s,"
-      "\"verdict\":%s,\"channeling\":%s,\"cutG\":%s,\"scaleLoss\":%s,\"expectedEndMs\":%lu,\"rule\":%s}",
+      "\"verdict\":%s,\"channeling\":%s,\"cutG\":%s,\"scaleLoss\":%s,\"expectedEndMs\":%lu,\"rule\":%s,"
+      "\"tintClass\":\"%s\",\"tintPct\":%u,\"tintNote\":\"%s\"}",
       phase, card.valid ? "true" : "false", control.activeCycle ? "true" : "false",
       weight, static_cast<double>(goalWeightDgToGrams(card.goalWeightDg)),
       static_cast<unsigned long>(card.durationMs), drop, tare, preset,
@@ -573,7 +574,15 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
       canonical && corridor::channelingOf(latest.verdict) ? "true" : "false",
       cutG, scaleLoss,
       // The cut forecast on the shot clock while brewing; 0 = none.
-      static_cast<unsigned long>(control.activeCycle ? control.cycleExpectedEndMs : 0U), rule);
+      static_cast<unsigned long>(control.activeCycle ? control.cycleExpectedEndMs : 0U), rule,
+      // Live hero tint from the shot predictor (blend + note badge).
+      control.activeCycle
+          ? shotTintJson(static_cast<ShotTint>(control.cycleTintClass))
+          : "neutral",
+      control.activeCycle ? static_cast<unsigned>(control.cycleTintPct) : 0U,
+      control.activeCycle
+          ? shotTintNoteJson(static_cast<ShotTintNote>(control.cycleTintNote))
+          : "none");
   if (cardBytes <= 0 || static_cast<size_t>(cardBytes) >= NetworkWorkBuf::kJsonItem)
     return true;
   const uint32_t markers = crc32Update(0xFFFFFFFFU,

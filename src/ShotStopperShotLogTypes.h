@@ -441,6 +441,8 @@ inline corridor::ArrivalRecord shotLogArrivalRecord(const ShotLogRecord &record)
   out.fastBeforeMs = static_cast<int32_t>(record.fastBeforeDs) * 100;
   out.slowAfterMs = static_cast<int32_t>(record.slowAfterDs) * 100;
   out.goalDg = record.goalWeightDg;
+  out.avgFlowCgS = record.avgFlowCgS == SHOT_LOG_METRIC_MISSING
+                       ? 0 : record.avgFlowCgS;
   return out;
 }
 

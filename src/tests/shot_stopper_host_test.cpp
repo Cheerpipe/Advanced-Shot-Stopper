@@ -16,6 +16,8 @@
 #include <tuple>
 #include <vector>
 
+#include <cmath>
+
 #include "../shotStopper.cpp"
 
 namespace {
@@ -19081,6 +19083,331 @@ void sk03_late_zero_after_grace_releases_cup_hold() {
   CHECK(session.endReason == EndReason::CUP_REMOVED);
 }
 
+// ---- Shot predictor (SAP) host tests ---------------------------------------
+// Structural invariants of the live hero-tint predictor. Full corpus parity
+// (owner CSV replay, pills) lives in temp/ai_temp_hero_forecast_backtest
+// (BLEND_FREEZE.md); these assert the same behavior on synthetic curves.
+
+corridor::CorridorState spArmed(int32_t goalDg = 360, int32_t t1 = 27000,
+                                int32_t t2 = 36000) {
+  corridor::CorridorState cut{};
+  cut.params.goalDg = goalDg;
+  cut.params.fastMarginDg = 60;
+  cut.params.slowMarginDg = 30;
+  cut.params.fastOn = true;
+  cut.params.slowOn = true;
+  cut.params.delayMs = 12000;
+  cut.params.rampMs = 5000;
+  cut.params.fastBeforeMs = t1;
+  cut.params.slowAfterMs = t2;
+  cut.params.wallMs = 50000;
+  cut.tauMs = 650;
+  cut.offsetDg = 15;  // 1.46 g drip offset in dg
+  return cut;
+}
+
+void sp01_phi_table_matches_erf() {
+  double maxErr = 0;
+  for (int zm = -3999; zm <= 3999; zm += 7) {
+    const double z = zm / 1000.0;
+    const double exact = 0.5 * (1.0 + std::erf(z / std::sqrt(2.0)));
+    const double got = predictor::phiPermille(zm) / 1000.0;
+    const double err = got > exact ? got - exact : exact - got;
+    if (err > maxErr) maxErr = err;
+  }
+  CHECK(maxErr <= 0.002);
+  CHECK(predictor::phiPermille(-4000) == 0);
+  CHECK(predictor::phiPermille(4000) == 1000);
+}
+
+void sp02_isqrt_exact_on_squares() {
+  for (int64_t v : {0LL, 1LL, 3LL, 4LL, 8LL, 9LL, 1000000LL, 999999999LL,
+                    4000000000000LL}) {
+    const int32_t r = predictor::isqrt64(v);
+    CHECK(static_cast<int64_t>(r) * r <= v);
+    CHECK(static_cast<int64_t>(r + 1) * (r + 1) > v);
+  }
+}
+
+void sp03_plateau_flow_median() {
+  const auto rowAt = [](size_t) -> corridor::ArrivalRecord { return {}; };
+  corridor::StatsScope scope;
+  scope.presetId = 1;
+  scope.fastBeforeMs = 27000;
+  scope.slowAfterMs = 36000;
+  scope.goalDg = 360;
+  corridor::ArrivalRecord rows[3];
+  for (int i = 0; i < 3; ++i) {
+    rows[i].recordId = 100 + i;
+    rows[i].presetId = 1;
+    rows[i].endReason = static_cast<uint8_t>(EndReason::SCALE_THRESHOLD);
+    rows[i].verdict = 0;
+    rows[i].arrivalMs = 31000 + i * 100;
+    rows[i].firstDropMs = 5200;
+    rows[i].fastBeforeMs = 27000;
+    rows[i].slowAfterMs = 36000;
+    rows[i].goalDg = 360;
+    rows[i].durationMs = 31500 + i * 100;
+    rows[i].finalWeightDg = 355;
+    rows[i].avgFlowCgS = 130 + static_cast<uint16_t>(i) * 10;
+  }
+  const auto at = [&](size_t i) { return rows[i]; };
+  // avgFlow 130/140/150 cg/s -> median 140 -> x10 x4/3 = 1866 rateX100.
+  CHECK(corridor::plateauFlowX100(3, at, scope) == 1866);
+  CHECK(corridor::plateauFlowX100(0, rowAt, scope) == 0);
+  rows[1].avgFlowCgS = 0;  // missing flow row drops out of the median
+  CHECK(corridor::plateauFlowX100(3, at, scope) == 1866);
+}
+
+void sp04_forecast_constant_rate_matches_analytic() {
+  corridor::CorridorState cut = spArmed();
+  const int32_t qX100 = 1900;  // 1.9 g/s
+  for (int t = 6000; t <= 10000; t += 100)
+    CHECK(cut.rate.push(t, 500 + (t - 6000) / 10 * 19 / 10) ==
+          corridor::RateEstimator::Result::ACCEPTED);
+  CHECK(cut.rate.valid);
+  const int32_t w = 1256;  // dg at t = 10000
+  const predictor::Forecast f = predictor::forecastBasis(cut, 10000, w, 1, 0, 0);
+  CHECK(!f.censored && f.tMs > 0);
+  // Analytic: (goal - offset - W - lead)/q + now, lead = q*tau/1e5 dg.
+  const int32_t lead = static_cast<int32_t>(static_cast<int64_t>(qX100) * 650 / 100000);
+  const double qcDgps = qX100 / 100.0;
+  const double expectS = 10000 + (360.0 - 15.0 - w - lead) / qcDgps;
+  CHECK(f.tMs > expectS - 60 && f.tMs < expectS + 60);
+  const predictor::Forecast m = predictor::forecastBasis(cut, 10000, w, 0, 0, 0);
+  CHECK(m.tMs == f.tMs);  // a = 0: mean basis equals raw
+  CHECK(m.sigmaMs > 0 && m.sigmaMs < 20000);
+}
+
+void sp05_quadratic_matches_reference() {
+  corridor::CorridorState cut = spArmed();
+  // Ramp at a = +0.1 g/s^2 from 1.0 g/s; window fed over the last 3 s.
+  double q = 1000, w = 0;  // w in dg
+  for (int t = 6000; t <= 12000; t += 100) {
+    w += q / 1000.0;  // rateX100 -> dg per 100 ms
+    q += 10;          // +100 rateX100 per second
+    if (t >= 9000)
+      CHECK(cut.rate.push(t, static_cast<int32_t>(w)) ==
+            corridor::RateEstimator::Result::ACCEPTED);
+  }
+  CHECK(cut.rate.valid);
+  const int32_t now = 12000, wDg = static_cast<int32_t>(w);
+  // Plain crossing must land inside the goal plateau for the closed form.
+  const double qhat = cut.rate.rateX100 / 100.0;  // dg/s (window midpoint)
+  const double qc = qhat + 1.5, aD = 1.0;         // + a * T_w/2, dg/s^2
+  const double lead = qc * 0.65;
+  const double D = 360.0 - 15.0 - wDg - lead;
+  const double h = (-qc + std::sqrt(qc * qc + 2 * aD * D)) / aD;
+  const double plain = now + (360.0 - 15.0 - wDg - qhat * 0.65) / qhat * 1000;
+  CHECK(plain >= 27000 && plain <= 36000);
+  const predictor::Forecast f =
+      predictor::forecastBasis(cut, now, wDg, 0, 100, 100);
+  CHECK(!f.censored);
+  CHECK(f.tMs > now + h * 1000 - 150 && f.tMs < now + h * 1000 + 150);
+}
+
+void sp06_sigma_finite_at_extremes() {
+  corridor::CorridorState cut = spArmed();
+  cut.params.wallMs = 50000;
+  for (int t = 6000; t <= 10000; t += 100)
+    CHECK(cut.rate.push(t, 20 + (t - 6000) * 6 / 1000) ==  // 0.6 g/s = 6 dg/s
+          corridor::RateEstimator::Result::ACCEPTED);
+  // 6 g in the cup at 0.6 g/s: the goal is unreachable before the wall.
+  const predictor::Forecast f =
+      predictor::forecastBasis(cut, 10000, 60, 1, 0, 0);
+  CHECK(f.censored);
+  CHECK(f.sigmaMs == (50000 - 10000) / 4);
+  const predictor::Forecast m =
+      predictor::forecastBasis(cut, 10000, 60, 0, 150, 150);
+  CHECK(m.censored || (m.sigmaMs > 0 && m.sigmaMs <= 20000));
+}
+
+// Synthetic green shape: first drop 5.2 s, ramp to ~1.9 g/s by 18 s.
+int spGreenW(int tMs) {
+  const double fd = 5200;
+  if (tMs < static_cast<int>(fd)) return 0;
+  static double w = 0;
+  static int last = static_cast<int>(fd);
+  if (tMs < last) {  // reset for a fresh replay
+    w = 0;
+    last = static_cast<int>(fd);
+  }
+  while (last < tMs) {
+    last += 10;
+    const double ss = (last - fd) / 1000.0;
+    const double qq = 0.5 + 1.4 * (ss < 13.0 ? ss / 13.0 : 1.0);
+    w += qq / 100.0;
+  }
+  return static_cast<int>(w * 10);
+}
+
+void spReplay(corridor::CorridorState &cut, predictor::ShotPredictor &pr,
+              int (*wAt)(int), predictor::PredictorInputs &in, int tEnd) {
+  for (int t = 5000; t <= tEnd; t += 100) {
+    const int32_t w = wAt(t);
+    if (cut.rate.push(t, w) != corridor::RateEstimator::Result::ACCEPTED)
+      continue;
+    in.nowMs = t;
+    in.weightDg = w;
+    in.firstDropMs = 5200;
+    predictor::updateShotPredictor(pr, in);
+  }
+}
+
+void sp07_green_replay_reaches_full_on_recipe() {
+  corridor::CorridorState cut = spArmed();
+  cut.history.n = 3;
+  cut.history.medianMs = 31800;
+  cut.history.sigmaMs = 800;
+  predictor::ShotPredictor pr;
+  predictor::armShotPredictor(pr);
+  predictor::PredictorInputs in;
+  in.cut = &cut;
+  in.qPX100 = 1800;
+  in.autoMode = true;
+  in.scaleOk = true;
+  in.sampleDtMs = 100;
+  spReplay(cut, pr, spGreenW, in, 31000);
+  // Arrival of the synthetic curve is just past 31 s: full green by ~T-3.5.
+  CHECK(pr.tintClass == ShotTint::ON_RECIPE);
+  CHECK(pr.tintPct >= 95);
+}
+
+void sp08_stall_without_history_stays_neutral() {
+  // F10: the censored (stalled) path requires the preset's plateau-flow
+  // gate; with no history the card stays neutral.
+  corridor::CorridorState cut = spArmed();
+  predictor::ShotPredictor pr;
+  predictor::armShotPredictor(pr);
+  predictor::PredictorInputs in;
+  in.cut = &cut;
+  in.qPX100 = 0;  // first shot of the preset: no history
+  in.autoMode = true;
+  in.scaleOk = true;
+  in.sampleDtMs = 100;
+  spReplay(cut, pr, spGreenW, in, 12000);  // normal start...
+  const int stallW0 = spGreenW(12000);
+  for (int t = 12100; t <= 30000; t += 100) {  // ...then a hard stall
+    const int32_t w = stallW0 + (t - 12000) * 42 / 100000;
+    CHECK(cut.rate.push(t, w) == corridor::RateEstimator::Result::ACCEPTED);
+    in.nowMs = t;
+    in.weightDg = w;
+    in.firstDropMs = 5200;
+    predictor::updateShotPredictor(pr, in);
+  }
+  CHECK(pr.tintClass == ShotTint::NEUTRAL);
+  CHECK(pr.tintPct == 0);
+  // With history the gate opens and the tint goes blue.
+  corridor::CorridorState cut2 = spArmed();
+  cut2.history.n = 3;
+  cut2.history.medianMs = 31800;
+  cut2.history.sigmaMs = 800;
+  predictor::ShotPredictor pr2;
+  predictor::armShotPredictor(pr2);
+  predictor::PredictorInputs in2 = in;
+  in2.cut = &cut2;
+  in2.qPX100 = 1800;
+  spReplay(cut2, pr2, spGreenW, in2, 12000);
+  for (int t = 12100; t <= 30000; t += 100) {
+    const int32_t w = stallW0 + (t - 12000) * 42 / 100000;
+    CHECK(cut2.rate.push(t, w) == corridor::RateEstimator::Result::ACCEPTED);
+    in2.nowMs = t;
+    in2.weightDg = w;
+    in2.firstDropMs = 5200;
+    predictor::updateShotPredictor(pr2, in2);
+  }
+  CHECK(pr2.tintClass == ShotTint::SLOW);
+  CHECK(pr2.tintPct > 30);
+}
+
+void sp09_transient_spike_does_not_flip_fast() {
+  // A one-sample +8 g scale spike (disturbance, not a sustained surge):
+  // the monotonic guard plus MAD gate must keep any fast tint away.
+  corridor::CorridorState cut = spArmed();
+  cut.history.n = 3;
+  cut.history.medianMs = 31800;
+  cut.history.sigmaMs = 800;
+  predictor::ShotPredictor pr;
+  predictor::armShotPredictor(pr);
+  predictor::PredictorInputs in;
+  in.cut = &cut;
+  in.qPX100 = 1800;
+  in.autoMode = true;
+  in.scaleOk = true;
+  in.sampleDtMs = 100;
+  spReplay(cut, pr, spGreenW, in, 20000);
+  const ShotTint before = pr.tintClass;
+  for (int t = 20100; t <= 22000; t += 100) {
+    const int32_t w = spGreenW(t) + (t == 20200 ? 80 : 0);  // one 8 g spike
+    cut.rate.push(t, w);
+    in.nowMs = t;
+    in.weightDg = w;
+    in.firstDropMs = 5200;
+    predictor::updateShotPredictor(pr, in);
+    CHECK(pr.tintClass != ShotTint::FAST);
+  }
+  CHECK(before == ShotTint::ON_RECIPE || before == ShotTint::NEUTRAL);
+}
+
+void sp10_blend_monotone_within_class() {
+  corridor::CorridorState cut = spArmed();
+  cut.history.n = 3;
+  cut.history.medianMs = 31800;
+  cut.history.sigmaMs = 800;
+  predictor::ShotPredictor pr;
+  predictor::armShotPredictor(pr);
+  predictor::PredictorInputs in;
+  in.cut = &cut;
+  in.qPX100 = 1800;
+  in.autoMode = true;
+  in.scaleOk = true;
+  in.sampleDtMs = 100;
+  int lastPct = -1;
+  ShotTint cls = ShotTint::NEUTRAL;
+  bool full = false;
+  for (int t = 5000; t <= 30000; t += 100) {
+    const int32_t w = spGreenW(t);
+    if (cut.rate.push(t, w) != corridor::RateEstimator::Result::ACCEPTED)
+      continue;
+    in.nowMs = t;
+    in.weightDg = w;
+    in.firstDropMs = 5200;
+    predictor::updateShotPredictor(pr, in);
+    if (pr.tintClass != ShotTint::NEUTRAL) {
+      if (pr.tintClass == cls)
+        CHECK(pr.tintPct + 1 >= lastPct);  // non-decreasing within the run
+      cls = pr.tintClass;
+      lastPct = pr.tintPct;
+      if (pr.tintPct >= 100) full = true;
+    }
+  }
+  CHECK(full);
+}
+
+void sp11_disturbance_guard_fades_to_neutral() {
+  corridor::CorridorState cut = spArmed();
+  predictor::ShotPredictor pr;
+  predictor::armShotPredictor(pr);
+  predictor::PredictorInputs in;
+  in.cut = &cut;
+  in.qPX100 = 1800;
+  in.autoMode = true;
+  in.scaleOk = true;
+  in.sampleDtMs = 100;
+  spReplay(cut, pr, spGreenW, in, 24000);
+  const int w = spGreenW(24000);
+  for (int t = 24100; t <= 26500; t += 100) {  // scale drops 2 g mid-shot
+    const int32_t bad = w + (t - 24000) * 19 / 1000 - 200;
+    (void)cut.rate.push(t, bad);  // MAD may reject; either way the guard sees it
+    in.nowMs = t;
+    in.weightDg = bad;
+    in.firstDropMs = 5200;
+    predictor::updateShotPredictor(pr, in);
+  }
+  // During/after the drop the tint must not show a committed full color.
+  CHECK(pr.tintPct < 100);
+}
+
 void fw01_median_final_weight_filters_dip() {
   // Post-stop drip tail with one -1.9 g dip constituent: the median of the
   // last five plausible samples swallows it, and learning consumes the
@@ -21270,6 +21597,17 @@ const TestCase testCases[] = {
     {"SK01", sk01_refused_start_releases_cup_hold},
     {"SK02", sk02_overload_stops_while_touch_is_held},
     {"SK03", sk03_late_zero_after_grace_releases_cup_hold},
+    {"SP01", sp01_phi_table_matches_erf},
+    {"SP02", sp02_isqrt_exact_on_squares},
+    {"SP03", sp03_plateau_flow_median},
+    {"SP04", sp04_forecast_constant_rate_matches_analytic},
+    {"SP05", sp05_quadratic_matches_reference},
+    {"SP06", sp06_sigma_finite_at_extremes},
+    {"SP07", sp07_green_replay_reaches_full_on_recipe},
+    {"SP08", sp08_stall_without_history_stays_neutral},
+    {"SP09", sp09_transient_spike_does_not_flip_fast},
+    {"SP10", sp10_blend_monotone_within_class},
+    {"SP11", sp11_disturbance_guard_fades_to_neutral},
     {"FW01", fw01_median_final_weight_filters_dip},
     {"FW02", fw02_offset_floor_from_sensor_lag},
     {"FW03", fw03_dense_tail_decimates_to_reachable_median},
