@@ -592,9 +592,9 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 .presetAccHead .presetAccName{font:inherit;font-weight:700;font-size:.9375rem;min-width:0}
 .presetAccItem.open .presetAccName{color:var(--pri)}
 .presetAccBadge{flex:none;margin-left:auto;font-size:.68rem;color:var(--mu);text-transform:uppercase}
-.presetAccChev{font-size:.7rem;color:var(--mu);transition:transform .25s ease-out}
+.presetAccChev{font-size:.7rem;color:var(--mu);transition:transform .25s cubic-bezier(.32,.72,.32,1)}
 .presetAccItem.open .presetAccChev{transform:rotate(180deg)}
-.presetAccPanel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s ease-out}
+.presetAccPanel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s cubic-bezier(.32,.72,.32,1)}
 .presetAccItem.open .presetAccPanel{grid-template-rows:1fr}
 .presetAccPanelIn{overflow:hidden}
 .presetAccRows{padding:.15rem .6rem .5rem}
