@@ -84,3 +84,4 @@ ai_temp_*
 *.ai_temp
 .freebuff
 .zcodeignore
+.claude/launch.json
