@@ -243,7 +243,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !codeIncludes(runtimeJs, "location.replace(location.pathname+'?fw='+version)") ||
     !codeIncludes(appJsSource, 'boot=R.showPageBoot();R.stopViewPolls();') ||
     !codeIncludes(appJsSource, 'if(ok){R.hideHomeBoot(boot);') ||
-    !codeIncludes(appJsSource, 'if(view!=="setup")setTimeout(R.ensureBackgroundRecordStreams,3e3);')) {
+    !codeIncludes(appJsSource, 'if(view!=="setup")R.ensureBackgroundRecordStreams();')) {
   throw new Error(
       'Every view must reuse the Home splash and fade immediately after data loads, preserving firmware reload and inactive overlay handoff');
 }

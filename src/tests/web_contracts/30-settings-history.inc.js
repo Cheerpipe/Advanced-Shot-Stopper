@@ -953,7 +953,8 @@ if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
     !network.includes('\\"hasMore\\":%s') ||
     !network.includes('\\"total\\":%u') ||
     !codeIncludes(appJsSource, 'R.startStatsStream()') ||
-    !codeIncludes(appJsSource, 'setTimeout(R.ensureBackgroundRecordStreams,3e3)') ||
+    !codeIncludes(appJsSource, 'R.ensureBackgroundRecordStreams()') ||
+    codeIncludes(appJsSource, 'setTimeout(R.ensureBackgroundRecordStreams') ||
     // Backpressure pacing: the client guard covers a solo maximal row frame
     // (server rows are bounded by the external kJsonItem workspace), and a
     // tab returning from the background resyncs the owned socket instead of

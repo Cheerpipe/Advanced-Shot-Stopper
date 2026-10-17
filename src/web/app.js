@@ -127,12 +127,12 @@ async function renderRoute(pathname) {
   try {
     const [, ok] = await Promise.all([ready, startView(view)]);
     if (seq !== routeSeq) return;
-    // Record pages subscribe in the background 3 s after the active view's
-    // load, so they stay fresh without delaying first paint or first clicks.
-    // Setup (captive portal) skips them: sockets are scarce on the SoftAP.
+    // Record pages subscribe in the background as soon as the active view has
+    // loaded, so they stay fresh without delaying first paint. Setup (captive
+    // portal) skips them: sockets are scarce on the SoftAP.
     if (ok) {
       R.hideHomeBoot(boot);
-      if (view !== "setup") setTimeout(R.ensureBackgroundRecordStreams, 3e3);
+      if (view !== "setup") R.ensureBackgroundRecordStreams();
     } else if (R.webUiPollingActive())
       R.message(__WEBUI_TEXT__("shell.unable_to_load_view"), "error");
   } catch (e) {
