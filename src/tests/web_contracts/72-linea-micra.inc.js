@@ -721,10 +721,24 @@ if (!micraMachinePower.includes('LINEA_MICRA_SCALE_OFF_WITH_MACHINE') ||
   const seam = integration.slice(serviceStart, integration.indexOf('\n}', serviceStart));
   const earlyReturn = seam.indexOf('machinePower.service(');
   if (serviceStart < 0 || earlyReturn < 0 ||
-      !seam.includes('const LineaMicraStatus status = service.status();') ||
+      !seam.includes('const LineaMicraStatus status = service.statusPoll();') ||
       seam.indexOf('micraScanOverride(') < 0 ||
       seam.indexOf('applyLiveBleScanOverride(') > earlyReturn) {
     throw new Error(
         'serviceMachineIntegrationMachinePower must publish micraScanOverride via applyLiveBleScanOverride before the scale power-off early return');
+  }
+}
+
+{
+  // The effectively-off shortcut must consume the non-blocking poll and let
+  // a stale cache count as unknown (not off), so a stretched holder fails
+  // toward queueing the redundant, server-revalidated StandBy command.
+  const gateStart = machineIntegration.indexOf('bool machineEffectivelyOff()');
+  const gate = machineIntegration.slice(gateStart, machineIntegration.indexOf('\n}', gateStart));
+  if (gateStart < 0 ||
+      !gate.includes('service.statusPoll()') ||
+      !gate.includes('!service.statusPollStale()')) {
+    throw new Error(
+        'machineEffectivelyOff must poll without waiting and treat a stale poll cache as unknown, never off');
   }
 }

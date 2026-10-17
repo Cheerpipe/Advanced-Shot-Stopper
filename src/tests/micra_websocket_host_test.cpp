@@ -803,6 +803,10 @@ struct MicraWebSocketTest {
         (void)service.backflush_.ingressAttempt();
         const auto state = service.status();
         assert(state.powerState != LineaMicraPowerState::OFF);
+        // The control task's non-blocking poll races the same lifecycle
+        // churn; its single-reader cache must never tear into a phantom OFF.
+        const auto polled = service.statusPoll();
+        assert(polled.powerState != LineaMicraPowerState::OFF);
         (void)service.websocketStatus();
         ++samples;
       }
@@ -866,6 +870,68 @@ struct MicraWebSocketTest {
     assert(muxWaitEvents == 2);
     assert(lastMuxWaitArgs[0] == 2000);
   }
+  static void statusPollCache() {
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    service.published_.connectionFreshness = true;
+    service.published_.sampleAtMs = now;
+    service.published_.powerState = LineaMicraPowerState::OFF;
+    service.published_.effectiveOn = false;
+    service.staConnected_.store(true);
+    // Before any successful poll the cache counts as unknown — effectiveOn,
+    // Disabled quality — and this late on the stub clock it is already stale.
+    assert(service.statusPollStale());
+    const auto &boot = service.statusCache_;
+    assert(boot.effectiveOn &&
+           boot.quality == LineaMicraObservationQuality::Disabled);
+    // Uncontended, the poll serves exactly the locked status() resolution;
+    // the trivially copyable snapshot must match field for field, so a
+    // never-refreshed cache cannot pass as a fresh poll.
+    const auto fresh = service.statusPoll();
+    const auto reference = service.status();
+    assert(fresh.powerState == LineaMicraPowerState::OFF && !fresh.effectiveOn);
+    assert(std::memcmp(&fresh, &reference, sizeof(fresh)) == 0);
+    assert(!service.statusPollStale());
+    // A mutex held by another task serves the previous cache — never torn,
+    // never the publication that task made under the lock — and misses age it.
+    std::atomic<bool> held{false}, release{false};
+    std::thread holder([&] {
+      TaskLockGuard lock(service.mux_);
+      service.published_.powerState = LineaMicraPowerState::ON;
+      service.published_.effectiveOn = true;
+      held.store(true);
+      while (!release.load()) std::this_thread::yield();
+    });
+    while (!held.load()) std::this_thread::yield();
+    const auto served = service.statusPoll();
+    assert(served.powerState == LineaMicraPowerState::OFF && !served.effectiveOn);
+    assert(std::memcmp(&served, &fresh, sizeof(served)) == 0);
+    now += 249;
+    assert(!service.statusPollStale());
+    ++now;
+    assert(service.statusPollStale());
+    // Staleness is a gate, not a payload change: a poll deep inside the
+    // stale window still serves the same snapshot unchanged.
+    const auto stillServed = service.statusPoll();
+    assert(std::memcmp(&stillServed, &fresh, sizeof(stillServed)) == 0);
+    release.store(true);
+    holder.join();
+    const auto refreshed = service.statusPoll();
+    assert(refreshed.powerState == LineaMicraPowerState::ON &&
+           refreshed.effectiveOn);
+    assert(!service.statusPollStale());
+    // The age subtraction is unsigned-wraparound-safe: a cache stamped just
+    // before the ~49.7-day millis() rollover ages across the seam.
+    now = UINT32_MAX - 100ULL;
+    const auto wrapped = service.statusPoll();
+    assert(wrapped.powerState == LineaMicraPowerState::ON && wrapped.effectiveOn);
+    assert(!service.statusPollStale());
+    now = 148;  // stamp + 249 across the wrap: one ms short of the bound.
+    assert(!service.statusPollStale());
+    ++now;
+    assert(service.statusPollStale());
+  }
 };
 }
 int main() {
@@ -881,4 +947,5 @@ int main() {
   shotstopper::MicraWebSocketTest::concurrentStatusLifecycle();
   shotstopper::MicraWebSocketTest::setupAdmissionAndBackoff();
   shotstopper::MicraWebSocketTest::backflushWaitAttribution();
+  shotstopper::MicraWebSocketTest::statusPollCache();
 }

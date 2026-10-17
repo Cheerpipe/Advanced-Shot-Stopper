@@ -735,6 +735,10 @@ void ShotStopperMicraService::clearDiscovery() {
 
 LineaMicraStatus ShotStopperMicraService::status() const {
   TaskLockGuard lock(mux_);
+  return statusLocked();
+}
+
+LineaMicraStatus ShotStopperMicraService::statusLocked() const {
   LineaMicraStatus result = published_;
   const uint32_t now = millis();
   const bool observing = config_.accountConfigured &&
@@ -752,6 +756,22 @@ LineaMicraStatus ShotStopperMicraService::status() const {
   result.shotPaused = shotTransportPaused();
   result.scalePaused = !result.connectionFreshness && scaleConnecting_.load(std::memory_order_acquire);
   return result;
+}
+
+LineaMicraStatus ShotStopperMicraService::statusPoll() const {
+  if (mux_.tryLock()) {
+    statusCache_ = statusLocked();
+    statusCacheWrittenAtMs_ = millis();
+    mux_.unlock();
+  }
+  return statusCache_;
+}
+
+bool ShotStopperMicraService::statusPollStale() const {
+  // 250 ms is ~50 consecutive misses at the loop's 1-5 ms poll cadence:
+  // genuinely anomalous contention, not a busy instant.
+  constexpr uint32_t kStatusPollCacheStaleMs = 250;
+  return millis() - statusCacheWrittenAtMs_ >= kStatusPollCacheStaleMs;
 }
 
 HeapLifecycleAggregate ShotStopperMicraService::heapTelemetry() const {

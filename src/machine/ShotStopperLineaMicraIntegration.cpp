@@ -28,10 +28,11 @@ std::atomic<bool> micraAccountConfigured{false};
 
 // A standby command is pointless once the machine is already effectively off.
 // Skipping it also keeps the remote disconnect that follows our own scale
-// power-off command from re-arming the shutdown cycle.
+// power-off command from re-arming the shutdown cycle. A stale poll cache
+// counts as unknown, not off: the redundant command is re-validated anyway.
 bool machineEffectivelyOff() {
-  const LineaMicraStatus status = service.status();
-  return !status.effectiveOn &&
+  const LineaMicraStatus status = service.statusPoll();
+  return !service.statusPollStale() && !status.effectiveOn &&
          (status.quality == LineaMicraObservationQuality::CURRENT ||
           status.quality == LineaMicraObservationQuality::OPTIMISTIC);
 }
@@ -115,7 +116,7 @@ void serviceMachineIntegrationMachinePower(bool scaleLinkUp,
                                            bool relayClosed) {
   const uint8_t scaleOptions =
       micraScaleOptions.load(std::memory_order_relaxed);
-  const LineaMicraStatus status = service.status();
+  const LineaMicraStatus status = service.statusPoll();
   // Refresh the discovery override every loop before any scale power-off
   // early return: eligibility changes (option, identity, observation, or
   // state) clear it here without a separate timer or event.

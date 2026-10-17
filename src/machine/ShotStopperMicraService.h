@@ -45,6 +45,11 @@ class ShotStopperMicraService {
                                LineaMicraPersistedSettings &settings);
   void clearDiscovery();
   LineaMicraStatus status() const;
+  // Control task only: never waits on mux_ — tryLocks, refreshes the
+  // task-owned cache, and serves the last snapshot on contention.
+  LineaMicraStatus statusPoll() const;
+  // True when that served cache is older than the poll staleness bound.
+  bool statusPollStale() const;
   LineaMicraCloudCall cloudCall() const;
   HeapLifecycleAggregate heapTelemetry() const;
   MicraWebSocketStatus websocketStatus(bool includeTraffic = true) const;
@@ -134,6 +139,7 @@ class ShotStopperMicraService {
                           char *headers = nullptr, size_t capacity = 0);
   void clearRequestState();
   bool networkEligible(LineaMicraError &error, bool observation = false) const;
+  LineaMicraStatus statusLocked() const;
   void qualifyBackflushLocked();
   bool backflushReadyLocked() const;
   // Anomaly report for the poll's mutex acquisition wait; the caller holds
@@ -183,6 +189,10 @@ class ShotStopperMicraService {
   MicraObservationFence observationFence_;
   MachineBackflushObservations backflush_;
   MachineBackflushSnapshot idleBackflush_;  // Control task only; see backflush().
+  // Control task only, like idleBackflush_: statusPoll() writes both under
+  // mux_ and the same task reads them, so nothing else guards them.
+  mutable LineaMicraStatus statusCache_ = {};
+  mutable uint32_t statusCacheWrittenAtMs_ = 0;
   // Mirrors published_.powerState == OFF for the lock-free poll; written
   // under mux_ wherever published_.powerState changes.
   std::atomic<bool> powerOff_{false};
