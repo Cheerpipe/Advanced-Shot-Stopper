@@ -45,12 +45,13 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 .qsSig>span{display:flex}
 @media(min-width:700px){
   .qsGuardSig>.qsShield{display:none}
-  .qsStack{display:flex;padding-left:.95rem}
-  .qsStack i{display:grid;place-items:center;width:1.85rem;height:1.85rem;margin-left:-.6rem;border:2.5px solid var(--bg);border-radius:50%;background:color-mix(in srgb,var(--c,var(--ok)) 18%,var(--sf));color:var(--c,var(--ok))}
-  .qsStack .qsI{width:1rem;height:1rem;stroke-width:2.1}
-  .qsStack i.off,[data-mode=manual] .qsStack i{background:var(--in);color:var(--mu)}
+  .qsStack{display:flex}
+  .qsStack i,.qsModeSig{display:grid;place-items:center;width:1.85rem;height:1.85rem;margin-left:-.6rem;border:2.5px solid var(--bg);border-radius:50%;background:color-mix(in srgb,var(--c,var(--ok)) 18%,var(--sf));color:var(--c,var(--ok))}
+  .qsModeSig{--c:var(--ac);justify-content:center;width:3.7rem;margin:0 -.15rem 0 0;border-radius:1rem}
+  .qsSig .qsI{width:1rem;height:1rem;stroke-width:2.1}
+  .qsStack i.off,[data-mode=manual] .qsSig :is(i,.qsModeSig){background:var(--in);color:var(--mu)}
   .qsStack i.off{box-shadow:inset 0 0 0 1.5px var(--ln)}
-  .qsSig:is(:hover,[aria-expanded=true]) .qsStack i{border-color:var(--sf)}
+  .qsSig:is(:hover,[aria-expanded=true]) :is(i,.qsModeSig){border-color:var(--sf)}
 }
 .quickPanel{width:min(24rem,calc(100vw - 1.5rem));white-space:normal;max-width:none;padding:1rem 1rem .8rem;border-radius:1.4rem;box-shadow:0 1rem 2.6rem #0004;font-size:inherit}
 .quickPanel p{display:block}

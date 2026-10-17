@@ -236,8 +236,8 @@ function updateHeaderSignals(s = {}) {
 // Home Quick Settings in the header mirror the Integration API (and Home
 // Assistant): every change is a session-only override on the controller.
 const QUICK_GUARDS = [
-  "fastExtractionGuardEnabled",
   "slowExtractionGuardEnabled",
+  "fastExtractionGuardEnabled",
   "noScaleBbwMode",
   "autoToManualGuardEnabled",
   "avoidAccidentalTouchEnabled",

@@ -548,8 +548,10 @@ if (generated.jsGzip.length > 7330) {
 // owner-authorized 2026-10-16.
 // The quick-settings duration selection styled as the mode card measures
 // 14286 bytes; owner-authorized 2026-10-16.
-if (generated.cssGzip.length > 14286) {
-  throw new Error(`Compressed Web CSS exceeds the 14286-byte gzip budget (${generated.cssGzip.length})`);
+// The header mode pill joined to the guard stack measures 14313 bytes;
+// owner-authorized 2026-10-16.
+if (generated.cssGzip.length > 14313) {
+  throw new Error(`Compressed Web CSS exceeds the 14313-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -864,8 +866,8 @@ if (generated.icon48Raw.length > 3500) {
 // Measured 73846 bytes after the frontend audit (2026-10-16).
 const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
     generated.jsGzip.length + generated.runtimeGzip.length;
-if (coldHomeGzip > 74450) {
-  throw new Error(`Cold Home download exceeds the 74450-byte gzip budget (${coldHomeGzip})`);
+if (coldHomeGzip > 74458) {
+  throw new Error(`Cold Home download exceeds the 74458-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);
