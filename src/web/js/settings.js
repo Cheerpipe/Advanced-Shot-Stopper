@@ -687,6 +687,13 @@ export function applyStatus(s) {
   const link = document.querySelector('[data-route="/diagnostic"]');
   if (link && typeof s.diagnosticPageVisible === "boolean")
     link.classList.toggle("hidden", !s.diagnosticPageVisible);
+  // Deep link (Home's Micra hint): open the group once it is laid out.
+  const group = location.hash && document.getElementById(location.hash.slice(1));
+  if (group?.offsetParent) {
+    history.replaceState(null, "", location.pathname);
+    group.open = true;
+    group.scrollIntoView({ block: "start" });
+  }
 }
 
 // Settings shows saved values; a note flags the ones a header-panel override

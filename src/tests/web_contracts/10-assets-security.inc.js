@@ -862,8 +862,9 @@ if (htmlBytes > 93300) {
 // Onboarding brewing steps (mode, starting recipe, summary with Change, brewing draft on the setup actions): +3970 bytes (458457), owner-requested 2026-10-18.
 // The shot chart's real-stop dot and its two legend entries: +433 bytes (458890), owner-requested 2026-10-18.
 // Keeping the /setup session off the UI stream and out of the compatibility redirect: +35 bytes (458925), owner-reported 2026-10-18.
-if (jsBytes > 458925) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 458925)`);
+// The Home Micra cloud hint (dismiss or never show again) and the Settings deep link to its group: +908 bytes (459833), owner-requested 2026-10-18.
+if (jsBytes > 459833) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 459833)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -974,8 +975,9 @@ if (jsBytes > 458925) {
 // Onboarding brewing steps (mode and recipe choices with dose, yield and Recommended tags, summary, brewing draft): 547580, owner-requested 2026-10-18.
 // The shot chart's real-stop dot and its two legend entries: 548013, owner-requested 2026-10-18.
 // The /setup session kept off the UI stream and the compatibility redirect: 548048, owner-reported 2026-10-18.
-if (htmlBytes + jsBytes > 548048) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 548048)`);
+// The Home Micra cloud hint card and its Settings deep link: 549599, owner-requested 2026-10-18.
+if (htmlBytes + jsBytes > 549599) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 549599)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

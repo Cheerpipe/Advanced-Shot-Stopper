@@ -11,6 +11,11 @@ client.
 
 ## Connect an account and select a machine
 
+Until an account is connected, Home shows a short card inviting you to sign
+in. **Open Micra settings** takes you straight to this panel, already open.
+**Dismiss** hides the card until you reload the page; tick **Don't show this
+again** before dismissing to hide it for good in that browser.
+
 Open Brew by Weight must be connected to your normal Wi-Fi network in station mode.
 Cloud communication is disabled while the setup access point is open or the
 internet connection is unavailable.

@@ -5,6 +5,7 @@ let ready = false;
 let quickWeight = null;
 let quickWeightWanted = false;
 let micraBoilerTimer = 0;
+let micraHintClosed = false;
 
 // Boiler rows interpolate the warm-up estimate locally from the absolute
 // readyAtUtcSec the stream delivers once; a stable estimate costs no frames.
@@ -85,6 +86,13 @@ export function applyStatus(s) {
       quickWeight.open();
     }
   }
+  const hint = $("micraCloudHint");
+  if (hint)
+    hint.hidden =
+      micraHintClosed ||
+      s.lineaMicra?.accountConfigured !== false ||
+      s.machineIntegration !== "linea_micra_cloud" ||
+      R.cardDismissed("ssCard:micraCloud");
   const power = micraPower(s.lineaMicra);
   $("homeMicraPower").textContent = power;
   $("homeMicraCleaning").textContent = R.formatMicraCleaning(s.lineaMicra);
@@ -155,6 +163,18 @@ export function init() {
   if ($("grindHintLater")) $("grindHintLater").onclick = () => R.dismissCard($("grindHintCard").dataset.key);
   if ($("scaleLossDiscoveryOk"))
     $("scaleLossDiscoveryOk").onclick = () => R.dismissCard("ssCard:scaleLossDiscovery");
+  if ($("micraCloudHint")) {
+    $("micraCloudHintOpen").onclick = (e) => {
+      e.preventDefault();
+      history.pushState(null, "", e.currentTarget.href);
+      R.renderRoute("/settings");
+    };
+    // Dismiss hides it until the page reloads; the checkbox makes it permanent.
+    $("micraCloudHintDismiss").onclick = () => {
+      if ($("micraCloudHintMute").checked) R.dismissCard("ssCard:micraCloud");
+      micraHintClosed = $("micraCloudHint").hidden = true;
+    };
+  }
   quickWeight = initQuickWeight();
   quickWeightWanted = new URLSearchParams(location.search).has("edit_weight");
 }

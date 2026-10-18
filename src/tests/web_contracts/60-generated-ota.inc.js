@@ -732,7 +732,8 @@ if (generated.otaImageGzip.length > 3072) {
 // Onboarding brewing steps (welcome, starting recipe with dose, yield and Recommended tags, summary with Change, their copy) measure setup.js at 5788; owner-requested 2026-10-18.
 // The shot chart's real-stop dot and its two legend entries measure records.js at 13594; owner-requested 2026-10-18.
 // Gzip wobble from the /setup stream guard (records.js unchanged) measures 13595; owner-reported 2026-10-18.
-const viewModuleBudgets = {records: 13595, diagnostic: 13750, admin: 14229, settings: 14150, setup: 5788};
+// Gzip wobble from the Home Micra cloud hint (records.js unchanged) measures 13606; owner-requested 2026-10-18.
+const viewModuleBudgets = {records: 13606, diagnostic: 13750, admin: 14229, settings: 14150, setup: 5788};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -898,8 +899,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The onboarding choice-card and summary styles in the shared stylesheet bring it to 64906; owner-requested 2026-10-18.
 // The shot chart's real-stop dot styles in the shared stylesheet bring it to 64931; owner-requested 2026-10-18.
 // Keeping /setup off the UI stream and the compatibility redirect brings it to 64964; owner-reported 2026-10-18.
-if (coldHomeGzip > 64964) {
-  throw new Error(`Cold Home download exceeds the 64964-byte gzip budget (${coldHomeGzip})`);
+// The Home Micra cloud hint card, its copy and its Settings deep link bring it to 65263; owner-requested 2026-10-18.
+if (coldHomeGzip > 65263) {
+  throw new Error(`Cold Home download exceeds the 65263-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);
