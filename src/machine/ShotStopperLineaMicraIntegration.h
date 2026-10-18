@@ -8,6 +8,7 @@ namespace shotstopper {
 
 bool queueMachineIntegrationConnect(uint32_t requestId, const char *username,
                                     const char *password);
+bool queueMachineIntegrationRelist(uint32_t requestId);
 bool queueMachineIntegrationRequest(const LineaMicraRequest &request);
 bool selectMachineIntegrationDevice(const char *serial,
                                     LineaMicraPersistedSettings &settings);

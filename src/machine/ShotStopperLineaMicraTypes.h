@@ -14,7 +14,8 @@ enum class LineaMicraRequestType : uint8_t {
   OBSERVE_STATE,
   APPLY_TEMPERATURE,
   SET_STANDBY,
-  SET_POWER_ON
+  SET_POWER_ON,
+  LIST_MACHINES
 };
 enum class LineaMicraPowerState : uint8_t { UNKNOWN, ON, OFF };
 enum class MicraObservationSource : uint8_t { NONE, HTTP, HTTP_INITIAL, WEBSOCKET };
@@ -260,6 +261,10 @@ struct LineaMicraDiscoverySnapshot {
   uint32_t requestId = 0;
   uint32_t generation = 0;
   uint8_t count = 0;
+  // Machines on the saved account at its latest listing; 0 until listed.
+  uint8_t accountMachines = 0;
+  bool listing = false;
+  LineaMicraError error = LineaMicraError::NONE;
   LineaMicraMachineSummary machines[LINEA_MICRA_MAX_ACCOUNT_MACHINES] = {};
 };
 

@@ -35,7 +35,9 @@
         "\"temperatureTransportStatus\":%ld,"
         "\"staConnected\":%s,\"apActive\":%s,\"shotPaused\":%s,"
         "\"scalePaused\":%s,"
-        "\"httpStatus\":%u,\"transportStatus\":%ld,\"machines\":[",
+        "\"httpStatus\":%u,\"transportStatus\":%ld,"
+        "\"accountMachineCount\":%u,\"machineListing\":%s,"
+        "\"machineListError\":\"%s\",\"machines\":[",
         micraAccountConfigured ? "true" : "false",
         safeMicraUsername,
         micraConnectionTypeName(micraConnectionType),
@@ -88,7 +90,10 @@
         micraStatus.shotPaused ? "true" : "false",
         micraStatus.scalePaused ? "true" : "false",
         static_cast<unsigned>(micraStatus.httpStatus),
-        static_cast<long>(micraStatus.transportStatus));
+        static_cast<long>(micraStatus.transportStatus),
+        static_cast<unsigned>(micraDiscovery.accountMachines),
+        micraDiscovery.listing ? "true" : "false",
+        lineaMicraErrorName(micraDiscovery.error));
     for (uint8_t index = 0; ok && index < micraDiscovery.count; ++index) {
       char safeSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
       char safeName[LINEA_MICRA_NAME_CAPACITY] = {};

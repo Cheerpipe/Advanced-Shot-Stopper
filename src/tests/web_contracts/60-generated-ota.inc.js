@@ -736,7 +736,8 @@ if (generated.otaImageGzip.length > 3072) {
 // Gzip wobble from the Home Micra cloud hint (records.js unchanged) measures 13606; owner-requested 2026-10-18.
 // The Linea Micra sign-in, machine choice, auto-select, grouped options and batch save measure settings.js at 14827; owner-requested 2026-10-18.
 // Gzip wobble from the Linea Micra settings section (records.js unchanged) measures 13607; owner-requested 2026-10-18.
-const viewModuleBudgets = {records: 13607, diagnostic: 13750, admin: 14229, settings: 14827, setup: 5788};
+// Linea Micra Change machine and its machine-count re-list after restart measure settings.js at 15024; owner-approved 2026-10-18.
+const viewModuleBudgets = {records: 13607, diagnostic: 13750, admin: 14229, settings: 15024, setup: 5788};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);

@@ -864,8 +864,9 @@ if (htmlBytes > 93300) {
 // Keeping the /setup session off the UI stream and out of the compatibility redirect: +35 bytes (458925), owner-reported 2026-10-18.
 // The Home Micra cloud hint (dismiss or never show again) and the Settings deep link to its group: +908 bytes (459833), owner-requested 2026-10-18.
 // The Linea Micra sign-in, machine choice, auto-select, grouped options and batch save: +1737 bytes (461570), owner-requested 2026-10-18.
-if (jsBytes > 461570) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 461570)`);
+// Linea Micra Change machine and its machine-count re-list after restart: +1199 bytes (462769), owner-approved 2026-10-18.
+if (jsBytes > 462769) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 462769)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -978,8 +979,9 @@ if (jsBytes > 461570) {
 // The /setup session kept off the UI stream and the compatibility redirect: 548048, owner-reported 2026-10-18.
 // The Home Micra cloud hint card and its Settings deep link: 549599, owner-requested 2026-10-18.
 // The Linea Micra sign-in, machine choice, grouped options and batch save section: 552540, owner-requested 2026-10-18.
-if (htmlBytes + jsBytes > 552540) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 552540)`);
+// Linea Micra Change machine and its machine-count re-list after restart: 553863, owner-approved 2026-10-18.
+if (htmlBytes + jsBytes > 553863) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 553863)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

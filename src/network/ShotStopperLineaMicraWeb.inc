@@ -163,7 +163,8 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
     }
   } else if (parseError == nullptr &&
              (strcmp(action, "disconnect") == 0 ||
-              strcmp(action, "refresh") == 0)) {
+              strcmp(action, "refresh") == 0 ||
+              strcmp(action, "relist") == 0)) {
     if (jsonFieldPresent(root, "username") ||
         jsonFieldPresent(root, "password") ||
         jsonFieldPresent(root, "serial") ||
@@ -176,7 +177,7 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
         jsonFieldPresent(root, "scaleOffWithMachine") ||
         jsonFieldPresent(root, "boostScaleDetectionWhenOn") ||
         jsonFieldPresent(root, "reduceScaleScanningWhenOff")) {
-      parseError = "disconnect and refresh do not accept setting fields.";
+      parseError = "disconnect, refresh, and relist do not accept setting fields.";
     }
   } else if (parseError == nullptr) {
     parseError = "Unknown Linea Micra action.";
@@ -197,7 +198,13 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
                      parseError);
   }
 
-  if (strcmp(action, "connect") == 0) {
+  const bool relist = strcmp(action, "relist") == 0;
+  const bool refresh = strcmp(action, "refresh") == 0;
+  if ((relist || refresh) && !candidate.accountConfigured) {
+    return sendError(request, STATUS_CONFLICT, "MICRA_NOT_READY",
+                     "Connect an account and select a machine first.");
+  }
+  if (relist || strcmp(action, "connect") == 0) {
     const NetworkStatusSnapshot network = self.snapshot();
     const bool staConnected = network.staState == StaState::CONNECTED &&
                               network.wifiConfigured &&
@@ -207,18 +214,15 @@ esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
                        "Connect to Wi-Fi station mode and close setup AP first.");
     }
     const uint32_t requestId = self.allocateRequestId();
-    if (!queueMachineIntegrationConnect(requestId, username, password)) {
+    if (relist ? !queueMachineIntegrationRelist(requestId)
+               : !queueMachineIntegrationConnect(requestId, username, password)) {
       return sendError(request, STATUS_UNAVAILABLE, "MICRA_BUSY",
                        "The Linea Micra integration is busy; try again shortly.");
     }
     return self.sendAccepted(request, requestId);
   }
 
-  if (strcmp(action, "refresh") == 0) {
-    if (!candidate.accountConfigured) {
-      return sendError(request, STATUS_CONFLICT, "MICRA_NOT_READY",
-                       "Connect an account and select a machine first.");
-    }
+  if (refresh) {
     LineaMicraRequest integrationRequest = {};
     integrationRequest.requestId = self.allocateRequestId();
     integrationRequest.configGeneration = currentRevision;

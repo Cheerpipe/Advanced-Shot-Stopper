@@ -166,6 +166,10 @@ bool queueMachineIntegrationConnect(uint32_t requestId, const char *username,
   return service.queueConnect(requestId, username, password);
 }
 
+bool queueMachineIntegrationRelist(uint32_t requestId) {
+  return service.queueRelist(requestId);
+}
+
 bool queueMachineIntegrationRequest(const LineaMicraRequest &request) {
   return service.queue(request);
 }

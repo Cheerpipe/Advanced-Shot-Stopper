@@ -616,7 +616,7 @@ CSV order after browsing by rating without repeated store captures per frame.
 
 Micra-compiled firmware exposes `POST /api/v1/machine/linea-micra` to the
 claimed Web UI. It accepts one strict `action`: `connect`, `select`, `save`,
-`refresh`, or `disconnect`. `connect` requires only `username` and `password`
+`refresh`, `relist`, or `disconnect`. `connect` requires only `username` and `password`
 and is rejected unless STA is connected and the setup AP is closed. It queues
 cloud authentication and account-machine discovery but does not persist or
 enable an account. `select` requires a `serial` from the latest discovery plus
@@ -628,7 +628,11 @@ and `shutdownWithScale` machine-link booleans with `shutdownGraceSeconds`,
 and the `scaleOffWithMachine` scale-link boolean. `select` and `save` optionally accept `connectionType` as exactly `websocket`
 or `api`; missing retains the saved preference. Null, wrong types, unknown
 values and use with any other action are rejected. WebSocket is the default.
-`save` updates those options for an already selected machine. `refresh` and `disconnect` accept no additional fields;
+`save` updates those options for an already selected machine. `refresh`, `relist`, and `disconnect` accept no additional fields;
+`relist` requires a selected machine, STA, and a closed setup AP, and lists the
+saved account's machines again over the existing session and installation key
+without changing the active machine, the published request phase/error, or
+persisted settings, so a following `select` can switch machines;
 disconnect erases durable credentials/selection and the RAM session. Unknown,
 duplicate, or action-inappropriate fields are rejected. Accepted commands
 return `202`.
@@ -640,7 +644,10 @@ quality, optimistic-ON and optimistic-OFF provenance, sample age/freshness,
 selected target
 temperature, STA/AP/shot gates,
 last HTTP/transport status, and the bounded machine list returned while
-connecting. The saved account email is visible in Settings and Diagnostics; password,
+connecting or after `relist`. `accountMachineCount` is the number of machines on
+the saved account at its latest listing (`0` until listed after a boot),
+`machineListing` is true while a `relist` is queued or running, and
+`machineListError` reports its outcome with the same error names. The saved account email is visible in Settings and Diagnostics; password,
 installation private key, access token and refresh token are never returned. `refresh` is read-only and requires a selected
 machine; none of these fields authorizes machine actuation.
 

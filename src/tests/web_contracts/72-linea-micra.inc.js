@@ -266,6 +266,7 @@ if (!network.includes('/api/v1/machine/linea-micra') ||
     !micraWeb.includes('jsonHasOnlyUniqueFields') ||
     !micraWeb.includes('MICRA_STA_REQUIRED') ||
     !micraWeb.includes('queueMachineIntegrationConnect') ||
+    !micraWeb.includes('queueMachineIntegrationRelist(requestId)') ||
     !micraWeb.includes('selectMachineIntegrationDevice') ||
     !micraWeb.includes('disconnectLineaMicra(candidate)') ||
     !micraWeb.includes('stagedLineaMicra_')) {
@@ -277,6 +278,7 @@ const micraStatusFailures = [
   !micraStatus.includes('\\\"accountConfigured\\\"') && 'account status missing',
   !micraStatus.includes('\\\"email\\\"') && 'account email missing',
   !micraStatus.includes('\\\"machines\\\"') && 'machine list missing',
+  !micraStatus.includes('\\\"accountMachineCount\\\"') && 'account machine count missing',
   !micraStatus.includes('SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD') && 'compile gate missing',
   !micraStatus.includes('\\\"machineIntegration\\\"') && 'integration capability missing',
 ].filter(Boolean);
@@ -377,7 +379,7 @@ for (const id of ['lineaMicraSignIn', 'lineaMicraChoose', 'lineaMicraConnected',
   'lineaMicraRecognizeWake', 'lineaMicraShutdownWithScale',
   'lineaMicraShutdownGraceWrap', 'lineaMicraShutdownGrace',
   'lineaMicraSaveButton', 'revertLineaMicraButton', 'lineaMicraDirtyHint',
-  'lineaMicraDisconnectButton', 'lineaMicraBrewTargetC']) {
+  'lineaMicraDisconnectButton', 'lineaMicraChangeButton', 'lineaMicraBrewTargetC']) {
   if (!micraSettingsHtml.includes(`id="${id}"`)) {
     throw new Error(`Linea Micra settings control is missing: ${id}`);
   }
@@ -482,8 +484,10 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
   get('lineaMicraPowerDeps').children = ['RecognizeWake', 'ScaleOffWithMachine', 'BoostScaleDetectionWhenOn',
     'ReduceScaleScanningWhenOff'].map(id => get('lineaMicra' + id));
   const commands = [];
+  let actionOk = true;
   const context = vm.createContext({__LINEA_MICRA__: true, $: get, controlsMutable: true,
-    micraDirty: false, micraSignIn: null,
+    micraDirty: false, micraSignIn: null, micraChange: false, micraListed: true,
+    lineaMicraAction: async action => { commands.push({action}); return actionOk; },
     document: {documentElement: {classList: {toggle() {}}}, createElement() {
       const label = node();
       Object.defineProperty(label, 'innerHTML', {set() {
@@ -582,6 +586,50 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     get('lineaMicraShutdownWithScale').checked = false;
     vm.runInContext('updateMicraDependentControls()', context);
     assert(get('lineaMicraShutdownGraceWrap').classes.has('hidden') && get('lineaMicraShutdownGrace').disabled);
+
+    // Change machine is offered only when the account has several machines.
+    const handler = id => vm.runInContext('(' + rawViewJs.settings.match(
+        new RegExp(`\\$\\("${id}"\\)\\.onclick = ([\\s\\S]*?);\\n  if \\(`))[1]
+        .replace(/\bR\.(?:uiState\.)?/g, '') + ')', context);
+    commands.length = 0;
+    apply({...connected, accountMachineCount: 1});
+    assert(get('lineaMicraChangeButton').hidden, 'A single-machine account never sees Change machine');
+    context.micraListed = false;
+    apply({...connected, accountMachineCount: 0});
+    apply({...connected, accountMachineCount: 0});
+    assert.deepStrictEqual(commands, [{url: '/api/v1/machine/linea-micra', body: {action: 'relist'}}],
+        'After a restart the machine count is listed once, quietly');
+    assert(get('lineaMicraChangeButton').hidden);
+    const several = {...connected, accountMachineCount: 2, machineListError: 'none'},
+      listed = {...several, machines: [{serial: 'ABC', name: 'Micra'}, {serial: 'DEF', name: 'Other'}]};
+    apply(several);
+    assert(!get('lineaMicraChangeButton').hidden && !get('lineaMicraChangeButton').disabled);
+    await handler('lineaMicraChangeButton')();
+    assert.deepStrictEqual(commands.at(-1), {action: 'relist'});
+    apply({...several, machineListing: true});
+    assert.strictEqual(panes(), 'Choose', 'Change machine reuses the choice screen');
+    assert.strictEqual(get('lineaMicraProgress').textContent, 'runtime.micra_progress_listing');
+    apply({...several, machineListError: 'invalid_auth'});
+    assert.strictEqual(get('lineaMicraProgress').textContent, 'runtime.micra_error_auth');
+    assert(get('lineaMicraProgress').classes.has('error'));
+    apply(listed);
+    assert.strictEqual(get('lineaMicraProgress').textContent, '');
+    handler('lineaMicraCancelButton')();
+    assert.strictEqual(panes(), 'Connected', 'Cancel returns to the saved machine');
+    apply(listed);
+    assert.strictEqual(panes(), 'Connected');
+    assert(!commands.some(c => c.action === 'disconnect'), 'Cancel never disconnects the account');
+    actionOk = false;
+    await handler('lineaMicraChangeButton')();
+    assert.strictEqual(panes(), 'Connected', 'A refused listing keeps the saved machine on screen');
+    actionOk = true;
+    await handler('lineaMicraChangeButton')();
+    apply(listed);
+    await vm.runInContext('selectLineaMicra("DEF")', context);
+    assert.deepStrictEqual([commands.at(-1).body.action, commands.at(-1).body.serial], ['select', 'DEF']);
+    assert.strictEqual(panes(), 'Connected', 'The chosen machine replaces the saved one in place');
+    apply({...connected, accountConfigured: false});
+    assert.strictEqual(context.micraChange, false);
   };
   run().catch(error => {console.error(error); process.exitCode = 1;});
 }

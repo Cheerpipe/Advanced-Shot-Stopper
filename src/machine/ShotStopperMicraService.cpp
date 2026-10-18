@@ -455,7 +455,10 @@ void ShotStopperMicraService::publishConfig(
       return;
     }
     wipeLineaMicraSettings(candidate_);
+    const uint8_t accountMachines =
+        effective.accountConfigured ? discovery_.accountMachines : 0;
     discovery_ = {};
+    discovery_.accountMachines = accountMachines;
     if (!effective.accountConfigured) {
       powerState_.reset();
       wipeLineaMicraSettings(pending_.credentials);
@@ -627,6 +630,30 @@ bool ShotStopperMicraService::queueConnect(uint32_t requestId,
   discovery_ = {};
   wipeLineaMicraSettings(candidate_);
   wipeLineaMicraSettings(credentials);
+  xTaskNotifyGive(task_);
+  return true;
+}
+
+// Lists the saved account's machines again so another one can be selected;
+// the saved machine stays active until that selection is saved.
+bool ShotStopperMicraService::queueRelist(uint32_t requestId) {
+  TaskLockGuard lock(mux_);
+  if (pending_.present || active_ || task_ == nullptr ||
+      !config_.accountConfigured) {
+    return false;
+  }
+  pending_ = {};
+  pending_.request.requestId = requestId;
+  pending_.request.configGeneration = configGeneration_;
+  pending_.request.type = LineaMicraRequestType::LIST_MACHINES;
+  pending_.credentials = config_;
+  pending_.identityGeneration = identityGeneration_;
+  pending_.present = true;
+  const uint8_t accountMachines = discovery_.accountMachines;
+  discovery_ = {};
+  discovery_.accountMachines = accountMachines;
+  discovery_.listing = true;
+  wipeLineaMicraSettings(candidate_);
   xTaskNotifyGive(task_);
   return true;
 }
@@ -1209,6 +1236,10 @@ bool ShotStopperMicraService::temperatureEligible(
 }
 
 void ShotStopperMicraService::execute(PendingRequest &pending) {
+  if (pending.request.type == LineaMicraRequestType::LIST_MACHINES) {
+    executeRelist(pending);
+    return;
+  }
   LineaMicraStatus status;
   {
     TaskLockGuard lock(mux_);
@@ -1696,6 +1727,7 @@ bool ShotStopperMicraService::executeConnect(PendingRequest &pending) {
     candidate_ = pending.credentials;
     candidate_.options = config_.options;
     discovery_ = found;
+    discovery_.accountMachines = found.count;
     ++discovery_.generation;
   }
   status.phase = LineaMicraPhase::CONFIRMED;
@@ -1703,6 +1735,31 @@ bool ShotStopperMicraService::executeConnect(PendingRequest &pending) {
   status.quality = LineaMicraObservationQuality::UNCONFIGURED;
   publish(status);
   return true;
+}
+
+// Reuses the saved installation key and live session: unlike a connect it
+// registers nothing and publishes no status, so observation keeps running.
+void ShotStopperMicraService::executeRelist(PendingRequest &pending) {
+  LineaMicraDiscoverySnapshot found;
+  found.requestId = pending.request.requestId;
+  LineaMicraError error = LineaMicraError::NONE;
+  if (networkEligible(error) &&
+      (!ensureWorkBuffer() || !ensureSession(pending.credentials, false) ||
+       !listMachines(pending.credentials, found))) {
+    error = classifyFailure();
+  } else if (error == LineaMicraError::NONE && found.count == 0) {
+    error = LineaMicraError::NO_MACHINES;
+  }
+  TaskLockGuard lock(mux_);
+  if (pending.identityGeneration != identityGeneration_) return;
+  if (error == LineaMicraError::NONE) {
+    candidate_ = pending.credentials;
+    discovery_ = found;
+    discovery_.accountMachines = found.count;
+    ++discovery_.generation;
+  }
+  discovery_.listing = false;
+  discovery_.error = error;
 }
 
 bool ShotStopperMicraService::executeObservation(PendingRequest &pending) {

@@ -50,12 +50,28 @@ The options are grouped under **Machine power**, **Scale automations** and
 **Presets**. Like the other Settings sections, changes are saved together:
 adjust what you want and choose **Save La Marzocco settings**. The button and
 the revert button next to it are available only while there are unsaved
-changes, and **Unsaved changes** marks them. **Sign in**, **Use this machine**
-and **Disconnect** act immediately and are not part of that save.
+changes, and **Unsaved changes** marks them. **Sign in**, **Use this machine**,
+**Change machine** and **Disconnect** act immediately and are not part of that save.
 
 The four options that rely on **Show power state** are listed under it. When
 **Show power state** is off they are dimmed and can't be changed, but keep
 their choices.
+
+### Change machine
+
+If your La Marzocco account has more than one Linea Micra, the connected view
+also offers **Change machine**. Choose it to see the account's machines again,
+pick the one this controller should follow, and select **Use this machine**.
+You don't need to sign in again, and your option choices carry over to the new
+machine. Until you confirm, the controller keeps working with the machine it
+already has; **Cancel** takes you back without changing anything.
+
+After a restart, the controller doesn't yet know how many machines the account
+has. The first time you open this section, it asks La Marzocco's cloud on its
+own, using the account it's already signed in with, so **Change machine** may
+appear a few seconds later. Nothing about your selected machine changes. Accounts with a single Linea Micra never see it.
+
+### Disconnect
 
 Choose **Disconnect** to remove the saved credentials and selected machine and
 stop cloud checks; the sign-in form returns. Your option choices are kept for

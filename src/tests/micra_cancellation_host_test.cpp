@@ -33,6 +33,8 @@ static std::function<bool(const shotstopper::MicraObservationStamp *)> dashboard
 static unsigned authentications = 0, retries = 0, failures = 0;
 static unsigned waits = 0;
 static unsigned websocketStops = 0;
+static bool lastRegisterKey = false;
+static std::function<bool(shotstopper::LineaMicraDiscoverySnapshot &)> listHook;
 int esp_http_client_perform(void *) {
   const int result = performHook();
   testNowMs += performAdvanceMs;
@@ -52,11 +54,16 @@ void ShotStopperMicraService::releaseIoBuffer(bool) {}
 void ShotStopperMicraService::releaseWorkBuffer() { clearSession(); }
 void ShotStopperMicraService::serviceWebSocket() {}
 void ShotStopperMicraService::stopWebSocket(bool) { ++websocketStops; }
-bool ShotStopperMicraService::ensureSession(LineaMicraPersistedSettings &, bool, bool *renewed) {
+bool ShotStopperMicraService::ensureSession(LineaMicraPersistedSettings &, bool registerKey,
+                                            bool *renewed) {
   ++authentications;
-  *renewed = true;
+  lastRegisterKey = registerKey;
+  if (renewed != nullptr) *renewed = true;
   return true;
 }
+bool ShotStopperMicraService::ensureWorkBuffer() { return true; }
+bool ShotStopperMicraService::listMachines(const LineaMicraPersistedSettings &,
+    LineaMicraDiscoverySnapshot &found) { return listHook(found); }
 bool ShotStopperMicraService::readDashboard(const LineaMicraPersistedSettings &,
     LineaMicraStatus &, const MicraObservationStamp *snapshot) { return dashboardHook(snapshot); }
 void ShotStopperMicraService::waitRetry(uint32_t) { ++retries; }
@@ -98,6 +105,7 @@ struct MicraCancellationTest {
   static void unscaledShotAdmission();
   static void lateResponseAndResultLabels(ShotStopperMicraService &service);
   static void invalidAuthLatchesApiObservation();
+  static void relistKeepsSavedMachine();
   static void run();
 };
 }
@@ -596,7 +604,84 @@ void MicraCancellationTest::invalidAuthLatchesApiObservation() {
   assert(service.observationSchedule_.automaticDue(millis()));
 }
 
+// Changing machine re-lists on the saved key and live session; nothing
+// observable changes until the chosen machine is saved.
+void MicraCancellationTest::relistKeepsSavedMachine() {
+  ShotStopperMicraService service;
+  LineaMicraPersistedSettings settings;
+  settings.accountConfigured = true;
+  std::strcpy(settings.username, "test@example.invalid");
+  std::strcpy(settings.password, "secret");
+  settings.installationPrivateKey[0] = 7;
+  std::strcpy(settings.selectedSerial, "SAVED");
+  std::strcpy(settings.selectedName, "Saved");
+  assert(validLineaMicraSettings(settings));
+  service.publishConfig(settings, 1);
+  assert(!service.queueRelist(1));  // No worker yet.
+  service.task_ = &service;
+  service.publishNetworkState(true, false, false, false);
+  const LineaMicraStatus before = service.published_;
+  const uint32_t identity = service.identityGeneration_;
+  const auto take = [&] {
+    ShotStopperMicraService::PendingRequest pending = service.pending_;
+    service.pending_.present = false;
+    return pending;
+  };
+  assert(service.queueRelist(2));
+  assert(!service.queueRelist(3));
+  assert(service.discovery_.listing && service.discovery_.count == 0);
+  auto pending = take();
+  assert(pending.request.type == LineaMicraRequestType::LIST_MACHINES);
+  assert(sameSessionIdentity(pending.credentials, settings));
+  listHook = [](LineaMicraDiscoverySnapshot &found) {
+    found.count = 2;
+    std::strcpy(found.machines[0].serial, "SAVED");
+    std::strcpy(found.machines[1].serial, "OTHER");
+    std::strcpy(found.machines[1].name, "Other");
+    return true;
+  };
+  lastRegisterKey = true;
+  service.executeRelist(pending);
+  assert(!lastRegisterKey);
+  LineaMicraDiscoverySnapshot listed = service.discovery_;
+  assert(!listed.listing && listed.error == LineaMicraError::NONE &&
+         listed.count == 2 && listed.accountMachines == 2 && listed.requestId == 2);
+  assert(service.identityGeneration_ == identity &&
+         service.published_.phase == before.phase &&
+         service.published_.requestId == before.requestId &&
+         std::strcmp(service.config_.selectedSerial, "SAVED") == 0);
+  LineaMicraPersistedSettings chosen;
+  assert(service.selectDiscoveredMachine("OTHER", chosen));
+  assert(std::strcmp(chosen.selectedSerial, "OTHER") == 0 &&
+         std::strcmp(chosen.selectedName, "Other") == 0 &&
+         std::strcmp(chosen.password, "secret") == 0 &&
+         std::memcmp(chosen.installationPrivateKey, settings.installationPrivateKey,
+                     sizeof(settings.installationPrivateKey)) == 0);
+  service.publishConfig(chosen, 2);
+  assert(service.identityGeneration_ != identity);
+  assert(service.discovery_.count == 0 && service.discovery_.accountMachines == 2);
+
+  assert(service.queueRelist(4));
+  pending = take();
+  listHook = [](LineaMicraDiscoverySnapshot &) { return false; };
+  service.executeRelist(pending);
+  listed = service.discovery_;
+  assert(!listed.listing && listed.error == LineaMicraError::HTTP_ERROR &&
+         listed.count == 0 && listed.accountMachines == 2);
+
+  assert(service.queueRelist(5));
+  pending = take();
+  service.publishConfig(LineaMicraPersistedSettings{}, 3);  // Disconnected meanwhile.
+  listHook = [](LineaMicraDiscoverySnapshot &found) { return (found.count = 2) != 0; };
+  service.executeRelist(pending);
+  listed = service.discovery_;
+  assert(!listed.listing && listed.count == 0 && listed.accountMachines == 0);
+  assert(!service.queueRelist(6));
+  authentications = 0;
+}
+
 int main() {
+  MicraCancellationTest::relistKeepsSavedMachine();
   MicraCancellationTest::retireBackflushConfiguration();
   MicraCancellationTest::invalidAuthLatchesApiObservation();
   MicraCancellationTest::run();

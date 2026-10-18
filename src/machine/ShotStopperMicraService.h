@@ -40,6 +40,7 @@ class ShotStopperMicraService {
                            bool scaleConnecting);
   bool queueConnect(uint32_t requestId, const char *username,
                     const char *password);
+  bool queueRelist(uint32_t requestId);
   bool queue(const LineaMicraRequest &request);
   // Control task only, for temperature and power commands: never waits on
   // mux_. Contention defers the command to the task's next successful lock,
@@ -116,6 +117,7 @@ class ShotStopperMicraService {
   void waitRetry(uint32_t delayMs);
   void execute(PendingRequest &pending);
   bool executeConnect(PendingRequest &pending);
+  void executeRelist(PendingRequest &pending);
   bool executeObservation(PendingRequest &pending);
   bool executeTemperatureApplication(const LineaMicraRequest &request,
                                      uint32_t machineConfigGeneration);

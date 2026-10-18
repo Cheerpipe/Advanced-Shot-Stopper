@@ -513,13 +513,20 @@ function applyLineaMicraStatus(s) {
     connected = m.accountConfigured,
     linking = R.uiState.micraSignIn === "linking" && !connected,
     busy = linking || (!connected && ["queued", "authenticating", "listing"].includes(m.phase)),
-    choosing = !connected && !busy && machines.length > 0,
+    changing = connected && R.uiState.micraChange,
+    choosing = changing || (!connected && !busy && machines.length > 0),
     offline = !m.staConnected || m.apActive,
-    error = micraErrorText(m.error);
+    error = micraErrorText(m.error),
+    waiting = changing ? m.machineListing : busy,
+    shown = changing ? micraErrorText(m.machineListError) : connected ? "" : error;
   if (!R.uiState.micraDirty) {
     for (const id of MICRA_SWITCHES) $("lineaMicra" + id).checked = !!m[micraOptionField(id)];
     $("lineaMicraShutdownGrace").value = String(m.shutdownGraceSeconds || 0);
   }
+  R.uiState.micraChange = changing;
+  // After a restart the machine count is unknown: list once, quietly.
+  if (connected && !m.accountMachineCount && canEdit && !offline && !R.uiState.micraListed)
+    R.uiState.micraListed = R.command("/api/v1/machine/linea-micra", { action: "relist" }, false, "", "");
   // A sign-in started here saves a lone machine with the options above.
   if (connected) R.uiState.micraSignIn = null;
   else if (R.uiState.micraSignIn === "pending" && !busy && (machines.length || error)) {
@@ -529,18 +536,18 @@ function applyLineaMicraStatus(s) {
   }
   $("lineaMicraSignIn").hidden = connected || choosing;
   $("lineaMicraChoose").hidden = !choosing;
-  $("lineaMicraConnected").hidden = !connected;
+  $("lineaMicraConnected").hidden = !connected || changing;
   $("lineaMicraWifiNote").classList.toggle("hidden", !offline);
   $("lineaMicraConnectButton").disabled = !canEdit || offline;
   $("lineaMicraConnectButton").classList.toggle("busy", busy);
-  $("lineaMicraProgress").textContent = linking
+  $("lineaMicraProgress").textContent = !waiting
+    ? shown
+    : linking
     ? __WEBUI_TEXT__("runtime.micra_progress_linking")
-    : busy
-    ? m.phase === "listing"
-      ? __WEBUI_TEXT__("runtime.micra_progress_listing")
-      : __WEBUI_TEXT__("runtime.micra_progress_signing_in")
-    : error;
-  $("lineaMicraProgress").classList.toggle("error", !busy && !!error);
+    : changing || m.phase === "listing"
+    ? __WEBUI_TEXT__("runtime.micra_progress_listing")
+    : __WEBUI_TEXT__("runtime.micra_progress_signing_in");
+  $("lineaMicraProgress").classList.toggle("error", !waiting && !!shown);
   renderMicraMachines(machines, canEdit);
   $("lineaMicraCancelButton").disabled = !canEdit;
   $("lineaMicraIdentity").innerText = connected
@@ -562,6 +569,8 @@ function applyLineaMicraStatus(s) {
     .filter(Boolean)
     .join(" · ");
   $("lineaMicraDisconnectButton").disabled = !canEdit;
+  $("lineaMicraChangeButton").hidden = m.accountMachineCount < 2;
+  $("lineaMicraChangeButton").disabled = !canEdit || offline;
   for (const id of MICRA_SWITCHES) $("lineaMicra" + id).disabled = !canEdit;
   updateMicraDependentControls();
   R.setSaveDirty("lineaMicraSaveButton", "lineaMicraDirtyHint", R.uiState.micraDirty);
@@ -608,7 +617,14 @@ async function selectLineaMicra(serial) {
   const ok = await saveLineaMicraSettings("select", serial);
   if (ok) $("lineaMicraLinkedNote").hidden = false;
   else R.uiState.micraSignIn = null;
+  if (ok && R.uiState.micraChange) endMicraChange();
   return ok;
+}
+// Back to the saved machine; nothing was changed on the device.
+function endMicraChange() {
+  R.uiState.micraChange = false;
+  $("lineaMicraChoose").hidden = !($("lineaMicraConnected").hidden = false);
+  $("lineaMicraProgress").textContent = "";
 }
 async function saveLineaMicraSettings(action = "save", serial = "") {
   const ok = await R.command(
@@ -866,7 +882,11 @@ export function init() {
   if ($("lineaMicraMachines"))
     $("lineaMicraMachines").onchange = () => ($("lineaMicraSelectButton").disabled = false);
   if ($("lineaMicraCancelButton"))
-    $("lineaMicraCancelButton").onclick = () => R.lineaMicraAction("disconnect");
+    $("lineaMicraCancelButton").onclick = () =>
+      R.uiState.micraChange ? endMicraChange() : R.lineaMicraAction("disconnect");
+  if ($("lineaMicraChangeButton"))
+    $("lineaMicraChangeButton").onclick = async () =>
+      (R.uiState.micraChange = true) && !(await R.lineaMicraAction("relist")) && endMicraChange();
   if ($("lineaMicraSaveButton"))
     $("lineaMicraSaveButton").onclick = () => saveLineaMicraSettings();
   if ($("revertLineaMicraButton")) $("revertLineaMicraButton").onclick = revertLineaMicra;
