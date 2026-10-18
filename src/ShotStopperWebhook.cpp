@@ -688,6 +688,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   };
   WebhookRequestPhase phase = WebhookRequestPhase::PREPARE;
   int statusCode = 0;
+  [[maybe_unused]] int transportErrno = 0;
   esp_err_t error = ESP_FAIL;
   if (WiFi.status() == WL_CONNECTED && validWebhookUrl(live.url) &&
       buildPayload(event, payload_, kWebhookPayloadCapacity)) {
@@ -725,9 +726,12 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
         else if (error == ESP_ERR_HTTP_EAGAIN ||
                  (error == ESP_OK && millis() - started >= kWebhookTimeoutMs))
           error = ESP_ERR_TIMEOUT;
-        statusCode = esp_http_client_get_status_code(client);
+        // A failed perform() leaves the previous response's status behind.
         if (error == ESP_OK) {
           phase = WebhookRequestPhase::RESPONSE;
+          statusCode = esp_http_client_get_status_code(client);
+        } else {
+          transportErrno = esp_http_client_get_errno(client);
         }
         ok = error == ESP_OK && statusCode >= 200 && statusCode < 300;
       }
@@ -761,10 +765,10 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   if (!ok) {
     // Ring + serial, so release images surface failures in Diagnostic → Log.
     serialTraceCategoryf(LogLevel::ERROR, DebugCategory::NETWORK,
-                         "webhook %s failed phase=%s cancel=%s http=%d err=0x%x",
+                         "webhook %s failed phase=%s cancel=%s http=%d err=0x%x errno=%d",
                          eventName(event.type), webhookRequestPhaseName(phase),
                          webhookCancellationReasonName(cancellation), statusCode,
-                         static_cast<unsigned>(error));
+                         static_cast<unsigned>(error), transportErrno);
   }
 #endif
   mux_.lock();

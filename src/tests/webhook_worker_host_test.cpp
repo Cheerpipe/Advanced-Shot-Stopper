@@ -100,6 +100,8 @@ static void testSamplingAndAccounting() {
         : scenario == 3 ? WebhookRequestPhase::PREPARE
                         : WebhookRequestPhase::PERFORM;
     assert(status.lastPhase == expectedPhase);
+    // The stub still reports 200 after a failed perform(): it must not leak.
+    assert(status.lastHttpStatus == (expectedSuccess ? 200U : 0U));
     assert(status.lastCancellation == (scenario == 4
         ? WebhookCancellationReason::CONTROL_CRITICAL : WebhookCancellationReason::NONE));
     assert(status.lastDeliveryUnknown == (scenario == 1 || scenario == 4));

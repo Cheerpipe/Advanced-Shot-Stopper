@@ -124,6 +124,7 @@ inline int esp_http_client_perform(esp_http_client_handle_t c) {
   return httpResult;
 }
 inline int esp_http_client_get_status_code(esp_http_client_handle_t) { return httpStatus; }
+inline int esp_http_client_get_errno(esp_http_client_handle_t) { return 104; }
 inline int esp_read_mac(uint8_t *mac, int) { memset(mac, 0xAB, 6); return ESP_OK; }
 // lwIP asynchronous resolver: immediate unless a test holds the answer.
 struct ip_addr_t {};
