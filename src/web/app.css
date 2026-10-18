@@ -366,10 +366,10 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #shotLogPanel .glassBar.isStuck,#historyPanel .glassBar.isStuck{box-shadow:var(--popSh)}
 /* Dark mode homologates every floating panel onto the popup elevation shadow
 (bottom-anchored panels mirror it upward); light keeps each element's own. */
-html.theme-dark :is(.topBar,.pageNav,.quickPanel,#presetRenameDialog,#confirmDialog){box-shadow:var(--popSh)}
+html.theme-dark :is(.pageNav,.quickPanel,#presetRenameDialog,#confirmDialog){box-shadow:var(--popSh)}
 html.theme-dark :is(.qwSheet,#actionsPanel){box-shadow:0 -8px 28px rgba(0,0,0,.45)}
 @media(prefers-color-scheme:dark){
-html:not(.theme-light) :is(.topBar,.pageNav,.quickPanel,#presetRenameDialog,#confirmDialog){box-shadow:var(--popSh)}
+html:not(.theme-light) :is(.pageNav,.quickPanel,#presetRenameDialog,#confirmDialog){box-shadow:var(--popSh)}
 html:not(.theme-light) :is(.qwSheet,#actionsPanel){box-shadow:0 -8px 28px rgba(0,0,0,.45)}
 }
 .glassBar>.btnGlyph{flex:0 0 auto;min-height:2.1rem;min-width:0;padding:0 .8rem;border:0;border-radius:1.6rem;background:transparent;color:var(--ac);white-space:nowrap}
