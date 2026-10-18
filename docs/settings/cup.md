@@ -98,8 +98,10 @@ sample is insufficient for replacement tare. In-shot detection is unchanged.
 
 ## Displayed cup weight
 
-**Home → Cup** shows presence under **Status** and approximate cup weight under
-**Weight**. **Diagnostic → Scale → Cup weight** shows the same value.
+**Home → Cup** shows presence under **Status**, approximate cup weight under
+**Weight**, and a tared accessory under **Accessory** (see
+[Tare settings](tare.md#outside-a-brew)). **Diagnostic → Scale → Cup weight**
+shows the same cup weight.
 When no scale is connected, **Status** shows **Unknown**. Once a scale is
 connected, it shows **Present** or **Absent** according to cup detection.
 The presence state machine records the qualified empty reference while `ABSENT`
@@ -115,7 +117,8 @@ After firmware tare, the live reading is 0 g and cup weight stays 300 g. Remove
 the cup and let the scale settle at −300 g. A 350 g replacement reads 50 g;
 the UI shows **≈ 350.0 g**, from **50 − (−300)**. Further successful firmware
 tares and coffee additions preserve that mass, except an enabled accessory
-retare updates it to include the added accessory. It represents the load added
+retare updates it to include the added accessory, which **Accessory** also shows
+on its own. It represents the load added
 at placement, so an empty-cup interpretation assumes the cup was empty then.
 
 The absent baseline uses the same sample count, whole-window tolerance, maximum

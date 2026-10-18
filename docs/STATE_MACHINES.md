@@ -569,7 +569,14 @@ Idle tare accepts this path or stable absence, never one ABSENT sample or a
 stable-to-stable load difference alone. In-shot confirmation remains unchanged.
 See [Displayed cup weight](settings/cup.md#displayed-cup-weight).
 
-For idle accessory retare, a separately measured accessory mass can identify
+For idle accessory retare, a positive addition qualifies only as a step: the
+first reading at or above the minimum cup weight must arrive within one maximum
+sample gap of the last reading at or below half that minimum. That decision is
+made once per crossing; later stability-window resets do not repeat it. The
+peak during the first gap after the crossing bounds the settled load (at most
+peak + half the minimum), and the step expires 3 s after the crossing. A queued
+accessory tare released as unstable before its write may be requested again.
+A separately measured accessory mass can identify
 its later negative removal. That matching partial unload leaves PRESENT in place
 until the normal stability window qualifies a retare. Removing the cup or the
 whole load still emits REMOVED. Similar component masses, an unknown component

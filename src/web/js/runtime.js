@@ -1296,7 +1296,7 @@ function formatMachineState(s) {
   );
 }
 function clearCupWeights() {
-  ["cupWeight", "dCupWeight", "idleTareStatus"].forEach((id) => {
+  ["cupWeight", "dCupWeight", "idleTareStatus", "cupAccessory"].forEach((id) => {
     const el = $(id);
     if (el) el.textContent = __WEBUI_TEXT__("runtime.unknown");
   });
@@ -1312,6 +1312,19 @@ function formatCupWeight(s) {
     Number.isFinite(c.weightG)
     ? __WEBUI_TEXT__("runtime.symbol_6") + c.weightG.toFixed(1) + __WEBUI_TEXT__("runtime.g_2")
     : __WEBUI_TEXT__("runtime.unknown");
+}
+function formatCupAccessory(s) {
+  const c = s.cupPresence || {};
+  return s.scale?.available && s.scale.streamState === "FRESH"
+    ? c.accessory === "present" && typeof c.accessoryG === "number"
+      ? sub(__WEBUI_TEXT__("runtime.accessory_present"), [c.accessoryG.toFixed(1)])
+      : {
+          off: __WEBUI_TEXT__("runtime.off_2"),
+          absent: __WEBUI_TEXT__("runtime.absent"),
+          settling: __WEBUI_TEXT__("runtime.accessory_settling"),
+          not_tracked: __WEBUI_TEXT__("runtime.accessory_not_tracked"),
+        }[c.accessory] || __WEBUI_TEXT__("runtime.unknown_4")
+    : __WEBUI_TEXT__("runtime.unknown_4");
 }
 function formatCupState(s) {
   if (!s.scale?.available) return __WEBUI_TEXT__("runtime.unknown_4");
@@ -5335,6 +5348,7 @@ function applyHomeStatus(s) {
   updateStateTone(s);
   $("cupState").textContent = formatCupState(s);
   $("cupWeight").textContent = formatCupWeight(s);
+  $("cupAccessory").textContent = formatCupAccessory(s);
   $("idleTareStatus").textContent = formatIdleTare(s);
   $("scale").textContent = formatScaleStatus(s);
   $("preferredScale").textContent = formatPreferredScale(s);

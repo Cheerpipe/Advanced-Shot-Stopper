@@ -114,7 +114,8 @@ empty anchor without forging a new stable-absence record. The scale worker retur
 an opaque request ID, pre-write weight, and tare outcome for uncertainty handling.
 Both status JSON paths publish `cupPresence`
 with `weightG` (finite grams or null), `weightValid`, and `placementId` from that
-committed snapshot. `cupPresence.idleTare` projects readiness from those same
+committed snapshot. `cupPresence.idleTare` projects readiness and
+`cupPresence.accessory`/`accessoryG` the accessory state from those same
 diagnostics; the Web layer never reads or changes the cup FSM directly.
 The NimBLE advertisement mailbox copies a raw six-byte address and bounded name
 under the existing nested spinlocks; the consumer formats its private address

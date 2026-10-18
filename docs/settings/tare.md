@@ -74,13 +74,29 @@ calculated load includes the accessory. If you then remove that accessory before
 brewing, a matching stable weight drop triggers another tare while the cup stays
 present. You can add the accessory again after that removal. A second addition
 without an intervening known removal, or any change during or after its shot,
-does not trigger this option. Only an addition that lands in one motion is
-tared, so set the accessory down rather than easing it on; a pour that builds
-up gradually (milk, syrup, coffee) is not tared. Because the scale reports
-weight rather than what was added, a quick splash can still look like an
+does not trigger this option. Set the accessory on the cup in one motion. It
+is fine to press it into place or let it rock briefly: the controller waits up
+to about three seconds for the weight to settle. Something that builds up
+gradually (milk, syrup, coffee) is not tared. Neither is a load that keeps
+growing after it first lands, or a second addition that starts while the first
+is still on the scale. Because the scale reports weight rather than what was
+added, a fast splash that stops within about a second can still look like an
 accessory. Leave this option OFF if you put ingredients in the cup before
-brewing.
+brewing. If the accessory is knocked before the tare is sent, the controller
+tries again once its weight settles.
 Disconnected, stale, uncertain, or interrupted readings cannot authorize it.
+
+**Home → Cup → Accessory** shows what the controller knows about the item on
+the cup:
+
+| Shown | Meaning |
+| --- | --- |
+| **Present - 42.2 g** | An accessory was tared on this cup; its weight is shown. |
+| **Absent** | No cup, or the cup is tared and ready for an accessory. |
+| **Settling…** | An accessory being added or removed is waiting to settle. |
+| **Not tracked - lift the cup and set it down again** | The controller is not following accessories for this cup, for example after a shot, a settings change, a scale reconnect, or a failed tare. |
+| **Off** | **Tare items added to a cup** or **Tare when you place a cup** is OFF. |
+| **Unknown** | No scale is connected, or its readings are not current. |
 
 When the cup and accessory were placed together, the controller knows only their
 combined weight. Removing one part cannot be identified reliably, so it does
@@ -202,14 +218,18 @@ These fields come from the control snapshot. `effect_unconfirmed`, `unstable`,
 `stale_sample`, `sample_gap`, and `removed` distinguish common incomplete
 attempts. `qualificationMinG`/`qualificationMaxG` describe the observed window,
 not configured minimum/maximum cup mass. `requestPlacementId` identifies the
-originating placement even after a different cup replaces it. No periodic retry
-is performed.
+originating placement even after a different cup replaces it. An accessory
+request released as `unstable` before its write can be requested again once a
+new stable window qualifies; no periodic retry is performed.
 
 Both Home and full Web status payloads additionally expose `cupPresence.idleTare`
 as a presentation code: `empty`, `ready`, `pending`, `tared`, `remove`,
 `retry`, `uncertain`, or the existing eligibility reason, and
 `cupPresence.anchorDeltaG` with the same meaning as in the debug export, plus
-`cupPresence.anchorWaitS`, the same wait in whole seconds. They are derived from the
+`cupPresence.anchorWaitS`, the same wait in whole seconds, plus
+`cupPresence.accessory` (`off`, `unknown`, `absent`, `not_tracked`, `settling`,
+or `present`) and `cupPresence.accessoryG` (grams while `present`, otherwise
+null). They are derived from the
 same control snapshot; it neither authorizes commands nor changes the separate
 integration API. Clients must also check scale availability and stream state.
 

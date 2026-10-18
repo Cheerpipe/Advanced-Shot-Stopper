@@ -26,9 +26,10 @@
   const source = runtimeJs;
   const first = source.indexOf('function formatScaleStatus(');
   const last = source.indexOf('function formatScaleTimer(', first);
-  const elements = {cupWeight: {textContent: 'old'}, dCupWeight: {textContent: 'old'}, idleTareStatus: {textContent: 'old'}};
+  const elements = {cupWeight: {textContent: 'old'}, dCupWeight: {textContent: 'old'}, idleTareStatus: {textContent: 'old'},
+    cupAccessory: {textContent: 'old'}};
   const helpers = new Function('$', 'sub', source.slice(first, last) +
-    ';return {formatCupWeight,clearCupWeights,formatIdleTare};')(id => elements[id],
+    ';return {formatCupWeight,clearCupWeights,formatIdleTare,formatCupAccessory};')(id => elements[id],
     (t, vals) => t.replace(/\{(\d)\}/g, (_, i) => vals[+i]));
   const good = {scale: {available: true, streamState: 'FRESH'},
     cupPresence: {present: true, weightValid: true, weightG: 80, placementId: 1}};
@@ -44,6 +45,15 @@
     {...good, scale: {available: true, streamState: 'STALE'}}]) {
     if (helpers.formatCupWeight(status) !== '—') throw new Error('Unavailable cup provenance');
   }
+  for (const [accessory, accessoryG, expected] of [
+    ['present', 42.2, 'Present - 42.2 g'], ['absent', null, 'Absent'], ['settling', null, 'Settling…'],
+    ['not_tracked', null, 'Not tracked - lift the cup and set it down again'], ['off', null, 'Off'],
+    ['present', null, 'Unknown']]) {
+    if (helpers.formatCupAccessory({...good, cupPresence: {accessory, accessoryG}}) !== expected)
+      throw new Error('Accessory state: ' + expected);
+  }
+  if (helpers.formatCupAccessory({...good, scale: {available: true, streamState: 'STALE'},
+    cupPresence: {accessory: 'present', accessoryG: 42}}) !== 'Unknown') throw new Error('Stale accessory');
   helpers.clearCupWeights();
   if (Object.values(elements).some(el => el.textContent !== '—')) throw new Error('Stale cup UI');
   for (const [state, expected] of [
@@ -87,6 +97,7 @@
   const diagnostic = partialHtml.diagnostic;
   const cup = home.match(/<details id="cupRow" class="lampRow">([\s\S]*?)<\/details>/);
   if (!cup || !cup[1].includes('id="cupState"') || !cup[1].includes('id="cupWeight"') || !cup[1].includes('id="idleTareStatus"') ||
+      !cup[1].includes('id="cupAccessory"') ||
       !/<details id="scaleRow" class="lampRow">[\s\S]*?<\/details><details id="cupRow" class="lampRow">/.test(home) ||
       !/<legend>Scale<\/legend>[\s\S]*?id="dCupWeight"/.test(diagnostic) ||
       !diagnostic.includes('id="dCup"') || diagnostic.includes('id="scaleTareButton"') ||

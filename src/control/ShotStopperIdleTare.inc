@@ -22,7 +22,8 @@ struct IdleTareRuntime {
   uint32_t accessoryCycleId = 0;
   uint32_t accessoryStartedAtMs = 0;
   uint32_t accessoryLastAtMs = 0;
-  uint32_t accessoryBelowAtMs = 0;  // Last reading below the minimum cup.
+  uint32_t accessoryLowAtMs = 0;  // Last reading at or below half the minimum cup.
+  uint32_t accessoryCrossedAtMs = 0;
   uint32_t unloadStartedAtMs = 0;
   uint32_t unloadLastAtMs = 0;
   float previousReferenceG = 0.0f;
@@ -32,7 +33,7 @@ struct IdleTareRuntime {
   float lastWeightG = 0.0f;
   float accessoryMinimumG = 0.0f;
   float accessoryMaximumG = 0.0f;
-  float accessoryBelowG = 0.0f;
+  float accessoryPeakG = 0.0f;
   float knownAccessoryMassG = 0.0f;
   float unloadMinimumG = 0.0f;
   float unloadMaximumG = 0.0f;
@@ -41,6 +42,8 @@ struct IdleTareRuntime {
   bool accessoryUsed = false;
   bool accessoryRemovalAttempted = false;
   bool accessoryRequest = false;
+  bool accessoryAbove = false;  // At or above the minimum since the last crossing.
+  bool accessoryStep = false;   // That crossing was fast enough to be a placement.
   bool unchangedAfterWrite = false;
   IdleTareReason eligibilityReason = IdleTareReason::NONE;
   IdleTareReason lastReason = IdleTareReason::NONE;
@@ -104,6 +107,11 @@ void releaseIdleTareRequest(IdleTareReason reason = IdleTareReason::NONE) {
         ? released.preTareWeightG : 0.0f;
     if (released.preTareWeightG < 0.0f) idleTare.accessoryUsed = false;
     else idleTare.accessoryRemovalAttempted = false;
+  }
+  if (idleTare.accessoryRequest && released.phase == IdleTarePhase::QUEUED &&
+      reason == IdleTareReason::UNSTABLE) {  // Nothing was written; allow a retry.
+    if (idleTare.accessoryMinimumG < 0.0f) idleTare.accessoryRemovalAttempted = false;
+    else idleTare.accessoryUsed = false;
   }
   if (idleTare.cupStillPresent &&
       cupPresencePlacementId() == idleTare.placementId) {
@@ -430,10 +438,42 @@ bool idleAccessoryUnloadUnsettled(float weight, uint32_t atMs) {
        atMs - idleTare.unloadStartedAtMs < runtimeConfig.retareStabilityMinDurationMs);
 }
 
+AccessoryState idleAccessoryState() {
+  if (!runtimeConfig.autoTareOutsideBrew ||
+      !idleAccessoryRetareEnabled(runtimeConfig.noScaleBbwMode)) return AccessoryState::OFF;
+  if (!scaleLinkAvailable(getScaleLinkSnapshot())) return AccessoryState::UNKNOWN;
+  if (cupPresenceState() != CupPresenceState::PRESENT) return AccessoryState::ABSENT;
+  if ((idleTare.requestId != 0 && idleTare.accessoryRequest) || idleTare.accessorySamples != 0)
+    return AccessoryState::SETTLING;
+  if (!idleTare.eligible || idleTare.accessoryPlacementId != cupPresencePlacementId() ||
+      idleTare.accessoryCycleId != session.id || !cupPresenceIsTared() ||
+      !cupPresence.weight.valid) return AccessoryState::NOT_TRACKED;
+  if (idleTare.knownAccessoryMassG >= runtimeConfig.minimumCupWeightG)
+    return AccessoryState::PRESENT;
+  return idleTare.accessoryUsed ? AccessoryState::NOT_TRACKED : AccessoryState::ABSENT;
+}
+
+// A hand-set item may overshoot and rock before it settles; bound that settle.
+constexpr uint32_t ACCESSORY_SETTLE_MAX_MS = 3000;
+
 void observeIdleAccessory(float weight, uint32_t atMs) {
-  if (weight < runtimeConfig.minimumCupWeightG) {
-    idleTare.accessoryBelowG = weight;
-    idleTare.accessoryBelowAtMs = atMs;
+  const float minimumG = runtimeConfig.minimumCupWeightG;
+  const uint32_t gapMs = runtimeConfig.retareStabilityMaxGapMs;
+  // An accessory lands as a step: it crosses from half the minimum to the
+  // minimum within one sample gap. A pour (milk, syrup, coffee) ramps across
+  // it. Decide once per crossing and track the landing peak.
+  if (weight < minimumG) {
+    if (weight <= minimumG / 2.0f) idleTare.accessoryLowAtMs = atMs;
+    idleTare.accessoryAbove = idleTare.accessoryStep = false;
+  } else if (!idleTare.accessoryAbove) {
+    idleTare.accessoryAbove = true;
+    idleTare.accessoryStep = atMs - idleTare.accessoryLowAtMs <= gapMs;
+    idleTare.accessoryCrossedAtMs = atMs;
+    idleTare.accessoryPeakG = weight;
+  } else if (atMs - idleTare.accessoryCrossedAtMs <= gapMs) {
+    idleTare.accessoryPeakG = fmaxf(weight, idleTare.accessoryPeakG);
+  } else if (atMs - idleTare.accessoryCrossedAtMs > ACCESSORY_SETTLE_MAX_MS) {
+    idleTare.accessoryStep = false;
   }
   if (idleTare.requestId == 0 && cupPresence.weight.valid &&
       fabsf(weight) <= FIRST_DROP_BASELINE_SETTLE_G) {
@@ -445,30 +485,23 @@ void observeIdleAccessory(float weight, uint32_t atMs) {
       idleTare.accessoryPlacementId != cupPresencePlacementId() ||
       idleTare.accessoryCycleId != session.id || !cupPresenceIsTared() ||
       !cupPresence.weight.valid ||
-      !((weight >= runtimeConfig.minimumCupWeightG && !idleTare.accessoryUsed) ||
-        (weight <= -runtimeConfig.minimumCupWeightG &&
+      !((weight >= minimumG && !idleTare.accessoryUsed) ||
+        (weight <= -minimumG &&
          !idleTare.accessoryRemovalAttempted && idleKnownAccessoryRemoval(weight))) ||
-      weight > MAX_AUTOMATION_WEIGHT_G) {
+      weight > MAX_AUTOMATION_WEIGHT_G || (weight > 0.0f && !idleTare.accessoryStep)) {
     idleTare.accessorySamples = 0;
     return;
   }
-  if (idleTare.accessorySamples == 0 ||
-      atMs - idleTare.accessoryLastAtMs > runtimeConfig.retareStabilityMaxGapMs ||
+  if (idleTare.accessorySamples == 0 || atMs - idleTare.accessoryLastAtMs > gapMs ||
       fmaxf(weight, idleTare.accessoryMaximumG) -
           fminf(weight, idleTare.accessoryMinimumG) >
           runtimeConfig.retareStabilityToleranceG) {
     if (idleTare.accessorySamples != 0)
       scaleProfileNoteEvent(ScaleProfileEvent::CUP_QUALIFICATION_RESET, millis(),
                             idleTare.connectionGeneration, idleTare.lastPacketSequence, weight, 2,
-                            static_cast<uint32_t>(atMs - idleTare.accessoryLastAtMs >
-                                runtimeConfig.retareStabilityMaxGapMs
+                            static_cast<uint32_t>(atMs - idleTare.accessoryLastAtMs > gapMs
                                 ? IdleTareReason::SAMPLE_GAP : IdleTareReason::UNSTABLE));
     idleTare.accessorySamples = 0;
-    // An accessory lands as a step from below the minimum; a pour (milk,
-    // syrup, coffee) ramps across it and must not start a tare window.
-    if (weight > 0.0f &&
-        (atMs - idleTare.accessoryBelowAtMs > runtimeConfig.retareStabilityMaxGapMs ||
-         weight - idleTare.accessoryBelowG < runtimeConfig.minimumCupWeightG / 2.0f)) return;
     idleTare.accessoryStartedAtMs = atMs;
     idleTare.accessoryMinimumG = idleTare.accessoryMaximumG = weight;
   }
@@ -476,7 +509,13 @@ void observeIdleAccessory(float weight, uint32_t atMs) {
   idleTare.accessoryMaximumG = fmaxf(weight, idleTare.accessoryMaximumG);
   idleTare.accessoryLastAtMs = atMs;
   if (idleTare.accessorySamples < UINT8_MAX) ++idleTare.accessorySamples;
-  if (idleTare.accessorySamples >= runtimeConfig.retareStabilitySamples &&
-      atMs - idleTare.accessoryStartedAtMs >= runtimeConfig.retareStabilityMinDurationMs)
-    handleIdleCupEvent(CupPresenceEvent::NONE, true);
+  if (idleTare.accessorySamples < runtimeConfig.retareStabilitySamples ||
+      atMs - idleTare.accessoryStartedAtMs < runtimeConfig.retareStabilityMinDurationMs) return;
+  // Settling above the landing peak means the load kept growing: a pour.
+  if (weight > 0.0f && idleTare.accessoryMaximumG > idleTare.accessoryPeakG + minimumG / 2.0f) {
+    idleTare.accessoryStep = false;
+    idleTare.accessorySamples = 0;
+    return;
+  }
+  handleIdleCupEvent(CupPresenceEvent::NONE, true);
 }

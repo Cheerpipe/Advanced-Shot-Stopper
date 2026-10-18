@@ -694,8 +694,9 @@ if (generated.cssGzip.length > 14861) {
 // The iOS-only unmuted keep-awake track and its tap resume bring it to 38983; owner-requested 2026-10-17.
 // The Linea Micra sign-in state and its Save/Revert pairing bring it to 39012; owner-requested 2026-10-18.
 // The La Marzocco Cloud legend states (connected, connecting, choose) bring it to 39038; owner-requested 2026-10-18.
-if (sentinelRuntimeGzip.length > 39038) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 39038-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Home Cup accessory state line brings it to 39158; owner-requested 2026-10-18.
+if (sentinelRuntimeGzip.length > 39158) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 39158-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -916,8 +917,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The La Marzocco Cloud sign-in steps CSS and legend state strings bring it to 65442; owner-requested 2026-10-18.
 // The green La Marzocco Cloud linked note CSS and its shorter text bring it to 65473; owner-requested 2026-10-18.
 // The La Marzocco Cloud state pill CSS and its state labels bring it to 65559; owner-requested 2026-10-18.
-if (coldHomeGzip > 65559) {
-  throw new Error(`Cold Home download exceeds the 65559-byte gzip budget (${coldHomeGzip})`);
+// The Home Cup accessory state line brings it to 65685; owner-requested 2026-10-18.
+if (coldHomeGzip > 65685) {
+  throw new Error(`Cold Home download exceeds the 65685-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

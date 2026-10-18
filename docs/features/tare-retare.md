@@ -54,16 +54,18 @@ trigger tare with the accessory option OFF.
 
 If you use a chilling bar or another accessory, keep the accessory option on
 under **Tare when you place a cup**. Let the cup auto-tare to zero, then
-add the accessory before brewing and wait for its added weight to stabilize.
-The controller tares one such addition per cup placement. Removing that known
+set the accessory on in one motion before brewing; pressing it into place or
+letting it rock briefly is fine. The controller tares one such addition per cup
+placement and shows it under **Home → Cup → Accessory**. Removing that known
 accessory before brewing causes another tare after its weight settles, while
 the cup remains present. If cup and accessory arrived together, or their
 separate weights are too similar, remove everything and let the empty pan settle
 before placing the cup again. The same weight change during a shot follows the
 existing shot behavior, and a full cup
-settling after the shot does not trigger accessory retare. A stable addition of
-coffee is indistinguishable from an accessory, so leave the option OFF if that
-could happen during preparation. See [Tare settings](../settings/tare.md#outside-a-brew)
+settling after the shot does not trigger accessory retare. A gradual pour is
+not tared, but a fast splash that stops within about a second is
+indistinguishable from an accessory, so leave the option OFF if that could
+happen during preparation. See [Tare settings](../settings/tare.md#outside-a-brew)
 for prerequisites and limits.
 
 After the first cup placement, the empty reference remains fixed across larger

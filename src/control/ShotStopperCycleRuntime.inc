@@ -386,6 +386,8 @@ CupTareDiagnostics captureCupTareDiagnostics() {
   CupTareDiagnostics out;
   out.weightG = cupPresence.weight.weightG;
   out.weightValid = cupPresence.weight.valid;
+  out.accessoryState = idleAccessoryState();
+  out.accessoryG = idleTare.knownAccessoryMassG;
   const IdleTareStatus status = idleScaleTareStatus();
   out.cupState = static_cast<uint8_t>(cupPresenceState());
   out.holdTransitions = cupPresence.holdTransitions;

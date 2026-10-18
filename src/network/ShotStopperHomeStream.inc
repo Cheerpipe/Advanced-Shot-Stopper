@@ -10,7 +10,8 @@ struct HomeStreamDelta {
     field(path, "%s", value ? "true" : "false");
   }
   void field(const char *path, float value) __attribute__((noinline)) {
-    field(path, "%.1f", static_cast<double>(value));
+    if (std::isfinite(value)) field(path, "%.1f", static_cast<double>(value));
+    else field(path, "null");
   }
 
   void field(const char *path, const char *format, ...) __attribute__((format(printf, 3, 4))) {
@@ -170,14 +171,15 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("cupPresence.state", "\"%s\"", control.scaleAvailable
       ? cupPresenceStateName(control.cupPresenceState) : "UNKNOWN");
   delta.field("cupPresence.present", bool(control.cupPresent));
-  if (control.cupPresent && tare.weightValid && std::isfinite(tare.weightG))
-    delta.field("cupPresence.weightG", tare.weightG);
-  else delta.field("cupPresence.weightG", "null");
-  delta.field("cupPresence.weightValid", bool(control.cupPresent && tare.weightValid && std::isfinite(tare.weightG)));
+  const bool cupWeightValid = control.cupPresent && tare.weightValid && std::isfinite(tare.weightG);
+  delta.field("cupPresence.weightG", cupWeightValid ? tare.weightG : NAN);
+  delta.field("cupPresence.weightValid", cupWeightValid);
   delta.field("cupPresence.idleTare", "\"%s\"", idleCode == IDLE_WAITING_FOR_SETTLE ? "empty" :
       idleCode == IDLE_READY_FOR_CUP ? "ready" : idleTarePresentationName(idleCode));
-  if (std::isfinite(tare.anchorDeltaG)) delta.field("cupPresence.anchorDeltaG", tare.anchorDeltaG);
-  else delta.field("cupPresence.anchorDeltaG", "null");
+  delta.field("cupPresence.accessory", "\"%s\"", accessoryStateName(tare.accessoryState));
+  delta.field("cupPresence.accessoryG",
+              tare.accessoryState == AccessoryState::PRESENT ? tare.accessoryG : NAN);
+  delta.field("cupPresence.anchorDeltaG", tare.anchorDeltaG);
   delta.field("cupPresence.anchorWaitS", "%lu", static_cast<unsigned long>(tare.anchorWaitMs / 1000U));
   delta.field("cycle.active", bool(control.activeCycle));
   delta.field("cycle.shotType", "\"%s\"", activeCycleShotTypeLabel(control));
@@ -345,9 +347,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   delta.field("cupPresence.present", bool(control.cupPresent));
   const bool cupWeightValid = control.cupPresent && control.cupTare.weightValid &&
       std::isfinite(control.cupTare.weightG);
-  if (cupWeightValid)
-    delta.field("cupPresence.weightG", control.cupTare.weightG);
-  else delta.field("cupPresence.weightG", "null");
+  delta.field("cupPresence.weightG", cupWeightValid ? control.cupTare.weightG : NAN);
   delta.field("cupPresence.weightValid", bool(cupWeightValid));
   delta.field("physicalActivatorOn", bool(control.physicalActivatorOn));
   delta.field("reedOn", bool(control.reedOn));

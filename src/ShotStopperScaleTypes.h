@@ -400,9 +400,26 @@ enum class WeightStreamState : uint8_t {
   OVERLOAD
 };
 
+// Item tared on top of a cup ("Tare items added to a cup"), as shown on Home.
+enum class AccessoryState : uint8_t { OFF, UNKNOWN, ABSENT, NOT_TRACKED, SETTLING, PRESENT };
+
+inline const char *accessoryStateName(AccessoryState state) {
+  switch (state) {
+    case AccessoryState::OFF: return "off";
+    case AccessoryState::UNKNOWN: return "unknown";
+    case AccessoryState::ABSENT: return "absent";
+    case AccessoryState::NOT_TRACKED: return "not_tracked";
+    case AccessoryState::SETTLING: return "settling";
+    case AccessoryState::PRESENT: return "present";
+  }
+  return "unknown";
+}
+
 struct CupTareDiagnostics {
   float weightG = 0.0f;
   bool weightValid = false;
+  AccessoryState accessoryState = AccessoryState::UNKNOWN;
+  float accessoryG = 0.0f;
   uint8_t cupState = 0;
   bool holdTransitions = false;
   bool inNegativeHole = false;

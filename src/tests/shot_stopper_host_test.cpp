@@ -11284,6 +11284,60 @@ void it72_accessory_ramp_is_not_tared() {
   }
 }
 
+void prepareTaredCupForAccessory() {
+  prepareIdleTare();
+  runtimeConfig.noScaleBbwMode |= IDLE_ACCESSORY_RETARE;
+  idleCup(300.0f);
+  CHECK(executeNextScaleCommand());
+  idleCup(0.0f);
+  CHECK(idleTare.lastReason == IdleTareReason::EFFECT_CONFIRMED);
+}
+
+void it74_accessory_landing_overshoot_is_tared() {
+  for (bool slosh : {false, true}) {
+    prepareTaredCupForAccessory();
+    if (slosh) {  // Rocks for about two seconds before it settles.
+      for (float w : {30.0f, 60.0f, 50.0f}) idleWeight(w, 100);
+      for (float w : {46.0f, 40.0f, 44.0f, 41.0f, 43.0f}) idleWeight(w, 300);
+    } else {  // Field trace: a hand press peaks at 2.3x a 42.2 g bar.
+      const std::pair<uint32_t, float> trace[] = {{60, 4.0f}, {120, 27.9f},
+          {90, 51.8f}, {120, 82.7f}, {90, 98.2f}, {90, 75.69f}, {90, 44.1f}};
+      for (const auto &sample : trace) idleWeight(sample.second, sample.first);
+    }
+    for (int i = 0; i < 5; ++i) idleWeight(42.2f, 100);
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  }
+}
+
+void it75_accessory_pour_shapes_are_not_tared() {
+  for (int shape = 0; shape < 2; ++shape) {
+    prepareTaredCupForAccessory();
+    if (shape == 0) {  // Two syrup pumps: the second step starts above half the minimum.
+      idleCup(8.0f);
+      for (int i = 0; i < 6; ++i) idleWeight(8.0f, 100);
+      idleCup(16.0f);
+    } else {  // A fast pour keeps rising past its first-gap peak.
+      for (float w = 2.5f; w <= 150.0f; w += 2.5f) idleWeight(w, 100);
+      idleCup(150.0f);
+    }
+    CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 0);
+  }
+}
+
+void it76_unstable_accessory_request_retries() {
+  prepareTaredCupForAccessory();
+  idleCup(42.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  idleWeight(48.0f);  // A bump before the write releases the queued request.
+  CHECK(idleTare.requestId == 0);
+  CHECK(idleTare.lastReason == IdleTareReason::UNSTABLE);
+  CHECK(executeNextScaleCommand());
+  CHECK(scale.tareCalls == 1U);
+  idleCup(42.0f);
+  CHECK(commandCount(ScaleCommandType::TARE_ONLY) == 1);
+  CHECK(idleTare.accessoryRequest);
+}
+
 void it38_accessory_retare_requires_continuous_confirmed_placement() {
   for (unsigned mode = 0; mode < 4; ++mode) {
     prepareIdleTare();
@@ -21908,6 +21962,9 @@ const TestCase testCases[] = {
     {"IT71", it71_tare_with_coffee_then_lift_recovers},
     {"IT72", it72_accessory_ramp_is_not_tared},
     {"IT73", it73_off_anchor_wait_age_and_profiler_event},
+    {"IT74", it74_accessory_landing_overshoot_is_tared},
+    {"IT75", it75_accessory_pour_shapes_are_not_tared},
+    {"IT76", it76_unstable_accessory_request_retries},
     {"CF06", cup_fsm_put_back_without_tare_is_present},
     {"CF07", cup_fsm_disconnect_does_not_emit_removed},
     {"CF08", cup_fsm_rinse_does_not_freeze_presence},
