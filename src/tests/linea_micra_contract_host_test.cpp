@@ -51,14 +51,19 @@ int main() {
   assert(identity.ensure(derive));
   assert(derivations == 4);
   LineaMicraPersistedSettings settings;
+  // Defaults: every option on except remote power-on; standby waits 15 s.
   assert(settings.options == LINEA_MICRA_DEFAULT_OPTIONS);
-  assert(settings.scaleOptions == 0);
-  assert((LINEA_MICRA_DEFAULT_OPTIONS &
-          LINEA_MICRA_SHUTDOWN_WITH_SCALE) == 0);
+  assert(settings.scaleOptions == LINEA_MICRA_KNOWN_SCALE_OPTIONS);
   assert((LINEA_MICRA_DEFAULT_OPTIONS & LINEA_MICRA_POWER_ON_WITH_SCALE) ==
          0);
+  assert(LINEA_MICRA_DEFAULT_OPTIONS ==
+         ((LINEA_MICRA_KNOWN_OPTIONS & ~LINEA_MICRA_POWER_ON_WITH_SCALE &
+           ~LINEA_MICRA_SHUTDOWN_GRACE_MASK) |
+          (2U << LINEA_MICRA_SHUTDOWN_GRACE_SHIFT)));
+  assert(lineaMicraShutdownGraceSeconds(LINEA_MICRA_DEFAULT_OPTIONS) == 15);
   assert(LINEA_MICRA_KNOWN_OPTIONS ==
-         (LINEA_MICRA_DEFAULT_OPTIONS | LINEA_MICRA_SHUTDOWN_WITH_SCALE |
+         (LINEA_MICRA_APPLY_TEMPERATURE | LINEA_MICRA_OBSERVE_STATE |
+          LINEA_MICRA_RECOGNIZE_WAKE | LINEA_MICRA_SHUTDOWN_WITH_SCALE |
           LINEA_MICRA_POWER_ON_WITH_SCALE | LINEA_MICRA_SHUTDOWN_GRACE_MASK));
   std::strcpy(settings.username, "barista@example.com");
   std::strcpy(settings.password, "correct horse battery staple");
@@ -426,19 +431,22 @@ int main() {
   assert(effective.quality == LineaMicraObservationQuality::UNSUPPORTED);
   assert(!power.notePhysicalStart(authoritative, false, true, 1101));
 
+  const uint8_t shutdownOff = LINEA_MICRA_APPLY_TEMPERATURE |
+                              LINEA_MICRA_OBSERVE_STATE |
+                              LINEA_MICRA_RECOGNIZE_WAKE;
   const uint8_t shutdownOptions15s =
-      LINEA_MICRA_DEFAULT_OPTIONS | LINEA_MICRA_SHUTDOWN_WITH_SCALE |
+      shutdownOff | LINEA_MICRA_SHUTDOWN_WITH_SCALE |
       static_cast<uint8_t>(2U << LINEA_MICRA_SHUTDOWN_GRACE_SHIFT);
   const uint8_t shutdownOptionsImmediate =
-      LINEA_MICRA_DEFAULT_OPTIONS | LINEA_MICRA_SHUTDOWN_WITH_SCALE;
+      shutdownOff | LINEA_MICRA_SHUTDOWN_WITH_SCALE;
   MicraScaleShutdownTracker::Snapshot scale;
   MicraScaleShutdownTracker shutdown;
 
   // Option off: the explicit power-off is ignored.
   scale.disconnectSequence = 1;
   scale.disconnectReason = LINEA_MICRA_SCALE_EXPLICIT_DISCONNECT;
-  assert(!shutdown.service(1000, scale, LINEA_MICRA_DEFAULT_OPTIONS, true));
-  assert(!shutdown.service(60000, scale, LINEA_MICRA_DEFAULT_OPTIONS, true));
+  assert(!shutdown.service(1000, scale, shutdownOff, true));
+  assert(!shutdown.service(60000, scale, shutdownOff, true));
   // No cloud account: ignored even with the option on.
   assert(!shutdown.service(1000, scale, shutdownOptions15s, false));
   assert(!shutdown.service(60000, scale, shutdownOptions15s, false));
@@ -488,7 +496,7 @@ int main() {
   // Option disabled mid-grace cancels.
   scale.disconnectSequence = 8;
   assert(!shutdown.service(120000, scale, shutdownOptions15s, true));
-  assert(!shutdown.service(121000, scale, LINEA_MICRA_DEFAULT_OPTIONS, true));
+  assert(!shutdown.service(121000, scale, shutdownOff, true));
   assert(!shutdown.pending());
   assert(!shutdown.service(140000, scale, shutdownOptions15s, true));
 

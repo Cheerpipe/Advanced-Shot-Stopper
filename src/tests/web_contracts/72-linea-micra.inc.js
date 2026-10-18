@@ -368,14 +368,16 @@ if (!micraTypes.includes('APPLY_TEMPERATURE') ||
     !micraStatus.includes('\\\"scalePaused\\\"')) {
   throw new Error('Linea Micra preset temperature must coalesce, gate on scale/shot activity, reuse authentication, and confirm dashboard readback');
 }
-for (const id of ['lineaMicraUsername', 'lineaMicraPassword',
-  'lineaMicraConnectButton', 'lineaMicraMachine', 'lineaMicraSelectButton',
-  'lineaMicraConnectionType', 'lineaMicraApplyTemperature', 'lineaMicraObserveState',
+for (const id of ['lineaMicraSignIn', 'lineaMicraChoose', 'lineaMicraConnected',
+  'lineaMicraUsername', 'lineaMicraPassword', 'lineaMicraWifiNote', 'lineaMicraProgress',
+  'lineaMicraConnectButton', 'lineaMicraMachines', 'lineaMicraSelectButton',
+  'lineaMicraCancelButton', 'lineaMicraPowerDeps', 'lineaMicraLinkedNote',
+  'lineaMicraApplyTemperature', 'lineaMicraObserveState',
   'lineaMicraBoostScaleDetectionWhenOn', 'lineaMicraReduceScaleScanningWhenOff',
   'lineaMicraRecognizeWake', 'lineaMicraShutdownWithScale',
   'lineaMicraShutdownGraceWrap', 'lineaMicraShutdownGrace',
-  'lineaMicraSaveButton', 'lineaMicraDisconnectButton',
-  'lineaMicraBrewTargetC']) {
+  'lineaMicraSaveButton', 'revertLineaMicraButton', 'lineaMicraDirtyHint',
+  'lineaMicraDisconnectButton', 'lineaMicraBrewTargetC']) {
   if (!micraSettingsHtml.includes(`id="${id}"`)) {
     throw new Error(`Linea Micra settings control is missing: ${id}`);
   }
@@ -443,7 +445,7 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
 {
   const assert = require('assert');
   const vm = require('vm');
-  const binding = viewJs.settings.match(/\$\(\s*['"]lineaMicraDisconnectButton['"]\s*\)\s*\.\s*onclick\s*=([\s\S]*?);\s*if\s*\(\s*\$\(\s*['"]lineaMicraShutdownWithScale['"]\s*\)/);
+  const binding = viewJs.settings.match(/\$\(\s*['"]lineaMicraDisconnectButton['"]\s*\)\s*\.\s*onclick\s*=([\s\S]*?);\s*for\s*\(/);
   assert(binding, 'Micra Disconnect click binding is missing');
   let calls = 0, confirmed = false;
   const click = vm.runInNewContext(`(${binding[1]})`, {
@@ -464,119 +466,127 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
   // shared-state references resolve to this harness's globals.
   const statusUi = rawViewJs.settings.slice(rawViewJs.settings.search(/const\s+MICRA_SWITCHES\s*=/),
       rawViewJs.settings.indexOf('function loadBullseyeConfig(')).replace(/\bR\.(?:uiState\.)?/g, '');
-  for (const theme of ['theme-light', 'theme-dark']) {
-    const nodes = new Map();
-    const get = id => {
-      if (!nodes.has(id)) nodes.set(id, {disabled: false, checked: false, dataset: {},
-        busy: false,
-        classList: {toggle(_, on) { if (id === 'lineaMicraConnectButton') nodes.get(id).busy = on; }},
-        parentElement: {nextSibling: null}});
-      return nodes.get(id);
-    };
-    const select = get('lineaMicraMachine');
-    select.add = option => { select.options.push(option); select.value = option.value; };
-    Object.defineProperty(select, 'textContent', {set() { select.options = []; select.value = ''; }});
-    let label = get('lineaMicraUsername').parentElement;
-    for (let i = 0; i < 5; i++) { label.nextSibling = {}; label = label.nextSibling; }
-    const classes = new Set([theme]);
-    const context = vm.createContext({__LINEA_MICRA__: true, $: get, controlsMutable: true, micraDirty: false,
-      document: {documentElement: {classList: {toggle(name, on) {
-        if (on) classes.add(name); else classes.delete(name);
-      }}}},
-      Option: function(text, value) { this.text = text; this.value = value; },
-      __WEBUI_TEXT__: key => key});
-    vm.runInContext(statusUi, context);
-    context.R = {saveLineaMicraSettings: context.saveLineaMicraSettings};
-    const saveClick = vm.runInContext(`(${saveBinding[1]})`, context);
-    const commands = [];
-    context.command = (url, body) => { commands.push({url, body: JSON.parse(JSON.stringify(body))}); return true; };
-    get('lineaMicraConnectionType').value = 'api';
-    get('lineaMicraObserveState').checked = true;
-    get('lineaMicraShutdownGrace').value = '15';
-    vm.runInContext("saveLineaMicraSettings('select','SYNTHETIC')", context);
+  const nodes = new Map();
+  const node = () => {
+    const n = {disabled: false, checked: false, hidden: false, value: '', textContent: '', innerText: '',
+      dataset: {}, classes: new Set(), children: [], focused: false,
+      classList: {toggle(name, on) { on ? n.classes.add(name) : n.classes.delete(name); }, add(name) { n.classes.add(name); }},
+      focus() { n.focused = true; },
+      replaceChildren(...c) { n.children = c; },
+      querySelectorAll: () => n.children.flatMap(c => c.radio ? [c.radio] : [c]),
+      querySelector: sel => sel === 'input:checked' ? n.children.map(c => c.radio).find(r => r && r.checked) || null
+        : sel === 'b' ? n.b : sel === 'small' ? n.small : null};
+    return n;
+  };
+  const get = id => { if (!nodes.has(id)) nodes.set(id, node()); return nodes.get(id); };
+  get('lineaMicraPowerDeps').children = ['RecognizeWake', 'ScaleOffWithMachine', 'BoostScaleDetectionWhenOn',
+    'ReduceScaleScanningWhenOff'].map(id => get('lineaMicra' + id));
+  const commands = [];
+  const context = vm.createContext({__LINEA_MICRA__: true, $: get, controlsMutable: true,
+    micraDirty: false, micraSignIn: null,
+    document: {documentElement: {classList: {toggle() {}}}, createElement() {
+      const label = node();
+      Object.defineProperty(label, 'innerHTML', {set() {
+        label.radio = node(); label.firstChild = label.radio; label.b = node(); label.small = node();
+      }});
+      return label;
+    }},
+    setSaveDirty: (id, hint, dirty) => { get(id).disabled = !dirty; get(hint).classList.toggle('hidden', !dirty); },
+    command: async (url, body) => { commands.push({url, body: JSON.parse(JSON.stringify(body))}); return true; },
+    __WEBUI_TEXT__: key => key});
+  vm.runInContext(statusUi, context);
+  context.R = {saveLineaMicraSettings: context.saveLineaMicraSettings};
+  const saveClick = vm.runInContext(`(${saveBinding[1]})`, context);
+  const apply = lm => vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: lm})})`, context);
+  const panes = () => ['SignIn', 'Choose', 'Connected'].filter(p => !get('lineaMicra' + p).hidden).join();
+  const flush = () => new Promise(resolve => setImmediate(resolve));
+  const run = async () => {
+    const base = {accountConfigured: false, email: '', selectedName: '', selectedSerial: '', machines: [],
+      phase: 'disabled', error: 'none', staConnected: true, apActive: false, observeState: true,
+      applyTemperature: true, recognizeWakeGesture: true, shutdownWithScale: true, shutdownGraceSeconds: 15,
+      scaleOffWithMachine: true, boostScaleDetectionWhenOn: true, reduceScaleScanningWhenOff: true,
+      powerOnWithScale: false};
+    apply(base);
+    assert.strictEqual(panes(), 'SignIn', 'Only the sign-in form shows before an account is connected');
+    assert.strictEqual(get('lineaMicraProgress').textContent, '');
+    apply({...base, apActive: true});
+    assert(!get('lineaMicraWifiNote').classes.has('hidden') && get('lineaMicraConnectButton').disabled,
+        'Sign-in must explain and wait while the setup network is open');
+    apply({...base, phase: 'authenticating'});
+    assert(get('lineaMicraConnectButton').classes.has('busy'), 'Sign in must spin while the cloud sign-in runs');
+    assert.strictEqual(get('lineaMicraProgress').textContent, 'runtime.micra_progress_signing_in');
+    apply({...base, phase: 'listing'});
+    assert.strictEqual(get('lineaMicraProgress').textContent, 'runtime.micra_progress_listing');
+    apply({...base, phase: 'failed', error: 'invalid_auth'});
+    assert(!get('lineaMicraConnectButton').classes.has('busy'));
+    assert.strictEqual(get('lineaMicraProgress').textContent, 'runtime.micra_error_auth',
+        'A rejected sign-in must read in plain language, never as an error code');
+    assert(get('lineaMicraProgress').classes.has('error'));
+    apply({...base, phase: 'failed', error: 'canceled'});
+    assert.strictEqual(get('lineaMicraProgress').textContent, '', 'Routine cancellations stay silent');
+
+    // A sign-in started here with one machine saves it with the shown options.
+    context.micraSignIn = 'pending';
+    const lone = {...base, phase: 'confirmed', machines: [{serial: 'ABC', name: 'Micra'}]};
+    apply(lone);
+    await flush();
     assert.deepStrictEqual(commands[0], {url: '/api/v1/machine/linea-micra', body: {
-      action: 'select', serial: 'SYNTHETIC', applyTemperature: false, observeState: true,
-      boostScaleDetectionWhenOn: false, reduceScaleScanningWhenOff: false,
-      recognizeWakeGesture: false, powerOnWithScale: false, shutdownWithScale: false,
-      scaleOffWithMachine: false, connectionType: 'api', shutdownGraceSeconds: 15}});
-    get('lineaMicraConnectionType').value = 'websocket';
+      action: 'select', serial: 'ABC', applyTemperature: true, observeState: true,
+      boostScaleDetectionWhenOn: true, reduceScaleScanningWhenOff: true,
+      recognizeWakeGesture: true, powerOnWithScale: false, shutdownWithScale: true,
+      scaleOffWithMachine: true, connectionType: 'websocket', shutdownGraceSeconds: 15}});
+    apply(lone);
+    assert.strictEqual(panes(), 'SignIn', 'The lone machine is linked without a choice screen');
+    assert.strictEqual(get('lineaMicraProgress').textContent, 'runtime.micra_progress_linking');
+    assert.strictEqual(commands.length, 1, 'The automatic selection is sent once');
+
+    // A listed machine without a sign-in from this page waits for a choice.
+    context.micraSignIn = null;
+    apply(lone);
+    assert.strictEqual(panes(), 'Choose');
+    context.micraSignIn = 'pending';
+    apply({...lone, machines: [{serial: 'ABC', name: 'Micra'}, {serial: 'DEF', name: ''}]});
+    assert.strictEqual(context.micraSignIn, null);
+    assert.strictEqual(panes(), 'Choose', 'Several machines need an explicit choice');
+    assert.strictEqual(commands.length, 1);
+    const machines = get('lineaMicraMachines').children;
+    assert.deepStrictEqual(machines.map(m => [m.radio.value, m.b.textContent, m.small.textContent]),
+        [['ABC', 'Micra', 'ABC'], ['DEF', 'DEF', 'DEF']]);
+    assert(get('lineaMicraSelectButton').disabled, 'Use this machine waits for a choice');
+
+    const connected = {...base, accountConfigured: true, email: 'user@example.test', selectedName: 'Micra',
+      selectedSerial: 'ABC', phase: 'idle', powerState: 'ON', targetValid: true, targetDeciC: 935};
+    apply(connected);
+    assert.strictEqual(panes(), 'Connected');
+    assert.strictEqual(context.micraSignIn, null);
+    assert.strictEqual(get('lineaMicraIdentity').innerText, 'Micra · ABC\nuser@example.test');
+    assert.strictEqual(get('lineaMicraStatus').textContent, 'runtime.micra_power_on · runtime.target 93.5 °C');
+    assert(get('lineaMicraSaveButton').disabled, 'Save waits for a change, like every other section');
+    vm.runInContext('markLineaMicraDirty()', context);
+    assert(!get('lineaMicraSaveButton').disabled && !get('lineaMicraDirtyHint').classes.has('hidden'));
+    get('lineaMicraObserveState').checked = false;
+    get('lineaMicraApplyTemperature').checked = false;
+    apply(connected);
+    assert.strictEqual(get('lineaMicraApplyTemperature').checked, false, 'Status must not overwrite unsaved edits');
+    assert(get('lineaMicraPowerDeps').classes.has('fieldOff') && get('lineaMicraRecognizeWake').disabled,
+        'Options that need the power state follow Show power state');
     saveClick({type: 'click', target: get('lineaMicraSaveButton')});
-    assert.strictEqual(commands[1].body.connectionType, 'websocket');
-    assert.strictEqual(commands[1].body.action, 'save');
-    assert(!('serial' in commands[1].body));
-    const connected = {accountConfigured: true, email: 'user@example.test',
-      selectedName: 'Micra', selectedSerial: 'ABC', observeState: true,
-      machines: [], phase: 'idle', error: 'none', staConnected: true};
-    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: connected})})`, context);
-    assert.strictEqual(get('lineaMicraConnectionType').value,'websocket');
-    context.micraDirty=true;
-    get('lineaMicraConnectionType').value='api';
-    get('lineaMicraApplyTemperature').checked=false;
-    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: connected})})`,context);
-    assert.strictEqual(get('lineaMicraConnectionType').value,'api');
-    assert.strictEqual(get('lineaMicraApplyTemperature').checked,false);
-    saveClick({type: 'click', target: get('lineaMicraSaveButton')});
-    assert.deepStrictEqual(commands[2], {url: '/api/v1/machine/linea-micra', body: {
-      action: 'save', applyTemperature: false, observeState: true,
-      boostScaleDetectionWhenOn: false, reduceScaleScanningWhenOff: false,
-      recognizeWakeGesture: false, powerOnWithScale: false, shutdownWithScale: false,
-      scaleOffWithMachine: false, connectionType: 'api', shutdownGraceSeconds: 0}},
-      `${theme}: configured Micra must save API mode through a button click without credentials`);
-    context.micraDirty=false;
-    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {...connected,connectionType:'api',applyTemperature:true}})})`,context);
-    assert.strictEqual(get('lineaMicraConnectionType').value,'api');
-    assert.strictEqual(get('lineaMicraApplyTemperature').checked,true);
-    assert.strictEqual(get('lineaMicraSaveButton').disabled, false,
-        `${theme}: Save must be available after selection`);
-    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
-      ...connected, accountConfigured: false, email: '', selectedName: '',
-      selectedSerial: '', phase: 'disabled'}})})`, context);
-    assert.strictEqual(get('lineaMicraSaveButton').disabled, true);
-    assert.strictEqual(get('lineaMicraApplyTemperature').disabled, true);
-    assert.strictEqual(get('lineaMicraIdentity').innerText, 'runtime.not_connected');
-    assert.strictEqual(get('lineaMicraStatus').textContent, 'runtime.unauthenticated');
-    assert.strictEqual(get('lineaMicraUsername').parentElement.hidden, false);
-    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
-      ...connected, accountConfigured: false, email: '', selectedName: '',
-      selectedSerial: '', phase: 'authenticating'}})})`, context);
-    assert.strictEqual(get('lineaMicraConnectButton').busy, true,
-        'Connect must spin while the cloud sign-in is in flight');
-    assert.strictEqual(get('lineaMicraIdentity').innerText,
-        'runtime.not_connected',
-        'No signed-in claim before the machine list lands');
-    assert.strictEqual(get('lineaMicraStatus').textContent, 'authenticating',
-        'The status hint must narrate the in-flight sign-in phase');
-    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
-      ...connected, accountConfigured: false, email: '', selectedName: '',
-      selectedSerial: '', machines: [{serial: 'ABC', name: 'Micra'}],
-      phase: 'confirmed'}})})`, context);
-    assert.strictEqual(get('lineaMicraIdentity').innerText,
-        'runtime.signed_in_select_machine',
-        'A loaded machine list must read as signed in');
-    assert.strictEqual(get('lineaMicraStatus').textContent, 'confirmed',
-        'The status hint must show the session phase after Connect');
-    assert.strictEqual(get('lineaMicraUsername').parentElement.hidden, false,
-        'Credentials must stay visible until a machine is saved');
-    assert.strictEqual(get('lineaMicraConnectButton').busy, false,
-        'Connect must stop spinning once machines are listed');
-    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
-      ...connected, accountConfigured: false, email: '', selectedName: '',
-      selectedSerial: '', phase: 'failed', error: 'invalid_auth'}})})`, context);
-    assert.strictEqual(get('lineaMicraConnectButton').busy, false,
-        'Connect must stop spinning when authentication fails');
-    assert.strictEqual(get('lineaMicraStatus').textContent,
-        'failed · invalid_auth',
-        'A failed sign-in must surface the phase and error');
-    vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: {
-      ...connected, accountConfigured: false, email: '', selectedName: '',
-      selectedSerial: '', machines: [{serial: 'ABC', name: 'Micra'}],
-      phase: 'failed', error: 'invalid_auth'}})})`, context);
-    assert.strictEqual(get('lineaMicraIdentity').innerText,
-        'runtime.signed_in_select_machine',
-        'A listed machine stays selectable while a re-auth attempt fails');
-  }
+    await flush();
+    assert.deepStrictEqual(commands[1].body, {action: 'save', applyTemperature: false, observeState: false,
+      boostScaleDetectionWhenOn: true, reduceScaleScanningWhenOff: true,
+      recognizeWakeGesture: true, powerOnWithScale: false, shutdownWithScale: true,
+      scaleOffWithMachine: true, connectionType: 'websocket', shutdownGraceSeconds: 15},
+      'Save sends every option in one batch, always over WebSocket, without credentials');
+    assert.strictEqual(context.micraDirty, false);
+    assert(get('lineaMicraSaveButton').disabled);
+    get('lineaMicraShutdownWithScale').checked = false;
+    vm.runInContext('updateMicraDependentControls()', context);
+    assert(get('lineaMicraShutdownGraceWrap').classes.has('hidden') && get('lineaMicraShutdownGrace').disabled);
+  };
+  run().catch(error => {console.error(error); process.exitCode = 1;});
 }
 if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
+    !rawCss.includes('.micraDeps{') ||
     !rawCss.includes('[type=email]') ||
     !micraDiagnosticHtml.includes('<span id="dMicraPowerValue">{{webui:diagnostic.unknown}}</span> - <a id="lineaMicraRefreshLink" href="#" aria-disabled="true" tabindex="-1">({{webui:diagnostic.refresh_state}})</a>') ||
     micraDiagnosticHtml.includes('id="lineaMicraRefreshButton"') ||
@@ -585,34 +595,21 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !codeIncludes(rawAllJs, "{action:'connect',username,password}") ||
     !codeIncludes(rawAllJs, "lineaMicraAction('disconnect')") ||
     codeIncludes(rawRuntimeJs, "['queued','authenticating','listing','running','backoff'].includes(m.phase)") ||
-    !codeIncludes(rawAllJs, "m.email+'\\n'+m.selectedName+' - '+m.selectedSerial") ||
-    !codeIncludes(rawAllJs, "$('lineaMicraIdentity').innerText=connected?") ||
-    !codeIncludes(rawAllJs, "for(let e=$('lineaMicraUsername').parentElement,n=5;n--;e=e.nextSibling)e.hidden=connected") ||
-    !codeIncludes(rawAllJs, "$('lineaMicraConnectButton').disabled=!canEdit||!m.staConnected||m.apActive") ||
-    !micraSettingsHtml.includes('<button id="lineaMicraConnectButton" class="btnGlyph mutable btnInvert" type="button"><span class="g">{{webui:settings.symbol_3}}</span><span class="t">{{webui:settings.connect_account}}</span></button>') ||
-    !codeIncludes(rawAllJs, "$('lineaMicraConnectButton').classList.add('busy');const ok=await command('/api/v1/machine/linea-micra',{action:'connect'") ||
-    !codeIncludes(rawAllJs, "$('lineaMicraConnectButton').classList.toggle('busy',!connected&&['queued','authenticating','listing'].includes(m.phase)") ||
-    !codeIncludes(rawAllJs, 'select.disabled=!canEdit||!machines.length') ||
-    !codeIncludes(rawAllJs, "updateMicraShutdownControls(canEdit,connected)") ||
-    !codeIncludes(rawAllJs, "$('lineaMicraShutdownGrace').disabled=!canEdit||!connected||!on") ||
-    !codeIncludes(rawAllJs, "$('lineaMicraShutdownGraceWrap').classList.toggle('hidden',!on)") ||
-    !codeIncludes(rawAllJs, "$('lineaMicraShutdownGrace').value=String(m.shutdownGraceSeconds||0)") ||
-    !codeIncludes(viewJs.settings, "$('lineaMicraShutdownWithScale').onchange=()=>R.updateMicraShutdownControls()") ||
-    !micraSettingsHtml.includes('id="lineaMicraShutdownWithScale" type="checkbox">') ||
-    !micraSettingsHtml.includes('id="lineaMicraShutdownGraceWrap" class="hidden"') ||
-    !micraSettingsHtml.includes('<option value="60">') ||
-    micraSettingsHtml.includes('id="lineaMicraShutdownWithScale" type="checkbox" checked') ||
-    !codeIncludes(rawAllJs, "$('lineaMicraDisconnectButton').disabled=!canEdit||(!connected&&!machines.length)") ||
+    codeIncludes(rawAllJs, 'lineaMicraConnectionType') ||
+    !codeIncludes(rawRuntimeJs, "lineaMicraSaveButton:'revertLineaMicraButton'") ||
+    !codeIncludes(viewJs.settings, "el.closest('#lineaMicraSignIn,#lineaMicraChoose')") ||
+    micraSettingsHtml.indexOf('id="lineaMicraSettings"') > micraSettingsHtml.indexOf('{{webui:settings.shared_settings}}') ||
+    !micraSettingsHtml.includes('<option value="15" selected>') ||
+    micraSettingsHtml.includes('id="lineaMicraPowerOnWithScale" type="checkbox" checked') ||
     !codeIncludes(rawViewJs.diagnostic, "$('dMicraPowerValue').textContent=power") ||
-    !codeIncludes(rawAllJs, "m.temperatureState&&m.temperatureState!=='disabled'") ||
     !codeIncludes(rawViewJs.diagnostic, "$('dMicraAge').textContent=lm.temperatureState+'/'+lm.temperatureError+' · '") ||
     !codeIncludes(rawViewJs.diagnostic, "refresh.setAttribute('aria-disabled',String(disabled))") ||
     codeIncludes(rawViewJs.diagnostic, "expired?'UNKNOWN':lm.powerState") ||
     !codeIncludes(rawViewJs.diagnostic, 'power=lm.powerState') ||
     !codeIncludes(rawViewJs.diagnostic, "stale=lm.freshnessPolicy!=='connection'&&lm.quality==='current'&&age>=lm.freshnessMs") ||
-    !micraSettingsHtml.includes('id="lineaMicraApplyTemperature" type="checkbox" checked') ||
-    !micraSettingsHtml.includes('id="lineaMicraObserveState" type="checkbox" checked') ||
-    !micraSettingsHtml.includes('id="lineaMicraRecognizeWake" type="checkbox" checked')) {
+    ['ApplyTemperature', 'ObserveState', 'RecognizeWake', 'ShutdownWithScale', 'ScaleOffWithMachine',
+      'BoostScaleDetectionWhenOn', 'ReduceScaleScanningWhenOff'].some(id =>
+      !micraSettingsHtml.includes(`id="lineaMicra${id}" type="checkbox" checked`))) {
   throw new Error('Linea Micra UI must implement account connection, selection, and quality-only freshness expiry');
 }
 if (micraService.includes('keep_alive_enable = true') ||

@@ -147,6 +147,7 @@ const uiState = {
   configBaseline: null,
   micraBaseline: null,
   micraDirty: false,
+  micraSignIn: null,
   dateTimeBaseline: null,
   scanBusy: false,
   networkAddressLoaded: false,
@@ -2077,6 +2078,7 @@ const REVERT_BUTTONS = {
   saveBleButton: "revertBleButton",
   savePowerButton: "revertPowerButton",
   saveFrontendButton: "revertFrontendButton",
+  lineaMicraSaveButton: "revertLineaMicraButton",
 };
 function settingsSectionOf(id) {
   if (id === "lineaMicraBrewTargetC" || BREW_CONTROL_IDS.includes(id)) return "brew";

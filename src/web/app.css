@@ -227,6 +227,7 @@ html:not(.lineaMicraIntegration) .micraOnly,html:not(.micraTemperatureEnabled) .
 .fieldWarn{border-color:var(--wn)!important}
 .cfgGroup{margin:.5rem 0;padding:.25rem 0 .5rem;border:0;border-top:1px solid var(--ln);border-radius:0}
 .cfgGroup .cfgGroup{margin:.5rem 0 0;padding-left:.75rem}
+.micraDeps{margin-left:1.9rem}
 summary{min-height:var(--tap);padding:.65rem .25rem;cursor:pointer;font-weight:650;color:var(--fg)}
 summary::marker{color:var(--ac)}
 .configSaveBar{position:sticky;bottom:var(--nav-offset);z-index:2;background:var(--sf);padding:.65rem 0 calc(.65rem + env(safe-area-inset-bottom));margin:.75rem 0 0;border-top:1px solid var(--ln);display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}

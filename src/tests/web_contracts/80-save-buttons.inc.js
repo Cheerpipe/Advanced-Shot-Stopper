@@ -46,7 +46,7 @@
   const adminUi = viewJs.admin, normalizedUi = ui.replace(/\\"/g, '"');
   for (const id of ['saveConfigButton', 'saveBrewPresetButton', 'saveWebhookButton',
     'saveNetworkButton', 'saveDateTimeButton', 'changeDevicePasswordButton',
-    'saveFirmwareModeButton', 'saveBleButton', 'savePowerButton', 'saveFrontendButton'])
+    'saveFirmwareModeButton', 'saveBleButton', 'savePowerButton', 'saveFrontendButton', 'lineaMicraSaveButton'])
     assert(new RegExp(`id="${id}"[^>]*data-dirty="0"[^>]*disabled`).test(normalizedUi),
         `${id} must start visibly disabled`);
   for (const id of ['revertConfigButton', 'revertBrewPresetButton', 'revertLineaMicraButton',
@@ -55,8 +55,8 @@
     assert(new RegExp(`id="${id}"[^>]*data-dirty="0"[^>]*disabled`).test(normalizedUi),
         `${id} must start visibly disabled next to its save button`);
   assert(codeIncludes(viewJs.settings, 
-      "if(el.id==='presetRenameInput')return"),
-      'The preset rename dialog input must not dirty the machine-config section');
+      "if(el.id==='presetRenameInput'||el.closest('#lineaMicraSignIn,#lineaMicraChoose'))return"),
+      'The preset rename dialog and Micra sign-in inputs must not dirty a settings section');
   assert(codeIncludes(js, 'e.dataset.dirty!=null') &&
          codeIncludes(js, "setSaveDirty('saveConfigButton','configDirtyHint',false)") &&
          codeIncludes(js, "setSaveDirty('saveDateTimeButton','dateTimeDirtyHint',false)") &&

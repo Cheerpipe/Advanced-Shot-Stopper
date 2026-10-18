@@ -2353,7 +2353,7 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(initializeDefaultSettings(settings));
   CHECK(settings.schemaVersion == CONFIG_SCHEMA_VERSION);
   CHECK(settings.lineaMicra.options == LINEA_MICRA_DEFAULT_OPTIONS);
-  CHECK(settings.lineaMicra.scaleOptions == 0);
+  CHECK(settings.lineaMicra.scaleOptions == LINEA_MICRA_KNOWN_SCALE_OPTIONS);
   CHECK(settings.lineaMicra.connectionType == 0);
 
   // A checksum-corrupt record must be rejected, never repaired.
@@ -2410,7 +2410,9 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   settings.presets.presets[0].lineaMicraBrewTargetDeciC = 935;
   CHECK(savePersistedSettings(settings));
   CHECK(loadPersistedSettings(settings));
-  CHECK(settings.lineaMicra.options == LINEA_MICRA_DEFAULT_OPTIONS);
+  CHECK(settings.lineaMicra.options ==
+        (LINEA_MICRA_APPLY_TEMPERATURE | LINEA_MICRA_OBSERVE_STATE |
+         LINEA_MICRA_RECOGNIZE_WAKE));
   CHECK(settings.lineaMicra.accountConfigured);
   CHECK(settings.lineaMicra.connectionType == static_cast<uint8_t>(MicraConnectionType::API));
   CHECK(strcmp(settings.lineaMicra.username, "barista@example.com") == 0);
@@ -2444,6 +2446,7 @@ void p85_schema1_is_strict_and_micra_defaults_round_trip() {
   CHECK(!setShotPresetLineaMicraBrewTarget(bank, createdId, 799));
   CHECK(resetPersistedSettingsToFactory(settings));
   CHECK(settings.lineaMicra.options == LINEA_MICRA_DEFAULT_OPTIONS);
+  CHECK(settings.lineaMicra.scaleOptions == LINEA_MICRA_KNOWN_SCALE_OPTIONS);
   CHECK(strcmp(settings.deviceName, DEFAULT_DEVICE_NAME) == 0);
   CHECK(settings.presets.presets[0].lineaMicraBrewTargetDeciC == 930);
 }

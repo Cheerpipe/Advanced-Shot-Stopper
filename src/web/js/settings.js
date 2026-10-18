@@ -176,9 +176,9 @@ function revertLineaMicra() {
   R.restoreSnapshot(R.uiState.micraBaseline);
   R.uiState.micraBaseline = null;
   R.uiState.micraDirty = false;
-  updateMicraRevertButton();
+  R.setSaveDirty("lineaMicraSaveButton", "lineaMicraDirtyHint", false);
   R.clearFieldErrors();
-  updateMicraShutdownControls();
+  updateMicraDependentControls();
   R.refreshStatus();
 }
 function validateMachineClient() {
@@ -470,6 +470,37 @@ const MICRA_SWITCHES = [
 function micraOptionField(id) {
   return id[0].toLowerCase() + id.slice(1) + (id === "RecognizeWake" ? "Gesture" : "");
 }
+// Shots and scale activity cancel cloud requests routinely: not an error.
+function micraErrorText(error) {
+  if (error === "none" || error === "canceled") return "";
+  return (
+    {
+      invalid_auth: __WEBUI_TEXT__("runtime.micra_error_auth"),
+      no_machines: __WEBUI_TEXT__("runtime.micra_error_no_machines"),
+      clock_unsynchronized: __WEBUI_TEXT__("runtime.micra_error_clock"),
+    }[error] || __WEBUI_TEXT__("runtime.micra_error_cloud")
+  );
+}
+function renderMicraMachines(machines, canEdit) {
+  const list = $("lineaMicraMachines"),
+    key = machines.map((x) => x.serial).join();
+  if (list.dataset.key !== key) {
+    list.dataset.key = key;
+    list.replaceChildren(
+      ...machines.map((x) => {
+        const label = document.createElement("label");
+        label.className = "setupChoice";
+        label.innerHTML = '<input type="radio" name="lineaMicraMachine"><span><b></b><small></small></span>';
+        label.firstChild.value = x.serial;
+        label.querySelector("b").textContent = x.name || x.serial;
+        label.querySelector("small").textContent = x.serial;
+        return label;
+      }),
+    );
+  }
+  list.querySelectorAll("input").forEach((r) => (r.disabled = !canEdit));
+  $("lineaMicraSelectButton").disabled = !canEdit || !list.querySelector("input:checked");
+}
 function applyLineaMicraStatus(s) {
   const m = __LINEA_MICRA__ && s.lineaMicra;
   if (!m) return;
@@ -478,84 +509,76 @@ function applyLineaMicraStatus(s) {
     m.applyTemperature && m.accountConfigured,
   );
   const machines = m.machines || [],
-    select = $("lineaMicraMachine"),
-    previous = select.value;
-  select.textContent = "";
-  if (!machines.length)
-    select.add(new Option(__WEBUI_TEXT__("runtime.connect_to_load_machines"), ""));
-  else
-    machines.forEach((x) =>
-      select.add(new Option(x.name ? x.name + " · " + x.serial : x.serial, x.serial)),
-    );
-  if (machines.some((x) => x.serial === previous)) select.value = previous;
+    canEdit = R.controlsMutable,
+    connected = m.accountConfigured,
+    linking = R.uiState.micraSignIn === "linking" && !connected,
+    busy = linking || (!connected && ["queued", "authenticating", "listing"].includes(m.phase)),
+    choosing = !connected && !busy && machines.length > 0,
+    offline = !m.staConnected || m.apActive,
+    error = micraErrorText(m.error);
   if (!R.uiState.micraDirty) {
-    $("lineaMicraConnectionType").value = m.connectionType || "websocket";
     for (const id of MICRA_SWITCHES) $("lineaMicra" + id).checked = !!m[micraOptionField(id)];
     $("lineaMicraShutdownGrace").value = String(m.shutdownGraceSeconds || 0);
   }
-  const canEdit = R.controlsMutable,
-    connected = m.accountConfigured,
-    session = !connected && machines.length > 0,
-    target = m.targetValid
+  // A sign-in started here saves a lone machine with the options above.
+  if (connected) R.uiState.micraSignIn = null;
+  else if (R.uiState.micraSignIn === "pending" && !busy && (machines.length || error)) {
+    R.uiState.micraSignIn = machines.length === 1 ? "linking" : null;
+    if (machines.length === 1) selectLineaMicra(machines[0].serial);
+    else if (error) $("lineaMicraPassword").focus();
+  }
+  $("lineaMicraSignIn").hidden = connected || choosing;
+  $("lineaMicraChoose").hidden = !choosing;
+  $("lineaMicraConnected").hidden = !connected;
+  $("lineaMicraWifiNote").classList.toggle("hidden", !offline);
+  $("lineaMicraConnectButton").disabled = !canEdit || offline;
+  $("lineaMicraConnectButton").classList.toggle("busy", busy);
+  $("lineaMicraProgress").textContent = linking
+    ? __WEBUI_TEXT__("runtime.micra_progress_linking")
+    : busy
+    ? m.phase === "listing"
+      ? __WEBUI_TEXT__("runtime.micra_progress_listing")
+      : __WEBUI_TEXT__("runtime.micra_progress_signing_in")
+    : error;
+  $("lineaMicraProgress").classList.toggle("error", !busy && !!error);
+  renderMicraMachines(machines, canEdit);
+  $("lineaMicraCancelButton").disabled = !canEdit;
+  $("lineaMicraIdentity").innerText = connected
+    ? m.selectedName + " · " + m.selectedSerial + "\n" + m.email
+    : "";
+  $("lineaMicraStatus").textContent = [
+    m.observeState
+      ? { ON: __WEBUI_TEXT__("runtime.micra_power_on"), OFF: __WEBUI_TEXT__("runtime.micra_power_standby") }[
+          m.powerState
+        ] || __WEBUI_TEXT__("runtime.micra_power_unknown")
+      : "",
+    m.targetValid
       ? __WEBUI_TEXT__("runtime.target") + " " + (m.targetDeciC / 10).toFixed(1) + " °C"
       : "",
-    temperature =
-      m.temperatureState && m.temperatureState !== "disabled"
-        ? __WEBUI_TEXT__("runtime.brew_temperature") +
-          " " +
-          m.temperatureState +
-          (m.requestedTargetDeciC ? " " + (m.requestedTargetDeciC / 10).toFixed(1) + " °C" : "")
-        : "";
-  $("lineaMicraIdentity").innerText = connected
-    ? m.email + "\n" + m.selectedName + " - " + m.selectedSerial
-    : session
-      ? __WEBUI_TEXT__("runtime.signed_in_select_machine")
-      : __WEBUI_TEXT__("runtime.not_connected");
-  $("lineaMicraStatus").textContent = [
-    connected || m.phase !== "disabled" ? m.phase : __WEBUI_TEXT__("runtime.unauthenticated"),
-    m.error === "none" ? "" : m.error,
-    target,
-    temperature,
     m.apActive ? __WEBUI_TEXT__("runtime.ap_mode_paused") : "",
     m.shotPaused ? __WEBUI_TEXT__("runtime.shot_paused") : "",
+    error,
   ]
     .filter(Boolean)
     .join(" · ");
-  for (let e = $("lineaMicraUsername").parentElement, n = 5; n--; e = e.nextSibling)
-    e.hidden = connected;
-  $("lineaMicraConnectButton").disabled = !canEdit || !m.staConnected || m.apActive;
-  $("lineaMicraConnectButton").classList.toggle(
-    "busy",
-    !connected && ["queued", "authenticating", "listing"].includes(m.phase),
-  );
-  select.disabled = !canEdit || !machines.length;
-  $("lineaMicraSelectButton").disabled = !canEdit || !machines.length || !select.value;
-  $("lineaMicraConnectionType").disabled = !canEdit || (!connected && !session);
-  const scanGate = !canEdit || !connected || !$("lineaMicraObserveState").checked;
-  for (const id of MICRA_SWITCHES) $("lineaMicra" + id).disabled = !canEdit || !connected;
-  $("lineaMicraBoostScaleDetectionWhenOn").disabled = scanGate;
-  $("lineaMicraReduceScaleScanningWhenOff").disabled = scanGate;
-  updateMicraShutdownControls(canEdit, connected);
-  $("lineaMicraSaveButton").disabled = !canEdit || !connected;
-  updateMicraRevertButton();
-  $("lineaMicraDisconnectButton").disabled = !canEdit || (!connected && !machines.length);
+  $("lineaMicraDisconnectButton").disabled = !canEdit;
+  for (const id of MICRA_SWITCHES) $("lineaMicra" + id).disabled = !canEdit;
+  updateMicraDependentControls();
+  R.setSaveDirty("lineaMicraSaveButton", "lineaMicraDirtyHint", R.uiState.micraDirty);
 }
 function markLineaMicraDirty() {
   R.uiState.micraDirty = true;
-  $("lineaMicraSaveButton").disabled = !R.controlsMutable || $("lineaMicraObserveState").disabled;
-  updateMicraRevertButton();
+  $("lineaMicraLinkedNote").hidden = true;
+  R.setSaveDirty("lineaMicraSaveButton", "lineaMicraDirtyHint", true);
 }
-function updateMicraRevertButton() {
-  const r = $("revertLineaMicraButton");
-  if (r) {
-    r.dataset.dirty = +R.uiState.micraDirty;
-    r.disabled = !R.controlsMutable || !R.uiState.micraDirty;
-  }
-}
-function updateMicraShutdownControls(canEdit = R.controlsMutable, connected = true) {
-  const on = $("lineaMicraShutdownWithScale").checked;
-  $("lineaMicraShutdownWithScale").disabled = !canEdit || !connected;
-  $("lineaMicraShutdownGrace").disabled = !canEdit || !connected || !on;
+function updateMicraDependentControls() {
+  const canEdit = R.controlsMutable,
+    deps = $("lineaMicraPowerDeps"),
+    observe = $("lineaMicraObserveState").checked,
+    on = $("lineaMicraShutdownWithScale").checked;
+  deps.classList.toggle("fieldOff", !observe);
+  deps.querySelectorAll("input").forEach((i) => (i.disabled = !canEdit || !observe));
+  $("lineaMicraShutdownGrace").disabled = !canEdit || !on;
   $("lineaMicraShutdownGraceWrap").classList.toggle("hidden", !on);
 }
 async function connectLineaMicra() {
@@ -578,11 +601,14 @@ async function connectLineaMicra() {
     __WEBUI_TEXT__("runtime.micra_action_failed"),
   );
   $("lineaMicraPassword").value = "";
+  R.uiState.micraSignIn = ok ? "pending" : null;
   return ok;
 }
-async function selectLineaMicra() {
-  const serial = $("lineaMicraMachine").value;
-  return serial ? saveLineaMicraSettings("select", serial) : false;
+async function selectLineaMicra(serial) {
+  const ok = await saveLineaMicraSettings("select", serial);
+  if (ok) $("lineaMicraLinkedNote").hidden = false;
+  else R.uiState.micraSignIn = null;
+  return ok;
 }
 async function saveLineaMicraSettings(action = "save", serial = "") {
   const ok = await R.command(
@@ -593,7 +619,7 @@ async function saveLineaMicraSettings(action = "save", serial = "") {
       ...Object.fromEntries(
         MICRA_SWITCHES.map((id) => [micraOptionField(id), $("lineaMicra" + id).checked]),
       ),
-      connectionType: $("lineaMicraConnectionType").value,
+      connectionType: "websocket",
       shutdownGraceSeconds: Number($("lineaMicraShutdownGrace").value) || 0,
     },
     false,
@@ -601,7 +627,10 @@ async function saveLineaMicraSettings(action = "save", serial = "") {
     __WEBUI_TEXT__("runtime.could_not_save_micra"),
     action === "save" ? "lineaMicraSaveButton" : undefined,
   );
-  if (ok) R.uiState.micraDirty = false;
+  if (ok) {
+    R.uiState.micraDirty = false;
+    R.setSaveDirty("lineaMicraSaveButton", "lineaMicraDirtyHint", false);
+  }
   return ok;
 }
 async function disconnectLineaMicra() {
@@ -831,15 +860,21 @@ export function init() {
       R.renameScale();
     };
   if ($("lineaMicraConnectButton")) $("lineaMicraConnectButton").onclick = connectLineaMicra;
-  if ($("lineaMicraSelectButton")) $("lineaMicraSelectButton").onclick = selectLineaMicra;
+  if ($("lineaMicraSelectButton"))
+    $("lineaMicraSelectButton").onclick = () =>
+      selectLineaMicra($("lineaMicraMachines").querySelector("input:checked")?.value);
+  if ($("lineaMicraMachines"))
+    $("lineaMicraMachines").onchange = () => ($("lineaMicraSelectButton").disabled = false);
+  if ($("lineaMicraCancelButton"))
+    $("lineaMicraCancelButton").onclick = () => R.lineaMicraAction("disconnect");
   if ($("lineaMicraSaveButton"))
     $("lineaMicraSaveButton").onclick = () => saveLineaMicraSettings();
   if ($("revertLineaMicraButton")) $("revertLineaMicraButton").onclick = revertLineaMicra;
   if ($("lineaMicraDisconnectButton"))
     $("lineaMicraDisconnectButton").onclick = () =>
       confirm(__WEBUI_TEXT__("settings.disconnect_account_confirm")) && disconnectLineaMicra();
-  if ($("lineaMicraShutdownWithScale"))
-    $("lineaMicraShutdownWithScale").onchange = () => updateMicraShutdownControls();
+  for (const id of ["lineaMicraObserveState", "lineaMicraShutdownWithScale"])
+    if ($(id)) $(id).onchange = updateMicraDependentControls;
   $("autoTare").onchange = () => {
     R.updateConfigGroups();
     markConfigDirty();
@@ -903,7 +938,7 @@ export function init() {
   document
     .querySelectorAll("#workflowPanel input,#workflowPanel select,#workflowPanel textarea")
     .forEach((el) => {
-      if (el.id === "presetRenameInput") return;
+      if (el.id === "presetRenameInput" || el.closest("#lineaMicraSignIn,#lineaMicraChoose")) return;
       const fn = () => {
         const sec = R.settingsSectionOf(el.id);
         sec === "brew"

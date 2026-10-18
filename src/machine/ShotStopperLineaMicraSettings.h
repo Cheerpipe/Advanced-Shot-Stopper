@@ -21,12 +21,15 @@ constexpr uint8_t LINEA_MICRA_POWER_ON_WITH_SCALE = 1U << 7;
 constexpr uint8_t LINEA_MICRA_SHUTDOWN_GRACE_SHIFT = 4;
 constexpr uint8_t LINEA_MICRA_SHUTDOWN_GRACE_MASK = 0x70U;
 constexpr uint8_t LINEA_MICRA_SHUTDOWN_GRACE_CODE_MAX = 4;
+constexpr uint8_t LINEA_MICRA_KNOWN_OPTIONS =
+    LINEA_MICRA_APPLY_TEMPERATURE | LINEA_MICRA_OBSERVE_STATE |
+    LINEA_MICRA_RECOGNIZE_WAKE | LINEA_MICRA_SHUTDOWN_WITH_SCALE |
+    LINEA_MICRA_POWER_ON_WITH_SCALE | LINEA_MICRA_SHUTDOWN_GRACE_MASK;
+// Remote power-on stays off by default; scale-off standby waits 15 s (code 2).
 constexpr uint8_t LINEA_MICRA_DEFAULT_OPTIONS =
     LINEA_MICRA_APPLY_TEMPERATURE | LINEA_MICRA_OBSERVE_STATE |
-    LINEA_MICRA_RECOGNIZE_WAKE;
-constexpr uint8_t LINEA_MICRA_KNOWN_OPTIONS =
-    LINEA_MICRA_DEFAULT_OPTIONS | LINEA_MICRA_SHUTDOWN_WITH_SCALE |
-    LINEA_MICRA_POWER_ON_WITH_SCALE | LINEA_MICRA_SHUTDOWN_GRACE_MASK;
+    LINEA_MICRA_RECOGNIZE_WAKE | LINEA_MICRA_SHUTDOWN_WITH_SCALE |
+    (2U << LINEA_MICRA_SHUTDOWN_GRACE_SHIFT);
 // Scale-directed machine-link options live in their own byte so the option
 // layout above stays stable. Bit 0 powers the scale off when the machine is
 // confirmed off; bits 1-2 select scale-discovery duty from machine power;
@@ -55,7 +58,7 @@ struct LineaMicraPersistedSettings {
   char selectedSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
   char selectedName[LINEA_MICRA_NAME_CAPACITY] = {};
   uint8_t options = LINEA_MICRA_DEFAULT_OPTIONS;
-  uint8_t scaleOptions = 0;
+  uint8_t scaleOptions = LINEA_MICRA_KNOWN_SCALE_OPTIONS;
   bool accountConfigured = false;
   uint8_t connectionType = static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
 };

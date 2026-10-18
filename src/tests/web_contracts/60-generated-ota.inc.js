@@ -688,8 +688,9 @@ if (generated.cssGzip.length > 14648) {
 // Moving the Stats chart and shot-row helpers into the Stats module brings it to 38465 (2026-10-16).
 // The gradual forecast hero tint (firmware-owned tintClass/tintPct, advisories, landing estimate) with the window-mode fast alert restored brings the runtime to 38895 compressed bytes; owner-authorized 2026-10-17.
 // The iOS-only unmuted keep-awake track and its tap resume bring it to 38983; owner-requested 2026-10-17.
-if (sentinelRuntimeGzip.length > 38983) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 38983-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Linea Micra sign-in state and its Save/Revert pairing bring it to 39012; owner-requested 2026-10-18.
+if (sentinelRuntimeGzip.length > 39012) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 39012-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -733,7 +734,9 @@ if (generated.otaImageGzip.length > 3072) {
 // The shot chart's real-stop dot and its two legend entries measure records.js at 13594; owner-requested 2026-10-18.
 // Gzip wobble from the /setup stream guard (records.js unchanged) measures 13595; owner-reported 2026-10-18.
 // Gzip wobble from the Home Micra cloud hint (records.js unchanged) measures 13606; owner-requested 2026-10-18.
-const viewModuleBudgets = {records: 13606, diagnostic: 13750, admin: 14229, settings: 14150, setup: 5788};
+// The Linea Micra sign-in, machine choice, auto-select, grouped options and batch save measure settings.js at 14827; owner-requested 2026-10-18.
+// Gzip wobble from the Linea Micra settings section (records.js unchanged) measures 13607; owner-requested 2026-10-18.
+const viewModuleBudgets = {records: 13607, diagnostic: 13750, admin: 14229, settings: 14827, setup: 5788};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -900,8 +903,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The shot chart's real-stop dot styles in the shared stylesheet bring it to 64931; owner-requested 2026-10-18.
 // Keeping /setup off the UI stream and the compatibility redirect brings it to 64964; owner-reported 2026-10-18.
 // The Home Micra cloud hint card, its copy and its Settings deep link bring it to 65263; owner-requested 2026-10-18.
-if (coldHomeGzip > 65263) {
-  throw new Error(`Cold Home download exceeds the 65263-byte gzip budget (${coldHomeGzip})`);
+// The Linea Micra sign-in state, Save/Revert pairing and its CSS rule bring it to 65311; owner-requested 2026-10-18.
+if (coldHomeGzip > 65311) {
+  throw new Error(`Cold Home download exceeds the 65311-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

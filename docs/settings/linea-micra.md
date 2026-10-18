@@ -1,8 +1,8 @@
 # La Marzocco Linea Micra
 
 Firmware built for the **La Marzocco Linea Micra** shows its controls in
-**Settings → Shared settings → Linea Micra**. Other machine
-profiles omit the panel and its diagnostics.
+**Settings → La Marzocco Cloud**, between Presets and Shared settings. Other
+machine profiles omit the section and its diagnostics.
 
 The integration reads the selected machine through La Marzocco's cloud
 service. It does not use the Micra's Bluetooth connection, so scale discovery,
@@ -11,71 +11,66 @@ client.
 
 ## Connect an account and select a machine
 
-Until an account is connected, Home shows a short card inviting you to sign
-in. **Open Micra settings** takes you straight to this panel, already open.
-**Dismiss** hides the card until you reload the page; tick **Don't show this
-again** before dismissing to hide it for good in that browser.
-
 Open Brew by Weight must be connected to your normal Wi-Fi network in station mode.
-Cloud communication is disabled while the setup access point is open or the
-internet connection is unavailable.
+While the setup network is open or the controller isn't on your home Wi-Fi,
+**Sign in** is unavailable and a note explains why.
 
-1. Enter the email address and password used by the La Marzocco app.
-2. Choose **Connect** and wait for the account's Linea Micra machines to appear.
-   While the sign-in is checked with the La Marzocco cloud, the **Connect**
-   button shows a small spinner and the status line follows each step of the
-   sign-in; both settle as soon as the machines are listed or the sign-in
-   fails, and a failed sign-in also names the reason.
-3. Select the machine used with this controller.
-4. Choose **Use this machine**. Only then can the Micra options be
-   edited and saved.
+1. Enter the email address and password you use in the La Marzocco app.
+2. Choose **Sign in**. The button shows a small spinner and the line below it
+   follows each step: signing in, finding your machines, and connecting this
+   controller.
+3. If the account has one Linea Micra, that's it: the controller connects to
+   it and saves the recommended options right away.
+4. If the account has several, each machine is listed with its name and serial
+   number. Choose the one this controller is paired with and select **Use this
+   machine**, or **Cancel** to sign out again.
 
-While the account is signed in but no machine is saved yet, **Selected
-machine** reads **Signed in — select a machine** and the status line shows the
-connection state, so you can tell a successful sign-in from one that has not
-happened yet.
+If the sign-in fails, the line under **Sign in** says why in plain words — for
+example, when La Marzocco doesn't accept the email and password or the account
+has no Linea Micra — and the password field is ready for another try. The
+password is cleared after every attempt.
 
-The connection type starts as **WebSocket**. The first three switches start on; the machine-aware scale search, scale power-on, scale shutdown, and
-scale-off-with-machine options start off.
-Before a machine is selected they remain visibly checked (or unchecked) but
-disabled, so the defaults are clear without implying that the integration is
-already active.
+Before an account is connected, only the sign-in form is shown. Once a machine
+is selected, the form is replaced by the connected machine — its name, serial
+number and account email, with the current power state and brew temperature —
+and the **Disconnect** button. A note confirms that the recommended options
+are already active.
 
-After a machine is selected, Settings hides the account email, password,
-**Connect**, machine list, and **Use this machine** controls. **Selected
-machine** shows the saved cloud account email, followed by the machine name and
-serial number. Choose **Disconnect** to remove the saved credentials and
-selected machine, stop cloud checks, and make the connection controls available
-again. The account status then reads **Not signed in**, and the Micra options
-become unavailable until you connect and select a machine again. The connection
-type preference is retained; a factory reset restores WebSocket.
+### Recommended options
 
-With a machine selected, **Save Micra settings** saves **Connection type**, **Allow brew boiler
-temperature in presets**, **Monitor machine power state**, the two
-[Machine-aware scale search](#machine-aware-scale-search) options, **Recognize
-paddle wake gestures**, **Turn machine on when the scale powers on**,
-**Standby when the scale turns off**, its **Standby delay**, and
-**Turn the scale off with the Micra**.
-To switch between WebSocket and API, choose the connection type and save;
-your connected account and selected machine are kept. Saving does not sign in
-again, validate the cloud account, or reload the machine list.
-The button is available whenever a machine is selected and settings are
-editable, even when no option has changed.
+A new controller, or one that was factory reset, starts with every option on
+except **Turn the Micra on with the scale**, which you switch on deliberately
+because it starts heating the machine even when you're not next to it.
+**Standby when the scale turns off** starts with a 15-second delay. Updating the
+firmware keeps the options you already saved.
 
-If the account returns no Linea Micra machines, the account is not enabled and
-the machine-specific options remain unavailable. Accounts with several Micras
-show each returned name and serial number so the intended machine can be
-selected explicitly. A very long machine name is shortened to 48 bytes, and a
-machine without a name is listed by its serial number.
+### Change the options
+
+The options are grouped under **Machine power**, **Scale automations** and
+**Presets**. Like the other Settings sections, changes are saved together:
+adjust what you want and choose **Save La Marzocco settings**. The button and
+the revert button next to it are available only while there are unsaved
+changes, and **Unsaved changes** marks them. **Sign in**, **Use this machine**
+and **Disconnect** act immediately and are not part of that save.
+
+The four options that rely on **Show power state** are listed under it. When
+**Show power state** is off they are dimmed and can't be changed, but keep
+their choices.
+
+Choose **Disconnect** to remove the saved credentials and selected machine and
+stop cloud checks; the sign-in form returns. Your option choices are kept for
+the next connection. Saving options does not sign in again, validate the cloud
+account, or reload the machine list. A very long machine name is shortened to
+48 bytes, and a machine without a name is listed by its serial number.
 
 The email, password, selected machine, and device installation key are stored
 in the controller so it can sign in again after a restart. Settings and
 Diagnostics show the saved email as a read-only value; the password, installation
 key, and short-lived access and refresh tokens are never returned by the Web UI
 or diagnostics. The access token is reused and renewed after 50
-minutes. Authentication and machine commands use the cloud API with either
-connection type. API observation reuses its secure HTTP connection when possible;
-WebSocket observation renews its connection with the current token. **Disconnect**
+minutes. Authentication, machine commands and the initial state read use the
+cloud API, reusing its secure HTTP connection when possible; live updates renew
+their connection with the current token. **Disconnect**
 removes the saved account credentials, installation key, selected machine,
 cached list, in-memory session tokens, and cloud connection.
 
@@ -90,14 +85,13 @@ safety, or local shot control.
 
 ## Monitor machine power state
 
-Enable **Show power state** and choose **Connection type**:
-
-- **WebSocket** reads the current state through the API after each subscription
-  starts, while receiving cloud updates in parallel. It is the default and
-  avoids regular dashboard polling. A reconnect starts a new initial read;
-  newer power updates take priority over that read.
-- **API** checks the dashboard approximately every 30 seconds. Try it if a weak
-  connection or the cloud service makes WebSocket unreliable.
+Enable **Show power state** to follow the machine through live updates from
+the La Marzocco cloud. Each time the live connection starts, the controller
+also reads the current state once, so Home is right from the start; a
+reconnect repeats that read, and newer power updates take priority over it.
+Earlier firmware also offered a periodic check every 30 seconds; a controller
+that used it keeps it until you next choose **Save La Marzocco settings**,
+which switches it to live updates.
 
 Both wait for station Wi-Fi, a synchronized clock and a closed setup access
 point. A shot pauses monitoring only while a scale is connected. Without a
@@ -296,14 +290,14 @@ or OFF observation is available.
 Two checkboxes directly under **Show power state** tie scale
 discovery to the machine's power state:
 
-- **Search harder while the Micra is on** — searches more actively for a
+- **Find the scale faster while the Micra is on** — searches more actively for a
   scale while the machine is on, whatever the saved scan mode is.
-- **Search less in standby** — uses less Bluetooth
+- **Search for the scale less in standby** — uses less Bluetooth
   scanning time while the machine is off; finding a scale may take longer.
 
-Both start off on new installs, after a factory reset, and after updating
-from firmware that did not have them; a saved choice is kept across reboots
-and updates until you change it. Each option acts only in its own state:
+Both start on for new installs and after a factory reset, and start off after
+updating from firmware that did not have them; a saved choice is kept across
+reboots and updates until you change it. Each option acts only in its own state:
 enabling the ON option changes nothing while the machine is off, and enabling
 the OFF option changes nothing while it is on. When no matching state is
 available — monitoring off, no account connected, the state unknown, or an
@@ -404,8 +398,8 @@ controller. Because the command travels through the La Marzocco cloud, a
 saved, connected account is required: without one the option stays disabled
 and has no effect even if it was on before the account was removed.
 
-When you enable the option, a **Standby delay** choice appears below it:
-**Immediately**, **5 s**, **15 s**, **30 s**, or **60 s**. With **OFF** the machine
+While the option is on, a **Standby delay** choice appears below it:
+**Immediately**, **5 s**, **15 s** (the default), **30 s**, or **60 s**. With **Immediately** the machine
 goes to standby as soon as the scale powers off. With a delay, the controller
 waits that long first, so switching the scale back on inside the window
 cancels the shutdown and nothing happens. The delay also covers an accidental
@@ -463,7 +457,7 @@ connected scale regardless of brand.
 
 ## Brew temperature in presets
 
-**Set brew temperature per preset** reveals a per-preset value from
+**Set the brew temperature in each preset** reveals a per-preset value from
 80.0 to 100.0 °C in 0.1 °C steps. New and factory-reset presets start at 93.0 °C;
 duplicates copy the source value. Turning the option off or disconnecting the
 account keeps every saved preset value.
@@ -506,8 +500,7 @@ prevents writes; saved preset values remain unchanged. Temperature application
 does not require **Show power state** to be enabled.
 
 Factory reset removes the Micra cloud account, selected machine, installation
-key, and RAM session. The first three Micra options return to their checked
-defaults, the machine-aware scale search, scale power-on and shutdown options
-and the scale-off-with-machine option return to off, and preset temperatures
+key, and RAM session. The options return to the
+[recommended defaults](#recommended-options), and preset temperatures
 return to 93.0 °C. See
 [Factory reset](factory-reset.md) and [Presets](../features/presets.md).

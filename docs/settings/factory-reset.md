@@ -1,7 +1,8 @@
 # Factory reset
 
-A factory reset also restores the Micra connection type to WebSocket.
-Disconnecting only the Micra account preserves that preference. During an
+A factory reset also restores the La Marzocco Cloud options to their
+recommended defaults. Disconnecting only the account keeps your option choices.
+During an
 unconfirmed firmware trial, settings saves and resets wait for confirmation
 so a rollback can recover the prior settings.
 
