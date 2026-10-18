@@ -97,6 +97,14 @@ mirror the shadow upward) grows the CSS to 14,465 gzip bytes, moves the
 cold Home cap to 64,778 and the measured image/linked deltas to 92,640
 and 92,632, so those allowances rise to 92,704 and 92,696 keeping the
 64-byte headroom. Light-theme rendering is unchanged throughout.
+Lateness-based deadline accounting for the control loop and scale worker,
+change-only NimBLE health reports without idle heap walks, and longest-hold
+mutex attribution measure 1,587,048 flash-code bytes (71,948 over baseline),
+so the flash-code allowance moves to 72,012 bytes keeping the 64-byte
+headroom. The development Micra build measures 2,366,352 image and 2,366,239
+linked bytes; image, linked, rodata, DIRAM and external BSS stay inside
+their allowances. Task priorities, cadences and memory placement are
+unchanged.
 Urgent control-gate publication and the no-scale timer's stop fade add another
 640 bytes of reviewed image/linked allowance, to 44,976 and 44,968 bytes.
 The mobile full-screen Home shot card and the Brew by Weight master toggle

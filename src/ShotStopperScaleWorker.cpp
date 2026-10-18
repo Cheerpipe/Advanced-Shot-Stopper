@@ -62,13 +62,11 @@ void reportNimbleRuntimeHealth(bool force) {
   static int32_t previousError = 0;
   static int32_t previousResetReason = 0;
   static uint32_t previousSyncGeneration = 0;
-  static uint32_t previousAdvertisements = 0;
-  static uint32_t previousOperation = 0;
   static uint32_t previousStaleCallbacks = 0;
   static uint32_t previousCleanupCount = 0;
   static uint32_t previousTotalDrops = 0;
   static uint8_t previousClientState = 0xff;
-  const ShotStopperBleHealth health = shotStopperBleRuntimeHealth();
+  ShotStopperBleHealth health = shotStopperBleRuntimeHealth(false);
   const ScaleBleBackendHealth client = scale.backendHealth();
   const uint32_t totalDrops = client.criticalEventDrops +
                               client.controlEventDrops + client.rxDrops;
@@ -76,20 +74,17 @@ void reportNimbleRuntimeHealth(bool force) {
       health.lastError == previousError &&
       health.lastResetReason == previousResetReason &&
       health.syncGeneration == previousSyncGeneration &&
-      client.advertisementsSeen == previousAdvertisements &&
-      client.operationId == previousOperation &&
       client.staleCallbacks == previousStaleCallbacks &&
       client.cleanupCount == previousCleanupCount &&
       totalDrops == previousTotalDrops && client.state == previousClientState) {
     return;
   }
+  health = shotStopperBleRuntimeHealth();  // heap walk only when reporting
   reported = true;
   previousState = health.state;
   previousError = health.lastError;
   previousResetReason = health.lastResetReason;
   previousSyncGeneration = health.syncGeneration;
-  previousAdvertisements = client.advertisementsSeen;
-  previousOperation = client.operationId;
   previousStaleCallbacks = client.staleCallbacks;
   previousCleanupCount = client.cleanupCount;
   previousTotalDrops = totalDrops;
@@ -2693,10 +2688,14 @@ void scaleWorkerTask(void *) {
   reportNimbleRuntimeHealth(true);
 #endif
 
+  // Sleep requested since the previous service: the deadline bounds lateness
+  // beyond it, not the cadence itself.
+  uint32_t requestedSleepMs = 0;
   for (;;) {
     // NimBLE owns HCI waits in its host task. Yield this worker for the
     // selected connected/disconnected service cadence.
     const uint32_t tickDelayMs = scaleWorkerTickDelayMs();
+    requestedSleepMs += tickDelayMs;
     (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(tickDelayMs));
 
     const uint32_t nowMs = millis();
@@ -2721,11 +2720,12 @@ void scaleWorkerTask(void *) {
       const uint32_t gapMs = static_cast<uint32_t>(nowMs - previousServiceAtMs);
       if (gapMs > scaleWorkerMaxGapMs.load(std::memory_order_relaxed))
         scaleWorkerMaxGapMs.store(gapMs, std::memory_order_relaxed);
-      if (gapMs > SCALE_SERVICE_DEADLINE_MS) {
+      if (gapMs > requestedSleepMs + SCALE_SERVICE_DEADLINE_MS) {
         scaleWorkerDeadlineMisses.fetch_add(1, std::memory_order_relaxed);
       }
     }
     previousServiceAtMs = nowMs;
+    requestedSleepMs = 0;
     static uint32_t lastBackgroundMs = 0;
     const bool backgroundDue =
         lastBackgroundMs == 0 ||
@@ -2735,7 +2735,8 @@ void scaleWorkerTask(void *) {
     if (!syncScalePower()) {
       finishScaleSection(ScaleWorkerPhase::ADMIN);
       feedOrTripCurrentTaskWatchdog();
-      vTaskDelay(pdMS_TO_TICKS(10));
+      requestedSleepMs = 10;
+      vTaskDelay(pdMS_TO_TICKS(requestedSleepMs));
       continue;
     }
     if (backgroundDue) {
@@ -2748,7 +2749,8 @@ void scaleWorkerTask(void *) {
       syncScaleRadioCoex();
       finishScaleSection(ScaleWorkerPhase::ADMIN);
       feedOrTripCurrentTaskWatchdog();
-      vTaskDelay(pdMS_TO_TICKS(SCALE_WORKER_BACKGROUND_MS));
+      requestedSleepMs = SCALE_WORKER_BACKGROUND_MS;
+      vTaskDelay(pdMS_TO_TICKS(requestedSleepMs));
       continue;
     }
     syncScaleRadioCoex();

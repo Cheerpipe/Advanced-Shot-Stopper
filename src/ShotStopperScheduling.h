@@ -6,10 +6,11 @@
 namespace shotstopper {
 
 // Qualification contract for the two hard real-time-adjacent application
-// loops. The nominal cadence is 1 ms while a scale is active; a 10 ms service
-// deadline leaves radio/flash jitter headroom while remaining far below every
-// control safety timeout. Deadline misses are monotonic and exported in the
-// coherent ControlStatus snapshot.
+// loops. The nominal cadence is 1 ms while a scale is active; the 10 ms
+// service deadline bounds lateness beyond each loop's own requested sleep,
+// leaving radio/flash jitter headroom while remaining far below every control
+// safety timeout. Deadline misses are monotonic and exported in the coherent
+// ControlStatus snapshot.
 constexpr uint32_t CONTROL_SERVICE_DEADLINE_MS = 10;
 constexpr uint32_t SCALE_SERVICE_DEADLINE_MS = 10;
 constexpr uint32_t CONTROL_HOUSEKEEPING_INTERVAL_MS = 10;

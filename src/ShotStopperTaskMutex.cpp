@@ -20,17 +20,22 @@ bool TaskMutex::tryLock_() {
 }
 
 void TaskMutex::unlock_() {
-  // Snapshot telemetry before releasing: the fields are only touched while
-  // the mutex is held, so the mutex itself serializes every access. The
-  // name is copied here because the owner handle would dangle for tasks
-  // deleted after giving (e.g. the websocket client's worker).
-  const char *name = pcTaskGetName(nullptr);
-  size_t index = 0;
-  for (; name[index] != '\0' && index < sizeof(lastOwner_) - 1; ++index) {
-    lastOwner_[index] = name[index];
+  // Keep the longest hold since the last reset, before releasing: the fields
+  // are only touched while the mutex is held, so the mutex itself serializes
+  // every access. A short re-lock after a long section must not hide it. The
+  // name is copied because the owner handle would dangle for tasks deleted
+  // after giving (e.g. the websocket client's worker).
+  const uint32_t holdUs =
+      static_cast<uint32_t>(esp_timer_get_time()) - ownedSinceUs_;
+  if (holdUs >= longestHoldUs_) {
+    longestHoldUs_ = holdUs;
+    const char *name = pcTaskGetName(nullptr);
+    size_t index = 0;
+    for (; name[index] != '\0' && index < sizeof(longestOwner_) - 1; ++index) {
+      longestOwner_[index] = name[index];
+    }
+    longestOwner_[index] = '\0';
   }
-  lastOwner_[index] = '\0';
-  lastHoldUs_ = static_cast<uint32_t>(esp_timer_get_time()) - ownedSinceUs_;
   // FreeRTOS implements xSemaphoreGive as a C macro with an internal handle
   // cast; the public handle type is the one created above.
   const BaseType_t given = xSemaphoreGive(handle_);

@@ -42,7 +42,9 @@ bool shotStopperBleRuntimeStart(uint32_t timeoutMs);
 bool shotStopperBleRuntimeReady();
 uint8_t shotStopperBleRuntimeOwnAddressType();
 uint32_t shotStopperBleRuntimeSyncGeneration();
-ShotStopperBleHealth shotStopperBleRuntimeHealth();
+// sampleMemory=false skips the heap walks; memory fields then keep the last
+// sample (or the reset/sync capture).
+ShotStopperBleHealth shotStopperBleRuntimeHealth(bool sampleMemory = true);
 
 // Intended for orderly reboot/shutdown only. Peripheral reconnects must never
 // cycle the global host.

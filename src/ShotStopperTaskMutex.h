@@ -62,21 +62,26 @@ class TaskMutex {
 #endif
   }
 
-  // Previous holder attribution, valid only while the caller holds the mutex
-  // (see the out-of-line unlock in ShotStopperTaskMutex.cpp). Host builds
-  // carry no kernel task names.
-  const char *lastOwnerName() const {
+  // Longest-hold attribution since resetLongestHold(), valid only while the
+  // caller holds the mutex (see the out-of-line unlock in
+  // ShotStopperTaskMutex.cpp). Host builds carry no kernel task names.
+  const char *longestHoldOwnerName() const {
 #if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
     return "host";
 #else
-    return lastOwner_;
+    return longestOwner_;
 #endif
   }
-  uint32_t lastHoldUs() const {
+  uint32_t longestHoldUs() const {
 #if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
     return 0;
 #else
-    return lastHoldUs_;
+    return longestHoldUs_;
+#endif
+  }
+  void resetLongestHold() {
+#if !defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+    longestHoldUs_ = 0;
 #endif
   }
 
@@ -92,8 +97,8 @@ class TaskMutex {
   StaticSemaphore_t storage_ = {};
   SemaphoreHandle_t handle_ = nullptr;
   uint32_t ownedSinceUs_ = 0;
-  uint32_t lastHoldUs_ = 0;
-  char lastOwner_[16] = {};
+  uint32_t longestHoldUs_ = 0;
+  char longestOwner_[16] = {};
 #endif
 };
 

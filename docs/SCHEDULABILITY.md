@@ -130,6 +130,10 @@ The coherent control-status snapshot publishes a monotonic version/timestamp,
 the lifetime maximum control and scale-worker service gaps, monotonic deadline
 miss counts, maximum observed loop-body execution in microseconds, and stack
 high-water marks. A 10 ms deadline applies to both control and scale worker.
+It bounds lateness beyond each task's own requested sleep: a service gap counts
+as a miss only when it exceeds the delay the task asked for (1 or 5 ms for
+control, the selected cadence or explicit backoff for the scale worker) by more
+than 10 ms, so the idle cadences are not reported as misses.
 The generalized persistence owner runs at idle priority on core 0,
 blocks on its bounded queue and yields around flash work. Control only stages
 an immutable generation and attempts a zero-wait enqueue. The health worker

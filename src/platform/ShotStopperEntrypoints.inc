@@ -103,7 +103,7 @@ void healthWorkerTask(void *) {
 #ifndef SHOT_STOPPER_HOST_TEST
       sample.heap = sampleHeapCaps();
       sample.heapValid = true;
-      const ShotStopperBleHealth ble = shotStopperBleRuntimeHealth();
+      const ShotStopperBleHealth ble = shotStopperBleRuntimeHealth(false);
       sample.bleRuntimeState = static_cast<uint8_t>(ble.state);
       sample.bleRuntimeLastError = ble.lastError;
       sample.bleRuntimeLastResetReason = ble.lastResetReason;
@@ -676,7 +676,7 @@ bool controlHousekeepingDue(uint32_t now) {
 
 void loop() {
   static uint32_t delayStartedAtUs = 0, delayReturnedAtUs = 0;
-  static uint32_t lastLoopStartedAtUs = 0;
+  static uint32_t lastLoopStartedAtUs = 0, requestedDelayMs = 0;
   const uint32_t loopStartedAtMs = millis();
   const uint32_t loopStartedAtUs = micros();
   const uint32_t gapUs = loopStartedAtUs - lastLoopStartedAtUs;
@@ -706,7 +706,9 @@ void loop() {
       loopPhaseProfiler.capturePeakGap(gap, gapUs, delayUs, dispatchUs,
                                        gapCpuUs, gapIdleUs);
     }
-    if (gap > CONTROL_SERVICE_DEADLINE_MS) {
+    // The deadline bounds lateness beyond the requested delay; early-return
+    // iterations request none.
+    if (gap > requestedDelayMs + CONTROL_SERVICE_DEADLINE_MS) {
       ++loopDeadlineMisses;
     }
     if (gap > healthIntervalMaxGapMs) {
@@ -718,6 +720,7 @@ void loop() {
     }
   }
   lastLoopAtMs = loopStartedAtMs;
+  requestedDelayMs = 0;
   loopPhaseProfiler.beginIteration(profileLoopPhases, loopStartedAtUs,
                                    loopStartedAtMs);
   // Relay and paddle control never wait for BLE. The worker owns every scale,
@@ -857,6 +860,7 @@ void loop() {
     loopMaxExecutionUs = executionUs;
   }
   delayStartedAtUs = micros();
-  vTaskDelay(pdMS_TO_TICKS(controlLoopTickDelayMs(loopScaleLink)));
+  requestedDelayMs = controlLoopTickDelayMs(loopScaleLink);
+  vTaskDelay(pdMS_TO_TICKS(requestedDelayMs));
   delayReturnedAtUs = micros();
 }

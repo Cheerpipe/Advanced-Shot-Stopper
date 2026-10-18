@@ -643,9 +643,11 @@ bool ShotStopperMicraService::queue(const LineaMicraRequest &request) {
   char muxWaitHolder[16] = {};
   uint32_t muxWaitHoldUs = 0;
   if (reportMuxWait) {
-    snprintf(muxWaitHolder, sizeof(muxWaitHolder), "%s", mux_.lastOwnerName());
-    muxWaitHoldUs = mux_.lastHoldUs();
+    snprintf(muxWaitHolder, sizeof(muxWaitHolder), "%s",
+             mux_.longestHoldOwnerName());
+    muxWaitHoldUs = mux_.longestHoldUs();
   }
+  mux_.resetLongestHold();
   const bool accepted = queueLocked(request);
   lock.unlock();
   if (reportMuxWait)
@@ -898,8 +900,8 @@ bool ShotStopperMicraService::muxWaitAnomalyDue(
 void ShotStopperMicraService::reportMuxWaitAnomaly(
     uint32_t waitedUs, const char *holder, uint32_t holdUs) {
   // Must run after unlock(): the logging path takes locks of its own, and
-  // the holder attribution was copied while mux_ was held (unlock overwrites
-  // it with the releasing task's own telemetry).
+  // the longest-hold attribution was copied while mux_ was held (the waiter
+  // resets it there, so each report covers the holds since its last lock).
   serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
                        "Micra mux wait=%lu us holder=%s hold=%lu us",
                        static_cast<unsigned long>(waitedUs), holder,
@@ -930,9 +932,11 @@ MachinePhysicalStartDisposition ShotStopperMicraService::physicalStart(MachineBa
   char muxWaitHolder[16] = {};
   uint32_t muxWaitHoldUs = 0;
   if (reportMuxWait) {
-    snprintf(muxWaitHolder, sizeof(muxWaitHolder), "%s", mux_.lastOwnerName());
-    muxWaitHoldUs = mux_.lastHoldUs();
+    snprintf(muxWaitHolder, sizeof(muxWaitHolder), "%s",
+             mux_.longestHoldOwnerName());
+    muxWaitHoldUs = mux_.longestHoldUs();
   }
+  mux_.resetLongestHold();
   const auto disposition = physicalStartLocked(permit);
   lock.unlock();
   if (reportMuxWait)

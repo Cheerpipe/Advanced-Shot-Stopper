@@ -15923,6 +15923,15 @@ void f13_schedule_contract_and_snapshot_evidence_are_explicit() {
   CHECK(second.uptimeMs >= first.uptimeMs);
   CHECK(second.loopDeadlineMisses == 3);
 
+  // The deadline bounds lateness beyond the requested no-scale delay.
+  resetHarness(false, false);
+  runLoopAfter(LOOP_NO_SCALE_DELAY_MS);
+  loopDeadlineMisses = 0;
+  runLoopAfter(LOOP_NO_SCALE_DELAY_MS + CONTROL_SERVICE_DEADLINE_MS);
+  CHECK(loopDeadlineMisses == 0);
+  runLoopAfter(LOOP_NO_SCALE_DELAY_MS + CONTROL_SERVICE_DEADLINE_MS + 1);
+  CHECK(loopDeadlineMisses == 1);
+
   resetScaleWorkerMetricsForHost();
   hostTaskNotifyGiveCalls = 0;
   setScaleWorkerTaskPresentForHost(true);

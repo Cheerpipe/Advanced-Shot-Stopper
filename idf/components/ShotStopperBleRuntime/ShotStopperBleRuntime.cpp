@@ -244,8 +244,8 @@ uint32_t shotStopperBleRuntimeSyncGeneration() {
   return generation;
 }
 
-ShotStopperBleHealth shotStopperBleRuntimeHealth() {
-  const MemorySnapshot memory = captureMemory();
+ShotStopperBleHealth shotStopperBleRuntimeHealth(bool sampleMemory) {
+  const MemorySnapshot memory = sampleMemory ? captureMemory() : MemorySnapshot{};
   // Telemetry never waits for teardown; a live sample retains task lifetime.
   const bool sampleLive = xSemaphoreTake(gHostTaskMutex, 0) == pdTRUE;
   portENTER_CRITICAL(&gMux);
@@ -257,7 +257,7 @@ ShotStopperBleHealth shotStopperBleRuntimeHealth() {
                                            uxTaskGetStackHighWaterMark(
                                                hostTaskHandle));
   portENTER_CRITICAL(&gMux);
-  storeMemoryLocked(memory);
+  if (sampleMemory) storeMemoryLocked(memory);
   if (hostTaskHandle != nullptr &&
       liveHighWater < gHealth.hostTaskStackHighWaterBytes) {
     gHealth.hostTaskStackHighWaterBytes = liveHighWater;
