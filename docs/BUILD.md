@@ -253,7 +253,12 @@ audit-log partition introduced in October 2026 is carved from reserved
 filesystem space on both boards without moving any existing partition, so
 firmware carrying it installs over USB with `--erase-all` (adopting the new
 table) and updates from it afterwards by OTA or USB normally; firmware without
-the partition simply runs the audit log in RAM-only mode.
+the partition simply runs the audit log in RAM-only mode. The 500-shot layout
+of October 2026 moves `shotlog` and `shotcurve` into the reserved filesystem
+space (every other partition keeps its exact offset and size), so firmware
+carrying it installs over USB with `--erase-all`; existing shot history is not
+migrated and the log starts empty. OTA and USB updates from that layout
+onwards work normally.
 
 List available IDs and compatibility before building:
 

@@ -12,11 +12,11 @@
 
 namespace shotstopper {
 
-// Two 12 KiB slots fill the dedicated shotlog data partition.
-constexpr size_t SHOT_LOG_FLASH_SLOT_BYTES = 12288;
+// Two 60 KiB slots fill the dedicated shotlog data partition.
+constexpr size_t SHOT_LOG_FLASH_SLOT_BYTES = 61440;
 constexpr size_t SHOT_LOG_FLASH_SLOT_COUNT = 2;
 static_assert(sizeof(ShotLogStore) <= SHOT_LOG_FLASH_SLOT_BYTES,
-              "Two shot-log slots of 100 records must fit the shotlog partition");
+              "Two shot-log slots of 500 records must fit the shotlog partition");
 
 // Only the current schema is accepted; any older slot is discarded.
 inline bool validShotLogStoreCurrent(const ShotLogStore &store) {

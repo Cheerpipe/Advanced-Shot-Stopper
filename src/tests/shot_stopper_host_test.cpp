@@ -12909,7 +12909,7 @@ void s01f_curve_rollover_keeps_stats_windows_and_sorted_joins() {
   ShotCurveRecord curve = emptyShotCurveRecord();
   curve.count = 2;
   curve.atMs[1] = 500;
-  for (uint32_t id = 1; id <= 110; ++id) {
+  for (uint32_t id = 1; id <= SHOT_LOG_CAPACITY + 10; ++id) {
     record.actualWeightCg = id % 2 ? 3300 : 2700;
     record.avgFlowCgS = id % 2 ? SHOT_LOG_METRIC_MISSING : 100;
     record.shotType = static_cast<uint8_t>(id % 3 ? ShotLogType::MANUAL : ShotLogType::AUTO);
@@ -12942,7 +12942,7 @@ void s01f_curve_rollover_keeps_stats_windows_and_sorted_joins() {
             stats.flowCount == before.flowCount);
     }
   CHECK(ShotCurveLog::hostWriteBytes() == writes);
-  CHECK(shotCurves.removeById(110));
+  CHECK(shotCurves.removeById(SHOT_LOG_CAPACITY + 10));
   CHECK(copyShotStats().shotCount == 10); // Missing curve does not remove its summary.
   ShotLogRecord rows[SHOT_LOG_CAPACITY];
   const size_t count = copyShotRecords(rows, SHOT_LOG_CAPACITY);

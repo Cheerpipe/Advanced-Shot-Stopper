@@ -117,7 +117,7 @@ static_assert(sizeof(ShotCurveStore) ==
                   sizeof(ShotCurveHeader) +
                       sizeof(ShotCurveRecord) * SHOT_CURVE_CAPACITY,
               "ShotCurveStore packing must stay 4-byte aligned for chunked flash I/O");
-static_assert(sizeof(ShotCurveStore) == 513220,
+static_assert(sizeof(ShotCurveStore) == 2566020,
               "ShotCurveStore packing is part of the flash sidecar schema");
 
 inline uint32_t shotCurveChecksum(const ShotCurveStore &store) {

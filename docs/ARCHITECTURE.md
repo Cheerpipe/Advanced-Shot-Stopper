@@ -243,11 +243,11 @@ changing the 32-byte record size or partition layout; see the
 Each inactive slot or used curve sector is
 erased one 4 KiB sector at a time, programmed one 1 KiB staged chunk at a time,
 and receives its validity-bearing header last; the worker rechecks the current
-machine and scale gates between steps. The shot log's whole 12,028-byte store and the
+machine and scale gates between steps. The shot log's whole 60,028-byte store and the
 16,024-byte activation-history store live in PSRAM and move to and from their
 slots in 1 KiB chunks staged through the small internal flash-I/O scratch only
 while that owner holds the flash lock. Each keeps two slots in its own data
-partition — 2×12 KiB for `shotlog`, 2×16 KiB for `history` — with generation
+partition — 2×60 KiB for `shotlog`, 2×16 KiB for `history` — with generation
 and checksum selection preserving the atomic whole-store update; a failed
 write never erases the last-good slot. Writes remain deferred until the shot
 has ended. The shot log uses schema 1 in its dedicated partition (120-byte records, each
@@ -281,7 +281,7 @@ changes and link discontinuities mark the next accepted observation as a new
 segment. Overflow preserves the prefix, marks it incomplete and leaves control
 and scalar history running.
 
-The 5132-byte RAM record and 513220-byte 100-record cache live in PSRAM.
+The 5132-byte RAM record and 2,566,020-byte 500-record cache live in PSRAM.
 Curve events also preserve elapsed milliseconds in 16-bit fields, with
 `UINT16_MAX` reserved for unavailable values. Sidecar schema 0 distinguishes
 these fields from previous decisecond events; older curve records are discarded

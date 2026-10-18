@@ -920,7 +920,7 @@ if (!codeIncludes(js, 'function commandOkMessage(') ||
   }
 }
 if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
-    !codeIncludes(runtimeJs, 'SHOTS_EXPORT_LIMIT=100') ||
+    !codeIncludes(runtimeJs, 'SHOTS_EXPORT_LIMIT=500') ||
     codeIncludes(runtimeJs, "'/api/v1/stats?offset='") ||
     codeIncludes(runtimeJs, "api('/api/v1/stats')") ||
     !codeIncludes(runtimeJs, 'function startStatsStream(') ||

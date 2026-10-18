@@ -77,7 +77,7 @@ unavailable. The rest of the shot curve is retained. **Late cup** records
 successful command completion, so it can also appear when zero was not
 confirmed and the earlier first-drop record was kept.
 
-The log holds up to **100** shots. The following are never stored:
+The log holds up to **500** shots. The following are never stored:
 
 - Rinses and starts that were not confirmed
 - Cycles lasting 12 seconds or less

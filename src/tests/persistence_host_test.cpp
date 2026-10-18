@@ -583,10 +583,10 @@ void p65_factory_settings_survives_second_slot_write_fail() {
 
 void p66_shot_log_dual_slot_generation_flip() {
   resetHostPersistence();
-  CHECK(sizeof(ShotLogStore) == 12028);
+  CHECK(sizeof(ShotLogStore) == 60028);
   CHECK(sizeof(ShotLogStore) % 4 == 0);
   CHECK(sizeof(ShotLogStore) <= SHOT_LOG_FLASH_SLOT_BYTES);
-  CHECK(SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES <= 0x8000);
+  CHECK(SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES <= 0x1E000);
   ShotLog log;
   CHECK(log.load());
   ShotLogRecord record = {};
@@ -1854,9 +1854,9 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   resetHostPersistence();
   CHECK(SHOT_CURVE_MAX_POINTS == 1201);
   CHECK(sizeof(ShotCurveRecord) == 5132);
-  CHECK(sizeof(ShotCurveStore) == 513220);
+  CHECK(sizeof(ShotCurveStore) == 2566020);
   CHECK(sizeof(ShotCurveStore) % 4 == 0);
-  CHECK(SHOT_CURVE_PARTITION_BYTES == 816 * 1024);
+  CHECK(SHOT_CURVE_PARTITION_BYTES == 4016 * 1024);
   ShotCurveRecord full = emptyShotCurveRecord();
   full.count = SHOT_CURVE_MAX_POINTS;
   for (size_t i = 0; i < SHOT_CURVE_MAX_POINTS; ++i) {
@@ -2570,7 +2570,7 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
     ShotCurveRecord small = emptyShotCurveRecord();
     small.count = 1;
     small.weightCg[0] = 100;
-    for (uint32_t id = 1; id <= 100; ++id) {
+    for (uint32_t id = 1; id <= SHOT_CURVE_CAPACITY; ++id) {
       small.shotId = id;
       CHECK(live.append(small));
     }
@@ -2583,20 +2583,20 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
     ShotCurveLog::setHostFailAfter(-1);
     ShotCurveLog reloaded;
     CHECK(reloaded.load());
-    CHECK(reloaded.count() == 100);
-    const bool committed = reloaded.containsShotId(101);
+    CHECK(reloaded.count() == SHOT_CURVE_CAPACITY);
+    const bool committed = reloaded.containsShotId(SHOT_CURVE_CAPACITY + 1);
     CHECK(reloaded.containsShotId(1) != committed);
     CHECK(ShotCurveLog::hostEraseBytes() - erased <= 8192);
     CHECK(ShotCurveLog::hostWriteBytes() - written <= 2760);
     if (committed) {
       ShotCurveRecord out;
-      CHECK(reloaded.copyByShotId(101, out));
+      CHECK(reloaded.copyByShotId(SHOT_CURVE_CAPACITY + 1, out));
       CHECK(out.count == 1201 && out.atMs[1200] == 60000);
       CHECK(out.weightCg[1200] == 1234 && out.truncated);
-      CHECK(reloaded.removeById(101));
+      CHECK(reloaded.removeById(SHOT_CURVE_CAPACITY + 1));
       CHECK(live.load());
       CHECK(!live.containsShotId(1)); // Retention floor survives newest deletion.
-      CHECK(live.count() == 99);
+      CHECK(live.count() == SHOT_CURVE_CAPACITY - 1);
     }
   }
 
@@ -2628,19 +2628,19 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
   CHECK(reuse.append(complete));
   sparse.count = 1;
   sparse.weightCg[0] = 100;
-  for (uint32_t id = 2; id <= 101; ++id) {
+  for (uint32_t id = 2; id <= SHOT_CURVE_CAPACITY; ++id) {
     sparse.shotId = id;
     CHECK(reuse.append(sparse));
   }
   const size_t erased = ShotCurveLog::hostEraseBytes();
   const size_t programmed = ShotCurveLog::hostWriteBytes();
-  sparse.shotId = 102;
+  sparse.shotId = SHOT_CURVE_CAPACITY + 1;
   CHECK(reuse.append(sparse));
   CHECK(ShotCurveLog::hostEraseBytes() - erased == 4096);
   CHECK(ShotCurveLog::hostWriteBytes() - programmed == 60);
   ShotCurveLog::corruptHostByte(8192 + 4096);
-  CHECK(reuse.load() && reuse.count() == 100);
-  CHECK(reuse.copyByShotId(102, sparse) && sparse.count == 1);
+  CHECK(reuse.load() && reuse.count() == SHOT_CURVE_CAPACITY);
+  CHECK(reuse.copyByShotId(SHOT_CURVE_CAPACITY + 1, sparse) && sparse.count == 1);
 }
 
 void p61d_clear_epochs_and_stale_worker_images() {
