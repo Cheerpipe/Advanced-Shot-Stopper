@@ -213,6 +213,9 @@
   if (!codeIncludes(appJsSource, 'if(bootView==="setup"){R.startSetupSession();renderRoute(location.pathname);}else R.claimWebUiOwnership();') ||
       !codeIncludes(blockAt(runtimeJs, 'function deactivateWebUi() {'), 'if(!webUiOwner||setupSession)return;') ||
       !codeIncludes(blockAt(runtimeJs, 'function resetWebUiInactivity() {'), 'if(!webUiOwner||setupSession)return;') ||
+      !codeIncludes(runtimeJs, 'if(!document.hidden&&webUiPollingActive()&&!setupSession)') ||
+      !codeIncludes(runtimeJs, 'if(webUiPollingActive()&&!setupSession)startUiStream();') ||
+      !codeIncludes(blockAt(runtimeJs, 'function applyCompatibilityChrome() {'), '!["admin","diagnostic","setup"].includes(activeView)') ||
       !codeIncludes(blockAt(runtimeJs, 'function startSetupSession() {'), 'webUiActiveUntil=Infinity') ||
       // Steps come from the firmware phase, errors sit above the form and
       // are focused/announced, blocked configuration is explained, and the

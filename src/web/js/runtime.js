@@ -79,7 +79,7 @@ function applyCompatibilityChrome() {
     if (r && r !== "/admin") a.classList.toggle("hidden", compatMode);
   });
   applyDiagnosticNavigation();
-  if (compatMode && activeView && activeView !== "admin" && activeView !== "diagnostic")
+  if (compatMode && activeView && !["admin", "diagnostic", "setup"].includes(activeView))
     renderRoute("/admin");
 }
 export function compatibilityModeOn() {
@@ -4671,12 +4671,12 @@ function ensureBackgroundRecordStreams() {
 // Back from the background: resync the live socket; rebuild only if it died hidden.
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden && shotFsActive) keepShotFsAwake(true);
-  if (!document.hidden && webUiPollingActive())
+  if (!document.hidden && webUiPollingActive() && !setupSession)
     shotWs && shotWs.readyState === 1 ? (requestShotResync(), shotActivity()) : startUiStream();
 });
 window.addEventListener("pagehide", stopUiStream);
 window.addEventListener("pageshow", () => {
-  if (webUiPollingActive()) startUiStream();
+  if (webUiPollingActive() && !setupSession) startUiStream();
 });
 function setHomeSub(id, v) {
   const e = $(id);
