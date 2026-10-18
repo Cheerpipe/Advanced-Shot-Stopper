@@ -172,7 +172,8 @@ copy, and lock+commit — which the publish itself records on its own timeline,
 so a housekeeping pass that publishes nothing contributes no status rows.
 History persistence includes selective immutable image capture before dispatch
 to the flash worker: clean ring payloads are skipped, and curves copy only the
-uncommitted suffix rather than the retained bank. The shot-store persistence
+uncommitted suffix, at most four records per image, rather than the retained
+bank. The shot-store persistence
 service additionally skips its locked dirty check entirely while the store
 generation matches the last image the flash worker acknowledged. These rows
 record only on iterations that run the 10 ms-gated

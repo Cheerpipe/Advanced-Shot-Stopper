@@ -816,9 +816,9 @@ bool initializeSettingsPersistenceWorker() {
 #endif
   }
   if (shotStorePersistImage == nullptr) {
-    void *block = allocExternal(sizeof(ActivationStores));
+    void *block = allocExternal(sizeof(ActivationStoresPersistImage));
     if (block == nullptr) return false;
-    shotStorePersistImage = new (block) ActivationStores();
+    shotStorePersistImage = new (block) ActivationStoresPersistImage();
   }
   if (lastShotPersistImage == nullptr) {
     void *block = allocExternal(sizeof(LastShotStore));
@@ -881,7 +881,7 @@ void releaseSettingsPersistenceWorkerForHost() {
   settingsPersistTaskHandle = nullptr;
   settingsPersistenceReady = false;
   if (shotStorePersistImage != nullptr) {
-    shotStorePersistImage->~ActivationStores();
+    shotStorePersistImage->~ActivationStoresPersistImage();
     free(shotStorePersistImage);
     shotStorePersistImage = nullptr;
   }
@@ -1125,7 +1125,8 @@ void serviceShotStorePersistence() {
       activationStores.acknowledgePersisted(*shotStorePersistImage,
                                             resultOk && current);
       if (resultOk && current) {
-        shotStorePersistCleanGeneration = resultGeneration;
+        // A capped curve batch keeps the generation dirty for the remainder.
+        if (!shotCurves.dirty()) shotStorePersistCleanGeneration = resultGeneration;
         if (shotStorePersistImageLastShotDirty) {
           lastShotNvsDirty = false;
         }

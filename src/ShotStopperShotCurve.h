@@ -30,7 +30,15 @@ static_assert(sizeof(ShotCurveBlockHeader) == 36, "Explicit flash block header")
 // revisit that list, not silently strand the previous schema's blocks.
 static_assert(SHOT_CURVE_SCHEMA_VERSION == 3, "Update validHeader schema list");
 
-class ShotCurveLog {
+// Unpersisted curves a worker image carries per commit; any remainder stays
+// dirty in the live log and is captured by the next image.
+constexpr size_t SHOT_CURVE_PERSIST_BATCH = 4;
+template <size_t RingCapacity> class BasicShotCurveLog;
+using ShotCurveLog = BasicShotCurveLog<SHOT_CURVE_CAPACITY>;
+using ShotCurvePersistImage = BasicShotCurveLog<SHOT_CURVE_PERSIST_BATCH>;
+
+// Live log and worker image instances share one emulated partition.
+class ShotCurveHostStorage {
  public:
 #if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
   static void resetHostStorage() {
@@ -47,8 +55,18 @@ class ShotCurveLog {
     if (offset < sizeof(hostFlash_)) hostFlash_[offset] ^= 0x80;
   }
   static uint8_t *hostFlashForTest() { return hostFlash_; }
-#endif
 
+ protected:
+  inline static uint8_t hostFlash_[SHOT_CURVE_PARTITION_BYTES] = {};
+  inline static bool hostSaveSucceeds_ = true;
+  inline static int hostFailAfter_ = -1;
+  inline static size_t hostEraseBytes_ = 0, hostWriteBytes_ = 0;
+#endif
+};
+
+template <size_t RingCapacity>
+class BasicShotCurveLog : public ShotCurveHostStorage {
+ public:
   bool load() {
     resetShotCurveStore(store_);
     memset(blocks_, 0, sizeof(blocks_));
@@ -215,8 +233,8 @@ class ShotCurveLog {
       return FlashStoreStepResult::MORE;
     }
     for (size_t n = 0; n < store_.header.count; ++n) {
-      size_t index = (store_.header.writeIndex + SHOT_CURVE_CAPACITY -
-                      store_.header.count + n) % SHOT_CURVE_CAPACITY;
+      size_t index = (store_.header.writeIndex + RingCapacity -
+                      store_.header.count + n) % RingCapacity;
       const auto &record = store_.records[index];
       if (persisted(record.shotId)) continue;
       if (sequence_ == UINT32_MAX) return FlashStoreStepResult::FAILED;
@@ -248,7 +266,7 @@ class ShotCurveLog {
     return FlashStoreStepResult::COMPLETE;
   }
 
-  void capturePersistenceImage(ShotCurveLog &image) const {
+  void capturePersistenceImage(ShotCurvePersistImage &image) const {
     memcpy(image.blocks_, blocks_, sizeof(blocks_));
     image.epoch_ = epoch_;
     image.durableEpoch_ = durableEpoch_;
@@ -260,21 +278,22 @@ class ShotCurveLog {
     image.tx_ = {};
     image.dirty_ = dirty_;
     image.store_.header = store_.header;
-    image.store_.header.count = 0;
+    image.store_.header.count = image.store_.header.writeIndex = 0;
     if (!dirty_) return;
-    // Oldest-first commits leave only an uncommitted suffix. Stop at the
-    // newest committed record instead of walking/copying the retained bank.
-    for (size_t n = 0; n < store_.header.count; ++n) {
-      const size_t index = (store_.header.writeIndex + SHOT_CURVE_CAPACITY -
-                            1U - n) % SHOT_CURVE_CAPACITY;
-      const auto &record = store_.records[index];
-      if (persisted(record.shotId)) break;
-      image.store_.records[index] = record;
-      ++image.store_.header.count;
-    }
+    // Oldest-first commits leave only an uncommitted suffix. Measure it from
+    // the newest end, then copy its oldest batch in commit order.
+    size_t pending = 0;
+    while (pending < store_.header.count && !persisted(newest(pending).shotId)) ++pending;
+    const size_t batch =
+        pending < SHOT_CURVE_PERSIST_BATCH ? pending : SHOT_CURVE_PERSIST_BATCH;
+    for (size_t n = 0; n < batch; ++n)
+      image.store_.records[n] = newest(pending - 1U - n);
+    image.store_.header.count = static_cast<uint16_t>(batch);
+    image.store_.header.writeIndex =
+        static_cast<uint16_t>(batch % SHOT_CURVE_PERSIST_BATCH);
   }
 
-  void acknowledgePersisted(const ShotCurveLog &image, bool clearDirty) {
+  void acknowledgePersisted(const ShotCurvePersistImage &image, bool clearDirty) {
     memcpy(blocks_, image.blocks_, sizeof(blocks_));
     sequence_ = image.sequence_;
     durableEpoch_ = image.durableEpoch_;
@@ -282,7 +301,8 @@ class ShotCurveLog {
     floor_ = image.floor_;
     tx_ = {};
     if (clearDirty) {
-      dirty_ = false;
+      // A capped batch leaves newer curves unpersisted for the next image.
+      dirty_ = store_.header.count > 0 && !persisted(newest(0).shotId);
       deletionCount_ = 0;
     }
   }
@@ -292,7 +312,7 @@ class ShotCurveLog {
     if (id == 0) return nullptr;
     size_t index = store_.header.writeIndex;
     for (size_t n = 0; n < store_.header.count; ++n) {
-      index = (index + SHOT_CURVE_CAPACITY - 1U) % SHOT_CURVE_CAPACITY;
+      index = (index + RingCapacity - 1U) % RingCapacity;
       if (store_.records[index].shotId == id) return &store_.records[index];
     }
     return nullptr;
@@ -310,7 +330,7 @@ class ShotCurveLog {
     size_t count = store_.header.count < capacity ? store_.header.count : capacity;
     size_t index = store_.header.writeIndex;
     for (size_t n = 0; n < count; ++n) {
-      index = (index + SHOT_CURVE_CAPACITY - 1U) % SHOT_CURVE_CAPACITY;
+      index = (index + RingCapacity - 1U) % RingCapacity;
       out[n] = store_.records[index];
     }
     return count;
@@ -359,6 +379,11 @@ class ShotCurveLog {
   bool retained(const ShotCurveBlockHeader &h) const {
     return h.magic == SHOT_CURVE_MAGIC && h.epoch == epoch_ &&
            h.validity == kCommitted && h.sequence >= floor_;
+  }
+  // n-th newest record of the ring (0 = newest); caller bounds n by count.
+  const ShotCurveRecord &newest(size_t n) const {
+    return store_.records[(store_.header.writeIndex + RingCapacity - 1U - n) %
+                          RingCapacity];
   }
   bool persisted(uint32_t id) const {
     for (const auto &h : blocks_)
@@ -541,10 +566,6 @@ class ShotCurveLog {
     return tx_.phase == FlashStoreTransaction::Phase::IDLE ?
         FlashStoreStepResult::COMPLETE : FlashStoreStepResult::MORE;
   }
-  inline static uint8_t hostFlash_[SHOT_CURVE_PARTITION_BYTES] = {};
-  inline static bool hostSaveSucceeds_ = true;
-  inline static int hostFailAfter_ = -1;
-  inline static size_t hostEraseBytes_ = 0, hostWriteBytes_ = 0;
 #else
   static const esp_partition_t *partition() {
     const auto *part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
@@ -562,7 +583,7 @@ class ShotCurveLog {
   }
 #endif
 
-  ShotCurveStore store_{};
+  ShotCurveRingStore<RingCapacity> store_{};
   ShotCurveBlockHeader blocks_[SHOT_CURVE_BLOCK_COUNT]{};
   alignas(4) uint8_t disk_[kDiskCapacity]{};
   alignas(4) uint8_t verify_[kDiskCapacity]{};
@@ -574,6 +595,8 @@ class ShotCurveLog {
   bool dirty_ = false, writingEpoch_ = false;
   uint32_t deletions_[SHOT_CURVE_CAPACITY]{};
   size_t deletionCount_ = 0;
+
+  template <size_t> friend class BasicShotCurveLog;
 };
 
 }  // namespace shotstopper

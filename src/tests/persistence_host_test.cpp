@@ -2699,7 +2699,7 @@ void p61d_clear_epochs_and_stale_worker_images() {
   r.count = 1;
   r.weightCg[0] = 100;
   CHECK(live.append(r, false));
-  ShotCurveLog image;
+  ShotCurvePersistImage image;
   live.capturePersistenceImage(image);
   CHECK(live.clear(false));
   while (image.flushStep() == FlashStoreStepResult::MORE) {}
@@ -2968,7 +2968,8 @@ void p61i_shot_curve_schema3_wire_format_is_pinned() {
 
 void p66c_activation_capture_skips_clean_payloads() {
   resetHostPersistence();
-  ActivationStores live, image;
+  ActivationStores live;
+  ActivationStoresPersistImage image;
   CHECK(live.begin() && live.shotLog.flush());
   ShotCurveRecord curve = emptyShotCurveRecord();
   curve.shotId = 1;
@@ -3000,7 +3001,8 @@ void p66c_activation_capture_skips_clean_payloads() {
 void p61e_selective_curve_capture_preserves_retention_and_retry() {
   for (int failureAfter : {-1, 0, 1, 2, 3, 4, 5, 6}) {
     resetHostPersistence();
-    ShotCurveLog live, image, reboot;
+    ShotCurveLog live, reboot;
+    ShotCurvePersistImage image;
     CHECK(live.load());
     ShotCurveRecord record = emptyShotCurveRecord();
     record.count = 1;
@@ -3050,6 +3052,40 @@ void p61e_selective_curve_capture_preserves_retention_and_retry() {
     CHECK(reboot.load() && reboot.count() == SHOT_CURVE_CAPACITY - 1U);
     CHECK(!reboot.containsId(SHOT_CURVE_CAPACITY + 1U));
   }
+}
+
+void p61j_curve_image_batches_backlog_oldest_first() {
+  // The image must not mirror the retained bank: it carries one small batch.
+  CHECK(sizeof(ActivationStoresPersistImage) + 2U * 1024U * 1024U <
+        sizeof(ActivationStores));
+  resetHostPersistence();
+  ShotCurveLog live, reboot;
+  ShotCurvePersistImage image;
+  CHECK(live.load());
+  constexpr uint32_t backlog = 2U * SHOT_CURVE_PERSIST_BATCH + 1U;
+  ShotCurveRecord record = emptyShotCurveRecord();
+  record.count = 1;
+  for (uint32_t id = 1; id <= backlog; ++id) {
+    record.shotId = id;
+    CHECK(live.append(record, false));
+  }
+  size_t rounds = 0;
+  for (uint32_t persisted = 0; live.dirty(); ++rounds) {
+    live.capturePersistenceImage(image);
+    CHECK(image.count() == std::min<size_t>(SHOT_CURVE_PERSIST_BATCH, backlog - persisted));
+    ShotCurveRecord newest = emptyShotCurveRecord();
+    CHECK(image.copyNewestFirst(&newest, 1) == 1);
+    CHECK(newest.shotId == persisted + image.count());
+    FlashStoreStepResult result;
+    do { result = image.flushStep(); } while (result == FlashStoreStepResult::MORE);
+    CHECK(result == FlashStoreStepResult::COMPLETE);
+    persisted += static_cast<uint32_t>(image.count());
+    live.acknowledgePersisted(image, true);
+    CHECK(live.dirty() == (persisted < backlog));
+    CHECK(reboot.load() && reboot.count() == persisted);
+  }
+  CHECK(rounds == 3);
+  CHECK(reboot.containsId(1) && reboot.containsId(backlog));
 }
 
 // Golden settings blob of schema 1, written once when the layout was cut over
@@ -3230,6 +3266,7 @@ void p92_schema1_golden_shot_log_loads() {
 const TestCase tests[] = {
     {"P66C", p66c_activation_capture_skips_clean_payloads},
     {"P61E", p61e_selective_curve_capture_preserves_retention_and_retry},
+    {"P61J", p61j_curve_image_batches_backlog_oldest_first},
     {"P61C", p61c_timestamped_capacity_and_interrupted_blocks},
     {"P61D", p61d_clear_epochs_and_stale_worker_images},
     {"P90", p90_firmware_mode_store_round_trip_and_factory_reset},

@@ -41,7 +41,10 @@ struct ActivationStoresFlushReport {
   bool complete = true;
 };
 
-class ActivationStores {
+// Live stores and the worker's persistence image differ only in the curve
+// log: the image carries a bounded batch of unpersisted curves.
+template <typename CurveLog>
+class BasicActivationStores {
  public:
   // Boot load. Returns whether the durable boot-identity write succeeded
   // (always true in host tests). Call before the network task serves
@@ -129,7 +132,7 @@ class ActivationStores {
   }
 
   ShotLog shotLog;
-  ShotCurveLog shotCurves;
+  CurveLog shotCurves;
   HistoryLog historyLog;
 
   // Harness support: reset and inspect the latched failure dedup state.
@@ -144,7 +147,7 @@ class ActivationStores {
            historyPersistFailLatched_;
   }
 
-  void capturePersistenceImage(ActivationStores &image) const {
+  void capturePersistenceImage(BasicActivationStores<ShotCurvePersistImage> &image) const {
     shotLog.capturePersistenceImage(image.shotLog);
     shotCurves.capturePersistenceImage(image.shotCurves);
     historyLog.capturePersistenceImage(image.historyLog);
@@ -154,7 +157,8 @@ class ActivationStores {
     image.persistCursor_ = 0;
   }
 
-  void acknowledgePersisted(const ActivationStores &image, bool clearDirty) {
+  void acknowledgePersisted(const BasicActivationStores<ShotCurvePersistImage> &image,
+                            bool clearDirty) {
     shotLog.acknowledgePersisted(image.shotLog, clearDirty);
     shotCurves.acknowledgePersisted(image.shotCurves, clearDirty);
     historyLog.acknowledgePersisted(image.historyLog, clearDirty);
@@ -193,6 +197,11 @@ class ActivationStores {
   bool shotCurvePersistFailLatched_ = false;
   bool historyPersistFailLatched_ = false;
   uint8_t persistCursor_ = 0;
+
+  template <typename> friend class BasicActivationStores;
 };
+
+using ActivationStores = BasicActivationStores<ShotCurveLog>;
+using ActivationStoresPersistImage = BasicActivationStores<ShotCurvePersistImage>;
 
 }  // namespace shotstopper

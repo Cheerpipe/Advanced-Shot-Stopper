@@ -108,10 +108,14 @@ struct ShotCurveHeader {
 static_assert(sizeof(ShotCurveHeader) == 20,
               "ShotCurveHeader packing is part of the flash sidecar schema");
 
-struct ShotCurveStore {
+// Live bank holds every retained curve; a persistence image holds only the
+// small batch it is about to commit.
+template <size_t Capacity>
+struct ShotCurveRingStore {
   ShotCurveHeader header;
-  ShotCurveRecord records[SHOT_CURVE_CAPACITY];
+  ShotCurveRecord records[Capacity];
 };
+using ShotCurveStore = ShotCurveRingStore<SHOT_CURVE_CAPACITY>;
 
 static_assert(sizeof(ShotCurveStore) ==
                   sizeof(ShotCurveHeader) +

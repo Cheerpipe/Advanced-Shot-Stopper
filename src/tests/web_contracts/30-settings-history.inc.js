@@ -1175,7 +1175,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !historyTypesIo.includes('durationMs > protectionMs') ||
     !historyIo.includes('HISTORY_FLASH_SLOT_BYTES = 16384') ||
     !historyIo.includes('"history"') ||
-    !activationStoresIo.includes('class ActivationStores') ||
+    !activationStoresIo.includes('using ActivationStores = BasicActivationStores<ShotCurveLog>') ||
     !activationStoresIo.includes('TaskLockGuard(shotStoreMutex)')) {
   throw new Error('Activation history must page 20 records over the owned WebSocket with sort direction, a type filter, clear, delete, and a streamed CSV export');
 }

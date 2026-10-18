@@ -633,7 +633,7 @@ uint32_t settingsPersistResultStorageRevision = 0;
 QueueHandle_t settingsPersistQueue = nullptr;
 TaskHandle_t settingsPersistTaskHandle = nullptr;
 bool settingsPersistenceReady = false;
-ActivationStores *shotStorePersistImage = nullptr;
+ActivationStoresPersistImage *shotStorePersistImage = nullptr;
 LastShotStore *lastShotPersistImage = nullptr;
 TaskMutex shotStorePersistMux;
 bool shotStorePersistInFlight = false;

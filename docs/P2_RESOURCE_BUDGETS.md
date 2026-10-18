@@ -487,6 +487,9 @@ development profile measured 2,916,120 external-BSS bytes, 177,946 DIRAM bytes
 and a 2,369,456-byte image, re-baselining
 `config/resource-baselines.json`.
 The immutable persistence image is separately allocated in external heap.
+It mirrors the shot and activation logs but carries at most four unpersisted
+curves (about 20 KiB) instead of a second curve bank; a larger backlog is
+committed over successive images, so the 500-shot bank is not duplicated.
 
 ## Home shot stream target measurements
 
@@ -545,7 +548,7 @@ cases also remain pending; the successful full transfer does not qualify them.
 | Network work buffer | external, bounded at 640 KiB; includes the Stats capture's full-capacity shot-record snapshot (500 × 120 bytes) with one-curve fetch scratch, 22,016-byte curve JSON, 26,112-byte row JSON, 40,960-byte status JSON, dedicated curve staging, 2,816 bytes of session fingerprints and a bounded page header/cache key; handlers share the work-buffer mutex. The earlier 629,376-byte measurement predates this layout; verify the current size in the matched firmware build |
 | HTTP response send | complete assets and JSON use HTTPD Content-Length responses; streamed bodies retain chunked transfer. Source buffers pass directly to HTTPD's default socket send, which copies into lwIP; no application bounce buffer or extra copy |
 | NVS metadata cache | PSRAM preferred with internal fallback; flash I/O still uses the internal scratch below |
-| Shot-curve store | external, 2,566,020-byte cache for 500 records of 5,132 bytes; bounded block-header index and two 7,564-byte disk/verification workspaces belong to the same owner; immutable worker image is separately external |
+| Shot-curve store | external, 2,566,020-byte cache for 500 records of 5,132 bytes; bounded block-header index and two 7,564-byte disk/verification workspaces belong to the same owner; immutable worker image is separately external and holds at most four unpersisted curves |
 | Curve capture/finalization | external task-owned 1201-observation sampler and pending/finalization snapshots; the published scalar status stays internal, bounded at 2,048 bytes; its 4,955-byte curve array payload moves to PSRAM (plus alignment), with the same mutex/version covering both parts. The full reader snapshot stays bounded at 6,912 bytes in the external HTTP workspace; no control-path allocation or large stack local |
 | Home live stream | two fixed internal session contexts and one coalesced dispatch on the existing priority-1 tasks; 128 Home and 224 Diagnostic field fingerprints per session occupy 2,816 bytes in the external workspace; boot/clock anchors stay internal. Shared 26,112-byte external row workspace and 22,016-byte curve scratch, with no extra TX allocation; 1201 curve points maximum, 100 ms progress cadence and no unchanged data; four HTTP sockets retained |
 | Shared flash-I/O scratch | internal heap, 3,328-byte capacity for one 3,304-byte PersistedSettings record; slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |

@@ -16563,6 +16563,25 @@ void s12g_worker_acknowledgement_rechecks_generation_under_lock() {
   }
 }
 
+void s12h_capped_curve_batch_keeps_generation_dirty_until_drained() {
+  resetHarness(false, true);
+  CHECK(initializeSettingsPersistenceWorker());
+  constexpr uint32_t backlog = 2U * SHOT_CURVE_PERSIST_BATCH + 1U;
+  ShotCurveRecord curve = emptyShotCurveRecord();
+  curve.count = 1;
+  for (uint32_t id = 1; id <= backlog; ++id) {
+    curve.shotId = id;
+    CHECK(shotCurves.append(curve, false));
+  }
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  for (int call = 0; call < 8 && shotCurves.dirty(); ++call) {
+    serviceShotStorePersistence();
+  }
+  CHECK(!shotCurves.dirty());
+  CHECK(shotStorePersistCleanGeneration == shotStoreDirtyGeneration.load());
+  CHECK(shotCurves.load() && shotCurves.count() == backlog);
+}
+
 void s13_persist_debug_messages_identify_origin() {
   char message[128] = {};
   DebugEvent shotLogEvent = {};
@@ -22141,6 +22160,7 @@ const TestCase testCases[] = {
     {"S01e", s01e_bbw_error_uses_its_own_ten_shots},
     {"S01f", s01f_curve_rollover_keeps_stats_windows_and_sorted_joins},
     {"S12g", s12g_worker_acknowledgement_rechecks_generation_under_lock},
+    {"S12h", s12h_capped_curve_batch_keeps_generation_dirty_until_drained},
     {"S02k", s02k_curve_continuity_uses_control_rejections_and_fifo_provenance},
     {"S01d", s01d_manual_timer_and_limit_share_settled_finalize},
     {"S01b", s01b_shot_log_stop_detail_names_end_reasons},
