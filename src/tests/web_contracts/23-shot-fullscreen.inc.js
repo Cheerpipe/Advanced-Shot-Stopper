@@ -75,8 +75,9 @@
     const appended = [];
     const hero = Object.assign(element(), {classList: stubClasses(heroClasses),
       append: el => appended.push(el)});
-    const docHandlers = {}, nav = {}, video = {plays: 0, pauses: 0, attrs: {},
-      play() { this.plays++; return Promise.resolve(); }, pause() { this.pauses++; },
+    const docHandlers = {}, nav = {}, video = {plays: 0, pauses: 0, attrs: {}, paused: false,
+      play() { this.plays++; this.paused = false; return Promise.resolve(); },
+      pause() { this.pauses++; this.paused = true; },
       setAttribute(k, v) { this.attrs[k] = v; }};
     const els = {shotHero: hero, shotFsClose: element()};
     const card = {closest: () => null}, link = {closest: () => ({})};
@@ -139,8 +140,8 @@
     assert.ok(!heroClasses.has('fs') && history.back === 3, 'Escape with focus on the page exits');
     assert.equal(api.pop(), true, 'the Escape exit consumes its pushed entry');
 
-    // Plain HTTP has no Wake Lock API: a muted looping video keeps the screen
-    // on, invisible and untouchable, and pauses on exit.
+    // Plain HTTP has no Wake Lock API: a looping video keeps the screen on
+    // outside iOS (muted), invisible and untouchable, and pauses on exit.
     const plays = video.plays;
     doubleTap();
     assert.equal(appended.length, 1, 'the keep-awake video is added once');
@@ -150,6 +151,42 @@
     els.shotFsClose.onclick();
     assert.ok(video.pauses >= 1, 'leaving pauses the keep-awake video');
     api.pop();
+    // iOS resumes unmuted playback only from a gesture: a tap while full
+    // screen must restart the video after iOS paused it in the background.
+    doubleTap();
+    video.paused = true;
+    const resumed = video.plays;
+    tap(card, 700);
+    assert.equal(video.plays, resumed + 1, 'a tap in full screen resumes the paused video');
+    els.shotFsClose.onclick();
+    api.pop();
+  }
+
+  // iOS WebKit ignores muted video for display sleep: the silent keep-awake
+  // track plays unmuted on iPhone/iPad (and the desktop-class iPadOS UA),
+  // muted everywhere else.
+  for (const [ua, touch, unmuted] of [
+    ['(iPhone; CPU iPhone OS 18_1 like Mac OS X)', 5, true],
+    ['(iPad; CPU OS 18_1 like Mac OS X)', 5, true],
+    ['Macintosh; Intel Mac OS X 10_15_7', 5, true],
+    ['Macintosh; Intel Mac OS X 10_15_7', 0, false],
+    ['Linux; Android 15; Pixel 8', 5, false],
+  ]) {
+    const video = {muted: false, play() { return Promise.resolve(); }, setAttribute() {}};
+    const hero = {classList: {add() {}, remove() {}}, querySelector: () => null,
+      focus() {}, append() {}};
+    const api = new Function('$', 'history', 'location', 'document', 'setTimeout',
+        'clearTimeout', 'navigator',
+        runtimeJs.slice(runtimeJs.search(/let\s+shotFsActive\s*=/),
+            runtimeJs.indexOf('// The diagnostic stream rides')) +
+        ';return{enter:enterShotFullScreen}')(
+        () => hero, {pushState() {}, back() {}}, {href: '/'},
+        {body: {classList: {add() {}, remove() {}}}, createElement: () => video},
+        () => 0, () => {}, {userAgent: ua, maxTouchPoints: touch});
+    api.enter();
+    assert.equal(video.muted, !unmuted,
+        `${ua} (touch ${touch}) must ${unmuted ? 'play unmuted' : 'stay muted'}`);
+    assert.ok(video.loop && video.playsInline);
   }
 
   // With the Wake Lock API the screen lock is taken on entry, released on

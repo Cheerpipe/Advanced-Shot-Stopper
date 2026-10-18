@@ -682,8 +682,9 @@ if (generated.cssGzip.length > 14384) {
 // Moving the Diagnostic live renderer into the Diagnostic module brings it to 39982 (2026-10-16).
 // Moving the Stats chart and shot-row helpers into the Stats module brings it to 38465 (2026-10-16).
 // The gradual forecast hero tint (firmware-owned tintClass/tintPct, advisories, landing estimate) with the window-mode fast alert restored brings the runtime to 38895 compressed bytes; owner-authorized 2026-10-17.
-if (sentinelRuntimeGzip.length > 38895) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 38895-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The iOS-only unmuted keep-awake track and its tap resume bring it to 38983; owner-requested 2026-10-17.
+if (sentinelRuntimeGzip.length > 38983) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 38983-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -882,8 +883,8 @@ if (generated.icon48Raw.length > 3500) {
 const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
     generated.jsGzip.length + generated.runtimeGzip.length;
 // The gradual forecast hero tint brings the cold Home download to 64613 gzip bytes with the window-mode fast alert restored; owner-authorized 2026-10-17.
-if (coldHomeGzip > 64613) {
-  throw new Error(`Cold Home download exceeds the 64613-byte gzip budget (${coldHomeGzip})`);
+if (coldHomeGzip > 64700) {
+  throw new Error(`Cold Home download exceeds the 64700-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

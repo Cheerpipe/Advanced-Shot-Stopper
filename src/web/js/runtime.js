@@ -4039,7 +4039,7 @@ let shotFsActive = false,
   shotFsLock = null,
   shotFsVideo = null;
 // Keeps the phone screen on while the card is full screen. Plain HTTP has no
-// Wake Lock API, so a muted looping video covering the card stands in.
+// Wake Lock API, so a looping video covering the card stands in.
 function keepShotFsAwake(on) {
   if (!on) {
     if (shotFsLock) shotFsLock.release().catch(() => {});
@@ -4054,7 +4054,11 @@ function keepShotFsAwake(on) {
   if (!shotFsVideo) {
     shotFsVideo = document.createElement("video");
     shotFsVideo.className = "heroAwake";
-    shotFsVideo.muted = shotFsVideo.loop = shotFsVideo.playsInline = true;
+    // iOS WebKit keeps the display awake only during audible playback, so
+    // the silent track plays unmuted there and muted everywhere else.
+    shotFsVideo.muted = !(/iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)));
+    shotFsVideo.loop = shotFsVideo.playsInline = true;
     shotFsVideo.setAttribute("aria-hidden", "true");
     shotFsVideo.src = "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMsbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAld0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAAAAABAAAAAAHPbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAgABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABem1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAATpzdGJsAAAAunN0c2QAAAAAAAAAAQAAAKphdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2MS4xOS4xMDEgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAMGF2Y0MBQsAK/+EAF2dCwAqmEXsBEAAAAwAQAAADACDxImEYAQAGaMhCDxMgAAAAEHBhc3AAAAABAAAAAQAAABRidHJ0AAAAAAAAAHgAAAAAAAAAGHN0dHMAAAAAAAAAAQAAAAIAAEAAAAAAFHN0c3MAAAAAAAAAAQAAAAEAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAIAAAABAAAAHHN0c3oAAAAAAAAAAAAAAAIAAAATAAAACwAAABRzdGNvAAAAAAAAAAEAAANcAAAAYXVkdGEAAABZbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAsaWxzdAAAACSpdG9vAAAAHGRhdGEAAAABAAAAAExhdmY2MS43LjEwMwAAAAhmcmVlAAAAJm1kYXQAAAAPZYiCAvnP//+HooAAq8/AAAAAB0GaHAXznUA=";
     $("shotHero").append(shotFsVideo);
@@ -4144,7 +4148,12 @@ function initShotFullScreen() {
   // A double tap or double click toggles full screen; Enter opens it from the keyboard.
   hero.addEventListener("pointerup", (e) => {
     if (e.target.closest("a,button")) return;
-    if (e.timeStamp - tap > 350) return void (tap = e.timeStamp);
+    if (e.timeStamp - tap > 350) {
+      // iOS resumes unmuted playback only from a gesture: a tap while full
+      // screen restarts the keep-awake video if iOS paused it in the background.
+      if (shotFsActive && shotFsVideo?.paused) keepShotFsAwake(true);
+      return void (tap = e.timeStamp);
+    }
     tap = 0;
     shotFsActive ? close.onclick() : enterShotFullScreen();
   });
