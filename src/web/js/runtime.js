@@ -3227,16 +3227,15 @@ function presetGraph(host, m, x = {}) {
     // The hatch keeps its inline name only where it fits; the legend names it too.
     (!compact && X(m.prot) - L >= 96 ? label((L + X(m.prot)) / 2, (T + B) / 2, __WEBUI_TEXT__("runtime.graph_legend_no_cut"), "rvHalo") : "") +
     // Below the line when it would run into "Max" at the top (Settings only).
-    label(R - 2, Y(m.goal) + (targetAbove ? -4 : 13), sub(__WEBUI_TEXT__("runtime.graph_target"), [n(m.goal)]), "rvHalo strong rvTargetLbl", "end") +
+    label(R - 2, Y(m.goal) + (targetAbove ? -4 : 13), sub(__WEBUI_TEXT__("runtime.graph_target"), [n(m.goal)]), "rvHalo strong", "end") +
     (compact
       ? "</g></svg>"
       : label(X(m.wall), T - 4, sub(__WEBUI_TEXT__("runtime.graph_max"), [n(m.wall)]), "", "end") +
-        `</g><g class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.scrubMin}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvStop" r="3.5"/><circle class="rvHandle" r="5"/>${PILL}</g></svg>`);
+        `</g><g class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.scrubMin}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvHandle" r="5"/>${PILL}</g></svg>`);
   return {
     m,
     X,
     Y,
-    W,
     T,
     B,
     pace: (ta, end) => S + paceTo(ta, end),
@@ -3415,22 +3414,13 @@ function positionPresetScrub(host) {
         : __WEBUI_TEXT__("runtime.graph_readout"),
       values,
     ),
-    [guide, shot, stopDot, handle, pill] = g.children,
-    targetLabel = g.ownerSVGElement.querySelector(".rvTargetLbl"),
-    box = targetLabel.getBBox(),
-    hx = v.X(stop),
-    dx = v.X(tArr);
+    [guide, shot, handle, pill] = g.children,
+    hx = v.X(stop);
   guide.setAttribute("d", `M${hx.toFixed(1)} ${v.T}V${v.B}`);
   shot.setAttribute("d", v.pace(tArr, stop));
-  // The dot marks the target arrival, hidden once it falls past the plot.
-  stopDot.setAttribute("cx", dx.toFixed(2));
-  stopDot.setAttribute("cy", v.Y(m.goal).toFixed(2));
-  stopDot.style.display = dx > v.W - 10 ? "none" : "";
   handle.setAttribute("cx", hx.toFixed(2));
   handle.setAttribute("cy", v.Y(w).toFixed(2));
   placePill(pill, sub(__WEBUI_TEXT__("runtime.graph_cut_pill"), values), hx, v.Y(w));
-  // The dot rides the target line: the label steps aside under it.
-  targetLabel.style.opacity = dx > box.x - 8 && dx < box.x + box.width + 8 ? "0" : "";
   g.setAttribute("aria-valuenow", stop.toFixed(1));
   g.setAttribute("aria-valuetext", text);
   if (host._readout) host._readout.textContent = text;
