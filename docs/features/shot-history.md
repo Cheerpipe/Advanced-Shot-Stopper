@@ -230,7 +230,11 @@ Tap or drag anywhere on the chart, or use the arrow keys when it has focus, to
 move a cursor along the shot's curve. The line under the chart reads the time,
 the weight at that moment, and the cut line at that time. While your finger or
 mouse is on the chart, a small bubble beside the cursor shows the same time and
-weight. The cursor starts at the shot's stop point.
+weight. The cursor starts at the last reading, the **Final weight, after
+drips**. When drips kept falling after the machine stopped, a smaller dot
+labelled **Shot stopped** marks the moment the shot was actually cut, with its
+real time and weight. It usually sits a little before or below the cut line,
+because the shot is stopped early enough for the last drips to land on target.
 
 Under the preset chart, a single weight and flow chart shows how the shot
 actually poured: the weight curve and the flow rate together, on one time line

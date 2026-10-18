@@ -260,8 +260,9 @@ function renderShotSpark(h, shot) {
   const preset = document.createElement("div"),
     readout = document.createElement("p"),
     combo = document.createElement("div"),
-    // The cursor rides this shot's own curve; it starts at the stop point (D7).
-    curve = m.pts.slice().sort((a, b) => a.t - b.t);
+    // The cursor rides this shot's own curve from its last reading; a drip tail adds a top dot at the real stop.
+    curve = m.pts.slice().sort((a, b) => a.t - b.t),
+    stop = m.dripSegs.length ? +shot.endS : null;
   let cursorT = curve.at(-1).t;
   const place = () => {
     const v = preset._view,
@@ -295,9 +296,11 @@ function renderShotSpark(h, shot) {
     });
     // The weight/flow chart below matches this plot's height, so grams read alike in both.
     if (preset._view) h.style.setProperty("--shot-plot-h", preset._view.B - preset._view.T + "px");
+    const v = preset._view;
     preset.querySelector("svg")?.insertAdjacentHTML(
       "beforeend",
-      `<g class="shotCursor"><path class="rvGuide"/><circle class="rvHandle" r="5"/>${R.PILL}</g>`,
+      `<g class="shotCursor"><path class="rvGuide"/><circle class="rvHandle" r="5"/>${R.PILL}</g>` +
+        (stop == null || !v ? "" : `<circle class="shotStop" r="3" cx="${v.X(stop)}" cy="${v.Y(curveAt(curve, stop))}"/>`),
     );
     place();
   };
@@ -328,6 +331,10 @@ function renderShotSpark(h, shot) {
           ? '<span class="rvLeg rvLegWindow"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_corridor") + "</span>"
           : "") +
     '<span class="rvLeg rvLegLast"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_last") + "</span>" +
+    (stop == null
+      ? ""
+      : '<span class="rvLeg rvLegStop"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_stopped") +
+        '</span><span class="rvLeg rvLegFinal"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_final") + "</span>") +
     (m.held.length
       ? '<span class="rvLeg rvLegHeld"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_held") + "</span>"
       : "");

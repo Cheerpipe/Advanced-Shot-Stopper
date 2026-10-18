@@ -860,8 +860,9 @@ if (htmlBytes > 93300) {
 // The iOS-only unmuted keep-awake track and its tap resume: +516 bytes (451645), owner-requested 2026-10-17.
 // SoftAP onboarding P1 (status-driven /setup steps, blocked notice, copyable addresses, claim-less setup session): +2842 bytes (454487), owner-requested 2026-10-18.
 // Onboarding brewing steps (mode, starting recipe, summary with Change, brewing draft on the setup actions): +3970 bytes (458457), owner-requested 2026-10-18.
-if (jsBytes > 458457) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 458457)`);
+// The shot chart's real-stop dot and its two legend entries: +433 bytes (458890), owner-requested 2026-10-18.
+if (jsBytes > 458890) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 458890)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -970,8 +971,9 @@ if (jsBytes > 458457) {
 // Combined source at 537475 with the iOS-only unmuted keep-awake; owner-requested 2026-10-17.
 // SoftAP onboarding P1 (/setup steps, notices, addresses, claim-less session): 540424, owner-requested 2026-10-18.
 // Onboarding brewing steps (mode and recipe choices with dose, yield and Recommended tags, summary, brewing draft): 547580, owner-requested 2026-10-18.
-if (htmlBytes + jsBytes > 547580) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 547580)`);
+// The shot chart's real-stop dot and its two legend entries: 548013, owner-requested 2026-10-18.
+if (htmlBytes + jsBytes > 548013) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 548013)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

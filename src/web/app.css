@@ -482,7 +482,8 @@ html:not(.theme-light) :is(.qwSheet,#actionsPanel){box-shadow:0 -8px 28px rgba(0
 .shotLegend{display:flex;flex-wrap:wrap;gap:.2rem .7rem;font-size:.72rem;color:var(--mu)}
 .shotLegend .rvLegLast i{height:0;border-top:2.5px dashed var(--gLast)}
 .shotCursorText{margin:0;font-size:.72rem;color:var(--mu);font-variant-numeric:tabular-nums}
-.shotCursor .rvHandle{fill:var(--c,var(--gLast));stroke:var(--sf);stroke-width:1.5}
+.shotCursor .rvHandle,.shotStop{fill:var(--c,var(--gLast));stroke:var(--sf);stroke-width:1.5}
+.rvLegStop i,.rvLegFinal i{border-radius:50%;background:var(--gLast)}.rvLegStop i{width:.45rem;height:.45rem}
 .shotCursor .rvPill rect{stroke:var(--c,var(--gLast))}
 .shotCursor .rvGuide{stroke:var(--fg);stroke-opacity:.5;stroke-width:1;fill:none}
 .shotPresetChart{touch-action:pan-y;outline-offset:2px}
