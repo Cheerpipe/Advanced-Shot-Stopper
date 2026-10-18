@@ -202,6 +202,13 @@ void publishControlStatus() {
   // Reads the shot store (cached): never under the publication lock.
   const corridor::LossDeadline scaleLossProjection =
       idleScaleLossDeadline(activeShotPreset(presetBank));
+  // The curve source is control-task owned: refresh it outside the lock.
+  if (session.active) shotCurveSampler.snapshot(statusLastGoodCurve);
+  else if (homeCycleResult.valid) {
+    if (pendingFinalize.cycleId == homeCycleResult.cycleId)
+      statusLastGoodCurve = pendingFinalize.curve;
+    else shotCurveSampler.snapshot(statusLastGoodCurve);
+  }
   if (recordStatusPhases)
     finishLoopPhase(LoopPhase::HOUSEKEEPING_STATUS_STORE_COPY);
   const uint32_t statusLockStartedUs = micros();
@@ -369,13 +376,12 @@ void publishControlStatus() {
     next.lastActivationFlags = newest.flags;
   }
   {
+    // Only live samples move under the lock; a longer previous curve's tail
+    // is cleared so the published arrays still read zero past the count.
+    static uint16_t publishedCurveCount = SHOT_CURVE_MAX_POINTS;
     const ShotCurveRecord &curve = statusLastGoodCurve;
-    if (session.active) shotCurveSampler.snapshot(statusLastGoodCurve);
-    else if (next.homeCycle.valid) {
-      if (pendingFinalize.cycleId == next.homeCycle.cycleId)
-        statusLastGoodCurve = pendingFinalize.curve;
-      else shotCurveSampler.snapshot(statusLastGoodCurve);
-    }
+    const uint16_t count = curve.count < SHOT_CURVE_MAX_POINTS
+                               ? curve.count : SHOT_CURVE_MAX_POINTS;
     copyShotCurveRecordToStatusFields(
         curve, next.shotCurveCount, next.shotCurveTruncated,
         next.shotCurveFirstDropMs, next.shotCurveFirstDropCg,
@@ -383,9 +389,15 @@ void publishControlStatus() {
         next.shotCurveAtmMs, next.shotCurveAtmCg,
         next.shotCurveAtmClearedMs, next.shotCurveEndedMs,
         next.shotCurveEndedCg, publishedControlCurve.shotCurveWeightCg,
-        SHOT_CURVE_MAX_POINTS, publishedControlCurve.shotCurveAtMs,
+        count, publishedControlCurve.shotCurveAtMs,
         publishedControlCurve.shotCurveBreakBefore,
         publishedControlCurve.shotCurveHeld);
+    if (publishedCurveCount > count) {
+      const size_t tail = publishedCurveCount - count;
+      memset(publishedControlCurve.shotCurveWeightCg + count, 0, tail * sizeof(int16_t));
+      memset(publishedControlCurve.shotCurveAtMs + count, 0, tail * sizeof(uint16_t));
+    }
+    publishedCurveCount = count;
   }
   copyCString(next.scaleProtocol, sizeof(next.scaleProtocol),
               scaleLink.protocolName);
