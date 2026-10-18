@@ -376,9 +376,9 @@ bool ShotStopperNetwork::requireActiveWebUiClient(httpd_req_t *request) {
 esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   struct Route {
-    const char *uri;
-    httpd_method_t method;
-    esp_err_t (*handler)(httpd_req_t *);
+    const char *uri = nullptr;
+    httpd_method_t method = HTTP_GET;
+    esp_err_t (*handler)(httpd_req_t *) = nullptr;
     bool setup = false;  // also served claim-less to SoftAP peers (/setup)
   };
   static const Route routes[] = {
