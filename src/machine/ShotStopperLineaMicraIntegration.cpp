@@ -77,7 +77,7 @@ void requestMachineIntegrationPresetTemperature(
   request.targetDeciC = targetDeciC;
   request.presetId = presetId;
   request.type = LineaMicraRequestType::APPLY_TEMPERATURE;
-  service.queue(request);
+  service.post(request);
 }
 
 void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
@@ -98,7 +98,7 @@ void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
                          "Micra scale shutdown: scale powered off, requesting StandBy");
     LineaMicraRequest request;
     request.type = LineaMicraRequestType::SET_STANDBY;
-    service.queue(request);
+    service.post(request);
   }
   const MicraScalePowerOnTracker::Snapshot powerOnSnapshot{
       scaleLinkUp, scaleDisconnectReason, busy};
@@ -107,7 +107,7 @@ void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
                          "Micra scale power-on: scale powered on, requesting BrewingMode");
     LineaMicraRequest request;
     request.type = LineaMicraRequestType::SET_POWER_ON;
-    service.queue(request);
+    service.post(request);
   }
 }
 

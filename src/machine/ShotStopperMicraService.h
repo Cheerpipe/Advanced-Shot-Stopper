@@ -41,6 +41,10 @@ class ShotStopperMicraService {
   bool queueConnect(uint32_t requestId, const char *username,
                     const char *password);
   bool queue(const LineaMicraRequest &request);
+  // Control task only, for temperature and power commands: never waits on
+  // mux_. Contention defers the command to the task's next successful lock,
+  // latest wins per kind, as queue() itself would keep only the newest.
+  void post(const LineaMicraRequest &request);
   bool selectDiscoveredMachine(const char *serial,
                                LineaMicraPersistedSettings &settings);
   void clearDiscovery();
@@ -54,6 +58,8 @@ class ShotStopperMicraService {
   HeapLifecycleAggregate heapTelemetry() const;
   MicraWebSocketStatus websocketStatus(bool includeTraffic = true) const;
   LineaMicraDiscoverySnapshot discovery() const;
+  // Control task only: physicalStart() and finishBackflush() never wait on
+  // mux_ either (see their definitions for the contended resolution).
   MachinePhysicalStartDisposition physicalStart(MachineBackflushPermit *permit = nullptr);
   MachineBackflushSnapshot backflush(bool consume = false);
   void finishBackflush(uint32_t attempt);
@@ -199,6 +205,16 @@ class ShotStopperMicraService {
   // its last locked snapshot here and the same task reads it on tryLock
   // misses, with count zeroed so no stale edges are re-served.
   MachineBackflushSnapshot lastPollSnapshot_;
+  // Control task only, like lastPollSnapshot_: mutations a busy mux_ deferred
+  // from post() and finishBackflush(), applied first at the task's next lock.
+  LineaMicraRequest postedTemperature_ = {}, postedPower_ = {};
+  uint32_t postedFinishAttempt_ = 0;  // 0: no release pending
+  bool postedTemperaturePresent_ = false, postedPowerPresent_ = false;
+  bool postedPending() const {
+    return postedTemperaturePresent_ || postedPowerPresent_ ||
+           postedFinishAttempt_ != 0;
+  }
+  void applyPostedLocked();
   // Control task only, like idleBackflush_: statusPoll() writes both under
   // mux_ and the same task reads them, so nothing else guards them.
   mutable LineaMicraStatus statusCache_ = {};

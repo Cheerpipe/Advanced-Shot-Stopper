@@ -34,8 +34,9 @@ struct MachineBackflushSnapshot {
   }
 };
 
-// Integration-owned bounded handoff. Only ingressAttempt() is callback-safe
-// without the integration mutex. Control alone drains; loss survives recovery.
+// Integration-owned bounded handoff. Only ingressAttempt() and fence() are
+// safe without the integration mutex. Control alone drains; loss survives
+// recovery.
 class MachineBackflushObservations {
  public:
   const MachineBackflushSnapshot &status() const { return state_; }
@@ -106,10 +107,16 @@ class MachineBackflushObservations {
     change.permit.attempt = ingressAttempt;
   }
 
-  // Every evaluated edge fences bytes already in flight, even a normal start.
-  MachineBackflushPermit start() {
+  // Retires bytes already in flight; atomic, so control may fence an edge it
+  // evaluates while the integration mutex is busy.
+  void fence() {
     markChanged();
     advanceAttempt();
+  }
+
+  // Every evaluated edge fences bytes already in flight, even a normal start.
+  MachineBackflushPermit start() {
+    fence();
     if (!state_.valid || state_.phase != MachineBackflushPhase::AWAITING ||
         state_.consumed) return {};
     state_.consumed = true;

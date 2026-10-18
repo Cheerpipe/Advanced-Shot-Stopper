@@ -105,6 +105,14 @@ headroom. The development Micra build measures 2,366,352 image and 2,366,239
 linked bytes; image, linked, rodata, DIRAM and external BSS stay inside
 their allowances. Task priorities, cadences and memory placement are
 unchanged.
+Keeping the control loop off the Micra facade mutex (zero-timeout
+physical-start, cleaning-release and temperature/power entries with
+loop-owned deferral slots) measures 2,366,912 image, 2,366,791 linked and
+1,587,392 flash-code bytes, so those allowances move to 93,216, 93,208 and
+72,356 bytes keeping the 64-byte headroom; rodata, DIRAM (512 bytes over
+baseline) and external BSS stay inside theirs. The image and linked figures
+include 128 compressed Web-asset bytes from the Home hero chart's preset
+corridor boundaries, which landed without their own allowance entry.
 Urgent control-gate publication and the no-scale timer's stop fade add another
 640 bytes of reviewed image/linked allowance, to 44,976 and 44,968 bytes.
 The mobile full-screen Home shot card and the Brew by Weight master toggle

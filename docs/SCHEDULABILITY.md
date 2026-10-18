@@ -203,13 +203,16 @@ measures only the acquisition attempt (microseconds uncontended); its hold
 figure (`holdLastUs`, `holdMaxUs`) still reports the locked section, and a
 long hold means the loop was preempted or stalled while holding the mutex.
 Every task mutex additionally remembers the name and tenure of
-its previous holder — written under the lock, so the next acquirer reads
-it race-free — and the remaining blocking Micra edges (queuing a request
-and a cleaning admission) report an acquisition wait of
+its longest holder since the waiter last reset it — written under the lock,
+so the next acquirer reads it race-free, and a short re-lock cannot hide the
+long section before it. The control loop's physical-start, cleaning-release
+and temperature/power edges never wait on the facade (see
+[concurrency](CONCURRENCY.md)); the remaining blocking Micra edge, queuing a
+Web or integration request, reports an acquisition wait of
 2 ms or more as it happens: a warning on the serial log names the
 holder, and a `machine mux wait` debug-ring event stamps the moment with
-the wait and tenure as its arguments, rate-limited to one report per 10 s
-per site, with the report gathered under the lock and emitted after it so
+the wait and tenure as its arguments, rate-limited to one report per 10 s,
+with the report gathered under the lock and emitted after it so
 logging never nests inside the facade mutex. The same event also enters
 the curated audit latch: a small RAM ring
 of classified rare events (every error plus a maintained allowlist of

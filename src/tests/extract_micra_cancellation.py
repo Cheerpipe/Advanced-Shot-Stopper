@@ -40,7 +40,7 @@ output.mkdir(parents=True, exist_ok=True)
                "queue", "queueLocked", "muxWaitAnomalyDue",
                "qualifyBackflushLocked", "backflushReadyLocked", "backflush",
                "reportMuxWaitAnomaly", "finishBackflush", "physicalStart",
-               "physicalStartLocked")) + "\n")
+               "physicalStartLocked", "post", "applyPostedLocked")) + "\n")
 (output / "micra_cancellation_methods.inc").write_text(
     "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
     + "\n".join(map(definition, names)) + "\n"

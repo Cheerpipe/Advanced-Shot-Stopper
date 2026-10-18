@@ -231,7 +231,9 @@ can reconnect during the program; backflush does not tare it, run its timer, or
 add a shot to Stats. WebSocket monitoring continues throughout. Temperature
 changes wait while cleaning is pending or active, and pending automatic machine
 power commands are canceled. A start can be refused if a machine command is
-still finishing or the cloud session needs renewal.
+still finishing, the cloud session needs renewal, or the controller is busy
+with the cloud connection at the very moment you move the paddle. The machine
+never waits on the cloud: return the paddle OFF and move it ON again.
 
 History records a confirmed activation as **Backflush**, including an
 interrupted one. Its duration is the time the activation circuit was enabled;

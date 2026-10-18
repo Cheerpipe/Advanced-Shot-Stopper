@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cstring>
 #include <cstdarg>
@@ -1186,37 +1187,76 @@ struct MicraWebSocketTest {
     assert(muxWaitEvents == 2 && lastMuxWaitArgs[0] == 2000);
     TaskMutex::hostObserver = nullptr;
   }
-  static void physicalStartMuxWaitDetectorFires() {
-    now = 30000;  // Fresh per-site latch; past its rate-limit window.
-    muxWaitEvents = 0;
-    disconnectLog.clear();
-    lastMuxWaitDetail.clear();
-    // Reference outcome on an identically prepared, unforced service.
-    ShotStopperMicraService reference;
-    reference.config_.accountConfigured = true;
-    MachineBackflushPermit referencePermit{};
-    const auto referenceDisposition = reference.physicalStart(&referencePermit);
-    assert(muxWaitEvents == 0);
+  template <typename Body>
+  static void withMuxHeld(ShotStopperMicraService &service, Body body) {
+    std::atomic<bool> held{false}, release{false};
+    std::thread holder([&] {
+      service.mux_.lock();
+      held.store(true);
+      while (!release.load()) std::this_thread::yield();
+      service.mux_.unlock();
+    });
+    while (!held.load()) std::this_thread::yield();
+    body();
+    release.store(true);
+    holder.join();
+  }
+  static void loopEntryPointsNeverWaitOnMux() {
+    const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
+    now = 1000;
     ShotStopperMicraService service;
     service.config_.accountConfigured = true;
-    MachineBackflushPermit permit{};
-    armMuxWaitBurn(2);  // Two burned calls: 3 ms, past the bar.
-    const auto disposition = service.physicalStart(&permit);
-    assert(muxWaitEvents == 1);
-    assert(lastMuxWaitArgs[0] == 3000);
-    assert(lastMuxWaitDetail == "holder=host");
-    assert(disconnectLog.find("Micra mux wait=3000 us") != std::string::npos);
-    // Instrumentation does not bend the disposition or the permit.
-    assert(disposition == referenceDisposition);
-    assert(permit.continuity == referencePermit.continuity &&
-           permit.episode == referencePermit.episode &&
-           permit.attempt == referencePermit.attempt &&
-           permit.sequence == referencePermit.sequence &&
-           permit.extendable == referencePermit.extendable);
-    TaskMutex::hostObserver = nullptr;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.config_.options |= LINEA_MICRA_APPLY_TEMPERATURE;
+    service.staConnected_.store(true);
+    service.tokenAvailable_.store(true);
+    service.tokenIssuedAtMs_.store(millis());
+    service.serviceWebSocket();
+    subscribe(service);
+    deliver(service, observation(service, awaiting));
+    assert(service.backflush(true).busy());
+    service.task_ = reinterpret_cast<TaskHandle_t>(1);
+    LineaMicraRequest request;
+    request.type = LineaMicraRequestType::APPLY_TEMPERATURE;
+    request.presetId = 1;
+    request.targetDeciC = LINEA_MICRA_BREW_TARGET_MIN_DECI_C;
+    withMuxHeld(service, [&] {
+      // A busy cleaning episode refuses the contended edge with no permit,
+      // still fencing in-flight bytes like a locked evaluation.
+      const uint32_t ingress = service.backflush_.ingressAttempt();
+      MachineBackflushPermit permit;
+      permit.attempt = 7;
+      assert(service.physicalStart(&permit) ==
+             MachinePhysicalStartDisposition::BLOCKED_CLEANING);
+      assert(permit.attempt == 0 && service.backflush_.ingressAttempt() != ingress);
+      service.post(request);
+      service.finishBackflush(5);
+      // A permit-less release (after a refused edge) only fences and must
+      // not displace the pending release.
+      const uint32_t fenced = service.backflush_.ingressAttempt();
+      service.finishBackflush(0);
+      assert(service.backflush_.ingressAttempt() != fenced);
+      assert(service.postedTemperaturePresent_ && service.postedFinishAttempt_ == 5);
+      assert(!service.desiredTemperature_.present);
+      // Contended polls serve the last resolution and keep the deferral.
+      assert(service.backflush(true).busy() && service.postedPending());
+    });
+    // The next uncontended poll applies the deferred mutations first.
+    (void)service.backflush(true);
+    assert(!service.postedPending() && service.desiredTemperature_.present);
+    service.stopWebSocket(true);
+    delete service.work_;
+
+    // Without a busy episode a contended edge is a normal start.
+    ShotStopperMicraService idle;
+    withMuxHeld(idle, [&] {
+      MachineBackflushPermit permit;
+      assert(idle.physicalStart(&permit) == MachinePhysicalStartDisposition::NORMAL);
+      assert(permit.attempt == 0);
+    });
   }
   static void muxWaitReportEmittedAfterUnlock() {
-    now = 50000;  // Clears both per-site latches' rate-limit windows.
+    now = 50000;  // Clears the queue latch's rate-limit window.
     muxWaitEvents = 0;
     ShotStopperMicraService service;
     service.config_.accountConfigured = true;
@@ -1227,10 +1267,6 @@ struct MicraWebSocketTest {
     armMuxWaitBurn(1);
     assert(service.queue(request));
     assert(muxWaitEvents == 1 && muxWaitDepthAtEvent == 0);
-    now += 10000;
-    armMuxWaitBurn(2);
-    (void)service.physicalStart(nullptr);
-    assert(muxWaitEvents == 2 && muxWaitDepthAtEvent == 0);
     TaskMutex::hostObserver = nullptr;
   }
   static void backflushConsumeFastPathUnchanged() {
@@ -1353,7 +1389,7 @@ int main() {
   shotstopper::MicraWebSocketTest::backflushMissSurvivesLongHold();
   shotstopper::MicraWebSocketTest::backflushDetectorSilentAfterConversion();
   shotstopper::MicraWebSocketTest::queueMuxWaitDetectorFires();
-  shotstopper::MicraWebSocketTest::physicalStartMuxWaitDetectorFires();
+  shotstopper::MicraWebSocketTest::loopEntryPointsNeverWaitOnMux();
   shotstopper::MicraWebSocketTest::muxWaitReportEmittedAfterUnlock();
   shotstopper::MicraWebSocketTest::backflushConsumeFastPathUnchanged();
   shotstopper::MicraWebSocketTest::backflushMissAfterAdmission();

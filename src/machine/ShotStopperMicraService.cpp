@@ -840,7 +840,7 @@ MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
   // or the machine is off (readiness requires power ON), so the control
   // loop's consuming poll reuses its last locked read until a mutation marks
   // a change or the power mirror flips back on.
-  if (consume && !backflush_.changed() &&
+  if (consume && !backflush_.changed() && !postedPending() &&
       (!idleBackflush_.valid || powerOff_.load(std::memory_order_acquire))) {
     noteMutexWaitUs(micraBackflushWaitLastUsStat(), micraBackflushWaitMaxUsStat(), 0);
     noteMutexWaitUs(micraBackflushHoldLastUsStat(), micraBackflushHoldMaxUsStat(), 0);
@@ -865,6 +865,7 @@ MachineBackflushSnapshot ShotStopperMicraService::backflush(bool consume) {
   const uint32_t lockedAtUs = micros();
   noteMutexWaitUs(micraBackflushWaitLastUsStat(), micraBackflushWaitMaxUsStat(),
                   lockedAtUs - muxLockStartedUs);
+  applyPostedLocked();
   qualifyBackflushLocked();
   auto result = consume ? backflush_.take() : backflush_.status();
   result.ready = backflushReadyLocked();
@@ -916,32 +917,64 @@ void ShotStopperMicraService::reportMuxWaitAnomaly(
 }
 
 void ShotStopperMicraService::finishBackflush(uint32_t attempt) {
-  TaskLockGuard lock(mux_);
+  if (!mux_.tryLock()) {
+    // finish()'s fence lands now; only a real permit release waits. The
+    // task's own last resolution drops that permit at once so its contended
+    // reads stay coherent with the release it requested. Attempts are only
+    // admitted under the lock, after the pending release, so one slot holds.
+    backflush_.fence();
+    if (attempt == 0) return;
+    postedFinishAttempt_ = attempt;
+    if (lastPollSnapshot_.permit.attempt == attempt) lastPollSnapshot_.permit.attempt = 0;
+    return;
+  }
+  applyPostedLocked();
   backflush_.finish(attempt);
+  mux_.unlock();
 }
 
 MachinePhysicalStartDisposition ShotStopperMicraService::physicalStart(MachineBackflushPermit *permit) {
-  // Edge-triggered mutations stay blocking, but the anomaly report must not
-  // nest logging inside mux_: gate and gather under the lock, emit after it.
-  const uint32_t muxLockStartedUs = micros();
-  TaskLockGuard lock(mux_);
-  const uint32_t waitedUs = micros() - muxLockStartedUs;
-  static uint32_t lastMuxWaitReportAtMs = 0;
-  const bool reportMuxWait =
-      muxWaitAnomalyDue(waitedUs, lastMuxWaitReportAtMs, millis());
-  char muxWaitHolder[16] = {};
-  uint32_t muxWaitHoldUs = 0;
-  if (reportMuxWait) {
-    snprintf(muxWaitHolder, sizeof(muxWaitHolder), "%s",
-             mux_.longestHoldOwnerName());
-    muxWaitHoldUs = mux_.longestHoldUs();
+  if (mux_.tryLock()) {
+    applyPostedLocked();
+    const auto disposition = physicalStartLocked(permit);
+    mux_.unlock();
+    return disposition;
   }
-  mux_.resetLongestHold();
-  const auto disposition = physicalStartLocked(permit);
-  lock.unlock();
-  if (reportMuxWait)
-    reportMuxWaitAnomaly(waitedUs, muxWaitHolder, muxWaitHoldUs);
-  return disposition;
+  // Contended edge, decided from the last locked backflush resolution
+  // without waiting. Admission and wake recognition need the locked state,
+  // so a busy cleaning episode refuses the edge (the barista presses again)
+  // and anything else is a normal start. The fence still retires bytes in
+  // flight, as start() does for every evaluated edge.
+  if (permit) *permit = {};
+  backflush_.fence();
+  if (!lastPollSnapshot_.busy()) return MachinePhysicalStartDisposition::NORMAL;
+  if (powerActive_.load() || temperatureActive_.load())
+    abortRequested_.store(true, std::memory_order_release);
+  return MachinePhysicalStartDisposition::BLOCKED_CLEANING;
+}
+
+void ShotStopperMicraService::post(const LineaMicraRequest &request) {
+  if (mux_.tryLock()) {
+    applyPostedLocked();
+    (void)queueLocked(request);
+    mux_.unlock();
+    return;
+  }
+  if (request.type == LineaMicraRequestType::APPLY_TEMPERATURE) {
+    postedTemperature_ = request;
+    postedTemperaturePresent_ = true;
+  } else {
+    postedPower_ = request;
+    postedPowerPresent_ = true;
+  }
+}
+
+void ShotStopperMicraService::applyPostedLocked() {
+  if (postedFinishAttempt_ != 0) backflush_.finish(postedFinishAttempt_);
+  if (postedTemperaturePresent_) (void)queueLocked(postedTemperature_);
+  if (postedPowerPresent_) (void)queueLocked(postedPower_);
+  postedFinishAttempt_ = 0;
+  postedTemperaturePresent_ = postedPowerPresent_ = false;
 }
 
 MachinePhysicalStartDisposition ShotStopperMicraService::physicalStartLocked(
@@ -1282,6 +1315,7 @@ void ShotStopperMicraService::deferTemperature(
       work_ != nullptr ? work_->transportStatus : 0;
   published_.temperatureTransportStatus = transportStatus;
   published_.temperatureHttpStatus = httpStatus;
+  lock.unlock();  // logging takes its own locks; never nest them in mux_
   if (error != LineaMicraError::CANCELED) {
     serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
                          "Micra temperature request failed preset=%u target=%u.%u error=%s http=%u raw=%ld",
@@ -1310,6 +1344,7 @@ void ShotStopperMicraService::deferPower(
   const uint16_t httpStatus = work_ != nullptr ? work_->httpStatus : 0;
   const int32_t transportStatus =
       work_ != nullptr ? work_->transportStatus : 0;
+  lock.unlock();  // logging takes its own locks; never nest them in mux_
   serialTraceCategoryf(error == LineaMicraError::CANCELED ? LogLevel::INFO
                                                           : LogLevel::WARNING,
                        DebugCategory::NETWORK,
@@ -1566,6 +1601,7 @@ bool ShotStopperMicraService::executePowerApplication(
           sameCommandRequest(desiredPower_.request, request)) {
         desiredPower_ = {};
       }
+      lock.unlock();  // logging takes its own locks; never nest them in mux_
       serialTraceCategoryf(
           LogLevel::INFO, DebugCategory::NETWORK,
           standby
