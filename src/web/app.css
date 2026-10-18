@@ -3,10 +3,10 @@
 html{background:var(--bg);color-scheme:light dark;--nav-space:calc(5.75rem + env(safe-area-inset-bottom));--nav-offset:calc(4.25rem + env(safe-area-inset-bottom));scroll-padding-bottom:var(--nav-space)}
 *,*:before,*:after{box-sizing:border-box}
 body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--nav-space);color:var(--fg);background:var(--bg);font-size:1rem;line-height:1.45}
-.topBar{position:sticky;top:0;z-index:21;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.6rem .75rem;margin:0 -1rem;padding:.5rem 1rem;padding-top:max(.5rem,env(safe-area-inset-top));min-height:var(--hdr);background:var(--bg);color:var(--ac)}
+.topBar{position:sticky;top:0;z-index:21;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.6rem .75rem;margin:0 -1rem;padding:.5rem 1rem;padding-top:calc(.5rem + env(safe-area-inset-top));min-height:calc(var(--hdr) + env(safe-area-inset-top));background:var(--bg);color:var(--ac)}
 .brand{margin:0;min-width:0;position:relative;z-index:22;--brandGap:.55rem}
 .brand a{color:var(--ac);text-decoration:none;display:flex;align-items:center;gap:var(--brandGap)}
-.brandMark{width:2.35rem;height:3.1rem;flex:0 0 auto;display:block;overflow:visible;fill:currentColor;transform:translateY(5%)}
+.brandMark{width:2.35rem;height:3.1rem;flex:0 0 auto;display:block;overflow:visible;fill:currentColor}
 .brand span{display:flex;flex-direction:column;justify-content:center;gap:.08rem;min-width:0;line-height:1.05;font-size:1.4rem;font-weight:800;letter-spacing:-.02em;white-space:nowrap}
 .brand small{font-size:1rem;font-weight:300;letter-spacing:.01em;color:var(--fg)}
 .spriteDefs{position:absolute}
@@ -687,7 +687,7 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 :where(a,button,input,select,textarea,summary):focus-visible{outline:3px solid var(--ac);outline-offset:2px}
 .btnGlyph:not(:disabled):hover{filter:brightness(.95)}
 @media(max-width:699px){
-.topBar{--logo-w:2.35rem;--logo-h:3.1rem;--brand-font:1.4rem;--brand-small:1rem;--compact:var(--header-progress,0);min-height:calc(5rem - 1.25rem * var(--compact));transition:min-height .12s linear}
+.topBar{--logo-w:2.35rem;--logo-h:3.1rem;--brand-font:1.4rem;--brand-small:1rem;--compact:var(--header-progress,0);min-height:calc(5rem + env(safe-area-inset-top) - 1.25rem * var(--compact));transition:min-height .12s linear}
 .topBar .brandMark{width:calc(var(--logo-w) - (var(--logo-w) - 1.65rem) * var(--compact));height:calc(var(--logo-h) - (var(--logo-h) - 2.2rem) * var(--compact));transition:width .12s linear,height .12s linear}
 .topBar .brand span{font-size:calc(var(--brand-font) - (var(--brand-font) - 1.05rem) * var(--compact));transition:font-size .12s linear}
 .topBar .brand small{font-size:calc(var(--brand-small) - (var(--brand-small) - .76rem) * var(--compact));transition:font-size .12s linear}
