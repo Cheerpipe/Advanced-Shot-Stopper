@@ -460,7 +460,7 @@ inline void copyShotCurveRecordToStatusFields(
   atmClearedMs = curve.atmClearedMs;
   endedMs = curve.ended.atMs;
   endedCg = curve.ended.weightCg;
-  if (weightCg == nullptr || weightCapacity == 0) {
+  if (weightCg == nullptr) {
     return;
   }
   const size_t copy =

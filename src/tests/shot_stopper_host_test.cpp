@@ -16025,6 +16025,32 @@ void f13_schedule_contract_and_snapshot_evidence_are_explicit() {
   CHECK(hostTaskNotifyGiveCalls == 1);
 }
 
+void f13b_status_curve_publishes_live_samples_and_clears_tail() {
+  resetHarness(false, false);
+  pendingFinalize = PendingShotFinalize{};
+  pendingFinalize.cycleId = 77;
+  homeCycleResult = {};
+  homeCycleResult.valid = true;
+  homeCycleResult.cycleId = 77;
+  session.active = false;
+  ControlStatusSnapshot status;
+  for (const uint16_t points : {5, 2}) {
+    resetShotCurveRecord(pendingFinalize.curve);
+    for (uint16_t i = 0; i < points; ++i)
+      CHECK(appendShotCurveObservation(pendingFinalize.curve, 1.0f + i,
+                                       i * 50U, false));
+    publishControlStatus();
+    copyControlStatus(status);
+    CHECK(status.shotCurveCount == points);
+    for (uint16_t i = 0; i < points; ++i)
+      CHECK(status.shotCurveWeightCg[i] == pendingFinalize.curve.weightCg[i] &&
+            status.shotCurveAtMs[i] == pendingFinalize.curve.atMs[i]);
+  }
+  // The shorter curve leaves no stale samples from the longer one.
+  for (uint16_t i = 2; i < 5; ++i)
+    CHECK(status.shotCurveWeightCg[i] == 0 && status.shotCurveAtMs[i] == 0);
+}
+
 void f17_health_counters_are_atomic_and_monotonic() {
   constexpr uint32_t kWriters = 4;
   constexpr uint32_t kIterations = 500;
@@ -22175,6 +22201,7 @@ const TestCase testCases[] = {
     {"F06", f06_boot_capability_policy_is_fail_closed},
     {"F06b", f06b_control_gate_derives_effective_boot_state},
     {"F13", f13_schedule_contract_and_snapshot_evidence_are_explicit},
+    {"F13b", f13b_status_curve_publishes_live_samples_and_clears_tail},
     {"F14", f14_relay_timer_initialization_rolls_back_partial_handles},
     {"F17", f17_health_counters_are_atomic_and_monotonic},
     {"F18", f18_guard_early_rejection_matches_original_predicates},
