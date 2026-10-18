@@ -518,7 +518,7 @@ comparison point was 80 bytes lower. Free-heap differences alone therefore do
 not describe dynamic allocation growth. Separate boots measured internal minima
 of 31,232–37,088 bytes for the baseline and 30,184–36,196 bytes for the corrected
 firmware. Startup traces placed the transient dips around existing outbound
-connections and the 52 KiB startup reservation; compare matched workloads rather
+connections and the startup reservation; compare matched workloads rather
 than attributing a lifetime minimum to the Home stream alone.
 
 Two 100-reconnection runs recovered their initial internal free/minimum/largest
@@ -638,14 +638,17 @@ layout to transition over USB without erasing unrelated saved data.
 Capability samples use `INTERNAL|8BIT` and `SPIRAM|8BIT`, including the PSRAM
 minimum-free watermark. The retained boot capture uses at most 768 bytes of
 static PSRAM plus one internal static task mutex and an atomic sampling flag.
-The startup heap hold currently requests 53,248 bytes (52 KiB) as a comparison
-candidate; the same mechanism supports the previous 45,056-byte (44 KiB) and
-57,344-byte (56 KiB) trials, 49,152 bytes (48 KiB), the original 60,000-byte
-baseline and zero.
+The startup heap hold requests 69,632 bytes (68 KiB). A 2026-10-18 sweep on the
+release image (central run 102,400 bytes at network start, two boots per size)
+measured steady largest block / lifetime minimum of 38,912 / ~67,000 bytes with
+no hold, 45,056 / ~41,000 at 52 KiB, 59,392 / 39,828 at 68 KiB, 63,488 /
+36,492–39,828 at 72 KiB and 65,536 / 28,152–29,820 at 76 KiB; larger holds also
+shrink the side blocks while held. 68 KiB is the largest hold that keeps the
+lifetime minimum on its plateau. The lifetime minimum includes the held block,
+so the no-hold figure is not lost capacity.
 Zero skips allocation and records `disabled`,
-then starts the 60-second post-release window immediately. This candidate and
-the reduced WS task stack require target qualification; they are not an optimum
-established by the earlier captures.
+then starts the 60-second post-release window immediately. The reduced WS task
+stack still requires target qualification.
 It also samples `INTERNAL|DMA`; the overlapping capability pools are not additive.
 First-stage samples and approximately 100 ms health-task samples maintain separate
 hold/post-release minima plus an independent 60-second minimum from the first

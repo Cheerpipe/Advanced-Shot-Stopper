@@ -864,6 +864,48 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   }
 #endif
 
+  {
+    // Boot heap shaper capture (the serial BOOT_HEAP report): stages as
+    // [stage,result,ms,held,free,largest], then held/post/ws [samples,free,largest].
+    // Copy under the lock piecewise; never hold it across a socket send.
+    uint32_t stages, requested;
+    BootHeapMinimum minima[3];
+    {
+      TaskLockGuard lock(bootHeapMutex);
+      stages = bootHeapCapture.stages;
+      requested = bootHeapCapture.requestedBytes;
+      minima[0] = bootHeapCapture.held;
+      minima[1] = bootHeapCapture.post;
+      minima[2] = bootHeapCapture.ws;
+    }
+    ok = ok && debugExportChunkf(request, buf, cap, "\"bootHeap\":{\"requested\":%lu,\"stages\":[",
+                                 static_cast<unsigned long>(requested));
+    const char *separator = "";
+    for (size_t i = 0; i < static_cast<size_t>(BootHeapStage::COUNT); ++i) {
+      if (!(stages & (1U << i))) continue;
+      BootHeapRecord r;
+      {
+        TaskLockGuard lock(bootHeapMutex);
+        r = bootHeapCapture.records[i];
+      }
+      ok = ok && debugExportChunkf(request, buf, cap, "%s[\"%s\",\"%s\",%lu,%lu,%lu,%lu]", separator,
+                                   bootHeapStageName(static_cast<BootHeapStage>(i)),
+                                   bootHeapResultName(r.result), static_cast<unsigned long>(r.atMs),
+                                   static_cast<unsigned long>(r.heldBytes),
+                                   static_cast<unsigned long>(r.internal.freeBytes),
+                                   static_cast<unsigned long>(r.internal.largestBlock));
+      separator = ",";
+    }
+    ok = ok && debugExportChunk(request, "],\"minima\":[");
+    for (size_t i = 0; i < 3; ++i) {
+      ok = ok && debugExportChunkf(request, buf, cap, "%s[%lu,%lu,%lu]", i ? "," : "",
+                                   static_cast<unsigned long>(minima[i].samples),
+                                   static_cast<unsigned long>(minima[i].free),
+                                   static_cast<unsigned long>(minima[i].largest));
+    }
+    ok = ok && debugExportChunk(request, "]},");
+  }
+
   const NvsDiagnosticSnapshot nvs = captureNvsDiagnostics();
   ok = ok && debugExportChunkf(
       request, buf, cap,
