@@ -561,8 +561,9 @@ if (generated.jsGzip.length > 7330) {
 // Onboarding brewing steps (mode and recipe choice cards, summary rows) measure 14621 bytes; owner-requested 2026-10-18.
 // The shot chart's real-stop dot and its legend keys measure 14648 bytes; owner-requested 2026-10-18.
 // The La Marzocco Cloud sign-in steps (pending, spinning, done) measure 14745 bytes; owner-requested 2026-10-18.
-if (generated.cssGzip.length > 14745) {
-  throw new Error(`Compressed Web CSS exceeds the 14745-byte gzip budget (${generated.cssGzip.length})`);
+// The La Marzocco Cloud linked note restyled as a green confirmation measures 14775 bytes; owner-requested 2026-10-18.
+if (generated.cssGzip.length > 14775) {
+  throw new Error(`Compressed Web CSS exceeds the 14775-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -909,8 +910,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Home Micra cloud hint card, its copy and its Settings deep link bring it to 65263; owner-requested 2026-10-18.
 // The Linea Micra sign-in state, Save/Revert pairing and its CSS rule bring it to 65311; owner-requested 2026-10-18.
 // The La Marzocco Cloud sign-in steps CSS and legend state strings bring it to 65442; owner-requested 2026-10-18.
-if (coldHomeGzip > 65442) {
-  throw new Error(`Cold Home download exceeds the 65442-byte gzip budget (${coldHomeGzip})`);
+// The green La Marzocco Cloud linked note CSS and its shorter text bring it to 65473; owner-requested 2026-10-18.
+if (coldHomeGzip > 65473) {
+  throw new Error(`Cold Home download exceeds the 65473-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

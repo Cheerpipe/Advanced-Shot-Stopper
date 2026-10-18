@@ -1318,7 +1318,7 @@
     "settings.micra_email": "La Marzocco email",
     "settings.micra_email_hint": "The same email you use to sign in to the La Marzocco app.",
     "settings.micra_intro": "See when your Micra is on and warmed up, set the brew temperature in each preset, and let your scale turn the machine on and off.",
-    "settings.micra_linked_note": "Connected. The recommended options below are already on. To change any of them, adjust it and choose Save La Marzocco settings.",
+    "settings.micra_linked_note": "Connected. The recommended options below are on, and you can adjust any of them.",
     "settings.micra_machine": "Machine",
     "settings.micra_machine_hint": "The La Marzocco app shows each machine's name and serial number.",
     "settings.micra_needs_wifi": "Connect the controller to your home Wi-Fi first. Signing in needs the internet, which isn't available while the setup network is open.",

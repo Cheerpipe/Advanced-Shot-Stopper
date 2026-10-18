@@ -353,6 +353,7 @@ small{display:block;color:var(--mu)}
 .statsDensPlot{display:block;width:100%;height:3.75rem}
 .locked{opacity:.5}
 .readyMsg{margin:1rem 0 0;padding:.6rem .75rem;border:1px solid var(--ln);border-left:4px solid var(--wn);border-radius:var(--r);background:var(--mw);font-size:.86rem}
+.readyMsg.isOk{border-left-color:var(--ok);background:var(--mo)}
 .qwRatio{display:flex;gap:.35rem;margin:0}
 .qwRatio b{display:inline-flex;align-items:center;min-height:2.1rem;padding:0 .7rem;border:1.5px solid var(--ln);border-radius:2rem;background:var(--sf);font-size:.78rem;color:var(--mu);font-variant-numeric:tabular-nums;white-space:nowrap}
 

@@ -37,8 +37,8 @@ password is cleared after every attempt.
 Before an account is connected, only the sign-in form is shown. Once a machine
 is selected, the form is replaced by the connected machine — its name, serial
 number and account email, with the current power state and brew temperature —
-and the **Disconnect** button. A note confirms that the recommended options
-are already active.
+and the **Disconnect** button. A short note confirms that the recommended
+options are on; it goes away as soon as you change one of them.
 
 ### Recommended options
 
