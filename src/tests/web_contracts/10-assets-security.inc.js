@@ -867,8 +867,9 @@ if (htmlBytes > 93300) {
 // Linea Micra Change machine and its machine-count re-list after restart: +1199 bytes (462769), owner-approved 2026-10-18.
 // Restoring the La Marzocco Cloud sign-in steps, legend state and lone-machine auto-select: +831 bytes (463600), owner-requested 2026-10-18.
 // Clearing the La Marzocco Cloud linked note when Change machine starts: +47 bytes (463647), owner-requested 2026-10-18.
-if (jsBytes > 463647) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 463647)`);
+// The La Marzocco Cloud state pill (account, link, offline, water, heating, ready; colour per state): +1105 bytes (464752), owner-requested 2026-10-18.
+if (jsBytes > 464752) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 464752)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -984,8 +985,9 @@ if (jsBytes > 463647) {
 // Linea Micra Change machine and its machine-count re-list after restart: 553863, owner-approved 2026-10-18.
 // Restoring the La Marzocco Cloud sign-in steps pane and legend state: 554916, owner-requested 2026-10-18.
 // The La Marzocco Cloud linked note as a cleared status confirmation: 554935, owner-requested 2026-10-18.
-if (htmlBytes + jsBytes > 554935) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 554935)`);
+// The La Marzocco Cloud state pill and its machine and cloud states: 556038, owner-requested 2026-10-18.
+if (htmlBytes + jsBytes > 556038) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 556038)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

@@ -36,9 +36,29 @@ password is cleared after every attempt.
 
 Before an account is connected, only the sign-in form is shown. Once a machine
 is selected, the form is replaced by the connected machine — its name, serial
-number and account email, with the current power state and brew temperature —
-and the **Disconnect** button. A short note confirms that the recommended
+number and account email, a coloured status pill, and the **Disconnect** button. A short note confirms that the recommended
 options are on; it goes away as soon as you change one of them.
+
+The status pill shows the most important thing to know right now:
+
+| Pill | Colour | Meaning |
+| --- | --- | --- |
+| **Ready** · Set to 93.5 °C | Green | The machine is on and up to temperature. |
+| **On** · Set to 93.5 °C | Green | The machine is on; its readiness isn't known yet. |
+| **Heating up** / **Steam heating up** | Amber | The machine is on and still reaching temperature. |
+| **No water** | Red | The machine reports an empty tank. |
+| **Standby** | Grey | The machine is in standby. |
+| **Machine offline** | Amber | La Marzocco reports the machine itself as disconnected. |
+| **Cloud unreachable** | Amber | The controller can't reach La Marzocco right now. |
+| **Waiting for the clock** | Amber | Sign-in waits for the controller's clock to sync. |
+| **Account not accepted** | Red | La Marzocco no longer accepts the saved account; disconnect and sign in again. |
+| **Paused during Wi-Fi setup** | Amber | Cloud checks wait while the setup network is open. |
+| **Power state off** | Grey | **Show power state** is off. |
+| **Power state unknown** | Grey | No reliable reading yet. |
+
+The brew temperature is added while the machine is on, and **Paused during
+shot** while a shot pauses cloud checks. Hover over the pill to read the full
+explanation of a problem.
 
 ### Recommended options
 

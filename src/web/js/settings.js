@@ -569,21 +569,43 @@ function applyLineaMicraStatus(s) {
   $("lineaMicraIdentity").innerText = connected
     ? m.selectedName + " · " + m.selectedSerial + "\n" + m.email
     : "";
-  $("lineaMicraStatus").textContent = [
-    m.observeState
-      ? { ON: __WEBUI_TEXT__("runtime.micra_power_on"), OFF: __WEBUI_TEXT__("runtime.micra_power_standby") }[
-          m.powerState
-        ] || __WEBUI_TEXT__("runtime.micra_power_unknown")
-      : "",
-    m.targetValid
+  // Most actionable first: account, link, then the machine itself.
+  const pill = $("lineaMicraStatus"),
+    power = m.optimisticOn ? "ON" : m.optimisticOff ? "OFF" : m.powerState,
+    [label, tone, warm] = ["invalid_auth", "no_machines"].includes(m.error)
+      ? [__WEBUI_TEXT__("runtime.micra_pill_account"), "error"]
+      : m.apActive
+        ? [__WEBUI_TEXT__("runtime.ap_mode_paused"), "warn"]
+        : m.error === "clock_unsynchronized"
+          ? [__WEBUI_TEXT__("runtime.micra_pill_clock"), "warn"]
+          : error || m.quality === "communication_error"
+            ? [__WEBUI_TEXT__("runtime.micra_pill_cloud"), "warn"]
+            : !m.observeState
+              ? [__WEBUI_TEXT__("runtime.micra_pill_monitoring_off"), ""]
+              : m.machineOffline
+                ? [__WEBUI_TEXT__("runtime.micra_pill_offline"), "warn"]
+                : m.readiness === "needs_water"
+                  ? [__WEBUI_TEXT__("runtime.micra_pill_no_water"), "error"]
+                  : power === "OFF"
+                    ? [__WEBUI_TEXT__("runtime.micra_power_standby"), ""]
+                    : power !== "ON"
+                      ? [__WEBUI_TEXT__("runtime.micra_power_unknown"), ""]
+                      : {
+                          warming_up: [__WEBUI_TEXT__("runtime.micra_pill_heating"), "warn", 1],
+                          waiting_for_steam: [__WEBUI_TEXT__("runtime.micra_pill_steam"), "warn", 1],
+                          ready: [__WEBUI_TEXT__("runtime.micra_pill_ready"), "on", 1],
+                        }[m.readiness] || [__WEBUI_TEXT__("runtime.micra_power_on"), "on", 1];
+  pill.textContent = [
+    label,
+    warm && m.targetValid
       ? __WEBUI_TEXT__("runtime.target") + " " + (m.targetDeciC / 10).toFixed(1) + " °C"
       : "",
-    m.apActive ? __WEBUI_TEXT__("runtime.ap_mode_paused") : "",
     m.shotPaused ? __WEBUI_TEXT__("runtime.shot_paused") : "",
-    error,
   ]
     .filter(Boolean)
     .join(" · ");
+  pill.dataset.tone = tone;
+  pill.title = error;
   $("lineaMicraDisconnectButton").disabled = !canEdit;
   $("lineaMicraChangeButton").hidden = m.accountMachineCount < 2;
   $("lineaMicraChangeButton").disabled = !canEdit || offline;

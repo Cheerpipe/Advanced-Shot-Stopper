@@ -647,7 +647,10 @@ last HTTP/transport status, and the bounded machine list returned while
 connecting or after `relist`. `accountMachineCount` is the number of machines on
 the saved account at its latest listing (`0` until listed after a boot),
 `machineListing` is true while a `relist` is queued or running, and
-`machineListError` reports its outcome with the same error names. The saved account email is visible in Settings and Diagnostics; password,
+`machineListError` reports its outcome with the same error names. Settings status
+also reports `readiness` (`off`, `warming_up`, `waiting_for_steam`, `ready`,
+`needs_water` or `unknown`, the same rollup Home uses) and `machineOffline`,
+true when the cloud reports that the machine itself is disconnected. The saved account email is visible in Settings and Diagnostics; password,
 installation private key, access token and refresh token are never returned. `refresh` is read-only and requires a selected
 machine; none of these fields authorizes machine actuation.
 

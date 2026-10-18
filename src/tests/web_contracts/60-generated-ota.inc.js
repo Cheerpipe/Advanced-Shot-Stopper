@@ -563,8 +563,9 @@ if (generated.jsGzip.length > 7330) {
 // The La Marzocco Cloud sign-in steps (pending, spinning, done) measure 14745 bytes; owner-requested 2026-10-18.
 // The La Marzocco Cloud linked note restyled as a green confirmation measures 14775 bytes; owner-requested 2026-10-18.
 // Styling the empty shot and activation history notes measures 14791 bytes; owner-requested 2026-10-18.
-if (generated.cssGzip.length > 14791) {
-  throw new Error(`Compressed Web CSS exceeds the 14791-byte gzip budget (${generated.cssGzip.length})`);
+// The La Marzocco Cloud state pill and its four tones measure 14861 bytes; owner-requested 2026-10-18.
+if (generated.cssGzip.length > 14861) {
+  throw new Error(`Compressed Web CSS exceeds the 14861-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -742,7 +743,9 @@ if (generated.otaImageGzip.length > 3072) {
 // Gzip wobble from the Linea Micra settings section (records.js unchanged) measures 13607; owner-requested 2026-10-18.
 // Linea Micra Change machine and its machine-count re-list after restart measure settings.js at 15024; owner-approved 2026-10-18.
 // Restoring the La Marzocco Cloud sign-in steps, legend state and lone-machine auto-select measure settings.js at 15219; owner-requested 2026-10-18.
-const viewModuleBudgets = {records: 13607, diagnostic: 13750, admin: 14229, settings: 15219, setup: 5788};
+// The La Marzocco Cloud state pill and its machine and cloud states measure settings.js at 15470; owner-requested 2026-10-18.
+// Gzip wobble from the La Marzocco Cloud state pill (setup.js unchanged) measures 5789; owner-requested 2026-10-18.
+const viewModuleBudgets = {records: 13607, diagnostic: 13750, admin: 14229, settings: 15470, setup: 5789};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -912,8 +915,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Linea Micra sign-in state, Save/Revert pairing and its CSS rule bring it to 65311; owner-requested 2026-10-18.
 // The La Marzocco Cloud sign-in steps CSS and legend state strings bring it to 65442; owner-requested 2026-10-18.
 // The green La Marzocco Cloud linked note CSS and its shorter text bring it to 65473; owner-requested 2026-10-18.
-if (coldHomeGzip > 65473) {
-  throw new Error(`Cold Home download exceeds the 65473-byte gzip budget (${coldHomeGzip})`);
+// The La Marzocco Cloud state pill CSS and its state labels bring it to 65559; owner-requested 2026-10-18.
+if (coldHomeGzip > 65559) {
+  throw new Error(`Cold Home download exceeds the 65559-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

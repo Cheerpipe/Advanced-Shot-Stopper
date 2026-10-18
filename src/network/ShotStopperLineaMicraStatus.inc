@@ -8,6 +8,7 @@
         (micraStatus.quality == LineaMicraObservationQuality::CURRENT ||
          micraStatus.quality == LineaMicraObservationQuality::STALE ||
          micraStatus.quality == LineaMicraObservationQuality::UNSUPPORTED);
+    const MicraWebSocketStatus micraWs = machineIntegrationWebSocketStatus(false);
     ok = statusJsonAppend(
         &used,
         ",\"lineaMicra\":{\"accountConfigured\":%s,"
@@ -22,7 +23,7 @@
         "\"boostScaleDetectionWhenOn\":%s,"
         "\"reduceScaleScanningWhenOff\":%s,"
         "\"requestId\":%lu,\"phase\":\"%s\",\"error\":\"%s\","
-        "\"powerState\":\"%s\","
+        "\"powerState\":\"%s\",\"readiness\":\"%s\",\"machineOffline\":%s,"
         "\"observedMode\":\"%s\",\"quality\":\"%s\",\"effectiveOn\":%s,"
         "\"powerSource\":\"%s\",\"freshnessPolicy\":\"%s\","
         "\"optimisticOn\":%s,\"optimisticOff\":%s,"
@@ -64,6 +65,8 @@
         lineaMicraPhaseName(micraStatus.phase),
         lineaMicraErrorName(micraStatus.error),
         lineaMicraPowerStateName(micraStatus.powerState),
+        lineaMicraReadinessName(lineaMicraReadiness(micraStatus)),
+        micraWs.machineConnectedKnown && !micraWs.machineConnected ? "true" : "false",
         lineaMicraObservedModeName(micraStatus.observedMode),
         lineaMicraObservationQualityName(micraStatus.quality),
         micraStatus.effectiveOn ? "true" : "false",
