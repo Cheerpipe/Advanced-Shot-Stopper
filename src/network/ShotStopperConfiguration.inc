@@ -1426,14 +1426,48 @@ static const char *parseSetupBrew(cJSON *root, SetupBrew &brew,
 }
 
 // Keeps the onboarding brewing choice with the setup session; commit also
-// persists it (skip and finish).
+// records it against the current Wi-Fi (skip and finish).
 bool ShotStopperNetwork::keepSetupBrew(SetupBrew brew, uint8_t presetId,
                                        bool commit) {
+  dataMux_.lock();
   if (brew != SetupBrew::NONE) {
-    dataMux_.lock();
     status_.setupBrew = brew;
     status_.setupPresetId = presetId;
-    dataMux_.unlock();
   }
-  return !commit || commitSetupBrew();
+  const bool bound = settings_.staConfigured;
+  const uint32_t staCrc = staConfigCrc(settings_);
+  const bool committed =
+      !bound || settings_.staConfigState ==
+                    static_cast<uint8_t>(StaConfigState::CONFIRMED);
+  const SetupBrew kept = status_.setupBrew;
+  dataMux_.unlock();
+  if (!commit || kept == SetupBrew::NONE || !firmwareCompatibilityMode()) {
+    return true;
+  }
+  if (!networkFlashWriteAllowed() || !persistSetupIntent(bound, staCrc)) {
+    return false;
+  }
+  setupRestartPending_.store(kept == SetupBrew::BY_WEIGHT && committed,
+                             std::memory_order_release);
+  return true;
+}
+
+// Durable half of the onboarding transaction, written before the Wi-Fi
+// commit it is bound to: "by weight" stores the intent that boot applies with
+// that Wi-Fi; "usual" keeps compatibility mode, so it only drops a stale one.
+bool ShotStopperNetwork::persistSetupIntent(bool bound, uint32_t staCrc) {
+  dataMux_.lock();
+  const SetupBrew brew = status_.setupBrew;
+  SetupIntent intent;
+  intent.presetId = status_.setupPresetId;
+  dataMux_.unlock();
+  if (brew == SetupBrew::NONE || !firmwareCompatibilityMode()) {
+    return true;
+  }
+  if (brew == SetupBrew::USUAL) {
+    return clearSetupIntent();
+  }
+  intent.bound = bound;
+  intent.staCrc = bound ? staCrc : 0;
+  return saveSetupIntent(intent);
 }

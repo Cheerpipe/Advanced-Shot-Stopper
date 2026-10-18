@@ -25,32 +25,40 @@ inline bool validFirmwareMode(uint8_t raw) {
          raw == static_cast<uint8_t>(FirmwareMode::COMPATIBILITY);
 }
 
+// Onboarding "brew by weight" choice, written before the Wi-Fi commit it is
+// bound to (staCrc of the staged STA config) so boot can finish or drop it
+// with that Wi-Fi: the pair is saved together or not at all.
+constexpr const char *SETUP_INTENT_KEY = "setup";
+constexpr uint8_t SETUP_INTENT_VERSION = 1;
+
+struct SetupIntent {
+  uint8_t version = SETUP_INTENT_VERSION;
+  uint8_t presetId = 0;
+  bool bound = false;
+  uint8_t reserved = 0;
+  uint32_t staCrc = 0;
+};
+
 #if !defined(SHOT_STOPPER_HOST_TEST) ||                                      \
     defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-inline FirmwareMode loadFirmwareMode() {
+inline bool readFirmwareModeRecord(const char *key, void *value, size_t size) {
   if (!lockFlashIo()) {
-    return FirmwareMode::COMPATIBILITY;
+    return false;
   }
-  FirmwareMode mode = FirmwareMode::COMPATIBILITY;
   ShotStopperPreferences preferences(NvsSubsystem::FIRMWARE_MODE);
+  bool read = false;
   if (preferences.begin(FIRMWARE_MODE_NAMESPACE, true)) {
-    uint8_t raw = 0;
-    if (preferences.getBytesLength(FIRMWARE_MODE_KEY) == sizeof(raw) &&
-        preferences.getBytes(FIRMWARE_MODE_KEY, &raw, sizeof(raw)) ==
-            sizeof(raw) &&
-        validFirmwareMode(raw)) {
-      mode = static_cast<FirmwareMode>(raw);
-    }
+    read = preferences.getBytesLength(key) == size &&
+           preferences.getBytes(key, value, size) == size;
     preferences.end();
   }
   unlockFlashIo();
-  return mode;
+  return read;
 }
 
-inline bool saveFirmwareMode(FirmwareMode mode) {
-  if (!validFirmwareMode(static_cast<uint8_t>(mode))) {
-    return false;
-  }
+// Writes and read-back verifies one record; a null value removes it.
+inline bool writeFirmwareModeRecord(const char *key, const void *value,
+                                    size_t size) {
   if (!lockFlashIo()) {
     return false;
   }
@@ -59,37 +67,53 @@ inline bool saveFirmwareMode(FirmwareMode mode) {
     unlockFlashIo();
     return false;
   }
-  const uint8_t raw = static_cast<uint8_t>(mode);
-  const bool written =
-      preferences.putBytes(FIRMWARE_MODE_KEY, &raw, sizeof(raw)) == sizeof(raw);
-  uint8_t verified = 0;
-  const bool saved =
-      written &&
-      preferences.getBytesLength(FIRMWARE_MODE_KEY) == sizeof(verified) &&
-      preferences.getBytes(FIRMWARE_MODE_KEY, &verified, sizeof(verified)) ==
-          sizeof(verified) &&
-      verified == raw;
+  uint8_t verified[sizeof(SetupIntent)] = {};
+  bool saved = false;
+  if (value == nullptr) {
+    saved = (preferences.getBytesLength(key) == 0 || preferences.remove(key)) &&
+            preferences.getBytesLength(key) == 0;
+  } else {
+    saved = size <= sizeof(verified) &&
+            preferences.putBytes(key, value, size) == size &&
+            preferences.getBytesLength(key) == size &&
+            preferences.getBytes(key, verified, size) == size &&
+            memcmp(verified, value, size) == 0;
+  }
   preferences.end();
   unlockFlashIo();
   return saved;
 }
 
+inline FirmwareMode loadFirmwareMode() {
+  uint8_t raw = 0;
+  return readFirmwareModeRecord(FIRMWARE_MODE_KEY, &raw, sizeof(raw)) &&
+                 validFirmwareMode(raw)
+             ? static_cast<FirmwareMode>(raw)
+             : FirmwareMode::COMPATIBILITY;
+}
+
+inline bool saveFirmwareMode(FirmwareMode mode) {
+  const uint8_t raw = static_cast<uint8_t>(mode);
+  return validFirmwareMode(raw) &&
+         writeFirmwareModeRecord(FIRMWARE_MODE_KEY, &raw, sizeof(raw));
+}
+
+inline bool loadSetupIntent(SetupIntent &intent) {
+  return readFirmwareModeRecord(SETUP_INTENT_KEY, &intent, sizeof(intent)) &&
+         intent.version == SETUP_INTENT_VERSION && intent.presetId != 0;
+}
+
+inline bool saveSetupIntent(const SetupIntent &intent) {
+  return writeFirmwareModeRecord(SETUP_INTENT_KEY, &intent, sizeof(intent));
+}
+
+inline bool clearSetupIntent() {
+  return writeFirmwareModeRecord(SETUP_INTENT_KEY, nullptr, 0);
+}
+
 inline bool clearFirmwareMode() {
-  if (!lockFlashIo()) {
-    return false;
-  }
-  ShotStopperPreferences preferences(NvsSubsystem::FIRMWARE_MODE);
-  if (!preferences.begin(FIRMWARE_MODE_NAMESPACE, false)) {
-    unlockFlashIo();
-    return false;
-  }
-  const bool absent = preferences.getBytesLength(FIRMWARE_MODE_KEY) == 0;
-  const bool removed = absent || preferences.remove(FIRMWARE_MODE_KEY);
-  const bool verified =
-      removed && preferences.getBytesLength(FIRMWARE_MODE_KEY) == 0;
-  preferences.end();
-  unlockFlashIo();
-  return verified;
+  return writeFirmwareModeRecord(FIRMWARE_MODE_KEY, nullptr, 0) &&
+         clearSetupIntent();
 }
 #endif
 

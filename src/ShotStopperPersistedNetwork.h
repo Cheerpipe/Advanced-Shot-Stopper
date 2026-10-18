@@ -2,6 +2,7 @@
 
 // STA / LKG / device password policy on PersistedSettings. Not NVS I/O.
 
+#include "ShotStopperFirmwareMode.h"
 #include "ShotStopperPersistedSettings.h"
 
 namespace shotstopper {
@@ -148,6 +149,34 @@ inline void finalizeSavedStaCredentials(PersistedSettings &settings,
     return;
   }
   settings.staConfigState = static_cast<uint8_t>(StaConfigState::PENDING);
+}
+
+// Identity of the active STA config (credentials and addressing; Wi-Fi
+// sleep excluded), binding an onboarding SetupIntent to one Wi-Fi commit.
+inline uint32_t staConfigCrc(const PersistedSettings &settings) {
+  static_assert(offsetof(PersistedSettings, staConfigState) ==
+                    offsetof(PersistedSettings, staDns2) + sizeof(settings.staDns2),
+                "STA config fields must stay contiguous");
+  const uint8_t *base = reinterpret_cast<const uint8_t *>(&settings);
+  const uint32_t crc =
+      crc32Update(0xFFFFFFFFU, base + offsetof(PersistedSettings, staOpen), 1);
+  return ~crc32Update(crc, base + offsetof(PersistedSettings, staSsid),
+                      offsetof(PersistedSettings, staConfigState) -
+                          offsetof(PersistedSettings, staSsid));
+}
+
+enum class SetupIntentVerdict : uint8_t { APPLY, WAIT, DISCARD };
+
+// Applied once its Wi-Fi is confirmed (or when unbound), kept while that
+// Wi-Fi is still pending, dropped when it was reverted or replaced.
+inline SetupIntentVerdict setupIntentVerdict(const SetupIntent &intent,
+                                             const PersistedSettings &settings) {
+  if (!intent.bound) return SetupIntentVerdict::APPLY;
+  if (!settings.staConfigured || intent.staCrc != staConfigCrc(settings))
+    return SetupIntentVerdict::DISCARD;
+  return settings.staConfigState == static_cast<uint8_t>(StaConfigState::CONFIRMED)
+             ? SetupIntentVerdict::APPLY
+             : SetupIntentVerdict::WAIT;
 }
 
 inline bool restoreLkgToActive(PersistedSettings &settings) {

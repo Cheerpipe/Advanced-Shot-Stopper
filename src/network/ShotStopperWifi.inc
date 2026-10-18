@@ -245,7 +245,15 @@ bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
   }
   clearPendingConfirmWindow();
   publishConfiguredAddressStatus();
-  commitSetupBrew();
+  // The onboarding choice bound to this Wi-Fi is now committed: boot applies
+  // it, after the setup network closes (or now, without one).
+  SetupIntent intent;
+  if (loadSetupIntent(intent)) {
+    setupRestartPending_.store(true, std::memory_order_release);
+    if (!status.apActive) {
+      requestSetupRestart();
+    }
+  }
   log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
       static_cast<int32_t>(next.runtime.revision));
   ::serialTraceCategoryf(LogLevel::INFO, DebugCategory::NETWORK,
@@ -279,6 +287,9 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t,
   if (!savePersistedSettings(next)) {
     return false;
   }
+  // Rolls back the onboarding choice bound to the reverted Wi-Fi; should
+  // this fail, boot drops it on the binding mismatch.
+  (void)clearSetupIntent();
   dataMux_.lock();
   settings_ = next;
   status_.wifiConfigured = next.staConfigured;
@@ -676,39 +687,6 @@ void ShotStopperNetwork::startStation(const NetworkSettingsSnapshot &settings,
     }
     dataMux_.unlock();
   }
-}
-
-// Persists the onboarding brewing choice: the starting recipe through the
-// control owner, then the boot-scoped firmware mode. Safe to repeat.
-bool ShotStopperNetwork::commitSetupBrew() {
-  dataMux_.lock();
-  const SetupBrew brew = status_.setupBrew;
-  const uint8_t presetId = status_.setupPresetId;
-  dataMux_.unlock();
-  if (brew == SetupBrew::NONE || !firmwareCompatibilityMode()) {
-    return true;
-  }
-  const bool byWeight = brew == SetupBrew::BY_WEIGHT;
-  if (!networkFlashWriteAllowed()) {
-    return false;
-  }
-  if (byWeight) {
-    WebCommand preset;
-    preset.type = WebCommandType::PRESET_OP;
-    preset.requestId = allocateRequestId();
-    preset.presetAction = static_cast<uint8_t>(PresetAction::APPLY);
-    preset.presetId = presetId;
-    if (!callbacks_.enqueueWebCommand(preset)) {
-      return false;
-    }
-  }
-  if (!shotstopper::saveFirmwareMode(
-          byWeight ? shotstopper::FirmwareMode::FULL
-                   : shotstopper::FirmwareMode::COMPATIBILITY)) {
-    return false;
-  }
-  setupRestartPending_.store(byWeight, std::memory_order_release);
-  return true;
 }
 
 // The same idle-safe restart as the Restart button: a pour finishes first.

@@ -279,20 +279,23 @@
     throw new Error(
         '/setup must be a routed menu-less view with the live-apply save pipeline, the skip portal exit, and captive-portal fallbacks');
   }
-  // Brewing onboarding (firmware off only): the draft rides on save/skip/finish,
-  // commits on confirm, skip, or finish, and a switch to full mode restarts the
-  // controller once the setup SoftAP stops; full mode lets the machine's
-  // activator close the automatic SoftAP.
-  const commitBrewBlock = blockAt(network, 'bool ShotStopperNetwork::commitSetupBrew() {');
+  // Brewing onboarding (firmware off only): the draft rides on save/skip/finish
+  // and is recorded durably before the Wi-Fi it is bound to can commit (boot
+  // applies or drops it with that Wi-Fi); a committed "by weight" choice
+  // restarts the controller once the setup SoftAP stops; full mode lets the
+  // machine's activator close the automatic SoftAP.
+  const intentBlock = blockAt(network, 'bool ShotStopperNetwork::persistSetupIntent(');
   const idleBlock = blockAt(network, 'void ShotStopperNetwork::serviceSoftApIdle(');
   if (!codeIncludes(network, 'if(!firmwareCompatibilityMode()){return"The brewing choice is part of setup only while the firmware is off.";}') ||
       !codeIncludes(networkHandlerBlock, 'if(parsed&&brew!=SetupBrew::NONE&&!command.network.applyLive){') ||
       !codeIncludes(networkHandlerBlock, 'if(parsed&&(networkError=parseSetupBrew(root,brew,brewPresetId))!=nullptr){') ||
-      !codeIncludes(confirmBlock, 'commitSetupBrew();') ||
-      !codeIncludes(commitBrewBlock, 'if(brew==SetupBrew::NONE||!firmwareCompatibilityMode()){returntrue;}') ||
-      !codeIncludes(commitBrewBlock, 'if(!networkFlashWriteAllowed()){returnfalse;}') ||
-      !codeIncludes(commitBrewBlock, 'preset.presetAction=static_cast<uint8_t>(PresetAction::APPLY);') ||
-      !codeIncludes(commitBrewBlock, 'setupRestartPending_.store(byWeight,std::memory_order_release);') ||
+      !codeIncludes(saveCommandBlock, 'if(command.network.applyLive&&!persistSetupIntent(true,staConfigCrc(next))){') ||
+      !codeIncludes(confirmBlock, 'if(loadSetupIntent(intent)){setupRestartPending_.store(true,std::memory_order_release);') ||
+      !codeIncludes(revertBlock, '(void)clearSetupIntent();') ||
+      !codeIncludes(intentBlock, 'if(brew==SetupBrew::NONE||!firmwareCompatibilityMode()){returntrue;}') ||
+      !codeIncludes(intentBlock, 'returnsaveSetupIntent(intent);') ||
+      !codeIncludes(network, 'if(!networkFlashWriteAllowed()||!persistSetupIntent(bound,staCrc)){returnfalse;}') ||
+      !codeIncludes(network, 'setupRestartPending_.store(kept==SetupBrew::BY_WEIGHT&&committed,std::memory_order_release);') ||
       !codeIncludes(stopSoftApBlock, 'status_.setupBrew=SetupBrew::NONE;') ||
       !codeIncludes(stopSoftApBlock, 'if(setupRestartPending_.load(std::memory_order_acquire)){requestSetupRestart();}') ||
       !codeIncludes(networkHandlerBlock, 'constboolskipped=firmwareCompatibilityMode()&&self.status_.apActive&&self.status_.setupPhase==SetupPhase::NONE;') ||
@@ -305,7 +308,7 @@
       !codeIncludes(setupJs, 'apply:"live",...brewPayload(),') ||
       !partialHtml.setup.includes('name="setupRecipe" value="255" checked')) {
     throw new Error(
-        'Brewing onboarding must stay firmware-off only, commit on confirm/skip/finish, restart after the setup SoftAP, and let the activator close it only in full mode');
+        'Brewing onboarding must stay firmware-off only, be recorded before its Wi-Fi commits, restart after the setup SoftAP, and let the activator close it only in full mode');
   }
   // The starting-recipe cards print the factory dose and yield: keep the copy
   // tied to the firmware constants it describes.

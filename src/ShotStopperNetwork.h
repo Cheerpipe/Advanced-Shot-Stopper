@@ -595,7 +595,7 @@ class ShotStopperNetwork {
   // A committed onboarding switch to full mode restarts the controller once
   // the setup SoftAP stops.
   std::atomic<bool> setupRestartPending_{false};
-  bool commitSetupBrew();
+  bool persistSetupIntent(bool bound, uint32_t staCrc);
   bool keepSetupBrew(SetupBrew brew, uint8_t presetId, bool commit);
   void requestSetupRestart();
   void clearSoftApIdleState();

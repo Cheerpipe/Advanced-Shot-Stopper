@@ -296,13 +296,14 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
                          ? networkError
                          : "Invalid network SSID or password.");
   }
+  // The save records this choice before its Wi-Fi commit.
+  self.keepSetupBrew(brew, brewPresetId, false);
   if (!self.callbacks_.enqueueWebCommand(command)) {
     command.wipePassword();
     return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
                      "Nothing was saved.");
   }
   command.wipePassword();
-  self.keepSetupBrew(brew, brewPresetId, false);
   return self.sendAccepted(request, command.requestId);
 }
 

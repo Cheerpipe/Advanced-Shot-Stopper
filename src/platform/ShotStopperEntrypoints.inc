@@ -283,15 +283,13 @@ void setup() {
   // RTC captures the prior uptime immediately across warm resets; NVS keeps
   // the history when RTC memory is lost (for example after power loss).
   persistResetHistoryAfterBoot(safetyResetStatus);
-  // Master switch: read before any subsystem init so BLE, Micra, NTP, and the
-  // control machine all see the final boot-scoped mode.
-  firmwareModeRaw = static_cast<uint8_t>(loadFirmwareMode());
   settingsLoaded = false;
   settingsDurable = false;
   if (persistenceReady && loadPersistedSettings(persistedSettings)) {
     settingsLoaded = true;
     settingsDurable = true;
     noteDurableStorageRevision(persistedSettings.storageRevision);
+    resolveSetupIntent(persistedSettings);
   } else if (persistenceReady) {
     if (initializeDefaultSettings(persistedSettings)) {
       settingsLoaded = true;
@@ -302,6 +300,9 @@ void setup() {
       }
     }
   }
+  // Master switch: read before any subsystem init so BLE, Micra, NTP, and the
+  // control machine all see the final boot-scoped mode.
+  firmwareModeRaw = static_cast<uint8_t>(loadFirmwareMode());
   if (!loadBleScanSettings(bleScanPersistedSettings)) {
     bleScanPersistedSettings = BleScanPersistedSettings{};
     if (!saveBleScanSettings(bleScanPersistedSettings)) {

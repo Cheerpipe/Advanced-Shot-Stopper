@@ -52,6 +52,28 @@ inline bool resetPersistedNetworkAccess(PersistedSettings &settings) {
   return true;
 }
 
+#if !defined(SHOT_STOPPER_HOST_TEST) ||                                      \
+    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+// Boot half of the onboarding transaction: rolls the "by weight" choice
+// forward once its Wi-Fi is durable (starting preset, then the firmware mode,
+// then the record), drops it when that Wi-Fi was reverted, and keeps it while
+// the Wi-Fi is still pending. Each step is idempotent, so an interrupted
+// roll-forward resumes on the next boot. Runs before the mode is latched.
+inline void resolveSetupIntent(PersistedSettings &settings) {
+  SetupIntent intent;
+  if (!loadSetupIntent(intent)) return;
+  const SetupIntentVerdict verdict = setupIntentVerdict(intent, settings);
+  if (verdict == SetupIntentVerdict::WAIT) return;
+  if (verdict == SetupIntentVerdict::APPLY) {
+    if (setActiveShotPreset(settings.presets, intent.presetId))
+      applyShotPresetToConfig(activeShotPreset(settings.presets), settings.runtime);
+    if (!savePersistedSettings(settings) || !saveFirmwareMode(FirmwareMode::FULL))
+      return;
+  }
+  (void)clearSetupIntent();
+}
+#endif
+
 // Erase only expendable NVS records. This is the narrow recovery step used
 // when a factory-reset intent cannot be committed because NVS is full. The
 // shot log and activation history live in their own flash partitions and are

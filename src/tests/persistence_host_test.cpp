@@ -2535,6 +2535,55 @@ void p90_firmware_mode_store_round_trip_and_factory_reset() {
   CHECK(loadFirmwareMode() == FirmwareMode::COMPATIBILITY);
 }
 
+void p90b_setup_intent_commits_with_its_wifi() {
+  resetHostPersistence();
+  PersistedSettings settings;
+  CHECK(initializeDefaultSettings(settings));
+  CHECK(settings.presets.count > 1);
+  const uint8_t presetId = settings.presets.presets[1].id;
+  CHECK(settings.presets.activeId != presetId);
+  settings.staConfigured = true;
+  copyCString(settings.staSsid, sizeof(settings.staSsid), "Cafe");
+  copyCString(settings.staPassword, sizeof(settings.staPassword), "espresso1");
+  settings.staConfigState = static_cast<uint8_t>(StaConfigState::PENDING);
+  CHECK(savePersistedSettings(settings));
+  SetupIntent intent;
+  intent.presetId = presetId;
+  intent.bound = true;
+  intent.staCrc = staConfigCrc(settings);
+  CHECK(saveSetupIntent(intent));
+  // Pending Wi-Fi: undecided, so nothing is applied and the record stays.
+  resolveSetupIntent(settings);
+  CHECK(loadFirmwareMode() == FirmwareMode::COMPATIBILITY);
+  CHECK(loadSetupIntent(intent));
+  // Its confirmed Wi-Fi commits both halves (Wi-Fi sleep is not bound).
+  settings.staWifiSleep = !settings.staWifiSleep;
+  settings.staConfigState = static_cast<uint8_t>(StaConfigState::CONFIRMED);
+  CHECK(savePersistedSettings(settings));
+  resolveSetupIntent(settings);
+  CHECK(loadFirmwareMode() == FirmwareMode::FULL);
+  CHECK(!loadSetupIntent(intent));
+  PersistedSettings loaded;
+  CHECK(loadPersistedSettings(loaded));
+  CHECK(loaded.presets.activeId == presetId);
+  // A reverted (different) Wi-Fi drops the choice: neither half is applied.
+  CHECK(saveFirmwareMode(FirmwareMode::COMPATIBILITY));
+  intent.presetId = presetId;
+  CHECK(saveSetupIntent(intent));
+  copyCString(settings.staSsid, sizeof(settings.staSsid), "Other");
+  CHECK(savePersistedSettings(settings));
+  resolveSetupIntent(settings);
+  CHECK(loadFirmwareMode() == FirmwareMode::COMPATIBILITY);
+  CHECK(!loadSetupIntent(intent));
+  // Unbound ("Continue without Wi-Fi") applies; factory reset clears it.
+  intent.presetId = presetId;
+  intent.bound = false;
+  CHECK(setupIntentVerdict(intent, settings) == SetupIntentVerdict::APPLY);
+  CHECK(saveSetupIntent(intent));
+  CHECK(clearFirmwareMode());
+  CHECK(!loadSetupIntent(intent));
+}
+
 void p61c_timestamped_capacity_and_interrupted_blocks() {
   ShotCurveSampler sampler;
   sampler.reset(UINT32_MAX - 1000U);
@@ -3270,6 +3319,7 @@ const TestCase tests[] = {
     {"P61C", p61c_timestamped_capacity_and_interrupted_blocks},
     {"P61D", p61d_clear_epochs_and_stale_worker_images},
     {"P90", p90_firmware_mode_store_round_trip_and_factory_reset},
+    {"P90b", p90b_setup_intent_commits_with_its_wifi},
     {"P86", p86_timezone_preference_and_durable_initialization},
     {"P85", p85_schema1_is_strict_and_micra_defaults_round_trip},
     {"P91", p91_schema1_golden_settings_blob_loads},

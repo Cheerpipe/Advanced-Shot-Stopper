@@ -27,7 +27,10 @@ start with [Hardware](HARDWARE.md).
    stays open for about a minute so you can note them — select **Finish**
    (**Finish and restart** when you chose to stop shots by weight) when you
    have them. No other password is asked during this flow, and the
-   setup page never asks you to **Reload**.
+   setup page never asks you to **Reload**. Your brewing choice and your
+   home network are saved together: once the controller keeps the network,
+   it keeps your choice too, even if you close the page or lose power before
+   **Finish**; if it cannot keep the network, it keeps neither.
 4. Rejoin your home network on the phone/computer and open the controller at
    the address the setup page showed. On most home networks
    `openbrewbyweight.local` answers (a renamed controller answers at
