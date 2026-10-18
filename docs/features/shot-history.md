@@ -254,7 +254,7 @@ shows a dash instead. The cursor starts at the shot's stop point.
 
 Every filled chart in the Web UI uses that same fading shade: this chart, the
 preset charts in Stats, Home and Settings, the Stats arrival-time density, and
-the curve and the recipe window on the Home shot card.
+the curve and the On recipe corridor on the Home shot card.
 On a narrow screen, a few numbers beside these charts may be hidden when they
 would overlap. The lines and measurements stay in place, and more numbers
 appear again when there is room.

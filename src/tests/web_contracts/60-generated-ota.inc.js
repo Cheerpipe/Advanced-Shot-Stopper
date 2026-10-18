@@ -723,7 +723,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The Stats chart and shot-row helpers moved out of the runtime bring Stats/History to 13436 (2026-10-16).
 // The gradual forecast Admin hint text adds a few bytes to admin.js (14226); owner-authorized 2026-10-17.
 // Gzip padding wobble after the full-screen keep-awake layer measures admin.js at 14227; owner-authorized 2026-10-17.
-const viewModuleBudgets = {records: 13500, diagnostic: 13700, admin: 14227, settings: 14150, setup: 3600};
+// Gzip wobble from the Home hero corridor chart (admin.js unchanged) measures 14229; owner-requested 2026-10-18.
+const viewModuleBudgets = {records: 13500, diagnostic: 13700, admin: 14229, settings: 14150, setup: 3600};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);

@@ -4910,19 +4910,28 @@ function renderHeroChart(host, model, m, goal, label) {
   let svg =
     '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs>' +
     fadeFill("heroFade", "var(--on)", 0.38) +
-    '<linearGradient id="heroWin" x1="0" y1="0" x2="0" y2="1"><stop stop-color="var(--on)" stop-opacity="0"/><stop offset=".32" stop-color="var(--on)" stop-opacity=".15"/><stop offset="1" stop-color="var(--on)" stop-opacity="0"/></linearGradient></defs>';
-  const over = [];
+    fadeFill("heroWin", "var(--on)", 0.3, 0.02) +
+    // Nothing is drawn below the x axis.
+    '</defs><clipPath id="heroPlot"><rect x="-10" y="-50" width="120" height="150"/></clipPath><g clip-path="url(#heroPlot)">';
+  const over = [],
+    hatch = m && put("noCut", "", 0);
   if (m) {
-    const line = Array.from({ length: 97 }, (_, i) => {
-      const v = m.prot + ((xMax - m.prot) * i) / 96;
-      return [v, cutLine(v, m)];
-    });
+    // The preset chart's corridor paces under the cut line; On recipe filled.
+    const t0 = m.firstDrop,
+      ts = (a, n) => Array.from({ length: n + 1 }, (_, i) => a + ((xMax - a) * i) / n),
+      pace = (ta) => ts(t0, 48).map((v) => [v, referencePace(v, m.goal, ta, t0)]),
+      line = ts(0, 96).map((v) => [v, cutLine(v, m)]);
     svg +=
-      `<rect x="${X(m.t1).toFixed(2)}" width="${(X(m.t2) - X(m.t1)).toFixed(2)}" height="100" fill="url(#heroWin)"/>` +
-      `<path d="${path(line)}" fill="none" ${stroke} stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="4 3"/>`;
-    const legend = put("leg", "", 0);
-    legend.append(document.createElement("i"), __WEBUI_TEXT__("home.hero_cut_line"));
-    over.push(legend, put("xl", String(m.t1), X(m.t1)), put("xl", m.t2 + __WEBUI_TEXT__("runtime.s_2"), X(m.t2)));
+      `<clipPath id="heroUnder"><path d="${path([[0, 0], ...line, [xMax, 0]])}Z"/></clipPath>` +
+      `<path d="M${X(m.t1).toFixed(2)} 0V100M${X(m.t2).toFixed(2)} 0V100" ${stroke} stroke-opacity=".35" stroke-dasharray="1.5 3" stroke-linecap="round"/>` +
+      `<g clip-path="url(#heroUnder)"><path d="${path([...pace(m.t1), ...pace(m.t2).reverse()])}Z" fill="url(#heroWin)"/>` +
+      [Math.max(t0 + 0.5, m.t1 - m.d), m.t1, m.t2, m.t2 + m.d]
+        .map((ta, i) => `<path d="${path(pace(ta))}" fill="none" ${stroke} stroke-opacity="${i % 3 ? 0.65 : 0.35}"${i % 3 ? "" : ' stroke-dasharray="3 3"'}/>`)
+        .join("") +
+      `</g><path d="${path(line)}" fill="none" ${stroke} stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+    // A faint hatch over the no-cut delay.
+    hatch.style.width = X(m.prot).toFixed(2) + "%";
+    over.push(put("xl", String(m.t1), X(m.t1)), put("xl", m.t2 + __WEBUI_TEXT__("runtime.s_2"), X(m.t2)));
   }
   host.innerHTML =
     svg +
@@ -4939,8 +4948,9 @@ function renderHeroChart(host, model, m, goal, label) {
       .map((s) => `<path d="${curve(s)}" fill="none" ${stroke} stroke-width="2.4" stroke-dasharray="3 3"/>`)
       .join("") +
     (drip.length ? `<path d="${path([[cut.t, cut.cg / 100]])}h0" ${stroke} stroke-width="6" stroke-linecap="round"/>` : "") +
-    `<line x1="0" y1="99.6" x2="100" y2="99.6" ${stroke} stroke-opacity=".3"/></svg>`;
+    `</g><line x1="0" y1="99.6" x2="100" y2="99.6" ${stroke} stroke-opacity=".3"/></svg>`;
   host.append(...over, put("end", "", X(end.t), Y(end.cg / 100)));
+  if (hatch) host.prepend(hatch);
 }
 // Home cards: a grind hint when the active preset's shots drift, and the
 // one-time Scale-loss backup introduction. Dismissals stay in this browser.

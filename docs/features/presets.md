@@ -37,6 +37,10 @@ the opening seconds where weight never stops the shot, and dots where your
 recent shots on that preset reached the target. Drag along it to
 try shot timings, just like **How this preset cuts** in Settings; a note
 below it says where its reference pace starts.
+The shot card at the top of Home draws a lighter version behind your shot: the
+cut line, the reference paces that separate fast, on-recipe and slow, the
+on-recipe zone between them, dotted marks where the time window starts and
+ends, and a faint hatch over the seconds when weight never stops the shot.
 Tapping another row applies that recipe. These rows show the recipe's own values; learned
 drip compensation and time limits still apply.
 
