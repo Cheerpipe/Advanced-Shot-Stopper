@@ -1,5 +1,5 @@
 :root{--tk:80%;--cf:#5b3f2e;--gLast:#0e7490;--gCut:#d1101f;--bandFull:.14;--bandPart:.07;--bandWin:.26;--bg:#f5f5f5;--sf:#fff;--in:#fafafa;--fg:#242424;--mu:#636363;--ln:#dadada;--bd:#7d7d7d;--ac:#a83b21;--pri:#a83b21;--on:#fff;--ok:#41ab5d;--lw:#e8a317;--dn:#a62632;--wn:#7b4a09;--me:#fceef0;--mo:#eaf5ee;--mw:#fff4de;--pa:#f4e8e2;--gFast:#d7301f;--gSlow:#2c7fb8;--gFlow:#7a7a7a;--ah:0 -4px 14px rgba(36,36,36,.1);--popSh:0 8px 28px #0002;--r:.75rem;--tap:2.75rem;--hdr:5rem}
-@media(prefers-color-scheme:dark){html:not(.theme-light){--tk:58%;--cf:#523a2c;--gLast:#38bdf8;--gCut:#9e1c22;--bandFull:.22;--bandPart:.11;--bandWin:.32;--bg:#151515;--sf:#1d1d1d;--in:#242424;--fg:#efefef;--mu:#b2b2b2;--ln:#3c3c3c;--bd:#7d7d7d;--ac:#c45c38;--pri:#c45c38;--ok:#74d68c;--lw:#f2c14e;--gFast:#ff6b4a;--gSlow:#6cb6e6;--gFlow:#b8b8b8;--dn:#ffadb5;--wn:#edc17d;--me:#351f23;--mo:#193024;--mw:#33291b;--pa:#352820;--ah:0 -4px 14px rgba(0,0,0,.35);--popSh:0 8px 28px rgba(0,0,0,.55)}}
+@media(prefers-color-scheme:dark){html:not(.theme-light){--tk:58%;--cf:#523a2c;--gLast:#38bdf8;--gCut:#9e1c22;--bandFull:.22;--bandPart:.11;--bandWin:.32;--bg:#151515;--sf:#1d1d1d;--in:#242424;--fg:#efefef;--mu:#b2b2b2;--ln:#3c3c3c;--bd:#7d7d7d;--ac:#c45c38;--pri:#c45c38;--ok:#74d68c;--lw:#f2c14e;--gFast:#ff6b4a;--gSlow:#6cb6e6;--gFlow:#b8b8b8;--dn:#ffadb5;--wn:#edc17d;--me:#351f23;--mo:#193024;--mw:#33291b;--pa:#352820;--ah:0 -4px 14px rgba(0,0,0,.35);--popSh:0 8px 28px rgba(0,0,0,.45)}}
 html{background:var(--bg);color-scheme:light dark;--nav-space:calc(5.75rem + env(safe-area-inset-bottom));--nav-offset:calc(4.25rem + env(safe-area-inset-bottom));scroll-padding-bottom:var(--nav-space)}
 *,*:before,*:after{box-sizing:border-box}
 body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--nav-space);color:var(--fg);background:var(--bg);font-size:1rem;line-height:1.45}
@@ -364,6 +364,14 @@ menu.btnBar{padding:0;margin:.75rem 0 0}
 #shotLogPanel .glassBar,#historyPanel .glassBar{position:sticky;top:var(--hdr);z-index:6;margin:0 0 .75rem;transition:box-shadow .3s ease}
 .stickyBarSentinel{height:1px}
 #shotLogPanel .glassBar.isStuck,#historyPanel .glassBar.isStuck{box-shadow:var(--popSh)}
+/* Dark mode homologates every floating panel onto the popup elevation shadow
+(bottom-anchored panels mirror it upward); light keeps each element's own. */
+html.theme-dark :is(.topBar,.pageNav,.quickPanel,#presetRenameDialog,#confirmDialog){box-shadow:var(--popSh)}
+html.theme-dark :is(.qwSheet,#actionsPanel){box-shadow:0 -8px 28px rgba(0,0,0,.45)}
+@media(prefers-color-scheme:dark){
+html:not(.theme-light) :is(.topBar,.pageNav,.quickPanel,#presetRenameDialog,#confirmDialog){box-shadow:var(--popSh)}
+html:not(.theme-light) :is(.qwSheet,#actionsPanel){box-shadow:0 -8px 28px rgba(0,0,0,.45)}
+}
 .glassBar>.btnGlyph{flex:0 0 auto;min-height:2.1rem;min-width:0;padding:0 .8rem;border:0;border-radius:1.6rem;background:transparent;color:var(--ac);white-space:nowrap}
 .glassBar>.btnGlyph .t{font-size:.8rem}
 .glassBar>.btnGlyph:not(:disabled):hover{background:var(--pa)}
@@ -668,7 +676,7 @@ body.qwOpen{overflow:hidden}
 html,input,select,textarea{color-scheme:dark}
 }
 html.theme-light{color-scheme:light}
-html.theme-dark{--tk:58%;--cf:#523a2c;--gLast:#38bdf8;--gCut:#9e1c22;--bandFull:.22;--bandPart:.11;--bandWin:.32;--bg:#151515;--sf:#1d1d1d;--in:#242424;--fg:#efefef;--mu:#b2b2b2;--ln:#3c3c3c;--bd:#7d7d7d;--ac:#c45c38;--pri:#c45c38;--ok:#74d68c;--lw:#f2c14e;--gFast:#ff6b4a;--gSlow:#6cb6e6;--gFlow:#b8b8b8;--dn:#ffadb5;--wn:#edc17d;--me:#351f23;--mo:#193024;--mw:#33291b;--pa:#352820;--ah:0 -4px 14px rgba(0,0,0,.35);--popSh:0 8px 28px rgba(0,0,0,.55)}
+html.theme-dark{--tk:58%;--cf:#523a2c;--gLast:#38bdf8;--gCut:#9e1c22;--bandFull:.22;--bandPart:.11;--bandWin:.32;--bg:#151515;--sf:#1d1d1d;--in:#242424;--fg:#efefef;--mu:#b2b2b2;--ln:#3c3c3c;--bd:#7d7d7d;--ac:#c45c38;--pri:#c45c38;--ok:#74d68c;--lw:#f2c14e;--gFast:#ff6b4a;--gSlow:#6cb6e6;--gFlow:#b8b8b8;--dn:#ffadb5;--wn:#edc17d;--me:#351f23;--mo:#193024;--mw:#33291b;--pa:#352820;--ah:0 -4px 14px rgba(0,0,0,.35);--popSh:0 8px 28px rgba(0,0,0,.45)}
 html.theme-light input,html.theme-light select,html.theme-light textarea{color-scheme:light}
 html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark textarea{color-scheme:dark}
 @media(max-width:480px){:root{--bandFull:.18;--bandPart:.08;--bandWin:.28}#shotTable tr,fieldset{padding-inline:.5rem}.presetAccGraph{margin-inline:.2rem}}

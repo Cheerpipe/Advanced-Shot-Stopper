@@ -554,10 +554,11 @@ if (generated.jsGzip.length > 7330) {
 // owner-authorized 2026-10-16.
 // The gradual forecast hero tint (registered --tp blend percent) brings the CSS to 14384 bytes; owner-authorized 2026-10-17.
 // The dark-mode floating-shadow variable (--popSh) brings the CSS to 14406 bytes; owner-authorized 2026-10-17.
+// Homologating every dark floating panel onto the popup elevation shadow brings the CSS to 14464 bytes; owner-authorized 2026-10-17.
 // The shot card header with a large faint metric glyph measures 14322 bytes;
 // owner-authorized 2026-10-16.
-if (generated.cssGzip.length > 14406) {
-  throw new Error(`Compressed Web CSS exceeds the 14406-byte gzip budget (${generated.cssGzip.length})`);
+if (generated.cssGzip.length > 14465) {
+  throw new Error(`Compressed Web CSS exceeds the 14465-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -885,8 +886,8 @@ if (generated.icon48Raw.length > 3500) {
 const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
     generated.jsGzip.length + generated.runtimeGzip.length;
 // The gradual forecast hero tint brings the cold Home download to 64613 gzip bytes with the window-mode fast alert restored; owner-authorized 2026-10-17.
-if (coldHomeGzip > 64719) {
-  throw new Error(`Cold Home download exceeds the 64719-byte gzip budget (${coldHomeGzip})`);
+if (coldHomeGzip > 64778) {
+  throw new Error(`Cold Home download exceeds the 64778-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

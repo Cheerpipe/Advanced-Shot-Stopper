@@ -90,6 +90,13 @@ allowances and the 64-byte headroom is restored. The per-asset compressed
 CSS cap in the Web contract tests rises from 14,384 to 14,406 bytes with a
 dated owner-authorized entry. Browser-local CSS only: no
 firmware task, control-timing, memory-placement, or OTA identity change.
+Homologating every dark floating panel onto the same elevation shadow (the
+top bar, navigation pill, quick panel, dialogs, quick-settings sheet and
+actions panel join the popups and stuck toolbars; bottom-anchored panels
+mirror the shadow upward) grows the CSS to 14,465 gzip bytes, moves the
+cold Home cap to 64,778 and the measured image/linked deltas to 92,640
+and 92,632, so those allowances rise to 92,704 and 92,696 keeping the
+64-byte headroom. Light-theme rendering is unchanged throughout.
 Urgent control-gate publication and the no-scale timer's stop fade add another
 640 bytes of reviewed image/linked allowance, to 44,976 and 44,968 bytes.
 The mobile full-screen Home shot card and the Brew by Weight master toggle
