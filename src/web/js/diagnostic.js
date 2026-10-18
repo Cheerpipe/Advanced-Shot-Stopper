@@ -1003,22 +1003,14 @@ async function exportDebugData() {
     const data = await R.api("/api/v1/debug/export", { timeoutMs: 3e4 });
     if (!data || typeof data.exportSchemaVersion !== "number")
       throw new Error(__WEBUI_TEXT__("diagnostic.invalid_export"));
-    const a = document.createElement("a"),
-      boot = typeof data.bootId === "number" ? data.bootId : R.bootId || 0,
-      url = URL.createObjectURL(
-        new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
-      );
-    a.href = url;
-    a.download =
+    saveFile(
+      new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
       "shotstopper-debug-boot" +
-      boot +
-      "-" +
-      new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19) +
-      ".json";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+        (typeof data.bootId === "number" ? data.bootId : R.bootId || 0) +
+        "-" +
+        new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19) +
+        ".json",
+    );
     R.message(__WEBUI_TEXT__("diagnostic.ok"), "ok");
     R.noteReachOk();
   } catch (e) {
@@ -1040,6 +1032,17 @@ function copyText(text) {
   ta.remove();
   if (ok) R.message(__WEBUI_TEXT__("diagnostic.copied"), "ok");
 }
+// Cleared data lands with a later device frame: hide it until it changes.
+const seen = {},
+  stale = {};
+function shown(name, value, empty) {
+  return (seen[name] = JSON.stringify(value)) === stale[name] ? empty : value;
+}
+async function hideUntilChanged(name, run) {
+  stale[name] = seen[name];
+  R.refreshStatus();
+  (await run()) || delete stale[name];
+}
 let auditBusy = false,
   auditItems = [],
   auditPage = 0,
@@ -1057,7 +1060,8 @@ function auditTime(wallSec) {
 function applyAudit(a) {
   const body = $("auditBody");
   if (!body || !a) return;
-  const huntUntil = a.verboseUntilUtcSec || 0,
+  const items = shown("audit", a.items || [], []),
+    huntUntil = a.verboseUntilUtcSec || 0,
     huntLeft = huntUntil ? huntUntil - Math.floor(Date.now() / 1000) : 0,
     huntOn = huntLeft > 0;
   $("auditSummary").textContent =
@@ -1089,13 +1093,13 @@ function applyAudit(a) {
       : __WEBUI_TEXT__("diagnostic.audit_hunt_30m");
   if (verbose) verbose.disabled = auditBusy || !R.webUiOwner;
   for (const b of [clear, exportLog])
-    if (b) b.disabled = auditBusy || !R.webUiOwner || !(a.items || []).length;
+    if (b) b.disabled = auditBusy || !R.webUiOwner || !items.length;
   // Rebuilding identical rows on every status paint would destroy text
   // selection and any open detail row, so repaint only on real changes.
-  const key = JSON.stringify(a.items || []);
+  const key = JSON.stringify(items);
   if (key === auditRenderedKey) return;
   auditRenderedKey = key;
-  auditItems = (a.items || []).slice().reverse();
+  auditItems = items.slice().reverse();
   auditPage = Math.min(
     auditPage,
     Math.max(0, Math.ceil(auditItems.length / AUDIT_PAGE_SIZE) - 1),
@@ -1164,30 +1168,34 @@ function toggleAuditDetail(row, item) {
   }
   row.after(detail);
 }
+function saveFile(blob, name) {
+  const a = document.createElement("a"),
+    url = URL.createObjectURL(blob);
+  a.href = url;
+  a.download = name;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 6e4);
+}
+async function downloadText(load, name, failMsg) {
+  R.message(__WEBUI_TEXT__("diagnostic.downloading"));
+  try {
+    saveFile(new Blob([await load], { type: "text/plain" }), name);
+    R.message(__WEBUI_TEXT__("diagnostic.ok"), "ok");
+  } catch (e) {
+    R.message(R.formatCommandError(failMsg, e), "error");
+  }
+}
 async function exportAudit() {
   if (auditBusy || !auditItems.length) return;
   auditBusy = true;
-  R.message(__WEBUI_TEXT__("diagnostic.downloading"));
-  try {
-    const b = await apiBinary("/api/v1/diagnostic/audit"),
-      u = URL.createObjectURL(new Blob([b], { type: "text/plain" })),
-      a = Object.assign(document.createElement("a"), {
-        href: u,
-        download: "shotstopper-audit.txt",
-      });
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(u), 6e4);
-    R.message(__WEBUI_TEXT__("diagnostic.ok"), "ok");
-  } catch (e) {
-    R.message(
-      R.formatCommandError(__WEBUI_TEXT__("diagnostic.audit_export_failed"), e),
-      "error",
-    );
-  } finally {
-    auditBusy = false;
-  }
+  await downloadText(
+    apiBinary("/api/v1/diagnostic/audit"),
+    "shotstopper-audit.txt",
+    __WEBUI_TEXT__("diagnostic.audit_export_failed"),
+  );
+  auditBusy = false;
 }
 async function toggleAuditHunt() {
   if (auditBusy) return;
@@ -1219,23 +1227,18 @@ async function toggleAuditHunt() {
 async function emptyAudit() {
   if (!confirm(__WEBUI_TEXT__("diagnostic.audit_empty_confirm"))) return;
   auditBusy = true;
-  await R.refreshStatus();
-  try {
-    await R.api("/api/v1/diagnostic/audit/empty", {
+  await hideUntilChanged("audit", () =>
+    R.api("/api/v1/diagnostic/audit/empty", {
       method: "POST",
       body: JSON.stringify({ confirm: "EMPTY_AUDIT_LOG" }),
       timeoutMs: 12e4,
-    });
-    R.message(__WEBUI_TEXT__("diagnostic.audit_cleared"), "ok");
-  } catch (e) {
-    R.message(
-      R.formatCommandError(__WEBUI_TEXT__("diagnostic.audit_clear_failed"), e),
-      "error",
-    );
-  } finally {
-    auditBusy = false;
-    await R.refreshStatus();
-  }
+    }).then(
+      () => (R.message(__WEBUI_TEXT__("diagnostic.audit_cleared"), "ok"), true),
+      (e) => R.message(R.formatCommandError(__WEBUI_TEXT__("diagnostic.audit_clear_failed"), e), "error"),
+    ),
+  );
+  auditBusy = false;
+  await R.refreshStatus();
 }
 export function applyStatus(s) {
   applyDiagnosticStatus(s);
@@ -1247,14 +1250,15 @@ export function applyStatus(s) {
   applyScaleCommands(sc);
   applyDiagnosticGuards(s);
   applyTaskProfiler(s.tasks);
-  applyScaleProfile(s.scaleProfile);
+  const p = s.scaleProfile;
+  applyScaleProfile(shown("scaleProfile", p, p && { ...p, persistence: "invalidating" }));
   applyLoopTiming(s);
   applyAudit(s.audit);
-  updateCrashRow(s);
+  updateCrashRow({ ...s, crashCount: shown("crashes", s.crashCount, 0) });
   const b = $("hResetHistory");
   if (b) {
     b.replaceChildren();
-    for (const e of s.resetHistory || []) {
+    for (const e of shown("resetHistory", s.resetHistory || [], [])) {
       const r = b.insertRow();
       r.insertCell().textContent = e.reason;
       r.insertCell().textContent = formatUptime(e.uptimeMs);
@@ -1322,7 +1326,9 @@ export function init() {
     };
   $("clearResetHistoryButton").onclick = () =>
     confirm(__WEBUI_TEXT__("diagnostic.clear_resets")) &&
-    R.command("/api/v1/diagnostic/reset-history", { confirm: "CLEAR_RESET_HISTORY" });
+    hideUntilChanged("resetHistory", () =>
+      R.command("/api/v1/diagnostic/reset-history", { confirm: "CLEAR_RESET_HISTORY" }),
+    );
   for (const [id, path, field] of [
     ["taskProfiler", "profiler", "enabled"],
     ["scaleProfile", "scale-profile", "action"],
@@ -1337,7 +1343,9 @@ export function init() {
         });
   $("scaleProfileDeleteButton").onclick = () =>
     confirm(__WEBUI_TEXT__("diagnostic.delete_profile_confirm")) &&
-    R.command("/api/v1/diagnostic/scale-profile", { action: "delete" });
+    hideUntilChanged("scaleProfile", () =>
+      R.command("/api/v1/diagnostic/scale-profile", { action: "delete" }),
+    );
   $("scaleProfileDownloadButton").onclick = () => downloadScaleProfile();
   for (const [id, path] of [
     ["loopMax", "loop-max"],
@@ -1450,27 +1458,12 @@ function applyScaleProfile(p) {
 async function downloadScaleProfile() {
   if (profileBusy) return;
   profileBusy = true;
-  R.message(__WEBUI_TEXT__("diagnostic.downloading"));
-  try {
-    const b = await apiBinary("/api/v1/diagnostic/scale-profile/download"),
-      u = URL.createObjectURL(new Blob([b], { type: "text/plain" })),
-      a = Object.assign(document.createElement("a"), {
-        href: u,
-        download: "shotstopper-scale-profile.txt",
-      });
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(u), 6e4);
-    R.message(__WEBUI_TEXT__("diagnostic.ok"), "ok");
-  } catch (e) {
-    R.message(
-      R.formatCommandError(__WEBUI_TEXT__("diagnostic.profile_download_failed"), e),
-      "error",
-    );
-  } finally {
-    profileBusy = false;
-  }
+  await downloadText(
+    apiBinary("/api/v1/diagnostic/scale-profile/download"),
+    "shotstopper-scale-profile.txt",
+    __WEBUI_TEXT__("diagnostic.profile_download_failed"),
+  );
+  profileBusy = false;
 }
 function updateCrashRow(s) {
   const misc = $("hResetHistory")?.closest("fieldset.statusColumn");
@@ -1541,15 +1534,8 @@ async function downloadCrashes() {
     if (gzip) R.message(__WEBUI_TEXT__("diagnostic.compressing"));
     const blob = gzip
         ? await new Response(tar.stream().pipeThrough(new CompressionStream("gzip"))).blob()
-        : tar,
-      url = URL.createObjectURL(blob),
-      a = document.createElement("a");
-    a.href = url;
-    a.download = "shotstopper-crashes.tar" + (gzip ? ".gz" : "");
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 6e4);
+        : tar;
+    saveFile(blob, "shotstopper-crashes.tar" + (gzip ? ".gz" : ""));
     R.message(__WEBUI_TEXT__("diagnostic.ok"), "ok");
   } catch (e) {
     R.message(R.formatCommandError(__WEBUI_TEXT__("diagnostic.crash_download_failed"), e), "error");
@@ -1561,18 +1547,16 @@ async function downloadCrashes() {
 async function emptyCrashes() {
   if (!confirm(__WEBUI_TEXT__("diagnostic.empty_crashes_confirm"))) return;
   crashBusy = true;
-  await R.refreshStatus();
-  try {
-    await R.api("/api/v1/diagnostic/crashes/empty", {
+  await hideUntilChanged("crashes", () =>
+    R.api("/api/v1/diagnostic/crashes/empty", {
       method: "POST",
       body: JSON.stringify({ confirm: "EMPTY_CRASH_ARCHIVE" }),
       timeoutMs: 12e4,
-    });
-    R.message(__WEBUI_TEXT__("diagnostic.crashes_emptied"), "ok");
-  } catch (e) {
-    R.message(R.formatCommandError(__WEBUI_TEXT__("diagnostic.crash_empty_failed"), e), "error");
-  } finally {
-    crashBusy = false;
-    await R.refreshStatus();
-  }
+    }).then(
+      () => (R.message(__WEBUI_TEXT__("diagnostic.crashes_emptied"), "ok"), true),
+      (e) => R.message(R.formatCommandError(__WEBUI_TEXT__("diagnostic.crash_empty_failed"), e), "error"),
+    ),
+  );
+  crashBusy = false;
+  await R.refreshStatus();
 }
