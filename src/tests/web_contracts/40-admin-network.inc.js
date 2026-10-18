@@ -182,7 +182,7 @@ if (!codeIncludes(ui, 'id="staIpMode"') ||
     !network.includes('status_.apTeardownAtMs = now + SOFTAP_FINISH_LINGER_MS') ||
     !network.includes('sendJson(request, STATUS_OK, "{\\"finished\\":true}")') ||
     !network.includes('status_.apTeardownAtMs = millis() + SOFTAP_TEARDOWN_GRACE_MS') ||
-    !network.includes('bool ShotStopperNetwork::softApTeardownDue(') ||
+    !network.includes('void ShotStopperNetwork::serviceSoftApTeardown(') ||
     // Legacy Windows NCSI (www.msftncsi.com) expects its own probe body.
     !network.includes('"Microsoft NCSI"')) {
   throw new Error('DHCP/static IP mode must be wired in UI, status, WiFi.config, and confirm/revert path');

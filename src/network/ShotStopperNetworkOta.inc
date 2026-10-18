@@ -43,7 +43,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
       if (sta.staConfigState !=
               static_cast<uint8_t>(StaConfigState::PENDING) ||
           !sta.staConfigured ||
-          (network.apActive && !network.apKeepActive) ||
+          !setupConfirmAllowed(network.setupPhase, network.apActive) ||
           network.staState != StaState::CONNECTED) {
         parsed = false;
         networkError = "No pending network configuration to confirm.";
@@ -77,10 +77,10 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
       return sendJson(request, STATUS_OK, "{\"skipped\":true}");
     }
   } else if (parsed && strcmp(action, "finish") == 0) {
-    // Setup-context action: valid only while the post-confirm grace window
-    // runs. Arm the portal-exit probe answers, then shorten the SoftAP
-    // teardown to a short linger so the captive window can fetch its
-    // probe-success page before the link drops.
+    // Setup-context action: valid while the joined network is being
+    // confirmed or a teardown grace runs. Arm the portal-exit probe answers,
+    // then shorten the SoftAP teardown to a short linger so the captive
+    // window can fetch its probe-success page before the link drops.
     parsed = jsonHasOnlyUniqueFields(root, finishFields, 1);
     if (!parsed) {
       networkError = "Finish request must include only action=\"finish\".";
@@ -91,8 +91,8 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
       const uint32_t now = millis();
       bool grace = false;
       self.dataMux_.lock();
-      grace = self.status_.apActive && self.status_.apTeardownAtMs != 0 &&
-              static_cast<int32_t>(self.status_.apTeardownAtMs - now) > 0;
+      grace = setupFinishAllowed(self.status_.setupPhase, self.status_.apActive,
+                                 self.status_.apTeardownAtMs, now);
       if (grace) {
         self.status_.apTeardownAtMs = now + SOFTAP_FINISH_LINGER_MS;
       }

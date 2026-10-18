@@ -113,6 +113,12 @@ loop-owned deferral slots) measures 2,366,912 image, 2,366,791 linked and
 baseline) and external BSS stay inside theirs. The image and linked figures
 include 128 compressed Web-asset bytes from the Home hero chart's preset
 corridor boundaries, which landed without their own allowance entry.
+SoftAP onboarding phase P1 (explicit onboarding phase with firmware
+auto-confirm and the recovery-AP grace, plus the status-driven `/setup`
+page) measures 2,368,768 image, 2,368,651 linked and 1,588,372 flash-code
+bytes, so those allowances move to 95,072, 95,068 and 73,336 bytes keeping
+the 64-byte headroom; rodata, DIRAM (512 bytes over baseline) and external
+BSS stay inside theirs.
 Urgent control-gate publication and the no-scale timer's stop fade add another
 640 bytes of reviewed image/linked allowance, to 44,976 and 44,968 bytes.
 The mobile full-screen Home shot card and the Brew by Weight master toggle

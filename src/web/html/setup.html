@@ -1,15 +1,20 @@
 <div class="setupBrand brand" aria-hidden="true"><svg class="brandMark" viewBox="0 0 40 56"><use href="#brandMark"/></svg><span><small>{{webui:setup.open_brew}}</small>{{webui:setup.by_weight}}</span></div>
 <section class="setupCard" id="setupCard">
-  <h1>{{webui:setup.title}}</h1>
-  <p class="setupIntro">{{webui:setup.intro}}</p>
+  <h1 id="setupTitle">{{webui:setup.title}}</h1>
+  <p class="setupIntro" id="setupIntro">{{webui:setup.intro}}</p>
+  <p id="setupBlocked" class="fieldError" role="status" hidden></p>
+  <div id="setupError" tabindex="-1" hidden>
+    <p id="setupErrorText" class="fieldError" role="alert"></p>
+    <p id="setupErrorHint" class="fieldHint">{{webui:setup.error_hints}}</p>
+  </div>
   <div id="setupScanning" class="setupState" hidden>
     <span class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     <p>{{webui:setup.searching_networks}}</p>
-    <button type="button" id="setupRescan" class="textLock">{{webui:setup.try_again}}</button>
   </div>
   <form id="setupForm" hidden>
     <label for="setupNetwork">{{webui:setup.network}}</label>
     <select id="setupNetwork" autocomplete="off"></select>
+    <button type="button" id="setupSearchAgain" class="textLock">{{webui:setup.search_again}}</button>
     <label id="setupManualLabel" for="setupManualSsid" hidden>{{webui:setup.network_name}}</label>
     <input type="text" id="setupManualSsid" maxlength="32" autocomplete="off" spellcheck="false" hidden>
     <label class="setupHiddenToggle"><input type="checkbox" id="setupHiddenToggle"><span>{{webui:setup.my_network_is_not_listed}}</span></label>
@@ -34,18 +39,14 @@
   <div id="setupSuccess" class="setupState" hidden>
     <p class="setupCheck" aria-hidden="true">&#10003;</p>
     <p id="setupSuccessText"></p>
-    <p id="setupSuccessLinks" class="setupLinks"></p>
-    <p class="fieldHint">{{webui:setup.close_hint}}</p>
+    <p id="setupNextStep"></p>
+    <div id="setupSuccessLinks" class="setupLinks"></div>
+    <p id="setupCloseHint" class="fieldHint">{{webui:setup.close_hint}}</p>
     <button type="button" id="setupFinish">{{webui:setup.done}}</button>
   </div>
   <div id="setupSkipped" class="setupState" hidden>
     <p>{{webui:setup.skip_text}}</p>
     <a id="setupSkipDone" href="http://captive.apple.com/hotspot-detect.html">{{webui:setup.done}}</a>
-  </div>
-  <div id="setupError" class="setupState" hidden>
-    <p id="setupErrorText" class="fieldError"></p>
-    <p class="fieldHint">{{webui:setup.error_hints}}</p>
-    <button type="button" id="setupRetry">{{webui:setup.try_again}}</button>
   </div>
   <div id="setupLocked" class="setupState" hidden>
     <p>{{webui:setup.locked_hint}}</p>

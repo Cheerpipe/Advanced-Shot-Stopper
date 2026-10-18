@@ -363,4 +363,7 @@ if (bootView && bootView !== "home") {
   bootFetch = [bootView, fetchView(bootView)];
   bootFetch[1].catch(() => {});
 }
-R.claimWebUiOwnership();
+if (bootView === "setup") {
+  R.startSetupSession();
+  renderRoute(location.pathname);
+} else R.claimWebUiOwnership();

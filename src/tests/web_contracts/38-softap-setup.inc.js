@@ -103,38 +103,66 @@
       !codeIncludes(networkHandlerBlock, '!self.snapshot().apActive') ||
       !codeIncludes(networkHandlerBlock, 'command.network.applyLive=true') ||
       !codeIncludes(saveCommandBlock, 'if(command.network.applyLive){') ||
-      !codeIncludes(saveCommandBlock, 'liveApplyPending_=true') ||
+      !codeIncludes(saveCommandBlock, 'advanceSetupPhase(SetupEvent::APPLY_SAVED)') ||
       !codeIncludes(saveCommandBlock, '}else{restartPending_=true;}')) {
     throw new Error(
         'apply:"live" must be schema-validated, accepted only while the AP is up, and must not schedule a restart');
   }
-  if (!codeIncludes(serviceBlock, 'beginStationConnect(networkSettingsSnapshot(),now)') ||
-      !codeIncludes(serviceBlock, 'apKeepRequested_=true') ||
+  if (!codeIncludes(serviceBlock, 'setupPhase()==SetupPhase::QUEUED') ||
+      !codeIncludes(serviceBlock, 'beginStationConnect(networkSettingsSnapshot(),now)') ||
+      !codeIncludes(serviceBlock, 'advanceSetupPhase(SetupEvent::ATTEMPT_STARTED)') ||
+      !codeIncludes(serviceBlock, 'advanceSetupPhase(SetupEvent::APPLY_RESTARTS)') ||
       !codeIncludes(serviceBlock, 'armPendingConfirmWindow(now)')) {
-    throw new Error('The network task must consume the live-apply flag and arm the confirm window');
+    throw new Error('The network task must consume the queued live apply and arm the confirm window');
   }
-  // Confirmation and revert keep the onboarding AP contract: confirm is
-  // allowed on the kept AP, drops the keep after persisting CONFIRMED, and
-  // the unconfirmed window reverts while the SoftAP stays the fallback.
-  if (!codeIncludes(requestConfirmBlock, '(!status_.apActive||status_.apKeepActive)') ||
-      !codeIncludes(snapshotBlock, '(!status_.apActive||status_.apKeepActive)') ||
-      !codeIncludes(confirmBlock, '(status.apActive&&!apKeepRequested_)') ||
-      !codeIncludes(networkHandlerBlock, '(network.apActive&&!network.apKeepActive)') ||
-      !codeIncludes(confirmBlock, 'apKeepRequested_=false') ||
-      // Post-confirm grace: confirm schedules the SoftAP teardown instead of
-      // dropping it on the next pass; serviceStaState stops only when the
-      // deadline passes (zero keeps the legacy immediate stop), and every
-      // teardown/re-raise clears the deadline for the next AP session.
+  // One explicit onboarding phase (host-tested in ShotStopperNetworkSetup.h)
+  // replaces the keep/live-apply booleans; the network task is its only
+  // writer and httpd reads the published copy under the lock.
+  if (!networkHeader.includes('#include "ShotStopperNetworkSetup.h"') ||
+      !networkHeader.includes('SetupPhase setupPhase = SetupPhase::NONE;') ||
+      /apKeepRequested_|liveApplyPending_|apKeepActive|softApTeardownDue/.test(
+          network + networkHeader)) {
+    throw new Error('SoftAP onboarding must be driven by the published SetupPhase only');
+  }
+  // Confirm is bound to the live attempt: status polls and the confirm
+  // action only persist a network this attempt joined (F-04); the join on
+  // the saved SSID queues the confirm in firmware (F-05); a join on another
+  // SSID fails the attempt; the unconfirmed window reverts while the SoftAP
+  // stays the fallback.
+  if (!codeIncludes(requestConfirmBlock, 'setupConfirmAllowed(status_.setupPhase,status_.apActive)') ||
+      !codeIncludes(snapshotBlock, '(!status_.apActive||setupKeepsSoftAp(status_.setupPhase))') ||
+      !codeIncludes(confirmBlock, '!setupConfirmAllowed(status.setupPhase,status.apActive)') ||
+      !codeIncludes(networkHandlerBlock, '!setupConfirmAllowed(network.setupPhase,network.apActive)') ||
       !codeIncludes(confirmBlock,
-                    'status_.apTeardownAtMs=millis()+SOFTAP_TEARDOWN_GRACE_MS') ||
-      !codeIncludes(staStateBlock, 'softApTeardownDue(status,now)') ||
+                    'status_.setupPhase=nextSetupPhase(status_.setupPhase,SetupEvent::CONFIRMED)') ||
+      !codeIncludes(staStateBlock, 'esp_wifi_sta_get_ap_info(&ap)') ||
+      !codeIncludes(staStateBlock, 'joined?SetupEvent::JOINED:SetupEvent::JOINED_OTHER') ||
+      !codeIncludes(staStateBlock, 'pendingConfirmRequest_=true') ||
+      // Post-confirm grace: confirm schedules the SoftAP teardown (keeping an
+      // earlier "finish" linger); with the station up the AP stops at the
+      // deadline, and a recovery AP with phones associated gets the grace
+      // too (F-10). Every teardown/re-raise clears the deadline.
+      !codeIncludes(confirmBlock,
+                    'if(status.apActive&&status_.apTeardownAtMs==0){status_.apTeardownAtMs=millis()+SOFTAP_TEARDOWN_GRACE_MS;}') ||
+      (staStateBlock.match(/serviceSoftApTeardown\(status, now\);/g) || []).length !== 2 ||
+      !codeIncludes(network, 'softApTeardownStep(status.setupPhase,status.apClients,status.apTeardownAtMs,now)') ||
       !stopSoftApBlock.includes('status_.apTeardownAtMs = 0;') ||
-      !codeIncludes(revertBlock, 'apKeepRequested_=false') ||
+      !codeIncludes(stopSoftApBlock, 'nextSetupPhase(status_.setupPhase,SetupEvent::AP_STOPPED)') ||
+      !codeIncludes(revertBlock, 'nextSetupPhase(status_.setupPhase,SetupEvent::REVERTED)') ||
       !codeIncludes(revertBlock, 'status_.staState=StaState::NOT_CONFIGURED') ||
-      !codeIncludes(staStateBlock, 'status.apActive&&apKeepRequested_&&staConfirmArmed_') ||
+      !codeIncludes(staStateBlock,
+                    'status.apActive&&setupKeepsSoftAp(status.setupPhase)&&staConfirmArmed_') ||
       !codeIncludes(staStateBlock, 'revertPendingNetwork(now,"confirm timeout")')) {
     throw new Error(
-        'Live-apply confirm/revert must relax only on apKeepActive and revert to the SoftAP fallback');
+        'Live-apply confirm must be bound to the joined attempt, auto-confirm, and revert to the SoftAP fallback');
+  }
+  // "finish" also lands while the joined network is still confirming (F-14),
+  // and status/admin publishes the phase and the AP closing time for /setup.
+  if (!codeIncludes(networkHandlerBlock,
+                    'grace=setupFinishAllowed(self.status_.setupPhase,self.status_.apActive,self.status_.apTeardownAtMs,now)') ||
+      !network.includes('\\"setup\\":\\"%s\\",\\"apClosingMs\\":%lu,') ||
+      !codeIncludes(network, 'setupPhaseName(network.setupPhase)')) {
+    throw new Error('finish must accept the joined phase and status/admin must publish setup and apClosingMs');
   }
 
   // Scan pipeline: the HTTP handler's optimistic QUEUED must not be canceled
@@ -166,7 +194,9 @@
       !codeIncludes(staStateBlock,
           '(liveOnboarding?LIVE_APPLY_ATTEMPT_MS:STA_RECOVERY_ATTEMPT_MS)') ||
       !codeIncludes(staStateBlock,
-          'staReconnectHeld_=true') ||
+          'advanceSetupPhase(SetupEvent::ATTEMPT_FAILED)') ||
+      !codeIncludes(staStateBlock,
+          'reconnectHeld=staReconnectHeld_||setupHoldsReconnect(status.setupPhase)') ||
       !codeIncludes(serviceBlock, 'staReconnectHeld_=false') ||
       !codeIncludes(confirmBlock, 'staReconnectHeld_=false') ||
       !codeIncludes(revertBlock, 'staReconnectHeld_=false')) {
@@ -174,17 +204,38 @@
         'Live-apply attempts must age at 20 s and hold reconnects on failure until the next save/confirm/revert');
   }
 
-  // /setup web view: route, menu-less shell, live-apply payload, bounded
-  // connect wait, confirm on success, the skip exit, and the LAN ADMIN_LOCKED
-  // escape hatch.
+  // /setup web view: route, menu-less shell without the single-browser claim,
+  // live-apply payload, status-driven steps, bounded connect wait, the skip
+  // exit, and the LAN ADMIN_LOCKED escape hatch.
   const setupJs = viewJs.setup || '';
-  if (!codeIncludes(appJsSource, '"/setup":"setup"') ||
+  const setupHtml = partialHtml.setup || '';
+  if (!codeIncludes(appJsSource, 'if(bootView==="setup"){R.startSetupSession();renderRoute(location.pathname);}else R.claimWebUiOwnership();') ||
+      !codeIncludes(blockAt(runtimeJs, 'function deactivateWebUi() {'), 'if(!webUiOwner||setupSession)return;') ||
+      !codeIncludes(blockAt(runtimeJs, 'function resetWebUiInactivity() {'), 'if(!webUiOwner||setupSession)return;') ||
+      !codeIncludes(blockAt(runtimeJs, 'function startSetupSession() {'), 'webUiActiveUntil=Infinity') ||
+      // Steps come from the firmware phase, errors sit above the form and
+      // are focused/announced, blocked configuration is explained, and the
+      // success screen names the next step with copyable addresses.
+      codeIncludes(setupJs, '{action:"confirm"}') ||
+      !codeIncludes(setupJs, 'lastPhase==="joined"||lastPhase==="confirmed"') ||
+      !codeIncludes(setupJs, 'n.apClosingMs>0&&n.staState==="CONNECTED"') ||
+      !codeIncludes(setupJs, 's.configMutable===false?s.configLockReason:""') ||
+      !codeIncludes(setupJs, 'box.focus({preventScroll:true})') ||
+      !codeIncludes(setupJs, 'navigator.clipboard.writeText(text.textContent)') ||
+      !codeIncludes(setupJs, 'if(finished)window.location.href=PROBE_URL;') ||
+      !setupHtml.includes('id="setupBlocked"') ||
+      !setupHtml.includes('id="setupErrorText" class="fieldError" role="alert"') ||
+      setupHtml.indexOf('id="setupError"') > setupHtml.indexOf('<form id="setupForm"') ||
+      !setupHtml.includes('id="setupSearchAgain"') ||
+      !setupHtml.includes('id="setupNextStep"') ||
+      !setupHtml.includes('id="setupTitle"') ||
+      setupHtml.includes('id="setupRetry"') ||
+      !codeIncludes(appJsSource, '"/setup":"setup"') ||
       !codeIncludes(appJsSource, 'setupView') ||
       !codeIncludes(appJsSource, 'jsMods.get("setup")?.stop?.()') ||
       !partialHtml.setup ||
       !codeIncludes(setupJs, 'apply:"live"') ||
       !codeIncludes(setupJs, '"/api/v1/status/admin"') ||
-      !codeIncludes(setupJs, '{action:"confirm"}') ||
       !codeIncludes(setupJs, 'e.code==="ADMIN_LOCKED"') ||
       !setupJs.includes('CONNECT_WAIT_MS') ||
       // The visible 20 s attempt countdown must mirror the firmware bound.
@@ -200,7 +251,7 @@
       !partialHtml.setup.includes('id="setupSkipped"') ||
       !partialHtml.setup.includes('captive.apple.com/hotspot-detect.html') ||
       !codeIncludes(setupJs, '{action:"skip"}') ||
-      !codeIncludes(setupJs, 'state="skipped"') ||
+      !codeIncludes(setupJs, 'show("skipped")') ||
       !codeIncludes(setupJs, 'connectivitycheck.gstatic.com/generate_204') ||
       !codeIncludes(setupJs, '$("setupSkipDone").href=PROBE_URL') ||
       !codeIncludes(setupJs, '$("setupSkip").onclick=skipSetup') ||
@@ -209,9 +260,7 @@
       // device lingers briefly before dropping the setup network).
       !partialHtml.setup.includes('id="setupFinish"') ||
       !codeIncludes(setupJs, '{action:"finish"}') ||
-      !codeIncludes(setupJs, 'window.location.href=PROBE_URL') ||
       !codeIncludes(setupJs, '$("setupFinish").onclick=finishSetup') ||
-      !codeIncludes(setupJs, 'setupRescan").hidden = lastNetworks === null') ||
       !codeIncludes(setupJs, 'input.type=show?"text":"password"') ||
       !codeIncludes(setupJs, 'passToggle.setAttribute("aria-pressed"') ||
       !codeIncludes(setupJs, 'setInterval(chainWatchdog,2500)') ||

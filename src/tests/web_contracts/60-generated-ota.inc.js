@@ -557,8 +557,9 @@ if (generated.jsGzip.length > 7330) {
 // Homologating every dark floating panel onto the popup elevation shadow brings the CSS to 14464 bytes; owner-authorized 2026-10-17.
 // The shot card header with a large faint metric glyph measures 14322 bytes;
 // owner-authorized 2026-10-16.
-if (generated.cssGzip.length > 14465) {
-  throw new Error(`Compressed Web CSS exceeds the 14465-byte gzip budget (${generated.cssGzip.length})`);
+// SoftAP onboarding P1 (/setup address rows, disabled Connect, Search again) measures 14479 bytes; owner-requested 2026-10-18.
+if (generated.cssGzip.length > 14480) {
+  throw new Error(`Compressed Web CSS exceeds the 14480-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -724,7 +725,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The gradual forecast Admin hint text adds a few bytes to admin.js (14226); owner-authorized 2026-10-17.
 // Gzip padding wobble after the full-screen keep-awake layer measures admin.js at 14227; owner-authorized 2026-10-17.
 // Gzip wobble from the Home hero corridor chart (admin.js unchanged) measures 14229; owner-requested 2026-10-18.
-const viewModuleBudgets = {records: 13500, diagnostic: 13700, admin: 14229, settings: 14150, setup: 3600};
+// SoftAP onboarding P1 (status-driven steps, blocked notice, copyable addresses) measures setup.js at 4216; owner-requested 2026-10-18.
+const viewModuleBudgets = {records: 13500, diagnostic: 13700, admin: 14229, settings: 14150, setup: 4250};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);

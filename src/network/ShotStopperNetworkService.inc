@@ -208,7 +208,7 @@ NetworkStatusSnapshot ShotStopperNetwork::snapshot() {
       staConfirmArmed_ &&
       settings_.staConfigState ==
           static_cast<uint8_t>(StaConfigState::PENDING) &&
-      (!status_.apActive || status_.apKeepActive);
+      (!status_.apActive || setupKeepsSoftAp(status_.setupPhase));
   const uint32_t deadline = staConfirmDeadlineMs_;
   dataMux_.unlock();
   copy.taskAgeMs = static_cast<uint32_t>(
@@ -638,23 +638,19 @@ void ShotStopperNetwork::service() {
   // /setup live apply: associate the freshly saved network on this task
   // without a restart, keeping the SoftAP (and /setup) alive throughout.
   // Deferred RF gates retry here; the connect itself arms the 180 s window.
-  if (liveApplyPending_ &&
+  if (setupPhase() == SetupPhase::QUEUED &&
       static_cast<int32_t>(now - liveApplyRetryAtMs_) >= 0) {
     if (!snapshot().apActive) {
       // The onboarding AP went away before the connect could start (AP_STOP
       // or teardown): fall back to the ordinary save-and-restart path.
-      liveApplyPending_ = false;
+      advanceSetupPhase(SetupEvent::APPLY_RESTARTS);
       restartPending_ = true;
       restartRequestedAtMs_ = now;
     } else {
-      apKeepRequested_ = true;
-      dataMux_.lock();
-      status_.apKeepActive = true;
-      dataMux_.unlock();
-      // A new user attempt releases any onboarding failure hold.
+      // A new user attempt also releases a USB WIFI_DISCONNECT hold.
       staReconnectHeld_ = false;
       if (beginStationConnect(networkSettingsSnapshot(), now)) {
-        liveApplyPending_ = false;
+        advanceSetupPhase(SetupEvent::ATTEMPT_STARTED);
         armPendingConfirmWindow(now);
       } else {
         liveApplyRetryAtMs_ = now + 1000;

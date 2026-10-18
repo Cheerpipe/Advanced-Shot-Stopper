@@ -51,10 +51,33 @@ ControlGateSnapshot ShotStopperNetwork::controlGate() const {
   return gate;
 }
 
-bool ShotStopperNetwork::softApTeardownDue(
+SetupPhase ShotStopperNetwork::advanceSetupPhase(SetupEvent event) {
+  TaskLockGuard lock(dataMux_);
+  status_.setupPhase = nextSetupPhase(status_.setupPhase, event);
+  return status_.setupPhase;
+}
+
+SetupPhase ShotStopperNetwork::setupPhase() {
+  TaskLockGuard lock(dataMux_);
+  return status_.setupPhase;
+}
+
+// Station is up while the SoftAP is still raised: close it unless onboarding
+// keeps it, giving associated phones the grace window first.
+void ShotStopperNetwork::serviceSoftApTeardown(
     const NetworkStatusSnapshot &status, uint32_t now) {
-  return status.apTeardownAtMs == 0 ||
-         static_cast<int32_t>(now - status.apTeardownAtMs) >= 0;
+  if (!status.apActive) return;
+  switch (softApTeardownStep(status.setupPhase, status.apClients,
+                             status.apTeardownAtMs, now)) {
+    case SoftApTeardown::ARM_GRACE:
+      dataMux_.lock();
+      status_.apTeardownAtMs = now + SOFTAP_TEARDOWN_GRACE_MS;
+      dataMux_.unlock();
+      lifecycleLog("WiFi STA up; SoftAP closes after grace (clients associated)");
+      break;
+    case SoftApTeardown::STOP: stopSoftApKeepStation(); break;
+    case SoftApTeardown::KEEP: break;
+  }
 }
 
 bool ShotStopperNetwork::lockWorkBufForStatus() {
@@ -168,13 +191,12 @@ void ShotStopperNetwork::clearPendingConfirmWindow() {
 
 void ShotStopperNetwork::requestPendingNetworkConfirm() {
   dataMux_.lock();
-  // Runs on the httpd task: read the locked mirror, never the network-task
-  // apKeepRequested_ flag directly.
+  // Runs on the httpd task: read the published phase under the lock.
   const bool pending =
       settings_.staConfigState ==
           static_cast<uint8_t>(StaConfigState::PENDING) &&
       settings_.staConfigured &&
-      (!status_.apActive || status_.apKeepActive);
+      setupConfirmAllowed(status_.setupPhase, status_.apActive);
   if (pending) {
     pendingConfirmRequest_ = true;
   }
@@ -186,7 +208,7 @@ bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
   NetworkStatusSnapshot status = snapshot();
   if (next.staConfigState != static_cast<uint8_t>(StaConfigState::PENDING) ||
       !next.staConfigured || status.staState != StaState::CONNECTED ||
-      (status.apActive && !apKeepRequested_)) {
+      !setupConfirmAllowed(status.setupPhase, status.apActive)) {
     return false;
   }
   if (!networkFlashWriteAllowed()) {
@@ -207,17 +229,16 @@ bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
   status_.staConfigState = next.staConfigState;
   pendingConfirmRequest_ = false;
   dataMux_.unlock();
-  if (apKeepRequested_) {
+  if (setupKeepsSoftAp(status.setupPhase)) {
     // Config confirmed: schedule the SoftAP teardown instead of stopping on
     // the next pass, so the success screen stays readable inside the OS
     // captive window (this covers a CLI AP_START keep too — a confirmed
     // network change ends the fallback window; re-issue AP_START to keep
-    // the AP). The HTTP confirm response already went out.
-    apKeepRequested_ = false;
+    // the AP). An earlier "finish" linger stays in force.
     staReconnectHeld_ = false;
     dataMux_.lock();
-    status_.apKeepActive = false;
-    if (status.apActive) {
+    status_.setupPhase = nextSetupPhase(status_.setupPhase, SetupEvent::CONFIRMED);
+    if (status.apActive && status_.apTeardownAtMs == 0) {
       status_.apTeardownAtMs = millis() + SOFTAP_TEARDOWN_GRACE_MS;
     }
     dataMux_.unlock();
@@ -264,16 +285,15 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t,
   dataMux_.unlock();
   clearPendingConfirmWindow();
   publishConfiguredAddressStatus();
-  // Live-apply revert: drop the keep (and its mirror) unconditionally, but
+  // Live-apply revert: end the onboarding phase unconditionally, but
   // remember the onboarding context — a first-use revert must keep the
   // SoftAP up as the fallback network serving /setup, even when the station
   // briefly connected and then went unconfirmed.
-  const bool onboardingRevert = apKeepRequested_;
-  apKeepRequested_ = false;
   // A reverted onboarding attempt cannot leave the reconnect loop held.
   staReconnectHeld_ = false;
   dataMux_.lock();
-  status_.apKeepActive = false;
+  const bool onboardingRevert = setupKeepsSoftAp(status_.setupPhase);
+  status_.setupPhase = nextSetupPhase(status_.setupPhase, SetupEvent::REVERTED);
   if (!next.staConfigured) {
     status_.staState = StaState::NOT_CONFIGURED;
     status_.iface.staIp[0] = '\0';
@@ -678,6 +698,7 @@ void ShotStopperNetwork::stopSoftAp(bool stopHttp) {
   }
   status_.windowRemainingMs = 0;
   status_.apTeardownAtMs = 0;
+  status_.setupPhase = nextSetupPhase(status_.setupPhase, SetupEvent::AP_STOPPED);
   dataMux_.unlock();
   clearSoftApIdleState();
   log(DebugCategory::NETWORK, DebugCode::AP_STOPPED);
@@ -701,7 +722,7 @@ void ShotStopperNetwork::clearSoftApIdleState() {
 }
 
 void ShotStopperNetwork::armSoftApIdleDeadline(uint32_t now) {
-  if (apKeepRequested_) {
+  if (setupKeepsSoftAp(setupPhase())) {
     clearSoftApIdleState();
     return;
   }
@@ -711,7 +732,7 @@ void ShotStopperNetwork::armSoftApIdleDeadline(uint32_t now) {
 
 void ShotStopperNetwork::serviceSoftApIdle(uint32_t now, bool apActive,
                                            uint8_t clients) {
-  if (!apActive || apKeepRequested_) {
+  if (!apActive || setupKeepsSoftAp(setupPhase())) {
     if (!apActive) {
       clearSoftApIdleState();
     } else {
@@ -949,6 +970,7 @@ void ShotStopperNetwork::stopNetwork() {
   clearStaLinkMetrics();
   status_.windowRemainingMs = 0;
   status_.apTeardownAtMs = 0;
+  status_.setupPhase = nextSetupPhase(status_.setupPhase, SetupEvent::AP_STOPPED);
   dataMux_.unlock();
   clearSoftApIdleState();
   log(DebugCategory::NETWORK, DebugCode::AP_STOPPED);
@@ -964,6 +986,8 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
   const bool brewRf = brewRfActive();
   const bool scaleConnecting =
       scaleConnecting_.load(std::memory_order_relaxed);
+  const bool reconnectHeld =
+      staReconnectHeld_ || setupHoldsReconnect(status.setupPhase);
   // Abort an in-flight scan/associate only. A STA that already has an IP
   // must promote to CONNECTED: associated traffic can coexist under PREFER_BT.
   if ((brewRf || scaleConnecting) && status.staState == StaState::CONNECTING &&
@@ -972,11 +996,11 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     dataMux_.lock();
     status_.staState = StaState::DISCONNECTED;
     dataMux_.unlock();
-    if (staConfirmArmed_ && apKeepRequested_) {
+    if (status.setupPhase == SetupPhase::ATTEMPTING) {
       // Same hold as the aged-attempt path: an aborted onboarding attempt
       // must not enter the 10 s reconnect loop (it aborts every UI scan and
       // flip-flops the state the /setup page is polling).
-      staReconnectHeld_ = true;
+      advanceSetupPhase(SetupEvent::ATTEMPT_FAILED);
       lifecycleLog("WiFi STA onboarding attempt aborted; retry from the page");
     }
     lifecycleLog(brewRf ? "WiFi STA associate aborted; brew RF active"
@@ -1007,10 +1031,10 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       lifecycleLog("WiFi STA disconnected; retrying STA (no SoftAP after prior connect)");
       applyWifiPowerSave();
       finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::SUCCESS);
-      if (!staReconnectHeld_ && !wifiScanInProgress() && !brewRf &&
+      if (!reconnectHeld && !wifiScanInProgress() && !brewRf &&
           !scaleConnecting) {
         beginStationConnect(networkSettingsSnapshot(), now);
-      } else if (staReconnectHeld_) {
+      } else if (reconnectHeld) {
         lifecycleLog("STA reconnect held; skipping retry");
       } else if (brewRf) {
         lifecycleLog("STA reconnect deferred; brew RF active");
@@ -1019,10 +1043,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       }
       return;
     }
-    if (status.apActive && !apKeepRequested_ &&
-        softApTeardownDue(status, now)) {
-      stopSoftApKeepStation();
-    }
+    serviceSoftApTeardown(status, now);
     if (!status.staLinkMetricsValid || staRssiSampledAtMs_ == 0 ||
         static_cast<uint32_t>(now - staRssiSampledAtMs_) >=
             STA_RSSI_SAMPLE_INTERVAL_MS) {
@@ -1057,7 +1078,9 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       }
     }
     return;
-  }    if ((status.staState == StaState::CONNECTING ||
+  }
+
+  if ((status.staState == StaState::CONNECTING ||
        status.staState == StaState::DISCONNECTED ||
        status.staState == StaState::FAILED) &&
       WiFi.status() == WL_CONNECTED) {
@@ -1065,9 +1088,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     formatIp(WiFi.localIP(), address);
     char previousAddress[16] = {};
     finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::SUCCESS);
-    if (!apKeepRequested_ && softApTeardownDue(status, now)) {
-      stopSoftApKeepStation();
-    }
+    serviceSoftApTeardown(status, now);
     const bool mayStartHttp = !httpStartHeld_ &&
                               static_cast<int32_t>(now - httpRetryAtMs_) >= 0;
     const bool httpReady = mayStartHttp && startHttpServer();
@@ -1104,9 +1125,27 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     }
     staNtpEligibleAtMs_ = now + NTP_STA_SETTLE_MS;
     ntpRearmPending_ = true;
-    if (staJoinHints().staConfigState ==
-        static_cast<uint8_t>(StaConfigState::PENDING)) {
+    const StaJoinHints hints = staJoinHints();
+    if (hints.staConfigState == static_cast<uint8_t>(StaConfigState::PENDING)) {
       armPendingConfirmWindow(now);
+    }
+    if (status.setupPhase == SetupPhase::ATTEMPTING ||
+        status.setupPhase == SetupPhase::FAILED) {
+      // Only a lease on the saved SSID proves this attempt. It confirms
+      // without waiting for the page: the phone may lose the SoftAP when it
+      // follows the station's channel, and the AP stays up during the grace.
+      wifi_ap_record_t ap = {};
+      const bool joined =
+          esp_wifi_sta_get_ap_info(&ap) == ESP_OK &&
+          strncmp(reinterpret_cast<const char *>(ap.ssid), hints.staSsid,
+                  sizeof(ap.ssid)) == 0;
+      if (advanceSetupPhase(joined ? SetupEvent::JOINED
+                                   : SetupEvent::JOINED_OTHER) ==
+          SetupPhase::JOINED) {
+        dataMux_.lock();
+        pendingConfirmRequest_ = true;
+        dataMux_.unlock();
+      }
     }
     applyWifiPowerSave();
     return;
@@ -1116,7 +1155,8 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
   // at connect start but never reached a user confirmation (page closed, or
   // wrong credentials kept the retries from connecting). Revert to the
   // previous state; the SoftAP keeps serving /setup for another attempt.
-  if (status.apActive && apKeepRequested_ && staConfirmArmed_ &&
+  if (status.apActive && setupKeepsSoftAp(status.setupPhase) &&
+      staConfirmArmed_ &&
       !wifiScanInProgress() &&
       static_cast<int32_t>(now - staConfirmDeadlineMs_) >= 0) {
     WiFi.disconnect(false, false);
@@ -1203,7 +1243,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
     const bool terminalFail = wifiStatus == WL_CONNECT_FAILED ||
                               wifiStatus == WL_NO_SSID_AVAIL ||
                               wifiStatus == WL_CONNECTION_LOST;
-    const bool liveOnboarding = staConfirmArmed_ && apKeepRequested_;
+    const bool liveOnboarding = status.setupPhase == SetupPhase::ATTEMPTING;
     const bool attemptAged =
         static_cast<uint32_t>(millis() - staConnectStartedAtMs_) >=
         (liveOnboarding ? LIVE_APPLY_ATTEMPT_MS : STA_RECOVERY_ATTEMPT_MS);
@@ -1217,7 +1257,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
         // and each reconnect would abort any UI scan (empty picker after a
         // failed onboarding connect). A new save, confirm, or the 180 s
         // window revert releases the hold.
-        staReconnectHeld_ = true;
+        advanceSetupPhase(SetupEvent::ATTEMPT_FAILED);
         lifecycleLog(terminalFail
                          ? "WiFi STA onboarding attempt failed; retry from the page"
                          : "WiFi STA onboarding attempt timed out; retry from the page");
@@ -1230,7 +1270,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
 
   if ((status.staState == StaState::DISCONNECTED ||
        status.staState == StaState::FAILED) &&
-      !staReconnectHeld_ && !wifiScanInProgress() && !brewRf &&
+      !reconnectHeld && !wifiScanInProgress() && !brewRf &&
       !scaleConnecting &&
       static_cast<uint32_t>(now - staReconnectAttemptAtMs_) >=
           staReconnectIntervalMs_) {

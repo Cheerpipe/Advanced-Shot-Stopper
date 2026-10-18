@@ -19,6 +19,7 @@
 #include <cmath>
 
 #include "../shotStopper.cpp"
+#include "../ShotStopperNetworkSetup.h"
 
 namespace {
 
@@ -2974,6 +2975,90 @@ void w04_wifi_credentials_have_strict_bounds() {
   CHECK(!shouldReuseSavedWifiCredentials("CafeLAN", "", true, true, "CafeLAN",
                                          false));
   CHECK(!shouldReuseSavedWifiCredentials("", "", false, true, "CafeLAN", false));
+}
+
+// /setup onboarding transaction (audit F-04, F-05, F-10, F-14, F-17/F-18):
+// scenarios drive the pure phase reducer the network task applies.
+void w04c_setup_onboarding_phase_scenarios() {
+  using P = SetupPhase;
+  using E = SetupEvent;
+  const auto run = [](P phase, std::initializer_list<E> events) {
+    for (E event : events) phase = nextSetupPhase(phase, event);
+    return phase;
+  };
+
+  // Fresh device, working network: the attempt keeps the AP, never confirms
+  // before its own lease, then auto-confirms and hands over to the grace.
+  P phase = nextSetupPhase(P::NONE, E::APPLY_SAVED);
+  CHECK(phase == P::QUEUED && setupKeepsSoftAp(phase));
+  CHECK(!setupConfirmAllowed(phase, true));
+  phase = nextSetupPhase(phase, E::ATTEMPT_STARTED);
+  CHECK(phase == P::ATTEMPTING && setupKeepsSoftAp(phase));
+  CHECK(!setupConfirmAllowed(phase, true) && !setupHoldsReconnect(phase));
+  CHECK(strcmp(setupPhaseName(phase), "connecting") == 0);
+  phase = nextSetupPhase(phase, E::JOINED);
+  CHECK(phase == P::JOINED && setupConfirmAllowed(phase, true));
+  CHECK(softApTeardownStep(phase, 1, 0, 5000) == SoftApTeardown::KEEP);
+  phase = nextSetupPhase(phase, E::CONFIRMED);
+  CHECK(phase == P::CONFIRMED && !setupKeepsSoftAp(phase));
+  CHECK(softApTeardownStep(phase, 1, 65000, 5000) == SoftApTeardown::KEEP);
+  CHECK(softApTeardownStep(phase, 1, 65000, 65000) == SoftApTeardown::STOP);
+  CHECK(nextSetupPhase(phase, E::AP_STOPPED) == P::NONE);
+
+  // F-04: an AP_START keep while still associated to the old network. The
+  // save must not be confirmed by a status poll before the new attempt
+  // joins, and a lease on another SSID fails the attempt instead.
+  phase = run(P::NONE, {E::KEEP_REQUESTED});
+  CHECK(phase == P::KEEP && setupKeepsSoftAp(phase));
+  phase = run(phase, {E::APPLY_SAVED});
+  CHECK(!setupConfirmAllowed(phase, true));
+  phase = run(phase, {E::ATTEMPT_STARTED, E::JOINED_OTHER});
+  CHECK(phase == P::FAILED && !setupConfirmAllowed(phase, true));
+  CHECK(setupHoldsReconnect(phase) && setupKeepsSoftAp(phase));
+
+  // Wrong password: the attempt fails, holds the reconnect loop, and a new
+  // save from the page releases the hold; the 180 s window reverts.
+  phase = run(P::NONE, {E::APPLY_SAVED, E::ATTEMPT_STARTED, E::ATTEMPT_FAILED});
+  CHECK(phase == P::FAILED && setupHoldsReconnect(phase));
+  CHECK(strcmp(setupPhaseName(phase), "failed") == 0);
+  CHECK(nextSetupPhase(phase, E::APPLY_SAVED) == P::QUEUED);
+  CHECK(!setupHoldsReconnect(P::QUEUED));
+  CHECK(nextSetupPhase(phase, E::REVERTED) == P::NONE);
+  // A held attempt the driver completes late still proves the network.
+  CHECK(nextSetupPhase(phase, E::JOINED) == P::JOINED);
+  // Stale events never resurrect a finished session.
+  CHECK(run(P::NONE, {E::ATTEMPT_STARTED, E::ATTEMPT_FAILED, E::JOINED,
+                      E::CONFIRMED}) == P::NONE);
+
+  // AP_STOP drops the keep, but a queued apply survives to restart.
+  CHECK(nextSetupPhase(P::KEEP, E::KEEP_RELEASED) == P::NONE);
+  CHECK(nextSetupPhase(P::ATTEMPTING, E::KEEP_RELEASED) == P::NONE);
+  CHECK(nextSetupPhase(P::QUEUED, E::KEEP_RELEASED) == P::QUEUED);
+  CHECK(nextSetupPhase(P::QUEUED, E::APPLY_RESTARTS) == P::NONE);
+  // AP_START during an attempt does not reset it.
+  CHECK(nextSetupPhase(P::ATTEMPTING, E::KEEP_REQUESTED) == P::ATTEMPTING);
+  // Outside onboarding (Admin restart path) confirm needs the AP down.
+  CHECK(setupConfirmAllowed(P::NONE, false) && !setupConfirmAllowed(P::NONE, true));
+
+  // F-10: the recovery AP closes at once when nobody is on it, but phones
+  // still associated get the grace window, which then ends on time.
+  CHECK(softApTeardownStep(P::NONE, 0, 0, 1000) == SoftApTeardown::STOP);
+  CHECK(softApTeardownStep(P::NONE, 2, 0, 1000) == SoftApTeardown::ARM_GRACE);
+  CHECK(softApTeardownStep(P::NONE, 2, 61000, 1000) == SoftApTeardown::KEEP);
+  CHECK(softApTeardownStep(P::NONE, 2, 61000, 61000) == SoftApTeardown::STOP);
+  CHECK(softApTeardownStep(P::KEEP, 0, 0, 1000) == SoftApTeardown::KEEP);
+  CHECK(softApTeardownStep(P::NONE, 1, 0xFFFFF000u, 0x00000100u) ==
+        SoftApTeardown::STOP);
+
+  // F-14: Done works while the joined network is still being confirmed and
+  // during the grace, never mid-attempt, after the deadline, or with the AP
+  // down.
+  CHECK(setupFinishAllowed(P::JOINED, true, 0, 1000));
+  CHECK(setupFinishAllowed(P::CONFIRMED, true, 61000, 1000));
+  CHECK(setupFinishAllowed(P::NONE, true, 61000, 1000));
+  CHECK(!setupFinishAllowed(P::ATTEMPTING, true, 0, 1000));
+  CHECK(!setupFinishAllowed(P::CONFIRMED, true, 61000, 61000));
+  CHECK(!setupFinishAllowed(P::JOINED, false, 0, 1000));
 }
 
 void w04b_select_best_sta_ap_prefers_strongest_matching_bssid() {
@@ -21838,6 +21923,7 @@ const TestCase testCases[] = {
     {"W03", w03_runtime_timing_relations_are_transactional},
     {"W04", w04_wifi_credentials_have_strict_bounds},
     {"W04b", w04b_select_best_sta_ap_prefers_strongest_matching_bssid},
+    {"W04c", w04c_setup_onboarding_phase_scenarios},
     {"W05", w05_config_is_blocked_while_brewing_early},
     {"W06", w06_config_is_blocked_while_brewing},
     {"W07", w07_config_is_blocked_while_rinsing},

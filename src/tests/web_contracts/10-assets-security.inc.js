@@ -523,7 +523,7 @@ if (/<[^>]*\s(?:style|on[a-z]+)\s*=/i.test(allHtml)) {
 // page opens on downloads while the ownership claim is in flight.
 if (!shellHtml.includes('<link rel="modulepreload" href="/js/runtime.js?v=__FW_ASSET_TAG__">') ||
     !codeIncludes(appJsSource, 'import * as R from "/js/runtime.js?v=__FW_ASSET_TAG__";') ||
-    !codeIncludes(appJsSource, 'bootFetch=[bootView,fetchView(bootView)];bootFetch[1].catch(()=>{});}R.claimWebUiOwnership();') ||
+    !codeIncludes(appJsSource, 'bootFetch=[bootView,fetchView(bootView)];bootFetch[1].catch(()=>{});}if(bootView==="setup"){') ||
     !codeIncludes(appJsSource, 'const boot=bootFetch?.[0]===name&&bootFetch[1];if(boot)bootFetch=null;')) {
   throw new Error('Shell must preload the runtime app.js imports, and the boot view must load alongside the claim');
 }
@@ -858,8 +858,9 @@ if (htmlBytes > 93300) {
 // Moving the Diagnostic live renderer into the Diagnostic module adds its qualifiers and runtime exports: +147 bytes (448329), 2026-10-16.
 // The gradual forecast hero tint with the window-mode fast alert restored: 451129 bytes, owner-authorized 2026-10-17.
 // The iOS-only unmuted keep-awake track and its tap resume: +516 bytes (451645), owner-requested 2026-10-17.
-if (jsBytes > 451645) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 451645)`);
+// SoftAP onboarding P1 (status-driven /setup steps, blocked notice, copyable addresses, claim-less setup session): +2842 bytes (454487), owner-requested 2026-10-18.
+if (jsBytes > 454487) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 454487)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -966,8 +967,9 @@ if (jsBytes > 451645) {
 // The Diagnostic live renderer moved into the Diagnostic module: 533786, 2026-10-16.
 // The gradual forecast hero tint with the window-mode fast alert restored: 536959, owner-authorized 2026-10-17.
 // Combined source at 537475 with the iOS-only unmuted keep-awake; owner-requested 2026-10-17.
-if (htmlBytes + jsBytes > 537475) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 537475)`);
+// SoftAP onboarding P1 (/setup steps, notices, addresses, claim-less session): 540424, owner-requested 2026-10-18.
+if (htmlBytes + jsBytes > 540424) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 540424)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

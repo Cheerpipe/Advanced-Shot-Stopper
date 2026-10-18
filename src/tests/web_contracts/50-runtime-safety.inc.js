@@ -593,7 +593,7 @@ if (!network.includes('stopSoftApLeaveHttp') ||
     !network.includes('httpStartHeld_') ||
     !network.includes('staReconnectHeld_') ||
     !network.includes('apStartHeld_') ||
-    !network.includes('apKeepRequested_')) {
+    !network.includes('advanceSetupPhase(SetupEvent::KEEP_REQUESTED)')) {
   throw new Error(
       'Network CLI holds must keep SoftAP/HTTP/STA stop from being undone');
 }
@@ -610,7 +610,7 @@ if (processAt < 0 || startupReturnAt < 0 || processAt > startupReturnAt) {
   throw new Error(
       'CLI network actions must drain before the startupComplete_ early return');
 }
-if (!network.includes('!apKeepRequested_')) {
+if (!network.includes('softApTeardownStep(status.setupPhase')) {
   throw new Error(
       'STA-up SoftAP teardown must keep a user AP_START SoftAP');
 }

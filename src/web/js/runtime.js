@@ -113,6 +113,7 @@ function newWebUiClientId() {
 }
 const webUiClientId = newWebUiClientId();
 let webUiOwner = false,
+  setupSession = false,
   webUiClaiming = false,
   webUiInactivityTimer = 0,
   webUiActiveUntil = 0,
@@ -472,8 +473,16 @@ function sessionShotLive() {
       (s.liveShot || (s.cycle && s.cycle.active) || s.machineRunning || s.relayClosed))
   );
 }
+// /setup (captive portal) needs no ownership: its endpoints are authorized by
+// the SoftAP link, so it skips the claim, the UI stream and the inactivity
+// lock, and another window (CNA sheet, browser, second phone) cannot
+// deactivate it mid-setup.
+function startSetupSession() {
+  setupSession = webUiOwner = true;
+  webUiActiveUntil = Infinity;
+}
 function resetWebUiInactivity() {
-  if (!webUiOwner) return;
+  if (!webUiOwner || setupSession) return;
   webUiActiveUntil = Date.now() + WEB_UI_INACTIVITY_MS;
   clearTimeout(webUiInactivityTimer);
   webUiInactivityTimer = setTimeout(() => {
@@ -1899,7 +1908,7 @@ function lockAdminUi() {
   resetNetworkAddressLoaded();
 }
 function deactivateWebUi() {
-  if (!webUiOwner) return;
+  if (!webUiOwner || setupSession) return;
   webUiOwner = false;
   stopUiStream();
   webUiActiveUntil = 0;
@@ -5553,6 +5562,7 @@ export {
   noteWebUiInteraction,
   exitFullScreenOnPop,
   claimWebUiOwnership,
+  startSetupSession,
   setMutable,
   controlsMutable,
   showPageBoot,

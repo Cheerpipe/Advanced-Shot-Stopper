@@ -127,9 +127,10 @@ the same maintenance window.
 ## Example
 
 From the setup page (see [AP](ap.md#first-connection)), save your home
-network: the controller joins it live, the page shows the new addresses, and
-the setup network stays open for about a minute (or until you select
-**Done**) before closing by itself. From **Admin → Wi-Fi** the classic save
+network: the controller joins it live and keeps it as soon as it connects,
+the page reminds you to switch your phone back to that network and shows the
+new addresses, and the setup network stays open for about a minute (or until
+you select **Done**) before closing by itself. From **Admin → Wi-Fi** the classic save
 still restarts the controller and waits for you to reopen the new address
 within 3 minutes to confirm. If you later lose that network, the device keeps
 retrying STA. Recover the setup network with USB

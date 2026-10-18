@@ -13,6 +13,7 @@
 #include "ShotStopperTaskMutex.h"
 #include "ShotStopperBootHeap.h"
 #include "ShotStopperResourceOwner.h"
+#include "ShotStopperNetworkSetup.h"
 
 #include <WiFi.h>
 #include <esp_http_server.h>
@@ -117,22 +118,21 @@ struct NetworkStatusSnapshot {
   uint8_t staSignalQualityPct = 0;
   uint32_t windowRemainingMs = 0;
   uint32_t confirmRemainingMs = 0;
-  // Mirror of the post-confirm SoftAP teardown deadline (0 = stop at the next
-  // service pass, the pre-grace behavior). confirmPendingNetwork sets it to
+  // SoftAP teardown deadline once the station is up (0 = none yet; see
+  // softApTeardownStep). Confirm and a recovery AP with phones associated set
   // the grace window; the "finish" action shortens it to a probe linger.
   uint32_t apTeardownAtMs = 0;
   uint32_t taskAgeMs = 0;
   uint32_t taskStackMinBytes = UINT32_MAX;
   uint32_t startupFailures = 0;
+  // Onboarding phase; the network task is the only writer.
+  SetupPhase setupPhase = SetupPhase::NONE;
   uint32_t lastCommandRequestId = 0;
   CommandResultState lastCommandState = CommandResultState::NONE;
   bool httpActive = false;
   bool staReconnectHeld = false;
   bool apStartHeld = false;
   bool httpStartHeld = false;
-  // AP_START keep or /setup live apply: SoftAP must survive STA connect and
-  // the idle timeout while an onboarding session is in flight.
-  bool apKeepActive = false;
   bool devicePasswordFactory = false;
   bool ntpMayArm = false;
   uint8_t wifiMode = 0;
@@ -451,10 +451,8 @@ class ShotStopperNetwork {
   bool scanRequested_ = false;
   bool restartPending_ = false;
   bool apRestartPending_ = false;
-  // /setup live apply: connect on the network task without a restart, keeping
-  // the SoftAP and /setup alive through the association (retry timestamp
-  // follows the restartRequestedAtMs_ pattern for deferred RF gates).
-  bool liveApplyPending_ = false;
+  // SetupPhase::QUEUED retry: the live-apply connect waits out deferred RF
+  // gates like restartRequestedAtMs_ does.
   uint32_t liveApplyRetryAtMs_ = 0;
   bool acceptedCommandPending_ = false;
   bool completionPending_ = false;
@@ -462,7 +460,6 @@ class ShotStopperNetwork {
   bool pendingConfirmRequest_ = false;
   bool staReconnectHeld_ = false;
   bool apStartHeld_ = false;
-  bool apKeepRequested_ = false;
   // Latched when SoftAP idle timeout fires. Blocks further auto SoftAP this
   // boot; USB AP_START (force + keep) still works. Cleared only by reboot.
   bool apAutoRaiseExhausted_ = false;
@@ -575,10 +572,11 @@ class ShotStopperNetwork {
   void stopSoftApKeepStation();
   void stopSoftApLeaveHttp();
   void stopSoftAp(bool stopHttp);
-  // Teardown gate for the post-confirm grace: a zero deadline keeps the
-  // legacy immediate stop; otherwise the SoftAP stops once now passes it.
-  static bool softApTeardownDue(const NetworkStatusSnapshot &status,
-                                uint32_t now);
+  // Onboarding phase (ShotStopperNetworkSetup.h): network-task writer, read
+  // under dataMux_; the teardown applies softApTeardownStep once STA is up.
+  SetupPhase advanceSetupPhase(SetupEvent event);
+  SetupPhase setupPhase();
+  void serviceSoftApTeardown(const NetworkStatusSnapshot &status, uint32_t now);
   // Captive-portal DNS (wildcard A -> SoftAP IP) on UDP/53 while the SoftAP
   // is up. Network task owns the lifecycle; replies come from the AsyncUDP
   // callback inside the vendored component (processNextRequest is a stub).

@@ -360,7 +360,7 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
         // /setup onboarding: the network task consumes the flag and connects
         // live under the SoftAP (no restart).
         restartPending_ = false;
-        liveApplyPending_ = true;
+        advanceSetupPhase(SetupEvent::APPLY_SAVED);
         liveApplyRetryAtMs_ = 0;
       } else {
         restartPending_ = true;
@@ -600,16 +600,10 @@ bool ShotStopperNetwork::handleCliApAction(const WebCommand &command,
   switch (command.type) {
     case WebCommandType::AP_START: {
       apStartHeld_ = false;
-      apKeepRequested_ = true;
-      dataMux_.lock();
-      status_.apKeepActive = true;
-      dataMux_.unlock();
+      const SetupPhase kept = advanceSetupPhase(SetupEvent::KEEP_REQUESTED);
       const bool ok = ensureAccessPoint(now, true);
-      if (!ok) {
-        apKeepRequested_ = false;
-        dataMux_.lock();
-        status_.apKeepActive = false;
-        dataMux_.unlock();
+      if (!ok && kept == SetupPhase::KEEP) {
+        advanceSetupPhase(SetupEvent::KEEP_RELEASED);
       }
       actionLog(ok ? "AP_START SoftAP requested" : "ERR AP_START failed");
       printActionSnapshot("AP_START", ok);
@@ -617,10 +611,7 @@ bool ShotStopperNetwork::handleCliApAction(const WebCommand &command,
     }
     case WebCommandType::AP_STOP: {
       apStartHeld_ = true;
-      apKeepRequested_ = false;
-      dataMux_.lock();
-      status_.apKeepActive = false;
-      dataMux_.unlock();
+      advanceSetupPhase(SetupEvent::KEEP_RELEASED);
       const bool staUp = snapshot().staState == StaState::CONNECTED &&
                          WiFi.status() == WL_CONNECTED;
       if (staUp) {
@@ -837,7 +828,8 @@ void ShotStopperNetwork::refreshExtendedStatus(uint32_t now) {
   status_.wifiPs = wifiPs;
   status_.wifiCoex = snapshotRfCoexPreference();
   status_.wifiStatus = static_cast<int32_t>(wifiStatus);
-  status_.staReconnectHeld = staReconnectHeld_;
+  status_.staReconnectHeld =
+      staReconnectHeld_ || setupHoldsReconnect(status_.setupPhase);
   status_.apStartHeld = apStartHeld_;
   status_.httpStartHeld = httpStartHeld_;
   status_.devicePasswordFactory = factoryPassword;

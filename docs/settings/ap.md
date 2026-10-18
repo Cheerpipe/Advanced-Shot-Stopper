@@ -7,7 +7,9 @@ STA fails to associate at boot.
 
 - Fresh flash or [factory reset](factory-reset.md): SoftAP is up at boot.
 - Saved STA fails to associate for about **25 s** at boot: SoftAP comes up
-  and STA keeps retrying in AP+STA until STA connects. Then SoftAP stops.
+  and STA keeps retrying in AP+STA until STA connects. Then SoftAP stops —
+  right away when nobody is on it, or about a minute later when a phone is
+  still joined, so its setup page can show where to find the controller.
 - SoftAP auto-raise is **boot/bootstrap only**. After a successful STA join,
   a later drop does **not** raise SoftAP. Use USB `AP_START` or reboot.
   See [USB serial CLI](../SERIAL_CLI.md).
@@ -19,7 +21,8 @@ If a phone or laptop joins the AP, SoftAP stays up while that client is
 associated. When the client count returns to zero, a new 3-minute idle
 countdown starts. After idle shutdown, SoftAP stays down for the rest of
 the boot (USB `AP_START` or reboot to raise it again). Manual `AP_START`
-keeps SoftAP up without the idle timer until `AP_STOP`.
+keeps SoftAP up without the idle timer until `AP_STOP`, or until a new home
+network is set up from the setup page (then it closes about a minute later).
 
 The AP name is unique to this controller: **`OpenBrewByWeightAP-`** plus
 eight lowercase characters from the end of this device's AP address. USB
@@ -46,19 +49,32 @@ and OTA use that same device password.
    `OpenBrewByWeightAP` with no suffix. The scale may wait to connect
    until you finish this setup network.
 3. The setup page opens by itself: pick your home network, enter its
-   password, and connect. If nothing pops up, open
+   password, and select **Connect**. If nothing pops up, open
    **`http://192.168.4.1/setup`** in a browser. Joining this network already
    proves the device password, so the setup page asks for nothing else. The
-   controller joins your network while this setup network stays up, then
-   shows the addresses to use from now on and keeps them on screen for about
-   a minute so you can note them; **Done** on that screen closes the setup
-   network right away. If the connection fails, the page
-   keeps your entries so you can retry; on a first-time setup, giving up
-   leaves the controller waiting on this same setup network for another
-   try (it forgets the failed attempt after about 3 minutes).
+   controller joins your network while this setup network stays up and keeps
+   the new network as soon as it gets in, even if your phone drops off the
+   setup network at that moment. The page then reminds you to switch your
+   phone back to your home network and lists the addresses to use from now
+   on, each with a **Copy** button. The setup network stays open for about a
+   minute so you can note them; **Done** closes it right away.
+   If the connection fails, the reason appears at the top of the card and
+   your entries stay in place: correct them and select **Connect** again, or
+   use **Search again** when your network is missing from the list. On a
+   first-time setup, giving up leaves the controller waiting on this same
+   setup network for another try (it forgets the failed attempt after about
+   3 minutes).
 4. Continue with [first setup](../GETTING_STARTED.md). Changing networks
    later (including a static IP address) is done from
    **Admin → Wi-Fi** on your home network.
+
+The setup page always shows the step the controller is really in. If the
+sign-in window hands over to your browser, you reload, or you open the page
+on a second phone, it picks up where things are — still connecting,
+connected, or ready for another try — and it is never locked by another
+window or by inactivity. While the machine's paddle is on or a shot is
+running, Wi-Fi can't be changed: the card says so and carries on by itself
+once the machine is idle again.
 
 While you are on this AP, every name resolves to the controller, and phones
 and computers detect that sign-in is required — that is what makes the guided

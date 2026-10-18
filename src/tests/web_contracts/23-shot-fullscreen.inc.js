@@ -15,7 +15,7 @@
     let deactivated = 0;
     let pendingTimer = null;
     const api = new Function('Date', 'setTimeout', 'clearTimeout', 'deactivateWebUi',
-        'let webUiOwner=true,webUiActiveUntil=0,webUiInactivityTimer=0' +
+        'let webUiOwner=true,setupSession=false,webUiActiveUntil=0,webUiInactivityTimer=0' +
         ',WEB_UI_INACTIVITY_MS=1000,shotFrame=null,shotStale=true' +
         ',homeFrame=null,homeStale=true,statusLiveShot=false;' +
         runtimeJs.slice(runtimeJs.indexOf('function sessionShotLive('),

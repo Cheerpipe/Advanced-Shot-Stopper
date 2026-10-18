@@ -97,6 +97,11 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
     snprintf(staChannelJson, sizeof(staChannelJson), "%u",
              static_cast<unsigned>(network.channel));
   }
+  const int32_t apClosingIn =
+      static_cast<int32_t>(network.apTeardownAtMs - millis());
+  const uint32_t apClosingMs =
+      network.apActive && network.apTeardownAtMs != 0 && apClosingIn > 0
+          ? static_cast<uint32_t>(apClosingIn) : 0;
 
   char safeNtpCustom[NTP_SERVER_HOST_CAPACITY] = {};
   char safeActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
@@ -502,6 +507,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           "\"wifiConfigured\":%s,\"ssid\":\"%s\",\"open\":%s,\"wifiSleep\":%s,"
           "\"staState\":\"%s\",\"channel\":%s,\"staIp\":\"%s\",\"ipMode\":\"%s\","
           "\"configState\":\"%s\",\"confirmRemainingMs\":%lu,"
+          "\"setup\":\"%s\",\"apClosingMs\":%lu,"
           "\"rssi\":%s,\"signalQualityPct\":%s,"
           "\"configuredIp\":\"%s\",\"configuredNetmask\":\"%s\","
           "\"configuredGateway\":\"%s\",\"configuredDns1\":\"%s\","
@@ -515,7 +521,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           network.staWifiSleep ? "true" : "false", staStateName(network.staState),
           staChannelJson, network.iface.staIp, staIpModeName(network.staIpMode),
           staConfigStateName(network.staConfigState),
-          static_cast<unsigned long>(network.confirmRemainingMs), staRssiJson,
+          static_cast<unsigned long>(network.confirmRemainingMs),
+          setupPhaseName(network.setupPhase),
+          static_cast<unsigned long>(apClosingMs), staRssiJson,
           staSignalQualityJson, network.iface.configuredIp, network.iface.configuredNetmask,
           network.iface.configuredGateway, network.iface.configuredDns1,
           network.iface.configuredDns2, safeDeviceName, safeMdnsHost,
