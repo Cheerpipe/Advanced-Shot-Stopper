@@ -76,6 +76,20 @@ predictor is integer-only with no heap or mid-shot flash writes; the
 ControlStatus snapshot grows 8 bytes (external work area) and the compressed
 Web asset caps rise with dated owner-authorized entries in the contract
 tests.
+The theme-aware floating shadow raises the image and linked allowances to
+92,640 and 92,632 bytes and the flash-code allowance to 71,812 bytes. The
+tree after the iOS full-screen wake fix measured 2,366,304 image,
+2,366,183 linked and 1,586,848 flash-code bytes, consuming the recorded
+64-byte headroom through asset-tag and toolchain padding; the dark-mode
+popup shadow variable (`--popSh`, consumed by the stuck list toolbars, the
+signal details popover and the history filter panel) adds 32 compressed
+image/linked/rodata bytes and no code. The measured development Micra
+build is 2,366,336 image, 2,366,215 linked, 1,586,848 flash-code and
+617,976 rodata bytes; rodata and DIRAM stay inside their existing
+allowances and the 64-byte headroom is restored. The per-asset compressed
+CSS cap in the Web contract tests rises from 14,384 to 14,406 bytes with a
+dated owner-authorized entry. Browser-local CSS only: no
+firmware task, control-timing, memory-placement, or OTA identity change.
 Urgent control-gate publication and the no-scale timer's stop fade add another
 640 bytes of reviewed image/linked allowance, to 44,976 and 44,968 bytes.
 The mobile full-screen Home shot card and the Brew by Weight master toggle

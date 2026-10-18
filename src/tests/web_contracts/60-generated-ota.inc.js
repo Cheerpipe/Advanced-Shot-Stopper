@@ -553,10 +553,11 @@ if (generated.jsGzip.length > 7330) {
 // The header mode pill joined to the guard stack measures 14313 bytes;
 // owner-authorized 2026-10-16.
 // The gradual forecast hero tint (registered --tp blend percent) brings the CSS to 14384 bytes; owner-authorized 2026-10-17.
+// The dark-mode floating-shadow variable (--popSh) brings the CSS to 14406 bytes; owner-authorized 2026-10-17.
 // The shot card header with a large faint metric glyph measures 14322 bytes;
 // owner-authorized 2026-10-16.
-if (generated.cssGzip.length > 14384) {
-  throw new Error(`Compressed Web CSS exceeds the 14384-byte gzip budget (${generated.cssGzip.length})`);
+if (generated.cssGzip.length > 14406) {
+  throw new Error(`Compressed Web CSS exceeds the 14406-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -720,7 +721,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The Diagnostic live renderer moved out of the runtime brings Diagnostic to 13626 (2026-10-16).
 // The Stats chart and shot-row helpers moved out of the runtime bring Stats/History to 13436 (2026-10-16).
 // The gradual forecast Admin hint text adds a few bytes to admin.js (14226); owner-authorized 2026-10-17.
-const viewModuleBudgets = {records: 13500, diagnostic: 13700, admin: 14226, settings: 14150, setup: 3600};
+// Gzip padding wobble after the full-screen keep-awake layer measures admin.js at 14227; owner-authorized 2026-10-17.
+const viewModuleBudgets = {records: 13500, diagnostic: 13700, admin: 14227, settings: 14150, setup: 3600};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -883,8 +885,8 @@ if (generated.icon48Raw.length > 3500) {
 const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
     generated.jsGzip.length + generated.runtimeGzip.length;
 // The gradual forecast hero tint brings the cold Home download to 64613 gzip bytes with the window-mode fast alert restored; owner-authorized 2026-10-17.
-if (coldHomeGzip > 64700) {
-  throw new Error(`Cold Home download exceeds the 64700-byte gzip budget (${coldHomeGzip})`);
+if (coldHomeGzip > 64719) {
+  throw new Error(`Cold Home download exceeds the 64719-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);
