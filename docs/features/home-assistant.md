@@ -215,8 +215,27 @@ briefly unregisters only Home Assistant's local handler.
 | Callback URL unavailable | Set a LAN-reachable HTTP Internal URL in Home Assistant network settings |
 | Another webhook is configured | Confirm takeover only if Home Assistant should become the sole receiver |
 | Entities are unavailable | Confirm the controller address and LAN reachability; reload after the finite recovery sequence if no new action or webhook arrives |
-| Callback test fails | Ensure the controller can reach Home Assistant's Internal URL and port |
+| Callback test fails | Ensure the controller can reach Home Assistant's Internal URL and port; the Home Assistant log shows the controller's delivery status |
 | Callback repair issue appears | Open Reconfigure and save the displayed values again |
+| A switch or preset change fails | The error names the controller's reason; for example, a stale revision means Home Assistant missed earlier changes, usually because callbacks are not arriving |
+
+### Finding the cause
+
+When setup, reconfiguration, or a change fails, the Home Assistant log names
+the step that failed and the controller's reason. For more detail, including
+every callback that arrives, turn on debug logging for the integration:
+
+```yaml
+logger:
+  logs:
+    custom_components.open_brew_by_weight: debug
+```
+
+You can also check the controller directly. Open
+`http://<controller-address>/api/v1/integration/webhook` in a browser: the
+`delivery` section shows whether callbacks are being sent, held back, or
+failing, and why. To keep a record of failed callbacks, set **Ring log level**
+to **Error** under **Diagnostic → Log** in the Web UI.
 
 Generic receivers should use the separate [webhook guide](webhooks.md). The
 firmware protocol is documented in the [Integration API](../INTEGRATION_API.md).

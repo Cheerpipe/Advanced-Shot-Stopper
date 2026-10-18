@@ -257,20 +257,51 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
   if (apiUriMatches(uri, "/api/v1/integration/webhook") &&
       request->method == HTTP_GET) {
     const WebhookConfig config = self.webhooks_.config();
+    const WebhookStatus delivery = self.webhooks_.status();
     char url[WEBHOOK_URL_CAPACITY * 2] = {};
     sanitizeJsonEmbed(config.url, url, sizeof(url));
-    char response[640] = {};
-    snprintf(response, sizeof(response),
-             "{\"apiVersion\":1,\"enabled\":%s,\"url\":\"%s\","
-             "\"brewState\":%s,\"firstDrop\":%s,\"end\":%s,"
-             "\"presetChanges\":%s,\"deferDuringShot\":%s}",
-             config.enabled ? "true" : "false", url,
-             config.brewState ? "true" : "false",
-             config.firstDrop ? "true" : "false",
-             config.end ? "true" : "false",
-             config.presetChanges ? "true" : "false",
-             config.deferDuringShot ? "true" : "false");
-    return sendJson(request, STATUS_OK, response);
+    char ago[12] = "null";
+    if (delivery.lastAttemptAtMs != 0)
+      snprintf(ago, sizeof(ago), "%lu",
+               static_cast<unsigned long>(millis() - delivery.lastAttemptAtMs));
+    if (!self.lockWorkBuf()) return self.workBufBusy(request);
+    const int written = snprintf(
+        self.workBuf_->statusJson, NetworkWorkBuf::kStatusJson,
+        "{\"apiVersion\":1,\"enabled\":%s,\"url\":\"%s\","
+        "\"brewState\":%s,\"firstDrop\":%s,\"end\":%s,"
+        "\"presetChanges\":%s,\"deferDuringShot\":%s,"
+        "\"delivery\":{\"workerReady\":%s,\"sending\":%s,\"held\":%s,"
+        "\"queued\":%u,\"lastEvent\":\"%s\",\"lastAttemptAgoMs\":%s,"
+        "\"lastSuccess\":%s,\"lastHttpStatus\":%u,\"lastError\":%ld,"
+        "\"lastPhase\":\"%s\",\"lastCancellation\":\"%s\","
+        "\"sent\":%lu,\"dropped\":%lu,\"staleConfigDropped\":%lu,"
+        "\"workerStartFailures\":%lu}}",
+        config.enabled ? "true" : "false", url,
+        config.brewState ? "true" : "false",
+        config.firstDrop ? "true" : "false",
+        config.end ? "true" : "false",
+        config.presetChanges ? "true" : "false",
+        config.deferDuringShot ? "true" : "false",
+        delivery.workerReady ? "true" : "false",
+        delivery.sending ? "true" : "false", delivery.held ? "true" : "false",
+        static_cast<unsigned>(delivery.queued), delivery.lastEvent,
+        ago,
+        delivery.lastSuccess ? "true" : "false",
+        static_cast<unsigned>(delivery.lastHttpStatus),
+        static_cast<long>(delivery.lastError),
+        webhookRequestPhaseName(delivery.lastPhase),
+        webhookCancellationReasonName(delivery.lastCancellation),
+        static_cast<unsigned long>(delivery.sent),
+        static_cast<unsigned long>(delivery.dropped),
+        static_cast<unsigned long>(delivery.staleConfigDropped),
+        static_cast<unsigned long>(delivery.workerStartFailures));
+    const esp_err_t result =
+        written > 0 && static_cast<size_t>(written) < NetworkWorkBuf::kStatusJson
+            ? sendJson(request, STATUS_OK, self.workBuf_->statusJson)
+            : sendError(request, STATUS_SERVER_ERROR, "RESPONSE_TOO_LARGE",
+                        "The webhook status exceeded its fixed buffer.");
+    self.unlockWorkBuf();
+    return result;
   }
 
   if (apiUriMatches(uri, "/api/v1/integration/webhook/test") &&

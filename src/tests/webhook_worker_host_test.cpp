@@ -80,6 +80,7 @@ static void testSamplingAndAccounting() {
     assert(WebhookDispatcherTest::send(d) == expectedSuccess);
     const auto status = d.status();
     assert(samples == 2 && status.heapSamples == 1);
+    assert(status.held == (scenario == 4) && status.queued == 0);
     assert(status.internalFreeBefore == 1000);
     assert(status.internalFreeAfter == (scenario == 2 || scenario == 3 ? 1000U : 700U));
     assert(status.internalLargestAfter == status.internalFreeAfter / 2);

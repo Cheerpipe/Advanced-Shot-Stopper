@@ -97,7 +97,7 @@ enumeration, security, and compatibility contract.
 
 | Symptom | Check |
 | --- | --- |
-| Test fails | Receiver address is HTTP, reachable from the controller, and listening on the configured port |
+| Test fails | Receiver address is HTTP, reachable from the controller, and listening on the configured port. With **Ring log level** set to **Error** under **Diagnostic → Log**, each failed message is recorded with the reason |
 | Messages fail with a receiver name but work with its IP address | The name is not resolvable from the controller's network; use the reserved IP address |
 | Test works but shots do not arrive | Webhooks and the required event selections are enabled |
 | Some measurements are absent | Optional measurements are omitted when the scale did not provide a valid value |

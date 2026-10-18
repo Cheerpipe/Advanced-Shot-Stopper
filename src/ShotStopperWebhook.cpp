@@ -11,8 +11,10 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_http_client.h>
-#include <esp_log.h>
 #include <esp_mac.h>
+void serialTraceCategoryf(shotstopper::LogLevel level,
+                          shotstopper::DebugCategory category,
+                          const char *fmt, ...);
 #endif
 
 namespace shotstopper {
@@ -374,7 +376,10 @@ WebhookStatus WebhookDispatcher::status() const {
   WebhookStatus copy;
   mux_.lock();
   copy = status_;
+  copy.queued = queue_ != nullptr
+      ? static_cast<uint8_t>(uxQueueMessagesWaiting(queue_)) : 0;
   mux_.unlock();
+  copy.held = !dispatchAllowed();
   return copy;
 }
 
@@ -754,11 +759,12 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   const HeapCapSnapshot heapAfter = sampleHeapCaps();
 #if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
   if (!ok) {
-    ESP_LOGE("WebhookHTTP",
-             "delivery failed owner=WebhookDispatcher caller=WebhookDispatcher::send purpose=webhook_delivery event=%s endpoint=%s method=POST phase=%s cancellation=%s error=0x%x",
-             eventName(event.type), endpoint, webhookRequestPhaseName(phase),
-             webhookCancellationReasonName(cancellation),
-             static_cast<unsigned>(error));
+    // Ring + serial, so release images surface failures in Diagnostic → Log.
+    serialTraceCategoryf(LogLevel::ERROR, DebugCategory::NETWORK,
+                         "webhook %s failed phase=%s cancel=%s http=%d err=0x%x",
+                         eventName(event.type), webhookRequestPhaseName(phase),
+                         webhookCancellationReasonName(cancellation), statusCode,
+                         static_cast<unsigned>(error));
   }
 #endif
   mux_.lock();

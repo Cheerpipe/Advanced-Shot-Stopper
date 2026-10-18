@@ -6,7 +6,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .api import ApiError
+from .api import ApiError, describe_error
 from .const import DOMAIN
 from .coordinator import OpenBrewByWeightCoordinator
 from .entity import OpenBrewByWeightEntity
@@ -61,4 +61,5 @@ class ActivePresetSelect(OpenBrewByWeightEntity, SelectEntity):
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="preset_change_failed",
+                translation_placeholders={"error": describe_error(err)},
             ) from err

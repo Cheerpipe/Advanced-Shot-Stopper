@@ -129,7 +129,10 @@ async def test_setup_rolls_back_receiver(hass) -> None:
             "custom_components.open_brew_by_weight.webhook_url",
             return_value="http://home/webhook",
         ),
-        pytest.raises(ConfigEntryNotReady),
+        pytest.raises(
+            ConfigEntryNotReady,
+            match="Failed configuring and verifying the callback: offline",
+        ),
     ):
         await async_setup_entry(hass, entry)
     runtime.async_unregister_webhook.assert_called_once()

@@ -11,7 +11,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import ApiError, OpenBrewByWeightApi
+from .api import ApiError, OpenBrewByWeightApi, describe_error
 from .const import (
     CONF_DEVICE_ID,
     CONF_WEBHOOK_ID,
@@ -36,16 +36,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: OpenBrewByWeightConfigEn
     runtime = OpenBrewByWeightRuntimeData(hass, api, coordinator, webhook_id, callback_url)
     previous: dict[str, object] | None = None
     runtime.async_register_webhook(webhook_id)
+    step = "reading the webhook configuration"
     try:
         previous = await api.async_webhook_config()
+        step = "configuring and verifying the callback"
         await runtime.async_configure_and_test(callback_url)
+        step = "reading the initial state"
         await coordinator.async_config_entry_first_refresh()
     except Exception as err:
         runtime.async_unregister_webhook()
         if previous is not None:
             with contextlib.suppress(ApiError):
                 await api.async_apply_webhook_config(previous)
-        raise ConfigEntryNotReady(str(err)) from err
+        raise ConfigEntryNotReady(f"Failed {step}: {describe_error(err)}") from err
 
     entry.runtime_data = runtime
     registry = dr.async_get(hass)

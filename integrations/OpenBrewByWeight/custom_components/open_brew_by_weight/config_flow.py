@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -17,6 +18,7 @@ from .api import (
     CannotConnect,
     IncompatibleApi,
     OpenBrewByWeightApi,
+    describe_error,
     normalize_host,
 )
 from .const import (
@@ -30,6 +32,7 @@ from .repairs import async_create_webhook_repair
 from .runtime import webhook_url
 
 MDNS_SERVICE_SUFFIX = "._http._tcp.local."
+_LOGGER = logging.getLogger(__package__)
 
 
 class OpenBrewByWeightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -234,13 +237,15 @@ class OpenBrewByWeightConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
         except CannotConnect:
             errors["base"] = "cannot_connect"
-        except (ApiError, ProtocolError):
+        except (ApiError, ProtocolError, TimeoutError) as err:
+            _LOGGER.warning("Reconfiguration failed: %s", describe_error(err))
             errors["base"] = "reconfigure_failed"
         except ValueError:
             errors["base"] = "invalid_webhook_id"
         except AbortFlow:
             raise
         except Exception:
+            _LOGGER.exception("Unexpected reconfiguration failure")
             errors["base"] = "reconfigure_failed"
         return self.async_show_form(
             step_id="reconfigure",

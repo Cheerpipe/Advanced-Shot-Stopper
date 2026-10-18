@@ -409,7 +409,7 @@ class _Request:
         return self.payload if maximum < 0 else self.payload[:maximum]
 
 
-async def test_runtime_register_validate_and_transaction(hass) -> None:
+async def test_runtime_register_validate_and_transaction(hass, caplog) -> None:
     """The receiver is local POST-only and returns deterministic statuses."""
     coordinator, api, _entry = _coordinator(hass)
     runtime = OpenBrewByWeightRuntimeData(
@@ -474,6 +474,17 @@ async def test_runtime_register_validate_and_transaction(hass) -> None:
         await runtime.async_configure_and_test("http://home/new")
     api.async_configure_webhook.assert_awaited_with("http://home/new")
     api.async_test_webhook.assert_awaited_with("proof")
+
+    api.async_webhook_config = AsyncMock(return_value={"delivery": {"held": True}})
+    with (
+        patch(
+            "custom_components.open_brew_by_weight.runtime.WEBHOOK_TEST_TIMEOUT", 0
+        ),
+        pytest.raises(TimeoutError),
+    ):
+        await runtime.async_configure_and_test("http://home/new")
+    assert "no callback reached home within 0s" in caplog.text
+    assert "{'held': True}" in caplog.text
 
     with patch(
         "custom_components.open_brew_by_weight.runtime.webhook.async_unregister"

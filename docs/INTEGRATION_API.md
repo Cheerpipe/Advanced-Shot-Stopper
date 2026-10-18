@@ -143,6 +143,21 @@ Returns `enabled`, `url`, `brewState`, `firstDrop`, `end`, `presetChanges`, and
 `deferDuringShot`. When that flag is true, queued requests wait while a shot is
 active; a request that already started is never cancelled.
 
+The read-only `delivery` object reports the outbound worker without Admin
+access:
+
+| Field | Meaning |
+| --- | --- |
+| `workerReady`, `sending` | The delivery task runs; a request is in flight |
+| `held`, `queued` | Outbound admission currently withholds events (shot deferral or scale acquisition); events waiting in the queue |
+| `lastEvent`, `lastAttemptAgoMs` | Newest attempted event and its age, or `null` before the first attempt |
+| `lastSuccess`, `lastHttpStatus`, `lastError` | Outcome, receiver HTTP status (0 when none arrived), and ESP-IDF error code |
+| `lastPhase`, `lastCancellation` | Request phase reached (`prepare` … `response`) and why it was cancelled, if it was |
+| `sent`, `dropped`, `staleConfigDropped`, `workerStartFailures` | Counters since boot |
+
+Each failed delivery is also logged at Error level in the network category of
+the Diagnostic log ring.
+
 ### `PUT /api/v1/integration/webhook`
 
 Requires all webhook fields. The URL must be a bounded `http://` URL without

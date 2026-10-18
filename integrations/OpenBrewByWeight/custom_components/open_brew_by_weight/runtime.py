@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import logging
 import secrets
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
@@ -12,9 +14,11 @@ from aiohttp.web_exceptions import HTTPRequestEntityTooLarge
 from homeassistant.components import webhook
 from homeassistant.core import HomeAssistant
 
-from .api import OpenBrewByWeightApi
+from .api import ApiError, OpenBrewByWeightApi
 from .const import DOMAIN, WEBHOOK_TEST_TIMEOUT
 from .coordinator import OpenBrewByWeightCoordinator
+
+_LOGGER = logging.getLogger(__package__)
 
 
 def webhook_url(hass: HomeAssistant, webhook_id: str) -> str:
@@ -54,7 +58,18 @@ class OpenBrewByWeightRuntimeData:
             client = api or self.api
             await client.async_configure_webhook(url)
             await client.async_test_webhook(correlation)
-            await asyncio.wait_for(waiter, WEBHOOK_TEST_TIMEOUT)
+            try:
+                await asyncio.wait_for(waiter, WEBHOOK_TEST_TIMEOUT)
+            except TimeoutError:
+                delivery: object = "unavailable"
+                with contextlib.suppress(ApiError):
+                    delivery = (await client.async_webhook_config()).get("delivery")
+                _LOGGER.warning(
+                    "Controller accepted the webhook test but no callback reached "
+                    "%s within %ss; controller delivery status: %s",
+                    urlsplit(url).netloc, WEBHOOK_TEST_TIMEOUT, delivery,
+                )
+                raise
         finally:
             self.coordinator.cancel_test(correlation)
 
@@ -79,22 +94,27 @@ class OpenBrewByWeightRuntimeData:
         """Validate a bounded payload before touching coordinator state."""
         from .models import MAX_WEBHOOK_BYTES, ProtocolError, WebhookEvent
 
-        if request.content_type != "application/json":
-            return Response(status=400)
-        if (
+        if request.content_type != "application/json" or (
             request.content_length is not None
             and request.content_length > MAX_WEBHOOK_BYTES
         ):
+            _LOGGER.warning(
+                "Rejected webhook: content type %s, length %s",
+                request.content_type, request.content_length,
+            )
             return Response(status=400)
         try:
             payload = await request.content.read(MAX_WEBHOOK_BYTES + 1)
             if len(payload) > MAX_WEBHOOK_BYTES:
-                return Response(status=400)
+                raise ProtocolError("payload too large")
             event = WebhookEvent.from_bytes(payload)
+            _LOGGER.debug("Webhook %s received (boot %s)", event.event, event.boot_id)
             await self.coordinator.async_process_webhook(event)
         except PermissionError:
+            _LOGGER.warning("Rejected webhook from another controller")
             return Response(status=403)
-        except (ProtocolError, HTTPRequestEntityTooLarge):
+        except (ProtocolError, HTTPRequestEntityTooLarge) as err:
+            _LOGGER.warning("Rejected webhook: %s", err)
             return Response(status=400)
         return Response(status=204)
 

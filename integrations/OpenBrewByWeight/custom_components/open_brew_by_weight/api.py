@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 from urllib.parse import urlsplit
 
 from aiohttp import ClientError, ClientResponse, ClientSession, ClientTimeout
 
 from .models import DeviceSnapshot, PresetState, ProtocolError
+
+_LOGGER = logging.getLogger(__package__)
 
 
 class ApiError(Exception):
@@ -30,6 +33,11 @@ class RequestRejected(ApiError):
         super().__init__(code)
         self.code = code
         self.status = status
+
+
+def describe_error(err: BaseException) -> str:
+    """Name an error even when its message is empty (timeouts)."""
+    return str(err) or type(err).__name__
 
 
 def normalize_host(value: str) -> str:
@@ -85,7 +93,14 @@ class OpenBrewByWeightApi:
             ) as response:
                 return await self._decode(response)
         except (TimeoutError, ClientError) as err:
-            raise CannotConnect from err
+            _LOGGER.debug("%s %s failed: %s", method, path or "/", describe_error(err))
+            raise CannotConnect(describe_error(err)) from err
+        except RequestRejected as err:
+            _LOGGER.warning(
+                "Controller rejected %s %s: %s (HTTP %s)",
+                method, path or "/", err.code, err.status,
+            )
+            raise
 
     @staticmethod
     async def _decode(response: ClientResponse) -> tuple[int, dict[str, Any]]:
@@ -125,18 +140,33 @@ class OpenBrewByWeightApi:
         return payload
 
     async def async_wait_request(self, request_id: int, timeout: float = 10) -> None:
-        async with asyncio.timeout(timeout):
-            while True:
-                _, payload = await self._json("GET", "/request")
-                observed = payload.get("requestId")
-                state = payload.get("state")
-                if observed == request_id and state == "PERSISTED":
-                    return
-                if observed == request_id and state in ("FAILED", "CANCELED"):
-                    raise RequestRejected("PERSISTENCE_FAILED", 500)
-                if isinstance(observed, int) and observed > request_id:
-                    raise RequestRejected("REQUEST_SUPERSEDED", 409)
-                await asyncio.sleep(0.2)
+        observed: object = None
+        state: object = None
+        try:
+            async with asyncio.timeout(timeout):
+                while True:
+                    _, payload = await self._json("GET", "/request")
+                    observed = payload.get("requestId")
+                    state = payload.get("state")
+                    if observed == request_id and state == "PERSISTED":
+                        return
+                    if observed == request_id and state in ("FAILED", "CANCELED"):
+                        raise RequestRejected("PERSISTENCE_FAILED", 500)
+                    if isinstance(observed, int) and observed > request_id:
+                        raise RequestRejected("REQUEST_SUPERSEDED", 409)
+                    await asyncio.sleep(0.2)
+        except RequestRejected as err:
+            _LOGGER.warning(
+                "Controller command %s not confirmed: %s (last seen %s %s)",
+                request_id, err.code, observed, state,
+            )
+            raise
+        except TimeoutError:
+            _LOGGER.warning(
+                "Controller command %s not confirmed within %ss (last seen %s %s)",
+                request_id, timeout, observed, state,
+            )
+            raise
 
     async def _mutation(self, method: str, path: str, body: dict[str, Any]) -> None:
         _, payload = await self._json(method, path, body=body)

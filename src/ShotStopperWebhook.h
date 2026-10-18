@@ -274,6 +274,9 @@ struct WebhookStatus {
   bool lastSuccess = false;
   bool lastDispatched = false;
   bool lastDeliveryUnknown = false;
+  // Snapshot-only: outbound admission currently withholds queued events.
+  bool held = false;
+  uint8_t queued = 0;
   uint16_t lastHttpStatus = 0;
   int32_t lastError = 0;
   uint32_t lastAttemptAtMs = 0;

@@ -154,6 +154,28 @@ async def test_request_polling_states(monkeypatch) -> None:
         assert raised.value.code == code
 
 
+async def test_failures_are_logged_with_their_code(caplog) -> None:
+    """Rejections and unconfirmed commands name the cause in the log."""
+    api = OpenBrewByWeightApi(
+        Session(Response(409, {"error": "STALE_REVISION"})), "controller"
+    )
+    with pytest.raises(RequestRejected):
+        await api.async_set_quick_setting("cupProtectionEnabled", False, 3)
+    assert "PUT /quick-settings: STALE_REVISION (HTTP 409)" in caplog.text
+
+    session = Session(Response(200, {"requestId": 6, "state": "PERSISTED"}))
+    with pytest.raises(TimeoutError):
+        await OpenBrewByWeightApi(session, "controller").async_wait_request(7, 0.01)
+    assert "command 7 not confirmed within 0.01s (last seen 6 PERSISTED)" in caplog.text
+
+    class BrokenSession:
+        def request(self, *args, **kwargs):
+            raise TimeoutError
+
+    with pytest.raises(CannotConnect, match="TimeoutError"):
+        await OpenBrewByWeightApi(BrokenSession(), "controller").async_snapshot()
+
+
 async def test_all_mutation_shapes() -> None:
     """Every mutation uses the bounded open integration API shape."""
     persisted = Response(200, {"requestId": 9, "state": "PERSISTED"})

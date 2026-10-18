@@ -104,9 +104,9 @@
   },
   "exceptions": {
     "preset_not_found": {"message": "The selected preset no longer exists on the controller."},
-    "preset_change_failed": {"message": "The controller did not save the selected preset."},
-    "quick_setting_change_failed": {"message": "The controller did not save the Quick Setting."},
-    "restart_failed": {"message": "The controller did not accept the restart request."}
+    "preset_change_failed": {"message": "The controller did not save the selected preset: {error}"},
+    "quick_setting_change_failed": {"message": "The controller did not save the Quick Setting: {error}"},
+    "restart_failed": {"message": "The controller did not accept the restart request: {error}"}
   },
   "issues": {
     "webhook_rollback_failed": {
