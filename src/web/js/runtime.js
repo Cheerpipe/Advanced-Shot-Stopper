@@ -4677,6 +4677,10 @@ document.addEventListener("visibilitychange", () => {
     shotWs && shotWs.readyState === 1 ? (requestShotResync(), shotActivity()) : startUiStream();
 });
 window.addEventListener("pagehide", stopUiStream);
+// Unloading the page drops every unsaved Save/Revert section (setSaveDirty marks them).
+window.addEventListener("beforeunload", (e) => {
+  if (!fwReloading && document.querySelector('[data-dirty="1"]')) e.preventDefault();
+});
 window.addEventListener("pageshow", () => {
   if (webUiPollingActive() && !setupSession) startUiStream();
 });

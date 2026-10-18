@@ -171,7 +171,9 @@ red message bar explains the error. Every save button has a smaller revert
 button beside it with a circular arrow. It lights up together with the save
 button, and tapping it asks for confirmation and then puts the section's fields
 back to their last saved values, so you can walk away from edits you did not
-mean to keep.
+mean to keep. If you try to close, reload or leave the page while a section
+still has unsaved changes, your browser asks before discarding them. Safari on
+iPhone and iPad doesn't show this warning, so save before switching away there.
 
 Remote start/rinse are disabled in default firmware. Admin unlock does not
 enable them. Remote Stop is privileged; physical controls remain available
