@@ -416,6 +416,7 @@ html:not(.theme-light) :is(.qwSheet,#actionsPanel){box-shadow:0 -8px 28px rgba(0
 .btnBar .shotSort:not(:last-child){margin-right:.1rem;padding-right:.4rem;border-right:1px solid var(--ln)}
 .panelWrap:has(>table){margin:.5rem 0}
 #shotLogSentinel{min-height:1px;padding:.35rem 0 .8rem;text-align:center;color:var(--mu);font-size:.8rem}
+.emptyState{margin:1.25rem 0;text-align:center;color:var(--mu);font-size:.8rem}
 #shotTable,#historyTable{width:100%;border-collapse:collapse;font-size:.82rem}
 :is(#shotTable,#historyTable) thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 #shotTable,#historyTable,:is(#shotTable,#historyTable) tbody{display:block}

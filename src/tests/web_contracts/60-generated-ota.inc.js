@@ -562,8 +562,9 @@ if (generated.jsGzip.length > 7330) {
 // The shot chart's real-stop dot and its legend keys measure 14648 bytes; owner-requested 2026-10-18.
 // The La Marzocco Cloud sign-in steps (pending, spinning, done) measure 14745 bytes; owner-requested 2026-10-18.
 // The La Marzocco Cloud linked note restyled as a green confirmation measures 14775 bytes; owner-requested 2026-10-18.
-if (generated.cssGzip.length > 14775) {
-  throw new Error(`Compressed Web CSS exceeds the 14775-byte gzip budget (${generated.cssGzip.length})`);
+// Styling the empty shot and activation history notes measures 14791 bytes; owner-requested 2026-10-18.
+if (generated.cssGzip.length > 14791) {
+  throw new Error(`Compressed Web CSS exceeds the 14791-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
