@@ -566,9 +566,8 @@ function applyLineaMicraStatus(s) {
   $("lineaMicraProgress").classList.toggle("error", !listing && !!shown);
   renderMicraMachines(machines, canEdit);
   $("lineaMicraCancelButton").disabled = !canEdit;
-  $("lineaMicraIdentity").innerText = connected
-    ? m.selectedName + " · " + m.selectedSerial + "\n" + m.email
-    : "";
+  $("lineaMicraIdentity").innerText = connected ? m.selectedName + " · " + m.selectedSerial : "";
+  $("lineaMicraAccount").innerText = connected ? m.email : "";
   // Most actionable first: account, link, then the machine itself.
   const pill = $("lineaMicraStatus"),
     power = m.optimisticOn ? "ON" : m.optimisticOff ? "OFF" : m.powerState,

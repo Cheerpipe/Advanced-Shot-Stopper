@@ -571,7 +571,8 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     apply(connected);
     assert.strictEqual(panes(), 'Connected');
     assert.strictEqual(context.micraSignIn, null);
-    assert.strictEqual(get('lineaMicraIdentity').innerText, 'Micra · ABC\nuser@example.test');
+    assert.strictEqual(get('lineaMicraIdentity').innerText, 'Micra · ABC');
+    assert.strictEqual(get('lineaMicraAccount').innerText, 'user@example.test');
     assert.strictEqual(get('lineaMicraStatus').textContent, 'runtime.micra_power_on · runtime.target 93.5 °C');
     assert.strictEqual(get('lineaMicraStatus').dataset.tone, 'on', 'An ON machine shows a green state pill');
     const pill = lm => { apply({...connected, ...lm}); const p = get('lineaMicraStatus'); return [p.textContent, p.dataset.tone]; };
