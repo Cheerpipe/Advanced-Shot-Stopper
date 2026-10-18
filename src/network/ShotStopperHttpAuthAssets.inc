@@ -379,10 +379,11 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
     const char *uri;
     httpd_method_t method;
     esp_err_t (*handler)(httpd_req_t *);
+    bool setup = false;  // also served claim-less to SoftAP peers (/setup)
   };
   static const Route routes[] = {
       {"/api/v1/status/settings", HTTP_GET, statusHandler},
-      {"/api/v1/status/admin", HTTP_GET, statusHandler},
+      {"/api/v1/status/admin", HTTP_GET, statusHandler, true},
       {"/api/v1/debug/export", HTTP_GET, debugExportHandler},
       {"/api/v1/diagnostic/crashes", HTTP_GET, crashArchiveDownloadHandler},
       {"/api/v1/diagnostic/crashes/empty", HTTP_POST, crashArchiveClearHandler},
@@ -419,9 +420,9 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/diagnostic/reset-history", HTTP_POST,
        clearResetHistoryHandler},
       {"/api/v1/factory-reset", HTTP_POST, factoryResetHandler},
-      {"/api/v1/network", HTTP_POST, networkHandler},
-      {"/api/v1/network/scan", HTTP_GET, wifiScanStatusHandler},
-      {"/api/v1/network/scan", HTTP_POST, wifiScanStartHandler},
+      {"/api/v1/network", HTTP_POST, networkHandler, true},
+      {"/api/v1/network/scan", HTTP_GET, wifiScanStatusHandler, true},
+      {"/api/v1/network/scan", HTTP_POST, wifiScanStartHandler, true},
       {"/api/v1/device/password", HTTP_POST, devicePasswordHandler},
 #if SHOT_STOPPER_DEVELOPMENT == 1
 // Unlock routes are not served in development builds; administration is
@@ -451,7 +452,11 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
     return sendError(request, STATUS_NOT_FOUND, "NOT_FOUND",
                      "Unknown API route.");
   }
-  if (!self.requireActiveWebUiClient(request)) {
+  // /setup holds no UI claim: joining the SoftAP already proved the device
+  // password, the same trust as the admin bypass, so its own routes skip it.
+  const bool setupPeer = matched->setup && self.snapshot().apActive &&
+                         socketServedBySoftAp(httpd_req_to_sockfd(request));
+  if (!setupPeer && !self.requireActiveWebUiClient(request)) {
     return ESP_OK;
   }
   return matched->handler(request);

@@ -320,4 +320,15 @@
           recipeCopy(grams(domainHeader, 'FACTORY_SINGLE_DOSE_DG'), grams(domainHeader, 'FACTORY_SINGLE_GOAL_WEIGHT_DG'))) {
     throw new Error('Onboarding recipe dose/yield copy must match the factory preset constants');
   }
+  // /setup is claim-less: only its status, scan, and network routes skip the
+  // UI claim, and only for a SoftAP peer while the AP is up.
+  const ownedBlock = blockAt(network, 'esp_err_t ShotStopperNetwork::ownedApiHandler(');
+  const setupRoutes = (ownedBlock.match(/HTTP_(?:GET|POST|PUT|DELETE), \w+, true\}/g) || []).length;
+  if (setupRoutes !== 4 ||
+      !codeIncludes(ownedBlock, '{"/api/v1/status/admin",HTTP_GET,statusHandler,true}') ||
+      !codeIncludes(ownedBlock, '{"/api/v1/network",HTTP_POST,networkHandler,true}') ||
+      !codeIncludes(ownedBlock, 'constboolsetupPeer=matched->setup&&self.snapshot().apActive&&socketServedBySoftAp(httpd_req_to_sockfd(request));') ||
+      !codeIncludes(ownedBlock, 'if(!setupPeer&&!self.requireActiveWebUiClient(request)){returnESP_OK;}')) {
+    throw new Error('Only the /setup routes may skip the UI claim, and only for a SoftAP peer');
+  }
 }
