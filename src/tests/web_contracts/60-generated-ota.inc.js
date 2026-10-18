@@ -560,8 +560,9 @@ if (generated.jsGzip.length > 7330) {
 // SoftAP onboarding P1 (/setup address rows, disabled Connect, Search again) measures 14479 bytes; owner-requested 2026-10-18.
 // Onboarding brewing steps (mode and recipe choice cards, summary rows) measure 14621 bytes; owner-requested 2026-10-18.
 // The shot chart's real-stop dot and its legend keys measure 14648 bytes; owner-requested 2026-10-18.
-if (generated.cssGzip.length > 14648) {
-  throw new Error(`Compressed Web CSS exceeds the 14648-byte gzip budget (${generated.cssGzip.length})`);
+// The La Marzocco Cloud sign-in steps (pending, spinning, done) measure 14745 bytes; owner-requested 2026-10-18.
+if (generated.cssGzip.length > 14745) {
+  throw new Error(`Compressed Web CSS exceeds the 14745-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -689,8 +690,9 @@ if (generated.cssGzip.length > 14648) {
 // The gradual forecast hero tint (firmware-owned tintClass/tintPct, advisories, landing estimate) with the window-mode fast alert restored brings the runtime to 38895 compressed bytes; owner-authorized 2026-10-17.
 // The iOS-only unmuted keep-awake track and its tap resume bring it to 38983; owner-requested 2026-10-17.
 // The Linea Micra sign-in state and its Save/Revert pairing bring it to 39012; owner-requested 2026-10-18.
-if (sentinelRuntimeGzip.length > 39012) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 39012-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The La Marzocco Cloud legend states (connected, connecting, choose) bring it to 39038; owner-requested 2026-10-18.
+if (sentinelRuntimeGzip.length > 39038) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 39038-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -737,7 +739,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The Linea Micra sign-in, machine choice, auto-select, grouped options and batch save measure settings.js at 14827; owner-requested 2026-10-18.
 // Gzip wobble from the Linea Micra settings section (records.js unchanged) measures 13607; owner-requested 2026-10-18.
 // Linea Micra Change machine and its machine-count re-list after restart measure settings.js at 15024; owner-approved 2026-10-18.
-const viewModuleBudgets = {records: 13607, diagnostic: 13750, admin: 14229, settings: 15024, setup: 5788};
+// Restoring the La Marzocco Cloud sign-in steps, legend state and lone-machine auto-select measure settings.js at 15219; owner-requested 2026-10-18.
+const viewModuleBudgets = {records: 13607, diagnostic: 13750, admin: 14229, settings: 15219, setup: 5788};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -905,8 +908,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // Keeping /setup off the UI stream and the compatibility redirect brings it to 64964; owner-reported 2026-10-18.
 // The Home Micra cloud hint card, its copy and its Settings deep link bring it to 65263; owner-requested 2026-10-18.
 // The Linea Micra sign-in state, Save/Revert pairing and its CSS rule bring it to 65311; owner-requested 2026-10-18.
-if (coldHomeGzip > 65311) {
-  throw new Error(`Cold Home download exceeds the 65311-byte gzip budget (${coldHomeGzip})`);
+// The La Marzocco Cloud sign-in steps CSS and legend state strings bring it to 65442; owner-requested 2026-10-18.
+if (coldHomeGzip > 65442) {
+  throw new Error(`Cold Home download exceeds the 65442-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

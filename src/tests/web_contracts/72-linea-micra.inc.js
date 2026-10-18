@@ -370,7 +370,8 @@ if (!micraTypes.includes('APPLY_TEMPERATURE') ||
     !micraStatus.includes('\\\"scalePaused\\\"')) {
   throw new Error('Linea Micra preset temperature must coalesce, gate on scale/shot activity, reuse authentication, and confirm dashboard readback');
 }
-for (const id of ['lineaMicraSignIn', 'lineaMicraChoose', 'lineaMicraConnected',
+for (const id of ['lineaMicraSignIn', 'lineaMicraBusy', 'lineaMicraSteps', 'lineaMicraLegendHint',
+  'lineaMicraChoose', 'lineaMicraConnected',
   'lineaMicraUsername', 'lineaMicraPassword', 'lineaMicraWifiNote', 'lineaMicraProgress',
   'lineaMicraConnectButton', 'lineaMicraMachines', 'lineaMicraSelectButton',
   'lineaMicraCancelButton', 'lineaMicraPowerDeps', 'lineaMicraLinkedNote',
@@ -484,9 +485,12 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
   get('lineaMicraPowerDeps').children = ['RecognizeWake', 'ScaleOffWithMachine', 'BoostScaleDetectionWhenOn',
     'ReduceScaleScanningWhenOff'].map(id => get('lineaMicra' + id));
   const commands = [];
-  let actionOk = true;
+  let actionOk = true, polls = 0;
+  get('lineaMicraSteps').children = [node(), node(), node()];
+  const steps = () => get('lineaMicraSteps').children.map(li => li.className).join();
   const context = vm.createContext({__LINEA_MICRA__: true, $: get, controlsMutable: true,
-    micraDirty: false, micraSignIn: null, micraChange: false, micraListed: true,
+    micraDirty: false, micraSignIn: null, micraChange: false, micraListed: true, micraPoll: 0,
+    refreshStatus: () => {}, setTimeout: () => { polls++; return 1; },
     lineaMicraAction: async action => { commands.push({action}); return actionOk; },
     document: {documentElement: {classList: {toggle() {}}}, createElement() {
       const label = node();
@@ -502,7 +506,7 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
   context.R = {saveLineaMicraSettings: context.saveLineaMicraSettings};
   const saveClick = vm.runInContext(`(${saveBinding[1]})`, context);
   const apply = lm => vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: lm})})`, context);
-  const panes = () => ['SignIn', 'Choose', 'Connected'].filter(p => !get('lineaMicra' + p).hidden).join();
+  const panes = () => ['SignIn', 'Busy', 'Choose', 'Connected'].filter(p => !get('lineaMicra' + p).hidden).join();
   const flush = () => new Promise(resolve => setImmediate(resolve));
   const run = async () => {
     const base = {accountConfigured: false, email: '', selectedName: '', selectedSerial: '', machines: [],
@@ -516,12 +520,17 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     apply({...base, apActive: true});
     assert(!get('lineaMicraWifiNote').classes.has('hidden') && get('lineaMicraConnectButton').disabled,
         'Sign-in must explain and wait while the setup network is open');
+    assert.strictEqual(get('lineaMicraLegendHint').textContent, 'runtime.not_connected');
     apply({...base, phase: 'authenticating'});
-    assert(get('lineaMicraConnectButton').classes.has('busy'), 'Sign in must spin while the cloud sign-in runs');
-    assert.strictEqual(get('lineaMicraProgress').textContent, 'runtime.micra_progress_signing_in');
+    assert.strictEqual(panes(), 'Busy', 'A running sign-in replaces the form with its progress steps');
+    assert.strictEqual(steps(), 'on,,');
+    assert.strictEqual(get('lineaMicraLegendHint').textContent, 'runtime.micra_state_connecting');
+    assert.strictEqual(polls, 1, 'Status refreshes quickly while signing in');
+    context.micraPoll = 0;
     apply({...base, phase: 'listing'});
-    assert.strictEqual(get('lineaMicraProgress').textContent, 'runtime.micra_progress_listing');
+    assert.strictEqual(steps(), 'ok,on,', 'Finished steps turn green as the next one starts');
     apply({...base, phase: 'failed', error: 'invalid_auth'});
+    assert.strictEqual(panes(), 'SignIn');
     assert(!get('lineaMicraConnectButton').classes.has('busy'));
     assert.strictEqual(get('lineaMicraProgress').textContent, 'runtime.micra_error_auth',
         'A rejected sign-in must read in plain language, never as an error code');
@@ -529,8 +538,7 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     apply({...base, phase: 'failed', error: 'canceled'});
     assert.strictEqual(get('lineaMicraProgress').textContent, '', 'Routine cancellations stay silent');
 
-    // A sign-in started here with one machine saves it with the shown options.
-    context.micraSignIn = 'pending';
+    // A lone listed machine is saved with the shown options, whoever signed in.
     const lone = {...base, phase: 'confirmed', machines: [{serial: 'ABC', name: 'Micra'}]};
     apply(lone);
     await flush();
@@ -540,18 +548,18 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
       recognizeWakeGesture: true, powerOnWithScale: false, shutdownWithScale: true,
       scaleOffWithMachine: true, connectionType: 'websocket', shutdownGraceSeconds: 15}});
     apply(lone);
-    assert.strictEqual(panes(), 'SignIn', 'The lone machine is linked without a choice screen');
-    assert.strictEqual(get('lineaMicraProgress').textContent, 'runtime.micra_progress_linking');
+    assert.strictEqual(panes(), 'Busy', 'The lone machine is linked without a choice screen');
+    assert.strictEqual(steps(), 'ok,ok,on');
     assert.strictEqual(commands.length, 1, 'The automatic selection is sent once');
 
-    // A listed machine without a sign-in from this page waits for a choice.
-    context.micraSignIn = null;
+    // A failed automatic selection falls back to the choice, without retrying.
+    context.micraSignIn = 'failed';
     apply(lone);
     assert.strictEqual(panes(), 'Choose');
     context.micraSignIn = 'pending';
     apply({...lone, machines: [{serial: 'ABC', name: 'Micra'}, {serial: 'DEF', name: ''}]});
-    assert.strictEqual(context.micraSignIn, null);
     assert.strictEqual(panes(), 'Choose', 'Several machines need an explicit choice');
+    assert.strictEqual(get('lineaMicraLegendHint').textContent, 'runtime.micra_state_choose');
     assert.strictEqual(commands.length, 1);
     const machines = get('lineaMicraMachines').children;
     assert.deepStrictEqual(machines.map(m => [m.radio.value, m.b.textContent, m.small.textContent]),

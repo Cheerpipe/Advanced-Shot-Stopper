@@ -16,16 +16,20 @@ While the setup network is open or the controller isn't on your home Wi-Fi,
 **Sign in** is unavailable and a note explains why.
 
 1. Enter the email address and password you use in the La Marzocco app.
-2. Choose **Sign in**. The button shows a small spinner and the line below it
-   follows each step: signing in, finding your machines, and connecting this
-   controller.
+2. Choose **Sign in**. The form makes way for a short progress list —
+   **Signing in**, **Finding your machines** and **Connecting this
+   controller** — where the current step spins and each finished one turns
+   green. The section title shows **Connecting…** meanwhile.
 3. If the account has one Linea Micra, that's it: the controller connects to
-   it and saves the recommended options right away.
+   it and saves the recommended options right away, without asking you to
+   choose. This also happens if you reopen Settings while a single machine is
+   waiting to be selected. If saving it fails, the machine is offered for you
+   to select instead.
 4. If the account has several, each machine is listed with its name and serial
    number. Choose the one this controller is paired with and select **Use this
    machine**, or **Cancel** to sign out again.
 
-If the sign-in fails, the line under **Sign in** says why in plain words — for
+If the sign-in fails, the form returns and the line under **Sign in** says why in plain words — for
 example, when La Marzocco doesn't accept the email and password or the account
 has no Linea Micra — and the password field is ready for another try. The
 password is cleared after every attempt.

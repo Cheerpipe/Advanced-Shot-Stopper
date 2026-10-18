@@ -228,6 +228,13 @@ html:not(.lineaMicraIntegration) .micraOnly,html:not(.micraTemperatureEnabled) .
 .cfgGroup{margin:.5rem 0;padding:.25rem 0 .5rem;border:0;border-top:1px solid var(--ln);border-radius:0}
 .cfgGroup .cfgGroup{margin:.5rem 0 0;padding-left:.75rem}
 .micraDeps{margin-left:1.9rem}
+.micraSteps{display:grid;gap:.45rem;margin:.9rem 0 .25rem;padding:0;list-style:none}
+.micraSteps li{display:flex;align-items:center;gap:.55rem;color:var(--mu)}
+.micraSteps li:before{content:'';flex:none;box-sizing:border-box;width:.9rem;height:.9rem;border:2px solid var(--ln);border-radius:50%}
+.micraSteps .on{color:var(--fg);font-weight:600}
+.micraSteps .on:before{border-color:var(--pri);border-right-color:transparent;animation:busySpin .8s linear infinite}
+.micraSteps .ok{color:var(--fg)}
+.micraSteps .ok:before{border-color:var(--ok);background:var(--ok)}
 summary{min-height:var(--tap);padding:.65rem .25rem;cursor:pointer;font-weight:650;color:var(--fg)}
 summary::marker{color:var(--ac)}
 .configSaveBar{position:sticky;bottom:var(--nav-offset);z-index:2;background:var(--sf);padding:.65rem 0 calc(.65rem + env(safe-area-inset-bottom));margin:.75rem 0 0;border-top:1px solid var(--ln);display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
@@ -694,7 +701,7 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 }
 @media(max-width:340px){body{padding-inline:.75rem}.topBar{margin-inline:-.75rem;padding-inline:.75rem}.statusColumn{grid-template-columns:1fr}}
 @media(max-width:380px){.topBar{gap:.15rem;--logo-w:1.85rem;--logo-h:2.5rem;--brand-font:1.15rem;--brand-small:.83rem}.headerSignals{padding-left:.25rem}}
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:.01ms!important}.bootWave i{animation:none}.btnGlyph.busy .g:after{animation:none}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:.01ms!important}.bootWave i{animation:none}.btnGlyph.busy .g:after{animation:none}.micraSteps .on:before{animation:none}}
 @media(forced-colors:active){input[type=checkbox]{appearance:auto}.btnGlyph,.presetCard,.heroFsBtn,input,select,textarea{border-color:ButtonText}}
 /* /setup onboarding (SoftAP captive portal): menu-less centered card. */
 body.setupView{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;padding-bottom:1rem}
