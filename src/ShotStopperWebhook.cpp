@@ -26,6 +26,12 @@ constexpr size_t kWebhookPayloadCapacity = 2048;
 // (2026-09-26 target capture), below the 1 536 B release gate.
 constexpr uint32_t kWebhookWorkerStackBytes = 4608;
 constexpr int kWebhookTimeoutMs = 1800;
+// Each async progress call blocks at most this long between admission checks.
+constexpr int kWebhookPollMs = 25;
+// IDF 6.1 reports a plain-TCP async connect as established while the
+// handshake is still pending, so the header write must wait for it (slow under
+// modem sleep); HEADERS_SENT restores the poll interval.
+constexpr int kWebhookHandshakeWaitMs = 500;
 constexpr uint32_t kWebhookStopTimeoutMs = 2500;
 
 const char *eventName(WebhookEventType type) {
@@ -244,7 +250,7 @@ esp_http_client_handle_t WebhookDispatcher::ensureHttpClient(const char *url) {
   cleanupHttpClient();
   esp_http_client_config_t config = {};
   config.url = url;
-  config.timeout_ms = 25;
+  config.timeout_ms = kWebhookPollMs;
   // IDF 6.1 TCP transport registers async connect with non-blocking sockets;
   // perform preserves header/body offsets across EAGAIN, including plain HTTP.
   config.is_async = true;
@@ -274,8 +280,10 @@ esp_http_client_handle_t WebhookDispatcher::ensureHttpClient(const char *url) {
 }
 
 esp_err_t WebhookDispatcher::httpEvent(esp_http_client_event_t *event) {
-  if (event->event_id == HTTP_EVENT_HEADERS_SENT)
+  if (event->event_id == HTTP_EVENT_HEADERS_SENT) {
     static_cast<WebhookDispatcher *>(event->user_data)->requestSent_ = true;
+    (void)esp_http_client_set_timeout_ms(event->client, kWebhookPollMs);
+  }
   return ESP_OK;
 }
 
@@ -714,6 +722,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
         phase = WebhookRequestPhase::PERFORM;
         error = ESP_ERR_HTTP_EAGAIN;
         requestSent_ = false;
+        (void)esp_http_client_set_timeout_ms(client, kWebhookHandshakeWaitMs);
         while (error == ESP_ERR_HTTP_EAGAIN && admitted() &&
                millis() - started < kWebhookTimeoutMs) {
           error = esp_http_client_perform(client);

@@ -180,7 +180,12 @@ only to end a disabled test drain, so a control enqueue never fails on worker
 contention. An empty 50 ms queue wait is followed by the drain check without
 an additional 25 ms delay. The 25 ms gated wait and the gate check before starting delivery remain;
 delivery checks admission between asynchronous progress calls and after the
-final call. The absolute 1800 ms deadline also rejects a late successful return.
+final call. Each call blocks at most 25 ms, except before the request headers
+are sent: ESP-IDF 6.1 reports a plain-HTTP asynchronous connect as established
+while the TCP handshake is still pending, so the header write waits up to
+500 ms for it (longer under Wi-Fi modem sleep) and returns as soon as the
+socket connects; the `HEADERS_SENT` event restores the 25 ms interval. The
+absolute 1800 ms deadline also rejects a late successful return.
 Interrupted, possibly dispatched POSTs are dropped without replay; unsent
 canceled events remain pending. `webhook_worker_host_test.cpp`
 executes this worker with deterministic queue, transport and heap injection,

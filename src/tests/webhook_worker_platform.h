@@ -81,7 +81,7 @@ inline TestWifi WiFi;
 using esp_err_t = int;
 constexpr int ESP_OK = 0, ESP_FAIL = -1, ESP_ERR_INVALID_STATE = -2;
 constexpr int ESP_ERR_HTTP_EAGAIN = -3, ESP_ERR_TIMEOUT = -4;
-constexpr int ESP_ERR_HTTP_CONNECT = -5;
+constexpr int ESP_ERR_HTTP_CONNECT = -5, ESP_ERR_HTTP_WRITE_DATA = -6;
 constexpr int ESP_MAC_WIFI_STA = 0, HTTP_METHOD_POST = 1;
 constexpr int HTTP_EVENT_HEADERS_SENT = 2;
 struct TestHttpClient;
@@ -94,6 +94,7 @@ struct esp_http_client_event_t {
 struct TestHttpClient {
   esp_err_t (*handler)(esp_http_client_event_t *);
   void *user;
+  int timeout;
 };
 struct esp_http_client_config_t {
   const char *url = nullptr;
@@ -105,10 +106,12 @@ struct esp_http_client_config_t {
 };
 inline bool failHttpAllocation = false, httpHeadersSent = true;
 inline int httpResult = ESP_OK, httpStatus = 200;
+// Client timeout when perform() starts and after its HEADERS_SENT event.
+inline int timeoutAtPerform = 0, timeoutAfterHeaders = 0;
 inline esp_http_client_handle_t esp_http_client_init(const esp_http_client_config_t *config) {
   workerTrace.push_back("allocate");
   return failHttpAllocation ? nullptr
-                            : new TestHttpClient{config->event_handler, config->user_data};
+                            : new TestHttpClient{config->event_handler, config->user_data, config->timeout_ms};
 }
 inline int esp_http_client_cleanup(esp_http_client_handle_t c) { delete c; return ESP_OK; }
 inline int esp_http_client_close(esp_http_client_handle_t) { return ESP_OK; }
@@ -118,13 +121,16 @@ inline int esp_http_client_set_header(esp_http_client_handle_t, const char *, co
 inline int esp_http_client_set_post_field(esp_http_client_handle_t, const char *, int) { workerTrace.push_back("post"); return ESP_OK; }
 inline int esp_http_client_perform(esp_http_client_handle_t c) {
   workerTrace.push_back("perform");
+  timeoutAtPerform = c->timeout;
   esp_http_client_event_t sent{HTTP_EVENT_HEADERS_SENT, c, c->user};
   if (httpHeadersSent) c->handler(&sent);
+  timeoutAfterHeaders = c->timeout;
   if (duringPerform) duringPerform();
   return httpResult;
 }
 inline int esp_http_client_get_status_code(esp_http_client_handle_t) { return httpStatus; }
 inline int esp_http_client_get_errno(esp_http_client_handle_t) { return 104; }
+inline int esp_http_client_set_timeout_ms(esp_http_client_handle_t c, int ms) { c->timeout = ms; return ESP_OK; }
 inline int esp_read_mac(uint8_t *mac, int) { memset(mac, 0xAB, 6); return ESP_OK; }
 // lwIP asynchronous resolver: immediate unless a test holds the answer.
 struct ip_addr_t {};

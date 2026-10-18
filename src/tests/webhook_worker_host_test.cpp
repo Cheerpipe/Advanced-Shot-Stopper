@@ -297,6 +297,20 @@ static void testUnsentRequestsAreNotUnknown() {
     WebhookDispatcherTest::finish(d);
   }
 }
+static void testHandshakeWaitEndsAtHeadersSent() {
+  resetPlatform();
+  WebhookDispatcher d;
+  assert(d.begin(config(true)));
+  for (const bool headersSent : {false, true, true}) {
+    httpHeadersSent = headersSent;
+    httpResult = headersSent ? ESP_OK : ESP_ERR_HTTP_WRITE_DATA;
+    assert(WebhookDispatcherTest::send(d) == headersSent);
+    // Every request waits up to 500 ms for its handshake, then polls at 25 ms.
+    assert(timeoutAtPerform == 500);
+    assert(timeoutAfterHeaders == (headersSent ? 25 : 500));
+  }
+  WebhookDispatcherTest::finish(d);
+}
 static void testSlowLookupYieldsToShotWithinOnePoll() {
   resetPlatform();
   WebhookDispatcher d;
@@ -430,6 +444,7 @@ int main() {
   testWorkerLeavesLifecycleLockToEnqueue();
   testDisableReleasesClient();
   testUnsentRequestsAreNotUnknown();
+  testHandshakeWaitEndsAtHeadersSent();
   testSlowLookupYieldsToShotWithinOnePoll();
   testBootHintWaitsForSta();
   testSecretWebhookEndpointRedacted();
