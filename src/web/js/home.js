@@ -90,7 +90,6 @@ export function applyStatus(s) {
   $("homeMicraCleaning").textContent = R.formatMicraCleaning(s.lineaMicra);
   renderMicraBoilers();
   const rs = $("machineRowState"),
-    st = $("state"),
     row = $("machineRow");
   if (row) {
     const lm = s.lineaMicra || {},
@@ -112,12 +111,7 @@ export function applyStatus(s) {
       : rdy
         ? __WEBUI_TEXT__("runtime.ready_2") + micraTargetSuffix(micraActive && lm)
         : labels[lm.readiness] ||
-          (power.indexOf("ON") === 0 ? __WEBUI_TEXT__("home.on") : st.textContent);
-    rs.classList.toggle("stateReady", rdy);
-    rs.classList.toggle(
-      "stateFault",
-      !rdy && (off || needsWater || st.classList.contains("stateFault")),
-    );
+          (power.indexOf("ON") === 0 ? __WEBUI_TEXT__("home.on") : $("state").textContent);
     row.classList.toggle("lampBad", !rdy && (!micraActive || off || needsWater));
   }
 }
