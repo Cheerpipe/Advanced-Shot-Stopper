@@ -577,7 +577,7 @@ html:not(.theme-light) :is(.qwSheet,#actionsPanel){box-shadow:0 -8px 28px rgba(0
 .rvLegExample i{height:0;border-top:1.5px solid var(--fg);border-radius:0}
 .rvLegLast i{height:0;border-top:2px solid var(--gLast);border-radius:0}
 .rvLegArrivals i,.rvLegHeld i{width:.45rem;height:.45rem;border-radius:50%;background:var(--fg);opacity:.75}.rvLegHeld i{background:var(--mu)}
-.reviewLegend:not(.hasLast) .rvLegLast,.reviewLegend:not(.hasArrivals) .rvLegArrivals,.reviewLegend.noFast .rvLegFast,.reviewLegend.noSlow .rvLegSlow{display:none}
+.reviewLegend:not(.hasArrivals) .rvLegArrivals,.reviewLegend.noFast .rvLegFast,.reviewLegend.noSlow .rvLegSlow{display:none}
 .fieldResult{display:block;margin:.3rem 0 0;font-size:.8125rem;font-weight:650;color:var(--fg)}
 .rvLegFast i:first-child{background:color-mix(in srgb,var(--gFast) calc(var(--bandFull) * 100%),var(--sf))}.rvLegFast i+i{background:color-mix(in srgb,var(--gFast) calc(var(--bandPart) * 100%),var(--sf))}
 .rvLegSlow i:first-child{background:color-mix(in srgb,var(--gSlow) calc(var(--bandFull) * 100%),var(--sf))}.rvLegSlow i+i{background:color-mix(in srgb,var(--gSlow) calc(var(--bandPart) * 100%),var(--sf))}

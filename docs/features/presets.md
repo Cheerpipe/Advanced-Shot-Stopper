@@ -33,7 +33,8 @@ marked with a filled circle and expands to show how it cuts, for example
 **Before 27 s · Fast · up to 42 g**, **27–36 s · On recipe · 36 g** and
 **After 36 s · Slow · down to 33 g**. Below these lines, a small chart shows
 the same cut line over the shot, the colored fast, on-recipe and slow zones,
-and the opening seconds where weight never stops the shot. Drag along it to
+the opening seconds where weight never stops the shot, and dots where your
+recent shots on that preset reached the target. Drag along it to
 try shot timings, just like **How this preset cuts** in Settings; a note
 below it says where its reference pace starts.
 Tapping another row applies that recipe. These rows show the recipe's own values; learned

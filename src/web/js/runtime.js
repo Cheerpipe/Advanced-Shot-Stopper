@@ -2746,10 +2746,10 @@ function renderHomePresetAccordion() {
     head.onclick = () => {
       if (p.id !== openId) applyPreset(p.id);
     };
-    const m =
-      p.id === presetState.activeId && liveRuleModel && liveRuleModel.mode !== "empty"
-        ? liveRuleModel
-        : buildRuleChartModel(p);
+    const saved = buildRuleChartModel(p),
+      m = p.id === presetState.activeId && liveRuleModel && liveRuleModel.mode !== "empty" ? liveRuleModel : saved,
+      // Past arrivals, as in Settings, while the target is the saved one they were judged against.
+      arrivals = m.goal === saved.goal ? p.arrivalsS || [] : [];
     const rows = guardRuleRows(m),
       svg = $("shotGoalEdit")?.firstElementChild;
     // The active preset's target opens the quick-weight sheet from here too.
@@ -2768,7 +2768,7 @@ function renderHomePresetAccordion() {
     item.querySelector(".presetAccStart").textContent = m.mode === "empty" ? "" : paceStartNote(m);
     graph._draw = () => {
       if (graph._m.mode === "empty") graph.replaceChildren();
-      else drawPresetGraph(graph, graph._m, {}, item.querySelector(".presetAccReadout"), key);
+      else drawPresetGraph(graph, graph._m, { arrivals }, item.querySelector(".presetAccReadout"), key);
     };
     graph._draw();
     nodes.push(item);
@@ -3240,7 +3240,6 @@ function presetGraph(host, m, x = {}) {
     B,
     pace: (ta, end) => S + paceTo(ta, end),
     tAt: (px) => ((px - L) * tMax) / (R - L),
-    last: last.length > 0,
     arrivals: shown.length,
   };
 }
@@ -3351,20 +3350,13 @@ function renderPresetReview() {
   const statsLine = shotStatsLine(saved);
   $("windowStatsText").textContent = statsLine || __WEBUI_TEXT__("runtime.no_shots_yet");
   if (savedModel.mode === "empty") return;
-  const card = shotFrame?.card,
-    last = card?.valid && !card.live && card.presetName === saved.name ? shotFrame.curve : null,
-    // Past arrivals were judged against the saved target: hidden while it is edited.
-    arrivals = m.goal === savedModel.goal ? saved.arrivalsS || [] : [];
+  // Past arrivals were judged against the saved target: hidden while it is edited.
+  const arrivals = m.goal === savedModel.goal ? saved.arrivalsS || [] : [];
   host._draw = renderPresetReview;
   const view = drawPresetGraph(
     host,
     m,
-    {
-      ghost,
-      arrivals,
-      last: last ? [last.wAtMs.map((t, i) => [t / 1000, last.wCg[i] / 100])] : [],
-      maxG: last ? Math.max(0, ...last.wCg) / 100 : 0,
-    },
+    { ghost, arrivals },
     $("presetReviewReadout"),
     id,
   );
@@ -3375,7 +3367,6 @@ function renderPresetReview() {
       '<span class="rvLeg rvLegCut"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_cut") + "</span>" +
       '<span class="rvLeg rvLegPace"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_pace") + "</span>" +
       '<span class="rvLeg rvLegExample"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_example") + "</span>" +
-      '<span class="rvLeg rvLegLast"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_last") + "</span>" +
       '<span class="rvLeg rvLegArrivals"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_arrivals") + "</span>" +
       '<span class="rvLeg rvLegWindow"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_corridor") + "</span>" +
       '<span class="rvLeg rvLegFast"><i></i><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_fast") + "</span>" +
@@ -3385,7 +3376,6 @@ function renderPresetReview() {
       '<small class="rvNote"></small>';
   legend.lastChild.textContent = __WEBUI_TEXT__("runtime.graph_pace_note") + " " + paceStartNote(m);
   legend.classList.toggle("ghosted", !!ghost);
-  legend.classList.toggle("hasLast", view.last);
   legend.classList.toggle("hasArrivals", view.arrivals > 0);
   legend.classList.toggle("noFast", !m.fast);
   legend.classList.toggle("noSlow", !m.slow);
