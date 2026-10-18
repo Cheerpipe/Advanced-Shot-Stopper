@@ -120,4 +120,14 @@ constexpr const char *setupPhaseName(SetupPhase phase) {
   return "none";
 }
 
+// Onboarding brewing choice, offered only while the firmware is off: kept with
+// the setup session until the network is confirmed, skipped, or finished.
+enum class SetupBrew : uint8_t { NONE, USUAL, BY_WEIGHT };
+
+constexpr const char *setupBrewName(SetupBrew brew) {
+  return brew == SetupBrew::USUAL       ? "usual"
+         : brew == SetupBrew::BY_WEIGHT ? "weight"
+                                        : "none";
+}
+
 }  // namespace shotstopper

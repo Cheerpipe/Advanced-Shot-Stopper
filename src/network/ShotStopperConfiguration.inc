@@ -1403,3 +1403,37 @@ esp_err_t ShotStopperNetwork::factoryResetHandler(httpd_req_t *request) {
                                 "Control is busy; no settings were erased.",
                                 "\"state\":\"QUEUED\"");
 }
+
+// Optional onboarding brewing choice on the setup actions, accepted only while
+// the firmware is off: brewByWeight, plus presetId exactly when it is true.
+static const char *parseSetupBrew(cJSON *root, SetupBrew &brew,
+                                  uint8_t &presetId) {
+  brew = SetupBrew::NONE;
+  const bool hasPreset = jsonFieldPresent(root, "presetId");
+  bool byWeight = false;
+  if (!jsonFieldPresent(root, "brewByWeight") && !hasPreset) {
+    return nullptr;
+  }
+  if (!firmwareCompatibilityMode()) {
+    return "The brewing choice is part of setup only while the firmware is off.";
+  }
+  if (!jsonBoolean(root, "brewByWeight", byWeight) || byWeight != hasPreset ||
+      (hasPreset && (!jsonUint8(root, "presetId", presetId) || presetId == 0))) {
+    return "brewByWeight must be a boolean, with a non-zero presetId only when true.";
+  }
+  brew = byWeight ? SetupBrew::BY_WEIGHT : SetupBrew::USUAL;
+  return nullptr;
+}
+
+// Keeps the onboarding brewing choice with the setup session; commit also
+// persists it (skip and finish).
+bool ShotStopperNetwork::keepSetupBrew(SetupBrew brew, uint8_t presetId,
+                                       bool commit) {
+  if (brew != SetupBrew::NONE) {
+    dataMux_.lock();
+    status_.setupBrew = brew;
+    status_.setupPresetId = presetId;
+    dataMux_.unlock();
+  }
+  return !commit || commitSetupBrew();
+}

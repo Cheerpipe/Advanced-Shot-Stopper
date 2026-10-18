@@ -13607,6 +13607,7 @@ void w90_save_unknown_preset_id_does_not_overwrite_active() {
       findShotPreset(presetBank, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
   CHECK(dbl != nullptr);
   const uint16_t originalGoal = dbl->goalWeightDg;
+  const uint8_t originalActive = presetBank.activeId;
   WebCommand save;
   save.type = WebCommandType::PRESET_OP;
   save.requestId = 90;
@@ -13622,7 +13623,7 @@ void w90_save_unknown_preset_id_does_not_overwrite_active() {
       findShotPreset(presetBank, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
   CHECK(after != nullptr);
   CHECK(after->goalWeightDg == originalGoal);
-  CHECK(presetBank.activeId == FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
+  CHECK(presetBank.activeId == originalActive);
 }
 
 void w91_preset_persistence_serializes_and_survives_retry() {

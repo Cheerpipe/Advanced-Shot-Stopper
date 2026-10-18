@@ -1,8 +1,9 @@
 # Presets
 
 Presets store brew recipes. A new controller comes with five factory presets:
-**Double · Adaptive** (active), **Single · Adaptive**, **Double · Fixed**,
-**Single · Fixed** and **Manual**. Adaptive presets run fast shots a little
+**Double · Adaptive**, **Single · Adaptive**, **Double · Fixed**,
+**Single · Fixed** and **Manual** (active until you pick another one, for
+example on the first-time setup page). Adaptive presets run fast shots a little
 longer and stop slow shots a little sooner; Fixed presets always stop at the
 target (see [Fast and slow shots](fast-and-slow-shots.md)). **Manual** never
 stops the shot for you: pick it when you want to end each shot yourself, then

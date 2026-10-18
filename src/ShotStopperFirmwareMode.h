@@ -3,9 +3,9 @@
 // Boot-scoped firmware mode (master switch). The persisted record lives in
 // its own NVS namespace — deliberately outside the PersistedSettings blob —
 // so toggling or upgrading the mode never forces a CONFIG_SCHEMA_VERSION bump
-// that would factory-reset every stored setting. An absent or invalid record
-// fails safe to FULL firmware mode: a corrupt entry must never silently park
-// the controller in compatibility mode.
+// that would factory-reset every stored setting. An absent, invalid, or
+// unreadable record means compatibility mode: a fresh or factory-reset
+// controller stays transparent until the owner enables the firmware.
 
 #include "ShotStopperFlashIoScratch.h"
 #include "ShotStopperPreferences.h"
@@ -29,9 +29,9 @@ inline bool validFirmwareMode(uint8_t raw) {
     defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
 inline FirmwareMode loadFirmwareMode() {
   if (!lockFlashIo()) {
-    return FirmwareMode::FULL;
+    return FirmwareMode::COMPATIBILITY;
   }
-  FirmwareMode mode = FirmwareMode::FULL;
+  FirmwareMode mode = FirmwareMode::COMPATIBILITY;
   ShotStopperPreferences preferences(NvsSubsystem::FIRMWARE_MODE);
   if (preferences.begin(FIRMWARE_MODE_NAMESPACE, true)) {
     uint8_t raw = 0;

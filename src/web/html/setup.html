@@ -7,6 +7,25 @@
     <p id="setupErrorText" class="fieldError" role="alert"></p>
     <p id="setupErrorHint" class="fieldHint">{{webui:setup.error_hints}}</p>
   </div>
+  <div id="setupMode" hidden>
+    <fieldset class="setupChoices">
+      <label class="setupChoice"><input type="radio" name="setupMode" value="usual" checked><span><b>{{webui:setup.mode_usual}}</b><small>{{webui:setup.mode_usual_hint}}</small></span></label>
+      <label class="setupChoice"><input type="radio" name="setupMode" value="weight"><span><b>{{webui:setup.mode_weight}}</b> <span class="presetCardBadge">{{webui:setup.recommended}}</span><small>{{webui:setup.mode_weight_hint}}</small></span></label>
+    </fieldset>
+    <p class="fieldHint">{{webui:setup.mode_later}}</p>
+    <button type="button" id="setupModeNext" class="setupPrimary">{{webui:setup.continue}}</button>
+  </div>
+  <div id="setupRecipe" hidden>
+    <fieldset class="setupChoices">
+      <label class="setupChoice"><input type="radio" name="setupRecipe" value="255" checked><span><b>{{webui:setup.recipe_manual}}</b><small>{{webui:setup.recipe_manual_hint}}</small></span></label>
+      <label class="setupChoice"><input type="radio" name="setupRecipe" value="1"><span><b>{{webui:setup.recipe_double_adaptive}}</b> <span class="presetCardBadge">{{webui:setup.recommended}}</span><small>{{webui:setup.recipe_double_numbers}}</small><small>{{webui:setup.recipe_double_adaptive_hint}}</small></span></label>
+      <label class="setupChoice"><input type="radio" name="setupRecipe" value="2"><span><b>{{webui:setup.recipe_single_adaptive}}</b><small>{{webui:setup.recipe_single_numbers}}</small><small>{{webui:setup.recipe_single_adaptive_hint}}</small></span></label>
+      <label class="setupChoice"><input type="radio" name="setupRecipe" value="3"><span><b>{{webui:setup.recipe_double_fixed}}</b><small>{{webui:setup.recipe_double_numbers}}</small><small>{{webui:setup.recipe_double_fixed_hint}}</small></span></label>
+      <label class="setupChoice"><input type="radio" name="setupRecipe" value="4"><span><b>{{webui:setup.recipe_single_fixed}}</b><small>{{webui:setup.recipe_single_numbers}}</small><small>{{webui:setup.recipe_single_fixed_hint}}</small></span></label>
+    </fieldset>
+    <button type="button" id="setupRecipeNext" class="setupPrimary">{{webui:setup.continue}}</button>
+    <button type="button" id="setupRecipeBack" class="textLock setupBack">{{webui:setup.back}}</button>
+  </div>
   <div id="setupScanning" class="setupState" hidden>
     <span class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
     <p>{{webui:setup.searching_networks}}</p>
@@ -27,8 +46,9 @@
     </div>
     <p class="fieldHint">{{webui:setup.band_hint}}</p>
     <p class="fieldError" id="setupFieldError" hidden></p>
-    <button type="submit" id="setupConnect">{{webui:setup.connect}}</button>
+    <button type="submit" id="setupConnect" class="setupPrimary">{{webui:setup.connect}}</button>
     <button type="button" id="setupSkip" class="textLock">{{webui:setup.skip}}</button>
+    <button type="button" id="setupFormBack" class="textLock setupBack" hidden>{{webui:setup.back}}</button>
   </form>
   <div id="setupConnecting" class="setupState" hidden>
     <span class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
@@ -39,8 +59,15 @@
   <div id="setupSuccess" class="setupState" hidden>
     <p class="setupCheck" aria-hidden="true">&#10003;</p>
     <p id="setupSuccessText"></p>
+    <dl id="setupSummary" class="setupSummary" hidden>
+      <div><dt>{{webui:setup.summary_brewing}}</dt><dd id="setupSumMode"></dd><button type="button" id="setupChangeMode" class="textLock">{{webui:setup.change}}</button></div>
+      <div id="setupSumRecipeRow"><dt>{{webui:setup.summary_recipe}}</dt><dd id="setupSumRecipe"></dd><button type="button" id="setupChangeRecipe" class="textLock">{{webui:setup.change}}</button></div>
+      <div><dt>{{webui:setup.summary_wifi}}</dt><dd id="setupSumWifi"></dd></div>
+    </dl>
+    <p id="setupRestartNote" class="setupNote" hidden>{{webui:setup.note_restart}}</p>
     <p id="setupNextStep"></p>
     <div id="setupSuccessLinks" class="setupLinks"></div>
+    <p id="setupLaterNote" class="setupNote fieldHint" hidden></p>
     <p id="setupCloseHint" class="fieldHint">{{webui:setup.close_hint}}</p>
     <button type="button" id="setupFinish">{{webui:setup.done}}</button>
   </div>

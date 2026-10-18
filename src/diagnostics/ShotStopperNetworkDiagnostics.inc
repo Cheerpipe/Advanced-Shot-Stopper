@@ -1110,3 +1110,86 @@ esp_err_t ShotStopperNetwork::historyDeleteHandler(httpd_req_t *request) {
       "A non-zero history record id is required.", "HISTORY_RECORD_NOT_FOUND",
       "The requested history record was not found.");
 }
+
+// Verbose audit hunt session toggle: marked DEBUG codes join the latch for
+// thirty minutes. Needs a synced clock (the deadline is wall-clock based).
+esp_err_t ShotStopperNetwork::auditVerboseHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  const esp_err_t bodyStatus =
+      self.lockJsonBody(request, "A JSON request is required.");
+  if (bodyStatus != ESP_OK) {
+    return bodyStatus;
+  }
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
+  bool enabled = false;
+  static const char *const fields[] = {"enabled"};
+  const bool parsed =
+      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
+      jsonBoolean(root, "enabled", enabled);
+  if (root != nullptr) {
+    cJSON_Delete(root);
+  }
+  self.unlockJsonBody();
+  if (!parsed) {
+    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_AUDIT_VERBOSE",
+                     "enabled must be a boolean.");
+  }
+  if (self.callbacks_.setAuditVerbose == nullptr ||
+      !self.callbacks_.setAuditVerbose(enabled)) {
+    return sendError(request, STATUS_CONFLICT, "AUDIT_VERBOSE_UNAVAILABLE",
+                     "The wall clock is not synchronized yet.");
+  }
+  return sendJson(request, STATUS_OK, "{\"accepted\":true}");
+}
+
+esp_err_t ShotStopperNetwork::taskProfilerHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  const esp_err_t bodyStatus =
+      self.lockJsonBody(request, "A JSON request is required.");
+  if (bodyStatus != ESP_OK) {
+    return bodyStatus;
+  }
+  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
+  bool enabled = false;
+  static const char *const fields[] = {"enabled"};
+  const bool parsed =
+      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
+      jsonBoolean(root, "enabled", enabled);
+  if (root != nullptr) {
+    cJSON_Delete(root);
+  }
+  self.unlockJsonBody();
+  if (!parsed) {
+    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_PROFILER_CONFIG",
+                     "enabled must be a boolean.");
+  }
+  WebCommand command;
+  command.type = enabled ? WebCommandType::TASK_PROFILER_START
+                         : WebCommandType::TASK_PROFILER_STOP;
+  command.requestId = self.allocateRequestId();
+  if (!self.callbacks_.enqueueWebCommand(command)) {
+    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
+                     "Task profiler state was not changed.");
+  }
+  return self.sendAccepted(request, command.requestId);
+}
+
+esp_err_t ShotStopperNetwork::loopMaxResetHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  if (self.callbacks_.requestLoopMaxReset == nullptr) {
+    return sendError(request, STATUS_UNAVAILABLE, "LOOP_TIMING_UNAVAILABLE",
+                     "Loop timing could not be reset.");
+  }
+  self.callbacks_.requestLoopMaxReset();
+  return sendJson(request, STATUS_OK, "{\"reset\":true}");
+}
+
+esp_err_t ShotStopperNetwork::scaleGapMaxResetHandler(httpd_req_t *request) {
+  ShotStopperNetwork &self = *instance_;
+  if (self.callbacks_.requestScaleGapMaxReset == nullptr) {
+    return sendError(request, STATUS_UNAVAILABLE, "SCALE_TIMING_UNAVAILABLE",
+                     "Scale gap maximum could not be reset.");
+  }
+  self.callbacks_.requestScaleGapMaxReset();
+  return sendJson(request, STATUS_OK, "{\"reset\":true}");
+}

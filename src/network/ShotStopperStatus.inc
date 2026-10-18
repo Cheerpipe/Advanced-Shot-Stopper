@@ -507,7 +507,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           "\"wifiConfigured\":%s,\"ssid\":\"%s\",\"open\":%s,\"wifiSleep\":%s,"
           "\"staState\":\"%s\",\"channel\":%s,\"staIp\":\"%s\",\"ipMode\":\"%s\","
           "\"configState\":\"%s\",\"confirmRemainingMs\":%lu,"
-          "\"setup\":\"%s\",\"apClosingMs\":%lu,"
+          "\"setup\":\"%s\",\"setupBrew\":\"%s\",\"setupPresetId\":%u,"
+          "\"apClosingMs\":%lu,"
           "\"rssi\":%s,\"signalQualityPct\":%s,"
           "\"configuredIp\":\"%s\",\"configuredNetmask\":\"%s\","
           "\"configuredGateway\":\"%s\",\"configuredDns1\":\"%s\","
@@ -522,7 +523,8 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
           staChannelJson, network.iface.staIp, staIpModeName(network.staIpMode),
           staConfigStateName(network.staConfigState),
           static_cast<unsigned long>(network.confirmRemainingMs),
-          setupPhaseName(network.setupPhase),
+          setupPhaseName(network.setupPhase), setupBrewName(network.setupBrew),
+          static_cast<unsigned>(network.setupPresetId),
           static_cast<unsigned long>(apClosingMs), staRssiJson,
           staSignalQualityJson, network.iface.configuredIp, network.iface.configuredNetmask,
           network.iface.configuredGateway, network.iface.configuredDns1,

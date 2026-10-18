@@ -187,6 +187,7 @@ void resetMomentaryHarness() {
 #endif
   localBuzzer.begin(BUZZER_GPIO);
   seedDefaultShotPresetBank(presetBank);
+  presetBank.activeId = FACTORY_PRESET_ID_DOUBLE_ADAPTIVE;
   runtimeConfig = composeEffectiveConfig(runtimeConfig, presetBank);
   runtimeConfig.requireCupToStart = false;
   runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);

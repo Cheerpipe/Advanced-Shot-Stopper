@@ -24,6 +24,16 @@ the boot (USB `AP_START` or reboot to raise it again). Manual `AP_START`
 keeps SoftAP up without the idle timer until `AP_STOP`, or until a new home
 network is set up from the setup page (then it closes about a minute later).
 
+With Open Brew by Weight switched on, turning the machine on (paddle ON or a
+switch press) closes this automatic setup network right away, even with a phone
+joined, so the scale search starts at once instead of waiting for the idle
+timeout. This helps after a power cut when the router is still starting: just
+turn the machine on to brew. The controller keeps trying your home network in
+the background and joins it when it is back. A setup that is connecting to a
+network keeps the setup network up, and so does `AP_START`. With the firmware
+switched off the paddle never closes it, so a new owner can still finish setup
+after pulling a shot.
+
 The AP name is unique to this controller: **`OpenBrewByWeightAP-`** plus
 eight lowercase characters from the end of this device's AP address. USB
 `AP_STATUS` prints the exact name. SoftAP WPA2 uses the **device password**.
@@ -48,9 +58,14 @@ and OTA use that same device password.
    **`ineedacoffee`**. Forget any saved network that is only
    `OpenBrewByWeightAP` with no suffix. The scale may wait to connect
    until you finish this setup network.
-3. The setup page opens by itself: pick your home network, enter its
-   password, and select **Connect**. If nothing pops up, open
-   **`http://192.168.4.1/setup`** in a browser. Joining this network already
+3. The setup page opens by itself. If nothing pops up, open
+   **`http://192.168.4.1/setup`** in a browser. On a new or factory-reset
+   controller it first asks how you want to brew: **Brew as usual** keeps the
+   machine exactly as before (the [firmware](firmware-mode.md) stays off), and
+   **Stop shots by weight** switches the firmware on and asks for a starting
+   recipe (**Manual** is selected; each recipe shows its dose, yield and
+   ratio). Then pick your home network, enter its password, and select
+   **Connect**. Joining this network already
    proves the device password, so the setup page asks for nothing else. The
    controller joins your network while this setup network stays up and keeps
    the new network as soon as it gets in, even if your phone drops off the
@@ -58,6 +73,10 @@ and OTA use that same device password.
    phone back to your home network and lists the addresses to use from now
    on, each with a **Copy** button. The setup network stays open for about a
    minute so you can note them; **Done** closes it right away.
+   A summary lists your brewing choice, recipe and network; **Change** goes
+   back to a step. Choosing to stop shots by weight restarts the controller
+   once when you select **Finish and restart** (or when the setup network
+   closes); turn on your scale afterwards.
    If the connection fails, the reason appears at the top of the card and
    your entries stay in place: correct them and select **Connect** again, or
    use **Search again** when your network is missing from the list. On a
@@ -82,7 +101,8 @@ setup page open on its own. The controller's
 [device name](wifi.md#discovery-by-name) also resolves while you are here.
 
 Not ready to configure Wi-Fi yet? Choose **Continue without Wi-Fi** on the
-setup page. The sign-in window closes on its own, but your phone stays
+setup page. Your brewing choice is saved right away, and **Finish** (or
+**Finish and restart**) ends setup. The sign-in window closes on its own, but your phone stays
 joined to the setup network and the setup page remains open at
 `http://192.168.4.1/setup` until the setup network itself shuts down —
 reopen it there whenever you want to continue.

@@ -97,7 +97,7 @@
 
   // Live apply: /setup saves connect without a restart on the network task.
   if (!domainCore.includes('bool applyLive = false;') ||
-      !codeIncludes(networkHandlerBlock, 'jsonHasOnlyUniqueFields(root,saveFields,13)') ||
+      !codeIncludes(networkHandlerBlock, 'jsonHasOnlyUniqueFields(root,saveFields,15)') ||
       !networkHandlerBlock.includes('"apply"') ||
       !codeIncludes(networkHandlerBlock, 'strcmp(applyMode,"live")!=0') ||
       !codeIncludes(networkHandlerBlock, '!self.snapshot().apActive') ||
@@ -160,9 +160,10 @@
   // and status/admin publishes the phase and the AP closing time for /setup.
   if (!codeIncludes(networkHandlerBlock,
                     'grace=setupFinishAllowed(self.status_.setupPhase,self.status_.apActive,self.status_.apTeardownAtMs,now)') ||
-      !network.includes('\\"setup\\":\\"%s\\",\\"apClosingMs\\":%lu,') ||
-      !codeIncludes(network, 'setupPhaseName(network.setupPhase)')) {
-    throw new Error('finish must accept the joined phase and status/admin must publish setup and apClosingMs');
+      !network.includes('\\"setup\\":\\"%s\\",\\"setupBrew\\":\\"%s\\",\\"setupPresetId\\":%u,') ||
+      !network.includes('\\"apClosingMs\\":%lu,') ||
+      !codeIncludes(network, 'setupPhaseName(network.setupPhase),setupBrewName(network.setupBrew)')) {
+    throw new Error('finish must accept the joined phase and status/admin must publish setup, the brewing draft, and apClosingMs');
   }
 
   // Scan pipeline: the HTTP handler's optimistic QUEUED must not be canceled
@@ -250,7 +251,7 @@
       !partialHtml.setup.includes('id="setupSkip"') ||
       !partialHtml.setup.includes('id="setupSkipped"') ||
       !partialHtml.setup.includes('captive.apple.com/hotspot-detect.html') ||
-      !codeIncludes(setupJs, '{action:"skip"}') ||
+      !codeIncludes(setupJs, '{action:"skip",...brewPayload()}') ||
       !codeIncludes(setupJs, 'show("skipped")') ||
       !codeIncludes(setupJs, 'connectivitycheck.gstatic.com/generate_204') ||
       !codeIncludes(setupJs, '$("setupSkipDone").href=PROBE_URL') ||
@@ -259,7 +260,7 @@
       // button ends the window early (finish arms probe success, then the
       // device lingers briefly before dropping the setup network).
       !partialHtml.setup.includes('id="setupFinish"') ||
-      !codeIncludes(setupJs, '{action:"finish"}') ||
+      !codeIncludes(setupJs, '{action:"finish",...brewPayload()}') ||
       !codeIncludes(setupJs, '$("setupFinish").onclick=finishSetup') ||
       !codeIncludes(setupJs, 'input.type=show?"text":"password"') ||
       !codeIncludes(setupJs, 'passToggle.setAttribute("aria-pressed"') ||
@@ -271,8 +272,49 @@
       !partialHtml.setup.includes('2.4 GHz') ||
       !css.includes('body.setupView .topBar,body.setupView .pageNav{display:none}') ||
       !css.includes('.setupCard{') ||
-      !css.includes('#setupSkip{')) {
+      !css.includes('#setupSkip,.setupBack{')) {
     throw new Error(
         '/setup must be a routed menu-less view with the live-apply save pipeline, the skip portal exit, and captive-portal fallbacks');
+  }
+  // Brewing onboarding (firmware off only): the draft rides on save/skip/finish,
+  // commits on confirm, skip, or finish, and a switch to full mode restarts the
+  // controller once the setup SoftAP stops; full mode lets the machine's
+  // activator close the automatic SoftAP.
+  const commitBrewBlock = blockAt(network, 'bool ShotStopperNetwork::commitSetupBrew() {');
+  const idleBlock = blockAt(network, 'void ShotStopperNetwork::serviceSoftApIdle(');
+  if (!codeIncludes(network, 'if(!firmwareCompatibilityMode()){return"The brewing choice is part of setup only while the firmware is off.";}') ||
+      !codeIncludes(networkHandlerBlock, 'if(parsed&&brew!=SetupBrew::NONE&&!command.network.applyLive){') ||
+      !codeIncludes(networkHandlerBlock, 'if(parsed&&(networkError=parseSetupBrew(root,brew,brewPresetId))!=nullptr){') ||
+      !codeIncludes(confirmBlock, 'commitSetupBrew();') ||
+      !codeIncludes(commitBrewBlock, 'if(brew==SetupBrew::NONE||!firmwareCompatibilityMode()){returntrue;}') ||
+      !codeIncludes(commitBrewBlock, 'if(!networkFlashWriteAllowed()){returnfalse;}') ||
+      !codeIncludes(commitBrewBlock, 'preset.presetAction=static_cast<uint8_t>(PresetAction::APPLY);') ||
+      !codeIncludes(commitBrewBlock, 'setupRestartPending_.store(byWeight,std::memory_order_release);') ||
+      !codeIncludes(stopSoftApBlock, 'status_.setupBrew=SetupBrew::NONE;') ||
+      !codeIncludes(stopSoftApBlock, 'if(setupRestartPending_.load(std::memory_order_acquire)){requestSetupRestart();}') ||
+      !codeIncludes(networkHandlerBlock, 'constboolskipped=firmwareCompatibilityMode()&&self.status_.apActive&&self.status_.setupPhase==SetupPhase::NONE;') ||
+      !codeIncludes(idleBlock, 'constboolbrewing=activatorOn&&!firmwareCompatibilityMode();') ||
+      !codeIncludes(idleBlock, 'if(!brewing&&clients>0){') ||
+      !codeIncludes(network, 'serviceSoftApIdle(now,networkSnapshot.apActive,apClients,controlGate().physicalActivatorOn);') ||
+      !codeIncludes(setupJs, 'if(compat&&lastBrew==="none"&&lastPhase==="none")returnshow("mode");') ||
+      !codeIncludes(setupJs, 'body:R.body({action:"finish",...brewPayload()})') ||
+      !codeIncludes(setupJs, 'body:R.body({action:"skip",...brewPayload()})') ||
+      !codeIncludes(setupJs, 'apply:"live",...brewPayload(),') ||
+      !partialHtml.setup.includes('name="setupRecipe" value="255" checked')) {
+    throw new Error(
+        'Brewing onboarding must stay firmware-off only, commit on confirm/skip/finish, restart after the setup SoftAP, and let the activator close it only in full mode');
+  }
+  // The starting-recipe cards print the factory dose and yield: keep the copy
+  // tied to the firmware constants it describes.
+  const setupStrings = JSON.parse(fs.readFileSync(path.join(sketchDir, 'web', 'locales', 'en.json'), 'utf8')).strings;
+  const brewTypes = fs.readFileSync(path.join(sketchDir, 'ShotStopperBrewTypes.h'), 'utf8');
+  const domainHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperDomain.h'), 'utf8');
+  const grams = (source, name) => Number((source.match(new RegExp(name + ' = (\\d+);')) || [])[1]) / 10;
+  const recipeCopy = (dose, yieldG) => `Dose ${dose} g · Yield ${yieldG} g · 1:${yieldG / dose}`;
+  if (setupStrings['setup.recipe_double_numbers'] !==
+          recipeCopy(grams(brewTypes, 'DEFAULT_DOSE_DG'), grams(brewTypes, 'DEFAULT_GOAL_WEIGHT_DG')) ||
+      setupStrings['setup.recipe_single_numbers'] !==
+          recipeCopy(grams(domainHeader, 'FACTORY_SINGLE_DOSE_DG'), grams(domainHeader, 'FACTORY_SINGLE_GOAL_WEIGHT_DG'))) {
+    throw new Error('Onboarding recipe dose/yield copy must match the factory preset constants');
   }
 }

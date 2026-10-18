@@ -14,15 +14,19 @@ start with [Hardware](HARDWARE.md).
    (USB `AP_STATUS` shows the exact name) and the password is the device
    password (**`ineedacoffee`** from the factory). Stay joined even if your
    phone reports "no internet".
-3. The setup page opens on its own within a few seconds — choose your home
-   network, type its password, and select **Connect**. If the page does not
-   open by itself, browse to **`http://192.168.4.1/setup`**. The controller
+3. The setup page opens on its own within a few seconds; if it does not,
+   browse to **`http://192.168.4.1/setup`**. A new controller is switched off
+   and leaves the machine working as usual, so the page first asks how you
+   want to brew: keep it **as usual**, or **stop shots by weight** and pick a
+   starting recipe. Then choose your home network, type its password, and
+   select **Connect**. The controller
    joins your network without restarting and keeps it as soon as it gets in.
    The page then reminds you to switch your phone back to your home network
    and shows the addresses to use from now on (`<name>.local` and the
    controller's new address), each with a **Copy** button. The setup network
-   stays open for about a minute so you can note them — select **Done** when
-   you have them. No other password is asked during this flow, and the
+   stays open for about a minute so you can note them — select **Finish**
+   (**Finish and restart** when you chose to stop shots by weight) when you
+   have them. No other password is asked during this flow, and the
    setup page never asks you to **Reload**.
 4. Rejoin your home network on the phone/computer and open the controller at
    the address the setup page showed. On most home networks

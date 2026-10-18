@@ -1066,11 +1066,11 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(strcmp(formatted, "-21474836.48g") == 0);
   formatWeightCentigrams(INT32_MAX, formatted, sizeof(formatted));
   CHECK(strcmp(formatted, "21474836.47g") == 0);
-  // Fresh bank: five permanent factory presets, Double · Adaptive active.
+  // Fresh bank: five permanent factory presets, Manual active.
   ShotPresetBank bank;
   seedDefaultShotPresetBank(bank);
   CHECK(bank.count == FACTORY_PRESET_COUNT + 1 && bank.nextId == 5);
-  CHECK(bank.activeId == FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
+  CHECK(bank.activeId == FACTORY_PRESET_ID_MANUAL);
   const struct {
     const char *name;
     uint16_t dose, goal, fast, slow;
@@ -2500,17 +2500,21 @@ void p86_timezone_preference_and_durable_initialization() {
 
 void p90_firmware_mode_store_round_trip_and_factory_reset() {
   resetHostPersistence();
-  // Absent or invalid records fail safe to full firmware mode.
-  CHECK(loadFirmwareMode() == FirmwareMode::FULL);
-  CHECK(saveFirmwareMode(FirmwareMode::COMPATIBILITY));
+  // A fresh controller (no record) starts transparent.
   CHECK(loadFirmwareMode() == FirmwareMode::COMPATIBILITY);
   CHECK(saveFirmwareMode(FirmwareMode::FULL));
   CHECK(loadFirmwareMode() == FirmwareMode::FULL);
-  CHECK(!saveFirmwareMode(static_cast<FirmwareMode>(0)));
-  CHECK(loadFirmwareMode() == FirmwareMode::FULL);
-  // Factory reset restores full mode: the master switch must never survive
-  // the one recovery path that is always reachable.
   CHECK(saveFirmwareMode(FirmwareMode::COMPATIBILITY));
+  CHECK(loadFirmwareMode() == FirmwareMode::COMPATIBILITY);
+  CHECK(!saveFirmwareMode(static_cast<FirmwareMode>(0)));
+  CHECK(loadFirmwareMode() == FirmwareMode::COMPATIBILITY);
+  // An invalid stored byte also reads as compatibility.
+  const uint8_t invalid = 0x7F;
+  persistence_host::putRaw(FIRMWARE_MODE_NAMESPACE, FIRMWARE_MODE_KEY, &invalid,
+                           sizeof(invalid));
+  CHECK(loadFirmwareMode() == FirmwareMode::COMPATIBILITY);
+  // Factory reset clears the record: the controller is fresh again.
+  CHECK(saveFirmwareMode(FirmwareMode::FULL));
   PersistedSettings settings;
   CHECK(initializeDefaultSettings(settings));
   CHECK(savePersistedSettings(settings));
@@ -2525,7 +2529,7 @@ void p90_firmware_mode_store_round_trip_and_factory_reset() {
   CHECK(curves.load());
   CHECK(resetAllDurableStores(settings, ble, log, history, lastShot,
                               curves));
-  CHECK(loadFirmwareMode() == FirmwareMode::FULL);
+  CHECK(loadFirmwareMode() == FirmwareMode::COMPATIBILITY);
 }
 
 void p61c_timestamped_capacity_and_interrupted_blocks() {

@@ -245,6 +245,7 @@ bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
   }
   clearPendingConfirmWindow();
   publishConfiguredAddressStatus();
+  commitSetupBrew();
   log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
       static_cast<int32_t>(next.runtime.revision));
   ::serialTraceCategoryf(LogLevel::INFO, DebugCategory::NETWORK,
@@ -677,6 +678,49 @@ void ShotStopperNetwork::startStation(const NetworkSettingsSnapshot &settings,
   }
 }
 
+// Persists the onboarding brewing choice: the starting recipe through the
+// control owner, then the boot-scoped firmware mode. Safe to repeat.
+bool ShotStopperNetwork::commitSetupBrew() {
+  dataMux_.lock();
+  const SetupBrew brew = status_.setupBrew;
+  const uint8_t presetId = status_.setupPresetId;
+  dataMux_.unlock();
+  if (brew == SetupBrew::NONE || !firmwareCompatibilityMode()) {
+    return true;
+  }
+  const bool byWeight = brew == SetupBrew::BY_WEIGHT;
+  if (!networkFlashWriteAllowed()) {
+    return false;
+  }
+  if (byWeight) {
+    WebCommand preset;
+    preset.type = WebCommandType::PRESET_OP;
+    preset.requestId = allocateRequestId();
+    preset.presetAction = static_cast<uint8_t>(PresetAction::APPLY);
+    preset.presetId = presetId;
+    if (!callbacks_.enqueueWebCommand(preset)) {
+      return false;
+    }
+  }
+  if (!shotstopper::saveFirmwareMode(
+          byWeight ? shotstopper::FirmwareMode::FULL
+                   : shotstopper::FirmwareMode::COMPATIBILITY)) {
+    return false;
+  }
+  setupRestartPending_.store(byWeight, std::memory_order_release);
+  return true;
+}
+
+// The same idle-safe restart as the Restart button: a pour finishes first.
+void ShotStopperNetwork::requestSetupRestart() {
+  WebCommand restart;
+  restart.type = WebCommandType::RESTART;
+  restart.requestId = allocateRequestId();
+  if (callbacks_.enqueueWebCommand(restart)) {
+    setupRestartPending_.store(false, std::memory_order_release);
+  }
+}
+
 void ShotStopperNetwork::stopSoftAp(bool stopHttp) {
   if (!snapshot().apActive) {
     return;
@@ -699,9 +743,13 @@ void ShotStopperNetwork::stopSoftAp(bool stopHttp) {
   status_.windowRemainingMs = 0;
   status_.apTeardownAtMs = 0;
   status_.setupPhase = nextSetupPhase(status_.setupPhase, SetupEvent::AP_STOPPED);
+  status_.setupBrew = SetupBrew::NONE;
   dataMux_.unlock();
   clearSoftApIdleState();
   log(DebugCategory::NETWORK, DebugCode::AP_STOPPED);
+  if (setupRestartPending_.load(std::memory_order_acquire)) {
+    requestSetupRestart();
+  }
   lifecycleLog(stopHttp ? "WiFi SoftAP stopped; HTTP stopped"
                         : "WiFi SoftAP stopped; HTTP kept");
   applyWifiPowerSave();
@@ -731,7 +779,7 @@ void ShotStopperNetwork::armSoftApIdleDeadline(uint32_t now) {
 }
 
 void ShotStopperNetwork::serviceSoftApIdle(uint32_t now, bool apActive,
-                                           uint8_t clients) {
+                                           uint8_t clients, bool activatorOn) {
   if (!apActive || setupKeepsSoftAp(setupPhase())) {
     if (!apActive) {
       clearSoftApIdleState();
@@ -742,7 +790,10 @@ void ShotStopperNetwork::serviceSoftApIdle(uint32_t now, bool apActive,
     return;
   }
 
-  if (clients > 0) {
+  // Full mode: turning the machine on ends the automatic setup network at
+  // once, even with phones joined, so the scale search is not held back.
+  const bool brewing = activatorOn && !firmwareCompatibilityMode();
+  if (!brewing && clients > 0) {
     // Someone joined the setup network: retry the saved network promptly.
     if (lastApClients_ == 0) staReconnectIntervalMs_ = STA_RECONNECT_INTERVAL_MS;
     apIdleDeadlineMs_ = 0;
@@ -756,14 +807,15 @@ void ShotStopperNetwork::serviceSoftApIdle(uint32_t now, bool apActive,
   }
   lastApClients_ = 0;
 
-  if (apIdleDeadlineMs_ == 0 ||
-      static_cast<int32_t>(now - apIdleDeadlineMs_) < 0) {
+  if (!brewing && (apIdleDeadlineMs_ == 0 ||
+                   static_cast<int32_t>(now - apIdleDeadlineMs_) < 0)) {
     return;
   }
 
   apAutoRaiseExhausted_ = true;
   clearSoftApIdleState();
-  lifecycleLog("WiFi SoftAP idle timeout; SoftAP down for rest of boot");
+  lifecycleLog(brewing ? "WiFi SoftAP closed: machine turned on; down for rest of boot"
+                       : "WiFi SoftAP idle timeout; SoftAP down for rest of boot");
   dataMux_.lock();
   const bool staConnected = status_.staState == StaState::CONNECTED;
   dataMux_.unlock();

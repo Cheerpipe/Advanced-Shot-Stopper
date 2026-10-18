@@ -138,7 +138,7 @@ body.pageLoading .view,body.pageLoading .view *,body.pageLoading .view::before,b
 .bootOverlay .brandMark{width:2.85rem;height:3.8rem}
 .inactiveMain{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;max-width:24rem;width:100%;text-align:center}
 #webUiReload{min-height:3rem;min-width:10rem;padding:.65rem 1.5rem;border:1px solid var(--pri);border-radius:2rem;background:var(--pri);color:var(--on);font:inherit;font-weight:700;cursor:pointer}
-#webUiReload:disabled,#setupConnect:disabled{opacity:.4;cursor:not-allowed}
+#webUiReload:disabled,.setupPrimary:disabled{opacity:.4;cursor:not-allowed}
 #inactiveHint{margin:0;color:var(--mu);font-size:.78rem;line-height:1.45;font-weight:400}
 #inactiveError{margin:0;font-size:.86rem}
 .inactiveOverlay.isReconnectWait #webUiReload{display:none}
@@ -711,9 +711,19 @@ body.setupView #app{display:flex;flex:1;flex-direction:column}
 .setupState a{color:var(--ac)}
 .setupHiddenToggle{display:flex;align-items:center;min-height:var(--tap);margin:.25rem 0}
 .setupHiddenToggle span{font-size:.875rem;color:var(--mu)}
-#setupConnect{display:block;width:100%;margin-top:.75rem;min-height:3rem;border:0;border-radius:2rem;background:var(--pri);color:var(--on);font-weight:700;cursor:pointer}
+.setupPrimary{display:block;width:100%;margin-top:.75rem;min-height:3rem;border:0;border-radius:2rem;background:var(--pri);color:var(--on);font-weight:700;cursor:pointer}
+.setupChoices{display:grid;gap:.6rem;margin:0 0 .5rem;padding:0;border:0}
+.setupChoice{display:flex;gap:.75rem;margin:0;padding:.75rem .9rem;border:1.5px solid var(--ln);border-radius:var(--r);background:var(--in)}
+.setupChoice:has(:checked){border-color:var(--ac);background:var(--pa)}
+.setupChoice input{flex:none;width:1.15rem;height:1.15rem;margin:.15rem 0 0;accent-color:var(--ac)}
+.setupChoice small{display:block;font-weight:400;color:var(--mu);font-size:.85rem}
+.setupSummary{margin:0;width:100%;text-align:left}
+.setupSummary div{display:flex;align-items:baseline;gap:.75rem;padding:.55rem 0;border-bottom:1px solid var(--ln)}
+.setupSummary dt{width:5.5rem;color:var(--mu);font-size:.85rem}
+.setupSummary dd{flex:1;margin:0;font-weight:650}
+.setupNote{margin:0;width:100%;text-align:left}
 #setupFinish{border:1px solid var(--bd);background:var(--sf);color:var(--fg);font-weight:650;min-height:2.75rem;padding:.5rem 1.25rem;cursor:pointer}
-#setupSkip{display:block;margin:.45rem auto 0}
+#setupSkip,.setupBack{display:block;margin:.45rem auto 0}
 #setupSearchAgain{display:block;margin-left:auto}
 .setupPassRow{display:flex;align-items:baseline;gap:.5rem}
 .setupPassRow label{flex:1}

@@ -558,8 +558,9 @@ if (generated.jsGzip.length > 7330) {
 // The shot card header with a large faint metric glyph measures 14322 bytes;
 // owner-authorized 2026-10-16.
 // SoftAP onboarding P1 (/setup address rows, disabled Connect, Search again) measures 14479 bytes; owner-requested 2026-10-18.
-if (generated.cssGzip.length > 14480) {
-  throw new Error(`Compressed Web CSS exceeds the 14480-byte gzip budget (${generated.cssGzip.length})`);
+// Onboarding brewing steps (mode and recipe choice cards, summary rows) measure 14621 bytes; owner-requested 2026-10-18.
+if (generated.cssGzip.length > 14621) {
+  throw new Error(`Compressed Web CSS exceeds the 14621-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -727,7 +728,8 @@ if (generated.otaImageGzip.length > 3072) {
 // Gzip wobble from the Home hero corridor chart (admin.js unchanged) measures 14229; owner-requested 2026-10-18.
 // SoftAP onboarding P1 (status-driven steps, blocked notice, copyable addresses) measures setup.js at 4216; owner-requested 2026-10-18.
 // Hiding cleared Diagnostic data until the device confirms it measures 13743; owner-authorized 2026-10-18.
-const viewModuleBudgets = {records: 13500, diagnostic: 13750, admin: 14229, settings: 14150, setup: 4250};
+// Onboarding brewing steps (welcome, starting recipe with dose, yield and Recommended tags, summary with Change, their copy) measure setup.js at 5788; owner-requested 2026-10-18.
+const viewModuleBudgets = {records: 13500, diagnostic: 13750, admin: 14229, settings: 14150, setup: 5788};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -890,8 +892,9 @@ if (generated.icon48Raw.length > 3500) {
 const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
     generated.jsGzip.length + generated.runtimeGzip.length;
 // The gradual forecast hero tint brings the cold Home download to 64613 gzip bytes with the window-mode fast alert restored; owner-authorized 2026-10-17.
-if (coldHomeGzip > 64778) {
-  throw new Error(`Cold Home download exceeds the 64778-byte gzip budget (${coldHomeGzip})`);
+// The onboarding choice-card and summary styles in the shared stylesheet bring it to 64906; owner-requested 2026-10-18.
+if (coldHomeGzip > 64906) {
+  throw new Error(`Cold Home download exceeds the 64906-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

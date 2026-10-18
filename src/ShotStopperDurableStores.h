@@ -101,8 +101,8 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
   if (!resetBleScanSettings(ble)) {
     return false;
   }
-  // Factory reset also restores full firmware mode: the master switch must
-  // never survive the one recovery path that is always reachable.
+  // Factory reset clears the master switch too, so the controller comes back
+  // transparent (compatibility mode) and offers onboarding again.
 #if !defined(SHOT_STOPPER_HOST_TEST) ||                                      \
     defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
   if (!clearFirmwareMode()) {

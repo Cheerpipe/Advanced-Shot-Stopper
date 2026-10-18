@@ -194,9 +194,9 @@ the network. See
 ### The web interface only shows the Admin page
 
 The [firmware mode](settings/firmware-mode.md) switch is off: the controller
-is running as a transparent pass-through and every other tab is hidden. Unlock
-Admin with the device password, open **Firmware**, and turn **Enable Shot
-Stopper** back on.
+is running as a transparent pass-through and every other tab is hidden. This is
+how a new or factory-reset controller starts. Unlock Admin with the device
+password, open **Firmware**, and turn **Enable Open Brew by Weight** on.
 
 ## Hardware and compatibility
 

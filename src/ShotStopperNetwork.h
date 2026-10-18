@@ -127,6 +127,9 @@ struct NetworkStatusSnapshot {
   uint32_t startupFailures = 0;
   // Onboarding phase; the network task is the only writer.
   SetupPhase setupPhase = SetupPhase::NONE;
+  // Uncommitted onboarding brewing choice; cleared when the SoftAP stops.
+  SetupBrew setupBrew = SetupBrew::NONE;
+  uint8_t setupPresetId = 0;
   uint32_t lastCommandRequestId = 0;
   CommandResultState lastCommandState = CommandResultState::NONE;
   bool httpActive = false;
@@ -589,9 +592,16 @@ class ShotStopperNetwork {
   // OS closes its captive window as "logged in" and keeps the SoftAP link.
   // Set from the httpd task; a fresh captive DNS session resets it.
   std::atomic<bool> portalExitRequested_{false};
+  // A committed onboarding switch to full mode restarts the controller once
+  // the setup SoftAP stops.
+  std::atomic<bool> setupRestartPending_{false};
+  bool commitSetupBrew();
+  bool keepSetupBrew(SetupBrew brew, uint8_t presetId, bool commit);
+  void requestSetupRestart();
   void clearSoftApIdleState();
   void armSoftApIdleDeadline(uint32_t now);
-  void serviceSoftApIdle(uint32_t now, bool apActive, uint8_t clients);
+  void serviceSoftApIdle(uint32_t now, bool apActive, uint8_t clients,
+                         bool activatorOn);
   bool wifiScanInProgress();
   void abortWifiScan(uint32_t now, bool logTimeout);
   void stopNetwork();

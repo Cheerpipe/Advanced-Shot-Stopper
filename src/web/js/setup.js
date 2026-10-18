@@ -26,8 +26,10 @@ const POLL_MS = 1000,
 const PROBE_URL = /Android/i.test(navigator.userAgent)
   ? "http://connectivitycheck.gstatic.com/generate_204"
   : "http://captive.apple.com/hotspot-detect.html";
-const STATES = ["scanning", "form", "connecting", "success", "skipped", "locked"];
+const STATES = ["mode", "recipe", "scanning", "form", "connecting", "success", "skipped", "locked"];
 const HEADINGS = {
+  mode: [__WEBUI_TEXT__("setup.welcome_title"), __WEBUI_TEXT__("setup.welcome_intro")],
+  recipe: [__WEBUI_TEXT__("setup.recipe_title"), __WEBUI_TEXT__("setup.recipe_intro")],
   form: [__WEBUI_TEXT__("setup.title"), __WEBUI_TEXT__("setup.intro")],
   error: [__WEBUI_TEXT__("setup.title_error"), ""],
   connecting: [__WEBUI_TEXT__("setup.title_connecting"), ""],
@@ -55,15 +57,29 @@ let bound = false,
   waitStartedAt = 0,
   sawAttempt = false,
   savedWifiSleep = true,
-  deviceHost = "";
+  deviceHost = "",
+  // Firmware off: onboarding also asks how to brew (draft kept by the device).
+  compat = false,
+  brewRestored = false,
+  lastBrew = "none",
+  apSsid = "",
+  wifiDone = "";
 
 const formLike = (name) => name === "form" || name === "scanning";
 const polling = () => formLike(state) || state === "connecting";
+const byWeight = () => document.querySelector("input[name=setupMode]:checked").value === "weight";
+const recipeInput = () => document.querySelector("input[name=setupRecipe]:checked");
+const brewPayload = () =>
+  !compat ? {} : byWeight() ? { brewByWeight: true, presetId: Number(recipeInput().value) } : { brewByWeight: false };
 
 function show(name) {
   state = name;
   for (const key of STATES) $("setup" + key[0].toUpperCase() + key.slice(1)).hidden = key !== name;
-  const [title, intro] = HEADINGS[formLike(name) ? (connectError ? "error" : "form") : name];
+  let [title, intro] = HEADINGS[formLike(name) ? (connectError ? "error" : "form") : name];
+  if (compat && name === "success") title = __WEBUI_TEXT__("setup.title_all_set");
+  if (compat && formLike(name) && !connectError)
+    intro = byWeight() ? __WEBUI_TEXT__("setup.wifi_intro_weight") : __WEBUI_TEXT__("setup.wifi_intro_usual");
+  $("setupFormBack").hidden = !compat;
   $("setupTitle").textContent = title;
   $("setupIntro").textContent = intro;
   $("setupIntro").hidden = !intro;
@@ -221,6 +237,10 @@ async function pollStatus() {
 function applyStatus(s) {
   if (s.adminUnlocked === false) return show("locked");
   const n = s.network || {};
+  compat = s.compatibilityMode === true;
+  lastBrew = n.setupBrew || "none";
+  apSsid = n.apSsid || "";
+  if (compat && !brewRestored) restoreBrew(n);
   if (typeof n.wifiSleep === "boolean") savedWifiSleep = n.wifiSleep;
   deviceHost = n.mdnsHost || n.deviceName || "";
   lastPhase = n.setup || "";
@@ -242,6 +262,25 @@ function applyStatus(s) {
         : __WEBUI_TEXT__("setup.error_could_not_connect"),
       true,
     );
+}
+
+// A reload or second phone picks up the choice already sent to the device.
+function restoreBrew(n) {
+  brewRestored = true;
+  if (lastBrew !== "usual" && lastBrew !== "weight") return;
+  document.querySelector(`input[name=setupMode][value=${lastBrew}]`).checked = true;
+  const recipe = document.querySelector(`input[name=setupRecipe][value="${n.setupPresetId}"]`);
+  if (recipe) recipe.checked = true;
+}
+
+// After the brewing steps: back to the summary once Wi-Fi is settled, else on
+// to the Wi-Fi step (reusing the last scan when there is one).
+function afterBrewChoice() {
+  if (wifiDone) return showSummary();
+  if (!lastNetworks) return startScan();
+  renderPicker(lastNetworks);
+  show("form");
+  kick();
 }
 
 function updateConnectingCountdown() {
@@ -283,6 +322,7 @@ function payloadFromForm() {
     wifiSleep: savedWifiSleep,
     ipMode: "dhcp",
     apply: "live",
+    ...brewPayload(),
   };
 }
 
@@ -337,6 +377,7 @@ function showSuccess(n) {
     name = n.mdnsHost || n.deviceName || "",
     links = $("setupSuccessLinks");
   $("setupSuccessText").textContent = __WEBUI_TEXT__("setup.success_text").replace("{x}", ssid);
+  $("setupSuccessText").dataset.ssid = ssid;
   $("setupNextStep").textContent = __WEBUI_TEXT__("setup.next_step").replace("{x}", ssid);
   links.replaceChildren();
   for (const url of [name && "http://" + name + ".local", n.staIp && "http://" + n.staIp]) {
@@ -353,6 +394,39 @@ function showSuccess(n) {
     row.append(text, copy);
     links.appendChild(row);
   }
+  wifiDone = "joined";
+  showSummary();
+}
+
+// Firmware off: success and "Continue without Wi-Fi" end on one summary with
+// Change links; Finish sends the final choice.
+function showSummary() {
+  const joined = wifiDone === "joined",
+    weight = compat && byWeight();
+  $("setupSummary").hidden = !compat;
+  $("setupSumMode").textContent = weight
+    ? __WEBUI_TEXT__("setup.brewing_weight")
+    : __WEBUI_TEXT__("setup.brewing_usual");
+  $("setupSumRecipeRow").hidden = !weight;
+  $("setupSumRecipe").textContent = recipeInput().closest("label").querySelector("b").textContent;
+  $("setupSumWifi").textContent = joined ? $("setupSuccessText").dataset.ssid : __WEBUI_TEXT__("setup.wifi_none");
+  $("setupRestartNote").hidden = !weight;
+  const later = !compat
+    ? ""
+    : weight
+      ? joined ? "" : __WEBUI_TEXT__("setup.note_weight_no_wifi")
+      : joined
+        ? __WEBUI_TEXT__("setup.note_usual_wifi")
+        : __WEBUI_TEXT__("setup.note_usual_no_wifi").replace("{x}", apSsid);
+  $("setupLaterNote").textContent = later;
+  $("setupLaterNote").hidden = !later;
+  for (const id of ["setupSuccessText", "setupNextStep", "setupSuccessLinks", "setupCloseHint"])
+    $(id).hidden = !joined;
+  $("setupFinish").textContent = !compat
+    ? __WEBUI_TEXT__("setup.done")
+    : weight
+      ? __WEBUI_TEXT__("setup.finish_restart")
+      : __WEBUI_TEXT__("setup.finish");
   show("success");
 }
 
@@ -367,7 +441,7 @@ async function finishSetup() {
   try {
     const d = await R.api("/api/v1/network", {
       method: "POST",
-      body: R.body({ action: "finish" }),
+      body: R.body({ action: "finish", ...brewPayload() }),
     });
     finished = d.finished === true;
   } catch (e) {
@@ -382,7 +456,7 @@ async function skipSetup() {
   try {
     await R.api("/api/v1/network", {
       method: "POST",
-      body: R.body({ action: "skip" }),
+      body: R.body({ action: "skip", ...brewPayload() }),
     });
   } catch (e) {
     if (e && e.code === "ADMIN_LOCKED") return show("locked");
@@ -390,7 +464,9 @@ async function skipSetup() {
     return;
   }
   $("setupSkipDone").href = PROBE_URL;
-  show("skipped");
+  if (!compat) return show("skipped");
+  wifiDone = "skipped";
+  showSummary();
 }
 
 // One live poll chain at a time: stop() bumps the token so a pending tick
@@ -431,6 +507,7 @@ async function resume() {
   show("scanning");
   await pollStatus();
   if (state !== "scanning") return;
+  if (compat && lastBrew === "none" && lastPhase === "none") return show("mode");
   if (lastPhase === "failed") showError(__WEBUI_TEXT__("setup.error_could_not_connect"), true);
   await startScan(lastPhase === "failed");
 }
@@ -442,6 +519,12 @@ function bind() {
   };
   $("setupSkip").onclick = skipSetup;
   $("setupFinish").onclick = finishSetup;
+  $("setupModeNext").onclick = () => (byWeight() ? show("recipe") : afterBrewChoice());
+  $("setupRecipeNext").onclick = afterBrewChoice;
+  $("setupRecipeBack").onclick = () => show("mode");
+  $("setupFormBack").onclick = () => show(byWeight() ? "recipe" : "mode");
+  $("setupChangeMode").onclick = () => show("mode");
+  $("setupChangeRecipe").onclick = () => show("recipe");
   $("setupHiddenToggle").onchange = () => {
     const manual = $("setupHiddenToggle").checked;
     $("setupManualSsid").hidden = !manual;

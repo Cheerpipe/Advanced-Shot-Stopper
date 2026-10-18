@@ -18,14 +18,15 @@ authorized Web UI setup can detect a zone again.
 On Linea Micra firmware it also erases
 the cloud account credentials, installation key, selected machine, and session.
 Presets return to the five factory presets (Double · Adaptive, Single · Adaptive,
-Double · Fixed, Single · Fixed and Manual) with Double · Adaptive active. Its three
+Double · Fixed, Single · Fixed and Manual) with Manual active. Its three
 integration options return to ON, and factory preset boiler targets return to
 93.0 °C. ESP32 power management, Wi-Fi sleep, and the BLE scan mode return to
 their factory values: ESP32 power management on, Wi-Fi sleep on, and Balanced
 scan mode. The machine-aware scale search options return to off. The device
 password returns to **`ineedacoffee`** and the device name to
-**`openbrewbyweight`**. A disabled [firmware mode](firmware-mode.md) is
-turned back on. The device then restarts.
+**`openbrewbyweight`**. The [firmware mode](firmware-mode.md) switch is
+left off, so the machine works as usual until you choose how to brew on the
+setup page or in Admin. The device then restarts.
 
 ## Ways to run it
 

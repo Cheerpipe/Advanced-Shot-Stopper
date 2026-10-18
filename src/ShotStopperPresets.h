@@ -46,7 +46,7 @@ inline void fillDoubleFirmwareDefaults(ShotPreset &preset) {
 inline void seedDefaultShotPresetBank(ShotPresetBank &bank) {
   bank = ShotPresetBank{};
   bank.count = FACTORY_PRESET_COUNT + 1;
-  bank.activeId = FACTORY_PRESET_ID_DOUBLE_ADAPTIVE;
+  bank.activeId = FACTORY_PRESET_ID_MANUAL;
   bank.nextId = FACTORY_PRESET_COUNT + 1;
   for (uint8_t i = 0; i < FACTORY_PRESET_COUNT; ++i)
     fillFactoryShotPreset(bank.presets[i], static_cast<uint8_t>(i + 1));

@@ -13,13 +13,16 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
   command.unsafeWebUiOverride = self.webUiOverrideAllowed(request);
   static const char *const forgetFields[] = {"action"};
   static const char *const confirmFields[] = {"action"};
-  static const char *const skipFields[] = {"action"};
-  static const char *const finishFields[] = {"action"};
+  static const char *const skipFields[] = {"action", "brewByWeight", "presetId"};
+  static const char *const finishFields[] = {"action", "brewByWeight", "presetId"};
   static const char *const saveFields[] = {
       "action", "ssid",     "password", "open",  "wifiSleep", "ipMode",
       "ip",     "netmask",  "gateway",  "dns1",  "dns2",      "name",
-      "apply"};
+      "apply",  "brewByWeight", "presetId"};
   const char *networkError = nullptr;
+  SetupBrew brew = SetupBrew::NONE;
+  uint8_t brewPresetId = 0;
+  bool brewSaveFailed = false;
   bool parsed = root != nullptr &&
                 jsonString(root, "action", action, sizeof(action), false);
   if (parsed && strcmp(action, "confirm") != 0 && strcmp(action, "skip") != 0 &&
@@ -33,7 +36,10 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
       return ESP_OK;
     }
   }
-  if (parsed && strcmp(action, "confirm") == 0) {
+  if (parsed &&
+      (networkError = parseSetupBrew(root, brew, brewPresetId)) != nullptr) {
+    parsed = false;
+  } else if (parsed && strcmp(action, "confirm") == 0) {
     parsed = jsonHasOnlyUniqueFields(root, confirmFields, 1);
     if (!parsed) {
       networkError = "Confirm request must include only action=\"confirm\".";
@@ -61,13 +67,16 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
     // Setup-context action (SoftAP peer, same trust as confirm): arm the
     // portal-exit probe answers so the OS captive window closes as "logged
     // in" while the association — and /setup at 192.168.4.1 — stay up.
-    parsed = jsonHasOnlyUniqueFields(root, skipFields, 1);
+    parsed = jsonHasOnlyUniqueFields(root, skipFields, 3);
     if (!parsed) {
-      networkError = "Skip request must include only action=\"skip\".";
+      networkError = "Skip request accepts only action=\"skip\" and the brewing choice.";
     } else if (!self.snapshot().apActive ||
                !socketServedBySoftAp(httpd_req_to_sockfd(request))) {
       parsed = false;
       networkError = "No setup network to skip.";
+    } else if (!self.keepSetupBrew(brew, brewPresetId, true)) {
+      parsed = false;
+      brewSaveFailed = true;
     } else {
       self.portalExitRequested_.store(true, std::memory_order_release);
       if (root != nullptr) {
@@ -78,29 +87,40 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
     }
   } else if (parsed && strcmp(action, "finish") == 0) {
     // Setup-context action: valid while the joined network is being
-    // confirmed or a teardown grace runs. Arm the portal-exit probe answers,
+    // confirmed or a teardown grace runs, or (firmware off) after "skip"; it
+    // commits the brewing choice. Arm the portal-exit probe answers,
     // then shorten the SoftAP teardown to a short linger so the captive
     // window can fetch its probe-success page before the link drops.
-    parsed = jsonHasOnlyUniqueFields(root, finishFields, 1);
+    parsed = jsonHasOnlyUniqueFields(root, finishFields, 3);
     if (!parsed) {
-      networkError = "Finish request must include only action=\"finish\".";
+      networkError = "Finish request accepts only action=\"finish\" and the brewing choice.";
     } else if (!socketServedBySoftAp(httpd_req_to_sockfd(request))) {
       parsed = false;
       networkError = "No setup network to finish.";
     } else {
       const uint32_t now = millis();
-      bool grace = false;
       self.dataMux_.lock();
-      grace = setupFinishAllowed(self.status_.setupPhase, self.status_.apActive,
-                                 self.status_.apTeardownAtMs, now);
-      if (grace) {
-        self.status_.apTeardownAtMs = now + SOFTAP_FINISH_LINGER_MS;
-      }
+      const bool grace =
+          setupFinishAllowed(self.status_.setupPhase, self.status_.apActive,
+                             self.status_.apTeardownAtMs, now);
+      // After "Continue without Wi-Fi" the onboarding still ends here.
+      const bool skipped = firmwareCompatibilityMode() && self.status_.apActive &&
+                           self.status_.setupPhase == SetupPhase::NONE;
       self.dataMux_.unlock();
-      if (!grace) {
+      if (!grace && !skipped) {
         parsed = false;
         networkError = "No setup network to finish.";
+      } else if (!self.keepSetupBrew(brew, brewPresetId, true)) {
+        parsed = false;
+        brewSaveFailed = true;
       } else {
+        if (grace) {
+          self.dataMux_.lock();
+          self.status_.apTeardownAtMs = now + SOFTAP_FINISH_LINGER_MS;
+          self.dataMux_.unlock();
+        } else if (self.setupRestartPending_.load(std::memory_order_acquire)) {
+          self.requestSetupRestart();
+        }
         self.portalExitRequested_.store(true, std::memory_order_release);
         if (root != nullptr) {
           cJSON_Delete(root);
@@ -151,7 +171,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
         cJSON_GetObjectItemCaseSensitive(root, "dns1") != nullptr;
     const bool hasDns2 =
         cJSON_GetObjectItemCaseSensitive(root, "dns2") != nullptr;
-    if (!jsonHasOnlyUniqueFields(root, saveFields, 13) ||
+    if (!jsonHasOnlyUniqueFields(root, saveFields, 15) ||
         !jsonString(root, "ssid", command.network.ssid, sizeof(command.network.ssid), false) ||
         !jsonString(root, "password", command.network.password,
                     sizeof(command.network.password), true) ||
@@ -219,6 +239,10 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
         command.network.applyLive = true;
       }
     }
+    if (parsed && brew != SetupBrew::NONE && !command.network.applyLive) {
+      parsed = false;
+      networkError = "The brewing choice requires a live setup save.";
+    }
     if (parsed) {
       command.network.wifiSleepSpecified = true;
     }
@@ -263,6 +287,10 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
   self.unlockJsonBody();
   if (!parsed) {
     command.wipePassword();
+    if (brewSaveFailed) {
+      return sendError(request, STATUS_UNAVAILABLE, "SETUP_BREW_SAVE_FAILED",
+                       "Could not save the brewing choice.");
+    }
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_NETWORK",
                      networkError != nullptr
                          ? networkError
@@ -274,6 +302,7 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
                      "Nothing was saved.");
   }
   command.wipePassword();
+  self.keepSetupBrew(brew, brewPresetId, false);
   return self.sendAccepted(request, command.requestId);
 }
 
@@ -467,89 +496,6 @@ esp_err_t ShotStopperNetwork::bleScanHandler(httpd_req_t *request) {
                      "Scan intensity was not changed.");
   }
   return self.sendAccepted(request, command.requestId);
-}
-
-// Verbose audit hunt session toggle: marked DEBUG codes join the latch for
-// thirty minutes. Needs a synced clock (the deadline is wall-clock based).
-esp_err_t ShotStopperNetwork::auditVerboseHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
-  const esp_err_t bodyStatus =
-      self.lockJsonBody(request, "A JSON request is required.");
-  if (bodyStatus != ESP_OK) {
-    return bodyStatus;
-  }
-  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  bool enabled = false;
-  static const char *const fields[] = {"enabled"};
-  const bool parsed =
-      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
-      jsonBoolean(root, "enabled", enabled);
-  if (root != nullptr) {
-    cJSON_Delete(root);
-  }
-  self.unlockJsonBody();
-  if (!parsed) {
-    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_AUDIT_VERBOSE",
-                     "enabled must be a boolean.");
-  }
-  if (self.callbacks_.setAuditVerbose == nullptr ||
-      !self.callbacks_.setAuditVerbose(enabled)) {
-    return sendError(request, STATUS_CONFLICT, "AUDIT_VERBOSE_UNAVAILABLE",
-                     "The wall clock is not synchronized yet.");
-  }
-  return sendJson(request, STATUS_OK, "{\"accepted\":true}");
-}
-
-esp_err_t ShotStopperNetwork::taskProfilerHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
-  const esp_err_t bodyStatus =
-      self.lockJsonBody(request, "A JSON request is required.");
-  if (bodyStatus != ESP_OK) {
-    return bodyStatus;
-  }
-  cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  bool enabled = false;
-  static const char *const fields[] = {"enabled"};
-  const bool parsed =
-      root != nullptr && jsonHasOnlyUniqueFields(root, fields, 1) &&
-      jsonBoolean(root, "enabled", enabled);
-  if (root != nullptr) {
-    cJSON_Delete(root);
-  }
-  self.unlockJsonBody();
-  if (!parsed) {
-    return sendError(request, STATUS_UNPROCESSABLE, "INVALID_PROFILER_CONFIG",
-                     "enabled must be a boolean.");
-  }
-  WebCommand command;
-  command.type = enabled ? WebCommandType::TASK_PROFILER_START
-                         : WebCommandType::TASK_PROFILER_STOP;
-  command.requestId = self.allocateRequestId();
-  if (!self.callbacks_.enqueueWebCommand(command)) {
-    return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
-                     "Task profiler state was not changed.");
-  }
-  return self.sendAccepted(request, command.requestId);
-}
-
-esp_err_t ShotStopperNetwork::loopMaxResetHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
-  if (self.callbacks_.requestLoopMaxReset == nullptr) {
-    return sendError(request, STATUS_UNAVAILABLE, "LOOP_TIMING_UNAVAILABLE",
-                     "Loop timing could not be reset.");
-  }
-  self.callbacks_.requestLoopMaxReset();
-  return sendJson(request, STATUS_OK, "{\"reset\":true}");
-}
-
-esp_err_t ShotStopperNetwork::scaleGapMaxResetHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
-  if (self.callbacks_.requestScaleGapMaxReset == nullptr) {
-    return sendError(request, STATUS_UNAVAILABLE, "SCALE_TIMING_UNAVAILABLE",
-                     "Scale gap maximum could not be reset.");
-  }
-  self.callbacks_.requestScaleGapMaxReset();
-  return sendJson(request, STATUS_OK, "{\"reset\":true}");
 }
 
 esp_err_t ShotStopperNetwork::scaleProfileHandler(httpd_req_t *request) {
