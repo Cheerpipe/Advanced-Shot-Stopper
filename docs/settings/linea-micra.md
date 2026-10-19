@@ -294,8 +294,10 @@ who can view diagnostics. The panel also shows the most recently completed
 cloud call: its start date and time in UTC, API name and HTTP method, result,
 HTTP status when available, and duration in milliseconds. Duration helps spot
 slow cloud connections. Before the first call, the panel reads **None yet**.
-WebSocket connection state, retry time, message/power/pong ages, payload receive
-and transmit rates, totals, errors and stop latency appear separately.
+WebSocket connection state appears separately, including whether the live
+connection is receiving updates, parked with the connection kept open, or
+closed, along with retry time, message/power/pong ages, payload receive and
+transmit rates, totals, errors and stop latency.
 Two counters distinguish **Planned connections** from **Unexpected
 reconnections**. Planned connections include the normal initial
 connection and resumes after maintenance or firmware updates, account or monitoring changes, and routine

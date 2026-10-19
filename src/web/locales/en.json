@@ -451,6 +451,7 @@
     "diagnostic.weight": "Weight",
     "diagnostic.weight_updates": "Weight updates",
     "diagnostic.wifi": "WiFi",
+    "diagnostic.ws_links": "live|parked, socket open|closed",
     "history.activation_history": "Activation history",
     "history.clear": "Clear",
     "history.close": "×",

@@ -48,13 +48,15 @@ function renderMicraCloudDiagnostic(lm) {
 function renderMicraWebSocket(lm, set) {
   const ws = lm.websocket || {},
     unknown = __WEBUI_TEXT__("runtime.unknown"),
-    api = lm.connectionType === "api";
+    api = lm.connectionType === "api",
+    link = api ? 0 : ws.subscribed ? 1 : ws.parked ? 2 : ws.state === "paused" ? 3 : 0;
   const age = (value) =>
     value && ws.nowMs != null ? (((ws.nowMs - value) >>> 0) / 1000).toFixed(1) + " s" : unknown;
   set(
     "WsState",
     (api ? "API" : (ws.state || unknown).replace(/_/g, " ")) +
-      (ws.reason && ws.reason !== "none" ? " · " + ws.reason.replace(/_/g, " ") : ""),
+      (ws.reason && ws.reason !== "none" ? " · " + ws.reason.replace(/_/g, " ") : "") +
+      (link ? " · " + __WEBUI_TEXT__("diagnostic.ws_links").split("|")[link - 1] : ""),
   );
   set(
     "WsTiming",

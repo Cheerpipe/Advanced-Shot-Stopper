@@ -155,7 +155,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
     assert(micraDiagnosticHtml.includes(`id="${id}"`), `machine section row missing: ${id}`);
   }
   const labels = {'diagnostic.cloud_titles': 'Email|Machine|Time|API|Result|Duration|Connection|Traffic|Planned|Unexpected|Cleaning',
-    'diagnostic.cleaning_states': 'Inactive|Waiting for paddle|Cleaning'};
+    'diagnostic.cleaning_states': 'Inactive|Waiting for paddle|Cleaning', 'diagnostic.ws_links': 'live|parked|closed'};
   const domContext = vm.createContext({$: id => dom[id], document: {createElement: element},
     __WEBUI_TEXT__: key => labels[key] || key, R: {formatWallTimeLocal: String}});
   const cleaningSource = rawRuntimeJs.slice(rawRuntimeJs.indexOf('export function formatMicraCleaning('),
@@ -176,6 +176,12 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert(dom.dMicraCleaningHint.textContent.includes('2.0 s'));
   assert(!dom.dMicraCleaningHint.textContent.includes('diagnostic.stale'));
   assert(dom.dMicraWsTraffic.textContent.includes('RX 20 B/s · 100 B/60s · 120 B'));
+  show({...linked, websocket: {...socket, subscribed: true}});
+  assert.strictEqual(dom.dMicraWsState.textContent, 'streaming · live');
+  show({...linked, websocket: {...socket, state: 'paused', reason: 'shot', parked: true}});
+  assert.strictEqual(dom.dMicraWsState.textContent, 'paused · shot · parked');
+  show({...linked, websocket: {...socket, state: 'paused', reason: 'maintenance'}});
+  assert.strictEqual(dom.dMicraWsState.textContent, 'paused · maintenance · closed');
   show({...linked, websocket: {...socket, state: 'paused', cleaning: 'unknown', cleaningLabel: '<b>Future</b>'}});
   assert.strictEqual(dom.dMicraCleaning.textContent, 'runtime.unknown_4 · <b>Future</b>');
   assert(dom.dMicraCleaningHint.textContent.includes('diagnostic.stale'));

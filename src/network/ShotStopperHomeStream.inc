@@ -816,10 +816,10 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
                       static_cast<unsigned long>(now / 1000 * 1000));
       telemetry.field("lineaMicra.websocket.state", "\"%s\"", micraSocketStateName(ws.state));
       telemetry.field("lineaMicra.websocket.reason", "\"%s\"", safeReason);
-      telemetry.field("lineaMicra.websocket.machineConnectedKnown",
-                      bool(ws.machineConnectedKnown));
-      telemetry.field("lineaMicra.websocket.machineConnected",
-                      bool(ws.machineConnected));
+      telemetry.field("lineaMicra.websocket.subscribed", bool(ws.subscribed));
+      telemetry.field("lineaMicra.websocket.parked", bool(ws.parked));
+      telemetry.field("lineaMicra.websocket.machineConnectedKnown", bool(ws.machineConnectedKnown));
+      telemetry.field("lineaMicra.websocket.machineConnected", bool(ws.machineConnected));
       telemetry.field("lineaMicra.websocket.messageAtMs", "%u",
                       static_cast<unsigned>(ws.messageAtMs));
       telemetry.field("lineaMicra.websocket.powerAtMs", "%u",
