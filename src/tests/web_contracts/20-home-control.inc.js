@@ -419,6 +419,8 @@
       !streamSource.includes('kUiStreamLiveMs = 100, kUiStreamIdleMs = 250')||
       !streamSource.includes('controlCriticalRfActive_.load'))
     throw new Error('Bind/resync must share the coalesced publication cadence');
+  if(!streamSource.includes('setsockopt(session.fd, IPPROTO_TCP, TCP_NODELAY, &noDelay, sizeof(noDelay));'))
+    throw new Error('The UI stream socket must send frames without Nagle delay');
   if(!/rule\[256\] = "null";\n  if \(canonical\) \{\n    snprintf\(rule,/.test(streamSource)||
       !streamSource.includes('\\"expectedEndMs\\":%lu,\\"rule\\":%s,"')||
       !streamSource.includes('\\"tintClass\\":\\"%s\\",\\"tintPct\\":%u,\\"tintNote\\":\\"%s\\"}'))

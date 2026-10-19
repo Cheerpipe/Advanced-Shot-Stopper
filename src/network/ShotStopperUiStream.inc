@@ -106,6 +106,10 @@ esp_err_t ShotStopperNetwork::uiStreamHandshake(httpd_req_t *request) {
     // Bound incomplete incoming frames independently of ordinary HTTP/OTA.
     const timeval timeout = {0, 100000};
     setsockopt(session.fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    // A WS frame is two writes (header, payload): without NODELAY, Nagle holds
+    // the payload until the header's ACK, which modem sleep delays.
+    const int noDelay = 1;
+    setsockopt(session.fd, IPPROTO_TCP, TCP_NODELAY, &noDelay, sizeof(noDelay));
     return ESP_OK;
   }
   return ESP_FAIL;
