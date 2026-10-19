@@ -99,7 +99,8 @@ function renderMachineRow(s) {
       waiting_for_steam: __WEBUI_TEXT__("home.waiting_for_steam"),
       needs_water: __WEBUI_TEXT__("home.needs_water"),
     },
-    // No live boiler reading: minutes left while warming, target once ready.
+    // No live boiler reading: minutes left while warming, target once ready;
+    // "ON - Optimistic" is a wake-up the cloud has not confirmed yet.
     mins = warming ? Math.max(minsLeft(lm.boiler?.coffee), minsLeft(lm.boiler?.steam)) : 0,
     target = rdy && micraActive ? Math.round((lm.boiler?.coffee?.targetDeciC || 0) / 10) : 0;
   rs.textContent = off
@@ -115,7 +116,7 @@ function renderMachineRow(s) {
       : target > 0
         ? [target + "°C", __WEBUI_TEXT__("home.brew_temperature")]
         : micraActive
-          ? ["—", off ? __WEBUI_TEXT__("home.turn_on_to_brew") : needsWater ? __WEBUI_TEXT__("home.refill_tank") : ""]
+          ? ["—", off ? __WEBUI_TEXT__("home.turn_on_to_brew") : needsWater ? __WEBUI_TEXT__("home.refill_tank") : power.startsWith("ON ") ? __WEBUI_TEXT__("home.starting_up") : ""]
           : ["", ""]),
   );
   row.classList.toggle("lampWarn", warming);

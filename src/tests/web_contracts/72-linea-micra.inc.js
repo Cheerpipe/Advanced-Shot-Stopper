@@ -96,6 +96,10 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert.deepStrictEqual([rowSlots.machineRowValue.textContent, rowSlots.machineRowHint.textContent], ['—', 'Turn on to brew']);
   context.applyStatus(boilers('needs_water', {state: 'no_water'}));
   assert.deepStrictEqual([rowSlots.machineRowValue.textContent, rowSlots.machineRowHint.textContent], ['—', 'Refill the tank']);
+  context.applyStatus({...warming, lineaMicra: {...warming.lineaMicra, powerState: 'OFF', quality: 'optimistic', optimisticOn: true, readiness: 'unknown'}});
+  assert.deepStrictEqual([rowState.textContent, rowSlots.machineRowValue.textContent, rowSlots.machineRowHint.textContent], ['On', '—', 'Starting up']);
+  context.applyStatus(boilers('unknown', {state: 'standby'}));
+  assert.deepStrictEqual([rowSlots.machineRowValue.textContent, rowSlots.machineRowHint.textContent], ['—', '']);
   // Without the integration there is never a reading, so no dash either.
   context.applyStatus({lineaMicra: {powerState: 'OFF', quality: 'current'}, state: 'READY'});
   assert.strictEqual(rowSlots.machineRowValue.textContent, '');
