@@ -302,20 +302,16 @@
       lookup('shotHeroMode').hidden||lookup('shotHeroMode').textContent!=='No scale')
     throw new Error('A shot started without a scale must turn the hero into a timer');
   if(!lookup('shotHeroFlow').hidden)throw new Error('A shot without a scale must not show a flow');
-  // Flow: always the chart's window while brewing, even when the scale reports
-  // its own; finished shows the average.
+  // Flow: the chart's window while brewing; finished shows the average.
   const flowText=d=>(paint(d),lookup('shotHeroFlow').hidden?null:lookup('shotHeroFlow').textContent);
   const brewing={...card,weight:20,elapsedMs:20000,firstDropMs:6000,wAtMs:[0,500,1000,1500,2000]};
   env.model={segs:[],flowCurve:[null,1.2,null,1.48,null]};
-  if(flowText({...brewing,scaleFlowGps:1.63})!=='1.5 g/s'||flowText({...brewing,scaleFlowGps:null})!=='1.5 g/s'||
-      flowText(brewing)!=='1.5 g/s'||
-      flowText({...brewing,wAtMs:[0,500,1000,1500,2600],scaleFlowGps:1.63})!==null||
-      flowText({...brewing,touchHold:true,scaleFlowGps:1.63})!==null||flowText({...brewing,touchHold:true})!==null||
-      flowText({...brewing,firstDropMs:null,scaleFlowGps:1})!==null||
-      flowText({...brewing,weight:null,scaleFlowGps:1})!==null||
-      flowText({...done,firstDropMs:6000,averageFlowGps:1.43,scaleFlowGps:2})!=='1.4 g/s'||
+  if(flowText(brewing)!=='1.5 g/s'||flowText({...brewing,wAtMs:[0,500,1000,1500,2600]})!==null||
+      flowText({...brewing,touchHold:true})!==null||flowText({...brewing,firstDropMs:null})!==null||
+      flowText({...brewing,weight:null})!==null||
+      flowText({...done,firstDropMs:6000,averageFlowGps:1.43})!=='1.4 g/s'||
       flowText({...done,firstDropMs:6000,averageFlowGps:null})!==null)
-    throw new Error('Home must show the computed flow on every scale, and the average once finished');
+    throw new Error('Home must show the computed flow, and the average once finished');
   env.model={segs:[],flowCurve:[null,1.2,null,-0.4,null]};
   if(flowText(brewing)!=='0.0 g/s')throw new Error('Home must never show a negative flow');
   env.model={segs:[],flowCurve:[null,1.2,null,1.63,null]};
@@ -364,7 +360,6 @@
     {...snapshot,card:{...snapshot.card,weight:NaN}},
     {...snapshot,card:{...snapshot.card,scaleAvailable:'false'}},
     {...snapshot,card:{...snapshot.card,scaleAvailable:null}},
-    ...[NaN,'1.5',true].map(scaleFlowGps=>({...snapshot,card:{...snapshot.card,scaleFlowGps}})),
     ...[undefined,-1,NaN,Infinity,60001,'0'].map(firstDropMs=>({...snapshot,card:{...snapshot.card,firstDropMs}})),
     ...[-1,NaN,'0'].map(tareMs=>({...snapshot,card:{...snapshot.card,tareMs}}))]){
     if(bad.snapshot)bad.seq=3;
@@ -1007,8 +1002,7 @@ if (!network.includes('callbacks_.copyHomeShot(latest, self.workBuf_->homeCurve)
     !network.includes('\\"presetName\\":\\"%s\\"') ||
     !network.includes('\\"averageFlowGps\\":%s') ||
     !network.includes('card.averageFlowValid && std::isfinite(card.averageFlowGps)') ||
-    !network.includes('\\"scaleFlowGps\\":%s') ||
-    !network.includes('if (control.activeCycle && control.currentFlowRateValid)') ||
+    network.includes('scaleFlowGps') ||
     codeIncludes(ui, 'rateLastShotValue') ||
     codeIncludes(ui, 'controlsMutable&&last&&!live&&ls.shotLogId') ||
     codeIncludes(ui, 'clearLastShotButton')) {

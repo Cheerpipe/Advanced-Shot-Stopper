@@ -504,15 +504,11 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   } else resetShotCurveRecord(curve);
   char preset[sizeof(card.presetName) * 6];
   escapeJsonString(card.presetName, preset, sizeof(preset));
-  char weight[32] = "null", flow[32] = "null", scaleFlow[16] = "null", drop[16] = "null",
-       tare[16] = "null";
+  char weight[32] = "null", flow[32] = "null", drop[16] = "null", tare[16] = "null";
   if (card.weightValid && std::isfinite(card.currentWeightG))
     snprintf(weight, sizeof(weight), "%.2f", static_cast<double>(card.currentWeightG));
   if (card.averageFlowValid && std::isfinite(card.averageFlowGps))
     snprintf(flow, sizeof(flow), "%.2f", static_cast<double>(card.averageFlowGps));
-  // The scale's own flow while brewing, when it reports one; else the UI computes it.
-  if (control.activeCycle && control.currentFlowRateValid)
-    snprintf(scaleFlow, sizeof(scaleFlow), "%.2f", control.currentFlowRateCgS / 100.0);
   const bool canonical = !live && !retained && eligible;
   if (canonical ? latest.firstDropDs != SHOT_LOG_METRIC_MISSING
                 : card.firstDropElapsedMs != 0 || shotCurveEventPresent(curve.firstDrop))
@@ -559,7 +555,7 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
       "\"goal\":%.1f,\"elapsedMs\":%lu,\"firstDropMs\":%s,"
       "\"tareMs\":%s,\"presetName\":\"%s\","
       "\"scaleAvailable\":%s,\"shotType\":\"%s\",\"endReason\":\"%s\",\"averageFlowGps\":%s,"
-      "\"scaleFlowGps\":%s,\"extractionExtended\":%s,\"slowExtractionExtended\":%s,\"touchHold\":%s,"
+      "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,\"touchHold\":%s,"
       "\"verdict\":%s,\"channeling\":%s,\"cutG\":%s,\"scaleLoss\":%s,\"expectedEndMs\":%lu,\"rule\":%s,"
       "\"tintClass\":\"%s\",\"tintPct\":%u,\"tintNote\":\"%s\"}",
       phase, card.valid ? "true" : "false", control.activeCycle ? "true" : "false",
@@ -570,7 +566,7 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
       !live && !retained && eligible ? shotLogStopDetailName(static_cast<ShotLogStopDetail>(latest.stopDetail))
                                   : shotLogStopDetailName(shotLogStopDetailFromEndReason(
                                         card.endReason, card.fastExtractionGuardEnabled, card.extractionExtended)),
-      flow, scaleFlow, card.extractionExtended ? "true" : "false",
+      flow, card.extractionExtended ? "true" : "false",
       card.slowExtractionExtended ? "true" : "false",
       control.activeCycle && control.cycleAccidentalTouchHolding ? "true"
                                                                  : "false",

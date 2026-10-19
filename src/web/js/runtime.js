@@ -3658,7 +3658,6 @@ function uiStreamFrame(e, t) {
       o(n.elapsedMs) &&
       (null === n.weight || Number.isFinite(n.weight)) &&
       (null === n.averageFlowGps || Number.isFinite(n.averageFlowGps)) &&
-      (null == n.scaleFlowGps || Number.isFinite(n.scaleFlowGps)) &&
       (void 0 === n.scaleAvailable || "boolean" == typeof n.scaleAvailable) &&
       [n.firstDropMs, n.tareMs].every((e) => null === e || o(e, 6e4))
     )
