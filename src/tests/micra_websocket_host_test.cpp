@@ -252,6 +252,50 @@ struct MicraWebSocketTest {
     service.stopWebSocket(true);
     delete service.work_;
   }
+  static void renewalDeferredWhileParked() {
+    now = 1000;
+    ShotStopperMicraService service;
+    service.config_.accountConfigured = true;
+    std::strcpy(service.config_.selectedSerial, "synthetic");
+    service.staConnected_.store(true);
+    service.serviceWebSocket();
+    subscribe(service);
+    const auto stopsBefore = stops;
+    const auto initsBefore = initCalls;
+    const auto errorsBefore = service.websocketStatus().errors;
+    // A scaled shot parks the subscription; the token then becomes due.
+    service.shotActive_.store(true);
+    outboundScaleConnected.store(true);
+    service.serviceWebSocket();
+    assert(service.websocketStatus().parked && transmitted.rfind("UNSUBSCRIBE\n", 0) == 0);
+    now += micra_timing::kAccessTokenRefreshAgeMs;
+    deliver(service, "", true, 0xA);  // WS ping keeps the parked socket alive.
+    service.serviceWebSocket();
+    // Renewal waits for the park to end: same socket, no HTTP, no reconnect.
+    assert(stops == stopsBefore && initCalls == initsBefore);
+    assert(service.websocket_->client && service.websocketStatus().parked);
+    assert(micra_timing::accessTokenRefreshDue(now - service.work_->accessTokenIssuedAtMs));
+    // Leaving the park renews through a planned reconnect instead of SUBSCRIBE.
+    service.shotActive_.store(false);
+    outboundScaleConnected.store(false);
+    service.serviceWebSocket();
+    assert(stops == stopsBefore + 1 && initCalls == initsBefore + 1);
+    assert(service.websocket_->client && !service.websocketStatus().parked);
+    assert(service.work_->accessTokenIssuedAtMs == now);
+    assert(std::strcmp(service.websocketStatus().reason, "token_renewal") == 0);
+    assert(service.websocketStatus().errors == errorsBefore);
+    subscribe(service);
+    assert(service.websocketStatus().plannedConnections == 2);
+    assert(service.websocketStatus().unexpectedConnections == 0);
+    // An obsolete observation epoch also reconnects as planned, with its own reason.
+    ++service.observationFence_.epoch;
+    service.serviceWebSocket();
+    assert(stops == stopsBefore + 2);
+    assert(std::strcmp(service.websocketStatus().reason, "obsolete") == 0);
+    assert(service.websocketStatus().errors == errorsBefore);
+    service.stopWebSocket(true);
+    delete service.work_;
+  }
   static void slowHandshakeIsNotAReconnect() {
     now = 1000;
     ShotStopperMicraService service;
@@ -1393,6 +1437,7 @@ int main() {
   shotstopper::MicraWebSocketTest::lifecycleRegressions();
   shotstopper::MicraWebSocketTest::connectionClassification();
   shotstopper::MicraWebSocketTest::slowHandshakeIsNotAReconnect();
+  shotstopper::MicraWebSocketTest::renewalDeferredWhileParked();
   shotstopper::MicraWebSocketTest::initialSynchronization();
   shotstopper::MicraWebSocketTest::backflushContract();
   shotstopper::MicraWebSocketTest::backflushIdlePoll();

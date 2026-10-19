@@ -500,7 +500,8 @@ void ShotStopperMicraService::serviceWebSocket() {
     ++observationFence_.epoch;
     powerState_.hold(published_, true, now);
     if (!renew && !obsolete) ++websocketStatus_.errors;
-    websocketStatus_.reason = auth ? "authentication" : timeout ? "frame_timeout" : "transport";
+    websocketStatus_.reason = auth ? "authentication" : renew ? "token_renewal"
+        : obsolete ? "obsolete" : timeout ? "frame_timeout" : "transport";
     if (!renew && !obsolete) {
       if (auth) ++websocketAuthRecoveries_;
       ++websocket_->attempts;
