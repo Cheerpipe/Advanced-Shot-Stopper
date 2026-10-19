@@ -278,6 +278,8 @@ struct LineaMicraCloudCall {
   uint32_t durationMs = 0;
   int32_t transportStatus = 0;
   int32_t socketErrno = 0;
+  int32_t tlsError = 0;  // Last esp-tls (mbedTLS) code and cert-verify flags.
+  int32_t tlsFlags = 0;
   uint32_t idleMs = 0;  // Since the reused client's previous request ended.
   uint16_t httpStatus = 0;
   bool clientReused = false;

@@ -2542,6 +2542,12 @@ bool ShotStopperMicraService::request(
   work_->lastRequestEndedAtMs = millis();
   if (work_->transportFailure) {
     pendingCloudCall_.socketErrno = esp_http_client_get_errno(work_->client);
+    int tlsError = 0;
+    int tlsFlags = 0;
+    (void)esp_http_client_get_and_clear_last_tls_error(work_->client, &tlsError,
+                                                       &tlsFlags);
+    pendingCloudCall_.tlsError = tlsError;
+    pendingCloudCall_.tlsFlags = tlsFlags;
     // A failed perform typically leaves a dead cached socket; rebuild the
     // session on the next attempt instead of reusing it for all retries.
     esp_http_client_cleanup(work_->client);
@@ -2633,7 +2639,7 @@ void ShotStopperMicraService::releaseIoBuffer(bool responseValid) {
                                 : transient ? LogLevel::WARNING : LogLevel::ERROR,
                          DebugCategory::NETWORK,
                          "Micra id=%lu %s %s %s http=%u raw=%ld ms=%lu "
-                         "reused=%u idle_ms=%lu errno=%ld",
+                         "reused=%u idle_ms=%lu errno=%ld tls=%ld tls_flags=0x%lx",
                          static_cast<unsigned long>(call.startedAtMs),
                          call.method, call.api, call.result,
                          static_cast<unsigned>(call.httpStatus),
@@ -2641,7 +2647,9 @@ void ShotStopperMicraService::releaseIoBuffer(bool responseValid) {
                          static_cast<unsigned long>(call.durationMs),
                          static_cast<unsigned>(call.clientReused),
                          static_cast<unsigned long>(call.idleMs),
-                         static_cast<long>(call.socketErrno));
+                         static_cast<long>(call.socketErrno),
+                         static_cast<long>(call.tlsError),
+                         static_cast<unsigned long>(call.tlsFlags));
   }
   if (io_ == nullptr) return;
   secureWipe(io_->response, sizeof(io_->response));
