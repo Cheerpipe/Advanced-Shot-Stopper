@@ -302,19 +302,20 @@
       lookup('shotHeroMode').hidden||lookup('shotHeroMode').textContent!=='No scale')
     throw new Error('A shot started without a scale must turn the hero into a timer');
   if(!lookup('shotHeroFlow').hidden)throw new Error('A shot without a scale must not show a flow');
-  // Flow: the chart's window while brewing; finished shows the average.
+  // Flow: the mean of the chart's last second while brewing (older samples
+  // drop out); finished shows the average.
   const flowText=d=>(paint(d),lookup('shotHeroFlow').hidden?null:lookup('shotHeroFlow').textContent);
   const brewing={...card,weight:20,elapsedMs:20000,firstDropMs:6000,wAtMs:[0,500,1000,1500,2000]};
-  env.model={segs:[],flowCurve:[null,1.2,null,1.48,null]};
-  if(flowText(brewing)!=='1.5 g/s'||flowText({...brewing,wAtMs:[0,500,1000,1500,2600]})!==null||
+  env.model={segs:[],flowCurve:[0.4,1.2,null,1.48,null]};
+  if(flowText(brewing)!=='1.3 g/s'||flowText({...brewing,wAtMs:[0,500,1000,1500,2600]})!==null||
       flowText({...brewing,touchHold:true})!==null||flowText({...brewing,firstDropMs:null})!==null||
       flowText({...brewing,weight:null})!==null||
       flowText({...done,firstDropMs:6000,averageFlowGps:1.43})!=='1.4 g/s'||
       flowText({...done,firstDropMs:6000,averageFlowGps:null})!==null)
-    throw new Error('Home must show the computed flow, and the average once finished');
-  env.model={segs:[],flowCurve:[null,1.2,null,-0.4,null]};
+    throw new Error('Home must show the computed flow over its last second, and the average once finished');
+  env.model={segs:[],flowCurve:[null,null,null,-0.4,null]};
   if(flowText(brewing)!=='0.0 g/s')throw new Error('Home must never show a negative flow');
-  env.model={segs:[],flowCurve:[null,1.2,null,1.63,null]};
+  env.model={segs:[],flowCurve:[null,null,null,1.63,null]};
   flowText(brewing);
   if(lookup('shotHeroFlow').kids.map(k=>typeof k==='string'?k:k.textContent).join('|')!=='1.6| g/s')
     throw new Error('Home must set the flow unit smaller, like g and s');
@@ -326,7 +327,7 @@
   flowText(brewing);
   flowText({...done,firstDropMs:6000,averageFlowGps:1.43});
   flowText({...done,firstDropMs:6000,averageFlowGps:1.61});
-  if(anims.length!==1||anims[0].o.duration!==100||anims[0].k[1].opacity!==0||fx.textContent!=='1.5 g/s')
+  if(anims.length!==1||anims[0].o.duration!==100||anims[0].k[1].opacity!==0||fx.textContent!=='1.3 g/s')
     throw new Error('Home must hold the live flow while it fades out');
   anims[0].ok();
   flowText({...done,firstDropMs:6000,averageFlowGps:1.61});

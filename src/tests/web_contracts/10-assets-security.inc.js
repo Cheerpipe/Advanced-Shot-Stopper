@@ -875,8 +875,9 @@ if (htmlBytes > 93300) {
 // The Home shot card flow (scale-reported or chart-computed, hidden during touch holds, finished average): +757 bytes (466386), owner-requested 2026-10-19.
 // The Home shot card flow fading from live to its average when the shot finishes: +647 bytes (467033), owner-requested 2026-10-19.
 // The Home shot card flow line and fill with a dashed drip tail: +749 bytes (467782), owner-requested 2026-10-19.
-if (jsBytes > 467782) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 467033)`);
+// The Home shot card live flow averaged over its last second: +64 bytes (467846), owner-requested 2026-10-19.
+if (jsBytes > 467846) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 467846)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.

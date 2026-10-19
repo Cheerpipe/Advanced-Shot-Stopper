@@ -4792,9 +4792,8 @@ function renderShotHero(d) {
     e.textContent = v || "";
   };
   num("Elapsed", (!noScale || est !== null) && ms(el, 1) + __WEBUI_TEXT__("runtime.s_2"));
-  // Live flow is always the chart's own, so Home matches Shots on every scale;
-  // none during a touch hold or once its window is stale. A finished shot
-  // shows its average.
+  // Live flow: the chart's own, averaged over its last second; none during a
+  // touch hold or once stale. A finished shot shows its average.
   const fi = model ? model.flowCurve.findLastIndex(Number.isFinite) : -1,
     flow =
       noScale || drop == null || (d.live && (wt === null || d.touchHold))
@@ -4802,7 +4801,7 @@ function renderShotHero(d) {
         : !d.live
           ? d.averageFlowGps
           : fi >= 0 && d.wAtMs.at(-1) - d.wAtMs[fi] <= 1000
-            ? model.flowCurve[fi]
+            ? model.flowCurve.filter((v, i) => v != null && d.wAtMs[fi] - d.wAtMs[i] <= 1000).reduce((a, v, _, n) => a + v / n.length, 0)
             : null;
   // A finished card fades the live flow into its average.
   const fe = $("shotHeroFlow"),

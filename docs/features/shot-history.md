@@ -87,8 +87,9 @@ Home shows the current activation as it happens. After the machine stops, its
 duration stays fixed while accepted drip readings continue updating the curve.
 The shot card shows the yield with its target, such as **36.2 g / 36 g**, and
 the shot time, such as **30.4 s**. Between them, slightly smaller, is the flow:
-while the shot runs, how fast coffee is landing in the cup right now, such as
-**1.6 g/s**; once it ends, the shot's average flow from the first drop. The
+while the shot runs, how fast coffee has been landing in the cup over the last
+second, such as **1.6 g/s**, so it moves steadily instead of flickering; once
+it ends, the shot's average flow from the first drop. The
 flow appears shortly after the first drop, only for shots made with a scale,
 and steps aside while a hand rests on the scale.
 Below them, a chart draws the shot's weight over time on top of the preset's
