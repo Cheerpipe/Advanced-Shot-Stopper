@@ -4804,7 +4804,10 @@ function renderShotHero(d) {
           : fi >= 0 && d.wAtMs.at(-1) - d.wAtMs[fi] <= 1000
             ? model.flowCurve[fi]
             : null;
-  num("Flow", Number.isFinite(flow) && Math.max(0, flow).toFixed(1) + __WEBUI_TEXT__("runtime.g_s"));
+  // A finished card fades the live flow into its average.
+  const fe = $("shotHeroFlow"),
+    ft = Number.isFinite(flow) && Math.max(0, flow).toFixed(1) + __WEBUI_TEXT__("runtime.g_s");
+  heroFadeSwap(fe, () => num("Flow", ft), !d.live && ft !== (!fe.hidden && fe.textContent));
   chip("Touch", !noScale && d.live && d.touchHold && __WEBUI_TEXT__("home.hero_touch_hold"));
   // Pills say how the cut line ended the shot when not at the target.
   const kind = d.live ? "" : /wall_limit$/.test(d.endReason) ? "max_time" : d.verdict || "",
@@ -4870,6 +4873,19 @@ function renderShotHero(d) {
           : __WEBUI_TEXT__("home.hero_last_shot"),
   );
   renderHeroChart($("shotHeroSpark"), model, !noScale && m && m.mode === "active" ? m : null, goal, label);
+}
+// Hero numbers swap with a quick fade; a value arriving mid-fade replaces the pending one.
+function heroFadeSwap(e, set, fade) {
+  if (e.fade) return void (e.fade.set = set);
+  if (!fade || !e.animate || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return set();
+  const out = e.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 100, fill: "forwards" });
+  e.fade = { set };
+  out.finished.then(() => {
+    e.fade.set();
+    e.fade = null;
+    e.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 100 });
+    out.cancel();
+  }, () => (e.fade = null));
 }
 // Hero colour. In forecast mode the firmware's shot predictor owns the live
 // colour class and blend percent (tintClass/tintPct on the card); window and

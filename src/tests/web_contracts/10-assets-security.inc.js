@@ -873,8 +873,9 @@ if (htmlBytes > 93300) {
 // The Diagnostic Micra WebSocket live/parked/closed link label: +174 bytes (465517), owner-requested 2026-10-18.
 // The Home Micra machine row Starting up note: +112 bytes (465629), owner-requested 2026-10-18.
 // The Home shot card flow (scale-reported or chart-computed, hidden during touch holds, finished average): +757 bytes (466386), owner-requested 2026-10-19.
-if (jsBytes > 466386) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 466386)`);
+// The Home shot card flow fading from live to its average when the shot finishes: +647 bytes (467033), owner-requested 2026-10-19.
+if (jsBytes > 467033) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 467033)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -998,8 +999,9 @@ if (jsBytes > 466386) {
 // The Micra machine row dash with Turn on to brew / Refill the tank notes: 557554, owner-requested 2026-10-18.
 // The Home Micra machine row Starting up note: 557667, owner-requested 2026-10-18.
 // The Home shot card flow (scale-reported or chart-computed, hidden during touch holds, finished average): 558473, owner-requested 2026-10-19.
-if (htmlBytes + jsBytes > 558473) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 558473)`);
+// The Home shot card flow fading from live to its average when the shot finishes: 559120, owner-requested 2026-10-19.
+if (htmlBytes + jsBytes > 559120) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 559120)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

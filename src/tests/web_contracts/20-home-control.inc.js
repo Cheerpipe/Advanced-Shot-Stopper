@@ -206,15 +206,15 @@
   };
   let tintMode=null;
   const rule={mode:'active',t1:27,t2:36,prot:3,wall:60,d:5,ceil:38.5};
-  const env={liveRuleModel:null,model:null},ruleArgs=[];
+  const env={liveRuleModel:null,model:null,reduce:false},ruleArgs=[];
   const paint=(d)=>new Function('$','buildShotSparkModel','formatShotEnded','ms','localStorage','document',
-    'liveRuleModel','uiState','shotRuleModel','scheduleShotPaint','sub','d',
+    'liveRuleModel','uiState','shotRuleModel','scheduleShotPaint','sub','window','d',
     blockAt(runtimeJs,'function verdictLabel(')+
     runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function checkFirmwareReload('))+
     ';return renderShotHero(d);')(lookup,()=>env.model,()=>'',
       (v,n)=>(v/1000).toFixed(n),{getItem:()=>tintMode,setItem(){}},{createElement:()=>({})},
       env.liveRuleModel,{shotHistory:{shots:[]}},r=>(ruleArgs.push(r),null),()=>null,
-      (t,vals)=>t.replace(/\{(\d)\}/g,(_,i)=>vals[+i]),d);
+      (t,vals)=>t.replace(/\{(\d)\}/g,(_,i)=>vals[+i]),{matchMedia:()=>({matches:env.reduce})},d);
   const card={live:true,weight:2,goal:36,elapsedMs:1000,firstDropMs:0,tareMs:null,averageFlowGps:null,shotType:'auto'};
   const heroEl=()=>lookup('shotHero');
   paint({...card,weight:36.2,elapsedMs:36800});
@@ -318,6 +318,26 @@
   flowText(brewing);
   if(lookup('shotHeroFlow').kids.map(k=>typeof k==='string'?k:k.textContent).join('|')!=='1.6| g/s')
     throw new Error('Home must set the flow unit smaller, like g and s');
+  // Finishing fades the live flow out and the average in, 100 ms each; values
+  // arriving mid-fade replace the pending one.
+  const fx=lookup('shotHeroFlow'),anims=[];
+  fx.animate=(k,o)=>{const a={k,o,cancel(){a.cancelled=true},finished:{then:ok=>(a.ok=ok)}};anims.push(a);return a;};
+  env.model={segs:[],flowCurve:[null,1.2,null,1.48,null]};
+  flowText(brewing);
+  flowText({...done,firstDropMs:6000,averageFlowGps:1.43});
+  flowText({...done,firstDropMs:6000,averageFlowGps:1.61});
+  if(anims.length!==1||anims[0].o.duration!==100||anims[0].k[1].opacity!==0||fx.textContent!=='1.5 g/s')
+    throw new Error('Home must hold the live flow while it fades out');
+  anims[0].ok();
+  flowText({...done,firstDropMs:6000,averageFlowGps:1.61});
+  if(fx.textContent!=='1.6 g/s'||anims.length!==2||anims[1].o.duration!==100||anims[1].k[1].opacity!==1||
+      !anims[0].cancelled)
+    throw new Error('Home must fade the newest average in once the live flow is gone');
+  env.reduce=true;
+  flowText({...done,firstDropMs:6000,averageFlowGps:1.82});
+  if(fx.textContent!=='1.8 g/s'||anims.length!==2)throw new Error('Reduced motion must swap the flow at once');
+  env.reduce=false;
+  delete fx.animate;
   env.model=null;
   if(flowText(brewing)!==null)throw new Error('Without a flow sample Home must hide the flow');
   paint({...card,scaleAvailable:true});
