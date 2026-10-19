@@ -711,7 +711,8 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
   throw new Error('Linea Micra UI must implement account connection, selection, and quality-only freshness expiry');
 }
 if (micraService.includes('keep_alive_enable = true') ||
-    micraService.includes('esp_http_client_close(work_->client)') ||
+    (micraService.match(/esp_http_client_close\(work_->client\)/g) || []).length !== 1 ||
+    !micraService.includes('pendingCloudCall_.idleMs >= micra_timing::kHttpReuseIdleMs') ||
     micraService.includes('char authorization[kTokenCapacity + 8];') ||
     (micraService.match(/"Accept",\s*"application\/json"/g) || []).length !== 1 ||
     (micraService.match(/"User-Agent",\s*\n?\s*"OpenBrewByWeight\/1"/g) || []).length !== 1 ||

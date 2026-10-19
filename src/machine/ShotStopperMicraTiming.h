@@ -47,6 +47,9 @@ inline constexpr uint32_t kPostWakeObservationDelayMs = 15000;
 inline constexpr uint32_t kExhaustedCooldownMs = kOptimisticOverlayMs;
 inline constexpr uint32_t kGateRetryMs = 1000;
 inline constexpr uint32_t kHttpTimeoutMs = 10000;
+// The cloud silently drops keep-alive sockets idle for ~3-5 min (reuse
+// observed fine at 189 s, dead from 309 s); reconnect before that window.
+inline constexpr uint32_t kHttpReuseIdleMs = 180000;
 inline constexpr uint32_t kAccessTokenLifetimeMs = 60U * 60U * 1000U;
 inline constexpr uint32_t kAccessTokenRefreshAgeMs = 50U * 60U * 1000U;
 

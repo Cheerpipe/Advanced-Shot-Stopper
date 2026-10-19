@@ -2363,6 +2363,10 @@ bool ShotStopperMicraService::request(
   if (pendingCloudCall_.clientReused) {
     pendingCloudCall_.idleMs =
         pendingCloudCall_.startedAtMs - work_->lastRequestEndedAtMs;
+    if (pendingCloudCall_.idleMs >= micra_timing::kHttpReuseIdleMs) {
+      (void)esp_http_client_close(work_->client);
+      pendingCloudCall_.clientReused = false;
+    }
   }
   if (work_->client == nullptr) {
     esp_http_client_config_t config{};
