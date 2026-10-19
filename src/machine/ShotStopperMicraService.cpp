@@ -2639,7 +2639,7 @@ void ShotStopperMicraService::releaseIoBuffer(bool responseValid) {
                                 : transient ? LogLevel::WARNING : LogLevel::ERROR,
                          DebugCategory::NETWORK,
                          "Micra id=%lu %s %s %s http=%u raw=%ld ms=%lu "
-                         "reused=%u idle_ms=%lu errno=%ld tls=%ld tls_flags=0x%lx",
+                         "reused=%u idle=%lu errno=%ld tls=%ld/0x%lx",
                          static_cast<unsigned long>(call.startedAtMs),
                          call.method, call.api, call.result,
                          static_cast<unsigned>(call.httpStatus),
