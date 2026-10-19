@@ -4573,14 +4573,13 @@ function statsStreamFrame(message) {
     !Number.isInteger(message.epoch) ||
     !Number.isInteger(message.request) ||
     !Number.isInteger(message.seq) ||
-    message.seq < 0 ||
     !Number.isInteger(message.total) ||
     message.total < 0 ||
     !Number.isInteger(message.offset) ||
     message.offset < 0 ||
     !Number.isInteger(message.limit) ||
     message.limit < 1 ||
-    message.limit > 100 ||
+    message.limit > SHOTS_EXPORT_LIMIT ||
     typeof message.hasMore !== "boolean" ||
     !Array.isArray(message.rows) ||
     !Number.isInteger(message.rowBase) ||

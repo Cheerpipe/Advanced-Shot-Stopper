@@ -96,10 +96,10 @@
   records[3].wCg = records[3].wAtMs.slice();
   const context = vm.createContext({
     statsFrameWindow: async (offset, limit, sort, dir) => {
-      assert.equal(`${offset}/${limit}/${sort}/${dir}`, '0/100/date/desc');
+      assert.equal(`${offset}/${limit}/${sort}/${dir}`, '0/500/date/desc');
       return records;
     },
-    SHOTS_EXPORT_LIMIT: 100,
+    SHOTS_EXPORT_LIMIT: 500,
     formatShotTimeCsv: () => '', shotDisplayActualG: weight => weight,
     Blob,
     URL: {createObjectURL: value => {blob = value; return 'blob:test';}, revokeObjectURL() {}},

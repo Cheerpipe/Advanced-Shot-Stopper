@@ -34,7 +34,7 @@
       renderShots: () => applied.push('render-stats'), renderHistory: () => applied.push('render-history'),
       updateFirmwareFooter() {}, noteReachOk() {},
       shotSort: 'date', shotSortDir: 'desc', historyDir: 'desc',
-      SHOTS_PAGE_SIZE: 10, SHOTS_EXPORT_LIMIT: 100, HISTORY_PAGE_SIZE: 20,
+      SHOTS_PAGE_SIZE: 10, SHOTS_EXPORT_LIMIT: 500, HISTORY_PAGE_SIZE: 20,
     });
     vm.runInContext(source, context);
     vm.runInContext('paintUiStream=()=>{};scheduleShotPaint=()=>{};', context);
@@ -227,16 +227,16 @@
     socket.onmessage({data: JSON.stringify(frame)});
     assert.equal(vm.runInContext('statsPage.rows.length', f.context), 1);
     // Export can be requested while the standing page is still arriving.
-    const exported = f.context.statsFrameWindow(0, 100, 'date', 'desc', 90000);
+    const exported = f.context.statsFrameWindow(0, 500, 'date', 'desc', 90000);
     assert.equal(vm.runInContext('statsPage.rows.length', f.context), 1);
     socket.onmessage({data: JSON.stringify({...frame, snapshot: false,
       rows: [statsRow(1)], rowBase: 1, more: false})});
     assert.equal(await pending, true);
     const request = socket.sent.find(message => message.fetch).request;
     socket.onmessage({data: JSON.stringify({...frame, snapshot: false, seq: 2,
-      request, limit: 100})});
+      request, limit: 500})});
     socket.onmessage({data: JSON.stringify({...frame, snapshot: false, seq: 2,
-      request, limit: 100, rows: [statsRow(1)], rowBase: 1, more: false})});
+      request, limit: 500, rows: [statsRow(1)], rowBase: 1, more: false})});
     assert.deepEqual(Array.from(await exported, entry => entry.id), [2, 1]);
     assert(!socket.sent.some(message => message.op === 'resync'));
   })().catch(error => { console.error(error); process.exitCode = 1; });

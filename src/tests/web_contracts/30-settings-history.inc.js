@@ -1277,7 +1277,7 @@ if (!statsSection ||
         shotWs: {readyState: 1, send: op => sent.push(JSON.parse(op))},
         sendUiOperation: op => sent.push(JSON.parse(JSON.stringify(op))),
         statusPageOk: (page, state) => !!state, shotSort: 'date', shotSortDir: 'desc',
-        SHOTS_PAGE_SIZE: 10, SHOTS_EXPORT_LIMIT: 100,
+        SHOTS_PAGE_SIZE: 10, SHOTS_EXPORT_LIMIT: 500,
         setTimeout: () => 0, clearTimeout() {},
         developmentMode: false, compatMode: false, controlsMutable: false, firmwareVersion: '', bootId: 0,
         lastCommandStatus: null, configRevision: 0, dateTimeDirty: false, statusUtcAnchorSec: 0,
@@ -1329,12 +1329,12 @@ if (!statsSection ||
       assert.deepEqual(events, ['records:append', 'render:false'],
           'One-shot fetches append the requested window');
       events.length = 0;
-      const exported = context.statsFrameWindow(0, 100, 'date', 'desc', 50);
+      const exported = context.statsFrameWindow(0, 500, 'date', 'desc', 50);
       assert.deepEqual(sent.at(-1),
-          {op: 'stats', on: true, fetch: true, request: 3, offset: 0, limit: 100, sort: 'date', dir: 'desc'},
+          {op: 'stats', on: true, fetch: true, request: 3, offset: 0, limit: 500, sort: 'date', dir: 'desc'},
           'The export asks for its own date/desc window');
       context.applyStatsStream(context.statsStreamFrame(
-          frame({snapshot: false, epoch: 8, request: 3, seq: 4, limit: 100, hasMore: true, rows: [row(1)], more: false})));
+          frame({snapshot: false, epoch: 8, request: 3, seq: 4, limit: 500, hasMore: true, rows: [row(1)], more: false})));
       assert.deepEqual(events, [], 'The export window must not touch view state');
       assert.equal((await exported).length, 1, 'The export resolves with its assembled rows');
       await Promise.resolve();
