@@ -4793,19 +4793,18 @@ function renderShotHero(d) {
     e.textContent = v || "";
   };
   num("Elapsed", (!noScale || est !== null) && ms(el, 1) + __WEBUI_TEXT__("runtime.s_2"));
-  // Live flow: the scale's own, else the chart's while its window is current;
-  // none during a touch hold. A finished shot shows its average.
+  // Live flow is always the chart's own, so Home matches Shots on every scale;
+  // none during a touch hold or once its window is stale. A finished shot
+  // shows its average.
   const fi = model ? model.flowCurve.findLastIndex(Number.isFinite) : -1,
     flow =
       noScale || drop == null || (d.live && (wt === null || d.touchHold))
         ? null
         : !d.live
           ? d.averageFlowGps
-          : Number.isFinite(d.scaleFlowGps)
-            ? d.scaleFlowGps
-            : fi >= 0 && d.wAtMs.at(-1) - d.wAtMs[fi] <= 1000
-              ? model.flowCurve[fi]
-              : null;
+          : fi >= 0 && d.wAtMs.at(-1) - d.wAtMs[fi] <= 1000
+            ? model.flowCurve[fi]
+            : null;
   num("Flow", Number.isFinite(flow) && Math.max(0, flow).toFixed(1) + __WEBUI_TEXT__("runtime.g_s"));
   chip("Touch", !noScale && d.live && d.touchHold && __WEBUI_TEXT__("home.hero_touch_hold"));
   // Pills say how the cut line ended the shot when not at the target.

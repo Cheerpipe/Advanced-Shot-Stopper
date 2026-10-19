@@ -753,7 +753,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The Diagnostic Micra WebSocket live/parked/closed link label measures diagnostic.js at 13800
 // and adds 1 byte of gzip wobble to settings.js (15484, unchanged source); owner-requested 2026-10-18.
 // Gzip wobble from the Home Equipment icons and values (records.js, diagnostic.js and settings.js unchanged) measures 13608, 13801 and 15485; owner-requested 2026-10-18.
-const viewModuleBudgets = {records: 13608, diagnostic: 13801, admin: 14229, settings: 15485, setup: 5789};
+// Gzip wobble from the Home hero always using the computed flow (settings.js unchanged) measures 15514; owner-authorized 2026-10-19.
+const viewModuleBudgets = {records: 13608, diagnostic: 13801, admin: 14229, settings: 15514, setup: 5789};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
