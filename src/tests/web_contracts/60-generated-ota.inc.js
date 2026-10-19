@@ -1483,7 +1483,7 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   }
   const restartHandler = network.slice(
       network.indexOf('ShotStopperNetwork::restartHandler'),
-      network.indexOf('ShotStopperNetwork::factoryResetHandler'));
+      network.indexOf('ShotStopperNetwork::firmwareModeHandler'));
   if (restartHandler.includes('unsafeWebUiOverride') ||
       restartHandler.includes('webUiConfigurationAllowed') ||
       restartHandler.includes('CONFIG_LOCKED_DURING_ACTIVE_CYCLE')) {

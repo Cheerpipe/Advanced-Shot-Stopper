@@ -1179,7 +1179,9 @@ commands (`REMOTE_ON`, `REMOTE_OFF`, `RINSE`, `STOP`, `STOP_HEARTBEAT`,
 `RESET_WEIGHT_OFFSET`, `RESET_AUTO_TO_MANUAL_GUARD_SAMPLES`, `BUZZER_TEST`,
 `BOOKOO_DEBUG`) with `FAILED` results. Configuration, persistence, network,
 restart, OTA, and factory-reset commands keep flowing. The HTTP surface adds
-`POST /api/v1/firmware-mode` (`{enabled: bool}`, admin unlock required) and
+`POST /api/v1/firmware-mode` (`{enabled: bool}`, admin unlock required;
+`409 CONFIG_LOCKED_DURING_ACTIVE_CYCLE` while durable flash writes are
+deferred, see `networkFlashWriteAllowed`) and
 the status envelope carries `compatibilityMode` on every page.
 
 ---

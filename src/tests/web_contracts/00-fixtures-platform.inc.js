@@ -572,6 +572,12 @@ if (!firmware.includes(
     !firmware.includes('tskIDLE_PRIORITY + HEALTH_TASK_PRIORITY_OFFSET')) {
   throw new Error('Task priorities must come from the schedule contract');
 }
+const firmwareModeWrite = network.slice(
+    network.indexOf('ShotStopperNetwork::firmwareModeHandler('),
+    network.indexOf('shotstopper::saveFirmwareMode('));
+if (!firmwareModeWrite.includes('networkFlashWriteAllowed()')) {
+  throw new Error('Firmware mode must persist only under the durable-write gate');
+}
 if (!firmware.includes('scaleWorkerTickDelayMs()') ||
     !firmware.includes('controlLoopTickDelayMs(loopScaleLink)') ||
     !firmware.includes('controlHousekeepingDue(loopStartedAtMs)') ||

@@ -22,8 +22,10 @@ with the **Manual** recipe; pick another one on the Home screen.
 
 ## What happens when you turn it off
 
-Saving the switch restarts the controller once, safely: a running pour always
-finishes first. After the restart the controller becomes transparent:
+Save the switch while the machine is idle: during a pour the controller
+refuses the change and asks you to try again once the machine has finished.
+Saving restarts the controller once. After the restart the controller becomes
+transparent:
 
 - The relay follows the physical paddle or switch one-to-one, the same way the
   machine's own wiring would. Nothing else touches the machine.

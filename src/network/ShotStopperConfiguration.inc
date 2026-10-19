@@ -1304,6 +1304,11 @@ esp_err_t ShotStopperNetwork::firmwareModeHandler(httpd_req_t *request) {
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
+  if (!self.networkFlashWriteAllowed()) {
+    return sendError(request, STATUS_CONFLICT,
+                     "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
+                     "Wait until the machine is idle, then save the firmware mode again.");
+  }
   const esp_err_t bodyStatus =
       self.lockJsonBody(request, "A JSON request is required.");
   if (bodyStatus != ESP_OK) {
@@ -1323,8 +1328,8 @@ esp_err_t ShotStopperNetwork::firmwareModeHandler(httpd_req_t *request) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_FIRMWARE_MODE",
                      "enabled must be a boolean.");
   }
-  // The mode is boot-scoped: persist first, then queue the same idle-safe
-  // restart the Restart button uses so an active pour finishes first.
+  // The mode is boot-scoped: persist under the durable-write gate checked
+  // above, then queue the same idle-safe restart the Restart button uses.
   if (!shotstopper::saveFirmwareMode(
           enabled ? shotstopper::FirmwareMode::FULL
                   : shotstopper::FirmwareMode::COMPATIBILITY)) {
