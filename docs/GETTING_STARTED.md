@@ -77,7 +77,8 @@ requires the Micra WebSocket connection and state observation to be enabled.
 
 Double-tap the shot card (double-click it on a computer, or select it and
 press Enter) to spread it across the whole screen, always in landscape, with
-the same live readings and proportions as the Home card. Double-tap again, tap
+the same live readings as the Home card and a chart that grows to fill the
+rest of the screen. Double-tap again, tap
 the × in the corner, press Esc on a keyboard, or use your device's back
 gesture to leave the full-screen view; it closes like a panel and does not
 leave Home. While the card fills the screen, your phone's screen stays on, so

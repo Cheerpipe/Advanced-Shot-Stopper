@@ -42,9 +42,9 @@ The shot card at the top of Home draws a lighter version behind your shot: the
 cut line, the reference paces that separate fast, on-recipe and slow, the
 on-recipe zone between them, dotted marks where the time window starts and
 ends, and a faint hatch over the seconds when weight never stops the shot.
-Low in the chart, a faint line with a soft fill traces your flow, the same
-flow the shot history shows; after the machine stops, its drip tail turns
-dashed, just like the weight's.
+Low in the chart, a soft shaded area traces your flow, the same flow the shot
+history shows, smoothed so scale jitter and splashes don't show as spikes;
+after the machine stops, the drip tail fades further.
 Tapping another row applies that recipe. These rows show the recipe's own values; learned
 drip compensation and time limits still apply.
 

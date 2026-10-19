@@ -4961,9 +4961,17 @@ function renderHeroChart(host, model, m, goal, label) {
     X = (v) => (100 * Math.min(v, xMax)) / xMax,
     Y = (g) => 100 - (100 * Math.max(0, g)) / yMax,
     path = (pts, y = Y) => pts.map((q, i) => (i ? "L" : "M") + X(q[0]).toFixed(2) + " " + y(q[1]).toFixed(2)).join(""),
-    curve = (s, y) => path(s.pts.map((q) => [q.t, q.cg / 100]), y),
-    // Flow keeps to the lower 42 % on its own scale, under the weight.
-    flowY = (r) => 100 - 42 * Math.min(1, r / Math.max(2.5, model.flowMax)),
+    curve = (s) => path(s.pts.map((q) => [q.t, q.cg / 100])),
+    // Drawn flow: a ±1 s mean (g/s) that evens out scale noise.
+    smooth = ({ pts: p }) =>
+      p.map((q) => {
+        const n = p.filter((r) => Math.abs(r.t - q.t) <= 1);
+        return [q.t, n.reduce((a, r) => a + r.cg, 0) / n.length / 100];
+      }),
+    flows = [model.flowSegs, model.dripFlowSegs].map((a) => a.filter((s) => s.pts.length > 1).map(smooth)),
+    // Flow keeps to the lower 32 % on its own scale.
+    flowTop = Math.max(2.5, ...flows.flat(2).map((q) => 1.15 * q[1])),
+    flowY = (r) => 100 - (32 * r) / flowTop,
     stroke = 'stroke="var(--on)" vector-effect="non-scaling-stroke"',
     put = (cls, text, x, y) => {
       const e = Object.assign(document.createElement("span"), { className: cls, textContent: text });
@@ -4975,19 +4983,14 @@ function renderHeroChart(host, model, m, goal, label) {
     '<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs>' +
     fadeFill("heroFade", "var(--on)", 0.38) +
     fadeFill("heroWin", "var(--on)", 0.3, 0.02) +
+    fadeFill("heroFlow", "var(--on)", 0.26, 0.03) +
     // Nothing is drawn below the x axis.
     '</defs><clipPath id="heroPlot"><rect x="-10" y="-50" width="120" height="150"/></clipPath><g clip-path="url(#heroPlot)">' +
-    // Faint flow line over a softer fill; its drip tail runs dashed like the weight's.
-    model.flowSegs
-      .filter((s) => s.pts.length > 1)
-      .map((s) => {
-        const p = curve(s, flowY);
-        return `<path d="${p}V100H${X(s.pts[0].t).toFixed(2)}Z" fill="var(--on)" fill-opacity=".11"/><path d="${p}" fill="none" ${stroke} stroke-opacity=".5"/>`;
-      })
-      .join("") +
-    model.dripFlowSegs
-      .filter((s) => s.pts.length > 1)
-      .map((s) => `<path d="${curve(s, flowY)}" fill="none" ${stroke} stroke-opacity=".6" stroke-dasharray="3 3"/>`)
+    // A soft flow area; its drip tail is fainter.
+    flows
+      .map((a, drip) =>
+        a.map((p) => `<path d="${path(p, flowY)}V100H${X(p[0][0]).toFixed(2)}Z" fill=${drip ? '"var(--on)" fill-opacity=".06"' : '"url(#heroFlow)"'}/>`).join(""),
+      )
       .join("");
   const over = [],
     hatch = m && put("noCut", "", 0);
@@ -5001,9 +5004,7 @@ function renderHeroChart(host, model, m, goal, label) {
       `<clipPath id="heroUnder"><path d="${path([[0, 0], ...line, [xMax, 0]])}Z"/></clipPath>` +
       `<path d="M${X(m.t1).toFixed(2)} 0V100M${X(m.t2).toFixed(2)} 0V100" ${stroke} stroke-opacity=".35" stroke-dasharray="1.5 3" stroke-linecap="round"/>` +
       `<g clip-path="url(#heroUnder)"><path d="${path([...pace(m.t1), ...pace(m.t2).reverse()])}Z" fill="url(#heroWin)"/>` +
-      [Math.max(t0 + 0.5, m.t1 - m.d), m.t1, m.t2, m.t2 + m.d]
-        .map((ta, i) => `<path d="${path(pace(ta))}" fill="none" ${stroke} stroke-opacity="${i % 3 ? 0.65 : 0.35}"${i % 3 ? "" : ' stroke-dasharray="3 3"'}/>`)
-        .join("") +
+      [m.t1, m.t2].map((ta) => `<path d="${path(pace(ta))}" fill="none" ${stroke} stroke-opacity=".4"/>`).join("") +
       `</g><path d="${path(line)}" fill="none" ${stroke} stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="4 3"/>`;
     // A faint hatch over the no-cut delay.
     hatch.style.width = X(m.prot).toFixed(2) + "%";
