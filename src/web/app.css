@@ -124,13 +124,20 @@ body.webUiInactive{overflow:hidden}
 .bootOverlay:not(.isDone){transition:none}
 .bootOverlay.isDone{opacity:0;pointer-events:none}
 body.pageLoading .view,body.pageLoading .view *,body.pageLoading .view::before,body.pageLoading .view::after,body.pageLoading .view *::before,body.pageLoading .view *::after{transition:none!important;animation:none!important}
-.bootWave{display:flex;align-items:center;gap:.4rem;height:3.4rem}
-.bootWave i{width:.55rem;height:100%;border-radius:.3rem;background:var(--ac);animation:bootWave 1.1s ease-in-out infinite}
-.bootWave i:nth-child(2){animation-delay:.12s}
-.bootWave i:nth-child(3){animation-delay:.24s}
-.bootWave i:nth-child(4){animation-delay:.36s}
-.bootWave i:nth-child(5){animation-delay:.48s}
-@keyframes bootWave{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}
+.bootBrew{position:relative;display:block;width:56em;height:68em;overflow:hidden;font-size:.05rem}
+.bootBrew i{position:absolute;display:block}
+.bootBrew i:first-child{left:9em;top:3em;width:22em;height:14em;border-radius:3em;background:var(--ac)}
+.bootBrew i:first-child:before,.bootBrew i:first-child:after{content:"";position:absolute;background:var(--ac)}
+.bootBrew i:first-child:before{left:21em;top:4.8em;width:9em;height:2.4em;border-radius:1.2em}
+.bootBrew i:first-child:after{left:28em;top:2.8em;width:15em;height:6.4em;border-radius:3.2em}
+.bootBrew i:nth-child(2){left:14.75em;top:17em;width:10.5em;height:38em;background:repeating-linear-gradient(var(--ac) 0 5em,transparent 0 8em) 0 0/2.5em 8em repeat-y,repeating-linear-gradient(var(--ac) 0 5em,transparent 0 8em) 100% 0/2.5em 8em repeat-y;animation:bootFlow .5s linear infinite,bootPour 4s linear infinite}
+.bootBrew i:nth-child(3){left:5em;top:48em;width:30em;height:18em;border:2.5em solid var(--ac);border-top:0;border-radius:0 0 8em 8em;overflow:hidden;animation:bootCup 4s ease-in-out infinite}
+.bootBrew i:nth-child(3):before{content:"";position:absolute;inset:0;height:30em;background:radial-gradient(4.6em 2.4em at 50% 100%,var(--ac) 96%,transparent) 0 0/8em 2.4em repeat-x,linear-gradient(var(--ac),var(--ac)) 0 2.3em/100% 100% no-repeat;transform:translateY(8em);animation:bootLevel 4s ease-out infinite,bootSurf .6s linear infinite}
+@keyframes bootFlow{to{background-position:0 16em,100% 16em}}
+@keyframes bootPour{0%,18%{opacity:0}22%,76%{opacity:1}80%,100%{opacity:0}}
+@keyframes bootCup{0%{transform:translateX(-56em)}15%,82%{transform:none}100%{transform:translateX(56em)}}
+@keyframes bootLevel{0%,18%{transform:translateY(15.5em)}78%,100%{transform:translateY(3em)}}
+@keyframes bootSurf{to{background-position:-8em 0,0 2.3em}}
 .bootText{margin:0;color:var(--mu);font-size:.95rem;font-weight:600}
 .inactiveOverlay{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;padding:1.25rem 1.25rem max(1.25rem,env(safe-area-inset-bottom));background:var(--bg);opacity:0;visibility:hidden;pointer-events:none;transition:opacity .5s ease,visibility 0s linear .5s}
 .inactiveOverlay.isVisible{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .5s ease,visibility 0s}
@@ -711,7 +718,7 @@ html.theme-dark,html.theme-dark input,html.theme-dark select,html.theme-dark tex
 }
 @media(max-width:340px){body{padding-inline:.75rem}.topBar{margin-inline:-.75rem;padding-inline:.75rem}.statusColumn{grid-template-columns:1fr}}
 @media(max-width:380px){.topBar{gap:.15rem;--logo-w:1.85rem;--logo-h:2.5rem;--brand-font:1.15rem;--brand-small:.83rem}.headerSignals{padding-left:.25rem}}
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:.01ms!important}.bootWave i{animation:none}.btnGlyph.busy .g:after{animation:none}.micraSteps .on:before{animation:none}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:.01ms!important}.bootBrew *,.bootBrew *:before{animation:none}.btnGlyph.busy .g:after{animation:none}.micraSteps .on:before{animation:none}}
 @media(forced-colors:active){input[type=checkbox]{appearance:auto}.btnGlyph,.presetCard,.heroFsBtn,input,select,textarea{border-color:ButtonText}}
 /* /setup onboarding (SoftAP captive portal): menu-less centered card. */
 body.setupView{display:flex;flex-direction:column;min-height:100vh;min-height:100dvh;padding-bottom:1rem}
@@ -725,7 +732,7 @@ body.setupView #app{display:flex;flex:1;flex-direction:column}
 .setupCard h1{margin:0 0 .35rem;font-size:1.35rem}
 .setupIntro{margin:0 0 1rem;color:var(--mu);font-size:.95rem}
 .setupState{display:flex;flex-direction:column;align-items:center;gap:.75rem;text-align:center;margin:.5rem 0}
-.setupState .bootWave{height:2.4rem}
+.setupState .bootBrew{font-size:.0353rem}
 .setupState a{color:var(--ac)}
 .setupHiddenToggle{display:flex;align-items:center;min-height:var(--tap);margin:.25rem 0}
 .setupHiddenToggle span{font-size:.875rem;color:var(--mu)}

@@ -230,10 +230,10 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !css.includes('.brand span{display:flex;flex-direction:column;') ||
     !css.includes('.bootOverlay.isDone{opacity:0;pointer-events:none}') ||
     !css.includes('transition:opacity .25s}') ||
-    !shellHtml.includes('class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i>') ||
-    !css.includes('.bootWave i{width:.55rem;height:100%;border-radius:.3rem;background:var(--ac);animation:bootWave 1.1s ease-in-out infinite}') ||
-    !css.includes('@keyframes bootWave{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}') ||
-    !css.includes('.bootWave i{animation:none}') ||
+    !shellHtml.includes('class="bootBrew" aria-hidden="true"><i></i><i></i><i></i>') ||
+    !css.includes('animation:bootCup 4s ease-in-out infinite}') ||
+    !css.includes('@keyframes bootLevel{0%,18%{transform:translateY(15.5em)}78%,100%{transform:translateY(3em)}}') ||
+    !css.includes('.bootBrew *,.bootBrew *:before{animation:none}') ||
     !codeIncludes(runtimeJs, 'let homeBootDone=false,fwReloading=false') ||
     !codeIncludes(runtimeJs, 'function hideHomeBoot(seq=bootSeq){') ||
     !codeIncludes(runtimeJs, "bootTimer=setTimeout(()=>{if(seq===bootSeq)") ||
@@ -501,8 +501,8 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     }
   }
   if (!suppression.includes('transition:none!important;animation:none!important') ||
-      suppression.includes('bootWave')) {
-    throw new Error('Loading must suppress control motion while preserving the loading wave');
+      suppression.includes('bootBrew')) {
+    throw new Error('Loading must suppress control motion while preserving the loading animation');
   }
   if (fade !== .25 ||
       !codeIncludes(js, "document.body.classList.remove('pageLoading')}}," + Math.round(fade * 1000) + ')') ||
