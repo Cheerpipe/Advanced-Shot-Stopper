@@ -2538,9 +2538,6 @@ bool ShotStopperMicraService::request(
                  performed == ESP_OK ? BootHeapResult::OK : BootHeapResult::FAILED,
                  millis(), heapAfter);
   work_->transportStatus = performed;
-  // IDF reports -1 until a status line arrives (e.g. header read failed).
-  const int status = esp_http_client_get_status_code(work_->client);
-  work_->httpStatus = status > 0 ? static_cast<uint16_t>(status) : 0;
   work_->transportFailure = performed != ESP_OK;
   work_->lastRequestEndedAtMs = millis();
   if (work_->transportFailure) {
@@ -2664,6 +2661,12 @@ void ShotStopperMicraService::releaseWorkBuffer() {
 esp_err_t ShotStopperMicraService::httpEvent(esp_http_client_event_t *event) {
   if (event == nullptr || event->user_data == nullptr) return ESP_FAIL;
   auto *self = static_cast<ShotStopperMicraService *>(event->user_data);
+  // IDF keeps the previous response's status across close() and a failed
+  // reconnect, so only this request's status line may set it.
+  if (event->event_id == HTTP_EVENT_ON_HEADERS_COMPLETE && self->work_ != nullptr) {
+    self->work_->httpStatus =
+        static_cast<uint16_t>(esp_http_client_get_status_code(event->client));
+  }
   if (event->event_id != HTTP_EVENT_ON_DATA || event->data == nullptr ||
       event->data_len <= 0 || self->work_ == nullptr || self->io_ == nullptr) {
     return ESP_OK;
