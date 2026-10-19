@@ -3520,8 +3520,12 @@ function invalidateHomeStream() {
     "homeMicraCleaning",
     "machineRowState",
     "scale",
+    "machineRowValue",
+    "scaleRowValue",
+    "cupRowValue",
   ])
     setHomeSub(id, __WEBUI_TEXT__("runtime.unknown"));
+  setHomeSub("machineRowHint", "");
   updateHomeAdminActions(false, false);
 }
 async function loadHomeStatus() {

@@ -60,6 +60,14 @@ can take the claim, and 15 minutes without using a control locks the page and
 stops live updates. Scrolling does not keep it active; use Reload to resume.
 The page stays active while a shot is running, so it never locks mid-shot.
 
+Each row in **Equipment** shows the device's icon with a small mark: a green
+check when it's ready, an amber exclamation mark when it needs a look, and a red
+cross when it isn't ready or isn't connected. Beside it, the state is spelled out,
+such as **Connected** or **Present**, and on the right you'll see the reading that
+matters most: the weight on the scale with its name, the weight of the cup, and,
+on a Linea Micra, the brew temperature or the minutes left to warm up. Tap a row
+for all its details.
+
 Home updates automatically when its information changes. In **Equipment → Scale**,
 weight and timer follow the connected scale even outside a shot. Disconnecting
 the scale clears those readings. **Equipment → Machine** follows the machine and

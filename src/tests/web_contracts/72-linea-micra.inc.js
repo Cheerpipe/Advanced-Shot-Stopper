@@ -32,10 +32,12 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const machineRow = {textContent: '', bad: false};
   machineRow.classList = {toggle: (_, on) => { machineRow.bad = on; }};
   let lastStatus = null;
+  const rowSlots = {};
   const context = {R: {applyHomeStatus() {}, formatMicraCleaning:()=>'',
       homeStatusCache: () => lastStatus,
       $: id => ({homeMicraCleaning: cleaning, homeMicraPower: power, machineRowState: rowState, state: brew, machineRow,
-        homeMicraBrewBoiler: brewBoiler, homeMicraSteamBoiler: steamBoiler}[id] || null)},
+        homeMicraBrewBoiler: brewBoiler, homeMicraSteamBoiler: steamBoiler}[id] ||
+        (/Row(Value|Hint)$|^(scaleWeight|preferredScale|cupWeight)$/.test(id) ? (rowSlots[id] ||= el()) : null))},
     document: {querySelector: () => null},
     Date: {now: () => 60000},
     __WEBUI_TEXT__: key => key === 'home.optimistic' ? 'Optimistic' : 'Unknown'};
@@ -82,6 +84,16 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
     assert.strictEqual(rowState.textContent, expected);
     assert.strictEqual(machineRow.bad, bad);
   }
+  // Headline value: minutes left while warming, brew target once ready.
+  const boilers = (readiness, coffee) => ({...warming, lineaMicra: {...warming.lineaMicra, readiness, boiler: {coffee}}});
+  context.applyStatus(boilers('warming_up', {state: 'heating_up', readyAtUtcSec: 1000, targetDeciC: 930}));
+  assert.deepStrictEqual([rowState.textContent, rowSlots.machineRowValue.textContent, rowSlots.machineRowHint.textContent],
+      ['Heating up', '16 min', 'Until ready']);
+  context.applyStatus(boilers('ready', {state: 'ready', targetDeciC: 930}));
+  assert.deepStrictEqual([rowState.textContent, rowSlots.machineRowValue.textContent, rowSlots.machineRowHint.textContent],
+      ['Ready', '93°C', 'Brew temperature']);
+  context.applyStatus({...boilers('ready', {state: 'ready', targetDeciC: 930}), lineaMicra: {powerState: 'OFF', quality: 'current'}});
+  assert.strictEqual(rowSlots.machineRowValue.textContent, '');
   // Home boiler rows: estimate math (Date.now pinned to 60000 ms),
   // clamping, labels, and configuration gating.
   const frame = (coffee, steam) => ({machineIntegration: 'linea_micra_cloud', state: 'READY',

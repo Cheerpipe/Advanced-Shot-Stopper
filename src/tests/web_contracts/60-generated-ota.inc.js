@@ -564,8 +564,9 @@ if (generated.jsGzip.length > 7330) {
 // The La Marzocco Cloud linked note restyled as a green confirmation measures 14775 bytes; owner-requested 2026-10-18.
 // Styling the empty shot and activation history notes measures 14791 bytes; owner-requested 2026-10-18.
 // The La Marzocco Cloud state pill and its four tones measure 14861 bytes; owner-requested 2026-10-18.
-if (generated.cssGzip.length > 14861) {
-  throw new Error(`Compressed Web CSS exceeds the 14861-byte gzip budget (${generated.cssGzip.length})`);
+// Home Equipment device icons, status badges and headline values measure 15007 bytes; owner-requested 2026-10-18.
+if (generated.cssGzip.length > 15007) {
+  throw new Error(`Compressed Web CSS exceeds the 15007-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -749,7 +750,8 @@ if (generated.otaImageGzip.length > 3072) {
 // Gzip wobble from the La Marzocco Cloud state pill (setup.js unchanged) measures 5789; owner-requested 2026-10-18.
 // The Diagnostic Micra WebSocket live/parked/closed link label measures diagnostic.js at 13800
 // and adds 1 byte of gzip wobble to settings.js (15484, unchanged source); owner-requested 2026-10-18.
-const viewModuleBudgets = {records: 13607, diagnostic: 13800, admin: 14229, settings: 15484, setup: 5789};
+// Gzip wobble from the Home Equipment icons and values (records.js, diagnostic.js and settings.js unchanged) measures 13608, 13801 and 15485; owner-requested 2026-10-18.
+const viewModuleBudgets = {records: 13608, diagnostic: 13801, admin: 14229, settings: 15485, setup: 5789};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -923,8 +925,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Home Cup accessory state line brings it to 65685; owner-requested 2026-10-18.
 // The La Marzocco Cloud Account label string brings it to 65687; owner-requested 2026-10-18.
 // The Diagnostic Micra WebSocket link label string brings it to 65695; owner-requested 2026-10-18.
-if (coldHomeGzip > 65695) {
-  throw new Error(`Cold Home download exceeds the 65695-byte gzip budget (${coldHomeGzip})`);
+// The Home Equipment device icons, status badges and headline values bring it to 65962; owner-requested 2026-10-18.
+if (coldHomeGzip > 65962) {
+  throw new Error(`Cold Home download exceeds the 65962-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

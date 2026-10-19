@@ -24,11 +24,12 @@ held button is not forwarded halfway through the hold.
 When cup removal stops a shot, Home's cup-protection status shows that the
 shot was aborted after brewing ends.
 
-The light next to **Equipment → Cup** on Home tells you whether a shot can
-start. Green means a cup is on the scale. Amber means no cup is detected, or
-the scale is off, but a shot can still start, so check before brewing. Red
-means **Require cup to start** will block the shot, and the row reads
-**Absent - cup required**.
+The mark on the cup icon in **Equipment → Cup** on Home tells you whether a
+shot can start. A green check means a cup is on the scale, and its weight shows
+on the right. An amber exclamation mark means no cup is detected, or the scale
+is off and the row reminds you it **Needs the scale**, but a shot can still
+start, so check before brewing. A red cross means **Require cup to start** will
+block the shot, and the row reads **Absent - cup required**.
 
 On Linea Micra, a recognized standby wake gesture is not a brew attempt, so
 **Require cup to start** does not block it or emit a missing-cup alert. See

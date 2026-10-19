@@ -215,6 +215,11 @@ only when both boilers report ready. When the water tank needs refilling the
 row reads **No water**, and while a wake-up is still being confirmed it
 shows a plain **On** rather than claiming readiness.
 
+Next to that state, the row shows how many minutes are left while either boiler
+warms up, using the machine's own estimate. Once the machine is ready, it shows
+the brew temperature the machine is set to instead. The Micra doesn't share its
+live boiler temperature, so Home never shows how hot it is right now.
+
 The open machine panel adds one row per boiler. Each shows its state and,
 while heating, the machine's own estimate of the time remaining, for example
 `Warming up · ready in ~6 min`. The estimate counts down on the screen without

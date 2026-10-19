@@ -172,18 +172,24 @@ label:has(>input[type=checkbox]) .fieldHint{margin-left:1.9rem}
 .metric > div,.shotCard > * > div{color:var(--mu);font-weight:400}
 .lampRow{border-top:1px solid var(--ln)}
 .lampRow:first-of-type{border-top:0}
-.lampRow summary{display:flex;align-items:center;gap:.6rem;min-height:var(--tap);padding:.5rem .25rem;list-style:none;cursor:pointer;font-weight:400}
+.lampRow summary{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;column-gap:.7rem;min-height:3.4rem;padding:.5rem .25rem;list-style:none;cursor:pointer;font-weight:400}
 .lampRow summary::-webkit-details-marker{display:none}
 .lampRow summary:hover{background:var(--in)}
 .lampRow summary:focus-visible{outline:3px solid var(--ac);outline-offset:-3px}
-.lamp{flex:none;width:.75rem;height:.75rem;border-radius:50%;background:var(--ok);box-shadow:0 0 0 .2rem color-mix(in srgb,var(--ok) 18%,transparent)}
-.lampRow.lampBad .lamp{background:var(--dn);box-shadow:0 0 0 .2rem color-mix(in srgb,var(--dn) 18%,transparent)}
-.lampRow.lampWarn .lamp{background:var(--lw);box-shadow:0 0 0 .2rem color-mix(in srgb,var(--lw) 18%,transparent)}
-.lampRow .devName{flex:none;width:4.6rem;font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu)}
-.lampState{flex:1;min-width:0;text-align:right;font-size:.78rem;font-weight:800;overflow-wrap:anywhere}
-.lampRow .chev{flex:none;width:.9rem;height:.9rem;fill:none;stroke:var(--mu);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
+.lamp{grid-area:1/1/3;position:relative;width:1.5rem;height:1.5rem}
+.lamp svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.lamp:after{content:"✓";position:absolute;right:-.4rem;bottom:-.3rem;display:grid;place-items:center;width:.85rem;height:.85rem;border-radius:50%;background:var(--ok);box-shadow:0 0 0 2px var(--sf);color:var(--sf);font-size:.6rem;font-weight:900;line-height:1}
+.lampRow.lampWarn .lamp:after{content:"!";background:var(--lw)}
+.lampRow.lampBad .lamp:after{content:"×";background:var(--dn)}
+.lampRow .devName{grid-area:1/2;align-self:end;font-size:.72rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--mu)}
+.lampState{grid-area:2/2;align-self:start;min-width:0;font-size:.8rem;font-weight:800;overflow-wrap:anywhere}
+.lampRow summary b{grid-area:1/3;align-self:end;justify-self:end;max-width:9rem;font-size:1.3rem;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.lampRow summary small{grid-area:2/3;align-self:start;justify-self:end;max-width:9rem;text-align:right;font-size:.7rem;font-weight:700;color:var(--mu);overflow-wrap:anywhere}
+.lampRow summary>:empty{display:none}
+.lampRow summary b:has(+:empty){grid-row:1/3;align-self:center}
+.lampRow .chev{grid-area:1/4/3;width:.9rem;height:.9rem;fill:none;stroke:var(--mu);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .15s}
 .lampRow[open] .chev{transform:rotate(90deg)}
-.metricRows{display:grid;gap:.65rem;padding:.35rem .25rem .65rem 1.6rem}
+.metricRows{display:grid;gap:.65rem;padding:.35rem .25rem .65rem 2.45rem}
 #diagnosticsPanel fieldset{margin:.75rem 0 0;padding:.75rem;background:var(--in)}
 #diagnosticsPanel fieldset:first-of-type{margin-top:.25rem}
 #diagnosticsPanel fieldset.statusColumn>legend{grid-column:1/-1;cursor:pointer;-webkit-user-select:none;user-select:none}

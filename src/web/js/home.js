@@ -19,41 +19,20 @@ function micraBoilerText(lm, boiler) {
     ["heating_up", "no_water", "eco", "off", "standby"].indexOf(state)
   ];
   if (!label) return __WEBUI_TEXT__("runtime.unknown");
-  const readyAt = (data && data.readyAtUtcSec ? data.readyAtUtcSec : 0) * 1000;
-  if ((state === "heating_up" || state === "eco") && readyAt > Date.now())
-    return (
-      label +
-      " · " +
-      __WEBUI_TEXT__("home.ready_in").replace(
-        "%1",
-        String(Math.max(1, Math.ceil((readyAt - Date.now()) / 60000))),
-      )
-    );
-  return label;
+  return state === "heating_up" || state === "eco" ? label + readyIn(minsLeft(data)) : label;
+}
+// Whole minutes until a boiler's readyAtUtcSec; zero or less once it passed.
+function minsLeft(boiler) {
+  return Math.ceil(((boiler?.readyAtUtcSec || 0) * 1000 - Date.now()) / 60000);
+}
+function readyIn(mins) {
+  return mins > 0 ? " · " + __WEBUI_TEXT__("home.ready_in").replace("%1", mins) : "";
 }
 
-// Equipment row summaries: "<scale name> - 34g", "Present - 46g". Runtime
-// already wrote the bare state; only fresh, valid weights get the suffix.
-function grams(g) {
-  return typeof g === "number" && Number.isFinite(g) ? " - " + (Math.round(g) || 0) + "g" : "";
-}
-function renderEquipmentWeights(s) {
-  const sc = s.scale || {},
-    c = s.cupPresence || {};
-  if (!sc.available || sc.streamState !== "FRESH") return;
-  const w = typeof sc.observedWeightG === "number" ? sc.observedWeightG : sc.currentWeightG,
-    name =
-      String(sc.preferredFriendlyName || "").trim() || String(sc.preferredName || "").trim();
-  if (name) $("scale").textContent = name + grams(w);
-  else $("scale").textContent += grams(w);
-  if ((c.state === "PRESENT" || c.present) && c.weightValid === true)
-    $("cupState").textContent += grams(c.weightG);
-}
-
-// " - 93°" from the brew boiler target, only on machines that report one.
-function micraTargetSuffix(lm) {
-  const d = lm && lm.boiler && lm.boiler.coffee ? lm.boiler.coffee.targetDeciC : 0;
-  return typeof d === "number" && d > 0 ? " - " + Math.round(d / 10) + "°" : "";
+// Equipment rows repeat the panel's key reading next to the state.
+function setRowValue(row, value, hint) {
+  $(row + "Value").textContent = value;
+  $(row + "Hint").textContent = hint;
 }
 
 function renderMicraBoilers() {
@@ -62,6 +41,7 @@ function renderMicraBoilers() {
   const st = R.homeStatusCache(),
     lm = st?.lineaMicra;
   renderReadyMsg(st, lm);
+  if (st) renderMachineRow(st);
   if (!lm) return;
   const brew = $("homeMicraBrewBoiler"),
     steam = $("homeMicraSteamBoiler");
@@ -71,7 +51,8 @@ function renderMicraBoilers() {
 
 export function applyStatus(s) {
   R.applyHomeStatus(s);
-  renderEquipmentWeights(s);
+  setRowValue("scaleRow", $("scaleWeight").textContent, $("preferredScale").textContent);
+  setRowValue("cupRow", $("cupWeight").textContent, s.scale?.available ? "" : __WEBUI_TEXT__("home.needs_scale"));
   const brewing = ["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state);
   if (quickWeight && brewing) quickWeight.close();
   // URL launcher: on a controller with no shots yet the hero card is absent,
@@ -93,35 +74,50 @@ export function applyStatus(s) {
       s.lineaMicra?.accountConfigured !== false ||
       s.machineIntegration !== "linea_micra_cloud" ||
       R.cardDismissed("ssCard:micraCloud");
-  const power = micraPower(s.lineaMicra);
-  $("homeMicraPower").textContent = power;
+  $("homeMicraPower").textContent = micraPower(s.lineaMicra);
   $("homeMicraCleaning").textContent = R.formatMicraCleaning(s.lineaMicra);
   renderMicraBoilers();
+}
+// The machine row ticks with the boiler rows so a warm-up countdown stays live.
+function renderMachineRow(s) {
   const rs = $("machineRowState"),
     row = $("machineRow");
-  if (row) {
-    const lm = s.lineaMicra || {},
-      micraActive =
-        s.machineIntegration === "linea_micra_cloud" && lm.accountConfigured && lm.observeState,
-      off = power.startsWith("OFF"),
-      needsWater = lm.readiness === "needs_water",
-      // With boiler evidence the lamp claims Ready only when both boilers
-      // are ready; without it (or without the integration) the controller
-      // state decides, as before.
-      rdy = !off && (micraActive ? lm.readiness === "ready" : s.state === "READY"),
-      labels = {
-        warming_up: __WEBUI_TEXT__("home.warming_up"),
-        waiting_for_steam: __WEBUI_TEXT__("home.waiting_for_steam"),
-        needs_water: __WEBUI_TEXT__("home.needs_water"),
-      };
-    rs.textContent = off
-      ? __WEBUI_TEXT__("home.turned_off")
-      : rdy
-        ? __WEBUI_TEXT__("runtime.ready_2") + micraTargetSuffix(micraActive && lm)
-        : labels[lm.readiness] ||
-          (power.indexOf("ON") === 0 ? __WEBUI_TEXT__("home.on") : $("state").textContent);
-    row.classList.toggle("lampBad", !rdy && (!micraActive || off || needsWater));
-  }
+  if (!row) return;
+  const lm = s.lineaMicra || {},
+    power = micraPower(lm),
+    micraActive =
+      s.machineIntegration === "linea_micra_cloud" && lm.accountConfigured && lm.observeState,
+    off = power.startsWith("OFF"),
+    needsWater = lm.readiness === "needs_water",
+    warming = !off && micraActive && ["warming_up", "waiting_for_steam"].includes(lm.readiness),
+    // With boiler evidence the lamp claims Ready only when both boilers
+    // are ready; without it (or without the integration) the controller
+    // state decides, as before.
+    rdy = !off && (micraActive ? lm.readiness === "ready" : s.state === "READY"),
+    labels = {
+      warming_up: __WEBUI_TEXT__("home.warming_up"),
+      waiting_for_steam: __WEBUI_TEXT__("home.waiting_for_steam"),
+      needs_water: __WEBUI_TEXT__("home.needs_water"),
+    },
+    // No live boiler temperature: minutes left while warming, target once ready.
+    mins = warming ? Math.max(minsLeft(lm.boiler?.coffee), minsLeft(lm.boiler?.steam)) : 0,
+    target = rdy && micraActive ? Math.round((lm.boiler?.coffee?.targetDeciC || 0) / 10) : 0;
+  rs.textContent = off
+    ? __WEBUI_TEXT__("home.turned_off")
+    : rdy
+      ? __WEBUI_TEXT__("runtime.ready_2")
+      : labels[lm.readiness] ||
+        (power.indexOf("ON") === 0 ? __WEBUI_TEXT__("home.on") : $("state").textContent);
+  setRowValue(
+    "machineRow",
+    ...(mins > 0
+      ? [mins + " min", __WEBUI_TEXT__("home.until_ready")]
+      : target > 0
+        ? [target + "°C", __WEBUI_TEXT__("home.brew_temperature")]
+        : ["", ""]),
+  );
+  row.classList.toggle("lampWarn", warming);
+  row.classList.toggle("lampBad", !rdy && (!micraActive || off || needsWater));
 }
 export function init() {
   if (ready) return;
@@ -183,8 +179,7 @@ function renderReadyMsg(s, lm) {
     cfg = s?.config || {},
     sc = s?.scale || {},
     g = s?.noScaleShotGuard || {},
-    idle = !!s && !["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state),
-    mins = Math.ceil(((lm?.boiler?.coffee?.readyAtUtcSec || 0) * 1000 - Date.now()) / 60000);
+    idle = !!s && !["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state);
   if (!msg) return;
   const text = !idle
     ? ""
@@ -195,8 +190,7 @@ function renderReadyMsg(s, lm) {
           ? __WEBUI_TEXT__("home.no_scale_required")
           : __WEBUI_TEXT__("home.no_scale_warn")
       : s.machineIntegration === "linea_micra_cloud" && lm?.accountConfigured && lm.observeState && lm.readiness === "warming_up"
-        ? __WEBUI_TEXT__("home.machine_warming") +
-          (mins > 0 ? " · " + __WEBUI_TEXT__("home.ready_in").replace("%1", mins) : "")
+        ? __WEBUI_TEXT__("home.machine_warming") + readyIn(minsLeft(lm.boiler?.coffee))
         : "";
   if (text && msg.textContent !== text) msg.textContent = text;
   R.reveal(msg, !!text);
