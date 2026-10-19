@@ -165,7 +165,8 @@ struct MicraWebSocketTest {
       subscribe(service);
       inhibited.store(true);
       service.serviceWebSocket();
-      assert(service.websocket_->client && service.websocketStatus().subscribed);
+      // Established WSS stays open but parks its subscription for the scale.
+      assert(service.websocket_->client && service.websocketStatus().parked);
       service.websocket_->failed.store(true);
       service.serviceWebSocket();
       now = service.websocketStatus().retryAtMs;
@@ -297,6 +298,9 @@ struct MicraWebSocketTest {
         case 10: service.clearSessionRequested_.store(true); break;
       }
       service.serviceWebSocket();
+      // Shot and scale gates park the subscription on the open socket.
+      assert(cause > 2 || (service.websocketStatus().parked && service.websocket_->client &&
+                           transmitted.rfind("UNSUBSCRIBE\n", 0) == 0));
       service.shotActive_.store(false);
       outboundScaleConnected.store(false);
       publishOutboundAcquisition(false, now);
@@ -308,10 +312,19 @@ struct MicraWebSocketTest {
       service.config_.connectionType = static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
       service.clearSessionRequested_.store(false);
       service.serviceWebSocket();
-      if (cause != 1 && cause != 2) { subscribe(service); ++planned; }
+      if (cause > 2) { subscribe(service); ++planned; }
+      else assert(service.websocketStatus().subscribed && transmitted.rfind("SUBSCRIBE\n", 0) == 0);
       assert(service.websocketStatus().plannedConnections == planned);
       assert(service.websocketStatus().unexpectedConnections == unexpected);
     }
+    // Cleaning supervision keeps its pushes through scale acquisition/setup/quiet.
+    service.backflush_.observe(MachineBackflushPhase::INACTIVE, 0);
+    service.backflush_.observe(MachineBackflushPhase::AWAITING, 0);
+    outboundBleQuiet.store(true);
+    service.serviceWebSocket();
+    assert(service.backflush_.status().busy() && service.websocketStatus().subscribed);
+    outboundBleQuiet.store(false);
+    service.backflush_.observe(MachineBackflushPhase::INACTIVE, 0);
     // Failures remain unexpected through a maintenance release or radio pause.
     for (int cause = 0; cause < 8; ++cause) {
       switch (cause) {
@@ -542,14 +555,19 @@ struct MicraWebSocketTest {
     assert(service.observationFence_.epoch == epoch);
     assert(service.status().quality == LineaMicraObservationQuality::CURRENT);
     assert(!service.status().shotPaused && !service.abortRequested_.load());
-    // A live scale pauses the shot; losing it releases the pause mid-shot.
+    // A live scale parks the subscription without closing WSS; late broker
+    // frames are ignored, and losing the scale resubscribes mid-shot.
     outboundScaleConnected.store(true);
     service.serviceWebSocket();
-    assert(stops == stopsBeforeShot + 1 && !service.websocket_->client);
+    assert(stops == stopsBeforeShot && service.websocket_->client);
+    assert(transmitted.rfind("UNSUBSCRIBE\n", 0) == 0 && service.websocketStatus().parked);
+    deliver(service, observation(service, on));
+    assert(!service.websocket_->failed.load() && service.status().shotPaused);
+    assert(service.status().quality != LineaMicraObservationQuality::CURRENT);
     outboundScaleConnected.store(false);
     service.serviceWebSocket();
-    assert(service.websocket_->client && service.websocket_->connect[0]);
-    subscribe(service);
+    assert(transmitted.rfind("SUBSCRIBE\n", 0) == 0 && service.websocketStatus().subscribed);
+    assert(stops == stopsBeforeShot && service.snapshotPending_);
     deliver(service, observation(service, off));
     assert(service.status().quality == LineaMicraObservationQuality::CURRENT);
     service.shotActive_.store(false);
@@ -565,8 +583,8 @@ struct MicraWebSocketTest {
     assert(service.published_.sampleAtMs == beforeShortShot);
     assert(service.published_.powerState == LineaMicraPowerState::ON);
     service.serviceWebSocket();
-    assert(service.websocket_->client && service.websocket_->connect[0]);
-    subscribe(service);
+    assert(stops == stopsBeforeShot && transmitted.rfind("SUBSCRIBE\n", 0) == 0);
+    assert(service.websocketStatus().subscribed && service.snapshotPending_);
     outboundScaleConnected.store(false);
     assert(service.powerState_.retained());
     deliver(service, observation(service, off));

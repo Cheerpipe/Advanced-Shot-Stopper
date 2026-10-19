@@ -269,7 +269,10 @@ transport gate. Unscaled shots do not abort API reads or fence WS ingress;
 scale loss releases that gate independently of the shot's starting scale.
 A lock-free disconnect generation also invalidates in-flight HTTP/WS evidence
 when a scaled-shot pause starts and ends before the cloud owner runs. The next
-owner turn still stops the obsolete socket; deferred HTTP observations retain held state.
+owner turn UNSUBSCRIBEs and resubscribes on the same socket to resynchronize;
+deferred HTTP observations retain held state. Broker MESSAGE frames that arrive
+after UNSUBSCRIBE are ignored rather than treated as protocol failures, and
+token renewal waits while the subscription is parked.
 A separate shot generation cancels queued power commands even when a complete
 cycle occurs between worker turns. Queue admission captures it before checking
 the shot gate; commands from earlier cycles cannot resume afterward. Scale-only
@@ -280,7 +283,8 @@ A discovery-owned atomic acquisition latch is published under the existing
 NimBLE discovery critical section before Candidate becomes consumable. Its
 callback performs atomic stores and notifications only: no task mutex, heap,
 network API or wait. HTTP/webhook/NTP owners close their transports independently;
-An established Micra WSS subscription remains active through scale acquisition.
+An established Micra WSS connection stays open through scale acquisition but
+parks its subscription unless a backflush is in progress.
 New WSS setup and reconnection wait for acquisition, setup, BLE quiet and scale
 connection gates to clear; admission is rechecked after session preparation and
 before SDK init/start. A handshake already in flight can still finish.

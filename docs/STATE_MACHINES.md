@@ -1049,10 +1049,13 @@ post-command reconciliation retain their HTTP paths and coalesce when compatible
 All API purposes, including sign-in and manual requests, remain deferred during
 scale acquisition/setup/quiet and shots with a connected scale; active requests
 cancel through the owner. Unscaled shots keep API observation and WSS active.
-Rinse classification or scale loss clears the shot transport pause. Wake and
+Connected-scale shots park an established WSS subscription with STOMP
+UNSUBSCRIBE instead of closing the socket; release SUBSCRIBEs again and queues
+one initial dashboard read. Rinse classification or scale loss clears the shot
+transport pause. Wake and
 backflush gestures keep both transports available regardless of scale presence.
-Established WSS is exempt from scale acquisition/setup/quiet so cleaning
-supervision can continue; new setup and reconnection wait for those gates.
+Established WSS parks the same way during scale acquisition/setup/quiet, except
+while a backflush is in progress so cleaning supervision can continue; new setup and reconnection wait for those gates.
 Power commands are canceled when a shot starts, including previously queued
 commands; they require a new trigger after the shot. When initialization coalesces
 with post-wake reconciliation, reconciliation uses the request-time field

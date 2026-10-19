@@ -57,7 +57,7 @@ The status pill shows the most important thing to know right now:
 | **Power state unknown** | Grey | No reliable reading yet. |
 
 The brew temperature is added while the machine is on, and **Paused during
-shot** while a shot pauses cloud checks. Hover over the pill to read the full
+shot** while cloud requests wait for a shot with a connected scale. Hover over the pill to read the full
 explanation of a problem.
 
 ### Recommended options
@@ -134,16 +134,19 @@ that used it keeps it until you next choose **Save La Marzocco settings**,
 which switches it to live updates.
 
 Both wait for station Wi-Fi, a synchronized clock and a closed setup access
-point. A shot pauses monitoring only while a scale is connected. Without a
-connected scale, using the paddle keeps both WebSocket monitoring and API reads
-available, whether you brew a shot, rinse or turn the machine on. If a shot with
-a scale is classified as a quick rinse, the pause ends immediately; losing the
-scale also allows monitoring to resume. Backflush gestures keep monitoring
-available with or without a scale. WebSocket monitoring stays connected
-during scale discovery, connection and reconnection. If monitoring needs a new
-connection during scale setup or connection, it waits until that activity and
-the scale's communication pause have ended. Wi-Fi and the local Web UI remain
-available.
+point. During a shot with a connected scale, and while the controller finds and
+connects to a scale, WebSocket monitoring pauses so Bluetooth has the radio to
+itself: the live connection stays open, but La Marzocco stops sending updates
+until the pause ends. Updates then resume and the controller reads the current
+state once, without reconnecting. Without a connected scale, using the paddle
+keeps both WebSocket monitoring and API reads available, whether you brew a
+shot, rinse or turn the machine on. If a shot with a scale is classified as a
+quick rinse, the pause ends immediately; losing the scale also allows
+monitoring to resume. Backflush gestures keep monitoring available with or
+without a scale, and a backflush in progress keeps receiving updates while a
+scale connects. If monitoring needs a new connection during a shot with a
+scale or while a scale connects, it waits until that activity and the scale's
+communication pause have ended. Wi-Fi and the local Web UI remain available.
 Micra API requests, including sign-in, Refresh and machine commands, wait
 through scale connection. During a shot with a connected scale, reads wait.
 Starting any shot cancels pending power commands, including shots without a
@@ -295,8 +298,7 @@ WebSocket connection state, retry time, message/power/pong ages, payload receive
 and transmit rates, totals, errors and stop latency appear separately.
 Two counters distinguish **Planned connections** from **Unexpected
 reconnections**. Planned connections include the normal initial
-connection and resumes after shots (including early rinse classification),
-maintenance or firmware updates, account or monitoring changes, and routine
+connection and resumes after maintenance or firmware updates, account or monitoring changes, and routine
 session renewal. Unexpected recoveries follow Wi-Fi loss, cloud or protocol
 errors, or connection and message timeouts, even when the controller closes the
 socket to recover. A recovery remains unexpected if a planned pause occurs

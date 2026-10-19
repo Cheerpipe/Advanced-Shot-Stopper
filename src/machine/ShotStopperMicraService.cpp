@@ -561,8 +561,9 @@ void ShotStopperMicraService::publishNetworkState(bool staConnected,
   const bool wasEligible = wasSta && !wasAp && !wasPaused && !wasScale;
   const bool eligible =
       staConnected && !apActive && !paused && !scaleConnecting;
-  if ((!staConnected && wasSta) || (apActive && !wasAp) ||
-      (paused && !wasPaused)) {
+  // A scaled-shot pause only cancels HTTP; the WS owner parks its subscription.
+  if (paused && !wasPaused) abortRequested_.store(true, std::memory_order_release);
+  if ((!staConnected && wasSta) || (apActive && !wasAp)) {
     {
       TaskLockGuard lock(mux_);
       if (!staConnected && wasSta && !apActive && wasEligible &&
@@ -1194,7 +1195,7 @@ bool ShotStopperMicraService::networkEligible(LineaMicraError &error, bool obser
     error = LineaMicraError::CANCELED;
     return false;
   }
-  if (shotTransportPaused()) {
+  if (!observation && shotTransportPaused()) {
     error = LineaMicraError::CANCELED;
     return false;
   }

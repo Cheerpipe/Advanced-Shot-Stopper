@@ -159,7 +159,7 @@ void MicraCancellationTest::retryCancellation(ShotStopperMicraService &service) 
   auto websocketAdmitted = [&] { return service.websocketAdmitted(); };
   auto stopWebSocket = [&] { service.stopWebSocket(); };
   const uint32_t delayMs = 100;
-  assert(websocketAdmitted() == !service.shotActive_.load());
+  assert(websocketAdmitted());  // Shots park the WSS subscription; they never stop it.
 #include "micra_cancellation_retry.inc"
   assert(false);  // A pre-existing cancellation must return before waiting.
 }
@@ -398,7 +398,7 @@ void MicraCancellationTest::initializationAndGates() {
     service.abortRequested_.store(true);
     const auto before = websocketStops;
     retryCancellation(service);
-    assert(websocketStops == before + (shot ? 1U : 0U));
+    assert(websocketStops == before);
   }
   outboundScaleConnected.store(false);
 }

@@ -113,8 +113,9 @@ session renewal. Network recovery and session cleanup cannot clear it. Only the
 idle cloud worker consumes it before selecting the next operation; once observed,
 cancellation ends HTTP progress immediately, including an `EAGAIN` result. Client
 cleanup remains on that worker after HTTP progress returns. Connected-scale
-shot pauses destroy the WS client and TLS state but may retain bounded application
-scratch and session tokens. API selection, observation disablement, account
+shots and scale acquisition/setup/quiet park the WS subscription with STOMP
+UNSUBSCRIBE; the client, TLS state, scratch and session tokens stay allocated,
+and a backflush in progress is exempt from scale-gate parking. API selection, observation disablement, account
 removal/change, STA loss/AP entry and maintenance release WS scratch after
 callback quiescence. Maintenance also releases the HTTP workspace. Each
 client records actual pause completion; residual SDK DNS resolution is excluded.

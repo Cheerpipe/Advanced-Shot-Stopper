@@ -5,9 +5,9 @@ it off. It is not a shot: no shot history, no last-shot overwrite, and it does
 not count toward the scale-loss backup's recent shots. Rinses do land in the [activation history](../features/activation-history.md)
 as `rinse` entries.
 
-On Micra, a gesture that starts as a shot pauses cloud observation and API
-work. As soon as it is recognized as a rinse, that pause ends: WebSocket can
-reconnect and API work can resume while the rinse is still running. Ordinary
+On Micra, a gesture that starts as a shot with a connected scale pauses cloud
+updates and API work. As soon as it is recognized as a rinse, that pause ends:
+live updates resume and API work can continue while the rinse is still running. Ordinary
 network and scale-connection restrictions on API work still apply. Quick rinse
 is separate from [automatic backflush](linea-micra.md#automatic-backflush) and
 never receives its longer safety limit.

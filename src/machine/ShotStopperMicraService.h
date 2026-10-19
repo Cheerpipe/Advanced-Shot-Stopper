@@ -112,6 +112,8 @@ class ShotStopperMicraService {
         (outboundShotActive.load(std::memory_order_acquire) ||
          shotActive_.load(std::memory_order_acquire));
   }
+  bool websocketParkDue() const;
+  bool sendSubscription(bool subscribe);
   void serviceWebSocket();
   void stopWebSocket(bool release = false);
   void waitRetry(uint32_t delayMs);
