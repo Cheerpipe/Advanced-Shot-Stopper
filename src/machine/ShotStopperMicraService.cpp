@@ -2528,8 +2528,9 @@ bool ShotStopperMicraService::request(
                  performed == ESP_OK ? BootHeapResult::OK : BootHeapResult::FAILED,
                  millis(), heapAfter);
   work_->transportStatus = performed;
-  work_->httpStatus = static_cast<uint16_t>(
-      esp_http_client_get_status_code(work_->client));
+  // IDF reports -1 until a status line arrives (e.g. header read failed).
+  const int status = esp_http_client_get_status_code(work_->client);
+  work_->httpStatus = status > 0 ? static_cast<uint16_t>(status) : 0;
   work_->transportFailure = performed != ESP_OK;
   if (work_->transportFailure) {
     // A failed perform typically leaves a dead cached socket; rebuild the
