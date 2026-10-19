@@ -777,8 +777,11 @@ void settingsPersistTask(void *parameter) {
     }
     // The producer owns the mailbox until enqueue; this worker owns it until
     // publishing the result. Only the control task consumes that result.
+    // Control admitted the write, but a shot can start while this idle-priority
+    // worker waits for CPU: recheck, and never resume over a factory reset.
+    const bool admitted = waitForShotStoreWriteGate(true);
     const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
-    const bool ok = savePersistedSettings(settingsPersistRequest.blob);
+    const bool ok = admitted && savePersistedSettings(settingsPersistRequest.blob);
     const bool lockContended =
         !ok && flashIoLockTimeouts() != lockTimeoutsBefore;
     feedOrTripCurrentTaskWatchdog();

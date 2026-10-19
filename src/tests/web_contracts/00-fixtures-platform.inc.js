@@ -578,6 +578,10 @@ const firmwareModeWrite = network.slice(
 if (!firmwareModeWrite.includes('networkFlashWriteAllowed()')) {
   throw new Error('Firmware mode must persist only under the durable-write gate');
 }
+if (!/waitForShotStoreWriteGate\(true\);[\s\S]{0,160}savePersistedSettings\(settingsPersistRequest\.blob\)/
+        .test(firmwareCore)) {
+  throw new Error('SETTINGS writes must recheck the durable-write gate on the worker');
+}
 if (!firmware.includes('scaleWorkerTickDelayMs()') ||
     !firmware.includes('controlLoopTickDelayMs(loopScaleLink)') ||
     !firmware.includes('controlHousekeepingDue(loopStartedAtMs)') ||
