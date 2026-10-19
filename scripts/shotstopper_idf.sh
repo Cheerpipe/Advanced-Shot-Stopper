@@ -593,10 +593,14 @@ ss_idf_verify_firmware() {
   fi
   echo "sdkconfig: ${want_opt}=y"
 
-  if ! grep -q '^CONFIG_ARDUINO_EVENT_RUNNING_CORE=0$' "$IDF_SDKCONFIG"; then
-    echo "Core 1 is reserved for control: arduino_events must run on core 0." >&2
-    exit 1
-  fi
+  local core0_key
+  for core0_key in CONFIG_ARDUINO_EVENT_RUNNING_CORE=0 \
+    CONFIG_FREERTOS_TIMER_TASK_AFFINITY_CPU0=y; do
+    if ! grep -q "^${core0_key}$" "$IDF_SDKCONFIG"; then
+      echo "Core 1 is reserved for control: $IDF_SDKCONFIG lacks ${core0_key}." >&2
+      exit 1
+    fi
+  done
 
   if ! grep -q '^CONFIG_BT_NIMBLE_ENABLED=y$' "$IDF_SDKCONFIG" ||
      grep -q '^CONFIG_BT_CONTROLLER_ONLY=y$' "$IDF_SDKCONFIG"; then

@@ -161,6 +161,9 @@ CONFIG_ARDUINO_LOOP_STACK_SIZE=8192
 # (priority ESP_TASKD_EVENT_PRIO - 1) defaults to core 1; keep it with the
 # Wi-Fi and lwIP tasks on core 0 so Wi-Fi events never preempt control.
 CONFIG_ARDUINO_EVENT_RUN_CORE0=y
+# FreeRTOS creates its timer service task without affinity; pin it to core 0
+# so deferred timer callbacks never run on the control core.
+CONFIG_FREERTOS_TIMER_TASK_AFFINITY_CPU0=y
 
 # Skip Matter/RainMaker/esp-sr/Zigbee Arduino wrappers. Shot Stopper only
 # needs EEPROM, Preferences, Network and WiFi from the Arduino libraries.

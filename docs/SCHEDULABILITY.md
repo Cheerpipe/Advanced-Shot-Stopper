@@ -9,9 +9,9 @@ diagnostic and must never execute on a safety path.
 
 The network stack is pinned to core 0 by build configuration
 (`idf/sdkconfig.defaults`): the Wi-Fi driver task, the lwIP `tcpip` task,
-`esp_timer` and Arduino's `arduino_events` network event task all run on
-core 0, and the firmware build fails if the effective configuration moves
-`arduino_events` elsewhere, so an RF-storm burst cannot preempt the
+`esp_timer`, the FreeRTOS timer service task and Arduino's `arduino_events`
+network event task all run on core 0, and the firmware build fails if the
+effective configuration moves either of the last two elsewhere, so an RF-storm burst cannot preempt the
 control and scale loops on core 1. Core 0 therefore concentrates
 every best-effort consumer (httpd, cloud integration, persistence, logging)
 and may degrade first under radio pressure — by design; core 1 stays
