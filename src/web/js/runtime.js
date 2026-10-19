@@ -4960,8 +4960,10 @@ function renderHeroChart(host, model, m, goal, label) {
     yMax = 1.15 * Math.max(model.maxW, m ? m.ceil : 0, goal > 0 ? goal : 0),
     X = (v) => (100 * Math.min(v, xMax)) / xMax,
     Y = (g) => 100 - (100 * Math.max(0, g)) / yMax,
-    path = (pts) => pts.map((q, i) => (i ? "L" : "M") + X(q[0]).toFixed(2) + " " + Y(q[1]).toFixed(2)).join(""),
-    curve = (s) => path(s.pts.map((q) => [q.t, q.cg / 100])),
+    path = (pts, y = Y) => pts.map((q, i) => (i ? "L" : "M") + X(q[0]).toFixed(2) + " " + y(q[1]).toFixed(2)).join(""),
+    curve = (s, y) => path(s.pts.map((q) => [q.t, q.cg / 100]), y),
+    // Flow keeps to the lower 42 % on its own scale, under the weight.
+    flowY = (r) => 100 - 42 * Math.min(1, r / Math.max(2.5, model.flowMax)),
     stroke = 'stroke="var(--on)" vector-effect="non-scaling-stroke"',
     put = (cls, text, x, y) => {
       const e = Object.assign(document.createElement("span"), { className: cls, textContent: text });
@@ -4974,7 +4976,19 @@ function renderHeroChart(host, model, m, goal, label) {
     fadeFill("heroFade", "var(--on)", 0.38) +
     fadeFill("heroWin", "var(--on)", 0.3, 0.02) +
     // Nothing is drawn below the x axis.
-    '</defs><clipPath id="heroPlot"><rect x="-10" y="-50" width="120" height="150"/></clipPath><g clip-path="url(#heroPlot)">';
+    '</defs><clipPath id="heroPlot"><rect x="-10" y="-50" width="120" height="150"/></clipPath><g clip-path="url(#heroPlot)">' +
+    // Faint flow line over a softer fill; its drip tail runs dashed like the weight's.
+    model.flowSegs
+      .filter((s) => s.pts.length > 1)
+      .map((s) => {
+        const p = curve(s, flowY);
+        return `<path d="${p}V100H${X(s.pts[0].t).toFixed(2)}Z" fill="var(--on)" fill-opacity=".11"/><path d="${p}" fill="none" ${stroke} stroke-opacity=".5"/>`;
+      })
+      .join("") +
+    model.dripFlowSegs
+      .filter((s) => s.pts.length > 1)
+      .map((s) => `<path d="${curve(s, flowY)}" fill="none" ${stroke} stroke-opacity=".6" stroke-dasharray="3 3"/>`)
+      .join("");
   const over = [],
     hatch = m && put("noCut", "", 0);
   if (m) {

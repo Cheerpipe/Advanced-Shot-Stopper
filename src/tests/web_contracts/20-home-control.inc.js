@@ -338,6 +338,17 @@
   if(fx.textContent!=='1.8 g/s'||anims.length!==2)throw new Error('Reduced motion must swap the flow at once');
   env.reduce=false;
   delete fx.animate;
+  // The chart draws the computed flow low and faint, with a dashed drip tail.
+  const chart={innerHTML:'',setAttribute(){},replaceChildren(){},append(){},prepend(){}},
+    pts=a=>a.map(([t,cg])=>({t,cg}));
+  new Function('fadeFill','document','h','m',blockAt(runtimeJs,'function renderHeroChart(')+
+    ';renderHeroChart(h,m,null,36,"");')(()=>'',{createElement:()=>({style:{}})},chart,
+    {segs:[{pts:pts([[6,0],[27,3500]])}],dripSegs:[{pts:pts([[27,3500],[29,3600]])}],timeMax:30,maxW:40,
+      flowSegs:[{pts:pts([[7,100],[26,250]])}],dripFlowSegs:[{pts:pts([[27,250],[29,0]])}],flowMax:2.5});
+  if(!chart.innerHTML.includes('M23.33 83.20L86.67 58.00V100H23.33Z" fill="var(--on)" fill-opacity=".11"')||
+      !chart.innerHTML.includes('<path d="M90.00 58.00L96.67 100.00" fill="none" stroke="var(--on)" vector-effect="non-scaling-stroke" stroke-opacity=".6" stroke-dasharray="3 3"/>')||
+      chart.innerHTML.indexOf('fill-opacity=".11"')>chart.innerHTML.indexOf('stroke-width="2.4"'))
+    throw new Error('The Home chart must draw the computed flow under the weight, with a dashed drip tail');
   env.model=null;
   if(flowText(brewing)!==null)throw new Error('Without a flow sample Home must hide the flow');
   paint({...card,scaleAvailable:true});
