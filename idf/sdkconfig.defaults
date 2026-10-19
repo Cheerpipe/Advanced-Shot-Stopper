@@ -157,6 +157,10 @@ CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y
 # Arduino setup()/loop() autostart. Arduino-ESP32 provides app_main.
 CONFIG_AUTOSTART_ARDUINO=y
 CONFIG_ARDUINO_LOOP_STACK_SIZE=8192
+# Core 1 runs only control and scale_worker. Arduino's network event task
+# (priority ESP_TASKD_EVENT_PRIO - 1) defaults to core 1; keep it with the
+# Wi-Fi and lwIP tasks on core 0 so Wi-Fi events never preempt control.
+CONFIG_ARDUINO_EVENT_RUN_CORE0=y
 
 # Skip Matter/RainMaker/esp-sr/Zigbee Arduino wrappers. Shot Stopper only
 # needs EEPROM, Preferences, Network and WiFi from the Arduino libraries.
