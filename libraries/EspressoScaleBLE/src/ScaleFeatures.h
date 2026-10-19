@@ -27,8 +27,8 @@ struct ScaleFeatureSet {
     uint16_t maxPacketSilenceMs;
     uint16_t minimumCommandIntervalMs;
     // Prior estimate of this protocol's weight-transport lag (reporting +
-    // internal filtering), used as the brew-by-weight learned-offset floor.
-    // Refine from FIRST_DROP telemetry; zero means "no prior", floor off.
+    // internal filtering); the brew-by-weight cut leads its flow by it.
+    // Refine from FIRST_DROP telemetry.
     uint16_t sensorLagMs;
 
     bool has(ScaleFeature feature) const {

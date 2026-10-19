@@ -19761,8 +19761,9 @@ void fw01_median_final_weight_filters_dip() {
   CHECK(fabsf(record[0].actualWeightCg / 100.0f - 36.1f) < 0.02f);  // Max.
 }
 
-void fw02_offset_floor_from_sensor_lag() {
-  // Acaia-class lag (690 ms x 0.8 g/s = 0.55 g) floors a converging offset.
+void fw02_offset_learns_below_sensor_lag() {
+  // The cut lead q x tau already carries the sensor lag, so learning is not
+  // floored by it: a 690 ms lag must not pin the offset at 0.55 g.
   resetHarness(false, true);
   reachReadyFromBoot();
   scale.connectedFeatures.sensorLagMs = 690;
@@ -19770,104 +19771,29 @@ void fw02_offset_floor_from_sensor_lag() {
   setScaleConnected(true);
   CHECK(getScaleLinkSnapshot().features.sensorLagMs == 690);
   ShotPreset &preset = mutableActiveShotPreset(presetBank);
-  preset.bbwEwmaOffsetG = 0.20f;
-  preparePendingBbwForTest();
-  pendingFinalize.offsetAnalysis = true;
-  pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
-  pendingFinalize.scaleBaselineReady = true;
-  pendingFinalize.scaleConnectionGeneration =
-      getScaleLinkSnapshot().connectionGeneration;
-  pendingFinalize.weightOffsetG = 0.20f;
-  pendingFinalize.goalWeightDg = preset.goalWeightDg;
-  pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
-  pendingFinalize.endedAtMs = hostMillis;
-  pendingFinalize.durationDs = 300;   // 30 s shot, drop at 10 s: 1.8 g/s.
-  pendingFinalize.firstDropDs = 100;
-  currentWeight = 36.05f;
-  currentWeightConnectionGeneration = pendingFinalize.scaleConnectionGeneration;
-  ++currentWeightSequence;
-  currentWeightReceivedAtMs = ++hostMillis;
-  CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
-  CHECK(fabsf(preset.bbwEwmaOffsetG - 0.552f) < 0.005f);
-
-  // Normal convergence far above the floor is untouched.
-  preset.bbwEwmaOffsetG = 2.0f;
-  preparePendingBbwForTest();
-  pendingFinalize.weightOffsetG = 2.0f;
-  pendingFinalize.durationDs = 300;
-  pendingFinalize.firstDropDs = 100;
-  currentWeight = 36.2f;
-  ++currentWeightSequence;
-  currentWeightReceivedAtMs = ++hostMillis;
-  CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
-  CHECK(fabsf(preset.bbwEwmaOffsetG -
-              (2.0f + (preset.bbwEwmaAlpha / 100.0f) * 0.2f)) < 0.005f);
-
-  // A slow shot (0.4 g/s, long preinfusion) floors at its own lag mass:
-  // 0.69 s x 0.4 g/s = 0.276 g, not the 0.8 g/s prior's 0.552 g.
-  preset.bbwEwmaOffsetG = 0.20f;
-  preparePendingBbwForTest();
-  pendingFinalize.offsetAnalysis = true;
-  pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
-  pendingFinalize.scaleBaselineReady = true;
-  pendingFinalize.scaleConnectionGeneration =
-      getScaleLinkSnapshot().connectionGeneration;
-  pendingFinalize.weightOffsetG = 0.20f;
-  pendingFinalize.goalWeightDg = 180;
-  pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
-  pendingFinalize.endedAtMs = hostMillis;
-  pendingFinalize.durationDs = 450;  // 18.05 g / 45 s = 0.40 g/s.
-  pendingFinalize.firstDropDs = SHOT_LOG_METRIC_MISSING;
-  currentWeight = 18.05f;
-  ++currentWeightSequence;
-  currentWeightReceivedAtMs = ++hostMillis;
-  CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
-  CHECK(fabsf(preset.bbwEwmaOffsetG - 0.276f) < 0.005f);
-
-  // A shot whose own mean rate is negative (final below the captured
-  // baseline, e.g. a tare shift) floors at zero: the offset converges freely.
-  preset.bbwEwmaOffsetG = 0.20f;
-  preparePendingBbwForTest();
-  pendingFinalize.offsetAnalysis = true;
-  pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
-  pendingFinalize.scaleBaselineReady = true;
-  pendingFinalize.scaleBaselineG = 36.5f;
-  pendingFinalize.scaleConnectionGeneration =
-      getScaleLinkSnapshot().connectionGeneration;
-  pendingFinalize.weightOffsetG = 0.20f;
-  pendingFinalize.goalWeightDg = 360;
-  pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
-  pendingFinalize.endedAtMs = hostMillis;
-  pendingFinalize.durationDs = 300;
-  pendingFinalize.firstDropDs = 100;
-  currentWeight = 36.2f;
-  ++currentWeightSequence;
-  currentWeightReceivedAtMs = ++hostMillis;
-  CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
-  CHECK(fabsf(preset.bbwEwmaOffsetG -
-              (0.20f + (preset.bbwEwmaAlpha / 100.0f) * 0.2f)) < 0.005f);
-
-  // First drop equal to the duration leaves no measurable brew span: the
-  // rate is unavailable and the 0.8 g/s prior floors the offset again.
-  preset.bbwEwmaOffsetG = 0.20f;
-  preparePendingBbwForTest();
-  pendingFinalize.offsetAnalysis = true;
-  pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
-  pendingFinalize.scaleBaselineReady = true;
-  pendingFinalize.scaleBaselineG = 0.0f;
-  pendingFinalize.scaleConnectionGeneration =
-      getScaleLinkSnapshot().connectionGeneration;
-  pendingFinalize.weightOffsetG = 0.20f;
-  pendingFinalize.goalWeightDg = 360;
-  pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
-  pendingFinalize.endedAtMs = hostMillis;
-  pendingFinalize.durationDs = 300;
-  pendingFinalize.firstDropDs = 300;  // brewS == 0 -> rate unavailable.
-  currentWeight = 36.05f;
-  ++currentWeightSequence;
-  currentWeightReceivedAtMs = ++hostMillis;
-  CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
-  CHECK(fabsf(preset.bbwEwmaOffsetG - 0.552f) < 0.005f);
+  for (const float finalG : {36.05f, 35.0f}) {  // 0.215 g, then clamped to 0.
+    preset.bbwEwmaOffsetG = 0.20f;
+    preparePendingBbwForTest();
+    pendingFinalize.offsetAnalysis = true;
+    pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
+    pendingFinalize.scaleBaselineReady = true;
+    pendingFinalize.scaleConnectionGeneration =
+        getScaleLinkSnapshot().connectionGeneration;
+    pendingFinalize.weightOffsetG = 0.20f;
+    pendingFinalize.goalWeightDg = 360;
+    pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
+    pendingFinalize.endedAtMs = hostMillis;
+    pendingFinalize.durationDs = 300;
+    pendingFinalize.firstDropDs = 100;
+    currentWeight = finalG;
+    currentWeightConnectionGeneration = pendingFinalize.scaleConnectionGeneration;
+    ++currentWeightSequence;
+    currentWeightReceivedAtMs = ++hostMillis;
+    CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
+    CHECK(fabsf(preset.bbwEwmaOffsetG -
+                fmaxf(0.0f, 0.20f + (preset.bbwEwmaAlpha / 100.0f) *
+                                        (finalG - 36.0f))) < 0.005f);
+  }
 }
 
 void ff19_foreign_generation_cannot_latch_first_drop() {
@@ -21855,7 +21781,7 @@ const TestCase testCases[] = {
     {"SP10", sp10_blend_monotone_within_class},
     {"SP11", sp11_disturbance_guard_fades_to_neutral},
     {"FW01", fw01_median_final_weight_filters_dip},
-    {"FW02", fw02_offset_floor_from_sensor_lag},
+    {"FW02", fw02_offset_learns_below_sensor_lag},
     {"FW03", fw03_dense_tail_decimates_to_reachable_median},
     {"FF13", ff13_rinse_first_drop_goes_through_stopper},
     {"FF14", ff14_no_scale_first_drop_does_not_skip_stopper},

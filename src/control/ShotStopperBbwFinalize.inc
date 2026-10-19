@@ -44,27 +44,6 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
                 "Calculated offset outside safe range; offset unchanged");
     return false;
   }
-  // Sensor transport lag sets a physical lower bound: coffee that was in
-  // flight for λ_sensor while the scale reported stop. The in-flight rate
-  // defaults to 0.8 g/s, but a measured slow shot (long preinfusion,
-  // ristretto) lowers the floor to its own true lag mass so learning is not
-  // pinned above what the shot physically carried.
-  float lagFloorG = 0.0f;
-  const uint16_t sensorLagMs = getScaleLinkSnapshot().features.sensorLagMs;
-  if (sensorLagMs != 0) {
-    float brewS = snapshot.durationDs / 10.0f;
-    if (snapshot.firstDropDs != SHOT_LOG_METRIC_MISSING) {
-      brewS -= snapshot.firstDropDs / 10.0f;
-    }
-    const float meanRateG_S =
-        brewS > 0.0f ? (finalWeightG - snapshot.scaleBaselineG) / brewS : NAN;
-    const float inFlightG_S =
-        std::isfinite(meanRateG_S)
-            ? fminf(0.8f, fmaxf(meanRateG_S, 0.0f))
-            : 0.8f;
-    lagFloorG = sensorLagMs / 1000.0f * inFlightG_S;
-  }
-  updatedOffset = bbwEwma::clampOffset(updatedOffset, lagFloorG);
 
   ShotPreset *preset = mutableShotPreset(
       presetBank, snapshot.activePresetId != 0 ? snapshot.activePresetId

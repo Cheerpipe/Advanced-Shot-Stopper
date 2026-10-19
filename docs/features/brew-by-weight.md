@@ -184,9 +184,10 @@ error `e = W-G`
 and effective compensation `z = O+e`. Reject nonfinite observations and
 `abs(z) > 5 g` before smoothing. Otherwise:
 
-The next offset after an eligible shot is `clamp(O + α*e, 0, 5)`, with a
-lower bound set by the connected scale's reporting lag: smaller gains smooth
-noise; larger gains respond faster. With `O=1.50 g`, `G=36 g`, `W=36.20 g`,
+The next offset after an eligible shot is `clamp(O + α*e, 0, 5)`. The scale's
+reporting lag is already covered by `τ`, so the offset only learns what reaches
+the cup after the valve closes: smaller gains smooth noise; larger gains respond
+faster. With `O=1.50 g`, `G=36 g`, `W=36.20 g`,
 α=0.30 learns **1.56 g**, and history retains **1.50 g** for that shot.
 EWMA requires the accepted post-drip measurement to remain fresh, with valid
 baseline and connection provenance, following a weight cut on any part of the

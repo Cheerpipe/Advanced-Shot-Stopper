@@ -172,11 +172,10 @@ int main() {
         kScaleProtocolAcaia.features.sensorLagMs / 1000.0f;
     assert(fabsf(acaiaLagS * 0.72f - 0.5f) < 0.05f);    // Single seed
     assert(fabsf(acaiaLagS * 2.17f - 1.5f) < 0.05f);    // Double seed
-    assert(fabsf(acaiaLagS * 0.8f - 0.552f) < 0.005f);  // Documented floor
     assert(kScaleProtocolAcaiaLegacy.features.sensorLagMs ==
            kScaleProtocolAcaia.features.sensorLagMs);
-    // Every shipping protocol carries a prior: a zero would silently
-    // disable the learned-offset lag floor for that scale.
+    // Every shipping protocol carries a prior: a zero would drop the
+    // in-flight lead from that scale's cut.
     for (const ScaleProtocol *protocol : {&kScaleProtocolAcaiaLegacy,
                                           &kScaleProtocolAcaia,
                                           &kScaleProtocolGenericFf11,
