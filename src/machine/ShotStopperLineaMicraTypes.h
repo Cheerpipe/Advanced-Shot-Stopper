@@ -277,7 +277,10 @@ struct LineaMicraCloudCall {
   uint32_t startedAtUtcSec = 0;
   uint32_t durationMs = 0;
   int32_t transportStatus = 0;
+  int32_t socketErrno = 0;
+  uint32_t idleMs = 0;  // Since the reused client's previous request ended.
   uint16_t httpStatus = 0;
+  bool clientReused = false;
 };
 
 struct LineaMicraStatus {

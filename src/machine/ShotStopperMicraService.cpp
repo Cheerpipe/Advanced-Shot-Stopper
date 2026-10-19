@@ -346,6 +346,7 @@ struct ShotStopperMicraService::WorkBuffer {
   esp_http_client_handle_t client = nullptr;
   size_t responseUsed = 0;
   uint32_t accessTokenIssuedAtMs = 0;
+  uint32_t lastRequestEndedAtMs = 0;
   uint16_t httpStatus = 0;
   int32_t transportStatus = 0;
   bool responseOverflow = false;
@@ -2358,6 +2359,11 @@ bool ShotStopperMicraService::request(
   pendingCloudCall_.startedAtUtcSec =
       now >= 1700000000 ? static_cast<uint32_t>(now) : 0;
   if (work_ == nullptr || io_ == nullptr || url == nullptr) return false;
+  pendingCloudCall_.clientReused = work_->client != nullptr;
+  if (pendingCloudCall_.clientReused) {
+    pendingCloudCall_.idleMs =
+        pendingCloudCall_.startedAtMs - work_->lastRequestEndedAtMs;
+  }
   if (work_->client == nullptr) {
     esp_http_client_config_t config{};
     config.url = kApiRoot;
@@ -2532,7 +2538,9 @@ bool ShotStopperMicraService::request(
   const int status = esp_http_client_get_status_code(work_->client);
   work_->httpStatus = status > 0 ? static_cast<uint16_t>(status) : 0;
   work_->transportFailure = performed != ESP_OK;
+  work_->lastRequestEndedAtMs = millis();
   if (work_->transportFailure) {
+    pendingCloudCall_.socketErrno = esp_http_client_get_errno(work_->client);
     // A failed perform typically leaves a dead cached socket; rebuild the
     // session on the next attempt instead of reusing it for all retries.
     esp_http_client_cleanup(work_->client);
@@ -2623,12 +2631,16 @@ void ShotStopperMicraService::releaseIoBuffer(bool responseValid) {
     serialTraceCategoryf(success ? LogLevel::INFO
                                 : transient ? LogLevel::WARNING : LogLevel::ERROR,
                          DebugCategory::NETWORK,
-                         "Micra id=%lu %s %s %s http=%u raw=%ld ms=%lu",
+                         "Micra id=%lu %s %s %s http=%u raw=%ld ms=%lu "
+                         "reused=%u idle_ms=%lu errno=%ld",
                          static_cast<unsigned long>(call.startedAtMs),
                          call.method, call.api, call.result,
                          static_cast<unsigned>(call.httpStatus),
                          static_cast<long>(call.transportStatus),
-                         static_cast<unsigned long>(call.durationMs));
+                         static_cast<unsigned long>(call.durationMs),
+                         static_cast<unsigned>(call.clientReused),
+                         static_cast<unsigned long>(call.idleMs),
+                         static_cast<long>(call.socketErrno));
   }
   if (io_ == nullptr) return;
   secureWipe(io_->response, sizeof(io_->response));
