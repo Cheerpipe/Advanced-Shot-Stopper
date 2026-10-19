@@ -10,7 +10,7 @@ diagnostic and must never execute on a safety path.
 The network stack is pinned to core 0 by build configuration
 (`idf/sdkconfig.defaults`): the Wi-Fi driver task, the lwIP `tcpip` task and
 `esp_timer` all run on core 0, so an RF-storm burst cannot preempt the
-priority-1 control and scale loops on core 1. Core 0 therefore concentrates
+control and scale loops on core 1. Core 0 therefore concentrates
 every best-effort consumer (httpd, cloud integration, persistence, logging)
 and may degrade first under radio pressure — by design; core 1 stays
 exclusive to control, scale_worker and their IPC. Measured motive: the
@@ -18,6 +18,12 @@ exclusive to control, scale_worker and their IPC. Measured motive: the
 storms, where the Micra mutex wait (902 ms) ran with a 1.8 ms holder tenure —
 the loop itself had been preempted, and `tcpip` was the only high-priority
 task without affinity.
+
+On core 1 the control task runs at idle+2 and `scale_worker` at idle+1, so
+control preempts its own scale producer instead of sharing time slices with
+it: relay and safety service never waits behind a BLE worker step. The worker
+still runs whenever control sleeps, which it does on every activation, and a
+worker holding a task mutex that control needs inherits control's priority.
 
 ## Application task contract
 
@@ -28,7 +34,7 @@ subscribed nor part of control. Stack values are configured bytes in ESP-IDF.
 
 | Task | Activation / period | Deadline | Execution budget | Priority | Max block | Stack | Core | TWDT |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| control | periodic / 1 ms active | 10 ms | 9000 us | idle+1 | 50 ms maintenance flash take | 8192 | 1 | 5 s |
+| control | periodic / 1 ms active | 10 ms | 9000 us | idle+2 | 50 ms maintenance flash take | 8192 | 1 | 5 s |
 | scale_worker | notification / 1 ms connecting or unlinked queued command, 10 ms linked/idle | 10 ms | 9000 us | idle+1 | 3000 ms GATT step | 6656 | 1 | 5 s |
 | settings_persist | event-driven | 1000 ms service | n/a | idle | 3000 ms lock acquisition; one flash primitive/step | 4096 | 0 | 5 s |
 | health | periodic / 100 ms | diagnostic | n/a | idle | none | 4096 | 0 | no |

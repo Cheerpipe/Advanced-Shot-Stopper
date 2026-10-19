@@ -205,6 +205,8 @@ void setup() {
   bootDegraded = false;
   firmwareInitializationComplete = false;
 #ifndef SHOT_STOPPER_HOST_TEST
+  // setup() and loop() run in loopTask; raise it before any worker exists.
+  vTaskPrioritySet(nullptr, tskIDLE_PRIORITY + CONTROL_TASK_PRIORITY_OFFSET);
   // cJSON hooks are process-wide; install the external allocator before any
   // worker task can parse concurrently.
   initJsonParser();

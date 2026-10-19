@@ -2902,8 +2902,8 @@ bool initializeScaleWorker() {
   TaskHandle_t createdWorker = nullptr;
   if (xTaskCreatePinnedToCore(scaleWorkerTask, "scale_worker",
                               SCALE_WORKER_TASK_STACK_SIZE, nullptr,
-                              tskIDLE_PRIORITY + 1, &createdWorker,
-                              SCALE_WORKER_TASK_CORE) != pdPASS) {
+                              tskIDLE_PRIORITY + SCALE_WORKER_TASK_PRIORITY_OFFSET,
+                              &createdWorker, SCALE_WORKER_TASK_CORE) != pdPASS) {
     vQueueDelete(scaleCommandQueue);
     vQueueDelete(scaleEventQueue);
     scaleCommandQueue = nullptr;

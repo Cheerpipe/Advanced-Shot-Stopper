@@ -566,6 +566,11 @@ if (!bleLibrary.includes('params.filter_duplicates = 0') ||
   throw new Error(
       'Native GAP scan must retain duplicate reports, UUID matching and ONLY address filtering');
 }
+if (!firmware.includes(
+        'vTaskPrioritySet(nullptr, tskIDLE_PRIORITY + CONTROL_TASK_PRIORITY_OFFSET)') ||
+    !scaleWorker.includes('tskIDLE_PRIORITY + SCALE_WORKER_TASK_PRIORITY_OFFSET')) {
+  throw new Error('Control must preempt scale_worker on their shared core');
+}
 if (!firmware.includes('scaleWorkerTickDelayMs()') ||
     !firmware.includes('controlLoopTickDelayMs(loopScaleLink)') ||
     !firmware.includes('controlHousekeepingDue(loopStartedAtMs)') ||

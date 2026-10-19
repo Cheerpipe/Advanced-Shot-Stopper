@@ -22,6 +22,10 @@ constexpr uint32_t SCALE_EXECUTION_BUDGET_US = 9000;
 // failed feed is reported within this interval; the TWDT remains the backstop.
 constexpr uint32_t TASK_WATCHDOG_FEED_INTERVAL_MS = 100;
 constexpr uint32_t TASK_BLOCKING_UNBOUNDED_MS = UINT32_MAX;
+// Priorities above idle on core 1: control preempts its own scale producer so
+// relay/safety service never waits behind a BLE worker time slice.
+constexpr uint8_t CONTROL_TASK_PRIORITY_OFFSET = 2;
+constexpr uint8_t SCALE_WORKER_TASK_PRIORITY_OFFSET = 1;
 
 enum class TaskActivation : uint8_t {
   PERIODIC,
@@ -44,9 +48,11 @@ struct TaskScheduleContract {
 };
 
 constexpr TaskScheduleContract TASK_SCHEDULE_CONTRACTS[] = {
-    {"control", 1, 1, 8192, TaskActivation::PERIODIC, 1,
+    {"control", 1, CONTROL_TASK_PRIORITY_OFFSET, 8192,
+     TaskActivation::PERIODIC, 1,
      CONTROL_SERVICE_DEADLINE_MS, CONTROL_EXECUTION_BUDGET_US, 50, 5000, true},
-    {"scale_worker", 1, 1, 6656, TaskActivation::PERIODIC, 1,
+    {"scale_worker", 1, SCALE_WORKER_TASK_PRIORITY_OFFSET, 6656,
+     TaskActivation::PERIODIC, 1,
      SCALE_SERVICE_DEADLINE_MS, SCALE_EXECUTION_BUDGET_US, 3000, 5000, true},
     {"settings_persist", 0, 0, 4096, TaskActivation::EVENT_DRIVEN, 0, 1000,
      0, 3000, 5000, true},
@@ -66,6 +72,8 @@ constexpr TaskScheduleContract TASK_SCHEDULE_CONTRACTS[] = {
 constexpr size_t TASK_SCHEDULE_CONTRACT_COUNT =
     sizeof(TASK_SCHEDULE_CONTRACTS) / sizeof(TASK_SCHEDULE_CONTRACTS[0]);
 
+static_assert(CONTROL_TASK_PRIORITY_OFFSET > SCALE_WORKER_TASK_PRIORITY_OFFSET,
+              "control must preempt the scale worker on their shared core");
 static_assert(CONTROL_SERVICE_DEADLINE_MS < 200,
               "control deadline must precede health warning threshold");
 static_assert(CONTROL_HOUSEKEEPING_INTERVAL_MS <= CONTROL_SERVICE_DEADLINE_MS,
