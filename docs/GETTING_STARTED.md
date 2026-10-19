@@ -230,9 +230,12 @@ keeps the result: the weight, time chips and pills such as **FAST**,
 **ON RECIPE**, **SLOW** or **MAX TIME**, plus **EXTENDED**, **STOPPED EARLY**,
 **CHANNELING** or **NO SCALE** when they apply. A manual stop shows how the shot
 ended instead.
-The link at the bottom-right of the card opens the shot history on the Stats
-page. The card's elapsed time advances in whole seconds while brewing; when
-the shot ends, it shows the final duration with one decimal place.
+While brewing, the card's time follows the controller's clock and counts up
+smoothly in tenths of a second, even between updates. If updates stop arriving
+for 1.5 seconds, the time freezes and the card shows that its data is out of
+date. When the shot ends, the card shows the controller's final duration. If
+it differs from the running time by more than a tenth of a second, the number
+fades out and back in with the final value; otherwise it simply settles on it.
 
 On a **momentary** machine, press and release to start; another valid press
 requests stop. Automatic stop uses a pulse, not a continuously open contact.

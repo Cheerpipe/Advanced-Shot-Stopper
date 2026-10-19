@@ -58,11 +58,11 @@ updates from the controller. The final time comes from the controller. If
 updates stop arriving for 1.5 seconds, the timer freezes and the card shows that
 its data is out of date; it resumes from the controller's time when updates return.
 When Home receives a paddle OFF update or confirms that the cycle has stopped,
-the number and its seconds unit fade out over 0.4 seconds. The final time
-replaces the running
-estimate while hidden, then fades in over another 0.4 seconds. If the final
-time is still arriving, the number stays hidden until it is ready. Browsers
-set to reduce motion show the final time without the fade.
+the timer stops and waits for the controller's final time. If the two agree to
+within a tenth of a second, the number simply settles on the final time. A
+larger difference fades the number and its seconds unit out over half a second,
+swaps in the final time while hidden, and fades it back in over another half
+second. Browsers set to reduce motion show the final time without the fade.
 
 Home Assistant presents this three-mode policy as one switch. Turning it OFF
 sets **Brew manually**. Turning it ON restores the last non-off mode that

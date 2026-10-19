@@ -211,7 +211,7 @@
     'liveRuleModel','uiState','shotRuleModel','scheduleShotPaint','sub','window','d',
     blockAt(runtimeJs,'function verdictLabel(')+
     runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function checkFirmwareReload('))+
-    ';return renderShotHero(d);')(lookup,()=>env.model,()=>'',
+    ';return renderShotHero({clockMs:d.elapsedMs,...d});')(lookup,()=>env.model,()=>'',
       (v,n)=>(v/1000).toFixed(n),{getItem:()=>tintMode,setItem(){}},{createElement:()=>({})},
       env.liveRuleModel,{shotHistory:{shots:[]}},r=>(ruleArgs.push(r),null),()=>null,
       (t,vals)=>t.replace(/\{(\d)\}/g,(_,i)=>vals[+i]),{matchMedia:()=>({matches:env.reduce})},d);
@@ -466,13 +466,13 @@
   const weight={},animations=[];
   const document={hidden:false};
   const timer=new Function('performance','requestAnimationFrame','cancelAnimationFrame','document',
-    'webUiPollingActive','setHomeSub','$','ms','paintUiStream','window',
+    'webUiPollingActive','heroNum','$','ms','paintUiStream','window',
     "let shotStale=false,activeView='home',shotFrame=null;"+
-    runtimeJs.slice(runtimeJs.search(/let\s+noScaleClock\s*=/),runtimeJs.indexOf('// The diagnostic stream rides'))+
-    ';return{sync:f=>{syncNoScaleTimer(f);shotFrame=f;revealNoScaleFinish()},elapsed:noScaleTimerElapsed,schedule:scheduleNoScaleTimer,'+
-    'finish:finishNoScaleTimer,ending:()=>noScaleFinish,clock:()=>noScaleClock,stale:()=>shotStale,setStale:v=>shotStale=v,view:v=>activeView=v};')(
+    runtimeJs.slice(runtimeJs.search(/let\s+shotClock\s*=/),runtimeJs.indexOf('// The diagnostic stream rides'))+
+    ';return{sync:f=>{syncShotClock(f);shotFrame=f;revealShotClockFinish()},elapsed:shotClockElapsed,schedule:scheduleShotClock,'+
+    'finish:finishShotClock,ending:()=>shotClockFinish,clock:()=>shotClock,stale:()=>shotStale,setStale:v=>shotStale=v,view:v=>activeView=v};')(
     {now:()=>now},fn=>{frames.set(++id,fn);return id},id=>frames.delete(id),document,
-    ()=>owner,(_id,label)=>labels.push(label),()=>weight,
+    ()=>owner,(slot,label)=>labels.push(slot+' '+label),()=>weight,
     (v,n)=>(v/1000).toFixed(n),()=>{},
     {matchMedia:()=>({matches:reducedMotion})});
   const card={valid:true,live:true,scaleAvailable:false,elapsedMs:1000};
@@ -480,13 +480,13 @@
   const tick=()=>{const [id,fn]=frames.entries().next().value;frames.delete(id);fn()};
   timer.sync(frame);timer.schedule();
   now=500;tick();
-  assert.equal(labels.at(-1),'1.5 s','Timer must advance without another message');
+  assert.equal(labels.at(-1),'Weight 1.5 s','Timer must advance without another message');
   timer.sync({...frame,card:{...card,elapsedMs:1300}});
   now=600;tick();
-  assert.equal(timer.elapsed(),1590,'A late message must slow the clock gradually, without a backwards jump');
+  assert.equal(timer.elapsed(),1600,'A late message must not slow the clock');
   timer.sync({...frame,card:{...card,elapsedMs:1900}});
   now=700;tick();
-  assert.equal(timer.elapsed(),1700,'An ahead message must correct gradually');
+  assert.equal(timer.elapsed(),1710,'An earlier-arriving message must correct gradually');
   now=2100;tick();
   assert(timer.stale(),'Silence must freeze the timer after 1.5 seconds');
   const frozen=timer.elapsed();now=4000;
@@ -511,8 +511,10 @@
   assert.equal(timer.clock(),null,'End must use exact firmware duration rather than local estimate');
   assert.equal(frames.size,0,'End must cancel animation through the retained window');
   timer.sync({...frame,card:{...card,scaleAvailable:true}});timer.schedule();
-  assert.equal(timer.clock(),null,'Scale shots must never use the local clock');
-  assert.equal(frames.size,0);
+  assert.equal(timer.clock().id,'Elapsed','Scale shots must run the local clock in the time slot');
+  now=4200;tick();
+  assert.equal(labels.at(-1),'Elapsed 1.1 s');
+  timer.sync({...frame,phase:'pending',card:{...card,scaleAvailable:true,live:false}});
   assert.equal(timer.elapsed(),1000,'Unanimated final values must come from the firmware card');
   weight.animate=(keyframes,options)=>{
     const a={keyframes,options,playState:'running',finished:{then(fn){a.complete=()=>{a.playState='finished';fn()}}},
@@ -524,30 +526,39 @@
   timer.finish();
   assert.equal(timer.clock(),null,'First Home stop signal must freeze the local clock');
   assert.equal(timer.elapsed(),2100);
-  assert.equal(animations[0].options.duration,400);
-  assert.deepEqual(animations[0].keyframes,[{opacity:1},{opacity:0}]);
-  const ended={...brew,phase:'pending',card:{...brew.card,live:false,elapsedMs:1950}};
+  assert.equal(animations.length,0,'The correction must wait for the final firmware frame');
+  const ended={...brew,phase:'pending',card:{...brew.card,live:false,elapsedMs:1800}};
   timer.sync(ended);
+  assert.equal(animations[0].options.duration,500);
+  assert.deepEqual(animations[0].keyframes,[{opacity:1},{opacity:0}]);
   assert.equal(timer.elapsed(),2100,'Final duration must remain hidden until fade out completes');
   animations[0].complete();
-  assert.equal(timer.elapsed(),1950,'Swap to authoritative time at zero opacity');
-  assert.equal(animations[1].options.duration,400);
+  assert.equal(timer.elapsed(),1800,'Swap to authoritative time at zero opacity');
+  assert.equal(animations[1].options.duration,500);
   assert.deepEqual(animations[1].keyframes,[{opacity:0},{opacity:1}]);
   animations[1].complete();assert.equal(timer.ending(),null);
   timer.sync(ended);assert.equal(animations.length,2,'Retained updates must not repeat the fade');
-  timer.sync({...brew,cycle:11});timer.finish();animations[2].complete();
-  assert.equal(animations.length,3,'Fade in must wait for the final firmware frame');
-  timer.sync({...ended,cycle:11});assert.equal(animations.length,4);
+  for(const [cycle,final] of [[14,2000],[15,2149],[16,1951]]){
+    timer.sync({...brew,cycle});timer.finish();
+    timer.sync({...ended,cycle,card:{...ended.card,elapsedMs:final}});
+    assert.equal(timer.ending(),null,'A final duration within 0.1 s must swap without a fade');
+    assert.equal(timer.elapsed(),final);
+  }
+  assert.equal(animations.length,2);
+  timer.sync({...brew,cycle:11});timer.finish();
+  timer.sync({...ended,cycle:11,card:{...ended.card,elapsedMs:2160}});
+  assert.equal(animations.length,3,'A 0.2 s correction must fade');
   timer.sync({...brew,cycle:12});
-  assert(animations[3].cancelled,'A new cycle must cancel the old fade');
+  assert(animations[2].cancelled,'A new cycle must cancel the old fade');
   assert.equal(timer.elapsed(),2000);
   reducedMotion=true;timer.sync({...ended,cycle:12});
   assert.equal(timer.ending(),null,'Reduced motion must skip the transition');
-  assert.equal(animations.length,4);
-  assert.equal(timer.elapsed(),1950);
+  assert.equal(animations.length,3);
+  assert.equal(timer.elapsed(),1800);
   reducedMotion=false;timer.sync({...brew,cycle:13});timer.finish();
-  timer.view('stats');timer.sync({...ended,cycle:13});animations[4].complete();
+  timer.view('stats');timer.sync({...ended,cycle:13});
   assert.equal(timer.ending(),null,'Leaving Home must cancel a pending reveal');
+  assert.equal(animations.length,3);
 }
 
 {

@@ -3597,8 +3597,8 @@ function stopUiStream() {
   (shotWs = null), resetUiStream(), e && e.close(), paintUiStream();
 }
 function paintUiStream() {
-  if (shotStale) cancelNoScaleFinish();
-  scheduleNoScaleTimer();
+  if (shotStale) cancelShotClockFinish();
+  scheduleShotClock();
   if ("home" !== activeView) return;
   const e = $("shotHero");
   if (e) {
@@ -3622,7 +3622,7 @@ function paintUiStream() {
       ...shotFrame.card,
       ...shotFrame.curve,
       shotId: shotFrame.shotId,
-      elapsedMs: noScaleClock || noScaleFinish ? noScaleTimerElapsed() : shotFrame.card.elapsedMs,
+      clockMs: shotClock || shotClockFinish ? shotClockElapsed() : shotFrame.card.elapsedMs,
     }),
       shotStale
         ? setHomeSub("shotHeroState", __WEBUI_TEXT__("home.hero_stale"))
@@ -3808,24 +3808,24 @@ function startUiStream() {
         // The duration chart bands follow the active preset's window.
         if ("presets" in data.changes && activeView === "stats") renderStatsDurChart();
         if (
-          noScaleClock &&
-          homeFrame.boot === noScaleClock.boot &&
+          shotClock &&
+          homeFrame.boot === shotClock.boot &&
           (homeFrame.status.cycle?.active === false ||
             (homeFrame.status.machineType === "paddle" && paddleOff))
         )
-          finishNoScaleTimer();
+          finishShotClock();
         renderHomeStream();
         homeResolve(true);
       } else {
         if (!shotGotShot && !data.snapshot) throw Error();
         const next = uiStreamFrame(shotGotShot ? shotFrame : null, data);
         if (next === shotFrame) return;
-        syncNoScaleTimer(next);
+        syncShotClock(next);
         shotFrame = next;
         shotGotShot = true;
         shotResync = false;
         shotStale = !!data.stale;
-        revealNoScaleFinish();
+        revealShotClockFinish();
         if (["active", "pending"].includes(data.phase))
           shotSeen = { cycle: data.cycle, boot: data.boot };
         else if (shotSeen && shotSeen.boot !== data.boot) shotSeen = null;
@@ -3892,62 +3892,49 @@ function requestShotResync() {
   shotSetup = setTimeout(() => shotWs && shotWs.close(), 8e3);
   shotWs.send('{"op":"resync"}');
 }
-let noScaleClock = null,
-  noScalePaint = 0,
-  noScaleFinish = null;
-const noScaleSilenceMs = 1500;
-function syncNoScaleTimer(frame) {
+// Firmware shot time, run locally between frames. Delay only makes a frame
+// late, so the earliest arrival is the best estimate; the clock slews to it.
+let shotClock = null,
+  shotClockPaint = 0,
+  shotClockFinish = null;
+const shotClockSilenceMs = 1500;
+function syncShotClock(frame) {
   const card = frame.card,
     now = performance.now(),
-    c = noScaleClock;
+    c = shotClock;
   if (
-    noScaleFinish &&
-    (frame.boot !== noScaleFinish.boot ||
-      frame.cycle !== noScaleFinish.cycle ||
-      !card.valid ||
-      card.scaleAvailable !== false)
-  ) {
-    cancelNoScaleFinish();
-  }
-  if (!card.valid || !card.live || card.scaleAvailable !== false) {
-    if (card.valid && card.scaleAvailable === false) finishNoScaleTimer();
+    shotClockFinish &&
+    (frame.boot !== shotClockFinish.boot || frame.cycle !== shotClockFinish.cycle || !card.valid)
+  )
+    cancelShotClockFinish();
+  if (!card.valid || !card.live) {
+    if (card.valid) finishShotClock();
     else {
-      noScaleClock = null;
-      if (noScalePaint) cancelAnimationFrame(noScalePaint);
-      noScalePaint = 0;
+      shotClock = null;
+      if (shotClockPaint) cancelAnimationFrame(shotClockPaint);
+      shotClockPaint = 0;
     }
     return;
   }
-  if (noScaleFinish) return;
-  if (
-    !c ||
-    c.boot !== frame.boot ||
-    c.cycle !== frame.cycle ||
-    shotStale ||
-    now - c.seen >= noScaleSilenceMs
-  )
-    noScaleClock = {
-      boot: frame.boot,
-      cycle: frame.cycle,
-      offset: card.elapsedMs - now,
-      target: card.elapsedMs - now,
-      at: now,
-      seen: now,
-      shown: card.elapsedMs,
-    };
-  else {
-    c.target = card.elapsedMs - now;
+  if (shotClockFinish) return;
+  const id = card.scaleAvailable === false ? "Weight" : "Elapsed";
+  if (!c || c.boot !== frame.boot || c.cycle !== frame.cycle || shotStale || now - c.seen >= shotClockSilenceMs) {
+    const offset = card.elapsedMs - now;
+    shotClock = { boot: frame.boot, cycle: frame.cycle, id, offset, target: offset, at: now, seen: now, shown: card.elapsedMs };
+  } else {
+    c.id = id;
+    c.target = Math.max(c.target, card.elapsedMs - now);
     c.seen = now;
   }
 }
-function noScaleTimerElapsed() {
-  const c = noScaleClock;
+function shotClockElapsed() {
+  const c = shotClock;
   if (!c)
-    return noScaleFinish && !noScaleFinish.revealed
-      ? noScaleFinish.elapsed
+    return shotClockFinish && !shotClockFinish.revealed
+      ? shotClockFinish.elapsed
       : shotFrame.card.elapsedMs;
   if (!shotStale) {
-    const now = Math.min(performance.now(), c.seen + noScaleSilenceMs),
+    const now = Math.min(performance.now(), c.seen + shotClockSilenceMs),
       step = (now - c.at) * 0.1;
     c.offset += Math.max(-step, Math.min(step, c.target - c.offset));
     c.at = now;
@@ -3955,87 +3942,75 @@ function noScaleTimerElapsed() {
   }
   return c.shown;
 }
-function finishNoScaleTimer() {
-  const c = noScaleClock,
-    weight = $("shotHeroWeight");
+// A stop signal freezes the clock until the final firmware frame.
+function finishShotClock() {
+  const c = shotClock;
   if (!c) return;
-  const elapsed = noScaleTimerElapsed();
-  noScaleClock = null;
-  if (noScalePaint) cancelAnimationFrame(noScalePaint);
-  noScalePaint = 0;
+  const elapsed = shotClockElapsed();
+  shotClock = null;
+  if (shotClockPaint) cancelAnimationFrame(shotClockPaint);
+  shotClockPaint = 0;
   if (
-    activeView !== "home" ||
-    document.hidden ||
-    !weight?.animate ||
-    window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+    activeView === "home" &&
+    !document.hidden &&
+    $("shotHero" + c.id)?.animate &&
+    !window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
   )
-    return;
-  const animation = weight.animate([{ opacity: 1 }, { opacity: 0 }], {
-    duration: 400,
-    fill: "forwards",
-    easing: "ease-in-out",
-  });
-  noScaleFinish = { boot: c.boot, cycle: c.cycle, elapsed, animation, revealed: false };
-  animation.finished.then(
-    () => {
-      if (noScaleFinish?.animation === animation) revealNoScaleFinish();
-    },
-    () => {},
-  );
+    shotClockFinish = { boot: c.boot, cycle: c.cycle, id: c.id, elapsed };
 }
-function cancelNoScaleFinish() {
-  noScaleFinish?.animation.cancel();
-  noScaleFinish = null;
+function cancelShotClockFinish() {
+  shotClockFinish?.animation?.cancel();
+  shotClockFinish = null;
 }
-function revealNoScaleFinish() {
-  const f = noScaleFinish;
-  if (!f || f.revealed || f.animation.playState !== "finished" || shotFrame?.card.live) return;
-  if (activeView !== "home" || document.hidden || shotStale || !$("shotHeroWeight")) {
-    cancelNoScaleFinish();
-    return;
-  }
+// The final duration swaps in place within one shown tenth; a larger
+// correction fades out, swaps at zero opacity, and fades back in.
+function revealShotClockFinish() {
+  const f = shotClockFinish,
+    e = f && $("shotHero" + f.id);
+  if (!f || f.revealed || shotFrame?.card.live) return;
+  if (activeView !== "home" || document.hidden || shotStale || !e) return cancelShotClockFinish();
+  const fade = (from, done) => {
+    f.animation = e.animate([{ opacity: from }, { opacity: 1 - from }], { duration: 500, fill: "forwards", easing: "ease-in-out" });
+    f.animation.finished.then(() => shotClockFinish === f && done(), () => {});
+  };
+  if (!f.animation)
+    return Math.abs(ms(f.elapsed, 1) - ms(shotFrame.card.elapsedMs, 1)) < 0.15
+      ? void (shotClockFinish = null)
+      : fade(1, revealShotClockFinish);
+  if (f.animation.playState !== "finished") return;
   f.revealed = true;
   f.animation.cancel();
-  f.animation = $("shotHeroWeight").animate([{ opacity: 0 }, { opacity: 1 }], {
-    duration: 400,
-    easing: "ease-in-out",
-  });
+  fade(0, () => (shotClockFinish.animation.cancel(), (shotClockFinish = null)));
   paintUiStream();
-  f.animation.finished.then(
-    () => {
-      if (noScaleFinish === f) noScaleFinish = null;
-    },
-    () => {},
-  );
 }
-function scheduleNoScaleTimer() {
+function scheduleShotClock() {
   if (
-    noScalePaint ||
-    !noScaleClock ||
+    shotClockPaint ||
+    !shotClock ||
     shotStale ||
     activeView !== "home" ||
     document.hidden ||
     !webUiPollingActive()
   )
     return;
-  noScalePaint = requestAnimationFrame(() => {
-    noScalePaint = 0;
+  shotClockPaint = requestAnimationFrame(() => {
+    shotClockPaint = 0;
     if (
-      !noScaleClock ||
+      !shotClock ||
       shotStale ||
       activeView !== "home" ||
       document.hidden ||
       !webUiPollingActive()
     )
       return;
-    const elapsed = noScaleTimerElapsed();
-    if (performance.now() - noScaleClock.seen >= noScaleSilenceMs) {
+    const elapsed = shotClockElapsed();
+    if (performance.now() - shotClock.seen >= shotClockSilenceMs) {
       shotStale = true;
       paintUiStream();
       return;
     }
-    setHomeSub("shotHeroWeight", ms(elapsed, 1) + __WEBUI_TEXT__("runtime.s_2"));
-    scheduleNoScaleTimer();
+    heroNum(shotClock.id, ms(elapsed, 1) + __WEBUI_TEXT__("runtime.s_2"));
+    scheduleShotClock();
   });
 }
 // Full-screen pushes a history entry so Back closes the card. Route changes
@@ -4753,24 +4728,15 @@ function renderShotHero(d) {
   if (goalEdit)
     goalEdit.hidden =
       d.live || noScale || !(goal > 0) || hero.classList.contains("fs");
-  // Numbers keep their full text; a trailing unit is set smaller.
-  const num = (id, v) => {
-    const e = $("shotHero" + id),
-      [, n, u] = /^(.*\d)(\s?(?:g\/s|[gs]))$/.exec(v || "") || [, v || ""];
-    e.hidden = !v;
-    e.replaceChildren(n);
-    if (u) e.append(Object.assign(document.createElement("small"), { textContent: u }));
-    return v;
-  };
   const label =
-    num(
+    heroNum(
       "Weight",
       est !== null
         ? "~" + est + __WEBUI_TEXT__("runtime.g_2")
         : sl && sl.state === "finished"
         ? __WEBUI_TEXT__("runtime.weight_unknown")
         : noScale
-        ? ms(el, 1) + __WEBUI_TEXT__("runtime.s_2")
+        ? ms(d.clockMs, 1) + __WEBUI_TEXT__("runtime.s_2")
         : wt === null
           ? __WEBUI_TEXT__("runtime.unknown")
           : wt.toFixed(1) + __WEBUI_TEXT__("runtime.g_2"),
@@ -4790,7 +4756,7 @@ function renderShotHero(d) {
     e.hidden = !v;
     e.textContent = v || "";
   };
-  num("Elapsed", (!noScale || est !== null) && ms(el, 1) + __WEBUI_TEXT__("runtime.s_2"));
+  heroNum("Elapsed", (!noScale || est !== null) && ms(d.clockMs, 1) + __WEBUI_TEXT__("runtime.s_2"));
   // Live flow: the chart's own, averaged over its last second; none during a
   // touch hold or once stale. A finished shot shows its average.
   const fi = model ? model.flowCurve.findLastIndex(Number.isFinite) : -1,
@@ -4805,7 +4771,7 @@ function renderShotHero(d) {
   // A finished card fades the live flow into its average.
   const fe = $("shotHeroFlow"),
     ft = Number.isFinite(flow) && Math.max(0, flow).toFixed(1) + __WEBUI_TEXT__("runtime.g_s");
-  heroFadeSwap(fe, () => num("Flow", ft), !d.live && ft !== (!fe.hidden && fe.textContent));
+  heroFadeSwap(fe, () => heroNum("Flow", ft), !d.live && ft !== (!fe.hidden && fe.textContent));
   chip("Touch", !noScale && d.live && d.touchHold && __WEBUI_TEXT__("home.hero_touch_hold"));
   // Pills say how the cut line ended the shot when not at the target.
   const kind = d.live ? "" : /wall_limit$/.test(d.endReason) ? "max_time" : d.verdict || "",
@@ -4873,6 +4839,17 @@ function renderShotHero(d) {
   renderHeroChart($("shotHeroSpark"), model, !noScale && m && m.mode === "active" ? m : null, goal, label);
 }
 // Hero numbers swap with a quick fade; a value arriving mid-fade replaces the pending one.
+// Numbers keep their full text; a trailing unit is set smaller. Unchanged
+// values (the per-frame clock) leave the DOM alone.
+function heroNum(id, v) {
+  const e = $("shotHero" + id),
+    [, n, u = ""] = /^(.*\d)(\s?(?:g\/s|[gs]))$/.exec(v || "") || [, v || ""];
+  e.hidden = !v;
+  if (e.textContent === n + u) return v;
+  e.replaceChildren(n);
+  if (u) e.append(Object.assign(document.createElement("small"), { textContent: u }));
+  return v;
+}
 function heroFadeSwap(e, set, fade) {
   if (e.fade) return void (e.fade.set = set);
   if (!fade || !e.animate || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return set();

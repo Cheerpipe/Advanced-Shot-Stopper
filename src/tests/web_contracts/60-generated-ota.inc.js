@@ -702,8 +702,9 @@ if (generated.cssGzip.length > 15037) {
 // The Home shot card flow line and fill with a dashed drip tail brings it to 39497; owner-requested 2026-10-19.
 // The Home shot card smoothed flow area brings it to 39547; owner-requested 2026-10-19.
 // The Home shot card live flow averaged over its last second brings it to 39579; owner-requested 2026-10-19.
-if (sentinelRuntimeGzip.length > 39579) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 39579-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Home shot card firmware clock in both scale modes with its ±0.1 s final swap brings it to 39655; owner-requested 2026-10-19.
+if (sentinelRuntimeGzip.length > 39655) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 39655-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -940,8 +941,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Home shot card flow line and fill with a dashed drip tail brings it to 66389; owner-requested 2026-10-19.
 // The Home shot card smoothed flow area and taller full-screen chart bring it to 66410; owner-requested 2026-10-19.
 // The Home shot card live flow averaged over its last second brings it to 66445; owner-requested 2026-10-19.
-if (coldHomeGzip > 66445) {
-  throw new Error(`Cold Home download exceeds the 66445-byte gzip budget (${coldHomeGzip})`);
+// The Home shot card firmware clock in both scale modes with its ±0.1 s final swap brings it to 66520; owner-requested 2026-10-19.
+if (coldHomeGzip > 66520) {
+  throw new Error(`Cold Home download exceeds the 66520-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);
