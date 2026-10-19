@@ -568,8 +568,9 @@ if (!bleLibrary.includes('params.filter_duplicates = 0') ||
 }
 if (!firmware.includes(
         'vTaskPrioritySet(nullptr, tskIDLE_PRIORITY + CONTROL_TASK_PRIORITY_OFFSET)') ||
-    !scaleWorker.includes('tskIDLE_PRIORITY + SCALE_WORKER_TASK_PRIORITY_OFFSET')) {
-  throw new Error('Control must preempt scale_worker on their shared core');
+    !scaleWorker.includes('tskIDLE_PRIORITY + SCALE_WORKER_TASK_PRIORITY_OFFSET') ||
+    !firmware.includes('tskIDLE_PRIORITY + HEALTH_TASK_PRIORITY_OFFSET')) {
+  throw new Error('Task priorities must come from the schedule contract');
 }
 if (!firmware.includes('scaleWorkerTickDelayMs()') ||
     !firmware.includes('controlLoopTickDelayMs(loopScaleLink)') ||

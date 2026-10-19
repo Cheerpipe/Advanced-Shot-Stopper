@@ -26,6 +26,9 @@ constexpr uint32_t TASK_BLOCKING_UNBOUNDED_MS = UINT32_MAX;
 // relay/safety service never waits behind a BLE worker time slice.
 constexpr uint8_t CONTROL_TASK_PRIORITY_OFFSET = 2;
 constexpr uint8_t SCALE_WORKER_TASK_PRIORITY_OFFSET = 1;
+// Telemetry shares the core 0 best-effort priority so CPU and heap sampling
+// keeps running while httpd/network_manager saturate core 0.
+constexpr uint8_t HEALTH_TASK_PRIORITY_OFFSET = 1;
 
 enum class TaskActivation : uint8_t {
   PERIODIC,
@@ -56,7 +59,8 @@ constexpr TaskScheduleContract TASK_SCHEDULE_CONTRACTS[] = {
      SCALE_SERVICE_DEADLINE_MS, SCALE_EXECUTION_BUDGET_US, 3000, 5000, true},
     {"settings_persist", 0, 0, 4096, TaskActivation::EVENT_DRIVEN, 0, 1000,
      0, 3000, 5000, true},
-    {"health", 0, 0, 4096, TaskActivation::PERIODIC, 100, 0, 0, 0, 0, false},
+    {"health", 0, HEALTH_TASK_PRIORITY_OFFSET, 4096, TaskActivation::PERIODIC,
+     100, 0, 0, 0, 0, false},
     {"network_manager", 0, 1, 10240, TaskActivation::PERIODIC, 50, 250,
      200000, 2500, 5000, true},
     {"httpd", 0, 1, 11264, TaskActivation::FRAMEWORK, 0, 0, 0, 30000, 0,

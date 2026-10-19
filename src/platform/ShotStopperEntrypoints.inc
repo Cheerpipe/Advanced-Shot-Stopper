@@ -143,7 +143,8 @@ bool initializeHealthWorker() {
   healthSampleQueue = xQueueCreate(1, sizeof(HealthWorkerSample));
   if (healthSampleQueue == nullptr) return false;
   if (xTaskCreatePinnedToCore(healthWorkerTask, "health", 4096, nullptr,
-                              tskIDLE_PRIORITY, &healthTaskHandle, 0) != pdPASS ||
+                              tskIDLE_PRIORITY + HEALTH_TASK_PRIORITY_OFFSET,
+                              &healthTaskHandle, 0) != pdPASS ||
       healthTaskHandle == nullptr) {
     vQueueDelete(healthSampleQueue);
     healthSampleQueue = nullptr;
