@@ -75,6 +75,7 @@ const ScaleProtocol kScaleProtocolEureka = {
     &eurekaSupportedPacketLength,
     &parseEurekaWeight,
     nullptr,
+    nullptr,
     &encodeEurekaCommand,
     nullptr,
     0,

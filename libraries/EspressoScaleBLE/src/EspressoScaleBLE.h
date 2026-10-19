@@ -73,6 +73,9 @@ struct ScaleWeightSample {
     float weightG = 0.0f;
     uint32_t receivedAtMs = 0;
     uint32_t captureSequence = 0;
+    // The scale's own flow from the same frame; only with ScaleFeatureFlowRate.
+    bool flowRateValid = false;
+    float flowRateGps = 0.0f;
 };
 
 // A notification frame the receiving path dropped before it could become a

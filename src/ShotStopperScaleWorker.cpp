@@ -195,6 +195,9 @@ ScaleBleDiagnostics scaleBleDiagnostics = {};
 bool scaleTimerValid = false;
 uint32_t scaleTimerMs = 0;
 uint32_t scaleTimerAgeMs = 0;
+bool scaleFlowRateValid = false;
+float scaleFlowRateGps = 0.0f;
+uint32_t scaleFlowRateAtMs = 0;
 static char scaleProtocolName[20] = "none";
 char scaleConnectedMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
 static char scaleShotName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};
@@ -511,6 +514,9 @@ ScaleLinkSnapshot getScaleLinkSnapshot() {
   snapshot.timerValid = scaleTimerValid;
   snapshot.timerMs = scaleTimerMs;
   snapshot.timerAgeMs = scaleTimerAgeMs;
+  snapshot.flowRateValid = scaleFlowRateValid;
+  snapshot.flowRateGps = scaleFlowRateGps;
+  snapshot.flowRateAtMs = scaleFlowRateAtMs;
   memcpy(snapshot.protocolName, scaleProtocolName, sizeof(snapshot.protocolName));
   memcpy(snapshot.connectedMac, scaleConnectedMac, sizeof(snapshot.connectedMac));
   memcpy(snapshot.shotScaleName, scaleShotName, sizeof(snapshot.shotScaleName));
@@ -561,6 +567,9 @@ void setScaleLinkState(ScaleLinkState state) {
     scaleTimerValid = false;
     scaleTimerMs = 0;
     scaleTimerAgeMs = 0;
+    scaleFlowRateValid = false;
+    scaleFlowRateGps = 0.0f;
+    scaleFlowRateAtMs = 0;
     scaleLinkFeatures = scaleFeatureSetNone();
     scaleLinkModel = ScaleModel::Unknown;
     scaleLinkRssiValid = false;
@@ -974,6 +983,12 @@ bool publishPendingScaleWeightEvent() {
   event.receivedAtMs = sample.receivedAtMs;
   event.captureSequence = sample.captureSequence;
   event.weightG = sample.weightG;
+  // Display-only: the flow skips control and travels with the link snapshot.
+  portENTER_CRITICAL(&scaleLinkMux);
+  scaleFlowRateValid = sample.flowRateValid;
+  scaleFlowRateGps = sample.flowRateGps;
+  scaleFlowRateAtMs = sample.receivedAtMs;
+  portEXIT_CRITICAL(&scaleLinkMux);
   publishScaleEvent(event, false);
   return true;
 }

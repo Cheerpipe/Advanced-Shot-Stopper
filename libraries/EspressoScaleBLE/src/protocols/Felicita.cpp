@@ -104,6 +104,7 @@ const ScaleProtocol kScaleProtocolFelicita = {
     &felicitaSupportedPacketLength,
     &parseFelicitaWeight,
     &parseFelicitaTimer,
+    nullptr,
     &encodeFelicitaCommand,
     kFelicitaInitWrites,
     sizeof(kFelicitaInitWrites) / sizeof(kFelicitaInitWrites[0]),

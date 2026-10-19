@@ -55,6 +55,10 @@ struct ControlStatusFields : ScaleLinkMetrics {
   float observedWeightG = 0.0f;
   uint32_t observedWeightAgeMs = 0;
   bool currentTimerValid = false;
+  // Scale-reported flow, fresh with weight. bool + int16 fill the padding
+  // before currentTimerMs, so the status size budget holds.
+  bool currentFlowRateValid = false;
+  int16_t currentFlowRateCgS = 0;
   uint32_t currentTimerMs = 0;
   uint32_t currentTimerAgeMs = 0;
   uint32_t uptimeMs = 0;

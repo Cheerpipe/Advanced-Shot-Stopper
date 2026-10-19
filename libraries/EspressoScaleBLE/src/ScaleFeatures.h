@@ -14,7 +14,9 @@ enum ScaleFeature {
     ScaleFeatureVolume = 1u << 7,
     ScaleFeatureCommandAudibleFeedback = 1u << 8,
     ScaleFeatureHeartbeat = 1u << 9,
-    ScaleFeaturePowerOff = 1u << 10
+    ScaleFeaturePowerOff = 1u << 10,
+    // Weight frames also carry the scale's own flow rate (parseFlowRate).
+    ScaleFeatureFlowRate = 1u << 11
 };
 
 struct ScaleFeatureSet {

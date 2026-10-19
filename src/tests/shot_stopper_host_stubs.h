@@ -344,6 +344,8 @@ struct ScaleWeightSample {
   float weightG = 0.0f;
   uint32_t receivedAtMs = 0;
   uint32_t captureSequence = 0;
+  bool flowRateValid = false;
+  float flowRateGps = 0.0f;
 };
 
 enum class ScaleFrameDropReason : uint8_t { Stale, UnsupportedLength, Undecodable };
@@ -585,7 +587,7 @@ class EspressoScaleBLE {
   float getWeight() const { return weight; }
   ScaleWeightSample getWeightSample() const {
     return {weight, weightCapturedAtMs == UINT32_MAX ? hostMillis : weightCapturedAtMs,
-            weightCaptureSequence};
+            weightCaptureSequence, flowRateValid, flowRateGps};
   }
   uint32_t notificationSequence() const { return weightCaptureSequence; }
   bool hasTimer() const { return connected && timerValid; }
@@ -760,6 +762,8 @@ class EspressoScaleBLE {
   float weight = 0.0f;
   uint32_t weightCapturedAtMs = UINT32_MAX;
   uint32_t weightCaptureSequence = 0;
+  bool flowRateValid = false;
+  float flowRateGps = 0.0f;
   std::function<void()> beforeCommandAdmission;
   std::function<void()> duringTareWrite;
   bool timerValid = false;

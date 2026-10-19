@@ -85,13 +85,17 @@ The log holds up to **500** shots. The following are never stored:
 
 Home shows the current activation as it happens. After the machine stops, its
 duration stays fixed while accepted drip readings continue updating the curve.
-The shot card shows the yield with its target, such as **36.2 g / 36 g**, next
-to the shot time, such as **30.4 s**. Below them, a chart draws the shot's
-weight over time on top of the preset's cut line (dashed) and its shot time
-window (the shaded band), so you can see at a glance where the shot landed
-against the recipe. A finished shot is drawn against the preset as it was when
-you pulled it. First drop, average flow and the difference from the target are
-on the shot's card in Stats.
+The shot card shows the yield with its target, such as **36.2 g / 36 g**, and
+the shot time, such as **30.4 s**. Between them, slightly smaller, is the flow:
+while the shot runs, how fast coffee is landing in the cup right now, such as
+**1.6 g/s**; once it ends, the shot's average flow from the first drop. The
+flow appears shortly after the first drop, only for shots made with a scale,
+and steps aside while a hand rests on the scale.
+Below them, a chart draws the shot's weight over time on top of the preset's
+cut line (dashed) and its shot time window (the shaded band), so you can see
+at a glance where the shot landed against the recipe. A finished shot is drawn
+against the preset as it was when you pulled it. First drop, average flow and
+the difference from the target are on the shot's card in Stats.
 
 The top line of the card names the result: **On recipe**, **Fast**, **Slow**
 or **Max time**. When the cut line did not stop the shot at the target, a pill

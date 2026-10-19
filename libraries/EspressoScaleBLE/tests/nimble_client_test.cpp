@@ -1119,6 +1119,28 @@ static void run() {
     CHECK(!c.newWeightAvailable()); // Transport success creates no weight evidence.
   }
   {
+    // The sample carries the scale's flow only when the link declares it.
+    NimbleScaleClient c(false); ready(c);
+    os_mbuf b={}; b.length=20;
+    const uint8_t frame[19]={3,0x0b,0,0,0,1,'+',0,0x0e,0x10,'-',0,0x9d};
+    memcpy(b.data,frame,sizeof(frame));
+    for (unsigned i=0;i<19;++i) b.data[19]^=b.data[i];
+    c.onNotification(1,10,&b,c.linkOperationId_);
+    CHECK(c.newWeightAvailable());
+    CHECK(c.weightSample().weightG==36.0f);
+    CHECK(c.weightSample().flowRateValid && c.weightSample().flowRateGps==-1.57f);
+    ScaleProtocol withoutFlag=*c.protocol_;  // Hook present, capability off.
+    withoutFlag.features.flags&=~static_cast<uint32_t>(ScaleFeatureFlowRate);
+    c.protocol_=&withoutFlag;
+    c.onNotification(1,10,&b,c.linkOperationId_);
+    CHECK(c.newWeightAvailable());
+    CHECK(c.weightSample().weightG==36.0f && !c.weightSample().flowRateValid);
+    c.protocol_=&kScaleProtocolWeighMyBru;  // Same envelope, no flow capability.
+    c.onNotification(1,10,&b,c.linkOperationId_);
+    CHECK(c.newWeightAvailable());
+    CHECK(c.weightSample().weightG==36.0f && !c.weightSample().flowRateValid);
+  }
+  {
     NimbleScaleClient c(false); ready(c);
     strcpy(c.name_, "BOOKOO_SC 715097"); c.identityPresent_=true;
     c.writeProperties_=BLE_GATT_CHR_PROP_WRITE_NO_RSP;

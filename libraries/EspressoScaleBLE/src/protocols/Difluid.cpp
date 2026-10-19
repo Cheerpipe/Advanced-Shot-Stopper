@@ -90,6 +90,7 @@ const ScaleProtocol kScaleProtocolDifluid = {
     &difluidSupportedPacketLength,
     &parseDifluidWeight,
     nullptr,
+    nullptr,
     &encodeDifluidCommand,
     kDifluidInitWrites,
     sizeof(kDifluidInitWrites) / sizeof(kDifluidInitWrites[0]),

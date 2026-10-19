@@ -200,18 +200,18 @@
   const heroElements=new Map(),lookup=id=>{
     if(!heroElements.has(id))heroElements.set(id,{hidden:false,textContent:'',dataset:{},style:{tp:null,setProperty(k,v){this[k==='--tp'?'tp':k]=v;}},
       classList:{toggle(){},contains(){return false}},setAttribute(){},
-      replaceChildren(...n){this.textContent=n.map(x=>typeof x==='string'?x:x.textContent).join('');},
-      append(...n){this.textContent+=n.map(x=>typeof x==='string'?x:x.textContent).join('');}});
+      replaceChildren(...n){this.kids=n;this.textContent=n.map(x=>typeof x==='string'?x:x.textContent).join('');},
+      append(...n){this.kids.push(...n);this.textContent+=n.map(x=>typeof x==='string'?x:x.textContent).join('');}});
     return heroElements.get(id);
   };
   let tintMode=null;
   const rule={mode:'active',t1:27,t2:36,prot:3,wall:60,d:5,ceil:38.5};
-  const env={liveRuleModel:null},ruleArgs=[];
+  const env={liveRuleModel:null,model:null},ruleArgs=[];
   const paint=(d)=>new Function('$','buildShotSparkModel','formatShotEnded','ms','localStorage','document',
     'liveRuleModel','uiState','shotRuleModel','scheduleShotPaint','sub','d',
     blockAt(runtimeJs,'function verdictLabel(')+
     runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),runtimeJs.indexOf('function checkFirmwareReload('))+
-    ';return renderShotHero(d);')(lookup,()=>null,()=>'',
+    ';return renderShotHero(d);')(lookup,()=>env.model,()=>'',
       (v,n)=>(v/1000).toFixed(n),{getItem:()=>tintMode,setItem(){}},{createElement:()=>({})},
       env.liveRuleModel,{shotHistory:{shots:[]}},r=>(ruleArgs.push(r),null),()=>null,
       (t,vals)=>t.replace(/\{(\d)\}/g,(_,i)=>vals[+i]),d);
@@ -301,6 +301,25 @@
       !lookup('shotHeroElapsed').hidden||
       lookup('shotHeroMode').hidden||lookup('shotHeroMode').textContent!=='No scale')
     throw new Error('A shot started without a scale must turn the hero into a timer');
+  if(!lookup('shotHeroFlow').hidden)throw new Error('A shot without a scale must not show a flow');
+  // Flow: the scale's own while brewing, else the chart's window; finished shows the average.
+  const flowText=d=>(paint(d),lookup('shotHeroFlow').hidden?null:lookup('shotHeroFlow').textContent);
+  const brewing={...card,weight:20,elapsedMs:20000,firstDropMs:6000,wAtMs:[0,500,1000,1500,2000]};
+  env.model={segs:[],flowCurve:[null,1.2,null,1.48,null]};
+  if(flowText({...brewing,scaleFlowGps:1.63})!=='1.6 g/s'||flowText({...brewing,scaleFlowGps:null})!=='1.5 g/s'||
+      flowText(brewing)!=='1.5 g/s'||flowText({...brewing,scaleFlowGps:-0.4})!=='0.0 g/s'||
+      flowText({...brewing,wAtMs:[0,500,1000,1500,2600]})!==null||
+      flowText({...brewing,touchHold:true,scaleFlowGps:1.63})!==null||flowText({...brewing,touchHold:true})!==null||
+      flowText({...brewing,firstDropMs:null,scaleFlowGps:1})!==null||
+      flowText({...brewing,weight:null,scaleFlowGps:1})!==null||
+      flowText({...done,firstDropMs:6000,averageFlowGps:1.43,scaleFlowGps:2})!=='1.4 g/s'||
+      flowText({...done,firstDropMs:6000,averageFlowGps:null})!==null)
+    throw new Error('Home must show the scale flow, else the computed one, and the average once finished');
+  flowText({...brewing,scaleFlowGps:1.63});
+  if(lookup('shotHeroFlow').kids.map(k=>typeof k==='string'?k:k.textContent).join('|')!=='1.6| g/s')
+    throw new Error('Home must set the flow unit smaller, like g and s');
+  env.model=null;
+  if(flowText(brewing)!==null)throw new Error('Without a flow sample Home must hide the flow');
   paint({...card,scaleAvailable:true});
   if(lookup('shotHeroWeight').textContent!=='2.0 g'||lookup('shotHeroGoal').textContent!==' / 36.0 g'||
       lookup('shotHeroElapsed').hidden||!lookup('shotHeroMode').hidden)
@@ -341,6 +360,7 @@
     {...snapshot,card:{...snapshot.card,weight:NaN}},
     {...snapshot,card:{...snapshot.card,scaleAvailable:'false'}},
     {...snapshot,card:{...snapshot.card,scaleAvailable:null}},
+    ...[NaN,'1.5',true].map(scaleFlowGps=>({...snapshot,card:{...snapshot.card,scaleFlowGps}})),
     ...[undefined,-1,NaN,Infinity,60001,'0'].map(firstDropMs=>({...snapshot,card:{...snapshot.card,firstDropMs}})),
     ...[-1,NaN,'0'].map(tareMs=>({...snapshot,card:{...snapshot.card,tareMs}}))]){
     if(bad.snapshot)bad.seq=3;
@@ -983,6 +1003,8 @@ if (!network.includes('callbacks_.copyHomeShot(latest, self.workBuf_->homeCurve)
     !network.includes('\\"presetName\\":\\"%s\\"') ||
     !network.includes('\\"averageFlowGps\\":%s') ||
     !network.includes('card.averageFlowValid && std::isfinite(card.averageFlowGps)') ||
+    !network.includes('\\"scaleFlowGps\\":%s') ||
+    !network.includes('if (control.activeCycle && control.currentFlowRateValid)') ||
     codeIncludes(ui, 'rateLastShotValue') ||
     codeIncludes(ui, 'controlsMutable&&last&&!live&&ls.shotLogId') ||
     codeIncludes(ui, 'clearLastShotButton')) {

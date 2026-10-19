@@ -277,7 +277,8 @@ summary::marker{color:var(--ac)}
 @keyframes hPulse{50%{opacity:.3}}
 .shotHero .heroNums{display:flex;justify-content:space-between;align-items:baseline;gap:.3rem 1rem;margin-top:.6rem}
 .shotHero .heroNum{display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .4rem;min-width:0;line-height:1}
-.shotHero .heroNum b,.shotHero .heroTime{font-size:2.35rem;font-weight:800;letter-spacing:-.03em;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.shotHero .heroNum b,.shotHero .heroTime,.shotHero .heroFlow{font-size:var(--hn,2.35rem);font-weight:800;letter-spacing:-.03em;line-height:1;white-space:nowrap;font-variant-numeric:tabular-nums}
+.shotHero .heroFlow{font-size:calc(var(--hn,2.35rem)*.85)}
 .heroNums small{display:inline;font-size:.42em;color:var(--w78)}
 .shotHero .heroNum span{font-size:.95rem;font-weight:700;color:var(--w78)}
 .shotHero .heroChart{position:relative;height:7.5rem;margin:.75rem 0 1.6rem}
@@ -344,7 +345,7 @@ body.shotFs{overflow:hidden}
 .shotHero.fs .heroFsBtn svg{width:45%;height:45%}
 .shotHero.fs .heroLabel{font-size:clamp(.75rem,3.8vmin,2.1rem);padding-right:clamp(calc(var(--tap) + .75rem),11vmin,5.5rem)}
 .shotHero.fs .heroDot{width:clamp(.55rem,2.6vmin,1.5rem);height:clamp(.55rem,2.6vmin,1.5rem)}
-.shotHero.fs .heroNum b,.shotHero.fs .heroTime{font-size:clamp(3.4rem,20vmin,11rem)}
+.shotHero.fs{--hn:clamp(3.4rem,min(20vmin,11vmax),11rem)}
 .shotHero.fs .heroNum span{font-size:clamp(1.05rem,6vmin,3.4rem)}
 .shotHero.fs .heroPill,.shotHero.fs .heroChart .xl{font-size:clamp(.66rem,3.2vmin,1.6rem)}
 .shotHero.fs .heroHistory{display:none}

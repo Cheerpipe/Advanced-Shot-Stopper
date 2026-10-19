@@ -68,6 +68,17 @@ marks the link lost before the application can observe it and restarts the full
 interval after any already-admitted radio submission returns.
 
 
+## Scale-reported flow rate
+
+Some scales send their own flow rate with every weight reading. A protocol
+declares this with `ScaleFeatureFlowRate` and supplies `parseFlowRate`, which
+reads signed grams per second from a frame that `parseWeight` accepts; host
+tests require the flag and the hook to come together. The client then fills
+`flowRateValid` and `flowRateGps` in `getWeightSample()`. Applications ask
+`features().has(ScaleFeatureFlowRate)` instead of checking a brand. Today only
+Bookoo declares it; adding another scale means implementing `parseFlowRate` for
+its frames and setting the flag, with no application change.
+
 ## Requirements
 
 Release 5.0.0 uses the native NimBLE C APIs from ESP-IDF 6.1.x. The supported
@@ -130,7 +141,11 @@ rejection. The worker continues consuming fresh weights and checking packet
 timeouts while the link remains up.
 
 Bookoo weight/timer packets require the 20-byte `03 0B` envelope and XOR of the
-first 19 bytes. Command packets use `03 0A` and XOR of the first five bytes,
+first 19 bytes. They also carry the scale's flow rate: byte 10 is its sign,
+bytes 11–12 its value ×100 (big endian), so Bookoo declares
+`ScaleFeatureFlowRate`; the manufacturer does not define the sign bytes, so
+the flow follows the weight's sign rule and an unknown sign byte drops only the
+flow reading. Command packets use `03 0A` and XOR of the first five bytes,
 including start/stop/reset and combined tare-start. Host fixtures check this
 against the [manufacturer's protocol](https://github.com/BooKooCode/OpenSource/blob/main/bookoo_mini_scale/protocols.md).
 These checks establish protocol conformance; the tightened parser and corrected
@@ -206,15 +221,19 @@ Every command validates connection and protocol capability internally. The
 legacy `beep()` method no longer substitutes tare for sound; it now behaves
 like `beepWithoutStateChange()` and succeeds only on Bookoo/generic scales.
 
-The current `ScaleProtocol` contract parses weight and timer readings; it has
-no verified physical-button tare notification. Consumers must not interpret a
+The current `ScaleProtocol` contract parses weight and timer readings, plus
+the scale's own flow rate when the protocol declares `ScaleFeatureFlowRate`;
+it has no verified physical-button tare notification. Consumers must not interpret a
 weight drop to zero as proof of tare: removing an untared cup can produce the
 same trace. Firmware-issued tare and its known cup reference are handled by
 the controller's [tare policy](../../docs/settings/tare.md).
 
 The single worker owner can read `getWeightSample()` after
 `newWeightAvailable()`: grams, notification capture time and capture sequence
-are returned from the same consumed RX frame. `notificationSequence()` reads
+are returned from the same consumed RX frame. When the connected `features()`
+include `ScaleFeatureFlowRate`, `flowRateValid` and `flowRateGps` (signed g/s)
+come from that frame too; otherwise `flowRateValid` is false and consumers
+derive flow from the weights themselves. `notificationSequence()` reads
 the latest queued notification identity to establish a command boundary;
 buffered earlier frames retain their original identity/time. Sequence zero is
 reserved and skipped on wrap. Native notification callbacks only copy bounded

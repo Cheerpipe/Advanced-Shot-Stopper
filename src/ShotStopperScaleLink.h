@@ -168,6 +168,10 @@ struct ScaleLinkSnapshot {
   bool timerValid = false;
   uint32_t timerMs = 0;
   uint32_t timerAgeMs = 0;
+  // Latest scale-reported flow (ScaleFeatureFlowRate) and its frame time.
+  bool flowRateValid = false;
+  float flowRateGps = 0.0f;
+  uint32_t flowRateAtMs = 0;
   char protocolName[20] = {};
   char connectedMac[PREFERRED_SCALE_MAC_CAPACITY] = {};
   char shotScaleName[SCALE_FRIENDLY_NAME_MAX_LEN + 1] = {};

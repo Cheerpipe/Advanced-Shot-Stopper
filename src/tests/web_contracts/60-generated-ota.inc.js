@@ -565,8 +565,9 @@ if (generated.jsGzip.length > 7330) {
 // Styling the empty shot and activation history notes measures 14791 bytes; owner-requested 2026-10-18.
 // The La Marzocco Cloud state pill and its four tones measure 14861 bytes; owner-requested 2026-10-18.
 // Home Equipment device icons, status badges and headline values measure 15007 bytes; owner-requested 2026-10-18.
-if (generated.cssGzip.length > 15007) {
-  throw new Error(`Compressed Web CSS exceeds the 15007-byte gzip budget (${generated.cssGzip.length})`);
+// The Home shot card's centred flow and its full-screen fit measure 15037 bytes; owner-requested 2026-10-19.
+if (generated.cssGzip.length > 15037) {
+  throw new Error(`Compressed Web CSS exceeds the 15037-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -696,8 +697,9 @@ if (generated.cssGzip.length > 15007) {
 // The Linea Micra sign-in state and its Save/Revert pairing bring it to 39012; owner-requested 2026-10-18.
 // The La Marzocco Cloud legend states (connected, connecting, choose) bring it to 39038; owner-requested 2026-10-18.
 // The Home Cup accessory state line brings it to 39158; owner-requested 2026-10-18.
-if (sentinelRuntimeGzip.length > 39158) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 39158-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Home shot card flow (scale-reported or chart-computed, hidden during touch holds) brings it to 39296; owner-requested 2026-10-19.
+if (sentinelRuntimeGzip.length > 39296) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 39296-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -928,8 +930,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Home Equipment device icons, status badges and headline values bring it to 65962; owner-requested 2026-10-18.
 // The Micra machine row dash with Turn on to brew / Refill the tank notes brings it to 65986; owner-requested 2026-10-18.
 // The Home Micra machine row Starting up note brings it to 66002; owner-requested 2026-10-18.
-if (coldHomeGzip > 66002) {
-  throw new Error(`Cold Home download exceeds the 66002-byte gzip budget (${coldHomeGzip})`);
+// The Home shot card flow, its full-screen fit and touch-hold gating bring it to 66188; owner-requested 2026-10-19.
+if (coldHomeGzip > 66188) {
+  throw new Error(`Cold Home download exceeds the 66188-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

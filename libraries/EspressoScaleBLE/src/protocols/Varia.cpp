@@ -95,6 +95,7 @@ const ScaleProtocol kScaleProtocolVaria = {
     &variaSupportedPacketLength,
     &parseVariaWeight,
     &parseVariaTimer,
+    nullptr,
     &encodeVariaCommand,
     nullptr,
     0,

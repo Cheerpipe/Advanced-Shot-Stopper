@@ -287,6 +287,14 @@ void publishControlStatus() {
   next.currentTimerValid = next.scaleAvailable && scaleLink.timerValid;
   next.currentTimerMs = next.currentTimerValid ? scaleLink.timerMs : 0;
   next.currentTimerAgeMs = next.currentTimerValid ? scaleLink.timerAgeMs : 0;
+  next.currentFlowRateValid = weightFresh && scaleLink.flowRateValid &&
+                              scaleLink.features.has(ScaleFeatureFlowRate) &&
+                              std::isfinite(scaleLink.flowRateGps) &&
+                              elapsedMs(scaleLink.flowRateAtMs) <= MAX_AUTOMATION_WEIGHT_AGE_MS;
+  next.currentFlowRateCgS = next.currentFlowRateValid
+      ? static_cast<int16_t>(lroundf(std::fmax(-32767.0f,
+            std::fmin(32767.0f, scaleLink.flowRateGps * 100.0f))))
+      : 0;
   next.scaleConnectionGeneration = scaleLink.connectionGeneration;
   next.scalePacketSequence = scaleLink.packetSequence;
   next.scalePacketGaps = scaleLink.packetGaps;

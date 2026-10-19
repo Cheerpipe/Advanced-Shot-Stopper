@@ -86,8 +86,12 @@ void testProtocolInitializationContracts() {
   for (size_t index = 0; index < scaleProtocolCount(); ++index) {
     const ScaleProtocol *protocol = scaleProtocolAt(index);
     CHECK(protocol != nullptr);
+    // A flow hook exists exactly when the protocol declares the capability.
+    CHECK((protocol->parseFlowRate != nullptr) ==
+          protocol->features.has(ScaleFeatureFlowRate));
     if (std::strcmp(protocol->id, "bookoo_generic") == 0) {
       sawBookoo = true;
+      CHECK(protocol->features.has(ScaleFeatureFlowRate));
       CHECK(protocol->initWrites == nullptr);
       CHECK(protocol->initWriteCount == 0);
     } else if (std::strcmp(protocol->id, "acaia") == 0) {
@@ -141,6 +145,39 @@ void testEurekaWeightFrame() {
   CHECK(!kScaleProtocolEureka.parseWeight(frame, sizeof(frame) - 1, &weight));
 }
 
+void testBookooFlowRateFrame() {
+  const ScaleProtocol &bookoo = kScaleProtocolGenericFf11;
+  uint8_t frame[20] = {3, 0x0b, 0, 0, 0, 1, '+', 0, 0x0e, 0x10, '+', 0, 0x9d};
+  const auto seal = [&frame] {
+    frame[19] = 0;
+    for (int i = 0; i < 19; ++i) frame[19] ^= frame[i];
+  };
+  seal();
+  float weight = 0;
+  float flow = 0;
+  CHECK(bookoo.parseWeight(frame, sizeof(frame), &weight) && weight == 36.0f);
+  CHECK(bookoo.parseFlowRate(frame, sizeof(frame), &flow) && flow == 1.57f);
+  frame[10] = '-';
+  seal();
+  CHECK(bookoo.parseFlowRate(frame, sizeof(frame), &flow) && flow == -1.57f);
+  for (const uint8_t positive : {static_cast<uint8_t>(' '), static_cast<uint8_t>(0)}) {
+    frame[10] = positive;
+    seal();
+    CHECK(bookoo.parseFlowRate(frame, sizeof(frame), &flow) && flow == 1.57f);
+  }
+  frame[10] = 0x7f;  // An unknown flow sign never invents a flow; weight stays valid.
+  seal();
+  CHECK(bookoo.parseWeight(frame, sizeof(frame), &weight));
+  CHECK(!bookoo.parseFlowRate(frame, sizeof(frame), &flow));
+  frame[10] = '+';
+  frame[11] = frame[12] = 0xff;
+  seal();
+  CHECK(bookoo.parseFlowRate(frame, sizeof(frame), &flow) && flow == 655.35f);
+  frame[19] ^= 1;
+  CHECK(!bookoo.parseFlowRate(frame, sizeof(frame), &flow));
+  CHECK(!bookoo.parseFlowRate(frame, sizeof(frame) - 1, &flow));
+}
+
 void fuzzProtocolPacketBounds() {
   for (size_t index = 0; index < scaleProtocolCount(); ++index) {
     const ScaleProtocol *protocol = scaleProtocolAt(index);
@@ -160,6 +197,12 @@ void fuzzProtocolPacketBounds() {
         }
         if (protocol->parseTimer != nullptr) {
           protocol->parseTimer(frame.data(), length, &timerMs);
+        }
+        float flow = 0;
+        if (protocol->parseFlowRate != nullptr &&
+            protocol->parseFlowRate(frame.data(), length, &flow)) {
+          CHECK(std::isfinite(flow));
+          CHECK(protocol->parseWeight(frame.data(), length, &weight));
         }
       }
     }
@@ -222,6 +265,12 @@ void mutateAcceptedProtocolFrames() {
             }
             uint32_t timer=0;
             if (protocol->parseTimer) protocol->parseTimer(frame.data(),length,&timer);
+            float flow=0;
+            if (protocol->parseFlowRate &&
+                protocol->parseFlowRate(frame.data(),length,&flow)) {
+              CHECK(std::isfinite(flow));
+              CHECK(protocol->parseWeight(frame.data(),length,&weight));
+            }
           }
           frame=original;
         }
@@ -239,6 +288,7 @@ int main() {
   fuzzEveryTruncation();
   testProtocolInitializationContracts();
   testEurekaWeightFrame();
+  testBookooFlowRateFrame();
   fuzzProtocolPacketBounds();
   mutateAcceptedProtocolFrames();
   std::cout << "NimBLE advertisement tests passed: " << checks << " checks\n";

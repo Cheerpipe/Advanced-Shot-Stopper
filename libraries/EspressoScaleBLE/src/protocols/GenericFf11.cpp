@@ -10,7 +10,8 @@ static const char *const kGenericPrefixes[] = {"BOOKO"};
 static const ScaleFeatureSet kGenericFeatures = {
     SCALE_CORE_FEATURES | ScaleFeatureCombinedTareStart |
         ScaleFeatureIndependentBeep | ScaleFeatureVolume |
-        ScaleFeatureCommandAudibleFeedback | ScaleFeaturePowerOff,
+        ScaleFeatureCommandAudibleFeedback | ScaleFeaturePowerOff |
+        ScaleFeatureFlowRate,
     0,
     5,
     0,
@@ -32,10 +33,14 @@ bool genericSupportedPacketLength(int length) {
     return length == 20;
 }
 
+// Weight and flow share the sign convention; the spec leaves its bytes open.
+bool genericSign(uint8_t sign) {
+    return sign == '-' || sign == '+' || sign == ' ' || sign == 0x00;
+}
+
 bool parseGenericWeight(const uint8_t *data, int length, float *weight) {
     if (length != 20 || data[0] != 0x03 || data[1] != 0x0b ||
-        (data[6] != '-' && data[6] != '+' && data[6] != ' ' &&
-         data[6] != 0x00)) {
+        !genericSign(data[6])) {
         return false;
     }
     uint8_t checksum = 0;
@@ -62,6 +67,18 @@ bool parseGenericTimer(const uint8_t *data, int length, uint32_t *timerMs) {
     return true;
 }
 
+// Byte 10 is the flow sign, bytes 11-12 the flow x100 (big endian).
+bool parseGenericFlowRate(const uint8_t *data, int length, float *gramsPerSecond) {
+    float ignoredWeight = 0.0f;
+    if (!parseGenericWeight(data, length, &ignoredWeight) || !genericSign(data[10])) {
+        return false;
+    }
+    const float rate =
+        static_cast<float>((static_cast<uint16_t>(data[11]) << 8) | data[12]) / 100.0f;
+    *gramsPerSecond = data[10] == '-' ? -rate : rate;
+    return true;
+}
+
 bool encodeGenericCommand(ScaleOp op, uint8_t arg, uint8_t *out, int *length) {
     const uint8_t code = scaleBookooOpcode(op);
     if (code == 0) return false;
@@ -84,6 +101,7 @@ const ScaleProtocol kScaleProtocolGenericFf11 = {
     &genericSupportedPacketLength,
     &parseGenericWeight,
     &parseGenericTimer,
+    &parseGenericFlowRate,
     &encodeGenericCommand,
     nullptr,
     0,

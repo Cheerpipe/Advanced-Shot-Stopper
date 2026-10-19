@@ -3615,11 +3615,63 @@ void w47_status_reports_live_scale_weight_and_timer() {
   CHECK(status.currentTimerMs == 12340);
   CHECK(status.currentTimerAgeMs == 40);
 
+  CHECK(!status.currentFlowRateValid);
+
+  // A scale with the flow capability reports its own flow with fresh weight.
+  scale.connectedFeatures.flags |= ScaleFeatureFlowRate;
+  updateWorkerLinkState();
+  scale.weight = 18.6f;
+  scale.flowRateValid = true;
+  scale.flowRateGps = 1.57f;
+  scale.newWeightAvailableValue = true;
+  CHECK(publishPendingScaleWeightEvent());
+  processScaleWorkerEvents();
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.currentFlowRateValid);
+  CHECK(status.currentFlowRateCgS == 157);
+  // A newer weight alone cannot keep an old flow alive.
+  hostMillis += MAX_AUTOMATION_WEIGHT_AGE_MS + 1;
+  publishWeight(18.7f);
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.currentWeightValid);
+  CHECK(!status.currentFlowRateValid);
+  CHECK(status.currentFlowRateCgS == 0);
+  // A fresh frame without a flow reading clears the last one.
+  scale.newWeightAvailableValue = true;
+  CHECK(publishPendingScaleWeightEvent());
+  processScaleWorkerEvents();
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.currentFlowRateValid);
+  scale.flowRateValid = false;
+  scale.newWeightAvailableValue = true;
+  CHECK(publishPendingScaleWeightEvent());
+  processScaleWorkerEvents();
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(!status.currentFlowRateValid);
+  scale.flowRateValid = true;
+  // Without the capability the same flow sample is never published.
+  scale.connectedFeatures.flags &= ~static_cast<uint32_t>(ScaleFeatureFlowRate);
+  updateWorkerLinkState();
+  scale.newWeightAvailableValue = true;
+  CHECK(publishPendingScaleWeightEvent());
+  processScaleWorkerEvents();
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(!status.currentFlowRateValid);
+  scale.connectedFeatures.flags |= ScaleFeatureFlowRate;
+  updateWorkerLinkState();
+
   setScaleConnected(false);
   publishControlStatus();
   copyControlStatus(status);
   CHECK(!status.currentTimerValid);
   CHECK(status.currentTimerMs == 0);
+  CHECK(!status.currentFlowRateValid);
+  CHECK(!getScaleLinkSnapshot().flowRateValid);
 }
 
 void r47_reset_reason_name_maps_known_codes() {

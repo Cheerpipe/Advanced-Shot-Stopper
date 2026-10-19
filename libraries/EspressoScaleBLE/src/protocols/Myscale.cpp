@@ -65,6 +65,7 @@ const ScaleProtocol kScaleProtocolMyscale = {
     &myscaleSupportedPacketLength,
     &parseMyscaleWeight,
     nullptr,
+    nullptr,
     &encodeMyscaleCommand,
     nullptr,
     0,

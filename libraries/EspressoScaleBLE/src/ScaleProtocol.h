@@ -30,6 +30,9 @@ struct ScaleProtocol {
     bool (*supportedPacketLength)(int length);
     bool (*parseWeight)(const uint8_t *data, int length, float *weight);
     bool (*parseTimer)(const uint8_t *data, int length, uint32_t *timerMs);
+    // Signed grams per second from a frame parseWeight accepted; set only by
+    // protocols that declare ScaleFeatureFlowRate.
+    bool (*parseFlowRate)(const uint8_t *data, int length, float *gramsPerSecond);
     bool (*encodeCommand)(ScaleOp op, uint8_t arg, uint8_t *out, int *length);
     const ScalePayload *initWrites;
     size_t initWriteCount;

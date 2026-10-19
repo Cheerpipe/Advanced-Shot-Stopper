@@ -68,6 +68,7 @@ const ScaleProtocol kScaleProtocolDecent = {
     &decentSupportedPacketLength,
     &parseDecentWeight,
     nullptr,
+    nullptr,
     &encodeDecentCommand,
     nullptr,
     0,

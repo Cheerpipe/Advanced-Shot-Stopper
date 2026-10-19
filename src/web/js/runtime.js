@@ -3607,6 +3607,7 @@ function paintUiStream() {
         (e.hidden = !1),
         setHomeSub("shotHeroState", __WEBUI_TEXT__("home.hero_loading")),
         setHomeSub("shotHeroWeight", "—"),
+        ($("shotHeroFlow").hidden = !0),
         void setHomeSub("shotHeroElapsed", "—")
       );
     if (!shotFrame.card.valid)
@@ -3657,6 +3658,7 @@ function uiStreamFrame(e, t) {
       o(n.elapsedMs) &&
       (null === n.weight || Number.isFinite(n.weight)) &&
       (null === n.averageFlowGps || Number.isFinite(n.averageFlowGps)) &&
+      (null == n.scaleFlowGps || Number.isFinite(n.scaleFlowGps)) &&
       (void 0 === n.scaleAvailable || "boolean" == typeof n.scaleAvailable) &&
       [n.firstDropMs, n.tareMs].every((e) => null === e || o(e, 6e4))
     )
@@ -4756,7 +4758,7 @@ function renderShotHero(d) {
   // Numbers keep their full text; a trailing unit is set smaller.
   const num = (id, v) => {
     const e = $("shotHero" + id),
-      [, n, u] = /^(.*\d)(\s?[gs])$/.exec(v || "") || [, v || ""];
+      [, n, u] = /^(.*\d)(\s?(?:g\/s|[gs]))$/.exec(v || "") || [, v || ""];
     e.hidden = !v;
     e.replaceChildren(n);
     if (u) e.append(Object.assign(document.createElement("small"), { textContent: u }));
@@ -4791,6 +4793,20 @@ function renderShotHero(d) {
     e.textContent = v || "";
   };
   num("Elapsed", (!noScale || est !== null) && ms(el, 1) + __WEBUI_TEXT__("runtime.s_2"));
+  // Live flow: the scale's own, else the chart's while its window is current;
+  // none during a touch hold. A finished shot shows its average.
+  const fi = model ? model.flowCurve.findLastIndex(Number.isFinite) : -1,
+    flow =
+      noScale || drop == null || (d.live && (wt === null || d.touchHold))
+        ? null
+        : !d.live
+          ? d.averageFlowGps
+          : Number.isFinite(d.scaleFlowGps)
+            ? d.scaleFlowGps
+            : fi >= 0 && d.wAtMs.at(-1) - d.wAtMs[fi] <= 1000
+              ? model.flowCurve[fi]
+              : null;
+  num("Flow", Number.isFinite(flow) && Math.max(0, flow).toFixed(1) + __WEBUI_TEXT__("runtime.g_s"));
   chip("Touch", !noScale && d.live && d.touchHold && __WEBUI_TEXT__("home.hero_touch_hold"));
   // Pills say how the cut line ended the shot when not at the target.
   const kind = d.live ? "" : /wall_limit$/.test(d.endReason) ? "max_time" : d.verdict || "",

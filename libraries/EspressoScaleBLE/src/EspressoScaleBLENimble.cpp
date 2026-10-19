@@ -533,7 +533,13 @@ class NimbleScaleClient {
         portENTER_CRITICAL(&advertMux_);
         negativeCache_.erase(peerKey(selectedAddress_));
         portEXIT_CRITICAL(&advertMux_);
-        currentWeightSample_ = {weight, frame.receivedAtMs, frame.captureSequence};
+        float flowRateGps = 0.0f;
+        const bool hasFlowRate = protocol_->parseFlowRate != nullptr &&
+                                 features().has(ScaleFeatureFlowRate) &&
+                                 protocol_->parseFlowRate(frame.data, frame.length,
+                                                          &flowRateGps);
+        currentWeightSample_ = {weight, frame.receivedAtMs, frame.captureSequence,
+                                hasFlowRate, flowRateGps};
         return true;
       }
     }
