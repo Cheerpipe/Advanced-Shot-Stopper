@@ -512,7 +512,6 @@
     "home.no_scale_required": "No scale connected. Connect a scale to start a shot.",
     "home.no_scale_warn": "No scale connected. Your next start is blocked once with a warning; start again to brew manually.",
     "home.on": "On",
-    "home.open_shot_history": "Shot history →",
     "home.optimistic": "Optimistic",
     "home.override_brewing": "Mark as running",
     "home.override_idle": "Mark as idle",
