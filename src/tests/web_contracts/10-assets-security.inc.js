@@ -993,8 +993,9 @@ if (jsBytes > 465517) {
 // The La Marzocco Cloud Account label on its own line: 556797, owner-requested 2026-10-18.
 // The Diagnostic Micra WebSocket live/parked/closed link label: 556971, owner-requested 2026-10-18.
 // Home Equipment device icons with status badges and headline values: 557451, owner-requested 2026-10-18.
-if (htmlBytes + jsBytes > 557451) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 557451)`);
+// The Micra machine row dash with Turn on to brew / Refill the tank notes: 557554, owner-requested 2026-10-18.
+if (htmlBytes + jsBytes > 557554) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 557554)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

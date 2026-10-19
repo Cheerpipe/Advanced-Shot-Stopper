@@ -926,8 +926,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The La Marzocco Cloud Account label string brings it to 65687; owner-requested 2026-10-18.
 // The Diagnostic Micra WebSocket link label string brings it to 65695; owner-requested 2026-10-18.
 // The Home Equipment device icons, status badges and headline values bring it to 65962; owner-requested 2026-10-18.
-if (coldHomeGzip > 65962) {
-  throw new Error(`Cold Home download exceeds the 65962-byte gzip budget (${coldHomeGzip})`);
+// The Micra machine row dash with Turn on to brew / Refill the tank notes brings it to 65986; owner-requested 2026-10-18.
+if (coldHomeGzip > 65986) {
+  throw new Error(`Cold Home download exceeds the 65986-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

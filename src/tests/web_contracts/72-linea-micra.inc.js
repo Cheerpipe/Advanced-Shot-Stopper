@@ -92,7 +92,12 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   context.applyStatus(boilers('ready', {state: 'ready', targetDeciC: 930}));
   assert.deepStrictEqual([rowState.textContent, rowSlots.machineRowValue.textContent, rowSlots.machineRowHint.textContent],
       ['Ready', '93°C', 'Brew temperature']);
-  context.applyStatus({...boilers('ready', {state: 'ready', targetDeciC: 930}), lineaMicra: {powerState: 'OFF', quality: 'current'}});
+  context.applyStatus({...warming, lineaMicra: {...warming.lineaMicra, powerState: 'OFF'}});
+  assert.deepStrictEqual([rowSlots.machineRowValue.textContent, rowSlots.machineRowHint.textContent], ['—', 'Turn on to brew']);
+  context.applyStatus(boilers('needs_water', {state: 'no_water'}));
+  assert.deepStrictEqual([rowSlots.machineRowValue.textContent, rowSlots.machineRowHint.textContent], ['—', 'Refill the tank']);
+  // Without the integration there is never a reading, so no dash either.
+  context.applyStatus({lineaMicra: {powerState: 'OFF', quality: 'current'}, state: 'READY'});
   assert.strictEqual(rowSlots.machineRowValue.textContent, '');
   // Home boiler rows: estimate math (Date.now pinned to 60000 ms),
   // clamping, labels, and configuration gating.
