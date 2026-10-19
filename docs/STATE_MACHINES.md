@@ -671,9 +671,10 @@ accepted point at least 0.5 s older than the anchor (last accepted sample),
 so it moves only when the anchor does: held samples never drag it. The flow
 `m` is the secant of the accepted points over the second ending at the
 reference (with younger history, the secant up to the newest point; never
-negative). Neither reaches behind the last accepted level shift. A sample is
-anomalous at `|residual| ≥ 1.5 g`; once holding it stays anomalous down to
-1.0 g (hysteresis). An empty trajectory (pre-cycle anchor) is never judged.
+negative). Neither reaches behind the last accepted level shift or the
+first drop, where the flat pre-flow trend ends. A sample is anomalous at
+`|residual| ≥ 1.5 g`; once holding it stays anomalous down to 1.0 g
+(hysteresis). An empty trajectory (pre-cycle anchor) is never judged.
 When a hold begins, the anchor's own sample leaves the trend if it was already
 1.0 g or more off it in the same direction: a contact's leading edge cannot
 later become the reference for clean flow.
@@ -682,7 +683,7 @@ later become the reference for clean flow.
 
 | State | Meaning |
 | --- | --- |
-| `STARTUP` | No accepted point is yet 0.5 s older than the anchor (start of shot or right after a level shift): the anchor is the reference. |
+| `STARTUP` | No accepted point is yet 0.5 s older than the anchor (start of shot, first drop, or right after a level shift): the anchor is the reference. |
 | `TREND` | A lagged reference exists; it stays frozen while a hold lasts. |
 
 ### Classes

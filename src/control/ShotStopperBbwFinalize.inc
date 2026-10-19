@@ -40,8 +40,10 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
       snapshot.scaleConnectionGeneration == getScaleLinkSnapshot().connectionGeneration;
   if (!bbwEwma::learn(snapshot.weightOffsetG, finalWeightG, cutLineG,
                       snapshot.bbwAlpha, acceptedFresh, updatedOffset)) {
-    serialTrace(LogLevel::WARNING,
-                "Calculated offset outside safe range; offset unchanged");
+    serialTrace(acceptedFresh ? LogLevel::WARNING : LogLevel::INFO,
+                acceptedFresh
+                    ? "Calculated offset outside safe range; offset unchanged"
+                    : "Final weight not a fresh post-drip reading; offset unchanged");
     return false;
   }
 

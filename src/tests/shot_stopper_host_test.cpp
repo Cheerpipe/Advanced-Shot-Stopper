@@ -19154,6 +19154,36 @@ void at25_real_spurt_is_accepted_as_flow() {
   CHECK(session.calibrationEligible);
 }
 
+void at26_first_drop_onset_is_flow_not_touch() {
+  // Recorded Themis Mini shot: flat at -0.3 g, then coffee at up to 3 g/s.
+  // The flat pre-flow trend predicts no flow; the onset is not a touch.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  enableAccidentalTouchForTest();
+  startCycle();
+  advanceToBrew();
+  const uint32_t baseMs = hostMillis;
+  const int onset[][2] = {
+      {4938, -3}, {5028, -2}, {5088, 1}, {5268, 2}, {5298, 5}, {5388, 8},
+      {5508, 11}, {5598, 13}, {5688, 15}, {5808, 17}, {5898, 18}, {5988, 19},
+      {6108, 22}, {6198, 23}, {6318, 23}, {6408, 24}, {6498, 25}, {6618, 25},
+      {6708, 26}, {6828, 27}, {6948, 27}, {7008, 28}, {7098, 28}, {7218, 28},
+      {7308, 28}, {7398, 28}, {7518, 28}, {7608, 31}, {7758, 30}, {7818, 30},
+      {7908, 29}, {8028, 29}, {8118, 30}, {8238, 30}, {8328, 30}, {8418, 30}};
+  for (int i = 1; i < 49; ++i) publishWeight(-0.3f, baseMs + 100U * i);
+  for (const auto &sample : onset) {
+    markScaleWorkerProgress();
+    publishWeight(sample[1] / 10.0f, baseMs + sample[0]);
+    loop();
+    CHECK(!session.accidentalTouchHolding);
+  }
+  CHECK(session.firstDropMs != 0);
+  CHECK(session.calibrationEligible);
+  CHECK(shotCurveBitCount(shotCurveSampler.held, 0) == 0);
+  publishWeight(11.0f, baseMs + 8538);  // A real step is still held.
+  CHECK(session.accidentalTouchHolding);
+}
+
 void tr04_light_cup_pre_effect_packet_recovers() {
   // A post-boundary packet from a light cup (40 g) arrives before the zero:
   // control must settle on the real zero instead of locking VALIDATING.
@@ -21761,6 +21791,7 @@ const TestCase testCases[] = {
     {"AT23", at23_hand_contact_is_absorbed_at_low_and_high_cup_weight},
     {"AT24", at24_ramped_contact_and_lift_are_held},
     {"AT25", at25_real_spurt_is_accepted_as_flow},
+    {"AT26", at26_first_drop_onset_is_flow_not_touch},
     {"TR01", tr01_failed_start_tare_uses_software_zero},
     {"TR02", tr02_late_zero_after_grace_is_ignored},
     {"TR03", tr03_failed_start_tare_cup_lift_stops},

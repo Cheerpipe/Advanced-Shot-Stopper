@@ -374,6 +374,9 @@ void onFirstDropsDetected(const FirstFlowObservation &observation) {
   const bool first = !session.firstDropObserved;
   session.firstDropObserved = true;
   recordFirstDropTimestamp(observation.atMs);
+  // Flow onset ends the flat pre-flow trend: a touch epoch starts with it.
+  session.accidentalTouchEpochS = fmaxf(session.accidentalTouchEpochS,
+      static_cast<int32_t>(observation.atMs - shot.startMs) / 1000.0f);
   const uint32_t firstDropAnchorMs = session.circuitClosedAtMs != 0U
                                          ? session.circuitClosedAtMs
                                          : session.startedAtMs;
