@@ -694,6 +694,8 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
                     static_cast<unsigned long>(control.loopMaxGapMs));
     telemetry.field("health.minimumFreeHeapBytes", "%lu",
                     static_cast<unsigned long>(control.minimumFreeHeapBytes));
+    telemetry.field("health.minimumFreeHeapBeforeReleaseBytes", "%lu",
+                    static_cast<unsigned long>(bootHeapHeldMinimum.load()));
     telemetry.field("health.largestFreeHeapBlockBytes", "%lu",
                     static_cast<unsigned long>(control.largestFreeHeapBlockBytes));
     telemetry.field("health.psramSizeBytes", "%lu",

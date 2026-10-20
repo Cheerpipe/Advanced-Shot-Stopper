@@ -234,7 +234,7 @@ if (network.includes('page == StatusPage::Diagnostic')) {
     'wifiPs', 'wifiCoex', 'channel', 'staIp', 'ipMode', 'configState', 'confirmRemainingMs', 'rssi',
     'signalQualityPct', 'lastSyncUtcSec',
     'activeServer', 'maintenance', 'persistPending', 'uptimeMs', 'hwmon',
-    'minimumFreeHeapBytes', 'largestFreeHeapBlockBytes',
+    'minimumFreeHeapBytes', 'minimumFreeHeapBeforeReleaseBytes', 'largestFreeHeapBlockBytes',
     'internalHeapAllocatedBlocks', 'internalHeapFreeBlocks',
     'internalHeapFragmentationPermille',
     'psramSizeBytes', 'psramFreeBytes', 'psramLargestFreeBlockBytes',
