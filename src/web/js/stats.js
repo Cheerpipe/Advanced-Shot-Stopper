@@ -632,50 +632,73 @@ function renderStatsDurChart() {
     '</svg><div class="ruleChartTicks"></div>';
   fillChartTicks(host.lastChild, ticks.filter(([t]) => t > lo && t < hi).map(([t, s, p]) => [t - lo, s, p]), hi - lo, true);
 }
-// Consistency: the newest 10 shots, oldest first, each as a column from its own
-// preset's average time to target. The level is the median change between
-// neighbouring shots, so one odd shot does not decide it.
-const CONSISTENT_S = 1.5,
-  VARIED_S = 3;
+// Consistency of the newest 10 timed shots: each shot's time to target as a
+// share of its own preset's average, so recipes of any length compare fairly.
+// The level is the median change between neighbouring shots, so one odd shot
+// cannot decide it; the band uses the same 5 %.
+const CONSISTENT = 0.05,
+  VARIED = 0.1;
+function consistencyModel(shots) {
+  const rows = shots.slice().sort((a, b) => a.id - b.id).slice(-10),
+    n = rows.length,
+    avg = {};
+  for (const r of rows) (avg[r.presetId] ??= []).push(r.arrivalS);
+  for (const k in avg) avg[k] = avg[k].reduce((a, v) => a + v, 0) / avg[k].length;
+  const rel = rows.map((r) => r.arrivalS / avg[r.presetId] - 1),
+    j = rel.slice(1).map((v, i) => Math.abs(v - rel[i])).sort((a, b) => a - b),
+    typical = n < 5 ? null : (j[(j.length - 1) >> 1] + j[j.length >> 1]) / 2,
+    // One preset reads in seconds (sec is its average), several in percent.
+    sec = Object.keys(avg).length === 1 ? avg[rows[0].presetId] : 0,
+    // Never narrower than twice the band, never so wide one outlier flattens
+    // the rest; then up to whole (or half) seconds or 5 % steps for the labels.
+    raw = Math.min(6 * CONSISTENT, Math.max(2 * CONSISTENT, Math.max(0, ...rel.map(Math.abs)) * 1.15)),
+    step = sec ? (raw * sec < 2 ? 0.5 : 1) / sec : 0.05;
+  return {
+    rows,
+    rel,
+    sec,
+    typical,
+    M: Math.ceil(raw / step - 1e-9) * step,
+    level: typical == null ? "few" : typical <= CONSISTENT ? "good" : typical <= VARIED ? "fair" : "poor",
+    spread: n ? Math.max(...rel) - Math.min(...rel) : 0,
+  };
+}
 function renderStatsConsistency(shots) {
   const root = $("statsConsistency");
   if (!root) return;
-  const rows = shots.slice().sort((a, b) => a.id - b.id).slice(-10),
-    n = rows.length,
-    avg = {},
-    s = __WEBUI_TEXT__("runtime.s"),
-    L = (v) => R.axisLabel(v, s),
-    signed = (v) => ((v = Math.round(v * 10) / 10) > 0 ? "+" : v < 0 ? "−" : "") + L(Math.abs(v));
+  const m = consistencyModel(shots),
+    { rows, rel, sec, M } = m,
+    n = rows.length;
   root.hidden = !n;
   if (!n) return;
-  for (const r of rows) (avg[r.presetId] ??= []).push(r.arrivalS);
-  for (const k in avg) avg[k] = avg[k].reduce((a, v) => a + v, 0) / avg[k].length;
-  const dev = rows.map((r) => r.arrivalS - avg[r.presetId]),
-    j = dev.slice(1).map((v, i) => Math.abs(v - dev[i])).sort((a, b) => a - b),
-    typ = n < 5 ? null : (j[(j.length - 1) >> 1] + j[j.length >> 1]) / 2,
-    level = typ == null ? "few" : typ <= CONSISTENT_S ? "good" : typ <= VARIED_S ? "fair" : "poor",
-    mixed = Object.keys(avg).length > 1,
-    M = Math.max(2 * CONSISTENT_S, Math.ceil(Math.max(...dev.map(Math.abs)) * 1.15)),
-    X = (i) => (n > 1 ? 3 + (i / (n - 1)) * 94 : 50),
-    Y = (v) => 25 - (23 * v) / M,
-    w = 5.64,
-    out = (i) => Math.abs(dev[i]) > CONSISTENT_S;
-  root.dataset.level = level;
+  const L = (v) => (sec ? R.axisLabel(v * sec, __WEBUI_TEXT__("runtime.s")) : +(v * 100).toFixed(1) + __WEBUI_TEXT__("runtime.symbol_4")),
+    signed = (v, k = Math.round(v * (sec || 100) * 10)) => (k > 0 ? "+" : k < 0 ? "−" : "") + L(Math.abs(v)),
+    // Ten fixed slots, latest on the right, so a shot keeps its place as more arrive.
+    X = (i) => 3 + ((10 - n + i) * 94) / 9,
+    Y = (v) => 25 - (23 * Math.max(-M, Math.min(M, v))) / M,
+    out = (i) => Math.abs(rel[i]) > CONSISTENT,
+    bar = (v, i) => {
+      const x = (X(i) - 2.82).toFixed(2),
+        h = Math.abs(Y(v) - 25),
+        y = h < 0.6 ? 24.7 : Math.min(Y(v), 25);
+      return '<rect class="consBar' + (out(i) ? " out" : "") + '" x="' + x + '" width="5.64" y="' + y.toFixed(2) + '" height="' +
+        Math.max(h, 0.6).toFixed(2) + '"/>' +
+        (Math.abs(v) > M ? '<path class="consOver" d="M' + x + " " + (v > 0 ? 1 : 49) + 'h5.64"/>' : "");
+    };
+  root.dataset.level = m.level;
   root.innerHTML =
-    '<div class="statsDensZones"><span><b>' + (typ == null ? "—" : "±" + L(typ)) + "</b>" +
+    '<div class="statsDensZones"><span><b>' + (m.typical == null ? "—" : "±" + L(m.typical)) + "</b>" +
     {
       good: __WEBUI_TEXT__("runtime.consistency_good"),
       fair: __WEBUI_TEXT__("runtime.consistency_fair"),
       poor: __WEBUI_TEXT__("runtime.consistency_poor"),
       few: __WEBUI_TEXT__("runtime.consistency_few"),
-    }[level] + "</span><span><b>" + L(Math.max(...dev) - Math.min(...dev)) + "</b>" +
+    }[m.level] + "</span><span><b>" + L(m.spread) + "</b>" +
     __WEBUI_TEXT__("runtime.consistency_spread") + "</span><span><b>" + n + "</b>" + __WEBUI_TEXT__("runtime.consistency_shots") +
     '</span></div><div class="consPlot"><svg class="statsDensPlot" viewBox="0 0 100 50" preserveAspectRatio="none" aria-hidden="true">' +
-    '<rect class="consBand" x="0" width="100" y="' + Y(CONSISTENT_S) + '" height="' + (Y(-CONSISTENT_S) - Y(CONSISTENT_S)) + '"/>' +
-    dev.map((v, i) => '<rect class="consBar' + (out(i) ? " out" : "") + '" x="' + (X(i) - w / 2).toFixed(2) + '" width="' + w +
-      '" y="' + Math.min(Y(v), 25).toFixed(2) + '" height="' + Math.abs(Y(v) - 25).toFixed(2) + '"/>').join("") +
-    '<path class="consAvg" d="M0 25H100"/></svg><span class="consEdge">+' + L(M) + '</span><span class="consEdge">' +
-    (mixed ? __WEBUI_TEXT__("runtime.consistency_avg") : L(avg[rows[0].presetId])) + '</span><span class="consEdge">−' + L(M) +
+    '<rect class="consBand" x="0" width="100" y="' + Y(CONSISTENT) + '" height="' + (Y(-CONSISTENT) - Y(CONSISTENT)) + '"/>' +
+    rel.map(bar).join("") + '<path class="consAvg" d="M0 25H100"/></svg><span class="consEdge">+' + L(M) +
+    '</span><span class="consEdge">' + (sec ? L(1) : __WEBUI_TEXT__("runtime.consistency_avg")) + '</span><span class="consEdge">−' + L(M) +
     '</span><svg class="consCursor" aria-hidden="true"><g class="shotCursor"><line class="rvGuide" y1="0" y2="100%"/><circle class="rvHandle" r="5"/>' +
     R.PILL + '</g></svg></div><div class="ruleChartTicks"><span class="ruleTick">' + __WEBUI_TEXT__("runtime.consistency_oldest") +
     '</span><span class="ruleTick">' + __WEBUI_TEXT__("runtime.consistency_latest") + "</span></div>";
@@ -685,26 +708,32 @@ function renderStatsConsistency(shots) {
     [guide, dot, pill] = cur.firstChild.children,
     [t0, t1] = root.querySelectorAll(".ruleTick");
   [Y(M), 25, Y(-M)].forEach((y, k) => (plot.querySelectorAll(".consEdge")[k].style.top = y * 2 + "%"));
-  t0.style.left = "0";
+  t0.style.left = X(0) - 2.82 + "%";
+  t0.hidden = n < 4;
   t1.style.left = "100%";
   let at = n - 1;
   const seek = (v, held = true) => {
     at = Math.max(0, Math.min(n - 1, v > at ? Math.ceil(v) : Math.floor(v)));
     const x = X(at) + "%",
       r = rows[at],
-      text = R.sub(__WEBUI_TEXT__("runtime.consistency_pill"), [at + 1, mixed ? " · " + shotPresetName(r) : "", L(r.arrivalS), signed(dev[at])]);
+      text = R.sub(__WEBUI_TEXT__("runtime.consistency_pill"), [
+        at + 1,
+        sec ? "" : " · " + shotPresetName(r),
+        R.axisLabel(r.arrivalS, __WEBUI_TEXT__("runtime.s")),
+        signed(rel[at]),
+      ]);
     guide.setAttribute("x1", x);
     guide.setAttribute("x2", x);
     dot.setAttribute("cx", x);
-    dot.setAttribute("cy", Y(dev[at]) * 2 + "%");
+    dot.setAttribute("cy", Y(rel[at]) * 2 + "%");
     cur.style.setProperty("--c", out(at) ? "var(--zl)" : "var(--zs)");
     plot.setAttribute("aria-valuenow", at + 1);
     plot.setAttribute("aria-valuetext", text);
-    if (held) R.placePill(pill, text, (X(at) / 100) * cur.clientWidth, (Y(dev[at]) / 50) * cur.clientHeight);
+    if (held) R.placePill(pill, text, (X(at) / 100) * cur.clientWidth, (Y(rel[at]) / 50) * cur.clientHeight);
   };
   bindShotScrub(plot, (cx) => {
     const b = cur.getBoundingClientRect();
-    return n > 1 ? Math.round((((cx - b.left) / b.width) * 100 - 3) / 94 * (n - 1)) : 0;
+    return Math.round(((((cx - b.left) / b.width) * 100 - 3) * 9) / 94) - (10 - n);
   }, seek, () => at);
   plot.setAttribute("aria-label", __WEBUI_TEXT__("runtime.consistency_cursor"));
   plot.setAttribute("aria-valuemin", 1);

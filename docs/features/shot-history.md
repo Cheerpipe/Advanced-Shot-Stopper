@@ -29,18 +29,29 @@ against its own window instead: the axis shows **Window start** and
 its target. The chart appears once a shot has a measured arrival time.
 
 Below it, the consistency chart answers a different question: not whether your
-shots landed on recipe, but how alike they are. It looks at your newest 10
-shots with an arrival time, using the same **All presets** or **Current
-preset** choice, and draws one column per shot, oldest on the left. Each column
-starts at your average time to the target, the dashed line, and shows how many
-seconds slower (up) or faster (down) that shot was. The shaded band covers
-1.5 seconds either side of the average; columns that go past it are drawn in a
-stronger color. With several presets, each shot is compared with its own
-preset's average, so a ristretto and a lungo can share the chart.
+shots landed on recipe, but how alike they are. It measures time, not weight:
+every shot already stops at its target weight, so what changes from shot to
+shot is how long it took to get there. A barista whose shots all run a little
+slow can still be very consistent. The chart looks at your newest 10 shots with
+an arrival time, using the same **All presets** or **Current preset** choice.
+
+Each shot is a column, with the newest on the right; as new shots arrive, the
+older ones move left. Each column starts at your average time to the target,
+the dashed line, and shows how much slower (up) or faster (down) that shot was.
+The shaded band covers 5 % of the average either side, about 1.4 seconds on a
+28-second shot; columns that go past it are drawn in a stronger color. A shot
+far outside the chart stops at its edge with a dashed cap; drag to it to read
+its real time.
+
+The limits scale with your recipe, because one second matters more on a
+20-second ristretto than on a 45-second lungo. When the shots shown come from a
+single preset, the chart and its numbers read in seconds. When they come from
+several presets, each shot is compared with its own preset's average and the
+chart reads in percent, so different recipes can share it fairly.
 
 The numbers above the chart sum it up. The first is how much your time
 typically changes from one shot to the next, with a verdict: **Very
-consistent** up to 1.5 seconds, **Fairly consistent** up to 3 seconds, and
+consistent** up to 5 % of your average, **Fairly consistent** up to 10 %, and
 **Varies a lot** beyond that. A single odd shot does not change the verdict on
 its own. **Spread** is the gap between your fastest and slowest shot, and
 **Shots** is how many are shown. With fewer than 5 shots the verdict reads

@@ -570,8 +570,9 @@ if (generated.jsGzip.length > 7330) {
 // The drip compensation chart (bars, markers, line in use) measures 15432 bytes; owner-requested 2026-10-20.
 // The Stats shot card cut and drip delay cells in a reflowed grid measure 15464 bytes; owner-requested 2026-10-20.
 // The Stats consistency columns (band, columns, edges, level tones) measure 15681 bytes; owner-requested 2026-10-20.
-if (generated.cssGzip.length > 15681) {
-  throw new Error(`Compressed Web CSS exceeds the 15681-byte gzip budget (${generated.cssGzip.length})`);
+// The Stats consistency clipped-column notch measures 15691 bytes; owner-requested 2026-10-20.
+if (generated.cssGzip.length > 15691) {
+  throw new Error(`Compressed Web CSS exceeds the 15691-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -770,7 +771,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The Stats shot card cut and drip delay cells and their CSV columns measure records.js at 13809, with settings.js gzip wobble from the shared text table at 16804; owner-requested 2026-10-20.
 // The Stats consistency columns (renderer, level header and scrub) measure records.js at 14826; owner-requested 2026-10-20.
 // The drip chart ten-shot window (ten slots, bbw ring in the status snapshot) measures records.js at 14830; owner-requested 2026-10-20.
-const viewModuleBudgets = {records: 14830, diagnostic: 13801, admin: 14229, settings: 16804, setup: 5793};
+// Stats consistency thresholds as a share of the average (pure model, units per data, floor/cap scale, slots) measure records.js at 15041, with settings.js gzip wobble from the shared text table at 16807; owner-requested 2026-10-20.
+const viewModuleBudgets = {records: 15041, diagnostic: 13801, admin: 14229, settings: 16807, setup: 5793};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -959,8 +961,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Stats shot card cut and drip delay cells' shared CSS bring it to 66835; owner-requested 2026-10-20.
 // The Stats consistency columns' shared CSS brings it to 67047 (67032 under test web); owner-requested 2026-10-20.
 // The drip chart ten-slot window measures Cold Home at 67051; owner-requested 2026-10-20.
-if (coldHomeGzip > 67051) {
-  throw new Error(`Cold Home download exceeds the 67051-byte gzip budget (${coldHomeGzip})`);
+// The Stats consistency clipped-column notch CSS brings it to 67062; owner-requested 2026-10-20.
+if (coldHomeGzip > 67062) {
+  throw new Error(`Cold Home download exceeds the 67062-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);
