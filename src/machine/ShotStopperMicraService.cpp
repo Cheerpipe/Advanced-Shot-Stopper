@@ -1743,13 +1743,29 @@ bool ShotStopperMicraService::executeConnect(PendingRequest &pending) {
 // registers nothing and publishes no status, so observation keeps running.
 void ShotStopperMicraService::executeRelist(PendingRequest &pending) {
   LineaMicraDiscoverySnapshot found;
-  found.requestId = pending.request.requestId;
   LineaMicraError error = LineaMicraError::NONE;
-  if (networkEligible(error) &&
-      (!ensureWorkBuffer() || !ensureSession(pending.credentials, false) ||
-       !listMachines(pending.credentials, found))) {
+  // Same 3/6/9 s backoff as other cloud calls, so one dropped connection does
+  // not leave the Change list empty.
+  for (size_t attempt = 0; attempt < micra_timing::kMaxAttempts; ++attempt) {
+    found = {};
+    found.requestId = pending.request.requestId;
+    error = LineaMicraError::NONE;
+    if (!networkEligible(error) ||
+        (ensureWorkBuffer() && ensureSession(pending.credentials, false) &&
+         listMachines(pending.credentials, found))) {
+      break;
+    }
     error = classifyFailure();
-  } else if (error == LineaMicraError::NONE && found.count == 0) {
+    const uint16_t http = work_ == nullptr ? 0 : work_->httpStatus;
+    if (attempt + 1U >= micra_timing::kMaxAttempts || http == 401 ||
+        !lineaMicraHttpRetryable(http) ||
+        abortRequested_.load(std::memory_order_acquire) ||
+        !identityCurrent(pending.identityGeneration)) {
+      break;
+    }
+    waitRetry(micra_timing::kRetryDelaysMs[attempt]);
+  }
+  if (error == LineaMicraError::NONE && found.count == 0) {
     error = LineaMicraError::NO_MACHINES;
   }
   TaskLockGuard lock(mux_);
@@ -2379,7 +2395,6 @@ bool ShotStopperMicraService::request(
     // Above ALWAYSINTERNAL=2048: ordinary SDK malloc prefers PSRAM.
     config.buffer_size = 4096;
     config.buffer_size_tx = 4096;
-    config.save_client_session = true;
     config.is_async = true;
     work_->client = esp_http_client_init(&config);
     if (work_->client == nullptr) return false;

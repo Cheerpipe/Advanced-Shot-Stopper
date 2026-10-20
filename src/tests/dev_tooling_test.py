@@ -1526,10 +1526,9 @@ for arch, arch_selectors in profile_arch.items():
         arch, selectors + ["CONFIG_SPIRAM_MODE_QUAD=y"]).returncode == 1
     micra = selectors + ["CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y",
                          "CONFIG_MBEDTLS_DYNAMIC_BUFFER=y",
-                         "CONFIG_WS_BUFFER_SIZE=4096",
-                         "CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y"]
+                         "CONFIG_WS_BUFFER_SIZE=4096"]
     assert verify_production_profile(arch, micra, "linea_micra_cloud").returncode == 0
-    assert "CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y" in verify_production_profile(
+    assert "CONFIG_WS_BUFFER_SIZE=4096" in verify_production_profile(
         arch, micra[:-1], "linea_micra_cloud").stderr
     assert "unexpected Micra TLS allocator" in verify_production_profile(
         arch, micra).stderr

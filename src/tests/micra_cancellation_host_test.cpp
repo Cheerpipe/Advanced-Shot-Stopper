@@ -664,10 +664,23 @@ void MicraCancellationTest::relistKeepsSavedMachine() {
   assert(service.queueRelist(4));
   pending = take();
   listHook = [](LineaMicraDiscoverySnapshot &) { return false; };
+  service.abortRequested_.store(false);  // The idle task loop consumes it.
+  const unsigned retriesBefore = retries;
   service.executeRelist(pending);
   listed = service.discovery_;
   assert(!listed.listing && listed.error == LineaMicraError::HTTP_ERROR &&
-         listed.count == 0 && listed.accountMachines == 2);
+         listed.count == 0 && listed.accountMachines == 2 &&
+         retries - retriesBefore == micra_timing::kRetryDelaysMs.size());
+
+  // One dropped connection is retried instead of leaving Change empty.
+  assert(service.queueRelist(4));
+  pending = take();
+  listHook = [calls = 0](LineaMicraDiscoverySnapshot &found) mutable {
+    return ++calls > 1 && (found.count = 1) != 0;
+  };
+  service.executeRelist(pending);
+  listed = service.discovery_;
+  assert(!listed.listing && listed.error == LineaMicraError::NONE && listed.count == 1);
 
   assert(service.queueRelist(5));
   pending = take();
@@ -677,7 +690,7 @@ void MicraCancellationTest::relistKeepsSavedMachine() {
   listed = service.discovery_;
   assert(!listed.listing && listed.count == 0 && listed.accountMachines == 0);
   assert(!service.queueRelist(6));
-  authentications = 0;
+  authentications = retries = 0;
 }
 
 int main() {

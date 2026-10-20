@@ -528,8 +528,7 @@ ss_idf_verify_production_profile() {
   if [[ "${SHOTSTOPPER_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]]; then
     required+=("CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y"
       "CONFIG_MBEDTLS_DYNAMIC_BUFFER=y"
-      "CONFIG_WS_BUFFER_SIZE=4096"
-      "CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y")
+      "CONFIG_WS_BUFFER_SIZE=4096")
   elif grep -Fqx 'CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y' "$sdkconfig"; then
     echo "Production profile mismatch: unexpected Micra TLS allocator" >&2
     return 1

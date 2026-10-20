@@ -265,10 +265,9 @@ if (!idfHelpers.includes('sdkconfig.defaults.micra') ||
     !sdkconfigMicra.includes('# CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC is not set') ||
     !sdkconfigMicra.includes('CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y') ||
     !sdkconfigMicra.includes('CONFIG_MBEDTLS_DYNAMIC_BUFFER=y') ||
-    !sdkconfigMicra.includes('CONFIG_WS_BUFFER_SIZE=4096') ||
-    !sdkconfigMicra.includes('CONFIG_ESP_TLS_CLIENT_SESSION_TICKETS=y')) {
+    !sdkconfigMicra.includes('CONFIG_WS_BUFFER_SIZE=4096')) {
   throw new Error(
-      'Micra-only mbedTLS must use PSRAM, dynamic record buffers, and TLS session tickets');
+      'Micra-only mbedTLS must use PSRAM and dynamic record buffers');
 }
 if (sdkconfigDefaults.includes('CONFIG_FREERTOS_USE_TICKLESS_IDLE=y') ||
     !sdkconfigDefaults.includes('CONFIG_PM_ENABLE=y') ||

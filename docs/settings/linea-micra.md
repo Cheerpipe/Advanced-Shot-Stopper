@@ -94,6 +94,8 @@ already has; **Cancel** takes you back without changing anything.
 If your account has only one Linea Micra, the list shows just that machine and
 there is nothing to change. The controller asks La Marzocco for your machines
 only when you choose **(Change)**; opening Settings never does it on its own.
+If La Marzocco does not answer, it tries again a few times over about 20
+seconds before showing an error.
 
 ### Disconnect
 

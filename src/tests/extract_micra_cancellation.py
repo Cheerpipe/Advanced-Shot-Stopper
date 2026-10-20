@@ -27,7 +27,7 @@ names += ["ShotStopperMicraService::" + name for name in
            "queueLocked", "muxWaitAnomalyDue", "reportMuxWaitAnomaly",
            "networkEligible",
            "taskLoop", "clearSession", "deferObservation", "executeObservation",
-           "observationCurrent", "powerRequestCurrent", "publish",
+           "observationCurrent", "identityCurrent", "powerRequestCurrent", "publish",
            "scheduleAutomatic", "queueRelist", "executeRelist",
            "selectDiscoveredMachine"]]
 output.mkdir(parents=True, exist_ok=True)

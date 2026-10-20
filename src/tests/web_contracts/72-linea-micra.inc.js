@@ -312,8 +312,8 @@ const micraStatusFailures = [
 if (micraStatusFailures.length) {
   throw new Error('Linea Micra status contract: ' + micraStatusFailures.join(', '));
 }
-if (!micraService.includes('config.save_client_session = true')) {
-  throw new Error('Linea Micra cloud client must save TLS sessions for reuse');
+if (micraService.includes('save_client_session')) {
+  throw new Error('Async Micra client must not resume TLS sessions: ESP-IDF re-applies them per handshake step');
 }
 if (!micraService.includes('esp_log_level_set("transport_ws", ESP_LOG_NONE);')) {
   throw new Error('SDK Upgrade write errors must not log signed authentication headers');
