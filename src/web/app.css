@@ -445,8 +445,8 @@ html:not(.theme-light) :is(.qwSheet,#actionsPanel){box-shadow:0 -8px 28px rgba(0
 #shotTable td:nth-child(6){grid-area:drip}
 #shotTable td:nth-child(7){grid-area:avgflow}
 #shotTable td:nth-child(8){grid-area:maxflow}
-#shotTable td:nth-child(9){grid-area:tare}
-#shotTable td:nth-child(10){grid-area:drop}
+#shotTable td:nth-child(10){grid-area:tare}
+#shotTable td:nth-child(9){grid-area:drop}
 #shotTable td:nth-child(11){grid-area:ended}
 #shotTable td:nth-child(12){grid-area:shot}
 #shotTable td:nth-child(13){grid-area:preset}

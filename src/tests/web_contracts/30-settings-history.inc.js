@@ -816,7 +816,7 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     codeIncludes(statsRuntimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
     !codeIncludes(statsRuntimeJs, 'drop=d.firstDropMs') ||
     !codeIncludes(statsRuntimeJs, 'formatShotEnded(r.stopDetail, r.verdict)') ||
-    !codeIncludes(js, "labels=['Date','Dur','Goal','Yield','Err%','Drip','Avg flow','Max flow','Late cup','1st drop','Ended','Shot','Preset','Scale'") ||
+    !codeIncludes(js, "labels=['Date','Dur','Goal','Yield','Err%','Drip','Avg flow','Max flow','1st drop','Late cup','Ended','Shot','Preset','Scale'") ||
     codeIncludes(js, "labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||
     codeIncludes(js, "labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Guard','Ext','Stop','Shot','Cut']") ||
     partialHtml.stats.includes('<th>Guard</th>') ||
