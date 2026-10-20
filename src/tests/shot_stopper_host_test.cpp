@@ -16368,6 +16368,7 @@ void s11_shot_log_record_includes_preset_snapshot() {
   snapshot.slowAfterMs = 34000;
   snapshot.protectionMs = 12000;
   snapshot.wallMs = 50000;
+  snapshot.dripDelayMs = 0;
   snapshot.rateAtStopX100 = 2108;  // 2.108 g/s at the stop command.
   commitPendingShotLog(snapshot, 39.0f, true, ActualWeightSource::POST_DRIP);
   ShotLogRecord stored[1] = {};
@@ -16377,6 +16378,7 @@ void s11_shot_log_record_includes_preset_snapshot() {
   CHECK(r.fastBeforeDs == 270 && r.slowAfterDs == 340 && r.delayDs == 120);
   CHECK(r.wallDs == 500 && r.fastMarginDg == 40 && r.slowMarginDg == 30);
   CHECK(r.cutRampDs == 0 && shotLogFastGuardEnabled(r.sideFlags));
+  CHECK(r.dripDelayCode == 1);  // A 0 s drip delay stays distinct from "not recorded".
   CHECK(corridor::verdictOf(r.verdict) == corridor::Verdict::FAST);
   CHECK(r.arrivalDs == 226);  // 24.5 s - 4 g / 2.108 g/s.
   CHECK(shotLogFastExtended(r.extractionExtended) && !shotLogSlowExtended(r.extractionExtended));

@@ -118,6 +118,10 @@
     "max_flow_g_s",
     "curve_truncated",
     "curve_break_before",
-    "curve_held"
+    "curve_held",
+    "cut_s",
+    "cut_weight_g",
+    "drip_g",
+    "drip_delay_s"
   ]
 }

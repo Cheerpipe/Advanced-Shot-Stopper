@@ -424,6 +424,7 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
   record.slowMarginDg = static_cast<uint8_t>(
       snapshot.slowMarginDg > UINT8_MAX ? UINT8_MAX : snapshot.slowMarginDg);
   record.cutRampDs = static_cast<uint8_t>(snapshot.rampMs / 100U);
+  record.dripDelayCode = static_cast<uint8_t>(snapshot.dripDelayMs / 100U + 1U);
   record.arrivalDs = SHOT_LOG_METRIC_MISSING;
   record.verdict = static_cast<uint8_t>(corridor::Verdict::UNCLASSIFIED);
   record.actualWeightSource = static_cast<uint8_t>(weightSource);

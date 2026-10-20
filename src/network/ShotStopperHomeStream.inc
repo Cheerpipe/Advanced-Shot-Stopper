@@ -1166,8 +1166,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
   char flow[16] = "null";
   char firstDrop[16] = "null";
   char tareAt[16] = "null";
-  char cutLine[16] = "null";
-  char arrival[16] = "null";
+  char cutLine[16] = "null", arrival[16] = "null", dripDelay[8] = "null";
   char presetName[SHOT_PRESET_NAME_CAPACITY * 6] = {};
   char scaleNameJson[SCALE_FRIENDLY_NAME_MAX_LEN * 6 + 1] = {};
   escapeJsonString(record.presetName, presetName, sizeof(presetName));
@@ -1196,6 +1195,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
     snprintf(arrival, sizeof(arrival), "%.1f",
              static_cast<double>(record.arrivalDs) / 10.0);
   }
+  if (record.dripDelayCode) snprintf(dripDelay, sizeof(dripDelay), "%.1f", (record.dripDelayCode - 1) / 10.0);
   const bool scaleLoss = static_cast<ShotLogStopDetail>(record.stopDetail) ==
                          ShotLogStopDetail::AUTO_TO_MANUAL;
   ShotCurveRecord &emptyCurve = work.serializedCurve;
@@ -1230,7 +1230,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
       "\"verdict\":%s,\"channeling\":%s,\"scaleLossSource\":%s,"
       "\"estimatedG\":%s,\"blind\":%s,\"fastBeforeS\":%.1f,\"slowAfterS\":%.1f,"
       "\"fastMarginG\":%.1f,\"slowMarginG\":%.1f,\"delayS\":%.1f,"
-      "\"wallS\":%.1f,\"cutRampS\":%.1f,"
+      "\"wallS\":%.1f,\"cutRampS\":%.1f,\"dripDelayS\":%s,"
       "\"actualWeightSource\":\"%s\",\"rating\":%u,%s}",
       static_cast<unsigned long>(record.id),
       static_cast<unsigned long>(record.bootId),
@@ -1262,7 +1262,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
       corridor::blindOf(record.verdict) ? "true" : "false",
       record.fastBeforeDs / 10.0, record.slowAfterDs / 10.0,
       record.fastMarginDg / 10.0, record.slowMarginDg / 10.0,
-      record.delayDs / 10.0, record.wallDs / 10.0, record.cutRampDs / 10.0,
+      record.delayDs / 10.0, record.wallDs / 10.0, record.cutRampDs / 10.0, dripDelay,
       actualWeightSourceName(static_cast<ActualWeightSource>(record.actualWeightSource)),
       static_cast<unsigned>(shotLogRating(record.sideFlags)),
       curveJson);

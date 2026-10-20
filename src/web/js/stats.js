@@ -208,6 +208,12 @@ function formatShotTimeCsv(r) {
   if (r.hasWallTime && r.endedAtLocalSec) return R.formatWallTimeLocal(r.endedAtLocalSec);
   return "";
 }
+// The stop: its time, the reading latched there and, against a post-drip yield, the drip.
+function shotCut(r, m, actual) {
+  const p = m && r.endS != null && (m.dripSegs[0]?.pts[0] ?? m.pts.at(-1)),
+    g = p && p.cg / 100;
+  return p ? { s: +r.endS, g, drip: actual !== null && r.actualWeightSource === "post_drip" ? actual - g : null } : {};
+}
 function shotFlowCurveGS(shot) {
   const model = R.buildShotSparkModel(shot);
   return model ? model.flowCurve : [];
@@ -687,6 +693,8 @@ function renderShots() {
       __WEBUI_TEXT__("runtime.shot"),
       __WEBUI_TEXT__("runtime.preset"),
       __WEBUI_TEXT__("runtime.scale"),
+      __WEBUI_TEXT__("runtime.cut_at"),
+      __WEBUI_TEXT__("runtime.drip_delay"),
     ];
     for (const r of rows) {
       const row = document.createElement("tr");
@@ -696,12 +704,12 @@ function renderShots() {
         planned = r.cutLineG > 0 ? r.cutLineG : r.goalG;
       const errN = actual === null || !planned ? null : ((actual - planned) / planned) * 100;
       const err = errN === null ? "—" : errN.toFixed(1) + "%";
-      // Drip: the settled yield minus the last reading before the stop.
+      // Drip: the settled yield minus the reading at the stop.
       const flow = shotDisplayFlowGS(r),
         m = R.buildShotSparkModel(r),
         maxFlow = m ? m.maxFlow : null,
-        cut = r.actualWeightSource === "post_drip" && m?.dripSegs[0]?.pts[0],
-        drip = actual !== null && cut ? actual - cut.cg / 100 : null;
+        cut = shotCut(r, m, actual),
+        drip = cut.drip ?? null;
       const vals = [
         formatShotTime(r),
         r.durationS.toFixed(1) + "s",
@@ -721,6 +729,8 @@ function renderShots() {
         r.shotType,
         shotPresetName(r),
         r.scaleName || __WEBUI_TEXT__("runtime.none"),
+        cut.g == null ? "—" : cut.g.toFixed(1) + "g · " + cut.s.toFixed(1) + "s",
+        r.dripDelayS == null ? "—" : r.dripDelayS.toFixed(1) + "s",
       ];
       const cls = ["", "shotDur", "", "shotActual", errN > 0 ? "shotErrHi" : errN < 0 ? "shotErrLo" : ""];
       vals.forEach((v, i) => td(row, labels[i], v, cls[i]));
@@ -868,7 +878,8 @@ async function exportShotsCsv() {
           "cut_line_g arrival_s fast_before_s slow_after_s fast_margin_g slow_margin_g " +
           "delay_s wall_s cut_ramp_s shot_type cut_type yield_source rating ended_at_ms " +
           "bbw_algorithm bbw_algorithm_version bbw_alpha bbw_learning_applied preset_id " +
-          "scale_name max_flow_g_s curve_truncated curve_break_before curve_held").split(" "),
+          "scale_name max_flow_g_s curve_truncated curve_break_before curve_held cut_s cut_weight_g " +
+          "drip_g drip_delay_s").split(" "),
         ...Array.from({ length: maxW }, (_, i) => [
           "sample_" + (i + 1) + "_time_s",
           "sample_" + (i + 1) + "_weight_g",
@@ -879,7 +890,8 @@ async function exportShotsCsv() {
     for (const r of list) {
       const w = Array.isArray(r.wCg) ? r.wCg : [],
         f = shotFlowCurveGS(r),
-        actual = shotDisplayActualG(r.actualG, r.wCg);
+        actual = shotDisplayActualG(r.actualG, r.wCg),
+        cut = shotCut(r, R.buildShotSparkModel(r), actual);
       const errorG = actual === null || r.goalG == null ? null : actual - r.goalG;
       const errorPct = errorG === null || !r.goalG ? null : (errorG / r.goalG) * 100;
       rows.push([
@@ -918,6 +930,10 @@ async function exportShotsCsv() {
         r.wTruncated ? "1" : "0",
         (r.wBreakBefore || []).join(";"),
         (r.wHeld || []).join(";"),
+        cut.s ?? "",
+        cut.g ?? "",
+        cut.drip?.toFixed(2) ?? "",
+        r.dripDelayS ?? "",
         ...Array.from({ length: maxW }, (_, i) =>
           i < w.length
             ? [

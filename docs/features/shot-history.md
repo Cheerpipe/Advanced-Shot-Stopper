@@ -75,6 +75,12 @@ after the machine stopped: the settled yield minus the weight at the stop, such
 as **+1.6 g**. It shows **—** when the scale gave no settled reading after the
 drip delay, or when the shot's chart has no reading from the moment it stopped.
 
+**Cut at**, after **Scale**, shows the weight on the scale when the machine
+stopped and the shot time of that stop, such as **34.6g · 27.4s**. **Drip
+delay** shows how long the scale waited for the last drips before it saved
+that shot's final weight, so changing the setting later does not rewrite older
+shots. Shots saved before this was recorded show **—**.
+
 If a late retare succeeds and a fresh reading confirms its new zero, an earlier
 first-drop time and marker are discarded. Later coffee can supply a new time
 and marker; without that replacement, first-drop time and **Avg flow** are
@@ -349,6 +355,12 @@ capture and `0` otherwise. `curve_break_before` lists the zero-based
 indices of readings starting a new segment, separated by semicolons.
 `curve_held` lists, the same way, the readings ignored as a touch: their
 weight columns show what the scale read, and their flow columns stay empty.
+Next come the stop details: `cut_s` is the shot time when the machine stopped,
+`cut_weight_g` the weight on the scale at that moment, `drip_g` the settled
+yield minus that weight (empty unless the yield was read after the drip
+delay), and `drip_delay_s` the drip delay that shot used. All four stay empty
+when the shot has no recorded stop; `drip_delay_s` is also empty for shots
+saved before it was recorded.
 
 Each reading has an ordinal group: `sample_1_time_s`,
 `sample_1_weight_g`, `sample_1_flow_g_s`, then the same three columns

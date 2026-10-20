@@ -372,11 +372,14 @@ struct ShotLogRecord {
   uint8_t fastMarginDg;   // Relative to the target; meaningful with the side on.
   uint8_t slowMarginDg;
   uint8_t cutRampDs;      // Ramp length D (0 = step).
+  // Drip delay + 1 ds in former zero padding: 0 = recorded before the field.
+  uint8_t dripDelayCode;
 };
 
 static_assert(sizeof(ShotLogRecord) == 120, "Shot-log schema 1 record size");
 static_assert(offsetof(ShotLogRecord, verdict) == 27, "schema 1 verdict byte");
 static_assert(offsetof(ShotLogRecord, slowAfterDs) == 108, "schema 1 snapshot tail");
+static_assert(offsetof(ShotLogRecord, dripDelayCode) == 117, "schema 1 padding byte");
 
 inline ShotLogType shotLogType(const ShotLogRecord &record);
 
