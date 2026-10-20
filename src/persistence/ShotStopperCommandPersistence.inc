@@ -198,6 +198,11 @@ bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
   pendingBleScanRequestIdCount = 0;
   bleScanPersistFailLatched = false;
   bleScanPersistMux.unlock();
+  // The factory presets quick start again; no staged copy may overwrite it.
+  bbwQuickStartMux.lock();
+  bbwQuickStartPersistPending = false;
+  bbwQuickStartMux.unlock();
+  (void)saveQuickStart(armedQuickStart(settings.presets));
   return true;
 }
 
@@ -565,6 +570,7 @@ void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits,
 }
 
 bool serviceBleScanPersist();
+void serviceBbwQuickStartPersist();
 
 #ifndef SHOT_STOPPER_HOST_TEST
 bool shotStoreWorkerWriteAllowed(bool &maintenance) {
@@ -746,6 +752,7 @@ void settingsPersistTask(void *parameter) {
                                    link.connecting)) {
         (void)persistResetUptimeCheckpoint(millis());
         serviceBleScanPersist();
+        serviceBbwQuickStartPersist();
         if (auditFlushDue()) (void)dispatchAuditFlushWork();
       }
       continue;
@@ -1062,6 +1069,32 @@ bool serviceBleScanPersist() {
   bleScanPersistResultReady = true;
   bleScanPersistMux.unlock();
   return ok;
+#endif
+}
+
+// Control side: hand the quick start record to the settings_persist worker.
+void stageBbwQuickStart() {
+  bbwQuickStartMux.lock();
+  bbwQuickStartStaged = bbwQuickStart;
+  bbwQuickStartPersistPending = true;
+  bbwQuickStartMux.unlock();
+}
+
+// Worker side, on the idle cadence that is also the retry backoff.
+void serviceBbwQuickStartPersist() {
+  bbwQuickStartMux.lock();
+  const bool pending = bbwQuickStartPersistPending;
+  const QuickStartRecord record = bbwQuickStartStaged;
+  bbwQuickStartPersistPending = false;
+  bbwQuickStartMux.unlock();
+#ifndef SHOT_STOPPER_HOST_TEST
+  if (!pending || saveQuickStart(record)) return;
+  bbwQuickStartMux.lock();
+  bbwQuickStartPersistPending = true;
+  bbwQuickStartMux.unlock();
+#else
+  (void)pending;
+  (void)record;
 #endif
 }
 

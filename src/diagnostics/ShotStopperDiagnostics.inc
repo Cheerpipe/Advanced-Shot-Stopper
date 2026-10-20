@@ -162,6 +162,14 @@ bool statusLastGoodLinked = false;
 HistoryRecord statusNewestActivation = {};
 bool statusHasNewestActivation = false;
 static SHOT_STOPPER_PSRAM_BSS ShotCurveRecord statusLastGoodCurve;
+// Drip chart gather, re-read only when the store or the active preset moves.
+bool statusDripCacheValid = false;
+uint32_t statusDripCacheGeneration = 0;
+uint8_t statusDripCachePreset = 0;
+uint8_t statusDripCount = 0;
+uint8_t statusDripSkipped = 0;
+uint32_t statusDripId[5] = {};
+int16_t statusDripCg[5] = {};
 
 void publishControlStatus() {
   const uint32_t now = millis();
@@ -198,6 +206,15 @@ void publishControlStatus() {
     statusStoreCacheGeneration = gatherGeneration;
     statusStoreCacheIncludeGoodHistory = includeGoodHistory;
     statusStoreCacheValid = true;
+  }
+  if (!statusDripCacheValid || statusDripCacheGeneration != gatherGeneration ||
+      statusDripCachePreset != presetBank.activeId) {
+    TaskLockGuard lock(shotStoreMutex);
+    statusDripCount = static_cast<uint8_t>(shotLog.recentDrips(
+        presetBank.activeId, statusDripId, statusDripCg, statusDripSkipped, 5));
+    statusDripCacheGeneration = gatherGeneration;
+    statusDripCachePreset = presetBank.activeId;
+    statusDripCacheValid = true;
   }
   // Reads the shot store (cached): never under the publication lock.
   const corridor::LossDeadline scaleLossProjection =
@@ -362,6 +379,23 @@ void publishControlStatus() {
   next.bbwAlphaBaseline = bbwPreset.bbwAlphaBaseline;
   next.bbwAlphaLearned = bbwPreset.bbwAlphaLearned != 0;
   next.bbwEwmaOffsetG = bbwPreset.bbwEwmaOffsetG;
+  next.bbwRecentCount = statusDripCount;
+  next.bbwRecentSkipped = statusDripSkipped;
+  memcpy(next.bbwRecentCg, statusDripCg, sizeof(statusDripCg));
+  if (const QuickStartEntry *quick =
+          quickStartEntry(bbwQuickStart, presetBank, bbwPreset.id, false)) {
+    next.bbwQuickState = quick->state;
+    next.bbwQuickCount = quick->count;
+    next.bbwQuickSetCg = quick->setCg;
+    next.bbwQuickCg = quick->quickCg;
+    uint8_t afterSet = 0, afterQuick = 0;
+    for (uint8_t i = 0; i < statusDripCount; ++i) {
+      afterSet += statusDripId[i] >= quick->setAtId;
+      afterQuick += statusDripId[i] > quick->quickAtId;
+    }
+    if (quick->setAtId != 0) next.bbwRecentAfterSet = afterSet;
+    if (quick->quickAtId != 0) next.bbwRecentAfterQuick = afterQuick;
+  }
   next.lastCycle = lastCycle;
   next.lastShot = statusLastShot;
   next.lastGoodShot = statusLastGoodShot;

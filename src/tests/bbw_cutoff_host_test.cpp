@@ -1,5 +1,6 @@
 #define SHOT_STOPPER_PERSISTENCE_HOST_TEST
 #include "../ShotStopperBbwLearning.h"
+#include "../ShotStopperBbwQuickStart.h"
 #include "../ShotStopperPersistence.h"
 #include "../ShotStopperShotLog.h"
 #include <cassert>
@@ -184,6 +185,48 @@ int main() {
       assert(protocol->features.sensorLagMs >= 200 &&
              protocol->features.sensorLagMs <= 1000);
     }
+  }
+
+  // Drip quick start: three shots within 0.40 g jump the drip to their median.
+  {
+    ShotPresetBank bank;
+    seedDefaultShotPresetBank(bank);
+    const uint8_t id = bank.presets[0].id;
+    QuickStartRecord record;
+    int16_t jump = -1;
+    assert(!observeQuickStart(record, bank, id, 50, 1, jump));  // never armed
+    armQuickStart(record, bank, id, 1.2f, 40);
+    assert(!observeQuickStart(record, bank, id, 48, 40, jump));
+    assert(!observeQuickStart(record, bank, id, 52, 41, jump));
+    assert(observeQuickStart(record, bank, id, 50, 42, jump) && jump == 50);
+    const QuickStartEntry *entry = quickStartEntry(record, bank, id, false);
+    assert(entry != nullptr && entry->state == static_cast<uint8_t>(QuickStartState::APPLIED) &&
+           entry->setCg == 120 && entry->setAtId == 40 && entry->quickCg == 50 &&
+           entry->quickAtId == 42);
+    assert(!observeQuickStart(record, bank, id, 50, 43, jump));  // decided once
+    // Shots that disagree leave normal learning in charge.
+    armQuickStart(record, bank, id, 1.2f, 50);
+    for (const int16_t cg : {63, -5, 10}) assert(!observeQuickStart(record, bank, id, cg, 50, jump));
+    assert(quickStartEntry(record, bank, id, false)->state ==
+           static_cast<uint8_t>(QuickStartState::DISAGREED));
+    // Raw observations decide; the drip itself never goes below zero.
+    armQuickStart(record, bank, id, 0.5f, 60);
+    for (const int16_t cg : {-10, -20}) assert(!observeQuickStart(record, bank, id, cg, 60, jump));
+    assert(observeQuickStart(record, bank, id, -15, 62, jump) && jump == 0);
+    // A fresh install quick starts every brew-by-weight preset, not Manual.
+    const QuickStartRecord fresh = armedQuickStart(bank);
+    for (uint8_t i = 0; i < bank.count; ++i) {
+      QuickStartRecord copy = fresh;
+      const QuickStartEntry *e = quickStartEntry(copy, bank, bank.presets[i].id, false);
+      assert((e != nullptr && e->state == static_cast<uint8_t>(QuickStartState::ARMED) &&
+              e->setAtId == 0) == bank.presets[i].brewByWeight);
+    }
+    // The record round-trips through NVS; a damaged one is rejected.
+    QuickStartRecord loaded;
+    assert(saveQuickStart(record) && loadQuickStart(loaded));
+    assert(memcmp(loaded.entries, record.entries, sizeof(record.entries)) == 0);
+    loaded.checksum ^= 1;
+    assert(!validQuickStart(loaded));
   }
 
   std::cout << "BBW numeric, adaptation, state, and history checks passed\n";

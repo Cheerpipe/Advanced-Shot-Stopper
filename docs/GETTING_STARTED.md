@@ -248,7 +248,7 @@ before relying on automatic operation.
 | Situation | What to do |
 | --- | --- |
 | Cup placed after starting | Place it within the [retare window](features/tare-retare.md); later placement is not automatically corrected. |
-| Shot ends above or below target | Read how it ended in [history](features/shot-history.md), then check [fast and slow shots](features/fast-and-slow-shots.md) and the learned drip. |
+| Shot ends above or below target | Read how it ended in [history](features/shot-history.md), then check [fast and slow shots](features/fast-and-slow-shots.md) and the recent-shots chart under **Drip compensation** in your preset. |
 | Scale unavailable before start | Follow [No-scale BBW](settings/no-scale-bbw.md); the default first attempt warns and blocks. |
 | Scale disconnects during brewing | Weight stop pauses; the [scale-loss backup](features/auto-to-manual.md) may request a timed stop while reconnection continues. |
 | Want to stop shots yourself | Tap the scale icon at the top of the page and choose **Manual** for now (picking a preset or restarting brings By weight back), or choose the **Manual** preset to make it your setup. |

@@ -1392,20 +1392,19 @@ if (rinseHeader.includes('session.') ||
       'Rinse clock must not write session; brew must not read rinseGestureMs; ShotStopper copies the accept anchor');
 }
 if (!codeIncludes(ui, 'id="learnedOffsetG"') ||
-    !codeIncludes(ui, 'id="weightOffsetBaselineG"') ||
-    !codeIncludes(ui, 'id="resetCalibrationButton"') ||
-    html.indexOf('id="learnedOffsetG"') >
-        html.indexOf('id="weightOffsetBaselineG"') ||
-    html.indexOf('id="weightOffsetBaselineG"') >
-        html.indexOf('id="resetCalibrationButton"') ||
-    !codeIncludes(ui, 'Reset drip learning') ||
-    codeIncludes(ui, 'Reset learned stop offset') ||
+    !codeIncludes(ui, 'id="dripSetG"') ||
+    !codeIncludes(ui, 'id="dripSetButton"') ||
+    html.indexOf('id="learnedOffsetG"') > html.indexOf('id="dripBars"') ||
+    html.indexOf('id="dripBars"') > html.indexOf('id="dripSetG"') ||
+    html.indexOf('id="dripSetG"') > html.indexOf('id="dripSetButton"') ||
+    html.indexOf('id="dripSetButton"') > html.indexOf('id="alphaSet"') ||
+    !codeIncludes(ui, 'Expected drip weight after the shot stops') ||
+    codeIncludes(ui, 'Save new reset values first') ||
     !css.includes('.bbwLearning .btnBar{max-width:22rem}') ||
     css.includes('#bbwAlgorithm{width:100%}') ||
-    !codeIncludes(ui, 'Save new reset values first') ||
-    !network.includes('weightOffsetBaselineG') ||
-    !codeIncludes(ui, 'weightOffsetBaselineG')) {
-  throw new Error('Learned drip baseline must be wired to Reset drip learning');
+    !network.includes('"dripG"') ||
+    !network.includes('bbwRecentG')) {
+  throw new Error('Drip compensation must show the drip, its recent shots and Set drip in order');
 }
 if (!html.includes('<summary>Cup detection</summary>') ||
     !html.includes('<summary>Tare</summary>') ||

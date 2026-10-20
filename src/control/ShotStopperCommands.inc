@@ -39,6 +39,14 @@ uint32_t shotStatisticsEpochNow() {
   return shotLog.nextRecordId();
 }
 
+// Quick starts the preset from its current drip; a drip the owner set marks
+// the shot history from the next record on.
+void armBbwQuickStart(const ShotPreset &preset, bool userSet) {
+  armQuickStart(bbwQuickStart, presetBank, preset.id, preset.bbwEwmaOffsetG,
+                userSet ? shotStatisticsEpochNow() : 0);
+  stageBbwQuickStart();
+}
+
 // Commits a session-only Quick Settings change: live and announced, never saved.
 void commitSessionQuickSettings(RuntimeConfig candidate) {
   candidate.revision = runtimeConfig.revision + 1;
@@ -370,10 +378,19 @@ void processWebCommand(const WebCommand &command) {
         rejectWebCommand(command);
         return;
       }
+      // Set drip and the plain reset (re)start the drip and quick start from
+      // it; Set learning speed alone keeps the drip.
       ShotPreset &preset = mutableActiveShotPreset(presetBank);
       bbwLearningBank.invalidate(preset.id, presetBank);
-      preset.bbwEwmaOffsetG = preset.weightOffsetBaselineG;
-      if (command.bbwFullReset) {
+      if (command.bbwSetDrip)
+        preset.weightOffsetBaselineG = command.config.weightOffsetBaselineG;
+      if (command.bbwSetDrip || command.bbwAlphaBaseline == 0) {
+        preset.bbwEwmaOffsetG = preset.weightOffsetBaselineG;
+        armBbwQuickStart(preset, true);
+      }
+      if (command.bbwAlphaBaseline != 0)
+        preset.bbwAlphaBaseline = command.bbwAlphaBaseline;
+      if (command.bbwFullReset || command.bbwAlphaBaseline != 0) {
         preset.bbwEwmaAlpha = preset.bbwAlphaBaseline;
         preset.bbwAlphaLearned = 0;
       }
@@ -470,6 +487,7 @@ void processWebCommand(const WebCommand &command) {
         case PresetAction::CREATE:
           ok = createUntitledShotPreset(presetBank, newId);
           if (ok) mutableShotPreset(presetBank, newId)->learningEpoch = shotStatisticsEpochNow();
+          if (ok) armBbwQuickStart(*mutableShotPreset(presetBank, newId), false);
           break;
         case PresetAction::DELETE:
           ok = deleteShotPreset(presetBank, command.presetId);
@@ -481,6 +499,7 @@ void processWebCommand(const WebCommand &command) {
         case PresetAction::DUPLICATE:
           ok = duplicateShotPreset(presetBank, command.presetId, newId);
           if (ok) mutableShotPreset(presetBank, newId)->learningEpoch = shotStatisticsEpochNow();
+          if (ok) armBbwQuickStart(*mutableShotPreset(presetBank, newId), false);
           break;
         case PresetAction::RENAME:
           ok = renameShotPreset(presetBank, command.presetId, command.presetName);
@@ -491,6 +510,7 @@ void processWebCommand(const WebCommand &command) {
             bbwLearningBank.invalidate(command.presetId, presetBank);
             mutableShotPreset(presetBank, command.presetId)->learningEpoch =
                 shotStatisticsEpochNow();
+            armBbwQuickStart(*mutableShotPreset(presetBank, command.presetId), false);
           }
           break;
         case PresetAction::NEW_COFFEE: {

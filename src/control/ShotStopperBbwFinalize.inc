@@ -62,10 +62,22 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
   auto &learning = bbwLearningBank.forPreset(preset->id, presetBank);
   if (snapshot.bbwLearningGeneration != learning.generation)
     return false;
+  const float observation = snapshot.weightOffsetG + (finalWeightG - cutLineG);
+  // Quick start: the third shot that agrees sets the drip to the median.
+  const QuickStartEntry *quick =
+      quickStartEntry(bbwQuickStart, presetBank, preset->id, false);
+  if (quick != nullptr &&
+      quick->state == static_cast<uint8_t>(QuickStartState::ARMED)) {
+    int16_t jumpCg = 0;
+    if (observeQuickStart(bbwQuickStart, presetBank, preset->id,
+                          static_cast<int16_t>(lroundf(observation * 100.0f)),
+                          shotStatisticsEpochNow(), jumpCg))
+      updatedOffset = jumpCg / 100.0f;
+    stageBbwQuickStart();
+  }
   preset->bbwEwmaOffsetG = updatedOffset;
   const uint8_t nextAlpha = learning.evidence.observe(
-      snapshot.weightOffsetG + (finalWeightG - cutLineG),
-      snapshot.weightOffsetG, snapshot.bbwAlpha);
+      observation, snapshot.weightOffsetG, snapshot.bbwAlpha);
   if (nextAlpha != preset->bbwEwmaAlpha) preset->bbwAlphaLearned = 1;
   preset->bbwEwmaAlpha = nextAlpha;
   learning.generation = bbwLearningBank.newGeneration();

@@ -3,65 +3,99 @@
   const vm = require('vm');
   // The cutoff-algorithm selector is gone: one algorithm, one alpha baseline.
   assert(!html.includes('id="bbwAlgorithm"'));
-  assert(!html.includes('Linear regression + offset correction'));
   assert(!html.includes('Linear prediction + adaptive EWMA'));
-  assert(!html.includes('<div class="row"><label>Target (g)'));
-  for (const id of ['resetCalibrationButton', 'resetEwmaButton'])
+  // Drip compensation: one value, a recent-shots chart, Set drip and Set
+  // learning speed; the starting values and the two resets are gone.
+  for (const id of ['resetCalibrationButton', 'resetEwmaButton', 'weightOffsetBaselineG', 'bbwAlphaBaseline'])
+    assert(!html.includes('id="' + id + '"'), id);
+  for (const id of ['dripSetButton', 'alphaSetButton'])
     assert(html.includes('id="' + id + '" class="btnGlyph mutable"'));
-  assert(html.includes('id="bbwAlphaBaseline" type="number" min="0.01" max="1" step="0.01" required'));
-  const elements = new Map();
-  const element = (id, classes = []) => {
+  assert(html.includes('id="dripSetG" type="number" min="0" max="5" step="0.05"'));
+  assert(html.includes('id="alphaSet" type="number" min="0.01" max="1" step="0.01"'));
+  assert(codeIncludes(viewJs.settings, '["dripSetG", "dripSetButton", "dripG"]'));
+  assert(codeIncludes(viewJs.settings, '"/api/v1/calibration/reset", { [key]: R.number(input), baseRevision: R.formRev }'));
+  const node = (classes = []) => {
     const names = new Set(classes);
-    const node = {value: '', checked: false, disabled: false, textContent: '',
+    const n = {value: '', checked: false, disabled: false, hidden: false, textContent: '', innerHTML: '',
+      dataset: {}, style: {}, children: [], validity: {valid: true},
       classList: {contains: name => names.has(name),
         toggle: (name, on) => on ? names.add(name) : names.delete(name)},
+      get className() { return [...names].join(' '); },
+      set className(v) { names.clear(); String(v).split(' ').filter(Boolean).forEach(x => names.add(x)); },
+      append(...kids) { n.children.push(...kids); },
+      replaceChildren(...kids) { n.children = kids; },
       querySelectorAll: () => []};
-    elements.set(id, node);
-    return node;
+    return n;
   };
-  for (const id of ['brewByWeight', 'learnedOffsetG', 'bbwAlpha',
-    'bbwAlphaStatus', 'resetCalibrationButton',
-    'resetEwmaButton', 'weightOffsetBaselineG', 'bbwAlphaBaseline', 'goalWeightG']) element(id);
-  const learning = element('learning', ['bbwLearning']);
-  learning.querySelectorAll = () => [elements.get('weightOffsetBaselineG'),
-    elements.get('resetCalibrationButton'), elements.get('resetEwmaButton'), elements.get('bbwAlphaBaseline')];
-  const ewma = element('ewma', ['bbwEwma']);
-  ewma.querySelectorAll = () => [elements.get('bbwAlphaBaseline'), elements.get('resetEwmaButton')];
+  const elements = new Map();
+  for (const id of ['brewByWeight', 'learnedOffsetG', 'dripVerdict', 'dripHint', 'dripBars', 'dripBarX',
+    'dripSetG', 'dripSetButton', 'alphaSet', 'alphaSetButton']) elements.set(id, node());
+  const status = node(); status.lastElementChild = node(); elements.set('dripStatus', status);
+  const learning = node(['bbwLearning']);
+  learning.querySelectorAll = () => ['dripSetG', 'dripSetButton', 'alphaSet', 'alphaSetButton'].map(id => elements.get(id));
+  const document = {activeElement: null, querySelectorAll: () => [learning],
+    createElement: tag => Object.assign(node(), {tag})};
   const context = vm.createContext({$: id => elements.get(id), controlsMutable: true,
-    uiState: {brewDirty: false, configDirty: false, bbwReadback: null}, configLoaded: true, formRev: 1,
-    document: {querySelectorAll: () => [learning, ewma]}});
+    uiState: {brewDirty: false, configDirty: false, bbwReadback: null}, configLoaded: true, formRev: 1, document});
   const start = runtimeJs.search(/let\s+bbwFormPresetId\s*=/);
   const end = runtimeJs.indexOf('function soundAlertsAreOn', start);
   vm.runInContext(runtimeJs.slice(start, end), context);
-  vm.runInContext('bbwFormPresetId=2;uiState.bbwReadback={bbwPresetId:2,bbwAlgorithm:"linear_ewma",bbwEwmaOffsetG:1.56,bbwAlpha:0.3,bbwAlphaSource:"initial",bbwEvidenceCount:0}', context);
+  vm.runInContext(blockAt(viewJs.settings, 'function renderDripChart('), context);
+  const refresh = (readback) => {
+    if (readback) vm.runInContext('bbwFormPresetId=2;uiState.bbwReadback=' + JSON.stringify(readback), context);
+    vm.runInContext('updateBbwControls()', context);
+  };
+  const bars = () => elements.get('dripBars').children.filter(e => e.tag === 'div' && e.className.startsWith('dcBar'));
+  const marks = () => elements.get('dripBars').children.filter(e => e.className.startsWith('dcMark'));
   elements.get('brewByWeight').checked = true;
-  const refresh = () => vm.runInContext('updateBbwControls()', context);
+  // Learning: five slots oldest first, a skipped shot, the line in use.
+  refresh({bbwPresetId: 2, bbwEwmaOffsetG: 1.56, bbwAlpha: 0.3, bbwRecentG: [0.5, 0.48, null],
+    bbwRecentAfterSet: -1, bbwRecentAfterQuick: -1, bbwQuickStart: {state: 'off', count: 0, setG: 0, quickG: 0}});
+  assert.equal(elements.get('learnedOffsetG').textContent, '1.56');
+  assert.equal(elements.get('dripStatus').lastElementChild.textContent, 'Learning from your shots');
+  assert.equal(elements.get('dripVerdict').textContent, 'Your last shots needed 0.48–0.50 g');
+  assert.equal(bars().length, 5);
+  assert.equal(marks().length, 0);
+  assert(elements.get('dripBars').children.some(e => e.className === 'dcUse'));
+  assert(elements.get('dripBarX').innerHTML.includes('skipped'));
+  assert.equal(elements.get('dripSetG').value, '1.56');
+  assert.equal(elements.get('alphaSet').value, '0.30');
+  assert(!elements.get('dripSetButton').disabled && !elements.get('alphaSetButton').disabled);
+  // An edited field keeps the owner's value across refreshes.
+  elements.get('dripSetG').value = '0.50';
+  elements.get('dripSetG').dataset.edited = '1';
   refresh();
-  assert.equal(elements.get('bbwAlpha').textContent, '0.30');
-  assert.equal(elements.get('learnedOffsetG').textContent, '1.56 g');
-  assert(!ewma.classList.contains('hidden'));
-  assert(!elements.get('resetCalibrationButton').disabled);
-  vm.runInContext('uiState.bbwReadback.bbwAlpha=.5;uiState.bbwReadback.bbwAlphaSource="learned";uiState.bbwReadback.bbwEvidenceCount=20', context);
+  assert.equal(elements.get('dripSetG').value, '0.50');
+  // Quick start after Set drip: earlier shots fade, counted shots stand out.
+  refresh({bbwPresetId: 2, bbwEwmaOffsetG: 1.2, bbwAlpha: 0.3, bbwRecentG: [0.52, 0.48, 0.55, 0.63],
+    bbwRecentAfterSet: 2, bbwRecentAfterQuick: -1, bbwQuickStart: {state: 'armed', count: 2, setG: 1.2, quickG: 0}});
+  assert.equal(elements.get('dripStatus').lastElementChild.textContent, 'Quick start · 2 of 3 shots');
+  assert.equal(elements.get('dripVerdict').textContent, 'Your shots need about 0.48 g');
+  assert.equal(bars().filter(b => b.className.includes('qs')).length, 2);
+  assert.equal(bars().filter(b => b.className.includes('old')).length, 2);
+  assert.equal(bars().filter(b => b.className.includes('next')).length, 1);
+  assert.equal(marks().length, 1);
+  assert.equal(marks()[0].children[0].children[0], 'Manually set to 1.20 g');
+  // Applied: the quick start marker joins the manual one.
+  refresh({bbwPresetId: 2, bbwEwmaOffsetG: 0.5, bbwAlpha: 0.3, bbwRecentG: [0.5, 0.52, 0.48, 0.55, 0.63],
+    bbwRecentAfterSet: 3, bbwRecentAfterQuick: 0, bbwQuickStart: {state: 'applied', count: 3, setG: 1.2, quickG: 0.5}});
+  assert.equal(elements.get('dripStatus').lastElementChild.textContent, 'Set from 3 shots that agreed');
+  assert.equal(marks().length, 2);
+  assert(elements.get('dripVerdict').hidden);
+  // Unsaved recipe edits, read-only access or another preset block the sets.
+  context.uiState.brewDirty = true;
   refresh();
-  assert.equal(elements.get('bbwAlpha').textContent, '0.50');
-  assert.equal(elements.get('bbwAlphaStatus').textContent, 'Learned \u00b7 Evaluating');
+  assert(elements.get('dripSetButton').disabled && elements.get('alphaSetButton').disabled);
+  context.uiState.brewDirty = false;
+  vm.runInContext('uiState.bbwReadback.bbwPresetId=1', context);
+  refresh();
+  assert.equal(elements.get('learnedOffsetG').textContent, '—');
+  assert(elements.get('dripSetButton').disabled);
   elements.get('brewByWeight').checked = false;
   refresh();
   assert(learning.classList.contains('hidden'));
-  assert(elements.get('weightOffsetBaselineG').disabled);
-  elements.get('brewByWeight').checked = true;
-  context.controlsMutable = false;
-  refresh();
-  assert(elements.get('resetEwmaButton').disabled);
-  vm.runInContext('uiState.bbwReadback.bbwPresetId=1', context);
-  refresh();
-  assert.equal(elements.get('bbwAlpha').textContent, '\u2014');
-  assert.equal(elements.get('learnedOffsetG').textContent, '\u2014');
-  const load = blockAt(runtimeJs, 'function loadSettingsConfig(');
-  vm.runInContext(load, context);
-  context.uiState.brewDirty = true;
-  vm.runInContext('loadSettingsConfig({goalWeightG:36,revision:5,bbwAlgorithm:"linear_ewma"})', context);
 
+  // The preset save no longer carries drip or speed values.
   const payload = blockAt(runtimeJs, 'function brewPayload(');
   const makePayload = new Function('$', 'number', 'sToMs', 'presetState', 'bbwFormPresetId', 'document',
     payload + ';return brewPayload();');
@@ -69,17 +103,8 @@
   const fields = makePayload(id => elements.get(id) || {checked: true, value: 'auto'},
     () => 36, () => 30000, {activeId: 1}, 2, nonMicraDocument);
   assert.equal(fields.id, 2, 'A selection change must not retarget the rendered recipe');
-  assert(!('bbwAlgorithm' in fields));
-  assert(!('weightOffsetBaselineG' in fields));
-  assert(!('bbwAlpha' in fields));
-  assert(!('bbwAlphaBaseline' in fields));
-  context.controlsMutable = true;
-  elements.get('brewByWeight').checked = true;
-  refresh();
-  const withBase = makePayload(id => elements.get(id) || {checked: true, value: 'auto'},
-    id => id === 'bbwAlphaBaseline' ? .37 : 36, () => 30000,
-    {activeId: 1}, 2, nonMicraDocument);
-  assert.equal(withBase.bbwAlphaBaseline, .37);
+  for (const key of ['bbwAlgorithm', 'weightOffsetBaselineG', 'bbwAlpha', 'bbwAlphaBaseline'])
+    assert(!(key in fields), key);
 }
 
 (async () => {

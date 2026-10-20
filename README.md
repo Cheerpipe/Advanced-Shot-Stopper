@@ -134,10 +134,9 @@ intentionally finish a little above the target and slow shots a little below it.
 
 ### Brew by weight: drip and learning speed
 
-Each shot stops toward `cut line − learned drip`. **Starting drip (g)** is the
-saved value that **Reset drip learning** restores, not an additional
-compensation. After an eligible shot, the learned drip moves by a fraction,
-the learning speed α, of that shot's error:
+Each shot stops toward `cut line − drip`, where the drip is the
+**Expected drip weight after the shot stops**. After an eligible shot, the drip
+moves by a fraction, the learning speed α, of that shot's error:
 `next drip = clamp(drip + α × (final − cut line), 0, 5)`.
 For example, with a 36 g cut line, final weight 36.20 g and drip 1.50 g:
 
@@ -153,13 +152,12 @@ underweight result reduces the drip so the next cutoff occurs later.
 α learns between shots; it does not filter live scale readings or guarantee
 better accuracy on a particular machine.
 
-**Starting learning speed** is saved per preset, from 0.01 to 1.00 in
-steps of 0.01, initially 0.30. Saving either starting value preserves current
-learning. **Reset drip learning** resets only the learned drip and keeps the
-current α. **Reset drip and learning speed** restores both starting values,
-marks α initial and clears its evidence. Automatic learning may subsequently
-choose 0.10, 0.30, 0.50 or 1.00; a custom α remains active until a candidate
-earns a switch. See [BBW learning](docs/features/brew-by-weight.md#cutoff-behavior-and-learning)
+**Set drip** puts a new drip in use from the next shot and starts a quick
+start: if the next three eligible shots agree within 0.4 g, the drip moves
+straight to the middle one. **Set learning speed** applies α per preset, from
+0.01 to 1.00 in steps of 0.01 (initially 0.30), and keeps the drip. Automatic
+learning may subsequently choose 0.10, 0.30, 0.50 or 1.00; a custom α remains
+active until a candidate earns a switch. See [BBW learning](docs/features/brew-by-weight.md#cutoff-behavior-and-learning)
 for eligibility, comparison windows and persistence.
 
 ## First connection

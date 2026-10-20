@@ -26,7 +26,7 @@
   const payload = blockAt(allJs, 'function brewPayload()');
   const bindings = viewJs.settings.slice(
     viewJs.settings.search(/document\s*\.\s*querySelectorAll\(\s*['"]#workflowPanel input/),
-    viewJs.settings.search(/const\s+resetBbw\s*=/));
+    viewJs.settings.search(/\/\/ Set drip and Set learning speed apply at once/));
   // Shared switches save with Shared settings from their checkbox state, so
   // a disabled touch fallback keeps its saved value.
   const machine = blockAt(viewJs.settings, 'function machinePayload(');

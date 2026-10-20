@@ -20,6 +20,11 @@ function setStatsRenderers(r) {
 function setHistoryRenderer(fn) {
   renderHistory = fn;
 }
+// Settings installs the drip chart on init; until then there is no chart DOM.
+let renderDripChart = () => {};
+function setDripChartRenderer(fn) {
+  renderDripChart = fn;
+}
 async function ensureSettingsDom() {
   await ensureViewHook("settings");
 }
@@ -2063,13 +2068,11 @@ function setMutable(enabled) {
   if (was !== canEdit && activeView === "stats" && $("shotRows")) renderShots();
 }
 const BREW_CONTROL_IDS = [
-  "bbwAlphaBaseline",
   "brewByWeight",
   "doseG",
   "goalWeightG",
   "operationalWallS",
   "bbwProtectionS",
-  "weightOffsetBaselineG",
   "fastExtractionGuardEnabled",
   "fastBeforeS",
   "fastMarginG",
@@ -2196,7 +2199,7 @@ let bbwFormPresetId = 0;
 function updateBbwControls() {
   if (!$("brewByWeight")) return;
   const on = !!$("brewByWeight").checked;
-  document.querySelectorAll(".bbwLearning,.bbwEwma").forEach((el) => {
+  document.querySelectorAll(".bbwLearning").forEach((el) => {
     const hidden = !on;
     el.classList.toggle("hidden", hidden);
     el.querySelectorAll("input,button,select").forEach(
@@ -2204,25 +2207,17 @@ function updateBbwControls() {
     );
   });
   const c = uiState.bbwReadback && uiState.bbwReadback.bbwPresetId === bbwFormPresetId ? uiState.bbwReadback : null;
-  const offset = c && c.bbwEwmaOffsetG;
+  const use = c && c.bbwEwmaOffsetG;
   $("learnedOffsetG").textContent =
-    typeof offset === "number"
-      ? offset.toFixed(2) + __WEBUI_TEXT__("runtime.g_2")
-      : __WEBUI_TEXT__("runtime.unknown");
-  $("bbwAlpha").textContent =
-    c && typeof c.bbwAlpha === "number" ? c.bbwAlpha.toFixed(2) : __WEBUI_TEXT__("runtime.unknown");
-  $("bbwAlphaStatus").textContent = c
-    ? (c.bbwAlphaSource === "learned"
-        ? __WEBUI_TEXT__("runtime.learned")
-        : __WEBUI_TEXT__("runtime.initial")) +
-      __WEBUI_TEXT__("runtime.symbol_8") +
-      (c.bbwEvidenceCount >= 20
-        ? __WEBUI_TEXT__("runtime.evaluating")
-        : __WEBUI_TEXT__("runtime.collecting_samples"))
-    : __WEBUI_TEXT__("runtime.unavailable");
-  $("resetCalibrationButton").disabled =
-    !on || !controlsMutable || uiState.brewDirty || !c;
-  $("resetEwmaButton").disabled = $("resetCalibrationButton").disabled;
+    typeof use === "number" ? use.toFixed(2) : __WEBUI_TEXT__("runtime.unknown");
+  renderDripChart(c);
+  // The set fields follow the values in use until the owner edits them.
+  for (const [id, v] of [["dripSetG", use], ["alphaSet", c && c.bbwAlpha]])
+    if (typeof v === "number" && document.activeElement !== $(id) && !$(id).dataset.edited)
+      $(id).value = v.toFixed(2);
+  const blocked = !on || !controlsMutable || uiState.brewDirty || !c;
+  for (const [id, button] of [["dripSetG", "dripSetButton"], ["alphaSet", "alphaSetButton"]])
+    $(button).disabled = blocked || $(id).value.trim() === "" || !$(id).validity.valid;
 }
 function soundAlertsAreOn() {
   return !!$("soundAlertsEnabled")?.checked;
@@ -2353,7 +2348,6 @@ const BREW_FIELD_TEXT = {
     goalWeightG: [__WEBUI_TEXT__("runtime.target_yield"), __WEBUI_TEXT__("runtime.g"), "recipe"],
     operationalWallS: [__WEBUI_TEXT__("runtime.max_bbw_time"), __WEBUI_TEXT__("runtime.s"), "limits"],
     bbwProtectionS: [__WEBUI_TEXT__("runtime.bbw_protection"), __WEBUI_TEXT__("runtime.s"), "limits"],
-    weightOffsetBaselineG: [__WEBUI_TEXT__("runtime.offset_baseline"), __WEBUI_TEXT__("runtime.g")],
     lineaMicraBrewTargetC: [__WEBUI_TEXT__("runtime.brew_temperature"), "°C"],
     fastBeforeS: [__WEBUI_TEXT__("runtime.window_start"), __WEBUI_TEXT__("runtime.s"), "recipe"],
     fastMarginG: [__WEBUI_TEXT__("runtime.fast_margin"), __WEBUI_TEXT__("runtime.g"), "fast"],
@@ -2425,16 +2419,8 @@ function validateBrewClient() {
   add(brewRange("goalWeightG", 10, 200, {step: 0.1}));
   add(brewRange("operationalWallS", 5, 60, {int: 1}));
   add(brewRange("bbwProtectionS", 0.5, 30));
-  if (!$("weightOffsetBaselineG").disabled) add(brewRange("weightOffsetBaselineG", 0, 5));
   if (document.documentElement.classList.contains("micraTemperatureEnabled"))
     add(brewRange("lineaMicraBrewTargetC", 80, 100));
-  if (!$("bbwAlphaBaseline").disabled && !$("bbwAlphaBaseline").validity.valid)
-    errors.push({
-      id: "bbwAlphaBaseline",
-      // Live previews suppress the empty-field result only, as with rangeCheck.
-      required: $("bbwAlphaBaseline").value.trim() === "",
-      msg: __WEBUI_TEXT__("runtime.use_0_01_1_00_step_0"),
-    });
   add(brewRange("doseG", 5, 30, {step: 0.1}));
   add(brewRange("fastBeforeS", 2.5, 58, {step: 0.5}));
   add(brewRange("slowAfterS", 3.5, 59, {step: 0.5}));
@@ -2514,10 +2500,6 @@ function brewPayload() {
     id: bbwFormPresetId,
     // Empty means "use your recent shots": the firmware stores it as 0.
     scaleLossFixedS: number("scaleLossFixedS"),
-    ...(!$("weightOffsetBaselineG").disabled
-      ? { weightOffsetBaselineG: number("weightOffsetBaselineG") }
-      : {}),
-    ...(!$("bbwAlphaBaseline").disabled ? { bbwAlphaBaseline: number("bbwAlphaBaseline") } : {}),
     ...(document.documentElement.classList.contains("micraTemperatureEnabled")
       ? { lineaMicraBrewTargetC: number("lineaMicraBrewTargetC") }
       : {}),
@@ -5222,7 +5204,6 @@ function loadSettingsConfig(c) {
   if (!c || typeof c.goalWeightG !== "number" || !$("goalWeightG")) return;
   if (configLoaded && (uiState.configDirty || uiState.brewDirty || formRev === c.revision)) return;
   bbwFormPresetId = c.bbwPresetId || 0;
-  $("bbwAlphaBaseline").value = c.bbwAlphaBaseline ?? 0.3;
   $("goalWeightG").value = c.goalWeightG.toFixed(1);
   [
     "rinseGesture",
@@ -5320,9 +5301,6 @@ function loadSettingsConfig(c) {
   for (const k of ["doseG", "fastBeforeS", "slowAfterS", "fastMarginG", "slowMarginG"])
     $(k).value = (+c[k]).toFixed(1);
   $("scaleLossFixedS").value = c.scaleLossFixedS > 0 ? String(c.scaleLossFixedS) : "";
-  $("weightOffsetBaselineG").value = String(
-    typeof c.weightOffsetBaselineG === "number" ? c.weightOffsetBaselineG : 1.5,
-  );
   formRev = c.revision;
   configRevision = c.revision;
   configLoaded = true;
@@ -5643,6 +5621,7 @@ export {
   armListSentinel,
   armStickyBar,
   setStatsRenderers,
+  setDripChartRenderer,
   setHistoryRenderer,
   loadMoreHistory,
   historySendSubscribe,

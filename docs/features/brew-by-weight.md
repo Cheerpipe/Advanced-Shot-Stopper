@@ -90,10 +90,8 @@ appears while you are looking at the active preset.
 | **Earliest weight stop (s)** | Time limits | 12 s | 0.5–30 s; see [Cup protection](cup-protection.md) | The scale cannot stop the shot before this, so tare and first drops cannot trigger it. |
 | **Max shot time (s)** | Time limits | 50 s | 5–60 s | The shot always stops here, target reached or not. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
 | **Backup stop time (s)** | Time limits | empty | Earliest weight stop to Max shot time | Leave empty to use your recent shots, or the middle of your window until there are enough. See [scale-loss backup](auto-to-manual.md). |
-| **Learned drip (g)** | Drip compensation | starts at 0.5 g | 0–5 g, read-only | Subtracted from the cut line. Updated from eligible weight-stopped shots after the drip delay. |
-| **Starting drip (g)** | Drip compensation | 0.5 g | 0–5 g | The drip restored by **Reset drip learning**. Save it before resetting. |
-| **Learning speed** | Drip compensation | 0.30 initially | Read-only | How strongly each shot moves the learned drip, with whether it is still the starting value or learned, and its collecting/evaluating status. |
-| **Starting learning speed** | Drip compensation | 0.30 | 0.01–1.00, step 0.01 | Restored by **Reset drip and learning speed**. Saving it keeps the current drip, speed and evidence. |
+| **Expected drip weight after the shot stops (g)** | Drip compensation | 0.5 g in new presets | 0–5 g, applied with **Set drip** | The coffee still dripping into the cup after the stop, subtracted from the cut line. It learns from every eligible weight-stopped shot, shown next to a chart of what your last five shots needed. **Set drip** uses a new value from the next shot and starts a quick start. |
+| **Learning speed** | Drip compensation | 0.30 | 0.01–1.00, applied with **Set learning speed** | How strongly each shot moves the drip. It may tune itself after about 20 shots; **Set learning speed** applies a new value at once and keeps the drip. |
 | **Stop after sustained weight** | Shared settings → Cup protection | ON | ON / OFF | A backup for a weight stop blocked by **Avoid accidental touch**. Fresh readings must stay above the applicable cut threshold for 1 second. Applies to every preset; takes effect on the next shot. |
 
 **Home → Presets** shows how each recipe cuts as three rows, for example
@@ -211,32 +209,37 @@ incumbent is scored alongside those four candidates, using the same window
 and switch criteria; it is not rounded to a candidate. Observations are replayed
 from each trajectory's state before the oldest retained sample, without using
 future measurements. Once a candidate wins, subsequent choices use the four
-fixed gains. Neither saving a baseline nor switching the selector resets learning.
+fixed gains. Saving dose or grind-hint changes does not reset learning.
 
-Each preset retains its own offset. Reboot keeps offset, gain and
-initial/learned provenance, but collects a fresh evidence window. Recipe or
+Each preset retains its own offset. Reboot keeps offset, gain,
+initial/learned provenance and a quick start in progress, but collects a fresh
+evidence window. Recipe or
 relevant tare/drip timing changes also restart evidence without erasing the
 offset or gain.
 
-In **Settings → Presets → Drip compensation**, **Learned drip** shows the
-offset and **Learning speed** shows α with its status; **Starting drip** and
-**Starting learning speed** are their editable baselines. BBW OFF hides the
-learning fields. Polling preserves unsaved edits, and resets require a saved
-baseline and an editable, idle configuration.
+In **Settings → Presets → Drip compensation** you see the drip in use, its
+status, and a small chart of what each of your last five shots with this preset
+needed, drawn against a line for the drip in use. Shots that did not train the
+drip, such as a moved cup or a manual stop, show as skipped. With brew by weight
+off the section is hidden; both Set buttons need an editable, idle
+configuration with no unsaved recipe changes.
 
-- **Reset drip learning** restores the offset to the saved Starting drip. It
-  retains α and restarts evidence.
-- **Reset drip and learning speed** restores offset and α to their saved
-  starting values, marks provenance initial, and clears evidence.
+- **Set drip** puts the value in use from your next shot and keeps it as the
+  preset's starting point. It also starts a **quick start**: if your next three
+  learning shots agree within 0.4 g, the drip moves straight to the middle one
+  instead of taking the usual small step; if they don't, learning simply
+  carries on. The chart marks where you set the drip and where the quick start
+  decided. New presets, restored factory presets and a fresh install start the
+  same way; presets kept from an earlier firmware keep their drip untouched.
+- **Set learning speed** applies a new α at once, restarts its evidence and
+  marks it as your choice; the drip stays as it is.
 
-Save both starting values before resetting; editing them alone leaves learned values
-and evidence intact. For the example above, α=0.10 gives a next offset of 1.52 g,
-α=0.30 gives 1.56 g and α=0.60 gives 1.62 g. Higher α reacts faster but follows
-shot noise more; lower α smooths more but adapts slower. The gain applies
-between shots, not to live scale filtering. The saved base is a reset seed,
-not a fixed gain that disables automatic adaptation.
+For the example above, α=0.10 gives a next offset of 1.52 g, α=0.30 gives
+1.56 g and α=0.60 gives 1.62 g. Higher α reacts faster but follows shot noise
+more; lower α smooths more but adapts slower. The gain applies between shots,
+not to live scale filtering, and can still tune itself later.
 
-Pending analysis cannot undo either reset. A future change to the firmware's
+A shot still being analysed when you press either Set button cannot undo it. A future change to the firmware's
 initial gain must preserve valid retained learning. Nothing here changes guard,
 physical-stop, relay, watchdog or time-limit authority. No improved physical
 accuracy is claimed without representative machine/scale measurements.

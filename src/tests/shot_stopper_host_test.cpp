@@ -148,6 +148,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   cupSettingsGeneration = 1;
   idleTareSettingsGeneration = 1;
   bbwLearningBank = BbwLearningBank{};
+  bbwQuickStart = QuickStartRecord{};
   // Legacy scenarios opt out; dedicated idle-tare cases exercise the ON default.
   runtimeConfig.autoTareOutsideBrew = false;
   runtimeConfig.rinseEnabled = true;
@@ -19838,6 +19839,53 @@ void fw02_offset_learns_below_sensor_lag() {
   CHECK(preset.bbwEwmaOffsetG == 0.20f);
 }
 
+void fw05_set_drip_quick_starts_and_three_shots_decide() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  ShotPreset &preset = mutableActiveShotPreset(presetBank);
+  const auto state = [&] {
+    return quickStartEntry(bbwQuickStart, presetBank, preset.id, false)->state;
+  };
+  WebCommand set;
+  set.type = WebCommandType::RESET_WEIGHT_OFFSET;
+  set.bbwSetDrip = true;
+  set.config.weightOffsetBaselineG = 1.2f;
+  processWebCommand(set);
+  CHECK(preset.bbwEwmaOffsetG == 1.2f && preset.weightOffsetBaselineG == 1.2f);
+  CHECK(state() == static_cast<uint8_t>(QuickStartState::ARMED));
+  CHECK(bbwQuickStartPersistPending);
+  // Set learning speed alone keeps the drip and its quick start.
+  WebCommand speed;
+  speed.type = WebCommandType::RESET_WEIGHT_OFFSET;
+  speed.bbwAlphaBaseline = 50;
+  processWebCommand(speed);
+  CHECK(preset.bbwEwmaAlpha == 50 && preset.bbwAlphaBaseline == 50 &&
+        preset.bbwAlphaLearned == 0 && preset.bbwEwmaOffsetG == 1.2f);
+  CHECK(state() == static_cast<uint8_t>(QuickStartState::ARMED));
+  // Three shots that needed 0.48, 0.52 and 0.50 g: the third sets 0.50 g.
+  for (const float needed : {0.48f, 0.52f, 0.50f}) {
+    preparePendingBbwForTest();
+    pendingFinalize.offsetAnalysis = true;
+    pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
+    pendingFinalize.scaleBaselineReady = true;
+    pendingFinalize.scaleConnectionGeneration =
+        getScaleLinkSnapshot().connectionGeneration;
+    pendingFinalize.weightOffsetG = preset.bbwEwmaOffsetG;
+    pendingFinalize.goalWeightDg = 360;
+    pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
+    pendingFinalize.endedAtMs = hostMillis;
+    pendingFinalize.durationDs = 300;
+    pendingFinalize.firstDropDs = 100;
+    currentWeight = 36.0f - preset.bbwEwmaOffsetG + needed;
+    currentWeightConnectionGeneration = pendingFinalize.scaleConnectionGeneration;
+    ++currentWeightSequence;
+    currentWeightReceivedAtMs = ++hostMillis;
+    CHECK(learnPendingBbw(pendingFinalize, currentWeight, true));
+  }
+  CHECK(fabsf(preset.bbwEwmaOffsetG - 0.50f) < 0.005f);
+  CHECK(state() == static_cast<uint8_t>(QuickStartState::APPLIED));
+}
+
 void rt24_late_cup_step_uses_shot_coordinates() {
   // After a failed start tare the trajectory is software-zeroed: the same
   // 300 g cup set back down over 5 g of coffee is not a late-cup step.
@@ -22049,6 +22097,7 @@ const TestCase testCases[] = {
     {"RT22", rt22_inshot_coffee_ramp_is_not_a_late_cup},
     {"RT23", rt23_late_cup_before_first_drop_retares},
     {"RT24", rt24_late_cup_step_uses_shot_coordinates},
+    {"FW05", fw05_set_drip_quick_starts_and_three_shots_decide},
     {"RT21", rt21_empty_pan_at_cycle_start_resyncs_stuck_present},
     {"RS01", rs01_fast_samples_wait_for_min_duration},
     {"RS02", rs02_slow_samples_meet_min_duration_at_third_sample},

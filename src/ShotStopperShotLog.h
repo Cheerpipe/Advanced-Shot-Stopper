@@ -137,6 +137,28 @@ class ShotLog
     return stats;
   }
 
+  // The drip each newest shot of a preset needed (offset used + final − cut
+  // line, cg), newest first; skipped when the shot did not train the drip.
+  size_t recentDrips(uint8_t presetId, uint32_t *ids, int16_t *neededCg,
+                     uint8_t &skippedMask, size_t max) const {
+    size_t found = 0;
+    skippedMask = 0;
+    size_t index = store_.header.writeIndex;
+    for (size_t n = 0; n < store_.header.count && found < max; ++n) {
+      if (index == 0) index = SHOT_LOG_CAPACITY;
+      const ShotLogRecord &record = store_.records[--index];
+      if (shotLogPresetId(record) != presetId) continue;
+      const bool trained = ((record.extractionExtended >> 5) & 3) == 2 &&
+                           !shotLogWeightIsMissing(record.cutLineCg);
+      ids[found] = record.id;
+      neededCg[found] = trained ? static_cast<int16_t>(record.offsetUsedCg +
+                                    record.actualWeightCg - record.cutLineCg)
+                                : 0;
+      if (!trained) skippedMask |= static_cast<uint8_t>(1U << found);
+      ++found;
+    }
+    return found;
+  }
   bool copyNewestEligible(ShotLogRecord &output) const {
     size_t index = store_.header.writeIndex;
     for (size_t n = 0; n < store_.header.count; ++n) {

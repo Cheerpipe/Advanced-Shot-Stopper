@@ -840,6 +840,103 @@ function updateCupMinGuidance(s) {
       .replaceAll("{x}", observed.toFixed(1))
       .replace("{n}", min.toFixed(1));
 }
+// What each newest shot needed against the drip in use, oldest bar first.
+// Markers show where the owner set the drip and where quick start decided.
+function renderDripChart(c) {
+  const dripText = (g) => (g > 0 ? g.toFixed(2) : "0") + __WEBUI_TEXT__("runtime.g_2"),
+    dripRange = (v) => (Math.min(...v) > 0 ? Math.min(...v).toFixed(2) : "0") + "–" + dripText(Math.max(...v));
+  const recent = (c && c.bbwRecentG) || [],
+    q = (c && c.bbwQuickStart) || {},
+    n = recent.length,
+    use = (c && c.bbwEwmaOffsetG) || 0,
+    armed = q.state === "armed",
+    afterSet = c && c.bbwRecentAfterSet >= 0 && (c.bbwRecentAfterSet < n || n < 5) ? c.bbwRecentAfterSet : -1,
+    afterQuick = c && c.bbwRecentAfterQuick >= 0 && c.bbwRecentAfterQuick < n ? c.bbwRecentAfterQuick : -1,
+    mode = armed ? "quick" : afterQuick < 0 ? "learning" : q.state === "applied" ? "applied" : "varied",
+    marked = mode !== "learning",
+    shots = recent.slice(0, armed ? 4 : 5).map((g, i) => ({ g, i })).reverse(),
+    counted = (s) => marked && s.g != null && (afterSet < 0 || s.i < afterSet) && s.i >= Math.max(afterQuick, 0),
+    pad = 5 - shots.length - (armed ? 1 : 0),
+    top = Math.max(...recent.filter((g) => g != null), use, 0.5) * 1.3,
+    h = (g) => (Math.max(0, g) / top) * 100 + "%",
+    slots = [...Array(pad).fill({}), ...shots, ...(armed ? [{ next: true }] : [])],
+    at = (after) => pad + shots.length - Math.min(after, shots.length),
+    marks = [];
+  if (marked && afterSet >= 0) marks.push([at(afterSet), __WEBUI_TEXT__("runtime.drip_manual_set") + dripText(q.setG), ""]);
+  if (mode === "applied") marks.push([at(afterQuick), __WEBUI_TEXT__("runtime.drip_quick_set") + dripText(q.quickG), " end"]);
+  // Built with element.style: the firmware CSP drops style attributes in markup.
+  const el = (tag, cls, ...kids) => {
+    const e = document.createElement(tag);
+    e.className = cls;
+    e.append(...kids);
+    return e;
+  };
+  const bars = $("dripBars");
+  bars.classList.toggle("twoMarks", marks.length > 1);
+  bars.replaceChildren(
+    ...slots.map((s) => {
+      const old = marked && afterSet >= 0 && s.i >= afterSet;
+      const bar = el("div", "dcBar" + (old ? " old" : "") + (counted(s) ? " qs" : "") + (s.next ? " next" : ""));
+      if (s.next || s.g != null) {
+        const fill = el("i", "");
+        if (!s.next) fill.style.height = h(s.g);
+        bar.append(fill);
+      }
+      return bar;
+    }),
+    ...marks.map(([k, label, end], i) => {
+      const mark = el("div", "dcMark" + end + (marks.length > 1 && !i ? " up" : ""), el("span", "", label));
+      mark.style.left = `calc((100% + .5rem) * ${k} / 5 - .25rem)`;
+      return mark;
+    }),
+  );
+  if (c) {
+    const line = el("div", "dcUse", el("span", "", __WEBUI_TEXT__("runtime.drip_in_use"), el("br", ""), dripText(use)));
+    line.style.bottom = h(use);
+    bars.append(line);
+  }
+  const last = slots.length - 1 - (armed ? 1 : 0);
+  $("dripBarX").innerHTML = slots
+    .map(
+      (s, k) =>
+        `<span class="${marked && afterSet >= 0 && s.i >= afterSet ? "old" : ""}">` +
+        (s.g != null ? `<b>${dripText(s.g)}</b>` : "i" in s ? __WEBUI_TEXT__("runtime.drip_skipped") : s.next ? __WEBUI_TEXT__("runtime.drip_next") : "") +
+        (k === last && "i" in s ? __WEBUI_TEXT__("runtime.drip_last_shot") : "") +
+        "</span>",
+    )
+    .join("");
+  const needed = recent.filter((g, i) => g != null && (mode === "learning" || counted({ g, i })));
+  const sorted = [...needed].sort((a, b) => a - b);
+  const lead = __WEBUI_TEXT__("runtime.drip_last_needed");
+  const verdict = !needed.length
+    ? ""
+    : mode === "quick"
+      ? __WEBUI_TEXT__("runtime.drip_need_about") + dripText(sorted[(sorted.length - 1) >> 1])
+      : mode === "varied"
+        ? __WEBUI_TEXT__("runtime.drip_varied") + dripRange(needed) + __WEBUI_TEXT__("runtime.drip_varied_end")
+        : mode === "applied"
+          ? ""
+          : use >= sorted[0] - 0.15 && use <= sorted[sorted.length - 1] + 0.15
+            ? __WEBUI_TEXT__("runtime.drip_on_track") + lead + dripRange(needed)
+            : lead.charAt(0).toUpperCase() + lead.slice(1) + dripRange(needed);
+  $("dripVerdict").textContent = verdict;
+  $("dripVerdict").hidden = !verdict;
+  $("dripHint").textContent = !n
+    ? __WEBUI_TEXT__("runtime.drip_hint_none")
+    : {
+        learning: __WEBUI_TEXT__("runtime.drip_hint_learning"),
+        quick: __WEBUI_TEXT__("runtime.drip_hint_quick"),
+        applied: __WEBUI_TEXT__("runtime.drip_hint_applied"),
+        varied: __WEBUI_TEXT__("runtime.drip_hint_varied"),
+      }[mode];
+  $("dripStatus").className = "dcStatus" + (armed || mode === "applied" ? " quick" : "");
+  $("dripStatus").lastElementChild.textContent =
+    armed
+      ? __WEBUI_TEXT__("runtime.drip_status_quick") + (q.count || 0) + __WEBUI_TEXT__("runtime.drip_status_quick_of")
+      : mode === "applied"
+        ? __WEBUI_TEXT__("runtime.drip_status_applied")
+        : __WEBUI_TEXT__("runtime.drip_status_learning");
+}
 export function init() {
   if (ready) return;
   ready = true;
@@ -993,7 +1090,11 @@ export function init() {
   document
     .querySelectorAll("#workflowPanel input,#workflowPanel select,#workflowPanel textarea")
     .forEach((el) => {
-      if (el.id === "presetRenameInput" || el.closest("#lineaMicraSignIn,#lineaMicraChoose")) return;
+      if (
+        ["presetRenameInput", "dripSetG", "alphaSet"].includes(el.id) ||
+        el.closest("#lineaMicraSignIn,#lineaMicraChoose")
+      )
+        return;
       const fn = () => {
         const sec = R.settingsSectionOf(el.id);
         sec === "brew"
@@ -1011,23 +1112,21 @@ export function init() {
       el.addEventListener("input", fn);
       el.addEventListener("change", fn);
     });
-  const resetBbw = (full) => {
-    if ($(full ? "resetEwmaButton" : "resetCalibrationButton").disabled) return;
-    if (
-      confirm(
-        __WEBUI_TEXT__("settings.reset_2") +
-          __WEBUI_TEXT__("settings.drip_learning") +
-          __WEBUI_TEXT__("settings.offset_to") +
-          R.number("weightOffsetBaselineG").toFixed(2) +
-          __WEBUI_TEXT__("settings.g") +
-          (full
-            ? __WEBUI_TEXT__("settings.and_to") + R.number("bbwAlphaBaseline").toFixed(2)
-            : "") +
-          __WEBUI_TEXT__("settings.symbol_6"),
-      )
-    )
-      R.command("/api/v1/calibration/reset", { fullEwma: full, baseRevision: R.formRev });
-  };
-  $("resetCalibrationButton").onclick = () => resetBbw(false);
-  $("resetEwmaButton").onclick = () => resetBbw(true);
+  // Set drip and Set learning speed apply at once; the field keeps the
+  // owner's value until the readback confirms it.
+  for (const [input, button, key] of [
+    ["dripSetG", "dripSetButton", "dripG"],
+    ["alphaSet", "alphaSetButton", "alpha"],
+  ]) {
+    $(input).addEventListener("input", () => {
+      $(input).dataset.edited = "1";
+      R.updateBbwControls();
+    });
+    $(button).onclick = () => {
+      if ($(button).disabled) return;
+      delete $(input).dataset.edited;
+      R.command("/api/v1/calibration/reset", { [key]: R.number(input), baseRevision: R.formRev });
+    };
+  }
+  R.setDripChartRenderer(renderDripChart);
 }

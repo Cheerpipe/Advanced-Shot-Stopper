@@ -81,6 +81,7 @@
 #include "ShotStopperAlertTone.h"
 #include "ShotStopperPresets.h"
 #include "ShotStopperBbwLearning.h"
+#include "ShotStopperBbwQuickStart.h"
 #if !defined(SHOT_STOPPER_HOST_TEST)
 namespace shotstopper {
 Print &serialCliOutput();
@@ -436,6 +437,14 @@ BullseyeTracker bullseyeTracker;
 LocalBuzzer localBuzzer;
 ShotPresetBank presetBank;
 BbwLearningBank bbwLearningBank;
+// Control-owned drip quick start; the settings_persist worker writes the
+// staged copy, guarded by bbwQuickStartMux.
+QuickStartRecord bbwQuickStart;
+QuickStartRecord bbwQuickStartStaged;
+bool bbwQuickStartPersistPending = false;
+TaskMutex bbwQuickStartMux;
+void stageBbwQuickStart();
+uint32_t shotStatisticsEpochNow();
 LastCycleSummary lastCycle;
 // Debug events are not a flash DMA source and are not added from an ISR.
 SHOT_STOPPER_PSRAM_BSS DebugRingBuffer debugLog;

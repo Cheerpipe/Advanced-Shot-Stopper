@@ -1074,25 +1074,35 @@ esp_err_t ShotStopperNetwork::resetCalibrationHandler(httpd_req_t *request) {
     return bodyStatus;
   }
   cJSON *root = parseJsonDocument(self.workBuf_->requestBody);
-  static const char *const resetFields[] = {"fullEwma", "baseRevision"};
+  static const char *const resetFields[] = {"fullEwma", "baseRevision", "dripG", "alpha"};
   bool fullEwma = false;
   uint32_t baseRevision = 0;
+  uint8_t alpha = 0;
   const bool revisionSpecified = root && jsonFieldPresent(root, "baseRevision");
+  const cJSON *drip = root ? cJSON_GetObjectItemCaseSensitive(root, "dripG") : nullptr;
+  const cJSON *speed = root ? cJSON_GetObjectItemCaseSensitive(root, "alpha") : nullptr;
+  const double dripG = drip != nullptr && cJSON_IsNumber(drip) ? drip->valuedouble : -1.0;
   const bool parsed = root != nullptr &&
-      jsonHasOnlyUniqueFields(root, resetFields, 2) &&
+      jsonHasOnlyUniqueFields(root, resetFields, 4) &&
       (!revisionSpecified || jsonUint32(root, "baseRevision", baseRevision)) &&
-      (!jsonFieldPresent(root, "fullEwma") || jsonBoolean(root, "fullEwma", fullEwma));
+      (!jsonFieldPresent(root, "fullEwma") || jsonBoolean(root, "fullEwma", fullEwma)) &&
+      (drip == nullptr || (dripG >= 0.0 && dripG <= MAX_OFFSET_G)) &&
+      (speed == nullptr ||
+       (cJSON_IsNumber(speed) && parseBbwAlphaBaseline(speed->valuedouble, alpha)));
   if (root != nullptr) {
     cJSON_Delete(root);
   }
   self.unlockJsonBody();
   if (!parsed) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_REQUEST",
-                     "Use an empty object or a boolean fullEwma field.");
+                     "Use fullEwma, dripG (0–5 g) or alpha (0.01–1.00).");
   }
   WebCommand command;
   command.type = WebCommandType::RESET_WEIGHT_OFFSET;
   command.bbwFullReset = fullEwma;
+  command.bbwSetDrip = dripG >= 0.0;
+  command.config.weightOffsetBaselineG = static_cast<float>(dripG);
+  command.bbwAlphaBaseline = alpha;
   command.bbwResetRevisionSpecified = revisionSpecified;
   command.config.revision = baseRevision;
   command.requestId = self.allocateRequestId();

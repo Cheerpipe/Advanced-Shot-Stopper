@@ -80,6 +80,7 @@ void resetMomentaryHarness() {
   scaleWeightEventDrops = 0;
   runtimeConfig = RuntimeConfig{};
   bbwLearningBank = BbwLearningBank{};
+  bbwQuickStart = QuickStartRecord{};
   runtimeConfig.autoTareOutsideBrew = false;
   runtimeConfig.requireCupToStart = false;
   runtimeConfig.noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);

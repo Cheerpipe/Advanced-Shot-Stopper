@@ -1787,6 +1787,7 @@ struct WebCommand {
   uint16_t presetDoseDg = 0;     // Zero means omitted.
   int8_t presetGrindHints = -1;  // Negative means omitted.
   bool bbwFullReset = false;
+  bool bbwSetDrip = false;  // Set drip: config.weightOffsetBaselineG is the value.
   bool bbwResetRevisionSpecified = false;
   BuzzerPattern buzzerPattern = BuzzerPattern::NONE;
   BookooDebugAction bookooDebugAction = BookooDebugAction::START;

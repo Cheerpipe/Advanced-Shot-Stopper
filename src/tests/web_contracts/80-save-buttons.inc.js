@@ -55,8 +55,8 @@
     assert(new RegExp(`id="${id}"[^>]*data-dirty="0"[^>]*disabled`).test(normalizedUi),
         `${id} must start visibly disabled next to its save button`);
   assert(codeIncludes(viewJs.settings, 
-      "if(el.id==='presetRenameInput'||el.closest('#lineaMicraSignIn,#lineaMicraChoose'))return"),
-      'The preset rename dialog and Micra sign-in inputs must not dirty a settings section');
+      "if(['presetRenameInput','dripSetG','alphaSet'].includes(el.id)||el.closest('#lineaMicraSignIn,#lineaMicraChoose'))return"),
+      'The preset rename dialog, the drip set fields and Micra sign-in inputs must not dirty a settings section');
   assert(codeIncludes(js, 'e.dataset.dirty!=null') &&
          codeIncludes(js, "setSaveDirty('saveConfigButton','configDirtyHint',false)") &&
          codeIncludes(js, "setSaveDirty('saveDateTimeButton','dateTimeDirtyHint',false)") &&

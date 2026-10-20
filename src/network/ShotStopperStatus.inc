@@ -438,6 +438,24 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         control.bbwAlphaLearned ? "learned" : "initial", control.bbwEvidenceCount);
   }
   if (ok && page == StatusPage::Settings) {
+    static const char *const quickStates[] = {"off", "armed", "applied", "disagreed"};
+    ok = statusJsonAppend(
+        &used, ",\"bbwQuickStart\":{\"state\":\"%s\",\"count\":%u,\"setG\":%.2f,"
+        "\"quickG\":%.2f},\"bbwRecentAfterSet\":%d,\"bbwRecentAfterQuick\":%d,"
+        "\"bbwRecentG\":[",
+        quickStates[control.bbwQuickState < 4 ? control.bbwQuickState : 0],
+        control.bbwQuickCount, control.bbwQuickSetCg / 100.0, control.bbwQuickCg / 100.0,
+        control.bbwRecentAfterSet == 0xFF ? -1 : control.bbwRecentAfterSet,
+        control.bbwRecentAfterQuick == 0xFF ? -1 : control.bbwRecentAfterQuick);
+    // Newest first; null marks a shot that did not train the drip.
+    for (uint8_t i = 0; ok && i < control.bbwRecentCount && i < 5; ++i)
+      ok = (control.bbwRecentSkipped >> i) & 1U
+               ? statusJsonAppend(&used, "%snull", i ? "," : "")
+               : statusJsonAppend(&used, "%s%.2f", i ? "," : "",
+                                  control.bbwRecentCg[i] / 100.0);
+    if (ok) ok = statusJsonAppend(&used, "]");
+  }
+  if (ok && page == StatusPage::Settings) {
     // Live platform weight for the cup-minimum setup guidance; presence
     // classification itself depends on the minimum, so it cannot be used.
     char cupObserved[24] = "null";

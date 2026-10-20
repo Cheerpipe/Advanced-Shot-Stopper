@@ -287,6 +287,7 @@ void setup() {
   persistResetHistoryAfterBoot(safetyResetStatus);
   settingsLoaded = false;
   settingsDurable = false;
+  bool freshSettings = false;
   if (persistenceReady && loadPersistedSettings(persistedSettings)) {
     settingsLoaded = true;
     settingsDurable = true;
@@ -295,6 +296,7 @@ void setup() {
   } else if (persistenceReady) {
     if (initializeDefaultSettings(persistedSettings)) {
       settingsLoaded = true;
+      freshSettings = true;
       settingsDurable = savePersistedSettings(persistedSettings);
       if (!settingsDurable) {
         addDebugEvent(DebugCategory::CONFIG, DebugCode::INITIALIZATION_FAILED,
@@ -325,6 +327,14 @@ void setup() {
     ensureShotPresetBank(presetBank, runtimeConfig.retareWindowMs,
                          runtimeConfig.autoRetare);
     addMissingManualShotPreset(presetBank);
+    // A fresh install quick starts its presets; an upgrade without the record
+    // leaves every tuned drip alone.
+    if (freshSettings) {
+      bbwQuickStart = armedQuickStart(presetBank);
+      stageBbwQuickStart();
+    } else if (!loadQuickStart(bbwQuickStart)) {
+      bbwQuickStart = QuickStartRecord{};
+    }
     // Earlier firmware could save a controller-wide Manual; stop mode now
     // follows the active preset only.
     runtimeConfig.timerOnly = !activeShotPreset(presetBank).brewByWeight;
