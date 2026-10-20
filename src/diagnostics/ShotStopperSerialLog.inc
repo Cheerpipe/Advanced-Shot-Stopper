@@ -2,6 +2,19 @@
 // mapping, the queue-backed serial writer, ring retention policy, and the
 // logEmit/addDebugEvent entry points. Part of the shotStopper control TU;
 // included at the position of the original definitions.
+
+// Retains one text line in the WebUI ring when its level passes retention.
+void retainLogText(LogLevel level, DebugCategory category, const char *message) {
+  if (!logLevelAtMost(level, currentRingRetainLogLevel())) return;
+  const uint32_t atMs = millis();
+  const uint32_t wallSec = g_wallClock.nowUtcSec(atMs);
+  TaskLockGuard lock(debugLogMutex);
+  debugLog.add(atMs, wallSec, level, category, DebugCode::LOG_TEXT, 0, 0,
+               message);
+  __atomic_store_n(&debugLogDroppedSnapshot, debugLog.overwritten(),
+                   __ATOMIC_RELAXED);
+}
+
 #if !defined(SHOT_STOPPER_HOST_TEST)
 esp_log_level_t espLogLevel(LogLevel level) {
   switch (level) {
@@ -17,9 +30,27 @@ esp_log_level_t espLogLevel(LogLevel level) {
   return ESP_LOG_NONE;
 }
 
+// ESP-IDF component lines (esp-tls, HTTP_CLIENT, ...) reach only this hook and
+// production has no USB console, so the WebUI ring retains them too. ss.*
+// lines are already there. Log v1 format: "E (1234) tag: text\n".
+void retainEspLogLine(const char *text) {
+  const char *body = strstr(text, ") ");
+  if (text[1] != ' ' || text[2] != '(' || body == nullptr ||
+      strncmp(body + 2, "ss.", 3) == 0 || !xPortCanYield()) {
+    return;
+  }
+  char message[DEBUG_EVENT_TEXT_CAPACITY];
+  copyCString(message, sizeof(message), body + 2);
+  message[strcspn(message, "\r\n")] = '\0';
+  retainLogText(text[0] == 'E'   ? LogLevel::ERROR
+                : text[0] == 'W' ? LogLevel::WARNING
+                : text[0] == 'I' ? LogLevel::INFO
+                                 : LogLevel::DEBUG,
+                DebugCategory::SYSTEM, message);
+}
+
 int shotStopperEspLogVprintf(const char *format, va_list args) {
-  if (!__atomic_load_n(&serialLogSinkEnabled, __ATOMIC_ACQUIRE) ||
-      format == nullptr) {
+  if (format == nullptr) {
     return 0;
   }
   // esp_log may invoke this callback concurrently. Never perform USB I/O in
@@ -37,14 +68,21 @@ int shotStopperEspLogVprintf(const char *format, va_list args) {
       nullptr) {
     return 0;
   }
+  retainEspLogLine(line.text);
+  // Without the USB sink, keep IDF's default console output.
+  if (serialLogQueue == nullptr) {
+    return vprintf(format, args);
+  }
+  if (!__atomic_load_n(&serialLogSinkEnabled, __ATOMIC_ACQUIRE)) {
+    return 0;
+  }
   size_t length = static_cast<size_t>(formatted);
   if (length >= sizeof(line.text)) {
     length = sizeof(line.text) - 1;
     (void)__atomic_add_fetch(&serialLogQueueTruncated, 1U, __ATOMIC_RELAXED);
   }
   line.length = static_cast<uint16_t>(length);
-  if (serialLogQueue == nullptr ||
-      xQueueSend(serialLogQueue, &line, 0) != pdTRUE) {
+  if (xQueueSend(serialLogQueue, &line, 0) != pdTRUE) {
     (void)__atomic_add_fetch(&serialLogQueueDropped, 1U, __ATOMIC_RELAXED);
     return 0;
   }
@@ -98,8 +136,11 @@ bool initializeSerialLogSink() {
   return true;
 }
 
-void installEspLogSink() {
-  if (!serialLogSinkInstalled && initializeSerialLogSink()) {
+// Installed in every build so the WebUI ring sees IDF lines; the USB queue
+// exists only when the console is enabled.
+void installEspLogSink(bool usbSerial) {
+  if (usbSerial) (void)initializeSerialLogSink();
+  if (!serialLogSinkInstalled) {
     (void)esp_log_set_vprintf(shotStopperEspLogVprintf);
     serialLogSinkInstalled = true;
   }
@@ -125,7 +166,7 @@ void configureEspLogRuntime() {
   }
 }
 #else
-void installEspLogSink() {}
+void installEspLogSink(bool) {}
 void configureEspLogRuntime() {}
 #endif
 
@@ -224,25 +265,9 @@ void logText(LogLevel level, DebugCategory category, const char *message) {
   if (message == nullptr || level == LogLevel::NONE) {
     return;
   }
-  const LogLevel serialThreshold = currentSerialLogLevel();
-  const LogLevel ringThreshold = currentRingRetainLogLevel();
-  const bool toSerial = logLevelAtMost(level, serialThreshold);
-  const bool toRing = logLevelAtMost(level, ringThreshold);
-  if (!toSerial && !toRing) {
-    return;
-  }
-  const uint32_t atMs = millis();
-  const uint32_t wallSec = g_wallClock.nowUtcSec(atMs);
-  if (toRing) {
-    {
-      TaskLockGuard lock(debugLogMutex);
-      debugLog.add(atMs, wallSec, level, category, DebugCode::LOG_TEXT, 0, 0,
-                   message);
-      __atomic_store_n(&debugLogDroppedSnapshot, debugLog.overwritten(),
-                       __ATOMIC_RELAXED);
-    }
-  }
-  if (toSerial && serialApplicationLogAllowed()) {
+  retainLogText(level, category, message);
+  if (logLevelAtMost(level, currentSerialLogLevel()) &&
+      serialApplicationLogAllowed()) {
     emitEspLog(level, category, message);
   }
 }

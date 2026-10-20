@@ -237,7 +237,11 @@ timer — update on their own several times per second, so readings such as the
 relay, the switch, the cup, and the weight stay current without reloading;
 every other section refreshes every few seconds. The page finishes loading
 when those sections have arrived. New log entries appear automatically while
-Diagnostic is open, and leaving the page stops its live updates. If the
+Diagnostic is open, and leaving the page stops its live updates. The log also
+shows warnings and errors from the device's built-in system components — for
+example, the exact reason a secure connection to the La Marzocco cloud
+failed — so you can troubleshoot from the browser without opening the machine
+or connecting a USB cable. If the
 connection drops, the interface reconnects and reloads current readings.
 
 In **NVS**, unavailable entry and namespace measurements appear as a dash,

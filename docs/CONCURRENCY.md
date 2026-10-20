@@ -29,6 +29,11 @@ mux-wait anomaly report, is emitted after releasing it, so a facade holder
 waiting on the debug log mutex cannot strand the priority a control-loop
 waiter would otherwise lend it.
 
+The debug log mutex is a leaf: no holder logs or takes another lock. The
+ESP-IDF log hook relies on that when it retains component lines in the Web UI
+ring from whichever task logs; it skips contexts that cannot block and never
+re-enters for application (`ss.*`) lines, which are already retained.
+
 No reverse edge is permitted. A callback that would require one must publish a
 queue item or atomic latch for the owner instead.
 

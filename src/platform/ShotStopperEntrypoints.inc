@@ -265,13 +265,12 @@ void setup() {
   // Latch the enable source for Diagnostic; live IO4 is re-read each status.
   if (SHOT_STOPPER_ENABLE_JTAG == 1) {
     usbSerialEnableSource = UsbSerialEnableSource::COMPILE_FLAG;
-    Serial.begin(SERIAL_BAUD);
-    installEspLogSink();
   } else if (usbConsoleJumperPresent()) {
     usbSerialEnableSource = UsbSerialEnableSource::JUMPER;
-    Serial.begin(SERIAL_BAUD);
-    installEspLogSink();
   }
+  const bool usbSerial = usbSerialEnableSource != UsbSerialEnableSource::OFF;
+  if (usbSerial) Serial.begin(SERIAL_BAUD);
+  installEspLogSink(usbSerial);
 
   persistenceReady = EEPROM.begin(EEPROM_SIZE);
   bool flashIoReady = true;

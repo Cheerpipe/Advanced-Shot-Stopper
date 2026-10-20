@@ -64,6 +64,15 @@ come from a `--development` build. Never assume console output from a release
 image; the GPIO4 console jumper is the only other route (see
 [USB console jumper](docs/HARDWARE.md#usb-console-jumper)).
 
+## Field diagnostics are web-only
+
+Production units are installed inside the espresso machine and have no USB
+access: the Web UI log is the only diagnostic channel in the field. Everything
+the USB console shows, including ESP-IDF component warnings and errors, must
+also reach the Web UI log. Never make a field diagnosis depend on a
+`--development` build or a USB cable, and keep every new diagnostic visible in
+the Web UI log.
+
 ## OTA capability is preserved
 
 Wi-Fi OTA is a supported, shipping workflow alongside USB flash. Never disable,
