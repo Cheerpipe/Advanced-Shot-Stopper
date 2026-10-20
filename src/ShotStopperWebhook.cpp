@@ -38,6 +38,19 @@ constexpr uint32_t kWebhookRetryDelaysMs[] = {3000, 6000, 9000};
 constexpr uint8_t kWebhookAttempts =
     1 + sizeof(kWebhookRetryDelaysMs) / sizeof(kWebhookRetryDelaysMs[0]);
 
+// Events whose newest copy carries the whole state, so a newer queued one
+// makes a failing older one obsolete; -1 for events where every copy matters.
+int stateSlot(WebhookEventType type) {
+  switch (type) {
+    case WebhookEventType::BREWING:
+    case WebhookEventType::IDLE: return 0;
+    case WebhookEventType::PRESETS_CHANGED: return 1;
+    case WebhookEventType::QUICK_SETTINGS_CHANGED: return 2;
+    case WebhookEventType::IP_CHANGED: return 3;
+    default: return -1;
+  }
+}
+
 const char *eventName(WebhookEventType type) {
   switch (type) {
     case WebhookEventType::BREWING: return "brew_state";
@@ -229,6 +242,7 @@ void WebhookDispatcher::releaseWorkerFromTask() {
     task_ = nullptr;
     workerState_ = WorkerState::STOPPED;
     stopAfterDrain_ = false;
+    memset(queuedStates_, 0, sizeof(queuedStates_));
     status_.workerReady = false;
     status_.sending = false;
     ++status_.workerStops;
@@ -451,6 +465,7 @@ bool WebhookDispatcher::enqueue(const WebhookEvent &event) {
   const bool accepted = locked && workerState == WorkerState::READY &&
       queue != nullptr && validWebhookUrl(live.url) &&
       xQueueSend(queue, &queued, 0) == pdTRUE;
+  if (accepted) (void)queuedStates(event.type, 1);
   mux_.lock();
   if (!accepted) ++status_.dropped;
   else if (event.type == WebhookEventType::TEST && !live.enabled)
@@ -488,6 +503,15 @@ void WebhookDispatcher::task() {
       waitedForQueue = true;
       haveQueued =
           xQueueReceive(queue, &queued, pdMS_TO_TICKS(50)) == pdTRUE;
+      if (haveQueued) (void)queuedStates(queued.event.type, -1);
+    }
+    if (haveQueued && failures != 0 && queuedStates(queued.event.type, 0) > 0) {
+      serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
+                           "webhook %s superseded by a newer queued copy after %u/%u attempts",
+                           eventName(queued.event.type), static_cast<unsigned>(failures),
+                           static_cast<unsigned>(kWebhookAttempts));
+      haveQueued = false;
+      failures = 0;
     }
     // The gate may change while xQueueReceive is blocked. Keep the dequeued
     // item locally and recheck so no request starts after the critical edge.
@@ -526,6 +550,16 @@ void WebhookDispatcher::task() {
   }
   releaseWorkerFromTask();
   vTaskDelete(nullptr);
+}
+
+int8_t WebhookDispatcher::queuedStates(WebhookEventType type, int8_t delta) {
+  const int slot = stateSlot(type);
+  if (slot < 0) return 0;
+  mux_.lock();
+  // Signed: the worker may receive an event before enqueue() counts it.
+  const int8_t count = queuedStates_[slot] += delta;
+  mux_.unlock();
+  return count;
 }
 
 bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,

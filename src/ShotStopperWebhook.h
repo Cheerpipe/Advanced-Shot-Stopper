@@ -361,6 +361,8 @@ class WebhookDispatcher {
   void cleanupHttpClient();
   bool buildPayload(const WebhookEvent &event, char *output, size_t capacity);
   bool dispatchAllowed() const;
+  // Adds delta to the queued count of the event's full-state kind; returns it.
+  int8_t queuedStates(WebhookEventType type, int8_t delta);
 
   mutable TaskMutex mux_;
   WebhookConfig config_ = {};
@@ -371,6 +373,7 @@ class WebhookDispatcher {
   SemaphoreHandle_t lifecycleMutex_ = nullptr;
   SemaphoreHandle_t workerStopped_ = nullptr;
   bool stopAfterDrain_ = false;
+  int8_t queuedStates_[4] = {};
   QueueHandle_t queue_ = nullptr;
   StaticQueue_t queueControl_ = {};
   uint8_t *queueStorage_ = nullptr;

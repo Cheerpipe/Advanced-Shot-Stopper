@@ -101,6 +101,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | crash capture and two-slot archive | ESP-IDF panic writer owns the capture during panic; boot promotion and NetworkService own normal access | the relay opens before the RTC address snapshot; normal access holds the shared flash lock, commits a historical slot only after verification, and requires Admin unlock for raw download or confirmed deletion |
 | session Quick Settings overrides | control task (`sessionQuickSettings`) | RAM only and never persisted; published with the recipe snapshot under `recipeMutex`, so integrations read effective values while Network persistence and Settings read the saved config; cleared by an active-preset change or reboot |
 | persistence mailbox | control producer, then persistence worker | fixed-capacity internal work queue plus one external settings request and one PSRAM shot-store image; generation-tagged completion prevents clearing newer dirtiness |
+| drip quick start record | control task (`bbwQuickStart`); settings_persist worker writes the staged copy | `bbwQuickStartMux` guards only the staged copy and its pending flag; the worker saves NVS key `bbwQs` on its idle cadence and retries on failure; factory reset drops the stage and writes the re-armed record |
 | reset-history durable state | existing maintenance lease and NetworkService persistence owner | control holds clear requests until the machine is configuration-safe; NetworkService writes through the shared flash lock, and control publishes completion only after success |
 | shot history, curves, activation history and last-shot aggregate | `ActivationStores` RAM data layer plus the core-0 persistence worker; Network borrows only through mutex-guarded callbacks | `shotStoreMutex` covers RAM operations and immutable image capture only; no flash/network I/O spans it, and Home receives one control-published exact-ID rating/curve snapshot |
 | webhook queue / payload | `WebhookDispatcher` | internal queue storage and external HTTP payload; release after worker join, or startup rollback |
@@ -194,7 +195,10 @@ Unsent canceled events remain pending without consuming an attempt. Any other
 failure, including an interrupted possibly dispatched POST, is resent after
 3, 6, and 9 s while it holds the queue head (receivers deduplicate identical
 payloads); `test` events, invalid requests, and HTTP 4xx other than 408/429
-are dropped at once. `webhook_worker_host_test.cpp`
+are dropped at once. A retrying full-state head (brew state, presets, Quick
+Settings, IP) is discarded without counting a drop when a newer event of the
+same kind is queued; per-kind counters owned by `mux_` track that without
+scanning the queue. `webhook_worker_host_test.cpp`
 executes this worker with deterministic queue, transport and heap injection,
 including stale configuration and an active shot beginning during delivery.
 These tests establish ordering and accounting, not target CPU or RF latency.

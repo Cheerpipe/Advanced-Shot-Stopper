@@ -28,7 +28,11 @@ Unsent events remain queued.
 If a message fails, the controller tries again 3, 6, and 9 seconds later before
 giving up, so a receiver that restarts or a brief Wi-Fi drop does not leave it
 out of date. Messages keep their order: later events wait until the retried one
-is delivered or dropped. A failed request may already have reached the
+is delivered or dropped. A message that only reports the current state (brew
+state, presets, Quick Settings, or IP address) is replaced instead of retried
+when a newer one of the same kind is already waiting, so the receiver gets the
+latest state sooner. Shot measurements such as first drop and shot end are
+always retried. A failed request may already have reached the
 receiver, so it can arrive twice; the copy is identical, so receivers can
 ignore the repeat. A receiver that rejects a message as invalid (an HTTP 4xx
 answer other than 408 or 429) is not retried, and neither is **Send test**,

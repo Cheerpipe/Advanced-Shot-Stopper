@@ -481,6 +481,41 @@ static void testFailedDeliveryRetriesWithBackoff() {
     assert(d.stop());
   }
 }
+static void testNewerStateSupersedesRetry() {
+  for (bool fullState : {true, false}) {
+    resetPlatform();
+    WebhookDispatcher d;
+    assert(d.begin(config(true)));
+    WebhookEvent event;
+    event.type = fullState ? WebhookEventType::BREWING : WebhookEventType::END;
+    assert(d.enqueue(event));
+    httpResult = ESP_FAIL;
+    std::vector<uint32_t> attempts;
+    duringPerform = [&] {
+      attempts.push_back(workerNow);
+      // A newer copy arrives while the first one fails; the newer one succeeds.
+      if (fullState && attempts.size() == 2) httpResult = ESP_OK;
+      if (attempts.size() != 1) return;
+      if (fullState) event.type = WebhookEventType::IDLE;
+      assert(d.enqueue(event));
+    };
+    afterTimeout = [&] { WebhookDispatcherTest::stopOnNextIteration(d); };
+    WebhookDispatcherTest::run(d);
+    const bool superseded = std::any_of(logLines.begin(), logLines.end(),
+        [](const std::string &line) { return line.find("superseded") != std::string::npos; });
+    assert(superseded == fullState);
+    if (fullState) {
+      // The newer state is sent at once instead of after the 3 s backoff.
+      assert(attempts.size() == 2 && attempts[1] - attempts[0] < 3000U);
+      assert(d.status().sent == 1 && d.status().dropped == 0);
+    } else {
+      // Every end event matters: both are attempted to exhaustion in order.
+      assert(attempts.size() == 8 && attempts[1] - attempts[0] >= 3000U);
+      assert(d.status().dropped == 2);
+    }
+    assert(d.stop());
+  }
+}
 int main() {
   testSamplingAndAccounting();
   testTimeoutHasNoSecondSleep();
@@ -498,4 +533,5 @@ int main() {
   testSecretWebhookEndpointRedacted();
   testIntegrationPayloads();
   testFailedDeliveryRetriesWithBackoff();
+  testNewerStateSupersedesRetry();
 }
