@@ -883,8 +883,9 @@ if (htmlBytes > 93300) {
 // The Stats shot card cut weight/time and drip delay, plus their four CSV columns: +671 bytes (473228), owner-requested 2026-10-20.
 // The Stats consistency columns (newest 10 shots against their preset average, level header, scrub): +4391 bytes (477619), owner-requested 2026-10-20.
 // Stats consistency thresholds as a share of each preset's average (pure model, units per data, floor/cap scale, fixed slots, clipped outliers): +1072 bytes (478691), owner-requested 2026-10-20.
-if (jsBytes > 478691) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 478691)`);
+// The Stats charts reading the firmware's newest-10 window (compact recent list mapped to chart rows): +362 bytes (479053), owner-requested 2026-10-20.
+if (jsBytes > 479053) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 479053)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1017,8 +1018,9 @@ if (jsBytes > 478691) {
 // The Stats shot card cut weight/time and drip delay, plus their four CSV columns: 565408, owner-requested 2026-10-20.
 // The Stats consistency columns (newest 10 shots against their preset average, level header, scrub): 569857, owner-requested 2026-10-20.
 // Stats consistency thresholds as a share of each preset's average: 570929, owner-requested 2026-10-20.
-if (htmlBytes + jsBytes > 570929) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 570929)`);
+// The Stats charts reading the firmware's newest-10 window: 571291, owner-requested 2026-10-20.
+if (htmlBytes + jsBytes > 571291) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 571291)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

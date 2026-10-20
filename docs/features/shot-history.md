@@ -12,7 +12,8 @@ interface starts or after a dropped connection. From then on the data keeps
 refreshing in the background even while you are elsewhere in the interface, so
 the page always opens instantly with the latest shots.
 
-The Stats chart shows how your shots land against the shot time window. Each
+The Stats chart shows how your newest 10 shots, the same ones behind the
+averages, land against the shot time window. Each
 part of the chart shows its share of your shots and how many there were: Fast
 before the window, On recipe inside it and Slow after it. Below those numbers,
 a smooth curve rises where your shot times cluster: a tall, narrow peak means
@@ -32,8 +33,9 @@ Below it, the consistency chart answers a different question: not whether your
 shots landed on recipe, but how alike they are. It measures time, not weight:
 every shot already stops at its target weight, so what changes from shot to
 shot is how long it took to get there. A barista whose shots all run a little
-slow can still be very consistent. The chart looks at your newest 10 shots with
-an arrival time, using the same **All presets** or **Current preset** choice.
+slow can still be very consistent. The chart looks at the same newest 10 shots
+as the averages above, keeps those with an arrival time, and follows the same
+**All presets** or **Current preset** choice.
 
 Each shot is a column, with the newest on the right; as new shots arrive, the
 older ones move left. Each column starts at your average time to the target,
@@ -246,8 +248,8 @@ time to the second, and the CSV export always keeps that full detail no
 matter how the table displays it.
 
 Stats uses up to the newest **10 qualifying shots** for duration, yield, available
-flow, daily count, and the Stats chart, regardless of how the table is
-sorted. **Avg BBW error** independently uses up to the newest **10 shots
+flow, daily count, and both Stats charts, regardless of how the table is
+sorted or how far you have scrolled it. **Avg BBW error** independently uses up to the newest **10 shots
 stopped by weight** in the full history, skipping manual shots and time or
 safety stops. Each miss is measured against the planned stop — the cut line
 when the stop was commanded, which is above the target for a fast shot and

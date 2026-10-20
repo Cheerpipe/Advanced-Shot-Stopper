@@ -1492,13 +1492,14 @@ if (!statsSection ||
     tickMax = max;
     ticks.splice(0, ticks.length, ...marks.map(m => m[1].replace(/[  ]/g, ' ')));
   };
+  // The firmware's compact recent list: [id, presetId, arrivalS, verdict, fastBeforeS, slowAfterS].
   const shot = (presetId, arrivalS, verdict, window = [27, 34]) =>
-    ({presetId, arrivalS, verdict, fastBeforeS: window[0], slowAfterS: window[1]});
+    [1, presetId, arrivalS, verdict, window[0], window[1]];
   const zones = () => [...histPlot.innerHTML.matchAll(/<b>(\d+)%<\/b>(\d+) ([A-Za-z ]+)</g)]
       .map(m => m[1] + '%/' + m[2] + '/' + m[3]).join();
   const fills = () => (histPlot.innerHTML.match(/fill="url\(#sd(fast|on_recipe|slow)\)"/g) || []).length;
   // Each shot keeps its own stored verdict, even inside today's window.
-  global.shotHistory = {shots: [shot(1, 30.2, 'on_recipe'), shot(1, 36, 'slow'),
+  global.shotStats = {recent: [shot(1, 30.2, 'on_recipe'), shot(1, 36, 'slow'),
     shot(1, 24.1, 'fast'), shot(1, 31, 'on_recipe'), shot(2, 40, 'slow', [25, 32]), shot(1, 0, null)]};
   helpers.renderStatsDurChart();
   // All presets is the default: mixed windows place each shot against its own window.
@@ -1515,12 +1516,12 @@ if (!statsSection ||
       histPlot.style['--zf'] !== '31.58%' || parseFloat(histPlot.style['--zo']).toFixed(2) !== '36.84') {
     throw new Error('Current preset must draw its shared window in seconds');
   }
-  global.shotHistory = {shots: [shot(1, 25, 'fast'), shot(1, 30, 'on_recipe'), shot(1, 36, 'slow')]};
+  global.shotStats = {recent: [shot(1, 25, 'fast'), shot(1, 30, 'on_recipe'), shot(1, 36, 'slow')]};
   helpers.renderStatsDurChart();
   if (zones() !== '33%/1/Fast,34%/1/On recipe,33%/1/Slow') {
     throw new Error('Verdict shares must always add up to 100%');
   }
-  global.shotHistory = {shots: [shot(1, 30, 'on_recipe')]};
+  global.shotStats = {recent: [shot(1, 30, 'on_recipe')]};
   helpers.renderStatsDurChart();
   if (zones() !== '0%/0/Fast,100%/1/On recipe,0%/0/Slow' || fills() !== 3) {
     throw new Error('A single shot still draws all three zones');
@@ -1530,12 +1531,12 @@ if (!statsSection ||
   if (histRoot.hidden || !histPlot.hidden) {
     throw new Error('A preset without timed shots keeps only the filter visible');
   }
-  global.shotHistory = {shots: [shot(1, 0, null)]};
+  global.shotStats = {recent: [shot(1, 0, null)]};
   helpers.renderStatsDurChart();
   if (!histRoot.hidden) {
     throw new Error('Without timed shots the chart must not show empty axes');
   }
-  for (const name of ['$', 'shotHistory', 'fillChartTicks', 'homeStatusCache', 'presetState', 'sub'])
+  for (const name of ['$', 'shotStats', 'fillChartTicks', 'homeStatusCache', 'presetState', 'sub'])
     delete global[name];
 }
 

@@ -567,7 +567,18 @@ function renderStatsDurChart() {
   if (!host) return;
   const presets = R.homeStatusCache()?.presets || R.presetState,
     only = statsPresetFilter === "all" ? 0 : presets.activeId,
-    timed = (R.uiState.shotHistory.shots || []).filter((r) => r.arrivalS > 0 && r.verdict),
+    // The same newest-10 window as the averages, whatever the table's order or scroll.
+    timed = (R.uiState.shotStats?.recent || [])
+      .map(([id, presetId, arrivalS, verdict, fastBeforeS, slowAfterS]) => ({
+        id,
+        presetId,
+        presetName: presets.items?.find((p) => p.id === presetId)?.name,
+        arrivalS,
+        verdict,
+        fastBeforeS,
+        slowAfterS,
+      }))
+      .filter((r) => r.arrivalS > 0 && r.verdict),
     shots = timed.filter((r) => !only || r.presetId === only);
   // No timed shots: no chart at all; none for this preset: only the filter.
   root.hidden = !timed.length;

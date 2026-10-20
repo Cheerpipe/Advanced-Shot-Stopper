@@ -1303,8 +1303,8 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
     uiStreamUrgent_.store(true, std::memory_order_release);
     return true;
   }
-  const size_t offset = fetch ? session.statsFetchOffset : session.statsOffset;
-  const size_t limit = fetch ? session.statsFetchLimit : session.statsLimit;
+  const size_t offset = fetch ? session.statsFetchOffset : session.statsOffset,
+               limit = fetch ? session.statsFetchLimit : session.statsLimit;
   const ShotLogSort sort = fetch ? session.statsFetchSort : session.statsSort;
   const ShotLogSortDir dir = fetch ? session.statsFetchDir : session.statsDir;
   NetworkWorkBuf &work = *g_work;
@@ -1319,7 +1319,8 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
     if (!callbacks_.copyShotStatsRecords) return false;
     callbacks_.copyShotStatsRecords(snapshot);
     epoch = snapshot.epoch;
-    cache.statsOk = buildIntegrationStats(snapshot.stats, cache.header, sizeof(cache.header));
+    cache.statsOk = buildIntegrationStats(snapshot.stats, cache.header, sizeof(cache.header)) &&
+                    appendStatsRecent(snapshot, cache.header, sizeof(cache.header));
     cache.curveHashes = {};
   }
   const size_t count = snapshot.count;
@@ -1352,10 +1353,8 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
     cache.hasMore = shotLogPageSlice(count, offset, limit, cache.start, cache.pageCount);
     uint32_t fingerprint = crc32Update(0xFFFFFFFFU,
         reinterpret_cast<const uint8_t *>(&epoch), sizeof(epoch));
-    const uint32_t window[4] = {static_cast<uint32_t>(offset),
-                              static_cast<uint32_t>(limit),
-                              static_cast<uint32_t>(sort),
-                              static_cast<uint32_t>(dir)};
+    const uint32_t window[4] = {static_cast<uint32_t>(offset), static_cast<uint32_t>(limit),
+                                static_cast<uint32_t>(sort), static_cast<uint32_t>(dir)};
     fingerprint = crc32Update(fingerprint,
         reinterpret_cast<const uint8_t *>(window), sizeof(window));
     if (cache.statsOk)

@@ -92,6 +92,25 @@ ${session}
 };
 ${body(source, 'bool ShotStopperNetwork::sendStatsStream(')}
 int main(){
+  // The recent list mirrors statsView: newest-first eligible shots, ten at most,
+  // closing the aggregate object; an overflow or an unclosed object fails.
+  {
+    ShotStatsRecordsSnapshot recent{};recent.count=12;
+    for(size_t i=0;i<recent.count;++i){
+      ShotLogRecord &r=recent.records[i];r={};r.id=20-i;r.durationDs=300;
+      r.actualWeightCg=i==1?150:3600;r.arrivalDs=i==0?SHOT_LOG_METRIC_MISSING:280+i;
+      r.verdict=i==0?3:0;r.fastBeforeDs=250;r.slowAfterDs=320;
+    }
+    char list[1024]="{\\"n\\":1}";assert(appendStatsRecent(recent,list,sizeof(list)));
+    const std::string text=list;
+    assert(text.rfind("{\\"n\\":1,\\"recent\\":[[20,",0)==0&&text.find(",null,null,25.0,32.0]")!=std::string::npos);
+    assert(text.size()>2&&text.compare(text.size()-2,2,"]}")==0);
+    assert(text.find("[19,")==std::string::npos&&text.find("[18,")!=std::string::npos);
+    assert(text.find("[10,")!=std::string::npos&&text.find("[9,")==std::string::npos);
+    assert(text.find(",28.2,\\"on_recipe\\",25.0,32.0]")!=std::string::npos);
+    char tight[40]="{}",open[16]="{";
+    assert(!appendStatsRecent(recent,tight,sizeof(tight))&&!appendStatsRecent(recent,open,sizeof(open)));
+  }
   ShotStopperNetwork network;ShotStopperNetwork::UiStreamSession session;
   strcpy(session.clientId,"owner");session.fd=1;session.statsOn=true;
   ControlStatusSnapshot control;control.bootId=9;
@@ -101,7 +120,7 @@ int main(){
   assert(send(session)&&session.statsSent==2);
   assert(send(session)&&!session.statsPaging);
   assert(captures==1&&hashes==3&&frames.size()==3);
-  assert(frames[0].find("\\"stats\\":{\\"shotCount\\":1}")!=std::string::npos);
+  assert(frames[0].find("\\"stats\\":{\\"shotCount\\":1,\\"recent\\":[]}")!=std::string::npos);
   assert(frames[1].find("\\"rowBase\\":1")!=std::string::npos);
   assert(send(session)&&frames.size()==3);
   // A new window with the same order reuses the capture AND the cached

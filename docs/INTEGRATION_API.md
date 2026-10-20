@@ -624,6 +624,12 @@ accepted op forces the next page to start from a full snapshot.
 Stats frames have `v: 1`, `type: "stats"`, `boot`, `snapshot`, `epoch`,
 `seq`, the `ui` object and the `stats` aggregate (first frame of a page
 only), `total`, `offset`, `limit`, `hasMore`, `rows`, `rowBase`, and `more`.
+In this stream the aggregate also carries `recent`: the newest shots it was
+computed from (up to 10, newest first), each a compact
+`[id, presetId, arrivalS, verdict, fastBeforeS, slowAfterS]` array, with
+`arrivalS` and `verdict` null when unmeasured. The Stats charts read this list
+instead of the page rows, so they match the averages whatever the sort or how
+far the table has scrolled. The integration API's stats object is unchanged.
 Each row retains its own `bootId` and curve arrays; row errors are calculated
 from the displayed yield by the browser. Because full curves can exceed one
 frame, a page is emitted under a ~20 KiB frame budget: the first frame ends with `more: true` and a

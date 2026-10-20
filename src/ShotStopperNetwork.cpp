@@ -114,7 +114,8 @@ struct StatsStreamCache {
   ShotLogSortDir dir = ShotLogSortDir::Desc;
   size_t offset = 0, limit = 0, start = 0, pageCount = 0;
   uint32_t fingerprint = 0;
-  char header[384]{};
+  // The aggregate (~300 bytes) plus its ten compact recent shots (~520 bytes).
+  char header[1024]{};
 };
 
 struct NetworkWorkBuf {
