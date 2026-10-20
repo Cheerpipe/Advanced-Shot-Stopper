@@ -88,3 +88,14 @@ The same documented controls apply in light mode.
 ### Admin
 
 ![Historical light Admin screen](images/screenshot-admin-light.jpeg)
+
+## Project banners
+
+Use these images when you introduce Open Brew by Weight in a forum post, an
+article or a social media profile. Each one comes in dark and light versions,
+built from real captures of the Web UI.
+
+| Use | Dark | Light |
+| --- | --- | --- |
+| Posts and link previews (2:1) | [banner-dark.jpg](images/banner-dark.jpg) | [banner-light.jpg](images/banner-light.jpg) |
+| Wide page headers (16:5) | [banner-hero-dark.jpg](images/banner-hero-dark.jpg) | [banner-hero-light.jpg](images/banner-hero-light.jpg) |

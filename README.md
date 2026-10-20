@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/images/OpenBrewByWeight.svg" alt="Open Brew by Weight">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-hero-dark.jpg">
+    <img src="docs/images/banner-hero-light.jpg" alt="Open Brew by Weight: every shot, stopped at the perfect weight. The Web UI shows shot statistics on a phone and a desktop browser.">
+  </picture>
 </p>
 
 # Open Brew by Weight
