@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-hero-dark.jpg">
-    <img src="docs/images/banner-hero-light.jpg" alt="Open Brew by Weight: every shot, stopped at the perfect weight. The Web UI shows shot statistics on a phone and a desktop browser.">
+    <img src="docs/images/banner-hero-light.jpg" alt="Open Brew by Weight: it knows when to stop. Free, open-source brew-by-weight firmware for the ESP32-S3 with a predictive, adaptive cut, a real-time shot monitor, shot history and statistics. Works with Bookoo, Acaia, Felicita, Decent, DiFluid, Varia, Eureka and more.">
   </picture>
 </p>
 
