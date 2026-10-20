@@ -1063,14 +1063,22 @@ void ShotStopperMicraService::taskLoop() {
     }
     serviceWebSocket();
     if (outboundMaintenance.load() || outboundOtaBusy.load()) releaseWorkBuffer();
-    if (outboundScaleInhibited()) {
-      // Idle owner closes any HTTP keepalive before acknowledging the pause.
-      if (work_ && work_->client) {
-        esp_http_client_cleanup(work_->client);
-        work_->client = nullptr;
-      }
-      completeOutboundAcquisitionPause(OutboundClient::MICRA_HTTP, millis());
+    const bool scaleInhibited = outboundScaleInhibited();
+    bool websocketMode;
+    {
+      TaskLockGuard lock(mux_);
+      websocketMode = config_.connectionType ==
+          static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
     }
+    // Idle owner closes any HTTP keepalive before acknowledging the pause. The
+    // rare WebSocket-mode API calls share a connection only within one
+    // operation; API polling keeps it for kHttpReuseIdleMs.
+    if ((scaleInhibited || websocketMode) && work_ && work_->client) {
+      esp_http_client_cleanup(work_->client);
+      work_->client = nullptr;
+    }
+    if (scaleInhibited)
+      completeOutboundAcquisitionPause(OutboundClient::MICRA_HTTP, millis());
     PendingRequest pending;
     bool haveRequest = false;
     bool haveTemperature = false;

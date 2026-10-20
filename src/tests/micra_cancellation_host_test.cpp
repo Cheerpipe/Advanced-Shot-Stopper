@@ -106,6 +106,7 @@ struct MicraCancellationTest {
   static void lateResponseAndResultLabels(ShotStopperMicraService &service);
   static void invalidAuthLatchesApiObservation();
   static void relistKeepsSavedMachine();
+  static void idleClosesWebSocketModeClient();
   static void run();
 };
 }
@@ -693,8 +694,27 @@ void MicraCancellationTest::relistKeepsSavedMachine() {
   authentications = retries = 0;
 }
 
+// WebSocket mode never carries an idle HTTP connection into the next
+// operation; API polling keeps it for the reuse window.
+void MicraCancellationTest::idleClosesWebSocketModeClient() {
+  for (const auto type : {MicraConnectionType::WEBSOCKET, MicraConnectionType::API}) {
+    ShotStopperMicraService service;
+    LineaMicraPersistedSettings settings;
+    settings.connectionType = static_cast<uint8_t>(type);
+    service.publishConfig(settings, 1);
+    service.clearSessionRequested_.store(false);
+    ShotStopperMicraService::WorkBuffer work;
+    work.client = &work;
+    service.work_ = &work;
+    try { service.taskLoop(); } catch (const WorkerStopped &) {}
+    assert((work.client == nullptr) == (type == MicraConnectionType::WEBSOCKET));
+    service.work_ = nullptr;
+  }
+}
+
 int main() {
   MicraCancellationTest::relistKeepsSavedMachine();
+  MicraCancellationTest::idleClosesWebSocketModeClient();
   MicraCancellationTest::retireBackflushConfiguration();
   MicraCancellationTest::invalidAuthLatchesApiObservation();
   MicraCancellationTest::run();
