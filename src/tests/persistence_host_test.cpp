@@ -1031,9 +1031,9 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(FLASH_IO_SCRATCH_BYTES >= sizeof(PersistedSettings));
   CHECK(sizeof(RuntimeConfig) == 312);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
-  // 6920: +8 bytes for the hero tint; 6944: +24 for the drip chart
-  // (external work-area growth; see ShotStopperControlStatusTypes.inc).
-  CHECK(sizeof(ControlStatusSnapshot) <= 6944);
+  // 6920: +8 bytes for the hero tint; 6944: +24 for the drip chart; 6952: +8
+  // for its ten shots (external work-area growth; see ShotStopperControlStatusTypes.inc).
+  CHECK(sizeof(ControlStatusSnapshot) <= 6952);
   CHECK(sizeof(ControlGateSnapshot) <= 32);
   CHECK(sizeof(WebCommand) <= 440);
   WebCommand command;

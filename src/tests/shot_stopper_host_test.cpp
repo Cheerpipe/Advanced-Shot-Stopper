@@ -19903,8 +19903,8 @@ void fw05_set_drip_quick_starts_and_three_shots_decide() {
 
 void fw06_status_carries_recent_drips_and_markers() {
   // Six logged shots of the active preset (the fifth did not train the drip)
-  // and a drip set before the fourth: the newest five, newest first, with
-  // three of them after the set.
+  // and a drip set before the fourth: all six (the window holds ten), newest
+  // first, with three of them after the set.
   resetHarness(false, true);
   reachReadyFromBoot();
   const ShotPreset &preset = activeShotPreset(presetBank);
@@ -19927,7 +19927,7 @@ void fw06_status_carries_recent_drips_and_markers() {
   publishControlStatus();
   ControlStatusSnapshot status;
   copyControlStatus(status);
-  CHECK(status.bbwRecentCount == 5 && status.bbwRecentSkipped == 2);
+  CHECK(status.bbwRecentCount == 6 && status.bbwRecentSkipped == 2);
   CHECK(status.bbwRecentCg[0] == 55 && status.bbwRecentCg[2] == 53 &&
         status.bbwRecentCg[4] == 51);
   CHECK(status.bbwRecentAfterSet == 3 && status.bbwRecentAfterQuick == 0xFF);
@@ -19937,7 +19937,7 @@ void fw06_status_carries_recent_drips_and_markers() {
   CHECK(formatDripChartJson(json, sizeof(json), status) > 0);
   CHECK(strcmp(json, ",\"bbwQuickStart\":{\"state\":\"armed\",\"count\":0,\"setG\":1.20,"
                      "\"quickG\":0.00},\"bbwRecentAfterSet\":3,\"bbwRecentAfterQuick\":-1,"
-                     "\"bbwRecentG\":[0.55,null,0.53,0.52,0.51]") == 0);
+                     "\"bbwRecentG\":[0.55,null,0.53,0.52,0.51,0.50]") == 0);
   // Another preset's shots never reach this preset's chart.
   CHECK(setActiveShotPreset(presetBank, presetBank.presets[1].id));
   publishControlStatus();

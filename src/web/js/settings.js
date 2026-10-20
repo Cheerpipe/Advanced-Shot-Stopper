@@ -850,13 +850,14 @@ function renderDripChart(c) {
     n = recent.length,
     use = (c && c.bbwEwmaOffsetG) || 0,
     armed = q.state === "armed",
-    afterSet = c && c.bbwRecentAfterSet >= 0 && (c.bbwRecentAfterSet < n || n < 5) ? c.bbwRecentAfterSet : -1,
+    afterSet = c && c.bbwRecentAfterSet >= 0 && (c.bbwRecentAfterSet < n || n < 10) ? c.bbwRecentAfterSet : -1,
     afterQuick = c && c.bbwRecentAfterQuick >= 0 && c.bbwRecentAfterQuick < n ? c.bbwRecentAfterQuick : -1,
     mode = armed ? "quick" : afterQuick < 0 ? "learning" : q.state === "applied" ? "applied" : "varied",
     marked = mode !== "learning",
-    shots = recent.slice(0, armed ? 4 : 5).map((g, i) => ({ g, i })).reverse(),
+    shots = recent.slice(0, armed ? 9 : 10).map((g, i) => ({ g, i })).reverse(),
     counted = (s) => marked && s.g != null && (afterSet < 0 || s.i < afterSet) && s.i >= Math.max(afterQuick, 0),
-    pad = 5 - shots.length - (armed ? 1 : 0),
+    old = (s) => marked && afterSet >= 0 && s.i >= afterSet,
+    pad = 10 - shots.length - (armed ? 1 : 0),
     top = Math.max(...recent.filter((g) => g != null), use, 0.5) * 1.3,
     h = (g) => (Math.max(0, g) / top) * 100 + "%",
     slots = [...Array(pad).fill({}), ...shots, ...(armed ? [{ next: true }] : [])],
@@ -875,8 +876,7 @@ function renderDripChart(c) {
   bars.classList.toggle("twoMarks", marks.length > 1);
   bars.replaceChildren(
     ...slots.map((s) => {
-      const old = marked && afterSet >= 0 && s.i >= afterSet;
-      const bar = el("div", "dcBar" + (old ? " old" : "") + (counted(s) ? " qs" : "") + (s.next ? " next" : ""));
+      const bar = el("div", "dcBar" + (old(s) ? " old" : "") +(counted(s) ? " qs" : "") + (s.next ? " next" : ""));
       if (s.next || s.g != null) {
         const fill = el("i", "");
         if (!s.next) fill.style.height = h(s.g);
@@ -886,7 +886,7 @@ function renderDripChart(c) {
     }),
     ...marks.map(([k, label, end], i) => {
       const mark = el("div", "dcMark" + end + (marks.length > 1 && !i ? " up" : ""), el("span", "", label));
-      mark.style.left = `calc((100% + .5rem) * ${k} / 5 - .25rem)`;
+      mark.style.left = `calc((100% + .5rem) * ${k} / 10 - .25rem)`;
       return mark;
     }),
   );
@@ -899,7 +899,7 @@ function renderDripChart(c) {
   $("dripBarX").innerHTML = slots
     .map(
       (s, k) =>
-        `<span class="${marked && afterSet >= 0 && s.i >= afterSet ? "old" : ""}">` +
+        `<span class="${old(s) ? "old" : ""}">` +
         (s.g != null ? `<b>${dripText(s.g)}</b>` : "i" in s ? __WEBUI_TEXT__("runtime.drip_skipped") : s.next ? __WEBUI_TEXT__("runtime.drip_next") : "") +
         (k === last && "i" in s ? __WEBUI_TEXT__("runtime.drip_last_shot") : "") +
         "</span>",

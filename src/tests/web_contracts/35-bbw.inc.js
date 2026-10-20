@@ -49,13 +49,13 @@
   const bars = () => elements.get('dripBars').children.filter(e => e.tag === 'div' && e.className.startsWith('dcBar'));
   const marks = () => elements.get('dripBars').children.filter(e => e.className.startsWith('dcMark'));
   elements.get('brewByWeight').checked = true;
-  // Learning: five slots oldest first, a skipped shot, the line in use.
+  // Learning: ten slots oldest first, a skipped shot, the line in use.
   refresh({bbwPresetId: 2, bbwEwmaOffsetG: 1.56, bbwAlpha: 0.3, bbwRecentG: [0.5, 0.48, null],
     bbwRecentAfterSet: -1, bbwRecentAfterQuick: -1, bbwQuickStart: {state: 'off', count: 0, setG: 0, quickG: 0}});
   assert.equal(elements.get('learnedOffsetG').textContent, '1.56');
   assert.equal(elements.get('dripStatus').lastElementChild.textContent, 'Learning from your shots');
   assert.equal(elements.get('dripVerdict').textContent, 'Your last shots needed 0.48–0.50 g');
-  assert.equal(bars().length, 5);
+  assert.equal(bars().length, 10);
   assert.equal(marks().length, 0);
   assert(elements.get('dripBars').children.some(e => e.className === 'dcUse'));
   assert(elements.get('dripBarX').innerHTML.includes('skipped'));
@@ -67,6 +67,11 @@
   elements.get('dripSetG').dataset.edited = '1';
   refresh();
   assert.equal(elements.get('dripSetG').value, '0.50');
+  // A full window of ten shots fills every slot.
+  refresh({bbwPresetId: 2, bbwEwmaOffsetG: 1.56, bbwAlpha: 0.3, bbwRecentG: Array(10).fill(0.5),
+    bbwRecentAfterSet: -1, bbwRecentAfterQuick: -1, bbwQuickStart: {state: 'off', count: 0, setG: 0, quickG: 0}});
+  assert.equal(bars().length, 10);
+  assert.equal(bars().filter(b => b.children.length).length, 10);
   // ...but not across a switch to another preset.
   refresh({bbwPresetId: 3, bbwEwmaOffsetG: 0.8, bbwAlpha: 0.3, bbwRecentG: [], bbwRecentAfterSet: -1,
     bbwRecentAfterQuick: -1, bbwQuickStart: {state: 'off', count: 0, setG: 0, quickG: 0}});

@@ -112,10 +112,10 @@ struct ControlStatusFields : ScaleLinkMetrics {
   // came after the drip was set and after quick start decided (0xFF = no
   // marker), and the quick start (QuickStartEntry fields).
   uint8_t bbwRecentCount = 0;
-  uint8_t bbwRecentSkipped = 0;
+  uint16_t bbwRecentSkipped = 0;
   uint8_t bbwRecentAfterSet = 0xFF;
   uint8_t bbwRecentAfterQuick = 0xFF;
-  int16_t bbwRecentCg[5] = {};
+  int16_t bbwRecentCg[10] = {};
   uint8_t bbwQuickState = 0;
   uint8_t bbwQuickCount = 0;
   int16_t bbwQuickSetCg = 0;
@@ -225,8 +225,9 @@ static_assert(sizeof(ControlStatusFields) <= 2048,
               "Control status exceeds its internal publication budget");
 // 6920: +8 bytes for the shot predictor's live hero tint (class, blend
 // percent, note); 6944: +24 for the drip chart (newest five shots, markers
-// and quick start) — external work-area growth, internal budget unchanged.
-static_assert(sizeof(ControlStatusSnapshot) <= 6944,
+// and quick start); 6952: +8 for the drip chart's newest ten shots — external
+// work-area growth, internal budget unchanged.
+static_assert(sizeof(ControlStatusSnapshot) <= 6952,
               "ControlStatusSnapshot exceeds its external workspace budget");
 
 // Gate checks use this compact internal view. The full scalar/curve snapshot

@@ -163,7 +163,7 @@ inline size_t formatDripChartJson(char *out, size_t cap, const ControlStatusFiel
                c.bbwQuickSetCg / 100.0, c.bbwQuickCg / 100.0,
                c.bbwRecentAfterSet == 0xFF ? -1 : c.bbwRecentAfterSet,
                c.bbwRecentAfterQuick == 0xFF ? -1 : c.bbwRecentAfterQuick));
-  for (uint8_t i = 0; used < cap && i < c.bbwRecentCount && i < 5; ++i)
+  for (uint8_t i = 0; used < cap && i < c.bbwRecentCount && i < 10; ++i)
     put((c.bbwRecentSkipped >> i) & 1U
             ? snprintf(out + used, cap - used, "%snull", i ? "," : "")
             : snprintf(out + used, cap - used, "%s%.2f", i ? "," : "",

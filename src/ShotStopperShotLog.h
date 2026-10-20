@@ -140,7 +140,7 @@ class ShotLog
   // The drip each newest shot of a preset needed (offset used + final − cut
   // line, cg), newest first; skipped when the shot did not train the drip.
   size_t recentDrips(uint8_t presetId, uint32_t *ids, int16_t *neededCg,
-                     uint8_t &skippedMask, size_t max) const {
+                     uint16_t &skippedMask, size_t max) const {
     size_t found = 0;
     skippedMask = 0;
     size_t index = store_.header.writeIndex;
@@ -154,7 +154,7 @@ class ShotLog
       neededCg[found] = trained ? static_cast<int16_t>(record.offsetUsedCg +
                                     record.actualWeightCg - record.cutLineCg)
                                 : 0;
-      if (!trained) skippedMask |= static_cast<uint8_t>(1U << found);
+      if (!trained) skippedMask |= static_cast<uint16_t>(1U << found);
       ++found;
     }
     return found;

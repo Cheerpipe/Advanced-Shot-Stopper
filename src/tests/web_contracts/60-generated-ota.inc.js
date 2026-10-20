@@ -769,7 +769,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The drip compensation redesign (chart in settings.js, text table shared with records.js) measures 13668 for records.js and 16800 for settings.js; owner-requested 2026-10-20.
 // The Stats shot card cut and drip delay cells and their CSV columns measure records.js at 13809, with settings.js gzip wobble from the shared text table at 16804; owner-requested 2026-10-20.
 // The Stats consistency columns (renderer, level header and scrub) measure records.js at 14826; owner-requested 2026-10-20.
-const viewModuleBudgets = {records: 14826, diagnostic: 13801, admin: 14229, settings: 16804, setup: 5793};
+// The drip chart ten-shot window (ten slots, bbw ring in the status snapshot) measures records.js at 14830; owner-requested 2026-10-20.
+const viewModuleBudgets = {records: 14830, diagnostic: 13801, admin: 14229, settings: 16804, setup: 5793};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -957,8 +958,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The drip compensation chart CSS, its renderer hook and review fixes bring it to 66803; owner-requested 2026-10-20.
 // The Stats shot card cut and drip delay cells' shared CSS bring it to 66835; owner-requested 2026-10-20.
 // The Stats consistency columns' shared CSS brings it to 67047 (67032 under test web); owner-requested 2026-10-20.
-if (coldHomeGzip > 67047) {
-  throw new Error(`Cold Home download exceeds the 67047-byte gzip budget (${coldHomeGzip})`);
+// The drip chart ten-slot window measures Cold Home at 67051; owner-requested 2026-10-20.
+if (coldHomeGzip > 67051) {
+  throw new Error(`Cold Home download exceeds the 67051-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

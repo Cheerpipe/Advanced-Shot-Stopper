@@ -167,9 +167,9 @@ bool statusDripCacheValid = false;
 uint32_t statusDripCacheGeneration = 0;
 uint8_t statusDripCachePreset = 0;
 uint8_t statusDripCount = 0;
-uint8_t statusDripSkipped = 0;
-uint32_t statusDripId[5] = {};
-int16_t statusDripCg[5] = {};
+uint16_t statusDripSkipped = 0;
+uint32_t statusDripId[10] = {};
+int16_t statusDripCg[10] = {};
 
 void publishControlStatus() {
   const uint32_t now = millis();
@@ -211,7 +211,7 @@ void publishControlStatus() {
       statusDripCachePreset != presetBank.activeId) {
     TaskLockGuard lock(shotStoreMutex);
     statusDripCount = static_cast<uint8_t>(shotLog.recentDrips(
-        presetBank.activeId, statusDripId, statusDripCg, statusDripSkipped, 5));
+        presetBank.activeId, statusDripId, statusDripCg, statusDripSkipped, 10));
     statusDripCacheGeneration = gatherGeneration;
     statusDripCachePreset = presetBank.activeId;
     statusDripCacheValid = true;
