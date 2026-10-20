@@ -3638,7 +3638,7 @@ function scheduleShotPaint() {
 }
 function uiStreamFrame(e, t) {
   const o = (e, t = 4294967295, s = 0) => Number.isInteger(e) && e >= s && e <= t,
-    n = t?.card;
+    n = t?.snapshot ? t.card : e && t?.card && { ...e.card, ...t.card };
   if (
     !(
       t &&
@@ -3696,6 +3696,7 @@ function uiStreamFrame(e, t) {
     throw Error();
   return {
     ...t,
+    card: n,
     curve: {
       ...s,
       wCg: [...e.curve.wCg, ...s.wCg],

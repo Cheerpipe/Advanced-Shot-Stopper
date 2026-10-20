@@ -877,8 +877,9 @@ if (htmlBytes > 93300) {
 // The Home shot card flow line and fill with a dashed drip tail: +749 bytes (467782), owner-requested 2026-10-19.
 // The Home shot card live flow averaged over its last second: +64 bytes (467846), owner-requested 2026-10-19.
 // The Home shot card firmware clock run locally in both scale modes, with its ±0.1 s final swap: +312 bytes (468158), owner-requested 2026-10-19.
-if (jsBytes > 468158) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 468158)`);
+// Shot card field deltas merged over the previous card: +69 bytes (468227), owner-requested 2026-10-20.
+if (jsBytes > 468227) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 468227)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1005,8 +1006,9 @@ if (jsBytes > 468158) {
 // The Home shot card flow fading from live to its average when the shot finishes: 559120, owner-requested 2026-10-19.
 // The Home shot card flow line and fill with a dashed drip tail: 559869, owner-requested 2026-10-19.
 // The Home shot card firmware clock run locally in both scale modes, with its ±0.1 s final swap: 560168, owner-requested 2026-10-19.
-if (htmlBytes + jsBytes > 560168) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 560168)`);
+// Shot card field deltas merged over the previous card: 560237, owner-requested 2026-10-20.
+if (htmlBytes + jsBytes > 560237) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 560237)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

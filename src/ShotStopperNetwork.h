@@ -186,9 +186,10 @@ inline int8_t clampWifiRssi(int32_t rssi) {
 struct NetworkWorkBuf;
 
 struct UiStreamFingerprints {
-  static constexpr size_t kHomeFields = 128, kDiagFields = 224;
+  static constexpr size_t kHomeFields = 128, kDiagFields = 224, kCardFields = 32;
   uint32_t homeHashes[kHomeFields] = {};
   uint32_t diagHashes[kDiagFields] = {};
+  uint32_t cardHashes[kCardFields] = {};
 };
 
 struct NetworkBridgeCallbacks {
@@ -382,7 +383,7 @@ class ShotStopperNetwork {
     int fd = -1;
     uint32_t openedAtMs = 0, boundAtMs = 0, observedCycle = 0, observedBoot = 0;
     uint32_t sequence = 0, cycle = 0, shot = 0, boot = 0;
-    uint32_t fingerprint = 0, prefixHash = 0, markersHash = 0;
+    uint32_t fingerprint = 0, prefixHash = 0;
     uint16_t cursor = 0;
     uint32_t homeBoot = 0, homeClockSync = 0, homeClockUtc = 0;
     // Diagnostic page subscription: state dies with the session struct reset,

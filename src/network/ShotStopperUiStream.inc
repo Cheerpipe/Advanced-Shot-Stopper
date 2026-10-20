@@ -488,8 +488,15 @@ void ShotStopperNetwork::sendUiStream(UiStreamSession &session,
   // task; past the dispatch budget, close it instead of serializing more.
   const uint32_t started = millis();
   const auto within = [&] { return millis() - started < kUiStreamDispatchBudgetMs; };
+  uiStreamBatchBegin();
   bool open = sendHomeStream(session, control, network, eligible ? &latest : nullptr) &&
       within() && sendShotCard(session, control, latest, eligible);
+  // Both frames leave in one write; their fingerprints are already consumed,
+  // so a cleanly dropped batch resends snapshots and a partial one closes.
+  if (!uiStreamBatchEnd()) {
+    if (uiStreamSendCleanAbort) session.homeResync = session.resync = true;
+    else open = false;
+  }
   if (open && session.diagnostic)
     open = within() && sendDiagnosticStream(session, control, network);
   if (open && session.historyOn) open = within() && sendHistoryStream(session, control);
@@ -578,99 +585,93 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   } else if (live && curve.atmClearedMs != SHOT_LOG_METRIC_MISSING) {
     strcpy(scaleLoss, "{\"state\":\"recovered\"}");
   }
-  char *output = workBuf_->jsonItem;
-  const int cardBytes = snprintf(output, NetworkWorkBuf::kJsonItem,
-      "\"phase\":\"%s\",\"card\":{\"valid\":%s,\"live\":%s,\"weight\":%s,"
-      "\"goal\":%.1f,\"elapsedMs\":%lu,\"firstDropMs\":%s,"
-      "\"tareMs\":%s,\"presetName\":\"%s\","
-      "\"scaleAvailable\":%s,\"shotType\":\"%s\",\"endReason\":\"%s\",\"averageFlowGps\":%s,"
-      "\"extractionExtended\":%s,\"slowExtractionExtended\":%s,\"touchHold\":%s,"
-      "\"verdict\":%s,\"channeling\":%s,\"cutG\":%s,\"scaleLoss\":%s,\"expectedEndMs\":%lu,\"rule\":%s,"
-      "\"tintClass\":\"%s\",\"tintPct\":%u,\"tintNote\":\"%s\"}",
-      phase, card.valid ? "true" : "false", control.activeCycle ? "true" : "false",
-      weight, static_cast<double>(goalWeightDgToGrams(card.goalWeightDg)),
-      static_cast<unsigned long>(card.durationMs), drop, tare, preset,
-      card.scaleAvailable ? "true" : "false",
-      lastShotTypeName(static_cast<LastShotType>(card.shotType)),
-      !live && !retained && eligible ? shotLogStopDetailName(static_cast<ShotLogStopDetail>(latest.stopDetail))
-                                  : shotLogStopDetailName(shotLogStopDetailFromEndReason(
-                                        card.endReason, card.fastExtractionGuardEnabled, card.extractionExtended)),
-      flow, card.extractionExtended ? "true" : "false",
-      card.slowExtractionExtended ? "true" : "false",
-      control.activeCycle && control.cycleAccidentalTouchHolding ? "true"
-                                                                 : "false",
-      canonical ? shotLogVerdictJson(latest.verdict) : "null",
-      canonical && corridor::channelingOf(latest.verdict) ? "true" : "false",
-      cutG, scaleLoss,
-      // The cut forecast on the shot clock while brewing; 0 = none.
-      static_cast<unsigned long>(control.activeCycle ? control.cycleExpectedEndMs : 0U), rule,
-      // Live hero tint from the shot predictor (blend + note badge).
-      control.activeCycle
-          ? shotTintJson(static_cast<ShotTint>(control.cycleTintClass))
-          : "neutral",
-      control.activeCycle ? static_cast<unsigned>(control.cycleTintPct) : 0U,
-      control.activeCycle
-          ? shotTintNoteJson(static_cast<ShotTintNote>(control.cycleTintNote))
-          : "none");
-  if (cardBytes <= 0 || static_cast<size_t>(cardBytes) >= NetworkWorkBuf::kJsonItem)
-    return true;
   const uint32_t markers = crc32Update(0xFFFFFFFFU,
       reinterpret_cast<const uint8_t *>(&curve.atmClearedMs),
       offsetof(ShotCurveRecord, weightCg) - offsetof(ShotCurveRecord, atmClearedMs));
+  const uint8_t flags = (curve.truncated ? 1U : 0U) | (control.snapshotStale ? 2U : 0U);
+  // Markers, truncation and staleness ride the curve scalars of any frame:
+  // a change sends one, but only identity or sent-point changes replace.
+  const uint32_t fingerprint = crc32Update(markers, &flags, 1);
   const uint32_t prefix = uiStreamCurveHash(curve, curve.count);
-  uint32_t fingerprint = crc32Update(prefix, reinterpret_cast<const uint8_t *>(output), cardBytes);
-  fingerprint = crc32Update(fingerprint, reinterpret_cast<const uint8_t *>(&markers), sizeof(markers));
-  fingerprint ^= curve.truncated ? 1U : 0U;
-  fingerprint ^= control.snapshotStale ? 2U : 0U;
   const bool replace = session.resync || session.boot != control.bootId ||
       session.cycle != card.cycleId || session.shot != card.shotLogId ||
-      session.cursor > curve.count || session.markersHash != markers ||
+      session.cursor > curve.count ||
       // Steady state has cursor == count; reuse the full-curve hash already
       // computed above instead of CRC-ing the same bytes a second time.
       session.prefixHash != (session.cursor == curve.count
                                  ? prefix
                                  : uiStreamCurveHash(curve, session.cursor));
-  if (!replace && session.fingerprint == fingerprint)
-    return true;
   const uint16_t base = replace ? 0 : session.cursor;
-  const bool formatted = formatShotCurveJsonBody(workBuf_->curveJson, SHOT_CURVE_JSON_CAPACITY, curve, base);
-  // Move scalar body behind its envelope in the same bounded workspace.
-  char envelope[384];
-  const int envelopeBytes = snprintf(envelope, sizeof(envelope),
-      "{\"v\":1,\"boot\":%lu,\"seq\":%lu,\"base\":%lu,\"revision\":%lu,"
-      "\"snapshot\":%s,\"cycle\":%lu,\"shotId\":%lu,"
-      "\"stale\":%s,\"curveBase\":%u,\"cursor\":%u,",
-      static_cast<unsigned long>(control.bootId), static_cast<unsigned long>(session.sequence + 1),
-      static_cast<unsigned long>(session.sequence), static_cast<unsigned long>(control.snapshotVersion),
-      replace ? "true" : "false", static_cast<unsigned long>(card.cycleId),
-      static_cast<unsigned long>(card.shotLogId),
-      control.snapshotStale ? "true" : "false", base, curve.count);
-  size_t used = static_cast<size_t>(cardBytes);
-  bool ok = formatted && envelopeBytes > 0 && static_cast<size_t>(envelopeBytes) < sizeof(envelope) &&
-      used + envelopeBytes < NetworkWorkBuf::kJsonItem;
-  if (ok) {
-    memmove(output + envelopeBytes, output, used + 1);
-    memcpy(output, envelope, envelopeBytes);
-    used += envelopeBytes;
-    const int added = snprintf(output + used, NetworkWorkBuf::kJsonItem - used,
-                              ",\"curve\":{%s}}", workBuf_->curveJson);
-    ok = added > 0 && static_cast<size_t>(added) < NetworkWorkBuf::kJsonItem - used;
-    if (ok) used += added;
-  }
-  bool owner = false;
-  if (ok) {
-    // Recheck ownership immediately before delivery; telemetry never renews it.
-    { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
-    httpd_ws_frame_t frame = {};
-    frame.type = HTTPD_WS_TYPE_TEXT;
-    frame.payload = reinterpret_cast<uint8_t *>(output);
-    frame.len = used;
-    ok = owner && httpd_ws_send_frame_async(server_, session.fd, &frame) == ESP_OK;
-  }
-  if (!ok) {
-    // A clean header abort defers: every bookkeeping flag below is only
-    // cleared on delivery, so the next dispatch resends the same card.
-    return owner && uiStreamSendCleanAbort;
+  size_t used = 0;
+  if (!statusJsonAppend(&used,
+          "{\"v\":1,\"boot\":%lu,\"seq\":%lu,\"base\":%lu,\"revision\":%lu,"
+          "\"snapshot\":%s,\"cycle\":%lu,\"shotId\":%lu,\"stale\":%s,"
+          "\"curveBase\":%u,\"cursor\":%u,\"phase\":\"%s\",\"card\":{",
+          static_cast<unsigned long>(control.bootId),
+          static_cast<unsigned long>(session.sequence + 1),
+          static_cast<unsigned long>(session.sequence),
+          static_cast<unsigned long>(control.snapshotVersion), replace ? "true" : "false",
+          static_cast<unsigned long>(card.cycleId), static_cast<unsigned long>(card.shotLogId),
+          control.snapshotStale ? "true" : "false", base, curve.count, phase))
+    return false;
+  // Card fields are deltas over the previous frame; a replacement sends all.
+  HomeStreamDelta delta;
+  delta.hashes = workBuf_->uiFingerprints[&session - uiStreams_].cardHashes;
+  delta.capacity = UiStreamFingerprints::kCardFields;
+  delta.used = used;
+  delta.snapshot = replace;
+  delta.field("valid", bool(card.valid));
+  delta.field("live", bool(control.activeCycle));
+  delta.field("weight", "%s", weight);
+  delta.field("goal", "%.1f", static_cast<double>(goalWeightDgToGrams(card.goalWeightDg)));
+  delta.field("elapsedMs", "%lu", static_cast<unsigned long>(card.durationMs));
+  delta.field("firstDropMs", "%s", drop);
+  delta.field("tareMs", "%s", tare);
+  delta.field("presetName", "\"%s\"", preset);
+  delta.field("scaleAvailable", bool(card.scaleAvailable));
+  delta.field("shotType", "\"%s\"", lastShotTypeName(static_cast<LastShotType>(card.shotType)));
+  delta.field("endReason", "\"%s\"",
+      canonical ? shotLogStopDetailName(static_cast<ShotLogStopDetail>(latest.stopDetail))
+                : shotLogStopDetailName(shotLogStopDetailFromEndReason(
+                      card.endReason, card.fastExtractionGuardEnabled, card.extractionExtended)));
+  delta.field("averageFlowGps", "%s", flow);
+  delta.field("extractionExtended", bool(card.extractionExtended));
+  delta.field("slowExtractionExtended", bool(card.slowExtractionExtended));
+  delta.field("touchHold", bool(control.activeCycle && control.cycleAccidentalTouchHolding));
+  delta.field("verdict", "%s", canonical ? shotLogVerdictJson(latest.verdict) : "null");
+  delta.field("channeling", bool(canonical && corridor::channelingOf(latest.verdict)));
+  delta.field("cutG", "%s", cutG);
+  delta.field("scaleLoss", "%s", scaleLoss);
+  // The cut forecast on the shot clock while brewing; 0 = none.
+  delta.field("expectedEndMs", "%lu",
+              static_cast<unsigned long>(control.activeCycle ? control.cycleExpectedEndMs : 0U));
+  delta.field("rule", "%s", rule);
+  // Live hero tint from the shot predictor (blend + note badge).
+  delta.field("tintClass", "\"%s\"", control.activeCycle
+      ? shotTintJson(static_cast<ShotTint>(control.cycleTintClass)) : "neutral");
+  delta.field("tintPct", "%u", control.activeCycle ? static_cast<unsigned>(control.cycleTintPct) : 0U);
+  delta.field("tintNote", "\"%s\"", control.activeCycle
+      ? shotTintNoteJson(static_cast<ShotTintNote>(control.cycleTintNote)) : "none");
+  if (!delta.ok) return false;
+  if (!replace && !delta.changed && base == curve.count && session.fingerprint == fingerprint)
+    return true;
+  if (!formatShotCurveJsonBody(workBuf_->curveJson, SHOT_CURVE_JSON_CAPACITY, curve, base) ||
+      !statusJsonAppend(&delta.used, "},\"curve\":{%s}}", workBuf_->curveJson))
+    return false;
+  // Recheck ownership immediately before delivery; telemetry never renews it.
+  bool owner;
+  { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
+  if (!owner) return false;
+  httpd_ws_frame_t frame = {};
+  frame.type = HTTPD_WS_TYPE_TEXT;
+  frame.payload = reinterpret_cast<uint8_t *>(workBuf_->statusJson);
+  frame.len = delta.used;
+  if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
+    // The card fingerprints were consumed for the dropped frame, so only a
+    // replacement can repair the client; defer on a clean abort.
+    if (!uiStreamSendCleanAbort) return false;
+    session.resync = true;
+    return true;
   }
   ++session.sequence;
   session.boot = control.bootId;
@@ -678,7 +679,6 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   session.shot = card.shotLogId;
   session.cursor = curve.count;
   session.prefixHash = prefix;
-  session.markersHash = markers;
   session.fingerprint = fingerprint;
   session.resync = false;
   return true;

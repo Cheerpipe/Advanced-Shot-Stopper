@@ -383,6 +383,17 @@
       next.curve.wBreakBefore.join()!=='2'||next.curve.wHeld.join()!=='3'||next.curve.dropS!==.8||first.cursor!==2)
     throw new Error('Stream must atomically append all samples, equal weights, breaks, held readings and metadata');
   if(apply(next,update)!==next)throw new Error('Duplicates must not append');
+  const delta=apply(next,{...update,seq:3,base:2,curveBase:4,cursor:4,card:{weight:2.5},
+    curve:{wCg:[],wAtMs:[],wBreakBefore:[],wHeld:[],dropS:.8,endS:1.2}});
+  if(delta.card.weight!==2.5||delta.card.elapsedMs!==1100||delta.card.valid!==true||
+      delta.curve.wCg.length!==4||delta.curve.endS!==1.2||next.card.weight!==1)
+    throw new Error('Card deltas must merge over the previous card and markers must not need a replacement');
+  for(const bad of [{weight:'2'},{elapsedMs:-1},{valid:null}]){
+    let rejected=false;
+    try{apply(next,{...update,seq:3,base:2,curveBase:4,cursor:4,card:bad,curve:{wCg:[],wAtMs:[],wBreakBefore:[],wHeld:[]}})}
+    catch(_){rejected=true}
+    if(!rejected)throw new Error('A merged card must pass the snapshot card checks');
+  }
   const corrected=apply(next,{...snapshot,seq:3,revision:3,curve:{...snapshot.curve,dropS:null}});
   if(corrected.cursor!==2||corrected.curve.dropS!==null)throw new Error('Corrected markers require replacement');
   const reboot=apply(next,{...snapshot,boot:8});
@@ -421,8 +432,9 @@
   if(!streamSource.includes('setsockopt(session.fd, IPPROTO_TCP, TCP_NODELAY, &noDelay, sizeof(noDelay));'))
     throw new Error('The UI stream socket must send frames without Nagle delay');
   if(!/rule\[256\] = "null";\n  if \(canonical\) \{\n    snprintf\(rule,/.test(streamSource)||
-      !streamSource.includes('\\"expectedEndMs\\":%lu,\\"rule\\":%s,"')||
-      !streamSource.includes('\\"tintClass\\":\\"%s\\",\\"tintPct\\":%u,\\"tintNote\\":\\"%s\\"}'))
+      !streamSource.includes('delta.field("rule", "%s", rule);')||
+      !streamSource.includes('delta.field("tintClass", "\\"%s\\"", control.activeCycle')||
+      !streamSource.includes('delta.field("tintPct", "%u", control.activeCycle ?'))
     throw new Error('Only a stored shot card may carry its preset rule and live tint');
   const sockets=[],timers=new Map();let timerId=0,owner=true;
   class Socket{static OPEN=1;constructor(url){this.url=url;this.readyState=1;this.sent=[];sockets.push(this)}send(body){this.sent.push(JSON.parse(body))}close(){this.readyState=3;this.onclose?.()}}
@@ -1070,7 +1082,7 @@ if (!network.includes('callbacks_.copyHomeShot(latest, self.workBuf_->homeCurve)
     !firmwareCore.includes('shotLog.copyNewestEligible(record)') ||
     !network.includes('session.cycle = card.cycleId;') ||
     !network.includes('\\"presetName\\":\\"%s\\"') ||
-    !network.includes('\\"averageFlowGps\\":%s') ||
+    !network.includes('delta.field("averageFlowGps", "%s", flow);') ||
     !network.includes('card.averageFlowValid && std::isfinite(card.averageFlowGps)') ||
     network.includes('scaleFlowGps') ||
     codeIncludes(ui, 'rateLastShotValue') ||

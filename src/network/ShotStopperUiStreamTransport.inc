@@ -1,15 +1,33 @@
-// httpd is the sole caller/owner, including automatic WS control replies.
+// httpd is the sole caller/owner, including automatic WS control replies and
+// the coalescing buffer below.
 constexpr size_t kUiStreamHeaderMax = 14;
 constexpr uint32_t kUiStreamHeaderWaitMs = 100, kUiStreamPayloadWaitMs = 500;
 constexpr uint32_t kStatsStreamPaceMs = 100;
 constexpr uint32_t kUiStreamDispatchBudgetMs = 800;
+// One TCP segment (lwIP MSS 1440): a frame's header and payload, and a
+// dispatch's Home + shot card pair, leave in one write so the radio shared
+// with the BLE scale transmits once instead of once per piece.
+constexpr size_t kUiStreamCoalesceBytes = 1436;
 bool uiStreamSendCleanAbort = false;
 const char *uiStreamSendKind = "control";
+SHOT_STOPPER_PSRAM_BSS char uiStreamPending[kUiStreamCoalesceBytes];
+size_t uiStreamPendingBytes = 0;
+int uiStreamPendingFd = -1;
+bool uiStreamAwaitingPayload = false, uiStreamBatching = false;
+// A failed write drops the whole batch; clean means none of it was written.
+bool uiStreamBatchFailed = false, uiStreamBatchClean = true;
 
-int uiStreamSendFailed(int fd, size_t done, size_t length, uint32_t started) {
+int uiStreamSendFailed(int fd, size_t done, size_t length, uint32_t started,
+                       bool committed) {
   const int error = errno;
-  uiStreamSendCleanAbort = done == 0 && length <= kUiStreamHeaderMax &&
+  uiStreamSendCleanAbort = done == 0 && !committed &&
       (error == EAGAIN || error == EWOULDBLOCK);
+  uiStreamPendingBytes = 0;
+  uiStreamAwaitingPayload = false;
+  if (uiStreamBatching) {
+    uiStreamBatchFailed = true;
+    uiStreamBatchClean = uiStreamBatchClean && uiStreamSendCleanAbort;
+  }
   static uint32_t failures = 0, loggedAt = 0;
   const uint32_t now = millis();
   if (++failures == 1 || now - loggedAt >= 1000) {
@@ -23,15 +41,16 @@ int uiStreamSendFailed(int fd, size_t done, size_t length, uint32_t started) {
   return -1;
 }
 
-// IDF calls send_fn separately for header/payload and accepts short writes.
-// Keep untouched headers deferrable; allow modem-sleep ACK gaps once committed.
-int uiStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int flags) {
+// Bounded nonblocking write that accepts short sends. Until its first byte is
+// out an uncommitted write stays deferrable; once anything of the frame is on
+// the wire, allow modem-sleep ACK gaps.
+int uiStreamWrite(int fd, const char *data, size_t length, bool committed) {
   uiStreamSendCleanAbort = false;
   const uint32_t started = millis();
-  const uint32_t budget = length <= kUiStreamHeaderMax
-                              ? kUiStreamHeaderWaitMs : kUiStreamPayloadWaitMs;
   size_t done = 0;
   while (done < length) {
+    const uint32_t budget = committed || done ? kUiStreamPayloadWaitMs
+                                              : kUiStreamHeaderWaitMs;
     const uint32_t age = millis() - started;
     if (age >= budget) {
       errno = EAGAIN;
@@ -50,7 +69,7 @@ int uiStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int fl
       errno = EAGAIN;
       break;
     }
-    const int sent = send(fd, data + done, length - done, flags | MSG_DONTWAIT);
+    const int sent = send(fd, data + done, length - done, MSG_DONTWAIT);
     if (sent > 0) done += static_cast<size_t>(sent);
     else if (sent == 0) {
       errno = ECONNRESET;
@@ -58,5 +77,67 @@ int uiStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int fl
     } else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) break;
   }
   return done == length ? static_cast<int>(done)
-                        : uiStreamSendFailed(fd, done, length, started);
+                        : uiStreamSendFailed(fd, done, length, started, committed);
+}
+
+int uiStreamFlush() {
+  const size_t length = uiStreamPendingBytes;
+  uiStreamPendingBytes = 0;
+  return length ? uiStreamWrite(uiStreamPendingFd, uiStreamPending, length, false) : 0;
+}
+
+// Payload length announced by an unmasked server frame header of exactly
+// `length` bytes, or -1 when the bytes are not such a header.
+int64_t uiStreamHeaderPayload(const char *data, size_t length) {
+  if (length < 2 || (data[1] & 0x80) != 0) return -1;
+  const uint8_t code = static_cast<uint8_t>(data[1]);
+  if (code < 126) return length == 2 ? code : -1;
+  const size_t bytes = code == 126 ? 2 : 8;
+  if (length != 2 + bytes) return -1;
+  int64_t value = 0;
+  for (size_t index = 0; index < bytes; ++index)
+    value = (value << 8) | static_cast<uint8_t>(data[2 + index]);
+  return value;
+}
+
+// IDF calls send_fn with each frame's header, then its payload unless empty.
+// Small pieces are held and flushed at the frame end (or the batch end); a
+// payload larger than the buffer follows its already flushed header.
+int uiStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int) {
+  if (uiStreamPendingBytes && fd != uiStreamPendingFd) {
+    uiStreamPendingBytes = 0;
+    uiStreamAwaitingPayload = false;
+  }
+  const bool payload = uiStreamAwaitingPayload;
+  const int64_t announced = payload ? 0 : uiStreamHeaderPayload(data, length);
+  if (announced < 0) {
+    if (uiStreamFlush() < 0) return -1;
+    return uiStreamWrite(fd, data, length, true);
+  }
+  uiStreamAwaitingPayload = !payload && announced > 0;
+  if (uiStreamPendingBytes + length > kUiStreamCoalesceBytes && uiStreamFlush() < 0)
+    return -1;
+  if (length > kUiStreamCoalesceBytes) return uiStreamWrite(fd, data, length, true);
+  memcpy(uiStreamPending + uiStreamPendingBytes, data, length);
+  uiStreamPendingBytes += length;
+  uiStreamPendingFd = fd;
+  uiStreamSendCleanAbort = false;
+  if (uiStreamAwaitingPayload || uiStreamBatching) return static_cast<int>(length);
+  return uiStreamFlush() < 0 ? -1 : static_cast<int>(length);
+}
+
+// The dispatch's Home + shot card frames share one write. Returns false when
+// any write of the batch failed; uiStreamSendCleanAbort then tells whether
+// none of it reached the wire.
+void uiStreamBatchBegin() {
+  uiStreamBatching = true;
+  uiStreamBatchFailed = false;
+  uiStreamBatchClean = true;
+}
+
+bool uiStreamBatchEnd() {
+  (void)uiStreamFlush();
+  uiStreamBatching = false;
+  uiStreamSendCleanAbort = uiStreamBatchClean;
+  return !uiStreamBatchFailed;
 }

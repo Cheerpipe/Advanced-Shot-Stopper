@@ -4,6 +4,7 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <deque>
 #include <string>
 #include <sys/select.h>
@@ -20,6 +21,8 @@ uint32_t now = 0;
 std::deque<Result> readiness, writes;
 char payload[24000]{};
 size_t accepted = 0;
+std::string wire;
+std::deque<size_t> chunks;
 unsigned logs = 0;
 std::string lastLog;
 uint32_t millis() { return now; }
@@ -41,7 +44,7 @@ int testSelect(int count, fd_set *, fd_set *writable, fd_set *, timeval *wait) {
 }
 
 int testSend(int fd, const char *data, size_t length, int flags) {
-  assert(fd == 1 && data == payload + accepted && (flags & MSG_DONTWAIT));
+  assert(fd == 1 && (flags & MSG_DONTWAIT));
   Result next{static_cast<int>(length)};
   if (!writes.empty()) { next = writes.front(); writes.pop_front(); }
   now += next.delay;
@@ -49,6 +52,8 @@ int testSend(int fd, const char *data, size_t length, int flags) {
   if (next.value > 0) {
     assert(static_cast<size_t>(next.value) <= length);
     accepted += static_cast<size_t>(next.value);
+    wire.append(data, static_cast<size_t>(next.value));
+    chunks.push_back(static_cast<size_t>(next.value));
   }
   return next.value;
 }
@@ -67,6 +72,7 @@ void testLog(const char *format, ...) {
 #define select testSelect
 #define send testSend
 #define ESP_LOGW(tag, ...) testLog(__VA_ARGS__)
+#define SHOT_STOPPER_PSRAM_BSS
 #include "network/ShotStopperUiStreamTransport.inc"
 #undef ESP_LOGW
 #undef send
@@ -75,9 +81,23 @@ void testLog(const char *format, ...) {
 void reset() {
   now += 1000;
   readiness.clear(); writes.clear(); accepted = 0; errno = 0;
+  wire.clear(); chunks.clear();
   uiStreamSendKind = "stats";
 }
-int transmit(size_t length) { return uiStreamSend(nullptr, 1, payload, length, 0); }
+// Raw write loop: headers are uncommitted, payloads follow a header on the wire.
+int transmit(size_t length) {
+  return uiStreamWrite(1, payload, length, length > kUiStreamHeaderMax);
+}
+// One WebSocket frame through the coalescing send_fn, as IDF issues it.
+int frame(const char *body, size_t length) {
+  char header[10] = {static_cast<char>(0x81)};
+  size_t bytes = 2;
+  if (length < 126) header[1] = static_cast<char>(length);
+  else { header[1] = 126; header[2] = static_cast<char>(length >> 8);
+         header[3] = static_cast<char>(length); bytes = 4; }
+  if (uiStreamSend(nullptr, 1, header, bytes, 0) < 0) return -1;
+  return length ? uiStreamSend(nullptr, 1, body, length, 0) : 0;
+}
 }  // namespace
 
 int main() {
@@ -151,5 +171,46 @@ int main() {
   now += 1000; readiness = {{0}};
   assert(transmit(4) == -1 && logs == logged + 1);
   assert(transmit(0) == 0 && !uiStreamSendCleanAbort);
-  puts("UI stream transport: bounded writes, modem-sleep gaps, partial failures, errno and log throttling passed");
+
+  // A small frame leaves as one write: header and payload in one segment.
+  reset(); memcpy(payload, "{\"a\":1}", 7);
+  assert(frame(payload, 7) == 7 && chunks.size() == 1 && wire.size() == 9);
+  assert(wire.compare(2, 7, payload, 7) == 0 && !uiStreamAwaitingPayload);
+  // An empty frame (header only) is not held back.
+  reset(); assert(frame(payload, 0) == 0 && chunks.size() == 1 && wire.size() == 2);
+  // Nothing written yet: the coalesced frame is still cleanly deferrable.
+  reset(); readiness = {{0}}; started = now;
+  assert(frame(payload, 7) == -1 && uiStreamSendCleanAbort && now - started == 100);
+  assert(uiStreamPendingBytes == 0 && !uiStreamAwaitingPayload && accepted == 0);
+  // Once part of it is out, the frame is committed.
+  reset(); readiness = {{1}, {0}}; writes = {{3}};
+  assert(frame(payload, 7) == -1 && !uiStreamSendCleanAbort && accepted == 3);
+  // A payload larger than one segment follows its already flushed header.
+  reset();
+  assert(frame(payload, 2000) == 2000 && chunks.size() == 2 && chunks[0] == 4);
+  reset(); readiness = {{1}, {0}};
+  assert(frame(payload, 2000) == -1 && !uiStreamSendCleanAbort && accepted == 4);
+  // Bytes that are not a server frame header are written as-is.
+  reset(); payload[1] = static_cast<char>(0x80);
+  assert(uiStreamSend(nullptr, 1, payload, 2, 0) == 2 && chunks.size() == 1);
+  payload[1] = 0;
+
+  // A dispatch batch sends Home and the shot card in one write.
+  reset(); uiStreamBatchBegin();
+  assert(frame(payload, 100) == 100 && frame(payload, 900) == 900 && accepted == 0);
+  assert(uiStreamBatchEnd() && chunks.size() == 1 && wire.size() == 2 + 100 + 4 + 900);
+  // Overflow flushes the batch so far; the rest still coalesces.
+  reset(); uiStreamBatchBegin();
+  assert(frame(payload, 800) == 800 && frame(payload, 800) == 800 && chunks.size() == 1);
+  assert(uiStreamBatchEnd() && chunks.size() == 2 && wire.size() == 2 * (4 + 800));
+  // A cleanly dropped batch reports failure with nothing on the wire.
+  reset(); uiStreamBatchBegin(); readiness = {{0}};
+  assert(frame(payload, 100) == 100 && frame(payload, 200) == 200);
+  assert(!uiStreamBatchEnd() && uiStreamSendCleanAbort && accepted == 0 && !uiStreamBatching);
+  // A mid-batch failure after partial output is broken, even if later frames go out.
+  reset(); uiStreamBatchBegin(); readiness = {{1}, {0}}; writes = {{10}};
+  assert(frame(payload, 800) == 800 && frame(payload, 800) == -1 && !uiStreamSendCleanAbort);
+  assert(frame(payload, 100) == 100);
+  assert(!uiStreamBatchEnd() && !uiStreamSendCleanAbort);
+  puts("UI stream transport: bounded writes, modem-sleep gaps, partial failures, errno, log throttling, frame and batch coalescing passed");
 }

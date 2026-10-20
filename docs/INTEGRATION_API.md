@@ -456,8 +456,14 @@ objects contain only changed paths, such as `scale.timerMs` or
 `lineaMicra.websocket.cleaning`. Objects such as `presets` are replaced as a
 unit when they change. Reliable, ordered WebSocket delivery applies these
 scalar assignments in order. The shot card and curve retain their independent
-sequence/base and cursor contract on the same socket. Equipment updates do not
-resend an unchanged shot card or curve. Commands continue to use the existing
+sequence/base and cursor contract on the same socket. A shot snapshot
+(`snapshot: true`) carries the complete card and curve; each following frame
+carries only the card fields that changed, which the browser merges over the
+previous card, plus the curve points after the previous cursor. Curve markers
+(first drop, extension, scale loss and recovery, end) arrive as part of those
+incremental frames; only a new shot, a reconnect or resync, or a change to an
+already sent point starts a new snapshot. Equipment updates do not resend an
+unchanged shot card or curve. Commands continue to use the existing
 HTTP endpoints and ownership checks.
 
 Micra firmware streams an informational boiler-readiness layer on the same
