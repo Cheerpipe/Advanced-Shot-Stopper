@@ -28,6 +28,25 @@ against its own window instead: the axis shows **Window start** and
 **Window end**, and how many seconds before or after the window a shot reached
 its target. The chart appears once a shot has a measured arrival time.
 
+Below it, the consistency chart answers a different question: not whether your
+shots landed on recipe, but how alike they are. It looks at your newest 10
+shots with an arrival time, using the same **All presets** or **Current
+preset** choice, and draws one column per shot, oldest on the left. Each column
+starts at your average time to the target, the dashed line, and shows how many
+seconds slower (up) or faster (down) that shot was. The shaded band covers
+1.5 seconds either side of the average; columns that go past it are drawn in a
+stronger color. With several presets, each shot is compared with its own
+preset's average, so a ristretto and a lungo can share the chart.
+
+The numbers above the chart sum it up. The first is how much your time
+typically changes from one shot to the next, with a verdict: **Very
+consistent** up to 1.5 seconds, **Fairly consistent** up to 3 seconds, and
+**Varies a lot** beyond that. A single odd shot does not change the verdict on
+its own. **Spread** is the gap between your fastest and slowest shot, and
+**Shots** is how many are shown. With fewer than 5 shots the verdict reads
+**Not enough shots yet**. Drag across the chart, or focus it and use the arrow
+keys, to read each shot's time and how far it was from your average.
+
 Stopwatch and gram-weight icons sit beside the large duration and yield values
 in each shot card and beside Avg time and Avg yield in the Stats summary.
 Each icon and value are centered together within their column. The icons

@@ -574,6 +574,7 @@ function renderStatsDurChart() {
   host.hidden = !shots.length;
   for (const b of $("statsPresetFilter").children)
     b.setAttribute("aria-pressed", String(b.dataset.v === statsPresetFilter));
+  renderStatsConsistency(shots);
   if (!shots.length) {
     host.innerHTML = "";
     return;
@@ -630,6 +631,85 @@ function renderStatsDurChart() {
     svg +
     '</svg><div class="ruleChartTicks"></div>';
   fillChartTicks(host.lastChild, ticks.filter(([t]) => t > lo && t < hi).map(([t, s, p]) => [t - lo, s, p]), hi - lo, true);
+}
+// Consistency: the newest 10 shots, oldest first, each as a column from its own
+// preset's average time to target. The level is the median change between
+// neighbouring shots, so one odd shot does not decide it.
+const CONSISTENT_S = 1.5,
+  VARIED_S = 3;
+function renderStatsConsistency(shots) {
+  const root = $("statsConsistency");
+  if (!root) return;
+  const rows = shots.slice().sort((a, b) => a.id - b.id).slice(-10),
+    n = rows.length,
+    avg = {},
+    s = __WEBUI_TEXT__("runtime.s"),
+    L = (v) => R.axisLabel(v, s),
+    signed = (v) => ((v = Math.round(v * 10) / 10) > 0 ? "+" : v < 0 ? "−" : "") + L(Math.abs(v));
+  root.hidden = !n;
+  if (!n) return;
+  for (const r of rows) (avg[r.presetId] ??= []).push(r.arrivalS);
+  for (const k in avg) avg[k] = avg[k].reduce((a, v) => a + v, 0) / avg[k].length;
+  const dev = rows.map((r) => r.arrivalS - avg[r.presetId]),
+    j = dev.slice(1).map((v, i) => Math.abs(v - dev[i])).sort((a, b) => a - b),
+    typ = n < 5 ? null : (j[(j.length - 1) >> 1] + j[j.length >> 1]) / 2,
+    level = typ == null ? "few" : typ <= CONSISTENT_S ? "good" : typ <= VARIED_S ? "fair" : "poor",
+    mixed = Object.keys(avg).length > 1,
+    M = Math.max(2 * CONSISTENT_S, Math.ceil(Math.max(...dev.map(Math.abs)) * 1.15)),
+    X = (i) => (n > 1 ? 3 + (i / (n - 1)) * 94 : 50),
+    Y = (v) => 25 - (23 * v) / M,
+    w = 5.64,
+    out = (i) => Math.abs(dev[i]) > CONSISTENT_S;
+  root.dataset.level = level;
+  root.innerHTML =
+    '<div class="statsDensZones"><span><b>' + (typ == null ? "—" : "±" + L(typ)) + "</b>" +
+    {
+      good: __WEBUI_TEXT__("runtime.consistency_good"),
+      fair: __WEBUI_TEXT__("runtime.consistency_fair"),
+      poor: __WEBUI_TEXT__("runtime.consistency_poor"),
+      few: __WEBUI_TEXT__("runtime.consistency_few"),
+    }[level] + "</span><span><b>" + L(Math.max(...dev) - Math.min(...dev)) + "</b>" +
+    __WEBUI_TEXT__("runtime.consistency_spread") + "</span><span><b>" + n + "</b>" + __WEBUI_TEXT__("runtime.consistency_shots") +
+    '</span></div><div class="consPlot"><svg class="statsDensPlot" viewBox="0 0 100 50" preserveAspectRatio="none" aria-hidden="true">' +
+    '<rect class="consBand" x="0" width="100" y="' + Y(CONSISTENT_S) + '" height="' + (Y(-CONSISTENT_S) - Y(CONSISTENT_S)) + '"/>' +
+    dev.map((v, i) => '<rect class="consBar' + (out(i) ? " out" : "") + '" x="' + (X(i) - w / 2).toFixed(2) + '" width="' + w +
+      '" y="' + Math.min(Y(v), 25).toFixed(2) + '" height="' + Math.abs(Y(v) - 25).toFixed(2) + '"/>').join("") +
+    '<path class="consAvg" d="M0 25H100"/></svg><span class="consEdge">+' + L(M) + '</span><span class="consEdge">' +
+    (mixed ? __WEBUI_TEXT__("runtime.consistency_avg") : L(avg[rows[0].presetId])) + '</span><span class="consEdge">−' + L(M) +
+    '</span><svg class="consCursor" aria-hidden="true"><g class="shotCursor"><line class="rvGuide" y1="0" y2="100%"/><circle class="rvHandle" r="5"/>' +
+    R.PILL + '</g></svg></div><div class="ruleChartTicks"><span class="ruleTick">' + __WEBUI_TEXT__("runtime.consistency_oldest") +
+    '</span><span class="ruleTick">' + __WEBUI_TEXT__("runtime.consistency_latest") + "</span></div>";
+  // The firmware CSP drops markup style attributes; CSSOM writes still apply.
+  const plot = root.querySelector(".consPlot"),
+    cur = plot.lastChild,
+    [guide, dot, pill] = cur.firstChild.children,
+    [t0, t1] = root.querySelectorAll(".ruleTick");
+  [Y(M), 25, Y(-M)].forEach((y, k) => (plot.querySelectorAll(".consEdge")[k].style.top = y * 2 + "%"));
+  t0.style.left = "0";
+  t1.style.left = "100%";
+  let at = n - 1;
+  const seek = (v, held = true) => {
+    at = Math.max(0, Math.min(n - 1, v > at ? Math.ceil(v) : Math.floor(v)));
+    const x = X(at) + "%",
+      r = rows[at],
+      text = R.sub(__WEBUI_TEXT__("runtime.consistency_pill"), [at + 1, mixed ? " · " + shotPresetName(r) : "", L(r.arrivalS), signed(dev[at])]);
+    guide.setAttribute("x1", x);
+    guide.setAttribute("x2", x);
+    dot.setAttribute("cx", x);
+    dot.setAttribute("cy", Y(dev[at]) * 2 + "%");
+    cur.style.setProperty("--c", out(at) ? "var(--zl)" : "var(--zs)");
+    plot.setAttribute("aria-valuenow", at + 1);
+    plot.setAttribute("aria-valuetext", text);
+    if (held) R.placePill(pill, text, (X(at) / 100) * cur.clientWidth, (Y(dev[at]) / 50) * cur.clientHeight);
+  };
+  bindShotScrub(plot, (cx) => {
+    const b = cur.getBoundingClientRect();
+    return n > 1 ? Math.round((((cx - b.left) / b.width) * 100 - 3) / 94 * (n - 1)) : 0;
+  }, seek, () => at);
+  plot.setAttribute("aria-label", __WEBUI_TEXT__("runtime.consistency_cursor"));
+  plot.setAttribute("aria-valuemin", 1);
+  plot.setAttribute("aria-valuemax", n);
+  seek(at, false);
 }
 function renderShotStats() {
   const z = "—",
