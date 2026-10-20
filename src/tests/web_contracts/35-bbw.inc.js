@@ -10,7 +10,7 @@
     assert(!html.includes('id="' + id + '"'), id);
   for (const id of ['dripSetButton', 'alphaSetButton'])
     assert(html.includes('id="' + id + '" class="btnGlyph mutable"'));
-  assert(html.includes('id="dripSetG" type="number" min="0" max="5" step="0.05"'));
+  assert(html.includes('id="dripSetG" type="number" min="0" max="5" step="0.01"'));
   assert(html.includes('id="alphaSet" type="number" min="0.01" max="1" step="0.01"'));
   assert(codeIncludes(viewJs.settings, '["dripSetG", "dripSetButton", "dripG"]'));
   assert(codeIncludes(viewJs.settings, '"/api/v1/calibration/reset", { [key]: R.number(input), baseRevision: R.formRev }'));
@@ -42,7 +42,8 @@
   vm.runInContext(runtimeJs.slice(start, end), context);
   vm.runInContext(blockAt(viewJs.settings, 'function renderDripChart('), context);
   const refresh = (readback) => {
-    if (readback) vm.runInContext('bbwFormPresetId=2;uiState.bbwReadback=' + JSON.stringify(readback), context);
+    if (readback) vm.runInContext('bbwFormPresetId=' + readback.bbwPresetId + ';uiState.bbwReadback=' +
+      JSON.stringify(readback), context);
     vm.runInContext('updateBbwControls()', context);
   };
   const bars = () => elements.get('dripBars').children.filter(e => e.tag === 'div' && e.className.startsWith('dcBar'));
@@ -66,6 +67,11 @@
   elements.get('dripSetG').dataset.edited = '1';
   refresh();
   assert.equal(elements.get('dripSetG').value, '0.50');
+  // ...but not across a switch to another preset.
+  refresh({bbwPresetId: 3, bbwEwmaOffsetG: 0.8, bbwAlpha: 0.3, bbwRecentG: [], bbwRecentAfterSet: -1,
+    bbwRecentAfterQuick: -1, bbwQuickStart: {state: 'off', count: 0, setG: 0, quickG: 0}});
+  assert.equal(elements.get('dripSetG').value, '0.80');
+  assert.equal(elements.get('dripHint').textContent, 'Pull a shot with this preset to see what it needed.');
   // Quick start after Set drip: earlier shots fade, counted shots stand out.
   refresh({bbwPresetId: 2, bbwEwmaOffsetG: 1.2, bbwAlpha: 0.3, bbwRecentG: [0.52, 0.48, 0.55, 0.63],
     bbwRecentAfterSet: 2, bbwRecentAfterQuick: -1, bbwQuickStart: {state: 'armed', count: 2, setG: 1.2, quickG: 0}});

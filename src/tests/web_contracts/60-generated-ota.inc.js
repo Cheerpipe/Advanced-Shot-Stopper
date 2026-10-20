@@ -950,9 +950,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Home shot card firmware clock in both scale modes with its ±0.1 s final swap brings it to 66520; owner-requested 2026-10-19.
 // Shot card field deltas merged over the previous card bring it to 66535; owner-requested 2026-10-20.
 // The Stats shot card drip cell's shared CSS brings it to 66549; owner-requested 2026-10-20.
-// The drip compensation chart CSS and its renderer hook bring it to 66764; owner-requested 2026-10-20.
-if (coldHomeGzip > 66764) {
-  throw new Error(`Cold Home download exceeds the 66764-byte gzip budget (${coldHomeGzip})`);
+// The drip compensation chart CSS, its renderer hook and review fixes bring it to 66803; owner-requested 2026-10-20.
+if (coldHomeGzip > 66803) {
+  throw new Error(`Cold Home download exceeds the 66803-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

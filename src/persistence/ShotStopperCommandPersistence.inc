@@ -198,11 +198,10 @@ bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
   pendingBleScanRequestIdCount = 0;
   bleScanPersistFailLatched = false;
   bleScanPersistMux.unlock();
-  // The factory presets quick start again; no staged copy may overwrite it.
+  // The next boot re-arms the factory presets; no staged copy may land first.
   bbwQuickStartMux.lock();
   bbwQuickStartPersistPending = false;
   bbwQuickStartMux.unlock();
-  (void)saveQuickStart(armedQuickStart(settings.presets));
   return true;
 }
 
@@ -1088,7 +1087,16 @@ void serviceBbwQuickStartPersist() {
   bbwQuickStartPersistPending = false;
   bbwQuickStartMux.unlock();
 #ifndef SHOT_STOPPER_HOST_TEST
-  if (!pending || saveQuickStart(record)) return;
+  static bool failLatched = false;
+  if (!pending) return;
+  if (saveQuickStart(record)) {
+    failLatched = false;
+    return;
+  }
+  if (!failLatched)
+    addDebugEvent(DebugCategory::CONFIG, DebugCode::RUNTIME_PERSIST_FAILED, 0,
+                  RUNTIME_PERSIST_REASON_BBW_QUICK_START);
+  failLatched = true;
   bbwQuickStartMux.lock();
   bbwQuickStartPersistPending = true;
   bbwQuickStartMux.unlock();

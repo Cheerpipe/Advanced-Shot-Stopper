@@ -510,7 +510,7 @@ void processWebCommand(const WebCommand &command) {
             bbwLearningBank.invalidate(command.presetId, presetBank);
             mutableShotPreset(presetBank, command.presetId)->learningEpoch =
                 shotStatisticsEpochNow();
-            armBbwQuickStart(*mutableShotPreset(presetBank, command.presetId), false);
+            armBbwQuickStart(*mutableShotPreset(presetBank, command.presetId), true);
           }
           break;
         case PresetAction::NEW_COFFEE: {

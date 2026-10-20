@@ -879,9 +879,9 @@ if (htmlBytes > 93300) {
 // The Home shot card firmware clock run locally in both scale modes, with its ±0.1 s final swap: +312 bytes (468158), owner-requested 2026-10-19.
 // Shot card field deltas merged over the previous card: +69 bytes (468227), owner-requested 2026-10-20.
 // The Stats shot card drip gain (settled yield minus the weight at the stop): +356 bytes (468583), owner-requested 2026-10-20.
-// The drip compensation redesign (recent-shots chart with set and quick start markers, Set drip and Set learning speed): +3766 bytes (472349), owner-requested 2026-10-20.
-if (jsBytes > 472349) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 472349)`);
+// The drip compensation redesign (recent-shots chart with set and quick start markers, Set drip and Set learning speed, with its review fixes): +3974 bytes (472557), owner-requested 2026-10-20.
+if (jsBytes > 472557) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 472557)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1010,9 +1010,9 @@ if (jsBytes > 472349) {
 // The Home shot card firmware clock run locally in both scale modes, with its ±0.1 s final swap: 560168, owner-requested 2026-10-19.
 // Shot card field deltas merged over the previous card: 560237, owner-requested 2026-10-20.
 // The Stats shot card drip gain (settled yield minus the weight at the stop): 560606, owner-requested 2026-10-20.
-// The drip compensation redesign (recent-shots chart, Set drip and Set learning speed): 564495, owner-requested 2026-10-20.
-if (htmlBytes + jsBytes > 564495) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 564495)`);
+// The drip compensation redesign (recent-shots chart, Set drip and Set learning speed, with its review fixes): 564703, owner-requested 2026-10-20.
+if (htmlBytes + jsBytes > 564703) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 564703)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

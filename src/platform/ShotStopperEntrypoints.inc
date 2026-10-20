@@ -321,6 +321,8 @@ void setup() {
   applyLiveBleEnabled(!firmwareCompatibilityMode() &&
                       bleScanPersistedSettings.enabled != 0);
   if (settingsLoaded) {
+    // A factory reset stores defaults with an empty bank: quick start too.
+    freshSettings = freshSettings || persistedSettings.presets.count == 0;
     runtimeConfig = persistedSettings.runtime;
     bullseyeMelodyConfig = persistedSettings.bullseyeMelody;
     presetBank = persistedSettings.presets;

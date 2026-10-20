@@ -2195,7 +2195,8 @@ function invalidateSettingsHydration() {
   configLoaded = false;
   formRev = 0;
 }
-let bbwFormPresetId = 0;
+let bbwFormPresetId = 0,
+  dripFieldsPresetId = 0;
 function updateBbwControls() {
   if (!$("brewByWeight")) return;
   const on = !!$("brewByWeight").checked;
@@ -2211,6 +2212,10 @@ function updateBbwControls() {
   $("learnedOffsetG").textContent =
     typeof use === "number" ? use.toFixed(2) : __WEBUI_TEXT__("runtime.unknown");
   renderDripChart(c);
+  if (c && c.bbwPresetId !== dripFieldsPresetId) {
+    dripFieldsPresetId = c.bbwPresetId;
+    for (const id of ["dripSetG", "alphaSet"]) delete $(id).dataset.edited;
+  }
   // The set fields follow the values in use until the owner edits them.
   for (const [id, v] of [["dripSetG", use], ["alphaSet", c && c.bbwAlpha]])
     if (typeof v === "number" && document.activeElement !== $(id) && !$(id).dataset.edited)

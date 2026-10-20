@@ -19865,7 +19865,7 @@ void fw05_set_drip_quick_starts_and_three_shots_decide() {
   // Three shots that needed 0.48, 0.52 and 0.50 g: the third sets 0.50 g.
   for (const float needed : {0.48f, 0.52f, 0.50f}) {
     preparePendingBbwForTest();
-    pendingFinalize.offsetAnalysis = true;
+    pendingFinalize.offsetAnalysis = pendingFinalize.logEligible = true;
     pendingFinalize.startedWithScale = pendingFinalize.automaticBrew = true;
     pendingFinalize.scaleBaselineReady = true;
     pendingFinalize.scaleConnectionGeneration =
@@ -19884,6 +19884,16 @@ void fw05_set_drip_quick_starts_and_three_shots_decide() {
   }
   CHECK(fabsf(preset.bbwEwmaOffsetG - 0.50f) < 0.005f);
   CHECK(state() == static_cast<uint8_t>(QuickStartState::APPLIED));
+  // Restore quick starts again and marks where the factory drip came back,
+  // so the chart fades the shots pulled before it.
+  WebCommand restore;
+  restore.type = WebCommandType::PRESET_OP;
+  restore.presetAction = static_cast<uint8_t>(PresetAction::RESTORE_FACTORY_VALUES);
+  restore.presetId = preset.id;
+  processWebCommand(restore);
+  const QuickStartEntry *restored = quickStartEntry(bbwQuickStart, presetBank, preset.id, false);
+  CHECK(restored->state == static_cast<uint8_t>(QuickStartState::ARMED));
+  CHECK(restored->setAtId != 0 && restored->setAtId == shotStatisticsEpochNow());
 }
 
 void rt24_late_cup_step_uses_shot_coordinates() {

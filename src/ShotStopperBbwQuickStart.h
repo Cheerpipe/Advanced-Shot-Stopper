@@ -106,31 +106,27 @@ inline QuickStartRecord armedQuickStart(const ShotPresetBank &bank) {
 }
 
 // Records one eligible observation (offset used + final − cut line, raw) of an
-// armed preset. Returns true, with the median in jumpCg, when the third one
-// agrees with the other two; the deciding shot then skips its EWMA step.
+// armed preset and returns true; jumpCg becomes the median when the third one
+// agrees with the other two (the deciding shot then skips its EWMA step).
 inline bool observeQuickStart(QuickStartRecord &record, const ShotPresetBank &bank,
                               uint8_t presetId, int16_t observedCg,
                               uint32_t recordId, int16_t &jumpCg) {
   QuickStartEntry *entry = quickStartEntry(record, bank, presetId, false);
-  if (entry == nullptr ||
+  if (entry == nullptr || entry->count >= QUICK_START_SHOTS ||
       entry->state != static_cast<uint8_t>(QuickStartState::ARMED)) return false;
   entry->observedCg[entry->count++] = observedCg;
-  if (entry->count < QUICK_START_SHOTS) return false;
-  int16_t sorted[QUICK_START_SHOTS];
-  memcpy(sorted, entry->observedCg, sizeof(sorted));
-  for (uint8_t i = 1; i < QUICK_START_SHOTS; ++i)
-    for (uint8_t j = i; j > 0 && sorted[j] < sorted[j - 1]; --j) {
-      const int16_t swap = sorted[j];
-      sorted[j] = sorted[j - 1];
-      sorted[j - 1] = swap;
-    }
+  if (entry->count < QUICK_START_SHOTS) return true;
+  const int16_t *o = entry->observedCg;
+  const int16_t lo = o[0] < o[1] ? (o[0] < o[2] ? o[0] : o[2]) : (o[1] < o[2] ? o[1] : o[2]);
+  const int16_t hi = o[0] > o[1] ? (o[0] > o[2] ? o[0] : o[2]) : (o[1] > o[2] ? o[1] : o[2]);
   entry->quickAtId = recordId;
-  if (sorted[QUICK_START_SHOTS - 1] - sorted[0] > QUICK_START_SPREAD_CG) {
+  if (hi - lo > QUICK_START_SPREAD_CG) {
     entry->state = static_cast<uint8_t>(QuickStartState::DISAGREED);
-    return false;
+    return true;
   }
+  const int16_t median = static_cast<int16_t>(o[0] + o[1] + o[2] - lo - hi);
   const int16_t maxCg = static_cast<int16_t>(MAX_OFFSET_G * 100.0f);
-  jumpCg = sorted[1] < 0 ? 0 : sorted[1] > maxCg ? maxCg : sorted[1];
+  jumpCg = median < 0 ? 0 : median > maxCg ? maxCg : median;
   entry->quickCg = jumpCg;
   entry->state = static_cast<uint8_t>(QuickStartState::APPLIED);
   return true;

@@ -63,16 +63,14 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
   if (snapshot.bbwLearningGeneration != learning.generation)
     return false;
   const float observation = snapshot.weightOffsetG + (finalWeightG - cutLineG);
-  // Quick start: the third shot that agrees sets the drip to the median.
-  const QuickStartEntry *quick =
-      quickStartEntry(bbwQuickStart, presetBank, preset->id, false);
-  if (quick != nullptr &&
-      quick->state == static_cast<uint8_t>(QuickStartState::ARMED)) {
-    int16_t jumpCg = 0;
-    if (observeQuickStart(bbwQuickStart, presetBank, preset->id,
-                          static_cast<int16_t>(lroundf(observation * 100.0f)),
-                          shotStatisticsEpochNow(), jumpCg))
-      updatedOffset = jumpCg / 100.0f;
+  // Quick start: the third logged shot that agrees sets the drip to the
+  // median; only logged shots count, so the chart markers line up.
+  int16_t jumpCg = -1;
+  if (snapshot.logEligible &&
+      observeQuickStart(bbwQuickStart, presetBank, preset->id,
+                        static_cast<int16_t>(lroundf(observation * 100.0f)),
+                        shotStatisticsEpochNow(), jumpCg)) {
+    if (jumpCg >= 0) updatedOffset = jumpCg / 100.0f;
     stageBbwQuickStart();
   }
   preset->bbwEwmaOffsetG = updatedOffset;
