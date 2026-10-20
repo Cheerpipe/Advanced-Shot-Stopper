@@ -192,8 +192,9 @@ faster. With `O=1.50 g`, `G=36 g`, `W=36.20 g`,
 EWMA requires the accepted post-drip measurement to remain fresh, with valid
 baseline and connection provenance, following a weight cut on any part of the
 cut line. Manual stops, time/safety limits, scale-loss stops, cup removal,
-detected channeling and excluded shots do not train it: forced stops do not
-measure normal cutoff error.
+detected channeling, cuts made without a usable flow reading (for example right
+after the scale reconnects) and excluded shots do not train it: these stops do
+not measure normal cutoff error.
 
 Four candidate gains (0.10, 0.30, 0.50, 1.00) score compensation predictions
 before updating them. After 20 eligible EWMA observations, evaluation occurs

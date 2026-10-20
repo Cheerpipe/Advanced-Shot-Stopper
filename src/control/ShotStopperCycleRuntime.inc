@@ -761,7 +761,7 @@ float postStopFinalWeightG(const PendingShotFinalize &pending,
 
 // Coffee filling a cup-less pan can look stable over the placement window;
 // a late cup must stand half a minimum cup above the lowest accepted reading
-// of the second before that window started.
+// of the second before that window started, both in shot coordinates.
 bool cupPlacementIsStep(float weight, uint32_t placementStartedAtMs) {
   const float startS = static_cast<int32_t>(placementStartedAtMs - shot.startMs) / 1000.0f;
   float baseG = INFINITY;
@@ -770,7 +770,8 @@ bool cupPlacementIsStep(float weight, uint32_t placementStartedAtMs) {
     baseG = fminf(baseG, shot.weight[i]);
     if (shot.timeS[i] < startS - 1.0f) break;
   }
-  return !std::isfinite(baseG) || baseG < weight - runtimeConfig.minimumCupWeightG / 2.0f;
+  return !std::isfinite(baseG) ||
+         baseG < weight - session.softwareZeroG - runtimeConfig.minimumCupWeightG / 2.0f;
 }
 
 bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,

@@ -188,11 +188,14 @@ struct RateEstimator {
   bool channeling = false;  // latched for the rest of the shot
   int32_t rateX100 = 0;     // clamped q-hat
   int32_t rawX100 = 0;      // unclamped q-hat
+  int32_t onsetMs = 0;      // first drop; surge baselines need a full window after it
 
   void reset() {
     const bool latched = channeling;
+    const int32_t onset = onsetMs;
     *this = RateEstimator{};
     channeling = latched;
+    onsetMs = onset;
   }
 
   uint8_t index(uint8_t age) const {
@@ -271,14 +274,16 @@ struct RateEstimator {
   }
 
   // Predicate on consecutive accepted samples: q_raw >= 30 dg/s and >= 1.5x
-  // the q_raw at least 1 s earlier, which itself was >= 5 dg/s.
+  // the q_raw at least 1 s earlier, which itself was >= 5 dg/s over a window
+  // wholly after the first drop (the onset ramp is not a surge).
   void updateChanneling() {
     bool surge = false;
     if (valid && rawX100 >= CHANNELING_RATE_X100) {
       for (uint8_t age = 1; age < count; ++age) {
         const uint8_t i = index(age);
         if (atMs[i] > atMs[head] - CHANNELING_LOOKBACK_MS) continue;
-        surge = rawRateX100[i] != NO_RATE && rawRateX100[i] >= CHANNELING_BASE_RATE_X100 &&
+        surge = atMs[i] - RATE_WINDOW_MS >= onsetMs && rawRateX100[i] != NO_RATE &&
+                rawRateX100[i] >= CHANNELING_BASE_RATE_X100 &&
                 static_cast<int64_t>(rawX100) * 2 >= static_cast<int64_t>(rawRateX100[i]) * 3;
         break;
       }
@@ -340,6 +345,7 @@ inline ArrivalVerdict arrivalVerdict(const Params &p, int32_t cutMs, int32_t rat
     if (shift > ARRIVAL_CLAMP_MS) shift = ARRIVAL_CLAMP_MS;
     if (shift < -ARRIVAL_CLAMP_MS) shift = -ARRIVAL_CLAMP_MS;
     out.arrivalMs = cutMs + static_cast<int32_t>(shift);
+    if (out.arrivalMs <= 0) return ArrivalVerdict{};  // before the shot: no arrival
   }
   out.verdict = out.arrivalMs < p.fastBeforeMs - VERDICT_DEAD_BAND_MS ? Verdict::FAST
               : out.arrivalMs > p.slowAfterMs + VERDICT_DEAD_BAND_MS ? Verdict::SLOW

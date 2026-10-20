@@ -106,7 +106,9 @@ statistics over when you save.
 
 If the flow suddenly surges during a shot — at least 3 g/s and half again
 faster than a second earlier, seen on two readings in a row — ShotStopper
-treats it as channeling. For the rest of that shot the cut line never rises
+treats it as channeling. The flow building up right after the first drops
+never counts as a surge, so fast, high-flow recipes are not mistaken for
+channeling. For the rest of that shot the cut line never rises
 above the target, so a channeling shot is not run longer. The last shot card
 shows **CHANNELING**, and the shot does not count toward the recent-shot
 statistics, grind hints or the scale-loss backup.

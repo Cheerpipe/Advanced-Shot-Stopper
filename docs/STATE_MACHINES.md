@@ -154,8 +154,10 @@ suspend the wall or the circuit limit.
 After drip delay, history records captured values and whether learning applied.
 The drip offset learns from weight cuts on any segment, against the cut line at
 the stop (observation = offset used + final − f(t_cut)); channeling, manual,
-time/safety-limit, A→M and cup-removal outcomes cannot adjust it or its
-candidate evidence.
+time/safety-limit, A→M and cup-removal outcomes, and cuts without a valid flow
+estimate (no q·τ lead), cannot adjust it or its candidate evidence. The
+channeling surge baseline must lie a full estimator window after the first
+drop.
 EWMA reuses the accepted final observation and additionally requires fresh weight,
 valid baseline and matching connection provenance. Control updates only the
 originating preset/algorithm generation. Reset or deletion invalidates pending

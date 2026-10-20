@@ -2,9 +2,10 @@
 bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
                      bool postDripWeightValid) {
   // r learns from weight cuts only (target, raised or lowered segment),
-  // never from channeling, scale loss, the wall or a manual stop.
+  // never from channeling, scale loss, the wall or a manual stop, nor from a
+  // cut without a valid rate (no q x tau lead, so the error is not drip).
   if (pendingFinalizeIsRinse(snapshot) || !snapshot.offsetAnalysis ||
-      snapshot.channeling ||
+      snapshot.channeling || snapshot.rateAtStopX100 == 0 ||
       !corridor::weightCutReason(static_cast<uint8_t>(snapshot.endReason))) {
     return false;
   }

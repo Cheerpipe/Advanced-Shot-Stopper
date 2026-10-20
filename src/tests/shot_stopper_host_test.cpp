@@ -468,6 +468,7 @@ void preparePendingBbwForTest() {
   pendingFinalize.bbwAlpha = preset.bbwEwmaAlpha;
   pendingFinalize.bbwLearningGeneration = bbwLearningBank.forPreset(
       preset.id, presetBank).generation;
+  pendingFinalize.rateAtStopX100 = 2000;  // a valid rate at the cut
 }
 
 void verifySafetyInvariants() {
@@ -2087,6 +2088,7 @@ void bbw01_snapshots_and_isolated_finalization() {
     schedulePendingShotFinalize(reason, 30000);
     session.active = false;
     pendingFinalize.dripDelayMs = 0;
+    pendingFinalize.rateAtStopX100 = 2000;  // cut with a valid rate
     const uint8_t origin = preset.id;
     const float used = pendingFinalize.weightOffsetG;
     CHECK(pendingFinalize.bbwAlpha == 50);
@@ -19824,6 +19826,34 @@ void fw02_offset_learns_below_sensor_lag() {
                 fmaxf(0.0f, 0.20f + (preset.bbwEwmaAlpha / 100.0f) *
                                         (finalG - 36.0f))) < 0.005f);
   }
+  // A cut without a valid rate had no q x tau lead: its error is not drip.
+  preset.bbwEwmaOffsetG = 0.20f;
+  preparePendingBbwForTest();
+  pendingFinalize.weightOffsetG = 0.20f;
+  pendingFinalize.rateAtStopX100 = 0;
+  currentWeight = 37.0f;
+  ++currentWeightSequence;
+  currentWeightReceivedAtMs = ++hostMillis;
+  CHECK(!learnPendingBbw(pendingFinalize, currentWeight, true));
+  CHECK(preset.bbwEwmaOffsetG == 0.20f);
+}
+
+void rt24_late_cup_step_uses_shot_coordinates() {
+  // After a failed start tare the trajectory is software-zeroed: the same
+  // 300 g cup set back down over 5 g of coffee is not a late-cup step.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  shot.startMs = hostMillis;
+  shot.datapoints = 0;
+  for (int i = 0; i < 10; ++i) {
+    shot.timeS[shot.datapoints] = 1.0f + 0.1f * i;
+    shot.weight[shot.datapoints++] = 4.0f + 0.1f * i;
+  }
+  const uint32_t placementStartedAtMs = shot.startMs + 2100;
+  session.softwareZeroG = 300.0f;
+  CHECK(!cupPlacementIsStep(305.2f, placementStartedAtMs));
+  session.softwareZeroG = 0.0f;
+  CHECK(cupPlacementIsStep(305.2f, placementStartedAtMs));  // A real new cup.
 }
 
 void ff19_foreign_generation_cannot_latch_first_drop() {
@@ -22018,6 +22048,7 @@ const TestCase testCases[] = {
     {"RT20", rt20_late_combined_start_does_not_rearm_when_cup_absent},
     {"RT22", rt22_inshot_coffee_ramp_is_not_a_late_cup},
     {"RT23", rt23_late_cup_before_first_drop_retares},
+    {"RT24", rt24_late_cup_step_uses_shot_coordinates},
     {"RT21", rt21_empty_pan_at_cycle_start_resyncs_stuck_present},
     {"RS01", rs01_fast_samples_wait_for_min_duration},
     {"RS02", rs02_slow_samples_meet_min_duration_at_third_sample},

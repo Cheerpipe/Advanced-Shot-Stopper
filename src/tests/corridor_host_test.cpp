@@ -409,6 +409,38 @@ void testChanneling() {
   w = 0;
   for (int32_t t = 0; t <= 8000; t += 200) steady.push(t, w += 12);
   CHECK(!steady.channeling);
+  // A 5 g/s onset after 3 s of empty pan looks like a surge to a window that
+  // still holds the empty pan; baselines after the first drop do not.
+  for (const int32_t onset : {0, 3000}) {
+    RateEstimator fast;
+    fast.onsetMs = onset;
+    w = 0;
+    for (int32_t t = 0; t <= 9000; t += 200) fast.push(t, t > 3000 ? w += 10 : w);
+    CHECK(fast.channeling == (onset == 0));
+  }
+  // A real mid-shot surge after the onset is still latched.
+  RateEstimator late;
+  late.onsetMs = 2000;
+  w = 0;
+  for (int32_t t = 0; t <= 14000; t += 200)
+    late.push(t, t > 2000 ? w += (t <= 8000 ? 3 : 12) : w);
+  CHECK(late.channeling);
+}
+
+void testNegativeArrival() {
+  // A raised-segment cut early in the shot projects its arrival before t = 0:
+  // no arrival is recorded instead of a wrapped one.
+  Params p;
+  p.goalDg = 360;
+  p.fastMarginDg = 60;
+  p.fastOn = true;
+  p.delayMs = 500;
+  p.fastBeforeMs = 27000;
+  p.slowAfterMs = 36000;
+  p.wallMs = 50000;
+  CHECK(arrivalVerdict(p, 2000, 2000).verdict == Verdict::UNCLASSIFIED);
+  const ArrivalVerdict later = arrivalVerdict(p, 6000, 2000);
+  CHECK(later.verdict == Verdict::FAST && later.arrivalMs == 3000);
 }
 
 void testVerdictPacking() {
@@ -692,6 +724,7 @@ int main() {
   testSolverAgainstBruteForce();
   testEstimator();
   testChanneling();
+  testNegativeArrival();
   testVerdictPacking();
   testHintVectors();
   testGrindHintReplay();
