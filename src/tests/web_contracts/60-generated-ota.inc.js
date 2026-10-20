@@ -773,7 +773,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The drip chart ten-shot window (ten slots, bbw ring in the status snapshot) measures records.js at 14830; owner-requested 2026-10-20.
 // Stats consistency thresholds as a share of the average (pure model, units per data, floor/cap scale, slots) measure records.js at 15041, with settings.js gzip wobble from the shared text table at 16807; owner-requested 2026-10-20.
 // The Stats charts reading the firmware's newest-10 window measure records.js at 15096; owner-requested 2026-10-20.
-const viewModuleBudgets = {records: 15096, diagnostic: 13801, admin: 14229, settings: 16807, setup: 5793};
+// The Diagnostic Heap min waiting text measures diagnostic.js at 13827 and moves records.js to 15097 through shared text table gzip wobble; owner-requested 2026-10-20.
+const viewModuleBudgets = {records: 15097, diagnostic: 13827, admin: 14229, settings: 16807, setup: 5793};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);

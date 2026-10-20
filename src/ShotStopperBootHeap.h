@@ -58,6 +58,9 @@ static_assert(sizeof(BootHeapCapture) <= 768, "Boot heap capture exceeds its PSR
 inline TaskMutex bootHeapMutex;
 inline SHOT_STOPPER_PSRAM_BSS BootHeapCapture bootHeapCapture;
 inline std::atomic<bool> bootHeapSampling{false};
+// True while the boot shaper block is held; the reported heap minimum starts
+// at its release, so health publishes UINT32_MAX (not yet measured) until then.
+inline std::atomic<bool> bootHeapReserveHeld{false};
 
 inline BootHeapRecord sampleBootHeap(uint32_t now, const HeapCapSnapshot &heap) {
   BootHeapRecord record;

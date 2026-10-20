@@ -645,7 +645,11 @@ no hold, 45,056 / ~41,000 at 52 KiB, 59,392 / 39,828 at 68 KiB, 63,488 /
 36,492–39,828 at 72 KiB and 65,536 / 28,152–29,820 at 76 KiB; larger holds also
 shrink the side blocks while held. 68 KiB is the largest hold that keeps the
 lifetime minimum on its plateau. The lifetime minimum includes the held block,
-so the no-hold figure is not lost capacity.
+so the no-hold figure is not lost capacity. For that reason the published heap
+minimum restarts at the release (ESP-IDF local minimum monitoring): health,
+the Home stream and the Diagnostic page report `UINT32_MAX` (shown as waiting
+for startup to settle) while the block is held, and the sweep figures above are
+startup watermarks, not comparable to post-release readings.
 Zero skips allocation and records `disabled`,
 then starts the 60-second post-release window immediately. The reduced WS task
 stack still requires target qualification.

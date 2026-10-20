@@ -296,6 +296,7 @@
     "diagnostic.heap": "HEAP",
     "diagnostic.heap_largest": "Heap largest",
     "diagnostic.heap_min": "Heap min",
+    "diagnostic.heap_min_pending": "Waiting for startup to settle",
     "diagnostic.idle": "Idle",
     "diagnostic.info": "Info",
     "diagnostic.invalid_export": "Invalid export",

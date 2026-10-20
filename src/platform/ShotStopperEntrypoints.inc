@@ -101,7 +101,9 @@ void healthWorkerTask(void *) {
       if (sample.version == 0) sample.version = ++version;
       sample.sampledAtMs = now;
 #ifndef SHOT_STOPPER_HOST_TEST
+      const bool reserveHeld = bootHeapReserveHeld.load();
       sample.heap = sampleHeapCaps();
+      if (reserveHeld) sample.heap.internalMinimum = UINT32_MAX;
       sample.heapValid = true;
       const ShotStopperBleHealth ble = shotStopperBleRuntimeHealth(false);
       sample.bleRuntimeState = static_cast<uint8_t>(ble.state);

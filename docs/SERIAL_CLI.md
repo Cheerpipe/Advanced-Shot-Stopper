@@ -224,8 +224,10 @@ The report includes `postWindowMs` and `wsWindowMs`. These minima combine
 stage samples and sampling by the
 health task at approximately 100 ms intervals. Brief dips between samples can
 be missed. `samples=0` means the phase has no measurements, not zero available
-memory. The lifetime minimum shown by `HEAP` and `HEALTH` is preserved and may
-combine region minima reached at different times. Without a reservation,
+memory. The heap minimum shown by `HEAP` and `HEALTH` is measured from the
+reservation release onward and may combine region minima reached at different
+times. While the reservation is held, `HEALTH` reports `heapMinFree=4294967295`
+(not yet measured) and `HEAP` shows the allocator's startup watermark. Without a reservation,
 `held_min` has no samples and `post_min` includes initialization, so compare
 matching stage rows as well as the minima.
 
