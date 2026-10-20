@@ -321,22 +321,17 @@ void setup() {
   applyLiveBleEnabled(!firmwareCompatibilityMode() &&
                       bleScanPersistedSettings.enabled != 0);
   if (settingsLoaded) {
-    // A factory reset stores defaults with an empty bank: quick start too.
-    freshSettings = freshSettings || persistedSettings.presets.count == 0;
     runtimeConfig = persistedSettings.runtime;
     bullseyeMelodyConfig = persistedSettings.bullseyeMelody;
     presetBank = persistedSettings.presets;
     ensureShotPresetBank(presetBank, runtimeConfig.retareWindowMs,
                          runtimeConfig.autoRetare);
     addMissingManualShotPreset(presetBank);
-    // A fresh install quick starts its presets; an upgrade without the record
-    // leaves every tuned drip alone.
-    if (freshSettings) {
-      bbwQuickStart = armedQuickStart(presetBank);
+    QuickStartRecord storedQuickStart;
+    if (bootQuickStart(bbwQuickStart, freshSettings, persistedSettings.presets.count,
+                       presetBank,
+                       loadQuickStart(storedQuickStart) ? &storedQuickStart : nullptr))
       stageBbwQuickStart();
-    } else if (!loadQuickStart(bbwQuickStart)) {
-      bbwQuickStart = QuickStartRecord{};
-    }
     // Earlier firmware could save a controller-wide Manual; stop mode now
     // follows the active preset only.
     runtimeConfig.timerOnly = !activeShotPreset(presetBank).brewByWeight;

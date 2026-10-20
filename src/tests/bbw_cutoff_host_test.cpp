@@ -232,6 +232,17 @@ int main() {
     assert(memcmp(loaded.entries, record.entries, sizeof(record.entries)) == 0);
     loaded.checksum ^= 1;
     assert(!validQuickStart(loaded));
+    // Boot: fresh install and factory reset arm; an upgrade without a record
+    // stays off; a normal boot keeps the stored record.
+    QuickStartRecord booted;
+    assert(bootQuickStart(booted, true, 5, bank, &record));
+    assert(memcmp(&booted, &fresh, sizeof(booted)) == 0);
+    assert(bootQuickStart(booted, false, 0, bank, &record));
+    assert(memcmp(&booted, &fresh, sizeof(booted)) == 0);
+    assert(!bootQuickStart(booted, false, 5, bank, nullptr));
+    for (const QuickStartEntry &entry : booted.entries) assert(entry.state == 0);
+    assert(!bootQuickStart(booted, false, 5, bank, &record));
+    assert(memcmp(&booted, &record, sizeof(booted)) == 0);
     // Status JSON: no markers, an empty history and a buffer too small.
     ControlStatusFields fields;
     char json[256];

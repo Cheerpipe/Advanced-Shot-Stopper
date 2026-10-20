@@ -106,6 +106,18 @@ inline QuickStartRecord armedQuickStart(const ShotPresetBank &bank) {
   return record;
 }
 
+// Boot: a fresh install, or a factory reset (stored with an empty bank),
+// quick starts every factory preset and returns true (the record must be
+// saved); otherwise the stored record, or all off without one, so an upgrade
+// never jumps a drip the owner already tuned.
+inline bool bootQuickStart(QuickStartRecord &out, bool freshSettings,
+                           uint8_t storedPresetCount, const ShotPresetBank &bank,
+                           const QuickStartRecord *stored) {
+  const bool arm = freshSettings || storedPresetCount == 0;
+  out = arm ? armedQuickStart(bank) : stored != nullptr ? *stored : QuickStartRecord{};
+  return arm;
+}
+
 // Records one eligible observation (offset used + final − cut line, raw) of an
 // armed preset and returns true; jumpCg becomes the median when the third one
 // agrees with the other two (the deciding shot then skips its EWMA step).
