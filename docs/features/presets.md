@@ -32,7 +32,8 @@ Select **Save preset** to keep your edits; the line beside it reads
 On Home, the **Presets** section lists the recipes as rows: the active one is
 marked with a filled circle and expands to show how it cuts, for example
 **Before 27 s · Fast · up to 42 g**, **27–36 s · On recipe · 36 g** and
-**After 36 s · Slow · down to 33 g**. Below these lines, a small chart shows
+**After 36 s · Slow · down to 33 g**. Tap the arrow under these lines to open
+a small chart, and tap it again to fold the chart away. The chart shows
 the same cut line over the shot, the colored fast, on-recipe and slow zones,
 the opening seconds where weight never stops the shot, and dots where your
 recent shots on that preset reached the target. Drag along it to

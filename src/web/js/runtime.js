@@ -2723,11 +2723,7 @@ function renderHomePresetAccordion() {
       name.className = "presetAccName";
       const badge = document.createElement("span");
       badge.className = "presetAccBadge";
-      const chev = document.createElement("span");
-      chev.className = "presetAccChev";
-      chev.setAttribute("aria-hidden", "true");
-      chev.textContent = "\u25be";
-      head.append(dot, name, badge, chev);
+      head.append(dot, name, badge);
       const panel = document.createElement("div");
       panel.className = "presetAccPanel";
       const panelIn = document.createElement("div");
@@ -2742,13 +2738,20 @@ function renderHomePresetAccordion() {
       readout.className = "presetAccReadout";
       const start = document.createElement("p");
       start.className = "presetAccStart";
-      panelIn.append(rows, graph, readout, start);
+      // The graph, its readout and pace note stay folded under a chevron.
+      const t = __WEBUI_TEXT__("runtime.preset_graph");
+      panelIn.innerHTML = `<div class="presetAccMore"><div></div></div><button type="button" class="presetAccToggle" title="${t}" aria-label="${t}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>`;
+      panelIn.firstChild.firstChild.append(graph, readout, start);
+      panelIn.prepend(rows);
+      panelIn.lastChild.onclick = (e) => (e.currentTarget.ariaExpanded = item.classList.toggle("full"));
       panel.appendChild(panelIn);
       item.append(head, panel);
       el.appendChild(item);
     }
     const head = item.firstChild;
     item.classList.toggle("open", active);
+    if (!active) item.classList.remove("full");
+    item.querySelector(".presetAccToggle").ariaExpanded = item.classList.contains("full");
     head.setAttribute("aria-expanded", active);
     head.disabled = !active && !canSelect;
     head.classList.toggle("locked", head.disabled);

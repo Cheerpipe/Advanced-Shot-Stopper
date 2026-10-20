@@ -40,7 +40,10 @@ if (firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)'
     css.includes('.ruleSeg') || css.includes('.ruleChartTrack') ||
     css.includes('.ruleTable') ||
     !css.includes('.presetAccItem.open .presetAccDot') ||
-    !css.includes('.presetAccPanel{display:grid;grid-template-rows:0fr') ||
+    !css.includes('.presetAccPanel,.presetAccMore{display:grid;grid-template-rows:0fr') ||
+    !css.includes('.presetAccItem.full .presetAccToggle svg{transform:rotate(180deg)}') ||
+    !codeIncludes(ui, 'e.currentTarget.ariaExpanded = item.classList.toggle("full")') ||
+    !codeIncludes(ui, 'if (!active) item.classList.remove("full")') ||
     !css.includes('.guardFast i{background:var(--gFast)}') ||
     !css.includes('.guardBbw i{background:var(--ok)}') ||
     !css.includes('.guardSlow i{background:var(--gSlow)}') ||

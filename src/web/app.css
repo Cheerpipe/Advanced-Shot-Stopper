@@ -636,11 +636,12 @@ html:not(.theme-light) :is(.qwSheet,#actionsPanel){box-shadow:0 -8px 28px rgba(0
 .presetAccHead .presetAccName{font:inherit;font-weight:700;font-size:.9375rem;min-width:0}
 .presetAccItem.open .presetAccName{color:var(--pri)}
 .presetAccBadge{flex:none;margin-left:auto;font-size:.68rem;color:var(--mu);text-transform:uppercase}
-.presetAccChev{font-size:.7rem;color:var(--mu);transition:transform .25s cubic-bezier(.32,.72,.32,1)}
-.presetAccItem.open .presetAccChev{transform:rotate(180deg)}
-.presetAccPanel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s cubic-bezier(.32,.72,.32,1)}
-.presetAccItem.open .presetAccPanel{grid-template-rows:1fr}
-.presetAccPanelIn{overflow:hidden}
+.presetAccPanel,.presetAccMore{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s cubic-bezier(.32,.72,.32,1)}
+.presetAccItem.open .presetAccPanel,.presetAccItem.full .presetAccMore{grid-template-rows:1fr}
+.presetAccPanelIn,.presetAccMore>div{overflow:hidden}
+.presetAccToggle{display:grid;place-items:center;width:100%;height:1.5rem;margin-top:-.5rem;padding:0;border:0;background:none;color:var(--mu);cursor:pointer}
+.presetAccToggle svg{width:1.35rem;height:1.35rem;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;transition:transform .25s cubic-bezier(.32,.72,.32,1)}
+.presetAccItem.full .presetAccToggle svg{transform:rotate(180deg)}
 .presetAccRows{padding:.15rem .6rem .5rem}
 .guardRow{display:grid;grid-template-columns:6.5rem 1fr;gap:.6rem;align-items:baseline;padding:.5rem 0;border-top:1px solid var(--ln)}
 .presetAccRows .guardRow:first-child{border-top:0}

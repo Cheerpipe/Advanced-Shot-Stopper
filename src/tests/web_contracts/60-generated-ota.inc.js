@@ -571,8 +571,9 @@ if (generated.jsGzip.length > 7330) {
 // The Stats shot card cut and drip delay cells in a reflowed grid measure 15464 bytes; owner-requested 2026-10-20.
 // The Stats consistency columns (band, columns, edges, level tones) measure 15681 bytes; owner-requested 2026-10-20.
 // The Stats consistency clipped-column notch measures 15691 bytes; owner-requested 2026-10-20.
-if (generated.cssGzip.length > 15691) {
-  throw new Error(`Compressed Web CSS exceeds the 15691-byte gzip budget (${generated.cssGzip.length})`);
+// The Home preset rules peek and its graph chevron measure 15742 bytes; owner-requested 2026-10-20.
+if (generated.cssGzip.length > 15742) {
+  throw new Error(`Compressed Web CSS exceeds the 15742-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -965,8 +966,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Stats consistency columns' shared CSS brings it to 67047 (67032 under test web); owner-requested 2026-10-20.
 // The drip chart ten-slot window measures Cold Home at 67051; owner-requested 2026-10-20.
 // The Stats consistency clipped-column notch CSS brings it to 67062; owner-requested 2026-10-20.
-if (coldHomeGzip > 67062) {
-  throw new Error(`Cold Home download exceeds the 67062-byte gzip budget (${coldHomeGzip})`);
+// The Home preset rules peek and its graph chevron bring it to 67235; owner-requested 2026-10-20.
+if (coldHomeGzip > 67235) {
+  throw new Error(`Cold Home download exceeds the 67235-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

@@ -949,6 +949,7 @@
     "runtime.preset_created": "Preset created.",
     "runtime.preset_deleted": "Preset deleted.",
     "runtime.preset_duplicated": "Preset duplicated.",
+    "runtime.preset_graph": "Preset graph",
     "runtime.preset_meta": "{0} → {1} g · 1:{2} · {3}–{4} s",
     "runtime.preset_renamed": "Preset renamed.",
     "runtime.preset_saved": "Preset saved.",
