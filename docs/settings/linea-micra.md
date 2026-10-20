@@ -35,8 +35,9 @@ has no Linea Micra — and the password field is ready for another try. The
 password is cleared after every attempt.
 
 Before an account is connected, only the sign-in form is shown. Once a machine
-is selected, the form is replaced by the connected machine — its name, serial
-number and account email, a coloured status pill, and the **Disconnect** button. A short note confirms that the recommended
+is selected, the form is replaced by the connected machine — its name and
+serial number with a **(Change)** link, a coloured status pill, and your
+account email with a **(Disconnect)** link. A short note confirms that the recommended
 options are on; it goes away as soon as you change one of them.
 
 The status pill shows the most important thing to know right now:
@@ -75,7 +76,7 @@ The options are grouped under **Machine power**, **Scale automations** and
 adjust what you want and choose **Save La Marzocco settings**. The button and
 the revert button next to it are available only while there are unsaved
 changes, and **Unsaved changes** marks them. **Sign in**, **Use this machine**,
-**Change machine** and **Disconnect** act immediately and are not part of that save.
+**(Change)** and **(Disconnect)** act immediately and are not part of that save.
 
 The four options that rely on **Show power state** are listed under it. When
 **Show power state** is off they are dimmed and can't be changed, but keep
@@ -83,21 +84,20 @@ their choices.
 
 ### Change machine
 
-If your La Marzocco account has more than one Linea Micra, the connected view
-also offers **Change machine**. Choose it to see the account's machines again,
-pick the one this controller should follow, and select **Use this machine**.
+Choose **(Change)** next to the selected machine to see the machines on your
+La Marzocco account, pick the one this controller should follow, and select
+**Use this machine**.
 You don't need to sign in again, and your option choices carry over to the new
 machine. Until you confirm, the controller keeps working with the machine it
 already has; **Cancel** takes you back without changing anything.
 
-After a restart, the controller doesn't yet know how many machines the account
-has. The first time you open this section, it asks La Marzocco's cloud on its
-own, using the account it's already signed in with, so **Change machine** may
-appear a few seconds later. Nothing about your selected machine changes. Accounts with a single Linea Micra never see it.
+If your account has only one Linea Micra, the list shows just that machine and
+there is nothing to change. The controller asks La Marzocco for your machines
+only when you choose **(Change)**; opening Settings never does it on its own.
 
 ### Disconnect
 
-Choose **Disconnect** to remove the saved credentials and selected machine and
+Choose **(Disconnect)** next to your account email to remove the saved credentials and selected machine and
 stop cloud checks; the sign-in form returns. Your option choices are kept for
 the next connection. Saving options does not sign in again, validate the cloud
 account, or reload the machine list. A very long machine name is shortened to

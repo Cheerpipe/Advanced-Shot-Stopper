@@ -522,9 +522,6 @@ function applyLineaMicraStatus(s) {
     $("lineaMicraShutdownGrace").value = String(m.shutdownGraceSeconds || 0);
   }
   R.uiState.micraChange = changing;
-  // After a restart the machine count is unknown: list once, quietly.
-  if (connected && !m.accountMachineCount && canEdit && !offline && !R.uiState.micraListed)
-    R.uiState.micraListed = R.command("/api/v1/machine/linea-micra", { action: "relist" }, false, "", "");
   // A lone listed machine is saved with the options above, once per page;
   // if that fails the choice pane takes over.
   if (connected) R.uiState.micraSignIn = null;
@@ -606,7 +603,6 @@ function applyLineaMicraStatus(s) {
   pill.dataset.tone = tone;
   pill.title = error;
   $("lineaMicraDisconnectButton").disabled = !canEdit;
-  $("lineaMicraChangeButton").hidden = m.accountMachineCount < 2;
   $("lineaMicraChangeButton").disabled = !canEdit || offline;
   for (const id of MICRA_SWITCHES) $("lineaMicra" + id).disabled = !canEdit;
   updateMicraDependentControls();

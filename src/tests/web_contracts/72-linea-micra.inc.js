@@ -516,7 +516,7 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
   get('lineaMicraSteps').children = [node(), node(), node()];
   const steps = () => get('lineaMicraSteps').children.map(li => li.className).join();
   const context = vm.createContext({__LINEA_MICRA__: true, $: get, controlsMutable: true,
-    micraDirty: false, micraSignIn: null, micraChange: false, micraListed: true, micraPoll: 0,
+    micraDirty: false, micraSignIn: null, micraChange: false, micraPoll: 0,
     refreshStatus: () => {}, setTimeout: () => { polls++; return 1; },
     lineaMicraAction: async action => { commands.push({action}); return actionOk; },
     document: {documentElement: {classList: {toggle() {}}}, createElement() {
@@ -637,19 +637,20 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     vm.runInContext('updateMicraDependentControls()', context);
     assert(get('lineaMicraShutdownGraceWrap').classes.has('hidden') && get('lineaMicraShutdownGrace').disabled);
 
-    // Change machine is offered only when the account has several machines.
+    // Change machine is always offered; the account is listed only on demand.
     const handler = id => vm.runInContext('(' + rawViewJs.settings.match(
         new RegExp(`\\$\\("${id}"\\)\\.onclick = ([\\s\\S]*?);\\n  if \\(`))[1]
         .replace(/\bR\.(?:uiState\.)?/g, '') + ')', context);
     commands.length = 0;
+    apply({...connected, accountMachineCount: 0});
     apply({...connected, accountMachineCount: 1});
-    assert(get('lineaMicraChangeButton').hidden, 'A single-machine account never sees Change machine');
-    context.micraListed = false;
-    apply({...connected, accountMachineCount: 0});
-    apply({...connected, accountMachineCount: 0});
-    assert.deepStrictEqual(commands, [{url: '/api/v1/machine/linea-micra', body: {action: 'relist'}}],
-        'After a restart the machine count is listed once, quietly');
-    assert(get('lineaMicraChangeButton').hidden);
+    assert.deepStrictEqual(commands, [], 'Opening Settings never lists the account on its own');
+    assert(!get('lineaMicraChangeButton').hidden && !get('lineaMicraChangeButton').disabled);
+    await handler('lineaMicraChangeButton')();
+    apply({...connected, machineListError: 'none', machines: [{serial: 'ABC', name: 'Micra'}]});
+    assert.strictEqual(panes(), 'Choose', 'A single-machine account still sees its machine listed');
+    handler('lineaMicraCancelButton')();
+    assert.strictEqual(panes(), 'Connected');
     const several = {...connected, accountMachineCount: 2, machineListError: 'none'},
       listed = {...several, machines: [{serial: 'ABC', name: 'Micra'}, {serial: 'DEF', name: 'Other'}]};
     apply(several);
