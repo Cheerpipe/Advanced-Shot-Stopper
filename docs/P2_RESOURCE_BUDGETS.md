@@ -649,7 +649,10 @@ so the no-hold figure is not lost capacity. For that reason the published heap
 minimum restarts at the release (ESP-IDF local minimum monitoring): health,
 the Home stream and the Diagnostic page report `UINT32_MAX` (shown as waiting
 for startup to settle) while the block is held, and the sweep figures above are
-startup watermarks, not comparable to post-release readings.
+startup watermarks, not comparable to post-release readings. The debug export
+also keeps the minimum reached before the release as
+`minimumFreeHeapBeforeReleaseBytes`, and the Diagnostic page shows it beside
+the post-release figure in the Heap min row.
 Zero skips allocation and records `disabled`,
 then starts the 60-second post-release window immediately. The reduced WS task
 stack still requires target qualification.

@@ -61,6 +61,8 @@ inline std::atomic<bool> bootHeapSampling{false};
 // True while the boot shaper block is held; the reported heap minimum starts
 // at its release, so health publishes UINT32_MAX (not yet measured) until then.
 inline std::atomic<bool> bootHeapReserveHeld{false};
+// Internal heap minimum reached before the release (UINT32_MAX until then).
+inline std::atomic<uint32_t> bootHeapHeldMinimum{UINT32_MAX};
 
 inline BootHeapRecord sampleBootHeap(uint32_t now, const HeapCapSnapshot &heap) {
   BootHeapRecord record;

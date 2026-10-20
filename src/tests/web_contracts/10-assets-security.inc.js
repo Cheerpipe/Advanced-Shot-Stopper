@@ -885,8 +885,9 @@ if (htmlBytes > 93300) {
 // Stats consistency thresholds as a share of each preset's average (pure model, units per data, floor/cap scale, fixed slots, clipped outliers): +1072 bytes (478691), owner-requested 2026-10-20.
 // The Stats charts reading the firmware's newest-10 window (compact recent list mapped to chart rows): +362 bytes (479053), owner-requested 2026-10-20.
 // Diagnostic Heap min waiting text while the boot heap shaper holds its block: +82 bytes (479135), owner-requested 2026-10-20.
-if (jsBytes > 479135) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 479135)`);
+// Diagnostic Heap min showing the minimum before and after the boot heap shaper release: +140 bytes (479275), owner-requested 2026-10-20.
+if (jsBytes > 479275) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 479275)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1021,8 +1022,9 @@ if (jsBytes > 479135) {
 // Stats consistency thresholds as a share of each preset's average: 570929, owner-requested 2026-10-20.
 // The Stats charts reading the firmware's newest-10 window: 571291, owner-requested 2026-10-20.
 // Diagnostic Heap min waiting text while the boot heap shaper holds its block: 571359, owner-requested 2026-10-20.
-if (htmlBytes + jsBytes > 571359) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 571359)`);
+// Diagnostic Heap min before and after the boot heap shaper release: 571513, owner-requested 2026-10-20.
+if (htmlBytes + jsBytes > 571513) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 571513)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

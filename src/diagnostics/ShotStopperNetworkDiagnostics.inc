@@ -595,7 +595,8 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            "\"healthSnapshotValid\":%s,"
            "\"loopStackMinWords\":%lu,"
            "\"scaleStackMinWords\":%lu,\"freeHeapBytes\":%lu,"
-           "\"minimumFreeHeapBytes\":%lu,\"largestFreeHeapBlockBytes\":%lu,"
+           "\"minimumFreeHeapBytes\":%lu,\"minimumFreeHeapBeforeReleaseBytes\":%lu,"
+           "\"largestFreeHeapBlockBytes\":%lu,"
            "\"internalHeapAllocatedBlocks\":%lu,"
            "\"internalHeapFreeBlocks\":%lu,\"internalHeapTotalBlocks\":%lu,"
            "\"internalHeapFragmentationPermille\":%u,"
@@ -630,6 +631,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<unsigned long>(c.scaleStackMinBytes),
            static_cast<unsigned long>(c.freeHeapBytes),
            static_cast<unsigned long>(c.minimumFreeHeapBytes),
+           static_cast<unsigned long>(bootHeapHeldMinimum.load()),
            static_cast<unsigned long>(c.largestFreeHeapBlockBytes),
            static_cast<unsigned long>(c.internalHeapAllocatedBlocks),
            static_cast<unsigned long>(c.internalHeapFreeBlocks),

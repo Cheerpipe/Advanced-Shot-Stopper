@@ -583,6 +583,8 @@ void ShotStopperNetwork::releaseHeapShaper(BootHeapResult reason) {
   heapCapsFree(heapShaperBlock_);
   heapShaperBlock_ = nullptr;
   heapShaperReleased_ = true;
+  bootHeapHeldMinimum.store(static_cast<uint32_t>(
+      heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)));
   (void)heap_caps_monitor_local_minimum_free_size_start();
   bootHeapReserveHeld.store(false);
   recordBootHeap(BootHeapStage::RELEASE_AFTER, reason, millis());
