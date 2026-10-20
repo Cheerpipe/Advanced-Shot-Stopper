@@ -13,6 +13,9 @@ struct HomeStreamDelta {
     if (std::isfinite(value)) field(path, "%.1f", static_cast<double>(value));
     else field(path, "null");
   }
+  void field(const char *path, unsigned long value) __attribute__((noinline)) {
+    field(path, "%lu", value);
+  }
 
   void field(const char *path, const char *format, ...) __attribute__((format(printf, 3, 4))) {
     if (!ok || index >= capacity) { ok = false; return; }
@@ -72,7 +75,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   }
   unlocked |= session.fromSoftAp;
   delta.field("firmwareVersion", "\"%s\"", FW_VERSION);
-  delta.field("bootId", "%lu", static_cast<unsigned long>(control.bootId));
+  delta.field("bootId", static_cast<unsigned long>(control.bootId));
   delta.field("configMutable", bool(controlAllowsConfiguration(control)));
   delta.field("snapshotStale", bool(control.snapshotStale));
   delta.field("webUiOverrideActive", bool(override));
@@ -82,7 +85,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("compatibilityMode", bool(firmwareCompatibilityMode()));
   delta.field("adminUnlocked", bool(unlocked));
   delta.field("development", bool(DEVELOPMENT_BUILD));
-  delta.field("lastCommand.requestId", "%lu", static_cast<unsigned long>(network.lastCommandRequestId));
+  delta.field("lastCommand.requestId", static_cast<unsigned long>(network.lastCommandRequestId));
   delta.field("lastCommand.state", "\"%s\"", commandResultStateName(network.lastCommandState));
   const auto &config = control.config;
   const auto clock = g_wallClock.snapshot(millis());
@@ -93,16 +96,16 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   }
   int16_t timezoneOffset = 0;
   timeZoneOffsetAtOrUtc(config.timezoneId, clock.utcSec, timezoneOffset);
-  delta.field("timeUtcSec", "%lu", static_cast<unsigned long>(session.homeClockUtc));
+  delta.field("timeUtcSec", static_cast<unsigned long>(session.homeClockUtc));
   delta.field("config.appliedTimezoneOffsetMinutes", "%d", static_cast<int>(timezoneOffset));
-  delta.field("config.revision", "%lu", static_cast<unsigned long>(config.revision));
+  delta.field("config.revision", static_cast<unsigned long>(config.revision));
   delta.field("config.timezoneId", "\"%s\"", config.timezoneId);
   delta.field("config.timezoneAutomatic", bool(config.timezoneAutomatic));
   delta.field("config.timezoneInitialized", bool(durableTimezoneSaved().load()));
   delta.field("config.soundAlertsEnabled", !bool(config.soundAlertsMuted));
   delta.field("config.brewByWeight", !bool(config.timerOnly));
   delta.field("config.goalWeightG", goalWeightDgToGrams(config.goalWeightDg));
-  delta.field("config.operationalWallMs", "%lu", static_cast<unsigned long>(config.operationalWallMs));
+  delta.field("config.operationalWallMs", static_cast<unsigned long>(config.operationalWallMs));
   delta.field("config.fastBeforeS", config.fastBeforeMs / 1000.0f);
   delta.field("config.slowAfterS", config.slowAfterMs / 1000.0f);
   delta.field("config.fastMarginG", goalWeightDgToGrams(config.fastMarginDg));
@@ -119,7 +122,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("config.rinseEnabled", bool(config.rinseEnabled));
   delta.field("quickRevert.after", "\"%s\"", quickRevertPolicyId(control.quickRevertPolicy));
   delta.field("quickRevert.overrides", "%u", static_cast<unsigned>(control.quickOverrideMask));
-  delta.field("quickRevert.remainingS", "%lu", static_cast<unsigned long>((control.quickRevertRemainingMs + 999) / 1000));
+  delta.field("quickRevert.remainingS", static_cast<unsigned long>((control.quickRevertRemainingMs + 999) / 1000));
   delta.field("state", "\"%s\"", stopperStateName(control.state));
   delta.field("stateLabel", "\"%s\"", stateLabel(control.state));
   delta.field("machineState", "\"%s\"", machineRunStateName(control.machineRunState));
@@ -141,7 +144,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
     delta.field("scale.observedWeightG", control.currentWeightG);
   else delta.field("scale.observedWeightG", "null");
   if (control.scaleAvailable && control.currentTimerValid)
-    delta.field("scale.timerMs", "%lu", static_cast<unsigned long>(control.currentTimerMs / 100 * 100));
+    delta.field("scale.timerMs", static_cast<unsigned long>(control.currentTimerMs / 100 * 100));
   else delta.field("scale.timerMs", "null");
   if (callbacks_.copyScaleHistory) callbacks_.copyScaleHistory(g_work->scaleHistory);
   else memset(&g_work->scaleHistory, 0, sizeof(g_work->scaleHistory));
@@ -154,7 +157,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("scale.preferredName", "\"%s\"", g_work->historyJson);
   // Whole-second ceiling (UI resolution): the delta hash must change only
   // when the displayed countdown does, not on every stream tick.
-  delta.field("scale.macCachePauseRemainingMs", "%lu",
+  delta.field("scale.macCachePauseRemainingMs",
               static_cast<unsigned long>((control.scaleMacCachePauseRemainingMs + 999U) / 1000U * 1000U));
   delta.field("connections.wifiConnected", bool(network.staState == StaState::CONNECTED));
   delta.field("connections.wifiLevel", "%s", connectionSignalLevelJson(
@@ -180,7 +183,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("cupPresence.accessoryG",
               tare.accessoryState == AccessoryState::PRESENT ? tare.accessoryG : NAN);
   delta.field("cupPresence.anchorDeltaG", tare.anchorDeltaG);
-  delta.field("cupPresence.anchorWaitS", "%lu", static_cast<unsigned long>(tare.anchorWaitMs / 1000U));
+  delta.field("cupPresence.anchorWaitS", static_cast<unsigned long>(tare.anchorWaitMs / 1000U));
   delta.field("cycle.active", bool(control.activeCycle));
   delta.field("cycle.shotType", "\"%s\"", activeCycleShotTypeLabel(control));
   delta.field("cycle.extractionExtended", bool(control.cycleExtractionExtended));
@@ -194,7 +197,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("noScaleShotGuard.mode", "\"%s\"", noScaleBbwModeId(config.noScaleBbwMode));
   // Whole-minute ceiling (UI resolution): an hour-long cooldown must not wake
   // the idle stream on every tick.
-  delta.field("noScaleShotGuard.cooldownRemainingMs", "%lu",
+  delta.field("noScaleShotGuard.cooldownRemainingMs",
               static_cast<unsigned long>((control.noScaleShotGuardCooldownRemainingMs + 59999U) / 60000U * 60000U));
   delta.field("noScaleShotGuard.scaleUsable", bool(control.scaleAvailable && control.weightStreamState == WeightStreamState::FRESH));
   if (callbacks_.copyPresetBank) callbacks_.copyPresetBank(&g_work->presetBank);
@@ -246,14 +249,14 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
               lineaMicraReadinessName(lineaMicraReadiness(micra)));
   delta.field("lineaMicra.boiler.coffee.state", "\"%s\"",
               lineaMicraBoilerStateName(micra.coffeeBoiler));
-  delta.field("lineaMicra.boiler.coffee.readyAtUtcSec", "%lu",
+  delta.field("lineaMicra.boiler.coffee.readyAtUtcSec",
               static_cast<unsigned long>(micra.coffeeReadyAtUtcSec));
   // 0 when the machine has not reported a brew target; the Home row hides it.
   delta.field("lineaMicra.boiler.coffee.targetDeciC", "%u",
               static_cast<unsigned>(micra.targetValid ? micra.targetDeciC : 0));
   delta.field("lineaMicra.boiler.steam.state", "\"%s\"",
               lineaMicraBoilerStateName(micra.steamBoiler));
-  delta.field("lineaMicra.boiler.steam.readyAtUtcSec", "%lu",
+  delta.field("lineaMicra.boiler.steam.readyAtUtcSec",
               static_cast<unsigned long>(micra.steamReadyAtUtcSec));
 #else
   delta.field("machineIntegration", "\"none\"");
@@ -340,8 +343,8 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   delta.field("backflush.ready", bool(control.backflushReady));
   delta.field("backflush.unresolved", bool(control.backflushUnresolved));
   delta.field("backflush.stopReason", "\"%s\"", control.backflushStopReason);
-  delta.field("backflush.hardLimitMs", "%lu", static_cast<unsigned long>(control.safetyHardLimitMs));
-  delta.field("backflush.remainingMs", "%lu", static_cast<unsigned long>(control.safetyRemainingMs));
+  delta.field("backflush.hardLimitMs", static_cast<unsigned long>(control.safetyHardLimitMs));
+  delta.field("backflush.remainingMs", static_cast<unsigned long>(control.safetyRemainingMs));
   delta.field("cupPresence.state", "\"%s\"", control.scaleAvailable
       ? cupPresenceStateName(control.cupPresenceState) : "UNKNOWN");
   delta.field("cupPresence.present", bool(control.cupPresent));
@@ -366,12 +369,11 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   else delta.field("scale.rssi", "null");
   if (control.weightStreamState == WeightStreamState::FRESH &&
       control.scaleWeightUpdateIntervalMs != 0)
-    delta.field("scale.weightUpdateIntervalMs", "%lu",
+    delta.field("scale.weightUpdateIntervalMs",
                 static_cast<unsigned long>(control.scaleWeightUpdateIntervalMs));
   else delta.field("scale.weightUpdateIntervalMs", "null");
   if (control.scaleAvailable && control.currentTimerValid)
-    delta.field("scale.timerMs", "%lu",
-                static_cast<unsigned long>(control.currentTimerMs / 100 * 100));
+    delta.field("scale.timerMs", static_cast<unsigned long>(control.currentTimerMs / 100 * 100));
   else delta.field("scale.timerMs", "null");
   // Same observed-then-current preference and null gating as the Home stream.
   if (control.scaleAvailable && control.observedWeightValid && std::isfinite(control.observedWeightG))
@@ -391,13 +393,13 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
                     sizeof(safeConnectedFriendly));
   delta.field("scale.connectedMac", "\"%s\"", safeConnectedMac);
   delta.field("scale.connectedFriendlyName", "\"%s\"", safeConnectedFriendly);
-  delta.field("scale.packetGaps", "%lu", static_cast<unsigned long>(control.scalePacketGaps));
-  delta.field("scale.maxPacketGapMs", "%lu", static_cast<unsigned long>(control.scaleMaxPacketGapMs));
-  delta.field("scale.rejectedPackets", "%lu", static_cast<unsigned long>(control.scaleRejectedPackets));
-  delta.field("scale.reconnects", "%lu", static_cast<unsigned long>(control.scaleReconnects));
-  delta.field("scale.eventsDropped", "%lu", static_cast<unsigned long>(control.scaleEventsDropped));
-  delta.field("scale.recoveredStaleCount", "%lu", static_cast<unsigned long>(control.scaleRecoveredStaleCount));
-  delta.field("scale.recoveredStaleMs", "%lu", static_cast<unsigned long>(control.scaleRecoveredStaleMs));
+  delta.field("scale.packetGaps", static_cast<unsigned long>(control.scalePacketGaps));
+  delta.field("scale.maxPacketGapMs", static_cast<unsigned long>(control.scaleMaxPacketGapMs));
+  delta.field("scale.rejectedPackets", static_cast<unsigned long>(control.scaleRejectedPackets));
+  delta.field("scale.reconnects", static_cast<unsigned long>(control.scaleReconnects));
+  delta.field("scale.eventsDropped", static_cast<unsigned long>(control.scaleEventsDropped));
+  delta.field("scale.recoveredStaleCount", static_cast<unsigned long>(control.scaleRecoveredStaleCount));
+  delta.field("scale.recoveredStaleMs", static_cast<unsigned long>(control.scaleRecoveredStaleMs));
   delta.field("scale.lastDisconnectReasonName", "\"%s\"",
               scaleDisconnectReasonName(control.scaleLastDisconnectReason));
   const ScaleBleDiagnostics &ble = control.scaleBleDiagnostics;
@@ -460,11 +462,11 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
     delta.field("lineaMicra.sampleValid", bool(sampleValid));
     // Whole seconds: the UI renders integer age and interpolates locally, so
     // a raw millisecond age would force one frame every dispatch tick.
-    delta.field("lineaMicra.sampleAgeMs", "%lu",
+    delta.field("lineaMicra.sampleAgeMs",
                 static_cast<unsigned long>(micra.sampleAtMs == 0 ? 0 : static_cast<uint32_t>(millis() - micra.sampleAtMs) / 1000 * 1000));
     delta.field("lineaMicra.freshnessPolicy", "\"%s\"",
                 micra.connectionFreshness ? "connection" : "time");
-    delta.field("lineaMicra.freshnessMs", "%lu",
+    delta.field("lineaMicra.freshnessMs",
                 static_cast<unsigned long>(micra_timing::kStateFreshnessMs));
     delta.field("lineaMicra.readiness", "\"%s\"",
                 lineaMicraReadinessName(lineaMicraReadiness(micra)));
@@ -472,17 +474,17 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
                 lineaMicraBoilerStateName(micra.coffeeBoiler));
     delta.field("lineaMicra.boiler.coffee.targetDeciC", "%u",
                 static_cast<unsigned>(micra.targetDeciC));
-    delta.field("lineaMicra.boiler.coffee.readyAtUtcSec", "%lu",
+    delta.field("lineaMicra.boiler.coffee.readyAtUtcSec",
                 static_cast<unsigned long>(micra.coffeeReadyAtUtcSec));
     delta.field("lineaMicra.boiler.steam.state", "\"%s\"",
                 lineaMicraBoilerStateName(micra.steamBoiler));
     delta.field("lineaMicra.boiler.steam.level", "\"%s\"",
                 lineaMicraSteamLevelName(micra.steamLevel));
-    delta.field("lineaMicra.boiler.steam.readyAtUtcSec", "%lu",
+    delta.field("lineaMicra.boiler.steam.readyAtUtcSec",
                 static_cast<unsigned long>(micra.steamReadyAtUtcSec));
     // Whole seconds, like sampleAgeMs: the browser interpolates the boiler
     // age and estimate countdowns locally instead of costing delta frames.
-    delta.field("lineaMicra.boiler.sampleAgeMs", "%lu",
+    delta.field("lineaMicra.boiler.sampleAgeMs",
                 static_cast<unsigned long>(micra.temperatureAtMs == 0
                     ? 0
                     : static_cast<uint32_t>(millis() - micra.temperatureAtMs) / 1000 * 1000));
@@ -533,12 +535,11 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
       timeZoneOffsetAtOrUtc(config.timezoneId, timeStatus.lastSyncUtcSec,
                             lastSyncTimezoneOffset);
   delta.field("firmwareVersion", "\"%s\"", FW_VERSION);
-  delta.field("bootId", "%lu", static_cast<unsigned long>(control.bootId));
+  delta.field("bootId", static_cast<unsigned long>(control.bootId));
   delta.field("adminUnlocked", bool(unlocked));
   delta.field("diagnosticPublic", true);
   delta.field("development", bool(DEVELOPMENT_BUILD));
-  delta.field("lastCommand.requestId", "%lu",
-              static_cast<unsigned long>(network.lastCommandRequestId));
+  delta.field("lastCommand.requestId", static_cast<unsigned long>(network.lastCommandRequestId));
   delta.field("lastCommand.state", "\"%s\"",
               commandResultStateName(network.lastCommandState));
   delta.field("config.serialLogLevel", "\"%s\"",
@@ -555,16 +556,14 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
               static_cast<int>(lastSyncTimezoneOffset));
   delta.field("config.lastSyncOffsetKnown", bool(lastSyncOffsetKnown));
   delta.field("maintenance.active", bool(control.maintenanceLeaseActive));
-  delta.field("maintenance.leaseId", "%lu",
-              static_cast<unsigned long>(control.maintenanceLeaseId));
+  delta.field("maintenance.leaseId", static_cast<unsigned long>(control.maintenanceLeaseId));
   delta.field("maintenance.persistPending", bool(control.configPersistPending));
   delta.field("maintenance.persistFailed", bool(control.configPersistFailed));
   delta.field("time.state", "\"%s\"", timeSyncStateName(timeStatus.state));
   char safeServer[80] = {};
   sanitizeJsonEmbed(timeStatus.activeServer, safeServer, sizeof(safeServer));
   delta.field("time.activeServer", "\"%s\"", safeServer);
-  delta.field("time.lastSyncUtcSec", "%lu",
-              static_cast<unsigned long>(timeStatus.lastSyncUtcSec));
+  delta.field("time.lastSyncUtcSec", static_cast<unsigned long>(timeStatus.lastSyncUtcSec));
   char safeStaSsid[80] = {}, safeApSsid[80] = {};
   sanitizeJsonEmbed(network.iface.staSsid, safeStaSsid, sizeof(safeStaSsid));
   sanitizeJsonEmbed(network.iface.apSsid, safeApSsid, sizeof(safeApSsid));
@@ -583,7 +582,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   delta.field("network.ipMode", "\"%s\"", staIpModeName(network.staIpMode));
   delta.field("network.configState", "\"%s\"", staConfigStateName(network.staConfigState));
   // Whole seconds: the UI ceils the remaining window for display.
-  delta.field("network.confirmRemainingMs", "%lu",
+  delta.field("network.confirmRemainingMs",
               static_cast<unsigned long>(network.confirmRemainingMs / 1000 * 1000));
   {
     const CrashArchiveStatus crash = crashArchiveStatus();
@@ -635,7 +634,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
     delta.field("guards.noScale.armed", bool(control.noScaleShotGuardArmed));
     delta.field("guards.noScale.hold", bool(control.noScaleShotGuardHold));
     delta.field("guards.noScale.mode", "\"%s\"", noScaleBbwModeId(config.noScaleBbwMode));
-    delta.field("guards.noScale.cooldownRemainingMs", "%lu",
+    delta.field("guards.noScale.cooldownRemainingMs",
                 static_cast<unsigned long>(control.noScaleShotGuardCooldownRemainingMs / 60000 * 60000));
     delta.field("guards.noScale.scaleWasAvailable",
                 bool(control.noScaleShotGuardScaleWasAvailable));
@@ -643,7 +642,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
     delta.field("scaleLoss.projectedS", control.autoToManualGuardTrendMs / 1000.0f);
     delta.field("guards.atm.armed", bool(control.cycleAutoToManualGuardArmed));
     delta.field("guards.atm.enforced", bool(control.cycleAutoToManualGuardEnforced));
-    delta.field("guards.atm.remainingMs", "%lu",
+    delta.field("guards.atm.remainingMs",
                 static_cast<unsigned long>(control.cycleAutoToManualGuardRemainingMs / 1000 * 1000));
     delta.field("guards.slowExtraction.enabled", bool(config.slowSideEnabled));
     delta.field("guards.slowExtraction.extended", bool(control.cycleSlowExtractionExtended));
@@ -655,7 +654,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
     delta.field("guards.fastExtraction.targetReachedEarly", bool(control.cycleTargetReachedEarly));
     delta.field("guards.fastExtraction.activeStopWeightG",
                 static_cast<float>(control.cycleActiveStopWeightG));
-    delta.field("guards.fastExtraction.minBbwBrewTimeRemainingMs", "%lu",
+    delta.field("guards.fastExtraction.minBbwBrewTimeRemainingMs",
                 static_cast<unsigned long>(control.cycleMinBbwBrewTimeRemainingMs / 1000 * 1000));
     delta.field("guards.accidentalTouch.enabled", bool(config.avoidAccidentalTouchEnabled));
     delta.field("guards.accidentalTouch.holding", bool(control.cycleAccidentalTouchHolding));
@@ -688,24 +687,19 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
         "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":false,\"changes\":{",
         static_cast<unsigned long>(control.bootId));
     // Whole seconds: the uptime renderer shows seconds.
-    telemetry.field("health.uptimeMs", "%lu",
-                    static_cast<unsigned long>(control.uptimeMs / 1000 * 1000));
-    telemetry.field("health.loopMaxGapMs", "%lu",
-                    static_cast<unsigned long>(control.loopMaxGapMs));
-    telemetry.field("health.minimumFreeHeapBytes", "%lu",
+    telemetry.field("health.uptimeMs", static_cast<unsigned long>(control.uptimeMs / 1000 * 1000));
+    telemetry.field("health.loopMaxGapMs", static_cast<unsigned long>(control.loopMaxGapMs));
+    telemetry.field("health.minimumFreeHeapBytes",
                     static_cast<unsigned long>(control.minimumFreeHeapBytes));
-    telemetry.field("health.minimumFreeHeapBeforeReleaseBytes", "%lu",
+    telemetry.field("health.minimumFreeHeapBeforeReleaseBytes",
                     static_cast<unsigned long>(bootHeapHeldMinimum.load()));
-    telemetry.field("health.largestFreeHeapBlockBytes", "%lu",
+    telemetry.field("health.largestFreeHeapBlockBytes",
                     static_cast<unsigned long>(control.largestFreeHeapBlockBytes));
-    telemetry.field("health.psramSizeBytes", "%lu",
-                    static_cast<unsigned long>(control.psramSizeBytes));
-    telemetry.field("health.psramFreeBytes", "%lu",
-                    static_cast<unsigned long>(control.psramFreeBytes));
-    telemetry.field("health.psramLargestFreeBlockBytes", "%lu",
+    telemetry.field("health.psramSizeBytes", static_cast<unsigned long>(control.psramSizeBytes));
+    telemetry.field("health.psramFreeBytes", static_cast<unsigned long>(control.psramFreeBytes));
+    telemetry.field("health.psramLargestFreeBlockBytes",
                     static_cast<unsigned long>(control.psramLargestFreeBlockBytes));
-    telemetry.field("safety.resetReasonCode", "%lu",
-                    static_cast<unsigned long>(control.resetReasonCode));
+    telemetry.field("safety.resetReasonCode", static_cast<unsigned long>(control.resetReasonCode));
     {
       const NetworkHeapTelemetrySnapshot networkHeap = heapTelemetrySnapshot();
       const HeapLifecycleAggregate webhookHeap = webhooks_.heapTelemetry();
@@ -744,19 +738,15 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
     telemetry.field("health.hwmon.cpu1Busy", "%.2f",
                     static_cast<double>(hwmon.cpu1Busy));
     telemetry.field("health.hwmon.cpuLoadValid", bool(hwmon.cpuLoadValid));
-    telemetry.field("health.hwmon.cpuMhz", "%lu",
-                    static_cast<unsigned long>(hwmon.cpuMhz));
+    telemetry.field("health.hwmon.cpuMhz", static_cast<unsigned long>(hwmon.cpuMhz));
     telemetry.field("health.hwmon.tempValid", bool(hwmon.tempValid));
     telemetry.field("health.hwmon.tempC", "%.1f",
                     static_cast<double>(hwmon.tempC));
     telemetry.field("health.hwmon.tempPeakC", "%.1f",
                     static_cast<double>(hwmon.tempPeakC));
-    telemetry.field("health.hwmon.ramTotalBytes", "%lu",
-                    static_cast<unsigned long>(hwmon.ramTotalBytes));
-    telemetry.field("health.hwmon.ramUsedBytes", "%lu",
-                    static_cast<unsigned long>(hwmon.ramUsedBytes));
-    telemetry.field("health.hwmon.ramFreeBytes", "%lu",
-                    static_cast<unsigned long>(hwmon.ramFreeBytes));
+    telemetry.field("health.hwmon.ramTotalBytes", static_cast<unsigned long>(hwmon.ramTotalBytes));
+    telemetry.field("health.hwmon.ramUsedBytes", static_cast<unsigned long>(hwmon.ramUsedBytes));
+    telemetry.field("health.hwmon.ramFreeBytes", static_cast<unsigned long>(hwmon.ramFreeBytes));
     // Steady-state RSSI sits behind the 1 s sampler; 4 s display matches the
     // retired poll. Link edges still land immediately via the EVENT fields.
     if (network.staLinkMetricsValid)
@@ -814,8 +804,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
       sanitizeJsonEmbed(ws.reason, safeReason, sizeof(safeReason));
       escapeJsonString(ws.cleaningLabel, safeCleaningLabel, sizeof(safeCleaningLabel));
       // Whole seconds: the UI derives ages from nowMs locally.
-      telemetry.field("lineaMicra.websocket.nowMs", "%lu",
-                      static_cast<unsigned long>(now / 1000 * 1000));
+      telemetry.field("lineaMicra.websocket.nowMs", static_cast<unsigned long>(now / 1000 * 1000));
       telemetry.field("lineaMicra.websocket.state", "\"%s\"", micraSocketStateName(ws.state));
       telemetry.field("lineaMicra.websocket.reason", "\"%s\"", safeReason);
       telemetry.field("lineaMicra.websocket.subscribed", bool(ws.subscribed));

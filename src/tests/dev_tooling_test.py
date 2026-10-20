@@ -468,12 +468,12 @@ partition_contracts = {
         "flash": 0x1000000,
         "rows": {"nvs": (0x9000, 0x15000), "otadata": (0x1E000, 0x2000),
                  "app0": (0x20000, 0x300000), "app1": (0x320000, 0x300000),
-                 "shotcurve": (0x63E000, 0xCC000),
-                 "shotlog": (0x62E000, 0x8000),
                  "history": (0x636000, 0x8000),
                  "scaleprof": (0x70A000, 0x41000),
                  "auditlog": (0x74B000, 0x10000),
-                 "ffat": (0x75B000, 0x6A5000),
+                 "shotlog": (0x75B000, 0x1E000),
+                 "shotcurve": (0x779000, 0x3EC000),
+                 "ffat": (0xB65000, 0x29B000),
                  "coredump": (0xE00000, 0xA0000),
                  "crashhist": (0xEA0000, 0x160000)},
     },
@@ -489,8 +489,8 @@ for filename, contract in partition_contracts.items():
         assert offset + size <= next_offset, f"partition overlap in {filename}"
     last_offset, last_size = ordered[-1][1]
     assert last_offset + last_size == contract["flash"]
-    assert rows["shotcurve"][1] == 816 * 1024, "shot-curve partition changed"
-    assert rows["shotlog"][1] == 32 * 1024, "shot-log partition changed"
+    assert rows["shotcurve"][1] == 4016 * 1024, "shot-curve partition changed"
+    assert rows["shotlog"][1] == 120 * 1024, "shot-log partition changed"
     assert rows["history"][1] == 32 * 1024, "activation-history partition changed"
     assert rows["scaleprof"][1] == 0x41000, "scale-profile partition changed"
 

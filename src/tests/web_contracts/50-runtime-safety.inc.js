@@ -252,7 +252,7 @@ if (network.includes('page == StatusPage::Diagnostic')) {
       throw new Error('diagnostic stream missing required field: ' + field);
     }
   }
-  if (!diagRegion.includes('delta.field("guards.atm.remainingMs", "%lu",') ||
+  if (!diagRegion.includes('delta.field("guards.atm.remainingMs",') ||
       !diagRegion.includes('/ 1000 * 1000') ||
       !diagRegion.includes('/ 60000 * 60000') ||
       !diagRegion.includes('kDiagSlowMs') ||
