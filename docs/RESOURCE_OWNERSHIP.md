@@ -190,8 +190,11 @@ while the TCP handshake is still pending, so the header write waits up to
 500 ms for it (longer under Wi-Fi modem sleep) and returns as soon as the
 socket connects; the `HEADERS_SENT` event restores the 25 ms interval. The
 absolute 1800 ms deadline also rejects a late successful return.
-Interrupted, possibly dispatched POSTs are dropped without replay; unsent
-canceled events remain pending. `webhook_worker_host_test.cpp`
+Unsent canceled events remain pending without consuming an attempt. Any other
+failure, including an interrupted possibly dispatched POST, is resent after
+3, 6, and 9 s while it holds the queue head (receivers deduplicate identical
+payloads); `test` events, invalid requests, and HTTP 4xx other than 408/429
+are dropped at once. `webhook_worker_host_test.cpp`
 executes this worker with deterministic queue, transport and heap injection,
 including stale configuration and an active shot beginning during delivery.
 These tests establish ordering and accounting, not target CPU or RF latency.

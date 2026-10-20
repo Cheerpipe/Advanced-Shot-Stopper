@@ -18,6 +18,18 @@ static shotstopper::HeapCapSnapshot injectedHeapSample() {
 #define sampleHeapCaps injectedHeapSample
 #include "../ShotStopperWebhook.cpp"
 #undef sampleHeapCaps
+#include <cstdarg>
+
+static std::vector<std::string> logLines;
+void serialTraceCategoryf(shotstopper::LogLevel, shotstopper::DebugCategory,
+                          const char *fmt, ...) {
+  char line[256];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(line, sizeof(line), fmt, args);
+  va_end(args);
+  logLines.emplace_back(line);
+}
 
 namespace shotstopper {
 struct WebhookDispatcherTest {
@@ -30,7 +42,7 @@ struct WebhookDispatcherTest {
     WebhookDispatcher::QueuedWebhook item;
     item.event.type = WebhookEventType::TEST;
     item.configGeneration = d.configGeneration_ - (stale ? 1 : 0);
-    return d.send(item);
+    return d.send(item, 0) == WebhookDispatcher::SendOutcome::DELIVERED;
   }
   static void stopOnNextIteration(WebhookDispatcher &d) {
     d.workerState_ = WebhookDispatcher::WorkerState::STOPPING;
@@ -53,6 +65,7 @@ static WebhookConfig config(bool enabled, bool deferDuringShot = false) {
 }
 static void resetPlatform() {
   workerTrace.clear();
+  logLines.clear();
   afterReceive = afterTimeout = afterDelay = duringPerform = {};
   workerNow = samples = 0;
   heapFree = 1000;
@@ -433,6 +446,41 @@ static void testIntegrationPayloads() {
   assert(WebhookDispatcherTest::payload(d, event, payload, sizeof(payload)));
   assert(strstr(payload, "\"type\":\"backflush\"") != nullptr);
 }
+static void testFailedDeliveryRetriesWithBackoff() {
+  for (unsigned scenario = 0; scenario != 3; ++scenario) {
+    resetPlatform();
+    WebhookDispatcher d;
+    assert(d.begin(config(true)));
+    WebhookEvent event;
+    event.type = WebhookEventType::END;
+    assert(d.enqueue(event));
+    // 0: recovers on the last retry; 1: every attempt fails; 2: permanent 404.
+    httpResult = scenario == 2 ? ESP_OK : ESP_FAIL;
+    httpStatus = scenario == 2 ? 404 : 200;
+    std::vector<uint32_t> attempts;
+    duringPerform = [&] {
+      attempts.push_back(workerNow);
+      if (scenario == 0 && attempts.size() == 4) httpResult = ESP_OK;
+    };
+    afterTimeout = [&] { WebhookDispatcherTest::stopOnNextIteration(d); };
+    WebhookDispatcherTest::run(d);
+    const unsigned expected = scenario == 2 ? 1 : 4;
+    assert(attempts.size() == expected);
+    for (unsigned i = 1; i < attempts.size(); ++i)
+      assert(attempts[i] - attempts[i - 1] >= i * 3000U &&
+             attempts[i] - attempts[i - 1] < i * 3000U + 100U);
+    assert(d.status().sent == (scenario == 0 ? 1U : 0U));
+    assert(d.status().dropped == (scenario == 0 ? 0U : 1U));
+    assert(logLines.size() == (scenario == 2 ? 1U : 4U));
+    assert(logLines.front().find("attempt 1/4") != std::string::npos);
+    const char *last = scenario == 0 ? "delivered on attempt 4/4"
+        : scenario == 1 ? "attempt 4/4 failed" : "http=404";
+    assert(logLines.back().find(last) != std::string::npos);
+    if (scenario != 0) assert(logLines.back().find("next=drop") != std::string::npos);
+    if (scenario != 2) assert(logLines.front().find("next=retry retryInS=3") != std::string::npos);
+    assert(d.stop());
+  }
+}
 int main() {
   testSamplingAndAccounting();
   testTimeoutHasNoSecondSleep();
@@ -449,4 +497,5 @@ int main() {
   testBootHintWaitsForSta();
   testSecretWebhookEndpointRedacted();
   testIntegrationPayloads();
+  testFailedDeliveryRetriesWithBackoff();
 }

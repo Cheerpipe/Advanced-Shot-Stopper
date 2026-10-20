@@ -12,10 +12,10 @@
 #include <WiFi.h>
 #include <esp_http_client.h>
 #include <esp_mac.h>
+#endif
 void serialTraceCategoryf(shotstopper::LogLevel level,
                           shotstopper::DebugCategory category,
                           const char *fmt, ...);
-#endif
 
 namespace shotstopper {
 namespace {
@@ -33,6 +33,10 @@ constexpr int kWebhookPollMs = 25;
 // modem sleep); HEADERS_SENT restores the poll interval.
 constexpr int kWebhookHandshakeWaitMs = 500;
 constexpr uint32_t kWebhookStopTimeoutMs = 2500;
+// Backoff before each retry of a failed delivery, after the first attempt.
+constexpr uint32_t kWebhookRetryDelaysMs[] = {3000, 6000, 9000};
+constexpr uint8_t kWebhookAttempts =
+    1 + sizeof(kWebhookRetryDelaysMs) / sizeof(kWebhookRetryDelaysMs[0]);
 
 const char *eventName(WebhookEventType type) {
   switch (type) {
@@ -463,6 +467,8 @@ void WebhookDispatcher::taskEntry(void *parameter) {
 void WebhookDispatcher::task() {
   QueuedWebhook queued;
   bool haveQueued = false;
+  uint8_t failures = 0;
+  uint32_t failedAt = 0;
   for (;;) {
     mux_.lock();
     QueueHandle_t queue = queue_;
@@ -488,11 +494,16 @@ void WebhookDispatcher::task() {
     if (haveQueued && queued.event.type == WebhookEventType::CONTROLLER_STARTED &&
         WiFi.status() != WL_CONNECTED) {
       vTaskDelay(pdMS_TO_TICKS(25));
-    } else if (haveQueued && dispatchAllowed()) {
-      const bool delivered = send(queued);
-      const auto outcome = status();
-      haveQueued = !delivered && !outcome.lastDispatched &&
-          outcome.lastCancellation != WebhookCancellationReason::NONE;
+    } else if (haveQueued && dispatchAllowed() && (failures == 0 ||
+               millis() - failedAt >= kWebhookRetryDelaysMs[failures - 1])) {
+      const SendOutcome outcome = send(queued, failures);
+      haveQueued = outcome == SendOutcome::HELD || outcome == SendOutcome::RETRY;
+      if (outcome == SendOutcome::RETRY) {
+        ++failures;
+        failedAt = millis();
+      } else if (!haveQueued) {
+        failures = 0;
+      }
     } else if (haveQueued || !waitedForQueue) {
       vTaskDelay(pdMS_TO_TICKS(25));
     }
@@ -654,7 +665,8 @@ bool WebhookDispatcher::buildPayload(const WebhookEvent &event, char *output,
   return append("}");
 }
 
-bool WebhookDispatcher::send(const QueuedWebhook &queued) {
+WebhookDispatcher::SendOutcome WebhookDispatcher::send(
+    const QueuedWebhook &queued, uint8_t attempt) {
   WebhookConfig live;
   uint32_t generation = 0;
   mux_.lock();
@@ -666,7 +678,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
     ++status_.dropped;
     ++status_.staleConfigDropped;
     mux_.unlock();
-    return false;
+    return SendOutcome::DROPPED;
   }
   const HeapCapSnapshot heapBefore = sampleHeapCaps();
   const WebhookEvent &event = queued.event;
@@ -698,8 +710,9 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   int statusCode = 0;
   [[maybe_unused]] int transportErrno = 0;
   esp_err_t error = ESP_FAIL;
-  if (WiFi.status() == WL_CONNECTED && validWebhookUrl(live.url) &&
-      buildPayload(event, payload_, kWebhookPayloadCapacity)) {
+  const bool prepared = validWebhookUrl(live.url) &&
+      buildPayload(event, payload_, kWebhookPayloadCapacity);
+  if (WiFi.status() == WL_CONNECTED && prepared) {
     phase = WebhookRequestPhase::CLIENT;
     const uint32_t started = millis();
     const bool resolved = resolveHost(live.url, started, admitted);
@@ -770,16 +783,34 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
       completeOutboundAcquisitionPause(OutboundClient::WEBHOOK, millis());
   }
   const HeapCapSnapshot heapAfter = sampleHeapCaps();
-#if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
+  // Tests and malformed or rejected requests fail the same way every time.
+  // Receivers deduplicate an identical resent payload, so an unknown delivery
+  // is retried too.
+  const bool permanent = event.type == WebhookEventType::TEST || !prepared ||
+      (statusCode >= 400 && statusCode < 500 && statusCode != 408 && statusCode != 429);
+  const SendOutcome outcome = ok ? SendOutcome::DELIVERED
+      : !dispatched && cancellation != WebhookCancellationReason::NONE ? SendOutcome::HELD
+      : permanent || attempt + 1 >= kWebhookAttempts ? SendOutcome::DROPPED
+                                                     : SendOutcome::RETRY;
+  // Ring + serial, so release images surface failures in Diagnostic → Log.
   if (!ok) {
-    // Ring + serial, so release images surface failures in Diagnostic → Log.
-    serialTraceCategoryf(LogLevel::ERROR, DebugCategory::NETWORK,
-                         "webhook %s failed phase=%s cancel=%s http=%d err=0x%x errno=%d",
-                         eventName(event.type), webhookRequestPhaseName(phase),
-                         webhookCancellationReasonName(cancellation), statusCode,
-                         static_cast<unsigned>(error), transportErrno);
+    serialTraceCategoryf(
+        outcome == SendOutcome::DROPPED ? LogLevel::ERROR : LogLevel::WARNING,
+        DebugCategory::NETWORK,
+        "webhook %s attempt %u/%u failed phase=%s cancel=%s http=%d err=0x%x errno=%d next=%s retryInS=%lu",
+        eventName(event.type), attempt + 1U, static_cast<unsigned>(kWebhookAttempts),
+        webhookRequestPhaseName(phase), webhookCancellationReasonName(cancellation),
+        statusCode, static_cast<unsigned>(error), transportErrno,
+        outcome == SendOutcome::RETRY ? "retry"
+            : outcome == SendOutcome::HELD ? "held" : "drop",
+        outcome == SendOutcome::RETRY
+            ? static_cast<unsigned long>(kWebhookRetryDelaysMs[attempt] / 1000) : 0UL);
+  } else if (attempt != 0) {
+    serialTraceCategoryf(LogLevel::INFO, DebugCategory::NETWORK,
+                         "webhook %s delivered on attempt %u/%u",
+                         eventName(event.type), attempt + 1U,
+                         static_cast<unsigned>(kWebhookAttempts));
   }
-#endif
   mux_.lock();
   status_.sending = false;
   status_.lastSuccess = ok;
@@ -790,7 +821,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
   status_.lastDispatched = dispatched;
   status_.lastDeliveryUnknown = !ok && dispatched;
   if (ok) ++status_.sent;
-  else if (dispatched || cancellation == WebhookCancellationReason::NONE) ++status_.dropped;
+  else if (outcome == SendOutcome::DROPPED) ++status_.dropped;
   ++status_.heapSamples;
   status_.internalFreeBefore = heapBefore.internalFree;
   status_.internalFreeAfter = heapAfter.internalFree;
@@ -806,7 +837,7 @@ bool WebhookDispatcher::send(const QueuedWebhook &queued) {
                                         : HeapLifecycleResult::FAILURE,
                             heapAfter);
   mux_.unlock();
-  return ok;
+  return outcome;
 }
 
 }  // namespace shotstopper

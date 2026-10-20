@@ -341,6 +341,9 @@ class WebhookDispatcher {
     uint32_t configGeneration = 0;
   };
 
+  // HELD: cancelled before dispatch, resent once admitted without counting an
+  // attempt. RETRY: failed attempt, resent after the next backoff delay.
+  enum class SendOutcome : uint8_t { DELIVERED, HELD, RETRY, DROPPED };
   enum class WorkerState : uint8_t { STOPPED, STARTING, READY, STOPPING };
   enum class HostLookup : uint8_t { IDLE, PENDING, RESOLVED, FAILED };
 
@@ -348,7 +351,7 @@ class WebhookDispatcher {
   void releaseWorkerFromTask();
   static void taskEntry(void *parameter);
   void task();
-  bool send(const QueuedWebhook &queued);
+  SendOutcome send(const QueuedWebhook &queued, uint8_t attempt);
   esp_http_client_handle_t ensureHttpClient(const char *url);
   template <typename Admitted>
   bool resolveHost(const char *url, uint32_t started, Admitted admitted);

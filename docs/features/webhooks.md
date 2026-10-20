@@ -6,8 +6,8 @@ Assistant users should follow the [native integration guide](home-assistant.md)
 instead of configuring this page manually.
 
 Webhooks observe extraction activity. They cannot start or stop the machine.
-Delivery is best effort, uses plain HTTP, and has no retry queue, so it must not
-be used as a safety signal. Keep the controller and receiver on a trusted LAN.
+Delivery is best effort and uses plain HTTP, so it must not be used as a safety
+signal. Keep the controller and receiver on a trusted LAN.
 
 ## Configure a receiver
 
@@ -23,11 +23,16 @@ network traffic disrupts a sensitive scale connection; queued delivery may be
 delayed until the extraction ends. When that option is enabled, shot entry also interrupts an active delivery.
 Scale acquisition always pauses delivery, independently of this option, from
 the first eligible advertisement through setup and the Bluetooth quiet interval.
-Unsent events remain queued. An interrupted request may already have reached
-the receiver: diagnostics report an unknown delivery result, and the controller
-does not replay it automatically. A message that never reached the receiver,
-for example because its name could not be found or the connection was
-refused, is reported as not sent.
+Unsent events remain queued.
+
+If a message fails, the controller tries again 3, 6, and 9 seconds later before
+giving up, so a receiver that restarts or a brief Wi-Fi drop does not leave it
+out of date. Messages keep their order: later events wait until the retried one
+is delivered or dropped. A failed request may already have reached the
+receiver, so it can arrive twice; the copy is identical, so receivers can
+ignore the repeat. A receiver that rejects a message as invalid (an HTTP 4xx
+answer other than 408 or 429) is not retried, and neither is **Send test**,
+which always reports its first result.
 
 Each message opens a fresh connection, so receivers that close idle
 connections never cause a lost event. A receiver name such as
@@ -37,7 +42,9 @@ makes that message fail. For the most dependable delivery, reserve an IP
 address for the receiver on your router and use it in the URL.
 
 After a failed attempt, diagnostic status identifies the event, request phase,
-transport result, and HTTP status.
+transport result, and HTTP status. **Diagnostic → Log** records each failed
+attempt and whether it will be retried (**Warning**), each message that is
+finally dropped (**Error**), and a message that succeeds on a retry (**Info**).
 The recorded destination keeps only the scheme, host, port, and path; URL query
 values and credentials are never included in that diagnostic. Home Assistant
 webhook IDs in the path are hidden.
@@ -97,7 +104,7 @@ enumeration, security, and compatibility contract.
 
 | Symptom | Check |
 | --- | --- |
-| Test fails | Receiver address is HTTP, reachable from the controller, and listening on the configured port. With **Ring log level** set to **Error** under **Diagnostic → Log**, each failed message is recorded with the reason |
+| Test fails | Receiver address is HTTP, reachable from the controller, and listening on the configured port. With **Ring log level** set to **Warning** under **Diagnostic → Log**, each failed attempt and retry is recorded with the reason |
 | Messages fail with a receiver name but work with its IP address | The name is not resolvable from the controller's network; use the reserved IP address |
 | Test works but shots do not arrive | Webhooks and the required event selections are enabled |
 | Some measurements are absent | Optional measurements are omitted when the scale did not provide a valid value |

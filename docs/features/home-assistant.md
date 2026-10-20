@@ -234,8 +234,10 @@ logger:
 You can also check the controller directly. Open
 `http://<controller-address>/api/v1/integration/webhook` in a browser: the
 `delivery` section shows whether callbacks are being sent, held back, or
-failing, and why. To keep a record of failed callbacks, set **Ring log level**
-to **Error** under **Diagnostic → Log** in the Web UI.
+failing, and why. A failed callback is retried after 3, 6, and 9 seconds. To
+keep a record of failed attempts and retries, set **Ring log level** to
+**Warning** under **Diagnostic → Log** in the Web UI; **Error** keeps only the
+callbacks that were finally dropped.
 
 Generic receivers should use the separate [webhook guide](webhooks.md). The
 firmware protocol is documented in the [Integration API](../INTEGRATION_API.md).
