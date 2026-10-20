@@ -566,8 +566,9 @@ if (generated.jsGzip.length > 7330) {
 // The La Marzocco Cloud state pill and its four tones measure 14861 bytes; owner-requested 2026-10-18.
 // Home Equipment device icons, status badges and headline values measure 15007 bytes; owner-requested 2026-10-18.
 // The Home shot card's centred flow and its full-screen fit measure 15037 bytes; owner-requested 2026-10-19.
-if (generated.cssGzip.length > 15037) {
-  throw new Error(`Compressed Web CSS exceeds the 15037-byte gzip budget (${generated.cssGzip.length})`);
+// The Stats shot card drip cell and its shifted grid measure 15049 bytes; owner-requested 2026-10-20.
+if (generated.cssGzip.length > 15049) {
+  throw new Error(`Compressed Web CSS exceeds the 15049-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -760,7 +761,8 @@ if (generated.otaImageGzip.length > 3072) {
 // and adds 1 byte of gzip wobble to settings.js (15484, unchanged source); owner-requested 2026-10-18.
 // Gzip wobble from the Home Equipment icons and values (records.js, diagnostic.js and settings.js unchanged) measures 13608, 13801 and 15485; owner-requested 2026-10-18.
 // Gzip wobble from the Home hero always using the computed flow (settings.js unchanged) measures 15514; owner-authorized 2026-10-19.
-const viewModuleBudgets = {records: 13608, diagnostic: 13801, admin: 14229, settings: 15514, setup: 5789};
+// The Stats shot card drip cell measures records.js at 13660; owner-requested 2026-10-20.
+const viewModuleBudgets = {records: 13660, diagnostic: 13801, admin: 14229, settings: 15514, setup: 5789};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -944,8 +946,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Home shot card live flow averaged over its last second brings it to 66445; owner-requested 2026-10-19.
 // The Home shot card firmware clock in both scale modes with its ±0.1 s final swap brings it to 66520; owner-requested 2026-10-19.
 // Shot card field deltas merged over the previous card bring it to 66535; owner-requested 2026-10-20.
-if (coldHomeGzip > 66535) {
-  throw new Error(`Cold Home download exceeds the 66535-byte gzip budget (${coldHomeGzip})`);
+// The Stats shot card drip cell's shared CSS brings it to 66549; owner-requested 2026-10-20.
+if (coldHomeGzip > 66549) {
+  throw new Error(`Cold Home download exceeds the 66549-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

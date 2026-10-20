@@ -70,6 +70,11 @@ than the friendly-name limit is shortened to fit. **Late cup**, before
 when no late tare succeeded. Its chart label always uses one decimal, such
 as **3.0 s**. The initial shot-start tare is not a late tare.
 
+**Drip**, after the error, shows how much coffee kept dripping into the cup
+after the machine stopped: the settled yield minus the weight at the stop, such
+as **+1.6 g**. It shows **—** when the scale gave no settled reading after the
+drip delay, or when the shot's chart has no reading from the moment it stopped.
+
 If a late retare succeeds and a fresh reading confirms its new zero, an earlier
 first-drop time and marker are discarded. Later coffee can supply a new time
 and marker; without that replacement, first-drop time and **Avg flow** are

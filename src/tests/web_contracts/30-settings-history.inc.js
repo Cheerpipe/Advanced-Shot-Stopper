@@ -791,8 +791,8 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     !codeIncludes(js, "'shotDur'") ||
     !codeIncludes(js, "'shotActual'") ||
     !css.includes('#shotTable .shotDur,#shotTable .shotActual') ||
-    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate . ." "spark spark spark spark spark spark"') ||
-    !css.includes('#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate . ."}') ||
+    !css.includes('grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drip drip tare tare" "drop drop ended ended shot shot" "preset preset scale scale rate rate" "spark spark spark spark spark spark"') ||
+    !css.includes('#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drip drip tare tare" "drop drop ended ended shot shot" "preset preset scale scale rate rate"}') ||
     css.includes('grid-area:guard') ||
     css.includes('grid-area:ext') ||
     css.includes('grid-area:stop') ||
@@ -816,7 +816,7 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     codeIncludes(statsRuntimeJs, 'const live=!!((s.cycle&&s.cycle.active)||s.relayClosed)') ||
     !codeIncludes(statsRuntimeJs, 'drop=d.firstDropMs') ||
     !codeIncludes(statsRuntimeJs, 'formatShotEnded(r.stopDetail, r.verdict)') ||
-    !codeIncludes(js, "labels=['Date','Dur','Goal','Yield','Err%','Avg flow','Max flow','Late cup','1st drop','Ended','Shot','Preset','Scale'") ||
+    !codeIncludes(js, "labels=['Date','Dur','Goal','Yield','Err%','Drip','Avg flow','Max flow','Late cup','1st drop','Ended','Shot','Preset','Scale'") ||
     codeIncludes(js, "labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Ended','Shot']") ||
     codeIncludes(js, "labels=['Time','Dur','Goal','Actual','Err%','Flow','1st drop','Guard','Ext','Stop','Shot','Cut']") ||
     partialHtml.stats.includes('<th>Guard</th>') ||
@@ -825,6 +825,8 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     partialHtml.stats.includes('>Cut</th>') ||
     !partialHtml.stats.includes('<th>Ended</th>') ||
     !partialHtml.stats.includes('<th>Yield</th>') ||
+    !partialHtml.stats.includes('<th>Err%</th><th>Drip</th>') ||
+    !codeIncludes(statsRuntimeJs, 'r.actualWeightSource==="post_drip"') ||
     !partialHtml.stats.includes('<th>Avg flow</th>') ||
     !partialHtml.stats.includes('<th>Max flow</th>') ||
     !partialHtml.stats.includes('<th>Preset</th>') ||

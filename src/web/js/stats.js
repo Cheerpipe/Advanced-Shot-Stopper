@@ -678,6 +678,7 @@ function renderShots() {
       __WEBUI_TEXT__("runtime.goal"),
       __WEBUI_TEXT__("runtime.yield"),
       __WEBUI_TEXT__("runtime.err"),
+      __WEBUI_TEXT__("runtime.drip"),
       __WEBUI_TEXT__("runtime.avg_flow"),
       __WEBUI_TEXT__("runtime.max_flow"),
       __WEBUI_TEXT__("runtime.tare_time"),
@@ -695,8 +696,12 @@ function renderShots() {
         planned = r.cutLineG > 0 ? r.cutLineG : r.goalG;
       const errN = actual === null || !planned ? null : ((actual - planned) / planned) * 100;
       const err = errN === null ? "—" : errN.toFixed(1) + "%";
+      // Drip: the settled yield minus the last reading before the stop.
       const flow = shotDisplayFlowGS(r),
-        maxFlow = shotMaxFlowGS(r);
+        m = R.buildShotSparkModel(r),
+        maxFlow = m ? m.maxFlow : null,
+        cut = r.actualWeightSource === "post_drip" && m?.dripSegs[0]?.pts[0],
+        drip = actual !== null && cut ? actual - cut.cg / 100 : null;
       const vals = [
         formatShotTime(r),
         r.durationS.toFixed(1) + "s",
@@ -707,6 +712,7 @@ function renderShots() {
             ? "—"
             : actual.toFixed(1) + "g",
         err,
+        drip === null ? "—" : (drip < 0 ? "" : "+") + drip.toFixed(1) + "g",
         flow === null ? "—" : flow.toFixed(2) + " g/s",
         maxFlow === null ? "—" : maxFlow.toFixed(2) + " g/s" + (r.wTruncated ? " (recorded)" : ""),
         r.tareS == null ? __WEBUI_TEXT__("runtime.none") : r.tareS.toFixed(1) + "s",
