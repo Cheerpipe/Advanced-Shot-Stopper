@@ -1086,24 +1086,24 @@ void serviceBbwQuickStartPersist() {
   const QuickStartRecord record = bbwQuickStartStaged;
   bbwQuickStartPersistPending = false;
   bbwQuickStartMux.unlock();
-#ifndef SHOT_STOPPER_HOST_TEST
-  static bool failLatched = false;
   if (!pending) return;
-  if (saveQuickStart(record)) {
-    failLatched = false;
+#ifndef SHOT_STOPPER_HOST_TEST
+  const bool saved = saveQuickStart(record);
+#else
+  const bool saved = hostQuickStartSaveSucceeds;
+  if (saved) hostLastSavedQuickStart = record;
+#endif
+  if (saved) {
+    bbwQuickStartPersistFailLatched = false;
     return;
   }
-  if (!failLatched)
+  if (!bbwQuickStartPersistFailLatched)
     addDebugEvent(DebugCategory::CONFIG, DebugCode::RUNTIME_PERSIST_FAILED, 0,
                   RUNTIME_PERSIST_REASON_BBW_QUICK_START);
-  failLatched = true;
+  bbwQuickStartPersistFailLatched = true;
   bbwQuickStartMux.lock();
   bbwQuickStartPersistPending = true;
   bbwQuickStartMux.unlock();
-#else
-  (void)pending;
-  (void)record;
-#endif
 }
 
 // Control-loop side: consume the worker's flush result, report the held

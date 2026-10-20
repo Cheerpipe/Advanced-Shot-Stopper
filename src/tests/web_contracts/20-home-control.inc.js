@@ -1403,7 +1403,8 @@ if (!codeIncludes(ui, 'id="learnedOffsetG"') ||
     !css.includes('.bbwLearning .btnBar{max-width:22rem}') ||
     css.includes('#bbwAlgorithm{width:100%}') ||
     !network.includes('"dripG"') ||
-    !network.includes('bbwRecentG')) {
+    !network.includes('formatDripChartJson(drip, sizeof(drip), control)') ||
+    !fs.readFileSync(path.join(sketchDir, 'ShotStopperBbwQuickStart.h'), 'utf8').includes('bbwRecentG')) {
   throw new Error('Drip compensation must show the drip, its recent shots and Set drip in order');
 }
 if (!html.includes('<summary>Cup detection</summary>') ||

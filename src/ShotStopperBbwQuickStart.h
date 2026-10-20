@@ -9,6 +9,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "ShotStopperPresets.h"
@@ -130,6 +131,33 @@ inline bool observeQuickStart(QuickStartRecord &record, const ShotPresetBank &ba
   entry->quickCg = jumpCg;
   entry->state = static_cast<uint8_t>(QuickStartState::APPLIED);
   return true;
+}
+
+// The drip chart fields of the settings status: quick start, marker positions
+// (-1 = none) and the newest needed drips (null = skipped). Returns the
+// length written, or 0 when the buffer is too small.
+inline size_t formatDripChartJson(char *out, size_t cap, const ControlStatusFields &c) {
+  static const char *const states[] = {"off", "armed", "applied", "disagreed"};
+  size_t used = 0;
+  const auto put = [&](int n) {
+    if (n < 0 || used + static_cast<size_t>(n) >= cap) used = cap;
+    else used += static_cast<size_t>(n);
+  };
+  put(snprintf(out, cap,
+               ",\"bbwQuickStart\":{\"state\":\"%s\",\"count\":%u,\"setG\":%.2f,"
+               "\"quickG\":%.2f},\"bbwRecentAfterSet\":%d,\"bbwRecentAfterQuick\":%d,"
+               "\"bbwRecentG\":[",
+               states[c.bbwQuickState < 4 ? c.bbwQuickState : 0], c.bbwQuickCount,
+               c.bbwQuickSetCg / 100.0, c.bbwQuickCg / 100.0,
+               c.bbwRecentAfterSet == 0xFF ? -1 : c.bbwRecentAfterSet,
+               c.bbwRecentAfterQuick == 0xFF ? -1 : c.bbwRecentAfterQuick));
+  for (uint8_t i = 0; used < cap && i < c.bbwRecentCount && i < 5; ++i)
+    put((c.bbwRecentSkipped >> i) & 1U
+            ? snprintf(out + used, cap - used, "%snull", i ? "," : "")
+            : snprintf(out + used, cap - used, "%s%.2f", i ? "," : "",
+                       c.bbwRecentCg[i] / 100.0));
+  if (used < cap) put(snprintf(out + used, cap - used, "]"));
+  return used < cap ? used : 0;
 }
 
 }  // namespace shotstopper

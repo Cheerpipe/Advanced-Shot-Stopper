@@ -232,6 +232,12 @@ int main() {
     assert(memcmp(loaded.entries, record.entries, sizeof(record.entries)) == 0);
     loaded.checksum ^= 1;
     assert(!validQuickStart(loaded));
+    // Status JSON: no markers, an empty history and a buffer too small.
+    ControlStatusFields fields;
+    char json[256];
+    assert(formatDripChartJson(json, sizeof(json), fields) > 0);
+    assert(strstr(json, "\"bbwRecentAfterSet\":-1,\"bbwRecentAfterQuick\":-1,\"bbwRecentG\":[]") != nullptr);
+    assert(formatDripChartJson(json, 40, fields) == 0);
   }
 
   std::cout << "BBW numeric, adaptation, state, and history checks passed\n";

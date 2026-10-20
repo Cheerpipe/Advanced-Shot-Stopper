@@ -149,6 +149,9 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   idleTareSettingsGeneration = 1;
   bbwLearningBank = BbwLearningBank{};
   bbwQuickStart = QuickStartRecord{};
+  bbwQuickStartPersistPending = false;
+  bbwQuickStartPersistFailLatched = false;
+  hostQuickStartSaveSucceeds = true;
   // Legacy scenarios opt out; dedicated idle-tare cases exercise the ON default.
   runtimeConfig.autoTareOutsideBrew = false;
   runtimeConfig.rinseEnabled = true;
@@ -19896,6 +19899,74 @@ void fw05_set_drip_quick_starts_and_three_shots_decide() {
   CHECK(restored->setAtId != 0 && restored->setAtId == shotStatisticsEpochNow());
 }
 
+void fw06_status_carries_recent_drips_and_markers() {
+  // Six logged shots of the active preset (the fifth did not train the drip)
+  // and a drip set before the fourth: the newest five, newest first, with
+  // three of them after the set.
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  const ShotPreset &preset = activeShotPreset(presetBank);
+  uint32_t setAtId = 0;
+  for (int16_t i = 0; i < 6; ++i) {
+    ShotLogRecord record = {};
+    record.durationDs = 300;
+    record.goalWeightDg = 360;
+    record.cutLineCg = 3600;
+    record.offsetUsedCg = 100;
+    record.actualWeightCg = static_cast<int16_t>(3550 + i);  // needed 0.50 + i cg
+    shotLogSetPresetId(record, preset.id);
+    shotLogSetBbw(record, 1, BBW_PROFILE_VERSION, 30, i != 4);
+    TaskLockGuard lock(shotStoreMutex);
+    if (i == 3) setAtId = shotLog.nextRecordId();
+    CHECK(shotLog.append(record, false));
+  }
+  shotStoreDirtyGeneration.fetch_add(1, std::memory_order_release);
+  armQuickStart(bbwQuickStart, presetBank, preset.id, 1.2f, setAtId);
+  publishControlStatus();
+  ControlStatusSnapshot status;
+  copyControlStatus(status);
+  CHECK(status.bbwRecentCount == 5 && status.bbwRecentSkipped == 2);
+  CHECK(status.bbwRecentCg[0] == 55 && status.bbwRecentCg[2] == 53 &&
+        status.bbwRecentCg[4] == 51);
+  CHECK(status.bbwRecentAfterSet == 3 && status.bbwRecentAfterQuick == 0xFF);
+  CHECK(status.bbwQuickState == static_cast<uint8_t>(QuickStartState::ARMED) &&
+        status.bbwQuickSetCg == 120);
+  char json[256];
+  CHECK(formatDripChartJson(json, sizeof(json), status) > 0);
+  CHECK(strcmp(json, ",\"bbwQuickStart\":{\"state\":\"armed\",\"count\":0,\"setG\":1.20,"
+                     "\"quickG\":0.00},\"bbwRecentAfterSet\":3,\"bbwRecentAfterQuick\":-1,"
+                     "\"bbwRecentG\":[0.55,null,0.53,0.52,0.51]") == 0);
+  // Another preset's shots never reach this preset's chart.
+  CHECK(setActiveShotPreset(presetBank, presetBank.presets[1].id));
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.bbwRecentCount == 0 && status.bbwQuickState == 0);
+}
+
+void fw07_quick_start_save_retries_and_reports_once() {
+  resetHarness(false, true);
+  reachReadyFromBoot();
+  armQuickStart(bbwQuickStart, presetBank, presetBank.activeId, 0.5f, 7);
+  stageBbwQuickStart();
+  hostQuickStartSaveSucceeds = false;
+  debugLog.clear();
+  serviceBbwQuickStartPersist();
+  CHECK(bbwQuickStartPersistPending);  // kept for the next idle pass
+  CHECK(debugEventExists(DebugCode::RUNTIME_PERSIST_FAILED, 0,
+                         RUNTIME_PERSIST_REASON_BBW_QUICK_START));
+  debugLog.clear();
+  serviceBbwQuickStartPersist();
+  CHECK(bbwQuickStartPersistPending);
+  CHECK(!debugEventExists(DebugCode::RUNTIME_PERSIST_FAILED));  // once per run
+  hostQuickStartSaveSucceeds = true;
+  serviceBbwQuickStartPersist();
+  CHECK(!bbwQuickStartPersistPending);
+  CHECK(memcmp(hostLastSavedQuickStart.entries, bbwQuickStart.entries,
+               sizeof(bbwQuickStart.entries)) == 0);
+  serviceBbwQuickStartPersist();  // nothing staged: nothing to save
+  CHECK(!bbwQuickStartPersistPending);
+}
+
 void rt24_late_cup_step_uses_shot_coordinates() {
   // After a failed start tare the trajectory is software-zeroed: the same
   // 300 g cup set back down over 5 g of coffee is not a late-cup step.
@@ -22108,6 +22179,8 @@ const TestCase testCases[] = {
     {"RT23", rt23_late_cup_before_first_drop_retares},
     {"RT24", rt24_late_cup_step_uses_shot_coordinates},
     {"FW05", fw05_set_drip_quick_starts_and_three_shots_decide},
+    {"FW06", fw06_status_carries_recent_drips_and_markers},
+    {"FW07", fw07_quick_start_save_retries_and_reports_once},
     {"RT21", rt21_empty_pan_at_cycle_start_resyncs_stuck_present},
     {"RS01", rs01_fast_samples_wait_for_min_duration},
     {"RS02", rs02_slow_samples_meet_min_duration_at_third_sample},

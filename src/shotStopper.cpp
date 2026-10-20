@@ -442,6 +442,7 @@ BbwLearningBank bbwLearningBank;
 QuickStartRecord bbwQuickStart;
 QuickStartRecord bbwQuickStartStaged;
 bool bbwQuickStartPersistPending = false;
+bool bbwQuickStartPersistFailLatched = false;  // persist worker only
 TaskMutex bbwQuickStartMux;
 void stageBbwQuickStart();
 uint32_t shotStatisticsEpochNow();
@@ -582,6 +583,9 @@ uint32_t hostForwardAcceptedNetworkCommandCalls = 0;
 WebCommand hostLastForwardedNetworkCommand;
 uint32_t hostNtpSyncRequestCount = 0;
 bool hostRuntimePersistSucceeds = true;
+// Host: no NVS layer; the quick start flush reports this and keeps the copy.
+bool hostQuickStartSaveSucceeds = true;
+QuickStartRecord hostLastSavedQuickStart;
 uint32_t hostRuntimePersistAttempts = 0;
 RuntimeConfig hostLastFlushedRuntime;
 ShotPresetBank hostLastFlushedPresets;
