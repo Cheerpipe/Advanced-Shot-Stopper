@@ -2,8 +2,15 @@
 // network task queues at most one dispatch; it never sends or borrows JSON scratch.
 namespace {
 constexpr uint32_t kUiStreamBindMs = 5000, kUiStreamRetainMs = 30000;
-// Live shots keep the scale's 10 Hz; idle Home only needs edge pickup.
-constexpr uint32_t kUiStreamLiveMs = 100, kUiStreamIdleMs = 250;
+// Wi-Fi and the BLE scale share one radio: a periodic frame leaves right after
+// every second weight sample, in the gap before the next notification. The
+// timer only covers a missing or silent scale.
+constexpr uint32_t kUiStreamSampleStride = 2, kUiStreamSampleFloorMs = 150;
+constexpr uint32_t kUiStreamFallbackMs = 300;
+bool uiStreamDispatchDue(bool urgent, uint32_t elapsedMs, uint32_t newSamples) {
+  return urgent || elapsedMs >= kUiStreamFallbackMs ||
+         (newSamples >= kUiStreamSampleStride && elapsedMs >= kUiStreamSampleFloorMs);
+}
 constexpr size_t kUiStreamRequestBytes = 160;
 // Leave TCP send-buffer headroom for live state. A larger individual curve
 // stays intact, alone under the client's 28 KiB message guard.
@@ -101,6 +108,7 @@ esp_err_t ShotStopperNetwork::uiStreamHandshake(httpd_req_t *request) {
     session.fd = httpd_req_to_sockfd(request);
     session.fromSoftAp = socketServedBySoftAp(session.fd);
     session.openedAtMs = millis();
+    self.uiStreamOpen_.store(true, std::memory_order_release);
     request->sess_ctx = &session;
     request->free_ctx = uiStreamFree;
     // Bound incomplete incoming frames independently of ordinary HTTP/OTA.
@@ -121,6 +129,9 @@ void ShotStopperNetwork::uiStreamFree(void *context) {
   new (&instance_->workBuf_->uiFingerprints[
       static_cast<UiStreamSession *>(context) - instance_->uiStreams_]) UiStreamFingerprints{};
   *static_cast<UiStreamSession *>(context) = UiStreamSession{};
+  bool open = false;
+  for (const auto &session : instance_->uiStreams_) open |= session.fd >= 0;
+  instance_->uiStreamOpen_.store(open, std::memory_order_release);
 }
 
 esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
@@ -381,12 +392,25 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
   return ESP_OK;
 }
 
+void ShotStopperNetwork::noteScaleSample() {
+  const uint32_t pending = scaleSamples_.fetch_add(1, std::memory_order_relaxed) + 1 -
+                          uiStreamDispatchSamples_.load(std::memory_order_acquire);
+  // Wake only when a dispatch is due and none is in flight; stream sessions
+  // close before the task handle is retired.
+  if (pending >= kUiStreamSampleStride && taskHandle_ != nullptr &&
+      uiStreamOpen_.load(std::memory_order_acquire) &&
+      !uiStreamWorkPending_.load(std::memory_order_acquire)) {
+    xTaskNotifyGive(taskHandle_);
+  }
+}
+
 void ShotStopperNetwork::serviceUiStream(uint32_t now) {
   if (!server_) return;
-  const uint32_t cadence = controlCriticalRfActive_.load(std::memory_order_acquire)
-                                ? kUiStreamLiveMs : kUiStreamIdleMs;
-  if (!uiStreamUrgent_.load(std::memory_order_acquire) &&
-      now - uiStreamDispatchAtMs_ < cadence) return;
+  const uint32_t samples = scaleSamples_.load(std::memory_order_acquire);
+  if (!uiStreamDispatchDue(uiStreamUrgent_.load(std::memory_order_acquire),
+                           now - uiStreamDispatchAtMs_,
+                           samples - uiStreamDispatchSamples_.load(std::memory_order_acquire)))
+    return;
   bool occupied = false;
   {
     TaskLockGuard lock(dataMux_);
@@ -395,6 +419,7 @@ void ShotStopperNetwork::serviceUiStream(uint32_t now) {
   if (!occupied || uiStreamWorkPending_.exchange(true, std::memory_order_acq_rel)) return;
   uiStreamUrgent_.exchange(false, std::memory_order_acq_rel);
   uiStreamDispatchAtMs_ = now;
+  uiStreamDispatchSamples_.store(samples, std::memory_order_release);
   if (httpd_queue_work(server_, uiStreamDispatch, this) != ESP_OK) {
     uiStreamUrgent_.store(true, std::memory_order_release);
     uiStreamWorkPending_.store(false, std::memory_order_release);

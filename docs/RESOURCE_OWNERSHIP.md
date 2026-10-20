@@ -30,10 +30,10 @@ time. This presentation contract adds no guard decisions or actuation messages.
 
 Every changed control-gate publication requests an urgent stream update through
 the existing atomic RF notification, including physical activator ON/OFF edges
-that do not change the active-cycle or relay state. Network bypasses both the
-100 ms active and 250 ms idle periodic stream cadence for that
-request; a coalesced HTTP dispatch still owns all serialization. Queue or
-workspace contention preserves the request for a later Network service pass.
+that do not change the active-cycle or relay state. Network bypasses the
+sample-paced periodic stream cadence for that request; a coalesced HTTP
+dispatch still owns all serialization. Queue or workspace contention preserves
+the request for a later Network service pass.
 Control never performs serialization or waits for this presentation update.
 
 The published control scalars and synchronization stay in internal RAM, with a
@@ -48,7 +48,10 @@ fingerprints, plus an internal clock anchor; fields have stable
 ordinals and formatting at display precision. Initial/resync frames replace the
 browser cache, then unchanged values produce no data frame. Disconnected scale
 weight/timer are never inspected; a single null transition clears them. Serialization
-and transmit reuse the existing HTTP workspace and bounded 100 ms dispatch.
+and transmit reuse the existing HTTP workspace and bounded dispatch. The
+periodic dispatch is paced by scale weight samples: the scale worker only counts
+each sample and, while a stream is open and a dispatch is due, notifies the
+Network task; it never serializes, locks or waits for the stream.
 The browser uses socket activity/alive control messages for liveness and power
 activity, rather than a periodic Home REST request.
 The bounded Home presentation projection uses size optimization and shared

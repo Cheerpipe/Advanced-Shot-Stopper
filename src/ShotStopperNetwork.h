@@ -284,6 +284,8 @@ class ShotStopperNetwork {
   void syncScaleConnectingRf(bool connecting);
   void syncControlCriticalRf(bool active, bool publishTransition = false);
   void syncScaleHuntRf(bool huntActive);
+  // Scale worker, per weight sample: wakes the stream dispatch when it is due.
+  void noteScaleSample();
   void syncLiveRuntime(const RuntimeConfig &runtime,
                        const ShotPresetBank *presets, bool ntpSettingsChanged);
   static bool ntpSettingsChanged(const RuntimeConfig &before,
@@ -434,6 +436,10 @@ class ShotStopperNetwork {
   std::atomic<bool> uiStreamWorkPending_{false};
   std::atomic<bool> uiStreamUrgent_{false};
   uint32_t uiStreamDispatchAtMs_ = 0;
+  // Periodic dispatches follow the scale's weight samples (counted by the
+  // scale worker); the worker only wakes this task while a stream is open.
+  std::atomic<uint32_t> scaleSamples_{0}, uiStreamDispatchSamples_{0};
+  std::atomic<bool> uiStreamOpen_{false};
   mutable TaskMutex dataMux_;
   char activeWebUiClientId_[WEB_UI_CLIENT_ID_CAPACITY] = {};
   bool webUiOverrideActive_ = false;

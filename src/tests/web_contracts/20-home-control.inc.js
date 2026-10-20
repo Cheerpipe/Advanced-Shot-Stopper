@@ -415,9 +415,8 @@
     streamSource.indexOf('void ShotStopperNetwork::serviceUiStream('));
   if(handler.includes('sendUiStream(')||!handler.includes('session->resync = true;')||
       !streamSource.includes('uiStreamWorkPending_.exchange(true')||
-      !streamSource.includes('now - uiStreamDispatchAtMs_ < cadence')||
-      !streamSource.includes('kUiStreamLiveMs = 100, kUiStreamIdleMs = 250')||
-      !streamSource.includes('controlCriticalRfActive_.load'))
+      !streamSource.includes('if (!uiStreamDispatchDue(uiStreamUrgent_.load(')||
+      !streamSource.includes('uiStreamDispatchSamples_.store(samples'))
     throw new Error('Bind/resync must share the coalesced publication cadence');
   if(!streamSource.includes('setsockopt(session.fd, IPPROTO_TCP, TCP_NODELAY, &noDelay, sizeof(noDelay));'))
     throw new Error('The UI stream socket must send frames without Nagle delay');
@@ -567,7 +566,9 @@
   const assert=require('assert').strict,{spawnSync}=require('child_process');
   const stream=fs.readFileSync(path.join(sketchDir,'network/ShotStopperUiStream.inc'),'utf8');
   const wifi=fs.readFileSync(path.join(sketchDir,'network/ShotStopperWifi.inc'),'utf8');
-  const service=stream.slice(stream.indexOf('void ShotStopperNetwork::serviceUiStream('),
+  const cadence=stream.slice(stream.indexOf('constexpr uint32_t kUiStreamSampleStride'),
+    stream.indexOf('constexpr size_t kUiStreamRequestBytes'));
+  const service=stream.slice(stream.indexOf('void ShotStopperNetwork::noteScaleSample('),
     stream.indexOf('void ShotStopperNetwork::uiStreamDispatch('));
   const sync=wifi.slice(wifi.indexOf('void ShotStopperNetwork::syncControlCriticalRf('),
     wifi.indexOf('void ShotStopperNetwork::syncScaleHuntRf('));
@@ -579,7 +580,7 @@
 #include <cassert>
 #include <cstdint>
 constexpr int ESP_OK=0;
-constexpr uint32_t kUiStreamLiveMs=100,kUiStreamIdleMs=250;
+${cadence}
 int queued=0,queueResult=ESP_OK,notified=0;
 int httpd_queue_work(int,void (*)(void *),void *){++queued;return queueResult;}
 void xTaskNotifyGive(void *){++notified;}
@@ -591,9 +592,11 @@ struct ShotStopperNetwork {
   struct {void setControlCritical(bool){}} webhooks_;
   std::atomic<bool> uiStreamWorkPending_{false},uiStreamUrgent_{false},
     controlCriticalRfActive_{false},ntpCallbackAccepting_{true},ntpAbortRequested_{false};
-  std::atomic<uint32_t> rfGateGeneration_{0};
+  std::atomic<uint32_t> rfGateGeneration_{0},scaleSamples_{0},uiStreamDispatchSamples_{0};
+  std::atomic<bool> uiStreamOpen_{false};
   uint32_t uiStreamDispatchAtMs_=100;
   static void uiStreamDispatch(void *){}
+  void noteScaleSample();
   void serviceUiStream(uint32_t);
   void syncControlCriticalRf(bool,bool=false);
 };
@@ -620,6 +623,25 @@ int main(){
   n.uiStreamWorkPending_=false;n.syncControlCriticalRf(true);n.serviceUiStream(206);
   assert(queued==7);n.uiStreamWorkPending_=false;
   n.syncControlCriticalRf(true,true);n.serviceUiStream(207);assert(queued==8);
+  // Periodic frames follow every second scale sample; the timer covers silence.
+  n.uiStreamWorkPending_=false;n.uiStreamOpen_=true;notified=0;
+  n.noteScaleSample();n.serviceUiStream(300);assert(queued==8&&notified==0);
+  n.noteScaleSample();assert(notified==1);
+  n.serviceUiStream(356);assert(queued==8);
+  n.serviceUiStream(357);assert(queued==9);
+  n.uiStreamWorkPending_=false;n.noteScaleSample();n.noteScaleSample();
+  assert(notified==2);n.serviceUiStream(506);assert(queued==9);
+  n.serviceUiStream(507);assert(queued==10);
+  n.uiStreamWorkPending_=false;n.serviceUiStream(806);assert(queued==10);
+  n.serviceUiStream(807);assert(queued==11);
+  // An in-flight dispatch or a closed stream never wakes the network task.
+  n.noteScaleSample();n.noteScaleSample();assert(notified==2);
+  n.uiStreamWorkPending_=false;n.uiStreamOpen_=false;n.noteScaleSample();assert(notified==2);
+  // An urgent dispatch restarts the sample window.
+  n.uiStreamOpen_=true;n.uiStreamUrgent_=true;n.serviceUiStream(900);assert(queued==12);
+  n.uiStreamWorkPending_=false;n.noteScaleSample();assert(notified==2);
+  n.serviceUiStream(1050);assert(queued==12);
+  n.noteScaleSample();assert(notified==3);n.serviceUiStream(1050);assert(queued==13);
 }
 `;
   try{

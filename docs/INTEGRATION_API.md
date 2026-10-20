@@ -436,8 +436,13 @@ extra polling requests and do not change the public integration endpoints.
 The claimed browser binds the existing WebSocket at `/api/v1/ui/ui-stream`
 with `{"op":"bind","client":"<claimed X-WebUI-Client>"}`. Home receives an
 initial snapshot and then field changes, without periodic REST status requests.
-The firmware compares the published state at most every 100 ms while a shot is
-running, and at most every 250 ms otherwise, while a browser is connected.
+While a browser is connected and a scale is streaming, the firmware's periodic
+comparison of the published state runs right after every second weight sample
+(about every 200 ms with a 10 Hz scale, never closer than 150 ms), so stream
+traffic stays clear of the scale's next Bluetooth reading. Without a scale,
+while it is silent, or when two samples take longer than 300 ms, it compares
+every 300 ms. Urgent updates (shot start and end, control changes, and
+subscription requests) are sent immediately.
 Unchanged displayed values produce no Home data frames. Weight
 and timer are inspected only while the scale is connected, at the displayed
 precision (0.1 g and 0.1 s); unavailable readings become `null` once.
@@ -492,8 +497,8 @@ sent. An unchanged projection emits no frame; displayed ages, uptime,
 traffic and other live measurements can still change on an otherwise idle device.
 Event-driven state (control, safety, guards, maintenance, crash count, NTP
 and Wi-Fi link state, machine integration) is evaluated on every dispatch
-tick and lands within one tick (at most 100 ms during a shot, 250 ms
-otherwise). Countdowns and ages are quantized to whole seconds (the no-scale
+tick and lands within one tick (about 200 ms with a 10 Hz scale, at most
+300 ms). Countdowns and ages are quantized to whole seconds (the no-scale
 cooldown to whole minutes) so a ticking value costs at most one small frame
 per second. Sampled telemetry (heap and CPU health, hardware monitor, NVS
 statistics, steady-state Wi-Fi RSSI and signal quality, task profiler, scale

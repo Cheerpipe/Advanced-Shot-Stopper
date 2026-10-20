@@ -855,6 +855,9 @@ bool publishScaleEvent(const ScaleEvent &event, bool critical) {
                       static_cast<int32_t>(streamGapMs));
       }
     }
+    if (scaleWorkerBridge.notifyWeightSample != nullptr) {
+      scaleWorkerBridge.notifyWeightSample();
+    }
     return true;
   }
 

@@ -426,6 +426,7 @@ void setup() {
   ScaleWorkerBridgeCallbacks scaleBridge;
   scaleBridge.notifyAcquisition = notifyScaleAcquisition;
   scaleBridge.syncNetworkRf = syncScaleWorkerNetworkRf;
+  scaleBridge.notifyWeightSample = [] { networkManager.noteScaleSample(); };
   const bool scaleBridgeOk = configureScaleWorkerBridge(scaleBridge);
 #else
   const bool scaleBridgeOk = true;

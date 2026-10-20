@@ -76,6 +76,8 @@ struct ScaleWorkerBridgeCallbacks {
   void (*notifyAcquisition)(bool held, uint32_t atMs) = nullptr;
   void (*syncNetworkRf)(bool scaleLinkOrConnecting, bool scaleConnecting,
                         bool huntWindowActive, bool communicationSilenced) = nullptr;
+  // Optional, nonblocking: paces the Web UI stream behind each weight sample.
+  void (*notifyWeightSample)() = nullptr;
 };
 
 static_assert(std::is_trivially_copyable<ScaleWorkerBridgeCallbacks>::value,
