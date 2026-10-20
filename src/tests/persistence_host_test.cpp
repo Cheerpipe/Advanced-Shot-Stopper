@@ -1078,9 +1078,9 @@ void p24_preset_bank_size_and_crud_budgets() {
     bool sides;
     float offset;
   } factory[] = {
-      {"Double \xC2\xB7 Adaptive", 180, 360, 60, 30, 27000, 36000, true, 1.5f},
+      {"Double \xC2\xB7 Adaptive", 180, 360, 60, 30, 27000, 36000, true, DEFAULT_WEIGHT_OFFSET_G},
       {"Single \xC2\xB7 Adaptive", 90, 180, 40, 15, 23000, 32000, true, 0.5f},
-      {"Double \xC2\xB7 Fixed", 180, 360, 60, 30, 27000, 36000, false, 1.5f},
+      {"Double \xC2\xB7 Fixed", 180, 360, 60, 30, 27000, 36000, false, DEFAULT_WEIGHT_OFFSET_G},
       {"Single \xC2\xB7 Fixed", 90, 180, 40, 15, 23000, 32000, false, 0.5f},
   };
   for (uint8_t i = 0; i < FACTORY_PRESET_COUNT; ++i) {
@@ -1166,8 +1166,8 @@ void p24_preset_bank_size_and_crud_budgets() {
   const ShotPreset *created = findShotPreset(bank, newId);
   CHECK(created != nullptr);
   CHECK(created->goalWeightDg == 360);
-  CHECK(std::fabs(created->weightOffsetBaselineG - 1.5f) < 0.001f);
-  CHECK(std::fabs(created->bbwEwmaOffsetG - 1.5f) < 0.001f);
+  CHECK(created->weightOffsetBaselineG == DEFAULT_WEIGHT_OFFSET_G);
+  CHECK(created->bbwEwmaOffsetG == DEFAULT_WEIGHT_OFFSET_G);
   CHECK(!created->isFactory && deleteShotPreset(bank, newId));
   CHECK(createUntitledShotPreset(bank, newId));
 

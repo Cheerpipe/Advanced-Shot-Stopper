@@ -83,7 +83,7 @@ constexpr uint32_t MIN_DRIP_DELAY_MS = 0;
 constexpr uint32_t MAX_DRIP_DELAY_MS = 10000;
 constexpr uint32_t MAX_SCALE_TIMER_STOP_CATCHUP_MS = 2000;
 constexpr float MAX_OFFSET_G = 5.0f;
-constexpr float DEFAULT_WEIGHT_OFFSET_G = 1.5f;
+constexpr float DEFAULT_WEIGHT_OFFSET_G = 0.5f;
 
 enum class StopperState : uint8_t {
   REQUIRES_OFF,

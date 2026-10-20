@@ -2055,11 +2055,11 @@ void r11_final_shot_analysis_updates_only_valid_offset() {
     }
     pendingShotFinalizeTask();
     if (part == 0) {
-      // EWMA (alpha 30): 1.5 g + 0.3 x 1 g miss.
-      CHECK(fabsf(runtimeConfig.weightOffsetG - 1.8f) < 0.001f);
+      // EWMA (alpha 30): default + 0.3 x 1 g miss.
+      CHECK(fabsf(runtimeConfig.weightOffsetG - (originalOffset + 0.3f)) < 0.001f);
     } else if (part == 1) {
       // Observation outside the safe range leaves the offset unchanged.
-      CHECK(fabsf(runtimeConfig.weightOffsetG - 1.8f) < 0.001f);
+      CHECK(fabsf(runtimeConfig.weightOffsetG - (originalOffset + 0.3f)) < 0.001f);
     } else {
       // EWMA pulls the offset down: 3.0 g + 0.3 x (32 - 36) g = 1.8 g.
       CHECK(fabsf(runtimeConfig.weightOffsetG - 1.8f) < 0.001f);

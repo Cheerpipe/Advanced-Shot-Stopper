@@ -90,8 +90,8 @@ appears while you are looking at the active preset.
 | **Earliest weight stop (s)** | Time limits | 12 s | 0.5–30 s; see [Cup protection](cup-protection.md) | The scale cannot stop the shot before this, so tare and first drops cannot trigger it. |
 | **Max shot time (s)** | Time limits | 50 s | 5–60 s | The shot always stops here, target reached or not. Ignored on timer-only and no-scale shots. Cannot exceed the hard 60 s cap. |
 | **Backup stop time (s)** | Time limits | empty | Earliest weight stop to Max shot time | Leave empty to use your recent shots, or the middle of your window until there are enough. See [scale-loss backup](auto-to-manual.md). |
-| **Learned drip (g)** | Drip compensation | starts at 1.5 g | 0–5 g, read-only | Subtracted from the cut line. Updated from eligible weight-stopped shots after the drip delay. |
-| **Starting drip (g)** | Drip compensation | 1.5 g | 0–5 g | The drip restored by **Reset drip learning**. Save it before resetting. |
+| **Learned drip (g)** | Drip compensation | starts at 0.5 g | 0–5 g, read-only | Subtracted from the cut line. Updated from eligible weight-stopped shots after the drip delay. |
+| **Starting drip (g)** | Drip compensation | 0.5 g | 0–5 g | The drip restored by **Reset drip learning**. Save it before resetting. |
 | **Learning speed** | Drip compensation | 0.30 initially | Read-only | How strongly each shot moves the learned drip, with whether it is still the starting value or learned, and its collecting/evaluating status. |
 | **Starting learning speed** | Drip compensation | 0.30 | 0.01–1.00, step 0.01 | Restored by **Reset drip and learning speed**. Saving it keeps the current drip, speed and evidence. |
 | **Stop after sustained weight** | Shared settings → Cup protection | ON | ON / OFF | A backup for a weight stop blocked by **Avoid accidental touch**. Fresh readings must stay above the applicable cut threshold for 1 second. Applies to every preset; takes effect on the next shot. |
@@ -112,9 +112,10 @@ Fixed behavior (not separate settings):
 
 ## Example
 
-Double · Adaptive at 36 g, learned drip 1.5 g, shot time window 27–36 s.
-A shot reaching the target inside the window stops with about **34.5 g** on
-the scale, so the post-drip weight lands near 36 g. A shot running early gets
+Double · Adaptive at 36 g, learned drip 0.5 g, shot time window 27–36 s.
+A shot reaching the target inside the window stops with roughly **34.3 g** on
+the scale: the coffee already on its way plus about half a gram of drips bring
+the cup close to 36 g. A shot running early gets
 a slightly higher cut line (up to 42 g), one running late a slightly lower one
 (down to 33 g); see [Fast and slow shots](fast-and-slow-shots.md).
 

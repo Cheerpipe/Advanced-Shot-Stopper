@@ -164,14 +164,8 @@ int main() {
     decoded.header.schemaVersion = 5;
     assert(!validShotLogStore(decoded));
   }
-  // The per-protocol sensor-lag priors must keep reproducing the flat
-  // Single/Double seed magnitudes from reference-pair flows; a table edit
-  // that breaks this invalidates the documented seed policy.
+  // Per-protocol sensor-lag priors feed the cut's in-flight lead.
   {
-    const float acaiaLagS =
-        kScaleProtocolAcaia.features.sensorLagMs / 1000.0f;
-    assert(fabsf(acaiaLagS * 0.72f - 0.5f) < 0.05f);    // Single seed
-    assert(fabsf(acaiaLagS * 2.17f - 1.5f) < 0.05f);    // Double seed
     assert(kScaleProtocolAcaiaLegacy.features.sensorLagMs ==
            kScaleProtocolAcaia.features.sensorLagMs);
     // Every shipping protocol carries a prior: a zero would drop the

@@ -160,7 +160,7 @@ reported only after the Micra dashboard confirms the same temperature.
 | Shot time window | 27–36 s | 23–32 s | 27–36 s | 23–32 s |
 | Extend fast shots: extend by up to | 6 g (42 g) | 4 g (22 g) | off (6 g saved) | off (4 g saved) |
 | Shorten slow shots: shorten by up to | 3 g (33 g) | 1.5 g (16.5 g) | off (3 g saved) | off (1.5 g saved) |
-| Starting drip | 1.5 g | 0.5 g | 1.5 g | 0.5 g |
+| Starting drip | 0.5 g | 0.5 g | 0.5 g | 0.5 g |
 
 All four start with brew by weight and grind hints on, Max shot time 50 s,
 Earliest weight stop 12 s, and no fixed scale-loss stop time. The Fixed
