@@ -762,7 +762,8 @@ if (generated.otaImageGzip.length > 3072) {
 // Gzip wobble from the Home Equipment icons and values (records.js, diagnostic.js and settings.js unchanged) measures 13608, 13801 and 15485; owner-requested 2026-10-18.
 // Gzip wobble from the Home hero always using the computed flow (settings.js unchanged) measures 15514; owner-authorized 2026-10-19.
 // The Stats shot card drip cell measures records.js at 13660; owner-requested 2026-10-20.
-const viewModuleBudgets = {records: 13660, diagnostic: 13801, admin: 14229, settings: 15514, setup: 5789};
+// Gzip wobble from swapping Late cup and 1st drop on the Stats shot card (records.js and setup.js unchanged) measures 13664 and 5793; owner-requested 2026-10-20.
+const viewModuleBudgets = {records: 13664, diagnostic: 13801, admin: 14229, settings: 15514, setup: 5793};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);

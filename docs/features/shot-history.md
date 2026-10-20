@@ -65,7 +65,7 @@ not rewrite a shot's displayed name.
 even if the scale disconnects or is renamed later. It uses the full width of
 the card, so long scale names have room before they wrap. Existing shots
 keep their original names. A Bluetooth name longer
-than the friendly-name limit is shortened to fit. **Late cup**, before
+than the friendly-name limit is shortened to fit. **Late cup**, after
 **1st drop**, shows the successful late tare's elapsed shot time, or **None**
 when no late tare succeeded. Its chart label always uses one decimal, such
 as **3.0 s**. The initial shot-start tare is not a late tare.

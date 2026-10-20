@@ -433,7 +433,7 @@ html:not(.theme-light) :is(.qwSheet,#actionsPanel){box-shadow:0 -8px 28px rgba(0
 #shotTable,#historyTable{width:100%;border-collapse:collapse;font-size:.82rem}
 :is(#shotTable,#historyTable) thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 #shotTable,#historyTable,:is(#shotTable,#historyTable) tbody{display:block}
-#shotTable tr{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drip drip tare tare" "drop drop ended ended shot shot" "preset preset scale scale rate rate" "spark spark spark spark spark spark";gap:.6rem .5rem;align-items:start;position:relative;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1rem;margin:0 0 .75rem}
+#shotTable tr{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drip drip drop drop" "tare tare ended ended shot shot" "preset preset scale scale rate rate" "spark spark spark spark spark spark";gap:.6rem .5rem;align-items:start;position:relative;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1rem;margin:0 0 .75rem}
 :is(#shotTable,#historyTable) :is(th,td){border:0;padding:0;text-align:left;white-space:normal;overflow-wrap:anywhere}
 :is(#shotTable,#historyTable) td{display:flex;flex-direction:column;gap:.08rem;min-width:0;font-weight:650;color:var(--mu)}
 :is(#shotTable,#historyTable) td::before{content:attr(data-label);font-size:.62rem;font-weight:600;color:var(--mu);letter-spacing:.02em;text-transform:uppercase}
@@ -475,7 +475,7 @@ html:not(.theme-light) :is(.qwSheet,#actionsPanel){box-shadow:0 -8px 28px rgba(0
 .shotSparkY{grid-area:y;position:relative;font-size:.68rem;color:var(--mu);line-height:1;text-align:right}
 .shotYTick{position:absolute;right:0;white-space:nowrap;transform:translateY(-50%)}
 .shotSparkFlowY{grid-area:f}.shotSparkFlowY .shotYTick{right:auto;left:0}
-#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drip drip tare tare" "drop drop ended ended shot shot" "preset preset scale scale rate rate"}
+#shotTable tr.noSpark{grid-template-areas:"dur dur dur actual actual actual" "time time time time time time" "goal goal avgflow avgflow maxflow maxflow" "err err drip drip drop drop" "tare tare ended ended shot shot" "preset preset scale scale rate rate"}
 #historySentinel{min-height:1px}
 #historyTable tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"icon dur time" "icon type time";gap:.6rem .8rem;align-items:start;position:relative;background:var(--sf);border:1px solid var(--ln);border-radius:var(--r);padding:1rem 3rem 1rem 1rem;margin:0 0 .75rem}
 #historyTable td.histTime{grid-area:time;font-size:.8rem;font-weight:600;color:var(--mu);justify-self:end}
