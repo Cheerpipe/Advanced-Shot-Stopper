@@ -461,8 +461,9 @@ sequence/base and cursor contract on the same socket. A shot snapshot
 carries only the card fields that changed, which the browser merges over the
 previous card, plus the curve points after the previous cursor. Curve markers
 (first drop, extension, scale loss and recovery, end) arrive as part of those
-incremental frames; only a new shot, a reconnect or resync, or a change to an
-already sent point starts a new snapshot. Equipment updates do not resend an
+incremental frames, and a frame whose card did not change carries an empty
+`card` object. Only a new shot or controller boot, a reconnect or resync, or a
+change to an already sent point starts a new snapshot. Equipment updates do not resend an
 unchanged shot card or curve. Commands continue to use the existing
 HTTP endpoints and ownership checks.
 

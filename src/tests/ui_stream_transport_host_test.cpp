@@ -86,7 +86,7 @@ void reset() {
 }
 // Raw write loop: headers are uncommitted, payloads follow a header on the wire.
 int transmit(size_t length) {
-  return uiStreamWrite(1, payload, length, length > kUiStreamHeaderMax);
+  return uiStreamWrite(1, payload, length, length > 14);
 }
 // One WebSocket frame through the coalescing send_fn, as IDF issues it.
 int frame(const char *body, size_t length) {
@@ -198,19 +198,40 @@ int main() {
   // A dispatch batch sends Home and the shot card in one write.
   reset(); uiStreamBatchBegin();
   assert(frame(payload, 100) == 100 && frame(payload, 900) == 900 && accepted == 0);
-  assert(uiStreamBatchEnd() && chunks.size() == 1 && wire.size() == 2 + 100 + 4 + 900);
-  // Overflow flushes the batch so far; the rest still coalesces.
+  assert(uiStreamBatchEnd(true) && chunks.size() == 1 && wire.size() == 2 + 100 + 4 + 900);
+  // Overflow flushes the batch so far with the next header; its payload follows.
   reset(); uiStreamBatchBegin();
-  assert(frame(payload, 800) == 800 && frame(payload, 800) == 800 && chunks.size() == 1);
-  assert(uiStreamBatchEnd() && chunks.size() == 2 && wire.size() == 2 * (4 + 800));
+  assert(frame(payload, 800) == 800 && frame(payload, 800) == 800 && chunks.size() == 2);
+  assert(chunks[0] == 4 + 800 + 4 && uiStreamBatchEnd(true) && chunks.size() == 2);
+  assert(wire.size() == 2 * (4 + 800));
   // A cleanly dropped batch reports failure with nothing on the wire.
   reset(); uiStreamBatchBegin(); readiness = {{0}};
   assert(frame(payload, 100) == 100 && frame(payload, 200) == 200);
-  assert(!uiStreamBatchEnd() && uiStreamSendCleanAbort && accepted == 0 && !uiStreamBatching);
-  // A mid-batch failure after partial output is broken, even if later frames go out.
+  assert(!uiStreamBatchEnd(true) && uiStreamSendCleanAbort && accepted == 0 && !uiStreamBatching);
+  // A mid-batch failure after partial output is broken; nothing more is written.
   reset(); uiStreamBatchBegin(); readiness = {{1}, {0}}; writes = {{10}};
   assert(frame(payload, 800) == 800 && frame(payload, 800) == -1 && !uiStreamSendCleanAbort);
-  assert(frame(payload, 100) == 100);
-  assert(!uiStreamBatchEnd() && !uiStreamSendCleanAbort);
+  assert(frame(payload, 100) == -1 && accepted == 10);
+  assert(!uiStreamBatchEnd(true) && !uiStreamSendCleanAbort);
+  // A payload that no longer fits follows its flushed header out: committed.
+  reset(); uiStreamBatchBegin(); readiness = {{1}, {0}};
+  assert(frame(payload, 600) == 600 && frame(payload, 900) == -1 && !uiStreamSendCleanAbort);
+  assert(accepted == 604 + 4 && !uiStreamBatchEnd(true) && !uiStreamSendCleanAbort);
+  // A large Home goes out; a cleanly dropped card leaves no partial frame.
+  reset(); uiStreamBatchBegin();
+  assert(frame(payload, 2000) == 2000 && frame(payload, 100) == 100 && accepted == 2004);
+  readiness = {{0}};
+  assert(!uiStreamBatchEnd(true) && uiStreamSendCleanAbort && accepted == 2004);
+  // A socket about to close drops the batch instead of writing it.
+  reset(); uiStreamBatchBegin();
+  assert(frame(payload, 100) == 100 && uiStreamBatchEnd(false) && accepted == 0);
+  assert(uiStreamPendingBytes == 0 && !uiStreamAwaitingPayload);
+  // 16- and 64-bit length headers; masked or misframed bytes are not headers.
+  const char wide[10] = {static_cast<char>(0x81), 127, 0, 0, 0, 0, 0, 1, 0x11, 0x70};
+  assert(uiStreamHeaderPayload(wide, 10) == 70000 && uiStreamHeaderPayload(wide, 9) == -1);
+  const char mid[4] = {static_cast<char>(0x81), 126, 0x07, static_cast<char>(0xd0)};
+  assert(uiStreamHeaderPayload(mid, 4) == 2000 && uiStreamHeaderPayload(mid, 2) == -1);
+  const char masked[2] = {static_cast<char>(0x81), static_cast<char>(0x85)};
+  assert(uiStreamHeaderPayload(masked, 2) == -1);
   puts("UI stream transport: bounded writes, modem-sleep gaps, partial failures, errno, log throttling, frame and batch coalescing passed");
 }

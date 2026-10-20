@@ -1,6 +1,5 @@
 // httpd is the sole caller/owner, including automatic WS control replies and
 // the coalescing buffer below.
-constexpr size_t kUiStreamHeaderMax = 14;
 constexpr uint32_t kUiStreamHeaderWaitMs = 100, kUiStreamPayloadWaitMs = 500;
 constexpr uint32_t kStatsStreamPaceMs = 100;
 constexpr uint32_t kUiStreamDispatchBudgetMs = 800;
@@ -94,20 +93,22 @@ int64_t uiStreamHeaderPayload(const char *data, size_t length) {
   if (code < 126) return length == 2 ? code : -1;
   const size_t bytes = code == 126 ? 2 : 8;
   if (length != 2 + bytes) return -1;
-  int64_t value = 0;
+  uint64_t value = 0;
   for (size_t index = 0; index < bytes; ++index)
     value = (value << 8) | static_cast<uint8_t>(data[2 + index]);
-  return value;
+  return value > INT64_MAX ? -1 : static_cast<int64_t>(value);
 }
 
 // IDF calls send_fn with each frame's header, then its payload unless empty.
-// Small pieces are held and flushed at the frame end (or the batch end); a
-// payload larger than the buffer follows its already flushed header.
+// Small pieces are held and flushed at the frame end (or the batch end). A
+// payload that does not fit follows its header out, so it is committed.
 int uiStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int) {
-  if (uiStreamPendingBytes && fd != uiStreamPendingFd) {
-    uiStreamPendingBytes = 0;
-    uiStreamAwaitingPayload = false;
+  if (uiStreamBatching && uiStreamBatchFailed) {
+    // Nothing more after a failed write: the batch outcome stays exact.
+    uiStreamSendCleanAbort = uiStreamBatchClean;
+    return -1;
   }
+  if (uiStreamPendingBytes && fd != uiStreamPendingFd && uiStreamFlush() < 0) return -1;
   const bool payload = uiStreamAwaitingPayload;
   const int64_t announced = payload ? 0 : uiStreamHeaderPayload(data, length);
   if (announced < 0) {
@@ -115,9 +116,9 @@ int uiStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int) {
     return uiStreamWrite(fd, data, length, true);
   }
   uiStreamAwaitingPayload = !payload && announced > 0;
-  if (uiStreamPendingBytes + length > kUiStreamCoalesceBytes && uiStreamFlush() < 0)
-    return -1;
-  if (length > kUiStreamCoalesceBytes) return uiStreamWrite(fd, data, length, true);
+  const bool split = uiStreamPendingBytes + length > kUiStreamCoalesceBytes;
+  if (split && uiStreamFlush() < 0) return -1;
+  if (split && payload) return uiStreamWrite(fd, data, length, true);
   memcpy(uiStreamPending + uiStreamPendingBytes, data, length);
   uiStreamPendingBytes += length;
   uiStreamPendingFd = fd;
@@ -126,17 +127,20 @@ int uiStreamSend(httpd_handle_t, int fd, const char *data, size_t length, int) {
   return uiStreamFlush() < 0 ? -1 : static_cast<int>(length);
 }
 
-// The dispatch's Home + shot card frames share one write. Returns false when
-// any write of the batch failed; uiStreamSendCleanAbort then tells whether
-// none of it reached the wire.
+// The dispatch's Home + shot card frames share one write.
 void uiStreamBatchBegin() {
   uiStreamBatching = true;
   uiStreamBatchFailed = false;
   uiStreamBatchClean = true;
 }
 
-bool uiStreamBatchEnd() {
-  (void)uiStreamFlush();
+// Returns false when any write of the batch failed; uiStreamSendCleanAbort
+// then tells whether the failure left no partial frame on the wire. A socket about to close
+// drops its pending bytes instead of spending the dispatch budget on them.
+bool uiStreamBatchEnd(bool deliver) {
+  if (deliver) (void)uiStreamFlush();
+  uiStreamPendingBytes = 0;
+  uiStreamAwaitingPayload = false;
   uiStreamBatching = false;
   uiStreamSendCleanAbort = uiStreamBatchClean;
   return !uiStreamBatchFailed;

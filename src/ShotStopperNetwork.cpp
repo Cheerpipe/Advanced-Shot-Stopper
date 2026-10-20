@@ -156,6 +156,10 @@ struct NetworkWorkBuf {
   AuditRecord auditBatch[kAuditBatchSize]{};
   DebugLogReadMetadata logMetadata{};
   UiStreamFingerprints uiFingerprints[2]{};
+  // Rollback copy of one session's Home and shot-card fingerprints for the
+  // stream's Home + shot-card batch (httpd only, under the work buffer).
+  uint32_t batchHomeHashes[UiStreamFingerprints::kHomeFields]{};
+  uint32_t batchCardHashes[UiStreamFingerprints::kCardFields]{};
   StatsStreamCache statsCache{};
   ShotCurveRecord homeCurve{};
   ShotCurveRecord serializedCurve{};

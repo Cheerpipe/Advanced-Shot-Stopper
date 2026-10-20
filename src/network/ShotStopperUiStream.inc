@@ -114,8 +114,8 @@ esp_err_t ShotStopperNetwork::uiStreamHandshake(httpd_req_t *request) {
     // Bound incomplete incoming frames independently of ordinary HTTP/OTA.
     const timeval timeout = {0, 100000};
     setsockopt(session.fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-    // A WS frame is two writes (header, payload): without NODELAY, Nagle holds
-    // the payload until the header's ACK, which modem sleep delays.
+    // Frames leave back to back: without NODELAY, Nagle holds each write
+    // until the previous one's ACK, which modem sleep delays.
     const int noDelay = 1;
     setsockopt(session.fd, IPPROTO_TCP, TCP_NODELAY, &noDelay, sizeof(noDelay));
     return ESP_OK;
@@ -488,14 +488,23 @@ void ShotStopperNetwork::sendUiStream(UiStreamSession &session,
   // task; past the dispatch budget, close it instead of serializing more.
   const uint32_t started = millis();
   const auto within = [&] { return millis() - started < kUiStreamDispatchBudgetMs; };
+  // Both frames leave in one write after consuming their fingerprints: a
+  // cleanly dropped batch rolls session and fingerprints back, so the next
+  // dispatch resends the same deltas; a partial one closes.
+  auto &hashes = workBuf_->uiFingerprints[&session - uiStreams_];
+  const UiStreamSession saved = session;
+  memcpy(workBuf_->batchHomeHashes, hashes.homeHashes, sizeof(hashes.homeHashes));
+  memcpy(workBuf_->batchCardHashes, hashes.cardHashes, sizeof(hashes.cardHashes));
   uiStreamBatchBegin();
   bool open = sendHomeStream(session, control, network, eligible ? &latest : nullptr) &&
       within() && sendShotCard(session, control, latest, eligible);
-  // Both frames leave in one write; their fingerprints are already consumed,
-  // so a cleanly dropped batch resends snapshots and a partial one closes.
-  if (!uiStreamBatchEnd()) {
-    if (uiStreamSendCleanAbort) session.homeResync = session.resync = true;
-    else open = false;
+  uiStreamSendKind = "batch";
+  if (!uiStreamBatchEnd(open) && open) {
+    if (uiStreamSendCleanAbort) {
+      session = saved;
+      memcpy(hashes.homeHashes, workBuf_->batchHomeHashes, sizeof(hashes.homeHashes));
+      memcpy(hashes.cardHashes, workBuf_->batchCardHashes, sizeof(hashes.cardHashes));
+    } else open = false;
   }
   if (open && session.diagnostic)
     open = within() && sendDiagnosticStream(session, control, network);
@@ -589,9 +598,11 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
       reinterpret_cast<const uint8_t *>(&curve.atmClearedMs),
       offsetof(ShotCurveRecord, weightCg) - offsetof(ShotCurveRecord, atmClearedMs));
   const uint8_t flags = (curve.truncated ? 1U : 0U) | (control.snapshotStale ? 2U : 0U);
-  // Markers, truncation and staleness ride the curve scalars of any frame:
-  // a change sends one, but only identity or sent-point changes replace.
-  const uint32_t fingerprint = crc32Update(markers, &flags, 1);
+  // Markers, truncation, staleness and phase ride every frame's envelope or
+  // curve scalars: a change sends one, but only identity or sent-point
+  // changes replace.
+  const uint32_t fingerprint = crc32Update(crc32Update(markers, &flags, 1),
+      reinterpret_cast<const uint8_t *>(phase), strlen(phase));
   const uint32_t prefix = uiStreamCurveHash(curve, curve.count);
   const bool replace = session.resync || session.boot != control.bootId ||
       session.cycle != card.cycleId || session.shot != card.shotLogId ||
@@ -666,13 +677,10 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   frame.type = HTTPD_WS_TYPE_TEXT;
   frame.payload = reinterpret_cast<uint8_t *>(workBuf_->statusJson);
   frame.len = delta.used;
-  if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
-    // The card fingerprints were consumed for the dropped frame, so only a
-    // replacement can repair the client; defer on a clean abort.
-    if (!uiStreamSendCleanAbort) return false;
-    session.resync = true;
-    return true;
-  }
+  // A clean abort defers: the dispatch batch rolls the consumed card
+  // fingerprints back, and bookkeeping below only advances on delivery.
+  if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK)
+    return uiStreamSendCleanAbort;
   ++session.sequence;
   session.boot = control.bootId;
   session.cycle = card.cycleId;

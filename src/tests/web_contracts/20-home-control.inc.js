@@ -394,8 +394,11 @@
     catch(_){rejected=true}
     if(!rejected)throw new Error('A merged card must pass the snapshot card checks');
   }
+  const quiet=apply(delta,{...update,seq:4,base:3,curveBase:4,cursor:4,phase:'pending',card:{},
+    curve:{wCg:[],wAtMs:[],wBreakBefore:[],wHeld:[]}});
+  if(quiet.phase!=='pending'||quiet.card.weight!==2.5)throw new Error('An empty card delta must keep the card');
   const corrected=apply(next,{...snapshot,seq:3,revision:3,curve:{...snapshot.curve,dropS:null}});
-  if(corrected.cursor!==2||corrected.curve.dropS!==null)throw new Error('Corrected markers require replacement');
+  if(corrected.cursor!==2||corrected.curve.dropS!==null)throw new Error('A marker-correcting snapshot must replace the curve');
   const reboot=apply(next,{...snapshot,boot:8});
   if(reboot.boot!==8||reboot.cursor!==2)throw new Error('Boot snapshots must discard old cursors');
   for(const bad of [{...update,seq:4},{...update,base:0},{...update,cycle:20},
@@ -433,6 +436,7 @@
     throw new Error('The UI stream socket must send frames without Nagle delay');
   if(!/rule\[256\] = "null";\n  if \(canonical\) \{\n    snprintf\(rule,/.test(streamSource)||
       !streamSource.includes('delta.field("rule", "%s", rule);')||
+      !streamSource.includes('reinterpret_cast<const uint8_t *>(phase), strlen(phase)')||
       !streamSource.includes('delta.field("tintClass", "\\"%s\\"", control.activeCycle')||
       !streamSource.includes('delta.field("tintPct", "%u", control.activeCycle ?'))
     throw new Error('Only a stored shot card may carry its preset rule and live tint');
@@ -1081,7 +1085,7 @@ if (!network.includes('callbacks_.copyHomeShot(latest, self.workBuf_->homeCurve)
     network.includes('\"lastGoodShot\":%s') ||
     !firmwareCore.includes('shotLog.copyNewestEligible(record)') ||
     !network.includes('session.cycle = card.cycleId;') ||
-    !network.includes('\\"presetName\\":\\"%s\\"') ||
+    !network.includes('delta.field("presetName", "\\"%s\\"", preset);') ||
     !network.includes('delta.field("averageFlowGps", "%s", flow);') ||
     !network.includes('card.averageFlowValid && std::isfinite(card.averageFlowGps)') ||
     network.includes('scaleFlowGps') ||
