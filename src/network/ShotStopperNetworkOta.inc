@@ -1051,7 +1051,7 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
   }
   buffer[0] = '\0';
   ShotStopperOta &ota = ShotStopperOta::instance();
-  const OtaStatusSnapshot ota_ = ota.snapshot();
+  const OtaStatusSnapshot ota_ = ota.snapshot(false);
   const bool safe = controlAllowsConfiguration(control);
   int written = snprintf(
       buffer, capacity,
@@ -1154,7 +1154,8 @@ bool ShotStopperNetwork::otaTransferStillSafe(void *context) {
   if (transfer == nullptr || transfer->network == nullptr) {
     return false;
   }
-  return controlAllowsConfiguration(transfer->network->controlGate());
+  return !transfer->network->otaWorkerStopping_.load() &&
+         controlAllowsConfiguration(transfer->network->controlGate());
 }
 
 void ShotStopperNetwork::otaTransferProgress(void *context, uint32_t received,
@@ -1175,7 +1176,7 @@ esp_err_t ShotStopperNetwork::otaStatusHandler(httpd_req_t *request) {
                      "Send the device password, or unlock administration first.");
   }
   ShotStopperOta::instance().expireSession(
-      millis(), controlAllowsConfiguration(self.controlGate()));
+      millis(), controlAllowsConfiguration(self.controlGate()), false);
   return self.sendOtaSnapshot(request, STATUS_OK);
 }
 esp_err_t ShotStopperNetwork::otaUploadHandler(httpd_req_t *request) {
@@ -1187,7 +1188,25 @@ esp_err_t ShotStopperNetwork::otaUploadHandler(httpd_req_t *request) {
   return sendError(request, STATUS_CONFLICT, "OTA_SESSION_REQUIRED",
                    "Create /api/v1/ota/session, then upload PATCH ranges.");
 }
+
 esp_err_t ShotStopperNetwork::otaSessionHandler(httpd_req_t *request) {
+  return request->method == HTTP_GET
+      ? otaSessionWork(request)
+      : instance_->runOnOtaWorker(request, otaSessionWork);
+}
+
+esp_err_t ShotStopperNetwork::otaPatchHandler(httpd_req_t *request) {
+  return instance_->runOnOtaWorker(request, otaPatchWork);
+}
+
+esp_err_t ShotStopperNetwork::otaFlashHandler(httpd_req_t *request) {
+  return instance_->runOnOtaWorker(request, otaFlashWork);
+}
+
+esp_err_t ShotStopperNetwork::otaAbortHandler(httpd_req_t *request) {
+  return instance_->runOnOtaWorker(request, otaAbortWork);
+}
+esp_err_t ShotStopperNetwork::otaSessionWork(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   if (!self.authorizeOtaRequest(request)) {
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
@@ -1197,8 +1216,8 @@ esp_err_t ShotStopperNetwork::otaSessionHandler(httpd_req_t *request) {
   if (request->method == HTTP_GET) {
     // The Web UI and the OTA script poll this route; expire abandoned
     // sessions here so OTA busy never outlives its timeout.
-    ShotStopperOta::instance().expireSession(millis(),
-                                             controlAllowsConfiguration(control));
+    ShotStopperOta::instance().expireSession(
+        millis(), controlAllowsConfiguration(control), false);
     return self.sendOtaSnapshot(request, STATUS_OK);
   }
   if (!controlAllowsConfiguration(control)) {
@@ -1253,7 +1272,7 @@ esp_err_t ShotStopperNetwork::otaSessionHandler(httpd_req_t *request) {
   return self.sendOtaSnapshot(request, STATUS_OK);
 }
 
-esp_err_t ShotStopperNetwork::otaPatchHandler(httpd_req_t *request) {
+esp_err_t ShotStopperNetwork::otaPatchWork(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   auto rejectRange = [request](const char *status, const char *error,
                                const char *message) {
@@ -1326,7 +1345,7 @@ esp_err_t ShotStopperNetwork::otaPatchHandler(httpd_req_t *request) {
   return self.sendOtaSnapshot(request, STATUS_OK);
 }
 
-esp_err_t ShotStopperNetwork::otaFlashHandler(httpd_req_t *request) {
+esp_err_t ShotStopperNetwork::otaFlashWork(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   if (!self.authorizeOtaRequest(request)) {
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
@@ -1377,7 +1396,7 @@ esp_err_t ShotStopperNetwork::otaFlashHandler(httpd_req_t *request) {
   return self.sendOtaSnapshot(request, STATUS_ACCEPTED);
 }
 
-esp_err_t ShotStopperNetwork::otaAbortHandler(httpd_req_t *request) {
+esp_err_t ShotStopperNetwork::otaAbortWork(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   if (!self.authorizeOtaRequest(request)) {
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",

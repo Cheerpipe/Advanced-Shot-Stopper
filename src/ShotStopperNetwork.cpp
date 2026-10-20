@@ -739,6 +739,26 @@ void formatIp(const IPAddress &ip, char output[16]) {
   formatIpv4(octets, output);
 }
 
+// Every handler shares the one httpd task, so a slow one delays the Web UI
+// stream, Home Assistant and OTA polls. Report those in the Web UI log, with
+// the path only: query strings are never logged.
+constexpr uint32_t SLOW_HTTP_HANDLER_MS = 500;
+
+esp_err_t timedHandler(httpd_req_t *request) {
+  const uint32_t startedAtMs = millis();
+  const esp_err_t result =
+      reinterpret_cast<esp_err_t (*)(httpd_req_t *)>(request->user_ctx)(request);
+  const uint32_t elapsedMs = millis() - startedAtMs;
+  if (elapsedMs >= SLOW_HTTP_HANDLER_MS) {
+    serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
+                         "http: %s %.*s held the web server %lu ms",
+                         http_method_str(static_cast<http_method>(request->method)),
+                         static_cast<int>(strcspn(request->uri, "?")), request->uri,
+                         static_cast<unsigned long>(elapsedMs));
+  }
+  return result;
+}
+
 bool registerHandler(httpd_handle_t server, const char *uri,
                      httpd_method_t method, esp_err_t (*handler)(httpd_req_t *),
                      bool websocket = false,
@@ -746,7 +766,8 @@ bool registerHandler(httpd_handle_t server, const char *uri,
   httpd_uri_t descriptor = {};
   descriptor.uri = uri;
   descriptor.method = method;
-  descriptor.handler = handler;
+  descriptor.handler = timedHandler;
+  descriptor.user_ctx = reinterpret_cast<void *>(handler);
   descriptor.is_websocket = websocket;
   descriptor.ws_pre_handshake_cb = handshake;
   return httpd_register_uri_handler(server, &descriptor) == ESP_OK;

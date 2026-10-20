@@ -20,7 +20,8 @@ Locks are normally acquired one at a time. The only permitted nesting is:
 
 1. lifecycle mutex → webhook state mutex;
 2. network work-buffer mutex → JSON document lifetime;
-3. OTA task mutex → flash-I/O recursive mutex;
+3. OTA task mutex → flash-I/O recursive mutex, and OTA task mutex → OTA
+   published-snapshot mutex (a leaf);
 4. NimBLE advertisement mutex → NimBLE client-state mutex; and
 5. native BLE host-task lifetime mutex → native BLE runtime state spinlock.
 
@@ -336,6 +337,15 @@ cache instead of blocking the worker. They progress plain HTTP asynchronously
 on the pinned IDF 6.1 transport with one connection per POST, keep one
 absolute 1800-ms deadline and do not replay an ambiguously dispatched POST.
 NTP closes callback acceptance before owner stop. OTA publishes its own atomic
-busy gate; maintenance parks and frees the Micra workspaces without delaying
+busy gate. OTA session creation, range writes, commit and discard run in FIFO
+order on the transient `ota_worker` task through ESP-IDF async requests, so
+the httpd task keeps serving the Web UI stream and API reads during erase and
+write. Those operations hold the OTA mutex for seconds; status readers on
+httpd use `snapshot(false)`, which takes the copy published at the last state
+change or written sector instead of waiting. `stopHttpServer()` refuses new
+OTA jobs and waits, feeding its watchdog, until every accepted job has been
+answered before `httpd_stop` frees the sessions those jobs hold; a range
+write aborts at its next sector once the stop is visible. Maintenance parks
+and frees the Micra workspaces without delaying
 control or BLE. Settings writes resume only after image confirmation, with
 the original queued dirty generations intact.

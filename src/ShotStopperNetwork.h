@@ -760,6 +760,29 @@ class ShotStopperNetwork {
   static esp_err_t otaPatchHandler(httpd_req_t *request);
   static esp_err_t otaFlashHandler(httpd_req_t *request);
   static esp_err_t otaAbortHandler(httpd_req_t *request);
+  static esp_err_t otaSessionWork(httpd_req_t *request);
+  static esp_err_t otaPatchWork(httpd_req_t *request);
+  static esp_err_t otaFlashWork(httpd_req_t *request);
+  static esp_err_t otaAbortWork(httpd_req_t *request);
+
+  // OTA erase, range writes and commit run in FIFO order on a transient
+  // "ota_worker" task with an httpd-sized internal stack, through ESP-IDF
+  // async requests, so httpd keeps serving the Web UI stream and API reads.
+  using OtaWork = esp_err_t (*)(httpd_req_t *);
+  struct OtaJob {
+    httpd_req_t *request = nullptr;
+    OtaWork work = nullptr;
+  };
+  static constexpr UBaseType_t OTA_JOB_QUEUE_LENGTH = 4;
+  esp_err_t runOnOtaWorker(httpd_req_t *request, OtaWork work);
+  void runOtaJob(const OtaJob &job);
+  void drainOtaJobs();
+  static void otaWorkerTask(void *context);
+  QueueHandle_t otaJobs_ = nullptr;
+  std::atomic<bool> otaWorkerRunning_{false};
+  std::atomic<bool> otaWorkerStopping_{false};
+  // Accepted OTA requests not yet answered; httpd_stop waits for zero.
+  std::atomic<uint8_t> otaJobsPending_{0};
 
   bool authorizeOtaRequest(httpd_req_t *request);
   esp_err_t sendOtaSnapshot(httpd_req_t *request, const char *httpStatus);

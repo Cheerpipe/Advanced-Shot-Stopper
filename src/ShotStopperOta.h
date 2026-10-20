@@ -259,7 +259,10 @@ class ShotStopperOta {
   bool available() const;
   bool busy() const;
   uint32_t slotBytes() const;
-  OtaStatusSnapshot snapshot() const;
+  // With `wait` false a reader never blocks behind an erase, range write or
+  // commit holding the OTA mutex; it gets the copy published at that
+  // operation's last state change or written sector instead.
+  OtaStatusSnapshot snapshot(bool wait = true) const;
   OtaPublishedState publishedState() const;
 
   // Starts (or reconnects to) a resumable transfer.  This does not erase or
@@ -319,6 +322,7 @@ class ShotStopperOta {
   bool removeSessionJournal();
   void restoreSessionJournal();
   void publishState();
+  OtaStatusSnapshot snapshotLocked() const;
   bool readBootState();
   bool confirmRunningImageLocked();
   enum class RejectResult { REJECTED, NO_ALTERNATIVE, FAILED };
@@ -363,10 +367,13 @@ class ShotStopperOta {
   // not force every consumer to include PSA Crypto internals.
   UniqueResource<void *, OtaSha256Deleter> sessionSha256_;
   uint32_t journaledBytes_ = 0;
+  mutable OtaStatusSnapshot publishedSnapshot_ = {};
   // Kernel/atomic state stays in internal DRAM while the singleton's bulk
   // state (identity, tags, journal, scanner) lives in PSRAM BSS.
   static std::atomic<uint32_t> publishedFlags_;
   static TaskMutex mutex_;
+  // Guards only publishedSnapshot_; never held while taking mutex_.
+  static TaskMutex publishedSnapshotMutex_;
 };
 
 }  // namespace shotstopper

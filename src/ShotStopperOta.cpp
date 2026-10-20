@@ -256,6 +256,7 @@ void OtaSha256Deleter::operator()(void *context) const {
 
 std::atomic<uint32_t> ShotStopperOta::publishedFlags_{0};
 TaskMutex ShotStopperOta::mutex_;
+TaskMutex ShotStopperOta::publishedSnapshotMutex_;
 
 ShotStopperOta &ShotStopperOta::instance() {
   // Task-only state, never a flash DMA source or destination (chunks and
@@ -307,6 +308,7 @@ void ShotStopperOta::publishState() {
   if (confirmed_) flags |= OTA_PUBLISHED_CONFIRMED;
   if (rejected_) flags |= OTA_PUBLISHED_REJECTED;
   publishedFlags_.store(flags, std::memory_order_release);
+  (void)snapshotLocked();
 }
 
 OtaImageTag ShotStopperOta::runningTag() const {
@@ -489,8 +491,19 @@ void ShotStopperOta::restoreSessionJournal() {
   }
 }
 
-OtaStatusSnapshot ShotStopperOta::snapshot() const {
-  TaskLockGuard lock(mutex_);
+OtaStatusSnapshot ShotStopperOta::snapshot(bool wait) const {
+  if (wait) {
+    mutex_.lock();
+  } else if (!mutex_.tryLock()) {
+    TaskLockGuard published(publishedSnapshotMutex_);
+    return publishedSnapshot_;
+  }
+  const OtaStatusSnapshot copy = snapshotLocked();
+  mutex_.unlock();
+  return copy;
+}
+
+OtaStatusSnapshot ShotStopperOta::snapshotLocked() const {
   OtaStatusSnapshot copy;
   copy.available = available_;
   copy.busy = busy_ || sessionActive_;
@@ -523,6 +536,8 @@ OtaStatusSnapshot ShotStopperOta::snapshot() const {
     const uint32_t age = static_cast<uint32_t>(millis() - sessionLastActivityMs_);
     copy.sessionExpiresInMs = age < OTA_SESSION_TTL_MS ? OTA_SESSION_TTL_MS - age : 0;
   }
+  TaskLockGuard published(publishedSnapshotMutex_);
+  publishedSnapshot_ = copy;
   return copy;
 }
 
@@ -835,6 +850,7 @@ OtaResult ShotStopperOta::writeRange(const char *transferId, uint32_t offset,
     scanner_.feed(buffer, length);
     rangeReceived += static_cast<uint32_t>(length);
     receivedBytes_ += static_cast<uint32_t>(length);
+    (void)snapshotLocked();
     yieldFlashIo();
     feedFlashIoWatchdog();
     // The marker is in the early read-only segment. Reject a wrong board or

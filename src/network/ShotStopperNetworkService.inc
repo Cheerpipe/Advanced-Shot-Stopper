@@ -180,6 +180,8 @@ bool ShotStopperNetwork::lockConfirmedBody(httpd_req_t *request,
 }
 
 esp_err_t ShotStopperNetwork::workBufBusy(httpd_req_t *request) {
+  actionLogf("http: %.*s answered busy: response workspace unavailable",
+             static_cast<int>(strcspn(request->uri, "?")), request->uri);
   return sendError(request, STATUS_UNAVAILABLE, "STATUS_BUSY",
                    "Status snapshot is busy; retry shortly.");
 }

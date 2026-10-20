@@ -71,6 +71,9 @@ constexpr TaskScheduleContract TASK_SCHEDULE_CONTRACTS[] = {
      10000, 0, false},
     {"serial_log", 0, 0, 3072, TaskActivation::EVENT_DRIVEN, 0, 0, 0,
      TASK_BLOCKING_UNBOUNDED_MS, 0, false},
+    // Transient: exists only while OTA requests are queued.
+    {"ota_worker", 0, 1, 11264, TaskActivation::EVENT_DRIVEN, 0, 0, 0, 30000,
+     0, false},
 };
 
 constexpr size_t TASK_SCHEDULE_CONTRACT_COUNT =

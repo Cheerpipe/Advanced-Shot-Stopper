@@ -5,15 +5,35 @@
 #include "../ShotStopperOta.cpp"
 
 #include <atomic>
+#include <chrono>
 #include <cstdlib>
+#include <future>
 #include <iostream>
 #include <thread>
+
+namespace shotstopper {
+struct OtaHostTestAccess {
+  static TaskMutex &mutex() { return ShotStopperOta::mutex_; }
+};
+}  // namespace shotstopper
 
 int main() {
   using namespace shotstopper;
   persistence_host::reset();
   ShotStopperOta &ota = ShotStopperOta::instance();
   ota.begin();
+
+  // A range write holds the OTA mutex for seconds; status readers on httpd
+  // and the Web UI stream must get the published copy instead of waiting.
+  OtaHostTestAccess::mutex().lock();
+  auto reader = std::async(std::launch::async, [&]() { return ota.snapshot(false); });
+  const bool readerReturned =
+      reader.wait_for(std::chrono::seconds(1)) == std::future_status::ready;
+  OtaHostTestAccess::mutex().unlock();
+  if (!readerReturned || !reader.get().available) {
+    std::cerr << "OTA status read blocked behind the OTA mutex\n";
+    return EXIT_FAILURE;
+  }
   const OtaResult invalidIdentity = otaArchIsUsable(ota.runningTag().arch)
       ? OtaResult::SESSION_IDENTITY_MISMATCH : OtaResult::NO_IDENTITY;
 
@@ -44,7 +64,7 @@ int main() {
     waitForStart();
     for (int iteration = 0; iteration < 10000; ++iteration) {
       const OtaPublishedState published = ota.publishedState();
-      const OtaStatusSnapshot snapshot = ota.snapshot();
+      const OtaStatusSnapshot snapshot = ota.snapshot(iteration % 2 == 0);
       if (!published.available || !published.confirmed || published.busy ||
           published.pendingVerify || published.rejected ||
           !snapshot.available || !snapshot.confirmed || snapshot.busy ||

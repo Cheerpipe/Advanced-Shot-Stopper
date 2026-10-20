@@ -84,7 +84,7 @@ never deleted by this wrapper: their owners retain explicit stop/ack/join.
 | webhook `esp_http_client` | `WebhookDispatcher::httpClient_` (`UniqueResource`) | normal cleanup after worker join, or on the worker's next pass after webhooks are disabled or the URL changes; destructor is final rollback |
 | OTA write handle | `OpenBrewByWeightOta::otaHandle_` (`UniqueResource`) | abort under `FlashIoGuard`; `release()` transfers it exactly once to `esp_ota_end` |
 | OTA SHA context | `OpenBrewByWeightOta::sessionSha256_` (`UniqueResource`) | `psa_hash_abort` then capability-aware heap free |
-| OTA state singleton | `OpenBrewByWeightOta::instance()` | PSRAM BSS object constructed on first use; its mutex and lock-free published flags are internal statics; flash chunks, the SHA context and tag re-reads use internal memory only |
+| OTA state singleton | `OpenBrewByWeightOta::instance()` | PSRAM BSS object constructed on first use; its mutex, published-snapshot mutex and lock-free published flags are internal statics; the published status copy lives in the PSRAM object; flash chunks, the SHA context and tag re-reads use internal memory only |
 | Network command queue and lifecycle semaphores | `OpenBrewByWeightNetwork` (`UniqueResource`) | acquired before task creation; reset in reverse order after manager join |
 | boot heap shaper block | `OpenBrewByWeightNetwork` | one-shot 69,632-byte internal hold taken before Wi-Fi bring-up and released once the station settle floor passes and the applicable late milestones settle (first cloud query terminal, first NTP attempt terminal), expired on the first service pass at or after 60 s even if startup is failing, or freed in `stop()` after owner join; keeps bring-up allocations out of the central DRAM free run; no shaping/retry when the hold cannot be satisfied |
 | boot heap capture | `BootHeapCapture`, task-only producers under one internal static `TaskMutex` | fixed payload of at most 768 bytes in PSRAM; first stage samples retained until reset, health-task sampling stops 60 s after release; `BOOT_HEAP` copies each immutable record under the mutex and prints outside it; no task, dynamic allocation, flash write or credential capture |
@@ -165,12 +165,22 @@ Sessions retain their own request identity, sequence and cursor. Debug export
 invalidates the cache before borrowing the record array. A capture that sees a
 newer epoch than the initial probe starts a new page sequence. Store locks are
 released before sorting, hashing, JSON formatting or sending.
-Other API requests remain exclusive, including commands and OTA. Four HTTP
-sockets and a four-connection backlog also accommodate lazy HTML and JavaScript
-downloads.
+Other API requests remain exclusive, including commands. Seven HTTP sockets
+and a four-connection backlog cover the claimed stream and a takeover
+handshake, lazy HTML and JavaScript or Stats reads, a Home Assistant request,
+and an OTA range plus its status poll. `CONFIG_LWIP_MAX_SOCKETS=18` covers
+httpd's `max_open_sockets + 3`, mDNS, SNTP, DNS, the webhook, Micra WSS and
+HTTPS, and two spare sockets; slots are allocated per open socket.
 Handlers execute serially on the existing HTTP task, retaining one owner of
-the shared response workspace; overlapping requests do not add worker tasks
-or concurrent workspace access.
+the shared response workspace. The one exception is OTA work: session
+creation, range writes, commit and discard move to the transient
+`ota_worker` task (httpd-sized internal stack, core 0, idle+1, not watchdog
+subscribed, like httpd) through ESP-IDF async requests, queued in FIFO order
+up to four. The worker borrows the response workspace only to answer, under
+the same mutex. If the queue, the async copy or the task cannot be allocated,
+the request runs on httpd as before and the Web UI log says so. A handler
+that holds httpd for 500 ms or more, or a request answered `STATUS_BUSY`, is
+reported in the Web UI log with its path only.
 
 Host evidence consists of allocation/task fault injection already in the main
 harness, OTA concurrent TSAN, ASan/UBSan tests and

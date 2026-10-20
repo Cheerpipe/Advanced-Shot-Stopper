@@ -1855,8 +1855,20 @@ console.log(
     const start = network.indexOf('esp_err_t ShotStopperNetwork::' + name);
     return network.slice(start, network.indexOf('\nesp_err_t ShotStopperNetwork::', start + 1));
   };
-  const session = handler('otaSessionHandler');
-  const abort = handler('otaAbortHandler');
+  // Mutating OTA routes run on the worker; status reads never wait for it.
+  for (const name of ['otaPatchHandler', 'otaFlashHandler', 'otaAbortHandler']) {
+    if (!handler(name).includes('runOnOtaWorker(request, ')) {
+      throw new Error(name + ' must run its OTA work on the OTA worker');
+    }
+  }
+  if (!handler('otaSessionHandler').includes('HTTP_GET') ||
+      !network.includes('ota.snapshot(false)') ||
+      !/otaWorkerStopping_\.store\(true\);[\s\S]*otaJobsPending_\.load\(\) != 0[\s\S]*httpd_stop\(server_\)/.test(network) ||
+      !network.includes('httpd_req_async_handler_complete(job.request)')) {
+    throw new Error('OTA status must stay on httpd without blocking, and httpd_stop must wait for OTA jobs');
+  }
+  const session = handler('otaSessionWork');
+  const abort = handler('otaAbortWork');
   if (session.indexOf('expireSession(') < 0 ||
       session.indexOf('expireSession(') > session.indexOf('sendOtaSnapshot(') ||
       !network.includes('ota.expireSession(now, controlAllowsConfiguration(control), false)') ||

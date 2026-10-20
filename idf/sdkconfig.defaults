@@ -101,9 +101,10 @@ CONFIG_ESP_WIFI_MGMT_SBUF_NUM=16
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=16384
 CONFIG_LWIP_TCP_WND_DEFAULT=16384
 CONFIG_LWIP_TCP_RECVMBOX_SIZE=16
-# httpd alone can hold (max_open_sockets + 3) = 7 sockets at peak; the mDNS
-# responder keeps one more open permanently, leaving SNTP/webhooks no room.
-CONFIG_LWIP_MAX_SOCKETS=10
+# Peak with every network feature active: httpd (max_open_sockets + 3) = 10,
+# mDNS 1, SNTP 1, DNS 1, webhook 1, Micra WSS 1 and HTTPS 1 = 16, plus 2 spare.
+# Slots are allocated per open socket, and its buffers prefer PSRAM.
+CONFIG_LWIP_MAX_SOCKETS=18
 CONFIG_LWIP_DHCPS_MAX_STATION_NUM=4
 # mDNS advertises only (hostname + _http._tcp): two interfaces (STA + SoftAP),
 # one service, no browse/CLI/multi-instance query machinery. Arduino pulls

@@ -16085,7 +16085,11 @@ void f14_relay_timer_initialization_rolls_back_partial_handles() {
 }
 
 void f13_schedule_contract_and_snapshot_evidence_are_explicit() {
-  CHECK(TASK_SCHEDULE_CONTRACT_COUNT == 9);
+  CHECK(TASK_SCHEDULE_CONTRACT_COUNT == 10);
+  CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[9].name, "ota_worker") == 0);
+  CHECK(TASK_SCHEDULE_CONTRACTS[9].configuredStackBytes ==
+        TASK_SCHEDULE_CONTRACTS[5].configuredStackBytes);
+  CHECK(!TASK_SCHEDULE_CONTRACTS[9].watchdogSubscribed);
   CHECK(strcmp(TASK_SCHEDULE_CONTRACTS[0].name, "control") == 0);
   CHECK(TASK_SCHEDULE_CONTRACTS[0].core == CONTROL_TASK_CORE);
   CHECK(TASK_SCHEDULE_CONTRACTS[0].serviceDeadlineMs ==

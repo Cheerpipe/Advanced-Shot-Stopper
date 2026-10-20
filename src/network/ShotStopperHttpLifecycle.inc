@@ -1130,12 +1130,13 @@ bool ShotStopperNetwork::startHttpServer() {
   // Keep the httpd task stack in internal RAM (default task_caps). OTA upload
   // erases/writes flash on this task. XIP usually keeps cache available, but
   // flash mapping and driver paths can still disable it.
-  // One claimed WebUI may overlap two Stats/History reads with HTML and JS.
-  // Keep four sockets and queue the same bounded burst. Handlers still run on
-  // the single httpd task: shared response scratch must never run concurrently.
-  // ESP-IDF uses (max_open_sockets + 3) LWIP sockets total; each open socket
-  // carries TCP wnd/snd buffers, so this does not increase the DRAM budget.
-  config.max_open_sockets = 4;
+  // Concurrent peers: the claimed WebUI stream plus a takeover handshake, two
+  // lazy HTML/JS or Stats reads, a Home Assistant request, and an OTA range on
+  // the worker plus its session poll. Handlers on the httpd task still run
+  // serially over the shared response scratch. ESP-IDF uses
+  // (max_open_sockets + 3) lwIP sockets; see CONFIG_LWIP_MAX_SOCKETS. TCP
+  // buffers are allocated per open connection and prefer PSRAM.
+  config.max_open_sockets = 7;
   // Exact special routes precede wildcard dispatchers so claim, integration,
   // and OTA retain their distinct authentication boundaries. Keep ten spare
   // slots; exhausting this tears down the whole Web UI at startup.
@@ -1226,10 +1227,81 @@ bool ShotStopperNetwork::startHttpServer() {
   return true;
 }
 
+// Runs on httpd only. Every setup failure falls back to running the request
+// inline on httpd, which is the pre-worker behavior.
+esp_err_t ShotStopperNetwork::runOnOtaWorker(httpd_req_t *request,
+                                             OtaWork work) {
+  // Seq-cst pairing with stopHttpServer(): either it sees this job pending,
+  // or this handler sees the stop and never hands a session to the worker.
+  otaJobsPending_.fetch_add(1);
+  if (otaWorkerStopping_.load()) {
+    otaJobsPending_.fetch_sub(1);
+    return sendError(request, STATUS_UNAVAILABLE, "OTA_SERVER_STOPPING",
+                     "The web server is restarting; retry shortly.");
+  }
+  if (otaJobs_ == nullptr) {
+    otaJobs_ = xQueueCreate(OTA_JOB_QUEUE_LENGTH, sizeof(OtaJob));
+  }
+  OtaJob job;
+  job.work = work;
+  if (otaJobs_ == nullptr ||
+      httpd_req_async_handler_begin(request, &job.request) != ESP_OK) {
+    actionLog("ota: worker memory unavailable; request ran on httpd");
+    const esp_err_t result = work(request);
+    otaJobsPending_.fetch_sub(1);
+    return result;
+  }
+  if (xQueueSend(otaJobs_, &job, 0) != pdTRUE) {
+    actionLog("ota: worker queue full; request ran on httpd");
+    runOtaJob(job);
+  } else if (!otaWorkerRunning_.exchange(true) &&
+             xTaskCreatePinnedToCore(otaWorkerTask, "ota_worker",
+                                     HTTP_SERVER_TASK_STACK_SIZE, this,
+                                     tskIDLE_PRIORITY + 1, nullptr, 0) != pdPASS) {
+    actionLog("ota: worker task did not start; requests ran on httpd");
+    drainOtaJobs();
+    otaWorkerRunning_.store(false);
+  }
+  return ESP_OK;
+}
+
+void ShotStopperNetwork::runOtaJob(const OtaJob &job) {
+  (void)job.work(job.request);
+  (void)httpd_req_async_handler_complete(job.request);
+  otaJobsPending_.fetch_sub(1);
+}
+
+void ShotStopperNetwork::drainOtaJobs() {
+  OtaJob job;
+  while (xQueueReceive(otaJobs_, &job, 0) == pdTRUE) runOtaJob(job);
+}
+
+void ShotStopperNetwork::otaWorkerTask(void *context) {
+  ShotStopperNetwork &self = *static_cast<ShotStopperNetwork *>(context);
+  do {
+    self.drainOtaJobs();
+    self.otaWorkerRunning_.store(false);
+    // A job queued after the last receive saw the worker running and started
+    // no task: keep draining unless that handler has already started one.
+  } while (uxQueueMessagesWaiting(self.otaJobs_) != 0 &&
+           !self.otaWorkerRunning_.exchange(true));
+  vTaskDelete(nullptr);
+}
+
 void ShotStopperNetwork::stopHttpServer() {
   if (server_ != nullptr) {
+    // OTA jobs hold async copies of httpd sessions: answer them before
+    // httpd_stop frees the sessions. A range write stops at its next sector
+    // because otaTransferStillSafe() reports the stop; the wait stays bounded
+    // by the OTA receive attempts, as an inline upload once bounded httpd_stop.
+    otaWorkerStopping_.store(true);
+    while (otaJobsPending_.load() != 0) {
+      (void)feedCurrentTaskWatchdog();
+      vTaskDelay(pdMS_TO_TICKS(100));
+    }
     beginOwnedHeapLifecycle(httpHeap_, HeapLifecycleEvent::HTTP_STOP);
     const esp_err_t stopped = httpd_stop(server_);
+    otaWorkerStopping_.store(false);
     server_ = nullptr;
     finishOwnedHeapLifecycle(
         httpHeap_, stopped == ESP_OK ? HeapLifecycleResult::SUCCESS

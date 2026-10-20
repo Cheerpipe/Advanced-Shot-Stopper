@@ -35,6 +35,15 @@ Compatibility mode does not restrict updates: with the [firmware mode
 switch](../settings/firmware-mode.md) off, the Admin **Firmware update**
 section and the whole OTA pipeline keep working.
 
+## While an update runs
+
+The Web UI stays live while the image uploads, verifies and flashes, and Home
+Assistant and webhooks keep working. The update steps themselves run one at a
+time, in the order they arrive. If the controller's web server is restarting,
+a step answers `OTA_SERVER_STOPPING`; send it again once the controller is
+back. The La Marzocco cloud connection still pauses during an update, as
+described below.
+
 ## Safety behavior
 
 The shot always has priority. The paddle is never blocked by an update.

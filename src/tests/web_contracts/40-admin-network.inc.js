@@ -430,8 +430,15 @@ const expected = new Map([
 ]);
 
 const maxSocketsMatch = network.match(/max_open_sockets\s*=\s*(\d+)/);
-if (!maxSocketsMatch || Number(maxSocketsMatch[1]) !== 4) {
-  throw new Error('HTTP server must reserve exactly 4 open sockets for the single-owner WebUI');
+if (!maxSocketsMatch || Number(maxSocketsMatch[1]) !== 7) {
+  throw new Error('HTTP server must reserve exactly 7 open sockets: WebUI stream and handshake, two reads, Home Assistant, and an OTA range plus its poll');
+}
+const lwipSocketsMatch = fs.readFileSync(path.join(sketchDir, '..', 'idf', 'sdkconfig.defaults'), 'utf8')
+  .match(/^CONFIG_LWIP_MAX_SOCKETS=(\d+)$/m);
+// httpd uses max_open_sockets + 3; mDNS, SNTP, DNS, webhook, Micra WSS and
+// HTTPS need six more, and two stay spare.
+if (!lwipSocketsMatch || Number(lwipSocketsMatch[1]) < Number(maxSocketsMatch[1]) + 3 + 6 + 2) {
+  throw new Error('CONFIG_LWIP_MAX_SOCKETS must cover httpd, every outbound client, and two spare sockets');
 }
 if (!network.includes('backlog_conn = 4')) {
   throw new Error('HTTP server must queue the four-request asset/read burst without increasing its socket budget');
