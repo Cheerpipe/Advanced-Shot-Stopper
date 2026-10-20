@@ -82,9 +82,7 @@ run record.
 
 Every environment verifies the required tools are present and runnable
 before tests or builds — Node and Cppcheck carry no project version pin, so
-the machine's current release is what runs. The Home Assistant checks verify
-Python and uv and refuse to update the lockfile during dependency sync;
-subsequent integration checks run without syncing. Firmware builds require
+the machine's current release is what runs. Firmware builds require
 ESP-IDF 6.1.0 and reject any change to the IDF component lock during a
 build.
 

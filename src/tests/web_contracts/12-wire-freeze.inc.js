@@ -1,7 +1,8 @@
 {
   // Frozen external wire contracts: EndReason ordinals and API names, stop
   // detail strings, quick-setting names, the webhook end shape and the Stats
-  // CSV columns. Change a value only deliberately, with the fixture and docs.
+  // CSV columns. Change a value only deliberately, with the fixture and docs;
+  // the Home Assistant integration repository tests its copy of the fixture.
   const frozen = JSON.parse(fs.readFileSync(
     path.join(sketchDir, 'tests', 'fixtures', 'wire_contracts_v1.json'), 'utf8'));
   const same = (actual, expected, what) => {
@@ -26,17 +27,6 @@
          .filter((name) => name !== 'unknown').sort(),
        [...frozen.stopDetails, ...frozen.retiredStopDetails].sort(),
        'Firmware stopDetail strings');
-
-  const ha = path.resolve(sketchDir, '..', 'integrations', 'OpenBrewByWeight',
-                          'custom_components', 'open_brew_by_weight');
-  const haConst = fs.readFileSync(path.join(ha, 'const.py'), 'utf8');
-  same([...haConst.match(/STOP_DETAILS = \(([\s\S]*?)\)/)[1].matchAll(/"([a-z_]+)"/g)]
-         .map((m) => m[1]), frozen.stopDetails, 'Home Assistant STOP_DETAILS');
-  for (const file of ['strings.json', path.join('translations', 'en.json')]) {
-    const catalog = JSON.parse(fs.readFileSync(path.join(ha, file), 'utf8'));
-    same(Object.keys(catalog.entity.sensor.last_shot_stop_detail.state).sort(),
-         [...frozen.stopDetails].sort(), `Home Assistant ${file} stop detail states`);
-  }
 
   const fixture = (name) => JSON.parse(fs.readFileSync(
     path.join(sketchDir, 'tests', 'fixtures', name), 'utf8'));

@@ -20,7 +20,7 @@ needed rather than reading the entire directory.
   [scale-loss backup](features/auto-to-manual.md)
 - [Alerts](alerts.md), [shot history](features/shot-history.md),
   [activation history](features/activation-history.md)
-- [Home Assistant integration](features/home-assistant.md)
+- [Home Assistant integration](features/home-assistant.md) ([integration repository](https://github.com/Cheerpipe/ha-open-brew-by-weight))
 - [Generic webhooks](features/webhooks.md)
 
 ## Settings

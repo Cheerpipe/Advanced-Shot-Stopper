@@ -73,15 +73,14 @@ reference host.
 | IDF components | Locked graph, including mDNS 1.13.1 and ESP WebSocket client 1.8.0 | [`idf/dependencies.lock`](../idf/dependencies.lock) |
 | Cppcheck | No pin; any current release resolved from `PATH` | [`./scripts/dev doctor`](../scripts/dev) |
 | Host CMake | 3.25 or newer | [`CMakePresets.json`](../CMakePresets.json) schema 6 |
-| Home Assistant tests (optional) | Python 3.14.2 or newer; dependencies locked with uv | [`pyproject.toml`](../integrations/OpenBrewByWeight/pyproject.toml), [`uv.lock`](../integrations/OpenBrewByWeight/uv.lock) |
-| Home Assistant service (optional) | No running service for tests; integration test dependency is 2026.9.x | [Integration project](../integrations/OpenBrewByWeight/pyproject.toml) |
 
 Git, Node.js, Cppcheck, the host compiler, Ninja, cJSON and the system Python
 have no separate
 project pin; use versions compatible with the requirements above and verify
 them with the tests below. ESP-IDF manages its own Python environment. The
-[Home Assistant integration](../integrations/OpenBrewByWeight/README.md) has a
-separate Python and `uv.lock` contract; it is not needed for firmware builds.
+[Home Assistant integration](https://github.com/Cheerpipe/ha-open-brew-by-weight)
+lives in its own repository with its own toolchain; it is not needed for
+firmware builds.
 
 <a id="2-nodejs-dependencies"></a>
 
@@ -149,11 +148,9 @@ need no running Home Assistant service or connected controller.
 
 ### Upgrade dependencies deliberately
 
-Run `npm ci` and `uv sync --locked` for ordinary setup; neither updates its
-lockfile. To upgrade a Web UI package, choose its version with
+Run `npm ci` for ordinary setup; it does not update the lockfile. To upgrade a Web UI package, choose its version with
 `npm install --save-dev --save-exact <package>@<version>` and review both npm
-files. To upgrade a Home Assistant test dependency, update `uv.lock` explicitly
-with `uv lock --upgrade-package <package>` and review the resolved graph.
+files.
 An ESP-IDF upgrade must change the local version guard and the generated
 component lock together; regenerate the lock with the intended
 SDK version, then run the full build gate. Do not hand-edit lockfiles.
@@ -178,30 +175,6 @@ R2/R3 validation compiles every supported profile with the `--development`
 profile, including the Linea Micra pair, so a passing gate leaves the
 conservative local image ready in its normal `build-idf/<hardware>--<machine>/`
 directory.
-
-### Optional: Home Assistant integration tests
-
-This is a separate Python environment; it is not required for firmware or Web
-UI checks. Install a current uv with its
-[installer](https://docs.astral.sh/uv/getting-started/installation/)
-or a version manager, then run from the integration directory:
-
-```sh
-cd integrations/OpenBrewByWeight
-uv --version               # any current uv
-uv python install 3.14
-uv sync --locked --group test
-uv run --no-sync python --version    # Python 3.14.x
-uv run --no-sync pytest
-uv run --no-sync ruff check .
-uv run --no-sync mypy
-cd ../..
-```
-
-The integration's `uv.lock` fixes package resolution, `--locked` rejects a
-stale lockfile, and `--no-sync` prevents test commands from changing the
-environment. These
-checks do not require a running Home Assistant instance or controller.
 
 <a id="8-host-tests-before-you-flash"></a>
 <a id="4-ble-backend"></a>

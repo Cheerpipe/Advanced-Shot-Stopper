@@ -528,7 +528,7 @@ def main() -> int:
             if args:
                 raise ValueError("doctor takes no arguments")
             tools = ["git", "python3", "cmake", "ctest", "c++", "node", "npm",
-                     "cppcheck", "uv"]
+                     "cppcheck"]
             lines = []
             for tool in tools:
                 path = shutil.which(tool)

@@ -120,7 +120,7 @@ circuit and follow the [hardware safety guidance](docs/HARDWARE.md) before insta
 | Rinse with a switch gesture | [Quick rinse](docs/settings/quick-rinse.md), with a machine-profile default |
 | Hear local feedback | [Alerts](docs/alerts.md), subject to scale/buzzer capabilities |
 | Review results | [Shot history and statistics](docs/features/shot-history.md) |
-| Integrate with Home Assistant | [Home Assistant](docs/features/home-assistant.md) |
+| Integrate with Home Assistant | [Home Assistant](docs/features/home-assistant.md), with the integration in [its own repository](https://github.com/Cheerpipe/ha-open-brew-by-weight) |
 | Update safely over Wi-Fi | [Dual-slot OTA](docs/features/ota.md), with automatic rollback |
 | Send events to another local receiver | [Local HTTP webhooks](docs/features/webhooks.md) |
 
