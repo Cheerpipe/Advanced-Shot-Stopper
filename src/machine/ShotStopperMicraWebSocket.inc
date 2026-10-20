@@ -45,7 +45,7 @@ MicraWebSocketStatus ShotStopperMicraService::websocketStatus(bool includeTraffi
 bool ShotStopperMicraService::websocketAdmitted(bool starting) const {
   if (starting && (outboundScaleInhibited() || scaleConnecting_.load(std::memory_order_acquire) ||
                    shotTransportPaused())) return false;
-  if (outboundMaintenance.load(std::memory_order_acquire) || outboundOtaBusy.load(std::memory_order_acquire)) return false;
+  if (outboundMaintenance.load(std::memory_order_acquire)) return false;
   if (!staConnected_.load(std::memory_order_acquire) ||
       apActive_.load(std::memory_order_acquire) ||
       clearSessionRequested_.load(std::memory_order_acquire)) return false;
@@ -417,7 +417,7 @@ void ShotStopperMicraService::serviceWebSocket() {
       (settings.options & LINEA_MICRA_OBSERVE_STATE) != 0 &&
       settings.connectionType == static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
   LineaMicraError gate = LineaMicraError::NONE;
-  const bool maintenance = outboundMaintenance.load() || outboundOtaBusy.load();
+  const bool maintenance = outboundMaintenance.load();
   const bool admitted = selected && websocketAdmitted() && networkEligible(gate, true);
   if (!admitted) {
     {

@@ -323,23 +323,23 @@ struct MicraWebSocketTest {
     subscribe(service);
     uint32_t planned = 1, unexpected = 0;
     // Every intentional pause, renewal and obsolete observation stays planned.
-    for (int cause = 0; cause < 11; ++cause) {
+    // A firmware update is not a cause: the subscription stays live through OTA.
+    for (int cause = 0; cause < 10; ++cause) {
       switch (cause) {
         case 0: service.shotActive_.store(true); outboundScaleConnected.store(true); break;
         case 1: publishOutboundAcquisition(true, ++now); break;
         case 2: outboundBleQuiet.store(true); break;
         case 3: outboundMaintenance.store(true); break;
-        case 4: outboundOtaBusy.store(true); break;
-        case 5: now += micra_timing::kAccessTokenRefreshAgeMs; break;
-        case 6:
+        case 4: now += micra_timing::kAccessTokenRefreshAgeMs; break;
+        case 5:
           deliver(service, "MESS", false);
           now += 10000;
           ++service.observationFence_.epoch;
           break;
-        case 7: service.apActive_.store(true); break;
-        case 8: service.config_.options &= ~LINEA_MICRA_OBSERVE_STATE; break;
-        case 9: service.config_.connectionType = static_cast<uint8_t>(MicraConnectionType::API); break;
-        case 10: service.clearSessionRequested_.store(true); break;
+        case 6: service.apActive_.store(true); break;
+        case 7: service.config_.options &= ~LINEA_MICRA_OBSERVE_STATE; break;
+        case 8: service.config_.connectionType = static_cast<uint8_t>(MicraConnectionType::API); break;
+        case 9: service.clearSessionRequested_.store(true); break;
       }
       service.serviceWebSocket();
       // Shot and scale gates park the subscription on the open socket.
@@ -350,7 +350,6 @@ struct MicraWebSocketTest {
       publishOutboundAcquisition(false, now);
       outboundBleQuiet.store(false);
       outboundMaintenance.store(false);
-      outboundOtaBusy.store(false);
       service.apActive_.store(false);
       service.config_.options |= LINEA_MICRA_OBSERVE_STATE;
       service.config_.connectionType = static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);

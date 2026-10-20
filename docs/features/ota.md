@@ -41,8 +41,9 @@ The Web UI stays live while the image uploads, verifies and flashes, and Home
 Assistant and webhooks keep working. The update steps themselves run one at a
 time, in the order they arrive. If the controller's web server is restarting,
 a step answers `OTA_SERVER_STOPPING`; send it again once the controller is
-back. The La Marzocco cloud connection still pauses during an update, as
-described below.
+back. The La Marzocco cloud connection also stays up, so power state and
+machine commands keep working until the controller restarts into the new
+firmware.
 
 ## Safety behavior
 
@@ -51,7 +52,7 @@ The shot always has priority. The paddle is never blocked by an update.
 - **No upload or flash during a shot.** Starting an update while the machine is pouring is refused (`CONFIG_LOCKED_DURING_ACTIVE_CYCLE`) so Wi-Fi does not compete with the scale.
 - **Paddle during transfer aborts the upload** (`SAFETY_LOST`). The spare slot is discarded; the running firmware is untouched. A verified staged image is kept if you pull a shot *after* verify — flash waits until idle.
 - **Discard waits for Ready.** **Discard** and `--discard-ota-session` are refused during a shot (`CONFIG_LOCKED_DURING_ACTIVE_CYCLE`), like the other update steps.
-- **An abandoned update clears itself.** If the browser tab closes or Wi-Fi drops mid-upload and nothing resumes it, the partial update is dropped after 15 minutes without activity. Until then the controller keeps the radio at full power and pauses the La Marzocco cloud connection; afterwards both return to normal on their own.
+- **An abandoned update clears itself.** If the browser tab closes or Wi-Fi drops mid-upload and nothing resumes it, the partial update is dropped after 15 minutes without activity. Until then the controller keeps the radio at full power; afterwards it returns to normal on its own.
 - **No planned restart during a shot.** Flash, Admin Restart, and serial `REBOOT` wait until the pour ends and the circuit is open. They do not open the relay to make way for the reset.
 - Confirming or rolling back a `PENDING_VERIFY` image writes otadata (flash cache off). That write is deferred while a shot is pouring or GATT is up.
 

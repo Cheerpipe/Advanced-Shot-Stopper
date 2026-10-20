@@ -9,7 +9,7 @@ inline std::atomic<bool> outboundAcquisitionHeld{false};
 inline std::atomic<bool> outboundShotActive{false};
 // The scale worker owns live connection state, independently of shot history.
 inline std::atomic<bool> outboundScaleConnected{false};
-inline std::atomic<bool> outboundMaintenance{false}, outboundOtaBusy{false};
+inline std::atomic<bool> outboundMaintenance{false};
 inline std::atomic<bool> outboundScaleSetup{false};
 inline std::atomic<bool> outboundBleQuiet{false};
 inline bool outboundScaleInhibited() {

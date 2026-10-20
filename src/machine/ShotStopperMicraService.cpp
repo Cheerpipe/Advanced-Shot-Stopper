@@ -801,7 +801,7 @@ LineaMicraStatus ShotStopperMicraService::statusLocked() const {
        websocket_->failed.load() || websocket_->stamp.epoch != observationFence_.epoch ||
        websocket_->disconnectGeneration != disconnectGeneration_.load() ||
        !staConnected_.load() || apActive_.load() || shotTransportPaused() ||
-       outboundMaintenance.load() || outboundOtaBusy.load()))
+       outboundMaintenance.load()))
     result.quality = LineaMicraObservationQuality::STALE;
   result.staConnected = staConnected_.load(std::memory_order_acquire);
   result.apActive = apActive_.load(std::memory_order_acquire);
@@ -850,7 +850,7 @@ void ShotStopperMicraService::qualifyBackflushLocked() {
       !websocketStatus_.machineConnectedKnown || !websocketStatus_.machineConnected ||
       observationFence_.offline || now - aliveAt >= 30000 ||
       !staConnected_.load() || apActive_.load() || shotActive_.load() ||
-      outboundShotActive.load() || outboundMaintenance.load() || outboundOtaBusy.load())
+      outboundShotActive.load() || outboundMaintenance.load())
     backflush_.invalidate();
 }
 
@@ -1062,7 +1062,7 @@ void ShotStopperMicraService::taskLoop() {
       releaseWorkBuffer();
     }
     serviceWebSocket();
-    if (outboundMaintenance.load() || outboundOtaBusy.load()) releaseWorkBuffer();
+    if (outboundMaintenance.load()) releaseWorkBuffer();
     const bool scaleInhibited = outboundScaleInhibited();
     bool websocketMode;
     {
@@ -1196,7 +1196,7 @@ void ShotStopperMicraService::taskLoop() {
 }
 
 bool ShotStopperMicraService::networkEligible(LineaMicraError &error, bool observation) const {
-  if (outboundMaintenance.load(std::memory_order_acquire) || outboundOtaBusy.load(std::memory_order_acquire)) {
+  if (outboundMaintenance.load(std::memory_order_acquire)) {
     error = LineaMicraError::CANCELED;
     return false;
   }

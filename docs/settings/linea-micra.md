@@ -310,7 +310,7 @@ closed, along with retry time, message/power/pong ages, payload receive and
 transmit rates, totals, errors and stop latency.
 Two counters distinguish **Planned connections** from **Unexpected
 reconnections**. Planned connections include the normal initial
-connection and resumes after maintenance or firmware updates, account or monitoring changes, and routine
+connection and resumes after maintenance, account or monitoring changes, and routine
 session renewal. Unexpected recoveries follow Wi-Fi loss, cloud or protocol
 errors, or connection and message timeouts, even when the controller closes the
 socket to recover. A recovery remains unexpected if a planned pause occurs

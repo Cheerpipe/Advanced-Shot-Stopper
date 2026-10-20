@@ -13,7 +13,6 @@
 #include "ShotStopperPsram.h"
 #include "ShotStopperPreferences.h"
 #include "ShotStopperSettingsWriteAdmission.h"
-#include "ShotStopperOutboundAdmission.h"
 #include <ShotStopperVersion.h>
 
 #include <string.h>
@@ -300,7 +299,6 @@ OtaPublishedState ShotStopperOta::publishedState() const {
 }
 
 void ShotStopperOta::publishState() {
-  outboundOtaBusy.store(busy_ || sessionActive_, std::memory_order_release);
   uint32_t flags = 0;
   if (available_) flags |= OTA_PUBLISHED_AVAILABLE;
   if (busy_ || sessionActive_) flags |= OTA_PUBLISHED_BUSY;
