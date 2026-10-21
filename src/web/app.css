@@ -20,7 +20,7 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 .signalIndicator[data-level="0"],.signalIndicator[data-level="unknown"]{color:var(--mu)}
 .signalSlash{display:none}
 .signalIndicator[data-level="0"] .signalSlash{display:block}
-.signalIndicator[data-level="0"] [data-step],.signalIndicator[data-level="unknown"] [data-step],#bluetoothSignal[data-level="0"] path:not(.signalSlash){opacity:.12}
+.signalIndicator[data-level="0"] [data-step],.signalIndicator[data-level="unknown"] [data-step],#bluetoothSignal[data-level="0"] path{opacity:.12}
 .signalIndicator:hover,.signalIndicator[aria-expanded="true"]{background:var(--sf)}
 .signalIndicator:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 #themeSignal [data-glyph]{display:none}
