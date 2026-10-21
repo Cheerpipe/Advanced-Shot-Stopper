@@ -96,6 +96,9 @@ bool OpenBrewByWeightNetwork::startNetwork() {
   const uint32_t now = millis();
   WiFi.persistent(false);
   WiFi.setAutoReconnect(false);
+  // STA link-local IPv6 lets mDNS answer AAAA queries instead of leaving
+  // getaddrinfo clients to time out; the SoftAP stays IPv4-only.
+  WiFi.enableIPv6();
   dataMux_.lock();
   status_.wifiConfigured = settings.staConfigured;
   copyCString(status_.iface.apIp, sizeof(status_.iface.apIp), AP_IP);

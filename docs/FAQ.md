@@ -111,14 +111,6 @@ commonly block. In that case, find the controller's IP address in your
 router's device list and open that instead. See
 [Wi-Fi](settings/wifi.md#discovery-by-name).
 
-### Opening the controller by name takes about five seconds
-
-Some apps and tools, such as `curl`, scripts, and a few browsers, wait about
-five seconds on every `.local` lookup because they also ask for an IPv6
-address the controller does not use. Open the controller by its IP address
-instead; a DHCP reservation in your router keeps that address from changing.
-See [Wi-Fi](settings/wifi.md#discovery-by-name).
-
 ### Controls are locked or another browser took over
 
 Reload claims the Web UI. Admin unlock is a separate password check. Idle

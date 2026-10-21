@@ -176,24 +176,33 @@ bool OpenBrewByWeightNetwork::socketServedBySoftAp(int socketFd) {
   if (socketFd < 0) {
     return false;
   }
-  sockaddr_in local = {}, peer = {};
+  // The dual-stack httpd listener reports IPv4 clients as IPv4-mapped IPv6
+  // addresses; a native IPv6 peer never qualifies (the SoftAP is IPv4-only).
+  const auto ipv4Host = [](const sockaddr_storage &address, uint32_t &host) {
+    if (address.ss_family == AF_INET) {
+      host = ntohl(reinterpret_cast<const sockaddr_in &>(address).sin_addr.s_addr);
+      return true;
+    }
+    const auto &v6 = reinterpret_cast<const sockaddr_in6 &>(address).sin6_addr;
+    if (address.ss_family != AF_INET6 || !IN6_IS_ADDR_V4MAPPED(&v6)) return false;
+    host = ntohl(v6.un.u32_addr[3]);
+    return true;
+  };
+  sockaddr_storage local = {}, peer = {};
   socklen_t length = sizeof(local);
-  if (getsockname(socketFd, reinterpret_cast<sockaddr *>(&local), &length) !=
-          0 ||
-      local.sin_family != AF_INET) {
+  uint32_t localHost = 0, peerHost = 0;
+  if (getsockname(socketFd, reinterpret_cast<sockaddr *>(&local), &length) != 0 ||
+      !ipv4Host(local, localHost)) {
     return false;
   }
   length = sizeof(peer);
-  if (getpeername(socketFd, reinterpret_cast<sockaddr *>(&peer), &length) !=
-          0 ||
-      peer.sin_family != AF_INET) {
+  if (getpeername(socketFd, reinterpret_cast<sockaddr *>(&peer), &length) != 0 ||
+      !ipv4Host(peer, peerHost)) {
     return false;
   }
   // The local-address match is the discriminator: only a socket actually
   // served by the SoftAP interface address qualifies, so a LAN that happens
   // to number itself 192.168.4.0/24 never inherits the bypass.
-  const uint32_t localHost = ntohl(local.sin_addr.s_addr);
-  const uint32_t peerHost = ntohl(peer.sin_addr.s_addr);
   return localHost == 0xC0A80401u &&
          (peerHost & 0xFFFFFF00u) == 0xC0A80400u;
 }

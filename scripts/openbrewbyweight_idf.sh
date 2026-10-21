@@ -507,7 +507,7 @@ obbw_idf_verify_production_profile() {
     "# CONFIG_SPI_SLAVE_ISR_IN_IRAM is not set"
     "# CONFIG_GDMA_CTRL_FUNC_IN_IRAM is not set"
     "# CONFIG_GDMA_ISR_HANDLER_IN_IRAM is not set"
-    "# CONFIG_LWIP_IPV6 is not set"
+    "CONFIG_LWIP_IPV6=y"
     "CONFIG_LWIP_MAX_SOCKETS=18"
     "CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=8"
     "CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32"

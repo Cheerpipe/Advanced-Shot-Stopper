@@ -90,12 +90,11 @@ CONFIG_ESP_WIFI_CACHE_TX_BUFFER_NUM=32
 # 16 covers STA + SoftAP association and beacon traffic.
 CONFIG_ESP_WIFI_MGMT_SBUF_NUM=16
 # CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT is not set
-# IPv6 is compiled out: the firmware is IPv4-only, which removes the lwIP ND6
-# and MLD6 state, link-local/SLAAC addressing, and AAAA answers from mDNS.
-# The esp-modbus dependency that forced CONFIG_LWIP_IPV6=y (its TCP port
-# compiles unguarded IPv6 types) is replaced by a local empty stub via
-# override_path in main/idf_component.yml.
-# CONFIG_LWIP_IPV6 is not set
+# IPv6 stays on so the station gets a link-local address and mDNS answers
+# AAAA queries; without one, getaddrinfo-based clients stall ~5 s per .local
+# lookup waiting for an answer that never comes. SoftAP stays IPv4-only.
+CONFIG_LWIP_IPV6=y
+CONFIG_LWIP_IPV6_NUM_ADDRESSES=3
 # TCP payload buffers grow per active connection; keep the receive mailbox
 # above WND/MSS + 2 (MSS=1440) so it can accommodate the larger window.
 CONFIG_LWIP_TCP_SND_BUF_DEFAULT=16384
