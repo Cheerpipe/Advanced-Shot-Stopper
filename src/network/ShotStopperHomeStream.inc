@@ -5,6 +5,8 @@ struct HomeStreamDelta {
   uint32_t *hashes = nullptr;
   size_t capacity = 0, index = 0, used = 0, changed = 0;
   bool snapshot = false, ok = true;
+  // The next field updates its fingerprint without being sent.
+  bool skipNext = false;
 
   void field(const char *path, bool value) __attribute__((noinline)) {
     field(path, "%s", value ? "true" : "false");
@@ -41,11 +43,12 @@ struct HomeStreamDelta {
     }
     const uint32_t hash = crc32Update(0xFFFFFFFFU,
         reinterpret_cast<const uint8_t *>(value), length);
-    if (snapshot || hashes[index] != hash) {
+    if ((snapshot || hashes[index] != hash) && !skipNext) {
       ok = statusJsonAppend(&used, "%s\"%s\":%s", changed ? "," : "", path, value);
-      hashes[index] = hash;
       ++changed;
     }
+    hashes[index] = hash;
+    skipNext = false;
     ++index;
   }
 };
@@ -225,7 +228,13 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
         reinterpret_cast<const uint8_t *>(g_work->presetsJson),
         strlen(g_work->presetsJson));
   }
+  // A reconnecting page that still holds this exact presets JSON gets only
+  // its tag and keeps its copy; any later snapshot sends them in full.
+  delta.skipNext = initial && session.knownPresetsTag != 0 &&
+      session.knownPresetsTag == renderedPresetsHash;
+  session.knownPresetsTag = 0;
   delta.field("presets", "%s", g_work->presetsJson);
+  delta.field("presetsTag", static_cast<unsigned long>(renderedPresetsHash));
 #if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   const auto micra = machineIntegrationStatus();
   const auto ws = machineIntegrationWebSocketStatus(false);

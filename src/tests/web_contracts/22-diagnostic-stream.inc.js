@@ -2,7 +2,7 @@
 // socket only while the view is shown; every navigation unsubscribes.
 {
   const assert = require('assert').strict, vm = require('vm');
-  const source = runtimeStateDecl + runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('), runtimeJs.indexOf('function renderHomeStream(')) + runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),
+  const source = runtimeStateDecl + 'let homeFrame=null;' + runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('), runtimeJs.indexOf('function renderHomeStream(')) + runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),
     runtimeJs.indexOf('function setHomeSub('));
   const sockets = [], timers = new Map(); let timer = 0, owner = true;
   const applied = [], frames = [];

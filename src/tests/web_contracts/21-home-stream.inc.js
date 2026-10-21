@@ -31,7 +31,7 @@
   const status = {firmwareVersion: 'test', bootId: 7, configMutable: true, timeUtcSec: 1700000000,
     adminUnlocked: false, snapshotStale: false, config: {soundAlertsEnabled: true, revision: 1},
     safety: {state: 'READY'}, scale: {available: true, streamState: 'FRESH', observedWeightG: 12, timerMs: 1000},
-    presets: {activeId: 1, items: []}, cycle: {active: false}, lastShot: {valid: false},
+    presets: {activeId: 1, items: []}, presetsTag: 42, cycle: {active: false}, lastShot: {valid: false},
     noScaleShotGuard: {enabled: true}, machineState: 'IDLE', cupPresence: {present: false}};
   const flatten = (value, prefix = '', output = {}) => {
     for (const [key, item] of Object.entries(value)) {
@@ -61,6 +61,13 @@
     assert.throws(() => context.statusStreamFrame(previous, bad), 'invalid Home messages require resync');
   }
   assert.equal(context.statusStreamFrame(first, {...initial, boot: 8, changes: {...initial.changes, bootId: 8}}).boot, 8);
+  // A reconnect snapshot that omits presets keeps the copy with the same tag.
+  const {presets: _omitted, ...withoutPresets} = initial.changes;
+  const reconnect = {...initial, changes: withoutPresets};
+  assert.equal(context.statusStreamFrame(null, reconnect, first.status).status.presets, first.status.presets);
+  assert.throws(() => context.statusStreamFrame(null, {...reconnect, changes: {...withoutPresets, presetsTag: 43}}, first.status),
+      'a different tag cannot reuse the kept presets');
+  assert.throws(() => context.statusStreamFrame(null, reconnect), 'without a kept copy the snapshot needs its presets');
   context.startUiStream(); sockets[0].onopen();
   assert.equal(sockets[0].sent[0].op, 'bind');
   assert.equal(sockets[0].sent[1].op, 'activity', 'liveness is a socket control message, not REST polling');
@@ -84,6 +91,7 @@
   assert.equal(context.statusUtcAnchorSec, status.timeUtcSec + 10, 'Home must retain the current clock after another page updates it');
   sockets[0].close(); assert.equal(mutable, false, 'stream loss must disable Home controls');
   context.startUiStream(); sockets[1].onopen();
+  assert.equal(sockets[1].sent[0].presetsTag, 42, 'a reconnect reports the presets it holds');
   sockets[1].onmessage({data: JSON.stringify(initial)});
   assert.equal(rendered.at(-1).scale.observedWeightG, 12, 'reconnect accepts an initial snapshot');
   sockets[1].onmessage({data: JSON.stringify({...patch, changes: {'__proto__.x': 1}})});
@@ -163,6 +171,15 @@ int main(){
   assert(sample(false,false,99,9900)==3);assert(sample(false,false,100,9999)==0);
   assert(sample(true,false,100,9999)==3);
   HomeStreamDelta full{hashes,0,0,0,0,true};full.field("extra","null");assert(!full.ok);
+  {
+    // skipNext keeps a field off the frame but records its fingerprint.
+    uint32_t tags[2]={};
+    HomeStreamDelta kept{tags,2,0,0,0,true};kept.skipNext=true;
+    kept.field("presets","%s","[1]");kept.field("presetsTag","%u",7u);
+    assert(kept.ok&&kept.changed==1&&!strstr(work.statusJson,"[1]")&&tags[0]!=0);
+    HomeStreamDelta next{tags,2,0,0,0,false};next.field("presets","%s","[1]");next.field("presetsTag","%u",7u);
+    assert(next.ok&&next.changed==0);
+  }
   HomeStreamDelta overflow{hashes,3,0,NetworkWorkBuf::kStatusJson-1,0,true};overflow.field("extra","null");assert(!overflow.ok);
   char huge[NetworkWorkBuf::kJsonItem+1];memset(huge,'x',sizeof(huge)-1);huge[sizeof(huge)-1]=0;
   HomeStreamDelta large{hashes,3,0,0,0,true};large.field("extra","%s",huge);assert(!large.ok);
@@ -307,4 +324,11 @@ int main(){
   assert(stream.includes('if (accepted) session->heardAtMs = millis();'));
   const silentBranch = stream.slice(stream.indexOf('if (silent) {'), stream.indexOf('} else if (!allowed) {'));
   assert(silentBranch.includes('httpd_sess_trigger_close') && !silentBranch.includes('TakeoverClose'));
+  // Bind reports the presets the page holds; only the first Home snapshot may
+  // leave them out, and only for the same tag.
+  const home = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperHomeStream.inc'), 'utf8');
+  assert(stream.includes('cJSON_GetObjectItemCaseSensitive(message, "presetsTag")'));
+  assert(home.includes('delta.skipNext = initial && session.knownPresetsTag != 0 &&') &&
+      home.includes('session.knownPresetsTag == renderedPresetsHash;') &&
+      home.indexOf('session.knownPresetsTag = 0;') < home.indexOf('delta.field("presets"'));
 }

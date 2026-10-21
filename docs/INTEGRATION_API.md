@@ -437,7 +437,11 @@ extra polling requests and do not change the public integration endpoints.
 ### Home live updates
 
 The claimed browser binds the existing WebSocket at `/api/v1/ui/ui-stream`
-with `{"op":"bind","client":"<claimed X-WebUI-Client>"}`. Home receives an
+with `{"op":"bind","client":"<claimed X-WebUI-Client>"}`. A reconnecting page
+adds the `presetsTag` of the presets it still holds; when it matches, that
+connection's first Home snapshot omits `presets` (it still carries
+`presetsTag`) and the page keeps its copy. Home sends `presetsTag` with every
+presets change. Home receives an
 initial snapshot and then field changes, without periodic REST status requests.
 While a browser is connected and a scale is streaming, the firmware's periodic
 comparison of the published state runs right after every second weight sample

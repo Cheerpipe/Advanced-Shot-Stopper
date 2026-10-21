@@ -3,7 +3,7 @@
 // without any op, and background frames keep that model fresh on every view.
 {
   const assert = require('assert').strict, vm = require('vm');
-  const source = runtimeStateDecl + rawRuntimeJs.slice(rawRuntimeJs.search(/let\s+shotWs\s*=/),
+  const source = runtimeStateDecl + 'let homeFrame=null;' + rawRuntimeJs.slice(rawRuntimeJs.search(/let\s+shotWs\s*=/),
       rawRuntimeJs.indexOf('function setHomeSub(')) + statsExportJs;
   function fixture(view) {
     let mount;

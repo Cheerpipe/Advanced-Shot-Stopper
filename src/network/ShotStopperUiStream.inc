@@ -361,6 +361,9 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
         session->observedCycle = static_cast<uint32_t>(cycle->valuedouble);
         session->observedBoot = static_cast<uint32_t>(boot->valuedouble);
       }
+      const cJSON *presetsTag = cJSON_GetObjectItemCaseSensitive(message, "presetsTag");
+      if (presetsTag && uiStreamIntInRange(presetsTag, 1, UINT32_MAX))
+        session->knownPresetsTag = static_cast<uint32_t>(presetsTag->valuedouble);
       for (auto &other : self.uiStreams_) {
         if (&other != session && other.bound) {
           superseded = other.fd;

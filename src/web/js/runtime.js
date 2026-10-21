@@ -3448,7 +3448,9 @@ let homeFrame = null,
   homeStale = true,
   homeReady,
   homeResolve = () => {};
-function statusStreamFrame(previous, message) {
+// `kept` is the status a reconnect replaces: a Home snapshot that omits the
+// presets the page already holds (same presetsTag) keeps that copy.
+function statusStreamFrame(previous, message, kept) {
   // An increment carries only its type and changes; the snapshot's identity continues.
   if (message.snapshot !== true) message = { ...message, v: 1, boot: previous?.boot, snapshot: false };
   if (
@@ -3460,6 +3462,8 @@ function statusStreamFrame(previous, message) {
   )
     throw Error();
   const status = message.snapshot ? {} : previous.status;
+  if (message.snapshot && !("presets" in message.changes) && kept?.presets && kept.presetsTag === message.changes.presetsTag)
+    status.presets = kept.presets;
   for (const [path, value] of Object.entries(message.changes)) {
     if (
       !/^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*){0,3}$/.test(path) ||
@@ -3753,7 +3757,8 @@ function startUiStream() {
       socket.close();
       return;
     }
-    socket.send(JSON.stringify({ op: "bind", client: webUiClientId, ...(shotSeen || {}) }));
+    const known = homeFrame?.status?.presets && homeFrame.status.presetsTag;
+    socket.send(JSON.stringify({ op: "bind", client: webUiClientId, ...(shotSeen || {}), ...(known ? { presetsTag: known } : {}) }));
     if (diagStreamWanted) {
       if (!diagResolve) armDiagnosticReady();
       socket.send('{"op":"diagnostic","on":true}');
@@ -3814,7 +3819,7 @@ function startUiStream() {
         const paddleOff =
           homeFrame?.status.physicalActivatorOn === true &&
           data.changes?.physicalActivatorOn === false;
-        homeFrame = statusStreamFrame(shotGotHome ? homeFrame : null, data);
+        homeFrame = statusStreamFrame(shotGotHome ? homeFrame : null, data, homeFrame?.status);
         if (logStreamWanted && logBootId && logBootId !== homeFrame.boot) {
           logBootId = homeFrame.boot;
           uiState.logEvents = [];

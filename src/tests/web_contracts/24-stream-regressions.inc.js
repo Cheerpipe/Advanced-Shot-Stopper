@@ -157,7 +157,7 @@ int main(){
     requestAnimationFrame:()=>1,webUiPollingActive:()=>true,webUiClientId:'owner',webUiPowerSeconds:()=>0,
     activeView:'diagnostic',viewReady:Promise.resolve(),homeResolve(){},invalidateHomeStream(){},noteReachFail(){},
     viewStatusHandlers:{diagnostic:s=>{assert(s.health);assert(s.tasks);paints.push(s);}}});
-  vm.runInContext(runtimeStateDecl+runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('),runtimeJs.indexOf('function renderHomeStream('))+
+  vm.runInContext(runtimeStateDecl+'let homeFrame=null;'+runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('),runtimeJs.indexOf('function renderHomeStream('))+
       runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),runtimeJs.indexOf('function setHomeSub('))+statsExportJs,context);
   (async()=>{
     let settled=false;

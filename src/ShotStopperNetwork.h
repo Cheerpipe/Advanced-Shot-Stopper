@@ -388,6 +388,9 @@ class ShotStopperNetwork {
     uint32_t openedAtMs = 0, boundAtMs = 0, heardAtMs = 0, observedCycle = 0, observedBoot = 0;
     uint32_t sequence = 0, cycle = 0, shot = 0, boot = 0;
     uint32_t fingerprint = 0, prefixHash = 0;
+    // presetsTag the page reported at bind (0: none); consumed by its first
+    // Home snapshot.
+    uint32_t knownPresetsTag = 0;
     uint16_t cursor = 0;
     uint32_t homeBoot = 0, homeClockSync = 0, homeClockUtc = 0;
     // Diagnostic page subscription: state dies with the session struct reset,
