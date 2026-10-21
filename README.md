@@ -279,7 +279,7 @@ flash a board, operate the relay, or replace required HIL and manual evidence.
 | ISR | Interrupt Service Routine, code that responds immediately to a hardware event and must obey stricter timing and concurrency rules. |
 | K2 | The README's example name for an optional external safety relay or barrier; its actual design depends on the machine and jurisdiction. |
 | MB | Megabyte, used here to describe flash and PSRAM capacity. |
-| MIT License | The permissive license that applies to identified upstream portions and historical snapshots, not to the repository's current work as a whole. |
+| MIT License | The permissive license that applies to historical snapshots of this repository, not to its current work. |
 | Momentary machine / pulse | A momentary machine changes state after a brief button-like electrical signal, called a pulse, rather than following a maintained switch position. |
 | MQTT | Message Queuing Telemetry Transport, a publish/subscribe messaging protocol; persistent MQTT remote control is outside this project's goals. |
 | n16r8 | The supported ESP32-S3 memory variant: 16 MB flash and 8 MB PSRAM. |
@@ -365,8 +365,10 @@ AGPL. Closed proprietary forks are not allowed.
 
 Earlier snapshots of this repository were published under the MIT License.
 Those historical releases remain available to their recipients under MIT.
-Portions derive from [tatemazer/AcaiaArduinoBLE](https://github.com/tatemazer/AcaiaArduinoBLE)
-(MIT); see [LICENSE](LICENSE) for the full terms and upstream notice.
+The current code is an independent implementation: scale protocols were written
+from official vendor documentation and public references, and obsolete
+references to earlier projects have been cleaned up. See [LICENSE](LICENSE) for
+the full terms.
 
 ## Credits
 
@@ -374,20 +376,13 @@ Open Brew by Weight is maintained by **Felipe Urzúa**
 (`cheerpipe@gmail.com`) —
 [Cheerpipe/Open-Brew-by-Weight](https://github.com/Cheerpipe/Open-Brew-by-Weight).
 
-It would not exist without
-**[tatemazer](https://github.com/tatemazer)** and
-[tatemazer/AcaiaArduinoBLE](https://github.com/tatemazer/AcaiaArduinoBLE).
-That project proved BLE brew-by-weight stop, shared the core scale protocol
-work, and shipped the original Shot Stopper as a plug-and-play kit. This
-application firmware, Web UI, paddle and momentary machine models, and safety
-workflow are new work on top of that foundation.
+Thanks to **[Tate Mazer](https://github.com/tatemazer)**, whose [Shot Stopper](https://github.com/tatemazer/AcaiaArduinoBLE) inspired this project.
 
-Thanks to **[AtomHeart-Lang](https://github.com/AtomHeart-Lang)** for AtomHeart
-Eclair scale support, contributed upstream in
-[tatemazer/AcaiaArduinoBLE#41](https://github.com/tatemazer/AcaiaArduinoBLE/pull/41).
-That work is vendored here and keeps Eclair in the supported scale set.
+Thanks to **[AtomHeart-Lang](https://github.com/AtomHeart-Lang)** for the
+AtomHeart Eclair protocol information that keeps Eclair in the supported scale
+set.
 
-The vendored library also credits:
+The EspressoScaleBLE library also credits:
 
 - [LunarGateway](https://github.com/frowin/LunarGateway/) (frowin)
 - [pyacaia](https://github.com/lucapinello/pyacaia) (lucapinello)

@@ -4,7 +4,6 @@
   Maintainer: Felipe Urzúa <cheerpipe@gmail.com>
   https://github.com/Cheerpipe/Open-Brew-by-Weight
 
-  Originally created by Tate Mazer, December 13, 2023.
   Felicita Arc support by Pio Baettig and A-TWJ.
   Protocol-driver refactor for multi-vendor scales.
 

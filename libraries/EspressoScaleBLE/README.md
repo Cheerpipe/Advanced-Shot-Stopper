@@ -3,8 +3,7 @@ Native ESP-IDF NimBLE gateway for espresso scales on ESP32-S3 devices with PSRAM
 
 Maintained by **Felipe Urzúa** (`cheerpipe@gmail.com`) as part of
 [Cheerpipe/Open-Brew-by-Weight](https://github.com/Cheerpipe/Open-Brew-by-Weight).
-The original AcaiaArduinoBLE library was created by Tate Mazer; see
-[Acknowledgement](#acknowledgement).
+See [Acknowledgement](#acknowledgement) for protocol references and contributors.
 
 ## Scale Compatibility
 
@@ -284,19 +283,8 @@ BLE APIs from arbitrary application callbacks is not an equivalent integration.
 
 Machine wiring and stop behavior belong to the host application, not this scale
 library. Use the current [machine types](../../README.md#machine-types) and
-[hardware guidance](../../docs/HARDWARE.md). Historical upstream kit compatibility
-does not certify an installation of this firmware.
-
-<a id="printed-circuit-board"></a>
-<a id="historical-upstream-configuration-notes"></a>
-<a id="demo"></a>
-<a id="scale-compatibility-1"></a>
-<a id="bugsmissing"></a>
-
-Earlier Arduino examples, kit tables and demos belong to the upstream project's
-history. Legacy options such as `MOMENTARY`, `REEDSWITCH`, `AUTOTARE` and
-`TIMER_ONLY` are not the configuration interface for the current application.
-Use [Build](../../docs/BUILD.md) and the [settings index](../../docs/README.md#settings).
+[hardware guidance](../../docs/HARDWARE.md). Configure the application through
+[Build](../../docs/BUILD.md) and the [settings index](../../docs/README.md#settings).
 
 Known limits include grams-only reporting and the Pyxis auto-tare sensitivity
 noted in the capability table.
@@ -304,8 +292,6 @@ noted in the capability table.
 ## Acknowledgement
 This library is maintained by Felipe Urzúa
 ([Cheerpipe/Open-Brew-by-Weight](https://github.com/Cheerpipe/Open-Brew-by-Weight)).
-It derives from [tatemazer/AcaiaArduinoBLE](https://github.com/tatemazer/AcaiaArduinoBLE)
-by Tate Mazer.
 
 This is largely a basic port of the  [LunarGateway](https://github.com/frowin/LunarGateway/) library written for the ESP32.
 

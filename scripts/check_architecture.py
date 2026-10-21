@@ -154,9 +154,11 @@ def main() -> int:
                     f"{implementation.relative_to(ROOT)} {lines}>1500"
                 )
 
-    # The legacy project name must not return; only the README credit to the
-    # original kit keeps it. Untracked files are checked before they are added.
-    legacy = re.compile(r"shot[ _-]?stopper", re.IGNORECASE)
+    # Legacy project names must not return; only the README inspiration credit
+    # keeps them. Untracked files are checked before they are added.
+    legacy = re.compile(
+        r"shot[ _-]?stopper|tate[ _-]?mazer|acaia[ _-]?(arduino[ _-]?)?ble",
+        re.IGNORECASE)
     listed = subprocess.run(
         ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
         cwd=ROOT, check=True, capture_output=True).stdout.decode().split("\0")
@@ -170,7 +172,7 @@ def main() -> int:
         lines = content.decode("utf-8", errors="replace").splitlines()
         for number, line in enumerate(lines, 1):
             if legacy.search(line) and not (
-                    relative == "README.md" and "the original Shot Stopper" in line):
+                    relative == "README.md" and "inspired this project" in line):
                 failures.append(f"legacy project name: {relative}:{number}")
 
     if failures:

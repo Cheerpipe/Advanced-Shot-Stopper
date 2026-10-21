@@ -1,5 +1,5 @@
 {
-  "name": "acaiaarduinoble",
+  "name": "openbrewbyweight",
   "private": true,
   "description": "Build tooling for Open Brew by Weight embedded Web UI assets",
   "scripts": {
