@@ -669,7 +669,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
   }};
   const maximum = {textContent: '12 ms'};
   const recent = {textContent: '5 ms'};
-  const render = new Function('$', '__WEBUI_TEXT__', source.slice(first, last) +
+  const render = new Function('$', '__WEBUI_TEXT__', blockAt(viewJs.diagnostic, 'function unchanged(') + blockAt(viewJs.diagnostic, 'function fillRows(') + source.slice(first, last) +
     ';return applyLoopTiming;')(id => ({loopTimingBody: table, hLoopMax: maximum, hLoopGap: recent})[id],
     key => key);
   const status = {health: {loopIntervalGapMs: 5, loopMaxGapMs: 12}, tasks: {
@@ -731,7 +731,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
   let downloads = 0, empties = 0;
   const build = (busy) => new Function('$', '__WEBUI_TEXT__', 'R', 'crashBusy',
       'downloadCrashes', 'emptyCrashes', 'document',
-      source.slice(first, last) + ';return updateCrashRow;')(
+      blockAt(viewJs.diagnostic, 'function unchanged(') + blockAt(viewJs.diagnostic, 'function fillRows(') + source.slice(first, last) + ';return updateCrashRow;')(
     id => id === 'crashArchiveValue' ? value
         : id === 'crashArchiveRow' ? {} : {closest: () => misc},
     key => key,
@@ -741,10 +741,15 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
         get textContent() { return this._text; },
         set textContent(v) { this._text = String(v); }}),
       createTextNode: text => ({text})});
-  const render = (status, busy) => { value.replaceChildren(); build(!!busy)(status); return value.children; };
+  const render = (status, busy) => {
+    value.replaceChildren(); delete value._key; build(!!busy)(status); return value.children;
+  };
   const links = children => children.filter(n => n.tag === 'a').map(n => n.textContent);
   const admin = {crashCount: 2, crashState: 0, adminUnlocked: true};
   let children = render(admin);
+  // A repeated paint of the same state keeps the links (and their focus) in place.
+  build(false)(admin);
+  if (value.children !== children) throw new Error('An unchanged coredump row must not be rebuilt');
   if (children[0].textContent !== '2' || children[0].className !== 'stateFault' ||
       children.filter(n => n === ' - ').length !== 2 ||
       links(children).join('|') !== 'download|empty') {
@@ -812,7 +817,7 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     !codeIncludes(statsRuntimeJs, 'shotFrame.card') ||
     !codeIncludes(statsRuntimeJs, 'return y!=null&&y>=1') ||
     !codeIncludes(statsRuntimeJs, 'shotDisplayFlowGS(r)') ||
-    !codeIncludes(statsRuntimeJs, 'shotMaxFlowGS(r)') ||
+    !codeIncludes(statsRuntimeJs, 'shotMaxFlowGS(r,m)') ||
     !codeIncludes(statsRuntimeJs, 'shotPresetName(r)') ||
     !js.includes('preset_id " +') || // Full header: 12-wire-freeze.
     !network.includes('const bool live = control.activeCycle || control.homePending') ||

@@ -165,16 +165,26 @@ function ensureMicraRows() {
     $(anchor).parentElement.append(hint);
   }
 }
-function applyScaleCommands(scale) {
-  const table = $("scaleCommandTable"),
-    rows = $("scaleCommandRows");
-  rows.replaceChildren();
-  table.hidden = !scale.supportedCommandsKnown;
-  for (const c of scale.supportedCommands || []) {
-    const row = rows.insertRow();
-    row.insertCell().textContent = c.name;
-    row.insertCell().textContent = c.code;
+// Status paints arrive every frame: a table or link row rebuilds only when its
+// data changes, so clicks, focus, selection and live-region text survive.
+function unchanged(el, data) {
+  const key = JSON.stringify(data);
+  return el._key === key || ((el._key = key), false);
+}
+function fillRows(body, rows) {
+  if (unchanged(body, rows)) return;
+  body.replaceChildren();
+  for (const values of rows) {
+    const tr = body.insertRow();
+    for (const value of values) tr.insertCell().textContent = value;
   }
+}
+function applyScaleCommands(scale) {
+  $("scaleCommandTable").hidden = !scale.supportedCommandsKnown;
+  fillRows(
+    $("scaleCommandRows"),
+    (scale.supportedCommands || []).map((c) => [c.name, c.code]),
+  );
   $("scaleCommandHint").textContent = !scale.supportedCommandsKnown
     ? __WEBUI_TEXT__("diagnostic.commands_unknown")
     : scale.model === "bookoo_ultra"
@@ -823,7 +833,7 @@ function applyTaskProfiler(t) {
   if (!t || typeof t.state != "string") {
     if (T) T.textContent = __WEBUI_TEXT__("diagnostic.unknown");
     if (E) E.textContent = __WEBUI_TEXT__("diagnostic.unknown");
-    if (B) B.replaceChildren();
+    if (B) fillRows(B, []);
     if (H) H.textContent = "";
     if (A) A.disabled = !own;
     if (P) P.disabled = true;
@@ -852,28 +862,25 @@ function applyTaskProfiler(t) {
       : __WEBUI_TEXT__("diagnostic.unknown");
   if (A) A.disabled = run || !own;
   if (P) P.disabled = !run || !own;
-  if (B) {
-    B.replaceChildren();
-    for (const r of t.rows || []) {
-      // Phase and section rows publish names before any session records
-      // samples; without samples they are placeholders, not measurements.
-      if (!r.sampleCount && (r.name?.startsWith("loopTask/") || r.name?.startsWith("scaleWorker/")))
-        continue;
-      const tr = document.createElement("tr");
-      [
-        r.name || "—",
-        [0, 1].includes(r.core) ? r.core : "—",
-        fmtTaskPct(r.currentCpuPct),
-        fmtTaskPct(r.averageCpuPct),
-        r.stackMinWords < 4294967295 ? (r.stackMinWords ?? "—") : "—",
-      ].forEach((c) => {
-        const td = document.createElement("td");
-        td.textContent = c;
-        tr.appendChild(td);
-      });
-      B.appendChild(tr);
-    }
-  }
+  if (B)
+    fillRows(
+      B,
+      (t.rows || [])
+        // Phase and section rows publish names before any session records
+        // samples; without samples they are placeholders, not measurements.
+        .filter(
+          (r) =>
+            r.sampleCount ||
+            !(r.name?.startsWith("loopTask/") || r.name?.startsWith("scaleWorker/")),
+        )
+        .map((r) => [
+          r.name || "—",
+          [0, 1].includes(r.core) ? r.core : "—",
+          fmtTaskPct(r.currentCpuPct),
+          fmtTaskPct(r.averageCpuPct),
+          r.stackMinWords < 4294967295 ? (r.stackMinWords ?? "—") : "—",
+        ]),
+    );
   if (H) {
     // Before any session the published totals are placeholders too; keep the
     // section at the empty hint instead of a "Total now 0.0%" zero line.
@@ -1254,8 +1261,9 @@ async function emptyAudit() {
 }
 export function applyStatus(s) {
   applyDiagnosticStatus(s);
+  // A level select the user is choosing from keeps their pick.
   for (const id of ["serialLogLevel", "ringRetainLogLevel"])
-    if ($(id)) $(id).value = s?.config?.[id] || "none";
+    if ($(id) && $(id) !== document.activeElement) $(id).value = s?.config?.[id] || "none";
   if (!s || !(s.adminUnlocked || s.diagnosticPublic)) return;
   if (s.lineaMicra) renderMicraCloudDiagnostic(s.lineaMicra);
   const sc = s.scale || {};
@@ -1268,14 +1276,14 @@ export function applyStatus(s) {
   applyAudit(s.audit);
   updateCrashRow({ ...s, crashCount: shown("crashes", s.crashCount, 0) });
   const b = $("hResetHistory");
-  if (b) {
-    b.replaceChildren();
-    for (const e of shown("resetHistory", s.resetHistory || [], [])) {
-      const r = b.insertRow();
-      r.insertCell().textContent = e.reason;
-      r.insertCell().textContent = formatUptime(e.uptimeMs);
-    }
-  }
+  if (b)
+    fillRows(
+      b,
+      shown("resetHistory", s.resetHistory || [], []).map((e) => [
+        e.reason,
+        formatUptime(e.uptimeMs),
+      ]),
+    );
 }
 export function init() {
   if (ready) return;
@@ -1283,7 +1291,7 @@ export function init() {
   R.registerViewStatus("diagnostic", applyStatus);
   R.registerViewStatus("diagnosticLive", applyDiagnosticLive);
   setInterval(() => {
-    if (!document.hidden) renderDiagClock();
+    if (!document.hidden && R.activeView === "diagnostic") renderDiagClock();
   }, 1000);
   const controls = $("diagnosticControls");
   if (controls) controls.classList.remove("hidden");
@@ -1370,13 +1378,9 @@ let crashBusy = false;
 function applyLoopTiming(s) {
   const tasks = s.tasks || {},
     rows = (tasks.rows || []).filter((r) => r.name?.startsWith("loopTask/"));
-  const body = $("loopTimingBody");
-  body.replaceChildren();
+  const out = [];
   const ms = (us) => (Math.max(0, us) / 1000).toFixed(2) + " ms";
-  const add = (values) => {
-    const tr = body.insertRow();
-    for (const value of values) tr.insertCell().textContent = value;
-  };
+  const add = (values) => out.push(values);
   const recentReady = rows.length && Number.isFinite(tasks.recentGapMs);
   const peakReady = tasks.peakGapMs === (s.health.loopMaxGapMs || 0);
   $("hLoopGap").textContent = recentReady ? tasks.recentGapMs + " ms" : "—";
@@ -1401,6 +1405,7 @@ function applyLoopTiming(s) {
     __WEBUI_TEXT__("diagnostic.loop_dispatch"),
     __WEBUI_TEXT__("diagnostic.other_timing"),
   ].forEach((label, i) => add([label, recentReady ? ms(a[i]) : "—", peakReady ? ms(b[i]) : "—"]));
+  fillRows($("loopTimingBody"), out);
 }
 let profileBusy = false;
 function applyScaleProfile(p) {
@@ -1495,7 +1500,6 @@ function updateCrashRow(s) {
     misc.append(row);
   }
   const value = $("crashArchiveValue");
-  value.replaceChildren();
   const count = s.crashCount || 0,
     supported = s.crashState !== 1,
     usable =
@@ -1504,6 +1508,8 @@ function updateCrashRow(s) {
       supported &&
       count > 0 &&
       !crashBusy;
+  if (unchanged(value, [count, supported, usable, s.crashState > 1])) return;
+  value.replaceChildren();
   const n = document.createElement("span");
   n.textContent = supported ? count : __WEBUI_TEXT__("diagnostic.unavailable");
   if (supported && count > 0) n.className = "stateFault";

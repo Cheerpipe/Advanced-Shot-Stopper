@@ -177,12 +177,19 @@
   const assert = require('assert').strict;
   const source = fs.readFileSync(path.join(sketchDir, 'web/js/diagnostic.js'), 'utf8');
   const controls = {serialLogLevel: {}, ringRetainLogLevel: {}};
-  const apply = new Function('applyDiagnosticStatus', '$', source.slice(source.indexOf('export function applyStatus('),
+  const doc = {activeElement: null};
+  const apply = new Function('applyDiagnosticStatus', '$', 'document', source.slice(source.indexOf('export function applyStatus('),
       source.indexOf('export function init(')).replace('export ', '') + ';return applyStatus;')(
-      () => {}, id => controls[id]);
+      () => {}, id => controls[id], doc);
   apply({config: {serialLogLevel: 'warning', ringRetainLogLevel: 'debug'}});
   assert.equal(controls.serialLogLevel.value, 'warning');
   assert.equal(controls.ringRetainLogLevel.value, 'debug');
+  // A paint must not overwrite the select the user is choosing from.
+  doc.activeElement = controls.serialLogLevel;
+  controls.serialLogLevel.value = 'debug';
+  apply({config: {serialLogLevel: 'warning', ringRetainLogLevel: 'info'}});
+  assert.equal(controls.serialLogLevel.value, 'debug');
+  assert.equal(controls.ringRetainLogLevel.value, 'info');
 }
 
 // Firmware projection: bounded field budget, view-scoped dispatch, and wiring.
@@ -274,4 +281,33 @@
   assert(JSON.parse(fs.readFileSync(
       path.join(sketchDir, 'web', 'locales', 'en.json'), 'utf8'))
       .strings['diagnostic.weight'] === 'Weight');
+}
+// The Diagnostic log appends new lines in place: a selection or a scrolled-back
+// reader keeps their place, and only a reader at the end follows new lines.
+{
+  const assert = require('assert').strict;
+  const ta = {v: '', sets: 0, scrollTop: 0, clientHeight: 100, scrollHeight: 0,
+    get value() { return this.v; }, set value(v) { this.v = v; this.sets++; },
+    setRangeText(t, a, b) { this.v = this.v.slice(0, a) + t + this.v.slice(b); }};
+  const ui = {logEvents: []}, nodes = {log: ta, logFilter: {value: ''}, logLevelFilter: {value: '4'}};
+  const renderLog = new Function('$', 'uiState', 'formatWallTimeLocal',
+      `${blockAt(runtimeJs, 'function renderLog(')};return renderLog;`)((id) => nodes[id], ui, String);
+  const ev = (n) => ({sequence: n, atMs: n * 1000, wallSec: 0, level: 'info', category: 'web', message: 'm' + n});
+  ui.logEvents = [ev(1), ev(2)];
+  renderLog();
+  assert.equal(ta.value, '+1.000s INFO [web] m1\n+2.000s INFO [web] m2\n');
+  ta.scrollHeight = 500; ta.scrollTop = 40;
+  ui.logEvents.push(ev(3));
+  renderLog();
+  assert.equal(ta.sets, 1, 'new lines must append without replacing the text');
+  assert.equal(ta.scrollTop, 40, 'a scrolled-back reader keeps their place');
+  ui.logEvents.shift();
+  ui.logEvents.push(ev(4));
+  renderLog();
+  assert.equal(ta.value, '+2.000s INFO [web] m2\n+3.000s INFO [web] m3\n+4.000s INFO [web] m4\n');
+  assert.equal(ta.sets, 1, 'dropping the oldest line must not replace the text');
+  ta.scrollTop = 400;
+  ui.logEvents.push(ev(5));
+  renderLog();
+  assert.equal(ta.scrollTop, 500, 'a reader at the end follows new lines');
 }

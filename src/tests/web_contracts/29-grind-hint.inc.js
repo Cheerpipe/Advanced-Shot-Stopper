@@ -60,3 +60,25 @@
       !codeIncludes(runtimeJs, 'reveal(card, !!v && !cardDismissed(v.key))'))
     throw new Error('Grind hint card must offer Relearn and Ignore, and Ignore must hold per advice (D6)');
 }
+// Inline preset rename: the 4 s Settings poll leaves a card being renamed alone,
+// and Enter or Escape settle it once even though removing the input blurs it.
+{
+  const assert = require('assert').strict;
+  const node = () => ({parentNode: {}, focus() {}, select() {},
+    replaceWith(next) { this.parentNode = null; next.parentNode = {}; this.onblur?.(); }});
+  const run = (key) => {
+    const commits = [], renders = [], input = node(), title = node();
+    new Function('window', '$', 'document', 'commitRenamePreset', 'renderAllPresetUi',
+        `${blockAt(runtimeJs, 'function startRenamePreset(')};return startRenamePreset;`)(
+        {matchMedia: () => ({matches: false})}, () => null, {createElement: () => input},
+        (p, v) => commits.push(v), () => renders.push(1))({id: 2, name: 'Old'}, title);
+    input.value = 'New';
+    input.onkeydown({key, preventDefault() {}});
+    return {commits, renders};
+  };
+  assert.deepEqual(run('Enter'), {commits: ['New'], renders: []}, 'Enter commits once');
+  assert.deepEqual(run('Escape'), {commits: [], renders: [1]}, 'Escape cancels without committing');
+  const cards = {querySelector: () => ({}), replaceChildren() { throw new Error('rebuilt'); }};
+  new Function('$', 'presetState', `let presetCardsSig = "";${blockAt(runtimeJs, 'function renderPresetCards(')}` +
+      ';return renderPresetCards;')(() => cards, {rev: 1, activeId: 1, selectedId: 1, items: []})('presetCards');
+}

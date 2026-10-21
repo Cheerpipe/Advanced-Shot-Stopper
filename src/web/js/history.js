@@ -19,6 +19,8 @@ const HIST_TYPE_SVG = {
 HIST_TYPE_SVG.power_on = "⏻";
 HIST_TYPE_SVG.backflush = '<svg viewBox="0 0 256 256"><use href="#hBF"/></svg>';
 HIST_TYPE_SVG.no_scale_guard_aborted = '<svg><use href="#hNS"/></svg>';
+// Parsed once per type, then cloned: rows never re-parse kilobytes of path data.
+const histIcons = {};
 const formatHistoryTime = (r) =>
   r.hasWallTime && r.endedAtLocalSec
     ? R.formatHumanTime(r.endedAtLocalSec)
@@ -88,7 +90,12 @@ function renderHistory() {
         const icon = document.createElement("td");
         icon.className = "histIcon";
         icon.setAttribute("aria-hidden", "true");
-        icon.innerHTML = typeSvg;
+        if (!histIcons[r.type]) {
+          const t = document.createElement("template");
+          t.innerHTML = typeSvg;
+          histIcons[r.type] = t.content;
+        }
+        icon.append(histIcons[r.type].cloneNode(true));
         row.appendChild(icon);
       }
       row.append(time, dur, type, del);

@@ -905,8 +905,9 @@ if (htmlBytes > 93300) {
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect: 483596, owner-requested 2026-10-21.
 // Audit fixes for typed-build saves, log frames during a resync and escaped pill names: 483639, owner-requested 2026-10-21.
 // Audit fixes for the History filter toggle and a single Stats CSV export: 483654, owner-requested 2026-10-21.
-if (jsBytes > 483654) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 483654)`);
+// Audit render fixes (rename kept across polls, keyed Diagnostic tables, append-only log, lazy ruler): 484544, owner-requested 2026-10-21.
+if (jsBytes > 484544) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 484544)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1049,8 +1050,9 @@ if (jsBytes > 483654) {
 // The ?fw= landing refreshes the cached shell after an OTA: 574785, owner-requested 2026-10-21.
 // A reconnect keeps the presets it already holds: 575235, owner-requested 2026-10-21.
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect: 575834, owner-requested 2026-10-21.
-if (htmlBytes + jsBytes > 575834) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 575834)`);
+// Audit render fixes (rename kept across polls, keyed Diagnostic tables, append-only log, lazy ruler): 576149, owner-requested 2026-10-21.
+if (htmlBytes + jsBytes > 576149) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 576149)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

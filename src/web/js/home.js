@@ -125,8 +125,9 @@ export function init() {
   if (ready) return;
   ready = true;
   R.registerViewStatus("home", applyStatus);
+  // The countdown ticks only while Home shows; entering Home repaints it.
   setInterval(() => {
-    if (!document.hidden) renderMicraBoilers();
+    if (!document.hidden && R.activeView === "home") renderMicraBoilers();
   }, 1000);
   const rinseButton = $("rinseButton");
   if (rinseButton) rinseButton.onclick = () => R.command("/api/v1/control/rinse");
@@ -225,23 +226,26 @@ function initQuickWeight() {
   // Ticks run 15 g past both ends so the strip stays full (760 px sheet);
   // majors label whole grams, mediums halves, minors tenths.
   const base = (MIN - 15) * 10;
-  for (let d = base; d <= (MAX + 15) * 10; d++) {
-    const tick = document.createElement("i");
-    let label = null;
-    if (d % 10 === 0) {
-      tick.className = "big";
-      if (d >= MIN * 10 && d <= MAX * 10) {
-        label = document.createElement("b");
-        label.textContent = d / 10;
-        label.style.left = ((d - base) * PX_PER_DG).toFixed(1) + "px";
-        inner.appendChild(label);
-      }
-    } else if (d % 5 === 0) tick.className = "med";
-    tick.style.left = ((d - base) * PX_PER_DG).toFixed(1) + "px";
-    inner.appendChild(tick);
-    ticks.push({ d, node: tick, label });
-  }
-  scale.appendChild(inner);
+  // About 2,400 nodes: built on the first open, not on every Home start.
+  const build = () => {
+    for (let d = base; d <= (MAX + 15) * 10; d++) {
+      const tick = document.createElement("i");
+      let label = null;
+      if (d % 10 === 0) {
+        tick.className = "big";
+        if (d >= MIN * 10 && d <= MAX * 10) {
+          label = document.createElement("b");
+          label.textContent = d / 10;
+          label.style.left = ((d - base) * PX_PER_DG).toFixed(1) + "px";
+          inner.appendChild(label);
+        }
+      } else if (d % 5 === 0) tick.className = "med";
+      tick.style.left = ((d - base) * PX_PER_DG).toFixed(1) + "px";
+      inner.appendChild(tick);
+      ticks.push({ d, node: tick, label });
+    }
+    scale.appendChild(inner);
+  };
   // Editable range [lo, hi] in decigrams mirrors the Settings rules for the
   // relative margins, so the dial can never offer a target Save would reject.
   let lo = MIN * 10,
@@ -251,7 +255,9 @@ function initQuickWeight() {
     dose = 0;
   const clamp = (d) => Math.max(lo, Math.min(hi, d));
   const speedMul = (v) => 1 + Math.min(SPEED_CAP - 1, Math.abs(v || 0) * SPEED_K);
-  let nowIdx = -1;
+  let nowIdx = -1,
+    outLo = -1,
+    outHi = -1;
   // Ticks sit at fixed offsets; one translate slides the whole ruler and only
   // the "now" tick and the readouts change per frame, so a drag never
   // restyles the strip.
@@ -288,8 +294,14 @@ function initQuickWeight() {
       lo = MIN * 10;
       hi = MAX * 10;
     } // a recipe with no valid target must not lock the dial
-    for (const { d, node, label } of ticks)
-      for (const el of label ? [node, label] : [node]) el.classList.toggle("out", d < lo || d > hi);
+    if (!ticks.length) build();
+    if (lo !== outLo || hi !== outHi) {
+      outLo = lo;
+      outHi = hi;
+      for (const { d, node, label } of ticks)
+        for (const el of label ? [node, label] : [node])
+          el.classList.toggle("out", d < lo || d > hi);
+    }
     limitMin.classList.toggle("toneSlow", slow);
     limitMax.classList.toggle("toneFast", fast);
     value = openValue = clamp(Math.round(+preset.goalWeightG * 10));

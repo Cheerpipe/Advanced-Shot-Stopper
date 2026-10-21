@@ -102,7 +102,8 @@ function layoutChartLabels() {
 function watchChartLabels(e) {
   e.dataset.chartAxis = "";
   if (!chartObserver) {
-    chartObserver = new ResizeObserver(layoutChartLabels);
+    // Off Stats the labels are hidden; entering Stats lays them out again.
+    chartObserver = new ResizeObserver(() => R.activeView === "stats" && layoutChartLabels());
     chartObserver.observe($("app"));
     document.fonts?.ready.then(layoutChartLabels);
   }
@@ -193,12 +194,11 @@ function fillStarRate(h, r, off, fn) {
     );
     b.innerHTML =
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.7 6.2 6.7.7-5.1 4.4 1.5 6.6L12 17.2 6.2 20.5l1.5-6.6L2.6 9.5l6.7-.7z"/></svg>';
-    b.onclick = () => fn && fn(i === n ? 0 : i);
+    b.onclick = () => fn && fn(i === n ? 0 : i, i);
     h.appendChild(b);
   }
 }
-function shotMaxFlowGS(shot) {
-  const model = R.buildShotSparkModel(shot);
+function shotMaxFlowGS(shot, model = R.buildShotSparkModel(shot)) {
   return model ? model.maxFlow : null;
 }
 function shotPresetName(shot) {
@@ -214,8 +214,7 @@ function shotCut(r, m, actual) {
     g = p && p.cg / 100;
   return p ? { s: +r.endS, g, drip: actual !== null && r.actualWeightSource === "post_drip" ? actual - g : null } : {};
 }
-function shotFlowCurveGS(shot) {
-  const model = R.buildShotSparkModel(shot);
+function shotFlowCurveGS(shot, model = R.buildShotSparkModel(shot)) {
   return model ? model.flowCurve : [];
 }
 // The value of a time-sorted curve at t, linear between samples and held at its ends.
@@ -250,9 +249,8 @@ function bindShotScrub(node, tAt, seek, now) {
   node.setAttribute("role", "slider");
   node.setAttribute("aria-label", __WEBUI_TEXT__("runtime.shot_cursor_label"));
 }
-function renderShotSpark(h, shot) {
+function renderShotSpark(h, shot, m = R.buildShotSparkModel(shot)) {
   if (!h) return null;
-  const m = R.buildShotSparkModel(shot);
   h.replaceChildren();
   if (!m) {
     h.hidden = true;
@@ -817,6 +815,7 @@ function renderShots() {
     ];
     for (const r of rows) {
       const row = document.createElement("tr");
+      row.dataset.id = r.id;
       // A scale-loss shot has no weighed yield: only its estimate, no error.
       const estimated = r.actualG == null && r.estimatedG != null,
         actual = estimated ? null : shotDisplayActualG(r.actualG, r.wCg),
@@ -865,11 +864,13 @@ function renderShots() {
       rate.dataset.label = __WEBUI_TEXT__("runtime.rate");
       const rateHost = document.createElement("div");
       rate.appendChild(rateHost);
-      fillStarRate(rateHost, r.rating || 0, !R.controlsMutable, (n) => rateHistoryShot(r.id, n));
+      fillStarRate(rateHost, r.rating || 0, !R.controlsMutable, (n, star) =>
+        rateHistoryShot(r.id, n, star),
+      );
       row.appendChild(rate);
       const spark = document.createElement("td");
       spark.className = "shotSparkCell";
-      renderShotSpark(spark, r);
+      renderShotSpark(spark, r, m);
       if (spark.hidden) row.classList.add("noSpark");
       else row.appendChild(spark);
       const del = document.createElement("td");
@@ -927,11 +928,13 @@ async function postShotRating(p, undo) {
     }
   });
 }
-function rateHistoryShot(id, n) {
+function rateHistoryShot(id, n, star) {
   const s = R.uiState.shotHistory.shots.find((x) => x && x.id === id),
     p = s && s.rating;
   if (s) s.rating = n;
   renderShots();
+  // The rebuilt row replaces the clicked star: keyboard focus moves to its twin.
+  $("shotRows")?.querySelector(`tr[data-id="${id}"] .starRate`)?.children[star - 1]?.focus();
   return postShotRating({ id, rating: n }, () => {
     if (s) s.rating = p;
     renderShots();
@@ -1008,10 +1011,12 @@ async function exportShotsCsv() {
       ],
     ];
     for (const r of list) {
+      // One curve model per shot feeds the flow column, the cut and the maximum.
       const w = Array.isArray(r.wCg) ? r.wCg : [],
-        f = shotFlowCurveGS(r),
+        m = R.buildShotSparkModel(r),
+        f = shotFlowCurveGS(r, m),
         actual = shotDisplayActualG(r.actualG, r.wCg),
-        cut = shotCut(r, R.buildShotSparkModel(r), actual);
+        cut = shotCut(r, m, actual);
       const errorG = actual === null || r.goalG == null ? null : actual - r.goalG;
       const errorPct = errorG === null || !r.goalG ? null : (errorG / r.goalG) * 100;
       rows.push([
@@ -1046,7 +1051,7 @@ async function exportShotsCsv() {
         r.bbwLearningApplied == null ? "" : r.bbwLearningApplied ? "1" : "0",
         r.presetId || "",
         r.scaleName || "",
-        shotMaxFlowGS(r) ?? "",
+        shotMaxFlowGS(r, m) ?? "",
         r.wTruncated ? "1" : "0",
         (r.wBreakBefore || []).join(";"),
         (r.wHeld || []).join(";"),

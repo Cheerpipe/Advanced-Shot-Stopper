@@ -2141,7 +2141,10 @@ function refreshFieldAria(el) {
   }
 }
 function clearBrewWarningsDom() {
-  document.querySelectorAll("#workflowPanel .fieldWarning").forEach((e) => e.remove());
+  // Quick-override notes share the look but follow the status, not the form.
+  document
+    .querySelectorAll("#workflowPanel .fieldWarning:not(.qsOverride)")
+    .forEach((e) => e.remove());
   document.querySelectorAll("#workflowPanel .fieldWarn").forEach((e) => {
     e.classList.remove("fieldWarn");
     refreshFieldAria(e);
@@ -2510,7 +2513,7 @@ function renderLog() {
   for (const e of uiState.logEvents) {
     if (f && e.category !== f) continue;
     if ((r[e.level] ?? 3) > m) continue;
-    o +=
+    o += e.line ??=
       (e.wallSec
         ? formatWallTimeLocal(e.localSec ?? e.wallSec)
         : "+" + ((e.atMs || 0) / 1000).toFixed(3) + "s") +
@@ -2522,8 +2525,18 @@ function renderLog() {
       e.message +
       "\n";
   }
-  $("log").value = o;
-  $("log").scrollTop = $("log").scrollHeight;
+  // New lines append (and the oldest drop) in place, so a selection or a
+  // scrolled-back view survives; only a reader already at the end follows it.
+  const el = $("log"),
+    old = el.value,
+    cut = old.indexOf(o.slice(0, o.indexOf("\n") + 1)),
+    stick = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
+  if (o === old) return;
+  if (cut >= 0 && o.startsWith(old.slice(cut))) {
+    el.setRangeText("", 0, cut);
+    el.setRangeText(o.slice(old.length - cut), el.value.length, el.value.length);
+  } else el.value = o;
+  if (stick) el.scrollTop = el.scrollHeight;
 }
 function updateLogHealth(d) {
   const a = [],
@@ -2545,8 +2558,13 @@ function updateWifiSleepState() {
   if (el) el.disabled = !controlsMutable || !uiState.savedStaSsid;
 }
 
-let presetState = { activeId: 0, items: [], selectedId: 0 },
-  presetsLoaded = false;
+// rev counts real preset changes, so renderers compare a number instead of
+// re-serializing every preset on each stream frame.
+let presetState = { activeId: 0, items: [], selectedId: 0, rev: 0 },
+  presetsLoaded = false,
+  presetsSeen = null,
+  presetsJson = "",
+  presetCardsSig = "";
 function presetSummary(p) {
   const n = (v) => (Number.isFinite(+v) ? +(+v).toFixed(1) : "?");
   return sub(__WEBUI_TEXT__("runtime.preset_meta"), [
@@ -2575,7 +2593,10 @@ function presetCardDot() {
 }
 function renderPresetCards(targetId) {
   const el = $(targetId);
-  if (!el) return;
+  const sig = [presetState.rev, presetState.activeId, presetState.selectedId].join();
+  // An inline rename in progress owns its card until it finishes.
+  if (!el || el.querySelector(".presetRenameInline") || sig === presetCardsSig) return;
+  presetCardsSig = sig;
   el.replaceChildren();
   for (const p of presetState.items) {
     const card = document.createElement("article");
@@ -2655,7 +2676,7 @@ function renderHomePresetAccordion() {
   if (!el) return;
   const canSelect = controlsMutable,
     openId = homeAccPendingId || presetState.activeId,
-    sig = JSON.stringify([openId, canSelect, liveRuleModel, presetState.items]);
+    sig = JSON.stringify([openId, canSelect, liveRuleModel, presetState.rev]);
   if (sig === homeAccSig) return;
   homeAccSig = sig;
   const focusIdx = [...el.querySelectorAll(".presetAccHead")].indexOf(document.activeElement),
@@ -2920,7 +2941,11 @@ function startRenamePreset(p, titleEl) {
   input.className = "presetRenameInline";
   input.maxLength = 23;
   input.value = p.name;
+  // Removing the input blurs it, so Enter or Escape must not also commit on blur.
+  let done = false;
   const finish = async (ok) => {
+    if (done) return;
+    done = true;
     const v = input.value;
     if (input.parentNode) input.replaceWith(titleEl);
     if (ok) commitRenamePreset(p, v);
@@ -2944,6 +2969,14 @@ function startRenamePreset(p, titleEl) {
 function ingestPresets(s) {
   if (!s.presets) return;
   presetsLoaded = true;
+  if (s.presets !== presetsSeen) {
+    presetsSeen = s.presets;
+    const json = JSON.stringify(s.presets);
+    if (json !== presetsJson) {
+      presetsJson = json;
+      presetState.rev++;
+    }
+  }
   const prev = presetState.activeId;
   presetState.activeId = s.presets.activeId || 0;
   presetState.items = s.presets.items || [];
@@ -3298,7 +3331,8 @@ function drawPresetGraph(host, m, x, readout, key) {
 // only under the cut line. Unsaved edits redraw live over the ghosted saved line.
 function renderPresetReview() {
   const host = $("presetReviewGraph");
-  if (!host) return;
+  // Settings redraws it on entry; hidden, it would redraw on every Home frame.
+  if (!host || activeView !== "settings") return;
   const goalNow = formNumber("goalWeightG"),
     grams = (v) => (Number.isFinite(v) ? v.toFixed(1) : "\u2014");
   for (const [id, key, w] of [
@@ -4975,6 +5009,18 @@ function heroStateText(d, tint, m, el, mode) {
   }
   return null;
 }
+// Drawn flow: a ±1 s mean (g/s) that evens out scale noise. Points are in time
+// order, so one sliding window keeps it linear in the curve length.
+function smoothFlow({ pts: p }) {
+  let lo = 0,
+    hi = 0,
+    sum = 0;
+  return p.map((q) => {
+    for (; hi < p.length && p[hi].t <= q.t + 1; hi++) sum += p[hi].cg;
+    for (; p[lo].t < q.t - 1; lo++) sum -= p[lo].cg;
+    return [q.t, sum / (hi - lo) / 100];
+  });
+}
 // Curve, cut line and window; overlays use CSSOM (the CSP blocks inline styles).
 function renderHeroChart(host, model, m, goal, label) {
   if (!host) return;
@@ -4991,13 +5037,7 @@ function renderHeroChart(host, model, m, goal, label) {
     Y = (g) => 100 - (100 * Math.max(0, g)) / yMax,
     path = (pts, y = Y) => pts.map((q, i) => (i ? "L" : "M") + X(q[0]).toFixed(2) + " " + y(q[1]).toFixed(2)).join(""),
     curve = (s) => path(s.pts.map((q) => [q.t, q.cg / 100])),
-    // Drawn flow: a ±1 s mean (g/s) that evens out scale noise.
-    smooth = ({ pts: p }) =>
-      p.map((q) => {
-        const n = p.filter((r) => Math.abs(r.t - q.t) <= 1);
-        return [q.t, n.reduce((a, r) => a + r.cg, 0) / n.length / 100];
-      }),
-    flows = [model.flowSegs, model.dripFlowSegs].map((a) => a.filter((s) => s.pts.length > 1).map(smooth)),
+    flows = [model.flowSegs, model.dripFlowSegs].map((a) => a.filter((s) => s.pts.length > 1).map(smoothFlow)),
     // Flow keeps to the lower 32 % on its own scale.
     flowTop = Math.max(2.5, ...flows.flat(2).map((q) => 1.15 * q[1])),
     flowY = (r) => 100 - (32 * r) / flowTop,
@@ -5425,24 +5465,25 @@ function applyHomeStatus(s) {
     t = shot && shot.querySelector(".t"),
     switchOnly = (s.machineType || (s.compileFlags && s.compileFlags.machineType)) === "momentary";
   syncAdminSessionUi(admin, remoteReady);
-  $("machineState").textContent = formatMachineState(s);
-  $("state").textContent =
-    formatBackflushState(s) || s.stateLabel || __WEBUI_TEXT__("runtime.unknown");
+  // Stream frames repeat most values: unchanged text is not rewritten.
+  setHomeSub("machineState", formatMachineState(s));
+  setHomeSub("state", formatBackflushState(s) || s.stateLabel || __WEBUI_TEXT__("runtime.unknown"));
   updateStateTone(s);
-  $("cupState").textContent = formatCupState(s);
-  $("cupWeight").textContent = formatCupWeight(s);
-  $("cupAccessory").textContent = formatCupAccessory(s);
-  $("idleTareStatus").textContent = formatIdleTare(s);
-  $("scale").textContent = formatScaleStatus(s);
-  $("preferredScale").textContent = formatPreferredScale(s);
+  setHomeSub("cupState", formatCupState(s));
+  setHomeSub("cupWeight", formatCupWeight(s));
+  setHomeSub("cupAccessory", formatCupAccessory(s));
+  setHomeSub("idleTareStatus", formatIdleTare(s));
+  setHomeSub("scale", formatScaleStatus(s));
+  setHomeSub("preferredScale", formatPreferredScale(s));
   updateScaleRenameUi(
     "preferredScaleRenameWrap",
     s.scale?.preferredMac || "",
     scaleDisplayName(s.scale),
   );
-  $("scaleWeight").textContent = formatScaleWeight(s);
-  $("scaleTimer").textContent = formatScaleTimer(s);
-  paintUiStream();
+  setHomeSub("scaleWeight", formatScaleWeight(s));
+  setHomeSub("scaleTimer", formatScaleTimer(s));
+  // Painted on the next frame, once this status has set the new cut model.
+  scheduleShotPaint();
   const rinseButton = $("rinseButton");
   if (rinseButton)
     rinseButton.disabled = !(
@@ -5640,6 +5681,7 @@ async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
   });
 }
 export {
+  activeView,
   compatibilityModeOn,
   noteWebUiPowerActivity,
   initHeaderSignals,

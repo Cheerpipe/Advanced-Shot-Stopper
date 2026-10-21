@@ -472,3 +472,9 @@
 if (!/\.qwDial button\{[^}]*font:inherit;[^}]*line-height:1[;}]/.test(css)) {
   throw new Error('Quick-weight dial buttons must set line-height after the font shorthand');
 }
+// The ~2,400-node ruler is built on the first open and its out-of-range ticks
+// are restyled only when the range changes.
+if (!codeIncludes(viewJs.home, 'if(!ticks.length)build()') ||
+    !codeIncludes(viewJs.home, 'if(lo!==outLo||hi!==outHi){')) {
+  throw new Error('The quick-weight ruler must be built lazily and restyled only on range changes');
+}

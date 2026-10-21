@@ -840,3 +840,8 @@ if (!micraMachinePower.includes('LINEA_MICRA_SCALE_OFF_WITH_MACHINE') ||
         'machineEffectivelyOff must poll without waiting and treat a stale poll cache as unknown, never off');
   }
 }
+// One-second tickers paint only the view that shows them.
+if (!codeIncludes(viewJs.home, 'if(!document.hidden&&R.activeView===home)renderMicraBoilers()') ||
+    !codeIncludes(viewJs.diagnostic, 'if(!document.hidden&&R.activeView===diagnostic)renderDiagClock()')) {
+  throw new Error('Hidden Home and Diagnostic views must not keep painting their clocks');
+}

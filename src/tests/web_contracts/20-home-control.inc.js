@@ -343,11 +343,18 @@
   // under the weight; the drip tail is fainter.
   const chart={innerHTML:'',setAttribute(){},replaceChildren(){},append(){},prepend(){}},
     pts=a=>a.map(([t,cg])=>({t,cg}));
-  new Function('fadeFill','document','h','m',blockAt(runtimeJs,'function renderHeroChart(')+
+  const smoothFlow=new Function(blockAt(runtimeJs,'function smoothFlow(')+';return smoothFlow;')();
+  // The sliding ±1 s window matches the direct mean over every in-range point.
+  for(let run=0;run<20;run++){
+    const p=[];for(let t=0,i=0;i<60;i++)p.push({t:t+=Math.random()*(run%3?0.4:1.6),cg:Math.random()*900});
+    const naive=p.map(q=>{const n=p.filter(r=>Math.abs(r.t-q.t)<=1);return [q.t,n.reduce((a,r)=>a+r.cg,0)/n.length/100];});
+    smoothFlow({pts:p}).forEach(([t,v],i)=>{if(t!==naive[i][0]||Math.abs(v-naive[i][1])>1e-9)throw new Error('Flow smoothing must equal the ±1 s mean');});
+  }
+  new Function('fadeFill','document','h','m','smoothFlow',blockAt(runtimeJs,'function renderHeroChart(')+
     ';renderHeroChart(h,m,null,36,"");')(()=>'',{createElement:()=>({style:{}})},chart,
     {segs:[{pts:pts([[6,0],[27,3500]])}],dripSegs:[{pts:pts([[27,3500],[29,3600]])}],timeMax:30,maxW:40,
       flowSegs:[{pts:pts([[10,100],[10.5,200],[11,150]])}],
-      dripFlowSegs:[{pts:pts([[27,150],[29,0]])}]});
+      dripFlowSegs:[{pts:pts([[27,150],[29,0]])}]},smoothFlow);
   if(!chart.innerHTML.includes('<path d="M33.33 80.80L35.00 80.80L36.67 80.80V100H33.33Z" fill="url(#heroFlow)"/>')||
       !chart.innerHTML.includes('<path d="M90.00 80.80L96.67 100.00V100H90.00Z" fill="var(--on)" fill-opacity=".06"/>')||
       /stroke-opacity="\.[56]"/.test(chart.innerHTML)||
@@ -975,7 +982,7 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
   const record = curveTypes.slice(curveTypes.indexOf('struct ShotCurveRecord'),
       curveTypes.indexOf('inline ShotCurveRecord emptyShotCurveRecord'));
   if (!codeIncludes(statsRuntimeJs, "spark.className='shotSparkCell'") ||
-      !codeIncludes(statsRuntimeJs, "renderShotSpark(spark,r)") ||
+      !codeIncludes(statsRuntimeJs, "renderShotSpark(spark,r,m)") ||
       /flow/i.test(record) || network.includes('\"flowCg\"') || network.includes('\"flowDtS\"')) {
     throw new Error('Stats must share the ordered Weight/Flow chart renderer without a persisted flow series');
   }

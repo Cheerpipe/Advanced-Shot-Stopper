@@ -385,3 +385,8 @@
       'The brew save bar must carry the conflict chip');
   }
 }
+// Quick-override notes follow the status: clearing the live brew warnings
+// must not wipe them until the next poll.
+if (!codeIncludes(runtimeJs, "querySelectorAll('#workflowPanel .fieldWarning:not(.qsOverride)')")) {
+  throw new Error('Clearing brew warnings must keep the quick-override notes');
+}

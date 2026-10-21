@@ -76,3 +76,16 @@
   assert.deepEqual(filled, ['statsAvgDur', 'statsAvgWeight', 'statsAvgDaily', 'statsAvgErr',
     'statsAvgFlow']);
 }
+// Stats and History render cost: one curve model per shot row and CSV line, a
+// rated star keeps keyboard focus, label layout sleeps off Stats, and History
+// clones each type icon instead of re-parsing its SVG per row.
+if (!codeIncludes(viewJs.stats, 'renderShotSpark(spark,r,m)') ||
+    !codeIncludes(viewJs.stats, 'f=shotFlowCurveGS(r,m)') ||
+    !codeIncludes(viewJs.stats, 'cut=shotCut(r,m,actual)') ||
+    !codeIncludes(viewJs.stats, 'shotMaxFlowGS(r,m)') ||
+    !codeIncludes(viewJs.stats, '.starRate`)?.children[star-1]?.focus()') ||
+    !codeIncludes(viewJs.stats, 'new ResizeObserver(()=>R.activeView===stats&&layoutChartLabels())') ||
+    !codeIncludes(viewJs.history, 'icon.append(histIcons[r.type].cloneNode(true))') ||
+    codeIncludes(viewJs.history, 'icon.innerHTML=typeSvg')) {
+  throw new Error('Stats and History must not rebuild per-row work they can reuse');
+}

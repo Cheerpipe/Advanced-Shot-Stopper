@@ -6,7 +6,7 @@
     return {insertCell: () => {const cell = {}; cells.push(cell); return cell;}};
   }};
   const elements = {scaleCommandRows: rows, scaleCommandTable: {}, scaleCommandHint: {}};
-  const apply = new Function('$',
+  const apply = new Function('$', blockAt(viewJs.diagnostic, 'function unchanged(') + blockAt(viewJs.diagnostic, 'function fillRows(') +
     blockAt(viewJs.diagnostic, 'function applyScaleCommands(') +
     ';return applyScaleCommands;')(id => elements[id]);
   const commands = ['Tare', 'Volume', 'Start timer', 'Stop timer', 'Reset timer',
@@ -101,7 +101,7 @@
       !/<details id="scaleRow" class="lampRow">[\s\S]*?<\/details><details id="cupRow" class="lampRow">/.test(home) ||
       !/<legend>Scale<\/legend>[\s\S]*?id="dCupWeight"/.test(diagnostic) ||
       !diagnostic.includes('id="dCup"') || diagnostic.includes('id="scaleTareButton"') ||
-      !codeIncludes(source, "$('cupWeight').textContent=formatCupWeight(s)") ||
+      !codeIncludes(source, "setHomeSub('cupWeight',formatCupWeight(s))") ||
       !codeIncludes(viewJs.diagnostic, "t('dCupWeight',R.formatCupWeight(s))") ||
       !codeIncludes(source, 'function noteReachFail(err,force){clearCupWeights();') ||
       !codeIncludes(source, 'function stopViewPolls(){clearCupWeights();')) {
