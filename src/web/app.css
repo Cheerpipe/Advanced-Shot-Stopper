@@ -711,6 +711,7 @@ html.theme-dark{color-scheme:dark}
 #diagnosticsPanel details{grid-column:1/-1;max-width:100%;overflow:auto}#diagnosticsPanel details table{width:100%;min-width:24rem;border-collapse:collapse}#diagnosticsPanel details th,#diagnosticsPanel details td{text-align:left;padding:.45rem;border-bottom:1px solid var(--ln)}
 
 :where(a,button,input,select,textarea,summary):focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+:where([tabindex="-1"]):focus{outline:none}
 .btnGlyph:not(:disabled):hover{filter:brightness(.95)}
 @media(max-width:699px){
 .topBar{--logo-w:2.35rem;--logo-h:3.1rem;--brand-font:1.4rem;--brand-small:1rem;--compact:var(--header-progress,0);min-height:calc(5rem + env(safe-area-inset-top) - 1.25rem * var(--compact));transition:min-height .12s linear}
