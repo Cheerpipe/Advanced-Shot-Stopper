@@ -54,3 +54,12 @@
   const short = model(shots(Array(10).fill(18)));
   near(short.M * short.sec, 2, 'short shot scale in seconds');
 }
+// Preset names are user text: the consistency pill escapes them before the
+// pill writes its label as markup.
+{
+  const assert = require('assert');
+  const escHtml = new Function(`${blockAt(runtimeJs, 'function escHtml(')};return escHtml;`)();
+  assert.equal(escHtml('<b>"A&B"'), '&#60;b&#62;&#34;A&#38;B&#34;');
+  assert.ok(codeIncludes(viewJs.stats, 'R.placePill(pill, R.escHtml(text),'),
+      'The consistency pill must escape the preset name');
+}

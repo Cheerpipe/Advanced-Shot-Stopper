@@ -814,6 +814,7 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
 }
 if (!codeIncludes(ui, 'id="renameScaleLink"') ||
     !codeIncludes(ui, 'id="preferredScaleRenameWrap"') ||
+    !codeIncludes(ui, 'id="preferredScaleSelectRenameWrap"') ||
     !codeIncludes(ui, 'id="dScaleName"') ||
     !codeIncludes(ui, 'id="dScaleNameRename"') ||
     !codeIncludes(ui, 'id="dScaleNameRenameWrap"') ||

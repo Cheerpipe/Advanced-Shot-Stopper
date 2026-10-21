@@ -204,3 +204,13 @@ int main(){
                     'per-dispatch budget instead of holding the httpd task');
   }
 }
+// Log frames carry their own cursor and the firmware advances it on send, so a
+// pending snapshot resync must not drop them before the log dispatch.
+{
+  const onMessage = compactSource(blockAt(runtimeJs, 'function startUiStream('));
+  const logAt = onMessage.indexOf('if(data.type===log)');
+  const gateAt = onMessage.indexOf('if(shotResync&&!data.snapshot)return');
+  if (logAt < 0 || gateAt < 0 || logAt > gateAt) {
+    throw new Error('Log frames must be dispatched before the stream resync gate');
+  }
+}

@@ -3259,6 +3259,10 @@ function presetGraph(host, m, x = {}) {
 }
 // While held, a pill left of the handle (clear of a right thumb) shows its point.
 const PILL = '<g class="rvPill"><rect y="-9" rx="9" height="18"/><text class="rvLbl strong" x="8" y="4"/></g>';
+// User text bound for innerHTML.
+function escHtml(text) {
+  return String(text).replace(/[&<>"]/g, (c) => "&#" + c.charCodeAt(0) + ";");
+}
 // Near the left edge it flips to the right of the handle instead of covering it.
 function placePill(pill, text, x, y) {
   pill.lastChild.innerHTML = text;
@@ -3788,6 +3792,12 @@ function startUiStream() {
         clearTimeout(shotDeadline);
         return;
       }
+      // Log frames carry their own cursor: a pending resync must not drop them.
+      if (data.type === "log") {
+        if (!logStreamWanted) return;
+        applyLogFrame(logStreamFrame(data));
+        return;
+      }
       if (shotResync && !data.snapshot) return;
       if (data.type === "diagnostic") {
         if (!diagStreamWanted) return;
@@ -3810,11 +3820,6 @@ function startUiStream() {
         )
           return;
         applyHistoryStream(historyStreamFrame(data));
-        return;
-      }
-      if (data.type === "log") {
-        if (!logStreamWanted) return;
-        applyLogFrame(logStreamFrame(data));
         return;
       }
       if (data.type === "stats") {
@@ -5783,6 +5788,7 @@ export {
   shotRuleModel,
   cutLine,
   placePill,
+  escHtml,
   PILL,
   presetGraph,
   observePresetHost,

@@ -740,7 +740,7 @@ function renderStatsConsistency(shots) {
     cur.style.setProperty("--c", out(at) ? "var(--zl)" : "var(--zs)");
     plot.setAttribute("aria-valuenow", at + 1);
     plot.setAttribute("aria-valuetext", text);
-    if (held) R.placePill(pill, text, (X(at) / 100) * cur.clientWidth, (Y(rel[at]) / 50) * cur.clientHeight);
+    if (held) R.placePill(pill, R.escHtml(text), (X(at) / 100) * cur.clientWidth, (Y(rel[at]) / 50) * cur.clientHeight);
   };
   bindShotScrub(plot, (cx) => {
     const b = cur.getBoundingClientRect();

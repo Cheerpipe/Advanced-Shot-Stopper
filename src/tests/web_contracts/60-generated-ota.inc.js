@@ -106,6 +106,26 @@ for (const [machineType, forbidden] of Object.entries(machineTypeExclusive)) {
     throw new Error(`machine-type ${machineType} diagnostic Machine I/O ` +
         'panel must not close the diagnostics container early');
   }
+  // Saving shared settings reads only fields the typed build still ships.
+  const shippedIds = new Set([...variant.partials.settings.matchAll(/\bid="([^"]+)"/g)]
+      .map((m) => m[1]));
+  const field = (id) => (shippedIds.has(id) ? {value: '1', checked: false} : null);
+  new Function('$', 'R', blockAt(viewJs.settings, 'function machinePayload(') +
+      ';return machinePayload();')(field, {number: (id) => Number(field(id).value),
+    sToMs: (id) => Number(field(id).value) * 1000, extRate: (v) => v});
+}
+// Typed CSS drops only the selectors naming stripped markup, never the
+// rules grouped with them.
+for (const [machineType, remoteControl, kept] of [
+  ['momentary_reed', true, ['html.reedMachine .switchOnly']],
+  ['momentary', false, ['html:not(.momentaryMachine) .switchOnly']],
+  ['paddle', false, ['html.momentaryMachine .paddleOnly',
+    'html.theme-dark :is(.qwSheet){box-shadow:0 -8px']]]) {
+  const {css: typedCss} = await webUi.generate({machineType, remoteControl, write: false});
+  const lost = kept.filter((needle) => !typedCss.includes(needle));
+  if (lost.length) {
+    throw new Error(`machine-type ${machineType} CSS lost grouped rules: ${lost.join(', ')}`);
+  }
 }
 const typeAgnostic = await webUi.generate({webUiLanguage: 'EN', write: false});
 const typeAgnosticText =
@@ -843,7 +863,9 @@ if (generated.otaImageGzip.length > 3072) {
 // The Diagnostic Heap min before and after the boot heap shaper release measures diagnostic.js at 13871; owner-requested 2026-10-20.
 // Home and Diagnostic minimal increments move records.js to 15098 through shared text table gzip wobble; owner-requested 2026-10-21.
 // The review fixes move diagnostic.js to 13872 through shared text table gzip wobble; owner-requested 2026-10-21.
-const viewModuleBudgets = {records: 15098, diagnostic: 13872, admin: 14229, settings: 16807, setup: 5793};
+// The audit F1 fixes (escaped consistency pill names, typed-build save guard, unique Settings rename id) measure
+// records.js at 15103 and settings.js at 16808; owner-requested 2026-10-21.
+const viewModuleBudgets = {records: 15103, diagnostic: 13872, admin: 14229, settings: 16808, setup: 5793};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);

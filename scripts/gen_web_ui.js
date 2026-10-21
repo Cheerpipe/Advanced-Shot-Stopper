@@ -90,13 +90,29 @@ function stripMachineTypeMarkup(html, machineType) {
   return out;
 }
 
+// Drop only the selectors that name stripped markup, including entries of an
+// :is() list, so a rule grouped with them keeps its other selectors.
+function keepSelectors(list, re) {
+  return list.split(/,(?![^()]*\))/)
+      .filter((selector) => !re.test(selector.replace(/:is\([^()]*\)/g, '')))
+      .map((selector) => selector.replace(/:is\(([^()]*)\)/g,
+          (_, inner) => `:is(${keepSelectors(inner, re).join(',')})`))
+      .filter((selector) => !selector.includes(':is()'));
+}
+
+function stripCssSelectors(css, re) {
+  const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  return rules.replace(/([^{}]+)(\{[^{}]*\})/g, (rule, prelude, body) => {
+    if (!re.test(prelude)) return rule;
+    const kept = keepSelectors(prelude, re);
+    return kept.length ? kept.join(',') + body : '';
+  });
+}
+
 function stripMachineTypeCss(css, machineType) {
   const excluded = MACHINE_TYPE_EXCLUSIONS[machineType];
   if (!excluded) return css;
-  const classRe = new RegExp(
-      `\\.(?:${excluded.join('|')})\\b`);
-  return css.replace(/([^{}]+\{[^{}]*\})/g, (rule) =>
-    classRe.test(rule) ? '' : rule);
+  return stripCssSelectors(css, new RegExp(`\\.(?:${excluded.join('|')})\\b`));
 }
 
 // Remote machine control is opt-in at compile time; builds without the flag
@@ -110,8 +126,7 @@ function stripRemoteControlMarkup(html) {
 }
 
 function stripRemoteControlCss(css) {
-  return css.replace(/([^{}]+\{[^{}]*\})/g, (rule) =>
-    REMOTE_CONTROL_CSS_RE.test(rule) ? '' : rule);
+  return stripCssSelectors(css, REMOTE_CONTROL_CSS_RE);
 }
 
 function readFirmwareVersion() {

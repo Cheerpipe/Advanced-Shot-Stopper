@@ -156,6 +156,15 @@ let allJs = [appJsSource, runtimeJs, otaImageJs,
 const html = allHtml;
 const js = allJs;
 const ui = allHtml + '\n' + allJs;
+// Every view lives in one document: an id repeated across partials makes
+// getElementById resolve to whichever view was injected first.
+{
+  const seenIds = new Set();
+  for (const [, id] of allHtml.matchAll(/\sid="([^"]+)"/g)) {
+    if (seenIds.has(id)) throw new Error(`Duplicate id across the Web UI document: ${id}`);
+    seenIds.add(id);
+  }
+}
 const settingsHtml = partialHtml.settings;
 for (const field of settingsHtml.matchAll(
     /<(input|select|textarea)\b[^>]*\bid="([^"]+)"[^>]*>/g)) {
@@ -893,8 +902,9 @@ if (htmlBytes > 93300) {
 // The ?fw= landing refreshes the cached shell after an OTA: 482547, owner-requested 2026-10-21.
 // A reconnect keeps the presets it already holds: 482997, owner-requested 2026-10-21.
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect: 483596, owner-requested 2026-10-21.
-if (jsBytes > 483596) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 483596)`);
+// Audit fixes for typed-build saves, log frames during a resync and escaped pill names: 483639, owner-requested 2026-10-21.
+if (jsBytes > 483639) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 483639)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1192,7 +1202,7 @@ if (!network.includes('"firstDropBeep"') ||
     !codeIncludes(ui, 'id="bbwProtectionS"') ||
     !codeIncludes(ui, 'Paddle reminder limit (min)') ||
     !codeIncludes(ui, 'id="paddleReturnReminderMaxDurationMin"') ||
-    !codeIncludes(ui, 'paddleReturnReminderMaxDurationMs:Math.round(') ||
+    !codeIncludes(ui, 'paddleReturnReminderMaxDurationMs:reminder?Math.round(') ||
     codeIncludes(ui, 'Up to 120 shots') ||
     !codeIncludes(ui, '/api/v1/time/sync') ||
     !firmware.includes('session.config.firstDropBeep') ||

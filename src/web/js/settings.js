@@ -77,7 +77,7 @@ function updatePreferredScaleSelect(s) {
   sel.dataset.applied = preferred;
   const opt = sel.selectedOptions && sel.selectedOptions[0];
   R.updateScaleRenameUi(
-    "preferredScaleRenameWrap",
+    "preferredScaleSelectRenameWrap",
     sel.value || "",
     opt && opt.dataset ? String(opt.dataset.name || "") : "",
   );
@@ -374,9 +374,9 @@ function machinePayload() {
       : "scale_priority",
     autoRetare: $("autoRetare").checked,
     paddleReturnReminderIntervalMs: reminder ? (+reminder.value || 30) * 1000 : undefined,
-    paddleReturnReminderMaxDurationMs: Math.round(
-      R.number("paddleReturnReminderMaxDurationMin") * 60000,
-    ),
+    paddleReturnReminderMaxDurationMs: reminder
+      ? Math.round(R.number("paddleReturnReminderMaxDurationMin") * 60000)
+      : undefined,
     noScaleBbwMode: $("noScaleBbwMode").value,
     noScaleAllowRinseWhileArmed: $("noScaleAllowRinseWhileArmed").checked,
     lastShotCooldownMs: Math.round(R.number("lastShotCooldownMin") * 6e4),
@@ -742,7 +742,7 @@ function selectPreferredScale() {
   markConfigDirty();
   const opt = sel.selectedOptions && sel.selectedOptions[0];
   R.updateScaleRenameUi(
-    "preferredScaleRenameWrap",
+    "preferredScaleSelectRenameWrap",
     mac,
     opt && opt.dataset ? String(opt.dataset.name || "") : "",
   );
