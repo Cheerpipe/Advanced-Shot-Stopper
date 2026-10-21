@@ -266,7 +266,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     css.includes('.ruleChartHead') || css.includes('.ruleChartMode') ||
     codeIncludes(ui, 'id="clearLastShotButton"') ||
     css.includes('#shotPanel') ||
-    !css.includes('#shotTable .btnGlyph{border:0;border-radius:2rem;min-height:var(--tap);min-width:var(--tap);padding:0;flex:0 0 auto;background:none;box-shadow:none;filter:none') ||
+    !css.includes(':is(#shotTable,#historyTable) .btnGlyph{border:0;min-height:var(--tap);min-width:var(--tap);padding:0;flex:0 0 auto;background:none;filter:none') ||
     html.includes('id="lastCycle"') ||
     !codeIncludes(ui, 'function renderShotHero(') ||
     !codeIncludes(ui, 'function renderShotSpark(') ||
@@ -786,7 +786,8 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     !codeIncludes(ui, 'id="clearShotsButton"') ||
     !html.includes('id="clearShotsButton" class="btnGlyph btnInvert"') ||
     html.includes('id="clearShotsButton" class="btnGlyph btnDanger"') ||
-    !css.includes('.glassBar>.btnGlyph.btnInvert') ||
+    // The generic invert rule follows the glass-bar button rule, so it wins there too.
+    !(css.indexOf('.btnGlyph.btnInvert{background:var(--pri)') > css.indexOf('.glassBar>.btnGlyph{')) ||
     !codeIncludes(ui, "confirm:'CLEAR_SHOT_LOG'") ||
     !codeIncludes(runtimeJs, 'function setEmptyState(') ||
     !codeIncludes(ui, 'refreshShots()') ||
@@ -800,7 +801,8 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     css.includes('grid-area:stop') ||
     css.includes('grid-area:cut') ||
     !css.includes('#shotTable .shotDel') ||
-    !css.includes('#shotTable td.shotDel,#shotTable td.shotDel>.btnGlyph{background:transparent!important}') ||
+    // Delete buttons share the table button rule that clears their background.
+    !css.includes(':is(#shotTable,#historyTable) .btnGlyph{border:0;min-height:var(--tap);min-width:var(--tap);padding:0;flex:0 0 auto;background:none') ||
     !codeIncludes(js, "className='shotDel'") ||
     codeIncludes(statsRuntimeJs, '<span class="t">Delete</span>') ||
     !codeIncludes(ui, 'formatShotTime(r)') ||
@@ -1013,7 +1015,7 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !network.includes('shotLogSortFromName') ||
     !network.includes('strcmp(sort->valuestring, "date")') ||
     !network.includes('strcmp(dir->valuestring, "asc")') ||
-    !css.includes('button{-webkit-appearance:none;appearance:none;border-radius:2rem}') ||
+    !css.includes('button{appearance:none;border-radius:2rem}') ||
     !css.includes('.glassBar>.btnGlyph{flex:0 0 auto;min-height:2.1rem;min-width:0;padding:0 .8rem;border:0;border-radius:1.6rem;background:transparent;color:var(--ac);white-space:nowrap}') ||
     !css.includes('.shotSort{display:flex;align-items:center;gap:.25rem;max-width:100%}') ||
     !css.includes('.shotSort button{') ||
@@ -1665,7 +1667,8 @@ if (!css.includes('.btnBar,.presetActions{display:flex;gap:.5rem') ||
     !css.includes('.btnGlyph.btnInvert{background:var(--pri)') ||
     !css.includes('.btnGlyph.btnDanger{background:var(--bg);color:var(--ac);border-color:var(--ac)}') ||
     css.includes('#factoryResetButton,#clearShotsButton{') ||
-    !css.includes('#actionsPanel .btnGlyph{flex:1;border:1.5px solid var(--ac);border-radius:2rem;background:transparent;color:var(--ac);min-height:3.25rem}') ||
+    // flex:1 and the 2rem radius come from the base .btnGlyph rule.
+    !css.includes('#actionsPanel .btnGlyph{border:1.5px solid var(--ac);background:transparent;color:var(--ac);min-height:3.25rem}') ||
     !css.includes('#actionsPanel .btnGlyph.btnDanger{background:var(--pri);color:var(--on);border-color:var(--pri)}') ||
     !css.includes('#shotLogPanel .glassBar,#historyPanel .glassBar{') ||
     !css.includes('#shotLogPanel .glassBar,#historyPanel .glassBar{position:sticky;top:var(--hdr);z-index:6;margin:0 0 .75rem') ||

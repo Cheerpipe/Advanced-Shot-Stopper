@@ -645,7 +645,9 @@ if (!codeIncludes(ui, 'id="forcePulseButton"') ||
     !codeIncludes(js, "'control/force-pulse':['Switch pulse sent.','send switch pulse'") ||
     !codeIncludes(runtimeJs, "force.disabled=!(admin&&remoteReady&&relayStartReady&&webUiOwner)") ||
     !css.includes('color:var(--ac);min-height:3rem;min-width:4.5rem;padding:.6rem .85rem') ||
-    !css.includes('#actionsPanel .btnGlyph{flex:1;') ||
+    // Action bar buttons grow through the base .btnGlyph flex:1; the pulse stays narrower.
+    !/\.btnGlyph\{display:inline-flex[^}]*;flex:1\}/.test(css) ||
+    !css.includes('#actionsPanel .btnGlyph{border:1.5px solid') ||
     !css.includes('#actionsPanel .momentaryOnly{flex:.6;min-height:var(--tap);min-width:4.5rem}') ||
     !network.includes('"/api/v1/control/force-pulse"') ||
     !network.includes('OpenBrewByWeightNetwork::forcePulseHandler') ||

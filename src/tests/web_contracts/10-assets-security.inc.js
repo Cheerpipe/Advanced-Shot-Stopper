@@ -503,9 +503,10 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
 }
 {
   const fade = Number(css.match(/\.bootOverlay\{[^}]*transition:opacity ([\d.]+)s\}/)[1]);
-  const suppression = css.match(/body\.pageLoading \.view[^}]*\}/)?.[0] || '';
-  for (const suffix of ['', ' *', '::before', '::after', ' *::before', ' *::after']) {
-    if (!suppression.includes('body.pageLoading .view' + suffix)) {
+  // The view and every descendant, each with its ::before and ::after.
+  const suppression = css.match(/body\.pageLoading :is\(\.view,\.view \*\)[^}]*\}/)?.[0] || '';
+  for (const suffix of ['', '::before', '::after']) {
+    if (!suppression.includes('body.pageLoading :is(.view,.view *)' + suffix)) {
       throw new Error('Loading must suppress view and control pseudo-element animations');
     }
   }
@@ -1066,10 +1067,12 @@ if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !html.includes('class="buzzerOpt scaleIncapableOpt">Fast-shot beeps<select id="buzzerExtendedPulseRate"') ||
     !html.includes('class="buzzerOpt scaleIncapableOpt">Slow-shot beeps<select id="buzzerSlowExtendedPulseRate"') ||
     !css.includes('color-scheme:light dark') ||
-    !css.includes('html,input,select,textarea{color-scheme:dark}') ||
+    // color-scheme is inherited, so the root carries it to every form control.
+    !css.includes('html.theme-dark{color-scheme:dark}') ||
+    !css.includes('html.theme-light{color-scheme:light}') ||
     !css.includes('--in:#fafafa') ||
     !css.includes('input:not([type=file],[type=checkbox]),select,textarea{') ||
-    !css.includes('input[type=text],input[type=email],input[type=password],input[type=url]{-webkit-appearance:none;appearance:none}') ||
+    !css.includes('input[type=text],input[type=email],input[type=password],input[type=url]{appearance:none}') ||
     !css.includes('min-height:3rem') ||
     !css.includes('background:var(--in)') ||
     !css.includes('input:-webkit-autofill') ||
