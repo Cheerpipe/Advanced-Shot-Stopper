@@ -179,10 +179,11 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
     'diagnostic.cleaning_states': 'Inactive|Waiting for paddle|Cleaning', 'diagnostic.ws_links': 'live|parked|closed'};
   const domContext = vm.createContext({$: id => dom[id], document: {createElement: element},
     __WEBUI_TEXT__: key => labels[key] || key, R: {formatWallTimeLocal: String}});
-  const cleaningSource = rawRuntimeJs.slice(rawRuntimeJs.indexOf('export function formatMicraCleaning('),
+  const cleaningSource = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function formatMicraCleaning('),
       rawRuntimeJs.search(/let\s+shotWs\s*=/)).replace('export ', '');
   domContext.R.formatMicraCleaning = new Function('__WEBUI_TEXT__', cleaningSource + ';return formatMicraCleaning;')(domContext.__WEBUI_TEXT__);
-  vm.runInContext(cloudUi.slice(0, cloudUi.indexOf('function applyScaleCommands(')), domContext);
+  vm.runInContext(cloudUi.slice(cloudUi.indexOf('function renderMicraCloudDiagnostic('),
+      cloudUi.indexOf('function applyScaleCommands(')), domContext);
   const show = lm => { domContext.lm = lm; vm.runInContext('renderMicraCloudDiagnostic(lm)', domContext); };
   const socket = {state: 'streaming', nowMs: 5000, cleaningAvailable: true, cleaning: 'waiting_for_paddle', cleaningAtMs: 3000,
     rxBytes: 120, rxBytesPerSecond: 20, rxBytesPerMinute: 100, messages: 2,

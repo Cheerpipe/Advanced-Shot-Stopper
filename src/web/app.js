@@ -48,7 +48,7 @@ async function ensureView(name) {
     const section = document.getElementById("view-" + name);
     if (!section) throw new Error(__WEBUI_TEXT__("shell.missing_view_section") + name);
     if (name === "home") {
-      if (__homeModule.init) __homeModule.init();
+      __homeModule.init();
       jsMods.set("home", __homeModule);
       return __homeModule;
     }
@@ -79,7 +79,6 @@ function startView(name, seq = routeSeq) {
     if (!R.webUiPollingActive() || name !== activeView || seq !== routeSeq) return false;
     stopExtraPolls();
     let ok = false;
-    if (seq !== routeSeq) return false;
     if (name === "home" || name === "settings" || name === "admin" || name === "diagnostic") {
       ok = await R.loadStatus();
       R.armStatusTimer();

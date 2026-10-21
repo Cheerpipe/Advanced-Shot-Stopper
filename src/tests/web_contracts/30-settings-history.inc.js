@@ -888,6 +888,9 @@ ${blockAt(runtimeJs, 'function commandMessages(')};return commandMessages;`)();
   require('assert').deepEqual(messages('/api/v1/factory-reset'), ['Factory reset started.',
     'Could not restore factory settings. Check Diagnostic → NVS.']);
   require('assert').equal(messages('/api/v1/time/sync')[1], 'Could not sync time.');
+  // Each Diagnostic log level names itself instead of "Shared settings saved.".
+  require('assert').deepEqual(messages('/api/v1/config', {serialLogLevel: 'info', baseRevision: 3}),
+      ['Serial log level saved.', 'Could not save serial log level.']);
 }
 if (!codeIncludes(js, 'function commandOkMessage(') ||
     !codeIncludes(js, 'function commandFailMessage(') ||
@@ -898,8 +901,6 @@ if (!codeIncludes(js, 'function commandOkMessage(') ||
     !codeIncludes(js, "cn('save shared settings')") ||
     !codeIncludes(js, 'Preset saved.') ||
     !codeIncludes(js, "'save the preset'") ||
-    !codeIncludes(js, "label+(on?' enabled.':' disabled.')") ||
-    !codeIncludes(js, "'Could not '+(on?'enable ':'disable ')+label+'.'") ||
     !codeIncludes(js, 'Wi-Fi settings saved. Restarting.') ||
     !codeIncludes(js, 'Wi-Fi sleep saved.') ||
     !codeIncludes(js, "cn('save Wi-Fi settings')") ||
@@ -913,7 +914,6 @@ if (!codeIncludes(js, 'function commandOkMessage(') ||
     !codeIncludes(js, "noteReachOk();message('Administration locked.','ok')") ||
     !codeIncludes(js, 'Shot history cleared.') ||
     !codeIncludes(js, 'Could not clear shot history.') ||
-    !codeIncludes(js, 'Could not update these settings.') ||
     codeIncludes(js, 'Shot history cleared successfully.') ||
     codeIncludes(js, 'Unlock failed.') ||
     codeIncludes(js, 'Lock failed.')) {

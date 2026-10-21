@@ -1,3 +1,6 @@
+"use strict";
+import * as R from "./runtime.js?v=__FW_ASSET_TAG__";
+const $ = R.$;
 function renderMicraCloudDiagnostic(lm) {
   ensureMicraRows();
   const set = (id, value) => {
@@ -178,9 +181,6 @@ function applyScaleCommands(scale) {
       ? __WEBUI_TEXT__("diagnostic.ultra_charging_note")
       : "";
 }
-("use strict");
-import * as R from "./runtime.js?v=__FW_ASSET_TAG__";
-const $ = R.$;
 async function apiBinary(path, onProgress) {
   if (!R.webUiPollingActive())
     throw new Error(__WEBUI_TEXT__("runtime.this_window_is_inactive_reload_to_continue"));
@@ -243,7 +243,7 @@ function clearLogView() {
   if (el) el.value = "";
 }
 function ntpStateLabel(t) {
-  if (!t) return__WEBUI_TEXT__("runtime.not_available");
+  if (!t) return __WEBUI_TEXT__("runtime.not_available");
   return (
     {
       SYNCED: __WEBUI_TEXT__("runtime.synced"),
@@ -389,11 +389,13 @@ function formatAtmGuard(d) {
         : __WEBUI_TEXT__("runtime.idle");
 }
 function formatNoScaleGuard(g) {
-  if (!g || !g.enabled) return__WEBUI_TEXT__("runtime.off_2");
+  if (!g || !g.enabled) return __WEBUI_TEXT__("runtime.off_2");
   if (!g.armed)
-    return__WEBUI_TEXT__("runtime.temporarily_allowed") +
+    return (
+      __WEBUI_TEXT__("runtime.temporarily_allowed") +
       Math.ceil(g.cooldownRemainingMs / 6e4) +
-      __WEBUI_TEXT__("runtime.min_2");
+      __WEBUI_TEXT__("runtime.min_2")
+    );
   return g.mode === "require_scale"
     ? g.scaleUsable
       ? __WEBUI_TEXT__("runtime.ready_2")
@@ -630,6 +632,7 @@ function applyDiagnosticLive(s) {
   t("dScaleWeight", R.formatScaleWeight(s));
   t("dScaleTimer", R.formatScaleTimer(s));
 }
+let lastCmdFailShown = 0;
 function applyDiagnosticStatus(s) {
   if (!s) return;
   const u = !!s.adminUnlocked,
@@ -708,9 +711,9 @@ function applyDiagnosticStatus(s) {
     s.lastCommand &&
     (s.lastCommand.state === "FAILED" || s.lastCommand.state === "CANCELED") &&
     s.lastCommand.requestId &&
-    s.lastCommand.requestId !== window.__lastCmdFailShown
+    s.lastCommand.requestId !== lastCmdFailShown
   ) {
-    window.__lastCmdFailShown = s.lastCommand.requestId;
+    lastCmdFailShown = s.lastCommand.requestId;
     R.message(
       __WEBUI_TEXT__("runtime.last_command") + s.lastCommand.state.toLowerCase() + ".",
       "error",
@@ -1054,6 +1057,7 @@ async function hideUntilChanged(name, run) {
   (await run()) || delete stale[name];
 }
 let auditBusy = false,
+  auditHuntOn = false,
   auditItems = [],
   auditPage = 0,
   auditRenderedKey = "";
@@ -1073,7 +1077,7 @@ function applyAudit(a) {
   const items = shown("audit", a.items || [], []),
     huntUntil = a.verboseUntilUtcSec || 0,
     huntLeft = huntUntil ? huntUntil - Math.floor(Date.now() / 1000) : 0,
-    huntOn = huntLeft > 0;
+    huntOn = (auditHuntOn = huntLeft > 0);
   $("auditSummary").textContent =
     (a.state === "unsupported"
       ? __WEBUI_TEXT__("diagnostic.audit_ram_only")
@@ -1209,9 +1213,7 @@ async function exportAudit() {
 }
 async function toggleAuditHunt() {
   if (auditBusy) return;
-  const huntOn =
-    $("auditVerboseButton").textContent ===
-    __WEBUI_TEXT__("diagnostic.audit_hunt_stop");
+  const huntOn = auditHuntOn;
   auditBusy = true;
   try {
     await R.api("/api/v1/diagnostic/audit/verbose", {

@@ -4,7 +4,6 @@ const $ = R.$;
 let ready = false;
 let quickWeight = null;
 let quickWeightWanted = false;
-let micraBoilerTimer = 0;
 let micraHintClosed = false;
 
 // Boiler rows interpolate the warm-up estimate locally from the absolute
@@ -126,7 +125,7 @@ export function init() {
   if (ready) return;
   ready = true;
   R.registerViewStatus("home", applyStatus);
-  micraBoilerTimer = setInterval(() => {
+  setInterval(() => {
     if (!document.hidden) renderMicraBoilers();
   }, 1000);
   const rinseButton = $("rinseButton");

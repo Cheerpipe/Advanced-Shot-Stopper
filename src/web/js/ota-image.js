@@ -170,8 +170,6 @@ function hex(bytes) {
 }
 
 function imageHeader(bytes) {
-  if (bytes.length < IMAGE_PREFIX_BYTES)
-    throw new Error(__WEBUI_TEXT__("ota.this_file_is_too_short_to_be"));
   if (bytes[0] !== 0xe9) throw new Error(__WEBUI_TEXT__("ota.this_file_does_not_have_an_esp"));
   if (bytes[12] !== 9 || bytes[13] !== 0)
     throw new Error(__WEBUI_TEXT__("ota.this_firmware_was_not_built_for_an"));

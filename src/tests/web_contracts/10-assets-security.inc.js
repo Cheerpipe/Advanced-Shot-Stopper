@@ -311,7 +311,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     assert.deepEqual([...classes], [], 'Keep loading visible while firmware reloads');
 
     const catalog = deferred(), preview = deferred(), statusMarkup = deferred(), applied = [];
-    const statusContext = vm.createContext({activeView: 'admin', statusBusy: false,
+    const statusContext = vm.createContext({activeView: 'admin',
       viewSeq: 1, viewReady: statusMarkup.promise,
       document: {hidden: false}, webUiPollingActive: () => true,
       statusPageOk: () => true,

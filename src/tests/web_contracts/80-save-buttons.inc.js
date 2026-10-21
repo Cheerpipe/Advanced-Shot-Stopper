@@ -127,7 +127,7 @@
     const context = vm.createContext({$: id => id === sel.id ? sel : null,
       document: {activeElement: null, createElement: () => ({dataset: {}}),
         querySelectorAll: () => [sel]},
-      preferredScaleSelectSyncing: false, controlsMutable: true,
+      controlsMutable: true,
       configDirty: false, configBaseline: null,
       settingsSectionOf: () => 'config', updateScalePreferenceOptions() {},
       updateScaleRenameUi: (_, mac) => {context.renameMac = mac;},

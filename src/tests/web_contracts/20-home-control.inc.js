@@ -777,7 +777,6 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     // `prevupdateScalePreferenceOptions` and broke Settings status refresh.
     codeIncludes(ui, ':prevupdateScalePreferenceOptions') ||
     !codeIncludes(ui, "sel.value=keep?prev:preferred||'';updateScalePreferenceOptions()") ||
-    !codeIncludes(ui, 'preferredScaleSelectSyncing') ||
     !codeIncludes(ui, "sel.dataset.pending='1'") ||
     !codeIncludes(ui, "scaleMacCacheMode:['first','prefer','only'].includes($('scalePreference')?.value)?$('scalePreference').value:'only'") ||
     !codeIncludes(ui, 'payload.preferredScaleMac=sel.value') ||

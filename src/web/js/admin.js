@@ -104,8 +104,7 @@ function validNtpHostnameClient(host) {
 function validDeviceNameClient(name) {
   const t = String(name || "").trim();
   if (!t || t.length > 32) return false;
-  if (t[0] === " " || t[0] === "-" || t[t.length - 1] === " " || t[t.length - 1] === "-")
-    return false;
+  if (t[0] === "-" || t[t.length - 1] === "-") return false;
   return /^[A-Za-z0-9 -]+$/.test(t);
 }
 function validateDateTimeClient() {
@@ -1132,10 +1131,7 @@ export function applyStatus(s) {
   const diagToggle = $("showDiagnosticPage");
   if (diagToggle && diagToggle.closest("label"))
     diagToggle.closest("label").classList.toggle("hidden", compat);
-  ["bleScanIntensity"].forEach((id) => {
-    const el = $(id);
-    if (el && el.closest("label")) el.closest("label").classList.toggle("hidden", compat);
-  });
+  $("bleScanIntensity")?.closest("label")?.classList.toggle("hidden", compat);
   if (!firmwareModeDirty && $("firmwareModeEnabled")) {
     const enabled = !compat;
     if ($("firmwareModeEnabled").checked !== enabled) {

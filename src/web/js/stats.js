@@ -317,7 +317,6 @@ function renderShotSpark(h, shot) {
     () => cursorT,
   );
   preset.className = "shotPresetChart";
-  preset.id = "shotRv" + shot.id;
   preset.setAttribute("aria-valuemin", curve[0].t.toFixed(1));
   preset.setAttribute("aria-valuemax", curve.at(-1).t.toFixed(1));
   readout.className = "shotCursorText";

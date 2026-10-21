@@ -16,7 +16,6 @@ function updatePreferredScaleSelect(s) {
   const sel = $("preferredScaleSelect"),
     hint = $("preferredScalePauseHint");
   if (!sel) return;
-  R.uiState.preferredScaleSelectSyncing = true;
   const pauseMs = (s.scale && s.scale.macCachePauseRemainingMs) || 0;
   if (hint)
     hint.textContent =
@@ -81,7 +80,6 @@ function updatePreferredScaleSelect(s) {
     sel.value || "",
     opt && opt.dataset ? String(opt.dataset.name || "") : "",
   );
-  R.uiState.preferredScaleSelectSyncing = false;
 }
 function markConfigDirty() {
   R.uiState.configDirty = true;
@@ -736,7 +734,7 @@ async function forgetPairedScale() {
 }
 function selectPreferredScale() {
   const sel = $("preferredScaleSelect");
-  if (!sel || R.uiState.preferredScaleSelectSyncing) return;
+  if (!sel) return;
   const mac = sel.value || "";
   sel.dataset.pending = "1";
   markConfigDirty();

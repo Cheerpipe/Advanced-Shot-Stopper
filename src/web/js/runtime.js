@@ -87,7 +87,7 @@ function applyCompatibilityChrome() {
   if (compatMode && activeView && !["admin", "diagnostic", "setup"].includes(activeView))
     renderRoute("/admin");
 }
-export function compatibilityModeOn() {
+function compatibilityModeOn() {
   return compatMode;
 }
 
@@ -99,7 +99,7 @@ const SHOTS_PAGE_SIZE = 10,
   HISTORY_EXPORT_LIMIT = 1000;
 const WEB_UI_CLIENT_HEADER = "X-WebUI-Client";
 let webUiPowerUntil = 0;
-export function noteWebUiPowerActivity() {
+function noteWebUiPowerActivity() {
   if (webUiOwner && !document.hidden) webUiPowerUntil = performance.now() + 180e3;
 }
 function webUiPowerSeconds() {
@@ -112,8 +112,7 @@ const NETWORK_RECONNECT_WAIT_MS = 180000;
 const SHELL_FW_VERSION = document.documentElement.dataset.fw || "dev";
 function newWebUiClientId() {
   const b = new Uint8Array(12);
-  if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(b);
-  else for (let i = 0; i < b.length; i++) b[i] = Math.floor(Math.random() * 256);
+  crypto.getRandomValues(b);
   return [...b].map((v) => v.toString(16).padStart(2, "0")).join("");
 }
 const webUiClientId = newWebUiClientId();
@@ -139,7 +138,6 @@ const uiState = {
   historyExportWindow: null,
   historyNextRequest: 0,
   historyDir: "desc",
-  preferredScaleSelectSyncing: false,
   scanTimer: 0,
   configDirty: false,
   dateTimeDirty: false,
@@ -186,8 +184,6 @@ let bootId = 0,
   lastCommandStatus = null,
   formRev = 0,
   configLoaded = false,
-  statusBusy = false,
-  pollAt = 0,
   messageTimer = 0,
   controlsMutable = false,
   statusTimezoneOffsetMinutes = 0,
@@ -390,7 +386,7 @@ async function putQuickSettings(change) {
     updateQuickSettings();
   }
 }
-export function initHeaderSignals() {
+function initHeaderSignals() {
   if ($("modeSignal")) buildQuickSettings();
   const buttons = [...document.querySelectorAll(".signalIndicator[aria-controls]")];
   function close() {
@@ -1231,8 +1227,7 @@ function updateScaleRenameUi(wrapId, mac, current) {
 function validScaleFriendlyNameClient(v) {
   const t = String(v || "").trim();
   if (!t || t.length > 30) return false;
-  if (t[0] === " " || t[0] === "-" || t[t.length - 1] === " " || t[t.length - 1] === "-")
-    return false;
+  if (t[0] === "-" || t[t.length - 1] === "-") return false;
   return /^[A-Za-z0-9 -]+$/.test(t);
 }
 async function renameScale() {
@@ -1255,19 +1250,21 @@ async function renameScale() {
 function formatPreferredScale(s) {
   const pauseMs = (s.scale && s.scale.macCachePauseRemainingMs) || 0;
   if (pauseMs > 0)
-    return__WEBUI_TEXT__("runtime.waiting") +
+    return (
+      __WEBUI_TEXT__("runtime.waiting") +
       Math.ceil(pauseMs / 1000) +
-      __WEBUI_TEXT__("runtime.s_before_looking_for_a_scale");
+      __WEBUI_TEXT__("runtime.s_before_looking_for_a_scale")
+    );
   const name = scaleDisplayName(s.scale);
   if (name) return name;
-  if ((s.scale && s.scale.preferredMac) || "") return__WEBUI_TEXT__("runtime.unknown_2");
+  if (s.scale?.preferredMac) return __WEBUI_TEXT__("runtime.unknown_2");
   const mode = s.config && s.config.scaleMacCacheMode;
   return mode === "only" || mode === "prefer"
     ? __WEBUI_TEXT__("runtime.first_detected")
     : __WEBUI_TEXT__("runtime.none");
 }
 function formatScaleWeight(s) {
-  if (!s.scale) return__WEBUI_TEXT__("runtime.unknown");
+  if (!s.scale) return __WEBUI_TEXT__("runtime.unknown");
   const w =
     typeof s.scale.observedWeightG === "number"
       ? s.scale.observedWeightG
@@ -1371,7 +1368,7 @@ function formatIdleTare(s) {
   );
 }
 function formatScaleTimer(s) {
-  if (!s.scale || typeof s.scale.timerMs !== "number") return__WEBUI_TEXT__("runtime.unknown");
+  if (!s.scale || typeof s.scale.timerMs !== "number") return __WEBUI_TEXT__("runtime.unknown");
   const totalTenths = Math.floor(Math.max(0, s.scale.timerMs) / 100);
   return (
     Math.floor(totalTenths / 600) +
@@ -1452,7 +1449,7 @@ function reveal(el, show, done) {
   if (!el) return;
   const run = el.getAnimations().find((a) => a.id.startsWith("reveal"));
   if ((run ? run.id === "reveal-in" : !el.hidden) === show) return run || done?.();
-  if (!el.animate || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
     el.hidden = !show;
     return done?.();
   }
@@ -1511,12 +1508,6 @@ function formatCommandError(fail, e) {
   if (!detail || fail.indexOf(detail) >= 0) return fail;
   return fail + __WEBUI_TEXT__("runtime.symbol_3") + detail;
 }
-function toggleOk(label, on) {
-  return label + (on ? " enabled." : " disabled.");
-}
-function toggleFail(label, on) {
-  return __WEBUI_TEXT__("runtime.could_not") + (on ? "enable " : "disable ") + label + ".";
-}
 function cn(s) {
   return __WEBUI_TEXT__("runtime.could_not") + s + ".";
 }
@@ -1547,10 +1538,6 @@ function commandMessages(path, v) {
       __WEBUI_TEXT__("runtime.restart_the_controller"),
     ],
     "time/sync": [__WEBUI_TEXT__("runtime.time_sync_started"), __WEBUI_TEXT__("runtime.sync_time")],
-    "last-shot/clear": [
-      __WEBUI_TEXT__("runtime.last_shot_cleared"),
-      __WEBUI_TEXT__("runtime.clear_last_shot"),
-    ],
     "scale/preferred/clear": [
       __WEBUI_TEXT__("runtime.preferred_scale_cleared"),
       __WEBUI_TEXT__("runtime.clear_preferred_scale"),
@@ -1615,16 +1602,6 @@ function commandMessages(path, v) {
           __WEBUI_TEXT__("runtime.wi_fi_settings_saved_restarting"),
           cn(__WEBUI_TEXT__("runtime.save_wi_fi_settings")),
         ];
-  if (path.endsWith("/select"))
-    return v.mac
-      ? [
-          __WEBUI_TEXT__("runtime.preferred_scale_selected"),
-          cn(__WEBUI_TEXT__("runtime.select_preferred_scale")),
-        ]
-      : [
-          __WEBUI_TEXT__("runtime.preferred_scale_cleared"),
-          cn(__WEBUI_TEXT__("runtime.clear_preferred_scale")),
-        ];
   if (path.endsWith("/presets")) {
     const x = {
       save: [
@@ -1649,32 +1626,17 @@ function commandMessages(path, v) {
   }
   if (path.endsWith("/config")) {
     const keys = Object.keys(v).filter((k) => k !== "baseRevision");
-    if (keys[0] === "serialDebugOutput" && keys.length === 1)
-      return [
-        toggleOk(__WEBUI_TEXT__("runtime.serial_debug_output"), v.serialDebugOutput),
-        toggleFail(__WEBUI_TEXT__("runtime.serial_debug_output"), v.serialDebugOutput),
-      ];
-    if (keys[0] === "ringRetainLogLevel" && keys.length === 1)
-      return [
+    const level = {
+      ringRetainLogLevel: [
         __WEBUI_TEXT__("runtime.log_retain_level_saved"),
-        cn(__WEBUI_TEXT__("runtime.save_log_retain_level")),
-      ];
-    const home = { brewByWeight: __WEBUI_TEXT__("runtime.brew_by_weight") };
-    if (keys.length && keys.every((k) => home[k]))
-      return [
-        keys.map((k) => toggleOk(home[k], v[k])).join(__WEBUI_TEXT__("runtime.symbol_3")),
-        keys.length === 1
-          ? toggleFail(home[keys[0]], v[keys[0]])
-          : __WEBUI_TEXT__("runtime.could_not_update_quick_settings"),
-      ];
-    if (
-      (v.timezoneId != null || v.ntpServerPreset != null || v.ntpServerCustom != null) &&
-      v.rinseGestureMs == null
-    )
-      return [
-        __WEBUI_TEXT__("runtime.date_and_time_settings_saved"),
-        cn(__WEBUI_TEXT__("runtime.save_date_and_time_settings")),
-      ];
+        __WEBUI_TEXT__("runtime.save_log_retain_level"),
+      ],
+      serialLogLevel: [
+        __WEBUI_TEXT__("runtime.serial_log_level_saved"),
+        __WEBUI_TEXT__("runtime.save_serial_log_level"),
+      ],
+    }[keys.length === 1 && keys[0]];
+    if (level) return [level[0], cn(level[1])];
     return [
       __WEBUI_TEXT__("runtime.shared_settings_saved"),
       cn(__WEBUI_TEXT__("runtime.save_shared_settings")),
@@ -1864,7 +1826,6 @@ async function api(path, options = {}) {
   }
   let data = {};
   try {
-    if (!txt) throw 0;
     data = JSON.parse(txt);
   } catch (_) {
     throw new Error(__WEBUI_TEXT__("runtime.invalid_response"));
@@ -2097,7 +2058,7 @@ const REVERT_BUTTONS = {
   lineaMicraSaveButton: "revertLineaMicraButton",
 };
 function settingsSectionOf(id) {
-  if (id === "lineaMicraBrewTargetC" || BREW_CONTROL_IDS.includes(id)) return "brew";
+  if (BREW_CONTROL_IDS.includes(id)) return "brew";
   return id.startsWith("lineaMicra") ? "micra" : "config";
 }
 function settingsSectionEls(section) {
@@ -2612,7 +2573,7 @@ function presetCardDot() {
   dot.setAttribute("aria-hidden", "true");
   return dot;
 }
-function renderPresetCards(targetId, selectable) {
+function renderPresetCards(targetId) {
   const el = $(targetId);
   if (!el) return;
   el.replaceChildren();
@@ -2633,11 +2594,6 @@ function renderPresetCards(targetId, selectable) {
     title.title = __WEBUI_TEXT__("runtime.rename");
     title.onclick = (e) => {
       e.stopPropagation();
-      if (selectable) {
-        presetState.selectedId = p.id;
-        renderAllPresetUi();
-        return;
-      }
       startRenamePreset(p, title);
     };
     const badge = document.createElement("span");
@@ -2650,7 +2606,7 @@ function renderPresetCards(targetId, selectable) {
     meta.textContent = presetSummary(p);
     card.appendChild(titleRow);
     card.appendChild(meta);
-    card.onclick = () => applyPreset(p.id, selectable);
+    card.onclick = () => applyPreset(p.id);
     el.appendChild(card);
   }
 }
@@ -2802,7 +2758,7 @@ function updateActiveBrewProfileHint() {
     (p && p.name ? p.name : __WEBUI_TEXT__("runtime.unknown"));
 }
 function renderAllPresetUi() {
-  renderPresetCards("presetCards", false);
+  renderPresetCards("presetCards");
   renderPresetReview();
   renderHomePresetAccordion();
   updatePresetActionButtons();
@@ -2857,15 +2813,10 @@ function updatePresetActionButtons() {
   $("presetResetBtn")?.classList.toggle("hidden", !factory);
   $("presetDeleteBtn")?.classList.toggle("hidden", factory);
 }
-async function applyPreset(id, selectable) {
+async function applyPreset(id) {
   id = +id;
   if (!id) return;
   if (id === presetState.activeId) {
-    presetState.selectedId = id;
-    renderAllPresetUi();
-    return;
-  }
-  if (selectable) {
     presetState.selectedId = id;
     renderAllPresetUi();
     return;
@@ -3528,10 +3479,10 @@ async function loadHomeStatus() {
 }
 // Synchronous view for local tickers: null while the stream is invalidated,
 // so painters stop repainting stale values over the reset placeholders.
-export function homeStatusCache() {
+function homeStatusCache() {
   return homeStale ? null : homeFrame?.status || null;
 }
-export function formatMicraCleaning(lm) {
+function formatMicraCleaning(lm) {
   const ws = lm?.websocket || {},
     label = __WEBUI_TEXT__("diagnostic.cleaning_states").split("|")[
       ["inactive", "waiting_for_paddle", "cleaning"].indexOf(ws.cleaning)
@@ -5107,8 +5058,8 @@ function renderHeroChart(host, model, m, goal, label) {
   host.append(...over, put("end", "", X(end.t), Y(end.cg / 100)));
   if (hatch) host.prepend(hatch);
 }
-// Home cards: a grind hint when the active preset's shots drift, and the
-// one-time Scale-loss backup introduction. Dismissals stay in this browser.
+// Home cards: a grind hint when the active preset's shots drift. Dismissals
+// stay in this browser.
 function cardDismissed(key) {
   try {
     return localStorage.getItem(key) || "";
@@ -5579,11 +5530,9 @@ function statusPageOk(v, s) {
         : !1;
 }
 async function loadStatus() {
-  if (statusBusy || document.hidden || !webUiPollingActive()) return;
-  statusBusy = true;
+  if (document.hidden || !webUiPollingActive()) return;
   const seq = viewSeq;
   try {
-    pollAt = Date.now();
     const v = activeView,
       s =
         v === "home"
@@ -5615,8 +5564,6 @@ async function loadStatus() {
   } catch (e) {
     if (seq === viewSeq) noteReachFail(e);
     return false;
-  } finally {
-    statusBusy = false;
   }
 }
 function refreshStatus() {
@@ -5693,6 +5640,11 @@ async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
   });
 }
 export {
+  compatibilityModeOn,
+  noteWebUiPowerActivity,
+  initHeaderSignals,
+  homeStatusCache,
+  formatMicraCleaning,
   $,
   webUiOwner,
   webUiPollingActive,

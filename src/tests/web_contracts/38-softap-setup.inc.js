@@ -253,7 +253,7 @@
       // captive window after the device arms portal-exit success.
       !partialHtml.setup.includes('id="setupSkip"') ||
       !partialHtml.setup.includes('id="setupSkipped"') ||
-      !partialHtml.setup.includes('captive.apple.com/hotspot-detect.html') ||
+      !codeIncludes(setupJs, 'captive.apple.com/hotspot-detect.html') ||
       !codeIncludes(setupJs, '{action:"skip",...brewPayload()}') ||
       !codeIncludes(setupJs, 'show("skipped")') ||
       !codeIncludes(setupJs, 'connectivitycheck.gstatic.com/generate_204') ||
