@@ -265,11 +265,13 @@ that locale is selected.
 The served Web UI is also machine-type exclusive: a build compiled for a paddle
 machine ships only the paddle controls, a momentary build ships only the switch
 timings and the forced-pulse action, and a reed build additionally exposes the
-reed confirmation window. Controls for other machine types are not embedded at
-generation time, so each firmware binary carries only the interface its machine
-can use. The same applies to optional features: the Linea Micra cloud settings
-and diagnostics code ships only in Linea Micra builds, and the Home remote
-control bar only in builds compiled with remote machine control.
+reed confirmation window while leaving out the idle/brewing state controls that
+only machines without a reed sensor need. Controls for other machine types are
+not embedded at generation time, so each firmware binary carries only the
+interface its machine can use. The same applies to optional features: the Linea
+Micra cloud settings, Home machine rows, and diagnostics ship only in Linea
+Micra builds, and the Home remote control bar only in builds compiled with
+remote machine control.
 
 The wrapper preserves project diagnostics but hides ESP-IDF 6.1's known
 `esp_wifi`/`wpa_supplicant` component-validation warnings. Extra-warning

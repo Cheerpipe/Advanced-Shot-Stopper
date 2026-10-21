@@ -37,33 +37,23 @@ function lockAdmin() {
       ),
     );
 }
+// Each Admin section keeps a dirty flag, a baseline, and a save button and
+// hint, all named after the section (ble -> bleDirty, saveBleButton, ...).
+function sectionDirty(name, on) {
+  R.uiState[name + "Dirty"] = on;
+  R.setSaveDirty("save" + name[0].toUpperCase() + name.slice(1) + "Button", name + "DirtyHint", on);
+}
 function markDateTimeDirty() {
-  R.uiState.dateTimeDirty = true;
-  R.setSaveDirty("saveDateTimeButton", "dateTimeDirtyHint", true);
+  sectionDirty("dateTime", true);
 }
-function markBleDirty() {
-  R.uiState.bleDirty = true;
-  R.setSaveDirty("saveBleButton", "bleDirtyHint", true);
-}
-function markPowerDirty() {
-  R.uiState.powerDirty = true;
-  R.setSaveDirty("savePowerButton", "powerDirtyHint", true);
-}
-function markFrontendDirty() {
-  R.uiState.frontendDirty = true;
-  R.setSaveDirty("saveFrontendButton", "frontendDirtyHint", true);
-}
-function clearBleDirty() {
-  R.uiState.bleDirty = false;
-  R.setSaveDirty("saveBleButton", "bleDirtyHint", false);
-}
-function clearPowerDirty() {
-  R.uiState.powerDirty = false;
-  R.setSaveDirty("savePowerButton", "powerDirtyHint", false);
-}
-function clearFrontendDirty() {
-  R.uiState.frontendDirty = false;
-  R.setSaveDirty("saveFrontendButton", "frontendDirtyHint", false);
+function revertSection(name, after) {
+  if (!R.uiState[name + "Dirty"]) return;
+  if (!confirm(__WEBUI_TEXT__("admin.discard_unsaved_changes"))) return;
+  R.restoreSnapshot(R.uiState[name + "Baseline"]);
+  after?.();
+  sectionDirty(name, false);
+  R.clearFieldErrors();
+  R.refreshStatus();
 }
 function revertDateTimeConfig() {
   if (!R.uiState.dateTimeDirty) return;
@@ -1245,7 +1235,7 @@ async function saveBleSettings() {
   let ok = true;
   try {
     if (controlChanged("bleEnabled", R.uiState.bleBaseline) && !(await setBleEnabled())) ok = false;
-    if (ok) clearBleDirty();
+    if (ok) sectionDirty("ble", false);
   } finally {
     b.classList.remove("busy");
   }
@@ -1271,7 +1261,7 @@ async function savePowerSettings() {
     if (controlChanged("bleScanIntensity", R.uiState.powerBaseline) && !(await setBleScanIntensity()))
       ok = false;
     if (controlChanged("staWifiSleep", R.uiState.powerBaseline) && !(await setWifiSleep())) ok = false;
-    if (ok) clearPowerDirty();
+    if (ok) sectionDirty("power", false);
   } finally {
     b.classList.remove("busy");
   }
@@ -1296,113 +1286,31 @@ async function saveFrontendSettings() {
     }
     if (controlChanged("uiTheme", R.uiState.frontendBaseline)) R.setTheme($("uiTheme").value);
     if (controlChanged("heroTint", R.uiState.frontendBaseline)) setHeroTintMode($("heroTint").value);
-    if (ok) clearFrontendDirty();
+    if (ok) sectionDirty("frontend", false);
   } finally {
     b.classList.remove("busy");
   }
   return ok;
 }
-function revertBleSettings() {
-  if (!R.uiState.bleDirty) return;
-  if (!confirm(__WEBUI_TEXT__("admin.discard_unsaved_changes"))) return;
-  R.restoreSnapshot(R.uiState.bleBaseline);
-  clearBleDirty();
-  R.clearFieldErrors();
-  R.refreshStatus();
-}
-function revertPowerSettings() {
-  if (!R.uiState.powerDirty) return;
-  if (!confirm(__WEBUI_TEXT__("admin.discard_unsaved_changes"))) return;
-  R.restoreSnapshot(R.uiState.powerBaseline);
-  clearPowerDirty();
-  R.clearFieldErrors();
-  R.refreshStatus();
-}
-function revertFrontendSettings() {
-  if (!R.uiState.frontendDirty) return;
-  if (!confirm(__WEBUI_TEXT__("admin.discard_unsaved_changes"))) return;
-  R.restoreSnapshot(R.uiState.frontendBaseline);
-  R.paintTheme($("uiTheme").value);
-  clearFrontendDirty();
-  R.clearFieldErrors();
-  R.refreshStatus();
-}
 export function init() {
   if (ready) return;
   ready = true;
   R.registerViewStatus("admin", applyStatus);
-  const diagnosticOption = document.createElement("label");
-  diagnosticOption.innerHTML =
-    '<input id="showDiagnosticPage" type="checkbox" role="switch"> ' +
-    __WEBUI_TEXT__("admin.show_diagnostic_page") +
-    '<small class="fieldHint">' +
-    __WEBUI_TEXT__("admin.allows_all_web_ui_visitors_to_use") +
-    "</small>";
-  $("frontendPanel").insertBefore(diagnosticOption, $("saveFrontendButton").closest(".btnBar"));
-  const webhookPanel = document.createElement("fieldset");
-  webhookPanel.id = "webhookPanel";
-  webhookPanel.innerHTML =
-    "<legend>" +
-    __WEBUI_TEXT__("admin.webhooks") +
-    '</legend><label><input id="webhookEnabled" type="checkbox" role="switch"> ' +
-    __WEBUI_TEXT__("admin.webhooks") +
-    "</label><label>" +
-    __WEBUI_TEXT__("admin.webhook_url") +
-    ' <input id="webhookUrl" type="url" maxlength="191" placeholder="' +
-    __WEBUI_TEXT__("admin.http_192_168_1_10_8123_path") +
-    '" autocomplete="off" spellcheck="false"><small class="fieldHint">' +
-    __WEBUI_TEXT__("admin.http_only_no_retries") +
-    '</small></label><label><input id="webhookDeferDuringShot" type="checkbox" role="switch"> ' +
-    __WEBUI_TEXT__("admin.queue_webhooks_during_shots") +
-    '<small class="fieldHint">' +
-    __WEBUI_TEXT__("admin.off_send_immediately_enable_to_defer_webhooks") +
-    "</small></label><details><summary>" +
-    __WEBUI_TEXT__("admin.events") +
-    '</summary><label><input id="webhookBrewState" type="checkbox" checked> ' +
-    __WEBUI_TEXT__("admin.brew_state") +
-    '<small class="fieldHint">' +
-    __WEBUI_TEXT__("admin.queued_brewing_waits_up_to_2_s") +
-    '</small></label><label><input id="webhookFirstDrop" type="checkbox" checked> ' +
-    __WEBUI_TEXT__("admin.first_drop") +
-    '</label><label><input id="webhookEnd" type="checkbox" checked> ' +
-    __WEBUI_TEXT__("admin.end") +
-    '<small class="fieldHint">' +
-    __WEBUI_TEXT__("admin.sent_after_drip_delay_with_final_time") +
-    '</small></label></details><div id="webhookStatus">' +
-    __WEBUI_TEXT__("admin.unknown") +
-    '</div><div class="btnBar"><button id="saveWebhookButton" class="btnGlyph mutable btnInvert" data-dirty="0" type="button" disabled><span class="g">' +
-    __WEBUI_TEXT__("admin.check") +
-    '</span><span class="t">' +
-    __WEBUI_TEXT__("admin.save_webhook_settings") +
-    '</span></button><button id="testWebhookButton" class="btnGlyph mutable" type="button"><span class="g">' +
-    __WEBUI_TEXT__("admin.send") +
-    '</span><span class="t">' +
-    __WEBUI_TEXT__("admin.send_test") +
-    '</span></button><button id="revertWebhookButton" class="btnGlyph mutable btnRevert" data-dirty="0" type="button" disabled title="' +
-    __WEBUI_TEXT__("runtime.revert_unsaved_changes") +
-    '" aria-label="' +
-    __WEBUI_TEXT__("runtime.revert_unsaved_changes") +
-    '"><span class="g">' +
-    __WEBUI_TEXT__("runtime.symbol_14") +
-    '</span></button></div><small id="webhookDirtyHint" class="warn hidden">' +
-    __WEBUI_TEXT__("admin.unsaved_changes") +
-    "</small>";
-  $("devicePasswordPanel").before(webhookPanel);
   const sectionChanged = (sel, mark) => {
     document.querySelectorAll(sel + " input," + sel + " select").forEach((el) => {
       el.addEventListener("input", mark);
       el.addEventListener("change", mark);
     });
   };
-  sectionChanged("#blePanel", markBleDirty);
-  sectionChanged("#powerPanel", markPowerDirty);
-  sectionChanged("#frontendPanel", markFrontendDirty);
+  for (const name of ["ble", "power", "frontend"])
+    sectionChanged("#" + name + "Panel", () => sectionDirty(name, true));
   $("saveBleButton").onclick = saveBleSettings;
-  $("revertBleButton").onclick = revertBleSettings;
+  $("revertBleButton").onclick = () => revertSection("ble");
   $("savePowerButton").onclick = savePowerSettings;
-  $("revertPowerButton").onclick = revertPowerSettings;
+  $("revertPowerButton").onclick = () => revertSection("power");
   $("saveFrontendButton").onclick = saveFrontendSettings;
-  $("revertFrontendButton").onclick = revertFrontendSettings;
+  $("revertFrontendButton").onclick = () =>
+    revertSection("frontend", () => R.paintTheme($("uiTheme").value));
   const firmwareModeChanged = () => {
     firmwareModeDirty = true;
     R.setSaveDirty("saveFirmwareModeButton", "firmwareModeDirtyHint", true);

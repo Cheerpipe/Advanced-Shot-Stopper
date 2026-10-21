@@ -66,9 +66,9 @@
          codeIncludes(adminUi, "R.setSaveDirty('changeDevicePasswordButton','',false)") &&
          codeIncludes(adminUi, "R.command('/api/v1/network',payload,undefined,undefined,undefined,'saveNetworkButton',).then((ok)=>{if(!ok)return") &&
          codeIncludes(adminUi, "R.command('/api/v1/device/password',{newPassword:") &&
-         codeIncludes(adminUi, "sectionChanged('#blePanel',R.markBleDirty)") &&
-         codeIncludes(adminUi, "sectionChanged('#powerPanel',R.markPowerDirty)") &&
-         codeIncludes(adminUi, "sectionChanged('#frontendPanel',R.markFrontendDirty)") &&
+         // Every Admin section marks itself dirty through one named helper.
+         codeIncludes(adminUi, "for(const name of['ble','power','frontend'])sectionChanged('#'+name+'Panel',()=>sectionDirty(name,true))") &&
+         codeIncludes(adminUi, "R.setSaveDirty('save'+name[0].toUpperCase()+name.slice(1)+'Button',name+'DirtyHint',on)") &&
          codeIncludes(adminUi, "const b=$('savePowerButton');b.classList.add('busy')") &&
          css.includes('.btnGlyph:disabled{opacity:.4;cursor:not-allowed}'),
   'Save actions must enable on edits, disable only after success, and look disabled');
@@ -221,5 +221,20 @@
   const reminder = blockAt(viewJs.settings, 'export function applyStatus(');
   if (!codeIncludes(reminder, 'reminder.add(new Option(v,v))') || reminder.includes('markConfigDirty()')) {
     throw new Error('A stored reminder interval must display unchanged without marking the form edited');
+  }
+}
+// One shared #workflowPanel listener marks sections dirty and refreshes the
+// groups; per-field duplicates would run every handler twice. Static panels
+// live in the partials instead of JS-built markup strings.
+{
+  if (/\$\("(autoTare|autoRetare|noScaleBbwMode|soundAlertsEnabled|alertOutputChannel|bullseyeMelodyEnabled|fastExtractionGuardEnabled|slowExtractionGuardEnabled|avoidAccidentalTouchEnabled|cupProtectionEnabled)"\)\.onchange/
+      .test(rawViewJs.settings) || rawViewJs.settings.includes('$("operationalWallS").addEventListener')) {
+    throw new Error('Settings fields must not repeat the shared change listener');
+  }
+  if (!partialHtml.admin.includes('<fieldset id="webhookPanel"><legend>Webhooks</legend>') ||
+      !partialHtml.admin.includes('<input id="showDiagnosticPage" type="checkbox" role="switch">') ||
+      !partialHtml.settings.includes('<a id="bullseyeTestLink" class="rtttlTest" href="#">Test it</a></label>') ||
+      /webhookPanel\.innerHTML|diagnosticOption|createElement\("a"\)/.test(rawViewJs.admin + rawViewJs.settings)) {
+    throw new Error('Static Admin and Settings markup must live in the partials');
   }
 }

@@ -205,10 +205,18 @@ function validateMachineClient() {
               { unit: __WEBUI_TEXT__("runtime.s") },
             )
           : "") ||
-        R.rangeCheck("shotReactTimeoutS", 3, 30, __WEBUI_TEXT__("runtime.shot_reaction_timeout"), {
-          int: 1,
-          unit: __WEBUI_TEXT__("runtime.s"),
-        })
+        // Reed builds ship no switch-only fields.
+        ($("shotReactTimeoutS") &&
+          R.rangeCheck(
+            "shotReactTimeoutS",
+            3,
+            30,
+            __WEBUI_TEXT__("runtime.shot_reaction_timeout"),
+            {
+              int: 1,
+              unit: __WEBUI_TEXT__("runtime.s"),
+            },
+          ))
       : R.rangeCheck(
           "paddleReturnReminderMaxDurationMin",
           1,
@@ -1006,79 +1014,43 @@ export function init() {
       if (preferredScaleRename.getAttribute("aria-disabled") === "true") return;
       R.renameScale();
     };
-  if ($("lineaMicraConnectButton")) $("lineaMicraConnectButton").onclick = connectLineaMicra;
-  if ($("lineaMicraSelectButton"))
-    $("lineaMicraSelectButton").onclick = () =>
-      selectLineaMicra($("lineaMicraMachines").querySelector("input:checked")?.value);
-  if ($("lineaMicraMachines"))
-    $("lineaMicraMachines").onchange = () => ($("lineaMicraSelectButton").disabled = false);
-  if ($("lineaMicraCancelButton"))
-    $("lineaMicraCancelButton").onclick = () =>
-      R.uiState.micraChange ? endMicraChange() : R.lineaMicraAction("disconnect");
-  if ($("lineaMicraChangeButton"))
-    $("lineaMicraChangeButton").onclick = async () =>
-      ($("lineaMicraLinkedNote").hidden = R.uiState.micraChange = true) &&
-      !(await R.lineaMicraAction("relist")) &&
-      endMicraChange();
-  if ($("lineaMicraSaveButton"))
-    $("lineaMicraSaveButton").onclick = () => saveLineaMicraSettings();
-  if ($("revertLineaMicraButton")) $("revertLineaMicraButton").onclick = revertLineaMicra;
-  if ($("lineaMicraDisconnectButton"))
-    $("lineaMicraDisconnectButton").onclick = () =>
-      confirm(__WEBUI_TEXT__("settings.disconnect_account_confirm")) && disconnectLineaMicra();
-  for (const id of ["lineaMicraObserveState", "lineaMicraShutdownWithScale"])
-    if ($(id)) $(id).onchange = updateMicraDependentControls;
-  $("autoTare").onchange = () => {
-    R.updateConfigGroups();
-    markConfigDirty();
-  };
-  $("autoRetare").onchange = () => {
-    R.updateConfigGroups();
-    markConfigDirty();
-  };
-  $("noScaleBbwMode").onchange = () => {
-    R.updateConfigGroups();
-    markConfigDirty();
-  };
-  $("soundAlertsEnabled").onchange = () => {
-    R.updateConfigGroups();
-    markConfigDirty();
-  };
-  $("paddleReturnReminder")?.addEventListener("change", R.updateConfigGroups);
-  $("alertOutputChannel").onchange = () => {
-    R.updateConfigGroups();
-    markConfigDirty();
-  };
-  $("bullseyeMelodyEnabled").onchange = () => {
-    R.updateConfigGroups();
-    markConfigDirty();
-  };
-  {
-    const tune = $("bullseyeRtttl"),
-      hint = tune && tune.nextElementSibling;
-    if (hint && !$("bullseyeTestLink")) {
-      const link = document.createElement("a");
-      link.id = "bullseyeTestLink";
-      link.className = "rtttlTest";
-      link.href = "#";
-      link.textContent = __WEBUI_TEXT__("settings.test_it");
-      link.onclick = (e) => {
-        e.preventDefault();
-        if (!R.controlsMutable) return;
-        R.command(
-          "/api/v1/bullseye/test",
-          { bullseyeRtttl: tune.value },
-          false,
-          __WEBUI_TEXT__("settings.playing_rtttl_test"),
-          __WEBUI_TEXT__("settings.could_not_play_rtttl_test"),
-        );
-      };
-      hint.parentNode.insertBefore(link, hint.nextSibling);
-    }
+  // Builds without the Micra integration ship none of its controls.
+  if (__LINEA_MICRA__) {
+    if ($("lineaMicraConnectButton")) $("lineaMicraConnectButton").onclick = connectLineaMicra;
+    if ($("lineaMicraSelectButton"))
+      $("lineaMicraSelectButton").onclick = () =>
+        selectLineaMicra($("lineaMicraMachines").querySelector("input:checked")?.value);
+    if ($("lineaMicraMachines"))
+      $("lineaMicraMachines").onchange = () => ($("lineaMicraSelectButton").disabled = false);
+    if ($("lineaMicraCancelButton"))
+      $("lineaMicraCancelButton").onclick = () =>
+        R.uiState.micraChange ? endMicraChange() : R.lineaMicraAction("disconnect");
+    if ($("lineaMicraChangeButton"))
+      $("lineaMicraChangeButton").onclick = async () =>
+        ($("lineaMicraLinkedNote").hidden = R.uiState.micraChange = true) &&
+        !(await R.lineaMicraAction("relist")) &&
+        endMicraChange();
+    if ($("lineaMicraSaveButton")) $("lineaMicraSaveButton").onclick = () => saveLineaMicraSettings();
+    if ($("revertLineaMicraButton")) $("revertLineaMicraButton").onclick = revertLineaMicra;
+    if ($("lineaMicraDisconnectButton"))
+      $("lineaMicraDisconnectButton").onclick = () =>
+        confirm(__WEBUI_TEXT__("settings.disconnect_account_confirm")) && disconnectLineaMicra();
+    for (const id of ["lineaMicraObserveState", "lineaMicraShutdownWithScale"])
+      if ($(id)) $(id).onchange = updateMicraDependentControls;
   }
-  $("fastExtractionGuardEnabled").onchange = R.updateConfigGroups;
-  if ($("avoidAccidentalTouchEnabled")) $("avoidAccidentalTouchEnabled").onchange = R.updateConfigGroups;
-  $("slowExtractionGuardEnabled").onchange = R.updateConfigGroups;
+  // Every #workflowPanel field marks its section dirty and refreshes the
+  // dependent groups through the shared listener below.
+  $("bullseyeTestLink").onclick = (e) => {
+    e.preventDefault();
+    if (!R.controlsMutable) return;
+    R.command(
+      "/api/v1/bullseye/test",
+      { bullseyeRtttl: $("bullseyeRtttl").value },
+      false,
+      __WEBUI_TEXT__("settings.playing_rtttl_test"),
+      __WEBUI_TEXT__("settings.could_not_play_rtttl_test"),
+    );
+  };
   // The device backup's per-preset fixed time lives in Shot limits.
   $("scaleLossFixedLink").onclick = () => {
     const field = $("scaleLossFixedS");
@@ -1086,8 +1058,6 @@ export function init() {
     field.scrollIntoView({ block: "center" });
     field.focus({ preventScroll: true });
   };
-  if ($("cupProtectionEnabled")) $("cupProtectionEnabled").onchange = R.updateConfigGroups;
-  $("operationalWallS").addEventListener("input", R.updateConfigGroups);
   document
     .querySelectorAll("#workflowPanel input,#workflowPanel select,#workflowPanel textarea")
     .forEach((el) => {

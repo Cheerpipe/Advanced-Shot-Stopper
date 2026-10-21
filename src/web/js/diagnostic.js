@@ -1265,7 +1265,7 @@ export function applyStatus(s) {
   for (const id of ["serialLogLevel", "ringRetainLogLevel"])
     if ($(id) && $(id) !== document.activeElement) $(id).value = s?.config?.[id] || "none";
   if (!s || !(s.adminUnlocked || s.diagnosticPublic)) return;
-  if (s.lineaMicra) renderMicraCloudDiagnostic(s.lineaMicra);
+  if (__LINEA_MICRA__ && s.lineaMicra) renderMicraCloudDiagnostic(s.lineaMicra);
   const sc = s.scale || {};
   applyScaleCommands(sc);
   applyDiagnosticGuards(s);

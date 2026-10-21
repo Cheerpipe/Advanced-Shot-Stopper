@@ -212,7 +212,7 @@ if (!network.includes('restoreLkgToActive(next)') ||
       !codeIncludes(ui, 'function updateWifiSleepState(') ||
       !codeIncludes(ui, '!controlsMutable||!savedStaSsid') ||
       !codeIncludes(ui, "R.setWifiSleep()") ||
-      !codeIncludes(ui, "markPowerDirty") ||
+      !codeIncludes(ui, "sectionDirty(power,") ||
       !codeIncludes(ui, 'if(noReconnect)savedStaWifiSleep=') ||
       !codeIncludes(ui, 'R.resetNetworkAddressLoaded()') ||
       !codeIncludes(ui, 'Wi-Fi sleep saved.') ||

@@ -73,8 +73,11 @@ export function applyStatus(s) {
       s.lineaMicra?.accountConfigured !== false ||
       s.machineIntegration !== "linea_micra_cloud" ||
       R.cardDismissed("obbwCard:micraCloud");
-  $("homeMicraPower").textContent = micraPower(s.lineaMicra);
-  $("homeMicraCleaning").textContent = R.formatMicraCleaning(s.lineaMicra);
+  // Builds without the Micra integration ship none of its rows.
+  if (__LINEA_MICRA__) {
+    $("homeMicraPower").textContent = micraPower(s.lineaMicra);
+    $("homeMicraCleaning").textContent = R.formatMicraCleaning(s.lineaMicra);
+  }
   renderMicraBoilers();
 }
 // The machine row ticks with the boiler rows so a warm-up countdown stays live.

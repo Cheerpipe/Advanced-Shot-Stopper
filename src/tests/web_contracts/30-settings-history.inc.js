@@ -1005,7 +1005,7 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     codeIncludes(viewJs.stats, 'sortDirButton') ||
     // The word Sort labels both sort controls so they read without icons, and
     // the direction arrow lives inside the active criterion button.
-    !codeIncludes(viewJs.stats, '<span class="sortLbl">') ||
+    !partialHtml.stats.includes('<span class="sortLbl">Sort</span><button id="sortDateButton" type="button" aria-pressed="true">') ||
     !css.includes('.shotSort .sortLbl{') ||
     !codeIncludes(js, 'b.textContent = on ? name + " " + arrow : name;') ||
     !partialHtml.history.includes('<span class="sortLbl">Sort</span>') ||

@@ -1141,15 +1141,7 @@ export function init() {
   });
   $("exportShotsButton").onclick = exportShotsCsv;
   $("clearShotsButton").onclick = clearShotHistory;
-  const h = $("shotSort");
-  if (h) {
-    h.innerHTML =
-      '<span class="sortLbl">' + __WEBUI_TEXT__("runtime.sort") + '</span>' +
-      '<button id="sortDateButton" type="button" aria-pressed="true">' +
-      __WEBUI_TEXT__("stats.date") +
-      '</button><button id="sortRatingButton" type="button">' +
-      __WEBUI_TEXT__("stats.rating") +
-      "</button>";
+  if ($("shotSort")) {
     $("sortDateButton").onclick = () => setShotSort("date");
     $("sortRatingButton").onclick = () => setShotSort("rating");
     syncShotSortButtons();

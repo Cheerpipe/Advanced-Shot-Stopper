@@ -38,7 +38,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
       $: id => ({homeMicraCleaning: cleaning, homeMicraPower: power, machineRowState: rowState, state: brew, machineRow,
         homeMicraBrewBoiler: brewBoiler, homeMicraSteamBoiler: steamBoiler}[id] ||
         (/Row(Value|Hint)$|^(scaleWeight|preferredScale|cupWeight)$/.test(id) ? (rowSlots[id] ||= el()) : null))},
-    document: {querySelector: () => null},
+    document: {querySelector: () => null}, __LINEA_MICRA__: true,
     Date: {now: () => 60000},
     __WEBUI_TEXT__: key => key === 'home.optimistic' ? 'Optimistic' : 'Unknown'};
   vm.runInNewContext(viewJs.home.replace(/import\s*\*\s*as\s+R\s+from\s*['"][^'"]+['"];?/, '').replace(/export /g, ''), context);
@@ -640,7 +640,7 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
 
     // Change machine is always offered; the account is listed only on demand.
     const handler = id => vm.runInContext('(' + rawViewJs.settings.match(
-        new RegExp(`\\$\\("${id}"\\)\\.onclick = ([\\s\\S]*?);\\n  if \\(`))[1]
+        new RegExp(`\\$\\("${id}"\\)\\.onclick = ([\\s\\S]*?);\\n\\s+if \\(`))[1]
         .replace(/\bR\.(?:uiState\.)?/g, '') + ')', context);
     commands.length = 0;
     apply({...connected, accountMachineCount: 0});

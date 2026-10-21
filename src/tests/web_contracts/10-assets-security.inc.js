@@ -643,8 +643,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // preset action bar with New coffee, scale-loss backup group, pills-only hero,
 // grind-hint and discovery cards) add +1011 measured HTML bytes (93115),
 // owner-authorized 2026-10-14; compressed budgets re-measured below.
-if (htmlBytes > 93300) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 93300)`);
+// The Admin webhooks and Diagnostic page option, the Stats sort buttons and the RTTTL test link move from
+// JS-built strings into the partials: 93774, owner-requested 2026-10-21.
+if (htmlBytes > 93774) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 93774)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -908,8 +910,9 @@ if (htmlBytes > 93300) {
 // Audit render fixes (rename kept across polls, keyed Diagnostic tables, append-only log, lazy ruler): 484544, owner-requested 2026-10-21.
 // Audit state fixes (background tab load, view import retry, saved-value override reset, full-screen history): 485892, owner-requested 2026-10-21.
 // Audit OTA fixes (shared API transport, bounded chunk timeout with backoff, profile mismatch text, settled commit records, block-wise image hashing): 486631, owner-requested 2026-10-21.
-if (jsBytes > 486631) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 486631)`);
+// Audit T4 refactors (static Admin/Settings/Stats markup in partials, one Settings change listener, shared Admin section helpers): 481871, owner-requested 2026-10-21.
+if (jsBytes > 481871) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 481871)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1055,8 +1058,9 @@ if (jsBytes > 486631) {
 // Audit render fixes (rename kept across polls, keyed Diagnostic tables, append-only log, lazy ruler): 576149, owner-requested 2026-10-21.
 // Audit state fixes (background tab load, view import retry, saved-value override reset, full-screen history): 577497, owner-requested 2026-10-21.
 // Audit OTA fixes (shared API transport, bounded chunk timeout with backoff, profile mismatch text, settled commit records, block-wise image hashing): 578236, owner-requested 2026-10-21.
-if (htmlBytes + jsBytes > 578236) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 578236)`);
+// Audit T4 refactors (static Admin/Settings/Stats markup in partials, one Settings change listener, shared Admin section helpers): 575645, owner-requested 2026-10-21.
+if (htmlBytes + jsBytes > 575645) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 575645)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

@@ -66,7 +66,8 @@ const machineTypeExclusive = {
     'paddleReturnReminderMaxDurationMin',
     'dReed'],
   momentary_reed: ['paddleMode', 'paddleReturnReminder',
-    'paddleReturnReminderMaxDurationMin'],
+    'paddleReturnReminderMaxDurationMin', 'shotReactTimeoutS', 'assumeIdleWhenScaleConnects',
+    'overrideIdleLink'],
 };
 for (const [machineType, forbidden] of Object.entries(machineTypeExclusive)) {
   const variant =
@@ -113,11 +114,18 @@ for (const [machineType, forbidden] of Object.entries(machineTypeExclusive)) {
   new Function('$', 'R', blockAt(viewJs.settings, 'function machinePayload(') +
       ';return machinePayload();')(field, {number: (id) => Number(field(id).value),
     sToMs: (id) => Number(field(id).value) * 1000, extRate: (v) => v});
+  // Save validation reads only shipped fields too.
+  const typeClasses = {paddle: [], momentary: ['momentaryMachine'],
+    momentary_reed: ['momentaryMachine', 'reedMachine']}[machineType];
+  new Function('$', 'R', 'document', blockAt(viewJs.settings, 'function validateMachineClient(') +
+      ';return validateMachineClient();')(field, {rangeCheck: (id) => (field(id).value, ''),
+    number: (id) => Number(field(id).value), formNumber: () => 1},
+  {documentElement: {classList: {contains: (c) => typeClasses.includes(c)}}});
 }
 // Typed CSS drops only the selectors naming stripped markup, never the
 // rules grouped with them.
 for (const [machineType, remoteControl, kept] of [
-  ['momentary_reed', true, ['html.reedMachine .switchOnly']],
+  ['momentary_reed', true, ['html:not(.reedMachine) .reedOnly']],
   ['momentary', false, ['html:not(.momentaryMachine) .switchOnly']],
   ['paddle', false, ['html.momentaryMachine .paddleOnly',
     'html.theme-dark :is(.qwSheet){box-shadow:0 -8px']]]) {
@@ -172,6 +180,26 @@ if (!codeIncludes(generated.modules.diagnostic, 'freshnessPolicy') ||
     /__LINEA_MICRA__|__REMOTE_CONTROL__/.test(noMicra.runtimeJs + generated.runtimeJs +
         noMicra.modules.diagnostic + generated.modules.diagnostic)) {
   throw new Error('Linea Micra code must fold away in builds without the integration');
+}
+// Builds without the integration also drop its markup and CSS; nested
+// Micra rows go with their section, and the JS that binds them folds away.
+{
+  const noMicraUi = [noMicra.html, ...Object.values(noMicra.partials), noMicra.css].join('\n');
+  const micraIds = ['lineaMicraSettings', 'lineaMicraConnectButton', 'lineaMicraBrewTargetC',
+    'micraMachineDiagnostics', 'micraCloudDiagnostics', 'dMicraPowerBrief', 'homeMicraPower'];
+  const leaked = [...micraIds.filter((id) => noMicraUi.includes(`id="${id}"`)),
+    ...['.micraOnly', '.micraTempOpt'].filter((c) => noMicraUi.includes(c))];
+  const missing = micraIds.filter((id) => ![generated.html, ...Object.values(generated.partials)]
+      .join('\n').includes(`id="${id}"`));
+  const diag = noMicra.partials.diagnostic;
+  if (leaked.length || missing.length ||
+      (diag.match(/<div\b/g) || []).length !== (diag.match(/<\/div>/g) || []).length ||
+      (diag.match(/<fieldset\b/g) || []).length !== (diag.match(/<\/fieldset>/g) || []).length ||
+      !diag.includes('id="hFirmware"') ||
+      noMicra.modules.settings.includes('lineaMicraConnectButton') ||
+      noMicra.js.includes('homeMicraPower')) {
+    throw new Error(`Non-Micra builds must strip Micra UI (leaked ${leaked}, missing ${missing})`);
+  }
 }
 localeAssert.equal(normalizedEnglish.resolvedLanguage, 'en');
 localeAssert.equal(regionalEnglish.requestedLanguage, 'en-en');
@@ -887,7 +915,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The audit render fixes (rated star keeps focus, one curve model per row, keyed Diagnostic tables) measure
 // records.js at 15237 and diagnostic.js at 13904; owner-requested 2026-10-21.
 // The audit OTA fixes move records.js to 15245 through asset-tag gzip wobble (records.js unchanged); cap 15260, owner-requested 2026-10-21.
-const viewModuleBudgets = {records: 15260, diagnostic: 13904, admin: 14229, settings: 16813, setup: 5793};
+// The audit T4 refactors move diagnostic.js to 13906 through gzip wobble; owner-requested 2026-10-21.
+const viewModuleBudgets = {records: 15260, diagnostic: 13906, admin: 14229, settings: 16813, setup: 5793};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);

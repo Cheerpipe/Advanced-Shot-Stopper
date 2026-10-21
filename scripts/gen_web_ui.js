@@ -54,12 +54,19 @@ const ASSET_PATHS = ['/app.js', '/app.css', '/js/runtime.js', '/js/ota-image.js'
 const MACHINE_TYPE_EXCLUSIONS = {
   paddle: ['momentaryOnly', 'reedOnly', 'switchOnly'],
   momentary: ['paddleOnly', 'reedOnly'],
-  momentary_reed: ['paddleOnly'],
+  momentary_reed: ['paddleOnly', 'switchOnly'],
 };
+// Builds without the Linea Micra cloud integration drop its markup and CSS;
+// the JS that drives it folds away with __LINEA_MICRA__.
+const LINEA_MICRA_EXCLUSIONS = ['micraOnly', 'micraTempOpt'];
 
-function stripMachineTypeMarkup(html, machineType) {
-  const excluded = MACHINE_TYPE_EXCLUSIONS[machineType];
-  if (!excluded) return html;
+// Classes whose markup and CSS a build strips, for its options.
+function excludedClasses(options) {
+  return [...(MACHINE_TYPE_EXCLUSIONS[options.machineType] || []),
+    ...(options.lineaMicra === false ? LINEA_MICRA_EXCLUSIONS : [])];
+}
+
+function stripClassMarkup(html, excluded) {
   let out = html;
   for (const cls of excluded) {
     const openRe = new RegExp(
@@ -80,6 +87,8 @@ function stripMachineTypeMarkup(html, machineType) {
       }
       if (depth === 0 && token) {
         removals.push([match.index, tokenRe.lastIndex - match.index]);
+        // A nested match lies inside this subtree and goes with it.
+        openRe.lastIndex = tokenRe.lastIndex;
       }
     }
     for (let i = removals.length - 1; i >= 0; i--) {
@@ -109,9 +118,8 @@ function stripCssSelectors(css, re) {
   });
 }
 
-function stripMachineTypeCss(css, machineType) {
-  const excluded = MACHINE_TYPE_EXCLUSIONS[machineType];
-  if (!excluded) return css;
+function stripClassCss(css, excluded) {
+  if (!excluded.length) return css;
   return stripCssSelectors(css, new RegExp(`\\.(?:${excluded.join('|')})\\b`));
 }
 
@@ -320,11 +328,9 @@ async function generate(options = {}) {
   const localizedOtaImage = localized.sources[at++].content;
   for (const name of VIEW_NAMES) viewJsRaw[name] = localized.sources[at++].content;
   const localizedCss = localized.sources[at].content;
-  if (options.machineType) {
-    for (const name of VIEW_NAMES) {
-      partialsRaw[name] =
-          stripMachineTypeMarkup(partialsRaw[name], options.machineType);
-    }
+  const excluded = excludedClasses(options);
+  for (const name of VIEW_NAMES) {
+    partialsRaw[name] = stripClassMarkup(partialsRaw[name], excluded);
   }
   if (options.remoteControl === false) {
     for (const name of VIEW_NAMES) {
@@ -343,8 +349,8 @@ async function generate(options = {}) {
     appJs: await minifyJs(inlineHomeModule(localizedAppJs, viewJsRaw.home), options),
     runtimeJs: await minifyJs(localizedRuntime, options),
     otaImageJs: await minifyJs(localizedOtaImage, options),
-    css: minifyCss(stripMachineTypeCss(options.remoteControl === false
-        ? stripRemoteControlCss(localizedCss) : localizedCss, options.machineType)),
+    css: minifyCss(stripClassCss(options.remoteControl === false
+        ? stripRemoteControlCss(localizedCss) : localizedCss, excluded)),
     manifest: JSON.stringify(manifestObject),
   };
   const modules = {};
