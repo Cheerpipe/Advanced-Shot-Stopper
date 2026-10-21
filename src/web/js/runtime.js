@@ -294,14 +294,14 @@ function buildQuickSettings() {
   panel.setAttribute("aria-labelledby", "quickTitle");
   panel.innerHTML =
     `<header><span class="qsIc">${modes}</span><span><strong id="quickTitle"><span class="qsW">${__WEBUI_TEXT__("runtime.quick_shots_stop_by_weight")}</span><span class="qsM">${__WEBUI_TEXT__("runtime.quick_shots_stop_manually")}</span></strong><small id="quickStatus"></small></span></header>` +
-    `<div class="qsModes" role="radiogroup" aria-label="${$("modeSignal").dataset.label}">${mode(true, "weight", __WEBUI_TEXT__("runtime.quick_by_weight_mode"), __WEBUI_TEXT__("runtime.quick_by_weight_mode_hint"))}${mode(false, "hand", __WEBUI_TEXT__("runtime.quick_manual_mode"), __WEBUI_TEXT__("runtime.quick_manual_mode_hint"))}</div>` +
+    `<div class="qsModes" role="radiogroup" aria-label="${escHtml($("modeSignal").dataset.label)}">${mode(true, "weight", __WEBUI_TEXT__("runtime.quick_by_weight_mode"), __WEBUI_TEXT__("runtime.quick_by_weight_mode_hint"))}${mode(false, "hand", __WEBUI_TEXT__("runtime.quick_manual_mode"), __WEBUI_TEXT__("runtime.quick_manual_mode_hint"))}</div>` +
     `<p class="qsSub">${$("guardSignal").dataset.label}</p><div class="qsGuards">` +
     QUICK_GUARDS.map(
       (k) =>
         `<button type="button" class="qsRow" role="switch" data-quick="${k}"><span class="qsGi">${quickIcon(k)}</span><span>${names[k]}</span><i class="qsSw" aria-hidden="true"></i></button>`,
     ).join("") +
     `</div><p class="qsSub">${__WEBUI_TEXT__("runtime.quick_duration")}</p>` +
-    `<div class="qsRev" role="radiogroup" aria-label="${__WEBUI_TEXT__("runtime.quick_duration")}">` +
+    `<div class="qsRev" role="radiogroup" aria-label="${escHtml(__WEBUI_TEXT__("runtime.quick_duration"))}">` +
     QUICK_REVERT.map((k, i) => `<button type="button" role="radio" data-revert="${k}">${__WEBUI_TEXT__("runtime.quick_duration_options").split("|")[i]}</button>`).join("") +
     `</div><p class="qsNote"><span id="quickRevertNote"></span> <button type="button" class="qsReset" id="quickRevertNow" hidden>${__WEBUI_TEXT__("runtime.quick_reset_now")}</button></p>`;
   $("headerSignals").append(panel);
@@ -917,7 +917,8 @@ let timezonePreviewSeq = 0,
   timezonePreviewAnchor = null,
   timezonePreviewPending = false,
   timezonePreviewLoad = null,
-  autoInitPending = false;
+  autoInitPending = false,
+  autoInitRetryAt = 0;
 function browserTimezone() {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
@@ -1000,6 +1001,7 @@ async function syncTimezone(c) {
     !c ||
     c.timezoneInitialized == null ||
     autoInitPending ||
+    Date.now() < autoInitRetryAt ||
     !controlsMutable ||
     commandBusy ||
     (c.timezoneInitialized && (!c.timezoneAutomatic || uiState.dateTimeDirty))
@@ -1027,6 +1029,8 @@ async function syncTimezone(c) {
       "",
     );
   } catch (_) {
+    // A rejected zone waits a minute instead of retrying on every frame.
+    autoInitRetryAt = Date.now() + 6e4;
   } finally {
     autoInitPending = false;
   }
@@ -1146,23 +1150,31 @@ function armStickyBar(id) {
 function refreshShots() {
   return shotStatsViewActive() ? startStatsStream(true) : Promise.resolve(false);
 }
-function downloadCsv(name, rows) {
-  const csv = rows
-    .map((c) =>
-      c
-        .map((v) => {
-          const s = String(v);
-          return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-        })
-        .join(","),
-    )
-    .join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
+// One save path for every download: the anchor joins the document for the
+// click, and the object URL outlives it so a slow browser finishes reading.
+function saveFile(blob, name) {
+  const a = document.createElement("a"),
+    url = URL.createObjectURL(blob);
+  a.href = url;
   a.download = name;
+  document.body.append(a);
   a.click();
-  URL.revokeObjectURL(a.href);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 6e4);
+}
+// CSV for spreadsheets: a BOM marks it UTF-8, fields with quotes, commas or
+// line breaks are quoted, and text a spreadsheet would run as a formula
+// (=, +, -, @) gets a leading apostrophe; numbers stay as they are.
+function downloadCsv(name, rows) {
+  const cell = (v) => {
+    let s = String(v);
+    if (/^[=+\-@\t\r]/.test(s) && !Number.isFinite(+s)) s = "'" + s;
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  saveFile(
+    new Blob(["\uFEFF" + rows.map((r) => r.map(cell).join(",")).join("\n")], { type: "text/csv" }),
+    name,
+  );
 }
 function applyHistoryPage(d, mode) {
   historyLoaded = true;
@@ -1379,7 +1391,8 @@ function formatScaleTimer(s) {
   );
 }
 function clearFieldErrors() {
-  document.querySelectorAll(".fieldError").forEach((e) => e.remove());
+  // Only the generated messages go: Setup's static error lines share the class.
+  document.querySelectorAll("small.fieldError").forEach((e) => e.remove());
   document.querySelectorAll(".invalid").forEach((e) => {
     e.classList.remove("invalid");
     // Red marks can share the input with live yellow warnings; keep their
@@ -2719,7 +2732,7 @@ function renderHomePresetAccordion() {
       const start = document.createElement("p");
       start.className = "presetAccStart";
       // The graph, its readout and pace note stay folded under a chevron.
-      const t = __WEBUI_TEXT__("runtime.preset_graph");
+      const t = escHtml(__WEBUI_TEXT__("runtime.preset_graph"));
       panelIn.innerHTML = `<div class="presetAccMore"><div></div></div><button type="button" class="presetAccToggle" title="${t}" aria-label="${t}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>`;
       panelIn.firstChild.firstChild.append(graph, readout, start);
       panelIn.prepend(rows);
@@ -3203,7 +3216,7 @@ function presetGraph(host, m, x = {}) {
     // Each band fades from twice its flat strength at the top to almost nothing at the base.
     `<defs>${[["rvFastFull", "gFast", "Full"], ["rvFastPart", "gFast", "Part"], ["rvWindow", "ok", "Win"], ["rvSlowPart", "gSlow", "Part"], ["rvSlowFull", "gSlow", "Full"]].map(([c, k, b]) => fadeFill(u + c, `var(--${k})`, `calc(var(--band${b}) * 2.2)`, 0.03)).join("")}<pattern id="${u}Hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="rvHatchLine" d="M0 0V6"/></pattern>` +
     `<clipPath id="${u}Under"><path d="M${P(0, 0)}L${P(0, m.ceil)}L${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}L${P(m.wall, 0)}Z"/></clipPath></defs>` +
-    `<g role="img" aria-label="${sub(__WEBUI_TEXT__("runtime.graph_summary"), [n(m.prot), n(m.ceil), n(a), n(m.goal), n(m.t1), n(m.t2), n(m.floor), n(b), n(m.wall)])} ${__WEBUI_TEXT__("runtime.graph_pace_note")}${compact ? "" : " " + paceStartNote(m)}">` +
+    `<g role="img" aria-label="${escHtml(sub(__WEBUI_TEXT__("runtime.graph_summary"), [n(m.prot), n(m.ceil), n(a), n(m.goal), n(m.t1), n(m.t2), n(m.floor), n(b), n(m.wall)]) + " " + __WEBUI_TEXT__("runtime.graph_pace_note") + (compact ? "" : " " + paceStartNote(m)))}">` +
     grid +
     `<g clip-path="url(#${u}Under)">` +
     band("rvFastFull", O + paceTo(tA) + `L${P(paceEnd(tA), top + 1)}L${P(0, top + 1)}Z`, m.fast) +
@@ -3232,7 +3245,7 @@ function presetGraph(host, m, x = {}) {
     (compact
       ? "</g></svg>"
       : label(X(m.wall), T - 4, sub(__WEBUI_TEXT__("runtime.graph_max"), [n(m.wall)]), "", "end") +
-        `</g><g class="rvScrub" role="slider" tabindex="0" aria-label="${__WEBUI_TEXT__("runtime.graph_scrub")}" aria-valuemin="${m.scrubMin}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvHandle" r="5"/>${PILL}</g></svg>`);
+        `</g><g class="rvScrub" role="slider" tabindex="0" aria-label="${escHtml(__WEBUI_TEXT__("runtime.graph_scrub"))}" aria-valuemin="${m.scrubMin}" aria-valuemax="${m.wall}"><path class="rvGuide"/><path class="rvShot"/><circle class="rvHandle" r="5"/>${PILL}</g></svg>`);
   return {
     m,
     X,
@@ -5685,6 +5698,7 @@ async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
   });
 }
 export {
+  saveFile,
   resetWebUiInactivity,
   activeView,
   compatibilityModeOn,

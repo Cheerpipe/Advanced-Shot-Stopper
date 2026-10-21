@@ -24,7 +24,7 @@ if (firmware.includes('maybeCaptureScaleStartLag') ||
 const generated = await webUi.generate();
 if (!generated.modules.diagnostic.includes('new CompressionStream("gzip")') ||
     !generated.modules.diagnostic.includes('"crashes.tar"') ||
-    !generated.modules.diagnostic.includes('download="openbrewbyweight-"+') ||
+    !generated.modules.diagnostic.includes('"openbrewbyweight-"+') ||
     !generated.modules.diagnostic.includes('?".gz":""')) {
   throw new Error('Crash download must gzip in the browser with a TAR fallback');
 }
@@ -840,8 +840,10 @@ if (generated.cssGzip.length > 15742) {
 // Stats rows as column-ordered values brings it to 40259; owner-requested 2026-10-21.
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect brings it to 40297; owner-requested 2026-10-21.
 // Browser storage keys renamed from the legacy ss prefix to obbw bring it to 40322; rename owner-requested 2026-10-21.
-if (sentinelRuntimeGzip.length > 40322) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 40322-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The audit hardening (one shared download helper, CSV formula guard and BOM, timezone retry backoff,
+// escaped attribute text) brings it to 40357; owner-requested 2026-10-21.
+if (sentinelRuntimeGzip.length > 40357) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 40357-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -916,7 +918,8 @@ if (generated.otaImageGzip.length > 3072) {
 // records.js at 15237 and diagnostic.js at 13904; owner-requested 2026-10-21.
 // The audit OTA fixes move records.js to 15245 through asset-tag gzip wobble (records.js unchanged); cap 15260, owner-requested 2026-10-21.
 // The audit T4 refactors move diagnostic.js to 13906 through gzip wobble; owner-requested 2026-10-21.
-const viewModuleBudgets = {records: 15260, diagnostic: 13906, admin: 14229, settings: 16813, setup: 5793};
+// The Setup watchdog stop flag measures setup.js at 5799; owner-requested 2026-10-21.
+const viewModuleBudgets = {records: 15260, diagnostic: 13906, admin: 14229, settings: 16813, setup: 5799};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);

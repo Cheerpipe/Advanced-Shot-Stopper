@@ -174,7 +174,10 @@
       const command = h.c.command;
       h.c.command = async () => { throw Error('Busy'); };
       await h.c.syncTimezone(status);
+      // A rejection backs off instead of posting again on the next frame.
       h.c.command = command; await h.c.syncTimezone(status);
+      assert.equal(h.state.commands, 0);
+      h.c.autoInitRetryAt = 0; await h.c.syncTimezone(status);
       assert.equal(h.state.commands, 1);
     }],
     ['an applied but unsaved zone leaves initialization active', async () => {

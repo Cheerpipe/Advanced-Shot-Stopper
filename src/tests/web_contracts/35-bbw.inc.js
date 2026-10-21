@@ -140,12 +140,14 @@
     formatShotTimeCsv: () => '', shotDisplayActualG: weight => weight,
     Blob,
     URL: {createObjectURL: value => {blob = value; return 'blob:test';}, revokeObjectURL() {}},
-    document: {createElement: () => ({click() {}})},
+    document: {createElement: () => ({click() {}, remove() {}}), body: {append() {}}},
+    setTimeout: () => 0,
     message: message => {throw new Error(message);}, formatCommandError: (_, e) => e.message
   });
   vm.runInContext(runtimeJs.slice(runtimeJs.indexOf('function axisLabel('),
     runtimeJs.indexOf('async function populateTimezoneOptions(')) + statsChartJs, context);
-  vm.runInContext(blockAt(runtimeJs, 'function downloadCsv('), context);
+  vm.runInContext(blockAt(runtimeJs, 'function saveFile(') + blockAt(runtimeJs, 'function downloadCsv('),
+      context);
   vm.runInContext('var R = this;' + blockAt(viewJs.stats, 'function shotCut(') +
     blockAt(viewJs.stats, 'function shotFlowCurveGS('), context);
   vm.runInContext(blockAt(viewJs.stats, 'async function exportShotsCsv('), context);
@@ -197,3 +199,17 @@
     assert.equal(row.at(-2), '12.34');
   }
 })().catch(error => {console.error(error); process.exitCode = 1;});
+// CSV cells: UTF-8 BOM, quoted quotes/commas/line breaks, and a leading
+// apostrophe on text a spreadsheet would evaluate; numbers stay numbers.
+(async () => {
+  const assert = require('assert').strict, vm = require('vm');
+  let saved;
+  const context = vm.createContext({Blob, setTimeout: () => 0,
+    URL: {createObjectURL: (blob) => { saved = blob; return 'blob:x'; }, revokeObjectURL() {}},
+    document: {createElement: () => ({click() {}, remove() {}}), body: {append() {}}}});
+  vm.runInContext(blockAt(runtimeJs, 'function saveFile(') + blockAt(runtimeJs, 'function downloadCsv('), context);
+  context.downloadCsv('x.csv', [['=1+1', '-3.5', '@x', 'a\r\nb', 'x,"y"', 5, -2, '+cmd', '']]);
+  const bytes = Buffer.from(await saved.arrayBuffer());
+  assert.deepEqual([...bytes.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+  assert.equal(bytes.subarray(3).toString('utf8'), "'=1+1,-3.5,'@x,\"a\r\nb\",\"x,\"\"y\"\"\",5,-2,'+cmd,");
+})().catch((error) => { console.error(error); process.exitCode = 1; });

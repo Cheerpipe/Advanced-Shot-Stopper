@@ -77,7 +77,8 @@ if (codeIncludes(rawAppJsSource, 'htmlCache') ||
         .includes('if(jsMods.has(name))returnjsMods.get(name)')) {
   throw new Error('View loading must coalesce in flight and release promises after insertion');
 }
-const diagnosticCompact = compactSource(rawViewJs.diagnostic);
+// Every download, Diagnostic included, goes through the runtime saveFile.
+const diagnosticCompact = compactSource(blockAt(rawRuntimeJs, 'function saveFile('));
 const diagnosticDownload = diagnosticCompact.match(
   /const([A-Za-z_$][\w$]*)=document\.createElement\(a\)[\s\S]*?,([A-Za-z_$][\w$]*)=URL\.createObjectURL\(/);
 const diagnosticClickAt = diagnosticDownload
@@ -95,6 +96,10 @@ if (!diagnosticDownload || diagnosticHrefAt < 0 ||
     diagnosticClickAt < diagnosticHrefAt ||
     diagnosticRevokeAt < diagnosticClickAt) {
   throw new Error('Diagnostic download must revoke its object URL after use');
+}
+if (!codeIncludes(rawViewJs.diagnostic, 'const saveFile=(blob,name)=>R.saveFile(blob,openbrewbyweight-+name)') ||
+    /createObjectURL/.test(rawViewJs.diagnostic)) {
+  throw new Error('Diagnostic must reuse the runtime download helper');
 }
 const rawCss = fs.readFileSync(path.join(sketchDir, 'web', 'app.css'), 'utf8');
 const localizedSources = webUiLocale.renderSources([
@@ -911,8 +916,9 @@ if (htmlBytes > 93774) {
 // Audit state fixes (background tab load, view import retry, saved-value override reset, full-screen history): 485892, owner-requested 2026-10-21.
 // Audit OTA fixes (shared API transport, bounded chunk timeout with backoff, profile mismatch text, settled commit records, block-wise image hashing): 486631, owner-requested 2026-10-21.
 // Audit T4 refactors (static Admin/Settings/Stats markup in partials, one Settings change listener, shared Admin section helpers): 481871, owner-requested 2026-10-21.
-if (jsBytes > 481871) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 481871)`);
+// Audit hardening (shared download helper, CSV formula guard, timezone backoff, Setup stop flag, escaped attribute text): 482689, owner-requested 2026-10-21.
+if (jsBytes > 482689) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 482689)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1059,8 +1065,9 @@ if (jsBytes > 481871) {
 // Audit state fixes (background tab load, view import retry, saved-value override reset, full-screen history): 577497, owner-requested 2026-10-21.
 // Audit OTA fixes (shared API transport, bounded chunk timeout with backoff, profile mismatch text, settled commit records, block-wise image hashing): 578236, owner-requested 2026-10-21.
 // Audit T4 refactors (static Admin/Settings/Stats markup in partials, one Settings change listener, shared Admin section helpers): 575645, owner-requested 2026-10-21.
-if (htmlBytes + jsBytes > 575645) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 575645)`);
+// Audit hardening (shared download helper, CSV formula guard, timezone backoff, Setup stop flag, escaped attribute text): 576463, owner-requested 2026-10-21.
+if (htmlBytes + jsBytes > 576463) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 576463)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

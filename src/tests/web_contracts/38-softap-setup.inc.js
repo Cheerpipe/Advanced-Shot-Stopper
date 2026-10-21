@@ -335,3 +335,25 @@
     throw new Error('Only the /setup routes may skip the UI claim, and only for a SoftAP peer');
   }
 }
+// Clearing form errors removes only the generated messages, never Setup's
+// static error lines that share the class; a stopped Setup chain stays stopped.
+{
+  const removed = [];
+  new Function('document', 'refreshFieldAria', `${blockAt(runtimeJs, 'function clearFieldErrors(')};clearFieldErrors();`)(
+      {querySelectorAll: (sel) => sel === 'small.fieldError' ? [{remove: () => removed.push(sel)}] :
+        sel === '.invalid' ? [] : [{remove: () => removed.push(sel)}]}, () => {});
+  if (removed.join() !== 'small.fieldError' || !partialHtml.setup.includes('<p id="setupErrorText" class="fieldError"')) {
+    throw new Error('clearFieldErrors must keep Setup\'s static error lines');
+  }
+  if (!codeIncludes(rawViewJs.setup, 'export function stop() { running = false;') ||
+      !codeIncludes(rawViewJs.setup, 'if (running && bound && !document.hidden && pollTimer === 0 && busyToken !== pollToken) tick()')) {
+    throw new Error('The Setup watchdog must not restart a stopped poll chain');
+  }
+}
+// Translated text placed in attributes of runtime-built markup is escaped.
+for (const needle of ['aria-label="${escHtml($("modeSignal").dataset.label)}"',
+  'aria-label="${escHtml(__WEBUI_TEXT__("runtime.quick_duration"))}"',
+  'const t = escHtml(__WEBUI_TEXT__("runtime.preset_graph"))',
+  'aria-label="${escHtml(__WEBUI_TEXT__("runtime.graph_scrub"))}"']) {
+  if (!rawRuntimeJs.includes(needle)) throw new Error('Unescaped attribute text: ' + needle);
+}

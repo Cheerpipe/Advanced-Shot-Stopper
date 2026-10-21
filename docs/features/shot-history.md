@@ -367,6 +367,12 @@ recorded per shot.
 CSV retains the scalar shot columns, including `yield_g`,
 `yield_source`, `max_flow_g_s`, the BBW fields and `preset_id`.
 
+The file opens cleanly in spreadsheet apps: it is marked as UTF-8, so preset
+and scale names with accents read correctly, and a text cell that starts with
+`=`, `+`, `-` or `@` (a preset named `-Ristretto`, say) begins with an
+apostrophe so the spreadsheet keeps it as text instead of treating it as a
+formula. Numbers, negative ones included, stay plain numbers.
+
 Every shot also keeps the cut settings it actually ran with, so editing or
 deleting a preset later never changes how a past shot reads:
 `fast_before_s` and `slow_after_s` (the shot time window), `fast_side` and

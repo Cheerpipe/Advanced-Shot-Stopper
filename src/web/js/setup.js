@@ -44,6 +44,9 @@ const BLOCKED = {
 };
 let bound = false,
   pollTimer = 0,
+  // Set by start() and cleared by stop(): the watchdog only revives a chain
+  // the view still wants.
+  running = false,
   pollToken = 0,
   busyToken = -1,
   state = "idle",
@@ -550,6 +553,7 @@ function bind() {
 }
 
 export function stop() {
+  running = false;
   clearTimeout(pollTimer);
   pollTimer = 0;
   pollToken++;
@@ -558,13 +562,14 @@ export function stop() {
 export function start() {
   // Also resumes after the tab was hidden or another view was open: the
   // chain is paused by stop(), never abandoned.
+  running = true;
   if (state === "idle") return resume().then(() => true);
   tick();
   return true;
 }
 
 function chainWatchdog() {
-  if (bound && !document.hidden && pollTimer === 0 && busyToken !== pollToken) tick();
+  if (running && bound && !document.hidden && pollTimer === 0 && busyToken !== pollToken) tick();
 }
 
 export function init() {

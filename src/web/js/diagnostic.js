@@ -1189,16 +1189,7 @@ function toggleAuditDetail(row, item) {
   }
   row.after(detail);
 }
-function saveFile(blob, name) {
-  const a = document.createElement("a"),
-    url = URL.createObjectURL(blob);
-  a.href = url;
-  a.download = "openbrewbyweight-" + name;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 6e4);
-}
+const saveFile = (blob, name) => R.saveFile(blob, "openbrewbyweight-" + name);
 async function downloadText(load, name, failMsg) {
   R.message(__WEBUI_TEXT__("diagnostic.downloading"));
   try {
