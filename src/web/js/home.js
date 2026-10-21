@@ -160,8 +160,6 @@ export function init() {
     };
   if ($("grindHintNewBeans")) $("grindHintNewBeans").onclick = () => R.startNewCoffee();
   if ($("grindHintLater")) $("grindHintLater").onclick = () => R.dismissCard($("grindHintCard").dataset.key);
-  if ($("scaleLossDiscoveryOk"))
-    $("scaleLossDiscoveryOk").onclick = () => R.dismissCard("obbwCard:scaleLossDiscovery");
   if ($("micraCloudHint")) {
     $("micraCloudHintOpen").onclick = (e) => {
       e.preventDefault();

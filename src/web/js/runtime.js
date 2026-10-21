@@ -5206,7 +5206,6 @@ function renderHomeCards() {
       $("ghActions").hidden = !v.actions;
     }
   }
-  reveal($("scaleLossDiscovery"), !cardDismissed("obbwCard:scaleLossDiscovery"));
 }
 // Relearn (a new bag, dose, basket or grinder): starts the preset's statistics over.
 async function startNewCoffee(id = presetState.activeId) {
