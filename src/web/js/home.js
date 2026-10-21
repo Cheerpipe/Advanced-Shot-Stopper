@@ -73,7 +73,7 @@ export function applyStatus(s) {
       micraHintClosed ||
       s.lineaMicra?.accountConfigured !== false ||
       s.machineIntegration !== "linea_micra_cloud" ||
-      R.cardDismissed("ssCard:micraCloud");
+      R.cardDismissed("obbwCard:micraCloud");
   $("homeMicraPower").textContent = micraPower(s.lineaMicra);
   $("homeMicraCleaning").textContent = R.formatMicraCleaning(s.lineaMicra);
   renderMicraBoilers();
@@ -161,7 +161,7 @@ export function init() {
   if ($("grindHintNewBeans")) $("grindHintNewBeans").onclick = () => R.startNewCoffee();
   if ($("grindHintLater")) $("grindHintLater").onclick = () => R.dismissCard($("grindHintCard").dataset.key);
   if ($("scaleLossDiscoveryOk"))
-    $("scaleLossDiscoveryOk").onclick = () => R.dismissCard("ssCard:scaleLossDiscovery");
+    $("scaleLossDiscoveryOk").onclick = () => R.dismissCard("obbwCard:scaleLossDiscovery");
   if ($("micraCloudHint")) {
     $("micraCloudHintOpen").onclick = (e) => {
       e.preventDefault();
@@ -170,7 +170,7 @@ export function init() {
     };
     // Dismiss hides it until the page reloads; the checkbox makes it permanent.
     $("micraCloudHintDismiss").onclick = () => {
-      if ($("micraCloudHintMute").checked) R.dismissCard("ssCard:micraCloud");
+      if ($("micraCloudHintMute").checked) R.dismissCard("obbwCard:micraCloud");
       micraHintClosed = $("micraCloudHint").hidden = true;
     };
   }

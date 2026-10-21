@@ -29,7 +29,7 @@ script never builds the firmware; run ./scripts/dev build separately first.
 Required parameters: --arch. For a profile build, pass its directory with
 --build-dir. Path overrides are one-shot and are not persisted.
 
-$(ss_flag_help)
+$(obbw_flag_help)
 
 Examples:
   ./scripts/static-idf --arch n16r8
@@ -37,15 +37,15 @@ Examples:
 EOF
 }
 
-ss_cli_parse "$@" || exit $?
-if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
+obbw_cli_parse "$@" || exit $?
+if [[ "$OBBW_CLI_HELP_REQUESTED" == "1" ]]; then
   usage
   exit 0
 fi
 
-ss_cli_resolve "arch" || exit $?
-openbrewbyweight_resolve_board "$(ss_get arch)" || exit 2
-ss_idf_resolve_paths
+obbw_cli_resolve "arch" || exit $?
+openbrewbyweight_resolve_board "$(obbw_get arch)" || exit 2
+obbw_idf_resolve_paths
 
 for tool in cppcheck python3; do
   command -v "$tool" > /dev/null 2>&1 || {
@@ -54,14 +54,14 @@ for tool in cppcheck python3; do
   }
 done
 
-ss_idf_static_paths reports/static-analysis || exit $?
+obbw_idf_static_paths reports/static-analysis || exit $?
 
 if [[ ! -f "$SUPPRESSIONS_FILE" ]]; then
   echo "Suppressions file $SUPPRESSIONS_FILE does not exist." >&2
   exit 1
 fi
 
-ss_idf_audit_translation_units || {
+obbw_idf_audit_translation_units || {
   echo "Translation-unit coverage audit failed." >&2
   exit 1
 }
@@ -80,7 +80,6 @@ cppcheck \
   --file-filter='*/libraries/EspressoScaleBLE/src/protocols/*.cpp' \
   --file-filter='*/idf/main/*.cpp' \
   --file-filter='*/idf/components/OpenBrewByWeightBleRuntime/*.cpp' \
-  --file-filter='*/idf/components/openBrewByWeight/*' \
   --enable=warning,performance,portability \
   --inline-suppr \
   --inconclusive \
@@ -96,4 +95,4 @@ if [[ $cppcheck_status -ne 0 ]]; then
   exit 1
 fi
 
-ss_cli_save
+obbw_cli_save

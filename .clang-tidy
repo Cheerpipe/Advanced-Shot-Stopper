@@ -1,4 +1,4 @@
-# Static analysis configuration for Shot Stopper.
+# Static analysis configuration for Open Brew by Weight.
 # Run through scripts/static-tidy (Espressif esp-clang clang-tidy) against the
 # ESP-IDF compilation database. The check set starts deliberately small: every
 # enabled check must pass on the current codebase, so a failing run means a

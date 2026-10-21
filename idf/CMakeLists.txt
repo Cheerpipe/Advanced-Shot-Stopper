@@ -1,5 +1,6 @@
-# Shot Stopper firmware built with ESP-IDF (Arduino-ESP32 as a component).
-# Official supported builds: ./scripts/dev build → build-idf/<variant>.
+# Open Brew by Weight firmware built with ESP-IDF (Arduino-ESP32 as a
+# component). Official supported builds: ./scripts/dev build →
+# build-idf/<variant>.
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -16,63 +17,63 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # Select optional machine-specific components from the validated profile. A
 # direct legacy CMake invocation without that manifest intentionally selects none.
-set(_ss_profile_manifest "${CMAKE_BINARY_DIR}/generated/build-profile.json")
+set(_obbw_profile_manifest "${CMAKE_BINARY_DIR}/generated/build-profile.json")
 if(NOT DEFINED OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION)
   set(OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION "none")
 endif()
 if(NOT OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION MATCHES "^(none|linea_micra_cloud)$")
   message(FATAL_ERROR "Invalid OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION=${OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION}")
 endif()
-if(EXISTS "${_ss_profile_manifest}")
-  file(READ "${_ss_profile_manifest}" _ss_profile_json)
+if(EXISTS "${_obbw_profile_manifest}")
+  file(READ "${_obbw_profile_manifest}" _obbw_profile_json)
   string(REGEX MATCH
     "\"machine_integration\"[ \t\r\n]*:[ \t\r\n]*\"([^\"]+)\""
-    _ss_profile_match "${_ss_profile_json}")
+    _obbw_profile_match "${_obbw_profile_json}")
   if(NOT CMAKE_MATCH_1 MATCHES "^(none|linea_micra_cloud)$")
-    message(FATAL_ERROR "Invalid or missing machine_integration in ${_ss_profile_manifest}")
+    message(FATAL_ERROR "Invalid or missing machine_integration in ${_obbw_profile_manifest}")
   endif()
   if(NOT "${OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION}" STREQUAL "${CMAKE_MATCH_1}")
-    message(FATAL_ERROR "Machine integration disagrees with ${_ss_profile_manifest}")
+    message(FATAL_ERROR "Machine integration disagrees with ${_obbw_profile_manifest}")
   endif()
 endif()
 
 idf_build_set_property(COMPILE_DEFINITIONS "BOARD_HAS_PSRAM" APPEND)
 idf_build_set_property(COMPILE_DEFINITIONS "ARDUINO_USB_MODE=1" APPEND)
 
-set(_ss_extra_flags_file "${CMAKE_BINARY_DIR}/open_brew_by_weight_extra_flags")
-set(_ss_extra_raw "")
-set(_ss_cdc_on_boot 0)
-set(_ss_enable_gcc_analyzer OFF)
-set(_ss_enable_unused_parameter OFF)
+set(_obbw_extra_flags_file "${CMAKE_BINARY_DIR}/open_brew_by_weight_extra_flags")
+set(_obbw_extra_raw "")
+set(_obbw_cdc_on_boot 0)
+set(_obbw_enable_gcc_analyzer OFF)
+set(_obbw_enable_unused_parameter OFF)
 if(DEFINED ENV{OPENBREWBYWEIGHT_EXTRA_FLAGS})
-  set(_ss_extra_raw "$ENV{OPENBREWBYWEIGHT_EXTRA_FLAGS}")
+  set(_obbw_extra_raw "$ENV{OPENBREWBYWEIGHT_EXTRA_FLAGS}")
 endif()
-if(_ss_extra_raw STREQUAL "" AND EXISTS "${_ss_extra_flags_file}")
-  file(READ "${_ss_extra_flags_file}" _ss_extra_raw)
-  string(STRIP "${_ss_extra_raw}" _ss_extra_raw)
+if(_obbw_extra_raw STREQUAL "" AND EXISTS "${_obbw_extra_flags_file}")
+  file(READ "${_obbw_extra_flags_file}" _obbw_extra_raw)
+  string(STRIP "${_obbw_extra_raw}" _obbw_extra_raw)
 endif()
 
-if(NOT _ss_extra_raw STREQUAL "")
-  message(STATUS "OPENBREWBYWEIGHT_EXTRA_FLAGS=${_ss_extra_raw}")
-  separate_arguments(_ss_extra NATIVE_COMMAND "${_ss_extra_raw}")
-  foreach(_opt IN LISTS _ss_extra)
+if(NOT _obbw_extra_raw STREQUAL "")
+  message(STATUS "OPENBREWBYWEIGHT_EXTRA_FLAGS=${_obbw_extra_raw}")
+  separate_arguments(_obbw_extra NATIVE_COMMAND "${_obbw_extra_raw}")
+  foreach(_opt IN LISTS _obbw_extra)
     if(_opt STREQUAL "-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1")
-      set(_ss_cdc_on_boot 1)
+      set(_obbw_cdc_on_boot 1)
     endif()
     if(_opt STREQUAL "-fanalyzer")
       # The analyzer is attached below only to project-owned components.
       # Applying it globally makes ESP-IDF's dependency warnings fatal before
       # the firmware can be examined.
-      set(_ss_enable_gcc_analyzer ON)
+      set(_obbw_enable_gcc_analyzer ON)
     elseif(_opt STREQUAL "-Wunused-parameter")
       # Same scoping as -fanalyzer: ESP-IDF builds its C++ components with
       # -Werror (e.g. cxx_exception_stubs.cpp has unused parameters), so
       # re-enabling this warning globally breaks the SDK build. Attach it
       # below only to project-owned components.
-      set(_ss_enable_unused_parameter ON)
+      set(_obbw_enable_unused_parameter ON)
       # Project components inherit -Werror=all/-Werror=deprecated-copy, so
       # the re-enabled warning must stay a diagnostic, not a build break.
-      set(_ss_unused_parameter_options "-Wunused-parameter" "-Wno-error=unused-parameter")
+      set(_obbw_unused_parameter_options "-Wunused-parameter" "-Wno-error=unused-parameter")
     elseif(_opt MATCHES "^-D(.+)$")
       idf_build_set_property(COMPILE_DEFINITIONS "${CMAKE_MATCH_1}" APPEND)
     elseif(_opt MATCHES "^-W")
@@ -85,44 +86,44 @@ if(NOT _ss_extra_raw STREQUAL "")
   endforeach()
 endif()
 
-idf_build_set_property(COMPILE_DEFINITIONS "ARDUINO_USB_CDC_ON_BOOT=${_ss_cdc_on_boot}" APPEND)
-if(_ss_cdc_on_boot)
+idf_build_set_property(COMPILE_DEFINITIONS "ARDUINO_USB_CDC_ON_BOOT=${_obbw_cdc_on_boot}" APPEND)
+if(_obbw_cdc_on_boot)
   message(STATUS "USB Serial/JTAG enabled (ARDUINO_USB_CDC_ON_BOOT=1)")
 endif()
 
 project(openbrewbyweight)
 
 # ninja cmake_check reconfigures when the internal build stage updates the stamp.
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_ss_extra_flags_file}")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_obbw_extra_flags_file}")
 
 # Arduino-ESP32 compiles Esp.cpp as C++ against IDF SPI flash HAL headers
 # that use partial designated initializers (gpspi_flash_ll.h /
 # spimem_flash_ll.h). That is Espressif noise, not firmware.
-idf_component_get_property(_ss_arduino_lib espressif__arduino-esp32 COMPONENT_LIB)
-target_compile_options(${_ss_arduino_lib} PRIVATE
+idf_component_get_property(_obbw_arduino_lib espressif__arduino-esp32 COMPONENT_LIB)
+target_compile_options(${_obbw_arduino_lib} PRIVATE
   -Wno-deprecated-declarations -Wno-missing-field-initializers)
 
 # Analyze only code maintained in this repository. SDK and managed-component
 # diagnostics are neither hidden nor downgraded; they are simply outside this
 # firmware-focused analyzer pass.
-if(_ss_enable_gcc_analyzer)
-  foreach(_ss_analyzer_component IN ITEMS
+if(_obbw_enable_gcc_analyzer)
+  foreach(_obbw_analyzer_component IN ITEMS
       main openBrewByWeight EspressoScaleBLE OpenBrewByWeightBleRuntime)
-    idf_component_get_property(_ss_analyzer_component_lib
-      ${_ss_analyzer_component} COMPONENT_LIB)
-    target_compile_options(${_ss_analyzer_component_lib} PRIVATE -fanalyzer)
+    idf_component_get_property(_obbw_analyzer_component_lib
+      ${_obbw_analyzer_component} COMPONENT_LIB)
+    target_compile_options(${_obbw_analyzer_component_lib} PRIVATE -fanalyzer)
   endforeach()
 endif()
 
 # Extra parameter warnings behave like -fanalyzer: ESP-IDF disables them
 # project-wide (-Wno-unused-parameter) and its own -Werror components cannot
 # tolerate them, so only project-owned components see them.
-if(_ss_enable_unused_parameter)
-  foreach(_ss_unused_parameter_component IN ITEMS
+if(_obbw_enable_unused_parameter)
+  foreach(_obbw_unused_parameter_component IN ITEMS
       main openBrewByWeight EspressoScaleBLE OpenBrewByWeightBleRuntime)
-    idf_component_get_property(_ss_unused_parameter_component_lib
-      ${_ss_unused_parameter_component} COMPONENT_LIB)
-    target_compile_options(${_ss_unused_parameter_component_lib} PRIVATE
-      ${_ss_unused_parameter_options})
+    idf_component_get_property(_obbw_unused_parameter_component_lib
+      ${_obbw_unused_parameter_component} COMPONENT_LIB)
+    target_compile_options(${_obbw_unused_parameter_component_lib} PRIVATE
+      ${_obbw_unused_parameter_options})
   endforeach()
 endif()

@@ -333,8 +333,8 @@ for (const badBody of [
     throw new Error('Web OTA parser must reject a corrupt appended image hash');
   }
 }
-// Legacy and look-alike project names are foreign to the Web UI and host tool.
-for (const project of ['shotstopper', 'openbrewbyweightx']) {
+// Foreign and look-alike project names are rejected by the Web UI and host tool.
+for (const project of ['some-other-project', 'openbrewbyweightx']) {
   const foreign = otaFixture(320);
   foreign.fill(0, 80, 112);
   foreign.write(project, 80, 'latin1');
@@ -353,21 +353,21 @@ for (const project of ['shotstopper', 'openbrewbyweightx']) {
     throw new Error(`OTA parsers must reject project name ${project}`);
   }
 }
-// An image carrying only the legacy tag has no identity.
+// An image carrying only a different tag version has no identity.
 {
-  const legacy = otaFixture(320);
-  legacy.fill(0x5a, 320, 520);
-  legacy.write('SHOTSTOPPER_FW_TAG_V2|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3|packed=1|END',
+  const older = otaFixture(320);
+  older.fill(0x5a, 320, 520);
+  older.write('OPENBREWBYWEIGHT_FW_TAG_V1|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3|packed=1|END',
       320, 'latin1');
-  refreshOtaFixtureHash(legacy);
+  refreshOtaFixtureHash(older);
   let rejected = false;
   try {
-    await otaParser.otaFileIdentity(browserFile(legacy));
+    await otaParser.otaFileIdentity(browserFile(older));
   } catch (error) {
     rejected = /does not contain a valid/.test(String(error && error.message));
   }
-  if (!rejected || imageTag.findImageTag(legacy)) {
-    throw new Error('OTA parsers must not accept the legacy image tag');
+  if (!rejected || imageTag.findImageTag(older)) {
+    throw new Error('OTA parsers must not accept a different image tag version');
   }
 }
 // Every WEB_ASSETS row round-trips to the bytes it names; PNG rows ship raw
@@ -424,7 +424,7 @@ if (!release.html.includes('data-fw="9.8.7+contract"') ||
     codeIncludes(release.runtimeJs, '9.8.7+contract') ||
     codeIncludes(release.runtimeJs, '__FW_RELEASE__') ||
     !codeIncludes(release.runtimeJs, 'dataset.fw') ||
-    !codeIncludes(release.runtimeJs, 'ssFwReload') ||
+    !codeIncludes(release.runtimeJs, 'obbwFwReload') ||
     !codeIncludes(release.runtimeJs, 'location.replace(') ||
     release.assetTag !== otherRelease.assetTag ||
     release.etag === otherRelease.etag) {
@@ -460,7 +460,7 @@ if (!release.html.includes('data-fw="9.8.7+contract"') ||
     app: generated.js, runtime: generated.runtimeJs,
     'ota-image': generated.otaImageJs, ...generated.modules,
   })) {
-    const file = path.join(os.tmpdir(), `ss-webui-${moduleName}-${process.pid}.mjs`);
+    const file = path.join(os.tmpdir(), `openbrewbyweight-webui-${moduleName}-${process.pid}.mjs`);
     fs.writeFileSync(file, code);
     const parsed = spawnSync(process.execPath, ['--check', file]);
     fs.unlinkSync(file);
@@ -774,8 +774,9 @@ if (generated.cssGzip.length > 15742) {
 // A reconnect keeps the presets it already holds brings it to 40227; owner-requested 2026-10-21.
 // Stats rows as column-ordered values brings it to 40259; owner-requested 2026-10-21.
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect brings it to 40297; owner-requested 2026-10-21.
-if (sentinelRuntimeGzip.length > 40297) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 40297-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Browser storage keys renamed from the legacy ss prefix to obbw bring it to 40322; rename owner-requested 2026-10-21.
+if (sentinelRuntimeGzip.length > 40322) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 40322-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -1042,8 +1043,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // A reconnect keeps the presets it already holds brings it to 67797; owner-requested 2026-10-21.
 // Stats rows as column-ordered values brings it to 67829; owner-requested 2026-10-21.
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect brings it to 67869; owner-requested 2026-10-21.
-if (coldHomeGzip > 67869) {
-  throw new Error(`Cold Home download exceeds the 67869-byte gzip budget (${coldHomeGzip})`);
+// Browser storage keys renamed from the legacy ss prefix to obbw bring it to 67885; rename owner-requested 2026-10-21.
+if (coldHomeGzip > 67885) {
+  throw new Error(`Cold Home download exceeds the 67885-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

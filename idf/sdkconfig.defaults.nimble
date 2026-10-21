@@ -39,8 +39,8 @@ CONFIG_BT_NIMBLE_MAX_CONN_REATTEMPT=3
 CONFIG_BT_NIMBLE_50_FEATURE_SUPPORT=y
 # CONFIG_BT_NIMBLE_MESH is not set
 
-# Shot Stopper registers only the standard GAP/GATT services. ESP-IDF enables
-# these unrelated services by default; keep them out of production.
+# Open Brew by Weight registers only the standard GAP/GATT services. ESP-IDF
+# enables these unrelated services by default; keep them out of production.
 # CONFIG_BT_NIMBLE_PROX_SERVICE is not set
 # CONFIG_BT_NIMBLE_ANS_SERVICE is not set
 # CONFIG_BT_NIMBLE_CTS_SERVICE is not set

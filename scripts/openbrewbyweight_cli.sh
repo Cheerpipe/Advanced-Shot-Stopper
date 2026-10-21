@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared named-flag front end for the Shot Stopper developer scripts.
+# Shared named-flag front end for the Open Brew by Weight developer scripts.
 # Source from other scripts; do not execute this file directly.
 #
 # Build profiles: --release (the default) compiles with neither the admin
@@ -24,96 +24,96 @@
 # Written for bash 3.2 (the system bash on macOS): no associative arrays,
 # no ${var,,} case conversion.
 
-SS_CLI_KEYS="port arch speed host password flags image build_dir output_dir webui_language hardware_config machine_config"
-SS_CLI_SECRET_KEYS="password"
+OBBW_CLI_KEYS="port arch speed host password flags image build_dir output_dir webui_language hardware_config machine_config"
+OBBW_CLI_SECRET_KEYS="password"
 # Extra compiler flags offered when the prompt for --flags is answered with Enter.
-SS_CLI_DEFAULT_FLAGS='-Werror=deprecated-copy'
+OBBW_CLI_DEFAULT_FLAGS='-Werror=deprecated-copy'
 # Per-run path overrides. Persisting them would let a stale build_dir silently
 # point an analysis at the wrong architecture, so they never touch the store.
-SS_CLI_TRANSIENT_KEYS="image build_dir output_dir webui_language hardware_config machine_config"
+OBBW_CLI_TRANSIENT_KEYS="image build_dir output_dir webui_language hardware_config machine_config"
 
-if [[ -z "${SS_CLI_ROOT:-}" ]]; then
-  SS_CLI_ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -z "${OBBW_CLI_ROOT:-}" ]]; then
+  OBBW_CLI_ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
-SS_CLI_STORE="$SS_CLI_ROOT/.openbrewbyweight"
+OBBW_CLI_STORE="$OBBW_CLI_ROOT/.openbrewbyweight"
 # Analysis builds (warnings-idf) point this at their own tree so toggling
 # analysis-only flags never reconfigures the gate's variant builds.
-SS_IDF_BUILD_ROOT="${OPENBREWBYWEIGHT_IDF_BUILD_ROOT:-$SS_CLI_ROOT/build-idf}"
+OBBW_IDF_BUILD_ROOT="${OPENBREWBYWEIGHT_IDF_BUILD_ROOT:-$OBBW_CLI_ROOT/build-idf}"
 
-ss_upper() {
+obbw_upper() {
   printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
 }
 
-ss_is_secret() {
-  case " $SS_CLI_SECRET_KEYS " in
+obbw_is_secret() {
+  case " $OBBW_CLI_SECRET_KEYS " in
     *" $1 "*) return 0 ;;
   esac
   return 1
 }
 
-ss_is_transient() {
-  case " $SS_CLI_TRANSIENT_KEYS " in
+obbw_is_transient() {
+  case " $OBBW_CLI_TRANSIENT_KEYS " in
     *" $1 "*) return 0 ;;
   esac
   return 1
 }
 
-ss_set() {
-  eval "SS_$(ss_upper "$1")=\$2"
+obbw_set() {
+  eval "OBBW_$(obbw_upper "$1")=\$2"
 }
 
-ss_get() {
-  eval "printf '%s' \"\${SS_$(ss_upper "$1")-}\""
+obbw_get() {
+  eval "printf '%s' \"\${OBBW_$(obbw_upper "$1")-}\""
 }
 
-ss_origin_set() {
-  eval "SS_ORIGIN_$(ss_upper "$1")=\$2"
+obbw_origin_set() {
+  eval "OBBW_ORIGIN_$(obbw_upper "$1")=\$2"
 }
 
-ss_origin() {
-  eval "printf '%s' \"\${SS_ORIGIN_$(ss_upper "$1")-}\""
+obbw_origin() {
+  eval "printf '%s' \"\${OBBW_ORIGIN_$(obbw_upper "$1")-}\""
 }
 
 # A key counts as set when it has an origin, so an explicitly empty --flags
 # is distinguishable from "never provided".
-ss_is_set() {
-  [[ -n "$(ss_origin "$1")" ]]
+obbw_is_set() {
+  [[ -n "$(obbw_origin "$1")" ]]
 }
 
-ss_put() {
-  ss_set "$1" "$2"
-  ss_origin_set "$1" "$3"
+obbw_put() {
+  obbw_set "$1" "$2"
+  obbw_origin_set "$1" "$3"
 }
 
-ss_cli_forget() {
-  ss_set "$1" ""
-  ss_origin_set "$1" ""
+obbw_cli_forget() {
+  obbw_set "$1" ""
+  obbw_origin_set "$1" ""
 }
 
 # True when the path is a present device node (not merely a non-empty string).
-ss_port_exists() {
+obbw_port_exists() {
   [[ -n "$1" && -e "$1" ]]
 }
 
-ss_cli_reset() {
+obbw_cli_reset() {
   local key
-  SS_CLI_YES=0
-  SS_CLI_WAIT_FOR_CONFIRMATION=0
-  SS_CLI_NO_CHECK=0
-  SS_CLI_ERASE_ALL=0
-  SS_CLI_DISCARD_OTA_SESSION=0
-  SS_CLI_RELEASE=0
-  SS_CLI_DEVELOPMENT=0
-  SS_CLI_NO_AUTH_ADMIN=0
-  SS_CLI_JTAG=0
-  SS_CLI_FORCE_SDKCONFIG_REGENERATE=0
-  for key in $SS_CLI_KEYS; do
-    ss_set "$key" ""
-    ss_origin_set "$key" ""
+  OBBW_CLI_YES=0
+  OBBW_CLI_WAIT_FOR_CONFIRMATION=0
+  OBBW_CLI_NO_CHECK=0
+  OBBW_CLI_ERASE_ALL=0
+  OBBW_CLI_DISCARD_OTA_SESSION=0
+  OBBW_CLI_RELEASE=0
+  OBBW_CLI_DEVELOPMENT=0
+  OBBW_CLI_NO_AUTH_ADMIN=0
+  OBBW_CLI_JTAG=0
+  OBBW_CLI_FORCE_SDKCONFIG_REGENERATE=0
+  for key in $OBBW_CLI_KEYS; do
+    obbw_set "$key" ""
+    obbw_origin_set "$key" ""
   done
 }
 
-ss_env_name() {
+obbw_env_name() {
   case "$1" in
     port) printf 'OPENBREWBYWEIGHT_PORT' ;;
     arch) printf 'OPENBREWBYWEIGHT_ARCH' ;;
@@ -130,7 +130,7 @@ ss_env_name() {
   esac
 }
 
-ss_flag_help() {
+obbw_flag_help() {
   cat <<'EOF'
 Named parameters (long and short):
   -p, --port <path>        Serial port, e.g. /dev/cu.usbmodem2101
@@ -186,31 +186,31 @@ After resolving parameters, the values used are saved to .openbrewbyweight
 EOF
 }
 
-SS_CLI_HELP_REQUESTED=0
-SS_CLI_YES=0
-SS_CLI_WAIT_FOR_CONFIRMATION=0
-SS_CLI_NO_CHECK=0
-SS_CLI_ERASE_ALL=0
-SS_CLI_DISCARD_OTA_SESSION=0
-SS_CLI_RELEASE=0
-SS_CLI_DEVELOPMENT=0
-SS_CLI_NO_AUTH_ADMIN=0
-SS_CLI_JTAG=0
-SS_CLI_FORCE_SDKCONFIG_REGENERATE=0
-SS_CLI_OPT_LEVEL=""
+OBBW_CLI_HELP_REQUESTED=0
+OBBW_CLI_YES=0
+OBBW_CLI_WAIT_FOR_CONFIRMATION=0
+OBBW_CLI_NO_CHECK=0
+OBBW_CLI_ERASE_ALL=0
+OBBW_CLI_DISCARD_OTA_SESSION=0
+OBBW_CLI_RELEASE=0
+OBBW_CLI_DEVELOPMENT=0
+OBBW_CLI_NO_AUTH_ADMIN=0
+OBBW_CLI_JTAG=0
+OBBW_CLI_FORCE_SDKCONFIG_REGENERATE=0
+OBBW_CLI_OPT_LEVEL=""
 
-ss_cli_die() {
+obbw_cli_die() {
   printf '%s\n' "$1" >&2
 }
 
 # Parses named flags. Positional arguments are rejected because these
 # scripts used to take them.
-ss_cli_parse() {
+obbw_cli_parse() {
   local key value
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --yes)
-        SS_CLI_YES=1
+        OBBW_CLI_YES=1
         shift
         continue
         ;;
@@ -219,7 +219,7 @@ ss_cli_parse() {
         return 2
         ;;
       --wait-for-confirmation)
-        SS_CLI_WAIT_FOR_CONFIRMATION=1
+        OBBW_CLI_WAIT_FOR_CONFIRMATION=1
         shift
         continue
         ;;
@@ -232,7 +232,7 @@ ss_cli_parse() {
         return 2
         ;;
       --no-check)
-        SS_CLI_NO_CHECK=1
+        OBBW_CLI_NO_CHECK=1
         shift
         continue
         ;;
@@ -241,7 +241,7 @@ ss_cli_parse() {
         return 2
         ;;
       --erase-all)
-        SS_CLI_ERASE_ALL=1
+        OBBW_CLI_ERASE_ALL=1
         shift
         continue
         ;;
@@ -250,7 +250,7 @@ ss_cli_parse() {
         return 2
         ;;
       --discard-ota-session)
-        SS_CLI_DISCARD_OTA_SESSION=1
+        OBBW_CLI_DISCARD_OTA_SESSION=1
         shift
         continue
         ;;
@@ -259,7 +259,7 @@ ss_cli_parse() {
         return 2
         ;;
       --development)
-        SS_CLI_DEVELOPMENT=1
+        OBBW_CLI_DEVELOPMENT=1
         shift
         continue
         ;;
@@ -268,7 +268,7 @@ ss_cli_parse() {
         return 2
         ;;
       --release)
-        SS_CLI_RELEASE=1
+        OBBW_CLI_RELEASE=1
         shift
         continue
         ;;
@@ -277,7 +277,7 @@ ss_cli_parse() {
         return 2
         ;;
       --no-auth-admin)
-        SS_CLI_NO_AUTH_ADMIN=1
+        OBBW_CLI_NO_AUTH_ADMIN=1
         shift
         continue
         ;;
@@ -286,7 +286,7 @@ ss_cli_parse() {
         return 2
         ;;
       --jtag)
-        SS_CLI_JTAG=1
+        OBBW_CLI_JTAG=1
         shift
         continue
         ;;
@@ -295,7 +295,7 @@ ss_cli_parse() {
         return 2
         ;;
       --force-sdkconfig-regenerate)
-        SS_CLI_FORCE_SDKCONFIG_REGENERATE=1
+        OBBW_CLI_FORCE_SDKCONFIG_REGENERATE=1
         shift
         continue
         ;;
@@ -304,12 +304,12 @@ ss_cli_parse() {
         return 2
         ;;
       --o0|--og|--o2|--os)
-        if [[ -n "$SS_CLI_OPT_LEVEL" && "$SS_CLI_OPT_LEVEL" != "$1" ]]; then
+        if [[ -n "$OBBW_CLI_OPT_LEVEL" && "$OBBW_CLI_OPT_LEVEL" != "$1" ]]; then
           printf 'Optimization levels are exclusive: %s already selected.\n' \
-            "$SS_CLI_OPT_LEVEL" >&2
+            "$OBBW_CLI_OPT_LEVEL" >&2
           return 2
         fi
-        SS_CLI_OPT_LEVEL="$1"
+        OBBW_CLI_OPT_LEVEL="$1"
         shift
         continue
         ;;
@@ -344,19 +344,19 @@ ss_cli_parse() {
         key="machine_config"
         ;;
       -h|--help|help)
-        SS_CLI_HELP_REQUESTED=1
+        OBBW_CLI_HELP_REQUESTED=1
         return 0
         ;;
       -*)
         printf 'Unknown option: %s\n\n' "$1" >&2
-        ss_flag_help >&2
+        obbw_flag_help >&2
         return 2
         ;;
       *)
         printf 'Positional argument not allowed: %s\n' "$1" >&2
         printf 'Scripts now use named parameters.\n' >&2
         printf 'For example: --port /dev/cu.usbmodem2101 --arch n16r8 --speed 115200\n\n' >&2
-        ss_flag_help >&2
+        obbw_flag_help >&2
         return 2
         ;;
     esac
@@ -385,25 +385,25 @@ ss_cli_parse() {
         esac
       done
     fi
-    ss_put "$key" "$value" "cli"
+    obbw_put "$key" "$value" "cli"
   done
-  if [[ "$SS_CLI_DEVELOPMENT" == "1" && "$SS_CLI_RELEASE" == "1" ]]; then
+  if [[ "$OBBW_CLI_DEVELOPMENT" == "1" && "$OBBW_CLI_RELEASE" == "1" ]]; then
     printf '%s\n' '--development and --release are mutually exclusive build profiles.' >&2
     return 2
   fi
   # --development selects the debug profile: admin unlock plus the JTAG
   # console. --release is the explicit form of the default and keeps any
   # individually requested --jtag/--no-auth-admin switches.
-  if [[ "$SS_CLI_DEVELOPMENT" == "1" ]]; then
-    SS_CLI_NO_AUTH_ADMIN=1
-    SS_CLI_JTAG=1
+  if [[ "$OBBW_CLI_DEVELOPMENT" == "1" ]]; then
+    OBBW_CLI_NO_AUTH_ADMIN=1
+    OBBW_CLI_JTAG=1
   fi
   return 0
 }
 
 # g++ treats a bare MACRO=value token as a linker input. Prefix -D so
 # OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1 is a define, not a missing file.
-ss_normalize_compiler_flags() {
+obbw_normalize_compiler_flags() {
   local raw="$1" out="" tok
   # Word-splitting is intentional: extra_flags is a space-separated list.
   # shellcheck disable=SC2086
@@ -417,17 +417,17 @@ ss_normalize_compiler_flags() {
   printf '%s' "${out# }"
 }
 
-ss_cli_apply_env() {
+obbw_cli_apply_env() {
   local key name value
-  for key in $SS_CLI_KEYS; do
-    ss_is_set "$key" && continue
-    name="$(ss_env_name "$key")"
+  for key in $OBBW_CLI_KEYS; do
+    obbw_is_set "$key" && continue
+    name="$(obbw_env_name "$key")"
     [[ -n "$name" ]] || continue
     eval "value=\${$name-}"
     # Only an exported, non-empty value counts; an empty export is ignored so
     # a stale `export OPENBREWBYWEIGHT_HOST=` cannot silently win over the store.
     [[ -n "$value" ]] || continue
-    ss_put "$key" "$value" "env"
+    obbw_put "$key" "$value" "env"
   done
 }
 
@@ -435,34 +435,34 @@ ss_cli_apply_env() {
 # deliberately kept outside .openbrewbyweight so they cannot affect a later build:
 # --development means --no-auth-admin plus --jtag, --release means neither,
 # and --no-auth-admin and --jtag also work individually on a release build.
-ss_cli_effective_flags() {
+obbw_cli_effective_flags() {
   local raw token found=0 jtag=0
-  raw="$(ss_get flags)"
+  raw="$(obbw_get flags)"
   # Word-splitting is intentional: flags are stored as a space-separated list.
   # shellcheck disable=SC2086
   set -- $raw
   for token in "$@"; do
     case "$token" in
       -DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=0|OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0)
-        if [[ "$SS_CLI_NO_AUTH_ADMIN" == "1" ]]; then
-          ss_cli_die "--no-auth-admin conflicts with OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0 in --flags."
+        if [[ "$OBBW_CLI_NO_AUTH_ADMIN" == "1" ]]; then
+          obbw_cli_die "--no-auth-admin conflicts with OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0 in --flags."
           return 2
         fi
         ;;
       -DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1|OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1) found=1 ;;
       -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0|OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0)
-        if [[ "$SS_CLI_JTAG" == "1" ]]; then
-          ss_cli_die "--jtag conflicts with OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0 in --flags."
+        if [[ "$OBBW_CLI_JTAG" == "1" ]]; then
+          obbw_cli_die "--jtag conflicts with OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0 in --flags."
           return 2
         fi
         ;;
       -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1|OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1) jtag=1 ;;
     esac
   done
-  if [[ "$SS_CLI_JTAG" == "1" && "$jtag" != "1" ]]; then
+  if [[ "$OBBW_CLI_JTAG" == "1" && "$jtag" != "1" ]]; then
     raw="${raw:+$raw }-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1"
   fi
-  if [[ "$SS_CLI_NO_AUTH_ADMIN" != "1" || "$found" == "1" ]]; then
+  if [[ "$OBBW_CLI_NO_AUTH_ADMIN" != "1" || "$found" == "1" ]]; then
     printf '%s' "$raw"
   else
     printf '%s' "${raw:+$raw }-DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1"
@@ -471,39 +471,39 @@ ss_cli_effective_flags() {
 
 # Resolves the selected pair once and exports the target/build identity used by
 # build, flash, OTA, and combined workflows. The caller must resolve both keys.
-ss_cli_resolve_profiles() {
+obbw_cli_resolve_profiles() {
   local flags="${1:-}" mode="${2:-write}" resolved_arch
   local resolver_flags=()
   [[ "$mode" == "check" ]] && resolver_flags+=(--check-only)
-  SS_PROFILE_OUTPUT="$(python3 "$SS_CLI_ROOT/scripts/resolve_build_profiles.py" \
-    --hardware "$(ss_get hardware_config)" --machine "$(ss_get machine_config)" \
-    --flags="$flags" --output-root "$SS_IDF_BUILD_ROOT" \
+  OBBW_PROFILE_OUTPUT="$(python3 "$OBBW_CLI_ROOT/scripts/resolve_build_profiles.py" \
+    --hardware "$(obbw_get hardware_config)" --machine "$(obbw_get machine_config)" \
+    --flags="$flags" --output-root "$OBBW_IDF_BUILD_ROOT" \
     ${resolver_flags[@]+"${resolver_flags[@]}"})" || return $?
-  resolved_arch="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^arch=//p')"
-  OPENBREWBYWEIGHT_VARIANT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^variant=//p')"
-  OPENBREWBYWEIGHT_HARDWARE_COMPAT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^hardware_compat=//p')"
-  OPENBREWBYWEIGHT_MACHINE_COMPAT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^machine_compat=//p')"
-  OPENBREWBYWEIGHT_MACHINE_INTEGRATION="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^machine_integration=//p')"
-  OPENBREWBYWEIGHT_GENERATED_DIR="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^generated_dir=//p')"
+  resolved_arch="$(printf '%s\n' "$OBBW_PROFILE_OUTPUT" | sed -n 's/^arch=//p')"
+  OPENBREWBYWEIGHT_VARIANT="$(printf '%s\n' "$OBBW_PROFILE_OUTPUT" | sed -n 's/^variant=//p')"
+  OPENBREWBYWEIGHT_HARDWARE_COMPAT="$(printf '%s\n' "$OBBW_PROFILE_OUTPUT" | sed -n 's/^hardware_compat=//p')"
+  OPENBREWBYWEIGHT_MACHINE_COMPAT="$(printf '%s\n' "$OBBW_PROFILE_OUTPUT" | sed -n 's/^machine_compat=//p')"
+  OPENBREWBYWEIGHT_MACHINE_INTEGRATION="$(printf '%s\n' "$OBBW_PROFILE_OUTPUT" | sed -n 's/^machine_integration=//p')"
+  OPENBREWBYWEIGHT_GENERATED_DIR="$(printf '%s\n' "$OBBW_PROFILE_OUTPUT" | sed -n 's/^generated_dir=//p')"
   if [[ -z "$resolved_arch" || -z "$OPENBREWBYWEIGHT_VARIANT" ||
     -z "$OPENBREWBYWEIGHT_HARDWARE_COMPAT" || -z "$OPENBREWBYWEIGHT_MACHINE_COMPAT" ||
     -z "$OPENBREWBYWEIGHT_MACHINE_INTEGRATION" ||
     -z "$OPENBREWBYWEIGHT_GENERATED_DIR" ]]; then
-    ss_cli_die "Profile resolver returned incomplete build metadata."
+    obbw_cli_die "Profile resolver returned incomplete build metadata."
     return 2
   fi
-  if ss_is_set arch && { [[ "$(ss_origin arch)" == "cli" ]] ||
-                         [[ "$(ss_origin arch)" == "env" ]]; } &&
-     [[ "$(ss_get arch)" != "$resolved_arch" ]]; then
-    ss_cli_die "--arch $(ss_get arch) conflicts with profile target $resolved_arch."
+  if obbw_is_set arch && { [[ "$(obbw_origin arch)" == "cli" ]] ||
+                         [[ "$(obbw_origin arch)" == "env" ]]; } &&
+     [[ "$(obbw_get arch)" != "$resolved_arch" ]]; then
+    obbw_cli_die "--arch $(obbw_get arch) conflicts with profile target $resolved_arch."
     return 2
   fi
-  ss_put arch "$resolved_arch" profile
+  obbw_put arch "$resolved_arch" profile
   export OPENBREWBYWEIGHT_VARIANT OPENBREWBYWEIGHT_MACHINE_INTEGRATION OPENBREWBYWEIGHT_GENERATED_DIR
 }
 
-ss_cli_load_store() {
-  [[ -f "$SS_CLI_STORE" ]] || return 0
+obbw_cli_load_store() {
+  [[ -f "$OBBW_CLI_STORE" ]] || return 0
   local line key value
   while IFS= read -r line || [[ -n "$line" ]]; do
     case "$line" in
@@ -513,22 +513,22 @@ ss_cli_load_store() {
     esac
     key="${line%%=*}"
     value="${line#*=}"
-    case " $SS_CLI_KEYS " in
+    case " $OBBW_CLI_KEYS " in
       *" $key "*) ;;
       *) continue ;;
     esac
-    ss_is_transient "$key" && continue
-    ss_is_secret "$key" && continue
-    ss_is_set "$key" && continue
-    ss_put "$key" "$value" "store"
-  done < "$SS_CLI_STORE"
+    obbw_is_transient "$key" && continue
+    obbw_is_secret "$key" && continue
+    obbw_is_set "$key" && continue
+    obbw_put "$key" "$value" "store"
+  done < "$OBBW_CLI_STORE"
   return 0
 }
 
 # Reads one key from the store file without touching session state.
-ss_cli_store_value() {
+obbw_cli_store_value() {
   local want="$1" line key value
-  [[ -f "$SS_CLI_STORE" ]] || return 1
+  [[ -f "$OBBW_CLI_STORE" ]] || return 1
   while IFS= read -r line || [[ -n "$line" ]]; do
     case "$line" in
       ''|'#'*) continue ;;
@@ -540,14 +540,14 @@ ss_cli_store_value() {
     value="${line#*=}"
     printf '%s' "$value"
     return 0
-  done < "$SS_CLI_STORE"
+  done < "$OBBW_CLI_STORE"
   return 1
 }
 
-ss_display_value() {
+obbw_display_value() {
   local key="$1" value
-  value="$(ss_get "$key")"
-  if ss_is_secret "$key"; then
+  value="$(obbw_get "$key")"
+  if obbw_is_secret "$key"; then
     if [[ -n "$value" ]]; then
       printf '********'
     else
@@ -563,16 +563,16 @@ ss_display_value() {
 }
 
 # Prints which values come from where, and which ones are still missing.
-ss_cli_summary() {
+obbw_cli_summary() {
   local wanted="$1" missing="$2"
   local key line_cli="" line_env="" line_store="" line_default=""
   for key in $wanted; do
-    ss_is_set "$key" || continue
-    case "$(ss_origin "$key")" in
-      cli) line_cli="$line_cli $key=$(ss_display_value "$key")" ;;
-      env) line_env="$line_env $key=$(ss_display_value "$key")" ;;
-      store) line_store="$line_store $key=$(ss_display_value "$key")" ;;
-      default) line_default="$line_default $key=$(ss_display_value "$key")" ;;
+    obbw_is_set "$key" || continue
+    case "$(obbw_origin "$key")" in
+      cli) line_cli="$line_cli $key=$(obbw_display_value "$key")" ;;
+      env) line_env="$line_env $key=$(obbw_display_value "$key")" ;;
+      store) line_store="$line_store $key=$(obbw_display_value "$key")" ;;
+      default) line_default="$line_default $key=$(obbw_display_value "$key")" ;;
     esac
   done
   [[ -n "$line_cli" ]] && printf 'From CLI:                %s\n' "${line_cli# }"
@@ -585,12 +585,12 @@ ss_cli_summary() {
   return 0
 }
 
-ss_can_prompt() {
+obbw_can_prompt() {
   [[ -z "${OPENBREWBYWEIGHT_NONINTERACTIVE:-}" ]] &&
     [[ -r /dev/tty ]] && [[ -w /dev/tty ]]
 }
 
-ss_prompt_text() {
+obbw_prompt_text() {
   case "$1" in
     port) printf 'Serial port' ;;
     arch) printf 'Architecture (n16r8)' ;;
@@ -608,9 +608,9 @@ ss_prompt_text() {
 }
 
 # Suggestion shown in [brackets] and used when the user presses Enter.
-ss_prompt_suggestion() {
+obbw_prompt_suggestion() {
   local key="$1" current detected
-  ss_is_secret "$key" && return 0
+  obbw_is_secret "$key" && return 0
 
   # Port prompts always prefer a live USB-CDC device over a stale saved path.
   if [[ "$key" == "port" ]]; then
@@ -621,13 +621,13 @@ ss_prompt_suggestion() {
         return 0
       fi
     fi
-    current="$(ss_get port)"
-    if ss_port_exists "$current"; then
+    current="$(obbw_get port)"
+    if obbw_port_exists "$current"; then
       printf '%s' "$current"
       return 0
     fi
-    current="$(ss_cli_store_value port 2>/dev/null || true)"
-    if ss_port_exists "$current"; then
+    current="$(obbw_cli_store_value port 2>/dev/null || true)"
+    if obbw_port_exists "$current"; then
       printf '%s' "$current"
       return 0
     fi
@@ -635,12 +635,12 @@ ss_prompt_suggestion() {
     return 0
   fi
 
-  current="$(ss_get "$key")"
+  current="$(obbw_get "$key")"
   if [[ -n "$current" ]]; then
     printf '%s' "$current"
     return 0
   fi
-  current="$(ss_cli_store_value "$key" 2>/dev/null || true)"
+  current="$(obbw_cli_store_value "$key" 2>/dev/null || true)"
   if [[ -n "$current" ]]; then
     printf '%s' "$current"
     return 0
@@ -650,7 +650,7 @@ ss_prompt_suggestion() {
     speed) printf '115200' ;;
     host) printf '192.168.4.1' ;;
     password) return 0 ;;
-    flags) printf '%s' "$SS_CLI_DEFAULT_FLAGS" ;;
+    flags) printf '%s' "$OBBW_CLI_DEFAULT_FLAGS" ;;
     build_dir) printf 'build/n16r8' ;;
     output_dir) printf 'reports/static-analysis' ;;
     webui_language) printf 'en' ;;
@@ -658,7 +658,7 @@ ss_prompt_suggestion() {
   esac
 }
 
-ss_prompt_hint() {
+obbw_prompt_hint() {
   local detected
   case "$1" in
     port)
@@ -678,17 +678,17 @@ ss_prompt_hint() {
   esac
 }
 
-ss_prompt_one() {
+obbw_prompt_one() {
   local key="$1" prompt value suggestion
-  prompt="$(ss_prompt_text "$key")"
-  suggestion="$(ss_prompt_suggestion "$key")"
-  ss_prompt_hint "$key"
+  prompt="$(obbw_prompt_text "$key")"
+  suggestion="$(obbw_prompt_suggestion "$key")"
+  obbw_prompt_hint "$key"
   if [[ -n "$suggestion" ]]; then
     printf '%s [%s]: ' "$prompt" "$suggestion" > /dev/tty
   else
     printf '%s: ' "$prompt" > /dev/tty
   fi
-  if ss_is_secret "$key"; then
+  if obbw_is_secret "$key"; then
     IFS= read -r -s value < /dev/tty || return 1
     printf '\n' > /dev/tty
   else
@@ -697,13 +697,13 @@ ss_prompt_one() {
   if [[ -z "$value" && -n "$suggestion" ]]; then
     value="$suggestion"
   fi
-  ss_put "$key" "$value" "prompt"
+  obbw_put "$key" "$value" "prompt"
   return 0
 }
 
-ss_validate_key() {
+obbw_validate_key() {
   local key="$1" value
-  value="$(ss_get "$key")"
+  value="$(obbw_get "$key")"
   case "$key" in
     arch)
       # openbrewbyweight_resolve_board prints its own diagnostics.
@@ -712,57 +712,57 @@ ss_validate_key() {
     speed)
       case "$value" in
         ''|*[!0-9]*)
-          ss_cli_die "Invalid baud rate: '$value' (digits only)."
+          obbw_cli_die "Invalid baud rate: '$value' (digits only)."
           return 1
           ;;
       esac
       ;;
     host)
       if [[ -z "$value" ]]; then
-        ss_cli_die "Parameter --host cannot be empty."
+        obbw_cli_die "Parameter --host cannot be empty."
         return 1
       fi
       case "$value" in
         *[[:space:]]*)
-          ss_cli_die "Invalid host: '$value' (must not contain spaces)."
+          obbw_cli_die "Invalid host: '$value' (must not contain spaces)."
           return 1
           ;;
       esac
       ;;
     port)
       if [[ -z "$value" ]]; then
-        ss_cli_die "Parameter --port cannot be empty."
+        obbw_cli_die "Parameter --port cannot be empty."
         return 1
       fi
-      if ! ss_port_exists "$value"; then
-        ss_cli_die "Serial port $value does not exist."
+      if ! obbw_port_exists "$value"; then
+        obbw_cli_die "Serial port $value does not exist."
         return 1
       fi
       ;;
     password|image|build_dir|output_dir|hardware_config|machine_config)
       if [[ -z "$value" ]]; then
-        ss_cli_die "Parameter --$(printf '%s' "$key" | tr '_' '-') cannot be empty."
+        obbw_cli_die "Parameter --$(printf '%s' "$key" | tr '_' '-') cannot be empty."
         return 1
       fi
       ;;
     flags)
       if [[ -n "$value" ]]; then
-        ss_put flags "$(ss_normalize_compiler_flags "$value")" "$(ss_origin flags)"
+        obbw_put flags "$(obbw_normalize_compiler_flags "$value")" "$(obbw_origin flags)"
       fi
       ;;
     webui_language)
       value="$(printf '%s' "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | tr '_' '-' | tr '[:upper:]' '[:lower:]')"
       if [[ ! "$value" =~ ^[a-z]{2,3}(-[a-z0-9]{2,8})*$ ]]; then
-        ss_cli_die "Invalid WebUI language: '$(ss_get webui_language)'."
+        obbw_cli_die "Invalid WebUI language: '$(obbw_get webui_language)'."
         return 1
       fi
-      ss_put webui_language "$value" "$(ss_origin webui_language)"
+      obbw_put webui_language "$value" "$(obbw_origin webui_language)"
       ;;
   esac
   return 0
 }
 
-# ss_cli_resolve "<required keys>" ["<optional keys to ask once>"]
+# obbw_cli_resolve "<required keys>" ["<optional keys to ask once>"]
 # Loads env + store, prints the summary, prompts for what is missing and
 # validates the result. Fails with exit code 2 when it cannot prompt.
 #
@@ -770,31 +770,31 @@ ss_validate_key() {
 # vanished USB path, or a bad CLI/env value) is forgotten and prompted the
 # same way as an unset password: suggest the first live USB-CDC port, accept
 # Enter, then persist the chosen path.
-ss_cli_resolve() {
+obbw_cli_resolve() {
   local required="$1" optional="${2:-}"
   local wanted="$required $optional"
   local key missing="" port_val
 
-  ss_cli_apply_env
-  ss_cli_load_store
-  if [[ " $wanted " == *" webui_language "* ]] && ! ss_is_set webui_language; then
-    ss_put webui_language "en" "default"
+  obbw_cli_apply_env
+  obbw_cli_load_store
+  if [[ " $wanted " == *" webui_language "* ]] && ! obbw_is_set webui_language; then
+    obbw_put webui_language "en" "default"
   fi
 
   # Drop unusable ports before the missing-key scan so flash/monitor prompt
   # early instead of failing after a long build.
-  if [[ " $required " == *" port "* ]] && ss_is_set port; then
-    port_val="$(ss_get port)"
-    if ! ss_port_exists "$port_val"; then
+  if [[ " $required " == *" port "* ]] && obbw_is_set port; then
+    port_val="$(obbw_get port)"
+    if ! obbw_port_exists "$port_val"; then
       if [[ -n "$port_val" ]]; then
         printf 'Serial port %s does not exist.\n' "$port_val" >&2
       fi
-      ss_cli_forget port
+      obbw_cli_forget port
     fi
   fi
 
   for key in $required; do
-    ss_is_set "$key" || missing="$missing $key"
+    obbw_is_set "$key" || missing="$missing $key"
   done
   missing="${missing# }"
 
@@ -802,30 +802,30 @@ ss_cli_resolve() {
   # non-interactive run. Prompting for them only happens when a TTY is there.
   local optional_missing=""
   for key in $optional; do
-    ss_is_set "$key" && continue
+    obbw_is_set "$key" && continue
     optional_missing="$optional_missing $key"
   done
   optional_missing="${optional_missing# }"
 
-  ss_cli_summary "$wanted" "$missing"
+  obbw_cli_summary "$wanted" "$missing"
 
-  if [[ -n "$optional_missing" ]] && ss_can_prompt; then
+  if [[ -n "$optional_missing" ]] && obbw_can_prompt; then
     for key in $optional_missing; do
-      ss_prompt_one "$key" || {
+      obbw_prompt_one "$key" || {
         printf 'Input interrupted.\n' >&2
         return 2
       }
     done
   elif [[ -n "$optional_missing" ]]; then
     for key in $optional_missing; do
-      ss_put "$key" "" "default"
+      obbw_put "$key" "" "default"
     done
   fi
 
   if [[ -n "$missing" ]]; then
-    if ! ss_can_prompt; then
+    if ! obbw_can_prompt; then
       printf '\nNo interactive terminal to prompt for: %s\n' "$missing" >&2
-      printf 'Pass them as flags or save them in %s.\n' "$SS_CLI_STORE" >&2
+      printf 'Pass them as flags or save them in %s.\n' "$OBBW_CLI_STORE" >&2
       case " $missing " in
         *' host '*)
           printf 'The IP appears under Admin/Diagnostic in the Web UI; on SoftAP it is 192.168.4.1.\n' >&2
@@ -837,7 +837,7 @@ ss_cli_resolve() {
       return 2
     fi
     for key in $missing; do
-      ss_prompt_one "$key" || {
+      obbw_prompt_one "$key" || {
         printf 'Input interrupted.\n' >&2
         return 2
       }
@@ -845,12 +845,12 @@ ss_cli_resolve() {
   fi
 
   for key in $wanted; do
-    ss_is_set "$key" || continue
-    while ! ss_validate_key "$key"; do
+    obbw_is_set "$key" || continue
+    while ! obbw_validate_key "$key"; do
       # Wrong path typed at the prompt: ask again instead of aborting the run.
-      if [[ "$key" == "port" ]] && ss_can_prompt; then
-        ss_cli_forget port
-        ss_prompt_one port || {
+      if [[ "$key" == "port" ]] && obbw_can_prompt; then
+        obbw_cli_forget port
+        obbw_prompt_one port || {
           printf 'Input interrupted.\n' >&2
           return 2
         }
@@ -859,11 +859,11 @@ ss_cli_resolve() {
       return 2
     done
   done
-  ss_cli_save
+  obbw_cli_save
   return 0
 }
 
-ss_cli_save() {
+obbw_cli_save() {
   local key value tmp
   tmp="${TMPDIR:-/tmp}/openbrewbyweight.XXXXXX"
   tmp="$(mktemp "$tmp")" || return 0
@@ -871,13 +871,13 @@ ss_cli_save() {
   {
     printf '# Values remembered by the Open Brew by Weight scripts.\n'
     printf '# Local file, ignored by git. Does not store the device password.\n'
-    for key in $SS_CLI_KEYS; do
-      ss_is_transient "$key" && continue
-      ss_is_secret "$key" && continue
-      if ss_is_set "$key"; then
-        value="$(ss_get "$key")"
+    for key in $OBBW_CLI_KEYS; do
+      obbw_is_transient "$key" && continue
+      obbw_is_secret "$key" && continue
+      if obbw_is_set "$key"; then
+        value="$(obbw_get "$key")"
       else
-        value="$(ss_cli_store_value "$key" 2>/dev/null || true)"
+        value="$(obbw_cli_store_value "$key" 2>/dev/null || true)"
       fi
       [[ -n "$value" ]] || continue
       # A newline in a stored value would split into a second "key=value" line
@@ -888,18 +888,18 @@ ss_cli_save() {
       printf '%s=%s\n' "$key" "$value"
     done
   } > "$tmp"
-  mv -f "$tmp" "$SS_CLI_STORE" 2>/dev/null || rm -f "$tmp"
-  chmod 600 "$SS_CLI_STORE" 2>/dev/null || true
+  mv -f "$tmp" "$OBBW_CLI_STORE" 2>/dev/null || rm -f "$tmp"
+  chmod 600 "$OBBW_CLI_STORE" 2>/dev/null || true
   return 0
 }
 
 # Make an explicitly selected firmware image absolute before wrapper scripts
 # change to the repository root. The override is deliberately transient: a
 # stale release image must never become the next command's surprise default.
-ss_cli_normalize_image() {
+obbw_cli_normalize_image() {
   local image dir base origin
-  ss_is_set image || return 0
-  image="$(ss_get image)"
+  obbw_is_set image || return 0
+  image="$(obbw_get image)"
   if [[ ! -f "$image" || ! -r "$image" ]]; then
     printf 'Firmware image does not exist or is not readable: %s\n' "$image" >&2
     return 2
@@ -907,94 +907,94 @@ ss_cli_normalize_image() {
   dir="$(dirname -- "$image")"
   base="$(basename -- "$image")"
   dir="$(CDPATH= cd -- "$dir" && pwd -P)" || return 2
-  origin="$(ss_origin image)"
-  ss_put image "$dir/$base" "$origin"
+  origin="$(obbw_origin image)"
+  obbw_put image "$dir/$base" "$origin"
 }
 
 # Re-emits the resolved values as flags so wrapper scripts can call children
 # without triggering a second round of prompts.
 #
-# Callers must expand this as ${SS_CLI_FORWARD[@]+"${SS_CLI_FORWARD[@]}"}:
+# Callers must expand this as ${OBBW_CLI_FORWARD[@]+"${OBBW_CLI_FORWARD[@]}"}:
 # bash 3.2 treats "${array[@]}" on an empty array as an unbound variable, which
 # under `set -u` aborts the wrapper instead of running the child with no flags.
-ss_cli_flags_for() {
+obbw_cli_flags_for() {
   local key
-  SS_CLI_FORWARD=()
+  OBBW_CLI_FORWARD=()
   for key in "$@"; do
     if [[ "$key" == "yes" ]]; then
-      [[ "$SS_CLI_YES" == "1" ]] && SS_CLI_FORWARD+=(--yes)
+      [[ "$OBBW_CLI_YES" == "1" ]] && OBBW_CLI_FORWARD+=(--yes)
       continue
     fi
     if [[ "$key" == "wait_for_confirmation" ]]; then
-      [[ "$SS_CLI_WAIT_FOR_CONFIRMATION" == "1" ]] &&
-        SS_CLI_FORWARD+=(--wait-for-confirmation)
+      [[ "$OBBW_CLI_WAIT_FOR_CONFIRMATION" == "1" ]] &&
+        OBBW_CLI_FORWARD+=(--wait-for-confirmation)
       continue
     fi
     if [[ "$key" == "no_check" ]]; then
-      [[ "$SS_CLI_NO_CHECK" == "1" ]] && SS_CLI_FORWARD+=(--no-check)
+      [[ "$OBBW_CLI_NO_CHECK" == "1" ]] && OBBW_CLI_FORWARD+=(--no-check)
       continue
     fi
     if [[ "$key" == "erase_all" ]]; then
-      [[ "$SS_CLI_ERASE_ALL" == "1" ]] && SS_CLI_FORWARD+=(--erase-all)
+      [[ "$OBBW_CLI_ERASE_ALL" == "1" ]] && OBBW_CLI_FORWARD+=(--erase-all)
       continue
     fi
     if [[ "$key" == "discard_ota_session" ]]; then
-      [[ "$SS_CLI_DISCARD_OTA_SESSION" == "1" ]] &&
-        SS_CLI_FORWARD+=(--discard-ota-session)
+      [[ "$OBBW_CLI_DISCARD_OTA_SESSION" == "1" ]] &&
+        OBBW_CLI_FORWARD+=(--discard-ota-session)
       continue
     fi
     if [[ "$key" == "development" ]]; then
-      [[ "$SS_CLI_DEVELOPMENT" == "1" ]] && SS_CLI_FORWARD+=(--development)
+      [[ "$OBBW_CLI_DEVELOPMENT" == "1" ]] && OBBW_CLI_FORWARD+=(--development)
       continue
     fi
     if [[ "$key" == "release" ]]; then
-      [[ "$SS_CLI_RELEASE" == "1" ]] && SS_CLI_FORWARD+=(--release)
+      [[ "$OBBW_CLI_RELEASE" == "1" ]] && OBBW_CLI_FORWARD+=(--release)
       continue
     fi
     if [[ "$key" == "no_auth_admin" ]]; then
-      [[ "$SS_CLI_NO_AUTH_ADMIN" == "1" ]] && SS_CLI_FORWARD+=(--no-auth-admin)
+      [[ "$OBBW_CLI_NO_AUTH_ADMIN" == "1" ]] && OBBW_CLI_FORWARD+=(--no-auth-admin)
       continue
     fi
     if [[ "$key" == "jtag" ]]; then
-      [[ "$SS_CLI_JTAG" == "1" ]] && SS_CLI_FORWARD+=(--jtag)
+      [[ "$OBBW_CLI_JTAG" == "1" ]] && OBBW_CLI_FORWARD+=(--jtag)
       continue
     fi
     if [[ "$key" == "force_sdkconfig_regenerate" ]]; then
-      [[ "$SS_CLI_FORCE_SDKCONFIG_REGENERATE" == "1" ]] &&
-        SS_CLI_FORWARD+=(--force-sdkconfig-regenerate)
+      [[ "$OBBW_CLI_FORCE_SDKCONFIG_REGENERATE" == "1" ]] &&
+        OBBW_CLI_FORWARD+=(--force-sdkconfig-regenerate)
       continue
     fi
     if [[ "$key" == "opt_level" ]]; then
-      [[ -n "$SS_CLI_OPT_LEVEL" ]] && SS_CLI_FORWARD+=("$SS_CLI_OPT_LEVEL")
+      [[ -n "$OBBW_CLI_OPT_LEVEL" ]] && OBBW_CLI_FORWARD+=("$OBBW_CLI_OPT_LEVEL")
       continue
     fi
-    ss_is_set "$key" || continue
+    obbw_is_set "$key" || continue
     case "$key" in
-      port) SS_CLI_FORWARD+=(--port "$(ss_get port)") ;;
-      arch) SS_CLI_FORWARD+=(--arch "$(ss_get arch)") ;;
-      speed) SS_CLI_FORWARD+=(--speed "$(ss_get speed)") ;;
-      host) SS_CLI_FORWARD+=(--host "$(ss_get host)") ;;
-      image) SS_CLI_FORWARD+=(--image "$(ss_get image)") ;;
+      port) OBBW_CLI_FORWARD+=(--port "$(obbw_get port)") ;;
+      arch) OBBW_CLI_FORWARD+=(--arch "$(obbw_get arch)") ;;
+      speed) OBBW_CLI_FORWARD+=(--speed "$(obbw_get speed)") ;;
+      host) OBBW_CLI_FORWARD+=(--host "$(obbw_get host)") ;;
+      image) OBBW_CLI_FORWARD+=(--image "$(obbw_get image)") ;;
       # password is deliberately absent: a command line is world-readable
       # through `ps` for as long as the child runs, which for an OTA is
-      # minutes. Use ss_cli_export_secrets instead.
-      flags) SS_CLI_FORWARD+=(--flags "$(ss_get flags)") ;;
-      build_dir) SS_CLI_FORWARD+=(--build-dir "$(ss_get build_dir)") ;;
-      output_dir) SS_CLI_FORWARD+=(--output-dir "$(ss_get output_dir)") ;;
-      webui_language) SS_CLI_FORWARD+=(--webui-language "$(ss_get webui_language)") ;;
-      hardware_config) SS_CLI_FORWARD+=(--hardware "$(ss_get hardware_config)") ;;
-      machine_config) SS_CLI_FORWARD+=(--machine "$(ss_get machine_config)") ;;
+      # minutes. Use obbw_cli_export_secrets instead.
+      flags) OBBW_CLI_FORWARD+=(--flags "$(obbw_get flags)") ;;
+      build_dir) OBBW_CLI_FORWARD+=(--build-dir "$(obbw_get build_dir)") ;;
+      output_dir) OBBW_CLI_FORWARD+=(--output-dir "$(obbw_get output_dir)") ;;
+      webui_language) OBBW_CLI_FORWARD+=(--webui-language "$(obbw_get webui_language)") ;;
+      hardware_config) OBBW_CLI_FORWARD+=(--hardware "$(obbw_get hardware_config)") ;;
+      machine_config) OBBW_CLI_FORWARD+=(--machine "$(obbw_get machine_config)") ;;
     esac
   done
 }
 
 # Hands secrets to a child process through the environment, which other users
 # cannot read, rather than through argv, which they can.
-ss_cli_export_secrets() {
-  if ss_is_set password; then
-    OPENBREWBYWEIGHT_DEVICE_PASSWORD="$(ss_get password)"
+obbw_cli_export_secrets() {
+  if obbw_is_set password; then
+    OPENBREWBYWEIGHT_DEVICE_PASSWORD="$(obbw_get password)"
     export OPENBREWBYWEIGHT_DEVICE_PASSWORD
   fi
 }
 
-ss_cli_reset
+obbw_cli_reset

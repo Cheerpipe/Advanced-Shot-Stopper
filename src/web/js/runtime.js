@@ -423,7 +423,7 @@ let homeBootDone = false,
   fwReloading = false,
   bootSeq = 0,
   bootTimer = 0;
-const THEME_KEY = "ssTh",
+const THEME_KEY = "obbwTh",
   THEME_MODES = ["auto", "light", "dark"];
 function themeMode() {
   try {
@@ -4115,7 +4115,7 @@ function enterShotFullScreen() {
   if (close) close.focus();
   shotFsPushed = false;
   try {
-    history.pushState({ ssShotFs: 1 }, "", location.href);
+    history.pushState({ obbwShotFs: 1 }, "", location.href);
     shotFsPushed = true;
   } catch (_) {}
 }
@@ -4963,7 +4963,7 @@ function heroFadeSwap(e, set, fade) {
 // Hero colour. In forecast mode the firmware's shot predictor owns the live
 // colour class and blend percent (tintClass/tintPct on the card); window and
 // brand modes keep their local rules.
-const HERO_TINT_KEY = "ssHeroTint",
+const HERO_TINT_KEY = "obbwHeroTint",
   HERO_TINT_MODES = ["forecast", "window", "brand"];
 let heroWindowRed = { el: 0, since: -1, on: false };
 function heroTintMode() {
@@ -5131,7 +5131,7 @@ function grindHintView(p) {
     fine = h.direction === "finer",
     v = {
       // Ignore holds for this advice: preset, grind setting, direction, tier.
-      key: ["ssCard:grind", p.id, h.segmentStartId, h.direction || h.state, h.tier || ""].join(":"),
+      key: ["obbwCard:grind", p.id, h.segmentStartId, h.direction || h.state, h.tier || ""].join(":"),
       cls: { checking: "isCheck", vary: "isSpread" }[h.state] || (fine ? "isFast" : "isSlow"),
       level: at(level),
       band: [at(c - h.bandS), 100 - at(c + h.bandS)],
@@ -5206,7 +5206,7 @@ function renderHomeCards() {
       $("ghActions").hidden = !v.actions;
     }
   }
-  reveal($("scaleLossDiscovery"), !cardDismissed("ssCard:scaleLossDiscovery"));
+  reveal($("scaleLossDiscovery"), !cardDismissed("obbwCard:scaleLossDiscovery"));
 }
 // Relearn (a new bag, dose, basket or grinder): starts the preset's statistics over.
 async function startNewCoffee(id = presetState.activeId) {
@@ -5255,7 +5255,7 @@ function checkFirmwareReload(version) {
     return;
   if (version === SHELL_FW_VERSION) {
     try {
-      sessionStorage.removeItem("ssFwReload");
+      sessionStorage.removeItem("obbwFwReload");
     } catch (_) {}
     // The ?fw= landing cached the new shell under its own key; refresh the
     // plain paths' cached copies too, so the next open loads it directly.
@@ -5270,8 +5270,8 @@ function checkFirmwareReload(version) {
   }
   let reloaded = true;
   try {
-    reloaded = !!sessionStorage.getItem("ssFwReload");
-    if (!reloaded) sessionStorage.setItem("ssFwReload", "1");
+    reloaded = !!sessionStorage.getItem("obbwFwReload");
+    if (!reloaded) sessionStorage.setItem("obbwFwReload", "1");
   } catch (_) {}
   if (!reloaded) {
     fwReloading = true; // A fresh-cached navigation may be reopened without revalidating (WebKit

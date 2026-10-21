@@ -110,7 +110,7 @@ async function harness(mode) {
     assert.equal(h.payloads.length, 1);
     assert.match(h.messages.at(-1), /Firmware verified/);
     assert.deepEqual(h.patches, mode === 'rewind' ? [0, 65536, 4096, 69632] : [0, 65536, 131072]);
-    const saved = JSON.parse(h.items.get('ssOtaSession'));
+    const saved = JSON.parse(h.items.get('obbwOtaSession'));
     assert.equal(saved.imageSha256, h.identity.imageSha256);
     assert.notEqual(saved.imageSha256, saved.sha256);
   }
@@ -135,14 +135,14 @@ async function harness(mode) {
   for (const mode of ['lost-commit', 'wrong-commit', 'booted-commit']) {
     const h = await harness(mode);
     h.setOffset(h.file.size);
-    h.items.set('ssOtaSession', JSON.stringify(h.session));
+    h.items.set('obbwOtaSession', JSON.stringify(h.session));
     h.context.R.uiState.otaLastStatus = h.status();
     await vm.runInContext('otaFlash()', h.context);
     assert.equal(h.commits(), 1);
     assert.match(h.messages.at(-1), mode === 'wrong-commit' ? /unverified/ :
       mode === 'booted-commit' ? /OTA confirmed/ : /Waiting for the controller to restart/);
-    if (mode === 'booted-commit') assert.equal(h.items.has('ssOtaCommit'), false);
-    else assert.equal(h.items.has('ssOtaCommit'), true);
+    if (mode === 'booted-commit') assert.equal(h.items.has('obbwOtaCommit'), false);
+    else assert.equal(h.items.has('obbwOtaCommit'), true);
   }
   const h = await harness('normal');
   h.context.expected = {...h.session, bootId: 7};
@@ -157,9 +157,9 @@ async function harness(mode) {
     assert.match(vm.runInContext('otaCheckBoot(expected,remote)', h.context), pattern);
   }
   // Reload/unlock uses the persisted expectation when Admin applies OTA status.
-  h.items.set('ssOtaCommit', JSON.stringify({...h.session, bootId: 7}));
+  h.items.set('obbwOtaCommit', JSON.stringify({...h.session, bootId: 7}));
   h.context.remote = {...h.status(), bootId: 8};
   assert.match(vm.runInContext('otaStatusText(remote)', h.context), /OTA confirmed/);
-  assert.equal(h.items.has('ssOtaCommit'), false);
+  assert.equal(h.items.has('obbwOtaCommit'), false);
   console.log('OTA Web resilience: strict sessions, recovery, commit and boot identity OK');
 })().catch(error => {console.error(error); process.exitCode = 1;});

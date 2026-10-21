@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture and qualify Shot Stopper P2 heap/timing soak evidence."""
+"""Capture and qualify Open Brew by Weight P2 heap/timing soak evidence."""
 
 from __future__ import annotations
 

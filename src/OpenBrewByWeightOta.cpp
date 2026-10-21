@@ -19,7 +19,7 @@
 
 namespace openbrewbyweight {
 
-// The identity marker every flashable Shot Stopper image carries. It has
+// The identity marker every flashable Open Brew by Weight image carries. It has
 // external linkage and is read back by begin(), which is what keeps the linker
 // from garbage-collecting the one thing an OTA verify looks for.
 extern "C" const char OPEN_BREW_BY_WEIGHT_FW_IMAGE_TAG[] = FW_IMAGE_TAG_STRING;

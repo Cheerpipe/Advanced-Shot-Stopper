@@ -2,7 +2,7 @@
 
 - Editable sources are `src/*.{h,cpp,ino}`; generated
   `OpenBrewByWeightVersion.h` and `OpenBrewByWeightWebAssetsGzip.h` must be regenerated,
-  not hand-edited. `OpenBrewByWeightWebAssets.h` is a stable source-side contract.
+  not hand-edited.
 - Read `docs/ARCHITECTURE.md`, `docs/STATE_MACHINES.md`, and
   `docs/RESOURCE_OWNERSHIP.md` only when the affected boundary requires them.
 - Control, safety, machine, relay, ISR, watchdog, boot, GPIO, and remote-control

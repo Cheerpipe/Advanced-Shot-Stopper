@@ -15,7 +15,7 @@
 //
 // BOUNDARY (hard rules — do not cross):
 // - The activator owns GPIO sampling, debounce, edge interpretation, and
-//   translation to UserIntent. Shot stopper / brew / cup / scale / guards
+//   translation to UserIntent. Stopper / brew / cup / scale / guards
 //   talk ONLY to this abstract machine. They must NOT include paddle or
 //   momentary headers, branch on MachineType, read paddleMode / reed /
 //   momentary GPIO, or know how a specialization drives K1.

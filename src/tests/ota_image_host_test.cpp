@@ -102,7 +102,7 @@ void testHeaderRejectsMissingAppDescriptor() {
 
 void testHeaderRejectsForeignProject() {
   std::vector<uint8_t> image = makeValidHeader();
-  const char *other = "shotstopper";
+  const char *other = "some-other-project";
   std::memset(image.data() + openbrewbyweight::OTA_APP_DESC_PROJECT_NAME_OFFSET, 0,
               openbrewbyweight::OTA_APP_DESC_NAME_BYTES);
   std::memcpy(image.data() + openbrewbyweight::OTA_APP_DESC_PROJECT_NAME_OFFSET,

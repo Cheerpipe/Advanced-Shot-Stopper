@@ -1491,7 +1491,7 @@ if (!domainCore.includes('#ifndef OPEN_BREW_BY_WEIGHT_ENABLE_JTAG') ||
       kconfig.indexOf('config OPEN_BREW_BY_WEIGHT_MACHINE_TYPE'));
   const cli = fs.readFileSync(
       path.resolve(sketchDir, '..', 'scripts', 'openbrewbyweight_cli.sh'), 'utf8');
-  const defaultFlags = cli.match(/SS_CLI_DEFAULT_FLAGS='([^']*)'/);
+  const defaultFlags = cli.match(/OBBW_CLI_DEFAULT_FLAGS='([^']*)'/);
   const paddleHandler = network.slice(
       network.indexOf('esp_err_t OpenBrewByWeightNetwork::paddleHandler'),
       network.indexOf('esp_err_t OpenBrewByWeightNetwork::rinseHandler'));

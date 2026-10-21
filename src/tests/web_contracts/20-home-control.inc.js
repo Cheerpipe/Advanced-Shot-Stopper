@@ -1405,7 +1405,7 @@ if (rinseHeader.includes('session.') ||
         'blockedHoldTimeoutMs = runtimeConfig.rinseGestureMs') ||
     !brewHeader.includes('inputs.blockedHoldTimeoutMs')) {
   throw new Error(
-      'Rinse clock must not write session; brew must not read rinseGestureMs; ShotStopper copies the accept anchor');
+      'Rinse clock must not write session; brew must not read rinseGestureMs; the orchestrator copies the accept anchor');
 }
 if (!codeIncludes(ui, 'id="learnedOffsetG"') ||
     !codeIncludes(ui, 'id="dripSetG"') ||

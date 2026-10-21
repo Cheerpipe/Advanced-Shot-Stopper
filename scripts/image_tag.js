@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 'use strict';
 
-// Reads a compiled ESP32-S3 application image and reports the Shot Stopper
-// identity the controller will look for during an OTA verify.
+// Reads a compiled ESP32-S3 application image and reports the Open Brew by
+// Weight identity the controller will look for during an OTA verify.
 //
 //   node scripts/image_tag.js <image.bin> [--expect-arch n16r8] [--json]
 //
-// Exits non-zero when the file is not a usable Shot Stopper image, so the build
-// can fail loudly rather than shipping a binary the controller would reject.
+// Exits non-zero when the file is not a usable Open Brew by Weight image, so
+// the build can fail loudly rather than shipping a binary the controller would
+// reject.
 
 const fs = require('fs');
 const crypto = require('crypto');

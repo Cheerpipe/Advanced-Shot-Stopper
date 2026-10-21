@@ -11,17 +11,17 @@
 #include <freertos/task.h>
 
 #if !CONFIG_ESP_TASK_WDT_EN
-#error "ShotStopper requires CONFIG_ESP_TASK_WDT_EN"
+#error "Open Brew by Weight requires CONFIG_ESP_TASK_WDT_EN"
 #endif
 #if !CONFIG_ESP_TASK_WDT_PANIC
-#error "ShotStopper requires CONFIG_ESP_TASK_WDT_PANIC for automatic reset"
+#error "Open Brew by Weight requires CONFIG_ESP_TASK_WDT_PANIC for automatic reset"
 #endif
 #if !CONFIG_ESP_INT_WDT
-#error "ShotStopper requires CONFIG_ESP_INT_WDT"
+#error "Open Brew by Weight requires CONFIG_ESP_INT_WDT"
 #endif
 #if !CONFIG_ESP_SYSTEM_PANIC_PRINT_REBOOT && \
     !CONFIG_ESP_SYSTEM_PANIC_SILENT_REBOOT
-#error "ShotStopper production builds require panic to reboot"
+#error "Open Brew by Weight production builds require panic to reboot"
 #endif
 #endif
 

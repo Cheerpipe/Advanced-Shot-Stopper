@@ -3,8 +3,9 @@
 // Pure, host-testable parsing of an ESP32-S3 application image.
 //
 // Nothing here touches flash or the network: it decides whether a stream of
-// bytes looks like a Shot Stopper build for a given board, so the OTA path can
-// refuse a wrong file before it is ever allowed to become the boot image.
+// bytes looks like an Open Brew by Weight build for a given board, so the OTA
+// path can refuse a wrong file before it is ever allowed to become the boot
+// image.
 
 #include <stddef.h>
 #include <stdint.h>

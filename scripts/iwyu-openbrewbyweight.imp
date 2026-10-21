@@ -1,4 +1,4 @@
-# Include-What-You-Use mappings for Shot Stopper.
+# Include-What-You-Use mappings for Open Brew by Weight.
 #
 # Intentionally empty: stock IWYU already maps the C standard headers
 # (<stdio.h> -> <cstdio>, <stdint.h> -> <cstdint>, ...) and re-mapping them

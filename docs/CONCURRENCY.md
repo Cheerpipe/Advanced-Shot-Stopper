@@ -33,7 +33,7 @@ waiter would otherwise lend it.
 The debug log mutex is a leaf: no holder logs or takes another lock. The
 ESP-IDF log hook relies on that when it retains component lines in the Web UI
 ring from whichever task logs; it skips contexts that cannot block and never
-re-enters for application (`ss.*`) lines, which are already retained.
+re-enters for application (`obbw.*`) lines, which are already retained.
 
 No reverse edge is permitted. A callback that would require one must publish a
 queue item or atomic latch for the owner instead.

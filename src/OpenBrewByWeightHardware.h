@@ -10,10 +10,10 @@ namespace openbrewbyweight {
 // legacy --arch builds retain the historical defaults below.
 #if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #if !defined(ARDUINO_ESP32S3_DEV)
-#error "Unsupported board: Shot Stopper requires ESP32-S3 (esp32:esp32:esp32s3)"
+#error "Unsupported board: Open Brew by Weight requires ESP32-S3 (esp32:esp32:esp32s3)"
 #endif
 #if !defined(BOARD_HAS_PSRAM)
-#error "Shot Stopper requires PSRAM. Compile n16r8 (OPI 8MB)"
+#error "Open Brew by Weight requires PSRAM. Compile n16r8 (OPI 8MB)"
 #endif
 #endif
 
@@ -68,7 +68,7 @@ namespace openbrewbyweight {
 #endif
 #endif
 #else
-#error "Unsupported board: Shot Stopper requires ESP32-S3"
+#error "Unsupported board: Open Brew by Weight requires ESP32-S3"
 #endif
 
 constexpr uint8_t ACTIVATOR_GPIO = OPEN_BREW_BY_WEIGHT_ACTIVATOR_GPIO;

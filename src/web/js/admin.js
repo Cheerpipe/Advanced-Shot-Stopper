@@ -519,9 +519,9 @@ function applyAdminStatus(s) {
   $("apStatus").textContent =
     __WEBUI_TEXT__("runtime.ap") +
     (s.network.apActive ? __WEBUI_TEXT__("runtime.active_2") : __WEBUI_TEXT__("runtime.inactive")) +
-    __WEBUI_TEXT__("runtime.advancedshotstopperap_2") +
-    (s.network.apSsid || __WEBUI_TEXT__("runtime.advancedshotstopperap")) +
-    __WEBUI_TEXT__("runtime.advancedshotstopperap_2") +
+    __WEBUI_TEXT__("runtime.ap_ssid_sep") +
+    (s.network.apSsid || __WEBUI_TEXT__("runtime.ap_ssid")) +
+    __WEBUI_TEXT__("runtime.ap_ssid_sep") +
     s.network.apIp +
     __WEBUI_TEXT__("runtime.unknown_3") +
     s.network.apClients +
@@ -702,19 +702,15 @@ function otaTransferId() {
 }
 function otaStored() {
   try {
-    return JSON.parse(localStorage.getItem("ssOtaSession") || "null");
+    return JSON.parse(localStorage.getItem("obbwOtaSession") || "null");
   } catch (_) {
     return null;
   }
 }
 function otaStore(v) {
   try {
-    localStorage.setItem("ssOtaSession", JSON.stringify(v));
-  } catch (_) {}
-}
-function otaClearStore() {
-  try {
-    localStorage.removeItem("ssOtaSession");
+    if (v) localStorage.setItem("obbwOtaSession", JSON.stringify(v));
+    else localStorage.removeItem("obbwOtaSession");
   } catch (_) {}
 }
 const OTA_PROTOCOL_VERSION = 3;
@@ -924,15 +920,15 @@ async function otaUpload() {
 }
 function otaCommitStored() {
   try {
-    return JSON.parse(localStorage.getItem("ssOtaCommit") || "null");
+    return JSON.parse(localStorage.getItem("obbwOtaCommit") || "null");
   } catch (_) {
     return null;
   }
 }
 function otaCommitStore(value) {
   try {
-    if (value) localStorage.setItem("ssOtaCommit", JSON.stringify(value));
-    else localStorage.removeItem("ssOtaCommit");
+    if (value) localStorage.setItem("obbwOtaCommit", JSON.stringify(value));
+    else localStorage.removeItem("obbwOtaCommit");
   } catch (_) {}
 }
 function otaCheckBoot(expected, status) {
@@ -960,7 +956,7 @@ function otaCheckBoot(expected, status) {
         : "")
     );
   otaCommitStore(null);
-  otaClearStore();
+  otaStore();
   R.message(__WEBUI_TEXT__("runtime.ota_confirmed_by_the_rebooted_firmware"), "ok");
   return __WEBUI_TEXT__("runtime.ota_confirmed_by_the_rebooted_firmware");
 }
@@ -1034,7 +1030,7 @@ function otaDiscard() {
   otaBeginBusy();
   otaSend("/api/v1/ota/abort", null, null, OTA_COMMAND_TIMEOUT_MS)
     .then((data) => {
-      otaClearStore();
+      otaStore();
       otaCommitStore(null);
       $("otaFile").value = "";
       otaEndBusy(data, __WEBUI_TEXT__("runtime.the_verified_image_was_discarded"), "ok");

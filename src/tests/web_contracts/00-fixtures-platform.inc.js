@@ -259,8 +259,8 @@ if (!sdkconfigDefaults.includes('CONFIG_SPIRAM_MALLOC_RESERVE_INTERNAL=32768') |
       'sdkconfig.defaults must place only mDNS runtime memory in PSRAM and keep other task stacks internal');
 }
 if (!idfHelpers.includes('sdkconfig.defaults.micra') ||
-    !idfHelpers.includes('ss_idf_config_fingerprint') ||
-    !idfBuildScript.includes('ss_idf_refresh_config') ||
+    !idfHelpers.includes('obbw_idf_config_fingerprint') ||
+    !idfBuildScript.includes('obbw_idf_refresh_config') ||
     !sdkconfigMicra.includes('# CONFIG_MBEDTLS_INTERNAL_MEM_ALLOC is not set') ||
     !sdkconfigMicra.includes('# CONFIG_MBEDTLS_DEFAULT_MEM_ALLOC is not set') ||
     !sdkconfigMicra.includes('CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y') ||
@@ -310,8 +310,8 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
       path.resolve(sketchDir, '..', 'libraries', 'EspressoScaleBLE', 'src',
                    'EspressoScaleBLE.h'),
       'utf8');
-  if (!cmakeLists.includes('ARDUINO_USB_CDC_ON_BOOT=${_ss_cdc_on_boot}') ||
-      !cmakeLists.includes('set(_ss_cdc_on_boot 0)') ||
+  if (!cmakeLists.includes('ARDUINO_USB_CDC_ON_BOOT=${_obbw_cdc_on_boot}') ||
+      !cmakeLists.includes('set(_obbw_cdc_on_boot 0)') ||
       !cmakeLists.includes('-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1') ||
       cmakeLists.includes('COMPILE_DEFINITIONS "ARDUINO_USB_CDC_ON_BOOT=0"') ||
       cmakeLists.includes('COMPILE_DEFINITIONS "ARDUINO_USB_CDC_ON_BOOT=1"')) {
@@ -358,14 +358,14 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
   }
   const buildIdf = fs.readFileSync(
       path.resolve(sketchDir, '..', 'scripts', 'internal', 'build-idf'), 'utf8');
-  if (!idfHelpers.includes('ss_idf_prepare_set_target') ||
-      !idfHelpers.includes('ss_idf_commit_extra_flags_stamp') ||
-      !idfHelpers.includes('ss_idf_jtag_enabled') ||
-      !idfHelpers.includes('ss_idf_config_fingerprint') ||
+  if (!idfHelpers.includes('obbw_idf_prepare_set_target') ||
+      !idfHelpers.includes('obbw_idf_commit_extra_flags_stamp') ||
+      !idfHelpers.includes('obbw_idf_jtag_enabled') ||
+      !idfHelpers.includes('obbw_idf_config_fingerprint') ||
       !idfHelpers.includes('sdkconfig.defaults.jtag') ||
-      !buildIdf.includes('ss_idf_prepare_set_target') ||
-      !buildIdf.includes('ss_idf_commit_extra_flags_stamp') ||
-      !buildIdf.includes('ss_idf_refresh_config') ||
+      !buildIdf.includes('obbw_idf_prepare_set_target') ||
+      !buildIdf.includes('obbw_idf_commit_extra_flags_stamp') ||
+      !buildIdf.includes('obbw_idf_refresh_config') ||
       !idfHelpers.includes('Preparing empty IDF build tree for set-target')) {
     throw new Error(
         'dev build must empty a non-CMake tree before idf.py set-target fullclean');

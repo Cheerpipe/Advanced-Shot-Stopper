@@ -47,6 +47,8 @@ would exceed one, extract it into its owning service rather than raising the
 limit. Current independent host harnesses exercise SafetyKernel, OTA,
 persistence, webhook policy, BLE protocol/runtime and shared resource owners
 without including either monolithic integration root.
+The same script rejects the project's former name anywhere in the repository;
+only the README credit to the original kit keeps it.
 
 ## Machine integration modules
 

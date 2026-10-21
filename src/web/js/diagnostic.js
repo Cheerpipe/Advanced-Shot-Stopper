@@ -770,7 +770,7 @@ function applyDiagnosticStatus(s) {
     "hApState",
     n.apActive ? __WEBUI_TEXT__("runtime.active_2") : __WEBUI_TEXT__("runtime.inactive"),
   );
-  t("hApSsid", n.apSsid || __WEBUI_TEXT__("runtime.advancedshotstopperap"));
+  t("hApSsid", n.apSsid || __WEBUI_TEXT__("runtime.ap_ssid"));
   t("hApIp", n.apIp);
   t("hApClients", String(n.apClients));
   const ser = s.serial || {};

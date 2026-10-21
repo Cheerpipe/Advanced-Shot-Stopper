@@ -51,7 +51,7 @@
   assert.notEqual(key({segmentStartId: 42}), key({}));
   assert.notEqual(key({direction: 'finer'}), key({}));
   assert.notEqual(view(preset(hint(), {id: 4})).key, key({}));
-  assert.equal(key({state: 'vary', direction: null, tier: null}), 'ssCard:grind:3:41:vary:');
+  assert.equal(key({state: 'vary', direction: null, tier: null}), 'obbwCard:grind:3:41:vary:');
 
   if (!codeIncludes(viewJs.home, '$("grindHintLater").onclick = () => R.dismissCard($("grindHintCard").dataset.key)') ||
       !codeIncludes(viewJs.home, '$("grindHintNewBeans").onclick = () => R.startNewCoffee()') ||

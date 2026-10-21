@@ -9,7 +9,7 @@ extern "C" {
 EXT_RAM_BSS_ATTR uint8_t g_probe[256];
 
 // Arduino releases BLE controller memory from initArduino() unless a linked
-// Arduino BLE library marks it as used. Shot Stopper uses ESP-IDF NimBLE
+// Arduino BLE library marks it as used. Open Brew by Weight uses ESP-IDF NimBLE
 // directly, so no Arduino library installs that marker. Keep BLE memory alive
 // before setup() starts; releasing it is irreversible and makes the later
 // nimble_port_init() controller startup access freed storage.

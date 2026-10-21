@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Compile Shot Stopper with ESP-IDF (Arduino-ESP32 as a component) into
+# Compile Open Brew by Weight with ESP-IDF (Arduino-ESP32 as a component) into
 # build-idf/<hardware>--<machine>. This is the official supported firmware build.
 set -euo pipefail
 
@@ -16,13 +16,13 @@ usage() {
   cat <<EOF
 Internal build stage. Use: ./scripts/dev build [flash|ota] [monitor] [flags]
 
-Compile Shot Stopper with ESP-IDF (official supported path) and write artifacts
-to build-idf/<hardware>--<machine>.
+Compile Open Brew by Weight with ESP-IDF (official supported path) and write
+artifacts to build-idf/<hardware>--<machine>.
 
 Required parameters: --hardware and --machine. --flags is optional.
 The WebUI language defaults to en and is selected at compile time.
 
-$(ss_flag_help)
+$(obbw_flag_help)
 
 $(openbrewbyweight_arch_help)
 
@@ -36,7 +36,7 @@ Firmware optimization level (build-only, exclusive, not persisted):
   and discards local menuconfig choices.
 
 Recommended development compile flags (Enter at the prompt):
-  $SS_CLI_DEFAULT_FLAGS
+  $OBBW_CLI_DEFAULT_FLAGS
 
 Requires ESP-IDF 6.1.0. If IDF_PATH is unset, ${IDF_DEFAULT_HOME} is used when
 it exists.
@@ -54,20 +54,20 @@ Examples through the public facade:
 EOF
 }
 
-if [[ "${SS_BUILD_LOCKED:-}" != "1" ]]; then
-  ss_cli_parse "$@" || exit $?
-  if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
+if [[ "${OBBW_BUILD_LOCKED:-}" != "1" ]]; then
+  obbw_cli_parse "$@" || exit $?
+  if [[ "$OBBW_CLI_HELP_REQUESTED" == "1" ]]; then
     usage
     exit 0
   fi
 
-  ss_cli_resolve "hardware_config machine_config webui_language" "flags" || exit $?
-  effective_flags="$(ss_cli_effective_flags)" || exit $?
+  obbw_cli_resolve "hardware_config machine_config webui_language" "flags" || exit $?
+  effective_flags="$(obbw_cli_effective_flags)" || exit $?
 
-  root="$SS_CLI_ROOT"
+  root="$OBBW_CLI_ROOT"
   cd "$root"
-  ss_cli_resolve_profiles "$effective_flags" || exit $?
-  printf '%s\n' "$SS_PROFILE_OUTPUT"
+  obbw_cli_resolve_profiles "$effective_flags" || exit $?
+  printf '%s\n' "$OBBW_PROFILE_OUTPUT"
 
   # Serialize per-variant builds across parallel agents and sessions: the
   # variant tree (generated headers, sdkconfig, artifacts) is mutated by the
@@ -76,44 +76,44 @@ if [[ "${SS_BUILD_LOCKED:-}" != "1" ]]; then
   # declare -p dump (arrays survive; export would flatten them); with-flock
   # holds the lock and execs the second pass, so the kernel releases it on
   # every exit path including signals.
-  SS_BUILD_STATE_FILE="$(mktemp "${TMPDIR:-/tmp}/ss-build-state.XXXXXX")"
-  state_vars="$(compgen -A variable 2>/dev/null | grep -E '^(SS_|OPENBREWBYWEIGHT_)' || true)"
+  OBBW_BUILD_STATE_FILE="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-build-state.XXXXXX")"
+  state_vars="$(compgen -A variable 2>/dev/null | grep -E '^(OBBW_|OPENBREWBYWEIGHT_)' || true)"
   # shellcheck disable=SC2086  # names list is meant to word-split
   { [[ -z "$state_vars" ]] || declare -p $state_vars 2>/dev/null; } \
-    >"$SS_BUILD_STATE_FILE" || true
-  mkdir -p "$SS_IDF_BUILD_ROOT/.locks"
-  SS_BUILD_LOCKED=1 SS_BUILD_STATE_FILE="$SS_BUILD_STATE_FILE" \
+    >"$OBBW_BUILD_STATE_FILE" || true
+  mkdir -p "$OBBW_IDF_BUILD_ROOT/.locks"
+  OBBW_BUILD_LOCKED=1 OBBW_BUILD_STATE_FILE="$OBBW_BUILD_STATE_FILE" \
     exec python3 "$SCRIPT_DIR/internal/with-flock" \
-    "$SS_IDF_BUILD_ROOT/.locks/$OPENBREWBYWEIGHT_VARIANT.lock" \
+    "$OBBW_IDF_BUILD_ROOT/.locks/$OPENBREWBYWEIGHT_VARIANT.lock" \
     bash "$SCRIPT_DIR/internal/${0##*/}"
 fi
 
-eval "$(cat "$SS_BUILD_STATE_FILE")"
-rm -f "$SS_BUILD_STATE_FILE"
-root="$SS_CLI_ROOT"
+eval "$(cat "$OBBW_BUILD_STATE_FILE")"
+rm -f "$OBBW_BUILD_STATE_FILE"
+root="$OBBW_CLI_ROOT"
 cd "$root"
-effective_flags="$(ss_cli_effective_flags)" || exit $?
+effective_flags="$(obbw_cli_effective_flags)" || exit $?
 
-openbrewbyweight_resolve_board "$(ss_get arch)"
-ss_idf_source
+openbrewbyweight_resolve_board "$(obbw_get arch)"
+obbw_idf_source
 lock_file="$root/idf/dependencies.lock"
 [[ -f "$lock_file" ]] || { echo "Missing IDF component lock: $lock_file" >&2; exit 1; }
 lock_sha="$(git hash-object "$lock_file")"
 
 # Map the exclusive CLI level flags to their ESP-IDF Kconfig choices. Empty
-# keeps the repository default (-O2 / PERF). ss_idf_py_args registers the
+# keeps the repository default (-O2 / PERF). obbw_idf_py_args registers the
 # generated overlay as the last SDKCONFIG_DEFAULTS entry so the chosen level
 # wins over every earlier default file.
-case "${SS_CLI_OPT_LEVEL:-}" in
-  --o0) SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_NONE ;;
-  --og) SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_DEBUG ;;
-  --o2) SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF ;;
-  --os) SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE ;;
-  *)    SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF ;;
+case "${OBBW_CLI_OPT_LEVEL:-}" in
+  --o0) OBBW_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_NONE ;;
+  --og) OBBW_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_DEBUG ;;
+  --o2) OBBW_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF ;;
+  --os) OBBW_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE ;;
+  *)    OBBW_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF ;;
 esac
-export SS_IDF_OPT_LEVEL_KCONFIG
+export OBBW_IDF_OPT_LEVEL_KCONFIG
 
-ss_idf_py_args
+obbw_idf_py_args
 
 command -v node >/dev/null 2>&1 || {
   echo "node not found on PATH (needed for the Web UI and OTA marker)." >&2
@@ -127,32 +127,33 @@ OPENBREWBYWEIGHT_EXTRA_FLAGS="$effective_flags"
 echo "Extra compile flags: ${OPENBREWBYWEIGHT_EXTRA_FLAGS:-(none)}"
 
 mkdir -p "$IDF_BUILD_DIR"
-# Incompatible pre-production trees need a full clean; ordinary defaults drift
-# below only invalidates generated configuration under the variant lock.
-if [[ -f "$IDF_BUILD_DIR/shotstopper_idf_spike.elf" || -f "$IDF_BUILD_DIR/shotstopper.elf" ]] ||
-   { [[ -f "$IDF_BUILD_DIR/CMakeCache.txt" ]] && grep -q 'shotstopper_idf_spike' "$IDF_BUILD_DIR/CMakeCache.txt"; } ||
-   { [[ -f "$IDF_BUILD_DIR/CMakeCache.txt" ]] && ! grep -Fq "CMAKE_TOOLCHAIN_FILE:FILEPATH=${IDF_PATH}/tools/cmake/" "$IDF_BUILD_DIR/CMakeCache.txt"; }; then
+# A tree configured for another project or toolchain needs a full clean;
+# ordinary defaults drift below only invalidates generated configuration under
+# the variant lock.
+if [[ -f "$IDF_BUILD_DIR/CMakeCache.txt" ]] &&
+   { ! grep -Fqx "CMAKE_PROJECT_NAME:STATIC=$IDF_PROJECT_NAME" "$IDF_BUILD_DIR/CMakeCache.txt" ||
+     ! grep -Fq "CMAKE_TOOLCHAIN_FILE:FILEPATH=${IDF_PATH}/tools/cmake/" "$IDF_BUILD_DIR/CMakeCache.txt"; }; then
   echo "Cleaning stale IDF build tree"
   rm -rf "$IDF_BUILD_DIR"
   mkdir -p "$IDF_BUILD_DIR"
 fi
 
 echo "Building IDF firmware $OPENBREWBYWEIGHT_ARCH → $IDF_BUILD_DIR"
-ss_idf_py_args
+obbw_idf_py_args
 target_ready=1
 if [[ ! -f "$IDF_SDKCONFIG" && ! -f "$IDF_BUILD_DIR/CMakeCache.txt" ]] ||
    { [[ -f "$IDF_SDKCONFIG" ]] && ! grep -q '^CONFIG_IDF_TARGET="esp32s3"$' "$IDF_SDKCONFIG"; } ||
    { [[ -f "$IDF_BUILD_DIR/CMakeCache.txt" ]] && ! grep -q '^IDF_TARGET:STRING=esp32s3$' "$IDF_BUILD_DIR/CMakeCache.txt"; }; then
   target_ready=0
 fi
-ss_idf_sync_extra_flags
-ss_idf_emit_opt_overlay
-config_fingerprint="$(ss_idf_config_fingerprint)"
+obbw_idf_sync_extra_flags
+obbw_idf_emit_opt_overlay
+config_fingerprint="$(obbw_idf_config_fingerprint)"
 fingerprint_file="$IDF_BUILD_DIR/sdkconfig.inputs.sha256"
-ss_idf_refresh_config "$config_fingerprint"
+obbw_idf_refresh_config "$config_fingerprint"
 
 if [[ "$target_ready" == "0" ]]; then
-  ss_idf_prepare_set_target
+  obbw_idf_prepare_set_target
   idf.py "${IDF_PY_ARGS[@]}" set-target esp32s3
 fi
 
@@ -160,12 +161,12 @@ fi
 # variant tree. Re-emit the validated profile after it completes and before
 # any translation unit is compiled.
 python3 ./scripts/resolve_build_profiles.py \
-  --hardware "$(ss_get hardware_config)" \
-  --machine "$(ss_get machine_config)" \
-  --flags="$effective_flags" --output-root "$SS_IDF_BUILD_ROOT" >/dev/null
+  --hardware "$(obbw_get hardware_config)" \
+  --machine "$(obbw_get machine_config)" \
+  --flags="$effective_flags" --output-root "$OBBW_IDF_BUILD_ROOT" >/dev/null
 
 # The generated overlay lives outside the variant tree cleared by set-target.
-ss_idf_emit_opt_overlay
+obbw_idf_emit_opt_overlay
 
 ./scripts/gen_version.sh "$OPENBREWBYWEIGHT_ARCH" \
   "$OPENBREWBYWEIGHT_HARDWARE_COMPAT" "$OPENBREWBYWEIGHT_MACHINE_COMPAT" \
@@ -174,7 +175,7 @@ ss_idf_emit_opt_overlay
 # Generate the Web UI after the firmware identity header so the baked cache
 # version equals the reported firmware version; the UI compares them to reload
 # a stale cached shell exactly once after an update.
-echo "WebUI language: $(ss_get webui_language)"
+echo "WebUI language: $(obbw_get webui_language)"
 # Bake the shell body class in development builds so the dev UI never paints
 # the lock panel or the timed UI Override section.
 webui_dev_flag=''
@@ -203,23 +204,23 @@ webui_micra_flag='--no-linea-micra'
 node ./scripts/gen_web_ui.js \
   --version "$(sed -n 's/^#define FW_VERSION_STRING "\(.*\)"$/\1/p' \
     "$OPENBREWBYWEIGHT_GENERATED_DIR/OpenBrewByWeightVersion.h")" \
-  --webui-language "$(ss_get webui_language)" $webui_dev_flag $webui_type_flag $webui_remote_flag \
+  --webui-language "$(obbw_get webui_language)" $webui_dev_flag $webui_type_flag $webui_remote_flag \
   $webui_micra_flag
 
-ss_idf_commit_extra_flags_stamp
+obbw_idf_commit_extra_flags_stamp
 
-idf.py "${IDF_PY_ARGS[@]}" build 2>&1 | ss_idf_filter_output
+idf.py "${IDF_PY_ARGS[@]}" build 2>&1 | obbw_idf_filter_output
 if [[ "$(git hash-object "$lock_file")" != "$lock_sha" ]]; then
   echo "IDF component lock changed during build; update it explicitly and review the diff." >&2
   exit 1
 fi
 
-ss_idf_verify_firmware
+obbw_idf_verify_firmware
 
 python -m esp_idf_size --format json2 -o "$IDF_BUILD_DIR/size.json" \
   "$IDF_MAP"
 size_check_profile=--release
-[[ "${SS_CLI_DEVELOPMENT:-0}" == "1" ]] && size_check_profile=--development
+[[ "${OBBW_CLI_DEVELOPMENT:-0}" == "1" ]] && size_check_profile=--development
 node "$root/src/tests/check_firmware_size.js" "$IDF_IMAGE" \
   --arch "$OPENBREWBYWEIGHT_ARCH" "$size_check_profile"
 printf '%s\n' "$config_fingerprint" > "$fingerprint_file"
@@ -250,4 +251,4 @@ if [[ -n "${OPENBREWBYWEIGHT_VARIANT:-}" ]]; then
   cp "$IDF_IMAGE" "$artifact"
   echo "Named firmware artifact: $artifact"
 fi
-ss_cli_save
+obbw_cli_save

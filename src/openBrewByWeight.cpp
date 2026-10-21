@@ -1,5 +1,5 @@
 /*
-  Shot Stopper for La Marzocco Micra
+  Open Brew by Weight controller firmware
 
   An activator on ACTIVATOR_GPIO (paddle, switch, or another compatible
   mechanism) reports user intention. The stopper is the sole controller of the
@@ -10,8 +10,8 @@
   Activator OFF (control open)   -> GPIO HIGH
   Relay de-energized             -> machine circuit open (safe state)
 
-  LAYER: Shot stopper (orchestrator)
-  ----------------------------------
+  LAYER: Stopper (orchestrator)
+  -----------------------------
   This translation unit wires brew, cup, scale, and the generic machine façade.
   It must keep responsibilities decoupled:
 

@@ -6,11 +6,12 @@ Every preset has a **Target yield** and a **Shot time window**, such as
 is **Fast**; one that gets there after it is **Slow**.
 
 Fast shots are often a grind that is too coarse, slow shots a grind that is too
-fine. On the Adaptive presets, ShotStopper softens both: a fast shot runs a few
-grams longer, and a slow shot stops a few grams sooner. This cannot guarantee a
-better-tasting cup; use a Fixed preset, or turn both options off, to always stop
-at the target. To skip them for a few shots without changing the preset, turn
-them off in the header's [guard panel](brew-by-weight.md#change-how-shots-stop-for-now).
+fine. On the Adaptive presets, the controller softens both: a fast shot runs a
+few grams longer, and a slow shot stops a few grams sooner. This cannot
+guarantee a better-tasting cup; use a Fixed preset, or turn both options off, to
+always stop at the target. To skip them for a few shots without changing the
+preset, turn them off in the header's [guard
+panel](brew-by-weight.md#change-how-shots-stop-for-now).
 
 ## When it applies
 
@@ -24,7 +25,7 @@ these options would do.
 
 ## The cut line
 
-ShotStopper stops a shot when its weight meets the preset's **cut line**. The
+The controller stops a shot when its weight meets the preset's **cut line**. The
 line sits on the target inside the window. With the fast and slow options on,
 it is higher before the window and lower after it, and it moves between those
 levels gradually over 5 seconds instead of jumping. Reaching the target a
@@ -105,7 +106,7 @@ statistics over when you save.
 ## Channeling
 
 If the flow suddenly surges during a shot — at least 3 g/s and half again
-faster than a second earlier, seen on two readings in a row — ShotStopper
+faster than a second earlier, seen on two readings in a row — the controller
 treats it as channeling. The flow building up right after the first drops
 never counts as a surge, so fast, high-flow recipes are not mistaken for
 channeling. For the rest of that shot the cut line never rises
@@ -115,7 +116,7 @@ statistics, grind hints or the scale-loss backup.
 
 ## Grind hints
 
-With **Grind hints** on (Recipe group, on by default), ShotStopper looks at
+With **Grind hints** on (Recipe group, on by default), the controller looks at
 when your recent shots on the active preset reached the target, on the grind
 setting you are using now, and compares their average with the middle of your
 shot time window. It leaves out the fastest and the slowest of those shots, so
@@ -141,7 +142,7 @@ for an exact estimate. It also says how sure it is (**Early read**,
 the comfortable middle of it and where your shots sit. The card never changes
 a setting and never counts clicks or steps: only you know your grinder.
 
-You don't need to tell ShotStopper when you adjust the grind; it notices the
+You don't need to tell the controller when you adjust the grind; it notices the
 change from your next shots and starts reading the new setting. Use
 **Relearn**, on the card or in **Settings → Presets**, after a new bag or a
 change to your dose, basket or grinder. **Ignore** hides the card in this

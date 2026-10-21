@@ -30,7 +30,7 @@ The clang-tidy binary comes from Espressif's LLVM fork (esp-clang), which
 understands the xtensa-esp32s3 target. Override it with the ESP_CLANG_TIDY
 environment variable (full path to a clang-tidy executable).
 
-$(ss_flag_help)
+$(obbw_flag_help)
 
 Examples:
   ./scripts/static-tidy-idf --arch n16r8
@@ -38,17 +38,17 @@ Examples:
 EOF
 }
 
-ss_cli_parse "$@" || exit $?
-if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
+obbw_cli_parse "$@" || exit $?
+if [[ "$OBBW_CLI_HELP_REQUESTED" == "1" ]]; then
   usage
   exit 0
 fi
 
-ss_cli_resolve "arch" || exit $?
-openbrewbyweight_resolve_board "$(ss_get arch)" || exit 2
-ss_idf_resolve_paths
+obbw_cli_resolve "arch" || exit $?
+openbrewbyweight_resolve_board "$(obbw_get arch)" || exit 2
+obbw_idf_resolve_paths
 
-ss_idf_static_paths reports/static-tidy || exit $?
+obbw_idf_static_paths reports/static-tidy || exit $?
 
 if [[ -n "${ESP_CLANG_TIDY:-}" ]]; then
   tidy_bin="$ESP_CLANG_TIDY"
@@ -76,7 +76,7 @@ command -v python3 > /dev/null 2>&1 || {
   exit 127
 }
 
-ss_idf_audit_translation_units || {
+obbw_idf_audit_translation_units || {
   echo "Translation-unit coverage audit failed." >&2
   exit 1
 }
@@ -106,7 +106,6 @@ patterns = [
     "idf/main/*.cpp",
     "idf/components/EspressoScaleBLE/*.cpp",
     "idf/components/OpenBrewByWeightBleRuntime/*.cpp",
-    "idf/components/openBrewByWeight/*.cpp",
 ]
 drop_prefixes = ("-fno-tree-", "-fstrict-volatile-bitfields", "-fuse-ld=",
                  "-Wl,", "--param=", "-mdisable-hardware-", "-fanalyzer",
@@ -286,5 +285,5 @@ else
   echo "clang-tidy clean: $total translation units, no diagnostics."
 fi
 
-ss_cli_save
+obbw_cli_save
 exit $tidy_status

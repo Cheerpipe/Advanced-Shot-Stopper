@@ -1,6 +1,6 @@
 #pragma once
 
-// Wi-Fi firmware updates for the Shot Stopper controller.
+// Wi-Fi firmware updates for the Open Brew by Weight controller.
 //
 // The design goal is that no reachable failure can leave the machine without a
 // bootable application:

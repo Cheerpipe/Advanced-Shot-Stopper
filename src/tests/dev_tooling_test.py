@@ -160,8 +160,8 @@ defaults_text = (ROOT / "idf" / "sdkconfig.defaults").read_text()
 assert "CONFIG_COMPILER_OPTIMIZATION_PERF=y" in defaults_text
 assert "CONFIG_COMPILER_OPTIMIZATION_SIZE=y" not in defaults_text
 internal_build = (INTERNAL / "build-idf").read_text()
-assert internal_build.count("SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF") == 2
-assert "SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE" in internal_build
+assert internal_build.count("OBBW_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_PERF") == 2
+assert "OBBW_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE" in internal_build
 firmware_dispatcher = (INTERNAL / "firmware-idf").read_text()
 assert 'Build output folder: %s\\n' in firmware_dispatcher
 assert 'Flash-ready firmware: %s/openbrewbyweight.bin\\n' in firmware_dispatcher
@@ -190,14 +190,14 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_sdkconfig_", dir=ROOT / "temp")
                "IDF_BUILD_DIR": str(build), "IDF_SDKCONFIG": str(build / "sdkconfig"),
                "OPENBREWBYWEIGHT_ARCH": "n16r8", "OPENBREWBYWEIGHT_VARIANT": variant,
                "OPENBREWBYWEIGHT_MACHINE_INTEGRATION": "none",
-               "OPENBREWBYWEIGHT_EXTRA_FLAGS": "", "SS_CLI_FORCE_SDKCONFIG_REGENERATE": str(int(force))}
+               "OPENBREWBYWEIGHT_EXTRA_FLAGS": "", "OBBW_CLI_FORCE_SDKCONFIG_REGENERATE": str(int(force))}
         return subprocess.run(
             ["bash", "-c", f'source "{ROOT / "scripts/openbrewbyweight_idf.sh"}"; '
              '"$1" "$2"', "sdkconfig-test", action, fingerprint],
             cwd=ROOT, env=env, text=True, capture_output=True)
 
     def digest(variant="pair-a"):
-        result = config_helper(variant, "ss_idf_config_fingerprint")
+        result = config_helper(variant, "obbw_idf_config_fingerprint")
         assert result.returncode == 0, result.stderr
         return result.stdout.strip()
 
@@ -210,12 +210,12 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_sdkconfig_", dir=ROOT / "temp")
         (build / "sdkconfig.inputs.sha256").write_text(digest(variant) + "\n")
     a = fixture / "build-idf/pair-a"
     b = fixture / "build-idf/pair-b"
-    assert config_helper("pair-a", "ss_idf_refresh_config", baseline).returncode == 0
+    assert config_helper("pair-a", "obbw_idf_refresh_config", baseline).returncode == 0
     assert (a / "sdkconfig").exists() and (a / "CMakeCache.txt").exists()
     shared.write_text("CONFIG_TEST_A=y\nCONFIG_TEST_B=y\n")
     added = digest()
     assert added != baseline
-    refreshed = config_helper("pair-a", "ss_idf_refresh_config", added)
+    refreshed = config_helper("pair-a", "obbw_idf_refresh_config", added)
     assert "local menuconfig choices will be discarded" in refreshed.stdout
     assert not (a / "sdkconfig").exists() and not (a / "CMakeCache.txt").exists()
     assert (b / "sdkconfig").exists() and (b / "CMakeCache.txt").exists()
@@ -231,14 +231,14 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_sdkconfig_", dir=ROOT / "temp")
     (a / "CMakeCache.txt").write_text("IDF_TARGET:STRING=esp32s3\n")
     (a / "sdkconfig.inputs.sha256").unlink()
     assert "no configuration fingerprint" in config_helper(
-        "pair-a", "ss_idf_refresh_config", digest()).stdout
+        "pair-a", "obbw_idf_refresh_config", digest()).stdout
     assert not (a / "sdkconfig").exists()
     (b / "sdkconfig").write_text("CONFIG_TEST_A=y\n")
     assert "requested by" in config_helper(
-        "pair-b", "ss_idf_refresh_config", digest("pair-b"), force=True).stdout
+        "pair-b", "obbw_idf_refresh_config", digest("pair-b"), force=True).stdout
     assert not (b / "sdkconfig").exists()
 
-assert internal_build.index('ss_idf_verify_firmware') < internal_build.index(
+assert internal_build.index('obbw_idf_verify_firmware') < internal_build.index(
     'printf \'%s\\n\' "$config_fingerprint" > "$fingerprint_file"')
 
 # The resource verifier must validate measurements at every optimization level.
@@ -332,12 +332,12 @@ assert with_flock.is_file() and with_flock.stat().st_mode & 0o111
 assert "fcntl.flock" in with_flock.read_text()
 assert "set_inheritable" in with_flock.read_text(), (
     "PEP 446 close-on-exec would release the lock before the build starts")
-assert "SS_BUILD_LOCKED" in internal_build and "with-flock" in internal_build
+assert "OBBW_BUILD_LOCKED" in internal_build and "with-flock" in internal_build
 assert ".locks/" in internal_build and "OPENBREWBYWEIGHT_VARIANT.lock" in internal_build
 
 # Serialization actually blocks: a held lock must delay a second holder.
 import time as _time
-with tempfile.TemporaryDirectory(prefix="ss-flock-probe-") as flock_dir:
+with tempfile.TemporaryDirectory(prefix="openbrewbyweight-flock-probe-") as flock_dir:
     lock_path = Path(flock_dir) / "probe.lock"
     first = subprocess.Popen(
         [sys.executable, str(with_flock), str(lock_path), "sleep", "2"])
@@ -376,7 +376,7 @@ def idf_doctor_fixture(with_install: bool, with_venv: bool):
 
 def idf_environment_probe(root: Path, extra_env: dict[str, str] | None = None):
     env = os.environ.copy()
-    env.update(HOME=str(root), SS_CLI_ROOT=str(root))
+    env.update(HOME=str(root), OBBW_CLI_ROOT=str(root))
     for name in ("IDF_PATH", "IDF_PYTHON_ENV_PATH", "ESP_PYTHON",
                  "ESP_IDF_VERSION", "IDF_DEACTIVATE_FILE_PATH"):
         env.pop(name, None)
@@ -385,7 +385,7 @@ def idf_environment_probe(root: Path, extra_env: dict[str, str] | None = None):
         f'source "{ROOT / "scripts/openbrewbyweight_board.sh"}"; '
         f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
         f'source "{ROOT / "scripts/openbrewbyweight_idf.sh"}"; '
-        'ss_idf_environment_report')
+        'obbw_idf_environment_report')
     return subprocess.run(["bash", "-c", command], env=env, cwd=ROOT,
                           capture_output=True, text=True)
 
@@ -508,7 +508,7 @@ assert '0x10000 "$image"' not in flash_idf, \
 parsed_erase = subprocess.run(
     ["bash", "-c",
      f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-     'ss_cli_parse --erase-all; test "$SS_CLI_ERASE_ALL" = 1'],
+     'obbw_cli_parse --erase-all; test "$OBBW_CLI_ERASE_ALL" = 1'],
     cwd=ROOT, capture_output=True, text=True)
 assert parsed_erase.returncode == 0, parsed_erase.stderr
 for controls, expected in (((), "0|0|"), (("--yes",), "1|0|--yes"),
@@ -517,28 +517,28 @@ for controls, expected in (((), "0|0|"), (("--yes",), "1|0|--yes"),
                            (("--yes", "--wait-for-confirmation"),
                             "1|1|--yes --wait-for-confirmation")):
     parsed_ota_controls = subprocess.run(
-        ["bash", "-c", 'source "$1"; shift; ss_cli_parse "$@"; '
-         'ss_cli_flags_for yes wait_for_confirmation; '
-         'printf "%s|%s|%s" "$SS_CLI_YES" "$SS_CLI_WAIT_FOR_CONFIRMATION" '
-         '"${SS_CLI_FORWARD[*]}"', "ota-controls",
+        ["bash", "-c", 'source "$1"; shift; obbw_cli_parse "$@"; '
+         'obbw_cli_flags_for yes wait_for_confirmation; '
+         'printf "%s|%s|%s" "$OBBW_CLI_YES" "$OBBW_CLI_WAIT_FOR_CONFIRMATION" '
+         '"${OBBW_CLI_FORWARD[*]}"', "ota-controls",
          str(ROOT / "scripts/openbrewbyweight_cli.sh"), *controls],
         cwd=ROOT, capture_output=True, text=True)
     assert parsed_ota_controls.returncode == 0 and \
         parsed_ota_controls.stdout == expected
 removed_force = subprocess.run(
     ["bash", "-c",
-     f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; ss_cli_parse --force'],
+     f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; obbw_cli_parse --force'],
     cwd=ROOT, capture_output=True, text=True)
 assert removed_force.returncode == 2 and "--wait-for-confirmation" in \
     removed_force.stderr
 profile_cli = subprocess.run(
     ["bash", "-c",
      f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-     'ss_cli_parse --hardware esp32-s3-relay-x1-speaker '
+     'obbw_cli_parse --hardware esp32-s3-relay-x1-speaker '
      '--machine rancilio-silvia-pro-x --development --flags=-DCUSTOM=1; '
-     'ss_cli_flags_for hardware_config machine_config development; '
-     'printf "%s|%s|%s" "$(ss_get hardware_config)" '
-     '"$(ss_get machine_config)" "${SS_CLI_FORWARD[*]}"'],
+     'obbw_cli_flags_for hardware_config machine_config development; '
+     'printf "%s|%s|%s" "$(obbw_get hardware_config)" '
+     '"$(obbw_get machine_config)" "${OBBW_CLI_FORWARD[*]}"'],
     cwd=ROOT, capture_output=True, text=True)
 assert profile_cli.returncode == 0, profile_cli.stderr
 assert profile_cli.stdout == (
@@ -548,7 +548,7 @@ assert profile_cli.stdout == (
 legacy_profile_cli = subprocess.run(
     ["bash", "-c",
      f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-     'ss_cli_parse --hardware-config old-hardware.json '
+     'obbw_cli_parse --hardware-config old-hardware.json '
      '--machine-config old-machine.json'],
     cwd=ROOT, capture_output=True, text=True)
 assert legacy_profile_cli.returncode == 0
@@ -562,7 +562,7 @@ def static_paths_probe(*args: str, output_dir: str | None = None,
     with tempfile.TemporaryDirectory(prefix="openbrewbyweight-static-paths-") as temporary:
         root = Path(temporary)
         env = os.environ.copy()
-        env.update(SS_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
+        env.update(OBBW_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
                    HOME=str(root))
         for name in ("IDF_PATH", "IDF_PYTHON_ENV_PATH"):
             env.pop(name, None)
@@ -582,9 +582,9 @@ def static_paths_probe(*args: str, output_dir: str | None = None,
             f'source "{ROOT / "scripts/openbrewbyweight_board.sh"}"; '
             f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
             f'source "{ROOT / "scripts/openbrewbyweight_idf.sh"}"; '
-            'ss_cli_parse "$@" || exit $?; '
-            'openbrewbyweight_resolve_board "$(ss_get arch)" || exit 2; '
-            'ss_idf_resolve_paths; ss_idf_static_paths reports/static-tidy || exit $?; '
+            'obbw_cli_parse "$@" || exit $?; '
+            'openbrewbyweight_resolve_board "$(obbw_get arch)" || exit 2; '
+            'obbw_idf_resolve_paths; obbw_idf_static_paths reports/static-tidy || exit $?; '
             'printf "build_dir=%s\\nbuild_path=%s\\noutput_dir=%s\\n" '
             '"$build_dir" "$build_path" "$output_dir"')
         return subprocess.run(["bash", "-c", command, "probe", *flags, *args],
@@ -675,7 +675,7 @@ def static_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path,
                     "  printf 'cppcheck-stub\\n'\nfi\n")
     stub.chmod(0o755)
     env = os.environ.copy()
-    env.update(SS_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
+    env.update(OBBW_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
                PATH=f"{tools}:{os.environ['PATH']}")
     result = subprocess.run(
         ["bash", str(ROOT / "scripts/static-idf"), "--arch", "n16r8",
@@ -728,7 +728,7 @@ def iwyu_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path,
         "printf 'iwyu-stub suggestion\\n'\n")
     stub.chmod(0o755)
     env = os.environ.copy()
-    env.update(SS_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
+    env.update(OBBW_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
                PATH=f"{tools}:{os.environ['PATH']}")
     result = subprocess.run(
         ["bash", str(ROOT / "scripts/iwyu-idf"), "--arch", "n16r8",
@@ -760,7 +760,7 @@ def cli_probe(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", "-c",
          f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-         'ss_cli_parse "$@" || exit $?; ss_cli_effective_flags',
+         'obbw_cli_parse "$@" || exit $?; obbw_cli_effective_flags',
          "probe", *args],
         cwd=ROOT, capture_output=True, text=True)
 
@@ -780,10 +780,10 @@ def cli_profile(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", "-c",
          f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-         'ss_cli_parse "$@" || exit $?; ss_cli_flags_for development release '
+         'obbw_cli_parse "$@" || exit $?; obbw_cli_flags_for development release '
          'no_auth_admin jtag; '
-         'printf "%s|%s" "$(ss_cli_effective_flags)" '
-         '"${SS_CLI_FORWARD[*]:-}"', "probe", *args],
+         'printf "%s|%s" "$(obbw_cli_effective_flags)" '
+         '"${OBBW_CLI_FORWARD[*]:-}"', "probe", *args],
         cwd=ROOT, capture_output=True, text=True)
 
 
@@ -822,8 +822,8 @@ assert jtag_valued.returncode == 2 and "does not take a value" in jtag_valued.st
 jtag_forward = subprocess.run(
     ["bash", "-c",
      f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-     'ss_cli_parse "$@" || exit $?; ss_cli_flags_for development jtag; '
-     'printf "%s" "${SS_CLI_FORWARD[*]}"', "probe", "--jtag"],
+     'obbw_cli_parse "$@" || exit $?; obbw_cli_flags_for development jtag; '
+     'printf "%s" "${OBBW_CLI_FORWARD[*]}"', "probe", "--jtag"],
     cwd=ROOT, capture_output=True, text=True)
 assert jtag_forward.returncode == 0 and jtag_forward.stdout == "--jtag"
 
@@ -832,8 +832,8 @@ def cli_opt_level(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", "-c",
          f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-         'ss_cli_parse "$@" || exit $?; ss_cli_flags_for opt_level; '
-         'printf "%s" "${SS_CLI_FORWARD[*]:-}"', "probe", *args],
+         'obbw_cli_parse "$@" || exit $?; obbw_cli_flags_for opt_level; '
+         'printf "%s" "${OBBW_CLI_FORWARD[*]:-}"', "probe", *args],
         cwd=ROOT, capture_output=True, text=True)
 
 
@@ -852,9 +852,9 @@ for level in ("--o1", "--o3", "--o1=1", "--oz", "--Ofast"):
 opt_not_stored = subprocess.run(
     ["bash", "-c",
      f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-     'ss_cli_parse "$@" || exit $?; ss_cli_save; cat "$SS_CLI_STORE"',
+     'obbw_cli_parse "$@" || exit $?; obbw_cli_save; cat "$OBBW_CLI_STORE"',
      "probe", "--os", "--flags=-DCUSTOM=1"],
-    cwd=ROOT, env={**os.environ, "SS_CLI_ROOT": str(Path(mkdtemp()))},
+    cwd=ROOT, env={**os.environ, "OBBW_CLI_ROOT": str(Path(mkdtemp()))},
     capture_output=True, text=True)
 assert opt_not_stored.returncode == 0 and \
     "opt_level" not in opt_not_stored.stdout and \
@@ -863,9 +863,9 @@ with tempfile.TemporaryDirectory(prefix="openbrewbyweight-jtag-store-") as tempo
     jtag_saved = subprocess.run(
         ["bash", "-c",
          f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-         'ss_cli_parse "$@" || exit $?; ss_cli_save; cat "$SS_CLI_STORE"',
+         'obbw_cli_parse "$@" || exit $?; obbw_cli_save; cat "$OBBW_CLI_STORE"',
          "probe", "--jtag", "--flags=-DCUSTOM=1"],
-        cwd=ROOT, env={**os.environ, "SS_CLI_ROOT": temporary},
+        cwd=ROOT, env={**os.environ, "OBBW_CLI_ROOT": temporary},
         capture_output=True, text=True)
     assert jtag_saved.returncode == 0 and \
         "flags=-DCUSTOM=1" in jtag_saved.stdout and \
@@ -875,7 +875,7 @@ assert "deprecated; use --machine" in legacy_profile_cli.stderr
 development_conflict = subprocess.run(
     ["bash", "-c",
      f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-     'ss_cli_parse --development --release || exit $?; ss_cli_effective_flags'],
+     'obbw_cli_parse --development --release || exit $?; obbw_cli_effective_flags'],
     cwd=ROOT, capture_output=True, text=True)
 assert development_conflict.returncode == 2 and \
     "mutually exclusive" in development_conflict.stderr
@@ -884,17 +884,17 @@ with tempfile.TemporaryDirectory(prefix="openbrewbyweight-defaults-") as tempora
     defaults_root = Path(temporary)
     store = defaults_root / ".openbrewbyweight"
     store.write_text("host=stored.local\nspeed=115200\nport=/missing/device\n")
-    defaults_env = {**os.environ, "SS_CLI_ROOT": str(defaults_root),
+    defaults_env = {**os.environ, "OBBW_CLI_ROOT": str(defaults_root),
                     "OPENBREWBYWEIGHT_NONINTERACTIVE": "1",
                     "OPENBREWBYWEIGHT_HOST": "environment.local",
                     "OPENBREWBYWEIGHT_DEVICE_PASSWORD": "environment-secret"}
     resolved = subprocess.run(
         ["bash", "-c",
          f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-         'ss_cli_parse --host cli.local; '
-         'ss_cli_resolve "host speed password"; '
-         'printf "RESULT:%s|%s|%s" "$(ss_get host)" "$(ss_get speed)" '
-         '"$(ss_origin password)"'],
+         'obbw_cli_parse --host cli.local; '
+         'obbw_cli_resolve "host speed password"; '
+         'printf "RESULT:%s|%s|%s" "$(obbw_get host)" "$(obbw_get speed)" '
+         '"$(obbw_origin password)"'],
         cwd=ROOT, env=defaults_env, capture_output=True, text=True)
     assert resolved.returncode == 0 and \
         "RESULT:cli.local|115200|env" in resolved.stdout
@@ -905,7 +905,7 @@ with tempfile.TemporaryDirectory(prefix="openbrewbyweight-defaults-") as tempora
         ["bash", "-c",
          f'source "{ROOT / "scripts/openbrewbyweight_board.sh"}"; '
          f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-         'ss_cli_resolve "port"'], cwd=ROOT, env=defaults_env,
+         'obbw_cli_resolve "port"'], cwd=ROOT, env=defaults_env,
         capture_output=True, text=True)
     assert stale.returncode == 2 and "does not exist" in stale.stderr
     detected = subprocess.run(
@@ -913,7 +913,7 @@ with tempfile.TemporaryDirectory(prefix="openbrewbyweight-defaults-") as tempora
          f'source "{ROOT / "scripts/openbrewbyweight_board.sh"}"; '
          f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
          'openbrewbyweight_detect_ports(){ printf "/dev/null\\n"; }; '
-         'ss_prompt_suggestion port'], cwd=ROOT, env=defaults_env,
+         'obbw_prompt_suggestion port'], cwd=ROOT, env=defaults_env,
         capture_output=True, text=True)
     assert detected.returncode == 0 and detected.stdout == "/dev/null"
 
@@ -935,17 +935,17 @@ def language_cli(*args: str, environment: str | None = None):
         root = Path(temporary)
         (root / ".openbrewbyweight").write_text("webui_language=fr\n")
         env = os.environ.copy()
-        env.update(SS_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1")
+        env.update(OBBW_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1")
         if environment is None:
             env.pop("OPENBREWBYWEIGHT_WEBUI_LANGUAGE", None)
         else:
             env["OPENBREWBYWEIGHT_WEBUI_LANGUAGE"] = environment
         command = (
             f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-            'ss_cli_parse "$@" || exit $?; ss_cli_resolve "webui_language" || exit $?; '
-            'ss_cli_flags_for webui_language; '
-            'printf "RESULT:%s|%s|%s\n" "$(ss_get webui_language)" '
-            '"$(ss_origin webui_language)" "${SS_CLI_FORWARD[*]}"')
+            'obbw_cli_parse "$@" || exit $?; obbw_cli_resolve "webui_language" || exit $?; '
+            'obbw_cli_flags_for webui_language; '
+            'printf "RESULT:%s|%s|%s\n" "$(obbw_get webui_language)" '
+            '"$(obbw_origin webui_language)" "${OBBW_CLI_FORWARD[*]}"')
         result = subprocess.run(["bash", "-c", command, "probe", *args],
                                 env=env, capture_output=True, text=True)
         stored = (root / ".openbrewbyweight").read_text()
@@ -1071,7 +1071,7 @@ def dispatched(stages: tuple[str, ...], args: list[str], fail: str = "",
                 + ("exit 9\n" if child == fail else ""))
             target.chmod(0o755)
         env = os.environ.copy()
-        env.update(SS_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
+        env.update(OBBW_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
                    OPENBREWBYWEIGHT_DEVICE_PASSWORD="test-only")
         env.pop("OPENBREWBYWEIGHT_FLAGS", None)
         result = subprocess.run(
@@ -1218,7 +1218,7 @@ def idf_activation(active_version: str | None, active_python: bool = True):
                        IDF_PYTHON_ENV_PATH=str(active_env))
         command = (
             f'source "{ROOT / "scripts/openbrewbyweight_idf.sh"}"; '
-            'SS_IDF_QUIET=1; ss_idf_source; '
+            'OBBW_IDF_QUIET=1; obbw_idf_source; '
             'printf "%s|%s|%s" "$IDF_PATH" "$IDF_PYTHON_ENV_PATH" '
             '"$(command -v idf.py)"')
         return subprocess.run(["bash", "-c", command], env=env,
@@ -1282,7 +1282,7 @@ def idf_python_env_selection(python_env: str | None, home_leaf: str = "home"):
                     else str(missing_env))
         command = (
             f'source "{ROOT / "scripts/openbrewbyweight_idf.sh"}"; '
-            'SS_IDF_QUIET=1; ss_idf_source; '
+            'OBBW_IDF_QUIET=1; obbw_idf_source; '
             'printf "%s|%s" "$IDF_PATH" "$IDF_PYTHON_ENV_PATH"')
         result = subprocess.run(["bash", "-c", command], env=env,
                                 capture_output=True, text=True)
@@ -1360,7 +1360,7 @@ def flash_command(layout: str, *extra: str, arch: str = "n16r8"):
                            tools / "esptool"):
             executable.chmod(0o755)
         env = os.environ.copy()
-        env.update(SS_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
+        env.update(OBBW_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
                    IDF_PATH=str(idf), IDF_PYTHON_ENV_PATH=str(python_env.parent),
                    FLASH_LAYOUT=layout, EXPECTED_ARCH=arch, TMPDIR=str(root),
                    PATH=f"{tools}:/usr/bin:/bin")
@@ -1448,7 +1448,7 @@ def verify_production_profile(arch: str, selectors: list[str], integration: str 
         return subprocess.run(
             ["bash", "-c",
              f'source "{ROOT / "scripts/openbrewbyweight_idf.sh"}"; '
-             'ss_idf_verify_production_profile "$1" "$2"',
+             'obbw_idf_verify_production_profile "$1" "$2"',
              "profile-test", arch, fixture_path],
             cwd=ROOT, env={**os.environ, "OPENBREWBYWEIGHT_MACHINE_INTEGRATION": integration},
             text=True, capture_output=True)
@@ -1590,7 +1590,7 @@ assert "constexpr uint32_t FLASH_IO_LOCK_TIMEOUT_MS = 3000" in \
 assert r"component_validation\.cmake" in idf_helpers and \
     'idf "esp_wifi/"' in idf_helpers and 'idf "wpa_supplicant/"' in idf_helpers, \
     "only the known ESP-IDF 6.1 Wi-Fi component warnings may be filtered"
-assert 'build 2>&1 | ss_idf_filter_output' in \
+assert 'build 2>&1 | obbw_idf_filter_output' in \
     (INTERNAL / "build-idf").read_text(), \
     "the firmware build must use the scoped external-warning filter"
 for removed_alias in ("b", "bf", "bfm", "bo", "bsfm", "build", "f", "flash",

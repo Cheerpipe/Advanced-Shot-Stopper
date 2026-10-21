@@ -31,12 +31,12 @@ esp_log_level_t espLogLevel(LogLevel level) {
 }
 
 // ESP-IDF component lines (esp-tls, HTTP_CLIENT, ...) reach only this hook and
-// production has no USB console, so the WebUI ring retains them too. ss.*
+// production has no USB console, so the WebUI ring retains them too. obbw.*
 // lines are already there. Log v1 format: "E (1234) tag: text\n".
 void retainEspLogLine(const char *text) {
   const char *body = strstr(text, ") ");
   if (text[1] != ' ' || text[2] != '(' || body == nullptr ||
-      strncmp(body + 2, "ss.", 3) == 0 || !xPortCanYield()) {
+      strncmp(body + 2, "obbw.", 5) == 0 || !xPortCanYield()) {
     return;
   }
   char message[DEBUG_EVENT_TEXT_CAPACITY];
@@ -156,8 +156,8 @@ void configureEspLogRuntime() {
   }
   const esp_log_level_t level = espLogLevel(applicationLevel);
   static const char *const tags[] = {
-      "ss.activator", "ss.relay", "ss.state", "ss.scale", "ss.config",
-      "ss.network", "ss.security", "ss.web", "ss.boot", "ss.system"};
+      "obbw.activator", "obbw.relay", "obbw.state", "obbw.scale", "obbw.config",
+      "obbw.network", "obbw.security", "obbw.web", "obbw.boot", "obbw.system"};
   for (const char *tag : tags) {
     esp_log_level_set(tag, level);
   }
@@ -194,10 +194,10 @@ void emitEspLog(LogLevel level, DebugCategory category, const char *message) {
   }
 #if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // espLogTag was removed: the tag is debugCategoryName() prefixed with
-  // "ss.". Derive it here so the category names have a single source.
+  // "obbw.". Derive it here so the category names have a single source.
   char tag[24];
-  copyCString(tag, sizeof(tag), "ss.");
-  copyCString(tag + 3, sizeof(tag) - 3, debugCategoryName(category));
+  copyCString(tag, sizeof(tag), "obbw.");
+  copyCString(tag + 5, sizeof(tag) - 5, debugCategoryName(category));
   const char *criticalPrefix =
       level == LogLevel::CRITICAL ? "[CRITICAL] " : "";
   // ESP_LOG_LEVEL accepts a runtime level without the ESP_LOGx local-level

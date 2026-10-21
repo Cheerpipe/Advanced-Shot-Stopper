@@ -1,9 +1,9 @@
 # Scale-loss backup
 
 The scale-loss backup (formerly the A→M time guard) protects brew-by-weight
-shots. If the scale drops out mid-shot, ShotStopper can no longer stop on weight, so it picks the best stop
-time it can and stops the shot then, unless the scale comes back first.
-**On by default.**
+shots. If the scale drops out mid-shot, the controller can no longer stop on
+weight, so it picks the best stop time it can and stops the shot then, unless
+the scale comes back first. **On by default.**
 
 A→M means auto-to-manual: weight stop is paused, but the shot keeps running
 until the backup time. Paddle builds open the relay; momentary builds request a
@@ -18,14 +18,14 @@ Every brew-by-weight shot that started with the scale connected. It does
 
 The scale counts as lost when Bluetooth drops or **weight notifications stop
 arriving** for about a second. A steady weight is not a loss: fresh readings
-still count even if the brew logic ignores one. ShotStopper keeps trying to
+still count even if the brew logic ignores one. The controller keeps trying to
 reconnect for the **whole** shot. If the scale returns with three good
 readings, weight stop resumes and the backup time is cancelled. If the scale
 drops again later, a new backup time is chosen from what is known then.
 
 ## Choosing the backup time
 
-ShotStopper uses the first of these that applies:
+The controller uses the first of these that applies:
 
 1. **Fixed time.** If the preset has a time in **Backup stop time
    (s)**, the shot stops at that time.
@@ -60,7 +60,7 @@ Recent shots are the newest ten weight-stopped shots on the same preset.
 Shots stopped by this backup, by the max shot time or by hand do not count,
 and neither do rinses or shots where the coffee channeled.
 
-After a new bag or a change to your dose, basket or grinder, tell ShotStopper
+After a new bag or a change to your dose, basket or grinder, tell the controller
 so old shots stop counting: use **Relearn** in **Settings → Presets** or on
 Home's grind-hint card (or the integration API's reset-guard-samples call).
 Only shots made with the preset's current window and a target within 1 g
@@ -71,10 +71,10 @@ automatically; going back to the earlier values counts those shots again.
 
 An automatic Double with a 27–36 s window loses Bluetooth at 12 s, before the
 coffee is near its target. The last three shots finished around 30 s, so the
-backup time is about 31.5 s. ShotStopper keeps reconnecting; if the scale comes
-back at 20 s with three good readings, weight stop resumes and the backup time
-is cancelled. If the scale is lost at 29 s while the coffee is flowing toward
-the target, the shot stops when the flow says it would have reached it.
+backup time is about 31.5 s. The controller keeps reconnecting; if the scale
+comes back at 20 s with three good readings, weight stop resumes and the backup
+time is cancelled. If the scale is lost at 29 s while the coffee is flowing
+toward the target, the shot stops when the flow says it would have reached it.
 
 Related: [Brew by weight](brew-by-weight.md), [Presets](presets.md),
 [Alerts](../alerts.md) (Shot finished by backup time).

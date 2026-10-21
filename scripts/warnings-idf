@@ -15,13 +15,13 @@ readonly ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 readonly OUTPUT_DIR="reports/gcc-warnings"
 # A separate tree keeps -Wunused-parameter from reconfiguring build-idf/<variant>.
 export OPENBREWBYWEIGHT_IDF_BUILD_ROOT="$ROOT/build-idf/warnings"
-SS_IDF_BUILD_ROOT="$OPENBREWBYWEIGHT_IDF_BUILD_ROOT"
+OBBW_IDF_BUILD_ROOT="$OPENBREWBYWEIGHT_IDF_BUILD_ROOT"
 
 usage() {
   cat <<EOF
 Usage: ./scripts/warnings-idf [flags]
 
-Build Shot Stopper with the official ESP-IDF path plus extra GCC warnings
+Build Open Brew by Weight with the official ESP-IDF path plus extra GCC warnings
 (currently -Wunused-parameter) and save the filtered result to
 $OUTPUT_DIR/gcc-warnings.txt. Replaces the previous report. The full compile
 log is kept in gcc-warnings-raw.txt; the main report keeps only diagnostics
@@ -36,7 +36,7 @@ instead. For cppcheck (no build required) use ./scripts/static-idf.
 Required parameters: --hardware and --machine. --flags is optional and appended
 to the warnings build.
 
-$(ss_flag_help)
+$(obbw_flag_help)
 
 $(openbrewbyweight_arch_help)
 
@@ -46,13 +46,13 @@ Examples:
 EOF
 }
 
-ss_cli_parse "$@" || exit $?
-if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
+obbw_cli_parse "$@" || exit $?
+if [[ "$OBBW_CLI_HELP_REQUESTED" == "1" ]]; then
   usage
   exit 0
 fi
 
-ss_cli_resolve "hardware_config machine_config webui_language" "flags" || exit $?
+obbw_cli_resolve "hardware_config machine_config webui_language" "flags" || exit $?
 
 cd "$ROOT"
 output_path="$ROOT/$OUTPUT_DIR"
@@ -63,7 +63,7 @@ mkdir -p "$output_path"
 # The internal build stage would persist it into .openbrewbyweight and every later
 # compile. Strip every copy before building and saving so this tool never
 # leaks its analysis-only option into ordinary builds.
-configured_flags="$(ss_get flags)"
+configured_flags="$(obbw_get flags)"
 user_flags=""
 for configured_flag in $configured_flags; do
   case "$configured_flag" in
@@ -71,23 +71,23 @@ for configured_flag in $configured_flags; do
     *) user_flags="${user_flags:+$user_flags }$configured_flag" ;;
   esac
 done
-ss_put flags "$user_flags" cli
-effective_flags="$(ss_cli_effective_flags)" || exit $?
+obbw_put flags "$user_flags" cli
+effective_flags="$(obbw_cli_effective_flags)" || exit $?
 warning_flags="${effective_flags:+$effective_flags }-Wunused-parameter"
-ss_cli_resolve_profiles "$warning_flags" || exit $?
-openbrewbyweight_resolve_board "$(ss_get arch)" || exit 2
+obbw_cli_resolve_profiles "$warning_flags" || exit $?
+openbrewbyweight_resolve_board "$(obbw_get arch)" || exit 2
 
 raw_report="$output_path/gcc-warnings-raw.txt"
 report="$output_path/gcc-warnings.txt"
 
 echo "Building $OPENBREWBYWEIGHT_ARCH (IDF) with extra GCC warnings..."
 OPENBREWBYWEIGHT_NONINTERACTIVE=1 ./scripts/internal/build-idf \
-  --hardware "$(ss_get hardware_config)" --machine "$(ss_get machine_config)" \
-  --webui-language "$(ss_get webui_language)" \
+  --hardware "$(obbw_get hardware_config)" --machine "$(obbw_get machine_config)" \
+  --webui-language "$(obbw_get webui_language)" \
   --flags "$warning_flags" >"$raw_report" 2>&1
 build_status=$?
 
-ss_cli_save
+obbw_cli_save
 
 if [[ $build_status -ne 0 ]]; then
   cat "$raw_report" >&2

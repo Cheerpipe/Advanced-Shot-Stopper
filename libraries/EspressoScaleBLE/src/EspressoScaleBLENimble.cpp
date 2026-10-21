@@ -30,8 +30,8 @@
 #include <stdio.h>
 #include <string.h>
 
-// Shot Stopper retains scale diagnostics in its bounded WebUI log. Keep the
-// bridge weak so this library remains reusable by standalone IDF projects.
+// Open Brew by Weight retains scale diagnostics in its bounded WebUI log. Keep
+// the bridge weak so this library remains reusable by standalone IDF projects.
 extern "C" void openBrewByWeightScaleLog(uint8_t severity, const char *message)
     __attribute__((weak));
 

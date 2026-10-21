@@ -662,7 +662,7 @@ esp_err_t OpenBrewByWeightNetwork::scaleProfileDownloadHandler(
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   ScaleProfileTextSink sink(request);
   char line[192];
-  bool ok = sink.linef("# ShotStopper scale profile") &&
+  bool ok = sink.linef("# Open Brew by Weight scale profile") &&
             sink.linef("sessionId=%lu", static_cast<unsigned long>(sessionId));
   if (ok) {
     ok = utcStartSec != 0

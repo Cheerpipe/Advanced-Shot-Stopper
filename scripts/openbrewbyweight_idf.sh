@@ -8,7 +8,7 @@
 IDF_PROJECT_NAME="openbrewbyweight"
 IDF_DEFAULT_HOME="${HOME}/esp/esp-idf-v6.1"
 
-ss_idf_find() {
+obbw_idf_find() {
   if [[ -n "${IDF_PATH:-}" && -f "${IDF_PATH}/export.sh" ]]; then
     printf '%s' "$IDF_PATH"
     return 0
@@ -20,19 +20,19 @@ ss_idf_find() {
   return 1
 }
 
-ss_idf_active_valid() {
+obbw_idf_active_valid() {
   [[ -n "${IDF_PATH:-}" && -f "${IDF_PATH}/export.sh" ]] || return 1
   [[ -n "${IDF_PYTHON_ENV_PATH:-}" &&
     -x "${IDF_PYTHON_ENV_PATH}/bin/python" ]] || return 1
   [[ "$(command -v idf.py 2>/dev/null)" == "${IDF_PATH}/tools/idf.py" ]] || return 1
-  (SS_IDF_QUIET=1 ss_idf_require_version) >/dev/null 2>&1
+  (OBBW_IDF_QUIET=1 obbw_idf_require_version) >/dev/null 2>&1
 }
 
 # A Python upgrade leaves the SDK clone's export.sh pointing at a python_env
 # name that no longer exists while an installed, still-valid environment for
 # the same IDF release sits unused in ~/.espressif/python_env. Prefer such an
 # environment before export.sh so the documented fallback keeps working.
-ss_idf_select_python_env() {
+obbw_idf_select_python_env() {
   local idf_root="$1" version_header marker major minor candidate
   version_header="${idf_root}/components/esp_common/include/esp_idf_version.h"
   [[ -f "$version_header" ]] || return 1
@@ -53,12 +53,12 @@ ss_idf_select_python_env() {
 # Read-only diagnosis for ./scripts/dev doctor: report which ESP-IDF checkout
 # the build scripts would use, which Python environment the activation would
 # end up with, and the venv mismatch case (a Python-upgraded SDK clone whose
-# export.sh target no longer exists). Reuses ss_idf_find and the same python
-# environment selection as ss_idf_source without sourcing export.sh, mutating
+# export.sh target no longer exists). Reuses obbw_idf_find and the same python
+# environment selection as obbw_idf_source without sourcing export.sh, mutating
 # the caller's environment, or running idf.py.
-ss_idf_environment_report() {
+obbw_idf_environment_report() {
   local idf_root selected
-  idf_root="$(ss_idf_find)" || return 1
+  idf_root="$(obbw_idf_find)" || return 1
   printf 'IDF_PATH=%s\n' "${idf_root}"
   if [[ -n "${IDF_PYTHON_ENV_PATH:-}" && -x "${IDF_PYTHON_ENV_PATH}/bin/python" ]]; then
     printf 'IDF_PYTHON_ENV_PATH=%s\n' "${IDF_PYTHON_ENV_PATH}"
@@ -66,8 +66,8 @@ ss_idf_environment_report() {
     printf 'venv_mismatch=no\n'
     return 0
   fi
-  # Selection in a subshell: ss_idf_select_python_env exports, never prints.
-  selected="$(SS_IDF_QUIET=1 ss_idf_select_python_env "${idf_root}" && \
+  # Selection in a subshell: obbw_idf_select_python_env exports, never prints.
+  selected="$(OBBW_IDF_QUIET=1 obbw_idf_select_python_env "${idf_root}" && \
     printf '%s' "${IDF_PYTHON_ENV_PATH-}")" || selected=""
   if [[ -n "${selected}" ]]; then
     printf 'IDF_PYTHON_ENV_PATH=%s\n' "${selected}"
@@ -83,12 +83,12 @@ ss_idf_environment_report() {
   return 0
 }
 
-ss_idf_source() {
+obbw_idf_source() {
   local idf_root
 
   if [[ -n "${IDF_PYTHON_ENV_PATH:-}" ]]; then
-    if ss_idf_active_valid; then
-      if [[ "${SS_IDF_QUIET:-}" != "1" ]]; then
+    if obbw_idf_active_valid; then
+      if [[ "${OBBW_IDF_QUIET:-}" != "1" ]]; then
         echo "ESP-IDF: ${IDF_PATH} (active environment)"
       fi
       return 0
@@ -97,7 +97,7 @@ ss_idf_source() {
     unset IDF_DEACTIVATE_FILE_PATH IDF_TOOLS_EXPORT_CMD IDF_TOOLS_INSTALL_CMD
     hash -r
   fi
-  idf_root="$(ss_idf_find)" || {
+  idf_root="$(obbw_idf_find)" || {
     echo "ESP-IDF not found (idf.py / export.sh)." >&2
     echo "Install ESP-IDF v6.1 and run again:" >&2
     echo "  mkdir -p \"\$HOME/esp\" && cd \"\$HOME/esp\"" >&2
@@ -112,7 +112,7 @@ ss_idf_source() {
   # Selecting it here keeps the documented fallback self-healing.
   if [[ -z "${IDF_PYTHON_ENV_PATH:-}" ||
         ! -x "${IDF_PYTHON_ENV_PATH}/bin/python" ]]; then
-    ss_idf_select_python_env "${idf_root}" || true
+    obbw_idf_select_python_env "${idf_root}" || true
   fi
   # shellcheck disable=SC1091
   . "${idf_root}/export.sh" >/dev/null
@@ -120,15 +120,15 @@ ss_idf_source() {
     echo "export.sh from ${idf_root} did not put idf.py on PATH." >&2
     exit 127
   }
-  ss_idf_require_version
-  if [[ "${SS_IDF_QUIET:-}" != "1" ]]; then
+  obbw_idf_require_version
+  if [[ "${OBBW_IDF_QUIET:-}" != "1" ]]; then
     echo "ESP-IDF: ${idf_root}"
   fi
 }
 
 # ESP-IDF 6.1 reports its own esp_wifi/wpa_supplicant cross-includes as CMake
 # warnings. Hide only those upstream blocks; preserve every other diagnostic.
-ss_idf_filter_output() {
+obbw_idf_filter_output() {
   awk -v idf="${IDF_PATH}/components/" '
     function emit() {
       external = (index(block, idf "esp_wifi/") || index(block, idf "wpa_supplicant/")) && \
@@ -146,7 +146,7 @@ ss_idf_filter_output() {
 }
 
 # Match the v6.1 release used by CI and the component lock.
-ss_idf_require_version() {
+obbw_idf_require_version() {
   local ver_line ver
   ver_line="$(idf.py --version 2>/dev/null | head -n1 || true)"
   ver="$(printf '%s' "$ver_line" | sed -n 's/.*v\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p')"
@@ -155,7 +155,7 @@ ss_idf_require_version() {
   fi
   case "$ver" in
     6.1|6.1.0)
-      if [[ "${SS_IDF_QUIET:-}" != "1" ]]; then
+      if [[ "${OBBW_IDF_QUIET:-}" != "1" ]]; then
         echo "ESP-IDF version: v${ver} (required: 6.1.0)"
       fi
       ;;
@@ -170,7 +170,7 @@ ss_idf_require_version() {
 }
 
 # True when extra flags request USB Serial/JTAG at boot.
-ss_idf_jtag_enabled() {
+obbw_idf_jtag_enabled() {
   local tok
   # Word-splitting is intentional: extra flags is a space-separated list.
   # shellcheck disable=SC2086
@@ -188,9 +188,9 @@ ss_idf_jtag_enabled() {
 # Static analysis defaults predate the per-variant build trees: without an
 # explicit --build-dir, prefer the newest variant database instead of the
 # legacy per-arch directory that recent builds no longer write.
-ss_idf_default_build_dir() {
+obbw_idf_default_build_dir() {
   local database newest=""
-  for database in "$SS_CLI_ROOT"/build-idf/*/compile_commands.json; do
+  for database in "$OBBW_CLI_ROOT"/build-idf/*/compile_commands.json; do
     [[ -f "$database" ]] || continue
     if [[ -z "$newest" || "$database" -nt "$newest" ]]; then
       newest="$database"
@@ -204,26 +204,26 @@ ss_idf_default_build_dir() {
 # wins, then the newest per-variant tree, then the legacy per-arch directory.
 # --output-dir must stay a relative path inside the repository so the callers'
 # destructive cleanup can never escape it. Relative paths resolve against
-# SS_CLI_ROOT. Sets build_dir, build_path, output_dir, output_path, and
+# OBBW_CLI_ROOT. Sets build_dir, build_path, output_dir, output_path, and
 # compile_commands. Requires the default output directory as $1; returns 2 for
 # an unsafe output directory and 1 when the compilation database is missing.
-ss_idf_static_paths() {
+obbw_idf_static_paths() {
   local default_dir
-  if ss_is_set build_dir; then
-    build_dir="$(ss_get build_dir)"
-  elif default_dir="$(ss_idf_default_build_dir)"; then
+  if obbw_is_set build_dir; then
+    build_dir="$(obbw_get build_dir)"
+  elif default_dir="$(obbw_idf_default_build_dir)"; then
     build_dir="$default_dir"
   else
     build_dir="build-idf/$OPENBREWBYWEIGHT_ARCH"
   fi
-  if ss_is_set output_dir; then
-    output_dir="$(ss_get output_dir)"
+  if obbw_is_set output_dir; then
+    output_dir="$(obbw_get output_dir)"
   else
     output_dir="$1"
   fi
   case "$build_dir" in
     /*) build_path="$build_dir" ;;
-    *) build_path="$SS_CLI_ROOT/$build_dir" ;;
+    *) build_path="$OBBW_CLI_ROOT/$build_dir" ;;
   esac
   # Keep the destructive cleanup strictly inside the repository.
   case "$output_dir" in
@@ -232,7 +232,7 @@ ss_idf_static_paths() {
       return 2
       ;;
   esac
-  output_path="$SS_CLI_ROOT/$output_dir"
+  output_path="$OBBW_CLI_ROOT/$output_dir"
   compile_commands="$build_path/compile_commands.json"
   if [[ ! -f "$compile_commands" ]]; then
     echo "$compile_commands does not exist." >&2
@@ -244,7 +244,7 @@ ss_idf_static_paths() {
 # Shared translation-unit coverage audit for the static analysis scripts:
 # recreates the output directory, audits the database against the project
 # manifest, and saves the report. Returns the audit's exit status.
-ss_idf_audit_translation_units() {
+obbw_idf_audit_translation_units() {
   rm -rf "$output_path"
   mkdir -p "$output_path"
   python3 "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/audit_compile_commands.py" \
@@ -254,9 +254,9 @@ ss_idf_audit_translation_units() {
 
 # Call after openbrewbyweight_resolve_board. Sets IDF_PROJECT, IDF_BUILD_DIR,
 # IDF_IMAGE, IDF_ELF, IDF_MAP, IDF_SDKCONFIG, IDF_SDKCONFIG_DEFAULTS.
-ss_idf_resolve_paths() {
-  IDF_PROJECT="$SS_CLI_ROOT/idf"
-  IDF_BUILD_DIR="$SS_IDF_BUILD_ROOT/${OPENBREWBYWEIGHT_VARIANT:-$OPENBREWBYWEIGHT_ARCH}"
+obbw_idf_resolve_paths() {
+  IDF_PROJECT="$OBBW_CLI_ROOT/idf"
+  IDF_BUILD_DIR="$OBBW_IDF_BUILD_ROOT/${OPENBREWBYWEIGHT_VARIANT:-$OPENBREWBYWEIGHT_ARCH}"
   IDF_IMAGE="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.bin"
   IDF_ELF="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.elf"
   IDF_MAP="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.map"
@@ -265,20 +265,20 @@ ss_idf_resolve_paths() {
   if [[ "${OPENBREWBYWEIGHT_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]]; then
     IDF_SDKCONFIG_DEFAULTS="$IDF_SDKCONFIG_DEFAULTS;$IDF_PROJECT/sdkconfig.defaults.micra"
   fi
-  if ss_idf_jtag_enabled; then
+  if obbw_idf_jtag_enabled; then
     IDF_SDKCONFIG_DEFAULTS="$IDF_SDKCONFIG_DEFAULTS;$IDF_PROJECT/sdkconfig.defaults.jtag"
   fi
   # The optimization level overlay is generated per build from --o0/--og/--o2/--os
   # (empty means the repository default, -O2). Appended last so the chosen level
   # wins over every earlier default file. It must live outside the build dir:
-  # ss_idf_prepare_set_target wipes that directory and idf.py requires every
+  # obbw_idf_prepare_set_target wipes that directory and idf.py requires every
   # SDKCONFIG_DEFAULTS entry to exist while set-target runs its first cmake.
-  IDF_OPT_OVERLAY="$SS_IDF_BUILD_ROOT/.defaults/${OPENBREWBYWEIGHT_VARIANT:-$OPENBREWBYWEIGHT_ARCH}.optlevel"
+  IDF_OPT_OVERLAY="$OBBW_IDF_BUILD_ROOT/.defaults/${OPENBREWBYWEIGHT_VARIANT:-$OPENBREWBYWEIGHT_ARCH}.optlevel"
   IDF_SDKCONFIG_DEFAULTS="$IDF_SDKCONFIG_DEFAULTS;$IDF_OPT_OVERLAY"
 }
 
-ss_idf_py_args() {
-  ss_idf_resolve_paths
+obbw_idf_py_args() {
+  obbw_idf_resolve_paths
   # Optional accelerator: an installed ccache turns full rebuilds after flag or
   # sdkconfig changes into cache hits. IDF_CCACHE_ENABLE=0 opts out.
   if [[ -z "${IDF_CCACHE_ENABLE:-}" ]] && command -v ccache >/dev/null 2>&1; then
@@ -296,7 +296,7 @@ ss_idf_py_args() {
   )
 }
 
-ss_idf_probe_in_psram() {
+obbw_idf_probe_in_psram() {
   local addr="$1"
   # ESP32-S3 maps instruction/data external RAM around 0x3C000000.
   # Internal DRAM BSS is typically 0x3FC00000.
@@ -306,8 +306,8 @@ ss_idf_probe_in_psram() {
   return 1
 }
 
-ss_idf_require_image() {
-  ss_idf_resolve_paths
+obbw_idf_require_image() {
+  obbw_idf_resolve_paths
   if [[ ! -f "$IDF_IMAGE" ]]; then
     echo "$IDF_IMAGE does not exist." >&2
     echo "Build first with the same --hardware and --machine profiles." >&2
@@ -320,10 +320,10 @@ ss_idf_require_image() {
 # Drop the cache when the stamp changes. Do not write the stamp here:
 # idf.py set-target runs fullclean, which refuses a non-empty directory that
 # is not a CMake build (no CMakeCache.txt). Writing the stamp first made the
-# first n16r8 tree fail. Call ss_idf_commit_extra_flags_stamp after
+# first n16r8 tree fail. Call obbw_idf_commit_extra_flags_stamp after
 # set-target. CMake still reads OPENBREWBYWEIGHT_EXTRA_FLAGS from the environment.
-ss_idf_sync_extra_flags() {
-  ss_idf_resolve_paths
+obbw_idf_sync_extra_flags() {
+  obbw_idf_resolve_paths
   local stamp="$IDF_BUILD_DIR/open_brew_by_weight_extra_flags"
   local new="${OPENBREWBYWEIGHT_EXTRA_FLAGS-}"
   local old=""
@@ -339,13 +339,13 @@ ss_idf_sync_extra_flags() {
   fi
 }
 
-ss_idf_commit_extra_flags_stamp() {
-  ss_idf_resolve_paths
+obbw_idf_commit_extra_flags_stamp() {
+  obbw_idf_resolve_paths
   mkdir -p "$IDF_BUILD_DIR"
   printf '%s\n' "${OPENBREWBYWEIGHT_EXTRA_FLAGS-}" > "$IDF_BUILD_DIR/open_brew_by_weight_extra_flags"
 }
 
-ss_idf_config_fingerprint() {
+obbw_idf_config_fingerprint() {
   python3 - "$IDF_SDKCONFIG_DEFAULTS" "$IDF_PROJECT/main/Kconfig.projbuild" \
     "$OPENBREWBYWEIGHT_ARCH" "${OPENBREWBYWEIGHT_VARIANT:-$OPENBREWBYWEIGHT_ARCH}" \
     "${OPENBREWBYWEIGHT_MACHINE_INTEGRATION:-none}" "${OPENBREWBYWEIGHT_EXTRA_FLAGS-}" <<'PY'
@@ -361,9 +361,9 @@ print(h.hexdigest())
 PY
 }
 
-ss_idf_refresh_config() {
+obbw_idf_refresh_config() {
   local fingerprint="$1" stamp="$IDF_BUILD_DIR/sdkconfig.inputs.sha256" reason=''
-  if [[ "${SS_CLI_FORCE_SDKCONFIG_REGENERATE:-0}" == "1" ]]; then
+  if [[ "${OBBW_CLI_FORCE_SDKCONFIG_REGENERATE:-0}" == "1" ]]; then
     reason='requested by --force-sdkconfig-regenerate'
   elif [[ -f "$IDF_SDKCONFIG" && ! -f "$stamp" ]]; then
     reason='existing tree has no configuration fingerprint'
@@ -380,12 +380,12 @@ ss_idf_refresh_config() {
 
 # idf.py aborts when a SDKCONFIG_DEFAULTS entry is missing, and set-target
 # fullcleans the tree, so the overlay is re-emitted before and after it runs.
-ss_idf_emit_opt_overlay() {
-  ss_idf_resolve_paths
+obbw_idf_emit_opt_overlay() {
+  obbw_idf_resolve_paths
   mkdir -p "$(dirname "$IDF_OPT_OVERLAY")"
   local content
   content="$(printf '# Generated by scripts/internal/build-idf; do not edit.\n%s=y\n' \
-    "${SS_IDF_OPT_LEVEL_KCONFIG-CONFIG_COMPILER_OPTIMIZATION_PERF}")"
+    "${OBBW_IDF_OPT_LEVEL_KCONFIG-CONFIG_COMPILER_OPTIMIZATION_PERF}")"
   if [[ ! -f "$IDF_OPT_OVERLAY" ]] || [[ "$(cat "$IDF_OPT_OVERLAY")" != "$content" ]]; then
     printf '%s\n' "$content" > "$IDF_OPT_OVERLAY"
   fi
@@ -393,8 +393,8 @@ ss_idf_emit_opt_overlay() {
 
 # idf.py set-target always fullcleans. fullclean is a no-op on an empty dir,
 # but FatalError if the dir has leftover files and no CMakeCache.txt.
-ss_idf_prepare_set_target() {
-  ss_idf_resolve_paths
+obbw_idf_prepare_set_target() {
+  obbw_idf_resolve_paths
   if [[ -f "$IDF_BUILD_DIR/CMakeCache.txt" ]]; then
     return 0
   fi
@@ -404,8 +404,8 @@ ss_idf_prepare_set_target() {
 }
 
 # Confirm each extra -D flag actually appears on OpenBrewByWeightNetwork.cpp.
-ss_idf_verify_extra_flags() {
-  ss_idf_resolve_paths
+obbw_idf_verify_extra_flags() {
+  obbw_idf_resolve_paths
   local flags="${OPENBREWBYWEIGHT_EXTRA_FLAGS-}"
   local cc="$IDF_BUILD_DIR/compile_commands.json"
   [[ -n "$flags" ]] || return 0
@@ -452,7 +452,7 @@ PY
 
 # ALLOW_BSS / autostart / g_probe, then the same OTA identity check as
 # ./scripts/dev build (image_tag.js).
-ss_idf_verify_production_profile() {
+obbw_idf_verify_production_profile() {
   local arch="${1:-$OPENBREWBYWEIGHT_ARCH}"
   local sdkconfig="${2:-$IDF_SDKCONFIG}"
   local flash_size partition psram_mode selector
@@ -546,14 +546,14 @@ ss_idf_verify_production_profile() {
   echo "sdkconfig: verified exact $arch flash/PSRAM, partition, MMU, rollback, watchdog, panic, GPTimer, and IRAM placement profile"
 }
 
-ss_idf_verify_firmware() {
-  ss_idf_resolve_paths
+obbw_idf_verify_firmware() {
+  obbw_idf_resolve_paths
 
   if [[ ! -f "$IDF_SDKCONFIG" ]]; then
     echo "$IDF_SDKCONFIG does not exist; the IDF build left no sdkconfig." >&2
     exit 1
   fi
-  ss_idf_verify_production_profile || exit 1
+  obbw_idf_verify_production_profile || exit 1
   if ! grep -q '^CONFIG_SPIRAM_ALLOW_BSS_SEG_EXTERNAL_MEMORY=y$' "$IDF_SDKCONFIG"; then
     echo "ALLOW_BSS is not enabled in $IDF_SDKCONFIG." >&2
     grep 'SPIRAM_ALLOW_BSS' "$IDF_SDKCONFIG" >&2 || true
@@ -583,7 +583,7 @@ ss_idf_verify_firmware() {
 
   # Default builds must keep the measured -O2 profile; explicit --o0/--og/--os
   # runs verify their requested level instead. Only one choice can be =y.
-  local want_opt="${SS_IDF_OPT_LEVEL_KCONFIG-CONFIG_COMPILER_OPTIMIZATION_PERF}"
+  local want_opt="${OBBW_IDF_OPT_LEVEL_KCONFIG-CONFIG_COMPILER_OPTIMIZATION_PERF}"
   if ! grep -q "^${want_opt}=y$" "$IDF_SDKCONFIG"; then
     echo "${want_opt} is not enabled in $IDF_SDKCONFIG." >&2
     echo "Delete that sdkconfig (or set the matching level in menuconfig) and rebuild." >&2
@@ -659,7 +659,7 @@ ss_idf_verify_firmware() {
   addr="0x$(printf '%s' "$nm_line" | awk '{print $1}')"
   echo "g_probe: $nm_line"
 
-  if ss_idf_probe_in_psram "$addr"; then
+  if obbw_idf_probe_in_psram "$addr"; then
     echo "BSS probe in PSRAM ($addr). ALLOW_BSS works with this toolchain."
   else
     echo "BSS probe is NOT in PSRAM ($addr). Expected 0x3c.... Internal DRAM is 0x3fc....." >&2
@@ -679,7 +679,7 @@ ss_idf_verify_firmware() {
     fi
     addr="0x$(printf '%s' "$nm_line" | awk '{print $1}')"
     echo "${symbol}: $nm_line"
-    if ! ss_idf_probe_in_psram "$addr"; then
+    if ! obbw_idf_probe_in_psram "$addr"; then
       echo "${symbol} is NOT in PSRAM ($addr). Expected 0x3c.... Internal DRAM is 0x3fc....." >&2
       exit 1
     fi
@@ -703,9 +703,9 @@ ss_idf_verify_firmware() {
     identity_args+=(--expect-hardware "$OPENBREWBYWEIGHT_HARDWARE_COMPAT"
                     --expect-machine "$OPENBREWBYWEIGHT_MACHINE_COMPAT")
   fi
-  node "$SS_CLI_ROOT/scripts/image_tag.js" "$IDF_IMAGE" "${identity_args[@]}"
+  node "$OBBW_CLI_ROOT/scripts/image_tag.js" "$IDF_IMAGE" "${identity_args[@]}"
 
-  if ss_idf_jtag_enabled; then
+  if obbw_idf_jtag_enabled; then
     if ! grep -q '^CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y$' "$IDF_SDKCONFIG"; then
       echo "OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 but USB Serial/JTAG console is off in $IDF_SDKCONFIG." >&2
       grep 'CONFIG_ESP_CONSOLE' "$IDF_SDKCONFIG" >&2 || true
@@ -722,5 +722,5 @@ ss_idf_verify_firmware() {
     echo "sdkconfig: CONFIG_ESP_CONSOLE_NONE=y (JTAG off)"
   fi
 
-  ss_idf_verify_extra_flags
+  obbw_idf_verify_extra_flags
 }

@@ -553,7 +553,7 @@ def main() -> int:
                 ["bash", "-c",
                  'source scripts/openbrewbyweight_board.sh; '
                  'source scripts/openbrewbyweight_cli.sh; '
-                 'source scripts/openbrewbyweight_idf.sh; ss_idf_environment_report'],
+                 'source scripts/openbrewbyweight_idf.sh; obbw_idf_environment_report'],
                 cwd=ROOT, text=True, capture_output=True)
             report = dict(field.split("=", 1)
                           for field in probe.stdout.splitlines() if "=" in field)

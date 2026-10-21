@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # Shared resilient OTA client. Source after openbrewbyweight_cli.sh (bash 3.2).
 
-SS_OTA_RANGE_ATTEMPTS=3
-SS_OTA_COMMIT_ATTEMPTS=3
-SS_OTA_CHUNK_BYTES=65536
+OBBW_OTA_RANGE_ATTEMPTS=3
+OBBW_OTA_COMMIT_ATTEMPTS=3
+OBBW_OTA_CHUNK_BYTES=65536
 
-ss_ota_field() {
+obbw_ota_field() {
   node -e '
 const fs = require("fs"); let data = {};
 try { data = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); } catch (_) {}
 const value = process.argv[2].split(".").reduce(
   (node, key) => node == null ? undefined : node[key], data);
 process.stdout.write(value == null ? "" : String(value));
-' "$SS_OTA_BODY_FILE" "$1"
+' "$OBBW_OTA_BODY_FILE" "$1"
 }
 
-ss_ota_upload_progress() {
+obbw_ota_upload_progress() {
   # Render the confirmed byte offset against the entire image.  Uploads are
   # sent in ranges, so curl's own progress bar would otherwise reach 100% for
   # every individual range.
@@ -35,19 +35,19 @@ ss_ota_upload_progress() {
       "$((received * 100 / total))" "$((received / 1024))" "$((total / 1024))"
 }
 
-ss_ota_request() {
+obbw_ota_request() {
   # method, path, optional payload file, timeout seconds, extra curl headers
   local method="$1" path="$2" payload="$3" timeout="$4"
   shift 4
   local args
-  args=(--show-error --config "$SS_OTA_CURL_CONFIG" --connect-timeout 10
-        --max-time "$timeout" --output "$SS_OTA_BODY_FILE"
+  args=(--show-error --config "$OBBW_OTA_CURL_CONFIG" --connect-timeout 10
+        --max-time "$timeout" --output "$OBBW_OTA_BODY_FILE"
         --write-out '%{http_code}' --request "$method")
-  : > "$SS_OTA_BODY_FILE"
+  : > "$OBBW_OTA_BODY_FILE"
   if [[ -n "$payload" ]]; then
     # The ESP HTTP server is deliberately small. Removing Expect avoids a
     # needless extra round trip before the request body starts flowing.
-    args+=(--silent --header "Content-Type: ${SS_OTA_CONTENT_TYPE:-application/octet-stream}"
+    args+=(--silent --header "Content-Type: ${OBBW_OTA_CONTENT_TYPE:-application/octet-stream}"
            --header 'Expect:' --data-binary "@$payload")
   else
     args+=(--silent)
@@ -56,30 +56,30 @@ ss_ota_request() {
     args+=(--header "$1")
     shift
   done
-  SS_OTA_HTTP_STATUS=""
+  OBBW_OTA_HTTP_STATUS=""
   set +e
-  SS_OTA_HTTP_STATUS="$(curl "${args[@]}" "$SS_OTA_BASE$path")"
-  SS_OTA_CURL_EXIT=$?
+  OBBW_OTA_HTTP_STATUS="$(curl "${args[@]}" "$OBBW_OTA_BASE$path")"
+  OBBW_OTA_CURL_EXIT=$?
   set -e
-  [[ "$SS_OTA_CURL_EXIT" == "0" ]]
+  [[ "$OBBW_OTA_CURL_EXIT" == "0" ]]
 }
 
-ss_ota_status() {
-  ss_ota_request GET /api/v1/ota "" 20 && [[ "$SS_OTA_HTTP_STATUS" == "200" ]]
+obbw_ota_status() {
+  obbw_ota_request GET /api/v1/ota "" 20 && [[ "$OBBW_OTA_HTTP_STATUS" == "200" ]]
 }
 
-ss_ota_status_quiet() {
+obbw_ota_status_quiet() {
   # A connection failure is expected while the controller reboots after a
   # forced OTA.  Keep polling without printing curl's transient timeout.
-  ss_ota_status 2>/dev/null
+  obbw_ota_status 2>/dev/null
 }
 
-ss_ota_report_failure() {
-  ss_ota_report_values "$1" "${SS_OTA_CURL_EXIT:-}" "${SS_OTA_HTTP_STATUS:-}" \
-      "$(ss_ota_field error)" "$(ss_ota_field message)"
+obbw_ota_report_failure() {
+  obbw_ota_report_values "$1" "${OBBW_OTA_CURL_EXIT:-}" "${OBBW_OTA_HTTP_STATUS:-}" \
+      "$(obbw_ota_field error)" "$(obbw_ota_field message)"
 }
 
-ss_ota_report_values() {
+obbw_ota_report_values() {
   local operation="$1" curl_exit="$2" http_status="$3" error="$4" message="$5"
   error="$(printf '%s' "$error" | tr '\r\n\t' '   ')"
   message="$(printf '%s' "$message" | tr '\r\n\t' '   ')"
@@ -90,63 +90,63 @@ ss_ota_report_values() {
       "${error:+ code=$error}" "${message:+ message=$message}" >&2
 }
 
-ss_ota_remote_owns_slot() {
-  [[ "$(ss_ota_field sessionActive)" == "true" ]] ||
-      [[ "$(ss_ota_field state)" == "staged" ]]
+obbw_ota_remote_owns_slot() {
+  [[ "$(obbw_ota_field sessionActive)" == "true" ]] ||
+      [[ "$(obbw_ota_field state)" == "staged" ]]
 }
 
-ss_ota_remote_matches_image() {
-  [[ -n "$(ss_ota_field transferId)" ]] &&
-      [[ "$(ss_ota_field sha256)" == "$SS_OTA_IMAGE_SHA256" ]] &&
-      [[ "$(ss_ota_field expectedBytes)" == "$SS_OTA_IMAGE_SIZE" ]] || return 1
-  [[ "$(ss_ota_field sessionArch)" == "$SS_OTA_IMAGE_ARCH" ]] &&
-      [[ "$(ss_ota_field sessionHardware)" == "$SS_OTA_IMAGE_HARDWARE" ]] &&
-      [[ "$(ss_ota_field sessionMachine)" == "$SS_OTA_IMAGE_MACHINE" ]] &&
-      [[ "$(ss_ota_field sessionVersion)" == "$SS_OTA_IMAGE_VERSION" ]]
+obbw_ota_remote_matches_image() {
+  [[ -n "$(obbw_ota_field transferId)" ]] &&
+      [[ "$(obbw_ota_field sha256)" == "$OBBW_OTA_IMAGE_SHA256" ]] &&
+      [[ "$(obbw_ota_field expectedBytes)" == "$OBBW_OTA_IMAGE_SIZE" ]] || return 1
+  [[ "$(obbw_ota_field sessionArch)" == "$OBBW_OTA_IMAGE_ARCH" ]] &&
+      [[ "$(obbw_ota_field sessionHardware)" == "$OBBW_OTA_IMAGE_HARDWARE" ]] &&
+      [[ "$(obbw_ota_field sessionMachine)" == "$OBBW_OTA_IMAGE_MACHINE" ]] &&
+      [[ "$(obbw_ota_field sessionVersion)" == "$OBBW_OTA_IMAGE_VERSION" ]]
 }
 
-ss_ota_remote_matches_transfer() {
-  ss_ota_remote_matches_image &&
-      [[ "$(ss_ota_field transferId)" == "$SS_OTA_TRANSFER_ID" ]]
+obbw_ota_remote_matches_transfer() {
+  obbw_ota_remote_matches_image &&
+      [[ "$(obbw_ota_field transferId)" == "$OBBW_OTA_TRANSFER_ID" ]]
 }
 
-ss_ota_offset_valid() {
-  [[ "$1" =~ ^[0-9]{1,10}$ ]] && (( 10#$1 <= SS_OTA_IMAGE_SIZE )) &&
-      (( 10#$1 == SS_OTA_IMAGE_SIZE || 10#$1 % 4096 == 0 ))
+obbw_ota_offset_valid() {
+  [[ "$1" =~ ^[0-9]{1,10}$ ]] && (( 10#$1 <= OBBW_OTA_IMAGE_SIZE )) &&
+      (( 10#$1 == OBBW_OTA_IMAGE_SIZE || 10#$1 % 4096 == 0 ))
 }
 
-ss_ota_protocol_supported() {
-  [[ "$(ss_ota_field otaProtocolVersion)" == "3" ]]
+obbw_ota_protocol_supported() {
+  [[ "$(obbw_ota_field otaProtocolVersion)" == "3" ]]
 }
 
-ss_ota_write_session_body() {
+obbw_ota_write_session_body() {
   node -e 'process.stdout.write(JSON.stringify({size:Number(process.argv[1]),sha256:process.argv[2],arch:process.argv[3],hardware:process.argv[4],machine:process.argv[5],version:process.argv[6],transferId:process.argv[7]}))' \
-      "$SS_OTA_IMAGE_SIZE" "$SS_OTA_IMAGE_SHA256" "$SS_OTA_IMAGE_ARCH" \
-      "$SS_OTA_IMAGE_HARDWARE" "$SS_OTA_IMAGE_MACHINE" \
-      "$SS_OTA_IMAGE_VERSION" "$SS_OTA_TRANSFER_ID" > "$SS_OTA_SESSION_BODY"
+      "$OBBW_OTA_IMAGE_SIZE" "$OBBW_OTA_IMAGE_SHA256" "$OBBW_OTA_IMAGE_ARCH" \
+      "$OBBW_OTA_IMAGE_HARDWARE" "$OBBW_OTA_IMAGE_MACHINE" \
+      "$OBBW_OTA_IMAGE_VERSION" "$OBBW_OTA_TRANSFER_ID" > "$OBBW_OTA_SESSION_BODY"
 }
 
-ss_ota_staged_matches_image() {
-  [[ "$(ss_ota_field state)" == "staged" ]] || return 1
-  ss_ota_remote_matches_transfer &&
-      [[ "$(ss_ota_field staged.arch)" == "$SS_OTA_IMAGE_ARCH" ]] &&
-      [[ "$(ss_ota_field staged.hardware)" == "$SS_OTA_IMAGE_HARDWARE" ]] &&
-      [[ "$(ss_ota_field staged.machine)" == "$SS_OTA_IMAGE_MACHINE" ]] &&
-      [[ "$(ss_ota_field staged.version)" == "$SS_OTA_IMAGE_VERSION" ]] &&
-      [[ "$(ss_ota_field staged.packed)" == "$SS_OTA_IMAGE_PACKED" ]]
+obbw_ota_staged_matches_image() {
+  [[ "$(obbw_ota_field state)" == "staged" ]] || return 1
+  obbw_ota_remote_matches_transfer &&
+      [[ "$(obbw_ota_field staged.arch)" == "$OBBW_OTA_IMAGE_ARCH" ]] &&
+      [[ "$(obbw_ota_field staged.hardware)" == "$OBBW_OTA_IMAGE_HARDWARE" ]] &&
+      [[ "$(obbw_ota_field staged.machine)" == "$OBBW_OTA_IMAGE_MACHINE" ]] &&
+      [[ "$(obbw_ota_field staged.version)" == "$OBBW_OTA_IMAGE_VERSION" ]] &&
+      [[ "$(obbw_ota_field staged.packed)" == "$OBBW_OTA_IMAGE_PACKED" ]]
 }
 
-ss_ota_explain_conflict() {
+obbw_ota_explain_conflict() {
   # Plain-language report for a different image owning the update slot. The
   # warning color is conditional so redirected logs and CI stay escape-free.
   local warn='' reset='' detail
   if [[ -t 2 ]]; then warn=$'\033[33m'; reset=$'\033[0m'; fi
-  if [[ "$(ss_ota_field state)" == "staged" ]]; then
+  if [[ "$(obbw_ota_field state)" == "staged" ]]; then
     detail='fully uploaded and verified, waiting for its commit'
   else
     local received total percent=0
-    received="$(ss_ota_field nextOffset)"
-    total="$(ss_ota_field expectedBytes)"
+    received="$(obbw_ota_field nextOffset)"
+    total="$(obbw_ota_field expectedBytes)"
     if [[ "$received" =~ ^[0-9]+$ ]] && [[ "$total" =~ ^[0-9]+$ ]] &&
         (( total > 0 )); then
       percent=$((received * 100 / total))
@@ -157,16 +157,16 @@ ss_ota_explain_conflict() {
       "$warn" "$reset" "$detail" >&2
   echo 'Resumable OTA never replaces another build on its own; discarding drops that progress and restarts from byte zero.' >&2
   printf 'Remote: sha256=%s size=%s arch=%s hardware=%s machine=%s version=%s\n' \
-      "$(ss_ota_field sha256)" "$(ss_ota_field expectedBytes)" \
-      "$(ss_ota_field sessionArch)" "$(ss_ota_field sessionHardware)" \
-      "$(ss_ota_field sessionMachine)" "$(ss_ota_field sessionVersion)" >&2
+      "$(obbw_ota_field sha256)" "$(obbw_ota_field expectedBytes)" \
+      "$(obbw_ota_field sessionArch)" "$(obbw_ota_field sessionHardware)" \
+      "$(obbw_ota_field sessionMachine)" "$(obbw_ota_field sessionVersion)" >&2
   printf 'Local:  sha256=%s size=%s arch=%s hardware=%s machine=%s version=%s\n' \
-      "$SS_OTA_IMAGE_SHA256" "$SS_OTA_IMAGE_SIZE" \
-      "$SS_OTA_IMAGE_ARCH" "$SS_OTA_IMAGE_HARDWARE" \
-      "$SS_OTA_IMAGE_MACHINE" "$SS_OTA_IMAGE_VERSION" >&2
+      "$OBBW_OTA_IMAGE_SHA256" "$OBBW_OTA_IMAGE_SIZE" \
+      "$OBBW_OTA_IMAGE_ARCH" "$OBBW_OTA_IMAGE_HARDWARE" \
+      "$OBBW_OTA_IMAGE_MACHINE" "$OBBW_OTA_IMAGE_VERSION" >&2
 }
 
-ss_ota_confirm_discard() {
+obbw_ota_confirm_discard() {
   # Unlike the commit prompt's [y/N] (a commit reboots the machine), the cost
   # of wrongly discarding is only re-uploading the remote partial, so Y is
   # the default. stdin may already be consumed by --password-stdin: read the
@@ -180,28 +180,28 @@ ss_ota_confirm_discard() {
   return 0
 }
 
-ss_ota_conflict_decision() {
+obbw_ota_conflict_decision() {
   # yes flag, explicit discard flag. Returns 0 to discard and records the
-  # announcement reason in SS_OTA_DISCARD_REASON; returns 1 to keep and stop.
+  # announcement reason in OBBW_OTA_DISCARD_REASON; returns 1 to keep and stop.
   local yes="$1" explicit="$2"
-  ss_ota_explain_conflict
+  obbw_ota_explain_conflict
   if [[ "$explicit" == "1" ]]; then
-    SS_OTA_DISCARD_REASON='requested with --discard-ota-session'
+    OBBW_OTA_DISCARD_REASON='requested with --discard-ota-session'
     return 0
   fi
   if [[ "$yes" == "1" ]]; then
-    SS_OTA_DISCARD_REASON='assumed through --yes'
+    OBBW_OTA_DISCARD_REASON='assumed through --yes'
     return 0
   fi
-  if ss_can_prompt && ss_ota_confirm_discard; then
-    SS_OTA_DISCARD_REASON='confirmed interactively'
+  if obbw_can_prompt && obbw_ota_confirm_discard; then
+    OBBW_OTA_DISCARD_REASON='confirmed interactively'
     return 0
   fi
   echo 'The remote image was kept. To replace it, re-run with --discard-ota-session or use Discard in the Web UI (Admin).' >&2
   return 1
 }
 
-ss_ota_backoff() {
+obbw_ota_backoff() {
   local attempt="$1" max="$2"
   local seconds=$((attempt * attempt))
   printf 'Transient OTA failure; retrying in %ss (attempt %s/%s).\n' \
@@ -209,148 +209,148 @@ ss_ota_backoff() {
   sleep "$seconds"
 }
 
-ss_ota_upload() {
-  SS_OTA_CONTENT_TYPE=application/json
-  if ! ss_ota_request POST /api/v1/ota/session "$SS_OTA_SESSION_BODY" 30 ||
-      [[ "$SS_OTA_HTTP_STATUS" != "200" ]]; then
-    ss_ota_report_failure 'Creating the OTA session'
+obbw_ota_upload() {
+  OBBW_OTA_CONTENT_TYPE=application/json
+  if ! obbw_ota_request POST /api/v1/ota/session "$OBBW_OTA_SESSION_BODY" 30 ||
+      [[ "$OBBW_OTA_HTTP_STATUS" != "200" ]]; then
+    obbw_ota_report_failure 'Creating the OTA session'
     return 1
   fi
-  if ! ss_ota_remote_matches_transfer; then
+  if ! obbw_ota_remote_matches_transfer; then
     echo 'The controller returned a different or incomplete OTA session identity.' >&2
     return 1
   fi
-  SS_OTA_CONTENT_TYPE=application/octet-stream
-  local offset="$(ss_ota_field nextOffset)"
-  if ! ss_ota_offset_valid "$offset"; then
+  OBBW_OTA_CONTENT_TYPE=application/octet-stream
+  local offset="$(obbw_ota_field nextOffset)"
+  if ! obbw_ota_offset_valid "$offset"; then
     printf 'The controller returned invalid nextOffset=%s for image size %s.\n' \
-        "${offset:-missing}" "$SS_OTA_IMAGE_SIZE" >&2
+        "${offset:-missing}" "$OBBW_OTA_IMAGE_SIZE" >&2
     return 1
   fi
   local high_water="$offset" attempt=1
-  ss_ota_upload_progress "$offset" "$SS_OTA_IMAGE_SIZE"
-  while (( offset < SS_OTA_IMAGE_SIZE )); do
-    if ! ss_ota_image_matches_declaration; then
-      ss_ota_report_image_changed
+  obbw_ota_upload_progress "$offset" "$OBBW_OTA_IMAGE_SIZE"
+  while (( offset < OBBW_OTA_IMAGE_SIZE )); do
+    if ! obbw_ota_image_matches_declaration; then
+      obbw_ota_report_image_changed
       return 1
     fi
-    local end=$((offset + SS_OTA_CHUNK_BYTES))
-    (( end > SS_OTA_IMAGE_SIZE )) && end=$SS_OTA_IMAGE_SIZE
+    local end=$((offset + OBBW_OTA_CHUNK_BYTES))
+    (( end > OBBW_OTA_IMAGE_SIZE )) && end=$OBBW_OTA_IMAGE_SIZE
     local length=$((end - offset))
-    dd if="$SS_OTA_IMAGE" of="$SS_OTA_CHUNK_FILE" bs=1 skip="$offset" count="$length" 2>/dev/null
+    dd if="$OBBW_OTA_IMAGE" of="$OBBW_OTA_CHUNK_FILE" bs=1 skip="$offset" count="$length" 2>/dev/null
     while :; do
-      if ss_ota_request PATCH /api/v1/ota "$SS_OTA_CHUNK_FILE" 90 \
-          "X-OTA-Transfer: $SS_OTA_TRANSFER_ID" "X-OTA-Offset: $offset" \
-          "X-OTA-Length: $SS_OTA_IMAGE_SIZE" \
-          "Content-Range: bytes $offset-$((end - 1))/$SS_OTA_IMAGE_SIZE" &&
-          [[ "$SS_OTA_HTTP_STATUS" =~ ^(200|208)$ ]]; then
-        local next="$(ss_ota_field nextOffset)"
-        if ! ss_ota_offset_valid "$next" || (( next != end )); then
+      if obbw_ota_request PATCH /api/v1/ota "$OBBW_OTA_CHUNK_FILE" 90 \
+          "X-OTA-Transfer: $OBBW_OTA_TRANSFER_ID" "X-OTA-Offset: $offset" \
+          "X-OTA-Length: $OBBW_OTA_IMAGE_SIZE" \
+          "Content-Range: bytes $offset-$((end - 1))/$OBBW_OTA_IMAGE_SIZE" &&
+          [[ "$OBBW_OTA_HTTP_STATUS" =~ ^(200|208)$ ]]; then
+        local next="$(obbw_ota_field nextOffset)"
+        if ! obbw_ota_offset_valid "$next" || (( next != end )); then
           printf 'The controller returned invalid nextOffset=%s after byte %s.\n' \
               "${next:-missing}" "$offset" >&2
           return 1
         fi
-        if ! ss_ota_remote_matches_transfer; then
+        if ! obbw_ota_remote_matches_transfer; then
           echo 'The controller returned a different or incomplete OTA session identity.' >&2
           return 1
         fi
         offset="$next"
         if (( offset > high_water )); then high_water="$offset"; attempt=1; fi
-        ss_ota_upload_progress "$offset" "$SS_OTA_IMAGE_SIZE"
+        obbw_ota_upload_progress "$offset" "$OBBW_OTA_IMAGE_SIZE"
         break
       fi
-      local failed_curl="$SS_OTA_CURL_EXIT" failed_http="$SS_OTA_HTTP_STATUS"
-      local failed_error="$(ss_ota_field error)" failed_message="$(ss_ota_field message)"
+      local failed_curl="$OBBW_OTA_CURL_EXIT" failed_http="$OBBW_OTA_HTTP_STATUS"
+      local failed_error="$(obbw_ota_field error)" failed_message="$(obbw_ota_field message)"
       case "$failed_error" in
         SAFETY_LOST|OTA_SHA256_MISMATCH|OTA_SESSION_IDENTITY_MISMATCH|OTA_INVALID_RANGE)
-          ss_ota_report_values 'Uploading the firmware range' \
+          obbw_ota_report_values 'Uploading the firmware range' \
               "$failed_curl" "$failed_http" "$failed_error" "$failed_message"
           return 1 ;;
       esac
       # Rebuild the range from the accepted offset, which can retreat to a
       # persisted checkpoint after a reboot. Never reuse stale chunk bytes.
       local reconciled=0
-      if ss_ota_request GET /api/v1/ota/session "" 20 &&
-          [[ "$SS_OTA_HTTP_STATUS" == "200" ]]; then
-        if ! ss_ota_remote_matches_transfer; then
+      if obbw_ota_request GET /api/v1/ota/session "" 20 &&
+          [[ "$OBBW_OTA_HTTP_STATUS" == "200" ]]; then
+        if ! obbw_ota_remote_matches_transfer; then
           echo 'OTA session disappeared or changed identity; upload stopped.' >&2
           return 1
         fi
-        local next="$(ss_ota_field nextOffset)"
-        if ! ss_ota_offset_valid "$next" || (( next > end )); then
+        local next="$(obbw_ota_field nextOffset)"
+        if ! obbw_ota_offset_valid "$next" || (( next > end )); then
           echo 'The controller returned an invalid recovery offset.' >&2
           return 1
         fi
         offset="$next"; reconciled=1
         if (( offset > high_water )); then
           high_water="$offset"; attempt=1
-          ss_ota_upload_progress "$offset" "$SS_OTA_IMAGE_SIZE"
+          obbw_ota_upload_progress "$offset" "$OBBW_OTA_IMAGE_SIZE"
           break
         fi
       fi
-      if (( attempt >= SS_OTA_RANGE_ATTEMPTS )); then
-        ss_ota_report_values 'Uploading the firmware range' \
+      if (( attempt >= OBBW_OTA_RANGE_ATTEMPTS )); then
+        obbw_ota_report_values 'Uploading the firmware range' \
             "$failed_curl" "$failed_http" "$failed_error" "$failed_message"
         return 1
       fi
-      ss_ota_backoff "$attempt" "$SS_OTA_RANGE_ATTEMPTS"
+      obbw_ota_backoff "$attempt" "$OBBW_OTA_RANGE_ATTEMPTS"
       attempt=$((attempt + 1))
       if (( reconciled )); then break; fi
     done
   done
-  if ! ss_ota_image_matches_declaration; then
-    ss_ota_report_image_changed
+  if ! obbw_ota_image_matches_declaration; then
+    obbw_ota_report_image_changed
     return 1
   fi
   printf '\n'
-  if ! ss_ota_staged_matches_image; then
+  if ! obbw_ota_staged_matches_image; then
     echo 'The controller did not report the expected verified image identity.' >&2
     return 1
   fi
 }
 
-ss_ota_image_matches_declaration() {
+obbw_ota_image_matches_declaration() {
   # Re-checked before every range and before commit: parallel build gates
   # compile into the same build tree and can rewrite the image mid-transfer.
-  [[ "$(shasum -a 256 "$SS_OTA_IMAGE" | awk '{print $1}')" == "$SS_OTA_IMAGE_SHA256" ]]
+  [[ "$(shasum -a 256 "$OBBW_OTA_IMAGE" | awk '{print $1}')" == "$OBBW_OTA_IMAGE_SHA256" ]]
 }
 
-ss_ota_report_image_changed() {
+obbw_ota_report_image_changed() {
   local red='' reset=''
   if [[ -t 2 ]]; then red=$'\033[31m'; reset=$'\033[0m'; fi
   printf '%sThe firmware image changed while the upload was running%s: %s.\n' \
-      "$red" "$reset" "$SS_OTA_IMAGE" >&2
+      "$red" "$reset" "$OBBW_OTA_IMAGE" >&2
   printf 'The file no longer matches the SHA-256 that the transfer declared, so a concurrent build probably rewrote it. The upload stopped before anything could be flashed from the changed file. Re-run the update once no other build is writing to this image.\n' >&2
 }
 
-ss_ota_commit() {
+obbw_ota_commit() {
   local attempt=1
-  while (( attempt <= SS_OTA_COMMIT_ATTEMPTS )); do
-    if ss_ota_request POST /api/v1/ota/flash "" 30 &&
-        [[ "$SS_OTA_HTTP_STATUS" == "202" ]] && ss_ota_remote_matches_transfer; then
+  while (( attempt <= OBBW_OTA_COMMIT_ATTEMPTS )); do
+    if obbw_ota_request POST /api/v1/ota/flash "" 30 &&
+        [[ "$OBBW_OTA_HTTP_STATUS" == "202" ]] && obbw_ota_remote_matches_transfer; then
       return 0
     fi
-    local curl_exit="$SS_OTA_CURL_EXIT" http_status="$SS_OTA_HTTP_STATUS"
-    local error="$(ss_ota_field error)"
-    local message="$(ss_ota_field message)"
-    ss_ota_report_values "Commit attempt $attempt" "$curl_exit" \
+    local curl_exit="$OBBW_OTA_CURL_EXIT" http_status="$OBBW_OTA_HTTP_STATUS"
+    local error="$(obbw_ota_field error)"
+    local message="$(obbw_ota_field message)"
+    obbw_ota_report_values "Commit attempt $attempt" "$curl_exit" \
         "$http_status" "$error" "$message"
 
     # POST /flash is not blindly replayed: first reconcile a lost 202.
-    if ss_ota_status; then
-      if ss_ota_new_boot; then
+    if obbw_ota_status; then
+      if obbw_ota_new_boot; then
         echo 'The controller restarted; checking the running image and confirmation.' >&2
         return 0
       fi
-      if ss_ota_remote_matches_transfer &&
-          { [[ "$(ss_ota_field restartPending)" == "true" ]] ||
-            [[ "$(ss_ota_field state)" == "committed" ]]; }; then
+      if obbw_ota_remote_matches_transfer &&
+          { [[ "$(obbw_ota_field restartPending)" == "true" ]] ||
+            [[ "$(obbw_ota_field state)" == "committed" ]]; }; then
         echo 'The controller accepted this image commit; its response was lost.' >&2
         return 0
       fi
     fi
-    if (( attempt < SS_OTA_COMMIT_ATTEMPTS )) && ss_ota_staged_matches_image; then
-      ss_ota_backoff "$attempt" "$SS_OTA_COMMIT_ATTEMPTS"
+    if (( attempt < OBBW_OTA_COMMIT_ATTEMPTS )) && obbw_ota_staged_matches_image; then
+      obbw_ota_backoff "$attempt" "$OBBW_OTA_COMMIT_ATTEMPTS"
       attempt=$((attempt + 1))
       continue
     fi
@@ -359,39 +359,39 @@ ss_ota_commit() {
   return 1
 }
 
-ss_ota_new_boot() {
-  local boot="$(ss_ota_field bootId)"
-  [[ "${SS_OTA_PRE_BOOT_ID:-}" =~ ^[0-9]+$ ]] &&
-      [[ "$boot" =~ ^[0-9]+$ ]] && [[ "$boot" != "$SS_OTA_PRE_BOOT_ID" ]]
+obbw_ota_new_boot() {
+  local boot="$(obbw_ota_field bootId)"
+  [[ "${OBBW_OTA_PRE_BOOT_ID:-}" =~ ^[0-9]+$ ]] &&
+      [[ "$boot" =~ ^[0-9]+$ ]] && [[ "$boot" != "$OBBW_OTA_PRE_BOOT_ID" ]]
 }
 
-ss_ota_boot_result() {
+obbw_ota_boot_result() {
   # A matching version (or matching image alone) cannot prove a new boot.
-  local boot="$(ss_ota_field bootId)" digest="$(ss_ota_field running.imageSha256)"
-  if [[ ! "${SS_OTA_PRE_BOOT_ID:-}" =~ ^[0-9]+$ ]] ||
+  local boot="$(obbw_ota_field bootId)" digest="$(obbw_ota_field running.imageSha256)"
+  if [[ ! "${OBBW_OTA_PRE_BOOT_ID:-}" =~ ^[0-9]+$ ]] ||
       [[ ! "$boot" =~ ^[0-9]+$ ]] || [[ ! "$digest" =~ ^[a-f0-9]{64}$ ]]; then
-    SS_OTA_BOOT_RESULT=unverified
-  elif ! ss_ota_new_boot; then
-    SS_OTA_BOOT_RESULT=restart-pending
-  elif [[ "$digest" != "${SS_OTA_IMAGE_DIGEST:-}" ]]; then
-    SS_OTA_BOOT_RESULT=different-image
-  elif [[ "$(ss_ota_field confirmed)" == "true" ]]; then
-    SS_OTA_BOOT_RESULT=confirmed
+    OBBW_OTA_BOOT_RESULT=unverified
+  elif ! obbw_ota_new_boot; then
+    OBBW_OTA_BOOT_RESULT=restart-pending
+  elif [[ "$digest" != "${OBBW_OTA_IMAGE_DIGEST:-}" ]]; then
+    OBBW_OTA_BOOT_RESULT=different-image
+  elif [[ "$(obbw_ota_field confirmed)" == "true" ]]; then
+    OBBW_OTA_BOOT_RESULT=confirmed
   else
-    SS_OTA_BOOT_RESULT=confirmation-pending
+    OBBW_OTA_BOOT_RESULT=confirmation-pending
   fi
 }
 
-ss_ota_cleanup() {
-  rm -f "${SS_OTA_CURL_CONFIG:-}" "${SS_OTA_BODY_FILE:-}" "${SS_OTA_SESSION_BODY:-}" "${SS_OTA_CHUNK_FILE:-}"
+obbw_ota_cleanup() {
+  rm -f "${OBBW_OTA_CURL_CONFIG:-}" "${OBBW_OTA_BODY_FILE:-}" "${OBBW_OTA_SESSION_BODY:-}" "${OBBW_OTA_CHUNK_FILE:-}"
 }
 
-ss_ota_run() {
+obbw_ota_run() {
   # image, requested arch, host, password, yes, wait, skip check, discard conflict
-  SS_OTA_IMAGE="$1"
+  OBBW_OTA_IMAGE="$1"
   local arch="$2" host="$3" password="$4" yes="$5" wait="$6" \
       skip_local_check="${7:-0}" discard_existing="${8:-0}"
-  SS_OTA_BASE="http://$host"
+  OBBW_OTA_BASE="http://$host"
 
   for tool in curl node; do
     command -v "$tool" >/dev/null 2>&1 || {
@@ -406,91 +406,91 @@ ss_ota_run() {
   else
     local tag_json
     echo 'Local image identity:'
-    tag_json="$(node ./scripts/image_tag.js "$SS_OTA_IMAGE" --expect-arch "$arch" --json)" || return $?
-    SS_OTA_IMAGE_ARCH="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).arch)' "$tag_json")"
-    SS_OTA_IMAGE_HARDWARE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).hardware)' "$tag_json")"
-    SS_OTA_IMAGE_MACHINE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).machine)' "$tag_json")"
-    SS_OTA_IMAGE_VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).version)' "$tag_json")"
-    SS_OTA_IMAGE_PACKED="$(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).packed))' "$tag_json")"
-    SS_OTA_IMAGE_DIGEST="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).imageSha256)' "$tag_json")"
+    tag_json="$(node ./scripts/image_tag.js "$OBBW_OTA_IMAGE" --expect-arch "$arch" --json)" || return $?
+    OBBW_OTA_IMAGE_ARCH="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).arch)' "$tag_json")"
+    OBBW_OTA_IMAGE_HARDWARE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).hardware)' "$tag_json")"
+    OBBW_OTA_IMAGE_MACHINE="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).machine)' "$tag_json")"
+    OBBW_OTA_IMAGE_VERSION="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).version)' "$tag_json")"
+    OBBW_OTA_IMAGE_PACKED="$(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).packed))' "$tag_json")"
+    OBBW_OTA_IMAGE_DIGEST="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).imageSha256)' "$tag_json")"
   fi
 
-  SS_OTA_IMAGE_SIZE="$(wc -c < "$SS_OTA_IMAGE" | tr -d ' ')"
-  SS_OTA_IMAGE_SHA256="$(shasum -a 256 "$SS_OTA_IMAGE" | awk '{print $1}')"
-  SS_OTA_TRANSFER_ID=""
+  OBBW_OTA_IMAGE_SIZE="$(wc -c < "$OBBW_OTA_IMAGE" | tr -d ' ')"
+  OBBW_OTA_IMAGE_SHA256="$(shasum -a 256 "$OBBW_OTA_IMAGE" | awk '{print $1}')"
+  OBBW_OTA_TRANSFER_ID=""
 
-  SS_OTA_CURL_CONFIG="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota.XXXXXX")"
-  chmod 600 "$SS_OTA_CURL_CONFIG"
-  SS_OTA_BODY_FILE="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota-body.XXXXXX")"
-  SS_OTA_SESSION_BODY="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota-session.XXXXXX")"
-  SS_OTA_CHUNK_FILE="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota-chunk.XXXXXX")"
+  OBBW_OTA_CURL_CONFIG="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota.XXXXXX")"
+  chmod 600 "$OBBW_OTA_CURL_CONFIG"
+  OBBW_OTA_BODY_FILE="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota-body.XXXXXX")"
+  OBBW_OTA_SESSION_BODY="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota-session.XXXXXX")"
+  OBBW_OTA_CHUNK_FILE="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota-chunk.XXXXXX")"
   password="${password//\\/\\\\}"
   password="${password//\"/\\\"}"
-  printf 'header = "X-Device-Password: %s"\n' "$password" > "$SS_OTA_CURL_CONFIG"
+  printf 'header = "X-Device-Password: %s"\n' "$password" > "$OBBW_OTA_CURL_CONFIG"
   unset password
 
   echo
-  echo "Querying $SS_OTA_BASE ..."
-  if ! ss_ota_status; then
-    ss_ota_report_failure "Querying the controller at $SS_OTA_BASE"
+  echo "Querying $OBBW_OTA_BASE ..."
+  if ! obbw_ota_status; then
+    obbw_ota_report_failure "Querying the controller at $OBBW_OTA_BASE"
     echo 'Check the IP (Admin or Diagnostic in the Web UI; SoftAP is 192.168.4.1).' >&2
     return 1
   fi
-  if ! ss_ota_protocol_supported; then
+  if ! obbw_ota_protocol_supported; then
     echo 'The controller does not support profile-aware resumable OTA protocol v3.' >&2
     echo 'Update it once over USB; no legacy OTA fallback was attempted.' >&2
     return 1
   fi
-  if [[ "$(ss_ota_field available)" != "true" ]]; then
+  if [[ "$(obbw_ota_field available)" != "true" ]]; then
     echo 'This controller has no second application partition.' >&2
     echo 'Update it over USB instead.' >&2
     return 1
   fi
-  printf 'Controller: %s · %s\n' "$(ss_ota_field running.version)" \
-      "$(ss_ota_field running.arch)"
-  SS_OTA_PRE_BOOT_ID="$(ss_ota_field bootId)"
-  if [[ "$(ss_ota_field runningIdentityValid)" == "false" ]] ||
-      [[ "$(ss_ota_field running.arch)" != "$SS_OTA_IMAGE_ARCH" ]] ||
-      [[ "$(ss_ota_field running.hardware)" != "$SS_OTA_IMAGE_HARDWARE" ]] ||
-      [[ "$(ss_ota_field running.machine)" != "$SS_OTA_IMAGE_MACHINE" ]]; then
+  printf 'Controller: %s · %s\n' "$(obbw_ota_field running.version)" \
+      "$(obbw_ota_field running.arch)"
+  OBBW_OTA_PRE_BOOT_ID="$(obbw_ota_field bootId)"
+  if [[ "$(obbw_ota_field runningIdentityValid)" == "false" ]] ||
+      [[ "$(obbw_ota_field running.arch)" != "$OBBW_OTA_IMAGE_ARCH" ]] ||
+      [[ "$(obbw_ota_field running.hardware)" != "$OBBW_OTA_IMAGE_HARDWARE" ]] ||
+      [[ "$(obbw_ota_field running.machine)" != "$OBBW_OTA_IMAGE_MACHINE" ]]; then
     echo 'The running firmware has no usable Open Brew by Weight image identity.' >&2
     echo 'Update it once over USB before using OTA.' >&2
     return 1
   fi
-  if [[ "$(ss_ota_field safe)" != "true" ]]; then
-    printf 'Machine is busy (%s). Wait until Ready.\n' "$(ss_ota_field lockReason)" >&2
+  if [[ "$(obbw_ota_field safe)" != "true" ]]; then
+    printf 'Machine is busy (%s). Wait until Ready.\n' "$(obbw_ota_field lockReason)" >&2
     return 1
   fi
 
-  if ss_ota_remote_owns_slot; then
-    if ss_ota_remote_matches_image; then
-      SS_OTA_TRANSFER_ID="$(ss_ota_field transferId)"
+  if obbw_ota_remote_owns_slot; then
+    if obbw_ota_remote_matches_image; then
+      OBBW_OTA_TRANSFER_ID="$(obbw_ota_field transferId)"
       printf 'Resuming matching OTA session %s at byte %s.\n' \
-          "$SS_OTA_TRANSFER_ID" "$(ss_ota_field nextOffset)"
+          "$OBBW_OTA_TRANSFER_ID" "$(obbw_ota_field nextOffset)"
     else
-      if ! ss_ota_conflict_decision "$yes" "$discard_existing"; then
+      if ! obbw_ota_conflict_decision "$yes" "$discard_existing"; then
         return 1
       fi
       printf 'Discarding the different OTA session (%s).\n' \
-          "$SS_OTA_DISCARD_REASON"
-      if ! ss_ota_request POST /api/v1/ota/abort "" 20 ||
-          [[ "$SS_OTA_HTTP_STATUS" != "200" ]]; then
-        ss_ota_report_failure 'Discarding the existing OTA session'
+          "$OBBW_OTA_DISCARD_REASON"
+      if ! obbw_ota_request POST /api/v1/ota/abort "" 20 ||
+          [[ "$OBBW_OTA_HTTP_STATUS" != "200" ]]; then
+        obbw_ota_report_failure 'Discarding the existing OTA session'
         return 1
       fi
     fi
   fi
-  if [[ -z "${SS_OTA_TRANSFER_ID:-}" ]]; then
-    SS_OTA_TRANSFER_ID="$(node -e 'const c=require("crypto");process.stdout.write(c.randomBytes(18).toString("hex"))')"
+  if [[ -z "${OBBW_OTA_TRANSFER_ID:-}" ]]; then
+    OBBW_OTA_TRANSFER_ID="$(node -e 'const c=require("crypto");process.stdout.write(c.randomBytes(18).toString("hex"))')"
   fi
-  ss_ota_write_session_body || return $?
+  obbw_ota_write_session_body || return $?
 
-  printf 'Uploading %s (%s KiB, SHA-256 %s)…\n' "$SS_OTA_IMAGE" "$((SS_OTA_IMAGE_SIZE / 1024))" "$SS_OTA_IMAGE_SHA256"
-  ss_ota_upload || return 1
+  printf 'Uploading %s (%s KiB, SHA-256 %s)…\n' "$OBBW_OTA_IMAGE" "$((OBBW_OTA_IMAGE_SIZE / 1024))" "$OBBW_OTA_IMAGE_SHA256"
+  obbw_ota_upload || return 1
 
   local staged_version staged_arch
-  staged_version="$(ss_ota_field staged.version)"
-  staged_arch="$(ss_ota_field staged.arch)"
+  staged_version="$(obbw_ota_field staged.version)"
+  staged_arch="$(obbw_ota_field staged.arch)"
   if [[ -z "$staged_version" ]]; then
     echo 'Controller did not report a verified image.' >&2
     return 1
@@ -505,19 +505,19 @@ ss_ota_run() {
       y|Y|yes|YES) ;;
       *)
         echo 'Cancelled. Discarding the image on the controller.'
-        ss_ota_request POST /api/v1/ota/abort "" 20 || true
+        obbw_ota_request POST /api/v1/ota/abort "" 20 || true
         return 1
         ;;
     esac
   fi
 
   echo 'Committing...'
-  if ! ss_ota_status || ! ss_ota_staged_matches_image; then
+  if ! obbw_ota_status || ! obbw_ota_staged_matches_image; then
     echo 'Cannot verify the staged transfer immediately before commit.' >&2
     return 1
   fi
-  SS_OTA_PRE_BOOT_ID="$(ss_ota_field bootId)"
-  ss_ota_commit || {
+  OBBW_OTA_PRE_BOOT_ID="$(obbw_ota_field bootId)"
+  obbw_ota_commit || {
     echo 'Could not confirm the boot partition change.' >&2
     return 1
   }
@@ -526,9 +526,9 @@ ss_ota_run() {
     echo 'Waiting for reboot and OTA confirmation (up to 4 minutes)...'
     local deadline=$((SECONDS + 240))
     while (( SECONDS < deadline )); do
-      if ss_ota_status_quiet; then
-        ss_ota_boot_result
-        case "$SS_OTA_BOOT_RESULT" in
+      if obbw_ota_status_quiet; then
+        obbw_ota_boot_result
+        case "$OBBW_OTA_BOOT_RESULT" in
           confirmed) echo 'OTA confirmed by the rebooted firmware.'; return 0 ;;
           different-image)
             echo 'The controller booted another image; the requested update was not confirmed.' >&2
@@ -537,13 +537,13 @@ ss_ota_run() {
             echo 'Update result unverified: firmware lacks bootId or running.imageSha256.' >&2
             return 1 ;;
         esac
-        local last_reason="$(ss_ota_field confirmBlockReason)" last_error="$(ss_ota_field confirmLastError)"
+        local last_reason="$(obbw_ota_field confirmBlockReason)" last_error="$(obbw_ota_field confirmLastError)"
       fi
       sleep 2
     done
     echo 'The image was committed, but was not confirmed within 4 minutes.' >&2
     printf 'Last state: %s; confirmation reason: %s; ESP-IDF error: %s.\n' \
-        "${SS_OTA_BOOT_RESULT:-unreachable}" "${last_reason:-unknown}" "${last_error:-unknown}" >&2
+        "${OBBW_OTA_BOOT_RESULT:-unreachable}" "${last_reason:-unknown}" "${last_error:-unknown}" >&2
     return 1
   fi
 

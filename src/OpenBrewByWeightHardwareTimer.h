@@ -10,7 +10,7 @@
 #include <freertos/FreeRTOS.h>
 
 #if !CONFIG_GPTIMER_ISR_HANDLER_IN_IRAM
-#error "ShotStopper requires the GPTimer ISR handler in IRAM"
+#error "Open Brew by Weight requires the GPTimer ISR handler in IRAM"
 #endif
 #endif
 

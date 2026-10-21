@@ -357,7 +357,7 @@ if (shellHtml.includes('class="themeSel"') ||
     css.includes('.themeOpt') ||
     !css.includes('html.theme-light{') ||
     !css.includes('html.theme-dark{') ||
-    !codeIncludes(runtimeJs, "THEME_KEY='ssTh'") ||
+    !codeIncludes(runtimeJs, "THEME_KEY='obbwTh'") ||
     !codeIncludes(runtimeJs, "THEME_MODES=['auto','light','dark']") ||
     !codeIncludes(runtimeJs, "getElementById('uiTheme')") ||
     !codeIncludes(runtimeJs, 'localStorage.getItem(THEME_KEY)') ||

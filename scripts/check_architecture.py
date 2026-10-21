@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Enforce the F-20 firmware service boundaries without compiling sources."""
+"""Enforce the F-20 firmware service boundaries without compiling sources.
+
+Also rejects the legacy project name anywhere in the repository.
+"""
 
 from __future__ import annotations
 
 import pathlib
+import re
+import subprocess
 import sys
 
 
@@ -148,6 +153,23 @@ def main() -> int:
                     f"service implementation exceeds cap: "
                     f"{implementation.relative_to(ROOT)} {lines}>1500"
                 )
+
+    # The legacy project name must not return; only the README credit to the
+    # original kit keeps it. Untracked files are checked before they are added.
+    legacy = re.compile(r"shot[ _-]?stopper", re.IGNORECASE)
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        cwd=ROOT, check=True, capture_output=True).stdout.decode().split("\0")
+    for relative in filter(None, listed):
+        path = ROOT / relative
+        content = path.read_bytes() if path.is_file() else b"\0"
+        if b"\0" in content or relative == "scripts/check_architecture.py":
+            continue
+        lines = content.decode("utf-8", errors="replace").splitlines()
+        for number, line in enumerate(lines, 1):
+            if legacy.search(line) and not (
+                    relative == "README.md" and "the original Shot Stopper" in line):
+                failures.append(f"legacy project name: {relative}:{number}")
 
     if failures:
         for failure in failures:
