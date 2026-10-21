@@ -1,0 +1,224 @@
+#pragma once
+
+#include "OpenBrewDomain.h"
+#include "OpenBrewFlashIoScratch.h"
+#include "OpenBrewPreferences.h"
+
+namespace shotstopper {
+
+constexpr uint32_t LAST_SHOT_MAGIC = 0x4C534854U;  // "LSHT"
+// Fixed last-shot schema. Older blobs decode as empty and are not upgraded.
+constexpr uint16_t LAST_SHOT_SCHEMA_VERSION = 1;
+
+struct LastShotBlob {
+  uint32_t magic = LAST_SHOT_MAGIC;
+  uint16_t schemaVersion = LAST_SHOT_SCHEMA_VERSION;
+  uint16_t structureSize = 0;
+  PersistedLastShot lastShot = {};
+  PersistedLastShot lastGoodShot = {};
+  uint32_t checksum = 0;
+};
+
+inline uint32_t lastShotChecksum(const LastShotBlob &blob) {
+  return crc32(reinterpret_cast<const uint8_t *>(&blob),
+               offsetof(LastShotBlob, checksum));
+}
+
+inline void finalizeLastShotBlob(LastShotBlob &blob) {
+  blob.magic = LAST_SHOT_MAGIC;
+  blob.schemaVersion = LAST_SHOT_SCHEMA_VERSION;
+  blob.structureSize = sizeof(LastShotBlob);
+  blob.checksum = 0;
+  blob.checksum = lastShotChecksum(blob);
+}
+
+inline bool validLastShotBlob(const LastShotBlob &blob) {
+  return blob.magic == LAST_SHOT_MAGIC &&
+         blob.schemaVersion == LAST_SHOT_SCHEMA_VERSION &&
+         blob.structureSize == sizeof(LastShotBlob) &&
+         blob.checksum == lastShotChecksum(blob);
+}
+
+static_assert(sizeof(LastShotBlob) <= FLASH_IO_SCRATCH_BYTES,
+              "LastShotBlob must fit in the internal flash I/O scratch");
+
+inline void resetLastShotBlob(LastShotBlob &blob) {
+  blob = LastShotBlob{};
+  finalizeLastShotBlob(blob);
+}
+
+class LastShotStore {
+ public:
+  // `goodShotProtectionMs` remains part of the call contract for the live
+  // last-good-shot policy; persisted blobs are never upgraded.
+  bool load(uint32_t goodShotProtectionMs = DEFAULT_BBW_PROTECTION_MS) {
+    (void)goodShotProtectionMs;
+#if defined(SHOT_STOPPER_HOST_TEST)
+    if (hostStorageValid_) {
+      blob_ = hostStorage_;
+    } else {
+      resetLastShotBlob(blob_);
+    }
+    if (!validLastShotBlob(blob_)) {
+      resetLastShotBlob(blob_);
+    }
+    return true;
+#else
+    if (!lockFlashIo()) {
+      resetLastShotBlob(blob_);
+      return false;
+    }
+    ShotStopperPreferences preferences(NvsSubsystem::LAST_SHOT);
+    if (!preferences.begin(LAST_SHOT_NAMESPACE, true)) {
+      resetLastShotBlob(blob_);
+      unlockFlashIo();
+      return false;
+    }
+    LastShotBlob candidate = {};
+    if (!preferences.isKey(LAST_SHOT_KEY)) {
+      preferences.end();
+      resetLastShotBlob(blob_);
+      unlockFlashIo();
+      return true;
+    }
+    const size_t length = preferences.getBytesLength(LAST_SHOT_KEY);
+    bool loaded = false;
+    if (length == sizeof(LastShotBlob) &&
+        preferences.getBytes(LAST_SHOT_KEY, &candidate, sizeof(candidate)) ==
+            sizeof(candidate) &&
+        validLastShotBlob(candidate)) {
+      blob_ = candidate;
+      loaded = true;
+    }
+    preferences.end();
+    if (!loaded) {
+      resetLastShotBlob(blob_);
+    }
+    unlockFlashIo();
+    return true;
+#endif
+  }
+
+  bool save(uint32_t lockTimeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
+    finalizeLastShotBlob(blob_);
+#if defined(SHOT_STOPPER_HOST_TEST)
+    (void)lockTimeoutMs;
+    if (!hostSaveSucceeds_) return false;
+    hostStorage_ = blob_;
+    hostStorageValid_ = true;
+    return true;
+#else
+    if (!tryLockFlashIo(lockTimeoutMs)) {
+      return false;
+    }
+    yieldFlashIo();
+    feedFlashIoWatchdog();
+    ShotStopperPreferences preferences(NvsSubsystem::LAST_SHOT);
+    if (!preferences.begin(LAST_SHOT_NAMESPACE, false)) {
+      unlockFlashIo();
+      return false;
+    }
+    void *nvsSource = copyToFlashIoScratch(&blob_, sizeof(blob_));
+    if (nvsSource == nullptr) {
+      preferences.end();
+      unlockFlashIo();
+      return false;
+    }
+    const size_t written =
+        preferences.putBytes(LAST_SHOT_KEY, nvsSource, sizeof(blob_));
+    preferences.end();
+    yieldFlashIo();
+    feedFlashIoWatchdog();
+    unlockFlashIo();
+    return written == sizeof(blob_);
+#endif
+  }
+
+  void adopt(const PersistedLastShot &shot) {
+    blob_.lastShot = shot;
+    finalizeLastShotBlob(blob_);
+  }
+
+  void advance(const PersistedLastShot &shot,
+               uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS) {
+    if (qualifyingGoodShot(shot, protectionMs)) blob_.lastGoodShot = shot;
+    adopt(shot);
+  }
+
+  bool persist(const PersistedLastShot &shot,
+               uint32_t protectionMs = DEFAULT_BBW_PROTECTION_MS) {
+    advance(shot, protectionMs);
+    return save();
+  }
+
+  bool erasePersisted() {
+#if defined(SHOT_STOPPER_HOST_TEST)
+    hostStorageValid_ = false;
+    resetLastShotBlob(blob_);
+    return true;
+#else
+    if (!lockFlashIo()) {
+      return false;
+    }
+    ShotStopperPreferences preferences(NvsSubsystem::LAST_SHOT);
+    if (!preferences.begin(LAST_SHOT_NAMESPACE, false)) {
+      unlockFlashIo();
+      return false;
+    }
+    const bool erased =
+        !preferences.isKey(LAST_SHOT_KEY) || preferences.remove(LAST_SHOT_KEY);
+    preferences.end();
+    unlockFlashIo();
+    if (!erased) {
+      return false;
+    }
+    resetLastShotBlob(blob_);
+    return true;
+#endif
+  }
+
+  bool clear() {
+    const LastShotBlob previous = blob_;
+    resetLastShotBlob(blob_);
+    if (save()) return true;
+    blob_ = previous;
+    return false;
+  }
+
+  bool clearLast(bool persistNow = true) {
+    const LastShotBlob previous = blob_;
+    blob_.lastShot = PersistedLastShot{};
+    finalizeLastShotBlob(blob_);
+    if (!persistNow) return true;
+    if (save()) return true;
+    blob_ = previous;
+    return false;
+  }
+
+  const PersistedLastShot &get() const { return blob_.lastShot; }
+  const PersistedLastShot &getGood() const { return blob_.lastGoodShot; }
+#if defined(SHOT_STOPPER_HOST_TEST)
+  static void setHostSaveSucceeds(bool succeeds) {
+    hostSaveSucceeds_ = succeeds;
+  }
+#endif
+
+ private:
+  static constexpr const char *LAST_SHOT_NAMESPACE = "lastshot";
+  static constexpr const char *LAST_SHOT_KEY = "record";
+
+  LastShotBlob blob_;
+#if defined(SHOT_STOPPER_HOST_TEST)
+  static LastShotBlob hostStorage_;
+  static bool hostStorageValid_;
+  static bool hostSaveSucceeds_;
+#endif
+};
+
+#if defined(SHOT_STOPPER_HOST_TEST)
+LastShotBlob LastShotStore::hostStorage_;
+bool LastShotStore::hostStorageValid_ = false;
+bool LastShotStore::hostSaveSucceeds_ = true;
+#endif
+
+}  // namespace shotstopper

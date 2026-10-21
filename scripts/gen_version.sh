@@ -12,7 +12,7 @@ set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 version_file="$root/VERSION"
-output=${4:-$root/src/ShotStopperVersion.h}
+output=${4:-$root/src/OpenBrewVersion.h}
 
 arch=${1:-unknown}
 hardware_compat=${2:-legacy}
@@ -92,7 +92,7 @@ cat > "$output.tmp" <<EOF
 // Contiguous marker embedded in every flashable image. The OTA verifier scans
 // an uploaded binary for this literal to prove the file is a Shot Stopper build
 // for this exact board before it may become the boot image. Keep the field
-// order and the "|END" terminator in sync with ShotStopperOta.cpp.
+// order and the "|END" terminator in sync with OpenBrewOta.cpp.
 #define FW_IMAGE_TAG_STRING                                     \\
   "SHOTSTOPPER_FW_TAG_V2|arch=" FW_BOARD_ARCH_STRING            \\
   "|hw=" FW_HARDWARE_COMPAT_STRING                              \\

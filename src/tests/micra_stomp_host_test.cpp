@@ -1,4 +1,4 @@
-#include "machine/ShotStopperMicraStomp.h"
+#include "machine/OpenBrewMicraStomp.h"
 #include <cassert>
 #include <algorithm>
 #include <string>

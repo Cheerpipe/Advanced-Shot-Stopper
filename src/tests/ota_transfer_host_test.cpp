@@ -2,7 +2,7 @@
 #define SHOT_STOPPER_PERSISTENCE_HOST_TEST
 #define SHOT_STOPPER_OTA_HOST_TEST
 
-#include "../ShotStopperOta.cpp"
+#include "../OpenBrewOta.cpp"
 
 #include <cstdlib>
 #include <iostream>

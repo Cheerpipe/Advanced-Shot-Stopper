@@ -1,11 +1,11 @@
-#include "machine/ShotStopperLineaMicraSettings.h"
-#include "machine/ShotStopperLineaMicraTypes.h"
-#include "machine/ShotStopperMicraMachinePower.h"
-#include "machine/ShotStopperMicraPowerState.h"
-#include "machine/ShotStopperMicraPublicIdentityCache.h"
-#include "machine/ShotStopperMicraScalePowerOn.h"
-#include "machine/ShotStopperMicraScaleShutdown.h"
-#include "machine/ShotStopperMicraTiming.h"
+#include "machine/OpenBrewLineaMicraSettings.h"
+#include "machine/OpenBrewLineaMicraTypes.h"
+#include "machine/OpenBrewMicraMachinePower.h"
+#include "machine/OpenBrewMicraPowerState.h"
+#include "machine/OpenBrewMicraPublicIdentityCache.h"
+#include "machine/OpenBrewMicraScalePowerOn.h"
+#include "machine/OpenBrewMicraScaleShutdown.h"
+#include "machine/OpenBrewMicraTiming.h"
 
 #include <cassert>
 #include <cstring>

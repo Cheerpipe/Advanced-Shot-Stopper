@@ -4,7 +4,7 @@
 // read points back the same way (and build exact curves with
 // appendShotCurvePoint).
 
-#include "../ShotStopperShotCurveTypes.h"
+#include "../OpenBrewShotCurveTypes.h"
 
 namespace shotstopper {
 

@@ -37,11 +37,11 @@ set_tests_properties(ble_runtime_host_test PROPERTIES LABELS "host;ble;concurren
 
 # Exercise actual Micra method bodies with deterministic task/HTTP shims.
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-set(micra_source "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMicraService.cpp")
+set(micra_source "${CMAKE_SOURCE_DIR}/src/machine/OpenBrewMicraService.cpp")
 set(micra_extract "${CMAKE_CURRENT_SOURCE_DIR}/extract_micra_cancellation.py")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${micra_source}" "${micra_extract}"
-  "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMicraWebSocket.inc")
+  "${CMAKE_SOURCE_DIR}/src/machine/OpenBrewMicraWebSocket.inc")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${micra_extract}"
   "${micra_source}" "${CMAKE_CURRENT_BINARY_DIR}"
   COMMAND_ERROR_IS_FATAL ANY)
@@ -56,13 +56,13 @@ host_test(ui_stream_transport_host_test LABEL "host;network")
 if(SHOTSTOPPER_SANITIZER STREQUAL "thread")
   foreach(case M09 R25c F03 F04 F17 IT10 IT28 SH01 RACE06)
     host_test(shot_stopper_tsan_${case}
-      SOURCE shot_stopper_host_test.cpp ARGS ${case} LABEL "host;concurrency")
+      SOURCE open_brew_host_test.cpp ARGS ${case} LABEL "host;concurrency")
     set_target_properties(shot_stopper_tsan_${case} PROPERTIES
       OUTPUT_NAME shot_stopper_tsan_${case})
   endforeach()
   host_test(ota_state_concurrency_host_test LABEL "host;ota;concurrency")
 else()
-  host_test(shot_stopper_host_test LABEL "host;control")
+  host_test(open_brew_host_test LABEL "host;control")
   host_test(persistence_host_test LABEL "host;persistence")
   host_test(crash_archive_host_test
     DEFINITIONS SHOT_STOPPER_CRASH_HOST_TEST LABEL "host;persistence;safety")
@@ -85,7 +85,7 @@ host_test(audit_store_host_test DEFINITIONS SHOT_STOPPER_AUDIT_HOST_TEST
   host_test(scale_profiler_host_test LABEL "host;scale;persistence")
   host_test(resource_owner_host_test LABEL "host;resources")
   host_test(machine_integration_host_test
-    SOURCES "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMachineIntegration.cpp"
+    SOURCES "${CMAKE_SOURCE_DIR}/src/machine/OpenBrewMachineIntegration.cpp"
     LABEL "host;control")
   host_test(linea_micra_contract_host_test LABEL "host;network;control")
   host_test(reset_guard_instance_host_test
@@ -155,12 +155,12 @@ if(NOT CJSON_INCLUDE_DIR OR NOT CJSON_LIBRARY)
 endif()
 host_test(json_arena_host_test LABEL "host;concurrency")
 host_test(micra_observation_host_test
-  SOURCES "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMicraObservation.cpp"
+  SOURCES "${CMAKE_SOURCE_DIR}/src/machine/OpenBrewMicraObservation.cpp"
   LABEL "host;network;control;concurrency")
 target_include_directories(micra_observation_host_test PRIVATE "${CJSON_INCLUDE_DIR}")
 target_link_libraries(micra_observation_host_test PRIVATE "${CJSON_LIBRARY}")
 host_test(micra_websocket_host_test DEFINITIONS SHOT_STOPPER_HOST_TEST
-  SOURCES "${CMAKE_SOURCE_DIR}/src/machine/ShotStopperMicraObservation.cpp"
+  SOURCES "${CMAKE_SOURCE_DIR}/src/machine/OpenBrewMicraObservation.cpp"
   LABEL "host;network;control;concurrency")
 target_include_directories(micra_websocket_host_test PRIVATE "${CJSON_INCLUDE_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}/micra_stubs" "${CMAKE_CURRENT_BINARY_DIR}")

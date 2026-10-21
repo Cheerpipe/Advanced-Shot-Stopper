@@ -6,14 +6,14 @@
 #include <cstdio>
 #include <string>
 #include <thread>
-#include "machine/ShotStopperMicraPublicIdentityCache.h"
-#include "machine/ShotStopperMicraService.h"
-#include "machine/ShotStopperMicraStomp.h"
-#include "ShotStopperOutboundAdmission.h"
-#include "ShotStopperJsonArena.h"
-#include "ShotStopperDomain.h"
-#include "ShotStopperAuditLog.h"
-#include "ShotStopperTaskProfiler.h"
+#include "machine/OpenBrewMicraPublicIdentityCache.h"
+#include "machine/OpenBrewMicraService.h"
+#include "machine/OpenBrewMicraStomp.h"
+#include "OpenBrewOutboundAdmission.h"
+#include "OpenBrewJsonArena.h"
+#include "OpenBrewDomain.h"
+#include "OpenBrewAuditLog.h"
+#include "OpenBrewTaskProfiler.h"
 
 static std::atomic<uint64_t> now{1000};
 static std::atomic<unsigned> timerReads{0};
@@ -143,7 +143,7 @@ bool ShotStopperMicraService::applySignedHeaders(const LineaMicraPersistedSettin
   std::strcpy(headers, "synthetic-signed-upgrade\r\n");
   return true;
 }
-#include "machine/ShotStopperMicraWebSocket.inc"
+#include "machine/OpenBrewMicraWebSocket.inc"
 #include "micra_websocket_status.inc"
 struct MicraWebSocketTest {
   static void setupAdmissionAndBackoff() {

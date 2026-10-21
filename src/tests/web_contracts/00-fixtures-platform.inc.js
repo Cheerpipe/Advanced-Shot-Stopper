@@ -15,99 +15,99 @@ function readSources(files) {
 }
 const rawShellHtml = fs.readFileSync(webUi.sourcePath, 'utf8').replace(/\r?\n$/, '');
 const network = readSources([
-  'ShotStopperNetwork.cpp',
-  'network/ShotStopperNetworkService.inc',
-  'network/ShotStopperWifi.inc',
-  'network/ShotStopperHttpLifecycle.inc',
-  'network/ShotStopperHttpAuthAssets.inc',
-  'network/ShotStopperStatus.inc',
-  'network/ShotStopperUiStream.inc',
-  'network/ShotStopperUiStreamTransport.inc',
-  'network/ShotStopperHomeStream.inc',
-  'network/ShotStopperAuditStream.inc',
-  'network/ShotStopperIntegrationApi.inc',
-  'diagnostics/ShotStopperNetworkDiagnostics.inc',
-  'network/ShotStopperConfiguration.inc',
-  'network/ShotStopperLineaMicraWeb.inc',
-  'network/ShotStopperNetworkOta.inc',
+  'OpenBrewNetwork.cpp',
+  'network/OpenBrewNetworkService.inc',
+  'network/OpenBrewWifi.inc',
+  'network/OpenBrewHttpLifecycle.inc',
+  'network/OpenBrewHttpAuthAssets.inc',
+  'network/OpenBrewStatus.inc',
+  'network/OpenBrewUiStream.inc',
+  'network/OpenBrewUiStreamTransport.inc',
+  'network/OpenBrewHomeStream.inc',
+  'network/OpenBrewAuditStream.inc',
+  'network/OpenBrewIntegrationApi.inc',
+  'diagnostics/OpenBrewNetworkDiagnostics.inc',
+  'network/OpenBrewConfiguration.inc',
+  'network/OpenBrewLineaMicraWeb.inc',
+  'network/OpenBrewNetworkOta.inc',
 ]);
-const networkHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperNetwork.h'), 'utf8');
-const otaSource = fs.readFileSync(path.join(sketchDir, 'ShotStopperOta.cpp'), 'utf8');
-const otaHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperOta.h'), 'utf8');
-const webhookSource = fs.readFileSync(path.join(sketchDir, 'ShotStopperWebhook.cpp'), 'utf8');
-const webhookHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperWebhook.h'), 'utf8');
+const networkHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewNetwork.h'), 'utf8');
+const otaSource = fs.readFileSync(path.join(sketchDir, 'OpenBrewOta.cpp'), 'utf8');
+const otaHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewOta.h'), 'utf8');
+const webhookSource = fs.readFileSync(path.join(sketchDir, 'OpenBrewWebhook.cpp'), 'utf8');
+const webhookHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewWebhook.h'), 'utf8');
 const firmwareCore = readSources([
-  'shotStopper.cpp',
-  'control/ShotStopperCycleRuntime.inc',
-  'control/ShotStopperCycleFinalize.inc',
-  'control/ShotStopperIdleTare.inc',
-  'control/ShotStopperBbwFinalize.inc',
-  'scale/ShotStopperScaleEvents.inc',
-  'control/ShotStopperControlStateMachine.inc',
-  'persistence/ShotStopperCommandPersistence.inc',
-  'control/ShotStopperCommands.inc',
-  'diagnostics/ShotStopperSerialOutput.inc',
-  'diagnostics/ShotStopperSerialLog.inc',
-  'diagnostics/ShotStopperDiagnostics.inc',
-  'platform/ShotStopperEntrypoints.inc',
+  'openBrew.cpp',
+  'control/OpenBrewCycleRuntime.inc',
+  'control/OpenBrewCycleFinalize.inc',
+  'control/OpenBrewIdleTare.inc',
+  'control/OpenBrewBbwFinalize.inc',
+  'scale/OpenBrewScaleEvents.inc',
+  'control/OpenBrewControlStateMachine.inc',
+  'persistence/OpenBrewCommandPersistence.inc',
+  'control/OpenBrewCommands.inc',
+  'diagnostics/OpenBrewSerialOutput.inc',
+  'diagnostics/OpenBrewSerialLog.inc',
+  'diagnostics/OpenBrewDiagnostics.inc',
+  'platform/OpenBrewEntrypoints.inc',
 ]);
 const idfMain = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'main', 'main.cpp'), 'utf8');
-const scaleWorker = fs.readFileSync(path.join(sketchDir, 'ShotStopperScaleWorker.cpp'), 'utf8');
+const scaleWorker = fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleWorker.cpp'), 'utf8');
 const firmware = [
   firmwareCore,
   scaleWorker,
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperScaleWorker.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperScaleLink.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperHardware.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachine.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperRfCoex.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachineRelay.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachineActivatorSample.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachinePaddleInput.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachinePaddleControl.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachinePaddleState.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachinePaddlePolicy.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachinePaddleConfig.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachineMomentaryInput.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachineMomentaryConfig.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachineMomentaryControl.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachineMomentaryReedState.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachineMomentaryOnlyState.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperScaleSense.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperCupPresence.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperBrew.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperRinse.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperShotCurveTypes.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperAlert.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperAlertChannel.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperAlertTone.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleWorker.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleLink.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewHardware.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachine.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewRfCoex.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineRelay.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineActivatorSample.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleInput.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleControl.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleState.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddlePolicy.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleConfig.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineMomentaryInput.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineMomentaryConfig.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineMomentaryControl.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineMomentaryReedState.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineMomentaryOnlyState.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleSense.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewCupPresence.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewBrew.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewRinse.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewShotCurveTypes.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewAlert.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewAlertChannel.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewAlertTone.h'), 'utf8'),
 ].join('\n');
 const activationStoresIo = fs.readFileSync(
-    path.join(sketchDir, 'ShotStopperActivationStores.h'), 'utf8');
-const shotLogIo = fs.readFileSync(path.join(sketchDir, 'ShotStopperShotLog.h'), 'utf8');
-const shotCurveIo = fs.readFileSync(path.join(sketchDir, 'ShotStopperShotCurve.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewActivationStores.h'), 'utf8');
+const shotLogIo = fs.readFileSync(path.join(sketchDir, 'OpenBrewShotLog.h'), 'utf8');
+const shotCurveIo = fs.readFileSync(path.join(sketchDir, 'OpenBrewShotCurve.h'), 'utf8');
 const dualSlotFlashIo = fs.readFileSync(
-    path.join(sketchDir, 'ShotStopperDualSlotFlashLog.h'), 'utf8');
-const lastShotIo = fs.readFileSync(path.join(sketchDir, 'ShotStopperLastShot.h'), 'utf8');
-const jsonArena = fs.readFileSync(path.join(sketchDir, 'ShotStopperJsonArena.h'), 'utf8');
-const wallClock = fs.readFileSync(path.join(sketchDir, 'ShotStopperTime.h'), 'utf8');
-const domainCore = fs.readFileSync(path.join(sketchDir, 'ShotStopperDomain.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewDualSlotFlashLog.h'), 'utf8');
+const lastShotIo = fs.readFileSync(path.join(sketchDir, 'OpenBrewLastShot.h'), 'utf8');
+const jsonArena = fs.readFileSync(path.join(sketchDir, 'OpenBrewJsonArena.h'), 'utf8');
+const wallClock = fs.readFileSync(path.join(sketchDir, 'OpenBrewTime.h'), 'utf8');
+const domainCore = fs.readFileSync(path.join(sketchDir, 'OpenBrewDomain.h'), 'utf8');
 const domain = [
   domainCore,
-  fs.readFileSync(path.join(sketchDir, 'domain/ShotStopperControlStatusTypes.inc'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperMachineTypes.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperScaleTypes.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'ShotStopperBrewTypes.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'domain/OpenBrewControlStatusTypes.inc'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineTypes.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleTypes.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewBrewTypes.h'), 'utf8'),
 ].join('\n');
-const serialCli = fs.readFileSync(path.join(sketchDir, 'ShotStopperSerialCli.h'), 'utf8');
-const buzzer = fs.readFileSync(path.join(sketchDir, 'ShotStopperBuzzer.h'), 'utf8');
-const buzzerPatterns = fs.readFileSync(path.join(sketchDir, 'ShotStopperBuzzerPatterns.h'), 'utf8');
-const buzzerPassive = fs.readFileSync(path.join(sketchDir, 'ShotStopperBuzzerPassive.h'), 'utf8');
-const rtttlParser = fs.readFileSync(path.join(sketchDir, 'ShotStopperRtttl.h'), 'utf8');
-const buzzerRtttl = fs.readFileSync(path.join(sketchDir, 'ShotStopperBuzzerRtttl.h'), 'utf8');
-const alertChannel = fs.readFileSync(path.join(sketchDir, 'ShotStopperAlertChannel.h'), 'utf8');
-const alertTone = fs.readFileSync(path.join(sketchDir, 'ShotStopperAlertTone.h'), 'utf8');
+const serialCli = fs.readFileSync(path.join(sketchDir, 'OpenBrewSerialCli.h'), 'utf8');
+const buzzer = fs.readFileSync(path.join(sketchDir, 'OpenBrewBuzzer.h'), 'utf8');
+const buzzerPatterns = fs.readFileSync(path.join(sketchDir, 'OpenBrewBuzzerPatterns.h'), 'utf8');
+const buzzerPassive = fs.readFileSync(path.join(sketchDir, 'OpenBrewBuzzerPassive.h'), 'utf8');
+const rtttlParser = fs.readFileSync(path.join(sketchDir, 'OpenBrewRtttl.h'), 'utf8');
+const buzzerRtttl = fs.readFileSync(path.join(sketchDir, 'OpenBrewBuzzerRtttl.h'), 'utf8');
+const alertChannel = fs.readFileSync(path.join(sketchDir, 'OpenBrewAlertChannel.h'), 'utf8');
+const alertTone = fs.readFileSync(path.join(sketchDir, 'OpenBrewAlertTone.h'), 'utf8');
 const kconfig = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'main', 'Kconfig.projbuild'), 'utf8');
 const bleSrcDir = path.resolve(sketchDir, '..', 'libraries', 'EspressoScaleBLE', 'src');
@@ -139,7 +139,7 @@ for (const rel of companionSources) {
   }
 }
 const taskProfiler = fs.readFileSync(
-  path.join(sketchDir, 'ShotStopperTaskProfiler.h'), 'utf8');
+  path.join(sketchDir, 'OpenBrewTaskProfiler.h'), 'utf8');
 const sdkconfigDefaults = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'sdkconfig.defaults'), 'utf8');
 const sdkconfigMicra = fs.readFileSync(
@@ -152,13 +152,13 @@ const bleComponentCmake = fs.readFileSync(
 const idfBuildScript = fs.readFileSync(
   path.resolve(sketchDir, '..', 'scripts', 'internal', 'build-idf'), 'utf8');
 const idfHelpers = fs.readFileSync(
-  path.resolve(sketchDir, '..', 'scripts', 'shotstopper_idf.sh'), 'utf8');
+  path.resolve(sketchDir, '..', 'scripts', 'openbrew_idf.sh'), 'utf8');
 const bleRuntime = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'components',
-               'ShotStopperBleRuntime', 'ShotStopperBleRuntime.cpp'),
+               'OpenBrewBleRuntime', 'OpenBrewBleRuntime.cpp'),
   'utf8');
 const flashIoScratch = fs.readFileSync(
-  path.join(sketchDir, 'ShotStopperFlashIoScratch.h'), 'utf8');
+  path.join(sketchDir, 'OpenBrewFlashIoScratch.h'), 'utf8');
 if (!idfMain.includes('bool bleInUse(void) { return true; }')) {
   throw new Error(
       'Native NimBLE must keep BLE controller memory from being released by initArduino');
@@ -271,7 +271,7 @@ if (!idfHelpers.includes('sdkconfig.defaults.micra') ||
 }
 if (sdkconfigDefaults.includes('CONFIG_FREERTOS_USE_TICKLESS_IDLE=y') ||
     !sdkconfigDefaults.includes('CONFIG_PM_ENABLE=y') ||
-    !fs.readFileSync(path.join(sketchDir, 'ShotStopperPowerManagement.cpp'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewPowerManagement.cpp'), 'utf8')
       .includes('config.light_sleep_enable = false')) {
   throw new Error(
       'PM requires DFS support while automatic light sleep remains disabled');
@@ -296,7 +296,7 @@ if (sdkconfigDefaults.includes('CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y') ||
 if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
     !sdkconfigDefaults.includes('CONFIG_BT_CTRL_MODEM_SLEEP=y') ||
     !sdkconfigDefaults.includes('CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y') ||
-    !fs.readFileSync(path.join(sketchDir, 'ShotStopperScaleWorker.cpp'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleWorker.cpp'), 'utf8')
       .includes('sleep ? esp_bt_sleep_enable() : esp_bt_sleep_disable()')) {
   throw new Error(
       'S3 controller sleep requires XTAL and reversible worker-owned control');
@@ -305,7 +305,7 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
   const cmakeLists = fs.readFileSync(
       path.resolve(sketchDir, '..', 'idf', 'CMakeLists.txt'), 'utf8');
   const boardSh = fs.readFileSync(
-      path.resolve(sketchDir, '..', 'scripts', 'shotstopper_board.sh'), 'utf8');
+      path.resolve(sketchDir, '..', 'scripts', 'openbrew_board.sh'), 'utf8');
   const bleHeader = fs.readFileSync(
       path.resolve(sketchDir, '..', 'libraries', 'EspressoScaleBLE', 'src',
                    'EspressoScaleBLE.h'),
@@ -346,10 +346,10 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
         'USB CDC must start for ENABLE_JTAG=1 or when the GPIO4 jumper is held at boot');
   }
   const usbConsole = fs.readFileSync(
-      path.join(sketchDir, 'ShotStopperUsbConsole.h'), 'utf8');
+      path.join(sketchDir, 'OpenBrewUsbConsole.h'), 'utf8');
   const serialCli = fs.readFileSync(
-      path.join(sketchDir, 'ShotStopperSerialCli.h'), 'utf8');
-  if (!serialCli.includes('#include "ShotStopperUsbConsole.h"') ||
+      path.join(sketchDir, 'OpenBrewSerialCli.h'), 'utf8');
+  if (!serialCli.includes('#include "OpenBrewUsbConsole.h"') ||
       !usbConsole.includes('SHOT_STOPPER_USB_CONSOLE_OWN_HWCDC') ||
       !usbConsole.includes('#define Serial ::shotStopperUsbConsole') ||
       !firmwareCore.includes('HWCDC shotStopperUsbConsole')) {
@@ -370,7 +370,7 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
     throw new Error(
         'dev build must empty a non-CMake tree before idf.py set-target fullclean');
   }
-  if (!buildIdf.includes('ShotStopperBuildProfileGenerated.h') ||
+  if (!buildIdf.includes('OpenBrewBuildProfileGenerated.h') ||
       !buildIdf.includes('SHOT_STOPPER_MACHINE_TYPE') ||
       !buildIdf.includes('--machine-type paddle') ||
       !buildIdf.includes('--machine-type momentary') ||
@@ -392,7 +392,7 @@ if (!taskProfiler.includes('void copySnapshot(TaskProfilerSnapshot &out) const')
   throw new Error(
       'TaskProfiler snapshot copies must use a task mutex; uxTaskGetSystemState must not run under it');
 }
-if (!firmwareCore.includes('#include "ShotStopperTaskProfiler.h"') ||
+if (!firmwareCore.includes('#include "OpenBrewTaskProfiler.h"') ||
     !firmwareCore.includes('TaskProfiler taskProfiler') ||
     !firmwareCore.includes('taskProfiler.service(now)') ||
     !firmwareCore.includes('void copyTaskProfiler(TaskProfilerSnapshot &output)') ||
@@ -432,12 +432,12 @@ if (!network.includes('copyTaskProfiler') ||
     !network.includes('taskProfilerHandler') ||
     !network.includes('static constexpr size_t kStatusJson = 40960') ||
     !networkHeader.includes('void (*copyTaskProfiler)(TaskProfilerSnapshot &out)') ||
-    !fs.readFileSync(path.join(sketchDir, 'ShotStopperDebugExport.h'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewDebugExport.h'), 'utf8')
         .includes('DEBUG_EXPORT_SCHEMA_VERSION = 4')) {
   throw new Error(
       'Diagnostic status, POST /api/v1/diagnostic/profiler, and debug export must expose tasks');
 }
-const psram = fs.readFileSync(path.join(sketchDir, 'ShotStopperPsram.h'), 'utf8');
+const psram = fs.readFileSync(path.join(sketchDir, 'OpenBrewPsram.h'), 'utf8');
 if (!psram.includes('#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
     !firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ActivationStores activationStores') ||
     !firmwareCore.includes('HistoryLog &historyLog = activationStores.historyLog') ||
@@ -621,9 +621,9 @@ if (/\bruntimeConfig\b/.test(scaleWorker) ||
 }
 {
   const reedState = fs.readFileSync(
-      path.join(sketchDir, 'ShotStopperMachineMomentaryReedState.h'), 'utf8');
+      path.join(sketchDir, 'OpenBrewMachineMomentaryReedState.h'), 'utf8');
   const momentaryInput = fs.readFileSync(
-      path.join(sketchDir, 'ShotStopperMachineMomentaryInput.h'), 'utf8');
+      path.join(sketchDir, 'OpenBrewMachineMomentaryInput.h'), 'utf8');
   if (!momentaryInput.includes('inline uint32_t machineElapsedMs() {') ||
       reedState.includes('inline uint32_t machineElapsedMs')) {
     throw new Error(
@@ -643,13 +643,13 @@ if (/\bruntimeConfig\b/.test(scaleWorker) ||
     }
   }
   if (!reedState.includes('void serviceReedAssumeWindow() {\n  sampleReed();') ||
-      !fs.readFileSync(path.join(sketchDir, 'ShotStopperMachine.h'), 'utf8')
+      !fs.readFileSync(path.join(sketchDir, 'OpenBrewMachine.h'), 'utf8')
            .includes('sampleReed();')) {
     throw new Error('Reed must be sampled from input/service, not from getters');
   }
 }
 {
-  const hwmon = fs.readFileSync(path.join(sketchDir, 'ShotStopperHwmon.h'), 'utf8');
+  const hwmon = fs.readFileSync(path.join(sketchDir, 'OpenBrewHwmon.h'), 'utf8');
   if (!hwmon.includes('const HeapCapSnapshot *heap = nullptr') ||
       !hwmon.includes('heap != nullptr ? *heap : sampleHeapCaps()') ||
       !firmwareCore.includes('sample.hwmon = hwmon.sample(') ||

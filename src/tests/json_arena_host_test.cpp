@@ -1,6 +1,6 @@
 #define SHOT_STOPPER_HOST_TEST
 
-#include "../ShotStopperJsonArena.h"
+#include "../OpenBrewJsonArena.h"
 
 #include <atomic>
 #include <cJSON.h>

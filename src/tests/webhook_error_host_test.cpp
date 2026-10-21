@@ -1,4 +1,4 @@
-#include "../ShotStopperWebhook.h"
+#include "../OpenBrewWebhook.h"
 
 #include <assert.h>
 #include <stdint.h>

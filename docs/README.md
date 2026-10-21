@@ -62,15 +62,15 @@ risk gate in [VALIDATION.md](../VALIDATION.md).
 
 | Need | Documentation | Editable sources | Tests | Command |
 | --- | --- | --- | --- | --- |
-| Safety and relay | `PROJECT_CHARTER.md`, `HARDWARE.md`, `MANUAL_TEST_PLAN.md` | `src/OpenBrewByWeightSafety.h`, `src/OpenBrewByWeightMachineRelay.h`, `src/OpenBrewByWeightHardware*` | `safety_external_host_test.cpp`, main host scenarios | `./scripts/dev validate --risk R3` |
-| Control/brew | `ARCHITECTURE.md`, `STATE_MACHINES.md`, feature docs | `src/OpenBrewByWeightBrew*`, `src/OpenBrewByWeightDomain.h` | `open_brew_by_weight_host_test.cpp` | `./scripts/dev test normal` |
-| Machine inputs | `HARDWARE.md`, `settings/paddle.md`, `settings/momentary.md` | `src/OpenBrewByWeightMachine*` | `momentary_machine_host_test.cpp`, main host tests | `./scripts/dev validate --risk R3` |
-| Scale sensing | `ARCHITECTURE.md`, `CONCURRENCY.md` | `src/OpenBrewByWeightScale*` | main host tests | `./scripts/dev test normal` |
-| BLE protocols | library README, `CONCURRENCY.md` | `libraries/EspressoScaleBLE/src/`, `src/OpenBrewByWeightScaleWorker.cpp` | library tests, main host BLE-scan cases | `./scripts/dev test ble` |
-| Network/Webhooks | feature docs, `RESOURCE_OWNERSHIP.md` | `src/OpenBrewByWeightNetwork*`, `src/OpenBrewByWeightWebhook*` | `webhook_error_host_test.cpp`, Web contract tests | `./scripts/dev validate --risk R2` |
+| Safety and relay | `PROJECT_CHARTER.md`, `HARDWARE.md`, `MANUAL_TEST_PLAN.md` | `src/OpenBrewSafety.h`, `src/OpenBrewMachineRelay.h`, `src/OpenBrewHardware*` | `safety_external_host_test.cpp`, main host scenarios | `./scripts/dev validate --risk R3` |
+| Control/brew | `ARCHITECTURE.md`, `STATE_MACHINES.md`, feature docs | `src/OpenBrewBrew*`, `src/OpenBrewDomain.h` | `open_brew_host_test.cpp` | `./scripts/dev test normal` |
+| Machine inputs | `HARDWARE.md`, `settings/paddle.md`, `settings/momentary.md` | `src/OpenBrewMachine*` | `momentary_machine_host_test.cpp`, main host tests | `./scripts/dev validate --risk R3` |
+| Scale sensing | `ARCHITECTURE.md`, `CONCURRENCY.md` | `src/OpenBrewScale*` | main host tests | `./scripts/dev test normal` |
+| BLE protocols | library README, `CONCURRENCY.md` | `libraries/EspressoScaleBLE/src/`, `src/OpenBrewScaleWorker.cpp` | library tests, main host BLE-scan cases | `./scripts/dev test ble` |
+| Network/Webhooks | feature docs, `RESOURCE_OWNERSHIP.md` | `src/OpenBrewNetwork*`, `src/OpenBrewWebhook*` | `webhook_error_host_test.cpp`, Web contract tests | `./scripts/dev validate --risk R2` |
 | Integration API | [`INTEGRATION_API.md`](INTEGRATION_API.md) | network/webhook sources | shared JSON fixtures and integration tests | `./scripts/dev validate --risk R3` |
-| Firmware OTA | `features/ota.md`, `features/ota-image-identity.md`, `EMERGENCY_RECOVERY.md` | `scripts/internal/ota-idf`, `src/ShotStopperOta*` | OTA host, CLI, and Web resilience tests | `./scripts/dev test ota` |
-| Persistence | `ARCHITECTURE.md`, settings docs | `src/OpenBrewByWeightPersist*`, durable stores/logs | `persistence_host_test.cpp` | `./scripts/dev test normal` |
+| Firmware OTA | `features/ota.md`, `features/ota-image-identity.md`, `EMERGENCY_RECOVERY.md` | `scripts/internal/ota-idf`, `src/OpenBrewOta*` | OTA host, CLI, and Web resilience tests | `./scripts/dev test ota` |
+| Persistence | `ARCHITECTURE.md`, settings docs | `src/OpenBrewPersist*`, durable stores/logs | `persistence_host_test.cpp` | `./scripts/dev test normal` |
 | Web UI | `SCREENSHOTS.md`, feature/settings docs | `src/web/` | Web asset/contract tests | `./scripts/dev test web` |
 | Build and partitions | `BUILD.md`, `SCRIPTS.md`, `STATIC_ANALYSIS.md` | `idf/`, build scripts | profile, architecture, and size checks | `./scripts/dev profiles` |
 | Hardware/machine build profiles | [`BUILD_PROFILES.md`](BUILD_PROFILES.md) | `config/hardware/`, `config/machines/`, profile resolver | profile contract tests | `./scripts/dev test tooling` |
@@ -81,8 +81,8 @@ risk gate in [VALIDATION.md](../VALIDATION.md).
 
 - Canonical firmware: `src/`; Web source: `src/web/`; BLE library:
   `libraries/EspressoScaleBLE/`; ESP-IDF integration: `idf/`.
-- Generated: `src/OpenBrewByWeightVersion.h`,
-  `src/OpenBrewByWeightWebAssetsGzip.h`, build trees, reports, and `artifacts/`.
+- Generated: `src/OpenBrewVersion.h`,
+  `src/OpenBrewWebAssetsGzip.h`, build trees, reports, and `artifacts/`.
 - Local plans: `docs/plans/`; local audits: `docs/audits/`. Both are retained
   locally, excluded from Git, and serve as their own session handoffs.
 - Local temporary working files: `temp/`, inside the project and excluded from

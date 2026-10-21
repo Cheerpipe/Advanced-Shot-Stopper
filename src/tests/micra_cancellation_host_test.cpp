@@ -7,10 +7,10 @@
 #include <mutex>
 #include <thread>
 #include <sys/time.h>
-#include "machine/ShotStopperMicraPublicIdentityCache.h"
-#include "machine/ShotStopperMicraService.h"
-#include "ShotStopperAuditLog.h"
-#include "ShotStopperOutboundAdmission.h"
+#include "machine/OpenBrewMicraPublicIdentityCache.h"
+#include "machine/OpenBrewMicraService.h"
+#include "OpenBrewAuditLog.h"
+#include "OpenBrewOutboundAdmission.h"
 
 // Only scheduling and transport are simulated; extracted service code is unchanged.
 static uint32_t testNowMs = 1000, performAdvanceMs = 0, lastWaitTicks = 0;

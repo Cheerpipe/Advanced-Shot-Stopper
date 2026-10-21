@@ -438,9 +438,9 @@ Its `generated/` directory contains:
 
 - `build-profile.json`: the fully resolved hardware and machine data after
   supported overrides;
-- `OpenBrewByWeightBuildProfileGenerated.h`: compile-time macros consumed by the
+- `OpenBrewBuildProfileGenerated.h`: compile-time macros consumed by the
   firmware, including `OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER` from `speaker.present`;
-- `OpenBrewByWeightVersion.h`: firmware version plus architecture and profile
+- `OpenBrewVersion.h`: firmware version plus architecture and profile
   compatibility identities.
 
 The build also copies a named binary to

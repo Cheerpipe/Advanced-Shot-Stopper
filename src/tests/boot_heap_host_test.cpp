@@ -1,6 +1,6 @@
 #define SHOT_STOPPER_HOST_TEST
-#include "shot_stopper_host_stubs.h"
-#include "../ShotStopperSerialCli.h"
+#include "open_brew_host_stubs.h"
+#include "../OpenBrewSerialCli.h"
 
 #include <cassert>
 #include <filesystem>
@@ -129,7 +129,7 @@ int main() {
 
   // The real service must enforce expiry before failed-startup/restart returns.
   const auto path = std::filesystem::path(__FILE__).parent_path().parent_path() /
-                    "network/ShotStopperNetworkService.inc";
+                    "network/OpenBrewNetworkService.inc";
   std::ifstream input(path);
   assert(input);
   const std::string source((std::istreambuf_iterator<char>(input)), {});

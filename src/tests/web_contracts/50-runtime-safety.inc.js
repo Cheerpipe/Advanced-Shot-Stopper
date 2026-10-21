@@ -225,7 +225,7 @@ if (network.includes('page == StatusPage::Diagnostic')) {
 }
 {
   const homeStreamSource = fs.readFileSync(
-      path.join(sketchDir, 'network', 'ShotStopperHomeStream.inc'), 'utf8');
+      path.join(sketchDir, 'network', 'OpenBrewHomeStream.inc'), 'utf8');
   const diagStart = homeStreamSource.indexOf('sendDiagnosticStream');
   const diagEnd = homeStreamSource.indexOf('sendLogStream', diagStart);
   const diagRegion = homeStreamSource.slice(diagStart, diagEnd);
@@ -337,7 +337,7 @@ if (network.includes('page == StatusPage::Diagnostic')) {
     throw new Error('diagnostic stream must not include Admin-only network open flag');
   }
 }
-if (!network.includes('ShotStopperDebugExport.h') ||
+if (!network.includes('OpenBrewDebugExport.h') ||
     !network.includes('DEBUG_EXPORT_SCHEMA_VERSION') ||
     !network.includes('exportSchemaVersion') ||
     !network.includes('debugExportHandler') ||
@@ -351,7 +351,7 @@ if (!network.includes('ShotStopperDebugExport.h') ||
     !network.includes(
         'return sendChunk(request, text, strlen(text)) == ESP_OK') ||
     network.includes('httpd_resp_send_chunk(request, text, HTTPD_RESP_USE_STRLEN)') ||
-    !firmware.includes('ShotStopperDebugExport.h') ||
+    !firmware.includes('OpenBrewDebugExport.h') ||
     !codeIncludes(ui, '/api/v1/debug/export') ||
     !codeIncludes(ui, 'exportDebugDataButton') ||
     !html.includes('id="exportDebugDataButton"') ||

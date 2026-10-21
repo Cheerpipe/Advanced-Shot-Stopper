@@ -168,7 +168,7 @@ release, place the official `tzdata2026d.tar.gz` archive in
 ```sh
 python3 scripts/generate_timezones.py \
   temp/ai_temp_timezone_impl/tzdata2026d.tar.gz \
-  src/ShotStopperTimeZoneData.h
+  src/OpenBrewTimeZoneData.h
 ```
 
 The script checks the pinned archive SHA-256 and release version, uses the

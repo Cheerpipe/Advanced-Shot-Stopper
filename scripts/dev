@@ -47,14 +47,14 @@ def painted(text: str) -> str:
 
 RANK = {f"R{i}": i for i in range(4)}
 AREAS = {
-    "safety": ("relay, boot, watchdog, and fail-open contracts", ["PROJECT_CHARTER.md", "src/ShotStopperSafety.h", "src/ShotStopperMachineRelay.h", "src/tests/safety_external_host_test.cpp", "docs/MANUAL_TEST_PLAN.md"]),
-    "control": ("brew orchestration and guards", ["src/ShotStopperBrew.h", "src/ShotStopperDomain.h", "src/tests/shot_stopper_host_test.cpp", "docs/STATE_MACHINES.md"]),
-    "machine": ("paddle, momentary inputs, and physical actuation", ["src/ShotStopperMachine.h", "src/ShotStopperMachineTypes.h", "src/tests/momentary_machine_host_test.cpp", "docs/HARDWARE.md"]),
-    "scale": ("scale link, sensing, and worker ownership", ["src/ShotStopperScaleLink.h", "src/ShotStopperScaleSense.h", "src/ShotStopperScaleWorker.cpp", "docs/CONCURRENCY.md"]),
-    "ble": ("scale protocols and BLE radio", ["libraries/EspressoScaleBLE/src", "libraries/EspressoScaleBLE/tests", "src/ShotStopperScaleWorker.cpp", "src/ShotStopperBleScanPersistence.h"]),
-    "network": ("HTTP transport and outbound webhooks", ["src/ShotStopperNetwork.cpp", "src/ShotStopperWebhook.cpp", "src/tests/check_http_route_capacity.js", "src/tests/webhook_error_host_test.cpp", "docs/RESOURCE_OWNERSHIP.md"]),
-    "ota": ("verified and resumable firmware update", ["src/ShotStopperOta.cpp", "src/ShotStopperOtaImage.h", "src/tests/run_ota_tests.sh", "docs/features/ota.md"]),
-    "persistence": ("settings, logs, and recovery", ["src/ShotStopperPersistence.h", "src/ShotStopperDurableStores.h", "src/tests/persistence_host_test.cpp", "docs/ARCHITECTURE.md"]),
+    "safety": ("relay, boot, watchdog, and fail-open contracts", ["PROJECT_CHARTER.md", "src/OpenBrewSafety.h", "src/OpenBrewMachineRelay.h", "src/tests/safety_external_host_test.cpp", "docs/MANUAL_TEST_PLAN.md"]),
+    "control": ("brew orchestration and guards", ["src/OpenBrewBrew.h", "src/OpenBrewDomain.h", "src/tests/open_brew_host_test.cpp", "docs/STATE_MACHINES.md"]),
+    "machine": ("paddle, momentary inputs, and physical actuation", ["src/OpenBrewMachine.h", "src/OpenBrewMachineTypes.h", "src/tests/momentary_machine_host_test.cpp", "docs/HARDWARE.md"]),
+    "scale": ("scale link, sensing, and worker ownership", ["src/OpenBrewScaleLink.h", "src/OpenBrewScaleSense.h", "src/OpenBrewScaleWorker.cpp", "docs/CONCURRENCY.md"]),
+    "ble": ("scale protocols and BLE radio", ["libraries/EspressoScaleBLE/src", "libraries/EspressoScaleBLE/tests", "src/OpenBrewScaleWorker.cpp", "src/OpenBrewBleScanPersistence.h"]),
+    "network": ("HTTP transport and outbound webhooks", ["src/OpenBrewNetwork.cpp", "src/OpenBrewWebhook.cpp", "src/tests/check_http_route_capacity.js", "src/tests/webhook_error_host_test.cpp", "docs/RESOURCE_OWNERSHIP.md"]),
+    "ota": ("verified and resumable firmware update", ["src/OpenBrewOta.cpp", "src/OpenBrewOtaImage.h", "src/tests/run_ota_tests.sh", "docs/features/ota.md"]),
+    "persistence": ("settings, logs, and recovery", ["src/OpenBrewPersistence.h", "src/OpenBrewDurableStores.h", "src/tests/persistence_host_test.cpp", "docs/ARCHITECTURE.md"]),
     "web": ("embedded browser UI and asset generation", ["src/web", "scripts/gen_web_ui.js", "scripts/webui-preview/server.js", "src/tests/check_web_assets.js", "docs/SCREENSHOTS.md"]),
     "build": ("ESP-IDF integration, variants, and analysis", ["idf", "scripts/internal/build-idf", "scripts/check_architecture.py", "docs/BUILD.md"]),
     "tests": ("host, Web, OTA, and architecture tests", ["src/tests", "libraries/EspressoScaleBLE/tests", "CMakePresets.json", "VALIDATION.md"]),
@@ -551,9 +551,9 @@ def main() -> int:
                           for row in stale.stdout.splitlines() if row]
             probe = subprocess.run(
                 ["bash", "-c",
-                 'source scripts/shotstopper_board.sh; '
-                 'source scripts/shotstopper_cli.sh; '
-                 'source scripts/shotstopper_idf.sh; ss_idf_environment_report'],
+                 'source scripts/openbrew_board.sh; '
+                 'source scripts/openbrew_cli.sh; '
+                 'source scripts/openbrew_idf.sh; ss_idf_environment_report'],
                 cwd=ROOT, text=True, capture_output=True)
             report = dict(field.split("=", 1)
                           for field in probe.stdout.splitlines() if "=" in field)

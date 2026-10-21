@@ -115,10 +115,10 @@
       !codeIncludes(serviceBlock, 'armPendingConfirmWindow(now)')) {
     throw new Error('The network task must consume the queued live apply and arm the confirm window');
   }
-  // One explicit onboarding phase (host-tested in ShotStopperNetworkSetup.h)
+  // One explicit onboarding phase (host-tested in OpenBrewNetworkSetup.h)
   // replaces the keep/live-apply booleans; the network task is its only
   // writer and httpd reads the published copy under the lock.
-  if (!networkHeader.includes('#include "ShotStopperNetworkSetup.h"') ||
+  if (!networkHeader.includes('#include "OpenBrewNetworkSetup.h"') ||
       !networkHeader.includes('SetupPhase setupPhase = SetupPhase::NONE;') ||
       /apKeepRequested_|liveApplyPending_|apKeepActive|softApTeardownDue/.test(
           network + networkHeader)) {
@@ -313,8 +313,8 @@
   // The starting-recipe cards print the factory dose and yield: keep the copy
   // tied to the firmware constants it describes.
   const setupStrings = JSON.parse(fs.readFileSync(path.join(sketchDir, 'web', 'locales', 'en.json'), 'utf8')).strings;
-  const brewTypes = fs.readFileSync(path.join(sketchDir, 'ShotStopperBrewTypes.h'), 'utf8');
-  const domainHeader = fs.readFileSync(path.join(sketchDir, 'ShotStopperDomain.h'), 'utf8');
+  const brewTypes = fs.readFileSync(path.join(sketchDir, 'OpenBrewBrewTypes.h'), 'utf8');
+  const domainHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewDomain.h'), 'utf8');
   const grams = (source, name) => Number((source.match(new RegExp(name + ' = (\\d+);')) || [])[1]) / 10;
   const recipeCopy = (dose, yieldG) => `Dose ${dose} g · Yield ${yieldG} g · 1:${yieldG / dose}`;
   if (setupStrings['setup.recipe_double_numbers'] !==

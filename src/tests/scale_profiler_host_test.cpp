@@ -1,6 +1,6 @@
 #define SHOT_STOPPER_HOST_TEST
 
-#include "../ShotStopperScaleProfiler.h"
+#include "../OpenBrewScaleProfiler.h"
 
 #include <cmath>
 #include <cstdio>

@@ -62,5 +62,5 @@ Checks: >
   modernize-loop-convert
 WarningsAsErrors: ''
 HeaderFilterRegex: >-
-  (^|/)src/(ShotStopper|ble/ShotStopper|tests/)|libraries/EspressoScaleBLE/|idf/main/|idf/components/
+  (^|/)src/(OpenBrew|openBrew|tests/)|libraries/EspressoScaleBLE/|idf/main/|idf/components/
 FormatStyle: none

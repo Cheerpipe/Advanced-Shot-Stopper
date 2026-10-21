@@ -1,26 +1,26 @@
 const micraWeb = fs.readFileSync(
-    path.join(sketchDir, 'network/ShotStopperLineaMicraWeb.inc'), 'utf8');
+    path.join(sketchDir, 'network/OpenBrewLineaMicraWeb.inc'), 'utf8');
 const micraStatus = fs.readFileSync(
-    path.join(sketchDir, 'network/ShotStopperStatus.inc'), 'utf8') + fs.readFileSync(
-    path.join(sketchDir, 'network/ShotStopperLineaMicraStatus.inc'), 'utf8') +
+    path.join(sketchDir, 'network/OpenBrewStatus.inc'), 'utf8') + fs.readFileSync(
+    path.join(sketchDir, 'network/OpenBrewLineaMicraStatus.inc'), 'utf8') +
     fs.readFileSync(
-        path.join(sketchDir, 'network/ShotStopperHomeStream.inc'), 'utf8');
+        path.join(sketchDir, 'network/OpenBrewHomeStream.inc'), 'utf8');
 const micraService = fs.readFileSync(
-    path.join(sketchDir, 'machine/ShotStopperMicraService.cpp'), 'utf8');
+    path.join(sketchDir, 'machine/OpenBrewMicraService.cpp'), 'utf8');
 const micraTiming = fs.readFileSync(
-    path.join(sketchDir, 'machine/ShotStopperMicraTiming.h'), 'utf8');
+    path.join(sketchDir, 'machine/OpenBrewMicraTiming.h'), 'utf8');
 const micraTypes = fs.readFileSync(
-    path.join(sketchDir, 'machine/ShotStopperLineaMicraTypes.h'), 'utf8');
+    path.join(sketchDir, 'machine/OpenBrewLineaMicraTypes.h'), 'utf8');
 const machineIntegration = fs.readFileSync(
-    path.join(sketchDir, 'machine/ShotStopperLineaMicraIntegration.cpp'), 'utf8');
+    path.join(sketchDir, 'machine/OpenBrewLineaMicraIntegration.cpp'), 'utf8');
 const controlCommands = fs.readFileSync(
-    path.join(sketchDir, 'control/ShotStopperCommands.inc'), 'utf8');
+    path.join(sketchDir, 'control/OpenBrewCommands.inc'), 'utf8');
 const commandPersistence = fs.readFileSync(
-    path.join(sketchDir, 'persistence/ShotStopperCommandPersistence.inc'), 'utf8');
+    path.join(sketchDir, 'persistence/OpenBrewCommandPersistence.inc'), 'utf8');
 const scaleEvents = fs.readFileSync(
-    path.join(sketchDir, 'scale/ShotStopperScaleEvents.inc'), 'utf8');
+    path.join(sketchDir, 'scale/OpenBrewScaleEvents.inc'), 'utf8');
 const networkService = fs.readFileSync(
-    path.join(sketchDir, 'network/ShotStopperNetworkService.inc'), 'utf8');
+    path.join(sketchDir, 'network/OpenBrewNetworkService.inc'), 'utf8');
 const micraSettingsHtml = rawPartialHtml.settings;
 const micraDiagnosticHtml = rawPartialHtml.diagnostic;
 {
@@ -737,22 +737,22 @@ if (micraService.includes('keep_alive_enable = true') ||
     !micraService.includes('(sessionRenewed && !dashboardRequired) ||')) {
   throw new Error('Linea Micra polling must bound transient PSRAM/stack use, release idle sessions, wait for STA, reuse active HTTP sessions, and avoid continuous probes');
 }
-for (const file of ['ShotStopperMachinePaddleControl.h',
-  'ShotStopperMachinePaddleInput.h', 'ShotStopperMachinePaddlePolicy.h',
-  'ShotStopperMachinePaddleState.h']) {
+for (const file of ['OpenBrewMachinePaddleControl.h',
+  'OpenBrewMachinePaddleInput.h', 'OpenBrewMachinePaddlePolicy.h',
+  'OpenBrewMachinePaddleState.h']) {
   if (fs.readFileSync(path.join(sketchDir, file), 'utf8').includes('LineaMicra')) {
     throw new Error(`Paddle behavior must remain independent of Linea Micra: ${file}`);
   }
 }
 
 const micraScaleShutdown = fs.readFileSync(
-    path.join(sketchDir, 'machine/ShotStopperMicraScaleShutdown.h'), 'utf8');
+    path.join(sketchDir, 'machine/OpenBrewMicraScaleShutdown.h'), 'utf8');
 const micraScalePowerOn = fs.readFileSync(
-    path.join(sketchDir, 'machine/ShotStopperMicraScalePowerOn.h'), 'utf8');
+    path.join(sketchDir, 'machine/OpenBrewMicraScalePowerOn.h'), 'utf8');
 const micraMachinePower = fs.readFileSync(
-    path.join(sketchDir, 'machine/ShotStopperMicraMachinePower.h'), 'utf8');
+    path.join(sketchDir, 'machine/OpenBrewMicraMachinePower.h'), 'utf8');
 const entrypoints = fs.readFileSync(
-    path.join(sketchDir, 'platform/ShotStopperEntrypoints.inc'), 'utf8');
+    path.join(sketchDir, 'platform/OpenBrewEntrypoints.inc'), 'utf8');
 const protocolGeneric = fs.readFileSync(
     path.join(sketchDir, '..', 'libraries', 'EspressoScaleBLE', 'src',
               'protocols', 'GenericFf11.cpp'),
@@ -813,7 +813,7 @@ if (!micraMachinePower.includes('LINEA_MICRA_SCALE_OFF_WITH_MACHINE') ||
   // the resolved Micra state and the scale worker's discovery duty; it must
   // publish the override before the scale power-off early return.
   const integration = fs.readFileSync(
-      path.join(sketchDir, 'machine', 'ShotStopperLineaMicraIntegration.cpp'), 'utf8');
+      path.join(sketchDir, 'machine', 'OpenBrewLineaMicraIntegration.cpp'), 'utf8');
   const serviceStart = integration.indexOf('void serviceMachineIntegrationMachinePower(');
   const seam = integration.slice(serviceStart, integration.indexOf('\n}', serviceStart));
   const earlyReturn = seam.indexOf('machinePower.service(');

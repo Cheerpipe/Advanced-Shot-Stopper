@@ -276,7 +276,7 @@ Build and validate the bundled application with:
 ```
 
 For a new consumer, follow the ownership/lifecycle rules above and inspect the
-existing `OpenBrewByWeightScaleWorker.cpp` scale worker. It demonstrates
+existing `OpenBrewScaleWorker.cpp` scale worker. It demonstrates
 host readiness, serialized commands and connection-generation handling; calling
 BLE APIs from arbitrary application callbacks is not an equivalent integration.
 

@@ -1,4 +1,4 @@
-#include "machine/ShotStopperMachineIntegration.h"
+#include "machine/OpenBrewMachineIntegration.h"
 
 #include <cassert>
 

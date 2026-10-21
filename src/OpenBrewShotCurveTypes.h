@@ -1,0 +1,478 @@
+#pragma once
+
+// Accepted extraction/drip observations with reception times and event annotations.
+// Flash sidecar, separate from the scalar ShotLogRecord.
+
+#include "OpenBrewShotCurveRecord.h"
+#include "OpenBrewShotLogTypes.h"
+
+#include <cmath>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+namespace shotstopper {
+
+constexpr uint32_t SHOT_CURVE_MAGIC = 0x53435256U;  // "SCRV"
+// Schema 3: delta-encoded points with the held bitmap; the "extended" event
+// marks the cut line leaving the target. Earlier absolute schemas no longer
+// load.
+constexpr uint16_t SHOT_CURVE_SCHEMA_VERSION = 3;
+constexpr size_t SHOT_CURVE_CAPACITY = SHOT_LOG_CAPACITY;
+// Worst case: the base64 stream plus 1201 break and 1201 held indices of up
+// to five characters each, plus the reference point, keys and events.
+constexpr size_t SHOT_CURVE_JSON_CAPACITY =
+    4U * ((SHOT_CURVE_STREAM_BYTES + 2U) / 3U) + 10U * SHOT_CURVE_MAX_POINTS + 512U;
+
+inline ShotCurveEvent missingShotCurveEvent() {
+  ShotCurveEvent event = {};
+  event.atMs = SHOT_LOG_METRIC_MISSING;
+  event.weightCg = SHOT_LOG_WEIGHT_MISSING;
+  return event;
+}
+
+inline bool shotCurveEventPresent(const ShotCurveEvent &event) {
+  return event.atMs != SHOT_LOG_METRIC_MISSING &&
+         !shotLogWeightIsMissing(event.weightCg);
+}
+
+// Network-owned PSRAM copy, captured with one store lock; never a stack
+// local. Records only: the streaming Stats page sorts and aggregates from
+// these, and each row's curve is fetched on demand (curves are immutable
+// once committed), so the ~5 KB-per-shot curve bulk never rides the
+// snapshot copy.
+struct ShotStatsRecordsSnapshot {
+  ShotStatsView stats{};
+  ShotLogRecord records[SHOT_LOG_CAPACITY]{};
+  size_t count = 0;
+  uint32_t epoch = 0;
+};
+
+// Closes the Stats aggregate object in `out` with "recent": the shots behind
+// the averages, newest first, in the same eligible window as
+// ShotLog::statsView, so the Stats charts never depend on the table's sort or
+// scroll. Compact [id,presetId,arrivalS,verdict,fastBeforeS,slowAfterS] arrays
+// (at most ~51 bytes each) keep the first frame, which also carries a full
+// row, small. Fails, without a cut array, when `out` does not end in "}" or
+// the list does not fit.
+inline bool appendStatsRecent(const ShotStatsRecordsSnapshot &snapshot, char *out, size_t cap) {
+  size_t used = strlen(out);
+  if (!used || out[used - 1] != '}') return false;
+  --used;  // Reopen the object over its closing brace.
+  auto put = [&](int n) { return n >= 0 && (used += static_cast<size_t>(n)) < cap; };
+  bool ok = put(snprintf(out + used, cap - used, "%s\"recent\":[", used > 1 ? "," : ""));
+  for (size_t i = 0, found = 0; ok && i < snapshot.count && found < SHOT_LOG_STATS_WINDOW; ++i) {
+    const ShotLogRecord &record = snapshot.records[i];
+    if (!shotLogRecordEligible(record)) continue;
+    char arrival[16] = "null";
+    if (record.arrivalDs != SHOT_LOG_METRIC_MISSING)
+      snprintf(arrival, sizeof(arrival), "%.1f", record.arrivalDs / 10.0);
+    ok = put(snprintf(out + used, cap - used, "%s[%lu,%u,%s,%s,%.1f,%.1f]", found++ ? "," : "",
+                      static_cast<unsigned long>(record.id), static_cast<unsigned>(shotLogPresetId(record)),
+                      arrival, shotLogVerdictJson(record.verdict), record.fastBeforeDs / 10.0,
+                      record.slowAfterDs / 10.0));
+  }
+  return ok && put(snprintf(out + used, cap - used, "]}"));
+}
+
+inline void resetShotCurveRecord(ShotCurveRecord &curve) {
+  // Only the header: the stream and bitmaps are read up to bytes/count.
+  memset(&curve, 0, offsetof(ShotCurveRecord, stream));
+  curve.atmClearedMs = SHOT_LOG_METRIC_MISSING;
+  curve.firstDrop = missingShotCurveEvent();
+  curve.extended = missingShotCurveEvent();
+  curve.atm = missingShotCurveEvent();
+  curve.ended = missingShotCurveEvent();
+}
+
+inline ShotCurveRecord emptyShotCurveRecord() {
+  ShotCurveRecord curve{};
+  resetShotCurveRecord(curve);
+  return curve;
+}
+
+inline void copyShotCurve(ShotCurveRecord &out, const ShotCurveRecord &in) {
+  if (&out == &in) return;
+  memcpy(&out, &in, offsetof(ShotCurveRecord, stream));
+  memcpy(out.stream, in.stream,
+         in.bytes < SHOT_CURVE_STREAM_BYTES ? in.bytes : SHOT_CURVE_STREAM_BYTES);
+  const size_t bits = in.count < SHOT_CURVE_MAX_POINTS ? (in.count + 7U) / 8U
+                                                       : SHOT_CURVE_BREAK_BYTES;
+  memcpy(out.breakBefore, in.breakBefore, bits);
+  memcpy(out.held, in.held, bits);
+}
+
+// Sequential walk of a delta stream. The previous point starts at the
+// reference (0/0 for a whole curve): one byte per step, or a marker (0xFF
+// time, 0x80 weight) plus the absolute little-endian value. Corrupt input
+// wraps modulo 16 bits; validShotCurveRecord rejects it.
+struct ShotCurveReader {
+  const uint8_t *data = nullptr;
+  size_t size = 0, offset = 0;
+  uint16_t atMs = 0;
+  int16_t weightCg = 0;
+
+  bool next() {
+    if (offset >= size) return false;
+    uint8_t byte = data[offset++];
+    if (byte == 0xFF) {
+      if (size - offset < 2U) return false;
+      atMs = static_cast<uint16_t>(data[offset] | (data[offset + 1U] << 8));
+      offset += 2U;
+    } else {
+      atMs = static_cast<uint16_t>(atMs + byte);
+    }
+    if (offset >= size) return false;
+    byte = data[offset++];
+    if (byte == 0x80) {
+      if (size - offset < 2U) return false;
+      weightCg = static_cast<int16_t>(static_cast<uint16_t>(data[offset] | (data[offset + 1U] << 8)));
+      offset += 2U;
+    } else {
+      weightCg = static_cast<int16_t>(static_cast<uint16_t>(weightCg + static_cast<int8_t>(byte)));
+    }
+    return true;
+  }
+};
+
+// A reader positioned after `index` points (false past the stream).
+inline bool shotCurveSeek(const ShotCurveRecord &curve, uint16_t index, ShotCurveReader &reader) {
+  reader = ShotCurveReader{};
+  reader.data = curve.stream;
+  reader.size = curve.bytes < SHOT_CURVE_STREAM_BYTES ? curve.bytes : SHOT_CURVE_STREAM_BYTES;
+  for (uint16_t i = 0; i < index; ++i)
+    if (!reader.next()) return false;
+  return true;
+}
+
+// The PSRAM ring's bookkeeping; flash blocks carry their own headers.
+struct ShotCurveHeader {
+  uint16_t count;
+  uint16_t writeIndex;
+};
+
+// Live bank holds every retained curve; a persistence image holds only the
+// small batch it is about to commit.
+template <size_t Capacity>
+struct ShotCurveRingStore {
+  ShotCurveHeader header;
+  ShotCurveRecord records[Capacity];
+};
+using ShotCurveStore = ShotCurveRingStore<SHOT_CURVE_CAPACITY>;
+
+static_assert(sizeof(ShotCurveStore) ==
+                  sizeof(ShotCurveHeader) +
+                      sizeof(ShotCurveRecord) * SHOT_CURVE_CAPACITY,
+              "ShotCurveStore packing must stay unpadded");
+static_assert(sizeof(ShotCurveStore) == 2804004,
+              "ShotCurveStore size pins the PSRAM curve-store footprint");
+
+// Records are read only below the count, so emptying the ring is the header.
+inline void resetShotCurveStore(ShotCurveStore &store) {
+  store.header = ShotCurveHeader{};
+}
+
+// Pack the ring into records[0..count) (oldest first) in place, mirroring
+// compactShotLogStore.
+inline void compactShotCurveStore(ShotCurveStore &store) {
+  store.header.writeIndex = compactRecordRing(
+      store.records, SHOT_CURVE_CAPACITY, sizeof(ShotCurveRecord),
+      store.header.count, store.header.writeIndex);
+}
+
+inline void setShotCurveBit(uint8_t *bits, size_t index, bool value) {
+  const uint8_t mask = static_cast<uint8_t>(1U << (index % 8U));
+  bits[index / 8U] = static_cast<uint8_t>(value ? bits[index / 8U] | mask
+                                                : bits[index / 8U] & ~mask);
+}
+
+// Appends one point to the delta stream, relative to the newest point.
+inline bool appendShotCurvePoint(ShotCurveRecord &curve, int16_t cg,
+                                 uint32_t elapsed, bool split, bool held = false) {
+  if (curve.truncated) return false;
+  if (shotLogWeightIsMissing(cg) ||
+      (curve.count != 0 && elapsed < curve.lastAtMs)) return false;
+  const uint32_t dt = elapsed - (curve.count != 0 ? curve.lastAtMs : 0U);
+  const int dw = cg - (curve.count != 0 ? curve.lastWeightCg : 0);
+  const bool shortTime = dt <= 254U, shortWeight = dw >= -127 && dw <= 127;
+  // The stream bound is the valid-record worst case; checking it here only
+  // keeps a broken invariant from writing past the record.
+  if (elapsed > SHOT_CURVE_MAX_TIME_MS || curve.count == SHOT_CURVE_MAX_POINTS ||
+      curve.bytes + (shortTime ? 1U : 3U) + (shortWeight ? 1U : 3U) >
+          SHOT_CURVE_STREAM_BYTES) {
+    curve.truncated = true;
+    return false;
+  }
+  uint8_t *p = curve.stream + curve.bytes;
+  if (shortTime) {
+    *p++ = static_cast<uint8_t>(dt);
+  } else {
+    *p++ = 0xFF;
+    *p++ = static_cast<uint8_t>(elapsed);
+    *p++ = static_cast<uint8_t>(elapsed >> 8);
+  }
+  if (shortWeight) {
+    *p++ = static_cast<uint8_t>(static_cast<int8_t>(dw));
+  } else {
+    const uint16_t absolute = static_cast<uint16_t>(cg);
+    *p++ = 0x80;
+    *p++ = static_cast<uint8_t>(absolute);
+    *p++ = static_cast<uint8_t>(absolute >> 8);
+  }
+  curve.bytes = static_cast<uint16_t>(p - curve.stream);
+  setShotCurveBit(curve.breakBefore, curve.count, split && curve.count != 0);
+  setShotCurveBit(curve.held, curve.count, held);
+  curve.lastAtMs = static_cast<uint16_t>(elapsed);
+  curve.lastWeightCg = cg;
+  ++curve.count;
+  return true;
+}
+
+inline bool appendShotCurveObservation(ShotCurveRecord &curve, float weight,
+                                       uint32_t elapsed, bool split,
+                                       bool held = false) {
+  return appendShotCurvePoint(curve, shotLogWeightToCentigrams(weight), elapsed,
+                              split, held);
+}
+
+// The live shot's curve, captured straight into record form.
+struct ShotCurveSampler : ShotCurveRecord {
+  uint32_t startMs = 0;
+  bool pendingBreak = false;
+  bool active = false;
+
+  ShotCurveSampler() : ShotCurveRecord{} { resetShotCurveRecord(*this); }
+
+  void reset(uint32_t startedAtMs) {
+    resetShotCurveRecord(*this);
+    startMs = startedAtMs;
+    pendingBreak = false;
+    active = true;
+  }
+
+  bool elapsedMsFrom(uint32_t atMs, uint16_t &outMs) const {
+    if (!active) {
+      return false;
+    }
+    if (static_cast<int32_t>(atMs - startMs) < 0) {
+      return false;
+    }
+    const uint32_t elapsedMs = atMs - startMs;
+    if (elapsedMs >= UINT16_MAX) {
+      return false;
+    }
+    outMs = static_cast<uint16_t>(elapsedMs);
+    return true;
+  }
+
+  void latchEvent(ShotCurveEvent &event, uint32_t atMs, float weight) {
+    if (shotCurveEventPresent(event) || !active) {
+      return;
+    }
+    uint16_t ms = 0;
+    if (!elapsedMsFrom(atMs, ms)) {
+      return;
+    }
+    const int16_t cg = shotLogWeightToCentigrams(weight);
+    if (shotLogWeightIsMissing(cg)) {
+      return;
+    }
+    event.atMs = ms;
+    event.weightCg = cg;
+  }
+
+  void latchFirstDrop(uint32_t atMs, float weight) {
+    latchEvent(firstDrop, atMs, weight);
+  }
+
+  void latchExtended(uint32_t atMs, float weight) {
+    latchEvent(extended, atMs, weight);
+  }
+
+  void latchAtm(uint32_t atMs, float weight) {
+    if (shotCurveEventPresent(atm) &&
+        atmClearedMs == SHOT_LOG_METRIC_MISSING) {
+      return;
+    }
+    atm = missingShotCurveEvent();
+    atmClearedMs = SHOT_LOG_METRIC_MISSING;
+    latchEvent(atm, atMs, weight);
+  }
+
+  void latchAtmCleared(uint32_t atMs) {
+    if (!shotCurveEventPresent(atm) ||
+        atmClearedMs != SHOT_LOG_METRIC_MISSING) {
+      return;
+    }
+    uint16_t ms = 0;
+    if (!elapsedMsFrom(atMs, ms)) {
+      return;
+    }
+    atmClearedMs = ms;
+  }
+
+  void markBreak() { if (active) pendingBreak = true; }
+
+  // A pending break waits for the next accepted sample: held samples sit
+  // beside the weight line, never start a segment.
+  void accept(float weight, uint32_t receivedAtMs, bool isHeld = false) {
+    if (!active || truncated) return;
+    const bool appended = appendShotCurveObservation(
+        *this, weight, receivedAtMs - startMs, pendingBreak && !isHeld, isHeld);
+    pendingBreak = isHeld ? pendingBreak || !appended : !appended;
+  }
+
+  void captureEnd(uint32_t at, float weight = NAN) {
+    if (!active) return;
+    if (!std::isfinite(weight) && count != 0)
+      weight = static_cast<float>(lastWeightCg) / 100.0f;
+    latchEvent(ended, at, weight);
+    active = false;
+  }
+
+  void snapshot(ShotCurveRecord &record, uint32_t shotId = 0) const {
+    copyShotCurve(record, *this);
+    record.shotId = shotId;
+  }
+};
+
+// Post-drip yield changes only the endpoint annotation, never an observation.
+inline bool settleShotCurveEndWeight(ShotCurveRecord &curve, float weight) {
+  const int16_t cg = shotLogWeightToCentigrams(weight);
+  if (!shotCurveEventPresent(curve.ended) || shotLogWeightIsMissing(cg))
+    return false;
+  curve.ended.weightCg = cg;
+  return true;
+}
+
+inline bool shotCurveBreakBefore(const ShotCurveRecord &curve, size_t index) {
+  return index < curve.count &&
+         (curve.breakBefore[index / 8U] & (1U << (index % 8U))) != 0;
+}
+
+inline bool shotCurveHeld(const ShotCurveRecord &curve, size_t index) {
+  return index < curve.count &&
+         (curve.held[index / 8U] & (1U << (index % 8U))) != 0;
+}
+
+inline bool validShotCurveRecord(const ShotCurveRecord &curve) {
+  ShotCurveReader reader;
+  if (curve.shotId == 0 || curve.count > SHOT_CURVE_MAX_POINTS ||
+      curve.bytes > SHOT_CURVE_STREAM_BYTES || !shotCurveSeek(curve, 0, reader))
+    return false;
+  for (size_t i = 0; i < curve.count; ++i) {
+    const uint16_t previous = reader.atMs;
+    if (!reader.next() || reader.atMs > SHOT_CURVE_MAX_TIME_MS ||
+        (i != 0 && reader.atMs < previous) ||
+        shotLogWeightIsMissing(reader.weightCg)) return false;
+  }
+  return reader.offset == curve.bytes &&
+         (curve.count == 0 || (reader.atMs == curve.lastAtMs &&
+                               reader.weightCg == curve.lastWeightCg));
+}
+
+// Standard padded base64 (the browser's atob input), NUL-terminated.
+inline bool appendBase64(char *out, size_t capacity, size_t &used,
+                         const uint8_t *data, size_t size) {
+  static constexpr char kDigits[] =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  if (used + 4U * ((size + 2U) / 3U) + 1U > capacity) return false;
+  for (size_t i = 0; i < size; i += 3U) {
+    const uint32_t n = static_cast<uint32_t>(data[i]) << 16 |
+                       (i + 1U < size ? static_cast<uint32_t>(data[i + 1U]) << 8 : 0U) |
+                       (i + 2U < size ? data[i + 2U] : 0U);
+    out[used++] = kDigits[n >> 18 & 63U];
+    out[used++] = kDigits[n >> 12 & 63U];
+    out[used++] = i + 1U < size ? kDigits[n >> 6 & 63U] : '=';
+    out[used++] = i + 2U < size ? kDigits[n & 63U] : '=';
+  }
+  out[used] = '\0';
+  return true;
+}
+
+// The curve scalars as JSON key/value text: Stats rows emit all of them,
+// the live hero only those that changed.
+template <typename Emit>
+inline bool forEachShotCurveScalar(const ShotCurveRecord &curve, Emit &&emit) {
+  char value[16];
+  const auto seconds = [&](const char *key, uint16_t ms) {
+    if (ms == SHOT_LOG_METRIC_MISSING) strcpy(value, "null");
+    else snprintf(value, sizeof(value), "%.3f", static_cast<double>(ms) / 1000.0);
+    return emit(key, value);
+  };
+  const auto centigrams = [&](const char *key, int16_t cg) {
+    if (shotLogWeightIsMissing(cg)) strcpy(value, "null");
+    else snprintf(value, sizeof(value), "%d", static_cast<int>(cg));
+    return emit(key, value);
+  };
+  return emit("wTruncated", curve.truncated ? "true" : "false") &&
+         seconds("dropS", curve.firstDrop.atMs) &&
+         centigrams("dropCg", curve.firstDrop.weightCg) &&
+         seconds("extendedS", curve.extended.atMs) &&
+         centigrams("extCg", curve.extended.weightCg) &&
+         seconds("atmS", curve.atm.atMs) &&
+         centigrams("atmCg", curve.atm.weightCg) &&
+         seconds("atmClearedS", curve.atmClearedMs) &&
+         seconds("endS", curve.ended.atMs) &&
+         centigrams("endCg", curve.ended.weightCg);
+}
+
+// Curve object body from point `start`: the points' delta stream in base64
+// ("wD"), the point before them when start > 0 ("wRef"), absolute break and
+// held indices, then the scalars unless the caller streams those itself.
+inline bool formatShotCurveJsonBody(char *out, size_t capacity,
+                                    const ShotCurveRecord &curve,
+                                    uint16_t start = 0, bool scalars = true) {
+  ShotCurveReader from;
+  if (out == nullptr || capacity < 32 || curve.count > SHOT_CURVE_MAX_POINTS ||
+      start > curve.count || !shotCurveSeek(curve, start, from)) {
+    return false;
+  }
+  size_t used = 0;
+  out[0] = '\0';
+  auto append = [&](const char *text) -> bool {
+    const size_t length = strlen(text);
+    if (used + length + 1U > capacity) {
+      return false;
+    }
+    memcpy(out + used, text, length + 1U);
+    used += length;
+    return true;
+  };
+  char piece[40] = {};
+  if (start > 0 && start < curve.count) {
+    snprintf(piece, sizeof(piece), "\"wRef\":[%u,%d],",
+             static_cast<unsigned>(from.atMs), static_cast<int>(from.weightCg));
+    if (!append(piece)) return false;
+  }
+  if (!append("\"wD\":\"") ||
+      !appendBase64(out, capacity, used, curve.stream + from.offset,
+                    from.size - from.offset) ||
+      !append("\",\"wBreakBefore\":[")) return false;
+  bool first = true;
+  for (size_t i = start > 1 ? start : 1; i < curve.count; ++i) {
+    if (!shotCurveBreakBefore(curve, i)) continue;
+    snprintf(piece, sizeof(piece), "%s%u", first ? "" : ",",
+             static_cast<unsigned>(i));
+    if (!append(piece)) return false;
+    first = false;
+  }
+  if (!append("],\"wHeld\":[")) return false;
+  first = true;
+  for (size_t i = start; i < curve.count; ++i) {
+    if (!shotCurveHeld(curve, i)) continue;
+    snprintf(piece, sizeof(piece), "%s%u", first ? "" : ",",
+             static_cast<unsigned>(i));
+    if (!append(piece)) return false;
+    first = false;
+  }
+  if (!append("]")) return false;
+  return !scalars ||
+         forEachShotCurveScalar(curve, [&](const char *key, const char *value) {
+           snprintf(piece, sizeof(piece), ",\"%s\":%s", key, value);
+           return append(piece);
+         });
+}
+
+}  // namespace shotstopper

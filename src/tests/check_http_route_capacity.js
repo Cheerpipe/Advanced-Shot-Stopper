@@ -21,7 +21,7 @@ function checkHttpRouteCapacity(source) {
 if (require.main === module) {
   const root = path.resolve(__dirname, '..', '..');
   const networkDirectory = path.join(root, 'src', 'network');
-  const files = [path.join(root, 'src', 'ShotStopperNetwork.cpp')]
+  const files = [path.join(root, 'src', 'OpenBrewNetwork.cpp')]
     .concat(fs.readdirSync(networkDirectory)
       .filter((name) => name.endsWith('.inc'))
       .map((name) => path.join(networkDirectory, name)));

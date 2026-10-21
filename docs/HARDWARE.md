@@ -89,7 +89,7 @@ Example of the assembled, printed enclosure:
 ![Printed Open Brew by Weight enclosure](images/case-1.png)
 
 Named wiring lives in `config/hardware/`; compile-time safety assertions remain
-in `src/OpenBrewByWeightHardware.h`. Pins are **not**
+in `src/OpenBrewHardware.h`. Pins are **not**
 editable from the Web UI.
 
 ## Default GPIOs

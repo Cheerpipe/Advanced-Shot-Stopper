@@ -1,6 +1,6 @@
 {
   const integrationApi = fs.readFileSync(
-    path.join(sketchDir, 'network', 'ShotStopperIntegrationApi.inc'), 'utf8');
+    path.join(sketchDir, 'network', 'OpenBrewIntegrationApi.inc'), 'utf8');
   for (const route of [
     '/api/v1/integration', '/api/v1/integration/request',
     '/api/v1/integration/webhook', '/api/v1/integration/webhook/test',

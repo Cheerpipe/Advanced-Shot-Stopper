@@ -4,7 +4,7 @@ Use this reference when changing module boundaries. For the runtime sequence,
 read [State machines](STATE_MACHINES.md); for a first code change, start with
 [Contributing](../CONTRIBUTING.md).
 
-The integration roots `src/openBrewByWeight.cpp` and `src/OpenBrewByWeightNetwork.cpp`
+The integration roots `src/openBrew.cpp` and `src/OpenBrewNetwork.cpp`
 assemble implementation fragments in `src/control/`, `scale/`, `network/`,
 `persistence/`, `diagnostics/`, and `platform/`. Fragments compile in their
 owning translation unit. Shared headers carry fixed-size values, pure policy,
@@ -127,7 +127,7 @@ excluded from the scale inhibit so backflush supervision survives BLE acquisitio
 ## BBW policy and storage
 
 Brew-by-weight uses a single cutoff policy, the smooth cut (`corridor`): a
-pure integer kernel (`ShotStopperCorridor.h`: cut line f(t), time-window
+pure integer kernel (`OpenBrewCorridor.h`: cut line f(t), time-window
 flow estimator with a MAD gate, crossing solver, verdict, channeling predicate,
 arrival statistics and the scale-loss deadline) with adaptive EWMA learning of
 the drip offset. The kernel holds no globals and allocates nothing; the control
@@ -355,7 +355,7 @@ Once initialized, zone-only browser updates require saved automatic mode.
 Other date/time patches, including mode changes, still require Admin. Control
 rechecks the revision and automatic-update eligibility before applying commands;
 the existing worker retries persistence failures without repeated UI writes.
-`src/ShotStopperTimeZoneData.h` is an immutable flash table of 597 supported
+`src/OpenBrewTimeZoneData.h` is an immutable flash table of 597 supported
 IDs and 4,341 transitions, deduplicated into 67 schedules for UTC instants in
 2025–2099. `scripts/generate_timezones.py` regenerates it from the pinned
 upstream archive without runtime allocation or a global C library `TZ` state.
@@ -405,7 +405,7 @@ the already-packed `noScaleBbwMode` byte. New and factory-reset records default
 on; existing saved records retain their stored bit, including OFF. The bit is
 preserved when the no-scale mode changes; this bit itself does not alter the blob.
 
-Idle tare arbitration lives in `control/OpenBrewByWeightCycleRuntime.inc`, reusing
+Idle tare arbitration lives in `control/OpenBrewCycleRuntime.inc`, reusing
 the cup FSM's PLACED event and ScaleService's TARE_ONLY transport. Worker
 request lifetime and control-owned cup provenance remain separate; see
 [scale commands](STATE_MACHINES.md#scale-commands-scalecommandtype--outbound).

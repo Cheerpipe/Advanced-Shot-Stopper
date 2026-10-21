@@ -71,9 +71,9 @@ golden = {
     "src/web/app.js": "R1",
     "scripts/dev": "R1",
     "libraries/EspressoScaleBLE/src/ScaleProtocol.h": "R2",
-    "src/ShotStopperNetwork.cpp": "R2",
-    "src/ShotStopperOta.cpp": "R2",
-    "src/ShotStopperMachineRelay.h": "R3",
+    "src/OpenBrewNetwork.cpp": "R2",
+    "src/OpenBrewOta.cpp": "R2",
+    "src/OpenBrewMachineRelay.h": "R3",
     "idf/partitions-n16r8.csv": "R3",
     "unknown/new.file": "R3",
 }
@@ -82,7 +82,7 @@ for path, expected in golden.items():
     assert result.returncode == 0, result.stderr
     assert f"risk={expected}" in result.stdout, (path, result.stdout)
 
-lower = run("validate", "--risk", "R0", "src/ShotStopperMachineRelay.h")
+lower = run("validate", "--risk", "R0", "src/OpenBrewMachineRelay.h")
 assert lower.returncode == 2 and "cannot lower" in lower.stderr
 
 unsafe = run("flash", "--arch", "n16r8")
@@ -165,7 +165,7 @@ assert "SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE" in internal_
 firmware_dispatcher = (INTERNAL / "firmware-idf").read_text()
 assert 'Build output folder: %s\\n' in firmware_dispatcher
 assert 'Flash-ready firmware: %s/shotstopper.bin\\n' in firmware_dispatcher
-idf_helper = (INTERNAL / ".." / "shotstopper_idf.sh").resolve().read_text()
+idf_helper = (INTERNAL / ".." / "openbrew_idf.sh").resolve().read_text()
 assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_PERF}") == 2
 assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_SIZE}") == 0
 
@@ -192,7 +192,7 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_sdkconfig_", dir=ROOT / "temp")
                "SHOTSTOPPER_MACHINE_INTEGRATION": "none",
                "SHOT_STOPPER_EXTRA_FLAGS": "", "SS_CLI_FORCE_SDKCONFIG_REGENERATE": str(int(force))}
         return subprocess.run(
-            ["bash", "-c", f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
+            ["bash", "-c", f'source "{ROOT / "scripts/openbrew_idf.sh"}"; '
              '"$1" "$2"', "sdkconfig-test", action, fingerprint],
             cwd=ROOT, env=env, text=True, capture_output=True)
 
@@ -382,9 +382,9 @@ def idf_environment_probe(root: Path, extra_env: dict[str, str] | None = None):
         env.pop(name, None)
     env.update(extra_env or {})
     command = (
-        f'source "{ROOT / "scripts/shotstopper_board.sh"}"; '
-        f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
-        f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
+        f'source "{ROOT / "scripts/openbrew_board.sh"}"; '
+        f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
+        f'source "{ROOT / "scripts/openbrew_idf.sh"}"; '
         'ss_idf_environment_report')
     return subprocess.run(["bash", "-c", command], env=env, cwd=ROOT,
                           capture_output=True, text=True)
@@ -507,7 +507,7 @@ assert '0x10000 "$image"' not in flash_idf, \
     "external app offset must be dynamic"
 parsed_erase = subprocess.run(
     ["bash", "-c",
-     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+     f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
      'ss_cli_parse --erase-all; test "$SS_CLI_ERASE_ALL" = 1'],
     cwd=ROOT, capture_output=True, text=True)
 assert parsed_erase.returncode == 0, parsed_erase.stderr
@@ -521,19 +521,19 @@ for controls, expected in (((), "0|0|"), (("--yes",), "1|0|--yes"),
          'ss_cli_flags_for yes wait_for_confirmation; '
          'printf "%s|%s|%s" "$SS_CLI_YES" "$SS_CLI_WAIT_FOR_CONFIRMATION" '
          '"${SS_CLI_FORWARD[*]}"', "ota-controls",
-         str(ROOT / "scripts/shotstopper_cli.sh"), *controls],
+         str(ROOT / "scripts/openbrew_cli.sh"), *controls],
         cwd=ROOT, capture_output=True, text=True)
     assert parsed_ota_controls.returncode == 0 and \
         parsed_ota_controls.stdout == expected
 removed_force = subprocess.run(
     ["bash", "-c",
-     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; ss_cli_parse --force'],
+     f'source "{ROOT / "scripts/openbrew_cli.sh"}"; ss_cli_parse --force'],
     cwd=ROOT, capture_output=True, text=True)
 assert removed_force.returncode == 2 and "--wait-for-confirmation" in \
     removed_force.stderr
 profile_cli = subprocess.run(
     ["bash", "-c",
-     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+     f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
      'ss_cli_parse --hardware esp32-s3-relay-x1-speaker '
      '--machine rancilio-silvia-pro-x --development --flags=-DCUSTOM=1; '
      'ss_cli_flags_for hardware_config machine_config development; '
@@ -547,7 +547,7 @@ assert profile_cli.stdout == (
     "--development")
 legacy_profile_cli = subprocess.run(
     ["bash", "-c",
-     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+     f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
      'ss_cli_parse --hardware-config old-hardware.json '
      '--machine-config old-machine.json'],
     cwd=ROOT, capture_output=True, text=True)
@@ -579,9 +579,9 @@ def static_paths_probe(*args: str, output_dir: str | None = None,
         for variant in empty_variants:
             (root / variant).mkdir(parents=True, exist_ok=True)
         command = (
-            f'source "{ROOT / "scripts/shotstopper_board.sh"}"; '
-            f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
-            f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
+            f'source "{ROOT / "scripts/openbrew_board.sh"}"; '
+            f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
+            f'source "{ROOT / "scripts/openbrew_idf.sh"}"; '
             'ss_cli_parse "$@" || exit $?; '
             'shotstopper_resolve_board "$(ss_get arch)" || exit 2; '
             'ss_idf_resolve_paths; ss_idf_static_paths reports/static-tidy || exit $?; '
@@ -759,7 +759,7 @@ finally:
 def cli_probe(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", "-c",
-         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
          'ss_cli_parse "$@" || exit $?; ss_cli_effective_flags',
          "probe", *args],
         cwd=ROOT, capture_output=True, text=True)
@@ -779,7 +779,7 @@ assert jtag_with_dev.returncode == 0 and jtag_with_dev.stdout == \
 def cli_profile(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", "-c",
-         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
          'ss_cli_parse "$@" || exit $?; ss_cli_flags_for development release '
          'no_auth_admin jtag; '
          'printf "%s|%s" "$(ss_cli_effective_flags)" '
@@ -821,7 +821,7 @@ jtag_valued = cli_probe("--jtag=1")
 assert jtag_valued.returncode == 2 and "does not take a value" in jtag_valued.stderr
 jtag_forward = subprocess.run(
     ["bash", "-c",
-     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+     f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
      'ss_cli_parse "$@" || exit $?; ss_cli_flags_for development jtag; '
      'printf "%s" "${SS_CLI_FORWARD[*]}"', "probe", "--jtag"],
     cwd=ROOT, capture_output=True, text=True)
@@ -831,7 +831,7 @@ assert jtag_forward.returncode == 0 and jtag_forward.stdout == "--jtag"
 def cli_opt_level(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["bash", "-c",
-         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
          'ss_cli_parse "$@" || exit $?; ss_cli_flags_for opt_level; '
          'printf "%s" "${SS_CLI_FORWARD[*]:-}"', "probe", *args],
         cwd=ROOT, capture_output=True, text=True)
@@ -851,7 +851,7 @@ for level in ("--o1", "--o3", "--o1=1", "--oz", "--Ofast"):
     assert rejected.returncode == 2 and "not an ESP-IDF Kconfig" in rejected.stderr, level
 opt_not_stored = subprocess.run(
     ["bash", "-c",
-     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+     f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
      'ss_cli_parse "$@" || exit $?; ss_cli_save; cat "$SS_CLI_STORE"',
      "probe", "--os", "--flags=-DCUSTOM=1"],
     cwd=ROOT, env={**os.environ, "SS_CLI_ROOT": str(Path(mkdtemp()))},
@@ -862,7 +862,7 @@ assert opt_not_stored.returncode == 0 and \
 with tempfile.TemporaryDirectory(prefix="shotstopper-jtag-store-") as temporary:
     jtag_saved = subprocess.run(
         ["bash", "-c",
-         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
          'ss_cli_parse "$@" || exit $?; ss_cli_save; cat "$SS_CLI_STORE"',
          "probe", "--jtag", "--flags=-DCUSTOM=1"],
         cwd=ROOT, env={**os.environ, "SS_CLI_ROOT": temporary},
@@ -874,7 +874,7 @@ assert "deprecated; use --hardware" in legacy_profile_cli.stderr
 assert "deprecated; use --machine" in legacy_profile_cli.stderr
 development_conflict = subprocess.run(
     ["bash", "-c",
-     f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+     f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
      'ss_cli_parse --development --release || exit $?; ss_cli_effective_flags'],
     cwd=ROOT, capture_output=True, text=True)
 assert development_conflict.returncode == 2 and \
@@ -890,7 +890,7 @@ with tempfile.TemporaryDirectory(prefix="shotstopper-defaults-") as temporary:
                     "SHOTSTOPPER_DEVICE_PASSWORD": "environment-secret"}
     resolved = subprocess.run(
         ["bash", "-c",
-         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
          'ss_cli_parse --host cli.local; '
          'ss_cli_resolve "host speed password"; '
          'printf "RESULT:%s|%s|%s" "$(ss_get host)" "$(ss_get speed)" '
@@ -903,15 +903,15 @@ with tempfile.TemporaryDirectory(prefix="shotstopper-defaults-") as temporary:
     assert "\npassword=" not in saved and "environment-secret" not in saved
     stale = subprocess.run(
         ["bash", "-c",
-         f'source "{ROOT / "scripts/shotstopper_board.sh"}"; '
-         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         f'source "{ROOT / "scripts/openbrew_board.sh"}"; '
+         f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
          'ss_cli_resolve "port"'], cwd=ROOT, env=defaults_env,
         capture_output=True, text=True)
     assert stale.returncode == 2 and "does not exist" in stale.stderr
     detected = subprocess.run(
         ["bash", "-c",
-         f'source "{ROOT / "scripts/shotstopper_board.sh"}"; '
-         f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+         f'source "{ROOT / "scripts/openbrew_board.sh"}"; '
+         f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
          'shotstopper_detect_ports(){ printf "/dev/null\\n"; }; '
          'ss_prompt_suggestion port'], cwd=ROOT, env=defaults_env,
         capture_output=True, text=True)
@@ -941,7 +941,7 @@ def language_cli(*args: str, environment: str | None = None):
         else:
             env["SHOTSTOPPER_WEBUI_LANGUAGE"] = environment
         command = (
-            f'source "{ROOT / "scripts/shotstopper_cli.sh"}"; '
+            f'source "{ROOT / "scripts/openbrew_cli.sh"}"; '
             'ss_cli_parse "$@" || exit $?; ss_cli_resolve "webui_language" || exit $?; '
             'ss_cli_flags_for webui_language; '
             'printf "RESULT:%s|%s|%s\n" "$(ss_get webui_language)" '
@@ -1051,7 +1051,7 @@ def dispatched(stages: tuple[str, ...], args: list[str], fail: str = "",
         scripts = root / "scripts"
         internal = scripts / "internal"
         internal.mkdir(parents=True)
-        for name in ("shotstopper_cli.sh", "shotstopper_board.sh"):
+        for name in ("openbrew_cli.sh", "openbrew_board.sh"):
             shutil.copy2(ROOT / "scripts" / name, scripts / name)
         shutil.copy2(INTERNAL / "firmware-idf", internal / "firmware-idf")
         (scripts / "resolve_build_profiles.py").write_text(
@@ -1217,7 +1217,7 @@ def idf_activation(active_version: str | None, active_python: bool = True):
             env.update(PATH=f"{active}/tools:{env['PATH']}", IDF_PATH=str(active),
                        IDF_PYTHON_ENV_PATH=str(active_env))
         command = (
-            f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
+            f'source "{ROOT / "scripts/openbrew_idf.sh"}"; '
             'SS_IDF_QUIET=1; ss_idf_source; '
             'printf "%s|%s|%s" "$IDF_PATH" "$IDF_PYTHON_ENV_PATH" '
             '"$(command -v idf.py)"')
@@ -1281,7 +1281,7 @@ def idf_python_env_selection(python_env: str | None, home_leaf: str = "home"):
         expected = (str(installed_env) if python_env == "installed"
                     else str(missing_env))
         command = (
-            f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
+            f'source "{ROOT / "scripts/openbrew_idf.sh"}"; '
             'SS_IDF_QUIET=1; ss_idf_source; '
             'printf "%s|%s" "$IDF_PATH" "$IDF_PYTHON_ENV_PATH"')
         result = subprocess.run(["bash", "-c", command], env=env,
@@ -1430,7 +1430,7 @@ assert flash_language.returncode == 2 and "build-only" in flash_language.stderr
 scripts_text = "\n".join(
     path.read_text(errors="replace") for path in (ROOT / "scripts").rglob("*")
     if path.is_file())
-idf_helpers = (ROOT / "scripts/shotstopper_idf.sh").read_text()
+idf_helpers = (ROOT / "scripts/openbrew_idf.sh").read_text()
 assert 'IDF_DEFAULT_HOME="${HOME}/esp/esp-idf-v6.1"' in idf_helpers, \
     "official SDK discovery must use the versioned ESP-IDF 6.1 checkout"
 assert "python@3.12" not in idf_helpers, \
@@ -1447,7 +1447,7 @@ def verify_production_profile(arch: str, selectors: list[str], integration: str 
     try:
         return subprocess.run(
             ["bash", "-c",
-             f'source "{ROOT / "scripts/shotstopper_idf.sh"}"; '
+             f'source "{ROOT / "scripts/openbrew_idf.sh"}"; '
              'ss_idf_verify_production_profile "$1" "$2"',
              "profile-test", arch, fixture_path],
             cwd=ROOT, env={**os.environ, "SHOTSTOPPER_MACHINE_INTEGRATION": integration},
@@ -1533,12 +1533,12 @@ for arch, arch_selectors in profile_arch.items():
     assert "unexpected Micra TLS allocator" in verify_production_profile(
         arch, micra).stderr
 
-durable_stores = (ROOT / "src/ShotStopperDurableStores.h").read_text()
+durable_stores = (ROOT / "src/OpenBrewDurableStores.h").read_text()
 network_reset = durable_stores.split("bool resetPersistedNetworkAccess", 1)[1].split(
     "bool resetAllDurableStores", 1)[0]
 assert re.findall(r"^\s+PersistedSettings\s+(\w+);", network_reset, re.MULTILINE) == [
     "candidate"]
-scale_worker = (ROOT / "src/ShotStopperScaleWorker.cpp").read_text()
+scale_worker = (ROOT / "src/OpenBrewScaleWorker.cpp").read_text()
 cleanup = scale_worker.split("if (!runtimeReady) {", 1)[1].split(
     "scaleWorkerStartupFinished.store", 1)[0]
 cleanup_order = [cleanup.index(token) for token in (
@@ -1548,23 +1548,23 @@ assert cleanup_order == sorted(cleanup_order)
 assert "vQueueDelete" not in cleanup
 assert "std::atomic<TaskHandle_t> scaleWorkerTaskHandle" in scale_worker
 assert "TaskLockGuard lock(scaleWorkerTaskHandleMutex)" in cleanup
-reset_history = (ROOT / "src/ShotStopperResetHistoryStore.h").read_text()
+reset_history = (ROOT / "src/OpenBrewResetHistoryStore.h").read_text()
 checkpoint = reset_history.split("bool persistResetUptimeCheckpoint", 1)[1].split(
     "bool clearPersistedResetHistory", 1)[0]
 assert checkpoint.count("resetHistoryStoreLastCheckpointMs.load") == 2
 assert checkpoint.index("resetHistoryStoreLastCheckpointMs.load") < checkpoint.index(
     "tryLockFlashIo")
-buzzer = (ROOT / "src/ShotStopperBuzzer.h").read_text()
+buzzer = (ROOT / "src/OpenBrewBuzzer.h").read_text()
 assert "TaskMutex mutex" in buzzer and "portMUX" not in buzzer
-network_header = (ROOT / "src/ShotStopperNetwork.h").read_text()
+network_header = (ROOT / "src/OpenBrewNetwork.h").read_text()
 assert "std::atomic<uint32_t> lastTaskProgressAtMs_" in network_header
 nimble_client = (ROOT / "libraries/EspressoScaleBLE/src/EspressoScaleBLENimble.cpp").read_text()
 for capacity in ("kRxFrameCount", "kCriticalEventCount", "kEventCount"):
     assert f"drained < {capacity}" in nimble_client
-shot_curve = (ROOT / "src/ShotStopperShotCurve.h").read_text()
+shot_curve = (ROOT / "src/OpenBrewShotCurve.h").read_text()
 assert "flashIoLockTimeouts() == lastLockTimeouts_" in shot_curve
 assert "(void)load();" in shot_curve
-persistence_runtime = (ROOT / "src/persistence/ShotStopperCommandPersistence.inc").read_text()
+persistence_runtime = (ROOT / "src/persistence/OpenBrewCommandPersistence.inc").read_text()
 checkpoint = persistence_runtime.split("SETTINGS_PERSIST_IDLE_WAIT_MS", 1)[1].split(
     "yieldSettingsNvs", 1)[0]
 for gate in ("copyControlGate(control)", "control.activeCycle", "control.relayClosed",
@@ -1572,21 +1572,21 @@ for gate in ("copyControlGate(control)", "control.activeCycle", "control.relayCl
     assert gate in checkpoint
 assert checkpoint.index("feedOrTripCurrentTaskWatchdog()") < checkpoint.index(
     "persistResetUptimeCheckpoint")
-ota_service = (ROOT / "src/network/ShotStopperNetworkOta.inc").read_text()
+ota_service = (ROOT / "src/network/OpenBrewNetworkOta.inc").read_text()
 assert "control.bootState == BootState::READY && startupComplete_" in ota_service
 ota_boot_call = ota_service.split("ota.serviceBoot", 1)[1].split(
     "OTA_CONFIRM_MIN_UPTIME_MS", 1)[0]
 for gate in ("control.activeCycle", "control.machineRunning",
              "control.physicalActivatorOn"):
     assert gate in ota_boot_call
-control_gate = (ROOT / "src/diagnostics/ShotStopperDiagnostics.inc").read_text().split(
+control_gate = (ROOT / "src/diagnostics/OpenBrewDiagnostics.inc").read_text().split(
     "void publishControlGate()", 1)[1].split("void publishControlStatus()", 1)[0]
 for source in ("bootCapabilities", "criticalTaskWatchdogFaulted()",
                "relay.resetRecoveryRequired", "RelaySafetyState::LOCKOUT"):
     assert source in control_gate
 assert "next.bootState = effectiveBoot.state()" in control_gate
 assert "constexpr uint32_t FLASH_IO_LOCK_TIMEOUT_MS = 3000" in \
-    (ROOT / "src/ShotStopperFlashIoScratch.h").read_text()
+    (ROOT / "src/OpenBrewFlashIoScratch.h").read_text()
 assert r"component_validation\.cmake" in idf_helpers and \
     'idf "esp_wifi/"' in idf_helpers and 'idf "wpa_supplicant/"' in idf_helpers, \
     "only the known ESP-IDF 6.1 Wi-Fi component warnings may be filtered"

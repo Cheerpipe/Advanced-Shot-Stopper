@@ -1,17 +1,17 @@
 #define SHOT_STOPPER_PERSISTENCE_HOST_TEST
-#include "../ShotStopperPersistence.h"
-#include "../ShotStopperBleScanPersistence.h"
-#include "../ShotStopperDurableStores.h"
-#include "../ShotStopperFirmwareMode.h"
-#include "../ShotStopperRecovery.h"
-#include "../ShotStopperRecoveryGesture.h"
-#include "../ShotStopperShotLog.h"
-#include "../ShotStopperShotCurve.h"
+#include "../OpenBrewPersistence.h"
+#include "../OpenBrewBleScanPersistence.h"
+#include "../OpenBrewDurableStores.h"
+#include "../OpenBrewFirmwareMode.h"
+#include "../OpenBrewRecovery.h"
+#include "../OpenBrewRecoveryGesture.h"
+#include "../OpenBrewShotLog.h"
+#include "../OpenBrewShotCurve.h"
 #include "shot_curve_test_helpers.h"
-#include "../ShotStopperHistory.h"
-#include "../ShotStopperActivationStores.h"
-#include "../ShotStopperLastShot.h"
-#include "../machine/ShotStopperLineaMicraSettings.h"
+#include "../OpenBrewHistory.h"
+#include "../OpenBrewActivationStores.h"
+#include "../OpenBrewLastShot.h"
+#include "../machine/OpenBrewLineaMicraSettings.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -1033,7 +1033,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
   // 6920: +8 bytes for the hero tint; 6944: +24 for the drip chart; 6952: +8
   // for its ten shots; 7432: the delta-stream curve record (external
-  // work-area growth; see ShotStopperControlStatusTypes.inc).
+  // work-area growth; see OpenBrewControlStatusTypes.inc).
   CHECK(sizeof(ControlStatusSnapshot) <= 7432);
   CHECK(sizeof(ControlGateSnapshot) <= 32);
   CHECK(sizeof(WebCommand) <= 440);

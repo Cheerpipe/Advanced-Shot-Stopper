@@ -1,4 +1,4 @@
-#include "machine/ShotStopperMicraObservation.h"
+#include "machine/OpenBrewMicraObservation.h"
 #include <cJSON.h>
 #include <cassert>
 #include <cstring>

@@ -4,14 +4,14 @@ set -euo pipefail
 
 INTERNAL_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT_DIR="$(CDPATH='' cd -- "$INTERNAL_DIR/.." && pwd)"
-# shellcheck source=scripts/shotstopper_board.sh
-source "$SCRIPT_DIR/shotstopper_board.sh"
-# shellcheck source=scripts/shotstopper_cli.sh
-source "$SCRIPT_DIR/shotstopper_cli.sh"
-# shellcheck source=scripts/shotstopper_idf.sh
-source "$SCRIPT_DIR/shotstopper_idf.sh"
-# shellcheck source=scripts/shotstopper_ota.sh
-source "$SCRIPT_DIR/shotstopper_ota.sh"
+# shellcheck source=scripts/openbrew_board.sh
+source "$SCRIPT_DIR/openbrew_board.sh"
+# shellcheck source=scripts/openbrew_cli.sh
+source "$SCRIPT_DIR/openbrew_cli.sh"
+# shellcheck source=scripts/openbrew_idf.sh
+source "$SCRIPT_DIR/openbrew_idf.sh"
+# shellcheck source=scripts/openbrew_ota.sh
+source "$SCRIPT_DIR/openbrew_ota.sh"
 
 usage() {
   cat <<EOF

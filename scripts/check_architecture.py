@@ -25,16 +25,18 @@ def main() -> int:
     failures: list[str] = []
 
     safety_files = (
-        "src/ShotStopperSafety.h",
-        "src/ShotStopperMachineRelay.h",
-        "src/ShotStopperHardwareTimer.h",
-        "src/ShotStopperWatchdog.h",
-        "src/ShotStopperResetGuard.h",
-        "src/ShotStopperResetGuard.cpp",
+        "src/OpenBrewSafety.h",
+        "src/OpenBrewMachineRelay.h",
+        "src/OpenBrewHardwareTimer.h",
+        "src/OpenBrewWatchdog.h",
+        "src/OpenBrewResetGuard.h",
+        "src/OpenBrewResetGuard.cpp",
     )
     forbidden_safety = (
         "ShotStopperNetwork",
         "ShotStopperWebhook",
+        "OpenBrewNetwork",
+        "OpenBrewWebhook",
         "<WiFi",
         "cJSON",
         "esp_http",
@@ -45,8 +47,8 @@ def main() -> int:
             if token in source:
                 failures.append(f"SafetyKernel dependency {token!r} in {relative}")
 
-    scale_source = text("src/ShotStopperScaleWorker.cpp")
-    for token in ('#include "ShotStopperNetwork.h"', "networkManager."):
+    scale_source = text("src/OpenBrewScaleWorker.cpp")
+    for token in ('#include "OpenBrewNetwork.h"', "networkManager."):
         if token in scale_source:
             failures.append(f"ScaleService bypasses its bridge via {token!r}")
     for required in (
@@ -55,14 +57,14 @@ def main() -> int:
         "configureScaleWorkerBridge",
     ):
         if required not in scale_source and required not in text(
-            "src/ShotStopperScaleWorker.h"
+            "src/OpenBrewScaleWorker.h"
         ):
             failures.append(f"ScaleService bridge contract missing {required!r}")
 
     machine_common = (
-        "src/machine/ShotStopperMachineIntegration.h",
-        "src/machine/ShotStopperMachineIntegration.cpp",
-        "src/machine/ShotStopperMachineBackflush.h",
+        "src/machine/OpenBrewMachineIntegration.h",
+        "src/machine/OpenBrewMachineIntegration.cpp",
+        "src/machine/OpenBrewMachineBackflush.h",
     )
     for relative in machine_common:
         source = text(relative)
@@ -72,14 +74,14 @@ def main() -> int:
                     f"common machine lifecycle exposes concrete feature {token!r} "
                     f"in {relative}"
                 )
-    machine_cmake = text("idf/components/shotStopper/CMakeLists.txt")
+    machine_cmake = text("idf/components/openBrew/CMakeLists.txt")
     for required in (
-        "ShotStopperLineaMicraIntegration.cpp",
-        "ShotStopperMachineIntegration.cpp",
+        "OpenBrewLineaMicraIntegration.cpp",
+        "OpenBrewMachineIntegration.cpp",
     ):
         if required not in machine_cmake:
             failures.append(f"selected machine source contract missing {required!r}")
-    micra_service = text("src/machine/ShotStopperMicraService.cpp")
+    micra_service = text("src/machine/OpenBrewMicraService.cpp")
     for required in (
         "esp_crt_bundle_attach",
         "networkEligible",
@@ -88,15 +90,15 @@ def main() -> int:
     ):
         if required not in micra_service:
             failures.append(f"Micra cloud boundary missing {required!r}")
-    for forbidden in ("NimBLE", "ShotStopperBle", "ble_gap", "ble_gatt"):
+    for forbidden in ("NimBLE", "ShotStopperBle", "OpenBrewBle", "ble_gap", "ble_gatt"):
         if forbidden in micra_service:
             failures.append(f"Micra cloud service depends on BLE via {forbidden!r}")
-    entrypoints = text("src/platform/ShotStopperEntrypoints.inc")
+    entrypoints = text("src/platform/OpenBrewEntrypoints.inc")
     if "scaleBridgeOk && machineIntegrationOk" in entrypoints:
         failures.append("optional machine integration gates scale-worker startup")
 
-    network = service_text("src/ShotStopperNetwork.cpp", "src/network") + text(
-        "src/ShotStopperNetwork.h"
+    network = service_text("src/OpenBrewNetwork.cpp", "src/network") + text(
+        "src/OpenBrewNetwork.h"
     )
     for token in (
         "machineRequestStart(",
@@ -125,9 +127,9 @@ def main() -> int:
     # roots. Reducing them is encouraged; increasing them requires an explicit
     # architecture review and must not be used to land feature code.
     line_ceilings = {
-        "src/ShotStopperNetwork.cpp": 2000,
-        "src/shotStopper.cpp": 2000,
-        "src/ShotStopperDomain.h": 3300,
+        "src/OpenBrewNetwork.cpp": 2000,
+        "src/openBrew.cpp": 2000,
+        "src/OpenBrewDomain.h": 3300,
     }
     for relative, ceiling in line_ceilings.items():
         lines = len(text(relative).splitlines())

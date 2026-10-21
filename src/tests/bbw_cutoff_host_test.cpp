@@ -1,8 +1,8 @@
 #define SHOT_STOPPER_PERSISTENCE_HOST_TEST
-#include "../ShotStopperBbwLearning.h"
-#include "../ShotStopperBbwQuickStart.h"
-#include "../ShotStopperPersistence.h"
-#include "../ShotStopperShotLog.h"
+#include "../OpenBrewBbwLearning.h"
+#include "../OpenBrewBbwQuickStart.h"
+#include "../OpenBrewPersistence.h"
+#include "../OpenBrewShotLog.h"
 #include <cassert>
 #include <cmath>
 #include <iostream>

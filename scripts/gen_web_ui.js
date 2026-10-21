@@ -26,9 +26,9 @@ const icon192Path = path.join(repoRoot, 'resources', 'icons', 'android',
 // plate behind the low-luminance terracotta. The opaque 192 px artwork stays
 // reserved for home-screen icons.
 const icon48Path = path.join(repoRoot, 'resources', 'icons', 'favicon-48.png');
-const versionPath = path.join(repoRoot, 'src', 'ShotStopperVersion.h');
+const versionPath = path.join(repoRoot, 'src', 'OpenBrewVersion.h');
 const outputPath =
-    path.join(repoRoot, 'src', 'ShotStopperWebAssetsGzip.h');
+    path.join(repoRoot, 'src', 'OpenBrewWebAssetsGzip.h');
 
 const VIEW_NAMES = ['home', 'stats', 'history', 'diagnostic', 'settings', 'admin', 'setup'];
 // Each lazy view ships as one module that carries its own markup, so opening

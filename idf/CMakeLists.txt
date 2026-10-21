@@ -5,7 +5,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Board-parity defines (Arduino FQBN: PSRAM + Hardware CDC). CDC stays off
 # until setup() sees the USB console jumper (GPIO4–GND) and calls Serial.begin
-# on HWCDC (ShotStopperUsbConsole.h), unless SHOT_STOPPER_EXTRA_FLAGS includes
+# on HWCDC (OpenBrewUsbConsole.h), unless SHOT_STOPPER_EXTRA_FLAGS includes
 # -DSHOT_STOPPER_ENABLE_JTAG=1 (ARDUINO_USB_CDC_ON_BOOT=1 + IDF console).
 # Product options (remote machine control, buzzer, machine type, JTAG) live in
 # main/Kconfig.projbuild and sdkconfig.defaults; SHOT_STOPPER_EXTRA_FLAGS may
@@ -107,7 +107,7 @@ target_compile_options(${_ss_arduino_lib} PRIVATE
 # firmware-focused analyzer pass.
 if(_ss_enable_gcc_analyzer)
   foreach(_ss_analyzer_component IN ITEMS
-      main shotStopper EspressoScaleBLE ShotStopperBleRuntime)
+      main openBrew EspressoScaleBLE OpenBrewBleRuntime)
     idf_component_get_property(_ss_analyzer_component_lib
       ${_ss_analyzer_component} COMPONENT_LIB)
     target_compile_options(${_ss_analyzer_component_lib} PRIVATE -fanalyzer)
@@ -119,7 +119,7 @@ endif()
 # tolerate them, so only project-owned components see them.
 if(_ss_enable_unused_parameter)
   foreach(_ss_unused_parameter_component IN ITEMS
-      main shotStopper EspressoScaleBLE ShotStopperBleRuntime)
+      main openBrew EspressoScaleBLE OpenBrewBleRuntime)
     idf_component_get_property(_ss_unused_parameter_component_lib
       ${_ss_unused_parameter_component} COMPONENT_LIB)
     target_compile_options(${_ss_unused_parameter_component_lib} PRIVATE

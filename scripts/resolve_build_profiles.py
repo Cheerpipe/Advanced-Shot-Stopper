@@ -643,7 +643,7 @@ def main() -> int:
             output_dir.mkdir(parents=True, exist_ok=True)
             # Rewrite only on change so unchanged builds do not recompile includers.
             for path, text in (
-                    (output_dir / "ShotStopperBuildProfileGenerated.h", header_for(resolved)),
+                    (output_dir / "OpenBrewBuildProfileGenerated.h", header_for(resolved)),
                     (output_dir / "build-profile.json",
                      json.dumps(resolved, indent=2, ensure_ascii=False) + "\n")):
                 if not path.is_file() or path.read_text(encoding="utf-8") != text:

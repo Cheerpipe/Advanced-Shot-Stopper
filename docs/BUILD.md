@@ -406,7 +406,7 @@ override matching choices. Review Diagnostic build identity and options before
 installation.
 
 The build renders the selected catalog into
-`src/OpenBrewByWeightWebAssetsGzip.h`, generates version identity and
+`src/OpenBrewWebAssetsGzip.h`, generates version identity and
 `build-idf/<hardware-id>--<machine-id>/openbrewbyweight.bin`, then checks image and
 memory budgets. Use only the image for the intended profile pair. The supported partition layout has
 two app slots; arbitrary 4 MB layouts cannot hold this firmware.

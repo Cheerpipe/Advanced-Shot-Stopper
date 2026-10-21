@@ -15,5 +15,5 @@
 *.o
 *.a
 *.stl
-/src/ShotStopperVersion.h
-/src/ShotStopperWebAssetsGzip.h
+/src/OpenBrewVersion.h
+/src/OpenBrewWebAssetsGzip.h

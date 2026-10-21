@@ -20,5 +20,5 @@ set(ESPRESSO_SCALE_BLE_SRCS
 idf_component_register(
   SRCS ${ESPRESSO_SCALE_BLE_SRCS}
   INCLUDE_DIRS "${ESPRESSO_SCALE_BLE_DIR}/src"
-  REQUIRES arduino-esp32 log bt ShotStopperBleRuntime
+  REQUIRES arduino-esp32 log bt OpenBrewBleRuntime
 )

@@ -1,5 +1,5 @@
-#include "../ShotStopperIntegrationRequest.h"
-#include "../ShotStopperShotLogTypes.h"
+#include "../OpenBrewIntegrationRequest.h"
+#include "../OpenBrewShotLogTypes.h"
 
 #include <cJSON.h>
 #include <cstdlib>
@@ -7,7 +7,7 @@
 #include <iostream>
 
 namespace shotstopper {
-#include "../network/ShotStopperStatsJson.inc"
+#include "../network/OpenBrewStatsJson.inc"
 }
 
 using namespace shotstopper;

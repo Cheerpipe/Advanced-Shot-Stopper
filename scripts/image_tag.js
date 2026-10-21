@@ -13,7 +13,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 
 // Must stay in sync with FW_IMAGE_TAG_STRING (scripts/gen_version.sh) and the
-// parser in src/ShotStopperOta.cpp.
+// parser in src/OpenBrewOta.cpp.
 const TAG_PREFIX = 'SHOTSTOPPER_FW_TAG_V2|';
 const TAG_TERMINATOR = '|END';
 const TAG_BODY_MAX_BYTES = 256;

@@ -9,7 +9,7 @@
     if (JSON.stringify(actual) !== JSON.stringify(expected))
       throw new Error(`${what} changed: ${JSON.stringify(actual)} != ${JSON.stringify(expected)}`);
   };
-  const brewTypes = fs.readFileSync(path.join(sketchDir, 'ShotStopperBrewTypes.h'), 'utf8');
+  const brewTypes = fs.readFileSync(path.join(sketchDir, 'OpenBrewBrewTypes.h'), 'utf8');
   const ordinals = {};
   for (const [, name, value] of
        brewTypes.match(/enum class EndReason[^{]*\{([^}]*)\}/)[1]
@@ -21,7 +21,7 @@
   same(Object.fromEntries(Object.entries(ordinals).map(([n, v]) => [v, n])),
        frozen.endReasons, 'EndReason ordinals');
 
-  const shotLogTypes = fs.readFileSync(path.join(sketchDir, 'ShotStopperShotLogTypes.h'), 'utf8');
+  const shotLogTypes = fs.readFileSync(path.join(sketchDir, 'OpenBrewShotLogTypes.h'), 'utf8');
   const detailFn = shotLogTypes.match(/shotLogStopDetailName\([^)]*\)\s*\{([\s\S]*?)\n\}/)[1];
   same([...detailFn.matchAll(/return "([a-z_]+)";/g)].map((m) => m[1])
          .filter((name) => name !== 'unknown').sort(),
@@ -44,9 +44,9 @@
   same(Object.keys(fixture('webhook_quick_settings_changed_v1.json'))
          .filter((k) => frozen.quickSettings.includes(k)),
        frozen.quickSettings, 'Webhook quick_settings_changed_v1 keys');
-  const webhookCpp = fs.readFileSync(path.join(sketchDir, 'ShotStopperWebhook.cpp'), 'utf8');
+  const webhookCpp = fs.readFileSync(path.join(sketchDir, 'OpenBrewWebhook.cpp'), 'utf8');
   const integrationCpp = fs.readFileSync(
-    path.join(sketchDir, 'network', 'ShotStopperIntegrationApi.inc'), 'utf8');
+    path.join(sketchDir, 'network', 'OpenBrewIntegrationApi.inc'), 'utf8');
   for (const key of [...frozen.quickSettings, 'stopDetail']) {
     if (!webhookCpp.includes(`\\"${key}\\"`) ||
         (key !== 'stopDetail' && !integrationCpp.includes(`\\"${key}\\"`)))

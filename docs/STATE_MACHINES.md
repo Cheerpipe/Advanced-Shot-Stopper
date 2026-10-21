@@ -52,7 +52,7 @@ Each section has:
    timers, Web UI commands). Not every enum is an event; some machines
    are derived (they recompute from another machine every loop).
 
-The control task in `openBrewByWeight.cpp` is the orchestrator. Brew, scale sense,
+The control task in `openBrew.cpp` is the orchestrator. Brew, scale sense,
 and cup presence do not call each other: the brew orchestrator polls machine **once** per
 loop (`machinePollIntention` → `machineLastIntention`), builds `GuardInputs` for
 brew guards, pushes a `MachineSense` snapshot into machine, and applies scale
@@ -189,7 +189,7 @@ parks the brew orchestrator in `REQUIRES_OFF` if the paddle is ON.
 manual no-scale shot. It is the only machine that decides *when* to
 request machine circuit close, and *why* a cycle ended (`EndReason`).
 
-Source: `OpenBrewByWeightBrewTypes.h`, orchestrated in `openBrewByWeight.cpp`.
+Source: `OpenBrewBrewTypes.h`, orchestrated in `openBrew.cpp`.
 
 ### States
 
@@ -230,7 +230,7 @@ de-energize from an ISR if the control task is stuck. This is the
 last firmware line of defence short of a second hardware barrier
 (K2). See [Hardware](HARDWARE.md).
 
-Source: `OpenBrewByWeightSafety.h`, `OpenBrewByWeightMachine.h`.
+Source: `OpenBrewSafety.h`, `OpenBrewMachine.h`.
 
 ### States
 
@@ -278,8 +278,8 @@ group (shot or rinse)?”, without exposing ARMING vs CLOSED vs TRIPPED. It
 does not describe machine power: a powered-on machine is normally `IDLE`.
 It does not command GPIO.
 
-Source: `OpenBrewByWeightMachineTypes.h`, `machineRunState()` in
-`OpenBrewByWeightMachinePaddleState.h` (included from `OpenBrewByWeightMachine.h`).
+Source: `OpenBrewMachineTypes.h`, `machineRunState()` in
+`OpenBrewMachinePaddleState.h` (included from `OpenBrewMachine.h`).
 Config lock uses `machineIsRunning()`, which for paddle equals machine circuit closed.
 
 ### States
@@ -377,7 +377,7 @@ windows as described above; it is not derived from K1 alone.
 translates it to something the brew orchestrator understands. The brew orchestrator never
 reads GPIO, paddle mode, or machine type.
 
-Source: `OpenBrewByWeightMachineTypes.h`, `machinePollIntention()`. Latch TYPE=0
+Source: `OpenBrewMachineTypes.h`, `machinePollIntention()`. Latch TYPE=0
 maps GPIO + snapshotted `PaddleMode` onto these intents (Original/Auto may
 omit `REQUEST_STOP` after the rinse window). A short ON→OFF with rinse
 enabled publishes `REQUEST_RINSE`. Momentary maps a hold no longer than
@@ -409,8 +409,8 @@ link or silent notifications must not slam machine circuit open; they
 **suspend** automation and let A→M / paddle / walls decide. Brew
 rejecting a sample is not a lost scale.
 
-Source: `OpenBrewByWeightScaleTypes.h`, `setWeightControlState()` in
-`openBrewByWeight.cpp`.
+Source: `OpenBrewScaleTypes.h`, `setWeightControlState()` in
+`openBrew.cpp`.
 
 ### States
 
@@ -445,7 +445,7 @@ control is still `ACTIVE` until the next loop notices. Control
 `SUSPENDED` after a disconnect can also overlap a still-`FRESH`
 observed sample until the 1 s timer elapses.
 
-Source: `OpenBrewByWeightScaleTypes.h`.
+Source: `OpenBrewScaleTypes.h`.
 
 ### States
 
@@ -472,7 +472,7 @@ stream `STALE`.
 late cup can retare and a lifted cup can stop. A tare must **not**
 flip presence (the zero moves; the cup did not leave).
 
-Source: `OpenBrewByWeightScaleTypes.h`, `OpenBrewByWeightCupPresence.h`.
+Source: `OpenBrewScaleTypes.h`, `OpenBrewCupPresence.h`.
 
 ### States
 
@@ -612,7 +612,7 @@ unobservable from final weight alone.
 using weight evidence; sustained pressure can still resemble coffee. It does
 **not** stop the shot.
 
-Source: `OpenBrewByWeightScaleTypes.h` (`stepFirstFlow`).
+Source: `OpenBrewScaleTypes.h` (`stepFirstFlow`).
 
 ### States (`FirstFlowPhase`)
 
@@ -662,7 +662,7 @@ command-completion diagnostic.
 without ending the shot. Complements BBW protection (time window) with
 a live residual check against the accepted flow trend.
 
-Source: `OpenBrewByWeightScaleTypes.h`. Only runs while weight control is
+Source: `OpenBrewScaleTypes.h`. Only runs while weight control is
 `ACTIVE` and the setting is on. A step large enough to trip the slew guard
 first puts control in `VALIDATING`; when three coherent samples recover it,
 the pre-anomaly anchor and trend are kept, so the recovered level is
@@ -730,7 +730,7 @@ and A→M duration learning. Saved ON with parent OFF is dormant, not effective 
 **Purpose.** BLE session with the preferred / discovered scale.
 Connects the weight path; **never** drives the machine circuit.
 
-Source: `openBrewByWeight.cpp` (`ScaleLinkState`).
+Source: `openBrew.cpp` (`ScaleLinkState`).
 
 ### States
 
@@ -861,7 +861,7 @@ still exposes the Armed/cooldown latch.
 **Purpose.** Restore network or factory-reset when Wi-Fi, Web UI, BLE,
 and USB are all unusable. **machine circuit stays open** for the whole window.
 
-Source: `ShotStopperRecoveryGesture.h`. Entry: power-on reset **and**
+Source: `OpenBrewRecoveryGesture.h`. Entry: power-on reset **and**
 paddle already stably ON **and** still held 30 s later (entry grace below).
 
 ### Entry grace (`RecoveryGraceWindow`)
@@ -908,7 +908,7 @@ mid-shot. SoftAP auto-raise is **boot/bootstrap only**, before the first success
 STA join. Auto SoftAP also idle-stops after 3 minutes with zero SoftAP
 stations (latched for the rest of the boot; USB `AP_START` still works).
 
-Source: `OpenBrewByWeightNetwork.h`.
+Source: `OpenBrewNetwork.h`.
 
 ### States
 
@@ -955,7 +955,7 @@ takes a **maintenance lease**: machine circuit is forced open for the scan.
 
 **Purpose.** Timestamp shot history. Brewing does **not** wait on NTP.
 
-Source: `OpenBrewByWeightTime.h`.
+Source: `OpenBrewTime.h`.
 
 | State | Meaning |
 | --- | --- |
@@ -981,7 +981,7 @@ the UI.
 image. Machine circuit stays open. Transfer writes the **inactive** slot; boot
 selection changes only on an explicit flash/commit.
 
-Source: `OpenBrewByWeightOta.h`. Product notes: [OTA](features/ota.md).
+Source: `OpenBrewOta.h`. Product notes: [OTA](features/ota.md).
 
 ### States
 
@@ -1005,7 +1005,7 @@ has not confirmed HTTP is refused.
 The Web UI shows an action-specific success or failure toast when the
 HTTP handler accepts or rejects the command, not when NVS is done.
 
-Source: `OpenBrewByWeightDomain.h`.
+Source: `OpenBrewDomain.h`.
 
 | State | Meaning |
 | --- | --- |
@@ -1250,7 +1250,7 @@ from IRAM.
 
 | Name | Why it is omitted |
 | --- | --- |
-| `PaddleMode` (Natural / Original / Auto) | Latch TYPE=0 translator setting. Lives in `OpenBrewByWeightMachinePaddleConfig.h`; the brew orchestrator never branches on it. |
+| `PaddleMode` (Natural / Original / Auto) | Latch TYPE=0 translator setting. Lives in `OpenBrewMachinePaddleConfig.h`; the brew orchestrator never branches on it. |
 | `AlertEvent` | Outputs (beeps), not a mode. |
 | `TaskProfilerState` | Diagnostics only. |
 | Shot-log / NVS dual-slot enums | Storage format, not live control. |

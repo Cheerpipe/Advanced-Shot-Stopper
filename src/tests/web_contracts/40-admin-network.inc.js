@@ -148,7 +148,7 @@ if (!codeIncludes(ui, 'id="staIpMode"') ||
     !network.includes('\\"configState\\"') ||
     !network.includes('\\"ssid\\"') ||
     !network.includes('\\"apSsid\\":\\"%s\\"') ||
-    !fs.readFileSync(path.join(sketchDir, 'ShotStopperPersistedNetwork.h'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewPersistedNetwork.h'), 'utf8')
           .includes('formatSoftApSsid') ||
     !network.includes('fillSoftApSsid(apSsid') ||
     !network.includes('WiFi.softAP(apSsid, settings.devicePassword)') ||

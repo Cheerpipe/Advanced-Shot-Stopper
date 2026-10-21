@@ -231,7 +231,7 @@ times. While the reservation is held, `HEALTH` reports `heapMinFree=4294967295`
 `held_min` has no samples and `post_min` includes initialization, so compare
 matching stage rows as well as the minima.
 
-For the comparison, use `HEAP_SHAPER_BYTES` in `src/ShotStopperNetwork.cpp`:
+For the comparison, use `HEAP_SHAPER_BYTES` in `src/OpenBrewNetwork.cpp`:
 `69632` (68 KiB) is the measured optimum and `0` disables the hold. Release
 images expose the same capture as the `bootHeap` section of
 `/api/v1/debug/export`: `stages` rows are `[stage,result,ms,held,free,largest]`
