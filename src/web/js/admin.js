@@ -977,6 +977,7 @@ async function otaFlash() {
     expected.bootId = data.bootId;
     otaCommitStore(expected);
     for (let attempt = 1; attempt <= 3; attempt++) {
+      data = null;
       try {
         data = await otaSend("/api/v1/ota/flash", null, OTA_COMMAND_TIMEOUT_MS);
         if (!otaRemoteMatches(session, data))
@@ -996,8 +997,9 @@ async function otaFlash() {
     }
     otaEndBusy(data, otaCheckBoot(expected, data), "");
   } catch (e) {
-    // The same boot with nothing committed means the flash did not happen:
-    // keep no expectation that would later read as an unverified commit.
+    // This attempt's status from the same boot with nothing committed means
+    // the flash did not happen: keep no expectation that would later read as
+    // an unverified commit. A device that stopped answering keeps it.
     if (data?.bootId === expected.bootId && !data.restartPending && data.state !== "committed")
       otaCommitStore(null);
     otaEndBusy(

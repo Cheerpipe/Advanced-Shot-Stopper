@@ -95,6 +95,8 @@ async function harness(mode) {
         if (mode === 'lost-commit') return {...status(), state: 'committed', restartPending: true};
         if (mode === 'booted-commit') return {...status(), state: 'idle', bootId: 8, transferId: ''};
         if (mode === 'refused-flash') return status();
+        if (mode === 'offline-flash' || (mode === 'offline-retry' && commits > 1))
+          throw new Error('Device unreachable');
       }
       return status();
     }
@@ -145,6 +147,18 @@ async function harness(mode) {
     await vm.runInContext('otaFlash()', h.context);
     assert.equal(h.commits(), 3);
     assert.equal(h.items.has('obbwOtaCommit'), false);
+  }
+  // A device that stops answering after the flash request may be restarting
+  // into the new image: stale pre-flash status must not drop the expectation.
+  for (const [mode, flashes] of [['offline-flash', 1], ['offline-retry', 2]]) {
+    const h = await harness(mode);
+    h.setOffset(h.file.size);
+    h.items.set('obbwOtaSession', JSON.stringify(h.session));
+    h.context.R.uiState.otaLastStatus = h.status();
+    await vm.runInContext('otaFlash()', h.context);
+    assert.equal(h.commits(), flashes);
+    assert.match(h.messages.at(-1), /unverified/);
+    assert.equal(h.items.has('obbwOtaCommit'), true, mode + ' keeps the commit expectation');
   }
   // The real transport is the shared API client, and each step keeps the UI active.
   {
