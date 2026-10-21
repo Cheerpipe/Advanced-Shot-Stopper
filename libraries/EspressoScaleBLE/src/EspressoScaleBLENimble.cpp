@@ -2502,7 +2502,14 @@ class NimbleScaleClient {
       const bool scaleClosedIdleLink = previous == State::Ready &&
           activeCommand_ == 0xff && (rawStatus == BLE_HS_HCI_ERR(0x13) ||
                                      rawStatus == BLE_HS_HCI_ERR(0x15));
-      scaleLogError(operation, rawStatus, disconnectReasonName(reason),
+      // The API reason stays REMOTE_DISCONNECTED (Micra power-off triggers rely
+      // on it); only the log names the HCI power-off code precisely.
+      const bool scalePoweredOff =
+          reason == ScaleDisconnectReason::REMOTE_DISCONNECTED &&
+          rawStatus == BLE_HS_HCI_ERR(0x15);
+      scaleLogError(operation, rawStatus,
+                    scalePoweredOff ? "scale powered off"
+                                    : disconnectReasonName(reason),
                     diagnostics_.disconnectOrigin, scaleClosedIdleLink);
     }
     // Generation is invalidated before touching NimBLE. A cancellation can

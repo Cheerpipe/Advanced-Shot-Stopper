@@ -576,6 +576,8 @@ static void run() {
                  BLE_HS_HCI_ERR(0x13));
     CHECK(capturedScaleLogs.back().first == kScaleLogInfoSeverity);
     CHECK(capturedScaleLogs.back().second.find("ble error op=link") == 0);
+    CHECK(capturedScaleLogs.back().second.find("reason=remote disconnected") !=
+          std::string::npos);
     testNowMs = c.backoff_.deadlineMs();
     c.service();
     CHECK(c.state_ == NimbleScaleClient::State::Scanning);
@@ -586,6 +588,9 @@ static void run() {
     c.activeCommand_ = status == BLE_HS_HCI_ERR(0x15) ? 0 : 0xff;
     c.finishLink(false, mapRawDisconnectReason(status), status);
     CHECK(capturedScaleLogs.back().first == kScaleLogWarningSeverity);
+    CHECK(c.lastReason() != ScaleDisconnectReason::REMOTE_DISCONNECTED ||
+          capturedScaleLogs.back().second.find("reason=scale powered off") !=
+              std::string::npos);
   }
   {
     NimbleScaleClient c(false);
