@@ -54,6 +54,7 @@ bool buildIntegrationStats(const ShotStatsView &stats,char *out,size_t cap){
 uint32_t uiStreamCurveHash(const ShotCurveRecord &curve,uint16_t count){
   ++hashes;return count ? curve.lastWeightCg : 0;
 }
+constexpr char kStatsRowColumns[]="id,weight,padding";
 size_t formatShotStatsRow(NetworkWorkBuf &buffer,const ShotLogRecord &record,
                          const ShotCurveRecord *curve){
   assert(curve && curve->lastWeightCg==record.actualWeightCg);
@@ -122,6 +123,9 @@ int main(){
   assert(captures==1&&hashes==3&&frames.size()==3);
   assert(frames[0].find("\\"stats\\":{\\"shotCount\\":1,\\"recent\\":[]}")!=std::string::npos);
   assert(frames[1].find("\\"rowBase\\":1")!=std::string::npos);
+  // Columns are named once, in the page's first frame.
+  assert(frames[0].find("\\"cols\\":\\"id,weight,padding\\"")!=std::string::npos&&
+         frames[1].find("\\"cols\\"")==std::string::npos);
   assert(send(session)&&frames.size()==3);
   // A new window with the same order reuses the capture AND the cached
   // per-row curve hashes (curves are immutable once committed).

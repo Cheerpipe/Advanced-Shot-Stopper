@@ -126,7 +126,15 @@ int main(){
   assert.equal(run.status, 0, run.stderr);
   fs.unlinkSync(binary);
   const wire = run.stdout.trim().split('\n');
-  const [live, full, empty, busy, failed, row, ...curves] = wire.map(JSON.parse);
+  const [live, full, empty, busy, failed, rowValues, ...curves] = wire.map(JSON.parse);
+  // A Stats row is its values in kStatsRowColumns order plus the curve object.
+  const homeSource = read('network/ShotStopperHomeStream.inc');
+  const columnsDecl = homeSource.slice(homeSource.indexOf('constexpr char kStatsRowColumns[] ='));
+  const columns = [...columnsDecl.slice(0, columnsDecl.indexOf(';')).matchAll(/"([^"]*)"/g)]
+      .map(m => m[1]).join('').split(',');
+  assert(Array.isArray(rowValues) && rowValues.length === columns.length + 1 &&
+      typeof rowValues.at(-1) === 'object', 'one value per column, then the curve');
+  const row = {...Object.fromEntries(columns.map((k, i) => [k, rowValues[i]])), ...rowValues.at(-1)};
   // The browser decoder recovers every firmware-appended point, and a
   // fragment names exactly the point before it.
   const decode = new Function(blockAt(rawRuntimeJs, 'function decodeCurveDeltas(') +

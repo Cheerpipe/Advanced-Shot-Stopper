@@ -734,8 +734,9 @@ if (generated.cssGzip.length > 15742) {
 // Stream closed after 5 minutes hidden and resumed without snapshots brings it to 40068; owner-requested 2026-10-21.
 // The ?fw= landing refreshes the cached shell after an OTA brings it to 40126; owner-requested 2026-10-21.
 // A reconnect keeps the presets it already holds brings it to 40227; owner-requested 2026-10-21.
-if (sentinelRuntimeGzip.length > 40227) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 40227-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Stats rows as column-ordered values brings it to 40259; owner-requested 2026-10-21.
+if (sentinelRuntimeGzip.length > 40259) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 40259-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -998,8 +999,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // Stream closed after 5 minutes hidden and resumed without snapshots brings it to 67640; owner-requested 2026-10-21.
 // The ?fw= landing refreshes the cached shell after an OTA brings it to 67696; owner-requested 2026-10-21.
 // A reconnect keeps the presets it already holds brings it to 67797; owner-requested 2026-10-21.
-if (coldHomeGzip > 67797) {
-  throw new Error(`Cold Home download exceeds the 67797-byte gzip budget (${coldHomeGzip})`);
+// Stats rows as column-ordered values brings it to 67829; owner-requested 2026-10-21.
+if (coldHomeGzip > 67829) {
+  throw new Error(`Cold Home download exceeds the 67829-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

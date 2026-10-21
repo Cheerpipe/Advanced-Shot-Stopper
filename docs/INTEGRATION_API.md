@@ -386,10 +386,13 @@ commands: `POST /api/v1/stats/clear|delete|rate`,
 
 Stats and History frames both carry `boot`, `total`, `offset`, `limit`, and
 `hasMore`. Stats frames also
-carry `stats` (the firmware-computed aggregate) and `rows` — the same row
-fields used for the table and CSV export, with each row's curve arrays embedded at the
-top level; pages larger than the frame budget continue across frames with
-`rowBase` and `more` until a terminating frame. History frames carry
+carry `stats` (the firmware-computed aggregate) and `rows`. The first frame
+of a page names the row fields once in `cols`, a comma-separated list; each
+row is then an array of those values in that order, followed by the row's
+curve object. The browser rebuilds the row objects (the same fields the table
+and CSV export use) before validating them; pages larger than the frame
+budget continue across frames with `rowBase` and `more` until a terminating
+frame, and continuation frames reuse the page's `cols`. History frames carry
 `records`. Paging and sorting parameters are unchanged: `offset`, `limit`, and `dir` (`asc` or `desc`), plus
 `sort` (`date` or `rating`) for Stats. The page sizes used by the browser are
 ten shots and twenty activations.
@@ -644,7 +647,7 @@ or a tab refocus, the browser replays the subscription and resyncs, and every
 accepted op forces the next page to start from a full snapshot.
 
 Stats frames have `v: 1`, `type: "stats"`, `boot`, `snapshot`, `epoch`,
-`seq`, the `stats` aggregate (first frame of a page only), `total`, `offset`, `limit`, `hasMore`, `rows`, `rowBase`, and `more`.
+`seq`, the `stats` aggregate and `cols` (first frame of a page only), `total`, `offset`, `limit`, `hasMore`, `rows`, `rowBase`, and `more`.
 In this stream the aggregate also carries `recent`: the newest shots it was
 computed from (up to 10, newest first), each a compact
 `[id, presetId, arrivalS, verdict, fastBeforeS, slowAfterS]` array, with

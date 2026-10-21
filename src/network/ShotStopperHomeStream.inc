@@ -1142,6 +1142,18 @@ bool ShotStopperNetwork::sendHistoryStream(UiStreamSession &session,
 
 // The Stats row projection (extracted verbatim from the REST shots handler):
 // row scalars plus the curve fields embedded at the top level, because
+// Stats row columns, sent once per page; formatShotStatsRow emits the values
+// in this order followed by the curve object.
+constexpr char kStatsRowColumns[] =
+    "id,bootId,endedAtMs,hasWallTime,endedAtLocalSec,endedAtUnixSec,"
+    "timezoneOffsetMinutesAtCommit,durationS,presetId,presetName,scaleName,goalG,"
+    "actualG,offsetG,bbwAlgorithm,bbwAlgorithmVersion,bbwAlpha,bbwLearningApplied,"
+    "avgFlowGS,firstDropS,tareS,shotType,cutType,extractionGuardEnabled,"
+    "extractionExtended,slowExtractionGuardEnabled,slowExtractionExtended,"
+    "stopDetail,cutLineG,arrivalS,verdict,channeling,scaleLossSource,estimatedG,"
+    "blind,fastBeforeS,slowAfterS,fastMarginG,slowMarginG,delayS,wallS,cutRampS,"
+    "dripDelayS,actualWeightSource,rating";
+
 // formatShotCurveJsonBody emits the curve object's inner fields. Writes into
 // work.jsonItem using work.curveJson as scratch and returns the written
 // length, 0 on overflow. A missing curve formats as an empty one in the
@@ -1200,25 +1212,11 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
     // Keep the row JSON parseable; an empty curve beats a broken page.
     curveJson[0] = '\0';
   }
+  // Values in kStatsRowColumns order, then the curve body as one object.
   const int bytes = snprintf(work.jsonItem, NetworkWorkBuf::kJsonItem,
-      "{\"id\":%lu,\"bootId\":%lu,\"endedAtMs\":%lu,"
-      "\"hasWallTime\":%s,\"endedAtLocalSec\":%lu,"
-      "\"endedAtUnixSec\":%lu,\"timezoneOffsetMinutesAtCommit\":%d,"
-      "\"durationS\":%.1f,\"presetId\":%u,\"presetName\":\"%s\","
-      "\"scaleName\":\"%s\","
-      "\"goalG\":%.1f,\"actualG\":%s,"
-      "\"offsetG\":%.2f,\"bbwAlgorithm\":\"%s\",\"bbwAlgorithmVersion\":%s,"
-      "\"bbwAlpha\":%s,\"bbwLearningApplied\":%s,\"avgFlowGS\":%s,"
-      "\"firstDropS\":%s,\"tareS\":%s,"
-      "\"shotType\":\"%s\",\"cutType\":\"%s\","
-      "\"extractionGuardEnabled\":%s,\"extractionExtended\":%s,"
-      "\"slowExtractionGuardEnabled\":%s,\"slowExtractionExtended\":%s,"
-      "\"stopDetail\":\"%s\",\"cutLineG\":%s,\"arrivalS\":%s,"
-      "\"verdict\":%s,\"channeling\":%s,\"scaleLossSource\":%s,"
-      "\"estimatedG\":%s,\"blind\":%s,\"fastBeforeS\":%.1f,\"slowAfterS\":%.1f,"
-      "\"fastMarginG\":%.1f,\"slowMarginG\":%.1f,\"delayS\":%.1f,"
-      "\"wallS\":%.1f,\"cutRampS\":%.1f,\"dripDelayS\":%s,"
-      "\"actualWeightSource\":\"%s\",\"rating\":%u,%s}",
+      "[%lu,%lu,%lu,%s,%lu,%lu,%d,%.1f,%u,\"%s\",\"%s\",%.1f,%s,%.2f,\"%s\",%s,"
+      "%s,%s,%s,%s,%s,\"%s\",\"%s\",%s,%s,%s,%s,\"%s\",%s,%s,%s,%s,%s,%s,%s,"
+      "%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%s,\"%s\",%u,{%s}]",
       static_cast<unsigned long>(record.id),
       static_cast<unsigned long>(record.bootId),
       static_cast<unsigned long>(record.endedAtMs),
@@ -1413,6 +1411,8 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
       return false;
   if (first && cache.statsOk &&
       !statusJsonAppend(&used, "\"stats\":%s,", cache.header))
+    return false;
+  if (first && !statusJsonAppend(&used, "\"cols\":\"%s\",", kStatsRowColumns))
     return false;
   if (!statusJsonAppend(&used,
           "\"total\":%u,\"offset\":%u,\"limit\":%u,"

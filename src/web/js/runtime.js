@@ -4599,6 +4599,18 @@ function statsStreamFrame(message) {
     throw Error();
   if (message.stats !== undefined && (typeof message.stats !== "object" || !message.stats))
     throw Error();
+  // Rows are value arrays in the page's column order plus a curve object; the
+  // first frame names the columns, continuation frames reuse them.
+  const cols = message.rowBase
+    ? statsPage?.seq === message.seq && statsPage.cols
+    : typeof message.cols === "string" && message.cols.split(",");
+  if (!cols) throw Error();
+  message.cols = cols;
+  message.rows = message.rows.map((a) => {
+    const c = Array.isArray(a) && a.length === cols.length + 1 && a.at(-1);
+    if (!c || typeof c !== "object" || Array.isArray(c)) throw Error();
+    return { ...Object.fromEntries(cols.map((k, i) => [k, a[i]])), ...c };
+  });
   for (const r of message.rows) if (!statsRowOk(r)) throw Error();
   if (message.offset + message.rowBase + message.rows.length > message.total) throw Error();
   const buffered = statsPage && statsPage.seq === message.seq;
@@ -4649,6 +4661,7 @@ function applyStatsStream(message) {
       limit: message.limit,
       hasMore: message.hasMore,
       stats: message.stats || null,
+      cols: message.cols,
       rows: [],
     };
   }

@@ -1299,9 +1299,17 @@ if (!statsSection ||
       assert.deepEqual(sent.at(-1),
           {op: 'stats', on: true, request: 1, offset: 0, limit: 10, sort: 'date', dir: 'desc'},
           'Entering the view subscribes with the standing window');
-      const frame = extras => Object.assign({v: 1, type: 'stats', boot: 9, snapshot: true,
-        epoch: 5, request: 1, seq: 1, ui, stats: {avgDurationS: 28}, total: 2, offset: 0,
-        limit: 10, hasMore: false, rows: [row(2)], rowBase: 0, more: true}, extras);
+      // The wire row: values in the page's column order, then the curve object.
+      const cols = ['id', 'bootId', 'endedAtMs', 'hasWallTime', 'endedAtLocalSec', 'endedAtUnixSec',
+        'timezoneOffsetMinutesAtCommit', 'durationS', 'rating'];
+      const wire = r => [...cols.map(k => r[k]),
+        Object.fromEntries(Object.entries(r).filter(([k]) => !cols.includes(k)))];
+      const frame = extras => {
+        const f = Object.assign({v: 1, type: 'stats', boot: 9, snapshot: true,
+          epoch: 5, request: 1, seq: 1, stats: {avgDurationS: 28}, total: 2, offset: 0,
+          limit: 10, hasMore: false, rows: [row(2)], rowBase: 0, more: true}, extras);
+        return {...f, ...(f.rowBase ? {} : {cols: cols.join(',')}), rows: f.rows.map(wire)};
+      };
       context.applyStatsStream(context.statsStreamFrame(frame()));
       assert.deepEqual(events, [], 'A split page applies nothing until more:false');
       context.applyStatsStream(context.statsStreamFrame(
@@ -1365,6 +1373,9 @@ if (!statsSection ||
         frame({snapshot: false, epoch: 9, seq: 8, rows: [{...row(3), wD: '!!'}], more: false}),
         frame({snapshot: false, epoch: 9, seq: 8, rows: [{...row(3), wRef: [0, 0]}], more: false}),
         frame({snapshot: false, epoch: 9, seq: 9, rows: [row(2), row(1)], hasMore: true, more: false}),
+        {...frame({snapshot: false, epoch: 9, seq: 8, more: false}), cols: undefined},
+        {...frame({snapshot: false, epoch: 9, seq: 8, more: false}), rows: [[3, 9]]},
+        {...frame({snapshot: false, epoch: 9, seq: 8, more: false}), rows: [[...wire(row(3)).slice(0, -1), []]]},
         frame({epoch: 9, seq: 10, total: -1, rows: [row(2)], more: false})]) {
         assert.throws(() => context.statsStreamFrame(bad),
             'invalid stats frames must fail closed');
