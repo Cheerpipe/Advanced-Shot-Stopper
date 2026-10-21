@@ -447,7 +447,9 @@ Unchanged displayed values produce no Home data frames. Weight
 and timer are inspected only while the scale is connected, at the displayed
 precision (0.1 g and 0.1 s); unavailable readings become `null` once.
 
-Home frames have `v: 1`, `type: "home"`, `boot`, `snapshot`, and `changes`.
+A Home snapshot has `v: 1`, `type: "home"`, `boot`, `snapshot: true`, and
+`changes`; a Home increment carries only `type` and `changes`, and continues
+the identity of the last snapshot on the socket.
 The header uses the firmware-calculated signal levels described above.
 RSSI changes within a level produce no signal delta; raw RSSI remains
 available in Diagnostics. The header popups display level names without dBm.
@@ -501,8 +503,9 @@ frames are `changes` deltas merged in order, exactly like Home. The
 `{"op":"resync"}` message re-arms a fresh snapshot, and `GET /api/v1/log`
 and `/api/v1/status/diagnostic` no longer exist.
 
-Diagnostic frames have `v: 1`, `type: "diagnostic"`, `boot`, `snapshot`, and
-`changes`. A field is sent only when its value changed since it was last
+Diagnostic frames follow the same shape: the snapshot names `v: 1`,
+`type: "diagnostic"`, `boot` and `snapshot: true`; later frames carry only
+`type` and `changes`. A field is sent only when its value changed since it was last
 sent. An unchanged projection emits no frame; displayed ages, uptime,
 traffic and other live measurements can still change on an otherwise idle device.
 Event-driven state (control, safety, guards, maintenance, crash count, NTP

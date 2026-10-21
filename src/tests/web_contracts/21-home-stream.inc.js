@@ -43,8 +43,8 @@
   };
   const initial = {v: 1, type: 'home', boot: 7, snapshot: true, changes: flatten(status)};
   const first = context.statusStreamFrame(null, initial);
-  const patch = {v: 1, type: 'home', boot: 7, snapshot: false,
-    changes: {'scale.observedWeightG': 12.1, 'machineState': 'RUNNING'}};
+  // Increments carry only type and changes; the snapshot's identity continues.
+  const patch = {type: 'home', changes: {'scale.observedWeightG': 12.1, 'machineState': 'RUNNING'}};
   const second = context.statusStreamFrame(first, patch);
   assert.equal(second.status.scale.timerMs, 1000);
   assert.equal(second.status.scale.observedWeightG, 12.1);
@@ -53,11 +53,12 @@
   const lost = context.statusStreamFrame(second, {...patch,
     changes: {'scale.available': false, 'scale.observedWeightG': null, 'scale.timerMs': null}});
   assert.equal(lost.status.scale.timerMs, null);
-  for (const bad of [{...patch, boot: 8},
-    {...patch, changes: {'scale.timerMs': Infinity}},
-    {...patch, changes: {'config.constructor.prototype': {poisoned: true}}},
-    {...initial, changes: {'scale.available': true}}]) {
-    assert.throws(() => context.statusStreamFrame(first, bad), 'invalid Home messages require resync');
+  assert.equal(second.boot, 7, 'an increment keeps the snapshot boot');
+  for (const [previous, bad] of [[null, patch],
+    [first, {...patch, changes: {'scale.timerMs': Infinity}}],
+    [first, {...patch, changes: {'config.constructor.prototype': {poisoned: true}}}],
+    [first, {...initial, changes: {'scale.available': true}}]]) {
+    assert.throws(() => context.statusStreamFrame(previous, bad), 'invalid Home messages require resync');
   }
   assert.equal(context.statusStreamFrame(first, {...initial, boot: 8, changes: {...initial.changes, bootId: 8}}).boot, 8);
   context.startUiStream(); sockets[0].onopen();
@@ -85,7 +86,7 @@
   context.startUiStream(); sockets[1].onopen();
   sockets[1].onmessage({data: JSON.stringify(initial)});
   assert.equal(rendered.at(-1).scale.observedWeightG, 12, 'reconnect accepts an initial snapshot');
-  sockets[1].onmessage({data: JSON.stringify({...patch, boot: 8})});
+  sockets[1].onmessage({data: JSON.stringify({...patch, changes: {'__proto__.x': 1}})});
   assert.equal(mutable, false, 'malformed deltas must fail closed');
   assert.equal(sockets[1].sent.at(-1).op, 'resync');
   sockets[1].onmessage({data: JSON.stringify(patch)});
@@ -195,6 +196,10 @@ int main(){
   assert(stream.includes('control.scaleAvailable && control.observedWeightValid'));
   assert(stream.includes('control.scaleAvailable && control.currentTimerValid'));
   assert(stream.includes('if (!delta.changed) return true;'));
+  // Only snapshots name v/boot/snapshot; increments carry type and changes.
+  assert(stream.includes('statusJsonAppend(&delta.used, "{\\"type\\":\\"home\\",\\"changes\\":{")'));
+  assert(stream.includes('statusJsonAppend(&delta.used, "{\\"type\\":\\"diagnostic\\",\\"changes\\":{")'));
+  assert(!/"snapshot\\":false/.test(stream), 'no stream frame spells out snapshot:false');
   assert(!stream.includes('connections.wifiRssi') && !stream.includes('connections.bluetoothRssi'));
   for (const kind of ['wifi', 'bluetooth']) assert(stream.includes('connections.' + kind + 'Level'));
   assert(stream.includes('frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson)'));

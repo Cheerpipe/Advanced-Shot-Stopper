@@ -711,8 +711,9 @@ if (generated.cssGzip.length > 15742) {
 // The Home shot card firmware clock in both scale modes with its ±0.1 s final swap brings it to 39655; owner-requested 2026-10-19.
 // Shot card field deltas merged over the previous card bring it to 39668; owner-requested 2026-10-20.
 // Shot curves decoded from the firmware's delta stream, with the minimal live envelope, bring it to 39974; owner-requested 2026-10-20.
-if (sentinelRuntimeGzip.length > 39974) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 39974-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Home and Diagnostic increments continue the snapshot identity brings it to 40000; owner-requested 2026-10-21.
+if (sentinelRuntimeGzip.length > 40000) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 40000-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -777,7 +778,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The Stats charts reading the firmware's newest-10 window measure records.js at 15096; owner-requested 2026-10-20.
 // The Diagnostic Heap min waiting text measures diagnostic.js at 13827 and moves records.js to 15097 through shared text table gzip wobble; owner-requested 2026-10-20.
 // The Diagnostic Heap min before and after the boot heap shaper release measures diagnostic.js at 13871; owner-requested 2026-10-20.
-const viewModuleBudgets = {records: 15097, diagnostic: 13871, admin: 14229, settings: 16807, setup: 5793};
+// Home and Diagnostic minimal increments move records.js to 15098 through shared text table gzip wobble; owner-requested 2026-10-21.
+const viewModuleBudgets = {records: 15098, diagnostic: 13871, admin: 14229, settings: 16807, setup: 5793};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -969,8 +971,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Stats consistency clipped-column notch CSS brings it to 67062; owner-requested 2026-10-20.
 // The Home preset rules peek and its graph chevron bring it to 67235; owner-requested 2026-10-20.
 // Shot curves decoded from the firmware's delta stream bring it to 67543; owner-requested 2026-10-20.
-if (coldHomeGzip > 67543) {
-  throw new Error(`Cold Home download exceeds the 67543-byte gzip budget (${coldHomeGzip})`);
+// Home and Diagnostic increments continue the snapshot identity brings it to 67571; owner-requested 2026-10-21.
+if (coldHomeGzip > 67571) {
+  throw new Error(`Cold Home download exceeds the 67571-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

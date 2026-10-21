@@ -5,7 +5,6 @@
 // service line cap.
 
 bool ShotStopperNetwork::sendAuditDiagFrame(UiStreamSession &session,
-                                            const ControlStatusSnapshot &control,
                                             bool initial) {
   if (callbacks_.copyAuditEvents == nullptr ||
       callbacks_.auditLogLatestSequence == nullptr) {
@@ -24,11 +23,10 @@ bool ShotStopperNetwork::sendAuditDiagFrame(UiStreamSession &session,
                                  &rateLimited);
   size_t used = 0;
   if (!statusJsonAppend(&used,
-          "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":false,"
+          "{\"type\":\"diagnostic\","
           "\"changes\":{\"audit\":{\"state\":\"%s\",\"retained\":%lu,"
           "\"dropped\":%lu,\"rateLimited\":%lu,\"verboseUntilUtcSec\":%lu,"
           "\"items\":[",
-          static_cast<unsigned long>(control.bootId),
           store.state == AuditStoreState::READY
               ? "ready"
               : store.state == AuditStoreState::UNSUPPORTED ? "unsupported"

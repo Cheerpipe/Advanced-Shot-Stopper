@@ -689,8 +689,7 @@ class ShotStopperNetwork {
                             const NetworkStatusSnapshot &network);
   // Audit fingerprinted frame inside the diagnostic stream: newest latch and
   // durable-window records plus the hunt-session state (own .inc fragment).
-  bool sendAuditDiagFrame(UiStreamSession &session,
-                          const ControlStatusSnapshot &control, bool initial);
+  bool sendAuditDiagFrame(UiStreamSession &session, bool initial);
   bool sendUiStreamFrame(UiStreamSession &session, size_t used, bool &deferArm);
   bool sendLogStream(UiStreamSession &session,
                      const ControlStatusSnapshot &control);

@@ -62,10 +62,12 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   const bool initial = session.homeResync || session.homeBoot != control.bootId;
   auto &hashes = workBuf_->uiFingerprints[&session - uiStreams_];
   HomeStreamDelta delta{hashes.homeHashes, UiStreamFingerprints::kHomeFields, 0, 0, 0, initial};
-  delta.ok = statusJsonAppend(&delta.used,
-      "{\"v\":1,\"type\":\"home\",\"boot\":%lu,\"snapshot\":%s,\"changes\":{",
-      static_cast<unsigned long>(control.bootId),
-      initial ? "true" : "false");
+  // A snapshot names its identity; an increment continues the last one.
+  delta.ok = initial
+      ? statusJsonAppend(&delta.used,
+            "{\"v\":1,\"type\":\"home\",\"boot\":%lu,\"snapshot\":true,\"changes\":{",
+            static_cast<unsigned long>(control.bootId))
+      : statusJsonAppend(&delta.used, "{\"type\":\"home\",\"changes\":{");
   bool unlocked = DEVELOPMENT_BUILD, override = false;
   {
     TaskLockGuard lock(dataMux_);
@@ -332,10 +334,11 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   const bool slow = initial || now - session.diagSlowAtMs >= kDiagSlowMs;
   auto &hashes = workBuf_->uiFingerprints[&session - uiStreams_];
   HomeStreamDelta delta{hashes.diagHashes, UiStreamFingerprints::kDiagFields, 0, 0, 0, initial};
-  delta.ok = statusJsonAppend(&delta.used,
-      "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":%s,\"changes\":{",
-      static_cast<unsigned long>(control.bootId),
-      initial ? "true" : "false");
+  delta.ok = initial
+      ? statusJsonAppend(&delta.used,
+            "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":true,\"changes\":{",
+            static_cast<unsigned long>(control.bootId))
+      : statusJsonAppend(&delta.used, "{\"type\":\"diagnostic\",\"changes\":{");
   delta.field("state", "\"%s\"", stopperStateName(control.state));
   delta.field("machineState", "\"%s\"", machineRunStateName(control.machineRunState));
   delta.field("machineRunning", bool(control.machineRunning));
@@ -683,9 +686,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
     // Sampled telemetry: one gate, one frame, evaluation at poll cost.
     HomeStreamDelta telemetry{hashes.diagHashes, UiStreamFingerprints::kDiagFields,
                               delta.index, 0, 0, initial};
-    telemetry.ok = statusJsonAppend(&telemetry.used,
-        "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":false,\"changes\":{",
-        static_cast<unsigned long>(control.bootId));
+    telemetry.ok = statusJsonAppend(&telemetry.used, "{\"type\":\"diagnostic\",\"changes\":{");
     // Whole seconds: the uptime renderer shows seconds.
     telemetry.field("health.uptimeMs", static_cast<unsigned long>(control.uptimeMs / 1000 * 1000));
     telemetry.field("health.loopMaxGapMs", static_cast<unsigned long>(control.loopMaxGapMs));
@@ -879,10 +880,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
       else
         g_work->taskProfiler = TaskProfilerSnapshot{};
       size_t used = 0;
-      if (!statusJsonAppend(&used,
-              "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":false,"
-              "\"changes\":{",
-              static_cast<unsigned long>(control.bootId)) ||
+      if (!statusJsonAppend(&used, "{\"type\":\"diagnostic\",\"changes\":{") ||
           !statusJsonAppendTaskProfiler(&used, g_work->taskProfiler) ||
           !statusJsonAppend(&used, "}}"))
         return false;
@@ -899,10 +897,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
       if (callbacks_.copyScaleProfilerStatus != nullptr)
         callbacks_.copyScaleProfilerStatus(scaleProfile);
       size_t used = 0;
-      if (!statusJsonAppend(&used,
-              "{\"v\":1,\"type\":\"diagnostic\",\"boot\":%lu,\"snapshot\":false,"
-              "\"changes\":{",
-              static_cast<unsigned long>(control.bootId)) ||
+      if (!statusJsonAppend(&used, "{\"type\":\"diagnostic\",\"changes\":{") ||
           !statusJsonAppendScaleProfiler(&used, scaleProfile) ||
           !statusJsonAppend(&used, "}}"))
         return false;
@@ -915,7 +910,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
       }
     }
     // Audit latch + durable window: fingerprinted frame in its own fragment.
-    if (!sendAuditDiagFrame(session, control, initial)) return false;
+    if (!sendAuditDiagFrame(session, initial)) return false;
     session.diagSlowAtMs = now;
   }
   session.diagBoot = control.bootId;

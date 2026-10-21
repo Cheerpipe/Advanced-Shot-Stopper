@@ -3449,6 +3449,8 @@ let homeFrame = null,
   homeReady,
   homeResolve = () => {};
 function statusStreamFrame(previous, message) {
+  // An increment carries only its type and changes; the snapshot's identity continues.
+  if (message.snapshot !== true) message = { ...message, v: 1, boot: previous?.boot, snapshot: false };
   if (
     message.v !== 1 ||
     !Number.isInteger(message.boot) ||
