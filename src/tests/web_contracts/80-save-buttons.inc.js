@@ -203,3 +203,23 @@
   };
   run().catch(error => {console.error(error); process.exitCode = 1;});
 }
+// Admin switches take their saved values before the clean baselines are
+// snapshotted; "Use saved setting" sends the saved value, not a draft; a
+// stored paddle reminder the list lacks is shown as is without dirtying.
+{
+  const admin = compactSource(viewJs.admin);
+  if (admin.indexOf('el.checked=v') < 0 ||
+      admin.indexOf('el.checked=v') > admin.indexOf('if(!powerDirty)powerBaseline=snapshotControls(') ||
+      admin.indexOf('el.checked=v') > admin.indexOf('if(!frontendDirty)frontendBaseline=snapshotControls(')) {
+    throw new Error('Admin power and interface switches must be applied before their baselines');
+  }
+  const settings = compactSource(viewJs.settings);
+  if (!settings.includes('[input.id]:saved??(input.type===checkbox?input.checked:input.value)') ||
+      !settings.includes("settingsSectionOf(input.id)===brew?brewBaseline:configBaseline)?.[input.id]")) {
+    throw new Error('Use saved setting must send the saved baseline value');
+  }
+  const reminder = blockAt(viewJs.settings, 'export function applyStatus(');
+  if (!codeIncludes(reminder, 'reminder.add(new Option(v,v))') || reminder.includes('markConfigDirty()')) {
+    throw new Error('A stored reminder interval must display unchanged without marking the form edited');
+  }
+}

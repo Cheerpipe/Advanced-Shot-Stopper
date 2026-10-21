@@ -4113,6 +4113,13 @@ function exitShotFullScreen() {
   const hero = $("shotHero");
   if (!hero || !shotFsActive) return;
   shotFsActive = false;
+  // Leaving full screen other than by Back also drops its history entry, so
+  // Back is never a dead press; a route change has already moved past it.
+  if (shotFsPushed && history.state?.obbwShotFs) {
+    shotFsConsumed = true;
+    history.back();
+  }
+  shotFsPushed = false;
   keepShotFsAwake(false);
   clearTimeout(shotFsTimer);
   const body = hero.querySelector(".heroBody"),
@@ -4150,8 +4157,9 @@ function exitShotFullScreen() {
 // full-screen card, so the router must not re-render the current view.
 function exitFullScreenOnPop() {
   if (shotFsActive) {
+    shotFsPushed = false;
     exitShotFullScreen();
-    shotFsPushed = shotFsConsumed = false;
+    shotFsConsumed = false;
     return true;
   }
   if (shotFsConsumed) {
@@ -4185,16 +4193,7 @@ function initShotFullScreen() {
     if (e.key === "Escape" && shotFsActive && !e.target.closest("[role=dialog],dialog"))
       close?.onclick();
   });
-  if (close)
-    close.onclick = () => {
-      if (!shotFsActive) return;
-      exitShotFullScreen();
-      if (shotFsPushed) {
-        shotFsPushed = false;
-        shotFsConsumed = true;
-        history.back();
-      }
-    };
+  if (close) close.onclick = exitShotFullScreen;
   hero.addEventListener(
     "click",
     (e) => {
@@ -4257,13 +4256,15 @@ function startDiagnosticStream() {
   armDiagnosticReady();
   if (shotWs && shotWs.readyState === 1) shotWs.send('{"op":"diagnostic","on":true}');
 }
+// Every route change stops both streams: only a live subscription sends "off".
 function stopDiagnosticStream() {
   clearTimeout(diagSetup);
+  if (diagStreamWanted && shotWs && shotWs.readyState === 1)
+    shotWs.send('{"op":"diagnostic","on":false}');
   diagStreamWanted = false;
   diagFrame = null;
   diagResolve && diagResolve(false);
   diagResolve = null;
-  if (shotWs && shotWs.readyState === 1) shotWs.send('{"op":"diagnostic","on":false}');
 }
 // The serial log rides the owned socket: subscribe with the rendered tail's
 // cursor; watermark-gated frames push new events without REST polling.
@@ -4282,8 +4283,8 @@ function startLogStream() {
   return false;
 }
 function stopLogStream() {
+  if (logStreamWanted) sendUiOperation({ op: "log", on: false });
   logStreamWanted = false;
-  sendUiOperation({ op: "log", on: false });
 }
 function logStreamFrame(m) {
   if (

@@ -91,7 +91,8 @@
         ';return{enter:enterShotFullScreen,exit:exitShotFullScreen' +
         ',pop:exitFullScreenOnPop,init:initShotFullScreen,awake:keepShotFsAwake}')(
         id => els[id],
-        {pushState: () => history.pushed++, back: () => history.back++},
+        {pushState(state) { history.pushed++; this.state = state; },
+          back() { history.back++; this.state = null; }},
         {href: '/'},
         {body: {classList: stubClasses(bodyClasses)},
           addEventListener: (type, fn) => { docHandlers[type] = fn; },
@@ -126,6 +127,13 @@
     doubleTap();
     assert.ok(!heroClasses.has('fs') && history.back === 2, 'a second double tap leaves full screen');
     assert.equal(api.pop(), true, 'the double-tap exit consumes its pushed entry');
+    // Leaving full screen without Back (the card turned invalid) drops its entry
+    // too, so the next Back is not a dead press.
+    doubleTap();
+    api.exit();
+    assert.ok(!heroClasses.has('fs') && history.back === 3, 'a programmatic exit consumes its entry');
+    assert.equal(api.pop(), true, 'its pop is swallowed once');
+    history.back = 2;
 
     // Escape leaves full screen from anywhere, consuming its history entry,
     // but an open sheet or dialog takes it first.

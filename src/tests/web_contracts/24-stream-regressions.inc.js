@@ -214,3 +214,39 @@ int main(){
     throw new Error('Log frames must be dispatched before the stream resync gate');
   }
 }
+// Route changes stop the Diagnostic and log streams: only a live subscription
+// sends "off". A tab loaded in the background settles its view once it shows
+// instead of reporting a failure, a failed view import is retried with a fresh
+// URL, and modified nav clicks keep the browser's own handling.
+{
+  const assert = require('assert').strict;
+  assert(codeIncludes(runtimeJs, 'if(logStreamWanted)sendUiOperation({op:log,on:false})'));
+  assert(codeIncludes(runtimeJs, "if(diagStreamWanted&&shotWs&&shotWs.readyState===1)shotWs.send('{\"op\":\"diagnostic\",\"on\":false}')"));
+  assert(codeIncludes(appJsSource, 'if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;'));
+  const calls = [], doc = {hidden: true};
+  const settle = new Function('R', 'document', '__WEBUI_TEXT__', 'activeView',
+      `${blockAt(appJsSource, 'function settleView(')};return settleView;`)(
+      {hideHomeBoot: () => calls.push('boot'), ensureBackgroundRecordStreams: () => calls.push('streams'),
+        webUiPollingActive: () => true, message: (m) => calls.push(m)}, doc, (k) => k, 'home');
+  settle(undefined, 1);
+  assert.deepEqual(calls, [], 'a hidden tab that loaded nothing reports no failure');
+  doc.hidden = false;
+  settle(true, 1);
+  assert.deepEqual(calls, ['boot', 'streams'], 'showing the tab finishes the view');
+  settle(false, 1);
+  assert.equal(calls.at(-1), 'Unable to load view');
+  assert(/visibilitychange[\s\S]*?startView\(activeView, seq\)\.then\(\(ok\) => seq === routeSeq && settleView\(ok\)\)/.test(appJsSource));
+  (async () => {
+    const urls = [];
+    let fail = true;
+    const fetchView = new Function('BUNDLES', 'assetQuery', 'importModule',
+        appJsSource.slice(appJsSource.indexOf('function fetchView('), appJsSource.indexOf('async function ensureView('))
+            .replace(/import\(/g, 'importModule(') + ';return fetchView;')({}, '?v=t',
+        async (url) => { urls.push(url); if (fail) throw new TypeError('offline'); return {init() {}}; });
+    await assert.rejects(fetchView('admin'));
+    fail = false;
+    await fetchView('admin');
+    assert.equal(urls[0], '/js/admin.js?v=t');
+    assert.match(urls[1], /^\/js\/admin\.js\?v=t&retry=/, 'a retry must not reuse the failed module URL');
+  })().catch((error) => { console.error(error); process.exitCode = 1; });
+}

@@ -35,12 +35,19 @@ function viewToPath(view) {
   }
   return "/";
 }
-// A view module carries its own markup, so a view loads in one request.
+// A view module carries its own markup, so a view loads in one request. A
+// failed import stays failed for its URL, so a retry asks for a fresh one.
 function fetchView(name) {
-  return import("/js/" + (BUNDLES[name] || name) + ".js" + assetQuery).then((m) =>
-    m.views ? m.views[name] : m,
+  const file = BUNDLES[name] || name;
+  return import("/js/" + file + ".js" + assetQuery + (viewFails[file] || "")).then(
+    (m) => (m.views ? m.views[name] : m),
+    (e) => {
+      viewFails[file] = "&retry=" + Math.random();
+      throw e;
+    },
   );
 }
+const viewFails = {};
 async function ensureView(name) {
   if (jsMods.has(name)) return jsMods.get(name);
   if (viewLoads.has(name)) return viewLoads.get(name);
@@ -125,19 +132,22 @@ async function renderRoute(pathname) {
   R.setActiveView(view, ready);
   try {
     const [, ok] = await Promise.all([ready, startView(view)]);
-    if (seq !== routeSeq) return;
-    // Record pages subscribe in the background as soon as the active view has
-    // loaded, so they stay fresh without delaying first paint. Setup (captive
-    // portal) skips them: sockets are scarce on the SoftAP.
-    if (ok) {
-      R.hideHomeBoot(boot);
-      if (view !== "setup") R.ensureBackgroundRecordStreams();
-    } else if (R.webUiPollingActive())
-      R.message(__WEBUI_TEXT__("shell.unable_to_load_view"), "error");
+    if (seq === routeSeq) settleView(ok, boot);
   } catch (e) {
-    if (seq === routeSeq)
-      R.message(e && e.message ? e.message : __WEBUI_TEXT__("shell.unable_to_load_view"), "error");
+    // The browser's own import error is not for the reader.
+    if (seq === routeSeq) R.message(__WEBUI_TEXT__("shell.unable_to_load_view"), "error");
   }
+}
+// Record pages subscribe in the background as soon as the active view has
+// loaded, so they stay fresh without delaying first paint. Setup (captive
+// portal) skips them: sockets are scarce on the SoftAP. A tab opened in the
+// background loads nothing until it shows, which is not a failure.
+function settleView(ok, boot) {
+  if (ok) {
+    R.hideHomeBoot(boot);
+    if (activeView !== "setup") R.ensureBackgroundRecordStreams();
+  } else if (R.webUiPollingActive() && !document.hidden)
+    R.message(__WEBUI_TEXT__("shell.unable_to_load_view"), "error");
 }
 function navigate(path, replace) {
   const known = knownPath(path);
@@ -152,6 +162,8 @@ R.setViewPollHooks({
 });
 document.querySelectorAll("a[data-route]").forEach((a) => {
   a.addEventListener("click", (e) => {
+    // Modified clicks keep the browser's own handling (new tab or window).
+    if (e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
     const path = a.getAttribute("data-route") || "/";
     markNavActive(path);
@@ -346,7 +358,9 @@ window.addEventListener("popstate", () => {
 });
 document.addEventListener("visibilitychange", () => {
   R.noteWebUiPowerActivity();
-  document.hidden ? R.stopViewPolls() : startView(activeView);
+  const seq = routeSeq;
+  if (document.hidden) R.stopViewPolls();
+  else startView(activeView, seq).then((ok) => seq === routeSeq && settleView(ok));
 });
 document.addEventListener("wheel", R.noteWebUiInteraction, { capture: true, passive: true });
 document.addEventListener("touchmove", R.noteWebUiInteraction, { capture: true, passive: true });

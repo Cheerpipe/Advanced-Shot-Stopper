@@ -752,13 +752,13 @@ export function applyStatus(s) {
   updateCupMinGuidance(s);
   const reminder = $("paddleReturnReminder");
   if (reminder && !R.uiState.configDirty && !R.uiState.brewDirty) {
-    reminder.value = s.config.paddleReturnReminderBeep
-      ? s.config.paddleReturnReminderIntervalMs / 1000
-      : 0;
-    if (!reminder.value) {
-      reminder.value = 30;
-      markConfigDirty();
-    }
+    // A stored interval the list lacks gets its own entry instead of being
+    // snapped to another value, which would also mark the form edited.
+    const v = String(
+      s.config.paddleReturnReminderBeep ? s.config.paddleReturnReminderIntervalMs / 1000 : 0,
+    );
+    if (![...reminder.options].some((o) => o.value === v)) reminder.add(new Option(v, v));
+    reminder.value = v;
   }
   const link = document.querySelector('[data-route="/diagnostic"]');
   if (link && typeof s.diagnosticPageVisible === "boolean")
@@ -803,18 +803,21 @@ function updateSettingsOverrides(s = overrideStatus) {
     note.querySelector("button").disabled = !R.controlsMutable || !!s.cycle?.active;
   });
 }
-// The control shows the saved value, so sending it drops that override.
+// Sending the saved value (the baseline, not a draft edit) drops that override.
 document.addEventListener("click", async (e) => {
   const button = e.target.closest?.(".qsOverride button[data-saved]");
   if (!button) return;
-  const input = $(button.dataset.saved);
+  const input = $(button.dataset.saved),
+    saved = (
+      R.settingsSectionOf(input.id) === "brew" ? R.uiState.brewBaseline : R.uiState.configBaseline
+    )?.[input.id];
   button.disabled = true;
   try {
     await R.api("/api/v1/integration/quick-settings", {
       method: "PUT",
       body: R.body({
         baseRevision: overrideStatus.config?.revision,
-        [input.id]: input.type === "checkbox" ? input.checked : input.value,
+        [input.id]: saved ?? (input.type === "checkbox" ? input.checked : input.value),
       }),
     });
   } catch (err) {

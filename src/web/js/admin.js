@@ -533,6 +533,18 @@ function applyAdminStatus(s) {
     $("bleEnabled").checked = !(s.bleScan && s.bleScan.enabled === false);
   if (!R.uiState.bleDirty)
     R.uiState.bleBaseline = R.snapshotControls(document.querySelectorAll("#blePanel input,#blePanel select"));
+  // The switches take their saved values before the baselines are taken, so
+  // flipping one and back before the next poll reads as clean.
+  for (const id of ["powerManagementEnabled", "showDiagnosticPage"]) {
+    const el = $(id),
+      v = s.config && s.config[id];
+    if (
+      el &&
+      typeof v === "boolean" &&
+      !(id === "powerManagementEnabled" ? R.uiState.powerDirty : R.uiState.frontendDirty)
+    )
+      el.checked = v;
+  }
   if (!R.uiState.powerDirty)
     R.uiState.powerBaseline = R.snapshotControls(
       document.querySelectorAll("#powerPanel input,#powerPanel select"),
@@ -1138,16 +1150,6 @@ export function applyStatus(s) {
       $("firmwareModeEnabled").checked = enabled;
       R.setSaveDirty("saveFirmwareModeButton", "firmwareModeDirtyHint", false);
     }
-  }
-  for (const id of ["powerManagementEnabled", "showDiagnosticPage"]) {
-    const el = $(id),
-      v = s.config && s.config[id];
-    if (
-      el &&
-      typeof v === "boolean" &&
-      !(id === "powerManagementEnabled" ? R.uiState.powerDirty : R.uiState.frontendDirty)
-    )
-      el.checked = v;
   }
   const p = s.power;
   if (p && $("powerStatus"))

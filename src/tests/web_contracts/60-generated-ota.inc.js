@@ -563,8 +563,11 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest?v=' + g
 // measures 7229, owner-authorized 2026-10-16. Cap raised to 7250.
 // Loading the opening view during the claim measures 7310, requested with
 // the load-latency plan 2026-10-16. Cap raised to 7330.
-if (generated.jsGzip.length > 7330) {
-  throw new Error(`Compressed Web UI shell JS exceeds the 7330-byte gzip budget (${generated.jsGzip.length})`);
+// The audit fixes (lazy quick-weight ruler, background-tab settle, view import
+// retry, modified nav clicks) measure 7387, owner-requested 2026-10-21. Cap
+// raised to 7400.
+if (generated.jsGzip.length > 7400) {
+  throw new Error(`Compressed Web UI shell JS exceeds the 7400-byte gzip budget (${generated.jsGzip.length})`);
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
