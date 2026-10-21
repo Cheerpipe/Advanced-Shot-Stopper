@@ -1026,10 +1026,10 @@ export function init() {
       $("lineaMicraCancelButton").onclick = () =>
         R.uiState.micraChange ? endMicraChange() : R.lineaMicraAction("disconnect");
     if ($("lineaMicraChangeButton"))
-      $("lineaMicraChangeButton").onclick = async () =>
-        ($("lineaMicraLinkedNote").hidden = R.uiState.micraChange = true) &&
-        !(await R.lineaMicraAction("relist")) &&
-        endMicraChange();
+      $("lineaMicraChangeButton").onclick = async () => {
+        $("lineaMicraLinkedNote").hidden = R.uiState.micraChange = true;
+        if (!(await R.lineaMicraAction("relist"))) endMicraChange();
+      };
     if ($("lineaMicraSaveButton")) $("lineaMicraSaveButton").onclick = () => saveLineaMicraSettings();
     if ($("revertLineaMicraButton")) $("revertLineaMicraButton").onclick = revertLineaMicra;
     if ($("lineaMicraDisconnectButton"))

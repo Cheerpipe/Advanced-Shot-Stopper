@@ -530,11 +530,11 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
       !diagHtml.includes('<strong>Boot</strong>') ||
       !diagHtml.includes('id="ntpStatus"') ||
       !diagHtml.includes('id="ntpServer"') ||
-      !diagHtml.includes('id=uo') ||
-      !diagHtml.includes('id=ut') ||
-      !diagHtml.includes('id=ud') ||
-      !diagHtml.includes('id=lt') ||
-      !diagHtml.includes('id=ld') ||
+      !diagHtml.includes('id="uo"') ||
+      !diagHtml.includes('id="ut"') ||
+      !diagHtml.includes('id="ud"') ||
+      !diagHtml.includes('id="lt"') ||
+      !diagHtml.includes('id="ld"') ||
       diagHtml.indexOf('id="diagnosticsPanel"') > diagHtml.indexOf('id="logPanel"') ||
       diagHtml.indexOf('<legend>States</legend>') > diagHtml.indexOf('<legend>Machine I/O</legend>') ||
       diagHtml.indexOf('<legend>Machine I/O</legend>') > diagHtml.indexOf('<legend>Scale</legend>') ||
@@ -560,11 +560,11 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
       diagHtml.indexOf('id="hPsramF"') > diagHtml.indexOf('id="hPsramL"') ||
       diagHtml.indexOf('id="hFirmware"') > diagHtml.indexOf('id="hBoot"') ||
       diagHtml.indexOf('id="ntpStatus"') > diagHtml.indexOf('id="ntpServer"') ||
-      diagHtml.indexOf('id="ntpServer"') > diagHtml.indexOf('id=uo') ||
-      diagHtml.indexOf('id=uo') > diagHtml.indexOf('id=ut') ||
-      diagHtml.indexOf('id=ut') > diagHtml.indexOf('id=ud') ||
-      diagHtml.indexOf('id=ud') > diagHtml.indexOf('id=lt') ||
-      diagHtml.indexOf('id=lt') > diagHtml.indexOf('id=ld') ||
+      diagHtml.indexOf('id="ntpServer"') > diagHtml.indexOf('id="uo"') ||
+      diagHtml.indexOf('id="uo"') > diagHtml.indexOf('id="ut"') ||
+      diagHtml.indexOf('id="ut"') > diagHtml.indexOf('id="ud"') ||
+      diagHtml.indexOf('id="ud"') > diagHtml.indexOf('id="lt"') ||
+      diagHtml.indexOf('id="lt"') > diagHtml.indexOf('id="ld"') ||
       adminHtml.includes('id="diagnosticsPanel"') ||
       adminHtml.includes('id="currentTime"') ||
       adminHtml.includes('<summary>Diagnostics</summary>') ||

@@ -51,7 +51,7 @@ changing a dependency.
 | Change | Discover / classify | Validate |
 | --- | --- | --- |
 | Non-critical README wording | `./scripts/dev classify README.md` | `./scripts/dev validate README.md` |
-| Web styling | `./scripts/dev context web`; classify exact changed files | Focused `dev test web`, then the classified gate |
+| Web styling | `./scripts/dev context web`; classify exact changed files | Focused `dev test web` (and `dev test lint` after `npm ci`), then the classified gate |
 | Brew or switch behavior | `./scripts/dev context control` or `machine`; classify paths and state invariants | Complete R3 gate and applicable bench/HIL evidence |
 
 Focused tests help during editing but do not replace a higher-risk gate.

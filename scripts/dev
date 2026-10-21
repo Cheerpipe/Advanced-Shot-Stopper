@@ -471,7 +471,7 @@ commands:
   doctor                     report local tools and the ESP-IDF environment; never installs
   context AREA               list focused paths and their purpose
   classify [PATH ...]        print path risks and aggregate risk
-  test [normal|asan|tsan|web|ble|ota|tooling]
+  test [normal|asan|tsan|web|ble|ota|tooling|lint]
   validate [--risk R0..R3] [--webui-language CODE] [PATH ...]
   profiles                   list exact profile IDs and compatibility
   preview [--port N]         serve the Web UI design preview on localhost
@@ -642,6 +642,18 @@ def main() -> int:
                                   ["Web dependencies missing; run npm ci explicitly"], 127, "web")
                 steps = [HTTP_ROUTE_CAPACITY_STEP,
                          ("web-contracts", ["node", "src/tests/check_web_assets.js"])]
+            elif profile == "lint":
+                # Opt-in Web UI static analysis; the pinned linters come from npm ci.
+                bins = ["node_modules/.bin/eslint", "node_modules/.bin/stylelint"]
+                deps = [ROOT / path for path in [*bins, "node_modules/html-validate"]]
+                if require(["node"]) or any(not dep.exists() for dep in deps):
+                    return record(command, "R1", verbosity,
+                                  ["Lint dependencies missing; run npm ci explicitly"], 127, "lint")
+                steps = [("eslint", [bins[0], "--config", "scripts/lint/eslint.config.mjs",
+                                     "--max-warnings", "0", "src/web/app.js", "src/web/js"]),
+                         ("stylelint", [bins[1], "--config", "scripts/lint/stylelint.json",
+                                        "--max-warnings", "0", "src/web/app.css"]),
+                         ("webui-markup", ["node", "scripts/lint_web_ui.js"])]
             elif profile == "tooling":
                 steps = [("tooling-contracts", ["python3", "src/tests/dev_tooling_test.py"]),
                          ("build-profiles", ["python3", "src/tests/build_profiles_test.py"])]

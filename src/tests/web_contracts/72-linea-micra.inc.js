@@ -648,7 +648,7 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
 
     // Change machine is always offered; the account is listed only on demand.
     const handler = id => vm.runInContext('(' + rawViewJs.settings.match(
-        new RegExp(`\\$\\("${id}"\\)\\.onclick = ([\\s\\S]*?);\\n\\s+if \\(`))[1]
+        new RegExp(`\\$\\("${id}"\\)\\.onclick = ([\\s\\S]*?);\\n\\s+if \\(\\$\\(`))[1]
         .replace(/\bR\.(?:uiState\.)?/g, '') + ')', context);
     commands.length = 0;
     apply({...connected, accountMachineCount: 0});

@@ -652,8 +652,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // JS-built strings into the partials: 93774, owner-requested 2026-10-21.
 // Audit accessibility and form markup (hidden decorative glyphs, named groups and fields, live statuses, unlock form): 94884,
 // owner-requested 2026-10-21.
-if (htmlBytes > 94884) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 94884)`);
+// The lint gate's markup fixes (quoted attributes, explicit button types, an html-validate directive): 95117,
+// owner-requested 2026-10-21.
+if (htmlBytes > 95117) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 95117)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -1070,8 +1072,9 @@ if (jsBytes > 484816) {
 // Audit T4 refactors (static Admin/Settings/Stats markup in partials, one Settings change listener, shared Admin section helpers): 575645, owner-requested 2026-10-21.
 // Audit hardening (shared download helper, CSV formula guard, timezone backoff, Setup stop flag, escaped attribute text): 576463, owner-requested 2026-10-21.
 // Audit accessibility, i18n and form fixes (localized Diagnostic and network text, keyboard and focus support): 579700, owner-requested 2026-10-21.
-if (htmlBytes + jsBytes > 579700) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 579700)`);
+// The lint gate's markup and lint fixes: 579931, owner-requested 2026-10-21.
+if (htmlBytes + jsBytes > 579931) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 579931)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

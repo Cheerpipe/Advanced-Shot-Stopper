@@ -1,0 +1,59 @@
+#!/usr/bin/env node
+'use strict';
+
+// Validates the Web UI markup as browsers receive it: the English shell with
+// every view partial injected, so ids and structure are checked across views.
+const fs = require('fs');
+const path = require('path');
+const {HtmlValidate} = require('html-validate');
+const {renderSources} = require('./localize_web_ui.js');
+const webUi = require('./gen_web_ui.js');
+
+const repoRoot = path.resolve(__dirname, '..');
+
+function assembledDocument() {
+  // The localizer checks the catalog against every source, so all of them go in.
+  const html = [webUi.sourcePath, ...webUi.VIEW_NAMES.map((name) =>
+    path.join(webUi.htmlDir, `${name}.html`))];
+  const js = [webUi.appJsPath, ...['runtime', 'ota-image', ...webUi.VIEW_NAMES].map((name) =>
+    path.join(webUi.jsDir, `${name}.js`))];
+  const read = (type) => (file) => ({file, type, content: fs.readFileSync(file, 'utf8')});
+  const [shell, ...partials] = renderSources([...html.map(read('html')), ...js.map(read('js')),
+    read('css')(webUi.cssSourcePath)], {language: 'en'}).sources
+      .slice(0, html.length).map((source) => source.content);
+  const views = Object.fromEntries(webUi.VIEW_NAMES.map((name, i) => [name, partials[i]]));
+  return shell.split('{{webui-meta:development-class}}').join('')
+      .replace(/(<section id="view-([a-z]+)" class="view" data-view="\2">)(<\/section>)/g,
+          (_, open, name, close) => open + views[name] + close);
+}
+
+async function main() {
+  const doc = assembledDocument();
+  const failures = [];
+  const seen = new Set();
+  for (const [, id] of doc.matchAll(/\sid="([^"]+)"/g)) {
+    if (seen.has(id)) failures.push(`duplicate id "${id}" across the assembled document`);
+    seen.add(id);
+  }
+  const config = JSON.parse(fs.readFileSync(
+      path.join(repoRoot, 'scripts', 'lint', 'htmlvalidate.json'), 'utf8'));
+  const report = await new HtmlValidate(config).validateString(doc, 'webui.html');
+  for (const result of report.results) {
+    for (const m of result.messages) {
+      const context = doc.slice(Math.max(0, m.offset - 40), m.offset + 60).replace(/\s+/g, ' ');
+      failures.push(`${m.ruleId}: ${m.message} … ${context}`);
+    }
+  }
+  if (failures.length) {
+    console.error(failures.join('\n'));
+    console.error(`Web UI markup: ${failures.length} problem(s)`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Web UI markup: ${seen.size} unique ids, html-validate clean`);
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

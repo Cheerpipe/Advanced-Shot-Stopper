@@ -1632,6 +1632,13 @@ for hardware_profile in hardware:
 local_pairs = dev_module["BUILD_PROFILES"]
 assert len(local_pairs) == len(supported_pairs) and set(local_pairs) == supported_pairs, \
     "local validation must cover every supported profile pair exactly once"
+# The opt-in Web UI lint profile never installs: absent linters fail with 127.
+assert "test [normal|asan|tsan|web|ble|ota|tooling|lint]" in dev_module["help_text"]()
+with tempfile.TemporaryDirectory(prefix="openbrewbyweight-lint-") as temporary:
+    lint_main = runpy.run_path(str(DEV))["main"]
+    with patch.dict(lint_main.__globals__, {"ROOT": Path(temporary)}), \
+            patch.object(sys, "argv", ["dev", "--verbosity", "compact", "test", "lint"]):
+        assert lint_main() == 127, "missing Web UI linters must exit 127"
 template = (ROOT / ".github/PULL_REQUEST_TEMPLATE.md").read_text()
 for field in ("Risk", "Safety invariants", "Validation", "HIL/manual evidence"):
     assert field in template, f"PR template field missing: {field}"

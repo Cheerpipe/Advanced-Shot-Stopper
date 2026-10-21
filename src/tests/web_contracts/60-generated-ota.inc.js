@@ -923,8 +923,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The audit OTA fixes move records.js to 15245 through asset-tag gzip wobble (records.js unchanged); cap 15260, owner-requested 2026-10-21.
 // The audit T4 refactors move diagnostic.js to 13906 through gzip wobble; owner-requested 2026-10-21.
 // The Setup watchdog stop flag measures setup.js at 5799; owner-requested 2026-10-21.
-// The audit accessibility and form fixes (Setup focus, labelled choices, single Skip) measure setup.js at 5855; owner-requested 2026-10-21.
-const viewModuleBudgets = {records: 15260, diagnostic: 13906, admin: 14229, settings: 16813, setup: 5855};
+// The audit accessibility and form fixes (Setup focus, labelled choices, single Skip) measure setup.js at 5855 (cap 5870 for asset-tag gzip wobble); owner-requested 2026-10-21.
+const viewModuleBudgets = {records: 15260, diagnostic: 13906, admin: 14229, settings: 16813, setup: 5870};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);

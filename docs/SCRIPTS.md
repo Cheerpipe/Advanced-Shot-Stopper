@@ -15,6 +15,7 @@ flash over USB.
 | Monitor USB serial | `./scripts/dev monitor --port <port> --speed 115200` |
 | Run host tests | `./scripts/dev test normal` |
 | Preview Web UI designs | `./scripts/dev preview` |
+| Lint the Web UI sources | `./scripts/dev test lint` |
 | Validate changes | `./scripts/dev validate` |
 
 Successful firmware builds automatically retain ELF/BIN pairs in
@@ -25,6 +26,26 @@ its ELF; `./scripts/dev clean` keeps these archives.
 At the end of every successful command that includes `build`, the terminal
 highlights the absolute build-output folder and the absolute `openbrewbyweight.bin`
 path ready for installation.
+
+## Web UI lint
+
+`./scripts/dev test lint` checks the Web UI sources with the linters pinned in
+`package.json`, so install them once with `npm ci`; the command never installs
+anything and exits with 127 when they are missing. It runs three steps:
+
+- **ESLint** on `src/web/app.js` and `src/web/js/` with correctness rules only
+  (`scripts/lint/eslint.config.mjs`). The build-time constants and markers
+  (`__WEBUI_TEXT__`, `__LINEA_MICRA__`, `__REMOTE_CONTROL__`, `__homeModule`) are
+  declared there; formatting stays with `npm run format:web`.
+- **Stylelint** on `src/web/app.css` (`scripts/lint/stylelint.json`), allowing the
+  `__WEBUI_CSS_TEXT__()` localization marker and the vendor prefixes Safari needs.
+- **Markup** (`scripts/lint_web_ui.js`): renders the English shell with every view
+  partial injected, as the browser receives it, fails on any id used twice
+  across views, and runs html-validate with `scripts/lint/htmlvalidate.json`.
+
+Warnings fail the run like errors. The lint is static analysis, so
+`./scripts/dev validate` does not run it; use it while editing the Web UI or
+when a review asks for it.
 
 ## Web UI design preview
 

@@ -27,8 +27,9 @@ subset of the applicable gates does not validate the change.
 Use `./scripts/dev validate [--risk R0..R3] [paths...]`. R2/R3 run the host
 tests and the firmware steps as two parallel lanes; see
 [scripts](docs/SCRIPTS.md) for the order and failure behavior. Focused commands are
-`./scripts/dev test [normal|asan|tsan|web|ble|ota|tooling]`, `./scripts/dev build`, and
-`./scripts/dev analyze`. The supported IDF setup and commands remain documented
+`./scripts/dev test [normal|asan|tsan|web|ble|ota|tooling|lint]`, `./scripts/dev build`, and
+`./scripts/dev analyze`; `lint` is the opt-in Web UI static analysis and is not part
+of any risk gate. The supported IDF setup and commands remain documented
 in [Build](docs/BUILD.md), [scripts](docs/SCRIPTS.md), and
 [static analysis](docs/STATIC_ANALYSIS.md). Hardware acceptance is defined by
 the [manual test plan](docs/MANUAL_TEST_PLAN.md) and curated evidence by

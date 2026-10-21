@@ -4,7 +4,7 @@ const viewStatusHandlers = {};
 function registerViewStatus(name, fn) {
   viewStatusHandlers[name] = fn;
 }
-let ensureViewHook = async (name) => {};
+let ensureViewHook = async () => {};
 function setEnsureViewHook(fn) {
   ensureViewHook = fn;
 }
@@ -4959,7 +4959,7 @@ function renderShotHero(d) {
 // values (the per-frame clock) leave the DOM alone.
 function heroNum(id, v) {
   const e = $("shotHero" + id),
-    [, n, u = ""] = /^(.*\d)(\s?(?:g\/s|[gs]))$/.exec(v || "") || [, v || ""];
+    [, n, u = ""] = /^(.*\d)(\s?(?:g\/s|[gs]))$/.exec(v || "") || [0, v || ""];
   e.hidden = !v;
   if (e.textContent === n + u) return v;
   e.replaceChildren(n);
