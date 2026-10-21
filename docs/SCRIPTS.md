@@ -68,7 +68,10 @@ the firmware stylesheet at `/app.css`. Everything else is served from
 `webui-mockups/` by file name: drop `proposal.html` into the folder and
 open `http://127.0.0.1:4173/proposal`; `proposal.css` and `proposal.js`
 resolve the same way, so adding or removing a mockup never requires a
-server change.
+server change. The header and Micra scripts the reference views load are
+assembled from named functions in the firmware sources, and
+`./scripts/dev test tooling` renders every reference view and fails when one
+of those scripts no longer compiles or calls a Web UI function it lacks.
 
 The preview does not connect to a device or change its settings; the
 values it shows are illustrative. The header's **How shots stop** icons and

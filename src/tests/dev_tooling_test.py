@@ -147,6 +147,10 @@ assert preview_captured["steps"][0][1] == ["node", "scripts/webui-preview/server
 assert preview_captured["env_extra"] == {"PORT": "4174"}, preview_captured
 assert captured_firmware("preview")["env_extra"] == {}
 assert (ROOT / "scripts/webui-preview/server.js").is_file()
+# Its reference pages and preview scripts must render from the current sources.
+preview_scripts = subprocess.run(["node", str(ROOT / "src/tests/webui_preview_test.js")],
+                                 cwd=ROOT, text=True, capture_output=True)
+assert preview_scripts.returncode == 0, preview_scripts.stderr
 for invalid_preview in (("preview", "extra"), ("preview", "--port", "0"),
                         ("preview", "--port", "70000")):
     rejected_preview = run(*invalid_preview)

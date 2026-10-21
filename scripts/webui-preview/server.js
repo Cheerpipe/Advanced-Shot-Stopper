@@ -70,11 +70,18 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 `;
 
+// A top-level function's source by name, wherever its module keeps it.
+function functionSource(source, name) {
+  const start = source.search(new RegExp(`^(?:export )?(?:async )?function ${name}\\(`, 'm'));
+  if (start < 0) throw new Error(`Web UI function ${name} not found`);
+  return source.slice(start, source.indexOf('\n}\n', start) + 3).replace(/^export /, '');
+}
+
 function renderSignals() {
   const runtime = read('src/web/js/runtime.js');
   const start = runtime.indexOf('function updateHeaderSignals('), end = runtime.search(/^let homeBootDone\b/m);
   if (start < 0 || end < start) throw new Error('runtime.js header signal block not found');
-  const content = runtime.slice(start, end).replace(/^export /gm, '');
+  const content = functionSource(runtime, 'escHtml') + runtime.slice(start, end).replace(/^export /gm, '');
   return PREVIEW_HEADER_PRELUDE + renderSources([{file: 'src/web/js/runtime.js', type: 'js', content}],
       {language: 'en', allowUnused: true}).sources[0].content;
 }
@@ -107,11 +114,13 @@ function renderMicraScript() {
   // The Micra settings code lives in the Settings module; the preview runs it
   // as plain globals, so module qualifiers are dropped.
   const settings = read('src/web/js/settings.js'), diagnostic = read('src/web/js/diagnostic.js');
-  const runtime = read('src/web/js/runtime.js'), cleaning = runtime.indexOf('export function formatMicraCleaning(');
-  const content = (runtime.slice(cleaning, runtime.indexOf('\n}\n', cleaning) + 3).replace(/^export /, '') +
-      settings.slice(settings.search(/const\s+MICRA_SWITCHES\s*=/),
-      settings.indexOf('function loadBullseyeConfig(')) +
-      diagnostic.slice(0, diagnostic.search(/^\(?["']use strict["']\)?;/m)))
+  const runtime = read('src/web/js/runtime.js'), switches = settings.search(/const\s+MICRA_SWITCHES\s*=/);
+  const switchesEnd = settings.indexOf('function loadBullseyeConfig(');
+  if (switches < 0 || switchesEnd < switches) throw new Error('settings.js Micra block not found');
+  const pick = (source, names) => names.map(name => functionSource(source, name)).join('');
+  const content = (pick(runtime, ['formatMicraCleaning', 'formatWallTimeLocal', 'pad2']) +
+      settings.slice(switches, switchesEnd) +
+      pick(diagnostic, ['renderMicraCloudDiagnostic', 'renderMicraWebSocket', 'ensureMicraRows']))
       .replace(/\bR\.(?:uiState\.)?/g, '');
   const extra = mockup('micra.js');
   return 'const __LINEA_MICRA__ = true;\n' + renderSources([{file: 'src/web/js/settings.js', type: 'js', content}],
