@@ -486,9 +486,16 @@ curve-record bank with its block-header index and deletion ring; the matched
 development profile measured 2,916,120 external-BSS bytes, 177,946 DIRAM bytes
 and a 2,369,456-byte image, re-baselining
 `config/resource-baselines.json`.
+The 2,880 KiB→3,112 KiB increase keeps each curve as one delta stream from
+capture to the browser: a record reserves the stream's valid-record worst case
+(5,274 bytes, 476 bytes over the former absolute arrays) so no shot is ever
+cut short or evicted by curve size. Across the 500-record bank, the worker
+image, sampler, published and finalization records it adds 237,504 bytes (about 232 KiB); the
+matched development profile measured 3,156,312 external-BSS bytes. The
+runtime PSRAM heap had 2.6 MB free before the change.
 The immutable persistence image is separately allocated in external heap.
 It mirrors the shot and activation logs but carries at most four unpersisted
-curves (about 20 KiB) instead of a second curve bank; a larger backlog is
+curves (about 22 KiB) instead of a second curve bank; a larger backlog is
 committed over successive images, so the 500-shot bank is not duplicated.
 
 ## Home shot stream target measurements
@@ -545,12 +552,12 @@ cases also remain pending; the successful full transfer does not qualify them.
 
 | Resource | Placement and bound |
 |---|---|
-| Network work buffer | external, bounded at 640 KiB; includes the Stats capture's full-capacity shot-record snapshot (500 × 120 bytes) with one-curve fetch scratch, 22,016-byte curve JSON, 26,112-byte row JSON, 40,960-byte status JSON, dedicated curve staging, 2,816 bytes of session fingerprints and a bounded page header/cache key; handlers share the work-buffer mutex. The earlier 629,376-byte measurement predates this layout; verify the current size in the matched firmware build |
+| Network work buffer | external, bounded at 640 KiB; includes the Stats capture's full-capacity shot-record snapshot (500 × 120 bytes) with one-curve fetch scratch (also the empty-curve template), 19,554-byte curve JSON, 23,650-byte row JSON, 40,960-byte status JSON, the Home shot's curve copy, 3,168 bytes of session fingerprints and a bounded page header/cache key; handlers share the work-buffer mutex. The earlier 629,376-byte measurement predates this layout; verify the current size in the matched firmware build |
 | HTTP response send | complete assets and JSON use HTTPD Content-Length responses; streamed bodies retain chunked transfer. Source buffers pass directly to HTTPD's default socket send, which copies into lwIP; no application bounce buffer or extra copy |
 | NVS metadata cache | PSRAM preferred with internal fallback; flash I/O still uses the internal scratch below |
-| Shot-curve store | external, 2,566,020-byte cache for 500 records of 5,132 bytes; bounded block-header index and two 7,564-byte disk/verification workspaces belong to the same owner; immutable worker image is separately external and holds at most four unpersisted curves |
-| Curve capture/finalization | external task-owned 1201-observation sampler and pending/finalization snapshots; the published scalar status stays internal, bounded at 2,048 bytes; its 4,955-byte curve array payload moves to PSRAM (plus alignment), with the same mutex/version covering both parts. The full reader snapshot stays bounded at 6,912 bytes in the external HTTP workspace; no control-path allocation or large stack local |
-| Home live stream | two fixed internal session contexts and one coalesced dispatch on the existing priority-1 tasks; 128 Home, 224 Diagnostic and 32 shot-card field fingerprints per session occupy 3,072 bytes in the external workspace, plus one 1,436-byte external coalescing buffer owned by httpd and a 640-byte external batch rollback copy; boot/clock anchors stay internal. Shared 26,112-byte external row workspace and 22,016-byte curve scratch, with no extra TX allocation; 1201 curve points maximum, progress after every second scale sample (150 ms floor, 300 ms without samples) and no unchanged data; four HTTP sockets retained |
+| Shot-curve store | external, 2,804,004-byte cache for 500 delta-stream records of 5,608 bytes (stream reserved for the valid-record worst case); bounded block-header index and two 5,632-byte disk/verification workspaces belong to the same owner; copies move only used stream and bitmap bytes; immutable worker image is separately external and holds at most four unpersisted curves |
+| Curve capture/finalization | external task-owned sampler (one delta-stream record) and pending/finalization snapshots; the published scalar status stays internal, bounded at 2,048 bytes; the live curve record (5,608 bytes, empty while idle) is published in PSRAM under the same mutex/version, copying only its used bytes. The full reader snapshot stays bounded at 7,432 bytes in the external HTTP workspace; no control-path allocation or large stack local |
+| Home live stream | two fixed internal session contexts and one coalesced dispatch on the existing priority-1 tasks; 128 Home, 224 Diagnostic and 44 shot-card field and curve-scalar fingerprints per session occupy 3,168 bytes in the external workspace, plus one 1,436-byte external coalescing buffer owned by httpd and a 688-byte external batch rollback copy; boot/clock anchors stay internal. Shared 23,650-byte external row workspace and 19,554-byte curve scratch (base64 stream plus break/held indices), with no extra TX allocation; 1201 curve points maximum, progress after every second scale sample (150 ms floor, 300 ms without samples) and no unchanged data; four HTTP sockets retained |
 | Shared flash-I/O scratch | internal heap, 3,328-byte capacity for one 3,304-byte PersistedSettings record; slots are read, written, and verified sequentially under the flash-I/O lock, with no PSRAM fallback; the larger partition stores transfer in 1 KiB chunks staged through the same scratch |
 | USB serial output | internal heap, 2,064 bytes for the eight-record ESP log queue; one external 2,560-byte CLI reply buffer; startup failures free both allocations, and successful startup retains one boot-lifetime owner |
 | Micra cloud workspace | external and lazy; a 6,344-byte work buffer on ESP32-S3 holds identity, tokens, authorization header, and client state while cloud observation is active, plus one request-scoped 16 KiB buffer whose mutually exclusive request-body and response phases share storage (22,728 bytes combined, excluding HTTP/TLS library allocations); Disconnect, disabled observation, STA loss, and AP entry destroy the client and free both blocks; WebSocket mode also destroys the client between operations, while API polling reuses it for up to 180 s idle |
@@ -627,8 +634,8 @@ tests, so one asset cannot consume all combined headroom.
 
 Both supported partition tables reserve `shotcurve` at custom subtype
 `0x40`, exactly `0xCC000` (816 KiB): 101 × 8192-byte record blocks
-plus two separate 4096-byte epoch sectors. The maximum used record is 5160
-bytes, leaving 3032 reserved bytes per block. A shorter curve erases/programs
+plus two separate 4096-byte epoch sectors. The maximum used record is 5632
+bytes, leaving 2560 reserved bytes per block. A shorter curve erases/programs
 only its used length and ignores stale bytes beyond it. The partition occupies
 `0x63E000`–`0x709FFF`. The unmounted filesystem reservation shrinks;
 NVS, both OTA slots, shot summaries, activation history and crash storage

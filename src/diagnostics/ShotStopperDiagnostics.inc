@@ -138,11 +138,8 @@ void publishControlGate() {
 
 // Publish-side gather cache; single writer is the control task, so the
 // guard fields need no atomics of their own. While the store generation and
-// the good-history mode are unchanged AND the fetched curve would be dead
-// data anyway (an active session or a valid home cycle overwrites
-// statusLastGoodCurve from the sampler/pendingFinalize below, leaving only
-// the scalars observable), the publish reuses the cached gather and skips
-// the shotStoreMutex round trip. The generation is read BEFORE the fetch so
+// the good-history mode are unchanged, the publish reuses the cached gather
+// and skips the shotStoreMutex round trip. The generation is read BEFORE the fetch so
 // a mutation landing mid-fetch makes the cached generation stale and the
 // next publish re-fetches. Every wrapper that mutates the shot/history/
 // curve stores or the last-shot snapshot bumps shotStoreDirtyGeneration;
@@ -161,7 +158,9 @@ PersistedLastShot statusLastGoodShot = {};
 bool statusLastGoodLinked = false;
 HistoryRecord statusNewestActivation = {};
 bool statusHasNewestActivation = false;
-static SHOT_STOPPER_PSRAM_BSS ShotCurveRecord statusLastGoodCurve;
+// The live or just-ended activity's curve; a committed shot's curve reaches
+// readers from the curve store instead.
+static SHOT_STOPPER_PSRAM_BSS ShotCurveRecord statusLiveCurve;
 // Drip chart gather, re-read only when the store or the active preset moves.
 bool statusDripCacheValid = false;
 uint32_t statusDripCacheGeneration = 0;
@@ -192,17 +191,14 @@ void publishControlStatus() {
   const bool recordStatusPhases = loopPhaseStartedAtUs != 0;
   if (recordStatusPhases) finishLoopPhase(LoopPhase::HOUSEKEEPING_STATUS_GATHER);
   const bool includeGoodHistory = !session.active;
-  const bool storeCurveIsDead = session.active || homeCycleResult.valid;
   const uint32_t gatherGeneration =
       shotStoreDirtyGeneration.load(std::memory_order_acquire);
   if (!statusStoreCacheValid ||
       statusStoreCacheGeneration != gatherGeneration ||
-      statusStoreCacheIncludeGoodHistory != includeGoodHistory ||
-      !storeCurveIsDead) {
+      statusStoreCacheIncludeGoodHistory != includeGoodHistory) {
     statusLastGoodLinked = copyShotStoreStatus(
         statusShotBootId, statusLastShot, statusLastGoodShot,
-        statusLastGoodCurve, statusNewestActivation, statusHasNewestActivation,
-        includeGoodHistory);
+        statusNewestActivation, statusHasNewestActivation, includeGoodHistory);
     statusStoreCacheGeneration = gatherGeneration;
     statusStoreCacheIncludeGoodHistory = includeGoodHistory;
     statusStoreCacheValid = true;
@@ -220,12 +216,11 @@ void publishControlStatus() {
   const corridor::LossDeadline scaleLossProjection =
       idleScaleLossDeadline(activeShotPreset(presetBank));
   // The curve source is control-task owned: refresh it outside the lock.
-  if (session.active) shotCurveSampler.snapshot(statusLastGoodCurve);
-  else if (homeCycleResult.valid) {
-    if (pendingFinalize.cycleId == homeCycleResult.cycleId)
-      statusLastGoodCurve = pendingFinalize.curve;
-    else shotCurveSampler.snapshot(statusLastGoodCurve);
-  }
+  if (session.active) shotCurveSampler.snapshot(statusLiveCurve);
+  else if (!homeCycleResult.valid) resetShotCurveRecord(statusLiveCurve);
+  else if (pendingFinalize.cycleId == homeCycleResult.cycleId)
+    copyShotCurve(statusLiveCurve, pendingFinalize.curve);
+  else shotCurveSampler.snapshot(statusLiveCurve);
   if (recordStatusPhases)
     finishLoopPhase(LoopPhase::HOUSEKEEPING_STATUS_STORE_COPY);
   const uint32_t statusLockStartedUs = micros();
@@ -404,7 +399,7 @@ void publishControlStatus() {
   next.homePending = pendingFinalize.pending && !session.active &&
                      pendingFinalize.cycleId == next.homeCycle.cycleId;
   if (next.homePending && pendingFinalize.curve.count > 0) {
-    next.homeCycle.currentWeightG = pendingFinalize.curve.weightCg[pendingFinalize.curve.count - 1] / 100.0f;
+    next.homeCycle.currentWeightG = pendingFinalize.curve.lastWeightCg / 100.0f;
     next.homeCycle.weightValid = weightFresh;
   }
   next.lastGoodShotHistoryLinked = statusLastGoodLinked;
@@ -417,30 +412,8 @@ void publishControlStatus() {
     next.lastActivationType = newest.type;
     next.lastActivationFlags = newest.flags;
   }
-  {
-    // Only live samples move under the lock; a longer previous curve's tail
-    // is cleared so the published arrays still read zero past the count.
-    static uint16_t publishedCurveCount = SHOT_CURVE_MAX_POINTS;
-    const ShotCurveRecord &curve = statusLastGoodCurve;
-    const uint16_t count = curve.count < SHOT_CURVE_MAX_POINTS
-                               ? curve.count : SHOT_CURVE_MAX_POINTS;
-    copyShotCurveRecordToStatusFields(
-        curve, next.shotCurveCount, next.shotCurveTruncated,
-        next.shotCurveFirstDropMs, next.shotCurveFirstDropCg,
-        next.shotCurveExtendedMs, next.shotCurveExtendedCg,
-        next.shotCurveAtmMs, next.shotCurveAtmCg,
-        next.shotCurveAtmClearedMs, next.shotCurveEndedMs,
-        next.shotCurveEndedCg, publishedControlCurve.shotCurveWeightCg,
-        count, publishedControlCurve.shotCurveAtMs,
-        publishedControlCurve.shotCurveBreakBefore,
-        publishedControlCurve.shotCurveHeld);
-    if (publishedCurveCount > count) {
-      const size_t tail = publishedCurveCount - count;
-      memset(publishedControlCurve.shotCurveWeightCg + count, 0, tail * sizeof(int16_t));
-      memset(publishedControlCurve.shotCurveAtMs + count, 0, tail * sizeof(uint16_t));
-    }
-    publishedCurveCount = count;
-  }
+  // Only the used stream and bitmap bytes move under the lock.
+  copyShotCurve(publishedControlCurve.shotCurve, statusLiveCurve);
   copyCString(next.scaleProtocol, sizeof(next.scaleProtocol),
               scaleLink.protocolName);
   if (next.scaleAvailable) {

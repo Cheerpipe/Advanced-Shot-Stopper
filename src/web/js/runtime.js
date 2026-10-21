@@ -3627,15 +3627,22 @@ function scheduleShotPaint() {
     }));
 }
 function uiStreamFrame(e, t) {
-  const o = (e, t = 4294967295, s = 0) => Number.isInteger(e) && e >= s && e <= t,
-    n = t?.snapshot ? t.card : e && t?.card && { ...e.card, ...t.card };
+  const o = (e, t = 4294967295, s = 0) => Number.isInteger(e) && e >= s && e <= t;
+  // An increment carries its sequence, cursor and changes only: identity,
+  // staleness and phase continue from the last frame, and its points from
+  // the last cursor.
+  if (t && !t.snapshot) {
+    if (!e) throw Error();
+    t = { ...t, v: e.v, boot: e.boot, cycle: e.cycle, shotId: e.shotId, stale: t.stale ?? e.stale,
+      phase: t.phase ?? e.phase, snapshot: false, curveBase: e.cursor };
+  } else if (t) t = { ...t, curveBase: 0 };
+  const n = t?.snapshot ? t.card : e && t?.card && { ...e.card, ...t.card };
   if (
     !(
       t &&
       1 === t.v &&
       o(t.boot) &&
       o(t.seq) &&
-      o(t.revision) &&
       o(t.cycle) &&
       o(t.shotId) &&
       o(t.cursor, 1201) &&
@@ -3654,7 +3661,11 @@ function uiStreamFrame(e, t) {
   )
     throw Error();
   if (e && t.boot === e.boot && t.seq <= e.seq) return e;
-  const s = t.curve;
+  const { wD, wRef, ...c } = t.curve || {},
+    s = (wRef === undefined || (Array.isArray(wRef) && wRef.length === 2 && wRef.every(Number.isInteger))) && {
+      ...c,
+      ...decodeCurveDeltas(wD, wRef),
+    };
   if (
     !s ||
     !Array.isArray(s.wCg) ||
@@ -3670,24 +3681,22 @@ function uiStreamFrame(e, t) {
   )
     throw Error();
   if (t.snapshot) {
-    if (0 !== t.curveBase) throw Error();
-    return t;
+    if (wRef) throw Error();
+    return { ...t, curve: s };
   }
+  // A fragment names the point it continues: it must be the last one held.
   if (
-    !e ||
-    t.boot !== e.boot ||
-    t.cycle !== e.cycle ||
-    t.shotId !== e.shotId ||
-    t.base !== e.seq ||
     t.seq !== e.seq + 1 ||
-    t.curveBase !== e.cursor ||
-    (s.wAtMs.length && e.cursor && s.wAtMs[0] < e.curve.wAtMs.at(-1))
+    (s.wCg.length && e.cursor
+      ? !wRef || wRef[0] !== e.curve.wAtMs.at(-1) || wRef[1] !== e.curve.wCg.at(-1)
+      : wRef)
   )
     throw Error();
   return {
     ...t,
     card: n,
     curve: {
+      ...e.curve,
       ...s,
       wCg: [...e.curve.wCg, ...s.wCg],
       wAtMs: [...e.curve.wAtMs, ...s.wAtMs],
@@ -3695,6 +3704,30 @@ function uiStreamFrame(e, t) {
       wHeld: [...e.curve.wHeld, ...s.wHeld],
     },
   };
+}
+// Curve fragment: base64 delta stream from ref [atMs, cg] (0/0 if none), one
+// byte per step or a marker (0xFF time, 0x80 weight) plus the LE absolute.
+function decodeCurveDeltas(text, ref) {
+  let b;
+  try {
+    b = atob(text);
+  } catch (_) {
+    return null;
+  }
+  const wAtMs = [],
+    wCg = [],
+    u = (i) => (i + 2 > b.length ? NaN : b.charCodeAt(i) | (b.charCodeAt(i + 1) << 8));
+  let [t, w] = ref || [0, 0];
+  for (let i = 0, x; i < b.length; ) {
+    x = b.charCodeAt(i++);
+    t = x === 255 ? u((i += 2) - 2) : t + x;
+    x = b.charCodeAt(i++);
+    w = x === 128 ? (u((i += 2) - 2) << 16) >> 16 : w + ((x << 24) >> 24);
+    if (!(t >= 0) || i > b.length || Number.isNaN(x)) return null;
+    wAtMs.push(t);
+    wCg.push(w);
+  }
+  return typeof text === "string" && { wAtMs, wCg };
 }
 function startUiStream() {
   if (!webUiPollingActive() || shotWs) return;
@@ -3815,11 +3848,11 @@ function startUiStream() {
         shotFrame = next;
         shotGotShot = true;
         shotResync = false;
-        shotStale = !!data.stale;
+        shotStale = !!next.stale;
         revealShotClockFinish();
-        if (["active", "pending"].includes(data.phase))
-          shotSeen = { cycle: data.cycle, boot: data.boot };
-        else if (shotSeen && shotSeen.boot !== data.boot) shotSeen = null;
+        if (["active", "pending"].includes(next.phase))
+          shotSeen = { cycle: next.cycle, boot: next.boot };
+        else if (shotSeen && shotSeen.boot !== next.boot) shotSeen = null;
         scheduleShotPaint();
       }
       if (shotGotHome && shotGotShot) clearTimeout(shotSetup);
@@ -4508,6 +4541,12 @@ function statsRowOk(r) {
     !Number.isInteger(r.rating)
   )
     return false;
+  if (r.wD !== undefined) {
+    const d = r.wRef === undefined && decodeCurveDeltas(r.wD);
+    if (!d) return false;
+    delete r.wD;
+    Object.assign(r, d);
+  }
   const w = r.wCg,
     a = r.wAtMs;
   if (!Array.isArray(w) || !Array.isArray(a) || w.length !== a.length || w.length > 1201)

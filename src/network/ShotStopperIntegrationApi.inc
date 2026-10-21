@@ -152,10 +152,8 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
     if (self.callbacks_.copyRecipeSnapshot != nullptr)
       self.callbacks_.copyRecipeSnapshot(&recipe);
     ShotLogRecord latestShot = {};
-    ShotCurveRecord &latestCurve = self.workBuf_->homeCurve;
-    resetShotCurveRecord(latestCurve);
     const bool hasLastShot = self.callbacks_.copyHomeShot != nullptr &&
-        self.callbacks_.copyHomeShot(latestShot, latestCurve);
+        self.callbacks_.copyHomeShot(latestShot, nullptr);
     const PersistedLastShot shot = hasLastShot
         ? shotLogProjectLastShot(latestShot, control.lastShot)
         : PersistedLastShot{};

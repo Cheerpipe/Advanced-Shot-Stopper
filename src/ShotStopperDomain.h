@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "ShotStopperBuildProfile.h"
+#include "ShotStopperShotCurveRecord.h"
 #include "ShotStopperSafety.h"
 #include "ShotStopperHwmon.h"
 #include "ShotStopperBbwTypes.h"

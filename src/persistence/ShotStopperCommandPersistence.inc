@@ -36,11 +36,12 @@ bool copyShotCurveById(uint32_t shotId, ShotCurveRecord &curve) {
   return shotCurves.copyByShotId(shotId, curve);
 }
 
-bool copyHomeShot(ShotLogRecord &record, ShotCurveRecord &curve) {
+// A null curve copies the record alone (the integration snapshot).
+bool copyHomeShot(ShotLogRecord &record, ShotCurveRecord *curve) {
   TaskLockGuard lock(shotStoreMutex);
-  resetShotCurveRecord(curve);
+  if (curve) resetShotCurveRecord(*curve);
   if (!shotLog.copyNewestEligible(record)) return false;
-  (void)shotCurves.copyByShotId(record.id, curve);
+  if (curve) (void)shotCurves.copyByShotId(record.id, *curve);
   return true;
 }
 
@@ -99,8 +100,7 @@ ShotStatsView copyShotStats() {
 }
 
 bool copyShotStoreStatus(uint32_t &bootId, PersistedLastShot &last,
-                         PersistedLastShot &good, ShotCurveRecord &goodCurve,
-                         HistoryRecord &newestActivation,
+                         PersistedLastShot &good, HistoryRecord &newestActivation,
                          bool &hasNewestActivation, bool includeGoodHistory) {
   const uint32_t lockStartedUs = micros();
   TaskLockGuard lock(shotStoreMutex);
@@ -118,14 +118,12 @@ bool copyShotStoreStatus(uint32_t &bootId, PersistedLastShot &last,
   }
   good = persistedLastGoodShot;
   good.rating = 0;
-  resetShotCurveRecord(goodCurve);
   uint8_t rating = 0;
   if (!includeGoodHistory || !publishableLastShot(good) ||
       good.shotLogId == 0 ||
       !shotLog.copyRatingById(good.shotLogId, rating))
     return false;
   good.rating = rating;
-  (void)shotCurves.copyByShotId(good.shotLogId, goodCurve);
   return true;
 }
 

@@ -44,7 +44,7 @@ ${body(networkSource, 'struct StatsStreamCache {')};
 struct NetworkWorkBuf {
   static constexpr size_t kStatusJson=40960,kJsonItem=16000;
   char statusJson[kStatusJson]{},jsonItem[kJsonItem]{};
-  StatsStreamCache statsCache;ShotCurveRecord serializedCurve{};
+  StatsStreamCache statsCache;
 } work;
 auto *g_work=&work;
 ${body(networkSource, 'bool __attribute__((format(printf, 2, 3)))\nstatusJsonAppend(')}
@@ -52,11 +52,11 @@ bool buildIntegrationStats(const ShotStatsView &stats,char *out,size_t cap){
   snprintf(out,cap,"{\\"shotCount\\":%u}",stats.shotCount);return true;
 }
 uint32_t uiStreamCurveHash(const ShotCurveRecord &curve,uint16_t count){
-  ++hashes;return count ? curve.weightCg[0] : 0;
+  ++hashes;return count ? curve.lastWeightCg : 0;
 }
 size_t formatShotStatsRow(NetworkWorkBuf &buffer,const ShotLogRecord &record,
                          const ShotCurveRecord *curve){
-  assert(curve && curve->weightCg[0]==record.actualWeightCg);
+  assert(curve && curve->lastWeightCg==record.actualWeightCg);
   return snprintf(buffer.jsonItem,sizeof(buffer.jsonItem),
       "{\\"id\\":%u,\\"weight\\":%u,\\"padding\\":\\"%015000d\\"}",record.id,record.actualWeightCg,0);
 }
@@ -71,7 +71,7 @@ void capture(ShotStatsRecordsSnapshot &out){
 bool curveById(uint32_t id,ShotCurveRecord &curve){
   resetShotCurveRecord(curve);
   if(id==0||id>3) return false;
-  curve.count=1;curve.weightCg[0]=storeEpoch*100+(3-id);
+  appendShotCurvePoint(curve,storeEpoch*100+(3-id),0,false);
   return true;
 }
 struct ShotStopperNetwork {

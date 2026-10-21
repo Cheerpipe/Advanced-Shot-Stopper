@@ -492,7 +492,7 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
   }
   if (snapshot.curve.count > 0) {
     static SHOT_STOPPER_PSRAM_BSS ShotCurveRecord curve;
-    curve = snapshot.curve;
+    copyShotCurve(curve, snapshot.curve);
     curve.shotId = newId;
     if (!shotCurves.append(curve, false)) {
       addDebugEvent(DebugCategory::CONFIG, DebugCode::SHOT_LOG_PERSIST_FAILED,

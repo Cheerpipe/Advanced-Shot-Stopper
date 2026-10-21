@@ -20,6 +20,7 @@
 
 #include "../shotStopper.cpp"
 #include "../ShotStopperNetworkSetup.h"
+#include "shot_curve_test_helpers.h"
 
 namespace {
 
@@ -234,7 +235,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   serialLogLevel = LogLevel::NONE;
   ringRetainLogLevel = LogLevel::INFO;
   publishedControlStatus = ControlStatusFields{};
-  publishedControlCurve = ControlStatusCurve{};
+  resetShotCurveRecord(publishedControlCurve.shotCurve);
   taskProfiler.resetForHost();
   healthProfilerRequest.store(HealthProfilerRequest::NONE,
                               std::memory_order_relaxed);
@@ -12960,7 +12961,7 @@ void s01c_mixed_shots_share_stats_and_home_authority() {
   CHECK(shotLog.append(record, false));
   ShotLogRecord eligible = {};
   ShotCurveRecord curve = emptyShotCurveRecord();
-  CHECK(copyHomeShot(eligible, curve));
+  CHECK(copyHomeShot(eligible, &curve));
   const uint32_t newestId = eligible.id;
   CHECK(eligible.actualWeightCg == 1800);
   record.actualWeightCg = 150;
@@ -12972,11 +12973,11 @@ void s01c_mixed_shots_share_stats_and_home_authority() {
   oldManual.weightValid = true;
   oldManual.currentWeightG = 35.0f;
   persistLastShotSnapshot(oldManual);  // No safe record identity to reuse.
-  CHECK(copyHomeShot(eligible, curve));
+  CHECK(copyHomeShot(eligible, &curve));
   CHECK(eligible.id == newestId);
   CHECK(shotLog.save());
   CHECK(shotLog.load());
-  CHECK(copyHomeShot(eligible, curve));
+  CHECK(copyHomeShot(eligible, &curve));
   CHECK(eligible.id == newestId);
   const ShotStatsView stats = copyShotStats();
   CHECK(stats.shotCount == 10);
@@ -12985,10 +12986,10 @@ void s01c_mixed_shots_share_stats_and_home_authority() {
   CHECK(stats.flowCount == 2);
   CHECK(stats.flowCgSx100Sum == 25000);
   CHECK(deleteShotRecord(newestId));
-  CHECK(copyHomeShot(eligible, curve));
+  CHECK(copyHomeShot(eligible, &curve));
   CHECK(eligible.actualWeightCg == 2200);
   CHECK(clearShotLog());
-  CHECK(!copyHomeShot(eligible, curve));
+  CHECK(!copyHomeShot(eligible, &curve));
 }
 
 void s01e_bbw_error_uses_its_own_ten_shots() {
@@ -13019,16 +13020,16 @@ void s01f_curve_rollover_keeps_stats_windows_and_sorted_joins() {
   record.durationDs = 300;
   record.goalWeightDg = 300;
   ShotCurveRecord curve = emptyShotCurveRecord();
-  curve.count = 2;
-  curve.atMs[1] = 500;
   for (uint32_t id = 1; id <= SHOT_LOG_CAPACITY + 10; ++id) {
     record.actualWeightCg = id % 2 ? 3300 : 2700;
     record.avgFlowCgS = id % 2 ? SHOT_LOG_METRIC_MISSING : 100;
     record.shotType = static_cast<uint8_t>(id % 3 ? ShotLogType::MANUAL : ShotLogType::AUTO);
     record.stopDetail = static_cast<uint8_t>(id % 3 ? ShotLogStopDetail::ACTIVATOR : ShotLogStopDetail::NORMAL_TARGET);
     record.sideFlags = shotLogPackRating(0, id % 6);
+    resetShotCurveRecord(curve);
     curve.shotId = shotLog.nextRecordId();
-    curve.weightCg[1] = static_cast<int16_t>(curve.shotId);
+    CHECK(appendShotCurvePoint(curve, 0, 0, false) &&
+          appendShotCurvePoint(curve, static_cast<int16_t>(curve.shotId), 500, false));
     CHECK(shotLog.append(record, false));
     CHECK(shotCurves.append(curve));
   }
@@ -13046,7 +13047,7 @@ void s01f_curve_rollover_keeps_stats_windows_and_sorted_joins() {
       for (size_t page = 0; page < count; page += 10)
         for (size_t n = page; n < page + 10 && n < count; ++n) {
           CHECK(shotCurves.copyByShotId(rows[n].id, curve));
-          CHECK(curve.weightCg[1] == static_cast<int16_t>(rows[n].id));
+          CHECK(curvePoint(curve, 1).cg == static_cast<int16_t>(rows[n].id));
         }
       const auto stats = copyShotStats();
       CHECK(stats.shotCount == before.shotCount && stats.bbwCount == before.bbwCount);
@@ -13277,7 +13278,7 @@ void s02c_shot_curve_samples_on_half_second_grid_and_latches_slow() {
   resetHarness(false, true);
   reachReadyFromBoot();
   ControlStatusSnapshot defaultStatus;
-  CHECK(defaultStatus.shotCurveCount == 0);
+  CHECK(defaultStatus.shotCurve.count == 0);
   shotLog.clear();
   ShotCurveLog::resetHostStorage();
   shotCurves.load();
@@ -13290,12 +13291,12 @@ void s02c_shot_curve_samples_on_half_second_grid_and_latches_slow() {
   CHECK(shotCurveSampler.count == 0);
   acceptWeightIntoTrajectory(0.2f, hostMillis, 1);
   CHECK(shotCurveSampler.count == 1);
-  CHECK(shotCurveSampler.weightCg[0] == 20);
+  CHECK(curvePoint(shotCurveSampler, 0).cg == 20);
   hostMillis += 2100;
   acceptWeightIntoTrajectory(8.5f, hostMillis, 2);
   CHECK(shotCurveSampler.count == 2);
-  CHECK(shotCurveSampler.weightCg[1] == 850);
-  CHECK(shotCurveSampler.atMs[1] == 2100);
+  CHECK(curvePoint(shotCurveSampler, 1).cg == 850);
+  CHECK(curvePoint(shotCurveSampler, 1).atMs == 2100);
   latchCutLineForTest(false, 12.0f, hostMillis);
   CHECK(shotCurveSampler.extended.atMs == 2100);
   CHECK(shotCurveSampler.extended.weightCg == 1200);
@@ -13317,14 +13318,14 @@ void s02c_shot_curve_samples_on_half_second_grid_and_latches_slow() {
   CHECK(shotCurves.copyNewestFirst(curves, 1) == 1);
   CHECK(curves[0].shotId != 0);
   CHECK(curves[0].count == 3);
-  CHECK(curves[0].atMs[1] == 2100);
+  CHECK(curvePoint(curves[0], 1).atMs == 2100);
 
   ShotCurveSampler fullLimit;
   fullLimit.reset(hostMillis);
   for (uint32_t elapsed = 0; elapsed <= HARD_MAX_CIRCUIT_CLOSED_MS; elapsed += 50)
     fullLimit.accept(42.0f, hostMillis + elapsed);
   CHECK(fullLimit.count == SHOT_CURVE_MAX_POINTS);
-  CHECK(fullLimit.weightCg[SHOT_CURVE_MAX_POINTS - 1U] == 4200);
+  CHECK(curvePoint(fullLimit, SHOT_CURVE_MAX_POINTS - 1U).cg == 4200);
 }
 
 void s02k_curve_continuity_uses_control_rejections_and_fifo_provenance() {
@@ -13374,12 +13375,12 @@ void s02k_curve_continuity_uses_control_rejections_and_fifo_provenance() {
     ShotCurveRecord curve;
     shotCurveSampler.snapshot(curve, 1);
     CHECK(shotCurveBreakBefore(curve, 1));
-    CHECK(curve.weightCg[0] == 100 && curve.atMs[0] == 0);
+    CHECK(curvePoint(curve, 0).cg == 100 && curvePoint(curve, 0).atMs == 0);
     hostMillis += 500; // Healthy slow cadence does not add a boundary.
     CHECK(recordWeightSample(1, hostMillis));
     shotCurveSampler.snapshot(curve, 1);
     CHECK(curve.count == 3 && !shotCurveBreakBefore(curve, 2));
-    CHECK(curve.atMs[2] == hostMillis - start);
+    CHECK(curvePoint(curve, 2).atMs == hostMillis - start);
   }
 }
 
@@ -13429,8 +13430,8 @@ void s02l_post_drip_curve_keeps_observations_and_rejection_gaps() {
   ShotCurveRecord curve;
   CHECK(shotCurves.copyNewestFirst(&curve, 1) == 1);
   CHECK(curve.ended.atMs == 28000 && curve.ended.weightCg == 3750);
-  CHECK(curve.count == 6 && curve.atMs[5] == 29000);
-  CHECK(curve.weightCg[1] == 3600 && curve.weightCg[5] == 3750);
+  CHECK(curve.count == 6 && curvePoint(curve, 5).atMs == 29000);
+  CHECK(curvePoint(curve, 1).cg == 3600 && curvePoint(curve, 5).cg == 3750);
   CHECK(shotCurveBreakBefore(curve, 4));
   CHECK(!pendingFinalize.pending);
   CHECK(sample(38, 33000, 8));
@@ -13477,10 +13478,10 @@ void s02d_shot_curve_latches_first_drop_fast_and_atm() {
   publishControlStatus();
   ControlStatusSnapshot preciseStatus;
   copyControlStatus(preciseStatus);
-  CHECK(preciseStatus.shotCurveFirstDropMs == 4557);
-  CHECK(preciseStatus.shotCurveExtendedMs == 13313);
-  CHECK(preciseStatus.shotCurveAtmMs == 14027);
-  CHECK(preciseStatus.shotCurveAtmClearedMs == 14543);
+  CHECK(preciseStatus.shotCurve.firstDrop.atMs == 4557);
+  CHECK(preciseStatus.shotCurve.extended.atMs == 13313);
+  CHECK(preciseStatus.shotCurve.atm.atMs == 14027);
+  CHECK(preciseStatus.shotCurve.atmClearedMs == 14543);
   hostMillis = t0 + 15157;
   session.lastAcceptedWeightG = 43.7f;
   shot.automaticBrew = true;
@@ -13566,7 +13567,7 @@ void s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint() {
   schedulePendingShotFinalize(EndReason::FAST_EXTRACTION_MAX_WEIGHT, 28000);
   CHECK(pendingFinalize.curve.ended.atMs == 28000);
   CHECK(pendingFinalize.curve.ended.weightCg == 4000);
-  CHECK(pendingFinalize.curve.weightCg[pendingFinalize.curve.count - 1U] == 4000);
+  CHECK(curvePoint(pendingFinalize.curve, pendingFinalize.curve.count - 1U).cg == 4000);
 
   session.active = false;
   stopperState = StopperState::READY;
@@ -13581,7 +13582,7 @@ void s02h_fast_guard_keeps_sampling_and_settled_weight_replaces_endpoint() {
   CHECK(shotCurves.copyNewestFirst(curves, 1) == 1);
   CHECK(curves[0].ended.atMs == 28000);
   CHECK(curves[0].ended.weightCg == 4210);
-  CHECK(curves[0].weightCg[curves[0].count - 1U] == 4000);
+  CHECK(curvePoint(curves[0], curves[0].count - 1U).cg == 4000);
 }
 
 void verifySettledCurveEndpointForCut(EndReason reason, bool slowExtended,
@@ -14414,7 +14415,7 @@ void s16_last_shot_clear_empties_snapshot() {
   CHECK(clearLastShot());
   CHECK(shotLog.count() == 0);
   ShotCurveRecord curve = emptyShotCurveRecord();
-  CHECK(!copyHomeShot(record, curve));
+  CHECK(!copyHomeShot(record, &curve));
 }
 
 void s16b_factory_reset_hides_last_shot_on_status() {
@@ -15423,13 +15424,11 @@ void s04c_delete_shot_record_removes_log_and_curve() {
   CHECK(persistedLastGoodShot.rating == 0);
   uint32_t bootId = 0;
   PersistedLastShot last = {}, publishedGood = {};
-  ShotCurveRecord publishedCurve = emptyShotCurveRecord();
   HistoryRecord newestActivation = {};
   bool hasNewestActivation = false;
-  CHECK(copyShotStoreStatus(bootId, last, publishedGood, publishedCurve,
-                            newestActivation, hasNewestActivation, true));
+  CHECK(copyShotStoreStatus(bootId, last, publishedGood, newestActivation,
+                            hasNewestActivation, true));
   CHECK(publishedGood.rating == 4);
-  CHECK(publishedCurve.shotId == id);
   CHECK(shotLog.containsId(id));
   CHECK(shotCurves.containsShotId(id));
   CHECK(deleteShotRecord(id));
@@ -15439,8 +15438,8 @@ void s04c_delete_shot_record_removes_log_and_curve() {
   CHECK(shotCurves.count() == 0);
   CHECK(persistedLastGoodShot.cycleId == 44);
   CHECK(fabsf(persistedLastGoodShot.currentWeightG - 36.5f) < 0.001f);
-  CHECK(!copyShotStoreStatus(bootId, last, publishedGood, publishedCurve,
-                             newestActivation, hasNewestActivation, true));
+  CHECK(!copyShotStoreStatus(bootId, last, publishedGood, newestActivation,
+                             hasNewestActivation, true));
   CHECK(!rateLastShot(5));
 }
 
@@ -15629,8 +15628,8 @@ void m09_snapshot_mutexes_preserve_concurrent_invariants() {
       ControlStatusSnapshot status;
       copyControlStatus(status);
       if (status.activeCycle &&
-          (status.shotCurveCount != 1 || status.shotCurveAtMs[0] != status.cycleId ||
-           status.shotCurveWeightCg[0] != shotLogWeightToCentigrams(
+          (status.shotCurve.count != 1 || curvePoint(status.shotCurve, 0).atMs != status.cycleId ||
+           curvePoint(status.shotCurve, 0).cg != shotLogWeightToCentigrams(
                static_cast<float>(status.cycleId % 100)))) {
         violations.fetch_add(1, std::memory_order_relaxed);
       }
@@ -16158,14 +16157,17 @@ void f13b_status_curve_publishes_live_samples_and_clears_tail() {
                                        i * 50U, false));
     publishControlStatus();
     copyControlStatus(status);
-    CHECK(status.shotCurveCount == points);
+    CHECK(status.shotCurve.count == points &&
+          status.shotCurve.bytes == pendingFinalize.curve.bytes);
     for (uint16_t i = 0; i < points; ++i)
-      CHECK(status.shotCurveWeightCg[i] == pendingFinalize.curve.weightCg[i] &&
-            status.shotCurveAtMs[i] == pendingFinalize.curve.atMs[i]);
+      CHECK(curvePoint(status.shotCurve, i).cg == curvePoint(pendingFinalize.curve, i).cg &&
+            curvePoint(status.shotCurve, i).atMs == curvePoint(pendingFinalize.curve, i).atMs);
   }
-  // The shorter curve leaves no stale samples from the longer one.
-  for (uint16_t i = 2; i < 5; ++i)
-    CHECK(status.shotCurveWeightCg[i] == 0 && status.shotCurveAtMs[i] == 0);
+  // Idle (no live or just-ended activity) publishes no curve at all.
+  homeCycleResult.valid = false;
+  publishControlStatus();
+  copyControlStatus(status);
+  CHECK(status.shotCurve.count == 0 && status.shotCurve.bytes == 0);
 }
 
 void f17_health_counters_are_atomic_and_monotonic() {
@@ -16515,10 +16517,9 @@ void s12d_rate_last_shot_and_history() {
   CHECK(shotLogRating(stored[0].sideFlags) == 2);
   uint32_t bootId = 0;
   PersistedLastShot last = {}, good = {};
-  ShotCurveRecord curve = emptyShotCurveRecord();
   HistoryRecord newestActivation = {};
   bool hasNewestActivation = false;
-  CHECK(copyShotStoreStatus(bootId, last, good, curve, newestActivation,
+  CHECK(copyShotStoreStatus(bootId, last, good, newestActivation,
                             hasNewestActivation, true));
   CHECK(good.rating == 2);
   CHECK(good.shotLogId == stored[0].id);
@@ -16557,11 +16558,9 @@ void s12e_history_rating_wins_after_last_shot_save_failure_and_reboot() {
 
   uint32_t bootId = 0;
   PersistedLastShot last = {}, publishedGood = {};
-  ShotCurveRecord curve = emptyShotCurveRecord();
   HistoryRecord newestActivation = {};
   bool hasNewestActivation = false;
-  CHECK(copyShotStoreStatus(bootId, last, publishedGood, curve,
-                            newestActivation, hasNewestActivation, true));
+  CHECK(copyShotStoreStatus(bootId, last, publishedGood, newestActivation, hasNewestActivation, true));
   CHECK(publishedGood.rating == 4);
   CHECK(publishedGood.cycleId == good.cycleId);
   CHECK(fabsf(publishedGood.currentWeightG - good.currentWeightG) < 0.001f);
@@ -16606,10 +16605,9 @@ void s12f_shot_store_snapshot_serializes_rating_and_finalize() {
     do {
       uint32_t bootId = 0;
       PersistedLastShot last = {}, good = {};
-      ShotCurveRecord curve = emptyShotCurveRecord();
       HistoryRecord newestActivation = {};
       bool hasNewestActivation = false;
-      if (!copyShotStoreStatus(bootId, last, good, curve, newestActivation,
+      if (!copyShotStoreStatus(bootId, last, good, newestActivation,
                                hasNewestActivation, true) ||
           good.durationMs != 13000U + good.cycleId ||
           good.currentWeightG !=
@@ -16642,7 +16640,7 @@ void s12g_worker_acknowledgement_rechecks_generation_under_lock() {
     CHECK(shotLog.append(record, false));
     ShotCurveRecord curve = emptyShotCurveRecord();
     curve.shotId = 1;
-    curve.count = 1;
+    CHECK(appendShotCurvePoint(curve, 0, 0, false));
     CHECK(shotCurves.append(curve, false));
     activationStores.capturePersistenceImage(*shotStorePersistImage);
     shotStorePersistImageGeneration = shotStoreDirtyGeneration.load();
@@ -16686,7 +16684,7 @@ void s12h_capped_curve_batch_keeps_generation_dirty_until_drained() {
   CHECK(initializeSettingsPersistenceWorker());
   constexpr uint32_t backlog = 2U * SHOT_CURVE_PERSIST_BATCH + 1U;
   ShotCurveRecord curve = emptyShotCurveRecord();
-  curve.count = 1;
+  CHECK(appendShotCurvePoint(curve, 0, 0, false));
   for (uint32_t id = 1; id <= backlog; ++id) {
     curve.shotId = id;
     CHECK(shotCurves.append(curve, false));
@@ -16807,8 +16805,7 @@ void sh02_stats_snapshot_captures_one_store_generation() {
   CHECK(copyShotRecords(&record, 1) == 1);
   ShotCurveRecord curve = emptyShotCurveRecord();
   curve.shotId = record.id;
-  curve.count = 1;
-  curve.weightCg[0] = record.actualWeightCg;
+  CHECK(appendShotCurvePoint(curve, record.actualWeightCg, 0, false));
   CHECK(shotCurves.append(curve, false));
   auto snapshot = std::make_unique<ShotStatsRecordsSnapshot>();
   static unsigned acquisitions;
@@ -16827,7 +16824,7 @@ void sh02_stats_snapshot_captures_one_store_generation() {
   ShotCurveRecord fetched = emptyShotCurveRecord();
   CHECK(copyShotCurveById(record.id, fetched));
   CHECK(fetched.shotId == record.id);
-  CHECK(fetched.weightCg[0] == record.actualWeightCg);
+  CHECK(curvePoint(fetched, 0).cg == record.actualWeightCg);
   CHECK(rateShotRecord(record.id, 5));
   CHECK(snapshot->epoch != copyShotLogEpoch());
   CHECK(shotLogRating(snapshot->records[0].sideFlags) == 0);
@@ -17445,10 +17442,9 @@ void h10_newest_history_record_matches_first_desc_page_row() {
   // shotStoreMutex critical section.
   uint32_t bootId = 0;
   PersistedLastShot last = {}, good = {};
-  ShotCurveRecord curve = emptyShotCurveRecord();
   HistoryRecord gathered = {};
   bool hasGathered = false;
-  copyShotStoreStatus(bootId, last, good, curve, gathered, hasGathered, true);
+  copyShotStoreStatus(bootId, last, good, gathered, hasGathered, true);
   CHECK(hasGathered);
   CHECK(memcmp(&gathered, &newest, sizeof(HistoryRecord)) == 0);
 }
@@ -17517,8 +17513,8 @@ void h11_status_store_cache_generation_guard() {
   appendShotCurveObservation(pendingFinalize.curve, 36.5f, 15000, false);
   publishControlStatus();
   copyControlStatus(status);
-  CHECK(status.shotCurveCount == pendingFinalize.curve.count);
-  CHECK(status.shotCurveAtMs[0] == 15000);
+  CHECK(status.shotCurve.count == pendingFinalize.curve.count);
+  CHECK(curvePoint(status.shotCurve, 0).atMs == 15000);
 }
 
 void h12_persistence_fast_path_skips_clean_store_mutex() {
@@ -21408,7 +21404,7 @@ void home01_stream_lifecycle_uses_canonical_final_record() {
   CHECK(status.homePending);
   CHECK(status.homeCycle.cycleId == 41);
   CHECK(status.homeCycle.durationMs == 14010);
-  CHECK(status.shotCurveEndedMs == 14010);
+  CHECK(status.shotCurve.ended.atMs == 14010);
   CHECK(appendShotCurveObservation(pendingFinalize.curve, 36.5f, 15000, false));
   hostMillis = start + 15000;
   currentWeight = 36.5f;
@@ -21417,21 +21413,21 @@ void home01_stream_lifecycle_uses_canonical_final_record() {
   publishControlStatus();
   copyControlStatus(status);
   CHECK(status.homeCycle.durationMs == 14010);
-  CHECK(status.shotCurveCount == 3);
-  CHECK(status.shotCurveAtMs[2] == 15000);
+  CHECK(status.shotCurve.count == 3);
+  CHECK(curvePoint(status.shotCurve, 2).atMs == 15000);
   hostMillis = start + 17010;
   pendingShotFinalizeTask();
   publishControlStatus();
   copyControlStatus(status);
   ShotLogRecord record;
   ShotCurveRecord curve;
-  CHECK(copyHomeShot(record, curve));
+  CHECK(copyHomeShot(record, &curve));
   CHECK(!status.homePending);
   CHECK(status.homeResolvedAtMs == hostMillis);
   CHECK(status.homeCycle.shotLogId == record.id);
   CHECK(status.homeCycle.durationMs == record.durationDs * 100U);
   CHECK(status.homeCycle.currentWeightG == record.actualWeightCg / 100.0f);
-  CHECK(status.shotCurveCount == curve.count);
+  CHECK(status.shotCurve.count == curve.count);
   // A newer activation's presentation survives late predecessor finalization.
   homeCycleResult.cycleId = 42;
   persistLastShotFromFinalize(pendingFinalize, 37, true);
@@ -21447,11 +21443,12 @@ void home01_stream_lifecycle_uses_canonical_final_record() {
   CHECK(status.homeCycle.shotType == static_cast<uint8_t>(LastShotType::RINSE));
   CHECK(status.homeCycle.shotLogId == 0);
   CHECK(shotLog.count() == 1);
-  // Delta serialization preserves observation time and global discontinuity indices.
+  // A fragment carries its reference point, the stream from there (15000 ms
+  // escapes: FF 98 3A, then +50 cg) and global discontinuity indices.
   char json[SHOT_CURVE_JSON_CAPACITY];
   curve.breakBefore[0] |= 4;
   CHECK(formatShotCurveJsonBody(json, sizeof(json), curve, 2));
-  CHECK(strstr(json, "\"wAtMs\":[15000]") != nullptr);
+  CHECK(strstr(json, "\"wRef\":[14010,3600],\"wD\":\"/5g6Mg==\"") == json);
   CHECK(strstr(json, "\"wBreakBefore\":[2]") != nullptr);
   CHECK(!formatShotCurveJsonBody(json, sizeof(json), curve, curve.count + 1));
 }
@@ -21501,9 +21498,9 @@ void home02_nonqualifying_resolution_preserves_cutoff_and_endpoint() {
     CHECK(status.homeCycle.tareElapsedMs == 57);
     CHECK(status.homeResolvedAtMs == hostMillis);
     CHECK(status.homeCycle.currentWeightG == (postDrip ? 21 : 20));
-    CHECK(status.shotCurveEndedMs == 10057);
-    CHECK(status.shotCurveEndedCg == (postDrip ? 2100 : 2000));
-    CHECK(status.shotCurveAtMs[status.shotCurveCount - 1] == (postDrip ? 11000 : 10057));
+    CHECK(status.shotCurve.ended.atMs == 10057);
+    CHECK(status.shotCurve.ended.weightCg == (postDrip ? 2100 : 2000));
+    CHECK(curvePoint(status.shotCurve, status.shotCurve.count - 1).atMs == (postDrip ? 11000 : 10057));
   }
   for (const bool weighted : {false, true}) {
     resetHarness(false, true);
@@ -21531,8 +21528,8 @@ void home02_nonqualifying_resolution_preserves_cutoff_and_endpoint() {
     copyControlStatus(status);
     CHECK(!status.homePending && shotLog.count() == 0);
     CHECK(status.homeCycle.durationMs == 2057);
-    CHECK(status.shotCurveEndedMs == (weighted ? 2057 : SHOT_LOG_METRIC_MISSING));
-    CHECK(status.shotCurveEndedCg == (weighted ? 200 : SHOT_LOG_WEIGHT_MISSING));
+    CHECK(status.shotCurve.ended.atMs == (weighted ? 2057 : SHOT_LOG_METRIC_MISSING));
+    CHECK(status.shotCurve.ended.weightCg == (weighted ? 200 : SHOT_LOG_WEIGHT_MISSING));
     CHECK(!shotCurveSampler.active);
   }
 }

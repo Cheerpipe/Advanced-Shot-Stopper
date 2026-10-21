@@ -269,7 +269,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     !codeIncludes(ui, 'function renderShotHero(') ||
     !codeIncludes(ui, 'function renderShotSpark(') ||
     !network.includes('\\"lastShot\\"') ||
-    !network.includes('\\"curve\\":{%s}') ||
+    !network.includes('\\"curve\\":{"') ||
     !network.includes('formatShotCurveJsonBody') ||
     !network.includes('lastShotClearHandler') ||
     !network.includes('LAST_SHOT_CLEAR_NOT_CONFIRMED') ||
@@ -1271,7 +1271,8 @@ if (!statsSection ||
       const row = id => ({id, bootId: 9, endedAtMs: 30000 + id, hasWallTime: true,
         endedAtLocalSec: 1790794385, endedAtUnixSec: 1790809185,
         timezoneOffsetMinutesAtCommit: -180, durationS: 28.5,
-        wCg: [100, 200], wAtMs: [1000, 2000], wBreakBefore: [], wHeld: [], rating: 0});
+        // Points (1000 ms, 100 cg) and (2000 ms, 200 cg) as the firmware's delta stream.
+        wD: '/+gDZP/QB2Q=', wBreakBefore: [], wHeld: [], rating: 0});
       const context = vm.createContext({activeView: 'stats',
         viewReady: Promise.resolve(),
         shotHistory: {bootId: 0, total: 2, hasMore: true, shots: [{id: 2}, {id: 1}]}, shotsLoaded: false,
@@ -1291,9 +1292,9 @@ if (!statsSection ||
         scheduleShotPaint() {},
         renderShots: () => events.push('render:' + context.controlsMutable),
         updateHeaderSignals() {}, updateFirmwareFooter() {}, noteReachOk() {},
-        __WEBUI_TEXT__: key => key});
+        atob, __WEBUI_TEXT__: key => key});
       // Shared state and runtime references resolve to this harness's globals.
-      const stream = runtimeStateGlobals +
+      const stream = runtimeStateGlobals + blockAt(rawRuntimeJs, 'function decodeCurveDeltas(') + '\n' +
           rawRuntimeJs.slice(rawRuntimeJs.search(/let\s+statsStreamWanted\s*=/),
           rawRuntimeJs.search(/document\.addEventListener\(\s*['"]visibilitychange['"]/)) + '\n' +
           rawViewJs.stats.slice(rawViewJs.stats.indexOf('let statsExportInFlight'),
@@ -1369,7 +1370,8 @@ if (!statsSection ||
       for (const bad of [frame({snapshot: false, boot: 10, seq: 6, rows: [row(2)], more: false}),
         frame({snapshot: false, seq: 1, rows: [row(2)], more: false}),
         frame({snapshot: false, epoch: 9, seq: 7, rows: [row(2)], rowBase: 1, more: false}),
-        frame({snapshot: false, epoch: 9, seq: 8, rows: [{...row(3), wCg: [1.5]}], more: false}),
+        frame({snapshot: false, epoch: 9, seq: 8, rows: [{...row(3), wD: '!!'}], more: false}),
+        frame({snapshot: false, epoch: 9, seq: 8, rows: [{...row(3), wRef: [0, 0]}], more: false}),
         frame({snapshot: false, epoch: 9, seq: 9, rows: [row(2), row(1)], hasMore: true, more: false}),
         frame({epoch: 9, seq: 10, ui: null, rows: [row(2)], more: false})]) {
         assert.throws(() => context.statsStreamFrame(bad),

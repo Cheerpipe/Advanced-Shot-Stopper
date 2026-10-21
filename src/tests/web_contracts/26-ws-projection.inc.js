@@ -22,7 +22,7 @@ using namespace shotstopper;
 struct NetworkWorkBuf {
   static constexpr size_t kStatusJson=40960,kJsonItem=28672;
   char statusJson[kStatusJson]{},jsonItem[kJsonItem]{},curveJson[SHOT_CURVE_JSON_CAPACITY]{};
-  ShotCurveRecord serializedCurve{};
+  struct {ShotCurveRecord fetchCurve{};} statsCache;
 } work;
 auto *g_work=&work;
 ${body(networkSource, 'void sanitizeJsonEmbed(')}
@@ -84,6 +84,36 @@ int main(){
   record.errorCg=500;
   assert(ShotStopperNetwork::formatShotStatsRow(work,record,nullptr));
   assert(row==work.jsonItem);
+  // Codec cross-check: each line is a curve's appended points and its curve
+  // bodies from three fragment starts, for the browser decoder below.
+  static const uint16_t edgeAt[9]={0,254,509,765,893,1404,1404,1915,60000};
+  static const int16_t edgeCg[9]={0,127,0,255,127,126,510,-32767,32767};
+  uint32_t seed=0x2545F491u;
+  auto rnd=[&]{return seed=seed*1664525u+1013904223u;};
+  for(int c=0;c<40;++c){
+    ShotCurveRecord curve=emptyShotCurveRecord();
+    std::string line="{\\"pts\\":[";
+    uint32_t at=0;int cg=0;
+    const int wanted=c==0?9:static_cast<int>(rnd()%300);
+    for(int i=0;i<wanted;++i){
+      if(c==0){at=edgeAt[i];cg=edgeCg[i];}
+      else{
+        at+=rnd()%600;if(at>60000)break;
+        cg+=static_cast<int>(rnd()%600)-300;
+        if(rnd()%13==0)cg=static_cast<int>(rnd()%65535)-32767;
+        cg=cg>32767?32767:cg<-32767?-32767:cg;
+      }
+      assert(appendShotCurvePoint(curve,static_cast<int16_t>(cg),at,rnd()%5==0,rnd()%7==0));
+      line+=std::string(i?",[":"[")+std::to_string(at)+","+std::to_string(cg)+"]";
+    }
+    line+="],\\"frags\\":[";
+    const uint16_t starts[3]={0,static_cast<uint16_t>(curve.count/3),curve.count};
+    for(int f=0;f<3;++f){
+      assert(formatShotCurveJsonBody(work.curveJson,sizeof(work.curveJson),curve,starts[f]));
+      line+=std::string(f?",":"")+"{\\"start\\":"+std::to_string(starts[f])+",\\"curve\\":{"+work.curveJson+"}}";
+    }
+    puts((line+"]}").c_str());
+  }
 }
 `;
   const directory = path.resolve(sketchDir, '..', 'temp', 'ai_temp_ws_projection_contract');
@@ -96,7 +126,19 @@ int main(){
   assert.equal(run.status, 0, run.stderr);
   fs.unlinkSync(binary);
   const wire = run.stdout.trim().split('\n');
-  const [live, full, empty, busy, failed, row] = wire.map(JSON.parse);
+  const [live, full, empty, busy, failed, row, ...curves] = wire.map(JSON.parse);
+  // The browser decoder recovers every firmware-appended point, and a
+  // fragment names exactly the point before it.
+  const decode = new Function(blockAt(rawRuntimeJs, 'function decodeCurveDeltas(') +
+      ';return decodeCurveDeltas;')();
+  assert.equal(curves.length, 40);
+  for (const {pts, frags} of curves) {
+    for (const {start, curve} of frags) {
+      assert.deepEqual(curve.wRef, start > 0 && start < pts.length ? pts[start - 1] : undefined);
+      const points = decode(curve.wD, curve.wRef);
+      assert.deepEqual(points.wAtMs.map((t, i) => [t, points.wCg[i]]), pts.slice(start));
+    }
+  }
   for (const key of ['stackUnit','remainingMs','sampleCount','averageTotalCpuPct','lastCaptureUs','maxCaptureUs']) {
     assert(!(key in live), key);assert(key in full, 'debug export retains '+key);
   }
@@ -120,7 +162,7 @@ int main(){
   assert.equal(failed.scaleProfile.lastError, 'allocation');
   assert.equal(row.bootId, 9);assert.equal(row.actualG, 42);assert.equal(row.goalG, 40);
   assert(!('errorG' in row) && !('errorPct' in row));
-  assert(Array.isArray(row.wCg) && Array.isArray(row.wAtMs));
+  assert(row.wD === '' && Array.isArray(row.wBreakBefore) && !('wCg' in row) && !('wAtMs' in row));
   fs.writeFileSync(path.join(directory, 'sizes.json'), JSON.stringify({
     fixture: 'one task and nineteen loop phases; one synthetic 42g shot',
     taskLiveBytes: Buffer.byteLength(wire[0]),

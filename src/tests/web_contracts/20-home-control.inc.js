@@ -372,52 +372,66 @@
   if(chips.some((pos,i)=>pos<0||(i&&pos<=chips[i-1])))throw new Error('Home shot pills must keep their reading order');
   const apply = new Function(runtimeJs.slice(runtimeJs.indexOf('function uiStreamFrame('),
     runtimeJs.indexOf('function startUiStream('))+';return uiStreamFrame;')();
-  const snapshot={v:1,boot:7,seq:1,base:0,revision:1,snapshot:true,cycle:19,shotId:0,
-    phase:'active',curveBase:0,cursor:2,card:{valid:true,live:true,weight:1,elapsedMs:1000,averageFlowGps:null,firstDropMs:null,tareMs:null},
-    curve:{wCg:[100,100],wAtMs:[100,700],wBreakBefore:[],wHeld:[],dropS:null,endS:null}};
+  // The firmware's delta stream: one byte per step, or 0xFF/0x80 plus the LE absolute.
+  const deltas=(at,cg,[t,w]=[0,0])=>{const b=[];at.forEach((a,i)=>{const dt=a-t,dw=cg[i]-w;
+    if(dt>=0&&dt<255)b.push(dt);else b.push(255,a&255,a>>8);
+    if(dw>-128&&dw<128)b.push(dw&255);else b.push(128,cg[i]&255,(cg[i]>>8)&255);t=a;w=cg[i];});
+    return Buffer.from(b).toString('base64');};
+  const snapshot={v:1,boot:7,seq:1,snapshot:true,cycle:19,shotId:0,stale:false,
+    phase:'active',cursor:2,card:{valid:true,live:true,weight:1,elapsedMs:1000,averageFlowGps:null,firstDropMs:null,tareMs:null},
+    curve:{wD:deltas([100,700],[100,100]),wBreakBefore:[],wHeld:[],dropS:null,endS:null}};
   const first=apply(null,snapshot);
-  const update={...snapshot,seq:2,base:1,snapshot:false,curveBase:2,cursor:4,
-    card:{...snapshot.card,elapsedMs:1100},curve:{wCg:[100,120],wAtMs:[800,900],wBreakBefore:[2],wHeld:[3],dropS:.8,endS:null}};
+  // An increment names only its sequence and cursor; its fragment names the
+  // point it continues.
+  const update={seq:2,cursor:4,card:{elapsedMs:1100},
+    curve:{wRef:[700,100],wD:deltas([800,900],[100,120],[700,100]),wBreakBefore:[2],wHeld:[3],dropS:.8}};
   const next=apply(first,update);
   if(next.curve.wCg.join()!=='100,100,100,120'||next.curve.wAtMs.join()!=='100,700,800,900'||
-      next.curve.wBreakBefore.join()!=='2'||next.curve.wHeld.join()!=='3'||next.curve.dropS!==.8||first.cursor!==2)
+      next.curve.wBreakBefore.join()!=='2'||next.curve.wHeld.join()!=='3'||next.curve.dropS!==.8||
+      next.curve.endS!==null||next.cycle!==19||next.phase!=='active'||next.curve.wD!==undefined||first.cursor!==2)
     throw new Error('Stream must atomically append all samples, equal weights, breaks, held readings and metadata');
   if(apply(next,update)!==next)throw new Error('Duplicates must not append');
-  const delta=apply(next,{...update,seq:3,base:2,curveBase:4,cursor:4,card:{weight:2.5},
-    curve:{wCg:[],wAtMs:[],wBreakBefore:[],wHeld:[],dropS:.8,endS:1.2}});
+  const empty={wD:'',wBreakBefore:[],wHeld:[]};
+  const delta=apply(next,{seq:3,cursor:4,card:{weight:2.5},curve:{...empty,endS:1.2}});
   if(delta.card.weight!==2.5||delta.card.elapsedMs!==1100||delta.card.valid!==true||
-      delta.curve.wCg.length!==4||delta.curve.endS!==1.2||next.card.weight!==1)
-    throw new Error('Card deltas must merge over the previous card and markers must not need a replacement');
+      delta.curve.wCg.length!==4||delta.curve.endS!==1.2||delta.curve.dropS!==.8||next.card.weight!==1)
+    throw new Error('Card and curve-scalar deltas must merge over the previous frame');
   for(const bad of [{weight:'2'},{elapsedMs:-1},{valid:null}]){
     let rejected=false;
-    try{apply(next,{...update,seq:3,base:2,curveBase:4,cursor:4,card:bad,curve:{wCg:[],wAtMs:[],wBreakBefore:[],wHeld:[]}})}
+    try{apply(next,{seq:3,cursor:4,card:bad,curve:empty})}
     catch(_){rejected=true}
     if(!rejected)throw new Error('A merged card must pass the snapshot card checks');
   }
-  const quiet=apply(delta,{...update,seq:4,base:3,curveBase:4,cursor:4,phase:'pending',card:{},
-    curve:{wCg:[],wAtMs:[],wBreakBefore:[],wHeld:[]}});
-  if(quiet.phase!=='pending'||quiet.card.weight!==2.5)throw new Error('An empty card delta must keep the card');
-  const corrected=apply(next,{...snapshot,seq:3,revision:3,curve:{...snapshot.curve,dropS:null}});
+  const quiet=apply(delta,{seq:4,cursor:4,phase:'pending',card:{},curve:empty});
+  if(quiet.phase!=='pending'||quiet.stale!==false||quiet.card.weight!==2.5)
+    throw new Error('An empty card delta must keep the card, and the envelope its unsent fields');
+  const corrected=apply(next,{...snapshot,seq:3,curve:{...snapshot.curve,dropS:null}});
   if(corrected.cursor!==2||corrected.curve.dropS!==null)throw new Error('A marker-correcting snapshot must replace the curve');
   const reboot=apply(next,{...snapshot,boot:8});
   if(reboot.boot!==8||reboot.cursor!==2)throw new Error('Boot snapshots must discard old cursors');
-  for(const bad of [{...update,seq:4},{...update,base:0},{...update,cycle:20},
-    {...update,curveBase:1},{...snapshot,curveBase:1},
-    {...snapshot,cursor:1202},{...snapshot,curve:{...snapshot.curve,wAtMs:[700,100]}},
-    {...snapshot,curve:{...snapshot.curve,wCg:[true,100]}},
-    {...snapshot,curve:{...snapshot.curve,wCg:['100',100]}},
-    {...snapshot,card:{...snapshot.card,weight:NaN}},
-    {...snapshot,card:{...snapshot.card,scaleAvailable:'false'}},
-    {...snapshot,card:{...snapshot.card,scaleAvailable:null}},
-    ...[undefined,-1,NaN,Infinity,60001,'0'].map(firstDropMs=>({...snapshot,card:{...snapshot.card,firstDropMs}})),
-    ...[-1,NaN,'0'].map(tareMs=>({...snapshot,card:{...snapshot.card,tareMs}}))]){
-    if(bad.snapshot)bad.seq=3;
-    let rejected=false;try{apply(first,bad)}catch(_){rejected=true}
+  for(const [prev,bad] of [[first,{...update,seq:3}],[null,update],
+    [first,{...update,curve:{...update.curve,wRef:[700,99]}}],
+    [first,{...update,curve:{...update.curve,wRef:undefined}}],
+    [first,{...update,curve:{...update.curve,wRef:['700',100]}}],
+    [first,{...snapshot,seq:3,curve:{...snapshot.curve,wRef:[0,0]}}],
+    [first,{...snapshot,seq:3,curve:{...snapshot.curve,wD:'!!'}}],
+    [first,{...snapshot,seq:3,curve:{...snapshot.curve,wD:Buffer.from([255,1]).toString('base64')}}],
+    [first,{...snapshot,seq:3,curve:{...snapshot.curve,wD:undefined}}],
+    [first,{...snapshot,seq:3,cursor:1202}],
+    [first,{...snapshot,seq:3,curve:{...snapshot.curve,wD:deltas([700,100],[100,100])}}],
+    [first,{...snapshot,seq:3,curve:{...snapshot.curve,wD:deltas([100,700],[32767,32800])}}],
+    [first,{...snapshot,seq:3,card:{...snapshot.card,weight:NaN}}],
+    [first,{...snapshot,seq:3,card:{...snapshot.card,scaleAvailable:'false'}}],
+    [first,{...snapshot,seq:3,card:{...snapshot.card,scaleAvailable:null}}],
+    ...[undefined,-1,NaN,Infinity,60001,'0'].map(firstDropMs=>[first,{...snapshot,seq:3,card:{...snapshot.card,firstDropMs}}]),
+    ...[-1,NaN,'0'].map(tareMs=>[first,{...snapshot,seq:3,card:{...snapshot.card,tareMs}}])]){
+    let rejected=false;try{apply(prev,bad)}catch(_){rejected=true}
     if(!rejected)throw new Error('Invalid/gapped stream must request recovery');
   }
-  const maximum=apply(null,{...snapshot,cursor:1201,curve:{wCg:Array(1201).fill(100),
-    wAtMs:Array.from({length:1201},(_,i)=>i*50),wBreakBefore:[],wHeld:[],wTruncated:true}});
-  if(maximum.curve.wCg.length!==1201)throw new Error('Maximum curve must stay bounded and complete');
+  const maximum=apply(null,{...snapshot,cursor:1201,curve:{wD:deltas(Array.from({length:1201},(_,i)=>i*50),
+    Array(1201).fill(100)),wBreakBefore:[],wHeld:[],wTruncated:true}});
+  if(maximum.curve.wCg.length!==1201||maximum.curve.wAtMs[1200]!==60000)
+    throw new Error('Maximum curve must stay bounded and complete');
   const events=apply(null,{...snapshot,card:{...snapshot.card,firstDropMs:0,tareMs:60000}});
   if(events.card.firstDropMs!==0||events.card.tareMs!==60000||first.card.firstDropMs!==null)
     throw new Error('Scalar events must distinguish measured zero from unavailable data');
@@ -1079,7 +1093,9 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     !codeIncludes(ui, "cupRemovedWeightG:number('cupRemovedWeightG')")) {
   throw new Error('Auto-to-manual time guard must be wired in config UI, live panel, shots API, and routes');
 }
-if (!network.includes('callbacks_.copyHomeShot(latest, self.workBuf_->homeCurve)') ||
+if (!network.includes('callbacks_.copyHomeShot(latest, control.activeCycle || control.homePending') ||
+    !network.includes('? nullptr : &self.workBuf_->homeCurve') ||
+    !network.includes('callbacks_.copyHomeShot(latestShot, nullptr)') ||
     !network.includes('shotLogProjectLastShot(latest, linked)') ||
     !network.includes('shotLogProjectLastShot(latestShot, control.lastShot)') ||
     network.includes('\"lastGoodShot\":%s') ||

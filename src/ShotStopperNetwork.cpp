@@ -100,9 +100,8 @@ struct StatsCurveHashCache {
 
 struct StatsStreamCache {
   ShotStatsRecordsSnapshot snapshot{};
-  // Fetch scratch for the row curve currently being hashed or formatted;
-  // distinct from serializedCurve, which formatShotStatsRow resets as its
-  // empty-curve template.
+  // Fetch scratch for the row curve currently being hashed or formatted, and
+  // formatShotStatsRow's empty curve once a fetch found none.
   ShotCurveRecord fetchCurve{};
   StatsCurveHashCache curveHashes{};
   // Requested-order permutation over the newest-first records: rows point
@@ -161,10 +160,10 @@ struct NetworkWorkBuf {
   // Rollback copy of one session's Home and shot-card fingerprints for the
   // stream's Home + shot-card batch (httpd only, under the work buffer).
   uint32_t batchHomeHashes[UiStreamFingerprints::kHomeFields]{};
-  uint32_t batchCardHashes[UiStreamFingerprints::kCardFields]{};
+  uint32_t batchCardHashes[UiStreamFingerprints::kCardFields +
+                           UiStreamFingerprints::kCurveFields]{};
   StatsStreamCache statsCache{};
   ShotCurveRecord homeCurve{};
-  ShotCurveRecord serializedCurve{};
   ControlStatusSnapshot control{};
   TaskProfilerSnapshot taskProfiler{};
   DebugExportExtras debugExport{};

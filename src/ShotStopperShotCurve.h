@@ -26,9 +26,9 @@ struct ShotCurveBlockHeader {
   uint32_t validity;
 };
 static_assert(sizeof(ShotCurveBlockHeader) == 36, "Explicit flash block header");
-// validHeader enumerates loadable schemas explicitly; a version bump must
-// revisit that list, not silently strand the previous schema's blocks.
-static_assert(SHOT_CURVE_SCHEMA_VERSION == 3, "Update validHeader schema list");
+// validHeader loads only the current schema; a version bump must decide what
+// happens to the previous schema's blocks rather than silently strand them.
+static_assert(SHOT_CURVE_SCHEMA_VERSION == 3, "Decide the fate of schema-3 blocks");
 
 // Unpersisted curves a worker image carries per commit; any remainder stays
 // dirty in the live log and is captured by the next image.
@@ -141,7 +141,7 @@ class BasicShotCurveLog : public ShotCurveHostStorage {
     if (!validShotCurveRecord(record)) return false;
     // Shot IDs are immutable sidecar identities; retrying an append is safe.
     if (containsShotId(record.shotId)) return true;
-    store_.records[store_.header.writeIndex] = record;
+    copyShotCurve(store_.records[store_.header.writeIndex], record);
     store_.header.writeIndex = (store_.header.writeIndex + 1U) % SHOT_CURVE_CAPACITY;
     if (store_.header.count < SHOT_CURVE_CAPACITY) ++store_.header.count;
     dirty_ = true;
@@ -287,7 +287,7 @@ class BasicShotCurveLog : public ShotCurveHostStorage {
     const size_t batch =
         pending < SHOT_CURVE_PERSIST_BATCH ? pending : SHOT_CURVE_PERSIST_BATCH;
     for (size_t n = 0; n < batch; ++n)
-      image.store_.records[n] = newest(pending - 1U - n);
+      copyShotCurve(image.store_.records[n], newest(pending - 1U - n));
     image.store_.header.count = static_cast<uint16_t>(batch);
     image.store_.header.writeIndex =
         static_cast<uint16_t>(batch % SHOT_CURVE_PERSIST_BATCH);
@@ -322,7 +322,7 @@ class BasicShotCurveLog : public ShotCurveHostStorage {
   bool copyByShotId(uint32_t id, ShotCurveRecord &out) const {
     const auto *record = findNewestById(id);
     if (!record) return false;
-    out = *record;
+    copyShotCurve(out, *record);
     return true;
   }
   size_t copyNewestFirst(ShotCurveRecord *out, size_t capacity) const {
@@ -340,21 +340,15 @@ class BasicShotCurveLog : public ShotCurveHostStorage {
   static constexpr uint32_t kEpochMagic = 0x53434550;
   static constexpr uint32_t kCommitted = UINT32_MAX - 1U;
   static constexpr uint32_t kDeleted = UINT32_MAX - 3U;
-  // Aligned schema-3 worst case: 36 header + 18 fixed + 1201 x 6 stream +
-  // 2 x 151 bitmap bytes = 7562 -> 7564. Unreachable by valid records (time
-  // escapes are capped by the 60000 ms domain); it bounds the buffers.
-  static constexpr size_t kDiskCapacity = 7564;
-  // Schema 1-2 blocks hold absolute points: 36 + 18 + 1201 x 4 + 302 -> 5160.
-  static constexpr size_t kLegacyDiskCapacity = 5240;
-  static_assert(((sizeof(ShotCurveBlockHeader) + 18U +
-                  6U * SHOT_CURVE_MAX_POINTS + 2U * SHOT_CURVE_BREAK_BYTES +
-                  3U) & ~size_t(3U)) == kDiskCapacity,
-                "Disk capacity must cover the aligned schema-3 worst case");
-  static_assert(kLegacyDiskCapacity >=
-                    ((sizeof(ShotCurveBlockHeader) + 18U +
-                      4U * SHOT_CURVE_MAX_POINTS +
-                      2U * SHOT_CURVE_BREAK_BYTES + 3U) & ~size_t(3U)),
-                "Legacy bound must cover aligned schema 1-2 blocks");
+  // Aligned schema-3 worst case of a valid record: 36 header + 18 fixed +
+  // the record's stream bound + 2 x 151 bitmap bytes = 5630 -> 5632.
+  static constexpr size_t kDiskCapacity =
+      (sizeof(ShotCurveBlockHeader) + 18U + SHOT_CURVE_STREAM_BYTES +
+       2U * SHOT_CURVE_BREAK_BYTES + 3U) & ~size_t(3U);
+  static_assert(kDiskCapacity == 5632 && kDiskCapacity <= SHOT_CURVE_BLOCK_BYTES,
+                "Every valid record fits one aligned block");
+  static_assert(sizeof(ShotCurveRecord) <= kDiskCapacity,
+                "The load-order swap borrows disk_ as one record of scratch");
   bool deletionPending(uint32_t id) const {
     for (size_t i = 0; i < deletionCount_; ++i)
       if (deletions_[i] == id) return true;
@@ -368,10 +362,8 @@ class BasicShotCurveLog : public ShotCurveHostStorage {
   }
   static bool validHeader(const ShotCurveBlockHeader &h) {
     return h.magic == SHOT_CURVE_MAGIC &&
-           (h.schema == 1U || h.schema == 2U || h.schema == 3U) &&
-           h.bytes >= sizeof(h) + 18U &&
-           h.bytes <= (h.schema == 3U ? kDiskCapacity : kLegacyDiskCapacity) &&
-           h.bytes <= SHOT_CURVE_BLOCK_BYTES && h.bytes % 4U == 0 &&
+           h.schema == SHOT_CURVE_SCHEMA_VERSION && h.bytes >= sizeof(h) + 18U &&
+           h.bytes <= kDiskCapacity && h.bytes % 4U == 0 &&
            h.shotId != 0 && h.sequence != 0 && h.floor <= h.sequence &&
            h.count <= SHOT_CURVE_MAX_POINTS && (h.flags == 1U || h.flags == 3U) &&
            (h.validity == kCommitted || h.validity == kDeleted);
@@ -395,38 +387,19 @@ class BasicShotCurveLog : public ShotCurveHostStorage {
     return ~crc32Update(crc, disk_ + sizeof(ShotCurveBlockHeader),
                         bytes - sizeof(ShotCurveBlockHeader));
   }
+  // The record's stream is the schema-3 payload as is: no re-encoding.
   void encode(const ShotCurveRecord &r, uint32_t floor) {
     memset(disk_, 0, sizeof(disk_));
     auto *h = reinterpret_cast<ShotCurveBlockHeader *>(disk_);
     uint8_t *p = disk_ + sizeof(*h);
     memcpy(p, &r.atmClearedMs, 18); p += 18;
-    // Schema 3 delta stream: dt/dw inside one-byte range cost one byte,
-    // otherwise a marker plus the absolute value. Prev state starts 0/0.
-    uint16_t prevAtMs = 0;
-    int16_t prevWeightCg = 0;
-    size_t emitted = 0;
-    for (; emitted < r.count; ++emitted) {
-      const uint32_t dt = static_cast<uint32_t>(r.atMs[emitted]) - prevAtMs;
-      const int dw = r.weightCg[emitted] - prevWeightCg;
-      const size_t need = (dt <= 254U ? 1U : 3U) + (dw >= -127 && dw <= 127 ? 1U : 3U);
-      const size_t bitmaps = 2U * ((emitted + 8U) / 8U);
-      // Defensive budget: no valid record reaches it, but a hypothetical
-      // overflow stores a truncated prefix instead of writing past disk_.
-      if ((((p - disk_) + need + bitmaps + 3U) & ~size_t(3U)) > kDiskCapacity) break;
-      if (dt <= 254U) *p++ = static_cast<uint8_t>(dt);
-      else { *p++ = 0xFF; memcpy(p, &r.atMs[emitted], 2); p += 2; }
-      if (dw >= -127 && dw <= 127) *p++ = static_cast<uint8_t>(dw);
-      else { *p++ = 0x80; memcpy(p, &r.weightCg[emitted], 2); p += 2; }
-      prevAtMs = r.atMs[emitted];
-      prevWeightCg = r.weightCg[emitted];
-    }
-    const bool prefix = emitted < r.count;
-    h->count = static_cast<uint16_t>(emitted);
-    size_t bits = (emitted + 7U) / 8U;
+    memcpy(p, r.stream, r.bytes); p += r.bytes;
+    const size_t bits = (r.count + 7U) / 8U;
     memcpy(p, r.breakBefore, bits);
     memcpy(p + bits, r.held, bits);
-    if (prefix && emitted % 8U != 0U) {
-      const uint8_t tail = static_cast<uint8_t>((1U << (emitted % 8U)) - 1U);
+    // Bits past the count are stale record bytes, never observations.
+    if (r.count % 8U != 0U) {
+      const uint8_t tail = static_cast<uint8_t>((1U << (r.count % 8U)) - 1U);
       p[bits - 1U] &= tail;
       p[2U * bits - 1U] &= tail;
     }
@@ -438,8 +411,9 @@ class BasicShotCurveLog : public ShotCurveHostStorage {
     h->sequence = sequence_ + 1U;
     h->floor = floor;
     h->shotId = r.shotId;
-    // Millisecond times; bit 1 marks truncation (domain or encode prefix).
-    h->flags = static_cast<uint16_t>(1U | ((r.truncated || prefix) ? 2U : 0U));
+    h->count = r.count;
+    // Millisecond times; bit 1 marks truncation.
+    h->flags = static_cast<uint16_t>(1U | (r.truncated ? 2U : 0U));
     h->validity = kCommitted;
     h->checksum = blockChecksum(h->bytes);
   }
@@ -447,71 +421,35 @@ class BasicShotCurveLog : public ShotCurveHostStorage {
     const auto *h = reinterpret_cast<const ShotCurveBlockHeader *>(disk_);
     resetShotCurveRecord(r);
     r.shotId = h->shotId;
-    const uint8_t *p = disk_ + sizeof(*h);
     r.count = h->count;
     r.truncated = (h->flags & 2U) != 0;
     const size_t bits = (r.count + 7U) / 8U;
-    if (h->schema == 3U) {
-      // Delta stream framed by the trailing bitmap bytes; padding is zero.
-      const size_t bitmapBytes = 2U * bits;
-      if (h->bytes < sizeof(*h) + 18U + bitmapBytes) return false;
-      const uint8_t *limit = disk_ + h->bytes - bitmapBytes;
-      memcpy(&r.atmClearedMs, p, 18); p += 18;
-      // Unsigned modular accumulation: corrupt blocks may wrap, which
-      // validShotCurveRecord then rejects; signed math would be UB.
-      uint32_t atMs = 0;
-      int weightCg = 0;
-      for (size_t i = 0; i < r.count; ++i) {
-        if (p >= limit) return false;
-        uint8_t byte = *p++;
-        if (byte == 0xFF) {
-          if (p + 2 > limit) return false;
-          atMs = static_cast<uint32_t>(p[0] | (p[1] << 8));
-          p += 2;
-        } else {
-          atMs = (atMs + byte) & 0xFFFFU;
-        }
-        r.atMs[i] = static_cast<uint16_t>(atMs);
-        if (p >= limit) return false;
-        byte = *p++;
-        if (byte == 0x80) {
-          if (p + 2 > limit) return false;
-          int absolute = p[0] | (p[1] << 8);
-          if (absolute >= 0x8000) absolute -= 0x10000;
-          weightCg = absolute;
-          p += 2;
-        } else {
-          weightCg += byte >= 0x80 ? byte - 256 : byte;
-          if (weightCg > INT16_MAX) weightCg -= 0x10000;
-          else if (weightCg < INT16_MIN) weightCg += 0x10000;
-        }
-        r.weightCg[i] = static_cast<int16_t>(weightCg);
-      }
-      if ((((p - disk_) + bitmapBytes + 3U) & ~size_t(3U)) != h->bytes) return false;
-      memcpy(r.breakBefore, p, bits);
-      memcpy(r.held, p + bits, bits);
-      // Tail bits at or past count are padding noise, never observations.
-      if (r.count % 8U != 0U) {
-        const uint8_t tail = static_cast<uint8_t>((1U << (r.count % 8U)) - 1U);
-        r.breakBefore[bits - 1U] &= tail;
-        r.held[bits - 1U] &= tail;
-      }
-      for (const uint8_t *pad = p + bitmapBytes; pad < disk_ + h->bytes; ++pad)
-        if (*pad != 0U) return false;
-      return validShotCurveRecord(r);
-    }
-    // Schema 1 predates the held bitmap: every sample was accepted weight.
-    const size_t bitmaps = h->schema == 1U ? 1U : 2U;
-    const size_t expected = (sizeof(*h) + 18U + r.count * 4U + bitmaps * bits +
-                             3U) & ~size_t(3U);
-    if (h->bytes != expected) return false;
+    const size_t fixed = sizeof(*h) + 18U;
+    if (h->bytes < fixed + 2U * bits) return false;
+    const uint8_t *p = disk_ + sizeof(*h);
     memcpy(&r.atmClearedMs, p, 18); p += 18;
-    for (size_t i = 0; i < r.count; ++i) {
-      memcpy(&r.atMs[i], p, 2); p += 2;
-      memcpy(&r.weightCg[i], p, 2); p += 2;
+    // The stream ends at its count-th point; the bitmaps and zero padding
+    // follow, so the walk alone frames the block.
+    const size_t room = h->bytes - fixed - 2U * bits;
+    r.bytes = static_cast<uint16_t>(room < SHOT_CURVE_STREAM_BYTES ? room : SHOT_CURVE_STREAM_BYTES);
+    memcpy(r.stream, p, r.bytes);
+    ShotCurveReader walk;
+    if (!shotCurveSeek(r, r.count, walk) ||
+        ((fixed + walk.offset + 2U * bits + 3U) & ~size_t(3U)) != h->bytes) return false;
+    r.bytes = static_cast<uint16_t>(walk.offset);
+    r.lastAtMs = walk.atMs;
+    r.lastWeightCg = walk.weightCg;
+    p += walk.offset;
+    memcpy(r.breakBefore, p, bits);
+    memcpy(r.held, p + bits, bits);
+    // Tail bits at or past count are padding noise, never observations.
+    if (r.count % 8U != 0U) {
+      const uint8_t tail = static_cast<uint8_t>((1U << (r.count % 8U)) - 1U);
+      r.breakBefore[bits - 1U] &= tail;
+      r.held[bits - 1U] &= tail;
     }
-    memcpy(r.breakBefore, p, bits); p += bits;
-    if (bitmaps == 2U) memcpy(r.held, p, bits);
+    for (const uint8_t *pad = p + 2U * bits; pad < disk_ + h->bytes; ++pad)
+      if (*pad != 0U) return false;
     return validShotCurveRecord(r);
   }
 

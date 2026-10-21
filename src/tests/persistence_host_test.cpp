@@ -7,6 +7,7 @@
 #include "../ShotStopperRecoveryGesture.h"
 #include "../ShotStopperShotLog.h"
 #include "../ShotStopperShotCurve.h"
+#include "shot_curve_test_helpers.h"
 #include "../ShotStopperHistory.h"
 #include "../ShotStopperActivationStores.h"
 #include "../ShotStopperLastShot.h"
@@ -692,8 +693,7 @@ void p66b_snapshot_acknowledgement_preserves_newest_generation() {
   check_snapshot_persistence<HistoryLog>(HistoryRecord{});
   ShotCurveRecord curve = emptyShotCurveRecord();
   curve.shotId = 1;
-  curve.count = 1;
-  curve.weightCg[0] = 3690;
+  CHECK(appendShotCurvePoint(curve, 3690, 0, false));
   CHECK(validShotCurveRecord(curve));
 }
 
@@ -1032,8 +1032,9 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(RuntimeConfig) == 312);
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
   // 6920: +8 bytes for the hero tint; 6944: +24 for the drip chart; 6952: +8
-  // for its ten shots (external work-area growth; see ShotStopperControlStatusTypes.inc).
-  CHECK(sizeof(ControlStatusSnapshot) <= 6952);
+  // for its ten shots; 7432: the delta-stream curve record (external
+  // work-area growth; see ShotStopperControlStatusTypes.inc).
+  CHECK(sizeof(ControlStatusSnapshot) <= 7432);
   CHECK(sizeof(ControlGateSnapshot) <= 32);
   CHECK(sizeof(WebCommand) <= 440);
   WebCommand command;
@@ -1753,11 +1754,10 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
 
   ShotCurveLog curves;
   CHECK(curves.load());
-  ShotCurveRecord curve = {};
+  ShotCurveRecord curve = emptyShotCurveRecord();
   curve.shotId = 1;
-  curve.count = 2;
-  curve.weightCg[0] = 0;
-  curve.weightCg[1] = 1800;
+  CHECK(appendShotCurvePoint(curve, 0, 0, false) &&
+        appendShotCurvePoint(curve, 1800, 0, false));
   CHECK(curves.append(curve));
 
   LastShotStore lastShot;
@@ -1853,29 +1853,25 @@ void p60_factory_intent_survives_failed_store_reset() {
 void p61_shot_curve_dual_slot_round_trip_and_delete() {
   resetHostPersistence();
   CHECK(SHOT_CURVE_MAX_POINTS == 1201);
-  CHECK(sizeof(ShotCurveRecord) == 5132);
-  CHECK(sizeof(ShotCurveStore) == 2566020);
+  CHECK(sizeof(ShotCurveRecord) == 5608);
+  CHECK(sizeof(ShotCurveStore) == 2804004);
   CHECK(sizeof(ShotCurveStore) % 4 == 0);
   CHECK(SHOT_CURVE_PARTITION_BYTES == 4016 * 1024);
   ShotCurveRecord full = emptyShotCurveRecord();
-  full.count = SHOT_CURVE_MAX_POINTS;
-  for (size_t i = 0; i < SHOT_CURVE_MAX_POINTS; ++i) {
-    full.weightCg[i] = -32767;
-    full.atMs[i] = static_cast<uint16_t>(i * 50);
-    full.breakBefore[i / 8U] |= static_cast<uint8_t>(1U << (i % 8U));
-    full.held[i / 8U] |= static_cast<uint8_t>(1U << (i % 8U));
-  }
+  for (size_t i = 0; i < SHOT_CURVE_MAX_POINTS; ++i)
+    CHECK(appendShotCurvePoint(full, -32767, static_cast<uint32_t>(i * 50), true, true));
+  CHECK(full.count == SHOT_CURVE_MAX_POINTS && curvePoint(full, 1200).atMs == 60000);
   char curveJson[SHOT_CURVE_JSON_CAPACITY] = {};
   CHECK(formatShotCurveJsonBody(curveJson, sizeof(curveJson), full));
   CHECK(strstr(curveJson, "\"wHeld\":[0,1,2") != nullptr);
-  CHECK(strstr(curveJson, "\"wAtMs\":[0,50,100") != nullptr);
-  CHECK(strstr(curveJson, "60000]") != nullptr);
+  // dt 0 with an escaped -32767 (00 80 01 80), then dt 50, dw 0 (32 00).
+  CHECK(strstr(curveJson, "\"wD\":\"AIABgDIAMgAy") == curveJson);
+  CHECK(strstr(curveJson, ",1200],\"wHeld\"") != nullptr);
   ShotCurveLog curves;
   CHECK(curves.load());
   CHECK(curves.count() == 0);
   ShotCurveRecord first = emptyShotCurveRecord();
   first.shotId = 7;
-  first.count = 3;
   first.firstDrop.atMs = 4557;
   first.firstDrop.weightCg = 50;
   first.extended.atMs = 18013;
@@ -1884,17 +1880,15 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   first.atm.weightCg = 1900;
   first.ended.atMs = 22057;
   first.ended.weightCg = 1900;
-  first.weightCg[0] = 0;
-  first.weightCg[1] = 900;
-  first.weightCg[2] = 1800;
-  first.atMs[2] = 22000;
+  CHECK(appendShotCurvePoint(first, 0, 0, false) &&
+        appendShotCurvePoint(first, 900, 0, false) &&
+        appendShotCurvePoint(first, 1800, 22000, false));
   CHECK(appendShotCurveObservation(first, 19.0f, 23057, true));
   CHECK(curves.append(first));
   ShotCurveRecord second = emptyShotCurveRecord();
   second.shotId = 8;
-  second.count = 2;
-  second.weightCg[0] = 10;
-  second.weightCg[1] = 400;
+  CHECK(appendShotCurvePoint(second, 10, 0, false) &&
+        appendShotCurvePoint(second, 400, 0, false));
   CHECK(curves.append(second));
   ShotCurveLog reloaded;
   CHECK(reloaded.load());
@@ -1907,18 +1901,18 @@ void p61_shot_curve_dual_slot_round_trip_and_delete() {
   CHECK(newest[1].extended.atMs == 18013);
   CHECK(newest[1].atm.atMs == 20027);
   CHECK(newest[1].ended.atMs == 22057);
-  CHECK(newest[1].count == 4 && newest[1].atMs[3] == 23057);
-  CHECK(newest[1].weightCg[3] == 1900 && shotCurveBreakBefore(newest[1], 3));
+  CHECK(newest[1].count == 4 && curvePoint(newest[1], 3).atMs == 23057);
+  CHECK(curvePoint(newest[1], 3).cg == 1900 && shotCurveBreakBefore(newest[1], 3));
   CHECK(formatShotCurveJsonBody(curveJson, sizeof(curveJson), newest[1]));
   CHECK(strstr(curveJson, "\"dropS\":4.557") != nullptr);
   CHECK(strstr(curveJson, "\"extendedS\":18.013") != nullptr);
   CHECK(strstr(curveJson, "\"atmS\":20.027") != nullptr);
   CHECK(strstr(curveJson, "\"endS\":22.057") != nullptr);
-  CHECK(newest[1].weightCg[2] == 1800);
+  CHECK(curvePoint(newest[1], 2).cg == 1800);
   ShotCurveRecord exact = {};
   CHECK(reloaded.copyByShotId(7, exact));
   CHECK(exact.shotId == 7);
-  CHECK(exact.weightCg[2] == 1800);
+  CHECK(curvePoint(exact, 2).cg == 1800);
   CHECK(!appendShotCurveObservation(exact, 20, 21000, false));
   CHECK(exact.count == 4);
   CHECK(!appendShotCurveObservation(exact, 20, 60001, false));
@@ -1953,10 +1947,10 @@ void p61b_shot_curve_failed_compaction_restores_durable_ring() {
   ShotCurveLog curves;
   CHECK(curves.load());
   ShotCurveRecord record = emptyShotCurveRecord();
-  record.count = 1;
   for (uint32_t id = 1; id <= SHOT_CURVE_CAPACITY; ++id) {
+    resetShotCurveRecord(record);
     record.shotId = id;
-    record.weightCg[0] = static_cast<int16_t>(id);
+    CHECK(appendShotCurvePoint(record, static_cast<int16_t>(id), 0, false));
     CHECK(curves.append(record, false));
   }
   CHECK(curves.flush());
@@ -1974,7 +1968,7 @@ void p61b_shot_curve_failed_compaction_restores_durable_ring() {
         SHOT_CURVE_CAPACITY);
   for (size_t i = 0; i < SHOT_CURVE_CAPACITY; ++i) {
     CHECK(restored[i].shotId == durable[i].shotId);
-    CHECK(restored[i].weightCg[0] == durable[i].weightCg[0]);
+    CHECK(curvePoint(restored[i], 0).cg == curvePoint(durable[i], 0).cg);
   }
 }
 
@@ -1986,8 +1980,9 @@ void writeLegacyCurveBlock(uint8_t *block, const ShotCurveRecord &r,
   uint8_t *p = block + sizeof(ShotCurveBlockHeader);
   memcpy(p, &r.atmClearedMs, 18); p += 18;
   for (size_t i = 0; i < r.count; ++i) {
-    memcpy(p, &r.atMs[i], 2); p += 2;
-    memcpy(p, &r.weightCg[i], 2); p += 2;
+    const CurvePoint point = curvePoint(r, i);
+    memcpy(p, &point.atMs, 2); p += 2;
+    memcpy(p, &point.cg, 2); p += 2;
   }
   const size_t bits = (r.count + 7U) / 8U;
   memcpy(p, r.breakBefore, bits); p += bits;
@@ -2021,68 +2016,42 @@ uint8_t *findCurveBlock(uint32_t shotId) {
   return nullptr;
 }
 
-void p61c_shot_curve_schema_1_blocks_survive_update() {
-  // Curves written before the held bitmap and before delta encoding must
-  // still load after an update, beside current-schema records.
+void p61c_shot_curve_legacy_schemas_are_dropped() {
+  // Absolute-point blocks (schemas 1 and 2) no longer load; current-schema
+  // records still persist beside them in the same store.
   resetHostPersistence();
   ShotCurveRecord legacy = emptyShotCurveRecord();
   legacy.shotId = 41;
-  legacy.count = 9;  // Two bitmap bytes: the schemas differ in length.
-  for (size_t i = 0; i < legacy.count; ++i) {
-    legacy.atMs[i] = static_cast<uint16_t>(i * 100U);
-    legacy.weightCg[i] = static_cast<int16_t>(i * 40U);
-  }
-  legacy.breakBefore[1] = 0x01;  // Index 8 starts a segment.
-  ShotCurveRecord held = legacy;
-  held.shotId = 42;
-  held.held[0] = 0x0c;  // Indices 2 and 3 were held.
+  for (size_t i = 0; i < 9; ++i)  // Two bitmap bytes: 9 % 8 == 1.
+    CHECK(appendShotCurvePoint(legacy, static_cast<int16_t>(i * 40U),
+                               static_cast<uint32_t>(i * 100U), i == 8, i == 2 || i == 3));
   uint8_t *flash = ShotCurveLog::hostFlashForTest();
   writeLegacyCurveBlock(flash + 2U * FLASH_IO_SECTOR_BYTES, legacy, 1, 1);
+  legacy.shotId = 42;
   writeLegacyCurveBlock(flash + 2U * FLASH_IO_SECTOR_BYTES + SHOT_CURVE_BLOCK_BYTES,
-                        held, 2, 2);
+                        legacy, 2, 2);
 
   ShotCurveLog updated;
   CHECK(updated.load());
-  CHECK(updated.count() == 2);
-  ShotCurveRecord loaded = {};
-  CHECK(updated.copyByShotId(41, loaded));
-  CHECK(loaded.count == 9 && loaded.weightCg[8] == 320);
-  CHECK(shotCurveBreakBefore(loaded, 8) && !shotCurveBreakBefore(loaded, 7));
-  for (size_t i = 0; i < loaded.count; ++i) CHECK(!shotCurveHeld(loaded, i));
-  CHECK(updated.copyByShotId(42, loaded));
-  CHECK(shotCurveHeld(loaded, 2) && shotCurveHeld(loaded, 3) &&
-        !shotCurveHeld(loaded, 4) && shotCurveBreakBefore(loaded, 8));
-
-  // New records are written as the current schema into the same mixed store;
-  // every schema must stay enumerated or older blocks silently disappear.
+  CHECK(updated.count() == 0);
   ShotCurveRecord current = legacy;
   current.shotId = 43;
-  current.held[0] = 0x0c;
   CHECK(updated.append(current));
   ShotCurveLog reloaded;
   CHECK(reloaded.load());
-  CHECK(reloaded.count() == 3);
-  CHECK(reloaded.copyByShotId(41, loaded) && !shotCurveHeld(loaded, 2));
-  CHECK(reloaded.copyByShotId(42, loaded) && shotCurveHeld(loaded, 2));
+  CHECK(reloaded.count() == 1);
+  ShotCurveRecord loaded = {};
+  CHECK(!reloaded.copyByShotId(41, loaded) && !reloaded.copyByShotId(42, loaded));
   CHECK(reloaded.copyByShotId(43, loaded));
+  CHECK(loaded.count == 9 && curvePoint(loaded, 8).cg == 320);
   CHECK(shotCurveHeld(loaded, 2) && shotCurveHeld(loaded, 3) &&
         !shotCurveHeld(loaded, 4) && shotCurveBreakBefore(loaded, 8));
   char json[SHOT_CURVE_JSON_CAPACITY] = {};
   CHECK(formatShotCurveJsonBody(json, sizeof(json), loaded));
   CHECK(strstr(json, "\"wBreakBefore\":[8],\"wHeld\":[2,3]") != nullptr);
   CHECK(formatShotCurveJsonBody(json, sizeof(json), loaded, 3));
+  CHECK(strstr(json, "\"wRef\":[200,80],") == json);
   CHECK(strstr(json, "\"wHeld\":[3]") != nullptr);
-}
-
-void p62_shot_curve_foreign_schema_is_rejected() {
-  ShotCurveStore store;
-  resetShotCurveStore(store);
-  CHECK(validShotCurveStore(store));
-  CHECK(store.header.schemaVersion == SHOT_CURVE_SCHEMA_VERSION);
-  store.header.schemaVersion = SHOT_CURVE_SCHEMA_VERSION - 1;
-  store.header.checksum = 0;
-  store.header.checksum = shotCurveChecksum(store);
-  CHECK(!validShotCurveStore(store));
 }
 
 void p67_ensure_recovery_intent_skips_rewrite_when_valid() {
@@ -2593,7 +2562,7 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
     sampler.accept(12.34f, sampler.startMs + t);
   CHECK(sampler.count == 1201);
   CHECK(!sampler.truncated);
-  CHECK(sampler.atMs[0] == 0 && sampler.atMs[1200] == 60000);
+  CHECK(curvePoint(sampler, 0).atMs == 0 && curvePoint(sampler, 1200).atMs == 60000);
   sampler.accept(12.34f, sampler.startMs + 60000);
   CHECK(sampler.truncated && sampler.count == 1201);
   ShotCurveRecord complete;
@@ -2609,7 +2578,7 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
   CHECK(ShotCurveLog::hostWriteBytes() - denseWritten == 2760);
   ShotCurveRecord restored;
   CHECK(maximum.copyByShotId(101, restored));
-  CHECK(restored.count == 1201 && !restored.truncated && restored.atMs[1200] == 60000);
+  CHECK(restored.count == 1201 && !restored.truncated && curvePoint(restored, 1200).atMs == 60000);
   CHECK(restored.firstDrop.atMs == 1057);
   ShotCurveRecord full;
   sampler.snapshot(full, 101);
@@ -2624,8 +2593,7 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
     ShotCurveLog live;
     CHECK(live.load());
     ShotCurveRecord small = emptyShotCurveRecord();
-    small.count = 1;
-    small.weightCg[0] = 100;
+    CHECK(appendShotCurvePoint(small, 100, 0, false));
     for (uint32_t id = 1; id <= SHOT_CURVE_CAPACITY; ++id) {
       small.shotId = id;
       CHECK(live.append(small));
@@ -2647,8 +2615,8 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
     if (committed) {
       ShotCurveRecord out;
       CHECK(reloaded.copyByShotId(SHOT_CURVE_CAPACITY + 1, out));
-      CHECK(out.count == 1201 && out.atMs[1200] == 60000);
-      CHECK(out.weightCg[1200] == 1234 && out.truncated);
+      CHECK(out.count == 1201 && curvePoint(out, 1200).atMs == 60000);
+      CHECK(curvePoint(out, 1200).cg == 1234 && out.truncated);
       CHECK(reloaded.removeById(SHOT_CURVE_CAPACITY + 1));
       CHECK(live.load());
       CHECK(!live.containsShotId(1)); // Retention floor survives newest deletion.
@@ -2663,7 +2631,7 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
   sampler.accept(1, 500);
   sampler.markBreak();
   sampler.accept(2, 1250);
-  CHECK(sampler.count == 4 && sampler.atMs[2] == 500);
+  CHECK(sampler.count == 4 && curvePoint(sampler, 2).atMs == 500);
   ShotCurveRecord sparse;
   sampler.snapshot(sparse, 1);
   CHECK(!shotCurveBreakBefore(sparse, 1));
@@ -2673,7 +2641,7 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
   CHECK(sampler.count == 4);
   sampler.snapshot(sparse, 1);
   CHECK(settleShotCurveEndWeight(sparse, 3));
-  CHECK(sparse.weightCg[3] == 200 && sparse.ended.weightCg == 300);
+  CHECK(curvePoint(sparse, 3).cg == 200 && sparse.ended.weightCg == 300);
 
   // Reuse a former long block for a short record; its untouched second sector
   // is padding, never another curve or part of the short-record checksum.
@@ -2682,8 +2650,8 @@ void p61c_timestamped_capacity_and_interrupted_blocks() {
   CHECK(reuse.load());
   complete.shotId = 1;
   CHECK(reuse.append(complete));
-  sparse.count = 1;
-  sparse.weightCg[0] = 100;
+  resetShotCurveRecord(sparse);
+  CHECK(appendShotCurvePoint(sparse, 100, 0, false));
   for (uint32_t id = 2; id <= SHOT_CURVE_CAPACITY; ++id) {
     sparse.shotId = id;
     CHECK(reuse.append(sparse));
@@ -2706,7 +2674,7 @@ void p61d_clear_epochs_and_stale_worker_images() {
     CHECK(live.load());
     ShotCurveRecord r = emptyShotCurveRecord();
     r.shotId = 1;
-    r.count = 1;
+    CHECK(appendShotCurvePoint(r, 0, 0, false));
     CHECK(live.append(r));
     CHECK(live.removeById(1, false));
     ShotCurveLog::setHostFailAfter(stop);
@@ -2722,8 +2690,7 @@ void p61d_clear_epochs_and_stale_worker_images() {
     CHECK(live.load());
     ShotCurveRecord r = emptyShotCurveRecord();
     r.shotId = 1;
-    r.count = 1;
-    r.weightCg[0] = 100;
+    CHECK(appendShotCurvePoint(r, 100, 0, false));
     CHECK(live.append(r));
     CHECK(live.clear(false));
     ShotCurveLog::setHostFailAfter(stop);
@@ -2733,11 +2700,13 @@ void p61d_clear_epochs_and_stale_worker_images() {
     CHECK(reboot.load());
     CHECK(reboot.count() == (stop == 3 ? 0 : 1));
     if (stop == 3) {
-      r.weightCg[0] = 200;
+      resetShotCurveRecord(r);
+      r.shotId = 1;
+      CHECK(appendShotCurvePoint(r, 200, 0, false));
       CHECK(reboot.append(r));
       CHECK(live.load());
       CHECK(live.copyByShotId(1, r));
-      CHECK(r.weightCg[0] == 200);
+      CHECK(curvePoint(r, 0).cg == 200);
     }
   }
   ShotCurveLog::resetHostStorage();
@@ -2745,8 +2714,7 @@ void p61d_clear_epochs_and_stale_worker_images() {
   CHECK(live.load());
   ShotCurveRecord r = emptyShotCurveRecord();
   r.shotId = 1;
-  r.count = 1;
-  r.weightCg[0] = 100;
+  CHECK(appendShotCurvePoint(r, 100, 0, false));
   CHECK(live.append(r, false));
   ShotCurvePersistImage image;
   live.capturePersistenceImage(image);
@@ -2757,7 +2725,9 @@ void p61d_clear_epochs_and_stale_worker_images() {
   CHECK(live.flush());
   ShotCurveLog reboot;
   CHECK(reboot.load() && reboot.count() == 0);
-  r.weightCg[0] = 200;
+  resetShotCurveRecord(r);
+  r.shotId = 1;
+  CHECK(appendShotCurvePoint(r, 200, 0, false));
   CHECK(live.append(r, false));
   live.capturePersistenceImage(image);
   CHECK(live.removeById(1, false));
@@ -2790,7 +2760,7 @@ uint32_t curveFuzzRand() {
 ShotCurveRecord curveFuzzRecord(uint32_t id) {
   ShotCurveRecord r = emptyShotCurveRecord();
   r.shotId = id;
-  r.truncated = (curveFuzzRand() & 1U) != 0U;
+  const bool truncated = (curveFuzzRand() & 1U) != 0U;
   r.firstDrop.atMs = static_cast<uint16_t>(curveFuzzRand() % 60000U);
   r.firstDrop.weightCg = static_cast<int16_t>(curveFuzzRand() % 30000U);
   r.extended.atMs = static_cast<uint16_t>(curveFuzzRand() % 60000U);
@@ -2798,8 +2768,7 @@ ShotCurveRecord curveFuzzRecord(uint32_t id) {
   uint32_t at = 0;
   int32_t weight = 0;
   const uint16_t wanted = static_cast<uint16_t>(curveFuzzRand() % 260U);
-  size_t i = 0;
-  for (; i < wanted; ++i) {
+  for (size_t i = 0; i < wanted; ++i) {
     at += curveFuzzRand() % 700U;
     if (at > 60000U) break;
     int32_t dw = static_cast<int32_t>(curveFuzzRand() % 512U) - 256;
@@ -2807,14 +2776,11 @@ ShotCurveRecord curveFuzzRecord(uint32_t id) {
     weight += dw;
     if (weight > 32767) weight -= 40000;
     else if (weight < -32767) weight += 40000;
-    r.atMs[i] = static_cast<uint16_t>(at);
-    r.weightCg[i] = static_cast<int16_t>(weight);
-    if (curveFuzzRand() & 1U)
-      r.breakBefore[i / 8U] |= static_cast<uint8_t>(1U << (i % 8U));
-    if (curveFuzzRand() & 2U)
-      r.held[i / 8U] |= static_cast<uint8_t>(1U << (i % 8U));
+    const bool split = (curveFuzzRand() & 1U) != 0U;
+    const bool held = (curveFuzzRand() & 2U) != 0U;
+    (void)appendShotCurvePoint(r, static_cast<int16_t>(weight), at, split, held);
   }
-  r.count = static_cast<uint16_t>(i);
+  r.truncated = truncated;  // After the points: a truncated curve takes no more.
   return r;
 }
 
@@ -2826,13 +2792,10 @@ ShotCurveRecord curveBoundaryRecord(uint32_t id) {
   static const int16_t weight[9] = {0, 127, 0, 255, 127, 126, 510, -32767, 32767};
   ShotCurveRecord r = emptyShotCurveRecord();
   r.shotId = id;
-  r.count = 9;  // Two bitmap bytes exercise tail masking (9 % 8 == 1).
-  for (size_t i = 0; i < 9; ++i) {
-    r.atMs[i] = at[i];
-    r.weightCg[i] = weight[i];
-  }
-  r.breakBefore[1] = 0x01;  // Index 8 starts a segment.
-  r.held[0] = 0x81;         // Indices 0 and 7 were held.
+  // Two bitmap bytes exercise tail masking (9 % 8 == 1). Index 8 starts a
+  // segment; indices 0 and 7 were held.
+  for (size_t i = 0; i < 9; ++i)
+    (void)appendShotCurvePoint(r, weight[i], at[i], i == 8, i == 0 || i == 7);
   return r;
 }
 
@@ -2846,17 +2809,12 @@ void p61f_shot_curve_schema3_round_trip_is_lossless() {
   records[n++].shotId = 1;
   records[n] = emptyShotCurveRecord();
   records[n].shotId = 2;
-  records[n].count = 1;
-  records[n].atMs[0] = 60000;
-  records[n++].weightCg[0] = -32767;
+  CHECK(appendShotCurvePoint(records[n++], -32767, 60000, false));
   records[n++] = curveBoundaryRecord(3);
   records[n] = emptyShotCurveRecord();  // Typical dense curve, all direct.
   records[n].shotId = 4;
-  records[n].count = SHOT_CURVE_MAX_POINTS;
-  for (size_t i = 0; i < SHOT_CURVE_MAX_POINTS; ++i) {
-    records[n].atMs[i] = static_cast<uint16_t>(i * 50U);
-    records[n].weightCg[i] = 1234;
-  }
+  for (size_t i = 0; i < SHOT_CURVE_MAX_POINTS; ++i)
+    CHECK(appendShotCurvePoint(records[n], 1234, static_cast<uint32_t>(i * 50U), false));
   ++n;
   for (uint32_t id = 5; id <= 52; ++id) records[n++] = curveFuzzRecord(id);
   for (size_t i = 0; i < n; ++i) CHECK(log.append(records[i], false));
@@ -2876,13 +2834,10 @@ void p61f_shot_curve_schema3_round_trip_is_lossless() {
 ShotCurveRecord curveEscapeRecord(uint32_t id, uint16_t count) {
   ShotCurveRecord r = emptyShotCurveRecord();
   r.shotId = id;
-  r.count = count;
-  for (size_t i = 0; i < count; ++i) {
-    r.atMs[i] = i >= 3 ? 3100 : static_cast<uint16_t>(1000U * (i + 1U));
-    r.weightCg[i] = i == 1 ? 3000 : 0;
-  }
-  r.breakBefore[0] = 0x04;
-  r.held[0] = 0x02;
+  for (size_t i = 0; i < count; ++i)
+    (void)appendShotCurvePoint(r, i == 1 ? 3000 : 0,
+                               i >= 3 ? 3100U : static_cast<uint32_t>(1000U * (i + 1U)),
+                               i == 2, i == 1);
   return r;
 }
 
@@ -2900,13 +2855,16 @@ void p61g_shot_curve_schema3_worst_case_stays_within_budget() {
   CHECK(log.load());
   ShotCurveRecord r = emptyShotCurveRecord();
   r.shotId = 1;
-  r.count = SHOT_CURVE_MAX_POINTS;
   // Byte-maximum valid record: 235 time escapes (255 ms each stay under the
   // 60000 ms domain; more are impossible) and a weight escape on every point.
-  for (size_t i = 0; i < r.count; ++i) {
-    r.atMs[i] = static_cast<uint16_t>(i < 235U ? 255U * (i + 1U) : 59925U);
-    r.weightCg[i] = static_cast<int16_t>(i % 2U == 0U ? 32767 : -32767);
-  }
+  for (size_t i = 0; i < SHOT_CURVE_MAX_POINTS; ++i)
+    CHECK(appendShotCurvePoint(r, static_cast<int16_t>(i % 2U == 0U ? 32767 : -32767),
+                               i < 235U ? 255U * (i + 1U) : 59925U, true, true));
+  CHECK(r.count == SHOT_CURVE_MAX_POINTS && r.bytes == SHOT_CURVE_STREAM_BYTES);
+  // The same record is the Web UI's worst case too.
+  static char json[SHOT_CURVE_JSON_CAPACITY];
+  CHECK(formatShotCurveJsonBody(json, sizeof(json), r));
+  CHECK(strlen(json) + 1U <= SHOT_CURVE_JSON_CAPACITY);
   const size_t erased = ShotCurveLog::hostEraseBytes();
   const size_t written = ShotCurveLog::hostWriteBytes();
   CHECK(log.append(r));
@@ -2917,7 +2875,7 @@ void p61g_shot_curve_schema3_worst_case_stays_within_budget() {
   ShotCurveBlockHeader h = {};
   memcpy(&h, block, sizeof(h));
   CHECK(h.schema == 3 && h.count == SHOT_CURVE_MAX_POINTS && h.flags == 1U);
-  CHECK(h.bytes == 5632 && h.bytes <= 7564);
+  CHECK(h.bytes == 5632);
   ShotCurveLog reloaded;
   CHECK(reloaded.load() && reloaded.count() == 1);
   ShotCurveRecord out = {};
@@ -2972,14 +2930,10 @@ void p61i_shot_curve_schema3_wire_format_is_pinned() {
   static const int16_t weight[9] = {0, 127, 255, 127, 126, 510, 509, -32767, 32767};
   ShotCurveRecord expected = emptyShotCurveRecord();
   expected.shotId = 44;
-  expected.count = 9;
-  for (size_t i = 0; i < 9; ++i) {
-    expected.atMs[i] = at[i];
-    expected.weightCg[i] = weight[i];
-  }
-  expected.breakBefore[0] = 0x08;
-  expected.breakBefore[1] = 0x01;  // Index 8 starts a segment.
-  expected.held[0] = 0x81;         // Indices 0 and 7 were held.
+  // Indices 3 and 8 start segments; indices 0 and 7 were held.
+  for (size_t i = 0; i < 9; ++i)
+    CHECK(appendShotCurvePoint(expected, weight[i], at[i], i == 3 || i == 8, i == 0 || i == 7));
+  CHECK(expected.bytes == sizeof(stream) && memcmp(expected.stream, stream, sizeof(stream)) == 0);
 
   resetHostPersistence();
   uint8_t *block = ShotCurveLog::hostFlashForTest() + 2U * FLASH_IO_SECTOR_BYTES;
@@ -3022,7 +2976,7 @@ void p66c_activation_capture_skips_clean_payloads() {
   CHECK(live.begin() && live.shotLog.flush());
   ShotCurveRecord curve = emptyShotCurveRecord();
   curve.shotId = 1;
-  curve.count = 1;
+  CHECK(appendShotCurvePoint(curve, 0, 0, false));
   CHECK(live.shotCurves.append(curve));
   // Stale clean payloads in the reused image must neither copy nor flush.
   CHECK(image.shotLog.append(ShotLogRecord{}, false));
@@ -3054,24 +3008,25 @@ void p61e_selective_curve_capture_preserves_retention_and_retry() {
     ShotCurvePersistImage image;
     CHECK(live.load());
     ShotCurveRecord record = emptyShotCurveRecord();
-    record.count = 1;
-    for (uint32_t id = 1; id <= SHOT_CURVE_CAPACITY; ++id) {
+    const auto single = [&](uint32_t id, int16_t cg) {
+      resetShotCurveRecord(record);
       record.shotId = id;
-      record.weightCg[0] = static_cast<int16_t>(id);
+      return appendShotCurvePoint(record, cg, 0, false);
+    };
+    for (uint32_t id = 1; id <= SHOT_CURVE_CAPACITY; ++id) {
+      CHECK(single(id, static_cast<int16_t>(id)));
       CHECK(live.append(record));
     }
     live.capturePersistenceImage(image);
     CHECK(!image.dirty() && image.count() == 0);
-    record.shotId = SHOT_CURVE_CAPACITY + 1U;
-    record.weightCg[0] = 1001;
+    CHECK(single(SHOT_CURVE_CAPACITY + 1U, 1001));
     CHECK(live.append(record, false));
     live.capturePersistenceImage(image);
     CHECK(image.dirty() && image.count() == 1);
     CHECK(image.containsId(record.shotId));
     CHECK(!image.containsId(SHOT_CURVE_CAPACITY));
     // A newer live record cannot be cleared by this captured generation.
-    record.shotId = SHOT_CURVE_CAPACITY + 2U;
-    record.weightCg[0] = 1002;
+    CHECK(single(SHOT_CURVE_CAPACITY + 2U, 1002));
     CHECK(live.append(record, false));
     ShotCurveLog::setHostFailAfter(failureAfter);
     FlashStoreStepResult result;
@@ -3089,9 +3044,9 @@ void p61e_selective_curve_capture_preserves_retention_and_retry() {
     CHECK(reboot.load() && reboot.count() == SHOT_CURVE_CAPACITY);
     CHECK(!reboot.containsId(1) && !reboot.containsId(2));
     CHECK(reboot.copyByShotId(SHOT_CURVE_CAPACITY + 1U, record));
-    CHECK(record.weightCg[0] == 1001);
+    CHECK(curvePoint(record, 0).cg == 1001);
     CHECK(reboot.copyByShotId(SHOT_CURVE_CAPACITY + 2U, record));
-    CHECK(record.weightCg[0] == 1002);
+    CHECK(curvePoint(record, 0).cg == 1002);
     CHECK(live.removeById(SHOT_CURVE_CAPACITY + 1U, false));
     live.capturePersistenceImage(image);
     CHECK(image.dirty() && image.count() == 0);
@@ -3113,7 +3068,7 @@ void p61j_curve_image_batches_backlog_oldest_first() {
   CHECK(live.load());
   constexpr uint32_t backlog = 2U * SHOT_CURVE_PERSIST_BATCH + 1U;
   ShotCurveRecord record = emptyShotCurveRecord();
-  record.count = 1;
+  CHECK(appendShotCurvePoint(record, 0, 0, false));
   for (uint32_t id = 1; id <= backlog; ++id) {
     record.shotId = id;
     CHECK(live.append(record, false));
@@ -3390,12 +3345,11 @@ const TestCase tests[] = {
     {"P74", p74_factory_intent_second_failure_keeps_settings},
     {"P61", p61_shot_curve_dual_slot_round_trip_and_delete},
     {"P61B", p61b_shot_curve_failed_compaction_restores_durable_ring},
-    {"P61C", p61c_shot_curve_schema_1_blocks_survive_update},
+    {"P61C", p61c_shot_curve_legacy_schemas_are_dropped},
     {"P61F", p61f_shot_curve_schema3_round_trip_is_lossless},
     {"P61G", p61g_shot_curve_schema3_worst_case_stays_within_budget},
     {"P61H", p61h_shot_curve_schema3_malformed_blocks_are_rejected},
     {"P61I", p61i_shot_curve_schema3_wire_format_is_pinned},
-    {"P62", p62_shot_curve_foreign_schema_is_rejected},
     {"P63", p63_flash_io_lock_fails_closed_without_mutex},
 };
 

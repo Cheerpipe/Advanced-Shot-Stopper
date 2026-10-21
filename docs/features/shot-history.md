@@ -407,8 +407,9 @@ and groups beyond a shot's captured length leave empty cells. The export
 does not resample to a grid, so different scale cadences remain visible without
 creating a column for every distinct arrival time.
 
-The underlying curve JSON pairs centigram weights in `wCg` with integer
-elapsed milliseconds in `wAtMs`. `wBreakBefore` supplies the same
+The underlying curve JSON carries the readings as one compact stream (`wD`,
+centigram weights with integer elapsed milliseconds), which the page expands
+into the chart and the export. `wBreakBefore` supplies the same
 segment-start indices, `wHeld` the ignored-touch indices, and `wTruncated`
 reports completeness.
 Spreadsheets using the former `yield_dt_s`, `yield_<time>s` or

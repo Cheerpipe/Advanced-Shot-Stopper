@@ -710,8 +710,9 @@ if (generated.cssGzip.length > 15742) {
 // The Home shot card live flow averaged over its last second brings it to 39579; owner-requested 2026-10-19.
 // The Home shot card firmware clock in both scale modes with its ±0.1 s final swap brings it to 39655; owner-requested 2026-10-19.
 // Shot card field deltas merged over the previous card bring it to 39668; owner-requested 2026-10-20.
-if (sentinelRuntimeGzip.length > 39668) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 39668-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Shot curves decoded from the firmware's delta stream, with the minimal live envelope, bring it to 39974; owner-requested 2026-10-20.
+if (sentinelRuntimeGzip.length > 39974) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 39974-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -967,8 +968,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The drip chart ten-slot window measures Cold Home at 67051; owner-requested 2026-10-20.
 // The Stats consistency clipped-column notch CSS brings it to 67062; owner-requested 2026-10-20.
 // The Home preset rules peek and its graph chevron bring it to 67235; owner-requested 2026-10-20.
-if (coldHomeGzip > 67235) {
-  throw new Error(`Cold Home download exceeds the 67235-byte gzip budget (${coldHomeGzip})`);
+// Shot curves decoded from the firmware's delta stream bring it to 67543; owner-requested 2026-10-20.
+if (coldHomeGzip > 67543) {
+  throw new Error(`Cold Home download exceeds the 67543-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

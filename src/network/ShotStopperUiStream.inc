@@ -48,11 +48,11 @@ bool uiStreamOriginMatches(const char *origin, const char *host) {
   return strcmp(origin, accepted) == 0;
 }
 
+// Identity of the first `count` points: their stream bytes and flags.
 uint32_t uiStreamCurveHash(const ShotCurveRecord &curve, uint16_t count) {
-  uint32_t hash = crc32Update(0xFFFFFFFFU,
-      reinterpret_cast<const uint8_t *>(curve.weightCg), count * sizeof(int16_t));
-  hash = crc32Update(hash, reinterpret_cast<const uint8_t *>(curve.atMs),
-                    count * sizeof(uint16_t));
+  ShotCurveReader prefix;
+  (void)shotCurveSeek(curve, count, prefix);
+  uint32_t hash = crc32Update(0xFFFFFFFFU, curve.stream, prefix.offset);
   for (uint16_t i = 0; i < count; ++i) {
     const uint8_t flags = (shotCurveBreakBefore(curve, i) ? 1 : 0) |
                           (shotCurveHeld(curve, i) ? 2 : 0);
@@ -429,8 +429,9 @@ void ShotStopperNetwork::serviceUiStream(uint32_t now) {
 void ShotStopperNetwork::uiStreamDispatch(void *context) {
   auto &self = *static_cast<ShotStopperNetwork *>(context);
   // One fetch per dispatch, shared by every session below: the refresh
-  // handshake, the 6.7 KB control snapshot, and the 5.1 KB home-shot copy
-  // are dispatch-constant, so a takeover must not redo them per session.
+  // handshake, the 7.4 KB control snapshot, and the home-shot copy are
+  // dispatch-constant, so a takeover must not redo them per session. A live
+  // card draws the status curve, so the stored one is not copied then.
   // httpd serialization stays exclusive: one take(0) for the whole
   // dispatch; if settings work holds it, the urgent flag re-arms the next
   // dispatch with a complete view.
@@ -448,7 +449,8 @@ void ShotStopperNetwork::uiStreamDispatch(void *context) {
     self.uiStreamUrgent_.store(true, std::memory_order_release);
   ShotLogRecord latest = {};
   const bool eligible = self.callbacks_.copyHomeShot &&
-      self.callbacks_.copyHomeShot(latest, self.workBuf_->homeCurve);
+      self.callbacks_.copyHomeShot(latest, control.activeCycle || control.homePending
+                                               ? nullptr : &self.workBuf_->homeCurve);
   // Tick-constant network state is fetched once per dispatch too and
   // shared by the home and diagnostic projections.
   const NetworkStatusSnapshot network = self.snapshot();
@@ -518,7 +520,7 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
                                       const ControlStatusSnapshot &control,
                                       const ShotLogRecord &latest, bool eligible) {
   uiStreamSendKind = "shot";
-  ShotCurveRecord &curve = workBuf_->serializedCurve;
+  const ShotCurveRecord *source = &workBuf_->homeCurve;
   const PersistedLastShot &cycle = control.homeCycle;
   const bool live = control.activeCycle || control.homePending;
   if (live) {
@@ -534,19 +536,13 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   if (live || retained) {
     card = cycle;
     phase = control.activeCycle ? "active" : control.homePending ? "pending" : "transient";
-    shotCurveRecordFromStatusFields(curve, control.shotCurveCount, control.shotCurveTruncated,
-        control.shotCurveFirstDropMs, control.shotCurveFirstDropCg,
-        control.shotCurveExtendedMs, control.shotCurveExtendedCg,
-        control.shotCurveAtmMs, control.shotCurveAtmCg, control.shotCurveAtmClearedMs,
-        control.shotCurveEndedMs, control.shotCurveEndedCg, control.shotCurveWeightCg,
-        SHOT_CURVE_MAX_POINTS, control.shotCurveAtMs, control.shotCurveBreakBefore,
-        control.shotCurveHeld);
+    source = &control.shotCurve;
   } else if (eligible) {
     const auto &linked = control.lastShot.shotLogId == latest.id
         ? control.lastShot : control.lastGoodShot;
     card = shotLogProjectLastShot(latest, linked);
-    curve = workBuf_->homeCurve;
-  } else resetShotCurveRecord(curve);
+  } else resetShotCurveRecord(workBuf_->homeCurve);
+  const ShotCurveRecord &curve = *source;
   char preset[sizeof(card.presetName) * 6];
   escapeJsonString(card.presetName, preset, sizeof(preset));
   char weight[32] = "null", flow[32] = "null", drop[16] = "null", tare[16] = "null";
@@ -594,14 +590,11 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   } else if (live && curve.atmClearedMs != SHOT_LOG_METRIC_MISSING) {
     strcpy(scaleLoss, "{\"state\":\"recovered\"}");
   }
-  const uint32_t markers = crc32Update(0xFFFFFFFFU,
-      reinterpret_cast<const uint8_t *>(&curve.atmClearedMs),
-      offsetof(ShotCurveRecord, weightCg) - offsetof(ShotCurveRecord, atmClearedMs));
-  const uint8_t flags = (curve.truncated ? 1U : 0U) | (control.snapshotStale ? 2U : 0U);
-  // Markers, truncation, staleness and phase ride every frame's envelope or
-  // curve scalars: a change sends one, but only identity or sent-point
+  // Staleness and phase ride the envelope only when they change; markers
+  // and truncation are curve scalar deltas. Only identity or sent-point
   // changes replace.
-  const uint32_t fingerprint = crc32Update(crc32Update(markers, &flags, 1),
+  const uint8_t stale = control.snapshotStale ? 1U : 0U;
+  const uint32_t fingerprint = crc32Update(crc32Update(0xFFFFFFFFU, &stale, 1),
       reinterpret_cast<const uint8_t *>(phase), strlen(phase));
   const uint32_t prefix = uiStreamCurveHash(curve, curve.count);
   const bool replace = session.resync || session.boot != control.bootId ||
@@ -613,17 +606,23 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
                                  ? prefix
                                  : uiStreamCurveHash(curve, session.cursor));
   const uint16_t base = replace ? 0 : session.cursor;
+  // A replacement names the whole identity; an increment carries only its
+  // sequence and cursor, and continues the client's last replacement.
   size_t used = 0;
-  if (!statusJsonAppend(&used,
-          "{\"v\":1,\"boot\":%lu,\"seq\":%lu,\"base\":%lu,\"revision\":%lu,"
-          "\"snapshot\":%s,\"cycle\":%lu,\"shotId\":%lu,\"stale\":%s,"
-          "\"curveBase\":%u,\"cursor\":%u,\"phase\":\"%s\",\"card\":{",
-          static_cast<unsigned long>(control.bootId),
-          static_cast<unsigned long>(session.sequence + 1),
-          static_cast<unsigned long>(session.sequence),
-          static_cast<unsigned long>(control.snapshotVersion), replace ? "true" : "false",
-          static_cast<unsigned long>(card.cycleId), static_cast<unsigned long>(card.shotLogId),
-          control.snapshotStale ? "true" : "false", base, curve.count, phase))
+  const bool envelope = replace || session.fingerprint != fingerprint;
+  if (!(replace
+            ? statusJsonAppend(&used,
+                  "{\"v\":1,\"boot\":%lu,\"seq\":%lu,\"snapshot\":true,\"cycle\":%lu,"
+                  "\"shotId\":%lu,\"cursor\":%u",
+                  static_cast<unsigned long>(control.bootId),
+                  static_cast<unsigned long>(session.sequence + 1),
+                  static_cast<unsigned long>(card.cycleId),
+                  static_cast<unsigned long>(card.shotLogId), curve.count)
+            : statusJsonAppend(&used, "{\"seq\":%lu,\"cursor\":%u",
+                  static_cast<unsigned long>(session.sequence + 1), curve.count)) ||
+      (envelope && !statusJsonAppend(&used, ",\"stale\":%s,\"phase\":\"%s\"",
+                                     stale ? "true" : "false", phase)) ||
+      !statusJsonAppend(&used, ",\"card\":{"))
     return false;
   // Card fields are deltas over the previous frame; a replacement sends all.
   HomeStreamDelta delta;
@@ -663,11 +662,21 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   delta.field("tintPct", "%u", control.activeCycle ? static_cast<unsigned>(control.cycleTintPct) : 0U);
   delta.field("tintNote", "\"%s\"", control.activeCycle
       ? shotTintNoteJson(static_cast<ShotTintNote>(control.cycleTintNote)) : "none");
-  if (!delta.ok) return false;
-  if (!replace && !delta.changed && base == curve.count && session.fingerprint == fingerprint)
+  if (!delta.ok || !statusJsonAppend(&delta.used, "},\"curve\":{")) return false;
+  HomeStreamDelta scalars;
+  scalars.hashes = delta.hashes + UiStreamFingerprints::kCardFields;
+  scalars.capacity = UiStreamFingerprints::kCurveFields;
+  scalars.used = delta.used;
+  scalars.snapshot = replace;
+  (void)forEachShotCurveScalar(curve, [&](const char *key, const char *value) {
+    scalars.field(key, "%s", value);
+    return scalars.ok;
+  });
+  if (!scalars.ok) return false;
+  if (!replace && !delta.changed && !scalars.changed && base == curve.count && !envelope)
     return true;
-  if (!formatShotCurveJsonBody(workBuf_->curveJson, SHOT_CURVE_JSON_CAPACITY, curve, base) ||
-      !statusJsonAppend(&delta.used, "},\"curve\":{%s}}", workBuf_->curveJson))
+  if (!formatShotCurveJsonBody(workBuf_->curveJson, SHOT_CURVE_JSON_CAPACITY, curve, base, false) ||
+      !statusJsonAppend(&scalars.used, "%s%s}}", scalars.changed ? "," : "", workBuf_->curveJson))
     return false;
   // Recheck ownership immediately before delivery; telemetry never renews it.
   bool owner;
@@ -676,7 +685,7 @@ bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
   httpd_ws_frame_t frame = {};
   frame.type = HTTPD_WS_TYPE_TEXT;
   frame.payload = reinterpret_cast<uint8_t *>(workBuf_->statusJson);
-  frame.len = delta.used;
+  frame.len = scalars.used;
   // A clean abort defers: the dispatch batch rolls the consumed card
   // fingerprints back, and bookkeeping below only advances on delivery.
   if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK)

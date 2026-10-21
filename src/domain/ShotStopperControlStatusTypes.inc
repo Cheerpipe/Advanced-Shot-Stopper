@@ -133,17 +133,6 @@ struct ControlStatusFields : ScaleLinkMetrics {
   uint32_t lastActivationDurationDs = 0;
   uint8_t lastActivationType = 2;  // shotstopper::HistoryType::OTHER (history header not included)
   uint8_t lastActivationFlags = 0;
-  uint16_t shotCurveCount = 0;
-  bool shotCurveTruncated = false;
-  uint16_t shotCurveFirstDropMs = UINT16_MAX;
-  int16_t shotCurveFirstDropCg = INT16_MIN;
-  uint16_t shotCurveExtendedMs = UINT16_MAX;
-  int16_t shotCurveExtendedCg = INT16_MIN;
-  uint16_t shotCurveAtmMs = UINT16_MAX;
-  int16_t shotCurveAtmCg = INT16_MIN;
-  uint16_t shotCurveAtmClearedMs = UINT16_MAX;
-  uint16_t shotCurveEndedMs = UINT16_MAX;
-  int16_t shotCurveEndedCg = INT16_MIN;
   HwmonSnapshot hwmon = {};
   uint32_t debugEventsDropped = 0;
   bool cycleFlowDuringRetare = false;
@@ -212,22 +201,20 @@ struct ControlStatusFields : ScaleLinkMetrics {
   bool bleScanEnabled = true;
 };
 
-// Scalars remain internal; presentation arrays are published in PSRAM under
-// the same mutex/version. Readers receive one coherent, owned copy.
+// The live or just-ended activity's curve (empty otherwise), published in
+// PSRAM under the same mutex/version. Readers receive one coherent copy.
 struct ControlStatusCurve {
-  int16_t shotCurveWeightCg[1201] = {};
-  uint16_t shotCurveAtMs[1201] = {};
-  uint8_t shotCurveBreakBefore[151] = {};
-  uint8_t shotCurveHeld[151] = {};
+  ShotCurveRecord shotCurve{};
 };
 struct ControlStatusSnapshot : ControlStatusFields, ControlStatusCurve {};
 static_assert(sizeof(ControlStatusFields) <= 2048,
               "Control status exceeds its internal publication budget");
 // 6920: +8 bytes for the shot predictor's live hero tint (class, blend
 // percent, note); 6944: +24 for the drip chart (newest five shots, markers
-// and quick start); 6952: +8 for the drip chart's newest ten shots — external
-// work-area growth, internal budget unchanged.
-static_assert(sizeof(ControlStatusSnapshot) <= 6952,
+// and quick start); 6952: +8 for the drip chart's newest ten shots; 7432: the
+// curve as one delta-stream record (its scalars leave the internal fields) —
+// external work-area growth, internal budget unchanged.
+static_assert(sizeof(ControlStatusSnapshot) <= 7432,
               "ControlStatusSnapshot exceeds its external workspace budget");
 
 // Gate checks use this compact internal view. The full scalar/curve snapshot

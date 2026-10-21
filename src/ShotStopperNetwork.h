@@ -187,9 +187,12 @@ struct NetworkWorkBuf;
 
 struct UiStreamFingerprints {
   static constexpr size_t kHomeFields = 128, kDiagFields = 224, kCardFields = 32;
+  // The shot card's ten curve scalars (forEachShotCurveScalar) follow its
+  // card fields in cardHashes.
+  static constexpr size_t kCurveFields = 10;
   uint32_t homeHashes[kHomeFields] = {};
   uint32_t diagHashes[kDiagFields] = {};
-  uint32_t cardHashes[kCardFields] = {};
+  uint32_t cardHashes[kCardFields + kCurveFields] = {};
 };
 
 struct NetworkBridgeCallbacks {
@@ -215,7 +218,7 @@ struct NetworkBridgeCallbacks {
   size_t (*copyShotRecords)(ShotLogRecord *output, size_t capacity) = nullptr;
   void (*copyShotStatsRecords)(ShotStatsRecordsSnapshot &output) = nullptr;
   bool (*copyShotCurveById)(uint32_t shotId, ShotCurveRecord &curve) = nullptr;
-  bool (*copyHomeShot)(ShotLogRecord &record, ShotCurveRecord &curve) = nullptr;
+  bool (*copyHomeShot)(ShotLogRecord &record, ShotCurveRecord *curve) = nullptr;
   bool (*shotLogSavePending)() = nullptr;
   void (*copyHistoryPage)(HistoryPage &page, size_t offset, size_t limit,
                           ShotLogSortDir dir) = nullptr;

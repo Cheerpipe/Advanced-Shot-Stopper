@@ -1148,8 +1148,9 @@ bool ShotStopperNetwork::sendHistoryStream(UiStreamSession &session,
 // The Stats row projection (extracted verbatim from the REST shots handler):
 // row scalars plus the curve fields embedded at the top level, because
 // formatShotCurveJsonBody emits the curve object's inner fields. Writes into
-// work.jsonItem using work.curveJson and work.serializedCurve as scratch and
-// returns the written length, 0 on overflow.
+// work.jsonItem using work.curveJson as scratch and returns the written
+// length, 0 on overflow. A missing curve formats as an empty one in the
+// Stats fetch scratch, which a failed fetch has already left unused.
 size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
                                               const ShotLogRecord &record,
                                               const ShotCurveRecord *curve) {
@@ -1189,9 +1190,9 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
   if (record.dripDelayCode) snprintf(dripDelay, sizeof(dripDelay), "%.1f", (record.dripDelayCode - 1) / 10.0);
   const bool scaleLoss = static_cast<ShotLogStopDetail>(record.stopDetail) ==
                          ShotLogStopDetail::AUTO_TO_MANUAL;
-  ShotCurveRecord &emptyCurve = work.serializedCurve;
-  resetShotCurveRecord(emptyCurve);
+  ShotCurveRecord &emptyCurve = work.statsCache.fetchCurve;
   if (curve == nullptr) {
+    resetShotCurveRecord(emptyCurve);
     curve = &emptyCurve;
   }
   char *const curveJson = work.curveJson;
@@ -1199,8 +1200,8 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
   const unsigned alpha = shotLogBbwAlpha(record);
   if (alpha) snprintf(alphaJson, sizeof(alphaJson), "%u.%02u", alpha / 100, alpha % 100);
   if (!formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY, *curve) &&
-      !formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY,
-                               emptyCurve)) {
+      (resetShotCurveRecord(emptyCurve),
+       !formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY, emptyCurve))) {
     // Keep the row JSON parseable; an empty curve beats a broken page.
     curveJson[0] = '\0';
   }

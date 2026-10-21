@@ -456,13 +456,16 @@ objects contain only changed paths, such as `scale.timerMs` or
 `lineaMicra.websocket.cleaning`. Objects such as `presets` are replaced as a
 unit when they change. Reliable, ordered WebSocket delivery applies these
 scalar assignments in order. The shot card and curve retain their independent
-sequence/base and cursor contract on the same socket. A shot snapshot
-(`snapshot: true`) carries the complete card and curve; each following frame
-carries only the card fields that changed, which the browser merges over the
-previous card, plus the curve points after the previous cursor. Curve markers
-(first drop, extension, scale loss and recovery, end) arrive as part of those
-incremental frames, and a frame whose card did not change carries an empty
-`card` object. Only a new shot or controller boot, a reconnect or resync, or a
+sequence and cursor contract on the same socket. A shot snapshot
+(`snapshot: true`) names the whole identity (`v`, `boot`, `seq`, `cycle`,
+`shotId`, `stale`, `phase`, `cursor`) and carries the complete card and curve.
+Each following frame carries only `seq` and `cursor` (plus `stale` and `phase`
+together when either changed), the card fields that changed, which the browser
+merges over the previous card, the curve points after the previous cursor, and
+the curve scalars (`wTruncated` and the markers: first drop, extension, scale
+loss and recovery, end) that changed. A frame whose card did not change
+carries an empty `card` object; everything a frame omits continues from the
+previous one, and a sequence gap requests recovery. Only a new shot or controller boot, a reconnect or resync, or a
 change to an already sent point starts a new snapshot. Equipment updates do not resend an
 unchanged shot card or curve. Commands continue to use the existing
 HTTP endpoints and ownership checks.
@@ -547,10 +550,16 @@ must use the stream described below for reads and keep the POST URLs
 (request bodies and mutation safety checks are unchanged).
 The public `/api/v1/integration` endpoints are unchanged.
 
-Stats shot records and Home's WebSocket `curve` carry paired `wCg` and `wAtMs`
-arrays: recorded centigram weights and their elapsed reception times in integer
-milliseconds, with up to 1201 observations. Use those times instead of the
-removed shared `wDtS` interval. `wBreakBefore` lists zero-based indices that
+Stats shot records and Home's WebSocket `curve` carry the observations as
+`wD`, the firmware's delta stream in base64: recorded centigram weights with
+their elapsed reception times in integer milliseconds, up to 1201
+observations. Each point is one time byte (0–254 ms after the previous point)
+and one signed weight byte (−127…127 cg); a larger step stores the marker
+`0xFF` (time) or `0x80` (weight) followed by the little-endian absolute value.
+A whole curve starts from 0 ms / 0 cg; a Home fragment that continues earlier
+points names the last one it follows as `wRef: [atMs, cg]`, which must match
+the point the client already holds. The browser decodes the stream into the
+`wCg`/`wAtMs` arrays its charts and CSV use. `wBreakBefore` lists zero-based indices that
 start new continuous segments. `wHeld` lists the indices of readings the
 accidental-touch guard held (a hand on the cup or scale): they are what the
 scale showed, not coffee weight, and belong to no segment. Curves recorded

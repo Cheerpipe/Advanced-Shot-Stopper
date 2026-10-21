@@ -26,7 +26,7 @@ void serviceHealthProfiler(uint32_t now) {
 // text can never inject extra TXT lines.
 uint32_t composeScaleProfileContext(char *text, size_t capacity) {
   if (text == nullptr || capacity == 0) return 0;
-  // The ~6.4 KiB snapshot fits neither the 4 KiB health stack (it overflowed
+  // The ~7.4 KiB snapshot fits neither the 4 KiB health stack (it overflowed
   // into adjacent heap TCBs; see
   // docs/audits/2026-10-02-scale-profile-start-panic.md) nor the internal-DRAM
   // budget as a static, so stage it in PSRAM for this once-per-Start call.

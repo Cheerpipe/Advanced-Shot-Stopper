@@ -193,8 +193,6 @@ constexpr size_t EEPROM_SIZE = 2;
 static_assert(MAX_SHOT_DATAPOINTS * 0.1f >
                   ACCIDENTAL_TOUCH_REFERENCE_LAG_S + ACCIDENTAL_TOUCH_FLOW_WINDOW_S,
               "Shot trajectory must span the touch reference window at 10 Hz");
-static_assert(SHOT_CURVE_MAX_POINTS == 1201,
-              "ControlStatusSnapshot shotCurveWeightCg must match sampler");
 
 bool emitAlert(AlertEvent event, uint32_t cycleId = 0);
 void emitImmediateCommandAlertIfBuzzer(AlertEvent event);
@@ -1022,7 +1020,7 @@ void requestLoopMaxReset() { loopPhaseProfiler.requestReset(); }
 void copyControlStatus(ControlStatusSnapshot &output) {
   TaskLockGuard lock(controlStatusMutex);
   static_cast<ControlStatusFields &>(output) = publishedControlStatus;
-  static_cast<ControlStatusCurve &>(output) = publishedControlCurve;
+  copyShotCurve(output.shotCurve, publishedControlCurve.shotCurve);
   output.snapshotStale =
       __atomic_load_n(&controlStatusPublishRequested, __ATOMIC_ACQUIRE);
 }

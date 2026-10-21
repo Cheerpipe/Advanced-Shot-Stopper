@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "maximumExternalBssBytes": 2949120,
+  "maximumExternalBssBytes": 3186688,
   "allowedGrowthBytes": {
     "image": 95072,
     "total_size": 95068,
