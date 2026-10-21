@@ -574,10 +574,18 @@ static void run() {
     NimbleScaleClient c(false); ready(c);
     c.finishLink(false, ScaleDisconnectReason::REMOTE_DISCONNECTED,
                  BLE_HS_HCI_ERR(0x13));
+    CHECK(capturedScaleLogs.back().first == kScaleLogInfoSeverity);
+    CHECK(capturedScaleLogs.back().second.find("ble error op=link") == 0);
     testNowMs = c.backoff_.deadlineMs();
     c.service();
     CHECK(c.state_ == NimbleScaleClient::State::Scanning);
     CHECK(c.connectAttemptsTotal_ == 0);
+  }
+  for (const int status : {BLE_HS_HCI_ERR(0x08), BLE_HS_HCI_ERR(0x15)}) {
+    NimbleScaleClient c(false); ready(c);
+    c.activeCommand_ = status == BLE_HS_HCI_ERR(0x15) ? 0 : 0xff;
+    c.finishLink(false, mapRawDisconnectReason(status), status);
+    CHECK(capturedScaleLogs.back().first == kScaleLogWarningSeverity);
   }
   {
     NimbleScaleClient c(false);

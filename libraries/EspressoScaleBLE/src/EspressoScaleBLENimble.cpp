@@ -95,9 +95,10 @@ void scaleLogWarning(const char *format, ...) {
 
 void scaleLogError(const char *operation, int32_t status, const char *reason,
                    ScaleBleDisconnectOrigin origin =
-                       ScaleBleDisconnectOrigin::Local) {
+                       ScaleBleDisconnectOrigin::Local,
+                   bool expected = false) {
   if (status == 0) return;
-  scaleLogWarning("ble error op=%s domain=%s raw=%ld hex=0x%lX code=0x%02lX reason=%s",
+  (expected ? scaleLogInfo : scaleLogWarning)("ble error op=%s domain=%s raw=%ld hex=0x%lX code=0x%02lX reason=%s",
                   operation, scaleBleStatusDomain(status, origin),
                   static_cast<long>(status), static_cast<unsigned long>(status),
                   static_cast<unsigned long>(status & 0xff), reason);
@@ -2497,8 +2498,12 @@ class NimbleScaleClient {
       } else if (previous == State::Initializing) {
         operation = "initialize";
       }
+      // An idle link closed by the scale itself (user or power off) is routine.
+      const bool scaleClosedIdleLink = previous == State::Ready &&
+          activeCommand_ == 0xff && (rawStatus == BLE_HS_HCI_ERR(0x13) ||
+                                     rawStatus == BLE_HS_HCI_ERR(0x15));
       scaleLogError(operation, rawStatus, disconnectReasonName(reason),
-                    diagnostics_.disconnectOrigin);
+                    diagnostics_.disconnectOrigin, scaleClosedIdleLink);
     }
     // Generation is invalidated before touching NimBLE. A cancellation can
     // synchronously or asynchronously surface a callback, but neither may
