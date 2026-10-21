@@ -331,7 +331,7 @@ export function init() {
   window.addEventListener("resize", repositionHistoryFilter, { passive: true });
   $("clearHistoryButton").onclick = clearActivationHistory;
   $("exportHistoryButton").onclick = exportActivationHistory;
-  $("historyFilterButton").onclick = toggleHistoryFilter;
+  $("historyFilterButton").onclick = () => toggleHistoryFilter();
   syncHistoryFilterButton();
   const h = $("historySort");
   if (h) {

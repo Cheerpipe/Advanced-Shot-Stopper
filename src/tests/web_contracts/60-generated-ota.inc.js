@@ -865,7 +865,9 @@ if (generated.otaImageGzip.length > 3072) {
 // The review fixes move diagnostic.js to 13872 through shared text table gzip wobble; owner-requested 2026-10-21.
 // The audit F1 fixes (escaped consistency pill names, typed-build save guard, unique Settings rename id) measure
 // records.js at 15103 and settings.js at 16808; owner-requested 2026-10-21.
-const viewModuleBudgets = {records: 15103, diagnostic: 13872, admin: 14229, settings: 16808, setup: 5793};
+// The audit F2 fixes (single CSV export, History filter toggle, locale-proof averages, rename Cancel) measure
+// records.js at 15108 and settings.js at 16813; owner-requested 2026-10-21.
+const viewModuleBudgets = {records: 15108, diagnostic: 13872, admin: 14229, settings: 16813, setup: 5793};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);

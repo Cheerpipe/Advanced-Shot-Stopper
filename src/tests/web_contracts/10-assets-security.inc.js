@@ -903,8 +903,9 @@ if (htmlBytes > 93300) {
 // A reconnect keeps the presets it already holds: 482997, owner-requested 2026-10-21.
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect: 483596, owner-requested 2026-10-21.
 // Audit fixes for typed-build saves, log frames during a resync and escaped pill names: 483639, owner-requested 2026-10-21.
-if (jsBytes > 483639) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 483639)`);
+// Audit fixes for the History filter toggle and a single Stats CSV export: 483654, owner-requested 2026-10-21.
+if (jsBytes > 483654) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 483654)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.

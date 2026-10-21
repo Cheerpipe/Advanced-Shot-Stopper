@@ -468,3 +468,7 @@
       'A guard-bounded session closed without edits must not save');
   })().catch((error) => { console.error(error); process.exitCode = 1; });
 }
+// The dial buttons keep line-height:1: a later font shorthand would reset it.
+if (!/\.qwDial button\{[^}]*font:inherit;[^}]*line-height:1[;}]/.test(css)) {
+  throw new Error('Quick-weight dial buttons must set line-height after the font shorthand');
+}

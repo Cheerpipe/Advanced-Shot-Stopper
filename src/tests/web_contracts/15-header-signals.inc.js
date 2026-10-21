@@ -225,3 +225,9 @@
   assert(css.includes('[data-scrolled] .topBar{background:transparent;pointer-events:none}'), 'Floating surroundings expose and do not intercept content');
   assert(css.includes('[data-scrolled] .pageNav{pointer-events:auto}'), 'Floating links remain interactive');
 }
+// A disconnected Bluetooth icon dims its rune like the Wi-Fi arcs, while the
+// slash that says "off" stays fully opaque.
+if (!css.includes('#bluetoothSignal[data-level="0"] path:not(.signalSlash){opacity:.12}') ||
+    /#bluetoothSignal[^{]*svg>g/.test(css)) {
+  throw new Error('The disconnected Bluetooth slash must not be dimmed with its rune');
+}

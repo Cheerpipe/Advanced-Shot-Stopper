@@ -208,6 +208,8 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     !codeIncludes(ui, 'id="presetResetBtn"') ||
     !codeIncludes(ui, 'id="presetDeleteBtn"') ||
     !codeIncludes(ui, 'id="presetRenameDialog"') ||
+    // Cancel must close the dialog even with the required name field empty.
+    !/<button[^>]*value="cancel"[^>]*formnovalidate/.test(partialHtml.settings) ||
     !codeIncludes(ui, 'id="homePresetAcc"') ||
     !html.includes('<legend>Presets</legend>') ||
     html.indexOf('id="presetPanel"') > html.indexOf('<legend>Presets</legend>') ||
@@ -878,6 +880,15 @@ if (codeIncludes(ui, 'id="shotRating"') ||
     firmwareCore.includes('lastShotStore.updateRating')) {
   throw new Error('Shot rating must be SVG stars on last shot and history, persisted on the device');
 }
+// A failure entry that is already a full sentence is shown as is, never
+// wrapped again in "Could not …." (factory reset once read "Could not Could not").
+{
+  const messages = new Function(`${blockAt(runtimeJs, 'function cn(')}
+${blockAt(runtimeJs, 'function commandMessages(')};return commandMessages;`)();
+  require('assert').deepEqual(messages('/api/v1/factory-reset'), ['Factory reset started.',
+    'Could not restore factory settings. Check Diagnostic → NVS.']);
+  require('assert').equal(messages('/api/v1/time/sync')[1], 'Could not sync time.');
+}
 if (!codeIncludes(js, 'function commandOkMessage(') ||
     !codeIncludes(js, 'function commandFailMessage(') ||
     !codeIncludes(js, 'function formatCommandError(') ||
@@ -1142,7 +1153,7 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !partialHtml.history.includes('id="exportHistoryButton"') ||
     !partialHtml.history.includes('id="hFl"') ||
     !codeIncludes(viewJs.history, 'R.exportActivationHistory') ||
-    !codeIncludes(viewJs.history, '.onclick=toggleHistoryFilter') ||
+    !codeIncludes(viewJs.history, '.onclick=()=>toggleHistoryFilter()') ||
     !codeIncludes(js, 'function exportActivationHistory(') ||
     !codeIncludes(historyRuntimeJs, 'function toggleHistoryFilter(') ||
     !codeIncludes(js, 'function fetchHistoryWindow(') ||
@@ -1554,7 +1565,7 @@ if (!codeIncludes(ui, 'id="firmwareFooter"') ||
 }
 if (!shellHtml.includes('https://github.com/Cheerpipe/Open-Brew-by-Weight') ||
     !shellHtml.includes('https://github.com/Cheerpipe') ||
-    !shellHtml.includes('Hecho por') ||
+    !shellHtml.includes('· Made by <a') ||
     !shellHtml.includes('>Cheerpipe</a>') ||
     !shellHtml.includes('class="pageFooter"') ||
     shellHtml.indexOf('class="pageFooter"') < shellHtml.indexOf('id="app"')) {

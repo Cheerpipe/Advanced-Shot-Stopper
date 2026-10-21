@@ -136,7 +136,7 @@
       assert.equal(`${offset}/${limit}/${sort}/${dir}`, '0/500/date/desc');
       return records;
     },
-    SHOTS_EXPORT_LIMIT: 500,
+    SHOTS_EXPORT_LIMIT: 500, statsExportInFlight: null,
     formatShotTimeCsv: () => '', shotDisplayActualG: weight => weight,
     Blob,
     URL: {createObjectURL: value => {blob = value; return 'blob:test';}, revokeObjectURL() {}},
@@ -149,6 +149,11 @@
   vm.runInContext('var R = this;' + blockAt(viewJs.stats, 'function shotCut(') +
     blockAt(viewJs.stats, 'function shotFlowCurveGS('), context);
   vm.runInContext(blockAt(viewJs.stats, 'async function exportShotsCsv('), context);
+  // A second click while an export window is pending saves nothing more.
+  context.statsExportInFlight = Promise.resolve(records);
+  await vm.runInContext('exportShotsCsv()', context);
+  assert.equal(blob, undefined, 'A pending export must not be saved twice');
+  context.statsExportInFlight = null;
   await vm.runInContext('exportShotsCsv()', context);
   const lines = (await blob.text()).split('\n').map(line => line.split(','));
   assert.equal(lines.length, 101);

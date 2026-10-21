@@ -20,7 +20,7 @@ body{font-family:system-ui;max-width:760px;margin:0 auto;padding:0 1rem var(--na
 .signalIndicator[data-level="0"],.signalIndicator[data-level="unknown"]{color:var(--mu)}
 .signalSlash{display:none}
 .signalIndicator[data-level="0"] .signalSlash{display:block}
-.signalIndicator[data-level="0"] [data-step],.signalIndicator[data-level="unknown"] [data-step],#bluetoothSignal[data-level="0"] svg>g:first-child{opacity:.12}
+.signalIndicator[data-level="0"] [data-step],.signalIndicator[data-level="unknown"] [data-step],#bluetoothSignal[data-level="0"] path:not(.signalSlash){opacity:.12}
 .signalIndicator:hover,.signalIndicator[aria-expanded="true"]{background:var(--sf)}
 .signalIndicator:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 #themeSignal [data-glyph]{display:none}
@@ -265,7 +265,7 @@ summary::marker{color:var(--ac)}
 /* --tp is the live forecast blend: 100% = the full predicted colour, lower
    fades it toward the brand brown (the firmware streams the percent). */
 @property --tp{syntax:"<percentage>";inherits:true;initial-value:100%}
-.shotHero{--w78:color-mix(in srgb,var(--on) 78%,transparent);--tint:var(--ac);--tp:100%;position:relative;overflow:hidden;margin:1rem 0;padding:1.05rem 1.1rem;border-radius:calc(var(--r) + .25rem);background:linear-gradient(150deg,color-mix(in srgb,var(--tint) 82%,#000),var(--tint) 55%,color-mix(in srgb,var(--tint) 80%,#fff));color:var(--on);box-shadow:var(--ah);transition-property:--tint,--tp;transition-duration:.4s;touch-action:manipulation;user-select:none}
+.shotHero{--w78:color-mix(in srgb,var(--on) 78%,transparent);--tint:var(--ac);--tp:100%;position:relative;overflow:hidden;margin:1rem 0;padding:1.05rem 1.1rem;border-radius:calc(var(--r) + .25rem);background:linear-gradient(150deg,color-mix(in srgb,var(--tint) 82%,#000),var(--tint) 55%,color-mix(in srgb,var(--tint) 80%,#fff));color:var(--on);box-shadow:var(--ah);transition-property:--tint,--tp;transition-duration:.4s;touch-action:manipulation;user-select:none;-webkit-user-select:none}
 .shotHero[data-tint=neutral]{--tint:var(--cf)}
 .shotHero[data-tint=on_recipe]{--tint:color-mix(in srgb,var(--cf) calc(100% - var(--tp)),color-mix(in srgb,var(--ok) var(--tk),#000) var(--tp))}
 .shotHero[data-tint=fast]{--tint:color-mix(in srgb,var(--cf) calc(100% - var(--tp)),color-mix(in srgb,var(--gFast) var(--tk),#000) var(--tp))}
@@ -686,7 +686,7 @@ body.qwOpen{overflow:hidden}
 .qwReset svg{width:.95rem;height:.95rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .qwReset b{font-variant-numeric:tabular-nums}
 .qwDial{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:.4rem}
-.qwDial button{display:grid;place-items:center;width:var(--tap);height:var(--tap);padding:0;border:1.5px solid var(--ln);border-radius:50%;line-height:1;background:var(--sf);color:var(--fg);font:inherit;font-size:1.3rem;font-weight:700;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.qwDial button{display:grid;place-items:center;width:var(--tap);height:var(--tap);padding:0;border:1.5px solid var(--ln);border-radius:50%;background:var(--sf);color:var(--fg);font:inherit;font-size:1.3rem;line-height:1;font-weight:700;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none}
 .qwDial button:active{transform:scale(.92)}
 .qwDial button:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
 .qwZone{position:relative;display:flex;flex-direction:column;justify-content:center;padding:1.5rem 0 .95rem;touch-action:none;cursor:ew-resize;user-select:none;-webkit-user-select:none}

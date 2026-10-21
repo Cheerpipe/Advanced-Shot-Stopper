@@ -1565,7 +1565,7 @@ function commandMessages(path, v) {
     ],
     "factory-reset": [
       __WEBUI_TEXT__("runtime.factory_reset_started"),
-      __WEBUI_TEXT__("runtime.could_not_restore_factory_settings_check_diagnostic"),
+      __WEBUI_TEXT__("runtime.restore_factory_settings_check_diagnostic"),
     ],
     "device/password": [
       __WEBUI_TEXT__("runtime.device_password_changed"),

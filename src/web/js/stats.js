@@ -765,11 +765,11 @@ function renderShotStats() {
       }
     },
     f = (v, p, u) => (v == null ? z : v.toFixed(p) + u);
-  q(__WEBUI_TEXT__("runtime.dur"), f(s.avgDurationS, 1, __WEBUI_TEXT__("runtime.s")));
-  q(__WEBUI_TEXT__("runtime.weight"), f(s.avgYieldG, 1, __WEBUI_TEXT__("runtime.g")));
+  q("Dur", f(s.avgDurationS, 1, __WEBUI_TEXT__("runtime.s")));
+  q("Weight", f(s.avgYieldG, 1, __WEBUI_TEXT__("runtime.g")));
   q("Daily", s.shotsPerDay == null ? z : s.shotsPerDay.toFixed(1));
   q("Err", f(s.avgErrorPct, 1, __WEBUI_TEXT__("runtime.symbol_4")), s.avgErrorPct);
-  q(__WEBUI_TEXT__("runtime.flow"), f(s.avgFlowGps, 2, __WEBUI_TEXT__("runtime.g_s")));
+  q("Flow", f(s.avgFlowGps, 2, __WEBUI_TEXT__("runtime.g_s")));
   renderStatsDurChart();
 }
 function renderShots() {
@@ -986,6 +986,7 @@ const loadMoreShots = () => {
   }
 };
 async function exportShotsCsv() {
+  if (statsExportInFlight) return;
   try {
     const list = await statsFrameWindow(0, R.SHOTS_EXPORT_LIMIT, "date", "desc", 90e3);
     if (!list) throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));

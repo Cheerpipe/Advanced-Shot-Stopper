@@ -63,3 +63,16 @@
   assert.ok(codeIncludes(viewJs.stats, 'R.placePill(pill, R.escHtml(text),'),
       'The consistency pill must escape the preset name');
 }
+// The Stats averages resolve their element ids from fixed names, never from
+// translated text, so every locale fills all five values.
+{
+  const assert = require('assert');
+  const filled = [];
+  new Function('$', 'R', '__WEBUI_TEXT__', 'renderStatsDurChart',
+      `${blockAt(rawViewJs.stats, 'function renderShotStats(')};renderShotStats();`)(
+      (id) => (filled.push(id), {classList: {toggle() {}}}),
+      {uiState: {shotStats: {avgDurationS: 1, avgYieldG: 2, shotsPerDay: 3, avgErrorPct: 4,
+        avgFlowGps: 5}}}, (key) => 'translated ' + key, () => {});
+  assert.deepEqual(filled, ['statsAvgDur', 'statsAvgWeight', 'statsAvgDaily', 'statsAvgErr',
+    'statsAvgFlow']);
+}
