@@ -5193,6 +5193,7 @@ function clearShotHero() {
   const hero = $("shotHero");
   if (hero) hero.hidden = true;
 }
+let fwShellRefreshed = false;
 function checkFirmwareReload(version) {
   if (
     !version ||
@@ -5209,6 +5210,12 @@ function checkFirmwareReload(version) {
     try {
       sessionStorage.removeItem("ssFwReload");
     } catch (_) {}
+    // The ?fw= landing cached the new shell under its own key; refresh the
+    // plain paths' cached copies too, so the next open loads it directly.
+    if (!fwShellRefreshed && /[?&]fw=/.test(location.search)) {
+      fwShellRefreshed = true;
+      for (const p of new Set(["/", location.pathname])) fetch(p, { cache: "reload" }).catch(() => {});
+    }
     return;
   }
   let reloaded = true;

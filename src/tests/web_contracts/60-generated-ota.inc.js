@@ -392,6 +392,25 @@ if (!release.html.includes('data-fw="9.8.7+contract"') ||
     release.etag === otherRelease.etag) {
   throw new Error('Shell must carry the firmware version for cached-shell self-heal; asset tags must ignore it');
 }
+// The ?fw= landing refreshes the plain paths' cached shell once, so the next
+// open after an OTA loads the new shell directly instead of the stale copy.
+{
+  const vm = require('vm');
+  const fn = runtimeJs.slice(runtimeJs.indexOf('let fwShellRefreshed'), runtimeJs.indexOf('function applyCommonStatus('));
+  const fetched = [];
+  const context = {SHELL_FW_VERSION: '2.0', uiState: {}, location: {search: '?fw=2.0', pathname: '/stats'},
+    sessionStorage: {removeItem() {}, getItem() {}, setItem() {}},
+    fetch: (url, init) => { fetched.push([url, init.cache]); return Promise.resolve(); }};
+  vm.runInNewContext(fn + ';this.check=checkFirmwareReload;', context);
+  context.check('2.0'); context.check('2.0');
+  if (JSON.stringify(fetched) !== '[["/","reload"],["/stats","reload"]]')
+    throw new Error('The ?fw= landing must refresh the root and current path shells exactly once');
+  context.location.search = '';
+  const plain = {...context, fwShellRefreshed: false};
+  vm.runInNewContext(fn + ';this.check=checkFirmwareReload;', plain);
+  plain.check('2.0');
+  if (fetched.length !== 2) throw new Error('A plain open must not refetch the shell');
+}
 // A top-level name shared by two secondary view modules collides inside the
 // concatenated bundle after mangling, and the browser then refuses the whole
 // module when any secondary tab loads. Parse every generated module before
@@ -713,8 +732,9 @@ if (generated.cssGzip.length > 15742) {
 // Shot curves decoded from the firmware's delta stream, with the minimal live envelope, bring it to 39974; owner-requested 2026-10-20.
 // Home and Diagnostic increments continue the snapshot identity brings it to 40000; owner-requested 2026-10-21.
 // Stream closed after 5 minutes hidden and resumed without snapshots brings it to 40068; owner-requested 2026-10-21.
-if (sentinelRuntimeGzip.length > 40068) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 40068-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The ?fw= landing refreshes the cached shell after an OTA brings it to 40126; owner-requested 2026-10-21.
+if (sentinelRuntimeGzip.length > 40126) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 40126-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -975,8 +995,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // Home and Diagnostic increments continue the snapshot identity brings it to 67571; owner-requested 2026-10-21.
 // The build tag in the shell (gzip wobble) brings it to 67572; owner-requested 2026-10-21.
 // Stream closed after 5 minutes hidden and resumed without snapshots brings it to 67640; owner-requested 2026-10-21.
-if (coldHomeGzip > 67640) {
-  throw new Error(`Cold Home download exceeds the 67640-byte gzip budget (${coldHomeGzip})`);
+// The ?fw= landing refreshes the cached shell after an OTA brings it to 67696; owner-requested 2026-10-21.
+if (coldHomeGzip > 67696) {
+  throw new Error(`Cold Home download exceeds the 67696-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

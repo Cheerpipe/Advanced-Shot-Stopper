@@ -45,6 +45,11 @@ back. The La Marzocco cloud connection also stays up, so power state and
 machine commands keep working until the controller restarts into the new
 firmware.
 
+After the restart, an open Web UI page notices the new version and reloads
+itself once. The first time you open the Web UI afterwards it may also reload
+once; from then on it opens the new version directly, including from a
+home-screen shortcut.
+
 ## Safety behavior
 
 The shot always has priority. The paddle is never blocked by an update.
