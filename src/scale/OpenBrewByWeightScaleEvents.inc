@@ -320,8 +320,8 @@ void servicePreferredScaleMacPersistence() {
 
 
 void processScaleLinkTransitions() {
-  serviceCupWeight();
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  serviceCupWeight(link);
   const bool connectedEdge =
       link.connectionGeneration != handledScaleConnectionGeneration;
   const bool disconnectedEdge =

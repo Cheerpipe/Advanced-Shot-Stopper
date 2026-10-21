@@ -495,6 +495,13 @@ void cancelOperationalScaleBeeps() {
   portEXIT_CRITICAL(&scaleBeepMux);
 }
 
+uint32_t scaleConnectionGenerationNow() {
+  portENTER_CRITICAL(&scaleLinkMux);
+  const uint32_t generation = scaleConnectionGeneration;
+  portEXIT_CRITICAL(&scaleLinkMux);
+  return generation;
+}
+
 ScaleLinkSnapshot getScaleLinkSnapshot() {
   ScaleLinkSnapshot snapshot = {};
   portENTER_CRITICAL(&scaleLinkMux);
@@ -741,7 +748,7 @@ bool enqueueScaleCommand(const ScaleCommand &command, bool toFront) {
 
   ScaleCommand stamped = command;
   if (stamped.connectionGeneration == 0) {
-    stamped.connectionGeneration = getScaleLinkSnapshot().connectionGeneration;
+    stamped.connectionGeneration = scaleConnectionGenerationNow();
   }
   if (scalePowerOffBlocksGeneration(stamped.connectionGeneration)) {
     return false;
@@ -981,7 +988,7 @@ bool publishPendingScaleWeightEvent() {
   // Raw observation at the decode boundary: before acceptance, tare grace,
   // range/slew/recovery rejection, or control FIFO publication.
   scaleProfileNoteWeight(sample.weightG, sample.receivedAtMs,
-                         getScaleLinkSnapshot().connectionGeneration,
+                         scaleConnectionGenerationNow(),
                          sample.captureSequence, false, millis());
   event.receivedAtMs = sample.receivedAtMs;
   event.captureSequence = sample.captureSequence;
@@ -1228,7 +1235,7 @@ void executeScaleBeepCommand(DebugCode successCode, DebugCode failureCode,
     addDebugEvent(DebugCategory::SCALE, unsupportedCode);
     return;
   }
-  uint32_t generation = getScaleLinkSnapshot().connectionGeneration;
+  uint32_t generation = scaleConnectionGenerationNow();
   const ScaleCommandAdmission admission{approveScaleGeneration, &generation};
   const bool succeeded = scaleCommandOk(scale.beepWithoutStateChange(&admission));
   yieldBetweenScaleAttOps();
@@ -1319,7 +1326,7 @@ void executeScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
     return;
   }
   ScaleCommandResult result = ScaleCommandResult::Unsupported;
-  uint32_t generation = getScaleLinkSnapshot().connectionGeneration;
+  uint32_t generation = scaleConnectionGenerationNow();
   const ScaleCommandAdmission admission{approveScaleGeneration, &generation};
   switch (action) {
     case BookooDebugAction::START:
@@ -1379,7 +1386,7 @@ void executeScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
     // Debug commands bypass the normal pre-tare capture contract.
     ScaleEvent event;
     event.type = ScaleEventType::REFERENCE_CHANGED;
-    event.connectionGeneration = getScaleLinkSnapshot().connectionGeneration;
+    event.connectionGeneration = scaleConnectionGenerationNow();
     event.writeSucceeded = succeeded;
     publishScaleEvent(event, true);
   }
@@ -1391,7 +1398,7 @@ void executeScaleDebugCommand(BookooDebugAction action, uint8_t beepLevel) {
 
 void applyBookooConnectBeepPolicy() {
   if (scalePowerOffBlocksGeneration(
-          getScaleLinkSnapshot().connectionGeneration)) {
+          scaleConnectionGenerationNow())) {
     return;
   }
   if (!scaleHasVolumeControl() ||
@@ -1403,7 +1410,7 @@ void applyBookooConnectBeepPolicy() {
       policy.soundAlertsEnabled, policy.alertOutputChannel,
       policy.bookooMuteOnBuzzerOnly, policy.bookooConnectBeepLevel);
   if (volume >= 0) {
-    uint32_t generation = getScaleLinkSnapshot().connectionGeneration;
+    uint32_t generation = scaleConnectionGenerationNow();
     const ScaleCommandAdmission admission{approveScaleGeneration, &generation};
     const ScaleCommandResult result =
         scale.setBeepLevel(static_cast<uint8_t>(volume), &admission);
@@ -1448,7 +1455,7 @@ void serviceBookooConnectBeepPolicy(bool sawWeightThisTick) {
     return;
   }
   if (scalePowerOffBlocksGeneration(
-          getScaleLinkSnapshot().connectionGeneration)) {
+          scaleConnectionGenerationNow())) {
     cancelBookooConnectBeepPolicy();
     return;
   }
@@ -1659,7 +1666,7 @@ void serviceScalePowerOffTimeout(uint32_t nowMs) {
   portEXIT_CRITICAL(&scaleBeepMux);
   if (generation == 0 || !sent ||
       !scalePowerOffBlocksGeneration(
-          getScaleLinkSnapshot().connectionGeneration) ||
+          scaleConnectionGenerationNow()) ||
       static_cast<uint32_t>(nowMs - sentAtMs) <
           SCALE_POWER_OFF_DISCONNECT_TIMEOUT_MS) {
     return;
@@ -2592,7 +2599,7 @@ void serviceScaleWorkerLink() {
   bool snapshotDirty = false;
   if (scale.heartbeatRequired() &&
       !scalePowerOffBlocksGeneration(
-          getScaleLinkSnapshot().connectionGeneration)) {
+          scaleConnectionGenerationNow())) {
     if (!scaleCommandOk(scale.heartbeat())) {
       cancelBookooConnectBeepPolicy();
       updateWorkerLinkState();
@@ -2643,11 +2650,18 @@ static uint32_t scaleWorkerTaskCpuUs() {
 static void finishScaleSection(ScaleWorkerPhase section) {
   const uint32_t endedAtUs = micros();
 #if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
-  const uint32_t cpuEndedUs = scaleWorkerTaskCpuUs();
-  scaleWorkerPhaseProfiler.record(
-      section, endedAtUs - scaleSectionStartedAtUs, endedAtUs,
-      cpuEndedUs - scaleSectionCpuStartedUs);
-  scaleSectionCpuStartedUs = cpuEndedUs;
+  // Own-CPU reads take the SMP kernel lock: only during a profiler session
+  // (as finishLoopPhase); otherwise the wall time stands in.
+  if (scaleWorkerPhaseProfiler.active()) {
+    const uint32_t cpuEndedUs = scaleWorkerTaskCpuUs();
+    scaleWorkerPhaseProfiler.record(
+        section, endedAtUs - scaleSectionStartedAtUs, endedAtUs,
+        cpuEndedUs - scaleSectionCpuStartedUs);
+    scaleSectionCpuStartedUs = cpuEndedUs;
+  } else {
+    scaleWorkerPhaseProfiler.record(section, endedAtUs - scaleSectionStartedAtUs,
+                                    endedAtUs);
+  }
 #else
   scaleWorkerPhaseProfiler.record(section, endedAtUs - scaleSectionStartedAtUs,
                                   endedAtUs);
@@ -2731,7 +2745,7 @@ void scaleWorkerTask(void *) {
                                             millis());
     scaleSectionStartedAtUs = executionStartedUs;
 #if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
-    scaleSectionCpuStartedUs = scaleWorkerTaskCpuUs();
+    if (scaleWorkerPhaseProfiler.active()) scaleSectionCpuStartedUs = scaleWorkerTaskCpuUs();
 #endif
     static uint32_t previousServiceAtMs = 0;
     if (previousServiceAtMs != 0) {
@@ -2795,7 +2809,7 @@ void scaleWorkerTask(void *) {
         lastLinkSnapshotMs = nowMs;
         updateWorkerLinkState();
       }
-    } else if (getScaleLinkSnapshot().state == ScaleLinkState::CONNECTED) {
+    } else if (outboundScaleConnected.load(std::memory_order_acquire)) {
       cancelBookooConnectBeepPolicy();
       updateWorkerLinkState();
       setScaleLinkState(ScaleLinkState::DISCONNECTED);

@@ -593,7 +593,7 @@ void cancelPendingFinalize(const char *reason, uint32_t profileReason) {
   }
   captureLateTareCompletion();
   scaleProfileNoteEvent(ScaleProfileEvent::FINALIZE_CANCELLED, millis(),
-                        getScaleLinkSnapshot().connectionGeneration, 0, NAN,
+                        scaleConnectionGenerationNow(), 0, NAN,
                         pendingFinalize.cycleId, profileReason);
   static OPEN_BREW_BY_WEIGHT_PSRAM_BSS PendingShotFinalize snapshot;
   snapshot = pendingFinalize;

@@ -66,7 +66,7 @@ void revertSessionQuickSettings() {
 // Runs the Duration revert here so it happens with no Web UI open. A due
 // revert waits until no cycle is active and the relay is open.
 void serviceQuickSettingsRevert() {
-  if (!session.active && !getRelaySafetySnapshot().closed && quickRevertDue(sessionQuickSettings, millis()))
+  if (!session.active && !relayCircuitClosed() && quickRevertDue(sessionQuickSettings, millis()))
     revertSessionQuickSettings();
 }
 
@@ -786,8 +786,11 @@ void processWebCommand(const WebCommand &command) {
 }
 
 void processWebCommands() {
+  // WebCommand construction runs ~440 B of member initializers: skip it on
+  // the common empty-queue tick.
   if (webCommandQueue == nullptr || controlResultPending ||
-      maintenanceCancellationPending) {
+      maintenanceCancellationPending ||
+      uxQueueMessagesWaiting(webCommandQueue) == 0) {
     return;
   }
   WebCommand command;

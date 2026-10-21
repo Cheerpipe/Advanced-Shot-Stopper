@@ -165,7 +165,7 @@ void serviceIdleTare() {
     idleTare.eligibilityReason = IdleTareReason::FEATURE_DISABLED;
     return;
   }
-  const uint32_t generation = getScaleLinkSnapshot().connectionGeneration;
+  const uint32_t generation = scaleConnectionGenerationNow();
   idleTare.eligibilityReason = idleTareEligibilityReason();
   const bool eligible = idleTare.eligibilityReason == IdleTareReason::NONE;
   if (eligible != idleTare.eligible ||

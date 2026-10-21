@@ -8,15 +8,23 @@ struct HomeStreamDelta {
   // The next field updates its fingerprint without being sent.
   bool skipNext = false;
 
+  // Integral values fingerprint themselves, tagged so a zeroed slot never
+  // matches, and are formatted only when emitted.
+  static constexpr uint32_t kIntegralTag = 0x9E3779B9U;
+  bool emits(uint32_t hash) const { return (snapshot || hashes[index] != hash) && !skipNext; }
+
   void field(const char *path, bool value) __attribute__((noinline)) {
-    field(path, "%s", value ? "true" : "false");
+    hashedField(path, kIntegralTag ^ (value ? 1U : 0U), value ? "true" : "false");
   }
   void field(const char *path, float value) __attribute__((noinline)) {
     if (std::isfinite(value)) field(path, "%.1f", static_cast<double>(value));
     else field(path, "null");
   }
   void field(const char *path, unsigned long value) __attribute__((noinline)) {
-    field(path, "%lu", value);
+    const uint32_t hash = kIntegralTag ^ static_cast<uint32_t>(value);
+    char text[24] = "";
+    if (ok && index < capacity && emits(hash)) snprintf(text, sizeof(text), "%lu", value);
+    hashedField(path, hash, text);
   }
 
   void field(const char *path, const char *format, ...) __attribute__((format(printf, 3, 4))) {
@@ -41,9 +49,14 @@ struct HomeStreamDelta {
         return;
       }
     }
-    const uint32_t hash = crc32Update(0xFFFFFFFFU,
-        reinterpret_cast<const uint8_t *>(value), length);
-    if ((snapshot || hashes[index] != hash) && !skipNext) {
+    hashedField(path, crc32Update(0xFFFFFFFFU,
+        reinterpret_cast<const uint8_t *>(value), length), value);
+  }
+
+  // A value whose fingerprint is already known: no re-format, no re-hash.
+  void hashedField(const char *path, uint32_t hash, const char *value) {
+    if (!ok || index >= capacity) { ok = false; return; }
+    if (emits(hash)) {
       ok = statusJsonAppend(&used, "%s\"%s\":%s", changed ? "," : "", path, value);
       ++changed;
     }
@@ -205,35 +218,39 @@ bool OpenBrewByWeightNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("noScaleShotGuard.scaleUsable", bool(control.scaleAvailable && control.weightStreamState == WeightStreamState::FRESH));
   if (callbacks_.copyPresetBank) callbacks_.copyPresetBank(&g_work->presetBank);
   else memset(&g_work->presetBank, 0, sizeof(g_work->presetBank));
-  copyPresetStatsForJson(callbacks_, g_work->presetBank);
-  // Presets rarely change; skip the slim-JSON rebuild while the bank is
-  // byte-identical to the last render AND the shared presetsJson buffer
-  // still holds that render (the REST and integration handlers reuse the
-  // buffer with other formats). The delta hash below is computed either
-  // way, so frames stay byte-identical. Single-threaded: httpd dispatch.
+  // Preset statistics replay every stored shot: recompute them only when the
+  // bank or the shot-log epoch moved, and rebuild the slim JSON only when the
+  // render changed or another handler reused the shared buffer
+  // (presetsJsonHome). Single-threaded: httpd dispatch.
   ShotPresetBank &renderedPresets = g_work->renderedPresets;
   PresetShotStats (&renderedStats)[MAX_SHOT_PRESETS] = g_work->renderedStats;
   uint32_t &renderedPresetsHash = g_work->renderedPresetsHash;
-  const size_t renderedBytes = strlen(g_work->presetsJson);
-  if (memcmp(&renderedPresets, &g_work->presetBank,
-             sizeof(renderedPresets)) != 0 ||
-      memcmp(renderedStats, g_work->presetStats, sizeof(renderedStats)) != 0 ||
-      crc32Update(0xFFFFFFFFU,
-                  reinterpret_cast<const uint8_t *>(g_work->presetsJson),
-                  renderedBytes) != renderedPresetsHash) {
-    renderedPresets = g_work->presetBank;
-    memcpy(renderedStats, g_work->presetStats, sizeof(renderedStats));
-    buildSlimPresetsJson(g_work->presetBank);
+  const uint32_t shotLogEpoch = callbacks_.shotLogEpoch ? callbacks_.shotLogEpoch() : 0;
+  const bool bankMoved =
+      memcmp(&renderedPresets, &g_work->presetBank, sizeof(renderedPresets)) != 0;
+  if (bankMoved || shotLogEpoch != g_work->renderedShotLogEpoch) {
+    copyPresetStatsForJson(callbacks_, g_work->presetBank);
+    g_work->renderedShotLogEpoch = shotLogEpoch;
+    if (bankMoved || memcmp(renderedStats, g_work->presetStats, sizeof(renderedStats)) != 0) {
+      renderedPresets = g_work->presetBank;
+      memcpy(renderedStats, g_work->presetStats, sizeof(renderedStats));
+      g_work->presetsJsonHome = false;
+    }
+  }
+  if (!g_work->presetsJsonHome) {
+    memcpy(g_work->presetStats, renderedStats, sizeof(renderedStats));
+    buildSlimPresetsJson(renderedPresets);
     renderedPresetsHash = crc32Update(0xFFFFFFFFU,
         reinterpret_cast<const uint8_t *>(g_work->presetsJson),
         strlen(g_work->presetsJson));
+    g_work->presetsJsonHome = true;
   }
   // A reconnecting page that still holds this exact presets JSON gets only
   // its tag and keeps its copy; any later snapshot sends them in full.
   delta.skipNext = initial && session.knownPresetsTag != 0 &&
       session.knownPresetsTag == renderedPresetsHash;
   session.knownPresetsTag = 0;
-  delta.field("presets", "%s", g_work->presetsJson);
+  delta.hashedField("presets", renderedPresetsHash, g_work->presetsJson);
   delta.field("presetsTag", static_cast<unsigned long>(renderedPresetsHash));
 #if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   const auto micra = machineIntegrationStatus();
@@ -961,40 +978,13 @@ bool OpenBrewByWeightNetwork::sendLogStream(UiStreamSession &session,
     if (event.wallSec != 0)
       (void)timeZoneOffsetAtOrUtc(control.config.timezoneId, event.wallSec,
                                   eventOffset);
-    char message[128] = {};
-    if (event.text[0] != '\0') {
-      copyCString(message, sizeof(message), event.text);
-    } else if (event.code == DebugCode::BOOT_BANNER) {
-      snprintf(message, sizeof(message), "Open Brew by Weight %s (bootId=%ld)",
-               FW_VERSION, static_cast<long>(event.argument1));
-    } else if (event.code == DebugCode::STATE_TRANSITION &&
-        event.argument1 >= static_cast<int32_t>(StopperState::REQUIRES_OFF) &&
-        event.argument1 <= static_cast<int32_t>(StopperState::MANUAL_NO_SCALE) &&
-        event.argument2 >= static_cast<int32_t>(StopperState::REQUIRES_OFF) &&
-        event.argument2 <= static_cast<int32_t>(StopperState::MANUAL_NO_SCALE)) {
-      snprintf(message, sizeof(message), "%s -> %s",
-               stopperStateName(static_cast<StopperState>(event.argument1)),
-               stopperStateName(static_cast<StopperState>(event.argument2)));
-    } else if ((event.code == DebugCode::WEB_COMMAND_ACCEPTED ||
-                event.code == DebugCode::WEB_COMMAND_REJECTED) &&
-               event.argument1 >=
-                   static_cast<int32_t>(WebCommandType::REMOTE_ON) &&
-               event.argument1 <=
-                   static_cast<int32_t>(
-                       WebCommandType::MAINTENANCE_COMPLETE)) {
-      snprintf(message, sizeof(message), "%s: %s", debugCodeName(event.code),
-               webCommandTypeName(
-                   static_cast<WebCommandType>(event.argument1)));
-    } else if (formatScaleSampleDebugMessage(event, message,
-                                             sizeof(message))) {
-    } else if (formatPersistDebugMessage(event, message,
-                                         sizeof(message))) {
-    } else if (formatLifecycleDebugMessage(event, message,
-                                           sizeof(message))) {
-    } else {
-      copyCString(message, sizeof(message), debugCodeName(event.code));
+    char message[128];
+    const char *text = event.text;
+    if (text[0] == '\0') {
+      formatDebugEventMessage(event, message, sizeof(message), FW_VERSION);
+      text = message;
     }
-    escapeJsonString(message, work.jsonItem, NetworkWorkBuf::kJsonItem);
+    escapeJsonString(text, work.jsonItem, NetworkWorkBuf::kJsonItem);
     // Append-only budget: an event that no longer fits ends this frame and
     // resumes on the next dispatch (logPush stays armed).
     if (used + strlen(work.jsonItem) + 256 > kUiStreamFrameBudget) {

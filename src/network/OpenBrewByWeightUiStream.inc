@@ -57,10 +57,13 @@ uint32_t uiStreamCurveHash(const ShotCurveRecord &curve, uint16_t count) {
   ShotCurveReader prefix;
   (void)shotCurveSeek(curve, count, prefix);
   uint32_t hash = crc32Update(0xFFFFFFFFU, curve.stream, prefix.offset);
-  for (uint16_t i = 0; i < count; ++i) {
-    const uint8_t flags = (shotCurveBreakBefore(curve, i) ? 1 : 0) |
-                          (shotCurveHeld(curve, i) ? 2 : 0);
-    hash = crc32Update(hash, &flags, 1);
+  // Same byte sequence as one flag byte per point, hashed in blocks.
+  uint8_t flags[64] = {};
+  for (uint16_t i = 0; i < count;) {
+    size_t n = 0;
+    for (; n < sizeof(flags) && i < count; ++n, ++i)
+      flags[n] = (shotCurveBreakBefore(curve, i) ? 1 : 0) | (shotCurveHeld(curve, i) ? 2 : 0);
+    hash = crc32Update(hash, flags, n);
   }
   return hash;
 }
@@ -584,27 +587,28 @@ bool OpenBrewByWeightNetwork::sendShotCard(UiStreamSession &session,
   // estimated only when the flow projection chose the stop time.
   // A stored shot also carries its preset snapshot, so the hero draws the cut
   // line on first paint without waiting for the Stats records.
-  char cutG[16] = "null", scaleLoss[80] = "null", rule[256] = "null";
+  char cutG[16] = "null", scaleLoss[80] = "null", rule[320] = "null";
   if (canonical) {
     snprintf(rule, sizeof(rule),
-             "{\"fastBeforeS\":%.1f,\"slowAfterS\":%.1f,\"fastMarginG\":%.1f,"
-             "\"slowMarginG\":%.1f,\"delayS\":%.1f,\"wallS\":%.1f,\"cutRampS\":%.1f,"
+             "{\"fastBeforeS\":%s,\"slowAfterS\":%s,\"fastMarginG\":%s,"
+             "\"slowMarginG\":%s,\"delayS\":%s,\"wallS\":%s,\"cutRampS\":%s,"
              "\"extractionGuardEnabled\":%s,\"slowExtractionGuardEnabled\":%s}",
-             latest.fastBeforeDs / 10.0, latest.slowAfterDs / 10.0,
-             latest.fastMarginDg / 10.0, latest.slowMarginDg / 10.0,
-             latest.delayDs / 10.0, latest.wallDs / 10.0, latest.cutRampDs / 10.0,
+             FixedText(latest.fastBeforeDs, 1).text, FixedText(latest.slowAfterDs, 1).text,
+             FixedText(latest.fastMarginDg, 1).text, FixedText(latest.slowMarginDg, 1).text,
+             FixedText(latest.delayDs, 1).text, FixedText(latest.wallDs, 1).text,
+             FixedText(latest.cutRampDs, 1).text,
              shotLogFastGuardEnabled(latest.sideFlags) ? "true" : "false",
              shotLogSlowGuardEnabled(latest.sideFlags) ? "true" : "false");
     if (latest.cutLineCg > 0 &&
         corridor::weightCutReason(shotLogArrivalRecord(latest).endReason))
-      snprintf(cutG, sizeof(cutG), "%.2f", latest.cutLineCg / 100.0);
+      strcpy(cutG, FixedText(latest.cutLineCg, 2).text);
     if (latest.stopDetail == static_cast<uint8_t>(ShotLogStopDetail::AUTO_TO_MANUAL)) {
       char estimate[16] = "null";
       if (corridor::lossSourceOf(latest.verdict) == corridor::LossSource::PROJECTION)
-        snprintf(estimate, sizeof(estimate), "%.2f", latest.cutLineCg / 100.0);
+        strcpy(estimate, FixedText(latest.cutLineCg, 2).text);
       snprintf(scaleLoss, sizeof(scaleLoss),
-               "{\"state\":\"finished\",\"stopAtS\":%.1f,\"estimatedG\":%s}",
-               latest.durationDs / 10.0, estimate);
+               "{\"state\":\"finished\",\"stopAtS\":%s,\"estimatedG\":%s}",
+               FixedText(latest.durationDs, 1).text, estimate);
     }
   } else if (live && control.cycleAutoToManualGuardEnforced) {
     snprintf(scaleLoss, sizeof(scaleLoss), "{\"state\":\"lost\",\"stopAtS\":%.1f}",
@@ -655,7 +659,7 @@ bool OpenBrewByWeightNetwork::sendShotCard(UiStreamSession &session,
   delta.field("valid", bool(card.valid));
   delta.field("live", bool(control.activeCycle));
   delta.field("weight", "%s", weight);
-  delta.field("goal", "%.1f", static_cast<double>(goalWeightDgToGrams(card.goalWeightDg)));
+  delta.field("goal", "%s", FixedText(card.goalWeightDg, 1).text);
   delta.field("elapsedMs", "%lu", static_cast<unsigned long>(card.durationMs));
   delta.field("firstDropMs", "%s", drop);
   delta.field("tareMs", "%s", tare);

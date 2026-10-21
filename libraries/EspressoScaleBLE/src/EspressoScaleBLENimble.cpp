@@ -2695,8 +2695,12 @@ class NimbleScaleClient {
     }
   }
 
-  mutable portMUX_TYPE mux_ = portMUX_INITIALIZER_UNLOCKED;
-  mutable portMUX_TYPE advertMux_ = portMUX_INITIALIZER_UNLOCKED;
+  // The client lives in PSRAM placement storage, but its spinlocks stay in
+  // internal RAM: IDF serialises every PSRAM spinlock through one emulated
+  // compare-and-set lock. One client exists, so class-wide locks are
+  // equivalent to per-object ones.
+  static inline portMUX_TYPE mux_ = portMUX_INITIALIZER_UNLOCKED;
+  static inline portMUX_TYPE advertMux_ = portMUX_INITIALIZER_UNLOCKED;
   State state_ = State::Idle;
   bool acquisitionHeld_ = false, acquisitionScanning_ = false;
   uint32_t acquisitionAbsenceMs_ = 0, acquisitionPollAtMs_ = 0;

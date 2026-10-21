@@ -434,7 +434,8 @@ TaskMutex bullseyeConfigMux;
 BullseyeTracker bullseyeTracker;
 LocalBuzzer localBuzzer;
 ShotPresetBank presetBank;
-BbwLearningBank bbwLearningBank;
+// All-zero defaults; touched at shot start/finalize and once per publish.
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS BbwLearningBank bbwLearningBank;
 // Control-owned drip quick start; the settings_persist worker writes the
 // staged copy, guarded by bbwQuickStartMux.
 QuickStartRecord bbwQuickStart;
@@ -565,15 +566,17 @@ BootCapabilities bootCapabilities;
 BootState bootState = BootState::BOOTING;
 bool bootDegraded = false;
 MaintenanceLease maintenanceLease;
-WebCommand maintenanceCancellationCommand;
+// Flag-gated command mailboxes (each *Pending/*Held flag stays internal) are
+// written whole before any read, so they live in zeroed PSRAM BSS.
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS WebCommand maintenanceCancellationCommand;
 bool maintenanceCancellationPending = false;
 // Planned ESP.restart (OTA flash, Admin, CLI) waits here while a shot is
 // running. The paddle is never blocked; the restart proceeds once idle.
 bool plannedRestartHeld = false;
-WebCommand pendingPlannedRestart = {};
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS WebCommand pendingPlannedRestart;
 bool resetHistoryClearHeld = false;
-WebCommand pendingResetHistoryClear = {};
-WebCommand controlResultCommand;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS WebCommand pendingResetHistoryClear;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS WebCommand controlResultCommand;
 bool controlResultPending = false;
 #ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
 bool hostForwardAcceptedNetworkCommandSucceeds = true;
@@ -788,10 +791,17 @@ static uint32_t loopCoreIdleUs() {
 static void finishLoopPhase(LoopPhase phase) {
   const uint32_t endedAtUs = micros();
 #if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
-  const uint32_t cpuEndedUs = loopTaskCpuUs();
-  loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs, endedAtUs,
-                           cpuEndedUs - loopPhaseCpuStartedUs);
-  loopPhaseCpuStartedUs = cpuEndedUs;
+  // Each own-CPU read takes the SMP kernel lock: ~20 per tick only while a
+  // profiler session runs. Otherwise the wall time stands in (cpu = wall
+  // keeps wall - cpu a valid, zero lower bound of preemption).
+  if (loopPhaseProfiler.active()) {
+    const uint32_t cpuEndedUs = loopTaskCpuUs();
+    loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs, endedAtUs,
+                             cpuEndedUs - loopPhaseCpuStartedUs);
+    loopPhaseCpuStartedUs = cpuEndedUs;
+  } else {
+    loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs, endedAtUs);
+  }
 #else
   loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs, endedAtUs);
 #endif
@@ -963,6 +973,7 @@ UsbSerialEnableSource usbSerialEnableSource = UsbSerialEnableSource::OFF;
 
 bool usbConsoleJumperPresent();
 RelaySafetySnapshot getRelaySafetySnapshot();
+bool relayCircuitClosed();
 
 bool scaleConnectedLedInitialized = false;
 bool lastScaleConnectedLedOn = false;
@@ -1133,8 +1144,7 @@ void noteRecoverableStaleTransition(WeightStreamState previous,
 }
 
 bool currentWeightIsFresh(uint32_t now = millis(),
-                          const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
-  const uint32_t linkGeneration = link.connectionGeneration;
+                          uint32_t linkGeneration = scaleConnectionGenerationNow()) {
   return currentWeightSequence > 0 && std::isfinite(currentWeight) &&
          currentWeight >= MIN_AUTOMATION_WEIGHT_G &&
          currentWeight <= MAX_AUTOMATION_WEIGHT_G &&
@@ -1146,8 +1156,7 @@ bool currentWeightIsFresh(uint32_t now = millis(),
 }
 
 bool observedWeightIsFresh(uint32_t now = millis(),
-                           const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
-  const uint32_t linkGeneration = link.connectionGeneration;
+                           uint32_t linkGeneration = scaleConnectionGenerationNow()) {
   return observedWeightSequence > 0 && std::isfinite(observedWeight) &&
          fabsf(observedWeight) <= MAX_PARSED_WEIGHT_G &&
          observedWeightConnectionGeneration != 0 &&
@@ -1160,7 +1169,7 @@ bool observedWeightIsFresh(uint32_t now = millis(),
 WeightStreamState observedWeightStreamStateAt(uint32_t now,
                                               const ScaleLinkSnapshot &link) {
   if (observedWeightSequence == 0) return WeightStreamState::NO_SAMPLE;
-  if (!observedWeightIsFresh(now, link)) return WeightStreamState::STALE;
+  if (!observedWeightIsFresh(now, link.connectionGeneration)) return WeightStreamState::STALE;
   return weightStreamState;
 }
 
@@ -1194,7 +1203,7 @@ void setWeightControlState(WeightControlState state) {
                   DebugCode::SCALE_CONTROL_SUSPENDED,
                   static_cast<int32_t>(previous));
     scaleProfileNoteEvent(ScaleProfileEvent::CONTROL_SUSPENDED, millis(),
-                          getScaleLinkSnapshot().connectionGeneration, 0, NAN,
+                          scaleConnectionGenerationNow(), 0, NAN,
                           static_cast<uint32_t>(state), 0);
     enforceScaleLossBackup();
   } else if (state == WeightControlState::ACTIVE &&
@@ -1203,7 +1212,7 @@ void setWeightControlState(WeightControlState state) {
     addDebugEvent(DebugCategory::SCALE,
                   DebugCode::SCALE_CONTROL_RECOVERED);
     scaleProfileNoteEvent(ScaleProfileEvent::CONTROL_RECOVERED, millis(),
-                          getScaleLinkSnapshot().connectionGeneration, 0, NAN,
+                          scaleConnectionGenerationNow(), 0, NAN,
                           static_cast<uint32_t>(state), 0);
     if (session.autoToManualGuardEnforced) {
       session.autoToManualGuardEnforced = false;
@@ -1245,7 +1254,7 @@ void suspendWeightControl() {
 bool scaleAutomationUnavailableForSession() {
   const ScaleLinkSnapshot snapshot = getScaleLinkSnapshot();
   return !scaleLinkAvailable(snapshot) ||
-         !observedWeightIsFresh() ||
+         !observedWeightIsFresh(millis(), snapshot.connectionGeneration) ||
          snapshot.disconnectSequence !=
              session.scaleDisconnectSequenceAtStart;
 }

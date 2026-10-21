@@ -417,7 +417,7 @@ if (logStreamRegion.includes('requireAdminUnlock(request)') ||
     logStreamRegion.includes('authenticate(request')) {
   throw new Error('Diagnostic log frames must stay behind the owned claim');
 }
-if (!logStreamRegion.includes('escapeJsonString(message, work.jsonItem')) {
+if (!logStreamRegion.includes('escapeJsonString(text, work.jsonItem')) {
   throw new Error('Log event messages must be JSON-escaped before framing');
 }
 for (const field of forbiddenResponseFields) {

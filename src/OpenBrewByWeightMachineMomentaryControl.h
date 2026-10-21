@@ -19,7 +19,7 @@ void abortFirmwarePulseIfActive() {
   firmwarePulsePendingReadyAtMs = 0;
   if (pulseOutputActive) {
     pulseOutputActive = false;
-    if (!momentaryPhysicalOn && getRelaySafetySnapshot().closed) {
+    if (!momentaryPhysicalOn && relayCircuitClosed()) {
       (void)setMachineCircuitClosed(false);
     }
   }
@@ -29,7 +29,7 @@ bool emitFirmwarePulse(FirmwarePulseKind kind);
 
 void serviceFirmwarePulseDrive() {
   if (!pulseOutputActive) {
-    if (getRelaySafetySnapshot().closed) {
+    if (relayCircuitClosed()) {
       (void)setMachineCircuitClosed(false);
     }
     if (!firmwarePulsePending || momentaryPhysicalOn ||
@@ -48,7 +48,7 @@ void serviceFirmwarePulseDrive() {
     if (firmwarePulsePending) {
       firmwarePulsePendingReadyAtMs = millis() + ACTIVATOR_DEBOUNCE_MS;
     }
-  } else if (!getRelaySafetySnapshot().closed) {
+  } else if (!relayCircuitClosed()) {
     (void)setMachineCircuitClosed(true, HARD_MAX_CIRCUIT_CLOSED_MS);
   }
 }
@@ -66,12 +66,12 @@ void applyMomentaryRelayDrive() {
       return;
     }
     if (!machineMayForwardActivatorOn()) {
-      if (getRelaySafetySnapshot().closed) {
+      if (relayCircuitClosed()) {
         (void)setMachineCircuitClosed(false);
       }
       return;
     }
-    if (!getRelaySafetySnapshot().closed) {
+    if (!relayCircuitClosed()) {
       (void)setMachineCircuitClosed(true, HARD_MAX_CIRCUIT_CLOSED_MS);
     }
     return;
@@ -81,7 +81,7 @@ void applyMomentaryRelayDrive() {
     serviceFirmwarePulseDrive();
     return;
   }
-  if (getRelaySafetySnapshot().closed) {
+  if (relayCircuitClosed()) {
     (void)setMachineCircuitClosed(false);
   }
 }
@@ -285,7 +285,7 @@ inline bool machineBeginRinse(uint32_t operationalLimitMs,
   rinseActuationActive = true;
   machineActivatorDriveSuppressedThisHold = true;
   abortFirmwarePulseIfActive();
-  if (getRelaySafetySnapshot().closed) {
+  if (relayCircuitClosed()) {
     (void)setMachineCircuitClosed(false);
   }
   clearMomentaryElapsedLatch();

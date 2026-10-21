@@ -38,16 +38,19 @@ bool validRecord(const volatile CrashAddressRecord &record) {
          record.checksum == recordChecksum(record);
 }
 
+// Partition lookups allocate an iterator; the table is immutable, so each
+// partition is looked up once.
 const esp_partition_t *historyPartition() {
-  const esp_partition_t *part = esp_partition_find_first(
+  static const esp_partition_t *const part = esp_partition_find_first(
       ESP_PARTITION_TYPE_DATA, static_cast<esp_partition_subtype_t>(0x40),
       "crashhist");
   return part && part->size == 2 * CRASH_HISTORY_SLOT_BYTES ? part : nullptr;
 }
 
 const esp_partition_t *capturePartition() {
-  return esp_partition_find_first(ESP_PARTITION_TYPE_DATA,
-                                  ESP_PARTITION_SUBTYPE_DATA_COREDUMP, nullptr);
+  static const esp_partition_t *const part = esp_partition_find_first(
+      ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP, nullptr);
+  return part;
 }
 
 size_t metaOffset(uint8_t slot) {

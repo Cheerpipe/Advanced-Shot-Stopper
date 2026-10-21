@@ -69,9 +69,13 @@ int openBrewByWeightEspLogVprintf(const char *format, va_list args) {
     return 0;
   }
   retainEspLogLine(line.text);
-  // Without the USB sink, keep IDF's default console output.
+  // Without the USB sink, keep IDF's default console output, if any.
   if (serialLogQueue == nullptr) {
+#if CONFIG_ESP_CONSOLE_NONE
+    return formatted;
+#else
     return vprintf(format, args);
+#endif
   }
   if (!__atomic_load_n(&serialLogSinkEnabled, __ATOMIC_ACQUIRE)) {
     return 0;
@@ -175,7 +179,7 @@ void latchControlCriticalLogging() {
 }
 
 void publishControlCriticalLoggingState() {
-  const bool critical = session.active || getRelaySafetySnapshot().closed;
+  const bool critical = session.active || relayCircuitClosed();
   controlCriticalForLogging.store(critical, std::memory_order_release);
 }
 
@@ -183,6 +187,11 @@ bool serialApplicationLogAllowed() {
 #if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // Portable tests directly manipulate the control-owned fixtures.
   return !session.active && !circuitClosed;
+#elif CONFIG_ESP_CONSOLE_NONE
+  // No USB sink and no console: an obbw line would be formatted for nothing;
+  // the WebUI ring already holds it.
+  return serialLogQueue != nullptr &&
+         !controlCriticalForLogging.load(std::memory_order_acquire);
 #else
   return !controlCriticalForLogging.load(std::memory_order_acquire);
 #endif
@@ -209,55 +218,9 @@ void emitEspLog(LogLevel level, DebugCategory category, const char *message) {
 #endif
 }
 
-void formatDebugEventMessage(const DebugEvent &event, char *message,
-                             size_t capacity) {
-  if (message == nullptr || capacity == 0) {
-    return;
-  }
-  if (event.text[0] != '\0') {
-    copyCString(message, capacity, event.text);
-    return;
-  }
-  if (event.code == DebugCode::BOOT_BANNER) {
-    snprintf(message, capacity, "Open Brew by Weight %s (bootId=%ld)",
-             FW_VERSION, static_cast<long>(event.argument1));
-    return;
-  }
-  if (event.code == DebugCode::STATE_TRANSITION &&
-      event.argument1 >= static_cast<int32_t>(StopperState::REQUIRES_OFF) &&
-      event.argument1 <= static_cast<int32_t>(StopperState::MANUAL_NO_SCALE) &&
-      event.argument2 >= static_cast<int32_t>(StopperState::REQUIRES_OFF) &&
-      event.argument2 <= static_cast<int32_t>(StopperState::MANUAL_NO_SCALE)) {
-    snprintf(message, capacity, "%s -> %s",
-             stopperStateName(static_cast<StopperState>(event.argument1)),
-             stopperStateName(static_cast<StopperState>(event.argument2)));
-    return;
-  }
-  if (formatScaleSampleDebugMessage(event, message, capacity)) {
-    return;
-  }
-  if (formatPersistDebugMessage(event, message, capacity)) {
-    return;
-  }
-  if (formatLifecycleDebugMessage(event, message, capacity)) {
-    return;
-  }
-  if ((event.code == DebugCode::WEB_COMMAND_ACCEPTED ||
-       event.code == DebugCode::WEB_COMMAND_REJECTED) &&
-      event.argument1 >= static_cast<int32_t>(WebCommandType::REMOTE_ON) &&
-      event.argument1 <=
-          static_cast<int32_t>(WebCommandType::MAINTENANCE_COMPLETE)) {
-    snprintf(message, capacity, "%s: %s", debugCodeName(event.code),
-             webCommandTypeName(
-                 static_cast<WebCommandType>(event.argument1)));
-    return;
-  }
-  copyCString(message, capacity, debugCodeName(event.code));
-}
-
 void writeSerialLogLine(const DebugEvent &event) {
-  char message[128] = {};
-  formatDebugEventMessage(event, message, sizeof(message));
+  char message[128];
+  formatDebugEventMessage(event, message, sizeof(message), FW_VERSION);
   emitEspLog(event.level, event.category, message);
 }
 
@@ -296,29 +259,34 @@ extern "C" void openBrewByWeightScaleLog(uint8_t severity, const char *message) 
   serialTraceCategory(level, DebugCategory::SCALE, message);
 }
 
-void serialTracef(LogLevel level, const char *fmt, ...) {
-  if (fmt == nullptr) {
+// Formats only when logText would keep the line: the per-sample DEBUG traces
+// would otherwise pay soft-double %f formatting for a discarded line.
+void logTextv(LogLevel level, DebugCategory category, const char *fmt,
+              va_list args) {
+  if (fmt == nullptr ||
+      (!logLevelAtMost(level, currentRingRetainLogLevel()) &&
+       !(logLevelAtMost(level, currentSerialLogLevel()) &&
+         serialApplicationLogAllowed()))) {
     return;
   }
-  char line[DEBUG_EVENT_TEXT_CAPACITY] = {};
+  char line[DEBUG_EVENT_TEXT_CAPACITY];
+  vsnprintf(line, sizeof(line), fmt, args);
+  logText(level, category, line);
+}
+
+void serialTracef(LogLevel level, const char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  vsnprintf(line, sizeof(line), fmt, args);
+  logTextv(level, DebugCategory::SYSTEM, fmt, args);
   va_end(args);
-  logText(level, DebugCategory::SYSTEM, line);
 }
 
 void serialTraceCategoryf(LogLevel level, DebugCategory category,
                           const char *fmt, ...) {
-  if (fmt == nullptr) {
-    return;
-  }
-  char line[DEBUG_EVENT_TEXT_CAPACITY] = {};
   va_list args;
   va_start(args, fmt);
-  vsnprintf(line, sizeof(line), fmt, args);
+  logTextv(level, category, fmt, args);
   va_end(args);
-  logText(level, category, line);
 }
 
 // Verbose audit hunt session (Diagnostics toggle): marked DEBUG codes join
@@ -352,20 +320,6 @@ void logEmitDetail(LogLevel level, DebugCategory category, DebugCode code,
   if (level == LogLevel::NONE) {
     return;
   }
-  const uint32_t atMs = millis();
-  const uint32_t wallSec = g_wallClock.nowUtcSec(atMs);
-  DebugEvent event;
-  event.atMs = atMs;
-  event.wallSec = wallSec;
-  event.level = level;
-  event.category = category;
-  event.code = code;
-  event.argument1 = argument1;
-  event.argument2 = argument2;
-  if (detail != nullptr) {
-    copyCString(event.text, sizeof(event.text), detail);
-  }
-
   const bool toSerial =
       logLevelAtMost(level, currentSerialLogLevel());
   const bool toRing =
@@ -376,6 +330,8 @@ void logEmitDetail(LogLevel level, DebugCategory category, DebugCode code,
   if (!toSerial && !toRing && !toAudit) {
     return;
   }
+  const uint32_t atMs = millis();
+  const uint32_t wallSec = g_wallClock.nowUtcSec(atMs);
 
   {
     TaskLockGuard lock(debugLogMutex);
@@ -394,6 +350,17 @@ void logEmitDetail(LogLevel level, DebugCategory category, DebugCode code,
   // Target builds enqueue in the bounded serial sink; host builds emit
   // synchronously into the test stub.
   if (toSerial && serialApplicationLogAllowed()) {
+    DebugEvent event;
+    event.atMs = atMs;
+    event.wallSec = wallSec;
+    event.level = level;
+    event.category = category;
+    event.code = code;
+    event.argument1 = argument1;
+    event.argument2 = argument2;
+    if (detail != nullptr) {
+      copyCString(event.text, sizeof(event.text), detail);
+    }
     writeSerialLogLine(event);
   }
 }
@@ -456,9 +423,10 @@ size_t copyAuditEvents(uint32_t afterSequence, AuditRecord *output,
   if (latchOldest == 0 || latchOldest > afterSequence + 1) {
     AuditRecord durablePage[8];
     uint32_t durableAfter = afterSequence;
+    uint32_t resumeSlot = 0;
     while (filled < capacity) {
       const size_t count =
-          auditStoreCopyAfter(durableAfter, durablePage, 8);
+          auditStoreCopyAfter(durableAfter, durablePage, 8, &resumeSlot);
       if (count == 0) break;
       for (size_t index = 0; index < count && filled < capacity; ++index) {
         if (latchOldest != 0 && durablePage[index].sequence >= latchOldest) {

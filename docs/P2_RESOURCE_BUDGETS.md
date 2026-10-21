@@ -463,7 +463,8 @@ PSRAM before mapping overhead. Linker figures do not measure runtime heap;
 matched target memory, settings latency and loop-gap measurements remain
 required before qualification. PSRAM access may slow NVS integer operations.
 
-Both linker maps must also keep external BSS at or below 800 KiB (819,200 bytes) and retain
+Both linker maps must also keep external BSS at or below `maximumExternalBssBytes`
+in `config/resource-baselines.json` (currently 3,186,688 bytes) and retain
 `localBuzzer` and `taskProfiler` in internal DRAM: both hold synchronization
 state (mutexes, atomics) that must not live in PSRAM. The profiler's published
 report (`taskProfilerReport`) must instead reside in external BSS.

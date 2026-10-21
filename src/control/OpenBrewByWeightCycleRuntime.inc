@@ -93,7 +93,7 @@ bool requestRemoteTimerStart() {
   session.timerStartCommandQueued = enqueueScaleCommand(command);
   if (session.timerStartCommandQueued && command.autoTare) {
     scaleProfileNoteEvent(ScaleProfileEvent::TARE_REQUEST, millis(),
-                          getScaleLinkSnapshot().connectionGeneration, 0, NAN,
+                          scaleConnectionGenerationNow(), 0, NAN,
                           command.cupWeightRequestId,
                           static_cast<uint32_t>(
                               ScaleProfileTareOrigin::SHOT_START));
@@ -115,7 +115,7 @@ bool requestRemoteRetare() {
       getScaleLinkSnapshot().features.has(ScaleFeatureCommandAudibleFeedback);
   if (!enqueueScaleCommand(command)) return false;
   scaleProfileNoteEvent(ScaleProfileEvent::TARE_REQUEST, millis(),
-                        getScaleLinkSnapshot().connectionGeneration, 0, NAN,
+                        scaleConnectionGenerationNow(), 0, NAN,
                         command.cupWeightRequestId,
                         static_cast<uint32_t>(ScaleProfileTareOrigin::RETARE));
   session.retareRequestId = command.cupWeightRequestId;
@@ -203,8 +203,7 @@ struct ProfileControlObservation {
 #include "OpenBrewByWeightBrew.h"
 #include "OpenBrewByWeightRinse.h"
 #include "OpenBrewByWeightScaleSense.h"
-void serviceCupWeight() {
-  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+void serviceCupWeight(const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
   auto &mass = cupPresence.weight;
   const uint32_t droppedEvents = scaleWorkerDroppedEventCount();
   if (droppedEvents != mass.droppedEvents) {
@@ -228,7 +227,7 @@ bool observeCupWeight(float weight, uint32_t atMs, uint32_t sequence,
                       uint32_t generation) {
   serviceCupWeight();
   auto &mass = cupPresence.weight;
-  const uint32_t currentGeneration = getScaleLinkSnapshot().connectionGeneration;
+  const uint32_t currentGeneration = scaleConnectionGenerationNow();
   if (mass.settingsGeneration != cupSettingsGeneration) {
     if (cupPresence.placementId == 0) invalidateCupWeight();
     mass.unloadSamples = 0;
@@ -266,14 +265,14 @@ void trackCupWeightTare(uint32_t requestId) {
   mass.pendingPlacementId = cupPresencePlacementId();
   mass.pendingEmptyAnchorG = mass.sampleSequence != 0 &&
       elapsedMs(mass.sampleAtMs) <= MAX_AUTOMATION_WEIGHT_AGE_MS &&
-      mass.connectionGeneration == getScaleLinkSnapshot().connectionGeneration
+      mass.connectionGeneration == scaleConnectionGenerationNow()
       ? cupPresence.emptyAnchorG : NAN;
   mass.emptyValid = false;
   mass.emptySamples = 0;
   mass.pendingValid = mass.valid && cupPresenceState() == CupPresenceState::PRESENT &&
       cupPresenceIsKnown() && mass.sampleSequence != 0 &&
       scaleAvailable() && mass.connectionGeneration ==
-          getScaleLinkSnapshot().connectionGeneration &&
+          scaleConnectionGenerationNow() &&
       elapsedMs(mass.sampleAtMs) <= MAX_AUTOMATION_WEIGHT_AGE_MS;
 }
 void finishCupWeight(uint32_t requestId, bool succeeded, bool uncertain,
@@ -525,7 +524,7 @@ void observeMachineSenseFromSession(const ScaleLinkSnapshot &link) {
     sense.weightG = currentWeight;
     sense.weightSequence = currentWeightSequence;
   }
-  sense.weightFresh = observedWeightIsFresh(millis(), link);
+  sense.weightFresh = observedWeightIsFresh(millis(), link.connectionGeneration);
   sense.accidentalHold = session.accidentalTouchHolding;
   sense.brewCycleActive = session.active;
   sense.firstDropSeen = session.firstDropObserved || session.firstDropMs != 0;
@@ -542,7 +541,7 @@ void fillLoopGuardsFromIntention(const MachineIntention &intention,
   loopGuardInputs.stablyOff = intention.stablyOff;
   loopGuardInputs.scaleAvailable = scaleLinkAvailable(link);
   loopGuardInputs.scaleUsable =
-      loopGuardInputs.scaleAvailable && currentWeightIsFresh(millis(), link);
+      loopGuardInputs.scaleAvailable && currentWeightIsFresh(millis(), link.connectionGeneration);
   loopGuardInputs.cup = cupPresenceIsKnown() ? cupPresenceState()
                                             : CupPresenceState::ABSENT;
   loopGuardInputs.currentWeightG = currentWeight;
@@ -805,7 +804,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
   if (session.retarePerformed &&
       (session.retareEffectPending || session.appliedTareRequestId != session.retareRequestId) &&
       postTareBaselinePlausible(weight) &&
-      connectionGeneration == getScaleLinkSnapshot().connectionGeneration &&
+      connectionGeneration == scaleConnectionGenerationNow() &&
       (!session.hasWeightAnchor ||
        (static_cast<int32_t>(receivedAtMs - session.lastAcceptedWeightAtMs) > 0 &&
         static_cast<int32_t>(packetSequence - session.lastAcceptedPacketSequence) > 0))) {

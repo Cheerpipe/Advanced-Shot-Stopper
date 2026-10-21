@@ -744,7 +744,7 @@ void loop() {
     const bool faultRestart =
         criticalTaskWatchdogFaulted();
     if (faultRestart ||
-        (!session.active && !getRelaySafetySnapshot().closed)) {
+        (!session.active && !relayCircuitClosed())) {
       machineRequestStop();
       serviceSafetyHeartbeat(false);
 #ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
@@ -792,15 +792,16 @@ void loop() {
   // Machine integrations observe the scale link once per loop; the Micra owns
   // its scale power policy (explicit disconnect, grace, relay guard, and the
   // confirmed machine power edge).
-  const bool loopRelayClosed = getRelaySafetySnapshot().closed;
+  const bool loopMachineBusy =
+      relayCircuitClosed() || backflushObservation.busy();
   const bool loopScaleConnected =
       loopScaleLink.state == ScaleLinkState::CONNECTED;
   serviceMachineIntegrationScaleLink(
       loopStartedAtMs, loopScaleConnected, loopScaleLink.disconnectSequence,
-      loopScaleLink.lastDisconnectReason, loopRelayClosed);
+      loopScaleLink.lastDisconnectReason, loopMachineBusy);
   serviceMachineIntegrationMachinePower(
       loopScaleConnected, loopScaleLink.features.has(ScaleFeaturePowerOff),
-      loopRelayClosed);
+      loopMachineBusy);
   finishLoopPhase(LoopPhase::MACHINE_INTEGRATION);
   stateMachineTask();
   finishLoopPhase(LoopPhase::CONTROL_STATE_MACHINE);
@@ -826,9 +827,10 @@ void loop() {
   serviceControlCommandResult();
   serviceMaintenanceLease();
   finishLoopPhase(LoopPhase::COMMANDS_WEB);
+  // The iteration's link snapshot: it only selects the CPU power profile.
   servicePowerManagement(
       !wakeGestureConsumed &&
-      (powerIntention.turnedOn || powerIntention.turnedOff));
+      (powerIntention.turnedOn || powerIntention.turnedOff), loopScaleLink);
   servicePendingResetHistoryClear();
   servicePendingPlannedRestart();
   finishLoopPhase(LoopPhase::COMMANDS_POWER_RESTART);

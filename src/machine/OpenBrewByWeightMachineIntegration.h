@@ -73,18 +73,19 @@ void publishMachineIntegrationNetworkState(bool staConnected, bool apActive,
                                            bool scaleConnecting = false);
 // Forwards one scale link observation per control loop so the machine
 // integration can apply its own scale power-off policy. The stopper stays a
-// coordinator and owns no machine logic.
+// coordinator and owns no machine logic. machineBusy: relay closed or a
+// backflush in progress (the loop's own backflush observation).
 void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
                                         uint32_t scaleDisconnectSequence,
                                         uint8_t scaleDisconnectReason,
-                                        bool relayClosed);
+                                        bool machineBusy);
 // Forwards one machine power observation per control loop plus the scale
 // link's ability to accept a power-off command; the integration decides
 // whether the connected scale is switched off and publishes its discovery
 // duty override, if any.
 void serviceMachineIntegrationMachinePower(bool scaleLinkUp,
                                            bool scaleSupportsPowerOff,
-                                           bool relayClosed);
+                                           bool machineBusy);
 void requestMachineIntegrationPresetTemperature(
     uint8_t presetId, uint32_t configGeneration, uint16_t targetDeciC);
 // True when no first cloud query will ever be scheduled (no account

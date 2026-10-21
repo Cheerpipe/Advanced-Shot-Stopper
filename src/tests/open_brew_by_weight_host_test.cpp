@@ -10572,7 +10572,7 @@ void it33b_pre_disconnect_weight_cannot_cross_disconnect_epoch() {
                  "weight reason=link_epoch gen(e/n)=") != nullptr);
     CHECK(strstr(rejected[index].text, "disc(e/n)=") != nullptr);
     char message[128] = {};
-    formatDebugEventMessage(rejected[index], message, sizeof(message));
+    formatDebugEventMessage(rejected[index], message, sizeof(message), FW_VERSION);
     CHECK(strcmp(message, rejected[index].text) == 0);
   }
   CHECK(found);

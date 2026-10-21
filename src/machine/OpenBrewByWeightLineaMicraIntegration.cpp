@@ -83,14 +83,13 @@ void requestMachineIntegrationPresetTemperature(
 void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
                                         uint32_t scaleDisconnectSequence,
                                         uint8_t scaleDisconnectReason,
-                                        bool relayClosed) {
+                                        bool machineBusy) {
   const uint8_t options = micraOptions.load(std::memory_order_relaxed);
   const bool accountConfigured =
       micraAccountConfigured.load(std::memory_order_relaxed);
-  const bool busy = relayClosed || service.backflush().busy();
   const MicraScaleShutdownTracker::Snapshot shutdownSnapshot{
       scaleDisconnectSequence, scaleDisconnectReason, scaleLinkUp,
-      busy};
+      machineBusy};
   if (scaleShutdown.service(now, shutdownSnapshot, options,
                             accountConfigured) &&
       !machineEffectivelyOff()) {
@@ -101,7 +100,7 @@ void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
     service.post(request);
   }
   const MicraScalePowerOnTracker::Snapshot powerOnSnapshot{
-      scaleLinkUp, scaleDisconnectReason, busy};
+      scaleLinkUp, scaleDisconnectReason, machineBusy};
   if (scalePowerOn.service(powerOnSnapshot, options, accountConfigured)) {
     serialTraceCategoryf(LogLevel::INFO, DebugCategory::NETWORK,
                          "Micra scale power-on: scale powered on, requesting BrewingMode");
@@ -113,7 +112,7 @@ void serviceMachineIntegrationScaleLink(uint32_t now, bool scaleLinkUp,
 
 void serviceMachineIntegrationMachinePower(bool scaleLinkUp,
                                            bool scaleSupportsPowerOff,
-                                           bool relayClosed) {
+                                           bool machineBusy) {
   const uint8_t scaleOptions =
       micraScaleOptions.load(std::memory_order_relaxed);
   const LineaMicraStatus status = service.statusPoll();
@@ -133,7 +132,7 @@ void serviceMachineIntegrationMachinePower(bool scaleLinkUp,
                                 std::memory_order_relaxed))) {
     return;
   }
-  if (!scaleLinkUp || relayClosed || service.backflush().busy()) {
+  if (!scaleLinkUp || machineBusy) {
     serialTraceCategoryf(LogLevel::INFO, DebugCategory::SCALE,
                          "Scale power-off skipped: scale %s",
                          scaleLinkUp ? "busy with an active cycle"

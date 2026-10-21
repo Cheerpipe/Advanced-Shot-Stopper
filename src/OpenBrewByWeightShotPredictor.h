@@ -179,8 +179,9 @@ inline int32_t sigmaWDg(const corridor::RateEstimator &rate) {
 }
 
 // Slope variance in (dg/ms)^2 scaled by 1e9, from the estimator's own LS
-// window: Var = sigma_W^2 * n^2 / sxx (same algebra as fit()).
-inline int64_t varQdgMs2X1e9(const corridor::RateEstimator &rate) {
+// window: Var = sigma_W^2 * n^2 / sxx (same algebra as fit()). sw is
+// sigmaWDg(rate), which the caller already holds.
+inline int64_t varQdgMs2X1e9(const corridor::RateEstimator &rate, int64_t sw) {
   if (rate.count < 2) return 0;
   int64_t sumT = 0;
   for (uint8_t age = 0; age < rate.count; ++age)
@@ -192,7 +193,6 @@ inline int64_t varQdgMs2X1e9(const corridor::RateEstimator &rate) {
     sxx += dt * dt;
   }
   if (sxx <= 0) return 0;
-  const int64_t sw = sigmaWDg(rate);
   return sw * sw * rate.count * rate.count * 1000000000LL / sxx;
 }
 
@@ -297,8 +297,8 @@ inline Forecast forecastBasis(const corridor::CorridorState &cut, int32_t nowMs,
   const int32_t h = tStar > nowMs ? tStar - nowMs : 0;
   int32_t v = qBasis / 100 - cutLineSlopeDgS(p, tStar);  // dg/s
   if (v < V_FLOOR_DGPS) v = V_FLOOR_DGPS;  // only the magnitude matters
-  const int64_t varQ = varQdgMs2X1e9(rate);
   const int32_t swDg = sigmaWDg(rate);
+  const int64_t varQ = varQdgMs2X1e9(rate, swDg);
   int64_t t100 = static_cast<int64_t>(swDg) * swDg * 100;
   const int64_t span = static_cast<int64_t>(h) + cut.tauMs;
   t100 += span * span * varQ / 1000000000LL * 100;

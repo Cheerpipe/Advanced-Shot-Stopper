@@ -172,6 +172,9 @@ struct NetworkWorkBuf {
   ShotPresetBank renderedPresets{};
   PresetShotStats renderedStats[MAX_SHOT_PRESETS]{};
   uint32_t renderedPresetsHash = 0;
+  uint32_t renderedShotLogEpoch = 0;
+  // presetsJson still holds the Home render; other handlers clear it.
+  bool presetsJsonHome = false;
   // Integration snapshot pieces, kept off the internal httpd stack.
   RecipeSnapshot recipe{};
   char integrationLastShot[768]{};

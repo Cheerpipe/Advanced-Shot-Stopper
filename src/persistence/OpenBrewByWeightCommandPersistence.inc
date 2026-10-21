@@ -39,9 +39,20 @@ bool copyShotCurveById(uint32_t shotId, ShotCurveRecord &curve) {
 // A null curve copies the record alone (the integration snapshot).
 bool copyHomeShot(ShotLogRecord &record, ShotCurveRecord *curve) {
   TaskLockGuard lock(shotStoreMutex);
-  if (curve) resetShotCurveRecord(*curve);
-  if (!shotLog.copyNewestEligible(record)) return false;
-  if (curve) (void)shotCurves.copyByShotId(record.id, *curve);
+  if (!shotLog.copyNewestEligible(record)) {
+    if (curve) resetShotCurveRecord(*curve);
+    return false;
+  }
+  // Curves mutate only with the shot-log epoch (ShotLog::epoch): the idle
+  // Home card keeps its copy of this shot's curve instead of re-reading it on
+  // every dispatch. A reset or foreign copy carries another shotId.
+  static uint32_t copiedEpoch = 0;
+  const uint32_t epoch = shotLog.epoch();
+  if (curve && (curve->shotId != record.id || epoch != copiedEpoch)) {
+    resetShotCurveRecord(*curve);
+    (void)shotCurves.copyByShotId(record.id, *curve);
+    copiedEpoch = epoch;
+  }
   return true;
 }
 
@@ -391,7 +402,7 @@ bool beginMaintenanceLease(const WebCommand &networkCommand,
   }
   // A planned restart must never cut a shot. Override cannot change that.
   if (networkCommand.type == WebCommandType::RESTART &&
-      (session.active || getRelaySafetySnapshot().closed ||
+      (session.active || relayCircuitClosed() ||
        machineLastIntention().holdActive)) {
     return false;
   }
@@ -429,7 +440,7 @@ void holdOrBeginPlannedRestart(const WebCommand &command) {
   restart.type = WebCommandType::RESTART;
   restart.unsafeWebUiOverride = false;
   if (!controlAllowsConfigurationNow() ||
-      session.active || getRelaySafetySnapshot().closed ||
+      session.active || relayCircuitClosed() ||
       machineLastIntention().holdActive) {
     pendingPlannedRestart = restart;
     plannedRestartHeld = true;
@@ -447,7 +458,7 @@ void servicePendingPlannedRestart() {
     return;
   }
   if (!controlAllowsConfigurationNow() || session.active ||
-      getRelaySafetySnapshot().closed || machineLastIntention().holdActive) {
+      relayCircuitClosed() || machineLastIntention().holdActive) {
     return;
   }
   const WebCommand restart = pendingPlannedRestart;
@@ -467,7 +478,7 @@ void holdOrBeginResetHistoryClear(const WebCommand &command) {
   clear.unsafeWebUiOverride = false;
   clear.resetHistoryUnsafeCount = safetyResetStatus.unsafeResetCount;
   if (!controlAllowsConfigurationNow() || session.active ||
-      getRelaySafetySnapshot().closed || machineLastIntention().holdActive) {
+      relayCircuitClosed() || machineLastIntention().holdActive) {
     pendingResetHistoryClear = clear;
     resetHistoryClearHeld = true;
     return;
@@ -477,7 +488,7 @@ void holdOrBeginResetHistoryClear(const WebCommand &command) {
 
 void servicePendingResetHistoryClear() {
   if (!resetHistoryClearHeld || !controlAllowsConfigurationNow() ||
-      session.active || getRelaySafetySnapshot().closed ||
+      session.active || relayCircuitClosed() ||
       machineLastIntention().holdActive) {
     return;
   }

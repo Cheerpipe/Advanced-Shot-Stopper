@@ -994,7 +994,7 @@ inline bool auditStoreAppend(const AuditRecord &record) {
 }
 inline bool auditStoreCommitHeader() { return true; }
 inline size_t auditStoreCopyAfter(uint32_t afterSequence, AuditRecord *output,
-                                  size_t capacity) {
+                                  size_t capacity, uint32_t *) {
   size_t copied = 0;
   for (const AuditRecord &record : hostAuditStoreWindow()) {
     if (record.sequence > afterSequence && copied < capacity) {

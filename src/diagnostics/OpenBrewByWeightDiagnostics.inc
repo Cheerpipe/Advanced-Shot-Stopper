@@ -176,7 +176,7 @@ void publishControlStatus() {
   const ScaleLinkSnapshot scaleLink = getScaleLinkSnapshot();
   const MachineStatusSample machine = machineSampleStatus();
   const bool weightFresh =
-      scaleLinkAvailable(scaleLink) && currentWeightIsFresh(now, scaleLink);
+      scaleLinkAvailable(scaleLink) && currentWeightIsFresh(now, scaleLink.connectionGeneration);
   // Gather other owners before locking publication. Waiting for one producer
   // must not prevent readers from using the last committed control snapshot.
   char preferredMac[PREFERRED_SCALE_MAC_CAPACITY] = {};

@@ -23,7 +23,7 @@ inline bool machineRunningElapsed(uint32_t &elapsedOut) {
 }
 
 inline bool machineIsRunning() {
-  return getRelaySafetySnapshot().closed;
+  return relayCircuitClosed();
 }
 
 inline uint32_t machineElapsedMs() {

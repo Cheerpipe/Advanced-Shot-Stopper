@@ -95,8 +95,9 @@ void updateCutPrediction(float weight, uint32_t receivedAtMs) {
   int32_t shotMs = 0;
   corridor::CorridorState &cut = session.cut;
   cut.crossingValid = false;
+  const int32_t weightDg = gramsToDg(weight);
   if (!shotTimeAtMs(receivedAtMs, shotMs) ||
-      cut.rate.push(shotMs, gramsToDg(weight)) !=
+      cut.rate.push(shotMs, weightDg) !=
           corridor::RateEstimator::Result::ACCEPTED ||
       !cut.rate.valid) {
     return;
@@ -107,7 +108,7 @@ void updateCutPrediction(float weight, uint32_t receivedAtMs) {
     addDebugEvent(DebugCategory::SCALE, DebugCode::CHANNELING_DETECTED,
                   cut.rate.rawX100, shotMs);
   }
-  cut.crossingValid = corridor::crossingMs(cut.params, shotMs, gramsToDg(weight),
+  cut.crossingValid = corridor::crossingMs(cut.params, shotMs, weightDg,
                                           cut.rate.rateX100, cut.tauMs,
                                           cut.offsetDg, cut.crossingMs);
   if (cut.crossingValid && cut.crossingMs < cut.params.wallMs) {
@@ -119,7 +120,7 @@ void updateCutPrediction(float weight, uint32_t receivedAtMs) {
     predictor::PredictorInputs in;
     in.cut = &cut;
     in.nowMs = shotMs;
-    in.weightDg = gramsToDg(weight);
+    in.weightDg = weightDg;
     in.firstDropMs = session.firstDropMs > session.circuitClosedAtMs &&
                              session.circuitClosedAtMs != 0
                          ? static_cast<int32_t>(session.firstDropMs -

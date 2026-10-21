@@ -12,6 +12,9 @@
 #include "OpenBrewByWeightSafety.h"
 #include "OpenBrewByWeightHwmon.h"
 #include "OpenBrewByWeightBbwTypes.h"
+#if defined(ESP_PLATFORM)
+#include "esp_rom_crc.h"
+#endif
 
 // Map ESP-IDF Kconfig (main/Kconfig.projbuild) onto the
 // OPEN_BREW_BY_WEIGHT_* macros. Command-line -DOPEN_BREW_BY_WEIGHT_*=… wins (ifndef).
@@ -3008,7 +3011,59 @@ inline bool formatLifecycleDebugMessage(const DebugEvent &event, char *message,
   }
 }
 
+// One text rendering of an event for the USB console and the WebUI log.
+inline void formatDebugEventMessage(const DebugEvent &event, char *message,
+                                    size_t capacity, const char *firmwareVersion) {
+  if (message == nullptr || capacity == 0) {
+    return;
+  }
+  if (event.text[0] != '\0') {
+    copyCString(message, capacity, event.text);
+    return;
+  }
+  if (event.code == DebugCode::BOOT_BANNER) {
+    snprintf(message, capacity, "Open Brew by Weight %s (bootId=%ld)",
+             firmwareVersion, static_cast<long>(event.argument1));
+    return;
+  }
+  if (event.code == DebugCode::STATE_TRANSITION &&
+      event.argument1 >= static_cast<int32_t>(StopperState::REQUIRES_OFF) &&
+      event.argument1 <= static_cast<int32_t>(StopperState::MANUAL_NO_SCALE) &&
+      event.argument2 >= static_cast<int32_t>(StopperState::REQUIRES_OFF) &&
+      event.argument2 <= static_cast<int32_t>(StopperState::MANUAL_NO_SCALE)) {
+    snprintf(message, capacity, "%s -> %s",
+             stopperStateName(static_cast<StopperState>(event.argument1)),
+             stopperStateName(static_cast<StopperState>(event.argument2)));
+    return;
+  }
+  if (formatScaleSampleDebugMessage(event, message, capacity)) {
+    return;
+  }
+  if (formatPersistDebugMessage(event, message, capacity)) {
+    return;
+  }
+  if (formatLifecycleDebugMessage(event, message, capacity)) {
+    return;
+  }
+  if ((event.code == DebugCode::WEB_COMMAND_ACCEPTED ||
+       event.code == DebugCode::WEB_COMMAND_REJECTED) &&
+      event.argument1 >= static_cast<int32_t>(WebCommandType::REMOTE_ON) &&
+      event.argument1 <=
+          static_cast<int32_t>(WebCommandType::MAINTENANCE_COMPLETE)) {
+    snprintf(message, capacity, "%s: %s", debugCodeName(event.code),
+             webCommandTypeName(
+                 static_cast<WebCommandType>(event.argument1)));
+    return;
+  }
+  copyCString(message, capacity, debugCodeName(event.code));
+}
+
 inline uint32_t crc32Update(uint32_t crc, const uint8_t *data, size_t length) {
+#if defined(ESP_PLATFORM)
+  // Same reflected CRC-32 through the ROM table routine, ~8x faster than the
+  // bit loop; esp_rom_crc32_le complements its state on entry and exit.
+  return ~esp_rom_crc32_le(~crc, data, static_cast<uint32_t>(length));
+#else
   for (size_t index = 0; index < length; ++index) {
     crc ^= data[index];
     for (uint8_t bit = 0; bit < 8; ++bit) {
@@ -3017,6 +3072,7 @@ inline uint32_t crc32Update(uint32_t crc, const uint8_t *data, size_t length) {
     }
   }
   return crc;
+#endif
 }
 
 inline uint32_t crc32(const uint8_t *data, size_t length) {

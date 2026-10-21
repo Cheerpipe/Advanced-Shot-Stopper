@@ -233,6 +233,15 @@ bool initializeRelaySafetyTimer() {
   return true;
 }
 
+// The one field most callers need, without the full snapshot's reset-history
+// copy and feedback GPIO read; same lock, same value as snapshot.closed.
+bool relayCircuitClosed() {
+  portENTER_CRITICAL(&relayMux);
+  const bool closed = circuitClosed;
+  portEXIT_CRITICAL(&relayMux);
+  return closed;
+}
+
 RelaySafetySnapshot getRelaySafetySnapshot() {
   RelaySafetySnapshot snapshot;
   portENTER_CRITICAL(&relayMux);

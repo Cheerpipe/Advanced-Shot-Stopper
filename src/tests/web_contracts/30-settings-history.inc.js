@@ -326,7 +326,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     !network.includes('/api/v1/presets') ||
     !network.includes('presetsHandler') ||
     !network.includes('restore_factory_values') ||
-    !network.includes('delta.field("presets"') ||
+    !network.includes('delta.hashedField("presets"') ||
     network.includes('"/presets"') ||
     !css.includes('.presetCard') ||
     !css.includes('.presetAccItem') ||

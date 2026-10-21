@@ -1,11 +1,11 @@
-bool servicePowerManagement(bool physicalEdge = false) {
+bool servicePowerManagement(bool physicalEdge = false,
+                            const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
   const uint32_t now = millis();
-  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   PowerInputs inputs;
   inputs.enabled = runtimeConfig.powerManagementEnabled;
   inputs.machineBusy = session.active ||
       machineRunState() != MachineRunState::IDLE ||
-      getRelaySafetySnapshot().closed;
+      relayCircuitClosed();
   inputs.scaleBusy = link.connecting || scaleLinkAvailable(link) ||
                      powerScaleBusy.load(std::memory_order_acquire);
   inputs.physicalEdge = physicalEdge;

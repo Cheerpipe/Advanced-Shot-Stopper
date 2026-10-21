@@ -391,15 +391,29 @@ inline bool appendBase64(char *out, size_t capacity, size_t &used,
   return true;
 }
 
+// printf("%.Nf", value / 10^N) for an integer fixed-point source, byte for
+// byte, without newlib's soft-double conversion (the S3 FPU is single
+// precision). N is 1..3.
+struct FixedText {
+  char text[16];
+  FixedText(long value, unsigned digits) {
+    static constexpr unsigned long kScale[] = {1, 10, 100, 1000};
+    const unsigned long magnitude = value < 0 ? 0UL - static_cast<unsigned long>(value)
+                                              : static_cast<unsigned long>(value);
+    snprintf(text, sizeof(text), "%s%lu.%0*lu", value < 0 ? "-" : "",
+             magnitude / kScale[digits], static_cast<int>(digits),
+             magnitude % kScale[digits]);
+  }
+};
+
 // The curve scalars as JSON key/value text: Stats rows emit all of them,
 // the live hero only those that changed.
 template <typename Emit>
 inline bool forEachShotCurveScalar(const ShotCurveRecord &curve, Emit &&emit) {
   char value[16];
   const auto seconds = [&](const char *key, uint16_t ms) {
-    if (ms == SHOT_LOG_METRIC_MISSING) strcpy(value, "null");
-    else snprintf(value, sizeof(value), "%.3f", static_cast<double>(ms) / 1000.0);
-    return emit(key, value);
+    return ms == SHOT_LOG_METRIC_MISSING ? emit(key, "null")
+                                         : emit(key, FixedText(ms, 3).text);
   };
   const auto centigrams = [&](const char *key, int16_t cg) {
     if (shotLogWeightIsMissing(cg)) strcpy(value, "null");

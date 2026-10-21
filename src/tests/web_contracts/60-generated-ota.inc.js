@@ -1623,7 +1623,7 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   }
   if (!firmwareCore.includes('const bool faultRestart') ||
       !firmwareCore.includes(
-          '!session.active && !getRelaySafetySnapshot().closed')) {
+          '!session.active && !relayCircuitClosed()')) {
     throw new Error(
         'Planned ESP.restart must wait for an open circuit; only fault restarts cut a shot');
   }

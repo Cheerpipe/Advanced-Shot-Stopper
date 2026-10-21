@@ -155,6 +155,7 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
     g_work->presetsJson[1] = '}';
     g_work->presetsJson[2] = 0;
   }
+  g_work->presetsJsonHome = false;
   if (self.callbacks_.copyScaleHistory != nullptr) {
     self.callbacks_.copyScaleHistory(g_work->scaleHistory);
   } else {

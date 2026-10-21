@@ -209,7 +209,7 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
                 weightToCentigrams(session.config.weightOffsetG));
   scaleProfileNoteEvent(
       ScaleProfileEvent::SHOT_START, millis(),
-      getScaleLinkSnapshot().connectionGeneration, 0, NAN, session.id,
+      scaleConnectionGenerationNow(), 0, NAN, session.id,
       static_cast<uint32_t>(
           static_cast<int32_t>(weightToCentigrams(
               goalWeightDgToGrams(session.config.goalWeightDg)))));
@@ -386,7 +386,7 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   addDebugEvent(DebugCategory::STATE, DebugCode::CYCLE_ENDED,
                 static_cast<int32_t>(reason));
   scaleProfileNoteEvent(ScaleProfileEvent::SHOT_END, millis(),
-                        getScaleLinkSnapshot().connectionGeneration, 0, NAN,
+                        scaleConnectionGenerationNow(), 0, NAN,
                         session.id, static_cast<uint32_t>(reason));
   transitionTo(nextState);
   serviceIdleTare();
@@ -569,7 +569,7 @@ void handleGlobalLimitTrip() {
   if (wasAlreadyOpenedByTimer) {
     addDebugEvent(DebugCategory::RELAY, DebugCode::RELAY_OPENED);
   }
-  if (!wasAlreadyOpenedByTimer && getRelaySafetySnapshot().closed) {
+  if (!wasAlreadyOpenedByTimer && relayCircuitClosed()) {
     machineRequestStop();
   }
 

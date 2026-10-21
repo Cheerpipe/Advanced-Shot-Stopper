@@ -43,10 +43,11 @@ bool OpenBrewByWeightNetwork::sendAuditDiagFrame(UiStreamSession &session,
     const AuditRecord &record = g_work->auditBatch[index];
     // Full detail rebuilt from the persisted args plus the emit-time excerpt;
     // the field stays `text` so the frame shape and its closer are unchanged.
-    char detail[128] = {};
-    char safeDetail[sizeof(detail) * 6] = {};
+    // The escaped text goes to the PSRAM item scratch, not the httpd stack.
+    char detail[128];
+    char *const safeDetail = g_work->jsonItem;
     formatAuditRecordDetail(record, detail, sizeof(detail));
-    escapeJsonString(detail, safeDetail, sizeof(safeDetail));
+    escapeJsonString(detail, safeDetail, sizeof(detail) * 6);
     if (!statusJsonAppend(&used,
             "%s{\"sequence\":%lu,\"wallSec\":%lu,\"atMs\":%lu,"
             "\"level\":\"%s\",\"category\":\"%s\",\"code\":\"%s\","

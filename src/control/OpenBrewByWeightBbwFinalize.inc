@@ -38,7 +38,7 @@ bool learnPendingBbw(const PendingShotFinalize &snapshot, float finalWeightG,
                          snapshot.automaticBrew) &&
       currentWeightIsFresh(millis()) &&
       currentWeightConnectionGeneration == snapshot.scaleConnectionGeneration &&
-      snapshot.scaleConnectionGeneration == getScaleLinkSnapshot().connectionGeneration;
+      snapshot.scaleConnectionGeneration == scaleConnectionGenerationNow();
   if (!bbwEwma::learn(snapshot.weightOffsetG, finalWeightG, cutLineG,
                       snapshot.bbwAlpha, acceptedFresh, updatedOffset)) {
     serialTrace(acceptedFresh ? LogLevel::WARNING : LogLevel::INFO,

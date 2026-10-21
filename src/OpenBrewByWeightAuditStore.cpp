@@ -247,7 +247,7 @@ bool auditStoreCommitHeader() {
 }
 
 size_t auditStoreCopyAfter(uint32_t afterSequence, AuditRecord *output,
-                           size_t capacity) {
+                           size_t capacity, uint32_t *resumeSlot) {
   if (output == nullptr || capacity == 0 ||
       g_status.state != AuditStoreState::READY) {
     return 0;
@@ -257,8 +257,9 @@ size_t auditStoreCopyAfter(uint32_t afterSequence, AuditRecord *output,
   size_t copied = 0;
   AuditRecord record;
   uint8_t slot[AUDIT_STORE_RECORD_BYTES];
-  for (uint32_t index = g_status.windowStart;
-       index < g_status.writeCursor && copied < capacity; ++index) {
+  uint32_t index = g_status.windowStart;
+  if (resumeSlot != nullptr && *resumeSlot > index) index = *resumeSlot;
+  for (; index < g_status.writeCursor && copied < capacity; ++index) {
     if (!readSlot(part, index, slot)) {
       copied = 0;  // a torn read aborts the page rather than lying partially
       break;
@@ -266,6 +267,7 @@ size_t auditStoreCopyAfter(uint32_t afterSequence, AuditRecord *output,
     if (!auditStoreDecodeRecord(slot, record)) continue;
     if (record.sequence > afterSequence) output[copied++] = record;
   }
+  if (resumeSlot != nullptr) *resumeSlot = index;
   unlockFlashIo();
   return copied;
 }

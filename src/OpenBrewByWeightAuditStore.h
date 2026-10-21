@@ -173,9 +173,12 @@ bool auditStoreAppend(const AuditRecord &record);
 bool auditStoreCommitHeader();
 
 // Copies up to `capacity` retained records in sequence order, newest last,
-// starting after `afterSequence`; returns how many were copied.
+// starting after `afterSequence`; returns how many were copied. A paging
+// caller passes the same `resumeSlot` (initially 0) to every page so each
+// page continues at the slot after the previous one instead of rescanning
+// the window (slots hold ascending sequences).
 size_t auditStoreCopyAfter(uint32_t afterSequence, AuditRecord *output,
-                           size_t capacity);
+                           size_t capacity, uint32_t *resumeSlot = nullptr);
 
 // Erases the whole store (header and body). Returns false on I/O failure.
 bool auditStoreEraseAll();

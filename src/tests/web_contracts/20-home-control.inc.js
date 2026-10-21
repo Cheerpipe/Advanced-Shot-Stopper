@@ -448,7 +448,7 @@
     throw new Error('Bind/resync must share the coalesced publication cadence');
   if(!streamSource.includes('setsockopt(session.fd, IPPROTO_TCP, TCP_NODELAY, &noDelay, sizeof(noDelay));'))
     throw new Error('The UI stream socket must send frames without Nagle delay');
-  if(!/rule\[256\] = "null";\n  if \(canonical\) \{\n    snprintf\(rule,/.test(streamSource)||
+  if(!/rule\[320\] = "null";\n  if \(canonical\) \{\n    snprintf\(rule,/.test(streamSource)||
       !streamSource.includes('delta.field("rule", "%s", rule);')||
       !streamSource.includes('reinterpret_cast<const uint8_t *>(phase), strlen(phase)')||
       !streamSource.includes('delta.field("tintClass", "\\"%s\\"", control.activeCycle')||

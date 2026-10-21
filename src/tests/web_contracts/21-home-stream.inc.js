@@ -362,5 +362,5 @@ int main(){
   assert(stream.includes('cJSON_GetObjectItemCaseSensitive(message, "presetsTag")'));
   assert(home.includes('delta.skipNext = initial && session.knownPresetsTag != 0 &&') &&
       home.includes('session.knownPresetsTag == renderedPresetsHash;') &&
-      home.indexOf('session.knownPresetsTag = 0;') < home.indexOf('delta.field("presets"'));
+      home.indexOf('session.knownPresetsTag = 0;') < home.indexOf('delta.hashedField("presets"'));
 }

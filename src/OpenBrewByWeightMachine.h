@@ -122,7 +122,7 @@ inline void machineSampleInput() {
 inline bool machineServiceCompatibilityDrive(
     const MachineIntention &intent) {
   const bool held = intent.physicalOn;
-  const bool closed = getRelaySafetySnapshot().closed;
+  const bool closed = relayCircuitClosed();
   if (held && !closed) {
     return machineRequestStart(HARD_MAX_CIRCUIT_CLOSED_MS, false);
   }
@@ -218,7 +218,7 @@ inline bool machineTakeNoFlowIdle() { return false; }
 
 inline bool machineStartBackflush() {
 #if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 0
-  return !getRelaySafetySnapshot().closed &&
+  return !relayCircuitClosed() &&
       setMachineCircuitClosed(true, HARD_MAX_CIRCUIT_CLOSED_MS, RelayPurpose::BACKFLUSH_CANDIDATE);
 #else
   return false;

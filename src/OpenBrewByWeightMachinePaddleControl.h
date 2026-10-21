@@ -17,12 +17,12 @@ void applyPaddleRelayDrive() {
     return;
   }
   if (!machineMayForwardActivatorOn()) {
-    if (getRelaySafetySnapshot().closed) {
+    if (relayCircuitClosed()) {
       (void)setMachineCircuitClosed(false);
     }
     return;
   }
-  if (getRelaySafetySnapshot().closed) {
+  if (relayCircuitClosed()) {
     (void)setMachineCircuitClosed(true, HARD_MAX_CIRCUIT_CLOSED_MS);
   }
 }
@@ -54,7 +54,7 @@ inline bool machineBeginRinse(uint32_t operationalLimitMs,
     return true;
   }
   rinseActuationActive = true;
-  if (getRelaySafetySnapshot().closed) {
+  if (relayCircuitClosed()) {
     return true;
   }
   return machineRequestStart(operationalLimitMs);

@@ -99,6 +99,8 @@ bool scaleWorkerTakeConnectedEdge();
 void publishScaleWorkerPolicy(const RuntimeConfig &config, bool controlReady);
 
 ScaleLinkSnapshot getScaleLinkSnapshot();
+// The connection epoch alone, for callers that need nothing else.
+uint32_t scaleConnectionGenerationNow();
 // Nonblocking request; the scale owner clears only the maximum on its next tick.
 void requestScaleGapMaxReset();
 // Connected and worker-fresh: the authoritative "a scale is usable" gate.

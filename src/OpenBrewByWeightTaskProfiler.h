@@ -187,6 +187,8 @@ class PhaseProfiler {
     }
   }
 
+  bool active() const { return active_; }
+
   template <typename Phase>
   void record(Phase phase, uint32_t durationUs, uint32_t nowUs) {
     record(phase, durationUs, nowUs, durationUs);
