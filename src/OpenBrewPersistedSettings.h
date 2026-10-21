@@ -9,7 +9,10 @@
 namespace shotstopper {
 
 constexpr uint32_t PERSISTED_SETTINGS_MAGIC = 0x53544F50U;  // "STOP"
-constexpr const char *SETTINGS_NAMESPACE = "shotstopper";
+// The short project prefix: "openbrewbyweight" exceeds the NVS name limit.
+constexpr char SETTINGS_NAMESPACE[] = "openbrew";
+static_assert(sizeof(SETTINGS_NAMESPACE) <= 16,
+              "NVS namespace names are limited to 15 characters");
 constexpr const char *SETTINGS_SLOT_A = "settingsA";
 constexpr const char *SETTINGS_SLOT_B = "settingsB";
 constexpr const char *DEFAULT_DEVICE_PASSWORD = "ineedacoffee";

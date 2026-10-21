@@ -164,7 +164,7 @@ assert internal_build.count("SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATI
 assert "SS_IDF_OPT_LEVEL_KCONFIG=CONFIG_COMPILER_OPTIMIZATION_SIZE" in internal_build
 firmware_dispatcher = (INTERNAL / "firmware-idf").read_text()
 assert 'Build output folder: %s\\n' in firmware_dispatcher
-assert 'Flash-ready firmware: %s/shotstopper.bin\\n' in firmware_dispatcher
+assert 'Flash-ready firmware: %s/openbrewbyweight.bin\\n' in firmware_dispatcher
 idf_helper = (INTERNAL / ".." / "openbrew_idf.sh").resolve().read_text()
 assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_PERF}") == 2
 assert idf_helper.count("-CONFIG_COMPILER_OPTIMIZATION_SIZE}") == 0
@@ -245,9 +245,9 @@ assert internal_build.index('ss_idf_verify_firmware') < internal_build.index(
 (ROOT / "temp").mkdir(exist_ok=True)
 with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp") as temporary:
     build = Path(temporary)
-    image = build / "shotstopper.bin"
+    image = build / "openbrewbyweight.bin"
     image.write_bytes(b"x")
-    (build / "shotstopper.map").write_text(
+    (build / "openbrewbyweight.map").write_text(
         "0x3c000000 _ext_ram_bss_start\n0x3c000010 _ext_ram_bss_end\n"
         "0x3fc80000 localBuzzer\n0x3fc80010 taskProfiler\n"
         "0x3fc80020 publishedControlStatus\n0x3fc80030 controlStatusMutex\n"
@@ -269,7 +269,7 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp"
     release_profile = check_size()
     assert release_profile.returncode == 0
     assert "budget evidence requires a --development build" in release_profile.stdout
-    memory_map = build / "shotstopper.map"
+    memory_map = build / "openbrewbyweight.map"
     valid_map = memory_map.read_text()
     memory_map.write_text(valid_map.replace("0x3c000004 publishedControlCurve",
                                            "0x3fc80100 publishedControlCurve"))
@@ -1116,7 +1116,7 @@ assert [line.split(":", 1)[0] for line in build_only] == ["build-idf"]
 build_result, _ = dispatched(("build",), [*profile_args, "--webui-language", "EN_us"])
 assert re.search(r"Build output folder: /.+/build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x$",
                  build_result.stdout, re.M)
-assert re.search(r"Flash-ready firmware: /.+/shotstopper\.bin$", build_result.stdout, re.M)
+assert re.search(r"Flash-ready firmware: /.+/openbrewbyweight\.bin$", build_result.stdout, re.M)
 flash_monitor_only = stubbed_dispatcher(
     ("flash", "monitor"),
     ["--arch", "n16r8", "--port", "/dev/null", "--speed", "115200"])
@@ -1317,7 +1317,7 @@ def flash_command(layout: str, *extra: str, arch: str = "n16r8"):
         log = root / "commands.log"
         image = root / "external.bin"
         image.write_bytes(b"external")
-        (build / "shotstopper.bin").write_bytes(b"project")
+        (build / "openbrewbyweight.bin").write_bytes(b"project")
         (build / "flash_args").write_text("0x0 bootloader.bin\n")
         (idf / "export.sh").write_text("return 99\n")
         (python_env / "python").write_text("#!/bin/sh\nexit 0\n")

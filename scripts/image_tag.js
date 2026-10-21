@@ -14,7 +14,7 @@ const crypto = require('crypto');
 
 // Must stay in sync with FW_IMAGE_TAG_STRING (scripts/gen_version.sh) and the
 // parser in src/OpenBrewOta.cpp.
-const TAG_PREFIX = 'SHOTSTOPPER_FW_TAG_V2|';
+const TAG_PREFIX = 'OPENBREWBYWEIGHT_FW_TAG_V2|';
 const TAG_TERMINATOR = '|END';
 const TAG_BODY_MAX_BYTES = 256;
 
@@ -31,10 +31,10 @@ const APP_DESC_ELF_SHA256_OFFSET = APP_DESC_OFFSET + 144;
 const IMAGE_HASH_APPENDED_OFFSET = 23;
 const IMAGE_HASH_BYTES = 32;
 // Arduino-ESP32 cores built by esp32-arduino-lib-builder share that project
-// name. Native IDF firmware (`./scripts/dev build`) uses CMake project(shotstopper).
-// Either name proves a Shot Stopper-capable ESP32-S3 image; the tag below is
-// what identifies the sketch.
-const EXPECTED_PROJECT_NAMES = new Set(['arduino-lib-builder', 'shotstopper']);
+// name. Native IDF firmware (`./scripts/dev build`) uses CMake
+// project(openbrewbyweight). Either name proves an Open Brew by Weight-capable
+// ESP32-S3 image; the tag below is what identifies the sketch.
+const EXPECTED_PROJECT_NAMES = new Set(['arduino-lib-builder', 'openbrewbyweight']);
 
 function readCString(buffer, offset, capacity) {
   const end = Math.min(offset + capacity, buffer.length);

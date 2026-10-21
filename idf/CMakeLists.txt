@@ -90,7 +90,7 @@ if(_ss_cdc_on_boot)
   message(STATUS "USB Serial/JTAG enabled (ARDUINO_USB_CDC_ON_BOOT=1)")
 endif()
 
-project(shotstopper)
+project(openbrewbyweight)
 
 # ninja cmake_check reconfigures when the internal build stage updates the stamp.
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_ss_extra_flags_file}")

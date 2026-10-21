@@ -199,8 +199,8 @@ Both options are required together. The X1 profile always resolves to
 `build-idf/esp32-s3-relay-x1-speaker--<machine>/` and also creates a `.bin`
 whose filename contains that complete variant.
 
-Every successful `build` also preserves the matching `shotstopper.elf` and
-`shotstopper.bin` under
+Every successful `build` also preserves the matching `openbrewbyweight.elf` and
+`openbrewbyweight.bin` under
 `artifacts/firmware/<hardware>--<machine>/<ELF SHA>/`, alongside
 `identity.json`. The SHA is the one printed in an ESP32 panic log; its prefix
 can locate the matching archive. These Git-ignored copies are created without
@@ -484,7 +484,9 @@ how the installer treats controllers that still have it.
 
 Controllers on an earlier project layout move to the current one with a
 one-time USB installation of the full project build. Build for your hardware
-and machine, then use the ordinary USB flash command without `--erase-all`:
+and machine, then use the ordinary USB flash command without `--erase-all`.
+This does not apply to firmware from before the Open Brew by Weight name: that
+needs the [clean installation](#other-clean-install-cutovers) instead.
 
 ```sh
 ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \
@@ -521,11 +523,20 @@ or a current layout without the dedicated
 816 KiB `shotcurve` partition or the 32 KiB `shotlog` and `history` partitions,
 or an n16r8 layout without the new crash-history area,
 needs a one-time clean USB installation. A normal flash refuses an incompatible
-layout. **The following erases both firmware
-slots and all saved data:** settings, Wi-Fi credentials and password, recipes
-and presets, calibration, scale preferences, shot history and last shot. There
-are also no retained crash records after this installation. Settings and
-curves start from factory defaults without migration.
+layout.
+
+Firmware from before the Open Brew by Weight name needs the same clean
+installation, even when its layout is current. You can recognize it when an
+update over Wi-Fi fails with "This firmware does not belong to the Open Brew by
+Weight application". A normal USB flash does not catch this case: the
+controller would start with factory settings, Wi-Fi included, because the new
+firmware does not read settings saved by the old one.
+
+**The following erases both firmware slots and all saved data:** settings,
+Wi-Fi credentials and password, recipes and presets, calibration, scale
+preferences, shot history and last shot. There are also no retained crash
+records after this installation. Settings and curves start from factory
+defaults without migration.
 
 ```sh
 ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \

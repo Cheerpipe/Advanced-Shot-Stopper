@@ -1,6 +1,6 @@
 "use strict";
 
-const TAG_PREFIX = "SHOTSTOPPER_FW_TAG_V2|",
+const TAG_PREFIX = "OPENBREWBYWEIGHT_FW_TAG_V2|",
   TAG_END = "|END",
   TAG_BODY_MAX = 256;
 const IMAGE_PREFIX_BYTES = 288,
@@ -180,7 +180,7 @@ function imageHeader(bytes) {
     throw new Error(__WEBUI_TEXT__("ota.this_firmware_has_an_invalid_application_descriptor"));
   let project = "";
   for (let i = 80; i < 112 && bytes[i]; i++) project += String.fromCharCode(bytes[i]);
-  if (project !== "arduino-lib-builder" && project !== "shotstopper")
+  if (!/^(arduino-lib-builder|openbrewbyweight)$/.test(project))
     throw new Error(__WEBUI_TEXT__("ota.this_firmware_does_not_belong_to_the"));
   if (bytes[23] !== 1)
     throw new Error(__WEBUI_TEXT__("ota.this_firmware_has_no_appended_image_checksum"));

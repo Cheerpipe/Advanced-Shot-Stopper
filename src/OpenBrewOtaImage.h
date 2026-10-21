@@ -33,16 +33,16 @@ constexpr uint16_t OTA_ESP_CHIP_ID_ESP32S3 = 0x0009;
 constexpr uint32_t OTA_APP_DESC_MAGIC = 0xABCD5432U;
 
 // Arduino-ESP32 cores produced by esp32-arduino-lib-builder share this name.
-// Native IDF firmware (`./scripts/dev build`) uses CMake project(shotstopper).
-// Either name proves a Shot Stopper-capable ESP32-S3 image; the tag below is
-// what identifies the sketch.
+// Native IDF firmware (`./scripts/dev build`) uses CMake
+// project(openbrewbyweight). Either name proves an Open Brew by Weight-capable
+// ESP32-S3 image; the tag below is what identifies the sketch.
 constexpr const char *OTA_EXPECTED_PROJECT_NAME = "arduino-lib-builder";
-constexpr const char *OTA_EXPECTED_PROJECT_NAME_IDF = "shotstopper";
+constexpr const char *OTA_EXPECTED_PROJECT_NAME_IDF = "openbrewbyweight";
 
 // The literal an image must contain, minus its "arch=…" payload. It is stored
 // split so that a compiled firmware holds exactly one contiguous copy of the
 // full prefix: its own tag, never this search needle.
-constexpr const char *OTA_TAG_PREFIX_PART_1 = "SHOTSTOPPER";
+constexpr const char *OTA_TAG_PREFIX_PART_1 = "OPENBREWBYWEIGHT";
 constexpr const char *OTA_TAG_PREFIX_PART_2 = "_FW_TAG_V2|";
 constexpr const char *OTA_TAG_TERMINATOR = "|END";
 constexpr size_t OTA_TAG_TERMINATOR_LENGTH = 4;
@@ -250,11 +250,11 @@ inline OtaImageHeaderResult validateOtaImageHeader(const uint8_t *bytes,
   return OtaImageHeaderResult::OK;
 }
 
-// Finds the Shot Stopper tag in a byte stream delivered in arbitrary chunks.
+// Finds the firmware tag in a byte stream delivered in arbitrary chunks.
 //
 // Uses Knuth-Morris-Pratt so a partial match that fails can still resume inside
-// itself: the prefix "SHOTSTOPPER…" overlaps itself at "SHOTS", and a naive
-// restart would miss a tag preceded by such a fragment.
+// itself whenever the prefix overlaps itself; a naive restart would miss a tag
+// preceded by such a fragment.
 class OtaImageTagScanner {
   public:
   OtaImageTagScanner() { reset(); }

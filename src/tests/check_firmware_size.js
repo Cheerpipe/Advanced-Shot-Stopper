@@ -5,7 +5,7 @@ const path = require('path');
 
 const root = path.resolve(__dirname, '..', '..');
 const slotLimits = {n16r8: 3145728};
-const binPath = process.argv[2] || path.join(root, 'build-idf', 'n16r8', 'shotstopper.bin');
+const binPath = process.argv[2] || path.join(root, 'build-idf', 'n16r8', 'openbrewbyweight.bin');
 const normalized = binPath.replace(/\\/g, '/');
 const explicitArch = process.argv[3] === '--arch' ? process.argv[4] : '';
 const arch = slotLimits[explicitArch] ? explicitArch :
@@ -41,7 +41,7 @@ if (Array.isArray(actual.layout)) {
 }
 actual.image = fs.statSync(binPath).size;
 const failures = [];
-const map = fs.readFileSync(path.join(path.dirname(binPath), 'shotstopper.map'), 'utf8');
+const map = fs.readFileSync(path.join(path.dirname(binPath), 'openbrewbyweight.map'), 'utf8');
 function symbolAddress(name) {
   const match = map.match(new RegExp('^\\s*(0x[0-9a-fA-F]+)\\s+' + name + '(?:\\s|$)', 'm'));
   if (!match) throw new Error(`Required memory symbol missing: ${name}`);

@@ -13,7 +13,7 @@ implementers; these checks do not replace the controller's verification.
 - ESP image magic: `0xE9` at byte 0.
 - ESP chip ID: `0x0009` (ESP32-S3), little-endian, at bytes 12–13.
 - `esp_app_desc_t` magic: `0xABCD5432`, little-endian, at byte 32.
-- Project name at byte 80, capacity 32 bytes: `shotstopper` for native IDF or
+- Project name at byte 80, capacity 32 bytes: `openbrewbyweight` for native IDF or
   `arduino-lib-builder` for the Arduino core build.
 - `hash_appended` at byte 23 must be 1. The last 32 bytes are the SHA-256 of
   every preceding byte in the application image.
@@ -23,7 +23,7 @@ implementers; these checks do not replace the controller's verification.
 The image contains one generated ASCII tag:
 
 ```text
-SHOTSTOPPER_FW_TAG_V2|arch=<arch>|hw=<hardware>|machine=<machine>|ver=<version>|packed=<uint32>|END
+OPENBREWBYWEIGHT_FW_TAG_V2|arch=<arch>|hw=<hardware>|machine=<machine>|ver=<version>|packed=<uint32>|END
 ```
 
 - The tag may occur at any byte offset. Its position is linker-dependent and

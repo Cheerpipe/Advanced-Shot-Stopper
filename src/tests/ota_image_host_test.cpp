@@ -102,7 +102,7 @@ void testHeaderRejectsMissingAppDescriptor() {
 
 void testHeaderRejectsForeignProject() {
   std::vector<uint8_t> image = makeValidHeader();
-  const char *other = "some-other-project";
+  const char *other = "shotstopper";
   std::memset(image.data() + shotstopper::OTA_APP_DESC_PROJECT_NAME_OFFSET, 0,
               shotstopper::OTA_APP_DESC_NAME_BYTES);
   std::memcpy(image.data() + shotstopper::OTA_APP_DESC_PROJECT_NAME_OFFSET,
@@ -244,10 +244,9 @@ void testScannerFindsTagAcrossEveryChunkBoundary() {
 }
 
 void testScannerRecoversFromOverlappingPrefix() {
-  // Every partial copy of the prefix immediately followed by the real tag.
-  // "SHOT" is the case that matters: the mismatching byte is not the first
-  // character of the prefix, so a scanner that restarts from scratch swallows
-  // the byte that begins the genuine match and never finds the tag.
+  // Every partial copy of the prefix immediately followed by the real tag. A
+  // scanner that restarts from scratch after a mismatch inside a self-
+  // overlapping prefix swallows the byte that begins the genuine match.
   const std::string prefix = tagPrefix();
   for (size_t overlapLength = 1; overlapLength < prefix.size();
        ++overlapLength) {

@@ -273,7 +273,7 @@ function browserFile(buffer) {
 }
 function otaFixture(tagOffset) {
   const tag = Buffer.from(
-      'SHOTSTOPPER_FW_TAG_V2|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3+abcdef0|' +
+      'OPENBREWBYWEIGHT_FW_TAG_V2|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3+abcdef0|' +
       'packed=16909056|END', 'latin1');
   const size = Math.max(tagOffset + tag.length + 64, 4096);
   const image = Buffer.alloc(size, 0x5a);
@@ -283,7 +283,7 @@ function otaFixture(tagOffset) {
   image[23] = 1;
   image.writeUInt32LE(0xabcd5432, 32);
   image.fill(0, 80, 112);
-  image.write('shotstopper', 80, 'latin1');
+  image.write('openbrewbyweight', 80, 'latin1');
   tag.copy(image, tagOffset);
   refreshOtaFixtureHash(image);
   return image;
@@ -307,7 +307,7 @@ for (const badBody of [
   'arch=N16R8|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3|packed=1|END',
   'ignored=\0|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3|packed=1|END',
 ]) {
-  const bad = Buffer.from('SHOTSTOPPER_FW_TAG_V2|' + badBody, 'latin1');
+  const bad = Buffer.from('OPENBREWBYWEIGHT_FW_TAG_V2|' + badBody, 'latin1');
   const validOffset = 320 + bad.length + 8;
   const fixture = otaFixture(validOffset);
   bad.copy(fixture, 320);
@@ -330,6 +330,43 @@ for (const badBody of [
   }
   if (!rejected) {
     throw new Error('Web OTA parser must reject a corrupt appended image hash');
+  }
+}
+// Legacy and look-alike project names are foreign to the Web UI and host tool.
+for (const project of ['shotstopper', 'openbrewbyweightx']) {
+  const foreign = otaFixture(320);
+  foreign.fill(0, 80, 112);
+  foreign.write(project, 80, 'latin1');
+  refreshOtaFixtureHash(foreign);
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'openbrewbyweight-ota-'));
+  fs.writeFileSync(path.join(dir, 'image.bin'), foreign);
+  const hostProblems = imageTag.inspectImage(path.join(dir, 'image.bin')).problems;
+  fs.rmSync(dir, {recursive: true});
+  let rejected = false;
+  try {
+    await otaParser.otaFileIdentity(browserFile(foreign));
+  } catch (error) {
+    rejected = /does not belong/.test(String(error && error.message));
+  }
+  if (!rejected || !hostProblems.some((problem) => problem.startsWith('unexpected project_name'))) {
+    throw new Error(`OTA parsers must reject project name ${project}`);
+  }
+}
+// An image carrying only the legacy tag has no identity.
+{
+  const legacy = otaFixture(320);
+  legacy.fill(0x5a, 320, 520);
+  legacy.write('SHOTSTOPPER_FW_TAG_V2|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3|packed=1|END',
+      320, 'latin1');
+  refreshOtaFixtureHash(legacy);
+  let rejected = false;
+  try {
+    await otaParser.otaFileIdentity(browserFile(legacy));
+  } catch (error) {
+    rejected = /does not contain a valid/.test(String(error && error.message));
+  }
+  if (!rejected || imageTag.findImageTag(legacy)) {
+    throw new Error('OTA parsers must not accept the legacy image tag');
   }
 }
 // Every WEB_ASSETS row round-trips to the bytes it names; PNG rows ship raw
@@ -1515,7 +1552,7 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   }
   // The needle is assembled at run time so a compiled image contains exactly
   // one contiguous copy of the prefix: its own tag, never the search pattern.
-  if (otaImage.includes('"SHOTSTOPPER_FW_TAG_V2|"') ||
+  if (otaImage.includes('"OPENBREWBYWEIGHT_FW_TAG_V2|"') ||
       !otaImage.includes('OTA_TAG_PREFIX_PART_1') ||
       !otaImage.includes('OTA_TAG_PREFIX_PART_2')) {
     throw new Error('OTA tag prefix must stay split so it is not embedded contiguously');

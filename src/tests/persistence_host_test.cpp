@@ -483,13 +483,13 @@ void p64_factory_settings_overwrite_does_not_clear_ble_namespace() {
   BleScanPersistedSettings ble;
   ble.scanIntensity = static_cast<uint8_t>(BleScanIntensity::RELAXED);
   CHECK(saveBleScanSettings(ble));
-  CHECK(persistence_host::records.count("shotstopper/bleCfgA") +
-            persistence_host::records.count("shotstopper/bleCfgB") >=
+  CHECK(persistence_host::records.count("openbrew/bleCfgA") +
+            persistence_host::records.count("openbrew/bleCfgB") >=
         1);
   CHECK(resetPersistedSettingsToFactory(settings));
   CHECK(verifyFactorySettings(settings));
-  CHECK(persistence_host::records.count("shotstopper/bleCfgA") +
-            persistence_host::records.count("shotstopper/bleCfgB") >=
+  CHECK(persistence_host::records.count("openbrew/bleCfgA") +
+            persistence_host::records.count("openbrew/bleCfgB") >=
         1);
   BleScanPersistedSettings reloadedBle;
   CHECK(loadBleScanSettings(reloadedBle));

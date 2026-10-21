@@ -5,7 +5,7 @@
 # Official firmware builds write to build-idf/<hardware>--<machine> and use native
 # ESP-IDF NimBLE as the only BLE backend.
 
-IDF_PROJECT_NAME="shotstopper"
+IDF_PROJECT_NAME="openbrewbyweight"
 IDF_DEFAULT_HOME="${HOME}/esp/esp-idf-v6.1"
 
 ss_idf_find() {

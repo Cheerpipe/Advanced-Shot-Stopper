@@ -23,7 +23,7 @@ Successful firmware builds automatically retain ELF/BIN pairs in
 its ELF; `./scripts/dev clean` keeps these archives.
 
 At the end of every successful command that includes `build`, the terminal
-highlights the absolute build-output folder and the absolute `shotstopper.bin`
+highlights the absolute build-output folder and the absolute `openbrewbyweight.bin`
 path ready for installation.
 
 ## Web UI design preview
@@ -60,13 +60,15 @@ separate, deliberate change.
 
 ## USB installation
 
-Review the selected profiles and physical safety before adding `--confirm`.
-The flag authorizes hardware access; it does not skip image, profile, or
-partition checks. Controllers on an earlier project layout move up with a
-preserving [one-time USB installation](BUILD.md#moving-up-from-an-earlier-layout)
-using the normal flash command. It keeps settings and saved history and starts
-only the newer storage areas empty; subsequent updates can use OTA. Use `--erase-all` only for an explicitly
-chosen clean installation:
+Review the selected profiles and physical safety before adding `--confirm`. The
+flag authorizes hardware access; it does not skip image, profile, or partition
+checks. Controllers on an earlier project layout move up with a preserving
+[one-time USB installation](BUILD.md#moving-up-from-an-earlier-layout) using
+the normal flash command. It keeps settings and saved history and starts only
+the newer storage areas empty; subsequent updates can use OTA. Firmware from
+before the Open Brew by Weight name needs a [clean
+installation](BUILD.md#other-clean-install-cutovers) instead. Use `--erase-all`
+only for an explicitly chosen clean installation:
 
 ```sh
 ./scripts/dev build flash --confirm \

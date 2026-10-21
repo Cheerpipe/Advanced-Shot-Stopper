@@ -22,8 +22,8 @@ function fixture() {
   const image = Buffer.alloc(131104, 0x5a);
   image[0] = 0xe9; image[12] = 9; image[13] = 0; image[23] = 1;
   image.writeUInt32LE(0xabcd5432, 32);
-  image.fill(0, 80, 112); image.write('shotstopper', 80);
-  image.write('SHOTSTOPPER_FW_TAG_V2|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3|packed=123|END', 320);
+  image.fill(0, 80, 112); image.write('openbrewbyweight', 80);
+  image.write('OPENBREWBYWEIGHT_FW_TAG_V2|arch=n16r8|hw=legacy|machine=legacy|ver=1.2.3|packed=123|END', 320);
   crypto.createHash('sha256').update(image.subarray(0, -32)).digest().copy(image, image.length - 32);
   return new Blob([image]);
 }

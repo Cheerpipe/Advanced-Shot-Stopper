@@ -90,11 +90,11 @@ cat > "$output.tmp" <<EOF
 #define FW_VERSION_PACKED_STRING "${packed}"
 
 // Contiguous marker embedded in every flashable image. The OTA verifier scans
-// an uploaded binary for this literal to prove the file is a Shot Stopper build
-// for this exact board before it may become the boot image. Keep the field
-// order and the "|END" terminator in sync with OpenBrewOta.cpp.
+// an uploaded binary for this literal to prove the file is an Open Brew by
+// Weight build for this exact board before it may become the boot image. Keep
+// the field order and the "|END" terminator in sync with OpenBrewOta.cpp.
 #define FW_IMAGE_TAG_STRING                                     \\
-  "SHOTSTOPPER_FW_TAG_V2|arch=" FW_BOARD_ARCH_STRING            \\
+  "OPENBREWBYWEIGHT_FW_TAG_V2|arch=" FW_BOARD_ARCH_STRING       \\
   "|hw=" FW_HARDWARE_COMPAT_STRING                              \\
   "|machine=" FW_MACHINE_COMPAT_STRING                          \\
   "|ver=" FW_VERSION_STRING                                     \\
