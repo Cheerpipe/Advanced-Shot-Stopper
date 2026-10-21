@@ -2,7 +2,7 @@
 Native ESP-IDF NimBLE gateway for espresso scales on ESP32-S3 devices with PSRAM.
 
 Maintained by **Felipe Urzúa** (`cheerpipe@gmail.com`) as part of
-[Cheerpipe/AcaiaArduinoBLE](https://github.com/Cheerpipe/AcaiaArduinoBLE).
+[Cheerpipe/Open-Brew-by-Weight](https://github.com/Cheerpipe/Open-Brew-by-Weight).
 The original AcaiaArduinoBLE library was created by Tate Mazer; see
 [Acknowledgement](#acknowledgement).
 
@@ -303,7 +303,7 @@ noted in the capability table.
 
 ## Acknowledgement
 This library is maintained by Felipe Urzúa
-([Cheerpipe/AcaiaArduinoBLE](https://github.com/Cheerpipe/AcaiaArduinoBLE)).
+([Cheerpipe/Open-Brew-by-Weight](https://github.com/Cheerpipe/Open-Brew-by-Weight)).
 It derives from [tatemazer/AcaiaArduinoBLE](https://github.com/tatemazer/AcaiaArduinoBLE)
 by Tate Mazer.
 

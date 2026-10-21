@@ -372,7 +372,7 @@ Portions derive from [tatemazer/AcaiaArduinoBLE](https://github.com/tatemazer/Ac
 
 Open Brew by Weight is maintained by **Felipe Urzúa**
 (`cheerpipe@gmail.com`) —
-[Cheerpipe/AcaiaArduinoBLE](https://github.com/Cheerpipe/AcaiaArduinoBLE).
+[Cheerpipe/Open-Brew-by-Weight](https://github.com/Cheerpipe/Open-Brew-by-Weight).
 
 It would not exist without
 **[tatemazer](https://github.com/tatemazer)** and

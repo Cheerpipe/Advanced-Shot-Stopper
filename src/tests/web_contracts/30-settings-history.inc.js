@@ -1552,7 +1552,7 @@ if (!codeIncludes(ui, 'id="firmwareFooter"') ||
     !network.includes('FW_VERSION')) {
   throw new Error('Firmware version must remain exposed in status API, page footers, and Diagnostic');
 }
-if (!shellHtml.includes('https://github.com/Cheerpipe/AcaiaArduinoBLE') ||
+if (!shellHtml.includes('https://github.com/Cheerpipe/Open-Brew-by-Weight') ||
     !shellHtml.includes('https://github.com/Cheerpipe') ||
     !shellHtml.includes('Hecho por') ||
     !shellHtml.includes('>Cheerpipe</a>') ||

@@ -22,8 +22,8 @@ do not need a connected controller. Flash/OTA sections explicitly affect it.
 ## 1. Clone the repository
 
 ```sh
-git clone https://github.com/Cheerpipe/Advanced-Shot-Stopper.git AcaiaArduinoBLE
-cd AcaiaArduinoBLE
+git clone https://github.com/Cheerpipe/Open-Brew-by-Weight.git
+cd Open-Brew-by-Weight
 ```
 
 Use your fork's URL when contributing. Commands below run from this repository

@@ -31,7 +31,7 @@
     permission, and applies scale/cup effects. Guards never call machine.
 
   Author: Felipe Urzúa <cheerpipe@gmail.com>
-  https://github.com/Cheerpipe/AcaiaArduinoBLE
+  https://github.com/Cheerpipe/Open-Brew-by-Weight
   Released under the GNU Affero General Public License v3.0.
 */
 
