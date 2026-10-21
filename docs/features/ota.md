@@ -29,10 +29,13 @@ are stored. Install it over USB with `--erase-all` (see
 is not supported: the controller would restart with factory settings, Wi-Fi
 included, and open its setup network. If that happens, join the setup network
 and set up Wi-Fi again, or reinstall over USB. Export your shots first
-(**Stats → Export**); shot history is erased. Firmware from before the Open
-Brew by Weight name needs the same USB installation; you can recognize it when
-**Firmware update** says the file does not belong to the Open Brew by Weight
-application. Later updates work over Wi-Fi.
+(**Stats → Export**); shot history is erased. Later updates work over Wi-Fi.
+
+### Updating from firmware before the Open Brew by Weight name
+
+Firmware from before the project took the Open Brew by Weight name needs the
+same USB installation with `--erase-all`. You can recognize it when **Firmware
+update** says the file does not belong to the Open Brew by Weight application.
 
 Compatibility mode does not restrict updates: with the [firmware mode
 switch](../settings/firmware-mode.md) off, the Admin **Firmware update**

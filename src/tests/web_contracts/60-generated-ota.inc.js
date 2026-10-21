@@ -843,8 +843,7 @@ if (generated.otaImageGzip.length > 3072) {
 // The Diagnostic Heap min before and after the boot heap shaper release measures diagnostic.js at 13871; owner-requested 2026-10-20.
 // Home and Diagnostic minimal increments move records.js to 15098 through shared text table gzip wobble; owner-requested 2026-10-21.
 // The review fixes move diagnostic.js to 13872 through shared text table gzip wobble; owner-requested 2026-10-21.
-// Gzip wobble from the asset version tag after the openbrewbyweight rename (admin.js source unchanged) measures 14230; rename owner-requested 2026-10-21.
-const viewModuleBudgets = {records: 15098, diagnostic: 13872, admin: 14230, settings: 16807, setup: 5793};
+const viewModuleBudgets = {records: 15098, diagnostic: 13872, admin: 14229, settings: 16807, setup: 5793};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);

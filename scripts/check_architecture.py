@@ -161,6 +161,8 @@ def main() -> int:
         ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
         cwd=ROOT, check=True, capture_output=True).stdout.decode().split("\0")
     for relative in filter(None, listed):
+        if legacy.search(relative):
+            failures.append(f"legacy project name in path: {relative}")
         path = ROOT / relative
         content = path.read_bytes() if path.is_file() else b"\0"
         if b"\0" in content or relative == "scripts/check_architecture.py":
