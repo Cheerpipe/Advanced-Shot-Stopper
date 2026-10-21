@@ -12,12 +12,12 @@
 #include "OpenBrewByWeightFlashIoScratch.h"
 #include "OpenBrewByWeightNvsDualSlot.h"
 
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) &&                                        \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 #include <esp_partition.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // One CRC over the header words every ring mutation moves (generation,
 // nextRecordId, count). Shared by the stores' epoch() stream gates so the
@@ -45,7 +45,7 @@ class DualSlotFlashLog {
   using Record = typename Traits::Record;
 
  public:
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   static void resetHostStorage() {
     memset(hostSlots_, 0, sizeof(hostSlots_));
     hostSlotValid_[0] = false;
@@ -57,7 +57,7 @@ class DualSlotFlashLog {
 
   bool load() {
     using Traits = DualSlotFlashLogTraits<StoreT>;
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     uint8_t bestSlot = 0;
     bool haveBest = false;
     for (uint8_t slot = 0; slot < 2; ++slot) {
@@ -134,7 +134,7 @@ class DualSlotFlashLog {
     }
     FinalizeFn(store_);
     const uint8_t targetSlot = static_cast<uint8_t>(1U - (activeSlot_ & 1U));
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     if (!hostSaveSucceeds_) {
       unlockFlashIo();
       return false;
@@ -187,7 +187,7 @@ class DualSlotFlashLog {
   FlashStoreStepResult flushStep(
       uint32_t lockTimeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
     if (!dirty_) return FlashStoreStepResult::COMPLETE;
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     return save(lockTimeoutMs) ? FlashStoreStepResult::COMPLETE
                                : FlashStoreStepResult::FAILED;
 #else
@@ -379,8 +379,8 @@ class DualSlotFlashLog {
     return false;
   }
 
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) &&                                        \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   static const esp_partition_t *flashLogPartition() {
     return esp_partition_find_first(
         ESP_PARTITION_TYPE_DATA, static_cast<esp_partition_subtype_t>(0x40),
@@ -402,11 +402,11 @@ class DualSlotFlashLog {
   uint8_t activeSlot_ = 0;
   bool dirty_ = false;
 
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   inline static StoreT hostSlots_[2] = {};
   inline static bool hostSlotValid_[2] = {};
   inline static bool hostSaveSucceeds_ = true;
 #endif
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

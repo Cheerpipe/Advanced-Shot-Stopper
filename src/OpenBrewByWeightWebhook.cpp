@@ -3,21 +3,21 @@
 #include "OpenBrewByWeightPsram.h"
 #include "OpenBrewByWeightHttpDiagnostics.h"
 
-#if defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM) || \
-    (!defined(SHOT_STOPPER_HOST_TEST) && \
-     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST))
+#if defined(OPEN_BREW_BY_WEIGHT_WEBHOOK_TEST_PLATFORM) || \
+    (!defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+     !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST))
 
-#if !defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
+#if !defined(OPEN_BREW_BY_WEIGHT_WEBHOOK_TEST_PLATFORM)
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_http_client.h>
 #include <esp_mac.h>
 #endif
-void serialTraceCategoryf(shotstopper::LogLevel level,
-                          shotstopper::DebugCategory category,
+void serialTraceCategoryf(openbrewbyweight::LogLevel level,
+                          openbrewbyweight::DebugCategory category,
                           const char *fmt, ...);
 
-namespace shotstopper {
+namespace openbrewbyweight {
 namespace {
 
 constexpr size_t kWebhookQueueDepth = 4;
@@ -874,6 +874,6 @@ WebhookDispatcher::SendOutcome WebhookDispatcher::send(
   return outcome;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 
 #endif

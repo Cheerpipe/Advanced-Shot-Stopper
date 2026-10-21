@@ -7,7 +7,7 @@
 
 #include "OpenBrewByWeightRtttl.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr size_t BULLSEYE_RTTTL_MAX_CHARS = 500;
 constexpr size_t BULLSEYE_RTTTL_CAPACITY = BULLSEYE_RTTTL_MAX_CHARS + 1;
@@ -135,4 +135,4 @@ struct BullseyeTracker {
   }
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

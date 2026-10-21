@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Qualification contract for the two hard real-time-adjacent application
 // loops. The nominal cadence is 1 ms while a scale is active; the 10 ms
@@ -95,4 +95,4 @@ static_assert(SCALE_EXECUTION_BUDGET_US < SCALE_SERVICE_DEADLINE_MS * 1000U,
 static_assert(TASK_WATCHDOG_FEED_INTERVAL_MS * 10 < 5000,
               "watchdog feed cadence must keep a 10x margin to the 5 s TWDT");
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

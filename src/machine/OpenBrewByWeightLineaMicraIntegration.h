@@ -4,7 +4,7 @@
 #include "OpenBrewByWeightPsram.h"
 #include "OpenBrewByWeightMicraWebSocket.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 bool queueMachineIntegrationConnect(uint32_t requestId, const char *username,
                                     const char *password);
@@ -19,4 +19,4 @@ MicraWebSocketStatus machineIntegrationWebSocketStatus(bool includeTraffic = tru
 HeapLifecycleAggregate machineIntegrationHeapTelemetry();
 LineaMicraDiscoverySnapshot machineIntegrationDiscovery();
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

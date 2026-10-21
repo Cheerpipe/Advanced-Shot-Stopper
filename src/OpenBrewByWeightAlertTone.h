@@ -6,7 +6,7 @@
 #include "OpenBrewByWeightBuzzerRtttl.h"
 #include "OpenBrewByWeightDomain.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 struct BuzzerToneCommand {
   BuzzerCue cue = BuzzerCue::NONE;
@@ -99,4 +99,4 @@ inline BuzzerToneCommand deriveRecoveryTone(BuzzerCue cue) {
   return cmd;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

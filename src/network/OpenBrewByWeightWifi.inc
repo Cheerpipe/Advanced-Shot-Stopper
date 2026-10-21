@@ -1,10 +1,10 @@
-bool ShotStopperNetwork::controlAllowsNetworkMutation() {
+bool OpenBrewByWeightNetwork::controlAllowsNetworkMutation() {
   return controlAllowsConfiguration(controlGate());
 }
 
 // Shared WiFi failure bookkeeping (see header): schedule the retry backoff
 // after a bump, publishing the counter; optionally log the retry.
-void ShotStopperNetwork::noteNetworkRetryBackoff(bool logRetry) {
+void OpenBrewByWeightNetwork::noteNetworkRetryBackoff(bool logRetry) {
   const uint32_t now = millis();
   startupComplete_ = false;
   if (startupFailures_ < UINT8_MAX) {
@@ -22,7 +22,7 @@ void ShotStopperNetwork::noteNetworkRetryBackoff(bool logRetry) {
 
 // Shared WiFi failure bookkeeping (see header): reset the failure counter,
 // optionally flipping the published STA state to DISCONNECTED.
-void ShotStopperNetwork::clearNetworkFailureStatus(bool staDisconnected) {
+void OpenBrewByWeightNetwork::clearNetworkFailureStatus(bool staDisconnected) {
   startupFailures_ = 0;
   dataMux_.lock();
   status_.startupFailures = 0;
@@ -35,7 +35,7 @@ void ShotStopperNetwork::clearNetworkFailureStatus(bool staDisconnected) {
 // Settings NVS writes on this task must respect the shared durable-write
 // gate: defer while a shot/machine circuit is busy, during a maintenance
 // lease, or while the scale is mid-connect (see durableFlashWriteAllowed).
-bool ShotStopperNetwork::networkFlashWriteAllowed() const {
+bool OpenBrewByWeightNetwork::networkFlashWriteAllowed() const {
   const ControlGateSnapshot control = controlGate();
   return durableFlashWriteAllowed(
       control.activeCycle || control.relayClosed || control.machineRunning ||
@@ -43,7 +43,7 @@ bool ShotStopperNetwork::networkFlashWriteAllowed() const {
       scaleConnecting_.load(std::memory_order_relaxed));
 }
 
-ControlGateSnapshot ShotStopperNetwork::controlGate() const {
+ControlGateSnapshot OpenBrewByWeightNetwork::controlGate() const {
   ControlGateSnapshot gate;
   if (callbacks_.copyControlGate != nullptr) {
     callbacks_.copyControlGate(gate);
@@ -51,20 +51,20 @@ ControlGateSnapshot ShotStopperNetwork::controlGate() const {
   return gate;
 }
 
-SetupPhase ShotStopperNetwork::advanceSetupPhase(SetupEvent event) {
+SetupPhase OpenBrewByWeightNetwork::advanceSetupPhase(SetupEvent event) {
   TaskLockGuard lock(dataMux_);
   status_.setupPhase = nextSetupPhase(status_.setupPhase, event);
   return status_.setupPhase;
 }
 
-SetupPhase ShotStopperNetwork::setupPhase() {
+SetupPhase OpenBrewByWeightNetwork::setupPhase() {
   TaskLockGuard lock(dataMux_);
   return status_.setupPhase;
 }
 
 // Station is up while the SoftAP is still raised: close it unless onboarding
 // keeps it, giving associated phones the grace window first.
-void ShotStopperNetwork::serviceSoftApTeardown(
+void OpenBrewByWeightNetwork::serviceSoftApTeardown(
     const NetworkStatusSnapshot &status, uint32_t now) {
   if (!status.apActive) return;
   switch (softApTeardownStep(status.setupPhase, status.apClients,
@@ -80,18 +80,18 @@ void ShotStopperNetwork::serviceSoftApTeardown(
   }
 }
 
-bool ShotStopperNetwork::lockWorkBufForStatus() {
+bool OpenBrewByWeightNetwork::lockWorkBufForStatus() {
   if (callbacks_.refreshControlStatus != nullptr) {
     callbacks_.refreshControlStatus();
   }
   return lockWorkBuf();
 }
 
-void ShotStopperNetwork::loadControlStatus(ControlStatusSnapshot &control) {
+void OpenBrewByWeightNetwork::loadControlStatus(ControlStatusSnapshot &control) {
   callbacks_.copyControlStatus(control);
 }
 
-bool ShotStopperNetwork::startNetwork() {
+bool OpenBrewByWeightNetwork::startNetwork() {
   const NetworkSettingsSnapshot settings = networkSettingsSnapshot();
   const uint32_t now = millis();
   WiFi.persistent(false);
@@ -123,7 +123,7 @@ bool ShotStopperNetwork::startNetwork() {
   return startupComplete_;
 }
 
-void ShotStopperNetwork::publishConfiguredAddressStatus() {
+void OpenBrewByWeightNetwork::publishConfiguredAddressStatus() {
   const NetworkSettingsSnapshot settings = networkSettingsSnapshot();
   char staSsid[WIFI_SSID_CAPACITY] = {};
   char configuredIp[16] = {};
@@ -173,7 +173,7 @@ void ShotStopperNetwork::publishConfiguredAddressStatus() {
   dataMux_.unlock();
 }
 
-void ShotStopperNetwork::armPendingConfirmWindow(uint32_t now) {
+void OpenBrewByWeightNetwork::armPendingConfirmWindow(uint32_t now) {
   dataMux_.lock();
   staConfirmArmed_ = true;
   staConfirmDeadlineMs_ = now + STA_CONFIRM_TIMEOUT_MS;
@@ -182,14 +182,14 @@ void ShotStopperNetwork::armPendingConfirmWindow(uint32_t now) {
                         "WiFi STA config pending confirmation for 180 s");
 }
 
-void ShotStopperNetwork::clearPendingConfirmWindow() {
+void OpenBrewByWeightNetwork::clearPendingConfirmWindow() {
   dataMux_.lock();
   staConfirmArmed_ = false;
   staConfirmDeadlineMs_ = 0;
   dataMux_.unlock();
 }
 
-void ShotStopperNetwork::requestPendingNetworkConfirm() {
+void OpenBrewByWeightNetwork::requestPendingNetworkConfirm() {
   dataMux_.lock();
   // Runs on the httpd task: read the published phase under the lock.
   const bool pending =
@@ -203,7 +203,7 @@ void ShotStopperNetwork::requestPendingNetworkConfirm() {
   dataMux_.unlock();
 }
 
-bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
+bool OpenBrewByWeightNetwork::confirmPendingNetwork(const char *reason) {
   PersistedSettings next = settingsCopy();
   NetworkStatusSnapshot status = snapshot();
   if (next.staConfigState != static_cast<uint8_t>(StaConfigState::PENDING) ||
@@ -264,7 +264,7 @@ bool ShotStopperNetwork::confirmPendingNetwork(const char *reason) {
   return true;
 }
 
-bool ShotStopperNetwork::revertPendingNetwork(uint32_t,
+bool OpenBrewByWeightNetwork::revertPendingNetwork(uint32_t,
                                               const char *reason) {
   PersistedSettings next = settingsCopy();
   if (next.staConfigState != static_cast<uint8_t>(StaConfigState::PENDING)) {
@@ -351,7 +351,7 @@ bool ShotStopperNetwork::revertPendingNetwork(uint32_t,
   return true;
 }
 
-void ShotStopperNetwork::applyStationAddressConfig(
+void OpenBrewByWeightNetwork::applyStationAddressConfig(
     const NetworkSettingsSnapshot &settings) {
   if (settings.staIpMode == static_cast<uint8_t>(StaIpMode::STATIC)) {
     const IPAddress ip(settings.staIp[0], settings.staIp[1], settings.staIp[2],
@@ -374,7 +374,7 @@ void ShotStopperNetwork::applyStationAddressConfig(
   // with tryConnect=true and can disconnect while STA_START is in flight.
 }
 
-void ShotStopperNetwork::clearStaLinkMetrics() {
+void OpenBrewByWeightNetwork::clearStaLinkMetrics() {
   status_.staLinkMetricsValid = false;
   status_.staRssi = 0;
   status_.staSignalLevel = 0;
@@ -382,15 +382,15 @@ void ShotStopperNetwork::clearStaLinkMetrics() {
   status_.iface.staBssid[0] = '\0';
 }
 
-bool ShotStopperNetwork::brewRfActive() const {
+bool OpenBrewByWeightNetwork::brewRfActive() const {
   return controlCriticalRfActive_.load(std::memory_order_acquire);
 }
 
-void ShotStopperNetwork::syncScaleLinkRf(bool connectingOrUp) {
+void OpenBrewByWeightNetwork::syncScaleLinkRf(bool connectingOrUp) {
   scaleConnectingOrUp_.store(connectingOrUp, std::memory_order_relaxed);
 }
 
-void ShotStopperNetwork::syncScaleConnectingRf(bool connecting) {
+void OpenBrewByWeightNetwork::syncScaleConnectingRf(bool connecting) {
   connecting = connecting || outboundScaleInhibited();
   const bool changed =
       scaleConnecting_.exchange(connecting, std::memory_order_acq_rel) !=
@@ -409,7 +409,7 @@ void ShotStopperNetwork::syncScaleConnectingRf(bool connecting) {
   }
 }
 
-void ShotStopperNetwork::syncControlCriticalRf(bool active, bool publishTransition) {
+void OpenBrewByWeightNetwork::syncControlCriticalRf(bool active, bool publishTransition) {
   const bool changed =
       controlCriticalRfActive_.exchange(active, std::memory_order_acq_rel) !=
       active;
@@ -427,14 +427,14 @@ void ShotStopperNetwork::syncControlCriticalRf(bool active, bool publishTransiti
   }
 }
 
-void ShotStopperNetwork::syncScaleHuntRf(bool huntActive) {
+void OpenBrewByWeightNetwork::syncScaleHuntRf(bool huntActive) {
   scaleHuntRfActive_.store(huntActive, std::memory_order_relaxed);
 }
 
-void ShotStopperNetwork::applyWifiPowerSave(bool apStarting) {
+void OpenBrewByWeightNetwork::applyWifiPowerSave(bool apStarting) {
   const wifi_mode_t mode = WiFi.getMode();
   if (mode == WIFI_OFF) {
-    powerNetworkBusy.store(ShotStopperOta::instance().busy(),
+    powerNetworkBusy.store(OpenBrewByWeightOta::instance().busy(),
                            std::memory_order_release);
     lastAppliedWifiPsValid_ = false;
     return;
@@ -447,7 +447,7 @@ void ShotStopperNetwork::applyWifiPowerSave(bool apStarting) {
   apActive = status_.apActive || apStarting;
   staAssociated = status_.staState == StaState::CONNECTED;
   dataMux_.unlock();
-  const bool otaBusy = ShotStopperOta::instance().busy();
+  const bool otaBusy = OpenBrewByWeightOta::instance().busy();
   powerNetworkBusy.store(apActive || otaBusy || !staAssociated,
                          std::memory_order_release);
   const WifiPowerSaveMode desired = desiredWifiPowerSave(
@@ -504,7 +504,7 @@ void ShotStopperNetwork::applyWifiPowerSave(bool apStarting) {
 // low-rate announcements. MIN_MODEM modem sleep wakes every DTIM, so
 // multicast (and discovery) keeps working with Wi-Fi sleep enabled; no RF
 // gating is needed on scale-connect/brew like SNTP requires.
-bool ShotStopperNetwork::ensureMdns() {
+bool OpenBrewByWeightNetwork::ensureMdns() {
   if (mdnsActive_) {
     return true;
   }
@@ -522,7 +522,7 @@ bool ShotStopperNetwork::ensureMdns() {
   return true;
 }
 
-void ShotStopperNetwork::applyMdnsName() {
+void OpenBrewByWeightNetwork::applyMdnsName() {
   char name[DEVICE_NAME_CAPACITY] = {};
   {
     TaskLockGuard lock(dataMux_);
@@ -569,7 +569,7 @@ void ShotStopperNetwork::applyMdnsName() {
   lifecycleLogf("mDNS announcing %s.local", host);
 }
 
-void ShotStopperNetwork::stopMdns() {
+void OpenBrewByWeightNetwork::stopMdns() {
   if (!mdnsActive_) {
     return;
   }
@@ -579,7 +579,7 @@ void ShotStopperNetwork::stopMdns() {
   activeMdnsHost_[0] = '\0';
 }
 
-bool ShotStopperNetwork::beginStationConnect(const NetworkSettingsSnapshot &settings,
+bool OpenBrewByWeightNetwork::beginStationConnect(const NetworkSettingsSnapshot &settings,
                                              uint32_t now) {
   if (brewRfActive()) {
     lifecycleLog("WiFi STA associate deferred; brew RF active");
@@ -653,7 +653,7 @@ bool ShotStopperNetwork::beginStationConnect(const NetworkSettingsSnapshot &sett
   return true;
 }
 
-void ShotStopperNetwork::startStation(const NetworkSettingsSnapshot &settings,
+void OpenBrewByWeightNetwork::startStation(const NetworkSettingsSnapshot &settings,
                                       uint32_t now) {
   stopHttpServer();
   stopCaptivePortalDns();
@@ -691,7 +691,7 @@ void ShotStopperNetwork::startStation(const NetworkSettingsSnapshot &settings,
 }
 
 // The same idle-safe restart as the Restart button: a pour finishes first.
-void ShotStopperNetwork::requestSetupRestart() {
+void OpenBrewByWeightNetwork::requestSetupRestart() {
   WebCommand restart;
   restart.type = WebCommandType::RESTART;
   restart.requestId = allocateRequestId();
@@ -700,7 +700,7 @@ void ShotStopperNetwork::requestSetupRestart() {
   }
 }
 
-void ShotStopperNetwork::stopSoftAp(bool stopHttp) {
+void OpenBrewByWeightNetwork::stopSoftAp(bool stopHttp) {
   if (!snapshot().apActive) {
     return;
   }
@@ -735,20 +735,20 @@ void ShotStopperNetwork::stopSoftAp(bool stopHttp) {
   finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::SUCCESS);
 }
 
-void ShotStopperNetwork::stopSoftApKeepStation() {
+void OpenBrewByWeightNetwork::stopSoftApKeepStation() {
   stopSoftAp(true);
 }
 
-void ShotStopperNetwork::stopSoftApLeaveHttp() {
+void OpenBrewByWeightNetwork::stopSoftApLeaveHttp() {
   stopSoftAp(false);
 }
 
-void ShotStopperNetwork::clearSoftApIdleState() {
+void OpenBrewByWeightNetwork::clearSoftApIdleState() {
   apIdleDeadlineMs_ = 0;
   lastApClients_ = 0;
 }
 
-void ShotStopperNetwork::armSoftApIdleDeadline(uint32_t now) {
+void OpenBrewByWeightNetwork::armSoftApIdleDeadline(uint32_t now) {
   if (setupKeepsSoftAp(setupPhase())) {
     clearSoftApIdleState();
     return;
@@ -757,7 +757,7 @@ void ShotStopperNetwork::armSoftApIdleDeadline(uint32_t now) {
   lastApClients_ = 0;
 }
 
-void ShotStopperNetwork::serviceSoftApIdle(uint32_t now, bool apActive,
+void OpenBrewByWeightNetwork::serviceSoftApIdle(uint32_t now, bool apActive,
                                            uint8_t clients, bool activatorOn) {
   if (!apActive || setupKeepsSoftAp(setupPhase())) {
     if (!apActive) {
@@ -806,7 +806,7 @@ void ShotStopperNetwork::serviceSoftApIdle(uint32_t now, bool apActive,
   }
 }
 
-bool ShotStopperNetwork::wifiScanInProgress() {
+bool OpenBrewByWeightNetwork::wifiScanInProgress() {
   bool busy = false;
   dataMux_.lock();
   busy = scanRequested_ || g_wifiScan.state == WifiScanState::QUEUED ||
@@ -815,7 +815,7 @@ bool ShotStopperNetwork::wifiScanInProgress() {
   return busy;
 }
 
-void ShotStopperNetwork::abortWifiScan(uint32_t now, bool logTimeout) {
+void OpenBrewByWeightNetwork::abortWifiScan(uint32_t now, bool logTimeout) {
   bool wasRunning = false;
   bool wasQueuedOrRequested = false;
   dataMux_.lock();
@@ -852,7 +852,7 @@ void ShotStopperNetwork::abortWifiScan(uint32_t now, bool logTimeout) {
   }
 }
 
-bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
+bool OpenBrewByWeightNetwork::ensureAccessPoint(uint32_t now, bool force) {
   const NetworkSettingsSnapshot settings = networkSettingsSnapshot();
   NetworkStatusSnapshot status = snapshot();
   if (!force && status.apActive && status.networkActive && server_ != nullptr) {
@@ -951,7 +951,7 @@ bool ShotStopperNetwork::ensureAccessPoint(uint32_t now, bool force) {
   return true;
 }
 
-void ShotStopperNetwork::startCaptivePortalDns() {
+void OpenBrewByWeightNetwork::startCaptivePortalDns() {
   if (captiveDnsActive_) {
     return;
   }
@@ -967,7 +967,7 @@ void ShotStopperNetwork::startCaptivePortalDns() {
   lifecycleLog("Captive portal DNS up (UDP/53)");
 }
 
-void ShotStopperNetwork::stopCaptivePortalDns() {
+void OpenBrewByWeightNetwork::stopCaptivePortalDns() {
   if (!captiveDnsActive_) {
     return;
   }
@@ -976,7 +976,7 @@ void ShotStopperNetwork::stopCaptivePortalDns() {
   lifecycleLog("Captive portal DNS down");
 }
 
-void ShotStopperNetwork::stopNetwork() {
+void OpenBrewByWeightNetwork::stopNetwork() {
   beginOwnedHeapLifecycle(wifiHeap_, HeapLifecycleEvent::WIFI_DISCONNECT);
   esp_wifi_scan_stop();
   WiFi.scanDelete();
@@ -1008,7 +1008,7 @@ void ShotStopperNetwork::stopNetwork() {
   finishOwnedHeapLifecycle(wifiHeap_, HeapLifecycleResult::SUCCESS);
 }
 
-void ShotStopperNetwork::serviceStaState(uint32_t now) {
+void OpenBrewByWeightNetwork::serviceStaState(uint32_t now) {
   NetworkStatusSnapshot status = snapshot();
   if (!status.wifiConfigured) {
     return;
@@ -1313,7 +1313,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
   }
 }
 
-void ShotStopperNetwork::serviceWifiScan(uint32_t now) {
+void OpenBrewByWeightNetwork::serviceWifiScan(uint32_t now) {
   const ControlGateSnapshot control = controlGate();
   const bool matchingMaintenanceLease =
       scanMaintenanceLeaseId_ != 0 && control.maintenanceLeaseActive &&
@@ -1388,7 +1388,7 @@ void ShotStopperNetwork::serviceWifiScan(uint32_t now) {
   finishWifiScan(result, now);
 }
 
-void ShotStopperNetwork::finishWifiScan(int16_t resultCount, uint32_t now) {
+void OpenBrewByWeightNetwork::finishWifiScan(int16_t resultCount, uint32_t now) {
   WifiScanSnapshot &completed = g_wifiScanWorking;
   completed = WifiScanSnapshot{};
   completed.updatedAtMs = now;

@@ -1,6 +1,6 @@
 #include "OpenBrewByWeightBleRuntime.h"
 
-#if defined(SHOT_STOPPER_BLE_RUNTIME_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_BLE_RUNTIME_HOST_TEST)
 #include "ble_runtime_host_stubs.h"
 #else
 #include "sdkconfig.h"
@@ -28,14 +28,14 @@ constexpr char kTag[] = "ble.runtime";
 StaticEventGroup_t gEventStorage;
 EventGroupHandle_t gEvents = nullptr;
 portMUX_TYPE gMux = portMUX_INITIALIZER_UNLOCKED;
-ShotStopperBleHealth gHealth = {
-    ShotStopperBleRuntimeState::Stopped, 0, 0, 0, 0, UINT32_MAX, 0, 0, 0, 0, 0, 0};
+OpenBrewByWeightBleHealth gHealth = {
+    OpenBrewByWeightBleRuntimeState::Stopped, 0, 0, 0, 0, UINT32_MAX, 0, 0, 0, 0, 0, 0};
 uint8_t gOwnAddressType = 0xff;
 bool gPortInitialized = false;
 TaskHandle_t gHostTask = nullptr;
 StaticSemaphore_t gHostTaskMutexStorage;
 SemaphoreHandle_t gHostTaskMutex = xSemaphoreCreateMutexStatic(&gHostTaskMutexStorage);
-ShotStopperBleGattRegistration gGattRegistration = nullptr;
+OpenBrewByWeightBleGattRegistration gGattRegistration = nullptr;
 void *gGattRegistrationContext = nullptr;
 
 struct MemorySnapshot {
@@ -69,7 +69,7 @@ void storeMemoryLocked(const MemorySnapshot &memory) {
 void onReset(int reason) {
   const MemorySnapshot memory = captureMemory();
   portENTER_CRITICAL(&gMux);
-  gHealth.state = ShotStopperBleRuntimeState::Unsynced;
+  gHealth.state = OpenBrewByWeightBleRuntimeState::Unsynced;
   gHealth.lastResetReason = reason;
   ++gHealth.resetCount;
   storeMemoryLocked(memory);
@@ -87,14 +87,14 @@ void onSync() {
   gHealth.lastError = rc;
   if (rc == 0) {
     gOwnAddressType = addressType;
-    gHealth.state = ShotStopperBleRuntimeState::Ready;
+    gHealth.state = OpenBrewByWeightBleRuntimeState::Ready;
     ++gHealth.syncGeneration;
     if (gHealth.syncGeneration == 0) {
       gHealth.syncGeneration = 1;
     }
   } else {
     gOwnAddressType = 0xff;
-    gHealth.state = ShotStopperBleRuntimeState::Failed;
+    gHealth.state = OpenBrewByWeightBleRuntimeState::Failed;
   }
   storeMemoryLocked(memory);
   portEXIT_CRITICAL(&gMux);
@@ -129,11 +129,11 @@ TickType_t timeoutTicks(uint32_t timeoutMs) {
 
 }  // namespace
 
-bool shotStopperBleRuntimeConfigureGattProfile(
-    ShotStopperBleGattRegistration registration, void *context) {
+bool openBrewByWeightBleRuntimeConfigureGattProfile(
+    OpenBrewByWeightBleGattRegistration registration, void *context) {
   portENTER_CRITICAL(&gMux);
   const bool configurable = !gPortInitialized &&
-                            gHealth.state == ShotStopperBleRuntimeState::Stopped;
+                            gHealth.state == OpenBrewByWeightBleRuntimeState::Stopped;
   if (configurable) {
     gGattRegistration = registration;
     gGattRegistrationContext = context;
@@ -142,14 +142,14 @@ bool shotStopperBleRuntimeConfigureGattProfile(
   return configurable;
 }
 
-bool shotStopperBleRuntimeStart(uint32_t timeoutMs) {
+bool openBrewByWeightBleRuntimeStart(uint32_t timeoutMs) {
   if (gEvents == nullptr) {
     gEvents = xEventGroupCreateStatic(&gEventStorage);
     if (gEvents == nullptr) {
       return false;
     }
   }
-  if (shotStopperBleRuntimeReady()) {
+  if (openBrewByWeightBleRuntimeReady()) {
     return true;
   }
 
@@ -158,7 +158,7 @@ bool shotStopperBleRuntimeStart(uint32_t timeoutMs) {
   const bool canStart = !gPortInitialized;
   if (canStart) {
     gHostTask = nullptr;
-    gHealth.state = ShotStopperBleRuntimeState::Starting;
+    gHealth.state = OpenBrewByWeightBleRuntimeState::Starting;
     gHealth.lastError = 0;
     gHealth.lastResetReason = 0;
     gHealth.hostTaskStackHighWaterBytes = UINT32_MAX;
@@ -172,7 +172,7 @@ bool shotStopperBleRuntimeStart(uint32_t timeoutMs) {
     if (err != ESP_OK) {
       const MemorySnapshot failedMemory = captureMemory();
       portENTER_CRITICAL(&gMux);
-      gHealth.state = ShotStopperBleRuntimeState::Failed;
+      gHealth.state = OpenBrewByWeightBleRuntimeState::Failed;
       gHealth.lastError = static_cast<int32_t>(err);
       storeMemoryLocked(failedMemory);
       portEXIT_CRITICAL(&gMux);
@@ -192,7 +192,7 @@ bool shotStopperBleRuntimeStart(uint32_t timeoutMs) {
         const esp_err_t deinitError = nimble_port_deinit();
         portENTER_CRITICAL(&gMux);
         gPortInitialized = false;
-        gHealth.state = ShotStopperBleRuntimeState::Failed;
+        gHealth.state = OpenBrewByWeightBleRuntimeState::Failed;
         gHealth.lastError = registrationRc;
         if (deinitError != ESP_OK && gHealth.lastError == 0) {
           gHealth.lastError = static_cast<int32_t>(deinitError);
@@ -214,8 +214,8 @@ bool shotStopperBleRuntimeStart(uint32_t timeoutMs) {
   }
   const MemorySnapshot timeoutMemory = captureMemory();
   portENTER_CRITICAL(&gMux);
-  if (gHealth.state == ShotStopperBleRuntimeState::Starting) {
-    gHealth.state = ShotStopperBleRuntimeState::Failed;
+  if (gHealth.state == OpenBrewByWeightBleRuntimeState::Starting) {
+    gHealth.state = OpenBrewByWeightBleRuntimeState::Failed;
     gHealth.lastError = BLE_HS_ETIMEOUT;
   }
   storeMemoryLocked(timeoutMemory);
@@ -223,28 +223,28 @@ bool shotStopperBleRuntimeStart(uint32_t timeoutMs) {
   return false;
 }
 
-bool shotStopperBleRuntimeReady() {
+bool openBrewByWeightBleRuntimeReady() {
   portENTER_CRITICAL(&gMux);
-  const bool ready = gHealth.state == ShotStopperBleRuntimeState::Ready;
+  const bool ready = gHealth.state == OpenBrewByWeightBleRuntimeState::Ready;
   portEXIT_CRITICAL(&gMux);
   return ready;
 }
 
-uint8_t shotStopperBleRuntimeOwnAddressType() {
+uint8_t openBrewByWeightBleRuntimeOwnAddressType() {
   portENTER_CRITICAL(&gMux);
   const uint8_t type = gOwnAddressType;
   portEXIT_CRITICAL(&gMux);
   return type;
 }
 
-uint32_t shotStopperBleRuntimeSyncGeneration() {
+uint32_t openBrewByWeightBleRuntimeSyncGeneration() {
   portENTER_CRITICAL(&gMux);
   const uint32_t generation = gHealth.syncGeneration;
   portEXIT_CRITICAL(&gMux);
   return generation;
 }
 
-ShotStopperBleHealth shotStopperBleRuntimeHealth(bool sampleMemory) {
+OpenBrewByWeightBleHealth openBrewByWeightBleRuntimeHealth(bool sampleMemory) {
   const MemorySnapshot memory = sampleMemory ? captureMemory() : MemorySnapshot{};
   // Telemetry never waits for teardown; a live sample retains task lifetime.
   const bool sampleLive = xSemaphoreTake(gHostTaskMutex, 0) == pdTRUE;
@@ -262,13 +262,13 @@ ShotStopperBleHealth shotStopperBleRuntimeHealth(bool sampleMemory) {
       liveHighWater < gHealth.hostTaskStackHighWaterBytes) {
     gHealth.hostTaskStackHighWaterBytes = liveHighWater;
   }
-  const ShotStopperBleHealth health = gHealth;
+  const OpenBrewByWeightBleHealth health = gHealth;
   portEXIT_CRITICAL(&gMux);
   if (sampleLive) xSemaphoreGive(gHostTaskMutex);
   return health;
 }
 
-bool shotStopperBleRuntimeStop(uint32_t timeoutMs) {
+bool openBrewByWeightBleRuntimeStop(uint32_t timeoutMs) {
   if (!gPortInitialized || gEvents == nullptr) {
     return true;
   }
@@ -276,13 +276,13 @@ bool shotStopperBleRuntimeStop(uint32_t timeoutMs) {
   const TickType_t budget = timeoutTicks(timeoutMs);
   if (xSemaphoreTake(gHostTaskMutex, budget) != pdTRUE) return false;
   portENTER_CRITICAL(&gMux);
-  gHealth.state = ShotStopperBleRuntimeState::Stopping;
+  gHealth.state = OpenBrewByWeightBleRuntimeState::Stopping;
   portEXIT_CRITICAL(&gMux);
   xEventGroupClearBits(gEvents, kReadyBit | kHostStoppedBit);
   const int rc = nimble_port_stop();
   if (rc != 0) {
     portENTER_CRITICAL(&gMux);
-    gHealth.state = ShotStopperBleRuntimeState::Failed;
+    gHealth.state = OpenBrewByWeightBleRuntimeState::Failed;
     gHealth.lastError = rc;
     portEXIT_CRITICAL(&gMux);
     xSemaphoreGive(gHostTaskMutex);
@@ -307,9 +307,9 @@ bool shotStopperBleRuntimeStop(uint32_t timeoutMs) {
   if (deinitError == ESP_OK) {
     gPortInitialized = false;
     gOwnAddressType = 0xff;
-    gHealth.state = ShotStopperBleRuntimeState::Stopped;
+    gHealth.state = OpenBrewByWeightBleRuntimeState::Stopped;
   } else {
-    gHealth.state = ShotStopperBleRuntimeState::Failed;
+    gHealth.state = OpenBrewByWeightBleRuntimeState::Failed;
   }
   storeMemoryLocked(stoppedMemory);
   portEXIT_CRITICAL(&gMux);

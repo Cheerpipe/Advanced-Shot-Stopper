@@ -57,7 +57,7 @@ struct HomeStreamDelta {
 // This bounded presentation projection favors flash size over loop unrolling;
 // control and safety keep the profile's normal performance optimization.
 __attribute__((optimize("Os")))
-bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
+bool OpenBrewByWeightNetwork::sendHomeStream(UiStreamSession &session,
                                       const ControlStatusSnapshot &control,
                                       const NetworkStatusSnapshot &network,
                                       const ShotLogRecord *latest) {
@@ -235,7 +235,7 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   session.knownPresetsTag = 0;
   delta.field("presets", "%s", g_work->presetsJson);
   delta.field("presetsTag", static_cast<unsigned long>(renderedPresetsHash));
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   const auto micra = machineIntegrationStatus();
   const auto ws = machineIntegrationWebSocketStatus(false);
   uint8_t options, connection;
@@ -305,7 +305,7 @@ constexpr uint32_t kDiagSlowMs = 4000;
 // Frame delivery shared by every diagnostic/log pass: ownership is re-checked
 // immediately before the send, and a clean header abort defers by arming the
 // caller's retry flag instead of tearing down the owned socket.
-bool ShotStopperNetwork::sendUiStreamFrame(UiStreamSession &session,
+bool OpenBrewByWeightNetwork::sendUiStreamFrame(UiStreamSession &session,
                                            size_t used, bool &deferArm) {
   bool owner;
   { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
@@ -332,7 +332,7 @@ bool ShotStopperNetwork::sendUiStreamFrame(UiStreamSession &session,
 // reaches the wire only when its fingerprint changes, and follow-up frames
 // carry snapshot:false deltas that the client merges in order.
 __attribute__((optimize("Os")))
-bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
+bool OpenBrewByWeightNetwork::sendDiagnosticStream(UiStreamSession &session,
                                               const ControlStatusSnapshot &control,
                                               const NetworkStatusSnapshot &network) {
   uiStreamSendKind = "diagnostic";
@@ -454,7 +454,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
     commandsJson[commandBytes] = '\0';
     delta.field("scale.supportedCommands", "%s", commandsJson);
   }
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   {
     const auto micra = machineIntegrationStatus();
     uint8_t options, connection;
@@ -606,10 +606,10 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
   delta.field("compileFlags.remoteMachineControl",
               bool(REMOTE_MACHINE_CONTROL_ENABLED));
   delta.field("compileFlags.arch", "\"%s\"", FW_BOARD_ARCH_STRING);
-  delta.field("compileFlags.hardwareProfile", "\"%s\"", SHOT_STOPPER_HARDWARE_PROFILE_ID);
-  delta.field("compileFlags.machineProfile", "\"%s\"", SHOT_STOPPER_MACHINE_PROFILE_ID);
-  delta.field("compileFlags.machineBrand", "\"%s\"", SHOT_STOPPER_MACHINE_BRAND);
-  delta.field("compileFlags.machineModel", "\"%s\"", SHOT_STOPPER_MACHINE_MODEL);
+  delta.field("compileFlags.hardwareProfile", "\"%s\"", OPEN_BREW_BY_WEIGHT_HARDWARE_PROFILE_ID);
+  delta.field("compileFlags.machineProfile", "\"%s\"", OPEN_BREW_BY_WEIGHT_MACHINE_PROFILE_ID);
+  delta.field("compileFlags.machineBrand", "\"%s\"", OPEN_BREW_BY_WEIGHT_MACHINE_BRAND);
+  delta.field("compileFlags.machineModel", "\"%s\"", OPEN_BREW_BY_WEIGHT_MACHINE_MODEL);
   {
     // Static within a boot; one unit-hash blob replaces the REST array.
     size_t used = 0;
@@ -712,7 +712,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
       const NetworkHeapTelemetrySnapshot networkHeap = heapTelemetrySnapshot();
       const HeapLifecycleAggregate webhookHeap = webhooks_.heapTelemetry();
       HeapLifecycleAggregate micraHeap = {};
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
       micraHeap = machineIntegrationHeapTelemetry();
 #endif
       char heapSummary[224] = {};
@@ -805,7 +805,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
       }
       telemetry.field("nvs", "%s", g_work->historyJson);
     }
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
     {
       const MicraWebSocketStatus ws = machineIntegrationWebSocketStatus();
       char safeReason[48] = {}, safeCleaningLabel[6 * sizeof(ws.cleaningLabel)] = {};
@@ -931,7 +931,7 @@ bool ShotStopperNetwork::sendDiagnosticStream(UiStreamSession &session,
 // pages the backlog across dispatches and a cursor reset refills from the
 // oldest retained event so the client rebuilds its view without a round trip.
 __attribute__((optimize("Os")))
-bool ShotStopperNetwork::sendLogStream(UiStreamSession &session,
+bool OpenBrewByWeightNetwork::sendLogStream(UiStreamSession &session,
                                        const ControlStatusSnapshot &control) {
   uiStreamSendKind = "log";
   const uint32_t latest =
@@ -1034,7 +1034,7 @@ bool ShotStopperNetwork::sendLogStream(UiStreamSession &session,
 // the HomeStreamDelta no-change contract. A pending one-shot fetch rides the
 // same frame but never disturbs the standing window's bookkeeping.
 __attribute__((optimize("Os")))
-bool ShotStopperNetwork::sendHistoryStream(UiStreamSession &session,
+bool OpenBrewByWeightNetwork::sendHistoryStream(UiStreamSession &session,
                                            const ControlStatusSnapshot &control) {
   uiStreamSendKind = "history";
   const uint32_t epoch = callbacks_.historyEpoch ? callbacks_.historyEpoch() : 0;
@@ -1158,7 +1158,7 @@ constexpr char kStatsRowColumns[] =
 // work.jsonItem using work.curveJson as scratch and returns the written
 // length, 0 on overflow. A missing curve formats as an empty one in the
 // Stats fetch scratch, which a failed fetch has already left unused.
-size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
+size_t OpenBrewByWeightNetwork::formatShotStatsRow(NetworkWorkBuf &work,
                                               const ShotLogRecord &record,
                                               const ShotCurveRecord *curve) {
   char actual[16] = "null";
@@ -1265,7 +1265,7 @@ size_t ShotStopperNetwork::formatShotStatsRow(NetworkWorkBuf &work,
 // immutable after commit except the packed rating byte — suppresses the
 // send while the page is unchanged.
 __attribute__((optimize("Os")))
-bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
+bool OpenBrewByWeightNetwork::sendStatsStream(UiStreamSession &session,
                                          const ControlStatusSnapshot &control) {
   uiStreamSendKind = "stats";
   uint32_t epoch =

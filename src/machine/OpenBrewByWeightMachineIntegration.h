@@ -3,9 +3,9 @@
 #include <cstdint>
 #include "OpenBrewByWeightMachineBackflush.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 // Callback-safe wakeup; admission itself is published by discovery.
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 inline uint32_t hostMachineCloudInhibitCount = 0;
 inline void inhibitMachineIntegrationCloud() { ++hostMachineCloudInhibitCount; }
 #else
@@ -21,7 +21,7 @@ enum class MachinePhysicalStartDisposition : uint8_t {
   BLOCKED_CLEANING
 };
 
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 inline bool initializeMachineIntegration() { return true; }
 inline void publishMachineIntegrationConfig(const PersistedSettings &,
                                             uint32_t) {}
@@ -100,4 +100,4 @@ MachineBackflushSnapshot machineIntegrationBackflush(bool consume = false);
 void finishMachineIntegrationBackflush(uint32_t attempt);
 #endif
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

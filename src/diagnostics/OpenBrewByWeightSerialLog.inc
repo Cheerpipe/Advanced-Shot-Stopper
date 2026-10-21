@@ -15,7 +15,7 @@ void retainLogText(LogLevel level, DebugCategory category, const char *message) 
                    __ATOMIC_RELAXED);
 }
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 esp_log_level_t espLogLevel(LogLevel level) {
   switch (level) {
     // ESP-IDF has no critical/fatal level. Keep that distinction in the
@@ -49,7 +49,7 @@ void retainEspLogLine(const char *text) {
                 DebugCategory::SYSTEM, message);
 }
 
-int shotStopperEspLogVprintf(const char *format, va_list args) {
+int openBrewByWeightEspLogVprintf(const char *format, va_list args) {
   if (format == nullptr) {
     return 0;
   }
@@ -141,7 +141,7 @@ bool initializeSerialLogSink() {
 void installEspLogSink(bool usbSerial) {
   if (usbSerial) (void)initializeSerialLogSink();
   if (!serialLogSinkInstalled) {
-    (void)esp_log_set_vprintf(shotStopperEspLogVprintf);
+    (void)esp_log_set_vprintf(openBrewByWeightEspLogVprintf);
     serialLogSinkInstalled = true;
   }
 }
@@ -180,7 +180,7 @@ void publishControlCriticalLoggingState() {
 }
 
 bool serialApplicationLogAllowed() {
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // Portable tests directly manipulate the control-owned fixtures.
   return !session.active && !circuitClosed;
 #else
@@ -192,7 +192,7 @@ void emitEspLog(LogLevel level, DebugCategory category, const char *message) {
   if (message == nullptr || level == LogLevel::NONE) {
     return;
   }
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // espLogTag was removed: the tag is debugCategoryName() prefixed with
   // "ss.". Derive it here so the category names have a single source.
   char tag[24];
@@ -284,7 +284,7 @@ void serialTraceCategory(LogLevel level, DebugCategory category,
   logText(level, category, message);
 }
 
-extern "C" void shotStopperScaleLog(uint8_t severity, const char *message) {
+extern "C" void openBrewByWeightScaleLog(uint8_t severity, const char *message) {
   LogLevel level = LogLevel::DEBUG;
   if (severity == 4) {
     level = LogLevel::INFO;
@@ -497,10 +497,10 @@ void clearAuditLatch() {
 // Explicit clear (endpoint / factory reset): erase the durable store first,
 // then drop the latch so both surfaces agree the history is empty. Declared
 // in OpenBrewByWeightAuditStore.h; this TU fragment is its single definition.
-namespace shotstopper {
+namespace openbrewbyweight {
 bool clearAuditStores() {
   if (!auditStoreEraseAll()) return false;
   clearAuditLatch();
   return true;
 }
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

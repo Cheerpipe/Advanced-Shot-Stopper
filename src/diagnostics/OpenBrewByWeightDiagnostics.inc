@@ -82,7 +82,7 @@ void profileControlState(uint32_t captureSequence, uint32_t evidenceConnection) 
 }
 
 bool liveConfigPersistPending() {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   settingsPersistMux.lock();
   const bool pending = runtimePersistPending || settingsPersistInFlight ||
                        settingsPersistResultReady;
@@ -131,7 +131,7 @@ void publishControlGate() {
       (stopperState == StopperState::BREW || stopperState == StopperState::MANUAL_NO_SCALE);
   const bool wasShot = outboundShotActive.exchange(actualShot, std::memory_order_acq_rel);
   if (actualShot && !wasShot) inhibitMachineIntegrationCloud();
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   networkManager.syncControlCriticalRf(next.activeCycle || next.relayClosed, true);
 #endif
 }
@@ -160,7 +160,7 @@ HistoryRecord statusNewestActivation = {};
 bool statusHasNewestActivation = false;
 // The live or just-ended activity's curve; a committed shot's curve reaches
 // readers from the curve store instead.
-static SHOT_STOPPER_PSRAM_BSS ShotCurveRecord statusLiveCurve;
+static OPEN_BREW_BY_WEIGHT_PSRAM_BSS ShotCurveRecord statusLiveCurve;
 // Drip chart gather, re-read only when the store or the active preset moves.
 bool statusDripCacheValid = false;
 uint32_t statusDripCacheGeneration = 0;
@@ -360,7 +360,7 @@ void publishControlStatus() {
   next.bleRuntimeResetCount = bleRuntimeResetCount;
   next.bleRuntimeHostStackMinBytes = bleRuntimeHostStackMinBytes;
   next.workBufExternal = workBufIsExternal();
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   next.jsonArenaExternal = jsonArenaIsExternal();
 #else
   next.jsonArenaExternal = false;
@@ -544,7 +544,7 @@ void publishControlStatus() {
 }
 
 void refreshControlStatus() {
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   return;
 #else
   // Waits until loop commits the requested status snapshot, not merely until
@@ -594,7 +594,7 @@ void resetSerialCliState() {
 }
 
 void serialCliReply(const char *message) {
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   serialCliOutput().println(message);
 #else
   Serial.println(message);
@@ -653,7 +653,7 @@ void serialCliQueueNetworkAction(WebCommandType type, SerialCliVerb verb) {
 }
 
 void serialCliFillNetworkDump(SerialCliNetworkDump &dump) {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   const NetworkStatusSnapshot snap = networkManager.snapshot();
   dump.networkActive = snap.networkActive;
   dump.apActive = snap.apActive;
@@ -724,7 +724,7 @@ void serialCliPrintAuditDump(const char *countArg) {
   const uint32_t after = latest > static_cast<uint32_t>(want)
                              ? latest - static_cast<uint32_t>(want)
                              : 0;
-  static SHOT_STOPPER_PSRAM_BSS AuditRecord auditCliBatch[128];
+  static OPEN_BREW_BY_WEIGHT_PSRAM_BSS AuditRecord auditCliBatch[128];
   uint32_t dropped = 0, rateLimited = 0;
   const size_t count =
       copyAuditEvents(after, auditCliBatch, 128, &dropped, &rateLimited);
@@ -777,7 +777,7 @@ void serialCliTaskProfile(const char *modeArg) {
     serialCliReply(on ? "OK task profiler start requested" : "OK task profiler stop requested");
     return;
   }
-  static SHOT_STOPPER_PSRAM_BSS TaskProfilerSnapshot cliProfile;
+  static OPEN_BREW_BY_WEIGHT_PSRAM_BSS TaskProfilerSnapshot cliProfile;
   copyTaskProfiler(cliProfile);
   const LoopPhaseProfilerSnapshot &loop = cliProfile.loopPhases;
   char line[128];
@@ -831,7 +831,7 @@ void serialCliPrintLiveHealth() {
   dump.bleRuntimeResetCount = bleRuntimeResetCount;
   dump.bleRuntimeHostStackMinBytes = bleRuntimeHostStackMinBytes;
   dump.workBufExternal = workBufIsExternal();
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   dump.jsonArenaExternal = jsonArenaIsExternal();
 #else
   dump.jsonArenaExternal = false;
@@ -843,7 +843,7 @@ void serialCliPrintLiveHealth() {
                                                  : loopIntervalGapMs;
   dump.loopStackMinBytes = loopStackMinBytes;
   dump.scaleWorkerStackMinBytes = scaleWorkerStackMinBytesValue();
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   dump.networkStackMinBytes = networkManager.snapshot().taskStackMinBytes;
 #endif
   dump.heapAlertLatched = healthHeapAlertLatched;
@@ -912,7 +912,7 @@ void serialCliPrintLiveNtpStatus() {
   dump.timezoneOffsetMinutes = 0;
   (void)timeZoneOffsetAtOrUtc(runtimeConfig.timezoneId, time.utcSec,
                                 dump.timezoneOffsetMinutes);
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   dump.staUp = networkManager.snapshot().staState == StaState::CONNECTED;
 #else
   dump.staUp = false;
@@ -930,7 +930,7 @@ void serialCliPrintLiveLogDump() {
   serialLogDumpIndex = 0;
   serialCliPrintLogDumpPreamble(serialLogDumpCount,
                                 currentRingRetainLogLevel());
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // The host sink is an in-memory stub and cannot block. Preserve the
   // synchronous CLI contract used by portable tests.
   while (serialLogDumpIndex < serialLogDumpCount) {
@@ -940,7 +940,7 @@ void serialCliPrintLiveLogDump() {
 }
 
 void serviceSerialLogDump() {
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // One bounded record per control iteration. Formatting is local and the
   // sink only attempts a zero-timeout queue send; USB I/O belongs to
   // serial_log on core 0.
@@ -994,7 +994,7 @@ void dispatchSerialCliRequest(SerialCliRequest &request) {
     case SerialCliVerb::UNKNOWN:
     case SerialCliVerb::LINE_TOO_LONG:
     case SerialCliVerb::INVALID_ARGS:
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
       serialCliOutput().print("ERR ");
       serialCliOutput().println(request.error != nullptr ? request.error
                                                         : "invalid arguments");
@@ -1179,7 +1179,7 @@ void serviceSerialCli() {
   }
 }
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 void serviceBootRecoverySafety() {
   serviceRelaySafety();
   localBuzzer.service();

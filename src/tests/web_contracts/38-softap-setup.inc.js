@@ -1,34 +1,34 @@
 {
   // SoftAP onboarding: captive portal + admin bypass + /setup live apply.
-  const unlockBlock = blockAt(network, 'bool ShotStopperNetwork::adminUnlockAllowed(');
+  const unlockBlock = blockAt(network, 'bool OpenBrewByWeightNetwork::adminUnlockAllowed(');
   const socketBlock =
-      blockAt(network, 'bool ShotStopperNetwork::socketServedBySoftAp(');
+      blockAt(network, 'bool OpenBrewByWeightNetwork::socketServedBySoftAp(');
   const handshake =
-      network.slice(network.indexOf('esp_err_t ShotStopperNetwork::uiStreamHandshake('),
-                    network.indexOf('void ShotStopperNetwork::uiStreamFree'));
+      network.slice(network.indexOf('esp_err_t OpenBrewByWeightNetwork::uiStreamHandshake('),
+                    network.indexOf('void OpenBrewByWeightNetwork::uiStreamFree'));
   const ensureApBlock =
-      blockAt(network, 'bool ShotStopperNetwork::ensureAccessPoint(');
+      blockAt(network, 'bool OpenBrewByWeightNetwork::ensureAccessPoint(');
   const stopSoftApBlock =
-      blockAt(network, 'void ShotStopperNetwork::stopSoftAp(bool stopHttp) {');
+      blockAt(network, 'void OpenBrewByWeightNetwork::stopSoftAp(bool stopHttp) {');
   const startStationBlock =
-      blockAt(network, 'void ShotStopperNetwork::startStation(');
+      blockAt(network, 'void OpenBrewByWeightNetwork::startStation(');
   const stopNetworkBlock =
-      blockAt(network, 'void ShotStopperNetwork::stopNetwork() {');
+      blockAt(network, 'void OpenBrewByWeightNetwork::stopNetwork() {');
   const notFoundBlock =
-      blockAt(network, 'esp_err_t ShotStopperNetwork::notFoundHandler(');
-  const serviceBlock = blockAt(network, 'void ShotStopperNetwork::service() {');
+      blockAt(network, 'esp_err_t OpenBrewByWeightNetwork::notFoundHandler(');
+  const serviceBlock = blockAt(network, 'void OpenBrewByWeightNetwork::service() {');
   const staStateBlock =
-      blockAt(network, 'void ShotStopperNetwork::serviceStaState(');
+      blockAt(network, 'void OpenBrewByWeightNetwork::serviceStaState(');
   const confirmBlock =
-      blockAt(network, 'bool ShotStopperNetwork::confirmPendingNetwork(');
+      blockAt(network, 'bool OpenBrewByWeightNetwork::confirmPendingNetwork(');
   const requestConfirmBlock = blockAt(
-      network, 'void ShotStopperNetwork::requestPendingNetworkConfirm() {');
+      network, 'void OpenBrewByWeightNetwork::requestPendingNetworkConfirm() {');
   const revertBlock =
-      blockAt(network, 'bool ShotStopperNetwork::revertPendingNetwork(');
+      blockAt(network, 'bool OpenBrewByWeightNetwork::revertPendingNetwork(');
   const snapshotBlock =
-      blockAt(network, 'NetworkStatusSnapshot ShotStopperNetwork::snapshot() {');
+      blockAt(network, 'NetworkStatusSnapshot OpenBrewByWeightNetwork::snapshot() {');
   const networkHandlerBlock =
-      blockAt(network, 'esp_err_t ShotStopperNetwork::networkHandler(');
+      blockAt(network, 'esp_err_t OpenBrewByWeightNetwork::networkHandler(');
   const saveCommandBlock = network.slice(
       network.indexOf('case WebCommandType::SAVE_NETWORK:'),
       network.indexOf('case WebCommandType::FORGET_NETWORK:'));
@@ -73,7 +73,7 @@
     '"connectivitycheck.android.com"', '"clients3.google.com"',
     '"www.msftconnecttest.com"', '"www.msftncsi.com"'];
   const startDnsBlock =
-      blockAt(network, 'void ShotStopperNetwork::startCaptivePortalDns() {');
+      blockAt(network, 'void OpenBrewByWeightNetwork::startCaptivePortalDns() {');
   if (probeHosts.some((host) => !network.includes(host)) ||
       !notFoundBlock.includes('CAPTIVE_PORTAL_URL') ||
       !codeIncludes(notFoundBlock,
@@ -172,7 +172,7 @@
   // started); only task-owned (requested) or on-radio (RUNNING) scans cancel,
   // and a dropped scan command retires the optimistic state itself.
   const serviceWifiScanBlock =
-      blockAt(network, 'void ShotStopperNetwork::serviceWifiScan(');
+      blockAt(network, 'void OpenBrewByWeightNetwork::serviceWifiScan(');
   if ((serviceWifiScanBlock.match(
           /canceled = requested \|\| state == WifiScanState::RUNNING \|\|/g) || [])
           .length !== 0 ||
@@ -284,8 +284,8 @@
   // applies or drops it with that Wi-Fi); a committed "by weight" choice
   // restarts the controller once the setup SoftAP stops; full mode lets the
   // machine's activator close the automatic SoftAP.
-  const intentBlock = blockAt(network, 'bool ShotStopperNetwork::persistSetupIntent(');
-  const idleBlock = blockAt(network, 'void ShotStopperNetwork::serviceSoftApIdle(');
+  const intentBlock = blockAt(network, 'bool OpenBrewByWeightNetwork::persistSetupIntent(');
+  const idleBlock = blockAt(network, 'void OpenBrewByWeightNetwork::serviceSoftApIdle(');
   if (!codeIncludes(network, 'if(!firmwareCompatibilityMode()){return"The brewing choice is part of setup only while the firmware is off.";}') ||
       !codeIncludes(networkHandlerBlock, 'if(parsed&&brew!=SetupBrew::NONE&&!command.network.applyLive){') ||
       !codeIncludes(networkHandlerBlock, 'if(parsed&&(networkError=parseSetupBrew(root,brew,brewPresetId))!=nullptr){') ||
@@ -325,7 +325,7 @@
   }
   // /setup is claim-less: only its status, scan, and network routes skip the
   // UI claim, and only for a SoftAP peer while the AP is up.
-  const ownedBlock = blockAt(network, 'esp_err_t ShotStopperNetwork::ownedApiHandler(');
+  const ownedBlock = blockAt(network, 'esp_err_t OpenBrewByWeightNetwork::ownedApiHandler(');
   const setupRoutes = (ownedBlock.match(/HTTP_(?:GET|POST|PUT|DELETE), \w+, true\}/g) || []).length;
   if (setupRoutes !== 4 ||
       !codeIncludes(ownedBlock, '{"/api/v1/status/admin",HTTP_GET,statusHandler,true}') ||

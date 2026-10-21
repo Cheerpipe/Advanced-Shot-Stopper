@@ -1,4 +1,4 @@
-// Included inside namespace shotstopper by OpenBrewByWeightDomain.h.
+// Included inside namespace openbrewbyweight by OpenBrewByWeightDomain.h.
 // Publication storage and synchronization are owned by openBrewByWeight.cpp.
 struct ControlStatusFields : ScaleLinkMetrics {
   CupTareDiagnostics cupTare;
@@ -131,7 +131,7 @@ struct ControlStatusFields : ScaleLinkMetrics {
   uint32_t lastActivationEndedAtUnixSec = 0;
   uint32_t lastActivationEndedAtLocalSec = 0;
   uint32_t lastActivationDurationDs = 0;
-  uint8_t lastActivationType = 2;  // shotstopper::HistoryType::OTHER (history header not included)
+  uint8_t lastActivationType = 2;  // openbrewbyweight::HistoryType::OTHER (history header not included)
   uint8_t lastActivationFlags = 0;
   HwmonSnapshot hwmon = {};
   uint32_t debugEventsDropped = 0;

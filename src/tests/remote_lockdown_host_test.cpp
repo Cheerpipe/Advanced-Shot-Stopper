@@ -1,8 +1,8 @@
-#define SHOT_STOPPER_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
 #define ARDUINO_ESP32S3_DEV
-#define SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL 0
-#ifndef SHOT_STOPPER_ENABLE_BUZZER
-#define SHOT_STOPPER_ENABLE_BUZZER 1
+#define OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL 0
+#ifndef OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER
+#define OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER 1
 #endif
 
 #include <cstdint>
@@ -26,7 +26,7 @@ int testsRun = 0;
     }                                                                          \
   } while (false)
 
-static_assert(!shotstopper::REMOTE_MACHINE_CONTROL_ENABLED,
+static_assert(!openbrewbyweight::REMOTE_MACHINE_CONTROL_ENABLED,
               "Lockdown host tests must compile with remote control off");
 
 void deleteHostResources() {

@@ -321,7 +321,7 @@ WebhookEvent baseWebhookEvent(WebhookEventType type, uint32_t cycleId,
   return event;
 }
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 void queueWebhookBrewStart() {
   if (!webhookBrewStartPending) return;
   webhookBrewStartPending = false;
@@ -374,8 +374,8 @@ void notifyWebhookFirstDrop(const FirstFlowObservation &observation) {
 void serviceWebhookBrewStart() {}
 #endif
 
-#if defined(SHOT_STOPPER_HOST_TEST)
-#define SHOT_STOPPER_SCALE_WORKER_IN_ORCHESTRATOR
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
+#define OPEN_BREW_BY_WEIGHT_SCALE_WORKER_IN_ORCHESTRATOR
 #include "OpenBrewByWeightScaleWorker.cpp"
 #endif
 
@@ -1109,7 +1109,7 @@ bool recordWeightSampleWithProvenance(float weight, uint32_t receivedAtMs,
 // processScaleWorkerEvents() -> recordWeightSampleWithProvenance(). Kept out
 // of the ESP32 build so a future caller cannot bypass the worker's sequence
 // accounting from a BLE callback.
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 bool recordWeightSample(float weight, uint32_t receivedAtMs) {
   uint32_t packetSequence = 0;
   portENTER_CRITICAL(&scaleLinkMux);

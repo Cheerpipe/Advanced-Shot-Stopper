@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <type_traits>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr size_t LINEA_MICRA_MAX_ACCOUNT_MACHINES = 8;
 
@@ -374,4 +374,4 @@ static_assert(std::is_trivially_copyable<LineaMicraRequest>::value);
 static_assert(std::is_trivially_copyable<LineaMicraStatus>::value);
 static_assert(std::is_trivially_copyable<LineaMicraDiscoverySnapshot>::value);
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

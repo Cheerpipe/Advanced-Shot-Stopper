@@ -46,8 +46,8 @@ bool readWebUiClientId(httpd_req_t *request, char *output,
 
 }  // namespace
 
-esp_err_t ShotStopperNetwork::claimHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::claimHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
   if (!readWebUiClientId(request, clientId, sizeof(clientId))) {
     return sendError(request, STATUS_BAD_REQUEST, "UI_CLIENT_INVALID",
@@ -66,13 +66,13 @@ esp_err_t ShotStopperNetwork::claimHandler(httpd_req_t *request) {
              : "{\"active\":true,\"compatibilityMode\":false}");
 }
 
-#if SHOT_STOPPER_DEVELOPMENT == 1
+#if OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 1
 // Development builds keep administration public: the UI never calls the
 // unlock endpoints, so the handlers are not compiled and their routes are
 // not registered. The unlock state machine below stays for release builds.
 #else
-esp_err_t ShotStopperNetwork::unlockHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::unlockHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireActiveWebUiClient(request)) return ESP_OK;
   if (!self.requireAdminUnlock(request)) return ESP_OK;
   if (!self.lockConfirmedBody(request,
@@ -90,7 +90,7 @@ esp_err_t ShotStopperNetwork::unlockHandler(httpd_req_t *request) {
 }
 #endif
 
-bool ShotStopperNetwork::webUiOverrideAllowed(httpd_req_t *request) {
+bool OpenBrewByWeightNetwork::webUiOverrideAllowed(httpd_req_t *request) {
   char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
   if (!readWebUiClientId(request, clientId, sizeof(clientId))) return false;
   const uint32_t now = millis();
@@ -110,7 +110,7 @@ bool ShotStopperNetwork::webUiOverrideAllowed(httpd_req_t *request) {
   return allowed;
 }
 
-uint32_t ShotStopperNetwork::webUiOverrideRemainingMs(httpd_req_t *request) {
+uint32_t OpenBrewByWeightNetwork::webUiOverrideRemainingMs(httpd_req_t *request) {
   char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
   if (!readWebUiClientId(request, clientId, sizeof(clientId))) return 0;
   const uint32_t now = millis();
@@ -126,7 +126,7 @@ uint32_t ShotStopperNetwork::webUiOverrideRemainingMs(httpd_req_t *request) {
   return remaining;
 }
 
-bool ShotStopperNetwork::webUiConfigurationAllowed(
+bool OpenBrewByWeightNetwork::webUiConfigurationAllowed(
     httpd_req_t *request, const ControlGateSnapshot &status) {
   if (controlAllowsConfiguration(status)) {
     return true;
@@ -134,7 +134,7 @@ bool ShotStopperNetwork::webUiConfigurationAllowed(
   return webUiOverrideAllowed(request);
 }
 
-bool ShotStopperNetwork::historyMutationAllowed(
+bool OpenBrewByWeightNetwork::historyMutationAllowed(
     httpd_req_t *request, const ControlGateSnapshot &status) {
   if (!controlAllowsHistoryMutation(status)) {
     return false;
@@ -142,7 +142,7 @@ bool ShotStopperNetwork::historyMutationAllowed(
   return webUiConfigurationAllowed(request, status);
 }
 
-void ShotStopperNetwork::clearAdminUnlock() {
+void OpenBrewByWeightNetwork::clearAdminUnlock() {
   dataMux_.lock();
   adminUnlocked_ = false;
   adminUnlockClientId_[0] = '\0';
@@ -150,7 +150,7 @@ void ShotStopperNetwork::clearAdminUnlock() {
   dataMux_.unlock();
 }
 
-void ShotStopperNetwork::grantAdminUnlock(const char *clientId, uint32_t now) {
+void OpenBrewByWeightNetwork::grantAdminUnlock(const char *clientId, uint32_t now) {
   if (clientId == nullptr) {
     return;
   }
@@ -163,7 +163,7 @@ void ShotStopperNetwork::grantAdminUnlock(const char *clientId, uint32_t now) {
   dataMux_.unlock();
 }
 
-void ShotStopperNetwork::touchAdminUnlock() {
+void OpenBrewByWeightNetwork::touchAdminUnlock() {
   const uint32_t now = millis();
   dataMux_.lock();
   if (adminUnlocked_) {
@@ -172,7 +172,7 @@ void ShotStopperNetwork::touchAdminUnlock() {
   dataMux_.unlock();
 }
 
-bool ShotStopperNetwork::socketServedBySoftAp(int socketFd) {
+bool OpenBrewByWeightNetwork::socketServedBySoftAp(int socketFd) {
   if (socketFd < 0) {
     return false;
   }
@@ -198,8 +198,8 @@ bool ShotStopperNetwork::socketServedBySoftAp(int socketFd) {
          (peerHost & 0xFFFFFF00u) == 0xC0A80400u;
 }
 
-bool ShotStopperNetwork::adminUnlockAllowed(httpd_req_t *request) {
-#if SHOT_STOPPER_DEVELOPMENT == 1
+bool OpenBrewByWeightNetwork::adminUnlockAllowed(httpd_req_t *request) {
+#if OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 1
   // Development build: administration is public by design. Returning true
   // here makes every admin-gated handler and the status page report an
   // always-unlocked session without ever touching the unlock state.
@@ -236,7 +236,7 @@ bool ShotStopperNetwork::adminUnlockAllowed(httpd_req_t *request) {
 #endif
 }
 
-bool ShotStopperNetwork::requireAdminUnlock(httpd_req_t *request) {
+bool OpenBrewByWeightNetwork::requireAdminUnlock(httpd_req_t *request) {
   if (!adminUnlockAllowed(request)) {
     sendError(request, STATUS_UNAUTHORIZED, "ADMIN_LOCKED",
               "Unlock administration with the device password first.");
@@ -246,7 +246,7 @@ bool ShotStopperNetwork::requireAdminUnlock(httpd_req_t *request) {
   return true;
 }
 
-bool ShotStopperNetwork::diagnosticPageEnabled() {
+bool OpenBrewByWeightNetwork::diagnosticPageEnabled() {
   bool visible = false;
   dataMux_.lock();
   visible = settings_.runtime.showDiagnosticPage;
@@ -254,11 +254,11 @@ bool ShotStopperNetwork::diagnosticPageEnabled() {
   return visible;
 }
 
-#if SHOT_STOPPER_DEVELOPMENT == 1
+#if OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 1
 // Password unlock/lock handlers are release-only (see unlockHandler above).
 #else
-esp_err_t ShotStopperNetwork::adminUnlockHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::adminUnlockHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   const esp_err_t bodyStatus =
       self.lockJsonBody(request, "A JSON request is required.");
   if (bodyStatus != ESP_OK) {
@@ -331,8 +331,8 @@ esp_err_t ShotStopperNetwork::adminUnlockHandler(httpd_req_t *request) {
   return sendJson(request, STATUS_OK, "{\"unlocked\":true}");
 }
 
-esp_err_t ShotStopperNetwork::adminLockHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::adminLockHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   const esp_err_t bodyStatus =
       self.lockJsonBody(request, "A JSON request is required.");
   if (bodyStatus != ESP_OK) {
@@ -344,7 +344,7 @@ esp_err_t ShotStopperNetwork::adminLockHandler(httpd_req_t *request) {
 }
 #endif
 
-bool ShotStopperNetwork::requireActiveWebUiClient(httpd_req_t *request) {
+bool OpenBrewByWeightNetwork::requireActiveWebUiClient(httpd_req_t *request) {
   char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
   if (!readWebUiClientId(request, clientId, sizeof(clientId))) {
     sendError(request, STATUS_CONFLICT, "UI_CLAIM_REQUIRED",
@@ -373,8 +373,8 @@ bool ShotStopperNetwork::requireActiveWebUiClient(httpd_req_t *request) {
   return true;
 }
 
-esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::ownedApiHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   struct Route {
     const char *uri = nullptr;
     httpd_method_t method = HTTP_GET;
@@ -424,7 +424,7 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/network/scan", HTTP_GET, wifiScanStatusHandler, true},
       {"/api/v1/network/scan", HTTP_POST, wifiScanStartHandler, true},
       {"/api/v1/device/password", HTTP_POST, devicePasswordHandler},
-#if SHOT_STOPPER_DEVELOPMENT == 1
+#if OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 1
 // Unlock routes are not served in development builds; administration is
 // public there and the UI never calls these endpoints.
 #else
@@ -462,7 +462,7 @@ esp_err_t ShotStopperNetwork::ownedApiHandler(httpd_req_t *request) {
   return matched->handler(request);
 }
 
-bool ShotStopperNetwork::requireJsonContentType(httpd_req_t *request) {
+bool OpenBrewByWeightNetwork::requireJsonContentType(httpd_req_t *request) {
   const size_t length =
       httpd_req_get_hdr_value_len(request, "Content-Type");
   if (length == 0 || length >= 64) {
@@ -481,7 +481,7 @@ bool ShotStopperNetwork::requireJsonContentType(httpd_req_t *request) {
   return suffix == '\0' || suffix == ';' || suffix == ' ' || suffix == '\t';
 }
 
-bool ShotStopperNetwork::readJsonBody(
+bool OpenBrewByWeightNetwork::readJsonBody(
     httpd_req_t *request, char body[REQUEST_BODY_CAPACITY]) {
   if (!requireJsonContentType(request) || request->content_len <= 0 ||
       request->content_len >= REQUEST_BODY_CAPACITY) {
@@ -552,7 +552,7 @@ static esp_err_t serveWebAsset(httpd_req_t *request, const WebAsset &asset) {
   return sendBody(request, asset.data, asset.length);
 }
 
-esp_err_t ShotStopperNetwork::rootHandler(httpd_req_t *request) {
+esp_err_t OpenBrewByWeightNetwork::rootHandler(httpd_req_t *request) {
   // The shell stays cacheable so an installed home-screen app can open from
   // the browser cache while the controller is unreachable. The reliable grace
   // window is the fresh max-age period for a fresh open (verified on
@@ -579,13 +579,13 @@ esp_err_t ShotStopperNetwork::rootHandler(httpd_req_t *request) {
       request, "Content-Security-Policy",
       "default-src 'self'; script-src 'self'; style-src 'self'; "
       "connect-src 'self'; media-src data:; frame-ancestors 'none'");
-  return sendBody(request, SHOT_STOPPER_WEB_UI_GZIP,
-                        SHOT_STOPPER_WEB_UI_GZIP_LEN);
+  return sendBody(request, OPEN_BREW_BY_WEIGHT_WEB_UI_GZIP,
+                        OPEN_BREW_BY_WEIGHT_WEB_UI_GZIP_LEN);
 }
 
 // Every embedded asset except the shell is one row of the generated
 // WEB_ASSETS table; a row ending in '*' prefix-matches its probe variants.
-esp_err_t ShotStopperNetwork::assetHandler(httpd_req_t *request) {
+esp_err_t OpenBrewByWeightNetwork::assetHandler(httpd_req_t *request) {
   const size_t length = strcspn(request->uri, "?");
   for (const WebAsset &asset : WEB_ASSETS) {
     const size_t pathLength = strlen(asset.path);
@@ -661,7 +661,7 @@ esp_err_t serveProbeSuccess(httpd_req_t *request, const char *host) {
 
 }  // namespace
 
-esp_err_t ShotStopperNetwork::notFoundHandler(httpd_req_t *request,
+esp_err_t OpenBrewByWeightNetwork::notFoundHandler(httpd_req_t *request,
                                               httpd_err_code_t) {
   // Keep API 404s as JSON; browser paths bounce to Home.
   if (strncmp(request->uri, "/api/", 5) == 0) {
@@ -687,14 +687,14 @@ esp_err_t ShotStopperNetwork::notFoundHandler(httpd_req_t *request,
 }
 
 
-const char *ShotStopperNetwork::stateLabel(StopperState state) {
+const char *OpenBrewByWeightNetwork::stateLabel(StopperState state) {
   const size_t index = static_cast<size_t>(state);
   return index < kStopperStateLabelCount
              ? kStopperStateLabels[index].humanLabel
              : "Unknown";
 }
 
-const char *ShotStopperNetwork::controlSourceName(ControlSource source) {
+const char *OpenBrewByWeightNetwork::controlSourceName(ControlSource source) {
   switch (source) {
     case ControlSource::NONE: return "none";
     case ControlSource::PHYSICAL: return "physical";
@@ -715,12 +715,12 @@ const char *activeCycleShotTypeLabel(const ControlStatusSnapshot &control) {
       control.cycleAutomaticBrew));
 }
 
-const char *ShotStopperNetwork::endReasonName(EndReason reason) {
+const char *OpenBrewByWeightNetwork::endReasonName(EndReason reason) {
   const EndReasonLabel *label = findEndReasonLabel(reason);
   return label ? label->apiName : "UNKNOWN";
 }
 
-const char *ShotStopperNetwork::staStateName(StaState state) {
+const char *OpenBrewByWeightNetwork::staStateName(StaState state) {
   switch (state) {
     case StaState::NOT_CONFIGURED: return "NOT_CONFIGURED";
     case StaState::CONNECTING: return "CONNECTING";

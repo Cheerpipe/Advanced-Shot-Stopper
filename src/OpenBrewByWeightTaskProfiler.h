@@ -7,7 +7,7 @@
 #include "OpenBrewByWeightScaleTypes.h"
 #include "OpenBrewByWeightTaskMutex.h"
 
-#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+#if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #include "OpenBrewByWeightPsram.h"
 
 #include <esp_timer.h>
@@ -16,7 +16,7 @@
 #include <freertos/idf_additions.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr size_t TASK_PROFILER_MAX_TRACKED = 48;
 constexpr size_t TASK_PROFILER_MAX_ROWS = 20;
@@ -487,7 +487,7 @@ class TaskProfiler {
     if (report_.state == TaskProfilerState::RUNNING) {
       return false;
     }
-#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+#if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     ActiveWorkspace *next = static_cast<ActiveWorkspace *>(
         allocExternal(sizeof(ActiveWorkspace), AllocationOwner::PROFILER));
     if (next == nullptr) {
@@ -550,7 +550,7 @@ class TaskProfiler {
     if (report_.state != TaskProfilerState::RUNNING) {
       return false;
     }
-#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+#if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     if (static_cast<uint32_t>(nowMs - lastCaptureAtMs_) >= 100U) {
       sample_(nowMs);
     }
@@ -565,7 +565,7 @@ class TaskProfiler {
   }
 
   void service(uint32_t nowMs) {
-#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+#if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     if (report_.state != TaskProfilerState::RUNNING) {
       return;
     }
@@ -605,7 +605,7 @@ class TaskProfiler {
     out = report_;
   }
 
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   void resetForHost() {
     TaskLockGuard lock(reportMutex_);
     report_ = TaskProfilerSnapshot{};
@@ -624,7 +624,7 @@ class TaskProfiler {
   void endSnapshotWrite_() {
     reportMutex_.unlock();
   }
-#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+#if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   struct TrackedTask {
     char name[TASK_PROFILER_NAME_CAPACITY] = {};
     uint32_t taskNumber = 0;
@@ -894,4 +894,4 @@ class TaskProfiler {
   mutable TaskMutex reportMutex_;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

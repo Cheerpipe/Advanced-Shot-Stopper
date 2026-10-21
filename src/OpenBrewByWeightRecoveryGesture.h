@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t RECOVERY_MODE_WINDOW_MS = 60000;
 constexpr uint32_t RECOVERY_GESTURE_WINDOW_MS = 5000;
@@ -179,4 +179,4 @@ struct RecoveryGestureRecognizer {
   }
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

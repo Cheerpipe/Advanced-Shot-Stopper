@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Hero tint class streamed to the Web UI ("tintClass" JSON field).
 enum class ShotTint : uint8_t { NEUTRAL = 0, FAST = 1, ON_RECIPE = 2, SLOW = 3 };
@@ -532,4 +532,4 @@ inline void updateShotPredictor(ShotPredictor &pr, const PredictorInputs &in) {
 }
 
 }  // namespace predictor
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

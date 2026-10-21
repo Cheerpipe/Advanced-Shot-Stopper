@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 enum class MachineBackflushPhase : uint8_t {
   UNSUPPORTED, UNKNOWN, INACTIVE, AWAITING, ACTIVE
@@ -151,4 +151,4 @@ class MachineBackflushObservations {
   bool changed_ = true;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

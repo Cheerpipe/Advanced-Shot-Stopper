@@ -5,7 +5,7 @@
 #include "OpenBrewByWeightResetHistory.h"
 #include "OpenBrewByWeightMachineTypes.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 enum class RelaySafetyState : uint8_t {
   BOOT_SAFE,
@@ -101,4 +101,4 @@ struct RelaySafetySnapshot {
   ResetHistoryEntry resetHistory[RESET_HISTORY_CAPACITY] = {};
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

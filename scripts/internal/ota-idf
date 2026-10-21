@@ -22,11 +22,11 @@ it ready to boot.
 
 Required parameters: --host plus either both profiles or --arch for a legacy
 existing image. New builds always use profiles. Supply the device password
-through the hidden prompt, SHOTSTOPPER_DEVICE_PASSWORD, or --password-stdin.
+through the hidden prompt, OPENBREWBYWEIGHT_DEVICE_PASSWORD, or --password-stdin.
 
 $(ss_flag_help)
 
-$(shotstopper_arch_help)
+$(openbrewbyweight_arch_help)
 
 Example through the public facade:
   ./scripts/dev ota --confirm --hardware esp32-s3-relay-x1-speaker \
@@ -73,7 +73,7 @@ else
   ss_cli_resolve "arch host password" || exit $?
 fi
 ss_cli_normalize_image || exit $?
-shotstopper_resolve_board "$(ss_get arch)"
+openbrewbyweight_resolve_board "$(ss_get arch)"
 ss_idf_resolve_paths
 
 root="$SS_CLI_ROOT"
@@ -90,15 +90,15 @@ command -v node >/dev/null 2>&1 || {
   echo "node not found on PATH (needed to verify the firmware image)." >&2
   exit 127
 }
-identity_args=(--expect-arch "$SHOTSTOPPER_ARCH")
-if [[ -n "${SHOTSTOPPER_HARDWARE_COMPAT:-}" ]]; then
-  identity_args+=(--expect-hardware "$SHOTSTOPPER_HARDWARE_COMPAT"
-                  --expect-machine "$SHOTSTOPPER_MACHINE_COMPAT")
+identity_args=(--expect-arch "$OPENBREWBYWEIGHT_ARCH")
+if [[ -n "${OPENBREWBYWEIGHT_HARDWARE_COMPAT:-}" ]]; then
+  identity_args+=(--expect-hardware "$OPENBREWBYWEIGHT_HARDWARE_COMPAT"
+                  --expect-machine "$OPENBREWBYWEIGHT_MACHINE_COMPAT")
 fi
 node ./scripts/image_tag.js "$image" "${identity_args[@]}" >/dev/null
 
 trap ss_ota_cleanup EXIT
-ss_ota_run "$image" "$SHOTSTOPPER_ARCH" "$(ss_get host)" \
+ss_ota_run "$image" "$OPENBREWBYWEIGHT_ARCH" "$(ss_get host)" \
   "$(ss_get password)" "$SS_CLI_YES" "$SS_CLI_WAIT_FOR_CONFIRMATION" \
   "$SS_CLI_NO_CHECK" "$SS_CLI_DISCARD_OTA_SESSION" || exit $?
 ss_cli_save

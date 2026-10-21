@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
 #include <mutex>
 #else
 #include <driver/gptimer.h>
@@ -14,7 +14,7 @@
 #endif
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // A one-shot deadline backed by an ESP32 general-purpose hardware timer.
 // Its callback runs in interrupt context, independently of the Arduino loop,
@@ -31,7 +31,7 @@ class IndependentSafetyTimer {
     if (callback == nullptr || ready()) {
       return false;
     }
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     std::lock_guard<std::mutex> lock(stateMutex_);
     if (!hostGptimerCreateSucceeds) {
       return false;
@@ -84,7 +84,7 @@ class IndependentSafetyTimer {
     if (!stop()) {
       return false;
     }
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     std::lock_guard<std::mutex> lock(stateMutex_);
     if (!hostGptimerArmSucceeds) {
       return false;
@@ -119,7 +119,7 @@ class IndependentSafetyTimer {
   }
 
   bool stop() {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     std::lock_guard<std::mutex> lock(stateMutex_);
     if (callbackInFlight_) return false;
     running_ = false;
@@ -160,13 +160,13 @@ class IndependentSafetyTimer {
   }
 
   bool ready() const {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     std::lock_guard<std::mutex> lock(stateMutex_);
 #else
     portENTER_CRITICAL(&stateMux_);
 #endif
     const bool value = ready_;
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     return value;
 #else
     portEXIT_CRITICAL(&stateMux_);
@@ -175,13 +175,13 @@ class IndependentSafetyTimer {
   }
 
   bool running() const {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     std::lock_guard<std::mutex> lock(stateMutex_);
 #else
     portENTER_CRITICAL(&stateMux_);
 #endif
     const bool value = running_;
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     return value;
 #else
     portEXIT_CRITICAL(&stateMux_);
@@ -189,7 +189,7 @@ class IndependentSafetyTimer {
 #endif
   }
 
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   void serviceForHost() {
     serviceForHostAt(static_cast<uint64_t>(millis()) * 1000ULL);
   }
@@ -221,7 +221,7 @@ class IndependentSafetyTimer {
 #endif
 
  private:
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   static bool IRAM_ATTR alarmCallback(
       gptimer_handle_t timer, const gptimer_alarm_event_data_t *event,
       void *userContext) {
@@ -262,4 +262,4 @@ class IndependentSafetyTimer {
   bool callbackInFlight_ = false;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

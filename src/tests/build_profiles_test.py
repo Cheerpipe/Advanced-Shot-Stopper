@@ -17,7 +17,7 @@ MICRA = ROOT / "config/machines/la-marzocco-linea-micra.json"
 
 
 def run(hardware=HARDWARE, machine=PRO_X, flags=""):
-    temporary = tempfile.TemporaryDirectory(prefix="shotstopper-profile-")
+    temporary = tempfile.TemporaryDirectory(prefix="openbrewbyweight-profile-")
     result = subprocess.run(
         ["python3", str(RESOLVER), "--hardware", str(hardware),
          "--machine", str(machine), f"--flags={flags}",
@@ -30,7 +30,7 @@ def changed(source: Path, mutate):
     value = json.loads(source.read_text())
     mutate(value)
     handle = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", prefix="shotstopper-profile-fixture-",
+        mode="w", suffix=".json", prefix="openbrewbyweight-profile-fixture-",
         delete=False)
     json.dump(value, handle)
     handle.close()
@@ -59,10 +59,10 @@ for hardware, machine, expected_type, integration, brand, model in (
         generated = Path(output["generated_dir"])
         header = (generated / "OpenBrewByWeightBuildProfileGenerated.h").read_text()
         manifest = json.loads((generated / "build-profile.json").read_text())
-        assert f"#define SHOT_STOPPER_MACHINE_TYPE {expected_type}" in header
-        assert f'#define SHOT_STOPPER_MACHINE_MODEL "{model}"' in header
+        assert f"#define OPEN_BREW_BY_WEIGHT_MACHINE_TYPE {expected_type}" in header
+        assert f'#define OPEN_BREW_BY_WEIGHT_MACHINE_MODEL "{model}"' in header
         expected_integration = "1" if integration == "linea_micra_cloud" else "0"
-        assert (f"#define SHOT_STOPPER_MACHINE_INTEGRATION "
+        assert (f"#define OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION "
                 f"{expected_integration}") in header
         assert manifest["machine_integration"] == integration
         assert manifest["machine"]["brand"] == brand
@@ -99,7 +99,7 @@ try:
     manifest = json.loads((generated / "build-profile.json").read_text())
     header = (generated / "OpenBrewByWeightBuildProfileGenerated.h").read_text()
     assert manifest["machine_integration"] == "linea_micra_cloud"
-    assert "#define SHOT_STOPPER_MACHINE_INTEGRATION 1" in header
+    assert "#define OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION 1" in header
 finally:
     temporary.cleanup()
     custom_micra.unlink()
@@ -141,9 +141,9 @@ finally:
     temporary.cleanup()
 
 temporary, override = run(flags=(
-    "-DSHOT_STOPPER_RELAY_GPIO=3 "
-    "-DSHOT_STOPPER_DEFAULT_RINSE_ENABLED=1 "
-    "-DSHOT_STOPPER_DEVELOPMENT=1 -DCUSTOM_BUILD_NOTE=7"))
+    "-DOPEN_BREW_BY_WEIGHT_RELAY_GPIO=3 "
+    "-DOPEN_BREW_BY_WEIGHT_DEFAULT_RINSE_ENABLED=1 "
+    "-DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1 -DCUSTOM_BUILD_NOTE=7"))
 try:
     assert override.returncode == 0, override.stderr
     output = dict(line.split("=", 1) for line in override.stdout.splitlines())
@@ -152,7 +152,7 @@ try:
     header = (generated / "OpenBrewByWeightBuildProfileGenerated.h").read_text()
     assert manifest["hardware"]["relay"]["gpio"] == 3
     assert manifest["machine"]["factory_defaults"]["quick_rinse"]["enabled"]
-    assert "SHOT_STOPPER_DEVELOPMENT" not in header
+    assert "OPEN_BREW_BY_WEIGHT_DEVELOPMENT" not in header
 finally:
     temporary.cleanup()
 
@@ -194,7 +194,7 @@ bad = changed(PRO_X, lambda value: value["interface"].update(
 expect_failure(machine=bad, text="factory_defaults")
 bad.unlink()
 
-expect_failure(flags="-DSHOT_STOPPER_MACHINE_TYPE=2",
+expect_failure(flags="-DOPEN_BREW_BY_WEIGHT_MACHINE_TYPE=2",
                text="conflicts with the machine profile")
 expect_failure(machine=PRO_X_REED,
                text="not compatible with machine profile")
@@ -204,13 +204,13 @@ expect_failure(hardware=bare, machine=reed_on_bare,
                text="machine requires reed feedback")
 bare.unlink()
 reed_on_bare.unlink()
-expect_failure(flags="-DSHOT_STOPPER_REED_GPIO=13",
+expect_failure(flags="-DOPEN_BREW_BY_WEIGHT_REED_GPIO=13",
                text="cannot configure absent reed hardware")
-expect_failure(flags="-DSHOT_STOPPER_SPEAKER_PRESENT=0",
+expect_failure(flags="-DOPEN_BREW_BY_WEIGHT_SPEAKER_PRESENT=0",
                text="cannot change physical presence")
-expect_failure(flags='-DSHOT_STOPPER_HARDWARE_PROFILE_ID="other"',
+expect_failure(flags='-DOPEN_BREW_BY_WEIGHT_HARDWARE_PROFILE_ID="other"',
                text="profile identity cannot be overridden")
-expect_failure(flags="-DSHOT_STOPPER_DEFAULT_SHOT_REACTION_TIMEOUT_S=2",
+expect_failure(flags="-DOPEN_BREW_BY_WEIGHT_DEFAULT_SHOT_REACTION_TIMEOUT_S=2",
                text="must be an integer from 3 to 30")
 
 temporary, result = run()
@@ -220,11 +220,11 @@ try:
                           result.stdout.splitlines())["generated_dir"])
     header = (generated / "OpenBrewByWeightBuildProfileGenerated.h").read_text()
     # Buzzer support follows the hardware profile's speaker presence.
-    assert "#define SHOT_STOPPER_ENABLE_BUZZER 1" in header
+    assert "#define OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER 1" in header
 finally:
     temporary.cleanup()
 
-temporary, result = run(flags="-DSHOT_STOPPER_ENABLE_BUZZER=0")
+temporary, result = run(flags="-DOPEN_BREW_BY_WEIGHT_ENABLE_BUZZER=0")
 try:
     assert result.returncode == 0, result.stderr
     output = dict(line.split("=", 1) for line in result.stdout.splitlines())
@@ -232,12 +232,12 @@ try:
     header = (generated / "OpenBrewByWeightBuildProfileGenerated.h").read_text()
     # The header keeps the presence-derived value; the #ifndef guard lets the
     # explicit =0 win at compile time.
-    assert "#define SHOT_STOPPER_ENABLE_BUZZER 1" in header
+    assert "#define OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER 1" in header
 finally:
     temporary.cleanup()
 
 bad = changed(HARDWARE, lambda value: value.update(speaker={"present": False}))
-expect_failure(hardware=bad, flags="-DSHOT_STOPPER_ENABLE_BUZZER=1",
+expect_failure(hardware=bad, flags="-DOPEN_BREW_BY_WEIGHT_ENABLE_BUZZER=1",
                text="buzzer support cannot be enabled when the hardware speaker is absent")
 bad.unlink()
 
@@ -249,12 +249,12 @@ try:
     generated = Path(dict(line.split("=", 1) for line in
                           result.stdout.splitlines())["generated_dir"])
     header = (generated / "OpenBrewByWeightBuildProfileGenerated.h").read_text()
-    assert "#define SHOT_STOPPER_ENABLE_BUZZER 0" in header
+    assert "#define OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER 0" in header
 finally:
     temporary.cleanup()
     no_speaker.unlink()
 
-with tempfile.TemporaryDirectory(prefix="shotstopper-profile-id-") as temporary:
+with tempfile.TemporaryDirectory(prefix="openbrewbyweight-profile-id-") as temporary:
     selected = subprocess.run(
         ["python3", str(RESOLVER), "--hardware", HARDWARE.stem,
          "--machine", PRO_X.stem, "--flags=", "--output-root", temporary],
@@ -262,7 +262,7 @@ with tempfile.TemporaryDirectory(prefix="shotstopper-profile-id-") as temporary:
     assert selected.returncode == 0, selected.stderr
     assert f"variant={HARDWARE.stem}--{PRO_X.stem}" in selected.stdout
 
-with tempfile.TemporaryDirectory(prefix="shotstopper-profile-check-") as temporary:
+with tempfile.TemporaryDirectory(prefix="openbrewbyweight-profile-check-") as temporary:
     checked = subprocess.run(
         ["python3", str(RESOLVER), "--hardware", HARDWARE.stem,
          "--machine", PRO_X.stem, "--flags=", "--output-root", temporary,

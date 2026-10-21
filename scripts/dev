@@ -305,9 +305,9 @@ def execute(command: list[str], risk: str, steps: list[tuple[str, list[str]]],
                 block = [f"==> {name}: {' '.join(safe_args(argv))}"]
                 child_env = {**os.environ, **(env_extra or {})}
                 if interactive:
-                    child_env.pop("SHOTSTOPPER_NONINTERACTIVE", None)
+                    child_env.pop("OPENBREWBYWEIGHT_NONINTERACTIVE", None)
                 else:
-                    child_env["SHOTSTOPPER_NONINTERACTIVE"] = "1"
+                    child_env["OPENBREWBYWEIGHT_NONINTERACTIVE"] = "1"
                 process = subprocess.Popen(argv, cwd=ROOT, text=True,
                                            stdout=subprocess.PIPE,
                                            stderr=subprocess.STDOUT,
@@ -398,7 +398,7 @@ def ensure_no_secret_argv(args: list[str]) -> None:
     if any(a in {"--password", "--token", "-t"} or
            a.startswith(("--password=", "--token=")) for a in args):
         raise ValueError(
-            "use the hidden prompt, SHOTSTOPPER_DEVICE_PASSWORD, or --password-stdin; never argv")
+            "use the hidden prompt, OPENBREWBYWEIGHT_DEVICE_PASSWORD, or --password-stdin; never argv")
 
 
 def extract_switch(args: list[str], option: str) -> tuple[bool, list[str]]:
@@ -482,7 +482,7 @@ commands:
   clean --dry-run            list generated directories; --confirm removes them
 
 Verbosity is independent of firmware runtime logging. Default is normal on a
-TTY and compact otherwise; SHOTSTOPPER_VERBOSITY provides the environment default.
+TTY and compact otherwise; OPENBREWBYWEIGHT_VERBOSITY provides the environment default.
 """
 
 
@@ -505,7 +505,7 @@ OTA:    --host HOST --yes --wait-for-confirmation --discard-ota-session
 Monitor: --port PATH --speed BAUD
 
 Flash and OTA require --confirm. OTA credentials come from the hidden prompt,
-SHOTSTOPPER_DEVICE_PASSWORD, or --password-stdin; password values are never argv.
+OPENBREWBYWEIGHT_DEVICE_PASSWORD, or --password-stdin; password values are never argv.
 Options follow the complete stage sequence.
 """
 
@@ -514,7 +514,7 @@ def main() -> int:
     raw = sys.argv[1:]
     try:
         verbosity, raw = extract_option(raw, "--verbosity")
-        verbosity = verbosity or os.getenv("SHOTSTOPPER_VERBOSITY") or (
+        verbosity = verbosity or os.getenv("OPENBREWBYWEIGHT_VERBOSITY") or (
             "normal" if sys.stdout.isatty() else "compact")
         if verbosity not in {"compact", "normal", "verbose"}:
             raise ValueError("verbosity must be compact, normal, or verbose")
@@ -654,7 +654,7 @@ def main() -> int:
             override, paths = extract_option(args, "--risk")
             webui_language, paths = extract_option(paths, "--webui-language")
             webui_language = (webui_language or
-                              os.getenv("SHOTSTOPPER_WEBUI_LANGUAGE") or "en")
+                              os.getenv("OPENBREWBYWEIGHT_WEBUI_LANGUAGE") or "en")
             webui_language = webui_language.strip().replace("_", "-").lower()
             if not re.fullmatch(r"[a-z]{2,3}(?:-[a-z0-9]{2,8})*", webui_language):
                 raise ValueError("invalid WebUI language code")
@@ -725,7 +725,7 @@ def main() -> int:
                 password = sys.stdin.readline().rstrip("\r\n")
                 if not password:
                     raise ValueError("--password-stdin received an empty password")
-                env_extra["SHOTSTOPPER_DEVICE_PASSWORD"] = password
+                env_extra["OPENBREWBYWEIGHT_DEVICE_PASSWORD"] = password
             risk = "R3" if "flash" in stages else (
                 "R2" if set(stages).intersection({"build", "ota"}) else "R1")
             step_name = "firmware-" + "-".join(stages)

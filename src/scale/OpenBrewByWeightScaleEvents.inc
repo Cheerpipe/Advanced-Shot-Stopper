@@ -256,7 +256,7 @@ void serviceScaleCompletionBeep() {
 
 
 void servicePreferredScaleMacPersistence() {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   char mac[PREFERRED_SCALE_MAC_CAPACITY];
   char name[PREFERRED_SCALE_NAME_CAPACITY];
   ScaleHistoryEntry history[SCALE_HISTORY_CAPACITY];

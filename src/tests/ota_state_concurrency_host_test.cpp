@@ -1,6 +1,6 @@
-#define SHOT_STOPPER_HOST_TEST
-#define SHOT_STOPPER_PERSISTENCE_HOST_TEST
-#define SHOT_STOPPER_OTA_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_OTA_HOST_TEST
 
 #include "../OpenBrewByWeightOta.cpp"
 
@@ -11,16 +11,16 @@
 #include <iostream>
 #include <thread>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 struct OtaHostTestAccess {
-  static TaskMutex &mutex() { return ShotStopperOta::mutex_; }
+  static TaskMutex &mutex() { return OpenBrewByWeightOta::mutex_; }
 };
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 
 int main() {
-  using namespace shotstopper;
+  using namespace openbrewbyweight;
   persistence_host::reset();
-  ShotStopperOta &ota = ShotStopperOta::instance();
+  OpenBrewByWeightOta &ota = OpenBrewByWeightOta::instance();
   ota.begin();
 
   // A range write holds the OTA mutex for seconds; status readers on httpd

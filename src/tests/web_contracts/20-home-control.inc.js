@@ -439,8 +439,8 @@
   if(timed.card.scaleAvailable!==false)
     throw new Error('The no-scale card flag must survive stream framing');
   const streamSource=fs.readFileSync(path.join(sketchDir,'network/OpenBrewByWeightUiStream.inc'),'utf8');
-  const handler=streamSource.slice(streamSource.indexOf('esp_err_t ShotStopperNetwork::uiStreamHandler('),
-    streamSource.indexOf('void ShotStopperNetwork::serviceUiStream('));
+  const handler=streamSource.slice(streamSource.indexOf('esp_err_t OpenBrewByWeightNetwork::uiStreamHandler('),
+    streamSource.indexOf('void OpenBrewByWeightNetwork::serviceUiStream('));
   if(handler.includes('sendUiStream(')||!handler.includes('session->resync = true;')||
       !streamSource.includes('uiStreamWorkPending_.exchange(true')||
       !streamSource.includes('if (!uiStreamDispatchDue(uiStreamUrgent_.load(')||
@@ -598,10 +598,10 @@
   const wifi=fs.readFileSync(path.join(sketchDir,'network/OpenBrewByWeightWifi.inc'),'utf8');
   const cadence=stream.slice(stream.indexOf('constexpr uint32_t kUiStreamSampleStride'),
     stream.indexOf('constexpr size_t kUiStreamRequestBytes'));
-  const service=stream.slice(stream.indexOf('void ShotStopperNetwork::noteScaleSample('),
-    stream.indexOf('void ShotStopperNetwork::uiStreamDispatch('));
-  const sync=wifi.slice(wifi.indexOf('void ShotStopperNetwork::syncControlCriticalRf('),
-    wifi.indexOf('void ShotStopperNetwork::syncScaleHuntRf('));
+  const service=stream.slice(stream.indexOf('void OpenBrewByWeightNetwork::noteScaleSample('),
+    stream.indexOf('void OpenBrewByWeightNetwork::uiStreamDispatch('));
+  const sync=wifi.slice(wifi.indexOf('void OpenBrewByWeightNetwork::syncControlCriticalRf('),
+    wifi.indexOf('void OpenBrewByWeightNetwork::syncScaleHuntRf('));
   const directory=path.resolve(sketchDir,'..','temp','ai_temp_no_scale_stop_fade');
   fs.mkdirSync(directory,{recursive:true});
   const binary=path.join(directory,'dispatch-'+process.pid);
@@ -615,7 +615,7 @@ int queued=0,queueResult=ESP_OK,notified=0;
 int httpd_queue_work(int,void (*)(void *),void *){++queued;return queueResult;}
 void xTaskNotifyGive(void *){++notified;}
 struct TaskLockGuard { explicit TaskLockGuard(int &){} };
-struct ShotStopperNetwork {
+struct OpenBrewByWeightNetwork {
   int server_=1,dataMux_=0;
   void *taskHandle_=this;
   struct {int fd=-1;} uiStreams_[2];
@@ -633,7 +633,7 @@ struct ShotStopperNetwork {
 ${service}
 ${sync}
 int main(){
-  ShotStopperNetwork n;n.uiStreams_[0].fd=4;
+  OpenBrewByWeightNetwork n;n.uiStreams_[0].fd=4;
   n.serviceUiStream(150);assert(queued==0);
   n.syncControlCriticalRf(true);assert(notified==1);
   n.serviceUiStream(151);assert(queued==1&&!n.uiStreamUrgent_);
@@ -1208,7 +1208,7 @@ if (momentaryInputHeader.includes('session.active') ||
 }
 if (firmwareCore.includes('readRawActivatorOn()') ||
     firmwareCore.includes('pinMode(RELAY_GPIO') ||
-    firmwareCore.includes('#if SHOT_STOPPER_MACHINE_TYPE') ||
+    firmwareCore.includes('#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE') ||
     firmwareCore.includes('MACHINE_USES_MOMENTARY') ||
     firmwareCore.includes('stopPulseTenMs') ||
     firmwareCore.includes('maxSinglePressHundredMs') ||

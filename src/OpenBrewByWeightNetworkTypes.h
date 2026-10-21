@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Network identity and STA configuration types shared by persistence and the
 // network service (keeps OpenBrewByWeightDomain.h within its line ceiling).
@@ -135,4 +135,4 @@ inline uint8_t connectionSignalLevel(uint8_t previous, bool valid, int8_t rssi) 
   return up > previous ? up : down < previous ? down : previous;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

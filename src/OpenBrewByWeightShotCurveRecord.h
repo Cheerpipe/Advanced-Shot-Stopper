@@ -7,7 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t SHOT_CURVE_MAX_TIME_MS = 60000;
 // Capacity assumption only, never a sampling grid or rate limiter.
@@ -56,4 +56,4 @@ static_assert(offsetof(ShotCurveRecord, bytes) -
 static_assert(sizeof(ShotCurveRecord) == 5608,
               "ShotCurveRecord size pins the PSRAM curve-store footprint");
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

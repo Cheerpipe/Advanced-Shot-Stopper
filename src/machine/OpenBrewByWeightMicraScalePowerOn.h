@@ -5,7 +5,7 @@
 
 #include <cstdint>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Machine-side policy for turning the Micra on when the scale powers on: the
 // inverse of MicraScaleShutdownTracker. A link-up edge counts as the scale
@@ -40,4 +40,4 @@ class MicraScalePowerOnTracker {
   bool lastLinkUp_ = false;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

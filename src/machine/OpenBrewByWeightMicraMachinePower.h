@@ -3,7 +3,7 @@
 #include "OpenBrewByWeightLineaMicraSettings.h"
 #include "OpenBrewByWeightLineaMicraTypes.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Scale-discovery duty requested from the machine power state. NONE leaves
 // the saved BLE scan mode in charge.
@@ -63,4 +63,4 @@ class MicraMachinePowerTracker {
   bool confirmedOn_ = false;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

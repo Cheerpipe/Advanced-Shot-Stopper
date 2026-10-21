@@ -3,7 +3,7 @@
 #include "OpenBrewByWeightNvsDualSlot.h"
 #include "OpenBrewByWeightPersistence.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // The BLE scan store has one fixed layout with an explicit master switch.
 // Blobs carrying any other schema version are invalid and never upgraded.
@@ -64,7 +64,7 @@ inline bool validBleScanSettingsBlob(const BleScanPersistedSettings &settings) {
          settings.enabled <= 1;
 }
 
-inline bool readBleScanSlot(ShotStopperPreferences &preferences, const char *key,
+inline bool readBleScanSlot(OpenBrewByWeightPreferences &preferences, const char *key,
                             BleScanPersistedSettings &settings) {
   if (!preferences.isKey(key) ||
       preferences.getBytesLength(key) != sizeof(settings) ||
@@ -79,7 +79,7 @@ inline bool readLatestBleScanSettings(BleScanPersistedSettings &settings) {
   if (!lockSettingsNvs()) {
     return false;
   }
-  ShotStopperPreferences preferences(NvsSubsystem::BLE_SCAN);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::BLE_SCAN);
   if (!preferences.begin(SETTINGS_NAMESPACE, true)) {
     unlockSettingsNvs();
     return false;
@@ -134,7 +134,7 @@ inline bool saveBleScanSettings(BleScanPersistedSettings &settings) {
     settings.revision = 1;
   }
   finalizeBleScanSettings(settings);
-  ShotStopperPreferences preferences(NvsSubsystem::BLE_SCAN);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::BLE_SCAN);
   if (!preferences.begin(SETTINGS_NAMESPACE, false)) {
     unlockSettingsNvs();
     return false;
@@ -179,4 +179,4 @@ inline bool resetBleScanSettings(BleScanPersistedSettings &settings) {
   return saveBleScanSettings(settings);
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

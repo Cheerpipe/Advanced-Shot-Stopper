@@ -2,7 +2,7 @@
 #include <esp_pm.h>
 #include <esp32-hal-cpu.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 bool applyPowerProfile(PowerProfile profile) {
   static PowerClock clock;
@@ -23,4 +23,4 @@ bool applyPowerProfile(PowerProfile profile) {
   return safe;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

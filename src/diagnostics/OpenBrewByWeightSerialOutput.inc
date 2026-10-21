@@ -1,4 +1,4 @@
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 struct SerialLogLine {
   uint16_t length = 0;
   char text[256] = {};
@@ -52,9 +52,9 @@ class SerialCliQueuePrint : public Print {
 
 SerialCliQueuePrint serialCliQueuePrint;
 
-namespace shotstopper {
+namespace openbrewbyweight {
 Print &serialCliOutput() { return serialCliQueuePrint; }
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 
 bool beginSerialCliOutput() {
   if (serialCliOutputBytes == nullptr) return false;
@@ -104,7 +104,7 @@ void endSerialCliOutput() {}
 #endif
 
 uint32_t serialLogDroppedCount() {
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   return __atomic_load_n(&serialLogQueueDropped, __ATOMIC_RELAXED);
 #else
   return 0;
@@ -112,7 +112,7 @@ uint32_t serialLogDroppedCount() {
 }
 
 uint32_t serialLogTruncatedCount() {
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   return __atomic_load_n(&serialLogQueueTruncated, __ATOMIC_RELAXED);
 #else
   return 0;

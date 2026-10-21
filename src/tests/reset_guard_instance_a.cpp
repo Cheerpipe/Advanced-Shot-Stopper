@@ -1,4 +1,4 @@
-#define SHOT_STOPPER_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
 
 #include <stdint.h>
 
@@ -9,10 +9,10 @@ extern bool hostSafetyResetReasonPowerOn;
 #include "../OpenBrewByWeightResetGuard.h"
 
 const volatile void *resetGuardAddressA() {
-  return &shotstopper::safetyResetRecordForHost();
+  return &openbrewbyweight::safetyResetRecordForHost();
 }
 
 void resetGuardWriteFromA() {
-  shotstopper::initializeSafetyResetRecord(
-      shotstopper::SAFETY_RELAY_OPEN_MARKER, 7);
+  openbrewbyweight::initializeSafetyResetRecord(
+      openbrewbyweight::SAFETY_RELAY_OPEN_MARKER, 7);
 }

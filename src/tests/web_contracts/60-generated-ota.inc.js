@@ -23,7 +23,8 @@ if (firmware.includes('maybeCaptureScaleStartLag') ||
 (async () => {
 const generated = await webUi.generate();
 if (!generated.modules.diagnostic.includes('new CompressionStream("gzip")') ||
-    !generated.modules.diagnostic.includes('shotstopper-crashes.tar') ||
+    !generated.modules.diagnostic.includes('"crashes.tar"') ||
+    !generated.modules.diagnostic.includes('download="openbrewbyweight-"+') ||
     !generated.modules.diagnostic.includes('?".gz":""')) {
   throw new Error('Crash download must gzip in the browser with a TAR fallback');
 }
@@ -841,7 +842,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The Diagnostic Heap min before and after the boot heap shaper release measures diagnostic.js at 13871; owner-requested 2026-10-20.
 // Home and Diagnostic minimal increments move records.js to 15098 through shared text table gzip wobble; owner-requested 2026-10-21.
 // The review fixes move diagnostic.js to 13872 through shared text table gzip wobble; owner-requested 2026-10-21.
-const viewModuleBudgets = {records: 15098, diagnostic: 13872, admin: 14229, settings: 16807, setup: 5793};
+// Gzip wobble from the asset version tag after the openbrewbyweight rename (admin.js source unchanged) measures 14230; rename owner-requested 2026-10-21.
+const viewModuleBudgets = {records: 15098, diagnostic: 13872, admin: 14230, settings: 16807, setup: 5793};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -1050,16 +1052,16 @@ if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {
   throw new Error('Firmware must embed the gzip Web UI, not the HTML source string');
 }
-if (!network.includes('SHOT_STOPPER_WEB_UI_GZIP') ||
-    !network.includes('SHOT_STOPPER_WEB_UI_GZIP_LEN') ||
+if (!network.includes('OPEN_BREW_BY_WEIGHT_WEB_UI_GZIP') ||
+    !network.includes('OPEN_BREW_BY_WEIGHT_WEB_UI_GZIP_LEN') ||
     !network.includes('for (const WebAsset &asset : WEB_ASSETS)') ||
     !generatedHeader.includes('const WebAsset WEB_ASSETS[] = {') ||
     generatedHeader.includes('_PARTIAL_') ||
     !network.includes('WEB_UI_ETAG') ||
-    network.includes('SHOT_STOPPER_WEB_PARTIAL_HOME_GZIP') ||
-    network.includes('SHOT_STOPPER_WEB_VIEW_HOME_GZIP') ||
+    network.includes('OPEN_BREW_BY_WEIGHT_WEB_PARTIAL_HOME_GZIP') ||
+    network.includes('OPEN_BREW_BY_WEIGHT_WEB_VIEW_HOME_GZIP') ||
     network.includes('formatWebUiEtag') ||
-    network.includes('SHOT_STOPPER_WEB_LOGO_GZIP') ||
+    network.includes('OPEN_BREW_BY_WEIGHT_WEB_LOGO_GZIP') ||
     !network.includes('"Content-Encoding"') ||
     !network.includes('"gzip"')) {
   throw new Error('GET / and the WEB_ASSETS table must send precompressed bodies without logo');
@@ -1068,7 +1070,7 @@ if (network.includes('zlib.h') || network.includes('miniz.h') ||
     /mz_compress|deflateInit|gzipCompress/.test(network)) {
   throw new Error('Firmware must not compress the Web UI at runtime');
 }
-if (!network.includes('sendBody(request, SHOT_STOPPER_WEB_UI_GZIP') ||
+if (!network.includes('sendBody(request, OPEN_BREW_BY_WEIGHT_WEB_UI_GZIP') ||
     !network.includes('return sendBody(request, asset.data, asset.length)') ||
     !network.includes('const esp_err_t sent = sendBody(request, json, length)') ||
     !network.includes(
@@ -1089,9 +1091,9 @@ if (!network.includes('sendBody(request, SHOT_STOPPER_WEB_UI_GZIP') ||
 if (!network.includes('If-None-Match')) {
   throw new Error('GET / must honor If-None-Match for cached Web UI revalidation');
 }
-const rootHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::rootHandler');
-const assetHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::assetHandler');
-const notFoundHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::notFoundHandler');
+const rootHandlerStart = network.indexOf('esp_err_t OpenBrewByWeightNetwork::rootHandler');
+const assetHandlerStart = network.indexOf('esp_err_t OpenBrewByWeightNetwork::assetHandler');
+const notFoundHandlerStart = network.indexOf('esp_err_t OpenBrewByWeightNetwork::notFoundHandler');
 const serveImmutableStart = network.indexOf('static esp_err_t serveWebAsset');
 if (rootHandlerStart < 0 || assetHandlerStart < 0 || notFoundHandlerStart < 0 ||
     statusHandlerStart < 0 || serveImmutableStart < 0 ||
@@ -1147,7 +1149,7 @@ if (assetRows.map((row) => row[1]).join() !== webUi.ASSET_PATHS.join() ||
     assetHandler.includes('302 Found') || assetHandler.includes('Location')) {
   throw new Error('Web assets must be served from the generated WEB_ASSETS table on exact routes');
 }
-if (network.includes('logoHandler') || network.includes('SHOT_STOPPER_WEB_LOGO')) {
+if (network.includes('logoHandler') || network.includes('OPEN_BREW_BY_WEIGHT_WEB_LOGO')) {
   throw new Error('Firmware must not serve /logo.svg');
 }
 if (!notFoundHandler.includes('302 Found') ||
@@ -1157,8 +1159,8 @@ if (!notFoundHandler.includes('302 Found') ||
   throw new Error('Unknown non-API routes must 302 to /, while unknown /api/* stay JSON 404');
 }
 if (network.includes('sendJson') &&
-    !network.slice(network.indexOf('esp_err_t ShotStopperNetwork::sendJson'),
-                   network.indexOf('esp_err_t ShotStopperNetwork::sendError'))
+    !network.slice(network.indexOf('esp_err_t OpenBrewByWeightNetwork::sendJson'),
+                   network.indexOf('esp_err_t OpenBrewByWeightNetwork::sendError'))
         .includes('no-store')) {
   throw new Error('JSON API responses must remain Cache-Control: no-store');
 }
@@ -1172,7 +1174,7 @@ if (!network.includes('requireActiveWebUiClient') ||
       'WebUI claim must replace POST /heartbeat; web paddle heartbeat circuit timeout must be gone');
 }
 const wifiScanStatusStart =
-    network.indexOf('esp_err_t ShotStopperNetwork::wifiScanStatusHandler');
+    network.indexOf('esp_err_t OpenBrewByWeightNetwork::wifiScanStatusHandler');
 if (wifiScanStatusStart < 0 ||
     !network.slice(wifiScanStatusStart).includes('"Connection"') ||
     !network.slice(wifiScanStatusStart, wifiScanStatusStart + 800)
@@ -1568,12 +1570,12 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   if (!/extern "C" bool verifyRollbackLater\(\) \{\s*return true;/.test(firmware)) {
     throw new Error('Firmware must defer OTA rollback verification to the network layer');
   }
-  if (!firmware.includes('ShotStopperOta::instance().begin()')) {
+  if (!firmware.includes('OpenBrewByWeightOta::instance().begin()')) {
     throw new Error('Firmware must initialise the OTA module during setup');
   }
 
   // The unsafe WebUI override may relax settings, never a firmware update.
-  const otaHandlers = network.slice(network.indexOf('ShotStopperNetwork::otaStatusHandler'));
+  const otaHandlers = network.slice(network.indexOf('OpenBrewByWeightNetwork::otaStatusHandler'));
   if (otaHandlers.includes('webUiOverrideAllowed') ||
       otaHandlers.includes('webUiConfigurationAllowed')) {
     throw new Error('OTA handlers must not honour the unsafe WebUI override');
@@ -1588,14 +1590,14 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
         'OTA must abort on every chunk when the paddle moves, not on a byte interval');
   }
   if (!network.includes('otaTransferStillSafe') ||
-      !/bool ShotStopperNetwork::otaTransferStillSafe[\s\S]{0,400}?controlAllowsConfiguration/
+      !/bool OpenBrewByWeightNetwork::otaTransferStillSafe[\s\S]{0,400}?controlAllowsConfiguration/
           .test(network)) {
     throw new Error(
         'OTA stillSafe must keep controlAllowsConfiguration so a paddle pull aborts the transfer');
   }
   const restartHandler = network.slice(
-      network.indexOf('ShotStopperNetwork::restartHandler'),
-      network.indexOf('ShotStopperNetwork::firmwareModeHandler'));
+      network.indexOf('OpenBrewByWeightNetwork::restartHandler'),
+      network.indexOf('OpenBrewByWeightNetwork::firmwareModeHandler'));
   if (restartHandler.includes('unsafeWebUiOverride') ||
       restartHandler.includes('webUiConfigurationAllowed') ||
       restartHandler.includes('CONFIG_LOCKED_DURING_ACTIVE_CYCLE')) {
@@ -1626,7 +1628,7 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   }
   {
     const rollback = network.slice(
-        network.indexOf('void ShotStopperNetwork::serviceOtaRollback'));
+        network.indexOf('void OpenBrewByWeightNetwork::serviceOtaRollback'));
     if (!/control\.activeCycle\s*\|\|\s*control\.machineRunning\s*\|\|\s*control\.physicalActivatorOn,\s*control\.relayClosed/.test(rollback) ||
         !otaSource.includes('if (activeCycle || relayClosed || busy_ || sessionActive_)')) {
       throw new Error(
@@ -1666,8 +1668,8 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   if (network.includes('tokenAuthorized = !factoryPassword && otaTokensMatch') ||
       network.includes('passwordAuthorized = !factoryPassword') ||
       (network.includes('authorizeOtaRequest') &&
-       network.slice(network.indexOf('ShotStopperNetwork::authorizeOtaRequest'),
-                     network.indexOf('ShotStopperNetwork::buildOtaJson'))
+       network.slice(network.indexOf('OpenBrewByWeightNetwork::authorizeOtaRequest'),
+                     network.indexOf('OpenBrewByWeightNetwork::buildOtaJson'))
            .includes('if (factoryPassword)'))) {
     throw new Error(
       'OTA authentication must accept the factory default device password');
@@ -1714,14 +1716,14 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
       !css.includes('.textLock') ||
       !network.includes('/api/v1/admin/unlock') ||
       !network.includes('/api/v1/admin/lock') ||
-      !network.includes('ShotStopperNetwork::adminLockHandler') ||
+      !network.includes('OpenBrewByWeightNetwork::adminLockHandler') ||
       !network.includes('ADMIN_LOCKED') ||
       !network.includes('ADMIN_UNLOCK_COOLDOWN') ||
       !network.includes('ADMIN_UNLOCK_IDLE_MS') ||
       !network.includes('grantAdminUnlock') ||
       !network.includes('secretsMatch(password, expected)') ||
       codeIncludes(js, 'loginHandler') ||
-      network.includes('ShotStopperNetwork::loginHandler')) {
+      network.includes('OpenBrewByWeightNetwork::loginHandler')) {
     throw new Error('Admin must gate behind a temporary device-password unlock on firmware and UI');
   }
   if (!html.includes('id="diagnosticControls"') ||
@@ -1766,36 +1768,36 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
     }
   }
   {
-    const factoryFnStart = network.indexOf('ShotStopperNetwork::factoryResetHandler');
-    const passwordFnStart = network.indexOf('ShotStopperNetwork::devicePasswordHandler');
-    const restartFnStart = network.indexOf('ShotStopperNetwork::restartHandler');
-    const bleFnStart = network.indexOf('ShotStopperNetwork::bleScanHandler');
-    const timeFnStart = network.indexOf('ShotStopperNetwork::timeSyncHandler');
+    const factoryFnStart = network.indexOf('OpenBrewByWeightNetwork::factoryResetHandler');
+    const passwordFnStart = network.indexOf('OpenBrewByWeightNetwork::devicePasswordHandler');
+    const restartFnStart = network.indexOf('OpenBrewByWeightNetwork::restartHandler');
+    const bleFnStart = network.indexOf('OpenBrewByWeightNetwork::bleScanHandler');
+    const timeFnStart = network.indexOf('OpenBrewByWeightNetwork::timeSyncHandler');
     for (const [label, start] of [
       ['factory-reset', factoryFnStart],
       ['device-password', passwordFnStart],
       ['restart', restartFnStart],
       ['ble-scan', bleFnStart],
       ['time-sync', timeFnStart],
-      ['wifi-scan-start', network.indexOf('ShotStopperNetwork::wifiScanStartHandler')],
-      ['wifi-scan-status', network.indexOf('ShotStopperNetwork::wifiScanStatusHandler')],
-      ['paddle', network.indexOf('ShotStopperNetwork::paddleHandler')],
-      ['rinse', network.indexOf('ShotStopperNetwork::rinseHandler')],
-      ['stop', network.indexOf('ShotStopperNetwork::stopHandler')]
+      ['wifi-scan-start', network.indexOf('OpenBrewByWeightNetwork::wifiScanStartHandler')],
+      ['wifi-scan-status', network.indexOf('OpenBrewByWeightNetwork::wifiScanStatusHandler')],
+      ['paddle', network.indexOf('OpenBrewByWeightNetwork::paddleHandler')],
+      ['rinse', network.indexOf('OpenBrewByWeightNetwork::rinseHandler')],
+      ['stop', network.indexOf('OpenBrewByWeightNetwork::stopHandler')]
     ]) {
       if (start < 0 ||
           !network.slice(start, start + 500).includes('requireAdminUnlock(request)')) {
         throw new Error(label + ' must require admin unlock');
       }
     }
-    const unlockFnStart = network.indexOf('ShotStopperNetwork::unlockHandler');
+    const unlockFnStart = network.indexOf('OpenBrewByWeightNetwork::unlockHandler');
     if (unlockFnStart < 0 ||
         !network.slice(unlockFnStart, unlockFnStart + 600).includes('requireAdminUnlock(request)')) {
       throw new Error('ui/unlock must require admin unlock');
     }
     const networkFn = network.slice(
-        network.indexOf('ShotStopperNetwork::networkHandler'),
-        network.indexOf('ShotStopperNetwork::wifiScanStartHandler'));
+        network.indexOf('OpenBrewByWeightNetwork::networkHandler'),
+        network.indexOf('OpenBrewByWeightNetwork::wifiScanStartHandler'));
     if (!networkFn.includes('requireAdminUnlock(request)') ||
         !networkFn.includes('strcmp(action, "confirm") != 0')) {
       throw new Error('Network save/forget must require admin unlock; confirm may stay ungated');
@@ -1826,8 +1828,8 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
         'Home status must report adminUnlocked without sliding idle; Admin polls may renew');
   }
   {
-    const start = network.indexOf('ShotStopperNetwork::adminLockHandler');
-    const end = network.indexOf('bool ShotStopperNetwork::requireActiveWebUiClient');
+    const start = network.indexOf('OpenBrewByWeightNetwork::adminLockHandler');
+    const end = network.indexOf('bool OpenBrewByWeightNetwork::requireActiveWebUiClient');
     const body = start >= 0 && end > start ? network.slice(start, end) : '';
     if (!body.includes('clearAdminUnlock()') ||
         body.includes('requireAdminUnlock')) {
@@ -1929,8 +1931,8 @@ console.log(
 });
 {
   const handler = (name) => {
-    const start = network.indexOf('esp_err_t ShotStopperNetwork::' + name);
-    return network.slice(start, network.indexOf('\nesp_err_t ShotStopperNetwork::', start + 1));
+    const start = network.indexOf('esp_err_t OpenBrewByWeightNetwork::' + name);
+    return network.slice(start, network.indexOf('\nesp_err_t OpenBrewByWeightNetwork::', start + 1));
   };
   // Mutating OTA routes run on the worker; status reads never wait for it.
   for (const name of ['otaPatchHandler', 'otaFlashHandler', 'otaAbortHandler']) {

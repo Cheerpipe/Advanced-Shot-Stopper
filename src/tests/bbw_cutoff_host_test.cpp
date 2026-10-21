@@ -1,4 +1,4 @@
-#define SHOT_STOPPER_PERSISTENCE_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST
 #include "../OpenBrewByWeightBbwLearning.h"
 #include "../OpenBrewByWeightBbwQuickStart.h"
 #include "../OpenBrewByWeightPersistence.h"
@@ -8,7 +8,7 @@
 #include <iostream>
 #include <vector>
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 int main() {
   // The removed regression mode must parse as an alias, never as value 0.

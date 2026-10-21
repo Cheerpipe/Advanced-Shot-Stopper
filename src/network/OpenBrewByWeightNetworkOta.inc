@@ -1,5 +1,5 @@
-esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::networkHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   ControlGateSnapshot status = self.controlGate();
   const esp_err_t bodyStatus =
       self.lockJsonBody(request, "A JSON request is required.");
@@ -307,8 +307,8 @@ esp_err_t ShotStopperNetwork::networkHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::wifiScanStartHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::wifiScanStartHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
@@ -336,8 +336,8 @@ esp_err_t ShotStopperNetwork::wifiScanStartHandler(httpd_req_t *request) {
                            "\"state\":\"QUEUED\"");
 }
 
-esp_err_t ShotStopperNetwork::wifiScanStatusHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::wifiScanStatusHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
@@ -391,8 +391,8 @@ esp_err_t ShotStopperNetwork::wifiScanStatusHandler(httpd_req_t *request) {
   return sent;
 }
 
-esp_err_t ShotStopperNetwork::devicePasswordHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::devicePasswordHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
@@ -445,8 +445,8 @@ esp_err_t ShotStopperNetwork::devicePasswordHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::bleScanHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::bleScanHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
@@ -499,8 +499,8 @@ esp_err_t ShotStopperNetwork::bleScanHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::scaleProfileHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::scaleProfileHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   const esp_err_t bodyStatus =
       self.lockJsonBody(request, "A JSON request is required.");
   if (bodyStatus != ESP_OK) {
@@ -601,7 +601,7 @@ void copyScaleProfileContextText(char *destination, size_t capacity,
 
 }  // namespace
 
-esp_err_t ShotStopperNetwork::scaleProfileDownloadHandler(
+esp_err_t OpenBrewByWeightNetwork::scaleProfileDownloadHandler(
     httpd_req_t *request) {
   if (!scaleProfiler().acquireDownloadLease()) {
     return sendError(request, STATUS_CONFLICT, "SCALE_PROFILE_BUSY",
@@ -628,7 +628,7 @@ esp_err_t ShotStopperNetwork::scaleProfileDownloadHandler(
     scaleProfiler().copyDownloadContext(context, sizeof(context));
     valid = recordCount != 0;
   } else {
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     ScaleProfileHeader header;
     if (scaleProfiler().storeReadHeader(header)) {
       recordCount = header.recordCount;
@@ -657,7 +657,7 @@ esp_err_t ShotStopperNetwork::scaleProfileDownloadHandler(
   httpd_resp_set_type(request, "text/plain; charset=utf-8");
   httpd_resp_set_hdr(
       request, "Content-Disposition",
-      "attachment; filename=\"shotstopper-scale-profile.txt\"");
+      "attachment; filename=\"openbrewbyweight-scale-profile.txt\"");
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   ScaleProfileTextSink sink(request);
@@ -701,7 +701,7 @@ esp_err_t ShotStopperNetwork::scaleProfileDownloadHandler(
     if (fromRam) {
       record = scaleProfiler().downloadRecordAt(index);
     } else {
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
       if (index % SCALE_PROFILE_DOWNLOAD_BATCH == 0) {
         const size_t count =
             index + SCALE_PROFILE_DOWNLOAD_BATCH < recordCount
@@ -739,8 +739,8 @@ esp_err_t ShotStopperNetwork::scaleProfileDownloadHandler(
 // whole-gram arguments and excerpt. When a record has no wall time it was
 // captured before the clock synchronized; the line says so instead of
 // inventing a date.
-esp_err_t ShotStopperNetwork::auditLogExportHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::auditLogExportHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) return ESP_OK;
   if (self.callbacks_.copyAuditEvents == nullptr) {
     return sendError(request, STATUS_SERVER_ERROR, "AUDIT_EXPORT_UNAVAILABLE",
@@ -752,7 +752,7 @@ esp_err_t ShotStopperNetwork::auditLogExportHandler(httpd_req_t *request) {
   }
   httpd_resp_set_type(request, "text/plain; charset=utf-8");
   httpd_resp_set_hdr(request, "Content-Disposition",
-                     "attachment; filename=shotstopper-audit.txt");
+                     "attachment; filename=openbrewbyweight-audit.txt");
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   ScaleProfileTextSink sink(request);
@@ -808,7 +808,7 @@ esp_err_t ShotStopperNetwork::auditLogExportHandler(httpd_req_t *request) {
 namespace {
 
 struct OtaTransfer {
-  ShotStopperNetwork *network = nullptr;
+  OpenBrewByWeightNetwork *network = nullptr;
   httpd_req_t *request = nullptr;
 };
 
@@ -1014,7 +1014,7 @@ void appendOtaTag(char *buffer, size_t capacity, size_t &used,
 
 }  // namespace
 
-bool ShotStopperNetwork::authorizeOtaRequest(httpd_req_t *request) {
+bool OpenBrewByWeightNetwork::authorizeOtaRequest(httpd_req_t *request) {
   char password[WIFI_PASSWORD_CAPACITY] = {};
   char expected[WIFI_PASSWORD_CAPACITY] = {};
   const char *header = DEVICE_PASSWORD_HEADER;
@@ -1044,13 +1044,13 @@ bool ShotStopperNetwork::authorizeOtaRequest(httpd_req_t *request) {
   return false;
 }
 
-void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
+void OpenBrewByWeightNetwork::buildOtaJson(char *buffer, size_t capacity,
                                       const ControlGateSnapshot &control, uint32_t bootId) {
   if (buffer == nullptr || capacity == 0) {
     return;
   }
   buffer[0] = '\0';
-  ShotStopperOta &ota = ShotStopperOta::instance();
+  OpenBrewByWeightOta &ota = OpenBrewByWeightOta::instance();
   const OtaStatusSnapshot ota_ = ota.snapshot(false);
   const bool safe = controlAllowsConfiguration(control);
   int written = snprintf(
@@ -1065,9 +1065,9 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
       "\"sessionActive\":%s,\"sessionExpiresInMs\":%lu,\"lastChunkSha256\":\"%s\","
       "\"abortFailures\":%lu,\"journalFailures\":%lu",
       static_cast<unsigned int>(OTA_PROTOCOL_VERSION), ota_.available ? "true" : "false",
-      ShotStopperOta::stateName(ota_.state),
+      OpenBrewByWeightOta::stateName(ota_.state),
       static_cast<unsigned long>(ota_.slotBytes), static_cast<unsigned long>(ota_.receivedBytes),
-      static_cast<unsigned long>(ota_.expectedBytes), ShotStopperOta::resultName(ota_.lastResult),
+      static_cast<unsigned long>(ota_.expectedBytes), OpenBrewByWeightOta::resultName(ota_.lastResult),
       static_cast<unsigned long>(ota_.lastReceivedBytes), static_cast<unsigned long>(ota_.lastExpectedBytes),
       ota_.pendingVerify ? "true" : "false",
       ota_.confirmed ? "true" : "false", safe ? "true" : "false",
@@ -1114,7 +1114,7 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
   buffer[used++] = '}';
   buffer[used] = '\0';
 }
-esp_err_t ShotStopperNetwork::sendOtaSnapshot(httpd_req_t *request,
+esp_err_t OpenBrewByWeightNetwork::sendOtaSnapshot(httpd_req_t *request,
                                               const char *httpStatus) {
   const ControlGateSnapshot control = controlGate();
   // A private PSRAM reply lets the send run without the shared lock, so the
@@ -1136,7 +1136,7 @@ esp_err_t ShotStopperNetwork::sendOtaSnapshot(httpd_req_t *request,
   return sent;
 }
 
-int ShotStopperNetwork::otaReadChunk(void *context, uint8_t *buffer,
+int OpenBrewByWeightNetwork::otaReadChunk(void *context, uint8_t *buffer,
                                      size_t capacity) {
   OtaTransfer *transfer = static_cast<OtaTransfer *>(context);
   if (transfer == nullptr || transfer->request == nullptr) {
@@ -1158,7 +1158,7 @@ int ShotStopperNetwork::otaReadChunk(void *context, uint8_t *buffer,
   return -1;
 }
 
-bool ShotStopperNetwork::otaTransferStillSafe(void *context) {
+bool OpenBrewByWeightNetwork::otaTransferStillSafe(void *context) {
   OtaTransfer *transfer = static_cast<OtaTransfer *>(context);
   if (transfer == nullptr || transfer->network == nullptr) {
     return false;
@@ -1167,7 +1167,7 @@ bool ShotStopperNetwork::otaTransferStillSafe(void *context) {
          controlAllowsConfiguration(transfer->network->controlGate());
 }
 
-void ShotStopperNetwork::otaTransferProgress(void *context, uint32_t received,
+void OpenBrewByWeightNetwork::otaTransferProgress(void *context, uint32_t received,
                                              uint32_t expected) {
   OtaTransfer *transfer = static_cast<OtaTransfer *>(context);
   if (transfer == nullptr || transfer->network == nullptr) {
@@ -1178,18 +1178,18 @@ void ShotStopperNetwork::otaTransferProgress(void *context, uint32_t received,
                                 static_cast<unsigned long>(expected / 1024U));
   transfer->network->touchAdminUnlock();
 }
-esp_err_t ShotStopperNetwork::otaStatusHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::otaStatusHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.authorizeOtaRequest(request)) {
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
                      "Send the device password, or unlock administration first.");
   }
-  ShotStopperOta::instance().expireSession(
+  OpenBrewByWeightOta::instance().expireSession(
       millis(), controlAllowsConfiguration(self.controlGate()), false);
   return self.sendOtaSnapshot(request, STATUS_OK);
 }
-esp_err_t ShotStopperNetwork::otaUploadHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::otaUploadHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.authorizeOtaRequest(request)) {
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
                      "Send the device password, or unlock administration first.");
@@ -1198,25 +1198,25 @@ esp_err_t ShotStopperNetwork::otaUploadHandler(httpd_req_t *request) {
                    "Create /api/v1/ota/session, then upload PATCH ranges.");
 }
 
-esp_err_t ShotStopperNetwork::otaSessionHandler(httpd_req_t *request) {
+esp_err_t OpenBrewByWeightNetwork::otaSessionHandler(httpd_req_t *request) {
   return request->method == HTTP_GET
       ? otaSessionWork(request)
       : instance_->runOnOtaWorker(request, otaSessionWork);
 }
 
-esp_err_t ShotStopperNetwork::otaPatchHandler(httpd_req_t *request) {
+esp_err_t OpenBrewByWeightNetwork::otaPatchHandler(httpd_req_t *request) {
   return instance_->runOnOtaWorker(request, otaPatchWork);
 }
 
-esp_err_t ShotStopperNetwork::otaFlashHandler(httpd_req_t *request) {
+esp_err_t OpenBrewByWeightNetwork::otaFlashHandler(httpd_req_t *request) {
   return instance_->runOnOtaWorker(request, otaFlashWork);
 }
 
-esp_err_t ShotStopperNetwork::otaAbortHandler(httpd_req_t *request) {
+esp_err_t OpenBrewByWeightNetwork::otaAbortHandler(httpd_req_t *request) {
   return instance_->runOnOtaWorker(request, otaAbortWork);
 }
-esp_err_t ShotStopperNetwork::otaSessionWork(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::otaSessionWork(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.authorizeOtaRequest(request)) {
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
                      "Send the device password, or unlock administration first.");
@@ -1225,7 +1225,7 @@ esp_err_t ShotStopperNetwork::otaSessionWork(httpd_req_t *request) {
   if (request->method == HTTP_GET) {
     // The Web UI and the OTA script poll this route; expire abandoned
     // sessions here so OTA busy never outlives its timeout.
-    ShotStopperOta::instance().expireSession(
+    OpenBrewByWeightOta::instance().expireSession(
         millis(), controlAllowsConfiguration(control), false);
     return self.sendOtaSnapshot(request, STATUS_OK);
   }
@@ -1267,7 +1267,7 @@ esp_err_t ShotStopperNetwork::otaSessionWork(httpd_req_t *request) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_OTA_SESSION",
                      "size, sha256, arch, hardware, machine, version, and transferId must identify one image.");
   }
-  ShotStopperOta &ota = ShotStopperOta::instance();
+  OpenBrewByWeightOta &ota = OpenBrewByWeightOta::instance();
   self.beginOwnedHeapLifecycle(self.otaHeap_,
                                HeapLifecycleEvent::OTA_SESSION_BEGIN);
   const OtaResult result = ota.createSession(identity, millis());
@@ -1276,13 +1276,13 @@ esp_err_t ShotStopperNetwork::otaSessionWork(httpd_req_t *request) {
                                              : HeapLifecycleResult::FAILURE);
   if (result != OtaResult::OK) {
     return sendError(request, otaResultHttpStatus(result),
-                     ShotStopperOta::resultName(result), otaResultMessage(result));
+                     OpenBrewByWeightOta::resultName(result), otaResultMessage(result));
   }
   return self.sendOtaSnapshot(request, STATUS_OK);
 }
 
-esp_err_t ShotStopperNetwork::otaPatchWork(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::otaPatchWork(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   auto rejectRange = [request](const char *status, const char *error,
                                const char *message) {
     const esp_err_t sent = sendError(request, status, error, message);
@@ -1315,7 +1315,7 @@ esp_err_t ShotStopperNetwork::otaPatchWork(httpd_req_t *request) {
     return rejectRange(STATUS_BAD_REQUEST, "OTA_INVALID_RANGE",
                        "PATCH must contain matching offset, length, and Content-Range headers.");
   }
-  ShotStopperOta &ota = ShotStopperOta::instance();
+  OpenBrewByWeightOta &ota = OpenBrewByWeightOta::instance();
   ota.expireSession(millis(), true);
   const OtaStatusSnapshot snapshot = ota.snapshot();
   if (strncmp(snapshot.session.transferId, transferId, sizeof(transferId)) != 0 ||
@@ -1342,7 +1342,7 @@ esp_err_t ShotStopperNetwork::otaPatchWork(httpd_req_t *request) {
     self.log(DebugCategory::NETWORK, DebugCode::OTA_UPLOAD_REJECTED,
              static_cast<int32_t>(result),
              static_cast<int32_t>(failed.lastReceivedBytes / 1024U));
-    return rejectRange(otaResultHttpStatus(result), ShotStopperOta::resultName(result),
+    return rejectRange(otaResultHttpStatus(result), OpenBrewByWeightOta::resultName(result),
                        otaResultMessage(result));
   }
   const OtaStatusSnapshot updated = ota.snapshot();
@@ -1354,13 +1354,13 @@ esp_err_t ShotStopperNetwork::otaPatchWork(httpd_req_t *request) {
   return self.sendOtaSnapshot(request, STATUS_OK);
 }
 
-esp_err_t ShotStopperNetwork::otaFlashWork(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::otaFlashWork(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.authorizeOtaRequest(request)) {
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
                      "Send the device password, or unlock administration first.");
   }
-  ShotStopperOta &ota = ShotStopperOta::instance();
+  OpenBrewByWeightOta &ota = OpenBrewByWeightOta::instance();
   const ControlGateSnapshot control = self.controlGate();
   if (!controlAllowsConfiguration(control)) {
     return sendError(request, STATUS_CONFLICT,
@@ -1381,7 +1381,7 @@ esp_err_t ShotStopperNetwork::otaFlashWork(httpd_req_t *request) {
   // A retried flash after a failed restart request asks for the restart again.
   if (result != OtaResult::OK && result != OtaResult::COMMITTED) {
     return sendError(request, otaResultHttpStatus(result),
-                     ShotStopperOta::resultName(result),
+                     OpenBrewByWeightOta::resultName(result),
                      otaResultMessage(result));
   }
   if (result == OtaResult::OK) {
@@ -1405,8 +1405,8 @@ esp_err_t ShotStopperNetwork::otaFlashWork(httpd_req_t *request) {
   return self.sendOtaSnapshot(request, STATUS_ACCEPTED);
 }
 
-esp_err_t ShotStopperNetwork::otaAbortWork(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::otaAbortWork(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.authorizeOtaRequest(request)) {
     return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
                      "Send the device password, or unlock administration first.");
@@ -1416,17 +1416,17 @@ esp_err_t ShotStopperNetwork::otaAbortWork(httpd_req_t *request) {
                      "Stop the cycle and wait for Ready before updating firmware.");
   }
   self.beginOwnedHeapLifecycle(self.otaHeap_, HeapLifecycleEvent::OTA_ABORT);
-  const OtaResult result = ShotStopperOta::instance().discard();
+  const OtaResult result = OpenBrewByWeightOta::instance().discard();
   self.finishOwnedHeapLifecycle(self.otaHeap_, result == OtaResult::OK
       ? HeapLifecycleResult::SUCCESS : HeapLifecycleResult::FAILURE);
   if (result != OtaResult::OK) {
     return sendError(request, otaResultHttpStatus(result),
-                     ShotStopperOta::resultName(result), otaResultMessage(result));
+                     OpenBrewByWeightOta::resultName(result), otaResultMessage(result));
   }
   return self.sendOtaSnapshot(request, STATUS_OK);
 }
 
-void ShotStopperNetwork::serviceOtaRollback(uint32_t now) {
+void OpenBrewByWeightNetwork::serviceOtaRollback(uint32_t now) {
   // A committed image boots on the next restart however it happens, so a
   // restart the control task never granted must not leave the panel stuck
   // claiming one is on the way.
@@ -1439,7 +1439,7 @@ void ShotStopperNetwork::serviceOtaRollback(uint32_t now) {
               "flashed image");
   }
 
-  ShotStopperOta &ota = ShotStopperOta::instance();
+  OpenBrewByWeightOta &ota = OpenBrewByWeightOta::instance();
   const ControlGateSnapshot control = controlGate();
   // Never wait behind an HTTP upload's OTA mutex in this watchdog task.
   ota.expireSession(now, controlAllowsConfiguration(control), false);
@@ -1472,4 +1472,4 @@ void ShotStopperNetwork::serviceOtaRollback(uint32_t now) {
   restartRequestedAtMs_ = now;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

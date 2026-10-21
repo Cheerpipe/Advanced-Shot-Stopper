@@ -3,7 +3,7 @@
 #include <cassert>
 #include <cstring>
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 int main() {
   static_assert(sizeof(tzdb::Transition) == 6);

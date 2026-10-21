@@ -26,7 +26,7 @@ INTERNAL = ROOT / "scripts/internal"
 # Check rendered-document targets without depending on the working tree's docs.
 dev_module = runpy.run_path(str(DEV))
 doc_check = dev_module["markdown_errors"]
-with tempfile.TemporaryDirectory(prefix="shotstopper-docs-") as temporary:
+with tempfile.TemporaryDirectory(prefix="openbrewbyweight-docs-") as temporary:
     fixture = Path(temporary)
     (fixture / "docs").mkdir()
     (fixture / "libraries/EspressoScaleBLE").mkdir(parents=True)
@@ -188,9 +188,9 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_sdkconfig_", dir=ROOT / "temp")
         env = {**os.environ, "IDF_PROJECT": str(project),
                "IDF_SDKCONFIG_DEFAULTS": f"{shared};{overlay}",
                "IDF_BUILD_DIR": str(build), "IDF_SDKCONFIG": str(build / "sdkconfig"),
-               "SHOTSTOPPER_ARCH": "n16r8", "SHOTSTOPPER_VARIANT": variant,
-               "SHOTSTOPPER_MACHINE_INTEGRATION": "none",
-               "SHOT_STOPPER_EXTRA_FLAGS": "", "SS_CLI_FORCE_SDKCONFIG_REGENERATE": str(int(force))}
+               "OPENBREWBYWEIGHT_ARCH": "n16r8", "OPENBREWBYWEIGHT_VARIANT": variant,
+               "OPENBREWBYWEIGHT_MACHINE_INTEGRATION": "none",
+               "OPENBREWBYWEIGHT_EXTRA_FLAGS": "", "SS_CLI_FORCE_SDKCONFIG_REGENERATE": str(int(force))}
         return subprocess.run(
             ["bash", "-c", f'source "{ROOT / "scripts/openbrewbyweight_idf.sh"}"; '
              '"$1" "$2"', "sdkconfig-test", action, fingerprint],
@@ -333,7 +333,7 @@ assert "fcntl.flock" in with_flock.read_text()
 assert "set_inheritable" in with_flock.read_text(), (
     "PEP 446 close-on-exec would release the lock before the build starts")
 assert "SS_BUILD_LOCKED" in internal_build and "with-flock" in internal_build
-assert ".locks/" in internal_build and "SHOTSTOPPER_VARIANT.lock" in internal_build
+assert ".locks/" in internal_build and "OPENBREWBYWEIGHT_VARIANT.lock" in internal_build
 
 # Serialization actually blocks: a held lock must delay a second holder.
 import time as _time
@@ -354,7 +354,7 @@ with tempfile.TemporaryDirectory(prefix="ss-flock-probe-") as flock_dir:
 @contextmanager
 def idf_doctor_fixture(with_install: bool, with_venv: bool):
     """Create a sandbox HOME with an optional ESP-IDF checkout and python_env."""
-    with tempfile.TemporaryDirectory(prefix="shotstopper-doctor-idf-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="openbrewbyweight-doctor-idf-") as temporary:
         root = Path(temporary)
         fallback = root / "esp/esp-idf-v6.1"
         installed_env = root / ".espressif/python_env/idf6.1_py3.14_env"
@@ -496,8 +496,8 @@ for filename, contract in partition_contracts.items():
 
 flash_idf = (INTERNAL / "flash-idf").read_text()
 for required in ("read-flash 0x8000 0x1000", "installed_layout=blank",
-                 'current_csv="$IDF_PROJECT/partitions-$SHOTSTOPPER_ARCH.csv"',
-                 'partition-history/$SHOTSTOPPER_ARCH"-pre-*.csv',
+                 'current_csv="$IDF_PROJECT/partitions-$OPENBREWBYWEIGHT_ARCH.csv"',
+                 'partition-history/$OPENBREWBYWEIGHT_ARCH"-pre-*.csv',
                  "*-pre-auditlog.csv)", "*-pre-scaleprof.csv)", "*-pre-curve.csv)",
                  'erase-region "$region_offset" "$region_size"',
                  "erase-flash",
@@ -559,10 +559,10 @@ def static_paths_probe(*args: str, output_dir: str | None = None,
                        databases: tuple[str, ...] = (),
                        empty_variants: tuple[str, ...] = ()) -> subprocess.CompletedProcess[str]:
     """Resolve the shared static-analysis path set in a sandboxed CLI root."""
-    with tempfile.TemporaryDirectory(prefix="shotstopper-static-paths-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="openbrewbyweight-static-paths-") as temporary:
         root = Path(temporary)
         env = os.environ.copy()
-        env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
+        env.update(SS_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
                    HOME=str(root))
         for name in ("IDF_PATH", "IDF_PYTHON_ENV_PATH"):
             env.pop(name, None)
@@ -583,7 +583,7 @@ def static_paths_probe(*args: str, output_dir: str | None = None,
             f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
             f'source "{ROOT / "scripts/openbrewbyweight_idf.sh"}"; '
             'ss_cli_parse "$@" || exit $?; '
-            'shotstopper_resolve_board "$(ss_get arch)" || exit 2; '
+            'openbrewbyweight_resolve_board "$(ss_get arch)" || exit 2; '
             'ss_idf_resolve_paths; ss_idf_static_paths reports/static-tidy || exit $?; '
             'printf "build_dir=%s\\nbuild_path=%s\\noutput_dir=%s\\n" '
             '"$build_dir" "$build_path" "$output_dir"')
@@ -640,7 +640,7 @@ for unsafe in ("/tmp/escape", "reports/../.."):
 
 def fake_database_sandbox() -> tuple[Path, Path, tempfile.TemporaryDirectory]:
     """Sandbox holding a fake compile database mirroring the project manifest."""
-    sandbox = tempfile.TemporaryDirectory(prefix="shotstopper-static-idf-")
+    sandbox = tempfile.TemporaryDirectory(prefix="openbrewbyweight-static-idf-")
     root = Path(sandbox.name)
     build = root / "build-idf" / "n16r8"
     (build / "generated").mkdir(parents=True)
@@ -675,7 +675,7 @@ def static_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path,
                     "  printf 'cppcheck-stub\\n'\nfi\n")
     stub.chmod(0o755)
     env = os.environ.copy()
-    env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
+    env.update(SS_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
                PATH=f"{tools}:{os.environ['PATH']}")
     result = subprocess.run(
         ["bash", str(ROOT / "scripts/static-idf"), "--arch", "n16r8",
@@ -701,7 +701,7 @@ try:
 finally:
     static_idf_sandbox.cleanup()
 
-with tempfile.TemporaryDirectory(prefix="shotstopper-version-") as temporary:
+with tempfile.TemporaryDirectory(prefix="openbrewbyweight-version-") as temporary:
     fake_git = Path(temporary) / "git"
     fake_git.write_text("#!/bin/sh\nexit 1\n")
     fake_git.chmod(0o755)
@@ -728,7 +728,7 @@ def iwyu_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path,
         "printf 'iwyu-stub suggestion\\n'\n")
     stub.chmod(0o755)
     env = os.environ.copy()
-    env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
+    env.update(SS_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
                PATH=f"{tools}:{os.environ['PATH']}")
     result = subprocess.run(
         ["bash", str(ROOT / "scripts/iwyu-idf"), "--arch", "n16r8",
@@ -767,13 +767,13 @@ def cli_probe(*args: str) -> subprocess.CompletedProcess[str]:
 
 jtag_append = cli_probe("--jtag", "--flags=-DCUSTOM=1")
 assert jtag_append.returncode == 0 and \
-    jtag_append.stdout == "-DCUSTOM=1 -DSHOT_STOPPER_ENABLE_JTAG=1"
-jtag_existing = cli_probe("--jtag", "--flags=-DSHOT_STOPPER_ENABLE_JTAG=1")
+    jtag_append.stdout == "-DCUSTOM=1 -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1"
+jtag_existing = cli_probe("--jtag", "--flags=-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1")
 assert jtag_existing.returncode == 0 and \
-    jtag_existing.stdout == "-DSHOT_STOPPER_ENABLE_JTAG=1"
+    jtag_existing.stdout == "-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1"
 jtag_with_dev = cli_probe("--jtag", "--development")
 assert jtag_with_dev.returncode == 0 and jtag_with_dev.stdout == \
-    "-DSHOT_STOPPER_ENABLE_JTAG=1 -DSHOT_STOPPER_DEVELOPMENT=1"
+    "-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 -DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1"
 
 
 def cli_profile(*args: str) -> subprocess.CompletedProcess[str]:
@@ -793,30 +793,30 @@ no_profile = cli_profile()
 assert no_profile.returncode == 0 and no_profile.stdout == "|", no_profile.stdout
 release_jtag = cli_profile("--release", "--jtag")
 assert release_jtag.returncode == 0 and \
-    release_jtag.stdout == "-DSHOT_STOPPER_ENABLE_JTAG=1|--release --jtag"
+    release_jtag.stdout == "-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1|--release --jtag"
 admin_unlock = cli_profile("--no-auth-admin")
 assert admin_unlock.returncode == 0 and \
-    admin_unlock.stdout == "-DSHOT_STOPPER_DEVELOPMENT=1|--no-auth-admin"
+    admin_unlock.stdout == "-DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1|--no-auth-admin"
 dev_profile = cli_profile("--development")
 assert dev_profile.returncode == 0 and dev_profile.stdout == (
-    "-DSHOT_STOPPER_ENABLE_JTAG=1 -DSHOT_STOPPER_DEVELOPMENT=1"
+    "-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 -DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1"
     "|--development --no-auth-admin --jtag")
 release_wins = cli_profile("--release", "--no-auth-admin")
 assert release_wins.returncode == 0 and release_wins.stdout == (
-    "-DSHOT_STOPPER_DEVELOPMENT=1|--release --no-auth-admin")
+    "-DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1|--release --no-auth-admin")
 profile_conflict = cli_profile("--development", "--release")
 assert profile_conflict.returncode == 2 and \
     "mutually exclusive" in profile_conflict.stderr
-admin_conflict = cli_probe("--no-auth-admin", "--flags=-DSHOT_STOPPER_DEVELOPMENT=0")
+admin_conflict = cli_probe("--no-auth-admin", "--flags=-DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=0")
 assert admin_conflict.returncode == 2 and \
-    "--no-auth-admin conflicts with SHOT_STOPPER_DEVELOPMENT=0" in admin_conflict.stderr
+    "--no-auth-admin conflicts with OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0" in admin_conflict.stderr
 
-jtag_off_untouched = cli_probe("--flags=-DSHOT_STOPPER_ENABLE_JTAG=0")
+jtag_off_untouched = cli_probe("--flags=-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0")
 assert jtag_off_untouched.returncode == 0 and \
-    jtag_off_untouched.stdout == "-DSHOT_STOPPER_ENABLE_JTAG=0"
-jtag_conflict = cli_probe("--jtag", "--flags=-DSHOT_STOPPER_ENABLE_JTAG=0")
+    jtag_off_untouched.stdout == "-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0"
+jtag_conflict = cli_probe("--jtag", "--flags=-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0")
 assert jtag_conflict.returncode == 2 and \
-    "conflicts with SHOT_STOPPER_ENABLE_JTAG=0" in jtag_conflict.stderr
+    "conflicts with OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0" in jtag_conflict.stderr
 jtag_valued = cli_probe("--jtag=1")
 assert jtag_valued.returncode == 2 and "does not take a value" in jtag_valued.stderr
 jtag_forward = subprocess.run(
@@ -859,7 +859,7 @@ opt_not_stored = subprocess.run(
 assert opt_not_stored.returncode == 0 and \
     "opt_level" not in opt_not_stored.stdout and \
     "--os" not in opt_not_stored.stdout
-with tempfile.TemporaryDirectory(prefix="shotstopper-jtag-store-") as temporary:
+with tempfile.TemporaryDirectory(prefix="openbrewbyweight-jtag-store-") as temporary:
     jtag_saved = subprocess.run(
         ["bash", "-c",
          f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
@@ -880,14 +880,14 @@ development_conflict = subprocess.run(
 assert development_conflict.returncode == 2 and \
     "mutually exclusive" in development_conflict.stderr
 
-with tempfile.TemporaryDirectory(prefix="shotstopper-defaults-") as temporary:
+with tempfile.TemporaryDirectory(prefix="openbrewbyweight-defaults-") as temporary:
     defaults_root = Path(temporary)
-    store = defaults_root / ".shotstopper"
+    store = defaults_root / ".openbrewbyweight"
     store.write_text("host=stored.local\nspeed=115200\nport=/missing/device\n")
     defaults_env = {**os.environ, "SS_CLI_ROOT": str(defaults_root),
-                    "SHOTSTOPPER_NONINTERACTIVE": "1",
-                    "SHOTSTOPPER_HOST": "environment.local",
-                    "SHOTSTOPPER_DEVICE_PASSWORD": "environment-secret"}
+                    "OPENBREWBYWEIGHT_NONINTERACTIVE": "1",
+                    "OPENBREWBYWEIGHT_HOST": "environment.local",
+                    "OPENBREWBYWEIGHT_DEVICE_PASSWORD": "environment-secret"}
     resolved = subprocess.run(
         ["bash", "-c",
          f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
@@ -912,15 +912,15 @@ with tempfile.TemporaryDirectory(prefix="shotstopper-defaults-") as temporary:
         ["bash", "-c",
          f'source "{ROOT / "scripts/openbrewbyweight_board.sh"}"; '
          f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-         'shotstopper_detect_ports(){ printf "/dev/null\\n"; }; '
+         'openbrewbyweight_detect_ports(){ printf "/dev/null\\n"; }; '
          'ss_prompt_suggestion port'], cwd=ROOT, env=defaults_env,
         capture_output=True, text=True)
     assert detected.returncode == 0 and detected.stdout == "/dev/null"
 
 missing_profiles = subprocess.run(
     [str(INTERNAL / "build-idf"), "--flags="], cwd=ROOT,
-    env={**os.environ, "SHOTSTOPPER_NONINTERACTIVE": "1",
-         "SHOTSTOPPER_HARDWARE": "", "SHOTSTOPPER_MACHINE": ""},
+    env={**os.environ, "OPENBREWBYWEIGHT_NONINTERACTIVE": "1",
+         "OPENBREWBYWEIGHT_HARDWARE": "", "OPENBREWBYWEIGHT_MACHINE": ""},
     capture_output=True, text=True)
 assert missing_profiles.returncode == 2
 assert "hardware_config machine_config" in missing_profiles.stderr
@@ -931,15 +931,15 @@ assert erase_image.returncode == 2 and "cannot be combined" in erase_image.stder
 
 
 def language_cli(*args: str, environment: str | None = None):
-    with tempfile.TemporaryDirectory(prefix="shotstopper-language-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="openbrewbyweight-language-") as temporary:
         root = Path(temporary)
-        (root / ".shotstopper").write_text("webui_language=fr\n")
+        (root / ".openbrewbyweight").write_text("webui_language=fr\n")
         env = os.environ.copy()
-        env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1")
+        env.update(SS_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1")
         if environment is None:
-            env.pop("SHOTSTOPPER_WEBUI_LANGUAGE", None)
+            env.pop("OPENBREWBYWEIGHT_WEBUI_LANGUAGE", None)
         else:
-            env["SHOTSTOPPER_WEBUI_LANGUAGE"] = environment
+            env["OPENBREWBYWEIGHT_WEBUI_LANGUAGE"] = environment
         command = (
             f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
             'ss_cli_parse "$@" || exit $?; ss_cli_resolve "webui_language" || exit $?; '
@@ -948,7 +948,7 @@ def language_cli(*args: str, environment: str | None = None):
             '"$(ss_origin webui_language)" "${SS_CLI_FORWARD[*]}"')
         result = subprocess.run(["bash", "-c", command, "probe", *args],
                                 env=env, capture_output=True, text=True)
-        stored = (root / ".shotstopper").read_text()
+        stored = (root / ".openbrewbyweight").read_text()
         return result, stored
 
 
@@ -981,9 +981,9 @@ def validate_language_steps(args: list[str], environment: str | None = None,
             patch.object(sys, "argv", [str(DEV), "validate", "--risk", risk, *args]), \
             patch.dict(os.environ, {}, clear=False):
         if environment is None:
-            os.environ.pop("SHOTSTOPPER_WEBUI_LANGUAGE", None)
+            os.environ.pop("OPENBREWBYWEIGHT_WEBUI_LANGUAGE", None)
         else:
-            os.environ["SHOTSTOPPER_WEBUI_LANGUAGE"] = environment
+            os.environ["OPENBREWBYWEIGHT_WEBUI_LANGUAGE"] = environment
         assert main() == 0
     return captured["lanes"] if lanes else captured["steps"]
 
@@ -1028,7 +1028,7 @@ assert validate_language_steps(["src/web/app.js"], risk="R1", lanes=True) is Non
 
 # A failing lane stops every lane from starting another step, while the step
 # already running finishes and its whole output stays one contiguous block.
-with tempfile.TemporaryDirectory(prefix="shotstopper-lanes-") as temporary:
+with tempfile.TemporaryDirectory(prefix="openbrewbyweight-lanes-") as temporary:
     marker = Path(temporary) / "late"
     with patch.dict(dev_module["execute"].__globals__,
                     ROOT=Path(temporary), write_summary=lambda *a: Path(temporary) / "s.json"), \
@@ -1046,7 +1046,7 @@ with tempfile.TemporaryDirectory(prefix="shotstopper-lanes-") as temporary:
 
 def dispatched(stages: tuple[str, ...], args: list[str], fail: str = "",
                store: str | None = None) -> tuple[subprocess.CompletedProcess[str], list[str]]:
-    with tempfile.TemporaryDirectory(prefix="shotstopper-wrapper-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="openbrewbyweight-wrapper-") as temporary:
         root = Path(temporary)
         scripts = root / "scripts"
         internal = scripts / "internal"
@@ -1062,7 +1062,7 @@ def dispatched(stages: tuple[str, ...], args: list[str], fail: str = "",
             "print('machine_integration=none')\n"
             "print('generated_dir=build-idf/generated')\n")
         if store is not None:
-            (root / ".shotstopper").write_text(store)
+            (root / ".openbrewbyweight").write_text(store)
         log = root / "children.log"
         for child in ("build-idf", "flash-idf", "ota-idf", "monitor-idf"):
             target = internal / child
@@ -1071,9 +1071,9 @@ def dispatched(stages: tuple[str, ...], args: list[str], fail: str = "",
                 + ("exit 9\n" if child == fail else ""))
             target.chmod(0o755)
         env = os.environ.copy()
-        env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
-                   SHOTSTOPPER_DEVICE_PASSWORD="test-only")
-        env.pop("SHOTSTOPPER_FLAGS", None)
+        env.update(SS_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
+                   OPENBREWBYWEIGHT_DEVICE_PASSWORD="test-only")
+        env.pop("OPENBREWBYWEIGHT_FLAGS", None)
         result = subprocess.run(
             [str(internal / "firmware-idf"), *stages, "--", *args],
             cwd=root, env=env, capture_output=True, text=True)
@@ -1104,7 +1104,7 @@ assert "--speed 115200" in flash_monitor[2]
 legacy_jtag_flags = stubbed_dispatcher(
     ("build", "flash", "monitor"),
     [*profile_args, "--port", "/dev/null", "--speed", "115200",
-     "--webui-language", "EN_us", "--flags", "-DSHOT_STOPPER_ENABLE_JTAG=1"])
+     "--webui-language", "EN_us", "--flags", "-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1"])
 assert [line.split(":", 1)[0] for line in legacy_jtag_flags] == [
     "build-idf", "flash-idf", "monitor-idf"]
 
@@ -1127,7 +1127,7 @@ store_jtag = stubbed_dispatcher(
     ("build", "flash", "monitor"),
     [*profile_args, "--port", "/dev/null", "--speed", "115200",
      "--webui-language", "EN_us"],
-    store="flags=-DSHOT_STOPPER_ENABLE_JTAG=1\n")
+    store="flags=-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1\n")
 assert [line.split(":", 1)[0] for line in store_jtag] == [
     "build-idf", "flash-idf", "monitor-idf"]
 store_plain, store_plain_children = dispatched(
@@ -1162,7 +1162,7 @@ assert [line.split(":", 1)[0] for line in stopped] == ["build-idf"]
 
 no_yes = subprocess.run(
     [str(INTERNAL / "firmware-idf"), "ota", "--", "--arch", "n16r8"],
-    cwd=ROOT, env={**os.environ, "SHOTSTOPPER_NONINTERACTIVE": "1"},
+    cwd=ROOT, env={**os.environ, "OPENBREWBYWEIGHT_NONINTERACTIVE": "1"},
     capture_output=True, text=True)
 assert no_yes.returncode == 2 and "requires --yes" in no_yes.stderr
 
@@ -1174,7 +1174,7 @@ for removed in ("b-idf", "f-idf", "m-idf", "o-idf", "s-idf", "bf-idf",
 
 
 def idf_activation(active_version: str | None, active_python: bool = True):
-    with tempfile.TemporaryDirectory(prefix="shotstopper-idf-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="openbrewbyweight-idf-") as temporary:
         root = Path(temporary)
         active = root / "active"
         fallback = root / "esp/esp-idf-v6.1"
@@ -1245,7 +1245,7 @@ assert legacy_idf.returncode == 0 and legacy_values == [
 
 def idf_python_env_selection(python_env: str | None, home_leaf: str = "home"):
     """Run the fallback path with an optional installed python_env layout."""
-    with tempfile.TemporaryDirectory(prefix="shotstopper-idf-env-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="openbrewbyweight-idf-env-") as temporary:
         root = Path(temporary)
         home = root / home_leaf
         fallback = home / "esp/esp-idf-v6.1"
@@ -1304,7 +1304,7 @@ assert selection.returncode == 0 and selection.stdout == (
 
 
 def flash_command(layout: str, *extra: str, arch: str = "n16r8"):
-    with tempfile.TemporaryDirectory(prefix="shotstopper-flash-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="openbrewbyweight-flash-") as temporary:
         root = Path(temporary)
         idf = root / "fake-idf"
         tools = idf / "tools"
@@ -1360,7 +1360,7 @@ def flash_command(layout: str, *extra: str, arch: str = "n16r8"):
                            tools / "esptool"):
             executable.chmod(0o755)
         env = os.environ.copy()
-        env.update(SS_CLI_ROOT=str(root), SHOTSTOPPER_NONINTERACTIVE="1",
+        env.update(SS_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
                    IDF_PATH=str(idf), IDF_PYTHON_ENV_PATH=str(python_env.parent),
                    FLASH_LAYOUT=layout, EXPECTED_ARCH=arch, TMPDIR=str(root),
                    PATH=f"{tools}:/usr/bin:/bin")
@@ -1440,7 +1440,7 @@ assert '. "${idf_root}/export.sh" >/dev/null' in idf_helpers, \
 
 
 def verify_production_profile(arch: str, selectors: list[str], integration: str = "none"):
-    with tempfile.NamedTemporaryFile(mode="w", prefix="shotstopper-sdkconfig-",
+    with tempfile.NamedTemporaryFile(mode="w", prefix="openbrewbyweight-sdkconfig-",
                                      delete=False) as fixture:
         fixture.write("\n".join(selectors) + "\n")
         fixture_path = fixture.name
@@ -1450,7 +1450,7 @@ def verify_production_profile(arch: str, selectors: list[str], integration: str 
              f'source "{ROOT / "scripts/openbrewbyweight_idf.sh"}"; '
              'ss_idf_verify_production_profile "$1" "$2"',
              "profile-test", arch, fixture_path],
-            cwd=ROOT, env={**os.environ, "SHOTSTOPPER_MACHINE_INTEGRATION": integration},
+            cwd=ROOT, env={**os.environ, "OPENBREWBYWEIGHT_MACHINE_INTEGRATION": integration},
             text=True, capture_output=True)
     finally:
         Path(fixture_path).unlink()
@@ -1542,7 +1542,7 @@ scale_worker = (ROOT / "src/OpenBrewByWeightScaleWorker.cpp").read_text()
 cleanup = scale_worker.split("if (!runtimeReady) {", 1)[1].split(
     "scaleWorkerStartupFinished.store", 1)[0]
 cleanup_order = [cleanup.index(token) for token in (
-    "feedCurrentTaskWatchdog()", "shotStopperBleRuntimeStop(BLE_STACK_STOP_WAIT_MS)",
+    "feedCurrentTaskWatchdog()", "openBrewByWeightBleRuntimeStop(BLE_STACK_STOP_WAIT_MS)",
     "esp_task_wdt_delete(nullptr)", "scaleWorkerTaskHandle.store(nullptr")]
 assert cleanup_order == sorted(cleanup_order)
 assert "vQueueDelete" not in cleanup

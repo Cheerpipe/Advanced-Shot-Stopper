@@ -158,10 +158,10 @@ inline int ble_gap_terminate(uint16_t,uint8_t) {
   return testTerminateStatus;
 }
 inline int ble_gap_conn_rssi(uint16_t,int8_t *rssi) { ++testRadioProcedures; *rssi=-50; return testRssiStatus; }
-struct ShotStopperBleHealth { int lastResetReason; };
+struct OpenBrewByWeightBleHealth { int lastResetReason; };
 inline bool testRuntimeReady=true;
 inline uint32_t testSyncGeneration=1;
-inline bool shotStopperBleRuntimeReady() { return testRuntimeReady; }
-inline uint32_t shotStopperBleRuntimeSyncGeneration() { return testSyncGeneration; }
-inline uint8_t shotStopperBleRuntimeOwnAddressType() { return 0; }
-inline ShotStopperBleHealth shotStopperBleRuntimeHealth() { return {BLE_HS_ENOTSYNCED}; }
+inline bool openBrewByWeightBleRuntimeReady() { return testRuntimeReady; }
+inline uint32_t openBrewByWeightBleRuntimeSyncGeneration() { return testSyncGeneration; }
+inline uint8_t openBrewByWeightBleRuntimeOwnAddressType() { return 0; }
+inline OpenBrewByWeightBleHealth openBrewByWeightBleRuntimeHealth() { return {BLE_HS_ENOTSYNCED}; }

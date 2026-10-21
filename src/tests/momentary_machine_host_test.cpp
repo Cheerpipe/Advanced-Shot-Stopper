@@ -1,8 +1,8 @@
-#define SHOT_STOPPER_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
 #define ARDUINO_ESP32S3_DEV
-#define SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL 1
-#ifndef SHOT_STOPPER_ENABLE_BUZZER
-#define SHOT_STOPPER_ENABLE_BUZZER 1
+#define OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL 1
+#ifndef OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER
+#define OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER 1
 #endif
 
 #include <cstdint>
@@ -44,7 +44,7 @@ void deleteHostResources() {
 
 void resetMomentaryHarness() {
   deleteHostResources();
-  firmwareModeRaw = static_cast<uint8_t>(shotstopper::FirmwareMode::FULL);
+  firmwareModeRaw = static_cast<uint8_t>(openbrewbyweight::FirmwareMode::FULL);
   Serial.reset();
   resetSerialCliState();
   hostMillis = 0;
@@ -135,14 +135,14 @@ void resetMomentaryHarness() {
                       subscribeCurrentTaskToWatchdog();
   digitalWrite(RELAY_GPIO, RELAY_OPEN_LEVEL);
   hostPinLevel[ACTIVATOR_GPIO] = !ACTIVATOR_ACTIVE_LEVEL;
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
   hostPinLevel[REED_GPIO] = !REED_ACTIVE_LEVEL;
 #endif
   initializeActivatorInput();
   machineOnActivatorReady();
   machineSetActivatorDriveAllowed(true);
   machineNoteActivatorReleased();
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
   momentaryInferredState = MachineRunState::IDLE;
   momentarySawScale = false;
   momentaryEspressoConfirmed = false;
@@ -178,7 +178,7 @@ void resetMomentaryHarness() {
   firmwarePulsePendingReadyAtMs = 0;
   rinseActuationActive = false;
   rinseClear();
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
   reedRawOn = false;
   reedOn = false;
   reedSawStableOff = false;
@@ -287,7 +287,7 @@ void prepareQueuedIdleTare() {
   CHECK(idleScaleTareStatus().phase == IdleTarePhase::QUEUED);
 }
 
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
 void setRawReed(bool on) {
   hostPinLevel[REED_GPIO] = on ? REED_ACTIVE_LEVEL : !REED_ACTIVE_LEVEL;
   loop();
@@ -305,7 +305,7 @@ void t_short_press_mirrors_then_opens() {
   releaseUp();
   CHECK(session.active);
   CHECK(!getRelaySafetySnapshot().closed);
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
   CHECK(machineIsRunning());
 #endif
 }
@@ -359,7 +359,7 @@ void t_idle_tare_yields_to_configured_start_edge() {
     CHECK(startCommands == 1);
     runLoopAfter(125);
     CHECK(machineElapsedMs() >= 125);
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
     setRawReed(true);
     CHECK(machineRunState() == MachineRunState::RUNNING);
 #endif
@@ -388,7 +388,7 @@ void t_noscale_last_shot_keeps_logical_duration() {
   shortPress(150);
   CHECK(session.active);
   CHECK(stopperState == StopperState::MANUAL_NO_SCALE);
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
   setRawReed(true);
 #endif
   runLoopAfter(12000);
@@ -398,7 +398,7 @@ void t_noscale_last_shot_keeps_logical_duration() {
   CHECK(persistedLastShot.valid);
   CHECK(persistedLastShot.durationMs >= 11000);
   CHECK(!persistedLastShot.weightValid);
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
   CHECK(!machineIsRunning());
   CHECK(machineElapsedMs() >= 11000);
 #endif
@@ -538,7 +538,7 @@ void t_user_stop_without_session_does_not_leave_orphan_run() {
 
 void t_long_press_mirrors_from_first_instant() {
   resetMomentaryHarness();
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
   runtimeConfig.reedConfirmTimeoutHundredMs = 50;
 #endif
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
@@ -577,7 +577,7 @@ void t_release_mode_long_press_ignored_as_start() {
 
 void enableFirmwareRinseForTest() {
   runtimeConfig.rinseEnabled = true;
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
   runtimeConfig.reedConfirmTimeoutHundredMs = 50;
 #endif
 }
@@ -603,7 +603,7 @@ void t_rinse_press_demotes_and_pulses() {
   runLoopAfter(runtimeStopPulseMs(runtimeConfig) + 1);
   CHECK(!pulseOutputActive);
   CHECK(stopperState == StopperState::RINSE);
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
   // A reed confirm during the rinse must not shrink the elapsed back to the
   // pulse-restart time.
   setRawReed(true);
@@ -642,7 +642,7 @@ void t_rinse_does_not_start_during_running_shot() {
   runtimeConfig.momentaryStartOnPress = false;
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   shortPress(150);
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
   setRawReed(true);
 #endif
   CHECK(session.active);
@@ -825,7 +825,7 @@ void t_rinse_web_over_running_shot_keeps_full_duration() {
   CHECK(stopperState != StopperState::RINSE);
 }
 
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
 void t_only_auto_cut_needs_running() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
@@ -871,7 +871,7 @@ void t_quiet_pan_does_not_force_cut_when_unknown() {
 }
 #endif
 
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
 void t_reed_off_blocks_firmware_cut() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
@@ -898,7 +898,7 @@ void t_reed_on_allows_firmware_cut() {
 }
 #endif
 
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
 void t_tare_rebases_flow_signature() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
@@ -1038,7 +1038,7 @@ void t_user_press_wins_over_firmware_pulse() {
 }
 #endif
 
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
 void t_reed_boot_on_is_running() {
   resetMomentaryHarness();
   hostPinLevel[REED_GPIO] = REED_ACTIVE_LEVEL;
@@ -1126,7 +1126,7 @@ void t_recovery_hold_mirrors_gpio() {
   CHECK(session.active);
 }
 
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
 void dripFreshWeight(float weight, uint32_t dtMs) {
   currentWeight = weight;
   currentWeightReceivedAtMs = hostMillis;
@@ -2037,7 +2037,7 @@ void t_forced_pulse_has_no_logical_side_effects() {
   CHECK(machineRunState() == machineBefore);
   CHECK(session.id == sessionIdBefore);
   CHECK(session.active == sessionActiveBefore);
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
   CHECK(!momentaryFirmwareCutPending);
 #endif
 }
@@ -2083,7 +2083,7 @@ void t_forced_pulse_respects_relay_lockout() {
   CHECK(hostRelayClosedWrites == closedBefore);
 }
 
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
 void t_reed_polarity_stop_when_running() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
@@ -2281,7 +2281,7 @@ void t_reed_manual_skips_operational_wall_pulses_at_hard_cap() {
 }
 #endif
 
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
 void t_reed_getters_use_sampled_state() {
   resetMomentaryHarness();
   hostPinLevel[REED_GPIO] = REED_ACTIVE_LEVEL;
@@ -2312,7 +2312,7 @@ void t_logical_wall_trips_existing_flags() {
   shortPress(150);
   CHECK(session.active);
   CHECK(momentaryLogicalRunActive);
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
   setRawReed(true);
   CHECK(momentaryLogicalRunActive);
 #endif
@@ -2324,7 +2324,7 @@ void t_logical_wall_trips_existing_flags() {
 void t_compatibility_mode_mirrors_without_session() {
   resetMomentaryHarness();
   firmwareModeRaw =
-      static_cast<uint8_t>(shotstopper::FirmwareMode::COMPATIBILITY);
+      static_cast<uint8_t>(openbrewbyweight::FirmwareMode::COMPATIBILITY);
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   CHECK(stopperState == StopperState::READY);
   pressDown();
@@ -2419,7 +2419,7 @@ const TestCase kTests[] = {
     {"P64", t_rinse_release_mode_mid_hold_is_native_not_shot},
     {"P65", t_rinse_end_aborts_start_pulse_for_stop_pulse},
     {"P68", t_rinse_web_over_running_shot_keeps_full_duration},
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
     {"P04", t_only_auto_cut_needs_running},
     {"P05", t_quiet_pan_does_not_force_cut_when_unknown},
     {"P09", t_tare_rebases_flow_signature},
@@ -2483,7 +2483,7 @@ const TestCase kTests[] = {
     {"P25U", t_forced_pulse_queues_once_behind_active_pulse},
     {"P25V", t_physical_press_cancels_pending_forced_pulse},
     {"P25W", t_forced_pulse_respects_relay_lockout},
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
     {"P06", t_reed_off_blocks_firmware_cut},
     {"P07", t_reed_on_allows_firmware_cut},
     {"P15", t_reed_boot_on_is_running},
@@ -2511,8 +2511,8 @@ const TestCase kTests[] = {
 }  // namespace
 
 int main() {
-  static_assert(SHOT_STOPPER_MACHINE_TYPE != 0,
-                "momentary host tests require SHOT_STOPPER_MACHINE_TYPE 1 or 2");
+  static_assert(OPEN_BREW_BY_WEIGHT_MACHINE_TYPE != 0,
+                "momentary host tests require OPEN_BREW_BY_WEIGHT_MACHINE_TYPE 1 or 2");
   for (const TestCase &test : kTests) {
     const int failuresBefore = failures;
     test.function();

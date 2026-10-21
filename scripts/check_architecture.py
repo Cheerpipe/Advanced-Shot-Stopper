@@ -33,8 +33,6 @@ def main() -> int:
         "src/OpenBrewByWeightResetGuard.cpp",
     )
     forbidden_safety = (
-        "ShotStopperNetwork",
-        "ShotStopperWebhook",
         "OpenBrewByWeightNetwork",
         "OpenBrewByWeightWebhook",
         "<WiFi",
@@ -90,7 +88,7 @@ def main() -> int:
     ):
         if required not in micra_service:
             failures.append(f"Micra cloud boundary missing {required!r}")
-    for forbidden in ("NimBLE", "ShotStopperBle", "OpenBrewByWeightBle", "ble_gap", "ble_gatt"):
+    for forbidden in ("NimBLE", "OpenBrewByWeightBle", "ble_gap", "ble_gatt"):
         if forbidden in micra_service:
             failures.append(f"Micra cloud service depends on BLE via {forbidden!r}")
     entrypoints = text("src/platform/OpenBrewByWeightEntrypoints.inc")

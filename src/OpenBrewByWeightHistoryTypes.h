@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <string.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t HISTORY_MAGIC = 0x41435448U;  // "ACTH"
 constexpr uint16_t HISTORY_SCHEMA_VERSION = 0;
@@ -163,4 +163,4 @@ struct HistoryPage {
 static_assert(sizeof(HistoryPage) <= 2048,
               "HistoryPage lives in the shared network work buffer union");
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

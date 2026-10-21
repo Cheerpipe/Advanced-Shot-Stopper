@@ -138,8 +138,8 @@ bool buildIntegrationQuickSettings(const QuickSettingsSnapshot &snapshot,
 
 #include "OpenBrewByWeightStatsJson.inc"
 
-esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::integrationHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   const char *uri = request->uri;
 
   if (apiUriMatches(uri, "/api/v1/integration") &&
@@ -202,9 +202,9 @@ esp_err_t ShotStopperNetwork::integrationHandler(httpd_req_t *request) {
         "\"lastActivation\":%s,\"stats\":%s,"
         "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"}}",
         id, id, btMac, firmware,
-        SHOT_STOPPER_HARDWARE_PROFILE_ID, FW_BOARD_ARCH_STRING,
-        SHOT_STOPPER_MACHINE_BRAND " " SHOT_STOPPER_MACHINE_MODEL,
-        SHOT_STOPPER_MACHINE_PROFILE_ID, currentIp, mdnsHost,
+        OPEN_BREW_BY_WEIGHT_HARDWARE_PROFILE_ID, FW_BOARD_ARCH_STRING,
+        OPEN_BREW_BY_WEIGHT_MACHINE_BRAND " " OPEN_BREW_BY_WEIGHT_MACHINE_MODEL,
+        OPEN_BREW_BY_WEIGHT_MACHINE_PROFILE_ID, currentIp, mdnsHost,
         control.activeCycle ? "brewing" : "idle",
         static_cast<unsigned long>(control.bootId),
         static_cast<unsigned>(recipe.presets.activeId),

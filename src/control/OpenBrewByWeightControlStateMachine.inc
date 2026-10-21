@@ -14,12 +14,12 @@ void resetSessionForNewCycle(ControlSource source) {
   session.source = source;
   noScaleGuardHistoryPending = false;
   serviceIdleTare();
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // Publish the RF gate before any deferred NTP request or webhook can wake a
   // network worker. This is an atomic store/notify only; control never waits.
   networkManager.syncControlCriticalRf(true);
 #endif
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // Host tests mutate RuntimeConfig brew fields directly; keep the active
   // preset (compose source of truth) aligned before snapshotting a cycle.
   ensureShotPresetBank(presetBank, runtimeConfig.retareWindowMs,
@@ -194,7 +194,7 @@ void beginCycle(ControlSource source = ControlSource::PHYSICAL) {
 
   enterBrewOrManualFromStart();
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   webhookBrewStartPending = true;
   // With real-time delivery selected, do not wait for the normal fresh-scale
   // sample window: the circuit edge itself is the requested start event.
@@ -272,7 +272,7 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
   setScaleCommandCycle(0);
   const uint32_t durationMs = endedCycleDurationMs();
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   if (brewEndIsAbandonedStart(reason) || endingRinseCycle(reason)) {
     webhookBrewStartPending = false;
   } else {
@@ -334,7 +334,7 @@ bool finalizeCycle(EndReason reason, StopperState nextState,
 
   schedulePendingShotFinalize(reason, durationMs, cycleEndTime);
   appendActivationHistory(reason, rinseEnd, durationMs, cycleEndTime);
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   {
     const WebhookConfig webhook = networkManager.webhookConfig();
     if (webhook.enabled && webhook.brewState &&

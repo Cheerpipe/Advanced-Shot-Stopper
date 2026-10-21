@@ -5,7 +5,7 @@
 #include "OpenBrewByWeightBuzzerPatterns.h"
 #include "OpenBrewByWeightRtttl.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 inline bool buzzerPassiveBegin(uint8_t pin) {
   if (!ledcAttach(pin, BUZZER_TONE_HZ, 10)) {
@@ -19,4 +19,4 @@ inline void buzzerPassiveSetTone(uint8_t pin, uint32_t freqHz) {
   ledcWriteTone(pin, freqHz);
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

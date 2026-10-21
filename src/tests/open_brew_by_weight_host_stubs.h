@@ -1,5 +1,5 @@
-#ifndef SHOT_STOPPER_HOST_STUBS_H
-#define SHOT_STOPPER_HOST_STUBS_H
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_STUBS_H
+#define OPEN_BREW_BY_WEIGHT_HOST_STUBS_H
 
 #include <array>
 #include <cmath>
@@ -968,7 +968,7 @@ inline void hostServiceEspTimer(esp_timer_handle_t timer) {
 
 #include "OpenBrewByWeightAuditStore.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 // RAM contract stubs: host control builds have no auditlog partition, so the
 // durable store degrades to an in-memory window that keeps the flush and
 // export paths coherent. Format and recovery semantics are pinned by
@@ -1011,6 +1011,6 @@ inline bool auditStoreEraseAll() {
 // clearAuditStores is defined by the control TU's serial-log fragment for
 // host and target alike; it combines this stub's erase with the latch clear.
 inline AuditStoreStatus auditStoreStatus() { return hostAuditStoreStatus; }
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 
 #endif

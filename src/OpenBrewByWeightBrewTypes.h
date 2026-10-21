@@ -8,7 +8,7 @@
 #include "OpenBrewByWeightMachineTypes.h"
 #include "OpenBrewByWeightScaleTypes.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // =============================================================================
 // LAYER: Brew types (stopper workflow + guard contracts)
@@ -264,4 +264,4 @@ enum class ActualWeightSource : uint8_t {
   LAST_KNOWN = 2
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

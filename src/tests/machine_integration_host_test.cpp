@@ -3,7 +3,7 @@
 #include <cassert>
 
 int main() {
-  using namespace shotstopper;
+  using namespace openbrewbyweight;
   assert(machineIntegrationTaskCount() == 0);
   assert(initializeMachineIntegration());
   publishMachineIntegrationNetworkState(true, false, false);

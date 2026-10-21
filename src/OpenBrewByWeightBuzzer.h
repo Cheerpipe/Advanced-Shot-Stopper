@@ -6,7 +6,7 @@
 
 #include <new>
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 #include <esp_timer.h>
 #endif
 
@@ -18,7 +18,7 @@
 #include "OpenBrewByWeightPsram.h"
 #include "OpenBrewByWeightTaskMutex.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 inline bool buzzerPatternIsHighPriority(BuzzerPattern pattern) {
   return pattern == BuzzerPattern::TRIPLE || pattern == BuzzerPattern::ECHO ||
@@ -32,7 +32,7 @@ inline bool buzzerRequestIsHighPriority(BuzzerPattern pattern, BuzzerCue cue) {
   return buzzerPatternIsHighPriority(pattern);
 }
 
-#if SHOT_STOPPER_ENABLE_BUZZER == 1
+#if OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER == 1
 struct RtttlCatalog {
   static constexpr uint8_t kCueCount =
       static_cast<uint8_t>(BuzzerCue::RECOVERY_ERROR) + 1;
@@ -87,7 +87,7 @@ struct LocalBuzzer {
   uint8_t rtttlCount = 0;
   uint8_t bullseyeNoteCount = 0;
   bool rtttlPlayback = false;
-#if SHOT_STOPPER_ENABLE_BUZZER == 1
+#if OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER == 1
   static constexpr uint8_t kRtttlCueCount = RtttlCatalog::kCueCount;
   static constexpr uint8_t kPulseRateCount = RtttlCatalog::kPulseRateCount;
   RtttlCatalog *rtttlCatalog = nullptr;
@@ -164,7 +164,7 @@ struct LocalBuzzer {
 inline bool LocalBuzzer::cancelPhaseTimer() {
   if (phaseTimer == nullptr) return true;
   const int status = esp_timer_stop(phaseTimer);
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   const bool benign = status == ESP_OK;
 #else
   // Stopping an already-fired/already-stopped timer is expected during a
@@ -262,7 +262,7 @@ inline void LocalBuzzer::begin(uint8_t gpioPin) {
   if (!buzzerPassiveBegin(pin)) {
     return;
   }
-#if SHOT_STOPPER_ENABLE_BUZZER == 1
+#if OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER == 1
   if (rtttlCatalog == nullptr) {
     rtttlCatalog =
         static_cast<RtttlCatalog *>(allocInternal(sizeof(RtttlCatalog), AllocationOwner::BUZZER));
@@ -404,7 +404,7 @@ inline void LocalBuzzer::applyRtttlNote(uint8_t index) {
 
 inline bool LocalBuzzer::startRtttl(const BuzzerToneCommand &cmd,
                                     uint32_t nowMs) {
-#if SHOT_STOPPER_ENABLE_BUZZER != 1
+#if OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER != 1
   (void)cmd;
   (void)nowMs;
   return false;
@@ -606,7 +606,7 @@ inline bool LocalBuzzer::requestTone(const BuzzerToneCommand &cmd) {
 }
 
 inline bool LocalBuzzer::configureBullseyeRtttl(const char *rtttl) {
-#if SHOT_STOPPER_ENABLE_BUZZER != 1
+#if OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER != 1
   (void)rtttl;
   return false;
 #else
@@ -857,4 +857,4 @@ inline void LocalBuzzer::service() {
   }
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

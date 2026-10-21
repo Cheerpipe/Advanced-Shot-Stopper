@@ -85,9 +85,9 @@ inline esp_err_t esp_partition_erase_range(const esp_partition_t *part,
   return ESP_OK;
 }
 
-namespace shotstopper {
+namespace openbrewbyweight {
 inline bool tryLockFlashIo() { return true; }
 inline void unlockFlashIo() {}
 inline void feedFlashIoWatchdog() {}
 inline void yieldFlashIo() {}
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

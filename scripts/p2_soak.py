@@ -374,7 +374,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--duration", type=float, default=8 * 3600)
     result.add_argument("--interval", type=float, default=5.0)
     result.add_argument("--timeout", type=float, default=4.0)
-    result.add_argument("--headers-env", default="SHOTSTOPPER_SOAK_HEADERS")
+    result.add_argument("--headers-env", default="OPENBREWBYWEIGHT_SOAK_HEADERS")
     result.add_argument("--min-samples", type=int, default=60)
     result.add_argument("--min-internal-free", type=int, default=48 * 1024)
     result.add_argument("--min-internal-largest", type=int, default=16 * 1024)

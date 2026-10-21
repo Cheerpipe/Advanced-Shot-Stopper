@@ -120,8 +120,8 @@
   const homeStream = fs.readFileSync(
       path.join(sketchDir, 'network/OpenBrewByWeightHomeStream.inc'), 'utf8');
   const diagSender = homeStream.slice(
-      homeStream.indexOf('bool ShotStopperNetwork::sendDiagnosticStream'),
-      homeStream.indexOf('bool ShotStopperNetwork::sendLogStream'));
+      homeStream.indexOf('bool OpenBrewByWeightNetwork::sendDiagnosticStream'),
+      homeStream.indexOf('bool OpenBrewByWeightNetwork::sendLogStream'));
   for (const field of ['delta.field("cupPresence.state"',
                        'delta.field("cupPresence.present"',
                        'delta.field("cupPresence.weightG"',

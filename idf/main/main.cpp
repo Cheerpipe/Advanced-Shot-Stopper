@@ -17,7 +17,7 @@ bool bleInUse(void) { return true; }
 }
 
 // Keep g_probe in the ELF so ./scripts/dev build can still prove ALLOW_BSS.
-extern "C" void shotstopperKeepBssProbe(void) {
+extern "C" void openBrewByWeightKeepBssProbe(void) {
   g_probe[0] = static_cast<uint8_t>(g_probe[0] + 1U);
 }
 

@@ -6,7 +6,7 @@
 
 struct cJSON;
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 enum class MicraCleaningState : uint8_t { UNKNOWN, OFF, REQUESTED, CLEANING };
 
@@ -153,4 +153,4 @@ static_assert(std::is_trivially_copyable<MicraObservation>::value);
 // for the per-frame decode path.
 static_assert(sizeof(MicraObservation) <= 96);
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

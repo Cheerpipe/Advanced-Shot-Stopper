@@ -1,4 +1,4 @@
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   if (ok && page == StatusPage::Settings) {
     const uint32_t sampleAgeMs = micraStatus.sampleAtMs == 0
                                      ? 0

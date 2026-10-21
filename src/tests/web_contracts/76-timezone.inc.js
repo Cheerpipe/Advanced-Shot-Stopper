@@ -1,7 +1,7 @@
 // This standalone chunk follows the complete power contracts, not a split expression.
 // Run real timezone UI functions with controlled async responses and clocks.
 {
-  const config = network.slice(network.indexOf('ShotStopperNetwork::configHandler('));
+  const config = network.slice(network.indexOf('OpenBrewByWeightNetwork::configHandler('));
   if (!config.includes('dateTimePatch && !browserTimezonePatch && !self.requireAdminUnlock(request)') ||
       !config.includes('"baseRevision", "timezoneId", "timezoneAutoInit", "timezoneDetected"') ||
       !config.includes('jsonHasOnlyUniqueFields(root, browserFields, 4)') ||
@@ -13,7 +13,7 @@
 {
   // Compatibility mode freezes Date & time: the whole patch is rejected even
   // though the browser zone patch normally bypasses the Admin session.
-  const config = network.slice(network.indexOf('ShotStopperNetwork::configHandler('));
+  const config = network.slice(network.indexOf('OpenBrewByWeightNetwork::configHandler('));
   if (!config.includes('dateTimePatch && firmwareCompatibilityMode()') ||
       !config.includes('"DATE_TIME_DISABLED"')) {
     throw new Error('Compatibility mode must reject Date & time config patches');
@@ -23,13 +23,13 @@
   // Automatic sync off must still let one explicit Sync now complete: the
   // disabled gate may not abort an in-flight manual attempt, and any RF-gate
   // abort path must requeue the request instead of dropping it.
-  const service = network.slice(network.indexOf('void ShotStopperNetwork::serviceNtp('));
+  const service = network.slice(network.indexOf('void OpenBrewByWeightNetwork::serviceNtp('));
   const failure = network.slice(
-      network.indexOf('void ShotStopperNetwork::handleNtpFailure('),
-      network.indexOf('void ShotStopperNetwork::serviceNtp('));
+      network.indexOf('void OpenBrewByWeightNetwork::handleNtpFailure('),
+      network.indexOf('void OpenBrewByWeightNetwork::serviceNtp('));
   const abortHelper = network.slice(
-      network.indexOf('void ShotStopperNetwork::abortInFlightNtp()'),
-      network.indexOf('void ShotStopperNetwork::abortNtpForRfGate('));
+      network.indexOf('void OpenBrewByWeightNetwork::abortInFlightNtp()'),
+      network.indexOf('void OpenBrewByWeightNetwork::abortNtpForRfGate('));
   const rfGate = service.slice(
       service.indexOf('if (!ntpMayArm(now, staConnected))'),
       service.indexOf('if (g_wallClock.applyPendingSync'));
@@ -42,8 +42,8 @@
       !abortHelper.includes('ntpManualAttempt_ = false;') ||
       !rfGate.includes('abortInFlightNtp();') ||
       !network.slice(
-          network.indexOf('void ShotStopperNetwork::abortNtpForRfGate('),
-          network.indexOf('bool ShotStopperNetwork::armNtp('))
+          network.indexOf('void OpenBrewByWeightNetwork::abortNtpForRfGate('),
+          network.indexOf('bool OpenBrewByWeightNetwork::armNtp('))
           .includes('abortInFlightNtp();')) {
     throw new Error('Disabled automatic sync must keep an explicit Sync now working end to end');
   }

@@ -5,7 +5,7 @@
 
 #include "OpenBrewByWeightDomain.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t BUZZER_TONE_HZ = 2700;
 constexpr uint32_t BUZZER_BEEP_ON_MS = 80;
@@ -153,4 +153,4 @@ inline const BuzzerNote *buzzerSequenceNotes(BuzzerPattern pattern,
   }
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

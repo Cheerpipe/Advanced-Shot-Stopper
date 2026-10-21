@@ -26,7 +26,7 @@ existing image. New builds always use profiles.
 
 $(ss_flag_help)
 
-$(shotstopper_arch_help)
+$(openbrewbyweight_arch_help)
 
 Examples through the public facade:
   ./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \
@@ -66,7 +66,7 @@ else
   ss_cli_resolve "port arch" || exit $?
 fi
 ss_cli_normalize_image || exit $?
-shotstopper_resolve_board "$(ss_get arch)"
+openbrewbyweight_resolve_board "$(ss_get arch)"
 ss_idf_source
 ss_idf_py_args
 
@@ -87,24 +87,24 @@ else
     exit 127
   }
   echo "Local image identity:"
-  identity_args=(--expect-arch "$SHOTSTOPPER_ARCH")
-  if [[ -n "${SHOTSTOPPER_HARDWARE_COMPAT:-}" ]]; then
-    identity_args+=(--expect-hardware "$SHOTSTOPPER_HARDWARE_COMPAT"
-      --expect-machine "$SHOTSTOPPER_MACHINE_COMPAT")
+  identity_args=(--expect-arch "$OPENBREWBYWEIGHT_ARCH")
+  if [[ -n "${OPENBREWBYWEIGHT_HARDWARE_COMPAT:-}" ]]; then
+    identity_args+=(--expect-hardware "$OPENBREWBYWEIGHT_HARDWARE_COMPAT"
+      --expect-machine "$OPENBREWBYWEIGHT_MACHINE_COMPAT")
   fi
   node ./scripts/image_tag.js "$image" "${identity_args[@]}"
 fi
 
 port="$(ss_get port)"
-echo "Flashing $image ($SHOTSTOPPER_ARCH) via $port (IDF)"
+echo "Flashing $image ($OPENBREWBYWEIGHT_ARCH) via $port (IDF)"
 
 command -v esptool >/dev/null 2>&1 || {
   echo "esptool not found on PATH (did ESP-IDF export.sh run?)." >&2
   exit 127
 }
 
-partition_bin="$(mktemp "${TMPDIR:-/tmp}/shotstopper-partition.XXXXXX")"
-partition_csv="$(mktemp "${TMPDIR:-/tmp}/shotstopper-partition-csv.XXXXXX")"
+partition_bin="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-partition.XXXXXX")"
+partition_csv="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-partition-csv.XXXXXX")"
 cleanup_partition_probe() {
   rm -f "$partition_bin" "$partition_csv"
 }
@@ -128,13 +128,13 @@ if esptool --chip esp32s3 --port "$port" read-flash 0x8000 0x1000 "$partition_bi
   fi
 fi
 
-current_csv="$IDF_PROJECT/partitions-$SHOTSTOPPER_ARCH.csv"
+current_csv="$IDF_PROJECT/partitions-$OPENBREWBYWEIGHT_ARCH.csv"
 if [[ "$SS_CLI_ERASE_ALL" != "1" && "$installed_layout" == "present" ]]; then
   # Only exact known project layouts are accepted: every row must match by
   # name, type, subtype, offset and size. Prints the matching layout file.
   installed_match="$(
     python - "$partition_csv" "$current_csv" \
-      "$IDF_PROJECT/partition-history/$SHOTSTOPPER_ARCH"-pre-*.csv <<'PY'
+      "$IDF_PROJECT/partition-history/$OPENBREWBYWEIGHT_ARCH"-pre-*.csv <<'PY'
 import csv, sys
 def number(value):
     value = value.strip()
@@ -173,7 +173,7 @@ PY
       echo 'USB curve-layout transition: previous shot curves, the scale profile store and the audit log start empty; settings, Wi-Fi, calibration, presets, shot summaries and activation history are preserved.'
     ;;
   *)
-    printf 'Installed partition table is not a known %s project layout.\n' "$SHOTSTOPPER_ARCH" >&2
+    printf 'Installed partition table is not a known %s project layout.\n' "$OPENBREWBYWEIGHT_ARCH" >&2
     echo 'Re-run with --erase-all only if you explicitly intend to destroy all saved data: an in-place flash is not possible.' >&2
     exit 1
     ;;

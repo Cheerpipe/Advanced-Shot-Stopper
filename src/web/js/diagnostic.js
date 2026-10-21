@@ -1015,7 +1015,7 @@ async function exportDebugData() {
       throw new Error(__WEBUI_TEXT__("diagnostic.invalid_export"));
     saveFile(
       new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
-      "shotstopper-debug-boot" +
+      "debug-boot" +
         (typeof data.bootId === "number" ? data.bootId : R.bootId || 0) +
         "-" +
         new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19) +
@@ -1182,7 +1182,7 @@ function saveFile(blob, name) {
   const a = document.createElement("a"),
     url = URL.createObjectURL(blob);
   a.href = url;
-  a.download = name;
+  a.download = "openbrewbyweight-" + name;
   document.body.append(a);
   a.click();
   a.remove();
@@ -1202,7 +1202,7 @@ async function exportAudit() {
   auditBusy = true;
   await downloadText(
     apiBinary("/api/v1/diagnostic/audit"),
-    "shotstopper-audit.txt",
+    "audit.txt",
     __WEBUI_TEXT__("diagnostic.audit_export_failed"),
   );
   auditBusy = false;
@@ -1470,7 +1470,7 @@ async function downloadScaleProfile() {
   profileBusy = true;
   await downloadText(
     apiBinary("/api/v1/diagnostic/scale-profile/download"),
-    "shotstopper-scale-profile.txt",
+    "scale-profile.txt",
     __WEBUI_TEXT__("diagnostic.profile_download_failed"),
   );
   profileBusy = false;
@@ -1545,7 +1545,7 @@ async function downloadCrashes() {
     const blob = gzip
         ? await new Response(tar.stream().pipeThrough(new CompressionStream("gzip"))).blob()
         : tar;
-    saveFile(blob, "shotstopper-crashes.tar" + (gzip ? ".gz" : ""));
+    saveFile(blob, "crashes.tar" + (gzip ? ".gz" : ""));
     R.message(__WEBUI_TEXT__("diagnostic.ok"), "ok");
   } catch (e) {
     R.message(R.formatCommandError(__WEBUI_TEXT__("diagnostic.crash_download_failed"), e), "error");

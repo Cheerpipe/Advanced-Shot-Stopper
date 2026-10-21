@@ -38,8 +38,8 @@ uint32_t composeScaleProfileContext(char *text, size_t capacity) {
   const ScaleLinkSnapshot link = getScaleLinkSnapshot();
   int used = snprintf(text, capacity,
                       "firmware=%s\nboard=%s\nmachine=%s / %s\n", FW_VERSION,
-                      SHOT_STOPPER_HARDWARE_PROFILE_ID,
-                      SHOT_STOPPER_MACHINE_BRAND, SHOT_STOPPER_MACHINE_MODEL);
+                      OPEN_BREW_BY_WEIGHT_HARDWARE_PROFILE_ID,
+                      OPEN_BREW_BY_WEIGHT_MACHINE_BRAND, OPEN_BREW_BY_WEIGHT_MACHINE_MODEL);
   if (used > 0 && static_cast<size_t>(used) < capacity) {
     used += snprintf(text + used, capacity - used, "scale=%s name=%s\n",
                      link.protocolName, link.shotScaleName);
@@ -100,12 +100,12 @@ void healthWorkerTask(void *) {
       sample.version = ++version;
       if (sample.version == 0) sample.version = ++version;
       sample.sampledAtMs = now;
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
       const bool reserveHeld = bootHeapReserveHeld.load();
       sample.heap = sampleHeapCaps();
       if (reserveHeld) sample.heap.internalMinimum = UINT32_MAX;
       sample.heapValid = true;
-      const ShotStopperBleHealth ble = shotStopperBleRuntimeHealth(false);
+      const OpenBrewByWeightBleHealth ble = openBrewByWeightBleRuntimeHealth(false);
       sample.bleRuntimeState = static_cast<uint8_t>(ble.state);
       sample.bleRuntimeLastError = ble.lastError;
       sample.bleRuntimeLastResetReason = ble.lastResetReason;
@@ -207,14 +207,14 @@ void setup() {
   bootState = BootState::BOOTING;
   bootDegraded = false;
   firmwareInitializationComplete = false;
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   // setup() and loop() run in loopTask; raise it before any worker exists.
   vTaskPrioritySet(nullptr, tskIDLE_PRIORITY + CONTROL_TASK_PRIORITY_OFFSET);
   // cJSON hooks are process-wide; install the external allocator before any
   // worker task can parse concurrently.
   initJsonParser();
 #endif
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   // Host tests may invoke setup() after constructing a ready harness. Its task
   // stub never runs, so tear down that synthetic worker before boot injection.
   releaseSettingsPersistenceWorkerForHost();
@@ -228,12 +228,12 @@ void setup() {
   // digitalWrite until the pad is a GPIO. After reset the pin is Hi-Z and
   // the output latch is 0, which is OPEN for the active-HIGH relay.
   machineInitialize();
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   crashArchivePrepareBoot();
 #endif
   initializeScaleConnectedLed();
-#ifndef SHOT_STOPPER_HOST_TEST
-  set_arduino_panic_handler(shotStopperPanicHandler, nullptr);
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
+  set_arduino_panic_handler(openBrewByWeightPanicHandler, nullptr);
 #endif
   safetyResetStatus = beginSafetyResetGuard();
 
@@ -252,7 +252,7 @@ void setup() {
     tripRelaySafety(RelaySafetyFault::FEEDBACK_STUCK_CLOSED);
   }
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   // A pending destructive operation always resumes before normal storage,
   // BLE, Wi-Fi or HTTP startup. A new gesture is accepted only on cold power.
   initializeSettingsSchemaWriteAdmission();
@@ -263,9 +263,9 @@ void setup() {
 
   // Default builds keep USB Serial/JTAG off until GPIO4 is jumpered to GND.
   // Serial is HWCDC (native USB), not UART0 — see OpenBrewByWeightUsbConsole.h.
-  // -DSHOT_STOPPER_ENABLE_JTAG=1 starts CDC at boot (OpenOCD + CLI, no jumper).
+  // -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 starts CDC at boot (OpenOCD + CLI, no jumper).
   // Latch the enable source for Diagnostic; live IO4 is re-read each status.
-  if (SHOT_STOPPER_ENABLE_JTAG == 1) {
+  if (OPEN_BREW_BY_WEIGHT_ENABLE_JTAG == 1) {
     usbSerialEnableSource = UsbSerialEnableSource::COMPILE_FLAG;
   } else if (usbConsoleJumperPresent()) {
     usbSerialEnableSource = UsbSerialEnableSource::JUMPER;
@@ -278,7 +278,7 @@ void setup() {
   bool flashIoReady = true;
   bool settingsLoaded = persistenceReady;
   bool settingsDurable = persistenceReady;
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   flashIoReady = ensureFlashIoMutex();
   if (!flashIoReady) {
     addDebugEvent(DebugCategory::CONFIG, DebugCode::INITIALIZATION_FAILED,
@@ -374,7 +374,7 @@ void setup() {
     addDebugEvent(DebugCategory::SECURITY, DebugCode::SAFETY_LOCKOUT_ACTIVE);
   }
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   bool bootIdentityDurable = false;
   {
     // ActivationStores owns the shot log, curves, and activation history:
@@ -395,7 +395,7 @@ void setup() {
 
   addDebugEvent(DebugCategory::BOOT, DebugCode::BOOT_BANNER,
                 static_cast<int32_t>(shotLog.bootId()));
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   crashArchiveSetBootId(bootIdentityDurable ? shotLog.bootId() : 0);
   crashArchivePromote(bootIdentityDurable ? shotLog.bootId() : 0,
                       safetyResetStatus.reasonCode);
@@ -430,7 +430,7 @@ void setup() {
                     goalWeightDgToGrams(runtimeConfig.goalWeightDg)),
                 weightToCentigrams(runtimeConfig.weightOffsetG));
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   ScaleWorkerBridgeCallbacks scaleBridge;
   scaleBridge.notifyAcquisition = notifyScaleAcquisition;
   scaleBridge.syncNetworkRf = syncScaleWorkerNetworkRf;
@@ -482,10 +482,10 @@ void setup() {
   publishControlStatus();
   bool networkOk = true;
   bool psramOk = true;
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   // Runs before the network task so the OTA slot pair and this boot's
   // pending-verify state are known the first time the Web UI is served.
-  shotstopper::ShotStopperOta::instance().begin();
+  openbrewbyweight::OpenBrewByWeightOta::instance().begin();
   if (settingsLoaded && webCommandQueue != nullptr) {
     NetworkBridgeCallbacks callbacks;
     callbacks.copyControlStatus = copyControlStatus;
@@ -593,7 +593,7 @@ void setup() {
                   failedSubsystem, static_cast<int32_t>(bootState));
   }
   publishControlStatus();
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   controllerStartedPending = networkOk && settingsLoaded;
   if (bootIdentityDurable) (void)enqueueControllerStartedWebhook();
   // Boot-time reads/writes are complete. Any later flash call from loopTask
@@ -641,7 +641,7 @@ void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs) {
   if (scaleStackMinBytes < worstStackBytes) {
     worstStackBytes = scaleStackMinBytes;
   }
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   const uint32_t networkStack = networkManager.snapshot().taskStackMinBytes;
   if (networkStack < worstStackBytes) {
     worstStackBytes = networkStack;
@@ -702,7 +702,7 @@ void loop() {
   const bool profileLoopPhases = taskProfiler.loopPhaseProfilingEnabled();
   loopPhaseStartedAtUs = loopStartedAtUs;
   uint32_t gapCpuUs = 0, gapIdleUs = 0;
-#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+#if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   static uint32_t lastLoopCpuUs = 0, lastLoopIdleUs = 0;
   loopPhaseCpuStartedUs = loopTaskCpuUs();
   const uint32_t loopIdleUs = loopCoreIdleUs();
@@ -747,7 +747,7 @@ void loop() {
         (!session.active && !getRelaySafetySnapshot().closed)) {
       machineRequestStop();
       serviceSafetyHeartbeat(false);
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
       recordResetUptime(millis(), true);
       ESP.restart();
 #else

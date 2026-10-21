@@ -52,14 +52,14 @@
 
 // The application logger is owned by openBrewByWeight.cpp. Network diagnostics use
 // it so they reach both the ESP-IDF serial backend and the optional RAM ring.
-void serialTraceCategory(shotstopper::LogLevel level,
-                         shotstopper::DebugCategory category,
+void serialTraceCategory(openbrewbyweight::LogLevel level,
+                         openbrewbyweight::DebugCategory category,
                          const char *message);
-void serialTraceCategoryf(shotstopper::LogLevel level,
-                          shotstopper::DebugCategory category,
+void serialTraceCategoryf(openbrewbyweight::LogLevel level,
+                          openbrewbyweight::DebugCategory category,
                           const char *fmt, ...);
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 WallClock g_wallClock;
 
@@ -181,7 +181,7 @@ struct NetworkWorkBuf {
   ScaleHistoryEntry scaleHistory[SCALE_HISTORY_CAPACITY]{};
   BullseyeMelodyConfig bullseyeMelody{};
   char safeBullseyeRtttl[BULLSEYE_RTTTL_CAPACITY]{};
-  // Must match ShotStopperNetwork::REQUEST_BODY_CAPACITY (asserted in begin()).
+  // Must match OpenBrewByWeightNetwork::REQUEST_BODY_CAPACITY (asserted in begin()).
   char requestBody[2048]{};
   WifiScanSnapshot wifiScan{};
 };
@@ -190,9 +190,9 @@ static_assert(sizeof(NetworkWorkBuf) <= 655360,
 
 // Wi-Fi scan snapshots. Network task / httpd only; not BLE.
 // AP records come from Arduino's SCAN_DONE cache (getScanInfoByIndex).
-static SHOT_STOPPER_PSRAM_BSS WifiScanSnapshot g_wifiScan;
-static SHOT_STOPPER_PSRAM_BSS WifiScanSnapshot g_wifiScanWorking;
-static SHOT_STOPPER_PSRAM_BSS PersistedSettings g_networkSettings;
+static OPEN_BREW_BY_WEIGHT_PSRAM_BSS WifiScanSnapshot g_wifiScan;
+static OPEN_BREW_BY_WEIGHT_PSRAM_BSS WifiScanSnapshot g_wifiScanWorking;
+static OPEN_BREW_BY_WEIGHT_PSRAM_BSS PersistedSettings g_networkSettings;
 
 namespace {
 
@@ -365,7 +365,7 @@ bool jsonGoalWeightDg(cJSON *object, const char *name, uint16_t &output) {
   return true;
 }
 
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
 bool jsonInt16(cJSON *object, const char *name, int16_t &output) {
   if (object == nullptr || name == nullptr) {
     return false;
@@ -633,7 +633,7 @@ bool jsonMaxSinglePressMs(cJSON *object, RuntimeConfig &config) {
   return true;
 }
 
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
 bool jsonReedConfirmTimeoutMs(cJSON *object, RuntimeConfig &config) {
   uint32_t ms = 0;
   if (!jsonUint32(object, "reedConfirmTimeoutMs", ms) || ms < 200 ||
@@ -663,7 +663,7 @@ bool jsonShotReactTimeoutS(cJSON *object, RuntimeConfig &config) {
   return true;
 }
 
-#if SHOT_STOPPER_MACHINE_TYPE != 0
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE != 0
 bool jsonMomentaryStartEdge(cJSON *object, RuntimeConfig &config) {
   cJSON *item = cJSON_GetObjectItemCaseSensitive(object, "momentaryStartEdge");
   if (!cJSON_IsString(item) || item->valuestring == nullptr) {
@@ -1296,7 +1296,7 @@ void escapeConnectedScaleName(const ControlStatusSnapshot &control,
 
 }  // namespace
 
-ShotStopperNetwork *ShotStopperNetwork::instance_ = nullptr;
+OpenBrewByWeightNetwork *OpenBrewByWeightNetwork::instance_ = nullptr;
 
 
 // Behavior-preserving service fragments; kept in this translation unit.

@@ -8,7 +8,7 @@
 #include <cstdio>
 #include <cstring>
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 static void testClassification() {
   // ERROR and CRITICAL always qualify, regardless of the code.

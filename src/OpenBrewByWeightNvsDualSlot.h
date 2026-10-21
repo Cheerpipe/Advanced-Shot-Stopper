@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Dual-slot pick by wrapping uint32 revision (settings + BLE scan intensity).
 // Shot log uses an active-slot pointer instead; do not reuse this there.
@@ -36,4 +36,4 @@ inline DualSlotChoice chooseNewerRevision(bool firstValid,
              : DualSlotChoice::FIRST;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

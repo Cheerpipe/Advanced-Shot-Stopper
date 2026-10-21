@@ -104,7 +104,7 @@ bool emitFirmwarePulse(FirmwarePulseKind kind) {
   pulseOutputKind = kind;
   pulseOutputIsStart = kind == FirmwarePulseKind::START;
   pulseOutputEndsAtMs = millis() + durationMs;
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
   if (kind == FirmwarePulseKind::STOP) {
     momentaryFirmwareCutPending = true;
   }
@@ -151,7 +151,7 @@ void maybeEmitFirmwareStopPulse() {
   (void)emitFirmwareStopPulse();
 }
 
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
 void endMomentaryLogicalRunForWall() {
   const bool cut = machineAllowsFirmwareStopPulse();
   latchMomentaryElapsed();
@@ -173,7 +173,7 @@ void serviceLogicalRunWalls() {
   }
   const uint32_t elapsed = elapsedMs(momentaryLogicalRunStartedAtMs);
   if (elapsed >= HARD_MAX_CIRCUIT_CLOSED_MS) {
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
     if (machineAllowsFirmwareStopPulse()) {
       tripRelaySafety(RelaySafetyFault::HARD_LIMIT, true, false, false);
       endMomentaryLogicalRunForWall();
@@ -199,7 +199,7 @@ void serviceLogicalRunWalls() {
   if (momentaryLogicalOperationalLimitMs < HARD_MAX_CIRCUIT_CLOSED_MS &&
       elapsed >= momentaryLogicalOperationalLimitMs) {
     tripRelaySafety(RelaySafetyFault::OPERATIONAL_LIMIT, false, true, false);
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
     endMomentaryLogicalRunForWall();
 #else
     latchMomentaryElapsed();
@@ -256,7 +256,7 @@ inline bool machineRequestStop() {
 }
 
 inline bool machineRequestWebStop() {
-#if SHOT_STOPPER_MACHINE_TYPE == 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 1
   if (momentaryPhysicalOn) {
     return machineRequestStop();
   }

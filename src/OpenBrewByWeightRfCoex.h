@@ -3,14 +3,14 @@
 #include <stdint.h>
 #include <atomic>
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #if __has_include(<esp_coexist.h>)
 #include <esp_coexist.h>
-#define SHOT_STOPPER_RF_COEX_HAS_IDF 1
+#define OPEN_BREW_BY_WEIGHT_RF_COEX_HAS_IDF 1
 #endif
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Always PREFER_BT. Scale scan, GATT, and brew share one 2.4 GHz radio with
 // STA; a flat BT preference keeps discovery and the weight stream from losing
@@ -49,7 +49,7 @@ inline int32_t rfCoexLastError() {
 }
 
 inline bool ensureRfCoexBt() {
-#if defined(SHOT_STOPPER_RF_COEX_HAS_IDF)
+#if defined(OPEN_BREW_BY_WEIGHT_RF_COEX_HAS_IDF)
   const esp_err_t result = esp_coex_preference_set(ESP_COEX_PREFER_BT);
   detail::g_rfCoexLastError.store(static_cast<int32_t>(result),
                                   std::memory_order_relaxed);
@@ -67,4 +67,4 @@ inline bool ensureRfCoexBt() {
   return true;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

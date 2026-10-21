@@ -23,8 +23,8 @@ debugExportChunkf(httpd_req_t *request, char *buf, size_t cap,
 
 }  // namespace
 
-esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   // Public with the Diagnostic page (it carries no secrets).
   // DEBUG EXPORT MAINTENANCE: extend sections below when adding diagnostically
   // relevant settings / state. Bump DEBUG_EXPORT_SCHEMA_VERSION on material
@@ -55,7 +55,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   httpd_resp_set_hdr(request, "Connection", "close");
   httpd_resp_set_hdr(request, "Content-Disposition",
-                     "attachment; filename=\"shotstopper-debug.json\"");
+                     "attachment; filename=\"openbrewbyweight-debug.json\"");
 
   bool ok = debugExportChunkf(
       request, buf, cap,
@@ -67,9 +67,9 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
       static_cast<unsigned long>(DEBUG_EXPORT_SCHEMA_VERSION),
       static_cast<unsigned long>(timeStatus.utcSec), FW_VERSION,
       static_cast<unsigned long>(c.bootId), compiledMachineTypeId(),
-      FW_BOARD_ARCH_STRING, SHOT_STOPPER_HARDWARE_PROFILE_ID,
-      SHOT_STOPPER_MACHINE_PROFILE_ID, SHOT_STOPPER_MACHINE_BRAND,
-      SHOT_STOPPER_MACHINE_MODEL);
+      FW_BOARD_ARCH_STRING, OPEN_BREW_BY_WEIGHT_HARDWARE_PROFILE_ID,
+      OPEN_BREW_BY_WEIGHT_MACHINE_PROFILE_ID, OPEN_BREW_BY_WEIGHT_MACHINE_BRAND,
+      OPEN_BREW_BY_WEIGHT_MACHINE_MODEL);
 
   ok = ok &&
        debugExportChunkf(
@@ -731,9 +731,9 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
            c.lastShot.slowExtractionExtended ? "true" : "false",
            compiledBuzzerModeId(),
            REMOTE_MACHINE_CONTROL_ENABLED ? "true" : "false",
-           FW_BOARD_ARCH_STRING, SHOT_STOPPER_HARDWARE_PROFILE_ID,
-           SHOT_STOPPER_MACHINE_PROFILE_ID, SHOT_STOPPER_MACHINE_BRAND,
-           SHOT_STOPPER_MACHINE_MODEL, compiledMachineTypeId(),
+           FW_BOARD_ARCH_STRING, OPEN_BREW_BY_WEIGHT_HARDWARE_PROFILE_ID,
+           OPEN_BREW_BY_WEIGHT_MACHINE_PROFILE_ID, OPEN_BREW_BY_WEIGHT_MACHINE_BRAND,
+           OPEN_BREW_BY_WEIGHT_MACHINE_MODEL, compiledMachineTypeId(),
            static_cast<unsigned long>(COMPILED_STOP_PULSE_MS),
            static_cast<unsigned long>(COMPILED_MAX_SINGLE_PRESS_MS),
            DEVELOPMENT_BUILD ? "true" : "false");
@@ -827,7 +827,7 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
   }
   ok = ok && debugExportChunk(request, "]},");
 
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   {
     const HeapLifecycleAggregate micraHeap = machineIntegrationHeapTelemetry();
     const MicraWebSocketStatus ws = machineIntegrationWebSocketStatus(false);
@@ -985,8 +985,8 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
 }
 
 
-esp_err_t ShotStopperNetwork::shotsClearHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::shotsClearHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   return self.runConfirmedClear(
       request,
       "Stop the cycle, switch the physical activator OFF, and wait for Ready "
@@ -998,8 +998,8 @@ esp_err_t ShotStopperNetwork::shotsClearHandler(httpd_req_t *request) {
       "capacity and the last storage error.");
 }
 
-esp_err_t ShotStopperNetwork::lastShotClearHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::lastShotClearHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   return self.runConfirmedClear(
       request,
       "Stop the cycle, switch the physical activator OFF, and wait for Ready "
@@ -1010,8 +1010,8 @@ esp_err_t ShotStopperNetwork::lastShotClearHandler(httpd_req_t *request) {
       "Last shot could not be cleared.");
 }
 
-esp_err_t ShotStopperNetwork::shotsDeleteHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::shotsDeleteHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   return self.runDeleteById(
       request,
       "Stop the cycle, switch the physical activator OFF, and wait for Ready "
@@ -1021,8 +1021,8 @@ esp_err_t ShotStopperNetwork::shotsDeleteHandler(httpd_req_t *request) {
       "The requested shot record was not found.");
 }
 
-esp_err_t ShotStopperNetwork::shotsRateHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::shotsRateHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   const ControlGateSnapshot status = self.controlGate();
   if (!self.historyMutationAllowed(request, status)) {
     return sendError(request, STATUS_CONFLICT,
@@ -1074,8 +1074,8 @@ esp_err_t ShotStopperNetwork::shotsRateHandler(httpd_req_t *request) {
   return sendJson(request, STATUS_OK, json);
 }
 
-esp_err_t ShotStopperNetwork::historyClearHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::historyClearHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   return self.runConfirmedClear(
       request,
       "Stop the cycle, switch the physical activator OFF, and wait for Ready "
@@ -1087,8 +1087,8 @@ esp_err_t ShotStopperNetwork::historyClearHandler(httpd_req_t *request) {
       "error in Diagnostic.");
 }
 
-esp_err_t ShotStopperNetwork::historyDeleteHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::historyDeleteHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   return self.runDeleteById(
       request,
       "Stop the cycle, switch the physical activator OFF, and wait for Ready "
@@ -1100,8 +1100,8 @@ esp_err_t ShotStopperNetwork::historyDeleteHandler(httpd_req_t *request) {
 
 // Verbose audit hunt session toggle: marked DEBUG codes join the latch for
 // thirty minutes. Needs a synced clock (the deadline is wall-clock based).
-esp_err_t ShotStopperNetwork::auditVerboseHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::auditVerboseHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   const esp_err_t bodyStatus =
       self.lockJsonBody(request, "A JSON request is required.");
   if (bodyStatus != ESP_OK) {
@@ -1129,8 +1129,8 @@ esp_err_t ShotStopperNetwork::auditVerboseHandler(httpd_req_t *request) {
   return sendJson(request, STATUS_OK, "{\"accepted\":true}");
 }
 
-esp_err_t ShotStopperNetwork::taskProfilerHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::taskProfilerHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   const esp_err_t bodyStatus =
       self.lockJsonBody(request, "A JSON request is required.");
   if (bodyStatus != ESP_OK) {
@@ -1161,8 +1161,8 @@ esp_err_t ShotStopperNetwork::taskProfilerHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::loopMaxResetHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::loopMaxResetHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (self.callbacks_.requestLoopMaxReset == nullptr) {
     return sendError(request, STATUS_UNAVAILABLE, "LOOP_TIMING_UNAVAILABLE",
                      "Loop timing could not be reset.");
@@ -1171,8 +1171,8 @@ esp_err_t ShotStopperNetwork::loopMaxResetHandler(httpd_req_t *request) {
   return sendJson(request, STATUS_OK, "{\"reset\":true}");
 }
 
-esp_err_t ShotStopperNetwork::scaleGapMaxResetHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::scaleGapMaxResetHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (self.callbacks_.requestScaleGapMaxReset == nullptr) {
     return sendError(request, STATUS_UNAVAILABLE, "SCALE_TIMING_UNAVAILABLE",
                      "Scale gap maximum could not be reset.");

@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-enum class ShotStopperBleRuntimeState : uint8_t {
+enum class OpenBrewByWeightBleRuntimeState : uint8_t {
   Stopped,
   Starting,
   Ready,
@@ -12,8 +12,8 @@ enum class ShotStopperBleRuntimeState : uint8_t {
   Stopping
 };
 
-struct ShotStopperBleHealth {
-  ShotStopperBleRuntimeState state;
+struct OpenBrewByWeightBleHealth {
+  OpenBrewByWeightBleRuntimeState state;
   int32_t lastError;
   int32_t lastResetReason;
   uint32_t syncGeneration;
@@ -27,25 +27,25 @@ struct ShotStopperBleHealth {
   uint32_t psramLargestBlockBytes;
 };
 
-using ShotStopperBleGattRegistration = int (*)(void *context);
+using OpenBrewByWeightBleGattRegistration = int (*)(void *context);
 
 // Installs the optional application GATT profile registration hook. It is
 // called after nimble_port_init() and the standard GAP/GATT services, but
 // before the host task starts. Configuration is immutable once start begins.
-bool shotStopperBleRuntimeConfigureGattProfile(
-    ShotStopperBleGattRegistration registration, void *context);
+bool openBrewByWeightBleRuntimeConfigureGattProfile(
+    OpenBrewByWeightBleGattRegistration registration, void *context);
 
 // Starts the single process-wide NimBLE host and waits for the sync callback.
 // NVS must already be initialized by the firmware. Safe to call repeatedly.
-bool shotStopperBleRuntimeStart(uint32_t timeoutMs);
+bool openBrewByWeightBleRuntimeStart(uint32_t timeoutMs);
 
-bool shotStopperBleRuntimeReady();
-uint8_t shotStopperBleRuntimeOwnAddressType();
-uint32_t shotStopperBleRuntimeSyncGeneration();
+bool openBrewByWeightBleRuntimeReady();
+uint8_t openBrewByWeightBleRuntimeOwnAddressType();
+uint32_t openBrewByWeightBleRuntimeSyncGeneration();
 // sampleMemory=false skips the heap walks; memory fields then keep the last
 // sample (or the reset/sync capture).
-ShotStopperBleHealth shotStopperBleRuntimeHealth(bool sampleMemory = true);
+OpenBrewByWeightBleHealth openBrewByWeightBleRuntimeHealth(bool sampleMemory = true);
 
 // Intended for orderly reboot/shutdown only. Peripheral reconnects must never
 // cycle the global host.
-bool shotStopperBleRuntimeStop(uint32_t timeoutMs);
+bool openBrewByWeightBleRuntimeStop(uint32_t timeoutMs);

@@ -50,9 +50,9 @@ bool crashTarText(httpd_req_t *request, const char *path,
 
 }  // namespace
 
-esp_err_t ShotStopperNetwork::crashArchiveDownloadHandler(
+esp_err_t OpenBrewByWeightNetwork::crashArchiveDownloadHandler(
     httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) return ESP_OK;
   const CrashArchiveStatus archive = crashArchiveStatus();
   if (archive.count == 0)
@@ -60,7 +60,7 @@ esp_err_t ShotStopperNetwork::crashArchiveDownloadHandler(
                      "No saved crash records are available.");
   httpd_resp_set_type(request, "application/x-tar");
   httpd_resp_set_hdr(request, "Content-Disposition",
-                     "attachment; filename=shotstopper-crashes.tar");
+                     "attachment; filename=openbrewbyweight-crashes.tar");
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   static const char zero[1024] = {};
@@ -120,8 +120,8 @@ esp_err_t ShotStopperNetwork::crashArchiveDownloadHandler(
              ? ESP_OK : ESP_FAIL;
 }
 
-esp_err_t ShotStopperNetwork::crashArchiveClearHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::crashArchiveClearHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) return ESP_OK;
   return self.runConfirmedClear(
       request, "Stop the cycle and wait for Ready before emptying crashes.",
@@ -130,8 +130,8 @@ esp_err_t ShotStopperNetwork::crashArchiveClearHandler(httpd_req_t *request) {
       "CRASH_CLEAR_FAILED", "Crash records could not be erased.");
 }
 
-esp_err_t ShotStopperNetwork::auditLogClearHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::auditLogClearHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) return ESP_OK;
   return self.runConfirmedClear(
       request, "Stop the cycle and wait for Ready before emptying the audit log.",

@@ -77,7 +77,7 @@ def generate(source, output):
                  f"// Source SHA-256: {SOURCE_SHA256}",
                  "// IANA tzdata license: public-domain database; see upstream LICENSE.",
                  "#pragma once", "#include <stdint.h>",
-                 "namespace shotstopper::tzdb {",
+                 "namespace openbrewbyweight::tzdb {",
                  "inline constexpr uint32_t kStartUtc = 1735689600U;",
                  "inline constexpr uint32_t kEndUtc = 4102444800U;",
                  "inline constexpr const char *kVersion = \"2026d\";",
@@ -88,7 +88,7 @@ def generate(source, output):
         lines += ["};", "inline constexpr Zone kZones[] = {"]
         lines.extend(f'  {{"{name}", {first}, {count}}},' for name, first, count in catalog)
         lines += ["};", "inline constexpr uint16_t kZoneCount = sizeof(kZones) / sizeof(kZones[0]);",
-                  "}  // namespace shotstopper::tzdb", ""]
+                  "}  // namespace openbrewbyweight::tzdb", ""]
         output.write_text("\n".join(lines))
         print(f"{len(names)} IDs, {len(reuse)} unique schedules, {len(all_rows)} transitions")
 

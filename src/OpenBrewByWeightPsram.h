@@ -7,8 +7,8 @@
 #include <limits.h>
 #include <type_traits>
 
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) &&                                        \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 #include <esp_heap_caps.h>
 #include <esp_memory_utils.h>
 #ifdef ARDUINO
@@ -22,14 +22,14 @@
 // that Kconfig off compile EXT_RAM_BSS_ATTR as empty, so the same objects stay
 // in DRAM. Keep flash DMA sources, OTA chunks, and flash-writing task stacks
 // internal: some flash paths still disable cache, making PSRAM inaccessible.
-#if defined(SHOT_STOPPER_HOST_TEST) ||                                         \
-    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-#define SHOT_STOPPER_PSRAM_BSS
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                         \
+    defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
+#define OPEN_BREW_BY_WEIGHT_PSRAM_BSS
 #else
-#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR
+#define OPEN_BREW_BY_WEIGHT_PSRAM_BSS EXT_RAM_BSS_ATTR
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 enum class AllocationOwner : uint8_t {
   OTHER, NETWORK, WEBHOOK, PROFILER, FLASH_IO, OTA, BUZZER, JSON,
@@ -49,7 +49,7 @@ inline std::atomic<uint32_t> g_allocExternalOk{0};
 inline std::atomic<uint32_t> g_allocExternalFallback{0};
 inline std::atomic<bool> g_workBufExternal{false};
 inline AllocationMetrics g_allocations[static_cast<size_t>(AllocationOwner::COUNT)];
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 // Deterministic allocation-failure injection; never compiled into firmware.
 inline std::atomic<int32_t> g_hostAllocationsUntilFailure{-1};
 inline bool hostAllocationFails() {
@@ -99,8 +99,8 @@ inline bool pointerIsExternal(const void *block) {
   if (block == nullptr) {
     return false;
   }
-#if defined(SHOT_STOPPER_HOST_TEST) ||                                         \
-    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                         \
+    defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   return true;
 #else
   return esp_ptr_external_ram(block);
@@ -114,8 +114,8 @@ inline void *allocExternal(size_t bytes, AllocationOwner owner = AllocationOwner
   if (bytes == 0) {
     return nullptr;
   }
-#if defined(SHOT_STOPPER_HOST_TEST) ||                                         \
-    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                         \
+    defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   void *block = detail::hostAllocationFails() ? nullptr : malloc(bytes);
   noteAllocation(owner, bytes, block != nullptr);
   if (block != nullptr) {
@@ -146,7 +146,7 @@ inline void *allocInternal(size_t bytes, AllocationOwner owner = AllocationOwner
   if (bytes == 0) {
     return nullptr;
   }
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   void *block = detail::hostAllocationFails() ? nullptr : malloc(bytes);
 #else
   void *block = heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
@@ -159,7 +159,7 @@ inline void heapCapsFree(void *block) {
   if (block == nullptr) {
     return;
   }
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   free(block);
 #else
   heap_caps_free(block);
@@ -312,8 +312,8 @@ static_assert(sizeof(HeapLifecycleAggregate) <= 84 &&
                   sizeof(HeapLifecycleTracker) <= 108,
               "Lifecycle telemetry exceeds its internal-RAM budget");
 
-#if defined(SHOT_STOPPER_HOST_TEST) ||                                         \
-    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                         \
+    defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 inline HeapCapSnapshot &hostHeapCapsSnapshot() {
   static HeapCapSnapshot snapshot = {327680, 200000, 180000, 100000,
                                      120, 8, 500};
@@ -336,8 +336,8 @@ struct HeapFreeBlockList {
   HeapFreeBlockInfo blocks[HEAP_FREE_BLOCK_SAMPLE_CAPACITY] = {};
 };
 
-#if defined(SHOT_STOPPER_HOST_TEST) ||                                         \
-    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                         \
+    defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 inline HeapFreeBlockList sampleInternalFreeBlocks() {
   static const uint32_t sizes[3] = {100000, 60000, 40000};
   static const uintptr_t starts[3] = {0x3FC88000u, 0x3FCB0000u, 0x3FCE0000u};
@@ -376,7 +376,7 @@ inline HeapFreeBlockList sampleInternalFreeBlocks() {
 
 inline HeapCapSnapshot sampleHeapCaps() {
   HeapCapSnapshot snap;
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   snap = hostHeapCapsSnapshot();
 #else
   const uint32_t internalCaps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
@@ -407,4 +407,4 @@ inline HeapCapSnapshot sampleHeapCaps() {
   return snap;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

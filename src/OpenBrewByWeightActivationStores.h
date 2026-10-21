@@ -26,7 +26,7 @@
 #include "OpenBrewByWeightShotCurve.h"
 #include "OpenBrewByWeightShotLog.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Latched SHOT_LOG_PERSIST_FAILED emission stays with the component so every
 // store shares one wiring; the scheduler (retry/backoff) stays with the
@@ -53,7 +53,7 @@ class BasicActivationStores {
     bool bootIdentityDurable = true;
     shotLog.load();
     shotLog.onBoot();
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     bootIdentityDurable = shotLog.save();
 #endif
     shotCurves.load();
@@ -204,4 +204,4 @@ class BasicActivationStores {
 using ActivationStores = BasicActivationStores<ShotCurveLog>;
 using ActivationStoresPersistImage = BasicActivationStores<ShotCurvePersistImage>;
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -5,7 +5,7 @@
 #include "OpenBrewByWeightFirmwareMode.h"
 #include "OpenBrewByWeightPersistedSettings.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 inline bool constantTimeEqual(const uint8_t *left, const uint8_t *right,
                               size_t length) {
@@ -231,4 +231,4 @@ inline bool validPersistedStaNetwork(const PersistedSettings &settings) {
                                settings.lkgDns1, settings.lkgDns2);
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -1,4 +1,4 @@
-#define SHOT_STOPPER_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
 
 #include "../OpenBrewByWeightScaleProfiler.h"
 
@@ -23,7 +23,7 @@ int failures = 0;
     }                                                                 \
   } while (false)
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 const uint32_t T0 = 100000;
 

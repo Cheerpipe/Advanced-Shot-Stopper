@@ -85,8 +85,8 @@ void sendUiStreamClose(httpd_handle_t server, int fd, uint16_t reason) {
 #include "OpenBrewByWeightHomeStream.inc"
 #include "OpenBrewByWeightAuditStream.inc"
 
-esp_err_t ShotStopperNetwork::uiStreamHandshake(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::uiStreamHandshake(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   char origin[UI_STREAM_ORIGIN_CAPACITY] = {}, host[UI_STREAM_ORIGIN_CAPACITY] = {};
   char local[DEVICE_NAME_CAPACITY + 8] = {};
   const size_t length = httpd_req_get_hdr_value_len(request, "Origin");
@@ -129,7 +129,7 @@ esp_err_t ShotStopperNetwork::uiStreamHandshake(httpd_req_t *request) {
   return ESP_FAIL;
 }
 
-void ShotStopperNetwork::uiStreamFree(void *context) {
+void OpenBrewByWeightNetwork::uiStreamFree(void *context) {
   if (!instance_ || !context) return;
   TaskLockGuard lock(instance_->dataMux_);
   new (&instance_->workBuf_->uiFingerprints[
@@ -140,9 +140,9 @@ void ShotStopperNetwork::uiStreamFree(void *context) {
   instance_->uiStreamOpen_.store(open, std::memory_order_release);
 }
 
-esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
+esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
   uiStreamSendKind = "control";
-  ShotStopperNetwork &self = *instance_;
+  OpenBrewByWeightNetwork &self = *instance_;
   auto *session = static_cast<UiStreamSession *>(request->sess_ctx);
   if (!session) return ESP_FAIL;
   httpd_ws_frame_t frame = {};
@@ -402,7 +402,7 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
   return ESP_OK;
 }
 
-void ShotStopperNetwork::noteScaleSample() {
+void OpenBrewByWeightNetwork::noteScaleSample() {
   const uint32_t pending = scaleSamples_.fetch_add(1, std::memory_order_relaxed) + 1 -
                           uiStreamDispatchSamples_.load(std::memory_order_acquire);
   // Wake only when a dispatch is due and none is in flight; stream sessions
@@ -414,7 +414,7 @@ void ShotStopperNetwork::noteScaleSample() {
   }
 }
 
-void ShotStopperNetwork::serviceUiStream(uint32_t now) {
+void OpenBrewByWeightNetwork::serviceUiStream(uint32_t now) {
   if (!server_) return;
   const uint32_t samples = scaleSamples_.load(std::memory_order_acquire);
   if (!uiStreamDispatchDue(uiStreamUrgent_.load(std::memory_order_acquire),
@@ -436,8 +436,8 @@ void ShotStopperNetwork::serviceUiStream(uint32_t now) {
   }
 }
 
-void ShotStopperNetwork::uiStreamDispatch(void *context) {
-  auto &self = *static_cast<ShotStopperNetwork *>(context);
+void OpenBrewByWeightNetwork::uiStreamDispatch(void *context) {
+  auto &self = *static_cast<OpenBrewByWeightNetwork *>(context);
   // One fetch per dispatch, shared by every session below: the refresh
   // handshake, the 7.4 KB control snapshot, and the home-shot copy are
   // dispatch-constant, so a takeover must not redo them per session. A live
@@ -500,7 +500,7 @@ void ShotStopperNetwork::uiStreamDispatch(void *context) {
   self.uiStreamWorkPending_.store(false, std::memory_order_release);
 }
 
-void ShotStopperNetwork::sendUiStream(UiStreamSession &session,
+void OpenBrewByWeightNetwork::sendUiStream(UiStreamSession &session,
                                       ControlStatusSnapshot &control,
                                       const NetworkStatusSnapshot &network,
                                       const ShotLogRecord &latest, bool eligible) {
@@ -538,7 +538,7 @@ void ShotStopperNetwork::sendUiStream(UiStreamSession &session,
   if (!open) httpd_sess_trigger_close(server_, session.fd);
 }
 
-bool ShotStopperNetwork::sendShotCard(UiStreamSession &session,
+bool OpenBrewByWeightNetwork::sendShotCard(UiStreamSession &session,
                                       const ControlStatusSnapshot &control,
                                       const ShotLogRecord &latest, bool eligible) {
   uiStreamSendKind = "shot";

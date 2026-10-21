@@ -3,8 +3,8 @@
 #include <assert.h>
 #include <stdint.h>
 
-using shotstopper::configureWebhookHttpRequest;
-using shotstopper::webhookClientMustRecreate;
+using openbrewbyweight::configureWebhookHttpRequest;
+using openbrewbyweight::webhookClientMustRecreate;
 
 namespace {
 

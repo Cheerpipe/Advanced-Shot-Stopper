@@ -1,8 +1,8 @@
-#define SHOT_STOPPER_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
 #define ARDUINO_ESP32S3_DEV
-#define SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL 1
-#ifndef SHOT_STOPPER_ENABLE_BUZZER
-#define SHOT_STOPPER_ENABLE_BUZZER 1
+#define OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL 1
+#ifndef OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER
+#define OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER 1
 #endif
 
 #include <atomic>
@@ -79,7 +79,7 @@ float ceilingStopThresholdForTest() {
 void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   deleteHostResources();
 
-  firmwareModeRaw = static_cast<uint8_t>(shotstopper::FirmwareMode::FULL);
+  firmwareModeRaw = static_cast<uint8_t>(openbrewbyweight::FirmwareMode::FULL);
   Serial.reset();
   resetSerialCliState();
 
@@ -366,7 +366,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   scaleDebugAction = BookooDebugAction::START;
   scaleDebugBeepLevel = 0;
   scalePaddleReturnReminderBeepPending = false;
-#if SHOT_STOPPER_MACHINE_TYPE == 0
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 0
   paddleReturnReminderActive = false;
   paddleReturnReminderLastAtMs = 0;
   paddleReturnReminderStartedAtMs = 0;
@@ -449,7 +449,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   hostPinLevel[ACTIVATOR_GPIO] = initialPaddleOn ? ACTIVATOR_ACTIVE_LEVEL
                                               : !ACTIVATOR_ACTIVE_LEVEL;
   initializeActivatorInput();
-#if SHOT_STOPPER_MACHINE_TYPE != 0
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE != 0
   machineOnActivatorReady();
 #endif
   localBuzzer.begin(BUZZER_GPIO);
@@ -501,7 +501,7 @@ void verifySafetyInvariants() {
     std::cerr << "Safety invariant failed: safe state has machine circuit closed\n";
     ++failures;
   }
-  if (SHOT_STOPPER_MACHINE_TYPE == 0 &&
+  if (OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 0 &&
       machineLastIntention().stablyOff &&
       stopperState != StopperState::RINSE &&
       session.source != ControlSource::WEB && relay.closed &&
@@ -4852,7 +4852,7 @@ void w93_scale_connected_echo_on_rising_edge() {
   CHECK(localBuzzer.acceptedRequests == before + 1);
   CHECK(localBuzzer.activeCue == BuzzerCue::SCALE_CONNECTED);
   CHECK(localBuzzer.rtttlPlayback);
-#if SHOT_STOPPER_ENABLE_BUZZER == 1
+#if OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER == 1
   CHECK(localBuzzer.beepCount ==
         localBuzzer.cueNoteCount[static_cast<uint8_t>(
             BuzzerCue::SCALE_CONNECTED)]);
@@ -6790,7 +6790,7 @@ void w99_rtttl_parser_decodes_notes_and_rests() {
             ExtendedPulseRate::OFF)) == nullptr);
   CHECK(rtttlForExtendedPulseRate(static_cast<uint8_t>(
             ExtendedPulseRate::FAST)) == RTTTL_EXTENDED_PULSE_FAST);
-#if SHOT_STOPPER_ENABLE_BUZZER == 1
+#if OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER == 1
   resetHarness(false, false);
   CHECK(localBuzzer.cueNoteCount[static_cast<uint8_t>(BuzzerCue::TARE)] == 1);
   CHECK(localBuzzer.cueNoteCount[static_cast<uint8_t>(
@@ -7052,7 +7052,7 @@ void w99d_pending_rtttl_starts_from_preparsed_catalog() {
   CHECK(localBuzzer.pendingCue == BuzzerCue::SHOT_END);
   localBuzzer.stopIfCue(BuzzerCue::TARE);
   CHECK(localBuzzer.activeCue == BuzzerCue::SHOT_END);
-#if SHOT_STOPPER_ENABLE_BUZZER == 1
+#if OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER == 1
   CHECK(localBuzzer.rtttlPlayback);
   CHECK(localBuzzer.beepCount ==
         localBuzzer.cueNoteCount[static_cast<uint8_t>(BuzzerCue::SHOT_END)]);
@@ -15530,7 +15530,7 @@ void b02_setup_degrades_without_ble() {
   CHECK(!publishedControlStatus.scaleWorkerReady);
 }
 
-#if SHOT_STOPPER_ENABLE_JTAG == 1
+#if OPEN_BREW_BY_WEIGHT_ENABLE_JTAG == 1
 void b03_jtag_build_starts_serial_without_jumper() {
   resetHarness(false, false);
   CHECK(!usbConsoleJumperPresent());
@@ -15564,7 +15564,7 @@ void b04_usb_console_starts_when_jumper_held() {
   deleteHostResources();
   setup();
   CHECK(Serial.beginCalls == 1);
-#if SHOT_STOPPER_ENABLE_JTAG == 1
+#if OPEN_BREW_BY_WEIGHT_ENABLE_JTAG == 1
   CHECK(usbSerialEnableSource == UsbSerialEnableSource::COMPILE_FLAG);
 #else
   CHECK(usbSerialEnableSource == UsbSerialEnableSource::JUMPER);
@@ -20904,7 +20904,7 @@ void pm23_weight_cut_does_not_reclose_while_paddle_held() {
   CHECK(stopperState == StopperState::REQUIRES_OFF);
   CHECK(!getRelaySafetySnapshot().closed);
   CHECK(hostPinLevel[RELAY_GPIO] == RELAY_OPEN_LEVEL);
-#if SHOT_STOPPER_MACHINE_TYPE == 0
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 0
   CHECK(paddleReturnReminderActive);
 #endif
   const size_t closedWrites = hostRelayClosedWrites;
@@ -21187,7 +21187,7 @@ struct TestCase {
 
 void enterCompatibilityMode() {
   firmwareModeRaw =
-      static_cast<uint8_t>(shotstopper::FirmwareMode::COMPATIBILITY);
+      static_cast<uint8_t>(openbrewbyweight::FirmwareMode::COMPATIBILITY);
 }
 
 void cm01_compatibility_mirror_follows_activator() {
@@ -22459,7 +22459,7 @@ const TestCase testCases[] = {
     {"S04e", s04e_delete_shot_record_is_ram_only_when_flash_is_busy},
     {"B01", b01_scale_worker_requires_ble_stack},
     {"B02", b02_setup_degrades_without_ble},
-#if SHOT_STOPPER_ENABLE_JTAG == 1
+#if OPEN_BREW_BY_WEIGHT_ENABLE_JTAG == 1
     {"B03", b03_jtag_build_starts_serial_without_jumper},
 #else
     {"B03", b03_usb_console_stays_off_without_jumper},

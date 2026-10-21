@@ -261,7 +261,7 @@ The session is RAM-scoped (a reboot ends it) and never affects control.
 ### `GET /api/v1/diagnostic/audit`
 
 Downloads the whole retained audit log (durable window plus RAM latch, oldest
-first) as a plain-text attachment (`shotstopper-audit.txt`): a small header
+first) as a plain-text attachment (`openbrewbyweight-audit.txt`): a small header
 with the store state, then one tab-separated line per record — wall time in
 UTC (or `unset` when the record predates clock synchronization), level,
 category, event, and the full detail text. Requires the Admin unlock (or a

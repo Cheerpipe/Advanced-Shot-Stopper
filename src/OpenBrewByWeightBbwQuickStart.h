@@ -14,7 +14,7 @@
 
 #include "OpenBrewByWeightPresets.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint8_t QUICK_START_SHOTS = 3;
 constexpr int16_t QUICK_START_SPREAD_CG = 40;
@@ -172,21 +172,21 @@ inline size_t formatDripChartJson(char *out, size_t cap, const ControlStatusFiel
   return used < cap ? used : 0;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 
-#if !defined(SHOT_STOPPER_HOST_TEST) ||                                      \
-    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                      \
+    defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 #include "OpenBrewByWeightPersistence.h"
 #include "OpenBrewByWeightPreferences.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // An absent, unreadable or invalid record leaves every preset off.
 inline bool loadQuickStart(QuickStartRecord &record) {
   QuickStartRecord read;
   bool ok = false;
   if (lockSettingsNvs()) {
-    ShotStopperPreferences preferences(NvsSubsystem::SETTINGS);
+    OpenBrewByWeightPreferences preferences(NvsSubsystem::SETTINGS);
     if (preferences.begin(SETTINGS_NAMESPACE, true)) {
       ok = preferences.getBytesLength(QUICK_START_KEY) == sizeof(read) &&
            preferences.getBytes(QUICK_START_KEY, &read, sizeof(read)) ==
@@ -205,7 +205,7 @@ inline bool loadQuickStart(QuickStartRecord &record) {
 inline bool saveQuickStart(QuickStartRecord record) {
   finalizeQuickStart(record);
   if (!lockSettingsNvs()) return false;
-  ShotStopperPreferences preferences(NvsSubsystem::SETTINGS);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::SETTINGS);
   if (!preferences.begin(SETTINGS_NAMESPACE, false)) {
     unlockSettingsNvs();
     return false;
@@ -222,5 +222,5 @@ inline bool saveQuickStart(QuickStartRecord record) {
   return saved;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 #endif

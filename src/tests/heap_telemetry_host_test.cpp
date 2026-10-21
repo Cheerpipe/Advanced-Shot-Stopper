@@ -1,10 +1,10 @@
-#define SHOT_STOPPER_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
 #include "../OpenBrewByWeightPsram.h"
 
 #include <cassert>
 #include <cstdint>
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 static HeapCapSnapshot snapshot(uint32_t freeBytes, uint32_t largest,
                                 uint32_t allocatedBlocks,

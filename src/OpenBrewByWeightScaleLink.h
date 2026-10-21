@@ -6,13 +6,13 @@
 
 #include "OpenBrewByWeightScaleTypes.h"
 
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #include "../libraries/EspressoScaleBLE/src/ScaleFeatures.h"
 #else
 #include <ScaleFeatures.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // =============================================================================
 // LAYER: Scale link port (worker ↔ orchestrator)
@@ -181,4 +181,4 @@ struct ScaleLinkSnapshot {
   int8_t rssi = 0;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

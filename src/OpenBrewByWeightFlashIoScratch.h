@@ -15,8 +15,8 @@
 #include <stdint.h>
 #include <string.h>
 
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) &&                                        \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 #include <esp_memory_utils.h>
 #include <esp_partition.h>
 #include <esp_task_wdt.h>
@@ -26,7 +26,7 @@
 #include <freertos/task.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // One staged step of a partition-store transfer. Store sizes stay multiples
 // of 4: IDF 6.1 plain (non-encrypted) writes accept any alignment, but
@@ -73,8 +73,8 @@ inline bool ensureFlashIoScratch() {
   if (block == nullptr) {
     return false;
   }
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) &&                                        \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   if (!esp_ptr_internal(block)) {
     heapCapsFree(block);
     block = nullptr;
@@ -126,8 +126,8 @@ inline bool flashIoActiveSince(uint32_t sinceMs) {
              std::memory_order_relaxed) - sinceMs) >= 0;
 }
 
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) &&                                        \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 inline SemaphoreHandle_t &flashIoMutexSlot() {
   static SemaphoreHandle_t handle = nullptr;
   return handle;
@@ -200,15 +200,15 @@ inline void unlockFlashIo() {}
 #endif
 
 inline void yieldFlashIo() {
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) &&                                        \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   vTaskDelay(pdMS_TO_TICKS(1));
 #endif
 }
 
 inline void feedFlashIoWatchdog() {
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) &&                                        \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   // HTTP workers are not TWDT subscribers. Resetting from them logs
   // "esp_task_wdt_reset: task not found" and does not feed loop/network/scale.
   if (esp_task_wdt_status(nullptr) == ESP_OK) {
@@ -258,8 +258,8 @@ inline void beginFlashStoreTransaction(FlashStoreTransaction &tx,
   tx.totalBytes = totalBytes;
 }
 
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) &&                                        \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 // Chunked partition transfer for PSRAM-backed stores larger than the scratch.
 // Each step copies one chunk between PSRAM and the internal scratch while the
 // flash cache is on; only the internal staging bytes are reachable inside the
@@ -373,4 +373,4 @@ inline FlashStoreStepResult flashIoStoreStep(
 }
 #endif
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

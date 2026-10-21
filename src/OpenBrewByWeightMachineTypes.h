@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // =============================================================================
 // LAYER: Machine types (shared contracts)
@@ -22,17 +22,17 @@ namespace shotstopper {
 constexpr uint32_t HARD_MAX_CIRCUIT_CLOSED_MS = 60000;
 constexpr uint32_t BACKFLUSH_MAX_CIRCUIT_CLOSED_MS = 180000;
 enum class RelayPurpose : uint8_t { NORMAL, BACKFLUSH_CANDIDATE, BACKFLUSH_CONFIRMED };
-#ifndef SHOT_STOPPER_DEFAULT_OPERATIONAL_WALL_MS
-#define SHOT_STOPPER_DEFAULT_OPERATIONAL_WALL_MS 50000
+#ifndef OPEN_BREW_BY_WEIGHT_DEFAULT_OPERATIONAL_WALL_MS
+#define OPEN_BREW_BY_WEIGHT_DEFAULT_OPERATIONAL_WALL_MS 50000
 #endif
-#ifndef SHOT_STOPPER_DEFAULT_RINSE_GESTURE_MS
-#define SHOT_STOPPER_DEFAULT_RINSE_GESTURE_MS 1000
+#ifndef OPEN_BREW_BY_WEIGHT_DEFAULT_RINSE_GESTURE_MS
+#define OPEN_BREW_BY_WEIGHT_DEFAULT_RINSE_GESTURE_MS 1000
 #endif
 constexpr uint32_t DEFAULT_OPERATIONAL_WALL_MS =
-    SHOT_STOPPER_DEFAULT_OPERATIONAL_WALL_MS;
+    OPEN_BREW_BY_WEIGHT_DEFAULT_OPERATIONAL_WALL_MS;
 // Default paddle ON→OFF / idle long-press window that publishes REQUEST_RINSE.
 constexpr uint32_t DEFAULT_RINSE_GESTURE_MS =
-    SHOT_STOPPER_DEFAULT_RINSE_GESTURE_MS;
+    OPEN_BREW_BY_WEIGHT_DEFAULT_RINSE_GESTURE_MS;
 
 // Whether water is running through the group (shot or rinse), and whether that
 // is confirmed. Not machine power: a powered-on machine is normally IDLE.
@@ -90,4 +90,4 @@ inline const char *machineRunStateName(MachineRunState state) {
   return "UNKNOWN";
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

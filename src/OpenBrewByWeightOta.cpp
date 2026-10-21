@@ -1,6 +1,6 @@
 #include "OpenBrewByWeightOta.h"
 
-#if defined(SHOT_STOPPER_OTA_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_OTA_HOST_TEST)
 #include "tests/ota_host_stubs.h"
 #else
 #include <esp_image_format.h>
@@ -17,12 +17,12 @@
 
 #include <string.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // The identity marker every flashable Shot Stopper image carries. It has
 // external linkage and is read back by begin(), which is what keeps the linker
 // from garbage-collecting the one thing an OTA verify looks for.
-extern "C" const char SHOT_STOPPER_FW_IMAGE_TAG[] = FW_IMAGE_TAG_STRING;
+extern "C" const char OPEN_BREW_BY_WEIGHT_FW_IMAGE_TAG[] = FW_IMAGE_TAG_STRING;
 
 namespace {
 
@@ -165,7 +165,7 @@ bool validJournalIdentity(const OtaSessionIdentity &identity) {
 
 bool readJournal(const char *key, OtaJournalRecord &record) {
   if (!tryLockFlashIo()) return false;
-  ShotStopperPreferences preferences(NvsSubsystem::OTA_JOURNAL);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::OTA_JOURNAL);
   if (!preferences.begin("ota", true)) {
     unlockFlashIo();
     return false;
@@ -181,7 +181,7 @@ bool writeJournal(const char *key, const OtaJournalRecord &record) {
     otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
     return false;
   }
-  ShotStopperPreferences preferences(NvsSubsystem::OTA_JOURNAL);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::OTA_JOURNAL);
   if (!preferences.begin("ota", false)) {
     unlockFlashIo();
     otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
@@ -200,7 +200,7 @@ bool clearJournal() {
     otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
     return false;
   }
-  ShotStopperPreferences preferences(NvsSubsystem::OTA_JOURNAL);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::OTA_JOURNAL);
   if (!preferences.begin("ota", false)) {
     unlockFlashIo();
     otaJournalFailures.fetch_add(1, std::memory_order_relaxed);
@@ -253,41 +253,41 @@ void OtaSha256Deleter::operator()(void *context) const {
   heapCapsFree(context);
 }
 
-std::atomic<uint32_t> ShotStopperOta::publishedFlags_{0};
-TaskMutex ShotStopperOta::mutex_;
-TaskMutex ShotStopperOta::publishedSnapshotMutex_;
+std::atomic<uint32_t> OpenBrewByWeightOta::publishedFlags_{0};
+TaskMutex OpenBrewByWeightOta::mutex_;
+TaskMutex OpenBrewByWeightOta::publishedSnapshotMutex_;
 
-ShotStopperOta &ShotStopperOta::instance() {
+OpenBrewByWeightOta &OpenBrewByWeightOta::instance() {
   // Task-only state, never a flash DMA source or destination (chunks and
   // re-reads use internal buffers). The scanner's runtime constructor keeps
   // the object dynamically initialised, so its non-zero defaults survive the
   // NOLOAD external BSS section.
-  SHOT_STOPPER_PSRAM_BSS static ShotStopperOta shared;
+  OPEN_BREW_BY_WEIGHT_PSRAM_BSS static OpenBrewByWeightOta shared;
   return shared;
 }
 
-bool ShotStopperOta::available() const {
+bool OpenBrewByWeightOta::available() const {
   return publishedState().available;
 }
 
-bool ShotStopperOta::busy() const {
+bool OpenBrewByWeightOta::busy() const {
   return publishedState().busy;
 }
 
-uint32_t ShotStopperOta::slotBytes() const {
+uint32_t OpenBrewByWeightOta::slotBytes() const {
   TaskLockGuard lock(mutex_);
   return slotBytes_;
 }
 
-bool ShotStopperOta::runningImageConfirmed() const {
+bool OpenBrewByWeightOta::runningImageConfirmed() const {
   return publishedState().confirmed;
 }
 
-bool ShotStopperOta::runningImageRejected() const {
+bool OpenBrewByWeightOta::runningImageRejected() const {
   return publishedState().rejected;
 }
 
-OtaPublishedState ShotStopperOta::publishedState() const {
+OtaPublishedState OpenBrewByWeightOta::publishedState() const {
   const uint32_t flags = publishedFlags_.load(std::memory_order_acquire);
   OtaPublishedState state;
   state.available = (flags & OTA_PUBLISHED_AVAILABLE) != 0;
@@ -298,7 +298,7 @@ OtaPublishedState ShotStopperOta::publishedState() const {
   return state;
 }
 
-void ShotStopperOta::publishState() {
+void OpenBrewByWeightOta::publishState() {
   uint32_t flags = 0;
   if (available_) flags |= OTA_PUBLISHED_AVAILABLE;
   if (busy_ || sessionActive_) flags |= OTA_PUBLISHED_BUSY;
@@ -309,12 +309,12 @@ void ShotStopperOta::publishState() {
   (void)snapshotLocked();
 }
 
-OtaImageTag ShotStopperOta::runningTag() const {
+OtaImageTag OpenBrewByWeightOta::runningTag() const {
   TaskLockGuard lock(mutex_);
   return runningTag_;
 }
 
-void ShotStopperOta::begin() {
+void OpenBrewByWeightOta::begin() {
   TaskLockGuard lock(mutex_);
   if (started_) {
     return;
@@ -322,8 +322,8 @@ void ShotStopperOta::begin() {
   started_ = true;
 
   OtaImageTagScanner scanner;
-  scanner.feed(reinterpret_cast<const uint8_t *>(SHOT_STOPPER_FW_IMAGE_TAG),
-               strlen(SHOT_STOPPER_FW_IMAGE_TAG));
+  scanner.feed(reinterpret_cast<const uint8_t *>(OPEN_BREW_BY_WEIGHT_FW_IMAGE_TAG),
+               strlen(OPEN_BREW_BY_WEIGHT_FW_IMAGE_TAG));
   if (scanner.found()) {
     runningTag_ = scanner.tag();
   }
@@ -351,12 +351,12 @@ void ShotStopperOta::begin() {
   publishState();
 }
 
-bool ShotStopperOta::removeSessionJournal() {
+bool OpenBrewByWeightOta::removeSessionJournal() {
   journalStale_ = !clearJournal();
   return !journalStale_;
 }
 
-bool ShotStopperOta::persistSession() {
+bool OpenBrewByWeightOta::persistSession() {
   if (!sessionActive_) return true;
   if (!sessionSha256_) return false;
   // Zero padding first: the checksum and NVS blob cover every byte.
@@ -388,7 +388,7 @@ bool ShotStopperOta::persistSession() {
   return true;
 }
 
-void ShotStopperOta::restoreSessionJournal() {
+void OpenBrewByWeightOta::restoreSessionJournal() {
   OtaJournalRecord first;
   OtaJournalRecord second;
   const bool firstValid = readJournal("j0", first);
@@ -489,7 +489,7 @@ void ShotStopperOta::restoreSessionJournal() {
   }
 }
 
-OtaStatusSnapshot ShotStopperOta::snapshot(bool wait) const {
+OtaStatusSnapshot OpenBrewByWeightOta::snapshot(bool wait) const {
   if (wait) {
     mutex_.lock();
   } else if (!mutex_.tryLock()) {
@@ -501,7 +501,7 @@ OtaStatusSnapshot ShotStopperOta::snapshot(bool wait) const {
   return copy;
 }
 
-OtaStatusSnapshot ShotStopperOta::snapshotLocked() const {
+OtaStatusSnapshot OpenBrewByWeightOta::snapshotLocked() const {
   OtaStatusSnapshot copy;
   copy.available = available_;
   copy.busy = busy_ || sessionActive_;
@@ -539,7 +539,7 @@ OtaStatusSnapshot ShotStopperOta::snapshotLocked() const {
   return copy;
 }
 
-OtaResult ShotStopperOta::finishFailure(OtaResult result) {
+OtaResult OpenBrewByWeightOta::finishFailure(OtaResult result) {
   // Keep this evidence after clearing the active transfer. The HTTP handler
   // reads its snapshot after stage() returns, so resetting first used to make
   // every failed upload look as though it had failed at byte zero.
@@ -560,7 +560,7 @@ OtaResult ShotStopperOta::finishFailure(OtaResult result) {
   return result;
 }
 
-void ShotStopperOta::clearSession(bool abortHandle) {
+void OpenBrewByWeightOta::clearSession(bool abortHandle) {
   if (abortHandle) otaHandle_.reset();
   sessionActive_ = false;
   sessionLastActivityMs_ = 0;
@@ -574,7 +574,7 @@ void ShotStopperOta::clearSession(bool abortHandle) {
   journalStale_ = true;
 }
 
-bool ShotStopperOta::isDuplicateRange(uint32_t offset,
+bool OpenBrewByWeightOta::isDuplicateRange(uint32_t offset,
                                       uint32_t contentLength) const {
   TaskLockGuard lock(mutex_);
   return sessionActive_ && contentLength != 0 &&
@@ -582,7 +582,7 @@ bool ShotStopperOta::isDuplicateRange(uint32_t offset,
          offset + contentLength == receivedBytes_;
 }
 
-void ShotStopperOta::expireSession(uint32_t now, bool flashAllowed, bool wait) {
+void OpenBrewByWeightOta::expireSession(uint32_t now, bool flashAllowed, bool wait) {
   if (wait) mutex_.lock();
   else if (!mutex_.tryLock()) return;
   if (sessionActive_ &&
@@ -593,7 +593,7 @@ void ShotStopperOta::expireSession(uint32_t now, bool flashAllowed, bool wait) {
   mutex_.unlock();
 }
 
-OtaResult ShotStopperOta::createSession(const OtaSessionIdentity &identity,
+OtaResult OpenBrewByWeightOta::createSession(const OtaSessionIdentity &identity,
                                         uint32_t now) {
   TaskLockGuard lock(mutex_);
   if (!started_ || !available_) {
@@ -667,7 +667,7 @@ OtaResult ShotStopperOta::createSession(const OtaSessionIdentity &identity,
   return OtaResult::OK;
 }
 
-bool ShotStopperOta::verifySessionSha256() {
+bool OpenBrewByWeightOta::verifySessionSha256() {
   if (!sessionSha256_ || session_.size == 0) {
     return false;
   }
@@ -689,7 +689,7 @@ bool ShotStopperOta::verifySessionSha256() {
   return sameText(actual, session_.sha256, sizeof(actual));
 }
 
-bool ShotStopperOta::startSessionSha256() {
+bool OpenBrewByWeightOta::startSessionSha256() {
   clearSessionSha256();
   sessionSha256_.reset(allocInternal(sizeof(psa_hash_operation_t), AllocationOwner::OTA));
   if (!sessionSha256_) return false;
@@ -702,7 +702,7 @@ bool ShotStopperOta::startSessionSha256() {
   return true;
 }
 
-bool ShotStopperOta::updateSessionSha256(const uint8_t *bytes,
+bool OpenBrewByWeightOta::updateSessionSha256(const uint8_t *bytes,
                                          size_t length) {
   return sessionSha256_ && bytes != nullptr &&
          psa_hash_update(
@@ -710,11 +710,11 @@ bool ShotStopperOta::updateSessionSha256(const uint8_t *bytes,
              length) == PSA_SUCCESS;
 }
 
-void ShotStopperOta::clearSessionSha256() {
+void OpenBrewByWeightOta::clearSessionSha256() {
   sessionSha256_.reset();
 }
 
-OtaResult ShotStopperOta::writeRange(const char *transferId, uint32_t offset,
+OtaResult OpenBrewByWeightOta::writeRange(const char *transferId, uint32_t offset,
                                      uint32_t contentLength,
                                      const OtaStreamIo &io, uint32_t now) {
   TaskLockGuard lock(mutex_);
@@ -985,7 +985,7 @@ OtaResult ShotStopperOta::writeRange(const char *transferId, uint32_t offset,
   return OtaResult::OK;
 }
 
-bool ShotStopperOta::reconfirmStagedTag() {
+bool OpenBrewByWeightOta::reconfirmStagedTag() {
   const esp_partition_t *target =
       static_cast<const esp_partition_t *>(targetPartition_);
   if (target == nullptr || !stagedValid_) {
@@ -1009,7 +1009,7 @@ bool ShotStopperOta::reconfirmStagedTag() {
   return scanner.found() && sameTag(scanner.tag(), stagedTag_);
 }
 
-OtaResult ShotStopperOta::commit() {
+OtaResult OpenBrewByWeightOta::commit() {
   TaskLockGuard lock(mutex_);
   if (!started_ || !available_) {
     return OtaResult::UNAVAILABLE;
@@ -1040,7 +1040,7 @@ OtaResult ShotStopperOta::commit() {
   return OtaResult::OK;
 }
 
-OtaResult ShotStopperOta::discard() {
+OtaResult OpenBrewByWeightOta::discard() {
   TaskLockGuard lock(mutex_);
   if (state_ == OtaState::COMMITTED) return OtaResult::COMMITTED;
   if (busy_) return OtaResult::BUSY;
@@ -1055,12 +1055,12 @@ OtaResult ShotStopperOta::discard() {
   return OtaResult::OK;
 }
 
-bool ShotStopperOta::confirmRunningImage() {
+bool OpenBrewByWeightOta::confirmRunningImage() {
   TaskLockGuard lock(mutex_);
   return confirmRunningImageLocked();
 }
 
-bool ShotStopperOta::readBootState() {
+bool OpenBrewByWeightOta::readBootState() {
   FlashIoGuard flash(0);
   esp_ota_img_states_t state = ESP_OTA_IMG_UNDEFINED;
   const auto *running = esp_ota_get_running_partition();
@@ -1086,7 +1086,7 @@ bool ShotStopperOta::readBootState() {
   return true;
 }
 
-bool ShotStopperOta::confirmRunningImageLocked() {
+bool OpenBrewByWeightOta::confirmRunningImageLocked() {
   if (confirmed_) {
     return true;
   }
@@ -1113,12 +1113,12 @@ bool ShotStopperOta::confirmRunningImageLocked() {
   return true;
 }
 
-bool ShotStopperOta::rejectRunningImage() {
+bool OpenBrewByWeightOta::rejectRunningImage() {
   TaskLockGuard lock(mutex_);
   return rejectRunningImageLocked() == RejectResult::REJECTED;
 }
 
-ShotStopperOta::RejectResult ShotStopperOta::rejectRunningImageLocked() {
+OpenBrewByWeightOta::RejectResult OpenBrewByWeightOta::rejectRunningImageLocked() {
   if (rejected_) {
     return RejectResult::REJECTED;
   }
@@ -1151,7 +1151,7 @@ ShotStopperOta::RejectResult ShotStopperOta::rejectRunningImageLocked() {
   return RejectResult::REJECTED;
 }
 
-OtaBootStatus ShotStopperOta::serviceBoot(
+OtaBootStatus OpenBrewByWeightOta::serviceBoot(
     uint32_t now, bool httpReady, bool activeCycle, bool relayClosed,
     bool bleUp, uint32_t minUptimeMs, uint32_t deadlineMs) {
   TaskLockGuard lock(mutex_);
@@ -1189,7 +1189,7 @@ OtaBootStatus ShotStopperOta::serviceBoot(
   return bootStatus_;
 }
 
-const char *ShotStopperOta::resultName(OtaResult result) {
+const char *OpenBrewByWeightOta::resultName(OtaResult result) {
   switch (result) {
     case OtaResult::OK: return "OK";
     case OtaResult::UNAVAILABLE: return "UNAVAILABLE";
@@ -1224,7 +1224,7 @@ const char *ShotStopperOta::resultName(OtaResult result) {
   return "UNKNOWN";
 }
 
-const char *ShotStopperOta::stateName(OtaState state) {
+const char *OpenBrewByWeightOta::stateName(OtaState state) {
   switch (state) {
     case OtaState::UNAVAILABLE: return "unavailable";
     case OtaState::IDLE: return "idle";
@@ -1235,4 +1235,4 @@ const char *ShotStopperOta::stateName(OtaState state) {
   return "unknown";
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

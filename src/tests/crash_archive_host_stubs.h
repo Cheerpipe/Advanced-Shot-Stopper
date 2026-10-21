@@ -146,7 +146,7 @@ inline int psa_hash_finish(psa_hash_operation_t *op, uint8_t *output,
 }
 inline int psa_hash_abort(psa_hash_operation_t *) { return PSA_SUCCESS; }
 
-namespace shotstopper {
+namespace openbrewbyweight {
 inline bool tryLockFlashIo() { return true; }
 inline void unlockFlashIo() {}
 inline void feedFlashIoWatchdog() {}

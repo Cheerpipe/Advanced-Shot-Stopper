@@ -35,7 +35,7 @@
   Released under the GNU Affero General Public License v3.0.
 */
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #ifdef LOG_LOCAL_LEVEL
 #undef LOG_LOCAL_LEVEL
 #endif
@@ -45,7 +45,7 @@
 
 #include "OpenBrewByWeightPowerManagement.h"
 
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #include "tests/open_brew_by_weight_host_stubs.h"
 #else
 #include <EspressoScaleBLE.h>
@@ -71,7 +71,7 @@
 #include "machine/OpenBrewByWeightMicraTiming.h"
 #include "OpenBrewByWeightIntegrationState.h"
 #include "OpenBrewByWeightDebugExport.h"
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #include "OpenBrewByWeightBleScanPersistence.h"
 #endif
 #include "OpenBrewByWeightBuzzer.h"
@@ -82,8 +82,8 @@
 #include "OpenBrewByWeightPresets.h"
 #include "OpenBrewByWeightBbwLearning.h"
 #include "OpenBrewByWeightBbwQuickStart.h"
-#if !defined(SHOT_STOPPER_HOST_TEST)
-namespace shotstopper {
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
+namespace openbrewbyweight {
 Print &serialCliOutput();
 }
 #ifdef Serial
@@ -92,7 +92,7 @@ Print &serialCliOutput();
 #define Serial serialCliOutput()
 #endif
 #include "OpenBrewByWeightSerialCli.h"
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #undef Serial
 #if ARDUINO_USB_CDC_ON_BOOT
 #if ARDUINO_USB_MODE
@@ -104,8 +104,8 @@ Print &serialCliOutput();
 #define Serial Serial0
 #endif
 #endif
-#if defined(SHOT_STOPPER_USB_CONSOLE_OWN_HWCDC)
-HWCDC shotStopperUsbConsole;
+#if defined(OPEN_BREW_BY_WEIGHT_USB_CONSOLE_OWN_HWCDC)
+HWCDC openBrewByWeightUsbConsole;
 #endif
 #include <OpenBrewByWeightVersion.h>
 #include "OpenBrewByWeightHardwareTimer.h"
@@ -126,7 +126,7 @@ HWCDC shotStopperUsbConsole;
 #include "OpenBrewByWeightTaskMutex.h"
 #include "OpenBrewByWeightScheduling.h"
 #include "OpenBrewByWeightPsram.h"
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 #include "OpenBrewByWeightJsonArena.h"
 #endif
 #include "OpenBrewByWeightHardware.h"
@@ -137,7 +137,7 @@ HWCDC shotStopperUsbConsole;
 #include <new>
 #include <stdlib.h>
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 #include "OpenBrewByWeightScaleWorker.h"
 #include "OpenBrewByWeightRfCoex.h"
@@ -400,15 +400,15 @@ struct MaintenanceLease {
 // Application state and input state
 // ---------------------------------------------------------------------------
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 BleScanPersistedSettings bleScanPersistedSettings;
 #endif
 
 StopperState stopperState = StopperState::REQUIRES_OFF;
 ShotTrajectory shot;
 CycleSession session;
-SHOT_STOPPER_PSRAM_BSS PendingShotFinalize pendingFinalize;
-SHOT_STOPPER_PSRAM_BSS PersistedLastShot homeCycleResult;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS PendingShotFinalize pendingFinalize;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS PersistedLastShot homeCycleResult;
 uint32_t homeCycleResolvedAtMs = 0;
 RuntimeConfig runtimeConfig;
 
@@ -427,8 +427,8 @@ CycleWallTime captureCycleWallTime() {
 uint32_t cupSettingsGeneration = 1;
 uint32_t idleTareSettingsGeneration = 1;
 PowerPolicy powerPolicy;
-SHOT_STOPPER_PSRAM_BSS BullseyeMelodyConfig bullseyeMelodyConfig;
-SHOT_STOPPER_PSRAM_BSS BullseyeMelodyConfig stagedBullseyeMelodyConfig;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS BullseyeMelodyConfig bullseyeMelodyConfig;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS BullseyeMelodyConfig stagedBullseyeMelodyConfig;
 uint32_t stagedBullseyeRequestId = 0;
 TaskMutex bullseyeConfigMux;
 BullseyeTracker bullseyeTracker;
@@ -446,10 +446,10 @@ void stageBbwQuickStart();
 uint32_t shotStatisticsEpochNow();
 LastCycleSummary lastCycle;
 // Debug events are not a flash DMA source and are not added from an ISR.
-SHOT_STOPPER_PSRAM_BSS DebugRingBuffer debugLog;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS DebugRingBuffer debugLog;
 // Curated audit latch: classified rare events only, guarded by the same mutex
 // as the common ring so logEmitDetail captures both in one critical section.
-SHOT_STOPPER_PSRAM_BSS AuditLogLatch auditLog;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS AuditLogLatch auditLog;
 // Audit flush bookkeeping: the worker drains records the latch marked
 // pending; the timestamp opens the 2 s batching window on the first pending
 // record so short bursts coalesce into one header commit.
@@ -466,14 +466,14 @@ LogLevel ringRetainLogLevel = LogLevel::NONE;
 // the aliases below keep every existing call site and test working against
 // that owner. Static-init order is safe: PSRAM BSS plus references bound to
 // constant addresses.
-SHOT_STOPPER_PSRAM_BSS ActivationStores activationStores;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS ActivationStores activationStores;
 ShotLog &shotLog = activationStores.shotLog;
 ShotCurveLog &shotCurves = activationStores.shotCurves;
 HistoryLog &historyLog = activationStores.historyLog;
 // Serializes complete RAM-store operations across control and NetworkService;
 // every durable write remains owned by the existing store/flash path.
 TaskMutex shotStoreMutex;
-SHOT_STOPPER_PSRAM_BSS ShotCurveSampler shotCurveSampler;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS ShotCurveSampler shotCurveSampler;
 
 void markShotCurveBreak() {
   if (session.active) shotCurveSampler.markBreak();
@@ -481,7 +481,7 @@ void markShotCurveBreak() {
 }
 // Same PSRAM-safe working-copy contract as ActivationStores above: NVS I/O
 // goes through the internal flash scratch and mutations hold shotStoreMutex.
-SHOT_STOPPER_PSRAM_BSS LastShotStore lastShotStore;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS LastShotStore lastShotStore;
 const PersistedLastShot &persistedLastShot = lastShotStore.get();
 const PersistedLastShot &persistedLastGoodShot = lastShotStore.getGood();
 bool lastShotNvsDirty = false;
@@ -515,7 +515,7 @@ const char *backflushStopReason = "none";
 // Boot-scoped master switch: FULL by default, COMPATIBILITY only when the
 // persisted fwmode record says so. setup() assigns it once; nothing else
 // writes it (toggling persists the record and restarts instead).
-uint8_t firmwareModeRaw = static_cast<uint8_t>(shotstopper::FirmwareMode::FULL);
+uint8_t firmwareModeRaw = static_cast<uint8_t>(openbrewbyweight::FirmwareMode::FULL);
 
 float currentWeight = 0.0f;
 uint32_t currentWeightReceivedAtMs = 0;
@@ -543,7 +543,7 @@ bool scaleCompletionBeepScheduled = false;
 // They let control observe every kind of edge without touching worker state.
 uint32_t handledScaleConnectionGeneration = 0;
 uint32_t handledScaleDisconnectSequence = 0;
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 bool webhookBrewStartPending = false;
 #endif
 
@@ -551,15 +551,15 @@ bool virtualHoldOn = false;
 // One lock/version commits internal scalars and the external presentation
 // payload together. Control/safety never depend on an external pointer.
 ControlStatusFields publishedControlStatus;
-SHOT_STOPPER_PSRAM_BSS ControlStatusCurve publishedControlCurve;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS ControlStatusCurve publishedControlCurve;
 TaskMutex controlStatusMutex;
 uint32_t controlStatusVersion = 0;
 ControlGateSnapshot publishedControlGate;
 TaskMutex controlGateMutex;
 bool controlStatusPublishRequested = false;
-SHOT_STOPPER_PSRAM_BSS RuntimeConfig publishedRuntimeConfig;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS RuntimeConfig publishedRuntimeConfig;
 SessionQuickSettings publishedSessionQuickSettings;
-SHOT_STOPPER_PSRAM_BSS ShotPresetBank publishedPresetBank;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS ShotPresetBank publishedPresetBank;
 TaskMutex recipeMutex;
 BootCapabilities bootCapabilities;
 BootState bootState = BootState::BOOTING;
@@ -575,7 +575,7 @@ bool resetHistoryClearHeld = false;
 WebCommand pendingResetHistoryClear = {};
 WebCommand controlResultCommand;
 bool controlResultPending = false;
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
 bool hostForwardAcceptedNetworkCommandSucceeds = true;
 uint32_t hostForwardAcceptedNetworkCommandCalls = 0;
 WebCommand hostLastForwardedNetworkCommand;
@@ -631,8 +631,8 @@ enum class PersistenceWork : uint8_t {
   AUDIT_FLUSH = 4,
   AUDIT_CLEAR = 5,
 };
-#ifndef SHOT_STOPPER_HOST_TEST
-SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistRequest;
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS SettingsPersistRequest settingsPersistRequest;
 TaskMutex settingsPersistMux;
 bool settingsPersistInFlight = false;
 bool settingsPersistResultReady = false;
@@ -748,7 +748,7 @@ bool healthStackAlertLatched = false;
 bool healthLoopGapAlertLatched = false;
 Hwmon hwmon;
 HwmonSnapshot hwmonSnapshot = {};
-SHOT_STOPPER_PSRAM_BSS TaskProfilerSnapshot taskProfilerReport;
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS TaskProfilerSnapshot taskProfilerReport;
 TaskProfiler taskProfiler(taskProfilerReport);
 LoopPhaseProfiler loopPhaseProfiler;
 // Shared wall/own-CPU timeline for loop-phase recording, kept at file scope
@@ -757,7 +757,7 @@ LoopPhaseProfiler loopPhaseProfiler;
 // loop body uses. loopPhaseStartedAtUs == 0 means the loop has not run yet,
 // so boot-time publishes skip sub-phase recording.
 static uint32_t loopPhaseStartedAtUs = 0;
-#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+#if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 static uint32_t loopPhaseCpuStartedUs = 0;
 
 // Own-CPU time per phase reads THIS task's kernel-accounted runtime counter
@@ -787,7 +787,7 @@ static uint32_t loopCoreIdleUs() {
 
 static void finishLoopPhase(LoopPhase phase) {
   const uint32_t endedAtUs = micros();
-#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+#if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   const uint32_t cpuEndedUs = loopTaskCpuUs();
   loopPhaseProfiler.record(phase, endedAtUs - loopPhaseStartedAtUs, endedAtUs,
                            cpuEndedUs - loopPhaseCpuStartedUs);
@@ -814,7 +814,7 @@ std::atomic<bool> controlCriticalForLogging{false};
 
 #include "diagnostics/OpenBrewByWeightSerialOutput.inc"
 
-SHOT_STOPPER_PSRAM_BSS DebugEvent serialLogDumpSnapshot[DEBUG_EVENT_CAPACITY];
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS DebugEvent serialLogDumpSnapshot[DEBUG_EVENT_CAPACITY];
 size_t serialLogDumpCount = 0;
 size_t serialLogDumpIndex = 0;
 
@@ -845,9 +845,9 @@ void serviceHealthThresholdAlerts(uint32_t intervalMaxGapMs);
 
 WebhookEvent baseWebhookEvent(WebhookEventType type, uint32_t cycleId,
                               uint32_t occurredAtMs);
-#ifndef SHOT_STOPPER_HOST_TEST
-SHOT_STOPPER_PSRAM_BSS PersistedSettings persistedSettings;
-ShotStopperNetwork networkManager;
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS PersistedSettings persistedSettings;
+OpenBrewByWeightNetwork networkManager;
 
 bool enqueueControllerStartedWebhook() {
   if (!controllerStartedPending) return true;
@@ -876,7 +876,7 @@ void notifyScaleAcquisition(bool held, uint32_t atMs) {
 }
 #endif
 
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
 bool enqueueControllerStartedWebhook() {
   if (!controllerStartedPending) return true;
   if (!hostControllerStartedWebhookSucceeds) return false;
@@ -895,7 +895,7 @@ bool enqueueControllerStartedWebhook() {
 
 // Mirrors each activation-history entry to subscribed webhook receivers.
 void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record) {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   const WebhookConfig config = networkManager.webhookConfig();
   if (!config.enabled || !config.presetChanges) return;
 #endif
@@ -907,7 +907,7 @@ void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record) {
   event.durationMs = static_cast<uint32_t>(record.durationDs) * 100U;
   event.activationType = record.type;
   event.activationHasWallTime = (record.flags & HISTORY_FLAG_WALL_TIME) != 0;
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   hostActivationHistoryEvent = event;
   ++hostActivationHistoryWebhookCount;
 #else
@@ -918,7 +918,7 @@ void enqueueActivationHistoryWebhook(uint32_t id, const HistoryRecord &record) {
 void reportStationIpChange(const char *ip) {
   if (ip == nullptr || ip[0] == '\0') return;
   if (controlCriticalForLogging.load(std::memory_order_acquire)) return;
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   ++hostIpChangedWebhookCount;
   copyCString(hostIpChangedWebhookAddress, sizeof(hostIpChangedWebhookAddress), ip);
 #else
@@ -932,7 +932,7 @@ void reportStationIpChange(const char *ip) {
 // normal control loop is delayed or unavailable.
 esp_timer_handle_t relaySafetyTimer = nullptr;
 esp_timer_handle_t operationalLimitTimer = nullptr;
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 DRAM_ATTR IndependentSafetyTimer independentSafetyTimer;
 #else
 IndependentSafetyTimer independentSafetyTimer;
@@ -1056,10 +1056,10 @@ bool consumeSafeRestartRequest() {
   return safetyEventFlags.consume(SAFETY_EVENT_SAFE_RESTART);
 }
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 // The Arduino core would otherwise cancel the bootloader rollback inside
 // initArduino(), before this firmware has proven it can do anything. Deferring
-// hands that decision to ShotStopperNetwork, which confirms the image only
+// hands that decision to OpenBrewByWeightNetwork, which confirms the image only
 // after it has served its Web UI.
 extern "C" bool verifyRollbackLater() {
   return true;
@@ -1395,7 +1395,7 @@ void requestBookooAlertVolumeRestore() {
   }
 }
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 void serviceBootRecoverySafety();
 #endif
 

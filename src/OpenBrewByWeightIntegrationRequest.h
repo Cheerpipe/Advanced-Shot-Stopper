@@ -6,7 +6,7 @@
 #include <cmath>
 #include <cstring>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 struct IntegrationQuickSettingRequest {
   uint32_t baseRevision = 0;
@@ -92,4 +92,4 @@ inline void rollbackIntegrationStagedRequest(uint32_t &stagedRequestId,
   if (stagedRequestId == rejectedRequestId) stagedRequestId = 0;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

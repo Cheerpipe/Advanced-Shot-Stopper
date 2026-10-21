@@ -4,9 +4,9 @@
 // while exposing aggregate capacity only; keys and values never enter
 // diagnostics.
 
-#if defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 #include "tests/persistence_host_stubs.h"
-#elif !defined(SHOT_STOPPER_HOST_TEST)
+#elif !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #include <Preferences.h>
 #include <esp_err.h>
 #include <esp_partition.h>
@@ -18,7 +18,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr size_t EXPECTED_NVS_PARTITION_BYTES = 0x15000;
 constexpr int32_t HOST_NVS_ERROR = -1;
@@ -93,7 +93,7 @@ inline const char *nvsOperationName(NvsOperation operation) {
 }
 
 inline const char *nvsErrorName(int32_t errorCode) {
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   if (errorCode == HOST_NVS_NOT_ENOUGH_SPACE) return "ESP_ERR_NVS_NOT_ENOUGH_SPACE";
   if (errorCode == 0) return "ESP_OK";
   return "HOST_NVS_FAILURE";
@@ -103,7 +103,7 @@ inline const char *nvsErrorName(int32_t errorCode) {
 }
 
 inline int32_t nvsNotEnoughSpaceErrorCode() {
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   return HOST_NVS_NOT_ENOUGH_SPACE;
 #else
   return ESP_ERR_NVS_NOT_ENOUGH_SPACE;
@@ -125,7 +125,7 @@ inline NvsFailureState &nvsFailureState() {
   return state;
 }
 
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 inline void resetNvsDiagnosticsForHostTest() {
   NvsFailureState &state = nvsFailureState();
   state.sequence.store(0, std::memory_order_relaxed);
@@ -140,7 +140,7 @@ inline void resetNvsDiagnosticsForHostTest() {
 
 inline NvsDiagnosticSnapshot captureNvsDiagnostics() {
   NvsDiagnosticSnapshot snapshot;
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   snapshot.statsValid = true;
   snapshot.partitionBytes = EXPECTED_NVS_PARTITION_BYTES;
 #else
@@ -203,20 +203,20 @@ constexpr size_t nvsBlobRequiredEntries(size_t bytes) {
   return 2U + ((bytes + 31U) / 32U);
 }
 
-#if !defined(SHOT_STOPPER_HOST_TEST) ||                                      \
-    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-class ShotStopperPreferences {
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                      \
+    defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
+class OpenBrewByWeightPreferences {
  public:
-  explicit ShotStopperPreferences(
+  explicit OpenBrewByWeightPreferences(
       NvsSubsystem subsystem = NvsSubsystem::UNKNOWN)
       : subsystem_(subsystem) {}
-  ~ShotStopperPreferences() { end(); }
-  ShotStopperPreferences(const ShotStopperPreferences &) = delete;
-  ShotStopperPreferences &operator=(const ShotStopperPreferences &) = delete;
+  ~OpenBrewByWeightPreferences() { end(); }
+  OpenBrewByWeightPreferences(const OpenBrewByWeightPreferences &) = delete;
+  OpenBrewByWeightPreferences &operator=(const OpenBrewByWeightPreferences &) = delete;
 
   bool begin(const char *name, bool readOnly = false,
              const char *partitionLabel = nullptr) {
-#if defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     (void)partitionLabel;
     const bool opened = preferences_.begin(name, readOnly);
     if (!opened) recordNvsFailure(subsystem_, NvsOperation::OPEN, HOST_NVS_ERROR);
@@ -251,7 +251,7 @@ class ShotStopperPreferences {
   }
 
   void end() {
-#if defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     preferences_.end();
 #else
     if (started_) nvs_close(handle_);
@@ -260,7 +260,7 @@ class ShotStopperPreferences {
   }
 
   size_t getBytesLength(const char *key) {
-#if defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     return preferences_.getBytesLength(key);
 #else
     if (!started_ || key == nullptr) return 0;
@@ -275,7 +275,7 @@ class ShotStopperPreferences {
   }
 
   size_t getBytes(const char *key, void *value, size_t capacity) {
-#if defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     return preferences_.getBytes(key, value, capacity);
 #else
     if (!started_ || key == nullptr || value == nullptr) return 0;
@@ -290,7 +290,7 @@ class ShotStopperPreferences {
   }
 
   bool isKey(const char *key) {
-#if defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     return preferences_.isKey(key);
 #else
     if (!started_ || key == nullptr) return false;
@@ -306,7 +306,7 @@ class ShotStopperPreferences {
 
   size_t putBytes(const char *key, const void *value, size_t length) {
     const size_t required = nvsBlobRequiredEntries(length);
-#if defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     const size_t written = preferences_.putBytes(key, value, length);
     if (written != length) {
       const int32_t error = persistence_host::lastOperationError == 0
@@ -336,7 +336,7 @@ class ShotStopperPreferences {
   }
 
   bool remove(const char *key) {
-#if defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     const bool removed = preferences_.remove(key);
     if (!removed) recordNvsFailure(subsystem_, NvsOperation::REMOVE, HOST_NVS_ERROR);
     return removed;
@@ -361,7 +361,7 @@ class ShotStopperPreferences {
   }
 
   bool clear() {
-#if defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     const bool cleared = preferences_.clear();
     if (!cleared) recordNvsFailure(subsystem_, NvsOperation::CLEAR, HOST_NVS_ERROR);
     return cleared;
@@ -387,7 +387,7 @@ class ShotStopperPreferences {
 
  private:
   NvsSubsystem subsystem_;
-#if defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   Preferences preferences_;
 #else
   nvs_handle_t handle_ = 0;
@@ -397,4 +397,4 @@ class ShotStopperPreferences {
 };
 #endif
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

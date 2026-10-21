@@ -2,7 +2,7 @@
 
 #include "OpenBrewByWeightDomain.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 struct RuntimeSettingsSubscription {
   bool (*changed)(const RuntimeConfig &, const RuntimeConfig &);
@@ -17,4 +17,4 @@ inline void dispatchRuntimeSettingsChanges(
     if (subscriber.changed(before, after)) subscriber.notify(before, after);
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

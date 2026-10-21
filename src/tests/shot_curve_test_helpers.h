@@ -6,7 +6,7 @@
 
 #include "../OpenBrewByWeightShotCurveTypes.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 struct CurvePoint {
   uint16_t atMs = 0;
@@ -22,4 +22,4 @@ inline CurvePoint curvePoint(const ShotCurveRecord &curve, size_t index) {
   return {reader.atMs, reader.weightCg};
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

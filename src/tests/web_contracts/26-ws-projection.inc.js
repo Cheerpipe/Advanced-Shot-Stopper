@@ -18,7 +18,7 @@
 #include "OpenBrewByWeightTaskProfiler.h"
 #include "OpenBrewByWeightScaleProfiler.h"
 #include "OpenBrewByWeightShotCurveTypes.h"
-using namespace shotstopper;
+using namespace openbrewbyweight;
 struct NetworkWorkBuf {
   static constexpr size_t kStatusJson=40960,kJsonItem=28672;
   char statusJson[kStatusJson]{},jsonItem[kJsonItem]{},curveJson[SHOT_CURVE_JSON_CAPACITY]{};
@@ -30,10 +30,10 @@ ${body(networkSource, 'bool jsonScratchAppend(')}
 ${body(networkSource, 'bool __attribute__((format(printf, 2, 3)))\nstatusJsonAppend(')}
 ${body(networkSource, 'bool formatTaskProfilerObject(')}
 ${body(networkSource, 'bool statusJsonAppendScaleProfiler(')}
-struct ShotStopperNetwork {
+struct OpenBrewByWeightNetwork {
   static size_t formatShotStatsRow(NetworkWorkBuf &,const ShotLogRecord &,const ShotCurveRecord *);
 };
-${body(read('network/OpenBrewByWeightHomeStream.inc'), 'size_t ShotStopperNetwork::formatShotStatsRow(')}
+${body(read('network/OpenBrewByWeightHomeStream.inc'), 'size_t OpenBrewByWeightNetwork::formatShotStatsRow(')}
 int main(){
   TaskProfilerSnapshot tasks;
   tasks.rowCount=1;strcpy(tasks.rows[0].name,"worker");tasks.rows[0].stackMinBytes=1024;
@@ -79,10 +79,10 @@ int main(){
   ShotLogRecord record{};record.id=1;record.bootId=9;record.goalWeightDg=400;record.actualWeightCg=4200;
   record.errorCg=200;record.avgFlowCgS=SHOT_LOG_METRIC_MISSING;
   record.firstDropDs=record.tareAtDs=SHOT_LOG_METRIC_MISSING;
-  assert(ShotStopperNetwork::formatShotStatsRow(work,record,nullptr));
+  assert(OpenBrewByWeightNetwork::formatShotStatsRow(work,record,nullptr));
   const std::string row=work.jsonItem;puts(row.c_str());
   record.errorCg=500;
-  assert(ShotStopperNetwork::formatShotStatsRow(work,record,nullptr));
+  assert(OpenBrewByWeightNetwork::formatShotStatsRow(work,record,nullptr));
   assert(row==work.jsonItem);
   // Codec cross-check: each line is a curve's appended points and its curve
   // bodies from three fragment starts, for the browser decoder below.
@@ -119,7 +119,7 @@ int main(){
   const directory = path.resolve(sketchDir, '..', 'temp', 'ai_temp_ws_projection_contract');
   fs.mkdirSync(directory, {recursive: true});
   const binary = path.join(directory, 'projection-' + process.pid);
-  const compiled = spawnSync('c++', ['-std=c++17', '-DSHOT_STOPPER_HOST_TEST',
+  const compiled = spawnSync('c++', ['-std=c++17', '-DOPEN_BREW_BY_WEIGHT_HOST_TEST',
     '-I' + sketchDir, '-x', 'c++', '-', '-o', binary], {input: native, encoding: 'utf8'});
   assert.equal(compiled.status, 0, compiled.stderr);
   const run = spawnSync(binary, [], {encoding: 'utf8'});

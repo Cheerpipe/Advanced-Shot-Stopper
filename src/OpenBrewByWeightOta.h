@@ -25,7 +25,7 @@
 #include <stdint.h>
 #include <atomic>
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 #include <sdkconfig.h>
 // The last line of defence is the bootloader, not this firmware: it is what
 // still recovers an image too broken to run any of the code below. Losing that
@@ -44,7 +44,7 @@
 #endif
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 struct OtaHandleAborter {
   void operator()(uint32_t handle) const;
@@ -248,9 +248,9 @@ struct OtaStreamIo {
   void *context = nullptr;
 };
 
-class ShotStopperOta {
+class OpenBrewByWeightOta {
   public:
-  static ShotStopperOta &instance();
+  static OpenBrewByWeightOta &instance();
 
   // Discovers the slot pair and records whether this boot is awaiting
   // confirmation. Safe to call more than once.
@@ -306,10 +306,10 @@ class ShotStopperOta {
   static const char *stateName(OtaState state);
 
   private:
-#if defined(SHOT_STOPPER_OTA_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_OTA_HOST_TEST)
   friend struct OtaHostTestAccess;
 #endif
-  ShotStopperOta() = default;
+  OpenBrewByWeightOta() = default;
 
   OtaResult finishFailure(OtaResult result);
   bool reconfirmStagedTag();
@@ -376,4 +376,4 @@ class ShotStopperOta {
   static TaskMutex publishedSnapshotMutex_;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -241,7 +241,7 @@ int main(){
 }
 {
   const handshake = network.slice(
-      network.indexOf('esp_err_t ShotStopperNetwork::uiStreamHandshake'),
+      network.indexOf('esp_err_t OpenBrewByWeightNetwork::uiStreamHandshake'),
       network.indexOf('for (auto &session : self.uiStreams_)'));
   if (!handshake.includes('httpd_req_get_hdr_value_str(request, "Host", host, sizeof(host))') ||
       !handshake.includes('uiStreamOriginMatches(origin, host)') ||

@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 struct Received {
   std::vector<std::string> bodies;
   std::vector<uint32_t> attempts;

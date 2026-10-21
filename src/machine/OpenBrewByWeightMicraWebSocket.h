@@ -2,7 +2,7 @@
 #include "OpenBrewByWeightMicraObservation.h"
 #include "OpenBrewByWeightPsram.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 enum class MicraSocketState : uint8_t {
   Disabled, WAITING_FOR_NETWORK, WAITING_FOR_TIME, PAUSED, AUTHENTICATING,
   CONNECTING, STOMP_CONNECTING, WAITING_FOR_DATA, STREAMING, STOPPING,
@@ -37,4 +37,4 @@ struct MicraWebSocketStatus {
   HeapLifecycleAggregate heap = {};
   HeapLifecycleAggregate stopHeap = {};
 };
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

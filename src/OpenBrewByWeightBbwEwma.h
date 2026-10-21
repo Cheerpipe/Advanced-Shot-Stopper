@@ -3,7 +3,7 @@
 #include "OpenBrewByWeightDomain.h"
 #include "OpenBrewByWeightScaleTypes.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 namespace bbwEwma {
 
 inline float clampOffset(float value) {
@@ -89,4 +89,4 @@ struct Evidence {
 static_assert(sizeof(Evidence) <= 352, "BBW candidate RAM budget");
 
 }  // namespace bbwEwma
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

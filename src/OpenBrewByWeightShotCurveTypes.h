@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t SHOT_CURVE_MAGIC = 0x53435256U;  // "SCRV"
 // Schema 3: delta-encoded points with the held bitmap; the "extended" event
@@ -475,4 +475,4 @@ inline bool formatShotCurveJsonBody(char *out, size_t capacity,
          });
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

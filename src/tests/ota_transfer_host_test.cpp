@@ -1,6 +1,6 @@
-#define SHOT_STOPPER_HOST_TEST
-#define SHOT_STOPPER_PERSISTENCE_HOST_TEST
-#define SHOT_STOPPER_OTA_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_OTA_HOST_TEST
 
 #include "../OpenBrewByWeightOta.cpp"
 
@@ -9,10 +9,10 @@
 #include <memory>
 #include <vector>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 struct OtaHostTestAccess {
-  static std::unique_ptr<ShotStopperOta> fresh() {
-    std::unique_ptr<ShotStopperOta> ota(new ShotStopperOta);
+  static std::unique_ptr<OpenBrewByWeightOta> fresh() {
+    std::unique_ptr<OpenBrewByWeightOta> ota(new OpenBrewByWeightOta);
     ota->begin();
     // Host tests must not regenerate the tracked version header to pick a board.
     std::strcpy(ota->runningTag_.arch, "n16r8");
@@ -21,9 +21,9 @@ struct OtaHostTestAccess {
     return ota;
   }
 };
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 const char *const kTransfer = "test-transfer-012345";
 
 #define CHECK(condition) do { if (!(condition)) { \
@@ -118,7 +118,7 @@ void testFragmentedHeaderAndTail() {
   CHECK(ota->commit() == OtaResult::COMMITTED);
   CHECK(ota->createSession(image.identity, hostMillis) == OtaResult::COMMITTED);
   CHECK(ota->discard() == OtaResult::COMMITTED);
-  CHECK(std::string(ShotStopperOta::resultName(OtaResult::COMMITTED)) == "OTA_ALREADY_FLASHED");
+  CHECK(std::string(OpenBrewByWeightOta::resultName(OtaResult::COMMITTED)) == "OTA_ALREADY_FLASHED");
 }
 
 void testInterruptedRangeAndAlignment() {
@@ -244,7 +244,7 @@ void testNewSessionClearsStaleJournal() {
   CHECK(std::string(ota->snapshot().session.transferId) == "second-transfer-0123");
 }
 
-OtaBootStatus service(ShotStopperOta &ota, uint32_t now, bool http = true,
+OtaBootStatus service(OpenBrewByWeightOta &ota, uint32_t now, bool http = true,
                       bool cycle = false, bool relay = false, bool ble = false) {
   return ota.serviceBoot(now, http, cycle, relay, ble, 15000, 180000);
 }
@@ -285,7 +285,7 @@ void testJournalFailureHasDistinctResult() {
   persistence_host::failNextWrite = true;
   CHECK(ota->createSession(image.identity, hostMillis) ==
         OtaResult::JOURNAL_FAILED);
-  CHECK(std::string(ShotStopperOta::resultName(OtaResult::JOURNAL_FAILED)) ==
+  CHECK(std::string(OpenBrewByWeightOta::resultName(OtaResult::JOURNAL_FAILED)) ==
         "OTA_JOURNAL_FAILED");
   const NvsDiagnosticSnapshot nvs = captureNvsDiagnostics();
   CHECK(nvs.lastFailure.present);

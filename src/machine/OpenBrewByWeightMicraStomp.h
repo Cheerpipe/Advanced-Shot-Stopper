@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // One PSRAM-owned accumulator. Network spans never escape the receive callback.
 struct MicraStompFrame {
@@ -152,4 +152,4 @@ class MicraStompDecoder {
   MicraStompFrame frame_;
   char bytes_[kCapacity] = {};
 };
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

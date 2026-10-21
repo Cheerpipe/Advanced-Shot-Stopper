@@ -32,7 +32,7 @@
 
 // Shot Stopper retains scale diagnostics in its bounded WebUI log. Keep the
 // bridge weak so this library remains reusable by standalone IDF projects.
-extern "C" void shotStopperScaleLog(uint8_t severity, const char *message)
+extern "C" void openBrewByWeightScaleLog(uint8_t severity, const char *message)
     __attribute__((weak));
 
 namespace {
@@ -61,8 +61,8 @@ void scaleLogV(uint8_t severity, bool info, const char *format, va_list args) {
   }
   char message[128] = {};
   vsnprintf(message, sizeof(message), format, args);
-  if (shotStopperScaleLog != nullptr) {
-    shotStopperScaleLog(severity, message);
+  if (openBrewByWeightScaleLog != nullptr) {
+    openBrewByWeightScaleLog(severity, message);
   } else if (severity == kScaleLogWarningSeverity) {
     ESP_LOGW(kTag, "%s", message);
   } else if (info) {
@@ -365,7 +365,7 @@ class NimbleScaleClient {
       scaleLogError("scan", lastRawStatus_, "protocol capacity exceeded");
       return false;
     }
-    if (!shotStopperBleRuntimeReady()) {
+    if (!openBrewByWeightBleRuntimeReady()) {
       lastReason_ = ScaleDisconnectReason::SCAN_START_FAILED;
       lastRawStatus_ = BLE_HS_ENOTSYNCED;
       scaleLogError("scan", lastRawStatus_, "NimBLE not ready");
@@ -1070,7 +1070,7 @@ class NimbleScaleClient {
     if (event == nullptr) {
       return 0;
     }
-    const uint32_t runtimeGeneration = shotStopperBleRuntimeSyncGeneration();
+    const uint32_t runtimeGeneration = openBrewByWeightBleRuntimeSyncGeneration();
     switch (event->type) {
       case BLE_GAP_EVENT_DISC:
         if (callbackMatches(operationId, CallbackDomain::Scan)) {
@@ -1674,7 +1674,7 @@ class NimbleScaleClient {
     }
     beginGeneration();
     lifecycleActive_ = true;
-    syncGeneration_ = shotStopperBleRuntimeSyncGeneration();
+    syncGeneration_ = openBrewByWeightBleRuntimeSyncGeneration();
     clearScanData();
     portENTER_CRITICAL(&mux_);
     timing_ = {};
@@ -1689,7 +1689,7 @@ class NimbleScaleClient {
     params.filter_policy = 0;
     params.limited = 0;
     const int rc = submitRadioProcedure(false, [&] {
-      return ble_gap_disc(shotStopperBleRuntimeOwnAddressType(), BLE_HS_FOREVER,
+      return ble_gap_disc(openBrewByWeightBleRuntimeOwnAddressType(), BLE_HS_FOREVER,
                           &params, gapCallback, callbackArg(scanOperationId));
     });
     if (rc != 0) {
@@ -1719,14 +1719,14 @@ class NimbleScaleClient {
 
   void service() {
     const uint32_t runtimeGeneration =
-        shotStopperBleRuntimeSyncGeneration();
+        openBrewByWeightBleRuntimeSyncGeneration();
     if (syncGeneration_ != 0 && syncGeneration_ != runtimeGeneration) {
-      const ShotStopperBleHealth health = shotStopperBleRuntimeHealth();
+      const OpenBrewByWeightBleHealth health = openBrewByWeightBleRuntimeHealth();
       finishLink(false, ScaleDisconnectReason::HOST_RESET,
                  health.lastResetReason);
       syncGeneration_ = runtimeGeneration;
     }
-    if (!shotStopperBleRuntimeReady() &&
+    if (!openBrewByWeightBleRuntimeReady() &&
         (state_ != State::Idle || linkCleanupPending())) {
       finishLink(false, ScaleDisconnectReason::HOST_RESET, BLE_HS_ENOTSYNCED);
       return;
@@ -2041,7 +2041,7 @@ class NimbleScaleClient {
     const uint32_t linkOperationId = beginOperation(CallbackDomain::Link);
     ++connectAttemptsTotal_;
     const int rc = submitRadioProcedure(false, [&] {
-      return ble_gap_connect(shotStopperBleRuntimeOwnAddressType(),
+      return ble_gap_connect(openBrewByWeightBleRuntimeOwnAddressType(),
                              &selectedAddress_, BLE_CONNECT_TIMEOUT_MS, nullptr,
                              gapCallback, callbackArg(linkOperationId));
     });
@@ -2325,8 +2325,8 @@ class NimbleScaleClient {
         portEXIT_CRITICAL(&mux_);
         const uint32_t elapsed = elapsedMs(startedAt);
         if (completed || interrupted || elapsed >= BLE_OPERATION_TIMEOUT_MS ||
-            !shotStopperBleRuntimeReady() ||
-            syncGeneration_ != shotStopperBleRuntimeSyncGeneration()) break;
+            !openBrewByWeightBleRuntimeReady() ||
+            syncGeneration_ != openBrewByWeightBleRuntimeSyncGeneration()) break;
         // Only the operation predicate completes a write. A delayed signal
         // from an older callback cannot shorten or extend its deadline.
         const uint32_t remaining = BLE_OPERATION_TIMEOUT_MS - elapsed;
@@ -2626,11 +2626,11 @@ class NimbleScaleClient {
     if (operation == 0) return false;
     // Keep the sole cleanup slot until GAP acknowledges it. No new scan/link
     // may overwrite it, even if a host callback outlives the quiet interval.
-    if (terminate && !communicationSilenced() && shotStopperBleRuntimeReady() &&
-        runtimeGeneration == shotStopperBleRuntimeSyncGeneration()) {
+    if (terminate && !communicationSilenced() && openBrewByWeightBleRuntimeReady() &&
+        runtimeGeneration == openBrewByWeightBleRuntimeSyncGeneration()) {
       const int rc = submitRadioProcedure(false, [&] {
-        if (runtimeGeneration != shotStopperBleRuntimeSyncGeneration() ||
-            !shotStopperBleRuntimeReady()) return BLE_HS_ENOTSYNCED;
+        if (runtimeGeneration != openBrewByWeightBleRuntimeSyncGeneration() ||
+            !openBrewByWeightBleRuntimeReady()) return BLE_HS_ENOTSYNCED;
         return ble_gap_terminate(handle, BLE_ERR_REM_USER_CONN_TERM);
       });
       portENTER_CRITICAL(&mux_);

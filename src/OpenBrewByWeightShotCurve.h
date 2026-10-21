@@ -5,7 +5,7 @@
 #include "OpenBrewByWeightDualSlotFlashLog.h"
 #include "OpenBrewByWeightShotCurveTypes.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr size_t SHOT_CURVE_BLOCK_BYTES = 8192;
 constexpr size_t SHOT_CURVE_BLOCK_COUNT = SHOT_CURVE_CAPACITY + 1U;
@@ -40,7 +40,7 @@ using ShotCurvePersistImage = BasicShotCurveLog<SHOT_CURVE_PERSIST_BATCH>;
 // Live log and worker image instances share one emulated partition.
 class ShotCurveHostStorage {
  public:
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   static void resetHostStorage() {
     memset(hostFlash_, 0xff, sizeof(hostFlash_));
     hostSaveSucceeds_ = true;
@@ -453,7 +453,7 @@ class BasicShotCurveLog : public ShotCurveHostStorage {
     return validShotCurveRecord(r);
   }
 
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   bool read(size_t offset, void *out, size_t bytes) const {
     if (offset + bytes > sizeof(hostFlash_)) return false;
     memcpy(out, hostFlash_ + offset, bytes);
@@ -537,4 +537,4 @@ class BasicShotCurveLog : public ShotCurveHostStorage {
   template <size_t> friend class BasicShotCurveLog;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

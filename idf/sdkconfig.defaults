@@ -17,13 +17,13 @@ CONFIG_FREERTOS_IN_IRAM=y
 # Firmware reads core pins via xTaskGetCoreID regardless.
 CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID=y
 # Product defaults (main/Kconfig.projbuild). Override with
-# SHOT_STOPPER_EXTRA_FLAGS=-DSHOT_STOPPER_… when needed.
+# OPENBREWBYWEIGHT_EXTRA_FLAGS=-DOPEN_BREW_BY_WEIGHT_… when needed.
 # Remote machine control is opt-in (Kconfig default n). Do not set =y here.
 # Local menuconfig choices persist until selected defaults change or the build
 # is run with --force-sdkconfig-regenerate.
-# CONFIG_SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL is not set
+# CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL is not set
 # Buzzer support follows the resolved hardware profile (speaker presence);
-# do not force SHOT_STOPPER_ENABLE_BUZZER here.
+# do not force OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER here.
 
 # Shot Stopper runs at 80 MHz (setup() calls setCpuFrequencyMhz(80)).
 # Arduino-CLI boots at 240 (F_CPU) until that line; IDF's S3 default is 160.
@@ -141,10 +141,10 @@ CONFIG_LOG_MAXIMUM_LEVEL=4
 
 # USB Serial/JTAG console stays off so the PHY is not started before setup().
 # App CDC starts only when GPIO4 is jumpered to GND at boot (HWCDC begin),
-# unless compiled with -DSHOT_STOPPER_ENABLE_JTAG=1 (sdkconfig.defaults.jtag).
+# unless compiled with -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 (sdkconfig.defaults.jtag).
 # ROM USB download (BOOT+RST) still works. The build refreshes sdkconfig
 # when the JTAG flag changes.
-CONFIG_SHOT_STOPPER_ENABLE_JTAG=0
+CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0
 CONFIG_ESP_CONSOLE_NONE=y
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 
@@ -176,7 +176,7 @@ CONFIG_ARDUINO_SELECTIVE_WiFi=y
 # Captive-portal DNS responder for the SoftAP onboarding flow.
 CONFIG_ARDUINO_SELECTIVE_AsyncUDP=y
 CONFIG_ARDUINO_SELECTIVE_DNSServer=y
-# SoftAP+HTTP provisioning is implemented in ShotStopperNetwork; WiFiProv /
+# SoftAP+HTTP provisioning is implemented in OpenBrewByWeightNetwork; WiFiProv /
 # network_provisioning is unused and only costs flash + init RAM.
 # CONFIG_ARDUINO_SELECTIVE_WiFiProv is not set
 # CONFIG_ARDUINO_SELECTIVE_ESP_SR is not set

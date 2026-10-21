@@ -1,4 +1,4 @@
-#define SHOT_STOPPER_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
 
 #include "../OpenBrewByWeightOta.h"
 #include "../OpenBrewByWeightOtaImage.h"
@@ -12,13 +12,13 @@
 
 namespace {
 
-using shotstopper::OtaImageHeaderResult;
-using shotstopper::OtaImageTag;
-using shotstopper::OtaImageTagScanner;
-using shotstopper::OtaPendingVerifyAction;
-using shotstopper::decideOtaPendingVerify;
-using shotstopper::parseOtaImageTagBody;
-using shotstopper::validateOtaImageHeader;
+using openbrewbyweight::OtaImageHeaderResult;
+using openbrewbyweight::OtaImageTag;
+using openbrewbyweight::OtaImageTagScanner;
+using openbrewbyweight::OtaPendingVerifyAction;
+using openbrewbyweight::decideOtaPendingVerify;
+using openbrewbyweight::parseOtaImageTagBody;
+using openbrewbyweight::validateOtaImageHeader;
 
 constexpr uint32_t kConfirmMinMs = 15000;
 constexpr uint32_t kConfirmDeadlineMs = 180000;
@@ -38,8 +38,8 @@ int failures = 0;
 // The literal is assembled at run time so this test file cannot itself be
 // mistaken for a tagged image by a future grep-based check.
 std::string tagPrefix() {
-  char buffer[shotstopper::OTA_TAG_PREFIX_CAPACITY] = {};
-  shotstopper::otaTagPrefix(buffer, sizeof(buffer));
+  char buffer[openbrewbyweight::OTA_TAG_PREFIX_CAPACITY] = {};
+  openbrewbyweight::otaTagPrefix(buffer, sizeof(buffer));
   return std::string(buffer);
 }
 
@@ -51,15 +51,15 @@ std::string makeTag(const std::string &arch, const std::string &version,
 }
 
 std::vector<uint8_t> makeValidHeader() {
-  std::vector<uint8_t> image(shotstopper::OTA_IMAGE_PREFIX_BYTES, 0);
-  image[0] = shotstopper::OTA_ESP_IMAGE_MAGIC;
+  std::vector<uint8_t> image(openbrewbyweight::OTA_IMAGE_PREFIX_BYTES, 0);
+  image[0] = openbrewbyweight::OTA_ESP_IMAGE_MAGIC;
   image[12] = 0x09;  // ESP_CHIP_ID_ESP32S3, little endian
   image[13] = 0x00;
-  const uint32_t magic = shotstopper::OTA_APP_DESC_MAGIC;
-  std::memcpy(image.data() + shotstopper::OTA_APP_DESC_OFFSET, &magic,
+  const uint32_t magic = openbrewbyweight::OTA_APP_DESC_MAGIC;
+  std::memcpy(image.data() + openbrewbyweight::OTA_APP_DESC_OFFSET, &magic,
               sizeof(magic));
-  const char *name = shotstopper::OTA_EXPECTED_PROJECT_NAME;
-  std::memcpy(image.data() + shotstopper::OTA_APP_DESC_PROJECT_NAME_OFFSET,
+  const char *name = openbrewbyweight::OTA_EXPECTED_PROJECT_NAME;
+  std::memcpy(image.data() + openbrewbyweight::OTA_APP_DESC_PROJECT_NAME_OFFSET,
               name, std::strlen(name));
   return image;
 }
@@ -95,7 +95,7 @@ void testHeaderRejectsOtherChips() {
 
 void testHeaderRejectsMissingAppDescriptor() {
   std::vector<uint8_t> image = makeValidHeader();
-  image[shotstopper::OTA_APP_DESC_OFFSET] ^= 0xFF;
+  image[openbrewbyweight::OTA_APP_DESC_OFFSET] ^= 0xFF;
   CHECK(validateOtaImageHeader(image.data(), image.size()) ==
         OtaImageHeaderResult::BAD_APP_DESC);
 }
@@ -103,9 +103,9 @@ void testHeaderRejectsMissingAppDescriptor() {
 void testHeaderRejectsForeignProject() {
   std::vector<uint8_t> image = makeValidHeader();
   const char *other = "shotstopper";
-  std::memset(image.data() + shotstopper::OTA_APP_DESC_PROJECT_NAME_OFFSET, 0,
-              shotstopper::OTA_APP_DESC_NAME_BYTES);
-  std::memcpy(image.data() + shotstopper::OTA_APP_DESC_PROJECT_NAME_OFFSET,
+  std::memset(image.data() + openbrewbyweight::OTA_APP_DESC_PROJECT_NAME_OFFSET, 0,
+              openbrewbyweight::OTA_APP_DESC_NAME_BYTES);
+  std::memcpy(image.data() + openbrewbyweight::OTA_APP_DESC_PROJECT_NAME_OFFSET,
               other, std::strlen(other));
   CHECK(validateOtaImageHeader(image.data(), image.size()) ==
         OtaImageHeaderResult::WRONG_PROJECT);
@@ -113,10 +113,10 @@ void testHeaderRejectsForeignProject() {
 
 void testHeaderAcceptsIdfProjectName() {
   std::vector<uint8_t> image = makeValidHeader();
-  const char *idfName = shotstopper::OTA_EXPECTED_PROJECT_NAME_IDF;
-  std::memset(image.data() + shotstopper::OTA_APP_DESC_PROJECT_NAME_OFFSET, 0,
-              shotstopper::OTA_APP_DESC_NAME_BYTES);
-  std::memcpy(image.data() + shotstopper::OTA_APP_DESC_PROJECT_NAME_OFFSET,
+  const char *idfName = openbrewbyweight::OTA_EXPECTED_PROJECT_NAME_IDF;
+  std::memset(image.data() + openbrewbyweight::OTA_APP_DESC_PROJECT_NAME_OFFSET, 0,
+              openbrewbyweight::OTA_APP_DESC_NAME_BYTES);
+  std::memcpy(image.data() + openbrewbyweight::OTA_APP_DESC_PROJECT_NAME_OFFSET,
               idfName, std::strlen(idfName));
   CHECK(validateOtaImageHeader(image.data(), image.size()) ==
         OtaImageHeaderResult::OK);
@@ -178,11 +178,11 @@ void testTagBodyRejectsMalformedInput() {
 }
 
 void testArchUsability() {
-  CHECK(shotstopper::otaArchIsUsable("n16r8"));
-  CHECK(!shotstopper::otaArchIsUsable("unknown"));
-  CHECK(!shotstopper::otaArchIsUsable(""));
-  CHECK(!shotstopper::otaArchIsUsable(nullptr));
-  CHECK(!shotstopper::otaArchIsUsable("N16R8"));
+  CHECK(openbrewbyweight::otaArchIsUsable("n16r8"));
+  CHECK(!openbrewbyweight::otaArchIsUsable("unknown"));
+  CHECK(!openbrewbyweight::otaArchIsUsable(""));
+  CHECK(!openbrewbyweight::otaArchIsUsable(nullptr));
+  CHECK(!openbrewbyweight::otaArchIsUsable("N16R8"));
 }
 
 std::vector<uint8_t> bytesOf(const std::string &text) {
@@ -316,7 +316,7 @@ void testScannerIgnoresOversizedCandidate() {
   // alignment where the overflow reset landed exactly on the leading 'S' of
   // the next tag and hid the miss for every other length.
   const std::string valid = makeTag("n16r8", "1.0.0+abcdef0", "16777216");
-  for (size_t filler = 0; filler <= shotstopper::OTA_TAG_BODY_CAPACITY + 8;
+  for (size_t filler = 0; filler <= openbrewbyweight::OTA_TAG_BODY_CAPACITY + 8;
        ++filler) {
     const std::string stream = tagPrefix() + std::string(filler, 'z') + valid;
     OtaImageTag tag;
@@ -433,44 +433,44 @@ void testOtaJournalUsesBoundedCheckpoints() {
   constexpr uint32_t imageBytes = 3U * 1024U * 1024U;
   uint32_t persisted = 0;
   uint32_t writes = 1;  // Empty session journal written by createSession().
-  for (uint32_t received = shotstopper::OTA_TRANSFER_CHUNK_BYTES;
+  for (uint32_t received = openbrewbyweight::OTA_TRANSFER_CHUNK_BYTES;
        received <= imageBytes;
-       received += shotstopper::OTA_TRANSFER_CHUNK_BYTES) {
-    if (shotstopper::otaJournalCheckpointDue(received, persisted,
+       received += openbrewbyweight::OTA_TRANSFER_CHUNK_BYTES) {
+    if (openbrewbyweight::otaJournalCheckpointDue(received, persisted,
                                               imageBytes)) {
       persisted = received;
       ++writes;
     }
   }
-  CHECK(persisted == imageBytes - shotstopper::OTA_JOURNAL_CHECKPOINT_BYTES);
+  CHECK(persisted == imageBytes - openbrewbyweight::OTA_JOURNAL_CHECKPOINT_BYTES);
   CHECK(writes == 6U);
-  CHECK(writes == shotstopper::otaJournalMaxDurableWrites(imageBytes));
-  CHECK(writes < imageBytes / shotstopper::OTA_TRANSFER_CHUNK_BYTES);
+  CHECK(writes == openbrewbyweight::otaJournalMaxDurableWrites(imageBytes));
+  CHECK(writes < imageBytes / openbrewbyweight::OTA_TRANSFER_CHUNK_BYTES);
 }
 
 void testOtaJournalBudgetCoversEverySupportedSlot() {
   constexpr uint32_t n16r8SlotBytes = 0x300000U;
-  CHECK(shotstopper::otaJournalMaxDurableWrites(0) == 0U);
-  CHECK(shotstopper::otaJournalMaxDurableWrites(1) == 1U);
-  CHECK(shotstopper::otaJournalMaxDurableWrites(n16r8SlotBytes) == 6U);
-  CHECK(shotstopper::OTA_SUPPORTED_MAX_SLOT_BYTES == n16r8SlotBytes);
-  CHECK(shotstopper::OTA_JOURNAL_MAX_WRITES_PER_SESSION == 6U);
-  CHECK(shotstopper::OTA_JOURNAL_ERASE_KEYS_PER_SESSION == 2U);
+  CHECK(openbrewbyweight::otaJournalMaxDurableWrites(0) == 0U);
+  CHECK(openbrewbyweight::otaJournalMaxDurableWrites(1) == 1U);
+  CHECK(openbrewbyweight::otaJournalMaxDurableWrites(n16r8SlotBytes) == 6U);
+  CHECK(openbrewbyweight::OTA_SUPPORTED_MAX_SLOT_BYTES == n16r8SlotBytes);
+  CHECK(openbrewbyweight::OTA_JOURNAL_MAX_WRITES_PER_SESSION == 6U);
+  CHECK(openbrewbyweight::OTA_JOURNAL_ERASE_KEYS_PER_SESSION == 2U);
 }
 
 void testOtaJournalCheckpointsIrregularRangesAndRejectsRegression() {
-  const uint32_t checkpoint = shotstopper::OTA_JOURNAL_CHECKPOINT_BYTES;
-  CHECK(!shotstopper::otaJournalCheckpointDue(checkpoint - 1U, 0,
+  const uint32_t checkpoint = openbrewbyweight::OTA_JOURNAL_CHECKPOINT_BYTES;
+  CHECK(!openbrewbyweight::otaJournalCheckpointDue(checkpoint - 1U, 0,
                                                checkpoint * 3U));
-  CHECK(shotstopper::otaJournalCheckpointDue(checkpoint + 123U, 0,
+  CHECK(openbrewbyweight::otaJournalCheckpointDue(checkpoint + 123U, 0,
                                               checkpoint * 3U));
-  CHECK(!shotstopper::otaJournalCheckpointDue(checkpoint + 122U,
+  CHECK(!openbrewbyweight::otaJournalCheckpointDue(checkpoint + 122U,
                                                checkpoint + 123U,
                                                checkpoint * 3U));
   // Completion is deliberately not journaled: a reboot during esp_ota_end()
   // must replay from the prior checkpoint instead of restoring a session with
   // no bytes left to PATCH and no staged image to commit.
-  CHECK(!shotstopper::otaJournalCheckpointDue(checkpoint * 3U,
+  CHECK(!openbrewbyweight::otaJournalCheckpointDue(checkpoint * 3U,
                                                checkpoint * 2U + 1U,
                                                checkpoint * 3U));
 }

@@ -2,13 +2,13 @@
 
 #include "OpenBrewByWeightDomain.h"
 
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 enum class TimeSyncState : uint8_t {
   OFF = 0,
@@ -77,8 +77,8 @@ inline uint32_t monotonicRemainingMs(uint32_t deadlineMs, uint32_t nowMs) {
 class WallClock {
  public:
   void reset(TimeSyncState state = TimeSyncState::OFF) {
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portENTER_CRITICAL(&mux_);
 #endif
     state_ = state;
@@ -89,33 +89,33 @@ class WallClock {
     consecutiveFailures_ = 0;
     activeServer_[0] = '\0';
     pendingSync_ = false;
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portEXIT_CRITICAL(&mux_);
 #endif
   }
 
   void queueSyncFromCallback(uint32_t utcSec) {
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portENTER_CRITICAL(&mux_);
 #endif
     pendingUtcSec_ = utcSec;
     pendingSync_ = true;
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portEXIT_CRITICAL(&mux_);
 #endif
   }
 
   bool applyPendingSync(uint32_t monotonicMs) {
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portENTER_CRITICAL(&mux_);
 #endif
     if (!pendingSync_ || pendingUtcSec_ < 1000000000U) {
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
       portEXIT_CRITICAL(&mux_);
 #endif
       return false;
@@ -127,16 +127,16 @@ class WallClock {
     consecutiveFailures_ = 0;
     nextRetryAtMs_ = 0;
     pendingSync_ = false;
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portEXIT_CRITICAL(&mux_);
 #endif
     return true;
   }
 
   void setSyncing(const char *server, uint32_t monotonicMs) {
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portENTER_CRITICAL(&mux_);
 #endif
     state_ = TimeSyncState::SYNCING;
@@ -144,8 +144,8 @@ class WallClock {
       copyCString(activeServer_, sizeof(activeServer_), server);
     }
     nextRetryAtMs_ = 0;
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portEXIT_CRITICAL(&mux_);
 #endif
     (void)monotonicMs;
@@ -154,8 +154,8 @@ class WallClock {
   // Abort an in-flight SNTP attempt without counting a failure. Restores
   // SYNCED when a prior anchor exists; otherwise OFF.
   void cancelSyncing() {
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portENTER_CRITICAL(&mux_);
 #endif
     pendingSync_ = false;
@@ -165,27 +165,27 @@ class WallClock {
     } else {
       state_ = TimeSyncState::OFF;
     }
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portEXIT_CRITICAL(&mux_);
 #endif
   }
 
   void cancelPendingSync() {
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portENTER_CRITICAL(&mux_);
 #endif
     pendingSync_ = false;
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portEXIT_CRITICAL(&mux_);
 #endif
   }
 
   void markFailed(uint32_t monotonicMs, uint8_t maxConsecutiveFailures) {
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portENTER_CRITICAL(&mux_);
 #endif
     state_ = TimeSyncState::FAILED;
@@ -194,42 +194,42 @@ class WallClock {
     }
     const uint32_t delayMs = ntpRetryDelayMs(consecutiveFailures_);
     nextRetryAtMs_ = monotonicMs + delayMs;
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portEXIT_CRITICAL(&mux_);
 #endif
   }
 
   void markDisabled() {
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portENTER_CRITICAL(&mux_);
 #endif
     state_ = TimeSyncState::OFF;
     pendingSync_ = false;
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portEXIT_CRITICAL(&mux_);
 #endif
   }
 
   bool synced() const {
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portENTER_CRITICAL(&mux_);
 #endif
     const bool ready = state_ == TimeSyncState::SYNCED &&
                        anchorUtcSec_ >= 1000000000U;
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portEXIT_CRITICAL(&mux_);
 #endif
     return ready;
   }
 
   uint32_t nowUtcSec(uint32_t monotonicMs) const {
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portENTER_CRITICAL(&mux_);
 #endif
     uint32_t utcSec = 0;
@@ -237,8 +237,8 @@ class WallClock {
       utcSec = anchorUtcSec_ +
                monotonicElapsedMs(monotonicMs, anchorMonotonicMs_) / 1000U;
     }
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portEXIT_CRITICAL(&mux_);
 #endif
     return utcSec;
@@ -246,8 +246,8 @@ class WallClock {
 
   TimeStatusSnapshot snapshot(uint32_t monotonicMs) const {
     TimeStatusSnapshot output = {};
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portENTER_CRITICAL(&mux_);
 #endif
     output.state = state_;
@@ -267,16 +267,16 @@ class WallClock {
       output.nextRetryInMs = monotonicRemainingMs(nextRetryAtMs_, monotonicMs);
     }
     copyCString(output.activeServer, sizeof(output.activeServer), activeServer_);
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
     portEXIT_CRITICAL(&mux_);
 #endif
     return output;
   }
 
  private:
-#if !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   mutable portMUX_TYPE mux_ = portMUX_INITIALIZER_UNLOCKED;
 #endif
   TimeSyncState state_ = TimeSyncState::OFF;
@@ -297,11 +297,11 @@ inline bool wallClockNeedsActivityNtpSync(const WallClock &clock,
          snap.state == TimeSyncState::FAILED;
 }
 
-#if defined(SHOT_STOPPER_HOST_TEST) || \
-    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || \
+    defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 inline WallClock g_wallClock;
 #else
 extern WallClock g_wallClock;
 #endif
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

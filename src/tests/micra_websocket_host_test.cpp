@@ -24,10 +24,10 @@ static bool callback = false, locked = false;
 static unsigned stops = 0, destroys = 0;
 static std::string transmitted;
 static std::string disconnectLog;
-void serialTraceCategoryf(shotstopper::LogLevel level, shotstopper::DebugCategory category,
+void serialTraceCategoryf(openbrewbyweight::LogLevel level, openbrewbyweight::DebugCategory category,
                           const char *format, ...) {
-  assert(!locked && level == shotstopper::LogLevel::WARNING &&
-         category == shotstopper::DebugCategory::NETWORK);
+  assert(!locked && level == openbrewbyweight::LogLevel::WARNING &&
+         category == openbrewbyweight::DebugCategory::NETWORK);
   char line[160];
   va_list args;
   va_start(args, format);
@@ -43,21 +43,21 @@ static std::string lastMuxWaitDetail;
 static int muxObserverDepth = 0;
 static int muxBurnMicrosCalls = 0;
 static int muxWaitDepthAtEvent = -1;
-void addDebugEvent(shotstopper::DebugCategory category,
-                   shotstopper::DebugCode code, int32_t argument1,
+void addDebugEvent(openbrewbyweight::DebugCategory category,
+                   openbrewbyweight::DebugCode code, int32_t argument1,
                    int32_t argument2) {
-  assert(!locked && category == shotstopper::DebugCategory::NETWORK);
-  if (code == shotstopper::DebugCode::MACHINE_MUX_WAIT) {
+  assert(!locked && category == openbrewbyweight::DebugCategory::NETWORK);
+  if (code == openbrewbyweight::DebugCode::MACHINE_MUX_WAIT) {
     ++muxWaitEvents;
     lastMuxWaitArgs[0] = argument1;
     lastMuxWaitArgs[1] = argument2;
   }
 }
-void addDebugEventDetail(shotstopper::DebugCategory category,
-                         shotstopper::DebugCode code, int32_t argument1,
+void addDebugEventDetail(openbrewbyweight::DebugCategory category,
+                         openbrewbyweight::DebugCode code, int32_t argument1,
                          int32_t argument2, const char *detail) {
-  assert(!locked && category == shotstopper::DebugCategory::NETWORK);
-  if (code == shotstopper::DebugCode::MACHINE_MUX_WAIT) {
+  assert(!locked && category == openbrewbyweight::DebugCategory::NETWORK);
+  if (code == openbrewbyweight::DebugCode::MACHINE_MUX_WAIT) {
     ++muxWaitEvents;
     lastMuxWaitArgs[0] = argument1;
     lastMuxWaitArgs[1] = argument2;
@@ -101,7 +101,7 @@ void *esp_websocket_client_init(const esp_websocket_client_config_t *config) {
   assert(config->task_core_id == 0 && config->task_prio == 1 && config->buffer_size == 4096);
   assert(config->network_timeout_ms == 10000);
   ++initCalls;
-  if (inhibitAfterInit) shotstopper::outboundBleQuiet.store(true);
+  if (inhibitAfterInit) openbrewbyweight::outboundBleQuiet.store(true);
   return initFails ? nullptr : reinterpret_cast<void *>(1);
 }
 int esp_websocket_register_events(void *, int, Handler, void *) { assert(!locked); return ESP_OK; }
@@ -120,26 +120,26 @@ int esp_websocket_client_send_text(void *, const char *bytes, int count, int) {
   return sendLimit < 0 ? count : std::min(sendLimit, count);
 }
 #include "micra_websocket_work.inc"
-namespace shotstopper {
+namespace openbrewbyweight {
 void secureWipe(void *bytes, size_t count) { std::memset(bytes, 0, count); }
-bool ShotStopperMicraService::networkEligible(LineaMicraError &error, bool) const {
+bool OpenBrewByWeightMicraService::networkEligible(LineaMicraError &error, bool) const {
   error = LineaMicraError::NONE;
   return true;
 }
-LineaMicraError ShotStopperMicraService::classifyFailure() const { return LineaMicraError::TRANSPORT; }
-bool ShotStopperMicraService::ensureWorkBuffer() {
+LineaMicraError OpenBrewByWeightMicraService::classifyFailure() const { return LineaMicraError::TRANSPORT; }
+bool OpenBrewByWeightMicraService::ensureWorkBuffer() {
   if (!work_) work_ = new WorkBuffer;
   return true;
 }
-bool ShotStopperMicraService::ensureSession(LineaMicraPersistedSettings &, bool, bool *) {
+bool OpenBrewByWeightMicraService::ensureSession(LineaMicraPersistedSettings &, bool, bool *) {
   now += sessionDelayMs;
   if (inhibitAfterSession) outboundBleQuiet.store(true);
   std::strcpy(work_->accessToken, "synthetic-token");
   work_->accessTokenIssuedAtMs = now;
   return !sessionFails;
 }
-void ShotStopperMicraService::clearSession() { work_->accessToken[0] = '\0'; }
-bool ShotStopperMicraService::applySignedHeaders(const LineaMicraPersistedSettings &, char *headers, size_t) {
+void OpenBrewByWeightMicraService::clearSession() { work_->accessToken[0] = '\0'; }
+bool OpenBrewByWeightMicraService::applySignedHeaders(const LineaMicraPersistedSettings &, char *headers, size_t) {
   std::strcpy(headers, "synthetic-signed-upgrade\r\n");
   return true;
 }
@@ -149,7 +149,7 @@ struct MicraWebSocketTest {
   static void setupAdmissionAndBackoff() {
     for (unsigned gate = 0; gate < 4; ++gate) {
       now = 1000;
-      ShotStopperMicraService service;
+      OpenBrewByWeightMicraService service;
       service.config_.accountConfigured = true;
       std::strcpy(service.config_.selectedSerial, "synthetic");
       service.staConnected_.store(true);
@@ -180,7 +180,7 @@ struct MicraWebSocketTest {
       delete service.work_;
     }
     for (unsigned phase = 0; phase < 2; ++phase) {
-      ShotStopperMicraService service;
+      OpenBrewByWeightMicraService service;
       service.config_.accountConfigured = true;
       service.staConnected_.store(true);
       inhibitAfterSession = phase == 0;
@@ -196,7 +196,7 @@ struct MicraWebSocketTest {
     }
     for (unsigned phase = 0; phase < 3; ++phase) {
       now = UINT32_MAX - 2000ULL;  // Cleanup and backoff cross millis rollover.
-      ShotStopperMicraService service;
+      OpenBrewByWeightMicraService service;
       service.config_.accountConfigured = true;
       service.staConnected_.store(true);
       if (phase == 0) {
@@ -228,13 +228,13 @@ struct MicraWebSocketTest {
   }
   static void pongPublicationRace() {
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
     service.serviceWebSocket();
     subscribe(service);
-    static ShotStopperMicraService *subject;
+    static OpenBrewByWeightMicraService *subject;
     static unsigned acquisitions;
     subject = &service;
     acquisitions = 0;
@@ -254,7 +254,7 @@ struct MicraWebSocketTest {
   }
   static void renewalDeferredWhileParked() {
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -298,7 +298,7 @@ struct MicraWebSocketTest {
   }
   static void slowHandshakeIsNotAReconnect() {
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -314,7 +314,7 @@ struct MicraWebSocketTest {
   }
   static void connectionClassification() {
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -414,7 +414,7 @@ struct MicraWebSocketTest {
   static void lifecycleRegressions() {
     TaskMutex::hostObserver = [](const TaskMutex *, bool acquired) { locked = acquired; };
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -486,7 +486,7 @@ struct MicraWebSocketTest {
     service.work_ = nullptr;
     TaskMutex::hostObserver = nullptr;
   }
-  static void deliver(ShotStopperMicraService &service, const std::string &bytes,
+  static void deliver(OpenBrewByWeightMicraService &service, const std::string &bytes,
                       bool fin = true, int opcode = 1) {
     esp_websocket_event_data_t message;
     message.client = service.websocket_->client;
@@ -498,11 +498,11 @@ struct MicraWebSocketTest {
     service.websocketEvent(&service, nullptr, WEBSOCKET_EVENT_DATA, &message);
     callback = false;
   }
-  static std::string observation(ShotStopperMicraService &service, const char *body) {
+  static std::string observation(OpenBrewByWeightMicraService &service, const char *body) {
     return std::string("MESSAGE\ndestination:") + service.websocket_->destination +
         "\nsubscription:" + service.websocket_->subscription + "\n\n" + body + std::string(1, '\0');
   }
-  static void subscribe(ShotStopperMicraService &service) {
+  static void subscribe(OpenBrewByWeightMicraService &service) {
     esp_websocket_event_data_t message;
     message.client = service.websocket_->client;
     callback = true;
@@ -519,7 +519,7 @@ struct MicraWebSocketTest {
   }
   static void run() {
     TaskMutex::hostObserver = [](const TaskMutex *, bool acquired) { locked = acquired; };
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -673,7 +673,7 @@ struct MicraWebSocketTest {
   }
   static void initialSynchronization() {
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.published_.connectionFreshness = true;
@@ -728,7 +728,7 @@ struct MicraWebSocketTest {
     for (bool scalePresent : {false, true}) for (int scenario = 0; scenario < 5; ++scenario) {
       outboundScaleConnected.store(scalePresent);
       now = 1000;
-      ShotStopperMicraService service;
+      OpenBrewByWeightMicraService service;
       service.config_.accountConfigured = true;
       std::strcpy(service.config_.selectedSerial, "synthetic");
       service.staConnected_.store(true);
@@ -791,7 +791,7 @@ struct MicraWebSocketTest {
     const char *inactive = R"({"widgets":[{"code":"CMBackFlush","output":{"status":"Off"}}]})";
     static unsigned locks;
     TaskMutex::hostObserver = [](const TaskMutex *, bool acquired) { locks += acquired; };
-    const auto poll = [](ShotStopperMicraService &service, bool locking) {
+    const auto poll = [](OpenBrewByWeightMicraService &service, bool locking) {
       const unsigned before = locks;
       const auto result = service.backflush(true);
       assert((locks != before) == locking);
@@ -804,7 +804,7 @@ struct MicraWebSocketTest {
       return result;
     };
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -859,7 +859,7 @@ struct MicraWebSocketTest {
   }
   static void concurrentStatusLifecycle() {
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     service.published_.connectionFreshness = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
@@ -900,7 +900,7 @@ struct MicraWebSocketTest {
     muxWaitEvents = 0;
     disconnectLog.clear();
     lastMuxWaitDetail.clear();
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     // With the stub clock each micros() call is 1 ms, so an uncontended
     // acquisition waits ~1 ms and stays below the 2 ms report bar.
     service.backflush(false);
@@ -908,13 +908,13 @@ struct MicraWebSocketTest {
     assert(disconnectLog.empty());
     uint32_t latch = 0;
     // Just below the 2 ms threshold: not due.
-    assert(!ShotStopperMicraService::muxWaitAnomalyDue(1999, latch, now));
+    assert(!OpenBrewByWeightMicraService::muxWaitAnomalyDue(1999, latch, now));
     assert(muxWaitEvents == 0);
     // At and past the threshold the report names the gathered holder and
     // carries the wait as the ring event's first argument; the audit excerpt
     // keeps the holder for the detail view.
-    assert(ShotStopperMicraService::muxWaitAnomalyDue(31000, latch, now));
-    ShotStopperMicraService::reportMuxWaitAnomaly(31000, "host", 0);
+    assert(OpenBrewByWeightMicraService::muxWaitAnomalyDue(31000, latch, now));
+    OpenBrewByWeightMicraService::reportMuxWaitAnomaly(31000, "host", 0);
     assert(muxWaitEvents == 1);
     assert(lastMuxWaitArgs[0] == 31000 && lastMuxWaitArgs[1] == 0);
     assert(lastMuxWaitDetail == "holder=host");
@@ -922,19 +922,19 @@ struct MicraWebSocketTest {
     assert(disconnectLog.find("holder=host") != std::string::npos);
     // Rate limit: a second anomaly inside the 10 s window stays due-false...
     now += 100;
-    assert(!ShotStopperMicraService::muxWaitAnomalyDue(31000, latch, now));
+    assert(!OpenBrewByWeightMicraService::muxWaitAnomalyDue(31000, latch, now));
     assert(muxWaitEvents == 1);
     // ...and clears once the window has passed. The re-fire waits exactly at
     // the threshold, probing the boundary after the 1999 probe below it.
     now += 10000;
-    assert(ShotStopperMicraService::muxWaitAnomalyDue(2000, latch, now));
-    ShotStopperMicraService::reportMuxWaitAnomaly(2000, "host", 0);
+    assert(OpenBrewByWeightMicraService::muxWaitAnomalyDue(2000, latch, now));
+    OpenBrewByWeightMicraService::reportMuxWaitAnomaly(2000, "host", 0);
     assert(muxWaitEvents == 2);
     assert(lastMuxWaitArgs[0] == 2000);
   }
   static void statusPollCache() {
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     service.published_.connectionFreshness = true;
     service.published_.sampleAtMs = now;
@@ -1012,7 +1012,7 @@ struct MicraWebSocketTest {
     const char *active = R"({"widgets":[{"code":"CMBackFlush","output":{"status":"Cleaning"}}]})";
     muxWaitEvents = 0;
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -1062,7 +1062,7 @@ struct MicraWebSocketTest {
   static void backflushForcedMissAfterConsume() {
     const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -1101,7 +1101,7 @@ struct MicraWebSocketTest {
     const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
     const char *active = R"({"widgets":[{"code":"CMBackFlush","output":{"status":"Cleaning"}}]})";
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -1146,7 +1146,7 @@ struct MicraWebSocketTest {
     const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
     const char *active = R"({"widgets":[{"code":"CMBackFlush","output":{"status":"Cleaning"}}]})";
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -1187,7 +1187,7 @@ struct MicraWebSocketTest {
     muxWaitEvents = 0;
     disconnectLog.clear();
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -1218,7 +1218,7 @@ struct MicraWebSocketTest {
     muxWaitEvents = 0;
     disconnectLog.clear();
     lastMuxWaitDetail.clear();
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.config_.options |= LINEA_MICRA_SHUTDOWN_WITH_SCALE;
@@ -1249,7 +1249,7 @@ struct MicraWebSocketTest {
     TaskMutex::hostObserver = nullptr;
   }
   template <typename Body>
-  static void withMuxHeld(ShotStopperMicraService &service, Body body) {
+  static void withMuxHeld(OpenBrewByWeightMicraService &service, Body body) {
     std::atomic<bool> held{false}, release{false};
     std::thread holder([&] {
       service.mux_.lock();
@@ -1265,7 +1265,7 @@ struct MicraWebSocketTest {
   static void loopEntryPointsNeverWaitOnMux() {
     const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.config_.options |= LINEA_MICRA_APPLY_TEMPERATURE;
@@ -1309,7 +1309,7 @@ struct MicraWebSocketTest {
     delete service.work_;
 
     // Without a busy episode a contended edge is a normal start.
-    ShotStopperMicraService idle;
+    OpenBrewByWeightMicraService idle;
     withMuxHeld(idle, [&] {
       MachineBackflushPermit permit;
       assert(idle.physicalStart(&permit) == MachinePhysicalStartDisposition::NORMAL);
@@ -1319,7 +1319,7 @@ struct MicraWebSocketTest {
   static void muxWaitReportEmittedAfterUnlock() {
     now = 50000;  // Clears the queue latch's rate-limit window.
     muxWaitEvents = 0;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     service.config_.options |= LINEA_MICRA_SHUTDOWN_WITH_SCALE;
     service.task_ = reinterpret_cast<TaskHandle_t>(1);
@@ -1335,7 +1335,7 @@ struct MicraWebSocketTest {
     static unsigned locks;
     TaskMutex::hostObserver = [](const TaskMutex *, bool acquired) { locks += acquired; };
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -1365,7 +1365,7 @@ struct MicraWebSocketTest {
     const char *inactive = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Off"}}]})";
     const char *awaiting = R"({"connected":true,"widgets":[{"code":"CMMachineStatus","output":{"mode":"BrewingMode"}},{"code":"CMBackFlush","output":{"status":"Requested"}}]})";
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     service.config_.accountConfigured = true;
     std::strcpy(service.config_.selectedSerial, "synthetic");
     service.staConnected_.store(true);
@@ -1411,7 +1411,7 @@ struct MicraWebSocketTest {
     // not busy, in both consume modes — the same fail-closed snapshot an
     // uncontended poll of an empty ring produces. The miss never stamps it.
     now = 1000;
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     std::atomic<bool> held{false}, release{false};
     std::thread holder([&] {
       TaskLockGuard lock(service.mux_);
@@ -1431,29 +1431,29 @@ struct MicraWebSocketTest {
 };
 }
 int main() {
-  shotstopper::initJsonParser();
-  shotstopper::MicraWebSocketTest::run();
-  shotstopper::MicraWebSocketTest::lifecycleRegressions();
-  shotstopper::MicraWebSocketTest::connectionClassification();
-  shotstopper::MicraWebSocketTest::slowHandshakeIsNotAReconnect();
-  shotstopper::MicraWebSocketTest::renewalDeferredWhileParked();
-  shotstopper::MicraWebSocketTest::initialSynchronization();
-  shotstopper::MicraWebSocketTest::backflushContract();
-  shotstopper::MicraWebSocketTest::backflushIdlePoll();
-  shotstopper::MicraWebSocketTest::pongPublicationRace();
-  shotstopper::MicraWebSocketTest::concurrentStatusLifecycle();
-  shotstopper::MicraWebSocketTest::setupAdmissionAndBackoff();
-  shotstopper::MicraWebSocketTest::backflushWaitAttribution();
-  shotstopper::MicraWebSocketTest::statusPollCache();
-  shotstopper::MicraWebSocketTest::backflushForcedMissDuringEpisode();
-  shotstopper::MicraWebSocketTest::backflushForcedMissAfterConsume();
-  shotstopper::MicraWebSocketTest::backflushMissNeverServesIdleSnapshot();
-  shotstopper::MicraWebSocketTest::backflushMissSurvivesLongHold();
-  shotstopper::MicraWebSocketTest::backflushDetectorSilentAfterConversion();
-  shotstopper::MicraWebSocketTest::queueMuxWaitDetectorFires();
-  shotstopper::MicraWebSocketTest::loopEntryPointsNeverWaitOnMux();
-  shotstopper::MicraWebSocketTest::muxWaitReportEmittedAfterUnlock();
-  shotstopper::MicraWebSocketTest::backflushConsumeFastPathUnchanged();
-  shotstopper::MicraWebSocketTest::backflushMissAfterAdmission();
-  shotstopper::MicraWebSocketTest::backflushMissBeforeFirstPoll();
+  openbrewbyweight::initJsonParser();
+  openbrewbyweight::MicraWebSocketTest::run();
+  openbrewbyweight::MicraWebSocketTest::lifecycleRegressions();
+  openbrewbyweight::MicraWebSocketTest::connectionClassification();
+  openbrewbyweight::MicraWebSocketTest::slowHandshakeIsNotAReconnect();
+  openbrewbyweight::MicraWebSocketTest::renewalDeferredWhileParked();
+  openbrewbyweight::MicraWebSocketTest::initialSynchronization();
+  openbrewbyweight::MicraWebSocketTest::backflushContract();
+  openbrewbyweight::MicraWebSocketTest::backflushIdlePoll();
+  openbrewbyweight::MicraWebSocketTest::pongPublicationRace();
+  openbrewbyweight::MicraWebSocketTest::concurrentStatusLifecycle();
+  openbrewbyweight::MicraWebSocketTest::setupAdmissionAndBackoff();
+  openbrewbyweight::MicraWebSocketTest::backflushWaitAttribution();
+  openbrewbyweight::MicraWebSocketTest::statusPollCache();
+  openbrewbyweight::MicraWebSocketTest::backflushForcedMissDuringEpisode();
+  openbrewbyweight::MicraWebSocketTest::backflushForcedMissAfterConsume();
+  openbrewbyweight::MicraWebSocketTest::backflushMissNeverServesIdleSnapshot();
+  openbrewbyweight::MicraWebSocketTest::backflushMissSurvivesLongHold();
+  openbrewbyweight::MicraWebSocketTest::backflushDetectorSilentAfterConversion();
+  openbrewbyweight::MicraWebSocketTest::queueMuxWaitDetectorFires();
+  openbrewbyweight::MicraWebSocketTest::loopEntryPointsNeverWaitOnMux();
+  openbrewbyweight::MicraWebSocketTest::muxWaitReportEmittedAfterUnlock();
+  openbrewbyweight::MicraWebSocketTest::backflushConsumeFastPathUnchanged();
+  openbrewbyweight::MicraWebSocketTest::backflushMissAfterAdmission();
+  openbrewbyweight::MicraWebSocketTest::backflushMissBeforeFirstPoll();
 }

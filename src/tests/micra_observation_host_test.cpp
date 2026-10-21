@@ -6,7 +6,7 @@
 #include <string>
 #include <thread>
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 static bool decode(const char *json, MicraObservation &update) {
   cJSON *root = cJSON_Parse(json);

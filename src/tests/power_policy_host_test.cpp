@@ -2,7 +2,7 @@
 #include <cassert>
 #include <thread>
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 int main() {
   PowerPolicy policy;

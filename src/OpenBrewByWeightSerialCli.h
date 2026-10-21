@@ -7,7 +7,7 @@
 #include "OpenBrewByWeightTime.h"
 #include "OpenBrewByWeightUsbConsole.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr size_t SERIAL_CLI_LINE_CAPACITY = 160;
 constexpr size_t SERIAL_CLI_MAX_BYTES_PER_LOOP = 8;
@@ -1127,4 +1127,4 @@ inline bool serialCliFeed(SerialCliParser &parser, char received,
   return false;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

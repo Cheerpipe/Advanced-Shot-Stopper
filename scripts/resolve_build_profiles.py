@@ -353,7 +353,7 @@ def parse_defines(flags: str) -> dict[str, str]:
         if token.startswith("-D"):
             body = token[2:]
             name, separator, value = body.partition("=")
-            if name.startswith("SHOT_STOPPER_"):
+            if name.startswith("OPEN_BREW_BY_WEIGHT_"):
                 result[name] = value if separator else "1"
     return result
 
@@ -370,32 +370,32 @@ def define_int(definitions: dict[str, str], name: str, low: int, high: int) -> i
 
 def apply_overrides(hardware: dict[str, Any], machine: dict[str, Any],
                     definitions: dict[str, str]) -> None:
-    forbidden = {"SHOT_STOPPER_HARDWARE_PROFILE_ID",
-                 "SHOT_STOPPER_HARDWARE_COMPATIBILITY_REVISION",
-                 "SHOT_STOPPER_MACHINE_PROFILE_ID",
-                 "SHOT_STOPPER_MACHINE_COMPATIBILITY_REVISION",
-                 "SHOT_STOPPER_MACHINE_BRAND", "SHOT_STOPPER_MACHINE_MODEL"}
+    forbidden = {"OPEN_BREW_BY_WEIGHT_HARDWARE_PROFILE_ID",
+                 "OPEN_BREW_BY_WEIGHT_HARDWARE_COMPATIBILITY_REVISION",
+                 "OPEN_BREW_BY_WEIGHT_MACHINE_PROFILE_ID",
+                 "OPEN_BREW_BY_WEIGHT_MACHINE_COMPATIBILITY_REVISION",
+                 "OPEN_BREW_BY_WEIGHT_MACHINE_BRAND", "OPEN_BREW_BY_WEIGHT_MACHINE_MODEL"}
     selected = sorted(forbidden & definitions.keys())
     if selected:
         fail(f"profile identity cannot be overridden with --flags: {', '.join(selected)}")
-    presence = {"SHOT_STOPPER_SCALE_STATUS_LED_PRESENT": "scale_status_led",
-                "SHOT_STOPPER_SPEAKER_PRESENT": "speaker",
-                "SHOT_STOPPER_USB_CONSOLE_JUMPER_PRESENT": "usb_console_jumper",
-                "SHOT_STOPPER_REED_PRESENT": "reed",
-                "SHOT_STOPPER_EXTERNAL_SAFETY_PRESENT": "external_safety"}
+    presence = {"OPEN_BREW_BY_WEIGHT_SCALE_STATUS_LED_PRESENT": "scale_status_led",
+                "OPEN_BREW_BY_WEIGHT_SPEAKER_PRESENT": "speaker",
+                "OPEN_BREW_BY_WEIGHT_USB_CONSOLE_JUMPER_PRESENT": "usb_console_jumper",
+                "OPEN_BREW_BY_WEIGHT_REED_PRESENT": "reed",
+                "OPEN_BREW_BY_WEIGHT_EXTERNAL_SAFETY_PRESENT": "external_safety"}
     for macro, role in presence.items():
         value = define_int(definitions, macro, 0, 1)
         if value is not None and bool(value) != hardware[role]["present"]:
             fail(f"{macro} cannot change physical presence declared by the profile")
     gpio_overrides = {
-        "SHOT_STOPPER_ACTIVATOR_GPIO": ("activator", "gpio"),
-        "SHOT_STOPPER_RELAY_GPIO": ("relay", "gpio"),
-        "SHOT_STOPPER_SCALE_CONNECTED_LED_GPIO": ("scale_status_led", "gpio"),
-        "SHOT_STOPPER_BUZZER_GPIO": ("speaker", "gpio"),
-        "SHOT_STOPPER_USB_CONSOLE_GPIO": ("usb_console_jumper", "gpio"),
-        "SHOT_STOPPER_REED_GPIO": ("reed", "gpio"),
-        "SHOT_STOPPER_SAFETY_HEARTBEAT_GPIO": ("external_safety", "heartbeat_gpio"),
-        "SHOT_STOPPER_CIRCUIT_FEEDBACK_GPIO": ("external_safety", "feedback_gpio"),
+        "OPEN_BREW_BY_WEIGHT_ACTIVATOR_GPIO": ("activator", "gpio"),
+        "OPEN_BREW_BY_WEIGHT_RELAY_GPIO": ("relay", "gpio"),
+        "OPEN_BREW_BY_WEIGHT_SCALE_CONNECTED_LED_GPIO": ("scale_status_led", "gpio"),
+        "OPEN_BREW_BY_WEIGHT_BUZZER_GPIO": ("speaker", "gpio"),
+        "OPEN_BREW_BY_WEIGHT_USB_CONSOLE_GPIO": ("usb_console_jumper", "gpio"),
+        "OPEN_BREW_BY_WEIGHT_REED_GPIO": ("reed", "gpio"),
+        "OPEN_BREW_BY_WEIGHT_SAFETY_HEARTBEAT_GPIO": ("external_safety", "heartbeat_gpio"),
+        "OPEN_BREW_BY_WEIGHT_CIRCUIT_FEEDBACK_GPIO": ("external_safety", "feedback_gpio"),
     }
     for macro, (role, field) in gpio_overrides.items():
         value = define_int(definitions, macro, 0, 48)
@@ -404,13 +404,13 @@ def apply_overrides(hardware: dict[str, Any], machine: dict[str, Any],
                 fail(f"{macro} cannot configure absent {role} hardware")
             hardware[role][field] = value
     level_overrides = {
-        "SHOT_STOPPER_ACTIVATOR_ACTIVE_LEVEL": ("activator", "active_level"),
-        "SHOT_STOPPER_RELAY_CLOSED_LEVEL": ("relay", "closed_level"),
-        "SHOT_STOPPER_RELAY_OPEN_LEVEL": ("relay", "open_level"),
-        "SHOT_STOPPER_SCALE_CONNECTED_LED_ACTIVE_LEVEL": ("scale_status_led", "active_level"),
-        "SHOT_STOPPER_USB_CONSOLE_ACTIVE_LEVEL": ("usb_console_jumper", "active_level"),
-        "SHOT_STOPPER_REED_ACTIVE_LEVEL": ("reed", "active_level"),
-        "SHOT_STOPPER_CIRCUIT_FEEDBACK_CLOSED_LEVEL":
+        "OPEN_BREW_BY_WEIGHT_ACTIVATOR_ACTIVE_LEVEL": ("activator", "active_level"),
+        "OPEN_BREW_BY_WEIGHT_RELAY_CLOSED_LEVEL": ("relay", "closed_level"),
+        "OPEN_BREW_BY_WEIGHT_RELAY_OPEN_LEVEL": ("relay", "open_level"),
+        "OPEN_BREW_BY_WEIGHT_SCALE_CONNECTED_LED_ACTIVE_LEVEL": ("scale_status_led", "active_level"),
+        "OPEN_BREW_BY_WEIGHT_USB_CONSOLE_ACTIVE_LEVEL": ("usb_console_jumper", "active_level"),
+        "OPEN_BREW_BY_WEIGHT_REED_ACTIVE_LEVEL": ("reed", "active_level"),
+        "OPEN_BREW_BY_WEIGHT_CIRCUIT_FEEDBACK_CLOSED_LEVEL":
             ("external_safety", "feedback_closed_level"),
     }
     for macro, (role, field) in level_overrides.items():
@@ -420,11 +420,11 @@ def apply_overrides(hardware: dict[str, Any], machine: dict[str, Any],
                 fail(f"{macro} cannot configure absent {role} hardware")
             hardware[role][field] = "high" if value else "low"
     timing_overrides = {
-        "SHOT_STOPPER_ACTIVATOR_DEBOUNCE_MS": ("activator", "debounce_ms", 1, 99),
-        "SHOT_STOPPER_REED_DEBOUNCE_MS": ("reed", "debounce_ms", 1, 99),
-        "SHOT_STOPPER_SAFETY_HEARTBEAT_TOGGLE_MS":
+        "OPEN_BREW_BY_WEIGHT_ACTIVATOR_DEBOUNCE_MS": ("activator", "debounce_ms", 1, 99),
+        "OPEN_BREW_BY_WEIGHT_REED_DEBOUNCE_MS": ("reed", "debounce_ms", 1, 99),
+        "OPEN_BREW_BY_WEIGHT_SAFETY_HEARTBEAT_TOGGLE_MS":
             ("external_safety", "heartbeat_period_ms", 10, 1000),
-        "SHOT_STOPPER_CIRCUIT_FEEDBACK_SETTLE_MS":
+        "OPEN_BREW_BY_WEIGHT_CIRCUIT_FEEDBACK_SETTLE_MS":
             ("external_safety", "feedback_settle_ms", 1, 1000),
     }
     for macro, (role, field, low, high) in timing_overrides.items():
@@ -436,60 +436,60 @@ def apply_overrides(hardware: dict[str, Any], machine: dict[str, Any],
 
     defaults = machine["factory_defaults"]
     scalar_defaults = {
-        "SHOT_STOPPER_DEFAULT_OPERATIONAL_WALL_MS":
+        "OPEN_BREW_BY_WEIGHT_DEFAULT_OPERATIONAL_WALL_MS":
             (defaults, "operational_wall_ms", 5000, 60000),
-        "SHOT_STOPPER_DEFAULT_RINSE_GESTURE_MS":
+        "OPEN_BREW_BY_WEIGHT_DEFAULT_RINSE_GESTURE_MS":
             (defaults["quick_rinse"], "gesture_ms", 100, 5000),
-        "SHOT_STOPPER_DEFAULT_RINSE_DURATION_MS":
+        "OPEN_BREW_BY_WEIGHT_DEFAULT_RINSE_DURATION_MS":
             (defaults["quick_rinse"], "duration_ms", 500, 10000),
     }
     if machine["interface"]["control"] == "paddle":
         paddle = defaults["paddle"]
         reminder = paddle["return_reminder"]
         scalar_defaults |= {
-            "SHOT_STOPPER_DEFAULT_PADDLE_MODE": (paddle, "mode", 0, 2),
-            "SHOT_STOPPER_DEFAULT_PADDLE_RETURN_INTERVAL_MS":
+            "OPEN_BREW_BY_WEIGHT_DEFAULT_PADDLE_MODE": (paddle, "mode", 0, 2),
+            "OPEN_BREW_BY_WEIGHT_DEFAULT_PADDLE_RETURN_INTERVAL_MS":
                 (reminder, "interval_ms", 5000, 120000),
-            "SHOT_STOPPER_DEFAULT_PADDLE_RETURN_MAX_MS":
+            "OPEN_BREW_BY_WEIGHT_DEFAULT_PADDLE_RETURN_MAX_MS":
                 (reminder, "max_duration_ms", 60000, 3600000),
         }
     else:
         momentary = defaults["momentary"]
         scalar_defaults |= {
-            "SHOT_STOPPER_STOP_PULSE_MS": (momentary, "stop_pulse_ms", 50, 1000),
-            "SHOT_STOPPER_MAX_SINGLE_PRESS_MS":
+            "OPEN_BREW_BY_WEIGHT_STOP_PULSE_MS": (momentary, "stop_pulse_ms", 50, 1000),
+            "OPEN_BREW_BY_WEIGHT_MAX_SINGLE_PRESS_MS":
                 (momentary, "max_single_press_ms", 100, 5000),
         }
         if machine["interface"]["feedback"] == "reed":
-            scalar_defaults["SHOT_STOPPER_REED_CONFIRM_TIMEOUT_MS"] = (
+            scalar_defaults["OPEN_BREW_BY_WEIGHT_REED_CONFIRM_TIMEOUT_MS"] = (
                 momentary, "reed_confirm_timeout_ms", 200, 5000)
     for macro, (owner, field, low, high) in scalar_defaults.items():
         value = define_int(definitions, macro, low, high)
         if value is not None:
-            if macro == "SHOT_STOPPER_DEFAULT_PADDLE_MODE":
+            if macro == "OPEN_BREW_BY_WEIGHT_DEFAULT_PADDLE_MODE":
                 value = {0: "natural", 1: "original", 2: "auto"}[value]
             owner[field] = value
     if machine["interface"]["control"] == "momentary":
-        value = definitions.get("SHOT_STOPPER_DEFAULT_SHOT_REACTION_TIMEOUT_S")
+        value = definitions.get("OPEN_BREW_BY_WEIGHT_DEFAULT_SHOT_REACTION_TIMEOUT_S")
         if value is not None:
             try:
                 parsed = int(value, 0)
             except ValueError:
-                fail("SHOT_STOPPER_DEFAULT_SHOT_REACTION_TIMEOUT_S override must be an integer")
+                fail("OPEN_BREW_BY_WEIGHT_DEFAULT_SHOT_REACTION_TIMEOUT_S override must be an integer")
             defaults["momentary"]["shot_reaction_timeout_s"] = zero_or_integer(
-                parsed, 3, 30, "SHOT_STOPPER_DEFAULT_SHOT_REACTION_TIMEOUT_S")
+                parsed, 3, 30, "OPEN_BREW_BY_WEIGHT_DEFAULT_SHOT_REACTION_TIMEOUT_S")
     bool_defaults = {
-        "SHOT_STOPPER_DEFAULT_RINSE_ENABLED": (defaults["quick_rinse"], "enabled"),
+        "OPEN_BREW_BY_WEIGHT_DEFAULT_RINSE_ENABLED": (defaults["quick_rinse"], "enabled"),
     }
     if machine["interface"]["control"] == "paddle":
-        bool_defaults["SHOT_STOPPER_DEFAULT_PADDLE_RETURN_REMINDER"] = (
+        bool_defaults["OPEN_BREW_BY_WEIGHT_DEFAULT_PADDLE_RETURN_REMINDER"] = (
             defaults["paddle"]["return_reminder"], "enabled")
     else:
         momentary = defaults["momentary"]
         bool_defaults |= {
-            "SHOT_STOPPER_DEFAULT_MOMENTARY_START_ON_PRESS":
+            "OPEN_BREW_BY_WEIGHT_DEFAULT_MOMENTARY_START_ON_PRESS":
                 (momentary, "start_edge"),
-            "SHOT_STOPPER_DEFAULT_ASSUME_IDLE_ON_SCALE_CONNECT":
+            "OPEN_BREW_BY_WEIGHT_DEFAULT_ASSUME_IDLE_ON_SCALE_CONNECT":
                 (momentary, "assume_idle_on_scale_connect"),
         }
     for macro, (owner, field) in bool_defaults.items():
@@ -510,15 +510,15 @@ def resolve(hardware: dict[str, Any], machine: dict[str, Any], flags: str) -> di
              f"{machine['id']!r}; declare it in the machine profile hardware list")
     if machine["interface"]["feedback"] == "reed" and not hardware["reed"]["present"]:
         fail("machine requires reed feedback but the hardware profile declares reed absent")
-    if definitions.get("SHOT_STOPPER_DEVELOPMENT") not in (None, "0", "1"):
-        fail("SHOT_STOPPER_DEVELOPMENT must be 0 or 1")
-    if "SHOT_STOPPER_MACHINE_TYPE" in definitions:
+    if definitions.get("OPEN_BREW_BY_WEIGHT_DEVELOPMENT") not in (None, "0", "1"):
+        fail("OPEN_BREW_BY_WEIGHT_DEVELOPMENT must be 0 or 1")
+    if "OPEN_BREW_BY_WEIGHT_MACHINE_TYPE" in definitions:
         expected = {("paddle", "none"): "0", ("momentary", "none"): "1",
                     ("momentary", "reed"): "2"}[(machine["interface"]["control"],
                                                    machine["interface"]["feedback"])]
-        if definitions["SHOT_STOPPER_MACHINE_TYPE"] != expected:
-            fail("SHOT_STOPPER_MACHINE_TYPE override conflicts with the machine profile")
-    if definitions.get("SHOT_STOPPER_ENABLE_BUZZER") == "1" and not hardware["speaker"]["present"]:
+        if definitions["OPEN_BREW_BY_WEIGHT_MACHINE_TYPE"] != expected:
+            fail("OPEN_BREW_BY_WEIGHT_MACHINE_TYPE override conflicts with the machine profile")
+    if definitions.get("OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER") == "1" and not hardware["speaker"]["present"]:
         fail("buzzer support cannot be enabled when the hardware speaker is absent")
     return {
         "schema_version": 1,
@@ -535,84 +535,84 @@ def header_for(resolved: dict[str, Any]) -> str:
     machine = resolved["machine"]
     defaults = machine["factory_defaults"]
     lines = ["#pragma once", "", "// Generated by scripts/resolve_build_profiles.py — do not edit.", ""]
-    define(lines, "SHOT_STOPPER_PROFILE_MODE", 1)
-    define(lines, "SHOT_STOPPER_HARDWARE_PROFILE_ID", hardware["id"])
-    define(lines, "SHOT_STOPPER_HARDWARE_COMPATIBILITY_REVISION", hardware["compatibility_revision"])
-    define(lines, "SHOT_STOPPER_MACHINE_PROFILE_ID", machine["id"])
-    define(lines, "SHOT_STOPPER_MACHINE_BRAND", machine["brand"])
-    define(lines, "SHOT_STOPPER_MACHINE_MODEL", machine["model"])
-    define(lines, "SHOT_STOPPER_MACHINE_COMPATIBILITY_REVISION", machine["compatibility_revision"])
-    define(lines, "SHOT_STOPPER_MACHINE_INTEGRATION_NONE", 0)
-    define(lines, "SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD", 1)
-    define(lines, "SHOT_STOPPER_MACHINE_INTEGRATION",
+    define(lines, "OPEN_BREW_BY_WEIGHT_PROFILE_MODE", 1)
+    define(lines, "OPEN_BREW_BY_WEIGHT_HARDWARE_PROFILE_ID", hardware["id"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_HARDWARE_COMPATIBILITY_REVISION", hardware["compatibility_revision"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_MACHINE_PROFILE_ID", machine["id"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_MACHINE_BRAND", machine["brand"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_MACHINE_MODEL", machine["model"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_MACHINE_COMPATIBILITY_REVISION", machine["compatibility_revision"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_NONE", 0)
+    define(lines, "OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD", 1)
+    define(lines, "OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION",
            {"none": 0, "linea_micra_cloud": 1}[resolved["machine_integration"]])
-    define(lines, "SHOT_STOPPER_ACTIVATOR_GPIO", hardware["activator"]["gpio"])
-    define(lines, "SHOT_STOPPER_ACTIVATOR_ACTIVE_LEVEL", LEVELS[hardware["activator"]["active_level"]])
-    define(lines, "SHOT_STOPPER_ACTIVATOR_DEBOUNCE_MS", hardware["activator"]["debounce_ms"])
-    define(lines, "SHOT_STOPPER_RELAY_GPIO", hardware["relay"]["gpio"])
-    define(lines, "SHOT_STOPPER_RELAY_CLOSED_LEVEL", LEVELS[hardware["relay"]["closed_level"]])
-    define(lines, "SHOT_STOPPER_RELAY_OPEN_LEVEL", LEVELS[hardware["relay"]["open_level"]])
+    define(lines, "OPEN_BREW_BY_WEIGHT_ACTIVATOR_GPIO", hardware["activator"]["gpio"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_ACTIVATOR_ACTIVE_LEVEL", LEVELS[hardware["activator"]["active_level"]])
+    define(lines, "OPEN_BREW_BY_WEIGHT_ACTIVATOR_DEBOUNCE_MS", hardware["activator"]["debounce_ms"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_RELAY_GPIO", hardware["relay"]["gpio"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_RELAY_CLOSED_LEVEL", LEVELS[hardware["relay"]["closed_level"]])
+    define(lines, "OPEN_BREW_BY_WEIGHT_RELAY_OPEN_LEVEL", LEVELS[hardware["relay"]["open_level"]])
     for json_name, macro_name in (("scale_status_led", "SCALE_STATUS_LED"),
                                   ("speaker", "SPEAKER"),
                                   ("usb_console_jumper", "USB_CONSOLE_JUMPER"),
                                   ("reed", "REED"),
                                   ("external_safety", "EXTERNAL_SAFETY")):
         role = hardware[json_name]
-        define(lines, f"SHOT_STOPPER_{macro_name}_PRESENT", role["present"])
+        define(lines, f"OPEN_BREW_BY_WEIGHT_{macro_name}_PRESENT", role["present"])
     if hardware["scale_status_led"]["present"]:
-        define(lines, "SHOT_STOPPER_SCALE_CONNECTED_LED_GPIO", hardware["scale_status_led"]["gpio"])
-        define(lines, "SHOT_STOPPER_SCALE_CONNECTED_LED_ACTIVE_LEVEL",
+        define(lines, "OPEN_BREW_BY_WEIGHT_SCALE_CONNECTED_LED_GPIO", hardware["scale_status_led"]["gpio"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_SCALE_CONNECTED_LED_ACTIVE_LEVEL",
                LEVELS[hardware["scale_status_led"]["active_level"]])
     # Buzzer support follows the physical speaker; the #ifndef guard lets an
-    # explicit -DSHOT_STOPPER_ENABLE_BUZZER=… on the command line win.
-    define(lines, "SHOT_STOPPER_ENABLE_BUZZER", hardware["speaker"]["present"])
+    # explicit -DOPEN_BREW_BY_WEIGHT_ENABLE_BUZZER=… on the command line win.
+    define(lines, "OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER", hardware["speaker"]["present"])
     if hardware["speaker"]["present"]:
-        define(lines, "SHOT_STOPPER_BUZZER_GPIO", hardware["speaker"]["gpio"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_BUZZER_GPIO", hardware["speaker"]["gpio"])
     if hardware["usb_console_jumper"]["present"]:
-        define(lines, "SHOT_STOPPER_USB_CONSOLE_GPIO", hardware["usb_console_jumper"]["gpio"])
-        define(lines, "SHOT_STOPPER_USB_CONSOLE_ACTIVE_LEVEL",
+        define(lines, "OPEN_BREW_BY_WEIGHT_USB_CONSOLE_GPIO", hardware["usb_console_jumper"]["gpio"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_USB_CONSOLE_ACTIVE_LEVEL",
                LEVELS[hardware["usb_console_jumper"]["active_level"]])
     if hardware["reed"]["present"]:
-        define(lines, "SHOT_STOPPER_REED_GPIO", hardware["reed"]["gpio"])
-        define(lines, "SHOT_STOPPER_REED_ACTIVE_LEVEL", LEVELS[hardware["reed"]["active_level"]])
-        define(lines, "SHOT_STOPPER_REED_DEBOUNCE_MS", hardware["reed"]["debounce_ms"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_REED_GPIO", hardware["reed"]["gpio"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_REED_ACTIVE_LEVEL", LEVELS[hardware["reed"]["active_level"]])
+        define(lines, "OPEN_BREW_BY_WEIGHT_REED_DEBOUNCE_MS", hardware["reed"]["debounce_ms"])
     if hardware["external_safety"]["present"]:
         safety = hardware["external_safety"]
-        define(lines, "SHOT_STOPPER_SAFETY_HEARTBEAT_GPIO", safety["heartbeat_gpio"])
-        define(lines, "SHOT_STOPPER_SAFETY_HEARTBEAT_IDLE_LEVEL", LEVELS[safety["heartbeat_idle_level"]])
-        define(lines, "SHOT_STOPPER_CIRCUIT_FEEDBACK_GPIO", safety["feedback_gpio"])
-        define(lines, "SHOT_STOPPER_CIRCUIT_FEEDBACK_CLOSED_LEVEL",
+        define(lines, "OPEN_BREW_BY_WEIGHT_SAFETY_HEARTBEAT_GPIO", safety["heartbeat_gpio"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_SAFETY_HEARTBEAT_IDLE_LEVEL", LEVELS[safety["heartbeat_idle_level"]])
+        define(lines, "OPEN_BREW_BY_WEIGHT_CIRCUIT_FEEDBACK_GPIO", safety["feedback_gpio"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_CIRCUIT_FEEDBACK_CLOSED_LEVEL",
                LEVELS[safety["feedback_closed_level"]])
-        define(lines, "SHOT_STOPPER_SAFETY_HEARTBEAT_TOGGLE_MS", safety["heartbeat_period_ms"])
-        define(lines, "SHOT_STOPPER_CIRCUIT_FEEDBACK_SETTLE_MS", safety["feedback_settle_ms"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_SAFETY_HEARTBEAT_TOGGLE_MS", safety["heartbeat_period_ms"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_CIRCUIT_FEEDBACK_SETTLE_MS", safety["feedback_settle_ms"])
     machine_type = {("paddle", "none"): 0, ("momentary", "none"): 1,
                     ("momentary", "reed"): 2}[(machine["interface"]["control"],
                                                 machine["interface"]["feedback"])]
-    define(lines, "SHOT_STOPPER_MACHINE_TYPE", machine_type)
-    define(lines, "SHOT_STOPPER_DEFAULT_OPERATIONAL_WALL_MS", defaults["operational_wall_ms"])
-    define(lines, "SHOT_STOPPER_DEFAULT_RINSE_ENABLED", defaults["quick_rinse"]["enabled"])
-    define(lines, "SHOT_STOPPER_DEFAULT_RINSE_GESTURE_MS", defaults["quick_rinse"]["gesture_ms"])
-    define(lines, "SHOT_STOPPER_DEFAULT_RINSE_DURATION_MS", defaults["quick_rinse"]["duration_ms"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_MACHINE_TYPE", machine_type)
+    define(lines, "OPEN_BREW_BY_WEIGHT_DEFAULT_OPERATIONAL_WALL_MS", defaults["operational_wall_ms"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_DEFAULT_RINSE_ENABLED", defaults["quick_rinse"]["enabled"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_DEFAULT_RINSE_GESTURE_MS", defaults["quick_rinse"]["gesture_ms"])
+    define(lines, "OPEN_BREW_BY_WEIGHT_DEFAULT_RINSE_DURATION_MS", defaults["quick_rinse"]["duration_ms"])
     if machine_type == 0:
         paddle = defaults["paddle"]
         reminder = paddle["return_reminder"]
-        define(lines, "SHOT_STOPPER_DEFAULT_PADDLE_MODE",
+        define(lines, "OPEN_BREW_BY_WEIGHT_DEFAULT_PADDLE_MODE",
                {"natural": 0, "original": 1, "auto": 2}[paddle["mode"]])
-        define(lines, "SHOT_STOPPER_DEFAULT_PADDLE_RETURN_REMINDER", reminder["enabled"])
-        define(lines, "SHOT_STOPPER_DEFAULT_PADDLE_RETURN_INTERVAL_MS", reminder["interval_ms"])
-        define(lines, "SHOT_STOPPER_DEFAULT_PADDLE_RETURN_MAX_MS", reminder["max_duration_ms"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_DEFAULT_PADDLE_RETURN_REMINDER", reminder["enabled"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_DEFAULT_PADDLE_RETURN_INTERVAL_MS", reminder["interval_ms"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_DEFAULT_PADDLE_RETURN_MAX_MS", reminder["max_duration_ms"])
     else:
         momentary = defaults["momentary"]
-        define(lines, "SHOT_STOPPER_STOP_PULSE_MS", momentary["stop_pulse_ms"])
-        define(lines, "SHOT_STOPPER_MAX_SINGLE_PRESS_MS", momentary["max_single_press_ms"])
-        define(lines, "SHOT_STOPPER_DEFAULT_MOMENTARY_START_ON_PRESS",
+        define(lines, "OPEN_BREW_BY_WEIGHT_STOP_PULSE_MS", momentary["stop_pulse_ms"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_MAX_SINGLE_PRESS_MS", momentary["max_single_press_ms"])
+        define(lines, "OPEN_BREW_BY_WEIGHT_DEFAULT_MOMENTARY_START_ON_PRESS",
                momentary["start_edge"] == "press")
-        define(lines, "SHOT_STOPPER_DEFAULT_ASSUME_IDLE_ON_SCALE_CONNECT",
+        define(lines, "OPEN_BREW_BY_WEIGHT_DEFAULT_ASSUME_IDLE_ON_SCALE_CONNECT",
                momentary["assume_idle_on_scale_connect"])
-        define(lines, "SHOT_STOPPER_DEFAULT_SHOT_REACTION_TIMEOUT_S",
+        define(lines, "OPEN_BREW_BY_WEIGHT_DEFAULT_SHOT_REACTION_TIMEOUT_S",
                momentary["shot_reaction_timeout_s"])
         if machine_type == 2:
-            define(lines, "SHOT_STOPPER_REED_CONFIRM_TIMEOUT_MS",
+            define(lines, "OPEN_BREW_BY_WEIGHT_REED_CONFIRM_TIMEOUT_MS",
                    momentary["reed_confirm_timeout_ms"])
     lines.append("")
     return "\n".join(lines)

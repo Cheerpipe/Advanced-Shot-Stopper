@@ -12,14 +12,14 @@ static bool cupSettingsChanged(const RuntimeConfig &a, const RuntimeConfig &b) {
 }
 
 const RuntimeSettingsSubscription runtimeSettingsSubscribers[] = {
-#ifndef SHOT_STOPPER_HOST_TEST
-    {ShotStopperNetwork::ntpSettingsChanged,
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
+    {OpenBrewByWeightNetwork::ntpSettingsChanged,
      [](const RuntimeConfig &, const RuntimeConfig &after) {
        networkManager.syncLiveRuntime(
            overlaySessionQuickSettings(sessionQuickSettings, after, true), &presetBank, true);
      }},
     {[](const RuntimeConfig &a, const RuntimeConfig &b) {
-       return !ShotStopperNetwork::ntpSettingsChanged(a, b);
+       return !OpenBrewByWeightNetwork::ntpSettingsChanged(a, b);
      }, [](const RuntimeConfig &, const RuntimeConfig &after) {
        networkManager.syncLiveRuntime(
            overlaySessionQuickSettings(sessionQuickSettings, after, true), &presetBank, false);

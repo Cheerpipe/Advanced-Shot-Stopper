@@ -3,14 +3,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#ifdef SHOT_STOPPER_CRASH_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_CRASH_HOST_TEST
 #include "tests/crash_archive_host_stubs.h"
-#elif !defined(SHOT_STOPPER_HOST_TEST) && !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#elif !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 #include <Arduino.h>
 #include <esp_attr.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr size_t CRASH_ADDRESS_CAPACITY = 60;
 constexpr size_t CRASH_HISTORY_SLOT_BYTES = 0xB0000;
@@ -57,7 +57,7 @@ struct CrashArchiveStatus {
 
 void crashArchivePrepareBoot();
 void crashArchiveSetBootId(uint32_t bootId);
-#if defined(SHOT_STOPPER_CRASH_HOST_TEST) || (!defined(SHOT_STOPPER_HOST_TEST) && !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST))
+#if defined(OPEN_BREW_BY_WEIGHT_CRASH_HOST_TEST) || (!defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST))
 void crashArchiveRecordPanic(const arduino_panic_info_t *info);
 #endif
 void crashArchivePromote(uint32_t currentBootId, uint32_t resetReason);
@@ -65,4 +65,4 @@ CrashArchiveStatus crashArchiveStatus();
 bool crashArchiveRead(uint8_t slot, size_t offset, void *output, size_t length);
 bool crashArchiveClear();
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

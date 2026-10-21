@@ -6,7 +6,7 @@
 #include "OpenBrewByWeightWebhook.h"
 #include "machine/OpenBrewByWeightLineaMicraSettings.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t PERSISTED_SETTINGS_MAGIC = 0x53544F50U;  // "STOP"
 // Shortened on purpose: "openbrewbyweight" exceeds the NVS name limit.
@@ -90,4 +90,4 @@ inline uint32_t persistedSettingsChecksum(const PersistedSettings &settings) {
                offsetof(PersistedSettings, checksum));
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

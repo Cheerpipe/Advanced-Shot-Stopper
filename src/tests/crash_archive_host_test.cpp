@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <iostream>
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 void check(bool condition, const char *message) {
   if (!condition) {

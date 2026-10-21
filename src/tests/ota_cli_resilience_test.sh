@@ -6,11 +6,11 @@ repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 # shellcheck source=scripts/openbrewbyweight_ota.sh
 source "$repo_root/scripts/openbrewbyweight_ota.sh"
 
-body_file="$(mktemp "${TMPDIR:-/tmp}/shotstopper-ota-cli-test.XXXXXX")"
-image_file="$(mktemp "${TMPDIR:-/tmp}/shotstopper-ota-cli-image.XXXXXX")"
-chunk_file="$(mktemp "${TMPDIR:-/tmp}/shotstopper-ota-cli-chunk.XXXXXX")"
-session_file="$(mktemp "${TMPDIR:-/tmp}/shotstopper-ota-cli-session.XXXXXX")"
-output_file="$(mktemp "${TMPDIR:-/tmp}/shotstopper-ota-cli-output.XXXXXX")"
+body_file="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota-cli-test.XXXXXX")"
+image_file="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota-cli-image.XXXXXX")"
+chunk_file="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota-cli-chunk.XXXXXX")"
+session_file="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota-cli-session.XXXXXX")"
+output_file="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-ota-cli-output.XXXXXX")"
 trap 'rm -f "$body_file" "$image_file" "$chunk_file" "$session_file" "$output_file"' EXIT
 node -e 'require("fs").writeFileSync(process.argv[1],Buffer.alloc(8192,90))' "$image_file"
 SS_OTA_BODY_FILE="$body_file"

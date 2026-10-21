@@ -125,12 +125,12 @@ function readTree(dir) {
 }
 const bleLibrary = readTree(bleSrcDir);
 const companionSources = [
-  'ShotStopperBleCompanion.h',
-  'ShotStopperBleCompanionPersistence.h',
-  path.join('ble', 'ShotStopperBleCompanionNimble.cpp'),
-  path.join('ble', 'ShotStopperBleCompanionNimble.h'),
-  path.join('ble', 'ShotStopperBleCompanionProtocol.h'),
-  path.join('ble', 'ShotStopperBleRadioPolicy.h'),
+  'OpenBrewByWeightBleCompanion.h',
+  'OpenBrewByWeightBleCompanionPersistence.h',
+  path.join('ble', 'OpenBrewByWeightBleCompanionNimble.cpp'),
+  path.join('ble', 'OpenBrewByWeightBleCompanionNimble.h'),
+  path.join('ble', 'OpenBrewByWeightBleCompanionProtocol.h'),
+  path.join('ble', 'OpenBrewByWeightBleRadioPolicy.h'),
   path.join('tests', 'ble_companion_protocol_host_test.cpp'),
 ];
 for (const rel of companionSources) {
@@ -215,8 +215,8 @@ if (!sdkconfigNimble.includes('CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y') ||
 if (!bleComponentCmake.includes('EspressoScaleBLENimble.cpp') ||
     bleComponentCmake.includes('ESPRESSO_SCALE_BLE_BACKEND') ||
     bleComponentCmake.includes('ArduinoBLE') ||
-    idfBuildScript.includes('SHOTSTOPPER_BLE_BACKEND') ||
-    idfBuildScript.includes('SHOTSTOPPER_NIMBLE_ALLOCATOR') ||
+    idfBuildScript.includes('OPENBREWBYWEIGHT_BLE_BACKEND') ||
+    idfBuildScript.includes('OPENBREWBYWEIGHT_NIMBLE_ALLOCATOR') ||
     fs.existsSync(path.resolve(sketchDir, '..', 'scripts',
                                'patch_arduinoble.sh')) ||
     fs.existsSync(path.resolve(sketchDir, '..', 'idf', 'components',
@@ -279,7 +279,7 @@ if (sdkconfigDefaults.includes('CONFIG_FREERTOS_USE_TICKLESS_IDLE=y') ||
 if (sdkconfigDefaults.includes('CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y') ||
     !sdkconfigDefaults.includes('CONFIG_ESP_CONSOLE_NONE=y') ||
     !sdkconfigDefaults.includes('CONFIG_ESP_CONSOLE_SECONDARY_NONE=y') ||
-    !sdkconfigDefaults.includes('CONFIG_SHOT_STOPPER_ENABLE_JTAG=0')) {
+    !sdkconfigDefaults.includes('CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0')) {
   throw new Error(
       'IDF console must default to NONE; JTAG stays off unless ENABLE_JTAG=1');
 }
@@ -287,7 +287,7 @@ if (sdkconfigDefaults.includes('CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y') ||
   const sdkconfigJtag = fs.readFileSync(
       path.resolve(sketchDir, '..', 'idf', 'sdkconfig.defaults.jtag'), 'utf8');
   if (!sdkconfigJtag.includes('CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y') ||
-      !sdkconfigJtag.includes('CONFIG_SHOT_STOPPER_ENABLE_JTAG=1') ||
+      !sdkconfigJtag.includes('CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1') ||
       !sdkconfigJtag.includes('# CONFIG_ESP_CONSOLE_NONE is not set')) {
     throw new Error(
         'sdkconfig.defaults.jtag must turn USB Serial/JTAG on for ENABLE_JTAG=1');
@@ -312,7 +312,7 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
       'utf8');
   if (!cmakeLists.includes('ARDUINO_USB_CDC_ON_BOOT=${_ss_cdc_on_boot}') ||
       !cmakeLists.includes('set(_ss_cdc_on_boot 0)') ||
-      !cmakeLists.includes('-DSHOT_STOPPER_ENABLE_JTAG=1') ||
+      !cmakeLists.includes('-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1') ||
       cmakeLists.includes('COMPILE_DEFINITIONS "ARDUINO_USB_CDC_ON_BOOT=0"') ||
       cmakeLists.includes('COMPILE_DEFINITIONS "ARDUINO_USB_CDC_ON_BOOT=1"')) {
     throw new Error(
@@ -333,7 +333,7 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
         'BLE scan presets must be Relaxed 25% (28.75/115), Balanced 50% (31.25/62.5), Aggressive 100% (20/20)');
   }
   if (!firmware.includes('USB_CONSOLE_GPIO') ||
-      !firmware.includes('SHOT_STOPPER_USB_CONSOLE_GPIO 4') ||
+      !firmware.includes('OPEN_BREW_BY_WEIGHT_USB_CONSOLE_GPIO 4') ||
       !firmwareCore.includes('usbConsoleJumperPresent()') ||
       !firmwareCore.includes('UsbSerialEnableSource::COMPILE_FLAG') ||
       !firmwareCore.includes('UsbSerialEnableSource::JUMPER') ||
@@ -350,9 +350,9 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
   const serialCli = fs.readFileSync(
       path.join(sketchDir, 'OpenBrewByWeightSerialCli.h'), 'utf8');
   if (!serialCli.includes('#include "OpenBrewByWeightUsbConsole.h"') ||
-      !usbConsole.includes('SHOT_STOPPER_USB_CONSOLE_OWN_HWCDC') ||
-      !usbConsole.includes('#define Serial ::shotStopperUsbConsole') ||
-      !firmwareCore.includes('HWCDC shotStopperUsbConsole')) {
+      !usbConsole.includes('OPEN_BREW_BY_WEIGHT_USB_CONSOLE_OWN_HWCDC') ||
+      !usbConsole.includes('#define Serial ::openBrewByWeightUsbConsole') ||
+      !firmwareCore.includes('HWCDC openBrewByWeightUsbConsole')) {
     throw new Error(
         'GPIO4 jumper must start USB Serial/JTAG HWCDC, not UART0 Serial0');
   }
@@ -371,7 +371,7 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
         'dev build must empty a non-CMake tree before idf.py set-target fullclean');
   }
   if (!buildIdf.includes('OpenBrewByWeightBuildProfileGenerated.h') ||
-      !buildIdf.includes('SHOT_STOPPER_MACHINE_TYPE') ||
+      !buildIdf.includes('OPEN_BREW_BY_WEIGHT_MACHINE_TYPE') ||
       !buildIdf.includes('--machine-type paddle') ||
       !buildIdf.includes('--machine-type momentary') ||
       !buildIdf.includes('--machine-type momentary_reed') ||
@@ -379,7 +379,7 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
     throw new Error(
         'IDF builds must bake the machine-type-exclusive Web UI by forwarding the resolved machine type to gen_web_ui.js');
   }
-  if (!buildIdf.includes('SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL') ||
+  if (!buildIdf.includes('OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL') ||
       !buildIdf.includes('--no-remote-control')) {
     throw new Error(
         'IDF builds without remote machine control must forward --no-remote-control to gen_web_ui.js');
@@ -438,15 +438,15 @@ if (!network.includes('copyTaskProfiler') ||
       'Diagnostic status, POST /api/v1/diagnostic/profiler, and debug export must expose tasks');
 }
 const psram = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightPsram.h'), 'utf8');
-if (!psram.includes('#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
-    !firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ActivationStores activationStores') ||
+if (!psram.includes('#define OPEN_BREW_BY_WEIGHT_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
+    !firmwareCore.includes('OPEN_BREW_BY_WEIGHT_PSRAM_BSS ActivationStores activationStores') ||
     !firmwareCore.includes('HistoryLog &historyLog = activationStores.historyLog') ||
     !firmwareCore.includes(
-        'SHOT_STOPPER_PSRAM_BSS PersistedSettings persistedSettings') ||
+        'OPEN_BREW_BY_WEIGHT_PSRAM_BSS PersistedSettings persistedSettings') ||
     !firmwareCore.includes(
-        'SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistRequest') ||
+        'OPEN_BREW_BY_WEIGHT_PSRAM_BSS SettingsPersistRequest settingsPersistRequest') ||
     firmwareCore.includes(
-        'SHOT_STOPPER_PSRAM_BSS SettingsPersistRequest settingsPersistReceive') ||
+        'OPEN_BREW_BY_WEIGHT_PSRAM_BSS SettingsPersistRequest settingsPersistReceive') ||
     !firmwareCore.includes(
         'xQueueReceive(settingsPersistQueue, &work') ||
     !firmwareCore.includes(
@@ -454,21 +454,21 @@ if (!psram.includes('#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
     !firmwareCore.includes(
         'constexpr uint32_t SETTINGS_PERSIST_TASK_STACK_SIZE = 4096') ||
     !network.includes(
-        'static SHOT_STOPPER_PSRAM_BSS WifiScanSnapshot g_wifiScan') ||
+        'static OPEN_BREW_BY_WEIGHT_PSRAM_BSS WifiScanSnapshot g_wifiScan') ||
     !network.includes(
-        'static SHOT_STOPPER_PSRAM_BSS PersistedSettings g_networkSettings') ||
+        'static OPEN_BREW_BY_WEIGHT_PSRAM_BSS PersistedSettings g_networkSettings') ||
     !networkHeader.includes('PersistedSettings &settings_') ||
     !firmwareCore.includes(
-        'SHOT_STOPPER_PSRAM_BSS DebugRingBuffer debugLog') ||
+        'OPEN_BREW_BY_WEIGHT_PSRAM_BSS DebugRingBuffer debugLog') ||
     !firmwareCore.includes(
-        'SHOT_STOPPER_PSRAM_BSS RuntimeConfig publishedRuntimeConfig') ||
+        'OPEN_BREW_BY_WEIGHT_PSRAM_BSS RuntimeConfig publishedRuntimeConfig') ||
     !firmwareCore.includes(
-        'SHOT_STOPPER_PSRAM_BSS ShotPresetBank publishedPresetBank') ||
+        'OPEN_BREW_BY_WEIGHT_PSRAM_BSS ShotPresetBank publishedPresetBank') ||
     firmwareCore.includes('stagingControlStatus') ||
     !flashIoScratch.includes('allocInternal(FLASH_IO_SCRATCH_BYTES, AllocationOwner::FLASH_IO)') ||
-    !firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ControlStatusCurve publishedControlCurve') ||
-    firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ControlStatusFields') ||
-    firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ControlStatusSnapshot')) {
+    !firmwareCore.includes('OPEN_BREW_BY_WEIGHT_PSRAM_BSS ControlStatusCurve publishedControlCurve') ||
+    firmwareCore.includes('OPEN_BREW_BY_WEIGHT_PSRAM_BSS ControlStatusFields') ||
+    firmwareCore.includes('OPEN_BREW_BY_WEIGHT_PSRAM_BSS ControlStatusSnapshot')) {
   throw new Error(
       'History/settings/debug-ring/recipe/curve payloads use PSRAM; flash scratch and control scalars stay internal');
 }
@@ -518,7 +518,7 @@ if (!buzzer.includes('struct RtttlCatalog') ||
 if (network.includes('ControlStatusSnapshot status;') ||
     network.includes('ControlStatusSnapshot control;') ||
     firmwareCore.includes('ControlStatusSnapshot status;') ||
-    !network.includes('ControlGateSnapshot ShotStopperNetwork::controlGate()') ||
+    !network.includes('ControlGateSnapshot OpenBrewByWeightNetwork::controlGate()') ||
     !firmwareCore.includes('void copyControlGate(ControlGateSnapshot &output)')) {
   throw new Error(
       'Network/httpd gate checks must copy ControlGateSnapshot, not a stack ControlStatusSnapshot');
@@ -572,8 +572,8 @@ if (!firmware.includes(
   throw new Error('Task priorities must come from the schedule contract');
 }
 const firmwareModeWrite = network.slice(
-    network.indexOf('ShotStopperNetwork::firmwareModeHandler('),
-    network.indexOf('shotstopper::saveFirmwareMode('));
+    network.indexOf('OpenBrewByWeightNetwork::firmwareModeHandler('),
+    network.indexOf('openbrewbyweight::saveFirmwareMode('));
 if (!firmwareModeWrite.includes('networkFlashWriteAllowed()')) {
   throw new Error('Firmware mode must persist only under the durable-write gate');
 }
@@ -608,8 +608,8 @@ if (/\bruntimeConfig\b/.test(scaleWorker) ||
   const loopBody = firmwareCore.slice(firmwareCore.indexOf('void loop()'));
   const drainCount = (loopBody.match(/processScaleWorkerEvents\(\)/g) || []).length;
   if (drainCount < 2 ||
-      !network.includes('bool ShotStopperNetwork::lockWorkBufForStatus') ||
-      !network.includes('void ShotStopperNetwork::loadControlStatus') ||
+      !network.includes('bool OpenBrewByWeightNetwork::lockWorkBufForStatus') ||
+      !network.includes('void OpenBrewByWeightNetwork::loadControlStatus') ||
       !network.includes('callbacks_.refreshControlStatus != nullptr') ||
       (network.split('lockWorkBufForStatus()').length - 1) < 4 ||
       !firmwareCore.includes('callbacks.refreshControlStatus = refreshControlStatus') ||
@@ -686,7 +686,7 @@ if (!domain.includes('HEALTH_HEAP_LOW_RESTART_MS') ||
       'Sustained heap-low must request a safe restart only from Ready with the circuit open');
 }
 if (!bleLibrary.includes('BLE_CONNECT_TIMEOUT_MS + kConnectCallbackMarginMs') ||
-    !bleLibrary.includes('ble_gap_connect(shotStopperBleRuntimeOwnAddressType()') ||
+    !bleLibrary.includes('ble_gap_connect(openBrewByWeightBleRuntimeOwnAddressType()') ||
     !bleLibrary.includes('beginOperation(CallbackDomain::Link)') ||
     !bleLibrary.includes('event.generation != generation_') ||
     !bleLibrary.includes('finishLink(true')) {

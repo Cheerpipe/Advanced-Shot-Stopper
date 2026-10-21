@@ -8,16 +8,16 @@
 // jumper path actually enumerates CDC. JTAG builds already map Serial to
 // HWCDCSerial and skip this alias.
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #include "HWCDC.h"
 #if defined(SOC_USB_SERIAL_JTAG_SUPPORTED) && SOC_USB_SERIAL_JTAG_SUPPORTED && \
     defined(ARDUINO_USB_MODE) && ARDUINO_USB_MODE &&                           \
     !(defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT)
-#define SHOT_STOPPER_USB_CONSOLE_OWN_HWCDC 1
-extern HWCDC shotStopperUsbConsole;
+#define OPEN_BREW_BY_WEIGHT_USB_CONSOLE_OWN_HWCDC 1
+extern HWCDC openBrewByWeightUsbConsole;
 #ifdef Serial
 #undef Serial
 #endif
-#define Serial ::shotStopperUsbConsole
+#define Serial ::openBrewByWeightUsbConsole
 #endif
 #endif

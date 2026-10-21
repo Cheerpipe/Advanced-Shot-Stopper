@@ -1,5 +1,5 @@
-esp_err_t ShotStopperNetwork::timeSyncHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::timeSyncHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
@@ -16,7 +16,7 @@ esp_err_t ShotStopperNetwork::timeSyncHandler(httpd_req_t *request) {
   self.ntpManualSyncPending_ = true;
   return self.sendAccepted(request, self.allocateRequestId());
 }
-esp_err_t ShotStopperNetwork::timeZoneCatalogHandler(httpd_req_t *request) {
+esp_err_t OpenBrewByWeightNetwork::timeZoneCatalogHandler(httpd_req_t *request) {
   httpd_resp_set_type(request, JSON_CONTENT_TYPE);
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   if (sendChunk(request, "[", 1) != ESP_OK) return ESP_FAIL;
@@ -45,8 +45,8 @@ esp_err_t ShotStopperNetwork::timeZoneCatalogHandler(httpd_req_t *request) {
   return sendChunk(request, nullptr, 0);
 }
 
-esp_err_t ShotStopperNetwork::timeZonePreviewHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::timeZonePreviewHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) return ESP_OK;
   const esp_err_t bodyStatus = self.lockJsonBody(
       request, "A bounded JSON request is required.");
@@ -88,8 +88,8 @@ esp_err_t ShotStopperNetwork::timeZonePreviewHandler(httpd_req_t *request) {
   return sendJson(request, STATUS_OK, body);
 }
 
-esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::configHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   ControlGateSnapshot status = self.controlGate();
   if (!self.webUiConfigurationAllowed(request, status)) {
     return sendError(request, STATUS_CONFLICT,
@@ -291,12 +291,12 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   } else if (jsonFieldPresent(root, "maxSinglePressMs") &&
              !jsonMaxSinglePressMs(root, candidate)) {
     parseError = "maxSinglePressMs must be an integer from 100 to 5000.";
-#if SHOT_STOPPER_MACHINE_TYPE != 0
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE != 0
   } else if (jsonFieldPresent(root, "momentaryStartEdge") &&
              !jsonMomentaryStartEdge(root, candidate)) {
     parseError = "momentaryStartEdge must be press or release.";
 #endif
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
   } else if (jsonFieldPresent(root, "reedConfirmTimeoutMs") &&
              !jsonReedConfirmTimeoutMs(root, candidate)) {
     parseError = "reedConfirmTimeoutMs must be an integer from 200 to 5000.";
@@ -626,8 +626,8 @@ esp_err_t ShotStopperNetwork::configHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::webhookHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::webhookHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   const ControlGateSnapshot gate = self.controlGate();
   if (!self.webUiConfigurationAllowed(request, gate)) {
     return sendError(request, STATUS_CONFLICT,
@@ -706,8 +706,8 @@ esp_err_t ShotStopperNetwork::webhookHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::bullseyeTestHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::bullseyeTestHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   const ControlGateSnapshot status = self.controlGate();
   if (!self.webUiConfigurationAllowed(request, status)) {
     return sendError(request, STATUS_CONFLICT,
@@ -760,8 +760,8 @@ esp_err_t ShotStopperNetwork::bullseyeTestHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::preferredScaleClearHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::preferredScaleClearHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   ControlGateSnapshot status = self.controlGate();
   if (!self.webUiConfigurationAllowed(request, status)) {
     return sendError(request, STATUS_CONFLICT,
@@ -775,8 +775,8 @@ esp_err_t ShotStopperNetwork::preferredScaleClearHandler(httpd_req_t *request) {
                                 "Control is busy; nothing was cleared.");
 }
 
-esp_err_t ShotStopperNetwork::preferredScaleSelectHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::preferredScaleSelectHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   ControlGateSnapshot status = self.controlGate();
   if (!self.webUiConfigurationAllowed(request, status)) {
     return sendError(request, STATUS_CONFLICT,
@@ -830,8 +830,8 @@ esp_err_t ShotStopperNetwork::preferredScaleSelectHandler(httpd_req_t *request) 
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::scaleFriendlyNameHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::scaleFriendlyNameHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   ControlGateSnapshot status = self.controlGate();
   if (!self.webUiConfigurationAllowed(request, status)) {
     return sendError(request, STATUS_CONFLICT,
@@ -898,8 +898,8 @@ esp_err_t ShotStopperNetwork::scaleFriendlyNameHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::presetsHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   ControlGateSnapshot status = self.controlGate();
   if (!self.webUiConfigurationAllowed(request, status)) {
     return sendError(request, STATUS_CONFLICT,
@@ -1017,7 +1017,7 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
         const cJSON *micraTarget =
             cJSON_GetObjectItemCaseSensitive(root, "lineaMicraBrewTargetC");
         if (parseError == nullptr && micraTarget != nullptr) {
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
           const double scaled = cJSON_IsNumber(micraTarget)
                                     ? micraTarget->valuedouble * 10.0
                                     : NAN;
@@ -1060,8 +1060,8 @@ esp_err_t ShotStopperNetwork::presetsHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::resetCalibrationHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::resetCalibrationHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   ControlGateSnapshot status = self.controlGate();
   if (!self.webUiConfigurationAllowed(request, status)) {
     return sendError(request, STATUS_CONFLICT,
@@ -1114,8 +1114,8 @@ esp_err_t ShotStopperNetwork::resetCalibrationHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::resetGuardSamplesHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::resetGuardSamplesHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   ControlGateSnapshot status = self.controlGate();
   if (!self.webUiConfigurationAllowed(request, status)) {
     return sendError(request, STATUS_CONFLICT,
@@ -1145,8 +1145,8 @@ esp_err_t ShotStopperNetwork::resetGuardSamplesHandler(httpd_req_t *request) {
       "Control is busy; guard samples were not reset.");
 }
 
-esp_err_t ShotStopperNetwork::paddleHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::paddleHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
@@ -1192,8 +1192,8 @@ esp_err_t ShotStopperNetwork::paddleHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::rinseHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::rinseHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
@@ -1211,8 +1211,8 @@ esp_err_t ShotStopperNetwork::rinseHandler(httpd_req_t *request) {
                                 "Control queue is full.");
 }
 
-esp_err_t ShotStopperNetwork::stopHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::stopHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
@@ -1225,8 +1225,8 @@ esp_err_t ShotStopperNetwork::stopHandler(httpd_req_t *request) {
                                 "Control queue is full.");
 }
 
-esp_err_t ShotStopperNetwork::forcePulseHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::forcePulseHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
@@ -1234,8 +1234,8 @@ esp_err_t ShotStopperNetwork::forcePulseHandler(httpd_req_t *request) {
     return sendError(request, "403 Forbidden", "REMOTE_CONTROL_DISABLED",
                      "Remote machine control actuation is disabled in this firmware build.");
   }
-#if SHOT_STOPPER_MACHINE_TYPE == 0
-  if (SHOT_STOPPER_MACHINE_TYPE == 0) {
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 0
+  if (OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 0) {
     return sendError(request, STATUS_CONFLICT, "MACHINE_TYPE_UNSUPPORTED",
                      "Forced switch pulses require a momentary machine build.");
   }
@@ -1261,9 +1261,9 @@ esp_err_t ShotStopperNetwork::forcePulseHandler(httpd_req_t *request) {
                                 false, "Control queue is full.");
 }
 
-esp_err_t ShotStopperNetwork::stateOverrideHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
-  if (SHOT_STOPPER_MACHINE_TYPE != 1) {
+esp_err_t OpenBrewByWeightNetwork::stateOverrideHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
+  if (OPEN_BREW_BY_WEIGHT_MACHINE_TYPE != 1) {
     return sendError(request, STATUS_CONFLICT, "MACHINE_TYPE_UNSUPPORTED",
                      "Inferred-state override is only available on switch-only builds.");
   }
@@ -1297,8 +1297,8 @@ esp_err_t ShotStopperNetwork::stateOverrideHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::restartHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::restartHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
@@ -1309,8 +1309,8 @@ esp_err_t ShotStopperNetwork::restartHandler(httpd_req_t *request) {
                                 "Control queue is full.");
 }
 
-esp_err_t ShotStopperNetwork::firmwareModeHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::firmwareModeHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
@@ -1340,9 +1340,9 @@ esp_err_t ShotStopperNetwork::firmwareModeHandler(httpd_req_t *request) {
   }
   // The mode is boot-scoped: persist under the durable-write gate checked
   // above, then queue the same idle-safe restart the Restart button uses.
-  if (!shotstopper::saveFirmwareMode(
-          enabled ? shotstopper::FirmwareMode::FULL
-                  : shotstopper::FirmwareMode::COMPATIBILITY)) {
+  if (!openbrewbyweight::saveFirmwareMode(
+          enabled ? openbrewbyweight::FirmwareMode::FULL
+                  : openbrewbyweight::FirmwareMode::COMPATIBILITY)) {
     return sendError(request, STATUS_UNAVAILABLE, "FIRMWARE_MODE_SAVE_FAILED",
                      "Could not persist the firmware mode.");
   }
@@ -1350,8 +1350,8 @@ esp_err_t ShotStopperNetwork::firmwareModeHandler(httpd_req_t *request) {
                                 "Control queue is full.");
 }
 
-esp_err_t ShotStopperNetwork::scaleTareHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::scaleTareHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!controlAllowsConfiguration(self.controlGate())) {
     return sendError(request, STATUS_CONFLICT, "CONTROL_STATE_CONFLICT",
                      "Stop the cycle and wait for Ready before taring.");
@@ -1380,8 +1380,8 @@ esp_err_t ShotStopperNetwork::scaleTareHandler(httpd_req_t *request) {
   return self.sendAccepted(request, command.requestId);
 }
 
-esp_err_t ShotStopperNetwork::clearResetHistoryHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::clearResetHistoryHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.lockConfirmedBody(
           request, "An explicit reset-history confirmation is required.",
           "CLEAR_RESET_HISTORY")) {
@@ -1393,8 +1393,8 @@ esp_err_t ShotStopperNetwork::clearResetHistoryHandler(httpd_req_t *request) {
                                 "Control is busy; reset history was not cleared.");
 }
 
-esp_err_t ShotStopperNetwork::factoryResetHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::factoryResetHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
@@ -1442,7 +1442,7 @@ static const char *parseSetupBrew(cJSON *root, SetupBrew &brew,
 
 // Keeps the onboarding brewing choice with the setup session; commit also
 // records it against the current Wi-Fi (skip and finish).
-bool ShotStopperNetwork::keepSetupBrew(SetupBrew brew, uint8_t presetId,
+bool OpenBrewByWeightNetwork::keepSetupBrew(SetupBrew brew, uint8_t presetId,
                                        bool commit) {
   dataMux_.lock();
   if (brew != SetupBrew::NONE) {
@@ -1470,7 +1470,7 @@ bool ShotStopperNetwork::keepSetupBrew(SetupBrew brew, uint8_t presetId,
 // Durable half of the onboarding transaction, written before the Wi-Fi
 // commit it is bound to: "by weight" stores the intent that boot applies with
 // that Wi-Fi; "usual" keeps compatibility mode, so it only drops a stale one.
-bool ShotStopperNetwork::persistSetupIntent(bool bound, uint32_t staCrc) {
+bool OpenBrewByWeightNetwork::persistSetupIntent(bool bound, uint32_t staCrc) {
   dataMux_.lock();
   const SetupBrew brew = status_.setupBrew;
   SetupIntent intent;

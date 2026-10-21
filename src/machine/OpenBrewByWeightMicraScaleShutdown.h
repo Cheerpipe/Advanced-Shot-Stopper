@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // ScaleDisconnectReason::REMOTE_DISCONNECTED is the only disconnect treated
 // as an explicit, scale-initiated power-off. The numeric value mirrors the
@@ -64,4 +64,4 @@ class MicraScaleShutdownTracker {
   bool pending_ = false;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -289,7 +289,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     !firmware.includes('noteScaleHistory(seenMac, seenName, false)') ||
     wallClock.includes('monotonicMs >= anchorMonotonicMs_') ||
     !wallClock.includes('monotonicElapsedMs(monotonicMs, anchorMonotonicMs_)') ||
-    !network.includes('StaJoinHints ShotStopperNetwork::staJoinHints()') ||
+    !network.includes('StaJoinHints OpenBrewByWeightNetwork::staJoinHints()') ||
     !dualSlotFlashIo.includes(
         'flashIoWriteChunked(part, targetOffset, &store_, sizeof(store_))') ||
     !lastShotIo.includes('copyToFlashIoScratch(&blob_') ||

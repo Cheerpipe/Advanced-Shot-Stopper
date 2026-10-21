@@ -2,7 +2,7 @@
 #include <atomic>
 #include <cstdint>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 // Discovery owns this publication. Network owners consume it; none can clear it.
 inline std::atomic<bool> outboundAcquisitionHeld{false};
 // Control owns shot admission; rinse demotion clears it immediately.
@@ -43,4 +43,4 @@ inline void publishOutboundAcquisition(bool held, uint32_t now) {
   // Discovery is the single writer: fence old ingress before opening admission.
   if (!held) outboundAcquisitionHeld.store(false, std::memory_order_release);
 }
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -64,7 +64,7 @@ void noteMomentaryLogicalStartCanceled();
 void noteMomentaryDisqualifiedPress(bool restoreRunning);
 MachineRunState machineRunState();
 inline bool machineRunningElapsed(uint32_t &elapsedOut);
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
 void resetReedRuntime();
 #endif
 
@@ -131,7 +131,7 @@ void revertDisqualifiedSinglePress() {
 
 void initializeActivatorInput() {
   pinMode(ACTIVATOR_GPIO, INPUT_PULLUP);
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
   pinMode(REED_GPIO, INPUT_PULLUP);
   resetReedRuntime();
 #endif

@@ -2,7 +2,7 @@
 
 #include "OpenBrewByWeightDomain.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 enum class QuickSettingField : uint8_t {
   BREW_BY_WEIGHT,
@@ -189,4 +189,4 @@ inline bool quickSettingsEqual(const QuickSettingsSnapshot &left,
          left.cupProtectionEnabled == right.cupProtectionEnabled;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

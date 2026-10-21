@@ -45,7 +45,7 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
 fi
 
 ss_cli_resolve "arch" || exit $?
-shotstopper_resolve_board "$(ss_get arch)" || exit 2
+openbrewbyweight_resolve_board "$(ss_get arch)" || exit 2
 ss_idf_resolve_paths
 ss_idf_static_paths reports/iwyu || exit $?
 

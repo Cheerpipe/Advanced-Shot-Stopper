@@ -9,7 +9,7 @@ constexpr uint32_t kUiStreamDispatchBudgetMs = 800;
 constexpr size_t kUiStreamCoalesceBytes = 1436;
 bool uiStreamSendCleanAbort = false;
 const char *uiStreamSendKind = "control";
-SHOT_STOPPER_PSRAM_BSS char uiStreamPending[kUiStreamCoalesceBytes];
+OPEN_BREW_BY_WEIGHT_PSRAM_BSS char uiStreamPending[kUiStreamCoalesceBytes];
 size_t uiStreamPendingBytes = 0;
 int uiStreamPendingFd = -1;
 bool uiStreamAwaitingPayload = false, uiStreamBatching = false;

@@ -9,8 +9,8 @@
 
 #include <stdint.h>
 
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) &&                                        \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 #include <esp_task_wdt.h>
 #include <esp_ota_ops.h>
 #include <freertos/FreeRTOS.h>
@@ -18,10 +18,10 @@
 #include <freertos/task.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 inline void initializeSettingsSchemaWriteAdmission() {
-#if !defined(SHOT_STOPPER_HOST_TEST) && !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   esp_ota_img_states_t state = ESP_OTA_IMG_UNDEFINED;
   if (!ensureFlashIoMutex() || !lockFlashIo()) return;
   const esp_err_t error = esp_ota_get_state_partition(esp_ota_get_running_partition(), &state);
@@ -91,7 +91,7 @@ inline PersistedSettings &persistedSettingsScratch() {
 // Shared by the load/save/reset/revision-probe paths; must stay out-of-line
 // so the compiler does not embed one copy at every call site.
 __attribute__((noinline))
-inline bool readSettingsSlot(ShotStopperPreferences &preferences, const char *key,
+inline bool readSettingsSlot(OpenBrewByWeightPreferences &preferences, const char *key,
                              PersistedSettings &settings) {
   const size_t stored = preferences.isKey(key)
                             ? preferences.getBytesLength(key)
@@ -116,7 +116,7 @@ inline bool loadPersistedSettings(PersistedSettings &settings) {
   if (!lockSettingsNvs()) {
     return false;
   }
-  ShotStopperPreferences preferences(NvsSubsystem::SETTINGS);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::SETTINGS);
   if (!preferences.begin(SETTINGS_NAMESPACE, true)) {
     unlockSettingsNvs();
     return false;
@@ -193,7 +193,7 @@ inline bool savePersistedSettings(PersistedSettings &settings) {
     revision = durableStorageRevision();
   } else if (revision == 0) {
     bool haveRevision = false;
-    ShotStopperPreferences probe(NvsSubsystem::SETTINGS);
+    OpenBrewByWeightPreferences probe(NvsSubsystem::SETTINGS);
     if (probe.begin(SETTINGS_NAMESPACE, true)) {
       if (readSettingsSlot(probe, SETTINGS_SLOT_A, scratch)) {
         revision = scratch.storageRevision;
@@ -222,7 +222,7 @@ inline bool savePersistedSettings(PersistedSettings &settings) {
   }
   finalizePersistedSettings(scratch);
 
-  ShotStopperPreferences preferences(NvsSubsystem::SETTINGS);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::SETTINGS);
   if (!preferences.begin(SETTINGS_NAMESPACE, false)) {
     unlockSettingsNvs();
     feedSettingsNvsWatchdog();
@@ -270,7 +270,7 @@ inline bool resetPersistedSettingsToFactory(PersistedSettings &settings) {
   if (!lockSettingsNvs()) {
     return false;
   }
-  ShotStopperPreferences preferences(NvsSubsystem::SETTINGS);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::SETTINGS);
   if (!preferences.begin(SETTINGS_NAMESPACE, false)) {
     unlockSettingsNvs();
     return false;
@@ -349,4 +349,4 @@ inline bool resetPersistedSettingsToFactory(PersistedSettings &settings) {
   return true;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -6,5 +6,5 @@ idf_component_register(
     arduino-esp32
 )
 
-# Keep g_probe / shotstopperKeepBssProbe in the ELF for ss_idf_verify_firmware.
-target_link_libraries(${COMPONENT_LIB} INTERFACE "-u shotstopperKeepBssProbe")
+# Keep g_probe / openBrewByWeightKeepBssProbe in the ELF for ss_idf_verify_firmware.
+target_link_libraries(${COMPONENT_LIB} INTERFACE "-u openBrewByWeightKeepBssProbe")

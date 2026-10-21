@@ -45,7 +45,7 @@ if [[ "$SS_CLI_HELP_REQUESTED" == "1" ]]; then
 fi
 
 ss_cli_resolve "arch" || exit $?
-shotstopper_resolve_board "$(ss_get arch)" || exit 2
+openbrewbyweight_resolve_board "$(ss_get arch)" || exit 2
 ss_idf_resolve_paths
 
 ss_idf_static_paths reports/static-tidy || exit $?
@@ -255,7 +255,7 @@ failed=0
 while IFS= read -r src; do
   total=$((total + 1))
   printf '[%d] %s\n' "$total" "$src"
-  tmp="$(mktemp "${TMPDIR:-/tmp}/shotstopper-tidy.XXXXXX")"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/openbrewbyweight-tidy.XXXXXX")"
   "$tidy_bin" -p "$output_path" "$src" > "$tmp" 2>&1
   run_status=$?
   cat "$tmp" >> "$output_path/tidy.txt"

@@ -2,9 +2,9 @@
 
 // Host builds embed TaskMutex in host-test fragments; only the firmware
 // target compiles this file (registered in idf/components/openBrewByWeight).
-#if !defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+#if !defined(OPEN_BREW_BY_WEIGHT_TASK_MUTEX_HOST)
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 void TaskMutex::lock_() {
   const BaseType_t taken = xSemaphoreTake(handle_, portMAX_DELAY);
@@ -43,6 +43,6 @@ void TaskMutex::unlock_() {
   (void)given;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 
 #endif

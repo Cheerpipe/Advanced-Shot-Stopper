@@ -4,7 +4,7 @@
 #include "OpenBrewByWeightPreferences.h"
 #include "OpenBrewByWeightResetGuard.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t RESET_HISTORY_STORE_MAGIC = 0x52534854UL;  // "RSHT"
 
@@ -24,7 +24,7 @@ inline uint32_t resetHistoryStoreChecksum(const ResetHistoryStoreBlob &blob) {
   return (value * 16777619UL) ^ blob.currentUptimeMs;
 }
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 inline ResetHistoryStoreBlob resetHistoryStoreLive;
 inline std::atomic<uint32_t> resetHistoryStoreLastCheckpointMs{0};
 #endif
@@ -41,13 +41,13 @@ inline void finalizeResetHistoryStore(ResetHistoryStoreBlob &blob) {
 }
 
 inline void persistResetHistoryAfterBoot(SafetyResetSnapshot &snapshot) {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   (void)snapshot;
 #else
   ResetHistoryStoreBlob stored = {};
   bool loaded = false;
   if (lockFlashIo()) {
-    ShotStopperPreferences preferences(NvsSubsystem::RESET_HISTORY);
+    OpenBrewByWeightPreferences preferences(NvsSubsystem::RESET_HISTORY);
     if (preferences.begin("rsthist", true)) {
       loaded = preferences.getBytesLength("history") == sizeof(stored) &&
                preferences.getBytes("history", &stored, sizeof(stored)) ==
@@ -78,7 +78,7 @@ inline void persistResetHistoryAfterBoot(SafetyResetSnapshot &snapshot) {
   finalizeResetHistoryStore(next);
 
   if (lockFlashIo()) {
-    ShotStopperPreferences preferences(NvsSubsystem::RESET_HISTORY);
+    OpenBrewByWeightPreferences preferences(NvsSubsystem::RESET_HISTORY);
     if (preferences.begin("rsthist", false)) {
       (void)preferences.putBytes("history", &next, sizeof(next));
       preferences.end();
@@ -98,7 +98,7 @@ inline void persistResetHistoryAfterBoot(SafetyResetSnapshot &snapshot) {
 }
 
 inline bool persistResetUptimeCheckpoint(uint32_t uptimeMs) {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   (void)uptimeMs;
   return true;
 #else
@@ -118,7 +118,7 @@ inline bool persistResetUptimeCheckpoint(uint32_t uptimeMs) {
   ResetHistoryStoreBlob next = resetHistoryStoreLive;
   next.currentUptimeMs = uptimeMs;
   finalizeResetHistoryStore(next);
-  ShotStopperPreferences preferences(NvsSubsystem::RESET_HISTORY);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::RESET_HISTORY);
   bool ok = false;
   if (preferences.begin("rsthist", false)) {
     ok = preferences.putBytes("history", &next, sizeof(next)) == sizeof(next);
@@ -138,14 +138,14 @@ inline bool persistResetUptimeCheckpoint(uint32_t uptimeMs) {
 // caller retains the current boot's reset reason separately, so clearing this
 // list never removes the "Last reset" diagnostic value.
 inline bool clearPersistedResetHistory(uint32_t unsafeResetCount) {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   initializeSafetyResetRecord(SAFETY_RELAY_OPEN_MARKER, unsafeResetCount);
   return true;
 #else
   ResetHistoryStoreBlob next = {};
   finalizeResetHistoryStore(next);
   if (!tryLockFlashIo(FLASH_IO_LOCK_TIMEOUT_MS)) return false;
-  ShotStopperPreferences preferences(NvsSubsystem::RESET_HISTORY);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::RESET_HISTORY);
   bool ok = false;
   if (preferences.begin("rsthist", false)) {
     ok = preferences.putBytes("history", &next, sizeof(next)) == sizeof(next);
@@ -163,4 +163,4 @@ inline bool clearPersistedResetHistory(uint32_t unsafeResetCount) {
 #endif
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

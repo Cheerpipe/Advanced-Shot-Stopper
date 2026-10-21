@@ -265,8 +265,8 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert(!micraStatus.includes('page == StatusPage::Settings ? safeMicraUsername : ""'));
   assert(micraStatus.includes('machineIntegrationCloudCall()'));
   assert(cloudUi.includes('renderMicraCloudDiagnostic(s.lineaMicra)'));
-  const complete = micraService.slice(micraService.indexOf('void ShotStopperMicraService::releaseIoBuffer('),
-      micraService.indexOf('void ShotStopperMicraService::releaseWorkBuffer('));
+  const complete = micraService.slice(micraService.indexOf('void OpenBrewByWeightMicraService::releaseIoBuffer('),
+      micraService.indexOf('void OpenBrewByWeightMicraService::releaseWorkBuffer('));
   assert(complete.includes('serialTraceCategoryf(success ? LogLevel::INFO'));
   assert(complete.includes('transient ? LogLevel::WARNING : LogLevel::ERROR'));
   assert(complete.includes('lineaMicraHttpRetryable(call.httpStatus)'));
@@ -282,11 +282,11 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert(micraService.includes(': httpStatus != 0 ? "http_error" : "transport_error"'));
 }
 const deferObservation = micraService.slice(
-  micraService.indexOf('void ShotStopperMicraService::deferObservation('),
-  micraService.indexOf('void ShotStopperMicraService::fail('));
+  micraService.indexOf('void OpenBrewByWeightMicraService::deferObservation('),
+  micraService.indexOf('void OpenBrewByWeightMicraService::fail('));
 const terminalFailure = micraService.slice(
-  micraService.indexOf('void ShotStopperMicraService::fail('),
-  micraService.indexOf('void ShotStopperMicraService::scheduleAutomatic('));
+  micraService.indexOf('void OpenBrewByWeightMicraService::fail('),
+  micraService.indexOf('void OpenBrewByWeightMicraService::scheduleAutomatic('));
 
 if (!network.includes('/api/v1/machine/linea-micra') ||
     !micraWeb.includes('UNSUPPORTED_MACHINE') ||
@@ -306,7 +306,7 @@ const micraStatusFailures = [
   !micraStatus.includes('\\\"email\\\"') && 'account email missing',
   !micraStatus.includes('\\\"machines\\\"') && 'machine list missing',
   !micraStatus.includes('\\\"accountMachineCount\\\"') && 'account machine count missing',
-  !micraStatus.includes('SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD') && 'compile gate missing',
+  !micraStatus.includes('OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD') && 'compile gate missing',
   !micraStatus.includes('\\\"machineIntegration\\\"') && 'integration capability missing',
 ].filter(Boolean);
 if (micraStatusFailures.length) {
@@ -321,8 +321,8 @@ if (!micraService.includes('esp_log_level_set("transport_ws", ESP_LOG_NONE);')) 
 const micraPublishAt = networkService.indexOf(
     'publishMachineIntegrationNetworkState(');
 const micraNetworkState = micraService.slice(
-    micraService.indexOf('void ShotStopperMicraService::publishNetworkState('),
-    micraService.indexOf('bool ShotStopperMicraService::queueConnect('));
+    micraService.indexOf('void OpenBrewByWeightMicraService::publishNetworkState('),
+    micraService.indexOf('bool OpenBrewByWeightMicraService::queueConnect('));
 if (!micraService.includes('config.is_async = true;') ||
     !micraService.includes('while (performed == ESP_ERR_HTTP_EAGAIN)') ||
     !micraService.includes('(void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(10));') ||
@@ -351,7 +351,7 @@ if (!micraTiming.includes('kStatePollMs = 30000') ||
     !micraService.includes('observationSchedule_.armPostEvent(millis())') ||
     !micraService.includes('deferObservation(pending, status, gateError)') ||
     !micraService.includes('observationActive_.load(std::memory_order_acquire)') ||
-    !micraService.includes('bool ShotStopperMicraService::observationCurrent(') ||
+    !micraService.includes('bool OpenBrewByWeightMicraService::observationCurrent(') ||
     !micraService.includes('pending_.request.type == LineaMicraRequestType::OBSERVE_STATE) {') ||
     !micraService.includes('!config_.accountConfigured ||\n      (config_.options & LINEA_MICRA_OBSERVE_STATE) == 0 ||') ||
     !micraService.includes('scheduleAutomatic(millis(), connecting)')) {
@@ -724,7 +724,7 @@ if (micraService.includes('keep_alive_enable = true') ||
     !micraService.includes('esp_http_client_set_post_field(work_->client, nullptr, 0)') ||
     !micraService.includes('config.buffer_size = 4096;') ||
     !micraService.includes('config.buffer_size_tx = 4096;') ||
-    !micraService.includes('struct ShotStopperMicraService::IoBuffer') ||
+    !micraService.includes('struct OpenBrewByWeightMicraService::IoBuffer') ||
     !micraService.includes('union {') ||
     !micraService.includes('allocExternal(sizeof(WorkBuffer), AllocationOwner::NETWORK)') ||
     !micraService.includes('allocExternal(sizeof(IoBuffer), AllocationOwner::NETWORK)') ||
@@ -763,8 +763,8 @@ if (!micraScaleShutdown.includes('LINEA_MICRA_SCALE_EXPLICIT_DISCONNECT = 9') ||
     !micraScaleShutdown.includes('lineaMicraShutdownGraceSeconds') ||
     !micraService.includes('CoffeeMachineChangeMode') ||
     !micraService.includes('{\\"mode\\":\\"StandBy\\"}') ||
-    !micraService.includes('bool ShotStopperMicraService::executePowerApplication(') ||
-    !micraService.includes('void ShotStopperMicraService::deferPower(') ||
+    !micraService.includes('bool OpenBrewByWeightMicraService::executePowerApplication(') ||
+    !micraService.includes('void OpenBrewByWeightMicraService::deferPower(') ||
     !micraService.includes('deferPower(request, LineaMicraError::CANCELED, 0, false)') ||
     !micraService.includes('uint8_t powerOptionBit(LineaMicraRequestType type)') ||
     !micraService.includes('? LINEA_MICRA_POWER_ON_WITH_SCALE') ||

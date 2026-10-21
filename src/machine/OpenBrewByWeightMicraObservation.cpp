@@ -4,7 +4,7 @@
 #include <cmath>
 #include <cstring>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 namespace {
 const cJSON *find(const cJSON *object, const char *key) {
   return cJSON_GetObjectItemCaseSensitive(object, key);
@@ -196,4 +196,4 @@ bool decodeMicraDashboard(const cJSON *root, MicraObservation &update) {
   update = next;
   return widgets != nullptr || removed != nullptr || connected != nullptr;
 }
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

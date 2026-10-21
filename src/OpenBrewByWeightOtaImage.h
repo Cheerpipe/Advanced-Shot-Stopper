@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr size_t OTA_ARCH_CAPACITY = 16;
 constexpr size_t OTA_PROFILE_COMPAT_CAPACITY = 64;
@@ -405,4 +405,4 @@ class OtaImageTagScanner {
   OtaImageTag tag_ = {};
 };
 
-}   // namespace shotstopper
+}   // namespace openbrewbyweight

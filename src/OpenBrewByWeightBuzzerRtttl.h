@@ -4,7 +4,7 @@
 
 // Melody catalog only. Rate → string mapping is in OpenBrewByWeightAlertTone.h.
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 enum class BuzzerCue : uint8_t {
   NONE = 0,
@@ -133,4 +133,4 @@ inline bool buzzerCueIsHighPriority(BuzzerCue cue) {
          cue == BuzzerCue::BULLSEYE;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

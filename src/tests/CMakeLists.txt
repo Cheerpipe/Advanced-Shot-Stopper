@@ -5,11 +5,11 @@ execute_process(
   WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
   COMMAND_ERROR_IS_FATAL ANY)
 
-set(SHOTSTOPPER_SANITIZER "" CACHE STRING "Host sanitizer")
+set(OPENBREWBYWEIGHT_SANITIZER "" CACHE STRING "Host sanitizer")
 set(common_options -Wall -Wextra -Werror -pedantic)
-if(SHOTSTOPPER_SANITIZER)
-  list(APPEND common_options -fno-omit-frame-pointer -fsanitize=${SHOTSTOPPER_SANITIZER})
-  add_link_options(-fno-omit-frame-pointer -fsanitize=${SHOTSTOPPER_SANITIZER})
+if(OPENBREWBYWEIGHT_SANITIZER)
+  list(APPEND common_options -fno-omit-frame-pointer -fsanitize=${OPENBREWBYWEIGHT_SANITIZER})
+  add_link_options(-fno-omit-frame-pointer -fsanitize=${OPENBREWBYWEIGHT_SANITIZER})
 endif()
 
 function(host_test name)
@@ -27,10 +27,10 @@ function(host_test name)
   set_tests_properties(${name} PROPERTIES LABELS "${ARG_LABEL}")
 endfunction()
 
-host_test(power_policy_host_test DEFINITIONS SHOT_STOPPER_HOST_TEST
+host_test(power_policy_host_test DEFINITIONS OPEN_BREW_BY_WEIGHT_HOST_TEST
   LABEL "host;control;concurrency")
 host_test(timezone_host_test LABEL "host;time")
-host_test(ble_runtime_host_test DEFINITIONS SHOT_STOPPER_BLE_RUNTIME_HOST_TEST
+host_test(ble_runtime_host_test DEFINITIONS OPEN_BREW_BY_WEIGHT_BLE_RUNTIME_HOST_TEST
   LABEL "host;ble;concurrency")
 target_include_directories(ble_runtime_host_test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 set_tests_properties(ble_runtime_host_test PROPERTIES LABELS "host;ble;concurrency")
@@ -45,7 +45,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${micra_extract}"
   "${micra_source}" "${CMAKE_CURRENT_BINARY_DIR}"
   COMMAND_ERROR_IS_FATAL ANY)
-host_test(micra_cancellation_host_test DEFINITIONS SHOT_STOPPER_HOST_TEST
+host_test(micra_cancellation_host_test DEFINITIONS OPEN_BREW_BY_WEIGHT_HOST_TEST
   LABEL "host;network;control;concurrency")
 target_include_directories(micra_cancellation_host_test PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}/micra_stubs" "${CMAKE_CURRENT_BINARY_DIR}")
@@ -53,21 +53,21 @@ host_test(micra_stomp_host_test LABEL "host;network;concurrency")
 host_test(boot_heap_host_test LABEL "host;resources;network;concurrency")
 host_test(ui_stream_transport_host_test LABEL "host;network")
 
-if(SHOTSTOPPER_SANITIZER STREQUAL "thread")
+if(OPENBREWBYWEIGHT_SANITIZER STREQUAL "thread")
   foreach(case M09 R25c F03 F04 F17 IT10 IT28 SH01 RACE06)
-    host_test(shot_stopper_tsan_${case}
+    host_test(open_brew_by_weight_tsan_${case}
       SOURCE open_brew_by_weight_host_test.cpp ARGS ${case} LABEL "host;concurrency")
-    set_target_properties(shot_stopper_tsan_${case} PROPERTIES
-      OUTPUT_NAME shot_stopper_tsan_${case})
+    set_target_properties(open_brew_by_weight_tsan_${case} PROPERTIES
+      OUTPUT_NAME open_brew_by_weight_tsan_${case})
   endforeach()
   host_test(ota_state_concurrency_host_test LABEL "host;ota;concurrency")
 else()
   host_test(open_brew_by_weight_host_test LABEL "host;control")
   host_test(persistence_host_test LABEL "host;persistence")
   host_test(crash_archive_host_test
-    DEFINITIONS SHOT_STOPPER_CRASH_HOST_TEST LABEL "host;persistence;safety")
+    DEFINITIONS OPEN_BREW_BY_WEIGHT_CRASH_HOST_TEST LABEL "host;persistence;safety")
   host_test(crash_archive_routes_host_test
-    DEFINITIONS SHOT_STOPPER_HOST_TEST LABEL "host;network;web")
+    DEFINITIONS OPEN_BREW_BY_WEIGHT_HOST_TEST LABEL "host;network;web")
   host_test(bbw_cutoff_host_test LABEL "host;control;persistence")
   host_test(safety_external_host_test LABEL "host;safety")
   host_test(remote_policy_host_test LABEL "host;safety")
@@ -76,11 +76,11 @@ else()
   host_test(ota_transfer_host_test LABEL "host;ota")
   host_test(ota_state_concurrency_host_test LABEL "host;ota;concurrency")
   host_test(webhook_error_host_test
-    DEFINITIONS SHOT_STOPPER_HOST_TEST LABEL "host;network")
+    DEFINITIONS OPEN_BREW_BY_WEIGHT_HOST_TEST LABEL "host;network")
   host_test(webhook_worker_host_test LABEL "host;network")
   host_test(heap_telemetry_host_test LABEL "host;resources")
 host_test(audit_log_host_test LABEL "host;diagnostics")
-host_test(audit_store_host_test DEFINITIONS SHOT_STOPPER_AUDIT_HOST_TEST
+host_test(audit_store_host_test DEFINITIONS OPEN_BREW_BY_WEIGHT_AUDIT_HOST_TEST
   LABEL "host;diagnostics;persistence")
   host_test(scale_profiler_host_test LABEL "host;scale;persistence")
   host_test(resource_owner_host_test LABEL "host;resources")
@@ -96,7 +96,7 @@ host_test(audit_store_host_test DEFINITIONS SHOT_STOPPER_AUDIT_HOST_TEST
     add_executable(${target} momentary_machine_host_test.cpp)
     target_compile_features(${target} PRIVATE cxx_std_17)
     target_compile_options(${target} PRIVATE ${common_options})
-    target_compile_definitions(${target} PRIVATE SHOT_STOPPER_MACHINE_TYPE=${machine_type})
+    target_compile_definitions(${target} PRIVATE OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=${machine_type})
     target_include_directories(${target} PRIVATE "${CMAKE_SOURCE_DIR}/src")
     target_link_libraries(${target} PRIVATE Threads::Threads)
     add_test(NAME ${target} COMMAND ${target})
@@ -159,7 +159,7 @@ host_test(micra_observation_host_test
   LABEL "host;network;control;concurrency")
 target_include_directories(micra_observation_host_test PRIVATE "${CJSON_INCLUDE_DIR}")
 target_link_libraries(micra_observation_host_test PRIVATE "${CJSON_LIBRARY}")
-host_test(micra_websocket_host_test DEFINITIONS SHOT_STOPPER_HOST_TEST
+host_test(micra_websocket_host_test DEFINITIONS OPEN_BREW_BY_WEIGHT_HOST_TEST
   SOURCES "${CMAKE_SOURCE_DIR}/src/machine/OpenBrewByWeightMicraObservation.cpp"
   LABEL "host;network;control;concurrency")
 target_include_directories(micra_websocket_host_test PRIVATE "${CJSON_INCLUDE_DIR}"

@@ -4,12 +4,12 @@
 #include "OpenBrewByWeightFlashIoScratch.h"
 #include "OpenBrewByWeightPreferences.h"
 
-#if !defined(SHOT_STOPPER_HOST_TEST) &&                                        \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) &&                                        \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 #include <nvs.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t RECOVERY_INTENT_MAGIC = 0x52454356U;  // "RECV"
 constexpr uint16_t RECOVERY_INTENT_VERSION = 0;
@@ -62,8 +62,8 @@ inline bool loadRecoveryIntent(RecoveryIntent &intent) {
   if (!lockFlashIo()) {
     return false;
   }
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  ShotStopperPreferences preferences(NvsSubsystem::RECOVERY_INTENT);
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::RECOVERY_INTENT);
   if (!preferences.begin(RECOVERY_NAMESPACE, true)) {
     unlockFlashIo();
     return false;
@@ -97,8 +97,8 @@ inline bool recoveryIntentRecordPresent() {
   if (!lockFlashIo()) {
     return false;
   }
-#if defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-  ShotStopperPreferences preferences(NvsSubsystem::RECOVERY_INTENT);
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::RECOVERY_INTENT);
   if (!preferences.begin(RECOVERY_NAMESPACE, true)) {
     unlockFlashIo();
     return false;
@@ -133,7 +133,7 @@ inline bool saveRecoveryIntent(RecoveryOperation operation) {
   if (!lockFlashIo()) {
     return false;
   }
-  ShotStopperPreferences preferences(NvsSubsystem::RECOVERY_INTENT);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::RECOVERY_INTENT);
   if (!preferences.begin(RECOVERY_NAMESPACE, false)) {
     unlockFlashIo();
     return false;
@@ -158,7 +158,7 @@ inline bool clearRecoveryIntent() {
   if (!lockFlashIo()) {
     return false;
   }
-  ShotStopperPreferences preferences(NvsSubsystem::RECOVERY_INTENT);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::RECOVERY_INTENT);
   if (!preferences.begin(RECOVERY_NAMESPACE, false)) {
     unlockFlashIo();
     return false;
@@ -244,4 +244,4 @@ inline bool bootRecoveryShouldRestartAfterSuccess() {
   return !recoveryIntentRecordPresent();
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

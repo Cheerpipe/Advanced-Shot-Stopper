@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Durable audit store (phase 2): an append-only ring of fixed-size packed
 // records in a dedicated 64 KiB data partition. Sector 0 holds the durable
@@ -186,4 +186,4 @@ bool clearAuditStores();
 
 AuditStoreStatus auditStoreStatus();
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

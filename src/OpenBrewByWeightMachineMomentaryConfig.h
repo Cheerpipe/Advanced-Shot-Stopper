@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // =============================================================================
 // SPECIALIZATION: Momentary — config helpers (API encoding)
@@ -32,4 +32,4 @@ inline bool parseMomentaryStartEdge(const char *text, bool &startOnPress) {
   return false;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

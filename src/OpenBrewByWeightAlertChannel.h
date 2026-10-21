@@ -2,7 +2,7 @@
 
 #include "OpenBrewByWeightAlert.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Stages 1–3: mute gate, configured channel, then Scale / Buzzer / None.
 // Never both sinks. Matches emitAlert / commandAlertUsesBuzzer / emitCommandAlert.
@@ -67,4 +67,4 @@ inline AlertSink selectAlertSink(AlertKind kind, AlertEvent event,
   return AlertSink::Buzzer;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -4,7 +4,7 @@
 // Split out of OpenBrewByWeightHomeStream.inc to keep that fragment inside the
 // service line cap.
 
-bool ShotStopperNetwork::sendAuditDiagFrame(UiStreamSession &session,
+bool OpenBrewByWeightNetwork::sendAuditDiagFrame(UiStreamSession &session,
                                             bool initial) {
   if (callbacks_.copyAuditEvents == nullptr ||
       callbacks_.auditLogLatestSequence == nullptr) {

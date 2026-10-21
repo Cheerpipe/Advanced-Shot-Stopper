@@ -174,10 +174,10 @@ ss_idf_jtag_enabled() {
   local tok
   # Word-splitting is intentional: extra flags is a space-separated list.
   # shellcheck disable=SC2086
-  set -- ${SHOT_STOPPER_EXTRA_FLAGS-}
+  set -- ${OPENBREWBYWEIGHT_EXTRA_FLAGS-}
   for tok in "$@"; do
     case "$tok" in
-      -DSHOT_STOPPER_ENABLE_JTAG=1|SHOT_STOPPER_ENABLE_JTAG=1)
+      -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1|OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1)
         return 0
         ;;
     esac
@@ -214,7 +214,7 @@ ss_idf_static_paths() {
   elif default_dir="$(ss_idf_default_build_dir)"; then
     build_dir="$default_dir"
   else
-    build_dir="build-idf/$SHOTSTOPPER_ARCH"
+    build_dir="build-idf/$OPENBREWBYWEIGHT_ARCH"
   fi
   if ss_is_set output_dir; then
     output_dir="$(ss_get output_dir)"
@@ -252,17 +252,17 @@ ss_idf_audit_translation_units() {
   return "${PIPESTATUS[0]}"
 }
 
-# Call after shotstopper_resolve_board. Sets IDF_PROJECT, IDF_BUILD_DIR,
+# Call after openbrewbyweight_resolve_board. Sets IDF_PROJECT, IDF_BUILD_DIR,
 # IDF_IMAGE, IDF_ELF, IDF_MAP, IDF_SDKCONFIG, IDF_SDKCONFIG_DEFAULTS.
 ss_idf_resolve_paths() {
   IDF_PROJECT="$SS_CLI_ROOT/idf"
-  IDF_BUILD_DIR="$SS_IDF_BUILD_ROOT/${SHOTSTOPPER_VARIANT:-$SHOTSTOPPER_ARCH}"
+  IDF_BUILD_DIR="$SS_IDF_BUILD_ROOT/${OPENBREWBYWEIGHT_VARIANT:-$OPENBREWBYWEIGHT_ARCH}"
   IDF_IMAGE="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.bin"
   IDF_ELF="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.elf"
   IDF_MAP="$IDF_BUILD_DIR/${IDF_PROJECT_NAME}.map"
   IDF_SDKCONFIG="$IDF_BUILD_DIR/sdkconfig"
-  IDF_SDKCONFIG_DEFAULTS="$IDF_PROJECT/sdkconfig.defaults;$IDF_PROJECT/sdkconfig.defaults.nimble;$IDF_PROJECT/sdkconfig.defaults.$SHOTSTOPPER_ARCH"
-  if [[ "${SHOTSTOPPER_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]]; then
+  IDF_SDKCONFIG_DEFAULTS="$IDF_PROJECT/sdkconfig.defaults;$IDF_PROJECT/sdkconfig.defaults.nimble;$IDF_PROJECT/sdkconfig.defaults.$OPENBREWBYWEIGHT_ARCH"
+  if [[ "${OPENBREWBYWEIGHT_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]]; then
     IDF_SDKCONFIG_DEFAULTS="$IDF_SDKCONFIG_DEFAULTS;$IDF_PROJECT/sdkconfig.defaults.micra"
   fi
   if ss_idf_jtag_enabled; then
@@ -273,7 +273,7 @@ ss_idf_resolve_paths() {
   # wins over every earlier default file. It must live outside the build dir:
   # ss_idf_prepare_set_target wipes that directory and idf.py requires every
   # SDKCONFIG_DEFAULTS entry to exist while set-target runs its first cmake.
-  IDF_OPT_OVERLAY="$SS_IDF_BUILD_ROOT/.defaults/${SHOTSTOPPER_VARIANT:-$SHOTSTOPPER_ARCH}.optlevel"
+  IDF_OPT_OVERLAY="$SS_IDF_BUILD_ROOT/.defaults/${OPENBREWBYWEIGHT_VARIANT:-$OPENBREWBYWEIGHT_ARCH}.optlevel"
   IDF_SDKCONFIG_DEFAULTS="$IDF_SDKCONFIG_DEFAULTS;$IDF_OPT_OVERLAY"
 }
 
@@ -292,7 +292,7 @@ ss_idf_py_args() {
     -D "SDKCONFIG=$IDF_SDKCONFIG"
     -D "SDKCONFIG_DEFAULTS=$IDF_SDKCONFIG_DEFAULTS"
     -D "IDF_TARGET=esp32s3"
-    -D "SHOT_STOPPER_MACHINE_INTEGRATION=${SHOTSTOPPER_MACHINE_INTEGRATION:-none}"
+    -D "OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION=${OPENBREWBYWEIGHT_MACHINE_INTEGRATION:-none}"
   )
 }
 
@@ -316,16 +316,16 @@ ss_idf_require_image() {
 }
 
 # idf.py skips CMake when CMakeCache.txt exists, so a new
-# SHOT_STOPPER_EXTRA_FLAGS env value would otherwise never reach the compiler.
+# OPENBREWBYWEIGHT_EXTRA_FLAGS env value would otherwise never reach the compiler.
 # Drop the cache when the stamp changes. Do not write the stamp here:
 # idf.py set-target runs fullclean, which refuses a non-empty directory that
 # is not a CMake build (no CMakeCache.txt). Writing the stamp first made the
 # first n16r8 tree fail. Call ss_idf_commit_extra_flags_stamp after
-# set-target. CMake still reads SHOT_STOPPER_EXTRA_FLAGS from the environment.
+# set-target. CMake still reads OPENBREWBYWEIGHT_EXTRA_FLAGS from the environment.
 ss_idf_sync_extra_flags() {
   ss_idf_resolve_paths
-  local stamp="$IDF_BUILD_DIR/shot_stopper_extra_flags"
-  local new="${SHOT_STOPPER_EXTRA_FLAGS-}"
+  local stamp="$IDF_BUILD_DIR/open_brew_by_weight_extra_flags"
+  local new="${OPENBREWBYWEIGHT_EXTRA_FLAGS-}"
   local old=""
   mkdir -p "$IDF_BUILD_DIR"
   if [[ -f "$stamp" ]]; then
@@ -342,13 +342,13 @@ ss_idf_sync_extra_flags() {
 ss_idf_commit_extra_flags_stamp() {
   ss_idf_resolve_paths
   mkdir -p "$IDF_BUILD_DIR"
-  printf '%s\n' "${SHOT_STOPPER_EXTRA_FLAGS-}" > "$IDF_BUILD_DIR/shot_stopper_extra_flags"
+  printf '%s\n' "${OPENBREWBYWEIGHT_EXTRA_FLAGS-}" > "$IDF_BUILD_DIR/open_brew_by_weight_extra_flags"
 }
 
 ss_idf_config_fingerprint() {
   python3 - "$IDF_SDKCONFIG_DEFAULTS" "$IDF_PROJECT/main/Kconfig.projbuild" \
-    "$SHOTSTOPPER_ARCH" "${SHOTSTOPPER_VARIANT:-$SHOTSTOPPER_ARCH}" \
-    "${SHOTSTOPPER_MACHINE_INTEGRATION:-none}" "${SHOT_STOPPER_EXTRA_FLAGS-}" <<'PY'
+    "$OPENBREWBYWEIGHT_ARCH" "${OPENBREWBYWEIGHT_VARIANT:-$OPENBREWBYWEIGHT_ARCH}" \
+    "${OPENBREWBYWEIGHT_MACHINE_INTEGRATION:-none}" "${OPENBREWBYWEIGHT_EXTRA_FLAGS-}" <<'PY'
 import hashlib, pathlib, sys
 h = hashlib.sha256()
 defaults, kconfig, *selectors = sys.argv[1:]
@@ -406,7 +406,7 @@ ss_idf_prepare_set_target() {
 # Confirm each extra -D flag actually appears on OpenBrewByWeightNetwork.cpp.
 ss_idf_verify_extra_flags() {
   ss_idf_resolve_paths
-  local flags="${SHOT_STOPPER_EXTRA_FLAGS-}"
+  local flags="${OPENBREWBYWEIGHT_EXTRA_FLAGS-}"
   local cc="$IDF_BUILD_DIR/compile_commands.json"
   [[ -n "$flags" ]] || return 0
   case " $flags " in
@@ -453,7 +453,7 @@ PY
 # ALLOW_BSS / autostart / g_probe, then the same OTA identity check as
 # ./scripts/dev build (image_tag.js).
 ss_idf_verify_production_profile() {
-  local arch="${1:-$SHOTSTOPPER_ARCH}"
+  local arch="${1:-$OPENBREWBYWEIGHT_ARCH}"
   local sdkconfig="${2:-$IDF_SDKCONFIG}"
   local flash_size partition psram_mode selector
   case "$arch" in
@@ -525,7 +525,7 @@ ss_idf_verify_production_profile() {
   required+=("CONFIG_SPIRAM_XIP_FROM_PSRAM=y"
              "CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y"
              "CONFIG_MDNS_TASK_CREATE_FROM_INTERNAL=y")
-  if [[ "${SHOTSTOPPER_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]]; then
+  if [[ "${OPENBREWBYWEIGHT_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]]; then
     required+=("CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y"
       "CONFIG_MBEDTLS_DYNAMIC_BUFFER=y"
       "CONFIG_WS_BUFFER_SIZE=4096")
@@ -685,9 +685,9 @@ ss_idf_verify_firmware() {
     fi
   done
 
-  nm_line="$(xtensa-esp32s3-elf-nm "$IDF_ELF" | grep -E '[[:space:]][Tt][[:space:]]shotStopperScaleLog$' || true)"
+  nm_line="$(xtensa-esp32s3-elf-nm "$IDF_ELF" | grep -E '[[:space:]][Tt][[:space:]]openBrewByWeightScaleLog$' || true)"
   if [[ -z "$nm_line" ]]; then
-    echo "The final ELF has no strong shotStopperScaleLog bridge definition." >&2
+    echo "The final ELF has no strong openBrewByWeightScaleLog bridge definition." >&2
     exit 1
   fi
   echo "EspressoScaleBLE log bridge: $nm_line"
@@ -698,16 +698,16 @@ ss_idf_verify_firmware() {
     exit 1
   fi
   echo "Image OTA identity:"
-  local identity_args=(--expect-arch "$SHOTSTOPPER_ARCH")
-  if [[ -n "${SHOTSTOPPER_HARDWARE_COMPAT:-}" ]]; then
-    identity_args+=(--expect-hardware "$SHOTSTOPPER_HARDWARE_COMPAT"
-                    --expect-machine "$SHOTSTOPPER_MACHINE_COMPAT")
+  local identity_args=(--expect-arch "$OPENBREWBYWEIGHT_ARCH")
+  if [[ -n "${OPENBREWBYWEIGHT_HARDWARE_COMPAT:-}" ]]; then
+    identity_args+=(--expect-hardware "$OPENBREWBYWEIGHT_HARDWARE_COMPAT"
+                    --expect-machine "$OPENBREWBYWEIGHT_MACHINE_COMPAT")
   fi
   node "$SS_CLI_ROOT/scripts/image_tag.js" "$IDF_IMAGE" "${identity_args[@]}"
 
   if ss_idf_jtag_enabled; then
     if ! grep -q '^CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y$' "$IDF_SDKCONFIG"; then
-      echo "SHOT_STOPPER_ENABLE_JTAG=1 but USB Serial/JTAG console is off in $IDF_SDKCONFIG." >&2
+      echo "OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 but USB Serial/JTAG console is off in $IDF_SDKCONFIG." >&2
       grep 'CONFIG_ESP_CONSOLE' "$IDF_SDKCONFIG" >&2 || true
       exit 1
     fi
@@ -715,7 +715,7 @@ ss_idf_verify_firmware() {
   else
     if grep -q '^CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y$' "$IDF_SDKCONFIG" ||
        ! grep -q '^CONFIG_ESP_CONSOLE_NONE=y$' "$IDF_SDKCONFIG"; then
-      echo "USB Serial/JTAG must stay off unless compiled with -DSHOT_STOPPER_ENABLE_JTAG=1." >&2
+      echo "USB Serial/JTAG must stay off unless compiled with -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1." >&2
       grep 'CONFIG_ESP_CONSOLE' "$IDF_SDKCONFIG" >&2 || true
       exit 1
     fi

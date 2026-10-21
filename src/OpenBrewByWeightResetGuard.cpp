@@ -1,10 +1,10 @@
 #include "OpenBrewByWeightResetGuard.h"
 
-#ifndef SHOT_STOPPER_HOST_TEST
-namespace shotstopper::detail {
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
+namespace openbrewbyweight::detail {
 
 RTC_NOINIT_ATTR volatile SafetyResetRecord safetyResetRecord;
 uint32_t resetUptimeLastCheckpointMs = 0;
 
-}  // namespace shotstopper::detail
+}  // namespace openbrewbyweight::detail
 #endif

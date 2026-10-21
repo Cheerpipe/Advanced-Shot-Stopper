@@ -1,7 +1,7 @@
 #include "OpenBrewByWeightCrashArchive.h"
 
-#if !defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_CRASH_HOST_TEST)
-#ifndef SHOT_STOPPER_CRASH_HOST_TEST
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_CRASH_HOST_TEST)
+#ifndef OPEN_BREW_BY_WEIGHT_CRASH_HOST_TEST
 #include "OpenBrewByWeightFlashIoScratch.h"
 #include <esp_app_desc.h>
 #include <esp_core_dump.h>
@@ -13,7 +13,7 @@
 #include <string.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 namespace {
 
 constexpr uint32_t kAddressMagic = 0x43524144;
@@ -330,5 +330,5 @@ bool crashArchiveClear() {
   return ok && scanned;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 #endif

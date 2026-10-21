@@ -8,7 +8,7 @@
 #include "../libraries/EspressoScaleBLE/src/ScaleBleTypes.h"
 #include "../libraries/EspressoScaleBLE/src/ScaleProtocol.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Single source of truth for scale disconnect reason labels, mirroring the
 // BLE library's ScaleDisconnectReason by code without coupling the domain,
@@ -1218,4 +1218,4 @@ inline bool findScaleHistoryFriendlyName(const ScaleHistoryEntry *entries,
   return false;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

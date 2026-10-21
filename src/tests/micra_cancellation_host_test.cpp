@@ -17,9 +17,9 @@ static uint32_t testNowMs = 1000, performAdvanceMs = 0, lastWaitTicks = 0;
 uint32_t millis() { return testNowMs; }
 void xTaskNotifyGive(TaskHandle_t) {}
 // The queue() mux-wait detector's emit path; uncontended waits never reach it.
-void serialTraceCategoryf(shotstopper::LogLevel, shotstopper::DebugCategory,
+void serialTraceCategoryf(openbrewbyweight::LogLevel, openbrewbyweight::DebugCategory,
                           const char *, ...) {}
-void addDebugEventDetail(shotstopper::DebugCategory, shotstopper::DebugCode,
+void addDebugEventDetail(openbrewbyweight::DebugCategory, openbrewbyweight::DebugCode,
                          int32_t, int32_t, const char *) {}
 constexpr int ESP_OK = 0, ESP_FAIL = -1, ESP_ERR_HTTP_EAGAIN = 1;
 constexpr int ESP_ERR_HTTP_READ_TIMEOUT = 2, pdTRUE = 1;
@@ -28,13 +28,13 @@ struct WorkerStopped {};
 static std::function<int()> performHook;
 static std::function<void()> executeHook;
 static bool initialSnapshot = false;
-static shotstopper::MicraObservationStamp dispatchedStamp;
-static std::function<bool(const shotstopper::MicraObservationStamp *)> dashboardHook;
+static openbrewbyweight::MicraObservationStamp dispatchedStamp;
+static std::function<bool(const openbrewbyweight::MicraObservationStamp *)> dashboardHook;
 static unsigned authentications = 0, retries = 0, failures = 0;
 static unsigned waits = 0;
 static unsigned websocketStops = 0;
 static bool lastRegisterKey = false;
-static std::function<bool(shotstopper::LineaMicraDiscoverySnapshot &)> listHook;
+static std::function<bool(openbrewbyweight::LineaMicraDiscoverySnapshot &)> listHook;
 int esp_http_client_perform(void *) {
   const int result = performHook();
   testNowMs += performAdvanceMs;
@@ -47,40 +47,40 @@ unsigned ulTaskNotifyTake(int, uint32_t ticks) {
   ++waits;
   return 0;
 }
-namespace shotstopper {
+namespace openbrewbyweight {
 bool firmwareCompatibilityMode() { return false; }
 int testGettimeofday(timeval *now, void *) { now->tv_sec = 1700000010L; return 0; }
-void ShotStopperMicraService::releaseIoBuffer(bool) {}
-void ShotStopperMicraService::releaseWorkBuffer() { clearSession(); }
-void ShotStopperMicraService::serviceWebSocket() {}
-void ShotStopperMicraService::stopWebSocket(bool) { ++websocketStops; }
-bool ShotStopperMicraService::ensureSession(LineaMicraPersistedSettings &, bool registerKey,
+void OpenBrewByWeightMicraService::releaseIoBuffer(bool) {}
+void OpenBrewByWeightMicraService::releaseWorkBuffer() { clearSession(); }
+void OpenBrewByWeightMicraService::serviceWebSocket() {}
+void OpenBrewByWeightMicraService::stopWebSocket(bool) { ++websocketStops; }
+bool OpenBrewByWeightMicraService::ensureSession(LineaMicraPersistedSettings &, bool registerKey,
                                             bool *renewed) {
   ++authentications;
   lastRegisterKey = registerKey;
   if (renewed != nullptr) *renewed = true;
   return true;
 }
-bool ShotStopperMicraService::ensureWorkBuffer() { return true; }
-bool ShotStopperMicraService::listMachines(const LineaMicraPersistedSettings &,
+bool OpenBrewByWeightMicraService::ensureWorkBuffer() { return true; }
+bool OpenBrewByWeightMicraService::listMachines(const LineaMicraPersistedSettings &,
     LineaMicraDiscoverySnapshot &found) { return listHook(found); }
-bool ShotStopperMicraService::readDashboard(const LineaMicraPersistedSettings &,
+bool OpenBrewByWeightMicraService::readDashboard(const LineaMicraPersistedSettings &,
     LineaMicraStatus &, const MicraObservationStamp *snapshot) { return dashboardHook(snapshot); }
-void ShotStopperMicraService::waitRetry(uint32_t) { ++retries; }
-LineaMicraError ShotStopperMicraService::classifyFailure() const { return LineaMicraError::HTTP_ERROR; }
-void ShotStopperMicraService::fail(LineaMicraStatus &, LineaMicraError) { ++failures; }
-void ShotStopperMicraService::execute(PendingRequest &pending) {
+void OpenBrewByWeightMicraService::waitRetry(uint32_t) { ++retries; }
+LineaMicraError OpenBrewByWeightMicraService::classifyFailure() const { return LineaMicraError::HTTP_ERROR; }
+void OpenBrewByWeightMicraService::fail(LineaMicraStatus &, LineaMicraError) { ++failures; }
+void OpenBrewByWeightMicraService::execute(PendingRequest &pending) {
   initialSnapshot = pending.initialSnapshot;
   dispatchedStamp = pending.snapshotStamp;
   executeHook();
 }
-bool ShotStopperMicraService::executeTemperatureApplication(
+bool OpenBrewByWeightMicraService::executeTemperatureApplication(
     const LineaMicraRequest &, uint32_t) {
   executeHook();
   desiredTemperature_.present = false;
   return true;
 }
-bool ShotStopperMicraService::executePowerApplication(
+bool OpenBrewByWeightMicraService::executePowerApplication(
     const LineaMicraRequest &, uint32_t) {
   executeHook();
   desiredPower_.present = false;
@@ -91,19 +91,19 @@ bool ShotStopperMicraService::executePowerApplication(
 #include "micra_cancellation_methods.inc"
 #undef gettimeofday
 
-using namespace shotstopper;
-namespace shotstopper {
+using namespace openbrewbyweight;
+namespace openbrewbyweight {
 struct MicraCancellationTest {
-  static void progress(ShotStopperMicraService &service, int outcome,
+  static void progress(OpenBrewByWeightMicraService &service, int outcome,
                        bool cancel, bool recoverDuringPerform, bool scale = false,
                        bool blockedBefore = false, bool abortOnly = false);
-  static void retryCancellation(ShotStopperMicraService &service);
+  static void retryCancellation(OpenBrewByWeightMicraService &service);
   static void retireBackflushConfiguration();
   static void initializationAndGates();
   static void initializationRetries();
   static void queuedObservationAndPowerOrdering();
   static void unscaledShotAdmission();
-  static void lateResponseAndResultLabels(ShotStopperMicraService &service);
+  static void lateResponseAndResultLabels(OpenBrewByWeightMicraService &service);
   static void invalidAuthLatchesApiObservation();
   static void relistKeepsSavedMachine();
   static void idleClosesWebSocketModeClient();
@@ -111,7 +111,7 @@ struct MicraCancellationTest {
 };
 }
 
-void MicraCancellationTest::progress(ShotStopperMicraService &service, int outcome,
+void MicraCancellationTest::progress(OpenBrewByWeightMicraService &service, int outcome,
                                      bool cancel, bool recoverDuringPerform, bool scale,
                                      bool blockedBefore, bool abortOnly) {
   auto &shotActive_ = service.shotActive_;
@@ -126,7 +126,7 @@ void MicraCancellationTest::progress(ShotStopperMicraService &service, int outco
   auto stopWebSocket = [&] { service.stopWebSocket(); };
   auto websocketAdmitted = [&] { return service.websocketAdmitted(); };
   LineaMicraError gateError = LineaMicraError::NONE;
-  ShotStopperMicraService::WorkBuffer work;
+  OpenBrewByWeightMicraService::WorkBuffer work;
   auto *work_ = &work;
   const uint32_t requestStartedAtMs = millis();
   unsigned calls = 0;
@@ -154,7 +154,7 @@ void MicraCancellationTest::progress(ShotStopperMicraService &service, int outco
   performHook = {};
 }
 
-void MicraCancellationTest::retryCancellation(ShotStopperMicraService &service) {
+void MicraCancellationTest::retryCancellation(OpenBrewByWeightMicraService &service) {
   auto &abortRequested_ = service.abortRequested_;
   auto networkEligible = [&](LineaMicraError &error) { return service.networkEligible(error); };
   auto websocketAdmitted = [&] { return service.websocketAdmitted(); };
@@ -167,7 +167,7 @@ void MicraCancellationTest::retryCancellation(ShotStopperMicraService &service) 
 
 void MicraCancellationTest::retireBackflushConfiguration() {
   for (int change = 0; change < 4; ++change) for (bool active : {false, true}) {
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     LineaMicraPersistedSettings settings;
     settings.accountConfigured = true;
     std::strcpy(settings.selectedSerial, "BEFORE");
@@ -189,7 +189,7 @@ void MicraCancellationTest::retireBackflushConfiguration() {
 
 void MicraCancellationTest::run() {
   outboundScaleConnected.store(true);
-  ShotStopperMicraService service;
+  OpenBrewByWeightMicraService service;
   service.task_ = &service;
   LineaMicraPersistedSettings settings;
   settings.accountConfigured = true;
@@ -213,7 +213,7 @@ void MicraCancellationTest::run() {
   try { service.taskLoop(); } catch (const WorkerStopped &) {}
   assert(executions == 1);
   assert(service.queue(request));
-  static ShotStopperMicraService *admitting = &service;
+  static OpenBrewByWeightMicraService *admitting = &service;
   TaskMutex::hostObserver = [](const TaskMutex *, bool locked) {
     if (!locked && admitting->active_) {
       admitting->abortRequested_.store(true);  // Producer at admission boundary.
@@ -247,7 +247,7 @@ void MicraCancellationTest::run() {
   assert(service.abortRequested_.load());
 
   // Cleanup during installation/session renewal must preserve cancellation.
-  ShotStopperMicraService::WorkBuffer work;
+  OpenBrewByWeightMicraService::WorkBuffer work;
   service.work_ = &work;
   service.clearSession();
   assert(service.abortRequested_.load());
@@ -283,7 +283,7 @@ void MicraCancellationTest::run() {
   service.published_.powerState = LineaMicraPowerState::OFF;
   service.published_.effectiveOn = false;
   service.published_.quality = LineaMicraObservationQuality::CURRENT;
-  ShotStopperMicraService::PendingRequest paused;
+  OpenBrewByWeightMicraService::PendingRequest paused;
   paused.identityGeneration = service.identityGeneration_;
   service.deferObservation(paused, service.published_, LineaMicraError::CANCELED);
   assert(service.pending_.present && service.powerState_.retained());
@@ -326,7 +326,7 @@ void MicraCancellationTest::run() {
 }
 
 void MicraCancellationTest::initializationAndGates() {
-  ShotStopperMicraService service;
+  OpenBrewByWeightMicraService service;
   service.config_.accountConfigured = true;
   service.config_.options |= LINEA_MICRA_OBSERVE_STATE;
   service.staConnected_.store(true);
@@ -406,7 +406,7 @@ void MicraCancellationTest::initializationAndGates() {
 
 void MicraCancellationTest::unscaledShotAdmission() {
   assert(!outboundScaleConnected.load() && !outboundScaleInhibited());
-  ShotStopperMicraService service;
+  OpenBrewByWeightMicraService service;
   service.task_ = &service;
   service.config_.accountConfigured = true;
   service.config_.connectionType = static_cast<uint8_t>(MicraConnectionType::API);
@@ -444,13 +444,13 @@ void MicraCancellationTest::unscaledShotAdmission() {
 }
 
 void MicraCancellationTest::initializationRetries() {
-  ShotStopperMicraService service;
+  OpenBrewByWeightMicraService service;
   service.config_.accountConfigured = true;
   service.config_.options |= LINEA_MICRA_OBSERVE_STATE;
   service.staConnected_.store(true);
   service.websocketStatus_.subscribed = true;
   service.published_.sampleAtMs = 100;
-  ShotStopperMicraService::PendingRequest pending;
+  OpenBrewByWeightMicraService::PendingRequest pending;
   pending.request.type = LineaMicraRequestType::OBSERVE_STATE;
   pending.initialSnapshot = true;
   pending.snapshotStamp = service.observationFence_.stamp(0, service.powerState_.generation());
@@ -498,7 +498,7 @@ void MicraCancellationTest::initializationRetries() {
 }
 
 void MicraCancellationTest::queuedObservationAndPowerOrdering() {
-  ShotStopperMicraService service;
+  OpenBrewByWeightMicraService service;
   service.task_ = &service;
   service.config_.accountConfigured = true;
   service.config_.options |= LINEA_MICRA_SHUTDOWN_WITH_SCALE;
@@ -506,7 +506,7 @@ void MicraCancellationTest::queuedObservationAndPowerOrdering() {
   unsigned calls = 0;
   executeHook = [&] { ++calls; };
   auto run = [&] { try { service.taskLoop(); } catch (const WorkerStopped &) {} };
-  ShotStopperMicraService::PendingRequest deferred;
+  OpenBrewByWeightMicraService::PendingRequest deferred;
   deferred.present = deferred.initialSnapshot = true;
   deferred.request.type = LineaMicraRequestType::OBSERVE_STATE;
   service.deferObservation(deferred, service.published_, LineaMicraError::CANCELED);
@@ -568,7 +568,7 @@ void MicraCancellationTest::queuedObservationAndPowerOrdering() {
   executeHook = {};
 }
 
-void MicraCancellationTest::lateResponseAndResultLabels(ShotStopperMicraService &service) {
+void MicraCancellationTest::lateResponseAndResultLabels(OpenBrewByWeightMicraService &service) {
   performAdvanceMs = 20000;  // A complete response after the deadline is used.
   progress(service, ESP_OK, false, false);
   performAdvanceMs = 0;
@@ -580,7 +580,7 @@ void MicraCancellationTest::lateResponseAndResultLabels(ShotStopperMicraService 
 }
 
 void MicraCancellationTest::invalidAuthLatchesApiObservation() {
-  ShotStopperMicraService service;
+  OpenBrewByWeightMicraService service;
   service.task_ = &service;
   LineaMicraPersistedSettings settings;
   settings.accountConfigured = true;
@@ -608,7 +608,7 @@ void MicraCancellationTest::invalidAuthLatchesApiObservation() {
 // Changing machine re-lists on the saved key and live session; nothing
 // observable changes until the chosen machine is saved.
 void MicraCancellationTest::relistKeepsSavedMachine() {
-  ShotStopperMicraService service;
+  OpenBrewByWeightMicraService service;
   LineaMicraPersistedSettings settings;
   settings.accountConfigured = true;
   std::strcpy(settings.username, "test@example.invalid");
@@ -624,7 +624,7 @@ void MicraCancellationTest::relistKeepsSavedMachine() {
   const LineaMicraStatus before = service.published_;
   const uint32_t identity = service.identityGeneration_;
   const auto take = [&] {
-    ShotStopperMicraService::PendingRequest pending = service.pending_;
+    OpenBrewByWeightMicraService::PendingRequest pending = service.pending_;
     service.pending_.present = false;
     return pending;
   };
@@ -698,12 +698,12 @@ void MicraCancellationTest::relistKeepsSavedMachine() {
 // operation; API polling keeps it for the reuse window.
 void MicraCancellationTest::idleClosesWebSocketModeClient() {
   for (const auto type : {MicraConnectionType::WEBSOCKET, MicraConnectionType::API}) {
-    ShotStopperMicraService service;
+    OpenBrewByWeightMicraService service;
     LineaMicraPersistedSettings settings;
     settings.connectionType = static_cast<uint8_t>(type);
     service.publishConfig(settings, 1);
     service.clearSessionRequested_.store(false);
-    ShotStopperMicraService::WorkBuffer work;
+    OpenBrewByWeightMicraService::WorkBuffer work;
     work.client = &work;
     service.work_ = &work;
     try { service.taskLoop(); } catch (const WorkerStopped &) {}

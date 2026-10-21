@@ -16,7 +16,7 @@ struct CountingDeleter {
   }
 };
 
-using Owner = shotstopper::UniqueResource<int, CountingDeleter>;
+using Owner = openbrewbyweight::UniqueResource<int, CountingDeleter>;
 
 bool expect(bool condition, const char *message) {
   if (condition) return true;

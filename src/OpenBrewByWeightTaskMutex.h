@@ -4,9 +4,9 @@
 // real task-level synchronization primitive; sequence counters and memory
 // barriers alone do not make concurrent struct copies race-free.
 
-#if defined(SHOT_STOPPER_HOST_TEST) || \
-    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
-#define SHOT_STOPPER_TASK_MUTEX_HOST 1
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || \
+    defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
+#define OPEN_BREW_BY_WEIGHT_TASK_MUTEX_HOST 1
 #include <mutex>
 #else
 #include <esp_timer.h>
@@ -15,16 +15,16 @@
 #include <freertos/task.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 class TaskMutex {
  public:
-#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+#if defined(OPEN_BREW_BY_WEIGHT_TASK_MUTEX_HOST)
   // Per-thread observer for production-path lock-order/count assertions.
   inline static thread_local void (*hostObserver)(const TaskMutex *, bool) = nullptr;
 #endif
   TaskMutex() {
-#if !defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+#if !defined(OPEN_BREW_BY_WEIGHT_TASK_MUTEX_HOST)
     handle_ = xSemaphoreCreateMutexStatic(&storage_);
     configASSERT(handle_ != nullptr);
 #endif
@@ -34,7 +34,7 @@ class TaskMutex {
   TaskMutex &operator=(const TaskMutex &) = delete;
 
   void lock() {
-#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+#if defined(OPEN_BREW_BY_WEIGHT_TASK_MUTEX_HOST)
     mutex_.lock();
     if (hostObserver != nullptr) hostObserver(this, true);
 #else
@@ -44,7 +44,7 @@ class TaskMutex {
 
   // Non-blocking acquire for owners that must never wait behind the holder.
   bool tryLock() {
-#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+#if defined(OPEN_BREW_BY_WEIGHT_TASK_MUTEX_HOST)
     if (!mutex_.try_lock()) return false;
     if (hostObserver != nullptr) hostObserver(this, true);
     return true;
@@ -54,7 +54,7 @@ class TaskMutex {
   }
 
   void unlock() {
-#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+#if defined(OPEN_BREW_BY_WEIGHT_TASK_MUTEX_HOST)
     if (hostObserver != nullptr) hostObserver(this, false);
     mutex_.unlock();
 #else
@@ -66,27 +66,27 @@ class TaskMutex {
   // caller holds the mutex (see the out-of-line unlock in
   // OpenBrewByWeightTaskMutex.cpp). Host builds carry no kernel task names.
   const char *longestHoldOwnerName() const {
-#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+#if defined(OPEN_BREW_BY_WEIGHT_TASK_MUTEX_HOST)
     return "host";
 #else
     return longestOwner_;
 #endif
   }
   uint32_t longestHoldUs() const {
-#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+#if defined(OPEN_BREW_BY_WEIGHT_TASK_MUTEX_HOST)
     return 0;
 #else
     return longestHoldUs_;
 #endif
   }
   void resetLongestHold() {
-#if !defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+#if !defined(OPEN_BREW_BY_WEIGHT_TASK_MUTEX_HOST)
     longestHoldUs_ = 0;
 #endif
   }
 
  private:
-#if defined(SHOT_STOPPER_TASK_MUTEX_HOST)
+#if defined(OPEN_BREW_BY_WEIGHT_TASK_MUTEX_HOST)
   std::mutex mutex_;
 #else
   // Out-of-line: with the telemetry inside, inlining these at every
@@ -126,4 +126,4 @@ class TaskLockGuard {
   bool locked_ = true;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

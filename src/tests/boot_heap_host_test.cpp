@@ -1,4 +1,4 @@
-#define SHOT_STOPPER_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
 #include "open_brew_by_weight_host_stubs.h"
 #include "../OpenBrewByWeightSerialCli.h"
 
@@ -7,7 +7,7 @@
 #include <fstream>
 #include <thread>
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 static HeapCapSnapshot heap(uint32_t free, uint32_t largest) {
   HeapCapSnapshot sample;
@@ -133,7 +133,7 @@ int main() {
   std::ifstream input(path);
   assert(input);
   const std::string source((std::istreambuf_iterator<char>(input)), {});
-  const auto service = source.find("void ShotStopperNetwork::service() {");
+  const auto service = source.find("void OpenBrewByWeightNetwork::service() {");
   const auto expiry = source.find("serviceHeapShaper(now);", service);
   assert(service != std::string::npos && expiry != std::string::npos);
   assert(expiry < source.find("if (restartPending_)", service));

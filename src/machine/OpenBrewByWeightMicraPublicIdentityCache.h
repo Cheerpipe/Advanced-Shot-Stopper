@@ -2,7 +2,7 @@
 
 #include <cstring>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 struct MicraPublicIdentityCache {
   char id[37] = {};
@@ -22,4 +22,4 @@ struct MicraPublicIdentityCache {
   }
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

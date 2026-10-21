@@ -8,11 +8,11 @@
 #include <type_traits>
 #include <atomic>
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #include <EspressoScaleBLE.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Worker timing. Keep identical to the values previously in openBrewByWeight.cpp.
 constexpr uint32_t SCALE_CONNECT_LOG_MS = 10000;
@@ -129,7 +129,7 @@ uint32_t scaleWorkerMaxExecutionUsValue();
 void copyScaleWorkerPhaseProfilerSnapshot(
     PhaseProfilerSnapshot<SCALE_WORKER_PHASE_COUNT> &out);
 
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 void setScaleWorkerBleReadyForHost(bool ready);
 void setScaleWorkerTaskPresentForHost(bool present);
 void setScaleWorkerStackMinBytesForHost(uint32_t bytes);
@@ -205,4 +205,4 @@ extern bool scaleBeepPending;
 extern uint32_t scaleBeepCycleId;
 extern bool scaleCompletionBeepPending;
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

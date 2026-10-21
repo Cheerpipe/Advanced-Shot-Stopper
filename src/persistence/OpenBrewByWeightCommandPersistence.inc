@@ -169,7 +169,7 @@ void clearLastShotRuntimeState() {
   lastShotNvsDirty = false;
 }
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 bool resetAllDurableStoresForNetwork(PersistedSettings &settings) {
   TaskLockGuard lock(shotStoreMutex);
   if (!resetAllDurableStores(settings, bleScanPersistedSettings, shotLog,
@@ -302,13 +302,13 @@ void commitLiveBullseyeConfig(const BullseyeMelodyConfig &config) {
   if (!changed) return;
   (void)localBuzzer.configureBullseyeRtttl(bullseyeMelodyConfig.rtttl);
   if (!bullseyeMelodyConfig.enabled) bullseyeTracker.clear();
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   networkManager.syncLiveBullseye(bullseyeMelodyConfig);
 #endif
 }
 
 void maybeRequestNtpSyncOnActivity() {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   networkManager.requestNtpSyncIfNeeded();
 #else
   if (wallClockNeedsActivityNtpSync(g_wallClock, hostMillis)) {
@@ -337,7 +337,7 @@ void beginWebRinse() {
 }
 
 bool forwardAcceptedNetworkCommand(const WebCommand &command) {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   if (!networkManager.enqueueAcceptedCommand(command)) {
     addDebugEvent(DebugCategory::WEB, DebugCode::WEB_COMMAND_REJECTED,
                   static_cast<int32_t>(command.type));
@@ -503,7 +503,7 @@ void serviceMaintenanceLease() {
   if (shotStoreBusy) return;
   if (forwardAcceptedNetworkCommand(maintenanceLease.command)) {
     maintenanceLease.forwarded = true;
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     WebCommand result;
     result.type = WebCommandType::MAINTENANCE_COMPLETE;
     result.requestId = maintenanceLease.command.requestId;
@@ -569,7 +569,7 @@ void commitLiveRuntimeConfig(const RuntimeConfig &composed, int32_t reasonBits,
 bool serviceBleScanPersist();
 void serviceBbwQuickStartPersist();
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 bool shotStoreWorkerWriteAllowed(bool &maintenance) {
   ControlGateSnapshot control;
   copyControlGate(control);
@@ -599,7 +599,7 @@ void persistShotStoreImage() {
   const uint32_t lockTimeoutsBefore = flashIoLockTimeouts();
   ActivationStoresFlushReport report;
   do {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
     if (!waitForShotStoreWriteGate(true)) {
       report.anyFail = true;
       break;
@@ -611,7 +611,7 @@ void persistShotStoreImage() {
   } while (!report.complete && !report.anyFail);
   bool ok = !report.anyFail;
   if (ok && shotStorePersistImageLastShotDirty) {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
     ok = waitForShotStoreWriteGate(true);
     yieldFlashIo();
 #endif
@@ -633,7 +633,7 @@ void persistShotStoreImage() {
 void persistScaleProfileImage() {
   FlashStoreStepResult result = FlashStoreStepResult::MORE;
   do {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
     waitForShotStoreWriteGate();
 #endif
     result = scaleProfiler().serviceFlashStep();
@@ -644,7 +644,7 @@ void persistScaleProfileImage() {
 
 // Health-worker side: hand the profiler's pending flash work to this worker.
 bool dispatchScaleProfileWork() {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   if (!settingsPersistenceAvailable()) return false;
   const PersistenceWork work = PersistenceWork::SCALE_PROFILE;
   return xQueueSend(settingsPersistQueue, &work, 0) == pdTRUE;
@@ -660,7 +660,7 @@ bool dispatchScaleProfileWork() {
 void persistAuditLogImage() {
   auditFlushBusy = true;
   for (;;) {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
     waitForShotStoreWriteGate();
 #endif
     AuditRecord batch[8];
@@ -703,7 +703,7 @@ bool auditFlushDue() {
 
 bool dispatchAuditFlushWork() {
   if (auditFlushBusy) return false;
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   if (!settingsPersistenceAvailable()) return false;
   const PersistenceWork work = PersistenceWork::AUDIT_FLUSH;
   return xQueueSend(settingsPersistQueue, &work, 0) == pdTRUE;
@@ -715,7 +715,7 @@ bool dispatchAuditFlushWork() {
 // Explicit clear, handed to the flash-owning worker: the serial CLI runs on
 // the control loop, which is forbidden from taking the flash lock post-boot.
 bool dispatchAuditClearWork() {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   if (!settingsPersistenceAvailable()) return false;
   const PersistenceWork work = PersistenceWork::AUDIT_CLEAR;
   return xQueueSend(settingsPersistQueue, &work, 0) == pdTRUE;
@@ -724,7 +724,7 @@ bool dispatchAuditClearWork() {
 #endif
 }
 
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
 void settingsPersistTask(void *) {}
 #else
 void settingsPersistTask(void *parameter) {
@@ -772,7 +772,7 @@ void settingsPersistTask(void *parameter) {
       continue;
     }
     if (work == PersistenceWork::AUDIT_CLEAR) {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
       waitForShotStoreWriteGate();
 #endif
       (void)clearAuditStores();
@@ -818,7 +818,7 @@ bool initializeSettingsPersistenceWorker() {
   if (settingsPersistQueue != nullptr) {
     vQueueDelete(settingsPersistQueue);
     settingsPersistQueue = nullptr;
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     ++hostSettingsPersistRollbackDeletes;
 #endif
   }
@@ -833,7 +833,7 @@ bool initializeSettingsPersistenceWorker() {
     lastShotPersistImage = new (block) LastShotStore();
   }
 
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   QueueHandle_t queue = hostSettingsPersistQueueCreateSucceeds
                             ? xQueueCreate(PERSISTENCE_WORK_QUEUE_DEPTH,
                                            sizeof(PersistenceWork))
@@ -850,7 +850,7 @@ bool initializeSettingsPersistenceWorker() {
   // immediately and must never observe a null receive queue.
   settingsPersistQueue = queue;
   TaskHandle_t task = nullptr;
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   const BaseType_t created =
       hostSettingsPersistTaskCreateSucceeds
           ? xTaskCreatePinnedToCore(
@@ -868,7 +868,7 @@ bool initializeSettingsPersistenceWorker() {
     // Task creation failed, so no consumer can still reference the queue.
     settingsPersistQueue = nullptr;
     vQueueDelete(queue);
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     ++hostSettingsPersistRollbackDeletes;
 #endif
     return false;
@@ -879,7 +879,7 @@ bool initializeSettingsPersistenceWorker() {
   return true;
 }
 
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
 void releaseSettingsPersistenceWorkerForHost() {
   if (settingsPersistQueue != nullptr) {
     vQueueDelete(settingsPersistQueue);
@@ -900,7 +900,7 @@ void releaseSettingsPersistenceWorkerForHost() {
 }
 #endif
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 
 void serviceSettingsPersistResult() {
   bool ready = false;
@@ -1028,7 +1028,7 @@ bool dispatchSettingsPersist() {
 // worker (never the Arduino control loop); the worker's 1 s idle cadence is
 // the retry backoff on failure.
 bool serviceBleScanPersist() {
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // Host harness: no NVS layer; a staged change completes immediately.
   bleScanPersistMux.lock();
   const bool pending = bleScanPersistPending ||
@@ -1085,7 +1085,7 @@ void serviceBbwQuickStartPersist() {
   bbwQuickStartPersistPending = false;
   bbwQuickStartMux.unlock();
   if (!pending) return;
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   const bool saved = saveQuickStart(record);
 #else
   const bool saved = hostQuickStartSaveSucceeds;
@@ -1236,7 +1236,7 @@ void serviceShotStorePersistence() {
     shotStorePersistMux.unlock();
     return;
   }
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   PersistenceWork queued = PersistenceWork::SETTINGS;
   if (xQueueReceive(settingsPersistQueue, &queued, 0) == pdTRUE &&
       queued == PersistenceWork::SHOT_STORES) {
@@ -1250,7 +1250,7 @@ void serviceRuntimePersistence(
     const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
   if (runtimeConfig.firstTimezoneAutoClockQuality == 1 &&
       runtimeConfig.firstTimezoneAutoBootId == copyShotLogBootIdCached()) {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
     const uint64_t nowUs = static_cast<uint64_t>(esp_timer_get_time());
 #else
     const uint64_t nowUs = static_cast<uint64_t>(millis()) * 1000U;
@@ -1269,7 +1269,7 @@ void serviceRuntimePersistence(
       publishRecipeState();
     }
   }
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   serviceSettingsPersistResult();
   serviceBleScanPersistResult();
   if (!runtimePersistPending) return;

@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <cstring>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 inline void formatSafeHttpEndpoint(const char *url, char *output,
                                   size_t capacity) {
@@ -30,4 +30,4 @@ inline void formatSafeHttpEndpoint(const char *url, char *output,
            secretWebhook ? "[redacted]" : "");
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

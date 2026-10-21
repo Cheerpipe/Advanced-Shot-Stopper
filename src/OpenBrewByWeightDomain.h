@@ -13,44 +13,37 @@
 #include "OpenBrewByWeightHwmon.h"
 #include "OpenBrewByWeightBbwTypes.h"
 
-// Map ESP-IDF Kconfig (main/Kconfig.projbuild) onto the historical
-// SHOT_STOPPER_* macros. Command-line -DSHOT_STOPPER_*=… wins (ifndef).
-#ifndef SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL
-#ifdef SHOT_STOPPER_ENABLE_REMOTE_CN9
-#define SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL SHOT_STOPPER_ENABLE_REMOTE_CN9
-#endif
-#endif
-#if !defined(SHOT_STOPPER_HOST_TEST) && __has_include("sdkconfig.h")
+// Map ESP-IDF Kconfig (main/Kconfig.projbuild) onto the
+// OPEN_BREW_BY_WEIGHT_* macros. Command-line -DOPEN_BREW_BY_WEIGHT_*=… wins (ifndef).
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && __has_include("sdkconfig.h")
 #include "sdkconfig.h"
-#ifndef SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL
-#ifdef CONFIG_SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL
-#define SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL 1
-#elif defined(CONFIG_SHOT_STOPPER_ENABLE_REMOTE_CN9)
-#define SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL 1
+#ifndef OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL
+#ifdef CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL
+#define OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL 1
 #else
-#define SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL 0
+#define OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL 0
 #endif
 #endif
-#ifndef SHOT_STOPPER_ENABLE_BUZZER
-#ifdef CONFIG_SHOT_STOPPER_ENABLE_BUZZER
-#define SHOT_STOPPER_ENABLE_BUZZER CONFIG_SHOT_STOPPER_ENABLE_BUZZER
+#ifndef OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER
+#ifdef CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER
+#define OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER
 #endif
 #endif
-#ifndef SHOT_STOPPER_MACHINE_TYPE
-#ifdef CONFIG_SHOT_STOPPER_MACHINE_TYPE
-#define SHOT_STOPPER_MACHINE_TYPE CONFIG_SHOT_STOPPER_MACHINE_TYPE
+#ifndef OPEN_BREW_BY_WEIGHT_MACHINE_TYPE
+#ifdef CONFIG_OPEN_BREW_BY_WEIGHT_MACHINE_TYPE
+#define OPEN_BREW_BY_WEIGHT_MACHINE_TYPE CONFIG_OPEN_BREW_BY_WEIGHT_MACHINE_TYPE
 #endif
 #endif
-#ifndef SHOT_STOPPER_DEVELOPMENT
-#ifdef CONFIG_SHOT_STOPPER_DEVELOPMENT
-#define SHOT_STOPPER_DEVELOPMENT 1
+#ifndef OPEN_BREW_BY_WEIGHT_DEVELOPMENT
+#ifdef CONFIG_OPEN_BREW_BY_WEIGHT_DEVELOPMENT
+#define OPEN_BREW_BY_WEIGHT_DEVELOPMENT 1
 #else
-#define SHOT_STOPPER_DEVELOPMENT 0
+#define OPEN_BREW_BY_WEIGHT_DEVELOPMENT 0
 #endif
 #endif
-#ifndef SHOT_STOPPER_ENABLE_JTAG
-#ifdef CONFIG_SHOT_STOPPER_ENABLE_JTAG
-#define SHOT_STOPPER_ENABLE_JTAG CONFIG_SHOT_STOPPER_ENABLE_JTAG
+#ifndef OPEN_BREW_BY_WEIGHT_ENABLE_JTAG
+#ifdef CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_JTAG
+#define OPEN_BREW_BY_WEIGHT_ENABLE_JTAG CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_JTAG
 #endif
 #endif
 #endif
@@ -62,7 +55,7 @@
 #include "OpenBrewByWeightNetworkTypes.h"
 #include "OpenBrewByWeightTimeZone.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 // Fresh schema epoch: blobs written by any earlier firmware are rejected, so
@@ -223,50 +216,50 @@ constexpr size_t DEBUG_EVENT_CAPACITY = 512;
 // bytes in both the PSRAM ring and the HTTP copy batch.
 constexpr size_t DEBUG_EVENT_TEXT_CAPACITY = 128;
 
-#ifndef SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL
-#define SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL 0
+#ifndef OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL
+#define OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL 0
 #endif
 
 constexpr bool REMOTE_MACHINE_CONTROL_ENABLED =
-    SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL == 1;
-static_assert(SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL == 0 ||
-                  SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL == 1,
-              "SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL must be 0 or 1");
+    OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL == 1;
+static_assert(OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL == 0 ||
+                  OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL == 1,
+              "OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL must be 0 or 1");
 
-#ifndef SHOT_STOPPER_ENABLE_BUZZER
-#define SHOT_STOPPER_ENABLE_BUZZER 0
+#ifndef OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER
+#define OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER 0
 #endif
 
-constexpr bool BUZZER_SUPPORT_ENABLED = SHOT_STOPPER_ENABLE_BUZZER != 0;
-static_assert(SHOT_STOPPER_ENABLE_BUZZER == 0 ||
-                  SHOT_STOPPER_ENABLE_BUZZER == 1,
-              "SHOT_STOPPER_ENABLE_BUZZER must be 0 (off) or 1 (passive RTTTL)");
-#ifdef SHOT_STOPPER_SPEAKER_PRESENT
-static_assert(!BUZZER_SUPPORT_ENABLED || SHOT_STOPPER_SPEAKER_PRESENT == 1,
+constexpr bool BUZZER_SUPPORT_ENABLED = OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER != 0;
+static_assert(OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER == 0 ||
+                  OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER == 1,
+              "OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER must be 0 (off) or 1 (passive RTTTL)");
+#ifdef OPEN_BREW_BY_WEIGHT_SPEAKER_PRESENT
+static_assert(!BUZZER_SUPPORT_ENABLED || OPEN_BREW_BY_WEIGHT_SPEAKER_PRESENT == 1,
               "Buzzer support requires speaker hardware");
 #endif
 
 inline const char *compiledBuzzerModeId() {
-  if (SHOT_STOPPER_ENABLE_BUZZER == 1) {
+  if (OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER == 1) {
     return "passive";
   }
   return "off";
 }
 
-#ifndef SHOT_STOPPER_DEVELOPMENT
-#define SHOT_STOPPER_DEVELOPMENT 0
+#ifndef OPEN_BREW_BY_WEIGHT_DEVELOPMENT
+#define OPEN_BREW_BY_WEIGHT_DEVELOPMENT 0
 #endif
 
-constexpr bool DEVELOPMENT_BUILD = SHOT_STOPPER_DEVELOPMENT == 1;
-static_assert(SHOT_STOPPER_DEVELOPMENT == 0 || SHOT_STOPPER_DEVELOPMENT == 1,
-              "SHOT_STOPPER_DEVELOPMENT must be 0 or 1");
+constexpr bool DEVELOPMENT_BUILD = OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 1;
+static_assert(OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 0 || OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 1,
+              "OPEN_BREW_BY_WEIGHT_DEVELOPMENT must be 0 or 1");
 
-#ifndef SHOT_STOPPER_ENABLE_JTAG
-#define SHOT_STOPPER_ENABLE_JTAG 0
+#ifndef OPEN_BREW_BY_WEIGHT_ENABLE_JTAG
+#define OPEN_BREW_BY_WEIGHT_ENABLE_JTAG 0
 #endif
 
-static_assert(SHOT_STOPPER_ENABLE_JTAG == 0 || SHOT_STOPPER_ENABLE_JTAG == 1,
-              "SHOT_STOPPER_ENABLE_JTAG must be 0 (off) or 1 (USB Serial/JTAG)");
+static_assert(OPEN_BREW_BY_WEIGHT_ENABLE_JTAG == 0 || OPEN_BREW_BY_WEIGHT_ENABLE_JTAG == 1,
+              "OPEN_BREW_BY_WEIGHT_ENABLE_JTAG must be 0 (off) or 1 (USB Serial/JTAG)");
 
 // Why USB CDC/Serial.begin ran at boot (latch). Live IO4 is separate.
 // Avoid JTAG/IO4/DISABLED: Arduino-ESP32 defines those as macros
@@ -293,31 +286,31 @@ inline const char *usbConsoleIo4StateId(bool closed) {
   return closed ? "closed" : "open";
 }
 
-#ifndef SHOT_STOPPER_MACHINE_TYPE
-#define SHOT_STOPPER_MACHINE_TYPE 0
+#ifndef OPEN_BREW_BY_WEIGHT_MACHINE_TYPE
+#define OPEN_BREW_BY_WEIGHT_MACHINE_TYPE 0
 #endif
-#ifndef SHOT_STOPPER_STOP_PULSE_MS
-#define SHOT_STOPPER_STOP_PULSE_MS 300
+#ifndef OPEN_BREW_BY_WEIGHT_STOP_PULSE_MS
+#define OPEN_BREW_BY_WEIGHT_STOP_PULSE_MS 300
 #endif
-#ifndef SHOT_STOPPER_MAX_SINGLE_PRESS_MS
-#define SHOT_STOPPER_MAX_SINGLE_PRESS_MS 1000
+#ifndef OPEN_BREW_BY_WEIGHT_MAX_SINGLE_PRESS_MS
+#define OPEN_BREW_BY_WEIGHT_MAX_SINGLE_PRESS_MS 1000
 #endif
-#ifndef SHOT_STOPPER_REED_CONFIRM_TIMEOUT_MS
-#define SHOT_STOPPER_REED_CONFIRM_TIMEOUT_MS 1000
+#ifndef OPEN_BREW_BY_WEIGHT_REED_CONFIRM_TIMEOUT_MS
+#define OPEN_BREW_BY_WEIGHT_REED_CONFIRM_TIMEOUT_MS 1000
 #endif
 
-static_assert(SHOT_STOPPER_MACHINE_TYPE >= 0 && SHOT_STOPPER_MACHINE_TYPE <= 2,
-              "SHOT_STOPPER_MACHINE_TYPE must be 0 (paddle/latch), 1 (momentary), "
+static_assert(OPEN_BREW_BY_WEIGHT_MACHINE_TYPE >= 0 && OPEN_BREW_BY_WEIGHT_MACHINE_TYPE <= 2,
+              "OPEN_BREW_BY_WEIGHT_MACHINE_TYPE must be 0 (paddle/latch), 1 (momentary), "
               "or 2 (momentary+reed)");
-static_assert(SHOT_STOPPER_STOP_PULSE_MS >= 50 &&
-                  SHOT_STOPPER_STOP_PULSE_MS <= 1000,
-              "SHOT_STOPPER_STOP_PULSE_MS must be 50–1000");
-static_assert(SHOT_STOPPER_MAX_SINGLE_PRESS_MS >= 100 &&
-                  SHOT_STOPPER_MAX_SINGLE_PRESS_MS <= 5000,
-              "SHOT_STOPPER_MAX_SINGLE_PRESS_MS must be 100–5000");
-static_assert(SHOT_STOPPER_REED_CONFIRM_TIMEOUT_MS >= 200 &&
-                  SHOT_STOPPER_REED_CONFIRM_TIMEOUT_MS <= 5000,
-              "SHOT_STOPPER_REED_CONFIRM_TIMEOUT_MS must be 200–5000");
+static_assert(OPEN_BREW_BY_WEIGHT_STOP_PULSE_MS >= 50 &&
+                  OPEN_BREW_BY_WEIGHT_STOP_PULSE_MS <= 1000,
+              "OPEN_BREW_BY_WEIGHT_STOP_PULSE_MS must be 50–1000");
+static_assert(OPEN_BREW_BY_WEIGHT_MAX_SINGLE_PRESS_MS >= 100 &&
+                  OPEN_BREW_BY_WEIGHT_MAX_SINGLE_PRESS_MS <= 5000,
+              "OPEN_BREW_BY_WEIGHT_MAX_SINGLE_PRESS_MS must be 100–5000");
+static_assert(OPEN_BREW_BY_WEIGHT_REED_CONFIRM_TIMEOUT_MS >= 200 &&
+                  OPEN_BREW_BY_WEIGHT_REED_CONFIRM_TIMEOUT_MS <= 5000,
+              "OPEN_BREW_BY_WEIGHT_REED_CONFIRM_TIMEOUT_MS must be 200–5000");
 
 enum class MachineType : uint8_t {
   PADDLE = 0,
@@ -326,11 +319,11 @@ enum class MachineType : uint8_t {
 };
 
 constexpr uint32_t COMPILED_STOP_PULSE_MS =
-    static_cast<uint32_t>(SHOT_STOPPER_STOP_PULSE_MS);
+    static_cast<uint32_t>(OPEN_BREW_BY_WEIGHT_STOP_PULSE_MS);
 constexpr uint32_t COMPILED_MAX_SINGLE_PRESS_MS =
-    static_cast<uint32_t>(SHOT_STOPPER_MAX_SINGLE_PRESS_MS);
+    static_cast<uint32_t>(OPEN_BREW_BY_WEIGHT_MAX_SINGLE_PRESS_MS);
 constexpr uint32_t COMPILED_REED_CONFIRM_TIMEOUT_MS =
-    static_cast<uint32_t>(SHOT_STOPPER_REED_CONFIRM_TIMEOUT_MS);
+    static_cast<uint32_t>(OPEN_BREW_BY_WEIGHT_REED_CONFIRM_TIMEOUT_MS);
 constexpr uint32_t MIN_REED_CONFIRM_TIMEOUT_MS = 200;
 constexpr uint32_t MAX_REED_CONFIRM_TIMEOUT_MS = 5000;
 constexpr uint32_t COMPILED_SHOT_REACT_TIMEOUT_MS = 12000;
@@ -338,7 +331,7 @@ constexpr uint8_t MIN_SHOT_REACT_TIMEOUT_S = 3;
 constexpr uint8_t MAX_SHOT_REACT_TIMEOUT_S = 30;
 
 inline const char *compiledMachineTypeId() {
-  switch (SHOT_STOPPER_MACHINE_TYPE) {
+  switch (OPEN_BREW_BY_WEIGHT_MACHINE_TYPE) {
     case 1:
       return "momentary";
     case 2:
@@ -657,14 +650,14 @@ struct RuntimeConfig {
   // Optional beep when the first coffee drop is detected.
   bool firstDropBeep = true;
   // Remind the user to release the physical paddle after machine circuit has opened.
-  bool paddleReturnReminderBeep = SHOT_STOPPER_DEFAULT_PADDLE_RETURN_REMINDER;
+  bool paddleReturnReminderBeep = OPEN_BREW_BY_WEIGHT_DEFAULT_PADDLE_RETURN_REMINDER;
   bool soundAlertsMuted = false;
   uint32_t paddleReturnReminderIntervalMs =
       DEFAULT_PADDLE_RETURN_REMINDER_INTERVAL_MS;
   uint32_t paddleReturnReminderMaxDurationMs =
       DEFAULT_PADDLE_RETURN_REMINDER_MAX_DURATION_MS;
-  uint8_t paddleMode = SHOT_STOPPER_DEFAULT_PADDLE_MODE;
-  // Local buzzer alerts (active when SHOT_STOPPER_ENABLE_BUZZER is 1).
+  uint8_t paddleMode = OPEN_BREW_BY_WEIGHT_DEFAULT_PADDLE_MODE;
+  // Local buzzer alerts (active when OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER is 1).
   bool buzzerScaleLostBeep = true;
   bool buzzerAutoToManualGuardEndBeep = true;
   bool buzzerManualNoScaleBeep = true;
@@ -677,7 +670,7 @@ struct RuntimeConfig {
   uint8_t buzzerSlowExtendedPulseRate =
       static_cast<uint8_t>(DEFAULT_EXTENDED_PULSE_RATE);
   // scale_only | buzzer_only | scale_priority (ignored when buzzer not compiled).
-  // Default: buzzer_only with SHOT_STOPPER_ENABLE_BUZZER, else scale_only.
+  // Default: buzzer_only with OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER, else scale_only.
   uint8_t alertOutputChannel =
       static_cast<uint8_t>(DEFAULT_ALERT_OUTPUT_CHANNEL);
   uint32_t rinseGestureMs = DEFAULT_RINSE_GESTURE_MS;  // machine-owned detection
@@ -735,19 +728,19 @@ struct RuntimeConfig {
   // Momentary Switch timings packed to keep NVS size. 0 = compiled default
   // (legacy blobs that stored momentaryStartOnPress in stopPulseTenMs).
   uint8_t stopPulseTenMs =
-      static_cast<uint8_t>((SHOT_STOPPER_STOP_PULSE_MS + 5) / 10);
+      static_cast<uint8_t>((OPEN_BREW_BY_WEIGHT_STOP_PULSE_MS + 5) / 10);
   uint8_t maxSinglePressHundredMs =
-      static_cast<uint8_t>((SHOT_STOPPER_MAX_SINGLE_PRESS_MS + 50) / 100);
+      static_cast<uint8_t>((OPEN_BREW_BY_WEIGHT_MAX_SINGLE_PRESS_MS + 50) / 100);
   // Wait after shot end before capturing the post-drip weight.
   uint32_t dripDelayMs = DEFAULT_DRIP_DELAY_MS;
   // Start/stop on press (default) vs release. Reed confirm window.
-  bool momentaryStartOnPress = SHOT_STOPPER_DEFAULT_MOMENTARY_START_ON_PRESS;
+  bool momentaryStartOnPress = OPEN_BREW_BY_WEIGHT_DEFAULT_MOMENTARY_START_ON_PRESS;
   uint8_t reedConfirmTimeoutHundredMs = 0;
   // Switch-only inferred-state sync. 0 timeout = compiled 12 s default.
-  bool assumeIdleWhenScaleConnects = SHOT_STOPPER_DEFAULT_ASSUME_IDLE_ON_SCALE_CONNECT;
-  uint8_t shotReactTimeoutS = SHOT_STOPPER_DEFAULT_SHOT_REACTION_TIMEOUT_S;
+  bool assumeIdleWhenScaleConnects = OPEN_BREW_BY_WEIGHT_DEFAULT_ASSUME_IDLE_ON_SCALE_CONNECT;
+  uint8_t shotReactTimeoutS = OPEN_BREW_BY_WEIGHT_DEFAULT_SHOT_REACTION_TIMEOUT_S;
   // Firmware rinse on/off. Default off for every machine type.
-  bool rinseEnabled = SHOT_STOPPER_DEFAULT_RINSE_ENABLED;
+  bool rinseEnabled = OPEN_BREW_BY_WEIGHT_DEFAULT_RINSE_ENABLED;
   // Read-only Diagnostic view without Admin unlock; occupies former padding.
   bool showDiagnosticPage = false;
   // Retare even when no brew is active.
@@ -3030,4 +3023,4 @@ inline uint32_t crc32(const uint8_t *data, size_t length) {
   return ~crc32Update(0xFFFFFFFFU, data, length);
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

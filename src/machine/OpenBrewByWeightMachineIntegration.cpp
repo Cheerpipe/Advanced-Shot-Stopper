@@ -1,6 +1,6 @@
 #include "OpenBrewByWeightMachineIntegration.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 void inhibitMachineIntegrationCloud() {}
 
 bool initializeMachineIntegration() { return true; }
@@ -19,4 +19,4 @@ MachinePhysicalStartDisposition machineIntegrationPhysicalStart(MachineBackflush
 MachineBackflushSnapshot machineIntegrationBackflush(bool) { return {}; }
 void finishMachineIntegrationBackflush(uint32_t) {}
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

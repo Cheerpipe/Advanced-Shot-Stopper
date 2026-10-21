@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Lock-wait accounting for the Micra service's backflush poll (the control
 // loop's input/backflush phase): the poll updates these atomics, the
@@ -31,9 +31,9 @@ inline std::atomic<uint32_t> &micraBackflushHoldMaxUsStat() {
   return value;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 
-namespace shotstopper::micra_timing {
+namespace openbrewbyweight::micra_timing {
 
 inline constexpr std::array<uint32_t, 3> kRetryDelaysMs{{3000, 6000, 9000}};
 inline constexpr size_t kMaxAttempts = 1U + kRetryDelaysMs.size();
@@ -110,4 +110,4 @@ static_assert(kOptimisticOverlayMs == 2U * kStatePollMs);
 static_assert(kPostWakeObservationDelayMs < kOptimisticOverlayMs);
 static_assert(kAccessTokenRefreshAgeMs < kAccessTokenLifetimeMs);
 
-}  // namespace shotstopper::micra_timing
+}  // namespace openbrewbyweight::micra_timing

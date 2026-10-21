@@ -101,7 +101,7 @@ Upload a built image to a controller on the same network without a USB cable:
 ```
 
 `--host` accepts the controller's station address, or `192.168.4.1` on its
-access point. The hidden prompt, or `SHOTSTOPPER_DEVICE_PASSWORD`, supplies
+access point. The hidden prompt, or `OPENBREWBYWEIGHT_DEVICE_PASSWORD`, supplies
 the device password; commands never take it as an argument. `--image <path>`
 uploads an existing image instead of building. `--yes` answers the commit
 question; `--wait-for-confirmation` independently verifies the rebooted image.

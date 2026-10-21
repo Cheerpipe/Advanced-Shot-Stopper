@@ -13,7 +13,7 @@
   const directory = path.resolve(sketchDir, '..', 'temp', 'ai_temp_websocket_contract');
   fs.mkdirSync(directory, {recursive: true});
   const binary = path.join(directory, 'delivery-' + process.pid);
-  const statsSender = body(stream, 'bool ShotStopperNetwork::sendStatsStream(');
+  const statsSender = body(stream, 'bool OpenBrewByWeightNetwork::sendStatsStream(');
   const selectStats = statsSender.slice(statsSender.indexOf('  const bool initial ='),
       statsSender.indexOf('  if (!session.statsPaging && !initial'));
   const completeStats = statsSender.slice(statsSender.lastIndexOf('  session.statsPaging = false;'),
@@ -25,7 +25,7 @@
 #include <string>
 #include <vector>
 #include "OpenBrewByWeightDomain.h"
-using namespace shotstopper;
+using namespace openbrewbyweight;
 constexpr int ESP_OK=0, HTTPD_WS_TYPE_TEXT=1;
 constexpr size_t LOG_BATCH_SIZE=32, kUiStreamFrameBudget=20480;
 const char *FW_VERSION="test";
@@ -53,7 +53,7 @@ int httpd_ws_send_frame_async(int,int,httpd_ws_frame_t *frame){
   return sendResult;
 }
 DebugRingBuffer ring;
-struct ShotStopperNetwork {
+struct OpenBrewByWeightNetwork {
   int dataMux_=0,server_=1; char activeWebUiClientId_[8]="owner";
   struct {
     uint32_t (*debugLogLatestSequence)()=+[](){return ring.latestSequence();};
@@ -65,8 +65,8 @@ struct ShotStopperNetwork {
 };
 ${body(networkSource, 'bool __attribute__((format(printf, 2, 3)))\nstatusJsonAppend(')}
 ${body(webhook, 'inline bool escapeJsonString(')}
-${body(stream, 'bool ShotStopperNetwork::sendUiStreamFrame(')}
-${body(stream, 'bool ShotStopperNetwork::sendLogStream(')}
+${body(stream, 'bool OpenBrewByWeightNetwork::sendUiStreamFrame(')}
+${body(stream, 'bool OpenBrewByWeightNetwork::sendLogStream(')}
 bool selectStatsFetch(UiStreamSession &session,const ControlStatusSnapshot &control,uint32_t epoch){
 ${selectStats}
   return fetch;
@@ -75,7 +75,7 @@ void completeStatsPage(UiStreamSession &session,bool fetch,uint32_t epoch,uint32
 ${completeStats}
 }
 int main(){
-  ShotStopperNetwork network; UiStreamSession session; bool retry=true;
+  OpenBrewByWeightNetwork network; UiStreamSession session; bool retry=true;
   strcpy(work.statusJson,"{}");
   assert(network.sendUiStreamFrame(session,2,retry)&&!retry);
   sendResult=-1;uiStreamSendCleanAbort=true;
@@ -126,7 +126,7 @@ int main(){
 `;
   try {
     const compiled = spawnSync(process.env.CXX || 'c++', ['-std=c++17', '-Wall', '-Wextra', '-Werror',
-      '-DSHOT_STOPPER_HOST_TEST=1', '-I', sketchDir, '-x', 'c++', '-', '-o', binary], {input: native, encoding: 'utf8'});
+      '-DOPEN_BREW_BY_WEIGHT_HOST_TEST=1', '-I', sketchDir, '-x', 'c++', '-', '-o', binary], {input: native, encoding: 'utf8'});
     assert.equal(compiled.status, 0, compiled.error?.message || compiled.stderr);
     const result = spawnSync(binary, [], {encoding: 'utf8'});
     assert.equal(result.status, 0, result.error?.message || result.stderr);
@@ -193,8 +193,8 @@ int main(){
   })().catch(error=>{console.error(error);process.exitCode=1;});
 }
 {
-  const send = network.slice(network.indexOf('void ShotStopperNetwork::sendUiStream('),
-                             network.indexOf('bool ShotStopperNetwork::sendShotCard('));
+  const send = network.slice(network.indexOf('void OpenBrewByWeightNetwork::sendUiStream('),
+                             network.indexOf('bool OpenBrewByWeightNetwork::sendShotCard('));
   const stages = ['sendShotCard(', 'sendDiagnosticStream(', 'sendHistoryStream(',
                   'sendStatsStream(', 'sendLogStream('];
   if (!network.includes('constexpr uint32_t kUiStreamDispatchBudgetMs = 800;') ||

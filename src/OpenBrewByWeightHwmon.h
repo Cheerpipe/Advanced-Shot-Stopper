@@ -12,7 +12,7 @@
 #include "OpenBrewByWeightPsram.h"
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Dual-core busy load: busy_i in [0,1], total load = busy0+busy1 in [0,2].
 // 0.0 = both cores idle; 1.0 = one-core-full equivalent; 2.0 = both cores busy.
@@ -288,4 +288,4 @@ class Hwmon {
   bool tempPeakValid_ = false;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -24,7 +24,7 @@
 #include "OpenBrewByWeightDomain.h"
 #include "OpenBrewByWeightHistoryTypes.h"
 #include "OpenBrewByWeightShotCurveTypes.h"
-using namespace shotstopper;
+using namespace openbrewbyweight;
 constexpr int ESP_OK=0,HTTPD_WS_TYPE_TEXT=1;
 constexpr size_t kStatsStreamFrameBytes=20480;
 constexpr uint32_t kStatsStreamPaceMs=100;
@@ -75,7 +75,7 @@ bool curveById(uint32_t id,ShotCurveRecord &curve){
   appendShotCurvePoint(curve,storeEpoch*100+(3-id),0,false);
   return true;
 }
-struct ShotStopperNetwork {
+struct OpenBrewByWeightNetwork {
   static constexpr size_t WEB_UI_CLIENT_ID_CAPACITY=25;
 ${session}
   int dataMux_=0,server_=1;bool webUiOverrideActive_=false;uint32_t webUiOverrideUntilMs_=0;
@@ -91,7 +91,7 @@ ${session}
   }
   bool sendStatsStream(UiStreamSession &,const ControlStatusSnapshot &);
 };
-${body(source, 'bool ShotStopperNetwork::sendStatsStream(')}
+${body(source, 'bool OpenBrewByWeightNetwork::sendStatsStream(')}
 int main(){
   // The recent list mirrors statsView: newest-first eligible shots, ten at most,
   // closing the aggregate object; an overflow or an unclosed object fails.
@@ -112,7 +112,7 @@ int main(){
     char tight[40]="{}",open[16]="{";
     assert(!appendStatsRecent(recent,tight,sizeof(tight))&&!appendStatsRecent(recent,open,sizeof(open)));
   }
-  ShotStopperNetwork network;ShotStopperNetwork::UiStreamSession session;
+  OpenBrewByWeightNetwork network;OpenBrewByWeightNetwork::UiStreamSession session;
   strcpy(session.clientId,"owner");session.fd=1;session.statsOn=true;
   ControlStatusSnapshot control;control.bootId=9;
   auto send=[&](auto &target){now+=kStatsStreamPaceMs;return network.sendStatsStream(target,control);};
@@ -154,7 +154,7 @@ int main(){
   assert(send(session)&&session.statsSent==2);
   assert(captures==copied&&hashes==hashed);
   // A new session owns its cursor; immutable cache contents may be shared.
-  ShotStopperNetwork::UiStreamSession fresh;strcpy(fresh.clientId,"owner");fresh.fd=2;
+  OpenBrewByWeightNetwork::UiStreamSession fresh;strcpy(fresh.clientId,"owner");fresh.fd=2;
   assert(send(fresh)&&fresh.statsSent==1&&captures==copied);
   strcpy(fresh.clientId,"superseded");
   assert(!send(fresh));
@@ -184,7 +184,7 @@ int main(){
   const directory = path.resolve(sketchDir, '..', 'temp', 'ai_temp_stats_cache');
   fs.mkdirSync(directory, {recursive: true});
   const binary = path.join(directory, 'sender-' + process.pid);
-  const compiled = spawnSync('c++', ['-std=c++17', '-DSHOT_STOPPER_HOST_TEST',
+  const compiled = spawnSync('c++', ['-std=c++17', '-DOPEN_BREW_BY_WEIGHT_HOST_TEST',
     '-I' + sketchDir, '-x', 'c++', '-', '-o', binary], {input: native, encoding: 'utf8'});
   assert.equal(compiled.status, 0, compiled.stderr);
   const run = spawnSync(binary, [], {encoding: 'utf8'});

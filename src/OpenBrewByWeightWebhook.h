@@ -14,10 +14,10 @@
 #include "OpenBrewByWeightTaskMutex.h"
 #include "OpenBrewByWeightResourceOwner.h"
 
-#if defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
-#include SHOT_STOPPER_WEBHOOK_TEST_PLATFORM
-#elif !defined(SHOT_STOPPER_HOST_TEST) && \
-    !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_WEBHOOK_TEST_PLATFORM)
+#include OPEN_BREW_BY_WEIGHT_WEBHOOK_TEST_PLATFORM
+#elif !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 #include <Arduino.h>
 #include <esp_http_client.h>
 #include <lwip/dns.h>
@@ -28,7 +28,7 @@
 #include <freertos/task.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr size_t WEBHOOK_URL_CAPACITY = 192;
 constexpr uint32_t WEBHOOK_START_MAX_DELAY_MS = 2000;
@@ -305,9 +305,9 @@ struct WebhookStatus {
   uint32_t psramLargestAfter = 0;
 };
 
-#if defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM) || \
-    (!defined(SHOT_STOPPER_HOST_TEST) && \
-     !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST))
+#if defined(OPEN_BREW_BY_WEIGHT_WEBHOOK_TEST_PLATFORM) || \
+    (!defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && \
+     !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST))
 
 class WebhookDispatcher {
  public:
@@ -327,7 +327,7 @@ class WebhookDispatcher {
   void setControlCritical(bool active);
 
  private:
-#if defined(SHOT_STOPPER_WEBHOOK_TEST_PLATFORM)
+#if defined(OPEN_BREW_BY_WEIGHT_WEBHOOK_TEST_PLATFORM)
   friend struct WebhookDispatcherTest;
 #endif
   struct HttpClientDeleter {
@@ -396,4 +396,4 @@ class WebhookDispatcher {
 
 #endif
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

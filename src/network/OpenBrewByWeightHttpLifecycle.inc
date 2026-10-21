@@ -1,4 +1,4 @@
-void ShotStopperNetwork::processAcceptedCommands() {
+void OpenBrewByWeightNetwork::processAcceptedCommands() {
   if (!acceptedCommandQueue_) {
     return;
   }
@@ -77,7 +77,7 @@ void ShotStopperNetwork::processAcceptedCommands() {
   processAcceptedMaintenanceCommand(now);
 }
 
-void ShotStopperNetwork::processAcceptedMaintenanceCommand(uint32_t now) {
+void OpenBrewByWeightNetwork::processAcceptedMaintenanceCommand(uint32_t now) {
   const ControlGateSnapshot control = controlGate();
   const bool matchingLease =
       acceptedCommand_.maintenanceLeaseId != 0 &&
@@ -160,7 +160,7 @@ void ShotStopperNetwork::processAcceptedMaintenanceCommand(uint32_t now) {
   acceptedCommand_ = WebCommand{};
 }
 
-bool ShotStopperNetwork::enqueueMaintenanceCompletion(
+bool OpenBrewByWeightNetwork::enqueueMaintenanceCompletion(
     const WebCommand &command, bool succeeded,
     CommandResultState failureState) {
   WebCommand result;
@@ -192,7 +192,7 @@ bool ShotStopperNetwork::enqueueMaintenanceCompletion(
   return false;
 }
 
-bool ShotStopperNetwork::processAcceptedCommand(const WebCommand &command) {
+bool OpenBrewByWeightNetwork::processAcceptedCommand(const WebCommand &command) {
   if (isCliNetworkAction(command.type)) {
     return handleCliNetworkAction(command, millis());
   }
@@ -210,7 +210,7 @@ bool ShotStopperNetwork::processAcceptedCommand(const WebCommand &command) {
   return processPersistedCommand(command);
 }
 
-bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
+bool OpenBrewByWeightNetwork::processPersistedCommand(const WebCommand &command) {
   if (command.type == WebCommandType::CLEAR_RESET_HISTORY) {
     return callbacks_.clearResetHistory(command.resetHistoryUnsafeCount);
   }
@@ -509,7 +509,7 @@ bool ShotStopperNetwork::processPersistedCommand(const WebCommand &command) {
   return true;
 }
 
-bool ShotStopperNetwork::handleCliNetworkAction(const WebCommand &command,
+bool OpenBrewByWeightNetwork::handleCliNetworkAction(const WebCommand &command,
                                                 uint32_t now) {
   refreshExtendedStatus(now);
   switch (command.type) {
@@ -529,7 +529,7 @@ bool ShotStopperNetwork::handleCliNetworkAction(const WebCommand &command,
   }
 }
 
-bool ShotStopperNetwork::handleCliWifiAction(const WebCommand &command,
+bool OpenBrewByWeightNetwork::handleCliWifiAction(const WebCommand &command,
                                              uint32_t now) {
   switch (command.type) {
     case WebCommandType::WIFI_CONNECT: {
@@ -602,7 +602,7 @@ bool ShotStopperNetwork::handleCliWifiAction(const WebCommand &command,
   }
 }
 
-bool ShotStopperNetwork::handleCliApAction(const WebCommand &command,
+bool OpenBrewByWeightNetwork::handleCliApAction(const WebCommand &command,
                                            uint32_t now) {
   switch (command.type) {
     case WebCommandType::AP_START: {
@@ -635,7 +635,7 @@ bool ShotStopperNetwork::handleCliApAction(const WebCommand &command,
   }
 }
 
-bool ShotStopperNetwork::handleCliWebUiAction(const WebCommand &command,
+bool OpenBrewByWeightNetwork::handleCliWebUiAction(const WebCommand &command,
                                               uint32_t now) {
   (void)now;
   switch (command.type) {
@@ -693,21 +693,21 @@ bool ShotStopperNetwork::handleCliWebUiAction(const WebCommand &command,
   }
 }
 
-void ShotStopperNetwork::log(DebugCategory category, DebugCode code,
+void OpenBrewByWeightNetwork::log(DebugCategory category, DebugCode code,
                              int32_t argument1, int32_t argument2) {
   if (callbacks_.addDebugEvent != nullptr) {
     callbacks_.addDebugEvent(category, code, argument1, argument2);
   }
 }
 
-void ShotStopperNetwork::actionLog(const char *message) {
+void OpenBrewByWeightNetwork::actionLog(const char *message) {
   if (message != nullptr) {
     ::serialTraceCategory(networkTextLogLevel(message), DebugCategory::NETWORK,
                           message);
   }
 }
 
-void ShotStopperNetwork::actionLogf(const char *fmt, ...) {
+void OpenBrewByWeightNetwork::actionLogf(const char *fmt, ...) {
   if (fmt == nullptr) {
     return;
   }
@@ -720,14 +720,14 @@ void ShotStopperNetwork::actionLogf(const char *fmt, ...) {
                         line);
 }
 
-void ShotStopperNetwork::lifecycleLog(const char *message) {
+void OpenBrewByWeightNetwork::lifecycleLog(const char *message) {
   if (message != nullptr) {
     ::serialTraceCategory(networkTextLogLevel(message), DebugCategory::NETWORK,
                           message);
   }
 }
 
-void ShotStopperNetwork::lifecycleLogf(const char *fmt, ...) {
+void OpenBrewByWeightNetwork::lifecycleLogf(const char *fmt, ...) {
   if (fmt == nullptr) {
     return;
   }
@@ -740,7 +740,7 @@ void ShotStopperNetwork::lifecycleLogf(const char *fmt, ...) {
                         line);
 }
 
-void ShotStopperNetwork::printActionSnapshot(const char *command, bool ok) {
+void OpenBrewByWeightNetwork::printActionSnapshot(const char *command, bool ok) {
   refreshExtendedStatus(millis());
   const NetworkStatusSnapshot status = snapshot();
   actionLogf("%s %s ssid=%s mode=%s wifiStatus=%ld %s sta=%s ip=%s rssi=%d "
@@ -763,7 +763,7 @@ void ShotStopperNetwork::printActionSnapshot(const char *command, bool ok) {
              status.httpStartHeld ? 1 : 0);
 }
 
-void ShotStopperNetwork::noteCliNetworkProgress() {
+void OpenBrewByWeightNetwork::noteCliNetworkProgress() {
   if (startupComplete_) {
     return;
   }
@@ -781,7 +781,7 @@ void ShotStopperNetwork::noteCliNetworkProgress() {
   dataMux_.unlock();
 }
 
-void ShotStopperNetwork::refreshExtendedStatus(uint32_t now) {
+void OpenBrewByWeightNetwork::refreshExtendedStatus(uint32_t now) {
   const TimeStatusSnapshot timeStatus = g_wallClock.snapshot(now);
   const wl_status_t wifiStatus = WiFi.status();
   const bool staConnected = wifiStatus == WL_CONNECTED;
@@ -866,8 +866,8 @@ void ShotStopperNetwork::refreshExtendedStatus(uint32_t now) {
   dataMux_.unlock();
 }
 
-void ShotStopperNetwork::ntpSyncNotificationCallback(struct timeval *tv) {
-  ShotStopperNetwork *self = instance_;
+void OpenBrewByWeightNetwork::ntpSyncNotificationCallback(struct timeval *tv) {
+  OpenBrewByWeightNetwork *self = instance_;
   if (tv == nullptr || self == nullptr ||
       !self->ntpCallbackAccepting_.load(std::memory_order_acquire) ||
       outboundScaleInhibited()) {
@@ -879,7 +879,7 @@ void ShotStopperNetwork::ntpSyncNotificationCallback(struct timeval *tv) {
   }
 }
 
-void ShotStopperNetwork::stopNtp() {
+void OpenBrewByWeightNetwork::stopNtp() {
   // Close the callback gate before stopping lwIP so a late completion from an
   // aborted attempt cannot be accepted after a shot/scale gate transition.
   ntpCallbackAccepting_.store(false, std::memory_order_release);
@@ -890,7 +890,7 @@ void ShotStopperNetwork::stopNtp() {
   completeOutboundAcquisitionPause(OutboundClient::NTP, millis());
 }
 
-bool ShotStopperNetwork::ntpMayArm(uint32_t now, bool staConnected) const {
+bool OpenBrewByWeightNetwork::ntpMayArm(uint32_t now, bool staConnected) const {
   if (!staConnected || server_ == nullptr) {
     return false;
   }
@@ -907,7 +907,7 @@ bool ShotStopperNetwork::ntpMayArm(uint32_t now, bool staConnected) const {
   return true;
 }
 
-void ShotStopperNetwork::abortInFlightNtp() {
+void OpenBrewByWeightNetwork::abortInFlightNtp() {
   stopNtp();
   g_wallClock.cancelSyncing();
   if (ntpManualAttempt_) {
@@ -918,7 +918,7 @@ void ShotStopperNetwork::abortInFlightNtp() {
   }
 }
 
-void ShotStopperNetwork::abortNtpForRfGate() {
+void OpenBrewByWeightNetwork::abortNtpForRfGate() {
   const bool gateActive =
       brewRfActive() || outboundScaleInhibited() || scaleConnecting_.load(std::memory_order_acquire);
   const bool abortRequested =
@@ -935,7 +935,7 @@ void ShotStopperNetwork::abortNtpForRfGate() {
   completeOutboundAcquisitionPause(OutboundClient::NTP, millis());
 }
 
-bool ShotStopperNetwork::armNtp(uint32_t now, bool staConnected,
+bool OpenBrewByWeightNetwork::armNtp(uint32_t now, bool staConnected,
                                 uint32_t expectedGateGeneration) {
   auto gateStable = [&]() {
     return rfGateGeneration_.load(std::memory_order_acquire) ==
@@ -988,7 +988,7 @@ bool ShotStopperNetwork::armNtp(uint32_t now, bool staConnected,
   return true;
 }
 
-void ShotStopperNetwork::handleNtpFailure(uint32_t now) {
+void OpenBrewByWeightNetwork::handleNtpFailure(uint32_t now) {
   stopNtp();
   ntpManualAttempt_ = false;
   if (ntpFailoverIndex_ < 3) {
@@ -1000,7 +1000,7 @@ void ShotStopperNetwork::handleNtpFailure(uint32_t now) {
   log(DebugCategory::NETWORK, DebugCode::TIME_SYNC_FAIL, ntpFailoverIndex_, 0);
 }
 
-void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
+void OpenBrewByWeightNetwork::serviceNtp(uint32_t now, bool staConnected) {
   dataMux_.lock();
   const uint32_t settingsGeneration = ntpSettingsGeneration_;
   const bool ntpSyncEnabled = settings_.runtime.ntpSyncEnabled;
@@ -1113,7 +1113,7 @@ void ShotStopperNetwork::serviceNtp(uint32_t now, bool staConnected) {
   }
 }
 
-bool ShotStopperNetwork::startHttpServer() {
+bool OpenBrewByWeightNetwork::startHttpServer() {
   if (server_ != nullptr) {
     return true;
   }
@@ -1189,7 +1189,7 @@ bool ShotStopperNetwork::startHttpServer() {
       registerHandler(server_, "/api/v1/ui/claim", HTTP_POST, claimHandler) &&
       registerHandler(server_, "/api/v1/ui/ui-stream", HTTP_GET,
                       uiStreamHandler, true, uiStreamHandshake) &&
-#if SHOT_STOPPER_DEVELOPMENT == 1
+#if OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 1
       // Unlock routes are not served in development builds; administration
       // is public there and the UI never calls this endpoint.
       true &&
@@ -1229,7 +1229,7 @@ bool ShotStopperNetwork::startHttpServer() {
 
 // Runs on httpd only. Every setup failure falls back to running the request
 // inline on httpd, which is the pre-worker behavior.
-esp_err_t ShotStopperNetwork::runOnOtaWorker(httpd_req_t *request,
+esp_err_t OpenBrewByWeightNetwork::runOnOtaWorker(httpd_req_t *request,
                                              OtaWork work) {
   // Seq-cst pairing with stopHttpServer(): either it sees this job pending,
   // or this handler sees the stop and never hands a session to the worker.
@@ -1265,19 +1265,19 @@ esp_err_t ShotStopperNetwork::runOnOtaWorker(httpd_req_t *request,
   return ESP_OK;
 }
 
-void ShotStopperNetwork::runOtaJob(const OtaJob &job) {
+void OpenBrewByWeightNetwork::runOtaJob(const OtaJob &job) {
   (void)job.work(job.request);
   (void)httpd_req_async_handler_complete(job.request);
   otaJobsPending_.fetch_sub(1);
 }
 
-void ShotStopperNetwork::drainOtaJobs() {
+void OpenBrewByWeightNetwork::drainOtaJobs() {
   OtaJob job;
   while (xQueueReceive(otaJobs_, &job, 0) == pdTRUE) runOtaJob(job);
 }
 
-void ShotStopperNetwork::otaWorkerTask(void *context) {
-  ShotStopperNetwork &self = *static_cast<ShotStopperNetwork *>(context);
+void OpenBrewByWeightNetwork::otaWorkerTask(void *context) {
+  OpenBrewByWeightNetwork &self = *static_cast<OpenBrewByWeightNetwork *>(context);
   do {
     self.drainOtaJobs();
     self.otaWorkerRunning_.store(false);
@@ -1288,7 +1288,7 @@ void ShotStopperNetwork::otaWorkerTask(void *context) {
   vTaskDelete(nullptr);
 }
 
-void ShotStopperNetwork::stopHttpServer() {
+void OpenBrewByWeightNetwork::stopHttpServer() {
   if (server_ != nullptr) {
     // OTA jobs hold async copies of httpd sessions: answer them before
     // httpd_stop frees the sessions. A range write stops at its next sector
@@ -1310,7 +1310,7 @@ void ShotStopperNetwork::stopHttpServer() {
 }
 
 
-esp_err_t ShotStopperNetwork::sendJson(httpd_req_t *request,
+esp_err_t OpenBrewByWeightNetwork::sendJson(httpd_req_t *request,
                                        const char *status,
                                        const char *json) {
   httpd_resp_set_status(request, status);
@@ -1328,7 +1328,7 @@ esp_err_t ShotStopperNetwork::sendJson(httpd_req_t *request,
   return sent;
 }
 
-esp_err_t ShotStopperNetwork::sendError(httpd_req_t *request,
+esp_err_t OpenBrewByWeightNetwork::sendError(httpd_req_t *request,
                                         const char *status,
                                         const char *error,
                                         const char *message) {

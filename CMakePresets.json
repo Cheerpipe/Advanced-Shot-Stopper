@@ -16,12 +16,12 @@
     {
       "name": "asan-ubsan",
       "inherits": "base",
-      "cacheVariables": {"SHOTSTOPPER_SANITIZER": "address,undefined"}
+      "cacheVariables": {"OPENBREWBYWEIGHT_SANITIZER": "address,undefined"}
     },
     {
       "name": "tsan",
       "inherits": "base",
-      "cacheVariables": {"SHOTSTOPPER_SANITIZER": "thread"}
+      "cacheVariables": {"OPENBREWBYWEIGHT_SANITIZER": "thread"}
     }
   ],
   "buildPresets": [

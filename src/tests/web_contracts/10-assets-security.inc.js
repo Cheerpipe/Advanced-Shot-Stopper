@@ -1205,11 +1205,11 @@ if (!network.includes('"firstDropBeep"') ||
     !firmware.includes('machineServiceReminders')) {
   throw new Error('Scale beep settings must be configurable end-to-end');
 }
-if (firmware.includes('SHOT_STOPPER_ENABLE_ALED') ||
+if (firmware.includes('OPEN_BREW_BY_WEIGHT_ENABLE_ALED') ||
     firmware.includes('WS2812') ||
     firmware.includes('rgbLedWrite') ||
     firmware.includes('status_indicator') ||
-    domain.includes('SHOT_STOPPER_ENABLE_ALED') ||
+    domain.includes('OPEN_BREW_BY_WEIGHT_ENABLE_ALED') ||
     domain.includes('BOOT_SUBSYSTEM_INDICATORS')) {
   throw new Error('WS2812B/ALED support must be fully removed');
 }
@@ -1228,9 +1228,9 @@ if (!codeIncludes(ui, 'id="bullseyeMelodyEnabled"') ||
 }
 {
   const start = network.indexOf(
-      'esp_err_t ShotStopperNetwork::bullseyeTestHandler');
+      'esp_err_t OpenBrewByWeightNetwork::bullseyeTestHandler');
   const end = network.indexOf(
-      'esp_err_t ShotStopperNetwork::preferredScaleClearHandler', start);
+      'esp_err_t OpenBrewByWeightNetwork::preferredScaleClearHandler', start);
   const handler = start >= 0 && end > start ? network.slice(start, end) : '';
   const unlocks = handler.match(/self\.unlockJsonBody\(\)/g) || [];
   if (unlocks.length < 2) {
@@ -1375,8 +1375,8 @@ if (!domain.includes('inline bool scaleHistoryIdentityEqual') ||
   throw new Error(
       'Scale MAC NVS must ignore lastSeenSeq and must not write flash while GATT is live');
 }
-if (!domain.includes('BUZZER_SUPPORT_ENABLED = SHOT_STOPPER_ENABLE_BUZZER != 0') ||
-    !domain.includes('SHOT_STOPPER_ENABLE_BUZZER must be 0 (off) or 1 (passive RTTTL)') ||
+if (!domain.includes('BUZZER_SUPPORT_ENABLED = OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER != 0') ||
+    !domain.includes('OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER must be 0 (off) or 1 (passive RTTTL)') ||
     !domain.includes('compiledBuzzerModeId') ||
     !domain.includes('DEFAULT_ALERT_OUTPUT_CHANNEL') ||
     !domain.includes(
@@ -1434,14 +1434,14 @@ if (!domain.includes('BUZZER_SUPPORT_ENABLED = SHOT_STOPPER_ENABLE_BUZZER != 0')
     !kconfig.includes('0=off, 1=passive RTTTL')) {
   throw new Error('Local buzzer must be compile-time off (0) or passive RTTTL (1)');
 }
-if (!domainCore.includes('#ifndef SHOT_STOPPER_DEVELOPMENT') ||
-    !domainCore.includes('#define SHOT_STOPPER_DEVELOPMENT 0') ||
-    !domainCore.includes('DEVELOPMENT_BUILD = SHOT_STOPPER_DEVELOPMENT == 1') ||
-    !domainCore.includes('SHOT_STOPPER_DEVELOPMENT must be 0 or 1') ||
-    !domainCore.includes('CONFIG_SHOT_STOPPER_DEVELOPMENT') ||
-    !kconfig.includes('config SHOT_STOPPER_DEVELOPMENT') ||
+if (!domainCore.includes('#ifndef OPEN_BREW_BY_WEIGHT_DEVELOPMENT') ||
+    !domainCore.includes('#define OPEN_BREW_BY_WEIGHT_DEVELOPMENT 0') ||
+    !domainCore.includes('DEVELOPMENT_BUILD = OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 1') ||
+    !domainCore.includes('OPEN_BREW_BY_WEIGHT_DEVELOPMENT must be 0 or 1') ||
+    !domainCore.includes('CONFIG_OPEN_BREW_BY_WEIGHT_DEVELOPMENT') ||
+    !kconfig.includes('config OPEN_BREW_BY_WEIGHT_DEVELOPMENT') ||
     !kconfig.includes('bypass WebUI admin unlock') ||
-    !network.includes('SHOT_STOPPER_DEVELOPMENT == 1') ||
+    !network.includes('OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 1') ||
     !network.includes('adminUnlockAllowed') ||
     // Every status page (home, admin, diagnostic, settings) reports the dev
     // flag so the UI can react on first poll; at most two raw JSON emissions
@@ -1462,13 +1462,13 @@ if (!domainCore.includes('#ifndef SHOT_STOPPER_DEVELOPMENT') ||
     !rawShellHtml.includes('class="{{webui-meta:development-class}}"') ||
     !css.includes('body.devBuild #adminLockPanel')) {
   throw new Error(
-      'SHOT_STOPPER_DEVELOPMENT must default off, make administration public by compile flag, and never flash the locked admin UI');
+      'OPEN_BREW_BY_WEIGHT_DEVELOPMENT must default off, make administration public by compile flag, and never flash the locked admin UI');
 }
-if (!domainCore.includes('#ifndef SHOT_STOPPER_ENABLE_JTAG') ||
-    !domainCore.includes('#define SHOT_STOPPER_ENABLE_JTAG 0') ||
+if (!domainCore.includes('#ifndef OPEN_BREW_BY_WEIGHT_ENABLE_JTAG') ||
+    !domainCore.includes('#define OPEN_BREW_BY_WEIGHT_ENABLE_JTAG 0') ||
     !domainCore.includes(
-        'SHOT_STOPPER_ENABLE_JTAG must be 0 (off) or 1 (USB Serial/JTAG)') ||
-    !domainCore.includes('CONFIG_SHOT_STOPPER_ENABLE_JTAG') ||
+        'OPEN_BREW_BY_WEIGHT_ENABLE_JTAG must be 0 (off) or 1 (USB Serial/JTAG)') ||
+    !domainCore.includes('CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_JTAG') ||
     !domainCore.includes('enum class UsbSerialEnableSource') ||
     !domainCore.includes('OFF = 0') ||
     !domainCore.includes('COMPILE_FLAG = 1') ||
@@ -1479,25 +1479,25 @@ if (!domainCore.includes('#ifndef SHOT_STOPPER_ENABLE_JTAG') ||
     domainCore.includes('IO4 = 2') ||
     !domainCore.includes('usbSerialStateId') ||
     !domainCore.includes('usbConsoleIo4StateId') ||
-    !kconfig.includes('config SHOT_STOPPER_ENABLE_JTAG') ||
+    !kconfig.includes('config OPEN_BREW_BY_WEIGHT_ENABLE_JTAG') ||
     !kconfig.includes('USB Serial/JTAG (0=off, 1=on at boot)') ||
     !kconfig.includes('omitting the flag leaves JTAG off')) {
   throw new Error(
-      'SHOT_STOPPER_ENABLE_JTAG must default off and map Kconfig onto the compile macro');
+      'OPEN_BREW_BY_WEIGHT_ENABLE_JTAG must default off and map Kconfig onto the compile macro');
 }
 {
   const remoteKconfig = kconfig.slice(
-      kconfig.indexOf('config SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL'),
-      kconfig.indexOf('config SHOT_STOPPER_MACHINE_TYPE'));
+      kconfig.indexOf('config OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL'),
+      kconfig.indexOf('config OPEN_BREW_BY_WEIGHT_MACHINE_TYPE'));
   const cli = fs.readFileSync(
       path.resolve(sketchDir, '..', 'scripts', 'openbrewbyweight_cli.sh'), 'utf8');
   const defaultFlags = cli.match(/SS_CLI_DEFAULT_FLAGS='([^']*)'/);
   const paddleHandler = network.slice(
-      network.indexOf('esp_err_t ShotStopperNetwork::paddleHandler'),
-      network.indexOf('esp_err_t ShotStopperNetwork::rinseHandler'));
+      network.indexOf('esp_err_t OpenBrewByWeightNetwork::paddleHandler'),
+      network.indexOf('esp_err_t OpenBrewByWeightNetwork::rinseHandler'));
   const rinseHandler = network.slice(
-      network.indexOf('esp_err_t ShotStopperNetwork::rinseHandler'),
-      network.indexOf('esp_err_t ShotStopperNetwork::stopHandler'));
+      network.indexOf('esp_err_t OpenBrewByWeightNetwork::rinseHandler'),
+      network.indexOf('esp_err_t OpenBrewByWeightNetwork::stopHandler'));
   const remoteOn = firmwareCore.slice(
       firmwareCore.indexOf('case WebCommandType::REMOTE_ON:'),
       firmwareCore.indexOf('case WebCommandType::RINSE:'));
@@ -1512,16 +1512,16 @@ if (!domainCore.includes('#ifndef SHOT_STOPPER_ENABLE_JTAG') ||
       !remoteKconfig.includes('default n') ||
       /\bdefault y\b/.test(remoteKconfig) ||
       sdkconfigDefaults.includes(
-          'CONFIG_SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=y') ||
+          'CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=y') ||
       !defaultFlags ||
-      defaultFlags[1].includes('SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=1') ||
+      defaultFlags[1].includes('OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1') ||
       !paddleHandler.includes('on && !REMOTE_MACHINE_CONTROL_ENABLED') ||
       !paddleHandler.includes('REMOTE_CONTROL_DISABLED') ||
       !rinseHandler.includes('!REMOTE_MACHINE_CONTROL_ENABLED') ||
       !rinseHandler.includes('REMOTE_CONTROL_DISABLED') ||
       !remoteOn.includes('!REMOTE_MACHINE_CONTROL_ENABLED') ||
       !webRinse.includes('!REMOTE_MACHINE_CONTROL_ENABLED') ||
-      !lockdownTest.includes('#define SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL 0') ||
+      !lockdownTest.includes('#define OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL 0') ||
       !lockdownTest.includes('WebCommandType::REMOTE_ON') ||
       !lockdownTest.includes('WebCommandType::RINSE') ||
       !hostTests.includes('remote_lockdown_host_test')) {
@@ -1530,7 +1530,7 @@ if (!domainCore.includes('#ifndef SHOT_STOPPER_ENABLE_JTAG') ||
   }
 }
 if (codeIncludes(ui, 'authenticatedOnly') ||
-    codeIncludes(ui, "s.setItem('shotStopperToken'") ||
+    codeIncludes(ui, "s.setItem('openBrewByWeightToken'") ||
     codeIncludes(ui, 'pageNav authenticatedOnly') ||
     codeIncludes(ui, "authenticated()&&known") ||
     !codeIncludes(ui, 'function knownPath(') ||
@@ -1548,7 +1548,7 @@ if (codeIncludes(ui, 'authenticatedOnly') ||
 }
 if (html.includes('id="rememberMe"') ||
     codeIncludes(js, 'rememberMe:r') ||
-    codeIncludes(js, "s.setItem('shotStopperToken'") ||
+    codeIncludes(js, "s.setItem('openBrewByWeightToken'") ||
     codeIncludes(js, 'function clearAuth()') ||
     network.includes('jsonBoolean(root, "rememberMe", rememberMe)') ||
     network.includes('createSession(token, csrf, rememberMe)') ||

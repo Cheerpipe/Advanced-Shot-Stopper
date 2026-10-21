@@ -3,7 +3,7 @@
 #include "OpenBrewByWeightBbwEwma.h"
 #include "OpenBrewByWeightPresets.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Control-owned RAM, keyed by preset identity (not its movable array index).
 struct BbwLearningBank {
@@ -42,4 +42,4 @@ struct BbwLearningBank {
 };
 static_assert(sizeof(BbwLearningBank) <= 3000, "BBW per-preset RAM budget");
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

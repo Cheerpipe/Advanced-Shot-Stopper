@@ -1,4 +1,4 @@
-#define SHOT_STOPPER_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
 
 #include <stdint.h>
 
@@ -16,9 +16,9 @@ void resetGuardWriteFromA();
 bool resetGuardReadFromB();
 
 int main() {
-  shotstopper::resetSafetyResetGuardForHost();
+  openbrewbyweight::resetSafetyResetGuardForHost();
   if (resetGuardAddressA() != resetGuardAddressB() ||
-      resetGuardAddressA() != &shotstopper::safetyResetRecordForHost()) {
+      resetGuardAddressA() != &openbrewbyweight::safetyResetRecordForHost()) {
     std::cerr << "reset guard record is not unique across translation units\n";
     return 1;
   }

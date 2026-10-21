@@ -36,11 +36,11 @@
 #include "OpenBrewByWeightScaleLink.h"
 #include "OpenBrewByWeightTaskMutex.h"
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #include <esp_partition.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr size_t SCALE_PROFILE_RECORD_CAPACITY = 8192;
 constexpr size_t SCALE_PROFILE_RECORD_BYTES = 32;
@@ -552,7 +552,7 @@ class ScaleProfiler {
   // ---------------------------------------------------------------------
 
   void bootInit() {
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     const bool available = storePartition() != nullptr;
     ScaleProfileHeader header;
     const bool loaded = available && storeReadHeader(header);
@@ -626,7 +626,7 @@ class ScaleProfiler {
       return FlashStoreStepResult::FAILED;
     }
     captureMux_.unlock();
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     if (!tryLockFlashIo()) return FlashStoreStepResult::FAILED;
     bool ok = false;
     bool complete = false;
@@ -756,7 +756,7 @@ class ScaleProfiler {
       return false;
     }
     captureMux_.unlock();
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     if (partitionAvailable()) {
       const esp_partition_t *part = storePartition();
       bool erased = part != nullptr && tryLockFlashIo();
@@ -870,7 +870,7 @@ class ScaleProfiler {
     return header;
   }
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // Flash-source download: validated header read. Flash-only, so it never
   // holds the capture mutex across the flash lock (producers must not wait
   // behind flash I/O).
@@ -923,7 +923,7 @@ class ScaleProfiler {
       copyCString(out, capacity, workspace_->header.context);
     }
     captureMux_.unlock();
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     if (out[0] == '\0') {
       ScaleProfileHeader header;
       if (storeReadHeader(header)) copyCString(out, capacity, header.context);
@@ -931,7 +931,7 @@ class ScaleProfiler {
 #endif
   }
 
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // Host-test access to the capture engine without flash hardware.
   void hostReset() {
     captureMux_.lock();
@@ -1073,7 +1073,7 @@ class ScaleProfiler {
     uint32_t checksum = 0;
   };
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   static const esp_partition_t *storePartition() {
     const esp_partition_t *part = esp_partition_find_first(
         ESP_PARTITION_TYPE_DATA, static_cast<esp_partition_subtype_t>(0x40),
@@ -1192,7 +1192,7 @@ class ScaleProfiler {
       lastError_ = ScaleProfilerError::ALLOCATION;
       return ScaleProfilerWork::NONE;
     }
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     const bool flashTraceExists =
         savedRecordCount_ != 0 || state_ == ScaleProfilerState::SAVED;
     if (flashTraceExists) {
@@ -1226,7 +1226,7 @@ class ScaleProfiler {
       lastError_ = ScaleProfilerError::BUSY;
       return ScaleProfilerWork::NONE;
     }
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     const bool flashTraceExists =
         savedRecordCount_ != 0 || state_ == ScaleProfilerState::SAVED;
     if (flashTraceExists) {
@@ -1852,4 +1852,4 @@ inline size_t formatScaleProfileRow(char *out, size_t capacity,
   return used + suffixLength;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -24,7 +24,7 @@ static int unlockedSnprintf(char *out, size_t capacity, const char *format, ...)
 #include "../src/EspressoScaleBLENimble.cpp"
 #undef snprintf
 static std::vector<std::pair<uint8_t,std::string>> capturedScaleLogs;
-extern "C" void shotStopperScaleLog(uint8_t severity, const char *message) {
+extern "C" void openBrewByWeightScaleLog(uint8_t severity, const char *message) {
   capturedScaleLogs.emplace_back(severity,message==nullptr ? "" : message);
 }
 

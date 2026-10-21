@@ -1,5 +1,5 @@
 // Included inside the facade's namespace after its session buffer definition.
-struct ShotStopperMicraService::WebSocketBuffer {
+struct OpenBrewByWeightMicraService::WebSocketBuffer {
   MicraStompDecoder decoder;
   MicraObservationStamp stamp;
   esp_websocket_client_handle_t client = nullptr;
@@ -22,7 +22,7 @@ struct ShotStopperMicraService::WebSocketBuffer {
   uint8_t attempts = 0;
 };
 
-MicraWebSocketStatus ShotStopperMicraService::websocketStatus(bool includeTraffic) const {
+MicraWebSocketStatus OpenBrewByWeightMicraService::websocketStatus(bool includeTraffic) const {
   TaskLockGuard lock(mux_);
   MicraWebSocketStatus result = websocketStatus_;
   if (includeTraffic && websocket_ != nullptr) {
@@ -42,7 +42,7 @@ MicraWebSocketStatus ShotStopperMicraService::websocketStatus(bool includeTraffi
   return result;
 }
 
-bool ShotStopperMicraService::websocketAdmitted(bool starting) const {
+bool OpenBrewByWeightMicraService::websocketAdmitted(bool starting) const {
   if (starting && (outboundScaleInhibited() || scaleConnecting_.load(std::memory_order_acquire) ||
                    shotTransportPaused())) return false;
   if (outboundMaintenance.load(std::memory_order_acquire)) return false;
@@ -55,7 +55,7 @@ bool ShotStopperMicraService::websocketAdmitted(bool starting) const {
       config_.connectionType == static_cast<uint8_t>(MicraConnectionType::WEBSOCKET);
 }
 
-void ShotStopperMicraService::stopWebSocket(bool release) {
+void OpenBrewByWeightMicraService::stopWebSocket(bool release) {
   WebSocketBuffer *buffer = websocket_;
   if (!buffer) {
     return;
@@ -121,7 +121,7 @@ void ShotStopperMicraService::stopWebSocket(bool release) {
   }
 }
 
-bool ShotStopperMicraService::websocketParkDue() const {
+bool OpenBrewByWeightMicraService::websocketParkDue() const {
   if (shotTransportPaused()) return true;
   if (!outboundScaleInhibited() && !scaleConnecting_.load(std::memory_order_acquire)) return false;
   // Cleaning supervision keeps its pushes through scale acquisition/setup/quiet.
@@ -131,7 +131,7 @@ bool ShotStopperMicraService::websocketParkDue() const {
 
 // Parking UNSUBSCRIBEs but keeps WSS/TLS: the broker stops pushes while WS ping
 // continues. SUBSCRIBE (initial or resume) queues one initial dashboard read.
-bool ShotStopperMicraService::sendSubscription(bool subscribe) {
+bool OpenBrewByWeightMicraService::sendSubscription(bool subscribe) {
   WebSocketBuffer &buffer = *websocket_;
   const bool park = subscribe && websocketParkDue();
   const char *reason = shotTransportPaused() ? "shot" : "scale";
@@ -179,8 +179,8 @@ bool ShotStopperMicraService::sendSubscription(bool subscribe) {
   return true;
 }
 
-bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &frame) {
-  auto &self = *static_cast<ShotStopperMicraService *>(context);
+bool OpenBrewByWeightMicraService::stompFrame(void *context, const MicraStompFrame &frame) {
+  auto &self = *static_cast<OpenBrewByWeightMicraService *>(context);
   WebSocketBuffer &buffer = *self.websocket_;
   if (!self.websocketAdmitted()) return true;
   bool subscribed, parked;
@@ -290,9 +290,9 @@ bool ShotStopperMicraService::stompFrame(void *context, const MicraStompFrame &f
   return true;
 }
 
-void ShotStopperMicraService::websocketEvent(void *context, const char *,
+void OpenBrewByWeightMicraService::websocketEvent(void *context, const char *,
                                             int32_t event, void *data) {
-  auto &self = *static_cast<ShotStopperMicraService *>(context);
+  auto &self = *static_cast<OpenBrewByWeightMicraService *>(context);
   const uint32_t ingressAttempt = self.backflush_.ingressAttempt();
   auto &buffer = *self.websocket_;
   if (!data || (event != WEBSOCKET_EVENT_CONNECTED && event != WEBSOCKET_EVENT_DATA &&
@@ -406,7 +406,7 @@ void ShotStopperMicraService::websocketEvent(void *context, const char *,
   if (self.task_) xTaskNotifyGive(self.task_);
 }
 
-void ShotStopperMicraService::serviceWebSocket() {
+void OpenBrewByWeightMicraService::serviceWebSocket() {
   static_assert(sizeof(WebSocketBuffer) <= 24 * 1024);
   LineaMicraPersistedSettings settings;
   {

@@ -113,7 +113,7 @@ void processWebCommand(const WebCommand &command) {
       return;
 
     case WebCommandType::FORCE_SWITCH_PULSE:
-      if (!REMOTE_MACHINE_CONTROL_ENABLED || SHOT_STOPPER_MACHINE_TYPE == 0) {
+      if (!REMOTE_MACHINE_CONTROL_ENABLED || OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 0) {
         rejectWebCommand(command);
         return;
       }
@@ -254,7 +254,7 @@ void processWebCommand(const WebCommand &command) {
       if (candidate.timezoneSource == 3 &&
           candidate.firstTimezoneAutoClockQuality == 0) {
         candidate.firstTimezoneAutoClockQuality = 1;
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
         candidate.firstTimezoneAutoUptimeUs =
             static_cast<uint64_t>(esp_timer_get_time());
 #else
@@ -283,7 +283,7 @@ void processWebCommand(const WebCommand &command) {
       candidate.ringRetainLogLevel = command.config.ringRetainLogLevel;
       candidate.showDiagnosticPage = command.config.showDiagnosticPage;
       candidate.powerManagementEnabled = command.config.powerManagementEnabled;
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
       // Host APPLY_CONFIG still carries brew fields; update the active recipe.
       {
         ensureShotPresetBank(presetBank, candidate.retareWindowMs,

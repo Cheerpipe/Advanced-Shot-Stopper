@@ -25,7 +25,7 @@ to the analysis.
 
 $(ss_flag_help)
 
-$(shotstopper_arch_help)
+$(openbrewbyweight_arch_help)
 
 Examples:
   ./scripts/gcc_analyzer --hardware esp32-s3-relay-x1-speaker \
@@ -47,7 +47,7 @@ rm -rf "$output_path"
 mkdir -p "$output_path"
 
 # -fanalyzer is a tool flag, not a user preference: passing it through
-# The internal build stage would persist it into .shotstopper and every later compile.
+# The internal build stage would persist it into .openbrewbyweight and every later compile.
 # A failed/interrupted legacy analyzer run may have left -fanalyzer in the
 # persisted flags. Strip every copy before building and saving so this tool
 # never leaks its analysis-only option into ordinary builds.
@@ -63,13 +63,13 @@ ss_put flags "$user_flags" cli
 effective_flags="$(ss_cli_effective_flags)" || exit $?
 analyzer_flags="${effective_flags:+$effective_flags }-fanalyzer"
 ss_cli_resolve_profiles "$analyzer_flags" || exit $?
-shotstopper_resolve_board "$(ss_get arch)" || exit 2
-echo "Running GCC -fanalyzer for $SHOTSTOPPER_ARCH..."
+openbrewbyweight_resolve_board "$(ss_get arch)" || exit 2
+echo "Running GCC -fanalyzer for $OPENBREWBYWEIGHT_ARCH..."
 
 raw_report="$output_path/gcc-analyzer-raw.txt"
 report="$output_path/gcc-analyzer.txt"
 
-SHOTSTOPPER_NONINTERACTIVE=1 ./scripts/internal/build-idf \
+OPENBREWBYWEIGHT_NONINTERACTIVE=1 ./scripts/internal/build-idf \
   --hardware "$(ss_get hardware_config)" --machine "$(ss_get machine_config)" \
   --webui-language "$(ss_get webui_language)" \
   --flags "$analyzer_flags" >"$raw_report" 2>&1
@@ -80,7 +80,7 @@ ss_cli_save
 if [[ $build_status -ne 0 ]]; then
   cat "$raw_report" >&2
   printf 'Architecture: %s\nGCC analyzer exit status: %d\n' \
-    "$SHOTSTOPPER_ARCH" "$build_status" > "$output_path/README.txt"
+    "$OPENBREWBYWEIGHT_ARCH" "$build_status" > "$output_path/README.txt"
   echo "Build failed; log saved under $OUTPUT_DIR/gcc-analyzer-raw.txt" >&2
   exit "$build_status"
 fi
@@ -88,13 +88,13 @@ fi
 # GCC also analyzes ESP-IDF and managed components. Keep each warning block
 # only when its primary location is in a project-owned source tree; associated
 # traces are retained so the diagnostic remains useful.
-awk -v shotstopper="$ROOT/src/" \
+awk -v openbrewbyweight="$ROOT/src/" \
     -v espresso_scale_ble="$ROOT/libraries/EspressoScaleBLE/" \
     -v idf_main="$ROOT/idf/main/" \
     -v idf_components="$ROOT/idf/components/" '
   /^[^:]+:[0-9]+:[0-9]+: (warning|error):/ {
     if ($0 ~ /\[-Wanalyzer-/) {
-      keep = index($0, shotstopper) == 1 || \
+      keep = index($0, openbrewbyweight) == 1 || \
              index($0, espresso_scale_ble) == 1 || \
              index($0, idf_main) == 1 || \
              index($0, idf_components) == 1
@@ -113,7 +113,7 @@ if grep -q '\[-Wanalyzer-' "$report"; then
 fi
 
 printf 'Architecture: %s\nGCC analyzer exit status: %d\n' \
-  "$SHOTSTOPPER_ARCH" "$analyzer_status" > "$output_path/README.txt"
+  "$OPENBREWBYWEIGHT_ARCH" "$analyzer_status" > "$output_path/README.txt"
 
 echo "Report saved under $OUTPUT_DIR/"
 exit "$analyzer_status"

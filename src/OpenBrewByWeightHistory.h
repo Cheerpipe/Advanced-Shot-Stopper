@@ -9,7 +9,7 @@
 #include "OpenBrewByWeightHistoryTypes.h"
 #include "OpenBrewByWeightNvsDualSlot.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Two 16 KiB slots fill the dedicated history data partition.
 constexpr size_t HISTORY_FLASH_SLOT_BYTES = 16384;
@@ -121,4 +121,4 @@ class HistoryLog
   }
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

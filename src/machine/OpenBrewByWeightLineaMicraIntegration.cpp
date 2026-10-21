@@ -11,14 +11,14 @@
 #include <atomic>
 #include <cstdint>
 
-void serialTraceCategoryf(shotstopper::LogLevel level,
-                          shotstopper::DebugCategory category,
+void serialTraceCategoryf(openbrewbyweight::LogLevel level,
+                          openbrewbyweight::DebugCategory category,
                           const char *fmt, ...);
 
-namespace shotstopper {
+namespace openbrewbyweight {
 namespace {
 
-ShotStopperMicraService service;
+OpenBrewByWeightMicraService service;
 MicraScaleShutdownTracker scaleShutdown;
 MicraScalePowerOnTracker scalePowerOn;
 MicraMachinePowerTracker machinePower;
@@ -194,4 +194,4 @@ LineaMicraDiscoverySnapshot machineIntegrationDiscovery() {
   return service.discovery();
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

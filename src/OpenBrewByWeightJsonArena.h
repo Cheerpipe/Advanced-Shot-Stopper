@@ -7,9 +7,9 @@
 #include <string.h>
 #include "OpenBrewByWeightPsram.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
-// JSON bodies are already bounded by ShotStopperNetwork::REQUEST_BODY_CAPACITY.
+// JSON bodies are already bounded by OpenBrewByWeightNetwork::REQUEST_BODY_CAPACITY.
 // Keep an independent limit here so callers outside HTTP cannot accidentally
 // hand an unbounded C string to cJSON.
 constexpr size_t JSON_DOCUMENT_MAX_BYTES = 2047;
@@ -260,4 +260,4 @@ inline bool jsonArenaExhaustedRecently() {
   return jsonDocumentLimitRejectedRecently();
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

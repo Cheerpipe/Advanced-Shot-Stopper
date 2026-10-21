@@ -18,7 +18,7 @@ Desktop.ini
 .env.*
 !.env.example
 # Remembered script parameters (device password is never stored)
-.shotstopper
+.openbrewbyweight
 secrets.h
 credentials.h
 WiFiSecrets.h

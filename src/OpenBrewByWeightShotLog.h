@@ -10,7 +10,7 @@
 #include "OpenBrewByWeightDualSlotFlashLog.h"
 #include "OpenBrewByWeightShotLogTypes.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Two 60 KiB slots fill the dedicated shotlog data partition.
 constexpr size_t SHOT_LOG_FLASH_SLOT_BYTES = 61440;
@@ -209,4 +209,4 @@ class ShotLog
   size_t count() const { return store_.header.count; }
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

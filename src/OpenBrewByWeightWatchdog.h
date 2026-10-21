@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
 #include <atomic>
 #else
 #include <esp_task_wdt.h>
@@ -25,7 +25,7 @@
 #endif
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t TASK_WATCHDOG_TIMEOUT_MS = 5000;
 
@@ -41,14 +41,14 @@ constexpr uint32_t SAFETY_EVENT_ALL =
 class SafetyEventFlags {
  public:
   SafetyEventFlags() {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
     handle_ = xEventGroupCreateStatic(&storage_);
     configASSERT(handle_ != nullptr);
 #endif
   }
 
   void set(uint32_t bits) {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     bits_.fetch_or(bits, std::memory_order_release);
 #else
     (void)xEventGroupSetBits(handle_, static_cast<EventBits_t>(bits));
@@ -56,7 +56,7 @@ class SafetyEventFlags {
   }
 
   bool isSet(uint32_t bits) const {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     return (bits_.load(std::memory_order_acquire) & bits) != 0U;
 #else
     return (xEventGroupGetBits(handle_) & static_cast<EventBits_t>(bits)) !=
@@ -65,7 +65,7 @@ class SafetyEventFlags {
   }
 
   bool consume(uint32_t bits) {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     return (bits_.fetch_and(~bits, std::memory_order_acq_rel) & bits) != 0U;
 #else
     return (xEventGroupClearBits(handle_, static_cast<EventBits_t>(bits)) &
@@ -76,7 +76,7 @@ class SafetyEventFlags {
   void clear(uint32_t bits) { (void)consume(bits); }
 
  private:
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   std::atomic<uint32_t> bits_{0U};
   static_assert(std::atomic<uint32_t>::is_always_lock_free,
                 "Host safety event model must remain lock-free");
@@ -92,7 +92,7 @@ inline SafetyEventFlags safetyEventFlags;
 // flash paths retain their local yields/feeds and independent relay cutoff;
 // they must never weaken the liveness budget for unrelated tasks.
 inline bool configureTaskWatchdog() {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   hostTaskWatchdogConfigured = hostTaskWatchdogOperationsSucceed;
   return hostTaskWatchdogConfigured;
 #else
@@ -110,7 +110,7 @@ inline bool configureTaskWatchdog() {
 }
 
 inline bool subscribeCurrentTaskToWatchdog() {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   if (!hostTaskWatchdogConfigured || !hostTaskWatchdogOperationsSucceed) {
     return false;
   }
@@ -123,7 +123,7 @@ inline bool subscribeCurrentTaskToWatchdog() {
 }
 
 inline bool feedCurrentTaskWatchdog() {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   if (!hostTaskWatchdogConfigured || !hostTaskWatchdogOperationsSucceed) {
     return false;
   }
@@ -134,4 +134,4 @@ inline bool feedCurrentTaskWatchdog() {
 #endif
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

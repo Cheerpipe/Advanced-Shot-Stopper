@@ -8,8 +8,8 @@
 #include <string>
 #include <vector>
 
-using namespace shotstopper::corridor;
-using shotstopper::EndReason;
+using namespace openbrewbyweight::corridor;
+using openbrewbyweight::EndReason;
 
 namespace {
 

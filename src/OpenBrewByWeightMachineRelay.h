@@ -107,7 +107,7 @@ void operationalLimitTimerCallback(void *) {
   }
 }
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 void IRAM_ATTR writeGpioFromIsr(uint8_t pin, uint8_t level) {
   const uint32_t mask = (pin < 32) ? (uint32_t{1} << pin)
                                    : (uint32_t{1} << (pin - 32));
@@ -154,13 +154,13 @@ void openRelayElectricalFromIsr() {
 }
 #endif
 
-#ifndef SHOT_STOPPER_HOST_TEST
-void IRAM_ATTR shotStopperPanicHandler(arduino_panic_info_t *info, void *) {
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
+void IRAM_ATTR openBrewByWeightPanicHandler(arduino_panic_info_t *info, void *) {
   // The Arduino core invokes this before its normal panic/reboot path. Keep
   // it allocation-free and flash-independent: only de-energize K1 through
   // the same direct-register path used by the independent safety timer.
   openRelayElectricalFromIsr();
-  shotstopper::crashArchiveRecordPanic(info);
+  openbrewbyweight::crashArchiveRecordPanic(info);
 }
 #endif
 
@@ -211,7 +211,7 @@ bool initializeRelaySafetyTimer() {
     }
   };
   using TimerRollbackOwner =
-      shotstopper::UniqueResource<esp_timer_handle_t, TimerRollbackDeleter>;
+      openbrewbyweight::UniqueResource<esp_timer_handle_t, TimerRollbackDeleter>;
   TimerRollbackOwner hardOwner(hardHandle);
 
   esp_timer_create_args_t operationalArgs = {};
@@ -391,7 +391,7 @@ bool setMachineCircuitClosed(bool closed,
       return false;
     }
 
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
     if (hostCircuitArmBeforeCommitHook != nullptr) {
       hostCircuitArmBeforeCommitHook();
     }
@@ -483,7 +483,7 @@ bool promoteRelayBackflush(uint32_t generation) {
         esp_timer_start_once(relaySafetyTimer,
             static_cast<uint64_t>(BACKFLUSH_MAX_CIRCUIT_CLOSED_MS - elapsed) * 1000) == ESP_OK;
   }
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   if (hostCircuitArmBeforeCommitHook) hostCircuitArmBeforeCommitHook();
 #endif
   portENTER_CRITICAL(&relayMux);

@@ -92,7 +92,7 @@ inline void machineNoteActivatorReleased() {
   machineActivatorDriveSuppressedThisHold = false;
 }
 
-#if SHOT_STOPPER_MACHINE_TYPE == 0
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 0
 #include "OpenBrewByWeightMachinePaddleInput.h"
 #include "OpenBrewByWeightMachinePaddleControl.h"
 #include "OpenBrewByWeightMachinePaddleState.h"
@@ -141,14 +141,14 @@ inline void machineNoteSettledWeightCutOff() {}
 inline void machineCancelSettledWeightCutOff() {}
 #else
 #include "OpenBrewByWeightMachineMomentaryInput.h"
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
 #include "OpenBrewByWeightMachineMomentaryReedState.h"
 #else
 #include "OpenBrewByWeightMachineMomentaryOnlyState.h"
 #endif
 #include "OpenBrewByWeightMachineMomentaryControl.h"
 
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
 inline void machineOverrideInferredOff() {}
 inline void machineOverrideInferredOn() {}
 inline void machineArmSettledWeightCutOff() {}
@@ -178,7 +178,7 @@ inline void machineNoteFirmwareStop() {
 }
 inline void machineServiceReminders() {}
 inline void machineSampleInput() {
-#if SHOT_STOPPER_MACHINE_TYPE == 2
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
   sampleReed();
 #endif
   updateActivatorInput();
@@ -212,12 +212,12 @@ inline bool machineServiceCompatibilityDrive(const MachineIntention &) {
 }
 #endif
 
-#if SHOT_STOPPER_MACHINE_TYPE != 1
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE != 1
 inline bool machineTakeNoFlowIdle() { return false; }
 #endif
 
 inline bool machineStartBackflush() {
-#if SHOT_STOPPER_MACHINE_TYPE == 0
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 0
   return !getRelaySafetySnapshot().closed &&
       setMachineCircuitClosed(true, HARD_MAX_CIRCUIT_CLOSED_MS, RelayPurpose::BACKFLUSH_CANDIDATE);
 #else
@@ -226,7 +226,7 @@ inline bool machineStartBackflush() {
 }
 
 inline bool machineConfirmBackflush(uint32_t generation) {
-#if SHOT_STOPPER_MACHINE_TYPE == 0
+#if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 0
   return promoteRelayBackflush(generation);
 #else
   (void)generation;
@@ -251,7 +251,7 @@ inline bool machineBootActivatorHeldStably() {
   if (!readRawActivatorOn()) {
     return false;
   }
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   const uint32_t startedAtMs = millis();
   while (static_cast<uint32_t>(millis() - startedAtMs) <
          ACTIVATOR_DEBOUNCE_MS) {

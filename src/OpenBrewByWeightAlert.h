@@ -4,7 +4,7 @@
 
 #include "OpenBrewByWeightDomain.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 enum class AlertEvent : uint8_t {
   TARE = 0,
@@ -74,4 +74,4 @@ inline bool alertEventQueuesScaleBeep(AlertEvent event) {
          event == AlertEvent::COMPLETION_EXTRA;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -45,7 +45,7 @@ has_stage() {
 
 emit_build_paths() {
   ss_cli_resolve_profiles "$(ss_cli_effective_flags)" check || exit $?
-  build_output="$SS_CLI_ROOT/build-idf/$SHOTSTOPPER_VARIANT"
+  build_output="$SS_CLI_ROOT/build-idf/$OPENBREWBYWEIGHT_VARIANT"
   printf 'Build output folder: %s\n' "$build_output"
   printf 'Flash-ready firmware: %s/openbrewbyweight.bin\n' "$build_output"
 }
@@ -62,8 +62,8 @@ fi
 ss_cli_apply_env
 ss_cli_load_store
 if has_stage build && has_stage monitor && [[ "$SS_CLI_JTAG" != "1" ]] &&
-   [[ " $(ss_get flags) " != *"SHOT_STOPPER_ENABLE_JTAG=1"* ]]; then
-  echo 'build combined with monitor requires the USB Serial/JTAG console for firmware output; pass --jtag (or include -DSHOT_STOPPER_ENABLE_JTAG=1 in --flags) or run monitor separately.' >&2
+   [[ " $(ss_get flags) " != *"OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1"* ]]; then
+  echo 'build combined with monitor requires the USB Serial/JTAG console for firmware output; pass --jtag (or include -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 in --flags) or run monitor separately.' >&2
   exit 2
 fi
 if ss_is_set hardware_config || ss_is_set machine_config; then

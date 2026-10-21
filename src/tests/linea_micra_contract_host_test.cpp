@@ -11,7 +11,7 @@
 #include <cstring>
 
 int main() {
-  using namespace shotstopper;
+  using namespace openbrewbyweight;
   auto *unterminated = new LineaMicraPersistedSettings;
   std::memset(unterminated, 'x', sizeof(*unterminated));
   unterminated->options = LINEA_MICRA_DEFAULT_OPTIONS;

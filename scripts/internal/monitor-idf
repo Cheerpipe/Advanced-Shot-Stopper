@@ -55,7 +55,7 @@ ss_cli_save
 
 echo "Serial monitor on $port ($speed)"
 if ss_is_set arch; then
-  shotstopper_resolve_board "$(ss_get arch)" || exit 2
+  openbrewbyweight_resolve_board "$(ss_get arch)" || exit 2
   ss_idf_py_args
   exec idf.py "${IDF_PY_ARGS[@]}" -p "$port" -b "$speed" monitor
 fi

@@ -1,4 +1,4 @@
-#define SHOT_STOPPER_PERSISTENCE_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST
 #include "../OpenBrewByWeightPersistence.h"
 #include "../OpenBrewByWeightBleScanPersistence.h"
 #include "../OpenBrewByWeightDurableStores.h"
@@ -18,7 +18,7 @@
 #include <cstring>
 #include <iostream>
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 namespace {
 
@@ -1407,7 +1407,7 @@ void p48_ble_scan_defaults_and_dual_slot_round_trip() {
 
   resetHostPersistence();
   CHECK(lockSettingsNvs());
-  ShotStopperPreferences preferences(NvsSubsystem::BLE_SCAN);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::BLE_SCAN);
   CHECK(preferences.begin(SETTINGS_NAMESPACE, false));
   current.enabled = 1;
   current.checksum = bleScanSettingsChecksum(current);

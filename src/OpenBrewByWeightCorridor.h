@@ -14,7 +14,7 @@
 // time; machine stop latency lives only inside tau. The control task owns all
 // state built from these functions.
 
-namespace shotstopper {
+namespace openbrewbyweight {
 namespace corridor {
 
 // Ramp length D: the ceiling/floor ramps to the target over D before t1 and
@@ -994,4 +994,4 @@ inline LossDeadline lossDeadline(const Params &p, const LossInputs &in) {
 // Timed-law sentinel (s): past every wall, so only the direct backstop can cut.
 constexpr float NO_CUT_PREDICTION_S = HARD_MAX_CIRCUIT_CLOSED_MS / 1000.0f + 1.0f;
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

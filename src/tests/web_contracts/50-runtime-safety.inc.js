@@ -169,7 +169,7 @@ for (const [route, handler] of expected) {
 }
 
 const forbiddenResponseFields = ['staPassword', 'devicePassword', 'authHash', 'authSalt'];
-const statusHandlerStart = network.indexOf('esp_err_t ShotStopperNetwork::statusHandler');
+const statusHandlerStart = network.indexOf('esp_err_t OpenBrewByWeightNetwork::statusHandler');
 const statusHandlerEnd = network.indexOf('\nnamespace {', statusHandlerStart);
 if (statusHandlerStart < 0 || statusHandlerEnd < 0) {
   throw new Error('Status handler not found');
@@ -356,8 +356,8 @@ if (!network.includes('OpenBrewByWeightDebugExport.h') ||
     !codeIncludes(ui, 'exportDebugDataButton') ||
     !html.includes('id="exportDebugDataButton"') ||
     network.slice(
-        network.indexOf('esp_err_t ShotStopperNetwork::debugExportHandler'),
-        network.indexOf('esp_err_t ShotStopperNetwork::debugExportHandler') +
+        network.indexOf('esp_err_t OpenBrewByWeightNetwork::debugExportHandler'),
+        network.indexOf('esp_err_t OpenBrewByWeightNetwork::debugExportHandler') +
             450)
         .includes('requireAdminUnlock(request)')) {
   throw new Error(
@@ -407,7 +407,7 @@ if (!codeIncludes(ui,
 
 // The serial log rides the owned UI stream: the retired REST handler's
 // invariants move to the stream sender.
-const logStreamStart = network.indexOf('bool ShotStopperNetwork::sendLogStream');
+const logStreamStart = network.indexOf('bool OpenBrewByWeightNetwork::sendLogStream');
 const logStreamRegion = network.slice(
     logStreamStart, network.indexOf('\n}\n', logStreamStart));
 if (logStreamStart < 0) {
@@ -461,9 +461,9 @@ if (!network.includes('WiFi.mode(WIFI_STA)') ||
 }
 {
   const beginStaStart = network.indexOf(
-      'bool ShotStopperNetwork::beginStationConnect');
+      'bool OpenBrewByWeightNetwork::beginStationConnect');
   const beginStaEnd = network.indexOf(
-      'void ShotStopperNetwork::startStation', beginStaStart);
+      'void OpenBrewByWeightNetwork::startStation', beginStaStart);
   const beginSta = beginStaStart >= 0 && beginStaEnd > beginStaStart
       ? network.slice(beginStaStart, beginStaEnd)
       : '';
@@ -485,8 +485,8 @@ if (!network.includes('WiFi.mode(WIFI_STA)') ||
   }
 }
 {
-  const ntpArmStart = network.indexOf('bool ShotStopperNetwork::ntpMayArm');
-  const ntpArmEnd = network.indexOf('bool ShotStopperNetwork::armNtp', ntpArmStart);
+  const ntpArmStart = network.indexOf('bool OpenBrewByWeightNetwork::ntpMayArm');
+  const ntpArmEnd = network.indexOf('bool OpenBrewByWeightNetwork::armNtp', ntpArmStart);
   const ntpArm = ntpArmStart >= 0 && ntpArmEnd > ntpArmStart
       ? network.slice(ntpArmStart, ntpArmEnd)
       : '';
@@ -495,8 +495,8 @@ if (!network.includes('WiFi.mode(WIFI_STA)') ||
     throw new Error(
         'ntpMayArm must not start SNTP while brew RF is active or scale is connecting');
   }
-  const serviceNtpStart = network.indexOf('void ShotStopperNetwork::serviceNtp');
-  const serviceNtpEnd = network.indexOf('bool ShotStopperNetwork::startHttpServer',
+  const serviceNtpStart = network.indexOf('void OpenBrewByWeightNetwork::serviceNtp');
+  const serviceNtpEnd = network.indexOf('bool OpenBrewByWeightNetwork::startHttpServer',
                                         serviceNtpStart);
   const serviceNtp = serviceNtpStart >= 0 && serviceNtpEnd > serviceNtpStart
       ? network.slice(serviceNtpStart, serviceNtpEnd)
@@ -516,7 +516,7 @@ if (!network.includes('WiFi.mode(WIFI_STA)') ||
       !network.includes('expectedGateGeneration') ||
       !network.includes('if (!gateStable())') ||
       !network.includes('abortNtpForRfGate();') ||
-      !network.includes('void ShotStopperNetwork::abortNtpForRfGate()') ||
+      !network.includes('void OpenBrewByWeightNetwork::abortNtpForRfGate()') ||
       !network.includes('ntpAbortRequested_') ||
       !network.includes(
           'ntpCallbackAccepting_.store(false, std::memory_order_release)') ||
@@ -572,11 +572,11 @@ if (!network.includes('never auto-raise SoftAP') ||
       'serviceSessions must keep SoftAP up without idle shutdown; post-CONNECTED link loss must not auto-raise SoftAP');
 }
 const stopSoftApStart = network.indexOf(
-    'void ShotStopperNetwork::stopSoftAp(');
+    'void OpenBrewByWeightNetwork::stopSoftAp(');
 const stopSoftApKeepStart = network.indexOf(
-    'void ShotStopperNetwork::stopSoftApKeepStation()');
+    'void OpenBrewByWeightNetwork::stopSoftApKeepStation()');
 const stopSoftApEnd = network.indexOf(
-    'bool ShotStopperNetwork::wifiScanInProgress()', stopSoftApKeepStart);
+    'bool OpenBrewByWeightNetwork::wifiScanInProgress()', stopSoftApKeepStart);
 if (stopSoftApStart < 0 || stopSoftApKeepStart < 0 || stopSoftApEnd < 0) {
   throw new Error('stopSoftAp / stopSoftApKeepStation implementation not found');
 }
@@ -597,11 +597,11 @@ if (!network.includes('stopSoftApLeaveHttp') ||
   throw new Error(
       'Network CLI holds must keep SoftAP/HTTP/STA stop from being undone');
 }
-const serviceStart = network.indexOf('void ShotStopperNetwork::service()');
+const serviceStart = network.indexOf('void OpenBrewByWeightNetwork::service()');
 const serviceEnd = network.indexOf(
-    'bool ShotStopperNetwork::controlAllowsNetworkMutation', serviceStart);
+    'bool OpenBrewByWeightNetwork::controlAllowsNetworkMutation', serviceStart);
 if (serviceStart < 0 || serviceEnd < 0) {
-  throw new Error('ShotStopperNetwork::service implementation not found');
+  throw new Error('OpenBrewByWeightNetwork::service implementation not found');
 }
 const serviceBody = network.slice(serviceStart, serviceEnd);
 const processAt = serviceBody.indexOf('processAcceptedCommands()');
@@ -615,9 +615,9 @@ if (!network.includes('softApTeardownStep(status.setupPhase')) {
       'STA-up SoftAP teardown must keep a user AP_START SoftAP');
 }
 const ensureStart = network.indexOf(
-    'bool ShotStopperNetwork::ensureAccessPoint');
+    'bool OpenBrewByWeightNetwork::ensureAccessPoint');
 const ensureEnd = network.indexOf(
-    'void ShotStopperNetwork::stopNetwork()', ensureStart);
+    'void OpenBrewByWeightNetwork::stopNetwork()', ensureStart);
 if (ensureStart < 0 || ensureEnd < 0) {
   throw new Error('ensureAccessPoint implementation not found');
 }
@@ -629,16 +629,16 @@ if (!ensureBody.includes('httpStartHeld_') ||
       'ensureAccessPoint must keep a live STA link and skip HTTP while WEBUI_STOP is held');
 }
 const snapshotStart = network.indexOf(
-    'void ShotStopperNetwork::printActionSnapshot');
+    'void OpenBrewByWeightNetwork::printActionSnapshot');
 const snapshotEnd = network.indexOf(
-    'void ShotStopperNetwork::noteCliNetworkProgress()', snapshotStart);
+    'void OpenBrewByWeightNetwork::noteCliNetworkProgress()', snapshotStart);
 if (snapshotStart < 0 || snapshotEnd < 0 ||
     !network.slice(snapshotStart, snapshotEnd)
          .includes('refreshExtendedStatus')) {
   throw new Error(
       'CLI action snapshot must refresh holds after the mutation');
 }
-if (!network.includes('void ShotStopperNetwork::lifecycleLog(') ||
+if (!network.includes('void OpenBrewByWeightNetwork::lifecycleLog(') ||
     network.includes('serialDebugEnabled()')) {
   throw new Error(
       'Network lifecycle logs must use the shared serial/ring logger');

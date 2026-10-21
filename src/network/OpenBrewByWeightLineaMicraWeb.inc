@@ -11,12 +11,12 @@ bool lineaMicraGraceCodeFromSeconds(int16_t seconds, uint8_t &code) {
   return false;
 }
 
-esp_err_t ShotStopperNetwork::lineaMicraHandler(httpd_req_t *request) {
-#if SHOT_STOPPER_MACHINE_INTEGRATION != SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+esp_err_t OpenBrewByWeightNetwork::lineaMicraHandler(httpd_req_t *request) {
+#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION != OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   return sendError(request, "404 Not Found", "UNSUPPORTED_MACHINE",
                    "Linea Micra integration is not compiled in this firmware.");
 #else
-  ShotStopperNetwork &self = *instance_;
+  OpenBrewByWeightNetwork &self = *instance_;
   const ControlGateSnapshot gate = self.controlGate();
   if (!self.webUiConfigurationAllowed(request, gate)) {
     return sendError(request, STATUS_CONFLICT,

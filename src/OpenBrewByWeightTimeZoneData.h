@@ -3,7 +3,7 @@
 // IANA tzdata license: public-domain database; see upstream LICENSE.
 #pragma once
 #include <stdint.h>
-namespace shotstopper::tzdb {
+namespace openbrewbyweight::tzdb {
 inline constexpr uint32_t kStartUtc = 1735689600U;
 inline constexpr uint32_t kEndUtc = 4102444800U;
 inline constexpr const char *kVersion = "2026d";
@@ -4952,4 +4952,4 @@ inline constexpr Zone kZones[] = {
   {"Zulu", 0, 1},
 };
 inline constexpr uint16_t kZoneCount = sizeof(kZones) / sizeof(kZones[0]);
-}  // namespace shotstopper::tzdb
+}  // namespace openbrewbyweight::tzdb

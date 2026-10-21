@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 enum class SetupPhase : uint8_t {
   NONE,        // no onboarding session; the SoftAP follows boot/recovery rules
@@ -130,4 +130,4 @@ constexpr const char *setupBrewName(SetupBrew brew) {
                                         : "none";
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

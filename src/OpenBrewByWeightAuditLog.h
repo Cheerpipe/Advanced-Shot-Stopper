@@ -2,7 +2,7 @@
 
 #include "OpenBrewByWeightDomain.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Curated audit classification for the durable audit latch: rare, high-signal
 // events that must survive common-ring rotation while hunting unattended
@@ -298,4 +298,4 @@ class AuditLogLatch {
   uint8_t rateCount_ = 0;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

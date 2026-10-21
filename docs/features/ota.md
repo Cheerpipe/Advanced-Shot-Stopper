@@ -13,7 +13,7 @@ your network.
 ## Requirements
 
 - Authenticate each CLI run using the hidden password prompt or
-  `SHOTSTOPPER_DEVICE_PASSWORD`. Scripts never store it. Do not put secrets
+  `OPENBREWBYWEIGHT_DEVICE_PASSWORD`. Scripts never store it. Do not put secrets
   in command arguments or shared logs.
 - From **Admin → Firmware update**, unlock administration first. The Web UI
   does not ask for the device password again.
@@ -180,12 +180,12 @@ OTA commit consent and post-boot verification are independent:
 | `--wait-for-confirmation` | Ask in the terminal. | Verify the expected new boot and confirmed image. |
 | both | Commit without asking. | Verify the expected new boot and confirmed image. |
 
-In unattended automation, provide `SHOTSTOPPER_DEVICE_PASSWORD` through a
+In unattended automation, provide `OPENBREWBYWEIGHT_DEVICE_PASSWORD` through a
 secret environment and pass both `--yes` and `--wait-for-confirmation` when a
 confirmed boot is required:
 
 ```sh
-SHOTSTOPPER_DEVICE_PASSWORD="$DEVICE_SECRET" \
+OPENBREWBYWEIGHT_DEVICE_PASSWORD="$DEVICE_SECRET" \
   ./scripts/dev ota --confirm \
     --hardware esp32-s3-relay-x1-speaker \
     --machine la-marzocco-linea-micra \

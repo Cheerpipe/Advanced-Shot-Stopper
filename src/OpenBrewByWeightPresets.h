@@ -3,7 +3,7 @@
 #include "OpenBrewByWeightDomain.h"
 #include "machine/OpenBrewByWeightLineaMicraSettings.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Double · Adaptive recipe values; every new or reset preset starts here.
 inline void fillDoubleFirmwareDefaults(ShotPreset &preset) {
@@ -549,4 +549,4 @@ inline bool restoreFactoryShotPresetValues(ShotPresetBank &bank, uint8_t id) {
   return true;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

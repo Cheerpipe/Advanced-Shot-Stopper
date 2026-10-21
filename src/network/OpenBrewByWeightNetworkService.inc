@@ -1,6 +1,6 @@
-ShotStopperNetwork::ShotStopperNetwork() : settings_(g_networkSettings) {}
+OpenBrewByWeightNetwork::OpenBrewByWeightNetwork() : settings_(g_networkSettings) {}
 
-bool ShotStopperNetwork::begin(const PersistedSettings &settings,
+bool OpenBrewByWeightNetwork::begin(const PersistedSettings &settings,
                                const NetworkBridgeCallbacks &callbacks) {
   if (beginCompleted_ || instance_ != nullptr ||
       acceptedCommandQueue_ ||
@@ -85,7 +85,7 @@ bool ShotStopperNetwork::begin(const PersistedSettings &settings,
   beginCompleted_ = true;
   return true;
 }
-bool ShotStopperNetwork::stop() {
+bool OpenBrewByWeightNetwork::stop() {
   if (instance_ != nullptr && instance_ != this) return false;
 
   TaskHandle_t task = taskHandle_;
@@ -123,7 +123,7 @@ bool ShotStopperNetwork::stop() {
   return true;
 }
 
-bool ShotStopperNetwork::lockWorkBuf() {
+bool OpenBrewByWeightNetwork::lockWorkBuf() {
   if (workBuf_ == nullptr || !statusResponseMux_) {
     return false;
   }
@@ -131,18 +131,18 @@ bool ShotStopperNetwork::lockWorkBuf() {
          pdTRUE;
 }
 
-void ShotStopperNetwork::unlockWorkBuf() {
+void OpenBrewByWeightNetwork::unlockWorkBuf() {
   xSemaphoreGive(statusResponseMux_.get());
 }
 
-void ShotStopperNetwork::unlockJsonBody() {
+void OpenBrewByWeightNetwork::unlockJsonBody() {
   if (workBuf_ != nullptr) {
     memset(workBuf_->requestBody, 0, sizeof(workBuf_->requestBody));
   }
   unlockWorkBuf();
 }
 
-esp_err_t ShotStopperNetwork::lockJsonBody(httpd_req_t *request,
+esp_err_t OpenBrewByWeightNetwork::lockJsonBody(httpd_req_t *request,
                                            const char *invalidMessage) {
   if (!lockWorkBuf()) {
     return workBufBusy(request);
@@ -158,7 +158,7 @@ esp_err_t ShotStopperNetwork::lockJsonBody(httpd_req_t *request,
 // Shared tail for destructive-action handlers: parse the JSON body while the
 // work buffer is locked and accept it only when it carries exactly
 // {"confirm": expectedConfirmation}. Handlers keep their own error responses.
-bool ShotStopperNetwork::lockConfirmedBody(httpd_req_t *request,
+bool OpenBrewByWeightNetwork::lockConfirmedBody(httpd_req_t *request,
                                            const char *invalidMessage,
                                            const char *expectedConfirmation) {
   if (lockJsonBody(request, invalidMessage) != ESP_OK) {
@@ -179,19 +179,19 @@ bool ShotStopperNetwork::lockConfirmedBody(httpd_req_t *request,
   return confirmed;
 }
 
-esp_err_t ShotStopperNetwork::workBufBusy(httpd_req_t *request) {
+esp_err_t OpenBrewByWeightNetwork::workBufBusy(httpd_req_t *request) {
   actionLogf("http: %.*s answered busy: response workspace unavailable",
              static_cast<int>(strcspn(request->uri, "?")), request->uri);
   return sendError(request, STATUS_UNAVAILABLE, "STATUS_BUSY",
                    "Status snapshot is busy; retry shortly.");
 }
 
-bool ShotStopperNetwork::enqueueAcceptedCommand(const WebCommand &command) {
+bool OpenBrewByWeightNetwork::enqueueAcceptedCommand(const WebCommand &command) {
   return acceptedCommandQueue_ &&
          xQueueSend(acceptedCommandQueue_.get(), &command, 0) == pdTRUE;
 }
 
-void ShotStopperNetwork::requestNtpSyncIfNeeded() {
+void OpenBrewByWeightNetwork::requestNtpSyncIfNeeded() {
   dataMux_.lock();
   // Activity-triggered sync is an automatic path: skip it entirely while the
   // NTP toggle is off so the pending flag does not churn on every activity.
@@ -202,7 +202,7 @@ void ShotStopperNetwork::requestNtpSyncIfNeeded() {
   dataMux_.unlock();
 }
 
-NetworkStatusSnapshot ShotStopperNetwork::snapshot() {
+NetworkStatusSnapshot OpenBrewByWeightNetwork::snapshot() {
   NetworkStatusSnapshot copy;
   dataMux_.lock();
   copy = status_;
@@ -226,12 +226,12 @@ NetworkStatusSnapshot ShotStopperNetwork::snapshot() {
   return copy;
 }
 
-NetworkHeapTelemetrySnapshot ShotStopperNetwork::heapTelemetrySnapshot() {
+NetworkHeapTelemetrySnapshot OpenBrewByWeightNetwork::heapTelemetrySnapshot() {
   TaskLockGuard lock(dataMux_);
   return {httpHeap_.aggregate, wifiHeap_.aggregate, otaHeap_.aggregate};
 }
 
-void ShotStopperNetwork::beginOwnedHeapLifecycle(
+void OpenBrewByWeightNetwork::beginOwnedHeapLifecycle(
     HeapLifecycleTracker &tracker, HeapLifecycleEvent event) {
   const HeapCapSnapshot before = sampleHeapCaps();
   dataMux_.lock();
@@ -239,7 +239,7 @@ void ShotStopperNetwork::beginOwnedHeapLifecycle(
   dataMux_.unlock();
 }
 
-void ShotStopperNetwork::finishOwnedHeapLifecycle(
+void OpenBrewByWeightNetwork::finishOwnedHeapLifecycle(
     HeapLifecycleTracker &tracker, HeapLifecycleResult result) {
   const HeapCapSnapshot after = sampleHeapCaps();
   dataMux_.lock();
@@ -247,19 +247,19 @@ void ShotStopperNetwork::finishOwnedHeapLifecycle(
   dataMux_.unlock();
 }
 
-PersistedSettings ShotStopperNetwork::settingsCopy() {
+PersistedSettings OpenBrewByWeightNetwork::settingsCopy() {
   PersistedSettings copy;
   copySettings(copy);
   return copy;
 }
 
-void ShotStopperNetwork::copySettings(PersistedSettings &output) {
+void OpenBrewByWeightNetwork::copySettings(PersistedSettings &output) {
   dataMux_.lock();
   output = settings_;
   dataMux_.unlock();
 }
 
-NetworkSettingsSnapshot ShotStopperNetwork::networkSettingsSnapshot() {
+NetworkSettingsSnapshot OpenBrewByWeightNetwork::networkSettingsSnapshot() {
   NetworkSettingsSnapshot output;
   TaskLockGuard lock(dataMux_);
   output.staConfigured = settings_.staConfigured;
@@ -279,7 +279,7 @@ NetworkSettingsSnapshot ShotStopperNetwork::networkSettingsSnapshot() {
   return output;
 }
 
-StaJoinHints ShotStopperNetwork::staJoinHints() {
+StaJoinHints OpenBrewByWeightNetwork::staJoinHints() {
   StaJoinHints hints;
   dataMux_.lock();
   hints.staConfigured = settings_.staConfigured;
@@ -290,18 +290,18 @@ StaJoinHints ShotStopperNetwork::staJoinHints() {
   return hints;
 }
 
-bool ShotStopperNetwork::enqueueWebhook(const WebhookEvent &event) {
+bool OpenBrewByWeightNetwork::enqueueWebhook(const WebhookEvent &event) {
   if (firmwareCompatibilityMode()) {
     return false;
   }
   return webhooks_.enqueue(event);
 }
 
-WebhookConfig ShotStopperNetwork::webhookConfig() const {
+WebhookConfig OpenBrewByWeightNetwork::webhookConfig() const {
   return webhooks_.config();
 }
 
-void ShotStopperNetwork::clearStagedWebhook(uint32_t requestId) {
+void OpenBrewByWeightNetwork::clearStagedWebhook(uint32_t requestId) {
   dataMux_.lock();
   if (requestId == 0 || stagedWebhookRequestId_ == requestId) {
     stagedWebhook_ = WebhookConfig{};
@@ -310,7 +310,7 @@ void ShotStopperNetwork::clearStagedWebhook(uint32_t requestId) {
   dataMux_.unlock();
 }
 
-void ShotStopperNetwork::clearStagedLineaMicra(uint32_t requestId) {
+void OpenBrewByWeightNetwork::clearStagedLineaMicra(uint32_t requestId) {
   dataMux_.lock();
   if (requestId == 0 || stagedLineaMicraRequestId_ == requestId) {
     wipeLineaMicraSettings(stagedLineaMicra_);
@@ -319,7 +319,7 @@ void ShotStopperNetwork::clearStagedLineaMicra(uint32_t requestId) {
   dataMux_.unlock();
 }
 
-void ShotStopperNetwork::mergePreferredScaleMac(PersistedSettings &settings) {
+void OpenBrewByWeightNetwork::mergePreferredScaleMac(PersistedSettings &settings) {
   if (callbacks_.copyPreferredScaleMac != nullptr) {
     callbacks_.copyPreferredScaleMac(settings.preferredScaleMac,
                                      sizeof(settings.preferredScaleMac));
@@ -333,7 +333,7 @@ void ShotStopperNetwork::mergePreferredScaleMac(PersistedSettings &settings) {
   }
 }
 
-void ShotStopperNetwork::overlayLiveShotSettings(PersistedSettings &settings) {
+void OpenBrewByWeightNetwork::overlayLiveShotSettings(PersistedSettings &settings) {
   RuntimeConfig liveRuntime = settings.runtime;
   ShotPresetBank livePresets = settings.presets;
   if (callbacks_.copyRuntimeConfig != nullptr) {
@@ -349,7 +349,7 @@ void ShotStopperNetwork::overlayLiveShotSettings(PersistedSettings &settings) {
   mergePreferredScaleMac(settings);
 }
 
-void ShotStopperNetwork::syncPreferredScale(const char *mac, const char *name) {
+void OpenBrewByWeightNetwork::syncPreferredScale(const char *mac, const char *name) {
   if (mac == nullptr || !validPreferredScaleMac(mac)) {
     return;
   }
@@ -365,7 +365,7 @@ void ShotStopperNetwork::syncPreferredScale(const char *mac, const char *name) {
   dataMux_.unlock();
 }
 
-void ShotStopperNetwork::syncLiveRuntime(const RuntimeConfig &runtime,
+void OpenBrewByWeightNetwork::syncLiveRuntime(const RuntimeConfig &runtime,
                                          const ShotPresetBank *presets,
                                          bool ntpSettingsChanged) {
   dataMux_.lock();
@@ -378,7 +378,7 @@ void ShotStopperNetwork::syncLiveRuntime(const RuntimeConfig &runtime,
   dataMux_.unlock();
 }
 
-bool ShotStopperNetwork::ntpSettingsChanged(const RuntimeConfig &before,
+bool OpenBrewByWeightNetwork::ntpSettingsChanged(const RuntimeConfig &before,
                                             const RuntimeConfig &after) {
   return before.ntpSyncEnabled != after.ntpSyncEnabled ||
          before.ntpServerPreset != after.ntpServerPreset ||
@@ -386,20 +386,20 @@ bool ShotStopperNetwork::ntpSettingsChanged(const RuntimeConfig &before,
                  sizeof(before.ntpServerCustom)) != 0;
 }
 
-void ShotStopperNetwork::syncLiveBullseye(
+void OpenBrewByWeightNetwork::syncLiveBullseye(
     const BullseyeMelodyConfig &config) {
   dataMux_.lock();
   settings_.bullseyeMelody = config;
   dataMux_.unlock();
 }
 
-void ShotStopperNetwork::syncDurableStorageRevision(uint32_t storageRevision) {
+void OpenBrewByWeightNetwork::syncDurableStorageRevision(uint32_t storageRevision) {
   dataMux_.lock();
   settings_.storageRevision = storageRevision;
   dataMux_.unlock();
 }
 
-uint32_t ShotStopperNetwork::allocateRequestId() {
+uint32_t OpenBrewByWeightNetwork::allocateRequestId() {
   dataMux_.lock();
   const uint32_t id = nextRequestId_++;
   if (nextRequestId_ == 0 || nextRequestId_ >= 0x80000000UL) {
@@ -409,7 +409,7 @@ uint32_t ShotStopperNetwork::allocateRequestId() {
   return id == 0 ? 1 : id;
 }
 
-void ShotStopperNetwork::recordCommandResult(
+void OpenBrewByWeightNetwork::recordCommandResult(
     uint32_t requestId, CommandResultState state) {
   if (requestId == 0 || requestId >= 0x80000000UL) {
     return;
@@ -433,7 +433,7 @@ void ShotStopperNetwork::recordCommandResult(
   dataMux_.unlock();
 }
 
-esp_err_t ShotStopperNetwork::sendAccepted(httpd_req_t *request,
+esp_err_t OpenBrewByWeightNetwork::sendAccepted(httpd_req_t *request,
                                            uint32_t requestId,
                                            const char *extraJson) {
   recordCommandResult(requestId, CommandResultState::QUEUED);
@@ -450,7 +450,7 @@ esp_err_t ShotStopperNetwork::sendAccepted(httpd_req_t *request,
   return sendJson(request, STATUS_ACCEPTED, response);
 }
 
-esp_err_t ShotStopperNetwork::runConfirmedClear(
+esp_err_t OpenBrewByWeightNetwork::runConfirmedClear(
     httpd_req_t *request, const char *lockedDetail,
     const char *expectedConfirmation, const char *notConfirmedCode,
     const char *notConfirmedDetail, bool (*clearFn)(),
@@ -471,7 +471,7 @@ esp_err_t ShotStopperNetwork::runConfirmedClear(
   return sendJson(request, STATUS_OK, "{\"cleared\":true}");
 }
 
-esp_err_t ShotStopperNetwork::runDeleteById(httpd_req_t *request,
+esp_err_t OpenBrewByWeightNetwork::runDeleteById(httpd_req_t *request,
                                             const char *lockedDetail,
                                             bool (*deleteFn)(uint32_t),
                                             const char *invalidDetail,
@@ -507,7 +507,7 @@ esp_err_t ShotStopperNetwork::runDeleteById(httpd_req_t *request,
   return sendJson(request, STATUS_OK, "{\"deleted\":true}");
 }
 
-esp_err_t ShotStopperNetwork::enqueueAcceptedCommand(
+esp_err_t OpenBrewByWeightNetwork::enqueueAcceptedCommand(
     httpd_req_t *request, WebCommandType type, bool unsafeWebUiOverride,
     const char *queueFullDetail, const char *extraJson) {
   WebCommand command;
@@ -521,11 +521,11 @@ esp_err_t ShotStopperNetwork::enqueueAcceptedCommand(
   return sendAccepted(request, command.requestId, extraJson);
 }
 
-void ShotStopperNetwork::taskEntry(void *parameter) {
-  static_cast<ShotStopperNetwork *>(parameter)->taskLoop();
+void OpenBrewByWeightNetwork::taskEntry(void *parameter) {
+  static_cast<OpenBrewByWeightNetwork *>(parameter)->taskLoop();
 }
 
-void ShotStopperNetwork::taskLoop() {
+void OpenBrewByWeightNetwork::taskLoop() {
   const bool watchdogSubscribed = subscribeCurrentTaskToWatchdog();
   if (!watchdogSubscribed) {
     callbacks_.reportTaskWatchdogFault();
@@ -560,7 +560,7 @@ void ShotStopperNetwork::taskLoop() {
   vTaskDelete(nullptr);
 }
 
-void ShotStopperNetwork::beginHeapShaper(uint32_t now) {
+void OpenBrewByWeightNetwork::beginHeapShaper(uint32_t now) {
   if (heapShaperBlock_ != nullptr || heapShaperReleased_) {
     return;
   }
@@ -577,7 +577,7 @@ void ShotStopperNetwork::beginHeapShaper(uint32_t now) {
   if (heapShaperBlock_ == nullptr) releaseHeapShaper(result);
 }
 
-void ShotStopperNetwork::releaseHeapShaper(BootHeapResult reason) {
+void OpenBrewByWeightNetwork::releaseHeapShaper(BootHeapResult reason) {
   if (heapShaperReleased_) return;
   recordBootHeap(BootHeapStage::RELEASE_BEFORE, reason, millis());
   heapCapsFree(heapShaperBlock_);
@@ -590,7 +590,7 @@ void ShotStopperNetwork::releaseHeapShaper(BootHeapResult reason) {
   recordBootHeap(BootHeapStage::RELEASE_AFTER, reason, millis());
 }
 
-void ShotStopperNetwork::serviceHeapShaper(uint32_t now) {
+void OpenBrewByWeightNetwork::serviceHeapShaper(uint32_t now) {
   if (heapShaperBlock_ == nullptr) {
     return;
   }
@@ -625,7 +625,7 @@ void ShotStopperNetwork::serviceHeapShaper(uint32_t now) {
   }
 }
 
-void ShotStopperNetwork::service() {
+void OpenBrewByWeightNetwork::service() {
   const uint32_t now = millis();
   // Expiry must run even when startup/backoff or a restart returns early.
   serviceHeapShaper(now);

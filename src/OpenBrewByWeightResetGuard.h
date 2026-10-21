@@ -4,12 +4,12 @@
 
 #include "OpenBrewByWeightResetHistory.h"
 
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 #include <esp_attr.h>
 #include <esp_system.h>
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t SAFETY_RESET_RECORD_MAGIC = 0x534E3947UL;
 constexpr uint32_t SAFETY_RELAY_OPEN_MARKER = 0x4F50454EUL;
@@ -47,7 +47,7 @@ namespace detail {
 // The target definitions live in OpenBrewByWeightResetGuard.cpp so every consumer
 // observes the same RTC record and checkpoint clock. C++17 inline variables
 // provide the same one-instance semantics to header-only host harnesses.
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 extern volatile SafetyResetRecord safetyResetRecord;
 extern uint32_t resetUptimeLastCheckpointMs;
 #else
@@ -140,7 +140,7 @@ inline void recordResetUptime(uint32_t uptimeMs, bool force = false) {
 }
 
 inline uint32_t currentSafetyResetReasonCode() {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   return hostSafetyResetReasonCode;
 #else
   return static_cast<uint32_t>(esp_reset_reason());
@@ -148,7 +148,7 @@ inline uint32_t currentSafetyResetReasonCode() {
 }
 
 inline bool currentSafetyResetIsUnsafe() {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   return hostSafetyResetReasonUnsafe;
 #else
   switch (esp_reset_reason()) {
@@ -176,7 +176,7 @@ inline bool currentSafetyResetIsUnsafe() {
 }
 
 inline bool currentSafetyResetIsPowerOn() {
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
   return hostSafetyResetReasonPowerOn;
 #else
   return esp_reset_reason() == ESP_RST_POWERON;
@@ -257,7 +257,7 @@ inline SafetyResetSnapshot beginSafetyResetGuard() {
   return snapshot;
 }
 
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
 inline const volatile SafetyResetRecord &safetyResetRecordForHost() {
   return detail::safetyResetRecord;
 }
@@ -277,4 +277,4 @@ inline void resetSafetyResetGuardForHost() {
 }
 #endif
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

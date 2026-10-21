@@ -5,23 +5,23 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Board-parity defines (Arduino FQBN: PSRAM + Hardware CDC). CDC stays off
 # until setup() sees the USB console jumper (GPIO4–GND) and calls Serial.begin
-# on HWCDC (OpenBrewByWeightUsbConsole.h), unless SHOT_STOPPER_EXTRA_FLAGS includes
-# -DSHOT_STOPPER_ENABLE_JTAG=1 (ARDUINO_USB_CDC_ON_BOOT=1 + IDF console).
+# on HWCDC (OpenBrewByWeightUsbConsole.h), unless OPENBREWBYWEIGHT_EXTRA_FLAGS includes
+# -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 (ARDUINO_USB_CDC_ON_BOOT=1 + IDF console).
 # Product options (remote machine control, buzzer, machine type, JTAG) live in
-# main/Kconfig.projbuild and sdkconfig.defaults; SHOT_STOPPER_EXTRA_FLAGS may
+# main/Kconfig.projbuild and sdkconfig.defaults; OPENBREWBYWEIGHT_EXTRA_FLAGS may
 # still pass -D overrides. idf.py does not reconfigure when only an env var
-# changes, so the internal build stage writes CMAKE_BINARY_DIR/shot_stopper_extra_flags
+# changes, so the internal build stage writes CMAKE_BINARY_DIR/open_brew_by_weight_extra_flags
 # and drops CMakeCache.txt when that stamp changes.
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
 # Select optional machine-specific components from the validated profile. A
 # direct legacy CMake invocation without that manifest intentionally selects none.
 set(_ss_profile_manifest "${CMAKE_BINARY_DIR}/generated/build-profile.json")
-if(NOT DEFINED SHOT_STOPPER_MACHINE_INTEGRATION)
-  set(SHOT_STOPPER_MACHINE_INTEGRATION "none")
+if(NOT DEFINED OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION)
+  set(OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION "none")
 endif()
-if(NOT SHOT_STOPPER_MACHINE_INTEGRATION MATCHES "^(none|linea_micra_cloud)$")
-  message(FATAL_ERROR "Invalid SHOT_STOPPER_MACHINE_INTEGRATION=${SHOT_STOPPER_MACHINE_INTEGRATION}")
+if(NOT OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION MATCHES "^(none|linea_micra_cloud)$")
+  message(FATAL_ERROR "Invalid OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION=${OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION}")
 endif()
 if(EXISTS "${_ss_profile_manifest}")
   file(READ "${_ss_profile_manifest}" _ss_profile_json)
@@ -31,7 +31,7 @@ if(EXISTS "${_ss_profile_manifest}")
   if(NOT CMAKE_MATCH_1 MATCHES "^(none|linea_micra_cloud)$")
     message(FATAL_ERROR "Invalid or missing machine_integration in ${_ss_profile_manifest}")
   endif()
-  if(NOT "${SHOT_STOPPER_MACHINE_INTEGRATION}" STREQUAL "${CMAKE_MATCH_1}")
+  if(NOT "${OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION}" STREQUAL "${CMAKE_MATCH_1}")
     message(FATAL_ERROR "Machine integration disagrees with ${_ss_profile_manifest}")
   endif()
 endif()
@@ -39,13 +39,13 @@ endif()
 idf_build_set_property(COMPILE_DEFINITIONS "BOARD_HAS_PSRAM" APPEND)
 idf_build_set_property(COMPILE_DEFINITIONS "ARDUINO_USB_MODE=1" APPEND)
 
-set(_ss_extra_flags_file "${CMAKE_BINARY_DIR}/shot_stopper_extra_flags")
+set(_ss_extra_flags_file "${CMAKE_BINARY_DIR}/open_brew_by_weight_extra_flags")
 set(_ss_extra_raw "")
 set(_ss_cdc_on_boot 0)
 set(_ss_enable_gcc_analyzer OFF)
 set(_ss_enable_unused_parameter OFF)
-if(DEFINED ENV{SHOT_STOPPER_EXTRA_FLAGS})
-  set(_ss_extra_raw "$ENV{SHOT_STOPPER_EXTRA_FLAGS}")
+if(DEFINED ENV{OPENBREWBYWEIGHT_EXTRA_FLAGS})
+  set(_ss_extra_raw "$ENV{OPENBREWBYWEIGHT_EXTRA_FLAGS}")
 endif()
 if(_ss_extra_raw STREQUAL "" AND EXISTS "${_ss_extra_flags_file}")
   file(READ "${_ss_extra_flags_file}" _ss_extra_raw)
@@ -53,10 +53,10 @@ if(_ss_extra_raw STREQUAL "" AND EXISTS "${_ss_extra_flags_file}")
 endif()
 
 if(NOT _ss_extra_raw STREQUAL "")
-  message(STATUS "SHOT_STOPPER_EXTRA_FLAGS=${_ss_extra_raw}")
+  message(STATUS "OPENBREWBYWEIGHT_EXTRA_FLAGS=${_ss_extra_raw}")
   separate_arguments(_ss_extra NATIVE_COMMAND "${_ss_extra_raw}")
   foreach(_opt IN LISTS _ss_extra)
-    if(_opt STREQUAL "-DSHOT_STOPPER_ENABLE_JTAG=1")
+    if(_opt STREQUAL "-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1")
       set(_ss_cdc_on_boot 1)
     endif()
     if(_opt STREQUAL "-fanalyzer")

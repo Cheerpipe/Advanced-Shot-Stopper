@@ -1,4 +1,4 @@
-const char *ShotStopperNetwork::wifiScanStateName(WifiScanState state) {
+const char *OpenBrewByWeightNetwork::wifiScanStateName(WifiScanState state) {
   switch (state) {
     case WifiScanState::IDLE: return "IDLE";
     case WifiScanState::QUEUED: return "QUEUED";
@@ -10,8 +10,8 @@ const char *ShotStopperNetwork::wifiScanStateName(WifiScanState state) {
   return "UNKNOWN";
 }
 
-esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
-  ShotStopperNetwork &self = *instance_;
+esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
   // Settings stays claim-gated only. Admin mutations and the full
   // privileged status body require a temporary device-password unlock;
   // Diagnostic is intentionally public: /diagnostic stays reachable and the
@@ -52,7 +52,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
   const bool lastSyncOffsetKnown = timeStatus.lastSyncUtcSec != 0 &&
       timeZoneOffsetAtOrUtc(control.config.timezoneId, timeStatus.lastSyncUtcSec,
                               lastSyncTimezoneOffset);
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   LineaMicraStatus micraStatus = {};
   LineaMicraDiscoverySnapshot micraDiscovery = {};
   char safeMicraUsername[LINEA_MICRA_USERNAME_CAPACITY] = {};
@@ -215,7 +215,7 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "\"bluetoothConnected\":%s,\"bluetoothLevel\":%s,"
         "\"wifiName\":\"%s\",\"bluetoothName\":\"%s\"}",
         compiledMachineTypeId(),
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
         "linea_micra_cloud",
 #else
         "none",

@@ -14,8 +14,8 @@ source "$SCRIPT_DIR/openbrewbyweight_cli.sh"
 readonly ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 readonly OUTPUT_DIR="reports/gcc-warnings"
 # A separate tree keeps -Wunused-parameter from reconfiguring build-idf/<variant>.
-export SHOTSTOPPER_IDF_BUILD_ROOT="$ROOT/build-idf/warnings"
-SS_IDF_BUILD_ROOT="$SHOTSTOPPER_IDF_BUILD_ROOT"
+export OPENBREWBYWEIGHT_IDF_BUILD_ROOT="$ROOT/build-idf/warnings"
+SS_IDF_BUILD_ROOT="$OPENBREWBYWEIGHT_IDF_BUILD_ROOT"
 
 usage() {
   cat <<EOF
@@ -27,7 +27,7 @@ $OUTPUT_DIR/gcc-warnings.txt. Replaces the previous report. The full compile
 log is kept in gcc-warnings-raw.txt; the main report keeps only diagnostics
 whose primary location is versioned code in this repository.
 
-The extra warning flags are never persisted to .shotstopper; ordinary builds
+The extra warning flags are never persisted to .openbrewbyweight; ordinary builds
 stay unaffected.
 
 For the slow interprocedural -fanalyzer pass use ./scripts/gcc_analyzer
@@ -38,7 +38,7 @@ to the warnings build.
 
 $(ss_flag_help)
 
-$(shotstopper_arch_help)
+$(openbrewbyweight_arch_help)
 
 Examples:
   ./scripts/warnings-idf --hardware esp32-s3-relay-x1-speaker \
@@ -60,7 +60,7 @@ rm -rf "$output_path"
 mkdir -p "$output_path"
 
 # -Wunused-parameter is a tool flag, not a user preference: passing it through
-# The internal build stage would persist it into .shotstopper and every later
+# The internal build stage would persist it into .openbrewbyweight and every later
 # compile. Strip every copy before building and saving so this tool never
 # leaks its analysis-only option into ordinary builds.
 configured_flags="$(ss_get flags)"
@@ -75,13 +75,13 @@ ss_put flags "$user_flags" cli
 effective_flags="$(ss_cli_effective_flags)" || exit $?
 warning_flags="${effective_flags:+$effective_flags }-Wunused-parameter"
 ss_cli_resolve_profiles "$warning_flags" || exit $?
-shotstopper_resolve_board "$(ss_get arch)" || exit 2
+openbrewbyweight_resolve_board "$(ss_get arch)" || exit 2
 
 raw_report="$output_path/gcc-warnings-raw.txt"
 report="$output_path/gcc-warnings.txt"
 
-echo "Building $SHOTSTOPPER_ARCH (IDF) with extra GCC warnings..."
-SHOTSTOPPER_NONINTERACTIVE=1 ./scripts/internal/build-idf \
+echo "Building $OPENBREWBYWEIGHT_ARCH (IDF) with extra GCC warnings..."
+OPENBREWBYWEIGHT_NONINTERACTIVE=1 ./scripts/internal/build-idf \
   --hardware "$(ss_get hardware_config)" --machine "$(ss_get machine_config)" \
   --webui-language "$(ss_get webui_language)" \
   --flags "$warning_flags" >"$raw_report" 2>&1
@@ -92,7 +92,7 @@ ss_cli_save
 if [[ $build_status -ne 0 ]]; then
   cat "$raw_report" >&2
   printf 'Architecture: %s\nBuild exit status: %d\n' \
-    "$SHOTSTOPPER_ARCH" "$build_status" > "$output_path/README.txt"
+    "$OPENBREWBYWEIGHT_ARCH" "$build_status" > "$output_path/README.txt"
   echo "Build failed; log saved under $OUTPUT_DIR/gcc-warnings-raw.txt" >&2
   exit "$build_status"
 fi
@@ -101,12 +101,12 @@ fi
 # only when its primary location is in a project-owned source tree; associated
 # context and trace lines (source snippets, "In function ..." notes) are
 # retained so the diagnostic remains useful.
-awk -v shotstopper="$ROOT/src/" \
+awk -v openbrewbyweight="$ROOT/src/" \
     -v espresso_scale_ble="$ROOT/libraries/EspressoScaleBLE/" \
     -v idf_main="$ROOT/idf/main/" \
     -v idf_components="$ROOT/idf/components/" '
   /^[^:]+:[0-9]+:[0-9]+: warning:/ {
-    keep = index($0, shotstopper) == 1 || \
+    keep = index($0, openbrewbyweight) == 1 || \
            index($0, espresso_scale_ble) == 1 || \
            index($0, idf_main) == 1 || \
            index($0, idf_components) == 1
@@ -126,7 +126,7 @@ if [[ -s "$report" ]]; then
 fi
 
 printf 'Architecture: %s\nExtra warning flags: %s\nBuild exit status: %d\n' \
-  "$SHOTSTOPPER_ARCH" "$warning_flags" "$warnings_status" > "$output_path/README.txt"
+  "$OPENBREWBYWEIGHT_ARCH" "$warning_flags" "$warnings_status" > "$output_path/README.txt"
 
 echo "Report saved under $OUTPUT_DIR/"
 exit "$warnings_status"

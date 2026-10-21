@@ -10,7 +10,7 @@
 #include "OpenBrewByWeightCrashArchive.h"
 #include "OpenBrewByWeightAuditStore.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 inline bool verifyFactorySettings(const PersistedSettings &settings) {
   if (!validPersistedSettings(settings) || settings.staConfigured ||
@@ -52,8 +52,8 @@ inline bool resetPersistedNetworkAccess(PersistedSettings &settings) {
   return true;
 }
 
-#if !defined(SHOT_STOPPER_HOST_TEST) ||                                      \
-    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                      \
+    defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 // Boot half of the onboarding transaction: rolls the "by weight" choice
 // forward once its Wi-Fi is durable (starting preset, then the firmware mode,
 // then the record), drops it when that Wi-Fi was reverted, and keeps it while
@@ -109,7 +109,7 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
       !lastShot.clear()) {
     return false;
   }
-#if !defined(SHOT_STOPPER_HOST_TEST) && !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   if (!crashArchiveClear()) return false;
   if (!clearAuditStores()) return false;
 #endif
@@ -125,8 +125,8 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
   }
   // Factory reset clears the master switch too, so the controller comes back
   // transparent (compatibility mode) and offers onboarding again.
-#if !defined(SHOT_STOPPER_HOST_TEST) ||                                      \
-    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                      \
+    defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   if (!clearFirmwareMode()) {
     return false;
   }
@@ -149,4 +149,4 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
          lastShotVerified;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

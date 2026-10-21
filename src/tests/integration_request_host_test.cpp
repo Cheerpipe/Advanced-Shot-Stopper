@@ -6,11 +6,11 @@
 #include <cstdio>
 #include <iostream>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 #include "../network/OpenBrewByWeightStatsJson.inc"
 }
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 namespace {
 

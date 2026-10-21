@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint8_t RESET_HISTORY_CAPACITY = 10;
 
@@ -25,4 +25,4 @@ inline uint32_t resetHistoryChecksum(const volatile ResetHistoryEntry *history,
   return checksum;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

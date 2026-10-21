@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr size_t LINEA_MICRA_USERNAME_CAPACITY = 97;
 constexpr size_t LINEA_MICRA_PASSWORD_CAPACITY = 97;
@@ -188,4 +188,4 @@ static_assert(offsetof(LineaMicraPersistedSettings, connectionType) == 311);
 static_assert(sizeof(LineaMicraPersistedSettings) == 312,
               "Linea Micra cloud settings ABI changed");
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

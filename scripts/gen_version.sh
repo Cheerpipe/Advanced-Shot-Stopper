@@ -100,7 +100,7 @@ cat > "$output.tmp" <<EOF
   "|ver=" FW_VERSION_STRING                                     \\
   "|packed=" FW_VERSION_PACKED_STRING "|END"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr char FW_VERSION[] = FW_VERSION_STRING;
 constexpr char FW_BOARD_ARCH[] = FW_BOARD_ARCH_STRING;
@@ -108,7 +108,7 @@ constexpr char FW_HARDWARE_COMPAT[] = FW_HARDWARE_COMPAT_STRING;
 constexpr char FW_MACHINE_COMPAT[] = FW_MACHINE_COMPAT_STRING;
 constexpr uint32_t FW_VERSION_PACKED = 0x$(printf '%08x' "$packed")U;
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 EOF
 
 # Rewrite only on change so unchanged builds do not recompile every includer.

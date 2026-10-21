@@ -10,7 +10,7 @@
 #include "OpenBrewByWeightFlashIoScratch.h"
 #include "OpenBrewByWeightPreferences.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr const char *FIRMWARE_MODE_NAMESPACE = "fwmode";
 constexpr const char *FIRMWARE_MODE_KEY = "mode";
@@ -39,13 +39,13 @@ struct SetupIntent {
   uint32_t staCrc = 0;
 };
 
-#if !defined(SHOT_STOPPER_HOST_TEST) ||                                      \
-    defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                      \
+    defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
 inline bool readFirmwareModeRecord(const char *key, void *value, size_t size) {
   if (!lockFlashIo()) {
     return false;
   }
-  ShotStopperPreferences preferences(NvsSubsystem::FIRMWARE_MODE);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::FIRMWARE_MODE);
   bool read = false;
   if (preferences.begin(FIRMWARE_MODE_NAMESPACE, true)) {
     read = preferences.getBytesLength(key) == size &&
@@ -62,7 +62,7 @@ inline bool writeFirmwareModeRecord(const char *key, const void *value,
   if (!lockFlashIo()) {
     return false;
   }
-  ShotStopperPreferences preferences(NvsSubsystem::FIRMWARE_MODE);
+  OpenBrewByWeightPreferences preferences(NvsSubsystem::FIRMWARE_MODE);
   if (!preferences.begin(FIRMWARE_MODE_NAMESPACE, false)) {
     unlockFlashIo();
     return false;
@@ -117,7 +117,7 @@ inline bool clearFirmwareMode() {
 }
 #endif
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 
 // Live boot-scoped copy. setup() writes it once from loadFirmwareMode();
 // it is immutable for the rest of the boot so every subsystem gate reads one
@@ -126,5 +126,5 @@ extern uint8_t firmwareModeRaw;
 
 inline bool firmwareCompatibilityMode() {
   return firmwareModeRaw ==
-         static_cast<uint8_t>(shotstopper::FirmwareMode::COMPATIBILITY);
+         static_cast<uint8_t>(openbrewbyweight::FirmwareMode::COMPATIBILITY);
 }

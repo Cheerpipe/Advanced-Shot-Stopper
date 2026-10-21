@@ -201,7 +201,7 @@ function assertNoMarkers(source, file) {
 }
 
 function renderSources(sources, options = {}) {
-  const loaded = loadCatalog(options.language || process.env.SHOTSTOPPER_WEBUI_LANGUAGE || 'en', options);
+  const loaded = loadCatalog(options.language || process.env.OPENBREWBYWEIGHT_WEBUI_LANGUAGE || 'en', options);
   const state = {catalog: loaded.catalog, used: new Set(), options};
   const rendered = sources.map((source) => {
     let content;
@@ -251,7 +251,7 @@ function parseCli(argv) {
     else fail(`unknown argument ${JSON.stringify(arg)}`);
   }
   if (!check) fail('only --check mode is supported');
-  return {language: language || process.env.SHOTSTOPPER_WEBUI_LANGUAGE || 'en'};
+  return {language: language || process.env.OPENBREWBYWEIGHT_WEBUI_LANGUAGE || 'en'};
 }
 
 module.exports = {normalizeLanguageCode, validateCatalog, loadCatalog, htmlEscape,

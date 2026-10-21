@@ -3,7 +3,7 @@
 #include "OpenBrewByWeightPowerPolicy.h"
 #include <atomic>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Fixed-size cross-owner mailbox; no owner reads another service's live state.
 // Control writes applied profile. HTTP writes web expiry; control expires it.
@@ -34,7 +34,7 @@ inline bool powerIdleSavings() {
 }
 
 // Called only by control, outside critical sections. No actuation here.
-#ifdef SHOT_STOPPER_HOST_TEST
+#ifdef OPEN_BREW_BY_WEIGHT_HOST_TEST
 inline bool applyPowerProfile(PowerProfile profile) {
   powerRequestedProfile.store(profile, std::memory_order_release);
   powerAppliedProfile.store(powerBleError.load() == 0 ? profile : PowerProfile::OFF,
@@ -45,4 +45,4 @@ inline bool applyPowerProfile(PowerProfile profile) {
 bool applyPowerProfile(PowerProfile profile);
 #endif
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

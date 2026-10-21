@@ -1,15 +1,15 @@
-#define SHOT_STOPPER_HOST_TEST
-#define SHOT_STOPPER_WEBHOOK_TEST_PLATFORM "tests/webhook_worker_platform.h"
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_WEBHOOK_TEST_PLATFORM "tests/webhook_worker_platform.h"
 #include "../OpenBrewByWeightWebhook.h"
 #include "../OpenBrewByWeightPsram.h"
 #include <algorithm>
 
 static unsigned samples = 0;
 static uint32_t heapFree = 1000;
-static shotstopper::HeapCapSnapshot injectedHeapSample() {
+static openbrewbyweight::HeapCapSnapshot injectedHeapSample() {
   ++samples;
   workerTrace.push_back("sample");
-  shotstopper::HeapCapSnapshot result;
+  openbrewbyweight::HeapCapSnapshot result;
   result.internalFree = heapFree;
   result.internalLargest = heapFree / 2;
   result.psramLargest = heapFree * 2;
@@ -21,7 +21,7 @@ static shotstopper::HeapCapSnapshot injectedHeapSample() {
 #include <cstdarg>
 
 static std::vector<std::string> logLines;
-void serialTraceCategoryf(shotstopper::LogLevel, shotstopper::DebugCategory,
+void serialTraceCategoryf(openbrewbyweight::LogLevel, openbrewbyweight::DebugCategory,
                           const char *fmt, ...) {
   char line[256];
   va_list args;
@@ -31,7 +31,7 @@ void serialTraceCategoryf(shotstopper::LogLevel, shotstopper::DebugCategory,
   logLines.emplace_back(line);
 }
 
-namespace shotstopper {
+namespace openbrewbyweight {
 struct WebhookDispatcherTest {
   static void run(WebhookDispatcher &d) { d.task(); }
   static void finish(WebhookDispatcher &d) {
@@ -55,7 +55,7 @@ struct WebhookDispatcherTest {
 };
 }
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 static WebhookConfig config(bool enabled, bool deferDuringShot = false) {
   WebhookConfig result;
   result.enabled = enabled;

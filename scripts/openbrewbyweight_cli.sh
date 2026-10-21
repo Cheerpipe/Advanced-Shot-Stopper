@@ -9,7 +9,7 @@
 # Except for the transient WebUI language default, every value comes from:
 #   1. a named flag on the command line
 #   2. the matching environment variable
-#   3. the hidden store file .shotstopper at the repository root
+#   3. the hidden store file .openbrewbyweight at the repository root
 #   4. an interactive prompt for the keys the command requires
 #      (Enter accepts the suggestion shown in brackets)
 #
@@ -17,7 +17,7 @@
 # unset key: the scripts prompt and suggest the first live USB-CDC path.
 #
 # The WebUI language uses flag, environment, then `en`, and is never stored.
-# After a successful resolve the other values are merged into .shotstopper.
+# After a successful resolve the other values are merged into .openbrewbyweight.
 # The device password is never loaded, suggested, or persisted (use the hidden
 # prompt or environment each run; the public dev facade also supports stdin).
 #
@@ -35,10 +35,10 @@ SS_CLI_TRANSIENT_KEYS="image build_dir output_dir webui_language hardware_config
 if [[ -z "${SS_CLI_ROOT:-}" ]]; then
   SS_CLI_ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
-SS_CLI_STORE="$SS_CLI_ROOT/.shotstopper"
+SS_CLI_STORE="$SS_CLI_ROOT/.openbrewbyweight"
 # Analysis builds (warnings-idf) point this at their own tree so toggling
 # analysis-only flags never reconfigures the gate's variant builds.
-SS_IDF_BUILD_ROOT="${SHOTSTOPPER_IDF_BUILD_ROOT:-$SS_CLI_ROOT/build-idf}"
+SS_IDF_BUILD_ROOT="${OPENBREWBYWEIGHT_IDF_BUILD_ROOT:-$SS_CLI_ROOT/build-idf}"
 
 ss_upper() {
   printf '%s' "$1" | tr '[:lower:]' '[:upper:]'
@@ -115,18 +115,18 @@ ss_cli_reset() {
 
 ss_env_name() {
   case "$1" in
-    port) printf 'SHOTSTOPPER_PORT' ;;
-    arch) printf 'SHOTSTOPPER_ARCH' ;;
-    speed) printf 'SHOTSTOPPER_SPEED' ;;
-    host) printf 'SHOTSTOPPER_HOST' ;;
-    password) printf 'SHOTSTOPPER_DEVICE_PASSWORD' ;;
-    flags) printf 'SHOTSTOPPER_FLAGS' ;;
-    image) printf 'SHOTSTOPPER_IMAGE' ;;
-    build_dir) printf 'SHOTSTOPPER_BUILD_DIR_OVERRIDE' ;;
-    output_dir) printf 'SHOTSTOPPER_OUTPUT_DIR' ;;
-    webui_language) printf 'SHOTSTOPPER_WEBUI_LANGUAGE' ;;
-    hardware_config) printf 'SHOTSTOPPER_HARDWARE' ;;
-    machine_config) printf 'SHOTSTOPPER_MACHINE' ;;
+    port) printf 'OPENBREWBYWEIGHT_PORT' ;;
+    arch) printf 'OPENBREWBYWEIGHT_ARCH' ;;
+    speed) printf 'OPENBREWBYWEIGHT_SPEED' ;;
+    host) printf 'OPENBREWBYWEIGHT_HOST' ;;
+    password) printf 'OPENBREWBYWEIGHT_DEVICE_PASSWORD' ;;
+    flags) printf 'OPENBREWBYWEIGHT_FLAGS' ;;
+    image) printf 'OPENBREWBYWEIGHT_IMAGE' ;;
+    build_dir) printf 'OPENBREWBYWEIGHT_BUILD_DIR_OVERRIDE' ;;
+    output_dir) printf 'OPENBREWBYWEIGHT_OUTPUT_DIR' ;;
+    webui_language) printf 'OPENBREWBYWEIGHT_WEBUI_LANGUAGE' ;;
+    hardware_config) printf 'OPENBREWBYWEIGHT_HARDWARE' ;;
+    machine_config) printf 'OPENBREWBYWEIGHT_MACHINE' ;;
   esac
 }
 
@@ -150,10 +150,10 @@ Named parameters (long and short):
       --release            Build profile: no admin unlock and no JTAG console
                            (default when no profile is given)
       --no-auth-admin      Build-only admin unlock without a device-password
-                           session (adds -DSHOT_STOPPER_DEVELOPMENT=1 to the
+                           session (adds -DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1 to the
                            build flags; not persisted)
       --jtag               Enable the USB Serial/JTAG console at boot (adds
-                           -DSHOT_STOPPER_ENABLE_JTAG=1 to the build flags)
+                           -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 to the build flags)
       --o0|--og|--o2|--os  Firmware optimization level for this build (build
                            only; exclusive; not persisted). ESP-IDF Kconfig
                            levels: -O0, -Og, -O2, -Os (default). The saved
@@ -175,13 +175,13 @@ Named parameters (long and short):
                            asking
   -h, --help               Show this help
 
-Each parameter comes from the flag, its environment variable, the .shotstopper
+Each parameter comes from the flag, its environment variable, the .openbrewbyweight
 file at the repository root, or a prompt. The WebUI language is the exception:
-it uses --webui-language, SHOTSTOPPER_WEBUI_LANGUAGE, then en, without prompting
+it uses --webui-language, OPENBREWBYWEIGHT_WEBUI_LANGUAGE, then en, without prompting
 or persistence. At other prompts, Enter accepts the suggested value in brackets.
 A missing or non-existent --port is prompted like the device password, with the
 first detected USB-CDC device suggested.
-After resolving parameters, the values used are saved to .shotstopper
+After resolving parameters, the values used are saved to .openbrewbyweight
 (the device password is never saved or suggested).
 EOF
 }
@@ -402,7 +402,7 @@ ss_cli_parse() {
 }
 
 # g++ treats a bare MACRO=value token as a linker input. Prefix -D so
-# SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=1 is a define, not a missing file.
+# OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1 is a define, not a missing file.
 ss_normalize_compiler_flags() {
   local raw="$1" out="" tok
   # Word-splitting is intentional: extra_flags is a space-separated list.
@@ -424,25 +424,15 @@ ss_cli_apply_env() {
     name="$(ss_env_name "$key")"
     [[ -n "$name" ]] || continue
     eval "value=\${$name-}"
-    if [[ -z "$value" && "$key" == "hardware_config" ]]; then
-      value="${SHOTSTOPPER_HARDWARE_CONFIG-}"
-    fi
-    if [[ -z "$value" && "$key" == "machine_config" ]]; then
-      value="${SHOTSTOPPER_MACHINE_CONFIG-}"
-    fi
-    # Legacy alias: older docs/scripts used SHOTSTOPPER_OTA_TOKEN.
-    if [[ -z "$value" && "$key" == "password" ]]; then
-      value="${SHOTSTOPPER_OTA_TOKEN-}"
-    fi
     # Only an exported, non-empty value counts; an empty export is ignored so
-    # a stale `export SHOTSTOPPER_HOST=` cannot silently win over the store.
+    # a stale `export OPENBREWBYWEIGHT_HOST=` cannot silently win over the store.
     [[ -n "$value" ]] || continue
     ss_put "$key" "$value" "env"
   done
 }
 
 # Prints the compile flags for this run. The build profile switches are
-# deliberately kept outside .shotstopper so they cannot affect a later build:
+# deliberately kept outside .openbrewbyweight so they cannot affect a later build:
 # --development means --no-auth-admin plus --jtag, --release means neither,
 # and --no-auth-admin and --jtag also work individually on a release build.
 ss_cli_effective_flags() {
@@ -453,29 +443,29 @@ ss_cli_effective_flags() {
   set -- $raw
   for token in "$@"; do
     case "$token" in
-      -DSHOT_STOPPER_DEVELOPMENT=0|SHOT_STOPPER_DEVELOPMENT=0)
+      -DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=0|OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0)
         if [[ "$SS_CLI_NO_AUTH_ADMIN" == "1" ]]; then
-          ss_cli_die "--no-auth-admin conflicts with SHOT_STOPPER_DEVELOPMENT=0 in --flags."
+          ss_cli_die "--no-auth-admin conflicts with OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0 in --flags."
           return 2
         fi
         ;;
-      -DSHOT_STOPPER_DEVELOPMENT=1|SHOT_STOPPER_DEVELOPMENT=1) found=1 ;;
-      -DSHOT_STOPPER_ENABLE_JTAG=0|SHOT_STOPPER_ENABLE_JTAG=0)
+      -DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1|OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1) found=1 ;;
+      -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0|OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0)
         if [[ "$SS_CLI_JTAG" == "1" ]]; then
-          ss_cli_die "--jtag conflicts with SHOT_STOPPER_ENABLE_JTAG=0 in --flags."
+          ss_cli_die "--jtag conflicts with OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0 in --flags."
           return 2
         fi
         ;;
-      -DSHOT_STOPPER_ENABLE_JTAG=1|SHOT_STOPPER_ENABLE_JTAG=1) jtag=1 ;;
+      -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1|OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1) jtag=1 ;;
     esac
   done
   if [[ "$SS_CLI_JTAG" == "1" && "$jtag" != "1" ]]; then
-    raw="${raw:+$raw }-DSHOT_STOPPER_ENABLE_JTAG=1"
+    raw="${raw:+$raw }-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1"
   fi
   if [[ "$SS_CLI_NO_AUTH_ADMIN" != "1" || "$found" == "1" ]]; then
     printf '%s' "$raw"
   else
-    printf '%s' "${raw:+$raw }-DSHOT_STOPPER_DEVELOPMENT=1"
+    printf '%s' "${raw:+$raw }-DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1"
   fi
 }
 
@@ -490,15 +480,15 @@ ss_cli_resolve_profiles() {
     --flags="$flags" --output-root "$SS_IDF_BUILD_ROOT" \
     ${resolver_flags[@]+"${resolver_flags[@]}"})" || return $?
   resolved_arch="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^arch=//p')"
-  SHOTSTOPPER_VARIANT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^variant=//p')"
-  SHOTSTOPPER_HARDWARE_COMPAT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^hardware_compat=//p')"
-  SHOTSTOPPER_MACHINE_COMPAT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^machine_compat=//p')"
-  SHOTSTOPPER_MACHINE_INTEGRATION="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^machine_integration=//p')"
-  SHOTSTOPPER_GENERATED_DIR="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^generated_dir=//p')"
-  if [[ -z "$resolved_arch" || -z "$SHOTSTOPPER_VARIANT" ||
-    -z "$SHOTSTOPPER_HARDWARE_COMPAT" || -z "$SHOTSTOPPER_MACHINE_COMPAT" ||
-    -z "$SHOTSTOPPER_MACHINE_INTEGRATION" ||
-    -z "$SHOTSTOPPER_GENERATED_DIR" ]]; then
+  OPENBREWBYWEIGHT_VARIANT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^variant=//p')"
+  OPENBREWBYWEIGHT_HARDWARE_COMPAT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^hardware_compat=//p')"
+  OPENBREWBYWEIGHT_MACHINE_COMPAT="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^machine_compat=//p')"
+  OPENBREWBYWEIGHT_MACHINE_INTEGRATION="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^machine_integration=//p')"
+  OPENBREWBYWEIGHT_GENERATED_DIR="$(printf '%s\n' "$SS_PROFILE_OUTPUT" | sed -n 's/^generated_dir=//p')"
+  if [[ -z "$resolved_arch" || -z "$OPENBREWBYWEIGHT_VARIANT" ||
+    -z "$OPENBREWBYWEIGHT_HARDWARE_COMPAT" || -z "$OPENBREWBYWEIGHT_MACHINE_COMPAT" ||
+    -z "$OPENBREWBYWEIGHT_MACHINE_INTEGRATION" ||
+    -z "$OPENBREWBYWEIGHT_GENERATED_DIR" ]]; then
     ss_cli_die "Profile resolver returned incomplete build metadata."
     return 2
   fi
@@ -509,7 +499,7 @@ ss_cli_resolve_profiles() {
     return 2
   fi
   ss_put arch "$resolved_arch" profile
-  export SHOTSTOPPER_VARIANT SHOTSTOPPER_MACHINE_INTEGRATION SHOTSTOPPER_GENERATED_DIR
+  export OPENBREWBYWEIGHT_VARIANT OPENBREWBYWEIGHT_MACHINE_INTEGRATION OPENBREWBYWEIGHT_GENERATED_DIR
 }
 
 ss_cli_load_store() {
@@ -587,7 +577,7 @@ ss_cli_summary() {
   done
   [[ -n "$line_cli" ]] && printf 'From CLI:                %s\n' "${line_cli# }"
   [[ -n "$line_env" ]] && printf 'From environment:        %s\n' "${line_env# }"
-  [[ -n "$line_store" ]] && printf 'Stored (.shotstopper):  %s\n' "$line_store"
+  [[ -n "$line_store" ]] && printf 'Stored (.openbrewbyweight):  %s\n' "$line_store"
   [[ -n "$line_default" ]] && printf 'Defaults:                %s\n' "${line_default# }"
   if [[ -n "$missing" ]]; then
     printf 'Missing:                 %s\n' "$(printf '%s' "$missing" | tr ' ' ',' | sed 's/,/, /g')"
@@ -596,7 +586,7 @@ ss_cli_summary() {
 }
 
 ss_can_prompt() {
-  [[ -z "${SHOTSTOPPER_NONINTERACTIVE:-}" ]] &&
+  [[ -z "${OPENBREWBYWEIGHT_NONINTERACTIVE:-}" ]] &&
     [[ -r /dev/tty ]] && [[ -w /dev/tty ]]
 }
 
@@ -624,8 +614,8 @@ ss_prompt_suggestion() {
 
   # Port prompts always prefer a live USB-CDC device over a stale saved path.
   if [[ "$key" == "port" ]]; then
-    if declare -f shotstopper_detect_ports >/dev/null 2>&1; then
-      detected="$(shotstopper_detect_ports | { IFS= read -r first || true; printf '%s' "${first:-}"; })"
+    if declare -f openbrewbyweight_detect_ports >/dev/null 2>&1; then
+      detected="$(openbrewbyweight_detect_ports | { IFS= read -r first || true; printf '%s' "${first:-}"; })"
       if [[ -n "$detected" ]]; then
         printf '%s' "$detected"
         return 0
@@ -672,8 +662,8 @@ ss_prompt_hint() {
   local detected
   case "$1" in
     port)
-      if declare -f shotstopper_detect_ports >/dev/null 2>&1; then
-        detected="$(shotstopper_detect_ports | tr '\n' ' ')" || detected=""
+      if declare -f openbrewbyweight_detect_ports >/dev/null 2>&1; then
+        detected="$(openbrewbyweight_detect_ports | tr '\n' ' ')" || detected=""
         if [[ -n "$detected" ]]; then
           printf 'Detected USB ports: %s\n' "${detected% }" > /dev/tty
           printf 'Press Enter to use the suggested port, or type another path.\n' > /dev/tty
@@ -716,8 +706,8 @@ ss_validate_key() {
   value="$(ss_get "$key")"
   case "$key" in
     arch)
-      # shotstopper_resolve_board prints its own diagnostics.
-      shotstopper_resolve_board "$value" || return 1
+      # openbrewbyweight_resolve_board prints its own diagnostics.
+      openbrewbyweight_resolve_board "$value" || return 1
       ;;
     speed)
       case "$value" in
@@ -776,7 +766,7 @@ ss_validate_key() {
 # Loads env + store, prints the summary, prompts for what is missing and
 # validates the result. Fails with exit code 2 when it cannot prompt.
 #
-# A required --port whose device node is missing (stale .shotstopper entry,
+# A required --port whose device node is missing (stale .openbrewbyweight entry,
 # vanished USB path, or a bad CLI/env value) is forgotten and prompted the
 # same way as an unset password: suggest the first live USB-CDC port, accept
 # Enter, then persist the chosen path.
@@ -875,7 +865,7 @@ ss_cli_resolve() {
 
 ss_cli_save() {
   local key value tmp
-  tmp="${TMPDIR:-/tmp}/shotstopper.XXXXXX"
+  tmp="${TMPDIR:-/tmp}/openbrewbyweight.XXXXXX"
   tmp="$(mktemp "$tmp")" || return 0
   chmod 600 "$tmp" 2>/dev/null || true
   {
@@ -1002,8 +992,8 @@ ss_cli_flags_for() {
 # cannot read, rather than through argv, which they can.
 ss_cli_export_secrets() {
   if ss_is_set password; then
-    SHOTSTOPPER_DEVICE_PASSWORD="$(ss_get password)"
-    export SHOTSTOPPER_DEVICE_PASSWORD
+    OPENBREWBYWEIGHT_DEVICE_PASSWORD="$(ss_get password)"
+    export OPENBREWBYWEIGHT_DEVICE_PASSWORD
   fi
 }
 

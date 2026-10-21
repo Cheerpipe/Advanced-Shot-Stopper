@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <string.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t SHOT_LOG_MAGIC = 0x534C4F47U;  // "SLOG"
 constexpr uint16_t SHOT_LOG_SCHEMA_VERSION = 1;
@@ -762,4 +762,4 @@ inline int16_t shotLogWeightToCentigrams(float weightG) {
   return static_cast<int16_t>(centigrams);
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -185,7 +185,7 @@ if (!codeIncludes(ui, 'id="staIpMode"') ||
     !network.includes('status_.apTeardownAtMs = now + SOFTAP_FINISH_LINGER_MS') ||
     !network.includes('sendJson(request, STATUS_OK, "{\\"finished\\":true}")') ||
     !network.includes('status_.apTeardownAtMs = millis() + SOFTAP_TEARDOWN_GRACE_MS') ||
-    !network.includes('void ShotStopperNetwork::serviceSoftApTeardown(') ||
+    !network.includes('void OpenBrewByWeightNetwork::serviceSoftApTeardown(') ||
     // Legacy Windows NCSI (www.msftncsi.com) expects its own probe body.
     !network.includes('"Microsoft NCSI"')) {
   throw new Error('DHCP/static IP mode must be wired in UI, status, WiFi.config, and confirm/revert path');
@@ -220,7 +220,7 @@ if (!network.includes('restoreLkgToActive(next)') ||
       !network.includes('jsonHasOnlyUniqueFields(root, saveFields, 15)') ||
       !network.includes('jsonBoolean(root, "wifiSleep", command.network.wifiSleep)') ||
       !network.includes('command.network.wifiSleepSpecified = true') ||
-      !network.includes('void ShotStopperNetwork::applyWifiPowerSave(bool apStarting)') ||
+      !network.includes('void OpenBrewByWeightNetwork::applyWifiPowerSave(bool apStarting)') ||
       !network.includes('WIFI_PS_NONE') ||
       !network.includes('WIFI_PS_MIN_MODEM') ||
       /WiFi\.setSleep\(\s*WIFI_PS_MAX_MODEM\s*\)/.test(network) ||
@@ -238,14 +238,14 @@ if (!network.includes('restoreLkgToActive(next)') ||
         'Wi-Fi sleep must be wired in Admin UI, /network save, status, and power-save helper');
   }
   const applyStart = network.indexOf(
-      'void ShotStopperNetwork::applyWifiPowerSave(bool apStarting)');
+      'void OpenBrewByWeightNetwork::applyWifiPowerSave(bool apStarting)');
   const applyEnd = network.indexOf(
-      'bool ShotStopperNetwork::beginStationConnect', applyStart);
+      'bool OpenBrewByWeightNetwork::beginStationConnect', applyStart);
   const applyBody = applyStart >= 0 && applyEnd > applyStart
       ? network.slice(applyStart, applyEnd)
       : '';
   if (!applyBody.includes('desiredWifiPowerSave') ||
-      !applyBody.includes('ShotStopperOta::instance().busy()') ||
+      !applyBody.includes('OpenBrewByWeightOta::instance().busy()') ||
       !applyBody.includes('WIFI_PS_NONE') ||
       !applyBody.includes('WIFI_PS_MIN_MODEM') ||
       !applyBody.includes('WiFi.setSleep(desiredPs)') ||
@@ -284,12 +284,12 @@ if (!network.includes('restoreLkgToActive(next)') ||
         'Identical STA credentials must persist sleep and/or device name without restart, and no-op when unchanged');
   }
   const mdnsAddCount = (network.match(/mdns_service_add\(/g) || []).length;
-  if (!network.includes('bool ShotStopperNetwork::ensureMdns()') ||
+  if (!network.includes('bool OpenBrewByWeightNetwork::ensureMdns()') ||
       !network.includes('mdns_init()') ||
       !network.includes('mdns_hostname_set(host)') ||
       !network.includes('mdns_service_add(instance, "_http", "_tcp", 80, nullptr, 0)') ||
       !network.includes('mdns_service_txt_item_set("_http", "_tcp", "obbw", "1")') ||
-      !network.includes('void ShotStopperNetwork::stopMdns()') ||
+      !network.includes('void OpenBrewByWeightNetwork::stopMdns()') ||
       !network.includes('mdns_free()') ||
       !network.includes('ensureMdns();') ||
       !network.includes('applyMdnsName();') ||
@@ -312,8 +312,8 @@ if (!firmwareCore.includes('command.network.commitConfirmed = true') ||
       'USB SET_WIFI must commit STA credentials; Web UI keeps the confirm window');
 }
 {
-  if (network.includes('ShotStopperNetwork::loginHandler') ||
-      network.includes('ShotStopperNetwork::logoutHandler') ||
+  if (network.includes('OpenBrewByWeightNetwork::loginHandler') ||
+      network.includes('OpenBrewByWeightNetwork::logoutHandler') ||
       network.includes('loginRateLimited') ||
       network.includes('recordFailedLoginAttempt')) {
     throw new Error('Login handlers and rate limits must be removed; WebUI claim owns the session');
@@ -478,7 +478,7 @@ const networkPassiveInit = [
 ];
 if (networkWebhookBegin < 0 ||
     networkPassiveInit.some(index => index < 0 || index > networkWebhookBegin) ||
-    !network.includes('bool ShotStopperNetwork::stop()') ||
+    !network.includes('bool OpenBrewByWeightNetwork::stop()') ||
     !network.includes('xSemaphoreTake(taskStopped_') ||
     !network.includes('if (!webhooks_.stop()) return false;') ||
     !webhookSource.includes('bool WebhookDispatcher::stop()') ||
@@ -648,7 +648,7 @@ if (!codeIncludes(ui, 'id="forcePulseButton"') ||
     !css.includes('#actionsPanel .btnGlyph{flex:1;') ||
     !css.includes('#actionsPanel .momentaryOnly{flex:.6;min-height:var(--tap);min-width:4.5rem}') ||
     !network.includes('"/api/v1/control/force-pulse"') ||
-    !network.includes('ShotStopperNetwork::forcePulseHandler') ||
+    !network.includes('OpenBrewByWeightNetwork::forcePulseHandler') ||
     !network.includes('WebCommandType::FORCE_SWITCH_PULSE') ||
     !network.includes('requireAdminUnlock(request)') ||
     !domain.includes('FORCE_SWITCH_PULSE') ||
@@ -672,10 +672,10 @@ if (!codeIncludes(ui, 'id="forcePulseButton"') ||
       throw new Error(endpoint + ' route string vanished from the firmware sources entirely');
     }
   }
-  const devGuards = network.split('#if SHOT_STOPPER_DEVELOPMENT == 1').length - 1;
+  const devGuards = network.split('#if OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 1').length - 1;
   const releaseElse = network.split('#else').length - 1;
   if (devGuards < 4 || releaseElse < 3) {
-    throw new Error('Unlock routes and handlers must be release-only via SHOT_STOPPER_DEVELOPMENT guards');
+    throw new Error('Unlock routes and handlers must be release-only via OPEN_BREW_BY_WEIGHT_DEVELOPMENT guards');
   }
   // Exactly one /api/v1/ui/unlock registration may exist in the sources; the
   // dev branch of its guard keeps the &&-chain shape intact.
@@ -700,12 +700,12 @@ if (!network.includes('"Connection"') || !network.includes('"close"')) {
   throw new Error(
       'API JSON responses must send Connection: close to avoid keep-alive socket pinning');
 }
-const sendJsonStart = network.indexOf('esp_err_t ShotStopperNetwork::sendJson(');
+const sendJsonStart = network.indexOf('esp_err_t OpenBrewByWeightNetwork::sendJson(');
 const sendJsonBody = network.slice(sendJsonStart, network.indexOf('\n}\n', sendJsonStart));
 if (sendJsonBody.indexOf('httpd_sess_trigger_close(') < sendJsonBody.indexOf('sendBody(')) {
   throw new Error('sendJson must close the session after the body so the FIN flushes the Nagle-held tail');
 }
-const otaSnapshotStart = network.indexOf('esp_err_t ShotStopperNetwork::sendOtaSnapshot(');
+const otaSnapshotStart = network.indexOf('esp_err_t OpenBrewByWeightNetwork::sendOtaSnapshot(');
 const otaSnapshotBody = network.slice(otaSnapshotStart, network.indexOf('\n}\n', otaSnapshotStart));
 if (!otaSnapshotBody.includes('AllocationOwner::OTA') ||
     otaSnapshotBody.indexOf('if (reply != nullptr) unlockWorkBuf();') >

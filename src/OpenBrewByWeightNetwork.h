@@ -28,7 +28,7 @@
 
 struct timeval;
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 struct FreeRtosQueueDeleter {
   void operator()(QueueHandle_t handle) const { vQueueDelete(handle); }
@@ -269,11 +269,11 @@ struct NetworkBridgeCallbacks {
 bool buildIntegrationStats(const ShotStatsView &stats, char *output,
                            size_t capacity);
 
-class ShotStopperNetwork {
+class OpenBrewByWeightNetwork {
  public:
-  ShotStopperNetwork();
-  ShotStopperNetwork(const ShotStopperNetwork &) = delete;
-  ShotStopperNetwork &operator=(const ShotStopperNetwork &) = delete;
+  OpenBrewByWeightNetwork();
+  OpenBrewByWeightNetwork(const OpenBrewByWeightNetwork &) = delete;
+  OpenBrewByWeightNetwork &operator=(const OpenBrewByWeightNetwork &) = delete;
 
   bool begin(const PersistedSettings &settings,
              const NetworkBridgeCallbacks &callbacks);
@@ -368,7 +368,7 @@ class ShotStopperNetwork {
   static constexpr size_t LOG_BATCH_SIZE = kNetworkLogBatchSize;
   static constexpr size_t WEB_UI_CLIENT_ID_CAPACITY = 25;
 
-  static ShotStopperNetwork *instance_;
+  static OpenBrewByWeightNetwork *instance_;
 
   PersistedSettings &settings_;
   NetworkBridgeCallbacks callbacks_ = {};
@@ -706,7 +706,7 @@ class ShotStopperNetwork {
   // overflow.
   size_t formatShotStatsRow(NetworkWorkBuf &work, const ShotLogRecord &record,
                             const ShotCurveRecord *curve);
-#if SHOT_STOPPER_DEVELOPMENT == 1
+#if OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 1
   // Unlock handlers are release-only: development builds serve public
   // administration and never compile the unlock endpoints.
 #else
@@ -861,4 +861,4 @@ class ShotStopperNetwork {
   static const char *wifiScanStateName(WifiScanState state);
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

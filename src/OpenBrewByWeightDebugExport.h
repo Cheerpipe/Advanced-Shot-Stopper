@@ -14,7 +14,7 @@
 #include "OpenBrewByWeightScaleLink.h"
 #include "OpenBrewByWeightSafety.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t DEBUG_EXPORT_SCHEMA_VERSION = 4;
 constexpr size_t DEBUG_EXPORT_SHOT_SUMMARY_LIMIT = 10;
@@ -94,4 +94,4 @@ inline const char *debugExportScaleLinkStateName(uint8_t state) {
   return state == 1 ? "CONNECTED" : "DISCONNECTED";
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

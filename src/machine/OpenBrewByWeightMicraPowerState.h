@@ -3,7 +3,7 @@
 #include "OpenBrewByWeightLineaMicraTypes.h"
 #include "OpenBrewByWeightMicraTiming.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // One optimistic overlay at a time, in either direction: the paddle wake
 // gesture asserts ON before the cloud agrees, and an accepted scale-shutdown
@@ -142,4 +142,4 @@ class LineaMicraPowerStateTracker {
   bool heldKnown_ = false;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

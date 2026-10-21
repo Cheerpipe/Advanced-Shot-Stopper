@@ -4,7 +4,7 @@
 #include "OpenBrewByWeightFlashIoScratch.h"
 #include "OpenBrewByWeightPreferences.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr uint32_t LAST_SHOT_MAGIC = 0x4C534854U;  // "LSHT"
 // Fixed last-shot schema. Older blobs decode as empty and are not upgraded.
@@ -53,7 +53,7 @@ class LastShotStore {
   // last-good-shot policy; persisted blobs are never upgraded.
   bool load(uint32_t goodShotProtectionMs = DEFAULT_BBW_PROTECTION_MS) {
     (void)goodShotProtectionMs;
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     if (hostStorageValid_) {
       blob_ = hostStorage_;
     } else {
@@ -68,7 +68,7 @@ class LastShotStore {
       resetLastShotBlob(blob_);
       return false;
     }
-    ShotStopperPreferences preferences(NvsSubsystem::LAST_SHOT);
+    OpenBrewByWeightPreferences preferences(NvsSubsystem::LAST_SHOT);
     if (!preferences.begin(LAST_SHOT_NAMESPACE, true)) {
       resetLastShotBlob(blob_);
       unlockFlashIo();
@@ -101,7 +101,7 @@ class LastShotStore {
 
   bool save(uint32_t lockTimeoutMs = FLASH_IO_LOCK_TIMEOUT_MS) {
     finalizeLastShotBlob(blob_);
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     (void)lockTimeoutMs;
     if (!hostSaveSucceeds_) return false;
     hostStorage_ = blob_;
@@ -113,7 +113,7 @@ class LastShotStore {
     }
     yieldFlashIo();
     feedFlashIoWatchdog();
-    ShotStopperPreferences preferences(NvsSubsystem::LAST_SHOT);
+    OpenBrewByWeightPreferences preferences(NvsSubsystem::LAST_SHOT);
     if (!preferences.begin(LAST_SHOT_NAMESPACE, false)) {
       unlockFlashIo();
       return false;
@@ -152,7 +152,7 @@ class LastShotStore {
   }
 
   bool erasePersisted() {
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     hostStorageValid_ = false;
     resetLastShotBlob(blob_);
     return true;
@@ -160,7 +160,7 @@ class LastShotStore {
     if (!lockFlashIo()) {
       return false;
     }
-    ShotStopperPreferences preferences(NvsSubsystem::LAST_SHOT);
+    OpenBrewByWeightPreferences preferences(NvsSubsystem::LAST_SHOT);
     if (!preferences.begin(LAST_SHOT_NAMESPACE, false)) {
       unlockFlashIo();
       return false;
@@ -197,7 +197,7 @@ class LastShotStore {
 
   const PersistedLastShot &get() const { return blob_.lastShot; }
   const PersistedLastShot &getGood() const { return blob_.lastGoodShot; }
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   static void setHostSaveSucceeds(bool succeeds) {
     hostSaveSucceeds_ = succeeds;
   }
@@ -208,17 +208,17 @@ class LastShotStore {
   static constexpr const char *LAST_SHOT_KEY = "record";
 
   LastShotBlob blob_;
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   static LastShotBlob hostStorage_;
   static bool hostStorageValid_;
   static bool hostSaveSucceeds_;
 #endif
 };
 
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 LastShotBlob LastShotStore::hostStorage_;
 bool LastShotStore::hostStorageValid_ = false;
 bool LastShotStore::hostSaveSucceeds_ = true;
 #endif
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

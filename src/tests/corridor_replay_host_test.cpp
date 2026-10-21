@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-using namespace shotstopper::corridor;
+using namespace openbrewbyweight::corridor;
 
 namespace {
 

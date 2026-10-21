@@ -3,7 +3,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // Unique, non-allocating ownership for ESP-IDF/FreeRTOS C handles. Deleters
 // must be stateless so the wrapper remains exactly one handle wide. Task
@@ -52,4 +52,4 @@ class UniqueResource final : private Deleter {
   Handle handle_{};
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -4,7 +4,7 @@
 #include <string.h>
 #include <cmath>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 // The single cutoff algorithm id (1). Its API name is "corridor" (the smooth
 // cut with drip-offset learning); "linear_ewma" and "legacy" stay accepted as
@@ -50,4 +50,4 @@ inline bool parseBbwAlgorithm(const char *name, uint8_t &algorithm) {
   return false;
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

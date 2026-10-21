@@ -59,7 +59,7 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
   const bool offsetAnalysis = shot.automaticBrew && !session.config.timerOnly &&
                               session.calibrationEligible;
   bool webhookEligible = false;
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   const WebhookConfig webhook = networkManager.webhookConfig();
   webhookEligible = webhook.enabled && webhook.end;
 #endif
@@ -491,7 +491,7 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
     lastShotNvsDirty = true;
   }
   if (snapshot.curve.count > 0) {
-    static SHOT_STOPPER_PSRAM_BSS ShotCurveRecord curve;
+    static OPEN_BREW_BY_WEIGHT_PSRAM_BSS ShotCurveRecord curve;
     copyShotCurve(curve, snapshot.curve);
     curve.shotId = newId;
     if (!shotCurves.append(curve, false)) {
@@ -504,7 +504,7 @@ void commitPendingShotLog(const PendingShotFinalize &snapshot, float finalWeight
 
 void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
                      bool finalWeightValid) {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   const WebhookConfig config = networkManager.webhookConfig();
   if (!config.enabled || !config.end || pendingFinalizeIsRinse(snapshot) ||
       brewEndIsAbandonedStart(snapshot.endReason)) {
@@ -543,7 +543,7 @@ void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
       event.averageFlowValid = std::isfinite(event.averageFlowGps);
     }
   }
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   (void)networkManager.enqueueWebhook(event);
 #else
   hostWebhookEndEvent = event;
@@ -551,7 +551,7 @@ void queueWebhookEnd(const PendingShotFinalize &snapshot, float finalWeightG,
 }
 
 void queueWebhookPresetsChanged() {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   const WebhookConfig config = networkManager.webhookConfig();
   if (!config.enabled || !config.presetChanges) return;
   WebhookEvent event = baseWebhookEvent(WebhookEventType::PRESETS_CHANGED, 0);
@@ -571,7 +571,7 @@ void queueWebhookPresetsChanged() {
 }
 
 void queueWebhookQuickSettingsChanged() {
-#ifndef SHOT_STOPPER_HOST_TEST
+#ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   const WebhookConfig config = networkManager.webhookConfig();
   if (!config.enabled || !config.presetChanges) return;
   RecipeSnapshot recipe;
@@ -595,7 +595,7 @@ void cancelPendingFinalize(const char *reason, uint32_t profileReason) {
   scaleProfileNoteEvent(ScaleProfileEvent::FINALIZE_CANCELLED, millis(),
                         getScaleLinkSnapshot().connectionGeneration, 0, NAN,
                         pendingFinalize.cycleId, profileReason);
-  static SHOT_STOPPER_PSRAM_BSS PendingShotFinalize snapshot;
+  static OPEN_BREW_BY_WEIGHT_PSRAM_BSS PendingShotFinalize snapshot;
   snapshot = pendingFinalize;
   pendingFinalize.pending = false;
   serialTrace(LogLevel::INFO, reason != nullptr
@@ -631,7 +631,7 @@ void pendingShotFinalizeTask() {
 
   captureLateTareCompletion();
   const ProfileControlObservation profile;
-  static SHOT_STOPPER_PSRAM_BSS PendingShotFinalize snapshot;
+  static OPEN_BREW_BY_WEIGHT_PSRAM_BSS PendingShotFinalize snapshot;
   snapshot = pendingFinalize;
   pendingFinalize.pending = false;
 

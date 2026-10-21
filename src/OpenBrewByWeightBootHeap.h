@@ -3,7 +3,7 @@
 #include "OpenBrewByWeightPsram.h"
 #include "OpenBrewByWeightTaskMutex.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 enum class BootHeapStage : uint8_t {
   RESERVE_BEFORE, RESERVE_AFTER, WIFI_INIT, MDNS_READY, HTTP_READY,
@@ -56,7 +56,7 @@ static_assert(sizeof(BootHeapCapture) <= 768, "Boot heap capture exceeds its PSR
 // One capture owner, shared by task-only producers and the serial reader.
 // Synchronization stays internal; retained payload never consumes heap DRAM.
 inline TaskMutex bootHeapMutex;
-inline SHOT_STOPPER_PSRAM_BSS BootHeapCapture bootHeapCapture;
+inline OPEN_BREW_BY_WEIGHT_PSRAM_BSS BootHeapCapture bootHeapCapture;
 inline std::atomic<bool> bootHeapSampling{false};
 // True while the boot shaper block is held; the reported heap minimum starts
 // at its release, so health publishes UINT32_MAX (not yet measured) until then.
@@ -70,7 +70,7 @@ inline BootHeapRecord sampleBootHeap(uint32_t now, const HeapCapSnapshot &heap) 
   record.internal = heapLifecycleSample(heap);
   record.psramFree = heap.psramFree;
   record.psramLargest = heap.psramLargest;
-#if !defined(SHOT_STOPPER_HOST_TEST) && !defined(SHOT_STOPPER_PERSISTENCE_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) && !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
   multi_heap_info_t dma{};
   heap_caps_get_info(&dma, MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
   record.dmaFree = static_cast<uint32_t>(dma.total_free_bytes);
@@ -175,4 +175,4 @@ inline void serviceBootHeap(uint32_t now) {
   if (wsSample) updateBootHeapMinimum(capture.ws, record);
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

@@ -1,13 +1,13 @@
 // Durable audit store contracts (plan F2.B/F2.C): packed roundtrip, torn
 // record terminal, wrap by sector erase, stale-header forward recovery, and
 // clear — exercised against the RAM partition fake with deterministic I/O
-// failure injection. SHOT_STOPPER_AUDIT_HOST_TEST comes from CMake.
+// failure injection. OPEN_BREW_BY_WEIGHT_AUDIT_HOST_TEST comes from CMake.
 #include "../OpenBrewByWeightAuditStore.cpp"
 
 #include <cstdlib>
 #include <iostream>
 
-using namespace shotstopper;
+using namespace openbrewbyweight;
 
 static AuditRecord makeRecord(uint32_t sequence, int32_t arg1) {
   AuditRecord record;

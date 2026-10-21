@@ -22,7 +22,7 @@ def definition(name, text=text, source=source):
 
 names = ["secureWipe", "secureCopy", "powerOptionBit", "sameSessionIdentity",
          "sameCommandRequest", "micraCloudCallResult"]
-names += ["ShotStopperMicraService::" + name for name in
+names += ["OpenBrewByWeightMicraService::" + name for name in
           ["WorkBuffer", "publishConfig", "publishNetworkState", "queue",
            "queueLocked", "muxWaitAnomalyDue", "reportMuxWaitAnomaly",
            "networkEligible",
@@ -32,26 +32,26 @@ names += ["ShotStopperMicraService::" + name for name in
            "selectDiscoveredMachine"]]
 output.mkdir(parents=True, exist_ok=True)
 (output / "micra_websocket_work.inc").write_text(
-    "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
-    + definition("ShotStopperMicraService::WorkBuffer") + "\n}\n")
+    "namespace openbrewbyweight {\nconstexpr size_t kTokenCapacity = 2048;\n"
+    + definition("OpenBrewByWeightMicraService::WorkBuffer") + "\n}\n")
 (output / "micra_websocket_status.inc").write_text(
     definition("powerOptionBit") + "\n" +
-    "\n".join(definition("ShotStopperMicraService::" + name) for name in
+    "\n".join(definition("OpenBrewByWeightMicraService::" + name) for name in
               ("status", "statusLocked", "statusPoll", "statusPollStale",
                "queue", "queueLocked", "muxWaitAnomalyDue",
                "qualifyBackflushLocked", "backflushReadyLocked", "backflush",
                "reportMuxWaitAnomaly", "finishBackflush", "physicalStart",
                "physicalStartLocked", "post", "applyPostedLocked")) + "\n")
 (output / "micra_cancellation_methods.inc").write_text(
-    "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
+    "namespace openbrewbyweight {\nconstexpr size_t kTokenCapacity = 2048;\n"
     + "\n".join(map(definition, names)) + "\n"
-    + definition("ShotStopperMicraService::websocketAdmitted",
+    + definition("OpenBrewByWeightMicraService::websocketAdmitted",
                  source.with_name("OpenBrewByWeightMicraWebSocket.inc").read_text(),
                  source.with_name("OpenBrewByWeightMicraWebSocket.inc")) + "\n}\n")
-retry = definition("ShotStopperMicraService::waitRetry")
+retry = definition("OpenBrewByWeightMicraService::waitRetry")
 (output / "micra_cancellation_retry.inc").write_text(
     retry.split("\n", 1)[0] + "\n" + retry[retry.index("{") + 1:retry.rindex("}")])
-request = text.index("bool ShotStopperMicraService::request(")
+request = text.index("bool OpenBrewByWeightMicraService::request(")
 gate = text.index("  const auto requestAllowed =", request)
 gate_end = text.index("\n  };", gate) + len("\n  };")
 loop = text.index("  esp_err_t performed =", request)

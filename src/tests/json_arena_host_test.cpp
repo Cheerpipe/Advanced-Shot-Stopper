@@ -1,4 +1,4 @@
-#define SHOT_STOPPER_HOST_TEST
+#define OPEN_BREW_BY_WEIGHT_HOST_TEST
 
 #include "../OpenBrewByWeightJsonArena.h"
 
@@ -23,9 +23,9 @@ int failures = 0;
   } while (false)
 
 void testValidAndInvalidDocumentsAreIndependent() {
-  cJSON *const prior = shotstopper::parseJsonDocument("{\"value\":17}");
+  cJSON *const prior = openbrewbyweight::parseJsonDocument("{\"value\":17}");
   CHECK(prior != nullptr);
-  CHECK(shotstopper::parseJsonDocument("{not-json}") == nullptr);
+  CHECK(openbrewbyweight::parseJsonDocument("{not-json}") == nullptr);
   const cJSON *const value = cJSON_GetObjectItemCaseSensitive(prior, "value");
   CHECK(cJSON_IsNumber(value));
   CHECK(value->valueint == 17);
@@ -41,7 +41,7 @@ void testConcurrentParsesDoNotShareStorage() {
 
   auto parse = [&](int index) {
     const char *body = index == 0 ? "{\"worker\":0}" : "{\"worker\":1}";
-    cJSON *const root = shotstopper::parseJsonDocument(body);
+    cJSON *const root = openbrewbyweight::parseJsonDocument(body);
     roots[index].store(root, std::memory_order_release);
     values[index].store(
         root == nullptr ? nullptr
@@ -79,39 +79,39 @@ void testConcurrentParsesDoNotShareStorage() {
 }
 
 void testDepthLimitRejectsWithoutDamagingPriorDocument() {
-  cJSON *const prior = shotstopper::parseJsonDocument("{\"safe\":true}");
+  cJSON *const prior = openbrewbyweight::parseJsonDocument("{\"safe\":true}");
   CHECK(prior != nullptr);
   std::string deep;
-  for (size_t i = 0; i <= shotstopper::JSON_DOCUMENT_MAX_DEPTH; ++i)
+  for (size_t i = 0; i <= openbrewbyweight::JSON_DOCUMENT_MAX_DEPTH; ++i)
     deep.push_back('[');
   deep += '0';
-  for (size_t i = 0; i <= shotstopper::JSON_DOCUMENT_MAX_DEPTH; ++i)
+  for (size_t i = 0; i <= openbrewbyweight::JSON_DOCUMENT_MAX_DEPTH; ++i)
     deep.push_back(']');
-  const uint32_t before = shotstopper::jsonDocumentLimitRejections();
-  CHECK(shotstopper::parseJsonDocument(deep.c_str()) == nullptr);
-  CHECK(shotstopper::jsonDocumentLimitRejections() == before + 1);
+  const uint32_t before = openbrewbyweight::jsonDocumentLimitRejections();
+  CHECK(openbrewbyweight::parseJsonDocument(deep.c_str()) == nullptr);
+  CHECK(openbrewbyweight::jsonDocumentLimitRejections() == before + 1);
   // A 160-byte UI frame can still exceed the parser's recursion budget.
   CHECK(deep.size() <= 160);
-  CHECK(shotstopper::parseJsonDocumentWithinLimits(
-      deep.c_str(), 160, shotstopper::JSON_DOCUMENT_MAX_VALUES) == nullptr);
-  CHECK(shotstopper::jsonDocumentLimitRejectedRecently());
+  CHECK(openbrewbyweight::parseJsonDocumentWithinLimits(
+      deep.c_str(), 160, openbrewbyweight::JSON_DOCUMENT_MAX_VALUES) == nullptr);
+  CHECK(openbrewbyweight::jsonDocumentLimitRejectedRecently());
   CHECK(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(prior, "safe")));
   cJSON_Delete(prior);
 }
 
 void testSizeLimitAndNullRejectCleanly() {
-  std::string oversized(shotstopper::JSON_DOCUMENT_MAX_BYTES + 1, ' ');
-  CHECK(shotstopper::parseJsonDocument(oversized.c_str()) == nullptr);
-  CHECK(shotstopper::jsonDocumentLimitRejectedRecently());
-  CHECK(shotstopper::parseJsonDocument(nullptr) == nullptr);
-  CHECK(!shotstopper::jsonDocumentLimitRejectedRecently());
+  std::string oversized(openbrewbyweight::JSON_DOCUMENT_MAX_BYTES + 1, ' ');
+  CHECK(openbrewbyweight::parseJsonDocument(oversized.c_str()) == nullptr);
+  CHECK(openbrewbyweight::jsonDocumentLimitRejectedRecently());
+  CHECK(openbrewbyweight::parseJsonDocument(nullptr) == nullptr);
+  CHECK(!openbrewbyweight::jsonDocumentLimitRejectedRecently());
 }
 
 void testExplicitResponseLimitsDoNotRelaxRequestDefaults() {
   const std::string large = "{\"payload\":\"" + std::string(3000, 'a') + "\"}";
-  CHECK(shotstopper::parseJsonDocument(large.c_str()) == nullptr);
-  cJSON *root = shotstopper::parseJsonDocumentWithinLimits(
-      large.c_str(), 4095, shotstopper::JSON_DOCUMENT_MAX_VALUES);
+  CHECK(openbrewbyweight::parseJsonDocument(large.c_str()) == nullptr);
+  cJSON *root = openbrewbyweight::parseJsonDocumentWithinLimits(
+      large.c_str(), 4095, openbrewbyweight::JSON_DOCUMENT_MAX_VALUES);
   CHECK(root != nullptr);
   cJSON_Delete(root);
 }
@@ -136,63 +136,63 @@ std::string repeatedObjectValues(size_t count) {
 
 void testValueLimitAtBoundaryForArraysAndObjects() {
   // The root container is one cJSON value, so it leaves max-1 child values.
-  const size_t children = shotstopper::JSON_DOCUMENT_MAX_VALUES - 1;
-  cJSON *array = shotstopper::parseJsonDocument(repeatedArrayValues(children).c_str());
+  const size_t children = openbrewbyweight::JSON_DOCUMENT_MAX_VALUES - 1;
+  cJSON *array = openbrewbyweight::parseJsonDocument(repeatedArrayValues(children).c_str());
   CHECK(array != nullptr);
   cJSON_Delete(array);
   cJSON *object =
-      shotstopper::parseJsonDocument(repeatedObjectValues(children).c_str());
+      openbrewbyweight::parseJsonDocument(repeatedObjectValues(children).c_str());
   CHECK(object != nullptr);
   cJSON_Delete(object);
 
-  const uint32_t before = shotstopper::jsonDocumentLimitRejections();
-  CHECK(shotstopper::parseJsonDocument(
+  const uint32_t before = openbrewbyweight::jsonDocumentLimitRejections();
+  CHECK(openbrewbyweight::parseJsonDocument(
             repeatedArrayValues(children + 1).c_str()) == nullptr);
-  CHECK(shotstopper::jsonDocumentLimitRejections() == before + 1);
-  CHECK(shotstopper::jsonDocumentLimitRejectedRecently());
-  CHECK(shotstopper::parseJsonDocument(
+  CHECK(openbrewbyweight::jsonDocumentLimitRejections() == before + 1);
+  CHECK(openbrewbyweight::jsonDocumentLimitRejectedRecently());
+  CHECK(openbrewbyweight::parseJsonDocument(
             repeatedObjectValues(children + 1).c_str()) == nullptr);
-  CHECK(shotstopper::jsonDocumentLimitRejections() == before + 2);
+  CHECK(openbrewbyweight::jsonDocumentLimitRejections() == before + 2);
 }
 
 void testStringsEscapesAndInvalidDocuments() {
-  cJSON *const root = shotstopper::parseJsonDocument(
+  cJSON *const root = openbrewbyweight::parseJsonDocument(
       "{\"text\":\"[,]{\\\"quoted\\\"}\\\\slash\",\"comma\":\",]\"}");
   CHECK(root != nullptr);
   cJSON_Delete(root);
-  CHECK(shotstopper::parseJsonDocument("{\"missing\":[1,}") == nullptr);
-  CHECK(!shotstopper::jsonDocumentLimitRejectedRecently());
+  CHECK(openbrewbyweight::parseJsonDocument("{\"missing\":[1,}") == nullptr);
+  CHECK(!openbrewbyweight::jsonDocumentLimitRejectedRecently());
 }
 
 // cJSON tolerates raw control characters; the stricter scanner must not hand
 // such a document over, or its trailing array escapes the value budget.
 void testMalformedDocumentCannotBypassValueBudget() {
-  const auto owner = static_cast<size_t>(shotstopper::AllocationOwner::JSON);
-  const uint32_t before = shotstopper::detail::g_allocations[owner].successes.load();
+  const auto owner = static_cast<size_t>(openbrewbyweight::AllocationOwner::JSON);
+  const uint32_t before = openbrewbyweight::detail::g_allocations[owner].successes.load();
   const std::string body = "{\"a\":\"\t\",\"b\":" + repeatedArrayValues(400) + "}";
-  CHECK(shotstopper::parseJsonDocument(body.c_str()) == nullptr);
-  CHECK(shotstopper::parseJsonDocument("[01]") == nullptr);
-  CHECK(shotstopper::detail::g_allocations[owner].successes.load() == before);
-  CHECK(!shotstopper::jsonDocumentLimitRejectedRecently());
-  CHECK(shotstopper::parseJsonDocumentWithinLimits(
+  CHECK(openbrewbyweight::parseJsonDocument(body.c_str()) == nullptr);
+  CHECK(openbrewbyweight::parseJsonDocument("[01]") == nullptr);
+  CHECK(openbrewbyweight::detail::g_allocations[owner].successes.load() == before);
+  CHECK(!openbrewbyweight::jsonDocumentLimitRejectedRecently());
+  CHECK(openbrewbyweight::parseJsonDocumentWithinLimits(
             repeatedArrayValues(8).c_str(), 2047, 8) == nullptr);
-  CHECK(shotstopper::jsonDocumentLimitRejectedRecently());
+  CHECK(openbrewbyweight::jsonDocumentLimitRejectedRecently());
 }
 
 void testAllocationFailureLeavesOtherDocumentsAlive() {
-  cJSON *prior = shotstopper::parseJsonDocument("{\"keep\":17}");
+  cJSON *prior = openbrewbyweight::parseJsonDocument("{\"keep\":17}");
   CHECK(prior != nullptr);
-  const auto owner = static_cast<size_t>(shotstopper::AllocationOwner::JSON);
-  const uint32_t before = shotstopper::detail::g_allocations[owner].successes.load();
-  cJSON *probe = shotstopper::parseJsonDocument("{\"text\":\"escaped\\u00e9\",\"n\":[1,2]}");
+  const auto owner = static_cast<size_t>(openbrewbyweight::AllocationOwner::JSON);
+  const uint32_t before = openbrewbyweight::detail::g_allocations[owner].successes.load();
+  cJSON *probe = openbrewbyweight::parseJsonDocument("{\"text\":\"escaped\\u00e9\",\"n\":[1,2]}");
   CHECK(probe != nullptr);
-  const uint32_t allocations = shotstopper::detail::g_allocations[owner].successes.load() - before;
+  const uint32_t allocations = openbrewbyweight::detail::g_allocations[owner].successes.load() - before;
   cJSON_Delete(probe);
   CHECK(allocations > 0);
   for (uint32_t failAt = 0; failAt < allocations; ++failAt) {
-    shotstopper::detail::g_hostAllocationsUntilFailure.store(static_cast<int32_t>(failAt));
-    cJSON *failed = shotstopper::parseJsonDocument("{\"text\":\"escaped\\u00e9\",\"n\":[1,2]}");
-    shotstopper::detail::g_hostAllocationsUntilFailure.store(-1);
+    openbrewbyweight::detail::g_hostAllocationsUntilFailure.store(static_cast<int32_t>(failAt));
+    cJSON *failed = openbrewbyweight::parseJsonDocument("{\"text\":\"escaped\\u00e9\",\"n\":[1,2]}");
+    openbrewbyweight::detail::g_hostAllocationsUntilFailure.store(-1);
     CHECK(failed == nullptr);
     CHECK(cJSON_GetObjectItemCaseSensitive(prior, "keep")->valueint == 17);
   }
@@ -204,9 +204,9 @@ void testAllocationFailureLeavesOtherDocumentsAlive() {
 int main() {
   // Blocks created before the one-time hook installation remain freeable.
   cJSON *legacy = cJSON_Parse("{\"legacy\":true}");
-  shotstopper::initJsonParser();
+  openbrewbyweight::initJsonParser();
   cJSON_Delete(legacy);
-  shotstopper::initJsonParser();
+  openbrewbyweight::initJsonParser();
   testValidAndInvalidDocumentsAreIndependent();
   testConcurrentParsesDoNotShareStorage();
   testDepthLimitRejectsWithoutDamagingPriorDocument();

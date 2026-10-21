@@ -5,8 +5,8 @@
 // fake (tests/audit_store_host_stubs.h) and exercises the same bodies,
 // including power-cut recovery. Plain host control builds compile this file
 // out and link the contract stubs from tests/open_brew_by_weight_host_stubs.h.
-#if !defined(SHOT_STOPPER_HOST_TEST) || defined(SHOT_STOPPER_AUDIT_HOST_TEST)
-#ifndef SHOT_STOPPER_AUDIT_HOST_TEST
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) || defined(OPEN_BREW_BY_WEIGHT_AUDIT_HOST_TEST)
+#ifndef OPEN_BREW_BY_WEIGHT_AUDIT_HOST_TEST
 #include "OpenBrewByWeightFlashIoScratch.h"
 #include <esp_partition.h>
 #else
@@ -14,7 +14,7 @@
 #endif
 #include <string.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 namespace {
 
 AuditStoreStatus g_status;
@@ -291,5 +291,5 @@ bool auditStoreEraseAll() {
 
 AuditStoreStatus auditStoreStatus() { return g_status; }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 #endif

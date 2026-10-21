@@ -3,7 +3,7 @@
 #include <string.h>
 #include "OpenBrewByWeightTimeZoneData.h"
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 inline const tzdb::Zone *findTimeZone(const char *id) {
   if (id == nullptr || *id == '\0') return nullptr;
@@ -58,4 +58,4 @@ inline const char *timeZoneResolution(const char *id, uint32_t utcSec) {
   return "resolved";
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

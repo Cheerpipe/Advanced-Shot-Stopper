@@ -1,8 +1,8 @@
-#if !defined(SHOT_STOPPER_SCALE_WORKER_IN_ORCHESTRATOR)
+#if !defined(OPEN_BREW_BY_WEIGHT_SCALE_WORKER_IN_ORCHESTRATOR)
 
 #include "OpenBrewByWeightScaleWorker.h"
 
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #include "tests/open_brew_by_weight_host_stubs.h"
 #else
 #include "OpenBrewByWeightBleRuntime.h"
@@ -20,45 +20,45 @@
 #include <stdio.h>
 #include <string.h>
 
-#endif  // !SHOT_STOPPER_SCALE_WORKER_IN_ORCHESTRATOR
+#endif  // !OPEN_BREW_BY_WEIGHT_SCALE_WORKER_IN_ORCHESTRATOR
 
 #include "OpenBrewByWeightPowerManagement.h"
 #include "OpenBrewByWeightScaleProfiler.h"
 #include "OpenBrewByWeightOutboundAdmission.h"
 #include "OpenBrewByWeightTaskProfiler.h"
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #include <esp_bt.h>
 #endif
 
-#if !defined(SHOT_STOPPER_SCALE_WORKER_IN_ORCHESTRATOR)
+#if !defined(OPEN_BREW_BY_WEIGHT_SCALE_WORKER_IN_ORCHESTRATOR)
 // Orchestrator symbols live in the global namespace (openBrewByWeight.cpp).
 uint32_t elapsedMs(uint32_t sinceMs);
-extern shotstopper::TaskProfiler taskProfiler;
-void addDebugEvent(shotstopper::DebugCategory category, shotstopper::DebugCode code,
+extern openbrewbyweight::TaskProfiler taskProfiler;
+void addDebugEvent(openbrewbyweight::DebugCategory category, openbrewbyweight::DebugCode code,
                    int32_t argument1 = 0, int32_t argument2 = 0);
-void addDebugEventDetail(shotstopper::DebugCategory category,
-                         shotstopper::DebugCode code, int32_t argument1,
+void addDebugEventDetail(openbrewbyweight::DebugCategory category,
+                         openbrewbyweight::DebugCode code, int32_t argument1,
                          int32_t argument2, const char *detail);
-void serialTrace(shotstopper::LogLevel level, const char *message);
-void serialTracef(shotstopper::LogLevel level, const char *fmt, ...);
-void logEmit(shotstopper::LogLevel level, shotstopper::DebugCategory category,
-             shotstopper::DebugCode code, int32_t argument1 = 0,
+void serialTrace(openbrewbyweight::LogLevel level, const char *message);
+void serialTracef(openbrewbyweight::LogLevel level, const char *fmt, ...);
+void logEmit(openbrewbyweight::LogLevel level, openbrewbyweight::DebugCategory category,
+             openbrewbyweight::DebugCode code, int32_t argument1 = 0,
              int32_t argument2 = 0);
 void feedOrTripCurrentTaskWatchdog();
 bool feedCurrentTaskWatchdog();
 void reportTaskWatchdogFault();
-shotstopper::RelaySafetySnapshot getRelaySafetySnapshot();
+openbrewbyweight::RelaySafetySnapshot getRelaySafetySnapshot();
 #endif
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 constexpr bool DEBUG = false;
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 void reportNimbleRuntimeHealth(bool force) {
   static bool reported = false;
-  static ShotStopperBleRuntimeState previousState =
-      ShotStopperBleRuntimeState::Stopped;
+  static OpenBrewByWeightBleRuntimeState previousState =
+      OpenBrewByWeightBleRuntimeState::Stopped;
   static int32_t previousError = 0;
   static int32_t previousResetReason = 0;
   static uint32_t previousSyncGeneration = 0;
@@ -66,7 +66,7 @@ void reportNimbleRuntimeHealth(bool force) {
   static uint32_t previousCleanupCount = 0;
   static uint32_t previousTotalDrops = 0;
   static uint8_t previousClientState = 0xff;
-  ShotStopperBleHealth health = shotStopperBleRuntimeHealth(false);
+  OpenBrewByWeightBleHealth health = openBrewByWeightBleRuntimeHealth(false);
   const ScaleBleBackendHealth client = scale.backendHealth();
   const uint32_t totalDrops = client.criticalEventDrops +
                               client.controlEventDrops + client.rxDrops;
@@ -79,7 +79,7 @@ void reportNimbleRuntimeHealth(bool force) {
       totalDrops == previousTotalDrops && client.state == previousClientState) {
     return;
   }
-  health = shotStopperBleRuntimeHealth();  // heap walk only when reporting
+  health = openBrewByWeightBleRuntimeHealth();  // heap walk only when reporting
   reported = true;
   previousState = health.state;
   previousError = health.lastError;
@@ -377,7 +377,7 @@ uint32_t scaleWorkerMaxExecutionUsValue() {
   return scaleWorkerMaxExecutionUs.load(std::memory_order_relaxed);
 }
 
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 void setScaleWorkerBleReadyForHost(bool ready) {
   bleStackReady.store(ready, std::memory_order_release);
 }
@@ -2336,7 +2336,7 @@ bool syncScalePower() {
 }
 
 void syncScaleRadioCoex() {
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   if (scaleWorkerBridge.syncNetworkRf != nullptr) {
     scaleWorkerBridge.syncNetworkRf(scale.isConnecting() || scale.isLinkUp(),
                                     scale.isConnecting(),
@@ -2630,7 +2630,7 @@ void copyScaleWorkerPhaseProfilerSnapshot(
 }
 
 static uint32_t scaleSectionStartedAtUs = 0;
-#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+#if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 static uint32_t scaleSectionCpuStartedUs = 0;
 
 static uint32_t scaleWorkerTaskCpuUs() {
@@ -2642,7 +2642,7 @@ static uint32_t scaleWorkerTaskCpuUs() {
 
 static void finishScaleSection(ScaleWorkerPhase section) {
   const uint32_t endedAtUs = micros();
-#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+#if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   const uint32_t cpuEndedUs = scaleWorkerTaskCpuUs();
   scaleWorkerPhaseProfiler.record(
       section, endedAtUs - scaleSectionStartedAtUs, endedAtUs,
@@ -2656,7 +2656,7 @@ static void finishScaleSection(ScaleWorkerPhase section) {
 }
 
 void scaleWorkerTask(void *) {
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   scaleWorkerTaskHandle.store(xTaskGetCurrentTaskHandle(),
                               std::memory_order_release);
 #endif
@@ -2672,10 +2672,10 @@ void scaleWorkerTask(void *) {
     reportTaskWatchdogFault();
   }
 
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // The native host runtime is shared by the scale central role.
   const bool runtimeReady =
-      shotStopperBleRuntimeStart(BLE_STACK_READY_WAIT_MS);
+      openBrewByWeightBleRuntimeStart(BLE_STACK_READY_WAIT_MS);
   bleStackReady.store(runtimeReady, std::memory_order_release);
   if (!runtimeReady) {
     addDebugEvent(DebugCategory::SCALE, DebugCode::INITIALIZATION_FAILED,
@@ -2683,7 +2683,7 @@ void scaleWorkerTask(void *) {
     logEmit(LogLevel::ERROR, DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,
             BOOT_SUBSYSTEM_BLE, 0);
     if (watchdogSubscribed) (void)feedCurrentTaskWatchdog();
-    (void)shotStopperBleRuntimeStop(BLE_STACK_STOP_WAIT_MS);
+    (void)openBrewByWeightBleRuntimeStop(BLE_STACK_STOP_WAIT_MS);
     if (watchdogSubscribed && esp_task_wdt_delete(nullptr) != ESP_OK)
       reportTaskWatchdogFault();
     {
@@ -2730,7 +2730,7 @@ void scaleWorkerTask(void *) {
     scaleWorkerPhaseProfiler.beginIteration(sectionsEnabled, executionStartedUs,
                                             millis());
     scaleSectionStartedAtUs = executionStartedUs;
-#if defined(ARDUINO) && !defined(SHOT_STOPPER_HOST_TEST)
+#if defined(ARDUINO) && !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     scaleSectionCpuStartedUs = scaleWorkerTaskCpuUs();
 #endif
     static uint32_t previousServiceAtMs = 0;
@@ -2871,7 +2871,7 @@ void scaleWorkerTask(void *) {
       scaleWorkerStackMinBytes.store(
           static_cast<uint32_t>(uxTaskGetStackHighWaterMark(nullptr)),
           std::memory_order_relaxed);
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
       reportNimbleRuntimeHealth(false);
 #endif
     }
@@ -2893,12 +2893,12 @@ void handleScaleDroppedFrameForProfile(const ScaleDroppedFrame &frame) {
 }
 
 bool initializeScaleWorker() {
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   if (scaleWorkerBridge.syncNetworkRf == nullptr) return false;
 #endif
   scale.setDroppedFrameObserver(&handleScaleDroppedFrameForProfile);
   scaleWorkerStartupFinished.store(false, std::memory_order_relaxed);
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   bleStackReady.store(false, std::memory_order_relaxed);
 #endif
   scaleCommandQueue =
@@ -2930,11 +2930,11 @@ bool initializeScaleWorker() {
     scaleWorkerStartupFinished.store(true, std::memory_order_release);
     return false;
   }
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // Host task stubs do not execute scaleWorkerTask(), so publish its handle.
   scaleWorkerTaskHandle.store(createdWorker, std::memory_order_release);
 #endif
-#if !defined(SHOT_STOPPER_HOST_TEST)
+#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   // The native NimBLE host starts from this worker. Do not start OTA/Wi-Fi
   // until the controller has finished HCI reset: setup() continues on the
   // same core and network_manager shares core 0 with bleTask.
@@ -2952,4 +2952,4 @@ bool initializeScaleWorker() {
   return scaleWorkerReady();
 }
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

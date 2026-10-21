@@ -18,9 +18,9 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
-class ShotStopperMicraService {
+class OpenBrewByWeightMicraService {
  public:
   bool begin();
   void inhibitCloud() {
@@ -69,7 +69,7 @@ class ShotStopperMicraService {
   }
 
  private:
-#if defined(SHOT_STOPPER_HOST_TEST)
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
   friend struct MicraCancellationTest;
   friend struct MicraWebSocketTest;
 #endif
@@ -260,4 +260,4 @@ class ShotStopperMicraService {
   bool wasNetworkReady_ = false;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

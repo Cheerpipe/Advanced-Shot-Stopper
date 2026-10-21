@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-namespace shotstopper {
+namespace openbrewbyweight {
 
 enum class PowerProfile : uint8_t {
   OFF, IDLE, WAITING, WORKING, MANUAL, COOLDOWN, WEB, MAINTENANCE, SETTLING
@@ -122,4 +122,4 @@ class PowerClock {
   bool safe_ = false;
 };
 
-}  // namespace shotstopper
+}  // namespace openbrewbyweight

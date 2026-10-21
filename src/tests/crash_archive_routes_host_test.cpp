@@ -31,7 +31,7 @@ int httpd_resp_send_chunk(httpd_req_t *request, const char *data,
   return ESP_OK;
 }
 
-namespace shotstopper {
+namespace openbrewbyweight {
 CrashArchiveStatus fakeStatus{};
 std::vector<char> fakeDump(5000, 'D');
 int clears = 0;
@@ -45,9 +45,9 @@ bool crashArchiveClear() { ++clears; fakeStatus.count = 0; return true; }
 int auditClears = 0;
 bool clearAuditStores() { ++auditClears; return true; }
 
-class ShotStopperNetwork {
+class OpenBrewByWeightNetwork {
  public:
-  static ShotStopperNetwork *instance_;
+  static OpenBrewByWeightNetwork *instance_;
   static esp_err_t crashArchiveDownloadHandler(httpd_req_t *request);
   static esp_err_t crashArchiveClearHandler(httpd_req_t *request);
   static esp_err_t auditLogClearHandler(httpd_req_t *request);
@@ -74,10 +74,10 @@ class ShotStopperNetwork {
     return clearFn() ? sendJson(request, STATUS_OK, "{}") : ESP_FAIL;
   }
 };
-ShotStopperNetwork *ShotStopperNetwork::instance_ = nullptr;
+OpenBrewByWeightNetwork *OpenBrewByWeightNetwork::instance_ = nullptr;
 
 #include "../diagnostics/OpenBrewByWeightCrashRoutes.inc"
-}  // namespace shotstopper
+}  // namespace openbrewbyweight
 
 void check(bool condition, const char *message) {
   if (!condition) {
@@ -94,9 +94,9 @@ size_t octal(const char *text, size_t length) {
 }
 
 int main() {
-  using namespace shotstopper;
-  ShotStopperNetwork network;
-  ShotStopperNetwork::instance_ = &network;
+  using namespace openbrewbyweight;
+  OpenBrewByWeightNetwork network;
+  OpenBrewByWeightNetwork::instance_ = &network;
   fakeStatus.count = 2;
   fakeStatus.slots[0] = 0;
   fakeStatus.slots[1] = 1;
@@ -111,12 +111,12 @@ int main() {
   fakeStatus.entries[1].sequence = 2;
 
   httpd_req_t locked;
-  check(ShotStopperNetwork::crashArchiveDownloadHandler(&locked) == ESP_OK &&
+  check(OpenBrewByWeightNetwork::crashArchiveDownloadHandler(&locked) == ESP_OK &&
             locked.status == "401" && locked.body.empty(),
         "raw archive escaped Admin lock");
   httpd_req_t download;
   download.admin = true;
-  check(ShotStopperNetwork::crashArchiveDownloadHandler(&download) == ESP_OK,
+  check(OpenBrewByWeightNetwork::crashArchiveDownloadHandler(&download) == ESP_OK,
         "download failed");
   std::vector<std::string> names;
   size_t position = 0;
@@ -158,17 +158,17 @@ int main() {
   httpd_req_t interrupted;
   interrupted.admin = true;
   interrupted.failChunk = 4;
-  check(ShotStopperNetwork::crashArchiveDownloadHandler(&interrupted) == ESP_FAIL &&
+  check(OpenBrewByWeightNetwork::crashArchiveDownloadHandler(&interrupted) == ESP_FAIL &&
             clears == 0 && fakeStatus.count == 2,
         "interrupted download removed data");
   httpd_req_t unconfirmed;
   unconfirmed.admin = true;
-  check(ShotStopperNetwork::crashArchiveClearHandler(&unconfirmed) == ESP_OK &&
+  check(OpenBrewByWeightNetwork::crashArchiveClearHandler(&unconfirmed) == ESP_OK &&
             unconfirmed.status == STATUS_UNPROCESSABLE && clears == 0,
         "unconfirmed deletion succeeded");
   httpd_req_t confirmed;
   confirmed.admin = confirmed.confirmed = true;
-  check(ShotStopperNetwork::crashArchiveClearHandler(&confirmed) == ESP_OK &&
+  check(OpenBrewByWeightNetwork::crashArchiveClearHandler(&confirmed) == ESP_OK &&
             clears == 1 && fakeStatus.count == 0,
         "confirmed deletion failed");
   return 0;
