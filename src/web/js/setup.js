@@ -88,6 +88,8 @@ function show(name) {
   $("setupIntro").hidden = !intro;
   $("setupError").hidden = !$("setupErrorText").textContent || !formLike(name);
   $("setupBlocked").hidden = !blocked || !formLike(name);
+  // A step change that hid the focused control hands focus to the heading.
+  if (document.activeElement?.closest("[hidden]")) $("setupTitle").focus({ preventScroll: true });
 }
 
 // One visible verdict above the form: focused and announced, so it is seen
@@ -299,8 +301,10 @@ function updateConnectingCountdown() {
 function showConnecting(ssid) {
   waitStartedAt = Date.now();
   sawAttempt = false;
-  $("setupConnectingText").textContent =
-    __WEBUI_TEXT__("setup.connecting_to").replace("{x}", ssid);
+  $("setupConnectingText").textContent = __WEBUI_TEXT__("setup.connecting_to").replace(
+    "{x}",
+    () => ssid,
+  );
   const where = $("setupConnectingWhere");
   where.hidden = !deviceHost;
   if (deviceHost)
@@ -379,9 +383,12 @@ function showSuccess(n) {
   const ssid = n.ssid || "",
     name = n.mdnsHost || n.deviceName || "",
     links = $("setupSuccessLinks");
-  $("setupSuccessText").textContent = __WEBUI_TEXT__("setup.success_text").replace("{x}", ssid);
+  $("setupSuccessText").textContent = __WEBUI_TEXT__("setup.success_text").replace(
+    "{x}",
+    () => ssid,
+  );
   $("setupSuccessText").dataset.ssid = ssid;
-  $("setupNextStep").textContent = __WEBUI_TEXT__("setup.next_step").replace("{x}", ssid);
+  $("setupNextStep").textContent = __WEBUI_TEXT__("setup.next_step").replace("{x}", () => ssid);
   links.replaceChildren();
   for (const url of [name && "http://" + name + ".local", n.staIp && "http://" + n.staIp]) {
     if (!url) continue;
@@ -420,7 +427,7 @@ function showSummary() {
       ? joined ? "" : __WEBUI_TEXT__("setup.note_weight_no_wifi")
       : joined
         ? __WEBUI_TEXT__("setup.note_usual_wifi")
-        : __WEBUI_TEXT__("setup.note_usual_no_wifi").replace("{x}", apSsid);
+        : __WEBUI_TEXT__("setup.note_usual_no_wifi").replace("{x}", () => apSsid);
   $("setupLaterNote").textContent = later;
   $("setupLaterNote").hidden = !later;
   for (const id of ["setupSuccessText", "setupNextStep", "setupSuccessLinks", "setupCloseHint"])
@@ -454,7 +461,10 @@ async function finishSetup() {
   else $("setupCloseHint").textContent = __WEBUI_TEXT__("setup.close_now");
 }
 
+let skipping = false;
 async function skipSetup() {
+  if (skipping) return;
+  skipping = true;
   setStatusError("");
   try {
     await R.api("/api/v1/network", {
@@ -465,6 +475,8 @@ async function skipSetup() {
     if (e && e.code === "ADMIN_LOCKED") return show("locked");
     setStatusError(R.formatCommandError(__WEBUI_TEXT__("setup.skip_failed"), e));
     return;
+  } finally {
+    skipping = false;
   }
   $("setupSkipDone").href = PROBE_URL;
   if (!compat) return show("skipped");

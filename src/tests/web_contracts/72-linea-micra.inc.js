@@ -176,7 +176,13 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
     assert(micraDiagnosticHtml.includes(`id="${id}"`), `machine section row missing: ${id}`);
   }
   const labels = {'diagnostic.cloud_titles': 'Email|Machine|Time|API|Result|Duration|Connection|Traffic|Planned|Unexpected|Cleaning',
-    'diagnostic.cleaning_states': 'Inactive|Waiting for paddle|Cleaning', 'diagnostic.ws_links': 'live|parked|closed'};
+    'diagnostic.cleaning_states': 'Inactive|Waiting for paddle|Cleaning', 'diagnostic.ws_links': 'live|parked|closed',
+    // Unit and separator fragments read as the English catalog has them.
+    ...Object.fromEntries(['runtime.s_2', 'runtime.ms_2', 'diagnostic.utc_suffix', 'diagnostic.http_prefix',
+      'diagnostic.retry_prefix', 'diagnostic.ms_stop', 'diagnostic.bytes_per_s', 'diagnostic.bytes_per_min',
+      'diagnostic.bytes_suffix', 'diagnostic.messages_sep', 'diagnostic.errors_suffix',
+      'diagnostic.websocket_suffix', 'diagnostic.ws_prefix', 'diagnostic.psram_heap', 'diagnostic.failures_sep']
+      .map((key) => [key, localeReference.strings[key]]))};
   const domContext = vm.createContext({$: id => dom[id], document: {createElement: element},
     __WEBUI_TEXT__: key => labels[key] || key, R: {formatWallTimeLocal: String}});
   const cleaningSource = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function formatMicraCleaning('),
@@ -223,7 +229,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   assert(!dom.dMicraWsHeap.textContent.includes('undefined'));
   assert(dom.dMicraWsHeap.textContent.includes('internal Δ'));
   const context = vm.createContext({$: id => nodes[id],
-    __WEBUI_TEXT__: key => key === 'diagnostic.cloud_results' ? ['success','canceled','http_error','transport_error','invalid_response','response_too_large','setup_error'].map(k=>'diagnostic.cloud_'+k).join('|') : key,
+    __WEBUI_TEXT__: key => key === 'diagnostic.cloud_results' ? ['success','canceled','http_error','transport_error','invalid_response','response_too_large','setup_error'].map(k=>'diagnostic.cloud_'+k).join('|') : labels[key] || key,
     R: {formatWallTimeLocal: String}});
   context.R.formatMicraCleaning = new Function('__WEBUI_TEXT__', cleaningSource + ';return formatMicraCleaning;')(context.__WEBUI_TEXT__);
   vm.runInContext(cloudUi.slice(cloudUi.indexOf('function renderMicraCloudDiagnostic('),
@@ -422,7 +428,9 @@ for (const id of ['lineaMicraSignIn', 'lineaMicraBusy', 'lineaMicraSteps', 'line
       if (!nodes.has(id)) nodes.set(id, {textContent: ''});
       return nodes.get(id);
     }, __WEBUI_TEXT__: key => key === 'runtime.s_ago' ? ' s ago'
-      : key === 'diagnostic.ready_in' ? 'ready in %1' : key};
+      : key === 'diagnostic.ready_in' ? 'ready in %1'
+      : ['diagnostic.deg_c', 'diagnostic.utc_close', 'diagnostic.minutes_short', 'diagnostic.s',
+        'diagnostic.level_word'].includes(key) ? localeReference.strings[key] : key};
   context.formatWallTimeLocal = seconds => 'T' + seconds;
   context.R = context;
   vm.createContext(context);

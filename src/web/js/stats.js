@@ -188,9 +188,11 @@ function fillStarRate(h, r, off, fn) {
     b.type = "button";
     b.className = i <= n ? "on" : "";
     b.disabled = !!off;
+    b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", i === n);
     b.setAttribute(
       "aria-label",
-      i + __WEBUI_TEXT__("runtime.star") + (i > 1 ? __WEBUI_TEXT__("runtime.s") : ""),
+      i > 1 ? R.sub(__WEBUI_TEXT__("runtime.n_stars"), [i]) : __WEBUI_TEXT__("runtime.one_star"),
     );
     b.innerHTML =
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.6l2.7 6.2 6.7.7-5.1 4.4 1.5 6.6L12 17.2 6.2 20.5l1.5-6.6L2.6 9.5l6.7-.7z"/></svg>';
@@ -840,7 +842,11 @@ function renderShots() {
         err,
         drip === null ? "—" : (drip < 0 ? "" : "+") + drip.toFixed(1) + "g",
         flow === null ? "—" : flow.toFixed(2) + " g/s",
-        maxFlow === null ? "—" : maxFlow.toFixed(2) + " g/s" + (r.wTruncated ? " (recorded)" : ""),
+        maxFlow === null
+          ? "—"
+          : maxFlow.toFixed(2) +
+            " g/s" +
+            (r.wTruncated ? __WEBUI_TEXT__("runtime.recorded_suffix") : ""),
         r.firstDropS === null ? "—" : r.firstDropS.toFixed(1) + "s",
         r.tareS == null ? __WEBUI_TEXT__("runtime.none") : r.tareS.toFixed(1) + "s",
         R.formatShotEnded(r.stopDetail, r.verdict),
@@ -880,7 +886,8 @@ function renderShots() {
       btn.className = "btnGlyph btnDanger";
       btn.title = __WEBUI_TEXT__("runtime.delete");
       btn.setAttribute("aria-label", __WEBUI_TEXT__("runtime.delete"));
-      btn.innerHTML = '<span class="g">' + __WEBUI_TEXT__("runtime.close") + "</span>";
+      btn.innerHTML =
+        '<span class="g" aria-hidden="true">' + __WEBUI_TEXT__("runtime.close") + "</span>";
       btn.onclick = () => deleteOneShot(r.id);
       del.appendChild(btn);
       row.appendChild(del);

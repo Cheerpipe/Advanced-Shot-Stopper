@@ -7,7 +7,7 @@ const historyTypeLabel = (t) =>
     rinse: __WEBUI_TEXT__("runtime.type_rinse"),
     other: __WEBUI_TEXT__("runtime.type_other"),
     backflush: __WEBUI_TEXT__("runtime.type_backflush"),
-    power_on: "Power ON",
+    power_on: __WEBUI_TEXT__("runtime.type_power_on"),
     no_scale_guard_aborted: __WEBUI_TEXT__("runtime.type_no_scale_guard_aborted"),
   })[t];
 const HIST_TYPE_SVG = {
@@ -82,7 +82,8 @@ function renderHistory() {
       btn.className = "btnGlyph btnDanger";
       btn.title = __WEBUI_TEXT__("runtime.delete");
       btn.setAttribute("aria-label", __WEBUI_TEXT__("runtime.delete"));
-      btn.innerHTML = '<span class="g">' + __WEBUI_TEXT__("runtime.close") + "</span>";
+      btn.innerHTML =
+        '<span class="g" aria-hidden="true">' + __WEBUI_TEXT__("runtime.close") + "</span>";
       btn.onclick = () => deleteOneHistory(r.id);
       del.appendChild(btn);
       const typeSvg = HIST_TYPE_SVG[r.type];

@@ -320,6 +320,10 @@ function initQuickWeight() {
     document.body.classList.add("qwOpen");
     zone.focus();
   };
+  // The open sheet is modal: focus that tabs out of it returns to the dial.
+  sheet.addEventListener("focusout", (e) => {
+    if (sheet.classList.contains("open") && !sheet.contains(e.relatedTarget)) zone.focus();
+  });
   const commit = async (dg) => {
     try {
       if (!(await R.cleanBrewForm())) return;

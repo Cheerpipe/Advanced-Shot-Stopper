@@ -64,7 +64,7 @@
 // and Enter or Escape settle it once even though removing the input blurs it.
 {
   const assert = require('assert').strict;
-  const node = () => ({parentNode: {}, focus() {}, select() {},
+  const node = () => ({parentNode: {}, focus() {}, select() {}, setAttribute() {},
     replaceWith(next) { this.parentNode = null; next.parentNode = {}; this.onblur?.(); }});
   const run = (key) => {
     const commits = [], renders = [], input = node(), title = node();

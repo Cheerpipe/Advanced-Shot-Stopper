@@ -357,3 +357,45 @@ for (const needle of ['aria-label="${escHtml($("modeSignal").dataset.label)}"',
   'aria-label="${escHtml(__WEBUI_TEXT__("runtime.graph_scrub"))}"']) {
   if (!rawRuntimeJs.includes(needle)) throw new Error('Unescaped attribute text: ' + needle);
 }
+// Accessibility, i18n and form contracts from the frontend audit (F7).
+{
+  const failed = [];
+  const need = (ok, what) => { if (!ok) failed.push(what); };
+  const all = Object.values(partialHtml).join('\n') + shellHtml;
+  // FE-M36: keyboard, names, states, focus and motion.
+  need(codeIncludes(rawRuntimeJs, 'card.tabIndex=0;card.onkeydown=(e)=>{if(e.target===card&&(e.key===Enter||e.key=== )){'), 'preset cards by keyboard');
+  need(css.includes('.presetCard:focus-visible,.presetCardTitle:focus-visible{outline:3px solid var(--ac)'), 'preset card focus ring');
+  need(partialHtml.settings.includes('<select id="preferredScaleSelect" aria-label="My scale">'), 'scale select name');
+  need(codeIncludes(rawRuntimeJs, 'input.setAttribute("aria-label", __WEBUI_TEXT__("runtime.preset_name"))'), 'rename input name');
+  need(codeIncludes(rawViewJs.stats, 'b.setAttribute("role", "radio");b.setAttribute("aria-checked", i === n)'), 'star radios');
+  need(codeIncludes(rawViewJs.home, 'if (sheet.classList.contains("open") && !sheet.contains(e.relatedTarget)) zone.focus()'), 'sheet focus');
+  need(codeIncludes(rawAppJsSource, 'document.title = path === "/" ? baseTitle : a.textContent + " · " + baseTitle'), 'page titles');
+  need(codeIncludes(rawAppJsSource, 'renderRoute(target, true)') && codeIncludes(rawAppJsSource, 'section.focus({ preventScroll: true })'), 'route focus');
+  need(partialHtml.diagnostic.includes('<textarea id="log" readonly aria-label="Log">'), 'log name');
+  need(partialHtml.admin.includes('<span id="scanStatus" role="status">') && partialHtml.admin.includes('<div id="otaStatus" role="status">'), 'live statuses');
+  need(codeIncludes(rawViewJs.setup, 'if (document.activeElement?.closest("[hidden]")) $("setupTitle").focus({ preventScroll: true })') &&
+      partialHtml.setup.includes('<h1 id="setupTitle" tabindex="-1">'), 'setup step focus');
+  // FE-M38: no hard-coded English or $-pattern SSID substitution.
+  need(!/\.replace\("\{x\}", (ssid|apSsid)\)/.test(rawViewJs.setup), 'literal SSID replacement');
+  need(!/"Power ON"|" \(recorded\)"|"STA: "|" dBm\)"|"startup"\)/.test(rawViewJs.history + rawViewJs.stats + rawViewJs.admin), 'English literals');
+  need(!/" UTC"|" B\/s · "|"HW: "|"Machine: "|" s left"|"\?\|Pwr\|Ext/.test(rawViewJs.diagnostic), 'Diagnostic English literals');
+  need(!rawViewJs.stats.includes('__WEBUI_TEXT__("runtime.s") : ""'), 'plural by unit suffix');
+  // FE-L06: valid structure and names.
+  need(!/<menu\b/.test(all), 'buttons inside menu');
+  need(['id="headerSignals" class="headerSignals" role="group"', 'id="shotSort" class="shotSort" role="group"',
+    'id="historySort" class="shotSort" role="group"'].every((s) => all.includes(s)), 'labelled groups');
+  need((partialHtml.setup.match(/<fieldset class="setupChoices" aria-labelledby="setupTitle">/g) || []).length === 2, 'setup choice groups');
+  need(!all.includes('<span class="g">') && !/<span class="g">/.test(rawViewJs.history + rawViewJs.stats + rawViewJs.admin), 'decorative glyphs hidden');
+  need(shellHtml.includes('aria-labelledby="inactiveHint">') && !shellHtml.includes('aria-labelledby="webUiReload"'), 'inactive dialog name');
+  need(!partialHtml.history.includes('id="historyDirButton" type="button" aria-pressed'), 'direction button state');
+  // FE-L07: form semantics and one submit per action.
+  need(partialHtml.admin.includes('id="staPassword" type="password" maxlength="63" autocomplete="current-password"') &&
+      partialHtml.setup.includes('id="setupPassword" autocomplete="current-password"') &&
+      partialHtml.admin.includes('id="confirmDevicePassword" type="password" minlength="8" maxlength="63" required autocomplete="new-password"'), 'password autocomplete');
+  need(partialHtml.admin.includes('<form id="adminUnlockForm"><label>') && codeIncludes(rawViewJs.admin, '$("adminUnlockForm").onsubmit'), 'unlock form');
+  need(codeIncludes(rawViewJs.admin, 'if (unlocking) return;') && codeIncludes(rawViewJs.setup, 'if (skipping) return;'), 'single submit');
+  // FE-L13: politeness set before the text changes.
+  const message = blockAt(rawRuntimeJs, 'function message(');
+  need(message.indexOf('setAttribute("aria-live"') < message.indexOf('t.textContent = text'), 'live region order');
+  if (failed.length) throw new Error('Audit F7 contracts failed: ' + failed.join(', '));
+}

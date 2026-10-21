@@ -247,7 +247,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     !shellHtml.includes('class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i>') ||
     !css.includes('.bootWave i{width:.55rem;height:100%;border-radius:.3rem;background:var(--ac);animation:bootWave 1.1s ease-in-out infinite}') ||
     !css.includes('@keyframes bootWave{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}') ||
-    !css.includes('.bootWave i{animation:none}') ||
+    !css.includes('.bootWave i,.shotHero.live .heroDot{animation:none}') ||
     !codeIncludes(runtimeJs, 'let homeBootDone=false,fwReloading=false') ||
     !codeIncludes(runtimeJs, 'function hideHomeBoot(seq=bootSeq){') ||
     !codeIncludes(runtimeJs, "bootTimer=setTimeout(()=>{if(seq===bootSeq)") ||
@@ -650,8 +650,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // owner-authorized 2026-10-14; compressed budgets re-measured below.
 // The Admin webhooks and Diagnostic page option, the Stats sort buttons and the RTTTL test link move from
 // JS-built strings into the partials: 93774, owner-requested 2026-10-21.
-if (htmlBytes > 93774) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 93774)`);
+// Audit accessibility and form markup (hidden decorative glyphs, named groups and fields, live statuses, unlock form): 94884,
+// owner-requested 2026-10-21.
+if (htmlBytes > 94884) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 94884)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -917,8 +919,9 @@ if (htmlBytes > 93774) {
 // Audit OTA fixes (shared API transport, bounded chunk timeout with backoff, profile mismatch text, settled commit records, block-wise image hashing): 486631, owner-requested 2026-10-21.
 // Audit T4 refactors (static Admin/Settings/Stats markup in partials, one Settings change listener, shared Admin section helpers): 481871, owner-requested 2026-10-21.
 // Audit hardening (shared download helper, CSV formula guard, timezone backoff, Setup stop flag, escaped attribute text): 482689, owner-requested 2026-10-21.
-if (jsBytes > 482689) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 482689)`);
+// Audit accessibility, i18n and form fixes (localized Diagnostic and network text, keyboard and focus support): 484816, owner-requested 2026-10-21.
+if (jsBytes > 484816) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 484816)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1066,8 +1069,9 @@ if (jsBytes > 482689) {
 // Audit OTA fixes (shared API transport, bounded chunk timeout with backoff, profile mismatch text, settled commit records, block-wise image hashing): 578236, owner-requested 2026-10-21.
 // Audit T4 refactors (static Admin/Settings/Stats markup in partials, one Settings change listener, shared Admin section helpers): 575645, owner-requested 2026-10-21.
 // Audit hardening (shared download helper, CSV formula guard, timezone backoff, Setup stop flag, escaped attribute text): 576463, owner-requested 2026-10-21.
-if (htmlBytes + jsBytes > 576463) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 576463)`);
+// Audit accessibility, i18n and form fixes (localized Diagnostic and network text, keyboard and focus support): 579700, owner-requested 2026-10-21.
+if (htmlBytes + jsBytes > 579700) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 579700)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

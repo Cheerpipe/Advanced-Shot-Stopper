@@ -1499,13 +1499,15 @@ function message(text, kind = "") {
   messageTimer = 0;
   const e = $("message");
   if (!e) return;
+  // The live region takes its politeness before the text changes, so screen
+  // readers announce the new message with it.
+  e.setAttribute("role", kind === "error" ? "alert" : "status");
+  e.setAttribute("aria-live", kind === "error" ? "assertive" : "polite");
   const t = $("messageText");
   if (t) t.textContent = text;
   else e.textContent = text;
   e.className = kind;
   reveal(e, true);
-  e.setAttribute("role", kind === "error" ? "alert" : "status");
-  e.setAttribute("aria-live", kind === "error" ? "assertive" : "polite");
   if (kind === "error") e.scrollIntoView({ block: "nearest" });
   const ms =
     kind === "ok"
@@ -2644,6 +2646,14 @@ function renderPresetCards(targetId) {
     card.appendChild(titleRow);
     card.appendChild(meta);
     card.onclick = () => applyPreset(p.id);
+    // Keyboard users load a card like a click; the title keeps its own rename.
+    card.tabIndex = 0;
+    card.onkeydown = (e) => {
+      if (e.target === card && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        applyPreset(p.id);
+      }
+    };
     el.appendChild(card);
   }
 }
@@ -2955,6 +2965,7 @@ function startRenamePreset(p, titleEl) {
   const input = document.createElement("input");
   input.type = "text";
   input.className = "presetRenameInline";
+  input.setAttribute("aria-label", __WEBUI_TEXT__("runtime.preset_name"));
   input.maxLength = 23;
   input.value = p.name;
   // Removing the input blurs it, so Enter or Escape must not also commit on blur.

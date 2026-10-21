@@ -188,8 +188,8 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     !html.includes('id="saveConfigButton" class="btnGlyph mutable btnInvert" data-dirty="0" disabled') ||
     html.includes('id="exportShotsButton" class="btnGlyph btnInvert"') ||
     !css.includes('font-variant-emoji:text') ||
-    !html.includes('<span class="g">×</span>') ||
-    !html.includes('<span class="g">✓</span>') ||
+    !html.includes('<span class="g" aria-hidden="true">×</span>') ||
+    !html.includes('<span class="g" aria-hidden="true">✓</span>') ||
     codeIncludes(ui, '💾') || codeIncludes(ui, '⚡') ||
     !codeIncludes(ui, 'Save preset') ||
     !codeIncludes(ui, 'id="activeBrewProfileHint"') ||

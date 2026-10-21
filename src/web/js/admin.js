@@ -386,23 +386,25 @@ async function setWifiSleep() {
   return ok;
 }
 function formatNetworkStatus(n) {
-  let t = "STA: " + n.staState;
+  let t = __WEBUI_TEXT__("admin.net_sta") + n.staState;
   if (n.ssid) t += " — " + n.ssid;
   if (n.staState === "CONNECTED" && typeof n.channel === "number" && n.channel > 0)
-    t += " — channel " + n.channel;
+    t += __WEBUI_TEXT__("admin.net_channel") + n.channel;
   if (n.staIp) t += " — " + n.staIp;
   if (n.mdnsHost) t += " — " + n.mdnsHost + ".local";
   if (typeof n.signalQualityPct === "number" && typeof n.rssi === "number")
-    t += " — signal " + n.signalQualityPct + "% (" + n.rssi + " dBm)";
+    t += R.sub(__WEBUI_TEXT__("admin.net_signal"), [n.signalQualityPct, n.rssi]);
   t +=
     (n.wifiConfigured ? __WEBUI_TEXT__("runtime.credentials_saved") : "") +
     " — " +
-    (n.ipMode === "static" ? __WEBUI_TEXT__("runtime.static_ip") : "DHCP");
+    (n.ipMode === "static" ? __WEBUI_TEXT__("runtime.static_ip") : __WEBUI_TEXT__("admin.dhcp"));
   if (n.wifiSleep) t += __WEBUI_TEXT__("runtime.sleep_on");
   if (n.configState === "PENDING")
     t +=
       __WEBUI_TEXT__("runtime.pending_confirm") +
-      (n.confirmRemainingMs ? " " + Math.ceil(n.confirmRemainingMs / 1000) + "s" : "");
+      (n.confirmRemainingMs
+        ? " " + Math.ceil(n.confirmRemainingMs / 1000) + __WEBUI_TEXT__("runtime.s")
+        : "");
   return t;
 }
 async function saveDateTimeConfig() {
@@ -924,7 +926,7 @@ function otaCheckBoot(expected, status) {
   if (!status.confirmed)
     return (
       __WEBUI_TEXT__("runtime.expected_firmware_booted_confirmation_pending") +
-      (status.confirmBlockReason || "startup") +
+      (status.confirmBlockReason || __WEBUI_TEXT__("runtime.startup_reason")) +
       ")." +
       (status.confirmLastError
         ? __WEBUI_TEXT__("runtime.esp_idf_error") + status.confirmLastError + "."
@@ -1067,7 +1069,7 @@ function ensureUiOverridePanel() {
   p.innerHTML =
     "<legend>" +
     __WEBUI_TEXT__("runtime.ui_override") +
-    '</legend><div class="btnBar"><button id="uiOverrideButton" class="btnGlyph btnWarn" type="button"><span class="g">' +
+    '</legend><div class="btnBar"><button id="uiOverrideButton" class="btnGlyph btnWarn" type="button"><span class="g" aria-hidden="true">' +
     __WEBUI_TEXT__("runtime.symbol_13") +
     '</span><span class="t">' +
     __WEBUI_TEXT__("runtime.unlock_1_min") +
@@ -1091,6 +1093,7 @@ function ensureUiOverridePanel() {
 }
 let ready = false;
 let webhookDirty = false,
+  webhookSaving = false,
   webhookBaseline = null;
 let firmwareModeDirty = false;
 const WEBHOOK_IDS = [
@@ -1346,14 +1349,18 @@ export function init() {
     R.setSaveDirty("saveFirmwareModeButton", "firmwareModeDirtyHint", false);
     R.refreshStatus();
   };
+  // A form lets password managers fill the field; Enter submits it once.
+  let unlocking = false;
   const unlock = () => {
     if (developmentActive()) return;
     const pw = $("adminUnlockPassword").value;
+    if (unlocking) return;
     if (!pw) {
       R.showFieldError("adminUnlockPassword", __WEBUI_TEXT__("admin.device_password_is_required"));
       return;
     }
     R.clearFieldErrors();
+    unlocking = true;
     R.api("/api/v1/admin/unlock", { method: "POST", body: R.body({ password: pw }) })
       .then(() => {
         $("adminUnlockPassword").value = "";
@@ -1366,15 +1373,13 @@ export function init() {
           R.formatCommandError(__WEBUI_TEXT__("admin.could_not_unlock_administration"), e),
           "error",
         ),
-      );
+      )
+      .finally(() => (unlocking = false));
   };
-  $("adminUnlockButton").onclick = unlock;
-  $("adminUnlockPassword").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      unlock();
-    }
-  });
+  $("adminUnlockForm").onsubmit = (e) => {
+    e.preventDefault();
+    unlock();
+  };
   $("adminLockButton").onclick = lockAdmin;
   $("restartButton").onclick = () => {
     if (confirm(__WEBUI_TEXT__("admin.restart_the_controller")))
@@ -1418,6 +1423,8 @@ export function init() {
     el.addEventListener("change", webhookChanged);
   });
   $("saveWebhookButton").onclick = () => {
+    // .busy only blocks pointer clicks; a keyboard repeat must not save twice.
+    if (webhookSaving) return;
     const url = $("webhookUrl").value.trim(),
       enabled = $("webhookEnabled").checked;
     if ((enabled || url) && !validWebhookUrl(url)) {
@@ -1425,6 +1432,7 @@ export function init() {
       return;
     }
     R.clearFieldErrors();
+    webhookSaving = true;
     return R.withCommandGate(async () => {
       try {
         $("saveWebhookButton").classList.add("busy");
@@ -1452,6 +1460,7 @@ export function init() {
         );
         await R.refreshStatus();
       } finally {
+        webhookSaving = false;
         $("saveWebhookButton").classList.remove("busy");
       }
     });

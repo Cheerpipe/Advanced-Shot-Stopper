@@ -15,6 +15,7 @@ let bootFetch = null;
 const BUNDLES = { stats: "records", history: "records" };
 let routeSeq = 0;
 let activeView = "";
+const baseTitle = document.title;
 const ROUTES = {
   "/": "home",
   "/settings": "settings",
@@ -103,7 +104,8 @@ function startView(name, seq = routeSeq) {
     return ok;
   });
 }
-async function renderRoute(pathname) {
+// A user navigation moves focus to the new page, so screen readers start there.
+async function renderRoute(pathname, focus) {
   const seq = ++routeSeq,
     boot = R.showPageBoot();
   R.stopViewPolls();
@@ -128,6 +130,11 @@ async function renderRoute(pathname) {
       .querySelectorAll(".view")
       .forEach((el) => el.classList.toggle("hidden", el.dataset.view !== view));
     markNavActive(viewToPath(view));
+    const section = focus && document.getElementById("view-" + view);
+    if (section) {
+      section.tabIndex = -1;
+      section.focus({ preventScroll: true });
+    }
   });
   R.setActiveView(view, ready);
   try {
@@ -153,7 +160,7 @@ function navigate(path, replace) {
   const known = knownPath(path);
   const target = known ? known : "/";
   if (location.pathname !== target) history[replace ? "replaceState" : "pushState"]({}, "", target);
-  renderRoute(target);
+  renderRoute(target, true);
 }
 R.setViewPollHooks({
   stop: stopExtraPolls,
@@ -253,12 +260,14 @@ function placePill(animate) {
     drawPill();
   }
 }
+// The tab title names the page, so history and screen readers tell pages apart.
 function markNavActive(path) {
   document.querySelectorAll(".pageNav a").forEach((a) => {
     const current = a.getAttribute("data-route") === path;
     a.classList.toggle("active", current);
-    if (current) a.setAttribute("aria-current", "page");
-    else a.removeAttribute("aria-current");
+    if (!current) return a.removeAttribute("aria-current");
+    a.setAttribute("aria-current", "page");
+    document.title = path === "/" ? baseTitle : a.textContent + " · " + baseTitle;
   });
   placePill(true);
 }
@@ -354,7 +363,7 @@ mobile.addEventListener("change", scrollHeader);
 scrollHeader();
 window.addEventListener("popstate", () => {
   if (R.exitFullScreenOnPop()) return;
-  renderRoute(location.pathname);
+  renderRoute(location.pathname, true);
 });
 document.addEventListener("visibilitychange", () => {
   R.noteWebUiPowerActivity();

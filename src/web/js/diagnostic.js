@@ -20,7 +20,7 @@ function renderMicraCloudDiagnostic(lm) {
     "CloudTime",
     call
       ? call.startedAtUtcSec
-        ? R.formatWallTimeLocal(call.startedAtUtcSec) + " UTC"
+        ? R.formatWallTimeLocal(call.startedAtUtcSec) + __WEBUI_TEXT__("diagnostic.utc_suffix")
         : __WEBUI_TEXT__("runtime.unknown")
       : none,
   );
@@ -40,11 +40,11 @@ function renderMicraCloudDiagnostic(lm) {
     "CloudResult",
     call
       ? (label || call.result) +
-          (call.httpStatus ? " · HTTP " + call.httpStatus : "") +
+          (call.httpStatus ? __WEBUI_TEXT__("diagnostic.http_prefix") + call.httpStatus : "") +
           (call.transportStatus ? " · " + call.transportStatus : "")
       : none,
   );
-  set("CloudDuration", call ? call.durationMs + " ms" : none);
+  set("CloudDuration", call ? call.durationMs + __WEBUI_TEXT__("runtime.ms_2") : none);
   renderMicraWebSocket(lm, set);
 }
 
@@ -54,7 +54,9 @@ function renderMicraWebSocket(lm, set) {
     api = lm.connectionType === "api",
     link = api ? 0 : ws.subscribed ? 1 : ws.parked ? 2 : ws.state === "paused" ? 3 : 0;
   const age = (value) =>
-    value && ws.nowMs != null ? (((ws.nowMs - value) >>> 0) / 1000).toFixed(1) + " s" : unknown;
+    value && ws.nowMs != null
+      ? (((ws.nowMs - value) >>> 0) / 1000).toFixed(1) + __WEBUI_TEXT__("runtime.s_2")
+      : unknown;
   set(
     "WsState",
     (api ? "API" : (ws.state || unknown).replace(/_/g, " ")) +
@@ -64,9 +66,9 @@ function renderMicraWebSocket(lm, set) {
   set(
     "WsTiming",
     ["message", "power", "pong"].map((k) => k + " " + age(ws[k + "AtMs"])).join(" · ") +
-      " · retry " +
+      __WEBUI_TEXT__("diagnostic.retry_prefix") +
       (ws.retryRemainingMs || 0) +
-      " ms · stop " +
+      __WEBUI_TEXT__("diagnostic.ms_stop") +
       (ws.stoppedLatencyMs ?? "—") +
       " / " +
       (ws.maxStoppedLatencyMs ?? "—") +
@@ -80,18 +82,18 @@ function renderMicraWebSocket(lm, set) {
           k.toUpperCase() +
           " " +
           (ws[k + "BytesPerSecond"] || 0) +
-          " B/s · " +
+          __WEBUI_TEXT__("diagnostic.bytes_per_s") +
           (ws[k + "BytesPerMinute"] || 0) +
-          " B/60s · " +
+          __WEBUI_TEXT__("diagnostic.bytes_per_min") +
           (ws[k + "Bytes"] || 0) +
-          " B",
+          __WEBUI_TEXT__("diagnostic.bytes_suffix"),
       )
       .join("; ") +
       " · " +
       (ws.messages || 0) +
-      " messages · " +
+      __WEBUI_TEXT__("diagnostic.messages_sep") +
       (ws.errors || 0) +
-      " errors",
+      __WEBUI_TEXT__("diagnostic.errors_suffix"),
   );
   set("WsPlanned", String(ws.plannedConnections || 0));
   set("WsUnexpected", String(ws.unexpectedConnections || 0));
@@ -102,7 +104,7 @@ function renderMicraWebSocket(lm, set) {
       ? __WEBUI_TEXT__("diagnostic.last_reported") +
           " " +
           age(ws.cleaningAtMs) +
-          " · WebSocket" +
+          __WEBUI_TEXT__("diagnostic.websocket_suffix") +
           (ws.state !== "streaming" || (ws.machineConnectedKnown && !ws.machineConnected)
             ? " · " + __WEBUI_TEXT__("diagnostic.stale")
             : "")
@@ -110,9 +112,9 @@ function renderMicraWebSocket(lm, set) {
   );
   set(
     "WsHeap",
-    "WS " +
+    __WEBUI_TEXT__("diagnostic.ws_prefix") +
       (ws.retainedBytes || 0) +
-      " B PSRAM · internal Δ free/largest " +
+      __WEBUI_TEXT__("diagnostic.psram_heap") +
       ["connect", "stop"]
         .map(
           (k) =>
@@ -124,7 +126,7 @@ function renderMicraWebSocket(lm, set) {
             " B",
         )
         .join(", ") +
-      " · failures " +
+      __WEBUI_TEXT__("diagnostic.failures_sep") +
       (ws.allocationFailures || 0),
   );
 }
@@ -264,7 +266,7 @@ function ntpStateLabel(t) {
     }[t.state] || __WEBUI_TEXT__("runtime.waiting_for_network")
   );
 }
-const RR = "?|Pwr|Ext|SW|Panic|IWDT|TWDT|WDT|Sleep|Brn|SDIO|USB|JTAG|eFuse|Glitch|Lock".split("|");
+const RR = __WEBUI_TEXT__("diagnostic.reset_reasons").split("|");
 function formatUptime(ms) {
   let x = ~~(ms / 1e3),
     p = [],
@@ -284,7 +286,7 @@ function updH(h, s) {
     return !Number.isFinite(n) || n < 0
       ? "—"
       : k
-        ? (n / 1024).toFixed(1) + " KB"
+        ? (n / 1024).toFixed(1) + __WEBUI_TEXT__("diagnostic.kb_suffix")
         : n >= 1048576
           ? (n / 1048576).toFixed(1) + "M"
           : n >= 1024
@@ -518,11 +520,14 @@ function renderLineaMicraDiagnostic() {
         parts.push(
           __WEBUI_TEXT__("diagnostic.ready_in").replace(
             "%1",
-            Math.floor(left / 60) + "m " + (left % 60) + "s",
+            Math.floor(left / 60) +
+              __WEBUI_TEXT__("diagnostic.minutes_short") +
+              (left % 60) +
+              __WEBUI_TEXT__("diagnostic.s"),
           ) +
             " (" +
             R.formatWallTimeLocal(b.readyAtUtcSec) +
-            " UTC)",
+            __WEBUI_TEXT__("diagnostic.utc_close"),
         );
       if (boilerAge) parts.push(boilerAge + __WEBUI_TEXT__("runtime.s_ago"));
       return parts.length ? parts.join(" · ") : __WEBUI_TEXT__("runtime.unknown");
@@ -531,12 +536,14 @@ function renderLineaMicraDiagnostic() {
     unavailable || readinessLabel || lm.readiness || __WEBUI_TEXT__("runtime.unknown");
   $("dMicraBrewBoiler").textContent = boilerRow(
     coffee,
-    coffee.targetDeciC ? (coffee.targetDeciC / 10).toFixed(1) + " °C" : "",
+    coffee.targetDeciC
+      ? (coffee.targetDeciC / 10).toFixed(1) + __WEBUI_TEXT__("diagnostic.deg_c")
+      : "",
   );
   $("dMicraSteamBoiler").textContent = boilerRow(
     steam,
     steam.level && steam.level !== "unknown" && steam.level !== "unsupported"
-      ? steam.level.replace("level_", "level ")
+      ? steam.level.replace("level_", __WEBUI_TEXT__("diagnostic.level_word"))
       : "",
   );
   $("dMicraWater").textContent = unavailable || waterLabel;
@@ -590,9 +597,9 @@ function applyDiagnosticLive(s) {
       (s.backflush
         ? " · " +
           s.backflush.hardLimitMs / 1000 +
-          " s max · " +
+          __WEBUI_TEXT__("diagnostic.s_max") +
           Math.ceil(s.backflush.remainingMs / 1000) +
-          " s left"
+          __WEBUI_TEXT__("diagnostic.s_left")
         : ""),
   );
   t("dFault", sf.fault !== "NONE" ? sf.fault : s.backflush?.stopReason || sf.fault);
@@ -812,8 +819,14 @@ function applyDiagnosticStatus(s) {
     "dArch",
     [
       f.arch,
-      "HW: " + f.hardwareProfile,
-      "Machine: " + f.machineBrand + " " + f.machineModel + " (" + f.machineProfile + ")",
+      __WEBUI_TEXT__("diagnostic.hw_prefix") + f.hardwareProfile,
+      __WEBUI_TEXT__("diagnostic.machine_prefix") +
+        f.machineBrand +
+        " " +
+        f.machineModel +
+        " (" +
+        f.machineProfile +
+        ")",
     ].join(" · "),
   );
 }
@@ -1455,9 +1468,9 @@ function applyScaleProfile(p) {
     p.recordCount +
       " · " +
       p.weightCount +
-      "w " +
+      __WEBUI_TEXT__("diagnostic.weights_short") +
       p.eventCount +
-      "e" +
+      __WEBUI_TEXT__("diagnostic.events_short") +
       (p.lostCount > 0
         ? " · " + __WEBUI_TEXT__("diagnostic.profile_incomplete").replace("{n}", p.lostCount)
         : ""),
@@ -1535,7 +1548,10 @@ async function downloadCrashes() {
         if (bytes - last >= 65536) {
           last = bytes;
           R.message(
-            __WEBUI_TEXT__("diagnostic.downloading") + " " + Math.floor(bytes / 1024) + " KiB",
+            __WEBUI_TEXT__("diagnostic.downloading") +
+              " " +
+              Math.floor(bytes / 1024) +
+              __WEBUI_TEXT__("runtime.kib"),
           );
         }
       }),

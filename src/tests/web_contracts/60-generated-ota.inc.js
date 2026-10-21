@@ -608,8 +608,10 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest?v=' + g
 // The audit fixes (lazy quick-weight ruler, background-tab settle, view import
 // retry, modified nav clicks) measure 7387, owner-requested 2026-10-21. Cap
 // raised to 7400.
-if (generated.jsGzip.length > 7400) {
-  throw new Error(`Compressed Web UI shell JS exceeds the 7400-byte gzip budget (${generated.jsGzip.length})`);
+// The audit accessibility fixes (page titles, focus on navigation, modal
+// quick-weight focus) measure 7492, owner-requested 2026-10-21. Cap raised to 7510.
+if (generated.jsGzip.length > 7510) {
+  throw new Error(`Compressed Web UI shell JS exceeds the 7510-byte gzip budget (${generated.jsGzip.length})`);
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -842,8 +844,10 @@ if (generated.cssGzip.length > 15742) {
 // Browser storage keys renamed from the legacy ss prefix to obbw bring it to 40322; rename owner-requested 2026-10-21.
 // The audit hardening (one shared download helper, CSV formula guard and BOM, timezone retry backoff,
 // escaped attribute text) brings it to 40357; owner-requested 2026-10-21.
-if (sentinelRuntimeGzip.length > 40357) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 40357-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The audit accessibility fixes (keyboard preset cards, named rename field, live message order) bring it
+// to 40442; owner-requested 2026-10-21.
+if (sentinelRuntimeGzip.length > 40442) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 40442-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -919,7 +923,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The audit OTA fixes move records.js to 15245 through asset-tag gzip wobble (records.js unchanged); cap 15260, owner-requested 2026-10-21.
 // The audit T4 refactors move diagnostic.js to 13906 through gzip wobble; owner-requested 2026-10-21.
 // The Setup watchdog stop flag measures setup.js at 5799; owner-requested 2026-10-21.
-const viewModuleBudgets = {records: 15260, diagnostic: 13906, admin: 14229, settings: 16813, setup: 5799};
+// The audit accessibility and form fixes (Setup focus, labelled choices, single Skip) measure setup.js at 5855; owner-requested 2026-10-21.
+const viewModuleBudgets = {records: 15260, diagnostic: 13906, admin: 14229, settings: 16813, setup: 5855};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);

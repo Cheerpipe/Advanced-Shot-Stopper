@@ -107,7 +107,9 @@
     assert(new RegExp(`command\\(\\s*['"]${endpoint}[\\s\\S]*?['"]${id}['"]`).test(source),
         `saving via ${endpoint} must mark ${id} busy`);
   assert(codeIncludes(adminUi, "$('saveWebhookButton').classList.add('busy')") &&
-         codeIncludes(adminUi, "finally{$('saveWebhookButton').classList.remove('busy')}"),
+         // The in-flight flag also stops a keyboard repeat from saving twice.
+         codeIncludes(adminUi, "finally{webhookSaving=false;$('saveWebhookButton').classList.remove('busy')}") &&
+         codeIncludes(adminUi, 'if(webhookSaving)return;'),
     'Webhook saving must keep its dedicated busy feedback');
 }
 

@@ -1,6 +1,6 @@
 <div class="setupBrand brand" aria-hidden="true"><svg class="brandMark" viewBox="0 0 40 56"><use href="#brandMark"/></svg><span><small>{{webui:setup.open_brew}}</small>{{webui:setup.by_weight}}</span></div>
 <section class="setupCard" id="setupCard">
-  <h1 id="setupTitle">{{webui:setup.title}}</h1>
+  <h1 id="setupTitle" tabindex="-1">{{webui:setup.title}}</h1>
   <p class="setupIntro" id="setupIntro">{{webui:setup.intro}}</p>
   <p id="setupBlocked" class="fieldError" role="status" hidden></p>
   <div id="setupError" tabindex="-1" hidden>
@@ -8,7 +8,7 @@
     <p id="setupErrorHint" class="fieldHint">{{webui:setup.error_hints}}</p>
   </div>
   <div id="setupMode" hidden>
-    <fieldset class="setupChoices">
+    <fieldset class="setupChoices" aria-labelledby="setupTitle">
       <label class="setupChoice"><input type="radio" name="setupMode" value="usual" checked><span><b>{{webui:setup.mode_usual}}</b><small>{{webui:setup.mode_usual_hint}}</small></span></label>
       <label class="setupChoice"><input type="radio" name="setupMode" value="weight"><span><b>{{webui:setup.mode_weight}}</b> <span class="presetCardBadge">{{webui:setup.recommended}}</span><small>{{webui:setup.mode_weight_hint}}</small></span></label>
     </fieldset>
@@ -16,7 +16,7 @@
     <button type="button" id="setupModeNext" class="setupPrimary">{{webui:setup.continue}}</button>
   </div>
   <div id="setupRecipe" hidden>
-    <fieldset class="setupChoices">
+    <fieldset class="setupChoices" aria-labelledby="setupTitle">
       <label class="setupChoice"><input type="radio" name="setupRecipe" value="255" checked><span><b>{{webui:setup.recipe_manual}}</b><small>{{webui:setup.recipe_manual_hint}}</small></span></label>
       <label class="setupChoice"><input type="radio" name="setupRecipe" value="1"><span><b>{{webui:setup.recipe_double_adaptive}}</b> <span class="presetCardBadge">{{webui:setup.recommended}}</span><small>{{webui:setup.recipe_double_numbers}}</small><small>{{webui:setup.recipe_double_adaptive_hint}}</small></span></label>
       <label class="setupChoice"><input type="radio" name="setupRecipe" value="2"><span><b>{{webui:setup.recipe_single_adaptive}}</b><small>{{webui:setup.recipe_single_numbers}}</small><small>{{webui:setup.recipe_single_adaptive_hint}}</small></span></label>
@@ -42,7 +42,7 @@
         <label for="setupPassword">{{webui:setup.password}}</label>
         <button type="button" id="setupPasswordShow" class="setupPassToggle" aria-pressed="false">{{webui:setup.show}}</button>
       </div>
-      <input type="password" id="setupPassword" autocomplete="new-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="63">
+      <input type="password" id="setupPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="63">
     </div>
     <p class="fieldHint">{{webui:setup.band_hint}}</p>
     <p class="fieldError" id="setupFieldError" hidden></p>
