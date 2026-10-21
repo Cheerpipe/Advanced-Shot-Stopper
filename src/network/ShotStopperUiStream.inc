@@ -2,9 +2,10 @@
 // network task queues at most one dispatch; it never sends or borrows JSON scratch.
 namespace {
 constexpr uint32_t kUiStreamBindMs = 5000, kUiStreamRetainMs = 30000;
-// A page pings every 20 s while its timers run; a bound session silent this
-// long belongs to a page the phone froze hidden.
-constexpr uint32_t kUiStreamSilentMs = 300000;
+// A page pings every 20 s while its timers run; a bound session silent past
+// the page's own 5-minute hidden close plus one ping belongs to a page the
+// phone froze hidden.
+constexpr uint32_t kUiStreamSilentMs = 330000;
 // Wi-Fi and the BLE scale share one radio: a periodic frame leaves right after
 // every second weight sample, in the gap before the next notification. The
 // timer only covers a missing or silent scale.
@@ -64,11 +65,13 @@ uint32_t uiStreamCurveHash(const ShotCurveRecord &curve, uint16_t count) {
   return hash;
 }
 
-// Takeover notice for both the dispatch path and a rejected bind: a 4001
-// close makes the page deactivate and offer Reactivate instead of reading
-// the drop as a network failure it would retry forever.
-void sendUiStreamTakeoverClose(httpd_handle_t server, int fd) {
-  uint8_t code[] = {0x0f, 0xa1};  // 4001: ownership taken over.
+// Close notice before httpd drops the socket. 4001 (ownership taken over,
+// from the dispatch path or a rejected bind) makes the page deactivate and
+// offer Reactivate instead of retrying forever; 4002 (page silent) makes it
+// reconnect quietly once visible, without the out-of-reach overlay.
+constexpr uint16_t kUiStreamCloseTakeover = 4001, kUiStreamCloseSilent = 4002;
+void sendUiStreamClose(httpd_handle_t server, int fd, uint16_t reason) {
+  uint8_t code[] = {static_cast<uint8_t>(reason >> 8), static_cast<uint8_t>(reason)};
   httpd_ws_frame_t close = {};
   close.type = HTTPD_WS_TYPE_CLOSE;
   close.payload = code;
@@ -382,7 +385,7 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
   cJSON_Delete(message);
   memset(body, 0, sizeof(body));
   if (!accepted) {
-    if (bindRejected) sendUiStreamTakeoverClose(request->handle, session->fd);
+    if (bindRejected) sendUiStreamClose(request->handle, session->fd, kUiStreamCloseTakeover);
     return ESP_FAIL;
   }
   if (activity) {
@@ -469,19 +472,21 @@ void ShotStopperNetwork::uiStreamDispatch(void *context) {
       allowed = session.bound
           ? strcmp(session.clientId, self.activeWebUiClientId_) == 0
           : millis() - session.openedAtMs < kUiStreamBindMs;
-      silent = session.bound && !control.activeCycle &&
+      silent = allowed && session.bound &&
+          !(control.activeCycle || control.homePending || control.relayClosed) &&
           millis() - session.heardAtMs >= kUiStreamSilentMs;
       // Unbound until httpd frees it: later dispatches neither log nor send.
       if (silent) session.bound = false;
     }
-    // A plain close: the page reconnects on return, unlike after a takeover.
     if (silent) {
       self.lifecycleLog("UI stream closed: page silent for 5 minutes");
+      uiStreamSendKind = "close";
+      sendUiStreamClose(self.server_, session.fd, kUiStreamCloseSilent);
       httpd_sess_trigger_close(self.server_, session.fd);
     } else if (!allowed) {
       if (session.bound) {
         uiStreamSendKind = "close";
-        sendUiStreamTakeoverClose(self.server_, session.fd);
+        sendUiStreamClose(self.server_, session.fd, kUiStreamCloseTakeover);
       }
       httpd_sess_trigger_close(self.server_, session.fd);
     }
@@ -521,6 +526,8 @@ void ShotStopperNetwork::sendUiStream(UiStreamSession &session,
       session = saved;
       memcpy(hashes.homeHashes, workBuf_->batchHomeHashes, sizeof(hashes.homeHashes));
       memcpy(hashes.cardHashes, workBuf_->batchCardHashes, sizeof(hashes.cardHashes));
+      // Record pages take their page state from Home: none may overtake it.
+      return;
     } else open = false;
   }
   if (open && session.diagnostic)

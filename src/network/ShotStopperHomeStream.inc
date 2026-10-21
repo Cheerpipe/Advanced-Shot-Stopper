@@ -1140,8 +1140,6 @@ bool ShotStopperNetwork::sendHistoryStream(UiStreamSession &session,
   return true;
 }
 
-// The Stats row projection (extracted verbatim from the REST shots handler):
-// row scalars plus the curve fields embedded at the top level, because
 // Stats row columns, sent once per page; formatShotStatsRow emits the values
 // in this order followed by the curve object.
 constexpr char kStatsRowColumns[] =
@@ -1154,7 +1152,9 @@ constexpr char kStatsRowColumns[] =
     "blind,fastBeforeS,slowAfterS,fastMarginG,slowMarginG,delayS,wallS,cutRampS,"
     "dripDelayS,actualWeightSource,rating";
 
-// formatShotCurveJsonBody emits the curve object's inner fields. Writes into
+// The Stats row projection (extracted from the former REST shots handler):
+// row values, then the curve object that formatShotCurveJsonBody fills with
+// its inner fields. Writes into
 // work.jsonItem using work.curveJson as scratch and returns the written
 // length, 0 on overflow. A missing curve formats as an empty one in the
 // Stats fetch scratch, which a failed fetch has already left unused.

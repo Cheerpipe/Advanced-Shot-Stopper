@@ -47,8 +47,9 @@ firmware.
 
 After the restart, an open Web UI page notices the new version and reloads
 itself once. The first time you open the Web UI afterwards it may also reload
-once; from then on it opens the new version directly, including from a
-home-screen shortcut.
+once; after that, the start page and the page you opened load the new version
+directly. Other pages opened straight from a bookmark may still reload once
+on their first visit.
 
 ## Safety behavior
 

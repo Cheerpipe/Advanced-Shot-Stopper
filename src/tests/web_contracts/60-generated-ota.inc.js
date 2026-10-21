@@ -735,8 +735,9 @@ if (generated.cssGzip.length > 15742) {
 // The ?fw= landing refreshes the cached shell after an OTA brings it to 40126; owner-requested 2026-10-21.
 // A reconnect keeps the presets it already holds brings it to 40227; owner-requested 2026-10-21.
 // Stats rows as column-ordered values brings it to 40259; owner-requested 2026-10-21.
-if (sentinelRuntimeGzip.length > 40259) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 40259-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Review fixes for the hidden close, setup sessions and the 4002 reconnect brings it to 40297; owner-requested 2026-10-21.
+if (sentinelRuntimeGzip.length > 40297) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 40297-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -802,7 +803,8 @@ if (generated.otaImageGzip.length > 3072) {
 // The Diagnostic Heap min waiting text measures diagnostic.js at 13827 and moves records.js to 15097 through shared text table gzip wobble; owner-requested 2026-10-20.
 // The Diagnostic Heap min before and after the boot heap shaper release measures diagnostic.js at 13871; owner-requested 2026-10-20.
 // Home and Diagnostic minimal increments move records.js to 15098 through shared text table gzip wobble; owner-requested 2026-10-21.
-const viewModuleBudgets = {records: 15098, diagnostic: 13871, admin: 14229, settings: 16807, setup: 5793};
+// The review fixes move diagnostic.js to 13872 through shared text table gzip wobble; owner-requested 2026-10-21.
+const viewModuleBudgets = {records: 15098, diagnostic: 13872, admin: 14229, settings: 16807, setup: 5793};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -1000,8 +1002,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The ?fw= landing refreshes the cached shell after an OTA brings it to 67696; owner-requested 2026-10-21.
 // A reconnect keeps the presets it already holds brings it to 67797; owner-requested 2026-10-21.
 // Stats rows as column-ordered values brings it to 67829; owner-requested 2026-10-21.
-if (coldHomeGzip > 67829) {
-  throw new Error(`Cold Home download exceeds the 67829-byte gzip budget (${coldHomeGzip})`);
+// Review fixes for the hidden close, setup sessions and the 4002 reconnect brings it to 67869; owner-requested 2026-10-21.
+if (coldHomeGzip > 67869) {
+  throw new Error(`Cold Home download exceeds the 67869-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

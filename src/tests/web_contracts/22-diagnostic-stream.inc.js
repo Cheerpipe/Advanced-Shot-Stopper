@@ -99,15 +99,20 @@
   // and a bind from a superseded client dropped the socket like a network
   // failure instead of a takeover notice.
   const uiStreamSrc = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperUiStream.inc'), 'utf8');
-  const takeoverClose = uiStreamSrc.slice(uiStreamSrc.indexOf('void sendUiStreamTakeoverClose'),
+  const closeFrame = uiStreamSrc.slice(uiStreamSrc.indexOf('void sendUiStreamClose'),
     uiStreamSrc.indexOf('#include "ShotStopperUiStreamTransport.inc"'));
-  assert(takeoverClose.includes('HTTPD_WS_TYPE_CLOSE') && takeoverClose.includes('{0x0f, 0xa1}'),
-      'the takeover close frame must carry WS code 4001');
+  assert(closeFrame.includes('HTTPD_WS_TYPE_CLOSE') &&
+      uiStreamSrc.includes('kUiStreamCloseTakeover = 4001, kUiStreamCloseSilent = 4002;'),
+      'the close frames must carry WS codes 4001 (takeover) and 4002 (silent page)');
   const rejected = uiStreamSrc.slice(uiStreamSrc.indexOf('if (!accepted)'), uiStreamSrc.indexOf('if (activity)'));
-  assert(rejected.includes('sendUiStreamTakeoverClose'),
+  assert(rejected.includes('sendUiStreamClose(request->handle, session->fd, kUiStreamCloseTakeover)'),
       'a rejected bind must close with 4001 so the page deactivates instead of retrying');
-  assert(/uiStreamSendKind = "close";\s*sendUiStreamTakeoverClose\(/.test(uiStreamSrc.replace(/\n\s+/g, ' ')),
+  assert(/uiStreamSendKind = "close";\s*sendUiStreamClose\(self\.server_, session\.fd, kUiStreamCloseTakeover\)/
+      .test(uiStreamSrc.replace(/\n\s+/g, ' ')),
       'the dispatch path must reuse the same takeover close');
+  // The silent close (byte layout: 4002 big-endian) uses its own code.
+  assert(/uiStreamSendKind = "close";\s*sendUiStreamClose\(self\.server_, session\.fd, kUiStreamCloseSilent\)/
+      .test(uiStreamSrc.replace(/\n\s+/g, ' ')));
   const auditSrc = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperAuditStream.inc'), 'utf8');
   assert(auditSrc.includes('statusJsonAppend(&used, "]}}}")'),
       'the audit frame must close items, audit, changes and the frame root');

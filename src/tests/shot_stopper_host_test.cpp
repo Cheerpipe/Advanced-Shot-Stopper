@@ -2368,6 +2368,25 @@ void r12b_discovery_clears_stale_connected_link_snapshot() {
   CHECK(!scaleAvailable());
 }
 
+// The published scale level keeps its hysteresis across status publishes.
+void r12d_scale_signal_level_keeps_hysteresis_across_publishes() {
+  resetHarness(false, true);
+  ControlStatusSnapshot status;
+  const auto level = [&](int8_t rssi, uint32_t at) {
+    scale.linkRssiValue = rssi;
+    serviceScaleLinkRssi(at);
+    publishControlStatus();
+    copyControlStatus(status);
+    return status.scaleSignalLevel;
+  };
+  CHECK(level(-59, 1000) == 3);
+  CHECK(level(-61, 2000) == 3);
+  CHECK(level(-59, 3000) == 3);
+  CHECK(level(-64, 4000) == 2);
+  CHECK(level(-59, 5000) == 2);
+  CHECK(level(-57, 6000) == 3);
+}
+
 void r12c_connected_link_rssi_samples_and_clears() {
   resetHarness(false, true);
   scale.linkRssiValue = -64;
@@ -21860,6 +21879,7 @@ const TestCase testCases[] = {
     {"R12d", r12d_command_does_not_drain_buffered_weight},
     {"R12b", r12b_discovery_clears_stale_connected_link_snapshot},
     {"R12c", r12c_connected_link_rssi_samples_and_clears},
+    {"R12d", r12d_scale_signal_level_keeps_hysteresis_across_publishes},
     {"R13", r13_full_queue_prevents_stop_without_delaying_relay_open},
     {"R14", r14_invalid_runtime_configuration_is_transactionally_rejected},
     {"R15", r15_gptimer_opens_circuit_without_arduino_or_esp_timer_tasks},

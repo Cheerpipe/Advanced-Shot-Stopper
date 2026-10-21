@@ -218,10 +218,10 @@
     api.exit();
     grant(); await settle();
     assert.equal(releases, 2, 'a lock granted after exit is released at once');
-    const visibilityHandler = runtimeJs.slice(runtimeJs.indexOf('document.addEventListener("visibilitychange"'));
-    assert.ok(codeIncludes(visibilityHandler.slice(0, visibilityHandler.indexOf('});')),
-        'if (shotFsActive) keepShotFsAwake(true);') &&
-        visibilityHandler.indexOf('if (document.hidden)') < visibilityHandler.indexOf('keepShotFsAwake(true)'),
+    const visibilityHandler = blockAt(runtimeJs, 'function onPageVisibility() {');
+    assert.ok(codeIncludes(visibilityHandler, 'if (shotFsActive) keepShotFsAwake(true);') &&
+        visibilityHandler.indexOf('if (document.hidden)') < visibilityHandler.indexOf('keepShotFsAwake(true)') &&
+        codeIncludes(runtimeJs, 'document.addEventListener("visibilitychange", onPageVisibility);'),
         'the visibility handler re-takes the lock in full screen once visible');
   })().catch(error => {console.error(error); process.exitCode = 1;});
 }

@@ -228,6 +228,8 @@ void publishControlStatus() {
   noteMutexWaitUs(controlStatusWaitLastUs, controlStatusWaitMaxUs,
                   micros() - statusLockStartedUs);
   ControlStatusFields &next = publishedControlStatus;
+  // The signal level's hysteresis needs the published level the reset clears.
+  const uint8_t scaleSignalLevel = next.scaleSignalLevel;
   new (&next) ControlStatusFields{};
   next.cupTare = cupTare;
   next.snapshotVersion = ++controlStatusVersion;
@@ -318,7 +320,7 @@ void publishControlStatus() {
   next.scaleBleDiagnostics = scaleLink.bleDiagnostics;
   next.scaleRssiValid = scaleLink.rssiValid;
   next.scaleRssi = scaleLink.rssi;
-  next.scaleSignalLevel = connectionSignalLevel(next.scaleSignalLevel, scaleLink.rssiValid, scaleLink.rssi);
+  next.scaleSignalLevel = connectionSignalLevel(scaleSignalLevel, scaleLink.rssiValid, scaleLink.rssi);
   next.uptimeMs = elapsedMs(bootStartedAtMs);
   next.loopIntervalGapMs =
       healthIntervalMaxGapMs > loopIntervalGapMs ? healthIntervalMaxGapMs

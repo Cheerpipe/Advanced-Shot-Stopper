@@ -892,8 +892,9 @@ if (htmlBytes > 93300) {
 // Stream closed after 5 minutes hidden and resumed without snapshots: 482161, owner-requested 2026-10-21.
 // The ?fw= landing refreshes the cached shell after an OTA: 482547, owner-requested 2026-10-21.
 // A reconnect keeps the presets it already holds: 482997, owner-requested 2026-10-21.
-if (jsBytes > 482997) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 482997)`);
+// Review fixes for the hidden close, setup sessions and the 4002 reconnect: 483596, owner-requested 2026-10-21.
+if (jsBytes > 483596) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 483596)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1035,8 +1036,9 @@ if (jsBytes > 482997) {
 // Stream closed after 5 minutes hidden and resumed without snapshots: 574399, owner-requested 2026-10-21.
 // The ?fw= landing refreshes the cached shell after an OTA: 574785, owner-requested 2026-10-21.
 // A reconnect keeps the presets it already holds: 575235, owner-requested 2026-10-21.
-if (htmlBytes + jsBytes > 575235) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 575235)`);
+// Review fixes for the hidden close, setup sessions and the 4002 reconnect: 575834, owner-requested 2026-10-21.
+if (htmlBytes + jsBytes > 575834) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 575834)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

@@ -492,10 +492,11 @@ needs none: the socket delivered every frame in order, so the browser only
 sends its liveness `activity` message. A page hidden for 5 minutes or longer
 (screen locked, another app or tab) closes its stream and reconnects with
 fresh snapshots when it becomes visible again, except while a shot is live.
-The firmware also closes, with a normal close, a bound session that has sent
-nothing for 5 minutes outside a live cycle (a phone that froze the page), and
-notes it in the Web UI log. Neither close affects the 15-minute inactivity
-deactivation. Ownership takeover
+The firmware also closes a bound session that has sent nothing for 5.5
+minutes outside a live cycle (a phone that froze the page) with WebSocket
+close code 4002 and notes it in the Web UI log; the page reconnects quietly
+once visible, without the out-of-reach notice. Neither close affects the
+15-minute inactivity deactivation, and a setup session never closes on hide. Ownership takeover
 closes the previous socket with code 4001. Bounded `activity`/`alive` control
 messages every 20 seconds detect a lost connection and preserve existing power
 activity behavior; they do not request or repeat Home data. Clock synchronization
@@ -503,8 +504,8 @@ supplies a new time anchor; the browser advances relative time locally.
 `GET /api/v1/status/home` no longer exists: navigation visibility
 (`diagnosticPageVisible`, `compatibilityMode`) is carried by the Home stream
 itself and applied on every view, and the browser no longer probes a status
-route when entering Stats, History, or Diagnostic. Settings, Admin, record
-status, and the public integration API keep their existing REST contracts;
+route when entering Stats, History, or Diagnostic. Settings, Admin, and the
+public integration API keep their existing REST contracts;
 the Diagnostic page is WebSocket-only and is described next.
 
 ### Diagnostic live updates
@@ -607,9 +608,9 @@ window standing for the whole UI session, so arriving records update the page
 even while another view is open. Opening History with that live data paints
 straight from the cached page, and the page a URL load starts on is fetched
 first; any record page still not standing is subscribed in the background as
-soon as the first view finishes loading. After a reconnect or a tab
-refocus, the browser replays the subscription and resyncs, so the first open
-still starts from a fresh snapshot. Every accepted op forces the next frame to
+soon as the first view finishes loading. After a reconnect the browser
+replays the subscription, so the first open still starts from a fresh
+snapshot; returning to a page whose socket stayed open needs no resync. Every accepted op forces the next frame to
 be a full snapshot of the requested window.
 
 History frames have `v: 1`, `type: "history"`, `boot`, `snapshot`, `epoch`,
@@ -632,19 +633,19 @@ with the page window:
 ```
 
 Scrolling to the page sentinel sends a one-shot fetch for the next window,
-and the CSV export asks for its own export window — always 100 rows,
+and the CSV export asks for its own export window — up to 500 rows,
 newest-first by date, regardless of the on-screen sort:
 
 ```json
 {"op":"stats","on":true,"fetch":true,"offset":20}
-{"op":"stats","on":true,"fetch":true,"offset":0,"limit":100,"sort":"date","dir":"desc"}
+{"op":"stats","on":true,"fetch":true,"offset":0,"limit":500,"sort":"date","dir":"desc"}
 ```
 
 Leaving the view no longer unsubscribes it: the Stats window also stays
 standing for the whole UI session, refreshes in the background while any view
 is open, and re-opens paint straight from the cached rows. After a reconnect
-or a tab refocus, the browser replays the subscription and resyncs, and every
-accepted op forces the next page to start from a full snapshot.
+the browser replays the subscription, and every accepted op forces the next
+page to start from a full snapshot.
 
 Stats frames have `v: 1`, `type: "stats"`, `boot`, `snapshot`, `epoch`,
 `seq`, the `stats` aggregate and `cols` (first frame of a page only), `total`, `offset`, `limit`, `hasMore`, `rows`, `rowBase`, and `more`.
@@ -656,7 +657,8 @@ instead of the page rows, so they match the averages whatever the sort or how
 far the table has scrolled. The integration API's stats object is unchanged.
 Each row retains its own `bootId` and curve arrays; row errors are calculated
 from the displayed yield by the browser. Because full curves can exceed one
-frame, a page is emitted under a ~20 KiB frame budget: the first frame ends with `more: true` and a
+frame, a page is emitted under an 8 KiB frame budget (a single larger row goes
+alone): the first frame ends with `more: true` and a
 continuation frame resumes at its `rowBase`; the browser buffers partial
 pages and applies them whole when a frame ends with `more: false`. A store
 epoch and a fingerprint (window, aggregate, and per-row id, rating, and

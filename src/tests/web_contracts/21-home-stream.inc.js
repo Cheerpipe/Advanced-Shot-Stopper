@@ -261,8 +261,9 @@ int main(){
   const assert = require('assert').strict, vm = require('vm');
   const source = runtimeStateDecl + runtimeJs.slice(runtimeJs.search(/let\s+homeFrame\s*=/),
     runtimeJs.indexOf('function setHomeSub(')).replace(/export /g, '');
-  const sockets = [], timers = new Map(), listeners = {};
-  let timer = 0, clock = 1000000, owner = true, live = false, inactivityCalls = 0;
+  const sockets = [], timers = new Map(), listeners = {}, windowListeners = {};
+  let timer = 0, clock = 1000000, perf = 5000, owner = true, live = false, inactivityCalls = 0, reachFails = 0,
+    mutableOff = 0;
   class Socket {
     static OPEN = 1;
     constructor() { this.readyState = 1; this.sent = []; sockets.push(this); }
@@ -272,19 +273,21 @@ int main(){
   const document = {hidden: false, addEventListener: (name, fn) => { listeners[name] = fn; }};
   const context = {
     WebSocket: Socket, location: {protocol: 'http:', host: 'device.local'}, document,
-    window: {addEventListener() {}}, Date: {now: () => clock},
+    window: {addEventListener: (name, fn) => { windowListeners[name] = fn; }}, Date: {now: () => clock},
     setTimeout: (fn, delay) => { timers.set(++timer, {fn, delay}); return timer; },
     clearTimeout: id => timers.delete(id), requestAnimationFrame: () => 1,
     webUiPollingActive: () => owner, webUiClientId: '0123456789abcdef', webUiPowerSeconds: () => 30,
-    sessionShotLive: () => live, shotFsActive: false, setupSession: false, keepShotFsAwake() {},
+    sessionShotLive: () => live, shotFsActive: false, keepShotFsAwake() {},
     resetWebUiInactivity: () => { inactivityCalls++; }, deactivateWebUi: () => { inactivityCalls++; owner = false; },
     activeView: 'settings', viewSeq: 1, viewReady: Promise.resolve(), lastStatusAt: 0,
-    performance: {now: () => clock}, statusUtcAnchorSec: 0, statusUtcAnchorAt: 0, statusLiveShot: false,
-    viewStatusHandlers: {}, applyCommonStatus() {}, setMutable() {}, noteReachOk() {}, noteReachFail() {},
+    performance: {now: () => perf}, statusUtcAnchorSec: 0, statusUtcAnchorAt: 0, statusLiveShot: false,
+    viewStatusHandlers: {}, applyCommonStatus() {}, setMutable: on => { if (!on) mutableOff++; }, noteReachOk() {},
+    noteReachFail: () => { reachFails++; },
     hideHomeBoot() {}, clearCupWeights() {}, updateHeaderSignals() {}, updateHomeAdminActions() {},
     setHomeSub() {}, $: () => null,
   };
-  vm.runInNewContext(source, context);
+  vm.runInNewContext('var setupSession=false;' + source + ';this.setSetup=v=>{setupSession=v};' +
+      'this.anchor=v=>{if(v!==undefined)statusUtcAnchorAt=v;return statusUtcAnchorAt};', context);
   const visibility = hidden => { document.hidden = hidden; listeners.visibilitychange(); };
   const closeTimer = () => [...timers].find(([, t]) => t.delay === 300000);
   context.startUiStream(); sockets[0].onopen();
@@ -305,9 +308,10 @@ int main(){
   visibility(true); timers.clear(); clock += 360000; visibility(false);
   assert(sockets[1].readyState === 3 && sockets.length === 3);
   sockets[2].onopen();
-  // A live shot defers the close and re-arms it.
+  // A live shot defers the close and rechecks it every 30 s.
   live = true; visibility(true); closeTimer()[1].fn();
-  assert(sockets[2].readyState === 1 && closeTimer(), 'a live shot keeps the stream');
+  assert(sockets[2].readyState === 1 && [...timers.values()].some(t => t.delay === 30000),
+      'a live shot keeps the stream');
   clock += 360000; visibility(false);
   assert(sockets[2].readyState === 1 && sockets.length === 3, 'returning during a live shot keeps it too');
   live = false;
@@ -315,15 +319,43 @@ int main(){
   visibility(true); closeTimer()[1].fn(); owner = false; clock += 360000; visibility(false);
   assert.equal(sockets.length, 3, 'an inactive page does not reconnect');
   assert.equal(inactivityCalls, 0, 'the hidden close never touches the inactivity deactivation');
+  // A setup session arms nothing and never loses its controls to a hidden close.
+  owner = true; context.setSetup(true); timers.clear();
+  const offBefore = mutableOff;
+  visibility(true); assert(!closeTimer(), 'a setup session arms no hidden close');
+  clock += 360000; visibility(false);
+  assert.equal(mutableOff, offBefore, 'a hidden setup page keeps its controls');
+  context.setSetup(false);
+  // The firmware's 4002 close reconnects quietly when visible and waits when hidden.
+  context.startUiStream(); const quiet = sockets.at(-1); quiet.onopen();
+  const fails = reachFails, count = sockets.length;
+  quiet.close(4002);
+  assert(sockets.length === count + 1 && reachFails === fails, '4002 reconnects without the out-of-reach overlay');
+  sockets.at(-1).onopen();
+  document.hidden = true; sockets.at(-1).close(4002);
+  assert.equal(sockets.length, count + 1, 'a hidden page waits for its return');
+  document.hidden = false; listeners.visibilitychange();
+  assert.equal(sockets.length, count + 2);
+  sockets.at(-1).onopen();
+  // A suspended page whose monotonic clock stood still moves the wall-clock anchor.
+  context.anchor(4000); visibility(true); clock += 120000; perf += 1000; visibility(false);
+  assert.equal(context.anchor(), 4000 - 119000, 'the anchor absorbs the missed sleep');
+  context.anchor(4000); visibility(true); clock += 60000; perf += 60000; visibility(false);
+  assert.equal(context.anchor(), 4000, 'a running clock keeps the anchor');
+  // A page restored by pageshow starts once; its visibility return does not redo it.
+  visibility(true); clock += 360000; windowListeners.pagehide?.();
+  const restored = sockets.length; windowListeners.pageshow(); visibility(false);
+  assert.equal(sockets.length, restored + 1, 'one socket after a restore');
   // The firmware closes a bound session silent for 5 minutes, outside a live
   // cycle, with a plain close (not the 4001 takeover) and one log line.
   const stream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperUiStream.inc'), 'utf8');
-  assert(stream.includes('constexpr uint32_t kUiStreamSilentMs = 300000;'));
-  assert(stream.includes('silent = session.bound && !control.activeCycle &&') &&
+  assert(stream.includes('!(control.activeCycle || control.homePending || control.relayClosed) &&') &&
       stream.includes('millis() - session.heardAtMs >= kUiStreamSilentMs;'));
   assert(stream.includes('if (accepted) session->heardAtMs = millis();'));
   const silentBranch = stream.slice(stream.indexOf('if (silent) {'), stream.indexOf('} else if (!allowed) {'));
-  assert(silentBranch.includes('httpd_sess_trigger_close') && !silentBranch.includes('TakeoverClose'));
+  assert(silentBranch.includes('kUiStreamCloseSilent') && !silentBranch.includes('kUiStreamCloseTakeover'));
+  assert(stream.includes('constexpr uint32_t kUiStreamSilentMs = 330000;') &&
+      stream.includes('silent = allowed && session.bound &&'));
   // Bind reports the presets the page holds; only the first Home snapshot may
   // leave them out, and only for the same tag.
   const home = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperHomeStream.inc'), 'utf8');

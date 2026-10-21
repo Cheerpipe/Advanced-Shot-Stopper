@@ -3452,18 +3452,12 @@ let homeFrame = null,
 // presets the page already holds (same presetsTag) keeps that copy.
 function statusStreamFrame(previous, message, kept) {
   // An increment carries only its type and changes; the snapshot's identity continues.
-  if (message.snapshot !== true) message = { ...message, v: 1, boot: previous?.boot, snapshot: false };
-  if (
-    message.v !== 1 ||
-    !Number.isInteger(message.boot) ||
-    typeof message.snapshot !== "boolean" ||
-    !message.changes ||
-    (!message.snapshot && (!previous || message.boot !== previous.boot))
-  )
-    throw Error();
-  const status = message.snapshot ? {} : previous.status;
-  if (message.snapshot && !("presets" in message.changes) && kept?.presets && kept.presetsTag === message.changes.presetsTag)
-    status.presets = kept.presets;
+  const snapshot = message.snapshot === true,
+    boot = snapshot ? message.boot : previous?.boot;
+  if ((snapshot && message.v !== 1) || !Number.isInteger(boot) || !message.changes) throw Error();
+  const status = snapshot ? {} : previous.status;
+  const keep = kept?.presets && kept.presetsTag === message.changes.presetsTag;
+  if (snapshot && keep && !("presets" in message.changes)) status.presets = kept.presets;
   for (const [path, value] of Object.entries(message.changes)) {
     if (
       !/^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*){0,3}$/.test(path) ||
@@ -3478,11 +3472,11 @@ function statusStreamFrame(previous, message, kept) {
   }
   if (
     message.type === "diagnostic"
-      ? message.snapshot && !diagSnapshotOk(status)
-      : !statusPageOk("home", status) || status.bootId !== message.boot
+      ? snapshot && !diagSnapshotOk(status)
+      : !statusPageOk("home", status) || status.bootId !== boot
   )
     throw Error();
-  return { boot: message.boot, status };
+  return { boot, status };
 }
 function renderHomeStream() {
   if (homeStale || !homeFrame) return;
@@ -3639,8 +3633,17 @@ function uiStreamFrame(e, t) {
   // the last cursor.
   if (t && !t.snapshot) {
     if (!e) throw Error();
-    t = { ...t, v: e.v, boot: e.boot, cycle: e.cycle, shotId: e.shotId, stale: t.stale ?? e.stale,
-      phase: t.phase ?? e.phase, snapshot: false, curveBase: e.cursor };
+    t = {
+      ...t,
+      v: e.v,
+      boot: e.boot,
+      cycle: e.cycle,
+      shotId: e.shotId,
+      stale: t.stale ?? e.stale,
+      phase: t.phase ?? e.phase,
+      snapshot: false,
+      curveBase: e.cursor,
+    };
   } else if (t) t = { ...t, curveBase: 0 };
   const n = t?.snapshot ? t.card : e && t?.card && { ...e.card, ...t.card };
   if (
@@ -3668,7 +3671,8 @@ function uiStreamFrame(e, t) {
     throw Error();
   if (e && t.boot === e.boot && t.seq <= e.seq) return e;
   const { wD, wRef, ...c } = t.curve || {},
-    s = (wRef === undefined || (Array.isArray(wRef) && wRef.length === 2 && wRef.every(Number.isInteger))) && {
+    s = (wRef === undefined ||
+      (Array.isArray(wRef) && wRef.length === 2 && wRef.every(Number.isInteger))) && {
       ...c,
       ...decodeCurveDeltas(wD, wRef),
     };
@@ -3758,7 +3762,14 @@ function startUiStream() {
       return;
     }
     const known = homeFrame?.status?.presets && homeFrame.status.presetsTag;
-    socket.send(JSON.stringify({ op: "bind", client: webUiClientId, ...(shotSeen || {}), ...(known ? { presetsTag: known } : {}) }));
+    socket.send(
+      JSON.stringify({
+        op: "bind",
+        client: webUiClientId,
+        ...(shotSeen || {}),
+        ...(known ? { presetsTag: known } : {}),
+      }),
+    );
     if (diagStreamWanted) {
       if (!diagResolve) armDiagnosticReady();
       socket.send('{"op":"diagnostic","on":true}');
@@ -3886,6 +3897,12 @@ function startUiStream() {
     scheduleShotPaint();
     if (event?.code === 4001) {
       deactivateWebUi();
+      return;
+    }
+    // 4002: the firmware closed a page it stopped hearing from; reconnect
+    // quietly once visible (the visibility return covers a hidden page).
+    if (event?.code === 4002) {
+      if (!document.hidden && webUiPollingActive()) startUiStream();
       return;
     }
     if (webUiPollingActive()) noteReachFail({ network: true }, true);
@@ -4630,7 +4647,7 @@ function statsStreamFrame(message) {
   } else {
     if (message.rowBase !== 0 || message.seq <= statsLastSeq) throw Error();
     if (!message.snapshot && message.boot !== statsStreamBoot) throw Error();
-    }
+  }
   if (
     !message.more &&
     message.hasMore !== message.offset + message.rowBase + message.rows.length < message.total
@@ -4708,37 +4725,53 @@ function ensureBackgroundRecordStreams() {
   ensureStatsStream();
   ensureHistoryStream();
 }
-// A page hidden for 5 minutes drops its stream; phones freeze hidden timers, so
-// the return also closes after such an absence. An open socket delivered every
-// frame in order: coming back needs only the liveness ping. The 15-minute
-// inactivity deactivation is untouched.
+// A page hidden for 5 minutes drops its stream (a live shot rechecks every
+// 30 s); phones freeze hidden timers, so the return also closes after such an
+// absence. An open socket delivered every frame in order: coming back needs
+// only the liveness ping. Setup sessions and the 15-minute inactivity
+// deactivation are untouched.
 const HIDDEN_CLOSE_MS = 3e5;
 let hiddenAt = 0,
+  hiddenPerf = 0,
   hiddenClose = 0;
 function closeHiddenStream() {
-  hiddenClose = sessionShotLive() ? setTimeout(closeHiddenStream, HIDDEN_CLOSE_MS) : (stopUiStream(), 0);
+  if (!document.hidden || setupSession) hiddenClose = 0;
+  else if (sessionShotLive()) hiddenClose = setTimeout(closeHiddenStream, 3e4);
+  else {
+    hiddenClose = 0;
+    stopUiStream();
+  }
 }
-document.addEventListener("visibilitychange", () => {
+function onPageVisibility() {
   clearTimeout(hiddenClose);
   hiddenClose = 0;
   if (document.hidden) {
     hiddenAt = Date.now();
-    hiddenClose = setTimeout(closeHiddenStream, HIDDEN_CLOSE_MS);
+    hiddenPerf = performance.now();
+    if (!setupSession) hiddenClose = setTimeout(closeHiddenStream, HIDDEN_CLOSE_MS);
     return;
   }
-  const away = hiddenAt && Date.now() - hiddenAt >= HIDDEN_CLOSE_MS;
+  const away = hiddenAt ? Date.now() - hiddenAt : 0,
+    // A suspended page's monotonic clock may stand still: the wall-clock
+    // anchor moves by the sleep it missed.
+    missed = away - (performance.now() - hiddenPerf);
+  if (hiddenAt && statusUtcAnchorAt && missed > 1e3) statusUtcAnchorAt -= missed;
   hiddenAt = 0;
   if (shotFsActive) keepShotFsAwake(true);
   if (!webUiPollingActive() || setupSession) return;
-  if (away && !sessionShotLive()) stopUiStream();
+  if (away >= HIDDEN_CLOSE_MS && !sessionShotLive()) stopUiStream();
   shotWs && shotWs.readyState === 1 ? shotActivity() : startUiStream();
-});
+}
+document.addEventListener("visibilitychange", onPageVisibility);
+if (document.hidden) onPageVisibility();
 window.addEventListener("pagehide", stopUiStream);
 // Unloading the page drops every unsaved Save/Revert section (setSaveDirty marks them).
 window.addEventListener("beforeunload", (e) => {
   if (!fwReloading && document.querySelector('[data-dirty="1"]')) e.preventDefault();
 });
 window.addEventListener("pageshow", () => {
+  // A restored page starts fresh here; its visibility return must not redo it.
+  hiddenAt = 0;
   if (webUiPollingActive() && !setupSession) startUiStream();
 });
 function setHomeSub(id, v) {
@@ -5228,7 +5261,10 @@ function checkFirmwareReload(version) {
     // plain paths' cached copies too, so the next open loads it directly.
     if (!fwShellRefreshed && /[?&]fw=/.test(location.search)) {
       fwShellRefreshed = true;
-      for (const p of new Set(["/", location.pathname])) fetch(p, { cache: "reload" }).catch(() => {});
+      for (const p of new Set(["/", location.pathname]))
+        fetch(p, { cache: "reload" })
+          .then((r) => r.arrayBuffer())
+          .catch(() => {});
     }
     return;
   }
@@ -5498,45 +5534,45 @@ function statusPageOk(v, s) {
   const c = s && s.config;
   if (!c || typeof s.configMutable !== "boolean") return !1;
   return v === "home"
+    ? !!(
+        typeof s.adminUnlocked === "boolean" &&
+        typeof c.soundAlertsEnabled === "boolean" &&
+        s.safety &&
+        s.scale &&
+        s.presets &&
+        s.cycle &&
+        s.lastShot &&
+        s.noScaleShotGuard &&
+        typeof s.machineState === "string" &&
+        s.cupPresence
+      )
+    : v === "settings"
       ? !!(
-          typeof s.adminUnlocked === "boolean" &&
           typeof c.soundAlertsEnabled === "boolean" &&
-          s.safety &&
+          typeof c.dripDelayMs === "number" &&
+          typeof c.postTareBaselineGraceMs === "number" &&
           s.scale &&
           s.presets &&
-          s.cycle &&
-          s.lastShot &&
-          s.noScaleShotGuard &&
-          typeof s.machineState === "string" &&
-          s.cupPresence
+          typeof s.buzzerSupported === "boolean"
         )
-      : v === "settings"
+      : v === "admin"
         ? !!(
-            typeof c.soundAlertsEnabled === "boolean" &&
-            typeof c.dripDelayMs === "number" &&
-            typeof c.postTareBaselineGraceMs === "number" &&
-            s.scale &&
-            s.presets &&
-            typeof s.buzzerSupported === "boolean"
+            typeof s.adminUnlocked === "boolean" &&
+            s.network &&
+            (s.adminUnlocked
+              ? s.bleScan &&
+                typeof s.bleScan.scanIntensity === "string" &&
+                typeof c.timezoneId === "string" &&
+                c.ntpServerPreset != null &&
+                s.ota &&
+                typeof s.ota.available === "boolean" &&
+                s.webhooks &&
+                typeof s.webhooks.enabled === "boolean" &&
+                s.lastCommand &&
+                typeof s.lastCommand.requestId === "number"
+              : typeof s.network.configState === "string")
           )
-        : v === "admin"
-          ? !!(
-              typeof s.adminUnlocked === "boolean" &&
-              s.network &&
-              (s.adminUnlocked
-                ? s.bleScan &&
-                  typeof s.bleScan.scanIntensity === "string" &&
-                  typeof c.timezoneId === "string" &&
-                  c.ntpServerPreset != null &&
-                  s.ota &&
-                  typeof s.ota.available === "boolean" &&
-                  s.webhooks &&
-                  typeof s.webhooks.enabled === "boolean" &&
-                  s.lastCommand &&
-                  typeof s.lastCommand.requestId === "number"
-                : typeof s.network.configState === "string")
-            )
-          : !1;
+        : !1;
 }
 async function loadStatus() {
   if (statusBusy || document.hidden || !webUiPollingActive()) return;
