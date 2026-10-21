@@ -712,8 +712,9 @@ if (generated.cssGzip.length > 15742) {
 // Shot card field deltas merged over the previous card bring it to 39668; owner-requested 2026-10-20.
 // Shot curves decoded from the firmware's delta stream, with the minimal live envelope, bring it to 39974; owner-requested 2026-10-20.
 // Home and Diagnostic increments continue the snapshot identity brings it to 40000; owner-requested 2026-10-21.
-if (sentinelRuntimeGzip.length > 40000) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 40000-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Stream closed after 5 minutes hidden and resumed without snapshots brings it to 40068; owner-requested 2026-10-21.
+if (sentinelRuntimeGzip.length > 40068) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 40068-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -973,8 +974,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // Shot curves decoded from the firmware's delta stream bring it to 67543; owner-requested 2026-10-20.
 // Home and Diagnostic increments continue the snapshot identity brings it to 67571; owner-requested 2026-10-21.
 // The build tag in the shell (gzip wobble) brings it to 67572; owner-requested 2026-10-21.
-if (coldHomeGzip > 67572) {
-  throw new Error(`Cold Home download exceeds the 67572-byte gzip budget (${coldHomeGzip})`);
+// Stream closed after 5 minutes hidden and resumed without snapshots brings it to 67640; owner-requested 2026-10-21.
+if (coldHomeGzip > 67640) {
+  throw new Error(`Cold Home download exceeds the 67640-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

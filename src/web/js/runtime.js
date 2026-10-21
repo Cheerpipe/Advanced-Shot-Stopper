@@ -4694,11 +4694,30 @@ function ensureBackgroundRecordStreams() {
   ensureStatsStream();
   ensureHistoryStream();
 }
-// Back from the background: resync the live socket; rebuild only if it died hidden.
+// A page hidden for 5 minutes drops its stream; phones freeze hidden timers, so
+// the return also closes after such an absence. An open socket delivered every
+// frame in order: coming back needs only the liveness ping. The 15-minute
+// inactivity deactivation is untouched.
+const HIDDEN_CLOSE_MS = 3e5;
+let hiddenAt = 0,
+  hiddenClose = 0;
+function closeHiddenStream() {
+  hiddenClose = sessionShotLive() ? setTimeout(closeHiddenStream, HIDDEN_CLOSE_MS) : (stopUiStream(), 0);
+}
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && shotFsActive) keepShotFsAwake(true);
-  if (!document.hidden && webUiPollingActive() && !setupSession)
-    shotWs && shotWs.readyState === 1 ? (requestShotResync(), shotActivity()) : startUiStream();
+  clearTimeout(hiddenClose);
+  hiddenClose = 0;
+  if (document.hidden) {
+    hiddenAt = Date.now();
+    hiddenClose = setTimeout(closeHiddenStream, HIDDEN_CLOSE_MS);
+    return;
+  }
+  const away = hiddenAt && Date.now() - hiddenAt >= HIDDEN_CLOSE_MS;
+  hiddenAt = 0;
+  if (shotFsActive) keepShotFsAwake(true);
+  if (!webUiPollingActive() || setupSession) return;
+  if (away && !sessionShotLive()) stopUiStream();
+  shotWs && shotWs.readyState === 1 ? shotActivity() : startUiStream();
 });
 window.addEventListener("pagehide", stopUiStream);
 // Unloading the page drops every unsaved Save/Revert section (setSaveDirty marks them).

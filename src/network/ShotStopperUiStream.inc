@@ -2,6 +2,9 @@
 // network task queues at most one dispatch; it never sends or borrows JSON scratch.
 namespace {
 constexpr uint32_t kUiStreamBindMs = 5000, kUiStreamRetainMs = 30000;
+// A page pings every 20 s while its timers run; a bound session silent this
+// long belongs to a page the phone froze hidden.
+constexpr uint32_t kUiStreamSilentMs = 300000;
 // Wi-Fi and the BLE scale share one radio: a periodic frame leaves right after
 // every second weight sample, in the gap before the next notification. The
 // timer only covers a missing or silent scale.
@@ -369,6 +372,7 @@ esp_err_t ShotStopperNetwork::uiStreamHandler(httpd_req_t *request) {
       session->boundAtMs = millis();
       accepted = true;
     }
+    if (accepted) session->heardAtMs = millis();
   }
   const bool bindRejected = !accepted && cJSON_IsString(op) &&
       strcmp(op->valuestring, "bind") == 0 && cJSON_IsString(client);
@@ -456,14 +460,22 @@ void ShotStopperNetwork::uiStreamDispatch(void *context) {
   const NetworkStatusSnapshot network = self.snapshot();
   for (auto &session : self.uiStreams_) {
     if (session.fd < 0) continue;
-    bool allowed;
+    bool allowed, silent;
     {
       TaskLockGuard lock(self.dataMux_);
       allowed = session.bound
           ? strcmp(session.clientId, self.activeWebUiClientId_) == 0
           : millis() - session.openedAtMs < kUiStreamBindMs;
+      silent = session.bound && !control.activeCycle &&
+          millis() - session.heardAtMs >= kUiStreamSilentMs;
+      // Unbound until httpd frees it: later dispatches neither log nor send.
+      if (silent) session.bound = false;
     }
-    if (!allowed) {
+    // A plain close: the page reconnects on return, unlike after a takeover.
+    if (silent) {
+      self.lifecycleLog("UI stream closed: page silent for 5 minutes");
+      httpd_sess_trigger_close(self.server_, session.fd);
+    } else if (!allowed) {
       if (session.bound) {
         uiStreamSendKind = "close";
         sendUiStreamTakeoverClose(self.server_, session.fd);

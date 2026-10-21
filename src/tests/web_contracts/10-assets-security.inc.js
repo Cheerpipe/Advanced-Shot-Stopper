@@ -889,8 +889,9 @@ if (htmlBytes > 93300) {
 // The Home preset rules peek with the graph folded under a chevron: +450 bytes (479731), owner-requested 2026-10-20.
 // Shot curves decoded from the firmware's delta stream (one decoder for Home and Stats, minimal live envelope): +1581 bytes (481312), owner-requested 2026-10-20.
 // Home and Diagnostic increments continue the snapshot identity: 481504, owner-requested 2026-10-21.
-if (jsBytes > 481504) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 481504)`);
+// Stream closed after 5 minutes hidden and resumed without snapshots: 482161, owner-requested 2026-10-21.
+if (jsBytes > 482161) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 482161)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1029,8 +1030,9 @@ if (jsBytes > 481504) {
 // The Home preset rules peek with the graph folded under a chevron: 571969, owner-requested 2026-10-20.
 // Shot curves decoded from the firmware's delta stream: 573550, owner-requested 2026-10-20.
 // Home and Diagnostic increments continue the snapshot identity: 573742, owner-requested 2026-10-21.
-if (htmlBytes + jsBytes > 573742) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 573742)`);
+// Stream closed after 5 minutes hidden and resumed without snapshots: 574399, owner-requested 2026-10-21.
+if (htmlBytes + jsBytes > 574399) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 574399)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

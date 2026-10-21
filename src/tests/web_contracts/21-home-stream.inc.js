@@ -236,3 +236,75 @@ int main(){
                     'keep the IP/mDNS list as fallback, and log a rejected Origin');
   }
 }
+
+// A page hidden for 5 minutes drops its stream and reconnects on return; a
+// shorter absence keeps the socket with only a liveness ping, a live shot
+// defers the close, and none of it touches the 15-minute inactivity timer.
+{
+  const assert = require('assert').strict, vm = require('vm');
+  const source = runtimeStateDecl + runtimeJs.slice(runtimeJs.search(/let\s+homeFrame\s*=/),
+    runtimeJs.indexOf('function setHomeSub(')).replace(/export /g, '');
+  const sockets = [], timers = new Map(), listeners = {};
+  let timer = 0, clock = 1000000, owner = true, live = false, inactivityCalls = 0;
+  class Socket {
+    static OPEN = 1;
+    constructor() { this.readyState = 1; this.sent = []; sockets.push(this); }
+    send(value) { this.sent.push(JSON.parse(value)); }
+    close(code = 1006) { if (this.readyState === 3) return; this.readyState = 3; this.onclose?.({code}); }
+  }
+  const document = {hidden: false, addEventListener: (name, fn) => { listeners[name] = fn; }};
+  const context = {
+    WebSocket: Socket, location: {protocol: 'http:', host: 'device.local'}, document,
+    window: {addEventListener() {}}, Date: {now: () => clock},
+    setTimeout: (fn, delay) => { timers.set(++timer, {fn, delay}); return timer; },
+    clearTimeout: id => timers.delete(id), requestAnimationFrame: () => 1,
+    webUiPollingActive: () => owner, webUiClientId: '0123456789abcdef', webUiPowerSeconds: () => 30,
+    sessionShotLive: () => live, shotFsActive: false, setupSession: false, keepShotFsAwake() {},
+    resetWebUiInactivity: () => { inactivityCalls++; }, deactivateWebUi: () => { inactivityCalls++; owner = false; },
+    activeView: 'settings', viewSeq: 1, viewReady: Promise.resolve(), lastStatusAt: 0,
+    performance: {now: () => clock}, statusUtcAnchorSec: 0, statusUtcAnchorAt: 0, statusLiveShot: false,
+    viewStatusHandlers: {}, applyCommonStatus() {}, setMutable() {}, noteReachOk() {}, noteReachFail() {},
+    hideHomeBoot() {}, clearCupWeights() {}, updateHeaderSignals() {}, updateHomeAdminActions() {},
+    setHomeSub() {}, $: () => null,
+  };
+  vm.runInNewContext(source, context);
+  const visibility = hidden => { document.hidden = hidden; listeners.visibilitychange(); };
+  const closeTimer = () => [...timers].find(([, t]) => t.delay === 300000);
+  context.startUiStream(); sockets[0].onopen();
+  // Short absence: the socket stays and only the liveness ping goes out.
+  visibility(true); assert(closeTimer(), 'hiding arms the 5-minute close');
+  clock += 299000; visibility(false);
+  assert(!closeTimer() && sockets.length === 1 && sockets[0].readyState === 1);
+  assert.equal(sockets[0].sent.at(-1).op, 'activity');
+  assert(!sockets[0].sent.some(op => op.op === 'resync'), 'an open socket needs no snapshots');
+  // The timer closes a page still hidden after 5 minutes, without reconnecting.
+  visibility(true); closeTimer()[1].fn();
+  assert.equal(sockets[0].readyState, 3);
+  assert(![...timers.values()].some(t => t.fn === context.startUiStream), 'no reconnect while hidden');
+  clock += 300000; visibility(false);
+  assert.equal(sockets.length, 2, 'the return reconnects');
+  sockets[1].onopen();
+  // Frozen timers (a locked phone): the return itself closes and reconnects.
+  visibility(true); timers.clear(); clock += 360000; visibility(false);
+  assert(sockets[1].readyState === 3 && sockets.length === 3);
+  sockets[2].onopen();
+  // A live shot defers the close and re-arms it.
+  live = true; visibility(true); closeTimer()[1].fn();
+  assert(sockets[2].readyState === 1 && closeTimer(), 'a live shot keeps the stream');
+  clock += 360000; visibility(false);
+  assert(sockets[2].readyState === 1 && sockets.length === 3, 'returning during a live shot keeps it too');
+  live = false;
+  // A page the inactivity timer deactivated stays deactivated.
+  visibility(true); closeTimer()[1].fn(); owner = false; clock += 360000; visibility(false);
+  assert.equal(sockets.length, 3, 'an inactive page does not reconnect');
+  assert.equal(inactivityCalls, 0, 'the hidden close never touches the inactivity deactivation');
+  // The firmware closes a bound session silent for 5 minutes, outside a live
+  // cycle, with a plain close (not the 4001 takeover) and one log line.
+  const stream = fs.readFileSync(path.join(sketchDir, 'network/ShotStopperUiStream.inc'), 'utf8');
+  assert(stream.includes('constexpr uint32_t kUiStreamSilentMs = 300000;'));
+  assert(stream.includes('silent = session.bound && !control.activeCycle &&') &&
+      stream.includes('millis() - session.heardAtMs >= kUiStreamSilentMs;'));
+  assert(stream.includes('if (accepted) session->heardAtMs = millis();'));
+  const silentBranch = stream.slice(stream.indexOf('if (silent) {'), stream.indexOf('} else if (!allowed) {'));
+  assert(silentBranch.includes('httpd_sess_trigger_close') && !silentBranch.includes('TakeoverClose'));
+}

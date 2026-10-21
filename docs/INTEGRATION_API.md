@@ -485,7 +485,16 @@ ticking countdown locally, so a stable estimate emits no frames. Readiness is
 never evidence for control; power stays ON/OFF-only.
 
 Reconnect and `{"op":"resync"}` request fresh snapshots; the resync op also
-forces a fresh History snapshot for subscribed sessions. Ownership takeover
+forces a fresh History snapshot for subscribed sessions. The browser sends a
+resync only after rejecting a frame. Returning to a page that stayed open
+needs none: the socket delivered every frame in order, so the browser only
+sends its liveness `activity` message. A page hidden for 5 minutes or longer
+(screen locked, another app or tab) closes its stream and reconnects with
+fresh snapshots when it becomes visible again, except while a shot is live.
+The firmware also closes, with a normal close, a bound session that has sent
+nothing for 5 minutes outside a live cycle (a phone that froze the page), and
+notes it in the Web UI log. Neither close affects the 15-minute inactivity
+deactivation. Ownership takeover
 closes the previous socket with code 4001. Bounded `activity`/`alive` control
 messages every 20 seconds detect a lost connection and preserve existing power
 activity behavior; they do not request or repeat Home data. Clock synchronization
