@@ -1181,18 +1181,10 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !activationStoresIo.includes('TaskLockGuard(shotStoreMutex)')) {
   throw new Error('Activation history must page 20 records over the owned WebSocket with sort direction, a type filter, clear, delete, and a streamed CSV export');
 }
-// The embedded ui object ends with '}}' and no separator of its own, so every
-// call site must append the ',' before the next frame member. A missing comma
-// once produced invalid JSON on every history snapshot and an unbounded
-// client resync loop ("Unable to load view").
-const recordUiCallSites = [...network.matchAll(
-    /appendRecordPageUi\(control, &used, override\)/g)];
-if (recordUiCallSites.length !== 2 ||
-    recordUiCallSites.some(
-        site => !network.slice(site.index, site.index + 240)
-            .includes('statusJsonAppend(&used, ",")'))) {
-  throw new Error(
-      'Every record-page ui embed must be followed by a member separator');
+// Record snapshots carry no ui object: page-level state rides the Home stream
+// that the same socket delivers first in every dispatch.
+if (network.includes('appendRecordPageUi') || network.includes('"\\"ui\\":')) {
+  throw new Error('Record-page snapshots must not repeat the Home ui state');
 }
 const statsSection = partialHtml.stats.match(
     /<fieldset id="shotStatsPanel"><legend>Stats<\/legend>([\s\S]*?)<\/fieldset>/);
@@ -1311,11 +1303,11 @@ if (!statsSection ||
         epoch: 5, request: 1, seq: 1, ui, stats: {avgDurationS: 28}, total: 2, offset: 0,
         limit: 10, hasMore: false, rows: [row(2)], rowBase: 0, more: true}, extras);
       context.applyStatsStream(context.statsStreamFrame(frame()));
-      assert.deepEqual(events, ['state'], 'A split page applies nothing until more:false');
+      assert.deepEqual(events, [], 'A split page applies nothing until more:false');
       context.applyStatsStream(context.statsStreamFrame(
           frame({snapshot: false, rows: [row(1)], rowBase: 1, more: false})));
-      assert.deepEqual(events, ['state', 'records:replace', 'render:false'],
-          'The completed page applies UI state before rows');
+      assert.deepEqual(events, ['records:replace', 'render:false'],
+          'The completed page applies its rows; UI state rides the Home stream');
       assert.equal(await loading, true, 'The view load settles on the first completed replace page');
       events.length = 0;
       context.applyStatsStream(context.statsStreamFrame(
@@ -1373,7 +1365,7 @@ if (!statsSection ||
         frame({snapshot: false, epoch: 9, seq: 8, rows: [{...row(3), wD: '!!'}], more: false}),
         frame({snapshot: false, epoch: 9, seq: 8, rows: [{...row(3), wRef: [0, 0]}], more: false}),
         frame({snapshot: false, epoch: 9, seq: 9, rows: [row(2), row(1)], hasMore: true, more: false}),
-        frame({epoch: 9, seq: 10, ui: null, rows: [row(2)], more: false})]) {
+        frame({epoch: 9, seq: 10, total: -1, rows: [row(2)], more: false})]) {
         assert.throws(() => context.statsStreamFrame(bad),
             'invalid stats frames must fail closed');
       }
@@ -1415,8 +1407,8 @@ if (!statsSection ||
           {id: 1, type: 'rinse', durationS: 4, hasWallTime: false,
            endedAtUnixSec: 0, endedAtLocalSec: 0}]}, extras);
       context.applyHistoryStream(context.historyStreamFrame(frame()));
-      assert.deepEqual(events, ['state', 'records:replace', 'render:false'],
-          'A snapshot must hydrate UI state before rendering rows');
+      assert.deepEqual(events, ['records:replace', 'render:false'],
+          'A snapshot renders its rows; UI state rides the Home stream');
       assert.deepEqual(resolved, [true], 'The view load settles on the first replace frame');
       events.length = 0;
       context.applyHistoryStream(context.historyStreamFrame(frame({snapshot: false})));
@@ -1444,22 +1436,15 @@ if (!statsSection ||
         frame({records: [{id: 0, type: 'shot', durationS: 1, hasWeight: true,
           hasWallTime: false, endedAtUnixSec: 1, endedAtLocalSec: 1}]}),
         frame({records: [{id: 5, type: 'shot', durationS: Infinity, hasWeight: true,
-          hasWallTime: false, endedAtUnixSec: 1, endedAtLocalSec: 1}]}),
-        frame({ui: null})]) {
+          hasWallTime: false, endedAtUnixSec: 1, endedAtLocalSec: 1}]})]) {
         assert.throws(() => context.historyStreamFrame(bad),
             'invalid history frames must fail closed');
       }
     }
-    const state = network.slice(network.indexOf('bool ShotStopperNetwork::appendRecordPageUi'),
-        network.indexOf('esp_err_t ShotStopperNetwork::shotsClearHandler'));
     assert.ok(network.includes('requestPendingNetworkConfirm()'),
         'Accepted socket ops keep confirming pending station settings');
-    assert.ok(state.includes('webUiOverrideAllowed') || state.includes('override'),
-        'The record UI state reflects the override flag');
-    assert.ok(state.includes('controlAllowsConfiguration(control)'));
-    for (const unused of ['copyPresetBank', 'copyHomeShot', 'shotCurve', 'cupPresence', 'preferredMac']) {
-      assert.equal(state.includes(unused), false, 'Record UI state must omit Home data: ' + unused);
-    }
+    // The edit gate and override flag reach record pages through Home.
+    assert.ok(codeIncludes(rawRuntimeJs, 'setMutable(!!s.configMutable||!!s.webUiOverrideActive);'));
   })().catch(error => {console.error(error); process.exitCode = 1;});
 }
 {

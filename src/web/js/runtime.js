@@ -4436,7 +4436,6 @@ function historyStreamFrame(message) {
     )
       throw Error();
   }
-  if (message.snapshot && !statusPageOk("records", message.ui)) throw Error();
   return message;
 }
 function applyHistoryStream(message) {
@@ -4450,7 +4449,6 @@ function applyHistoryStream(message) {
     return;
   }
   const mode = fetch ? "append" : "replace";
-  if (message.snapshot) applyCommonStatus(message.ui);
   applyHistoryPage(
     {
       bootId: message.boot,
@@ -4620,8 +4618,7 @@ function statsStreamFrame(message) {
   } else {
     if (message.rowBase !== 0 || message.seq <= statsLastSeq) throw Error();
     if (!message.snapshot && message.boot !== statsStreamBoot) throw Error();
-    if (message.snapshot && !statusPageOk("records", message.ui)) throw Error();
-  }
+    }
   if (
     !message.more &&
     message.hasMore !== message.offset + message.rowBase + message.rows.length < message.total
@@ -4655,7 +4652,6 @@ function applyStatsStream(message) {
       rows: [],
     };
   }
-  if (message.snapshot) applyCommonStatus(message.ui);
   statsPage.rows.push(...message.rows);
   if (message.more) return;
   const page = statsPage;
@@ -5488,22 +5484,7 @@ function lineaMicraAction(action) {
 function statusPageOk(v, s) {
   const c = s && s.config;
   if (!c || typeof s.configMutable !== "boolean") return !1;
-  return v === "records"
-    ? !!(
-        typeof s.firmwareVersion === "string" &&
-        typeof s.webUiOverrideActive === "boolean" &&
-        typeof s.compatibilityMode === "boolean" &&
-        typeof s.timeUtcSec === "number" &&
-        typeof c.revision === "number" &&
-        typeof c.timezoneId === "string" &&
-        typeof c.appliedTimezoneOffsetMinutes === "number" &&
-        typeof c.timezoneAutomatic === "boolean" &&
-        typeof c.timezoneInitialized === "boolean" &&
-        s.lastCommand &&
-        typeof s.lastCommand.requestId === "number" &&
-        typeof s.lastCommand.state === "string"
-      )
-    : v === "home"
+  return v === "home"
       ? !!(
           typeof s.adminUnlocked === "boolean" &&
           typeof c.soundAlertsEnabled === "boolean" &&

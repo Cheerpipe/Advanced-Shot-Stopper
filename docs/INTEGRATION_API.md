@@ -384,8 +384,8 @@ the public integration routes described above. Mutations stay confirmed REST
 commands: `POST /api/v1/stats/clear|delete|rate`,
 `POST /api/v1/history/clear|delete`.
 
-Stats and History frames both carry `boot`, `total`, `offset`, `limit`,
-`hasMore`, and a small `ui` object (snapshot frames only). Stats frames also
+Stats and History frames both carry `boot`, `total`, `offset`, `limit`, and
+`hasMore`. Stats frames also
 carry `stats` (the firmware-computed aggregate) and `rows` — the same row
 fields used for the table and CSV export, with each row's curve arrays embedded at the
 top level; pages larger than the frame budget continue across frames with
@@ -400,20 +400,14 @@ row identity. History records carry `hasWallTime` and both timestamps;
 the unused `hasWeight` flag is omitted. These owned Web UI projections
 ship with the embedded frontend and do not change the public integration API.
 
-`ui` contains `firmwareVersion`, `configMutable`, `webUiOverrideActive`,
-`compatibilityMode`, `development`, `machineType`, `machineIntegration`,
-`timeUtcSec`, `snapshotStale`, `connections`, and `lastCommand` (`requestId`,
-`state`). Its `config` contains
-`revision`, `timezoneId`, `appliedTimezoneOffsetMinutes`,
-`timezoneAutomatic`, and `timezoneInitialized`. These fields update shared
-UI behavior, relative dates, and automatic timezone synchronization without
-fetching Home's scale, cup, preset, or extraction state. The browser validates
-and applies this state before displaying the records; it arrives with the
-snapshot frames of both record streams. Accepted WebSocket ops (claim, bind,
+Record frames carry no page-level UI state: ownership and the edit gate, the
+clock anchor, timezone, firmware version and header signals come from the
+Home stream, which the firmware sends first in every dispatch on the same
+socket. Accepted WebSocket ops (claim, bind,
 activity, and the view subscriptions) retain the confirmation of pending
 Wi-Fi settings on a station connection.
 
-Home's live stream, the other Web UI page status responses, and the record-page `ui` envelope include
+Home's live stream and the other Web UI page status responses include
 `connections`: `wifiConnected` and `bluetoothConnected` are booleans;
 `wifiLevel` and `bluetoothLevel` are firmware-calculated levels:
 `1` weak, `2` medium, `3` strong, or `null` when unavailable. The connection
@@ -616,7 +610,7 @@ still starts from a fresh snapshot. Every accepted op forces the next frame to
 be a full snapshot of the requested window.
 
 History frames have `v: 1`, `type: "history"`, `boot`, `snapshot`, `epoch`,
-the `ui` object (snapshot frames only), `total`, `offset`, `limit`, `hasMore`,
+`total`, `offset`, `limit`, `hasMore`,
 and `records`. Each record carries `id`, `type`, `durationS`, `hasWallTime`,
 `endedAtUnixSec`, and `endedAtLocalSec`. A store epoch and a fingerprint over the finished frame
 suppress sends while the page is unchanged, the same no-change contract as the
@@ -650,8 +644,7 @@ or a tab refocus, the browser replays the subscription and resyncs, and every
 accepted op forces the next page to start from a full snapshot.
 
 Stats frames have `v: 1`, `type: "stats"`, `boot`, `snapshot`, `epoch`,
-`seq`, the `ui` object and the `stats` aggregate (first frame of a page
-only), `total`, `offset`, `limit`, `hasMore`, `rows`, `rowBase`, and `more`.
+`seq`, the `stats` aggregate (first frame of a page only), `total`, `offset`, `limit`, `hasMore`, `rows`, `rowBase`, and `more`.
 In this stream the aggregate also carries `recent`: the newest shots it was
 computed from (up to 10, newest first), each a compact
 `[id, presetId, arrivalS, verdict, fastBeforeS, slowAfterS]` array, with

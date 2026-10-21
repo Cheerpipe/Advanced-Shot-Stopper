@@ -71,7 +71,9 @@
   assert(codeIncludes(rawRuntimeJs, 'applyCommonStatus(s){if(s.connections||s.snapshotStale)updateHeaderSignals(s);'),
       'record-only envelopes must not erase live header signals');
   assert(codeIncludes(rawRuntimeJs, 'noteReachFail(err,force){clearCupWeights();updateHeaderSignals();'));
-  for (const file of ['network/ShotStopperStatus.inc', 'diagnostics/ShotStopperNetworkDiagnostics.inc']) {
+  // Record pages take their header signals from the Home stream on the same socket.
+  assert(!fs.readFileSync(path.join(sketchDir, 'diagnostics/ShotStopperNetworkDiagnostics.inc'), 'utf8').includes('appendRecordPageUi'));
+  for (const file of ['network/ShotStopperStatus.inc']) {
     const source = fs.readFileSync(path.join(sketchDir, file), 'utf8');
     for (const field of ['wifiConnected', 'wifiLevel', 'bluetoothConnected', 'bluetoothLevel', 'wifiName', 'bluetoothName']) assert(source.includes('\\"' + field + '\\"'), file + ': ' + field);
     assert(source.includes('escapeConnectedScaleName(control, g_work->scaleHistory,'), 'Both envelopes use the connected identity resolver');

@@ -837,12 +837,6 @@ class ShotStopperNetwork {
   void noteNetworkRetryBackoff(bool logRetry);
   void clearNetworkFailureStatus(bool staDisconnected);
   esp_err_t workBufBusy(httpd_req_t *request);
-  // Shared record-page "ui" projection (the `statusPageOk('records')`
-  // contract): appends `"ui":{...}` at the statusJson cursor; the record
-  // streams embed it in snapshot frames. `override` replaces the
-  // request-derived flag on the socket path.
-  bool appendRecordPageUi(const ControlStatusSnapshot &control, size_t *used,
-                          bool override);
   bool requireActiveWebUiClient(httpd_req_t *request);
   void clearAdminUnlock();
   void grantAdminUnlock(const char *clientId, uint32_t now);

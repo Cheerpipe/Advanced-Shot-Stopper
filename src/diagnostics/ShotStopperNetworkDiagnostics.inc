@@ -985,63 +985,6 @@ esp_err_t ShotStopperNetwork::debugExportHandler(httpd_req_t *request) {
 }
 
 
-bool ShotStopperNetwork::appendRecordPageUi(
-    const ControlStatusSnapshot &control, size_t *used, bool override) {
-  const TimeStatusSnapshot time = g_wallClock.snapshot(millis());
-  const NetworkStatusSnapshot network = snapshot();
-  int16_t offset = 0;
-  if (time.utcSec != 0) {
-    timeZoneOffsetAtOrUtc(control.config.timezoneId, time.utcSec, offset);
-  }
-  char version[32] = {};
-  sanitizeJsonEmbed(FW_VERSION, version, sizeof(version));
-  char wifiName[WIFI_SSID_CAPACITY * 6] = {};
-  char bluetoothName[PREFERRED_SCALE_NAME_CAPACITY * 6] = {};
-  escapeJsonString(network.staState == StaState::CONNECTED ? network.iface.staSsid : "",
-                   wifiName, sizeof(wifiName));
-  if (control.scaleAvailable && callbacks_.copyScaleHistory)
-    callbacks_.copyScaleHistory(g_work->scaleHistory);
-  else
-    memset(g_work->scaleHistory, 0, sizeof(g_work->scaleHistory));
-  escapeConnectedScaleName(control, g_work->scaleHistory,
-                           bluetoothName, sizeof(bluetoothName));
-  return statusJsonAppend(
-          used,
-          "\"ui\":{\"firmwareVersion\":\"%s\",\"configMutable\":%s,"
-          "\"webUiOverrideActive\":%s,\"compatibilityMode\":%s,"
-          "\"development\":%s,\"machineType\":\"%s\","
-          "\"machineIntegration\":\"%s\",\"timeUtcSec\":%lu,"
-          "\"snapshotStale\":%s,\"connections\":{\"wifiConnected\":%s,\"wifiLevel\":%s,"
-          "\"bluetoothConnected\":%s,\"bluetoothLevel\":%s,"
-          "\"wifiName\":\"%s\",\"bluetoothName\":\"%s\"},"
-          "\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"},"
-          "\"config\":{\"revision\":%lu,\"timezoneId\":\"%s\","
-          "\"appliedTimezoneOffsetMinutes\":%d,\"timezoneAutomatic\":%s,"
-          "\"timezoneInitialized\":%s}}",
-          version, controlAllowsConfiguration(control) ? "true" : "false",
-          override ? "true" : "false",
-          firmwareCompatibilityMode() ? "true" : "false",
-          DEVELOPMENT_BUILD ? "true" : "false", compiledMachineTypeId(),
-#if SHOT_STOPPER_MACHINE_INTEGRATION == SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
-          "linea_micra_cloud",
-#else
-          "none",
-#endif
-          static_cast<unsigned long>(time.utcSec),
-          control.snapshotStale ? "true" : "false",
-          network.staState == StaState::CONNECTED ? "true" : "false",
-          connectionSignalLevelJson(network.staSignalLevel),
-          control.scaleAvailable ? "true" : "false",
-          connectionSignalLevelJson(control.scaleSignalLevel),
-          wifiName, bluetoothName,
-          static_cast<unsigned long>(network.lastCommandRequestId),
-          commandResultStateName(network.lastCommandState),
-          static_cast<unsigned long>(control.config.revision),
-          control.config.timezoneId, static_cast<int>(offset),
-          control.config.timezoneAutomatic ? "true" : "false",
-          durableTimezoneSaved().load() ? "true" : "false");
-}
-
 esp_err_t ShotStopperNetwork::shotsClearHandler(httpd_req_t *request) {
   ShotStopperNetwork &self = *instance_;
   return self.runConfirmedClear(

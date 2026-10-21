@@ -1085,12 +1085,7 @@ bool ShotStopperNetwork::sendHistoryStream(UiStreamSession &session,
     session.historyEpoch = epoch;
     return true;
   }
-  bool override = false;
-  {
-    TaskLockGuard lock(dataMux_);
-    override = webUiOverrideActive_ &&
-        static_cast<int32_t>(millis() - webUiOverrideUntilMs_) < 0;
-  }
+  // Page-level UI state (ownership, edit gate, clock) rides the Home stream.
   size_t used = 0;
   if (!statusJsonAppend(&used,
           "{\"v\":1,\"type\":\"history\",\"boot\":%lu,\"snapshot\":%s,"
@@ -1099,8 +1094,6 @@ bool ShotStopperNetwork::sendHistoryStream(UiStreamSession &session,
           initial ? "true" : "false",
           static_cast<unsigned long>(epoch),
           static_cast<unsigned long>(fetch ? session.historyFetchRequest : session.historyRequest)) ||
-      (initial && (!appendRecordPageUi(control, &used, override) ||
-                   !statusJsonAppend(&used, ","))) ||
       !statusJsonAppend(&used,
           "\"total\":%u,\"offset\":%u,\"limit\":%u,"
           "\"hasMore\":%s,\"records\":[",
@@ -1393,12 +1386,6 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
     session.statsEpoch = epoch;
     return true;
   }
-  bool override = false;
-  {
-    TaskLockGuard lock(dataMux_);
-    override = webUiOverrideActive_ &&
-        static_cast<int32_t>(millis() - webUiOverrideUntilMs_) < 0;
-  }
   if (!session.statsPaging) {
     // Page start: identity is captured once and the resync/boot markers move
     // here from completion, so continuation dispatches are not initial.
@@ -1424,10 +1411,6 @@ bool ShotStopperNetwork::sendStatsStream(UiStreamSession &session,
           static_cast<unsigned long>(session.statsSeq),
           static_cast<unsigned long>(request)))
       return false;
-  if (first && session.statsPageSnapshot &&
-      (!appendRecordPageUi(control, &used, override) ||
-       !statusJsonAppend(&used, ",")))
-    return false;
   if (first && cache.statsOk &&
       !statusJsonAppend(&used, "\"stats\":%s,", cache.header))
     return false;
