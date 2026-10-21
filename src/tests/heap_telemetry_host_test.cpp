@@ -1,5 +1,5 @@
 #define SHOT_STOPPER_HOST_TEST
-#include "../OpenBrewPsram.h"
+#include "../OpenBrewByWeightPsram.h"
 
 #include <cassert>
 #include <cstdint>

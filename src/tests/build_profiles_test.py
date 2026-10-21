@@ -57,7 +57,7 @@ for hardware, machine, expected_type, integration, brand, model in (
         assert output["arch"] == "n16r8"
         assert output["variant"].startswith(hardware.stem + "--")
         generated = Path(output["generated_dir"])
-        header = (generated / "OpenBrewBuildProfileGenerated.h").read_text()
+        header = (generated / "OpenBrewByWeightBuildProfileGenerated.h").read_text()
         manifest = json.loads((generated / "build-profile.json").read_text())
         assert f"#define SHOT_STOPPER_MACHINE_TYPE {expected_type}" in header
         assert f'#define SHOT_STOPPER_MACHINE_MODEL "{model}"' in header
@@ -97,7 +97,7 @@ try:
     generated = Path(dict(line.split("=", 1) for line in
                           result.stdout.splitlines())["generated_dir"])
     manifest = json.loads((generated / "build-profile.json").read_text())
-    header = (generated / "OpenBrewBuildProfileGenerated.h").read_text()
+    header = (generated / "OpenBrewByWeightBuildProfileGenerated.h").read_text()
     assert manifest["machine_integration"] == "linea_micra_cloud"
     assert "#define SHOT_STOPPER_MACHINE_INTEGRATION 1" in header
 finally:
@@ -149,7 +149,7 @@ try:
     output = dict(line.split("=", 1) for line in override.stdout.splitlines())
     generated = Path(output["generated_dir"])
     manifest = json.loads((generated / "build-profile.json").read_text())
-    header = (generated / "OpenBrewBuildProfileGenerated.h").read_text()
+    header = (generated / "OpenBrewByWeightBuildProfileGenerated.h").read_text()
     assert manifest["hardware"]["relay"]["gpio"] == 3
     assert manifest["machine"]["factory_defaults"]["quick_rinse"]["enabled"]
     assert "SHOT_STOPPER_DEVELOPMENT" not in header
@@ -218,7 +218,7 @@ try:
     assert result.returncode == 0, result.stderr
     generated = Path(dict(line.split("=", 1) for line in
                           result.stdout.splitlines())["generated_dir"])
-    header = (generated / "OpenBrewBuildProfileGenerated.h").read_text()
+    header = (generated / "OpenBrewByWeightBuildProfileGenerated.h").read_text()
     # Buzzer support follows the hardware profile's speaker presence.
     assert "#define SHOT_STOPPER_ENABLE_BUZZER 1" in header
 finally:
@@ -229,7 +229,7 @@ try:
     assert result.returncode == 0, result.stderr
     output = dict(line.split("=", 1) for line in result.stdout.splitlines())
     generated = Path(output["generated_dir"])
-    header = (generated / "OpenBrewBuildProfileGenerated.h").read_text()
+    header = (generated / "OpenBrewByWeightBuildProfileGenerated.h").read_text()
     # The header keeps the presence-derived value; the #ifndef guard lets the
     # explicit =0 win at compile time.
     assert "#define SHOT_STOPPER_ENABLE_BUZZER 1" in header
@@ -248,7 +248,7 @@ try:
     assert result.returncode == 0, result.stderr
     generated = Path(dict(line.split("=", 1) for line in
                           result.stdout.splitlines())["generated_dir"])
-    header = (generated / "OpenBrewBuildProfileGenerated.h").read_text()
+    header = (generated / "OpenBrewByWeightBuildProfileGenerated.h").read_text()
     assert "#define SHOT_STOPPER_ENABLE_BUZZER 0" in header
 finally:
     temporary.cleanup()

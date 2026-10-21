@@ -108,7 +108,7 @@
     throw new Error('Home and Diagnostic cup panel contract');
   }
   // Parse the actual adjacent C++ format literals for both status paths.
-  const status = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewStatus.inc'), 'utf8');
+  const status = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightStatus.inc'), 'utf8');
   // The shared C++ projection is exercised natively by scale_profiler_host_test.
   // Keep the Web-specific legacy labels and shared projection binding explicit.
   if (!network.includes('idleTarePresentationCode(tare, control.cupPresent)') ||
@@ -118,7 +118,7 @@
     throw new Error('Idle tare Web projection must preserve its public labels');
   }
   const homeStream = fs.readFileSync(
-      path.join(sketchDir, 'network/OpenBrewHomeStream.inc'), 'utf8');
+      path.join(sketchDir, 'network/OpenBrewByWeightHomeStream.inc'), 'utf8');
   const diagSender = homeStream.slice(
       homeStream.indexOf('bool ShotStopperNetwork::sendDiagnosticStream'),
       homeStream.indexOf('bool ShotStopperNetwork::sendLogStream'));

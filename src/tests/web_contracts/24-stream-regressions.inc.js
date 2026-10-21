@@ -2,9 +2,9 @@
 // cannot catch valid escaping embedded in invalid JSON, or a stale retry flag.
 {
   const assert = require('assert').strict, {spawnSync} = require('child_process');
-  const stream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewHomeStream.inc'), 'utf8');
-  const webhook = fs.readFileSync(path.join(sketchDir, 'OpenBrewWebhook.h'), 'utf8');
-  const networkSource = fs.readFileSync(path.join(sketchDir, 'OpenBrewNetwork.cpp'), 'utf8');
+  const stream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightHomeStream.inc'), 'utf8');
+  const webhook = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightWebhook.h'), 'utf8');
+  const networkSource = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightNetwork.cpp'), 'utf8');
   const body = (source, signature) => {
     const start = source.indexOf(signature);
     assert(start >= 0, signature);
@@ -24,7 +24,7 @@
 #include <cstdio>
 #include <string>
 #include <vector>
-#include "OpenBrewDomain.h"
+#include "OpenBrewByWeightDomain.h"
 using namespace shotstopper;
 constexpr int ESP_OK=0, HTTPD_WS_TYPE_TEXT=1;
 constexpr size_t LOG_BATCH_SIZE=32, kUiStreamFrameBudget=20480;

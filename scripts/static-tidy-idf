@@ -4,12 +4,12 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)" || exit $?
-# shellcheck source=scripts/openbrew_board.sh
-source "$SCRIPT_DIR/openbrew_board.sh"
-# shellcheck source=scripts/openbrew_cli.sh
-source "$SCRIPT_DIR/openbrew_cli.sh"
-# shellcheck source=scripts/openbrew_idf.sh
-source "$SCRIPT_DIR/openbrew_idf.sh"
+# shellcheck source=scripts/openbrewbyweight_board.sh
+source "$SCRIPT_DIR/openbrewbyweight_board.sh"
+# shellcheck source=scripts/openbrewbyweight_cli.sh
+source "$SCRIPT_DIR/openbrewbyweight_cli.sh"
+# shellcheck source=scripts/openbrewbyweight_idf.sh
+source "$SCRIPT_DIR/openbrewbyweight_idf.sh"
 
 ROOT="$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)" || exit $?
 readonly ROOT
@@ -105,8 +105,8 @@ patterns = [
     "libraries/EspressoScaleBLE/src/protocols/*.cpp",
     "idf/main/*.cpp",
     "idf/components/EspressoScaleBLE/*.cpp",
-    "idf/components/OpenBrewBleRuntime/*.cpp",
-    "idf/components/openBrew/*.cpp",
+    "idf/components/OpenBrewByWeightBleRuntime/*.cpp",
+    "idf/components/openBrewByWeight/*.cpp",
 ]
 drop_prefixes = ("-fno-tree-", "-fstrict-volatile-bitfields", "-fuse-ld=",
                  "-Wl,", "--param=", "-mdisable-hardware-", "-fanalyzer",

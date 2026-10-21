@@ -3,7 +3,7 @@
 // same curve, so no alternative is ever scored against a censored outcome.
 // With a path argument the binary instead replays an exported Stats CSV and
 // prints, per shot, when each law would have commanded the stop.
-#include "../OpenBrewCorridor.h"
+#include "../OpenBrewByWeightCorridor.h"
 
 #include <algorithm>
 #include <cmath>

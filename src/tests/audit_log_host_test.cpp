@@ -2,7 +2,7 @@
 // is audit-worthy, WARNING codes enter through the curated allowlist, marked
 // DEBUG codes only in verbose mode, and the latch ring rate-limits per code
 // while common-ring behavior stays untouched.
-#include "OpenBrewAuditLog.h"
+#include "OpenBrewByWeightAuditLog.h"
 
 #include <cassert>
 #include <cstdio>

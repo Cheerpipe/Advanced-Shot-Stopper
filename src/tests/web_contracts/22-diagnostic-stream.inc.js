@@ -98,9 +98,9 @@
   // permanent claim overlay: the server's audit frame shipped invalid JSON,
   // and a bind from a superseded client dropped the socket like a network
   // failure instead of a takeover notice.
-  const uiStreamSrc = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewUiStream.inc'), 'utf8');
+  const uiStreamSrc = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightUiStream.inc'), 'utf8');
   const closeFrame = uiStreamSrc.slice(uiStreamSrc.indexOf('void sendUiStreamClose'),
-    uiStreamSrc.indexOf('#include "OpenBrewUiStreamTransport.inc"'));
+    uiStreamSrc.indexOf('#include "OpenBrewByWeightUiStreamTransport.inc"'));
   assert(closeFrame.includes('HTTPD_WS_TYPE_CLOSE') &&
       uiStreamSrc.includes('kUiStreamCloseTakeover = 4001, kUiStreamCloseSilent = 4002;'),
       'the close frames must carry WS codes 4001 (takeover) and 4002 (silent page)');
@@ -113,7 +113,7 @@
   // The silent close (byte layout: 4002 big-endian) uses its own code.
   assert(/uiStreamSendKind = "close";\s*sendUiStreamClose\(self\.server_, session\.fd, kUiStreamCloseSilent\)/
       .test(uiStreamSrc.replace(/\n\s+/g, ' ')));
-  const auditSrc = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewAuditStream.inc'), 'utf8');
+  const auditSrc = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightAuditStream.inc'), 'utf8');
   assert(auditSrc.includes('statusJsonAppend(&used, "]}}}")'),
       'the audit frame must close items, audit, changes and the frame root');
   // The audit table's Detail column is composed firmware-side from the stored
@@ -130,7 +130,7 @@
          codeIncludes(diagnosticSrc, "R.apiBinary(\"/api/v1/diagnostic/audit\")"),
       'the audit export must download the full text log');
   const routes = fs.readFileSync(
-      path.join(sketchDir, 'network/OpenBrewHttpAuthAssets.inc'), 'utf8');
+      path.join(sketchDir, 'network/OpenBrewByWeightHttpAuthAssets.inc'), 'utf8');
   assert(routes.includes('{"/api/v1/diagnostic/audit", HTTP_GET, auditLogExportHandler}'),
       'the audit export route must be registered');
   const localeStrings = JSON.parse(fs.readFileSync(
@@ -188,9 +188,9 @@
 // Firmware projection: bounded field budget, view-scoped dispatch, and wiring.
 {
   const assert = require('assert').strict;
-  const stream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewUiStream.inc'), 'utf8') +
-      fs.readFileSync(path.join(sketchDir, 'network/OpenBrewUiStreamTransport.inc'), 'utf8');
-  const homeStream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewHomeStream.inc'), 'utf8');
+  const stream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightUiStream.inc'), 'utf8') +
+      fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightUiStreamTransport.inc'), 'utf8');
+  const homeStream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightHomeStream.inc'), 'utf8');
   assert(stream.includes('strcmp(op->valuestring, "diagnostic")'));
   assert(stream.includes('session->diagnostic = cJSON_IsTrue(on)'));
   assert(stream.includes('if (open && session.diagnostic)') &&

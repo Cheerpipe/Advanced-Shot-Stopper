@@ -4,9 +4,9 @@
 {
   const assert = require('assert').strict, {spawnSync} = require('child_process');
   const read = (file) => fs.readFileSync(path.join(sketchDir, file), 'utf8');
-  const source = read('network/OpenBrewHomeStream.inc');
-  const networkSource = read('OpenBrewNetwork.cpp');
-  const header = read('OpenBrewNetwork.h');
+  const source = read('network/OpenBrewByWeightHomeStream.inc');
+  const networkSource = read('OpenBrewByWeightNetwork.cpp');
+  const header = read('OpenBrewByWeightNetwork.h');
   const body = (text, signature) => {
     const start = text.indexOf(signature);
     assert(start >= 0, signature);
@@ -21,9 +21,9 @@
 #include <cstdio>
 #include <string>
 #include <vector>
-#include "OpenBrewDomain.h"
-#include "OpenBrewHistoryTypes.h"
-#include "OpenBrewShotCurveTypes.h"
+#include "OpenBrewByWeightDomain.h"
+#include "OpenBrewByWeightHistoryTypes.h"
+#include "OpenBrewByWeightShotCurveTypes.h"
 using namespace shotstopper;
 constexpr int ESP_OK=0,HTTPD_WS_TYPE_TEXT=1;
 constexpr size_t kStatsStreamFrameBytes=20480;

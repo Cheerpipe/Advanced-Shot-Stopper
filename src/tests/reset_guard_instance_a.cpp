@@ -6,7 +6,7 @@ extern uint32_t hostSafetyResetReasonCode;
 extern bool hostSafetyResetReasonUnsafe;
 extern bool hostSafetyResetReasonPowerOn;
 
-#include "../OpenBrewResetGuard.h"
+#include "../OpenBrewByWeightResetGuard.h"
 
 const volatile void *resetGuardAddressA() {
   return &shotstopper::safetyResetRecordForHost();

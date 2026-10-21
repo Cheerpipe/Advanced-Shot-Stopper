@@ -1,7 +1,7 @@
 // Closed-loop acceptance test of the grind hint (design 2026-10-16, section
 // 10): a simulated barista pulls shots around a true level with 10 % outliers
 // and, on every announcement, moves the grind by the offset the hint shows.
-#include "../OpenBrewCorridor.h"
+#include "../OpenBrewByWeightCorridor.h"
 
 #include <algorithm>
 #include <iostream>

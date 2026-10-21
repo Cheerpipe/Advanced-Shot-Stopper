@@ -1,11 +1,11 @@
-#include "machine/OpenBrewLineaMicraSettings.h"
-#include "machine/OpenBrewLineaMicraTypes.h"
-#include "machine/OpenBrewMicraMachinePower.h"
-#include "machine/OpenBrewMicraPowerState.h"
-#include "machine/OpenBrewMicraPublicIdentityCache.h"
-#include "machine/OpenBrewMicraScalePowerOn.h"
-#include "machine/OpenBrewMicraScaleShutdown.h"
-#include "machine/OpenBrewMicraTiming.h"
+#include "machine/OpenBrewByWeightLineaMicraSettings.h"
+#include "machine/OpenBrewByWeightLineaMicraTypes.h"
+#include "machine/OpenBrewByWeightMicraMachinePower.h"
+#include "machine/OpenBrewByWeightMicraPowerState.h"
+#include "machine/OpenBrewByWeightMicraPublicIdentityCache.h"
+#include "machine/OpenBrewByWeightMicraScalePowerOn.h"
+#include "machine/OpenBrewByWeightMicraScaleShutdown.h"
+#include "machine/OpenBrewByWeightMicraTiming.h"
 
 #include <cassert>
 #include <cstring>

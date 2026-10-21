@@ -15,5 +15,5 @@
 *.o
 *.a
 *.stl
-/src/OpenBrewVersion.h
-/src/OpenBrewWebAssetsGzip.h
+/src/OpenBrewByWeightVersion.h
+/src/OpenBrewByWeightWebAssetsGzip.h

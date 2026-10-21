@@ -4,12 +4,12 @@ set -euo pipefail
 
 INTERNAL_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT_DIR="$(CDPATH='' cd -- "$INTERNAL_DIR/.." && pwd)"
-# shellcheck source=scripts/openbrew_board.sh
-source "$SCRIPT_DIR/openbrew_board.sh"
-# shellcheck source=scripts/openbrew_cli.sh
-source "$SCRIPT_DIR/openbrew_cli.sh"
-# shellcheck source=scripts/openbrew_idf.sh
-source "$SCRIPT_DIR/openbrew_idf.sh"
+# shellcheck source=scripts/openbrewbyweight_board.sh
+source "$SCRIPT_DIR/openbrewbyweight_board.sh"
+# shellcheck source=scripts/openbrewbyweight_cli.sh
+source "$SCRIPT_DIR/openbrewbyweight_cli.sh"
+# shellcheck source=scripts/openbrewbyweight_idf.sh
+source "$SCRIPT_DIR/openbrewbyweight_idf.sh"
 
 usage() {
   cat <<EOF

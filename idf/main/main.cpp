@@ -21,5 +21,5 @@ extern "C" void shotstopperKeepBssProbe(void) {
   g_probe[0] = static_cast<uint8_t>(g_probe[0] + 1U);
 }
 
-// Application setup()/loop() live in the openBrew component
-// (src/openBrew.cpp), started by CONFIG_AUTOSTART_ARDUINO.
+// Application setup()/loop() live in the openBrewByWeight component
+// (src/openBrewByWeight.cpp), started by CONFIG_AUTOSTART_ARDUINO.

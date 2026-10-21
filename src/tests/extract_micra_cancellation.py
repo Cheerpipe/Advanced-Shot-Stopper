@@ -46,8 +46,8 @@ output.mkdir(parents=True, exist_ok=True)
     "namespace shotstopper {\nconstexpr size_t kTokenCapacity = 2048;\n"
     + "\n".join(map(definition, names)) + "\n"
     + definition("ShotStopperMicraService::websocketAdmitted",
-                 source.with_name("OpenBrewMicraWebSocket.inc").read_text(),
-                 source.with_name("OpenBrewMicraWebSocket.inc")) + "\n}\n")
+                 source.with_name("OpenBrewByWeightMicraWebSocket.inc").read_text(),
+                 source.with_name("OpenBrewByWeightMicraWebSocket.inc")) + "\n}\n")
 retry = definition("ShotStopperMicraService::waitRetry")
 (output / "micra_cancellation_retry.inc").write_text(
     retry.split("\n", 1)[0] + "\n" + retry[retry.index("{") + 1:retry.rindex("}")])

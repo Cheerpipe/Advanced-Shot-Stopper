@@ -209,8 +209,8 @@ CONFIG_ARDUINO_SELECTIVE_DNSServer=y
 CONFIG_BT_ENABLED=y
 CONFIG_BT_CONTROLLER_ENABLED=y
 
-# Compile-time requirements from OpenBrewWatchdog.h / OpenBrewOta.h /
-# OpenBrewHardwareTimer.h. Arduino-ESP32 prebuilt libs already ship these.
+# Compile-time requirements from OpenBrewByWeightWatchdog.h / OpenBrewByWeightOta.h /
+# OpenBrewByWeightHardwareTimer.h. Arduino-ESP32 prebuilt libs already ship these.
 CONFIG_ESP_TASK_WDT_EN=y
 CONFIG_ESP_TASK_WDT_INIT=y
 CONFIG_ESP_TASK_WDT_PANIC=y

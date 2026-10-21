@@ -6,10 +6,10 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-# shellcheck source=scripts/openbrew_board.sh
-source "$SCRIPT_DIR/openbrew_board.sh"
-# shellcheck source=scripts/openbrew_cli.sh
-source "$SCRIPT_DIR/openbrew_cli.sh"
+# shellcheck source=scripts/openbrewbyweight_board.sh
+source "$SCRIPT_DIR/openbrewbyweight_board.sh"
+# shellcheck source=scripts/openbrewbyweight_cli.sh
+source "$SCRIPT_DIR/openbrewbyweight_cli.sh"
 
 readonly ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 readonly OUTPUT_DIR="reports/gcc-warnings"

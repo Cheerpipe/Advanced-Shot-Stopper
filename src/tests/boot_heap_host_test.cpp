@@ -1,6 +1,6 @@
 #define SHOT_STOPPER_HOST_TEST
-#include "open_brew_host_stubs.h"
-#include "../OpenBrewSerialCli.h"
+#include "open_brew_by_weight_host_stubs.h"
+#include "../OpenBrewByWeightSerialCli.h"
 
 #include <cassert>
 #include <filesystem>
@@ -129,7 +129,7 @@ int main() {
 
   // The real service must enforce expiry before failed-startup/restart returns.
   const auto path = std::filesystem::path(__FILE__).parent_path().parent_path() /
-                    "network/OpenBrewNetworkService.inc";
+                    "network/OpenBrewByWeightNetworkService.inc";
   std::ifstream input(path);
   assert(input);
   const std::string source((std::istreambuf_iterator<char>(input)), {});

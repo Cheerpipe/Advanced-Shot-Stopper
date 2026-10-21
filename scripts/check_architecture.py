@@ -25,18 +25,18 @@ def main() -> int:
     failures: list[str] = []
 
     safety_files = (
-        "src/OpenBrewSafety.h",
-        "src/OpenBrewMachineRelay.h",
-        "src/OpenBrewHardwareTimer.h",
-        "src/OpenBrewWatchdog.h",
-        "src/OpenBrewResetGuard.h",
-        "src/OpenBrewResetGuard.cpp",
+        "src/OpenBrewByWeightSafety.h",
+        "src/OpenBrewByWeightMachineRelay.h",
+        "src/OpenBrewByWeightHardwareTimer.h",
+        "src/OpenBrewByWeightWatchdog.h",
+        "src/OpenBrewByWeightResetGuard.h",
+        "src/OpenBrewByWeightResetGuard.cpp",
     )
     forbidden_safety = (
         "ShotStopperNetwork",
         "ShotStopperWebhook",
-        "OpenBrewNetwork",
-        "OpenBrewWebhook",
+        "OpenBrewByWeightNetwork",
+        "OpenBrewByWeightWebhook",
         "<WiFi",
         "cJSON",
         "esp_http",
@@ -47,8 +47,8 @@ def main() -> int:
             if token in source:
                 failures.append(f"SafetyKernel dependency {token!r} in {relative}")
 
-    scale_source = text("src/OpenBrewScaleWorker.cpp")
-    for token in ('#include "OpenBrewNetwork.h"', "networkManager."):
+    scale_source = text("src/OpenBrewByWeightScaleWorker.cpp")
+    for token in ('#include "OpenBrewByWeightNetwork.h"', "networkManager."):
         if token in scale_source:
             failures.append(f"ScaleService bypasses its bridge via {token!r}")
     for required in (
@@ -57,14 +57,14 @@ def main() -> int:
         "configureScaleWorkerBridge",
     ):
         if required not in scale_source and required not in text(
-            "src/OpenBrewScaleWorker.h"
+            "src/OpenBrewByWeightScaleWorker.h"
         ):
             failures.append(f"ScaleService bridge contract missing {required!r}")
 
     machine_common = (
-        "src/machine/OpenBrewMachineIntegration.h",
-        "src/machine/OpenBrewMachineIntegration.cpp",
-        "src/machine/OpenBrewMachineBackflush.h",
+        "src/machine/OpenBrewByWeightMachineIntegration.h",
+        "src/machine/OpenBrewByWeightMachineIntegration.cpp",
+        "src/machine/OpenBrewByWeightMachineBackflush.h",
     )
     for relative in machine_common:
         source = text(relative)
@@ -74,14 +74,14 @@ def main() -> int:
                     f"common machine lifecycle exposes concrete feature {token!r} "
                     f"in {relative}"
                 )
-    machine_cmake = text("idf/components/openBrew/CMakeLists.txt")
+    machine_cmake = text("idf/components/openBrewByWeight/CMakeLists.txt")
     for required in (
-        "OpenBrewLineaMicraIntegration.cpp",
-        "OpenBrewMachineIntegration.cpp",
+        "OpenBrewByWeightLineaMicraIntegration.cpp",
+        "OpenBrewByWeightMachineIntegration.cpp",
     ):
         if required not in machine_cmake:
             failures.append(f"selected machine source contract missing {required!r}")
-    micra_service = text("src/machine/OpenBrewMicraService.cpp")
+    micra_service = text("src/machine/OpenBrewByWeightMicraService.cpp")
     for required in (
         "esp_crt_bundle_attach",
         "networkEligible",
@@ -90,15 +90,15 @@ def main() -> int:
     ):
         if required not in micra_service:
             failures.append(f"Micra cloud boundary missing {required!r}")
-    for forbidden in ("NimBLE", "ShotStopperBle", "OpenBrewBle", "ble_gap", "ble_gatt"):
+    for forbidden in ("NimBLE", "ShotStopperBle", "OpenBrewByWeightBle", "ble_gap", "ble_gatt"):
         if forbidden in micra_service:
             failures.append(f"Micra cloud service depends on BLE via {forbidden!r}")
-    entrypoints = text("src/platform/OpenBrewEntrypoints.inc")
+    entrypoints = text("src/platform/OpenBrewByWeightEntrypoints.inc")
     if "scaleBridgeOk && machineIntegrationOk" in entrypoints:
         failures.append("optional machine integration gates scale-worker startup")
 
-    network = service_text("src/OpenBrewNetwork.cpp", "src/network") + text(
-        "src/OpenBrewNetwork.h"
+    network = service_text("src/OpenBrewByWeightNetwork.cpp", "src/network") + text(
+        "src/OpenBrewByWeightNetwork.h"
     )
     for token in (
         "machineRequestStart(",
@@ -127,9 +127,9 @@ def main() -> int:
     # roots. Reducing them is encouraged; increasing them requires an explicit
     # architecture review and must not be used to land feature code.
     line_ceilings = {
-        "src/OpenBrewNetwork.cpp": 2000,
-        "src/openBrew.cpp": 2000,
-        "src/OpenBrewDomain.h": 3300,
+        "src/OpenBrewByWeightNetwork.cpp": 2000,
+        "src/openBrewByWeight.cpp": 2000,
+        "src/OpenBrewByWeightDomain.h": 3300,
     }
     for relative, ceiling in line_ceilings.items():
         lines = len(text(relative).splitlines())

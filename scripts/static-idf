@@ -4,12 +4,12 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)" || exit $?
-# shellcheck source=scripts/openbrew_board.sh
-source "$SCRIPT_DIR/openbrew_board.sh"
-# shellcheck source=scripts/openbrew_cli.sh
-source "$SCRIPT_DIR/openbrew_cli.sh"
-# shellcheck source=scripts/openbrew_idf.sh
-source "$SCRIPT_DIR/openbrew_idf.sh"
+# shellcheck source=scripts/openbrewbyweight_board.sh
+source "$SCRIPT_DIR/openbrewbyweight_board.sh"
+# shellcheck source=scripts/openbrewbyweight_cli.sh
+source "$SCRIPT_DIR/openbrewbyweight_cli.sh"
+# shellcheck source=scripts/openbrewbyweight_idf.sh
+source "$SCRIPT_DIR/openbrewbyweight_idf.sh"
 
 ROOT="$(CDPATH='' cd -- "$SCRIPT_DIR/.." && pwd)" || exit $?
 readonly ROOT
@@ -79,8 +79,8 @@ cppcheck \
   --file-filter='*/libraries/EspressoScaleBLE/src/nimble/*.cpp' \
   --file-filter='*/libraries/EspressoScaleBLE/src/protocols/*.cpp' \
   --file-filter='*/idf/main/*.cpp' \
-  --file-filter='*/idf/components/OpenBrewBleRuntime/*.cpp' \
-  --file-filter='*/idf/components/openBrew/*' \
+  --file-filter='*/idf/components/OpenBrewByWeightBleRuntime/*.cpp' \
+  --file-filter='*/idf/components/openBrewByWeight/*' \
   --enable=warning,performance,portability \
   --inline-suppr \
   --inconclusive \

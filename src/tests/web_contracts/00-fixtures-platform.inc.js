@@ -15,99 +15,99 @@ function readSources(files) {
 }
 const rawShellHtml = fs.readFileSync(webUi.sourcePath, 'utf8').replace(/\r?\n$/, '');
 const network = readSources([
-  'OpenBrewNetwork.cpp',
-  'network/OpenBrewNetworkService.inc',
-  'network/OpenBrewWifi.inc',
-  'network/OpenBrewHttpLifecycle.inc',
-  'network/OpenBrewHttpAuthAssets.inc',
-  'network/OpenBrewStatus.inc',
-  'network/OpenBrewUiStream.inc',
-  'network/OpenBrewUiStreamTransport.inc',
-  'network/OpenBrewHomeStream.inc',
-  'network/OpenBrewAuditStream.inc',
-  'network/OpenBrewIntegrationApi.inc',
-  'diagnostics/OpenBrewNetworkDiagnostics.inc',
-  'network/OpenBrewConfiguration.inc',
-  'network/OpenBrewLineaMicraWeb.inc',
-  'network/OpenBrewNetworkOta.inc',
+  'OpenBrewByWeightNetwork.cpp',
+  'network/OpenBrewByWeightNetworkService.inc',
+  'network/OpenBrewByWeightWifi.inc',
+  'network/OpenBrewByWeightHttpLifecycle.inc',
+  'network/OpenBrewByWeightHttpAuthAssets.inc',
+  'network/OpenBrewByWeightStatus.inc',
+  'network/OpenBrewByWeightUiStream.inc',
+  'network/OpenBrewByWeightUiStreamTransport.inc',
+  'network/OpenBrewByWeightHomeStream.inc',
+  'network/OpenBrewByWeightAuditStream.inc',
+  'network/OpenBrewByWeightIntegrationApi.inc',
+  'diagnostics/OpenBrewByWeightNetworkDiagnostics.inc',
+  'network/OpenBrewByWeightConfiguration.inc',
+  'network/OpenBrewByWeightLineaMicraWeb.inc',
+  'network/OpenBrewByWeightNetworkOta.inc',
 ]);
-const networkHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewNetwork.h'), 'utf8');
-const otaSource = fs.readFileSync(path.join(sketchDir, 'OpenBrewOta.cpp'), 'utf8');
-const otaHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewOta.h'), 'utf8');
-const webhookSource = fs.readFileSync(path.join(sketchDir, 'OpenBrewWebhook.cpp'), 'utf8');
-const webhookHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewWebhook.h'), 'utf8');
+const networkHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightNetwork.h'), 'utf8');
+const otaSource = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightOta.cpp'), 'utf8');
+const otaHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightOta.h'), 'utf8');
+const webhookSource = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightWebhook.cpp'), 'utf8');
+const webhookHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightWebhook.h'), 'utf8');
 const firmwareCore = readSources([
-  'openBrew.cpp',
-  'control/OpenBrewCycleRuntime.inc',
-  'control/OpenBrewCycleFinalize.inc',
-  'control/OpenBrewIdleTare.inc',
-  'control/OpenBrewBbwFinalize.inc',
-  'scale/OpenBrewScaleEvents.inc',
-  'control/OpenBrewControlStateMachine.inc',
-  'persistence/OpenBrewCommandPersistence.inc',
-  'control/OpenBrewCommands.inc',
-  'diagnostics/OpenBrewSerialOutput.inc',
-  'diagnostics/OpenBrewSerialLog.inc',
-  'diagnostics/OpenBrewDiagnostics.inc',
-  'platform/OpenBrewEntrypoints.inc',
+  'openBrewByWeight.cpp',
+  'control/OpenBrewByWeightCycleRuntime.inc',
+  'control/OpenBrewByWeightCycleFinalize.inc',
+  'control/OpenBrewByWeightIdleTare.inc',
+  'control/OpenBrewByWeightBbwFinalize.inc',
+  'scale/OpenBrewByWeightScaleEvents.inc',
+  'control/OpenBrewByWeightControlStateMachine.inc',
+  'persistence/OpenBrewByWeightCommandPersistence.inc',
+  'control/OpenBrewByWeightCommands.inc',
+  'diagnostics/OpenBrewByWeightSerialOutput.inc',
+  'diagnostics/OpenBrewByWeightSerialLog.inc',
+  'diagnostics/OpenBrewByWeightDiagnostics.inc',
+  'platform/OpenBrewByWeightEntrypoints.inc',
 ]);
 const idfMain = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'main', 'main.cpp'), 'utf8');
-const scaleWorker = fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleWorker.cpp'), 'utf8');
+const scaleWorker = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightScaleWorker.cpp'), 'utf8');
 const firmware = [
   firmwareCore,
   scaleWorker,
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleWorker.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleLink.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewHardware.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachine.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewRfCoex.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineRelay.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineActivatorSample.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleInput.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleControl.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleState.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddlePolicy.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleConfig.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineMomentaryInput.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineMomentaryConfig.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineMomentaryControl.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineMomentaryReedState.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineMomentaryOnlyState.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleSense.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewCupPresence.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewBrew.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewRinse.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewShotCurveTypes.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewAlert.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewAlertChannel.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewAlertTone.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightScaleWorker.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightScaleLink.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightHardware.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachine.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightRfCoex.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineRelay.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineActivatorSample.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachinePaddleInput.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachinePaddleControl.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachinePaddleState.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachinePaddlePolicy.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachinePaddleConfig.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineMomentaryInput.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineMomentaryConfig.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineMomentaryControl.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineMomentaryReedState.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineMomentaryOnlyState.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightScaleSense.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightCupPresence.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBrew.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightRinse.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightShotCurveTypes.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightAlert.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightAlertChannel.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightAlertTone.h'), 'utf8'),
 ].join('\n');
 const activationStoresIo = fs.readFileSync(
-    path.join(sketchDir, 'OpenBrewActivationStores.h'), 'utf8');
-const shotLogIo = fs.readFileSync(path.join(sketchDir, 'OpenBrewShotLog.h'), 'utf8');
-const shotCurveIo = fs.readFileSync(path.join(sketchDir, 'OpenBrewShotCurve.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewByWeightActivationStores.h'), 'utf8');
+const shotLogIo = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightShotLog.h'), 'utf8');
+const shotCurveIo = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightShotCurve.h'), 'utf8');
 const dualSlotFlashIo = fs.readFileSync(
-    path.join(sketchDir, 'OpenBrewDualSlotFlashLog.h'), 'utf8');
-const lastShotIo = fs.readFileSync(path.join(sketchDir, 'OpenBrewLastShot.h'), 'utf8');
-const jsonArena = fs.readFileSync(path.join(sketchDir, 'OpenBrewJsonArena.h'), 'utf8');
-const wallClock = fs.readFileSync(path.join(sketchDir, 'OpenBrewTime.h'), 'utf8');
-const domainCore = fs.readFileSync(path.join(sketchDir, 'OpenBrewDomain.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewByWeightDualSlotFlashLog.h'), 'utf8');
+const lastShotIo = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightLastShot.h'), 'utf8');
+const jsonArena = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightJsonArena.h'), 'utf8');
+const wallClock = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightTime.h'), 'utf8');
+const domainCore = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightDomain.h'), 'utf8');
 const domain = [
   domainCore,
-  fs.readFileSync(path.join(sketchDir, 'domain/OpenBrewControlStatusTypes.inc'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineTypes.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleTypes.h'), 'utf8'),
-  fs.readFileSync(path.join(sketchDir, 'OpenBrewBrewTypes.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'domain/OpenBrewByWeightControlStatusTypes.inc'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineTypes.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightScaleTypes.h'), 'utf8'),
+  fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBrewTypes.h'), 'utf8'),
 ].join('\n');
-const serialCli = fs.readFileSync(path.join(sketchDir, 'OpenBrewSerialCli.h'), 'utf8');
-const buzzer = fs.readFileSync(path.join(sketchDir, 'OpenBrewBuzzer.h'), 'utf8');
-const buzzerPatterns = fs.readFileSync(path.join(sketchDir, 'OpenBrewBuzzerPatterns.h'), 'utf8');
-const buzzerPassive = fs.readFileSync(path.join(sketchDir, 'OpenBrewBuzzerPassive.h'), 'utf8');
-const rtttlParser = fs.readFileSync(path.join(sketchDir, 'OpenBrewRtttl.h'), 'utf8');
-const buzzerRtttl = fs.readFileSync(path.join(sketchDir, 'OpenBrewBuzzerRtttl.h'), 'utf8');
-const alertChannel = fs.readFileSync(path.join(sketchDir, 'OpenBrewAlertChannel.h'), 'utf8');
-const alertTone = fs.readFileSync(path.join(sketchDir, 'OpenBrewAlertTone.h'), 'utf8');
+const serialCli = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightSerialCli.h'), 'utf8');
+const buzzer = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBuzzer.h'), 'utf8');
+const buzzerPatterns = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBuzzerPatterns.h'), 'utf8');
+const buzzerPassive = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBuzzerPassive.h'), 'utf8');
+const rtttlParser = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightRtttl.h'), 'utf8');
+const buzzerRtttl = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBuzzerRtttl.h'), 'utf8');
+const alertChannel = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightAlertChannel.h'), 'utf8');
+const alertTone = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightAlertTone.h'), 'utf8');
 const kconfig = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'main', 'Kconfig.projbuild'), 'utf8');
 const bleSrcDir = path.resolve(sketchDir, '..', 'libraries', 'EspressoScaleBLE', 'src');
@@ -139,7 +139,7 @@ for (const rel of companionSources) {
   }
 }
 const taskProfiler = fs.readFileSync(
-  path.join(sketchDir, 'OpenBrewTaskProfiler.h'), 'utf8');
+  path.join(sketchDir, 'OpenBrewByWeightTaskProfiler.h'), 'utf8');
 const sdkconfigDefaults = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'sdkconfig.defaults'), 'utf8');
 const sdkconfigMicra = fs.readFileSync(
@@ -152,13 +152,13 @@ const bleComponentCmake = fs.readFileSync(
 const idfBuildScript = fs.readFileSync(
   path.resolve(sketchDir, '..', 'scripts', 'internal', 'build-idf'), 'utf8');
 const idfHelpers = fs.readFileSync(
-  path.resolve(sketchDir, '..', 'scripts', 'openbrew_idf.sh'), 'utf8');
+  path.resolve(sketchDir, '..', 'scripts', 'openbrewbyweight_idf.sh'), 'utf8');
 const bleRuntime = fs.readFileSync(
   path.resolve(sketchDir, '..', 'idf', 'components',
-               'OpenBrewBleRuntime', 'OpenBrewBleRuntime.cpp'),
+               'OpenBrewByWeightBleRuntime', 'OpenBrewByWeightBleRuntime.cpp'),
   'utf8');
 const flashIoScratch = fs.readFileSync(
-  path.join(sketchDir, 'OpenBrewFlashIoScratch.h'), 'utf8');
+  path.join(sketchDir, 'OpenBrewByWeightFlashIoScratch.h'), 'utf8');
 if (!idfMain.includes('bool bleInUse(void) { return true; }')) {
   throw new Error(
       'Native NimBLE must keep BLE controller memory from being released by initArduino');
@@ -271,7 +271,7 @@ if (!idfHelpers.includes('sdkconfig.defaults.micra') ||
 }
 if (sdkconfigDefaults.includes('CONFIG_FREERTOS_USE_TICKLESS_IDLE=y') ||
     !sdkconfigDefaults.includes('CONFIG_PM_ENABLE=y') ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewPowerManagement.cpp'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightPowerManagement.cpp'), 'utf8')
       .includes('config.light_sleep_enable = false')) {
   throw new Error(
       'PM requires DFS support while automatic light sleep remains disabled');
@@ -296,7 +296,7 @@ if (sdkconfigDefaults.includes('CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y') ||
 if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
     !sdkconfigDefaults.includes('CONFIG_BT_CTRL_MODEM_SLEEP=y') ||
     !sdkconfigDefaults.includes('CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y') ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleWorker.cpp'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightScaleWorker.cpp'), 'utf8')
       .includes('sleep ? esp_bt_sleep_enable() : esp_bt_sleep_disable()')) {
   throw new Error(
       'S3 controller sleep requires XTAL and reversible worker-owned control');
@@ -305,7 +305,7 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
   const cmakeLists = fs.readFileSync(
       path.resolve(sketchDir, '..', 'idf', 'CMakeLists.txt'), 'utf8');
   const boardSh = fs.readFileSync(
-      path.resolve(sketchDir, '..', 'scripts', 'openbrew_board.sh'), 'utf8');
+      path.resolve(sketchDir, '..', 'scripts', 'openbrewbyweight_board.sh'), 'utf8');
   const bleHeader = fs.readFileSync(
       path.resolve(sketchDir, '..', 'libraries', 'EspressoScaleBLE', 'src',
                    'EspressoScaleBLE.h'),
@@ -346,10 +346,10 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
         'USB CDC must start for ENABLE_JTAG=1 or when the GPIO4 jumper is held at boot');
   }
   const usbConsole = fs.readFileSync(
-      path.join(sketchDir, 'OpenBrewUsbConsole.h'), 'utf8');
+      path.join(sketchDir, 'OpenBrewByWeightUsbConsole.h'), 'utf8');
   const serialCli = fs.readFileSync(
-      path.join(sketchDir, 'OpenBrewSerialCli.h'), 'utf8');
-  if (!serialCli.includes('#include "OpenBrewUsbConsole.h"') ||
+      path.join(sketchDir, 'OpenBrewByWeightSerialCli.h'), 'utf8');
+  if (!serialCli.includes('#include "OpenBrewByWeightUsbConsole.h"') ||
       !usbConsole.includes('SHOT_STOPPER_USB_CONSOLE_OWN_HWCDC') ||
       !usbConsole.includes('#define Serial ::shotStopperUsbConsole') ||
       !firmwareCore.includes('HWCDC shotStopperUsbConsole')) {
@@ -370,7 +370,7 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
     throw new Error(
         'dev build must empty a non-CMake tree before idf.py set-target fullclean');
   }
-  if (!buildIdf.includes('OpenBrewBuildProfileGenerated.h') ||
+  if (!buildIdf.includes('OpenBrewByWeightBuildProfileGenerated.h') ||
       !buildIdf.includes('SHOT_STOPPER_MACHINE_TYPE') ||
       !buildIdf.includes('--machine-type paddle') ||
       !buildIdf.includes('--machine-type momentary') ||
@@ -392,7 +392,7 @@ if (!taskProfiler.includes('void copySnapshot(TaskProfilerSnapshot &out) const')
   throw new Error(
       'TaskProfiler snapshot copies must use a task mutex; uxTaskGetSystemState must not run under it');
 }
-if (!firmwareCore.includes('#include "OpenBrewTaskProfiler.h"') ||
+if (!firmwareCore.includes('#include "OpenBrewByWeightTaskProfiler.h"') ||
     !firmwareCore.includes('TaskProfiler taskProfiler') ||
     !firmwareCore.includes('taskProfiler.service(now)') ||
     !firmwareCore.includes('void copyTaskProfiler(TaskProfilerSnapshot &output)') ||
@@ -432,12 +432,12 @@ if (!network.includes('copyTaskProfiler') ||
     !network.includes('taskProfilerHandler') ||
     !network.includes('static constexpr size_t kStatusJson = 40960') ||
     !networkHeader.includes('void (*copyTaskProfiler)(TaskProfilerSnapshot &out)') ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewDebugExport.h'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightDebugExport.h'), 'utf8')
         .includes('DEBUG_EXPORT_SCHEMA_VERSION = 4')) {
   throw new Error(
       'Diagnostic status, POST /api/v1/diagnostic/profiler, and debug export must expose tasks');
 }
-const psram = fs.readFileSync(path.join(sketchDir, 'OpenBrewPsram.h'), 'utf8');
+const psram = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightPsram.h'), 'utf8');
 if (!psram.includes('#define SHOT_STOPPER_PSRAM_BSS EXT_RAM_BSS_ATTR') ||
     !firmwareCore.includes('SHOT_STOPPER_PSRAM_BSS ActivationStores activationStores') ||
     !firmwareCore.includes('HistoryLog &historyLog = activationStores.historyLog') ||
@@ -621,9 +621,9 @@ if (/\bruntimeConfig\b/.test(scaleWorker) ||
 }
 {
   const reedState = fs.readFileSync(
-      path.join(sketchDir, 'OpenBrewMachineMomentaryReedState.h'), 'utf8');
+      path.join(sketchDir, 'OpenBrewByWeightMachineMomentaryReedState.h'), 'utf8');
   const momentaryInput = fs.readFileSync(
-      path.join(sketchDir, 'OpenBrewMachineMomentaryInput.h'), 'utf8');
+      path.join(sketchDir, 'OpenBrewByWeightMachineMomentaryInput.h'), 'utf8');
   if (!momentaryInput.includes('inline uint32_t machineElapsedMs() {') ||
       reedState.includes('inline uint32_t machineElapsedMs')) {
     throw new Error(
@@ -643,13 +643,13 @@ if (/\bruntimeConfig\b/.test(scaleWorker) ||
     }
   }
   if (!reedState.includes('void serviceReedAssumeWindow() {\n  sampleReed();') ||
-      !fs.readFileSync(path.join(sketchDir, 'OpenBrewMachine.h'), 'utf8')
+      !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachine.h'), 'utf8')
            .includes('sampleReed();')) {
     throw new Error('Reed must be sampled from input/service, not from getters');
   }
 }
 {
-  const hwmon = fs.readFileSync(path.join(sketchDir, 'OpenBrewHwmon.h'), 'utf8');
+  const hwmon = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightHwmon.h'), 'utf8');
   if (!hwmon.includes('const HeapCapSnapshot *heap = nullptr') ||
       !hwmon.includes('heap != nullptr ? *heap : sampleHeapCaps()') ||
       !firmwareCore.includes('sample.hwmon = hwmon.sample(') ||

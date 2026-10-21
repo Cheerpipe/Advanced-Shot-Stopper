@@ -1,0 +1,291 @@
+#pragma once
+
+#include "OpenBrewByWeightHardware.h"
+#include "OpenBrewByWeightMachineTypes.h"
+#include "OpenBrewByWeightSafety.h"
+
+// =============================================================================
+// LAYER: Machine (façade)
+// =============================================================================
+// WHAT: Generic machine API. The activator reads user intention on
+//       ACTIVATOR_GPIO (paddle latch, momentary switch, or another compatible
+//       mechanism) and translates that signal into UserIntent /
+//       MachineIntention. Compile-time selects the specialization behind one
+//       surface: start/stop, run state, cycle policy, MachineSense.
+//
+// BOUNDARY (hard rules — do not cross):
+// - The activator owns GPIO sampling, debounce, edge interpretation, and
+//   translation to UserIntent. Shot stopper / brew / cup / scale / guards
+//   talk ONLY to this abstract machine. They must NOT include paddle or
+//   momentary headers, branch on MachineType, read paddleMode / reed /
+//   momentary GPIO, or know how a specialization drives K1.
+// - Paddle code lives only under OpenBrewByWeightMachinePaddle*. Momentary under
+//   OpenBrewByWeightMachineMomentary*. Never mix paddle logic into momentary files
+//   or the reverse. Run state for each type is owned solely by that type's
+//   *State* header (PaddleState vs MomentaryOnlyState / MomentaryReedState).
+// - Rinse *detection* is machine-owned (gesture → REQUEST_RINSE). Rinse
+//   *duration* lives in OpenBrewByWeightRinse. The stopper orchestrates: it does
+//   not classify ON→OFF windows or long-press. machineBeginRinse/EndRinse
+//   latch rinse actuation (not a second rinse FSM). Brew/scale/cup never
+//   call actuators here.
+// - Activator→K1 forwarding permission is a one-way stopper push
+//   (machineSetActivatorDriveAllowed), like preferBleAirtime. Guards never
+//   write it. machineRequestStart/Stop and the relay driver must not consult
+//   it (rinse, web, firmware stop pulse still close K1).
+
+#include "OpenBrewByWeightMachineRelay.h"
+#include "OpenBrewByWeightMachineActivatorSample.h"
+
+struct MachineIntention {
+  UserIntent intent = UserIntent::NONE;
+  bool holdActive = false;
+  bool physicalOn = false;
+  bool turnedOn = false;
+  bool turnedOff = false;
+  bool stablyOff = false;
+};
+
+MachineIntention lastPolledIntention;
+MachineSense machineSense;
+
+inline MachineIntention machineCaptureIntention(const MachineIntention &intention) {
+  lastPolledIntention = intention;
+  return intention;
+}
+
+inline MachineIntention machineLastIntention() { return lastPolledIntention; }
+
+inline void machineObserveSense(const MachineSense &sense) {
+  machineSense = sense;
+}
+
+inline void machineSetPreferBleAirtime(bool prefer) {
+  machinePreferBleAirtime = prefer;
+}
+
+// Dumb drive bit + hold-continuity latch. Specializations must not know why
+// the stopper cleared the bit (no-scale BBW, cup-start, or a future guard).
+bool machineActivatorDriveAllowed = true;
+bool machineActivatorDriveSuppressedThisHold = false;
+bool rinseActuationActive = false;
+
+inline void machineSetActivatorDriveAllowed(bool allowed) {
+  machineActivatorDriveAllowed = allowed;
+}
+
+inline void machineAllowCurrentActivatorHold() {
+  machineActivatorDriveSuppressedThisHold = false;
+}
+
+inline bool machineMayForwardActivatorOn() {
+  if (!machineActivatorDriveAllowed) {
+    machineActivatorDriveSuppressedThisHold = true;
+    return false;
+  }
+  if (machineActivatorDriveSuppressedThisHold) {
+    return false;
+  }
+  return true;
+}
+
+inline void machineNoteActivatorReleased() {
+  machineActivatorDriveSuppressedThisHold = false;
+}
+
+#if SHOT_STOPPER_MACHINE_TYPE == 0
+#include "OpenBrewByWeightMachinePaddleInput.h"
+#include "OpenBrewByWeightMachinePaddleControl.h"
+#include "OpenBrewByWeightMachinePaddleState.h"
+#include "OpenBrewByWeightMachinePaddlePolicy.h"
+
+inline void machineOnActivatorReady() {}
+inline void machineOnBrewOutcome(bool) {}
+// Time from a stop command to the machine acting on it (none for a paddle).
+inline uint32_t machineStopCommandLatencyMs() { return 0; }
+inline bool machineSupportsRinse() { return runtimeConfig.rinseEnabled; }
+// A paddle ON may still classify as a short ON->OFF rinse. Keep a rejected
+// start pending until that gesture window has elapsed.
+inline bool machineBlockedStartNeedsHoldQualification() { return true; }
+inline void machineNoteFirmwareStop() {
+  if (activatorOn || rawActivatorOn) {
+    machineActivatorDriveSuppressedThisHold = true;
+  }
+}
+inline void machineSampleInput() {
+  updateActivatorInput();
+  applyPaddleRelayDrive();
+}
+// Compatibility-mode transparent mirror: close while the activator is held,
+// open when it is released. Relay safety disables duration deadlines for the
+// boot-scoped compatibility mode while retaining fault supervision. The
+// debounced hold drives the mirror — a raw input glitch must never toggle K1.
+inline bool machineServiceCompatibilityDrive(
+    const MachineIntention &intent) {
+  const bool held = intent.physicalOn;
+  const bool closed = getRelaySafetySnapshot().closed;
+  if (held && !closed) {
+    return machineRequestStart(HARD_MAX_CIRCUIT_CLOSED_MS, false);
+  }
+  if (!held && closed) {
+    return machineRequestStop();
+  }
+  return true;
+}
+inline void serviceMachine() {
+  machineServiceReminders();
+}
+inline void machineOverrideInferredOff() {}
+inline void machineOverrideInferredOn() {}
+inline void machineArmSettledWeightCutOff() {}
+inline void machineNoteSettledWeightCutOff() {}
+inline void machineCancelSettledWeightCutOff() {}
+#else
+#include "OpenBrewByWeightMachineMomentaryInput.h"
+#if SHOT_STOPPER_MACHINE_TYPE == 2
+#include "OpenBrewByWeightMachineMomentaryReedState.h"
+#else
+#include "OpenBrewByWeightMachineMomentaryOnlyState.h"
+#endif
+#include "OpenBrewByWeightMachineMomentaryControl.h"
+
+#if SHOT_STOPPER_MACHINE_TYPE == 2
+inline void machineOverrideInferredOff() {}
+inline void machineOverrideInferredOn() {}
+inline void machineArmSettledWeightCutOff() {}
+inline void machineNoteSettledWeightCutOff() {}
+inline void machineCancelSettledWeightCutOff() {}
+#endif
+
+inline bool machineSupportsRinse() { return runtimeConfig.rinseEnabled; }
+// A momentary stop is a timed press: the machine acts after the pulse.
+inline uint32_t machineStopCommandLatencyMs() {
+  return runtimeStopPulseMs(runtimeConfig);
+}
+// A momentary start edge is already a complete attempt. In particular,
+// release mode has no active hold left by the time REQUEST_START is emitted.
+inline bool machineBlockedStartNeedsHoldQualification() { return false; }
+inline void machineBeginCycle(bool) {}
+inline void machineEndCycle() { rinseActuationActive = false; }
+inline bool machineHidesPhysicalStop() { return false; }
+inline bool machineAllowsAutomationStop() { return true; }
+inline uint32_t machineCloseLimitMs(uint32_t operationalWallMs) {
+  return operationalWallMs;
+}
+inline bool machineCycleHardMaxArmedForTest() { return false; }
+inline bool machineCyclePromotedToNaturalForTest() { return false; }
+inline void machineNoteFirmwareStop() {
+  momentarySkipFirmwareStopPulse = false;
+}
+inline void machineServiceReminders() {}
+inline void machineSampleInput() {
+#if SHOT_STOPPER_MACHINE_TYPE == 2
+  sampleReed();
+#endif
+  updateActivatorInput();
+}
+
+inline MachineIntention machinePollIntention() {
+  MachineIntention out;
+  out.turnedOn = activatorTurnedOn;
+  out.turnedOff = activatorTurnedOff;
+  out.holdActive = momentaryPhysicalOn || rawActivatorOn;
+  out.physicalOn = momentaryPhysicalOn;
+  out.stablyOff = activatorIsStablyOff();
+  if (momentaryRinseRequested) {
+    out.intent = UserIntent::REQUEST_RINSE;
+  } else if (activatorTurnedOn) {
+    out.intent = UserIntent::REQUEST_START;
+  } else if (activatorTurnedOff) {
+    out.intent = UserIntent::REQUEST_STOP;
+  } else if (out.holdActive) {
+    out.intent = UserIntent::HOLD_ACTIVE;
+  } else if (out.stablyOff) {
+    out.intent = UserIntent::STABLE_IDLE;
+  }
+  return machineCaptureIntention(out);
+}
+// Compatibility mode is already transparent here: applyMomentaryRelayDrive
+// mirrors the switch 1:1, and every synthetic pulse source (orchestrator,
+// web commands) is gated upstream of the machine layer.
+inline bool machineServiceCompatibilityDrive(const MachineIntention &) {
+  return true;
+}
+#endif
+
+#if SHOT_STOPPER_MACHINE_TYPE != 1
+inline bool machineTakeNoFlowIdle() { return false; }
+#endif
+
+inline bool machineStartBackflush() {
+#if SHOT_STOPPER_MACHINE_TYPE == 0
+  return !getRelaySafetySnapshot().closed &&
+      setMachineCircuitClosed(true, HARD_MAX_CIRCUIT_CLOSED_MS, RelayPurpose::BACKFLUSH_CANDIDATE);
+#else
+  return false;
+#endif
+}
+
+inline bool machineConfirmBackflush(uint32_t generation) {
+#if SHOT_STOPPER_MACHINE_TYPE == 0
+  return promoteRelayBackflush(generation);
+#else
+  (void)generation;
+  return false;
+#endif
+}
+
+inline void machineInitialize() {
+  pinMode(RELAY_GPIO, OUTPUT);
+  digitalWrite(RELAY_GPIO, RELAY_OPEN_LEVEL);
+  if (EXTERNAL_SAFETY_HARDWARE_PRESENT) {
+    pinMode(SAFETY_HEARTBEAT_GPIO, OUTPUT);
+    digitalWrite(SAFETY_HEARTBEAT_GPIO, SAFETY_HEARTBEAT_IDLE_LEVEL);
+    pinMode(CIRCUIT_FEEDBACK_GPIO, INPUT_PULLUP);
+  }
+  initializeActivatorInput();
+  machineSetActivatorDriveAllowed(true);
+  machineNoteActivatorReleased();
+}
+
+inline bool machineBootActivatorHeldStably() {
+  if (!readRawActivatorOn()) {
+    return false;
+  }
+#ifndef SHOT_STOPPER_HOST_TEST
+  const uint32_t startedAtMs = millis();
+  while (static_cast<uint32_t>(millis() - startedAtMs) <
+         ACTIVATOR_DEBOUNCE_MS) {
+    if (!readRawActivatorOn()) {
+      return false;
+    }
+    serviceBootRecoverySafety();
+    vTaskDelay(pdMS_TO_TICKS(1));
+  }
+#endif
+  return readRawActivatorOn();
+}
+
+struct MachineStatusSample {
+  bool rawOn;
+  bool running;
+  uint32_t circuitElapsedMs;
+  MachineRunState runState;
+};
+
+// Sample hardware/relay state before the caller locks snapshot publication.
+inline MachineStatusSample machineSampleStatus() {
+  const bool running = machineIsRunning();
+  const bool rawOn = readRawActivatorOn();
+  const uint32_t circuitElapsedMs = machineElapsedMs();
+  const MachineRunState runState = machineRunState();
+  return {rawOn, running, circuitElapsedMs, runState};
+}
+
+inline void machineFillStatus(ControlStatusFields &status,
+                              const MachineStatusSample &sample) {
+  status.rawActivatorOn = sample.rawOn;
+  status.physicalActivatorOn = sample.rawOn;
+  status.machineRunning = sample.running;
+  status.circuitElapsedMs = sample.circuitElapsedMs;
+  machineFillInferenceStatus(status);
+}

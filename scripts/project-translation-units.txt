@@ -1,6 +1,6 @@
 # Versioned production translation-unit baseline for F-21.
 # Update this manifest and the component CMake files in the same change.
-idf/components/OpenBrewBleRuntime/OpenBrewBleRuntime.cpp
+idf/components/OpenBrewByWeightBleRuntime/OpenBrewByWeightBleRuntime.cpp
 idf/main/main.cpp
 libraries/EspressoScaleBLE/src/EspressoScaleBLENimble.cpp
 libraries/EspressoScaleBLE/src/ScaleProtocolCommon.cpp
@@ -17,17 +17,17 @@ libraries/EspressoScaleBLE/src/protocols/Myscale.cpp
 libraries/EspressoScaleBLE/src/protocols/Registry.cpp
 libraries/EspressoScaleBLE/src/protocols/Varia.cpp
 libraries/EspressoScaleBLE/src/protocols/WeighMyBru.cpp
-src/OpenBrewNetwork.cpp
-src/OpenBrewOta.cpp
-src/OpenBrewPowerManagement.cpp
-src/OpenBrewAuditStore.cpp
-src/OpenBrewCrashArchive.cpp
-src/OpenBrewResetGuard.cpp
-src/OpenBrewScaleWorker.cpp
-src/OpenBrewTaskMutex.cpp
-src/OpenBrewWebhook.cpp
-src/machine/OpenBrewMachineIntegration.cpp | integration=none
-src/machine/OpenBrewLineaMicraIntegration.cpp | integration=linea_micra_cloud
-src/machine/OpenBrewMicraService.cpp | integration=linea_micra_cloud
-src/machine/OpenBrewMicraObservation.cpp | integration=linea_micra_cloud
-src/openBrew.cpp
+src/OpenBrewByWeightNetwork.cpp
+src/OpenBrewByWeightOta.cpp
+src/OpenBrewByWeightPowerManagement.cpp
+src/OpenBrewByWeightAuditStore.cpp
+src/OpenBrewByWeightCrashArchive.cpp
+src/OpenBrewByWeightResetGuard.cpp
+src/OpenBrewByWeightScaleWorker.cpp
+src/OpenBrewByWeightTaskMutex.cpp
+src/OpenBrewByWeightWebhook.cpp
+src/machine/OpenBrewByWeightMachineIntegration.cpp | integration=none
+src/machine/OpenBrewByWeightLineaMicraIntegration.cpp | integration=linea_micra_cloud
+src/machine/OpenBrewByWeightMicraService.cpp | integration=linea_micra_cloud
+src/machine/OpenBrewByWeightMicraObservation.cpp | integration=linea_micra_cloud
+src/openBrewByWeight.cpp

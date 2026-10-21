@@ -438,7 +438,7 @@
   const timed=apply(null,{...snapshot,card:{...snapshot.card,scaleAvailable:false}});
   if(timed.card.scaleAvailable!==false)
     throw new Error('The no-scale card flag must survive stream framing');
-  const streamSource=fs.readFileSync(path.join(sketchDir,'network/OpenBrewUiStream.inc'),'utf8');
+  const streamSource=fs.readFileSync(path.join(sketchDir,'network/OpenBrewByWeightUiStream.inc'),'utf8');
   const handler=streamSource.slice(streamSource.indexOf('esp_err_t ShotStopperNetwork::uiStreamHandler('),
     streamSource.indexOf('void ShotStopperNetwork::serviceUiStream('));
   if(handler.includes('sendUiStream(')||!handler.includes('session->resync = true;')||
@@ -594,8 +594,8 @@
 
 {
   const assert=require('assert').strict,{spawnSync}=require('child_process');
-  const stream=fs.readFileSync(path.join(sketchDir,'network/OpenBrewUiStream.inc'),'utf8');
-  const wifi=fs.readFileSync(path.join(sketchDir,'network/OpenBrewWifi.inc'),'utf8');
+  const stream=fs.readFileSync(path.join(sketchDir,'network/OpenBrewByWeightUiStream.inc'),'utf8');
+  const wifi=fs.readFileSync(path.join(sketchDir,'network/OpenBrewByWeightWifi.inc'),'utf8');
   const cadence=stream.slice(stream.indexOf('constexpr uint32_t kUiStreamSampleStride'),
     stream.indexOf('constexpr size_t kUiStreamRequestBytes'));
   const service=stream.slice(stream.indexOf('void ShotStopperNetwork::noteScaleSample('),
@@ -971,7 +971,7 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
   throw new Error('Web UI must enforce remote policy, maintenance, durable command state, and live shot status');
 }
 {
-  const curveTypes = fs.readFileSync(path.join(sketchDir, 'OpenBrewShotCurveTypes.h'), 'utf8');
+  const curveTypes = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightShotCurveTypes.h'), 'utf8');
   const record = curveTypes.slice(curveTypes.indexOf('struct ShotCurveRecord'),
       curveTypes.indexOf('inline ShotCurveRecord emptyShotCurveRecord'));
   if (!codeIncludes(statsRuntimeJs, "spark.className='shotSparkCell'") ||
@@ -1148,45 +1148,45 @@ if (!html.includes('<summary>Paddle</summary>') ||
     !firmware.includes('machineAllowsAutomationStop()') ||
     !firmware.includes('machineBeginCycle') ||
     domain.includes('enum class PaddleMode') ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleConfig.h'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachinePaddleConfig.h'), 'utf8')
          .includes('enum class PaddleMode') ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleConfig.h'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachinePaddleConfig.h'), 'utf8')
          .includes('NATURAL = 0') ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleConfig.h'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachinePaddleConfig.h'), 'utf8')
          .includes('ORIGINAL = 1') ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleConfig.h'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachinePaddleConfig.h'), 'utf8')
          .includes('AUTO = 2') ||
-    fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineTypes.h'), 'utf8')
+    fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineTypes.h'), 'utf8')
          .includes('enum class PaddleMode') ||
-    fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineTypes.h'), 'utf8')
+    fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineTypes.h'), 'utf8')
          .includes('parsePaddleMode') ||
-    fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineTypes.h'), 'utf8')
+    fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineTypes.h'), 'utf8')
          .includes('enum class MachineType') ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddlePolicy.h'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachinePaddlePolicy.h'), 'utf8')
          .includes('machinePollIntention()') ||
-    fs.readFileSync(path.join(sketchDir, 'OpenBrewBrewTypes.h'), 'utf8')
+    fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBrewTypes.h'), 'utf8')
         .includes('enum class PaddleMode') ||
-    fs.readFileSync(path.join(sketchDir, 'OpenBrewBrew.h'), 'utf8')
+    fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBrew.h'), 'utf8')
         .includes('PaddleMode::') ||
-    fs.readFileSync(path.join(sketchDir, 'OpenBrewBrew.h'), 'utf8')
+    fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBrew.h'), 'utf8')
         .includes('paddleMode')) {
   throw new Error('Machine Paddle mode must expose Auto/Natural/Original in UI, API, and APPLY_CONFIG');
 }
-const brewHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewBrew.h'), 'utf8');
-const scaleSenseHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewScaleSense.h'), 'utf8');
+const brewHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBrew.h'), 'utf8');
+const scaleSenseHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightScaleSense.h'), 'utf8');
 const paddlePolicyHeader = fs.readFileSync(
-    path.join(sketchDir, 'OpenBrewMachinePaddlePolicy.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewByWeightMachinePaddlePolicy.h'), 'utf8');
 const machineTypesHeader = fs.readFileSync(
-    path.join(sketchDir, 'OpenBrewMachineTypes.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewByWeightMachineTypes.h'), 'utf8');
 const momentaryInputHeader = fs.readFileSync(
-    path.join(sketchDir, 'OpenBrewMachineMomentaryInput.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewByWeightMachineMomentaryInput.h'), 'utf8');
 const momentaryConfigHeader = fs.readFileSync(
-    path.join(sketchDir, 'OpenBrewMachineMomentaryConfig.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewByWeightMachineMomentaryConfig.h'), 'utf8');
 const momentaryControlHeader = fs.readFileSync(
-    path.join(sketchDir, 'OpenBrewMachineMomentaryControl.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewByWeightMachineMomentaryControl.h'), 'utf8');
 const momentaryOnlyHeader = fs.readFileSync(
-    path.join(sketchDir, 'OpenBrewMachineMomentaryOnlyState.h'), 'utf8');
-const relayHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineRelay.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewByWeightMachineMomentaryOnlyState.h'), 'utf8');
+const relayHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineRelay.h'), 'utf8');
 if (brewHeader.includes('machinePollIntention') ||
     brewHeader.includes('getScaleLinkSnapshot') ||
     brewHeader.includes('cupPresenceState(') ||
@@ -1214,11 +1214,11 @@ if (firmwareCore.includes('readRawActivatorOn()') ||
     firmwareCore.includes('maxSinglePressHundredMs') ||
     !firmware.includes('pinMode(RELAY_GPIO, OUTPUT)') ||
     !firmware.includes('machineBootActivatorHeldStably()') ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewMachineActivatorSample.h'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachineActivatorSample.h'), 'utf8')
          .includes('bool rawActivatorOn') ||
     firmwareCore.includes('bool rawActivatorOn')) {
   throw new Error(
-      'Machine GPIO, activator sample BSS, and boot debounce must live in machine headers — not openBrew.cpp');
+      'Machine GPIO, activator sample BSS, and boot debounce must live in machine headers — not openBrewByWeight.cpp');
 }
 if (!html.includes('<summary>Switch</summary>') ||
     !html.includes('id="stopPulseMs"') ||
@@ -1324,7 +1324,7 @@ if (!html.includes('<summary>Switch</summary>') ||
     machineTypesHeader.includes('momentaryStartEdgeId') ||
     machineTypesHeader.includes('PaddleMode') ||
     machineTypesHeader.includes('parsePaddleMode') ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewMachinePaddleConfig.h'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightMachinePaddleConfig.h'), 'utf8')
          .includes('parsePaddleMode') ||
     !momentaryConfigHeader.includes('parseMomentaryStartEdge') ||
     !momentaryConfigHeader.includes('momentaryStartEdgeId') ||
@@ -1332,9 +1332,9 @@ if (!html.includes('<summary>Switch</summary>') ||
     !domain.includes('bool momentaryStartOnPress') ||
     !domain.includes('setRuntimeStopPulseMs') ||
     !domain.includes('setRuntimeReedConfirmTimeoutMs') ||
-    fs.readFileSync(path.join(sketchDir, 'OpenBrewBrewTypes.h'), 'utf8')
+    fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBrewTypes.h'), 'utf8')
         .includes('stopPulseTenMs') ||
-    fs.readFileSync(path.join(sketchDir, 'OpenBrewBrew.h'), 'utf8')
+    fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBrew.h'), 'utf8')
         .includes('stopPulseTenMs')) {
   throw new Error(
       'Momentary Switch timings must be wired in Settings, API, APPLY_CONFIG, and runtime config — not brew');
@@ -1390,8 +1390,8 @@ if (!html.includes('class="cfgGroup paddleOnly"><summary>Paddle</summary>') ||
   throw new Error(
       'Paddle and Momentary Settings groups must be mutually exclusive by compiled machine type; Quick rinse is shared');
 }
-const rinseHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewRinse.h'), 'utf8');
-const brewTypesHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewBrewTypes.h'), 'utf8');
+const rinseHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightRinse.h'), 'utf8');
+const brewTypesHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBrewTypes.h'), 'utf8');
 if (rinseHeader.includes('session.') ||
     rinseHeader.includes('runtimeConfig') ||
     brewHeader.includes('runtimeConfig.rinseGestureMs') ||
@@ -1420,7 +1420,7 @@ if (!codeIncludes(ui, 'id="learnedOffsetG"') ||
     css.includes('#bbwAlgorithm{width:100%}') ||
     !network.includes('"dripG"') ||
     !network.includes('formatDripChartJson(drip, sizeof(drip), control)') ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewBbwQuickStart.h'), 'utf8').includes('bbwRecentG')) {
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightBbwQuickStart.h'), 'utf8').includes('bbwRecentG')) {
   throw new Error('Drip compensation must show the drip, its recent shots and Set drip in order');
 }
 if (!html.includes('<summary>Cup detection</summary>') ||

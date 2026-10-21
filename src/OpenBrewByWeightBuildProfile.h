@@ -1,0 +1,39 @@
+#pragma once
+
+#include <stdint.h>
+
+#if __has_include("OpenBrewByWeightBuildProfileGenerated.h")
+#include "OpenBrewByWeightBuildProfileGenerated.h"
+#endif
+
+#ifndef SHOT_STOPPER_HARDWARE_PROFILE_ID
+#define SHOT_STOPPER_HARDWARE_PROFILE_ID "legacy-arch"
+#endif
+#ifndef SHOT_STOPPER_MACHINE_PROFILE_ID
+#define SHOT_STOPPER_MACHINE_PROFILE_ID "legacy-machine"
+#endif
+#ifndef SHOT_STOPPER_MACHINE_BRAND
+#define SHOT_STOPPER_MACHINE_BRAND "Generic"
+#endif
+#ifndef SHOT_STOPPER_MACHINE_MODEL
+#define SHOT_STOPPER_MACHINE_MODEL "Compile-time selection"
+#endif
+#ifndef SHOT_STOPPER_MACHINE_INTEGRATION_NONE
+#define SHOT_STOPPER_MACHINE_INTEGRATION_NONE 0
+#endif
+#ifndef SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
+#define SHOT_STOPPER_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD 1
+#endif
+#ifndef SHOT_STOPPER_MACHINE_INTEGRATION
+#define SHOT_STOPPER_MACHINE_INTEGRATION SHOT_STOPPER_MACHINE_INTEGRATION_NONE
+#endif
+#ifndef SHOT_STOPPER_DEFAULT_RINSE_DURATION_MS
+#define SHOT_STOPPER_DEFAULT_RINSE_DURATION_MS 4000
+#endif
+
+namespace shotstopper {
+
+constexpr uint32_t DEFAULT_RINSE_DURATION_MS =
+    SHOT_STOPPER_DEFAULT_RINSE_DURATION_MS;
+
+}  // namespace shotstopper

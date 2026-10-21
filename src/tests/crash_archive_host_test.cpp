@@ -1,4 +1,4 @@
-#include "../OpenBrewCrashArchive.cpp"
+#include "../OpenBrewByWeightCrashArchive.cpp"
 
 #include <cstdlib>
 #include <iostream>

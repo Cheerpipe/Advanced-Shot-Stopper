@@ -1,4 +1,4 @@
-#include "../OpenBrewDomain.h"
+#include "../OpenBrewByWeightDomain.h"
 
 #include <cstdlib>
 

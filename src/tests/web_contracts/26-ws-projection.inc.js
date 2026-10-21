@@ -3,7 +3,7 @@
 {
   const assert = require('assert').strict, {spawnSync} = require('child_process');
   const read = file => fs.readFileSync(path.join(sketchDir, file), 'utf8');
-  const networkSource = read('OpenBrewNetwork.cpp');
+  const networkSource = read('OpenBrewByWeightNetwork.cpp');
   const body = (source, signature) => {
     const start = source.indexOf(signature);
     assert(start >= 0, signature);
@@ -14,10 +14,10 @@
 #include <cstdarg>
 #include <cstdio>
 #include <string>
-#include "OpenBrewDomain.h"
-#include "OpenBrewTaskProfiler.h"
-#include "OpenBrewScaleProfiler.h"
-#include "OpenBrewShotCurveTypes.h"
+#include "OpenBrewByWeightDomain.h"
+#include "OpenBrewByWeightTaskProfiler.h"
+#include "OpenBrewByWeightScaleProfiler.h"
+#include "OpenBrewByWeightShotCurveTypes.h"
 using namespace shotstopper;
 struct NetworkWorkBuf {
   static constexpr size_t kStatusJson=40960,kJsonItem=28672;
@@ -33,7 +33,7 @@ ${body(networkSource, 'bool statusJsonAppendScaleProfiler(')}
 struct ShotStopperNetwork {
   static size_t formatShotStatsRow(NetworkWorkBuf &,const ShotLogRecord &,const ShotCurveRecord *);
 };
-${body(read('network/OpenBrewHomeStream.inc'), 'size_t ShotStopperNetwork::formatShotStatsRow(')}
+${body(read('network/OpenBrewByWeightHomeStream.inc'), 'size_t ShotStopperNetwork::formatShotStatsRow(')}
 int main(){
   TaskProfilerSnapshot tasks;
   tasks.rowCount=1;strcpy(tasks.rows[0].name,"worker");tasks.rows[0].stackMinBytes=1024;
@@ -128,7 +128,7 @@ int main(){
   const wire = run.stdout.trim().split('\n');
   const [live, full, empty, busy, failed, rowValues, ...curves] = wire.map(JSON.parse);
   // A Stats row is its values in kStatsRowColumns order plus the curve object.
-  const homeSource = read('network/OpenBrewHomeStream.inc');
+  const homeSource = read('network/OpenBrewByWeightHomeStream.inc');
   const columnsDecl = homeSource.slice(homeSource.indexOf('constexpr char kStatsRowColumns[] ='));
   const columns = [...columnsDecl.slice(0, columnsDecl.indexOf(';')).matchAll(/"([^"]*)"/g)]
       .map(m => m[1]).join('').split(',');

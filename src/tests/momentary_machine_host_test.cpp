@@ -10,7 +10,7 @@
 #include <cstring>
 #include <iostream>
 
-#include "../openBrew.cpp"
+#include "../openBrewByWeight.cpp"
 
 namespace {
 

@@ -1,7 +1,7 @@
 #define SHOT_STOPPER_HOST_TEST
 #define SHOT_STOPPER_WEBHOOK_TEST_PLATFORM "tests/webhook_worker_platform.h"
-#include "../OpenBrewWebhook.h"
-#include "../OpenBrewPsram.h"
+#include "../OpenBrewByWeightWebhook.h"
+#include "../OpenBrewByWeightPsram.h"
 #include <algorithm>
 
 static unsigned samples = 0;
@@ -16,7 +16,7 @@ static shotstopper::HeapCapSnapshot injectedHeapSample() {
   return result;
 }
 #define sampleHeapCaps injectedHeapSample
-#include "../OpenBrewWebhook.cpp"
+#include "../OpenBrewByWeightWebhook.cpp"
 #undef sampleHeapCaps
 #include <cstdarg>
 

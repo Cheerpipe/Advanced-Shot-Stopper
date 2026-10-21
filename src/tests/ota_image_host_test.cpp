@@ -1,7 +1,7 @@
 #define SHOT_STOPPER_HOST_TEST
 
-#include "../OpenBrewOta.h"
-#include "../OpenBrewOtaImage.h"
+#include "../OpenBrewByWeightOta.h"
+#include "../OpenBrewByWeightOtaImage.h"
 
 #include <algorithm>
 #include <cstdlib>

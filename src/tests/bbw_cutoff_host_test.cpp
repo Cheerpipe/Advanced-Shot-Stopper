@@ -1,8 +1,8 @@
 #define SHOT_STOPPER_PERSISTENCE_HOST_TEST
-#include "../OpenBrewBbwLearning.h"
-#include "../OpenBrewBbwQuickStart.h"
-#include "../OpenBrewPersistence.h"
-#include "../OpenBrewShotLog.h"
+#include "../OpenBrewByWeightBbwLearning.h"
+#include "../OpenBrewByWeightBbwQuickStart.h"
+#include "../OpenBrewByWeightPersistence.h"
+#include "../OpenBrewByWeightShotLog.h"
 #include <cassert>
 #include <cmath>
 #include <iostream>

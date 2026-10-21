@@ -1,4 +1,4 @@
-#include "../OpenBrewWebhook.h"
+#include "../OpenBrewByWeightWebhook.h"
 
 #include <assert.h>
 #include <stdint.h>

@@ -5,12 +5,12 @@ set -euo pipefail
 
 INTERNAL_DIR="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 SCRIPT_DIR="$(CDPATH='' cd -- "$INTERNAL_DIR/.." && pwd)"
-# shellcheck source=scripts/openbrew_board.sh
-source "$SCRIPT_DIR/openbrew_board.sh"
-# shellcheck source=scripts/openbrew_cli.sh
-source "$SCRIPT_DIR/openbrew_cli.sh"
-# shellcheck source=scripts/openbrew_idf.sh
-source "$SCRIPT_DIR/openbrew_idf.sh"
+# shellcheck source=scripts/openbrewbyweight_board.sh
+source "$SCRIPT_DIR/openbrewbyweight_board.sh"
+# shellcheck source=scripts/openbrewbyweight_cli.sh
+source "$SCRIPT_DIR/openbrewbyweight_cli.sh"
+# shellcheck source=scripts/openbrewbyweight_idf.sh
+source "$SCRIPT_DIR/openbrewbyweight_idf.sh"
 
 usage() {
   cat <<EOF
@@ -169,7 +169,7 @@ ss_idf_emit_opt_overlay
 
 ./scripts/gen_version.sh "$SHOTSTOPPER_ARCH" \
   "$SHOTSTOPPER_HARDWARE_COMPAT" "$SHOTSTOPPER_MACHINE_COMPAT" \
-  "$SHOTSTOPPER_GENERATED_DIR/OpenBrewVersion.h"
+  "$SHOTSTOPPER_GENERATED_DIR/OpenBrewByWeightVersion.h"
 
 # Generate the Web UI after the firmware identity header so the baked cache
 # version equals the reported firmware version; the UI compares them to reload
@@ -182,7 +182,7 @@ grep -q -- '-DSHOT_STOPPER_DEVELOPMENT=1' <<<"$effective_flags" && webui_dev_fla
 # Bake only the UI of the compiled machine type into the served Web UI.
 webui_type_flag=''
 webui_machine_type="$(sed -n 's/^#define SHOT_STOPPER_MACHINE_TYPE //p' \
-  "$SHOTSTOPPER_GENERATED_DIR/OpenBrewBuildProfileGenerated.h" 2>/dev/null)"
+  "$SHOTSTOPPER_GENERATED_DIR/OpenBrewByWeightBuildProfileGenerated.h" 2>/dev/null)"
 case "$webui_machine_type" in
   0) webui_type_flag='--machine-type paddle' ;;
   1) webui_type_flag='--machine-type momentary' ;;
@@ -197,12 +197,12 @@ grep -q -- '-DSHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL=1' <<<"$effective_flags
 # Only Linea Micra cloud builds ship the Micra settings and diagnostics code.
 webui_micra_flag='--no-linea-micra'
 [[ "$(sed -n 's/^#define SHOT_STOPPER_MACHINE_INTEGRATION //p' \
-  "$SHOTSTOPPER_GENERATED_DIR/OpenBrewBuildProfileGenerated.h" 2>/dev/null)" == 1 ]] \
+  "$SHOTSTOPPER_GENERATED_DIR/OpenBrewByWeightBuildProfileGenerated.h" 2>/dev/null)" == 1 ]] \
   && webui_micra_flag=''
 # shellcheck disable=SC2086  # flags hold zero or one complete token
 node ./scripts/gen_web_ui.js \
   --version "$(sed -n 's/^#define FW_VERSION_STRING "\(.*\)"$/\1/p' \
-    "$SHOTSTOPPER_GENERATED_DIR/OpenBrewVersion.h")" \
+    "$SHOTSTOPPER_GENERATED_DIR/OpenBrewByWeightVersion.h")" \
   --webui-language "$(ss_get webui_language)" $webui_dev_flag $webui_type_flag $webui_remote_flag \
   $webui_micra_flag
 

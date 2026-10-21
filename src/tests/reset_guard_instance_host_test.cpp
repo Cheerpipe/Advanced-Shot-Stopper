@@ -6,7 +6,7 @@ uint32_t hostSafetyResetReasonCode = 1;
 bool hostSafetyResetReasonUnsafe = false;
 bool hostSafetyResetReasonPowerOn = true;
 
-#include "../OpenBrewResetGuard.h"
+#include "../OpenBrewByWeightResetGuard.h"
 
 #include <iostream>
 

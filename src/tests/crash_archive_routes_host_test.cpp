@@ -1,4 +1,4 @@
-#include "../OpenBrewCrashArchive.h"
+#include "../OpenBrewByWeightCrashArchive.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -76,7 +76,7 @@ class ShotStopperNetwork {
 };
 ShotStopperNetwork *ShotStopperNetwork::instance_ = nullptr;
 
-#include "../diagnostics/OpenBrewCrashRoutes.inc"
+#include "../diagnostics/OpenBrewByWeightCrashRoutes.inc"
 }  // namespace shotstopper
 
 void check(bool condition, const char *message) {

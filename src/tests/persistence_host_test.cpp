@@ -1,17 +1,17 @@
 #define SHOT_STOPPER_PERSISTENCE_HOST_TEST
-#include "../OpenBrewPersistence.h"
-#include "../OpenBrewBleScanPersistence.h"
-#include "../OpenBrewDurableStores.h"
-#include "../OpenBrewFirmwareMode.h"
-#include "../OpenBrewRecovery.h"
-#include "../OpenBrewRecoveryGesture.h"
-#include "../OpenBrewShotLog.h"
-#include "../OpenBrewShotCurve.h"
+#include "../OpenBrewByWeightPersistence.h"
+#include "../OpenBrewByWeightBleScanPersistence.h"
+#include "../OpenBrewByWeightDurableStores.h"
+#include "../OpenBrewByWeightFirmwareMode.h"
+#include "../OpenBrewByWeightRecovery.h"
+#include "../OpenBrewByWeightRecoveryGesture.h"
+#include "../OpenBrewByWeightShotLog.h"
+#include "../OpenBrewByWeightShotCurve.h"
 #include "shot_curve_test_helpers.h"
-#include "../OpenBrewHistory.h"
-#include "../OpenBrewActivationStores.h"
-#include "../OpenBrewLastShot.h"
-#include "../machine/OpenBrewLineaMicraSettings.h"
+#include "../OpenBrewByWeightHistory.h"
+#include "../OpenBrewByWeightActivationStores.h"
+#include "../OpenBrewByWeightLastShot.h"
+#include "../machine/OpenBrewByWeightLineaMicraSettings.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -1033,7 +1033,7 @@ void p24_preset_bank_size_and_crud_budgets() {
   CHECK(sizeof(SettingsPersistRequest) <= PERSISTED_SETTINGS_NVS_BUDGET + 16);
   // 6920: +8 bytes for the hero tint; 6944: +24 for the drip chart; 6952: +8
   // for its ten shots; 7432: the delta-stream curve record (external
-  // work-area growth; see OpenBrewControlStatusTypes.inc).
+  // work-area growth; see OpenBrewByWeightControlStatusTypes.inc).
   CHECK(sizeof(ControlStatusSnapshot) <= 7432);
   CHECK(sizeof(ControlGateSnapshot) <= 32);
   CHECK(sizeof(WebCommand) <= 440);

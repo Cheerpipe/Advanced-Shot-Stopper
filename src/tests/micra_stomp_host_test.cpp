@@ -1,4 +1,4 @@
-#include "machine/OpenBrewMicraStomp.h"
+#include "machine/OpenBrewByWeightMicraStomp.h"
 #include <cassert>
 #include <algorithm>
 #include <string>

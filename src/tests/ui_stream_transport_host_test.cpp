@@ -73,7 +73,7 @@ void testLog(const char *format, ...) {
 #define send testSend
 #define ESP_LOGW(tag, ...) testLog(__VA_ARGS__)
 #define SHOT_STOPPER_PSRAM_BSS
-#include "network/OpenBrewUiStreamTransport.inc"
+#include "network/OpenBrewByWeightUiStreamTransport.inc"
 #undef ESP_LOGW
 #undef send
 #undef select

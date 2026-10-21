@@ -2,7 +2,7 @@
 // record terminal, wrap by sector erase, stale-header forward recovery, and
 // clear — exercised against the RAM partition fake with deterministic I/O
 // failure injection. SHOT_STOPPER_AUDIT_HOST_TEST comes from CMake.
-#include "../OpenBrewAuditStore.cpp"
+#include "../OpenBrewByWeightAuditStore.cpp"
 
 #include <cstdlib>
 #include <iostream>

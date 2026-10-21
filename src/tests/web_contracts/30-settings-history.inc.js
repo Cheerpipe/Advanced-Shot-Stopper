@@ -968,7 +968,7 @@ if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
   throw new Error('Shot history must page 10 shots over the owned WebSocket with infinite scroll and a streamed export');
 }
 const shotLogTypes = fs.readFileSync(
-    path.join(sketchDir, 'OpenBrewShotLogTypes.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewByWeightShotLogTypes.h'), 'utf8');
 if (!partialHtml.stats.includes('id="shotSort"') ||
     !partialHtml.stats.includes('class="shotSort"') ||
     !partialHtml.stats.includes('aria-label="Sort shots"') ||
@@ -1059,9 +1059,9 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
   assert.equal(subscriptions, 4, 'every sort change must resubscribe the stats stream');
 }
 const historyTypesIo = fs.readFileSync(
-    path.join(sketchDir, 'OpenBrewHistoryTypes.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewByWeightHistoryTypes.h'), 'utf8');
 const historyIo = fs.readFileSync(
-    path.join(sketchDir, 'OpenBrewHistory.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewByWeightHistory.h'), 'utf8');
 if (!historyTypesIo.includes('BACKFLUSH = 5') ||
     !codeIncludes(viewJs.history, 'HIST_TYPE_SVG.backflush=') ||
     !partialHtml.history.includes('id="hBF" viewBox="0 0 256 256"') ||

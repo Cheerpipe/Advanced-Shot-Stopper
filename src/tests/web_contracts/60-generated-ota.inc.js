@@ -38,9 +38,9 @@ if (!zlib.gunzipSync(Buffer.from(browserGzip)).equals(tarFixture)) {
 if (!generated.assetTag || !generated.cacheVersion ||
     !generated.html.includes(`src="/app.js?v=${generated.assetTag}"`) ||
     generated.html.includes(`v=${generated.cacheVersion}`) ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewWebAssetsGzip.h'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightWebAssetsGzip.h'), 'utf8')
          .includes(`WEB_UI_ASSET_TAG[] = "${generated.assetTag}"`) ||
-    !fs.readFileSync(path.join(sketchDir, 'OpenBrewWebAssetsGzip.h'), 'utf8')
+    !fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightWebAssetsGzip.h'), 'utf8')
          .includes(`WEB_UI_ETAG[] = ${JSON.stringify('"' + generated.cacheVersion + '"')}`)) {
   throw new Error('Asset URLs must carry the content tag alone; the ETag embeds FW version + tag');
 }
@@ -184,7 +184,7 @@ try {
   changedFixture.clean();
 }
 
-const generatedHeaderPath = path.join(sketchDir, 'OpenBrewWebAssetsGzip.h');
+const generatedHeaderPath = path.join(sketchDir, 'OpenBrewByWeightWebAssetsGzip.h');
 const generatedHeader = fs.readFileSync(generatedHeaderPath, 'utf8');
 for (const forbidden of ['__WEBUI_', '{{webui:', 'schemaVersion', 'shell.open_brew']) {
   localeAssert.ok(!generatedHeader.includes(forbidden),
@@ -1046,8 +1046,8 @@ if (coldHomeGzip > 67869) {
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);
 }
-if (!network.includes('#include "OpenBrewWebAssetsGzip.h"') ||
-    network.includes('#include "OpenBrewWebAssets.h"')) {
+if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
+    network.includes('#include "OpenBrewByWeightWebAssets.h"')) {
   throw new Error('Firmware must embed the gzip Web UI, not the HTML source string');
 }
 if (!network.includes('SHOT_STOPPER_WEB_UI_GZIP') ||
@@ -1462,10 +1462,10 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
 // machine, so every rule below exists to keep a bad image from becoming the
 // boot image, and a bad boot from becoming permanent.
 {
-  const ota = fs.readFileSync(path.join(sketchDir, 'OpenBrewOta.cpp'), 'utf8');
-  const otaHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewOta.h'), 'utf8');
+  const ota = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightOta.cpp'), 'utf8');
+  const otaHeader = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightOta.h'), 'utf8');
   const otaImage = fs.readFileSync(
-    path.join(sketchDir, 'OpenBrewOtaImage.h'), 'utf8');
+    path.join(sketchDir, 'OpenBrewByWeightOtaImage.h'), 'utf8');
   // The generator, not its git-ignored output, so a fresh checkout is checked too.
   const version = fs.readFileSync(
     path.join(sketchDir, '..', 'scripts', 'gen_version.sh'), 'utf8');

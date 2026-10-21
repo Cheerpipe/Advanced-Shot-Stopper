@@ -1,4 +1,4 @@
-#include "../OpenBrewResourceOwner.h"
+#include "../OpenBrewByWeightResourceOwner.h"
 
 #include <cstdlib>
 #include <iostream>

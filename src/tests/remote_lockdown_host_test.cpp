@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <iostream>
 
-#include "../openBrew.cpp"
+#include "../openBrewByWeight.cpp"
 
 namespace {
 

@@ -1400,9 +1400,9 @@ if (!domain.includes('BUZZER_SUPPORT_ENABLED = SHOT_STOPPER_ENABLE_BUZZER != 0')
     !buzzerRtttl.includes('RTTTL_EXTENDED_PULSE_MEDIUM') ||
     !buzzerRtttl.includes('RTTTL_EXTENDED_PULSE_FAST') ||
     !buzzerRtttl.includes('RTTTL_EXTENDED_PULSE_RAPID') ||
-    buzzerRtttl.includes('OpenBrewDomain.h') ||
+    buzzerRtttl.includes('OpenBrewByWeightDomain.h') ||
     buzzerRtttl.includes('rtttlForExtendedPulseRate') ||
-    buzzerPassive.includes('OpenBrewBuzzerRtttl.h') ||
+    buzzerPassive.includes('OpenBrewByWeightBuzzerRtttl.h') ||
     !buzzerRtttl.includes('RTTTL_SCALE_LOST') ||
     !buzzerRtttl.includes('RTTTL_GUARD_STOP') ||
     !buzzerRtttl.includes('RTTTL_NO_SCALE') ||
@@ -1490,7 +1490,7 @@ if (!domainCore.includes('#ifndef SHOT_STOPPER_ENABLE_JTAG') ||
       kconfig.indexOf('config SHOT_STOPPER_ENABLE_REMOTE_MACHINE_CONTROL'),
       kconfig.indexOf('config SHOT_STOPPER_MACHINE_TYPE'));
   const cli = fs.readFileSync(
-      path.resolve(sketchDir, '..', 'scripts', 'openbrew_cli.sh'), 'utf8');
+      path.resolve(sketchDir, '..', 'scripts', 'openbrewbyweight_cli.sh'), 'utf8');
   const defaultFlags = cli.match(/SS_CLI_DEFAULT_FLAGS='([^']*)'/);
   const paddleHandler = network.slice(
       network.indexOf('esp_err_t ShotStopperNetwork::paddleHandler'),

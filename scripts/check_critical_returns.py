@@ -21,12 +21,12 @@ def reject(path: str, pattern: str, description: str) -> list[str]:
 def main() -> int:
     failures: list[str] = []
     failures += reject(
-        "src/OpenBrewBuzzer.h",
+        "src/OpenBrewByWeightBuzzer.h",
         r"\(void\)esp_timer_(?:stop|start_once)\s*\(",
         "buzzer timer result",
     )
     failures += reject(
-        "src/OpenBrewOta.cpp",
+        "src/OpenBrewByWeightOta.cpp",
         r"\(void\)esp_ota_abort\s*\(",
         "OTA abort result",
     )
@@ -36,16 +36,16 @@ def main() -> int:
         "NimBLE teardown result",
     )
 
-    watchdog = (ROOT / "src/OpenBrewWatchdog.h").read_text(
+    watchdog = (ROOT / "src/OpenBrewByWeightWatchdog.h").read_text(
         encoding="utf-8"
     )
     if "TASK_WATCHDOG_OTA_TIMEOUT_MS" in watchdog or "TaskWatchdogOtaWindow" in watchdog:
-        failures.append("OpenBrewWatchdog.h: obsolete global OTA TWDT window")
+        failures.append("OpenBrewByWeightWatchdog.h: obsolete global OTA TWDT window")
 
     for path in (ROOT / "src").rglob("*"):
         if path.suffix not in {".h", ".cpp"}:
             continue
-        if path.name == "OpenBrewWatchdog.h":
+        if path.name == "OpenBrewByWeightWatchdog.h":
             continue
         if "esp_task_wdt_reconfigure" in path.read_text(encoding="utf-8"):
             failures.append(f"{path.relative_to(ROOT)}: global TWDT reconfiguration outside initialization")

@@ -107,7 +107,7 @@
   assert(!polling.includes("activeView!=='home'"), 'Home must not arm the REST polling timer');
   assert(codeIncludes(runtimeJs, "s=v==='home'?await loadHomeStatus():v==='diagnostic'?await loadDiagnosticStatus():await api("),
       'Home and Diagnostic load from the stream; only the remaining views REST');
-  const rest = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewStatus.inc'), 'utf8');
+  const rest = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightStatus.inc'), 'utf8');
   assert(!rest.includes('StatusPage::Home') && !rest.includes('/api/v1/status/home'),
       'Home state must be WebSocket-only; the REST metadata stub is deleted');
   assert(!rest.includes('loadControlStatus') || rest.indexOf('loadControlStatus') > rest.indexOf('// JSON / snapshot'),
@@ -127,13 +127,13 @@
 // single-field, disconnect, resync and capacity-failure cases.
 {
   const assert = require('assert').strict, {spawnSync} = require('child_process');
-  const stream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewHomeStream.inc'), 'utf8');
+  const stream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightHomeStream.inc'), 'utf8');
   const writer = stream.slice(0, stream.indexOf('// This bounded presentation'));
-  const network = fs.readFileSync(path.join(sketchDir, 'OpenBrewNetwork.h'), 'utf8');
-  const networkTypes = fs.readFileSync(path.join(sketchDir, 'OpenBrewNetworkTypes.h'), 'utf8');
+  const network = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightNetwork.h'), 'utf8');
+  const networkTypes = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightNetworkTypes.h'), 'utf8');
   const signal = networkTypes.slice(networkTypes.indexOf('// Signal bars'), networkTypes.lastIndexOf('}  // namespace')) +
       network.slice(network.indexOf('inline const char *connectionSignalLevelJson('), network.indexOf('inline uint8_t wifiRssiToSignalQualityPct('));
-  const domainSource = fs.readFileSync(path.join(sketchDir, 'OpenBrewDomain.h'), 'utf8');
+  const domainSource = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightDomain.h'), 'utf8');
   const crc = domainSource.slice(domainSource.indexOf('inline uint32_t crc32Update('), domainSource.indexOf('inline uint32_t crc32('));
   const directory = path.resolve(sketchDir, '..', 'temp', 'ai_temp_home_websocket_contract');
   fs.mkdirSync(directory, {recursive: true});
@@ -348,7 +348,7 @@ int main(){
   assert.equal(sockets.length, restored + 1, 'one socket after a restore');
   // The firmware closes a bound session silent for 5 minutes, outside a live
   // cycle, with a plain close (not the 4001 takeover) and one log line.
-  const stream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewUiStream.inc'), 'utf8');
+  const stream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightUiStream.inc'), 'utf8');
   assert(stream.includes('!(control.activeCycle || control.homePending || control.relayClosed) &&') &&
       stream.includes('millis() - session.heardAtMs >= kUiStreamSilentMs;'));
   assert(stream.includes('if (accepted) session->heardAtMs = millis();'));
@@ -358,7 +358,7 @@ int main(){
       stream.includes('silent = allowed && session.bound &&'));
   // Bind reports the presets the page holds; only the first Home snapshot may
   // leave them out, and only for the same tag.
-  const home = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewHomeStream.inc'), 'utf8');
+  const home = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightHomeStream.inc'), 'utf8');
   assert(stream.includes('cJSON_GetObjectItemCaseSensitive(message, "presetsTag")'));
   assert(home.includes('delta.skipNext = initial && session.knownPresetsTag != 0 &&') &&
       home.includes('session.knownPresetsTag == renderedPresetsHash;') &&

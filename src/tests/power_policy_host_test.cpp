@@ -1,4 +1,4 @@
-#include "../OpenBrewPowerManagement.h"
+#include "../OpenBrewByWeightPowerManagement.h"
 #include <cassert>
 #include <thread>
 

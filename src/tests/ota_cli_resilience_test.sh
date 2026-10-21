@@ -3,8 +3,8 @@
 set -euo pipefail
 
 repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
-# shellcheck source=scripts/openbrew_ota.sh
-source "$repo_root/scripts/openbrew_ota.sh"
+# shellcheck source=scripts/openbrewbyweight_ota.sh
+source "$repo_root/scripts/openbrewbyweight_ota.sh"
 
 body_file="$(mktemp "${TMPDIR:-/tmp}/shotstopper-ota-cli-test.XXXXXX")"
 image_file="$(mktemp "${TMPDIR:-/tmp}/shotstopper-ota-cli-image.XXXXXX")"

@@ -23,8 +23,8 @@ secrets.h
 credentials.h
 WiFiSecrets.h
 *.local.h
-src/OpenBrewVersion.h
-src/OpenBrewWebAssetsGzip.h
+src/OpenBrewByWeightVersion.h
+src/OpenBrewByWeightWebAssetsGzip.h
 
 # Arduino IDE and Arduino CLI generated state
 .arduinoIDE/

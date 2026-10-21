@@ -2,12 +2,12 @@
 set -eu
 
 test_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-firmware_file="$test_dir/../openBrew.cpp"
-domain_file="$test_dir/../OpenBrewDomain.h"
+firmware_file="$test_dir/../openBrewByWeight.cpp"
+domain_file="$test_dir/../OpenBrewByWeightDomain.h"
 coverage_binary=${TMPDIR:-/tmp}/shot_stopper_coverage
 raw_profile=${TMPDIR:-/tmp}/shot_stopper_coverage.profraw
 merged_profile=${TMPDIR:-/tmp}/shot_stopper_coverage.profdata
-persistence_file="$test_dir/../OpenBrewPersistence.h"
+persistence_file="$test_dir/../OpenBrewByWeightPersistence.h"
 persistence_binary=${TMPDIR:-/tmp}/shot_stopper_persistence_coverage
 persistence_raw=${TMPDIR:-/tmp}/shot_stopper_persistence_coverage.profraw
 persistence_profile=${TMPDIR:-/tmp}/shot_stopper_persistence_coverage.profdata
@@ -33,7 +33,7 @@ fi
 
 "$cxx" -std=c++17 -O0 -fprofile-instr-generate -fcoverage-mapping \
   -pthread \
-  "$test_dir/open_brew_host_test.cpp" \
+  "$test_dir/open_brew_by_weight_host_test.cpp" \
   -o "$coverage_binary"
 
 LLVM_PROFILE_FILE="$raw_profile" "$coverage_binary"

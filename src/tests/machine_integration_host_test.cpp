@@ -1,4 +1,4 @@
-#include "machine/OpenBrewMachineIntegration.h"
+#include "machine/OpenBrewByWeightMachineIntegration.h"
 
 #include <cassert>
 

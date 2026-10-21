@@ -6,15 +6,15 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-# shellcheck source=scripts/openbrew_board.sh
-source "$SCRIPT_DIR/openbrew_board.sh"
-# shellcheck source=scripts/openbrew_cli.sh
-source "$SCRIPT_DIR/openbrew_cli.sh"
-# shellcheck source=scripts/openbrew_idf.sh
-source "$SCRIPT_DIR/openbrew_idf.sh"
+# shellcheck source=scripts/openbrewbyweight_board.sh
+source "$SCRIPT_DIR/openbrewbyweight_board.sh"
+# shellcheck source=scripts/openbrewbyweight_cli.sh
+source "$SCRIPT_DIR/openbrewbyweight_cli.sh"
+# shellcheck source=scripts/openbrewbyweight_idf.sh
+source "$SCRIPT_DIR/openbrewbyweight_idf.sh"
 
 readonly ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
-readonly MAPPINGS_FILE="$ROOT/scripts/iwyu-openbrew.imp"
+readonly MAPPINGS_FILE="$ROOT/scripts/iwyu-openbrewbyweight.imp"
 
 usage() {
   cat <<EOF
@@ -105,7 +105,7 @@ patterns = [
     "libraries/EspressoScaleBLE/src/protocols/*.cpp",
     "idf/main/*.cpp",
     "idf/components/EspressoScaleBLE/*.cpp",
-    "idf/components/openBrew/*.cpp",
+    "idf/components/openBrewByWeight/*.cpp",
 ]
 drop_prefixes = ("-m", "-fno-tree-", "-fstrict-volatile-bitfields",
                  "-fuse-ld=", "-Wl,", "--sysroot", "--param=", "--target=",

@@ -34,8 +34,8 @@ in [Build](docs/BUILD.md), [scripts](docs/SCRIPTS.md), and
 the [manual test plan](docs/MANUAL_TEST_PLAN.md) and curated evidence by
 [target trace qualification](docs/P2_TARGET_TRACE.md).
 
-Any change to `src/OpenBrewNetwork.cpp`,
-`src/network/OpenBrewHttpLifecycle.inc`, or another source that defines or
+Any change to `src/OpenBrewByWeightNetwork.cpp`,
+`src/network/OpenBrewByWeightHttpLifecycle.inc`, or another source that defines or
 registers HTTP routes or handlers must run `./scripts/dev test web`. That profile,
 and every R2/R3 validation gate, runs the named `http-route-capacity` check before
 the broader Web contracts. The check counts all `registerHandler(server_, ...)`

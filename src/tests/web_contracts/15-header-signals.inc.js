@@ -72,14 +72,14 @@
       'record-only envelopes must not erase live header signals');
   assert(codeIncludes(rawRuntimeJs, 'noteReachFail(err,force){clearCupWeights();updateHeaderSignals();'));
   // Record pages take their header signals from the Home stream on the same socket.
-  assert(!fs.readFileSync(path.join(sketchDir, 'diagnostics/OpenBrewNetworkDiagnostics.inc'), 'utf8').includes('appendRecordPageUi'));
-  for (const file of ['network/OpenBrewStatus.inc']) {
+  assert(!fs.readFileSync(path.join(sketchDir, 'diagnostics/OpenBrewByWeightNetworkDiagnostics.inc'), 'utf8').includes('appendRecordPageUi'));
+  for (const file of ['network/OpenBrewByWeightStatus.inc']) {
     const source = fs.readFileSync(path.join(sketchDir, file), 'utf8');
     for (const field of ['wifiConnected', 'wifiLevel', 'bluetoothConnected', 'bluetoothLevel', 'wifiName', 'bluetoothName']) assert(source.includes('\\"' + field + '\\"'), file + ': ' + field);
     assert(source.includes('escapeConnectedScaleName(control, g_work->scaleHistory,'), 'Both envelopes use the connected identity resolver');
     assert(source.includes('escapeJsonString(network.staState == StaState::CONNECTED ? network.iface.staSsid : ""'), 'Preserve escaped SSID only while connected');
   }
-  const network = fs.readFileSync(path.join(sketchDir, 'OpenBrewNetwork.cpp'), 'utf8');
+  const network = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightNetwork.cpp'), 'utf8');
   assert(network.replace(/\s+/g, ' ').includes('entry.friendlyName[0] ? entry.friendlyName : scaleDefaultFriendlyName(entry.name)'), 'Friendly name precedes the advertised BLE name and its derived default');
   assert(network.includes('preferredScaleMacEqual(entry.mac, control.connectedScaleMac)'), 'Name must match the connected scale');
 }

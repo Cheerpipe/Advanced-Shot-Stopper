@@ -9,7 +9,7 @@
 #if defined(ESPRESSO_SCALE_BLE_HOST_TEST)
 #include "nimble_client_platform.h"
 #else
-#include "OpenBrewBleRuntime.h"
+#include "OpenBrewByWeightBleRuntime.h"
 #include "esp_attr.h"
 #include "esp_log.h"
 #include "esp_timer.h"
