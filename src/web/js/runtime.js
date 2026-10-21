@@ -1805,7 +1805,7 @@ async function api(path, options = {}) {
   options.headers = Object.assign({ [WEB_UI_CLIENT_HEADER]: webUiClientId }, options.headers || {});
   const powerSeconds = webUiPowerSeconds();
   if (powerSeconds) options.headers["X-WebUI-Activity"] = String(powerSeconds);
-  if (options.body) options.headers["Content-Type"] = "application/json";
+  if (options.body) options.headers["Content-Type"] ??= "application/json";
   const ac = new AbortController(),
     to = setTimeout(() => ac.abort(), options.timeoutMs || 8e3);
   let response, txt;
@@ -1828,7 +1828,9 @@ async function api(path, options = {}) {
   try {
     data = JSON.parse(txt);
   } catch (_) {
-    throw new Error(__WEBUI_TEXT__("runtime.invalid_response"));
+    throw Object.assign(new Error(__WEBUI_TEXT__("runtime.invalid_response")), {
+      status: response.status,
+    });
   }
   if (!response.ok) {
     if (data.error === "UI_TAKEN_OVER") deactivateWebUi();
@@ -1836,6 +1838,7 @@ async function api(path, options = {}) {
       data.message || data.error || __WEBUI_TEXT__("runtime.http") + response.status,
     );
     err.code = data.error || "";
+    err.status = response.status;
     throw err;
   }
   return data;
@@ -5682,6 +5685,7 @@ async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
   });
 }
 export {
+  resetWebUiInactivity,
   activeView,
   compatibilityModeOn,
   noteWebUiPowerActivity,

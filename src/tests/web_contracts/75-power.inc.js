@@ -59,18 +59,21 @@
         snapshots = [snapshot('QUEUED', 12, false, true), snapshot('APPLIED', 12, false, true),
           snapshot('APPLIED', 13, true), snapshot('APPLIED', 13, false, false, !value),
           snapshot('APPLIED', 14, false)]; // Coalesced later revision is durable too.
-        await waiter(7, key, {baseRevision: 12, [key]: value});
+        await waiter(7, 'the setting', {baseRevision: 12, [key]: value}, key);
         assert.equal(snapshots.length, 0);
         snapshots = [snapshot('APPLIED', 1, false)];
-        await waiter(7, key, {baseRevision: 0xffffffff, [key]: value});
+        await waiter(7, 'the setting', {baseRevision: 0xffffffff, [key]: value}, key);
         snapshots = [snapshot('APPLIED', 13, true, true)];
-        await assert.rejects(waiter(7, key, {baseRevision: 12, [key]: value}), /Could not save/);
+        await assert.rejects(waiter(7, 'the setting', {baseRevision: 12, [key]: value}, key),
+            /Could not save the setting/);
         for (const state of ['FAILED', 'CANCELED']) {
           snapshots = [snapshot(state, 12, false)];
-          await assert.rejects(waiter(7, key, {baseRevision: 12, [key]: value}), /Could not save/);
+          await assert.rejects(waiter(7, 'the setting', {baseRevision: 12, [key]: value}, key),
+            /Could not save the setting/);
         }
         snapshots = Array.from({length: 54}, () => snapshot('APPLIED', 13, true));
-        await assert.rejects(waiter(7, key, {baseRevision: 12, [key]: value}), /Timeout saving/);
+        await assert.rejects(waiter(7, 'the setting', {baseRevision: 12, [key]: value}, key),
+            /Timeout saving the setting/);
       }
     }
   };
@@ -98,18 +101,19 @@
             return {requestId: 5};
           }, message: () => {}
         },
-        async (id, key, config) => {
+        async (id, label, config, key) => {
           assert.equal(id, 5);
+          assert.equal(label, 'power management');
           assert.equal(key, 'powerManagementEnabled');
           assert.deepEqual(config, posted);
           ++waited;
         }, () => el);
-    await handler('powerManagementEnabled');
+    await handler('powerManagementEnabled', 'power management');
     assert.deepEqual(posted, {powerManagementEnabled: true, baseRevision: 12});
     assert.equal(waited, 1);
     assert.equal(el.checked, true);
     reject = true;
-    await assert.rejects(handler('powerManagementEnabled'), /Revision conflict/);
+    await assert.rejects(handler('powerManagementEnabled', 'power management'), /Revision conflict/);
   };
   run().catch(error => { console.error(error); process.exitCode = 1; });
 }

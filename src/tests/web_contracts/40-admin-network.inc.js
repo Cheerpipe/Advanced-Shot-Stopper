@@ -743,7 +743,7 @@ if (!codeIncludes(ui, 'function withPollGate(') ||
     !codeIncludes(ui, 'armStatusTimer()') ||
     !codeIncludes(ui, 'AbortController') ||
     !codeIncludes(ui, 'Device timeout') ||
-    !codeIncludes(ui, "throw new Error('Invalid response')") ||
+    !codeIncludes(ui, "new Error('Invalid response')") ||
     !codeIncludes(ui, "throw new Error('Invalid status')") ||
     !codeIncludes(ui, "await loadDiagnosticStatus():await api('/api/v1/status/'+v)") ||
     !codeIncludes(ui, 'function ensureSettingsHydrated(') ||
@@ -754,4 +754,4 @@ if (!codeIncludes(ui, 'function withPollGate(') ||
     !codeIncludes(ui, 'command(path,value={},soft,okMsg,failMsg,busyId)') ||
     !codeIncludes(ui, '/api/v1/status/') ||
     !codeIncludes(ui, 'function statusPageOk(') ||
-    !codeIncludes(ui, "throw new Error('Invalid response')") ||
+    !codeIncludes(ui, "new Error('Invalid response')") ||

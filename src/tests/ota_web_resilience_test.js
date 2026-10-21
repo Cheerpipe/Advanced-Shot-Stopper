@@ -35,7 +35,7 @@ async function harness(mode) {
   const source = mode === 'changed' ? Buffer.from(await file.arrayBuffer()) : null;
   const uploadFile = source ?
       {size: source.length, slice: (a, b) => new Blob([source.subarray(a, b)])} : file;
-  const messages = [], patches = [], payloads = [];
+  const messages = [], patches = [], payloads = [], delays = [];
   let offset = 0, posts = 0, commits = 0;
   const session = {...identity, transferId: 'test-transfer'};
   const status = () => ({otaProtocolVersion: 3, available: true, safe: true,
@@ -52,7 +52,8 @@ async function harness(mode) {
       imageSha256: identity.imageSha256}});
   const R = {uiState: {}, controlsMutable: true,
     message: text => messages.push(text), clearFieldErrors() {}, showFieldError() {},
-    formatCommandError: (text, error) => text + ' ' + error.message, refreshStatus() {}};
+    formatCommandError: (text, error) => text + ' ' + error.message, refreshStatus() {},
+    sub: (text, values) => text.replace(/\{(\d)\}/g, (_, i) => values[i])};
   const context = vm.createContext({console, crypto: crypto.webcrypto,
   __WEBUI_TEXT__: key => locale[key] || key, localStorage: {
     getItem: key => items.get(key) || null,
@@ -60,10 +61,10 @@ async function harness(mode) {
   $: key => {
     if (!nodes.has(key)) nodes.set(key, {files: [uploadFile], value: 0, classList: {add() {}, remove() {}}});
     return nodes.get(key);
-  }, confirm: () => true, R});
+  }, confirm: () => true, R, wait: async (ms) => { delays.push(ms); }});
   vm.runInContext(otaSource, context);
   context.otaFileIdentity = parser;
-  const send = async (url, body, progress, timeout, method = 'POST', headers = {}) => {
+  const send = async (url, body, timeout, method = 'POST', headers = {}) => {
     if (method === 'POST' && url.endsWith('/session')) {
       posts++;
       const request = JSON.parse(body); payloads.push(request);
@@ -93,13 +94,14 @@ async function harness(mode) {
         if (mode === 'wrong-commit') return {...status(), state: 'committed', restartPending: true, transferId: 'other'};
         if (mode === 'lost-commit') return {...status(), state: 'committed', restartPending: true};
         if (mode === 'booted-commit') return {...status(), state: 'idle', bootId: 8, transferId: ''};
+        if (mode === 'refused-flash') return status();
       }
       return status();
     }
     throw new Error('Unexpected request');
   };
   context.otaSend = send;
-  return {context, session, identity, items, messages, patches, payloads, file,
+  return {context, session, identity, items, messages, patches, payloads, file, delays,
     status, setOffset: value => {offset = value;}, commits: () => commits};
 }
 
@@ -119,6 +121,7 @@ async function harness(mode) {
     await vm.runInContext('otaUpload()', h.context);
     if (mode === 'stalled') {
       assert.equal(h.patches.length, 3);
+      assert.deepEqual(h.delays, [1000, 2000, 3000], 'retries back off before reconciling');
       assert.match(h.messages.at(-1), /upload paused/);
     } else {
       assert.doesNotMatch(h.messages.at(-1), /upload paused/);
@@ -131,6 +134,32 @@ async function harness(mode) {
     assert.equal(h.patches.length, 1);
     assert.match(h.messages.at(-1), /changed while it was being uploaded/);
     assert.doesNotMatch(h.messages.at(-1), /upload paused|rejected/);
+  }
+  // A flash the device keeps refusing leaves the same boot staged: no commit
+  // expectation may linger to report an unverified update later.
+  {
+    const h = await harness('refused-flash');
+    h.setOffset(h.file.size);
+    h.items.set('obbwOtaSession', JSON.stringify(h.session));
+    h.context.R.uiState.otaLastStatus = h.status();
+    await vm.runInContext('otaFlash()', h.context);
+    assert.equal(h.commits(), 3);
+    assert.equal(h.items.has('obbwOtaCommit'), false);
+  }
+  // The real transport is the shared API client, and each step keeps the UI active.
+  {
+    const h = await harness('normal'), calls = [];
+    const context = vm.createContext({R: {resetWebUiInactivity: () => calls.push('active'),
+      api: (...args) => calls.push(args)}, __WEBUI_TEXT__: (key) => key});
+    vm.runInContext(otaSource, context);
+    context.otaSend('/api/v1/ota', 'chunk', 5, 'PATCH', {'X-OTA-Offset': '0'});
+    assert.equal(JSON.stringify(calls), JSON.stringify(['active', ['/api/v1/ota',
+      {method: 'PATCH', body: 'chunk', headers: {'X-OTA-Offset': '0'}, timeoutMs: 5}]]));
+    // An image for another hardware or machine profile names both profiles.
+    h.context.identity = {...h.identity, machine: 'other-machine'};
+    h.context.remote = h.status();
+    assert.throws(() => vm.runInContext('otaSessionIdentity(identity,remote)', h.context),
+        /built for legacy on other-machine, but this controller runs legacy on legacy/);
   }
   for (const mode of ['lost-commit', 'wrong-commit', 'booted-commit']) {
     const h = await harness(mode);
@@ -146,6 +175,11 @@ async function harness(mode) {
   }
   const h = await harness('normal');
   h.context.expected = {...h.session, bootId: 7};
+  // A boot into another image settles the commit expectation after one report.
+  h.items.set('obbwOtaCommit', JSON.stringify(h.context.expected));
+  h.context.remote = {...h.status(), bootId: 8, running: {...h.status().running, imageSha256: 'b'.repeat(64)}};
+  assert.match(vm.runInContext('otaCheckBoot(expected,remote)', h.context), /another image/);
+  assert.equal(h.items.has('obbwOtaCommit'), false);
   for (const [change, pattern] of [
     [{bootId: 7}, /not yet verified/],
     [{bootId: 8, confirmed: false, confirmBlockReason: 'ble-active'}, /confirmation pending \(ble-active\)/],

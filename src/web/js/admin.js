@@ -568,7 +568,9 @@ function applyAdminStatus(s) {
     R.refreshTimezonePreview();
   } else R.renderTimezonePreview();
 }
-const OTA_UPLOAD_TIMEOUT_MS = 15 * 60 * 1000;
+// A 64 KiB chunk lands in seconds; a dead link must not hold the page for the
+// whole 15-minute session lifetime.
+const OTA_UPLOAD_TIMEOUT_MS = 2 * 60 * 1000;
 const OTA_COMMAND_TIMEOUT_MS = 60 * 1000;
 function otaTagText(t) {
   return t
@@ -648,50 +650,11 @@ function applyOtaStatus(o) {
   if (active && o.expectedBytes)
     $("otaProgress").value = Math.round((100 * (o.nextOffset || 0)) / o.expectedBytes);
 }
-function otaSend(path, payload, onProgress, timeoutMs, method = "POST", headers = {}) {
-  return R.acquireDeviceSlot().then(() =>
-    new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open(method, path, true);
-      xhr.timeout = timeoutMs;
-      xhr.setRequestHeader(R.WEB_UI_CLIENT_HEADER, R.webUiClientId);
-      Object.keys(headers).forEach((k) => xhr.setRequestHeader(k, headers[k]));
-      if (payload && !headers["Content-Type"])
-        xhr.setRequestHeader("Content-Type", "application/octet-stream");
-      if (onProgress && xhr.upload)
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) onProgress(Math.round((e.loaded * 100) / e.total));
-        };
-      xhr.onload = () => {
-        let data = {};
-        try {
-          data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
-        } catch (_) {
-          const e = new Error(
-            __WEBUI_TEXT__("runtime.invalid_response_http") +
-              xhr.status +
-              __WEBUI_TEXT__("runtime.symbol_10"),
-          );
-          e.status = xhr.status;
-          reject(e);
-          return;
-        }
-        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
-        else {
-          const e = new Error(
-            data.message || data.error || __WEBUI_TEXT__("runtime.http") + xhr.status,
-          );
-          e.status = xhr.status;
-          e.code = data.error || "";
-          reject(e);
-        }
-      };
-      xhr.onerror = () => reject(new Error(__WEBUI_TEXT__("runtime.device_unreachable")));
-      xhr.ontimeout = () => reject(new Error(__WEBUI_TEXT__("runtime.device_timeout")));
-      xhr.onabort = () => reject(new Error(__WEBUI_TEXT__("runtime.the_upload_was_cancelled")));
-      xhr.send(payload || null);
-    }).finally(() => R.releaseDeviceSlot()),
-  );
+// The OTA steps ride the shared API client. Each one counts as activity, so a
+// long upload is not cut off by the Web UI inactivity timeout.
+function otaSend(path, body, timeoutMs, method = "POST", headers = {}) {
+  R.resetWebUiInactivity();
+  return R.api(path, { method, body, headers, timeoutMs });
 }
 function otaBeginBusy() {
   R.uiState.otaBusy = true;
@@ -746,12 +709,17 @@ function otaSessionIdentity(identity, status) {
     throw new Error(__WEBUI_TEXT__("runtime.this_controller_does_not_support_the_resumable"));
   if (status.runningIdentityValid !== true)
     throw new Error(__WEBUI_TEXT__("runtime.the_running_firmware_has_no_usable_image"));
-  if (
-    !status.running ||
-    identity.hardware !== status.running.hardware ||
-    identity.machine !== status.running.machine
-  )
+  if (!status.running)
     throw new Error(__WEBUI_TEXT__("runtime.the_running_firmware_has_no_usable_image"));
+  if (identity.hardware !== status.running.hardware || identity.machine !== status.running.machine)
+    throw new Error(
+      R.sub(__WEBUI_TEXT__("runtime.ota_image_for_another_profile"), [
+        identity.hardware,
+        identity.machine,
+        status.running.hardware,
+        status.running.machine,
+      ]),
+    );
   const occupied = status.sessionActive || status.state === "staged";
   if (occupied) {
     if (!otaRemoteMatches(identity, status))
@@ -797,8 +765,6 @@ function otaUploadErrorText(session, status, error) {
     (status && status.lastResult === "OTA_SESSION_EXPIRED")
   )
     return __WEBUI_TEXT__("runtime.the_firmware_upload_session_expired_choose_the");
-  if (error.message === "The upload was cancelled.")
-    return __WEBUI_TEXT__("runtime.the_firmware_upload_was_cancelled");
   if (error.status >= 400 && error.status < 500 && error.code !== "RECEIVE_FAILED")
     return __WEBUI_TEXT__("runtime.the_firmware_upload_was_rejected");
   if (session && otaRecoverable(session, status))
@@ -840,12 +806,11 @@ async function otaUpload() {
   try {
     R.message(__WEBUI_TEXT__("runtime.checking_firmware_identity"));
     const identity = await otaFileIdentity(file),
-      remote = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+      remote = await otaSend("/api/v1/ota/session", null, OTA_COMMAND_TIMEOUT_MS, "GET");
     session = otaSessionIdentity(identity, remote);
     status = await otaSend(
       "/api/v1/ota/session",
       otaSessionBody(session),
-      null,
       OTA_COMMAND_TIMEOUT_MS,
       "POST",
       { "Content-Type": "application/json" },
@@ -872,13 +837,17 @@ async function otaUpload() {
           "X-OTA-Offset": String(offset),
           "X-OTA-Length": String(file.size),
           "Content-Range": "bytes " + offset + "-" + (end - 1) + "/" + file.size,
+          "Content-Type": "application/octet-stream",
         };
       let reconciled = false;
       try {
-        status = await otaSend("/api/v1/ota", chunk, null, OTA_UPLOAD_TIMEOUT_MS, "PATCH", headers);
+        status = await otaSend("/api/v1/ota", chunk, OTA_UPLOAD_TIMEOUT_MS, "PATCH", headers);
       } catch (e) {
         failures++;
-        status = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+        // Back off before asking where the transfer stands, so a short blip
+        // does not spend the whole retry budget at once.
+        await wait(1000 * failures);
+        status = await otaSend("/api/v1/ota/session", null, OTA_COMMAND_TIMEOUT_MS, "GET");
         if (
           !otaRemoteMatches(session, status) ||
           (!otaRecoverable(session, status) && status.state !== "staged")
@@ -923,7 +892,7 @@ async function otaUpload() {
     let current = null;
     if (session) {
       try {
-        current = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+        current = await otaSend("/api/v1/ota/session", null, OTA_COMMAND_TIMEOUT_MS, "GET");
       } catch (_) {}
     }
     otaEndBusy(current, R.formatCommandError(otaUploadErrorText(session, current, e), e), "error");
@@ -955,8 +924,13 @@ function otaCheckBoot(expected, status) {
     return status.restartPending || status.state === "committed"
       ? __WEBUI_TEXT__("runtime.flashed_waiting_for_the_controller_to_restart")
       : __WEBUI_TEXT__("runtime.commit_not_yet_verified_refresh_status_before");
-  if (status.running.imageSha256 !== expected.imageSha256)
+  // Another boot settles the expectation either way: report it once, then the
+  // status line shows the controller as it really is.
+  if (status.running.imageSha256 !== expected.imageSha256) {
+    otaCommitStore(null);
+    R.message(__WEBUI_TEXT__("runtime.the_controller_restarted_into_another_image_the"), "warn");
     return __WEBUI_TEXT__("runtime.the_controller_restarted_into_another_image_the");
+  }
   if (!status.confirmed)
     return (
       __WEBUI_TEXT__("runtime.expected_firmware_booted_confirmation_pending") +
@@ -1005,19 +979,19 @@ async function otaFlash() {
   otaBeginBusy();
   let data = null;
   try {
-    data = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+    data = await otaSend("/api/v1/ota/session", null, OTA_COMMAND_TIMEOUT_MS, "GET");
     if (!otaRemoteMatches(session, data) || data.state !== "staged")
       throw new Error(__WEBUI_TEXT__("runtime.the_staged_transfer_changed_before_flash"));
     expected.bootId = data.bootId;
     otaCommitStore(expected);
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
-        data = await otaSend("/api/v1/ota/flash", null, null, OTA_COMMAND_TIMEOUT_MS);
+        data = await otaSend("/api/v1/ota/flash", null, OTA_COMMAND_TIMEOUT_MS);
         if (!otaRemoteMatches(session, data))
           throw new Error(__WEBUI_TEXT__("runtime.the_commit_response_did_not_identify_the"));
         break;
       } catch (error) {
-        data = await otaSend("/api/v1/ota/session", null, null, OTA_COMMAND_TIMEOUT_MS, "GET");
+        data = await otaSend("/api/v1/ota/session", null, OTA_COMMAND_TIMEOUT_MS, "GET");
         const rebooted =
           Number.isInteger(expected.bootId) &&
           Number.isInteger(data.bootId) &&
@@ -1030,6 +1004,10 @@ async function otaFlash() {
     }
     otaEndBusy(data, otaCheckBoot(expected, data), "");
   } catch (e) {
+    // The same boot with nothing committed means the flash did not happen:
+    // keep no expectation that would later read as an unverified commit.
+    if (data?.bootId === expected.bootId && !data.restartPending && data.state !== "committed")
+      otaCommitStore(null);
     otaEndBusy(
       data,
       R.formatCommandError(__WEBUI_TEXT__("runtime.the_flash_result_is_unverified_reconnect_to"), e),
@@ -1039,7 +1017,7 @@ async function otaFlash() {
 }
 function otaDiscard() {
   otaBeginBusy();
-  otaSend("/api/v1/ota/abort", null, null, OTA_COMMAND_TIMEOUT_MS)
+  otaSend("/api/v1/ota/abort", null, OTA_COMMAND_TIMEOUT_MS)
     .then((data) => {
       otaStore();
       otaCommitStore(null);
@@ -1213,7 +1191,10 @@ function validWebhookUrl(url) {
     return false;
   }
 }
-async function waitSaved(requestId, label = __WEBUI_TEXT__("admin.webhook_settings"), config) {
+// Waits for the device to persist one request. command() settles on APPLIED;
+// these saves also need the flash write, so they keep their own wait. The
+// label names the setting for people; key is the config field it checks.
+async function waitSaved(requestId, label = __WEBUI_TEXT__("admin.webhook_settings"), config, key) {
   const deadline = Date.now() + 8e3;
   while (Date.now() < deadline) {
     await wait(150);
@@ -1225,7 +1206,7 @@ async function waitSaved(requestId, label = __WEBUI_TEXT__("admin.webhook_settin
           config && c.state === "APPLIED" && p && ((p.revision - config.baseRevision) | 0) > 0;
       if (
         config
-          ? applied && p[label] === config[label] && p.persistPending === false && !p.persistFailed
+          ? applied && p[key] === config[key] && p.persistPending === false && !p.persistFailed
           : c.state === "PERSISTED"
       )
         return;
@@ -1247,13 +1228,13 @@ function controlChanged(id, base) {
     !!el && !!base && id in base && (el.type === "checkbox" ? el.checked : el.value) !== base[id]
   );
 }
-async function saveDurableConfigKey(key) {
+async function saveDurableConfigKey(key, label) {
   const el = $(key),
     wanted = el.checked;
   return R.withCommandGate(async () => {
     const p = R.withBaseRev({ [key]: wanted }),
       a = await R.api("/api/v1/config", { method: "POST", body: R.body(p) });
-    await waitSaved(a.requestId, key, p);
+    await waitSaved(a.requestId, label, p, key);
     R.message(__WEBUI_TEXT__("admin.setting_saved"), "ok");
   });
 }
@@ -1278,7 +1259,10 @@ async function savePowerSettings() {
   try {
     if (controlChanged("powerManagementEnabled", R.uiState.powerBaseline)) {
       try {
-        await saveDurableConfigKey("powerManagementEnabled");
+        await saveDurableConfigKey(
+          "powerManagementEnabled",
+          __WEBUI_TEXT__("admin.power_management_setting"),
+        );
       } catch (e) {
         R.message(e.message, "error");
         ok = false;
@@ -1301,7 +1285,10 @@ async function saveFrontendSettings() {
   try {
     if (controlChanged("showDiagnosticPage", R.uiState.frontendBaseline)) {
       try {
-        await saveDurableConfigKey("showDiagnosticPage");
+        await saveDurableConfigKey(
+          "showDiagnosticPage",
+          __WEBUI_TEXT__("admin.diagnostic_page_setting"),
+        );
       } catch (e) {
         R.message(e.message, "error");
         ok = false;

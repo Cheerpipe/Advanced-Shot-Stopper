@@ -282,6 +282,20 @@ if (otaDigest.end() !==
     'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad') {
   throw new Error('Web UI incremental OTA SHA-256 is incorrect');
 }
+// Block-wise hashing and fork() must match a one-shot digest at every split.
+for (const size of [0, 1, 55, 56, 63, 64, 65, 129, 4096, 70001]) {
+  const bytes = crypto.randomBytes(size), want = crypto.createHash('sha256').update(bytes).digest('hex');
+  for (const split of [0, 1, 63, 64, 65, size >> 1]) {
+    const at = Math.min(split, size), head = otaParser.hash256();
+    head.add(bytes.subarray(0, at));
+    const fork = head.fork();
+    head.add(bytes.subarray(at));
+    fork.add(bytes.subarray(at));
+    if (head.end() !== want || fork.end() !== want) {
+      throw new Error(`Web UI OTA SHA-256 differs at size ${size}, split ${split}`);
+    }
+  }
+}
 function browserFile(buffer) {
   return {
     size: buffer.length,
@@ -872,7 +886,8 @@ if (generated.otaImageGzip.length > 3072) {
 // records.js at 15108 and settings.js at 16813; owner-requested 2026-10-21.
 // The audit render fixes (rated star keeps focus, one curve model per row, keyed Diagnostic tables) measure
 // records.js at 15237 and diagnostic.js at 13904; owner-requested 2026-10-21.
-const viewModuleBudgets = {records: 15237, diagnostic: 13904, admin: 14229, settings: 16813, setup: 5793};
+// The audit OTA fixes move records.js to 15245 through asset-tag gzip wobble (records.js unchanged); cap 15260, owner-requested 2026-10-21.
+const viewModuleBudgets = {records: 15260, diagnostic: 13904, admin: 14229, settings: 16813, setup: 5793};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -1759,8 +1774,8 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
   if (!html.includes('id="diagnosticControls"') ||
       !codeIncludes(js, 'showDiagnosticPage') ||
       !codeIncludes(js, 'diagnosticPublic') ||
-      !codeIncludes(viewJs.admin, "saveDurableConfigKey('showDiagnosticPage')") ||
-      !codeIncludes(viewJs.admin, 'await waitSaved(a.requestId,key,p)') ||
+      !codeIncludes(viewJs.admin, "saveDurableConfigKey('showDiagnosticPage','the Diagnostic page setting'") ||
+      !codeIncludes(viewJs.admin, 'await waitSaved(a.requestId,label,p,key)') ||
       !codeIncludes(viewJs.admin, 'R.withBaseRev({[key]:wanted})') ||
       codeIncludes(viewJs.admin, 'waitDiagnosticPagePersisted') ||
       (viewJs.admin.match(/\bapplyStatus\b/g) || []).length !== 2 ||
@@ -1926,7 +1941,9 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
     throw new Error(
       'Web UI OTA must not collect a separate password after admin unlock');
   }
-  if (!codeIncludes(js, 'xhr.setRequestHeader(WEB_UI_CLIENT_HEADER,webUiClientId)') ||
+  // OTA rides the shared API client, which carries the Web UI client header.
+  if (!codeIncludes(js, 'options.headers=Object.assign({[WEB_UI_CLIENT_HEADER]:webUiClientId}') ||
+      !codeIncludes(viewJs.admin, 'return R.api(path,{method,body,headers,timeoutMs})') ||
       !network.includes('adminUnlockAllowed(request)') ||
       !network.includes('secretsMatch(password, expected)') ||
       !network.includes('X-Device-Password')) {

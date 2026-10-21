@@ -907,8 +907,9 @@ if (htmlBytes > 93300) {
 // Audit fixes for the History filter toggle and a single Stats CSV export: 483654, owner-requested 2026-10-21.
 // Audit render fixes (rename kept across polls, keyed Diagnostic tables, append-only log, lazy ruler): 484544, owner-requested 2026-10-21.
 // Audit state fixes (background tab load, view import retry, saved-value override reset, full-screen history): 485892, owner-requested 2026-10-21.
-if (jsBytes > 485892) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 485892)`);
+// Audit OTA fixes (shared API transport, bounded chunk timeout with backoff, profile mismatch text, settled commit records, block-wise image hashing): 486631, owner-requested 2026-10-21.
+if (jsBytes > 486631) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 486631)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1053,8 +1054,9 @@ if (jsBytes > 485892) {
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect: 575834, owner-requested 2026-10-21.
 // Audit render fixes (rename kept across polls, keyed Diagnostic tables, append-only log, lazy ruler): 576149, owner-requested 2026-10-21.
 // Audit state fixes (background tab load, view import retry, saved-value override reset, full-screen history): 577497, owner-requested 2026-10-21.
-if (htmlBytes + jsBytes > 577497) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 577497)`);
+// Audit OTA fixes (shared API transport, bounded chunk timeout with backoff, profile mismatch text, settled commit records, block-wise image hashing): 578236, owner-requested 2026-10-21.
+if (htmlBytes + jsBytes > 578236) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 578236)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
@@ -1579,4 +1581,14 @@ const statusSection = html.match(/<details id="machineRow" class="lampRow">([\s\
 const scaleSection = html.match(/<details id="scaleRow" class="lampRow">([\s\S]*?)<\/details>/);
 if (network.includes('Access-Control-Allow-Origin')) {
   throw new Error('LAN API responses must not grant cross-origin browser reads');
+}
+// The shared API client carries OTA too: it keeps a caller's Content-Type
+// (chunks are binary) and reports the HTTP status of a failed or unreadable
+// response, and a chunk timeout never waits out the whole OTA session.
+if (!codeIncludes(runtimeJs, "if(options.body)options.headers['Content-Type']??='application/json'") ||
+    !codeIncludes(runtimeJs, 'err.status=response.status') ||
+    !codeIncludes(runtimeJs, '{status:response.status,}') ||
+    !codeIncludes(viewJs.admin, 'const OTA_UPLOAD_TIMEOUT_MS=2*60*1000') ||
+    codeIncludes(viewJs.admin, 'XMLHttpRequest')) {
+  throw new Error('OTA must ride the shared API client with a bounded chunk timeout');
 }

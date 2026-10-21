@@ -17,22 +17,27 @@ const SHA256_K = [
   0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ];
 
-function hash256() {
-  let state = [
-      1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635, 1541459225,
-    ],
-    buffer = new Uint8Array(64),
-    used = 0,
-    total = 0;
-  const rr = (value, bits) => (value >>> bits) | (value << (32 - bits));
-  function block(input) {
-    const words = new Uint32Array(64);
+// Whole 64-byte blocks are hashed in place and the message schedule is reused,
+// so a firmware image is not copied byte by byte; fork() continues a digest.
+function hash256(from) {
+  let state = from
+      ? from.state.slice()
+      : [
+          1779033703, 3144134277, 1013904242, 2773480762, 1359893119, 2600822924, 528734635,
+          1541459225,
+        ],
+    used = from ? from.used : 0,
+    total = from ? from.total : 0;
+  const buffer = from ? from.buffer.slice() : new Uint8Array(64),
+    words = new Uint32Array(64),
+    rr = (value, bits) => (value >>> bits) | (value << (32 - bits));
+  function block(input, at = 0) {
     for (let i = 0; i < 16; i++)
       words[i] =
-        (input[i * 4] << 24) |
-        (input[i * 4 + 1] << 16) |
-        (input[i * 4 + 2] << 8) |
-        input[i * 4 + 3];
+        (input[at + i * 4] << 24) |
+        (input[at + i * 4 + 1] << 16) |
+        (input[at + i * 4 + 2] << 8) |
+        input[at + i * 4 + 3];
     for (let i = 16; i < 64; i++) {
       const x = words[i - 15],
         y = words[i - 2];
@@ -73,14 +78,19 @@ function hash256() {
   }
   return {
     add(bytes) {
-      for (const byte of bytes) {
-        buffer[used++] = byte;
-        total++;
-        if (used === 64) {
-          block(buffer);
-          used = 0;
-        }
+      let i = 0;
+      total += bytes.length;
+      if (used) {
+        while (used < 64 && i < bytes.length) buffer[used++] = bytes[i++];
+        if (used < 64) return;
+        block(buffer);
+        used = 0;
       }
+      for (; i + 64 <= bytes.length; i += 64) block(bytes, i);
+      while (i < bytes.length) buffer[used++] = bytes[i++];
+    },
+    fork() {
+      return hash256({ state, buffer, used, total });
     },
     end() {
       const bits = total * 8;
@@ -126,7 +136,7 @@ function tagFields(body) {
     : null;
 }
 
-export function imageTagScanner() {
+function imageTagScanner() {
   let tail = "",
     consumed = 0,
     found = null;
@@ -190,7 +200,6 @@ export async function otaFileIdentity(file) {
     throw new Error(__WEBUI_TEXT__("ota.this_file_is_too_short_to_be_2"));
   const header = new Uint8Array(await file.slice(0, IMAGE_PREFIX_BYTES).arrayBuffer()),
     projectName = imageHeader(header),
-    hash = hash256(),
     imageHash = hash256(),
     scanner = imageTagScanner(),
     step = 65536,
@@ -199,7 +208,6 @@ export async function otaFileIdentity(file) {
   for (let at = 0; at < file.size; at += step) {
     const end = Math.min(file.size, at + step),
       bytes = new Uint8Array(await file.slice(at, end).arrayBuffer());
-    hash.add(bytes);
     scanner.add(bytes);
     for (let from = 0; from < bytes.length; from += IMAGE_BLOCK_BYTES) {
       const block = hash256();
@@ -210,7 +218,10 @@ export async function otaFileIdentity(file) {
   }
   const tag = scanner.end();
   if (!tag) throw new Error(__WEBUI_TEXT__("ota.this_bin_does_not_contain_a_valid"));
-  const expected = new Uint8Array(await file.slice(bodyBytes, file.size).arrayBuffer());
+  const expected = new Uint8Array(await file.slice(bodyBytes, file.size).arrayBuffer()),
+    // The whole-file digest continues the body digest over the trailing hash.
+    hash = imageHash.fork();
+  hash.add(expected);
   if (imageHash.end() !== hex(expected))
     throw new Error(__WEBUI_TEXT__("ota.this_firmware_image_is_truncated_or_corrupt"));
   const verifyRange = async (offset, end) => {
