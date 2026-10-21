@@ -741,20 +741,30 @@ void formatIp(const IPAddress &ip, char output[16]) {
 
 // Every handler shares the one httpd task, so a slow one delays the Web UI
 // stream, Home Assistant and OTA polls. Report those in the Web UI log, with
-// the path only: query strings are never logged.
+// the path only: query strings are never logged. CPU time (esp_timer run-time
+// stats, accrued at context switches) separates compute from waits on the
+// network, locks, or preemption.
 constexpr uint32_t SLOW_HTTP_HANDLER_MS = 500;
+
+uint32_t httpdCpuUs() {
+  TaskStatus_t status;
+  vTaskGetInfo(nullptr, &status, pdFALSE, eRunning);
+  return static_cast<uint32_t>(status.ulRunTimeCounter);
+}
 
 esp_err_t timedHandler(httpd_req_t *request) {
   const uint32_t startedAtMs = millis();
+  const uint32_t startedCpuUs = httpdCpuUs();
   const esp_err_t result =
       reinterpret_cast<esp_err_t (*)(httpd_req_t *)>(request->user_ctx)(request);
   const uint32_t elapsedMs = millis() - startedAtMs;
   if (elapsedMs >= SLOW_HTTP_HANDLER_MS) {
     serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
-                         "http: %s %.*s held the web server %lu ms",
+                         "http: %s %.*s held the web server %lu ms (%lu ms CPU)",
                          http_method_str(static_cast<http_method>(request->method)),
                          static_cast<int>(strcspn(request->uri, "?")), request->uri,
-                         static_cast<unsigned long>(elapsedMs));
+                         static_cast<unsigned long>(elapsedMs),
+                         static_cast<unsigned long>((httpdCpuUs() - startedCpuUs) / 1000U));
   }
   return result;
 }

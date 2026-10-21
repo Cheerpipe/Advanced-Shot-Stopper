@@ -700,6 +700,18 @@ if (!network.includes('"Connection"') || !network.includes('"close"')) {
   throw new Error(
       'API JSON responses must send Connection: close to avoid keep-alive socket pinning');
 }
+const sendJsonStart = network.indexOf('esp_err_t ShotStopperNetwork::sendJson(');
+const sendJsonBody = network.slice(sendJsonStart, network.indexOf('\n}\n', sendJsonStart));
+if (sendJsonBody.indexOf('httpd_sess_trigger_close(') < sendJsonBody.indexOf('sendBody(')) {
+  throw new Error('sendJson must close the session after the body so the FIN flushes the Nagle-held tail');
+}
+const otaSnapshotStart = network.indexOf('esp_err_t ShotStopperNetwork::sendOtaSnapshot(');
+const otaSnapshotBody = network.slice(otaSnapshotStart, network.indexOf('\n}\n', otaSnapshotStart));
+if (!otaSnapshotBody.includes('AllocationOwner::OTA') ||
+    otaSnapshotBody.indexOf('if (reply != nullptr) unlockWorkBuf();') >
+        otaSnapshotBody.indexOf('sendJson(')) {
+  throw new Error('sendOtaSnapshot must release the shared status lock before sending its private reply');
+}
 if (!network.includes('recv_wait_timeout = 5') ||
     !network.includes('send_wait_timeout = 5')) {
   throw new Error(

@@ -997,7 +997,7 @@ if (network.includes('zlib.h') || network.includes('miniz.h') ||
 }
 if (!network.includes('sendBody(request, SHOT_STOPPER_WEB_UI_GZIP') ||
     !network.includes('return sendBody(request, asset.data, asset.length)') ||
-    !network.includes('return sendBody(request, json, length)') ||
+    !network.includes('const esp_err_t sent = sendBody(request, json, length)') ||
     !network.includes(
         'return httpd_resp_send(request, static_cast<const char *>(data), length)') ||
     !network.includes(

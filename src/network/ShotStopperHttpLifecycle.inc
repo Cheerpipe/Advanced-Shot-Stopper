@@ -1318,10 +1318,14 @@ esp_err_t ShotStopperNetwork::sendJson(httpd_req_t *request,
   httpd_resp_set_hdr(request, "Cache-Control", "no-store");
   httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
   // Close after each API response so keep-alive does not pin sockets on the
-  // ESP while BLE/Wi-Fi coex delays responses.
+  // ESP while BLE/Wi-Fi coex delays responses. httpd ignores this header, so
+  // the session is closed here too: its FIN also releases the tail Nagle holds
+  // until the status line's ACK, which modem sleep delays.
   httpd_resp_set_hdr(request, "Connection", "close");
   const size_t length = json == nullptr ? 0 : strlen(json);
-  return sendBody(request, json, length);
+  const esp_err_t sent = sendBody(request, json, length);
+  (void)httpd_sess_trigger_close(request->handle, httpd_req_to_sockfd(request));
+  return sent;
 }
 
 esp_err_t ShotStopperNetwork::sendError(httpd_req_t *request,

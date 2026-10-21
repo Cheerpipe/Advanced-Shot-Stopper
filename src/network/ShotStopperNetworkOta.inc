@@ -1117,13 +1117,22 @@ void ShotStopperNetwork::buildOtaJson(char *buffer, size_t capacity,
 esp_err_t ShotStopperNetwork::sendOtaSnapshot(httpd_req_t *request,
                                               const char *httpStatus) {
   const ControlGateSnapshot control = controlGate();
+  // A private PSRAM reply lets the send run without the shared lock, so the
+  // OTA worker never holds httpd handlers for its network time. Without
+  // PSRAM it falls back to sending from the shared buffer under the lock.
+  char *const reply = static_cast<char *>(
+      allocExternal(sizeof(workBuf_->otaJson), AllocationOwner::OTA));
   if (!lockWorkBuf()) {
+    heapCapsFree(reply);
     return workBufBusy(request);
   }
   loadControlStatus(workBuf_->control);
-  buildOtaJson(workBuf_->otaJson, sizeof(workBuf_->otaJson), control, workBuf_->control.bootId);
-  const esp_err_t sent = sendJson(request, httpStatus, workBuf_->otaJson);
-  unlockWorkBuf();
+  char *const json = reply != nullptr ? reply : workBuf_->otaJson;
+  buildOtaJson(json, sizeof(workBuf_->otaJson), control, workBuf_->control.bootId);
+  if (reply != nullptr) unlockWorkBuf();
+  const esp_err_t sent = sendJson(request, httpStatus, json);
+  if (reply != nullptr) heapCapsFree(reply);
+  else unlockWorkBuf();
   return sent;
 }
 
