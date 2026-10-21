@@ -115,6 +115,7 @@ struct NetworkStatusSnapshot {
   uint8_t staIpMode = static_cast<uint8_t>(StaIpMode::DHCP);
   uint8_t staConfigState = static_cast<uint8_t>(StaConfigState::CONFIRMED);
   int8_t staRssi = 0;
+  uint8_t staSignalLevel = 0;
   uint8_t staSignalQualityPct = 0;
   uint32_t windowRemainingMs = 0;
   uint32_t confirmRemainingMs = 0;
@@ -158,9 +159,9 @@ struct NetworkHeapTelemetrySnapshot {
 };
 
 __attribute__((noinline))
-inline const char *connectionSignalLevelJson(bool valid, int8_t rssi) {
-  if (!valid || rssi > 0) return "null";
-  return rssi >= -60 ? "3" : rssi >= -80 ? "2" : "1";
+inline const char *connectionSignalLevelJson(uint8_t level) {
+  static const char *const kLevels[] = {"null", "1", "2", "3"};
+  return kLevels[level < 4 ? level : 0];
 }
 
 inline uint8_t wifiRssiToSignalQualityPct(int32_t rssi) {

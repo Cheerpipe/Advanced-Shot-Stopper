@@ -426,7 +426,10 @@ available. The browser hides these identities when the snapshot is stale.
 Wi-Fi refers to the controller's station link, and Bluetooth refers to its scale
 link. Valid readings range from −128 through 0 dBm. The header uses three
 display levels: weak below −80 dBm, medium from −80 to below −60 dBm, and
-strong at −60 dBm or above. A disconnected link takes
+strong at −60 dBm or above. Once a link has a level, it changes only when the
+reading clears the boundary by 3 dB (for example, medium becomes strong at
+−57 dBm and strong drops to medium below −63 dBm), so a link sitting on a
+boundary does not flicker. A disconnected link takes
 precedence over any reading. Stale control snapshots or missing measurements
 show unavailable signal quality. These display fields add no radio queries or
 extra polling requests and do not change the public integration endpoints.

@@ -101,6 +101,7 @@ struct ScaleLinkMetrics {
   ScaleBleDiagnostics scaleBleDiagnostics = {};
   bool scaleRssiValid = false;
   int8_t scaleRssi = 0;
+  uint8_t scaleSignalLevel = 0;
 };
 
 // =============================================================================

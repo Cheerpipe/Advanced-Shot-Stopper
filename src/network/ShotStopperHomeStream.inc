@@ -162,11 +162,9 @@ bool ShotStopperNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("scale.macCachePauseRemainingMs",
               static_cast<unsigned long>((control.scaleMacCachePauseRemainingMs + 999U) / 1000U * 1000U));
   delta.field("connections.wifiConnected", bool(network.staState == StaState::CONNECTED));
-  delta.field("connections.wifiLevel", "%s", connectionSignalLevelJson(
-      network.staLinkMetricsValid, network.staRssi));
+  delta.field("connections.wifiLevel", "%s", connectionSignalLevelJson(network.staSignalLevel));
   delta.field("connections.bluetoothConnected", bool(control.scaleAvailable));
-  delta.field("connections.bluetoothLevel", "%s", connectionSignalLevelJson(
-      control.scaleRssiValid, control.scaleRssi));
+  delta.field("connections.bluetoothLevel", "%s", connectionSignalLevelJson(control.scaleSignalLevel));
   escapeJsonString(network.staState == StaState::CONNECTED ? network.iface.staSsid : "", g_work->historyJson, NetworkWorkBuf::kHistoryJson);
   delta.field("connections.wifiName", "\"%s\"", g_work->historyJson);
   escapeConnectedScaleName(control, g_work->scaleHistory, g_work->historyJson, NetworkWorkBuf::kHistoryJson);

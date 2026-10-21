@@ -377,6 +377,7 @@ void ShotStopperNetwork::applyStationAddressConfig(
 void ShotStopperNetwork::clearStaLinkMetrics() {
   status_.staLinkMetricsValid = false;
   status_.staRssi = 0;
+  status_.staSignalLevel = 0;
   status_.staSignalQualityPct = 0;
   status_.iface.staBssid[0] = '\0';
 }
@@ -1082,6 +1083,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       dataMux_.lock();
       status_.staLinkMetricsValid = true;
       status_.staRssi = clampWifiRssi(rssi);
+      status_.staSignalLevel = connectionSignalLevel(status_.staSignalLevel, true, status_.staRssi);
       status_.staSignalQualityPct = wifiRssiToSignalQualityPct(rssi);
       dataMux_.unlock();
     }
@@ -1138,6 +1140,7 @@ void ShotStopperNetwork::serviceStaState(uint32_t now) {
       copyCString(status_.iface.staIp, sizeof(status_.iface.staIp), address);
       status_.staLinkMetricsValid = true;
       status_.staRssi = clampWifiRssi(rssi);
+      status_.staSignalLevel = connectionSignalLevel(status_.staSignalLevel, true, status_.staRssi);
       status_.staSignalQualityPct = wifiRssiToSignalQualityPct(rssi);
       status_.windowRemainingMs = 0;
       copyCString(status_.iface.staBssid, sizeof(status_.iface.staBssid), bssidText);

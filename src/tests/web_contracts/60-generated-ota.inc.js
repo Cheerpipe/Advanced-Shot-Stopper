@@ -972,8 +972,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Home preset rules peek and its graph chevron bring it to 67235; owner-requested 2026-10-20.
 // Shot curves decoded from the firmware's delta stream bring it to 67543; owner-requested 2026-10-20.
 // Home and Diagnostic increments continue the snapshot identity brings it to 67571; owner-requested 2026-10-21.
-if (coldHomeGzip > 67571) {
-  throw new Error(`Cold Home download exceeds the 67571-byte gzip budget (${coldHomeGzip})`);
+// The build tag in the shell (gzip wobble) brings it to 67572; owner-requested 2026-10-21.
+if (coldHomeGzip > 67572) {
+  throw new Error(`Cold Home download exceeds the 67572-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

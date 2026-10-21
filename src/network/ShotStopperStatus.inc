@@ -221,9 +221,9 @@ esp_err_t ShotStopperNetwork::statusHandler(httpd_req_t *request) {
         "none",
 #endif
         network.staState == StaState::CONNECTED ? "true" : "false",
-        connectionSignalLevelJson(network.staLinkMetricsValid, network.staRssi),
+        connectionSignalLevelJson(network.staSignalLevel),
         control.scaleAvailable ? "true" : "false",
-        connectionSignalLevelJson(control.scaleRssiValid, control.scaleRssi),
+        connectionSignalLevelJson(control.scaleSignalLevel),
         wifiName, bluetoothName);
   }
   if (ok && page == StatusPage::Admin) {

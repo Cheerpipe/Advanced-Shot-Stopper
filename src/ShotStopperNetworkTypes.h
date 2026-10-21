@@ -124,4 +124,15 @@ enum class StaIpMode : uint8_t { DHCP = 0, STATIC = 1 };
 
 enum class StaConfigState : uint8_t { CONFIRMED = 0, PENDING = 1 };
 
+// Signal bars (1-3, 0 unknown) with a 3 dB hysteresis: a level moves only
+// once the reading clears its -60/-80 dBm boundary by the margin, so a link
+// idling on a boundary does not flap the header and its stream delta.
+inline uint8_t connectionSignalLevel(uint8_t previous, bool valid, int8_t rssi) {
+  if (!valid || rssi > 0) return 0;
+  const auto level = [](int dbm) -> uint8_t { return dbm >= -60 ? 3 : dbm >= -80 ? 2 : 1; };
+  if (previous == 0) return level(rssi);
+  const uint8_t up = level(rssi - 3), down = level(rssi + 3);
+  return up > previous ? up : down < previous ? down : previous;
+}
+
 }  // namespace shotstopper
