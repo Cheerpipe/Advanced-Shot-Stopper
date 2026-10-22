@@ -194,9 +194,9 @@ if (!network.includes('restoreLkgToActive(next)') ||
   throw new Error('STA confirm timeout must reassociate last-known-good before SoftAP fallback');
 }
 {
-  const powerPanelAt = html.indexOf('<fieldset id="powerPanel">');
+  const powerPanelAt = html.indexOf('<details id="powerPanel"');
   const powerPanel = powerPanelAt >= 0
-      ? html.slice(powerPanelAt, html.indexOf('</fieldset>', powerPanelAt))
+      ? html.slice(powerPanelAt, html.indexOf('</details>', powerPanelAt))
       : '';
   if (      !powerPanel.includes('id="staWifiSleep" type="checkbox" checked') ||
       !powerPanel.includes('Wi-Fi sleep<small') ||
@@ -366,7 +366,7 @@ if (shellHtml.includes('class="themeSel"') ||
     !codeIncludes(appJsSource, 'R.paintTheme(R.themeMode())') ||
     !codeIncludes(appJsSource, 'R.paintTheme(e.target.value)') ||
     !html.includes('id="frontendPanel"') ||
-    !html.includes('<legend>Frontend</legend>') ||
+    !html.includes('<summary>Frontend</summary>') ||
     !html.includes('id="uiTheme"') ||
     !html.includes('<option value="auto" selected>Auto</option>') ||
     !html.includes('<option value="light">Light</option>') ||

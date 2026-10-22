@@ -1007,7 +1007,8 @@ body.pageLoading :is(.view, .view *)::after {
   justify-content: center;
 }
 
-fieldset {
+fieldset,
+#view-admin {
   min-width: 0;
   margin: 1rem 0;
   padding: 1rem;
@@ -1566,6 +1567,9 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
 }
 .cfgGroup[open] {
   padding-bottom: 0.75rem;
+}
+#view-admin > .cfgGroup:first-of-type {
+  border-top: 0;
 }
 .cfgGroup:has(> summary > .cfgIcon) {
   padding-left: 2.15rem;

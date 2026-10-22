@@ -171,9 +171,9 @@ if (/R\.(homeFlushConfig|homeFlushPreset|configLoaded|formRev|brewDirty)\s*=/.te
 }
 if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     !codeIncludes(ui, '<legend>Shared settings <span class="hint">') ||
-    !codeIncludes(ui, '<legend>Network</legend>') ||
-    !codeIncludes(ui, '<legend>Access</legend>') ||
-    !codeIncludes(ui, '<legend>Frontend</legend>') ||
+    !codeIncludes(ui, '<summary>Network</summary>') ||
+    !codeIncludes(ui, '<summary>Access</summary>') ||
+    !codeIncludes(ui, '<summary>Frontend</summary>') ||
     !codeIncludes(ui, 'id="presetCards"') ||
     partialHtml.settings.includes('id="presetCardsState"') ||
     partialHtml.settings.includes('class="presetCard skeleton"') ||
@@ -204,7 +204,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     html.indexOf('id="saveConfigButton"') <
         html.indexOf('<summary>Alerts</summary>') ||
     html.indexOf('id="saveConfigButton"') >
-        html.indexOf('<legend>Network</legend>') ||
+        html.indexOf('<summary>Network</summary>') ||
     !codeIncludes(ui, 'id="presetResetBtn"') ||
     !codeIncludes(ui, 'id="presetDeleteBtn"') ||
     !codeIncludes(ui, 'id="presetRenameDialog"') ||

@@ -1,5 +1,49 @@
-<fieldset id="adminLockPanel">
-  <legend>{{webui:admin.administration}}</legend>
+<svg hidden>
+  <symbol id="g-admin" viewBox="0 0 24 24">
+    <rect x="5" y="11" width="14" height="10" rx="2" />
+    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+  </symbol>
+  <symbol id="g-override" viewBox="0 0 24 24">
+    <path d="M12 3 4 7v5c0 5 4 8 8 9 4-1 8-4 8-9V7Zm0 5v5m0 3h.01" />
+  </symbol>
+  <symbol id="g-firmware" viewBox="0 0 24 24">
+    <rect x="7" y="7" width="10" height="10" rx="1.5" />
+    <path d="M10 3v4m4-4v4m-4 10v4m4-4v4M3 10h4m-4 4h4m10-4h4m-4 4h4" />
+  </symbol>
+  <symbol id="g-ble" viewBox="0 0 24 24"><path d="m7 7 10 10-5 4V3l5 4L7 17" /></symbol>
+  <symbol id="g-network" viewBox="0 0 24 24">
+    <path d="M3 9a14 14 0 0 1 18 0M6 12.5a9 9 0 0 1 12 0M9 16a4 4 0 0 1 6 0m-3 3.5h.01" />
+  </symbol>
+  <symbol id="g-energy" viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6Z" /></symbol>
+  <symbol id="g-clock" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </symbol>
+  <symbol id="g-frontend" viewBox="0 0 24 24">
+    <rect x="3" y="4" width="18" height="12" rx="2" />
+    <path d="M8 20h8m-4-4v4" />
+  </symbol>
+  <symbol id="g-webhooks" viewBox="0 0 24 24">
+    <path
+      d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7L12 6.3M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"
+    />
+  </symbol>
+  <symbol id="g-access" viewBox="0 0 24 24">
+    <circle cx="8" cy="15" r="4" />
+    <path d="m11 12 9-9m-4 4 3 3m-6 0 2 2" />
+  </symbol>
+  <symbol id="g-restart" viewBox="0 0 24 24">
+    <path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.5M4 4v4.5h4.5" />
+  </symbol>
+  <symbol id="g-update" viewBox="0 0 24 24">
+    <path d="M12 15V3m-4 8 4 4 4-4M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+  </symbol>
+  <symbol id="g-reset" viewBox="0 0 24 24">
+    <path d="M4 7h16m-10 4v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+  </symbol>
+</svg>
+<details id="adminLockPanel" data-g="admin" class="cfgGroup">
+  <summary>{{webui:admin.administration}}</summary>
   <form id="adminUnlockForm" novalidate>
     <label
       >{{webui:admin.device_password}}
@@ -25,7 +69,7 @@
   <small id="adminConfirmHint" class="warn hidden"
     >{{webui:admin.pending_wi_fi_confirm_this_window_will}}</small
   >
-</fieldset>
+</details>
 <div id="adminControls" class="hidden">
   <p class="adminSession">
     {{webui:admin.unlocked}}
@@ -38,8 +82,8 @@
       {{webui:admin.lock}}
     </button>
   </p>
-  <fieldset id="firmwareModePanel">
-    <legend>{{webui:admin.firmware}}</legend>
+  <details id="firmwareModePanel" data-g="firmware" class="cfgGroup">
+    <summary>{{webui:admin.firmware}}</summary>
     <label
       ><input id="firmwareModeEnabled" type="checkbox" role="switch" checked />
       {{webui:admin.enable_controller}}<small class="fieldHint"
@@ -69,9 +113,9 @@
       </button>
     </div>
     <small id="firmwareModeDirtyHint" class="warn hidden">{{webui:admin.unsaved_changes}}</small>
-  </fieldset>
-  <fieldset id="blePanel">
-    <legend>{{webui:admin.ble}}</legend>
+  </details>
+  <details id="blePanel" data-g="ble" class="cfgGroup">
+    <summary>{{webui:admin.ble}}</summary>
     <label
       ><input id="bleEnabled" type="checkbox" role="switch" checked />
       {{webui:admin.enable_bluetooth}}<small class="fieldHint"
@@ -101,9 +145,9 @@
       </button>
     </div>
     <small id="bleDirtyHint" class="warn hidden">{{webui:admin.unsaved_changes}}</small>
-  </fieldset>
-  <fieldset id="networkPanel">
-    <legend>{{webui:admin.network}}</legend>
+  </details>
+  <details id="networkPanel" data-g="network" class="cfgGroup">
+    <summary>{{webui:admin.network}}</summary>
     <div id="networkStatus">{{webui:admin.unknown}}</div>
     <label
       >{{webui:admin.device_name}}
@@ -229,9 +273,9 @@
       </button>
     </div>
     <small>{{webui:admin.scan_while_ready_after_saving_wi_fi}}</small>
-  </fieldset>
-  <fieldset id="powerPanel">
-    <legend>{{webui:admin.power_management}}</legend>
+  </details>
+  <details id="powerPanel" data-g="energy" class="cfgGroup">
+    <summary>{{webui:admin.power_management}}</summary>
     <label
       ><input id="powerManagementEnabled" type="checkbox" role="switch" />
       {{webui:admin.esp32_power_management}}<small class="fieldHint"
@@ -275,9 +319,9 @@
       </button>
     </div>
     <small id="powerDirtyHint" class="warn hidden">{{webui:admin.unsaved_changes}}</small>
-  </fieldset>
-  <fieldset id="dateTimePanel">
-    <legend>{{webui:admin.date_time}}</legend>
+  </details>
+  <details id="dateTimePanel" data-g="clock" class="cfgGroup">
+    <summary>{{webui:admin.date_time}}</summary>
     <label
       ><input id="timezoneAutomatic" type="checkbox" role="switch" />
       {{webui:admin.timezone_automatic}}<small class="fieldHint"
@@ -342,9 +386,9 @@
       </button>
     </div>
     <small id="dateTimeDirtyHint" class="warn hidden">{{webui:admin.unsaved_changes}}</small>
-  </fieldset>
-  <fieldset id="frontendPanel">
-    <legend>{{webui:admin.frontend}}</legend>
+  </details>
+  <details id="frontendPanel" data-g="frontend" class="cfgGroup">
+    <summary>{{webui:admin.frontend}}</summary>
     <label
       >{{webui:admin.theme}}
       <select id="uiTheme">
@@ -390,9 +434,9 @@
       </button>
     </div>
     <small id="frontendDirtyHint" class="warn hidden">{{webui:admin.unsaved_changes}}</small>
-  </fieldset>
-  <fieldset id="webhookPanel">
-    <legend>{{webui:admin.webhooks}}</legend>
+  </details>
+  <details id="webhookPanel" data-g="webhooks" class="cfgGroup">
+    <summary>{{webui:admin.webhooks}}</summary>
     <label
       ><input id="webhookEnabled" type="checkbox" role="switch" /> {{webui:admin.webhooks}}</label
     ><label
@@ -411,7 +455,7 @@
         >{{webui:admin.off_send_immediately_enable_to_defer_webhooks}}</small
       ></label
     >
-    <details>
+    <details data-g="events" class="cfgGroup">
       <summary>{{webui:admin.events}}</summary>
       <label
         ><input id="webhookBrewState" type="checkbox" checked /> {{webui:admin.brew_state}}<small
@@ -454,9 +498,9 @@
       </button>
     </div>
     <small id="webhookDirtyHint" class="warn hidden">{{webui:admin.unsaved_changes}}</small>
-  </fieldset>
-  <fieldset id="accessPanel">
-    <legend>{{webui:admin.access}}</legend>
+  </details>
+  <details id="accessPanel" data-g="access" class="cfgGroup">
+    <summary>{{webui:admin.access}}</summary>
     <label
       ><input id="loginEnabled" type="checkbox" role="switch" />
       {{webui:admin.require_password}}<small id="loginEnabledHint" class="fieldHint"
@@ -568,9 +612,9 @@
         </button>
       </div>
     </div>
-  </fieldset>
-  <fieldset id="restartPanel">
-    <legend>{{webui:admin.restart}}</legend>
+  </details>
+  <details id="restartPanel" data-g="restart" class="cfgGroup">
+    <summary>{{webui:admin.restart}}</summary>
     <div class="btnBar">
       <button id="restartButton" class="btnGlyph btnWarn" type="button">
         <span class="g" aria-hidden="true">{{webui:admin.symbol_3}}</span
@@ -578,9 +622,9 @@
       </button>
     </div>
     <small>{{webui:admin.the_controller_restarts_a_running_shot}}</small>
-  </fieldset>
-  <fieldset id="otaPanel">
-    <legend>{{webui:admin.firmware_update}}</legend>
+  </details>
+  <details id="otaPanel" data-g="update" class="cfgGroup">
+    <summary>{{webui:admin.firmware_update}}</summary>
     <div id="otaStatus" role="status">{{webui:admin.unknown}}</div>
     <div id="otaRunning">{{webui:admin.unknown}}</div>
     <label
@@ -612,9 +656,9 @@
       </button>
     </div>
     <small>{{webui:admin.the_upload_goes_to_the_spare_slot}}</small>
-  </fieldset>
-  <fieldset>
-    <legend>{{webui:admin.factory_reset}}</legend>
+  </details>
+  <details data-g="reset" class="cfgGroup">
+    <summary>{{webui:admin.factory_reset}}</summary>
     <p>{{webui:admin.erase_every_saved_setting_and_restore_the}}</p>
     <div class="btnBar">
       <button id="factoryResetButton" class="btnGlyph mutable btnInvert" type="button">
@@ -623,5 +667,5 @@
       </button>
     </div>
     <small>{{webui:admin.this_erases_wi_fi_settings_calibration_shot}}</small>
-  </fieldset>
+  </details>
 </div>

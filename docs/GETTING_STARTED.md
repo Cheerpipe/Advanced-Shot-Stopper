@@ -176,10 +176,12 @@ mode follows the device using the UI. Turn it off to choose a zone manually,
 check the preview, and save your settings. See
 [Time zone and NTP](settings/wifi.md#parameters-and-behavior).
 
-**Settings** groups its options into rows you tap to open. A closed row shows
-its current choice on the right, such as `18 → 36 g · 1:2.0` for the recipe,
-`Max 60 s` for time limits, or `Off`, so you can check your setup at a glance.
-The text changes as you edit, before you save.
+**Settings** and **Admin** group their options into rows you tap to open. A
+closed row shows its current choice on the right, such as `18 → 36 g · 1:2.0`
+for the recipe, `Max 60 s` for time limits, your Wi-Fi network, or `Off`, so you
+can check your setup at a glance. The text changes as you edit, before you save.
+While Admin is locked, its unlock row stays open so you can type the password
+right away.
 
 Save buttons in **Settings** and **Admin** stay dimmed until you change one of
 their values. When you save, the small icon on the button turns into a spinning

@@ -1094,22 +1094,10 @@ const GROUP_SUMMARIES = {
       : picked("alertOutputChannel");
   },
 };
-function renderGroupSummaries() {
-  document.querySelectorAll("#workflowPanel .cfgSum").forEach((el) => {
-    el.textContent = GROUP_SUMMARIES[el.closest("details").dataset.g]() || "";
-  });
-}
 export function init() {
   if (ready) return;
   ready = true;
-  // Top-level groups get their icon; every keyed group gets its summary.
-  document.querySelectorAll("#workflowPanel details[data-g]").forEach((d) => {
-    const icon = d.parentElement.closest(".cfgGroup")
-      ? ""
-      : `<svg class="cfgIcon" aria-hidden="true"><use href="#g-${d.dataset.g}"/></svg>`;
-    d.firstElementChild.insertAdjacentHTML("afterbegin", icon);
-    d.firstElementChild.insertAdjacentHTML("beforeend", '<span class="cfgSum"></span>');
-  });
+  R.initGroupRows($("workflowPanel"));
   R.registerViewStatus("settings", applyStatus);
   $("presetCards")?.addEventListener("click", () => setTimeout(updateSettingsOverrides));
   $("saveConfigButton").onclick = saveMachineConfig;
@@ -1275,6 +1263,6 @@ export function init() {
   }
   R.setSettingsRenderer((c) => {
     renderDripChart(c);
-    renderGroupSummaries();
+    R.renderGroupRows($("workflowPanel"), GROUP_SUMMARIES);
   });
 }

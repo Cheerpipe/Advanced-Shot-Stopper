@@ -233,7 +233,7 @@
       .test(rawViewJs.settings) || rawViewJs.settings.includes('$("operationalWallS").addEventListener')) {
     throw new Error('Settings fields must not repeat the shared change listener');
   }
-  if (!partialHtml.admin.includes('<fieldset id="webhookPanel"><legend>Webhooks</legend>') ||
+  if (!partialHtml.admin.includes('<details id="webhookPanel" data-g="webhooks" class="cfgGroup"><summary>Webhooks</summary>') ||
       !partialHtml.admin.includes('<input id="showDiagnosticPage" type="checkbox" role="switch">') ||
       !partialHtml.settings.includes('<a id="bullseyeTestLink" class="rtttlTest" href="#">Test it</a></label>') ||
       /webhookPanel\.innerHTML|diagnosticOption|createElement\("a"\)/.test(rawViewJs.admin + rawViewJs.settings)) {

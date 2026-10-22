@@ -26,6 +26,23 @@ let renderSettings = () => {};
 function setSettingsRenderer(fn) {
   renderSettings = fn;
 }
+// Settings and Admin group rows: keyed top-level groups get their icon, and
+// every keyed group a summary that the view's table fills in.
+function initGroupRows(root) {
+  root.querySelectorAll("details[data-g]").forEach((d) => {
+    if (!d.parentElement.closest(".cfgGroup"))
+      d.firstElementChild.insertAdjacentHTML(
+        "afterbegin",
+        `<svg class="cfgIcon" aria-hidden="true"><use href="#g-${d.dataset.g}"/></svg>`,
+      );
+    d.firstElementChild.insertAdjacentHTML("beforeend", '<span class="cfgSum"></span>');
+  });
+}
+function renderGroupRows(root, summaries) {
+  root.querySelectorAll(".cfgSum").forEach((el) => {
+    el.textContent = summaries[el.closest("details").dataset.g]?.() || "";
+  });
+}
 async function ensureSettingsDom() {
   await ensureViewHook("settings");
 }
@@ -6344,6 +6361,8 @@ export {
   armStickyBar,
   setStatsRenderers,
   setSettingsRenderer,
+  initGroupRows,
+  renderGroupRows,
   setHistoryRenderer,
   loadMoreHistory,
   historySendSubscribe,

@@ -798,6 +798,7 @@ function applyAdminStatus(s) {
   const section = location.hash && $(location.hash.slice(1));
   if (section?.offsetParent) {
     history.replaceState(null, "", location.pathname);
+    section.open = true;
     section.scrollIntoView({ block: "start" });
   }
   $("apStatus").textContent =
@@ -1378,12 +1379,13 @@ async function setBleEnabled() {
 }
 function ensureUiOverridePanel() {
   if (R.developmentMode || $("uiOverridePanel")) return;
-  const p = document.createElement("fieldset");
+  const p = document.createElement("details");
   p.id = "uiOverridePanel";
+  p.className = "cfgGroup";
   p.innerHTML =
-    "<legend>" +
+    '<summary><svg class="cfgIcon" aria-hidden="true"><use href="#g-override"/></svg>' +
     __WEBUI_TEXT__("runtime.ui_override") +
-    '</legend><div class="btnBar"><button id="uiOverrideButton" class="btnGlyph btnWarn" type="button"><span class="g" aria-hidden="true">' +
+    '</summary><div class="btnBar"><button id="uiOverrideButton" class="btnGlyph btnWarn" type="button"><span class="g" aria-hidden="true">' +
     __WEBUI_TEXT__("runtime.symbol_13") +
     '</span><span class="t">' +
     __WEBUI_TEXT__("runtime.unlock_1_min") +
@@ -1617,10 +1619,50 @@ async function saveFrontendSettings() {
   }
   return ok;
 }
+// Each Admin section row summarizes its current values; keys are the
+// sections' data-g names.
+const onOff = (id) =>
+  $(id)?.checked ? __WEBUI_TEXT__("runtime.on_2") : __WEBUI_TEXT__("runtime.off_2");
+const ADMIN_SUMMARIES = {
+  admin: () => __WEBUI_TEXT__("admin.sum_locked"),
+  firmware: () => onOff("firmwareModeEnabled"),
+  ble: () => onOff("bleEnabled"),
+  network: () => $("staSsid").value.trim() || __WEBUI_TEXT__("admin.sum_not_set"),
+  energy: () => onOff("powerManagementEnabled"),
+  clock: () =>
+    ($("timezoneId").value || R.uiState.savedTimezoneId || "")
+      .split("/")
+      .pop()
+      .replaceAll("_", " "),
+  frontend: () => R.sub(__WEBUI_TEXT__("admin.sum_theme"), [$("uiTheme").selectedOptions[0].text]),
+  webhooks: () => onOff("webhookEnabled"),
+  events: () => {
+    const n = ["webhookBrewState", "webhookFirstDrop", "webhookEnd"].filter(
+      (id) => $(id).checked,
+    ).length;
+    return n === 3
+      ? __WEBUI_TEXT__("settings.sum_all_on")
+      : R.sub(__WEBUI_TEXT__("settings.sum_n_of_m"), [n, 3]);
+  },
+  access: () =>
+    $("loginEnabled").checked
+      ? __WEBUI_TEXT__("admin.sum_password_required")
+      : __WEBUI_TEXT__("admin.sum_no_password"),
+  update: () => document.documentElement.dataset.fw,
+};
+const renderAdminRows = () => R.renderGroupRows($("view-admin"), ADMIN_SUMMARIES);
 export function init() {
   if (ready) return;
   ready = true;
-  R.registerViewStatus("admin", applyStatus);
+  R.registerViewStatus("admin", (s) => {
+    applyStatus(s);
+    renderAdminRows();
+  });
+  R.initGroupRows($("view-admin"));
+  // Locked, the unlock form is all Admin shows: keep it open.
+  $("adminLockPanel").open = true;
+  $("view-admin").addEventListener("input", renderAdminRows);
+  $("view-admin").addEventListener("change", renderAdminRows);
   const sectionChanged = (sel, mark) => {
     document.querySelectorAll(sel + " input," + sel + " select").forEach((el) => {
       el.addEventListener("input", mark);
