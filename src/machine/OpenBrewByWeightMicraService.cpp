@@ -2556,7 +2556,6 @@ bool OpenBrewByWeightMicraService::request(
                              : HeapLifecycleResult::FAILURE),
         heapAfter);
   }
-  cloudFirstQuerySettled_.store(true, std::memory_order_release);
   recordBootHeap(BootHeapStage::CLOUD_DONE,
                  performed == ESP_OK ? BootHeapResult::OK : BootHeapResult::FAILED,
                  millis(), heapAfter);

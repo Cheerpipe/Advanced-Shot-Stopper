@@ -5,24 +5,24 @@
 
 namespace openbrewbyweight {
 
+// Memory at each network bring-up milestone of the current boot, from network
+// start, plus the minima of the first minute after it and after the first
+// WebSocket outcome. Retained in RAM for BOOT_HEAP and the debug export.
 enum class BootHeapStage : uint8_t {
-  RESERVE_BEFORE, RESERVE_AFTER, WIFI_INIT, MDNS_READY, HTTP_READY,
-  NTP_DONE, CLOUD_DONE, RELEASE_BEFORE, RELEASE_AFTER, WS_START, WS_DONE,
-  WS_INIT, WS_TASK, COUNT
+  NETWORK_START, WIFI_INIT, MDNS_READY, HTTP_READY, NTP_DONE, CLOUD_DONE,
+  WS_START, WS_DONE, WS_INIT, WS_TASK, COUNT
 };
-enum class BootHeapResult : uint8_t { OK, FAILED, SETTLED, TIMEOUT, STOP, NO_RESERVATION };
-constexpr uint32_t BOOT_HEAP_POST_RELEASE_MS = 60000;
+enum class BootHeapResult : uint8_t { OK, FAILED };
+constexpr uint32_t BOOT_HEAP_WINDOW_MS = 60000;
 
 inline const char *bootHeapStageName(BootHeapStage stage) {
   constexpr const char *names[] = {
-      "reserve_before", "reserve_after", "wifi_init", "mdns_ready",
-      "http_ready", "ntp_done", "cloud_done", "release_before",
-      "release_after", "ws_start", "ws_done", "ws_init", "ws_task"};
+      "network_start", "wifi_init", "mdns_ready", "http_ready", "ntp_done",
+      "cloud_done", "ws_start", "ws_done", "ws_init", "ws_task"};
   return names[static_cast<size_t>(stage)];
 }
 inline const char *bootHeapResultName(BootHeapResult result) {
-  constexpr const char *names[] = {"ok", "failed", "settled", "timeout", "stop", "disabled"};
-  return names[static_cast<size_t>(result)];
+  return result == BootHeapResult::OK ? "ok" : "failed";
 }
 
 struct BootHeapRecord {
@@ -32,7 +32,6 @@ struct BootHeapRecord {
   uint32_t dmaLargest = 0;
   uint32_t psramFree = 0;
   uint32_t psramLargest = 0;
-  uint32_t heldBytes = 0;
   BootHeapResult result{};
 };
 struct BootHeapMinimum {
@@ -44,11 +43,8 @@ struct BootHeapMinimum {
 };
 struct BootHeapCapture {
   BootHeapRecord records[static_cast<size_t>(BootHeapStage::COUNT)]{};
-  BootHeapMinimum held{}, post{}, ws{};
+  BootHeapMinimum post{}, ws{};
   uint32_t stages = 0;
-  uint32_t heldBytes = 0;
-  uint32_t requestedBytes = 0;
-  uintptr_t address = 0;
   bool complete = false;
 };
 static_assert(sizeof(BootHeapCapture) <= 768, "Boot heap capture exceeds its PSRAM budget");
@@ -58,11 +54,14 @@ static_assert(sizeof(BootHeapCapture) <= 768, "Boot heap capture exceeds its PSR
 inline TaskMutex bootHeapMutex;
 inline OPEN_BREW_BY_WEIGHT_PSRAM_BSS BootHeapCapture bootHeapCapture;
 inline std::atomic<bool> bootHeapSampling{false};
-// True while the boot shaper block is held; the reported heap minimum starts
-// at its release, so health publishes UINT32_MAX (not yet measured) until then.
-inline std::atomic<bool> bootHeapReserveHeld{false};
-// Internal heap minimum reached before the release (UINT32_MAX until then).
-inline std::atomic<uint32_t> bootHeapHeldMinimum{UINT32_MAX};
+
+// True while `now` is inside the window opened by `stage` (recorded).
+inline bool bootHeapWindowOpen(const BootHeapCapture &capture, BootHeapStage stage,
+                               uint32_t now) {
+  return (capture.stages & (1U << static_cast<unsigned>(stage))) &&
+         static_cast<uint32_t>(now - capture.records[static_cast<size_t>(stage)].atMs) <
+             BOOT_HEAP_WINDOW_MS;
+}
 
 inline BootHeapRecord sampleBootHeap(uint32_t now, const HeapCapSnapshot &heap) {
   BootHeapRecord record;
@@ -94,38 +93,24 @@ inline void updateBootHeapMinimum(BootHeapMinimum &minimum, const BootHeapRecord
 }
 
 inline void recordBootHeap(BootHeapStage stage, BootHeapResult result, uint32_t now,
-                           const HeapCapSnapshot &heap, uintptr_t address = 0,
-                           uint32_t requestedBytes = 0) {
+                           const HeapCapSnapshot &heap) {
   const uint32_t bit = 1U << static_cast<unsigned>(stage);
   {
     TaskLockGuard lock(bootHeapMutex);
     if (bootHeapCapture.complete || (bootHeapCapture.stages & bit)) return;
-    if (stage != BootHeapStage::RESERVE_BEFORE && bootHeapCapture.stages == 0) return;
+    if (stage != BootHeapStage::NETWORK_START && bootHeapCapture.stages == 0) return;
   }
   BootHeapRecord record = sampleBootHeap(now, heap);
   record.result = result;
   TaskLockGuard lock(bootHeapMutex);
   auto &capture = bootHeapCapture;
   if (capture.complete || (capture.stages & bit)) return;
-  if (stage == BootHeapStage::RESERVE_AFTER) {
-    capture.requestedBytes = requestedBytes;
-    capture.address = address;
-    capture.heldBytes = address ? requestedBytes : 0;
-  } else if (stage == BootHeapStage::RELEASE_AFTER) {
-    capture.heldBytes = 0;
-  }
-  record.heldBytes = capture.heldBytes;
   capture.records[static_cast<size_t>(stage)] = record;
   capture.stages |= bit;
   bootHeapSampling.store(true, std::memory_order_release);
-  if (record.heldBytes) updateBootHeapMinimum(capture.held, record);
-  else if ((capture.stages & (1U << static_cast<unsigned>(BootHeapStage::RELEASE_AFTER))) &&
-           static_cast<uint32_t>(now - capture.records[static_cast<size_t>(BootHeapStage::RELEASE_AFTER)].atMs) <
-               BOOT_HEAP_POST_RELEASE_MS)
+  if (bootHeapWindowOpen(capture, BootHeapStage::NETWORK_START, now))
     updateBootHeapMinimum(capture.post, record);
-  if ((capture.stages & (1U << static_cast<unsigned>(BootHeapStage::WS_DONE))) &&
-      static_cast<uint32_t>(now - capture.records[static_cast<size_t>(BootHeapStage::WS_DONE)].atMs) <
-          BOOT_HEAP_POST_RELEASE_MS)
+  if (bootHeapWindowOpen(capture, BootHeapStage::WS_DONE, now))
     updateBootHeapMinimum(capture.ws, record);
 }
 
@@ -141,38 +126,33 @@ inline void recordBootHeap(BootHeapStage stage, BootHeapResult result, uint32_t 
 
 inline void serviceBootHeap(uint32_t now) {
   if (!bootHeapSampling.load(std::memory_order_acquire)) return;
-  uint32_t heldBytes;
-  bool wsSample;
   {
     TaskLockGuard lock(bootHeapMutex);
     auto &capture = bootHeapCapture;
     if (capture.complete || capture.stages == 0) return;
-    const auto &released = capture.records[static_cast<size_t>(BootHeapStage::RELEASE_AFTER)];
+    // A WS attempt without an outcome still closes: its window runs from start.
     const bool wsDone = capture.stages & (1U << static_cast<unsigned>(BootHeapStage::WS_DONE));
     const bool wsStarted = wsDone || (capture.stages & (1U << static_cast<unsigned>(BootHeapStage::WS_START)));
     const uint32_t wsAtMs = capture.records[static_cast<size_t>(
         wsDone ? BootHeapStage::WS_DONE : BootHeapStage::WS_START)].atMs;
-    wsSample = wsDone && static_cast<uint32_t>(now - wsAtMs) < BOOT_HEAP_POST_RELEASE_MS;
-    if ((capture.stages & (1U << static_cast<unsigned>(BootHeapStage::RELEASE_AFTER))) &&
-        static_cast<int32_t>(now - released.atMs) >= static_cast<int32_t>(BOOT_HEAP_POST_RELEASE_MS) &&
-        (!wsStarted || static_cast<int32_t>(now - wsAtMs) >= static_cast<int32_t>(BOOT_HEAP_POST_RELEASE_MS))) {
+    const auto elapsed = [now](uint32_t atMs) {
+      return static_cast<int32_t>(now - atMs) >= static_cast<int32_t>(BOOT_HEAP_WINDOW_MS);
+    };
+    if (elapsed(capture.records[static_cast<size_t>(BootHeapStage::NETWORK_START)].atMs) &&
+        (!wsStarted || elapsed(wsAtMs))) {
       capture.complete = true;
       bootHeapSampling.store(false, std::memory_order_release);
       return;
     }
-    heldBytes = capture.heldBytes;
   }
   const BootHeapRecord record = sampleBootHeap(now, sampleHeapCaps());
   TaskLockGuard lock(bootHeapMutex);
   auto &capture = bootHeapCapture;
-  // A sample overlapping release cannot be attributed to either phase.
-  if (capture.complete || heldBytes != capture.heldBytes) return;
-  if (heldBytes) updateBootHeapMinimum(capture.held, record);
-  else if ((capture.stages & (1U << static_cast<unsigned>(BootHeapStage::RELEASE_AFTER))) &&
-           static_cast<uint32_t>(now - capture.records[static_cast<size_t>(BootHeapStage::RELEASE_AFTER)].atMs) <
-               BOOT_HEAP_POST_RELEASE_MS)
+  if (capture.complete) return;
+  if (bootHeapWindowOpen(capture, BootHeapStage::NETWORK_START, now))
     updateBootHeapMinimum(capture.post, record);
-  if (wsSample) updateBootHeapMinimum(capture.ws, record);
+  if (bootHeapWindowOpen(capture, BootHeapStage::WS_DONE, now))
+    updateBootHeapMinimum(capture.ws, record);
 }
 
 }  // namespace openbrewbyweight

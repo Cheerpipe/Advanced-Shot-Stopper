@@ -287,23 +287,6 @@ constexpr const char *STATUS_UNAVAILABLE = "503 Service Unavailable";
 // Keep this stack internal: flash writes disable both caches (flash and
 // PSRAM mappings) while they run, so a PSRAM stack could not perform them.
 constexpr uint32_t NETWORK_MANAGER_TASK_STACK_SIZE = 10240;
-// Wi-Fi bring-up fragments the central DRAM free run with ~33 KB of small
-// internal allocations. Holding most of the run during bring-up forces that
-// wave into the 32 KB side blocks; releasing it restores one large block,
-// which the WS client then trims by ~10 KiB. 2026-10-18 release-image sweep
-// (102 400 B run at network start, two boots each, steady largest / lifetime
-// min): 0 -> 38 912 / 67 KB, 52 KiB -> 45 056 / 41 KB, 68 KiB -> 59 392 /
-// 39 828 B, 72 KiB -> 63 488 / 36-39 KB, 76 KiB -> 65 536 / 28-30 KB. 68 KiB
-// is the knee: the largest hold that still leaves the side blocks and the
-// lifetime minimum intact. Use 0 for the no-reservation comparison.
-constexpr uint32_t HEAP_SHAPER_BYTES = 68 * 1024;
-// Floor after station connect before the central run can return. The late
-// bring-up allocations extend the hold until each reaches a terminal
-// outcome: first cloud query (when credentials are configured) and first
-// NTP attempt, with HEAP_SHAPER_MAX_HOLD_MS as the hard cap. Post-IP churn
-// itself is tiny (~320 B per the 2026-09-28 capture).
-constexpr uint32_t HEAP_SHAPER_SETTLE_MS = 1000;
-constexpr uint32_t HEAP_SHAPER_MAX_HOLD_MS = 60000;
 // POST JSON bodies live in NetworkWorkBuf (PSRAM), so the httpd worker no
 // longer needs a 2 KiB request-body frame on top of headers and send buffers.
 // 11 264 after status polling left only 1 540 B free on 10 240 (2026-09-26

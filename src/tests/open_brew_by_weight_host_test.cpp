@@ -17069,44 +17069,6 @@ void h01b_health_heap_low_restarts_only_when_ready_and_sustained() {
   CHECK(!debugEventExists(DebugCode::HEALTH_HEAP_RESTART));
 }
 
-void h01d_health_heap_low_suppressed_while_boot_shaper_holds_the_block() {
-  resetHarness(false, true);
-  {
-    TaskLockGuard lock(bootHeapMutex);
-    bootHeapCapture = {};
-    bootHeapSampling.store(false);
-  }
-  healthSnapshotValid = true;
-  freeHeapBytes = HEALTH_HEAP_FREE_ALERT_BYTES - 1;
-  largestFreeHeapBlockBytes = HEALTH_HEAP_LARGEST_CLEAR_BYTES;
-  loopStackMinBytes = HEALTH_STACK_MIN_CLEAR_BYTES;
-  setScaleWorkerStackMinBytesForHost(HEALTH_STACK_MIN_CLEAR_BYTES);
-  const HeapCapSnapshot heap = sampleHeapCaps();
-  recordBootHeap(BootHeapStage::RESERVE_BEFORE, BootHeapResult::OK, 100, heap);
-  recordBootHeap(BootHeapStage::RESERVE_AFTER, BootHeapResult::OK, 101, heap,
-                 0x3fcd8000, 52 * 1024);
-  // The shaping reservation explains the low free heap: no warning while held.
-  serviceHealthThresholdAlerts(0);
-  CHECK(!healthHeapAlertLatched);
-  CHECK(!debugEventExists(DebugCode::HEALTH_HEAP_LOW));
-  serviceHealthThresholdAlerts(0);
-  CHECK(!debugEventExists(DebugCode::HEALTH_HEAP_LOW));
-
-  recordBootHeap(BootHeapStage::RELEASE_BEFORE, BootHeapResult::SETTLED, 60100);
-  recordBootHeap(BootHeapStage::RELEASE_AFTER, BootHeapResult::SETTLED, 60101);
-  // Still low after the block returned: now it is a genuine health warning.
-  serviceHealthThresholdAlerts(0);
-  CHECK(healthHeapAlertLatched);
-  CHECK(debugEventExists(DebugCode::HEALTH_HEAP_LOW,
-                         static_cast<int32_t>(freeHeapBytes),
-                         static_cast<int32_t>(largestFreeHeapBlockBytes)));
-  {
-    TaskLockGuard lock(bootHeapMutex);
-    bootHeapCapture = {};
-    bootHeapSampling.store(false);
-  }
-}
-
 void h01c_health_zero_is_exhaustion_not_missing_telemetry() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -22497,7 +22459,6 @@ const TestCase testCases[] = {
     {"S19b", s19b_shot_store_io_backoff_resets_for_new_dirty_data},
     {"H01", h01_health_threshold_alerts_fire_once_per_crossing},
     {"H01b", h01b_health_heap_low_restarts_only_when_ready_and_sustained},
-    {"H01d", h01d_health_heap_low_suppressed_while_boot_shaper_holds_the_block},
     {"H01c", h01c_health_zero_is_exhaustion_not_missing_telemetry},
     {"H02", h02_hwmon_cpu_load_uses_refreshed_idle_and_ema},
     {"H03", h03_task_profiler_start_stop_updates_snapshot},

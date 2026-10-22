@@ -306,8 +306,6 @@
     "diagnostic.heap": "HEAP",
     "diagnostic.heap_largest": "Heap largest",
     "diagnostic.heap_min": "Heap min",
-    "diagnostic.heap_min_pending": "Waiting for startup to settle",
-    "diagnostic.heap_min_split": "Before shaper release {b} · After {a}",
     "diagnostic.http_prefix": " · HTTP ",
     "diagnostic.hw_prefix": "HW: ",
     "diagnostic.idle": "Idle",

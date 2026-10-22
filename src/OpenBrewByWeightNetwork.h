@@ -508,14 +508,6 @@ class OpenBrewByWeightNetwork {
   uint32_t acceptedCommandReceivedAtMs_ = 0;
   uint32_t acceptedCommandRetryAtMs_ = 0;
   uint32_t networkRetryAtMs_ = 0;
-  // Boot-time heap shaping state (see HEAP_SHAPER_BYTES in the .cpp).
-  void *heapShaperBlock_ = nullptr;
-  uint32_t heapShaperAllocAtMs_ = 0;
-  uint32_t heapShaperConnectedAtMs_ = 0;
-  bool heapShaperReleased_ = false;
-  // Latched when the first SNTP attempt reaches a terminal outcome (synced
-  // or failed); consumed by the heap shaper release gate.
-  bool ntpFirstAttemptSettled_ = false;
   uint32_t httpRetryAtMs_ = 0;
   std::atomic<uint32_t> lastTaskProgressAtMs_{0};
   std::atomic<uint32_t> taskStackMinBytes_{UINT32_MAX};
@@ -557,9 +549,6 @@ class OpenBrewByWeightNetwork {
   static void taskEntry(void *parameter);
   void taskLoop();
   void service();
-  void beginHeapShaper(uint32_t now);
-  void serviceHeapShaper(uint32_t now);
-  void releaseHeapShaper(BootHeapResult reason = BootHeapResult::STOP);
   void serviceNtp(uint32_t now, bool staConnected);
   bool ntpMayArm(uint32_t now, bool staConnected) const;
   void abortNtpForRfGate();

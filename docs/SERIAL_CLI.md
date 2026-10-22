@@ -184,58 +184,44 @@ must be enabled by the boot jumper or a development build as described above.
    replaces the previous capture; the report is retained in RAM, not flash.
 2. Open the [USB monitor](#open-the-port) at 115200 baud and enter `BOOT_HEAP`.
 3. If the report says `status=recording`, wait and request it again. Capture
-   finishes after both the 60-second post-release window and any first
-   WebSocket outcome window have ended. Without a WebSocket attempt, it ends
-   60 seconds after release. An attempt without an outcome finishes once both
-   `release_after` and `ws_start` are at least 60 seconds old.
+   starts when networking starts, before Wi-Fi, mDNS and the HTTP server, and
+   finishes once that 60-second window and any first WebSocket outcome window
+   have ended. An attempt without an outcome finishes once both
+   `network_start` and `ws_start` are at least 60 seconds old.
 4. When it says `status=complete`, copy the entire response into a local text
    file. Save the firmware version, board profile and whether cloud observation
    used HTTP or WebSocket beside it. Keep the same settings for comparisons.
 
-The comma-separated rows contain `stage,result,ms,held,free,largest,allocated,
+The comma-separated rows contain `stage,result,ms,free,largest,allocated,
 blocks,dmaFree,dmaLargest,psramFree,psramLargest`. Memory values are bytes;
 `ms` is time since boot. Rows are grouped by stage; timestamps show their actual
-order. `held` is the startup reservation still active at that stage. `free` and
-`largest` describe internal byte-accessible memory; `dmaFree` and `dmaLargest`
-describe internal DMA-capable memory. These overlapping pools must not be added
-together. `requested` and `address` identify the reservation attempt; an address
-of zero with `reserve_after,failed` means it could not be obtained. Release builds
-request 68 KiB: expect `requested=69632`. A zero-size build
-instead reports `requested=0`, `address=0x0`, `reserve_after,disabled` and `held=0`.
+order. `free` and `largest` describe internal byte-accessible memory; `dmaFree`
+and `dmaLargest` describe internal DMA-capable memory. These overlapping pools
+must not be added together.
 
-Compare `release_before` and `release_after` to see how much contiguous memory
-the reservation returns, then compare `ws_start` and `ws_done` for the first
+Compare `network_start` with `wifi_init`, `mdns_ready` and `http_ready` to see
+what Wi-Fi bring-up takes, then `ws_start` and `ws_done` for the first
 WebSocket attempt. `ws_init` samples completion of the client setup step;
-`ws_task` samples completion of the task-start step. Their results distinguish
-successful setup from failure or a step prevented by an earlier error or gate.
-Callbacks may run before the task-start call returns; use timestamps to compare
-the rows. Release results are `settled`, `timeout`, `stop`, `disabled`
-when no reservation was requested, or `failed` when allocation failed.
-Missing stages were not reached during
-the capture window, for example cloud/WebSocket when they are disabled. Each
-stage retains its first outcome, including failures; later retries do not
+`ws_task` samples completion of the task-start step. Results are `ok` or
+`failed`; they distinguish successful setup from failure or a step prevented
+by an earlier error or gate. Callbacks may run before the task-start call
+returns; use timestamps to compare the rows. Missing stages were not reached
+during the capture window, for example cloud/WebSocket when they are disabled.
+Each stage retains its first outcome, including failures; later retries do not
 overwrite it. `cloud_done` reports transport completion, not account validity.
 
-`held_min` covers the time the reservation was held; `post_min` covers the first
-60 seconds after release. `ws_min` independently covers the first 60 seconds
-from `ws_done`, whether that first outcome was successful or failed. Compare
-`ws_min` across reservation sizes with the same WS outcome and workload.
-The report includes `postWindowMs` and `wsWindowMs`. These minima combine
-stage samples and sampling by the
-health task at approximately 100 ms intervals. Brief dips between samples can
-be missed. `samples=0` means the phase has no measurements, not zero available
-memory. The heap minimum shown by `HEAP` and `HEALTH` is measured from the
-reservation release onward and may combine region minima reached at different
-times. While the reservation is held, `HEALTH` reports `heapMinFree=4294967295`
-(not yet measured) and `HEAP` shows the allocator's startup watermark. Without a reservation,
-`held_min` has no samples and `post_min` includes initialization, so compare
-matching stage rows as well as the minima.
+`post_min` covers the first 60 seconds after network start; `ws_min`
+independently covers the first 60 seconds from `ws_done`, whether that first
+outcome was successful or failed. The report includes `postWindowMs` and
+`wsWindowMs`. These minima combine stage samples and sampling by the health
+task at approximately 100 ms intervals. Brief dips between samples can be
+missed. `samples=0` means the phase has no measurements, not zero available
+memory. The heap minimum shown by `HEAP` and `HEALTH` is the lifetime minimum
+since boot and may combine region minima reached at different times.
 
-For the comparison, use `HEAP_SHAPER_BYTES` in `src/OpenBrewByWeightNetwork.cpp`:
-`69632` (68 KiB) is the measured optimum and `0` disables the hold. Release
-images expose the same capture as the `bootHeap` section of
-`/api/v1/debug/export`: `stages` rows are `[stage,result,ms,held,free,largest]`
-and `minima` holds `[samples,free,largest]` for `held`, `post` and `ws`.
+Release images expose the same capture as the `bootHeap` section of
+`/api/v1/debug/export`: `stages` rows are `[stage,result,ms,free,largest]` and
+`minima` holds `[samples,free,largest]` for `post` and `ws`.
 Use the same firmware revision, board, account, connection settings and task
 stack sizes for each build.
 This trial also reduces the WS SDK task stack from 8 to 6 KiB; capture the

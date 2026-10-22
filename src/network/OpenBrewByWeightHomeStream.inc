@@ -716,8 +716,6 @@ bool OpenBrewByWeightNetwork::sendDiagnosticStream(UiStreamSession &session,
     telemetry.field("health.loopMaxGapMs", static_cast<unsigned long>(control.loopMaxGapMs));
     telemetry.field("health.minimumFreeHeapBytes",
                     static_cast<unsigned long>(control.minimumFreeHeapBytes));
-    telemetry.field("health.minimumFreeHeapBeforeReleaseBytes",
-                    static_cast<unsigned long>(bootHeapHeldMinimum.load()));
     telemetry.field("health.largestFreeHeapBlockBytes",
                     static_cast<unsigned long>(control.largestFreeHeapBlockBytes));
     telemetry.field("health.psramSizeBytes", static_cast<unsigned long>(control.psramSizeBytes));

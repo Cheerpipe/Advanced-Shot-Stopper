@@ -595,7 +595,7 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            "\"healthSnapshotValid\":%s,"
            "\"loopStackMinWords\":%lu,"
            "\"scaleStackMinWords\":%lu,\"freeHeapBytes\":%lu,"
-           "\"minimumFreeHeapBytes\":%lu,\"minimumFreeHeapBeforeReleaseBytes\":%lu,"
+           "\"minimumFreeHeapBytes\":%lu,"
            "\"largestFreeHeapBlockBytes\":%lu,"
            "\"internalHeapAllocatedBlocks\":%lu,"
            "\"internalHeapFreeBlocks\":%lu,\"internalHeapTotalBlocks\":%lu,"
@@ -631,7 +631,6 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<unsigned long>(c.scaleStackMinBytes),
            static_cast<unsigned long>(c.freeHeapBytes),
            static_cast<unsigned long>(c.minimumFreeHeapBytes),
-           static_cast<unsigned long>(bootHeapHeldMinimum.load()),
            static_cast<unsigned long>(c.largestFreeHeapBlockBytes),
            static_cast<unsigned long>(c.internalHeapAllocatedBlocks),
            static_cast<unsigned long>(c.internalHeapFreeBlocks),
@@ -867,21 +866,18 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
 #endif
 
   {
-    // Boot heap shaper capture (the serial BOOT_HEAP report): stages as
-    // [stage,result,ms,held,free,largest], then held/post/ws [samples,free,largest].
+    // Boot heap capture (the serial BOOT_HEAP report): stages as
+    // [stage,result,ms,free,largest], then post/ws [samples,free,largest].
     // Copy under the lock piecewise; never hold it across a socket send.
-    uint32_t stages, requested;
-    BootHeapMinimum minima[3];
+    uint32_t stages;
+    BootHeapMinimum minima[2];
     {
       TaskLockGuard lock(bootHeapMutex);
       stages = bootHeapCapture.stages;
-      requested = bootHeapCapture.requestedBytes;
-      minima[0] = bootHeapCapture.held;
-      minima[1] = bootHeapCapture.post;
-      minima[2] = bootHeapCapture.ws;
+      minima[0] = bootHeapCapture.post;
+      minima[1] = bootHeapCapture.ws;
     }
-    ok = ok && debugExportChunkf(request, buf, cap, "\"bootHeap\":{\"requested\":%lu,\"stages\":[",
-                                 static_cast<unsigned long>(requested));
+    ok = ok && debugExportChunk(request, "\"bootHeap\":{\"stages\":[");
     const char *separator = "";
     for (size_t i = 0; i < static_cast<size_t>(BootHeapStage::COUNT); ++i) {
       if (!(stages & (1U << i))) continue;
@@ -890,16 +886,15 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
         TaskLockGuard lock(bootHeapMutex);
         r = bootHeapCapture.records[i];
       }
-      ok = ok && debugExportChunkf(request, buf, cap, "%s[\"%s\",\"%s\",%lu,%lu,%lu,%lu]", separator,
+      ok = ok && debugExportChunkf(request, buf, cap, "%s[\"%s\",\"%s\",%lu,%lu,%lu]", separator,
                                    bootHeapStageName(static_cast<BootHeapStage>(i)),
                                    bootHeapResultName(r.result), static_cast<unsigned long>(r.atMs),
-                                   static_cast<unsigned long>(r.heldBytes),
                                    static_cast<unsigned long>(r.internal.freeBytes),
                                    static_cast<unsigned long>(r.internal.largestBlock));
       separator = ",";
     }
     ok = ok && debugExportChunk(request, "],\"minima\":[");
-    for (size_t i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < 2; ++i) {
       ok = ok && debugExportChunkf(request, buf, cap, "%s[%lu,%lu,%lu]", i ? "," : "",
                                    static_cast<unsigned long>(minima[i].samples),
                                    static_cast<unsigned long>(minima[i].free),

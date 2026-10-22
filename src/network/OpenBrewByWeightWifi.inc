@@ -104,10 +104,8 @@ bool OpenBrewByWeightNetwork::startNetwork() {
   copyCString(status_.iface.apIp, sizeof(status_.iface.apIp), AP_IP);
   dataMux_.unlock();
   publishConfiguredAddressStatus();
-  // Take the central DRAM run out of circulation before Wi-Fi, mDNS, and the
-  // HTTP server raise; serviceHeapShaper() releases it once the bring-up
-  // allocations have settled into the spare side blocks.
-  beginHeapShaper(now);
+  // Boot memory capture starts before Wi-Fi, mDNS and the HTTP server raise.
+  recordBootHeap(BootHeapStage::NETWORK_START, BootHeapResult::OK, now, sampleHeapCaps());
   if (settings.staConfigured) {
     startStation(settings, now);
     startupComplete_ = true;

@@ -664,6 +664,21 @@ the post-release figure in the Heap min row.
 Zero skips allocation and records `disabled`,
 then starts the 60-second post-release window immediately. The reduced WS task
 stack still requires target qualification.
+
+The startup hold was removed on 2026-10-22. Target heap maps show what it did:
+the IDF heap serves internal requests from the main DRAM first, so the ~33 KB
+Wi-Fi bring-up wave lands there by design, while the 32 KB internal reserve
+pool (`SPIRAM_MALLOC_RESERVE_INTERNAL`) and the 32 KB DRAM shared with the data
+cache are lower-priority fallbacks. Holding the central run pushed the wave
+into those fallbacks, consuming the emergency reserve for a larger steady
+largest block nobody needs; with a 32 KB instruction cache it also left only
+17,195 free internal bytes (8,704 largest, 9,535 DMA-capable) during the hold.
+Without it, the wave splits the central run (largest block about 31 KB, above
+the 24 KiB health clear level), both fallbacks stay intact, and the first
+minute after network start keeps about 73-81 KB free. Health, the Home stream,
+the Diagnostic page and the debug export report one lifetime heap minimum
+again; `BOOT_HEAP` and the export's `bootHeap` section start at network start
+and drop the held phase.
 It also samples `INTERNAL|DMA`; the overlapping capability pools are not additive.
 First-stage samples and approximately 100 ms health-task samples maintain separate
 hold/post-release minima plus an independent 60-second minimum from the first
@@ -695,8 +710,7 @@ Heap alerts use raw internal free bytes and the largest block. A valid zero
 is exhaustion, including a zero largest block. Invalid or stale samples cannot
 clear the heap latch or request a restart; a fresh valid sample is needed.
 The existing hysteresis, five-minute sustained-low window and configuration-safe,
-open-circuit restart admission remain unchanged. Shaper-held memory is unavailable
-until released and is never added to these health readings.
+open-circuit restart admission remain unchanged.
 `internalHeapFragmentationPermille` is
 `1000 × (total free - largest free block) / total free`, guarded to zero when
 total free is zero or the reported largest block covers it. ESP32-S3 internal

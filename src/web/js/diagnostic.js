@@ -327,15 +327,7 @@ function updH(h, s) {
       : __WEBUI_TEXT__("runtime.unknown"),
   );
   t("hResetReason", s ? RR[s.resetReasonCode] || __WEBUI_TEXT__("runtime.symbol_7") : "");
-  const m = h.minimumFreeHeapBytes;
-  t(
-    "hHeapMin",
-    m === 4294967295
-      ? __WEBUI_TEXT__("diagnostic.heap_min_pending")
-      : __WEBUI_TEXT__("diagnostic.heap_min_split")
-          .replace("{a}", kb(m))
-          .replace("{b}", kb(h.minimumFreeHeapBeforeReleaseBytes)),
-  );
+  t("hHeapMin", kb(h.minimumFreeHeapBytes));
   t("hHeapLargest", kb(h.largestFreeHeapBlockBytes) + (h.heap ? " · " + h.heap : ""));
   t("hPsramT", b(h.psramSizeBytes));
   t("hPsramF", b(h.psramFreeBytes));

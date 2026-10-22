@@ -103,8 +103,6 @@ bool OpenBrewByWeightNetwork::stop() {
   // Network task is joined: no mDNS caller remains, release its task/socket.
   stopMdns();
 
-  releaseHeapShaper();
-
   if (!webhooks_.stop()) return false;
 
   instance_ = nullptr;
@@ -560,75 +558,8 @@ void OpenBrewByWeightNetwork::taskLoop() {
   vTaskDelete(nullptr);
 }
 
-void OpenBrewByWeightNetwork::beginHeapShaper(uint32_t now) {
-  if (heapShaperBlock_ != nullptr || heapShaperReleased_) {
-    return;
-  }
-  recordBootHeap(BootHeapStage::RESERVE_BEFORE, BootHeapResult::OK, now, sampleHeapCaps());
-  heapShaperBlock_ = HEAP_SHAPER_BYTES != 0
-      ? allocInternal(HEAP_SHAPER_BYTES, AllocationOwner::NETWORK) : nullptr;
-  heapShaperAllocAtMs_ = now;
-  bootHeapReserveHeld.store(heapShaperBlock_ != nullptr);
-  const BootHeapResult result = HEAP_SHAPER_BYTES == 0 ? BootHeapResult::NO_RESERVATION
-      : heapShaperBlock_ ? BootHeapResult::OK : BootHeapResult::FAILED;
-  recordBootHeap(BootHeapStage::RESERVE_AFTER, result,
-                 millis(), sampleHeapCaps(), reinterpret_cast<uintptr_t>(heapShaperBlock_),
-                 HEAP_SHAPER_BYTES);
-  if (heapShaperBlock_ == nullptr) releaseHeapShaper(result);
-}
-
-void OpenBrewByWeightNetwork::releaseHeapShaper(BootHeapResult reason) {
-  if (heapShaperReleased_) return;
-  recordBootHeap(BootHeapStage::RELEASE_BEFORE, reason, millis());
-  heapCapsFree(heapShaperBlock_);
-  heapShaperBlock_ = nullptr;
-  heapShaperReleased_ = true;
-  bootHeapHeldMinimum.store(static_cast<uint32_t>(
-      heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)));
-  (void)heap_caps_monitor_local_minimum_free_size_start();
-  bootHeapReserveHeld.store(false);
-  recordBootHeap(BootHeapStage::RELEASE_AFTER, reason, millis());
-}
-
-void OpenBrewByWeightNetwork::serviceHeapShaper(uint32_t now) {
-  if (heapShaperBlock_ == nullptr) {
-    return;
-  }
-  bool connected = false;
-  dataMux_.lock();
-  connected = status_.staState == StaState::CONNECTED;
-  dataMux_.unlock();
-  if (connected) {
-    if (heapShaperConnectedAtMs_ == 0) {
-      heapShaperConnectedAtMs_ = now;
-    }
-  } else {
-    heapShaperConnectedAtMs_ = 0;
-  }
-  // Release only after the station settle floor passes AND every applicable
-  // late bring-up allocation (first cloud query, first NTP attempt) reached a
-  // terminal outcome, so those allocations land in the spare side blocks
-  // instead of carving the central run after it returns. RF-gate NTP aborts
-  // deliberately do not settle the NTP milestone; the hard cap below bounds
-  // the wait regardless.
-  const bool floorSettled =
-      heapShaperConnectedAtMs_ != 0 &&
-      static_cast<uint32_t>(now - heapShaperConnectedAtMs_) >=
-          HEAP_SHAPER_SETTLE_MS;
-  const bool milestonesSettled =
-      machineIntegrationCloudFirstQuerySettled() && ntpFirstAttemptSettled_;
-  const bool expired =
-      static_cast<uint32_t>(now - heapShaperAllocAtMs_) >=
-          HEAP_SHAPER_MAX_HOLD_MS;
-  if ((floorSettled && milestonesSettled) || expired) {
-    releaseHeapShaper(expired ? BootHeapResult::TIMEOUT : BootHeapResult::SETTLED);
-  }
-}
-
 void OpenBrewByWeightNetwork::service() {
   const uint32_t now = millis();
-  // Expiry must run even when startup/backoff or a restart returns early.
-  serviceHeapShaper(now);
 
   // NTP and machine-API cancellation can wait inside ESP-IDF, so only this
   // low-priority task services them. Gate setters merely publish atomics.

@@ -64,9 +64,6 @@ class OpenBrewByWeightMicraService {
   MachinePhysicalStartDisposition physicalStart(MachineBackflushPermit *permit = nullptr);
   MachineBackflushSnapshot backflush(bool consume = false);
   void finishBackflush(uint32_t attempt);
-  bool cloudFirstQuerySettled() const {
-    return cloudFirstQuerySettled_.load(std::memory_order_acquire);
-  }
 
  private:
 #if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
@@ -254,9 +251,6 @@ class OpenBrewByWeightMicraService {
   std::atomic<uint32_t> disconnectGeneration_{0};
   std::atomic<uint32_t> shotGeneration_{0};
   std::atomic<bool> clearSessionRequested_{false};
-  // Latched after the first cloud request reaches any terminal outcome;
-  // consumed by the network boot heap shaper release gate.
-  std::atomic<bool> cloudFirstQuerySettled_{false};
   bool wasNetworkReady_ = false;
 };
 

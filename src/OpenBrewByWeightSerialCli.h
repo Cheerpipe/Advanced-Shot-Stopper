@@ -947,29 +947,24 @@ inline void serialCliPrintHeap(const HeapCapSnapshot &snapshot,
 }
 
 inline void serialCliPrintBootHeap() {
-  BootHeapMinimum minima[3];
-  uint32_t stages, requested;
-  uintptr_t address;
+  BootHeapMinimum minima[2];
+  uint32_t stages;
   bool complete;
   {
     TaskLockGuard lock(bootHeapMutex);
     stages = bootHeapCapture.stages;
-    requested = bootHeapCapture.requestedBytes;
-    address = bootHeapCapture.address;
     complete = bootHeapCapture.complete;
-    minima[0] = bootHeapCapture.held;
-    minima[1] = bootHeapCapture.post;
-    minima[2] = bootHeapCapture.ws;
+    minima[0] = bootHeapCapture.post;
+    minima[1] = bootHeapCapture.ws;
   }
   Serial.println("BOOT_HEAP bytes=1 time=ms_since_boot");
   char line[192];
-  snprintf(line, sizeof(line), "status=%s requested=%lu address=0x%lx postWindowMs=%lu wsWindowMs=%lu",
+  snprintf(line, sizeof(line), "status=%s postWindowMs=%lu wsWindowMs=%lu",
            stages == 0 ? "not_started" : complete ? "complete" : "recording",
-           static_cast<unsigned long>(requested), static_cast<unsigned long>(address),
-           static_cast<unsigned long>(BOOT_HEAP_POST_RELEASE_MS),
-           static_cast<unsigned long>(BOOT_HEAP_POST_RELEASE_MS));
+           static_cast<unsigned long>(BOOT_HEAP_WINDOW_MS),
+           static_cast<unsigned long>(BOOT_HEAP_WINDOW_MS));
   Serial.println(line);
-  Serial.println("stage,result,ms,held,free,largest,allocated,blocks,dmaFree,dmaLargest,psramFree,psramLargest");
+  Serial.println("stage,result,ms,free,largest,allocated,blocks,dmaFree,dmaLargest,psramFree,psramLargest");
   for (size_t i = 0; i < static_cast<size_t>(BootHeapStage::COUNT); ++i) {
     if (!(stages & (1U << i))) continue;
     BootHeapRecord record;
@@ -977,9 +972,9 @@ inline void serialCliPrintBootHeap() {
       TaskLockGuard lock(bootHeapMutex);
       record = bootHeapCapture.records[i];
     }
-    snprintf(line, sizeof(line), "%s,%s,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu",
+    snprintf(line, sizeof(line), "%s,%s,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu",
              bootHeapStageName(static_cast<BootHeapStage>(i)), bootHeapResultName(record.result),
-             static_cast<unsigned long>(record.atMs), static_cast<unsigned long>(record.heldBytes),
+             static_cast<unsigned long>(record.atMs),
              static_cast<unsigned long>(record.internal.freeBytes),
              static_cast<unsigned long>(record.internal.largestBlock),
              static_cast<unsigned long>(record.internal.allocatedBlocks),
@@ -988,8 +983,8 @@ inline void serialCliPrintBootHeap() {
              static_cast<unsigned long>(record.psramFree), static_cast<unsigned long>(record.psramLargest));
     Serial.println(line);
   }
-  constexpr const char *minimumNames[] = {"held_min", "post_min", "ws_min"};
-  for (size_t i = 0; i < 3; ++i) {
+  constexpr const char *minimumNames[] = {"post_min", "ws_min"};
+  for (size_t i = 0; i < 2; ++i) {
     snprintf(line, sizeof(line), "%s samples=%lu free=%lu largest=%lu dmaFree=%lu dmaLargest=%lu",
              minimumNames[i], static_cast<unsigned long>(minima[i].samples),
              static_cast<unsigned long>(minima[i].free), static_cast<unsigned long>(minima[i].largest),
