@@ -103,7 +103,8 @@ sample is insufficient for replacement tare. In-shot detection is unchanged.
 [Tare settings](tare.md#outside-a-brew)). **Diagnostic → Scale → Cup weight**
 shows the same cup weight.
 When no scale is connected, **Status** shows **Unknown**. Once a scale is
-connected, it shows **Present** or **Absent** according to cup detection.
+connected, it shows **Present** or **Absent** according to cup detection, and
+**Weight** shows **Absent** when there is no cup.
 The presence state machine records the qualified empty reference while `ABSENT`
 and the stable reading at the next confirmed `PRESENT` transition.
 Cup weight is the difference: **stable present reading − qualified empty reference**.

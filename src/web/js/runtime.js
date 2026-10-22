@@ -1355,20 +1355,19 @@ function clearCupWeights() {
 function formatCupWeight(s) {
   const c = s.cupPresence || {},
     sc = s.scale || {};
-  return sc.available &&
-    sc.streamState === "FRESH" &&
-    c.present === true &&
-    c.weightValid === true &&
-    typeof c.weightG === "number" &&
-    Number.isFinite(c.weightG)
-    ? __WEBUI_TEXT__("runtime.symbol_6") + c.weightG.toFixed(1) + __WEBUI_TEXT__("runtime.g_2")
-    : __WEBUI_TEXT__("runtime.unknown");
+  return !sc.available || sc.streamState !== "FRESH"
+    ? __WEBUI_TEXT__("runtime.unknown")
+    : c.present === false
+      ? __WEBUI_TEXT__("runtime.absent")
+      : c.present && c.weightValid === true && Number.isFinite(c.weightG)
+        ? __WEBUI_TEXT__("runtime.symbol_6") + c.weightG.toFixed(1) + __WEBUI_TEXT__("runtime.g_2")
+        : __WEBUI_TEXT__("runtime.unknown");
 }
 function formatCupAccessory(s) {
   const c = s.cupPresence || {};
   return s.scale?.available && s.scale.streamState === "FRESH"
     ? c.accessory === "present" && typeof c.accessoryG === "number"
-      ? sub(__WEBUI_TEXT__("runtime.accessory_present"), [c.accessoryG.toFixed(1)])
+      ? c.accessoryG.toFixed(1) + __WEBUI_TEXT__("runtime.g_2")
       : {
           off: __WEBUI_TEXT__("runtime.off_2"),
           absent: __WEBUI_TEXT__("runtime.absent"),

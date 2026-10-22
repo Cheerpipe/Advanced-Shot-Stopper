@@ -38,15 +38,16 @@
     if (helpers.formatCupWeight({...good, cupPresence: {...good.cupPresence, weightG: weight}}) !== '—')
       throw new Error('Invalid cup weight must be unavailable');
   }
+  if (helpers.formatCupWeight({...good, cupPresence: {present: false}}) !== 'Absent') throw new Error('Absent cup');
   for (const status of [{}, {...good, cupPresence: {}},
-    {...good, cupPresence: {...good.cupPresence, present: false}},
+    {...good, cupPresence: {...good.cupPresence, present: false}, scale: {available: true, streamState: 'STALE'}},
     {...good, cupPresence: {...good.cupPresence, weightValid: false}},
     {...good, scale: {available: false, streamState: 'FRESH'}},
     {...good, scale: {available: true, streamState: 'STALE'}}]) {
     if (helpers.formatCupWeight(status) !== '—') throw new Error('Unavailable cup provenance');
   }
   for (const [accessory, accessoryG, expected] of [
-    ['present', 42.2, 'Present - 42.2 g'], ['absent', null, 'Absent'], ['settling', null, 'Settling…'],
+    ['present', 42.2, '42.2 g'], ['absent', null, 'Absent'], ['settling', null, 'Settling…'],
     ['not_tracked', null, 'Not tracked - lift the cup and set it down again'], ['off', null, 'Off'],
     ['present', null, 'Unknown']]) {
     if (helpers.formatCupAccessory({...good, cupPresence: {accessory, accessoryG}}) !== expected)

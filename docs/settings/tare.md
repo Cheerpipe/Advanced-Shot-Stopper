@@ -91,7 +91,7 @@ the cup:
 
 | Shown | Meaning |
 | --- | --- |
-| **Present - 42.2 g** | An accessory was tared on this cup; its weight is shown. |
+| **42.2 g** | An accessory was tared on this cup; its weight is shown. |
 | **Absent** | No cup, or the cup is tared and ready for an accessory. |
 | **Settling…** | An accessory being added or removed is waiting to settle. |
 | **Not tracked - lift the cup and set it down again** | The controller is not following accessories for this cup, for example after a shot, a settings change, a scale reconnect, or a failed tare. |

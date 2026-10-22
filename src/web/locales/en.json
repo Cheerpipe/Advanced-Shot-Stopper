@@ -594,7 +594,6 @@
     "runtime.absent": "Absent",
     "runtime.absent_cup_required": "Absent - cup required",
     "runtime.accessory_not_tracked": "Not tracked - lift the cup and set it down again",
-    "runtime.accessory_present": "Present - {0} g",
     "runtime.accessory_settling": "Settling…",
     "runtime.activation_history_cleared": "History cleared.",
     "runtime.active": "Active",
