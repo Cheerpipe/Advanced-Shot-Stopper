@@ -1320,13 +1320,6 @@ label:has(> input[type="checkbox"]) .fieldHint {
 #auditTableWrap {
   grid-column: 1/-1;
 }
-#taskTableWrap,
-#loopTimingWrap,
-#scaleCommandInventory,
-#auditTableWrap {
-  max-width: 100%;
-  overflow: auto;
-}
 #taskTable,
 #loopTimingTable,
 #scaleCommandTable,
@@ -1340,6 +1333,7 @@ label:has(> input[type="checkbox"]) .fieldHint {
   text-align: left;
   padding: 0.15rem 0.35rem;
   border-bottom: 1px solid var(--ln);
+  overflow-wrap: anywhere;
 }
 :is(#taskTable, #loopTimingTable, #scaleCommandTable) :is(th, td):nth-child(n + 2) {
   text-align: right;
@@ -2722,8 +2716,7 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
     width: min(100%, 30rem);
     margin-inline: auto;
     padding: 0.25rem 0.3rem;
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    flex-wrap: wrap;
     justify-content: space-between;
   }
   .glassBar > .btnGlyph,
@@ -4636,12 +4629,9 @@ html.theme-dark {
 
 #diagnosticsPanel details {
   grid-column: 1/-1;
-  max-width: 100%;
-  overflow: auto;
 }
 #diagnosticsPanel details table {
   width: 100%;
-  min-width: 24rem;
   border-collapse: collapse;
 }
 #diagnosticsPanel details th,
@@ -4649,6 +4639,7 @@ html.theme-dark {
   text-align: left;
   padding: 0.45rem;
   border-bottom: 1px solid var(--ln);
+  overflow-wrap: anywhere;
 }
 
 :where(a, button, input, select, textarea, summary):focus-visible {
