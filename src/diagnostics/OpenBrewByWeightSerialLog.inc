@@ -63,10 +63,19 @@ int openBrewByWeightEspLogVprintf(const char *format, va_list args) {
   if (formatted <= 0) {
     return formatted;
   }
+  // Benign IDF lines. BLE_INIT warns that light sleep is blocked, but this
+  // firmware never enters light sleep. A client resetting its socket
+  // (ECONNRESET: tab closed, phone asleep) is a normal disconnect that httpd
+  // already closes, so it stays a DEBUG trace on both sinks.
   if (strstr(line.text,
              "HTTP_CLIENT: Connection timed out before data was ready!") !=
-      nullptr) {
+          nullptr ||
+      strstr(line.text, "BLE_INIT: light sleep mode will not be able") !=
+          nullptr) {
     return 0;
+  }
+  if (strstr(line.text, "httpd_sock_err: error in recv : 104") != nullptr) {
+    line.text[0] = 'D';
   }
   retainEspLogLine(line.text);
   // Without the USB sink, keep IDF's default console output, if any.
