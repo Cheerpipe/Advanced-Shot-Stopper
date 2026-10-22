@@ -27,11 +27,18 @@ constexpr uint32_t WEB_ACCESS_PAIRING_MS = 120000;
 // start meanwhile, which also rate-limits pairing attempts.
 constexpr uint32_t WEB_ACCESS_PAIRING_RESULT_MS = 30000;
 constexpr uint32_t WEB_ACCESS_MAGIC = 0x57414343U;  // "WACC"
-constexpr uint16_t WEB_ACCESS_VERSION = 0;
+constexpr uint16_t WEB_ACCESS_VERSION = 1;
+// Device label shown in Admin → Access, e.g. "iPhone · Safari" (NUL included).
+constexpr size_t WEB_ACCESS_LABEL_BYTES = 24;
+// Admin lists every session by an opaque id, never by its token: remembered
+// slots first, then browser-only slots.
+constexpr uint8_t WEB_ACCESS_SESSION_IDS =
+    WEB_ACCESS_REMEMBERED_SLOTS + WEB_ACCESS_BROWSER_SLOTS;
 
 struct WebAccessRemembered {
   uint8_t token[WEB_ACCESS_TOKEN_BYTES] = {};
   uint32_t usedUtc = 0;  // 0 = never stamped on a synced clock
+  char label[WEB_ACCESS_LABEL_BYTES] = {};
 };
 
 // One NVS blob. Missing or invalid means "login off, nothing remembered".
@@ -48,7 +55,19 @@ struct WebAccessStored {
   WebAccessRemembered remembered[WEB_ACCESS_REMEMBERED_SLOTS] = {};
   uint32_t checksum = 0;
 };
-static_assert(sizeof(WebAccessStored) == 196, "webAccess blob layout changed");
+static_assert(sizeof(WebAccessStored) == 388, "webAccess blob layout changed");
+
+// Version 0 (before labels), migrated on load so an update keeps the login.
+struct WebAccessStoredV0 {
+  uint32_t magic, header, flags, homeAssistantSinceUtc;
+  uint8_t homeAssistantToken[WEB_ACCESS_TOKEN_BYTES];
+  struct {
+    uint8_t token[WEB_ACCESS_TOKEN_BYTES];
+    uint32_t usedUtc;
+  } remembered[WEB_ACCESS_REMEMBERED_SLOTS];
+  uint32_t checksum;
+};
+static_assert(sizeof(WebAccessStoredV0) == 196, "version 0 layout is frozen");
 
 enum class WebAccessPairing : uint8_t { NONE, PENDING, APPROVED, DENIED, EXPIRED };
 
@@ -57,6 +76,8 @@ struct WebAccessState {
   struct Browser {
     uint8_t token[WEB_ACCESS_TOKEN_BYTES] = {};
     uint32_t untilMs = 0;
+    uint32_t seenMs = 0;
+    char label[WEB_ACCESS_LABEL_BYTES] = {};
     bool live = false;
   } browser[WEB_ACCESS_BROWSER_SLOTS] = {};
   struct Pairing {
@@ -69,14 +90,18 @@ struct WebAccessState {
   bool dirty = false;
 };
 
-inline uint32_t webAccessChecksum(const WebAccessStored &stored) {
-  const uint8_t *bytes = reinterpret_cast<const uint8_t *>(&stored);
+inline uint32_t webAccessFnv(const void *data, size_t length) {
+  const uint8_t *bytes = static_cast<const uint8_t *>(data);
   uint32_t hash = 2166136261U;
-  for (size_t index = 0; index < offsetof(WebAccessStored, checksum); ++index) {
+  for (size_t index = 0; index < length; ++index) {
     hash ^= bytes[index];
     hash *= 16777619U;
   }
   return hash;
+}
+
+inline uint32_t webAccessChecksum(const WebAccessStored &stored) {
+  return webAccessFnv(&stored, offsetof(WebAccessStored, checksum));
 }
 
 inline void finalizeWebAccessStored(WebAccessStored &stored) {
@@ -93,6 +118,44 @@ inline bool validWebAccessStored(const WebAccessStored &stored) {
          stored.enabled <= 1 && stored.noticeDismissed <= 1 &&
          stored.homeAssistant <= 1 &&
          stored.checksum == webAccessChecksum(stored);
+}
+
+// Copies a browser-supplied label: control characters, quotes, backslashes and
+// angle brackets are dropped, and only whole UTF-8 characters fit, so the
+// result is safe to embed in JSON and HTML text as is.
+inline void copyWebAccessLabel(char label[WEB_ACCESS_LABEL_BYTES], const char *text) {
+  size_t used = 0;
+  for (size_t index = 0; text != nullptr && text[index] != '\0'; ++index) {
+    const unsigned char c = static_cast<unsigned char>(text[index]);
+    if (c < 0x20 || c == 0x7F || c == '"' || c == '\\' || c == '<' || c == '>') continue;
+    const size_t width = c < 0x80 ? 1 : c >= 0xF0 ? 4 : c >= 0xE0 ? 3 : c >= 0xC0 ? 2 : 0;
+    if (width == 0) continue;  // a stray continuation byte
+    if (used + width >= WEB_ACCESS_LABEL_BYTES) break;
+    size_t next = 1;
+    while (next < width && (static_cast<unsigned char>(text[index + next]) & 0xC0) == 0x80) ++next;
+    if (next < width) continue;  // a truncated sequence
+    memcpy(label + used, text + index, width);
+    used += width;
+    index += width - 1;
+  }
+  memset(label + used, 0, WEB_ACCESS_LABEL_BYTES - used);
+}
+
+inline bool migrateWebAccessV0(const WebAccessStoredV0 &old, WebAccessStored &stored) {
+  if (old.magic != WEB_ACCESS_MAGIC || old.header != (sizeof(WebAccessStoredV0) << 16) ||
+      old.checksum != webAccessFnv(&old, offsetof(WebAccessStoredV0, checksum))) {
+    return false;
+  }
+  stored = WebAccessStored{};
+  memcpy(&stored.enabled, &old.flags, sizeof(old.flags));
+  stored.homeAssistantSinceUtc = old.homeAssistantSinceUtc;
+  memcpy(stored.homeAssistantToken, old.homeAssistantToken, WEB_ACCESS_TOKEN_BYTES);
+  for (uint8_t slot = 0; slot < WEB_ACCESS_REMEMBERED_SLOTS; ++slot) {
+    memcpy(stored.remembered[slot].token, old.remembered[slot].token, WEB_ACCESS_TOKEN_BYTES);
+    stored.remembered[slot].usedUtc = old.remembered[slot].usedUtc;
+  }
+  finalizeWebAccessStored(stored);
+  return validWebAccessStored(stored);
 }
 
 // Tokens travel as exactly 32 lowercase hex digits.
@@ -136,22 +199,16 @@ inline bool webAccessRememberedLive(const WebAccessStored &stored, uint8_t slot,
   return nowUtc == 0 || nowUtc <= used || nowUtc - used < WEB_ACCESS_REMEMBER_SEC;
 }
 
-inline uint8_t webAccessRememberedCount(const WebAccessState &state,
-                                        uint32_t nowUtc) {
-  uint8_t count = 0;
-  for (uint8_t slot = 0; slot < WEB_ACCESS_REMEMBERED_SLOTS; ++slot) {
-    count += webAccessRememberedLive(state.stored, slot, nowUtc) ? 1 : 0;
-  }
-  return count;
-}
-
 // nowUtc is 0 while the wall clock is not synced.
 inline bool webAccessSessionValid(WebAccessState &state,
                                   const uint8_t token[WEB_ACCESS_TOKEN_BYTES],
                                   uint32_t nowMs, uint32_t nowUtc) {
   for (auto &browser : state.browser) {
     if (browser.live && webAccessTokenEqual(browser.token, token)) {
-      if (static_cast<int32_t>(nowMs - browser.untilMs) < 0) return true;
+      if (static_cast<int32_t>(nowMs - browser.untilMs) < 0) {
+        browser.seenMs = nowMs;
+        return true;
+      }
       browser = WebAccessState::Browser{};
       return false;
     }
@@ -182,7 +239,7 @@ inline bool webAccessSessionValid(WebAccessState &state,
 inline void webAccessIssueSession(WebAccessState &state,
                                   const uint8_t token[WEB_ACCESS_TOKEN_BYTES],
                                   bool remember, uint32_t nowMs,
-                                  uint32_t nowUtc) {
+                                  uint32_t nowUtc, const char *label) {
   if (!remember) {
     WebAccessState::Browser *target = &state.browser[0];
     for (auto &browser : state.browser) {
@@ -191,6 +248,8 @@ inline void webAccessIssueSession(WebAccessState &state,
     }
     memcpy(target->token, token, WEB_ACCESS_TOKEN_BYTES);
     target->untilMs = nowMs + WEB_ACCESS_BROWSER_MS;
+    target->seenMs = nowMs;
+    copyWebAccessLabel(target->label, label);
     target->live = true;
     return;
   }
@@ -202,8 +261,55 @@ inline void webAccessIssueSession(WebAccessState &state,
   }
   memcpy(stored.remembered[target].token, token, WEB_ACCESS_TOKEN_BYTES);
   stored.remembered[target].usedUtc = nowUtc;
+  copyWebAccessLabel(stored.remembered[target].label, label);
   stored.rememberedMask |= static_cast<uint8_t>(1U << target);
   state.dirty = true;
+}
+
+// The Admin list id of a token's session, or -1.
+inline int webAccessSessionId(const WebAccessState &state,
+                              const uint8_t token[WEB_ACCESS_TOKEN_BYTES]) {
+  for (uint8_t slot = 0; slot < WEB_ACCESS_REMEMBERED_SLOTS; ++slot) {
+    if ((state.stored.rememberedMask & (1U << slot)) != 0 &&
+        webAccessTokenEqual(state.stored.remembered[slot].token, token)) {
+      return slot;
+    }
+  }
+  for (uint8_t slot = 0; slot < WEB_ACCESS_BROWSER_SLOTS; ++slot) {
+    if (state.browser[slot].live && webAccessTokenEqual(state.browser[slot].token, token)) {
+      return WEB_ACCESS_REMEMBERED_SLOTS + slot;
+    }
+  }
+  return -1;
+}
+
+inline bool webAccessRenameId(WebAccessState &state, uint32_t id, const char *label) {
+  if (id < WEB_ACCESS_REMEMBERED_SLOTS) {
+    if ((state.stored.rememberedMask & (1U << id)) == 0) return false;
+    copyWebAccessLabel(state.stored.remembered[id].label, label);
+    state.dirty = true;
+    return true;
+  }
+  if (id >= WEB_ACCESS_SESSION_IDS || !state.browser[id - WEB_ACCESS_REMEMBERED_SLOTS].live) {
+    return false;
+  }
+  copyWebAccessLabel(state.browser[id - WEB_ACCESS_REMEMBERED_SLOTS].label, label);
+  return true;
+}
+
+inline bool webAccessRevokeId(WebAccessState &state, uint32_t id) {
+  if (id < WEB_ACCESS_REMEMBERED_SLOTS) {
+    if ((state.stored.rememberedMask & (1U << id)) == 0) return false;
+    state.stored.rememberedMask &= static_cast<uint8_t>(~(1U << id));
+    state.stored.remembered[id] = WebAccessRemembered{};
+    state.dirty = true;
+    return true;
+  }
+  if (id >= WEB_ACCESS_SESSION_IDS || !state.browser[id - WEB_ACCESS_REMEMBERED_SLOTS].live) {
+    return false;
+  }
+  state.browser[id - WEB_ACCESS_REMEMBERED_SLOTS] = WebAccessState::Browser{};
+  return true;
 }
 
 // Revokes Web UI sessions: just `token` when `only`, otherwise every one but

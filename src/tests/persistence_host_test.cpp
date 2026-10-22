@@ -1372,6 +1372,23 @@ void p91_web_access_store_round_trip_and_corruption() {
   CHECK(loadWebAccessStored(loaded) == WebAccessLoad::INVALID);
   CHECK(loaded.enabled == 0 && loaded.noticeDismissed == 0 &&
         loaded.rememberedMask == 0);
+  // A version 0 record from the previous firmware migrates on load.
+  {
+    WebAccessStoredV0 old = {};
+    old.magic = WEB_ACCESS_MAGIC;
+    old.header = static_cast<uint32_t>(sizeof(WebAccessStoredV0)) << 16;
+    const uint8_t flags[4] = {1, 0, 0, 0x01};
+    memcpy(&old.flags, flags, sizeof(flags));
+    old.remembered[0].token[0] = 0x42;
+    old.checksum = webAccessFnv(&old, offsetof(WebAccessStoredV0, checksum));
+    OpenBrewByWeightPreferences preferences(NvsSubsystem::WEB_ACCESS);
+    CHECK(preferences.begin(SETTINGS_NAMESPACE, false));
+    CHECK(preferences.putBytes(WEB_ACCESS_KEY, &old, sizeof(old)) == sizeof(old));
+    preferences.end();
+    CHECK(loadWebAccessStored(loaded) == WebAccessLoad::LOADED);
+    CHECK(loaded.enabled == 1 && loaded.rememberedMask == 0x01 &&
+          loaded.remembered[0].token[0] == 0x42 && loaded.version == WEB_ACCESS_VERSION);
+  }
   // Factory reset erases the record, and erasing a missing one succeeds.
   CHECK(saveWebAccessStored(stored));
   CHECK(eraseWebAccessStored());

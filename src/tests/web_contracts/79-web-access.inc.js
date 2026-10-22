@@ -72,7 +72,8 @@
   // Tokens stay out of logs and URLs.
   assert.ok(!access.includes('lifecycleLogf('), 'Access logs never format values');
   assert.ok(!/session=|token=/.test(rawRuntimeJs), 'Session tokens never travel in a URL');
-  assert.ok(core.includes('static_assert(sizeof(WebAccessStored) == 196'));
+  assert.ok(core.includes('static_assert(sizeof(WebAccessStored) == 388') &&
+      core.includes('static_assert(sizeof(WebAccessStoredV0) == 196'));
 
   // Integration API: info, exchange and pairing answer first; every other
   // route needs the Home Assistant token only while the login is on.
@@ -103,6 +104,27 @@
   assert.ok(blockAt(viewJs.admin, 'function openLoginSheet(').includes('$("devicePasswordForm").classList.add("hidden")') &&
       blockAt(viewJs.admin, 'function closeLoginSheet(').includes('$("devicePasswordForm").classList.remove("hidden")') &&
       codeIncludes(viewJs.admin, '$("loginEnabled").checked === !!accessState.loginEnabled'));
+  // Admin → Access lists every signed-in device by id (never by token), the
+  // browser sends a label at sign-in, and one device signs out at a time.
+  const accessStatus = body(access, 'bool OpenBrewByWeightNetwork::appendWebAccessStatus(');
+  assert.ok(accessStatus.includes('\\"sessions\\":[') && accessStatus.includes('webAccessSessionId(g_webAccess, own)') &&
+      !accessStatus.includes('formatWebAccessToken'));
+  assert.ok(body(access, 'esp_err_t OpenBrewByWeightNetwork::authAccessHandler(')
+      .includes('webAccessRevokeId(g_webAccess, body.id)'));
+  assert.ok(core.includes('copyWebAccessLabel(stored.remembered[target].label, label)') &&
+      core.includes('copyWebAccessLabel(target->label, label)'));
+  assert.ok(codeIncludes(rawRuntimeJs, 'remember: $("loginRemember").checked, device: deviceLabel()'));
+  const deviceRow = blockAt(viewJs.admin, 'function deviceRow(');
+  assert.ok(deviceRow.includes('title.textContent = name') && deviceRow.includes('small.textContent = detail'),
+      'Device labels are rendered as text');
+  assert.ok(codeIncludes(ui, '<details id="accessDevices" class="cfgGroup hidden">'),
+      'The device list is a collapsible accordion');
+  assert.ok(body(access, 'esp_err_t OpenBrewByWeightNetwork::authAccessHandler(')
+      .includes('webAccessRenameId(g_webAccess, body.id, body.device)') &&
+      blockAt(viewJs.admin, 'function editDeviceName(').includes('input.replaceWith(title)'),
+      'Device names are edited in place');
+  assert.ok(blockAt(viewJs.admin, 'function renderAccessDevices(').includes('querySelector(".confirm, input")'),
+      'Polls do not wipe a row that is asking for confirmation');
   // Sign out sits inline in the footer's firmware line, shown only with the
   // login on, and keeps the line height (no tap-size min-height there).
   assert.ok(codeIncludes(ui, 'id="footerSignOut"') &&

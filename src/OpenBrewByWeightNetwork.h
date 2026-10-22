@@ -869,6 +869,7 @@ class OpenBrewByWeightNetwork {
   struct WebAccessBody {
     char password[WIFI_PASSWORD_CAPACITY] = {};
     char action[24] = {};
+    char device[WEB_ACCESS_LABEL_BYTES * 2] = {};  // label, sanitized on store
     uint32_t id = 0;
     bool remember = false, allow = false, hasPassword = false;
     ~WebAccessBody() { memset(password, 0, sizeof(password)); }
@@ -882,6 +883,7 @@ class OpenBrewByWeightNetwork {
   static esp_err_t authNoticeHandler(httpd_req_t *request);
   static esp_err_t authPairingHandler(httpd_req_t *request);
   bool integrationAccessRoute(httpd_req_t *request, esp_err_t &result);
+  bool appendWebAccessStatus(httpd_req_t *request, size_t *used);
   bool diagnosticPageEnabled();
   bool webUiOverrideAllowed(httpd_req_t *request);
   uint32_t webUiOverrideRemainingMs(httpd_req_t *request);

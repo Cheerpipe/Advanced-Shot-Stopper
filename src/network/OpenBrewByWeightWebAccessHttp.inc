@@ -148,8 +148,8 @@ bool OpenBrewByWeightNetwork::readWebAccessBody(httpd_req_t *request,
   sent = lockJsonBody(request, "A JSON request is required.");
   if (sent != ESP_OK) return false;
   cJSON *root = parseJsonDocument(workBuf_->requestBody);
-  static const char *const fields[] = {"password", "remember", "action", "id", "allow"};
-  bool parsed = root != nullptr && jsonHasOnlyUniqueFields(root, fields, 5);
+  static const char *const fields[] = {"password", "remember", "action", "id", "allow", "device"};
+  bool parsed = root != nullptr && jsonHasOnlyUniqueFields(root, fields, 6);
   body.hasPassword = parsed && jsonFieldPresent(root, "password");
   if (body.hasPassword) {
     parsed = jsonString(root, "password", body.password, sizeof(body.password), false);
@@ -160,6 +160,9 @@ bool OpenBrewByWeightNetwork::readWebAccessBody(httpd_req_t *request,
   }
   if (parsed && jsonFieldPresent(root, "id")) parsed = jsonUint32(root, "id", body.id);
   if (parsed && jsonFieldPresent(root, "allow")) parsed = jsonBoolean(root, "allow", body.allow);
+  if (parsed && jsonFieldPresent(root, "device")) {
+    parsed = jsonString(root, "device", body.device, sizeof(body.device), true);
+  }
   if (root != nullptr) cJSON_Delete(root);
   unlockJsonBody();
   if (!parsed) {
@@ -211,7 +214,8 @@ esp_err_t OpenBrewByWeightNetwork::authLoginHandler(httpd_req_t *request) {
   const uint32_t now = millis();
   {
     TaskLockGuard lock(self.dataMux_);
-    webAccessIssueSession(g_webAccess, token, body.remember, now, webAccessNowUtc(now));
+    webAccessIssueSession(g_webAccess, token, body.remember, now, webAccessNowUtc(now),
+                          body.device);
   }
   // Signing in also claims control for this window, and the password typed
   // just now opens Admin for it; a later claim clears that as usual.
@@ -302,7 +306,7 @@ esp_err_t OpenBrewByWeightNetwork::authAccessHandler(httpd_req_t *request) {
       TaskLockGuard lock(self.dataMux_);
       g_webAccess.stored.enabled = 1;
       g_webAccess.dirty = true;
-      webAccessIssueSession(g_webAccess, token, true, now, webAccessNowUtc(now));
+      webAccessIssueSession(g_webAccess, token, true, now, webAccessNowUtc(now), body.device);
     }
     char text[WEB_ACCESS_TOKEN_TEXT] = {};
     char json[80] = {};
@@ -319,6 +323,29 @@ esp_err_t OpenBrewByWeightNetwork::authAccessHandler(httpd_req_t *request) {
     self.webAccessSignOut(nullptr, true);
     self.lifecycleLog("Web UI login turned off");
     return sendJson(request, STATUS_OK, "{\"enabled\":false}");
+  }
+  if (strcmp(body.action, "rename") == 0) {
+    bool renamed = false;
+    {
+      TaskLockGuard lock(self.dataMux_);
+      renamed = webAccessRenameId(g_webAccess, body.id, body.device);
+    }
+    return renamed ? sendJson(request, STATUS_OK, "{\"ok\":true}")
+                   : sendError(request, STATUS_CONFLICT, "SESSION_NOT_FOUND",
+                               "That device is no longer signed in.");
+  }
+  if (strcmp(body.action, "signOut") == 0) {
+    bool revoked = false;
+    {
+      TaskLockGuard lock(self.dataMux_);
+      revoked = webAccessRevokeId(g_webAccess, body.id);
+    }
+    if (!revoked) {
+      return sendError(request, STATUS_CONFLICT, "SESSION_NOT_FOUND",
+                       "That device is no longer signed in.");
+    }
+    self.lifecycleLog("Web UI signed out one device");
+    return sendJson(request, STATUS_OK, "{\"ok\":true}");
   }
   if (strcmp(body.action, "signOutOthers") == 0) {
     uint8_t token[WEB_ACCESS_TOKEN_BYTES] = {};
@@ -380,6 +407,53 @@ esp_err_t OpenBrewByWeightNetwork::authPairingHandler(httpd_req_t *request) {
   self.lifecycleLog(body.allow ? "Home Assistant pairing approved"
                                : "Home Assistant pairing denied");
   return sendJson(request, STATUS_OK, "{\"ok\":true}");
+}
+
+// Admin → Access: login state, Home Assistant, and every signed-in device by
+// id (never by token). Labels are sanitized on store, so they embed as is.
+bool OpenBrewByWeightNetwork::appendWebAccessStatus(httpd_req_t *request, size_t *used) {
+  uint8_t own[WEB_ACCESS_TOKEN_BYTES] = {};
+  const bool hasOwn = readWebAccessToken(request, WEB_UI_SESSION_HEADER, "", own);
+  const uint32_t now = millis(), nowUtc = webAccessNowUtc(now);
+  TaskLockGuard lock(dataMux_);
+  const bool factory = passwordIsFactoryDefault(settings_);
+  const int ownId = hasOwn ? webAccessSessionId(g_webAccess, own) : -1;
+  memset(own, 0, sizeof(own));
+  const WebAccessStored &stored = g_webAccess.stored;
+  bool ok = statusJsonAppend(
+      used,
+      ",\"access\":{\"loginEnabled\":%s,\"factoryPassword\":%s,"
+      "\"homeAssistantConnected\":%s,\"homeAssistantSinceUtcSec\":%lu,"
+      "\"homeAssistantRecent\":%s,\"sessions\":[",
+      stored.enabled != 0 && !factory ? "true" : "false", factory ? "true" : "false",
+      stored.homeAssistant != 0 ? "true" : "false",
+      static_cast<unsigned long>(stored.homeAssistantSinceUtc),
+      integrationSeen_ && now - integrationSeenMs_ < 24UL * 3600UL * 1000UL ? "true" : "false");
+  bool first = true;
+  const auto session = [&](uint32_t id, const char *label, bool remembered, long agoS) {
+    ok = ok && statusJsonAppend(used,
+                                "%s{\"id\":%lu,\"label\":\"%s\",\"remembered\":%s,"
+                                "\"agoS\":%ld,\"self\":%s}",
+                                first ? "" : ",", static_cast<unsigned long>(id), label,
+                                remembered ? "true" : "false", agoS,
+                                static_cast<int>(id) == ownId ? "true" : "false");
+    first = false;
+  };
+  for (uint8_t slot = 0; slot < WEB_ACCESS_REMEMBERED_SLOTS; ++slot) {
+    if (!webAccessRememberedLive(stored, slot, nowUtc)) continue;
+    const uint32_t usedUtc = stored.remembered[slot].usedUtc;
+    // Daily stamps: -1 when the clock is not synced or never stamped.
+    session(slot, stored.remembered[slot].label, true,
+            nowUtc != 0 && usedUtc != 0 && nowUtc >= usedUtc ? static_cast<long>(nowUtc - usedUtc) : -1);
+  }
+  for (uint8_t slot = 0; slot < WEB_ACCESS_BROWSER_SLOTS; ++slot) {
+    const auto &browser = g_webAccess.browser[slot];
+    if (browser.live && static_cast<int32_t>(now - browser.untilMs) < 0) {
+      session(WEB_ACCESS_REMEMBERED_SLOTS + slot, browser.label, false,
+              static_cast<long>((now - browser.seenMs) / 1000U));
+    }
+  }
+  return ok && statusJsonAppend(used, "]}");
 }
 
 // Integration API access routes, and the bearer check for every other

@@ -120,6 +120,38 @@ function storeSession(token, remember) {
     if (token) (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, token);
   } catch (_) {}
 }
+// A short name for Admin → Access, e.g. "iPhone · Safari"; display only.
+function deviceLabel() {
+  const ua = navigator.userAgent,
+    device =
+      /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+        ? "iPad"
+        : /iPhone/.test(ua)
+          ? "iPhone"
+          : /Android/.test(ua)
+            ? "Android"
+            : /Mac OS X/.test(ua)
+              ? "Mac"
+              : /Windows/.test(ua)
+                ? "Windows"
+                : /CrOS/.test(ua)
+                  ? "Chromebook"
+                  : /Linux/.test(ua)
+                    ? "Linux"
+                    : "Browser",
+    browser = /Edg\//.test(ua)
+      ? "Edge"
+      : /SamsungBrowser/.test(ua)
+        ? "Samsung"
+        : /Firefox|FxiOS/.test(ua)
+          ? "Firefox"
+          : /Chrome|CriOS/.test(ua)
+            ? "Chrome"
+            : /Safari/.test(ua)
+              ? "Safari"
+              : "";
+  return browser ? device + " · " + browser : device;
+}
 function webUiHeaders(extra) {
   const token = sessionToken();
   return Object.assign(
@@ -2132,7 +2164,7 @@ async function showSignIn(signedOut) {
         const response = await fetch("/api/v1/auth/login", {
           method: "POST",
           headers: { [WEB_UI_CLIENT_HEADER]: webUiClientId, "Content-Type": "application/json" },
-          body: body({ password, remember: $("loginRemember").checked }),
+          body: body({ password, remember: $("loginRemember").checked, device: deviceLabel() }),
         });
         const data = await response.json().catch(() => ({}));
         if (data.error === "AUTH_NOT_REQUIRED") {
@@ -6380,6 +6412,7 @@ export {
   acquireDeviceSlot,
   webUiHeaders,
   storeSession,
+  deviceLabel,
   releaseDeviceSlot,
   formatTzLabel,
   ms,

@@ -39,7 +39,7 @@ void browserSessionsExpireAndWrap() {
   token(1, a);
   token(2, b);
   const uint32_t start = 0xFFFFFF00UL;  // millis wraps during the session
-  webAccessIssueSession(state, a, false, start, 0);
+  webAccessIssueSession(state, a, false, start, 0, "Test");
   assert(!state.dirty);  // RAM only
   assert(webAccessSessionValid(state, a, start + WEB_ACCESS_BROWSER_MS - 1, 0));
   assert(!webAccessSessionValid(state, b, start, 0));
@@ -48,7 +48,7 @@ void browserSessionsExpireAndWrap() {
   for (uint8_t seed = 10; seed < 10 + WEB_ACCESS_BROWSER_SLOTS + 1; ++seed) {
     uint8_t t[WEB_ACCESS_TOKEN_BYTES];
     token(seed, t);
-    webAccessIssueSession(state, t, false, seed, 0);
+    webAccessIssueSession(state, t, false, seed, 0, "Test");
   }
   uint8_t first[WEB_ACCESS_TOKEN_BYTES], last[WEB_ACCESS_TOKEN_BYTES];
   token(10, first);
@@ -61,7 +61,7 @@ void rememberedSessionsAgeRenewAndEvict() {
   WebAccessState state;
   uint8_t a[WEB_ACCESS_TOKEN_BYTES];
   token(1, a);
-  webAccessIssueSession(state, a, true, 0, T0);
+  webAccessIssueSession(state, a, true, 0, T0, "Test");
   assert(state.dirty && state.stored.rememberedMask == 1);
   state.dirty = false;
   assert(webAccessSessionValid(state, a, 0, T0 + 3600));
@@ -77,16 +77,16 @@ void rememberedSessionsAgeRenewAndEvict() {
   for (uint8_t slot = 0; slot < WEB_ACCESS_REMEMBERED_SLOTS; ++slot) {
     uint8_t t[WEB_ACCESS_TOKEN_BYTES];
     token(static_cast<uint8_t>(20 + slot), t);
-    webAccessIssueSession(full, t, true, 0, T0 + slot);
+    webAccessIssueSession(full, t, true, 0, T0 + slot, "Test");
   }
-  assert(webAccessRememberedCount(full, T0) == WEB_ACCESS_REMEMBERED_SLOTS);
+  assert(full.stored.rememberedMask == 0xFF);
   uint8_t newest[WEB_ACCESS_TOKEN_BYTES], oldest[WEB_ACCESS_TOKEN_BYTES];
   token(99, newest);
   token(20, oldest);
-  webAccessIssueSession(full, newest, true, 0, T0 + 100);
+  webAccessIssueSession(full, newest, true, 0, T0 + 100, "Test");
   assert(!webAccessSessionValid(full, oldest, 0, T0 + 100));
   assert(webAccessSessionValid(full, newest, 0, T0 + 100));
-  assert(webAccessRememberedCount(full, T0 + 100) == WEB_ACCESS_REMEMBERED_SLOTS);
+  assert(full.stored.rememberedMask == 0xFF);
 }
 
 void revocationKeepsOnlyWhatItShould() {
@@ -97,9 +97,9 @@ void revocationKeepsOnlyWhatItShould() {
   token(2, other);
   token(3, browser);
   token(4, ha);
-  webAccessIssueSession(state, keep, true, 0, T0);
-  webAccessIssueSession(state, other, true, 0, T0);
-  webAccessIssueSession(state, browser, false, 0, T0);
+  webAccessIssueSession(state, keep, true, 0, T0, "Test");
+  webAccessIssueSession(state, other, true, 0, T0, "Test");
+  webAccessIssueSession(state, browser, false, 0, T0, "Test");
   webAccessSetHomeAssistant(state, ha, T0);
   webAccessRevokeSessions(state, keep);
   assert(webAccessSessionValid(state, keep, 1, T0));
@@ -111,7 +111,7 @@ void revocationKeepsOnlyWhatItShould() {
 
   state.stored.enabled = 1;
   state.stored.noticeDismissed = 1;
-  webAccessIssueSession(state, keep, true, 0, T0);
+  webAccessIssueSession(state, keep, true, 0, T0, "Test");
   assert(webAccessStartPairing(state, 7, 1234, 0));
   webAccessDisable(state);
   assert(state.stored.enabled == 0 && state.stored.noticeDismissed == 1);
@@ -166,6 +166,70 @@ void storedBlobChecksum() {
   assert(!validWebAccessStored(stored));
 }
 
+void labelsAreSanitizedAndWhole() {
+  char label[WEB_ACCESS_LABEL_BYTES];
+  copyWebAccessLabel(label, "iPhone \xC2\xB7 Safari");
+  assert(std::strcmp(label, "iPhone \xC2\xB7 Safari") == 0);
+  copyWebAccessLabel(label, "a\"b\\c<d>e\nf\x7Fg");
+  assert(std::strcmp(label, "abcdefg") == 0);
+  // 22 ASCII bytes leave room for one more byte only: the 2-byte "·" is dropped.
+  copyWebAccessLabel(label, "0123456789012345678901\xC2\xB7");
+  assert(std::strcmp(label, "0123456789012345678901") == 0);
+  copyWebAccessLabel(label, "\xB7ok\xC2");  // stray continuation and truncated lead
+  assert(std::strcmp(label, "ok") == 0);
+  copyWebAccessLabel(label, nullptr);
+  assert(label[0] == '\0');
+}
+
+void sessionsAreListedAndRevokedById() {
+  WebAccessState state;
+  uint8_t mac[WEB_ACCESS_TOKEN_BYTES], ipad[WEB_ACCESS_TOKEN_BYTES], other[WEB_ACCESS_TOKEN_BYTES];
+  token(1, mac);
+  token(2, ipad);
+  token(3, other);
+  webAccessIssueSession(state, mac, true, 0, T0, "MacBook \xC2\xB7 Chrome");
+  webAccessIssueSession(state, ipad, false, 500, T0, "iPad");
+  const int macId = webAccessSessionId(state, mac), ipadId = webAccessSessionId(state, ipad);
+  assert(macId == 0 && ipadId == WEB_ACCESS_REMEMBERED_SLOTS);
+  assert(webAccessSessionId(state, other) == -1);
+  assert(std::strcmp(state.stored.remembered[0].label, "MacBook \xC2\xB7 Chrome") == 0);
+  assert(std::strcmp(state.browser[0].label, "iPad") == 0 && state.browser[0].seenMs == 500);
+  assert(webAccessSessionValid(state, ipad, 900, T0) && state.browser[0].seenMs == 900);
+  state.dirty = false;
+  assert(webAccessRevokeId(state, static_cast<uint32_t>(macId)) && state.dirty);
+  assert(!webAccessSessionValid(state, mac, 901, T0));
+  assert(!webAccessRevokeId(state, static_cast<uint32_t>(macId)));
+  assert(webAccessRevokeId(state, static_cast<uint32_t>(ipadId)));
+  assert(!webAccessSessionValid(state, ipad, 902, T0));
+  assert(!webAccessRevokeId(state, WEB_ACCESS_SESSION_IDS));
+  webAccessIssueSession(state, mac, true, 0, T0, "Mac");
+  assert(webAccessRenameId(state, 0, "Kitchen <iPad>") && state.dirty);
+  assert(std::strcmp(state.stored.remembered[0].label, "Kitchen iPad") == 0);
+  assert(!webAccessRenameId(state, 1, "x") && !webAccessRenameId(state, WEB_ACCESS_SESSION_IDS, "x"));
+}
+
+void versionZeroBlobMigrates() {
+  WebAccessStoredV0 old = {};
+  old.magic = WEB_ACCESS_MAGIC;
+  old.header = static_cast<uint32_t>(sizeof(WebAccessStoredV0)) << 16;
+  const uint8_t flags[4] = {1, 1, 1, 0x03};  // enabled, notice, HA, two slots
+  std::memcpy(&old.flags, flags, sizeof(flags));
+  old.homeAssistantSinceUtc = T0;
+  token(9, old.homeAssistantToken);
+  token(5, old.remembered[1].token);
+  old.remembered[1].usedUtc = T0 + 7;
+  old.checksum = webAccessFnv(&old, offsetof(WebAccessStoredV0, checksum));
+  WebAccessStored stored;
+  assert(migrateWebAccessV0(old, stored) && validWebAccessStored(stored));
+  assert(stored.enabled == 1 && stored.noticeDismissed == 1 && stored.homeAssistant == 1 &&
+         stored.rememberedMask == 0x03 && stored.homeAssistantSinceUtc == T0);
+  assert(webAccessTokenEqual(stored.homeAssistantToken, old.homeAssistantToken));
+  assert(webAccessTokenEqual(stored.remembered[1].token, old.remembered[1].token));
+  assert(stored.remembered[1].usedUtc == T0 + 7 && stored.remembered[1].label[0] == '\0');
+  old.checksum ^= 1U;
+  assert(!migrateWebAccessV0(old, stored));
+}
+
 }  // namespace
 
 int main() {
@@ -175,5 +239,8 @@ int main() {
   revocationKeepsOnlyWhatItShould();
   pairingApprovesOnceDeniesAndExpires();
   storedBlobChecksum();
+  labelsAreSanitizedAndWhole();
+  sessionsAreListedAndRevokedById();
+  versionZeroBlobMigrates();
   return 0;
 }

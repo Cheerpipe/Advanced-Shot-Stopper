@@ -546,30 +546,7 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
           bleScanIntensityName(clampBleScanIntensity(
               control.bleScanIntensity)),
           control.bleScanEnabled ? "true" : "false");
-      if (ok) {
-        bool enabled = false, factory = false, homeAssistant = false, recent = false;
-        uint8_t remembered = 0;
-        uint32_t since = 0;
-        {
-          TaskLockGuard lock(self.dataMux_);
-          const uint32_t now = millis();
-          factory = passwordIsFactoryDefault(self.settings_);
-          enabled = g_webAccess.stored.enabled != 0 && !factory;
-          remembered = webAccessRememberedCount(g_webAccess, webAccessNowUtc(now));
-          homeAssistant = g_webAccess.stored.homeAssistant != 0;
-          since = g_webAccess.stored.homeAssistantSinceUtc;
-          recent = self.integrationSeen_ &&
-                   now - self.integrationSeenMs_ < 24UL * 3600UL * 1000UL;
-        }
-        ok = statusJsonAppend(
-            &used,
-            ",\"access\":{\"loginEnabled\":%s,\"factoryPassword\":%s,"
-            "\"rememberedDevices\":%u,\"homeAssistantConnected\":%s,"
-            "\"homeAssistantSinceUtcSec\":%lu,\"homeAssistantRecent\":%s}",
-            enabled ? "true" : "false", factory ? "true" : "false",
-            static_cast<unsigned>(remembered), homeAssistant ? "true" : "false",
-            static_cast<unsigned long>(since), recent ? "true" : "false");
-      }
+      if (ok) ok = self.appendWebAccessStatus(request, &used);
       if (ok) {
         ok = statusJsonAppend(
             &used,

@@ -270,6 +270,164 @@ function validateDevicePasswordClient(
 // changes when the device accepts the password typed there.
 let accessState = {},
   loginSheetMode = "";
+const DEVICE_ICONS = {
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.2"/><path d="M11 18.5h2"/>',
+  tablet: '<rect x="4.5" y="3" width="15" height="18" rx="2.2"/><path d="M11 18h2"/>',
+  laptop: '<rect x="5" y="5" width="14" height="10" rx="1.5"/><path d="M3 19h18"/>',
+  home: '<path d="m3 11 9-7 9 7v9H3z"/><circle cx="12" cy="14" r="2"/>',
+};
+// Remembered sessions carry a daily stamp, so they show days; browser-only
+// sessions are tracked to the second.
+function deviceAgo(s, daily) {
+  if (s < 0) return "";
+  if (daily)
+    return s < 86400
+      ? " · " + __WEBUI_TEXT__("admin.ago_today")
+      : s < 172800
+        ? " · " + __WEBUI_TEXT__("admin.ago_yesterday")
+        : " · " + Math.floor(s / 86400) + __WEBUI_TEXT__("admin.ago_days");
+  return s < 90
+    ? " · " + __WEBUI_TEXT__("admin.ago_just_now")
+    : s < 3600
+      ? " · " + Math.round(s / 60) + __WEBUI_TEXT__("admin.ago_minutes")
+      : " · " + Math.round(s / 3600) + __WEBUI_TEXT__("admin.ago_hours");
+}
+// The row asks in place; `done` runs the sign out once confirmed.
+// Tapping a device name edits it in place: Enter or leaving saves, Escape cancels.
+function editDeviceName(title, name, rename) {
+  const input = document.createElement("input");
+  input.className = "devNameInput";
+  input.maxLength = 23;
+  input.value = name;
+  input.setAttribute("aria-label", __WEBUI_TEXT__("admin.device_name"));
+  let finished = false;
+  const finish = (save) => {
+    if (finished) return;
+    finished = true;
+    const next = input.value.trim();
+    input.replaceWith(title);
+    if (save && next && next !== name) rename(next);
+  };
+  input.onkeydown = (e) => {
+    if (e.key === "Enter") finish(true);
+    if (e.key === "Escape") finish(false);
+  };
+  input.onblur = () => finish(true);
+  title.replaceWith(input);
+  input.focus();
+  input.select();
+}
+function deviceRow(icon, name, detail, self, actionLabel, askText, done, rename) {
+  const li = document.createElement("li");
+  li.className = "dev";
+  li.innerHTML = `<span class="devIc"><svg viewBox="0 0 24 24">${DEVICE_ICONS[icon]}</svg></span><span class="devTx"><b></b><small></small></span>`;
+  const title = li.querySelector("b"),
+    small = li.querySelector("small");
+  title.textContent = name;
+  small.textContent = detail;
+  if (rename) {
+    title.classList.add("devName");
+    title.title = __WEBUI_TEXT__("admin.rename_device");
+    title.onclick = () => editDeviceName(title, name, rename);
+  }
+  if (self) {
+    const tag = document.createElement("span");
+    tag.className = "tag";
+    tag.textContent = __WEBUI_TEXT__("admin.this_device");
+    title.append(tag);
+  }
+  if (!actionLabel) return li;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "textLock";
+  button.textContent = actionLabel;
+  button.onclick = () => {
+    li.classList.add("confirm");
+    small.textContent = askText;
+    button.hidden = true;
+    const box = document.createElement("span");
+    box.className = "devAsk";
+    box.innerHTML =
+      '<button type="button" class="btnGlyph btnWarn"><span class="t"></span></button><button type="button" class="btnGlyph ghost"><span class="t"></span></button>';
+    const [yes, no] = box.querySelectorAll("button");
+    yes.firstChild.textContent = actionLabel;
+    no.firstChild.textContent = __WEBUI_TEXT__("shell.cancel");
+    no.onclick = () => {
+      li.classList.remove("confirm");
+      small.textContent = detail;
+      button.hidden = false;
+      box.remove();
+    };
+    yes.onclick = () => {
+      li.classList.remove("confirm");
+      done();
+    };
+    li.append(box);
+  };
+  li.append(button);
+  return li;
+}
+// Status polls keep the list fresh, except while a row is asking.
+function renderAccessDevices(a) {
+  if ($("devList").querySelector(".confirm, input")) return;
+  const sessions = [...(a.sessions || [])].sort((x, y) => y.self - x.self || x.id - y.id),
+    rows = sessions.map((s) =>
+      deviceRow(
+        /iPhone|Android/.test(s.label) ? "phone" : /iPad/.test(s.label) ? "tablet" : "laptop",
+        s.label || __WEBUI_TEXT__("admin.unnamed_device"),
+        (s.remembered
+          ? __WEBUI_TEXT__("admin.remembered")
+          : __WEBUI_TEXT__("admin.until_browser_closes")) +
+          (s.self ? " · " + __WEBUI_TEXT__("admin.active_now") : deviceAgo(s.agoS, s.remembered)),
+        s.self,
+        s.self ? "" : __WEBUI_TEXT__("shell.sign_out"),
+        __WEBUI_TEXT__("admin.device_needs_password_again"),
+        () =>
+          accessQuickAction(
+            "signOut",
+            __WEBUI_TEXT__("admin.device_signed_out"),
+            __WEBUI_TEXT__("admin.could_not_sign_out_device"),
+            { id: s.id },
+          ),
+        (device) =>
+          accessQuickAction(
+            "rename",
+            __WEBUI_TEXT__("admin.device_renamed"),
+            __WEBUI_TEXT__("admin.could_not_rename_device"),
+            { id: s.id, device },
+          ),
+      ),
+    );
+  const since = a.homeAssistantSinceUtcSec
+    ? new Date(a.homeAssistantSinceUtcSec * 1000).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+      })
+    : "";
+  rows.push(
+    deviceRow(
+      "home",
+      __WEBUI_TEXT__("admin.home_assistant"),
+      a.homeAssistantConnected
+        ? since
+          ? __WEBUI_TEXT__("admin.connected_since") + since
+          : __WEBUI_TEXT__("admin.home_assistant_connected")
+        : __WEBUI_TEXT__("admin.home_assistant_not_connected"),
+      false,
+      a.homeAssistantConnected ? __WEBUI_TEXT__("admin.disconnect") : "",
+      __WEBUI_TEXT__("admin.home_assistant_asks_again"),
+      () =>
+        accessQuickAction(
+          "forgetHomeAssistant",
+          __WEBUI_TEXT__("admin.home_assistant_disconnected"),
+          __WEBUI_TEXT__("admin.could_not_disconnect_home_assistant"),
+        ),
+    ),
+  );
+  $("devList").replaceChildren(...rows);
+  $("devCount").textContent = "(" + sessions.length + ")";
+  $("signOutOthersButton").hidden = !sessions.some((s) => !s.self);
+}
 function applyAccessStatus(a) {
   if (!a) return;
   accessState = a;
@@ -278,13 +436,8 @@ function applyAccessStatus(a) {
   $("loginEnabledHint").textContent = on
     ? __WEBUI_TEXT__("admin.login_security_note")
     : __WEBUI_TEXT__("admin.login_off_hint");
-  $("accessSessions").classList.toggle("hidden", !on);
-  $("rememberedCount").textContent = a.rememberedDevices + __WEBUI_TEXT__("admin.of_8");
-  $("accessHomeAssistant").classList.toggle("hidden", !on);
-  $("homeAssistantState").textContent = a.homeAssistantConnected
-    ? __WEBUI_TEXT__("admin.home_assistant_connected")
-    : __WEBUI_TEXT__("admin.home_assistant_not_connected");
-  $("disconnectHomeAssistantButton").hidden = !a.homeAssistantConnected;
+  $("accessDevices").classList.toggle("hidden", !on);
+  if (on) renderAccessDevices(a);
   $("devicePasswordKind").textContent = a.factoryPassword
     ? __WEBUI_TEXT__("admin.factory_default")
     : __WEBUI_TEXT__("admin.custom");
@@ -327,10 +480,10 @@ function closeLoginSheet() {
   R.clearFieldErrors();
   $("loginEnabled").checked = !!accessState.loginEnabled;
 }
-async function accessAction(action, password) {
+async function accessAction(action, fields = {}) {
   const data = await R.api("/api/v1/auth/access", {
     method: "POST",
-    body: R.body(password === undefined ? { action } : { action, password }),
+    body: R.body({ action, ...fields }),
   });
   if (data.token) R.storeSession(data.token, true);
   return data;
@@ -363,7 +516,7 @@ async function confirmLoginSheet() {
       if (accessState.factoryPassword)
         return R.message(__WEBUI_TEXT__("admin.new_password_not_saved_yet"), "error");
     }
-    await accessAction(mode, password);
+    await accessAction(mode, { password, device: R.deviceLabel() });
     R.message(
       mode === "enable"
         ? __WEBUI_TEXT__("admin.login_turned_on")
@@ -378,9 +531,9 @@ async function confirmLoginSheet() {
     confirm.disabled = false;
   }
 }
-async function accessQuickAction(action, okText, failText) {
+async function accessQuickAction(action, okText, failText, fields) {
   try {
-    await accessAction(action);
+    await accessAction(action, fields);
     R.message(okText, "ok");
     R.refreshStatus();
   } catch (e) {
@@ -1724,14 +1877,6 @@ export function init() {
       __WEBUI_TEXT__("admin.other_devices_signed_out"),
       __WEBUI_TEXT__("admin.could_not_sign_out_other_devices"),
     );
-  $("disconnectHomeAssistantButton").onclick = () => {
-    if (confirm(__WEBUI_TEXT__("admin.disconnect_home_assistant_confirm")))
-      accessQuickAction(
-        "forgetHomeAssistant",
-        __WEBUI_TEXT__("admin.home_assistant_disconnected"),
-        __WEBUI_TEXT__("admin.could_not_disconnect_home_assistant"),
-      );
-  };
   $("revertDevicePasswordButton").onclick = () => {
     if (!$("newDevicePassword").value && !$("confirmDevicePassword").value) return;
     if (!confirm(__WEBUI_TEXT__("admin.discard_unsaved_changes"))) return;

@@ -74,9 +74,9 @@ If Home Assistant was already set up when you turn the password on, it shows
 a "needs reauthentication" notice; answer it the same way. Its entities read
 "unavailable" until then, and nothing is lost.
 
-**Admin → Access** shows whether Home Assistant is connected. **Disconnect**
-removes its access; it then asks again. Changing the device password does not
-disconnect Home Assistant.
+Home Assistant appears in the **Signed-in devices** list under **Admin →
+Access**. **Disconnect** removes its access; it then asks again. Changing the
+device password does not disconnect Home Assistant.
 
 ## Change the password or sign out
 
@@ -86,8 +86,13 @@ disconnect Home Assistant.
   Assistant stays connected: if you change the password because it leaked,
   also tap **Disconnect** so Home Assistant has to ask again.
 - **Sign out**, at the bottom of every page next to the firmware version,
-  signs out the phone or browser you are using. **Sign out other devices** in
-  Access forgets every remembered device except it.
+  signs out the phone or browser you are using.
+- **Signed-in devices** in Access opens a list of every phone and browser
+  signed in, such as "iPhone · Safari", with when it was last used. Your own
+  device is marked **This device**. Tap a name to rename it, for example
+  "Ana's phone"; Enter saves and Escape cancels. Tap **Sign out** next to any other device
+  and confirm in the same row; **Sign out other devices** at the end signs
+  out all of them at once.
 - **Turn the password off** by switching it off and typing the device
   password. Remembered devices are forgotten and Home Assistant goes back to
   connecting without a password.
