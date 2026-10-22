@@ -421,6 +421,7 @@ if (!rawViewJs.stats.includes('R.escHtml(__WEBUI_TEXT__("runtime.stats_preset_fi
   need(codeIncludes(rawViewJs.admin, 'if (unlocking) return;') && codeIncludes(rawViewJs.setup, 'if (skipping) return;'), 'single submit');
   // FE-L13: politeness set before the text changes.
   const message = blockAt(rawRuntimeJs, 'function message(');
-  need(message.indexOf('setAttribute("aria-live"') < message.indexOf('t.textContent = text'), 'live region order');
+  const live = message.indexOf('setAttribute("aria-live"');
+  need(live >= 0 && live < message.indexOf('t.textContent = text'), 'live region order');
   if (failed.length) throw new Error('Audit F7 contracts failed: ' + failed.join(', '));
 }

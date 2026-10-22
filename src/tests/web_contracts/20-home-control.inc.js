@@ -350,6 +350,10 @@
     const naive=p.map(q=>{const n=p.filter(r=>Math.abs(r.t-q.t)<=1);return [q.t,n.reduce((a,r)=>a+r.cg,0)/n.length/100];});
     smoothFlow({pts:p}).forEach(([t,v],i)=>{if(t!==naive[i][0]||Math.abs(v-naive[i][1])>1e-9)throw new Error('Flow smoothing must equal the ±1 s mean');});
   }
+  // RV-11: points exactly 1 s away are inside the window on both sides.
+  const edge=smoothFlow({pts:[{t:0,cg:100},{t:1,cg:300},{t:2,cg:800}]});
+  if(edge.length!==3||[[0,2],[1,4],[2,5.5]].some(([t,v],i)=>edge[i][0]!==t||Math.abs(edge[i][1]-v)>1e-9))
+    throw new Error('Flow smoothing must include the ±1 s window boundary');
   new Function('fadeFill','document','h','m','smoothFlow',blockAt(runtimeJs,'function renderHeroChart(')+
     ';renderHeroChart(h,m,null,36,"");')(()=>'',{createElement:()=>({style:{}})},chart,
     {segs:[{pts:pts([[6,0],[27,3500]])}],dripSegs:[{pts:pts([[27,3500],[29,3600]])}],timeMax:30,maxW:40,

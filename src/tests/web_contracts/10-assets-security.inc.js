@@ -649,11 +649,11 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // grind-hint and discovery cards) add +1011 measured HTML bytes (93115),
 // owner-authorized 2026-10-14; compressed budgets re-measured below.
 // The Admin webhooks and Diagnostic page option, the Stats sort buttons and the RTTTL test link move from
-// JS-built strings into the partials: 93774, owner-requested 2026-10-21.
+// JS-built strings into the partials: 93774, measured raise of the 2026-10-21 frontend audit remediation.
 // Audit accessibility and form markup (hidden decorative glyphs, named groups and fields, live statuses, unlock form): 94884,
-// owner-requested 2026-10-21.
+// measured raise of the 2026-10-21 frontend audit remediation.
 // The lint gate's markup fixes (quoted attributes, explicit button types, an html-validate directive): 95117,
-// owner-requested 2026-10-21.
+// measured raise of the 2026-10-21 frontend audit remediation.
 // Review fix RV-05 (Admin unlock form leaves validation to the app): measured 95128.
 if (htmlBytes > 95128) {
   throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 95128)`);
@@ -915,14 +915,14 @@ if (htmlBytes > 95128) {
 // The ?fw= landing refreshes the cached shell after an OTA: 482547, owner-requested 2026-10-21.
 // A reconnect keeps the presets it already holds: 482997, owner-requested 2026-10-21.
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect: 483596, owner-requested 2026-10-21.
-// Audit fixes for typed-build saves, log frames during a resync and escaped pill names: 483639, owner-requested 2026-10-21.
-// Audit fixes for the History filter toggle and a single Stats CSV export: 483654, owner-requested 2026-10-21.
-// Audit render fixes (rename kept across polls, keyed Diagnostic tables, append-only log, lazy ruler): 484544, owner-requested 2026-10-21.
-// Audit state fixes (background tab load, view import retry, saved-value override reset, full-screen history): 485892, owner-requested 2026-10-21.
-// Audit OTA fixes (shared API transport, bounded chunk timeout with backoff, profile mismatch text, settled commit records, block-wise image hashing): 486631, owner-requested 2026-10-21.
-// Audit T4 refactors (static Admin/Settings/Stats markup in partials, one Settings change listener, shared Admin section helpers): 481871, owner-requested 2026-10-21.
-// Audit hardening (shared download helper, CSV formula guard, timezone backoff, Setup stop flag, escaped attribute text): 482689, owner-requested 2026-10-21.
-// Audit accessibility, i18n and form fixes (localized Diagnostic and network text, keyboard and focus support): 484816, owner-requested 2026-10-21.
+// Audit fixes for typed-build saves, log frames during a resync and escaped pill names: 483639, measured raise of the 2026-10-21 frontend audit remediation.
+// Audit fixes for the History filter toggle and a single Stats CSV export: 483654, measured raise of the 2026-10-21 frontend audit remediation.
+// Audit render fixes (rename kept across polls, keyed Diagnostic tables, append-only log, lazy ruler): 484544, measured raise of the 2026-10-21 frontend audit remediation.
+// Audit state fixes (background tab load, view import retry, saved-value override reset, full-screen history): 485892, measured raise of the 2026-10-21 frontend audit remediation.
+// Audit OTA fixes (shared API transport, bounded chunk timeout with backoff, profile mismatch text, settled commit records, block-wise image hashing): 486631, measured raise of the 2026-10-21 frontend audit remediation.
+// Audit T4 refactors (static Admin/Settings/Stats markup in partials, one Settings change listener, shared Admin section helpers): 481871, measured raise of the 2026-10-21 frontend audit remediation.
+// Audit hardening (shared download helper, CSV formula guard, timezone backoff, Setup stop flag, escaped attribute text): 482689, measured raise of the 2026-10-21 frontend audit remediation.
+// Audit accessibility, i18n and form fixes (localized Diagnostic and network text, keyboard and focus support): 484816, measured raise of the 2026-10-21 frontend audit remediation.
 // Review fix RV-01 (OTA commit expectation kept when the device stops answering after flash): measured 484909.
 // Review fixes RV-04, RV-07, RV-08, RV-10, RV-12 (no view error on a loaded page, log scroll anchor, pending log
 // level, escaped view text, star radio keys): measured 485695.
@@ -1070,13 +1070,13 @@ if (jsBytes > 485695) {
 // The ?fw= landing refreshes the cached shell after an OTA: 574785, owner-requested 2026-10-21.
 // A reconnect keeps the presets it already holds: 575235, owner-requested 2026-10-21.
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect: 575834, owner-requested 2026-10-21.
-// Audit render fixes (rename kept across polls, keyed Diagnostic tables, append-only log, lazy ruler): 576149, owner-requested 2026-10-21.
-// Audit state fixes (background tab load, view import retry, saved-value override reset, full-screen history): 577497, owner-requested 2026-10-21.
-// Audit OTA fixes (shared API transport, bounded chunk timeout with backoff, profile mismatch text, settled commit records, block-wise image hashing): 578236, owner-requested 2026-10-21.
-// Audit T4 refactors (static Admin/Settings/Stats markup in partials, one Settings change listener, shared Admin section helpers): 575645, owner-requested 2026-10-21.
-// Audit hardening (shared download helper, CSV formula guard, timezone backoff, Setup stop flag, escaped attribute text): 576463, owner-requested 2026-10-21.
-// Audit accessibility, i18n and form fixes (localized Diagnostic and network text, keyboard and focus support): 579700, owner-requested 2026-10-21.
-// The lint gate's markup and lint fixes: 579931, owner-requested 2026-10-21.
+// Audit render fixes (rename kept across polls, keyed Diagnostic tables, append-only log, lazy ruler): 576149, measured raise of the 2026-10-21 frontend audit remediation.
+// Audit state fixes (background tab load, view import retry, saved-value override reset, full-screen history): 577497, measured raise of the 2026-10-21 frontend audit remediation.
+// Audit OTA fixes (shared API transport, bounded chunk timeout with backoff, profile mismatch text, settled commit records, block-wise image hashing): 578236, measured raise of the 2026-10-21 frontend audit remediation.
+// Audit T4 refactors (static Admin/Settings/Stats markup in partials, one Settings change listener, shared Admin section helpers): 575645, measured raise of the 2026-10-21 frontend audit remediation.
+// Audit hardening (shared download helper, CSV formula guard, timezone backoff, Setup stop flag, escaped attribute text): 576463, measured raise of the 2026-10-21 frontend audit remediation.
+// Audit accessibility, i18n and form fixes (localized Diagnostic and network text, keyboard and focus support): 579700, measured raise of the 2026-10-21 frontend audit remediation.
+// The lint gate's markup and lint fixes: 579931, measured raise of the 2026-10-21 frontend audit remediation.
 // Review fix RV-01 (OTA commit expectation kept when the device stops answering after flash): measured 580026.
 // Review fixes RV-03 to RV-12: measured 580823.
 if (htmlBytes + jsBytes > 580823) {

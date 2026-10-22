@@ -606,10 +606,10 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest?v=' + g
 // Loading the opening view during the claim measures 7310, requested with
 // the load-latency plan 2026-10-16. Cap raised to 7330.
 // The audit fixes (lazy quick-weight ruler, background-tab settle, view import
-// retry, modified nav clicks) measure 7387, owner-requested 2026-10-21. Cap
+// retry, modified nav clicks) measure 7387, measured raise of the 2026-10-21 frontend audit remediation. Cap
 // raised to 7400.
 // The audit accessibility fixes (page titles, focus on navigation, modal
-// quick-weight focus) measure 7492, owner-requested 2026-10-21. Cap raised to 7510.
+// quick-weight focus) measure 7492, measured raise of the 2026-10-21 frontend audit remediation. Cap raised to 7510.
 if (generated.jsGzip.length > 7510) {
   throw new Error(`Compressed Web UI shell JS exceeds the 7510-byte gzip budget (${generated.jsGzip.length})`);
 }
@@ -843,9 +843,9 @@ if (generated.cssGzip.length > 15742) {
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect brings it to 40297; owner-requested 2026-10-21.
 // Browser storage keys renamed from the legacy ss prefix to obbw bring it to 40322; rename owner-requested 2026-10-21.
 // The audit hardening (one shared download helper, CSV formula guard and BOM, timezone retry backoff,
-// escaped attribute text) brings it to 40357; owner-requested 2026-10-21.
+// escaped attribute text) brings it to 40357; measured raise of the 2026-10-21 frontend audit remediation.
 // The audit accessibility fixes (keyboard preset cards, named rename field, live message order) bring it
-// to 40442; owner-requested 2026-10-21.
+// to 40442; measured raise of the 2026-10-21 frontend audit remediation.
 // Review fix RV-07 (trimming old log lines keeps a scrolled-back reader in place) brings it to 40444; cap 40460
 // for gzip wobble.
 if (sentinelRuntimeGzip.length > 40460) {
@@ -917,15 +917,15 @@ if (generated.otaImageGzip.length > 3072) {
 // Home and Diagnostic minimal increments move records.js to 15098 through shared text table gzip wobble; owner-requested 2026-10-21.
 // The review fixes move diagnostic.js to 13872 through shared text table gzip wobble; owner-requested 2026-10-21.
 // The audit F1 fixes (escaped consistency pill names, typed-build save guard, unique Settings rename id) measure
-// records.js at 15103 and settings.js at 16808; owner-requested 2026-10-21.
+// records.js at 15103 and settings.js at 16808; measured raise of the 2026-10-21 frontend audit remediation.
 // The audit F2 fixes (single CSV export, History filter toggle, locale-proof averages, rename Cancel) measure
-// records.js at 15108 and settings.js at 16813; owner-requested 2026-10-21.
+// records.js at 15108 and settings.js at 16813; measured raise of the 2026-10-21 frontend audit remediation.
 // The audit render fixes (rated star keeps focus, one curve model per row, keyed Diagnostic tables) measure
-// records.js at 15237 and diagnostic.js at 13904; owner-requested 2026-10-21.
-// The audit OTA fixes move records.js to 15245 through asset-tag gzip wobble (records.js unchanged); cap 15260, owner-requested 2026-10-21.
-// The audit T4 refactors move diagnostic.js to 13906 through gzip wobble; owner-requested 2026-10-21.
-// The Setup watchdog stop flag measures setup.js at 5799; owner-requested 2026-10-21.
-// The audit accessibility and form fixes (Setup focus, labelled choices, single Skip) measure setup.js at 5855 (cap 5870 for asset-tag gzip wobble); owner-requested 2026-10-21.
+// records.js at 15237 and diagnostic.js at 13904; measured raise of the 2026-10-21 frontend audit remediation.
+// The audit OTA fixes move records.js to 15245 through asset-tag gzip wobble (records.js unchanged); cap 15260, measured raise of the 2026-10-21 frontend audit remediation.
+// The audit T4 refactors move diagnostic.js to 13906 through gzip wobble; measured raise of the 2026-10-21 frontend audit remediation.
+// The Setup watchdog stop flag measures setup.js at 5799; measured raise of the 2026-10-21 frontend audit remediation.
+// The audit accessibility and form fixes (Setup focus, labelled choices, single Skip) measure setup.js at 5855 (cap 5870 for asset-tag gzip wobble); measured raise of the 2026-10-21 frontend audit remediation.
 // Review fixes RV-10 and RV-12 (escaped preset filter label, star radio keyboard pattern) measure records.js at
 // 15345 and RV-08 (pending log level) diagnostic.js at 13919; caps 15360 and 13930 for asset-tag gzip wobble.
 const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 14229, settings: 16813, setup: 5870};
