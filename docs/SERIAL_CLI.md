@@ -216,8 +216,8 @@ outcome was successful or failed. The report includes `postWindowMs` and
 `wsWindowMs`. These minima combine stage samples and sampling by the health
 task at approximately 100 ms intervals. Brief dips between samples can be
 missed. `samples=0` means the phase has no measurements, not zero available
-memory. The heap minimum shown by `HEAP` and `HEALTH` is the lifetime minimum
-since boot and may combine region minima reached at different times.
+memory. The heap minimum shown by `HEAP` and `HEALTH` is measured from network
+start and may combine region minima reached at different times.
 
 Release images expose the same capture as the `bootHeap` section of
 `/api/v1/debug/export`: `stages` rows are `[stage,result,ms,free,largest]` and

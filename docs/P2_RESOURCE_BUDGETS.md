@@ -701,9 +701,11 @@ largest block nobody needs; with a 32 KB instruction cache it also left only
 Without it, the wave splits the central run (largest block about 31 KB, above
 the 24 KiB health clear level), both fallbacks stay intact, and the first
 minute after network start keeps about 73-81 KB free. Health, the Home stream,
-the Diagnostic page and the debug export report one lifetime heap minimum
-again; `BOOT_HEAP` and the export's `bootHeap` section start at network start
-and drop the held phase.
+the Diagnostic page and the debug export report one heap minimum, measured from
+network start (ESP-IDF local minimum monitoring): the ESP-IDF v6.1 lifetime
+minimum under-reports by the 32 KB reserve pool (esp-idf#19261). `BOOT_HEAP`
+and the export's `bootHeap` section start at network start and drop the held
+phase.
 It also samples `INTERNAL|DMA`; the overlapping capability pools are not additive.
 First-stage samples and approximately 100 ms health-task samples maintain separate
 hold/post-release minima plus an independent 60-second minimum from the first

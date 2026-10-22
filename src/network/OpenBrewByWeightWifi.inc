@@ -105,6 +105,9 @@ bool OpenBrewByWeightNetwork::startNetwork() {
   dataMux_.unlock();
   publishConfiguredAddressStatus();
   // Boot memory capture starts before Wi-Fi, mDNS and the HTTP server raise.
+  // The published heap minimum starts here too: ESP-IDF v6.1's lifetime
+  // minimum under-reports by the internal reserve pool (esp-idf#19261).
+  (void)heap_caps_monitor_local_minimum_free_size_start();
   recordBootHeap(BootHeapStage::NETWORK_START, BootHeapResult::OK, now, sampleHeapCaps());
   if (settings.staConfigured) {
     startStation(settings, now);
