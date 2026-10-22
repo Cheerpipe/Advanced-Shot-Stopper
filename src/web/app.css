@@ -3353,6 +3353,7 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   align-self: center;
   width: 2.6rem;
   height: 2.6rem;
+  font: 2.6rem/1 a;
 }
 #historyTable td.histIcon svg {
   width: 100%;
