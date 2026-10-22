@@ -87,11 +87,12 @@ Support for a switch model is not certification of a particular espresso
 machine. The firmware's 60 s relay limit and the ability to stop water flow
 are different on momentary machines; read the [stop limitations](docs/settings/momentary.md#stopping-and-time-limits).
 
-This illustration shows the paddle-connector routing used during Micra
-development. It is not a wiring schematic or pinout; verify the actual machine
-circuit and follow the [hardware safety guidance](docs/HARDWARE.md) before installation.
+This illustration shows how the Micra was wired during development: the paddle
+cable, the machine's CN9 and CN4 connectors, and the optional buzzer. It is a
+reference, not a replacement for checking your own machine; verify the actual
+machine circuit and follow the [hardware safety guidance](docs/HARDWARE.md) before installation.
 
-![Micra paddle connector and adapter-cable routing on the relay board](docs/images/micra_diagram.png)
+![Linea Micra wiring: paddle cable, CN9 on the relay, CN4 power and the optional buzzer](docs/images/micra_diagram.png)
 
 ## Main features
 
