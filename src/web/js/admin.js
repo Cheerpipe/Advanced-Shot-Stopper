@@ -638,6 +638,12 @@ function applyAdminStatus(s) {
   $("networkStatus").textContent = formatNetworkStatus(s.network);
   loadNetworkAddress(s.network);
   applyAccessStatus(s.access);
+  // Deep link (Home's access note): its panel exists only once Admin is unlocked.
+  const section = location.hash && $(location.hash.slice(1));
+  if (section?.offsetParent) {
+    history.replaceState(null, "", location.pathname);
+    section.scrollIntoView({ block: "start" });
+  }
   $("apStatus").textContent =
     __WEBUI_TEXT__("runtime.ap") +
     (s.network.apActive ? __WEBUI_TEXT__("runtime.active_2") : __WEBUI_TEXT__("runtime.inactive")) +

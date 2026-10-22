@@ -98,6 +98,9 @@
     assert.ok(codeIncludes(ui, id), `Missing ${id}`);
   }
   assert.ok(codeIncludes(rawRuntimeJs, 'if (data.error === "AUTH_REQUIRED") showSignIn(true);'));
+  // Home's "Set up" lands on the Access panel once Admin is unlocked.
+  assert.ok(codeIncludes(ui, 'href="/admin#accessPanel"') &&
+      blockAt(viewJs.admin, 'function applyAdminStatus(').includes('location.hash'));
   assert.ok(blockAt(rawRuntimeJs, 'function renderHomeStream(').includes('applyPairingPrompt(status.access)') &&
       !blockAt(rawRuntimeJs, 'function applyCommonStatus(').includes('applyPairingPrompt'),
       'Only the Home stream drives the pairing prompt');

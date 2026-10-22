@@ -937,8 +937,9 @@ if (htmlBytes > 99499) {
 // Diagnostic heap-map download (with the shaper Heap min text removed): measured 491070, owner-requested 2026-10-22.
 // Optional Web UI login (session header, sign-in, Access panel, Home notice,
 // Home Assistant pairing prompt): measured 504669, owner-requested 2026-10-22.
-if (jsBytes > 504669) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 504669)`);
+// The Admin deep link from Home's access note: measured 504952, owner-requested 2026-10-22.
+if (jsBytes > 504952) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 504952)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1093,8 +1094,9 @@ if (jsBytes > 504669) {
 // Compact HTML measurement plus the Prettier re-format of drifted JS: measured 585620.
 // Diagnostic heap-map download (with the shaper Heap min text removed): measured 585880, owner-requested 2026-10-22.
 // Optional Web UI login: measured 604168, owner-requested 2026-10-22.
-if (htmlBytes + jsBytes > 604168) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 604168)`);
+// The Admin deep link from Home's access note: measured 604451, owner-requested 2026-10-22.
+if (htmlBytes + jsBytes > 604451) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 604451)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

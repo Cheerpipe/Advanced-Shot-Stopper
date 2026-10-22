@@ -956,8 +956,8 @@ if (generated.otaImageGzip.length > 3072) {
 // 15345 and RV-08 (pending log level) diagnostic.js at 13919; caps 15360 and 13930 for asset-tag gzip wobble.
 // The Admin Access panel (login switch and confirmation sheet, remembered devices, Home Assistant row,
 // sign-out rows) measures admin.js with its markup at 15624, owner-requested 2026-10-22; cap 15640
-// for asset-tag gzip wobble.
-const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 15640, settings: 16813, setup: 5870};
+// for asset-tag gzip wobble. Its deep link to Access after an unlock measures 15703; cap 15720.
+const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 15720, settings: 16813, setup: 5870};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -1164,9 +1164,10 @@ if (coldHomeGzip > 70120) {
   throw new Error(`Cold Home download exceeds the 70120-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
-// owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble.
-if (generated.combined > 149480) {
-  throw new Error(`Combined Web UI gzip exceeds the 149480-byte flash budget (${generated.combined})`);
+// owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin
+// deep link from Home's access note measures 149526; cap 149550.
+if (generated.combined > 149550) {
+  throw new Error(`Combined Web UI gzip exceeds the 149550-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {
