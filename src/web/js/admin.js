@@ -151,7 +151,11 @@ function validateNetworkClient() {
   const ssid = $("staSsid").value,
     open = $("staOpen").checked,
     pw = $("staPassword").value,
-    keep = !!R.uiState.savedStaSsid && ssid === R.uiState.savedStaSsid && !pw && open === R.uiState.savedStaOpen;
+    keep =
+      !!R.uiState.savedStaSsid &&
+      ssid === R.uiState.savedStaSsid &&
+      !pw &&
+      open === R.uiState.savedStaOpen;
   if (!ssid || ssid.length > 32)
     return { id: "staSsid", msg: __WEBUI_TEXT__("runtime.ssid_must_be_1_32_characters") };
   if (open && pw)
@@ -324,7 +328,10 @@ async function startWifiScan() {
       R.message(__WEBUI_TEXT__("runtime.wi_fi_scan_started"), "ok");
       R.uiState.scanTimer = setTimeout(refreshWifiScan, 100);
     } catch (e) {
-      R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_start_wi_fi_scan"), e), "error");
+      R.message(
+        R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_start_wi_fi_scan"), e),
+        "error",
+      );
       $("scanStatus").textContent = __WEBUI_TEXT__("runtime.error");
     }
   });
@@ -337,7 +344,8 @@ function loadNetworkAddress(n) {
   R.uiState.savedStaWifiSleep = !!n.wifiSleep;
   R.uiState.savedDeviceName = n.deviceName || "";
   if ($("deviceName")) $("deviceName").value = R.uiState.savedDeviceName;
-  if ($("staWifiSleep") && !R.uiState.powerDirty) $("staWifiSleep").checked = R.uiState.savedStaWifiSleep;
+  if ($("staWifiSleep") && !R.uiState.powerDirty)
+    $("staWifiSleep").checked = R.uiState.savedStaWifiSleep;
   if (R.uiState.savedStaSsid) {
     $("staSsid").value = R.uiState.savedStaSsid;
     $("staOpen").checked = R.uiState.savedStaOpen;
@@ -524,7 +532,9 @@ function applyAdminStatus(s) {
   if (!R.uiState.bleDirty && $("bleEnabled"))
     $("bleEnabled").checked = !(s.bleScan && s.bleScan.enabled === false);
   if (!R.uiState.bleDirty)
-    R.uiState.bleBaseline = R.snapshotControls(document.querySelectorAll("#blePanel input,#blePanel select"));
+    R.uiState.bleBaseline = R.snapshotControls(
+      document.querySelectorAll("#blePanel input,#blePanel select"),
+    );
   // The switches take their saved values before the baselines are taken, so
   // flipping one and back before the next poll reads as clean.
   for (const id of ["powerManagementEnabled", "showDiagnosticPage"]) {
@@ -634,7 +644,12 @@ function applyOtaStatus(o) {
         __WEBUI_TEXT__("runtime.min_3")
       : __WEBUI_TEXT__("runtime.no_verified_image");
   const ready =
-    R.controlsMutable && o.available && o.safe && o.confirmed && !o.restartPending && !R.uiState.otaBusy;
+    R.controlsMutable &&
+    o.available &&
+    o.safe &&
+    o.confirmed &&
+    !o.restartPending &&
+    !R.uiState.otaBusy;
   $("otaFile").disabled = !ready;
   $("otaVerifyButton").disabled = !ready;
   $("otaFlashButton").disabled = !ready || !staged;
@@ -1004,7 +1019,10 @@ async function otaFlash() {
       otaCommitStore(null);
     otaEndBusy(
       data,
-      R.formatCommandError(__WEBUI_TEXT__("runtime.the_flash_result_is_unverified_reconnect_to"), e),
+      R.formatCommandError(
+        __WEBUI_TEXT__("runtime.the_flash_result_is_unverified_reconnect_to"),
+        e,
+      ),
       "error",
     );
   }
@@ -1031,13 +1049,19 @@ async function setBleScanIntensity() {
   if (!sel) return;
   const wanted = sel.value;
   try {
-    await R.api("/api/v1/admin/ble-scan", { method: "PUT", body: R.body({ scanIntensity: wanted }) });
+    await R.api("/api/v1/admin/ble-scan", {
+      method: "PUT",
+      body: R.body({ scanIntensity: wanted }),
+    });
     R.noteReachOk();
     R.message(__WEBUI_TEXT__("runtime.ble_scan_mode_saved"), "ok");
     await R.refreshStatus();
     return true;
   } catch (x) {
-    R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_ble_scan_mode"), x), "error");
+    R.message(
+      R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_ble_scan_mode"), x),
+      "error",
+    );
     await R.refreshStatus();
     return false;
   }
@@ -1059,7 +1083,10 @@ async function setBleEnabled() {
     return true;
   } catch (x) {
     el.checked = !wanted;
-    R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_ble_setting"), x), "error");
+    R.message(
+      R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_ble_setting"), x),
+      "error",
+    );
     await R.refreshStatus();
     return false;
   }
@@ -1082,7 +1109,10 @@ function ensureUiOverridePanel() {
   if (b && !b.dataset.bound) {
     b.dataset.bound = "1";
     b.onclick = () =>
-      R.api("/api/v1/ui/unlock", { method: "POST", body: R.body({ confirm: "UNSAFE_WEBUI_OVERRIDE" }) })
+      R.api("/api/v1/ui/unlock", {
+        method: "POST",
+        body: R.body({ confirm: "UNSAFE_WEBUI_OVERRIDE" }),
+      })
         .then(() => {
           R.noteReachOk();
           R.message(__WEBUI_TEXT__("runtime.override_on"), "ok");
@@ -1263,9 +1293,13 @@ async function savePowerSettings() {
         ok = false;
       }
     }
-    if (controlChanged("bleScanIntensity", R.uiState.powerBaseline) && !(await setBleScanIntensity()))
+    if (
+      controlChanged("bleScanIntensity", R.uiState.powerBaseline) &&
+      !(await setBleScanIntensity())
+    )
       ok = false;
-    if (controlChanged("staWifiSleep", R.uiState.powerBaseline) && !(await setWifiSleep())) ok = false;
+    if (controlChanged("staWifiSleep", R.uiState.powerBaseline) && !(await setWifiSleep()))
+      ok = false;
     if (ok) sectionDirty("power", false);
   } finally {
     b.classList.remove("busy");
@@ -1290,7 +1324,8 @@ async function saveFrontendSettings() {
       }
     }
     if (controlChanged("uiTheme", R.uiState.frontendBaseline)) R.setTheme($("uiTheme").value);
-    if (controlChanged("heroTint", R.uiState.frontendBaseline)) setHeroTintMode($("heroTint").value);
+    if (controlChanged("heroTint", R.uiState.frontendBaseline))
+      setHeroTintMode($("heroTint").value);
     if (ok) sectionDirty("frontend", false);
   } finally {
     b.classList.remove("busy");

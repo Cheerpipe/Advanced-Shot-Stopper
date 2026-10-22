@@ -154,7 +154,11 @@ function settleView(ok, boot) {
   if (ok) {
     R.hideHomeBoot(boot);
     if (activeView !== "setup") R.ensureBackgroundRecordStreams();
-  } else if (R.webUiPollingActive() && !document.hidden && document.body.classList.contains("pageLoading"))
+  } else if (
+    R.webUiPollingActive() &&
+    !document.hidden &&
+    document.body.classList.contains("pageLoading")
+  )
     R.message(__WEBUI_TEXT__("shell.unable_to_load_view"), "error");
 }
 function navigate(path, replace) {
@@ -219,13 +223,27 @@ function drawPill() {
   for (let k = 0; k < 2; k++)
     for (let i = 0; i < 16; i++) {
       const t = (k - 0.5 + (i - 8) / 8) * Math.PI,
-        x = i <= 8 ? (k ? b + ((a - b) * i) / 8 : a + ((b - a) * i) / 8) : (k ? a : b) + r * Math.cos(t),
+        x =
+          i <= 8
+            ? k
+              ? b + ((a - b) * i) / 8
+              : a + ((b - a) * i) / 8
+            : (k ? a : b) + r * Math.cos(t),
         u = (goo.dir > 0 ? x - x0 : x0 + len - x) / len;
-      p.push([x, goo.cy + (i <= 8 ? (k ? r : -r) : r * Math.sin(t)) *
-        (1 - sp * 0.45 * Math.max(0, 1 - u) ** 1.6 + sp * 0.12 * Math.exp(-(((u - 0.8) / 0.18) ** 2)))]);
+      p.push([
+        x,
+        goo.cy +
+          (i <= 8 ? (k ? r : -r) : r * Math.sin(t)) *
+            (1 -
+              sp * 0.45 * Math.max(0, 1 - u) ** 1.6 +
+              sp * 0.12 * Math.exp(-(((u - 0.8) / 0.18) ** 2))),
+      ]);
     }
   const mid = (i) => p[i % 32].map((v, j) => ((v + p[(i + 1) % 32][j]) / 2).toFixed(1));
-  pillPath.setAttribute("d", p.reduce((d, q, i) => `${d}Q${q.map((v) => v.toFixed(1))} ${mid(i)}`, `M${mid(31)}`));
+  pillPath.setAttribute(
+    "d",
+    p.reduce((d, q, i) => `${d}Q${q.map((v) => v.toFixed(1))} ${mid(i)}`, `M${mid(31)}`),
+  );
 }
 function settlePill() {
   Object.assign(goo, { c: goo.tc, w: goo.tw, cv: 0, wv: 0, sq: 0, sqv: 0, t: 0 });
@@ -234,18 +252,22 @@ function pillTick(now) {
   const dt = goo.t ? Math.min(1 / 30, (now - goo.t) / 1000) : 0;
   goo.t = now;
   for (let n = Math.ceil(dt * 240), i = 0; i < n; i++) {
-    const h = dt / n, v0 = goo.cv;
+    const h = dt / n,
+      v0 = goo.cv;
     if (Math.abs(goo.tc - goo.c) > 2) goo.dir = Math.sign(goo.tc - goo.c);
     for (const k of ["c", "w"]) {
       goo[k + "v"] += ((goo["t" + k] - goo[k]) * 520 - goo[k + "v"] * 31) * h;
       goo[k] += goo[k + "v"] * h;
     }
     const acc = (goo.cv - v0) / h;
-    goo.sqv += (-goo.sq * 400 - goo.sqv * 8.8 + Math.abs(acc) * (acc * goo.cv < 0 ? -3.5e-5 : 3.5e-5)) * h;
+    goo.sqv +=
+      (-goo.sq * 400 - goo.sqv * 8.8 + Math.abs(acc) * (acc * goo.cv < 0 ? -3.5e-5 : 3.5e-5)) * h;
     goo.sq = Math.min(0.25, Math.max(-0.2, goo.sq + goo.sqv * h));
   }
-  const rest = Math.abs(goo.tc - goo.c) + Math.abs(goo.tw - goo.w) < 0.1 &&
-    Math.abs(goo.cv) + Math.abs(goo.wv) < 2 && Math.abs(goo.sq) + Math.abs(goo.sqv) < 0.002;
+  const rest =
+    Math.abs(goo.tc - goo.c) + Math.abs(goo.tw - goo.w) < 0.1 &&
+    Math.abs(goo.cv) + Math.abs(goo.wv) < 2 &&
+    Math.abs(goo.sq) + Math.abs(goo.sqv) < 0.002;
   if (rest) settlePill();
   drawPill();
   pillFrame = rest ? 0 : requestAnimationFrame(pillTick);
@@ -253,7 +275,12 @@ function pillTick(now) {
 function placePill(animate) {
   const a = pill && nav.querySelector("a.active");
   if (!a?.offsetWidth || (drag && dragged)) return;
-  Object.assign(goo, { tc: a.offsetLeft + a.offsetWidth / 2, tw: a.offsetWidth, cy: a.offsetTop + a.offsetHeight / 2, h: a.offsetHeight / 2 });
+  Object.assign(goo, {
+    tc: a.offsetLeft + a.offsetWidth / 2,
+    tw: a.offsetWidth,
+    cy: a.offsetTop + a.offsetHeight / 2,
+    h: a.offsetHeight / 2,
+  });
   if (pillPlaced && animate && !still.matches) pillFrame ||= requestAnimationFrame(pillTick);
   else {
     pillPlaced = true;
@@ -327,7 +354,12 @@ if (nav) {
   new ResizeObserver(sizeHeader).observe(document.querySelector(".topBar"));
   const pillAnchor = new ResizeObserver(() => {
     const a = nav.querySelector("a.active"); // Bold active labels resize their links; placement already targets the post-toggle geometry, so only real resizes re-anchor
-    if (a && goo.tw === a.offsetWidth && goo.tc === a.offsetLeft + a.offsetWidth / 2 && goo.h === a.offsetHeight / 2)
+    if (
+      a &&
+      goo.tw === a.offsetWidth &&
+      goo.tc === a.offsetLeft + a.offsetWidth / 2 &&
+      goo.h === a.offsetHeight / 2
+    )
       return;
     placePill(false);
   });

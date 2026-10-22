@@ -494,17 +494,18 @@ function renderLineaMicraDiagnostic() {
       ? Math.floor((boiler.sampleAgeMs + Math.max(0, Date.now() - lm.receivedAtMs)) / 1000)
       : 0,
     readinessLabel = __WEBUI_TEXT__("diagnostic.readiness_states").split("|")[
-      ["off", "warming_up", "waiting_for_steam", "ready", "needs_water", "unknown"].indexOf(lm.readiness)
+      ["off", "warming_up", "waiting_for_steam", "ready", "needs_water", "unknown"].indexOf(
+        lm.readiness,
+      )
     ],
-    waterLabel = __WEBUI_TEXT__("diagnostic.water_states").split("|")[
-      [coffee.state, steam.state].includes("no_water")
-        ? 1
-        : [coffee.state, steam.state].some(
-              (x) => x && x !== "unknown" && x !== "unsupported",
-            )
-          ? 0
-          : 2
-    ],
+    waterLabel =
+      __WEBUI_TEXT__("diagnostic.water_states").split("|")[
+        [coffee.state, steam.state].includes("no_water")
+          ? 1
+          : [coffee.state, steam.state].some((x) => x && x !== "unknown" && x !== "unsupported")
+            ? 0
+            : 2
+      ],
     // The absolute readyAt timestamp lets the remaining time tick locally
     // without stream frames; the sample age interpolates the same way.
     boilerRow = (b, qualifier) => {
@@ -1087,9 +1088,7 @@ function auditTime(wallSec) {
   const d = new Date(wallSec * 1000),
     now = new Date(),
     sameDay = d.toDateString() === now.toDateString();
-  return sameDay
-    ? d.toLocaleTimeString()
-    : d.toLocaleDateString() + " " + d.toLocaleTimeString();
+  return sameDay ? d.toLocaleTimeString() : d.toLocaleDateString() + " " + d.toLocaleTimeString();
 }
 function applyAudit(a) {
   const body = $("auditBody");
@@ -1104,10 +1103,7 @@ function applyAudit(a) {
       : (a.retained || 0) + " " + __WEBUI_TEXT__("diagnostic.audit_kept")) +
     (a.dropped || a.rateLimited
       ? " · " +
-        __WEBUI_TEXT__("diagnostic.audit_dropped").replace(
-          "{d}",
-          a.dropped || 0,
-        ) +
+        __WEBUI_TEXT__("diagnostic.audit_dropped").replace("{d}", a.dropped || 0) +
         " / " +
         (a.rateLimited || 0)
       : "") +
@@ -1134,10 +1130,7 @@ function applyAudit(a) {
   if (key === auditRenderedKey) return;
   auditRenderedKey = key;
   auditItems = items.slice().reverse();
-  auditPage = Math.min(
-    auditPage,
-    Math.max(0, Math.ceil(auditItems.length / AUDIT_PAGE_SIZE) - 1),
-  );
+  auditPage = Math.min(auditPage, Math.max(0, Math.ceil(auditItems.length / AUDIT_PAGE_SIZE) - 1));
   renderAuditPage();
 }
 function renderAuditPage() {
@@ -1160,8 +1153,8 @@ function renderAuditPage() {
       }
     };
     row.append(
-      ...[auditTime(item.wallSec), item.level, item.code, item.text || "—"].map(
-        (text) => Object.assign(document.createElement("td"), { textContent: text }),
+      ...[auditTime(item.wallSec), item.level, item.code, item.text || "—"].map((text) =>
+        Object.assign(document.createElement("td"), { textContent: text }),
       ),
     );
   }
@@ -1191,8 +1184,7 @@ function toggleAuditDetail(row, item) {
     : __WEBUI_TEXT__("diagnostic.audit_no_clock");
   for (const text of [
     __WEBUI_TEXT__("diagnostic.audit_when") + ": " + when,
-    __WEBUI_TEXT__("diagnostic.audit_level") + ": " + item.level +
-      " · " + item.category,
+    __WEBUI_TEXT__("diagnostic.audit_level") + ": " + item.level + " · " + item.category,
     __WEBUI_TEXT__("diagnostic.audit_event") + ": " + item.code,
     __WEBUI_TEXT__("diagnostic.audit_detail") + ": " + (item.text || "—"),
   ]) {
@@ -1238,10 +1230,7 @@ async function toggleAuditHunt() {
       "ok",
     );
   } catch (e) {
-    R.message(
-      R.formatCommandError(__WEBUI_TEXT__("diagnostic.audit_hunt_failed"), e),
-      "error",
-    );
+    R.message(R.formatCommandError(__WEBUI_TEXT__("diagnostic.audit_hunt_failed"), e), "error");
   } finally {
     auditBusy = false;
     await R.refreshStatus();
@@ -1257,7 +1246,11 @@ async function emptyAudit() {
       timeoutMs: 12e4,
     }).then(
       () => (R.message(__WEBUI_TEXT__("diagnostic.audit_cleared"), "ok"), true),
-      (e) => R.message(R.formatCommandError(__WEBUI_TEXT__("diagnostic.audit_clear_failed"), e), "error"),
+      (e) =>
+        R.message(
+          R.formatCommandError(__WEBUI_TEXT__("diagnostic.audit_clear_failed"), e),
+          "error",
+        ),
     ),
   );
   auditBusy = false;
@@ -1278,7 +1271,8 @@ function saveLogLevel(id) {
 export function applyStatus(s) {
   applyDiagnosticStatus(s);
   logLevels = s?.config;
-  for (const id of LOG_LEVELS) if ($(id) && !$(id).dataset.pending) $(id).value = logLevels?.[id] || "none";
+  for (const id of LOG_LEVELS)
+    if ($(id) && !$(id).dataset.pending) $(id).value = logLevels?.[id] || "none";
   if (!s || !(s.adminUnlocked || s.diagnosticPublic)) return;
   if (__LINEA_MICRA__ && s.lineaMicra) renderMicraCloudDiagnostic(s.lineaMicra);
   const sc = s.scale || {};
@@ -1563,8 +1557,8 @@ async function downloadCrashes() {
       gzip = typeof CompressionStream === "function";
     if (gzip) R.message(__WEBUI_TEXT__("diagnostic.compressing"));
     const blob = gzip
-        ? await new Response(tar.stream().pipeThrough(new CompressionStream("gzip"))).blob()
-        : tar;
+      ? await new Response(tar.stream().pipeThrough(new CompressionStream("gzip"))).blob()
+      : tar;
     saveFile(blob, "crashes.tar" + (gzip ? ".gz" : ""));
     R.message(__WEBUI_TEXT__("diagnostic.ok"), "ok");
   } catch (e) {
@@ -1584,7 +1578,11 @@ async function emptyCrashes() {
       timeoutMs: 12e4,
     }).then(
       () => (R.message(__WEBUI_TEXT__("diagnostic.crashes_emptied"), "ok"), true),
-      (e) => R.message(R.formatCommandError(__WEBUI_TEXT__("diagnostic.crash_empty_failed"), e), "error"),
+      (e) =>
+        R.message(
+          R.formatCommandError(__WEBUI_TEXT__("diagnostic.crash_empty_failed"), e),
+          "error",
+        ),
     ),
   );
   crashBusy = false;

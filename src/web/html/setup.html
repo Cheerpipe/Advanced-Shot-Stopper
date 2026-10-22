@@ -1,4 +1,7 @@
-<div class="setupBrand brand" aria-hidden="true"><svg class="brandMark" viewBox="0 0 40 56"><use href="#brandMark"/></svg><span><small>{{webui:setup.open_brew}}</small>{{webui:setup.by_weight}}</span></div>
+<div class="setupBrand brand" aria-hidden="true">
+  <svg class="brandMark" viewBox="0 0 40 56"><use href="#brandMark" /></svg
+  ><span><small>{{webui:setup.open_brew}}</small>{{webui:setup.by_weight}}</span>
+</div>
 <section class="setupCard" id="setupCard">
   <h1 id="setupTitle" tabindex="-1">{{webui:setup.title}}</h1>
   <p class="setupIntro" id="setupIntro">{{webui:setup.intro}}</p>
@@ -9,22 +12,66 @@
   </div>
   <div id="setupMode" hidden>
     <fieldset class="setupChoices" aria-labelledby="setupTitle">
-      <label class="setupChoice"><input type="radio" name="setupMode" value="usual" checked><span><b>{{webui:setup.mode_usual}}</b><small>{{webui:setup.mode_usual_hint}}</small></span></label>
-      <label class="setupChoice"><input type="radio" name="setupMode" value="weight"><span><b>{{webui:setup.mode_weight}}</b> <span class="presetCardBadge">{{webui:setup.recommended}}</span><small>{{webui:setup.mode_weight_hint}}</small></span></label>
+      <label class="setupChoice"
+        ><input type="radio" name="setupMode" value="usual" checked /><span
+          ><b>{{webui:setup.mode_usual}}</b><small>{{webui:setup.mode_usual_hint}}</small></span
+        ></label
+      >
+      <label class="setupChoice"
+        ><input type="radio" name="setupMode" value="weight" /><span
+          ><b>{{webui:setup.mode_weight}}</b>
+          <span class="presetCardBadge">{{webui:setup.recommended}}</span
+          ><small>{{webui:setup.mode_weight_hint}}</small></span
+        ></label
+      >
     </fieldset>
     <p class="fieldHint">{{webui:setup.mode_later}}</p>
     <button type="button" id="setupModeNext" class="setupPrimary">{{webui:setup.continue}}</button>
   </div>
   <div id="setupRecipe" hidden>
     <fieldset class="setupChoices" aria-labelledby="setupTitle">
-      <label class="setupChoice"><input type="radio" name="setupRecipe" value="255" checked><span><b>{{webui:setup.recipe_manual}}</b><small>{{webui:setup.recipe_manual_hint}}</small></span></label>
-      <label class="setupChoice"><input type="radio" name="setupRecipe" value="1"><span><b>{{webui:setup.recipe_double_adaptive}}</b> <span class="presetCardBadge">{{webui:setup.recommended}}</span><small>{{webui:setup.recipe_double_numbers}}</small><small>{{webui:setup.recipe_double_adaptive_hint}}</small></span></label>
-      <label class="setupChoice"><input type="radio" name="setupRecipe" value="2"><span><b>{{webui:setup.recipe_single_adaptive}}</b><small>{{webui:setup.recipe_single_numbers}}</small><small>{{webui:setup.recipe_single_adaptive_hint}}</small></span></label>
-      <label class="setupChoice"><input type="radio" name="setupRecipe" value="3"><span><b>{{webui:setup.recipe_double_fixed}}</b><small>{{webui:setup.recipe_double_numbers}}</small><small>{{webui:setup.recipe_double_fixed_hint}}</small></span></label>
-      <label class="setupChoice"><input type="radio" name="setupRecipe" value="4"><span><b>{{webui:setup.recipe_single_fixed}}</b><small>{{webui:setup.recipe_single_numbers}}</small><small>{{webui:setup.recipe_single_fixed_hint}}</small></span></label>
+      <label class="setupChoice"
+        ><input type="radio" name="setupRecipe" value="255" checked /><span
+          ><b>{{webui:setup.recipe_manual}}</b
+          ><small>{{webui:setup.recipe_manual_hint}}</small></span
+        ></label
+      >
+      <label class="setupChoice"
+        ><input type="radio" name="setupRecipe" value="1" /><span
+          ><b>{{webui:setup.recipe_double_adaptive}}</b>
+          <span class="presetCardBadge">{{webui:setup.recommended}}</span
+          ><small>{{webui:setup.recipe_double_numbers}}</small
+          ><small>{{webui:setup.recipe_double_adaptive_hint}}</small></span
+        ></label
+      >
+      <label class="setupChoice"
+        ><input type="radio" name="setupRecipe" value="2" /><span
+          ><b>{{webui:setup.recipe_single_adaptive}}</b
+          ><small>{{webui:setup.recipe_single_numbers}}</small
+          ><small>{{webui:setup.recipe_single_adaptive_hint}}</small></span
+        ></label
+      >
+      <label class="setupChoice"
+        ><input type="radio" name="setupRecipe" value="3" /><span
+          ><b>{{webui:setup.recipe_double_fixed}}</b
+          ><small>{{webui:setup.recipe_double_numbers}}</small
+          ><small>{{webui:setup.recipe_double_fixed_hint}}</small></span
+        ></label
+      >
+      <label class="setupChoice"
+        ><input type="radio" name="setupRecipe" value="4" /><span
+          ><b>{{webui:setup.recipe_single_fixed}}</b
+          ><small>{{webui:setup.recipe_single_numbers}}</small
+          ><small>{{webui:setup.recipe_single_fixed_hint}}</small></span
+        ></label
+      >
     </fieldset>
-    <button type="button" id="setupRecipeNext" class="setupPrimary">{{webui:setup.continue}}</button>
-    <button type="button" id="setupRecipeBack" class="textLock setupBack">{{webui:setup.back}}</button>
+    <button type="button" id="setupRecipeNext" class="setupPrimary">
+      {{webui:setup.continue}}
+    </button>
+    <button type="button" id="setupRecipeBack" class="textLock setupBack">
+      {{webui:setup.back}}
+    </button>
   </div>
   <div id="setupScanning" class="setupState" hidden>
     <span class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
@@ -33,22 +80,47 @@
   <form id="setupForm" hidden>
     <label for="setupNetwork">{{webui:setup.network}}</label>
     <select id="setupNetwork" autocomplete="off"></select>
-    <button type="button" id="setupSearchAgain" class="textLock">{{webui:setup.search_again}}</button>
+    <button type="button" id="setupSearchAgain" class="textLock">
+      {{webui:setup.search_again}}
+    </button>
     <label id="setupManualLabel" for="setupManualSsid" hidden>{{webui:setup.network_name}}</label>
-    <input type="text" id="setupManualSsid" maxlength="32" autocomplete="off" spellcheck="false" hidden>
-    <label class="setupHiddenToggle"><input type="checkbox" id="setupHiddenToggle"><span>{{webui:setup.my_network_is_not_listed}}</span></label>
+    <input
+      type="text"
+      id="setupManualSsid"
+      maxlength="32"
+      autocomplete="off"
+      spellcheck="false"
+      hidden
+    />
+    <label class="setupHiddenToggle"
+      ><input type="checkbox" id="setupHiddenToggle" /><span
+        >{{webui:setup.my_network_is_not_listed}}</span
+      ></label
+    >
     <div id="setupPasswordWrap">
       <div class="setupPassRow">
         <label for="setupPassword">{{webui:setup.password}}</label>
-        <button type="button" id="setupPasswordShow" class="setupPassToggle" aria-pressed="false">{{webui:setup.show}}</button>
+        <button type="button" id="setupPasswordShow" class="setupPassToggle" aria-pressed="false">
+          {{webui:setup.show}}
+        </button>
       </div>
-      <input type="password" id="setupPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="63">
+      <input
+        type="password"
+        id="setupPassword"
+        autocomplete="current-password"
+        autocapitalize="off"
+        autocorrect="off"
+        spellcheck="false"
+        maxlength="63"
+      />
     </div>
     <p class="fieldHint">{{webui:setup.band_hint}}</p>
     <p class="fieldError" id="setupFieldError" hidden></p>
     <button type="submit" id="setupConnect" class="setupPrimary">{{webui:setup.connect}}</button>
     <button type="button" id="setupSkip" class="textLock">{{webui:setup.skip}}</button>
-    <button type="button" id="setupFormBack" class="textLock setupBack" hidden>{{webui:setup.back}}</button>
+    <button type="button" id="setupFormBack" class="textLock setupBack" hidden>
+      {{webui:setup.back}}
+    </button>
   </form>
   <div id="setupConnecting" class="setupState" hidden>
     <span class="bootWave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
@@ -60,9 +132,22 @@
     <p class="setupCheck" aria-hidden="true">&#10003;</p>
     <p id="setupSuccessText"></p>
     <dl id="setupSummary" class="setupSummary" hidden>
-      <div><dt>{{webui:setup.summary_brewing}}</dt><dd id="setupSumMode"></dd><button type="button" id="setupChangeMode" class="textLock">{{webui:setup.change}}</button></div>
-      <div id="setupSumRecipeRow"><dt>{{webui:setup.summary_recipe}}</dt><dd id="setupSumRecipe"></dd><button type="button" id="setupChangeRecipe" class="textLock">{{webui:setup.change}}</button></div>
-      <div><dt>{{webui:setup.summary_wifi}}</dt><dd id="setupSumWifi"></dd></div>
+      <div>
+        <dt>{{webui:setup.summary_brewing}}</dt>
+        <dd id="setupSumMode"></dd>
+        <button type="button" id="setupChangeMode" class="textLock">{{webui:setup.change}}</button>
+      </div>
+      <div id="setupSumRecipeRow">
+        <dt>{{webui:setup.summary_recipe}}</dt>
+        <dd id="setupSumRecipe"></dd>
+        <button type="button" id="setupChangeRecipe" class="textLock">
+          {{webui:setup.change}}
+        </button>
+      </div>
+      <div>
+        <dt>{{webui:setup.summary_wifi}}</dt>
+        <dd id="setupSumWifi"></dd>
+      </div>
     </dl>
     <p id="setupRestartNote" class="setupNote" hidden>{{webui:setup.note_restart}}</p>
     <p id="setupNextStep"></p>

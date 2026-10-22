@@ -73,7 +73,11 @@ const polling = () => formLike(state) || state === "connecting";
 const byWeight = () => document.querySelector("input[name=setupMode]:checked").value === "weight";
 const recipeInput = () => document.querySelector("input[name=setupRecipe]:checked");
 const brewPayload = () =>
-  !compat ? {} : byWeight() ? { brewByWeight: true, presetId: Number(recipeInput().value) } : { brewByWeight: false };
+  !compat
+    ? {}
+    : byWeight()
+      ? { brewByWeight: true, presetId: Number(recipeInput().value) }
+      : { brewByWeight: false };
 
 function show(name) {
   state = name;
@@ -81,7 +85,9 @@ function show(name) {
   let [title, intro] = HEADINGS[formLike(name) ? (connectError ? "error" : "form") : name];
   if (compat && name === "success") title = __WEBUI_TEXT__("setup.title_all_set");
   if (compat && formLike(name) && !connectError)
-    intro = byWeight() ? __WEBUI_TEXT__("setup.wifi_intro_weight") : __WEBUI_TEXT__("setup.wifi_intro_usual");
+    intro = byWeight()
+      ? __WEBUI_TEXT__("setup.wifi_intro_weight")
+      : __WEBUI_TEXT__("setup.wifi_intro_usual");
   $("setupFormBack").hidden = !compat;
   $("setupTitle").textContent = title;
   $("setupIntro").textContent = intro;
@@ -110,7 +116,8 @@ function clearError() {
 }
 
 function setBlocked(reason) {
-  blocked = reason && reason !== "none" ? BLOCKED[reason] || __WEBUI_TEXT__("setup.blocked_busy") : "";
+  blocked =
+    reason && reason !== "none" ? BLOCKED[reason] || __WEBUI_TEXT__("setup.blocked_busy") : "";
   $("setupBlocked").textContent = blocked;
   $("setupBlocked").hidden = !blocked || !formLike(state);
   $("setupConnect").disabled = $("setupSearchAgain").disabled = !!blocked;
@@ -157,14 +164,12 @@ function renderPicker(networks) {
     const option = document.createElement("option");
     option.value = n.ssid;
     option.dataset.open = String(n.open);
-    option.textContent =
-      n.open
-        ? signalGlyph(n.rssi) + "  " + n.ssid
-        : signalGlyph(n.rssi) + "  " + n.ssid + "  🔒";
+    option.textContent = n.open
+      ? signalGlyph(n.rssi) + "  " + n.ssid
+      : signalGlyph(n.rssi) + "  " + n.ssid + "  🔒";
     select.appendChild(option);
   }
-  if (previous && [...select.options].some((o) => o.value === previous))
-    select.value = previous;
+  if (previous && [...select.options].some((o) => o.value === previous)) select.value = previous;
   syncPasswordVisibility();
 }
 
@@ -251,7 +256,11 @@ function applyStatus(s) {
   lastPhase = n.setup || "";
   setBlocked(s.configMutable === false ? s.configLockReason : "");
   if (!polling()) return;
-  if (lastPhase === "joined" || lastPhase === "confirmed" || (n.apClosingMs > 0 && n.staState === "CONNECTED"))
+  if (
+    lastPhase === "joined" ||
+    lastPhase === "confirmed" ||
+    (n.apClosingMs > 0 && n.staState === "CONNECTED")
+  )
     return showSuccess(n);
   if (lastPhase === "queued" || lastPhase === "connecting") {
     if (state !== "connecting") showConnecting(n.ssid || "");
@@ -419,12 +428,16 @@ function showSummary() {
     : __WEBUI_TEXT__("setup.brewing_usual");
   $("setupSumRecipeRow").hidden = !weight;
   $("setupSumRecipe").textContent = recipeInput().closest("label").querySelector("b").textContent;
-  $("setupSumWifi").textContent = joined ? $("setupSuccessText").dataset.ssid : __WEBUI_TEXT__("setup.wifi_none");
+  $("setupSumWifi").textContent = joined
+    ? $("setupSuccessText").dataset.ssid
+    : __WEBUI_TEXT__("setup.wifi_none");
   $("setupRestartNote").hidden = !weight;
   const later = !compat
     ? ""
     : weight
-      ? joined ? "" : __WEBUI_TEXT__("setup.note_weight_no_wifi")
+      ? joined
+        ? ""
+        : __WEBUI_TEXT__("setup.note_weight_no_wifi")
       : joined
         ? __WEBUI_TEXT__("setup.note_usual_wifi")
         : __WEBUI_TEXT__("setup.note_usual_no_wifi").replace("{x}", () => apSsid);

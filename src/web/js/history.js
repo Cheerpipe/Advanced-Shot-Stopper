@@ -37,7 +37,9 @@ const syncHistoryDirButton = () => {
   i.textContent =
     __WEBUI_TEXT__("stats.date") +
     " " +
-    (R.uiState.historyDir === "desc" ? __WEBUI_TEXT__("runtime.down") : __WEBUI_TEXT__("runtime.symbol_5"));
+    (R.uiState.historyDir === "desc"
+      ? __WEBUI_TEXT__("runtime.down")
+      : __WEBUI_TEXT__("runtime.symbol_5"));
 };
 const toggleHistoryDir = () => {
   R.uiState.historyDir = R.uiState.historyDir === "desc" ? "asc" : "desc";
@@ -106,7 +108,8 @@ function renderHistory() {
     "historyTableState",
     rows.length
       ? null
-      : historyTypeFilter.size && (R.uiState.historyData.records.length || R.uiState.historyData.hasMore)
+      : historyTypeFilter.size &&
+          (R.uiState.historyData.records.length || R.uiState.historyData.hasMore)
         ? __WEBUI_TEXT__("runtime.no_activations_match_filter")
         : __WEBUI_TEXT__("runtime.no_recorded_activations_yet"),
   );
@@ -122,8 +125,10 @@ async function deleteOneHistory(id) {
     try {
       await R.api("/api/v1/history/delete", { method: "POST", body: R.body({ id }) });
       R.uiState.historyData.records = R.uiState.historyData.records.filter((r) => r.id !== id);
-      if (typeof R.uiState.historyData.total === "number" && R.uiState.historyData.total > 0) R.uiState.historyData.total--;
-      R.uiState.historyData.hasMore = R.uiState.historyData.records.length < R.uiState.historyData.total;
+      if (typeof R.uiState.historyData.total === "number" && R.uiState.historyData.total > 0)
+        R.uiState.historyData.total--;
+      R.uiState.historyData.hasMore =
+        R.uiState.historyData.records.length < R.uiState.historyData.total;
       renderHistory();
       R.message(__WEBUI_TEXT__("runtime.history_record_deleted"), "ok");
     } catch (e) {
@@ -208,7 +213,9 @@ function buildHistoryFilterPanel() {
   }
   p.addEventListener("change", (e) => {
     if (e.target.type !== "checkbox") return;
-    e.target.checked ? historyTypeFilter.add(e.target.value) : historyTypeFilter.delete(e.target.value);
+    e.target.checked
+      ? historyTypeFilter.add(e.target.value)
+      : historyTypeFilter.delete(e.target.value);
     applyHistoryTypeFilter();
   });
   p.hidden = true;
@@ -226,8 +233,10 @@ function placeHistoryFilterPanel() {
       ? r.bottom + 8
       : Math.max(8, r.top - p.offsetHeight - 8)) + "px";
   p.style.left =
-    Math.min(Math.max(8, r.left + r.width / 2 - p.offsetWidth / 2), innerWidth - p.offsetWidth - 8) +
-    "px";
+    Math.min(
+      Math.max(8, r.left + r.width / 2 - p.offsetWidth / 2),
+      innerWidth - p.offsetWidth - 8,
+    ) + "px";
 }
 function toggleHistoryFilter(force) {
   const b = $("historyFilterButton");
@@ -251,18 +260,25 @@ async function clearActivationHistory() {
         method: "POST",
         body: R.body({ confirm: "CLEAR_HISTORY" }),
       });
-      R.uiState.historyData = { bootId: R.uiState.historyData.bootId || 0, total: 0, hasMore: false, records: [] };
+      R.uiState.historyData = {
+        bootId: R.uiState.historyData.bootId || 0,
+        total: 0,
+        hasMore: false,
+        records: [],
+      };
       renderHistory();
       R.message(__WEBUI_TEXT__("runtime.activation_history_cleared"), "ok");
     } catch (e) {
-      R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_clear_history"), e), "error");
+      R.message(
+        R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_clear_history"), e),
+        "error",
+      );
     }
   });
 }
 // CSV export rides the standing subscription's one-shot fetch windows, like
 // the Stats export: one window at a time, superseded (resolved empty) whenever
 // a re-subscribe claims the session fetch slot.
-
 
 function fetchHistoryWindow(offset) {
   return new Promise((resolve) => {
@@ -287,9 +303,7 @@ async function exportActivationHistory() {
   try {
     if (!R.shotWs || R.shotWs.readyState !== 1)
       throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
-    const rows = [
-      ["id", "local_time", "ended_at_unix_sec", "has_wall_time", "duration_s", "type"],
-    ];
+    const rows = [["id", "local_time", "ended_at_unix_sec", "has_wall_time", "duration_s", "type"]];
     let offset = 0,
       total = Infinity,
       hasMore = true;

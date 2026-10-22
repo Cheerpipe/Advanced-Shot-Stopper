@@ -14,9 +14,10 @@ function micraBoilerText(lm, boiler) {
   const data = lm.boiler ? lm.boiler[boiler] : null;
   const state = data ? data.state : "";
   if (state === "ready") return __WEBUI_TEXT__("runtime.ready_2");
-  const label = __WEBUI_TEXT__("home.boiler_states").split("|")[
-    ["heating_up", "no_water", "eco", "off", "standby"].indexOf(state)
-  ];
+  const label =
+    __WEBUI_TEXT__("home.boiler_states").split("|")[
+      ["heating_up", "no_water", "eco", "off", "standby"].indexOf(state)
+    ];
   if (!label) return __WEBUI_TEXT__("runtime.unknown");
   return state === "heating_up" || state === "eco" ? label + readyIn(minsLeft(data)) : label;
 }
@@ -51,7 +52,11 @@ function renderMicraBoilers() {
 export function applyStatus(s) {
   R.applyHomeStatus(s);
   setRowValue("scaleRow", $("scaleWeight").textContent, $("preferredScale").textContent);
-  setRowValue("cupRow", $("cupWeight").textContent, s.scale?.available ? "" : __WEBUI_TEXT__("home.needs_scale"));
+  setRowValue(
+    "cupRow",
+    $("cupWeight").textContent,
+    s.scale?.available ? "" : __WEBUI_TEXT__("home.needs_scale"),
+  );
   const brewing = ["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state);
   if (quickWeight && brewing) quickWeight.close();
   // URL launcher: on a controller with no shots yet the hero card is absent,
@@ -118,7 +123,16 @@ function renderMachineRow(s) {
       : target > 0
         ? [target + "°C", __WEBUI_TEXT__("home.brew_temperature")]
         : micraActive
-          ? ["—", off ? __WEBUI_TEXT__("home.turn_on_to_brew") : needsWater ? __WEBUI_TEXT__("home.refill_tank") : power.startsWith("ON ") ? __WEBUI_TEXT__("home.starting_up") : ""]
+          ? [
+              "—",
+              off
+                ? __WEBUI_TEXT__("home.turn_on_to_brew")
+                : needsWater
+                  ? __WEBUI_TEXT__("home.refill_tank")
+                  : power.startsWith("ON ")
+                    ? __WEBUI_TEXT__("home.starting_up")
+                    : "",
+            ]
           : ["", ""]),
   );
   row.classList.toggle("lampWarn", warming);
@@ -162,7 +176,8 @@ export function init() {
       R.renameScale();
     };
   if ($("grindHintNewBeans")) $("grindHintNewBeans").onclick = () => R.startNewCoffee();
-  if ($("grindHintLater")) $("grindHintLater").onclick = () => R.dismissCard($("grindHintCard").dataset.key);
+  if ($("grindHintLater"))
+    $("grindHintLater").onclick = () => R.dismissCard($("grindHintCard").dataset.key);
   if ($("micraCloudHint")) {
     $("micraCloudHintOpen").onclick = (e) => {
       e.preventDefault();
@@ -193,7 +208,10 @@ function renderReadyMsg(s, lm) {
         : g.mode === "require_scale"
           ? __WEBUI_TEXT__("home.no_scale_required")
           : __WEBUI_TEXT__("home.no_scale_warn")
-      : s.machineIntegration === "linea_micra_cloud" && lm?.accountConfigured && lm.observeState && lm.readiness === "warming_up"
+      : s.machineIntegration === "linea_micra_cloud" &&
+          lm?.accountConfigured &&
+          lm.observeState &&
+          lm.readiness === "warming_up"
         ? __WEBUI_TEXT__("home.machine_warming") + readyIn(minsLeft(lm.boiler?.coffee))
         : "";
   if (text && msg.textContent !== text) msg.textContent = text;
@@ -291,7 +309,10 @@ function initQuickWeight() {
     // of the target and the extra yield within the 200 g maximum.
     const slow = !!preset.slowExtractionGuardEnabled && Number.isFinite(+preset.slowMarginG),
       fast = !!preset.fastExtractionGuardEnabled && Number.isFinite(+preset.fastMarginG);
-    lo = Math.ceil(Math.max(MIN, slow ? +preset.slowMarginG + 5 : 0, fast ? 4 * preset.fastMarginG : 0) * 10 - 1e-6);
+    lo = Math.ceil(
+      Math.max(MIN, slow ? +preset.slowMarginG + 5 : 0, fast ? 4 * preset.fastMarginG : 0) * 10 -
+        1e-6,
+    );
     hi = Math.floor((MAX - (fast ? +preset.fastMarginG : 0)) * 10 + 1e-6);
     if (hi < lo) {
       lo = MIN * 10;
@@ -335,10 +356,7 @@ function initQuickWeight() {
       // keep describing the real saved state.
       if (!(await R.saveBrewPreset(undefined, undefined, true))) field.value = rejected;
     } catch (e) {
-      R.message(
-        R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_preset"), e),
-        "error",
-      );
+      R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_preset"), e), "error");
     }
   };
   const close = (save) => {
@@ -470,7 +488,14 @@ function initQuickWeight() {
     paint();
   };
   zone.addEventListener("keydown", (e) => {
-    const step = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1, PageUp: 10, PageDown: -10 }[e.key];
+    const step = {
+      ArrowUp: 1,
+      ArrowRight: 1,
+      ArrowDown: -1,
+      ArrowLeft: -1,
+      PageUp: 10,
+      PageDown: -10,
+    }[e.key];
     if (!step) return;
     e.preventDefault();
     nudge(step);

@@ -104,7 +104,7 @@ function refreshBrewWarnings() {
   if (sig === R.uiState.brewWarnSig) return;
   R.uiState.brewWarnSig = sig;
   R.clearBrewWarningsDom();
-  for (const {id, msg} of warnings) {
+  for (const { id, msg } of warnings) {
     const el = $(id);
     if (!el) continue;
     el.classList.add("fieldWarn");
@@ -451,7 +451,8 @@ async function saveMachineConfig() {
     )
       throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));
     if (
-      JSON.stringify(R.snapshotControls(R.settingsSectionEls("config"))) === JSON.stringify(snapshot)
+      JSON.stringify(R.snapshotControls(R.settingsSectionEls("config"))) ===
+      JSON.stringify(snapshot)
     ) {
       if (sel) sel.dataset.pending = "0";
       R.uiState.configDirty = false;
@@ -496,7 +497,8 @@ function renderMicraMachines(machines, canEdit) {
       ...machines.map((x) => {
         const label = document.createElement("label");
         label.className = "setupChoice";
-        label.innerHTML = '<input type="radio" name="lineaMicraMachine"><span><b></b><small></small></span>';
+        label.innerHTML =
+          '<input type="radio" name="lineaMicraMachine"><span><b></b><small></small></span>';
         label.firstChild.value = x.serial;
         label.querySelector("b").textContent = x.name || x.serial;
         label.querySelector("small").textContent = x.serial;
@@ -531,7 +533,11 @@ function applyLineaMicraStatus(s) {
   // A lone listed machine is saved with the options above, once per page;
   // if that fails the choice pane takes over.
   if (connected) R.uiState.micraSignIn = null;
-  else if (!signingIn && machines.length === 1 && !["linking", "failed"].includes(R.uiState.micraSignIn)) {
+  else if (
+    !signingIn &&
+    machines.length === 1 &&
+    !["linking", "failed"].includes(R.uiState.micraSignIn)
+  ) {
     R.uiState.micraSignIn = "linking";
     selectLineaMicra(machines[0].serial);
   } else if (R.uiState.micraSignIn === "pending" && !signingIn && error) {
@@ -565,7 +571,9 @@ function applyLineaMicraStatus(s) {
   $("lineaMicraWifiNote").classList.toggle("hidden", !offline);
   $("lineaMicraConnectButton").disabled = !canEdit || offline;
   $("lineaMicraConnectButton").classList.toggle("busy", busy);
-  $("lineaMicraProgress").textContent = listing ? __WEBUI_TEXT__("runtime.micra_progress_listing") : shown;
+  $("lineaMicraProgress").textContent = listing
+    ? __WEBUI_TEXT__("runtime.micra_progress_listing")
+    : shown;
   $("lineaMicraProgress").classList.toggle("error", !listing && !!shown);
   renderMicraMachines(machines, canEdit);
   $("lineaMicraCancelButton").disabled = !canEdit;
@@ -594,7 +602,11 @@ function applyLineaMicraStatus(s) {
                       ? [__WEBUI_TEXT__("runtime.micra_power_unknown"), ""]
                       : {
                           warming_up: [__WEBUI_TEXT__("runtime.micra_pill_heating"), "warn", 1],
-                          waiting_for_steam: [__WEBUI_TEXT__("runtime.micra_pill_steam"), "warn", 1],
+                          waiting_for_steam: [
+                            __WEBUI_TEXT__("runtime.micra_pill_steam"),
+                            "warn",
+                            1,
+                          ],
                           ready: [__WEBUI_TEXT__("runtime.micra_pill_ready"), "on", 1],
                         }[m.readiness] || [__WEBUI_TEXT__("runtime.micra_power_on"), "on", 1];
   pill.textContent = [
@@ -730,9 +742,12 @@ function applySettingsStatus(s) {
       }[sl.source],
     ]);
   if (R.configLoaded) {
-    if (!R.uiState.configDirty) R.uiState.configBaseline = R.snapshotControls(R.settingsSectionEls("config"));
-    if (!R.uiState.brewDirty) R.uiState.brewBaseline = R.snapshotControls(R.settingsSectionEls("brew"));
-    if (!R.uiState.micraDirty) R.uiState.micraBaseline = R.snapshotControls(R.settingsSectionEls("micra"));
+    if (!R.uiState.configDirty)
+      R.uiState.configBaseline = R.snapshotControls(R.settingsSectionEls("config"));
+    if (!R.uiState.brewDirty)
+      R.uiState.brewBaseline = R.snapshotControls(R.settingsSectionEls("brew"));
+    if (!R.uiState.micraDirty)
+      R.uiState.micraBaseline = R.snapshotControls(R.settingsSectionEls("micra"));
   }
   refreshBrewWarnings();
 }
@@ -799,7 +814,9 @@ function updateSettingsOverrides(s = overrideStatus) {
   QUICK_FIELDS.forEach((k, bit) => {
     const label = $(k)?.closest("label");
     if (!label) return;
-    let note = label.nextElementSibling?.classList.contains("qsOverride") ? label.nextElementSibling : null;
+    let note = label.nextElementSibling?.classList.contains("qsOverride")
+      ? label.nextElementSibling
+      : null;
     const presetField = bit === 0 || bit === 3 || bit === 4;
     if (!(mask & (1 << bit)) || (presetField && !activePreset)) return note?.remove();
     if (!note) {
@@ -839,10 +856,10 @@ document.addEventListener("click", async (e) => {
 function updateCupMinGuidance(s) {
   const hint = $("cupMinGuidance");
   if (!hint) return;
-  const observed = s.cupSetup && typeof s.cupSetup.observedG === "number" ? s.cupSetup.observedG : null,
+  const observed =
+      s.cupSetup && typeof s.cupSetup.observedG === "number" ? s.cupSetup.observedG : null,
     min = R.number("minimumCupWeightG");
-  const show =
-    observed !== null && Number.isFinite(min) && observed > 0.5 && observed < min;
+  const show = observed !== null && Number.isFinite(min) && observed > 0.5 && observed < min;
   hint.hidden = !show;
   if (show)
     hint.textContent = __WEBUI_TEXT__("settings.cup_min_guidance")
@@ -853,18 +870,33 @@ function updateCupMinGuidance(s) {
 // Markers show where the owner set the drip and where quick start decided.
 function renderDripChart(c) {
   const dripText = (g) => (g > 0 ? g.toFixed(2) : "0") + __WEBUI_TEXT__("runtime.g_2"),
-    dripRange = (v) => (Math.min(...v) > 0 ? Math.min(...v).toFixed(2) : "0") + "–" + dripText(Math.max(...v));
+    dripRange = (v) =>
+      (Math.min(...v) > 0 ? Math.min(...v).toFixed(2) : "0") + "–" + dripText(Math.max(...v));
   const recent = (c && c.bbwRecentG) || [],
     q = (c && c.bbwQuickStart) || {},
     n = recent.length,
     use = (c && c.bbwEwmaOffsetG) || 0,
     armed = q.state === "armed",
-    afterSet = c && c.bbwRecentAfterSet >= 0 && (c.bbwRecentAfterSet < n || n < 10) ? c.bbwRecentAfterSet : -1,
-    afterQuick = c && c.bbwRecentAfterQuick >= 0 && c.bbwRecentAfterQuick < n ? c.bbwRecentAfterQuick : -1,
-    mode = armed ? "quick" : afterQuick < 0 ? "learning" : q.state === "applied" ? "applied" : "varied",
+    afterSet =
+      c && c.bbwRecentAfterSet >= 0 && (c.bbwRecentAfterSet < n || n < 10)
+        ? c.bbwRecentAfterSet
+        : -1,
+    afterQuick =
+      c && c.bbwRecentAfterQuick >= 0 && c.bbwRecentAfterQuick < n ? c.bbwRecentAfterQuick : -1,
+    mode = armed
+      ? "quick"
+      : afterQuick < 0
+        ? "learning"
+        : q.state === "applied"
+          ? "applied"
+          : "varied",
     marked = mode !== "learning",
-    shots = recent.slice(0, armed ? 9 : 10).map((g, i) => ({ g, i })).reverse(),
-    counted = (s) => marked && s.g != null && (afterSet < 0 || s.i < afterSet) && s.i >= Math.max(afterQuick, 0),
+    shots = recent
+      .slice(0, armed ? 9 : 10)
+      .map((g, i) => ({ g, i }))
+      .reverse(),
+    counted = (s) =>
+      marked && s.g != null && (afterSet < 0 || s.i < afterSet) && s.i >= Math.max(afterQuick, 0),
     old = (s) => marked && afterSet >= 0 && s.i >= afterSet,
     pad = 10 - shots.length - (armed ? 1 : 0),
     top = Math.max(...recent.filter((g) => g != null), use, 0.5) * 1.3,
@@ -872,8 +904,14 @@ function renderDripChart(c) {
     slots = [...Array(pad).fill({}), ...shots, ...(armed ? [{ next: true }] : [])],
     at = (after) => pad + shots.length - Math.min(after, shots.length),
     marks = [];
-  if (marked && afterSet >= 0) marks.push([at(afterSet), __WEBUI_TEXT__("runtime.drip_manual_set") + dripText(q.setG), ""]);
-  if (mode === "applied") marks.push([at(afterQuick), __WEBUI_TEXT__("runtime.drip_quick_set") + dripText(q.quickG), " end"]);
+  if (marked && afterSet >= 0)
+    marks.push([at(afterSet), __WEBUI_TEXT__("runtime.drip_manual_set") + dripText(q.setG), ""]);
+  if (mode === "applied")
+    marks.push([
+      at(afterQuick),
+      __WEBUI_TEXT__("runtime.drip_quick_set") + dripText(q.quickG),
+      " end",
+    ]);
   // Built with element.style: the firmware CSP drops style attributes in markup.
   const el = (tag, cls, ...kids) => {
     const e = document.createElement(tag);
@@ -885,7 +923,10 @@ function renderDripChart(c) {
   bars.classList.toggle("twoMarks", marks.length > 1);
   bars.replaceChildren(
     ...slots.map((s) => {
-      const bar = el("div", "dcBar" + (old(s) ? " old" : "") +(counted(s) ? " qs" : "") + (s.next ? " next" : ""));
+      const bar = el(
+        "div",
+        "dcBar" + (old(s) ? " old" : "") + (counted(s) ? " qs" : "") + (s.next ? " next" : ""),
+      );
       if (s.next || s.g != null) {
         const fill = el("i", "");
         if (!s.next) fill.style.height = h(s.g);
@@ -894,13 +935,21 @@ function renderDripChart(c) {
       return bar;
     }),
     ...marks.map(([k, label, end], i) => {
-      const mark = el("div", "dcMark" + end + (marks.length > 1 && !i ? " up" : ""), el("span", "", label));
+      const mark = el(
+        "div",
+        "dcMark" + end + (marks.length > 1 && !i ? " up" : ""),
+        el("span", "", label),
+      );
       mark.style.left = `calc((100% + .5rem) * ${k} / 10 - .25rem)`;
       return mark;
     }),
   );
   if (c) {
-    const line = el("div", "dcUse", el("span", "", __WEBUI_TEXT__("runtime.drip_in_use"), el("br", ""), dripText(use)));
+    const line = el(
+      "div",
+      "dcUse",
+      el("span", "", __WEBUI_TEXT__("runtime.drip_in_use"), el("br", ""), dripText(use)),
+    );
     line.style.bottom = h(use);
     bars.append(line);
   }
@@ -909,7 +958,13 @@ function renderDripChart(c) {
     .map(
       (s, k) =>
         `<span class="${old(s) ? "old" : ""}">` +
-        (s.g != null ? `<b>${dripText(s.g)}</b>` : "i" in s ? __WEBUI_TEXT__("runtime.drip_skipped") : s.next ? __WEBUI_TEXT__("runtime.drip_next") : "") +
+        (s.g != null
+          ? `<b>${dripText(s.g)}</b>`
+          : "i" in s
+            ? __WEBUI_TEXT__("runtime.drip_skipped")
+            : s.next
+              ? __WEBUI_TEXT__("runtime.drip_next")
+              : "") +
         (k === last && "i" in s ? __WEBUI_TEXT__("runtime.drip_last_shot") : "") +
         "</span>",
     )
@@ -922,7 +977,9 @@ function renderDripChart(c) {
     : mode === "quick"
       ? __WEBUI_TEXT__("runtime.drip_need_about") + dripText(sorted[(sorted.length - 1) >> 1])
       : mode === "varied"
-        ? __WEBUI_TEXT__("runtime.drip_varied") + dripRange(needed) + __WEBUI_TEXT__("runtime.drip_varied_end")
+        ? __WEBUI_TEXT__("runtime.drip_varied") +
+          dripRange(needed) +
+          __WEBUI_TEXT__("runtime.drip_varied_end")
         : mode === "applied"
           ? ""
           : use >= sorted[0] - 0.15 && use <= sorted[sorted.length - 1] + 0.15
@@ -939,12 +996,13 @@ function renderDripChart(c) {
         varied: __WEBUI_TEXT__("runtime.drip_hint_varied"),
       }[mode];
   $("dripStatus").className = "dcStatus" + (armed || mode === "applied" ? " quick" : "");
-  $("dripStatus").lastElementChild.textContent =
-    armed
-      ? __WEBUI_TEXT__("runtime.drip_status_quick") + (q.count || 0) + __WEBUI_TEXT__("runtime.drip_status_quick_of")
-      : mode === "applied"
-        ? __WEBUI_TEXT__("runtime.drip_status_applied")
-        : __WEBUI_TEXT__("runtime.drip_status_learning");
+  $("dripStatus").lastElementChild.textContent = armed
+    ? __WEBUI_TEXT__("runtime.drip_status_quick") +
+      (q.count || 0) +
+      __WEBUI_TEXT__("runtime.drip_status_quick_of")
+    : mode === "applied"
+      ? __WEBUI_TEXT__("runtime.drip_status_applied")
+      : __WEBUI_TEXT__("runtime.drip_status_learning");
 }
 export function init() {
   if (ready) return;
@@ -982,18 +1040,30 @@ export function init() {
     $("presetResetBtn").onclick = async () => {
       const p = R.selectedPreset();
       if (!p || !p.isFactory) return;
-      if (!(await R.askConfirm(R.sub(__WEBUI_TEXT__("settings.restore_confirm"), [p.name]), __WEBUI_TEXT__("settings.restore"))))
+      if (
+        !(await R.askConfirm(
+          R.sub(__WEBUI_TEXT__("settings.restore_confirm"), [p.name]),
+          __WEBUI_TEXT__("settings.restore"),
+        ))
+      )
         return;
       if (R.uiState.brewDirty) R.clearBrewDirty();
       R.invalidateSettingsHydration();
       R.command("/api/v1/presets", { action: "restore_factory_values", id: p.id });
     };
-  if ($("presetNewCoffeeBtn")) $("presetNewCoffeeBtn").onclick = () => R.startNewCoffee(R.selectedPreset().id);
+  if ($("presetNewCoffeeBtn"))
+    $("presetNewCoffeeBtn").onclick = () => R.startNewCoffee(R.selectedPreset().id);
   if ($("presetDeleteBtn"))
     $("presetDeleteBtn").onclick = async () => {
       const p = R.selectedPreset();
       if (!p || p.isFactory) return;
-      if (await R.askConfirm(R.sub(__WEBUI_TEXT__("settings.delete_confirm"), [p.name]), __WEBUI_TEXT__("settings.delete"), true))
+      if (
+        await R.askConfirm(
+          R.sub(__WEBUI_TEXT__("settings.delete_confirm"), [p.name]),
+          __WEBUI_TEXT__("settings.delete"),
+          true,
+        )
+      )
         R.command("/api/v1/presets", { action: "delete", id: p.id });
     };
   if ($("scalePreference"))
@@ -1030,7 +1100,8 @@ export function init() {
         $("lineaMicraLinkedNote").hidden = R.uiState.micraChange = true;
         if (!(await R.lineaMicraAction("relist"))) endMicraChange();
       };
-    if ($("lineaMicraSaveButton")) $("lineaMicraSaveButton").onclick = () => saveLineaMicraSettings();
+    if ($("lineaMicraSaveButton"))
+      $("lineaMicraSaveButton").onclick = () => saveLineaMicraSettings();
     if ($("revertLineaMicraButton")) $("revertLineaMicraButton").onclick = revertLineaMicra;
     if ($("lineaMicraDisconnectButton"))
       $("lineaMicraDisconnectButton").onclick = () =>

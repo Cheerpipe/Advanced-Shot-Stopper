@@ -267,7 +267,8 @@ const QUICK_ICONS = {
   autoToManualGuardEnabled: "M4 12a8 8 0 1 0 2.4-5.7M4 4v4.5h4.5M12 8v4l3 2",
   avoidAccidentalTouchEnabled:
     "M9 12V5.5a1.5 1.5 0 0 1 3 0V12M12 11V9.5a1.5 1.5 0 0 1 3 0V12M15 11.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-2.7L4 15a1.5 1.5 0 0 1 2.5-1.6L9 16",
-  cupProtectionEnabled: "M5 9h11v4a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10.5h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5v2.5M11.5 3.5v2.5",
+  cupProtectionEnabled:
+    "M5 9h11v4a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10.5h1.5a2.5 2.5 0 0 1 0 5H16M8 3.5v2.5M11.5 3.5v2.5",
 };
 const quickIcon = (k, cls = "") =>
   `<svg class="qsI ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${QUICK_ICONS[k]}"/></svg>`;
@@ -302,7 +303,10 @@ function buildQuickSettings() {
     ).join("") +
     `</div><p class="qsSub">${__WEBUI_TEXT__("runtime.quick_duration")}</p>` +
     `<div class="qsRev" role="radiogroup" aria-label="${escHtml(__WEBUI_TEXT__("runtime.quick_duration"))}">` +
-    QUICK_REVERT.map((k, i) => `<button type="button" role="radio" data-revert="${k}">${__WEBUI_TEXT__("runtime.quick_duration_options").split("|")[i]}</button>`).join("") +
+    QUICK_REVERT.map(
+      (k, i) =>
+        `<button type="button" role="radio" data-revert="${k}">${__WEBUI_TEXT__("runtime.quick_duration_options").split("|")[i]}</button>`,
+    ).join("") +
     `</div><p class="qsNote"><span id="quickRevertNote"></span> <button type="button" class="qsReset" id="quickRevertNow" hidden>${__WEBUI_TEXT__("runtime.quick_reset_now")}</button></p>`;
   $("headerSignals").append(panel);
   panel.addEventListener("click", (e) => {
@@ -315,10 +319,18 @@ function buildQuickSettings() {
 }
 const QUICK_REVERT = ["next_shot", "15m", "30m", "60m", "keep"];
 function quickRevertNote(r, i) {
-  const when = r.overrides && i && i < 4
-    ? __WEBUI_TEXT__("runtime.quick_revert_in").replace("{n}", Math.max(1, Math.ceil((r.remainingS || 0) / 60)))
-    : __WEBUI_TEXT__("runtime.quick_revert_when").split("|")[i];
-  return (r.overrides ? __WEBUI_TEXT__("runtime.quick_revert_pending") : __WEBUI_TEXT__("runtime.quick_revert_hint")).replace("{when}", when);
+  const when =
+    r.overrides && i && i < 4
+      ? __WEBUI_TEXT__("runtime.quick_revert_in").replace(
+          "{n}",
+          Math.max(1, Math.ceil((r.remainingS || 0) / 60)),
+        )
+      : __WEBUI_TEXT__("runtime.quick_revert_when").split("|")[i];
+  return (
+    r.overrides
+      ? __WEBUI_TEXT__("runtime.quick_revert_pending")
+      : __WEBUI_TEXT__("runtime.quick_revert_hint")
+  ).replace("{when}", when);
 }
 let quickNoScaleMode = "warn_once",
   quickBusy = false,
@@ -366,13 +378,20 @@ async function setQuickSetting(button) {
   const k = button.dataset.quick,
     on = button.getAttribute("aria-checked") === "true",
     value =
-      k === "brewByWeight" ? button.dataset.value === "true" : k === "noScaleBbwMode" ? (on ? "off" : quickNoScaleMode) : !on;
+      k === "brewByWeight"
+        ? button.dataset.value === "true"
+        : k === "noScaleBbwMode"
+          ? on
+            ? "off"
+            : quickNoScaleMode
+          : !on;
   if (k === "brewByWeight" && on) return;
   await putQuickSettings({ [k]: value });
 }
 async function putQuickSettings(change) {
   quickBusy = true;
-  if (change.revertAfter) quickStatus.quickRevert = { ...quickStatus.quickRevert, after: change.revertAfter };
+  if (change.revertAfter)
+    quickStatus.quickRevert = { ...quickStatus.quickRevert, after: change.revertAfter };
   updateQuickSettings();
   try {
     await api("/api/v1/integration/quick-settings", {
@@ -634,12 +653,15 @@ function wrapTimeEl(td, r) {
 }
 function verdictLabel(v) {
   return (
-    { fast: __WEBUI_TEXT__("runtime.verdict_fast"), slow: __WEBUI_TEXT__("runtime.verdict_slow") }[v] ||
-    __WEBUI_TEXT__("runtime.verdict_on_recipe")
+    { fast: __WEBUI_TEXT__("runtime.verdict_fast"), slow: __WEBUI_TEXT__("runtime.verdict_slow") }[
+      v
+    ] || __WEBUI_TEXT__("runtime.verdict_on_recipe")
   );
 }
 function formatShotEnded(d, verdict) {
-  const k = String(d || "").toLowerCase().replace(/_(failure|timeout)$/, "");
+  const k = String(d || "")
+    .toLowerCase()
+    .replace(/_(failure|timeout)$/, "");
   if (/^(ext|fast_|slow_)/.test(k)) return verdictLabel(k[0] === "s" ? "slow" : "fast");
   return (
     {
@@ -679,7 +701,9 @@ function buildShotSparkModel(shot) {
     heldIndex = shot.wHeld ?? [],
     indices = (list) =>
       !Array.isArray(list) ||
-      list.some((v, i) => !Number.isInteger(v) || v < 0 || v >= w.length || (i && v <= list[i - 1]));
+      list.some(
+        (v, i) => !Number.isInteger(v) || v < 0 || v >= w.length || (i && v <= list[i - 1]),
+      );
   if (
     !Array.isArray(at) ||
     at.length !== w.length ||
@@ -1077,7 +1101,8 @@ function setEmptyState(id, text) {
 }
 function updateFirmwareFooter() {
   const fw = firmwareVersion || "—";
-  const boot = bootId || uiState.shotHistory.bootId ? "#" + (bootId || uiState.shotHistory.bootId) : "—";
+  const boot =
+    bootId || uiState.shotHistory.bootId ? "#" + (bootId || uiState.shotHistory.bootId) : "—";
   const text = __WEBUI_TEXT__("runtime.firmware") + fw + " · Boot " + boot;
   const el = $("firmwareFooter");
   if (el) el.textContent = text;
@@ -1107,7 +1132,12 @@ function applyShotPage(d, mode) {
     uiState.shotHistory.hasMore = !!n && !!d.hasMore;
     return;
   }
-  uiState.shotHistory = { bootId: d.bootId, total: t, hasMore: !!d.hasMore && !!t, shots: t ? a : [] };
+  uiState.shotHistory = {
+    bootId: d.bootId,
+    total: t,
+    hasMore: !!d.hasMore && !!t,
+    shots: t ? a : [],
+  };
 }
 function shotStatsViewActive() {
   if (activeView !== "stats" || !webUiPollingActive()) return false;
@@ -1141,7 +1171,8 @@ function armStickyBar(id) {
     io = new IntersectionObserver(
       (es) => es.forEach((e) => bar.classList.toggle("isStuck", !e.isIntersecting)),
       // Bare unitless zeros are rejected here too; every value needs a unit.
-      {rootMargin: "-" + hdrPx + "px 0px 0px 0px"});
+      { rootMargin: "-" + hdrPx + "px 0px 0px 0px" },
+    );
     io.observe(s);
   };
   arm();
@@ -1195,7 +1226,12 @@ function applyHistoryPage(d, mode) {
     uiState.historyData.hasMore = !!n && !!d.hasMore;
     return;
   }
-  uiState.historyData = { bootId: d.bootId, total: t, hasMore: !!d.hasMore && !!t, records: t ? a : [] };
+  uiState.historyData = {
+    bootId: d.bootId,
+    total: t,
+    hasMore: !!d.hasMore && !!t,
+    records: t ? a : [],
+  };
 }
 const historyViewActive = () => activeView === "history" && webUiPollingActive();
 const loadMoreHistory = () => {
@@ -1216,7 +1252,8 @@ const loadMoreHistory = () => {
     });
   }
 };
-const refreshHistory = () => (historyViewActive() ? startHistoryStream(true) : Promise.resolve(false));
+const refreshHistory = () =>
+  historyViewActive() ? startHistoryStream(true) : Promise.resolve(false);
 
 function scaleDisplayName(sc) {
   const fr = (sc && sc.preferredFriendlyName && String(sc.preferredFriendlyName).trim()) || "";
@@ -1362,8 +1399,12 @@ function formatIdleTare(s) {
   if (t === "empty" && typeof d === "number" && Math.abs(d) >= 0.5)
     return sub(
       w >= 1
-        ? d > 0 ? __WEBUI_TEXT__("runtime.idle_tare_empty_above_for") : __WEBUI_TEXT__("runtime.idle_tare_empty_below_for")
-        : d > 0 ? __WEBUI_TEXT__("runtime.idle_tare_empty_above") : __WEBUI_TEXT__("runtime.idle_tare_empty_below"),
+        ? d > 0
+          ? __WEBUI_TEXT__("runtime.idle_tare_empty_above_for")
+          : __WEBUI_TEXT__("runtime.idle_tare_empty_below_for")
+        : d > 0
+          ? __WEBUI_TEXT__("runtime.idle_tare_empty_above")
+          : __WEBUI_TEXT__("runtime.idle_tare_empty_below"),
       [Math.abs(d).toFixed(1), w],
     );
   return (
@@ -1444,7 +1485,7 @@ function showFieldErrors(list) {
     return;
   }
   let focused = false;
-  for (const {id, msg} of list) {
+  for (const { id, msg } of list) {
     const el = $(id);
     if (!el) continue;
     markFieldError(el, msg);
@@ -1457,7 +1498,16 @@ function showFieldErrors(list) {
 }
 // Top messages open or close their measured box while they fade, on one shared
 // duration. The space leads on entry and trails on exit so the fade stays visible.
-const REVEAL_BOX = ["height", "minHeight", "paddingTop", "paddingBottom", "borderTopWidth", "borderBottomWidth", "marginTop", "marginBottom"];
+const REVEAL_BOX = [
+  "height",
+  "minHeight",
+  "paddingTop",
+  "paddingBottom",
+  "borderTopWidth",
+  "borderBottomWidth",
+  "marginTop",
+  "marginBottom",
+];
 function reveal(el, show, done) {
   if (!el) return;
   const run = el.getAnimations().find((a) => a.id.startsWith("reveal"));
@@ -1473,10 +1523,16 @@ function reveal(el, show, done) {
   el.getAnimations().forEach((a) => a.id.startsWith("reveal") && a.cancel());
   el.hidden = false;
   el.style.overflow = "hidden";
-  const t = show ? [250, "cubic-bezier(.2,0,0,1)", "cubic-bezier(.7,0,.3,1)"] : [250, "cubic-bezier(.4,0,1,1)", "cubic-bezier(0,0,.2,1)"],
+  const t = show
+      ? [250, "cubic-bezier(.2,0,0,1)", "cubic-bezier(.7,0,.3,1)"]
+      : [250, "cubic-bezier(.4,0,1,1)", "cubic-bezier(0,0,.2,1)"],
     id = show ? "reveal-in" : "reveal-out";
   el.animate(fade, { duration: t[0], easing: t[2], id });
-  el.animate([from, show ? box(getComputedStyle(el)) : box()], { duration: t[0], easing: t[1], id }).onfinish = () => {
+  el.animate([from, show ? box(getComputedStyle(el)) : box()], {
+    duration: t[0],
+    easing: t[1],
+    id,
+  }).onfinish = () => {
     el.style.overflow = "";
     el.hidden = !show;
     done?.();
@@ -1619,10 +1675,7 @@ function commandMessages(path, v) {
         ];
   if (path.endsWith("/presets")) {
     const x = {
-      save: [
-        __WEBUI_TEXT__("runtime.preset_saved"),
-        __WEBUI_TEXT__("runtime.save_preset"),
-      ],
+      save: [__WEBUI_TEXT__("runtime.preset_saved"), __WEBUI_TEXT__("runtime.save_preset")],
       apply: [__WEBUI_TEXT__("runtime.preset_applied"), __WEBUI_TEXT__("runtime.apply_preset")],
       new: [__WEBUI_TEXT__("runtime.preset_created"), __WEBUI_TEXT__("runtime.create_preset")],
       duplicate: [
@@ -1635,7 +1688,10 @@ function commandMessages(path, v) {
         __WEBUI_TEXT__("runtime.factory_values_restored"),
         __WEBUI_TEXT__("runtime.restore_factory_values"),
       ],
-      new_coffee: [__WEBUI_TEXT__("runtime.shot_stats_restarted"), __WEBUI_TEXT__("runtime.restart_shot_stats")],
+      new_coffee: [
+        __WEBUI_TEXT__("runtime.shot_stats_restarted"),
+        __WEBUI_TEXT__("runtime.restart_shot_stats"),
+      ],
     }[v.action];
     if (x) return [x[0], cn(x[1])];
   }
@@ -2148,8 +2204,11 @@ function clearBrewDirty() {
 // label — yellow survivors after a red clear, red survivors after a yellow
 // clear, or nothing (attributes removed).
 function refreshFieldAria(el) {
-  const warnIds = [...(el.closest("label") || el.parentElement)
-    .querySelectorAll("small.fieldWarning,small.fieldError")].map((s) => s.id);
+  const warnIds = [
+    ...(el.closest("label") || el.parentElement).querySelectorAll(
+      "small.fieldWarning,small.fieldError",
+    ),
+  ].map((s) => s.id);
   if (warnIds.length) {
     el.setAttribute("aria-invalid", "true");
     el.setAttribute("aria-describedby", warnIds.join(" "));
@@ -2189,7 +2248,10 @@ function updateBbwControls() {
       (input) => (input.disabled = hidden || !controlsMutable),
     );
   });
-  const c = uiState.bbwReadback && uiState.bbwReadback.bbwPresetId === bbwFormPresetId ? uiState.bbwReadback : null;
+  const c =
+    uiState.bbwReadback && uiState.bbwReadback.bbwPresetId === bbwFormPresetId
+      ? uiState.bbwReadback
+      : null;
   const use = c && c.bbwEwmaOffsetG;
   $("learnedOffsetG").textContent =
     typeof use === "number" ? use.toFixed(2) : __WEBUI_TEXT__("runtime.unknown");
@@ -2199,11 +2261,17 @@ function updateBbwControls() {
     for (const id of ["dripSetG", "alphaSet"]) delete $(id).dataset.edited;
   }
   // The set fields follow the values in use until the owner edits them.
-  for (const [id, v] of [["dripSetG", use], ["alphaSet", c && c.bbwAlpha]])
+  for (const [id, v] of [
+    ["dripSetG", use],
+    ["alphaSet", c && c.bbwAlpha],
+  ])
     if (typeof v === "number" && document.activeElement !== $(id) && !$(id).dataset.edited)
       $(id).value = v.toFixed(2);
   const blocked = !on || !controlsMutable || uiState.brewDirty || !c;
-  for (const [id, button] of [["dripSetG", "dripSetButton"], ["alphaSet", "alphaSetButton"]])
+  for (const [id, button] of [
+    ["dripSetG", "dripSetButton"],
+    ["alphaSet", "alphaSetButton"],
+  ])
     $(button).disabled = blocked || $(id).value.trim() === "" || !$(id).validity.valid;
 }
 function soundAlertsAreOn() {
@@ -2301,8 +2369,14 @@ function rangeCheck(id, min, max, label, opts) {
     return {
       id,
       msg:
-        label + __WEBUI_TEXT__("runtime.must_be_from") + min + " to " + max + unit +
-        __WEBUI_TEXT__("runtime.in_steps_of").replace("%1", opts.step) + ".",
+        label +
+        __WEBUI_TEXT__("runtime.must_be_from") +
+        min +
+        " to " +
+        max +
+        unit +
+        __WEBUI_TEXT__("runtime.in_steps_of").replace("%1", opts.step) +
+        ".",
     };
   if (v < min || v > max)
     return {
@@ -2333,14 +2407,26 @@ function brewFieldValue(id) {
 const BREW_FIELD_TEXT = {
     doseG: [__WEBUI_TEXT__("runtime.dose"), __WEBUI_TEXT__("runtime.g"), "recipe"],
     goalWeightG: [__WEBUI_TEXT__("runtime.target_yield"), __WEBUI_TEXT__("runtime.g"), "recipe"],
-    operationalWallS: [__WEBUI_TEXT__("runtime.max_bbw_time"), __WEBUI_TEXT__("runtime.s"), "limits"],
-    bbwProtectionS: [__WEBUI_TEXT__("runtime.bbw_protection"), __WEBUI_TEXT__("runtime.s"), "limits"],
+    operationalWallS: [
+      __WEBUI_TEXT__("runtime.max_bbw_time"),
+      __WEBUI_TEXT__("runtime.s"),
+      "limits",
+    ],
+    bbwProtectionS: [
+      __WEBUI_TEXT__("runtime.bbw_protection"),
+      __WEBUI_TEXT__("runtime.s"),
+      "limits",
+    ],
     lineaMicraBrewTargetC: [__WEBUI_TEXT__("runtime.brew_temperature"), "°C"],
     fastBeforeS: [__WEBUI_TEXT__("runtime.window_start"), __WEBUI_TEXT__("runtime.s"), "recipe"],
     fastMarginG: [__WEBUI_TEXT__("runtime.fast_margin"), __WEBUI_TEXT__("runtime.g"), "fast"],
     slowAfterS: [__WEBUI_TEXT__("runtime.window_end"), __WEBUI_TEXT__("runtime.s"), "recipe"],
     slowMarginG: [__WEBUI_TEXT__("runtime.slow_margin"), __WEBUI_TEXT__("runtime.g"), "slow"],
-    scaleLossFixedS: [__WEBUI_TEXT__("runtime.scale_loss_override"), __WEBUI_TEXT__("runtime.s"), "limits"],
+    scaleLossFixedS: [
+      __WEBUI_TEXT__("runtime.scale_loss_override"),
+      __WEBUI_TEXT__("runtime.s"),
+      "limits",
+    ],
   },
   BREW_SECTION_TEXT = {
     recipe: __WEBUI_TEXT__("settings.recipe"),
@@ -2379,7 +2465,12 @@ function brewCrossErr(kind, id, other, off = 0) {
   const [ref, refUnit, refSection] = BREW_FIELD_TEXT[other],
     limit = (off ? (number(other) + off).toFixed(1) : brewFieldValue(other)) + " " + refUnit,
     named = off ? ref + (off > 0 ? " + " : " − ") + Math.abs(off) + " " + refUnit : ref;
-  return sub(BREW_CROSS_TEXT[kind], [brewFieldLabel(id), limit, named, BREW_SECTION_TEXT[refSection]]);
+  return sub(BREW_CROSS_TEXT[kind], [
+    brewFieldLabel(id),
+    limit,
+    named,
+    BREW_SECTION_TEXT[refSection],
+  ]);
 }
 // The fields the user changed since the form was last clean: the baseline is
 // refreshed whenever the brew section is saved or re-hydrated clean, so
@@ -2403,16 +2494,16 @@ function validateBrewClient() {
         ...opts,
       }),
     add = (e) => e && errors.push(e);
-  add(brewRange("goalWeightG", 10, 200, {step: 0.1}));
-  add(brewRange("operationalWallS", 5, 60, {int: 1}));
+  add(brewRange("goalWeightG", 10, 200, { step: 0.1 }));
+  add(brewRange("operationalWallS", 5, 60, { int: 1 }));
   add(brewRange("bbwProtectionS", 0.5, 30));
   if (document.documentElement.classList.contains("micraTemperatureEnabled"))
     add(brewRange("lineaMicraBrewTargetC", 80, 100));
-  add(brewRange("doseG", 5, 30, {step: 0.1}));
-  add(brewRange("fastBeforeS", 2.5, 58, {step: 0.5}));
-  add(brewRange("slowAfterS", 3.5, 59, {step: 0.5}));
-  if (fastOn) add(brewRange("fastMarginG", 0.5, 10, {step: 0.1}));
-  if (slowOn) add(brewRange("slowMarginG", 0.5, 10, {step: 0.1}));
+  add(brewRange("doseG", 5, 30, { step: 0.1 }));
+  add(brewRange("fastBeforeS", 2.5, 58, { step: 0.5 }));
+  add(brewRange("slowAfterS", 3.5, 59, { step: 0.5 }));
+  if (fastOn) add(brewRange("fastMarginG", 0.5, 10, { step: 0.1 }));
+  if (slowOn) add(brewRange("slowMarginG", 0.5, 10, { step: 0.1 }));
   if (brewFieldValue("scaleLossFixedS") !== "")
     add(brewRange("scaleLossFixedS", formNumber("bbwProtectionS"), formNumber("operationalWallS")));
   const rw = formNumber("retareWindowS"),
@@ -2450,10 +2541,16 @@ function validateBrewClient() {
         msg: brewCrossErr(id === a ? kindA : kindB, id, id === a ? b : a, id === a ? off : -off),
       });
   }
-  if (brewFieldValue("fastBeforeS") !== "" && brewFieldValue("slowAfterS") !== "" && number("slowAfterS") < number("fastBeforeS") + 1)
+  if (
+    brewFieldValue("fastBeforeS") !== "" &&
+    brewFieldValue("slowAfterS") !== "" &&
+    number("slowAfterS") < number("fastBeforeS") + 1
+  )
     errors.push({
       id: "slowAfterS",
-      msg: sub(__WEBUI_TEXT__("runtime.window_min_length"), [+(number("fastBeforeS") + 1).toFixed(1)]),
+      msg: sub(__WEBUI_TEXT__("runtime.window_min_length"), [
+        +(number("fastBeforeS") + 1).toFixed(1),
+      ]),
     });
   // Margins are relative to the target: extra yield at most a quarter of it,
   // and an early stop that still leaves 5 g in the cup.
@@ -2462,26 +2559,38 @@ function validateBrewClient() {
   if (fastOn && brewFieldValue("fastMarginG") !== "" && number("fastMarginG") > goal / 4)
     errors.push({
       id: "fastMarginG",
-      msg: sub(BREW_CROSS_TEXT.le, [brewFieldLabel("fastMarginG"), (goal / 4).toFixed(1) + " g",
-        __WEBUI_TEXT__("runtime.quarter_of_target"), recipe]),
+      msg: sub(BREW_CROSS_TEXT.le, [
+        brewFieldLabel("fastMarginG"),
+        (goal / 4).toFixed(1) + " g",
+        __WEBUI_TEXT__("runtime.quarter_of_target"),
+        recipe,
+      ]),
     });
   if (slowOn && brewFieldValue("slowMarginG") !== "" && number("slowMarginG") > goal - 5)
     errors.push({
       id: "slowMarginG",
-      msg: sub(BREW_CROSS_TEXT.le, [brewFieldLabel("slowMarginG"), (goal - 5).toFixed(1) + " g",
-        BREW_FIELD_TEXT.goalWeightG[0] + " − 5 g", recipe]),
+      msg: sub(BREW_CROSS_TEXT.le, [
+        brewFieldLabel("slowMarginG"),
+        (goal - 5).toFixed(1) + " g",
+        BREW_FIELD_TEXT.goalWeightG[0] + " − 5 g",
+        recipe,
+      ]),
     });
   return errors;
 }
 function brewPayload() {
   return {
     ...Object.fromEntries([
-      ...["doseG", "goalWeightG", "fastBeforeS", "slowAfterS", "fastMarginG", "slowMarginG"].map((k) => [
-        k,
-        number(k),
-      ]),
+      ...["doseG", "goalWeightG", "fastBeforeS", "slowAfterS", "fastMarginG", "slowMarginG"].map(
+        (k) => [k, number(k)],
+      ),
       ...["operationalWall", "bbwProtection"].map((k) => [k + "Ms", sToMs(k + "S")]),
-      ...["brewByWeight", "fastExtractionGuardEnabled", "slowExtractionGuardEnabled", "grindHintsEnabled"].map((k) => [k, $(k).checked]),
+      ...[
+        "brewByWeight",
+        "fastExtractionGuardEnabled",
+        "slowExtractionGuardEnabled",
+        "grindHintsEnabled",
+      ].map((k) => [k, $(k).checked]),
     ]),
     action: "save",
     id: bbwFormPresetId,
@@ -2564,7 +2673,8 @@ function updateLogHealth(d) {
     e = $("logDropped");
   if (d.historyOverwritten)
     a.push(__WEBUI_TEXT__("runtime.history_rotated") + d.historyOverwritten);
-  if (uiState.logMissed) a.push(__WEBUI_TEXT__("runtime.missed_while_disconnected") + uiState.logMissed);
+  if (uiState.logMissed)
+    a.push(__WEBUI_TEXT__("runtime.missed_while_disconnected") + uiState.logMissed);
   if (d.serialDropped) a.push(__WEBUI_TEXT__("runtime.serial_dropped") + d.serialDropped);
   if (!e) return;
   e.hidden = !a.length;
@@ -2684,21 +2794,25 @@ function guardRuleRows(m) {
       on && m.slow && sub(__WEBUI_TEXT__("home.rule_slow"), [f(m.floor)]),
     ],
   ]
-    .map(([c, label, when, detail]) => [when || label, c, when ? label + " · " + (detail || off) : off])
+    .map(([c, label, when, detail]) => [
+      when || label,
+      c,
+      when ? label + " · " + (detail || off) : off,
+    ])
     .map(([n, c, r]) => {
-    const row = document.createElement("div");
-    row.className = "guardRow " + c;
-    const name = document.createElement("span");
-    name.className = "guardName";
-    const dot = document.createElement("i");
-    dot.setAttribute("aria-hidden", "true");
-    name.append(dot, n);
-    const rule = document.createElement("span");
-    rule.className = "guardRule";
-    rule.textContent = r;
-    row.append(name, rule);
-    return row;
-  });
+      const row = document.createElement("div");
+      row.className = "guardRow " + c;
+      const name = document.createElement("span");
+      name.className = "guardName";
+      const dot = document.createElement("i");
+      dot.setAttribute("aria-hidden", "true");
+      name.append(dot, n);
+      const rule = document.createElement("span");
+      rule.className = "guardRule";
+      rule.textContent = r;
+      row.append(name, rule);
+      return row;
+    });
 }
 function renderHomePresetAccordion() {
   const el = $("homePresetAcc");
@@ -2749,7 +2863,8 @@ function renderHomePresetAccordion() {
       panelIn.innerHTML = `<div class="presetAccMore"><div></div></div><button type="button" class="presetAccToggle" title="${t}" aria-label="${t}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>`;
       panelIn.firstChild.firstChild.append(graph, readout, start);
       panelIn.prepend(rows);
-      panelIn.lastChild.onclick = (e) => (e.currentTarget.ariaExpanded = item.classList.toggle("full"));
+      panelIn.lastChild.onclick = (e) =>
+        (e.currentTarget.ariaExpanded = item.classList.toggle("full"));
       panel.appendChild(panelIn);
       item.append(head, panel);
       el.appendChild(item);
@@ -2767,7 +2882,10 @@ function renderHomePresetAccordion() {
       if (p.id !== openId) applyPreset(p.id);
     };
     const saved = buildRuleChartModel(p),
-      m = p.id === presetState.activeId && liveRuleModel && liveRuleModel.mode !== "empty" ? liveRuleModel : saved,
+      m =
+        p.id === presetState.activeId && liveRuleModel && liveRuleModel.mode !== "empty"
+          ? liveRuleModel
+          : saved,
       // Past arrivals, as in Settings, while the target is the saved one they were judged against.
       arrivals = m.goal === saved.goal ? p.arrivalsS || [] : [];
     const rows = guardRuleRows(m),
@@ -2788,7 +2906,14 @@ function renderHomePresetAccordion() {
     item.querySelector(".presetAccStart").textContent = m.mode === "empty" ? "" : paceStartNote(m);
     graph._draw = () => {
       if (graph._m.mode === "empty") graph.replaceChildren();
-      else drawPresetGraph(graph, graph._m, { arrivals }, item.querySelector(".presetAccReadout"), key);
+      else
+        drawPresetGraph(
+          graph,
+          graph._m,
+          { arrivals },
+          item.querySelector(".presetAccReadout"),
+          key,
+        );
     };
     graph._draw();
     nodes.push(item);
@@ -2818,7 +2943,8 @@ function renderAllPresetUi() {
 // ride along, so the owner discards them first or the Home change is dropped.
 async function cleanBrewForm() {
   if (uiState.brewDirty) {
-    if (!confirm(__WEBUI_TEXT__("runtime.you_have_unsaved_preset_changes_discard_them"))) return false;
+    if (!confirm(__WEBUI_TEXT__("runtime.you_have_unsaved_preset_changes_discard_them")))
+      return false;
     clearBrewDirty();
     invalidateSettingsHydration();
   }
@@ -2917,7 +3043,8 @@ async function saveBrewPreset(okMsg, failMsg, fromDial = false) {
       (number("fastBeforeS") !== saved.fastBeforeS ||
         number("slowAfterS") !== saved.slowAfterS ||
         Math.abs(number("goalWeightG") - saved.goalWeightG) > 1);
-  if (restarts && !fromDial && !confirm(__WEBUI_TEXT__("runtime.stats_reset_confirm"))) return false;
+  if (restarts && !fromDial && !confirm(__WEBUI_TEXT__("runtime.stats_reset_confirm")))
+    return false;
   clearFieldErrors();
   try {
     await command("/api/v1/presets", brewPayload(), 1, ok, fail, "saveBrewPresetButton");
@@ -3055,7 +3182,10 @@ function buildRuleChartModel(c) {
     floor = slow ? goal - slowMargin : goal,
     // Paces start at the usual first drop, kept 0.5 s before the window.
     start = Math.max(0, Math.min(N(c.firstDropS) || 0, t1 - 0.5));
-  if (![goal, t1, t2, prot, wall, d, ceil, floor].every(Number.isFinite) || !(prot < t1 && t1 < t2 && t2 < wall))
+  if (
+    ![goal, t1, t2, prot, wall, d, ceil, floor].every(Number.isFinite) ||
+    !(prot < t1 && t1 < t2 && t2 < wall)
+  )
     return { mode: "empty" };
   return {
     mode: c.brewByWeight === false ? "timerOnly" : "active",
@@ -3134,11 +3264,23 @@ function referencePace(t, goal, tArr, t0 = 0) {
 // (compact, no scrubber, no no-cut hatch; Stats adds 10 s ticks). Laid out in CSS pixels
 // from the measured width; null while the host is hidden.
 function presetGraph(host, m, x = {}) {
-  const { ghost, arrivals = [], last = [], drip = [], held = [], maxG = 0, maxT = 0, compact, tens } = x,
+  const {
+      ghost,
+      arrivals = [],
+      last = [],
+      drip = [],
+      held = [],
+      maxG = 0,
+      maxT = 0,
+      compact,
+      tens,
+    } = x,
     W = host.clientWidth;
   if (!W) return null;
   const u = host.id,
-    H = Math.round(compact ? Math.min(180, Math.max(140, W * 0.48)) : Math.min(220, Math.max(180, W * 0.56))),
+    H = Math.round(
+      compact ? Math.min(180, Math.max(140, W * 0.48)) : Math.min(220, Math.max(180, W * 0.56)),
+    ),
     L = 34,
     R = W - 10,
     T = 14,
@@ -3177,7 +3319,10 @@ function presetGraph(host, m, x = {}) {
     paceEnd = (ta) => {
       const c = PACE_SOFT,
         k = (top + 1) / m.goal;
-      return Math.min(tMax, t0 + ((ta - t0) * (Math.sqrt(4 * c * c + 4 * (1 - 2 * c) * k) - 2 * c)) / (2 * (1 - 2 * c)));
+      return Math.min(
+        tMax,
+        t0 + ((ta - t0) * (Math.sqrt(4 * c * c + 4 * (1 - 2 * c) * k) - 2 * c)) / (2 * (1 - 2 * c)),
+      );
     },
     ctrl = (ta, end) => P(t0 + (end - t0) / 2, (m.goal * PACE_SOFT * (end - t0)) / (ta - t0)),
     endOf = (ta, end = paceEnd(ta)) => P(end, referencePace(end, m.goal, ta, t0)),
@@ -3189,7 +3334,8 @@ function presetGraph(host, m, x = {}) {
     corner = `L${P(tMax, top + 1)}`,
     tA = Math.max(t0 + 0.5, m.t1 - m.d),
     tB = m.t2 + m.d,
-    band = (cls, d, on) => `<path class="${on ? cls : "rvBandOff"}" d="${d}" fill="url(#${u + cls})"/>`,
+    band = (cls, d, on) =>
+      `<path class="${on ? cls : "rvBandOff"}" d="${d}" fill="url(#${u + cls})"/>`,
     curves = (lines, cls) =>
       lines
         .map(
@@ -3209,53 +3355,91 @@ function presetGraph(host, m, x = {}) {
     grid += `<path class="rvGrid" d="M${L} ${f(Y(v))}H${R}"/>`;
     marks += label(L - 4, Y(v) + 3, v + " g", "", "end");
   }
-  (tens ? Array.from({ length: Math.floor(tMax / 10) + 1 }, (_, i) => i * 10) : [0, m.prot, m.t1, m.t2, m.wall]).forEach(
-    (t, i, ts) => {
-      // Every tick carries its unit. The zero tick starts at the y axis (clear
-      // of "0 g"), like the shot charts; a tick that would spill past the SVG
-      // ends at its edge; a tick that would overlap the previous one is dropped
-      // (never the last). Widths are estimated at ~6.5 px per 11 px glyph.
-      const s = n(t) + " s",
-        w = s.length * 6.5,
-        edge = X(t) + w / 2 > W - 1,
-        x0 = edge ? W - 1 - w : i ? X(t) - w / 2 : X(t);
-      if (x0 < lastR + 4 && i < ts.length - 1) return;
-      lastR = x0 + w;
-      if (tens) grid += `<path class="rvGrid" d="M${f(X(t))} ${T}V${B}"/>`;
-      marks += label(edge ? W - 1 : X(t), B + 13, s, "", edge ? "end" : i ? "middle" : "start");
-    },
-  );
+  (tens
+    ? Array.from({ length: Math.floor(tMax / 10) + 1 }, (_, i) => i * 10)
+    : [0, m.prot, m.t1, m.t2, m.wall]
+  ).forEach((t, i, ts) => {
+    // Every tick carries its unit. The zero tick starts at the y axis (clear
+    // of "0 g"), like the shot charts; a tick that would spill past the SVG
+    // ends at its edge; a tick that would overlap the previous one is dropped
+    // (never the last). Widths are estimated at ~6.5 px per 11 px glyph.
+    const s = n(t) + " s",
+      w = s.length * 6.5,
+      edge = X(t) + w / 2 > W - 1,
+      x0 = edge ? W - 1 - w : i ? X(t) - w / 2 : X(t);
+    if (x0 < lastR + 4 && i < ts.length - 1) return;
+    lastR = x0 + w;
+    if (tens) grid += `<path class="rvGrid" d="M${f(X(t))} ${T}V${B}"/>`;
+    marks += label(edge ? W - 1 : X(t), B + 13, s, "", edge ? "end" : i ? "middle" : "start");
+  });
   host.innerHTML =
     `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     // Each band fades from twice its flat strength at the top to almost nothing at the base.
-    `<defs>${[["rvFastFull", "gFast", "Full"], ["rvFastPart", "gFast", "Part"], ["rvWindow", "ok", "Win"], ["rvSlowPart", "gSlow", "Part"], ["rvSlowFull", "gSlow", "Full"]].map(([c, k, b]) => fadeFill(u + c, `var(--${k})`, `calc(var(--band${b}) * 2.2)`, 0.03)).join("")}<pattern id="${u}Hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="rvHatchLine" d="M0 0V6"/></pattern>` +
+    `<defs>${[
+      ["rvFastFull", "gFast", "Full"],
+      ["rvFastPart", "gFast", "Part"],
+      ["rvWindow", "ok", "Win"],
+      ["rvSlowPart", "gSlow", "Part"],
+      ["rvSlowFull", "gSlow", "Full"],
+    ]
+      .map(([c, k, b]) => fadeFill(u + c, `var(--${k})`, `calc(var(--band${b}) * 2.2)`, 0.03))
+      .join(
+        "",
+      )}<pattern id="${u}Hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path class="rvHatchLine" d="M0 0V6"/></pattern>` +
     `<clipPath id="${u}Under"><path d="M${P(0, 0)}L${P(0, m.ceil)}L${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}L${P(m.wall, 0)}Z"/></clipPath></defs>` +
     `<g role="img" aria-label="${escHtml(sub(__WEBUI_TEXT__("runtime.graph_summary"), [n(m.prot), n(m.ceil), n(a), n(m.goal), n(m.t1), n(m.t2), n(m.floor), n(b), n(m.wall)]) + " " + __WEBUI_TEXT__("runtime.graph_pace_note") + (compact ? "" : " " + paceStartNote(m)))}">` +
     grid +
     `<g clip-path="url(#${u}Under)">` +
     band("rvFastFull", O + paceTo(tA) + `L${P(paceEnd(tA), top + 1)}L${P(0, top + 1)}Z`, m.fast) +
     band("rvFastPart", O + paceTo(m.t1) + corner + `L${endOf(tA)}` + paceBack(tA) + "Z", m.fast) +
-    band("rvWindow", O + paceTo(m.t1, m.t1) + `L${P(m.t2, m.goal)}` + paceBack(m.t2, m.t2) + "Z", true) +
+    band(
+      "rvWindow",
+      O + paceTo(m.t1, m.t1) + `L${P(m.t2, m.goal)}` + paceBack(m.t2, m.t2) + "Z",
+      true,
+    ) +
     band("rvSlowPart", O + paceTo(m.t2) + corner + `L${endOf(tB)}` + paceBack(tB) + "Z", m.slow) +
     band("rvSlowFull", O + paceTo(tB) + corner + `L${P(tMax, 0)}Z`, m.slow) +
     `<path class="rvPace" d="${[tA, m.t1, m.t2, tB].map((ta) => S + paceTo(ta)).join("")}"><title>${__WEBUI_TEXT__("runtime.graph_pace_title")}</title></path>` +
     "</g>" +
     marks +
-    (compact ? "" : `<rect x="${L}" y="${T}" width="${f(X(m.prot) - L)}" height="${B - T}" fill="url(#${u}Hatch)"/>`) +
+    (compact
+      ? ""
+      : `<rect x="${L}" y="${T}" width="${f(X(m.prot) - L)}" height="${B - T}" fill="url(#${u}Hatch)"/>`) +
     `<path class="rvTarget" d="M${L} ${f(Y(m.goal))}H${R}"/><path class="rvMax" d="M${f(X(m.wall))} ${T}V${B}"/>` +
     // The On recipe window: dotted verticals at its start and end.
     `<path class="rvWin" d="M${f(X(m.t1))} ${T}V${B}M${f(X(m.t2))} ${T}V${B}"/>` +
-    (ghost ? `<path class="rvGhost" d="M${P(ghost.prot, ghost.ceil)}${edges(ghost).join("")}"/>` : "") +
+    (ghost
+      ? `<path class="rvGhost" d="M${P(ghost.prot, ghost.ceil)}${edges(ghost).join("")}"/>`
+      : "") +
     // One cut line from the weight-cut delay to Max, drawn under the shot data it frames.
     `<path class="rvCut${m.mode === "timerOnly" ? " off" : ""}" d="M${P(m.prot, m.ceil)}${fastEdge}${windowEdge}${slowEdge}"/>` +
     curves(last, "rvLast") +
     curves(drip, "rvLast rvLastDrip") +
-    held.map(([t, g]) => `<circle cx="${f(X(t))}" cy="${f(Y(g))}" r="2" fill="var(--mu)" opacity=".6"/>`).join("") +
-    shown.map((t) => `<circle class="rvArrival" cx="${f(X(t))}" cy="${f(Y(m.goal))}" r="3"/>`).join("") +
+    held
+      .map(
+        ([t, g]) => `<circle cx="${f(X(t))}" cy="${f(Y(g))}" r="2" fill="var(--mu)" opacity=".6"/>`,
+      )
+      .join("") +
+    shown
+      .map((t) => `<circle class="rvArrival" cx="${f(X(t))}" cy="${f(Y(m.goal))}" r="3"/>`)
+      .join("") +
     // The hatch keeps its inline name only where it fits; the legend names it too.
-    (!compact && X(m.prot) - L >= 96 ? label((L + X(m.prot)) / 2, (T + B) / 2, __WEBUI_TEXT__("runtime.graph_legend_no_cut"), "rvHalo") : "") +
+    (!compact && X(m.prot) - L >= 96
+      ? label(
+          (L + X(m.prot)) / 2,
+          (T + B) / 2,
+          __WEBUI_TEXT__("runtime.graph_legend_no_cut"),
+          "rvHalo",
+        )
+      : "") +
     // Below the line when it would run into "Max" at the top (Settings only).
-    label(R - 2, Y(m.goal) + (targetAbove ? -4 : 13), sub(__WEBUI_TEXT__("runtime.graph_target"), [n(m.goal)]), "rvHalo strong", "end") +
+    label(
+      R - 2,
+      Y(m.goal) + (targetAbove ? -4 : 13),
+      sub(__WEBUI_TEXT__("runtime.graph_target"), [n(m.goal)]),
+      "rvHalo strong",
+      "end",
+    ) +
     (compact
       ? "</g></svg>"
       : label(X(m.wall), T - 4, sub(__WEBUI_TEXT__("runtime.graph_max"), [n(m.wall)]), "", "end") +
@@ -3272,7 +3456,8 @@ function presetGraph(host, m, x = {}) {
   };
 }
 // While held, a pill left of the handle (clear of a right thumb) shows its point.
-const PILL = '<g class="rvPill"><rect y="-9" rx="9" height="18"/><text class="rvLbl strong" x="8" y="4"/></g>';
+const PILL =
+  '<g class="rvPill"><rect y="-9" rx="9" height="18"/><text class="rvLbl strong" x="8" y="4"/></g>';
 // User text bound for innerHTML.
 function escHtml(text) {
   return String(text).replace(/[&<>"]/g, (c) => "&#" + c.charCodeAt(0) + ";");
@@ -3300,10 +3485,14 @@ function drawPresetGraph(host, m, x, readout, key) {
     host.dataset.bound = "1";
     observePresetHost(host);
     const scrub = (s) => {
-      host._s = Math.max(host._view.m.scrubMin, Math.min(host._view.m.wall, Math.round(s * 10) / 10));
+      host._s = Math.max(
+        host._view.m.scrubMin,
+        Math.min(host._view.m.wall, Math.round(s * 10) / 10),
+      );
       positionPresetScrub(host);
     };
-    const move = (e) => scrub(host._view.tAt(e.clientX - host.firstChild.getBoundingClientRect().left));
+    const move = (e) =>
+      scrub(host._view.tAt(e.clientX - host.firstChild.getBoundingClientRect().left));
     host.addEventListener("pointerdown", (e) => {
       e.preventDefault();
       host.setPointerCapture(e.pointerId);
@@ -3321,7 +3510,9 @@ function drawPresetGraph(host, m, x, readout, key) {
         const t = e.touches[0],
           h = host.querySelector(".rvHandle")?.getBoundingClientRect();
         held =
-          e.touches.length === 1 && h && Math.hypot(t.clientX - h.x - h.width / 2, t.clientY - h.y - h.height / 2) < 28
+          e.touches.length === 1 &&
+          h &&
+          Math.hypot(t.clientX - h.x - h.width / 2, t.clientY - h.y - h.height / 2) < 28
             ? 1
             : 0;
         lastY = t.clientY;
@@ -3343,11 +3534,20 @@ function drawPresetGraph(host, m, x, readout, key) {
     );
     host.addEventListener(
       "pointermove",
-      (e) => host.hasPointerCapture(e.pointerId) && (held === 2 ? host.releasePointerCapture(e.pointerId) : move(e)),
+      (e) =>
+        host.hasPointerCapture(e.pointerId) &&
+        (held === 2 ? host.releasePointerCapture(e.pointerId) : move(e)),
     );
     host.addEventListener("lostpointercapture", () => host.classList.remove("rvHeld"));
     host.addEventListener("keydown", (e) => {
-      const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5, PageUp: 5, PageDown: -5 }[e.key];
+      const step = {
+        ArrowRight: 0.5,
+        ArrowUp: 0.5,
+        ArrowLeft: -0.5,
+        ArrowDown: -0.5,
+        PageUp: 5,
+        PageDown: -5,
+      }[e.key];
       if (!step) return;
       e.preventDefault();
       scrub(host._s + step);
@@ -3366,8 +3566,16 @@ function renderPresetReview() {
   const goalNow = formNumber("goalWeightG"),
     grams = (v) => (Number.isFinite(v) ? v.toFixed(1) : "\u2014");
   for (const [id, key, w] of [
-    ["fastMarginResult", __WEBUI_TEXT__("runtime.margin_up_to"), goalNow + formNumber("fastMarginG")],
-    ["slowMarginResult", __WEBUI_TEXT__("runtime.margin_down_to"), goalNow - formNumber("slowMarginG")],
+    [
+      "fastMarginResult",
+      __WEBUI_TEXT__("runtime.margin_up_to"),
+      goalNow + formNumber("fastMarginG"),
+    ],
+    [
+      "slowMarginResult",
+      __WEBUI_TEXT__("runtime.margin_down_to"),
+      goalNow - formNumber("slowMarginG"),
+    ],
   ])
     $(id).textContent = sub(key, [grams(w), brewRatio(w, formNumber("doseG"))]);
   const id = presetState.selectedId || presetState.activeId,
@@ -3386,26 +3594,38 @@ function renderPresetReview() {
   // Past arrivals were judged against the saved target: hidden while it is edited.
   const arrivals = m.goal === savedModel.goal ? saved.arrivalsS || [] : [];
   host._draw = renderPresetReview;
-  const view = drawPresetGraph(
-    host,
-    m,
-    { ghost, arrivals },
-    $("presetReviewReadout"),
-    id,
-  );
+  const view = drawPresetGraph(host, m, { ghost, arrivals }, $("presetReviewReadout"), id);
   if (!view) return;
   const legend = $("presetReviewLegend");
   if (!legend.childElementCount)
     legend.innerHTML =
-      '<span class="rvLeg rvLegCut"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_cut") + "</span>" +
-      '<span class="rvLeg rvLegPace"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_pace") + "</span>" +
-      '<span class="rvLeg rvLegExample"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_example") + "</span>" +
-      '<span class="rvLeg rvLegArrivals"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_arrivals") + "</span>" +
-      '<span class="rvLeg rvLegWindow"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_corridor") + "</span>" +
-      '<span class="rvLeg rvLegFast"><i></i><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_fast") + "</span>" +
-      '<span class="rvLeg rvLegSlow"><i></i><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_slow") + "</span>" +
-      '<span class="rvLeg rvLegNoCut"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_no_cut") + "</span>" +
-      '<span class="rvLeg rvLegSaved"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_saved") + "</span>" +
+      '<span class="rvLeg rvLegCut"><i></i>' +
+      __WEBUI_TEXT__("runtime.graph_legend_cut") +
+      "</span>" +
+      '<span class="rvLeg rvLegPace"><i></i>' +
+      __WEBUI_TEXT__("runtime.graph_legend_pace") +
+      "</span>" +
+      '<span class="rvLeg rvLegExample"><i></i>' +
+      __WEBUI_TEXT__("runtime.graph_legend_example") +
+      "</span>" +
+      '<span class="rvLeg rvLegArrivals"><i></i>' +
+      __WEBUI_TEXT__("runtime.graph_legend_arrivals") +
+      "</span>" +
+      '<span class="rvLeg rvLegWindow"><i></i>' +
+      __WEBUI_TEXT__("runtime.graph_legend_corridor") +
+      "</span>" +
+      '<span class="rvLeg rvLegFast"><i></i><i></i>' +
+      __WEBUI_TEXT__("runtime.graph_legend_fast") +
+      "</span>" +
+      '<span class="rvLeg rvLegSlow"><i></i><i></i>' +
+      __WEBUI_TEXT__("runtime.graph_legend_slow") +
+      "</span>" +
+      '<span class="rvLeg rvLegNoCut"><i></i>' +
+      __WEBUI_TEXT__("runtime.graph_legend_no_cut") +
+      "</span>" +
+      '<span class="rvLeg rvLegSaved"><i></i>' +
+      __WEBUI_TEXT__("runtime.graph_legend_saved") +
+      "</span>" +
       '<small class="rvNote"></small>';
   legend.lastChild.textContent = __WEBUI_TEXT__("runtime.graph_pace_note") + " " + paceStartNote(m);
   legend.classList.toggle("ghosted", !!ghost);
@@ -3840,7 +4060,11 @@ function startUiStream() {
       if (data.type === "stats") {
         if (
           !statsStreamWanted ||
-          ![statsRequest, uiState.statsFetchMark?.request, uiState.statsExportRequest || -1].includes(data.request)
+          ![
+            statsRequest,
+            uiState.statsFetchMark?.request,
+            uiState.statsExportRequest || -1,
+          ].includes(data.request)
         )
           return;
         applyStatsStream(statsStreamFrame(data));
@@ -3986,9 +4210,24 @@ function syncShotClock(frame) {
   }
   if (shotClockFinish) return;
   const id = card.scaleAvailable === false ? "Weight" : "Elapsed";
-  if (!c || c.boot !== frame.boot || c.cycle !== frame.cycle || shotStale || now - c.seen >= shotClockSilenceMs) {
+  if (
+    !c ||
+    c.boot !== frame.boot ||
+    c.cycle !== frame.cycle ||
+    shotStale ||
+    now - c.seen >= shotClockSilenceMs
+  ) {
     const offset = card.elapsedMs - now;
-    shotClock = { boot: frame.boot, cycle: frame.cycle, id, offset, target: offset, at: now, seen: now, shown: card.elapsedMs };
+    shotClock = {
+      boot: frame.boot,
+      cycle: frame.cycle,
+      id,
+      offset,
+      target: offset,
+      at: now,
+      seen: now,
+      shown: card.elapsedMs,
+    };
   } else {
     c.id = id;
     c.target = Math.max(c.target, card.elapsedMs - now);
@@ -4038,8 +4277,15 @@ function revealShotClockFinish() {
   if (!f || f.revealed || shotFrame?.card.live) return;
   if (activeView !== "home" || document.hidden || shotStale || !e) return cancelShotClockFinish();
   const fade = (from, done) => {
-    f.animation = e.animate([{ opacity: from }, { opacity: 1 - from }], { duration: 500, fill: "forwards", easing: "ease-in-out" });
-    f.animation.finished.then(() => shotClockFinish === f && done(), () => {});
+    f.animation = e.animate([{ opacity: from }, { opacity: 1 - from }], {
+      duration: 500,
+      fill: "forwards",
+      easing: "ease-in-out",
+    });
+    f.animation.finished.then(
+      () => shotClockFinish === f && done(),
+      () => {},
+    );
   };
   if (!f.animation)
     return Math.abs(ms(f.elapsed, 1) - ms(shotFrame.card.elapsedMs, 1)) < 0.15
@@ -4100,19 +4346,23 @@ function keepShotFsAwake(on) {
     return;
   }
   if (navigator.wakeLock)
-    return void navigator.wakeLock
-      .request("screen")
-      .then((l) => (shotFsActive ? (shotFsLock = l) : l.release()), () => {});
+    return void navigator.wakeLock.request("screen").then(
+      (l) => (shotFsActive ? (shotFsLock = l) : l.release()),
+      () => {},
+    );
   if (!shotFsVideo) {
     shotFsVideo = document.createElement("video");
     shotFsVideo.className = "heroAwake";
     // iOS WebKit keeps the display awake only during audible playback, so
     // the silent track plays unmuted there and muted everywhere else.
-    shotFsVideo.muted = !(/iPhone|iPad|iPod/.test(navigator.userAgent) ||
-      (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)));
+    shotFsVideo.muted = !(
+      /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent))
+    );
     shotFsVideo.loop = shotFsVideo.playsInline = true;
     shotFsVideo.setAttribute("aria-hidden", "true");
-    shotFsVideo.src = "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMsbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAld0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAAAAABAAAAAAHPbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAgABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABem1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAATpzdGJsAAAAunN0c2QAAAAAAAAAAQAAAKphdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2MS4xOS4xMDEgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAMGF2Y0MBQsAK/+EAF2dCwAqmEXsBEAAAAwAQAAADACDxImEYAQAGaMhCDxMgAAAAEHBhc3AAAAABAAAAAQAAABRidHJ0AAAAAAAAAHgAAAAAAAAAGHN0dHMAAAAAAAAAAQAAAAIAAEAAAAAAFHN0c3MAAAAAAAAAAQAAAAEAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAIAAAABAAAAHHN0c3oAAAAAAAAAAAAAAAIAAAATAAAACwAAABRzdGNvAAAAAAAAAAEAAANcAAAAYXVkdGEAAABZbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAsaWxzdAAAACSpdG9vAAAAHGRhdGEAAAABAAAAAExhdmY2MS43LjEwMwAAAAhmcmVlAAAAJm1kYXQAAAAPZYiCAvnP//+HooAAq8/AAAAAB0GaHAXznUA=";
+    shotFsVideo.src =
+      "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMsbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAB9AAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAld0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAB9AAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAfQAAAAAAABAAAAAAHPbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAgABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABem1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAATpzdGJsAAAAunN0c2QAAAAAAAAAAQAAAKphdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2MS4xOS4xMDEgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAMGF2Y0MBQsAK/+EAF2dCwAqmEXsBEAAAAwAQAAADACDxImEYAQAGaMhCDxMgAAAAEHBhc3AAAAABAAAAAQAAABRidHJ0AAAAAAAAAHgAAAAAAAAAGHN0dHMAAAAAAAAAAQAAAAIAAEAAAAAAFHN0c3MAAAAAAAAAAQAAAAEAAAAcc3RzYwAAAAAAAAABAAAAAQAAAAIAAAABAAAAHHN0c3oAAAAAAAAAAAAAAAIAAAATAAAACwAAABRzdGNvAAAAAAAAAAEAAANcAAAAYXVkdGEAAABZbWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAsaWxzdAAAACSpdG9vAAAAHGRhdGEAAAABAAAAAExhdmY2MS43LjEwMwAAAAhmcmVlAAAAJm1kYXQAAAAPZYiCAvnP//+HooAAq8/AAAAAB0GaHAXznUA=";
     $("shotHero").append(shotFsVideo);
   }
   shotFsVideo.play().catch(() => {});
@@ -4303,7 +4553,10 @@ function sendUiOperation(op) {
   if (shotWs && shotWs.readyState === 1) shotWs.send(JSON.stringify(op));
 }
 function startLogStream() {
-  if (webUiPollingActive() && (diagnosticUnlocked || uiState.diagnosticPublicView || developmentMode)) {
+  if (
+    webUiPollingActive() &&
+    (diagnosticUnlocked || uiState.diagnosticPublicView || developmentMode)
+  ) {
     if (!logStreamWanted) {
       logStreamWanted = true;
       sendUiOperation({ op: "log", on: true, after: lastLog });
@@ -4844,21 +5097,19 @@ function renderShotHero(d) {
   );
   const noScale = d.scaleAvailable === false;
   const goalEdit = $("shotGoalEdit");
-  if (goalEdit)
-    goalEdit.hidden =
-      d.live || noScale || !(goal > 0) || hero.classList.contains("fs");
+  if (goalEdit) goalEdit.hidden = d.live || noScale || !(goal > 0) || hero.classList.contains("fs");
   const label =
     heroNum(
       "Weight",
       est !== null
         ? "~" + est + __WEBUI_TEXT__("runtime.g_2")
         : sl && sl.state === "finished"
-        ? __WEBUI_TEXT__("runtime.weight_unknown")
-        : noScale
-        ? ms(d.clockMs, 1) + __WEBUI_TEXT__("runtime.s_2")
-        : wt === null
-          ? __WEBUI_TEXT__("runtime.unknown")
-          : wt.toFixed(1) + __WEBUI_TEXT__("runtime.g_2"),
+          ? __WEBUI_TEXT__("runtime.weight_unknown")
+          : noScale
+            ? ms(d.clockMs, 1) + __WEBUI_TEXT__("runtime.s_2")
+            : wt === null
+              ? __WEBUI_TEXT__("runtime.unknown")
+              : wt.toFixed(1) + __WEBUI_TEXT__("runtime.g_2"),
     ) +
     t(
       "Goal",
@@ -4875,7 +5126,10 @@ function renderShotHero(d) {
     e.hidden = !v;
     e.textContent = v || "";
   };
-  heroNum("Elapsed", (!noScale || est !== null) && ms(d.clockMs, 1) + __WEBUI_TEXT__("runtime.s_2"));
+  heroNum(
+    "Elapsed",
+    (!noScale || est !== null) && ms(d.clockMs, 1) + __WEBUI_TEXT__("runtime.s_2"),
+  );
   // Live flow: the chart's own, averaged over its last second; none during a
   // touch hold or once stale. A finished shot shows its average.
   const fi = model ? model.flowCurve.findLastIndex(Number.isFinite) : -1,
@@ -4885,7 +5139,9 @@ function renderShotHero(d) {
         : !d.live
           ? d.averageFlowGps
           : fi >= 0 && d.wAtMs.at(-1) - d.wAtMs[fi] <= 1000
-            ? model.flowCurve.filter((v, i) => v != null && d.wAtMs[fi] - d.wAtMs[i] <= 1000).reduce((a, v, _, n) => a + v / n.length, 0)
+            ? model.flowCurve
+                .filter((v, i) => v != null && d.wAtMs[fi] - d.wAtMs[i] <= 1000)
+                .reduce((a, v, _, n) => a + v / n.length, 0)
             : null;
   // A finished card fades the live flow into its average.
   const fe = $("shotHeroFlow"),
@@ -4907,26 +5163,37 @@ function renderShotHero(d) {
                 ? __WEBUI_TEXT__("runtime.cut_stopped_early")
                 : "";
   chip("Cut", cut);
-  const mode = d.live && sl && sl.state === "recovered"
-    ? __WEBUI_TEXT__("runtime.scale_back")
-    : noScale
-    ? __WEBUI_TEXT__("home.hero_no_scale")
-    : d.live
-      ? {
-          auto: __WEBUI_TEXT__("runtime.bbw"),
-          timer_only: __WEBUI_TEXT__("runtime.timer_only"),
-          manual: __WEBUI_TEXT__("runtime.manual"),
-          rinse: __WEBUI_TEXT__("runtime.rinse"),
-        }[(d.shotType || "").toLowerCase()] || ""
-      : formatShotEnded(d.endReason, d.verdict);
+  const mode =
+    d.live && sl && sl.state === "recovered"
+      ? __WEBUI_TEXT__("runtime.scale_back")
+      : noScale
+        ? __WEBUI_TEXT__("home.hero_no_scale")
+        : d.live
+          ? {
+              auto: __WEBUI_TEXT__("runtime.bbw"),
+              timer_only: __WEBUI_TEXT__("runtime.timer_only"),
+              manual: __WEBUI_TEXT__("runtime.manual"),
+              rinse: __WEBUI_TEXT__("runtime.rinse"),
+            }[(d.shotType || "").toLowerCase()] || ""
+          : formatShotEnded(d.endReason, d.verdict);
   chip(
     "Mode",
-    !kind && !cut && mode !== __WEBUI_TEXT__("runtime.unknown") && mode !== __WEBUI_TEXT__("runtime.bbw") && mode,
+    !kind &&
+      !cut &&
+      mode !== __WEBUI_TEXT__("runtime.unknown") &&
+      mode !== __WEBUI_TEXT__("runtime.bbw") &&
+      mode,
   );
   $("shotHeroPills").hidden = ["Cut", "Touch", "Mode"].every((id) => $("shotHero" + id).hidden);
   const m = d.live
       ? liveRuleModel
-      : d.rule && shotRuleModel({ ...d.rule, goalG: d.goal, shotType: d.shotType, firstDropS: d.firstDropMs / 1e3 }),
+      : d.rule &&
+        shotRuleModel({
+          ...d.rule,
+          goalG: d.goal,
+          shotType: d.shotType,
+          firstDropS: d.firstDropMs / 1e3,
+        }),
     tintMode = heroTintMode(),
     tint = heroTint(d, m, kind, el, noScale, tintMode);
   hero.dataset.tint = tint;
@@ -4942,20 +5209,26 @@ function renderShotHero(d) {
     "State",
     d.live
       ? heroStateText(d, tint, m, el, tintMode) ||
-        (tint === "fast"
-          ? __WEBUI_TEXT__("home.hero_running_fast")
-          : tint === "on_recipe"
-            ? __WEBUI_TEXT__("home.hero_in_window")
-            : tint === "slow"
-              ? __WEBUI_TEXT__("home.hero_past_window")
-              : __WEBUI_TEXT__("home.hero_brewing"))
+          (tint === "fast"
+            ? __WEBUI_TEXT__("home.hero_running_fast")
+            : tint === "on_recipe"
+              ? __WEBUI_TEXT__("home.hero_in_window")
+              : tint === "slow"
+                ? __WEBUI_TEXT__("home.hero_past_window")
+                : __WEBUI_TEXT__("home.hero_brewing"))
       : kind === "max_time"
         ? __WEBUI_TEXT__("runtime.max_time")
         : kind
           ? verdictLabel(kind)
           : __WEBUI_TEXT__("home.hero_last_shot"),
   );
-  renderHeroChart($("shotHeroSpark"), model, !noScale && m && m.mode === "active" ? m : null, goal, label);
+  renderHeroChart(
+    $("shotHeroSpark"),
+    model,
+    !noScale && m && m.mode === "active" ? m : null,
+    goal,
+    label,
+  );
 }
 // Hero numbers swap with a quick fade; a value arriving mid-fade replaces the pending one.
 // Numbers keep their full text; a trailing unit is set smaller. Unchanged
@@ -4971,15 +5244,19 @@ function heroNum(id, v) {
 }
 function heroFadeSwap(e, set, fade) {
   if (e.fade) return void (e.fade.set = set);
-  if (!fade || !e.animate || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return set();
+  if (!fade || !e.animate || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches)
+    return set();
   const out = e.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 100, fill: "forwards" });
   e.fade = { set };
-  out.finished.then(() => {
-    e.fade.set();
-    e.fade = null;
-    e.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 100 });
-    out.cancel();
-  }, () => (e.fade = null));
+  out.finished.then(
+    () => {
+      e.fade.set();
+      e.fade = null;
+      e.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 100 });
+      out.cancel();
+    },
+    () => (e.fade = null),
+  );
 }
 // Hero colour. In forecast mode the firmware's shot predictor owns the live
 // colour class and blend percent (tintClass/tintPct on the card); window and
@@ -5000,9 +5277,7 @@ function heroTint(d, m, kind, el, noScale, mode) {
   if (mode === "brand") return "brand";
   if (!d.live) return v || "neutral";
   if (mode === "forecast")
-    return ["neutral", "fast", "on_recipe", "slow"].includes(d.tintClass)
-      ? d.tintClass
-      : "neutral";
+    return ["neutral", "fast", "on_recipe", "slow"].includes(d.tintClass) ? d.tintClass : "neutral";
   if (noScale || !m || m.mode !== "active" || (d.shotType || "").toLowerCase() !== "auto")
     return "neutral";
   if (el < heroWindowRed.el) heroWindowRed = { el: 0, since: -1, on: false };
@@ -5026,7 +5301,7 @@ function heroStateText(d, tint, m, el, mode) {
   if (tint !== "slow") {
     if (tint === "on_recipe" && mode === "forecast" && d.tintPct >= 50 && d.expectedEndMs > 0)
       return "~" + ms(d.expectedEndMs, 0) + __WEBUI_TEXT__("runtime.s_2") + suffix;
-    return null;  // caller falls back to the stock labels
+    return null; // caller falls back to the stock labels
   }
   const q = d.averageFlowGps,
     at = el / 1000;
@@ -5066,15 +5341,21 @@ function renderHeroChart(host, model, m, goal, label) {
     yMax = 1.15 * Math.max(model.maxW, m ? m.ceil : 0, goal > 0 ? goal : 0),
     X = (v) => (100 * Math.min(v, xMax)) / xMax,
     Y = (g) => 100 - (100 * Math.max(0, g)) / yMax,
-    path = (pts, y = Y) => pts.map((q, i) => (i ? "L" : "M") + X(q[0]).toFixed(2) + " " + y(q[1]).toFixed(2)).join(""),
+    path = (pts, y = Y) =>
+      pts.map((q, i) => (i ? "L" : "M") + X(q[0]).toFixed(2) + " " + y(q[1]).toFixed(2)).join(""),
     curve = (s) => path(s.pts.map((q) => [q.t, q.cg / 100])),
-    flows = [model.flowSegs, model.dripFlowSegs].map((a) => a.filter((s) => s.pts.length > 1).map(smoothFlow)),
+    flows = [model.flowSegs, model.dripFlowSegs].map((a) =>
+      a.filter((s) => s.pts.length > 1).map(smoothFlow),
+    ),
     // Flow keeps to the lower 32 % on its own scale.
     flowTop = Math.max(2.5, ...flows.flat(2).map((q) => 1.15 * q[1])),
     flowY = (r) => 100 - (32 * r) / flowTop,
     stroke = 'stroke="var(--on)" vector-effect="non-scaling-stroke"',
     put = (cls, text, x, y) => {
-      const e = Object.assign(document.createElement("span"), { className: cls, textContent: text });
+      const e = Object.assign(document.createElement("span"), {
+        className: cls,
+        textContent: text,
+      });
       e.style.left = x.toFixed(2) + "%";
       if (y != null) e.style.top = y.toFixed(2) + "%";
       return e;
@@ -5089,7 +5370,12 @@ function renderHeroChart(host, model, m, goal, label) {
     // A soft flow area; its drip tail is fainter.
     flows
       .map((a, drip) =>
-        a.map((p) => `<path d="${path(p, flowY)}V100H${X(p[0][0]).toFixed(2)}Z" fill=${drip ? '"var(--on)" fill-opacity=".06"' : '"url(#heroFlow)"'}/>`).join(""),
+        a
+          .map(
+            (p) =>
+              `<path d="${path(p, flowY)}V100H${X(p[0][0]).toFixed(2)}Z" fill=${drip ? '"var(--on)" fill-opacity=".06"' : '"url(#heroFlow)"'}/>`,
+          )
+          .join(""),
       )
       .join("");
   const over = [],
@@ -5104,11 +5390,16 @@ function renderHeroChart(host, model, m, goal, label) {
       `<clipPath id="heroUnder"><path d="${path([[0, 0], ...line, [xMax, 0]])}Z"/></clipPath>` +
       `<path d="M${X(m.t1).toFixed(2)} 0V100M${X(m.t2).toFixed(2)} 0V100" ${stroke} stroke-opacity=".35" stroke-dasharray="1.5 3" stroke-linecap="round"/>` +
       `<g clip-path="url(#heroUnder)"><path d="${path([...pace(m.t1), ...pace(m.t2).reverse()])}Z" fill="url(#heroWin)"/>` +
-      [m.t1, m.t2].map((ta) => `<path d="${path(pace(ta))}" fill="none" ${stroke} stroke-opacity=".4"/>`).join("") +
+      [m.t1, m.t2]
+        .map((ta) => `<path d="${path(pace(ta))}" fill="none" ${stroke} stroke-opacity=".4"/>`)
+        .join("") +
       `</g><path d="${path(line)}" fill="none" ${stroke} stroke-opacity=".7" stroke-width="1.5" stroke-dasharray="4 3"/>`;
     // A faint hatch over the no-cut delay.
     hatch.style.width = X(m.prot).toFixed(2) + "%";
-    over.push(put("xl", String(m.t1), X(m.t1)), put("xl", m.t2 + __WEBUI_TEXT__("runtime.s_2"), X(m.t2)));
+    over.push(
+      put("xl", String(m.t1), X(m.t1)),
+      put("xl", m.t2 + __WEBUI_TEXT__("runtime.s_2"), X(m.t2)),
+    );
   }
   host.innerHTML =
     svg +
@@ -5122,9 +5413,14 @@ function renderHeroChart(host, model, m, goal, label) {
       })
       .join("") +
     drip
-      .map((s) => `<path d="${curve(s)}" fill="none" ${stroke} stroke-width="2.4" stroke-dasharray="3 3"/>`)
+      .map(
+        (s) =>
+          `<path d="${curve(s)}" fill="none" ${stroke} stroke-width="2.4" stroke-dasharray="3 3"/>`,
+      )
       .join("") +
-    (drip.length ? `<path d="${path([[cut.t, cut.cg / 100]])}h0" ${stroke} stroke-width="6" stroke-linecap="round"/>` : "") +
+    (drip.length
+      ? `<path d="${path([[cut.t, cut.cg / 100]])}h0" ${stroke} stroke-width="6" stroke-linecap="round"/>`
+      : "") +
     `</g><line x1="0" y1="99.6" x2="100" y2="99.6" ${stroke} stroke-opacity=".3"/></svg>`;
   host.append(...over, put("end", "", X(end.t), Y(end.cg / 100)));
   if (hatch) host.prepend(hatch);
@@ -5158,12 +5454,17 @@ function grindHintView(p) {
     fine = h.direction === "finer",
     v = {
       // Ignore holds for this advice: preset, grind setting, direction, tier.
-      key: ["obbwCard:grind", p.id, h.segmentStartId, h.direction || h.state, h.tier || ""].join(":"),
+      key: ["obbwCard:grind", p.id, h.segmentStartId, h.direction || h.state, h.tier || ""].join(
+        ":",
+      ),
       cls: { checking: "isCheck", vary: "isSpread" }[h.state] || (fine ? "isFast" : "isSlow"),
       level: at(level),
       band: [at(c - h.bandS), 100 - at(c + h.bandS)],
       axis: [n(t1) + " s", n(c), n(t2) + " s"],
-      shots: h.shots === 1 ? __WEBUI_TEXT__("runtime.grind_shots_one") : sub(__WEBUI_TEXT__("runtime.grind_shots"), [h.shots]),
+      shots:
+        h.shots === 1
+          ? __WEBUI_TEXT__("runtime.grind_shots_one")
+          : sub(__WEBUI_TEXT__("runtime.grind_shots"), [h.shots]),
       actions: h.state !== "checking",
     };
   if (h.state === "vary")
@@ -5185,7 +5486,10 @@ function grindHintView(p) {
     });
   const secs = [Math.max(1, Math.round(Math.abs(h.offsetS)))];
   return Object.assign(v, {
-    tag: h.state === "dial_in" ? __WEBUI_TEXT__("runtime.grind_tag_dial_in") : __WEBUI_TEXT__("runtime.grind_tag_hint"),
+    tag:
+      h.state === "dial_in"
+        ? __WEBUI_TEXT__("runtime.grind_tag_dial_in")
+        : __WEBUI_TEXT__("runtime.grind_tag_hint"),
     conf: {
       tentative: __WEBUI_TEXT__("runtime.grind_tier_tentative"),
       likely: __WEBUI_TEXT__("runtime.grind_tier_likely"),
@@ -5203,8 +5507,18 @@ function grindHintView(p) {
           large: __WEBUI_TEXT__("runtime.grind_coarser_large"),
         })[h.bin],
     mag: fine
-      ? sub(h.atLeast ? __WEBUI_TEXT__("runtime.grind_fast_at_least") : __WEBUI_TEXT__("runtime.grind_fast"), secs)
-      : sub(h.atLeast ? __WEBUI_TEXT__("runtime.grind_slow_at_least") : __WEBUI_TEXT__("runtime.grind_slow"), secs),
+      ? sub(
+          h.atLeast
+            ? __WEBUI_TEXT__("runtime.grind_fast_at_least")
+            : __WEBUI_TEXT__("runtime.grind_fast"),
+          secs,
+        )
+      : sub(
+          h.atLeast
+            ? __WEBUI_TEXT__("runtime.grind_slow_at_least")
+            : __WEBUI_TEXT__("runtime.grind_slow"),
+          secs,
+        ),
     text:
       h.shots === 1
         ? sub(__WEBUI_TEXT__("runtime.grind_text_one"), [n(p.goalWeightG), n(level), n(t1), n(t2)])
@@ -5229,7 +5543,9 @@ function renderHomeCards() {
       $("ghBand").style.left = v.band[0] + "%";
       $("ghBand").style.right = v.band[1] + "%";
       $("ghLevel").style.left = v.level + "%";
-      $("ghAxis").replaceChildren(...v.axis.map((t) => Object.assign(document.createElement("span"), { textContent: t })));
+      $("ghAxis").replaceChildren(
+        ...v.axis.map((t) => Object.assign(document.createElement("span"), { textContent: t })),
+      );
       $("ghActions").hidden = !v.actions;
     }
   }
@@ -5237,7 +5553,8 @@ function renderHomeCards() {
 // Relearn (a new bag, dose, basket or grinder): starts the preset's statistics over.
 async function startNewCoffee(id = presetState.activeId) {
   const p = presetState.items.find((x) => x.id === id),
-    text = p && sub(__WEBUI_TEXT__("settings.new_coffee_confirm"), [p.name, p.shotStats?.total || 0]);
+    text =
+      p && sub(__WEBUI_TEXT__("settings.new_coffee_confirm"), [p.name, p.shotStats?.total || 0]);
   if (p && (await askConfirm(text, __WEBUI_TEXT__("settings.new_coffee"))))
     command("/api/v1/presets", { action: "new_coffee", id });
 }
@@ -5251,7 +5568,9 @@ function askConfirm(text, ok, danger = false) {
   b.classList.toggle("btnDanger", danger);
   d.returnValue = "";
   d.showModal();
-  return new Promise((done) => d.addEventListener("close", () => done(d.returnValue === "ok"), { once: true }));
+  return new Promise((done) =>
+    d.addEventListener("close", () => done(d.returnValue === "ok"), { once: true }),
+  );
 }
 // "Last 10 shots: 28–33 s, median 30.4 s": arrival times since the preset's
 // statistics last started over. Empty until the first shot.

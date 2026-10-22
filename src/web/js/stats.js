@@ -223,7 +223,13 @@ function formatShotTimeCsv(r) {
 function shotCut(r, m, actual) {
   const p = m && r.endS != null && (m.dripSegs[0]?.pts[0] ?? m.pts.at(-1)),
     g = p && p.cg / 100;
-  return p ? { s: +r.endS, g, drip: actual !== null && r.actualWeightSource === "post_drip" ? actual - g : null } : {};
+  return p
+    ? {
+        s: +r.endS,
+        g,
+        drip: actual !== null && r.actualWeightSource === "post_drip" ? actual - g : null,
+      }
+    : {};
 }
 function shotFlowCurveGS(shot, model = R.buildShotSparkModel(shot)) {
   return model ? model.flowCurve : [];
@@ -251,7 +257,14 @@ function bindShotScrub(node, tAt, seek, now) {
   node.addEventListener("pointermove", (e) => node.hasPointerCapture(e.pointerId) && move(e));
   node.addEventListener("lostpointercapture", () => node.classList.remove("rvHeld"));
   node.addEventListener("keydown", (e) => {
-    const step = { ArrowRight: 0.5, ArrowUp: 0.5, ArrowLeft: -0.5, ArrowDown: -0.5, PageUp: 5, PageDown: -5 }[e.key];
+    const step = {
+      ArrowRight: 0.5,
+      ArrowUp: 0.5,
+      ArrowLeft: -0.5,
+      ArrowDown: -0.5,
+      PageUp: 5,
+      PageDown: -5,
+    }[e.key];
     if (!step) return;
     e.preventDefault();
     seek(now() + step);
@@ -289,9 +302,18 @@ function renderShotSpark(h, shot, m = R.buildShotSparkModel(shot)) {
     g.children[0].setAttribute("d", `M${v.X(t).toFixed(1)} ${v.T}V${v.B}`);
     g.children[1].setAttribute("cx", v.X(t).toFixed(2));
     g.children[1].setAttribute("cy", v.Y(w).toFixed(2));
-    R.placePill(g.children[2], R.sub(__WEBUI_TEXT__("runtime.shot_cursor_pill"), [t.toFixed(1), w.toFixed(1)]), v.X(t), v.Y(w));
+    R.placePill(
+      g.children[2],
+      R.sub(__WEBUI_TEXT__("runtime.shot_cursor_pill"), [t.toFixed(1), w.toFixed(1)]),
+      v.X(t),
+      v.Y(w),
+    );
     preset.setAttribute("aria-valuenow", t.toFixed(1));
-    readout.textContent = R.sub(__WEBUI_TEXT__("runtime.shot_cursor"), [t.toFixed(1), w.toFixed(1), cut]);
+    readout.textContent = R.sub(__WEBUI_TEXT__("runtime.shot_cursor"), [
+      t.toFixed(1),
+      w.toFixed(1),
+      cut,
+    ]);
     preset.setAttribute("aria-valuetext", readout.textContent);
   };
   const seek = (t) => {
@@ -312,11 +334,15 @@ function renderShotSpark(h, shot, m = R.buildShotSparkModel(shot)) {
     // The weight/flow chart below matches this plot's height, so grams read alike in both.
     if (preset._view) h.style.setProperty("--shot-plot-h", preset._view.B - preset._view.T + "px");
     const v = preset._view;
-    preset.querySelector("svg")?.insertAdjacentHTML(
-      "beforeend",
-      `<g class="shotCursor"><path class="rvGuide"/><circle class="rvHandle" r="5"/>${R.PILL}</g>` +
-        (stop == null || !v ? "" : `<circle class="shotStop" r="3" cx="${v.X(stop)}" cy="${v.Y(curveAt(curve, stop))}"/>`),
-    );
+    preset
+      .querySelector("svg")
+      ?.insertAdjacentHTML(
+        "beforeend",
+        `<g class="shotCursor"><path class="rvGuide"/><circle class="rvHandle" r="5"/>${R.PILL}</g>` +
+          (stop == null || !v
+            ? ""
+            : `<circle class="shotStop" r="3" cx="${v.X(stop)}" cy="${v.Y(curveAt(curve, stop))}"/>`),
+      );
     place();
   };
   bindShotScrub(
@@ -330,27 +356,47 @@ function renderShotSpark(h, shot, m = R.buildShotSparkModel(shot)) {
   preset.setAttribute("aria-valuemax", curve.at(-1).t.toFixed(1));
   readout.className = "shotCursorText";
   // Only the zone the shot ended in keeps its fill (CSS); timer-only shots keep none.
-  preset.dataset.zone = (shot.shotType || "").toLowerCase() === "timer_only" ? "none" : shot.verdict === "fast" || shot.verdict === "slow" ? shot.verdict : "on_recipe";
+  preset.dataset.zone =
+    (shot.shotType || "").toLowerCase() === "timer_only"
+      ? "none"
+      : shot.verdict === "fast" || shot.verdict === "slow"
+        ? shot.verdict
+        : "on_recipe";
   // Compact legend (D5): the cut line, only the zone this shot ended in, the shot, and held weight.
   const zone = preset.dataset.zone,
     legend = document.createElement("div");
   legend.className = "shotLegend";
   legend.innerHTML =
-    '<span class="rvLeg rvLegCut"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_cut") + "</span>" +
+    '<span class="rvLeg rvLegCut"><i></i>' +
+    __WEBUI_TEXT__("runtime.graph_legend_cut") +
+    "</span>" +
     (zone === "fast"
-      ? '<span class="rvLeg rvLegFast"><i></i><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_fast") + "</span>"
+      ? '<span class="rvLeg rvLegFast"><i></i><i></i>' +
+        __WEBUI_TEXT__("runtime.graph_legend_fast") +
+        "</span>"
       : zone === "slow"
-        ? '<span class="rvLeg rvLegSlow"><i></i><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_slow") + "</span>"
+        ? '<span class="rvLeg rvLegSlow"><i></i><i></i>' +
+          __WEBUI_TEXT__("runtime.graph_legend_slow") +
+          "</span>"
         : zone === "on_recipe"
-          ? '<span class="rvLeg rvLegWindow"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_corridor") + "</span>"
+          ? '<span class="rvLeg rvLegWindow"><i></i>' +
+            __WEBUI_TEXT__("runtime.graph_legend_corridor") +
+            "</span>"
           : "") +
-    '<span class="rvLeg rvLegLast"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_last") + "</span>" +
+    '<span class="rvLeg rvLegLast"><i></i>' +
+    __WEBUI_TEXT__("runtime.graph_legend_last") +
+    "</span>" +
     (stop == null
       ? ""
-      : '<span class="rvLeg rvLegStop"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_stopped") +
-        '</span><span class="rvLeg rvLegFinal"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_final") + "</span>") +
+      : '<span class="rvLeg rvLegStop"><i></i>' +
+        __WEBUI_TEXT__("runtime.graph_legend_stopped") +
+        '</span><span class="rvLeg rvLegFinal"><i></i>' +
+        __WEBUI_TEXT__("runtime.graph_legend_final") +
+        "</span>") +
     (m.held.length
-      ? '<span class="rvLeg rvLegHeld"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_held") + "</span>"
+      ? '<span class="rvLeg rvLegHeld"><i></i>' +
+        __WEBUI_TEXT__("runtime.graph_legend_held") +
+        "</span>"
       : "");
   combo.className = "shotComboHost";
   h.append(preset, readout, legend, combo);
@@ -378,8 +424,9 @@ function fillShotCharts(h, m) {
   function series(segs, drips, max, flow) {
     function path(a, c, drip) {
       const d =
-        a.map((q, i) => (i ? "L" : "M") + X(q.t).toFixed(1) + " " + Y(q.cg / 100, max).toFixed(1)).join(" ") +
-        (a.length === 1 ? "h0" : "");
+        a
+          .map((q, i) => (i ? "L" : "M") + X(q.t).toFixed(1) + " " + Y(q.cg / 100, max).toFixed(1))
+          .join(" ") + (a.length === 1 ? "h0" : "");
       let fill = "";
       if (!drip && a.length > 1 && a.some((q) => q.cg > 0)) {
         const id = u + "-" + defs.length;
@@ -423,7 +470,9 @@ function fillShotCharts(h, m) {
     if (!flow && m.held.length)
       svg +=
         '<path class="shotHeld" d="' +
-        m.held.map((q) => "M" + X(q.t).toFixed(1) + " " + Y(q.cg / 100, max).toFixed(1) + "h0").join("") +
+        m.held
+          .map((q) => "M" + X(q.t).toFixed(1) + " " + Y(q.cg / 100, max).toFixed(1) + "h0")
+          .join("") +
         '" stroke="var(--mu)" stroke-width="2" stroke-linecap="round" opacity=".6" vector-effect="non-scaling-stroke"/>';
     return svg;
   }
@@ -464,19 +513,33 @@ function fillShotCharts(h, m) {
     "</div>" +
     (m.finalPoint ? '<div class="shotDropOverlay"></div>' : "") +
     '<div class="ruleChartTicks"></div></div><div class="shotLegend">' +
-    '<span class="rvLeg"><i class="shotKey"></i>' + __WEBUI_TEXT__("home.weight_g") + "</span>" +
-    '<span class="rvLeg"><i class="shotKey"></i>' + __WEBUI_TEXT__("runtime.flow_rate_g_s") + "</span>" +
+    '<span class="rvLeg"><i class="shotKey"></i>' +
+    __WEBUI_TEXT__("home.weight_g") +
+    "</span>" +
+    '<span class="rvLeg"><i class="shotKey"></i>' +
+    __WEBUI_TEXT__("runtime.flow_rate_g_s") +
+    "</span>" +
     (m.dripSegs.length || m.dripFlowSegs.length
-      ? '<span class="rvLeg shotLegDrip"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_drip") + "</span>"
+      ? '<span class="rvLeg shotLegDrip"><i></i>' +
+        __WEBUI_TEXT__("runtime.graph_legend_drip") +
+        "</span>"
       : "") +
-    (m.held.length ? '<span class="rvLeg rvLegHeld"><i></i>' + __WEBUI_TEXT__("runtime.graph_legend_held") + "</span>" : "") +
-    (m.truncated ? '<span class="rvLeg">' + __WEBUI_TEXT__("runtime.graph_legend_incomplete") + "</span>" : "") +
+    (m.held.length
+      ? '<span class="rvLeg rvLegHeld"><i></i>' +
+        __WEBUI_TEXT__("runtime.graph_legend_held") +
+        "</span>"
+      : "") +
+    (m.truncated
+      ? '<span class="rvLeg">' + __WEBUI_TEXT__("runtime.graph_legend_incomplete") + "</span>"
+      : "") +
     "</div></div>";
   // The firmware CSP drops style attributes parsed from markup; CSSOM writes still apply.
   const c = h.querySelector(".shotSparkHost"),
     [kw, kf] = h.querySelectorAll(".shotKey");
   kw.style.background =
-    colors.length > 1 ? `linear-gradient(90deg,${colors[0]} 50%,${colors.at(-1)} 50%)` : colors[0] || "var(--ok)";
+    colors.length > 1
+      ? `linear-gradient(90deg,${colors[0]} 50%,${colors.at(-1)} 50%)`
+      : colors[0] || "var(--ok)";
   kf.style.background = "var(--gFlow)";
   c.style.setProperty("--shot-plot-min", (n * 1.1).toFixed(2) + "rem");
   for (const axis of c.querySelectorAll(".shotSparkY")) {
@@ -522,7 +585,10 @@ function fillShotCharts(h, m) {
   const cur = c.querySelector(".shotSparkCursor"),
     [guide, dotW, dotF, pill] = cur.firstChild.children,
     weight = m.pts.slice().sort((a, b) => a.t - b.t),
-    flow = m.flowSegs.concat(m.dripFlowSegs).flatMap((s) => s.pts).sort((a, b) => a.t - b.t),
+    flow = m.flowSegs
+      .concat(m.dripFlowSegs)
+      .flatMap((s) => s.pts)
+      .sort((a, b) => a.t - b.t),
     attrs = (e, o) => Object.entries(o).forEach(([k, v]) => e.setAttribute(k, v));
   let cursorT = weight.at(-1).t;
   dotF.style.setProperty("--c", "var(--gFlow)");
@@ -533,8 +599,17 @@ function fillShotCharts(h, m) {
       x = (X(t) / W) * 100 + "%",
       yW = Y(w, m.maxW) / H,
       yF = f == null ? 1 : Y(f, step * n) / H,
-      color = m.segs.concat(m.dripSegs).findLast((s) => s.pts[1] && s.pts[0].t <= t)?.color ?? "var(--ok)",
-      text = (a, b) => R.sub(__WEBUI_TEXT__("runtime.shot_flow_pill"), [t.toFixed(1), a, w.toFixed(1), b, f?.toFixed(1) ?? "\u2014"]),
+      color =
+        m.segs.concat(m.dripSegs).findLast((s) => s.pts[1] && s.pts[0].t <= t)?.color ??
+        "var(--ok)",
+      text = (a, b) =>
+        R.sub(__WEBUI_TEXT__("runtime.shot_flow_pill"), [
+          t.toFixed(1),
+          a,
+          w.toFixed(1),
+          b,
+          f?.toFixed(1) ?? "\u2014",
+        ]),
       dot = (c) => `<tspan fill="${c}">\u25CF</tspan>`;
     attrs(guide, { x1: x, x2: x });
     attrs(dotW, { cx: x, cy: yW * 100 + "%" });
@@ -543,10 +618,25 @@ function fillShotCharts(h, m) {
     cur.style.setProperty("--c", color);
     if (!held) return;
     const box = cur.getBoundingClientRect();
-    R.placePill(pill, text(dot(color), dot("var(--gFlow)")), (X(t) / W) * box.width, Math.min(yW, yF) * box.height);
+    R.placePill(
+      pill,
+      text(dot(color), dot("var(--gFlow)")),
+      (X(t) / W) * box.width,
+      Math.min(yW, yF) * box.height,
+    );
   };
-  bindShotScrub(c, (x) => (((x - cur.getBoundingClientRect().left) / cur.clientWidth) * W - p) / (W - 2 * p) * m.timeMax, seek, () => cursorT);
-  attrs(c, { "aria-valuemin": weight[0].t.toFixed(1), "aria-valuemax": weight.at(-1).t.toFixed(1) });
+  bindShotScrub(
+    c,
+    (x) =>
+      ((((x - cur.getBoundingClientRect().left) / cur.clientWidth) * W - p) / (W - 2 * p)) *
+      m.timeMax,
+    seek,
+    () => cursorT,
+  );
+  attrs(c, {
+    "aria-valuemin": weight[0].t.toFixed(1),
+    "aria-valuemax": weight.at(-1).t.toFixed(1),
+  });
   seek(cursorT, false);
   return m;
 }
@@ -599,16 +689,21 @@ function renderStatsDurChart() {
     return;
   }
   // Each shot sits in its own judged window, scaled to their mean width.
-  const shared = shots.every((r) => r.fastBeforeS === shots[0].fastBeforeS && r.slowAfterS === shots[0].slowAfterS),
+  const shared = shots.every(
+      (r) => r.fastBeforeS === shots[0].fastBeforeS && r.slowAfterS === shots[0].slowAfterS,
+    ),
     a = shared ? shots[0].fastBeforeS : 0,
-    b = shared ? shots[0].slowAfterS : Math.round(shots.reduce((s, r) => s + r.slowAfterS - r.fastBeforeS, 0) / shots.length),
+    b = shared
+      ? shots[0].slowAfterS
+      : Math.round(shots.reduce((s, r) => s + r.slowAfterS - r.fastBeforeS, 0) / shots.length),
     ts = shots.map(({ arrivalS: t, fastBeforeS: f, slowAfterS: s }) =>
       t < f ? a + t - f : t > s ? b + t - s : a + ((t - f) / (s - f)) * (b - a),
     ),
     lo = Math.floor(Math.min(a - 5, ...ts) - 1),
     hi = Math.ceil(Math.max(b + 5, ...ts) + 1),
     x = (t) => (((t - lo) / (hi - lo)) * 100).toFixed(2),
-    dens = (t) => ts.reduce((s, v) => s + Math.exp(-0.5 * ((t - v) / Math.max(0.7, (hi - lo) / 28)) ** 2), 0),
+    dens = (t) =>
+      ts.reduce((s, v) => s + Math.exp(-0.5 * ((t - v) / Math.max(0.7, (hi - lo) / 28)) ** 2), 0),
     xs = Array.from({ length: 121 }, (_, i) => lo + ((hi - lo) * i) / 120),
     peak = Math.max(...xs.map(dens)),
     n = { fast: 0, on_recipe: 0, slow: 0 },
@@ -627,11 +722,24 @@ function renderStatsDurChart() {
   let svg = "",
     tops = "";
   for (const [k, t0, t1, c, name] of zones) {
-    const line = [t0, ...xs.filter((t) => t > t0 && t < t1), t1].map((t) => x(t) + " " + (50 - (46 * dens(t)) / peak).toFixed(2)).join(" L");
+    const line = [t0, ...xs.filter((t) => t > t0 && t < t1), t1]
+      .map((t) => x(t) + " " + (50 - (46 * dens(t)) / peak).toFixed(2))
+      .join(" L");
     svg +=
       R.fadeFill("sd" + k, c, 0.45, 0.02) +
-      '<path d="M' + x(t0) + " 50 L" + line + " L" + x(t1) + ' 50Z" fill="url(#sd' + k + ')"/><path d="M' + line +
-      '" fill="none" stroke="' + c + '" stroke-width="1.35" vector-effect="non-scaling-stroke"/>';
+      '<path d="M' +
+      x(t0) +
+      " 50 L" +
+      line +
+      " L" +
+      x(t1) +
+      ' 50Z" fill="url(#sd' +
+      k +
+      ')"/><path d="M' +
+      line +
+      '" fill="none" stroke="' +
+      c +
+      '" stroke-width="1.35" vector-effect="non-scaling-stroke"/>';
     tops += "<span><b>" + pct[k] + "%</b>" + n[k] + " " + name + "</span>";
   }
   // Ticks step out from the window edges: seconds when shared, offsets otherwise.
@@ -640,7 +748,10 @@ function renderStatsDurChart() {
     [b, shared ? L(b, "s") : __WEBUI_TEXT__("runtime.window_end"), 80],
   ];
   for (let d = 5; d < hi - lo; d += 5)
-    ticks.push([a - d, shared ? L(a - d, "s") : "−" + L(d, "s"), 20], [b + d, shared ? L(b + d, "s") : "+" + L(d, "s"), 20]);
+    ticks.push(
+      [a - d, shared ? L(a - d, "s") : "−" + L(d, "s"), 20],
+      [b + d, shared ? L(b + d, "s") : "+" + L(d, "s"), 20],
+    );
   host.style.setProperty("--zf", x(a) + "%");
   host.style.setProperty("--zo", x(b) - x(a) + "%");
   host.innerHTML =
@@ -649,7 +760,12 @@ function renderStatsDurChart() {
     '</div><svg class="statsDensPlot" viewBox="0 0 100 50" preserveAspectRatio="none" aria-hidden="true">' +
     svg +
     '</svg><div class="ruleChartTicks"></div>';
-  fillChartTicks(host.lastChild, ticks.filter(([t]) => t > lo && t < hi).map(([t, s, p]) => [t - lo, s, p]), hi - lo, true);
+  fillChartTicks(
+    host.lastChild,
+    ticks.filter(([t]) => t > lo && t < hi).map(([t, s, p]) => [t - lo, s, p]),
+    hi - lo,
+    true,
+  );
 }
 // Consistency of the newest 10 timed shots: each shot's time to target as a
 // share of its own preset's average, so recipes of any length compare fairly.
@@ -658,19 +774,28 @@ function renderStatsDurChart() {
 const CONSISTENT = 0.05,
   VARIED = 0.1;
 function consistencyModel(shots) {
-  const rows = shots.slice().sort((a, b) => a.id - b.id).slice(-10),
+  const rows = shots
+      .slice()
+      .sort((a, b) => a.id - b.id)
+      .slice(-10),
     n = rows.length,
     avg = {};
   for (const r of rows) (avg[r.presetId] ??= []).push(r.arrivalS);
   for (const k in avg) avg[k] = avg[k].reduce((a, v) => a + v, 0) / avg[k].length;
   const rel = rows.map((r) => r.arrivalS / avg[r.presetId] - 1),
-    j = rel.slice(1).map((v, i) => Math.abs(v - rel[i])).sort((a, b) => a - b),
+    j = rel
+      .slice(1)
+      .map((v, i) => Math.abs(v - rel[i]))
+      .sort((a, b) => a - b),
     typical = n < 5 ? null : (j[(j.length - 1) >> 1] + j[j.length >> 1]) / 2,
     // One preset reads in seconds (sec is its average), several in percent.
     sec = Object.keys(avg).length === 1 ? avg[rows[0].presetId] : 0,
     // Never narrower than twice the band, never so wide one outlier flattens
     // the rest; then up to whole (or half) seconds or 5 % steps for the labels.
-    raw = Math.min(6 * CONSISTENT, Math.max(2 * CONSISTENT, Math.max(0, ...rel.map(Math.abs)) * 1.15)),
+    raw = Math.min(
+      6 * CONSISTENT,
+      Math.max(2 * CONSISTENT, Math.max(0, ...rel.map(Math.abs)) * 1.15),
+    ),
     step = sec ? (raw * sec < 2 ? 0.5 : 1) / sec : 0.05;
   return {
     rows,
@@ -678,7 +803,14 @@ function consistencyModel(shots) {
     sec,
     typical,
     M: Math.ceil(raw / step - 1e-9) * step,
-    level: typical == null ? "few" : typical <= CONSISTENT ? "good" : typical <= VARIED ? "fair" : "poor",
+    level:
+      typical == null
+        ? "few"
+        : typical <= CONSISTENT
+          ? "good"
+          : typical <= VARIED
+            ? "fair"
+            : "poor",
     spread: n ? Math.max(...rel) - Math.min(...rel) : 0,
   };
 }
@@ -690,8 +822,12 @@ function renderStatsConsistency(shots) {
     n = rows.length;
   root.hidden = !n;
   if (!n) return;
-  const L = (v) => (sec ? R.axisLabel(v * sec, __WEBUI_TEXT__("runtime.s")) : +(v * 100).toFixed(1) + __WEBUI_TEXT__("runtime.symbol_4")),
-    signed = (v, k = Math.round(v * (sec || 100) * 10)) => (k > 0 ? "+" : k < 0 ? "−" : "") + L(Math.abs(v)),
+  const L = (v) =>
+      sec
+        ? R.axisLabel(v * sec, __WEBUI_TEXT__("runtime.s"))
+        : +(v * 100).toFixed(1) + __WEBUI_TEXT__("runtime.symbol_4"),
+    signed = (v, k = Math.round(v * (sec || 100) * 10)) =>
+      (k > 0 ? "+" : k < 0 ? "−" : "") + L(Math.abs(v)),
     // Ten fixed slots, latest on the right, so a shot keeps its place as more arrive.
     X = (i) => 3 + ((10 - n + i) * 94) / 9,
     Y = (v) => 25 - (23 * Math.max(-M, Math.min(M, v))) / M,
@@ -700,33 +836,68 @@ function renderStatsConsistency(shots) {
       const x = (X(i) - 2.82).toFixed(2),
         h = Math.abs(Y(v) - 25),
         y = h < 0.6 ? 24.7 : Math.min(Y(v), 25);
-      return '<rect class="consBar' + (out(i) ? " out" : "") + '" x="' + x + '" width="5.64" y="' + y.toFixed(2) + '" height="' +
-        Math.max(h, 0.6).toFixed(2) + '"/>' +
-        (Math.abs(v) > M ? '<path class="consOver" d="M' + x + " " + (v > 0 ? 1 : 49) + 'h5.64"/>' : "");
+      return (
+        '<rect class="consBar' +
+        (out(i) ? " out" : "") +
+        '" x="' +
+        x +
+        '" width="5.64" y="' +
+        y.toFixed(2) +
+        '" height="' +
+        Math.max(h, 0.6).toFixed(2) +
+        '"/>' +
+        (Math.abs(v) > M
+          ? '<path class="consOver" d="M' + x + " " + (v > 0 ? 1 : 49) + 'h5.64"/>'
+          : "")
+      );
     };
   root.dataset.level = m.level;
   root.innerHTML =
-    '<div class="statsDensZones"><span><b>' + (m.typical == null ? "—" : "±" + L(m.typical)) + "</b>" +
+    '<div class="statsDensZones"><span><b>' +
+    (m.typical == null ? "—" : "±" + L(m.typical)) +
+    "</b>" +
     {
       good: __WEBUI_TEXT__("runtime.consistency_good"),
       fair: __WEBUI_TEXT__("runtime.consistency_fair"),
       poor: __WEBUI_TEXT__("runtime.consistency_poor"),
       few: __WEBUI_TEXT__("runtime.consistency_few"),
-    }[m.level] + "</span><span><b>" + L(m.spread) + "</b>" +
-    __WEBUI_TEXT__("runtime.consistency_spread") + "</span><span><b>" + n + "</b>" + __WEBUI_TEXT__("runtime.consistency_shots") +
+    }[m.level] +
+    "</span><span><b>" +
+    L(m.spread) +
+    "</b>" +
+    __WEBUI_TEXT__("runtime.consistency_spread") +
+    "</span><span><b>" +
+    n +
+    "</b>" +
+    __WEBUI_TEXT__("runtime.consistency_shots") +
     '</span></div><div class="consPlot"><svg class="statsDensPlot" viewBox="0 0 100 50" preserveAspectRatio="none" aria-hidden="true">' +
-    '<rect class="consBand" x="0" width="100" y="' + Y(CONSISTENT) + '" height="' + (Y(-CONSISTENT) - Y(CONSISTENT)) + '"/>' +
-    rel.map(bar).join("") + '<path class="consAvg" d="M0 25H100"/></svg><span class="consEdge">+' + L(M) +
-    '</span><span class="consEdge">' + (sec ? L(1) : __WEBUI_TEXT__("runtime.consistency_avg")) + '</span><span class="consEdge">−' + L(M) +
+    '<rect class="consBand" x="0" width="100" y="' +
+    Y(CONSISTENT) +
+    '" height="' +
+    (Y(-CONSISTENT) - Y(CONSISTENT)) +
+    '"/>' +
+    rel.map(bar).join("") +
+    '<path class="consAvg" d="M0 25H100"/></svg><span class="consEdge">+' +
+    L(M) +
+    '</span><span class="consEdge">' +
+    (sec ? L(1) : __WEBUI_TEXT__("runtime.consistency_avg")) +
+    '</span><span class="consEdge">−' +
+    L(M) +
     '</span><svg class="consCursor" aria-hidden="true"><g class="shotCursor"><line class="rvGuide" y1="0" y2="100%"/><circle class="rvHandle" r="5"/>' +
-    R.PILL + '</g></svg></div><div class="ruleChartTicks"><span class="ruleTick">' + __WEBUI_TEXT__("runtime.consistency_oldest") +
-    '</span><span class="ruleTick">' + __WEBUI_TEXT__("runtime.consistency_latest") + "</span></div>";
+    R.PILL +
+    '</g></svg></div><div class="ruleChartTicks"><span class="ruleTick">' +
+    __WEBUI_TEXT__("runtime.consistency_oldest") +
+    '</span><span class="ruleTick">' +
+    __WEBUI_TEXT__("runtime.consistency_latest") +
+    "</span></div>";
   // The firmware CSP drops markup style attributes; CSSOM writes still apply.
   const plot = root.querySelector(".consPlot"),
     cur = plot.lastChild,
     [guide, dot, pill] = cur.firstChild.children,
     [t0, t1] = root.querySelectorAll(".ruleTick");
-  [Y(M), 25, Y(-M)].forEach((y, k) => (plot.querySelectorAll(".consEdge")[k].style.top = y * 2 + "%"));
+  [Y(M), 25, Y(-M)].forEach(
+    (y, k) => (plot.querySelectorAll(".consEdge")[k].style.top = y * 2 + "%"),
+  );
   t0.style.left = X(0) - 2.82 + "%";
   t0.hidden = n < 4;
   t1.style.left = "100%";
@@ -748,12 +919,23 @@ function renderStatsConsistency(shots) {
     cur.style.setProperty("--c", out(at) ? "var(--zl)" : "var(--zs)");
     plot.setAttribute("aria-valuenow", at + 1);
     plot.setAttribute("aria-valuetext", text);
-    if (held) R.placePill(pill, R.escHtml(text), (X(at) / 100) * cur.clientWidth, (Y(rel[at]) / 50) * cur.clientHeight);
+    if (held)
+      R.placePill(
+        pill,
+        R.escHtml(text),
+        (X(at) / 100) * cur.clientWidth,
+        (Y(rel[at]) / 50) * cur.clientHeight,
+      );
   };
-  bindShotScrub(plot, (cx) => {
-    const b = cur.getBoundingClientRect();
-    return Math.round(((((cx - b.left) / b.width) * 100 - 3) * 9) / 94) - (10 - n);
-  }, seek, () => at);
+  bindShotScrub(
+    plot,
+    (cx) => {
+      const b = cur.getBoundingClientRect();
+      return Math.round(((((cx - b.left) / b.width) * 100 - 3) * 9) / 94) - (10 - n);
+    },
+    seek,
+    () => at,
+  );
   plot.setAttribute("aria-label", __WEBUI_TEXT__("runtime.consistency_cursor"));
   plot.setAttribute("aria-valuemin", 1);
   plot.setAttribute("aria-valuemax", n);
@@ -865,14 +1047,24 @@ function renderShots() {
         cut.g == null ? "—" : cut.g.toFixed(1) + "g · " + cut.s.toFixed(1) + "s",
         r.dripDelayS == null ? "—" : r.dripDelayS.toFixed(1) + "s",
       ];
-      const cls = ["", "shotDur", "", "shotActual", errN > 0 ? "shotErrHi" : errN < 0 ? "shotErrLo" : ""];
+      const cls = [
+        "",
+        "shotDur",
+        "",
+        "shotActual",
+        errN > 0 ? "shotErrHi" : errN < 0 ? "shotErrLo" : "",
+      ];
       vals.forEach((v, i) => td(row, labels[i], v, cls[i]));
       R.wrapTimeEl(row.cells[0], r);
       // The verdict sits beside the time so each card says at a glance how the shot landed.
       if (r.arrivalS > 0 && ["fast", "on_recipe", "slow"].includes(r.verdict))
         row.cells[0].insertAdjacentHTML(
           "beforeend",
-          '<span class="heroPill" data-kind="' + r.verdict + '">' + R.verdictLabel(r.verdict) + "</span>",
+          '<span class="heroPill" data-kind="' +
+            r.verdict +
+            '">' +
+            R.verdictLabel(r.verdict) +
+            "</span>",
         );
       const rate = document.createElement("td");
       rate.className = "shotRateCell";
@@ -922,8 +1114,10 @@ async function deleteOneShot(id) {
     try {
       await R.api("/api/v1/stats/delete", { method: "POST", body: R.body({ id }) });
       R.uiState.shotHistory.shots = R.uiState.shotHistory.shots.filter((s) => s.id !== id);
-      if (typeof R.uiState.shotHistory.total === "number" && R.uiState.shotHistory.total > 0) R.uiState.shotHistory.total--;
-      R.uiState.shotHistory.hasMore = R.uiState.shotHistory.shots.length < R.uiState.shotHistory.total;
+      if (typeof R.uiState.shotHistory.total === "number" && R.uiState.shotHistory.total > 0)
+        R.uiState.shotHistory.total--;
+      R.uiState.shotHistory.hasMore =
+        R.uiState.shotHistory.shots.length < R.uiState.shotHistory.total;
       renderShots();
       R.message(__WEBUI_TEXT__("runtime.shot_deleted"), "ok");
     } catch (e) {
@@ -939,7 +1133,10 @@ async function postShotRating(p, undo) {
       return true;
     } catch (e) {
       if (undo) undo();
-      R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_shot_rating"), e), "error");
+      R.message(
+        R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_shot_rating"), e),
+        "error",
+      );
       return false;
     }
   });
@@ -975,22 +1172,39 @@ function syncShotSortButtons() {
       }
     };
   if (d)
-    sync(d, R.uiState.shotSort === "date", __WEBUI_TEXT__("stats.date"),
-      desc ? __WEBUI_TEXT__("runtime.oldest_first") : __WEBUI_TEXT__("runtime.newest_first"));
+    sync(
+      d,
+      R.uiState.shotSort === "date",
+      __WEBUI_TEXT__("stats.date"),
+      desc ? __WEBUI_TEXT__("runtime.oldest_first") : __WEBUI_TEXT__("runtime.newest_first"),
+    );
   if (r)
-    sync(r, R.uiState.shotSort === "rating", __WEBUI_TEXT__("stats.rating"),
-      desc ? __WEBUI_TEXT__("runtime.lowest_rating") : __WEBUI_TEXT__("runtime.highest_rating"));
+    sync(
+      r,
+      R.uiState.shotSort === "rating",
+      __WEBUI_TEXT__("stats.rating"),
+      desc ? __WEBUI_TEXT__("runtime.lowest_rating") : __WEBUI_TEXT__("runtime.highest_rating"),
+    );
 }
 function setShotSort(field) {
   if (field !== "date" && field !== "rating") return;
-  if (R.uiState.shotSort === field) R.uiState.shotSortDir = R.uiState.shotSortDir === "desc" ? "asc" : "desc";
+  if (R.uiState.shotSort === field)
+    R.uiState.shotSortDir = R.uiState.shotSortDir === "desc" ? "asc" : "desc";
   else R.uiState.shotSort = field;
   syncShotSortButtons();
   R.statsSendSubscribe();
 }
 const loadMoreShots = () => {
-  if (R.uiState.shotHistory.hasMore && R.shotStatsViewActive() && !R.uiState.statsFetchMark && !statsExportInFlight) {
-    R.uiState.statsFetchMark = { request: ++R.uiState.statsNextRequest, offset: R.uiState.shotHistory.shots.length };
+  if (
+    R.uiState.shotHistory.hasMore &&
+    R.shotStatsViewActive() &&
+    !R.uiState.statsFetchMark &&
+    !statsExportInFlight
+  ) {
+    R.uiState.statsFetchMark = {
+      request: ++R.uiState.statsNextRequest,
+      offset: R.uiState.shotHistory.shots.length,
+    };
     R.sendUiOperation({
       op: "stats",
       on: true,
@@ -1011,14 +1225,16 @@ async function exportShotsCsv() {
     const maxW = list.reduce((m, r) => Math.max(m, r.wCg?.length || 0), 0);
     const rows = [
       [
-        ...("id boot_id local_time has_wall_time ended_at_unix tz_off duration_s goal_g " +
+        ...(
+          "id boot_id local_time has_wall_time ended_at_unix tz_off duration_s goal_g " +
           "yield_g error_g error_pct offset_g avg_flow_g_s first_drop_s tare_s fast_side " +
           "cut_raised slow_side cut_lowered stop verdict channeling scale_loss_source " +
           "cut_line_g arrival_s fast_before_s slow_after_s fast_margin_g slow_margin_g " +
           "delay_s wall_s cut_ramp_s shot_type cut_type yield_source rating ended_at_ms " +
           "bbw_algorithm bbw_algorithm_version bbw_alpha bbw_learning_applied preset_id " +
           "scale_name max_flow_g_s curve_truncated curve_break_before curve_held cut_s cut_weight_g " +
-          "drip_g drip_delay_s").split(" "),
+          "drip_g drip_delay_s"
+        ).split(" "),
         ...Array.from({ length: maxW }, (_, i) => [
           "sample_" + (i + 1) + "_time_s",
           "sample_" + (i + 1) + "_weight_g",
@@ -1051,9 +1267,11 @@ async function exportShotsCsv() {
         shotDisplayFlowGS(r) ?? "",
         r.firstDropS ?? "",
         r.tareS ?? "",
-        ...("extractionGuardEnabled extractionExtended slowExtractionGuardEnabled slowExtractionExtended " +
+        ...(
+          "extractionGuardEnabled extractionExtended slowExtractionGuardEnabled slowExtractionExtended " +
           "stopDetail verdict channeling scaleLossSource cutLineG arrivalS fastBeforeS slowAfterS " +
-          "fastMarginG slowMarginG delayS wallS cutRampS")
+          "fastMarginG slowMarginG delayS wallS cutRampS"
+        )
           .split(" ")
           .map((k) => (typeof r[k] == "boolean" ? +r[k] : (r[k] ?? ""))),
         r.shotType,
@@ -1132,7 +1350,12 @@ async function clearShotHistory() {
         method: "POST",
         body: R.body({ confirm: "CLEAR_SHOT_LOG" }),
       });
-      R.uiState.shotHistory = { bootId: R.uiState.shotHistory.bootId || 0, total: 0, hasMore: false, shots: [] };
+      R.uiState.shotHistory = {
+        bootId: R.uiState.shotHistory.bootId || 0,
+        total: 0,
+        hasMore: false,
+        shots: [],
+      };
       R.uiState.shotStats = {};
       renderShots();
       R.message(__WEBUI_TEXT__("runtime.shot_history_cleared"), "ok");
