@@ -636,8 +636,9 @@ cap: Stats and History 4,500, Diagnostic 12,450, Admin 14,200, Settings
 14,150 and Setup 3,600 bytes. All embedded assets together are capped at
 147,350 bytes; the optional Web UI login (sign-in form, Access panel, Home
 notice, Home Assistant pairing prompt; owner-requested 2026-10-22) measures
-149,591 bytes (with the Admin deep link from its Home note and one password
-form at a time) and raises that cap to 149,610 bytes, with the per-asset caps
+149,645 bytes (with the Admin deep link from its Home note, one password form
+at a time and the factory-password reminder) and raises that cap to 149,670
+bytes, with the per-asset caps
 raised to their measured values in the Web contracts. Its firmware state (~400 bytes) lives in external BSS and
 one 196-byte NVS blob. The selectable
 WS implementation and its correctness fixes are included in the reviewed flash

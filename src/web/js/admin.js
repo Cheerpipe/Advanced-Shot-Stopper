@@ -605,6 +605,7 @@ function loadAdminConfig(c) {
 function applyAdminStatus(s) {
   const unlocked = !!s.adminUnlocked;
   R.syncAdminSessionUi(unlocked);
+  $("adminFactoryHint").classList.toggle("hidden", unlocked || !s.factoryPassword);
   const hint = $("adminConfirmHint");
   if (hint) {
     const pending = s.network && s.network.configState === "PENDING";

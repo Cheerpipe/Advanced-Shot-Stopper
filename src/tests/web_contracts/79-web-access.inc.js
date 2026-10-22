@@ -103,6 +103,9 @@
   assert.ok(blockAt(viewJs.admin, 'function openLoginSheet(').includes('$("devicePasswordForm").classList.add("hidden")') &&
       blockAt(viewJs.admin, 'function closeLoginSheet(').includes('$("devicePasswordForm").classList.remove("hidden")') &&
       codeIncludes(viewJs.admin, '$("loginEnabled").checked === !!accessState.loginEnabled'));
+  // While locked, Admin reminds that the (public) factory password is in use.
+  assert.ok(network.includes('\\"factoryPassword\\":%s",') &&
+      codeIncludes(viewJs.admin, '$("adminFactoryHint").classList.toggle("hidden", unlocked || !s.factoryPassword)'));
   // Home's "Set up" lands on the Access panel once Admin is unlocked.
   assert.ok(codeIncludes(ui, 'href="/admin#accessPanel"') &&
       blockAt(viewJs.admin, 'function applyAdminStatus(').includes('location.hash'));

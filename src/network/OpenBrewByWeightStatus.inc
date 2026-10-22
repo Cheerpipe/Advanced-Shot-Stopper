@@ -494,10 +494,18 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
         control.config.assumeIdleWhenScaleConnects ? "true" : "false",
         static_cast<unsigned>(runtimeShotReactTimeoutS(control.config)));
   } else if (ok && page == StatusPage::Admin) {
-    // Locked admin: confirm-window hint only. Unlocked: Wi-Fi/AP + BLE + OTA.
-    ok = statusJsonAppend(&used, ",\"adminUnlocked\":%s,\"development\":%s",
+    // Locked admin: confirm-window hint and the factory-password reminder
+    // (that password is public). Unlocked: Wi-Fi/AP + BLE + OTA.
+    bool factoryPassword = false;
+    {
+      TaskLockGuard lock(self.dataMux_);
+      factoryPassword = passwordIsFactoryDefault(self.settings_);
+    }
+    ok = statusJsonAppend(&used,
+                          ",\"adminUnlocked\":%s,\"development\":%s,\"factoryPassword\":%s",
                           adminUnlocked ? "true" : "false",
-                          DEVELOPMENT_BUILD ? "true" : "false");
+                          DEVELOPMENT_BUILD ? "true" : "false",
+                          factoryPassword ? "true" : "false");
     if (ok && !adminUnlocked) {
       ok = statusJsonAppend(
           &used,

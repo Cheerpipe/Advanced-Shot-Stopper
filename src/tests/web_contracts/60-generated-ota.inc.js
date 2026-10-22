@@ -957,8 +957,9 @@ if (generated.otaImageGzip.length > 3072) {
 // The Admin Access panel (login switch and confirmation sheet, remembered devices, Home Assistant row,
 // sign-out rows) measures admin.js with its markup at 15624, owner-requested 2026-10-22; cap 15640
 // for asset-tag gzip wobble. Its deep link to Access after an unlock measures 15703; cap 15720.
-// Showing one password form at a time measures 15761; cap 15780.
-const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 15780, settings: 16813, setup: 5870};
+// Showing one password form at a time measures 15761; cap 15780. The factory-password reminder on
+// the unlock form measures 15824; cap 15840.
+const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 15840, settings: 16813, setup: 5870};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -1167,9 +1168,10 @@ if (coldHomeGzip > 70120) {
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin
 // deep link from Home's access note measures 149526; cap 149550. One password
-// form at a time in Admin → Access measures 149591; cap 149610.
-if (generated.combined > 149610) {
-  throw new Error(`Combined Web UI gzip exceeds the 149610-byte flash budget (${generated.combined})`);
+// form at a time in Admin → Access measures 149591; cap 149610. The Admin
+// factory-password reminder measures 149645; cap 149670.
+if (generated.combined > 149670) {
+  throw new Error(`Combined Web UI gzip exceeds the 149670-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {

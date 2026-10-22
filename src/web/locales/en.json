@@ -72,6 +72,7 @@
     "admin.esp32_power_management": "ESP32 power management",
     "admin.events": "Events",
     "admin.factory_default": "Factory default",
+    "admin.factory_password_hint": "This controller still uses the factory password, ineedacoffee. Unlock with it, then choose your own under Access.",
     "admin.factory_reset": "Factory reset",
     "admin.firmware": "Firmware",
     "admin.firmware_bin_hint": "openbrewbyweight.bin built by ./scripts/dev build for this exact hardware and machine profile pair. Authorised by Admin unlock (device password).",

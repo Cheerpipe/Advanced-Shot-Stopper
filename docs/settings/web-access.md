@@ -8,6 +8,8 @@ for a password instead. The controller uses one password for everything: the
 ## Turn the password on
 
 1. Open **Admin**, unlock it with the device password, and go to **Access**.
+   While the controller still uses the factory password, the unlock form
+   reminds you of it.
 2. Switch on **Require a password to open the Web UI**.
 3. If the device password is still the factory one (`ineedacoffee`), choose a
    new password and repeat it. The factory password is public, so it can't
