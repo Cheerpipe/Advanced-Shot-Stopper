@@ -1,3 +1,69 @@
+<svg hidden>
+  <symbol id="g-recipe" viewBox="0 0 24 24">
+    <ellipse cx="12" cy="12" rx="5.5" ry="8.5" transform="rotate(35 12 12)" />
+    <path d="M8.6 17.6c2.6-2 3.8-8.4 6.8-11.2" />
+  </symbol>
+  <symbol id="g-fast" viewBox="0 0 24 24"><path d="m4 6 7 6-7 6M12 6l7 6-7 6" /></symbol>
+  <symbol id="g-slow" viewBox="0 0 24 24">
+    <path d="M7 3h10M7 21h10M8 3c0 4 8 5 8 9s-8 5-8 9m8-18c0 4-8 5-8 9s8 5 8 9" />
+  </symbol>
+  <symbol id="g-limits" viewBox="0 0 24 24">
+    <circle cx="12" cy="13" r="8" />
+    <path d="M12 9v4l2.5 2M10 2h4" />
+  </symbol>
+  <symbol id="g-drip" viewBox="0 0 24 24">
+    <path
+      d="M12 3c3 4 6 7.2 6 10.5a6 6 0 0 1-12 0C6 10.2 9 7 12 3Zm-2.5 11a2.5 2.5 0 0 0 2.5 2.5"
+    />
+  </symbol>
+  <symbol id="g-power" viewBox="0 0 24 24"><path d="M12 3v8M6.3 7.5a8 8 0 1 0 11.4 0" /></symbol>
+  <symbol id="g-auto" viewBox="0 0 24 24">
+    <path d="M4 12a8 8 0 0 1 13.7-5.6L20 9m0-5v5h-5m5 3a8 8 0 0 1-13.7 5.6L4 15m0 5v-5h5" />
+  </symbol>
+  <symbol id="g-micraPresets" viewBox="0 0 24 24">
+    <path d="M9 6h11M9 12h11M9 18h11" />
+    <circle cx="4.5" cy="6" r="1" />
+    <circle cx="4.5" cy="12" r="1" />
+    <circle cx="4.5" cy="18" r="1" />
+  </symbol>
+  <symbol id="g-paddle" viewBox="0 0 24 24">
+    <path d="M5 19 15 9" />
+    <rect x="13" y="3" width="8" height="5" rx="2.5" transform="rotate(45 17 5.5)" />
+    <circle cx="5" cy="19" r="2" />
+  </symbol>
+  <symbol id="g-switch" viewBox="0 0 24 24">
+    <rect x="3" y="8" width="18" height="8" rx="4" />
+    <circle cx="16" cy="12" r="2.2" />
+  </symbol>
+  <symbol id="g-rinse" viewBox="0 0 24 24">
+    <path d="M4 4h16M7 4v3a5 5 0 0 0 10 0V4M9 15v2m3-2v4m3-4v2" />
+  </symbol>
+  <symbol id="g-scale" viewBox="0 0 24 24">
+    <rect x="3" y="14" width="18" height="6" rx="2" />
+    <path d="M6 14v-2a6 6 0 0 1 12 0v2m-6-5v3" />
+  </symbol>
+  <symbol id="g-tare" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8" />
+    <ellipse cx="12" cy="12" rx="3" ry="4.5" />
+  </symbol>
+  <symbol id="g-cup" viewBox="0 0 24 24">
+    <path d="M4 8h12v5a6 6 0 0 1-12 0Zm12 1h1.5a2.5 2.5 0 0 1 0 5H16M3 21h14" />
+  </symbol>
+  <symbol id="g-protect" viewBox="0 0 24 24">
+    <path d="M12 3 5 6v5c0 4.5 3 8 7 10 4-2 7-5.5 7-10V6Zm-3 9 2 2 4-4" />
+  </symbol>
+  <symbol id="g-noScale" viewBox="0 0 24 24">
+    <path d="M4 15a8 8 0 1 1 16 0m-8 0 4-5M3 19h18" />
+  </symbol>
+  <symbol id="g-finish" viewBox="0 0 24 24">
+    <path d="M12 3 5 6v5c0 4.5 3 8 7 10" />
+    <circle cx="17" cy="16" r="4" />
+    <path d="M17 14.3V16l1.1 1.1" />
+  </symbol>
+  <symbol id="g-alerts" viewBox="0 0 24 24">
+    <path d="M6 16v-5a6 6 0 0 1 12 0v5l2 2H4Zm4 5h4" />
+  </symbol>
+</svg>
 <div id="workflowPanel">
   <fieldset>
     <legend>
@@ -107,7 +173,7 @@
       <p id="presetReviewReadout" class="reviewReadout" aria-live="polite"></p>
       <div id="presetReviewLegend" class="reviewLegend"></div>
     </section>
-    <details class="cfgGroup">
+    <details data-g="recipe" class="cfgGroup">
       <summary>{{webui:settings.recipe}}</summary>
       <label
         ><input id="brewByWeight" type="checkbox" checked />
@@ -177,7 +243,7 @@
         ></label
       >
     </details>
-    <details class="cfgGroup">
+    <details data-g="fast" class="cfgGroup">
       <summary>{{webui:settings.fast_shots}}</summary>
       <label
         ><input id="fastExtractionGuardEnabled" type="checkbox" />
@@ -196,7 +262,7 @@
         ><small class="fieldHint">{{webui:settings.fast_margin_hint}}</small></label
       >
     </details>
-    <details class="cfgGroup">
+    <details data-g="slow" class="cfgGroup">
       <summary>{{webui:settings.slow_shots}}</summary>
       <label
         ><input id="slowExtractionGuardEnabled" type="checkbox" />
@@ -215,7 +281,7 @@
         ><small class="fieldHint">{{webui:settings.slow_margin_hint}}</small></label
       >
     </details>
-    <details class="cfgGroup">
+    <details data-g="limits" class="cfgGroup">
       <summary>{{webui:settings.shot_limits}}</summary>
       <label
         >{{webui:settings.bbw_protection_s}}<input
@@ -245,7 +311,7 @@
         /><small class="fieldHint">{{webui:settings.scale_loss_override_hint}}</small></label
       >
     </details>
-    <details class="cfgGroup">
+    <details data-g="drip" class="cfgGroup">
       <summary>{{webui:settings.drip_compensation}}</summary>
       <small class="fieldHint">{{webui:settings.drip_compensation_hint}}</small>
       <div class="bbwLearning">
@@ -412,7 +478,7 @@
       <p id="lineaMicraLinkedNote" class="readyMsg isOk" role="status" hidden>
         {{webui:settings.micra_linked_note}}
       </p>
-      <details class="cfgGroup">
+      <details data-g="power" class="cfgGroup">
         <summary>{{webui:settings.machine_power}}</summary>
         <small class="fieldHint">{{webui:settings.machine_power_hint}}</small
         ><label
@@ -445,7 +511,7 @@
           >
         </div>
       </details>
-      <details class="cfgGroup">
+      <details data-g="auto" class="cfgGroup">
         <summary>{{webui:settings.scale_automations}}</summary>
         <small class="fieldHint">{{webui:settings.scale_automations_hint}}</small
         ><label
@@ -468,7 +534,7 @@
           ><small class="fieldHint">{{webui:settings.shutdown_grace_period_hint}}</small></label
         >
       </details>
-      <details class="cfgGroup">
+      <details data-g="micraPresets" class="cfgGroup">
         <summary>{{webui:settings.presets}}</summary>
         <label
           ><input id="lineaMicraApplyTemperature" type="checkbox" checked />
@@ -512,7 +578,7 @@
       {{webui:settings.shared_settings}}
       <span class="hint">{{webui:settings.shared_scope_hint}}</span>
     </legend>
-    <details class="cfgGroup paddleOnly">
+    <details data-g="paddle" class="cfgGroup paddleOnly">
       <summary>{{webui:settings.paddle}}</summary>
       <label
         >{{webui:settings.paddle_mode}}
@@ -532,7 +598,7 @@
         ></label
       >
     </details>
-    <details class="cfgGroup momentaryOnly">
+    <details data-g="switch" class="cfgGroup momentaryOnly">
       <summary>{{webui:settings.switch}}</summary>
       <label
         >{{webui:settings.start_stop_on}}
@@ -595,7 +661,7 @@
         /><small class="fieldHint">{{webui:settings.after_a_start_or_stop_how_long}}</small></label
       >
     </details>
-    <details class="cfgGroup">
+    <details data-g="rinse" class="cfgGroup">
       <summary>{{webui:settings.quick_rinse}}</summary>
       <label
         ><input id="rinseEnabled" type="checkbox" /> {{webui:settings.quick_rinse}}<small
@@ -633,7 +699,7 @@
         >
       </div>
     </details>
-    <details class="cfgGroup">
+    <details data-g="scale" class="cfgGroup">
       <summary>{{webui:settings.scales}}</summary>
       <label
         >{{webui:settings.timer_stop_extra_delay_ms}}<input
@@ -696,7 +762,7 @@
           ><span class="t">{{webui:settings.clear_preferred}}</span>
         </button>
       </div>
-      <details class="cfgGroup">
+      <details data-g="bookoo" class="cfgGroup">
         <summary>{{webui:settings.bookoo}}</summary>
         <label
           ><input id="canTareStartTimer" type="checkbox" />
@@ -737,7 +803,7 @@
         <small class="fieldHint">{{webui:settings.eclair_uses_the_normal_tare_and_timer}}</small>
       </details>
     </details>
-    <details class="cfgGroup">
+    <details data-g="tare" class="cfgGroup">
       <summary>{{webui:settings.tare}}</summary>
       <label
         ><input id="autoTareOutsideBrew" type="checkbox" checked />
@@ -783,7 +849,7 @@
         ></label
       >
     </details>
-    <details class="cfgGroup">
+    <details data-g="cup" class="cfgGroup">
       <summary>{{webui:settings.cup_detection}}</summary>
       <label
         >{{webui:settings.minimum_cup_weight_g}}<input
@@ -853,7 +919,7 @@
         ></label
       >
     </details>
-    <details class="cfgGroup">
+    <details data-g="protect" class="cfgGroup">
       <summary>{{webui:settings.cup_protection}}</summary>
       <label
         ><input id="cupProtectionEnabled" type="checkbox" checked />
@@ -882,7 +948,7 @@
         ></label
       >
     </details>
-    <details class="cfgGroup">
+    <details data-g="noScale" class="cfgGroup">
       <summary>{{webui:settings.no_scale_bbw}}</summary>
       <label
         >{{webui:settings.when_bbw_has_no_scale}}<select id="noScaleBbwMode">
@@ -915,7 +981,7 @@
         /><small class="fieldHint">{{webui:settings.protection_returns_after_hint}}</small></label
       >
     </details>
-    <details class="cfgGroup">
+    <details data-g="finish" class="cfgGroup">
       <summary>{{webui:settings.scale_loss_backup}}</summary>
       <label
         ><input id="autoToManualGuardEnabled" type="checkbox" checked />
@@ -927,7 +993,7 @@
         {{webui:settings.scale_loss_fixed_link}}
       </button>
     </details>
-    <details class="cfgGroup">
+    <details data-g="alerts" class="cfgGroup">
       <summary>{{webui:settings.alerts}}</summary>
       <label
         ><input id="soundAlertsEnabled" type="checkbox" checked />

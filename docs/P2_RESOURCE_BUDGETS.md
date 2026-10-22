@@ -638,8 +638,9 @@ cap: Stats and History 4,500, Diagnostic 12,450, Admin 14,200, Settings
 notice, Home Assistant pairing prompt; owner-requested 2026-10-22) measures
 151,355 bytes (with the Admin deep link from its Home note, one password form
 at a time, the factory-password reminder, Sign out in the footer and the
-signed-in device list with inline renaming) and raises that cap to 151,380 bytes, with the per-asset caps
-raised to their measured values in the Web contracts. Its firmware state (~400 bytes) lives in external BSS and
+signed-in device list with inline renaming) and raises that cap to 151,380 bytes. The Settings group rows
+(an icon and a live summary per group; owner-requested 2026-10-22) measure 153,049 bytes and raise it to
+153,080 bytes, with the per-asset caps raised to their measured values in the Web contracts. Its firmware state (~400 bytes) lives in external BSS and
 one 388-byte NVS blob (196 bytes before device labels; migrated on load). The selectable
 WS implementation and its correctness fixes are included in the reviewed flash
 baseline above. The OTA-slot, DIRAM, external-BSS and other asset limits remain

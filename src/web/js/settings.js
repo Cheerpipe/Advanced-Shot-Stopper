@@ -1004,9 +1004,112 @@ function renderDripChart(c) {
       ? __WEBUI_TEXT__("runtime.drip_status_applied")
       : __WEBUI_TEXT__("runtime.drip_status_learning");
 }
+// Each group row summarizes its current values and follows the form while it
+// is edited; keys are the groups' data-g names.
+const on = (id) => !!$(id)?.checked,
+  val = (id) => ($(id)?.value.trim() ? String(+$(id).value) : "?"),
+  picked = (id) => $(id)?.selectedOptions[0]?.textContent.trim() || "",
+  OFF = __WEBUI_TEXT__("settings.disabled"),
+  ON = __WEBUI_TEXT__("runtime.on_2");
+const GROUP_SUMMARIES = {
+  recipe: () =>
+    on("brewByWeight")
+      ? R.sub(__WEBUI_TEXT__("settings.sum_recipe"), [
+          val("doseG"),
+          val("goalWeightG"),
+          R.brewRatio(R.number("goalWeightG"), R.number("doseG")),
+        ])
+      : __WEBUI_TEXT__("runtime.manual"),
+  fast: () =>
+    on("fastExtractionGuardEnabled")
+      ? R.sub(__WEBUI_TEXT__("settings.sum_extend"), [val("fastMarginG")])
+      : OFF,
+  slow: () =>
+    on("slowExtractionGuardEnabled")
+      ? R.sub(__WEBUI_TEXT__("settings.sum_shorten"), [val("slowMarginG")])
+      : OFF,
+  limits: () => R.sub(__WEBUI_TEXT__("settings.sum_max_s"), [val("operationalWallS")]),
+  drip: () => {
+    const g = $("learnedOffsetG").textContent;
+    if (!on("brewByWeight")) return __WEBUI_TEXT__("settings.sum_not_used");
+    return Number.isFinite(parseFloat(g)) ? g + __WEBUI_TEXT__("runtime.g_2") : "";
+  },
+  power: () => {
+    if (!on("lineaMicraObserveState")) return OFF;
+    const deps = [...$("lineaMicraPowerDeps").querySelectorAll("input")],
+      n = deps.filter((i) => i.checked).length;
+    return n === deps.length
+      ? __WEBUI_TEXT__("settings.sum_all_on")
+      : R.sub(__WEBUI_TEXT__("settings.sum_n_of_m"), [n + 1, deps.length + 1]);
+  },
+  auto: () =>
+    [
+      on("lineaMicraPowerOnWithScale") && __WEBUI_TEXT__("settings.sum_wake"),
+      on("lineaMicraShutdownWithScale") && __WEBUI_TEXT__("settings.sum_standby"),
+    ]
+      .filter(Boolean)
+      .join(" + ") || OFF,
+  micraPresets: () =>
+    on("lineaMicraApplyTemperature") ? __WEBUI_TEXT__("settings.sum_sets_temperature") : OFF,
+  paddle: () => picked("paddleMode"),
+  switch: () =>
+    $("momentaryStartEdge").value === "release"
+      ? __WEBUI_TEXT__("settings.sum_on_release")
+      : __WEBUI_TEXT__("settings.sum_on_press"),
+  rinse: () =>
+    on("rinseEnabled")
+      ? R.sub(__WEBUI_TEXT__("settings.sum_seconds"), [val("rinseDurationS")])
+      : OFF,
+  scale: () => picked("scalePreference"),
+  bookoo: () =>
+    $("bookooConnectBeepLevel").value === "0"
+      ? __WEBUI_TEXT__("settings.sum_silent")
+      : R.sub(__WEBUI_TEXT__("settings.sum_volume"), [$("bookooConnectBeepLevel").value]),
+  tare: () => {
+    const cup = on("autoTareOutsideBrew"),
+      start = on("autoTare");
+    if (cup && start) return __WEBUI_TEXT__("settings.sum_tare_both");
+    if (cup) return __WEBUI_TEXT__("settings.sum_tare_cup");
+    return start ? __WEBUI_TEXT__("settings.sum_tare_start") : OFF;
+  },
+  cup: () => R.sub(__WEBUI_TEXT__("settings.sum_min_g"), [val("minimumCupWeightG")]),
+  protect: () => {
+    const touch = on("avoidAccidentalTouchEnabled");
+    if (on("cupProtectionEnabled")) return touch ? __WEBUI_TEXT__("settings.sum_on_touch") : ON;
+    return touch ? __WEBUI_TEXT__("settings.sum_touch_only") : OFF;
+  },
+  noScale: () =>
+    ({
+      off: __WEBUI_TEXT__("settings.allow_manual_brewing"),
+      warn_once: __WEBUI_TEXT__("settings.sum_warn_once"),
+      require_scale: __WEBUI_TEXT__("settings.require_a_scale"),
+    })[$("noScaleBbwMode").value],
+  finish: () => (on("autoToManualGuardEnabled") ? ON : OFF),
+  alerts: () => {
+    const channel = $("alertOutputChannel");
+    if (!on("soundAlertsEnabled")) return OFF;
+    if (channel.closest(".buzzerOpt.hidden")) return ON;
+    return channel.value === "scale_priority"
+      ? __WEBUI_TEXT__("settings.sum_scale_then_buzzer")
+      : picked("alertOutputChannel");
+  },
+};
+function renderGroupSummaries() {
+  document.querySelectorAll("#workflowPanel .cfgSum").forEach((el) => {
+    el.textContent = GROUP_SUMMARIES[el.closest("details").dataset.g]() || "";
+  });
+}
 export function init() {
   if (ready) return;
   ready = true;
+  // Top-level groups get their icon; every keyed group gets its summary.
+  document.querySelectorAll("#workflowPanel details[data-g]").forEach((d) => {
+    const icon = d.parentElement.closest(".cfgGroup")
+      ? ""
+      : `<svg class="cfgIcon" aria-hidden="true"><use href="#g-${d.dataset.g}"/></svg>`;
+    d.firstElementChild.insertAdjacentHTML("afterbegin", icon);
+    d.firstElementChild.insertAdjacentHTML("beforeend", '<span class="cfgSum"></span>');
+  });
   R.registerViewStatus("settings", applyStatus);
   $("presetCards")?.addEventListener("click", () => setTimeout(updateSettingsOverrides));
   $("saveConfigButton").onclick = saveMachineConfig;
@@ -1170,5 +1273,8 @@ export function init() {
       R.command("/api/v1/calibration/reset", { [key]: R.number(input), baseRevision: R.formRev });
     };
   }
-  R.setDripChartRenderer(renderDripChart);
+  R.setSettingsRenderer((c) => {
+    renderDripChart(c);
+    renderGroupSummaries();
+  });
 }

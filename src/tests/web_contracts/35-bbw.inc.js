@@ -40,7 +40,7 @@
   const start = runtimeJs.search(/let\s+bbwFormPresetId\s*=/);
   const end = runtimeJs.indexOf('function soundAlertsAreOn', start);
   vm.runInContext(runtimeJs.slice(start, end), context);
-  vm.runInContext(blockAt(viewJs.settings, 'function renderDripChart('), context);
+  vm.runInContext(blockAt(viewJs.settings, 'function renderDripChart(') + 'var renderSettings=renderDripChart;', context);
   const refresh = (readback) => {
     if (readback) vm.runInContext('bbwFormPresetId=' + readback.bbwPresetId + ';uiState.bbwReadback=' +
       JSON.stringify(readback), context);

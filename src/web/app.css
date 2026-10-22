@@ -1557,16 +1557,81 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
 .fieldWarn {
   border-color: var(--wn) !important;
 }
+/* Settings group rows: icon, title, summary of the current values, chevron.
+   The body lines up under the title; opening animates where supported. */
 .cfgGroup {
-  margin: 0.5rem 0;
-  padding: 0.25rem 0 0.5rem;
-  border: 0;
+  margin: 0.15rem 0;
   border-top: 1px solid var(--ln);
-  border-radius: 0;
+  interpolate-size: allow-keywords;
 }
-.cfgGroup .cfgGroup {
-  margin: 0.5rem 0 0;
-  padding-left: 0.75rem;
+.cfgGroup[open] {
+  padding-bottom: 0.75rem;
+}
+.cfgGroup:has(> summary > .cfgIcon) {
+  padding-left: 2.15rem;
+}
+.cfgGroup:has(> summary > .cfgIcon) > summary {
+  margin-left: -2.15rem;
+}
+.cfgGroup::details-content {
+  block-size: 0;
+  overflow: clip;
+  transition:
+    block-size 0.25s ease,
+    content-visibility 0.25s allow-discrete;
+}
+.cfgGroup[open]::details-content {
+  block-size: auto;
+}
+.cfgGroup > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  list-style: none;
+}
+.cfgGroup > summary::-webkit-details-marker {
+  display: none;
+}
+.cfgGroup > summary::after {
+  content: "";
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin: 0 0.35rem 0 auto;
+  border: solid var(--mu);
+  border-width: 0 2px 2px 0;
+  transform: rotate(-45deg);
+  transition: transform 0.2s;
+}
+.cfgGroup[open] > summary {
+  color: var(--ac);
+}
+.cfgGroup[open] > summary::after {
+  transform: rotate(45deg);
+}
+.cfgIcon {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cfgGroup:not([open]) .cfgIcon {
+  color: var(--mu);
+}
+.cfgSum {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mu);
+  font-size: 0.85rem;
+  font-weight: 400;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .micraDeps {
   margin-left: 1.9rem;

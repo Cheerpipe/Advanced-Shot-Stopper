@@ -724,8 +724,9 @@ if (generated.jsGzip.length > 7630) {
 // The footer Sign out link style measures 15837 bytes; owner-requested 2026-10-22.
 // The Access signed-in device list (rows, icons, in-row confirmation, accordion count) measures 16019 bytes; owner-requested 2026-10-22.
 // No separators around the device accordion and the inline rename field: 16082; owner-requested 2026-10-22.
-if (generated.cssGzip.length > 16082) {
-  throw new Error(`Compressed Web CSS exceeds the 16082-byte gzip budget (${generated.cssGzip.length})`);
+// Settings group rows (icon, summary, chevron, animated opening): 16272; owner-requested 2026-10-22.
+if (generated.cssGzip.length > 16272) {
+  throw new Error(`Compressed Web CSS exceeds the 16272-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -966,7 +967,9 @@ if (generated.otaImageGzip.length > 3072) {
 // Showing one password form at a time measures 15761; cap 15780. The factory-password reminder on
 // the unlock form measures 15824; cap 15840. Moving Sign out to the footer measures 15749; cap 15770.
 // The signed-in device list with in-row sign out, as an accordion, measures 16685; with inline renaming 16914; cap 16930.
-const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 16930, settings: 16813, setup: 5870};
+// Settings group rows (icon sprite and a live summary per group) measure settings.js at 18228,
+// owner-requested 2026-10-22; cap 18250 for asset-tag gzip wobble.
+const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 16930, settings: 18250, setup: 5870};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -1172,8 +1175,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // Footer Sign out (shell, runtime, CSS) brings it to 70203, owner-requested 2026-10-22; cap 70220.
 // The device list's shared CSS and the sign-in device label bring it to 70660, owner-requested 2026-10-22; cap 70680.
 // The device list rename and separator CSS bring it to 70707; cap 70730.
-if (coldHomeGzip > 70730) {
-  throw new Error(`Cold Home download exceeds the 70730-byte gzip budget (${coldHomeGzip})`);
+// The Settings group row CSS brings it to 70898, owner-requested 2026-10-22; cap 70920.
+if (coldHomeGzip > 70920) {
+  throw new Error(`Cold Home download exceeds the 70920-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin
@@ -1183,8 +1187,9 @@ if (coldHomeGzip > 70730) {
 // Footer Sign out, Admin row removed: 149686; cap 149700.
 // The signed-in device list: 151068; cap 151090.
 // Inline device renaming: 151355; cap 151380.
-if (generated.combined > 151380) {
-  throw new Error(`Combined Web UI gzip exceeds the 151380-byte flash budget (${generated.combined})`);
+// Settings group rows (icons, live summaries, row CSS): 153049, owner-requested 2026-10-22; cap 153080.
+if (generated.combined > 153080) {
+  throw new Error(`Combined Web UI gzip exceeds the 153080-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {

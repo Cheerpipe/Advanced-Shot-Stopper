@@ -20,10 +20,11 @@ function setStatsRenderers(r) {
 function setHistoryRenderer(fn) {
   renderHistory = fn;
 }
-// Settings installs the drip chart on init; until then there is no chart DOM.
-let renderDripChart = () => {};
-function setDripChartRenderer(fn) {
-  renderDripChart = fn;
+// Settings installs its drip chart and group summaries on init; until then
+// there is no Settings DOM.
+let renderSettings = () => {};
+function setSettingsRenderer(fn) {
+  renderSettings = fn;
 }
 async function ensureSettingsDom() {
   await ensureViewHook("settings");
@@ -2511,7 +2512,7 @@ function updateBbwControls() {
   const use = c && c.bbwEwmaOffsetG;
   $("learnedOffsetG").textContent =
     typeof use === "number" ? use.toFixed(2) : __WEBUI_TEXT__("runtime.unknown");
-  renderDripChart(c);
+  renderSettings(c);
   if (c && c.bbwPresetId !== dripFieldsPresetId) {
     dripFieldsPresetId = c.bbwPresetId;
     for (const id of ["dripSetG", "alphaSet"]) delete $(id).dataset.edited;
@@ -6342,7 +6343,7 @@ export {
   armListSentinel,
   armStickyBar,
   setStatsRenderers,
-  setDripChartRenderer,
+  setSettingsRenderer,
   setHistoryRenderer,
   loadMoreHistory,
   historySendSubscribe,
@@ -6380,6 +6381,7 @@ export {
   selectedPreset,
   askConfirm,
   sub,
+  brewRatio,
   bootId,
   formRev,
   noteReachOk,
