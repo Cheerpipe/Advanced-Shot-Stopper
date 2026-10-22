@@ -1568,6 +1568,9 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
 .cfgGroup[open] {
   padding-bottom: 0.75rem;
 }
+#lineaMicraLinkedNote + .cfgGroup {
+  margin-top: 0.85rem;
+}
 #view-admin > .cfgGroup:first-of-type {
   border-top: 0;
 }
