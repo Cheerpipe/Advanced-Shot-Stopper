@@ -293,7 +293,7 @@ if (network.includes('page == StatusPage::Diagnostic')) {
       !codeIncludes(ui, 's.compileFlags') ||
       !html.includes('paddleOnly') ||
       !html.includes('id="dMt"') ||
-      !html.includes('<legend>Serial</legend>') ||
+      !html.includes('<summary>Serial</summary>') ||
       !css.includes('html.momentaryMachine .paddleOnly') ||
       !css.includes('.momentaryOnly') ||
       !codeIncludes(ui, 'function applyMachineTypeUi(')) {

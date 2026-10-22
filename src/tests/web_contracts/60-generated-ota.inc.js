@@ -726,8 +726,9 @@ if (generated.jsGzip.length > 7630) {
 // No separators around the device accordion and the inline rename field: 16082; owner-requested 2026-10-22.
 // Settings group rows (icon, summary, chevron, animated opening): 16272; owner-requested 2026-10-22.
 // Admin as one card of section rows: 16291; owner-requested 2026-10-22.
-if (generated.cssGzip.length > 16291) {
-  throw new Error(`Compressed Web CSS exceeds the 16291-byte gzip budget (${generated.cssGzip.length})`);
+// Diagnostics section rows with icons: 16325, owner-requested 2026-10-22; cap 16340.
+if (generated.cssGzip.length > 16340) {
+  throw new Error(`Compressed Web CSS exceeds the 16340-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -972,7 +973,8 @@ if (generated.otaImageGzip.length > 3072) {
 // Settings group rows (icon sprite and a live summary per group) measure settings.js at 18228,
 // owner-requested 2026-10-22; cap 18250 for asset-tag gzip wobble. Admin as section rows (icon sprite,
 // a live summary per section) measures admin.js at 17857, owner-requested 2026-10-22; cap 17880.
-const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 17880, settings: 18250, setup: 5870};
+// Diagnostics section rows with icons (the page's icon sprite ships in the module): diagnostic.js at 14688, owner-requested 2026-10-22.
+const viewModuleBudgets = {records: 15360, diagnostic: 14690, admin: 17880, settings: 18250, setup: 5870};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -1193,8 +1195,9 @@ if (coldHomeGzip > 71100) {
 // Inline device renaming: 151355; cap 151380.
 // Settings group rows (icons, live summaries, row CSS): 153049, owner-requested 2026-10-22; cap 153080.
 // Admin section rows (icons, live summaries, card CSS): 154072, owner-requested 2026-10-22; cap 154100.
-if (generated.combined > 154100) {
-  throw new Error(`Combined Web UI gzip exceeds the 154100-byte flash budget (${generated.combined})`);
+// Diagnostics section rows with icons: 154901, owner-requested 2026-10-22; cap 154930.
+if (generated.combined > 154930) {
+  throw new Error(`Combined Web UI gzip exceeds the 154930-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {

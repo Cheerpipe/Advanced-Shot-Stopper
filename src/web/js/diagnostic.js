@@ -1308,18 +1308,26 @@ export function init() {
   }, 1000);
   const controls = $("diagnosticControls");
   if (controls) controls.classList.remove("hidden");
-  for (const section of $("diagnosticsPanel").querySelectorAll("fieldset.statusColumn")) {
-    const legend = section.querySelector("legend");
-    if (!legend) continue;
+  R.initGroupRows($("diagnosticsPanel"));
+  for (const section of $("diagnosticsPanel").querySelectorAll(".cfgGroup")) {
+    const title = section.firstElementChild;
     // Press-and-hold copy: cancel on release, pointer exit, or a browser
-    // gesture takeover (touch scroll), so nothing copies accidentally.
-    let hold = 0;
+    // gesture takeover (touch scroll), so nothing copies accidentally; a
+    // completed hold does not also toggle the row.
+    let hold = 0,
+      copied = false;
     const cancel = () => clearTimeout(hold);
-    legend.onpointerdown = (e) => {
+    title.onpointerdown = (e) => {
       cancel();
-      if (e.button === 0) hold = setTimeout(() => copyText(section.innerText.trim()), 600);
+      copied = false;
+      if (e.button === 0)
+        hold = setTimeout(() => {
+          copied = true;
+          copyText(section.innerText.trim());
+        }, 600);
     };
-    legend.onpointerup = legend.onpointerleave = legend.onpointercancel = cancel;
+    title.onpointerup = title.onpointerleave = title.onpointercancel = cancel;
+    title.onclick = (e) => copied && e.preventDefault();
   }
   for (const id of LOG_LEVELS) $(id).onchange = () => saveLogLevel(id);
   $("logFilter").onchange = R.renderLog;
@@ -1491,7 +1499,7 @@ async function downloadScaleProfile() {
   profileBusy = false;
 }
 function updateCrashRow(s) {
-  const misc = $("hResetHistory")?.closest("fieldset.statusColumn");
+  const misc = $("hResetHistory")?.closest(".statusColumn");
   if (!misc) return;
   let row = $("crashArchiveRow");
   if (!row) {

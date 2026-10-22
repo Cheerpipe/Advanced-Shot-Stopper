@@ -1,643 +1,739 @@
+<svg hidden>
+  <symbol id="dg-states" viewBox="0 0 24 24">
+    <rect x="3" y="8" width="18" height="8" rx="4" />
+    <circle cx="16" cy="12" r="2" />
+  </symbol>
+  <symbol id="dg-machine-i-o" viewBox="0 0 24 24">
+    <path d="M4 8h12m-4-4 4 4-4 4m8 4H8m4-4-4 4 4 4" />
+  </symbol>
+  <symbol id="dg-scale" viewBox="0 0 24 24">
+    <rect x="3" y="14" width="18" height="6" rx="2" />
+    <path d="M6 14v-2a6 6 0 0 1 12 0v2m-6-5v3" />
+  </symbol>
+  <symbol id="dg-scale-profiling" viewBox="0 0 24 24">
+    <circle cx="12" cy="13" r="8" />
+    <path d="M12 9v4l2 2M10 2h4" />
+  </symbol>
+  <symbol id="dg-guards" viewBox="0 0 24 24">
+    <path d="M12 3 4 7v5c0 5 4 8 8 9 4-1 8-4 8-9V7Zm-3 9 2 2 4-4" />
+  </symbol>
+  <symbol id="dg-wifi" viewBox="0 0 24 24">
+    <path d="M3 9a14 14 0 0 1 18 0M6 12.5a9 9 0 0 1 12 0M9 16a4 4 0 0 1 6 0m-3 3.5h.01" />
+  </symbol>
+  <symbol id="dg-ap" viewBox="0 0 24 24">
+    <circle cx="12" cy="10" r="2" />
+    <path d="M12 12v9M7.8 5.8a6 6 0 0 0 0 8.4m8.4-8.4a6 6 0 0 1 0 8.4" />
+  </symbol>
+  <symbol id="dg-serial" viewBox="0 0 24 24">
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="m7 9 3 3-3 3m5 0h5" />
+  </symbol>
+  <symbol id="dg-cpu" viewBox="0 0 24 24">
+    <rect x="7" y="7" width="10" height="10" rx="1.5" />
+    <path d="M10 3v4m4-4v4m-4 10v4m4-4v4M3 10h4m-4 4h4m10-4h4m-4 4h4" />
+  </symbol>
+  <symbol id="dg-tasks" viewBox="0 0 24 24">
+    <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
+  </symbol>
+  <symbol id="dg-ram" viewBox="0 0 24 24">
+    <rect x="3" y="7" width="18" height="10" rx="1.5" />
+    <path d="M7 10v4m5-4v4m5-4v4M7 17v3m10-3v3" />
+  </symbol>
+  <symbol id="dg-heap" viewBox="0 0 24 24">
+    <path d="m12 3 9 5-9 5-9-5Zm-9 9 9 5 9-5m-18 4 9 5 9-5" />
+  </symbol>
+  <symbol id="dg-nvs" viewBox="0 0 24 24">
+    <ellipse cx="12" cy="6" rx="8" ry="3" />
+    <path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" />
+  </symbol>
+  <symbol id="dg-date-and-time" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </symbol>
+  <symbol id="dg-marzocco-micra" viewBox="0 0 24 24">
+    <path d="M4 8h12v5a6 6 0 0 1-12 0Zm12 1h1.5a2.5 2.5 0 0 1 0 5H16M3 21h14" />
+  </symbol>
+  <symbol id="dg-marzocco-cloud" viewBox="0 0 24 24">
+    <path d="M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4.5 4.5 0 0 1-1 9Z" />
+  </symbol>
+  <symbol id="dg-misc" viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01" /></symbol>
+  <symbol id="dg-compile-flags" viewBox="0 0 24 24"><path d="M5 21V4h11l-2 4 2 4H5" /></symbol>
+</svg>
 <div id="diagnosticControls">
   <fieldset id="diagnosticsPanel">
     <legend>{{webui:diagnostic.diagnostics}}</legend>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.states}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.machine_activity}}</strong>
-        <div id="dMachine">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric micraOnly">
-        <strong>{{webui:diagnostic.machine_power_state}}</strong>
-        <div id="dMicraPowerBrief">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.brew}}</strong>
-        <div id="dBrew">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.cup}}</strong>
-        <div id="dCup">{{webui:diagnostic.unknown}}</div>
-      </div>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.machine_i_o}}</legend>
-      <div class="metric">
-        <strong class="paddleOnly">{{webui:diagnostic.paddle}}</strong
-        ><strong class="momentaryOnly">{{webui:diagnostic.switch}}</strong>
-        <div id="dActivator">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric reedOnly">
-        <strong>{{webui:diagnostic.reed}}</strong>
-        <div id="dReed">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.relay}}</strong>
-        <div id="dRelay">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.source}}</strong>
-        <div id="dSource">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.safety}}</strong>
-        <div id="dSafety">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.fault}}</strong>
-        <div id="dFault">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.watchdog}}</strong>
-        <div id="dWatchdog">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.external}}</strong>
-        <div id="dExternal">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.recovery}}</strong>
-        <div id="dRecovery">{{webui:diagnostic.unknown}}</div>
-      </div>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.scale}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.scale_name}}</strong>
-        <div>
-          <span id="dScaleName">{{webui:diagnostic.unknown}}</span>
-          <span id="dScaleNameRenameWrap" class="hidden"
-            >- <a id="dScaleNameRename" href="#">{{webui:diagnostic.rename}}</a></span
-          >
+    <details class="cfgGroup" data-g="states">
+      <summary>{{webui:diagnostic.states}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.machine_activity}}</strong>
+          <div id="dMachine">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric micraOnly">
+          <strong>{{webui:diagnostic.machine_power_state}}</strong>
+          <div id="dMicraPowerBrief">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.brew}}</strong>
+          <div id="dBrew">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.cup}}</strong>
+          <div id="dCup">{{webui:diagnostic.unknown}}</div>
         </div>
       </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.cup_weight}}</strong>
-        <div id="dCupWeight">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.weight}}</strong>
-        <div id="dScaleWeight">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.timer}}</strong>
-        <div id="dScaleTimer">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.stream}}</strong>
-        <div id="dStream">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.control}}</strong>
-        <div id="dControl">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.rssi}}</strong>
-        <div id="dScaleRssi">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.recovered_stales}}</strong>
-        <div id="hRecoveredStales">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.stale_time}}</strong>
-        <div id="hStaleTime">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.weight_updates}}</strong>
-        <div id="hScaleRate">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.scale_gaps}}</strong>
-        <div id="hScaleGaps">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong
-          >{{webui:diagnostic.max_scale_gap}} (<button
-            id="scaleGapMaxResetButton"
-            class="inlineAction diagCtl"
-            type="button"
-          >
-            {{webui:diagnostic.reset}}</button
-          >)</strong
-        >
-        <div id="hScaleGapMax">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.rejected}}</strong>
-        <div id="hScaleRejected">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.reconnects}}</strong>
-        <div id="hScaleReconnects">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.last_disconnect}}</strong>
-        <div id="hLastDisconnect">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.last_command_failure}}</strong>
-        <div id="hScaleCommandFailure">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.dropped}}</strong>
-        <div id="hEventsDropped">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div id="scaleCommandInventory">
-        <strong>{{webui:diagnostic.supported_commands}}</strong>
-        <table id="scaleCommandTable" hidden>
-          <thead>
-            <tr>
-              <th>{{webui:diagnostic.command_name}}</th>
-              <th>{{webui:diagnostic.command_code}}</th>
-            </tr>
-          </thead>
-          <tbody id="scaleCommandRows"></tbody>
-        </table>
-        <p id="scaleCommandHint" class="fieldHint">{{webui:diagnostic.commands_unknown}}</p>
-      </div>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.scale_profiling}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.state}}</strong>
-        <div id="hProfileState">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.elapsed}}</strong>
-        <div id="hProfileElapsed">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.profile_capacity}}</strong>
-        <div id="hProfileCapacity">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.profile_remaining}}</strong>
-        <div id="hProfileRemaining">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <p class="fieldHint">{{webui:diagnostic.profile_capacity_hint}}</p>
-      <div class="metric">
-        <strong>{{webui:diagnostic.records}}</strong>
-        <div id="hProfileRecords">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="btnBar glassBar">
-        <button id="scaleProfileStartButton" class="btnGlyph scaleProfileCtl" type="button">
-          {{webui:diagnostic.start}}</button
-        ><button id="scaleProfileStopButton" class="btnGlyph scaleProfileCtl" type="button">
-          {{webui:diagnostic.stop}}</button
-        ><button id="scaleProfileDeleteButton" class="btnGlyph scaleProfileCtl" type="button">
-          {{webui:diagnostic.delete}}</button
-        ><button
-          id="scaleProfileDownloadButton"
-          class="btnGlyph btnInvert scaleProfileCtl"
-          type="button"
-        >
-          {{webui:diagnostic.download_trace}}
-        </button>
-      </div>
-      <p class="fieldHint">{{webui:diagnostic.start_replaces_recording}}</p>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.guards}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.no_scale_bbw}}</strong>
-        <div id="dGuardNoScaleUser">{{webui:diagnostic.unknown}}</div>
-        <div id="dGuardNoScaleRaw">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.a_to_m_time_guard}}</strong>
-        <div id="dGuardAtmUser">{{webui:diagnostic.unknown}}</div>
-        <div id="dGuardAtmRaw">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.slow_extraction}}</strong>
-        <div id="dGuardSlowUser">{{webui:diagnostic.unknown}}</div>
-        <div id="dGuardSlowRaw">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.fast_extraction}}</strong>
-        <div id="dGuardFastUser">{{webui:diagnostic.unknown}}</div>
-        <div id="dGuardFastRaw">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.avoid_accidental_touch}}</strong>
-        <div id="dGuardTouchUser">{{webui:diagnostic.unknown}}</div>
-        <div id="dGuardTouchRaw">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.cup_protection}}</strong>
-        <div id="dGuardCupUser">{{webui:diagnostic.unknown}}</div>
-        <div id="dGuardCupRaw">{{webui:diagnostic.unknown}}</div>
-      </div>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.wifi}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.state}}</strong>
-        <div id="hWifiState">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.sleep}}</strong>
-        <div id="hWifiPs">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.coex}}</strong>
-        <div id="hWifiCoex">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.ssid}}</strong>
-        <div id="hSsid">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.channel}}</strong>
-        <div id="hWifiChannel">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.ip}}</strong>
-        <div id="hWifiIp">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.signal}}</strong>
-        <div id="hWifiSignal">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.rssi}}</strong>
-        <div id="hWifiRssi">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.credentials}}</strong>
-        <div id="hWifiCreds">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.ip_mode}}</strong>
-        <div id="hWifiIpMode">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.confirm}}</strong>
-        <div id="hWifiConfirm">{{webui:diagnostic.unknown}}</div>
-      </div>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.ap}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.state}}</strong>
-        <div id="hApState">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.ssid}}</strong>
-        <div id="hApSsid">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.ip}}</strong>
-        <div id="hApIp">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.clients}}</strong>
-        <div id="hApClients">{{webui:diagnostic.unknown}}</div>
-      </div>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.serial}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.io4}}</strong>
-        <div id="dSerialIo4">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.serial}}</strong>
-        <div id="dSerialState">{{webui:diagnostic.unknown}}</div>
-      </div>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>
-        {{webui:diagnostic.cpu}} <span class="hint">{{webui:diagnostic.0_2_cpu0_cpu1}}</span>
-      </legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.load_5s}}</strong>
-        <div id="hCpu5s">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.load_1m}}</strong>
-        <div id="hCpu1m">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.load_5m}}</strong>
-        <div id="hCpu5m">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.clock}}</strong>
-        <div id="hCpuMhz">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.temp_current}}</strong>
-        <div id="hTemp">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.temp_peak}}</strong>
-        <div id="hTPeak">{{webui:diagnostic.unknown}}</div>
-      </div>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>
-        {{webui:diagnostic.tasks}}
-        <span class="hint">{{webui:diagnostic.100_1_core_busy_sum_can_exceed}}</span>
-      </legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.state}}</strong>
-        <div id="hTaskState">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.elapsed}}</strong>
-        <div id="hTaskElapsed">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="btnBar glassBar">
-        <button id="taskProfilerStartButton" class="btnGlyph taskProfilerCtl" type="button">
-          {{webui:diagnostic.start}}</button
-        ><button id="taskProfilerStopButton" class="btnGlyph taskProfilerCtl" type="button">
-          {{webui:diagnostic.stop}}
-        </button>
-      </div>
-      <div id="taskTableWrap">
-        <table id="taskTable">
-          <thead>
-            <tr>
-              <th>{{webui:diagnostic.task}}</th>
-              <th>{{webui:diagnostic.core}}</th>
-              <th>{{webui:diagnostic.now}}</th>
-              <th>{{webui:diagnostic.avg}}</th>
-              <th>{{webui:diagnostic.stack_b}}</th>
-            </tr>
-          </thead>
-          <tbody id="taskTableBody"></tbody>
-        </table>
-        <p id="taskTableHint" class="fieldHint"></p>
-      </div>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.ram}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.total}}</strong>
-        <div id="hRamT">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.used}}</strong>
-        <div id="hRamU">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.free}}</strong>
-        <div id="hRamF">{{webui:diagnostic.unknown}}</div>
-      </div>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.heap}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.heap_min}}</strong>
-        <div id="hHeapMin">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.heap_largest}}</strong>
-        <div id="hHeapLargest">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.psram_size}}</strong>
-        <div id="hPsramT">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.psram_free}}</strong>
-        <div id="hPsramF">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.psram_largest}}</strong>
-        <div id="hPsramL">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.heap_map}}</strong>
-        <a id="heapMapDownload" href="#">{{webui:diagnostic.download}}</a>
-      </div>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.nvs}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.layout}}</strong>
-        <div id="hNvsLayout">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.partition}}</strong>
-        <div id="hNvsSize">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.entries_used_available}}</strong>
-        <div id="hNvsEntries">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.entries_free_total}}</strong>
-        <div id="hNvsTotal">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.namespaces}}</strong>
-        <div id="hNvsNamespaces">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.failures}}</strong>
-        <div id="hNvsFailures">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.last_failure}}</strong>
-        <div id="hNvsLastFailure">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.flash_lock_timeouts}}</strong>
-        <div id="hNvsLockTimeouts">{{webui:diagnostic.unknown}}</div>
-      </div>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.date_and_time}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.ntp}}</strong>
-        <div id="ntpStatus">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.ntp_server}}</strong>
-        <div id="ntpServer">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.timezone_name}}</strong>
-        <div id="zoneName">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.applied_utc_offset}}</strong>
-        <div id="uo">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.last_sync}}</strong>
-        <div id="lastSync">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.utc_time}}</strong>
-        <div id="ut">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.utc_date}}</strong>
-        <div id="ud">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.local_time}}</strong>
-        <div id="lt">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.local_date}}</strong>
-        <div id="ld">{{webui:diagnostic.unknown}}</div>
-      </div>
-    </fieldset>
-    <fieldset id="micraMachineDiagnostics" class="statusColumn micraOnly">
-      <legend>{{webui:diagnostic.marzocco_micra}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.readiness}}</strong>
-        <div id="dMicraReadiness">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric micraOnly">
-        <strong>{{webui:diagnostic.machine_power_state}}</strong>
-        <div id="dMicraPower">
-          <span id="dMicraPowerValue">{{webui:diagnostic.unknown}}</span> -
-          <a id="lineaMicraRefreshLink" href="#" aria-disabled="true" tabindex="-1"
-            >({{webui:diagnostic.refresh_state}})</a
-          >
+    </details>
+    <details class="cfgGroup" data-g="machine-i-o">
+      <summary>{{webui:diagnostic.machine_i_o}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong class="paddleOnly">{{webui:diagnostic.paddle}}</strong
+          ><strong class="momentaryOnly">{{webui:diagnostic.switch}}</strong>
+          <div id="dActivator">{{webui:diagnostic.unknown}}</div>
         </div>
-        <small class="fieldHint"></small>
+        <div class="metric reedOnly">
+          <strong>{{webui:diagnostic.reed}}</strong>
+          <div id="dReed">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.relay}}</strong>
+          <div id="dRelay">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.source}}</strong>
+          <div id="dSource">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.safety}}</strong>
+          <div id="dSafety">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.fault}}</strong>
+          <div id="dFault">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.watchdog}}</strong>
+          <div id="dWatchdog">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.external}}</strong>
+          <div id="dExternal">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.recovery}}</strong>
+          <div id="dRecovery">{{webui:diagnostic.unknown}}</div>
+        </div>
       </div>
-      <div class="metric micraOnly">
-        <strong>{{webui:diagnostic.observed_mode}}</strong>
-        <div id="dMicraMode">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric micraOnly">
-        <strong>{{webui:diagnostic.communication}}</strong>
-        <div id="dMicraQuality">{{webui:diagnostic.unknown}}</div>
-        <small id="dMicraAge" class="fieldHint"></small>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.brew_boiler}}</strong>
-        <div id="dMicraBrewBoiler">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.steam_boiler}}</strong>
-        <div id="dMicraSteamBoiler">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.water}}</strong>
-        <div id="dMicraWater">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.machine_cleaning}}</strong>
-        <div id="dMicraCleaning">{{webui:diagnostic.unknown}}</div>
-        <small id="dMicraCleaningHint" class="fieldHint"></small>
-      </div>
-    </fieldset>
-    <fieldset id="micraCloudDiagnostics" class="statusColumn micraOnly">
-      <legend>{{webui:diagnostic.marzocco_cloud}}</legend>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.misc}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.firmware}}</strong>
-        <div id="hFirmware">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.boot}}</strong>
-        <div id="hBoot">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.uptime}}</strong>
-        <div id="hUptime">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.maintenance}}</strong>
-        <div id="maintenance">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.lease}}</strong>
-        <div id="hLease">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.loop_gap}}</strong>
-        <div id="hLoopGap">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong
-          >{{webui:diagnostic.loop_max}} (<button
-            id="loopMaxResetButton"
-            class="inlineAction diagCtl"
-            type="button"
+    </details>
+    <details class="cfgGroup" data-g="scale">
+      <summary>{{webui:diagnostic.scale}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.scale_name}}</strong>
+          <div>
+            <span id="dScaleName">{{webui:diagnostic.unknown}}</span>
+            <span id="dScaleNameRenameWrap" class="hidden"
+              >- <a id="dScaleNameRename" href="#">{{webui:diagnostic.rename}}</a></span
+            >
+          </div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.cup_weight}}</strong>
+          <div id="dCupWeight">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.weight}}</strong>
+          <div id="dScaleWeight">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.timer}}</strong>
+          <div id="dScaleTimer">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.stream}}</strong>
+          <div id="dStream">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.control}}</strong>
+          <div id="dControl">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.rssi}}</strong>
+          <div id="dScaleRssi">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.recovered_stales}}</strong>
+          <div id="hRecoveredStales">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.stale_time}}</strong>
+          <div id="hStaleTime">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.weight_updates}}</strong>
+          <div id="hScaleRate">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.scale_gaps}}</strong>
+          <div id="hScaleGaps">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong
+            >{{webui:diagnostic.max_scale_gap}} (<button
+              id="scaleGapMaxResetButton"
+              class="inlineAction diagCtl"
+              type="button"
+            >
+              {{webui:diagnostic.reset}}</button
+            >)</strong
           >
-            {{webui:diagnostic.reset}}</button
-          >)</strong
-        >
-        <div id="hLoopMax">{{webui:diagnostic.unknown}}</div>
+          <div id="hScaleGapMax">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.rejected}}</strong>
+          <div id="hScaleRejected">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.reconnects}}</strong>
+          <div id="hScaleReconnects">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.last_disconnect}}</strong>
+          <div id="hLastDisconnect">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.last_command_failure}}</strong>
+          <div id="hScaleCommandFailure">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.dropped}}</strong>
+          <div id="hEventsDropped">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div id="scaleCommandInventory">
+          <strong>{{webui:diagnostic.supported_commands}}</strong>
+          <table id="scaleCommandTable" hidden>
+            <thead>
+              <tr>
+                <th>{{webui:diagnostic.command_name}}</th>
+                <th>{{webui:diagnostic.command_code}}</th>
+              </tr>
+            </thead>
+            <tbody id="scaleCommandRows"></tbody>
+          </table>
+          <p id="scaleCommandHint" class="fieldHint">{{webui:diagnostic.commands_unknown}}</p>
+        </div>
       </div>
-      <div id="loopTimingWrap">
-        <table id="loopTimingTable">
-          <thead>
-            <tr>
-              <th>{{webui:diagnostic.loop_phase}}</th>
-              <th>{{webui:diagnostic.loop_gap}}</th>
-              <th>{{webui:diagnostic.loop_max}}</th>
-            </tr>
-          </thead>
-          <tbody id="loopTimingBody"></tbody>
-        </table>
-        <p class="fieldHint">{{webui:diagnostic.loop_timing_hint}}</p>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.last_command}}</strong>
-        <div id="lastCommand">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.command_state}}</strong>
-        <div id="lastCommandState">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.last_reset}}</strong>
-        <div id="hResetReason">{{webui:diagnostic.unknown}}</div>
-      </div>
-      <details>
-        <summary>{{webui:diagnostic.last_10_resets}}</summary>
-        <table>
-          <thead>
-            <tr>
-              <th>{{webui:diagnostic.reason}}</th>
-              <th>{{webui:diagnostic.uptime}}</th>
-            </tr>
-          </thead>
-          <tbody id="hResetHistory"></tbody>
-        </table>
-        <small class="fieldHint"
-          >{{webui:diagnostic.uptime_is_saved_every_minute_values_may}}</small
-        >
+    </details>
+    <details class="cfgGroup" data-g="scale-profiling">
+      <summary>{{webui:diagnostic.scale_profiling}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.state}}</strong>
+          <div id="hProfileState">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.elapsed}}</strong>
+          <div id="hProfileElapsed">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.profile_capacity}}</strong>
+          <div id="hProfileCapacity">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.profile_remaining}}</strong>
+          <div id="hProfileRemaining">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <p class="fieldHint">{{webui:diagnostic.profile_capacity_hint}}</p>
+        <div class="metric">
+          <strong>{{webui:diagnostic.records}}</strong>
+          <div id="hProfileRecords">{{webui:diagnostic.unknown}}</div>
+        </div>
         <div class="btnBar glassBar">
-          <button id="clearResetHistoryButton" class="btnGlyph btnWarn diagCtl" type="button">
-            <span class="g" aria-hidden="true">{{webui:diagnostic.close}}</span
-            ><span class="t">{{webui:diagnostic.reset}}</span>
+          <button id="scaleProfileStartButton" class="btnGlyph scaleProfileCtl" type="button">
+            {{webui:diagnostic.start}}</button
+          ><button id="scaleProfileStopButton" class="btnGlyph scaleProfileCtl" type="button">
+            {{webui:diagnostic.stop}}</button
+          ><button id="scaleProfileDeleteButton" class="btnGlyph scaleProfileCtl" type="button">
+            {{webui:diagnostic.delete}}</button
+          ><button
+            id="scaleProfileDownloadButton"
+            class="btnGlyph btnInvert scaleProfileCtl"
+            type="button"
+          >
+            {{webui:diagnostic.download_trace}}
           </button>
         </div>
-      </details>
-    </fieldset>
-    <fieldset class="statusColumn">
-      <legend>{{webui:diagnostic.compile_flags}}</legend>
-      <div class="metric">
-        <strong>{{webui:diagnostic.buzzer_type}}</strong>
-        <div id="dBz">{{webui:diagnostic.unknown}}</div>
+        <p class="fieldHint">{{webui:diagnostic.start_replaces_recording}}</p>
       </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.remote_control}}</strong>
-        <div id="dCircuit">{{webui:diagnostic.unknown}}</div>
+    </details>
+    <details class="cfgGroup" data-g="guards">
+      <summary>{{webui:diagnostic.guards}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.no_scale_bbw}}</strong>
+          <div id="dGuardNoScaleUser">{{webui:diagnostic.unknown}}</div>
+          <div id="dGuardNoScaleRaw">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.a_to_m_time_guard}}</strong>
+          <div id="dGuardAtmUser">{{webui:diagnostic.unknown}}</div>
+          <div id="dGuardAtmRaw">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.slow_extraction}}</strong>
+          <div id="dGuardSlowUser">{{webui:diagnostic.unknown}}</div>
+          <div id="dGuardSlowRaw">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.fast_extraction}}</strong>
+          <div id="dGuardFastUser">{{webui:diagnostic.unknown}}</div>
+          <div id="dGuardFastRaw">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.avoid_accidental_touch}}</strong>
+          <div id="dGuardTouchUser">{{webui:diagnostic.unknown}}</div>
+          <div id="dGuardTouchRaw">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.cup_protection}}</strong>
+          <div id="dGuardCupUser">{{webui:diagnostic.unknown}}</div>
+          <div id="dGuardCupRaw">{{webui:diagnostic.unknown}}</div>
+        </div>
       </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.arch}}</strong>
-        <div id="dArch">{{webui:diagnostic.unknown}}</div>
+    </details>
+    <details class="cfgGroup" data-g="wifi">
+      <summary>{{webui:diagnostic.wifi}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.state}}</strong>
+          <div id="hWifiState">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.sleep}}</strong>
+          <div id="hWifiPs">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.coex}}</strong>
+          <div id="hWifiCoex">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.ssid}}</strong>
+          <div id="hSsid">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.channel}}</strong>
+          <div id="hWifiChannel">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.ip}}</strong>
+          <div id="hWifiIp">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.signal}}</strong>
+          <div id="hWifiSignal">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.rssi}}</strong>
+          <div id="hWifiRssi">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.credentials}}</strong>
+          <div id="hWifiCreds">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.ip_mode}}</strong>
+          <div id="hWifiIpMode">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.confirm}}</strong>
+          <div id="hWifiConfirm">{{webui:diagnostic.unknown}}</div>
+        </div>
       </div>
-      <div class="metric">
-        <strong>{{webui:diagnostic.type}}</strong>
-        <div id="dMt">{{webui:diagnostic.unknown}}</div>
+    </details>
+    <details class="cfgGroup" data-g="ap">
+      <summary>{{webui:diagnostic.ap}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.state}}</strong>
+          <div id="hApState">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.ssid}}</strong>
+          <div id="hApSsid">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.ip}}</strong>
+          <div id="hApIp">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.clients}}</strong>
+          <div id="hApClients">{{webui:diagnostic.unknown}}</div>
+        </div>
       </div>
-    </fieldset>
+    </details>
+    <details class="cfgGroup" data-g="serial">
+      <summary>{{webui:diagnostic.serial}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.io4}}</strong>
+          <div id="dSerialIo4">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.serial}}</strong>
+          <div id="dSerialState">{{webui:diagnostic.unknown}}</div>
+        </div>
+      </div>
+    </details>
+    <details class="cfgGroup" data-g="cpu">
+      <summary>
+        {{webui:diagnostic.cpu}} <span class="hint">{{webui:diagnostic.0_2_cpu0_cpu1}}</span>
+      </summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.load_5s}}</strong>
+          <div id="hCpu5s">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.load_1m}}</strong>
+          <div id="hCpu1m">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.load_5m}}</strong>
+          <div id="hCpu5m">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.clock}}</strong>
+          <div id="hCpuMhz">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.temp_current}}</strong>
+          <div id="hTemp">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.temp_peak}}</strong>
+          <div id="hTPeak">{{webui:diagnostic.unknown}}</div>
+        </div>
+      </div>
+    </details>
+    <details class="cfgGroup" data-g="tasks">
+      <summary>
+        {{webui:diagnostic.tasks}}
+        <span class="hint">{{webui:diagnostic.100_1_core_busy_sum_can_exceed}}</span>
+      </summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.state}}</strong>
+          <div id="hTaskState">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.elapsed}}</strong>
+          <div id="hTaskElapsed">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="btnBar glassBar">
+          <button id="taskProfilerStartButton" class="btnGlyph taskProfilerCtl" type="button">
+            {{webui:diagnostic.start}}</button
+          ><button id="taskProfilerStopButton" class="btnGlyph taskProfilerCtl" type="button">
+            {{webui:diagnostic.stop}}
+          </button>
+        </div>
+        <div id="taskTableWrap">
+          <table id="taskTable">
+            <thead>
+              <tr>
+                <th>{{webui:diagnostic.task}}</th>
+                <th>{{webui:diagnostic.core}}</th>
+                <th>{{webui:diagnostic.now}}</th>
+                <th>{{webui:diagnostic.avg}}</th>
+                <th>{{webui:diagnostic.stack_b}}</th>
+              </tr>
+            </thead>
+            <tbody id="taskTableBody"></tbody>
+          </table>
+          <p id="taskTableHint" class="fieldHint"></p>
+        </div>
+      </div>
+    </details>
+    <details class="cfgGroup" data-g="ram">
+      <summary>{{webui:diagnostic.ram}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.total}}</strong>
+          <div id="hRamT">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.used}}</strong>
+          <div id="hRamU">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.free}}</strong>
+          <div id="hRamF">{{webui:diagnostic.unknown}}</div>
+        </div>
+      </div>
+    </details>
+    <details class="cfgGroup" data-g="heap">
+      <summary>{{webui:diagnostic.heap}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.heap_min}}</strong>
+          <div id="hHeapMin">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.heap_largest}}</strong>
+          <div id="hHeapLargest">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.psram_size}}</strong>
+          <div id="hPsramT">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.psram_free}}</strong>
+          <div id="hPsramF">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.psram_largest}}</strong>
+          <div id="hPsramL">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.heap_map}}</strong>
+          <a id="heapMapDownload" href="#">{{webui:diagnostic.download}}</a>
+        </div>
+      </div>
+    </details>
+    <details class="cfgGroup" data-g="nvs">
+      <summary>{{webui:diagnostic.nvs}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.layout}}</strong>
+          <div id="hNvsLayout">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.partition}}</strong>
+          <div id="hNvsSize">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.entries_used_available}}</strong>
+          <div id="hNvsEntries">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.entries_free_total}}</strong>
+          <div id="hNvsTotal">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.namespaces}}</strong>
+          <div id="hNvsNamespaces">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.failures}}</strong>
+          <div id="hNvsFailures">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.last_failure}}</strong>
+          <div id="hNvsLastFailure">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.flash_lock_timeouts}}</strong>
+          <div id="hNvsLockTimeouts">{{webui:diagnostic.unknown}}</div>
+        </div>
+      </div>
+    </details>
+    <details class="cfgGroup" data-g="date-and-time">
+      <summary>{{webui:diagnostic.date_and_time}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.ntp}}</strong>
+          <div id="ntpStatus">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.ntp_server}}</strong>
+          <div id="ntpServer">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.timezone_name}}</strong>
+          <div id="zoneName">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.applied_utc_offset}}</strong>
+          <div id="uo">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.last_sync}}</strong>
+          <div id="lastSync">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.utc_time}}</strong>
+          <div id="ut">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.utc_date}}</strong>
+          <div id="ud">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.local_time}}</strong>
+          <div id="lt">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.local_date}}</strong>
+          <div id="ld">{{webui:diagnostic.unknown}}</div>
+        </div>
+      </div>
+    </details>
+    <details class="cfgGroup micraOnly" data-g="marzocco-micra">
+      <summary>{{webui:diagnostic.marzocco_micra}}</summary>
+      <div id="micraMachineDiagnostics" class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.readiness}}</strong>
+          <div id="dMicraReadiness">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric micraOnly">
+          <strong>{{webui:diagnostic.machine_power_state}}</strong>
+          <div id="dMicraPower">
+            <span id="dMicraPowerValue">{{webui:diagnostic.unknown}}</span> -
+            <a id="lineaMicraRefreshLink" href="#" aria-disabled="true" tabindex="-1"
+              >({{webui:diagnostic.refresh_state}})</a
+            >
+          </div>
+          <small class="fieldHint"></small>
+        </div>
+        <div class="metric micraOnly">
+          <strong>{{webui:diagnostic.observed_mode}}</strong>
+          <div id="dMicraMode">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric micraOnly">
+          <strong>{{webui:diagnostic.communication}}</strong>
+          <div id="dMicraQuality">{{webui:diagnostic.unknown}}</div>
+          <small id="dMicraAge" class="fieldHint"></small>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.brew_boiler}}</strong>
+          <div id="dMicraBrewBoiler">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.steam_boiler}}</strong>
+          <div id="dMicraSteamBoiler">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.water}}</strong>
+          <div id="dMicraWater">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.machine_cleaning}}</strong>
+          <div id="dMicraCleaning">{{webui:diagnostic.unknown}}</div>
+          <small id="dMicraCleaningHint" class="fieldHint"></small>
+        </div>
+      </div>
+    </details>
+    <details class="cfgGroup micraOnly" data-g="marzocco-cloud">
+      <summary>{{webui:diagnostic.marzocco_cloud}}</summary>
+      <div id="micraCloudDiagnostics" class="statusColumn"></div>
+    </details>
+    <details class="cfgGroup" data-g="misc">
+      <summary>{{webui:diagnostic.misc}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.firmware}}</strong>
+          <div id="hFirmware">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.boot}}</strong>
+          <div id="hBoot">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.uptime}}</strong>
+          <div id="hUptime">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.maintenance}}</strong>
+          <div id="maintenance">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.lease}}</strong>
+          <div id="hLease">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.loop_gap}}</strong>
+          <div id="hLoopGap">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong
+            >{{webui:diagnostic.loop_max}} (<button
+              id="loopMaxResetButton"
+              class="inlineAction diagCtl"
+              type="button"
+            >
+              {{webui:diagnostic.reset}}</button
+            >)</strong
+          >
+          <div id="hLoopMax">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div id="loopTimingWrap">
+          <table id="loopTimingTable">
+            <thead>
+              <tr>
+                <th>{{webui:diagnostic.loop_phase}}</th>
+                <th>{{webui:diagnostic.loop_gap}}</th>
+                <th>{{webui:diagnostic.loop_max}}</th>
+              </tr>
+            </thead>
+            <tbody id="loopTimingBody"></tbody>
+          </table>
+          <p class="fieldHint">{{webui:diagnostic.loop_timing_hint}}</p>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.last_command}}</strong>
+          <div id="lastCommand">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.command_state}}</strong>
+          <div id="lastCommandState">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.last_reset}}</strong>
+          <div id="hResetReason">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <details>
+          <summary>{{webui:diagnostic.last_10_resets}}</summary>
+          <table>
+            <thead>
+              <tr>
+                <th>{{webui:diagnostic.reason}}</th>
+                <th>{{webui:diagnostic.uptime}}</th>
+              </tr>
+            </thead>
+            <tbody id="hResetHistory"></tbody>
+          </table>
+          <small class="fieldHint"
+            >{{webui:diagnostic.uptime_is_saved_every_minute_values_may}}</small
+          >
+          <div class="btnBar glassBar">
+            <button id="clearResetHistoryButton" class="btnGlyph btnWarn diagCtl" type="button">
+              <span class="g" aria-hidden="true">{{webui:diagnostic.close}}</span
+              ><span class="t">{{webui:diagnostic.reset}}</span>
+            </button>
+          </div>
+        </details>
+      </div>
+    </details>
+    <details class="cfgGroup" data-g="compile-flags">
+      <summary>{{webui:diagnostic.compile_flags}}</summary>
+      <div class="statusColumn">
+        <div class="metric">
+          <strong>{{webui:diagnostic.buzzer_type}}</strong>
+          <div id="dBz">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.remote_control}}</strong>
+          <div id="dCircuit">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.arch}}</strong>
+          <div id="dArch">{{webui:diagnostic.unknown}}</div>
+        </div>
+        <div class="metric">
+          <strong>{{webui:diagnostic.type}}</strong>
+          <div id="dMt">{{webui:diagnostic.unknown}}</div>
+        </div>
+      </div>
+    </details>
     <div class="btnBar glassBar">
       <button id="exportDebugDataButton" class="btnGlyph diagCtl" type="button">
         <span class="g" aria-hidden="true">{{webui:diagnostic.symbol}}</span

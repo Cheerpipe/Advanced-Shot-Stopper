@@ -100,7 +100,7 @@
   if (!cup || !cup[1].includes('id="cupState"') || !cup[1].includes('id="cupWeight"') || !cup[1].includes('id="idleTareStatus"') ||
       !cup[1].includes('id="cupAccessory"') ||
       !/<details id="scaleRow" class="lampRow">[\s\S]*?<\/details><details id="cupRow" class="lampRow">/.test(home) ||
-      !/<legend>Scale<\/legend>[\s\S]*?id="dCupWeight"/.test(diagnostic) ||
+      !/<summary>Scale<\/summary>[\s\S]*?id="dCupWeight"/.test(diagnostic) ||
       !diagnostic.includes('id="dCup"') || diagnostic.includes('id="scaleTareButton"') ||
       !codeIncludes(source, "setHomeSub('cupWeight',formatCupWeight(s))") ||
       !codeIncludes(viewJs.diagnostic, "t('dCupWeight',R.formatCupWeight(s))") ||

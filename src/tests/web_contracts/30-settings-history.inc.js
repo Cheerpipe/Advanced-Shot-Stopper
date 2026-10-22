@@ -452,21 +452,21 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
       !network.includes('"safety.resetReasonCode"') ||
       !diagHtml.includes('id="diagnosticsPanel"') ||
       !diagHtml.includes('<legend>Diagnostics</legend>') ||
-      !diagHtml.includes('<legend>States</legend>') ||
-      !diagHtml.includes('<legend>Guards</legend>') ||
-      !diagHtml.includes('<legend>Machine I/O</legend>') ||
-      !diagHtml.includes('<legend>Serial</legend>') ||
+      !diagHtml.includes('<summary>States</summary>') ||
+      !diagHtml.includes('<summary>Guards</summary>') ||
+      !diagHtml.includes('<summary>Machine I/O</summary>') ||
+      !diagHtml.includes('<summary>Serial</summary>') ||
       !diagHtml.includes('id="dSerialIo4"') ||
       !diagHtml.includes('id="dSerialState"') ||
-      !diagHtml.includes('<legend>WiFi</legend>') ||
-      !diagHtml.includes('<legend>AP</legend>') ||
-      !diagHtml.includes('<legend>CPU') ||
-      !diagHtml.includes('<legend>CPU Profiling') ||
-      !diagHtml.includes('<legend>RAM</legend>') ||
-      !diagHtml.includes('<legend>HEAP</legend>') ||
-      !diagHtml.includes('<legend>Scale</legend>') ||
-      !diagHtml.includes('<legend>Date and time</legend>') ||
-      !diagHtml.includes('<legend>MISC</legend>') ||
+      !diagHtml.includes('<summary>WiFi</summary>') ||
+      !diagHtml.includes('<summary>AP</summary>') ||
+      !diagHtml.includes('<summary>CPU') ||
+      !diagHtml.includes('<summary>CPU Profiling') ||
+      !diagHtml.includes('<summary>RAM</summary>') ||
+      !diagHtml.includes('<summary>HEAP</summary>') ||
+      !diagHtml.includes('<summary>Scale</summary>') ||
+      !diagHtml.includes('<summary>Date and time</summary>') ||
+      !diagHtml.includes('<summary>MISC</summary>') ||
       !diagHtml.includes('id="dMachine"') ||
       !diagHtml.includes('id="dBrew"') ||
       !diagHtml.includes('id="dCup"') ||
@@ -521,7 +521,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
       !diagHtml.includes('<strong>Clock</strong>') ||
       !diagHtml.includes('<strong>Temp current</strong>') ||
       !diagHtml.includes('<strong>Temp peak</strong>') ||
-      (diagHtml.match(/<details/g) || []).length !== 1 ||
+      (diagHtml.match(/<details/g) || []).length !== 19 ||
       !diagHtml.includes('<details><summary>Last 10 resets</summary>') ||
       diagHtml.includes('<summary>Diagnostics</summary>') ||
       !diagHtml.includes('id="hFirmware"') ||
@@ -536,18 +536,18 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
       !diagHtml.includes('id="lt"') ||
       !diagHtml.includes('id="ld"') ||
       diagHtml.indexOf('id="diagnosticsPanel"') > diagHtml.indexOf('id="logPanel"') ||
-      diagHtml.indexOf('<legend>States</legend>') > diagHtml.indexOf('<legend>Machine I/O</legend>') ||
-      diagHtml.indexOf('<legend>Machine I/O</legend>') > diagHtml.indexOf('<legend>Scale</legend>') ||
-      diagHtml.indexOf('<legend>Scale</legend>') > diagHtml.indexOf('<legend>Guards</legend>') ||
-      diagHtml.indexOf('<legend>Guards</legend>') > diagHtml.indexOf('<legend>WiFi</legend>') ||
-      diagHtml.indexOf('<legend>WiFi</legend>') > diagHtml.indexOf('<legend>AP</legend>') ||
-      diagHtml.indexOf('<legend>AP</legend>') > diagHtml.indexOf('<legend>Serial</legend>') ||
-      diagHtml.indexOf('<legend>Serial</legend>') > diagHtml.indexOf('<legend>CPU') ||
-      diagHtml.indexOf('<legend>CPU') > diagHtml.indexOf('<legend>CPU Profiling') ||
-      diagHtml.indexOf('<legend>CPU Profiling') > diagHtml.indexOf('<legend>RAM</legend>') ||
-      diagHtml.indexOf('<legend>RAM</legend>') > diagHtml.indexOf('<legend>HEAP</legend>') ||
-      diagHtml.indexOf('<legend>HEAP</legend>') > diagHtml.indexOf('<legend>Date and time</legend>') ||
-      diagHtml.indexOf('<legend>Date and time</legend>') > diagHtml.indexOf('<legend>MISC</legend>') ||
+      diagHtml.indexOf('<summary>States</summary>') > diagHtml.indexOf('<summary>Machine I/O</summary>') ||
+      diagHtml.indexOf('<summary>Machine I/O</summary>') > diagHtml.indexOf('<summary>Scale</summary>') ||
+      diagHtml.indexOf('<summary>Scale</summary>') > diagHtml.indexOf('<summary>Guards</summary>') ||
+      diagHtml.indexOf('<summary>Guards</summary>') > diagHtml.indexOf('<summary>WiFi</summary>') ||
+      diagHtml.indexOf('<summary>WiFi</summary>') > diagHtml.indexOf('<summary>AP</summary>') ||
+      diagHtml.indexOf('<summary>AP</summary>') > diagHtml.indexOf('<summary>Serial</summary>') ||
+      diagHtml.indexOf('<summary>Serial</summary>') > diagHtml.indexOf('<summary>CPU') ||
+      diagHtml.indexOf('<summary>CPU') > diagHtml.indexOf('<summary>CPU Profiling') ||
+      diagHtml.indexOf('<summary>CPU Profiling') > diagHtml.indexOf('<summary>RAM</summary>') ||
+      diagHtml.indexOf('<summary>RAM</summary>') > diagHtml.indexOf('<summary>HEAP</summary>') ||
+      diagHtml.indexOf('<summary>HEAP</summary>') > diagHtml.indexOf('<summary>Date and time</summary>') ||
+      diagHtml.indexOf('<summary>Date and time</summary>') > diagHtml.indexOf('<summary>MISC</summary>') ||
       diagHtml.indexOf('id="hWifiState"') > diagHtml.indexOf('id="hWifiPs"') ||
       diagHtml.indexOf('id="hWifiPs"') > diagHtml.indexOf('id="hWifiCoex"') ||
       diagHtml.indexOf('id="hWifiCoex"') > diagHtml.indexOf('id="hSsid"') ||
@@ -570,7 +570,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
       adminHtml.includes('<summary>Diagnostics</summary>') ||
       statusHtml.includes('id="currentTime"') ||
       statusHtml.includes('id="ntpStatus"') ||
-      !css.includes('#diagnosticsPanel fieldset') ||
+      !css.includes('#diagnosticsPanel .cfgGroup>summary{') ||
       !css.includes('.metric,.shotCard>*{') ||
       css.includes('#diagnosticsPanel .metric,#statusPanel .metric,#scalePanel .metric,.shotCard>*{') ||
       css.includes('diagGroup')) {
@@ -1658,7 +1658,7 @@ if (!codeIncludes(ui, 'id="factoryResetButton"') ||
     !css.includes('.btnGlyph.btnInvert')) {
   throw new Error('Factory reset must require UI and server-side confirmation');
 }
-if (!html.includes('<legend>NVS</legend>') ||
+if (!html.includes('<summary>NVS</summary>') ||
     !html.includes('id="hNvsLastFailure"') ||
     !codeIncludes(js, 'const nv=s.nvs||{}') ||
     !network.includes('\\\"availableEntries\\\"') ||

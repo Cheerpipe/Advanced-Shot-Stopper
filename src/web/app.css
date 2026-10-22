@@ -1305,17 +1305,7 @@ label:has(> input[type="checkbox"]) .fieldHint {
   gap: 0.65rem;
   padding: 0.35rem 0.25rem 0.65rem 2.45rem;
 }
-#diagnosticsPanel fieldset {
-  margin: 0.75rem 0 0;
-  padding: 0.75rem;
-  background: var(--in);
-}
-#diagnosticsPanel fieldset:first-of-type {
-  margin-top: 0.25rem;
-}
-#diagnosticsPanel fieldset.statusColumn > legend {
-  grid-column: 1/-1;
-  cursor: pointer;
+#diagnosticsPanel .cfgGroup > summary {
   -webkit-user-select: none;
   user-select: none;
 }

@@ -150,7 +150,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const vm = require('vm');
   const panelAt = micraDiagnosticHtml.indexOf('id="micraCloudDiagnostics"');
   assert(panelAt >= 0 && panelAt < micraDiagnosticHtml.indexOf('{{webui:diagnostic.misc}}'));
-  assert(micraDiagnosticHtml.includes('id="micraCloudDiagnostics" class="statusColumn micraOnly"'));
+  assert(/<details class="cfgGroup micraOnly" data-g="marzocco-cloud"><summary>[^<]*<\/summary><div id="micraCloudDiagnostics" class="statusColumn">/.test(micraDiagnosticHtml));
   const ids = ['dMicraCloudEmail', 'dMicraCloudMachine', 'dMicraCloudTime',
     'dMicraCloudApi', 'dMicraCloudResult', 'dMicraCloudDuration'];
   const nodes = Object.fromEntries(ids.map(id => [id, {textContent: ''}]));
@@ -170,7 +170,7 @@ const micraDiagnosticHtml = rawPartialHtml.diagnostic;
   const machine = element(), cleaningRow = element(), cleaning = element(), cleaningHint = element();
   cleaning.id = 'dMicraCleaning'; cleaningHint.id = 'dMicraCleaningHint';
   machine.append(cleaningRow); cleaningRow.append(cleaning, cleaningHint);
-  assert(micraDiagnosticHtml.includes('id="micraMachineDiagnostics" class="statusColumn micraOnly"'));
+  assert(/<details class="cfgGroup micraOnly" data-g="marzocco-micra"><summary>[^<]*<\/summary><div id="micraMachineDiagnostics" class="statusColumn">/.test(micraDiagnosticHtml));
   assert(micraDiagnosticHtml.includes('{{webui:diagnostic.marzocco_micra}}'));
   for (const id of ['dMicraReadiness', 'dMicraBrewBoiler', 'dMicraSteamBoiler', 'dMicraWater']) {
     assert(micraDiagnosticHtml.includes(`id="${id}"`), `machine section row missing: ${id}`);

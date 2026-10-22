@@ -183,6 +183,11 @@ can check your setup at a glance. The text changes as you edit, before you save.
 While Admin is locked, its unlock row stays open so you can type the password
 right away.
 
+**Diagnostics** uses the same rows for its readings: open only the sections you
+want to watch, such as Scale or Wi-Fi. Press and hold a row's title to copy that
+section's readings, for example to paste them into a bug report; open the row
+first to include its values.
+
 Save buttons in **Settings** and **Admin** stay dimmed until you change one of
 their values. When you save, the small icon on the button turns into a spinning
 ring while the controller applies the change. A successful save dims the button

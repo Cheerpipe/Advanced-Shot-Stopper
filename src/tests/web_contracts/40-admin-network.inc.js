@@ -135,11 +135,11 @@ if (!codeIncludes(ui, 'id="staIpMode"') ||
     !codeIncludes(ui, "s.network.apSsid") ||
     !codeIncludes(ui, "n.apSsid") ||
     !codeIncludes(ui, "t('hApState',n.apActive?'active':'inactive'") ||
-    !html.includes('<legend>WiFi</legend>') ||
+    !html.includes('<summary>WiFi</summary>') ||
     !html.includes('<strong>Sleep</strong><div id="hWifiPs">') ||
     !html.includes('<strong>Coex</strong><div id="hWifiCoex">') ||
     !html.includes('<strong>SSID</strong><div id="hSsid">') ||
-    !html.includes('<legend>AP</legend>') ||
+    !html.includes('<summary>AP</summary>') ||
     !network.includes('WiFi.config(') ||
     !network.includes('confirmPendingNetwork') ||
     !network.includes('revertPendingNetwork') ||

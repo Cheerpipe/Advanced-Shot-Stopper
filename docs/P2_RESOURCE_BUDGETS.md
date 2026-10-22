@@ -640,7 +640,8 @@ notice, Home Assistant pairing prompt; owner-requested 2026-10-22) measures
 at a time, the factory-password reminder, Sign out in the footer and the
 signed-in device list with inline renaming) and raises that cap to 151,380 bytes. The Settings group rows
 (an icon and a live summary per group; owner-requested 2026-10-22) measure 153,049 bytes and raise it to
-153,080 bytes; Admin's sections as the same rows measure 154,072 bytes and raise it to 154,100 bytes,
+153,080 bytes; Admin's sections as the same rows measure 154,072 bytes and raise it to 154,100 bytes;
+Diagnostics' sections as rows with icons measure 154,901 bytes and raise it to 154,930 bytes,
 with the per-asset caps raised to their measured values in the Web contracts. Its firmware state (~400 bytes) lives in external BSS and
 one 388-byte NVS blob (196 bytes before device labels; migrated on load). The selectable
 WS implementation and its correctness fixes are included in the reviewed flash
