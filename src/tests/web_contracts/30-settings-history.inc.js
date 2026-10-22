@@ -571,8 +571,8 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
       statusHtml.includes('id="currentTime"') ||
       statusHtml.includes('id="ntpStatus"') ||
       !css.includes('#diagnosticsPanel fieldset') ||
-      !css.includes('.metric,.shotCard > *{') ||
-      css.includes('#diagnosticsPanel .metric,#statusPanel .metric,#scalePanel .metric,.shotCard > *{') ||
+      !css.includes('.metric,.shotCard>*{') ||
+      css.includes('#diagnosticsPanel .metric,#statusPanel .metric,#scalePanel .metric,.shotCard>*{') ||
       css.includes('diagGroup')) {
     throw new Error(
         'Diagnostics must be a non-collapsible fieldset at the top of Diagnostic, above Log, with States/Machine I/O/Scale/Guards/WiFi/AP/Serial/CPU/CPU Profiling/RAM/HEAP/Date and time/MISC sections and one value per label');
@@ -992,7 +992,7 @@ if (!partialHtml.stats.includes('id="shotSort"') ||
     !partialHtml.stats.includes('class="shotSort"') ||
     !partialHtml.stats.includes('aria-label="Sort shots"') ||
     !css.includes('.shotSort{') ||
-    !css.includes('.shotSort button[aria-pressed="true"]') ||
+    !css.includes('.shotSort button[aria-pressed=true]') ||
     !codeIncludes(js, 'function setShotSort(') ||
     !codeIncludes(js, 'function syncShotSortButtons(') ||
     !codeIncludes(js, 'syncShotSortButtons();statsSendSubscribe()') ||

@@ -12,7 +12,7 @@ const HTML_MARKER_RE = /\{\{webui:([a-z0-9_.]+)\}\}/g;
 const META_MARKER_RE =
     /\{\{webui-meta:(locale|direction-attribute|development-class|machine-type-class)\}\}/g;
 const JS_MARKER_RE = /__WEBUI_TEXT__\("([a-z0-9_.]+)"\)/g;
-const CSS_MARKER_RE = /__WEBUI_CSS_TEXT__\("([a-z0-9_.]+)"\)/g;
+const CSS_MARKER_RE = /__WEBUI_CSS_TEXT__\(\s*"([a-z0-9_.]+)"\s*\)/g;
 
 function fail(message) {
   throw new Error(`Web UI localization: ${message}`);

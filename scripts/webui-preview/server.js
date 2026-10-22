@@ -35,16 +35,20 @@ function staticMockup(pathname) {
   }
 }
 
+// Formatted sources may wrap a tag across lines, so view slots match loosely.
+function fillView(html, name, content, hidden = '') {
+  const slot = new RegExp(`<section\\s+id="view-${name}"\\s+class="view"\\s+data-view="${name}"\\s*>\\s*</section\\s*>`);
+  return html.replace(slot, () => `<section id="view-${name}" class="view" data-view="${name}"${hidden}>${content}</section>`);
+}
+
 function renderHome() {
   const [shell, home] = renderSources(['shell', 'home'].map(name => ({
     file: `src/web/html/${name}.html`, type: 'html',
     content: read(`src/web/html/${name}.html`),
   })), {language: 'en', allowUnused: true, machineType: 'paddle'}).sources;
-  return shell.content
-      .replace('<section id="view-home" class="view" data-view="home"></section>',
-          `<section id="view-home" class="view" data-view="home">${home.content}</section>`)
+  return fillView(shell.content, 'home', home.content)
       .replace('</head>', '<link rel="stylesheet" href="/header.css"></head>')
-      .replace('<script type="module" src="/app.js?v=__FW_ASSET_TAG__"></script>',
+      .replace(/<script\s+type="module"\s+src="\/app\.js\?v=__FW_ASSET_TAG__"\s*><\/script\s*>/,
           '<script src="/preview.js" defer></script>')
       .replace(/<link rel="(?:manifest|icon|apple-touch-icon|modulepreload)"[^>]*>/g, '')
       .replace(/__FW_(?:ASSET_TAG|RELEASE)__/g, 'design-preview');
@@ -94,8 +98,7 @@ function renderMobileMenu() {
   })), {language: 'en', allowUnused: true, machineType: 'paddle'});
   let html = renderHome();
   views.forEach((name, index) => {
-    html = html.replace(`<section id="view-${name}" class="view" data-view="${name}"></section>`,
-        `<section id="view-${name}" class="view" data-view="${name}" hidden>${sources[index].content}</section>`);
+    html = fillView(html, name, sources[index].content, ' hidden');
   });
   return html.replace('width=device-width,initial-scale=1', 'width=device-width,initial-scale=1,viewport-fit=cover')
       .replace('</head>', '<link rel="stylesheet" href="/mobile-menu.css"></head>')

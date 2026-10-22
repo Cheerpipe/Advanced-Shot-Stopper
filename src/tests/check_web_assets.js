@@ -15,4 +15,8 @@ const source = fs.readdirSync(directory)
 const contracts = new Module(__filename, module);
 contracts.filename = __filename;
 contracts.paths = module.paths;
-contracts._compile(source, __filename);
+// One async scope lets the fixtures await the HTML compactor.
+contracts._compile(`(async () => {${source}\n})().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});`, __filename);

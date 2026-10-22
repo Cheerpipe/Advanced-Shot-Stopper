@@ -412,7 +412,7 @@ if (!rawViewJs.stats.includes('R.escHtml(__WEBUI_TEXT__("runtime.stats_preset_fi
   need(shellHtml.includes('aria-labelledby="inactiveHint">') && !shellHtml.includes('aria-labelledby="webUiReload"'), 'inactive dialog name');
   // RV-03: the only History criterion keeps the selected look without a static pressed state.
   need(!partialHtml.history.includes('id="historyDirButton" type="button" aria-pressed') &&
-      css.includes('.shotSort button[aria-pressed="true"],#historyDirButton{background:var(--pa)'), 'direction button state');
+      css.includes('.shotSort button[aria-pressed=true],#historyDirButton{background:var(--pa)'), 'direction button state');
   // FE-L07: form semantics and one submit per action.
   need(partialHtml.admin.includes('id="staPassword" type="password" maxlength="63" autocomplete="current-password"') &&
       partialHtml.setup.includes('id="setupPassword" autocomplete="current-password"') &&

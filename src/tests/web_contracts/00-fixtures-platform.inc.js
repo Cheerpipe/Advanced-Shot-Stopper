@@ -13,7 +13,24 @@ function readSources(files) {
   return files.map((file) => fs.readFileSync(path.join(sketchDir, file), 'utf8'))
     .join('\n');
 }
-const rawShellHtml = fs.readFileSync(webUi.sourcePath, 'utf8').replace(/\r?\n$/, '');
+// Contracts read HTML and CSS in one compact form, so how the sources are
+// formatted cannot change what a needle matches. Markup collapses like the
+// shipped build; CSS drops comments and the spacing, quotes, leading zeros,
+// and last semicolons a formatter adds.
+const compactMarkup = (source) => require('html-minifier-terser').minify(source,
+    {collapseWhitespace: true, collapseBooleanAttributes: true});
+const compactCss = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ')
+    .replace(/\s*([{};,]|!important)\s*/g, '$1')
+    .replace(/([(:])\s+|\s+\)/g, (_, open) => open || ')')
+    .replace(/[^{}]+\{/g, (prelude) => prelude.replace(/\s*([>+~])\s*/g, '$1'))
+    .replace(/\{[^{}]*\}/g, (block) => block.replace(/\s*\*\s*/g, '*'))
+    .replace(/;}/g, '}')
+    .replace(/@media \(/g, '@media(')
+    .replace(/(^|[^\w.])0\.(\d)/g, '$1.$2')
+    .replace(/\[([-\w]+)([~|^$*]?=)"(-?[_a-zA-Z][-\w]*)"\]/g, '[$1$2$3]')
+    .replace(/'([^'"]*)'/g, '"$1"')
+    .trim();
+const rawShellHtml = await compactMarkup(fs.readFileSync(webUi.sourcePath, 'utf8'));
 const network = readSources([
   'OpenBrewByWeightNetwork.cpp',
   'network/OpenBrewByWeightNetworkService.inc',

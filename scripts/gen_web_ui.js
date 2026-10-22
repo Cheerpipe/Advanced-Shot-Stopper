@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const {minify: terserMinify} = require('terser');
 const {minify: htmlMinify} = require('html-minifier-terser');
 const CleanCSS = require('clean-css');
+const {transform: cssTransform} = require('lightningcss');
 const zopfli = require('@gfx/zopfli');
 const {renderSources} = require('./localize_web_ui.js');
 
@@ -130,7 +131,7 @@ const REMOTE_CONTROL_CSS_RE = /#actionsPanel|homeAdminActions/;
 
 function stripRemoteControlMarkup(html) {
   return html.replace(
-      /<fieldset\b[^>]*\bid="actionsPanel"[^>]*>[\s\S]*?<\/fieldset>/g, '');
+      /<fieldset\b[^>]*\bid="actionsPanel"[^>]*>[\s\S]*?<\/fieldset\s*>/g, '');
 }
 
 function stripRemoteControlCss(css) {
@@ -150,7 +151,6 @@ function readFirmwareVersion() {
 async function minifyHtml(html) {
   return htmlMinify(html, {
     collapseWhitespace: true,
-    conservativeCollapse: true,
     removeComments: true,
     collapseBooleanAttributes: true,
     removeRedundantAttributes: true,
@@ -159,10 +159,19 @@ async function minifyHtml(html) {
   });
 }
 
+// Lightning CSS re-serializes every token, so the shipped bytes do not depend
+// on how the source is formatted (no targets: vendor prefixes stay as
+// authored); clean-css level 2 then restructures that canonical form. Values
+// it cannot parse (custom properties, var() math) keep a formatter's space
+// after commas, which is never significant outside strings.
 function minifyCss(css) {
-  const out = new CleanCSS({level: 2}).minify(css);
-  if (out.errors && out.errors.length) {
-    throw new Error('CSS minify failed: ' + out.errors.join('; '));
+  const {code, warnings} = cssTransform({filename: 'app.css', code: Buffer.from(css), minify: true});
+  const tight = code.toString().replace(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|,\s+/g,
+      (match, string) => string || ',');
+  const out = new CleanCSS({level: 2}).minify(tight);
+  const errors = [...warnings.map((w) => w.message), ...out.errors];
+  if (errors.length) {
+    throw new Error('CSS minify failed: ' + errors.join('; '));
   }
   return out.styles;
 }
@@ -274,8 +283,10 @@ function buildViewModule(views, viewJsRaw, partials) {
 async function generate(options = {}) {
   const webUiLanguage = options.webUiLanguage ||
       process.env.OPENBREWBYWEIGHT_WEBUI_LANGUAGE || 'en';
-  const source = fs.readFileSync(sourcePath, 'utf8').replace(/\r?\n$/, '');
-  const cssSource = fs.readFileSync(cssSourcePath, 'utf8');
+  // Contracts pass readSource to generate from reformatted HTML and CSS.
+  const read = options.readSource || ((file) => fs.readFileSync(file, 'utf8'));
+  const source = read(sourcePath).replace(/\r?\n$/, '');
+  const cssSource = read(cssSourcePath);
   const manifestObject = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   const icon192Raw = fs.readFileSync(icon192Path);
   const icon48Raw = fs.readFileSync(icon48Path);
@@ -292,7 +303,7 @@ async function generate(options = {}) {
     if (!fs.existsSync(partialPath)) {
       throw new Error(`Missing HTML partial: ${partialPath}`);
     }
-    partialsRaw[name] = fs.readFileSync(partialPath, 'utf8');
+    partialsRaw[name] = read(partialPath);
   }
 
   const appJsRaw = fs.readFileSync(appJsPath, 'utf8');

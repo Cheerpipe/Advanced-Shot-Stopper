@@ -21,8 +21,8 @@ const VIEW_NAMES = webUi.VIEW_NAMES;
 })().catch(error => {console.error(error); process.exitCode = 1;});
 const rawPartialHtml = {};
 for (const name of VIEW_NAMES) {
-  rawPartialHtml[name] = fs.readFileSync(
-      path.join(sketchDir, 'web', 'html', name + '.html'), 'utf8');
+  rawPartialHtml[name] = await compactMarkup(fs.readFileSync(
+      path.join(sketchDir, 'web', 'html', name + '.html'), 'utf8'));
 }
 const rawAppJsSource = fs.readFileSync(path.join(sketchDir, 'web', 'app.js'), 'utf8');
 const rawRuntimeJs = fs.readFileSync(path.join(sketchDir, 'web', 'js', 'runtime.js'), 'utf8');
@@ -101,7 +101,7 @@ if (!codeIncludes(rawViewJs.diagnostic, 'const saveFile=(blob,name)=>R.saveFile(
     /createObjectURL/.test(rawViewJs.diagnostic)) {
   throw new Error('Diagnostic must reuse the runtime download helper');
 }
-const rawCss = fs.readFileSync(path.join(sketchDir, 'web', 'app.css'), 'utf8');
+const rawCss = compactCss(fs.readFileSync(path.join(sketchDir, 'web', 'app.css'), 'utf8'));
 const localizedSources = webUiLocale.renderSources([
   {file: webUi.sourcePath, type: 'html', content: rawShellHtml},
   ...VIEW_NAMES.map((name) => ({file: name + '.html', type: 'html',
@@ -226,7 +226,7 @@ if (!shellHtml.includes('class="pageNav"') ||
     shellHtml.indexOf('class="pageNav"') > shellHtml.indexOf('id="app"') ||
     shellHtml.indexOf('class="topBar"') > shellHtml.indexOf('class="pageNav"') ||
     !css.includes('@media(min-width:700px)') ||
-    !css.includes('[data-nav-layout="text"] .pageNav svg{display:none}') ||
+    !css.includes('[data-nav-layout=text] .pageNav svg{display:none}') ||
     !codeIncludes(appJsSource, 'function updateNavigationLayout()') ||
     !codeIncludes(appJsSource, "matchMedia('(max-width: 699px)')")) {
   throw new Error('Web UI must adapt a single navigation bar between header icons, header text and bottom icons');
@@ -655,8 +655,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // The lint gate's markup fixes (quoted attributes, explicit button types, an html-validate directive): 95117,
 // measured raise of the 2026-10-21 frontend audit remediation.
 // Review fix RV-05 (Admin unlock form leaves validation to the app): measured 95128.
-if (htmlBytes > 95128) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 95128)`);
+// The budget counts the compact markup the fixtures derive, so formatting the
+// sources cannot move it: re-baselined to the measured 94713.
+if (htmlBytes > 94713) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 94713)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -926,8 +928,9 @@ if (htmlBytes > 95128) {
 // Review fix RV-01 (OTA commit expectation kept when the device stops answering after flash): measured 484909.
 // Review fixes RV-04, RV-07, RV-08, RV-10, RV-12 (no view error on a loaded page, log scroll anchor, pending log
 // level, escaped view text, star radio keys): measured 485695.
-if (jsBytes > 485695) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 485695)`);
+// Prettier re-formats JS that drifted from its style after the audit merge: measured 490907.
+if (jsBytes > 490907) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 490907)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1079,8 +1082,9 @@ if (jsBytes > 485695) {
 // The lint gate's markup and lint fixes: 579931, measured raise of the 2026-10-21 frontend audit remediation.
 // Review fix RV-01 (OTA commit expectation kept when the device stops answering after flash): measured 580026.
 // Review fixes RV-03 to RV-12: measured 580823.
-if (htmlBytes + jsBytes > 580823) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 580823)`);
+// Compact HTML measurement plus the Prettier re-format of drifted JS: measured 585620.
+if (htmlBytes + jsBytes > 585620) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 585620)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

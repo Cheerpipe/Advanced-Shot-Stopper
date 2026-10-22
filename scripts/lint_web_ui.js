@@ -24,7 +24,7 @@ function assembledDocument() {
       .slice(0, html.length).map((source) => source.content);
   const views = Object.fromEntries(webUi.VIEW_NAMES.map((name, i) => [name, partials[i]]));
   return shell.split('{{webui-meta:development-class}}').join('')
-      .replace(/(<section id="view-([a-z]+)" class="view" data-view="\2">)(<\/section>)/g,
+      .replace(/(<section\s+id="view-([a-z]+)"\s+class="view"\s+data-view="\2"\s*>)\s*(<\/section\s*>)/g,
           (_, open, name, close) => open + views[name] + close);
 }
 

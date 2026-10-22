@@ -2,6 +2,9 @@
 
 - Edit `src/web/app.css`, `src/web/app.js`, `src/web/html/`, and `src/web/js/`.
   Never edit generated `src/OpenBrewByWeightWebAssetsGzip.h` by hand.
+- Sources stay Prettier-formatted: run `npm run format:web` after edits. Only
+  the generator compacts them, so never hand-minify markup or CSS; contracts
+  match the compact form the fixtures derive, not the source text.
 - Preserve progressive enhancement, admin-lock behavior, remote-actuation
   lockdown, endpoint schemas, and the embedded asset budget.
 - `node_modules/` is dependency output and must not be loaded wholesale.

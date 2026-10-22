@@ -928,13 +928,13 @@ if (codeIncludes(ui, 'id="shotPanel"') ||
     codeIncludes(statsRuntimeJs, 'stroke="currentColor"') ||
     !codeIncludes(statsRuntimeJs, "if(spark.hidden)row.classList.add('noSpark')") ||
     !css.includes('.shotCard{') ||
-    !css.includes('.metric,.shotCard > *{') ||
+    !css.includes('.metric,.shotCard>*{') ||
     !css.includes('.metric strong,.shotCard strong{') ||
-    !css.includes('.metric > div,.shotCard > * > div{') ||
-    css.includes('#diagnosticsPanel .metric,#statusPanel .metric,#scalePanel .metric,.shotCard > *{') ||
-    css.includes('#statusPanel .metric::before,#scalePanel .metric::before,.shotCard > *::before{') ||
+    !css.includes('.metric>div,.shotCard>*>div{') ||
+    css.includes('#diagnosticsPanel .metric,#statusPanel .metric,#scalePanel .metric,.shotCard>*{') ||
+    css.includes('#statusPanel .metric::before,#scalePanel .metric::before,.shotCard>*::before{') ||
     css.includes('font-size:1rem;font-weight:700;color:var(--mu)') ||
-    !css.includes('.shotCard .shotDur > div,.shotCard .shotActual > div') ||
+    !css.includes('.shotCard .shotDur>div,.shotCard .shotActual>div') ||
     !css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal err err avgflow avgflow"') ||
     css.includes('grid-template-areas:"dur dur dur actual actual actual" "goal goal avgflow avgflow maxflow maxflow" "err err tare tare drop drop" "ended ended shot shot preset preset" "scale scale rate rate rate rate"') ||
     codeIncludes(ui, 'id="shotElapsed"') ||

@@ -48,6 +48,23 @@ if (!generated.assetTag || !generated.cacheVersion ||
 const normalizedEnglish = await webUi.generate({webUiLanguage: 'EN', write: false});
 const regionalEnglish = await webUi.generate({webUiLanguage: 'En_en', write: false});
 const developmentShell = await webUi.generate({developmentMode: true, write: false});
+// Shipped bytes do not depend on how the HTML and CSS sources are formatted:
+// printing them at two widths changes nothing the generator emits.
+{
+  const prettier = require('prettier');
+  const files = [webUi.sourcePath, webUi.cssSourcePath,
+    ...VIEW_NAMES.map((name) => path.join(webUi.htmlDir, `${name}.html`))];
+  const printed = async (printWidth) => new Map(await Promise.all(files.map(async (file) => [file,
+    await prettier.format(fs.readFileSync(file, 'utf8'), {filepath: file, printWidth})])));
+  const widths = await Promise.all([40, 160].map(printed));
+  const shipped = (r) => [r.html, r.css, ...Object.values(r.partials), ...Object.values(r.modules)];
+  for (const options of [{}, {remoteControl: false, lineaMicra: false, machineType: 'paddle'}]) {
+    const [narrow, wide] = await Promise.all(widths.map((sources) => webUi.generate(
+        {...options, readSource: (file) => sources.get(file), versionOverride: 'format', write: false})));
+    require('assert').deepStrictEqual(shipped(narrow), shipped(wide),
+        'Web UI output must not depend on how its HTML and CSS sources are formatted');
+  }
+}
 if (!developmentShell.html.includes('<body class="devBuild">')) {
   throw new Error(
       'developmentMode generation must bake the devBuild class into the shell body');
@@ -128,7 +145,7 @@ for (const [machineType, remoteControl, kept] of [
   ['momentary_reed', true, ['html:not(.reedMachine) .reedOnly']],
   ['momentary', false, ['html:not(.momentaryMachine) .switchOnly']],
   ['paddle', false, ['html.momentaryMachine .paddleOnly',
-    'html.theme-dark :is(.qwSheet){box-shadow:0 -8px']]]) {
+    'html.theme-dark .qwSheet{box-shadow:0 -8px']]]) {
   const {css: typedCss} = await webUi.generate({machineType, remoteControl, write: false});
   const lost = kept.filter((needle) => !typedCss.includes(needle));
   if (lost.length) {
