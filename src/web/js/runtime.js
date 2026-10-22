@@ -4802,7 +4802,11 @@ function paintDiagnosticStream() {
   if (activeView !== "diagnostic" || !diagFrame) return;
   viewStatusHandlers.diagnosticLive?.(diagFrame.status);
   const apply = viewStatusHandlers["diagnostic"];
-  if (apply && diagnosticReady()) apply(diagFrame.status);
+  if (!apply || !diagnosticReady()) return;
+  apply(diagFrame.status);
+  // A resume whose first snapshot failed never reached startView's log
+  // subscription: the recovered stream restarts it (a no-op once wanted).
+  startLogStream();
 }
 async function loadDiagnosticStatus() {
   startUiStream();
@@ -6212,7 +6216,7 @@ async function loadStatus() {
             : await api("/api/v1/status/" + v);
     await viewReady;
     if (seq !== viewSeq || !webUiPollingActive()) return false;
-    if (v !== "diagnostic" && !statusPageOk(v, s))
+    if (!s || (v !== "diagnostic" && !statusPageOk(v, s)))
       throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
     lastStatusAt = Date.now();
     if (v !== "diagnostic") {

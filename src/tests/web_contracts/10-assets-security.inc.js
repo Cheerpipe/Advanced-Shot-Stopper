@@ -952,9 +952,10 @@ if (htmlBytes > 107310) {
 // Inline device renaming: measured 511495, owner-requested 2026-10-22.
 // Settings group rows with a live summary per group: measured 515255, owner-requested 2026-10-22.
 // Admin section rows with live summaries, sharing the group-row helpers: measured 516957, owner-requested 2026-10-22.
-// Diagnostics section rows (shared row helper, hold-to-copy on the row title): measured 517152, owner-requested 2026-10-22.
-if (jsBytes > 517152) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 517152)`);
+// Diagnostics section rows (shared row helper, hold-to-copy on the row title): measured 517152; the
+// Diagnostic log-stream resume brings it to 517339, owner-requested 2026-10-22.
+if (jsBytes > 517339) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 517339)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1117,9 +1118,10 @@ if (jsBytes > 517152) {
 // Inline device renaming: measured 611021, owner-requested 2026-10-22.
 // Settings group rows with icons and live summaries: measured 617439, owner-requested 2026-10-22.
 // Admin section rows with icons and live summaries: measured 621182, owner-requested 2026-10-22.
-// Diagnostics section rows with icons: measured 624462, owner-requested 2026-10-22.
-if (htmlBytes + jsBytes > 624462) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 624462)`);
+// Diagnostics section rows with icons: measured 624462; the Diagnostic log-stream resume brings it
+// to 624649, owner-requested 2026-10-22.
+if (htmlBytes + jsBytes > 624649) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 624649)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

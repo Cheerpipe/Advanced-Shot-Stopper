@@ -66,7 +66,9 @@ int openBrewByWeightEspLogVprintf(const char *format, va_list args) {
   // Benign IDF lines. BLE_INIT warns that light sleep is blocked, but this
   // firmware never enters light sleep. A client resetting its socket
   // (ECONNRESET: tab closed, phone asleep) is a normal disconnect that httpd
-  // already closes, so it stays a DEBUG trace on both sinks.
+  // already closes, so it stays a DEBUG trace on both sinks. A bound UI
+  // stream sends through uiStreamSend, whose rate-limited ui_stream warning
+  // already reports each failed WS send with size, timing, and errno.
   if (strstr(line.text,
              "HTTP_CLIENT: Connection timed out before data was ready!") !=
           nullptr ||
@@ -74,7 +76,9 @@ int openBrewByWeightEspLogVprintf(const char *format, va_list args) {
           nullptr) {
     return 0;
   }
-  if (strstr(line.text, "httpd_sock_err: error in recv : 104") != nullptr) {
+  if (strstr(line.text, "httpd_sock_err: error in recv : 104") != nullptr ||
+      strstr(line.text, "httpd_ws_send_frame_async: Failed to send WS") !=
+          nullptr) {
     line.text[0] = 'D';
   }
   retainEspLogLine(line.text);

@@ -155,7 +155,7 @@ int main(){
     document:{hidden:false,addEventListener(){}},window:{addEventListener(){}},
     setTimeout:(fn,delay)=>{timers.set(++nextTimer,{fn,delay});return nextTimer;},clearTimeout:id=>timers.delete(id),
     requestAnimationFrame:()=>1,webUiPollingActive:()=>true,webUiClientId:'owner',webUiPowerSeconds:()=>0,
-    activeView:'diagnostic',viewReady:Promise.resolve(),homeResolve(){},invalidateHomeStream(){},noteReachFail(){},
+    activeView:'diagnostic',diagnosticUnlocked:true,developmentMode:false,lastLog:0,viewReady:Promise.resolve(),homeResolve(){},invalidateHomeStream(){},noteReachFail(){},
     viewStatusHandlers:{diagnostic:s=>{assert(s.health);assert(s.tasks);paints.push(s);}}});
   vm.runInContext(runtimeStateDecl+'let homeFrame=null;'+runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('),runtimeJs.indexOf('function renderHomeStream('))+
       runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),runtimeJs.indexOf('function setHomeSub('))+statsExportJs,context);
@@ -177,6 +177,7 @@ int main(){
     const status=await pending;
     assert.equal(status.health.loopMaxGapMs,12,'load returns assembled status, never a boolean');
     context.paintDiagnosticStream();assert.equal(paints.length,1);
+    assert(socket.sent.some(m=>m.op==='log'&&m.on),'a recovered diagnostic stream restarts the log subscription');
     context.stopDiagnosticStream();
     const messages=socket.sent.length;
     deliver({'scale.constructor.prototype':{bad:true}});

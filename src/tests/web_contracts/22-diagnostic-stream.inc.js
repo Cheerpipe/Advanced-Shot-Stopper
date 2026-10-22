@@ -166,8 +166,8 @@
       'the Diagnostic view must not read REST status');
   assert(!codeIncludes(js, "api('/api/v1/log'"),
       'the Diagnostic view must not poll the REST log');
-  assert(codeIncludes(runtimeJs, 'if(apply&&diagnosticReady())apply(diagFrame.status)'),
-      'the full view waits for all diagnostic sections');
+  assert(codeIncludes(runtimeJs, 'if(!apply||!diagnosticReady())return;apply(diagFrame.status);'),
+      'the full view waits for all diagnostic sections, then resumes the log stream');
   assert(codeIncludes(runtimeJs, 'shotWs=null;resetUiStream();'),
       'socket loss must drop the cache');
 }

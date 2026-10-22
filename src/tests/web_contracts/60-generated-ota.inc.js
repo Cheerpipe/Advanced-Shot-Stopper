@@ -1181,9 +1181,10 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The device list's shared CSS and the sign-in device label bring it to 70660, owner-requested 2026-10-22; cap 70680.
 // The device list rename and separator CSS bring it to 70707; cap 70730.
 // The Settings group row CSS brings it to 70898, owner-requested 2026-10-22; cap 70920.
-// The shared group-row helpers and the Admin card CSS bring it to 71080, owner-requested 2026-10-22; cap 71100.
-if (coldHomeGzip > 71100) {
-  throw new Error(`Cold Home download exceeds the 71100-byte gzip budget (${coldHomeGzip})`);
+// The shared group-row helpers and the Admin card CSS bring it to 71080; the Diagnostic
+// log-stream resume brings it to 71130, owner-requested 2026-10-22; cap 71150.
+if (coldHomeGzip > 71150) {
+  throw new Error(`Cold Home download exceeds the 71150-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin
@@ -1195,9 +1196,10 @@ if (coldHomeGzip > 71100) {
 // Inline device renaming: 151355; cap 151380.
 // Settings group rows (icons, live summaries, row CSS): 153049, owner-requested 2026-10-22; cap 153080.
 // Admin section rows (icons, live summaries, card CSS): 154072, owner-requested 2026-10-22; cap 154100.
-// Diagnostics section rows with icons: 154901, owner-requested 2026-10-22; cap 154930.
-if (generated.combined > 154930) {
-  throw new Error(`Combined Web UI gzip exceeds the 154930-byte flash budget (${generated.combined})`);
+// Diagnostics section rows with icons: 154901; the Diagnostic log-stream resume brings it to
+// 154942, owner-requested 2026-10-22; cap 154960.
+if (generated.combined > 154960) {
+  throw new Error(`Combined Web UI gzip exceeds the 154960-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {
