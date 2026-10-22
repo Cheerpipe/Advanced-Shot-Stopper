@@ -1561,8 +1561,16 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
 #lineaMicraLinkedNote + .cfgGroup {
   margin-top: 0.85rem;
 }
-#view-admin > .cfgGroup:first-of-type {
-  border-top: 0;
+.adminLockTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: var(--tap);
+  margin: 0;
+  padding: 0.65rem 0.25rem;
+  color: var(--ac);
+  font-size: inherit;
+  font-weight: 650;
 }
 #adminControls > .cfgGroup:last-child {
   border-bottom: 1px solid var(--ln);
@@ -3359,6 +3367,15 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   width: 100%;
   height: 100%;
   fill: currentColor;
+}
+.histNoWeight svg {
+  overflow: visible;
+}
+.histNoWeight path:first-child {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 28;
+  stroke-linejoin: round;
 }
 .shotSpark {
   grid-area: plot;

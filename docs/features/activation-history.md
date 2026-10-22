@@ -63,7 +63,8 @@ the duration large on the left and the friendly time label small on the right:
 the rest of the week, "2 weeks ago" for older weeks, and a short date like
 "Sep 15" for older entries. Hovering the label shows the exact date and time.
 The activation type sits below as a small label. Shots carry a coffee-cup
-icon on the left of the card. Rinses carry a droplet, and other
+icon on the left of the card; the cup is only outlined when the scale had no
+valid weight at the end of the shot. Rinses carry a droplet, and other
 activations carry a lightning bolt, Power ON entries use the power symbol,
 and Blocked: no scale entries show an X. When the clock
 was not synced when the entry was recorded, the card shows "no time"

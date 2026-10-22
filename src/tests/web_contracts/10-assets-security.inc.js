@@ -954,8 +954,9 @@ if (htmlBytes > 107310) {
 // Admin section rows with live summaries, sharing the group-row helpers: measured 516957, owner-requested 2026-10-22.
 // Diagnostics section rows (shared row helper, hold-to-copy on the row title): measured 517152; the
 // Diagnostic log-stream resume brings it to 517339, owner-requested 2026-10-22.
-if (jsBytes > 517339) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 517339)`);
+// Outlined History cup for shots without scale weight: measured 517450, owner-requested 2026-10-22.
+if (jsBytes > 517450) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 517450)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.

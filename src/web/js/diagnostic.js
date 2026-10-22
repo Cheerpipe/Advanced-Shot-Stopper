@@ -1306,9 +1306,8 @@ export function init() {
   setInterval(() => {
     if (!document.hidden && R.activeView === "diagnostic") renderDiagClock();
   }, 1000);
-  const controls = $("diagnosticControls");
-  if (controls) controls.classList.remove("hidden");
-  R.initGroupRows($("diagnosticsPanel"));
+  $("diagnosticControls")?.classList.remove("hidden");
+  R.initGroupRows($("diagnosticsPanel"), "dg-");
   for (const section of $("diagnosticsPanel").querySelectorAll(".cfgGroup")) {
     const title = section.firstElementChild;
     // Press-and-hold copy: cancel on release, pointer exit, or a browser
@@ -1327,7 +1326,7 @@ export function init() {
         }, 600);
     };
     title.onpointerup = title.onpointerleave = title.onpointercancel = cancel;
-    title.onclick = (e) => copied && e.preventDefault();
+    title.onclick = (e) => void (copied && e.preventDefault());
   }
   for (const id of LOG_LEVELS) $(id).onchange = () => saveLogLevel(id);
   $("logFilter").onchange = R.renderLog;

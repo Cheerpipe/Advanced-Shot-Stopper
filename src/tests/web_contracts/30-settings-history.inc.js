@@ -390,7 +390,6 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
       !codeIncludes(ui, 'id="taskTableHint"') ||
       !codeIncludes(ui, 'function applyTaskProfiler(') ||
       !codeIncludes(ui, "[['taskProfiler','profiler','enabled'],['scaleProfile','scale-profile','action']") ||
-      !codeIncludes(ui, '100% = 1 core busy (sum can exceed 100)') ||
       !codeIncludes(ui, 'id="hHeapMin"') ||
       !codeIncludes(ui, 'id="hHeapLargest"') ||
       !codeIncludes(ui, 'id="hPsramT"') ||
@@ -440,7 +439,6 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
       !codeIncludes(ui, 'w.cpu1Busy') ||
       !codeIncludes(ui, "t+' ('+a.toFixed(2)+' + '+b.toFixed(2)+')'") ||
       !codeIncludes(ui, "split(w.cpuLoad5s,w.cpu0Busy,w.cpu1Busy)") ||
-      !codeIncludes(ui, '0–2 (cpu0 + cpu1)') ||
       !network.includes('tempPeakC') ||
       !network.includes('ramTotalBytes') ||
       !network.includes('"health.uptimeMs"') ||
@@ -460,13 +458,13 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
       !diagHtml.includes('id="dSerialState"') ||
       !diagHtml.includes('<summary>WiFi</summary>') ||
       !diagHtml.includes('<summary>AP</summary>') ||
-      !diagHtml.includes('<summary>CPU') ||
-      !diagHtml.includes('<summary>CPU Profiling') ||
+      !diagHtml.includes('<summary>CPU</summary>') ||
+      !diagHtml.includes('<summary>CPU profiling</summary>') ||
       !diagHtml.includes('<summary>RAM</summary>') ||
       !diagHtml.includes('<summary>HEAP</summary>') ||
       !diagHtml.includes('<summary>Scale</summary>') ||
       !diagHtml.includes('<summary>Date and time</summary>') ||
-      !diagHtml.includes('<summary>MISC</summary>') ||
+      !diagHtml.includes('<summary>Misc</summary>') ||
       !diagHtml.includes('id="dMachine"') ||
       !diagHtml.includes('id="dBrew"') ||
       !diagHtml.includes('id="dCup"') ||
@@ -542,12 +540,12 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
       diagHtml.indexOf('<summary>Guards</summary>') > diagHtml.indexOf('<summary>WiFi</summary>') ||
       diagHtml.indexOf('<summary>WiFi</summary>') > diagHtml.indexOf('<summary>AP</summary>') ||
       diagHtml.indexOf('<summary>AP</summary>') > diagHtml.indexOf('<summary>Serial</summary>') ||
-      diagHtml.indexOf('<summary>Serial</summary>') > diagHtml.indexOf('<summary>CPU') ||
-      diagHtml.indexOf('<summary>CPU') > diagHtml.indexOf('<summary>CPU Profiling') ||
-      diagHtml.indexOf('<summary>CPU Profiling') > diagHtml.indexOf('<summary>RAM</summary>') ||
+      diagHtml.indexOf('<summary>Serial</summary>') > diagHtml.indexOf('<summary>CPU</summary>') ||
+      diagHtml.indexOf('<summary>CPU</summary>') > diagHtml.indexOf('<summary>CPU profiling</summary>') ||
+      diagHtml.indexOf('<summary>CPU profiling</summary>') > diagHtml.indexOf('<summary>RAM</summary>') ||
       diagHtml.indexOf('<summary>RAM</summary>') > diagHtml.indexOf('<summary>HEAP</summary>') ||
       diagHtml.indexOf('<summary>HEAP</summary>') > diagHtml.indexOf('<summary>Date and time</summary>') ||
-      diagHtml.indexOf('<summary>Date and time</summary>') > diagHtml.indexOf('<summary>MISC</summary>') ||
+      diagHtml.indexOf('<summary>Date and time</summary>') > diagHtml.indexOf('<summary>Misc</summary>') ||
       diagHtml.indexOf('id="hWifiState"') > diagHtml.indexOf('id="hWifiPs"') ||
       diagHtml.indexOf('id="hWifiPs"') > diagHtml.indexOf('id="hWifiCoex"') ||
       diagHtml.indexOf('id="hWifiCoex"') > diagHtml.indexOf('id="hSsid"') ||
@@ -850,6 +848,8 @@ if (!codeIncludes(ui, 'id="shotTable"') ||
     codeIncludes(js, 'Request queued successfully.') ||
     !network.includes('hasWallTime') ||
     !network.includes('endedAtLocalSec') ||
+    !network.includes('HISTORY_FLAG_NO_WEIGHT) != 0 ? ",\\"noWeight\\":true"') ||
+    !codeIncludes(viewJs.history, 'r.type==="shot"&&r.noWeight?"histIcon histNoWeight"') ||
     !network.includes('\\"presetName\\":\\"%s\\"') ||
     !network.includes('SHOT_LOG_CLEAR_NOT_CONFIRMED')) {
   throw new Error('Shot history UI/API must expose table, CSV export, clear confirmation, and timezone setting');

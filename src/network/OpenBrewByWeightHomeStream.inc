@@ -1118,14 +1118,15 @@ bool OpenBrewByWeightNetwork::sendHistoryStream(UiStreamSession &session,
     if (!statusJsonAppend(&used,
             "%s{\"id\":%lu,\"type\":\"%s\",\"durationS\":%.1f,"
             "\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,"
-            "\"endedAtLocalSec\":%lu}",
+            "\"endedAtLocalSec\":%lu%s}",
             index == 0 ? "" : ",",
             static_cast<unsigned long>(record.id),
             historyTypeName(static_cast<HistoryType>(record.type)),
             static_cast<double>(record.durationDs) / 10.0,
             (record.flags & HISTORY_FLAG_WALL_TIME) != 0 ? "true" : "false",
             static_cast<unsigned long>(record.endedAtUnixSec),
-            static_cast<unsigned long>(record.endedAtLocalSec)))
+            static_cast<unsigned long>(record.endedAtLocalSec),
+            (record.flags & HISTORY_FLAG_NO_WEIGHT) != 0 ? ",\"noWeight\":true" : ""))
       return false;
   }
   if (!statusJsonAppend(&used, "]}")) return false;

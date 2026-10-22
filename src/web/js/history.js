@@ -91,7 +91,8 @@ function renderHistory() {
       const typeSvg = HIST_TYPE_SVG[r.type];
       if (typeSvg) {
         const icon = document.createElement("td");
-        icon.className = "histIcon";
+        // A shot without scale weight draws an outlined cup.
+        icon.className = r.type === "shot" && r.noWeight ? "histIcon histNoWeight" : "histIcon";
         icon.setAttribute("aria-hidden", "true");
         if (!histIcons[r.type]) {
           const t = document.createElement("template");

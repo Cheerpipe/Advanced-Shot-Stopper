@@ -26,14 +26,14 @@ let renderSettings = () => {};
 function setSettingsRenderer(fn) {
   renderSettings = fn;
 }
-// Settings and Admin group rows: keyed top-level groups get their icon, and
-// every keyed group a summary that the view's table fills in.
-function initGroupRows(root) {
+// Group rows: keyed top-level groups get an icon from the view's sprite (p),
+// and every keyed group a summary that the view's table fills in.
+function initGroupRows(root, p = "g-") {
   root.querySelectorAll("details[data-g]").forEach((d) => {
     if (!d.parentElement.closest(".cfgGroup"))
       d.firstElementChild.insertAdjacentHTML(
         "afterbegin",
-        `<svg class="cfgIcon" aria-hidden="true"><use href="#g-${d.dataset.g}"/></svg>`,
+        `<svg class="cfgIcon" aria-hidden="true"><use href="#${p}${d.dataset.g}"/></svg>`,
       );
     d.firstElementChild.insertAdjacentHTML("beforeend", '<span class="cfgSum"></span>');
   });
