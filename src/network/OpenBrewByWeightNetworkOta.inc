@@ -805,6 +805,31 @@ esp_err_t OpenBrewByWeightNetwork::auditLogExportHandler(httpd_req_t *request) {
   return ok && flushed ? finished : ESP_FAIL;
 }
 
+// Internal-heap block maps: the boot stages plus a fresh view, which is
+// skipped while a shot runs (the walk briefly holds the heap locks).
+esp_err_t OpenBrewByWeightNetwork::heapMapDownloadHandler(httpd_req_t *request) {
+  OpenBrewByWeightNetwork &self = *instance_;
+  const bool live = !self.controlCriticalRfActive_.load(std::memory_order_acquire);
+  if (live) captureHeapMap(HeapMapSlot::NOW, millis());
+  httpd_resp_set_type(request, "text/csv; charset=utf-8");
+  httpd_resp_set_hdr(request, "Content-Disposition",
+                     "attachment; filename=openbrewbyweight-heap-map.csv");
+  httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+  httpd_resp_set_hdr(request, "X-Content-Type-Options", "nosniff");
+  ScaleProfileTextSink sink(request);
+  bool ok = sink.linef("# Open Brew by Weight internal heap map, firmware %s, uptime %lu ms%s",
+                       FW_VERSION, static_cast<unsigned long>(millis()),
+                       live ? "" : ", live view skipped during a shot") &&
+            sink.linef("stage,atMs,regionStart,regionEnd,address,size,state");
+  char row[96];
+  size_t cursor = 0;
+  while (ok && heapMapRow(cursor, row, sizeof(row))) ok = sink.line(row, strlen(row));
+  const bool flushed = sink.flush();
+  const esp_err_t finished =
+      flushed ? httpd_resp_send_chunk(request, nullptr, 0) : ESP_FAIL;
+  return ok && flushed ? finished : ESP_FAIL;
+}
+
 namespace {
 
 struct OtaTransfer {

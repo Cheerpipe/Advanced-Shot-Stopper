@@ -221,7 +221,8 @@ since boot and may combine region minima reached at different times.
 
 Release images expose the same capture as the `bootHeap` section of
 `/api/v1/debug/export`: `stages` rows are `[stage,result,ms,free,largest]` and
-`minima` holds `[samples,free,largest]` for `post` and `ws`.
+`minima` holds `[samples,free,largest]` for `post` and `ws`. For where memory
+blocks actually sit at each stage, download **Diagnostic → HEAP → Heap map**.
 Use the same firmware revision, board, account, connection settings and task
 stack sizes for each build.
 This trial also reduces the WS SDK task stack from 8 to 6 KiB; capture the

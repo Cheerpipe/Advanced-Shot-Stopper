@@ -1069,6 +1069,18 @@ async function hideUntilChanged(name, run) {
   R.refreshStatus();
   (await run()) || delete stale[name];
 }
+let heapMapBusy = false;
+// Internal-heap block maps of the startup stages plus a fresh view, as CSV.
+async function downloadHeapMap() {
+  if (heapMapBusy) return;
+  heapMapBusy = true;
+  await downloadText(
+    apiBinary("/api/v1/diagnostic/heap-map"),
+    "heap-map.csv",
+    __WEBUI_TEXT__("diagnostic.heap_map_download_failed"),
+  );
+  heapMapBusy = false;
+}
 let auditBusy = false,
   auditHuntOn = false,
   auditItems = [],
@@ -1362,6 +1374,7 @@ export function init() {
       R.command("/api/v1/diagnostic/scale-profile", { action: "delete" }),
     );
   $("scaleProfileDownloadButton").onclick = () => downloadScaleProfile();
+  $("heapMapDownload").onclick = () => (downloadHeapMap(), false);
   for (const [id, path] of [
     ["loopMax", "loop-max"],
     ["scaleGapMax", "scale-gap-max"],

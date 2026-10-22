@@ -1,5 +1,6 @@
 #pragma once
 
+#include "OpenBrewByWeightHeapMap.h"
 #include "OpenBrewByWeightPsram.h"
 #include "OpenBrewByWeightTaskMutex.h"
 
@@ -21,6 +22,13 @@ inline const char *bootHeapStageName(BootHeapStage stage) {
       "cloud_done", "ws_start", "ws_done", "ws_init", "ws_task"};
   return names[static_cast<size_t>(stage)];
 }
+// Stages whose internal-heap block map is kept (HeapMapSlot::COUNT = none).
+constexpr HeapMapSlot BOOT_HEAP_MAP_SLOT[] = {
+    HeapMapSlot::NETWORK_START, HeapMapSlot::COUNT, HeapMapSlot::COUNT,
+    HeapMapSlot::HTTP_READY, HeapMapSlot::COUNT, HeapMapSlot::COUNT,
+    HeapMapSlot::COUNT, HeapMapSlot::WS_DONE, HeapMapSlot::COUNT, HeapMapSlot::COUNT};
+static_assert(sizeof(BOOT_HEAP_MAP_SLOT) / sizeof(BOOT_HEAP_MAP_SLOT[0]) ==
+              static_cast<size_t>(BootHeapStage::COUNT), "one map slot per stage");
 inline const char *bootHeapResultName(BootHeapResult result) {
   return result == BootHeapResult::OK ? "ok" : "failed";
 }
@@ -107,6 +115,8 @@ inline void recordBootHeap(BootHeapStage stage, BootHeapResult result, uint32_t 
   if (capture.complete || (capture.stages & bit)) return;
   capture.records[static_cast<size_t>(stage)] = record;
   capture.stages |= bit;
+  if (BOOT_HEAP_MAP_SLOT[static_cast<size_t>(stage)] != HeapMapSlot::COUNT)
+    captureHeapMap(BOOT_HEAP_MAP_SLOT[static_cast<size_t>(stage)], now);
   bootHeapSampling.store(true, std::memory_order_release);
   if (bootHeapWindowOpen(capture, BootHeapStage::NETWORK_START, now))
     updateBootHeapMinimum(capture.post, record);
@@ -142,6 +152,7 @@ inline void serviceBootHeap(uint32_t now) {
         (!wsStarted || elapsed(wsAtMs))) {
       capture.complete = true;
       bootHeapSampling.store(false, std::memory_order_release);
+      captureHeapMap(HeapMapSlot::SETTLED, now);
       return;
     }
   }

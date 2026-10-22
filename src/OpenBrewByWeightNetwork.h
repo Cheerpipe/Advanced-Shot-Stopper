@@ -660,6 +660,7 @@ class OpenBrewByWeightNetwork {
   static esp_err_t crashArchiveClearHandler(httpd_req_t *request);
   static esp_err_t auditLogClearHandler(httpd_req_t *request);
   static esp_err_t auditLogExportHandler(httpd_req_t *request);
+  static esp_err_t heapMapDownloadHandler(httpd_req_t *request);
   static esp_err_t auditVerboseHandler(httpd_req_t *request);
   static esp_err_t assetHandler(httpd_req_t *request);
   static esp_err_t notFoundHandler(httpd_req_t *request, httpd_err_code_t error);

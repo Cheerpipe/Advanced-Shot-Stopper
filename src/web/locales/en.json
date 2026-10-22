@@ -305,6 +305,8 @@
     "diagnostic.guards": "Guards",
     "diagnostic.heap": "HEAP",
     "diagnostic.heap_largest": "Heap largest",
+    "diagnostic.heap_map": "Heap map",
+    "diagnostic.heap_map_download_failed": "Heap map download failed",
     "diagnostic.heap_min": "Heap min",
     "diagnostic.http_prefix": " · HTTP ",
     "diagnostic.hw_prefix": "HW: ",

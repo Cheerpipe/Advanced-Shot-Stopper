@@ -657,8 +657,9 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // Review fix RV-05 (Admin unlock form leaves validation to the app): measured 95128.
 // The budget counts the compact markup the fixtures derive, so formatting the
 // sources cannot move it: re-baselined to the measured 94713.
-if (htmlBytes > 94713) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 94713)`);
+// Diagnostic heap-map download row: measured 94810, owner-requested 2026-10-22.
+if (htmlBytes > 94810) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 94810)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -929,8 +930,9 @@ if (htmlBytes > 94713) {
 // Review fixes RV-04, RV-07, RV-08, RV-10, RV-12 (no view error on a loaded page, log scroll anchor, pending log
 // level, escaped view text, star radio keys): measured 485695.
 // Prettier re-formats JS that drifted from its style after the audit merge: measured 490907.
-if (jsBytes > 490907) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 490907)`);
+// Diagnostic heap-map download (with the shaper Heap min text removed): measured 491070, owner-requested 2026-10-22.
+if (jsBytes > 491070) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 491070)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1083,8 +1085,9 @@ if (jsBytes > 490907) {
 // Review fix RV-01 (OTA commit expectation kept when the device stops answering after flash): measured 580026.
 // Review fixes RV-03 to RV-12: measured 580823.
 // Compact HTML measurement plus the Prettier re-format of drifted JS: measured 585620.
-if (htmlBytes + jsBytes > 585620) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 585620)`);
+// Diagnostic heap-map download (with the shaper Heap min text removed): measured 585880, owner-requested 2026-10-22.
+if (htmlBytes + jsBytes > 585880) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 585880)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

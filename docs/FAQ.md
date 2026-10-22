@@ -282,6 +282,15 @@ An incomplete panic or a reboot loop before the record is copied can leave
 fewer than two records. The screen reports an error if a temporary dump cannot
 be archived. The 8 MB profile does not offer persistent crash downloads.
 
+If Wi-Fi, the scale or the machine cloud connection drops out intermittently,
+memory may be fragmented rather than short. **Diagnostic → HEAP → Heap map →
+download** saves a `heap-map.csv` file listing every block of the controller's
+internal memory, used or free, at the startup moments that decide its layout
+(before and after Wi-Fi starts, the first cloud connection, the end of
+startup) and right now.
+Attach it to your report along with the diagnostic export. While a shot is
+brewing, the file contains only the startup moments.
+
 To report an issue, include firmware version, board and machine type, scale
 model/firmware, exact gesture/settings, and redacted diagnostic export. The
 export's `audit` section lists rare faults and anomalies the firmware kept
