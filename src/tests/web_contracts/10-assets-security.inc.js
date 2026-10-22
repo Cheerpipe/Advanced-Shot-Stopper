@@ -654,8 +654,9 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // owner-requested 2026-10-21.
 // The lint gate's markup fixes (quoted attributes, explicit button types, an html-validate directive): 95117,
 // owner-requested 2026-10-21.
-if (htmlBytes > 95117) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 95117)`);
+// Review fix RV-05 (Admin unlock form leaves validation to the app): measured 95128.
+if (htmlBytes > 95128) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 95128)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -923,8 +924,10 @@ if (htmlBytes > 95117) {
 // Audit hardening (shared download helper, CSV formula guard, timezone backoff, Setup stop flag, escaped attribute text): 482689, owner-requested 2026-10-21.
 // Audit accessibility, i18n and form fixes (localized Diagnostic and network text, keyboard and focus support): 484816, owner-requested 2026-10-21.
 // Review fix RV-01 (OTA commit expectation kept when the device stops answering after flash): measured 484909.
-if (jsBytes > 484909) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 484909)`);
+// Review fixes RV-04, RV-07, RV-08, RV-10, RV-12 (no view error on a loaded page, log scroll anchor, pending log
+// level, escaped view text, star radio keys): measured 485695.
+if (jsBytes > 485695) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 485695)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1075,8 +1078,9 @@ if (jsBytes > 484909) {
 // Audit accessibility, i18n and form fixes (localized Diagnostic and network text, keyboard and focus support): 579700, owner-requested 2026-10-21.
 // The lint gate's markup and lint fixes: 579931, owner-requested 2026-10-21.
 // Review fix RV-01 (OTA commit expectation kept when the device stops answering after flash): measured 580026.
-if (htmlBytes + jsBytes > 580026) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 580026)`);
+// Review fixes RV-03 to RV-12: measured 580823.
+if (htmlBytes + jsBytes > 580823) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 580823)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

@@ -176,20 +176,29 @@
 {
   const assert = require('assert').strict;
   const source = fs.readFileSync(path.join(sketchDir, 'web/js/diagnostic.js'), 'utf8');
-  const controls = {serialLogLevel: {}, ringRetainLogLevel: {}};
-  const doc = {activeElement: null};
-  const apply = new Function('applyDiagnosticStatus', '$', 'document', source.slice(source.indexOf('export function applyStatus('),
-      source.indexOf('export function init(')).replace('export ', '') + ';return applyStatus;')(
-      () => {}, id => controls[id], doc);
+  const controls = {serialLogLevel: {dataset: {}}, ringRetainLogLevel: {dataset: {}}};
+  let settle, sent;
+  const R = {withBaseRev: (v) => v,
+    command: (url, v) => { sent = v; return {finally: (f) => { settle = f; }}; }};
+  const [apply, save] = new Function('applyDiagnosticStatus', '$', 'R', source.slice(source.indexOf('const LOG_LEVELS'),
+      source.indexOf('export function init(')).replace('export ', '') + ';return [applyStatus, saveLogLevel];')(
+      () => {}, id => controls[id], R);
   apply({config: {serialLogLevel: 'warning', ringRetainLogLevel: 'debug'}});
   assert.equal(controls.serialLogLevel.value, 'warning');
   assert.equal(controls.ringRetainLogLevel.value, 'debug');
-  // A paint must not overwrite the select the user is choosing from.
-  doc.activeElement = controls.serialLogLevel;
+  // A paint must not overwrite the level being saved.
   controls.serialLogLevel.value = 'debug';
+  save('serialLogLevel');
+  assert.deepEqual(sent, {serialLogLevel: 'debug'});
   apply({config: {serialLogLevel: 'warning', ringRetainLogLevel: 'info'}});
   assert.equal(controls.serialLogLevel.value, 'debug');
   assert.equal(controls.ringRetainLogLevel.value, 'info');
+  // RV-08: once a failed save settles, the still-focused select shows the device's value.
+  settle();
+  assert.equal(controls.serialLogLevel.value, 'warning');
+  assert.equal(controls.serialLogLevel.dataset.pending, undefined);
+  apply({config: {serialLogLevel: 'error', ringRetainLogLevel: 'info'}});
+  assert.equal(controls.serialLogLevel.value, 'error');
 }
 
 // Firmware projection: bounded field budget, view-scoped dispatch, and wiring.
@@ -286,7 +295,8 @@
 // reader keeps their place, and only a reader at the end follows new lines.
 {
   const assert = require('assert').strict;
-  const ta = {v: '', sets: 0, scrollTop: 0, clientHeight: 100, scrollHeight: 0,
+  const ta = {v: '', sets: 0, scrollTop: 0, clientHeight: 20,
+    get scrollHeight() { return (this.v.split('\n').length - 1) * 20; },
     get value() { return this.v; }, set value(v) { this.v = v; this.sets++; },
     setRangeText(t, a, b) { this.v = this.v.slice(0, a) + t + this.v.slice(b); }};
   const ui = {logEvents: []}, nodes = {log: ta, logFilter: {value: ''}, logLevelFilter: {value: '4'}};
@@ -296,18 +306,20 @@
   ui.logEvents = [ev(1), ev(2)];
   renderLog();
   assert.equal(ta.value, '+1.000s INFO [web] m1\n+2.000s INFO [web] m2\n');
-  ta.scrollHeight = 500; ta.scrollTop = 40;
+  ta.scrollTop = 0;
   ui.logEvents.push(ev(3));
   renderLog();
   assert.equal(ta.sets, 1, 'new lines must append without replacing the text');
-  assert.equal(ta.scrollTop, 40, 'a scrolled-back reader keeps their place');
+  assert.equal(ta.scrollTop, 0, 'a scrolled-back reader keeps their place');
+  ta.scrollTop = 20;
   ui.logEvents.shift();
   ui.logEvents.push(ev(4));
   renderLog();
   assert.equal(ta.value, '+2.000s INFO [web] m2\n+3.000s INFO [web] m3\n+4.000s INFO [web] m4\n');
   assert.equal(ta.sets, 1, 'dropping the oldest line must not replace the text');
-  ta.scrollTop = 400;
+  assert.equal(ta.scrollTop, 0, 'RV-07: dropping the oldest line keeps the reader on the same lines');
+  ta.scrollTop = 40;
   ui.logEvents.push(ev(5));
   renderLog();
-  assert.equal(ta.scrollTop, 500, 'a reader at the end follows new lines');
+  assert.equal(ta.scrollTop, 80, 'a reader at the end follows new lines');
 }

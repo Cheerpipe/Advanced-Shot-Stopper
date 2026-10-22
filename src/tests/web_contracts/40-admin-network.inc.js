@@ -25,10 +25,9 @@ if (firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)'
     firmware.indexOf('publishLogLevels(serialLogLevelFromRuntime(runtimeConfig)',
                      firmware.indexOf('persistenceReady = EEPROM.begin')) >
         firmware.indexOf('BOOT_RESET_REASON') ||
-    !codeIncludes(ui, "serialLogLevel:$('serialLogLevel').value") ||
-    !codeIncludes(ui, "ringRetainLogLevel:$('ringRetainLogLevel').value||'none'") ||
-    !codeIncludes(ui, "serialLogLevel').onchange") ||
-    !codeIncludes(ui, "ringRetainLogLevel').onchange") ||
+    !codeIncludes(ui, "const LOG_LEVELS=['serialLogLevel','ringRetainLogLevel']") ||
+    !codeIncludes(ui, "withBaseRev({[id]:el.value||'none'})") ||
+    !codeIncludes(ui, 'for(const id of LOG_LEVELS)$(id).onchange=()=>saveLogLevel(id)') ||
     !codeIncludes(ui, 'baseRevision') ||
     !network.includes('ringRetainLogLevel') ||
     !html.includes('id="homePresetAcc"') ||

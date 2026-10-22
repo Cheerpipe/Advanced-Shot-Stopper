@@ -846,8 +846,10 @@ if (generated.cssGzip.length > 15742) {
 // escaped attribute text) brings it to 40357; owner-requested 2026-10-21.
 // The audit accessibility fixes (keyboard preset cards, named rename field, live message order) bring it
 // to 40442; owner-requested 2026-10-21.
-if (sentinelRuntimeGzip.length > 40442) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 40442-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Review fix RV-07 (trimming old log lines keeps a scrolled-back reader in place) brings it to 40444; cap 40460
+// for gzip wobble.
+if (sentinelRuntimeGzip.length > 40460) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 40460-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -924,7 +926,9 @@ if (generated.otaImageGzip.length > 3072) {
 // The audit T4 refactors move diagnostic.js to 13906 through gzip wobble; owner-requested 2026-10-21.
 // The Setup watchdog stop flag measures setup.js at 5799; owner-requested 2026-10-21.
 // The audit accessibility and form fixes (Setup focus, labelled choices, single Skip) measure setup.js at 5855 (cap 5870 for asset-tag gzip wobble); owner-requested 2026-10-21.
-const viewModuleBudgets = {records: 15260, diagnostic: 13906, admin: 14229, settings: 16813, setup: 5870};
+// Review fixes RV-10 and RV-12 (escaped preset filter label, star radio keyboard pattern) measure records.js at
+// 15345 and RV-08 (pending log level) diagnostic.js at 13919; caps 15360 and 13930 for asset-tag gzip wobble.
+const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 14229, settings: 16813, setup: 5870};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -1124,8 +1128,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // Stats rows as column-ordered values brings it to 67829; owner-requested 2026-10-21.
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect brings it to 67869; owner-requested 2026-10-21.
 // Browser storage keys renamed from the legacy ss prefix to obbw bring it to 67885; rename owner-requested 2026-10-21.
-if (coldHomeGzip > 67885) {
-  throw new Error(`Cold Home download exceeds the 67885-byte gzip budget (${coldHomeGzip})`);
+// Review fixes RV-03 (History sort pill look), RV-04 and RV-07 bring it to 67895.
+if (coldHomeGzip > 67895) {
+  throw new Error(`Cold Home download exceeds the 67895-byte gzip budget (${coldHomeGzip})`);
 }
 if (generated.combined > 147350) {
   throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);

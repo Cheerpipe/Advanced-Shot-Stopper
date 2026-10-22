@@ -2548,10 +2548,13 @@ function renderLog() {
   const el = $("log"),
     old = el.value,
     cut = old.indexOf(o.slice(0, o.indexOf("\n") + 1)),
-    stick = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
+    top = el.scrollTop,
+    h = el.scrollHeight,
+    stick = top + el.clientHeight >= h - 8;
   if (o === old) return;
   if (cut >= 0 && o.startsWith(old.slice(cut))) {
     el.setRangeText("", 0, cut);
+    if (!stick) el.scrollTop = top - h + el.scrollHeight;
     el.setRangeText(o.slice(old.length - cut), el.value.length, el.value.length);
   } else el.value = o;
   if (stick) el.scrollTop = el.scrollHeight;

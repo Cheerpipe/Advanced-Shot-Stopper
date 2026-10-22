@@ -183,11 +183,20 @@ function fillStarRate(h, r, off, fn) {
   h.setAttribute("aria-label", __WEBUI_TEXT__("runtime.shot_rating"));
   h.dataset.rating = "" + n;
   h.replaceChildren();
+  // Radio keyboard pattern: one tab stop, arrows move to and select a star.
+  h.onkeydown = (e) => {
+    const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key],
+      j = Math.max(1, Math.min(5, [...h.children].indexOf(e.target) + 1 + d));
+    if (!d) return;
+    e.preventDefault();
+    if (j !== n) fn(j, j);
+  };
   for (let i = 1; i <= 5; i++) {
     const b = document.createElement("button");
     b.type = "button";
     b.className = i <= n ? "on" : "";
     b.disabled = !!off;
+    b.tabIndex = i === (n || 1) ? 0 : -1;
     b.setAttribute("role", "radio");
     b.setAttribute("aria-checked", i === n);
     b.setAttribute(
@@ -549,7 +558,7 @@ function renderStatsDurChart() {
     root.className = "ruleChart";
     root.innerHTML =
       '<div id="statsPresetFilter" class="shotSort" role="group" aria-label="' +
-      __WEBUI_TEXT__("runtime.stats_preset_filter") +
+      R.escHtml(__WEBUI_TEXT__("runtime.stats_preset_filter")) +
       '"><button type="button" data-v="all">' +
       __WEBUI_TEXT__("runtime.all_presets") +
       '</button><button type="button" data-v="active">' +

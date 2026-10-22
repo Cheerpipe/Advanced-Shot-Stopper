@@ -357,6 +357,12 @@ for (const needle of ['aria-label="${escHtml($("modeSignal").dataset.label)}"',
   'aria-label="${escHtml(__WEBUI_TEXT__("runtime.graph_scrub"))}"']) {
   if (!rawRuntimeJs.includes(needle)) throw new Error('Unescaped attribute text: ' + needle);
 }
+// RV-10: the same holds for the Stats preset filter and the Settings override note.
+if (!rawViewJs.stats.includes('R.escHtml(__WEBUI_TEXT__("runtime.stats_preset_filter"))') ||
+    !rawViewJs.settings.includes('${R.escHtml(__WEBUI_TEXT__("settings.quick_override_note"))} <button') ||
+    !rawViewJs.settings.includes('>${R.escHtml(__WEBUI_TEXT__("settings.quick_override_use_saved"))}</button>')) {
+  throw new Error('Translated text in view-built markup must be escaped');
+}
 // Accessibility, i18n and form contracts from the frontend audit (F7).
 {
   const failed = [];
@@ -368,6 +374,23 @@ for (const needle of ['aria-label="${escHtml($("modeSignal").dataset.label)}"',
   need(partialHtml.settings.includes('<select id="preferredScaleSelect" aria-label="My scale">'), 'scale select name');
   need(codeIncludes(rawRuntimeJs, 'input.setAttribute("aria-label", __WEBUI_TEXT__("runtime.preset_name"))'), 'rename input name');
   need(codeIncludes(rawViewJs.stats, 'b.setAttribute("role", "radio");b.setAttribute("aria-checked", i === n)'), 'star radios');
+  // RV-12: the stars are one tab stop, and arrow keys move to and select a star.
+  const fillStars = new Function('document', 'R', '__WEBUI_TEXT__',
+      `${blockAt(rawViewJs.stats, 'function fillStarRate(')};return fillStarRate;`)(
+      {createElement: () => ({setAttribute() {}})}, {sub: (t) => t}, (k) => k);
+  const stars = {classList: {add() {}}, setAttribute() {}, dataset: {}, children: [],
+    replaceChildren() { this.children = []; }, appendChild(b) { this.children.push(b); }};
+  const picks = [];
+  let prevented = 0;
+  const key = (k, i) => stars.onkeydown({key: k, target: stars.children[i], preventDefault: () => prevented++});
+  fillStars(stars, 3, false, (n, star) => picks.push([n, star]));
+  need(stars.children.map((b) => b.tabIndex).join() === '-1,-1,0,-1,-1', 'star tab stop');
+  key('ArrowRight', 2); key('ArrowLeft', 2); key('ArrowUp', 0); key('Tab', 2);
+  fillStars(stars, 5, false, (n, star) => picks.push([n, star]));
+  key('ArrowDown', 4);
+  need(JSON.stringify(picks) === '[[4,4],[2,2],[1,1]]' && prevented === 4, 'star arrow keys');
+  fillStars(stars, 0, false, () => {});
+  need(stars.children.map((b) => b.tabIndex).join() === '0,-1,-1,-1,-1', 'unrated star tab stop');
   need(codeIncludes(rawViewJs.home, 'if (sheet.classList.contains("open") && !sheet.contains(e.relatedTarget)) zone.focus()'), 'sheet focus');
   need(codeIncludes(rawAppJsSource, 'document.title = path === "/" ? baseTitle : a.textContent + " · " + baseTitle'), 'page titles');
   need(codeIncludes(rawAppJsSource, 'renderRoute(target, true)') && codeIncludes(rawAppJsSource, 'section.focus({ preventScroll: true })'), 'route focus');
@@ -387,12 +410,14 @@ for (const needle of ['aria-label="${escHtml($("modeSignal").dataset.label)}"',
   need((partialHtml.setup.match(/<fieldset class="setupChoices" aria-labelledby="setupTitle">/g) || []).length === 2, 'setup choice groups');
   need(!all.includes('<span class="g">') && !/<span class="g">/.test(rawViewJs.history + rawViewJs.stats + rawViewJs.admin), 'decorative glyphs hidden');
   need(shellHtml.includes('aria-labelledby="inactiveHint">') && !shellHtml.includes('aria-labelledby="webUiReload"'), 'inactive dialog name');
-  need(!partialHtml.history.includes('id="historyDirButton" type="button" aria-pressed'), 'direction button state');
+  // RV-03: the only History criterion keeps the selected look without a static pressed state.
+  need(!partialHtml.history.includes('id="historyDirButton" type="button" aria-pressed') &&
+      css.includes('.shotSort button[aria-pressed="true"],#historyDirButton{background:var(--pa)'), 'direction button state');
   // FE-L07: form semantics and one submit per action.
   need(partialHtml.admin.includes('id="staPassword" type="password" maxlength="63" autocomplete="current-password"') &&
       partialHtml.setup.includes('id="setupPassword" autocomplete="current-password"') &&
       partialHtml.admin.includes('id="confirmDevicePassword" type="password" minlength="8" maxlength="63" required autocomplete="new-password"'), 'password autocomplete');
-  need(partialHtml.admin.includes('<form id="adminUnlockForm"><label>') && codeIncludes(rawViewJs.admin, '$("adminUnlockForm").onsubmit'), 'unlock form');
+  need(partialHtml.admin.includes('<form id="adminUnlockForm" novalidate><label>') && codeIncludes(rawViewJs.admin, '$("adminUnlockForm").onsubmit'), 'unlock form');
   need(codeIncludes(rawViewJs.admin, 'if (unlocking) return;') && codeIncludes(rawViewJs.setup, 'if (skipping) return;'), 'single submit');
   // FE-L13: politeness set before the text changes.
   const message = blockAt(rawRuntimeJs, 'function message(');

@@ -805,7 +805,7 @@ function updateSettingsOverrides(s = overrideStatus) {
     if (!note) {
       note = document.createElement("p");
       note.className = "fieldWarning qsOverride";
-      note.innerHTML = `${__WEBUI_TEXT__("settings.quick_override_note")} <button type="button" class="qsReset" data-saved="${k}">${__WEBUI_TEXT__("settings.quick_override_use_saved")}</button>`;
+      note.innerHTML = `${R.escHtml(__WEBUI_TEXT__("settings.quick_override_note"))} <button type="button" class="qsReset" data-saved="${k}">${R.escHtml(__WEBUI_TEXT__("settings.quick_override_use_saved"))}</button>`;
       label.after(note);
     }
     note.querySelector("button").disabled = !R.controlsMutable || !!s.cycle?.active;

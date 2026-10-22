@@ -223,7 +223,8 @@ int main(){
   assert(codeIncludes(runtimeJs, 'if(logStreamWanted)sendUiOperation({op:log,on:false})'));
   assert(codeIncludes(runtimeJs, "if(diagStreamWanted&&shotWs&&shotWs.readyState===1)shotWs.send('{\"op\":\"diagnostic\",\"on\":false}')"));
   assert(codeIncludes(appJsSource, 'if(e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;'));
-  const calls = [], doc = {hidden: true};
+  const calls = [], loading = new Set(['pageLoading']),
+    doc = {hidden: true, body: {classList: {contains: (c) => loading.has(c)}}};
   const settle = new Function('R', 'document', '__WEBUI_TEXT__', 'activeView',
       `${blockAt(appJsSource, 'function settleView(')};return settleView;`)(
       {hideHomeBoot: () => calls.push('boot'), ensureBackgroundRecordStreams: () => calls.push('streams'),
@@ -235,6 +236,10 @@ int main(){
   assert.deepEqual(calls, ['boot', 'streams'], 'showing the tab finishes the view');
   settle(false, 1);
   assert.equal(calls.at(-1), 'Unable to load view');
+  // RV-04: a loaded page shown again leaves one failed refresh to the debounce.
+  loading.clear();
+  settle(false, 1);
+  assert.equal(calls.length, 3, 'a loaded page reports no view failure on return');
   assert(/visibilitychange[\s\S]*?startView\(activeView, seq\)\.then\(\(ok\) => seq === routeSeq && settleView\(ok\)\)/.test(appJsSource));
   (async () => {
     const urls = [];

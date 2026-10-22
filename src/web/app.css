@@ -437,7 +437,7 @@ html:not(.theme-light) :is(.qwSheet,#actionsPanel){box-shadow:0 -8px 28px rgba(0
 .shotSort .sortLbl{flex:none;font-size:.8rem;font-weight:600;color:var(--mu);padding-left:.5rem;white-space:nowrap}
 .shotSort button{margin:0;border:0;border-radius:1.6rem;background:transparent;color:var(--ac);font:inherit;font-size:.8rem;font-weight:600;min-height:2.1rem;padding:0 .8rem;cursor:pointer}
 .shotSort button:hover{background:var(--pa)}
-.shotSort button[aria-pressed="true"]{background:var(--pa);color:var(--ac);font-weight:700}
+.shotSort button[aria-pressed="true"],#historyDirButton{background:var(--pa);color:var(--ac);font-weight:700}
 .btnBar .shotSort:not(:last-child){margin-right:.1rem;padding-right:.4rem;border-right:1px solid var(--ln)}
 .panelWrap:has(>table){margin:.5rem 0}
 #shotLogSentinel{min-height:1px;padding:.35rem 0 .8rem;text-align:center;color:var(--mu);font-size:.8rem}

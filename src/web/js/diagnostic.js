@@ -1263,11 +1263,22 @@ async function emptyAudit() {
   auditBusy = false;
   await R.refreshStatus();
 }
+const LOG_LEVELS = ["serialLogLevel", "ringRetainLogLevel"];
+let logLevels = null;
+// A level being saved keeps the user's pick until its command settles, then
+// shows the device's value, which a failed save leaves unchanged.
+function saveLogLevel(id) {
+  const el = $(id);
+  el.dataset.pending = 1;
+  R.command("/api/v1/config", R.withBaseRev({ [id]: el.value || "none" })).finally(() => {
+    delete el.dataset.pending;
+    el.value = logLevels?.[id] || "none";
+  });
+}
 export function applyStatus(s) {
   applyDiagnosticStatus(s);
-  // A level select the user is choosing from keeps their pick.
-  for (const id of ["serialLogLevel", "ringRetainLogLevel"])
-    if ($(id) && $(id) !== document.activeElement) $(id).value = s?.config?.[id] || "none";
+  logLevels = s?.config;
+  for (const id of LOG_LEVELS) if ($(id) && !$(id).dataset.pending) $(id).value = logLevels?.[id] || "none";
   if (!s || !(s.adminUnlocked || s.diagnosticPublic)) return;
   if (__LINEA_MICRA__ && s.lineaMicra) renderMicraCloudDiagnostic(s.lineaMicra);
   const sc = s.scale || {};
@@ -1312,13 +1323,7 @@ export function init() {
     };
     legend.onpointerup = legend.onpointerleave = legend.onpointercancel = cancel;
   }
-  $("serialLogLevel").onchange = () =>
-    R.command("/api/v1/config", R.withBaseRev({ serialLogLevel: $("serialLogLevel").value }));
-  $("ringRetainLogLevel").onchange = () =>
-    R.command(
-      "/api/v1/config",
-      R.withBaseRev({ ringRetainLogLevel: $("ringRetainLogLevel").value || "none" }),
-    );
+  for (const id of LOG_LEVELS) $(id).onchange = () => saveLogLevel(id);
   $("logFilter").onchange = R.renderLog;
   $("logLevelFilter").onchange = R.renderLog;
   $("copyLogButton").onclick = () => copyText($("log").value);
