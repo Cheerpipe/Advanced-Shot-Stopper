@@ -7,6 +7,12 @@ CONFIG_SPIRAM_MODE_OCT=y
 CONFIG_SPIRAM_TYPE_AUTO=y
 CONFIG_SPIRAM_SPEED_80M=y
 CONFIG_SPIRAM_XIP_FROM_PSRAM=y
+# All code runs through the instruction cache from PSRAM. A 32 KB I-cache
+# (16 KB of IRAM-only heap) cut the control loop's CPU about 20 % on target
+# (2026-10-22, docs/P2_RESOURCE_BUDGETS.md); the 64-byte data line is part of
+# the measured configuration and costs no RAM.
+CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y
+CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
 CONFIG_NVS_ALLOCATE_CACHE_IN_SPIRAM=y
 CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y
 CONFIG_ESP_COREDUMP_CHECK_BOOT=y

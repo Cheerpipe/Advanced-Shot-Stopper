@@ -463,6 +463,31 @@ PSRAM before mapping overhead. Linker figures do not measure runtime heap;
 matched target memory, settings latency and loop-gap measurements remain
 required before qualification. PSRAM access may slow NVS integer operations.
 
+The 2026-10-22 instruction-cache change re-baselines DIRAM to 193,142 bytes
+(owner-requested). All code runs through the cache from PSRAM, and a 32 KB
+I-cache (`CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB`, with the measured 64-byte
+data line) removes the 16 KB IRAM-only heap region that IDF adds only with a
+16 KB I-cache; its 32-bit users move into DRAM, so DIRAM grows by that amount.
+Target profiles (Home page open, five-minute task profiler, matched builds)
+measured the control loop at 14.8 % of a core without the scale linked and
+11.9 % with the 32 KB cache, its phase average from 1,438 to 1,254 µs, and the
+scale worker from 4.9 % to 4.4 %; the 64-byte data line alone changed nothing
+measurable. The steady largest internal block is unchanged; the cost lands in
+small side holes, and it is affordable only because the startup heap hold is
+gone (see below).
+
+Reviewed, measured and accepted lever, not applied: disabling
+`CONFIG_ESP_WIFI_IRAM_OPT` and `CONFIG_ESP_WIFI_RX_IRAM_OPT` returns about
+18 KB of IRAM to the internal heap (7.8 KB hot TX/RX path, 3.6 KB RX path and
+6.7 KB of the shared RX/sleep path, which stays in IRAM only for the RX
+option), enough to bring DIRAM back under the previous baseline. Matched
+target runs with the scale linked and the machine on cost +0.3 % of a core in
+the Wi-Fi task, no measurable change in the control loop, web server, NimBLE
+or 300-packet ping latency (dominated by modem sleep), and no packet loss.
+Bulk receive throughput (Wi-Fi OTA) was not measured and is not critical.
+Coexistence arbitration is radio-time based, so it does not give BLE more air
+time. Apply it when internal RAM becomes the constraint.
+
 Both linker maps must also keep external BSS at or below `maximumExternalBssBytes`
 in `config/resource-baselines.json` (currently 3,186,688 bytes) and retain
 `localBuzzer` and `taskProfiler` in internal DRAM: both hold synchronization
