@@ -279,7 +279,6 @@ function applyAccessStatus(a) {
     ? __WEBUI_TEXT__("admin.login_security_note")
     : __WEBUI_TEXT__("admin.login_off_hint");
   $("accessSessions").classList.toggle("hidden", !on);
-  $("accessThisDevice").classList.toggle("hidden", !on);
   $("rememberedCount").textContent = a.rememberedDevices + __WEBUI_TEXT__("admin.of_8");
   $("accessHomeAssistant").classList.toggle("hidden", !on);
   $("homeAssistantState").textContent = a.homeAssistantConnected
@@ -1719,12 +1718,6 @@ export function init() {
       : openLoginSheet(accessState.loginEnabled ? "disable" : "enable");
   $("loginConfirmButton").onclick = confirmLoginSheet;
   $("loginCancelButton").onclick = closeLoginSheet;
-  // The device forgets this session; the reload then shows the sign-in page.
-  $("signOutButton").onclick = async () => {
-    await R.api("/api/v1/auth/logout", { method: "POST", body: "{}" }).catch(() => {});
-    R.storeSession("", false);
-    location.reload();
-  };
   $("signOutOthersButton").onclick = () =>
     accessQuickAction(
       "signOutOthers",

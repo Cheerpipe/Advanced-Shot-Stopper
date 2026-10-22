@@ -218,7 +218,15 @@
       <section id="view-admin" class="view" data-view="admin"></section>
       <section id="view-setup" class="view" data-view="setup"></section>
       <footer class="pageFooter">
-        <small id="firmwareFooter">{{webui:shell.firmware_boot}}</small><br /><small
+        <small
+          ><span id="firmwareFooter">{{webui:shell.firmware_boot}}</span
+          ><span id="footerSession" hidden>
+            ·
+            <button type="button" id="footerSignOut" class="textLock">
+              {{webui:shell.sign_out}}
+            </button></span
+          ></small
+        ><br /><small
           ><a href="https://github.com/Cheerpipe/Open-Brew-by-Weight" target="_blank"
             >{{webui:shell.github}}</a
           >

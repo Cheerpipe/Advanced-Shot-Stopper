@@ -664,8 +664,9 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // Assistant pairing prompt): measured 99499, owner-requested 2026-10-22.
 // One password form at a time in Admin → Access: measured 99534, owner-requested 2026-10-22.
 // Admin unlock reminder while the factory password is in use: measured 99696, owner-requested 2026-10-22.
-if (htmlBytes > 99696) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 99696)`);
+// Sign out moved to the footer line (Admin row removed): measured 99675, owner-requested 2026-10-22.
+if (htmlBytes > 99675) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 99675)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -942,8 +943,9 @@ if (htmlBytes > 99696) {
 // The Admin deep link from Home's access note: measured 504952, owner-requested 2026-10-22.
 // One password form at a time in Admin → Access: measured 505298, owner-requested 2026-10-22.
 // Admin unlock reminder while the factory password is in use: measured 505382, owner-requested 2026-10-22.
-if (jsBytes > 505382) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 505382)`);
+// Sign out in the footer line with a confirmation: measured 505653, owner-requested 2026-10-22.
+if (jsBytes > 505653) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 505653)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1101,8 +1103,9 @@ if (jsBytes > 505382) {
 // The Admin deep link from Home's access note: measured 604451, owner-requested 2026-10-22.
 // One password form at a time in Admin → Access: measured 604832, owner-requested 2026-10-22.
 // Admin unlock reminder while the factory password is in use: measured 605078, owner-requested 2026-10-22.
-if (htmlBytes + jsBytes > 605078) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 605078)`);
+// Sign out in the footer line: measured 605328, owner-requested 2026-10-22.
+if (htmlBytes + jsBytes > 605328) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 605328)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

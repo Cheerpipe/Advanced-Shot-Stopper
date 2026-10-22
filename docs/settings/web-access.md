@@ -85,8 +85,9 @@ disconnect Home Assistant.
   is on, every other device must sign in again; yours stays signed in. Home
   Assistant stays connected: if you change the password because it leaked,
   also tap **Disconnect** so Home Assistant has to ask again.
-- **Sign out** next to **This device** signs out the phone or browser you are
-  using; **Sign out other devices** forgets every remembered device except it.
+- **Sign out**, at the bottom of every page next to the firmware version,
+  signs out the phone or browser you are using. **Sign out other devices** in
+  Access forgets every remembered device except it.
 - **Turn the password off** by switching it off and typing the device
   password. Remembered devices are forgotten and Home Assistant goes back to
   connecting without a password.

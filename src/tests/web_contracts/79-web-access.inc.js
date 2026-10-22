@@ -103,6 +103,11 @@
   assert.ok(blockAt(viewJs.admin, 'function openLoginSheet(').includes('$("devicePasswordForm").classList.add("hidden")') &&
       blockAt(viewJs.admin, 'function closeLoginSheet(').includes('$("devicePasswordForm").classList.remove("hidden")') &&
       codeIncludes(viewJs.admin, '$("loginEnabled").checked === !!accessState.loginEnabled'));
+  // Sign out sits inline in the footer's firmware line, shown only with the
+  // login on, and keeps the line height (no tap-size min-height there).
+  assert.ok(codeIncludes(ui, 'id="footerSignOut"') &&
+      blockAt(rawRuntimeJs, 'function renderHomeStream(').includes('session.hidden = !status.access?.login') &&
+      css.includes('.pageFooter .textLock{min-width:0;min-height:0'));
   // While locked, Admin reminds that the (public) factory password is in use.
   assert.ok(network.includes('\\"factoryPassword\\":%s",') &&
       codeIncludes(viewJs.admin, '$("adminFactoryHint").classList.toggle("hidden", unlocked || !s.factoryPassword)'));

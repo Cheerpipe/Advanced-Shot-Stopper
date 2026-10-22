@@ -2234,6 +2234,23 @@ async function decidePairing(allow) {
     );
   }
 }
+// The device forgets this session; the reload then shows the sign-in page.
+{
+  const out = $("footerSignOut");
+  if (out)
+    out.onclick = async () => {
+      if (
+        !(await askConfirm(
+          __WEBUI_TEXT__("runtime.sign_out_confirm"),
+          __WEBUI_TEXT__("shell.sign_out"),
+        ))
+      )
+        return;
+      await api("/api/v1/auth/logout", { method: "POST", body: "{}" }).catch(() => {});
+      storeSession("", false);
+      location.reload();
+    };
+}
 {
   const allow = $("pairAllow"),
     deny = $("pairDeny");
@@ -3933,6 +3950,8 @@ function renderHomeStream() {
   // Only the Home stream carries the pairing request; Admin's status has its
   // own access summary.
   applyPairingPrompt(status.access);
+  const session = $("footerSession");
+  if (session) session.hidden = !status.access?.login;
   if (status.snapshotStale) setMutable(false);
   // Frames on any view prove reachability, so the out-of-reach overlay
   // clears even off Home.

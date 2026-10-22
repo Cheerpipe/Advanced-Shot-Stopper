@@ -565,8 +565,9 @@ if (cssRoundTrip !== generated.css) {
 // The optional Web UI login (sign-in form in the inactive overlay, Home
 // Assistant pairing prompt, Home access notice) measures 5129 bytes,
 // owner-requested 2026-10-22. Cap raised to 5140 for asset-tag gzip wobble.
-if (generated.gzip.length > 5140) {
-  throw new Error(`Compressed Web UI shell HTML exceeds the 5140-byte gzip budget (${generated.gzip.length})`);
+// Sign out inline in the footer's firmware line measures 5165; cap 5180.
+if (generated.gzip.length > 5180) {
+  throw new Error(`Compressed Web UI shell HTML exceeds the 5180-byte gzip budget (${generated.gzip.length})`);
 }
 if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest?v=' + generated.assetTag + '"') ||
     !generated.html
@@ -720,8 +721,9 @@ if (generated.jsGzip.length > 7630) {
 // The Home preset rules peek and its graph chevron measure 15742 bytes; owner-requested 2026-10-20.
 // The optional Web UI login (sign-in form, Access panel rows and sheet, pairing code) measures 15825 bytes;
 // owner-requested 2026-10-22.
-if (generated.cssGzip.length > 15825) {
-  throw new Error(`Compressed Web CSS exceeds the 15825-byte gzip budget (${generated.cssGzip.length})`);
+// The footer Sign out link style measures 15837 bytes; owner-requested 2026-10-22.
+if (generated.cssGzip.length > 15837) {
+  throw new Error(`Compressed Web CSS exceeds the 15837-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -874,8 +876,9 @@ if (generated.cssGzip.length > 15825) {
 // for gzip wobble.
 // The optional Web UI login (session header, sign-in form, Home Assistant pairing prompt; shell-level, so it
 // lives in the runtime) brings it to 41531, owner-requested 2026-10-22; cap 41540 for gzip wobble.
-if (sentinelRuntimeGzip.length > 41540) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 41540-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Footer Sign out with its confirmation brings it to 41591, owner-requested 2026-10-22; cap 41610.
+if (sentinelRuntimeGzip.length > 41610) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 41610-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -958,8 +961,8 @@ if (generated.otaImageGzip.length > 3072) {
 // sign-out rows) measures admin.js with its markup at 15624, owner-requested 2026-10-22; cap 15640
 // for asset-tag gzip wobble. Its deep link to Access after an unlock measures 15703; cap 15720.
 // Showing one password form at a time measures 15761; cap 15780. The factory-password reminder on
-// the unlock form measures 15824; cap 15840.
-const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 15840, settings: 16813, setup: 5870};
+// the unlock form measures 15824; cap 15840. Moving Sign out to the footer measures 15749; cap 15770.
+const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 15770, settings: 16813, setup: 5870};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -1162,16 +1165,18 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // Review fixes RV-03 (History sort pill look), RV-04 and RV-07 bring it to 67895.
 // The optional Web UI login (shell sign-in form and pairing prompt, runtime session and sign-in code,
 // Home notice, CSS) brings it to 70097, owner-requested 2026-10-22; cap 70120 for asset-tag gzip wobble.
-if (coldHomeGzip > 70120) {
-  throw new Error(`Cold Home download exceeds the 70120-byte gzip budget (${coldHomeGzip})`);
+// Footer Sign out (shell, runtime, CSS) brings it to 70203, owner-requested 2026-10-22; cap 70220.
+if (coldHomeGzip > 70220) {
+  throw new Error(`Cold Home download exceeds the 70220-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin
 // deep link from Home's access note measures 149526; cap 149550. One password
 // form at a time in Admin → Access measures 149591; cap 149610. The Admin
 // factory-password reminder measures 149645; cap 149670.
-if (generated.combined > 149670) {
-  throw new Error(`Combined Web UI gzip exceeds the 149670-byte flash budget (${generated.combined})`);
+// Footer Sign out, Admin row removed: 149686; cap 149700.
+if (generated.combined > 149700) {
+  throw new Error(`Combined Web UI gzip exceeds the 149700-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {

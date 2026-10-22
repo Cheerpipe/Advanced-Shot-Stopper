@@ -704,6 +704,14 @@ html:is([data-nav-layout="icons"], [data-nav-layout="text"]) {
   color: var(--ac);
   text-decoration: underline;
 }
+/* Inline in the firmware line: no tap-height growth for the footer. */
+.pageFooter .textLock {
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  font-size: inherit;
+  color: var(--ac);
+}
 .adminSession {
   display: flex;
   align-items: baseline;
