@@ -42,8 +42,11 @@
     <path d="M4 7h16m-10 4v6m4-6v6M6 7l1 13h10l1-13M9 7V4h6v3" />
   </symbol>
 </svg>
-<details id="adminLockPanel" data-g="admin" class="cfgGroup">
-  <summary>{{webui:admin.administration}}</summary>
+<section id="adminLockPanel">
+  <h2 class="adminLockTitle">
+    <svg class="cfgIcon" aria-hidden="true"><use href="#g-admin" /></svg
+    >{{webui:admin.administration}}
+  </h2>
   <form id="adminUnlockForm" novalidate>
     <label
       >{{webui:admin.device_password}}
@@ -69,7 +72,7 @@
   <small id="adminConfirmHint" class="warn hidden"
     >{{webui:admin.pending_wi_fi_confirm_this_window_will}}</small
   >
-</details>
+</section>
 <div id="adminControls" class="hidden">
   <p class="adminSession">
     {{webui:admin.unlocked}}

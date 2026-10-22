@@ -1624,7 +1624,6 @@ async function saveFrontendSettings() {
 const onOff = (id) =>
   $(id)?.checked ? __WEBUI_TEXT__("runtime.on_2") : __WEBUI_TEXT__("runtime.off_2");
 const ADMIN_SUMMARIES = {
-  admin: () => __WEBUI_TEXT__("admin.sum_locked"),
   firmware: () => onOff("firmwareModeEnabled"),
   ble: () => onOff("bleEnabled"),
   network: () => $("staSsid").value.trim() || __WEBUI_TEXT__("admin.sum_not_set"),
@@ -1659,8 +1658,6 @@ export function init() {
     renderAdminRows();
   });
   R.initGroupRows($("view-admin"));
-  // Locked, the unlock form is all Admin shows: keep it open.
-  $("adminLockPanel").open = true;
   $("view-admin").addEventListener("input", renderAdminRows);
   $("view-admin").addEventListener("change", renderAdminRows);
   const sectionChanged = (sel, mark) => {

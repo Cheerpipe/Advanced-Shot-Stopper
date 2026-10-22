@@ -1565,12 +1565,10 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  min-height: var(--tap);
   margin: 0;
   padding: 0.65rem 0.25rem;
   color: var(--ac);
   font-size: inherit;
-  font-weight: 650;
 }
 #adminControls > .cfgGroup:last-child {
   border-bottom: 1px solid var(--ln);

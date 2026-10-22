@@ -727,9 +727,10 @@ if (generated.jsGzip.length > 7630) {
 // Settings group rows (icon, summary, chevron, animated opening): 16272; owner-requested 2026-10-22.
 // Admin as one card of section rows: 16291; owner-requested 2026-10-22.
 // Diagnostics section rows with icons: 16325, owner-requested 2026-10-22.
-// Outlined History cup for shots without scale weight: 16372, owner-requested 2026-10-22; cap 16380.
-if (generated.cssGzip.length > 16380) {
-  throw new Error(`Compressed Web CSS exceeds the 16380-byte gzip budget (${generated.cssGzip.length})`);
+// Outlined History cup for shots without scale weight: 16372, owner-requested 2026-10-22.
+// Fixed Administration unlock section: 16387, owner-requested 2026-10-22; cap 16390.
+if (generated.cssGzip.length > 16390) {
+  throw new Error(`Compressed Web CSS exceeds the 16390-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -1199,9 +1200,10 @@ if (coldHomeGzip > 71190) {
 // Settings group rows (icons, live summaries, row CSS): 153049, owner-requested 2026-10-22; cap 153080.
 // Admin section rows (icons, live summaries, card CSS): 154072, owner-requested 2026-10-22; cap 154100.
 // Diagnostics section rows with icons: 154901; the Diagnostic log-stream resume brings it to
-// 154942, owner-requested 2026-10-22; cap 154960.
-if (generated.combined > 154960) {
-  throw new Error(`Combined Web UI gzip exceeds the 154960-byte flash budget (${generated.combined})`);
+// 154942, owner-requested 2026-10-22.
+// Fixed Administration unlock section: 155002, owner-requested 2026-10-22; cap 155010.
+if (generated.combined > 155010) {
+  throw new Error(`Combined Web UI gzip exceeds the 155010-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {
