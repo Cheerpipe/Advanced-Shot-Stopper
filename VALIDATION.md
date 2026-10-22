@@ -39,7 +39,8 @@ Any change to `src/OpenBrewByWeightNetwork.cpp`,
 `src/network/OpenBrewByWeightHttpLifecycle.inc`, or another source that defines or
 registers HTTP routes or handlers must run `./scripts/dev test web`. That profile,
 and every R2/R3 validation gate, runs the named `http-route-capacity` check before
-the broader Web contracts. The check counts all `registerHandler(server_, ...)`
+the broader Web contracts; the profile first checks that the Web UI sources are
+Prettier-formatted (`web-format`). The check counts all `registerHandler(server_, ...)`
 registrations in the network sources and requires `max_uri_handlers` to be
 strictly greater, preserving at least one spare slot.
 

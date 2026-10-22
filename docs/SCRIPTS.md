@@ -31,8 +31,9 @@ path ready for installation.
 
 The Web UI sources in `src/web/` (HTML partials, `app.css`, `app.js`, and
 `js/`) are kept readable with the Prettier version pinned in `package.json`:
-run `npm run format:web` after editing them, or `npm run format:web:check` to
-see what is out of style. The generator (`scripts/gen_web_ui.js`) alone
+run `npm run format:web` after editing them. `./scripts/dev test web` starts
+with the same check as `npm run format:web:check` and fails while any source
+is out of style. The generator (`scripts/gen_web_ui.js`) alone
 compacts what ships: html-minifier-terser collapses markup whitespace, Lightning
 CSS re-serializes the stylesheet before clean-css restructures it, and Terser
 minifies the JavaScript. Reformatting a source therefore never changes the

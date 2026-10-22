@@ -640,7 +640,9 @@ def main() -> int:
                 if require(["node"]) or any(not dep.exists() for dep in deps):
                     return record(command, "R1", verbosity,
                                   ["Web dependencies missing; run npm ci explicitly"], 127, "web")
-                steps = [HTTP_ROUTE_CAPACITY_STEP,
+                steps = [("web-format", ["node_modules/.bin/prettier", "--check", "src/web/html",
+                                         "src/web/app.css", "src/web/app.js", "src/web/js"]),
+                         HTTP_ROUTE_CAPACITY_STEP,
                          ("web-contracts", ["node", "src/tests/check_web_assets.js"])]
             elif profile == "lint":
                 # Opt-in Web UI static analysis; the pinned linters come from npm ci.
