@@ -1574,6 +1574,9 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
 #view-admin > .cfgGroup:first-of-type {
   border-top: 0;
 }
+#adminControls > .cfgGroup:last-child {
+  border-bottom: 1px solid var(--ln);
+}
 .cfgGroup:has(> summary > .cfgIcon) {
   padding-left: 2.15rem;
 }
@@ -1742,6 +1745,9 @@ summary::marker {
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+}
+.cfgGroup + .configSaveBar {
+  margin-top: 0;
 }
 .configSaveBar > .warn {
   padding: 0.25rem 0.5rem;
