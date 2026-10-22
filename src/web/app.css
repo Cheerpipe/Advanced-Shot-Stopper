@@ -1564,10 +1564,10 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
   border-bottom: 1px solid var(--ln);
 }
 .cfgGroup:has(> summary > .cfgIcon) {
-  padding-left: 2.15rem;
+  padding-inline: 2.15rem 0.85rem;
 }
 .cfgGroup:has(> summary > .cfgIcon) > summary {
-  margin-left: -2.15rem;
+  margin-inline: -2.15rem -0.85rem;
 }
 .cfgGroup::details-content {
   block-size: 0;
