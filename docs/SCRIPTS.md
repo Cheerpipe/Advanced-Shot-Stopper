@@ -40,8 +40,10 @@ anything and exits with 127 when they are missing. It runs three steps:
 - **Stylelint** on `src/web/app.css` (`scripts/lint/stylelint.json`), allowing the
   `__WEBUI_CSS_TEXT__()` localization marker and the vendor prefixes Safari needs.
 - **Markup** (`scripts/lint_web_ui.js`): renders the English shell with every view
-  partial injected, as the browser receives it, fails on any id used twice
-  across views, and runs html-validate with `scripts/lint/htmlvalidate.json`.
+  partial injected, as the browser receives it, and runs html-validate with
+  `scripts/lint/htmlvalidate.json`, which also fails on any id used twice
+  across views. The Web contracts check duplicate ids too, so every Web gate
+  catches them without the lint.
 
 Warnings fail the run like errors. The lint is static analysis, so
 `./scripts/dev validate` does not run it; use it while editing the Web UI or

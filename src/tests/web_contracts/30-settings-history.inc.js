@@ -952,7 +952,8 @@ if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
     !codeIncludes(runtimeJs, 'function statsStreamFrame(') ||
     !codeIncludes(runtimeJs, 'function applyStatsStream(') ||
     !codeIncludes(runtimeJs, 'if(statsStreamWanted)statsSendSubscribe()') ||
-    !codeIncludes(js, 'if(statsExportInFlight)return statsExportInFlight') ||
+    !codeIncludes(js, 'async function exportShotsCsv(){if(statsExportInFlight)return;') ||
+    codeIncludes(js, 'return statsExportInFlight') ||
     !codeIncludes(statsRuntimeJs, 'statsRequest=++statsNextRequest') ||
     !codeIncludes(js, "sendUiOperation({op:'stats',on:true,fetch:true,request:statsFetchMark.request,offset:statsFetchMark.offset,limit:SHOTS_PAGE_SIZE,sort:shotSort,dir:shotSortDir,}") ||
     !codeIncludes(js, "statsFrameWindow(0,SHOTS_EXPORT_LIMIT,'date','desc',90e3)") ||

@@ -23,6 +23,11 @@ reduce coverage.
 | clang-tidy | `./scripts/static-tidy-idf` | `reports/static-tidy/` | Fails on in-scope diagnostics, parse errors, or a tool error |
 | Include-What-You-Use | `./scripts/iwyu-idf` | `reports/iwyu/` | Advisory on suggestions: fails only when tooling is missing, the translation-unit audit fails, or nothing parses |
 
+The Web UI has its own opt-in lint, `./scripts/dev test lint`: ESLint,
+Stylelint and html-validate, pinned in `package.json` and installed with
+`npm ci`, over `src/web/` only. It writes no reports directory, is not part of
+`./scripts/dev validate`, and is described in [Web UI lint](SCRIPTS.md#web-ui-lint).
+
 Analysis scope (identical for every tool): `src/`,
 `libraries/EspressoScaleBLE/`, `idf/main/`, and `idf/components/` (the
 project-owned components). ESP-IDF internals, `idf/managed_components/`,

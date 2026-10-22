@@ -1094,12 +1094,10 @@ async function exportShotsCsv() {
     );
   }
 }
-// One export window at a time: a second request reuses the pending promise
-// instead of orphaning the first to its timeout.
-
+// The pending export window: a second export and scroll paging wait for it
+// instead of orphaning it to its timeout.
 let statsExportInFlight = null;
 function statsFrameWindow(offset, limit, sort, dir, timeoutMs) {
-  if (statsExportInFlight) return statsExportInFlight;
   R.uiState.statsFetchMark = null;
   R.uiState.statsExportRequest = ++R.uiState.statsNextRequest;
   const pending = (statsExportInFlight = new Promise((resolve) => {

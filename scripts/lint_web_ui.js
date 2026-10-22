@@ -2,7 +2,8 @@
 'use strict';
 
 // Validates the Web UI markup as browsers receive it: the English shell with
-// every view partial injected, so ids and structure are checked across views.
+// every view partial injected, so ids and structure are checked across views
+// (html-validate's no-dup-id; the Web contracts enforce the same rule).
 const fs = require('fs');
 const path = require('path');
 const {HtmlValidate} = require('html-validate');
@@ -30,11 +31,6 @@ function assembledDocument() {
 async function main() {
   const doc = assembledDocument();
   const failures = [];
-  const seen = new Set();
-  for (const [, id] of doc.matchAll(/\sid="([^"]+)"/g)) {
-    if (seen.has(id)) failures.push(`duplicate id "${id}" across the assembled document`);
-    seen.add(id);
-  }
   const config = JSON.parse(fs.readFileSync(
       path.join(repoRoot, 'scripts', 'lint', 'htmlvalidate.json'), 'utf8'));
   const report = await new HtmlValidate(config).validateString(doc, 'webui.html');
@@ -50,7 +46,7 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  console.log(`Web UI markup: ${seen.size} unique ids, html-validate clean`);
+  console.log('Web UI markup: html-validate clean');
 }
 
 main().catch((error) => {
