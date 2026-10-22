@@ -662,8 +662,9 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // Diagnostic heap-map download row: measured 94810, owner-requested 2026-10-22.
 // Optional Web UI login (sign-in form, Access panel, Home notice, Home
 // Assistant pairing prompt): measured 99499, owner-requested 2026-10-22.
-if (htmlBytes > 99499) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 99499)`);
+// One password form at a time in Admin → Access: measured 99534, owner-requested 2026-10-22.
+if (htmlBytes > 99534) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 99534)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -938,8 +939,9 @@ if (htmlBytes > 99499) {
 // Optional Web UI login (session header, sign-in, Access panel, Home notice,
 // Home Assistant pairing prompt): measured 504669, owner-requested 2026-10-22.
 // The Admin deep link from Home's access note: measured 504952, owner-requested 2026-10-22.
-if (jsBytes > 504952) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 504952)`);
+// One password form at a time in Admin → Access: measured 505298, owner-requested 2026-10-22.
+if (jsBytes > 505298) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 505298)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1095,8 +1097,9 @@ if (jsBytes > 504952) {
 // Diagnostic heap-map download (with the shaper Heap min text removed): measured 585880, owner-requested 2026-10-22.
 // Optional Web UI login: measured 604168, owner-requested 2026-10-22.
 // The Admin deep link from Home's access note: measured 604451, owner-requested 2026-10-22.
-if (htmlBytes + jsBytes > 604451) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 604451)`);
+// One password form at a time in Admin → Access: measured 604832, owner-requested 2026-10-22.
+if (htmlBytes + jsBytes > 604832) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 604832)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

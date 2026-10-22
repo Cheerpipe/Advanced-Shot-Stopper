@@ -292,8 +292,10 @@ function applyAccessStatus(a) {
   $("devicePasswordKind").classList.toggle("warn", !!a.factoryPassword);
   $("passwordChangeLoginHint").classList.toggle("hidden", !on);
 }
+// One device password: the sheet and the change form are never shown together.
 function openLoginSheet(mode) {
   loginSheetMode = mode;
+  $("devicePasswordForm").classList.add("hidden");
   const enable = mode === "enable",
     factory = enable && !!accessState.factoryPassword;
   $("loginSheetText").textContent = !enable
@@ -320,6 +322,7 @@ function openLoginSheet(mode) {
 function closeLoginSheet() {
   loginSheetMode = "";
   $("loginSheet").classList.add("hidden");
+  $("devicePasswordForm").classList.remove("hidden");
   for (const id of ["loginNewPassword", "loginRepeatPassword", "loginCurrentPassword"])
     $(id).value = "";
   R.clearFieldErrors();
@@ -1708,8 +1711,11 @@ export function init() {
     R.refreshStatus();
   };
   $("revertNetworkButton").onclick = revertNetworkConfig;
+  // Switching back to the saved state cancels the open confirmation.
   $("loginEnabled").onchange = () =>
-    openLoginSheet(accessState.loginEnabled ? "disable" : "enable");
+    $("loginEnabled").checked === !!accessState.loginEnabled
+      ? closeLoginSheet()
+      : openLoginSheet(accessState.loginEnabled ? "disable" : "enable");
   $("loginConfirmButton").onclick = confirmLoginSheet;
   $("loginCancelButton").onclick = closeLoginSheet;
   // The device forgets this session; the reload then shows the sign-in page.

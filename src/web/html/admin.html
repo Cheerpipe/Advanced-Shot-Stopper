@@ -522,53 +522,55 @@
       <span><b>{{webui:admin.device_password}}</b> <span id="devicePasswordKind"></span></span>
     </div>
     <div id="apStatus">{{webui:admin.ap_ssid_address}}</div>
-    <label
-      >{{webui:admin.new_device_password}}
-      <input
-        id="newDevicePassword"
-        type="password"
-        minlength="8"
-        maxlength="63"
-        required
-        autocomplete="new-password"
-      /><small class="fieldHint"
-        >{{webui:admin.8_63_characters_used_for_softap_admin}}</small
-      ></label
-    ><label
-      >{{webui:admin.confirm_device_password}}
-      <input
-        id="confirmDevicePassword"
-        type="password"
-        minlength="8"
-        maxlength="63"
-        required
-        autocomplete="new-password"
-      /><small class="fieldHint">{{webui:admin.must_match_the_new_device_password}}</small></label
-    >
-    <small id="passwordChangeLoginHint" class="fieldHint hidden"
-      >{{webui:admin.password_change_login_hint}}</small
-    >
-    <div class="btnBar">
-      <button
-        id="changeDevicePasswordButton"
-        class="btnGlyph"
-        data-dirty="0"
-        disabled
-        type="button"
+    <div id="devicePasswordForm">
+      <label
+        >{{webui:admin.new_device_password}}
+        <input
+          id="newDevicePassword"
+          type="password"
+          minlength="8"
+          maxlength="63"
+          required
+          autocomplete="new-password"
+        /><small class="fieldHint"
+          >{{webui:admin.8_63_characters_used_for_softap_admin}}</small
+        ></label
+      ><label
+        >{{webui:admin.confirm_device_password}}
+        <input
+          id="confirmDevicePassword"
+          type="password"
+          minlength="8"
+          maxlength="63"
+          required
+          autocomplete="new-password"
+        /><small class="fieldHint">{{webui:admin.must_match_the_new_device_password}}</small></label
       >
-        <span class="g" aria-hidden="true">{{webui:admin.symbol}}</span
-        ><span class="t">{{webui:admin.change_device_password}}</span></button
-      ><button
-        id="revertDevicePasswordButton"
-        class="btnGlyph btnRevert"
-        data-dirty="0"
-        disabled
-        title="{{webui:runtime.revert_unsaved_changes}}"
-        aria-label="{{webui:runtime.revert_unsaved_changes}}"
-        type="button"
+      <small id="passwordChangeLoginHint" class="fieldHint hidden"
+        >{{webui:admin.password_change_login_hint}}</small
       >
-        <span class="g" aria-hidden="true">{{webui:runtime.symbol_14}}</span>
-      </button>
+      <div class="btnBar">
+        <button
+          id="changeDevicePasswordButton"
+          class="btnGlyph"
+          data-dirty="0"
+          disabled
+          type="button"
+        >
+          <span class="g" aria-hidden="true">{{webui:admin.symbol}}</span
+          ><span class="t">{{webui:admin.change_device_password}}</span></button
+        ><button
+          id="revertDevicePasswordButton"
+          class="btnGlyph btnRevert"
+          data-dirty="0"
+          disabled
+          title="{{webui:runtime.revert_unsaved_changes}}"
+          aria-label="{{webui:runtime.revert_unsaved_changes}}"
+          type="button"
+        >
+          <span class="g" aria-hidden="true">{{webui:runtime.symbol_14}}</span>
+        </button>
+      </div>
     </div>
   </fieldset>
   <fieldset id="restartPanel">

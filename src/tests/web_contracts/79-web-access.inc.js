@@ -98,6 +98,11 @@
     assert.ok(codeIncludes(ui, id), `Missing ${id}`);
   }
   assert.ok(codeIncludes(rawRuntimeJs, 'if (data.error === "AUTH_REQUIRED") showSignIn(true);'));
+  // One device password: the confirmation sheet hides the change form, and
+  // flipping the switch back cancels it.
+  assert.ok(blockAt(viewJs.admin, 'function openLoginSheet(').includes('$("devicePasswordForm").classList.add("hidden")') &&
+      blockAt(viewJs.admin, 'function closeLoginSheet(').includes('$("devicePasswordForm").classList.remove("hidden")') &&
+      codeIncludes(viewJs.admin, '$("loginEnabled").checked === !!accessState.loginEnabled'));
   // Home's "Set up" lands on the Access panel once Admin is unlocked.
   assert.ok(codeIncludes(ui, 'href="/admin#accessPanel"') &&
       blockAt(viewJs.admin, 'function applyAdminStatus(').includes('location.hash'));
