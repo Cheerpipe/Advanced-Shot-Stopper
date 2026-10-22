@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-hero-dark.jpg">
-    <img src="docs/images/banner-hero-light.jpg" alt="Open Brew by Weight: it knows when to stop. Free, open-source brew-by-weight firmware for the ESP32-S3 with a predictive, adaptive cut, a real-time shot monitor, presets, shot history, statistics, three paddle modes, Home Assistant and La Marzocco Cloud integration. Works with Bookoo, Acaia, Felicita, Decent, DiFluid, Varia, Eureka and more.">
+    <img src="docs/images/banner-hero-light.jpg" alt="Open Brew by Weight: brew by weight that just works. Free, open-source firmware for the ESP32-S3 with a predictive, adaptive cut, a real-time shot monitor, presets, shot history, statistics, three paddle modes, Home Assistant and La Marzocco Cloud integration. Works with Bookoo, Acaia, Felicita, Decent, DiFluid, Varia, Eureka and more.">
   </picture>
 </p>
 
