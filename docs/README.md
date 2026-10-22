@@ -75,6 +75,7 @@ risk gate in [VALIDATION.md](../VALIDATION.md).
 | Build and partitions | `BUILD.md`, `SCRIPTS.md`, `STATIC_ANALYSIS.md` | `idf/`, build scripts | profile, architecture, and size checks | `./scripts/dev profiles` |
 | Hardware/machine build profiles | [`BUILD_PROFILES.md`](BUILD_PROFILES.md) | `config/hardware/`, `config/machines/`, profile resolver | profile contract tests | `./scripts/dev test tooling` |
 | Scheduling/resources | `SCHEDULABILITY.md`, `P2_RESOURCE_BUDGETS.md`, `P2_TARGET_TRACE.md` | task/owner/watchdog headers | TSAN and resource-owner tests | `./scripts/dev test tsan` |
+| Internal RAM and ESP-IDF heap issues | `IDF_MEMORY_WATCH.md`, `P2_RESOURCE_BUDGETS.md` | `src/OpenBrewByWeightBootHeap.h`, `src/OpenBrewByWeightHeapMap.h`, `idf/sdkconfig.defaults*` | boot heap host test | `./scripts/dev build --development` |
 | Developer tooling | `AI_WORKFLOW.md`, root `VALIDATION.md` | `scripts/`, `.github/` | dev contract and risk golden tests | `./scripts/dev test tooling` |
 
 ## Repository boundaries
