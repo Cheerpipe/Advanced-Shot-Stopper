@@ -53,6 +53,10 @@ esp_err_t OpenBrewByWeightNetwork::claimHandler(httpd_req_t *request) {
     return sendError(request, STATUS_BAD_REQUEST, "UI_CLIENT_INVALID",
                      "X-WebUI-Client must be a 16-24 character lowercase hex id.");
   }
+  if (!self.webAccessSessionAllowed(request)) {
+    return sendError(request, STATUS_UNAUTHORIZED, "AUTH_REQUIRED",
+                     "Sign in with the device password.");
+  }
   self.dataMux_.lock();
   memcpy(self.activeWebUiClientId_, clientId, sizeof(clientId));
   self.webUiOverrideActive_ = false;
@@ -296,46 +300,18 @@ esp_err_t OpenBrewByWeightNetwork::adminUnlockHandler(httpd_req_t *request) {
                      "X-WebUI-Client must be a 16-24 character lowercase hex id.");
   }
 
-  const uint32_t now = millis();
-  bool coolingDown = false;
-  self.dataMux_.lock();
-  coolingDown = self.adminUnlockCooldownUntilMs_ != 0 &&
-                static_cast<int32_t>(now - self.adminUnlockCooldownUntilMs_) <
-                    0;
-  self.dataMux_.unlock();
-  if (coolingDown) {
-    memset(password, 0, sizeof(password));
-    memset(clientId, 0, sizeof(clientId));
-    return sendError(request, STATUS_TOO_MANY, "ADMIN_UNLOCK_COOLDOWN",
-                     "Too many failed unlock attempts. Try again shortly.");
-  }
-
-  char expected[WIFI_PASSWORD_CAPACITY] = {};
-  self.dataMux_.lock();
-  memcpy(expected, self.settings_.devicePassword, sizeof(expected));
-  self.dataMux_.unlock();
-  const bool matches = secretsMatch(password, expected);
+  const PasswordCheck check = self.checkDevicePassword(password);
   memset(password, 0, sizeof(password));
-  memset(expected, 0, sizeof(expected));
-  if (!matches) {
-    uint8_t failures = 0;
-    self.dataMux_.lock();
-    if (self.adminUnlockFailures_ < 255) {
-      self.adminUnlockFailures_ =
-          static_cast<uint8_t>(self.adminUnlockFailures_ + 1);
-    }
-    failures = self.adminUnlockFailures_;
-    if (failures >= ADMIN_UNLOCK_FAILURES_BEFORE_COOLDOWN) {
-      self.adminUnlockCooldownUntilMs_ = now + ADMIN_UNLOCK_COOLDOWN_MS;
-      self.adminUnlockFailures_ = 0;
-    }
-    self.dataMux_.unlock();
+  if (check != PasswordCheck::OK) {
     memset(clientId, 0, sizeof(clientId));
-    return sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
-                     "Device password is incorrect.");
+    return check == PasswordCheck::COOLDOWN
+               ? sendError(request, STATUS_TOO_MANY, "ADMIN_UNLOCK_COOLDOWN",
+                           "Too many failed unlock attempts. Try again shortly.")
+               : sendError(request, STATUS_UNAUTHORIZED, "DEVICE_PASSWORD_INVALID",
+                           "Device password is incorrect.");
   }
 
-  self.grantAdminUnlock(clientId, now);
+  self.grantAdminUnlock(clientId, millis());
   memset(clientId, 0, sizeof(clientId));
   return sendJson(request, STATUS_OK, "{\"unlocked\":true}");
 }
@@ -354,6 +330,11 @@ esp_err_t OpenBrewByWeightNetwork::adminLockHandler(httpd_req_t *request) {
 #endif
 
 bool OpenBrewByWeightNetwork::requireActiveWebUiClient(httpd_req_t *request) {
+  if (!webAccessSessionAllowed(request)) {
+    sendError(request, STATUS_UNAUTHORIZED, "AUTH_REQUIRED",
+              "Sign in with the device password.");
+    return false;
+  }
   char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
   if (!readWebUiClientId(request, clientId, sizeof(clientId))) {
     sendError(request, STATUS_CONFLICT, "UI_CLAIM_REQUIRED",
@@ -389,6 +370,7 @@ esp_err_t OpenBrewByWeightNetwork::ownedApiHandler(httpd_req_t *request) {
     httpd_method_t method = HTTP_GET;
     esp_err_t (*handler)(httpd_req_t *) = nullptr;
     bool setup = false;  // also served claim-less to SoftAP peers (/setup)
+    bool open = false;   // served before any claim or sign-in (login page)
   };
   static const Route routes[] = {
       {"/api/v1/status/settings", HTTP_GET, statusHandler},
@@ -434,6 +416,12 @@ esp_err_t OpenBrewByWeightNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/network/scan", HTTP_GET, wifiScanStatusHandler, true},
       {"/api/v1/network/scan", HTTP_POST, wifiScanStartHandler, true},
       {"/api/v1/device/password", HTTP_POST, devicePasswordHandler},
+      {"/api/v1/auth", HTTP_GET, authStatusHandler, false, true},
+      {"/api/v1/auth/login", HTTP_POST, authLoginHandler, false, true},
+      {"/api/v1/auth/logout", HTTP_POST, authLogoutHandler, false, true},
+      {"/api/v1/auth/access", HTTP_POST, authAccessHandler},
+      {"/api/v1/auth/notice", HTTP_POST, authNoticeHandler},
+      {"/api/v1/auth/pairing", HTTP_POST, authPairingHandler},
 #if OPEN_BREW_BY_WEIGHT_DEVELOPMENT == 1
 // Unlock routes are not served in development builds; administration is
 // public there and the UI never calls these endpoints.
@@ -462,6 +450,7 @@ esp_err_t OpenBrewByWeightNetwork::ownedApiHandler(httpd_req_t *request) {
     return sendError(request, STATUS_NOT_FOUND, "NOT_FOUND",
                      "Unknown API route.");
   }
+  if (matched->open) return matched->handler(request);
   // /setup holds no UI claim: joining the SoftAP already proved the device
   // password, the same trust as the admin bypass, so its own routes skip it.
   const bool setupPeer = matched->setup && self.snapshot().apActive &&

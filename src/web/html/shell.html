@@ -246,6 +246,54 @@
         <button type="button" id="webUiReload">{{webui:shell.reload}}</button>
         <p id="inactiveHint">{{webui:shell.this_window_was_deactivated_due_to_inactivity}}</p>
         <p id="inactiveError" class="error" hidden></p>
+        <form id="webUiLogin" class="setupCard" novalidate>
+          <p id="loginDevice" class="loginDevice"></p>
+          <h1>{{webui:shell.sign_in}}</h1>
+          <p id="loginIntro" class="setupIntro">{{webui:shell.sign_in_intro}}</p>
+          <input id="loginUser" type="text" autocomplete="username" hidden />
+          <div class="setupPassRow">
+            <label for="loginPassword">{{webui:shell.device_password}}</label
+            ><button type="button" id="loginShow" class="setupPassToggle" aria-pressed="false">
+              {{webui:shell.show}}
+            </button>
+          </div>
+          <input
+            id="loginPassword"
+            type="password"
+            maxlength="63"
+            autocomplete="current-password"
+            autocapitalize="off"
+            spellcheck="false"
+          />
+          <p id="loginError" class="fieldError" role="alert" hidden></p>
+          <label
+            ><input id="loginRemember" type="checkbox" checked />
+            {{webui:shell.remember_this_device}}<small class="fieldHint"
+              >{{webui:shell.remember_this_device_hint}}</small
+            ></label
+          >
+          <button type="submit" id="loginSubmit" class="setupPrimary">
+            {{webui:shell.sign_in}}
+          </button>
+          <button
+            type="button"
+            id="loginForgot"
+            class="textLock"
+            aria-expanded="false"
+            aria-controls="loginHelp"
+          >
+            {{webui:shell.forgot_password}}
+          </button>
+          <p id="loginHelp" class="loginHelp" hidden>
+            {{webui:shell.forgot_help}}
+            <a
+              href="https://github.com/Cheerpipe/Open-Brew-by-Weight/blob/main/docs/EMERGENCY_RECOVERY.md"
+              target="_blank"
+              rel="noopener"
+              >{{webui:shell.forgot_full_steps}}</a
+            >
+          </p>
+        </form>
       </div>
       <footer class="pageFooter">
         <small id="inactiveFirmware">{{webui:shell.firmware_boot}}</small><br /><small
@@ -275,6 +323,19 @@
           </button>
         </div>
       </form>
+    </dialog>
+    <dialog id="pairDialog" aria-labelledby="pairTitle">
+      <h2 id="pairTitle">{{webui:shell.pair_title}}</h2>
+      <p>{{webui:shell.pair_text}}</p>
+      <p id="pairCode" class="pairCode"></p>
+      <p id="pairExpires" class="pairMeta"></p>
+      <div class="btnBar">
+        <button id="pairAllow" class="btnGlyph btnInvert" type="button">
+          <span class="t">{{webui:shell.pair_allow}}</span></button
+        ><button id="pairDeny" class="btnGlyph ghost" type="button">
+          <span class="t">{{webui:shell.pair_deny}}</span>
+        </button>
+      </div>
     </dialog>
     <script type="module" src="/app.js?v=__FW_ASSET_TAG__"></script>
   </body>

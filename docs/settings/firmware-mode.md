@@ -36,7 +36,7 @@ transparent:
   and any address other than Admin's takes you there; the **Diagnostic**
   address is the one exception, because support may need its measurements.
   Inside Admin you keep Network, Power
-  management, Frontend, Device password, Restart, Firmware update, and
+  management, Frontend, Access, Restart, Firmware update, and
   Factory reset. The controls of disabled features are hidden with them:
   the Bluetooth section and its scan-mode options inside Power management,
   Date & time (clock sync and time zone), and Webhooks.

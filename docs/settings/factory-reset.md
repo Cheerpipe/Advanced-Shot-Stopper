@@ -25,7 +25,9 @@ integration options return to ON, and factory preset boiler targets return to
 their factory values: ESP32 power management on, Wi-Fi sleep on, and Balanced
 scan mode. The machine-aware scale search options return to off. The device
 password returns to **`ineedacoffee`** and the device name to
-**`openbrewbyweight`**. The [firmware mode](firmware-mode.md) switch is
+**`openbrewbyweight`**. The [Web UI password](web-access.md) turns off, every
+remembered device and Home Assistant's access are forgotten, and Home shows
+the access note again. The [firmware mode](firmware-mode.md) switch is
 left off, so the machine works as usual until you choose how to brew on the
 setup page or in Admin. The device then restarts.
 
@@ -42,7 +44,8 @@ Wi-Fi and keeps the relay open. Check actual idle state on momentary machines.
 | **Paddle gesture** | Power on with paddle ON, hold it still through the 30 s wait, then five `OFF→ON` cycles | Last-resort. See [Emergency recovery](../EMERGENCY_RECOVERY.md). |
 
 A shorter paddle gesture (three cycles) restores the device password / forgets STA
-**without** erasing recipes, calibration, or history.
+**without** erasing recipes, calibration, or history. It also turns off the
+[Web UI password](web-access.md).
 
 ## After reset
 

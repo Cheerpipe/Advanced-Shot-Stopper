@@ -96,8 +96,8 @@ boot; `AP_START` still works).
 | --- | --- | --- |
 | `REBOOT` | none | Restarts firmware after any current shot finishes |
 | `FACTORY_RESET` | none | Wipes Wi-Fi, settings, calibration, and shots; device password `ineedacoffee`; restarts (safety gate) |
-| `SET_DEVICE_PASSWORD` | `<password>` | Sets the device password (8–63 chars, not `ineedacoffee`). SoftAP WPA2, Admin unlock, and OTA use it. Does not require the current device password. Safety gate |
-| `RESET_DEVICE_PASSWORD` | none | Restores device password `ineedacoffee`. STA unchanged. Safety gate |
+| `SET_DEVICE_PASSWORD` | `<password>` | Sets the device password (8–63 chars, not `ineedacoffee`). SoftAP WPA2, Admin unlock, OTA, and the optional Web UI sign-in use it. Signs out every Web UI device; Home Assistant stays connected. Does not require the current device password. Safety gate |
+| `RESET_DEVICE_PASSWORD` | none | Restores device password `ineedacoffee` and turns the Web UI password off. STA unchanged. Safety gate |
 
 ## STA credentials (persist + reboot)
 
@@ -107,7 +107,7 @@ boot; `AP_START` still works).
 | --- | --- | --- |
 | `SET_WIFI` | `<ssid> [password]` | Saves home Wi-Fi (DHCP), **commits** it (no 3-minute Web UI confirm window), and restarts. Omit password if open. Quote spaces. Safety gate |
 | `CLEAR_WIFI` | none | Forgets saved STA only; restarts (safety gate) |
-| `RESET_NETWORK_AP` | none | Forgets STA and restores device password `ineedacoffee`; restarts (safety gate) |
+| `RESET_NETWORK_AP` | none | Forgets STA, restores device password `ineedacoffee`, and turns the Web UI password off; restarts (safety gate) |
 
 ## STA link (no NVS change)
 

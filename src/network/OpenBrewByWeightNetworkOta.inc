@@ -396,8 +396,7 @@ esp_err_t OpenBrewByWeightNetwork::devicePasswordHandler(httpd_req_t *request) {
   if (!self.requireAdminUnlock(request)) {
     return ESP_OK;
   }
-  ControlGateSnapshot status = self.controlGate();
-  if (!self.webUiConfigurationAllowed(request, status)) {
+  if (!self.webUiConfigurationAllowed(request, self.controlGate())) {
     return sendError(request, STATUS_CONFLICT,
                      "CONFIG_LOCKED_DURING_ACTIVE_CYCLE",
                      "The password cannot be changed while a cycle is active.");
@@ -436,6 +435,7 @@ esp_err_t OpenBrewByWeightNetwork::devicePasswordHandler(httpd_req_t *request) {
     return sendError(request, STATUS_UNPROCESSABLE, "INVALID_DEVICE_PASSWORD",
                      "New device password cannot be the factory default.");
   }
+  self.keepPasswordChangeSession(request, command.requestId);
   if (!self.callbacks_.enqueueWebCommand(command)) {
     command.wipePassword();
     return sendError(request, STATUS_UNAVAILABLE, "CONTROL_QUEUE_FULL",
@@ -1041,28 +1041,25 @@ void appendOtaTag(char *buffer, size_t capacity, size_t &used,
 
 bool OpenBrewByWeightNetwork::authorizeOtaRequest(httpd_req_t *request) {
   char password[WIFI_PASSWORD_CAPACITY] = {};
-  char expected[WIFI_PASSWORD_CAPACITY] = {};
   const char *header = DEVICE_PASSWORD_HEADER;
   size_t length = httpd_req_get_hdr_value_len(request, header);
   if (length == 0) {
     header = DEVICE_PASSWORD_HEADER_LEGACY;
     length = httpd_req_get_hdr_value_len(request, header);
   }
-  bool passwordAuthorized = false;
-  if (length > 0 && length + 1 <= sizeof(password) &&
+  // The header shares the sign-in failure counter and cooldown, so it cannot
+  // be used to guess the password faster than the sign-in page.
+  const bool passwordAuthorized =
+      length > 0 && length + 1 <= sizeof(password) &&
       httpd_req_get_hdr_value_str(request, header, password,
-                                  sizeof(password)) == ESP_OK) {
-    dataMux_.lock();
-    memcpy(expected, settings_.devicePassword, sizeof(expected));
-    dataMux_.unlock();
-    passwordAuthorized = secretsMatch(password, expected);
-  }
+                                  sizeof(password)) == ESP_OK &&
+      checkDevicePassword(password) == PasswordCheck::OK;
   memset(password, 0, sizeof(password));
-  memset(expected, 0, sizeof(expected));
   if (passwordAuthorized) {
     return true;
   }
-  if (adminUnlockAllowed(request)) {
+  // A browser additionally needs its sign-in while the login is on.
+  if (adminUnlockAllowed(request) && webAccessSessionAllowed(request)) {
     touchAdminUnlock();
     return true;
   }

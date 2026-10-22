@@ -372,7 +372,7 @@ if (shellHtml.includes('class="themeSel"') ||
     !html.includes('<option value="light">Light</option>') ||
     !html.includes('<option value="dark">Dark</option>') ||
     html.indexOf('id="dateTimePanel"') > html.indexOf('id="frontendPanel"') ||
-    html.indexOf('id="frontendPanel"') > html.indexOf('id="devicePasswordPanel"')) {
+    html.indexOf('id="frontendPanel"') > html.indexOf('id="accessPanel"')) {
   throw new Error('Theme must be an Admin Frontend dropdown (Auto/Light/Dark), not a Home selector');
 }
 if (/<link\s+[^>]*href=["']https?:\/\//i.test(shellHtml) ||
@@ -526,7 +526,7 @@ if (!firmwareCore.includes('if (brewEndIsAbandonedStart(reason) || endingRinseCy
     !firmwareCore.includes('!endingRinseCycle(reason) && !brewEndIsAbandonedStart(reason)')) {
   throw new Error('Abandoned starts and rinses must not emit misleading brew-state webhooks');
 }
-if (!codeIncludes(ui, 'function claimWebUiOwnership()') ||
+if (!codeIncludes(ui, 'function claimWebUiOwnership(claimed)') ||
     !codeIncludes(ui, 'function deactivateWebUi()') ||
     !codeIncludes(ui, 'function showInactiveOverlay()') ||
     !codeIncludes(ui, 'function hideInactiveOverlay()') ||

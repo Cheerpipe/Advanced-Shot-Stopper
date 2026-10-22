@@ -61,7 +61,8 @@ on separate rows. This historical screenshot predates those rows.
 
 ### Admin
 
-Administration panel for device password, Wi-Fi, OTA, and factory reset.
+Administration panel for Web UI access and the device password, Wi-Fi, OTA,
+and factory reset.
 
 ![Historical dark Admin screen](images/screenshot-admin-dark.jpeg)
 

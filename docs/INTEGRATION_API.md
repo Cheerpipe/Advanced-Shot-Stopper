@@ -2,8 +2,10 @@
 
 This is the public LAN contract used by the Open Brew by Weight Home
 Assistant integration. It is available in firmware `0.1.0` and later at
-`http://<controller>/api/v1/integration`. Like the Web UI API, it is deliberately
-unauthenticated and must be used only on a trusted local network. It observes
+`http://<controller>/api/v1/integration`. Like the Web UI API, it is open by
+default and must be used only on a trusted local network; while the optional
+[Web UI login](settings/web-access.md) is on, it requires a token (see
+[Access](#access)). It observes
 brewing and manages the single webhook destination, active preset, Home Quick
 Settings, and a safe queued controller restart. It cannot start, stop, rinse,
 or directly actuate the machine.
@@ -16,8 +18,9 @@ or directly actuate the machine.
   which uses `apiVersion: 2` and `minimumClientApiVersion: 2` for its unified
   `lastShot` contract. Errors use
   `{"error":"STABLE_CODE","message":"English diagnostic"}`.
-- All routes are open on the trusted LAN and use no token, pairing window, or
-  authorization header.
+- While the Web UI login is off, every route is open on the trusted LAN and
+  needs no token. While it is on, every route except the [access
+  routes](#access) needs `Authorization: Bearer <token>`.
 - Responses carry no cross-origin (CORS) headers, so a web page served from
   another site cannot read the API through a visitor's browser. Call it from a
   LAN client such as Home Assistant, a script, or the controller's own Web UI.
@@ -36,6 +39,11 @@ or directly actuate the machine.
 | HTTP | Code | Meaning |
 | --- | --- | --- |
 | 400 | `INVALID_REQUEST` | Malformed JSON, field, identifier, or bound |
+| 401 | `INTEGRATION_AUTH_REQUIRED` | The login is on and the bearer token is missing or no longer valid |
+| 401 | `DEVICE_PASSWORD_INVALID` | Wrong device password in an exchange |
+| 409 | `AUTH_NOT_REQUIRED` | Exchange or pairing asked for while the login is off |
+| 429 | `AUTH_COOLDOWN` | Five wrong device passwords in a row; retry after 30 s |
+| 429 | `PAIRING_BUSY` | Another pairing request is open or was just decided; retry later (at most 2.5 min) |
 | 404 | `PRESET_NOT_FOUND` | Stable preset ID does not exist |
 | 409 | `CONFIG_LOCKED_DURING_ACTIVE_CYCLE` | Existing firmware safety gate is closed |
 | 409 | `STALE_REVISION` | Quick Settings changed since the caller's snapshot |
@@ -44,6 +52,48 @@ or directly actuate the machine.
 | 500 | `PERSISTENCE_FAILED` | The durable write failed |
 | 503 | `CONTROL_QUEUE_FULL` | The bounded control queue could not accept the command |
 | 503 | `WEBHOOK_UNAVAILABLE` | Test event could not be queued or delivered |
+
+## Access
+
+These routes always answer without a token. They let a client discover whether
+the controller asks for one and obtain it without the user copying anything.
+
+### `GET /api/v1/integration/info`
+
+```json
+{"apiVersion": 1, "name": "openbrewbyweight", "firmwareVersion": "0.1.0", "authRequired": true}
+```
+
+`name` is the controller's device name. `authRequired` is `true` only while the
+Web UI login is on.
+
+### `POST /api/v1/integration/auth`
+
+Exchanges the device password, once, for the integration token:
+`{"password": "<device password>"}` returns `{"apiVersion": 1, "token": "<32
+lowercase hex digits>"}`. The client must not keep the password. Wrong
+passwords share the Web UI's failure counter and cooldown.
+
+### `POST /api/v1/integration/pair` and `GET /api/v1/integration/pair?id=<id>`
+
+Asks the person at the Web UI to approve the client instead. `POST` with `{}`
+returns `{"apiVersion": 1, "id": 3735928559, "code": "4821", "expiresInS":
+120}`; show `code` to the user, who sees the same four digits in the Web UI and
+taps **Allow** or **Deny**. Poll `GET ?id=<id>` about once a second; `state` is
+`pending`, `approved`, `denied`, `expired`, or `unknown`. `approved` carries
+`token` exactly once. Only one request exists at a time: an open request
+blocks new ones for up to 2 minutes, and a denied or expired one (or an
+approved one whose token was not fetched) for 30 s more.
+
+### Token rules
+
+- One integration token exists at a time; a new exchange or approval replaces
+  the previous one.
+- It survives restarts and device-password changes. It ends when the user taps
+  **Disconnect** in Admin → Access, turns the login off, or restores the factory
+  password.
+- Any `401 INTEGRATION_AUTH_REQUIRED` means "ask the user again": start a
+  reauthentication with either method above.
 
 ## Routes
 

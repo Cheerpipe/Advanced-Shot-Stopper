@@ -365,13 +365,15 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     assert.equal(rendered, 2);
 
     const slotSource = ['function drainDeviceSlots(', 'function acquireDeviceSlot(',
-      'function releaseDeviceSlot(', 'async function api(']
+      'function releaseDeviceSlot(', 'function sessionToken(', 'function webUiHeaders(',
+      'async function api(']
         .map((marker) => blockAt(rawRuntimeJs, marker)).join('\n');
     for (const view of ['stats', 'history', 'home', 'settings', 'admin', 'diagnostic']) {
       const requests = [], responses = [];
       const slots = vm.createContext({activeView: view, deviceInFlight: 0, deviceWaiters: [],
         DEVICE_MAX_INFLIGHT: 1, webUiPollingActive: () => true,
         WEB_UI_CLIENT_HEADER: 'X-WebUI-Client', webUiClientId: 'test', webUiPowerSeconds: () => 0,
+        WEB_UI_SESSION_HEADER: 'X-WebUI-Session', SESSION_KEY: 'obbwSession', sessionMemory: '',
         AbortController, setTimeout: () => 1, clearTimeout() {}, __WEBUI_TEXT__: key => key,
         fetch: path => {const response = deferred(); requests.push(path); responses.push(response); return response.promise;}});
       vm.runInContext(slotSource, slots);
@@ -658,8 +660,10 @@ const jsBytes = Buffer.byteLength(allJs, 'utf8');
 // The budget counts the compact markup the fixtures derive, so formatting the
 // sources cannot move it: re-baselined to the measured 94713.
 // Diagnostic heap-map download row: measured 94810, owner-requested 2026-10-22.
-if (htmlBytes > 94810) {
-  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 94810)`);
+// Optional Web UI login (sign-in form, Access panel, Home notice, Home
+// Assistant pairing prompt): measured 99499, owner-requested 2026-10-22.
+if (htmlBytes > 99499) {
+  throw new Error(`Web UI HTML source exceeds the authoring budget (${htmlBytes} > 99499)`);
 }
 // Resumable OTA hashes File slices incrementally in a lazy module so it never
 // retains a full firmware image or charges the normal runtime path for it.
@@ -931,8 +935,10 @@ if (htmlBytes > 94810) {
 // level, escaped view text, star radio keys): measured 485695.
 // Prettier re-formats JS that drifted from its style after the audit merge: measured 490907.
 // Diagnostic heap-map download (with the shaper Heap min text removed): measured 491070, owner-requested 2026-10-22.
-if (jsBytes > 491070) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 491070)`);
+// Optional Web UI login (session header, sign-in, Access panel, Home notice,
+// Home Assistant pairing prompt): measured 504669, owner-requested 2026-10-22.
+if (jsBytes > 504669) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 504669)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1086,8 +1092,9 @@ if (jsBytes > 491070) {
 // Review fixes RV-03 to RV-12: measured 580823.
 // Compact HTML measurement plus the Prettier re-format of drifted JS: measured 585620.
 // Diagnostic heap-map download (with the shaper Heap min text removed): measured 585880, owner-requested 2026-10-22.
-if (htmlBytes + jsBytes > 585880) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 585880)`);
+// Optional Web UI login: measured 604168, owner-requested 2026-10-22.
+if (htmlBytes + jsBytes > 604168) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 604168)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

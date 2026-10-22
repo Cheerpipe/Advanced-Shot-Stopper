@@ -19,6 +19,16 @@ bool OpenBrewByWeightNetwork::begin(const PersistedSettings &settings,
   quietIdfWifiDriverWarnings();
   settings_ = settings;
   callbacks_ = callbacks;
+  // A factory password (paddle recovery, USB reset) cannot back a login:
+  // drop everything but the notice choice before the first request.
+  WebAccessStored access;
+  if (loadWebAccessStored(access) == WebAccessLoad::INVALID) {
+    lifecycleLog("Web UI access settings unreadable; the Web UI password is off");
+  }
+  g_webAccess = WebAccessState{};
+  g_webAccess.stored = access;
+  if (passwordIsFactoryDefault(settings_)) webAccessDisable(g_webAccess);
+  memset(&access, 0, sizeof(access));
   stopRequested_.store(false, std::memory_order_release);
   acceptedCommandQueue_.reset(
       xQueueCreate(WEB_COMMAND_QUEUE_LENGTH, sizeof(WebCommand)));
@@ -569,6 +579,7 @@ void OpenBrewByWeightNetwork::service() {
   // A successful AP_START / WIFI_CONNECT can mark startup complete and skip
   // the automatic retry that would otherwise fight the user's command.
   processAcceptedCommands();
+  serviceWebAccess();
 
   // Boot confirmation must also run while a requested restart is waiting.
   serviceOtaRollback(now);

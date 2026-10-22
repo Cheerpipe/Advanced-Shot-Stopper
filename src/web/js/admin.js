@@ -243,25 +243,147 @@ function netAddrKey() {
         "|" +
         $("staDns2").value.trim();
 }
-function validateDevicePasswordClient() {
-  const n = $("newDevicePassword").value,
-    c = $("confirmDevicePassword").value;
+function validateDevicePasswordClient(
+  newId = "newDevicePassword",
+  confirmId = "confirmDevicePassword",
+) {
+  const n = $(newId).value,
+    c = $(confirmId).value;
   if (n.length < 8 || n.length > 63)
     return {
-      id: "newDevicePassword",
+      id: newId,
       msg: __WEBUI_TEXT__("runtime.new_device_password_must_be_8_63"),
     };
   if (n === "ineedacoffee")
     return {
-      id: "newDevicePassword",
+      id: newId,
       msg: __WEBUI_TEXT__("runtime.new_device_password_cannot_be_the_factory"),
     };
   if (n !== c)
     return {
-      id: "confirmDevicePassword",
+      id: confirmId,
       msg: __WEBUI_TEXT__("runtime.the_new_device_passwords_do_not_match"),
     };
   return null;
+}
+// Admin → Access. The switch only opens a confirmation sheet; the login
+// changes when the device accepts the password typed there.
+let accessState = {},
+  loginSheetMode = "";
+function applyAccessStatus(a) {
+  if (!a) return;
+  accessState = a;
+  const on = !!a.loginEnabled;
+  if (!loginSheetMode) $("loginEnabled").checked = on;
+  $("loginEnabledHint").textContent = on
+    ? __WEBUI_TEXT__("admin.login_security_note")
+    : __WEBUI_TEXT__("admin.login_off_hint");
+  $("accessSessions").classList.toggle("hidden", !on);
+  $("accessThisDevice").classList.toggle("hidden", !on);
+  $("rememberedCount").textContent = a.rememberedDevices + __WEBUI_TEXT__("admin.of_8");
+  $("accessHomeAssistant").classList.toggle("hidden", !on);
+  $("homeAssistantState").textContent = a.homeAssistantConnected
+    ? __WEBUI_TEXT__("admin.home_assistant_connected")
+    : __WEBUI_TEXT__("admin.home_assistant_not_connected");
+  $("disconnectHomeAssistantButton").hidden = !a.homeAssistantConnected;
+  $("devicePasswordKind").textContent = a.factoryPassword
+    ? __WEBUI_TEXT__("admin.factory_default")
+    : __WEBUI_TEXT__("admin.custom");
+  $("devicePasswordKind").classList.toggle("warn", !!a.factoryPassword);
+  $("passwordChangeLoginHint").classList.toggle("hidden", !on);
+}
+function openLoginSheet(mode) {
+  loginSheetMode = mode;
+  const enable = mode === "enable",
+    factory = enable && !!accessState.factoryPassword;
+  $("loginSheetText").textContent = !enable
+    ? __WEBUI_TEXT__("admin.disable_login_text")
+    : factory
+      ? __WEBUI_TEXT__("admin.enable_login_factory_text")
+      : __WEBUI_TEXT__("admin.enable_login_text");
+  for (const id of ["loginNewWrap", "loginRepeatWrap"]) $(id).classList.toggle("hidden", !factory);
+  $("loginCurrentWrap").classList.toggle("hidden", factory);
+  $("loginSecurityNote").classList.toggle("hidden", !enable);
+  $("loginHomeAssistantWarning").classList.toggle(
+    "hidden",
+    !enable || !accessState.homeAssistantRecent,
+  );
+  const confirm = $("loginConfirmButton");
+  confirm.querySelector(".t").textContent = enable
+    ? __WEBUI_TEXT__("admin.turn_on")
+    : __WEBUI_TEXT__("admin.turn_off");
+  confirm.classList.toggle("btnInvert", enable);
+  confirm.classList.toggle("btnWarn", !enable);
+  $("loginSheet").classList.remove("hidden");
+  $(factory ? "loginNewPassword" : "loginCurrentPassword").focus();
+}
+function closeLoginSheet() {
+  loginSheetMode = "";
+  $("loginSheet").classList.add("hidden");
+  for (const id of ["loginNewPassword", "loginRepeatPassword", "loginCurrentPassword"])
+    $(id).value = "";
+  R.clearFieldErrors();
+  $("loginEnabled").checked = !!accessState.loginEnabled;
+}
+async function accessAction(action, password) {
+  const data = await R.api("/api/v1/auth/access", {
+    method: "POST",
+    body: R.body(password === undefined ? { action } : { action, password }),
+  });
+  if (data.token) R.storeSession(data.token, true);
+  return data;
+}
+async function confirmLoginSheet() {
+  const mode = loginSheetMode,
+    confirm = $("loginConfirmButton");
+  let password = $("loginCurrentPassword").value;
+  if (mode === "enable" && accessState.factoryPassword) {
+    const err = validateDevicePasswordClient("loginNewPassword", "loginRepeatPassword");
+    if (err) return R.showFieldError(err.id, err.msg);
+    password = $("loginNewPassword").value;
+  } else if (!password) {
+    return R.showFieldError(
+      "loginCurrentPassword",
+      __WEBUI_TEXT__("admin.device_password_is_required"),
+    );
+  }
+  R.clearFieldErrors();
+  confirm.disabled = true;
+  try {
+    // The factory password is replaced first; the device applies it once
+    // the machine is idle, so wait for it before turning the login on.
+    if (mode === "enable" && accessState.factoryPassword) {
+      if (!(await R.command("/api/v1/device/password", { newPassword: password }))) return;
+      for (let i = 0; i < 40 && accessState.factoryPassword; i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        await R.refreshStatus();
+      }
+      if (accessState.factoryPassword)
+        return R.message(__WEBUI_TEXT__("admin.new_password_not_saved_yet"), "error");
+    }
+    await accessAction(mode, password);
+    R.message(
+      mode === "enable"
+        ? __WEBUI_TEXT__("admin.login_turned_on")
+        : __WEBUI_TEXT__("admin.login_turned_off"),
+      "ok",
+    );
+    closeLoginSheet();
+    R.refreshStatus();
+  } catch (e) {
+    R.message(R.formatCommandError(__WEBUI_TEXT__("admin.could_not_change_login"), e), "error");
+  } finally {
+    confirm.disabled = false;
+  }
+}
+async function accessQuickAction(action, okText, failText) {
+  try {
+    await accessAction(action);
+    R.message(okText, "ok");
+    R.refreshStatus();
+  } catch (e) {
+    R.message(R.formatCommandError(failText, e), "error");
+  }
 }
 function selectDetectedNetwork() {
   const o = $("staNetwork").selectedOptions[0];
@@ -515,6 +637,7 @@ function applyAdminStatus(s) {
   }
   $("networkStatus").textContent = formatNetworkStatus(s.network);
   loadNetworkAddress(s.network);
+  applyAccessStatus(s.access);
   $("apStatus").textContent =
     __WEBUI_TEXT__("runtime.ap") +
     (s.network.apActive ? __WEBUI_TEXT__("runtime.active_2") : __WEBUI_TEXT__("runtime.inactive")) +
@@ -1579,6 +1702,30 @@ export function init() {
     R.refreshStatus();
   };
   $("revertNetworkButton").onclick = revertNetworkConfig;
+  $("loginEnabled").onchange = () =>
+    openLoginSheet(accessState.loginEnabled ? "disable" : "enable");
+  $("loginConfirmButton").onclick = confirmLoginSheet;
+  $("loginCancelButton").onclick = closeLoginSheet;
+  // The device forgets this session; the reload then shows the sign-in page.
+  $("signOutButton").onclick = async () => {
+    await R.api("/api/v1/auth/logout", { method: "POST", body: "{}" }).catch(() => {});
+    R.storeSession("", false);
+    location.reload();
+  };
+  $("signOutOthersButton").onclick = () =>
+    accessQuickAction(
+      "signOutOthers",
+      __WEBUI_TEXT__("admin.other_devices_signed_out"),
+      __WEBUI_TEXT__("admin.could_not_sign_out_other_devices"),
+    );
+  $("disconnectHomeAssistantButton").onclick = () => {
+    if (confirm(__WEBUI_TEXT__("admin.disconnect_home_assistant_confirm")))
+      accessQuickAction(
+        "forgetHomeAssistant",
+        __WEBUI_TEXT__("admin.home_assistant_disconnected"),
+        __WEBUI_TEXT__("admin.could_not_disconnect_home_assistant"),
+      );
+  };
   $("revertDevicePasswordButton").onclick = () => {
     if (!$("newDevicePassword").value && !$("confirmDevicePassword").value) return;
     if (!confirm(__WEBUI_TEXT__("admin.discard_unsaved_changes"))) return;

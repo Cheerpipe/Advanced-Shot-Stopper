@@ -97,7 +97,37 @@ const SHOTS_PAGE_SIZE = 10,
   SHOTS_EXPORT_LIMIT = 500,
   HISTORY_PAGE_SIZE = 20,
   HISTORY_EXPORT_LIMIT = 1000;
-const WEB_UI_CLIENT_HEADER = "X-WebUI-Client";
+const WEB_UI_CLIENT_HEADER = "X-WebUI-Client",
+  WEB_UI_SESSION_HEADER = "X-WebUI-Session",
+  SESSION_KEY = "obbwSession";
+// Optional login: a remembered session lives in localStorage, a browser-only
+// one in sessionStorage. Blocked storage keeps it for this page only.
+let sessionMemory = "";
+function sessionToken() {
+  try {
+    return (
+      localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY) || sessionMemory
+    );
+  } catch (_) {
+    return sessionMemory;
+  }
+}
+function storeSession(token, remember) {
+  sessionMemory = token || "";
+  try {
+    localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
+    if (token) (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, token);
+  } catch (_) {}
+}
+function webUiHeaders(extra) {
+  const token = sessionToken();
+  return Object.assign(
+    { [WEB_UI_CLIENT_HEADER]: webUiClientId },
+    token ? { [WEB_UI_SESSION_HEADER]: token } : {},
+    extra || {},
+  );
+}
 let webUiPowerUntil = 0;
 function noteWebUiPowerActivity() {
   if (webUiOwner && !document.hidden) webUiPowerUntil = performance.now() + 180e3;
@@ -1872,7 +1902,7 @@ async function api(path, options = {}) {
     releaseDeviceSlot();
     throw new Error(__WEBUI_TEXT__("runtime.this_window_is_inactive_reload_to_continue"));
   }
-  options.headers = Object.assign({ [WEB_UI_CLIENT_HEADER]: webUiClientId }, options.headers || {});
+  options.headers = webUiHeaders(options.headers);
   const powerSeconds = webUiPowerSeconds();
   if (powerSeconds) options.headers["X-WebUI-Activity"] = String(powerSeconds);
   if (options.body) options.headers["Content-Type"] ??= "application/json";
@@ -1904,6 +1934,7 @@ async function api(path, options = {}) {
   }
   if (!response.ok) {
     if (data.error === "UI_TAKEN_OVER") deactivateWebUi();
+    if (data.error === "AUTH_REQUIRED") showSignIn(true);
     const err = new Error(
       data.message || data.error || __WEBUI_TEXT__("runtime.http") + response.status,
     );
@@ -1953,6 +1984,9 @@ function lockAdminUi() {
     "diagnosticUnlockPassword",
     "newDevicePassword",
     "confirmDevicePassword",
+    "loginNewPassword",
+    "loginRepeatPassword",
+    "loginCurrentPassword",
     "staPassword",
   ].forEach((id) => {
     const el = $(id);
@@ -1974,7 +2008,8 @@ function deactivateWebUi() {
   setMutable(false);
   showInactiveOverlay();
 }
-async function claimWebUiOwnership() {
+// `claimed` is a sign-in response, which already claimed this window.
+async function claimWebUiOwnership(claimed) {
   initShotFullScreen();
   if (webUiClaiming) return;
   webUiClaiming = true;
@@ -1982,28 +2017,35 @@ async function claimWebUiOwnership() {
   const btn = $("webUiReload");
   if (btn && !rec) btn.disabled = true;
   try {
-    const ac = new AbortController(),
-      to = setTimeout(() => ac.abort(), rec ? 4e3 : 8e3);
-    let response, txt;
-    try {
-      response = await fetch("/api/v1/ui/claim", {
-        method: "POST",
-        headers: { [WEB_UI_CLIENT_HEADER]: webUiClientId, "Content-Type": "application/json" },
-        body: "{}",
-        signal: ac.signal,
-      });
-      txt = await response.text();
-    } finally {
-      clearTimeout(to);
+    let data = claimed || {};
+    if (!claimed) {
+      const ac = new AbortController(),
+        to = setTimeout(() => ac.abort(), rec ? 4e3 : 8e3);
+      let response, txt;
+      try {
+        response = await fetch("/api/v1/ui/claim", {
+          method: "POST",
+          headers: webUiHeaders({ "Content-Type": "application/json" }),
+          body: "{}",
+          signal: ac.signal,
+        });
+        txt = await response.text();
+      } finally {
+        clearTimeout(to);
+      }
+      try {
+        data = txt ? JSON.parse(txt) : {};
+      } catch (_) {
+        throw new Error(__WEBUI_TEXT__("runtime.invalid_ownership_response"));
+      }
+      if (data.error === "AUTH_REQUIRED") {
+        endNetworkReconnectWait();
+        showSignIn(!!sessionToken());
+        return;
+      }
+      if (!response.ok)
+        throw new Error(data.message || data.error || __WEBUI_TEXT__("runtime.unable_to_reload"));
     }
-    let data = {};
-    try {
-      data = txt ? JSON.parse(txt) : {};
-    } catch (_) {
-      throw new Error(__WEBUI_TEXT__("runtime.invalid_ownership_response"));
-    }
-    if (!response.ok)
-      throw new Error(data.message || data.error || __WEBUI_TEXT__("runtime.unable_to_reload"));
     endNetworkReconnectWait();
     webUiOwner = true;
     resetWebUiInactivity();
@@ -2033,6 +2075,172 @@ async function claimWebUiOwnership() {
     webUiClaiming = false;
     if (btn) btn.disabled = false;
   }
+}
+function setSignInError(text) {
+  const el = $("loginError");
+  if (!el) return;
+  el.textContent = text || "";
+  el.hidden = !text;
+}
+// The sign-in form lives in the inactive overlay: same brand, footer and
+// focus handling, with the Reload controls hidden.
+async function showSignIn(signedOut) {
+  const overlay = $("webUiInactive");
+  if (!overlay || !$("webUiLogin")) return;
+  if (signedOut) storeSession("", false);
+  // Several requests can fail at once; one sign-in form is enough.
+  if (overlay.classList.contains("isLogin") && overlay.classList.contains("isVisible")) return;
+  if (webUiOwner) {
+    webUiOwner = false;
+    stopUiStream();
+    stopViewPolls();
+    lockAdminUi();
+    setMutable(false);
+  }
+  overlay.classList.add("isLogin");
+  showInactiveOverlay();
+  setSignInError("");
+  $("loginIntro").textContent = signedOut
+    ? __WEBUI_TEXT__("runtime.signed_out_hint")
+    : __WEBUI_TEXT__("shell.sign_in_intro");
+  $("loginPassword").focus({ preventScroll: true });
+  try {
+    const response = await fetch("/api/v1/auth", { headers: webUiHeaders() });
+    const data = await response.json();
+    $("loginDevice").textContent = $("loginUser").value = data.deviceName || "";
+    // The login was turned off meanwhile, or this is the setup network.
+    if (!data.loginRequired) {
+      overlay.classList.remove("isLogin");
+      claimWebUiOwnership();
+    }
+  } catch (_) {}
+}
+{
+  const form = $("webUiLogin");
+  if (form) {
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const password = $("loginPassword").value,
+        submit = $("loginSubmit");
+      if (!password) {
+        setSignInError(__WEBUI_TEXT__("admin.device_password_is_required"));
+        return;
+      }
+      submit.disabled = true;
+      setSignInError("");
+      try {
+        const response = await fetch("/api/v1/auth/login", {
+          method: "POST",
+          headers: { [WEB_UI_CLIENT_HEADER]: webUiClientId, "Content-Type": "application/json" },
+          body: body({ password, remember: $("loginRemember").checked }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (data.error === "AUTH_NOT_REQUIRED") {
+          $("webUiInactive").classList.remove("isLogin");
+          return claimWebUiOwnership();
+        }
+        if (!response.ok) {
+          setSignInError(
+            data.error === "AUTH_COOLDOWN"
+              ? __WEBUI_TEXT__("runtime.too_many_sign_in_attempts")
+              : data.error === "DEVICE_PASSWORD_INVALID"
+                ? __WEBUI_TEXT__("runtime.wrong_device_password")
+                : data.message || __WEBUI_TEXT__("runtime.unable_to_reload"),
+          );
+          return;
+        }
+        storeSession(data.token, !!data.remember);
+        $("loginPassword").value = "";
+        $("webUiInactive").classList.remove("isLogin");
+        await claimWebUiOwnership(data.active ? data : undefined);
+      } catch (_) {
+        setSignInError(__WEBUI_TEXT__("runtime.device_unreachable"));
+      } finally {
+        submit.disabled = false;
+      }
+    };
+    $("loginShow").onclick = () => {
+      const input = $("loginPassword"),
+        reveal = input.type === "password";
+      input.type = reveal ? "text" : "password";
+      $("loginShow").textContent = reveal
+        ? __WEBUI_TEXT__("shell.hide")
+        : __WEBUI_TEXT__("shell.show");
+      $("loginShow").setAttribute("aria-pressed", String(reveal));
+    };
+    $("loginForgot").onclick = () => {
+      const help = $("loginHelp");
+      help.hidden = !help.hidden;
+      $("loginForgot").setAttribute("aria-expanded", String(!help.hidden));
+    };
+  }
+}
+// A pending Home Assistant pairing request, shown on every view while this
+// window holds control; the code matches the one Home Assistant shows.
+let pairShownId = 0,
+  pairUntil = 0,
+  pairTimer = 0;
+function paintPairExpiry() {
+  const left = Math.max(0, Math.ceil((pairUntil - Date.now()) / 1000));
+  $("pairExpires").textContent =
+    __WEBUI_TEXT__("runtime.pairing_expires_in") +
+    Math.floor(left / 60) +
+    ":" +
+    String(left % 60).padStart(2, "0");
+}
+function applyPairingPrompt(access) {
+  const dialog = $("pairDialog");
+  if (!dialog) return;
+  const id = webUiOwner && access && access.login ? access.pairId || 0 : 0;
+  if (!id) {
+    if (dialog.open) dialog.close();
+    clearInterval(pairTimer);
+    pairShownId = 0;
+    return;
+  }
+  if (id === pairShownId) return;
+  pairShownId = id;
+  pairUntil = Date.now() + (access.pairRemainingS || 0) * 1000;
+  $("pairCode").replaceChildren(
+    ...String(access.pairCode || "")
+      .split("")
+      .map((digit) => {
+        const cell = document.createElement("span");
+        cell.textContent = digit;
+        return cell;
+      }),
+  );
+  paintPairExpiry();
+  clearInterval(pairTimer);
+  pairTimer = setInterval(paintPairExpiry, 1000);
+  if (!dialog.open) dialog.showModal();
+}
+async function decidePairing(allow) {
+  const id = pairShownId;
+  $("pairDialog").close();
+  clearInterval(pairTimer);
+  try {
+    await api("/api/v1/auth/pairing", { method: "POST", body: body({ id, allow }) });
+    message(
+      allow
+        ? __WEBUI_TEXT__("runtime.home_assistant_connected")
+        : __WEBUI_TEXT__("runtime.home_assistant_denied"),
+      "ok",
+    );
+  } catch (e) {
+    message(
+      formatCommandError(__WEBUI_TEXT__("runtime.could_not_answer_home_assistant"), e),
+      "error",
+    );
+  }
+}
+{
+  const allow = $("pairAllow"),
+    deny = $("pairDeny");
+  if (allow) allow.onclick = () => decidePairing(true);
+  if (deny) deny.onclick = () => decidePairing(false);
+  // Escape only hides this request; the countdown stops with it.
+  if (allow) $("pairDialog").oncancel = () => clearInterval(pairTimer);
 }
 function body(values) {
   return JSON.stringify(values);
@@ -2085,7 +2293,7 @@ function setMutable(enabled) {
     "dateTimePanel",
     "frontendPanel",
     "networkPanel",
-    "devicePasswordPanel",
+    "accessPanel",
     "firmwareModePanel",
     "blePanel",
     "powerPanel",
@@ -3722,6 +3930,9 @@ function renderHomeStream() {
   lastStatusAt = Date.now();
   statusLiveShot = !!status.liveShot;
   applyCommonStatus(status);
+  // Only the Home stream carries the pairing request; Admin's status has its
+  // own access summary.
+  applyPairingPrompt(status.access);
   if (status.snapshotStale) setMutable(false);
   // Frames on any view prove reachability, so the out-of-reach overlay
   // clears even off Home.
@@ -6148,8 +6359,8 @@ export {
   shotWs,
   HISTORY_EXPORT_LIMIT,
   acquireDeviceSlot,
-  WEB_UI_CLIENT_HEADER,
-  webUiClientId,
+  webUiHeaders,
+  storeSession,
   releaseDeviceSlot,
   formatTzLabel,
   ms,

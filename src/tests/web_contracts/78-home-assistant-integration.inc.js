@@ -10,9 +10,13 @@
     if (!integrationApi.includes(route))
       throw new Error(`Missing Home Assistant integration route: ${route}`);
   }
+  // Open like the Web UI while its optional login is off; the login gate in
+  // OpenBrewByWeightWebAccessHttp.inc answers first and asks for a token only
+  // while that login is on.
   if (/Authorization|Bearer|pairing|management.token|requireIntegrationAuth/i.test(integrationApi) ||
+      !integrationApi.includes('if (self.integrationAccessRoute(request, accessResult)) return accessResult;') ||
       codeIncludes(viewJs.admin, '/api/v1/integration/pairing/open')) {
-    throw new Error('The integration API must share the open local-LAN posture of the Web UI');
+    throw new Error('The integration API must stay open unless the optional Web UI login is on');
   }
   if (!integrationApi.includes('\\"wifiMac\\"') ||
       !integrationApi.includes('\\"bluetoothMac\\"')) {

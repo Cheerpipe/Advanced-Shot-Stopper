@@ -103,6 +103,30 @@ bool OpenBrewByWeightNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("compatibilityMode", bool(firmwareCompatibilityMode()));
   delta.field("adminUnlocked", bool(unlocked));
   delta.field("development", bool(DEVELOPMENT_BUILD));
+  {
+    // Optional login: the Home notice and a pending Home Assistant pairing
+    // request, which every view shows as a prompt.
+    bool login = false, notice = false;
+    uint32_t pairId = 0, pairRemainingS = 0;
+    char pairCode[5] = {};
+    {
+      TaskLockGuard lock(dataMux_);
+      const uint32_t now = millis();
+      webAccessTickPairing(g_webAccess, now);
+      login = g_webAccess.stored.enabled != 0 && !passwordIsFactoryDefault(settings_);
+      notice = !login && g_webAccess.stored.noticeDismissed == 0 && !session.fromSoftAp;
+      if (login && g_webAccess.pairing.state == WebAccessPairing::PENDING) {
+        pairId = g_webAccess.pairing.id;
+        pairRemainingS = (g_webAccess.pairing.untilMs - now + 999U) / 1000U;
+        memcpy(pairCode, g_webAccess.pairing.code, sizeof(pairCode));
+      }
+    }
+    delta.field("access.login", login);
+    delta.field("access.notice", notice);
+    delta.field("access.pairId", static_cast<unsigned long>(pairId));
+    delta.field("access.pairCode", "\"%s\"", pairCode);
+    delta.field("access.pairRemainingS", static_cast<unsigned long>(pairRemainingS));
+  }
   delta.field("lastCommand.requestId", static_cast<unsigned long>(network.lastCommandRequestId));
   delta.field("lastCommand.state", "\"%s\"", commandResultStateName(network.lastCommandState));
   const auto &config = control.config;

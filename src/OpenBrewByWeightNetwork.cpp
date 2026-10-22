@@ -23,6 +23,7 @@
 #include "OpenBrewByWeightShotCurveTypes.h"
 #include <OpenBrewByWeightVersion.h>
 #include "OpenBrewByWeightWatchdog.h"
+#include "OpenBrewByWeightWebAccessStore.h"
 
 #include "OpenBrewByWeightWebAssetsGzip.h"
 
@@ -30,6 +31,7 @@
 #include <cJSON.h>
 #include <esp_log.h>
 #include <esp_mac.h>
+#include <esp_random.h>
 #include <esp_sntp.h>
 #include <esp_wifi.h>
 #include <mdns.h>
@@ -196,6 +198,8 @@ static_assert(sizeof(NetworkWorkBuf) <= 655360,
 static OPEN_BREW_BY_WEIGHT_PSRAM_BSS WifiScanSnapshot g_wifiScan;
 static OPEN_BREW_BY_WEIGHT_PSRAM_BSS WifiScanSnapshot g_wifiScanWorking;
 static OPEN_BREW_BY_WEIGHT_PSRAM_BSS PersistedSettings g_networkSettings;
+// Web UI login state; dataMux_ guards it and the network task persists it.
+static OPEN_BREW_BY_WEIGHT_PSRAM_BSS WebAccessState g_webAccess;
 
 namespace {
 
@@ -1290,6 +1294,7 @@ OpenBrewByWeightNetwork *OpenBrewByWeightNetwork::instance_ = nullptr;
 #include "network/OpenBrewByWeightWifi.inc"
 #include "network/OpenBrewByWeightHttpLifecycle.inc"
 #include "network/OpenBrewByWeightHttpAuthAssets.inc"
+#include "network/OpenBrewByWeightWebAccessHttp.inc"
 #include "network/OpenBrewByWeightUiStream.inc"
 #include "network/OpenBrewByWeightStatus.inc"
 #include "diagnostics/OpenBrewByWeightNetworkDiagnostics.inc"

@@ -1,0 +1,179 @@
+#include "../OpenBrewByWeightWebAccess.h"
+
+#include <cassert>
+#include <cstring>
+
+using namespace openbrewbyweight;
+
+namespace {
+
+void token(uint8_t seed, uint8_t out[WEB_ACCESS_TOKEN_BYTES]) {
+  for (size_t index = 0; index < WEB_ACCESS_TOKEN_BYTES; ++index) {
+    out[index] = static_cast<uint8_t>(seed + index * 7U);
+  }
+}
+
+constexpr uint32_t DAY = 24UL * 3600UL;
+constexpr uint32_t T0 = 1767225600UL;  // 2026-01-01, a synced wall clock
+
+void tokenTextRoundTrips() {
+  uint8_t value[WEB_ACCESS_TOKEN_BYTES], parsed[WEB_ACCESS_TOKEN_BYTES] = {};
+  token(0xA0, value);
+  char text[WEB_ACCESS_TOKEN_TEXT] = {};
+  formatWebAccessToken(value, text);
+  assert(std::strlen(text) == 32);
+  assert(parseWebAccessToken(text, parsed));
+  assert(webAccessTokenEqual(value, parsed));
+  text[3] = 'A';
+  assert(!parseWebAccessToken(text, parsed));  // lowercase only
+  text[3] = '0';
+  text[31] = '\0';
+  assert(!parseWebAccessToken(text, parsed));
+  assert(!parseWebAccessToken("", parsed));
+  assert(!parseWebAccessToken(nullptr, parsed));
+}
+
+void browserSessionsExpireAndWrap() {
+  WebAccessState state;
+  uint8_t a[WEB_ACCESS_TOKEN_BYTES], b[WEB_ACCESS_TOKEN_BYTES];
+  token(1, a);
+  token(2, b);
+  const uint32_t start = 0xFFFFFF00UL;  // millis wraps during the session
+  webAccessIssueSession(state, a, false, start, 0);
+  assert(!state.dirty);  // RAM only
+  assert(webAccessSessionValid(state, a, start + WEB_ACCESS_BROWSER_MS - 1, 0));
+  assert(!webAccessSessionValid(state, b, start, 0));
+  assert(!webAccessSessionValid(state, a, start + WEB_ACCESS_BROWSER_MS, 0));
+  assert(!webAccessSessionValid(state, a, start, 0));  // expired slot cleared
+  for (uint8_t seed = 10; seed < 10 + WEB_ACCESS_BROWSER_SLOTS + 1; ++seed) {
+    uint8_t t[WEB_ACCESS_TOKEN_BYTES];
+    token(seed, t);
+    webAccessIssueSession(state, t, false, seed, 0);
+  }
+  uint8_t first[WEB_ACCESS_TOKEN_BYTES], last[WEB_ACCESS_TOKEN_BYTES];
+  token(10, first);
+  token(10 + WEB_ACCESS_BROWSER_SLOTS, last);
+  assert(!webAccessSessionValid(state, first, 20, 0));  // closest to expiry evicted
+  assert(webAccessSessionValid(state, last, 20, 0));
+}
+
+void rememberedSessionsAgeRenewAndEvict() {
+  WebAccessState state;
+  uint8_t a[WEB_ACCESS_TOKEN_BYTES];
+  token(1, a);
+  webAccessIssueSession(state, a, true, 0, T0);
+  assert(state.dirty && state.stored.rememberedMask == 1);
+  state.dirty = false;
+  assert(webAccessSessionValid(state, a, 0, T0 + 3600));
+  assert(!state.dirty);  // renewal at most daily
+  assert(webAccessSessionValid(state, a, 0, T0 + DAY));
+  assert(state.dirty && state.stored.remembered[0].usedUtc == T0 + DAY);
+  // Without a synced clock a remembered session never ages out.
+  assert(webAccessSessionValid(state, a, 0, 0));
+  assert(!webAccessSessionValid(state, a, 0, T0 + DAY + WEB_ACCESS_REMEMBER_SEC));
+  assert(state.stored.rememberedMask == 0);
+
+  WebAccessState full;
+  for (uint8_t slot = 0; slot < WEB_ACCESS_REMEMBERED_SLOTS; ++slot) {
+    uint8_t t[WEB_ACCESS_TOKEN_BYTES];
+    token(static_cast<uint8_t>(20 + slot), t);
+    webAccessIssueSession(full, t, true, 0, T0 + slot);
+  }
+  assert(webAccessRememberedCount(full, T0) == WEB_ACCESS_REMEMBERED_SLOTS);
+  uint8_t newest[WEB_ACCESS_TOKEN_BYTES], oldest[WEB_ACCESS_TOKEN_BYTES];
+  token(99, newest);
+  token(20, oldest);
+  webAccessIssueSession(full, newest, true, 0, T0 + 100);
+  assert(!webAccessSessionValid(full, oldest, 0, T0 + 100));
+  assert(webAccessSessionValid(full, newest, 0, T0 + 100));
+  assert(webAccessRememberedCount(full, T0 + 100) == WEB_ACCESS_REMEMBERED_SLOTS);
+}
+
+void revocationKeepsOnlyWhatItShould() {
+  WebAccessState state;
+  uint8_t keep[WEB_ACCESS_TOKEN_BYTES], other[WEB_ACCESS_TOKEN_BYTES],
+      browser[WEB_ACCESS_TOKEN_BYTES], ha[WEB_ACCESS_TOKEN_BYTES];
+  token(1, keep);
+  token(2, other);
+  token(3, browser);
+  token(4, ha);
+  webAccessIssueSession(state, keep, true, 0, T0);
+  webAccessIssueSession(state, other, true, 0, T0);
+  webAccessIssueSession(state, browser, false, 0, T0);
+  webAccessSetHomeAssistant(state, ha, T0);
+  webAccessRevokeSessions(state, keep);
+  assert(webAccessSessionValid(state, keep, 1, T0));
+  assert(!webAccessSessionValid(state, other, 1, T0));
+  assert(!webAccessSessionValid(state, browser, 1, T0));
+  assert(webAccessHomeAssistantValid(state, ha));  // separate from sessions
+  webAccessRevokeSessions(state, keep, true);
+  assert(!webAccessSessionValid(state, keep, 1, T0));
+
+  state.stored.enabled = 1;
+  state.stored.noticeDismissed = 1;
+  webAccessIssueSession(state, keep, true, 0, T0);
+  assert(webAccessStartPairing(state, 7, 1234, 0));
+  webAccessDisable(state);
+  assert(state.stored.enabled == 0 && state.stored.noticeDismissed == 1);
+  assert(state.stored.rememberedMask == 0 && state.stored.homeAssistant == 0);
+  assert(!webAccessHomeAssistantValid(state, ha));
+  assert(state.pairing.state == WebAccessPairing::NONE);
+}
+
+void pairingApprovesOnceDeniesAndExpires() {
+  WebAccessState state;
+  uint8_t issued[WEB_ACCESS_TOKEN_BYTES], out[WEB_ACCESS_TOKEN_BYTES] = {};
+  token(5, issued);
+  assert(!webAccessStartPairing(state, 0, 1, 0));  // id 0 is reserved
+  assert(webAccessStartPairing(state, 42, 7, 1000));
+  assert(std::strcmp(state.pairing.code, "0007") == 0);
+  assert(!webAccessStartPairing(state, 43, 8, 1001));  // one at a time
+  assert(webAccessPairingStatus(state, 43, 1002, out) == WebAccessPairing::NONE);
+  assert(webAccessPairingStatus(state, 42, 1002, out) == WebAccessPairing::PENDING);
+  assert(!webAccessDecidePairing(state, 43, true, issued, 1003, T0));
+  assert(webAccessDecidePairing(state, 42, true, issued, 1003, T0));
+  assert(webAccessHomeAssistantValid(state, issued));
+  assert(state.stored.homeAssistantSinceUtc == T0 && state.dirty);
+  assert(webAccessPairingStatus(state, 42, 1004, out) == WebAccessPairing::APPROVED);
+  assert(webAccessTokenEqual(out, issued));
+  assert(webAccessPairingStatus(state, 42, 1005, out) == WebAccessPairing::NONE);
+
+  assert(webAccessStartPairing(state, 50, 9999, 2000));
+  assert(webAccessDecidePairing(state, 50, false, issued, 2001, T0));
+  assert(webAccessPairingStatus(state, 50, 2002, out) == WebAccessPairing::DENIED);
+  assert(!webAccessStartPairing(state, 51, 1, 2003));  // result window
+  assert(webAccessStartPairing(state, 51, 1, 2001 + WEB_ACCESS_PAIRING_RESULT_MS));
+
+  const uint32_t started = 2001 + WEB_ACCESS_PAIRING_RESULT_MS;
+  const uint32_t expired = started + WEB_ACCESS_PAIRING_MS;
+  assert(webAccessPairingStatus(state, 51, expired, out) == WebAccessPairing::EXPIRED);
+  assert(!webAccessDecidePairing(state, 51, true, issued, expired + 1, T0));
+  assert(!webAccessStartPairing(state, 52, 1, expired + 1));
+  assert(webAccessStartPairing(state, 52, 1, expired + WEB_ACCESS_PAIRING_RESULT_MS));
+}
+
+void storedBlobChecksum() {
+  WebAccessStored stored;
+  assert(!validWebAccessStored(stored));  // never finalized
+  stored.enabled = 1;
+  finalizeWebAccessStored(stored);
+  assert(validWebAccessStored(stored));
+  stored.rememberedMask = 3;
+  assert(!validWebAccessStored(stored));
+  finalizeWebAccessStored(stored);
+  stored.enabled = 2;
+  stored.checksum = webAccessChecksum(stored);
+  assert(!validWebAccessStored(stored));
+}
+
+}  // namespace
+
+int main() {
+  tokenTextRoundTrips();
+  browserSessionsExpireAndWrap();
+  rememberedSessionsAgeRenewAndEvict();
+  revocationKeepsOnlyWhatItShould();
+  pairingApprovesOnceDeniesAndExpires();
+  storedBlobChecksum();
+  return 0;
+}

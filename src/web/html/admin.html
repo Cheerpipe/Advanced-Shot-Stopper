@@ -454,8 +454,73 @@
     </div>
     <small id="webhookDirtyHint" class="warn hidden">{{webui:admin.unsaved_changes}}</small>
   </fieldset>
-  <fieldset id="devicePasswordPanel">
-    <legend>{{webui:admin.device_password}}</legend>
+  <fieldset id="accessPanel">
+    <legend>{{webui:admin.access}}</legend>
+    <label
+      ><input id="loginEnabled" type="checkbox" role="switch" />
+      {{webui:admin.require_password}}<small id="loginEnabledHint" class="fieldHint"
+        >{{webui:admin.login_off_hint}}</small
+      ></label
+    >
+    <div id="loginSheet" class="accessSheet hidden">
+      <p id="loginSheetText"></p>
+      <label id="loginNewWrap"
+        >{{webui:admin.new_device_password}}
+        <input
+          id="loginNewPassword"
+          type="password"
+          minlength="8"
+          maxlength="63"
+          autocomplete="new-password"
+        /><small class="fieldHint">{{webui:admin.8_63_characters}}</small></label
+      ><label id="loginRepeatWrap"
+        >{{webui:admin.confirm_device_password}}
+        <input
+          id="loginRepeatPassword"
+          type="password"
+          minlength="8"
+          maxlength="63"
+          autocomplete="new-password"
+      /></label>
+      <label id="loginCurrentWrap"
+        >{{webui:admin.device_password}}
+        <input
+          id="loginCurrentPassword"
+          type="password"
+          maxlength="63"
+          autocomplete="current-password"
+      /></label>
+      <p id="loginSecurityNote" class="fieldHint">{{webui:admin.login_security_note}}</p>
+      <p id="loginHomeAssistantWarning" class="warn hidden">
+        {{webui:admin.home_assistant_recent_warning}}
+      </p>
+      <div class="btnBar">
+        <button id="loginConfirmButton" class="btnGlyph btnInvert" type="button">
+          <span class="t">{{webui:admin.turn_on}}</span></button
+        ><button id="loginCancelButton" class="btnGlyph ghost" type="button">
+          <span class="t">{{webui:shell.cancel}}</span>
+        </button>
+      </div>
+    </div>
+    <div id="accessSessions" class="accessRow hidden">
+      <span><b>{{webui:admin.remembered_devices}}</b> <span id="rememberedCount"></span></span>
+      <button id="signOutOthersButton" type="button" class="textLock">
+        {{webui:admin.sign_out_other_devices}}
+      </button>
+    </div>
+    <div id="accessThisDevice" class="accessRow hidden">
+      <b>{{webui:admin.this_device}}</b>
+      <button id="signOutButton" type="button" class="textLock">{{webui:admin.sign_out}}</button>
+    </div>
+    <div id="accessHomeAssistant" class="accessRow hidden">
+      <span><b>{{webui:admin.home_assistant}}</b> <span id="homeAssistantState"></span></span>
+      <button id="disconnectHomeAssistantButton" type="button" class="textLock">
+        {{webui:admin.disconnect}}
+      </button>
+    </div>
+    <div class="accessRow">
+      <span><b>{{webui:admin.device_password}}</b> <span id="devicePasswordKind"></span></span>
+    </div>
     <div id="apStatus">{{webui:admin.ap_ssid_address}}</div>
     <label
       >{{webui:admin.new_device_password}}
@@ -479,6 +544,9 @@
         required
         autocomplete="new-password"
       /><small class="fieldHint">{{webui:admin.must_match_the_new_device_password}}</small></label
+    >
+    <small id="passwordChangeLoginHint" class="fieldHint hidden"
+      >{{webui:admin.password_change_login_hint}}</small
     >
     <div class="btnBar">
       <button

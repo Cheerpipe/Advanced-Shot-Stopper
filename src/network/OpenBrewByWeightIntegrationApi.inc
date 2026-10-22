@@ -141,6 +141,8 @@ bool buildIntegrationQuickSettings(const QuickSettingsSnapshot &snapshot,
 esp_err_t OpenBrewByWeightNetwork::integrationHandler(httpd_req_t *request) {
   OpenBrewByWeightNetwork &self = *instance_;
   const char *uri = request->uri;
+  esp_err_t accessResult = ESP_OK;
+  if (self.integrationAccessRoute(request, accessResult)) return accessResult;
 
   if (apiUriMatches(uri, "/api/v1/integration") &&
       request->method == HTTP_GET) {

@@ -81,6 +81,16 @@
     </button>
   </div>
 </section>
+<section id="accessHint" class="homeCard accessHint" hidden>
+  <p><strong>{{webui:home.access_hint_title}}</strong> {{webui:home.access_hint_text}}</p>
+  <div class="btnBar">
+    <a id="accessHintOpen" class="btnGlyph btnInvert" href="/admin#accessPanel"
+      ><span class="t">{{webui:home.access_hint_open}}</span></a
+    ><button id="accessHintDismiss" class="btnGlyph ghost" type="button">
+      <span class="t">{{webui:home.access_hint_dismiss}}</span>
+    </button>
+  </div>
+</section>
 <section id="micraCloudHint" class="homeCard" hidden>
   <p><strong>{{webui:home.micra_hint_title}}</strong> {{webui:home.micra_hint_text}}</p>
   <label><input id="micraCloudHintMute" type="checkbox" /> {{webui:home.dont_show_again}}</label>

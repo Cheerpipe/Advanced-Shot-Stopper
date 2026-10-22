@@ -562,8 +562,11 @@ if (cssRoundTrip !== generated.css) {
 // The Home "Stop the shot" card (segmented control, Protections row and
 // panel, off-confirmation, ready notice, preset-lock note, sheet ratio)
 // measures 4650 bytes, owner-authorized 2026-10-14. Cap raised to 4700.
-if (generated.gzip.length > 4700) {
-  throw new Error(`Compressed Web UI shell HTML exceeds the 4700-byte gzip budget (${generated.gzip.length})`);
+// The optional Web UI login (sign-in form in the inactive overlay, Home
+// Assistant pairing prompt, Home access notice) measures 5129 bytes,
+// owner-requested 2026-10-22. Cap raised to 5140 for asset-tag gzip wobble.
+if (generated.gzip.length > 5140) {
+  throw new Error(`Compressed Web UI shell HTML exceeds the 5140-byte gzip budget (${generated.gzip.length})`);
 }
 if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest?v=' + generated.assetTag + '"') ||
     !generated.html
@@ -627,8 +630,10 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest?v=' + g
 // raised to 7400.
 // The audit accessibility fixes (page titles, focus on navigation, modal
 // quick-weight focus) measure 7492, measured raise of the 2026-10-21 frontend audit remediation. Cap raised to 7510.
-if (generated.jsGzip.length > 7510) {
-  throw new Error(`Compressed Web UI shell JS exceeds the 7510-byte gzip budget (${generated.jsGzip.length})`);
+// The Home access notice wiring in the inlined home module measures 7612,
+// owner-requested 2026-10-22. Cap raised to 7630 for the stamped asset tag.
+if (generated.jsGzip.length > 7630) {
+  throw new Error(`Compressed Web UI shell JS exceeds the 7630-byte gzip budget (${generated.jsGzip.length})`);
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -713,8 +718,10 @@ if (generated.jsGzip.length > 7510) {
 // The Stats consistency columns (band, columns, edges, level tones) measure 15681 bytes; owner-requested 2026-10-20.
 // The Stats consistency clipped-column notch measures 15691 bytes; owner-requested 2026-10-20.
 // The Home preset rules peek and its graph chevron measure 15742 bytes; owner-requested 2026-10-20.
-if (generated.cssGzip.length > 15742) {
-  throw new Error(`Compressed Web CSS exceeds the 15742-byte gzip budget (${generated.cssGzip.length})`);
+// The optional Web UI login (sign-in form, Access panel rows and sheet, pairing code) measures 15825 bytes;
+// owner-requested 2026-10-22.
+if (generated.cssGzip.length > 15825) {
+  throw new Error(`Compressed Web CSS exceeds the 15825-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -865,8 +872,10 @@ if (generated.cssGzip.length > 15742) {
 // to 40442; measured raise of the 2026-10-21 frontend audit remediation.
 // Review fix RV-07 (trimming old log lines keeps a scrolled-back reader in place) brings it to 40444; cap 40460
 // for gzip wobble.
-if (sentinelRuntimeGzip.length > 40460) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 40460-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The optional Web UI login (session header, sign-in form, Home Assistant pairing prompt; shell-level, so it
+// lives in the runtime) brings it to 41531, owner-requested 2026-10-22; cap 41540 for gzip wobble.
+if (sentinelRuntimeGzip.length > 41540) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 41540-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -945,7 +954,10 @@ if (generated.otaImageGzip.length > 3072) {
 // The audit accessibility and form fixes (Setup focus, labelled choices, single Skip) measure setup.js at 5855 (cap 5870 for asset-tag gzip wobble); measured raise of the 2026-10-21 frontend audit remediation.
 // Review fixes RV-10 and RV-12 (escaped preset filter label, star radio keyboard pattern) measure records.js at
 // 15345 and RV-08 (pending log level) diagnostic.js at 13919; caps 15360 and 13930 for asset-tag gzip wobble.
-const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 14229, settings: 16813, setup: 5870};
+// The Admin Access panel (login switch and confirmation sheet, remembered devices, Home Assistant row,
+// sign-out rows) measures admin.js with its markup at 15624, owner-requested 2026-10-22; cap 15640
+// for asset-tag gzip wobble.
+const viewModuleBudgets = {records: 15360, diagnostic: 13930, admin: 15640, settings: 16813, setup: 5870};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -1146,11 +1158,15 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // Review fixes for the hidden close, setup sessions and the 4002 reconnect brings it to 67869; owner-requested 2026-10-21.
 // Browser storage keys renamed from the legacy ss prefix to obbw bring it to 67885; rename owner-requested 2026-10-21.
 // Review fixes RV-03 (History sort pill look), RV-04 and RV-07 bring it to 67895.
-if (coldHomeGzip > 67895) {
-  throw new Error(`Cold Home download exceeds the 67895-byte gzip budget (${coldHomeGzip})`);
+// The optional Web UI login (shell sign-in form and pairing prompt, runtime session and sign-in code,
+// Home notice, CSS) brings it to 70097, owner-requested 2026-10-22; cap 70120 for asset-tag gzip wobble.
+if (coldHomeGzip > 70120) {
+  throw new Error(`Cold Home download exceeds the 70120-byte gzip budget (${coldHomeGzip})`);
 }
-if (generated.combined > 147350) {
-  throw new Error(`Combined Web UI gzip exceeds the 147350-byte flash budget (${generated.combined})`);
+// The optional Web UI login brings every embedded asset together to 149453,
+// owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble.
+if (generated.combined > 149480) {
+  throw new Error(`Combined Web UI gzip exceeds the 149480-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {
@@ -2000,8 +2016,10 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
     throw new Error(
       'Web UI OTA must not collect a separate password after admin unlock');
   }
-  // OTA rides the shared API client, which carries the Web UI client header.
-  if (!codeIncludes(js, 'options.headers=Object.assign({[WEB_UI_CLIENT_HEADER]:webUiClientId}') ||
+  // OTA rides the shared API client, which carries the Web UI client and
+  // session headers.
+  if (!codeIncludes(js, 'options.headers=webUiHeaders(options.headers)') ||
+      !codeIncludes(js, '{[WEB_UI_CLIENT_HEADER]:webUiClientId}') ||
       !codeIncludes(viewJs.admin, 'return R.api(path,{method,body,headers,timeoutMs})') ||
       !network.includes('adminUnlockAllowed(request)') ||
       !network.includes('secretsMatch(password, expected)') ||

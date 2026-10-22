@@ -485,8 +485,26 @@ bool OpenBrewByWeightNetwork::processPersistedCommand(const WebCommand &command)
       applyMdnsName();
     log(DebugCategory::CONFIG, DebugCode::CONFIG_PERSISTED,
         static_cast<int32_t>(next.runtime.revision));
+    if (command.type == WebCommandType::CHANGE_DEVICE_PASSWORD) {
+      // Every other Web UI session signs in again; Home Assistant keeps its
+      // own token. A USB change has no session to keep.
+      uint8_t keep[WEB_ACCESS_TOKEN_BYTES] = {};
+      bool keepValid = false;
+      dataMux_.lock();
+      memcpy(keep, passwordKeepToken_, sizeof(keep));
+      keepValid = passwordKeepValid_ && passwordKeepRequestId_ == command.requestId;
+      memset(passwordKeepToken_, 0, sizeof(passwordKeepToken_));
+      passwordKeepValid_ = false;
+      dataMux_.unlock();
+      webAccessSignOut(keepValid ? keep : nullptr, false);
+      memset(keep, 0, sizeof(keep));
+    } else if (command.type == WebCommandType::RESET_DEVICE_PASSWORD ||
+               command.type == WebCommandType::RESET_NETWORK_AP) {
+      webAccessSignOut(nullptr, true);
+    }
   } else if (factoryReset) {
     dataMux_.lock();
+    g_webAccess = WebAccessState{};  // the durable reset erased its record
     settings_ = next;
     status_.wifiConfigured = false;
     status_.staConfigState =

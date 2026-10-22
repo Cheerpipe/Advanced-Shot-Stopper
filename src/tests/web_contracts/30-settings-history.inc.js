@@ -172,7 +172,7 @@ if (/R\.(homeFlushConfig|homeFlushPreset|configLoaded|formRev|brewDirty)\s*=/.te
 if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     !codeIncludes(ui, '<legend>Shared settings <span class="hint">') ||
     !codeIncludes(ui, '<legend>Network</legend>') ||
-    !codeIncludes(ui, '<legend>Device password</legend>') ||
+    !codeIncludes(ui, '<legend>Access</legend>') ||
     !codeIncludes(ui, '<legend>Frontend</legend>') ||
     !codeIncludes(ui, 'id="presetCards"') ||
     partialHtml.settings.includes('id="presetCardsState"') ||

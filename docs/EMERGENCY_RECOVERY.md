@@ -15,7 +15,9 @@ already running has stopped. Perform recovery with the machine idle.
 | Recover access | 3 | Wi-Fi, static IP, last-known-good network, device password | Machine settings, recipes, calibration, scales, history |
 | Factory reset | 5 | All saved configuration, calibration, scales, history and last shot | Firmware |
 
-Both restore the [factory AP access](settings/ap.md#first-connection).
+Both restore the [factory AP access](settings/ap.md#first-connection) and turn
+off the [Web UI password](settings/web-access.md), so the Web UI opens without
+signing in.
 Factory reset cannot be undone.
 
 ## Before You Begin

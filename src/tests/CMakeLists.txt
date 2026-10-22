@@ -78,6 +78,7 @@ else()
   host_test(webhook_error_host_test
     DEFINITIONS OPEN_BREW_BY_WEIGHT_HOST_TEST LABEL "host;network")
   host_test(webhook_worker_host_test LABEL "host;network")
+  host_test(web_access_host_test LABEL "host;network")
   host_test(heap_telemetry_host_test LABEL "host;resources")
 host_test(audit_log_host_test LABEL "host;diagnostics")
 host_test(audit_store_host_test DEFINITIONS OPEN_BREW_BY_WEIGHT_AUDIT_HOST_TEST

@@ -634,7 +634,11 @@ loaded runtime is capped at 48,300 bytes and the cold Home download (shell,
 CSS, app and runtime) at 74,000 bytes. Each lazy view module carries its own
 cap: Stats and History 4,500, Diagnostic 12,450, Admin 14,200, Settings
 14,150 and Setup 3,600 bytes. All embedded assets together are capped at
-147,350 bytes. The selectable
+147,350 bytes; the optional Web UI login (sign-in form, Access panel, Home
+notice, Home Assistant pairing prompt; owner-requested 2026-10-22) measures
+149,453 bytes and raises that cap to 149,480 bytes, with the per-asset caps
+raised to their measured values in the Web contracts. Its firmware state (~400 bytes) lives in external BSS and
+one 196-byte NVS blob. The selectable
 WS implementation and its correctness fixes are included in the reviewed flash
 baseline above. The OTA-slot, DIRAM, external-BSS and other asset limits remain
 unchanged. The reference clean development build with WS measures 2,273,760 image

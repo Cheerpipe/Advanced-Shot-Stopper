@@ -39,9 +39,10 @@ start with [Hardware](HARDWARE.md).
    [USB NET_STATUS](SERIAL_CLI.md).
 5. If the Web UI shows **Reload**, select it to claim this browser session,
    then open **Admin** and unlock it with the device password.
-6. Change the factory device password in **Admin → Device password**. It is
+6. Change the factory device password in **Admin → Access**. It is
    shared by Admin and the setup network. If you later use the setup network
-   again, join it with the new password.
+   again, join it with the new password. To ask for that password before
+   anyone can use the Web UI, see [Web UI access](settings/web-access.md).
 
 A wrong password in the setup page can be corrected right there: the reason
 appears at the top of the card, your entries stay in place, and **Connect**

@@ -201,7 +201,7 @@ async function apiBinary(path, onProgress) {
     timer = setTimeout(() => ac.abort(), 12e4);
   try {
     const response = await fetch(path, {
-      headers: { [R.WEB_UI_CLIENT_HEADER]: R.webUiClientId },
+      headers: R.webUiHeaders(),
       signal: ac.signal,
       cache: "no-store",
     });

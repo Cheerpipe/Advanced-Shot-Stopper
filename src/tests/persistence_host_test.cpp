@@ -1,6 +1,7 @@
 #define OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST
 #include "../OpenBrewByWeightPersistence.h"
 #include "../OpenBrewByWeightBleScanPersistence.h"
+#include "../OpenBrewByWeightWebAccessStore.h"
 #include "../OpenBrewByWeightDurableStores.h"
 #include "../OpenBrewByWeightFirmwareMode.h"
 #include "../OpenBrewByWeightRecovery.h"
@@ -1343,6 +1344,39 @@ void p16b_usb_set_wifi_commits_confirmed_lkg() {
   CHECK(!pending.lkgValid);
   finalizePersistedSettings(pending);
   CHECK(validPersistedSettings(pending));
+}
+
+// The Web UI access blob: a missing or corrupt record loads as "login off".
+void p91_web_access_store_round_trip_and_corruption() {
+  resetHostPersistence();
+  WebAccessStored loaded;
+  loaded.enabled = 1;
+  CHECK(loadWebAccessStored(loaded) == WebAccessLoad::MISSING);
+  CHECK(loaded.enabled == 0 && loaded.rememberedMask == 0);
+  WebAccessStored stored;
+  stored.enabled = 1;
+  stored.noticeDismissed = 1;
+  stored.rememberedMask = 0x05;
+  stored.remembered[2].usedUtc = 1767225600UL;
+  stored.remembered[2].token[0] = 0x5A;
+  CHECK(saveWebAccessStored(stored));
+  CHECK(loadWebAccessStored(loaded) == WebAccessLoad::LOADED);
+  CHECK(memcmp(&loaded, &stored, sizeof(stored)) == 0);
+  {
+    OpenBrewByWeightPreferences preferences(NvsSubsystem::WEB_ACCESS);
+    CHECK(preferences.begin(SETTINGS_NAMESPACE, false));
+    stored.enabled = 0;  // checksum no longer matches
+    CHECK(preferences.putBytes(WEB_ACCESS_KEY, &stored, sizeof(stored)) == sizeof(stored));
+    preferences.end();
+  }
+  CHECK(loadWebAccessStored(loaded) == WebAccessLoad::INVALID);
+  CHECK(loaded.enabled == 0 && loaded.noticeDismissed == 0 &&
+        loaded.rememberedMask == 0);
+  // Factory reset erases the record, and erasing a missing one succeeds.
+  CHECK(saveWebAccessStored(stored));
+  CHECK(eraseWebAccessStored());
+  CHECK(loadWebAccessStored(loaded) == WebAccessLoad::MISSING);
+  CHECK(eraseWebAccessStored());
 }
 
 void p48_ble_scan_defaults_and_dual_slot_round_trip() {
@@ -3274,6 +3308,7 @@ const TestCase tests[] = {
     {"P61C", p61c_timestamped_capacity_and_interrupted_blocks},
     {"P61D", p61d_clear_epochs_and_stale_worker_images},
     {"P90", p90_firmware_mode_store_round_trip_and_factory_reset},
+    {"P91", p91_web_access_store_round_trip_and_corruption},
     {"P90b", p90b_setup_intent_commits_with_its_wifi},
     {"P86", p86_timezone_preference_and_durable_initialization},
     {"P85", p85_schema1_is_strict_and_micra_defaults_round_trip},

@@ -117,12 +117,20 @@ Reload claims the Web UI. Admin unlock is a separate password check. Idle
 timeouts, another browser's claim, and an active shot can each restrict
 controls for different reasons. See [Web access](GETTING_STARTED.md#web-access).
 
+### The Web UI asks me to sign in
+
+Someone turned on the [Web UI password](settings/web-access.md). Enter the
+device password, the same one used for Admin and the setup network. If a phone
+that used to open directly now asks again, it was signed out: the password was
+changed, **Sign out other devices** was used, or it was not used for 90 days.
+
 ### I forgot the password or cannot reach any interface
 
 Use [USB commands](SERIAL_CLI.md) or
 [physical recovery](EMERGENCY_RECOVERY.md). Resetting only the password over USB
 preserves Wi-Fi; access recovery also forgets the network. Factory reset erases
-much more. Compare the procedures before choosing one.
+much more. Compare the procedures before choosing one. Each of them also turns
+the Web UI password off.
 
 ### Automatic tare does not happen after switching on
 

@@ -9,6 +9,7 @@
 #include "OpenBrewByWeightShotLog.h"
 #include "OpenBrewByWeightCrashArchive.h"
 #include "OpenBrewByWeightAuditStore.h"
+#include "OpenBrewByWeightWebAccessStore.h"
 
 namespace openbrewbyweight {
 
@@ -127,7 +128,7 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
   // transparent (compatibility mode) and offers onboarding again.
 #if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                      \
     defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
-  if (!clearFirmwareMode()) {
+  if (!clearFirmwareMode() || !eraseWebAccessStored()) {
     return false;
   }
 #endif

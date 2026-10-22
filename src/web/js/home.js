@@ -4,7 +4,8 @@ const $ = R.$;
 let ready = false;
 let quickWeight = null;
 let quickWeightWanted = false;
-let micraHintClosed = false;
+let micraHintClosed = false,
+  accessHintClosed = false;
 
 // Boiler rows interpolate the warm-up estimate locally from the absolute
 // readyAtUtcSec the stream delivers once; a stable estimate costs no frames.
@@ -78,6 +79,14 @@ export function applyStatus(s) {
       s.lineaMicra?.accountConfigured !== false ||
       s.machineIntegration !== "linea_micra_cloud" ||
       R.cardDismissed("obbwCard:micraCloud");
+  // Lowest priority: it waits while the Micra or grind hint is showing.
+  const access = $("accessHint");
+  if (access)
+    access.hidden =
+      accessHintClosed ||
+      !s.access?.notice ||
+      (hint && !hint.hidden) ||
+      !$("grindHintCard")?.hidden;
   // Builds without the Micra integration ship none of its rows.
   if (__LINEA_MICRA__) {
     $("homeMicraPower").textContent = micraPower(s.lineaMicra);
@@ -178,6 +187,18 @@ export function init() {
   if ($("grindHintNewBeans")) $("grindHintNewBeans").onclick = () => R.startNewCoffee();
   if ($("grindHintLater"))
     $("grindHintLater").onclick = () => R.dismissCard($("grindHintCard").dataset.key);
+  if ($("accessHint")) {
+    $("accessHintOpen").onclick = (e) => {
+      e.preventDefault();
+      history.pushState(null, "", e.currentTarget.href);
+      R.renderRoute("/admin");
+    };
+    // The choice is kept on the controller, so other phones skip it too.
+    $("accessHintDismiss").onclick = () => {
+      accessHintClosed = $("accessHint").hidden = true;
+      R.api("/api/v1/auth/notice", { method: "POST", body: "{}" }).catch(() => {});
+    };
+  }
   if ($("micraCloudHint")) {
     $("micraCloudHintOpen").onclick = (e) => {
       e.preventDefault();

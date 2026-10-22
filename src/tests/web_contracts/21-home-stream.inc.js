@@ -23,6 +23,7 @@
     performance: {now: () => 1234}, statusUtcAnchorSec: 0, statusUtcAnchorAt: 0,
     statusLiveShot: false, viewStatusHandlers: {home: value => rendered.push(value)},
     applyCommonStatus: value => { common.push(value); mutable = !!value.configMutable; },
+    applyPairingPrompt() {},
     setMutable: value => { mutable = value; }, noteReachOk: () => { reachOk++; }, noteReachFail() {}, hideHomeBoot() {},
     clearCupWeights() {}, updateHeaderSignals() {}, updateHomeAdminActions() {}, setHomeSub() {},
     deactivateWebUi: () => { owner = false; }, $: () => null,

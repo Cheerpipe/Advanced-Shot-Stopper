@@ -14,6 +14,7 @@
 #include "OpenBrewByWeightBootHeap.h"
 #include "OpenBrewByWeightResourceOwner.h"
 #include "OpenBrewByWeightNetworkSetup.h"
+#include "OpenBrewByWeightWebAccess.h"
 
 #include <WiFi.h>
 #include <esp_http_server.h>
@@ -457,6 +458,16 @@ class OpenBrewByWeightNetwork {
   uint32_t adminUnlockUntilMs_ = 0;
   uint32_t adminUnlockCooldownUntilMs_ = 0;
   uint8_t adminUnlockFailures_ = 0;
+  // Last Integration API request; the Access panel warns before the login
+  // starts asking Home Assistant for a token.
+  uint32_t integrationSeenMs_ = 0;
+  bool integrationSeen_ = false;
+  // Web UI session that asked for that password-change request; it stays
+  // signed in. Another request (USB, a later one) keeps nobody.
+  uint8_t passwordKeepToken_[WEB_ACCESS_TOKEN_BYTES] = {};
+  uint32_t passwordKeepRequestId_ = 0;
+  bool passwordKeepValid_ = false;
+  uint32_t webAccessRetryAtMs_ = 0;  // 0 = no failed save waiting
   NetworkStatusSnapshot status_ = {};
   HeapLifecycleTracker httpHeap_ = {};
   HeapLifecycleTracker wifiHeap_ = {};
@@ -837,6 +848,40 @@ class OpenBrewByWeightNetwork {
   static bool socketServedBySoftAp(int socketFd);
   bool adminUnlockAllowed(httpd_req_t *request);
   bool requireAdminUnlock(httpd_req_t *request);
+  // Device-password check shared by Admin unlock, Web UI sign-in and the
+  // Home Assistant exchange: one failure counter and one cooldown.
+  enum class PasswordCheck : uint8_t { OK, WRONG, COOLDOWN };
+  PasswordCheck checkDevicePassword(const char *password);
+  static esp_err_t sendPasswordCheckError(httpd_req_t *request,
+                                         PasswordCheck check);
+  // Optional Web UI login (OpenBrewByWeightWebAccess.h). Effective only while
+  // the device password is not the factory default.
+  bool webAccessActive();
+  // Joining the SoftAP already proved the device password (WPA2 passphrase).
+  bool softApPeer(httpd_req_t *request);
+  bool webAccessSessionAllowed(httpd_req_t *request);
+  // everything: login off (sessions, Home Assistant, pairing). Otherwise
+  // revoke Web UI sessions except `keep`; with no `keep` the claim drops too.
+  void webAccessSignOut(const uint8_t *keep, bool everything);
+  void keepPasswordChangeSession(httpd_req_t *request, uint32_t requestId);
+  void serviceWebAccess();
+  // Union of the login, access, pairing and integration request bodies.
+  struct WebAccessBody {
+    char password[WIFI_PASSWORD_CAPACITY] = {};
+    char action[24] = {};
+    uint32_t id = 0;
+    bool remember = false, allow = false, hasPassword = false;
+    ~WebAccessBody() { memset(password, 0, sizeof(password)); }
+  };
+  bool readWebAccessBody(httpd_req_t *request, WebAccessBody &body,
+                         esp_err_t &sent);
+  static esp_err_t authStatusHandler(httpd_req_t *request);
+  static esp_err_t authLoginHandler(httpd_req_t *request);
+  static esp_err_t authLogoutHandler(httpd_req_t *request);
+  static esp_err_t authAccessHandler(httpd_req_t *request);
+  static esp_err_t authNoticeHandler(httpd_req_t *request);
+  static esp_err_t authPairingHandler(httpd_req_t *request);
+  bool integrationAccessRoute(httpd_req_t *request, esp_err_t &result);
   bool diagnosticPageEnabled();
   bool webUiOverrideAllowed(httpd_req_t *request);
   uint32_t webUiOverrideRemainingMs(httpd_req_t *request);

@@ -933,6 +933,71 @@ body.pageLoading :is(.view, .view *)::after {
   margin-top: auto;
   width: 100%;
 }
+/* Optional sign-in: the inactive overlay swaps Reload for this form. */
+#webUiLogin,
+.inactiveOverlay.isLogin :is(#webUiReload, #inactiveHint, #inactiveError) {
+  display: none;
+}
+.inactiveOverlay.isLogin #webUiLogin {
+  display: block;
+  margin: 0;
+  text-align: left;
+}
+.loginDevice {
+  margin: 0 0 0.1rem;
+  color: var(--mu);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+#loginForgot {
+  display: block;
+  margin: 0.6rem auto 0;
+}
+.loginHelp {
+  margin: 0.9rem 0 0;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--ln);
+  font-size: 0.86rem;
+}
+.loginHelp a {
+  color: var(--ac);
+}
+#pairDialog {
+  text-align: center;
+}
+#pairDialog h2 {
+  margin: 0 0 0.3rem;
+  font-size: 1.2rem;
+}
+.pairCode {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0.6rem 0 0;
+}
+.pairCode span {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 3.1rem;
+  border: 1px solid var(--ln);
+  border-radius: var(--r);
+  background: var(--in);
+  font-size: 1.6rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.pairMeta {
+  margin: 0.55rem 0 0.2rem;
+  color: var(--mu);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+#pairDialog .btnBar {
+  justify-content: center;
+}
 
 fieldset {
   min-width: 0;
@@ -1843,6 +1908,39 @@ summary::marker {
 }
 .homeCard a.btnGlyph {
   text-decoration: none;
+}
+/* Informative, not a warning: a neutral edge. */
+.accessHint {
+  border-left-color: var(--bd);
+}
+.accessSheet {
+  margin: 0.3rem 0 0.6rem;
+  padding: 0.7rem 0.85rem 0.2rem;
+  border: 1px solid var(--ln);
+  border-radius: var(--r);
+  background: var(--in);
+}
+.accessSheet p {
+  margin: 0 0 0.4rem;
+  font-size: 0.88rem;
+}
+.accessRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--ln);
+  font-size: 0.9rem;
+}
+.accessRow b {
+  font-weight: 600;
+}
+.accessRow > span > span {
+  color: var(--mu);
+}
+.accessRow > span > span.warn {
+  color: var(--wn);
 }
 /* Grind hint card: neutral text; the edge and the level dot carry the colour. */
 .ghCard {
@@ -3466,7 +3564,8 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   margin: 0;
 }
 #presetRenameDialog,
-#confirmDialog {
+#confirmDialog,
+#pairDialog {
   border: 1px solid var(--ln);
   border-radius: var(--r);
   padding: 1rem;
@@ -3476,7 +3575,8 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.25);
 }
 #presetRenameDialog::backdrop,
-#confirmDialog::backdrop {
+#confirmDialog::backdrop,
+#pairDialog::backdrop {
   background: rgba(21, 21, 21, 0.65);
 }
 /* Preset review graph: every mark maps to a setting; color only under the cut line */

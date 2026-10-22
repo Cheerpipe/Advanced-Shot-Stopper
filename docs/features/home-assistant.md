@@ -38,6 +38,12 @@ Entity IDs are built from that name.
 - The same trusted network as Home Assistant. The controller's API is open on
   the LAN, like its Web UI, so keep it off guest or shared networks. Discovery
   also needs the network to pass multicast.
+- If the [Web UI password](../settings/web-access.md) is on, Home Assistant
+  asks once for the device password, or shows a code to approve in the Web UI.
+  It keeps only its own key, not the password. Turning the password on later
+  makes Home Assistant ask for reauthentication; nothing is lost meanwhile.
+  This needs an integration version that supports it, so update the
+  integration first.
 
 ## Things to know on the controller side
 
@@ -66,7 +72,8 @@ Entity IDs are built from that name.
 When Home Assistant isn't receiving updates, the controller can tell you why.
 Open `http://<controller-address>/api/v1/integration/webhook` in a browser: the
 `delivery` section shows whether updates are being sent, held back, or failing,
-and the reason. A failed update is retried after 3, 6, and 9 seconds.
+and the reason. While the Web UI password is on, that page needs Home
+Assistant's key, so check the Web UI log under **Diagnostic → Log** instead. A failed update is retried after 3, 6, and 9 seconds.
 
 To keep a record of failed attempts, set **Ring log level** to **Warning**
 under **Diagnostic → Log** in the Web UI; **Error** keeps only updates that
