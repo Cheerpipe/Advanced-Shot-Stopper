@@ -110,7 +110,7 @@ def path_risk(path: str) -> str:
     if p.startswith(("src/web/", "src/tests/", "scripts/", ".github/")) or p in {
             "CMakeLists.txt", "CMakePresets.json", "package.json", "package-lock.json"}:
         return "R1"
-    if p.endswith(".md") or name in {"agents.md", ".cursorignore", ".gitignore"} or p.startswith(".cursor/"):
+    if p.endswith(".md") or name in {"agents.md", ".cursorignore", ".gitignore", ".git-blame-ignore-revs"} or p.startswith(".cursor/"):
         return "R0"
     return "R3"
 

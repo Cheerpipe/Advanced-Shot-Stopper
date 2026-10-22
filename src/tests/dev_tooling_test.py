@@ -67,6 +67,7 @@ def run(*args: str) -> subprocess.CompletedProcess[str]:
 
 golden = {
     ".gitignore": "R0",
+    ".git-blame-ignore-revs": "R0",
     "README.md": "R0",
     "src/web/app.js": "R1",
     "scripts/dev": "R1",
