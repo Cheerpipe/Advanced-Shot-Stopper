@@ -432,6 +432,7 @@
     </div>
     <small id="lineaMicraProgress" role="status"></small>
     <div id="lineaMicraConnected" hidden>
+      <p class="scopeNote">{{webui:settings.micra_scope_note}}</p>
       <details data-g="account" class="cfgGroup">
         <summary>{{webui:settings.account}}</summary>
         <div class="metric">
@@ -460,7 +461,6 @@
       <p id="lineaMicraLinkedNote" class="readyMsg isOk" role="status" hidden>
         {{webui:settings.micra_linked_note}}
       </p>
-      <p class="scopeNote">{{webui:settings.micra_scope_note}}</p>
       <details data-g="power" class="cfgGroup">
         <summary>{{webui:settings.machine_power}}</summary>
         <small class="fieldHint">{{webui:settings.machine_power_hint}}</small

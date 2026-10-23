@@ -1617,6 +1617,9 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
 .cfgGroup[open] {
   padding-bottom: 0.75rem;
 }
+#lineaMicraLinkedNote + .cfgGroup {
+  margin-top: 0.85rem;
+}
 .scopeNote {
   display: flex;
   align-items: center;
