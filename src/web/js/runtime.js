@@ -38,12 +38,12 @@ function initGroupRows(root, p = "g-") {
     d.firstElementChild.insertAdjacentHTML("beforeend", '<span class="cfgSum"></span>');
   });
 }
-// Without interpolate-size (Safari) a group cannot transition its height to
-// auto, so open and close run here: both heights are measured once and the
-// browser animates between them on the same curve as the CSS transition.
+// Without interpolate-size (Safari) a group or Home equipment row cannot
+// transition its height to auto, so open and close run here: both heights are
+// measured once and the browser animates between them on the CSS curve.
 if (!CSS.supports("interpolate-size", "allow-keywords"))
   document.addEventListener("click", (e) => {
-    const d = e.target.closest(".cfgGroup > summary")?.parentElement;
+    const d = e.target.closest(":is(.cfgGroup, .lampRow) > summary")?.parentElement;
     if (!d || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     e.preventDefault();
     const from = d.offsetHeight,
@@ -3164,7 +3164,7 @@ function renderHomePresetAccordion() {
       panelIn.firstChild.firstChild.append(graph, readout, start);
       panelIn.prepend(rows);
       panelIn.lastChild.onclick = (e) =>
-        (e.currentTarget.ariaExpanded = item.classList.toggle("full"));
+        (e.currentTarget.ariaExpanded = item.classList.toggle("full")) && graph._draw();
       panel.appendChild(panelIn);
       item.append(head, panel);
       el.appendChild(item);
@@ -3215,7 +3215,9 @@ function renderHomePresetAccordion() {
           key,
         );
     };
-    graph._draw();
+    // Only an unfolded graph is drawn: every status poll re-renders the list,
+    // and drawing hidden graphs stalled the open and close animations.
+    if (item.classList.contains("full")) graph._draw();
     nodes.push(item);
   }
   if (![...el.children].every((n, i) => n === nodes[i])) el.replaceChildren(...nodes);

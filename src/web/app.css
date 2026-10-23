@@ -1231,6 +1231,7 @@ label:has(> input[type="checkbox"]) .fieldHint {
 }
 .lampRow {
   border-top: 1px solid var(--ln);
+  interpolate-size: allow-keywords;
 }
 .lampRow:first-of-type {
   border-top: 0;
@@ -1244,12 +1245,12 @@ label:has(> input[type="checkbox"]) .fieldHint {
   padding: 0.5rem 0.25rem;
   list-style: none;
   font-weight: 400;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .lampRow summary::-webkit-details-marker {
   display: none;
-}
-.lampRow:not([open]) summary:hover {
-  background: var(--in);
 }
 .lampRow summary:focus-visible {
   outline: 3px solid var(--ac);
@@ -1356,13 +1357,11 @@ label:has(> input[type="checkbox"]) .fieldHint {
 }
 /* An open equipment row shows its readings on the same sunken band as an
    open settings group, starting under the lamp. */
-.lampRow[open] {
-  padding-bottom: 0.75rem;
-}
 .lampRow[open] .devName {
   color: var(--ac);
 }
 .lampRow .metricRows {
+  margin-bottom: 0.75rem;
   padding: 0.75rem 0.85rem;
   border-radius: var(--r);
   background: var(--in);
@@ -1638,7 +1637,8 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
 .cfgGroup:has(> summary > .cfgIcon) > summary {
   margin-inline: -2.15rem -0.85rem;
 }
-.cfgGroup::details-content {
+.cfgGroup::details-content,
+.lampRow::details-content {
   block-size: 0;
   overflow: clip;
   margin-inline: -6px;
@@ -1648,12 +1648,14 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
   transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
   transition-behavior: allow-discrete;
 }
-.cfgGroup[open]::details-content {
+.cfgGroup[open]::details-content,
+.lampRow[open]::details-content {
   block-size: auto;
 }
-/* Without interpolate-size the group animation runs in runtime.js. */
+/* Without interpolate-size these animations run in runtime.js. */
 @supports not (interpolate-size: allow-keywords) {
-  .cfgGroup::details-content {
+  .cfgGroup::details-content,
+  .lampRow::details-content {
     transition: none;
   }
 }
@@ -2177,7 +2179,7 @@ summary::marker {
 #accessDevices + .accessRow {
   border-top: 0;
 }
-.devName {
+.dev .devName {
   cursor: text;
   text-decoration: underline dotted var(--bd);
   text-underline-offset: 0.2em;

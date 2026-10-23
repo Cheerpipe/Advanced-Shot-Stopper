@@ -553,10 +553,11 @@ if (cssRoundTrip !== generated.css) {
   throw new Error('Generated gzip Web CSS does not round-trip to the minified CSS');
 }
 // The minifier drops a shorthand transition carrying allow-discrete, so groups
-// must keep their opening animation as longhands.
-if (!/\.cfgGroup::details-content\{[^}]*transition-property:block-size,content-visibility/.test(generated.css) ||
-    !/\.cfgGroup::details-content\{[^}]*transition-behavior:allow-discrete/.test(generated.css)) {
-  throw new Error('Generated Web CSS must keep the settings group opening transition');
+// and Home equipment rows must keep their opening animation as longhands.
+if (!/\.cfgGroup::details-content[,{][^}]*transition-property:block-size,content-visibility/.test(generated.css) ||
+    !/\.cfgGroup::details-content[,{][^}]*transition-behavior:allow-discrete/.test(generated.css) ||
+    !/\.lampRow::details-content\{[^}]*transition-property:block-size/.test(generated.css)) {
+  throw new Error('Generated Web CSS must keep the group and equipment row opening transitions');
 }
 // The Home quick target-weight sheet inlines its dialog markup into the Home
 // partial carried by the shell HTML (pencil button, inert sheet and backdrop):
@@ -742,9 +743,10 @@ if (generated.jsGzip.length > 7850) {
 // Joined-box number keys, compact fields and the dropdown key: 16839, owner-requested 2026-10-22.
 // Home equipment rows on the sunken band: 16868, owner-requested 2026-10-22.
 // Group transition curve and the no-interpolate-size fallback switch: 16921, owner-requested
-// 2026-10-22; cap 16930.
-if (generated.cssGzip.length > 16930) {
-  throw new Error(`Compressed Web CSS exceeds the 16930-byte gzip budget (${generated.cssGzip.length})`);
+// 2026-10-22. Animated equipment rows without hover or text selection: 16932, owner-requested
+// 2026-10-22; cap 16940.
+if (generated.cssGzip.length > 16940) {
+  throw new Error(`Compressed Web CSS exceeds the 16940-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -900,9 +902,10 @@ if (generated.cssGzip.length > 16930) {
 // Footer Sign out with its confirmation brings it to 41591, owner-requested 2026-10-22; cap 41610.
 // The browser's device label sent at sign-in brings it to 41846, owner-requested 2026-10-22; cap 41860.
 // The group-row helpers shared by Settings and Admin bring it to 42012, owner-requested 2026-10-22.
-// The group animation fallback without interpolate-size brings it to 42215, owner-requested 2026-10-22; cap 42230.
-if (sentinelRuntimeGzip.length > 42230) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 42230-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The group animation fallback without interpolate-size brings it to 42215, owner-requested 2026-10-22.
+// Equipment rows in the fallback and unfolded-only preset graphs: 42251, owner-requested 2026-10-22; cap 42260.
+if (sentinelRuntimeGzip.length > 42260) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 42260-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -1205,9 +1208,10 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // row fit and the minifier-safe group transition bring it to 71421. The joined-box
 // number keys and dropdown key bring it to 71872, owner-requested 2026-10-22. The Home
 // equipment rows on the sunken band bring it to 71901, owner-requested 2026-10-22. The group
-// animation fallback (runtime and CSS) brings it to 72145, owner-requested 2026-10-22; cap 72160.
-if (coldHomeGzip > 72160) {
-  throw new Error(`Cold Home download exceeds the 72160-byte gzip budget (${coldHomeGzip})`);
+// animation fallback (runtime and CSS) brings it to 72145, owner-requested 2026-10-22. Animated
+// equipment rows and unfolded-only preset graphs bring it to 72174, owner-requested 2026-10-22; cap 72190.
+if (coldHomeGzip > 72190) {
+  throw new Error(`Cold Home download exceeds the 72190-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin

@@ -958,9 +958,10 @@ if (htmlBytes > 107310) {
 // Outlined History cup for shots without scale weight: measured 517450, owner-requested 2026-10-22.
 // − and + keys inside number fields: measured 518524, owner-requested 2026-10-22.
 // Settings group animation fallback for browsers without interpolate-size: measured 519506,
-// owner-requested 2026-10-22.
-if (jsBytes > 519506) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 519506)`);
+// owner-requested 2026-10-22. Home equipment rows in the fallback and unfolded-only preset
+// graphs: measured 519725, owner-requested 2026-10-22.
+if (jsBytes > 519725) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 519725)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1127,8 +1128,9 @@ if (jsBytes > 519506) {
 // to 624649, owner-requested 2026-10-22.
 // − and + keys inside number fields: measured 625771, owner-requested 2026-10-22.
 // Settings group animation fallback: measured 626753, owner-requested 2026-10-22.
-if (htmlBytes + jsBytes > 626753) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 626753)`);
+// Equipment rows in the fallback and unfolded-only preset graphs: measured 626972, owner-requested 2026-10-22.
+if (htmlBytes + jsBytes > 626972) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 626972)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
