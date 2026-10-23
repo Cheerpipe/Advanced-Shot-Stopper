@@ -681,14 +681,12 @@ byte allowance. Per-asset caps remain independently enforced by Web contract
 tests, so one asset cannot consume all combined headroom.
 
 Both supported partition tables reserve `shotcurve` at custom subtype
-`0x40`, exactly `0xCC000` (816 KiB): 101 × 8192-byte record blocks
+`0x40`, exactly `0x3EC000` (4,016 KiB): 501 × 8192-byte record blocks
 plus two separate 4096-byte epoch sectors. The maximum used record is 5632
 bytes, leaving 2560 reserved bytes per block. A shorter curve erases/programs
 only its used length and ignores stale bytes beyond it. The partition occupies
-`0x63E000`–`0x709FFF`. The unmounted filesystem reservation shrinks;
-NVS, both OTA slots, shot summaries, activation history and crash storage
-retain their addresses. The installer permits the exact previous project
-layout to transition over USB without erasing unrelated saved data.
+`0x697000`–`0xA82FFF`. The installer accepts only the exact current table;
+any other layout needs a USB `--erase-all` installation.
 
 Capability samples use `INTERNAL|8BIT` and `SPIRAM|8BIT`, including the PSRAM
 minimum-free watermark. The retained boot capture uses at most 768 bytes of

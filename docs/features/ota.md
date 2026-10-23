@@ -21,16 +21,6 @@ your network.
   and machine-profile compatibility ID, and must not be older than the running
   version (downgrades are refused).
 
-### Updating from 1.0
-
-The release with the smooth cut and four factory presets changes how settings
-are stored. Install it over USB with `--erase-all` (see
-[Build](../BUILD.md#other-clean-install-cutovers)). Updating over Wi-Fi from 1.0
-is not supported: the controller would restart with factory settings, Wi-Fi
-included, and open its setup network. If that happens, join the setup network
-and set up Wi-Fi again, or reinstall over USB. Export your shots first
-(**Stats → Export**); shot history is erased. Later updates work over Wi-Fi.
-
 ### Updating from firmware before the Open Brew by Weight name
 
 Firmware from before the project took the Open Brew by Weight name needs the
@@ -89,12 +79,9 @@ firmware cannot wait for the shot to finish.
 
 Flashing leaves Wi-Fi credentials, presets, and calibration untouched. A firmware
 version that changes history formats may start incompatible records empty.
-Firmware that adds a storage area (timestamped curves, scale profiles, the
-persistent audit log) needs a
-[one-time USB installation](../BUILD.md#moving-up-from-an-earlier-layout),
-because app-only OTA cannot change a partition table. Only the new areas start
-empty; settings, shot summaries and activation history remain. Subsequent updates support OTA
-normally alongside USB installation.
+An update over Wi-Fi never changes how the controller's storage is laid out;
+a controller still running a development build from before v1 needs the
+[clean USB installation](../BUILD.md#clean-installation) once.
 
 ## How to run
 

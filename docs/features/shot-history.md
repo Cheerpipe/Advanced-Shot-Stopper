@@ -464,9 +464,6 @@ Learning applied is `1`/`0` in CSV and true/false in JSON; a skipped shot still
 retains its assigned gain. For example, appended CSV values can be
 `corridor,1,0.37,1` and later `corridor,1,0.50,1` for the same preset.
 
-The one-time USB curve-layout update starts the old weight curves empty while
-preserving settings, shot summaries and activation history. Subsequent firmware
-updates can use OTA. See [Build](../BUILD.md#moving-up-from-an-earlier-layout).
 The algorithm column is descriptive: it records the policy each shot ran
 under, currently always `corridor` (the smooth cut). It is a read-only
 identity, not a setting.

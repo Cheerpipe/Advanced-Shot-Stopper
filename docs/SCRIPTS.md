@@ -101,13 +101,10 @@ separate, deliberate change.
 
 Review the selected profiles and physical safety before adding `--confirm`. The
 flag authorizes hardware access; it does not skip image, profile, or partition
-checks. Controllers on an earlier project layout move up with a preserving
-[one-time USB installation](BUILD.md#moving-up-from-an-earlier-layout) using
-the normal flash command. It keeps settings and saved history and starts only
-the newer storage areas empty; subsequent updates can use OTA. Firmware from
-before the Open Brew by Weight name needs a [clean
-installation](BUILD.md#other-clean-install-cutovers) instead. Use `--erase-all`
-only for an explicitly chosen clean installation:
+checks. A controller whose partition table is not the current one, including
+any development image from before v1, needs a [clean
+installation](BUILD.md#clean-installation). Use `--erase-all` only for an
+explicitly chosen clean installation:
 
 ```sh
 ./scripts/dev build flash --confirm \

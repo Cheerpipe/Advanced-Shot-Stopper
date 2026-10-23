@@ -115,7 +115,6 @@ partition_row() {
   awk -F, -v name="$2" '{gsub(/[[:space:]]/, "")} $1 == name {print $2 "," $3 "," $4 "," $5; exit}' "$1"
 }
 
-transition_regions=""
 installed_layout=unknown
 installed_app0_offset=""
 if esptool --chip esp32s3 --port "$port" read-flash 0x8000 0x1000 "$partition_bin" >/dev/null; then
@@ -130,11 +129,10 @@ fi
 
 current_csv="$IDF_PROJECT/partitions-$OPENBREWBYWEIGHT_ARCH.csv"
 if [[ "$OBBW_CLI_ERASE_ALL" != "1" && "$installed_layout" == "present" ]]; then
-  # Only exact known project layouts are accepted: every row must match by
-  # name, type, subtype, offset and size. Prints the matching layout file.
-  installed_match="$(
-    python - "$partition_csv" "$current_csv" \
-      "$IDF_PROJECT/partition-history/$OPENBREWBYWEIGHT_ARCH"-pre-*.csv <<'PY'
+  # Only the exact current project layout is accepted: every row must match
+  # by name, type, subtype, offset and size. Any other table, including every
+  # pre-v1 development layout, needs --erase-all.
+  python - "$partition_csv" "$current_csv" <<'PY' || {
 import csv, sys
 def number(value):
     value = value.strip()
@@ -148,50 +146,12 @@ def layout(path):
                 rows[row[0].strip()] = (row[1].strip(), number(subtype) if subtype[:1].isdigit() else subtype,
                                         number(row[3]), number(row[4]))
     return rows
-installed = layout(sys.argv[1])
-print(next((path for path in sys.argv[2:] if layout(path) == installed), ''))
+sys.exit(0 if layout(sys.argv[1]) == layout(sys.argv[2]) else 1)
 PY
-  )" || installed_match=""
-  # Each erased region was reserved, unmounted filesystem space in the
-  # recorded layout, so a transition destroys no saved data. Both app slots,
-  # NVS, durable stores and crash storage keep their addresses.
-  case "$installed_match" in
-  "$current_csv") ;;
-  *-pre-auditlog.csv)
-    transition_regions=auditlog
-    obbw_is_set image ||
-      echo 'USB audit-log-layout transition: the persistent audit log starts empty; all saved data is preserved.'
-    ;;
-  *-pre-scaleprof.csv)
-    transition_regions="scaleprof auditlog"
-    obbw_is_set image ||
-      echo 'USB profiler-layout transition: the scale profile store and audit log start empty; settings, Wi-Fi, calibration, presets, shot summaries, activation history and shot curves are preserved.'
-    ;;
-  *-pre-curve.csv)
-    transition_regions="shotcurve scaleprof auditlog"
-    obbw_is_set image ||
-      echo 'USB curve-layout transition: previous shot curves, the scale profile store and the audit log start empty; settings, Wi-Fi, calibration, presets, shot summaries and activation history are preserved.'
-    ;;
-  *)
-    printf 'Installed partition table is not a known %s project layout.\n' "$OPENBREWBYWEIGHT_ARCH" >&2
+    printf 'Installed partition table is not the current %s project layout.\n' "$OPENBREWBYWEIGHT_ARCH" >&2
     echo 'Re-run with --erase-all only if you explicitly intend to destroy all saved data: an in-place flash is not possible.' >&2
     exit 1
-    ;;
-  esac
-  if [[ -n "$transition_regions" ]] && obbw_is_set image; then
-    # An external image replaces app0 only and cannot add or erase partitions.
-    case "$transition_regions" in
-    shotcurve*)
-      echo 'The installed pre-curve layout needs a full USB installation of the project build; an external app image cannot change partitions.' >&2
-      exit 1
-      ;;
-    scaleprof*) echo 'Note: the installed layout has no scale profile or audit log partition; the external image will run without scale profiling and keep its audit log in RAM only.' ;;
-    *) echo 'Note: the installed layout has no audit log partition; the external image will keep its audit log in RAM only.' ;;
-    esac
-    transition_regions=""
-  elif [[ -n "$transition_regions" ]]; then
-    echo 'Both OTA slots and crash storage are preserved; OTA updates continue after this one-time USB installation.'
-  fi
+  }
 fi
 
 if [[ "$OBBW_CLI_ERASE_ALL" == "1" ]]; then
@@ -223,10 +183,6 @@ else
   # offsets with relative paths, so esptool must run from the build directory.
   (
     cd "$IDF_BUILD_DIR" || exit 1
-    for region in $transition_regions; do
-      IFS=, read -r _ _ region_offset region_size <<<"$(partition_row "$current_csv" "$region")"
-      esptool --chip esp32s3 --port "$port" erase-region "$region_offset" "$region_size"
-    done
     esptool --chip esp32s3 --port "$port" write-flash @flash_args
   )
 fi

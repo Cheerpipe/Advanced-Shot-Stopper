@@ -215,23 +215,11 @@ relay profile, or a different `--arch`. Development mode remains CLI-only and
 must never be added to a profile.
 
 Machine defaults seed a new installation and factory reset. Valid persisted
-settings survive ordinary boot and OTA. The settings, shot-log, shot-curve and
-last-shot stores use schema 1 (the smooth-cut layouts). Blobs written
-by earlier firmware are rejected and replaced with factory defaults, so moving a
-device across a cutover requires the clean USB installation described below.
-Firmware identity is checked before
-writing the device. Older incompatible partition layouts require the clean USB
-installation described below; compatible OTA updates remain supported. The
-audit-log partition introduced in October 2026 is carved from reserved
-filesystem space on both boards without moving any existing partition, so
-firmware carrying it installs over USB with `--erase-all` (adopting the new
-table) and updates from it afterwards by OTA or USB normally; firmware without
-the partition simply runs the audit log in RAM-only mode. The 500-shot layout
-of October 2026 moves `shotlog` and `shotcurve` into the reserved filesystem
-space (every other partition keeps its exact offset and size), so firmware
-carrying it installs over USB with `--erase-all`; existing shot history is not
-migrated and the log starts empty. OTA and USB updates from that layout
-onwards work normally.
+settings survive ordinary boot and OTA. Firmware identity is checked before
+writing the device. Saved data and the partition table use the v1 layout:
+installing v1 over any earlier development image needs the
+[clean installation](#clean-installation) with `--erase-all`; OTA and USB
+updates between v1 builds work normally.
 
 List available IDs and compatibility before building:
 
@@ -413,9 +401,9 @@ The build renders the selected catalog into
 memory budgets. Use only the image for the intended profile pair. The supported partition layout has
 two app slots; arbitrary 4 MB layouts cannot hold this firmware.
 
-The layout reserves 640 KiB for a temporary ESP-IDF core dump and
-1,408 KiB for two saved crash records. Its unused FFAT area is 7,128 KiB
-(`0x6F6000` bytes), and 816 KiB is reserved for shot curves. The mDNS
+The layout reserves 640 KiB for a temporary ESP-IDF core dump,
+1,408 KiB for two saved crash records and 4,016 KiB for shot curves. A
+3,572 KiB `reserved` area is left unused for future firmware. The mDNS
 task stack is internal so that stack remains available to a core dump.
 
 Build the supported built-in pairs listed in
@@ -469,70 +457,18 @@ The installer reads the partition-table sector first. Project builds always use
 the existing `flash_args`, which transfers the bootloader, partition table,
 initial OTA metadata and application without invoking a build. `--no-check`
 only skips local identity verification. An external `--image` still replaces
-app0 only, and only on a known installed layout (see the table below).
+app0 only, and only on the current installed layout.
 
-### Partition-layout updates
+### Clean installation
 
 The installer flashes in place only when the controller's partition table
-exactly matches a project layout it knows: the current layout in
-`idf/partitions-<arch>.csv`, or one of the earlier layouts recorded in
-`idf/partition-history/`. Every partition must agree in name, type, subtype,
-offset and size. Any other table is refused with a pointer to `--erase-all`,
-so a near match never gets flashed over by accident. When a partition table
-changes, record the layout it replaces there, and decide in the same change
-how the installer treats controllers that still have it.
-
-### Moving up from an earlier layout
-
-Controllers on an earlier project layout move to the current one with a
-one-time USB installation of the full project build. Build for your hardware
-and machine, then use the ordinary USB flash command without `--erase-all`.
-This does not apply to firmware from before the Open Brew by Weight name: that
-needs the [clean installation](#other-clean-install-cutovers) instead.
-
-```sh
-./scripts/dev flash --confirm --port /dev/cu.usbmodem2101 \
-  --hardware esp32-s3-relay-x1-speaker --machine la-marzocco-linea-micra
-```
-
-The installer names the layout it found and what starts empty, clears only the
-storage areas that layout lacks, then installs the firmware:
-
-| Installed layout | Starts empty | `--image` (app-only) |
-| --- | --- | --- |
-| Current | Nothing | Allowed |
-| Before the persistent audit log | Audit log | Allowed; the audit log stays in memory only and is lost on restart |
-| Before scale profiling | Scale profiles and audit log | Allowed; no scale profiling, and the audit log stays in memory only |
-| Before timestamped curves | Previous shot curves, scale profiles and audit log | Refused; the curve storage is too small |
-
-In every case settings, Wi-Fi credentials, presets, calibration, shot
-summaries, activation history, both application slots and crash storage are
-preserved: the cleared areas were unused space in the older layout. After this
-installation, ordinary OTA updates remain available. App-only `--image` and OTA
-cannot change the partition table, so a controller updated that way keeps its
-older layout until a full USB installation. Any other layout is refused; review
-its data-loss consequences before explicitly choosing a clean installation.
-
-### Other clean-install cutovers
-
-The current settings contract is schema 1, introduced with the smooth-cut
-presets (shot time window, fast and slow side margins, four factory presets,
-device-level cup and scale-loss switches): there is no upgrade path from 1.0
-or earlier firmware, and adopting it requires the clean installation below with
-`--erase-all`. Updating to it over Wi-Fi is not supported: the controller would
-restart with factory settings, Wi-Fi included, and open its setup network. An installed 20 KiB NVS layout,
-or a current layout without the dedicated
-816 KiB `shotcurve` partition or the 32 KiB `shotlog` and `history` partitions,
-or an n16r8 layout without the new crash-history area,
-needs a one-time clean USB installation. A normal flash refuses an incompatible
-layout.
-
-Firmware from before the Open Brew by Weight name needs the same clean
-installation, even when its layout is current. You can recognize it when an
-update over Wi-Fi fails with "This firmware does not belong to the Open Brew by
-Weight application". A normal USB flash does not catch this case: the
-controller would start with factory settings, Wi-Fi included, because the new
-firmware does not read settings saved by the old one.
+exactly matches `idf/partitions-<arch>.csv`: every partition must agree in
+name, type, subtype, offset and size. Any other table, including every
+development layout from before v1, is refused with a pointer to
+`--erase-all`, so a near match never gets flashed over by accident. Installing
+v1 over any earlier development image needs this clean installation, because
+v1 does not read settings or history saved by earlier firmware. App-only
+`--image` and OTA cannot change the partition table.
 
 **The following erases both firmware slots and all saved data:** settings,
 Wi-Fi credentials and password, recipes and presets, calibration, scale
