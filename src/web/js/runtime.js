@@ -3181,16 +3181,16 @@ function renderHomePresetAccordion() {
           : saved,
       // Past arrivals, as in Settings, while the target is the saved one they were judged against.
       arrivals = m.goal === saved.goal ? p.arrivalsS || [] : [];
-    const rows = guardRuleRows(m),
-      svg = $("shotGoalEdit")?.firstElementChild;
-    // The active preset's target opens the quick-weight sheet from here too.
-    if (p.id === presetState.activeId && m.mode === "active" && svg) {
+    const rows = guardRuleRows(m);
+    // The active preset's target opens the quick-weight sheet.
+    if (p.id === presetState.activeId && m.mode === "active") {
       const pen = document.createElement("button");
       pen.type = "button";
       pen.className = "qeditPen presetAccEdit";
       pen.title = __WEBUI_TEXT__("runtime.change_target_yield");
       pen.setAttribute("aria-label", pen.title);
-      pen.append(svg.cloneNode(true));
+      pen.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4"/></svg>';
       rows[1].lastChild.append(pen);
     }
     item.lastChild.firstChild.firstChild.replaceChildren(...rows);
@@ -5403,8 +5403,6 @@ function renderShotHero(d) {
       : "",
   );
   const noScale = d.scaleAvailable === false;
-  const goalEdit = $("shotGoalEdit");
-  if (goalEdit) goalEdit.hidden = d.live || noScale || !(goal > 0) || hero.classList.contains("fs");
   const label =
     heroNum(
       "Weight",

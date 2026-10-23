@@ -1,5 +1,5 @@
-// Quick target-weight sheet: the hero pencil, the one-shot ?edit_weight URL,
-// and the active preset row's Target text are the invocation points, and
+// Quick target-weight sheet: the active preset row's pencil and the one-shot
+// ?edit_weight URL are the invocation points, and
 // closing the sheet commits through the proven settings-hydrate → preset-save
 // pipeline with the firmware's decigram 10.0–200.0 g preset goal contract.
 {
@@ -9,9 +9,8 @@
   const qwCssRule = (name) => css.match(new RegExp('\\.' + name + '\\{[^}]*\\}'))?.[0] || '';
   const qwFirst = (needle) => qwHomeJs.indexOf(needle);
 
-  qwAssert.ok(codeIncludes(qwHomeHtml,
-      '<span id="shotHeroGoal"></span><button id="shotGoalEdit" class="qeditPen"'),
-    'The pencil must sit directly after the hero goal text');
+  qwAssert.ok(!qwHomeHtml.includes('qeditPen') && !runtimeJs.includes('shotGoalEdit'),
+    'The hero card must not offer a target-weight pencil');
   qwAssert.ok(/<div id="qwBackdrop" class="qwBackdrop" inert>/.test(qwHomeHtml) &&
       /<section id="qwSheet" class="qwSheet" role="dialog" aria-modal="true"/.test(qwHomeHtml),
     'Sheet and backdrop must ship inert until opened');
@@ -90,14 +89,13 @@
       '["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state)'),
     'A machine shot must close the sheet');
 
-  // URL launcher: without shots the hero card is absent, so ?edit_weight=1 is
-  // the entry point. It must wait for the active preset and the admin lock,
+  // URL launcher: ?edit_weight=1 opens the sheet without the Presets row. It must wait for the active preset and the admin lock,
   // open once, and strip the one-shot parameter from the address bar.
   qwAssert.ok(codeIncludes(qwHomeJs,
       'new URLSearchParams(location.search).has("edit_weight")'),
     'The edit_weight URL parameter must arm the quick-weight launcher');
   qwAssert.ok(codeIncludes(qwHomeJs, 'quickWeight.open()') &&
-      codeIncludes(qwHomeJs, 'preset.goalWeightG && pen && !pen.disabled'),
+      codeIncludes(qwHomeJs, 'preset.goalWeightG && R.controlsMutable'),
     'The armed launcher must open only once the preset is ready and unlocked');
   qwAssert.ok(codeIncludes(qwHomeJs,
       'history.replaceState(null, "", location.pathname)'),
@@ -105,7 +103,7 @@
   qwAssert.ok(codeIncludes(qwHomeJs, 'return { open, close };'),
     'The controller must expose open for the URL launcher');
   qwAssert.ok(codeIncludes(runtimeJs,
-      'if (p.id === presetState.activeId && m.mode === "active" && svg) {') &&
+      'if (p.id === presetState.activeId && m.mode === "active") {') &&
       codeIncludes(qwHomeJs, 'e.target.closest(".presetAccEdit") && open()'),
     'Only the already-active preset row may offer the quick-weight pencil');
 
@@ -118,52 +116,6 @@
     'Page scroll must lock while the sheet is open');
   qwAssert.ok(/\.qeditPen:disabled\{display:none\}/.test(css),
     'A locked UI must hide the pencil');
-
-  // Pencil visibility follows the live hero: only an idle, scaled shot with a
-  // real goal offers quick editing, never full screen.
-  {
-    const qwHeroClasses = new Set();
-    const qwRoot = {
-      hidden: false,
-      dataset: {},
-      style: {setProperty() {}},
-      classList: {
-        toggle(cls, on) { on ? qwHeroClasses.add(cls) : qwHeroClasses.delete(cls); },
-        contains: (cls) => qwHeroClasses.has(cls),
-      },
-    };
-    const qwElements = new Map();
-    const qwLookup = (id) => {
-      if (id === 'shotHero') return qwRoot;
-      if (!qwElements.has(id))
-        qwElements.set(id, {hidden: false, textContent: '', dataset: {}, style: {setProperty() {}},
-          classList: {toggle() {}, contains() {return false;}}, setAttribute() {},
-          replaceChildren() {}, append() {}});
-      return qwElements.get(id);
-    };
-    const qwPaint = new Function('$', 'buildShotSparkModel', 'formatShotEnded', 'ms', 'localStorage',
-      'document', 'liveRuleModel', 'uiState', 'shotRuleModel',
-      blockAt(runtimeJs, 'function verdictLabel(') + runtimeJs.slice(runtimeJs.indexOf('function renderShotHero('),
-          runtimeJs.indexOf('function checkFirmwareReload(')) + ';return renderShotHero;')(
-        qwLookup, () => null, () => '', (v, n) => (v / 1000).toFixed(n), {getItem: () => null},
-        {createElement: () => ({})}, null, {shotHistory: {shots: []}}, () => null);
-    const qwCard = {live: false, weight: 36.2, goal: 36, elapsedMs: 36800,
-      firstDropMs: null, averageFlowGps: null, presetName: 'Espresso'};
-    qwPaint(qwCard);
-    qwAssert.equal(qwLookup('shotGoalEdit').hidden, false,
-      'An idle hero with a goal must offer the pencil');
-    qwPaint({...qwCard, live: true});
-    qwAssert.equal(qwLookup('shotGoalEdit').hidden, true, 'A live shot must hide the pencil');
-    qwPaint({...qwCard, goal: 0});
-    qwAssert.equal(qwLookup('shotGoalEdit').hidden, true, 'No goal must hide the pencil');
-    qwPaint({...qwCard, scaleAvailable: false, weight: null, elapsedMs: 27400});
-    qwAssert.equal(qwLookup('shotGoalEdit').hidden, true,
-      'No-scale timer mode must hide the pencil');
-    qwHeroClasses.add('fs');
-    qwPaint(qwCard);
-    qwAssert.equal(qwLookup('shotGoalEdit').hidden, true,
-      'The full-screen hero must not host the pencil');
-  }
 
   // Execute the real sheet controller against a stub DOM: open, pointer drag
   // with the accepted acceleration, clamping, Reset, commit-on-close, and the
@@ -208,7 +160,7 @@
         : on ? node.classes.add(c) : node.classes.delete(c); },
     });
     const qwIds = ['qwSheet', 'qwBackdrop', 'qwZone', 'qwScale', 'qwMinus', 'qwPlus', 'qwNum', 'qwRatio', 'qwDef',
-      'qwReset', 'qwPreset', 'qwDone', 'qwGrab', 'qwHead', 'shotGoalEdit',
+      'qwReset', 'qwPreset', 'qwDone', 'qwGrab', 'qwHead',
       'goalWeightG', 'qwLimitMin', 'qwLimitMax'];
     const qwEls = Object.fromEntries(qwIds.map((id) => {
       const node = qwNode();
@@ -254,8 +206,8 @@
     };
 
     const qwCtl = qwInit();
-    qwEls.shotGoalEdit.onclick();
-    qwAssert.ok(qwEls.qwSheet.classes.has('open'), 'The pencil must open the sheet');
+    qwCtl.open();
+    qwAssert.ok(qwEls.qwSheet.classes.has('open'), 'Opening must show the sheet');
     qwAssert.equal(qwEls.qwNum.textContent, '36.0', 'The sheet opens at the active preset goal');
     qwAssert.equal(qwEls.qwPreset.textContent, 'Espresso', 'The header shows the preset name');
     qwAssert.ok(!qwEls.qwRatio.hidden && qwEls.qwRatio.firstChild.textContent === '18.0 g in' &&
@@ -372,7 +324,7 @@
     qwFire(qwEls.qwSheet, 'keydown', {key: 'Escape'});
     await new Promise((r) => setTimeout(r, 0));
 
-    // The pencil on the active row's target is the third invocation point;
+    // The pencil on the active row's target is the in-page invocation point;
     // only the active row renders it, and taps elsewhere never open the sheet.
     const qwAccClick = (target) =>
       (qwAccListeners.click || []).forEach((fn) => fn({target}));
@@ -388,7 +340,7 @@
     await new Promise((r) => setTimeout(r, 0));
 
     // Done commits the changed value through hydrate → goal field → save.
-    qwEls.shotGoalEdit.onclick();
+    qwCtl.open();
     qwDragZone([[50, 10], [50, 10], [50, 10], [50, 10], [50, 10]]);
     const qwEdited = qwEls.qwNum.textContent;
     qwEls.qwDone.onclick();
@@ -400,7 +352,7 @@
     qwAssert.equal(qwRuntime.saved, 1, 'Done must save the brew preset');
 
     // A long grab-row drag dismisses and still commits an edited value.
-    qwEls.shotGoalEdit.onclick();
+    qwCtl.open();
     qwDragZone([[50, 10], [50, 10], [50, 10], [50, 10], [50, 10]]);
     const qwDismissed = qwEls.qwNum.textContent;
     qwFire(qwEls.qwGrab, 'pointerdown', {clientY: 500});
@@ -414,7 +366,7 @@
       'Dismiss must write the edited goal before saving');
 
     // A short grab wiggle never dismisses.
-    qwEls.shotGoalEdit.onclick();
+    qwCtl.open();
     qwFire(qwEls.qwGrab, 'pointerdown', {clientY: 500});
     qwFire(qwEls.qwGrab, 'pointermove', {clientY: 540});
     qwFire(qwEls.qwGrab, 'pointerup', {});
@@ -434,7 +386,7 @@
     }];
     const qwZoneAttrs = {};
     qwEls.qwZone.setAttribute = (k, v) => { qwZoneAttrs[k] = String(v); };
-    qwEls.shotGoalEdit.onclick();
+    qwCtl.open();
     qwAssert.equal(qwEls.qwNum.textContent, '36.0', 'The sheet opens at the in-range goal');
     qwAssert.equal(qwZoneAttrs['aria-valuemin'], '32.0',
       'The slider floor keeps the extra yield within a quarter of the target');

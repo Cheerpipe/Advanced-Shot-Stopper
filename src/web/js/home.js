@@ -60,13 +60,12 @@ export function applyStatus(s) {
   );
   const brewing = ["BREW", "RINSE", "MANUAL_NO_SCALE"].includes(s.state);
   if (quickWeight && brewing) quickWeight.close();
-  // URL launcher: on a controller with no shots yet the hero card is absent,
-  // so ?edit_weight=1 is the only entry point. Wait for the active preset
-  // and the admin lock to settle, then open once and drop the parameter.
+  // URL launcher: ?edit_weight=1 opens the sheet without the Presets row.
+  // Wait for the active preset and the admin lock to settle, then open once
+  // and drop the parameter.
   if (quickWeightWanted && quickWeight && !brewing) {
     const preset = R.presetState.items.find((x) => x.id === R.presetState.activeId);
-    const pen = $("shotGoalEdit");
-    if (preset && preset.goalWeightG && pen && !pen.disabled) {
+    if (preset && preset.goalWeightG && R.controlsMutable) {
       quickWeightWanted = false;
       history.replaceState(null, "", location.pathname);
       quickWeight.open();
@@ -240,11 +239,10 @@ function renderReadyMsg(s, lm) {
 }
 function initQuickWeight() {
   const sheet = $("qwSheet"),
-    pen = $("shotGoalEdit"),
     zone = $("qwZone"),
     grab = $("qwGrab"),
     head = $("qwHead");
-  if (!sheet || !pen || !zone || !grab || !head) return null;
+  if (!sheet || !zone || !grab || !head) return null;
   const backdrop = $("qwBackdrop"),
     scale = $("qwScale"),
     num = $("qwNum"),
@@ -294,7 +292,8 @@ function initQuickWeight() {
     hi = MAX * 10,
     value = MIN * 10,
     openValue = MIN * 10,
-    dose = 0;
+    dose = 0,
+    opener = null;
   const clamp = (d) => Math.max(lo, Math.min(hi, d));
   const speedMul = (v) => 1 + Math.min(SPEED_CAP - 1, Math.abs(v || 0) * SPEED_K);
   let nowIdx = -1,
@@ -360,6 +359,7 @@ function initQuickWeight() {
     sheet.classList.add("open");
     backdrop.classList.add("show");
     document.body.classList.add("qwOpen");
+    opener = document.activeElement;
     zone.focus();
   };
   // The open sheet is modal: focus that tabs out of it returns to the dial.
@@ -389,7 +389,7 @@ function initQuickWeight() {
     sheet.inert = true;
     backdrop.inert = true;
     document.body.classList.remove("qwOpen");
-    if (!pen.hidden) pen.focus();
+    opener?.focus?.();
     if (save && value !== openValue) commit(value);
   };
   const drag = (node, handlers) => {
@@ -540,7 +540,6 @@ function initQuickWeight() {
     btn.onpointerup = btn.onpointerleave = btn.onpointercancel = stop;
     btn.onkeydown = (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), nudge(dir));
   }
-  pen.onclick = open;
   addEventListener("click", (e) => e.target.closest(".presetAccEdit") && open());
   doneBtn.onclick = () => close(true);
   resetBtn.onclick = () => {

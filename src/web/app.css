@@ -4352,13 +4352,6 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
 .presetAccRows .guardRow:first-child {
   border-top: 0;
 }
-.presetAccEdit.qeditPen {
-  vertical-align: middle;
-  min-width: var(--tap);
-  min-height: var(--tap);
-  margin: calc(var(--tap) / -2) calc((2rem - var(--tap)) / 2);
-  transform: none;
-}
 .guardName {
   font-weight: 700;
   font-size: 0.82rem;
@@ -4385,14 +4378,17 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   background: var(--gSlow);
 }
 
-/* Quick target-weight sheet, invoked by the hero pencil */
+/* Quick target-weight sheet, invoked by the active preset's pencil */
 .qeditPen {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: none;
+  vertical-align: middle;
+  min-width: var(--tap);
+  min-height: var(--tap);
   padding: 0.18rem;
-  margin-left: 0.05rem;
+  margin: calc(var(--tap) / -2) calc((2rem - var(--tap)) / 2);
   border: 0;
   background: none;
   color: inherit;
@@ -4419,10 +4415,6 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-.shotHero .heroNum .qeditPen {
-  align-self: baseline;
-  transform: translateY(0.32rem);
 }
 body.qwOpen {
   overflow: hidden;

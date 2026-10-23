@@ -66,12 +66,11 @@ preset and whether editing is allowed.
 
 ## Change the target weight from Home
 
-When the last shot card on Home shows a target (a scale shot, while the
-machine is idle), a small pencil sits next to the target weight. The active
-preset's **On recipe** row in Home's **Presets** section has the same pencil.
-Tap either to open a panel at the bottom of the screen. It shows the weight,
-the dose and the ratio as two small labels (for example **18.0 g in** and
-**1:2.0**), and a sliding scale between **−** and **+** buttons:
+The active preset's **On recipe** row in Home's **Presets** section has a
+small pencil next to the target weight. Tap it to open a panel at the bottom
+of the screen. It shows the weight, the dose and the ratio as two small
+labels (for example **18.0 g in** and **1:2.0**), and a sliding scale between
+**−** and **+** buttons:
 
 - The scale moves with your finger: drag it left for a higher weight, right
   for a lower one. Slow drags follow your finger exactly, a tenth of a gram
@@ -95,7 +94,6 @@ the dose and the ratio as two small labels (for example **18.0 g in** and
   weight to the active recipe right away. The change is the same as
   saving the target in Settings.
 
-The last shot card only appears after the controller has recorded a shot.
 Opening `http://<device-address>/?edit_weight=1` also opens this panel.
 The address parameter is used once and removed, so refreshing the page
 afterwards shows the normal Home.
