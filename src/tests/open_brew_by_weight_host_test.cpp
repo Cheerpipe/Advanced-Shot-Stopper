@@ -16329,6 +16329,39 @@ void s04b_shot_log_page_slice() {
   CHECK(SHOT_LOG_PAGE_DEFAULT == 10);
 }
 
+void s04c_shot_list_filter_groups() {
+  ShotLogRecord timed = {}, manual = {};
+  timed.arrivalDs = 280;
+  timed.verdict = 1;  // fast
+  shotLogSetPresetId(timed, 3);
+  snprintf(timed.scaleName, sizeof(timed.scaleName), "%s", "Lunar");
+  manual.arrivalDs = SHOT_LOG_METRIC_MISSING;
+  shotLogSetPresetId(manual, 200);
+  CHECK(shotLogResult(timed) == 1 && shotLogResult(manual) == 3);
+  ShotListFilter filter;
+  CHECK(shotListFilterMatches(filter, timed) && shotListFilterMatches(filter, manual));
+  // A result filter leaves out every shot without a time to target.
+  filter.results = 1U << 1;
+  CHECK(shotListFilterMatches(filter, timed) && !shotListFilterMatches(filter, manual));
+  filter.results = 1U << 0;
+  CHECK(!shotListFilterMatches(filter, timed));
+  // Options within a group OR; groups AND.
+  filter = {};
+  filter.presets[filter.presetCount++] = 7;
+  filter.presets[filter.presetCount++] = 200;
+  CHECK(!shotListFilterMatches(filter, timed) && shotListFilterMatches(filter, manual));
+  filter.presets[0] = 3;
+  filter.scales[filter.scaleCount++] = shotLogScaleKey(timed);
+  CHECK(shotListFilterMatches(filter, timed) && !shotListFilterMatches(filter, manual));
+  // Equal filters share an identity; group boundaries are part of it.
+  ShotListFilter same = filter, moved = {};
+  moved.presets[moved.presetCount++] = 3;
+  moved.presets[moved.presetCount++] = 200;
+  CHECK(shotListFilterHash(same) == shotListFilterHash(filter));
+  CHECK(shotListFilterHash(moved) != shotListFilterHash(filter));
+  CHECK(shotListFilterHash(ShotListFilter{}) != shotListFilterHash(moved));
+}
+
 void s04f_shot_log_sort_date_and_rating() {
   CHECK(shotLogSortFromName("rating") == ShotLogSort::Rating);
   CHECK(shotLogSortFromName("date") == ShotLogSort::Date);
@@ -16905,7 +16938,12 @@ void sh02_stats_snapshot_captures_one_store_generation() {
   CHECK(acquisitions == 1);
   CHECK(snapshot->epoch == copyShotLogEpoch());
   CHECK(snapshot->count == 1);
-  CHECK(snapshot->stats.shotCount == 1 && snapshot->stats.actualCgSum == 3000);
+  // The network aggregates its selected window from the copied records; at
+  // ten shots that equals the store's own integration aggregate.
+  const ShotStatsView windowed = shotLogStatsView(snapshot->count, SHOT_LOG_STATS_WINDOW,
+      [&](size_t n) -> const ShotLogRecord & { return snapshot->records[n]; });
+  CHECK(windowed.shotCount == 1 && windowed.actualCgSum == 3000);
+  CHECK(copyShotStats().actualCgSum == windowed.actualCgSum);
   CHECK(snapshot->records[0].id == record.id);
   // Row curves are fetched on demand under one short lock each.
   ShotCurveRecord fetched = emptyShotCurveRecord();
@@ -22511,6 +22549,7 @@ const TestCase testCases[] = {
     {"F17", f17_health_counters_are_atomic_and_monotonic},
     {"F18", f18_guard_early_rejection_matches_original_predicates},
     {"S04b", s04b_shot_log_page_slice},
+    {"S04c", s04c_shot_list_filter_groups},
     {"S04f", s04f_shot_log_sort_date_and_rating},
     {"S06", s06_shot_log_local_sec_from_utc},
     {"S07", s07_shot_log_stores_fixed_wall_time},

@@ -1058,8 +1058,8 @@ bool OpenBrewByWeightNetwork::sendHistoryStream(UiStreamSession &session,
   // to this dispatch; the shot-card tail rebuilds jsonItem only afterwards.
   HistoryPage &page = g_work->historyPage;
   if (callbacks_.copyHistoryPage) {
-    callbacks_.copyHistoryPage(page, offset, session.historyLimit,
-                               session.historyDir);
+    callbacks_.copyHistoryPage(page, offset, session.historyLimit, session.historyDir,
+                               fetch ? session.historyFetchTypes : session.historyTypes);
   } else {
     page.total = page.start = page.count = 0;
     page.hasMore = false;
@@ -1072,9 +1072,10 @@ bool OpenBrewByWeightNetwork::sendHistoryStream(UiStreamSession &session,
   // under the client's 24 KiB frame guard.
   uint32_t fingerprint = crc32Update(0xFFFFFFFFU,
       reinterpret_cast<const uint8_t *>(&epoch), sizeof(epoch));
-  const uint32_t window[3] = {static_cast<uint32_t>(page.start),
+  const uint32_t window[4] = {static_cast<uint32_t>(page.start),
                               static_cast<uint32_t>(session.historyLimit),
-                              static_cast<uint32_t>(session.historyDir)};
+                              static_cast<uint32_t>(session.historyDir),
+                              session.historyTypes};
   fingerprint = crc32Update(fingerprint,
       reinterpret_cast<const uint8_t *>(window), sizeof(window));
   const uint32_t paging[2] = {static_cast<uint32_t>(page.total),
@@ -1153,122 +1154,6 @@ bool OpenBrewByWeightNetwork::sendHistoryStream(UiStreamSession &session,
   return true;
 }
 
-// Stats row columns, sent once per page; formatShotStatsRow emits the values
-// in this order followed by the curve object.
-constexpr char kStatsRowColumns[] =
-    "id,bootId,endedAtMs,hasWallTime,endedAtLocalSec,endedAtUnixSec,"
-    "timezoneOffsetMinutesAtCommit,durationS,presetId,presetName,scaleName,goalG,"
-    "actualG,offsetG,bbwAlgorithm,bbwAlgorithmVersion,bbwAlpha,bbwLearningApplied,"
-    "avgFlowGS,firstDropS,tareS,shotType,cutType,extractionGuardEnabled,"
-    "extractionExtended,slowExtractionGuardEnabled,slowExtractionExtended,"
-    "stopDetail,cutLineG,arrivalS,verdict,channeling,scaleLossSource,estimatedG,"
-    "blind,fastBeforeS,slowAfterS,fastMarginG,slowMarginG,delayS,wallS,cutRampS,"
-    "dripDelayS,actualWeightSource,rating";
-
-// The Stats row projection (extracted from the former REST shots handler):
-// row values, then the curve object that formatShotCurveJsonBody fills with
-// its inner fields. Writes into
-// work.jsonItem using work.curveJson as scratch and returns the written
-// length, 0 on overflow. A missing curve formats as an empty one in the
-// Stats fetch scratch, which a failed fetch has already left unused.
-size_t OpenBrewByWeightNetwork::formatShotStatsRow(NetworkWorkBuf &work,
-                                              const ShotLogRecord &record,
-                                              const ShotCurveRecord *curve) {
-  char actual[16] = "null";
-  char flow[16] = "null";
-  char firstDrop[16] = "null";
-  char tareAt[16] = "null";
-  char cutLine[16] = "null", arrival[16] = "null", dripDelay[8] = "null";
-  char presetName[SHOT_PRESET_NAME_CAPACITY * 6] = {};
-  char scaleNameJson[SCALE_FRIENDLY_NAME_MAX_LEN * 6 + 1] = {};
-  escapeJsonString(record.presetName, presetName, sizeof(presetName));
-  escapeJsonString(record.scaleName, scaleNameJson, sizeof(scaleNameJson));
-  if (!shotLogWeightIsMissing(record.actualWeightCg)) {
-    snprintf(actual, sizeof(actual), "%.2f",
-             static_cast<double>(record.actualWeightCg) / 100.0);
-  }
-  if (record.avgFlowCgS != SHOT_LOG_METRIC_MISSING) {
-    snprintf(flow, sizeof(flow), "%.2f",
-             static_cast<double>(record.avgFlowCgS) / 100.0);
-  }
-  if (record.firstDropDs != SHOT_LOG_METRIC_MISSING) {
-    snprintf(firstDrop, sizeof(firstDrop), "%.1f",
-             static_cast<double>(record.firstDropDs) / 10.0);
-  }
-  if (record.tareAtDs != SHOT_LOG_METRIC_MISSING) {
-    snprintf(tareAt, sizeof(tareAt), "%.1f",
-             static_cast<double>(record.tareAtDs) / 10.0);
-  }
-  if (!shotLogWeightIsMissing(record.cutLineCg)) {
-    snprintf(cutLine, sizeof(cutLine), "%.2f",
-             static_cast<double>(record.cutLineCg) / 100.0);
-  }
-  if (record.arrivalDs != SHOT_LOG_METRIC_MISSING) {
-    snprintf(arrival, sizeof(arrival), "%.1f",
-             static_cast<double>(record.arrivalDs) / 10.0);
-  }
-  if (record.dripDelayCode) snprintf(dripDelay, sizeof(dripDelay), "%.1f", (record.dripDelayCode - 1) / 10.0);
-  const bool scaleLoss = static_cast<ShotLogStopDetail>(record.stopDetail) ==
-                         ShotLogStopDetail::AUTO_TO_MANUAL;
-  ShotCurveRecord &emptyCurve = work.statsCache.fetchCurve;
-  if (curve == nullptr) {
-    resetShotCurveRecord(emptyCurve);
-    curve = &emptyCurve;
-  }
-  char *const curveJson = work.curveJson;
-  char alphaJson[5] = "null";
-  const unsigned alpha = shotLogBbwAlpha(record);
-  if (alpha) snprintf(alphaJson, sizeof(alphaJson), "%u.%02u", alpha / 100, alpha % 100);
-  if (!formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY, *curve) &&
-      (resetShotCurveRecord(emptyCurve),
-       !formatShotCurveJsonBody(curveJson, SHOT_CURVE_JSON_CAPACITY, emptyCurve))) {
-    // Keep the row JSON parseable; an empty curve beats a broken page.
-    curveJson[0] = '\0';
-  }
-  // Values in kStatsRowColumns order, then the curve body as one object.
-  const int bytes = snprintf(work.jsonItem, NetworkWorkBuf::kJsonItem,
-      "[%lu,%lu,%lu,%s,%lu,%lu,%d,%.1f,%u,\"%s\",\"%s\",%.1f,%s,%.2f,\"%s\",%s,"
-      "%s,%s,%s,%s,%s,\"%s\",\"%s\",%s,%s,%s,%s,\"%s\",%s,%s,%s,%s,%s,%s,%s,"
-      "%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%s,\"%s\",%u,{%s}]",
-      static_cast<unsigned long>(record.id),
-      static_cast<unsigned long>(record.bootId),
-      static_cast<unsigned long>(record.endedAtMs),
-      record.hasWallTime ? "true" : "false",
-      static_cast<unsigned long>(record.endedAtLocalSec),
-      static_cast<unsigned long>(record.endedAtUnixSec),
-      static_cast<int>(record.timezoneOffsetMinutesAtCommit),
-      static_cast<double>(record.durationDs) / 10.0,
-      static_cast<unsigned>(shotLogPresetId(record)),
-      presetName, scaleNameJson,
-      static_cast<double>(goalWeightDgToGrams(record.goalWeightDg)), actual,
-      static_cast<double>(record.offsetUsedCg) / 100.0,
-      shotLogBbwAlgorithm(record), shotLogBbwVersion(record),
-      alphaJson, shotLogBbwLearningApplied(record), flow, firstDrop, tareAt,
-      shotLogTypeName(shotLogType(record)),
-      shotLogCutName(shotLogCut(record)),
-      shotLogFastGuardEnabled(record.sideFlags) ? "true" : "false",
-      shotLogFastExtended(record.extractionExtended) ? "true" : "false",
-      shotLogSlowGuardEnabled(record.sideFlags) ? "true" : "false",
-      shotLogSlowExtended(record.extractionExtended) ? "true" : "false",
-      shotLogStopDetailName(static_cast<ShotLogStopDetail>(record.stopDetail)),
-      cutLine, arrival, shotLogVerdictJson(record.verdict),
-      corridor::channelingOf(record.verdict) ? "true" : "false",
-      scaleLoss ? shotLogScaleLossSourceJson(record.verdict) : "null",
-      // Only a projected stop time lands near the cut line.
-      scaleLoss && corridor::lossSourceOf(record.verdict) == corridor::LossSource::PROJECTION
-          ? cutLine : "null",
-      corridor::blindOf(record.verdict) ? "true" : "false",
-      record.fastBeforeDs / 10.0, record.slowAfterDs / 10.0,
-      record.fastMarginDg / 10.0, record.slowMarginDg / 10.0,
-      record.delayDs / 10.0, record.wallDs / 10.0, record.cutRampDs / 10.0, dripDelay,
-      actualWeightSourceName(static_cast<ActualWeightSource>(record.actualWeightSource)),
-      static_cast<unsigned>(shotLogRating(record.sideFlags)),
-      curveJson);
-  if (bytes <= 0 || static_cast<size_t>(bytes) >= NetworkWorkBuf::kJsonItem)
-    return 0;
-  return static_cast<size_t>(bytes);
-}
-
 // Same bounded, view-scoped contract as the history sender, plus frame
 // budgeting and pacing: full curves make a page larger than one frame, so a
 // dispatch delivers one budgeted frame and the page continues across
@@ -1296,7 +1181,10 @@ bool OpenBrewByWeightNetwork::sendStatsStream(UiStreamSession &session,
                               session.statsPageRequest != request || initial)) {
     session.statsPaging = false;
   }
-  if (!session.statsPaging && !initial && !fetch && epoch == session.statsEpoch) return true;
+  if (!session.statsPaging && !initial && !fetch && epoch == session.statsEpoch &&
+      control.bbwPresetId == session.statsPresetId &&
+      session.statsWindow == session.statsShownWindow)
+    return true;
   if (session.statsPaging && millis() - session.statsSentAtMs < kStatsStreamPaceMs) {
     uiStreamUrgent_.store(true, std::memory_order_release);
     return true;
@@ -1305,6 +1193,8 @@ bool OpenBrewByWeightNetwork::sendStatsStream(UiStreamSession &session,
                limit = fetch ? session.statsFetchLimit : session.statsLimit;
   const ShotLogSort sort = fetch ? session.statsFetchSort : session.statsSort;
   const ShotLogSortDir dir = fetch ? session.statsFetchDir : session.statsDir;
+  const ShotListFilter &filter = fetch ? session.statsFetchFilter : session.statsFilter;
+  const uint32_t filterHash = shotListFilterHash(filter);
   NetworkWorkBuf &work = *g_work;
   auto &cache = work.statsCache;
   auto &snapshot = cache.snapshot;
@@ -1317,17 +1207,27 @@ bool OpenBrewByWeightNetwork::sendStatsStream(UiStreamSession &session,
     if (!callbacks_.copyShotStatsRecords) return false;
     callbacks_.copyShotStatsRecords(snapshot);
     epoch = snapshot.epoch;
-    cache.statsOk = buildIntegrationStats(snapshot.stats, cache.header, sizeof(cache.header)) &&
-                    appendStatsRecent(snapshot, cache.header, sizeof(cache.header));
     cache.curveHashes = {};
   }
+  // The header follows the store, the selected window, and the active
+  // preset of its "This preset" chart.
+  const bool header = !cache.valid || cache.headerEpoch != epoch ||
+      cache.headerWindow != session.statsWindow ||
+      cache.headerPresetId != control.bbwPresetId;
+  if (header) {
+    cache.statsOk = formatStatsHeader(cache, session.statsWindow, control.bbwPresetId);
+    cache.headerEpoch = epoch;
+    cache.headerWindow = session.statsWindow;
+    cache.headerPresetId = control.bbwPresetId;
+  }
   const size_t count = snapshot.count;
-  if (reload || cache.offset != offset || cache.limit != limit ||
-      cache.sort != sort || cache.dir != dir) {
+  if (reload || header || cache.offset != offset || cache.limit != limit ||
+      cache.sort != sort || cache.dir != dir || cache.filterHash != filterHash) {
     // Materialize the requested order as an index permutation over the
     // newest-first cache: date/desc is the store order, date/asc its
-    // reverse, rating an insertion sort of indices. The records themselves
-    // never move, so toggles re-slice without recopying or re-sorting data.
+    // reverse, rating an insertion sort of indices, then compacted to the
+    // filter's matches. The records themselves never move, so toggles
+    // re-slice without recopying or re-sorting data.
     for (size_t index = 0; index < count; ++index) cache.order[index] = static_cast<uint16_t>(index);
     if (sort == ShotLogSort::Rating) {
       for (size_t i = 1; i < count; ++i) {
@@ -1348,11 +1248,16 @@ bool OpenBrewByWeightNetwork::sendStatsStream(UiStreamSession &session,
         cache.order[count - 1U - index] = swapped;
       }
     }
-    cache.hasMore = shotLogPageSlice(count, offset, limit, cache.start, cache.pageCount);
+    cache.matched = 0;
+    for (size_t index = 0; index < count; ++index)
+      if (shotListFilterMatches(filter, snapshot.records[cache.order[index]]))
+        cache.order[cache.matched++] = cache.order[index];
+    cache.hasMore = shotLogPageSlice(cache.matched, offset, limit, cache.start, cache.pageCount);
     uint32_t fingerprint = crc32Update(0xFFFFFFFFU,
         reinterpret_cast<const uint8_t *>(&epoch), sizeof(epoch));
-    const uint32_t window[4] = {static_cast<uint32_t>(offset), static_cast<uint32_t>(limit),
-                                static_cast<uint32_t>(sort), static_cast<uint32_t>(dir)};
+    const uint32_t window[5] = {static_cast<uint32_t>(offset), static_cast<uint32_t>(limit),
+                                static_cast<uint32_t>(sort), static_cast<uint32_t>(dir),
+                                filterHash};
     fingerprint = crc32Update(fingerprint,
         reinterpret_cast<const uint8_t *>(window), sizeof(window));
     if (cache.statsOk)
@@ -1385,6 +1290,7 @@ bool OpenBrewByWeightNetwork::sendStatsStream(UiStreamSession &session,
     cache.limit = limit;
     cache.sort = sort;
     cache.dir = dir;
+    cache.filterHash = filterHash;
     cache.valid = true;
   }
   const uint32_t fingerprint = cache.fingerprint;
@@ -1395,6 +1301,8 @@ bool OpenBrewByWeightNetwork::sendStatsStream(UiStreamSession &session,
     // Content identical (e.g. a no-op rating bump): adopt the moved epoch so
     // idle ticks stop at the cheap gate instead of recopying the records.
     session.statsEpoch = epoch;
+    session.statsPresetId = control.bbwPresetId;
+    session.statsShownWindow = session.statsWindow;
     return true;
   }
   if (!session.statsPaging) {
@@ -1409,6 +1317,10 @@ bool OpenBrewByWeightNetwork::sendStatsStream(UiStreamSession &session,
     session.statsPageFetch = fetch;
     session.statsBoot = control.bootId;
     session.statsResync = false;
+    // The header identity a standing page carries: a later window or
+    // preset change, even mid-page, sends the header again.
+    session.statsShownWindow = fetch ? session.statsShownWindow : session.statsWindow;
+    session.statsPresetId = fetch ? session.statsPresetId : control.bbwPresetId;
   }
   const bool first = session.statsSent == 0;
   const size_t sentBase = session.statsSent;
@@ -1430,7 +1342,7 @@ bool OpenBrewByWeightNetwork::sendStatsStream(UiStreamSession &session,
   if (!statusJsonAppend(&used,
           "\"total\":%u,\"offset\":%u,\"limit\":%u,"
           "\"hasMore\":%s,\"rows\":[",
-          static_cast<unsigned>(count), static_cast<unsigned>(start),
+          static_cast<unsigned>(cache.matched), static_cast<unsigned>(start),
           static_cast<unsigned>(limit), cache.hasMore ? "true" : "false"))
     return false;
   const size_t rowsBase = used;

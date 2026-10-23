@@ -12,8 +12,13 @@ interface starts or after a dropped connection. From then on the data keeps
 refreshing in the background even while you are elsewhere in the interface, so
 the page always opens instantly with the latest shots.
 
-The Stats chart shows how your newest 10 shots, the same ones behind the
-averages, land against the shot time window. Each
+Choose how far back Stats looks with **Last 10**, **50**, or **100** under the
+averages. The averages and both charts follow your choice, and the note beside
+it says how many shots they actually cover — fewer when you have not pulled
+that many yet. Every time you open the Web UI it starts again at 10.
+
+The Stats chart shows how those shots, the same ones behind the averages, land
+against the shot time window. Each
 part of the chart shows its share of your shots and how many there were: Fast
 before the window, On recipe inside it and Slow after it. Below those numbers,
 a smooth curve rises where your shot times cluster: a tall, narrow peak means
@@ -33,12 +38,13 @@ Below it, the consistency chart answers a different question: not whether your
 shots landed on recipe, but how alike they are. It measures time, not weight:
 every shot already stops at its target weight, so what changes from shot to
 shot is how long it took to get there. A barista whose shots all run a little
-slow can still be very consistent. The chart looks at the same newest 10 shots
-as the averages above, keeps those with an arrival time, and follows the same
+slow can still be very consistent. The chart looks at the same shots as the
+averages above, keeps those with an arrival time, and follows the same
 **All presets** or **Current preset** choice.
 
 Each shot is a column, with the newest on the right; as new shots arrive, the
-older ones move left. Each column starts at your average time to the target,
+older ones move left. With 50 or 100 shots the columns get thinner so they all
+fit. Each column starts at your average time to the target,
 the dashed line, and shows how much slower (up) or faster (down) that shot was.
 The shaded band covers 5 % of the average either side, about 1.4 seconds on a
 28-second shot; columns that go past it are drawn in a stronger color. A shot
@@ -233,7 +239,23 @@ You can leave the page while it loads and return later.
 Sort the list by **Date** or **Rating**, ascending or descending. Date
 defaults to newest first. Rating puts unrated shots (0 stars) at the end
 in both directions; equal scores keep newer shots first. The table loads
-**10 shots at a time** as you scroll. Changes arrive automatically while the
+**10 shots at a time** as you scroll.
+
+Narrow the list with the **Filter** control next to the sort order. Tick
+**Fast**, **Slow**, or **On recipe** to see only shots with that result; only
+shots stopped by weight with a measured arrival time have one, so a result
+filter leaves the others out. When your shots used more than one scale or more
+than one preset, the checklist also lists them, so you can look at one
+grinder setting or one coffee on its own. Ticks within a group add to each
+other, and ticks in different groups must all match: Slow plus your house
+preset shows only the house preset's slow shots. The filter works with either
+sort order, every page you scroll to is full of matching shots, and the Filter
+button shows a count badge while a filter is active; Reset clears it, and
+tapping outside or pressing Escape closes the checklist. When nothing matches,
+the list says so. The filter changes only the list: the averages, charts, and
+Export CSV still cover your shots as described below.
+
+Changes arrive automatically while the
 page is open. After an entry is added, rated, or deleted, the list refreshes
 from the first page in your chosen order; scroll to load more again. Export CSV
 downloads the full log newest-first, independent of the on-screen sort. A large
@@ -247,11 +269,12 @@ when it is not the current one). Hovering a time shows its exact date and
 time to the second, and the CSV export always keeps that full detail no
 matter how the table displays it.
 
-Stats uses up to the newest **10 qualifying shots** for duration, yield, available
-flow, daily count, and both Stats charts, regardless of how the table is
-sorted or how far you have scrolled it. **Avg BBW error** independently uses up to the newest **10 shots
-stopped by weight** in the full history, skipping manual shots and time or
-safety stops. Each miss is measured against the planned stop — the cut line
+Stats uses up to the newest **10, 50, or 100 qualifying shots**, as you choose,
+for duration, yield, available flow, daily count, and both Stats charts,
+regardless of how the table is sorted, filtered, or how far you have scrolled
+it. **Avg BBW error** independently uses up to the same number of newest
+**shots stopped by weight** in the full history, skipping manual shots and time
+or safety stops. Each miss is measured against the planned stop — the cut line
 when the stop was commanded, which is above the target for a fast shot and
 below it for a slow one — and the absolute percentages are averaged, so
 overshoots and undershoots cannot cancel each other. It is unavailable when no

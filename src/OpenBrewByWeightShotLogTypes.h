@@ -19,6 +19,11 @@ constexpr size_t SHOT_LOG_CAPACITY = 500;
 constexpr size_t SHOT_LOG_PAGE_DEFAULT = 10;
 // Maximum number of records in each independent read-time Stats window.
 constexpr size_t SHOT_LOG_STATS_WINDOW = 10;
+// Windows the Web UI Stats panel can select; the first is the default.
+constexpr size_t SHOT_LOG_STATS_WINDOWS[] = {SHOT_LOG_STATS_WINDOW, 50, 100};
+constexpr size_t SHOT_LOG_STATS_WINDOW_MAX = 100;
+// Options per Shots-list filter group, and the facets the Stats header lists.
+constexpr size_t SHOT_LIST_FILTER_MAX = 8;
 
 enum class ShotLogSort : uint8_t { Date = 0, Rating = 1 };
 enum class ShotLogSortDir : uint8_t { Desc = 0, Asc = 1 };
@@ -505,6 +510,50 @@ inline void shotLogSetPresetId(ShotLogRecord &record, uint8_t id) {
   record.cutType = (record.cutType & 0xf3) | ((id >> 6) << 2);
 }
 
+// The list's result: the verdict of a timed shot (0 on recipe, 1 fast,
+// 2 slow); 3 = none, as for every shot without a time to target.
+inline uint8_t shotLogResult(const ShotLogRecord &record) {
+  return record.arrivalDs == 0 || record.arrivalDs == SHOT_LOG_METRIC_MISSING
+             ? 3 : record.verdict & 3;
+}
+
+// A scale named by value, keyed for the list filter.
+inline uint32_t shotLogScaleKey(const ShotLogRecord &record) {
+  return crc32Update(0xFFFFFFFFU, reinterpret_cast<const uint8_t *>(record.scaleName),
+                     strnlen(record.scaleName, sizeof(record.scaleName)));
+}
+
+// Shots-list filter: an empty group does not restrict, groups combine with
+// AND and the options of a group with OR. Results are shotLogResult bits.
+struct ShotListFilter {
+  uint8_t results = 0, presetCount = 0, scaleCount = 0;
+  uint8_t presets[SHOT_LIST_FILTER_MAX] = {};
+  uint32_t scales[SHOT_LIST_FILTER_MAX] = {};
+};
+
+inline bool shotListFilterMatches(const ShotListFilter &filter,
+                                  const ShotLogRecord &record) {
+  const uint8_t result = shotLogResult(record);
+  if (filter.results && (result > 2 || !((filter.results >> result) & 1U)))
+    return false;
+  bool preset = filter.presetCount == 0, scale = filter.scaleCount == 0;
+  for (size_t i = 0; i < filter.presetCount; ++i)
+    preset = preset || filter.presets[i] == shotLogPresetId(record);
+  const uint32_t key = scale ? 0 : shotLogScaleKey(record);
+  for (size_t i = 0; i < filter.scaleCount; ++i)
+    scale = scale || filter.scales[i] == key;
+  return preset && scale;
+}
+
+// Identity of a filter for the page cache and the stream fingerprint.
+inline uint32_t shotListFilterHash(const ShotListFilter &filter) {
+  const uint8_t head[3] = {filter.results, filter.presetCount, filter.scaleCount};
+  uint32_t hash = crc32Update(0xFFFFFFFFU, head, sizeof(head));
+  hash = crc32Update(hash, filter.presets, filter.presetCount);
+  return crc32Update(hash, reinterpret_cast<const uint8_t *>(filter.scales),
+                     filter.scaleCount * sizeof(filter.scales[0]));
+}
+
 // Profile 0 unknown, 5 smooth cut (corridor) v1; 1–4 were the pre-schema-1
 // policies and can no longer be stored. Alpha 0 unknown, 1–100 hundredths.
 inline uint8_t shotLogBbwProfile(const ShotLogRecord &record) {
@@ -621,15 +670,27 @@ struct ShotStatsView {
   uint16_t durationsDs[SHOT_LOG_STATS_WINDOW] = {};
 };
 
-inline ShotStatsView shotLogStatsView(const ShotLogRecord *newestFirst,
-                                     size_t available) {
+// The aggregate over the newest `window` eligible records of `count`, where
+// at(n) is the n-th newest. The BBW error averages the newest `window` weight
+// cuts, which may reach past that window. Only the first ten durations are
+// kept: they feed the integration's ten-shot chart.
+template <typename At>
+inline ShotStatsView shotLogStatsView(size_t count, size_t window, At at) {
   ShotStatsView stats = {};
   int32_t newestDay = -1;
   int32_t oldestDay = -1;
-  for (size_t i = 0; i < available && stats.shotCount < SHOT_LOG_STATS_WINDOW;
-       ++i) {
-    const ShotLogRecord &record = newestFirst[i];
-    stats.durationsDs[stats.shotCount++] = record.durationDs;
+  for (size_t n = 0;
+       n < count && (stats.shotCount < window || stats.bbwCount < window); ++n) {
+    const ShotLogRecord &record = at(n);
+    if (!shotLogRecordEligible(record)) continue;
+    if (stats.bbwCount < window && shotLogBbwErrorEligible(record)) {
+      ++stats.bbwCount;
+      stats.errorPctTenthsSum += shotLogBbwErrorTenths(record);
+    }
+    if (stats.shotCount >= window) continue;
+    if (stats.shotCount < SHOT_LOG_STATS_WINDOW)
+      stats.durationsDs[stats.shotCount] = record.durationDs;
+    ++stats.shotCount;
     stats.durationDsSum += record.durationDs;
     stats.actualCgSum += static_cast<uint32_t>(record.actualWeightCg);
     if (record.avgFlowCgS != SHOT_LOG_METRIC_MISSING) {

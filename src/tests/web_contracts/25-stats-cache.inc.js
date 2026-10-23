@@ -5,6 +5,7 @@
   const assert = require('assert').strict, {spawnSync} = require('child_process');
   const read = (file) => fs.readFileSync(path.join(sketchDir, file), 'utf8');
   const source = read('network/OpenBrewByWeightHomeStream.inc');
+  const headerSource = read('network/OpenBrewByWeightStatsPage.inc');
   const networkSource = read('OpenBrewByWeightNetwork.cpp');
   const header = read('OpenBrewByWeightNetwork.h');
   const body = (text, signature) => {
@@ -19,6 +20,7 @@
   const native = `
 #include <cassert>
 #include <atomic>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <string>
@@ -55,8 +57,11 @@ struct NetworkWorkBuf {
 } work;
 auto *g_work=&work;
 ${body(networkSource, 'bool __attribute__((format(printf, 2, 3)))\nstatusJsonAppend(')}
-bool buildIntegrationStats(const ShotStatsView &stats,char *out,size_t cap){
-  snprintf(out,cap,"{\\"shotCount\\":%u}",stats.shotCount);return true;
+${body(networkSource, 'bool jsonScratchAppend(')}
+bool escapeJsonString(const char *in,char *out,size_t cap){snprintf(out,cap,"%s",in);return true;}
+// The aggregate names the store generation it was built from.
+bool buildIntegrationStats(const ShotStatsView &,char *out,size_t cap,size_t window,bool durations){
+  assert(!durations);snprintf(out,cap,"{\\"shotCount\\":%u,\\"window\\":%zu}",storeEpoch,window);return true;
 }
 uint32_t uiStreamCurveHash(const ShotCurveRecord &curve,uint16_t count){
   ++hashes;return count ? curve.lastWeightCg : 0;
@@ -70,11 +75,12 @@ size_t formatShotStatsRow(NetworkWorkBuf &buffer,const ShotLogRecord &record,
 }
 void capture(ShotStatsRecordsSnapshot &out){
   ++captures;
-  out.epoch=storeEpoch;out.stats.shotCount=storeEpoch;out.count=3;
+  out.epoch=storeEpoch;out.count=3;
   const uint32_t content=frozen?frozen:storeEpoch;
   for(size_t i=0;i<out.count;++i){
     out.records[i]={};out.records[i].id=3-i;out.records[i].actualWeightCg=content*100+i;
     out.records[i].sideFlags=shotLogPackRating(0,i==0?1:i==1?5:0);
+    shotLogSetPresetId(out.records[i],i==1?2:1);
   }
 }
 bool curveById(uint32_t id,ShotCurveRecord &curve){
@@ -102,27 +108,47 @@ ${session}
   bool sendUiStreamFrame(UiStreamSession &,size_t,bool &);
   bool sendStatsStream(UiStreamSession &,const ControlStatusSnapshot &);
 };
+${body(headerSource, 'bool appendStatsDensity(')}
+${body(headerSource, 'bool formatStatsHeader(')}
 ${body(source, 'bool OpenBrewByWeightNetwork::sendUiStreamFrame(')}
 ${body(source, 'bool OpenBrewByWeightNetwork::sendStatsStream(')}
 int main(){
-  // The recent list mirrors statsView: newest-first eligible shots, ten at most,
-  // closing the aggregate object; an overflow or an unclosed object fails.
+  // The header covers the newest window of eligible shots: timed arrivals
+  // oldest first, a density curve per scope scaled to its peak, and the
+  // presets and scales of the whole log.
   {
-    ShotStatsRecordsSnapshot recent{};recent.count=12;
+    StatsStreamCache &cache=work.statsCache;ShotStatsRecordsSnapshot &recent=cache.snapshot;
+    recent.count=60;
     for(size_t i=0;i<recent.count;++i){
-      ShotLogRecord &r=recent.records[i];r={};r.id=20-i;r.durationDs=300;
+      ShotLogRecord &r=recent.records[i];r={};r.id=100-i;r.durationDs=300;
       r.actualWeightCg=i==1?150:3600;r.arrivalDs=i==0?SHOT_LOG_METRIC_MISSING:280+i;
-      r.verdict=i==0?3:0;r.fastBeforeDs=250;r.slowAfterDs=320;
+      r.verdict=i==0?3:i==5?1:0;r.fastBeforeDs=250;r.slowAfterDs=320;
+      shotLogSetPresetId(r,i==3?7:4);
+      snprintf(r.presetName,sizeof(r.presetName),"%s",i==3?"Decaf":"House");
+      snprintf(r.scaleName,sizeof(r.scaleName),"%s",i<4?"Lunar":"");
     }
-    char list[1024]="{\\"n\\":1}";assert(appendStatsRecent(recent,list,sizeof(list)));
-    const std::string text=list;
-    assert(text.rfind("{\\"n\\":1,\\"recent\\":[[20,",0)==0&&text.find(",null,null,25.0,32.0]")!=std::string::npos);
-    assert(text.size()>2&&text.compare(text.size()-2,2,"]}")==0);
-    assert(text.find("[19,")==std::string::npos&&text.find("[18,")!=std::string::npos);
-    assert(text.find("[10,")!=std::string::npos&&text.find("[9,")==std::string::npos);
-    assert(text.find(",28.2,\\"on_recipe\\",25.0,32.0]")!=std::string::npos);
-    char tight[40]="{}",open[16]="{";
-    assert(!appendStatsRecent(recent,tight,sizeof(tight))&&!appendStatsRecent(recent,open,sizeof(open)));
+    assert(formatStatsHeader(cache,10,4));
+    std::string text=cache.header;
+    assert(text.rfind("{\\"shotCount\\":",0)==0&&text.compare(text.size()-3,3,"]}}")==0);
+    // Eligible: i=0 and 2..10 (i=1 has no yield); timed: 2..10, oldest first.
+    assert(text.find("\\"cons\\":{\\"t\\":[290,289,288,287,286,285,284,283,282],\\"p\\":[4,4,4,4,4,4,4,7,4]}")!=std::string::npos);
+    assert(text.find("\\"dens\\":[{\\"lo\\":19,\\"hi\\":38,\\"a\\":25.0,\\"b\\":32.0,\\"shared\\":true,\\"n\\":[1,8,0],\\"h\\":[")!=std::string::npos);
+    assert(text.find("]},\\"facets\\":{\\"presets\\":[[4,\\"House\\"],[7,\\"Decaf\\"]],\\"scales\\":[[")!=std::string::npos);
+    assert(text.find(",\\"Lunar\\"]]}}")!=std::string::npos);
+    // The active preset's own curve: one Decaf shot; a preset without timed
+    // shots gets null, and one holding every timed shot repeats the first.
+    assert(text.find("]},{\\"lo\\":")!=std::string::npos);
+    const size_t peak=text.find(",100,"),h=text.find("\\"h\\":[");
+    assert(h!=std::string::npos&&peak!=std::string::npos);
+    assert(formatStatsHeader(cache,10,9)&&std::string(cache.header).find("]},null],")!=std::string::npos);
+    for(size_t i=0;i<recent.count;++i)shotLogSetPresetId(recent.records[i],4);
+    assert(formatStatsHeader(cache,10,4)&&std::string(cache.header).find("]},true],")!=std::string::npos);
+    assert(std::string(cache.header).find("\\"p\\":4}")!=std::string::npos);
+    // A wider window takes more shots; no timed shot draws no chart.
+    assert(formatStatsHeader(cache,50,4)&&std::string(cache.header).find("\\"t\\":[330,")!=std::string::npos);
+    for(size_t i=0;i<recent.count;++i)recent.records[i].arrivalDs=0;
+    assert(formatStatsHeader(cache,10,4)&&std::string(cache.header).find("\\"dens\\":[null,null],\\"cons\\":{\\"t\\":[],\\"p\\":0}")!=std::string::npos);
+    cache=StatsStreamCache{};
   }
   OpenBrewByWeightNetwork network;auto &session=network.uiStreams_[0];
   strcpy(session.clientId,"owner");session.fd=1;session.statsOn=true;
@@ -133,7 +159,7 @@ int main(){
   assert(send(session)&&session.statsSent==2);
   assert(send(session)&&!session.statsPaging);
   assert(captures==1&&hashes==3&&frames.size()==3);
-  assert(frames[0].find("\\"stats\\":{\\"shotCount\\":1,\\"recent\\":[]}")!=std::string::npos);
+  assert(frames[0].find("\\"stats\\":{\\"shotCount\\":1,\\"window\\":10,\\"dens\\":[null,null]")!=std::string::npos);
   assert(frames[1].find("\\"rowBase\\":1")!=std::string::npos);
   // Columns are named once, in the page's first frame.
   assert(frames[0].find("\\"cols\\":\\"id,weight,padding\\"")!=std::string::npos&&
@@ -199,6 +225,25 @@ int main(){
   // A resubscribe (or reconnect) still sends whole rows.
   fresh.statsResync=true;frames.clear();
   assert(send(fresh)&&frames[0].find("\\"id\\":3")!=std::string::npos);
+  while(fresh.statsPaging)assert(send(fresh));
+  // A window-only change refreshes the header and names the held rows by id.
+  fresh.statsWindow=50;frames.clear();
+  assert(send(fresh)&&!fresh.statsPaging&&frames.size()==1&&captures==captures);
+  assert(frames[0].find("\\"window\\":50")!=std::string::npos&&
+         frames[0].find("\\"rows\\":[3,2,1]")!=std::string::npos);
+  assert(send(fresh)&&frames.size()==1);
+  // The filter compacts the order: totals and pages count matches only.
+  fresh.statsFilter.presetCount=1;fresh.statsFilter.presets[0]=1;fresh.statsResync=true;frames.clear();
+  for(int i=0;i<2;++i)assert(send(fresh));
+  assert(!fresh.statsPaging&&frames.size()==2);
+  assert(frames[0].find("\\"total\\":2,")!=std::string::npos&&frames[0].find("\\"id\\":3")!=std::string::npos);
+  assert(frames[1].find("\\"id\\":1")!=std::string::npos&&frames[1].find("\\"more\\":false")!=std::string::npos);
+  // A fetch's own filter (the export's empty one) leaves the standing page alone.
+  fresh.statsFetch=true;fresh.statsFetchRequest=6;fresh.statsFetchOffset=0;fresh.statsFetchLimit=100;
+  fresh.statsFetchFilter={};frames.clear();
+  for(int i=0;i<3;++i)assert(send(fresh));
+  assert(frames.size()==3&&frames[0].find("\\"total\\":3,")!=std::string::npos);
+  frames.clear();assert(send(fresh)&&frames.empty());
 }
 `;
   const directory = path.resolve(sketchDir, '..', 'temp', 'ai_temp_stats_cache');

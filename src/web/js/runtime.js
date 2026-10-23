@@ -244,6 +244,11 @@ const uiState = {
   historyExportWindow: null,
   historyNextRequest: 0,
   historyDir: "desc",
+  // Firmware-side list filters (empty = everything) and the Stats window;
+  // none of them outlives the page.
+  historyTypes: [],
+  shotFilter: {},
+  statsWindow: 10,
   scanTimer: 0,
   configDirty: false,
   dateTimeDirty: false,
@@ -1282,6 +1287,138 @@ function armStickyBar(id) {
   };
   arm();
   window.matchMedia("(min-width: 700px)").addEventListener("change", arm);
+}
+// A record list's filter menu, anchored to its toolbar button: checkbox
+// groups under a Reset header. An empty group does not restrict and the
+// button carries the selected count. The firmware filters the pages, so
+// onChange(selection) only re-subscribes; groups() returns
+// [{key, label?, options: [[value, text, iconHtml?]]}] and is read on every
+// open, so the options follow the data.
+function createFilterMenu(buttonId, title, groups, onChange) {
+  const sel = {};
+  let panel = null;
+  const count = () => Object.values(sel).reduce((n, s) => n + s.size, 0);
+  const sync = () => {
+    const b = $(buttonId),
+      n = count(),
+      chip = b?.querySelector(".histFilterCount");
+    if (!b) return;
+    b.setAttribute("aria-pressed", n ? "true" : "false");
+    b.classList.toggle("btnFilterOn", !!n);
+    if (chip) {
+      chip.textContent = n;
+      chip.hidden = !n;
+    }
+  };
+  const changed = () => {
+    if (panel)
+      for (const box of panel.querySelectorAll("input"))
+        box.checked = !!sel[box.name]?.has(box.value);
+    sync();
+    onChange(Object.fromEntries(Object.entries(sel).map(([k, s]) => [k, [...s]])));
+  };
+  const place = () => {
+    const r = $(buttonId).getBoundingClientRect(),
+      below = innerHeight - r.bottom;
+    panel.style.top =
+      (below >= panel.offsetHeight || below >= r.top
+        ? r.bottom + 8
+        : Math.max(8, r.top - panel.offsetHeight - 8)) + "px";
+    panel.style.left =
+      Math.min(
+        Math.max(8, r.left + r.width / 2 - panel.offsetWidth / 2),
+        innerWidth - panel.offsetWidth - 8,
+      ) + "px";
+  };
+  const build = () => {
+    panel?.remove();
+    const p = (panel = document.createElement("div")),
+      head = document.createElement("div"),
+      reset = document.createElement("button");
+    p.className = "histFilterPanel";
+    p.setAttribute("role", "menu");
+    p.setAttribute("aria-label", title);
+    head.className = "histFilterHead";
+    reset.type = "button";
+    reset.className = "histFilterReset";
+    reset.textContent = __WEBUI_TEXT__("history.filter_reset");
+    reset.onclick = () => {
+      for (const k in sel) sel[k].clear();
+      changed();
+    };
+    head.append(Object.assign(document.createElement("span"), { textContent: title }), reset);
+    p.append(head);
+    for (const g of groups()) {
+      if (g.label)
+        p.append(
+          Object.assign(document.createElement("div"), {
+            className: "histFilterGroup",
+            textContent: g.label,
+          }),
+        );
+      for (const [value, text, icon] of g.options) {
+        const item = document.createElement("label"),
+          box = document.createElement("input");
+        item.className = "histFilterItem";
+        box.type = "checkbox";
+        box.name = g.key;
+        box.value = value;
+        box.checked = !!sel[g.key]?.has(box.value);
+        box.setAttribute("role", "menuitemcheckbox");
+        item.append(box);
+        if (icon != null) {
+          const i = document.createElement("span");
+          i.className = "histFilterIcon";
+          i.setAttribute("aria-hidden", "true");
+          i.innerHTML = icon;
+          item.append(i);
+        }
+        item.append(Object.assign(document.createElement("span"), { textContent: text }));
+        p.append(item);
+      }
+    }
+    p.addEventListener("change", (e) => {
+      const box = e.target;
+      if (box.type !== "checkbox") return;
+      const s = (sel[box.name] ??= new Set());
+      box.checked ? s.add(box.value) : s.delete(box.value);
+      changed();
+    });
+    document.body.append(p);
+  };
+  const toggle = (force) => {
+    const b = $(buttonId);
+    if (!b) return;
+    const open = force === undefined ? !panel || panel.hidden : force;
+    if (open) build();
+    if (!panel) return;
+    panel.hidden = !open;
+    b.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) {
+      place();
+      panel.querySelector("input")?.focus();
+    }
+  };
+  const shown = () => panel && !panel.hidden;
+  document.addEventListener("click", (e) => {
+    if (
+      shown() &&
+      !panel.contains(e.target) &&
+      !(e.target instanceof Element && e.target.closest("#" + buttonId))
+    )
+      toggle(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && shown()) {
+      toggle(false);
+      $(buttonId)?.focus();
+    }
+  });
+  const reposition = () => shown() && place();
+  window.addEventListener("scroll", reposition, { passive: true });
+  window.addEventListener("resize", reposition, { passive: true });
+  $(buttonId).onclick = () => toggle();
+  sync();
 }
 function refreshShots() {
   return shotStatsViewActive() ? startStatsStream(true) : Promise.resolve(false);
@@ -4975,6 +5112,7 @@ function historySendSubscribe() {
     offset: 0,
     limit: HISTORY_PAGE_SIZE,
     dir: uiState.historyDir,
+    ...(uiState.historyTypes.length && { types: uiState.historyTypes }),
   });
 }
 // The History subscription is session-standing: once ensured it stays on for
@@ -5117,6 +5255,8 @@ function statsSendSubscribe() {
     limit: SHOTS_PAGE_SIZE,
     sort: uiState.shotSort,
     dir: uiState.shotSortDir,
+    ...(Object.keys(uiState.shotFilter).length && { filter: uiState.shotFilter }),
+    ...(uiState.statsWindow !== 10 && { window: uiState.statsWindow }),
   });
 }
 // The Stats subscription is session-standing, like History above.
@@ -6417,6 +6557,7 @@ export {
   renderLog,
   armListSentinel,
   armStickyBar,
+  createFilterMenu,
   setStatsRenderers,
   setSettingsRenderer,
   initGroupRows,
@@ -6425,7 +6566,6 @@ export {
   loadMoreHistory,
   historySendSubscribe,
   historyLoaded,
-  HISTORY_PAGE_SIZE,
   formatHumanTime,
   resetNetworkAddressLoaded,
   formatWallTimeLocal,

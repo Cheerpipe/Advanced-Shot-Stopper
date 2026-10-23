@@ -112,29 +112,13 @@ class ShotLog
                                       preset.learningEpoch, otherPresets);
   }
 
+  // The integration's ten-shot aggregate. Caller holds the store mutex.
   ShotStatsView statsView() const {
-    ShotLogRecord eligible[SHOT_LOG_STATS_WINDOW];
-    size_t found = 0;
-    uint32_t bbwCount = 0;
-    uint32_t bbwErrorTenthsSum = 0;
-    size_t index = store_.header.writeIndex;
-    for (size_t n = 0; n < store_.header.count &&
-                       (found < SHOT_LOG_STATS_WINDOW ||
-                        bbwCount < SHOT_LOG_STATS_WINDOW); ++n) {
-      if (index == 0) index = SHOT_LOG_CAPACITY;
-      const ShotLogRecord &record = store_.records[--index];
-      if (!shotLogRecordEligible(record)) continue;
-      if (found < SHOT_LOG_STATS_WINDOW) eligible[found++] = record;
-      if (bbwCount < SHOT_LOG_STATS_WINDOW &&
-          shotLogBbwErrorEligible(record)) {
-        ++bbwCount;
-        bbwErrorTenthsSum += shotLogBbwErrorTenths(record);
-      }
-    }
-    ShotStatsView stats = shotLogStatsView(eligible, found);
-    stats.bbwCount = bbwCount;
-    stats.errorPctTenthsSum = bbwErrorTenthsSum;
-    return stats;
+    const size_t write = store_.header.writeIndex;
+    return shotLogStatsView(store_.header.count, SHOT_LOG_STATS_WINDOW,
+                            [&](size_t n) -> const ShotLogRecord & {
+      return store_.records[(write + SHOT_LOG_CAPACITY - 1U - n) % SHOT_LOG_CAPACITY];
+    });
   }
 
   // The drip each newest shot of a preset needed (offset used + final − cut

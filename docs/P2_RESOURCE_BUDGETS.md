@@ -119,6 +119,19 @@ page) measures 2,368,768 image, 2,368,651 linked and 1,588,372 flash-code
 bytes, so those allowances move to 95,072, 95,068 and 73,336 bytes keeping
 the 64-byte headroom; rodata, DIRAM (512 bytes over baseline) and external
 BSS stay inside theirs.
+Firmware-side Shots and History filters, the 10/50/100 Stats window, and the
+firmware-computed Stats density and consistency charts (owner-reviewed
+2026-10-23) measure 2,468,032 image, 2,467,911 linked and 1,662,356
+flash-code bytes on the development Micra build, so the image and linked
+allowances rise by 4,096 bytes, to 99,168 and 99,164, and the flash-code
+allowance by 2,048 bytes, to 75,384. The new Stats header and filter parsers
+are built for size (`optimize("Os")`) and run only when the store, the
+window, or the active preset changes, never on the control path. Rodata
+(645,016, 26,144 over baseline), DIRAM (193,414, 272 over baseline: the
+per-session filter and window fields) and external BSS (the Stats chart
+scratch lives in the PSRAM network work buffer) stay inside their
+allowances. Task priorities, cadences, OTA identity and partitions are
+unchanged.
 Urgent control-gate publication and the no-scale timer's stop fade add another
 640 bytes of reviewed image/linked allowance, to 44,976 and 44,968 bytes.
 The mobile full-screen Home shot card and the Brew by Weight master toggle

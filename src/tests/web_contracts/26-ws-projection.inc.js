@@ -33,7 +33,7 @@ ${body(networkSource, 'bool statusJsonAppendScaleProfiler(')}
 struct OpenBrewByWeightNetwork {
   static size_t formatShotStatsRow(NetworkWorkBuf &,const ShotLogRecord &,const ShotCurveRecord *);
 };
-${body(read('network/OpenBrewByWeightHomeStream.inc'), 'size_t OpenBrewByWeightNetwork::formatShotStatsRow(')}
+${body(read('network/OpenBrewByWeightStatsPage.inc'), 'size_t OpenBrewByWeightNetwork::formatShotStatsRow(')}
 int main(){
   TaskProfilerSnapshot tasks;
   tasks.rowCount=1;strcpy(tasks.rows[0].name,"worker");tasks.rows[0].stackMinBytes=1024;
@@ -128,7 +128,7 @@ int main(){
   const wire = run.stdout.trim().split('\n');
   const [live, full, empty, busy, failed, rowValues, ...curves] = wire.map(JSON.parse);
   // A Stats row is its values in kStatsRowColumns order plus the curve object.
-  const homeSource = read('network/OpenBrewByWeightHomeStream.inc');
+  const homeSource = read('network/OpenBrewByWeightStatsPage.inc');
   const columnsDecl = homeSource.slice(homeSource.indexOf('constexpr char kStatsRowColumns[] ='));
   const columns = [...columnsDecl.slice(0, columnsDecl.indexOf(';')).matchAll(/"([^"]*)"/g)]
       .map(m => m[1]).join('').split(',');

@@ -663,57 +663,50 @@ function renderStatsDurChart() {
   }
   const host = $("statsDurChartPlot");
   if (!host) return;
-  const presets = R.homeStatusCache()?.presets || R.presetState,
+  const st = R.uiState.shotStats || {},
+    presets = R.homeStatusCache()?.presets || R.presetState,
     only = statsPresetFilter === "all" ? 0 : presets.activeId,
-    // The same newest-10 window as the averages, whatever the table's order or scroll.
-    timed = (R.uiState.shotStats?.recent || [])
-      .map(([id, presetId, arrivalS, verdict, fastBeforeS, slowAfterS]) => ({
-        id,
-        presetId,
-        presetName: presets.items?.find((p) => p.id === presetId)?.name,
-        arrivalS,
-        verdict,
-        fastBeforeS,
-        slowAfterS,
-      }))
-      .filter((r) => r.arrivalS > 0 && r.verdict),
+    // The firmware's charts over the panel's window, whatever the table's
+    // order or scroll: density curves for all presets and the active one
+    // (true = the same curve), and the timed arrivals oldest first.
+    charts = st.dens || [],
+    d = only ? (charts[1] === true ? charts[0] : charts[1]) : charts[0],
+    names = new Map(st.facets?.presets || []),
+    p = st.cons?.p,
+    timed = (st.cons?.t || []).map((t, i) => {
+      const presetId = Array.isArray(p) ? p[i] : p;
+      return { arrivalS: t / 10, presetId, presetName: names.get(presetId) };
+    }),
     shots = timed.filter((r) => !only || r.presetId === only);
   // No timed shots: no chart at all; none for this preset: only the filter.
   root.hidden = !timed.length;
-  host.hidden = !shots.length;
+  host.hidden = !d;
   for (const b of $("statsPresetFilter").children)
     b.setAttribute("aria-pressed", String(b.dataset.v === statsPresetFilter));
   renderStatsConsistency(shots);
-  if (!shots.length) {
+  if (!d) {
     host.innerHTML = "";
     return;
   }
-  // Each shot sits in its own judged window, scaled to their mean width.
-  const shared = shots.every(
-      (r) => r.fastBeforeS === shots[0].fastBeforeS && r.slowAfterS === shots[0].slowAfterS,
-    ),
-    a = shared ? shots[0].fastBeforeS : 0,
-    b = shared
-      ? shots[0].slowAfterS
-      : Math.round(shots.reduce((s, r) => s + r.slowAfterS - r.fastBeforeS, 0) / shots.length),
-    ts = shots.map(({ arrivalS: t, fastBeforeS: f, slowAfterS: s }) =>
-      t < f ? a + t - f : t > s ? b + t - s : a + ((t - f) / (s - f)) * (b - a),
-    ),
-    lo = Math.floor(Math.min(a - 5, ...ts) - 1),
-    hi = Math.ceil(Math.max(b + 5, ...ts) + 1),
+  // Heights (0–100 of the peak) are sampled at 121 points from lo to hi;
+  // the zone edges fall between samples.
+  const { lo, hi, a, b, shared, h } = d,
     x = (t) => (((t - lo) / (hi - lo)) * 100).toFixed(2),
-    dens = (t) =>
-      ts.reduce((s, v) => s + Math.exp(-0.5 * ((t - v) / Math.max(0.7, (hi - lo) / 28)) ** 2), 0),
+    dens = (t) => {
+      const k = ((t - lo) / (hi - lo)) * 120,
+        i = Math.max(0, Math.min(119, Math.floor(k)));
+      return h[i] + (h[i + 1] - h[i]) * (k - i);
+    },
     xs = Array.from({ length: 121 }, (_, i) => lo + ((hi - lo) * i) / 120),
-    peak = Math.max(...xs.map(dens)),
-    n = { fast: 0, on_recipe: 0, slow: 0 },
+    peak = 100,
+    n = { fast: d.n[0], on_recipe: d.n[1], slow: d.n[2] },
+    total = d.n[0] + d.n[1] + d.n[2],
     pct = {},
     L = R.axisLabel;
-  for (const r of shots) n[r.verdict]++;
   // Rounding the running total keeps the shares adding up to 100%.
   let sum = 0,
     done = 0;
-  for (const k in n) done += pct[k] = Math.round((100 * (sum += n[k])) / shots.length) - done;
+  for (const k in n) done += pct[k] = Math.round((100 * (sum += n[k])) / total) - done;
   const zones = [
     ["fast", lo, a, "var(--gFast)", __WEBUI_TEXT__("runtime.fast")],
     ["on_recipe", a, b, "var(--ok)", __WEBUI_TEXT__("runtime.verdict_on_recipe")],
@@ -767,18 +760,15 @@ function renderStatsDurChart() {
     true,
   );
 }
-// Consistency of the newest 10 timed shots: each shot's time to target as a
-// share of its own preset's average, so recipes of any length compare fairly.
+// Consistency of the window's timed shots, oldest first: each shot's time to
+// target as a share of its own preset's average, so recipes of any length
+// compare fairly.
 // The level is the median change between neighbouring shots, so one odd shot
 // cannot decide it; the band uses the same 5 %.
 const CONSISTENT = 0.05,
   VARIED = 0.1;
-function consistencyModel(shots) {
-  const rows = shots
-      .slice()
-      .sort((a, b) => a.id - b.id)
-      .slice(-10),
-    n = rows.length,
+function consistencyModel(rows) {
+  const n = rows.length,
     avg = {};
   for (const r of rows) (avg[r.presetId] ??= []).push(r.arrivalS);
   for (const k in avg) avg[k] = avg[k].reduce((a, v) => a + v, 0) / avg[k].length;
@@ -819,7 +809,11 @@ function renderStatsConsistency(shots) {
   if (!root) return;
   const m = consistencyModel(shots),
     { rows, rel, sec, M } = m,
-    n = rows.length;
+    n = rows.length,
+    // One fixed slot per shot of the window, latest on the right.
+    W = Math.max(2, R.uiState.shotStats?.window || 10),
+    gap = 94 / (W - 1),
+    half = gap * 0.27;
   root.hidden = !n;
   if (!n) return;
   const L = (v) =>
@@ -828,12 +822,12 @@ function renderStatsConsistency(shots) {
         : +(v * 100).toFixed(1) + __WEBUI_TEXT__("runtime.symbol_4"),
     signed = (v, k = Math.round(v * (sec || 100) * 10)) =>
       (k > 0 ? "+" : k < 0 ? "−" : "") + L(Math.abs(v)),
-    // Ten fixed slots, latest on the right, so a shot keeps its place as more arrive.
-    X = (i) => 3 + ((10 - n + i) * 94) / 9,
+    // Fixed slots, so a shot keeps its place as more arrive.
+    X = (i) => 3 + (W - n + i) * gap,
     Y = (v) => 25 - (23 * Math.max(-M, Math.min(M, v))) / M,
     out = (i) => Math.abs(rel[i]) > CONSISTENT,
     bar = (v, i) => {
-      const x = (X(i) - 2.82).toFixed(2),
+      const x = (X(i) - half).toFixed(2),
         h = Math.abs(Y(v) - 25),
         y = h < 0.6 ? 24.7 : Math.min(Y(v), 25);
       return (
@@ -841,13 +835,21 @@ function renderStatsConsistency(shots) {
         (out(i) ? " out" : "") +
         '" x="' +
         x +
-        '" width="5.64" y="' +
+        '" width="' +
+        (2 * half).toFixed(2) +
+        '" y="' +
         y.toFixed(2) +
         '" height="' +
         Math.max(h, 0.6).toFixed(2) +
         '"/>' +
         (Math.abs(v) > M
-          ? '<path class="consOver" d="M' + x + " " + (v > 0 ? 1 : 49) + 'h5.64"/>'
+          ? '<path class="consOver" d="M' +
+            x +
+            " " +
+            (v > 0 ? 1 : 49) +
+            "h" +
+            (2 * half).toFixed(2) +
+            '"/>'
           : "")
       );
     };
@@ -898,7 +900,7 @@ function renderStatsConsistency(shots) {
   [Y(M), 25, Y(-M)].forEach(
     (y, k) => (plot.querySelectorAll(".consEdge")[k].style.top = y * 2 + "%"),
   );
-  t0.style.left = X(0) - 2.82 + "%";
+  t0.style.left = X(0) - half + "%";
   t0.hidden = n < 4;
   t1.style.left = "100%";
   let at = n - 1;
@@ -931,7 +933,7 @@ function renderStatsConsistency(shots) {
     plot,
     (cx) => {
       const b = cur.getBoundingClientRect();
-      return Math.round(((((cx - b.left) / b.width) * 100 - 3) * 9) / 94) - (10 - n);
+      return Math.round((((cx - b.left) / b.width) * 100 - 3) / gap) - (W - n);
     },
     seek,
     () => at,
@@ -960,7 +962,47 @@ function renderShotStats() {
   q("Daily", s.shotsPerDay == null ? z : s.shotsPerDay.toFixed(1));
   q("Err", f(s.avgErrorPct, 1, __WEBUI_TEXT__("runtime.symbol_4")), s.avgErrorPct);
   q("Flow", f(s.avgFlowGps, 2, __WEBUI_TEXT__("runtime.g_s")));
+  const hint = $("statsWindowHint"),
+    c = s.shotCount || 0;
+  if (hint) {
+    hint.hidden = !c;
+    hint.textContent =
+      c === 1
+        ? __WEBUI_TEXT__("runtime.stats_window_one")
+        : R.sub(__WEBUI_TEXT__("runtime.stats_window_hint"), [c]);
+  }
+  for (const b of $("statsWindow")?.children || [])
+    b.setAttribute("aria-pressed", String(+b.dataset.v === R.uiState.statsWindow));
   renderStatsDurChart();
+}
+// Results always; scales and presets only when the log holds more than one.
+function shotFilterGroups() {
+  const f = R.uiState.shotStats?.facets || {},
+    presets = R.homeStatusCache()?.presets || R.presetState,
+    dot = (k) =>
+      '<svg class="histFilterDot" data-kind="' +
+      k +
+      '" viewBox="0 0 10 10"><circle cx="5" cy="5" r="3.5"/></svg>';
+  return [
+    {
+      key: "result",
+      label: __WEBUI_TEXT__("runtime.filter_result"),
+      options: ["fast", "slow", "on_recipe"].map((k) => [k, R.verdictLabel(k), dot(k)]),
+    },
+    f.scales?.length > 1 && {
+      key: "scale",
+      label: __WEBUI_TEXT__("runtime.scale"),
+      options: f.scales,
+    },
+    f.presets?.length > 1 && {
+      key: "preset",
+      label: __WEBUI_TEXT__("runtime.preset"),
+      options: f.presets.map(([id, name]) => [
+        id,
+        presets.items?.find((p) => p.id === id)?.name || name,
+      ]),
+    },
+  ].filter(Boolean);
 }
 function renderShots() {
   renderShotStats();
@@ -1097,7 +1139,11 @@ function renderShots() {
   }
   R.setEmptyState(
     "shotTableState",
-    rows.length ? null : __WEBUI_TEXT__("runtime.no_recorded_shots_yet"),
+    rows.length
+      ? null
+      : Object.keys(R.uiState.shotFilter).length
+        ? __WEBUI_TEXT__("runtime.no_shots_match_filter")
+        : __WEBUI_TEXT__("runtime.no_recorded_shots_yet"),
   );
   updateShotLogSentinel();
 }
@@ -1335,6 +1381,7 @@ function statsFrameWindow(offset, limit, sort, dir, timeoutMs) {
       limit,
       sort,
       dir,
+      filter: {},
     });
   }));
   pending.then(() => {
@@ -1383,6 +1430,26 @@ export function init() {
     $("sortRatingButton").onclick = () => setShotSort("rating");
     syncShotSortButtons();
   }
+  for (const b of $("statsWindow").children)
+    b.onclick = () => {
+      // Only the header changes: the firmware refreshes it and keeps the rows.
+      R.uiState.statsWindow = +b.dataset.v;
+      renderShotStats();
+      R.sendUiOperation({ op: "stats", on: true, window: R.uiState.statsWindow });
+    };
+  R.createFilterMenu(
+    "shotFilterButton",
+    __WEBUI_TEXT__("history.filter_types"),
+    shotFilterGroups,
+    (sel) => {
+      R.uiState.shotFilter = Object.fromEntries(
+        Object.entries(sel)
+          .filter(([, v]) => v.length)
+          .map(([k, v]) => [k, k === "result" ? v : v.map(Number)]),
+      );
+      R.statsSendSubscribe();
+    },
+  );
   R.armListSentinel("shotLogSentinel", loadMoreShots);
   R.armStickyBar("shotStickySentinel");
   renderStatsDurChart();

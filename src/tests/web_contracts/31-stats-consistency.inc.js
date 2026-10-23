@@ -5,9 +5,9 @@
   const assert = require('assert');
   const model = new Function(`${blockAt(viewJs.stats, 'const CONSISTENT = ')};return consistencyModel;`)();
   const near = (a, b, what) => assert.ok(Math.abs(a - b) < 1e-9, `${what}: ${a} != ${b}`);
-  // Table order is newest first; ids grow with every logged shot.
+  // The firmware sends the window's timed shots oldest first.
   const shots = (times, preset = () => 1) =>
-    times.map((arrivalS, i) => ({id: 100 + i, presetId: preset(i), arrivalS})).reverse();
+    times.map((arrivalS, i) => ({id: 100 + i, presetId: preset(i), arrivalS}));
   const alternate = (lo, hi, n = 10) => Array.from({length: n}, (_, i) => (i % 2 ? hi : lo));
 
   // Identical shots: very consistent, scale at its floor of twice the 5 % band.
@@ -32,9 +32,9 @@
   assert.equal(model(shots([30])).level, 'few');
   assert.equal(model([]).rows.length, 0);
 
-  // Only the newest ten count, oldest first, whatever the table order.
+  // Every shot of the selected window counts, in the order it arrives.
   const twelve = model(shots(Array.from({length: 12}, (_, i) => 30 + (i % 3))));
-  assert.deepEqual(twelve.rows.map((r) => r.id), [102, 103, 104, 105, 106, 107, 108, 109, 110, 111]);
+  assert.deepEqual(twelve.rows.map((r) => r.id), Array.from({length: 12}, (_, i) => 100 + i));
 
   // Several presets: each shot against its own average, in percent, with 5 % label steps.
   const mixed = model(shots([20, 45, 20.4, 45.9, 19.6, 44.1, 20, 45], (i) => (i % 2 ? 2 : 1)));
@@ -72,9 +72,10 @@
       `${blockAt(rawViewJs.stats, 'function renderShotStats(')};renderShotStats();`)(
       (id) => (filled.push(id), {classList: {toggle() {}}}),
       {uiState: {shotStats: {avgDurationS: 1, avgYieldG: 2, shotsPerDay: 3, avgErrorPct: 4,
-        avgFlowGps: 5}}}, (key) => 'translated ' + key, () => {});
+        avgFlowGps: 5, shotCount: 10}, statsWindow: 10}, sub: (t, v) => t + v},
+      (key) => 'translated ' + key, () => {});
   assert.deepEqual(filled, ['statsAvgDur', 'statsAvgWeight', 'statsAvgDaily', 'statsAvgErr',
-    'statsAvgFlow']);
+    'statsAvgFlow', 'statsWindowHint', 'statsWindow']);
 }
 // Stats and History render cost: one curve model per shot row and CSV line, a
 // rated star keeps keyboard focus, label layout sleeps off Stats, and History

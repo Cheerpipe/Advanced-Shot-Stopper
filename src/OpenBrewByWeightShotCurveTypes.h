@@ -38,43 +38,15 @@ inline bool shotCurveEventPresent(const ShotCurveEvent &event) {
 }
 
 // Network-owned PSRAM copy, captured with one store lock; never a stack
-// local. Records only: the streaming Stats page sorts and aggregates from
-// these, and each row's curve is fetched on demand (curves are immutable
-// once committed), so the ~5 KB-per-shot curve bulk never rides the
-// snapshot copy.
+// local. Records only, newest first: the streaming Stats page sorts,
+// filters, and aggregates its selected window from these, and each row's
+// curve is fetched on demand (curves are immutable once committed), so the
+// ~5 KB-per-shot curve bulk never rides the snapshot copy.
 struct ShotStatsRecordsSnapshot {
-  ShotStatsView stats{};
   ShotLogRecord records[SHOT_LOG_CAPACITY]{};
   size_t count = 0;
   uint32_t epoch = 0;
 };
-
-// Closes the Stats aggregate object in `out` with "recent": the shots behind
-// the averages, newest first, in the same eligible window as
-// ShotLog::statsView, so the Stats charts never depend on the table's sort or
-// scroll. Compact [id,presetId,arrivalS,verdict,fastBeforeS,slowAfterS] arrays
-// (at most ~51 bytes each) keep the first frame, which also carries a full
-// row, small. Fails, without a cut array, when `out` does not end in "}" or
-// the list does not fit.
-inline bool appendStatsRecent(const ShotStatsRecordsSnapshot &snapshot, char *out, size_t cap) {
-  size_t used = strlen(out);
-  if (!used || out[used - 1] != '}') return false;
-  --used;  // Reopen the object over its closing brace.
-  auto put = [&](int n) { return n >= 0 && (used += static_cast<size_t>(n)) < cap; };
-  bool ok = put(snprintf(out + used, cap - used, "%s\"recent\":[", used > 1 ? "," : ""));
-  for (size_t i = 0, found = 0; ok && i < snapshot.count && found < SHOT_LOG_STATS_WINDOW; ++i) {
-    const ShotLogRecord &record = snapshot.records[i];
-    if (!shotLogRecordEligible(record)) continue;
-    char arrival[16] = "null";
-    if (record.arrivalDs != SHOT_LOG_METRIC_MISSING)
-      snprintf(arrival, sizeof(arrival), "%.1f", record.arrivalDs / 10.0);
-    ok = put(snprintf(out + used, cap - used, "%s[%lu,%u,%s,%s,%.1f,%.1f]", found++ ? "," : "",
-                      static_cast<unsigned long>(record.id), static_cast<unsigned>(shotLogPresetId(record)),
-                      arrival, shotLogVerdictJson(record.verdict), record.fastBeforeDs / 10.0,
-                      record.slowAfterDs / 10.0));
-  }
-  return ok && put(snprintf(out + used, cap - used, "]}"));
-}
 
 inline void resetShotCurveRecord(ShotCurveRecord &curve) {
   // Only the header: the stream and bitmaps are read up to bytes/count.

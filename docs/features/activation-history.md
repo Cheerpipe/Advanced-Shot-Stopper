@@ -78,10 +78,12 @@ types shows only those, and the list updates as you tick. While a filter is
 active the Filter button shows a count badge and stays highlighted, so the
 state is visible at a glance, and Reset at the top of the checklist clears it
 in one tap. The checklist closes when you tap outside it or press Escape, and
-it works the same on a phone and on a computer. If the entries you are
-filtering for are older than what has loaded, the list keeps loading more
-pages on its own until it finds them or reaches the end; when a filter
-matches nothing at all, the page says so instead of showing an empty diary.
+it works the same on a phone and on a computer. The controller does the
+filtering, so the diary still loads 20 entries at a time as you scroll and
+every page is full of the types you picked, even when they are spread through
+a long history; when a filter matches nothing at all, the page says so
+instead of showing an empty diary. Export always downloads every entry,
+whatever the filter.
 
 Changing the saved time zone later does not rewrite earlier entry times.
 

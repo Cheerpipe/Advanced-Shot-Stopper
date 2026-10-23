@@ -1582,7 +1582,7 @@ if (!html.includes('<summary>AtomHeart Eclair</summary>') ||
   if (!css.includes('.shotPresetChart:not([data-zone=on_recipe]) .rvWindow') || css.includes('.shotMore') ||
       css.includes('aria-expanded=false') ||
       !css.includes('.shotComboHost{padding-top:1rem}') ||
-      !css.includes('.heroPill[data-kind=fast]{--z:var(--gFast)}') || !css.includes('#shotTable .heroPill{') ||
+      !css.includes('}[data-kind=fast]{--z:var(--gFast)}') || !css.includes('#shotTable .heroPill{') ||
       !js.includes('fill="url(#${u + cls})"') || !js.includes('`calc(var(--band${b}) * 2.2)`') ||
       !css.includes('margin:.55rem 0 0;z-index:1;background:var(--sf)}') ||
       !css.includes('--gCut:#d1101f') || !css.includes('--gCut:#9e1c22') || !css.includes('.rvCut{fill:none;stroke:var(--gCut)'))

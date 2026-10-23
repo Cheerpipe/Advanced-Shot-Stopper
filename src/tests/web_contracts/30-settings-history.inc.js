@@ -1155,17 +1155,22 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !codeIncludes(runtimeJs, "sendUiOperation({op:'history',on:true,fetch:true,request:historyFetchRequest,offset:historyFetchOffset,}") ||
     !partialHtml.history.includes('id="historyFilterButton"') ||
     !partialHtml.history.includes('id="exportHistoryButton"') ||
-    !partialHtml.history.includes('id="hFl"') ||
+    !shellHtml.includes('id="hFl"') ||
     !codeIncludes(viewJs.history, 'R.exportActivationHistory') ||
-    !codeIncludes(viewJs.history, '.onclick=()=>toggleHistoryFilter()') ||
+    !codeIncludes(viewJs.history, 'R.createFilterMenu("historyFilterButton"') ||
+    !codeIncludes(viewJs.history, 'R.uiState.historyTypes=sel.type||[];R.historySendSubscribe();') ||
+    !codeIncludes(runtimeJs, '...(uiState.historyTypes.length&&{types:uiState.historyTypes}),') ||
+    !codeIncludes(viewJs.history, 'offset,types:[],') ||
     !codeIncludes(js, 'function exportActivationHistory(') ||
-    !codeIncludes(historyRuntimeJs, 'function toggleHistoryFilter(') ||
+    !codeIncludes(runtimeJs, 'function createFilterMenu(') ||
+    codeIncludes(viewJs.history, 'loadMoreHistory()') ||
     !codeIncludes(js, 'function fetchHistoryWindow(') ||
     !codeIncludes(runtimeJs, 'historyExportWindow?.resolve(null)') ||
     // The owned-socket dispatcher must route export windows to the history
     // stream handler; dropping them by request id hangs the export.
     !codeIncludes(runtimeJs, 'historyExportWindow&&data.request===historyExportWindow.request') ||
-    !codeIncludes(historyRuntimeJs, 'historyVisibleRecords()') ||
+    !codeIncludes(viewJs.history, 'const rows=R.uiState.historyData.records;') ||
+    !network.includes('uiStreamParseHistoryTypes(types, typeMask)') ||
     !codeIncludes(js, 'Could not export history.') ||
     !codeIncludes(historyRuntimeJs, 'No activations of the selected types.') ||
     !css.includes('.histFilterPanel{') ||
@@ -1220,8 +1225,15 @@ if (!statsSection ||
     !statsSection[1].includes('id="statsAvgDaily"') ||
     !statsSection[1].includes('id="statsAvgErr"') ||
     !statsSection[1].includes('id="statsAvgFlow"') ||
-    !statsSection[1].includes('class="fieldHint"') ||
-    !statsSection[1].includes('Averages from your last 10 shots stopped by weight.') ||
+    !statsSection[1].includes('id="statsWindowHint" class="fieldHint"') ||
+    !statsSection[1].includes('id="statsWindow" class="shotSort" role="group"') ||
+    !['10', '50', '100'].every((n) => statsSection[1].includes(`data-v="${n}">${n}</button`)) ||
+    !codeIncludes(viewJs.stats, 'R.sendUiOperation({op:"stats",on:true,window:R.uiState.statsWindow});') ||
+    !codeIncludes(runtimeJs, '...(uiState.statsWindow!==10&&{window:uiState.statsWindow}),') ||
+    !codeIncludes(runtimeJs, '...(Object.keys(uiState.shotFilter).length&&{filter:uiState.shotFilter}),') ||
+    !codeIncludes(viewJs.stats, 'R.createFilterMenu("shotFilterButton"') ||
+    !codeIncludes(viewJs.stats, 'dir,filter:{},') ||
+    !partialHtml.stats.includes('id="shotFilterButton"') ||
     !statsSection[1].includes('id="statsDurChart"') ||
     !codeIncludes(statsRuntimeJs, 'function renderStatsDurChart(') ||
     !codeIncludes(viewJs.stats, 'R.renderStatsDurChart()') ||
@@ -1349,8 +1361,9 @@ if (!statsSection ||
       events.length = 0;
       const exported = context.statsFrameWindow(0, 500, 'date', 'desc', 50);
       assert.deepEqual(sent.at(-1),
-          {op: 'stats', on: true, fetch: true, request: 3, offset: 0, limit: 500, sort: 'date', dir: 'desc'},
-          'The export asks for its own date/desc window');
+          {op: 'stats', on: true, fetch: true, request: 3, offset: 0, limit: 500, sort: 'date', dir: 'desc',
+            filter: {}},
+          'The export asks for its own date/desc window, unfiltered');
       context.applyStatsStream(context.statsStreamFrame(
           frame({snapshot: false, epoch: 8, request: 3, seq: 4, limit: 500, hasMore: true, rows: [row(1)], more: false})));
       assert.deepEqual(events, [], 'The export window must not touch view state');
@@ -1514,17 +1527,17 @@ if (!statsSection ||
     tickMax = max;
     ticks.splice(0, ticks.length, ...marks.map(m => m[1].replace(/[  ]/g, ' ')));
   };
-  // The firmware's compact recent list: [id, presetId, arrivalS, verdict, fastBeforeS, slowAfterS].
-  const shot = (presetId, arrivalS, verdict, window = [27, 34]) =>
-    [1, presetId, arrivalS, verdict, window[0], window[1]];
+  // The firmware's charts: density curves for all presets and the active one
+  // (true = the same curve), plus the timed arrivals oldest first.
+  const curve = (lo, hi, a, b, shared, n) => ({lo, hi, a, b, shared, n,
+    h: Array.from({length: 121}, (_, i) => Math.round(100 * Math.exp(-(((i - 60) / 20) ** 2))))});
+  const charts = (all, active, t = [300]) => ({dens: [all, active], cons: {t, p: 1}});
   const zones = () => [...histPlot.innerHTML.matchAll(/<b>(\d+)%<\/b>(\d+) ([A-Za-z ]+)</g)]
       .map(m => m[1] + '%/' + m[2] + '/' + m[3]).join();
   const fills = () => (histPlot.innerHTML.match(/fill="url\(#sd(fast|on_recipe|slow)\)"/g) || []).length;
-  // Each shot keeps its own stored verdict, even inside today's window.
-  global.shotStats = {recent: [shot(1, 30.2, 'on_recipe'), shot(1, 36, 'slow'),
-    shot(1, 24.1, 'fast'), shot(1, 31, 'on_recipe'), shot(2, 40, 'slow', [25, 32]), shot(1, 0, null)]};
+  // All presets is the default: mixed windows read as offsets from the window edges.
+  global.shotStats = charts(curve(-7, 15, 0, 7, false, [1, 2, 2]), curve(21, 40, 27, 34, true, [1, 2, 1]));
   helpers.renderStatsDurChart();
-  // All presets is the default: mixed windows place each shot against its own window.
   if (histFilter.children[0].attrs['aria-pressed'] !== 'true' || fills() !== 3 ||
       zones() !== '20%/1/Fast,40%/2/On recipe,40%/2/Slow' ||
       !histPlot.innerHTML.includes('<div class="statsDensZones"><span>') ||
@@ -1538,22 +1551,22 @@ if (!statsSection ||
       histPlot.style['--zf'] !== '31.58%' || parseFloat(histPlot.style['--zo']).toFixed(2) !== '36.84') {
     throw new Error('Current preset must draw its shared window in seconds');
   }
-  global.shotStats = {recent: [shot(1, 25, 'fast'), shot(1, 30, 'on_recipe'), shot(1, 36, 'slow')]};
+  global.shotStats = charts(curve(21, 40, 27, 34, true, [1, 1, 1]), true);
   helpers.renderStatsDurChart();
   if (zones() !== '33%/1/Fast,34%/1/On recipe,33%/1/Slow') {
-    throw new Error('Verdict shares must always add up to 100%');
+    throw new Error('Verdict shares must always add up to 100%, and true reuses the first curve');
   }
-  global.shotStats = {recent: [shot(1, 30, 'on_recipe')]};
+  global.shotStats = charts(curve(21, 40, 27, 34, true, [0, 1, 0]), true);
   helpers.renderStatsDurChart();
   if (zones() !== '0%/0/Fast,100%/1/On recipe,0%/0/Slow' || fills() !== 3) {
     throw new Error('A single shot still draws all three zones');
   }
-  global.presetState = {activeId: 3, items: []};
+  global.shotStats = charts(curve(21, 40, 27, 34, true, [0, 1, 0]), null);
   helpers.renderStatsDurChart();
   if (histRoot.hidden || !histPlot.hidden) {
     throw new Error('A preset without timed shots keeps only the filter visible');
   }
-  global.shotStats = {recent: [shot(1, 0, null)]};
+  global.shotStats = charts(null, null, []);
   helpers.renderStatsDurChart();
   if (!histRoot.hidden) {
     throw new Error('Without timed shots the chart must not show empty axes');

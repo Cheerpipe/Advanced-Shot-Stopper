@@ -748,8 +748,10 @@ if (generated.jsGzip.length > 7850) {
 // 2026-10-23; cap 16955. Settings scope notes, the Account group and one-weight outlined
 // History icons: 17073, owner-requested 2026-10-22; cap 17090. Unfilled outlined History icons
 // and the La Marzocco scope note above Account: 17102, owner-requested 2026-10-22; cap 17120.
-if (generated.cssGzip.length > 17120) {
-  throw new Error(`Compressed Web CSS exceeds the 17120-byte gzip budget (${generated.cssGzip.length})`);
+// List filter groups and result dots, the Stats window bar, and icon-only Shots actions on
+// phones: 17134, owner-requested 2026-10-23; cap 17140.
+if (generated.cssGzip.length > 17140) {
+  throw new Error(`Compressed Web CSS exceeds the 17140-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -907,8 +909,10 @@ if (generated.cssGzip.length > 17120) {
 // The group-row helpers shared by Settings and Admin bring it to 42012, owner-requested 2026-10-22.
 // The group animation fallback without interpolate-size brings it to 42215, owner-requested 2026-10-22.
 // Equipment rows in the fallback and unfolded-only preset graphs: 42251, owner-requested 2026-10-22; cap 42260.
-if (sentinelRuntimeGzip.length > 42260) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 42260-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The filter menu shared by the Shots and History lists brings it to 43116, owner-requested
+// 2026-10-23; cap 43130.
+if (sentinelRuntimeGzip.length > 43130) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 43130-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -1219,9 +1223,11 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // equipment rows and unfolded-only preset graphs bring it to 72174, owner-requested 2026-10-22; cap 72190.
 // The Settings scope notes, Account group and outlined History icon CSS bring it to 72183,
 // owner-requested 2026-10-22; cap 72210. The gap-only stream keepalive, hidden pause flag
-// and held Stats/History rows bring it to 72254, owner-requested 2026-10-23; cap 72280.
-if (coldHomeGzip > 72280) {
-  throw new Error(`Cold Home download exceeds the 72280-byte gzip budget (${coldHomeGzip})`);
+// and held Stats/History rows bring it to 72254, owner-requested 2026-10-23; cap 72280. The
+// shared list filter menu, its shell icon, and the Stats window bar bring it to 73206,
+// owner-requested 2026-10-23; cap 73230.
+if (coldHomeGzip > 73230) {
+  throw new Error(`Cold Home download exceeds the 73230-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin

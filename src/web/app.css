@@ -2143,13 +2143,13 @@ summary::marker {
   border-radius: 50%;
   background: var(--z, currentColor);
 }
-.heroPill[data-kind="fast"] {
+[data-kind="fast"] {
   --z: var(--gFast);
 }
-.heroPill[data-kind="on_recipe"] {
+[data-kind="on_recipe"] {
   --z: var(--ok);
 }
-.heroPill[data-kind="slow"] {
+[data-kind="slow"] {
   --z: var(--gSlow);
 }
 
@@ -2622,6 +2622,13 @@ small {
 #statsDurChart {
   margin-top: 1.35rem;
 }
+.statsWindowBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
 #statsPresetFilter {
   margin: 0 0 0.55rem;
 }
@@ -2913,11 +2920,13 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   }
 }
 @media (max-width: 479px) {
-  .presetActions.glassBar > .btnGlyph[title] {
+  .presetActions.glassBar > .btnGlyph[title],
+  #shotLogPanel .glassBar > .btnGlyph {
     width: var(--tap);
     padding: 0;
   }
-  .presetActions.glassBar > .btnGlyph[title] .t {
+  .presetActions.glassBar > .btnGlyph[title] .t,
+  #shotLogPanel .glassBar > .btnGlyph .t {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -3758,7 +3767,8 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   box-shadow: var(--popSh);
   font-size: 0.875rem;
 }
-.histFilterHead {
+.histFilterHead,
+.histFilterGroup {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3769,6 +3779,13 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+.histFilterGroup {
+  padding-top: 0.55rem;
+  padding-bottom: 0.2rem;
+}
+.histFilterIcon .histFilterDot {
+  fill: var(--z);
 }
 .histFilterReset {
   margin: 0;

@@ -55,53 +55,28 @@ class HistoryLog
   // generation+count alone would miss it. Caller holds the store mutex.
   uint32_t epoch() const { return dualSlotHeaderEpoch(store_.header); }
 
-  // Fills one bounded page (see HistoryPage). offset counts from the newest
-  // record for Desc and from the oldest for Asc. Caller holds the store mutex.
+  // Fills one bounded page (see HistoryPage) of the records whose HistoryType
+  // bit is set in `types` (0 = every type); total, offset, and hasMore count
+  // those matches only. offset counts from the newest record for Desc and
+  // from the oldest for Asc. Caller holds the store mutex.
   void copyPage(HistoryPage &page, size_t offset, size_t limit,
-                ShotLogSortDir dir) const {
-    const size_t total = store_.header.count;
+                ShotLogSortDir dir, uint8_t types = 0) const {
+    const size_t count = store_.header.count;
+    const size_t oldest =
+        (store_.header.writeIndex + HISTORY_CAPACITY - count) % HISTORY_CAPACITY;
     limit = historyClampPageLimit(limit);
-    if (offset > total) {
-      offset = total;
+    page.total = page.count = 0;
+    for (size_t step = 0; step < count; ++step) {
+      const HistoryRecord &record = store_.records[
+          (oldest + (dir == ShotLogSortDir::Desc ? count - 1U - step : step)) %
+          HISTORY_CAPACITY];
+      if (types && (record.type > 7 || !((types >> record.type) & 1U))) continue;
+      if (page.total >= offset && page.count < limit)
+        page.records[page.count++] = record;
+      ++page.total;
     }
-    page.total = total;
-    page.start = offset;
-    page.hasMore = false;
-    page.count = 0;
-    const size_t remaining = total - offset;
-    const size_t pageCount = remaining < limit ? remaining : limit;
-    if (pageCount == 0) {
-      return;
-    }
-    page.hasMore = (offset + pageCount) < total;
-    if (dir == ShotLogSortDir::Desc) {
-      // Walk backwards from writeIndex, skipping the `offset` newest records.
-      size_t index = store_.header.writeIndex;
-      for (size_t step = 0; step < offset; ++step) {
-        if (index == 0) {
-          index = HISTORY_CAPACITY;
-        }
-        --index;
-      }
-      for (size_t copied = 0; copied < pageCount; ++copied) {
-        if (index == 0) {
-          index = HISTORY_CAPACITY;
-        }
-        --index;
-        page.records[copied] = store_.records[index];
-      }
-    } else {
-      // Walk forward from the oldest retained record.
-      size_t index =
-          (store_.header.writeIndex + HISTORY_CAPACITY - total) %
-          HISTORY_CAPACITY;
-      index = (index + offset) % HISTORY_CAPACITY;
-      for (size_t copied = 0; copied < pageCount; ++copied) {
-        page.records[copied] = store_.records[index];
-        index = (index + 1U) % HISTORY_CAPACITY;
-      }
-    }
-    page.count = pageCount;
+    page.start = offset < page.total ? offset : page.total;
+    page.hasMore = page.start + page.count < page.total;
   }
 
   // Copies the newest record without materializing a HistoryPage; equivalent

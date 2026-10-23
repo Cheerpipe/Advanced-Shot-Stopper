@@ -130,7 +130,7 @@ preset revision, and the complete Quick Settings snapshot.
   },
   "lastShot": null,
   "lastActivation": null,
-  "stats": {"shotCount": 0, "totalDurationS": 0, "avgDurationS": null, "avgYieldG": null, "avgErrorPct": null, "avgFlowGps": null, "shotsPerDay": null, "durationsS": []}
+  "stats": {"window": 10, "shotCount": 0, "totalDurationS": 0, "avgDurationS": null, "avgYieldG": null, "avgErrorPct": null, "avgFlowGps": null, "shotsPerDay": null, "durationsS": []}
 }
 ```
 
@@ -163,12 +163,13 @@ interrupted one. Duration measures electrical activation, not certified program
 completion. It does not update shot statistics. The additive type preserves
 the existing history record layout and schema.
 
-`stats` carries the rolling aggregate shown at the top of the Web
-UI Stats page: `shotCount`, `totalDurationS`, `avgDurationS`, `avgYieldG`,
+`stats` carries the rolling aggregate the Web UI Stats page shows by default:
+`window`, `shotCount`, `totalDurationS`, `avgDurationS`, `avgYieldG`,
 `avgErrorPct`, `avgFlowGps`, `shotsPerDay`, and `durationsS` for the duration
-chart. The window is the newest ten eligible shot records, including manual and
-timer-only endings. `avgErrorPct` is the mean absolute percentage miss of the
-weight cuts in that window (normal, raised or lowered cut line), measured
+chart. `window` is always `10`: the integration aggregate covers the newest ten
+eligible shot records, including manual and timer-only endings, whichever
+window the Web UI shows. `avgErrorPct` is the mean absolute percentage miss of
+the newest ten weight cuts (normal, raised or lowered cut line), measured
 against the cut line at the stop rather than the target. Unavailable averages are `null`.
 The controller derives these values from RAM; the Web UI streams the same
 object over its data WebSocket, and this payload carries it under `stats`,
@@ -445,7 +446,10 @@ budget continue across frames with `rowBase` and `more` until a terminating
 frame, and continuation frames reuse the page's `cols`. History frames carry
 `records`. Paging and sorting parameters are unchanged: `offset`, `limit`, and `dir` (`asc` or `desc`), plus
 `sort` (`date` or `rating`) for Stats. The page sizes used by the browser are
-ten shots and twenty activations.
+ten shots and twenty activations. Both lists filter in the firmware (History
+`types`, Stats `filter`, below): `total`, `offset`, `hasMore`, and every page
+count the matching records only, so each page is full of matches in the
+selected order.
 
 The browser derives each shot's error from its displayed yield and goal;
 WS rows omit `errorG` and `errorPct`. Per-shot `bootId` remains part of the
@@ -654,11 +658,16 @@ The History page rides the same owned WebSocket as Home. Entering the view
 subscribes with the page window:
 
 ```json
-{"op":"history","on":true,"offset":0,"limit":20,"dir":"desc"}
+{"op":"history","on":true,"offset":0,"limit":20,"dir":"desc","types":["shot","rinse"]}
 ```
 
-The session keeps this standing window. Scrolling to the page sentinel sends a
-one-shot append fetch for the next window without disturbing the subscription:
+`types` (optional) lists the activation types to show — `shot`, `rinse`,
+`backflush`, `power_on`, `other`, `no_scale_guard_aborted` — and a subscribe
+without it shows every type. The session keeps this standing window and
+filter. Scrolling to the page sentinel sends a one-shot append fetch for the
+next window without disturbing the subscription; a fetch without `types`
+keeps the standing filter, and the CSV export sends `"types":[]` to read
+every record:
 
 ```json
 {"op":"history","on":true,"fetch":true,"offset":20}
@@ -694,32 +703,56 @@ The Stats page uses the same owned WebSocket. Entering the view subscribes
 with the page window:
 
 ```json
-{"op":"stats","on":true,"offset":0,"limit":10,"sort":"date","dir":"desc"}
+{"op":"stats","on":true,"offset":0,"limit":10,"sort":"date","dir":"desc",
+ "window":50,"filter":{"result":["fast","slow"],"preset":[3],"scale":[2884452355]}}
 ```
+
+`filter` (optional) narrows the shot list: `result` takes `fast`, `slow`, and
+`on_recipe` (only timed by-weight shots have one), `preset` takes preset ids,
+and `scale` takes the scale keys listed in the header's `facets`. Each list
+holds at most eight values; an empty or missing list does not restrict, lists
+combine with AND and the values of a list with OR. `window` (`10`, `50`, or
+`100`, default `10`) picks how many of the newest eligible shots the `stats`
+header covers. A subscribe carrying only `window` (no `request`) changes the
+header alone: the firmware sends a standing refresh with the new header and
+the rows it already holds as bare ids.
 
 Scrolling to the page sentinel sends a one-shot fetch for the next window,
 and the CSV export asks for its own export window — up to 500 rows,
-newest-first by date, regardless of the on-screen sort:
+newest-first by date, unfiltered, regardless of the on-screen sort. A fetch
+without `filter` keeps the standing filter:
 
 ```json
 {"op":"stats","on":true,"fetch":true,"offset":20}
-{"op":"stats","on":true,"fetch":true,"offset":0,"limit":500,"sort":"date","dir":"desc"}
+{"op":"stats","on":true,"fetch":true,"offset":0,"limit":500,"sort":"date","dir":"desc","filter":{}}
 ```
 
 Leaving the view no longer unsubscribes it: the Stats window also stays
 standing for the whole UI session, refreshes in the background while any view
 is open, and re-opens paint straight from the cached rows. After a reconnect
-the browser replays the subscription, and every accepted op forces the next
-page to start from a full snapshot.
+the browser replays the subscription, and every accepted op except a
+window-only change forces the next page to start from a full snapshot.
 
 Stats frames have `v: 1`, `type: "stats"`, `boot`, `snapshot`, `epoch`,
 `seq`, the `stats` aggregate and `cols` (first frame of a page only), `total`, `offset`, `limit`, `hasMore`, `rows`, `rowBase`, and `more`.
-In this stream the aggregate also carries `recent`: the newest shots it was
-computed from (up to 10, newest first), each a compact
-`[id, presetId, arrivalS, verdict, fastBeforeS, slowAfterS]` array, with
-`arrivalS` and `verdict` null when unmeasured. The Stats charts read this list
-instead of the page rows, so they match the averages whatever the sort or how
-far the table has scrolled. The integration API's stats object is unchanged.
+In this stream the aggregate covers the subscribed `window` (and leaves out
+`durationsS`), and it also carries what the Stats charts draw, so they match
+the averages whatever the sort, filter, or scroll:
+
+- `dens`: the arrival-time density charts for all presets and for the active
+  preset. Each is `{lo, hi, a, b, shared, n, h}`: the time axis from `lo` to
+  `hi` seconds, the on-recipe zone from `a` to `b` (window seconds when
+  `shared`, else offsets from a common window), the `[fast, on_recipe, slow]`
+  shot counts, and `h`, 121 heights from 0 to 100 sampled evenly from `lo` to
+  `hi`, scaled to the curve's own peak. The active-preset entry is `null`
+  without timed shots of that preset and `true` when it equals the first.
+- `cons`: the window's timed shots oldest first, for the consistency chart:
+  `t`, times to target in tenths of a second, and `p`, their preset ids (one
+  number when they share one).
+- `facets`: the presets (`[id, name]`) and scales (`[key, name]`) the whole
+  log holds, newest first, up to eight of each, for the list filter.
+
+The integration API's stats object stays at ten shots.
 Each row retains its own `bootId` and curve arrays; row errors are calculated
 from the displayed yield by the browser. Because full curves can exceed one
 frame, a page is emitted under an 8 KiB frame budget (a single larger row goes
@@ -735,8 +768,9 @@ curve as its bare `id` number, so a new shot sends only its own row and curve
 plus the page header; snapshots, scroll fetches, and the export always carry
 whole rows. The export window streams the
 requested rows once without touching the subscribed view state. The server
-refreshes its cached records when the store epoch, sort field, or sort direction
-changes; subsequent frames reuse that snapshot. This preserves chronological
+refreshes its cached records only when the store epoch moves; sort, filter,
+and window changes reuse that snapshot, and the header is rebuilt when the
+store, the window, or the active preset changes. This preserves chronological
 CSV order after browsing by rating without repeated store captures per frame.
 
 

@@ -2188,6 +2188,19 @@ void p69_history_log_round_trip_eviction_and_paging() {
   reloaded.copyPage(page, 1, 1, ShotLogSortDir::Desc);
   CHECK(page.total == 3 && page.count == 1 && page.hasMore);
   CHECK(page.records[0].id == 2);
+  // A type filter pages and counts its matches only, in either order.
+  const uint8_t shotOrFlush = (1U << static_cast<uint8_t>(HistoryType::SHOT)) |
+                              (1U << static_cast<uint8_t>(HistoryType::BACKFLUSH));
+  reloaded.copyPage(page, 0, 1, ShotLogSortDir::Desc, shotOrFlush);
+  CHECK(page.total == 2 && page.count == 1 && page.hasMore && page.records[0].id == 3);
+  reloaded.copyPage(page, 1, 1, ShotLogSortDir::Desc, shotOrFlush);
+  CHECK(page.total == 2 && page.start == 1 && page.count == 1 && !page.hasMore &&
+        page.records[0].id == 1);
+  reloaded.copyPage(page, 0, HISTORY_PAGE_DEFAULT, ShotLogSortDir::Asc, shotOrFlush);
+  CHECK(page.count == 2 && page.records[0].id == 1 && page.records[1].id == 3);
+  reloaded.copyPage(page, 5, 1, ShotLogSortDir::Desc,
+                    1U << static_cast<uint8_t>(HistoryType::RINSE));
+  CHECK(page.total == 0 && page.start == 0 && page.count == 0 && !page.hasMore);
 
   CHECK(reloaded.removeById(2));
   CHECK(!reloaded.containsId(2));

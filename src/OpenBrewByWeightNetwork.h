@@ -230,7 +230,7 @@ struct NetworkBridgeCallbacks {
   bool (*copyHomeShot)(ShotLogRecord &record, ShotCurveRecord *curve) = nullptr;
   bool (*shotLogSavePending)() = nullptr;
   void (*copyHistoryPage)(HistoryPage &page, size_t offset, size_t limit,
-                          ShotLogSortDir dir) = nullptr;
+                          ShotLogSortDir dir, uint8_t types) = nullptr;
   // Cheap change epoch (store header digest) so idle dispatches skip the
   // page copy entirely.
   uint32_t (*historyEpoch)() = nullptr;
@@ -275,7 +275,8 @@ struct NetworkBridgeCallbacks {
 // integration API include with external linkage so the shots-page handler
 // (inlined earlier in the same translation unit) can share it.
 bool buildIntegrationStats(const ShotStatsView &stats, char *output,
-                           size_t capacity);
+                           size_t capacity, size_t window = SHOT_LOG_STATS_WINDOW,
+                           bool durations = true);
 
 class OpenBrewByWeightNetwork {
  public:
@@ -417,22 +418,30 @@ class OpenBrewByWeightNetwork {
     uint32_t logAfter = 0;
     // History page subscription, same view-scoped contract: the window dies
     // with the session, one-shot fetches append without disturbing it, and
-    // epoch/fingerprint suppress frames while the page is unchanged.
+    // epoch/fingerprint suppress frames while the page is unchanged. Type
+    // masks (HistoryType bits, 0 = all) filter the standing and fetch pages.
     bool historyOn = false, historyResync = true, historyFetch = false;
     size_t historyOffset = 0, historyLimit = HISTORY_PAGE_DEFAULT,
            historyFetchOffset = 0;
+    uint8_t historyTypes = 0, historyFetchTypes = 0;
     ShotLogSortDir historyDir = ShotLogSortDir::Desc;
     uint32_t historyEpoch = 0, historyFingerprint = 0, historyBoot = 0;
     uint32_t historyRequest = 0, historyFetchRequest = 0;
     // Stats page subscription, same layout plus the sort field and the
-    // fetch's own window (sentinel appends page by the view's order; the CSV
-    // export always asks for date/desc).
+    // fetch's own window and filter (sentinel appends page by the view's
+    // order and filter; the CSV export asks for date/desc, unfiltered), and
+    // the number of newest shots the aggregate and charts cover.
     bool statsOn = false, statsResync = true, statsFetch = false;
     size_t statsOffset = 0, statsLimit = SHOT_LOG_PAGE_DEFAULT,
            statsFetchOffset = 0, statsFetchLimit = SHOT_LOG_PAGE_DEFAULT;
+    size_t statsWindow = SHOT_LOG_STATS_WINDOW;
     ShotLogSort statsSort = ShotLogSort::Date, statsFetchSort = ShotLogSort::Date;
     ShotLogSortDir statsDir = ShotLogSortDir::Desc, statsFetchDir = ShotLogSortDir::Desc;
+    ShotListFilter statsFilter, statsFetchFilter;
     uint32_t statsEpoch = 0, statsFingerprint = 0, statsBoot = 0, statsSeq = 0;
+    // Window and active preset of the last standing page's header.
+    size_t statsShownWindow = 0;
+    uint8_t statsPresetId = 0;
     // Paced delivery: one budgeted frame per dispatch resumes the in-flight
     // page (snapshot/fetch identity and store epoch captured at page start)
     // until its terminating frame; a deferred send keeps this state intact.

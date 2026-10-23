@@ -106,17 +106,29 @@ struct StatsStreamCache {
   // formatShotStatsRow's empty curve once a fetch found none.
   ShotCurveRecord fetchCurve{};
   StatsCurveHashCache curveHashes{};
-  // Requested-order permutation over the newest-first records: rows point
-  // into the untouched cache, so sort/dir toggles are pure index math and
-  // a reload always restores the store order.
+  // Requested-order permutation over the newest-first records, compacted to
+  // the filter's matches (`matched` of them): rows point into the untouched
+  // cache, so sort/dir/filter toggles are pure index math and a reload
+  // always restores the store order.
   uint16_t order[SHOT_LOG_CAPACITY] = {};
   bool valid = false, statsOk = false, hasMore = false;
   ShotLogSort sort = ShotLogSort::Date;
   ShotLogSortDir dir = ShotLogSortDir::Desc;
-  size_t offset = 0, limit = 0, start = 0, pageCount = 0;
-  uint32_t fingerprint = 0;
-  // The aggregate (~300 bytes) plus its ten compact recent shots (~520 bytes).
-  char header[1024]{};
+  size_t offset = 0, limit = 0, start = 0, pageCount = 0, matched = 0;
+  uint32_t fingerprint = 0, filterHash = 0;
+  // Header identity: store epoch, selected window, and the active preset of
+  // its "This preset" chart.
+  uint32_t headerEpoch = 0;
+  size_t headerWindow = 0;
+  uint8_t headerPresetId = 0;
+  // The selected window's timed shots, newest first, and the density
+  // chart's working values, off the dispatch stack.
+  const ShotLogRecord *timed[SHOT_LOG_STATS_WINDOW_MAX] = {};
+  const ShotLogRecord *scope[SHOT_LOG_STATS_WINDOW_MAX] = {};
+  float mapped[SHOT_LOG_STATS_WINDOW_MAX] = {}, heights[121] = {};
+  // Aggregate (~0.3 KB), two density charts (~1.2 KB), the consistency
+  // series (~0.6 KB at 100 shots), and the filter facets (~0.6 KB typical).
+  char header[5120]{};
 };
 
 struct NetworkWorkBuf {

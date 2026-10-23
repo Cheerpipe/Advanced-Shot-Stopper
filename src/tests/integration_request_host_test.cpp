@@ -127,17 +127,26 @@ void stats_json_preserves_independent_metrics() {
     rows[i].hasWallTime = true;
     rows[i].endedAtLocalSec = 86400;
     rows[i].shotType = static_cast<uint8_t>(ShotLogType::AUTO);
-    rows[i].stopDetail = static_cast<uint8_t>(ShotLogStopDetail::EXTENDED_MAX_WEIGHT);
+    rows[i].stopDetail = static_cast<uint8_t>(ShotLogStopDetail::ACTIVATOR);
   }
+  const auto view = [&rows](size_t count, size_t window = SHOT_LOG_STATS_WINDOW) {
+    return shotLogStatsView(count, window, [&rows](size_t n) -> const ShotLogRecord & {
+      return rows[n];
+    });
+  };
+  const auto build = [](const ShotStatsView &stats, char *output, size_t capacity) {
+    return buildIntegrationStats(stats, output, capacity, SHOT_LOG_STATS_WINDOW, true);
+  };
   char output[384];
   for (unsigned count = 1; count <= 3; ++count) {
-    const ShotStatsView stats = shotLogStatsView(rows, count);
-    CHECK(buildIntegrationStats(stats, output, sizeof(output)));
+    const ShotStatsView stats = view(count);
+    CHECK(build(stats, output, sizeof(output)));
     cJSON *root = cJSON_Parse(output);
     CHECK(root != nullptr);
     const auto number = [root](const char *key) {
       return cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(root, key));
     };
+    CHECK(number("window") == SHOT_LOG_STATS_WINDOW);
     CHECK(number("shotCount") == count);
     CHECK(number("avgDurationS") == 27.0 + count);
     CHECK(std::fabs(number("avgYieldG") - (36.4 + count * 0.5)) < 0.001);
@@ -148,32 +157,38 @@ void stats_json_preserves_independent_metrics() {
           static_cast<int>(count));
     cJSON_Delete(root);
   }
-  rows[0].stopDetail = static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET);
-  ShotStatsView bbwStats = shotLogStatsView(rows, 1);
-  CHECK(shotLogBbwErrorEligible(rows[0]));
-  bbwStats.bbwCount = 1;
-  bbwStats.errorPctTenthsSum = shotLogBbwErrorTenths(rows[0]);
-  CHECK(buildIntegrationStats(bbwStats, output, sizeof(output)));
-  CHECK(strstr(output, "\"avgErrorPct\":2.5") != nullptr);
+  // Weight cuts average their own newest window, past the shot window.
+  rows[2].stopDetail = static_cast<uint8_t>(ShotLogStopDetail::NORMAL_TARGET);
+  CHECK(shotLogBbwErrorEligible(rows[2]));
+  const ShotStatsView bbwStats = view(3, 1);
+  CHECK(bbwStats.shotCount == 1 && bbwStats.bbwCount == 1);
+  CHECK(build(bbwStats, output, sizeof(output)));
+  CHECK(strstr(output, "\"avgErrorPct\":8.0") != nullptr);
+  // Ineligible records never count; a wider window keeps ten durations.
+  rows[1].actualWeightCg = 150;
+  CHECK(view(3).shotCount == 2);
+  CHECK(buildIntegrationStats(view(3), output, sizeof(output), 50, false));
+  CHECK(strstr(output, "\"window\":50") != nullptr && strstr(output, "durationsS") == nullptr);
+  rows[1].actualWeightCg = 3790;
   rows[0].avgFlowCgS = SHOT_LOG_METRIC_MISSING;
   rows[0].hasWallTime = false;
-  CHECK(buildIntegrationStats(shotLogStatsView(rows, 1), output, sizeof(output)));
+  CHECK(build(view(1), output, sizeof(output)));
   CHECK(strstr(output, "\"avgFlowGps\":null") != nullptr);
   CHECK(strstr(output, "\"shotsPerDay\":null") != nullptr);
   CHECK(strstr(output, "\"avgDurationS\":28.0") != nullptr);
-  CHECK(buildIntegrationStats({}, output, sizeof(output)));
+  CHECK(build({}, output, sizeof(output)));
   for (const char *field : {"avgDurationS", "avgYieldG", "avgFlowGps",
                             "avgErrorPct", "shotsPerDay"}) {
     cJSON *root = cJSON_Parse(output);
     CHECK(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(root, field)));
     cJSON_Delete(root);
   }
-  const ShotStatsView stats = shotLogStatsView(rows, 3);
-  CHECK(buildIntegrationStats(stats, output, sizeof(output)));
+  const ShotStatsView stats = view(3);
+  CHECK(build(stats, output, sizeof(output)));
   const size_t length = strlen(output);
   for (size_t capacity = 0; capacity <= length; ++capacity)
-    CHECK(!buildIntegrationStats(stats, output, capacity));
-  CHECK(buildIntegrationStats(stats, output, length + 1));
+    CHECK(!build(stats, output, capacity));
+  CHECK(build(stats, output, length + 1));
 }
 
 }  // namespace

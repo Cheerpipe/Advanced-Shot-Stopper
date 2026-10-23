@@ -22,7 +22,6 @@ void copyPresetShotStats(const ShotPresetBank &bank, PresetShotStats *out) {
 
 void copyShotStatsRecords(ShotStatsRecordsSnapshot &output) {
   TaskLockGuard lock(shotStoreMutex);
-  output.stats = shotLog.statsView();
   output.count = shotLog.copyNewestFirst(output.records, SHOT_LOG_CAPACITY);
   output.epoch = shotLog.epoch();
 }
@@ -62,12 +61,12 @@ bool shotLogSavePending() {
 }
 
 void copyHistoryPage(HistoryPage &page, size_t offset, size_t limit,
-                     ShotLogSortDir dir) {
+                     ShotLogSortDir dir, uint8_t types) {
   const uint32_t lockStartedUs = micros();
   TaskLockGuard lock(shotStoreMutex);
   noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs,
                   micros() - lockStartedUs);
-  historyLog.copyPage(page, offset, limit, dir);
+  historyLog.copyPage(page, offset, limit, dir, types);
 }
 
 uint32_t copyHistoryEpoch() {

@@ -15,7 +15,8 @@ bool uiStreamDispatchDue(bool urgent, uint32_t elapsedMs, uint32_t newSamples) {
   return urgent || elapsedMs >= kUiStreamFallbackMs ||
          (newSamples >= kUiStreamSampleStride && elapsedMs >= kUiStreamSampleFloorMs);
 }
-constexpr size_t kUiStreamRequestBytes = 160;
+// Fits a Stats subscribe or fetch with the largest filter (~300 bytes).
+constexpr size_t kUiStreamRequestBytes = 320;
 // Leave TCP send-buffer headroom for live state. A larger individual curve
 // stays intact, alone under the client's 28 KiB message guard.
 constexpr size_t kStatsStreamFrameBytes = 8192;
@@ -38,6 +39,62 @@ bool uiStreamIntInRange(const cJSON *node, double low, double high) {
   return node == nullptr ||
          (cJSON_IsNumber(node) && node->valuedouble >= low &&
           node->valuedouble <= high && floor(node->valuedouble) == node->valuedouble);
+}
+
+// List filters: an absent one leaves `out` untouched, a malformed one
+// rejects the op. History types are HistoryType names, one bit each.
+__attribute__((optimize("Os")))
+bool uiStreamParseHistoryTypes(const cJSON *types, uint8_t &out) {
+  constexpr uint8_t kLast = static_cast<uint8_t>(HistoryType::BACKFLUSH);
+  if (!types) return true;
+  if (!cJSON_IsArray(types) || cJSON_GetArraySize(types) > kLast + 1) return false;
+  uint8_t mask = 0;
+  for (const cJSON *item = types->child; item; item = item->next) {
+    if (!cJSON_IsString(item)) return false;
+    uint8_t type = 0;
+    while (type <= kLast &&
+           strcmp(item->valuestring, historyTypeName(static_cast<HistoryType>(type))))
+      ++type;
+    if (type > kLast) return false;
+    mask |= static_cast<uint8_t>(1U << type);
+  }
+  out = mask;
+  return true;
+}
+
+// A Shots-list filter: result names, preset ids, and scale keys from the
+// Stats facets, at most SHOT_LIST_FILTER_MAX of each.
+__attribute__((optimize("Os")))
+bool uiStreamParseShotFilter(const cJSON *filter, ShotListFilter &out) {
+  static const char *const kFields[] = {"result", "preset", "scale"};
+  static const char *const kResults[] = {"on_recipe", "fast", "slow"};
+  if (!filter) return true;
+  if (!cJSON_IsObject(filter) || !uiStreamKnownFields(filter, kFields, 3)) return false;
+  const cJSON *lists[3];
+  for (size_t index = 0; index < 3; ++index) {
+    lists[index] = cJSON_GetObjectItemCaseSensitive(filter, kFields[index]);
+    if (lists[index] && (!cJSON_IsArray(lists[index]) ||
+                         cJSON_GetArraySize(lists[index]) > static_cast<int>(SHOT_LIST_FILTER_MAX)))
+      return false;
+  }
+  ShotListFilter parsed;
+  for (const cJSON *item = lists[0] ? lists[0]->child : nullptr; item; item = item->next) {
+    uint8_t result = 0;
+    while (result < 3 && !(cJSON_IsString(item) && !strcmp(item->valuestring, kResults[result])))
+      ++result;
+    if (result == 3) return false;
+    parsed.results |= static_cast<uint8_t>(1U << result);
+  }
+  for (const cJSON *item = lists[1] ? lists[1]->child : nullptr; item; item = item->next) {
+    if (!cJSON_IsNumber(item) || !uiStreamIntInRange(item, 0, UINT8_MAX)) return false;
+    parsed.presets[parsed.presetCount++] = static_cast<uint8_t>(item->valueint);
+  }
+  for (const cJSON *item = lists[2] ? lists[2]->child : nullptr; item; item = item->next) {
+    if (!cJSON_IsNumber(item) || !uiStreamIntInRange(item, 0, UINT32_MAX)) return false;
+    parsed.scales[parsed.scaleCount++] = static_cast<uint32_t>(item->valuedouble);
+  }
+  out = parsed;
+  return true;
 }
 
 // Router DNS names and reverse-proxy hosts are longer than the device name.
@@ -97,6 +154,7 @@ void sendUiStreamClose(httpd_handle_t server, int fd, uint16_t reason) {
 #include "OpenBrewByWeightUiStreamTransport.inc"
 }  // namespace
 
+#include "OpenBrewByWeightStatsPage.inc"
 #include "OpenBrewByWeightHomeStream.inc"
 #include "OpenBrewByWeightAuditStream.inc"
 
@@ -246,16 +304,19 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
                strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
       // View-scoped History page subscription: the standing window tracks the
       // page; a one-shot fetch serves sentinel appends without disturbing it.
-      static const char *const kFields[] = {"op", "on", "offset",
-                                            "limit", "dir", "fetch", "request"};
+      // `types` filters both; a fetch without it keeps the standing filter.
+      static const char *const kFields[] = {"op", "on", "offset", "limit",
+                                            "dir", "fetch", "request", "types"};
       const cJSON *requestId = cJSON_GetObjectItemCaseSensitive(message, "request");
       const cJSON *on = cJSON_GetObjectItemCaseSensitive(message, "on");
       const cJSON *offset = cJSON_GetObjectItemCaseSensitive(message, "offset");
       const cJSON *limit = cJSON_GetObjectItemCaseSensitive(message, "limit");
       const cJSON *dir = cJSON_GetObjectItemCaseSensitive(message, "dir");
       const cJSON *fetch = cJSON_GetObjectItemCaseSensitive(message, "fetch");
-      const bool shapeOk =
-          cJSON_IsBool(on) && uiStreamKnownFields(message, kFields, 7);
+      const cJSON *types = cJSON_GetObjectItemCaseSensitive(message, "types");
+      uint8_t typeMask = 0;
+      const bool shapeOk = cJSON_IsBool(on) && uiStreamKnownFields(message, kFields, 8) &&
+                           uiStreamParseHistoryTypes(types, typeMask);
       const bool numbersOk =
           uiStreamIntInRange(requestId, 1, UINT32_MAX) &&
           uiStreamIntInRange(offset, 0, HISTORY_CAPACITY) &&
@@ -267,7 +328,7 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
       if (shapeOk && numbersOk) {
         if (!cJSON_IsTrue(on)) {
           // Unsubscribe carries no window fields.
-          accepted = !offset && !limit && !dir && !fetch && !requestId;
+          accepted = !offset && !limit && !dir && !fetch && !requestId && !types;
           if (accepted) {
             session->historyOn = false;
             session->historyFetch = false;
@@ -277,6 +338,7 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
           if (accepted) {
             session->historyFetchOffset =
                 static_cast<size_t>(offset->valueint);
+            session->historyFetchTypes = types ? typeMask : session->historyTypes;
             session->historyFetch = true;
             session->historyFetchRequest = requestId ? static_cast<uint32_t>(requestId->valuedouble) : 0;
           }
@@ -284,6 +346,7 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
           session->historyOn = true;
           session->historyResync = true;
           session->historyRequest = requestId ? static_cast<uint32_t>(requestId->valuedouble) : 0;
+          session->historyTypes = typeMask;
           if (offset)
             session->historyOffset = static_cast<size_t>(offset->valueint);
           if (limit)
@@ -301,10 +364,13 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
                strcmp(op->valuestring, "stats") == 0 &&
                strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
       // View-scoped Stats page subscription on the same contract; one-shot
-      // fetches also serve the CSV export window (limit 100, date/desc).
+      // fetches also serve the CSV export window (date/desc, unfiltered).
+      // `filter` works like History's `types`; `window` (subscribe only)
+      // picks the newest shots the aggregate and charts cover.
       static const char *const kFields[] = {"op",    "on",    "offset",
                                             "limit", "sort",  "dir",
-                                            "fetch", "request"};
+                                            "fetch", "request", "filter",
+                                            "window"};
       const cJSON *requestId = cJSON_GetObjectItemCaseSensitive(message, "request");
       const cJSON *on = cJSON_GetObjectItemCaseSensitive(message, "on");
       const cJSON *offset = cJSON_GetObjectItemCaseSensitive(message, "offset");
@@ -312,8 +378,14 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
       const cJSON *sort = cJSON_GetObjectItemCaseSensitive(message, "sort");
       const cJSON *dir = cJSON_GetObjectItemCaseSensitive(message, "dir");
       const cJSON *fetch = cJSON_GetObjectItemCaseSensitive(message, "fetch");
-      const bool shapeOk =
-          cJSON_IsBool(on) && uiStreamKnownFields(message, kFields, 8);
+      const cJSON *filter = cJSON_GetObjectItemCaseSensitive(message, "filter");
+      const cJSON *window = cJSON_GetObjectItemCaseSensitive(message, "window");
+      ShotListFilter shotFilter;
+      bool windowOk = !window;
+      for (const size_t size : SHOT_LOG_STATS_WINDOWS)
+        windowOk = windowOk || (cJSON_IsNumber(window) && window->valuedouble == size);
+      const bool shapeOk = cJSON_IsBool(on) && uiStreamKnownFields(message, kFields, 10) &&
+                           uiStreamParseShotFilter(filter, shotFilter) && windowOk;
       const bool numbersOk =
           uiStreamIntInRange(requestId, 1, UINT32_MAX) &&
           uiStreamIntInRange(offset, 0, SHOT_LOG_CAPACITY) &&
@@ -327,15 +399,17 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
                      !strcmp(dir->valuestring, "desc"))));
       if (shapeOk && numbersOk) {
         if (!cJSON_IsTrue(on)) {
-          accepted = !offset && !limit && !sort && !dir && !fetch && !requestId;
+          accepted = !offset && !limit && !sort && !dir && !fetch && !requestId &&
+                     !filter && !window;
           if (accepted) {
             session->statsOn = false;
             session->statsFetch = false;
             session->statsPaging = false;
           }
         } else if (fetch && cJSON_IsTrue(fetch)) {
-          accepted = session->statsOn && offset != nullptr;
+          accepted = session->statsOn && offset != nullptr && !window;
           if (accepted) {
+            session->statsFetchFilter = filter ? shotFilter : session->statsFilter;
             session->statsFetchOffset =
                 static_cast<size_t>(offset->valueint);
             session->statsFetchLimit = limit
@@ -350,12 +424,20 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
             session->statsFetch = true;
             session->statsFetchRequest = requestId ? static_cast<uint32_t>(requestId->valuedouble) : 0;
           }
+        } else if (window && session->statsOn && !offset && !limit && !sort && !dir &&
+                   !filter && !requestId) {
+          // A window-only change refreshes the header: rows stay held.
+          session->statsWindow = static_cast<size_t>(window->valueint);
+          accepted = true;
         } else {
           session->statsOn = true;
           session->statsResync = true;
           session->statsFetch = false;
           session->statsPaging = false;
           session->statsRequest = requestId ? static_cast<uint32_t>(requestId->valuedouble) : 0;
+          session->statsFilter = shotFilter;
+          session->statsWindow = window ? static_cast<size_t>(window->valueint)
+                                        : SHOT_LOG_STATS_WINDOW;
           if (offset)
             session->statsOffset = static_cast<size_t>(offset->valueint);
           if (limit)

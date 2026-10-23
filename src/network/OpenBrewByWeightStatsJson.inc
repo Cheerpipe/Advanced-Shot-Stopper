@@ -6,18 +6,19 @@ const char *formatStatFloat(char (&buffer)[32], double value, unsigned decimals)
 }
 }  // namespace
 
-// Pre-computed stats over the newest shots (WebUI Stats card mirror).
-// External linkage with a header declaration: the shots-page handler is
-// inlined into this translation unit before this include.
+// Pre-computed stats over the newest `window` shots (integration payload,
+// always ten, and the Web UI Stats header, which leaves out the durations it
+// never draws). External linkage with a header declaration: the shots-page
+// handler is inlined into this translation unit before this include.
 bool buildIntegrationStats(const ShotStatsView &stats, char *output,
-                           size_t capacity) {
+                           size_t capacity, size_t window, bool durations) {
   char values[5][32];
   const int written = snprintf(
       output, capacity,
-      "{\"shotCount\":%lu,\"totalDurationS\":%.1f,\"avgDurationS\":%s,"
+      "{\"window\":%u,\"shotCount\":%lu,\"totalDurationS\":%.1f,\"avgDurationS\":%s,"
       "\"avgYieldG\":%s,\"avgErrorPct\":%s,\"avgFlowGps\":%s,"
       "\"shotsPerDay\":%s}",
-      static_cast<unsigned long>(stats.shotCount),
+      static_cast<unsigned>(window), static_cast<unsigned long>(stats.shotCount),
       static_cast<double>(stats.durationDsSum) / 10.0,
       stats.shotCount > 0
           ? formatStatFloat(values[0], static_cast<double>(stats.durationDsSum) /
@@ -43,11 +44,12 @@ bool buildIntegrationStats(const ShotStatsView &stats, char *output,
                 1)
           : "null");
   if (written <= 0 || static_cast<size_t>(written) >= capacity) return false;
+  if (!durations) return true;
   size_t used = static_cast<size_t>(written) - 1U;
   int added = snprintf(output + used, capacity - used, ",\"durationsS\":[");
   if (added <= 0 || static_cast<size_t>(added) >= capacity - used) return false;
   used += static_cast<size_t>(added);
-  for (uint32_t i = 0; i < stats.shotCount; ++i) {
+  for (uint32_t i = 0; i < stats.shotCount && i < SHOT_LOG_STATS_WINDOW; ++i) {
     added = snprintf(output + used, capacity - used, "%s%.1f",
                      i == 0 ? "" : ",", stats.durationsDs[i] / 10.0);
     if (added <= 0 || static_cast<size_t>(added) >= capacity - used) return false;

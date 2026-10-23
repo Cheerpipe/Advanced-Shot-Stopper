@@ -58,7 +58,14 @@
         <div id="statsAvgFlow">{{webui:stats.unknown}}</div>
       </div>
     </div>
-    <small class="fieldHint">{{webui:stats.based_on_the_last_10_shots}}</small>
+    <div class="statsWindowBar">
+      <small id="statsWindowHint" class="fieldHint"></small>
+      <div id="statsWindow" class="shotSort" role="group" aria-label="{{webui:stats.stats_window}}">
+        <span class="sortLbl">{{webui:stats.last}}</span
+        ><button type="button" data-v="10">10</button><button type="button" data-v="50">50</button
+        ><button type="button" data-v="100">100</button>
+      </div>
+    </div>
     <div id="statsDurChart"></div>
     <div id="statsConsistency" class="ruleChart" hidden></div>
   </div>
@@ -74,6 +81,18 @@
         ><button id="sortRatingButton" type="button">{{webui:stats.rating}}</button>
       </div>
       <button
+        id="shotFilterButton"
+        class="btnGlyph"
+        type="button"
+        aria-haspopup="true"
+        aria-expanded="false"
+        title="{{webui:history.filter}}"
+      >
+        <span class="g" aria-hidden="true"
+          ><svg aria-hidden="true"><use href="#hFl" /></svg></span
+        ><span class="t">{{webui:history.filter}}</span
+        ><span class="histFilterCount" hidden></span></button
+      ><button
         id="exportShotsButton"
         class="btnGlyph"
         title="{{webui:stats.export_csv}}"

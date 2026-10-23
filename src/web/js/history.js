@@ -57,7 +57,7 @@ function renderHistory() {
   const body = $("historyRows");
   if (!body || !R.historyLoaded) return;
   body.replaceChildren();
-  const rows = historyVisibleRecords();
+  const rows = R.uiState.historyData.records;
   let day;
   for (const r of rows) {
     const time = document.createElement("td");
@@ -111,16 +111,11 @@ function renderHistory() {
     "historyTableState",
     rows.length
       ? null
-      : historyTypeFilter.size &&
-          (R.uiState.historyData.records.length || R.uiState.historyData.hasMore)
+      : R.uiState.historyTypes.length
         ? __WEBUI_TEXT__("runtime.no_activations_match_filter")
         : __WEBUI_TEXT__("runtime.no_recorded_activations_yet"),
   );
   updateHistorySentinel();
-  // A filter can hide every loaded record of a rare type, so keep filling
-  // pages until one page of matches is visible or the log is exhausted.
-  if (historyTypeFilter.size && rows.length < R.HISTORY_PAGE_SIZE && R.uiState.historyData.hasMore)
-    R.loadMoreHistory();
 }
 async function deleteOneHistory(id) {
   if (!id || !confirm(__WEBUI_TEXT__("runtime.delete_this_history_record"))) return;
@@ -142,8 +137,7 @@ async function deleteOneHistory(id) {
     }
   });
 }
-// Type filter: an empty selection shows everything; checking one or more types
-// narrows the list to them. The button carries the active count.
+// The firmware filters the pages by type; the menu only re-subscribes.
 const HISTORY_TYPE_KEYS = [
   "shot",
   "rinse",
@@ -152,109 +146,6 @@ const HISTORY_TYPE_KEYS = [
   "other",
   "no_scale_guard_aborted",
 ];
-const historyTypeFilter = new Set();
-const historyVisibleRecords = () =>
-  historyTypeFilter.size
-    ? R.uiState.historyData.records.filter((r) => historyTypeFilter.has(r.type))
-    : R.uiState.historyData.records;
-let historyFilterPanel = null;
-function syncHistoryFilterButton() {
-  const b = $("historyFilterButton");
-  if (!b) return;
-  const n = historyTypeFilter.size;
-  b.setAttribute("aria-pressed", n ? "true" : "false");
-  b.classList.toggle("btnFilterOn", !!n);
-  const chip = b.querySelector(".histFilterCount");
-  if (chip) {
-    chip.textContent = n;
-    chip.hidden = !n;
-  }
-}
-function applyHistoryTypeFilter() {
-  if (historyFilterPanel)
-    for (const box of historyFilterPanel.querySelectorAll('input[type="checkbox"]'))
-      box.checked = historyTypeFilter.has(box.value);
-  syncHistoryFilterButton();
-  renderHistory();
-}
-function setHistoryTypeFilter(types) {
-  historyTypeFilter.clear();
-  if (types) for (const t of types) historyTypeFilter.add(t);
-  applyHistoryTypeFilter();
-}
-function buildHistoryFilterPanel() {
-  const p = (historyFilterPanel = document.createElement("div"));
-  p.className = "histFilterPanel";
-  p.setAttribute("role", "menu");
-  p.setAttribute("aria-label", __WEBUI_TEXT__("history.filter_types"));
-  const head = document.createElement("div");
-  head.className = "histFilterHead";
-  const label = document.createElement("span");
-  label.textContent = __WEBUI_TEXT__("history.filter_types");
-  const reset = document.createElement("button");
-  reset.type = "button";
-  reset.className = "histFilterReset";
-  reset.textContent = __WEBUI_TEXT__("history.filter_reset");
-  reset.onclick = () => setHistoryTypeFilter();
-  head.append(label, reset);
-  p.appendChild(head);
-  for (const t of HISTORY_TYPE_KEYS) {
-    const item = document.createElement("label");
-    item.className = "histFilterItem";
-    const box = document.createElement("input");
-    box.type = "checkbox";
-    box.value = t;
-    box.setAttribute("role", "menuitemcheckbox");
-    const icon = document.createElement("span");
-    icon.className = "histFilterIcon";
-    icon.setAttribute("aria-hidden", "true");
-    icon.innerHTML = HIST_TYPE_SVG[t] || "";
-    const text = document.createElement("span");
-    text.textContent = historyTypeLabel(t);
-    item.append(box, icon, text);
-    p.appendChild(item);
-  }
-  p.addEventListener("change", (e) => {
-    if (e.target.type !== "checkbox") return;
-    e.target.checked
-      ? historyTypeFilter.add(e.target.value)
-      : historyTypeFilter.delete(e.target.value);
-    applyHistoryTypeFilter();
-  });
-  p.hidden = true;
-  document.body.appendChild(p);
-  return p;
-}
-function placeHistoryFilterPanel() {
-  const b = $("historyFilterButton"),
-    p = historyFilterPanel;
-  if (!b || !p) return;
-  const r = b.getBoundingClientRect();
-  const below = innerHeight - r.bottom;
-  p.style.top =
-    (below >= p.offsetHeight || below >= r.top
-      ? r.bottom + 8
-      : Math.max(8, r.top - p.offsetHeight - 8)) + "px";
-  p.style.left =
-    Math.min(
-      Math.max(8, r.left + r.width / 2 - p.offsetWidth / 2),
-      innerWidth - p.offsetWidth - 8,
-    ) + "px";
-}
-function toggleHistoryFilter(force) {
-  const b = $("historyFilterButton");
-  if (!b) return;
-  const p = historyFilterPanel || buildHistoryFilterPanel();
-  const open = force === undefined ? p.hidden : force;
-  p.hidden = !open;
-  b.setAttribute("aria-expanded", open ? "true" : "false");
-  if (open) {
-    placeHistoryFilterPanel();
-    p.querySelector('input[type="checkbox"]').focus();
-  }
-}
-const repositionHistoryFilter = () =>
-  historyFilterPanel && !historyFilterPanel.hidden && placeHistoryFilterPanel();
 async function clearActivationHistory() {
   if (!confirm(__WEBUI_TEXT__("runtime.clear_all_recorded_activation_history_this"))) return;
   return R.withCommandGate(async () => {
@@ -298,6 +189,7 @@ function fetchHistoryWindow(offset) {
       fetch: true,
       request: R.uiState.historyExportWindow.request,
       offset,
+      types: [],
     });
   });
 }
@@ -337,27 +229,22 @@ export function init() {
   if (ready) return;
   ready = true;
   R.setHistoryRenderer(renderHistory);
-  document.addEventListener("click", (e) => {
-    if (
-      historyFilterPanel &&
-      !historyFilterPanel.hidden &&
-      !historyFilterPanel.contains(e.target) &&
-      !(e.target instanceof Element && e.target.closest("#historyFilterButton"))
-    )
-      toggleHistoryFilter(false);
-  });
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && historyFilterPanel && !historyFilterPanel.hidden) {
-      toggleHistoryFilter(false);
-      $("historyFilterButton")?.focus();
-    }
-  });
-  window.addEventListener("scroll", repositionHistoryFilter, { passive: true });
-  window.addEventListener("resize", repositionHistoryFilter, { passive: true });
+  R.createFilterMenu(
+    "historyFilterButton",
+    __WEBUI_TEXT__("history.filter_types"),
+    () => [
+      {
+        key: "type",
+        options: HISTORY_TYPE_KEYS.map((t) => [t, historyTypeLabel(t), HIST_TYPE_SVG[t] || ""]),
+      },
+    ],
+    (sel) => {
+      R.uiState.historyTypes = sel.type || [];
+      R.historySendSubscribe();
+    },
+  );
   $("clearHistoryButton").onclick = clearActivationHistory;
   $("exportHistoryButton").onclick = exportActivationHistory;
-  $("historyFilterButton").onclick = () => toggleHistoryFilter();
-  syncHistoryFilterButton();
   const h = $("historySort");
   if (h) {
     $("historyDirButton").onclick = toggleHistoryDir;
