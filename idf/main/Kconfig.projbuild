@@ -8,10 +8,10 @@ menu "Open Brew by Weight"
             OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=0, firmware rejects
             remote start and rinse over HTTP/API; only the physical activator
             can close the machine circuit. Stop remains available.
-            Enable with this Kconfig or
-            -DOPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1.
-            Command-line -DOPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=… still
-            overrides.
+            Opt in for one build with
+            --flags -DOPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1; the
+            build verifier rejects this Kconfig switch so a retained
+            menuconfig choice cannot ship.
 
     config OPEN_BREW_BY_WEIGHT_MACHINE_TYPE
         int "Machine type (0=paddle/latch, 1=momentary switch, 2=momentary+reed)"
@@ -43,8 +43,8 @@ menu "Open Brew by Weight"
             controls and Home Actions need no device-password session, and
             the lock panel is omitted from the served shell instead of being
             hidden after the first paint. For local/dev builds only — never
-            ship to production devices. Command-line
-            -DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=… still overrides.
+            ship to production devices. Build it with --no-auth-admin or
+            --development; the build verifier rejects this Kconfig switch.
 
     config OPEN_BREW_BY_WEIGHT_ENABLE_JTAG
         int "USB Serial/JTAG (0=off, 1=on at boot)"

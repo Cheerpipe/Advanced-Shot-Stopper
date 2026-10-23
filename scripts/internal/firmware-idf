@@ -61,9 +61,8 @@ fi
 
 obbw_cli_apply_env
 obbw_cli_load_store
-if has_stage build && has_stage monitor && [[ "$OBBW_CLI_JTAG" != "1" ]] &&
-   [[ " $(obbw_get flags) " != *"OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1"* ]]; then
-  echo 'build combined with monitor requires the USB Serial/JTAG console for firmware output; pass --jtag (or include -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 in --flags) or run monitor separately.' >&2
+if has_stage build && has_stage monitor && [[ "$OBBW_CLI_JTAG" != "1" ]]; then
+  echo 'build combined with monitor requires the USB Serial/JTAG console for firmware output; pass --jtag (or --development) or run monitor separately.' >&2
   exit 2
 fi
 if obbw_is_set hardware_config || obbw_is_set machine_config; then
@@ -99,6 +98,8 @@ fi
 
 obbw_cli_resolve "$required" "$optional" || exit $?
 obbw_cli_normalize_image || exit $?
+# Check the flags' origin here: forwarding re-emits them to the build as --flags.
+if has_stage build; then obbw_cli_effective_flags >/dev/null || exit $?; fi
 
 for stage in "${stages[@]}"; do
   case "$stage" in

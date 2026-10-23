@@ -266,8 +266,15 @@ The wrapper preserves project diagnostics but hides ESP-IDF 6.1's known
 reports retain their unfiltered SDK log and report project-owned warnings
 separately.
 
-The facade passes empty extra flags unless supplied; it does not reuse a saved
-extra-flags preference implicitly.
+`--flags` applies to one build only and is never saved in `.openbrewbyweight`;
+a value left there by older scripts is ignored. `--flags` cannot turn on a
+development feature by itself: `OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1` needs
+`--no-auth-admin` (or `--development`), `OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1`
+needs `--jtag`, and remote machine control is accepted only from `--flags` on
+the command line, not from `OPENBREWBYWEIGHT_FLAGS`. Each of these defines takes
+only `=0` or `=1`. The build verifier also rejects a retained `menuconfig`
+choice that enables admin unlock, remote machine control, or the USB console
+without `--jtag`.
 
 For local development, use the development build profile
 (`--no-auth-admin --jtag` combined):
@@ -291,7 +298,7 @@ Machine type is derived from `interface.control` plus `interface.feedback`; a co
 | `OPEN_BREW_BY_WEIGHT_MACHINE_TYPE=0/1/2` | Paddle / momentary / momentary+reed; see [machine types](../README.md#machine-types). |
 | `OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER=0/1` | Omit / include local passive buzzer. Follows the hardware profile's `speaker.present` by default; `=0` omits it even when a speaker is present. |
 | `OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1` | Development USB Serial/JTAG at boot without the GPIO4 console jumper; build it with `./scripts/dev build --jtag` (or the `--development` profile). |
-| `OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=0/1` | Remote start/rinse disabled / explicit opt-in. Default is disabled. Builds without it also omit the Home remote-action controls from the served interface. |
+| `OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=0/1` | Remote start/rinse disabled / explicit opt-in. Default is disabled; opt in for one build with `--flags -DOPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1` on the command line. Builds without it also omit the Home remote-action controls from the served interface. |
 | `OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1` | Compiles administration as public: Admin and Diagnostic need no device-password session and the UI shows no lock panel. The password-unlock endpoints are not compiled in this mode. Build it with `--no-auth-admin` or the `--development` profile. Local development only — never use for an installed machine. |
 
 ### Compiler optimization and existing sdkconfig

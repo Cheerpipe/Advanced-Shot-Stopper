@@ -525,6 +525,16 @@ obbw_idf_verify_production_profile() {
   required+=("CONFIG_SPIRAM_XIP_FROM_PSRAM=y"
              "CONFIG_ESP_COREDUMP_ENABLE_TO_FLASH=y"
              "CONFIG_MDNS_TASK_CREATE_FROM_INTERNAL=y")
+  # Admin unlock and remote machine control come only from this run's checked
+  # -D defines, never from a retained menuconfig choice; the console follows
+  # --jtag, so a release image always has it off.
+  required+=("# CONFIG_OPEN_BREW_BY_WEIGHT_DEVELOPMENT is not set"
+    "# CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL is not set")
+  if obbw_idf_jtag_enabled; then
+    required+=("CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1" "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y")
+  else
+    required+=("CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0" "CONFIG_ESP_CONSOLE_NONE=y")
+  fi
   if [[ "${OPENBREWBYWEIGHT_MACHINE_INTEGRATION:-none}" == "linea_micra_cloud" ]]; then
     required+=("CONFIG_MBEDTLS_EXTERNAL_MEM_ALLOC=y"
       "CONFIG_MBEDTLS_DYNAMIC_BUFFER=y"
@@ -543,7 +553,7 @@ obbw_idf_verify_production_profile() {
     echo "Production profile mismatch for $arch: unexpected QUAD PSRAM mode" >&2
     return 1
   fi
-  echo "sdkconfig: verified exact $arch flash/PSRAM, partition, MMU, rollback, watchdog, panic, GPTimer, and IRAM placement profile"
+  echo "sdkconfig: verified exact $arch flash/PSRAM, partition, MMU, rollback, watchdog, panic, GPTimer, IRAM placement, console, and build-option profile"
 }
 
 obbw_idf_verify_firmware() {
@@ -704,23 +714,6 @@ obbw_idf_verify_firmware() {
                     --expect-machine "$OPENBREWBYWEIGHT_MACHINE_COMPAT")
   fi
   node "$OBBW_CLI_ROOT/scripts/image_tag.js" "$IDF_IMAGE" "${identity_args[@]}"
-
-  if obbw_idf_jtag_enabled; then
-    if ! grep -q '^CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y$' "$IDF_SDKCONFIG"; then
-      echo "OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 but USB Serial/JTAG console is off in $IDF_SDKCONFIG." >&2
-      grep 'CONFIG_ESP_CONSOLE' "$IDF_SDKCONFIG" >&2 || true
-      exit 1
-    fi
-    echo "sdkconfig: CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y (JTAG build)"
-  else
-    if grep -q '^CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y$' "$IDF_SDKCONFIG" ||
-       ! grep -q '^CONFIG_ESP_CONSOLE_NONE=y$' "$IDF_SDKCONFIG"; then
-      echo "USB Serial/JTAG must stay off unless compiled with -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1." >&2
-      grep 'CONFIG_ESP_CONSOLE' "$IDF_SDKCONFIG" >&2 || true
-      exit 1
-    fi
-    echo "sdkconfig: CONFIG_ESP_CONSOLE_NONE=y (JTAG off)"
-  fi
 
   obbw_idf_verify_extra_flags
 }

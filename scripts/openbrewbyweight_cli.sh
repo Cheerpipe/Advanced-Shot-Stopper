@@ -6,7 +6,8 @@
 # unlock define nor the USB Serial/JTAG console; --development means
 # --no-auth-admin --jtag. The profiles are mutually exclusive; --jtag and
 # --no-auth-admin also work individually on top of a release profile.
-# Except for the transient WebUI language default, every value comes from:
+# Except for the per-run keys listed in OBBW_CLI_TRANSIENT_KEYS, every value
+# comes from:
 #   1. a named flag on the command line
 #   2. the matching environment variable
 #   3. the hidden store file .openbrewbyweight at the repository root
@@ -16,8 +17,9 @@
 # A required serial port whose device node is missing is treated like an
 # unset key: the scripts prompt and suggest the first live USB-CDC path.
 #
-# The WebUI language uses flag, environment, then `en`, and is never stored.
-# After a successful resolve the other values are merged into .openbrewbyweight.
+# Per-run keys use flag, environment, then their default (`en` for the WebUI
+# language) and are never stored. After a successful resolve the other values
+# are merged into .openbrewbyweight.
 # The device password is never loaded, suggested, or persisted (use the hidden
 # prompt or environment each run; the public dev facade also supports stdin).
 #
@@ -28,9 +30,10 @@ OBBW_CLI_KEYS="port arch speed host password flags image build_dir output_dir we
 OBBW_CLI_SECRET_KEYS="password"
 # Extra compiler flags offered when the prompt for --flags is answered with Enter.
 OBBW_CLI_DEFAULT_FLAGS='-Werror=deprecated-copy'
-# Per-run path overrides. Persisting them would let a stale build_dir silently
-# point an analysis at the wrong architecture, so they never touch the store.
-OBBW_CLI_TRANSIENT_KEYS="image build_dir output_dir webui_language hardware_config machine_config"
+# Per-run values never touch the store: a stale build_dir would silently point
+# an analysis at the wrong architecture, and stale compile flags could ship
+# admin unlock or remote machine control in a later release image.
+OBBW_CLI_TRANSIENT_KEYS="flags image build_dir output_dir webui_language hardware_config machine_config"
 
 if [[ -z "${OBBW_CLI_ROOT:-}" ]]; then
   OBBW_CLI_ROOT="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -137,7 +140,7 @@ Named parameters (long and short):
   -a, --arch <arch>        Architecture for static analysis (n16r8)
   -s, --speed <baud>       Serial monitor baud rate, e.g. 115200
   -H, --host <ip|name>     Controller address for OTA
-  -f, --flags "<flags>"    Extra compile flags (single string)
+  -f, --flags "<flags>"    Extra compile flags (single string; not persisted)
   -i, --image <path>       Firmware .bin to flash or upload (not persisted)
   -b, --build-dir <path>   Build directory (static / static-idf only)
   -o, --output-dir <path>  Reports directory (static / static-idf only)
@@ -423,34 +426,57 @@ obbw_cli_apply_env() {
   done
 }
 
-# Prints the compile flags for this run. The build profile switches are
-# deliberately kept outside .openbrewbyweight so they cannot affect a later build:
-# --development means --no-auth-admin plus --jtag, --release means neither,
-# and --no-auth-admin and --jtag also work individually on a release build.
+# Prints the compile flags for this run. Flags and profile switches are never
+# stored: --development means --no-auth-admin plus --jtag, --release means
+# neither, and --no-auth-admin and --jtag also work individually. A define that
+# turns on admin unlock or the JTAG console needs its switch, and remote machine
+# control is accepted only from this run's command line or prompt, never from
+# the environment, so no leftover value can reach a release image.
 obbw_cli_effective_flags() {
   local raw token found=0 jtag=0
   raw="$(obbw_get flags)"
-  # Word-splitting is intentional: flags are stored as a space-separated list.
+  # Word-splitting is intentional: flags are a space-separated list.
   # shellcheck disable=SC2086
   set -- $raw
   for token in "$@"; do
-    case "$token" in
-      -DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=0|OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0)
+    case "${token#-D}" in
+      OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0)
         if [[ "$OBBW_CLI_NO_AUTH_ADMIN" == "1" ]]; then
           obbw_cli_die "--no-auth-admin conflicts with OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0 in --flags."
           return 2
         fi
         ;;
-      -DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1|OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1) found=1 ;;
-      -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0|OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0)
+      OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0)
         if [[ "$OBBW_CLI_JTAG" == "1" ]]; then
           obbw_cli_die "--jtag conflicts with OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0 in --flags."
           return 2
         fi
         ;;
-      -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1|OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1) jtag=1 ;;
+      OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1) found=1 ;;
+      OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1) jtag=1 ;;
+      OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=0) ;;
+      OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1)
+        if [[ "$(obbw_origin flags)" == "env" ]]; then
+          obbw_cli_die "Remote machine control is a per-build opt-in: pass it with --flags, not $(obbw_env_name flags)."
+          return 2
+        fi
+        ;;
+      OPEN_BREW_BY_WEIGHT_DEVELOPMENT | OPEN_BREW_BY_WEIGHT_DEVELOPMENT=* | \
+        OPEN_BREW_BY_WEIGHT_ENABLE_JTAG | OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=* | \
+        OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL | OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=*)
+        obbw_cli_die "${token#-D} in --flags must be =0 or =1."
+        return 2
+        ;;
     esac
   done
+  if [[ "$found" == "1" && "$OBBW_CLI_NO_AUTH_ADMIN" != "1" ]]; then
+    obbw_cli_die "OPEN_BREW_BY_WEIGHT_DEVELOPMENT=1 in --flags needs --no-auth-admin or --development."
+    return 2
+  fi
+  if [[ "$jtag" == "1" && "$OBBW_CLI_JTAG" != "1" ]]; then
+    obbw_cli_die "OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 in --flags needs --jtag or --development."
+    return 2
+  fi
   if [[ "$OBBW_CLI_JTAG" == "1" && "$jtag" != "1" ]]; then
     raw="${raw:+$raw }-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1"
   fi
@@ -632,7 +658,7 @@ obbw_prompt_suggestion() {
     printf '%s' "$current"
     return 0
   fi
-  current="$(obbw_cli_store_value "$key" 2>/dev/null || true)"
+  obbw_is_transient "$key" || current="$(obbw_cli_store_value "$key" 2>/dev/null || true)"
   if [[ -n "$current" ]]; then
     printf '%s' "$current"
     return 0

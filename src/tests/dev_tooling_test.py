@@ -813,6 +813,25 @@ admin_conflict = cli_probe("--no-auth-admin", "--flags=-DOPEN_BREW_BY_WEIGHT_DEV
 assert admin_conflict.returncode == 2 and \
     "--no-auth-admin conflicts with OPEN_BREW_BY_WEIGHT_DEVELOPMENT=0" in admin_conflict.stderr
 
+for define, switch in (("-DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1", "--no-auth-admin"),
+                       ("OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1", "--jtag")):
+    release_define = cli_probe(f"--flags={define}")
+    assert release_define.returncode == 2 and switch in release_define.stderr, define
+for define in ("-DOPEN_BREW_BY_WEIGHT_DEVELOPMENT", "-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=2",
+               "-DOPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL"):
+    odd_value = cli_probe("--development", f"--flags={define}")
+    assert odd_value.returncode == 2 and "=0 or =1" in odd_value.stderr, define
+remote_define = "-DOPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1"
+remote_cli_flags = cli_probe(f"--flags={remote_define}")
+assert remote_cli_flags.returncode == 0 and remote_cli_flags.stdout == remote_define
+remote_env = subprocess.run(
+    ["bash", "-c",
+     f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
+     'obbw_cli_parse || exit $?; obbw_cli_apply_env; obbw_cli_effective_flags'],
+    cwd=ROOT, env={**os.environ, "OPENBREWBYWEIGHT_FLAGS": remote_define},
+    capture_output=True, text=True)
+assert remote_env.returncode == 2 and "per-build opt-in" in remote_env.stderr
+
 jtag_off_untouched = cli_probe("--flags=-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0")
 assert jtag_off_untouched.returncode == 0 and \
     jtag_off_untouched.stdout == "-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0"
@@ -870,7 +889,7 @@ with tempfile.TemporaryDirectory(prefix="openbrewbyweight-jtag-store-") as tempo
         cwd=ROOT, env={**os.environ, "OBBW_CLI_ROOT": temporary},
         capture_output=True, text=True)
     assert jtag_saved.returncode == 0 and \
-        "flags=-DCUSTOM=1" in jtag_saved.stdout and \
+        "flags=" not in jtag_saved.stdout and \
         "jtag" not in jtag_saved.stdout
 development_conflict = subprocess.run(
     ["bash", "-c",
@@ -1104,12 +1123,16 @@ assert "--jtag" in flash_monitor[0]
 assert "--erase-all" in flash_monitor[1]
 assert "--speed 115200" in flash_monitor[2]
 
-legacy_jtag_flags = stubbed_dispatcher(
+legacy_jtag, legacy_jtag_children = dispatched(
     ("build", "flash", "monitor"),
     [*profile_args, "--port", "/dev/null", "--speed", "115200",
      "--webui-language", "EN_us", "--flags", "-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1"])
-assert [line.split(":", 1)[0] for line in legacy_jtag_flags] == [
-    "build-idf", "flash-idf", "monitor-idf"]
+assert legacy_jtag.returncode == 2 and "--jtag" in legacy_jtag.stderr and \
+    not legacy_jtag_children, legacy_jtag.stderr
+legacy_admin, legacy_admin_children = dispatched(
+    ("build",), [*profile_args, "--flags", "-DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1"])
+assert legacy_admin.returncode == 2 and "--no-auth-admin" in legacy_admin.stderr and \
+    not legacy_admin_children, legacy_admin.stderr
 
 blocked, blocked_children = dispatched(("build", "flash", "monitor"), [])
 assert blocked.returncode == 2 and "--jtag" in blocked.stderr and \
@@ -1133,19 +1156,22 @@ for stage in ("flash", "ota"):
     assert arch_only.returncode == 2 and "hardware_config" in arch_only.stderr and \
         not arch_children, (stage, arch_only.stderr)
 
-store_jtag = stubbed_dispatcher(
-    ("build", "flash", "monitor"),
-    [*profile_args, "--port", "/dev/null", "--speed", "115200",
-     "--webui-language", "EN_us"],
-    store="flags=-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1\n")
-assert [line.split(":", 1)[0] for line in store_jtag] == [
-    "build-idf", "flash-idf", "monitor-idf"]
-store_plain, store_plain_children = dispatched(
-    ("build", "flash", "monitor"),
-    [*profile_args, "--port", "/dev/null", "--speed", "115200"],
-    store="flags=-DCUSTOM=1\n")
-assert store_plain.returncode == 2 and "--jtag" in store_plain.stderr and \
-    not store_plain_children, (store_plain.returncode, store_plain.stderr)
+# Stored compile flags are never reloaded, so a leftover define cannot reach a
+# later (release) build or satisfy the console requirement of build+monitor.
+for stored in ("-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1",
+               "-DOPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1"):
+    store_blocked, store_children = dispatched(
+        ("build", "flash", "monitor"),
+        [*profile_args, "--port", "/dev/null", "--speed", "115200"],
+        store=f"flags={stored}\n")
+    assert store_blocked.returncode == 2 and "--jtag" in store_blocked.stderr and \
+        not store_children, (store_blocked.returncode, store_blocked.stderr)
+    store_build = stubbed_dispatcher(("build",), profile_args, store=f"flags={stored}\n")
+    assert stored not in store_build[0], store_build
+remote_cli = stubbed_dispatcher(
+    ("build",), [*profile_args, "--flags",
+                 "-DOPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1"])
+assert "-DOPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL=1" in remote_cli[0]
 
 ota_monitor = stubbed_dispatcher(
     ("build", "ota", "monitor"),
@@ -1427,7 +1453,8 @@ assert '. "${idf_root}/export.sh" >/dev/null' in idf_helpers, \
     "non-interactive builds must not print ESP-IDF shell-completion warnings"
 
 
-def verify_production_profile(arch: str, selectors: list[str], integration: str = "none"):
+def verify_production_profile(arch: str, selectors: list[str], integration: str = "none",
+                              extra_flags: str = ""):
     with tempfile.NamedTemporaryFile(mode="w", prefix="openbrewbyweight-sdkconfig-",
                                      delete=False) as fixture:
         fixture.write("\n".join(selectors) + "\n")
@@ -1438,7 +1465,8 @@ def verify_production_profile(arch: str, selectors: list[str], integration: str 
              f'source "{ROOT / "scripts/openbrewbyweight_idf.sh"}"; '
              'obbw_idf_verify_production_profile "$1" "$2"',
              "profile-test", arch, fixture_path],
-            cwd=ROOT, env={**os.environ, "OPENBREWBYWEIGHT_MACHINE_INTEGRATION": integration},
+            cwd=ROOT, env={**os.environ, "OPENBREWBYWEIGHT_MACHINE_INTEGRATION": integration,
+                           "OPENBREWBYWEIGHT_EXTRA_FLAGS": extra_flags},
             text=True, capture_output=True)
     finally:
         Path(fixture_path).unlink()
@@ -1492,6 +1520,10 @@ profile_common = [
     'CONFIG_MDNS_MEMORY_ALLOC_SPIRAM=y',
     'CONFIG_BT_CTRL_MODEM_SLEEP=y',
     'CONFIG_BT_CTRL_LPCLK_SEL_MAIN_XTAL=y',
+    '# CONFIG_OPEN_BREW_BY_WEIGHT_DEVELOPMENT is not set',
+    '# CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_REMOTE_MACHINE_CONTROL is not set',
+    'CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0',
+    'CONFIG_ESP_CONSOLE_NONE=y',
 ]
 profile_arch = {
     "n16r8": ['CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y',
@@ -1520,6 +1552,14 @@ for arch, arch_selectors in profile_arch.items():
         arch, micra[:-1], "linea_micra_cloud").stderr
     assert "unexpected Micra TLS allocator" in verify_production_profile(
         arch, micra).stderr
+    jtag_define = "-DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1"
+    jtag_selectors = [item for item in selectors if item not in {
+        "CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=0", "CONFIG_ESP_CONSOLE_NONE=y"}] + [
+        "CONFIG_OPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1", "CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y"]
+    assert verify_production_profile(
+        arch, jtag_selectors, extra_flags=jtag_define).returncode == 0
+    assert verify_production_profile(arch, jtag_selectors).returncode == 1
+    assert verify_production_profile(arch, selectors, extra_flags=jtag_define).returncode == 1
 
 durable_stores = (ROOT / "src/OpenBrewByWeightDurableStores.h").read_text()
 network_reset = durable_stores.split("bool resetPersistedNetworkAccess", 1)[1].split(
