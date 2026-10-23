@@ -996,7 +996,8 @@ if (generated.otaImageGzip.length > 3072) {
 // a live summary per section) measures admin.js at 17857, owner-requested 2026-10-22; cap 17880.
 // Diagnostics section rows with icons (the page's icon sprite ships in the module): diagnostic.js at 14688, owner-requested 2026-10-22.
 // Settings autosave (per-field patches, Save/Revert removed) measures settings.js at 18282, owner-requested 2026-10-22; cap 18300 for asset-tag gzip wobble.
-const viewModuleBudgets = {records: 15360, diagnostic: 14690, admin: 17880, settings: 18300, setup: 5870};
+// Compact History cards under day headers measure records.js at 15389, owner-requested 2026-10-23; cap 15420 for asset-tag gzip wobble.
+const viewModuleBudgets = {records: 15420, diagnostic: 14690, admin: 17880, settings: 18300, setup: 5870};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
