@@ -752,8 +752,9 @@ if (generated.jsGzip.length > 7850) {
 // phones: 17134, owner-requested 2026-10-23; cap 17140. Diagnostics closing rule and the
 // detached download button: 17146, owner-requested 2026-10-23; cap 17150. The device
 // rename button and dimmed inert controls: 17154, owner-requested 2026-10-23; cap 17160.
-if (generated.cssGzip.length > 17160) {
-  throw new Error(`Compressed Web CSS exceeds the 17160-byte gzip budget (${generated.cssGzip.length})`);
+// The red Access password note: 17163, owner-requested 2026-10-23; cap 17163.
+if (generated.cssGzip.length > 17163) {
+  throw new Error(`Compressed Web CSS exceeds the 17163-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -1012,8 +1013,9 @@ if (generated.otaImageGzip.length > 3072) {
 // Settings scope notes and the Account group measure settings.js at 18413, and one-weight outlined
 // History icons measure records.js at 15420, owner-requested 2026-10-22; caps 18430 and 15440.
 // Localized, bounded Wi-Fi scan states and the keyboard rename button measure admin.js at 17947,
-// owner-requested 2026-10-23; cap 17970.
-const viewModuleBudgets = {records: 15440, diagnostic: 14690, admin: 17970, settings: 18430, setup: 5870};
+// owner-requested 2026-10-23; cap 17970. Access password notes: admin 18002,
+// owner-requested 2026-10-23; cap 18002.
+const viewModuleBudgets = {records: 15440, diagnostic: 14690, admin: 18002, settings: 18430, setup: 5870};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
@@ -1251,8 +1253,10 @@ if (coldHomeGzip > 73300) {
 // Diagnostics section rows with icons: 154901; the Diagnostic log-stream resume brings it to
 // 154942, owner-requested 2026-10-22.
 // Fixed Administration unlock section: 155002, owner-requested 2026-10-22; cap 155010.
-if (generated.combined > 155010) {
-  throw new Error(`Combined Web UI gzip exceeds the 155010-byte flash budget (${generated.combined})`);
+// Access password notes (the approved admin and CSS raises): 155040, owner-requested
+// 2026-10-23; cap 155040.
+if (generated.combined > 155040) {
+  throw new Error(`Combined Web UI gzip exceeds the 155040-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {

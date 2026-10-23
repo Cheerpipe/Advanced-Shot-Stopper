@@ -2756,9 +2756,13 @@ small {
   background: var(--mw);
   font-size: 0.86rem;
 }
-.readyMsg.isOk {
-  border-left-color: var(--ok);
+.isOk {
   background: var(--mo);
+  border-left-color: var(--ok);
+}
+.isErr {
+  background: var(--me);
+  border-left-color: var(--dn);
 }
 .qwRatio {
   display: flex;

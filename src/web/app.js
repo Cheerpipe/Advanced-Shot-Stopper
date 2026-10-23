@@ -49,7 +49,8 @@ function fetchView(name) {
   );
 }
 const viewFails = {};
-// Number fields get − and + keys for touch and mouse; holding one repeats.
+// Number fields get − and + keys for touch and mouse; a tap (not a scroll)
+// steps on click; holding one repeats.
 // The field keeps its arrow keys, so the keys stay out of the tab order.
 function addNumberKeys(root) {
   root.querySelectorAll('input[type="number"]').forEach((f) => {
@@ -70,9 +71,9 @@ function addNumberKeys(root) {
       b.setAttribute("aria-hidden", "true");
       b.addEventListener("pointerdown", (e) => {
         e.preventDefault();
-        step();
         timer = setTimeout(() => (timer = setInterval(step, 90)), 400);
       });
+      b.onclick = step;
       ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => b.addEventListener(ev, stop));
       box.append(b);
     }
@@ -117,7 +118,7 @@ function startView(name, seq = routeSeq) {
     if (!R.webUiPollingActive() || name !== activeView || seq !== routeSeq) return false;
     stopExtraPolls();
     let ok = false;
-    if (name === "home" || name === "settings" || name === "admin" || name === "diagnostic") {
+    if (["home", "settings", "admin", "diagnostic"].includes(name)) {
       ok = await R.loadStatus();
       R.armStatusTimer();
     } else if (name === "setup") {
@@ -126,9 +127,7 @@ function startView(name, seq = routeSeq) {
       ok = true;
     }
     if (name !== activeView || seq !== routeSeq) return false;
-    if (name === "diagnostic") {
-      if (ok) ok = await R.startLogStream();
-    }
+    if (name === "diagnostic" && ok) ok = await R.startLogStream();
     if (name === "stats") ok = await R.startStatsStream();
     else if (name === "history") ok = await R.startHistoryStream();
     return ok;
@@ -139,17 +138,10 @@ async function renderRoute(pathname, focus) {
   const seq = ++routeSeq,
     boot = R.showPageBoot();
   R.stopViewPolls();
-  const known = knownPath(pathname);
-  let view = "home";
-  let target = "/";
-  if (known) {
-    view = ROUTES[known];
-    target = known;
-  }
-  if (R.compatibilityModeOn() && view !== "admin" && view !== "diagnostic" && view !== "setup") {
-    view = "admin";
+  let target = knownPath(pathname) || "/";
+  if (R.compatibilityModeOn() && !["admin", "diagnostic", "setup"].includes(ROUTES[target]))
     target = "/admin";
-  }
+  const view = ROUTES[target];
   if (location.pathname !== target) history.replaceState({}, "", target);
   activeView = view;
   const ready = ensureView(view).then(() => {
@@ -192,8 +184,7 @@ function settleView(ok, boot) {
     R.message(__WEBUI_TEXT__("shell.unable_to_load_view"), "error");
 }
 function navigate(path, replace) {
-  const known = knownPath(path);
-  const target = known ? known : "/";
+  const target = knownPath(path) || "/";
   if (location.pathname !== target) history[replace ? "replaceState" : "pushState"]({}, "", target);
   renderRoute(target, true);
 }

@@ -519,14 +519,15 @@ async function confirmLoginSheet() {
         return R.message(__WEBUI_TEXT__("admin.new_password_not_saved_yet"), "error");
     }
     await accessAction(mode, { password, device: R.deviceLabel() });
+    const enable = mode === "enable";
     R.message(
-      mode === "enable"
-        ? __WEBUI_TEXT__("admin.login_turned_on")
-        : __WEBUI_TEXT__("admin.login_turned_off"),
+      enable ? __WEBUI_TEXT__("admin.login_turned_on") : __WEBUI_TEXT__("admin.login_turned_off"),
       "ok",
     );
+    await R.refreshStatus();
     closeLoginSheet();
-    R.refreshStatus();
+    $("loginOnNote").hidden = !enable;
+    $("loginOffNote").hidden = enable;
   } catch (e) {
     R.message(R.formatCommandError(__WEBUI_TEXT__("admin.could_not_change_login"), e), "error");
   } finally {
@@ -765,7 +766,6 @@ function loadAdminConfig(c) {
 function applyAdminStatus(s) {
   const unlocked = !!s.adminUnlocked;
   R.syncAdminSessionUi(unlocked);
-  $("adminFactoryHint").classList.toggle("hidden", unlocked || !s.factoryPassword);
   const hint = $("adminConfirmHint");
   if (hint) {
     const pending = s.network && s.network.configState === "PENDING";

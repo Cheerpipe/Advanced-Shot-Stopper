@@ -149,9 +149,8 @@
   assert.ok(codeIncludes(ui, 'id="footerSignOut"') &&
       blockAt(rawRuntimeJs, 'function renderHomeStream(').includes('session.hidden = !status.access?.login') &&
       css.includes('.pageFooter .textLock{min-width:0;min-height:0'));
-  // While locked, Admin reminds that the (public) factory password is in use.
-  assert.ok(network.includes('\\"factoryPassword\\":%s",') &&
-      codeIncludes(viewJs.admin, '$("adminFactoryHint").classList.toggle("hidden", unlocked || !s.factoryPassword)'));
+  // The locked Admin page never announces the public factory password.
+  assert.ok(!codeIncludes(ui, 'adminFactoryHint') && !codeIncludes(viewJs.admin, 'adminFactoryHint'));
   // Home's "Set up" lands on the Access panel once Admin is unlocked.
   assert.ok(codeIncludes(ui, 'href="/admin#accessPanel"') &&
       blockAt(viewJs.admin, 'function applyAdminStatus(').includes('location.hash'));

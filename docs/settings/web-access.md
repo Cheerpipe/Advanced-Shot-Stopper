@@ -8,8 +8,6 @@ for a password instead. The controller uses one password for everything: the
 ## Turn the password on
 
 1. Open **Admin**, unlock it with the device password, and go to **Access**.
-   While the controller still uses the factory password, the unlock form
-   reminds you of it.
 2. Switch on **Require a password to open the Web UI**.
 3. If the device password is still the factory one (`ineedacoffee`), choose a
    new password and repeat it. The factory password is public, so it can't
@@ -18,7 +16,8 @@ for a password instead. The controller uses one password for everything: the
 4. Tap **Turn on**.
 
 The phone or browser you used stays signed in. Every other device now shows
-a sign-in page.
+a sign-in page. Access reminds you to keep the password somewhere safe: if
+you lose it, the only way back in is the recovery steps at the machine.
 
 The first time you open the Web UI, Home shows a short note that it is open on
 your network, with a **Set up** button that takes you to this panel. **Not now**
@@ -110,7 +109,8 @@ device password does not disconnect Home Assistant.
   out all of them at once.
 - **Turn the password off** by switching it off and typing the device
   password. Remembered devices are forgotten and Home Assistant goes back to
-  connecting without a password.
+  connecting without a password. Admin still asks for the device password,
+  so keep it somewhere safe.
 
 ## Forgot the password
 
