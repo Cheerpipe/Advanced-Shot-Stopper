@@ -235,6 +235,9 @@ inline bool machineConfirmBackflush(uint32_t generation) {
 }
 
 inline void machineInitialize() {
+  // Latch OPEN before enabling the driver: an active-LOW relay must not see
+  // the reset latch level as CLOSED.
+  openRelayElectricalFromIsr();
   pinMode(RELAY_GPIO, OUTPUT);
   digitalWrite(RELAY_GPIO, RELAY_OPEN_LEVEL);
   if (EXTERNAL_SAFETY_HARDWARE_PRESENT) {
@@ -243,7 +246,9 @@ inline void machineInitialize() {
     pinMode(CIRCUIT_FEEDBACK_GPIO, INPUT_PULLUP);
   }
   initializeActivatorInput();
-  machineSetActivatorDriveAllowed(true);
+  // No activator drive until loop() grants it: boot-time sampling (recovery
+  // gesture) must never close K1 before initialization completes.
+  machineSetActivatorDriveAllowed(false);
   machineNoteActivatorReleased();
 }
 

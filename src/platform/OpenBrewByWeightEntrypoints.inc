@@ -223,8 +223,8 @@ void setup() {
   independentSafetyTimer.resetForHost();
 #endif
   // Safe OPEN before Serial, EEPROM or BLE. Arduino-ESP32 3.x rejects
-  // digitalWrite until the pad is a GPIO. After reset the pin is Hi-Z and
-  // the output latch is 0, which is OPEN for the active-HIGH relay.
+  // digitalWrite until the pad is a GPIO, so the OPEN level is latched by
+  // direct register write before the pin becomes an output.
   machineInitialize();
 #ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   crashArchivePrepareBoot();
@@ -368,9 +368,6 @@ void setup() {
   logEmit(taskWatchdogReady ? LogLevel::INFO : LogLevel::CRITICAL,
           DebugCategory::BOOT, DebugCode::BOOT_SUBSYSTEM,
           BOOT_SUBSYSTEM_TASK_WDT, taskWatchdogReady ? 1 : 0);
-  if (safetyResetStatus.recoveryRequired) {
-    addDebugEvent(DebugCategory::SECURITY, DebugCode::SAFETY_LOCKOUT_ACTIVE);
-  }
 
 #ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
   bool bootIdentityDurable = false;
@@ -565,7 +562,7 @@ void setup() {
   bootCapabilities.network = networkOk;
   bootCapabilities.psram = psramOk;
   bootCapabilities.criticalFaultLatched =
-      criticalTaskWatchdogFaulted() || safetyResetStatus.recoveryRequired ||
+      criticalTaskWatchdogFaulted() ||
       relaySafetyState == RelaySafetyState::LOCKOUT;
   bootState = bootCapabilities.state();
   bootDegraded = bootState == BootState::DEGRADED_SAFE ||

@@ -99,7 +99,7 @@ void publishControlGate() {
   BootCapabilities effectiveBoot = bootCapabilities;
   effectiveBoot.criticalFaultLatched =
       effectiveBoot.criticalFaultLatched || criticalTaskWatchdogFaulted() ||
-      relay.resetRecoveryRequired || relay.state == RelaySafetyState::LOCKOUT;
+      relay.state == RelaySafetyState::LOCKOUT;
   next.bootState = effectiveBoot.state();
   next.state = stopperState;
   next.activeCycle = session.active || backflushActive(stopperState);
@@ -524,7 +524,7 @@ void publishControlStatus() {
   next.bootCapabilities = bootCapabilities;
   next.bootCapabilities.criticalFaultLatched =
       next.bootCapabilities.criticalFaultLatched ||
-      criticalTaskWatchdogFaulted() || relay.resetRecoveryRequired ||
+      criticalTaskWatchdogFaulted() ||
       relay.state == RelaySafetyState::LOCKOUT;
   next.bootState = next.bootCapabilities.state();
   next.bootComplete = next.bootState == BootState::READY;

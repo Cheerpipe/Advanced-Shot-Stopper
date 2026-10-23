@@ -37,7 +37,6 @@ struct SafetyResetSnapshot {
   bool resetDuringClose = false;
   bool unsafeReset = false;
   bool bootLoopDetected = false;
-  bool recoveryRequired = false;
   uint8_t resetHistoryCount = 0;
   ResetHistoryEntry resetHistory[RESET_HISTORY_CAPACITY] = {};
 };
@@ -245,13 +244,10 @@ inline SafetyResetSnapshot beginSafetyResetGuard() {
           : (snapshot.unsafeReset ? previousCount : 0);
   snapshot.bootLoopDetected =
       snapshot.unsafeResetCount >= SAFETY_BOOT_LOOP_THRESHOLD;
-  // Reset history is diagnostic only. setup() has already forced the relay
-  // output OPEN, so a panic or reset-during-close must not latch the next
-  // boot or require a local recovery gesture.
-  snapshot.recoveryRequired = false;
-
-  // The physical relay has already been driven OPEN by setup() before this
-  // function is called. Publish that safe fact while retaining crash count.
+  // Reset history is diagnostic only: setup() has already driven the relay
+  // OPEN, so a panic or reset during close never latches the next boot or
+  // requires a local recovery gesture. Publish that safe fact while retaining
+  // the crash count.
   initializeSafetyResetRecord(SAFETY_RELAY_OPEN_MARKER, snapshot.unsafeResetCount,
                               snapshot.resetHistory, snapshot.resetHistoryCount);
   return snapshot;

@@ -1104,22 +1104,26 @@ void t_running_unconfirmed_offers_web_stop() {
 }
 #endif
 
-void t_recovery_hold_mirrors_gpio() {
+// SAF-02: the boot recovery grace samples a button held at power-on before
+// initialization completes. Releasing it in the grace must leave K1 untouched
+// (no INITIALIZATION_FAILED lockout) so startup still reaches READY.
+void t_boot_hold_released_in_grace_never_drives_relay() {
   resetMomentaryHarness();
+  firmwareInitializationComplete = false;
   hostPinLevel[ACTIVATOR_GPIO] = ACTIVATOR_ACTIVE_LEVEL;
-  initializeActivatorInput();
-  applyMomentaryRelayDrive();
+  machineInitialize();
+  machineSampleInput();
   CHECK(momentaryPhysicalOn);
-  CHECK(getRelaySafetySnapshot().closed);
-  CHECK(!session.active);
   hostPinLevel[ACTIVATOR_GPIO] = !ACTIVATOR_ACTIVE_LEVEL;
-  updateActivatorInput();
+  machineSampleInput();
   hostMillis += ACTIVATOR_DEBOUNCE_MS + 1;
-  updateActivatorInput();
+  machineSampleInput();
   CHECK(!momentaryPhysicalOn);
-  CHECK(!getRelaySafetySnapshot().closed);
-  CHECK(!session.active);
+  CHECK(hostRelayClosedWrites == 0);
+  CHECK(getRelaySafetySnapshot().state == RelaySafetyState::OPEN);
+  CHECK(getRelaySafetySnapshot().fault == RelaySafetyFault::NONE);
   machineOnActivatorReady();
+  firmwareInitializationComplete = true;
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
   CHECK(stopperState == StopperState::READY);
   shortPress(150);
@@ -2504,7 +2508,7 @@ const TestCase kTests[] = {
     {"P49B", t_reed_does_not_arm_no_flow_idle},
     {"P70", t_reed_getters_use_sampled_state},
 #endif
-    {"P20", t_recovery_hold_mirrors_gpio},
+    {"P20", t_boot_hold_released_in_grace_never_drives_relay},
     {"P08", t_logical_wall_trips_existing_flags},
 };
 

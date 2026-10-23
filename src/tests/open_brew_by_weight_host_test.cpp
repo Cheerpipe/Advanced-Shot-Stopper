@@ -370,6 +370,7 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   paddleReturnReminderActive = false;
   paddleReturnReminderLastAtMs = 0;
   paddleReturnReminderStartedAtMs = 0;
+  paddleReturnReminderExhausted = false;
 #endif
   scaleCompletionBeepPending = false;
   scaleCompletionBeepScheduled = false;
@@ -2488,6 +2489,37 @@ void r15_gptimer_opens_circuit_without_arduino_or_esp_timer_tasks() {
   CHECK(hostPinLevel[RELAY_GPIO] == RELAY_OPEN_LEVEL);
 }
 
+// SAF-03: the ISR leaves RTC/timer work to the task, which must finish it
+// even when the trip ends a wake passthrough instead of a session.
+void r15b_isr_trip_without_session_clears_close_marker() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  hostMachinePhysicalStartDisposition =
+      MachinePhysicalStartDisposition::WAKE_PASSTHROUGH;
+  setRawPaddle(true);
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS);
+  CHECK(machineWakePassthroughActive);
+  hostMillis = circuitClosedAtMs + HARD_MAX_CIRCUIT_CLOSED_MS;
+  independentSafetyTimer.serviceForHost();
+  CHECK(safetyResetRecordForHost().relayMarker == SAFETY_RELAY_CLOSED_MARKER);
+  loop();
+  CHECK(!session.active);
+  CHECK(stopperState == StopperState::REQUIRES_OFF);
+  CHECK(safetyResetRecordForHost().relayMarker == SAFETY_RELAY_OPEN_MARKER);
+  CHECK(!relaySafetyTimer->active && !operationalLimitTimer->active);
+}
+
+// SAF-01: the hook replaces ESP-IDF's aborting one, so it must abort too.
+void r15c_stack_overflow_hook_opens_circuit_then_aborts() {
+  resetHarness(false, false);
+  CHECK(setMachineCircuitClosed(true, 5000));
+  hostSystemAbortDetails = nullptr;
+  vApplicationStackOverflowHook(nullptr, nullptr);
+  CHECK(hostPinLevel[RELAY_GPIO] == RELAY_OPEN_LEVEL);
+  CHECK(safetyResetRecordForHost().relayMarker == SAFETY_RELAY_OPEN_MARKER);
+  CHECK(hostSystemAbortDetails != nullptr);
+}
+
 void r16_timeout_during_arm_transaction_can_never_close_circuit() {
   resetHarness(false, false);
   hostCircuitArmBeforeCommitHook = []() {
@@ -2539,7 +2571,6 @@ void r19_reset_during_close_reopens_without_recovery_lockout() {
 
   CHECK(safetyResetStatus.resetDuringClose);
   CHECK(safetyResetStatus.unsafeReset);
-  CHECK(!safetyResetStatus.recoveryRequired);
   CHECK(relaySafetyState == RelaySafetyState::OPEN);
   CHECK(relaySafetyFault == RelaySafetyFault::NONE);
   CHECK(hostPinLevel[RELAY_GPIO] == RELAY_OPEN_LEVEL);
@@ -2557,7 +2588,6 @@ void r19b_panic_boot_is_ready_for_webui_and_next_circuit_cycle() {
   initializeRelaySafetyStateAfterBoot();
 
   CHECK(safetyResetStatus.unsafeReset);
-  CHECK(!safetyResetStatus.recoveryRequired);
   CHECK(relaySafetyState == RelaySafetyState::OPEN);
   CHECK(stopperState == StopperState::READY);
   CHECK(controlAllowsConfigurationNow());
@@ -2578,7 +2608,6 @@ void r20_three_unsafe_resets_are_latched_as_a_boot_loop() {
     CHECK(reset.unsafeResetCount == count);
   }
   CHECK(reset.bootLoopDetected);
-  CHECK(!reset.recoveryRequired);
 }
 
 void r20b_reset_history_keeps_reason_and_previous_uptime() {
@@ -3895,9 +3924,16 @@ void w44_paddle_return_reminder_stops_after_fifteen_minutes() {
   runLoopAfter(runtimeConfig.paddleReturnReminderMaxDurationMs -
                runtimeConfig.paddleReturnReminderIntervalMs);
   const uint32_t afterLimit = localBuzzer.acceptedRequests;
-  runLoopAfter(runtimeConfig.paddleReturnReminderIntervalMs);
+  for (int i = 0; i < 3; ++i)
+    runLoopAfter(runtimeConfig.paddleReturnReminderIntervalMs);
   CHECK(localBuzzer.acceptedRequests == afterLimit);
   CHECK(!scalePaddleReturnReminderBeepPending);
+
+  // Only a paddle return clears the exhausted latch for the next hold.
+  setRawPaddle(false);
+  setRawPaddle(true);
+  runLoopAfter(runtimeConfig.paddleReturnReminderIntervalMs);
+  CHECK(localBuzzer.acceptedRequests > afterLimit);
 }
 
 void w50_local_buzzer_plays_triple_pattern_non_blocking() {
@@ -16100,11 +16136,6 @@ void f06b_control_gate_derives_effective_boot_state() {
   CHECK(publishedControlGate.bootState == BootState::FAULT_LATCHED);
 
   resetHarness(false, false);
-  safetyResetStatus.recoveryRequired = true;
-  publishControlGate();
-  CHECK(publishedControlGate.bootState == BootState::FAULT_LATCHED);
-
-  resetHarness(false, false);
   relaySafetyState = RelaySafetyState::LOCKOUT;
   publishControlGate();
   CHECK(publishedControlGate.bootState == BootState::FAULT_LATCHED);
@@ -21961,6 +21992,8 @@ const TestCase testCases[] = {
     {"R13", r13_full_queue_prevents_stop_without_delaying_relay_open},
     {"R14", r14_invalid_runtime_configuration_is_transactionally_rejected},
     {"R15", r15_gptimer_opens_circuit_without_arduino_or_esp_timer_tasks},
+    {"R15b", r15b_isr_trip_without_session_clears_close_marker},
+    {"R15c", r15c_stack_overflow_hook_opens_circuit_then_aborts},
     {"R16", r16_timeout_during_arm_transaction_can_never_close_circuit},
     {"R17", r17_gptimer_arm_failure_prevents_relay_energization},
     {"R18", r18_watchdog_fault_opens_circuit_and_requests_safe_restart},

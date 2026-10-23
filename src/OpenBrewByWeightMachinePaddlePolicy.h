@@ -15,6 +15,8 @@
 bool paddleReturnReminderActive = false;
 uint32_t paddleReturnReminderLastAtMs = 0;
 uint32_t paddleReturnReminderStartedAtMs = 0;
+// Set when the max duration ends a reminder; only a shouldRemind drop clears it.
+bool paddleReturnReminderExhausted = false;
 
 bool machineCycleActive = false;
 uint8_t machineCyclePaddleMode = static_cast<uint8_t>(PaddleMode::NATURAL);
@@ -159,12 +161,14 @@ void machineServiceReminders() {
       paddleOnCircuitOff && outputUsable;
   if (!shouldRemind) {
     paddleReturnReminderActive = false;
+    paddleReturnReminderExhausted = false;
     paddleReturnReminderLastAtMs = 0;
     paddleReturnReminderStartedAtMs = 0;
     cancelScalePaddleReturnReminderBeep();
     return;
   }
 
+  if (paddleReturnReminderExhausted) return;
   const uint32_t now = millis();
   if (!paddleReturnReminderActive) {
     paddleReturnReminderActive = true;
@@ -174,9 +178,7 @@ void machineServiceReminders() {
   }
   if (elapsedMs(paddleReturnReminderStartedAtMs) >=
       runtimeConfig.paddleReturnReminderMaxDurationMs) {
-    paddleReturnReminderActive = false;
-    paddleReturnReminderLastAtMs = 0;
-    paddleReturnReminderStartedAtMs = 0;
+    paddleReturnReminderExhausted = true;
     cancelScalePaddleReturnReminderBeep();
     return;
   }

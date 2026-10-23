@@ -1587,7 +1587,7 @@ for gate in ("control.activeCycle", "control.machineRunning",
 control_gate = (ROOT / "src/diagnostics/OpenBrewByWeightDiagnostics.inc").read_text().split(
     "void publishControlGate()", 1)[1].split("void publishControlStatus()", 1)[0]
 for source in ("bootCapabilities", "criticalTaskWatchdogFaulted()",
-               "relay.resetRecoveryRequired", "RelaySafetyState::LOCKOUT"):
+               "RelaySafetyState::LOCKOUT"):
     assert source in control_gate
 assert "next.bootState = effectiveBoot.state()" in control_gate
 assert "constexpr uint32_t FLASH_IO_LOCK_TIMEOUT_MS = 3000" in \

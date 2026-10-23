@@ -177,7 +177,10 @@ Otherwise it returns to `READY`.
 **Independence.** In full firmware mode, a 60 s (or operational-wall) timer ISR can trip
 safety while the control task is in BLE or flash I/O. The next loop
 sees `TRIPPED` / `LOCKOUT` and finalizes the cycle with
-`RELAY_SAFETY_FAILURE`. Network, OTA, and NTP never close the machine circuit. A
+`RELAY_SAFETY_FAILURE`. Consuming an ISR trip also publishes the RTC OPEN
+marker and stops the deadline timers, even when no cycle is active (for
+example a wake passthrough), so a later restart is not counted as a reset
+during close. Network, OTA, and NTP never close the machine circuit. A
 maintenance lease (Wi-Fi scan, some admin work) forces machine circuit open and
 parks the brew orchestrator in `REQUIRES_OFF` if the paddle is ON.
 Linea Micra settings saves take no lease: they change neither the network nor
@@ -263,9 +266,6 @@ Source: `OpenBrewByWeightSafety.h`, `OpenBrewByWeightMachine.h`.
 | `FEEDBACK_FAILED_TO_CLOSE` | Echo never matched a commanded close. | Lockout |
 | `FEEDBACK_CHANGED_UNEXPECTEDLY` | Echo flipped while closed/open unexpectedly. | Lockout |
 | `TASK_WATCHDOG_FAILURE` | Control task missed WDT. | Lockout |
-| `RESET_DURING_CLOSE` | Reset-history classification; whether it blocks a new close depends on boot fault handling. | Inspect active safety state |
-| `UNSAFE_RESET` | Reset-history classification; a panic alone does not require a recovery gesture. | Inspect active safety state |
-| `BOOT_LOOP` | Repeated unsafe resets. | Lockout |
 | `GPIO_DESYNC` | Commanded CLOSED but the relay GPIO still reads OPEN after a rewrite. Best-effort (`digitalRead` of an output is not a contact sense). Periodic rewrite while commanded closed is the main defense. | Trip (not lockout) |
 
 **Events that are not faults:** `machineRequestStart` (OPEN→ARMING→CLOSED),
@@ -876,7 +876,10 @@ irreversible, so entry passes a 30 s grace first. The grace runs inside the
 blocking boot-recovery region — persistence, BLE, Wi-Fi, scale worker, and
 machine integration stay unloaded — with the stopper in `REQUIRES_OFF` and
 the machine circuit open. Every tick services relay safety, the buzzer, the
-task watchdog, and the safety heartbeat.
+task watchdog, and the safety heartbeat. Activator drive stays denied from
+`machineInitialize()` until the first control-loop pass grants it, so a held
+momentary button sampled here never closes K1 or trips an initialization
+lockout.
 
 | Result | Meaning |
 | --- | --- |
@@ -1247,7 +1250,8 @@ One pass of the control task, simplified:
 
 That split is why a hung HTTP handler cannot keep machine circuit closed: the
 deadline timers and panic/stack-overflow hooks write the relay GPIO
-from IRAM.
+from IRAM. The stack-overflow hook then aborts, so the controller reboots
+with the circuit open instead of running on a corrupted stack.
 
 ---
 

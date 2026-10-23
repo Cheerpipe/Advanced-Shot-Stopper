@@ -91,6 +91,8 @@ inline void (*hostCircuitArmBeforeCommitHook)() = nullptr;
 inline uint32_t hostSafetyResetReasonCode = 1;
 inline bool hostSafetyResetReasonUnsafe = false;
 inline bool hostSafetyResetReasonPowerOn = true;
+inline const char *hostSystemAbortDetails = nullptr;
+inline void esp_system_abort(const char *details) { hostSystemAbortDetails = details; }
 
 inline uint32_t millis() {
   return hostMillis;

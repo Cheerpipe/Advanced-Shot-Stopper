@@ -28,9 +28,6 @@ enum class RelaySafetyFault : uint8_t {
   FEEDBACK_FAILED_TO_CLOSE,
   FEEDBACK_CHANGED_UNEXPECTEDLY,
   TASK_WATCHDOG_FAILURE,
-  RESET_DURING_CLOSE,
-  UNSAFE_RESET,
-  BOOT_LOOP,
   GPIO_DESYNC
 };
 
@@ -65,10 +62,6 @@ inline const char *relaySafetyFaultName(RelaySafetyFault fault) {
       return "FEEDBACK_CHANGED_UNEXPECTEDLY";
     case RelaySafetyFault::TASK_WATCHDOG_FAILURE:
       return "TASK_WATCHDOG_FAILURE";
-    case RelaySafetyFault::RESET_DURING_CLOSE:
-      return "RESET_DURING_CLOSE";
-    case RelaySafetyFault::UNSAFE_RESET: return "UNSAFE_RESET";
-    case RelaySafetyFault::BOOT_LOOP: return "BOOT_LOOP";
     case RelaySafetyFault::GPIO_DESYNC: return "GPIO_DESYNC";
   }
   return "UNKNOWN";
@@ -95,6 +88,8 @@ struct RelaySafetySnapshot {
   RelayPurpose purpose = RelayPurpose::NORMAL;
   uint32_t resetReasonCode = 0;
   uint32_t unsafeResetCount = 0;
+  // Always false: resets never latch a boot lockout. Kept for the Diagnostic
+  // and stream `recoveryRequired` contract.
   bool resetRecoveryRequired = false;
   bool bootLoopDetected = false;
   uint8_t resetHistoryCount = 0;

@@ -61,8 +61,8 @@ void tripRelaySafety(RelaySafetyFault fault, bool hardLimit = false,
   tripRelaySafetyLocked(fault, hardLimit, operationalLimit, lockout);
   portEXIT_CRITICAL(&relayMux);
   // RTC validation/checksum is task work and must never extend the interrupt-
-  // disabled relay critical section. A reset before this conservative OPEN
-  // publication can only cause a false-positive recovery lockout.
+  // disabled relay critical section. A reset before this OPEN publication
+  // is only classified as a reset during close in the reset history.
   recordRelayCommandedClosed(false);
   stopRelayDeadlineTimers();
 }
@@ -140,19 +140,20 @@ void IRAM_ATTR openRelayElectricalFromIsr() {
   // register (W1TS or W1TC) is selected at compile time via RELAY_OPEN_LEVEL.
   writeGpioFromIsr(RELAY_GPIO, RELAY_OPEN_LEVEL);
 }
-
-// FreeRTOS calls this before aborting when stack canaries are enabled. Open
-// machine circuit first (IRAM GPIO path), then clear the RTC close marker. Avoid heap or
-// Serial here.
-extern "C" void vApplicationStackOverflowHook(TaskHandle_t, char *) {
-  openRelayElectricalFromIsr();
-  recordRelayCommandedClosed(false);
-}
 #else
 void openRelayElectricalFromIsr() {
   digitalWrite(RELAY_GPIO, RELAY_OPEN_LEVEL);
 }
 #endif
+
+// Replaces ESP-IDF's weak hook, which only aborts, so this one must abort too:
+// returning would keep running on a corrupted stack. Open the machine circuit
+// first (IRAM GPIO path) and clear the RTC close marker; avoid heap or Serial.
+extern "C" void vApplicationStackOverflowHook(TaskHandle_t, char *) {
+  openRelayElectricalFromIsr();
+  recordRelayCommandedClosed(false);
+  esp_system_abort("stack overflow");
+}
 
 #ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
 void IRAM_ATTR openBrewByWeightPanicHandler(arduino_panic_info_t *info, void *) {
@@ -172,9 +173,9 @@ void IRAM_ATTR independentSafetyTimerCallback(void *) {
     const bool operational =
         operationalLimitAtArmMs < relayHardLimitMs;
     // Keep this ISR minimal and IRAM-safe. The control task performs timer
-    // cleanup, RTC OPEN publication and logging after observing the latched
-    // trip flags. If reset wins that race, the retained CLOSE marker causes a
-    // conservative boot lockout.
+    // cleanup, RTC OPEN publication and logging when it consumes the latched
+    // trip flags. If reset wins that race, the retained CLOSE marker is only
+    // classified as a reset during close.
     openRelayElectricalFromIsr();
     if (circuitClosed) relayElectricalOpenedAtMs = static_cast<uint32_t>(esp_timer_get_time() / 1000);
     circuitClosed = false;
@@ -268,7 +269,6 @@ RelaySafetySnapshot getRelaySafetySnapshot() {
   // the ISR-shared spinlock.
   snapshot.resetReasonCode = safetyResetStatus.reasonCode;
   snapshot.unsafeResetCount = safetyResetStatus.unsafeResetCount;
-  snapshot.resetRecoveryRequired = safetyResetStatus.recoveryRequired;
   snapshot.bootLoopDetected = safetyResetStatus.bootLoopDetected;
   snapshot.resetHistoryCount = safetyResetStatus.resetHistoryCount;
   for (uint8_t i = 0; i < snapshot.resetHistoryCount; ++i)
@@ -511,22 +511,25 @@ bool promoteRelayBackflush(uint32_t generation) {
   return committed;
 }
 
-bool consumeRelaySafetyTrip() {
-  bool tripped;
+// The deadline ISR only opens K1; consuming its latched trip completes the
+// task-side work (RTC OPEN marker, timer cleanup) even with no session to end.
+bool consumeTripFlag(bool &flag) {
   portENTER_CRITICAL(&relayMux);
-  tripped = relaySafetyTripped;
-  relaySafetyTripped = false;
+  const bool tripped = flag;
+  const bool open = !circuitClosed;
+  flag = false;
   portEXIT_CRITICAL(&relayMux);
+  if (tripped && open) {
+    recordRelayCommandedClosed(false);
+    stopRelayDeadlineTimers();
+  }
   return tripped;
 }
 
+bool consumeRelaySafetyTrip() { return consumeTripFlag(relaySafetyTripped); }
+
 bool consumeOperationalLimitTrip() {
-  bool tripped;
-  portENTER_CRITICAL(&relayMux);
-  tripped = operationalLimitTripped;
-  operationalLimitTripped = false;
-  portEXIT_CRITICAL(&relayMux);
-  return tripped;
+  return consumeTripFlag(operationalLimitTripped);
 }
 
 void serviceRelaySafety() {
