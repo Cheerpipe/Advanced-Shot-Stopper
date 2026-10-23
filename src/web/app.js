@@ -49,6 +49,35 @@ function fetchView(name) {
   );
 }
 const viewFails = {};
+// Number fields get − and + keys for touch and mouse; holding one repeats.
+// The field keeps its arrow keys, so the keys stay out of the tab order.
+function addNumberKeys(root) {
+  root.querySelectorAll('input[type="number"]').forEach((f) => {
+    const box = document.createElement("span");
+    box.className = "numBox";
+    f.replaceWith(box);
+    box.append(f);
+    for (const up of [false, true]) {
+      const b = document.createElement("button");
+      let timer;
+      const step = () => {
+        up ? f.stepUp() : f.stepDown();
+        f.dispatchEvent(new Event("input", { bubbles: true }));
+        f.dispatchEvent(new Event("change", { bubbles: true }));
+      };
+      const stop = () => clearTimeout(timer);
+      Object.assign(b, { type: "button", tabIndex: -1, textContent: up ? "+" : "−" });
+      b.setAttribute("aria-hidden", "true");
+      b.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        step();
+        timer = setTimeout(() => (timer = setInterval(step, 90)), 400);
+      });
+      ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => b.addEventListener(ev, stop));
+      box.append(b);
+    }
+  });
+}
 async function ensureView(name) {
   if (jsMods.has(name)) return jsMods.get(name);
   if (viewLoads.has(name)) return viewLoads.get(name);
@@ -65,6 +94,7 @@ async function ensureView(name) {
     const mod = await (boot || fetchView(name));
     if (!mod) throw new Error(__WEBUI_TEXT__("shell.missing_secondary_view") + name);
     section.innerHTML = mod.markup;
+    addNumberKeys(section);
     if (mod.init) mod.init();
     jsMods.set(name, mod);
     return mod;

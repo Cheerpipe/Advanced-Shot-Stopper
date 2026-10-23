@@ -413,6 +413,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     const records = deferred(), modules = new Map(), assetEvents = [], initialized = [], sections = {};
     for (const name of ['stats', 'history']) sections['view-' + name] = {
       set innerHTML(html) {assetEvents.push('insert-' + name + ':' + html);},
+      querySelectorAll: () => [],
     };
     const assetContext = vm.createContext({jsMods: new Map(), viewLoads: new Map(),
       BUNDLES: {stats: 'records', history: 'records'}, bootFetch: null,
@@ -955,8 +956,9 @@ if (htmlBytes > 107310) {
 // Diagnostics section rows (shared row helper, hold-to-copy on the row title): measured 517152; the
 // Diagnostic log-stream resume brings it to 517339, owner-requested 2026-10-22.
 // Outlined History cup for shots without scale weight: measured 517450, owner-requested 2026-10-22.
-if (jsBytes > 517450) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 517450)`);
+// − and + keys inside number fields: measured 518524, owner-requested 2026-10-22.
+if (jsBytes > 518524) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 518524)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1121,8 +1123,9 @@ if (jsBytes > 517450) {
 // Admin section rows with icons and live summaries: measured 621182, owner-requested 2026-10-22.
 // Diagnostics section rows with icons: measured 624462; the Diagnostic log-stream resume brings it
 // to 624649, owner-requested 2026-10-22.
-if (htmlBytes + jsBytes > 624649) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 624649)`);
+// − and + keys inside number fields: measured 625771, owner-requested 2026-10-22.
+if (htmlBytes + jsBytes > 625771) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 625771)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

@@ -639,8 +639,9 @@ if (!generated.html.includes('rel="manifest" href="/manifest.webmanifest?v=' + g
 // quick-weight focus) measure 7492, measured raise of the 2026-10-21 frontend audit remediation. Cap raised to 7510.
 // The Home access notice wiring in the inlined home module measures 7612,
 // owner-requested 2026-10-22. Cap raised to 7630 for the stamped asset tag.
-if (generated.jsGzip.length > 7630) {
-  throw new Error(`Compressed Web UI shell JS exceeds the 7630-byte gzip budget (${generated.jsGzip.length})`);
+// − and + keys inside number fields measure 7840, owner-requested 2026-10-22; cap 7850.
+if (generated.jsGzip.length > 7850) {
+  throw new Error(`Compressed Web UI shell JS exceeds the 7850-byte gzip budget (${generated.jsGzip.length})`);
 }
 // Allow fixed chart grids and adaptive axes while retaining the combined cap.
 // The activation-history table cards and type badges raise the cap to 7050.
@@ -737,9 +738,10 @@ if (generated.jsGzip.length > 7630) {
 // Fixed Administration unlock section: 16387, owner-requested 2026-10-22.
 // Group switches, setting rows and the sunken open-group band: 16567, owner-requested 2026-10-22.
 // A setting row closing the band meets its bottom edge, and the group opening transition
-// survives minification, with a symmetric band: 16634, owner-requested 2026-10-22; cap 16640.
-if (generated.cssGzip.length > 16640) {
-  throw new Error(`Compressed Web CSS exceeds the 16640-byte gzip budget (${generated.cssGzip.length})`);
+// survives minification, with a symmetric band: 16634, owner-requested 2026-10-22.
+// Joined-box number keys, compact fields and the dropdown key: 16839, owner-requested 2026-10-22; cap 16850.
+if (generated.cssGzip.length > 16850) {
+  throw new Error(`Compressed Web CSS exceeds the 16850-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -1196,9 +1198,10 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // log-stream resume brings it to 71130, owner-requested 2026-10-22. The outlined History
 // cup brings it to 71172, owner-requested 2026-10-22. The group switch, setting row and
 // sunken open-group CSS brings it to 71371, owner-requested 2026-10-22. The band's bottom
-// row fit and the minifier-safe group transition bring it to 71421; cap 71440.
-if (coldHomeGzip > 71440) {
-  throw new Error(`Cold Home download exceeds the 71440-byte gzip budget (${coldHomeGzip})`);
+// row fit and the minifier-safe group transition bring it to 71421. The joined-box
+// number keys and dropdown key bring it to 71872, owner-requested 2026-10-22; cap 71890.
+if (coldHomeGzip > 71890) {
+  throw new Error(`Cold Home download exceeds the 71890-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin

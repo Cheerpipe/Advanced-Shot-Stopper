@@ -1060,7 +1060,61 @@ textarea {
 }
 input:not([type="file"], [type="checkbox"]),
 select {
-  min-height: 3rem;
+  min-height: 2.25rem;
+  padding-block: 0.4rem;
+}
+/* Number fields: − and + keys inside the field's border on the right, split
+   by thin lines; the field keeps its own error, warning and focus styles. */
+.numBox {
+  position: relative;
+  display: block;
+  margin-top: 0.35rem;
+}
+.numBox > input {
+  margin: 0;
+  padding-right: 5.6rem;
+  appearance: textfield;
+}
+.numBox > input::-webkit-inner-spin-button,
+.numBox > input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.numBox > button {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  right: 1px;
+  width: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--ln);
+  border-radius: 0 0.45rem 0.45rem 0;
+  background: none;
+  color: var(--fg);
+  font-size: 1.15rem;
+  line-height: 1;
+  touch-action: manipulation;
+}
+.numBox > button:first-of-type {
+  right: calc(2.75rem + 1px);
+  border-radius: 0;
+}
+.numBox > button:hover {
+  background: var(--pa);
+}
+.windowPair .numBox > input {
+  padding-inline: 0.5rem 4.6rem;
+}
+.windowPair .numBox > button {
+  width: 2.25rem;
+}
+.windowPair .numBox > button:first-of-type {
+  right: calc(2.25rem + 1px);
+}
+.numBox > input:is(:disabled, [readonly]) ~ button {
+  opacity: 0.65;
+  pointer-events: none;
 }
 textarea {
   resize: vertical;
@@ -1097,16 +1151,18 @@ input[type="url"] {
 }
 select {
   appearance: none;
-  padding-right: 1.85rem;
+  padding-right: 3.4rem;
   background-image:
-    linear-gradient(45deg, transparent 50%, var(--mu) 50%),
-    linear-gradient(135deg, var(--mu) 50%, transparent 50%);
+    linear-gradient(45deg, transparent 50%, var(--fg) 50%),
+    linear-gradient(135deg, var(--fg) 50%, transparent 50%), linear-gradient(var(--ln), var(--ln));
   background-position:
-    calc(100% - 1.05rem) calc(50% - 0.12rem),
-    calc(100% - 0.7rem) calc(50% - 0.12rem);
+    calc(100% - 1.35rem) calc(50% - 0.12rem),
+    calc(100% - 1rem) calc(50% - 0.12rem),
+    calc(100% - 2.75rem) 0;
   background-size:
     0.4rem 0.4rem,
-    0.4rem 0.4rem;
+    0.4rem 0.4rem,
+    1px 100%;
   background-repeat: no-repeat;
 }
 ::placeholder {
@@ -1637,7 +1693,7 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
   padding-bottom: 0;
 }
 .cfgGroup:has(> summary > .cfgIcon)[open] :is(input:not([type="checkbox"]), select, textarea) {
-  background: var(--sf);
+  background-color: var(--sf);
 }
 /* Settings rows: a block with its own highlight and a line between
    consecutive rows. On/off options are switches on the right, placed by the
