@@ -73,6 +73,13 @@ also reach the Web UI log. Never make a field diagnosis depend on a
 `--development` build or a USB cable, and keep every new diagnostic visible in
 the Web UI log.
 
+## Wi-Fi traffic economy
+
+Design every change that produces Wi-Fi traffic to minimize, first, the number
+of transmissions and receptions (radio wakeups) and, second, the traffic
+volume, whenever the requirement allows it without functional or technical
+tradeoffs. See [Wi-Fi traffic economy](docs/ARCHITECTURE.md#wi-fi-traffic-economy).
+
 ## OTA capability is preserved
 
 Wi-Fi OTA is a supported, shipping workflow alongside USB flash. Never disable,

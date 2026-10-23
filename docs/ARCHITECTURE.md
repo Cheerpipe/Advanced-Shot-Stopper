@@ -50,6 +50,25 @@ without including either monolithic integration root.
 The same script rejects the project's former name anywhere in the repository;
 only the README credit to the original kit keeps it.
 
+## Wi-Fi traffic economy
+
+Every radio exchange wakes the modem from sleep and takes airtime shared with
+the BLE scale link. Any feature, endpoint, client, or protocol change that
+sends or receives Wi-Fi traffic must be designed, in this order, to:
+
+1. Minimize the number of transmissions and receptions: prefer events over
+   polling, coalesce updates into one message, batch requests, and avoid
+   keepalives, retries, or periodic refreshes that the requirement does not
+   need.
+2. Minimize the bytes per exchange: send only changed or required fields,
+   keep payloads compact, and serve cacheable or compressed assets.
+
+Apply both whenever the requirement can still be met without a functional or
+technical tradeoff, such as added latency in safety- or brew-relevant
+feedback, lost diagnostics, or weaker reliability. When an exception is
+necessary, document the reason with the change. Modem sleep stays enabled;
+these rules reduce wakeups rather than disabling power saving.
+
 ## Machine integration modules
 
 The machine profile declares an allow-listed `integration` value explicitly;
