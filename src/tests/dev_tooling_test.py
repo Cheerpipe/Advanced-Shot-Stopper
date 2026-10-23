@@ -86,7 +86,7 @@ for path, expected in golden.items():
 lower = run("validate", "--risk", "R0", "src/OpenBrewByWeightMachineRelay.h")
 assert lower.returncode == 2 and "cannot lower" in lower.stderr
 
-unsafe = run("flash", "--arch", "n16r8")
+unsafe = run("flash")
 assert unsafe.returncode == 2 and "requires --confirm" in unsafe.stderr
 secret = run("ota", "--confirm", "--password", "do-not-log")
 assert secret.returncode == 2 and "never argv" in secret.stderr
@@ -547,13 +547,13 @@ assert profile_cli.stdout == (
     "esp32-s3-relay-x1-speaker|rancilio-silvia-pro-x|"
     "--hardware esp32-s3-relay-x1-speaker --machine rancilio-silvia-pro-x "
     "--development")
-legacy_profile_cli = subprocess.run(
+removed_profile_cli = subprocess.run(
     ["bash", "-c",
      f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
-     'obbw_cli_parse --hardware-config old-hardware.json '
-     '--machine-config old-machine.json'],
+     'obbw_cli_parse --hardware-config old-hardware.json'],
     cwd=ROOT, capture_output=True, text=True)
-assert legacy_profile_cli.returncode == 0
+assert removed_profile_cli.returncode == 2 and \
+    "Unknown option: --hardware-config" in removed_profile_cli.stderr
 
 
 def static_paths_probe(*args: str, output_dir: str | None = None,
@@ -872,8 +872,6 @@ with tempfile.TemporaryDirectory(prefix="openbrewbyweight-jtag-store-") as tempo
     assert jtag_saved.returncode == 0 and \
         "flags=-DCUSTOM=1" in jtag_saved.stdout and \
         "jtag" not in jtag_saved.stdout
-assert "deprecated; use --hardware" in legacy_profile_cli.stderr
-assert "deprecated; use --machine" in legacy_profile_cli.stderr
 development_conflict = subprocess.run(
     ["bash", "-c",
      f'source "{ROOT / "scripts/openbrewbyweight_cli.sh"}"; '
@@ -1046,6 +1044,15 @@ with tempfile.TemporaryDirectory(prefix="openbrewbyweight-lanes-") as temporary:
     assert "==> slow: sh -c echo one; sleep 1; echo two\none\ntwo\n" in log, log
 
 
+FAKE_RESOLVER = (
+    "print('arch=n16r8')\n"
+    "print('variant=esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x')\n"
+    "print('hardware_compat=esp32-s3-relay-x1-speaker')\n"
+    "print('machine_compat=rancilio-silvia-pro-x')\n"
+    "print('machine_integration=none')\n"
+    "print('generated_dir=build-idf/generated')\n")
+
+
 def dispatched(stages: tuple[str, ...], args: list[str], fail: str = "",
                store: str | None = None) -> tuple[subprocess.CompletedProcess[str], list[str]]:
     with tempfile.TemporaryDirectory(prefix="openbrewbyweight-wrapper-") as temporary:
@@ -1056,13 +1063,7 @@ def dispatched(stages: tuple[str, ...], args: list[str], fail: str = "",
         for name in ("openbrewbyweight_cli.sh", "openbrewbyweight_board.sh"):
             shutil.copy2(ROOT / "scripts" / name, scripts / name)
         shutil.copy2(INTERNAL / "firmware-idf", internal / "firmware-idf")
-        (scripts / "resolve_build_profiles.py").write_text(
-            "print('arch=n16r8')\n"
-            "print('variant=esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x')\n"
-            "print('hardware_compat=esp32-s3-relay-x1-speaker')\n"
-            "print('machine_compat=rancilio-silvia-pro-x')\n"
-            "print('machine_integration=none')\n"
-            "print('generated_dir=build-idf/generated')\n")
+        (scripts / "resolve_build_profiles.py").write_text(FAKE_RESOLVER)
         if store is not None:
             (root / ".openbrewbyweight").write_text(store)
         log = root / "children.log"
@@ -1121,9 +1122,16 @@ assert re.search(r"Build output folder: /.+/build-idf/esp32-s3-relay-x1-speaker-
 assert re.search(r"Flash-ready firmware: /.+/openbrewbyweight\.bin$", build_result.stdout, re.M)
 flash_monitor_only = stubbed_dispatcher(
     ("flash", "monitor"),
-    ["--arch", "n16r8", "--port", "/dev/null", "--speed", "115200"])
+    [*profile_args, "--port", "/dev/null", "--speed", "115200"])
 assert [line.split(":", 1)[0] for line in flash_monitor_only] == [
     "flash-idf", "monitor-idf"]
+assert all("--hardware esp32-s3-relay-x1-speaker" in line for line in flash_monitor_only)
+for stage in ("flash", "ota"):
+    arch_only, arch_children = dispatched(
+        (stage,), ["--arch", "n16r8", "--port", "/dev/null", "--host", "127.0.0.1",
+                   "--yes"])
+    assert arch_only.returncode == 2 and "hardware_config" in arch_only.stderr and \
+        not arch_children, (stage, arch_only.stderr)
 
 store_jtag = stubbed_dispatcher(
     ("build", "flash", "monitor"),
@@ -1163,7 +1171,7 @@ stopped = stubbed_dispatcher(
 assert [line.split(":", 1)[0] for line in stopped] == ["build-idf"]
 
 no_yes = subprocess.run(
-    [str(INTERNAL / "firmware-idf"), "ota", "--", "--arch", "n16r8"],
+    [str(INTERNAL / "firmware-idf"), "ota", "--", *profile_args],
     cwd=ROOT, env={**os.environ, "OPENBREWBYWEIGHT_NONINTERACTIVE": "1"},
     capture_output=True, text=True)
 assert no_yes.returncode == 2 and "requires --yes" in no_yes.stderr
@@ -1311,7 +1319,7 @@ def flash_command(layout: str, *extra: str, arch: str = "n16r8"):
         idf = root / "fake-idf"
         tools = idf / "tools"
         python_env = root / "python-env/bin"
-        build = root / f"build-idf/{arch}"
+        build = root / "build-idf/esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x"
         partition_tool = idf / "components/partition_table/gen_esp32part.py"
         for directory in (tools, python_env, build, partition_tool.parent,
                           root / "idf"):
@@ -1341,6 +1349,8 @@ def flash_command(layout: str, *extra: str, arch: str = "n16r8"):
             "Path(sys.argv[-1]).write_text(''.join(f'{n},{ty},{fmt(st)},{o},{int(sz, 0) // 1024}K\\n' "
             "for n, ty, st, o, sz in rows))\n")
         shutil.copy(ROOT / f"idf/partitions-{arch}.csv", root / "idf")
+        (root / "scripts").mkdir()
+        (root / "scripts/resolve_build_profiles.py").write_text(FAKE_RESOLVER)
         (tools / "idf.py").write_text(
             "#!/bin/sh\n"
             f'printf "idf:%s\\n" "$*" >>"{log}"\n'
@@ -1354,8 +1364,9 @@ def flash_command(layout: str, *extra: str, arch: str = "n16r8"):
             "    if os.environ['FLASH_LAYOUT'] == 'unknown': sys.exit(1)\n"
             "    fill = 255 if os.environ['FLASH_LAYOUT'] == 'blank' else 0\n"
             "    pathlib.Path(sys.argv[-1]).write_bytes(bytes([fill]) * 4096)\n")
+        shutil.copy2(tools / "python", tools / "python3")
         for executable in (tools / "idf.py", tools / "node", tools / "python",
-                           tools / "esptool"):
+                           tools / "python3", tools / "esptool"):
             executable.chmod(0o755)
         env = os.environ.copy()
         env.update(OBBW_CLI_ROOT=str(root), OPENBREWBYWEIGHT_NONINTERACTIVE="1",
@@ -1363,7 +1374,8 @@ def flash_command(layout: str, *extra: str, arch: str = "n16r8"):
                    FLASH_LAYOUT=layout, EXPECTED_ARCH=arch, TMPDIR=str(root),
                    PATH=f"{tools}:/usr/bin:/bin")
         args = [str(INTERNAL / "flash-idf"), "--port", "/dev/null",
-                "--arch", arch, *extra]
+                "--hardware", "esp32-s3-relay-x1-speaker",
+                "--machine", "rancilio-silvia-pro-x", *extra]
         if "--image" in extra:
             args[args.index("--image") + 1] = str(image)
         result = subprocess.run(args, env=env, cwd=ROOT, capture_output=True, text=True)

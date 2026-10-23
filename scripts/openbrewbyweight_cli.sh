@@ -134,7 +134,7 @@ obbw_flag_help() {
   cat <<'EOF'
 Named parameters (long and short):
   -p, --port <path>        Serial port, e.g. /dev/cu.usbmodem2101
-  -a, --arch <arch>        Architecture for analysis or an existing image
+  -a, --arch <arch>        Architecture for static analysis (n16r8)
   -s, --speed <baud>       Serial monitor baud rate, e.g. 115200
   -H, --host <ip|name>     Controller address for OTA
   -f, --flags "<flags>"    Extra compile flags (single string)
@@ -335,14 +335,6 @@ obbw_cli_parse() {
       --webui-language) key="webui_language" ;;
       --hardware) key="hardware_config" ;;
       --machine) key="machine_config" ;;
-      --hardware-config)
-        printf '%s\n' 'Warning: --hardware-config is deprecated; use --hardware.' >&2
-        key="hardware_config"
-        ;;
-      --machine-config)
-        printf '%s\n' 'Warning: --machine-config is deprecated; use --machine.' >&2
-        key="machine_config"
-        ;;
       -h|--help|help)
         OBBW_CLI_HELP_REQUESTED=1
         return 0
@@ -355,7 +347,7 @@ obbw_cli_parse() {
       *)
         printf 'Positional argument not allowed: %s\n' "$1" >&2
         printf 'Scripts now use named parameters.\n' >&2
-        printf 'For example: --port /dev/cu.usbmodem2101 --arch n16r8 --speed 115200\n\n' >&2
+        printf 'For example: --port /dev/cu.usbmodem2101 --speed 115200\n\n' >&2
         obbw_flag_help >&2
         return 2
         ;;
@@ -651,7 +643,6 @@ obbw_prompt_suggestion() {
     host) printf '192.168.4.1' ;;
     password) return 0 ;;
     flags) printf '%s' "$OBBW_CLI_DEFAULT_FLAGS" ;;
-    build_dir) printf 'build/n16r8' ;;
     output_dir) printf 'reports/static-analysis' ;;
     webui_language) printf 'en' ;;
     *) printf '' ;;

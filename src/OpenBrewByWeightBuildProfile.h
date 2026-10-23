@@ -4,13 +4,15 @@
 
 #if __has_include("OpenBrewByWeightBuildProfileGenerated.h")
 #include "OpenBrewByWeightBuildProfileGenerated.h"
+#elif defined(ESP_PLATFORM)
+#error "Firmware builds need the profile header resolved from --hardware and --machine"
 #endif
 
 #ifndef OPEN_BREW_BY_WEIGHT_HARDWARE_PROFILE_ID
-#define OPEN_BREW_BY_WEIGHT_HARDWARE_PROFILE_ID "legacy-arch"
+#define OPEN_BREW_BY_WEIGHT_HARDWARE_PROFILE_ID "unknown"
 #endif
 #ifndef OPEN_BREW_BY_WEIGHT_MACHINE_PROFILE_ID
-#define OPEN_BREW_BY_WEIGHT_MACHINE_PROFILE_ID "legacy-machine"
+#define OPEN_BREW_BY_WEIGHT_MACHINE_PROFILE_ID "unknown"
 #endif
 #ifndef OPEN_BREW_BY_WEIGHT_MACHINE_BRAND
 #define OPEN_BREW_BY_WEIGHT_MACHINE_BRAND "Generic"

@@ -323,8 +323,6 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
 {
   const cmakeLists = fs.readFileSync(
       path.resolve(sketchDir, '..', 'idf', 'CMakeLists.txt'), 'utf8');
-  const boardSh = fs.readFileSync(
-      path.resolve(sketchDir, '..', 'scripts', 'openbrewbyweight_board.sh'), 'utf8');
   const bleHeader = fs.readFileSync(
       path.resolve(sketchDir, '..', 'libraries', 'EspressoScaleBLE', 'src',
                    'EspressoScaleBLE.h'),
@@ -336,11 +334,6 @@ if (sdkconfigDefaults.includes('CONFIG_BT_LE_SLEEP_ENABLE=y') ||
       cmakeLists.includes('COMPILE_DEFINITIONS "ARDUINO_USB_CDC_ON_BOOT=1"')) {
     throw new Error(
         'IDF CMakeLists must default Arduino CDC off and turn it on only for ENABLE_JTAG=1');
-  }
-  if (boardSh.includes('CDCOnBoot=cdc') ||
-      !boardSh.includes('CDCOnBoot=default')) {
-    throw new Error(
-        'Legacy FQBN must use CDCOnBoot=default to match jumper-gated CDC');
   }
   if (!bleHeader.includes('#define BLE_SCAN_RELAXED_INTERVAL         0x00B8') ||
       !bleHeader.includes('#define BLE_SCAN_RELAXED_WINDOW           0x002E') ||

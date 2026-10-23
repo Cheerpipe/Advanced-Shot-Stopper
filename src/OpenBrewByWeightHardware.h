@@ -7,7 +7,7 @@
 namespace openbrewbyweight {
 
 // Board hardware — ESP32-S3 only. Named profiles resolve assembled variants;
-// legacy --arch builds retain the historical defaults below.
+// the generated profile header overrides the defaults below.
 #if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
 #if !defined(ARDUINO_ESP32S3_DEV)
 #error "Unsupported board: Open Brew by Weight requires ESP32-S3 (esp32:esp32:esp32s3)"

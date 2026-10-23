@@ -271,7 +271,8 @@ Build and validate the bundled application with:
 
 ```sh
 ./scripts/dev test ble
-./scripts/dev build --arch n16r8
+./scripts/dev build --hardware esp32-s3-relay-x1-speaker \
+  --machine la-marzocco-linea-micra
 ```
 
 For a new consumer, follow the ownership/lifecycle rules above and inspect the

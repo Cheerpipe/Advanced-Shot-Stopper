@@ -621,8 +621,8 @@ def header_for(resolved: dict[str, Any]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--list", action="store_true")
-    parser.add_argument("--hardware", "--hardware-config", dest="hardware")
-    parser.add_argument("--machine", "--machine-config", dest="machine")
+    parser.add_argument("--hardware")
+    parser.add_argument("--machine")
     parser.add_argument("--flags", default="")
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--check-only", action="store_true")

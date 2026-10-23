@@ -31,11 +31,9 @@ const APP_DESC_ELF_SHA256_OFFSET = APP_DESC_OFFSET + 144;
 // corrupted artifact before megabytes go over the air.
 const IMAGE_HASH_APPENDED_OFFSET = 23;
 const IMAGE_HASH_BYTES = 32;
-// Arduino-ESP32 cores built by esp32-arduino-lib-builder share that project
-// name. Native IDF firmware (`./scripts/dev build`) uses CMake
-// project(openbrewbyweight). Either name proves an Open Brew by Weight-capable
-// ESP32-S3 image; the tag below is what identifies the sketch.
-const EXPECTED_PROJECT_NAMES = new Set(['arduino-lib-builder', 'openbrewbyweight']);
+// CMake project(openbrewbyweight) of `./scripts/dev build`; the tag below
+// identifies the board, profiles and version.
+const EXPECTED_PROJECT_NAME = 'openbrewbyweight';
 
 function readCString(buffer, offset, capacity) {
   const end = Math.min(offset + capacity, buffer.length);
@@ -127,7 +125,7 @@ function inspectImage(filePath) {
   }
   const projectName =
       readCString(buffer, APP_DESC_PROJECT_NAME_OFFSET, 32);
-  if (!EXPECTED_PROJECT_NAMES.has(projectName)) {
+  if (projectName !== EXPECTED_PROJECT_NAME) {
     problems.push(`unexpected project_name: '${projectName}'`);
   }
   if (buffer[IMAGE_HASH_APPENDED_OFFSET] !== 1) {

@@ -71,9 +71,11 @@ if obbw_is_set hardware_config || obbw_is_set machine_config; then
     echo '--hardware and --machine must be used together.' >&2
     exit 2
   fi
+fi
+# Build, flash and OTA always need the profile pair; monitor alone does not.
+profiles=0
+if obbw_is_set hardware_config || has_stage build || has_stage flash || has_stage ota; then
   profiles=1
-else
-  profiles=0
 fi
 
 required=""
@@ -81,7 +83,6 @@ optional=""
 if has_stage build; then
   required="hardware_config machine_config webui_language"
   optional="flags"
-  profiles=1
 fi
 if has_stage flash || has_stage monitor; then
   required="$required port"
@@ -94,8 +95,6 @@ if has_stage ota; then
 fi
 if [[ "$profiles" == "1" ]]; then
   has_stage build || required="$required hardware_config machine_config"
-elif has_stage flash || has_stage ota; then
-  required="$required arch"
 fi
 
 obbw_cli_resolve "$required" "$optional" || exit $?
@@ -108,19 +107,11 @@ for stage in "${stages[@]}"; do
       "$INTERNAL_DIR/build-idf" ${OBBW_CLI_FORWARD[@]+"${OBBW_CLI_FORWARD[@]}"}
       ;;
     flash)
-      if [[ "$profiles" == "1" ]]; then
-        obbw_cli_flags_for port hardware_config machine_config image no_check erase_all
-      else
-        obbw_cli_flags_for port arch image no_check erase_all
-      fi
+      obbw_cli_flags_for port hardware_config machine_config image no_check erase_all
       "$INTERNAL_DIR/flash-idf" ${OBBW_CLI_FORWARD[@]+"${OBBW_CLI_FORWARD[@]}"}
       ;;
     ota)
-      if [[ "$profiles" == "1" ]]; then
-        obbw_cli_flags_for hardware_config machine_config host image yes wait_for_confirmation no_check discard_ota_session
-      else
-        obbw_cli_flags_for arch host image yes wait_for_confirmation no_check discard_ota_session
-      fi
+      obbw_cli_flags_for hardware_config machine_config host image yes wait_for_confirmation no_check discard_ota_session
       obbw_cli_export_secrets
       "$INTERNAL_DIR/ota-idf" ${OBBW_CLI_FORWARD[@]+"${OBBW_CLI_FORWARD[@]}"}
       ;;

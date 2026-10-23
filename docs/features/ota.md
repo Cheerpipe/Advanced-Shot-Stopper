@@ -21,12 +21,6 @@ your network.
   and machine-profile compatibility ID, and must not be older than the running
   version (downgrades are refused).
 
-### Updating from firmware before the Open Brew by Weight name
-
-Firmware from before the project took the Open Brew by Weight name needs the
-same USB installation with `--erase-all`. You can recognize it when **Firmware
-update** says the file does not belong to the Open Brew by Weight application.
-
 Compatibility mode does not restrict updates: with the [firmware mode
 switch](../settings/firmware-mode.md) off, the Admin **Firmware update**
 section and the whole OTA pipeline keep working.

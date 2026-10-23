@@ -1,18 +1,13 @@
 #!/usr/bin/env bash
-# Shared ESP32-S3 board table and FQBN mapping. Source from other scripts;
-# do not execute this file directly.
+# Shared ESP32-S3 board table. Source from other scripts; do not execute this
+# file directly.
 #
 # There is deliberately no default architecture and no automatic port pick.
 # Every caller resolves those through scripts/openbrewbyweight_cli.sh.
 
-# N16R8: 16 MB QSPI flash + 8 MB OPI PSRAM. app3M_fat9M_16MB is the normal
-# 16 MB OTA table (two 3 MB app slots). min_spiffs is no longer used.
-# CDCOnBoot=default: app CDC is off until the GPIO4–GND jumper is present at
-# boot. ROM USB download (BOOT+RST) still enumerates without the jumper.
-OPENBREWBYWEIGHT_FQBN_N16R8="esp32:esp32:esp32s3:PSRAM=opi,FlashMode=qio,FlashSize=16M,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=default"
-
-# Usable bytes of a single OTA app slot, used by the OTA client for a local
-# size pre-check before uploading anything to the controller.
+# N16R8: 16 MB flash + 8 MB OPI PSRAM with two 3 MiB OTA app slots
+# (idf/partitions-n16r8.csv). Usable bytes of a single OTA app slot, used by
+# the OTA client for a local size pre-check before uploading anything.
 OPENBREWBYWEIGHT_SLOT_BYTES_N16R8=3145728
 
 openbrewbyweight_arch_help() {
@@ -45,15 +40,12 @@ openbrewbyweight_detect_ports() {
   return $found
 }
 
-# Sets OPENBREWBYWEIGHT_ARCH, OPENBREWBYWEIGHT_FQBN, OPENBREWBYWEIGHT_BUILD_DIR,
-# OPENBREWBYWEIGHT_SLOT_BYTES.
+# Sets OPENBREWBYWEIGHT_ARCH and OPENBREWBYWEIGHT_SLOT_BYTES.
 openbrewbyweight_resolve_board() {
   local arch="${1:-}"
   case "$arch" in
     n16r8|esp32s3-n16r8|esp32s3)
       OPENBREWBYWEIGHT_ARCH="n16r8"
-      OPENBREWBYWEIGHT_FQBN="$OPENBREWBYWEIGHT_FQBN_N16R8"
-      OPENBREWBYWEIGHT_BUILD_DIR="build/n16r8"
       OPENBREWBYWEIGHT_SLOT_BYTES="$OPENBREWBYWEIGHT_SLOT_BYTES_N16R8"
       ;;
     esp32|esp32c3|nanoesp32|"")

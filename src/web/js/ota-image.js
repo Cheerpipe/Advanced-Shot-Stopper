@@ -188,7 +188,7 @@ function imageHeader(bytes) {
     throw new Error(__WEBUI_TEXT__("ota.this_firmware_has_an_invalid_application_descriptor"));
   let project = "";
   for (let i = 80; i < 112 && bytes[i]; i++) project += String.fromCharCode(bytes[i]);
-  if (!/^(arduino-lib-builder|openbrewbyweight)$/.test(project))
+  if (project !== "openbrewbyweight")
     throw new Error(__WEBUI_TEXT__("ota.this_firmware_does_not_belong_to_the"));
   if (bytes[23] !== 1)
     throw new Error(__WEBUI_TEXT__("ota.this_firmware_has_no_appended_image_checksum"));

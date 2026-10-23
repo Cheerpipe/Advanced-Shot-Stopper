@@ -63,8 +63,7 @@ IDs are not fuzzy-matched. Both options are mandatory for every firmware build;
 there is no architecture-only build, implicit default, or remembered previous
 pair. They may also come from `OPENBREWBYWEIGHT_HARDWARE` and
 `OPENBREWBYWEIGHT_MACHINE`, but neither selection is saved in `.openbrewbyweight`.
-The deprecated `--hardware-config` / `--machine-config` flags and corresponding
-`*_CONFIG` environment variables remain temporary aliases and print a warning.
+USB flash and OTA require the same pair; an `--image` must carry its identity.
 
 `--arch` is not a board selector. If supplied alongside both profiles, it can
 only confirm the architecture derived from hardware; a different value fails

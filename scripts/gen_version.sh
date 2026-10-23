@@ -5,9 +5,9 @@
 #
 # board_arch is the OTA compatibility key (n16r8). It is baked into the
 # image tag so the controller can refuse a binary built for another board.
-# Callers that do not produce a flashable image (host tests) may omit it; the
-# resulting "unknown" arch never matches a real controller, which is the safe
-# outcome.
+# An n16r8 image also needs both profile compatibility IDs. Callers that do not
+# produce a flashable image (host tests) omit all three; the resulting
+# "unknown" arch never matches a real controller, which is the safe outcome.
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -15,10 +15,16 @@ version_file="$root/VERSION"
 output=${4:-$root/src/OpenBrewByWeightVersion.h}
 
 arch=${1:-unknown}
-hardware_compat=${2:-legacy}
-machine_compat=${3:-legacy}
+hardware_compat=${2:-unknown}
+machine_compat=${3:-unknown}
 case "$arch" in
-  n16r8|unknown) ;;
+  n16r8)
+    if [ "$#" -lt 3 ]; then
+      echo "An n16r8 image needs hardware and machine compatibility IDs." >&2
+      exit 1
+    fi
+    ;;
+  unknown) ;;
   *)
     echo "Invalid board arch: '$arch' (expected n16r8 or unknown)" >&2
     exit 1

@@ -33,12 +33,9 @@ constexpr uint8_t OTA_ESP_IMAGE_MAGIC = 0xE9;
 constexpr uint16_t OTA_ESP_CHIP_ID_ESP32S3 = 0x0009;
 constexpr uint32_t OTA_APP_DESC_MAGIC = 0xABCD5432U;
 
-// Arduino-ESP32 cores produced by esp32-arduino-lib-builder share this name.
-// Native IDF firmware (`./scripts/dev build`) uses CMake
-// project(openbrewbyweight). Either name proves an Open Brew by Weight-capable
-// ESP32-S3 image; the tag below is what identifies the sketch.
-constexpr const char *OTA_EXPECTED_PROJECT_NAME = "arduino-lib-builder";
-constexpr const char *OTA_EXPECTED_PROJECT_NAME_IDF = "openbrewbyweight";
+// CMake project(openbrewbyweight) of `./scripts/dev build`; the tag below
+// identifies the board, profiles and version.
+constexpr const char *OTA_EXPECTED_PROJECT_NAME = "openbrewbyweight";
 
 // The literal an image must contain, minus its "arch=…" payload. It is stored
 // split so that a compiled firmware holds exactly one contiguous copy of the
@@ -244,8 +241,7 @@ inline OtaImageHeaderResult validateOtaImageHeader(const uint8_t *bytes,
   memcpy(projectName, bytes + OTA_APP_DESC_PROJECT_NAME_OFFSET,
          OTA_APP_DESC_NAME_BYTES);
   projectName[OTA_APP_DESC_NAME_BYTES] = '\0';
-  if (strcmp(projectName, OTA_EXPECTED_PROJECT_NAME) != 0 &&
-      strcmp(projectName, OTA_EXPECTED_PROJECT_NAME_IDF) != 0) {
+  if (strcmp(projectName, OTA_EXPECTED_PROJECT_NAME) != 0) {
     return OtaImageHeaderResult::WRONG_PROJECT;
   }
   return OtaImageHeaderResult::OK;

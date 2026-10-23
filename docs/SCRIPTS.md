@@ -119,7 +119,9 @@ Wi-Fi credentials, presets, scale preferences, shot history, curves, and the
 last-shot record. Record anything needed before running it.
 
 `--image <path>` flashes an existing verified project image and is rejected
-with `build`. `--no-check` skips only local image identity verification; it
+with `build`. Flash and OTA still need `--hardware` and `--machine`, and the
+image must have been built for that pair, so firmware for a different switch
+or machine is never installed by mistake. `--no-check` skips only local image identity verification; it
 does not skip partition checks. `--port` must name a connected USB serial
 device. On macOS use `/dev/cu.usbmodem*`; on Linux use `/dev/ttyACM*` or
 `/dev/ttyUSB*`.

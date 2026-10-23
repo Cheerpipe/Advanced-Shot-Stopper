@@ -111,15 +111,15 @@ void testHeaderRejectsForeignProject() {
         OtaImageHeaderResult::WRONG_PROJECT);
 }
 
-void testHeaderAcceptsIdfProjectName() {
+void testHeaderRejectsArduinoProjectName() {
   std::vector<uint8_t> image = makeValidHeader();
-  const char *idfName = openbrewbyweight::OTA_EXPECTED_PROJECT_NAME_IDF;
+  const char *arduinoName = "arduino-lib-builder";
   std::memset(image.data() + openbrewbyweight::OTA_APP_DESC_PROJECT_NAME_OFFSET, 0,
               openbrewbyweight::OTA_APP_DESC_NAME_BYTES);
   std::memcpy(image.data() + openbrewbyweight::OTA_APP_DESC_PROJECT_NAME_OFFSET,
-              idfName, std::strlen(idfName));
+              arduinoName, std::strlen(arduinoName));
   CHECK(validateOtaImageHeader(image.data(), image.size()) ==
-        OtaImageHeaderResult::OK);
+        OtaImageHeaderResult::WRONG_PROJECT);
 }
 
 void testTagBodyParsesEveryField() {
@@ -484,7 +484,7 @@ int main() {
   testHeaderRejectsOtherChips();
   testHeaderRejectsMissingAppDescriptor();
   testHeaderRejectsForeignProject();
-  testHeaderAcceptsIdfProjectName();
+  testHeaderRejectsArduinoProjectName();
   testTagBodyParsesEveryField();
   testTagBodyRejectsMalformedInput();
   testArchUsability();

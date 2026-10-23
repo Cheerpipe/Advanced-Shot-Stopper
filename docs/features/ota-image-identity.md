@@ -13,8 +13,7 @@ implementers; these checks do not replace the controller's verification.
 - ESP image magic: `0xE9` at byte 0.
 - ESP chip ID: `0x0009` (ESP32-S3), little-endian, at bytes 12–13.
 - `esp_app_desc_t` magic: `0xABCD5432`, little-endian, at byte 32.
-- Project name at byte 80, capacity 32 bytes: `openbrewbyweight` for native IDF or
-  `arduino-lib-builder` for the Arduino core build.
+- Project name at byte 80, capacity 32 bytes: `openbrewbyweight`.
 - `hash_appended` at byte 23 must be 1. The last 32 bytes are the SHA-256 of
   every preceding byte in the application image.
 
@@ -30,9 +29,8 @@ OPENBREWBYWEIGHT_FW_TAG_V2|arch=<arch>|hw=<hardware>|machine=<machine>|ver=<vers
   is never a compatibility condition.
 - `arch` contains 1–15 lowercase ASCII letters or digits and cannot be
   `unknown`.
-- `hw` and `machine` contain their profile IDs plus compatibility revisions,
-  or `legacy` for builds made without named profiles. Each value contains
-  1–63 lowercase ASCII letters, digits, or hyphens.
+- `hw` and `machine` contain their profile IDs plus compatibility revisions.
+  Each value contains 1–63 lowercase ASCII letters, digits, or hyphens.
 - `ver` contains 1–47 ASCII letters, digits, `.`, `+`, `-`, or `_`.
 - `packed` is an unsigned decimal 32-bit integer with at most 10 digits.
 - The parser body, including `|END`, is limited to 256 bytes.

@@ -495,7 +495,7 @@ Valid sequences: build; flash; ota; monitor; build flash; build ota;
 flash monitor; ota monitor; build flash monitor; build ota monitor.
 
 Profiles: --hardware ID --machine ID
-Existing images: --arch ARCH; standalone flash/OTA: --image PATH
+Standalone flash/OTA: --image PATH (its identity must match the profiles)
 Build:  --flags STRING --development | --release (default)
         --no-auth-admin --jtag --webui-language CODE
         --o0 --og --o2 --os (exclusive firmware optimization level)

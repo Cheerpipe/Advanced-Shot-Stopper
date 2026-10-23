@@ -412,8 +412,9 @@ for (const badBody of [
     throw new Error('Web OTA parser must reject a corrupt appended image hash');
   }
 }
-// Foreign and look-alike project names are rejected by the Web UI and host tool.
-for (const project of ['some-other-project', 'openbrewbyweightx']) {
+// Foreign, look-alike and pre-v1 Arduino project names are rejected by the
+// Web UI and host tool.
+for (const project of ['some-other-project', 'openbrewbyweightx', 'arduino-lib-builder']) {
   const foreign = otaFixture(320);
   foreign.fill(0, 80, 112);
   foreign.write(project, 80, 'latin1');
