@@ -268,7 +268,7 @@ int main(){
     runtimeJs.indexOf('function setHomeSub(')).replace(/export /g, '');
   const sockets = [], timers = new Map(), listeners = {}, windowListeners = {};
   let timer = 0, clock = 1000000, perf = 5000, owner = true, live = false, inactivityCalls = 0, reachFails = 0,
-    mutableOff = 0;
+    mutableOff = 0, resets = 0;
   class Socket {
     static OPEN = 1;
     constructor() { this.readyState = 1; this.sent = []; sockets.push(this); }
@@ -289,9 +289,9 @@ int main(){
     viewStatusHandlers: {}, applyCommonStatus() {}, setMutable: on => { if (!on) mutableOff++; }, noteReachOk() {},
     noteReachFail: () => { reachFails++; },
     hideHomeBoot() {}, clearCupWeights() {}, updateHeaderSignals() {}, updateHomeAdminActions() {},
-    setHomeSub() {}, $: () => null,
+    setHomeSub() {}, $: () => null, filterResets: [() => resets++],
   };
-  vm.runInNewContext('var setupSession=false;' + source + ';this.setSetup=v=>{setupSession=v};' +
+  vm.runInNewContext('var setupSession=false;' + source + ';this.setSetup=v=>{setupSession=v};this.ui=()=>uiState;' +
       'this.anchor=v=>{if(v!==undefined)statusUtcAnchorAt=v;return statusUtcAnchorAt};', context);
   const visibility = hidden => { document.hidden = hidden; listeners.visibilitychange(); };
   const closeTimer = () => [...timers].find(([, t]) => t.delay === 300000);
@@ -351,6 +351,12 @@ int main(){
   visibility(true); clock += 360000; windowListeners.pagehide?.();
   const restored = sockets.length; windowListeners.pageshow(); visibility(false);
   assert.equal(sockets.length, restored + 1, 'one socket after a restore');
+  // 4003 (an owner op failed validation) clears the list views and retries
+  // with backoff, without the out-of-reach overlay.
+  sockets.at(-1).onopen(); const rejectedFails = reachFails; context.ui().statsWindow = 50;
+  sockets.at(-1).close(4003);
+  assert(resets === 1 && context.ui().statsWindow === 10 && reachFails === rejectedFails &&
+      [...timers.values()].some((t) => t.fn === context.startUiStream), '4003 resets the list views and retries');
   // The firmware closes a bound session silent for 5 minutes, outside a live
   // cycle, with a plain close (not the 4001 takeover) and one log line.
   const stream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightUiStream.inc'), 'utf8');

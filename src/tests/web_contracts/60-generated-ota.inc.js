@@ -912,8 +912,10 @@ if (generated.cssGzip.length > 17150) {
 // Equipment rows in the fallback and unfolded-only preset graphs: 42251, owner-requested 2026-10-22; cap 42260.
 // The filter menu shared by the Shots and History lists brings it to 43116, owner-requested
 // 2026-10-23; cap 43130.
-if (sentinelRuntimeGzip.length > 43130) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 43130-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Rejected-op (4003) recovery that clears the list views brings it to 43169, owner-requested
+// 2026-10-23; cap 43180.
+if (sentinelRuntimeGzip.length > 43180) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 43180-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -1227,8 +1229,9 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // and held Stats/History rows bring it to 72254, owner-requested 2026-10-23; cap 72280. The
 // shared list filter menu, its shell icon, and the Stats window bar bring it to 73206,
 // owner-requested 2026-10-23; cap 73230.
-if (coldHomeGzip > 73230) {
-  throw new Error(`Cold Home download exceeds the 73230-byte gzip budget (${coldHomeGzip})`);
+// Rejected-op (4003) recovery: 73288, owner-requested 2026-10-23; cap 73300.
+if (coldHomeGzip > 73300) {
+  throw new Error(`Cold Home download exceeds the 73300-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin

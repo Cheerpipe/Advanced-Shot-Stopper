@@ -140,8 +140,11 @@ bool uiStreamHeld(const HeldRow *rows, size_t count, uint32_t id, uint32_t hash)
 // Close notice before httpd drops the socket. 4001 (ownership taken over,
 // from the dispatch path or a rejected bind) makes the page deactivate and
 // offer Reactivate instead of retrying forever; 4002 (page silent) makes it
-// reconnect quietly once visible, without the out-of-reach overlay.
-constexpr uint16_t kUiStreamCloseTakeover = 4001, kUiStreamCloseSilent = 4002;
+// reconnect quietly once visible, without the out-of-reach overlay; 4003 (an
+// owner op failed validation) makes it drop its list filters and Stats window
+// before reconnecting, so a bad subscription is not replayed forever.
+constexpr uint16_t kUiStreamCloseTakeover = 4001, kUiStreamCloseSilent = 4002,
+                   kUiStreamCloseRejected = 4003;
 void sendUiStreamClose(httpd_handle_t server, int fd, uint16_t reason) {
   uint8_t code[] = {static_cast<uint8_t>(reason >> 8), static_cast<uint8_t>(reason)};
   httpd_ws_frame_t close = {};
@@ -231,7 +234,7 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
   if (!message) return ESP_FAIL;
   const cJSON *op = cJSON_GetObjectItemCaseSensitive(message, "op");
   const cJSON *client = cJSON_GetObjectItemCaseSensitive(message, "client");
-  bool accepted = false;
+  bool accepted = false, owner = false;
   bool activity = false, resumed = false;
   int superseded = -1;
   {
@@ -482,13 +485,19 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
       accepted = true;
     }
     if (accepted) session->heardAtMs = millis();
+    owner = session->bound && strcmp(session->clientId, self.activeWebUiClientId_) == 0;
   }
   const bool bindRejected = !accepted && cJSON_IsString(op) &&
       strcmp(op->valuestring, "bind") == 0 && cJSON_IsString(client);
+  if (!accepted && !bindRejected && owner)
+    self.lifecycleLogf("UI stream op %.12s failed validation; the page resets its list views",
+                       cJSON_IsString(op) ? op->valuestring : "?");
   cJSON_Delete(message);
   memset(body, 0, sizeof(body));
   if (!accepted) {
-    if (bindRejected) sendUiStreamClose(request->handle, session->fd, kUiStreamCloseTakeover);
+    if (bindRejected || owner)
+      sendUiStreamClose(request->handle, session->fd,
+                        bindRejected ? kUiStreamCloseTakeover : kUiStreamCloseRejected);
     return ESP_FAIL;
   }
   if (activity) {

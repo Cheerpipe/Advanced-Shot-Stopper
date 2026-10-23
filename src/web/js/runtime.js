@@ -1294,6 +1294,8 @@ function armStickyBar(id) {
 // onChange(selection) only re-subscribes; groups() returns
 // [{key, label?, options: [[value, text, iconHtml?]]}] and is read on every
 // open, so the options follow the data.
+// Each menu's Reset, also run when the firmware rejects a list subscription.
+const filterResets = [];
 function createFilterMenu(buttonId, title, groups, onChange) {
   const sel = {};
   let panel = null;
@@ -1314,6 +1316,11 @@ function createFilterMenu(buttonId, title, groups, onChange) {
     sync();
     onChange(Object.fromEntries(Object.entries(sel).map(([k, s]) => [k, [...s]])));
   };
+  const clear = () => {
+    for (const k in sel) sel[k].clear();
+    changed();
+  };
+  filterResets.push(clear);
   const place = () => {
     const r = $(buttonId).getBoundingClientRect(),
       below = innerHeight - r.bottom;
@@ -1339,10 +1346,7 @@ function createFilterMenu(buttonId, title, groups, onChange) {
     reset.type = "button";
     reset.className = "histFilterReset";
     reset.textContent = __WEBUI_TEXT__("history.filter_reset");
-    reset.onclick = () => {
-      for (const k in sel) sel[k].clear();
-      changed();
-    };
+    reset.onclick = clear;
     head.append(Object.assign(document.createElement("span"), { textContent: title }), reset);
     p.append(head);
     for (const g of groups()) {
@@ -4580,7 +4584,12 @@ function startUiStream() {
       if (!document.hidden && webUiPollingActive()) startUiStream();
       return;
     }
-    if (webUiPollingActive()) noteReachFail({ network: true }, true);
+    // 4003: the firmware rejected an op. Clearing the free-form list views
+    // makes the replayed subscriptions valid; the device is reachable.
+    if (event?.code === 4003) {
+      for (const r of filterResets) r();
+      uiState.statsWindow = 10;
+    } else if (webUiPollingActive()) noteReachFail({ network: true }, true);
     if (webUiPollingActive())
       shotRetry = setTimeout(
         startUiStream,

@@ -101,12 +101,17 @@
   const uiStreamSrc = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightUiStream.inc'), 'utf8');
   const closeFrame = uiStreamSrc.slice(uiStreamSrc.indexOf('void sendUiStreamClose'),
     uiStreamSrc.indexOf('#include "OpenBrewByWeightUiStreamTransport.inc"'));
-  assert(closeFrame.includes('HTTPD_WS_TYPE_CLOSE') &&
-      uiStreamSrc.includes('kUiStreamCloseTakeover = 4001, kUiStreamCloseSilent = 4002;'),
-      'the close frames must carry WS codes 4001 (takeover) and 4002 (silent page)');
-  const rejected = uiStreamSrc.slice(uiStreamSrc.indexOf('if (!accepted)'), uiStreamSrc.indexOf('if (activity)'));
-  assert(rejected.includes('sendUiStreamClose(request->handle, session->fd, kUiStreamCloseTakeover)'),
-      'a rejected bind must close with 4001 so the page deactivates instead of retrying');
+  assert(closeFrame.includes('HTTPD_WS_TYPE_CLOSE') && uiStreamSrc.replace(/\s+/g, ' ').includes(
+      'kUiStreamCloseTakeover = 4001, kUiStreamCloseSilent = 4002, kUiStreamCloseRejected = 4003;'),
+      'the close frames must carry WS codes 4001 (takeover), 4002 (silent page) and 4003 (rejected op)');
+  const rejected = uiStreamSrc.slice(uiStreamSrc.indexOf('if (!accepted)'), uiStreamSrc.indexOf('if (activity)'))
+      .replace(/\s+/g, ' ');
+  assert(rejected.includes('if (bindRejected || owner) sendUiStreamClose(request->handle, session->fd, ' +
+      'bindRejected ? kUiStreamCloseTakeover : kUiStreamCloseRejected);'),
+      'a rejected bind must close with 4001 so the page deactivates; a rejected owner op with 4003');
+  // The rejection reaches the Web UI log as a warning (" failed" sets the level).
+  assert(uiStreamSrc.includes('owner = session->bound && strcmp(session->clientId, self.activeWebUiClientId_) == 0;') &&
+      uiStreamSrc.includes('"UI stream op %.12s failed validation; the page resets its list views"'));
   assert(/uiStreamSendKind = "close";\s*sendUiStreamClose\(self\.server_, session\.fd, kUiStreamCloseTakeover\)/
       .test(uiStreamSrc.replace(/\n\s+/g, ' ')),
       'the dispatch path must reuse the same takeover close');

@@ -964,9 +964,10 @@ if (htmlBytes > 107310) {
 // rows by id): measured 520759, owner-requested 2026-10-23.
 // Firmware-side Shots and History filters with one shared filter menu, the
 // 10/50/100 Stats window, and firmware-computed charts: measured 523207,
-// owner-requested 2026-10-23.
-if (jsBytes > 523207) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 523207)`);
+// owner-requested 2026-10-23. Rejected-op (4003) recovery that clears the list
+// views: measured 523596, owner-requested 2026-10-23.
+if (jsBytes > 523596) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 523596)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1135,9 +1136,9 @@ if (jsBytes > 523207) {
 // Settings group animation fallback: measured 626753, owner-requested 2026-10-22.
 // Equipment rows in the fallback and unfolded-only preset graphs: measured 626972, owner-requested 2026-10-22.
 // Firmware-side list filters, the Stats window, and firmware-computed charts: measured 629623,
-// owner-requested 2026-10-23.
-if (htmlBytes + jsBytes > 629623) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 629623)`);
+// owner-requested 2026-10-23. Rejected-op (4003) recovery: measured 630012, owner-requested 2026-10-23.
+if (htmlBytes + jsBytes > 630012) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 630012)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

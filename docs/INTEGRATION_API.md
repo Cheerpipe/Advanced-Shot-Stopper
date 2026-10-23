@@ -551,7 +551,10 @@ minutes outside a live cycle (a phone that froze the page) with WebSocket
 close code 4002 and notes it in the Web UI log; the page reconnects quietly
 once visible, without the out-of-reach notice. Neither close affects the
 15-minute inactivity deactivation, and a setup session never closes on hide. Ownership takeover
-closes the previous socket with code 4001. The browser's bounded
+closes the previous socket with code 4001. An op from the owning page that
+fails validation closes the stream with code 4003 and a Web UI log warning; the
+page clears its list filters and Stats window before it reconnects, so the
+rejected subscription is not repeated. The browser's bounded
 `{"op":"activity","seconds":0-30,"hidden":bool}` message, answered with
 `{"type":"alive"}`, only fills gaps in the traffic the page already has: every
 received frame proves the socket and clears the liveness deadline, and every
