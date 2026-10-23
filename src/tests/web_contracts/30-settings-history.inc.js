@@ -1516,7 +1516,8 @@ if (!statsSection ||
   const histRoot = {dataset: {}, className: '', innerHTML: ''};
   const histPlot = {innerHTML: '', style: {setProperty(k, v) { this[k] = v; }}};
   const filterButton = (v) => ({dataset: {v}, attrs: {}, setAttribute(k, x) { this.attrs[k] = x; }});
-  const histFilter = {children: [filterButton('all'), filterButton('active')]};
+  const histFilter = {children: [filterButton('all'), filterButton('active')],
+    querySelectorAll(selector) { return selector === 'button' ? this.children : []; }};
   const ticks = [];
   let tickMax = 0;
   global.$ = (id) => ({statsDurChart: histRoot, statsDurChartPlot: histPlot,

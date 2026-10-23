@@ -649,13 +649,15 @@ function renderStatsDurChart() {
     root.innerHTML =
       '<div id="statsPresetFilter" class="shotSort" role="group" aria-label="' +
       R.escHtml(__WEBUI_TEXT__("runtime.stats_preset_filter")) +
-      '"><button type="button" data-v="all">' +
+      '"><span class="sortLbl">' +
+      __WEBUI_TEXT__("runtime.preset") +
+      '</span><button type="button" data-v="all">' +
       __WEBUI_TEXT__("runtime.all_presets") +
       '</button><button type="button" data-v="active">' +
       __WEBUI_TEXT__("runtime.this_preset") +
       '</button></div><div id="statsDurChartPlot"></div>';
     root.dataset.ready = "1";
-    for (const b of $("statsPresetFilter").children)
+    for (const b of $("statsPresetFilter").querySelectorAll("button"))
       b.onclick = () => {
         statsPresetFilter = b.dataset.v;
         renderStatsDurChart();
@@ -681,7 +683,7 @@ function renderStatsDurChart() {
   // No timed shots: no chart at all; none for this preset: only the filter.
   root.hidden = !timed.length;
   host.hidden = !d;
-  for (const b of $("statsPresetFilter").children)
+  for (const b of $("statsPresetFilter").querySelectorAll("button"))
     b.setAttribute("aria-pressed", String(b.dataset.v === statsPresetFilter));
   renderStatsConsistency(shots);
   if (!d) {

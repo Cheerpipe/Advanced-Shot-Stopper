@@ -26,7 +26,7 @@ consistent shots, while a low, wide curve means they vary from shot to shot.
 Each shot keeps the verdict it got when it was pulled, so editing a preset's
 window later never changes past shots.
 
-The chart starts on **All presets**; choose **Current preset** to see only the
+The chart starts on **Preset: All**; choose **Current** to see only the
 active preset's shots. When every shot shown used the same window, the time
 axis is in seconds and marks the window's edges, for example 27 s and 34 s.
 When the shots come from presets with different windows, each shot is placed
@@ -40,7 +40,7 @@ every shot already stops at its target weight, so what changes from shot to
 shot is how long it took to get there. A barista whose shots all run a little
 slow can still be very consistent. The chart looks at the same shots as the
 averages above, keeps those with an arrival time, and follows the same
-**All presets** or **Current preset** choice.
+**All** or **Current** preset choice.
 
 Each shot is a column, with the newest on the right; as new shots arrive, the
 older ones move left. The chart always has room for at least 10 columns; with
