@@ -810,8 +810,8 @@ function renderStatsConsistency(shots) {
   const m = consistencyModel(shots),
     { rows, rel, sec, M } = m,
     n = rows.length,
-    // One fixed slot per shot of the window, latest on the right.
-    W = Math.max(2, R.uiState.shotStats?.window || 10),
+    // A slot per shot shown (at least ten), latest on the right.
+    W = Math.max(10, n),
     gap = 94 / (W - 1),
     half = gap * 0.27;
   root.hidden = !n;
@@ -822,7 +822,6 @@ function renderStatsConsistency(shots) {
         : +(v * 100).toFixed(1) + __WEBUI_TEXT__("runtime.symbol_4"),
     signed = (v, k = Math.round(v * (sec || 100) * 10)) =>
       (k > 0 ? "+" : k < 0 ? "−" : "") + L(Math.abs(v)),
-    // Fixed slots, so a shot keeps its place as more arrive.
     X = (i) => 3 + (W - n + i) * gap,
     Y = (v) => 25 - (23 * Math.max(-M, Math.min(M, v))) / M,
     out = (i) => Math.abs(rel[i]) > CONSISTENT,

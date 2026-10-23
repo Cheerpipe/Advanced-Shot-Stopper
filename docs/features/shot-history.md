@@ -43,8 +43,10 @@ averages above, keeps those with an arrival time, and follows the same
 **All presets** or **Current preset** choice.
 
 Each shot is a column, with the newest on the right; as new shots arrive, the
-older ones move left. With 50 or 100 shots the columns get thinner so they all
-fit. Each column starts at your average time to the target,
+older ones move left. The chart always has room for at least 10 columns; with
+**Last 50** or **Last 100** and more than 10 shots, the columns share the full
+width, so 20 shots look the same under both choices and only grow thinner when
+you have more shots to show. Each column starts at your average time to the target,
 the dashed line, and shows how much slower (up) or faster (down) that shot was.
 The shaded band covers 5 % of the average either side, about 1.4 seconds on a
 28-second shot; columns that go past it are drawn in a stronger color. A shot
