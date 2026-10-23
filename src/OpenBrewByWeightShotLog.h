@@ -33,7 +33,7 @@ struct DualSlotFlashLogTraits<ShotLogStore> {
   static constexpr size_t kSlotBytes = SHOT_LOG_FLASH_SLOT_BYTES;
   static constexpr size_t kSlotCount = SHOT_LOG_FLASH_SLOT_COUNT;
   static constexpr size_t kHeaderBytes = sizeof(ShotLogHeader);
-  static constexpr void (*reset)(ShotLogStore &) = resetShotLogStoreWithBootId;
+  static constexpr void (*reset)(ShotLogStore &) = resetShotLogStore;
   using Record = ShotLogRecord;
   static constexpr size_t kCapacity = SHOT_LOG_CAPACITY;
   static constexpr uint32_t (*recordIdOf)(const ShotLogRecord &) =
@@ -44,18 +44,6 @@ class ShotLog
     : public DualSlotFlashLog<ShotLogStore, validShotLogStoreCurrent,
                               compactShotLogStore, finalizeShotLogStore> {
  public:
-  void onBoot() {
-    if (store_.header.bootId == 0) {
-      store_.header.bootId = 1;
-    } else if (store_.header.bootId < UINT32_MAX) {
-      ++store_.header.bootId;
-    }
-    store_.header.schemaVersion = SHOT_LOG_SCHEMA_VERSION;
-    dirty_ = true;
-  }
-
-  uint32_t bootId() const { return store_.header.bootId; }
-
   uint32_t nextRecordId() const { return store_.header.nextRecordId; }
 
   // Change epoch for stream gating, mirroring HistoryLog::epoch(): one CRC
@@ -180,12 +168,10 @@ class ShotLog
   }
 
   bool clear(bool persistNow = true) {
-    const uint32_t bootId = store_.header.bootId;
     // Keep the monotonic generation: a regressed generation would make the
     // pre-clear slot look newer on the next load.
     const uint32_t generation = store_.header.generation;
-    resetShotLogStoreWithBootId(store_);
-    store_.header.bootId = bootId;
+    resetShotLogStore(store_);
     store_.header.generation = generation;
     return persistMutation(persistNow);
   }

@@ -80,7 +80,7 @@ void schedulePendingShotFinalize(EndReason reason, uint32_t durationMs,
   pendingFinalize.curveLastSequence = currentWeightSequence;
   pendingFinalize.cycleStartedAtMs =
       session.circuitClosedAtMs != 0U ? session.circuitClosedAtMs : session.startedAtMs;
-  pendingFinalize.bootId = copyShotLogBootId();
+  pendingFinalize.bootId = currentBootId();
   pendingFinalize.durationDs =
       static_cast<uint16_t>(durationMs / 100U);
   const uint32_t shotAnchorMs = pendingFinalize.cycleStartedAtMs;

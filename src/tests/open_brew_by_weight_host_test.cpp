@@ -178,12 +178,10 @@ void resetHarness(bool initialPaddleOn, bool scaleConnected) {
   // The status publish's gather cache keys on the generation; force a fresh
   // fetch so a prior test's cache cannot serve stale data at generation 0.
   statusStoreCacheValid = false;
-  // Same for the persistence fast path's clean latch and the boot-id cache;
-  // the sentinel means "nothing acknowledged", so tests that create store
-  // dirtiness directly (onBoot/append without a wrapper bump) keep flowing
-  // through the locked path exactly as before.
+  // Same for the persistence fast path's clean latch; the sentinel means
+  // "nothing acknowledged", so tests that create store dirtiness directly
+  // (append without a wrapper bump) keep flowing through the locked path.
   shotStorePersistCleanGeneration = UINT32_MAX;
-  shotLogBootIdCacheValid = false;
   shotStoreObservedDirtyGeneration = 0;
   shotStorePersistInFlight = false;
   shotStorePersistResultReady = false;
@@ -7320,7 +7318,7 @@ void tz01_first_auto_zone_is_once_and_estimated_after_sync() {
   CHECK(strcmp(runtimeConfig.timezoneId, "America/Santiago") == 0);
   CHECK(runtimeConfig.timezoneSource == 1);
   CHECK(runtimeConfig.firstTimezoneAutoClockQuality == 1);
-  CHECK(runtimeConfig.firstTimezoneAutoBootId == copyShotLogBootId());
+  CHECK(runtimeConfig.firstTimezoneAutoBootId == currentBootId());
   const uint64_t firstUptime = runtimeConfig.firstTimezoneAutoUptimeUs;
   const uint32_t appliedRevision = runtimeConfig.revision;
   first.config = runtimeConfig;
@@ -13242,7 +13240,7 @@ void s02_shot_log_appends_after_drip_delay() {
   pendingFinalize.startedWithScale = false;
   pendingFinalize.finalState = StopperState::MANUAL_NO_SCALE;
   pendingFinalize.endReason = EndReason::ACTIVATOR;
-  pendingFinalize.bootId = shotLog.bootId();
+  pendingFinalize.bootId = currentBootId();
   pendingFinalize.durationDs = 120;
   pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
@@ -13270,7 +13268,7 @@ void s02e_shot_log_appends_auto_bbw_after_drip_delay() {
   pendingFinalize.lastKnownWeightG = 36.0f;
   pendingFinalize.finalState = StopperState::BREW;
   pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
-  pendingFinalize.bootId = shotLog.bootId();
+  pendingFinalize.bootId = currentBootId();
   pendingFinalize.durationDs = 120;
   pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
@@ -13312,7 +13310,7 @@ void s02f_shot_log_skips_sub_one_gram_weight() {
   pendingFinalize.lastKnownWeightG = 0.5f;
   pendingFinalize.finalState = StopperState::BREW;
   pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
-  pendingFinalize.bootId = shotLog.bootId();
+  pendingFinalize.bootId = currentBootId();
   pendingFinalize.durationDs = 120;
   pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
@@ -13781,7 +13779,7 @@ void s17_new_cycle_commits_pending_log_as_last_known() {
   pendingFinalize.automaticBrew = true;
   pendingFinalize.finalState = StopperState::BREW;
   pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
-  pendingFinalize.bootId = shotLog.bootId();
+  pendingFinalize.bootId = currentBootId();
   pendingFinalize.durationDs = 151;
   pendingFinalize.firstDropDs = 45;
   pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
@@ -14183,7 +14181,7 @@ void s20_last_good_shot_advances_independently() {
   PendingShotFinalize collision = {};
   collision.cycleId = shortShot.cycleId;
   collision.durationDs = 120;
-  collision.bootId = copyShotLogBootId();
+  collision.bootId = currentBootId();
   commitPendingShotLog(collision, 1.0f, true,
                        ActualWeightSource::POST_DRIP);
   CHECK(persistedLastShot.cycleId == 1);
@@ -14199,11 +14197,11 @@ void s20_last_good_shot_advances_independently() {
   CHECK(lastShotStore.getGood().shotLogId == 91);
 }
 
-void s21_controller_started_waits_for_durable_boot_id() {
+void s21_controller_started_retries_after_a_shot_store_persist() {
   resetHarness(false, false);
   reachReadyFromBoot();
   shotLog.load();
-  shotLog.onBoot();
+  CHECK(shotLog.clear(false));
   controllerStartedPending = true;
   g_hostFlashIoMutexAvailable = false;
   serviceShotStorePersistence();
@@ -14232,7 +14230,7 @@ void s21_controller_started_waits_for_durable_boot_id() {
   CHECK(!shotLog.dirty());
   CHECK(!controllerStartedPending);
   CHECK(hostControllerStartedWebhookCount == 1);
-  CHECK(hostControllerStartedWebhookEvent.bootId == copyShotLogBootId());
+  CHECK(hostControllerStartedWebhookEvent.bootId == currentBootId());
 }
 
 void s21_ip_change_reports_webhook() {
@@ -14463,7 +14461,7 @@ void s15b_cup_off_after_end_keeps_last_known_actual() {
   pendingFinalize.lastKnownWeightG = 42.1f;
   pendingFinalize.finalState = StopperState::BREW;
   pendingFinalize.endReason = EndReason::FAST_EXTRACTION_MAX_WEIGHT;
-  pendingFinalize.bootId = shotLog.bootId();
+  pendingFinalize.bootId = currentBootId();
   pendingFinalize.durationDs = 280;
   pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   pendingFinalize.weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
@@ -14519,7 +14517,7 @@ void s15_last_shot_persists_after_drip_when_eligible() {
   pendingFinalize.endReason = EndReason::SCALE_THRESHOLD;
   pendingFinalize.durationDs = 120;
   pendingFinalize.goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
-  pendingFinalize.bootId = shotLog.bootId();
+  pendingFinalize.bootId = currentBootId();
   pendingFinalize.endedAtMs = hostMillis;
   pendingFinalize.endedWeightSequence = 4;
   runLoopAfter(pendingFinalize.dripDelayMs);
@@ -16499,7 +16497,7 @@ void s08_shot_log_without_sync_has_no_wall_time() {
   shotLog.clear();
   ShotLogRecord record = {};
   record.durationDs = 120;
-  record.bootId = shotLog.bootId();
+  record.bootId = currentBootId();
   record.endedAtMs = 45000;
   record.hasWallTime = 0;
   CHECK(shotLog.append(record));
@@ -16622,7 +16620,7 @@ void s12c_finalize_links_exact_history_row() {
   snapshot.automaticBrew = true;
   snapshot.finalState = StopperState::READY;
   snapshot.endReason = EndReason::SCALE_THRESHOLD;
-  snapshot.bootId = shotLog.bootId();
+  snapshot.bootId = currentBootId();
   snapshot.logEligible = true;
   snapshot.firstDropDs = 50;
 
@@ -17002,7 +17000,7 @@ void s19_shot_store_persist_failure_logs_once_until_success() {
   resetHarness(false, true);
   ShotLogRecord record = {};
   record.durationDs = 120;
-  record.bootId = shotLog.bootId();
+  record.bootId = currentBootId();
   CHECK(shotLog.append(record, false));
   CHECK(shotLog.dirty());
   maintenanceLease.active = true;
@@ -17671,12 +17669,6 @@ void h12_persistence_fast_path_skips_clean_store_mutex() {
   serviceShotStorePersistence();
   TaskMutex::hostObserver = nullptr;
   CHECK(acquisitions > 0);
-  // The boot-id cache tracks the store through clearShotLog's bump and
-  // serves the 100 Hz timezone check without the lock once settled.
-  const uint32_t clearedBootId = copyShotLogBootId();
-  CHECK(clearShotLog());
-  CHECK(copyShotLogBootIdCached() == copyShotLogBootId());
-  CHECK(copyShotLogBootIdCached() == clearedBootId);
 }
 
 void h07_mutex_wait_accounting_tracks_last_and_max() {
@@ -22564,7 +22556,7 @@ const TestCase testCases[] = {
     {"S16b", s16b_factory_reset_hides_last_shot_on_status},
     {"S18", s18_last_shot_keeps_no_scale_guard_from_cycle},
     {"S20", s20_last_good_shot_advances_independently},
-    {"S21", s21_controller_started_waits_for_durable_boot_id},
+    {"S21", s21_controller_started_retries_after_a_shot_store_persist},
     {"S21", s21_ip_change_reports_webhook},
     {"S04", s04_shot_log_remove_by_id},
     {"S04c", s04c_delete_shot_record_removes_log_and_curve},

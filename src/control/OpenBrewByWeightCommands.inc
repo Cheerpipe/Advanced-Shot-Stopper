@@ -261,7 +261,7 @@ void processWebCommand(const WebCommand &command) {
         candidate.firstTimezoneAutoUptimeUs =
             static_cast<uint64_t>(millis()) * 1000U;
 #endif
-        candidate.firstTimezoneAutoBootId = copyShotLogBootId();
+        candidate.firstTimezoneAutoBootId = currentBootId();
         candidate.firstTimezoneAutoUtcSec = g_wallClock.nowUtcSec(millis());
         if (candidate.firstTimezoneAutoUtcSec != 0) {
           candidate.firstTimezoneAutoClockQuality = 2;

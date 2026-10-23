@@ -283,7 +283,7 @@ changing the 32-byte record size or partition layout; see the
 Each inactive slot or used curve sector is
 erased one 4 KiB sector at a time, programmed one 1 KiB staged chunk at a time,
 and receives its validity-bearing header last; the worker rechecks the current
-machine and scale gates between steps. The shot log's whole 60,028-byte store and the
+machine and scale gates between steps. The shot log's whole 60,024-byte store and the
 16,024-byte activation-history store live in PSRAM and move to and from their
 slots in 1 KiB chunks staged through the small internal flash-I/O scratch only
 while that owner holds the flash lock. Each keeps two slots in its own data
@@ -294,7 +294,8 @@ has ended. The shot log uses schema 1 in its dedicated partition (120-byte recor
 a self-contained snapshot of the cut parameters in force: target, window,
 side switches, margins, delay, max shot time and ramp length, plus the cut
 line at the stop, arrival time and packed verdict byte); any other
-schema is discarded and the shot history starts empty.
+schema is discarded and the shot history starts empty. The boot ID lives in
+its own small NVS key, so a boot never rewrites the shot log.
 
 On n16r8, ESP-IDF writes one ELF core dump to a 640 KiB capture partition
 after a panic. Once the relay is open and the durable boot ID has been saved,

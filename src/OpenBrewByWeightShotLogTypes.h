@@ -656,7 +656,6 @@ struct ShotLogHeader {
   uint16_t schemaVersion;
   uint16_t recordSize;
   uint32_t generation;
-  uint32_t bootId;
   uint32_t nextRecordId;
   uint16_t count;
   uint16_t writeIndex;
@@ -757,17 +756,11 @@ inline bool validShotLogStore(const ShotLogStore &store) {
   return true;
 }
 
-inline void resetShotLogStore(ShotLogStore &store, uint32_t bootId) {
+inline void resetShotLogStore(ShotLogStore &store) {
   memset(&store, 0, sizeof(store));
   store.header.generation = 1;
-  store.header.bootId = bootId == 0 ? 1U : bootId;
   store.header.nextRecordId = 1;
   finalizeShotLogStore(store);
-}
-
-// Fixed boot-id variant matching the DualSlotFlashLogTraits reset signature.
-inline void resetShotLogStoreWithBootId(ShotLogStore &store) {
-  resetShotLogStore(store, 1);
 }
 
 // Rotate a record ring in place so the `count` live records (oldest first,

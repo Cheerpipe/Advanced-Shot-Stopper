@@ -64,15 +64,7 @@ inline bool saveWebAccessStored(WebAccessStored &stored) {
 
 // Factory reset forgets everything, including the Home notice choice.
 inline bool eraseWebAccessStored() {
-  if (!lockSettingsNvs()) return false;
-  OpenBrewByWeightPreferences preferences(NvsSubsystem::WEB_ACCESS);
-  bool erased = false;
-  if (preferences.begin(SETTINGS_NAMESPACE, false)) {
-    erased = !preferences.isKey(WEB_ACCESS_KEY) || preferences.remove(WEB_ACCESS_KEY);
-    preferences.end();
-  }
-  unlockSettingsNvs();
-  return erased;
+  return eraseSettingsNvsKey(NvsSubsystem::WEB_ACCESS, WEB_ACCESS_KEY);
 }
 #endif
 

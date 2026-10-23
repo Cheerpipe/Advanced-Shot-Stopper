@@ -994,7 +994,6 @@ inline bool auditStoreAppend(const AuditRecord &record) {
   hostAuditStoreStatus.retained = window.size();
   return true;
 }
-inline bool auditStoreCommitHeader() { return true; }
 inline size_t auditStoreCopyAfter(uint32_t afterSequence, AuditRecord *output,
                                   size_t capacity, uint32_t *) {
   size_t copied = 0;

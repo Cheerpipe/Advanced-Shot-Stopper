@@ -23,10 +23,39 @@
 #include "OpenBrewByWeightDomain.h"
 #include "OpenBrewByWeightFlashIoScratch.h"
 #include "OpenBrewByWeightHistory.h"
+#include "OpenBrewByWeightPreferences.h"
 #include "OpenBrewByWeightShotCurve.h"
 #include "OpenBrewByWeightShotLog.h"
 
 namespace openbrewbyweight {
+
+// The boot identity: one per boot, never 0, in its own small NVS key next to
+// the reset history, so a boot never rewrites the shot log. Returns whether
+// the advanced value is durable.
+inline bool advanceBootId(uint32_t &bootId) {
+#if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) &&                                       \
+    !defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
+  if (bootId < UINT32_MAX) ++bootId;
+  return true;
+#else
+  uint32_t next = 0;  // Stack copy: flash I/O must not read PSRAM.
+  bool saved = false;
+  if (lockFlashIo()) {
+    OpenBrewByWeightPreferences preferences(NvsSubsystem::RESET_HISTORY);
+    if (preferences.begin("rsthist", false)) {
+      if (preferences.getBytesLength("bootId") != sizeof(next) ||
+          preferences.getBytes("bootId", &next, sizeof(next)) != sizeof(next))
+        next = 0;
+      if (next < UINT32_MAX) ++next;
+      saved = preferences.putBytes("bootId", &next, sizeof(next)) == sizeof(next);
+      preferences.end();
+    }
+    unlockFlashIo();
+  }
+  if (next != 0) bootId = next;
+  return saved;
+#endif
+}
 
 // Latched SHOT_LOG_PERSIST_FAILED emission stays with the component so every
 // store shares one wiring; the scheduler (retry/backoff) stays with the
@@ -46,20 +75,18 @@ struct ActivationStoresFlushReport {
 template <typename CurveLog>
 class BasicActivationStores {
  public:
-  // Boot load. Returns whether the durable boot-identity write succeeded
-  // (always true in host tests). Call before the network task serves
-  // endpoints; lastShotStore is loaded separately by the platform boot.
+  // Boot load. Returns whether the boot identity advanced durably. Call
+  // before the network task serves endpoints; lastShotStore is loaded
+  // separately by the platform boot.
   bool begin() {
-    bool bootIdentityDurable = true;
     shotLog.load();
-    shotLog.onBoot();
-#if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
-    bootIdentityDurable = shotLog.save();
-#endif
     shotCurves.load();
     historyLog.load();
-    return bootIdentityDurable;
+    return advanceBootId(bootId_);
   }
+
+  // Written only by begin(), before any other task reads it: lock-free.
+  uint32_t bootId() const { return bootId_; }
 
   // Deferred flush of the three owned stores. Caller holds the store mutex,
   // passes the control-loop try-lock budget (0 ms from the 1 ms loop) and the
@@ -197,6 +224,7 @@ class BasicActivationStores {
   bool shotCurvePersistFailLatched_ = false;
   bool historyPersistFailLatched_ = false;
   uint8_t persistCursor_ = 0;
+  uint32_t bootId_ = 1;
 
   template <typename> friend class BasicActivationStores;
 };

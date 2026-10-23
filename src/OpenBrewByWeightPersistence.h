@@ -110,6 +110,19 @@ inline void unlockSettingsNvs() { unlockFlashIo(); }
 inline void yieldSettingsNvs() { yieldFlashIo(); }
 inline void feedSettingsNvsWatchdog() { feedFlashIoWatchdog(); }
 
+// Removes one key of the settings namespace; an absent key already counts.
+inline bool eraseSettingsNvsKey(NvsSubsystem subsystem, const char *key) {
+  if (!lockSettingsNvs()) return false;
+  OpenBrewByWeightPreferences preferences(subsystem);
+  bool erased = false;
+  if (preferences.begin(SETTINGS_NAMESPACE, false)) {
+    erased = !preferences.isKey(key) || preferences.remove(key);
+    preferences.end();
+  }
+  unlockSettingsNvs();
+  return erased;
+}
+
 inline bool savePersistedSettings(PersistedSettings &settings);
 
 inline bool loadPersistedSettings(PersistedSettings &settings) {

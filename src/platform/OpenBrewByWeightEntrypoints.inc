@@ -328,8 +328,7 @@ void setup() {
                          runtimeConfig.autoRetare);
     addMissingManualShotPreset(presetBank);
     QuickStartRecord storedQuickStart;
-    if (bootQuickStart(bbwQuickStart, freshSettings, persistedSettings.presets.count,
-                       presetBank,
+    if (bootQuickStart(bbwQuickStart, freshSettings, presetBank,
                        loadQuickStart(storedQuickStart) ? &storedQuickStart : nullptr))
       stageBbwQuickStart();
     // Earlier firmware could save a controller-wide Manual; stop mode now
@@ -379,6 +378,9 @@ void setup() {
     lastShotStore.load(runtimeConfig.bbwProtectionMs);
     lastShotNvsDirty = false;
   }
+  if (!bootIdentityDurable)
+    addDebugEvent(DebugCategory::CONFIG, DebugCode::INITIALIZATION_FAILED,
+                  BOOT_SUBSYSTEM_PERSISTENCE);
 #else
   {
     TaskLockGuard storeLock(shotStoreMutex);
@@ -389,10 +391,10 @@ void setup() {
 #endif
 
   addDebugEvent(DebugCategory::BOOT, DebugCode::BOOT_BANNER,
-                static_cast<int32_t>(shotLog.bootId()));
+                static_cast<int32_t>(activationStores.bootId()));
 #ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
-  crashArchiveSetBootId(bootIdentityDurable ? shotLog.bootId() : 0);
-  crashArchivePromote(bootIdentityDurable ? shotLog.bootId() : 0,
+  crashArchiveSetBootId(bootIdentityDurable ? activationStores.bootId() : 0);
+  crashArchivePromote(bootIdentityDurable ? activationStores.bootId() : 0,
                       safetyResetStatus.reasonCode);
   // Read only the profiler's durable header at boot; records stay in flash
   // until a download streams them.
@@ -589,8 +591,9 @@ void setup() {
   }
   publishControlStatus();
 #ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
-  controllerStartedPending = networkOk && settingsLoaded;
-  if (bootIdentityDurable) (void)enqueueControllerStartedWebhook();
+  // The started event carries the boot identity: only a durable one is sent.
+  controllerStartedPending = networkOk && settingsLoaded && bootIdentityDurable;
+  (void)enqueueControllerStartedWebhook();
   // Boot-time reads/writes are complete. Any later flash call from loopTask
   // is an ownership violation and must fail rather than stall control.
   forbidFlashIoFromCurrentTask();

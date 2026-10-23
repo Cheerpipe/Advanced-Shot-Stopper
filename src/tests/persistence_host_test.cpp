@@ -383,31 +383,15 @@ void p29_last_shot_persists_and_clears() {
   CHECK(!rejected.get().valid);
 }
 
-void p80_boot_id_remains_dirty_until_durable() {
+void p80_boot_id_advances_in_its_own_nvs_key() {
   resetHostPersistence();
-  ShotLog log;
-  CHECK(log.load());
-  log.onBoot();
-  CHECK(log.dirty());
-  CHECK(log.save());
-  const uint32_t durableBoot = log.bootId();
-
-  ShotLog rebooted;
-  CHECK(rebooted.load());
-  rebooted.onBoot();
-  CHECK(rebooted.bootId() == durableBoot + 1);
-  g_hostFlashIoMutexAvailable = false;
-  CHECK(!rebooted.save());
-  CHECK(rebooted.dirty());
-  g_hostFlashIoMutexAvailable = true;
-
-  ShotLog stillDurable;
-  CHECK(stillDurable.load());
-  CHECK(stillDurable.bootId() == durableBoot);
-  CHECK(rebooted.flush());
-  ShotLog afterRetry;
-  CHECK(afterRetry.load());
-  CHECK(afterRetry.bootId() == durableBoot + 1);
+  uint32_t bootId = 0;
+  CHECK(advanceBootId(bootId) && bootId == 1);
+  CHECK(advanceBootId(bootId) && bootId == 2);
+  // A failed write keeps the boot running with a value the next boot reissues.
+  persistence_host::failNextWriteForKey = "bootId";
+  CHECK(!advanceBootId(bootId) && bootId == 3);
+  CHECK(advanceBootId(bootId) && bootId == 3);
 }
 
 void p07_invalid_schema_uses_factory_on_missing_slots() {
@@ -585,7 +569,7 @@ void p65_factory_settings_survives_second_slot_write_fail() {
 
 void p66_shot_log_dual_slot_generation_flip() {
   resetHostPersistence();
-  CHECK(sizeof(ShotLogStore) == 60028);
+  CHECK(sizeof(ShotLogStore) == 60024);
   CHECK(sizeof(ShotLogStore) % 4 == 0);
   CHECK(sizeof(ShotLogStore) <= SHOT_LOG_FLASH_SLOT_BYTES);
   CHECK(SHOT_LOG_FLASH_SLOT_COUNT * SHOT_LOG_FLASH_SLOT_BYTES <= 0x1E000);
@@ -1737,7 +1721,7 @@ void p55_network_access_reset_preserves_non_network_settings() {
 
 void p56_shot_log_stale_slot_and_foreign_schema_rejected() {
   ShotLogStore current = {};
-  resetShotLogStore(current, 4);
+  resetShotLogStore(current);
   current.header.count = 1;
   current.header.writeIndex = 1;
   current.header.nextRecordId = 2;
@@ -1771,7 +1755,7 @@ void p56_shot_log_stale_slot_and_foreign_schema_rejected() {
 
   // The stale generation loses to the newer slot.
   ShotLogStore stale = current;
-  resetShotLogStore(stale, 4);
+  resetShotLogStore(stale);
   stale.header.generation = current.header.generation - 1;
   CHECK(secondRevisionIsNewer(stale.header.generation,
                               current.header.generation));
@@ -1821,10 +1805,15 @@ void p58_reset_all_durable_stores_and_mid_fail_keeps_settings() {
   BleScanPersistedSettings ble;
   ble.scanIntensity = static_cast<uint8_t>(BleScanIntensity::RELAXED);
   CHECK(saveBleScanSettings(ble));
+  CHECK(saveQuickStart(QuickStartRecord{}));
 
   CHECK(resetAllDurableStores(settings, ble, log, history, lastShot,
                               curves));
   CHECK(verifyFactorySettings(settings));
+  // Without its record the next boot quick starts every factory preset.
+  QuickStartRecord quickStart;
+  CHECK(!loadQuickStart(quickStart));
+  CHECK(bootQuickStart(quickStart, false, settings.presets, nullptr));
   CHECK(log.count() == 0);
   CHECK(history.count() == 0);
   CHECK(curves.count() == 0);
@@ -3262,7 +3251,7 @@ std::string goldenShotLogPath() {
 void p92_schema1_golden_shot_log_loads() {
   if (getenv("GOLDEN_SHOTLOG_WRITE") != nullptr) {
     ShotLogStore store;
-    resetShotLogStore(store, 7);
+    resetShotLogStore(store);
     for (uint16_t i = 0; i < 2; ++i) {
       ShotLogRecord &r = store.records[i];
       r.id = 41U + i;
@@ -3346,7 +3335,7 @@ const TestCase tests[] = {
     {"P92", p92_schema1_golden_shot_log_loads},
     {"P82", p82_ble_scan_strict_versions_and_roundtrip},
     {"P82B", p82b_ble_scan_legacy_minute_bytes_stay_readable},
-    {"P80", p80_boot_id_remains_dirty_until_durable},
+    {"P80", p80_boot_id_advances_in_its_own_nvs_key},
     {"P01", p01_defaults_are_valid},
     {"P02", p02_newest_valid_slot_is_loaded},
     {"P02B", p02b_save_uses_ram_revision_when_slots_unreadable},

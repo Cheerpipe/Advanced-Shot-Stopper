@@ -93,17 +93,6 @@ bool clearHistoryLog() {
   return changed;
 }
 
-uint32_t copyShotLogBootIdCached() {
-  const uint32_t generation =
-      shotStoreDirtyGeneration.load(std::memory_order_acquire);
-  if (!shotLogBootIdCacheValid || shotLogBootIdCacheGeneration != generation) {
-    shotLogBootIdCache = copyShotLogBootId();
-    shotLogBootIdCacheGeneration = generation;
-    shotLogBootIdCacheValid = true;
-  }
-  return shotLogBootIdCache;
-}
-
 ShotStatsView copyShotStats() {
   TaskLockGuard lock(shotStoreMutex);
   return shotLog.statsView();
@@ -116,7 +105,7 @@ bool copyShotStoreStatus(uint32_t &bootId, PersistedLastShot &last,
   TaskLockGuard lock(shotStoreMutex);
   noteMutexWaitUs(shotStoreWaitLastUs, shotStoreWaitMaxUs,
                   micros() - lockStartedUs);
-  bootId = shotLog.bootId();
+  bootId = activationStores.bootId();
   // Newest activation record rides the same critical section so the status
   // publish needs no second shotStoreMutex acquisition.
   hasNewestActivation = historyLog.copyNewest(newestActivation);
@@ -689,7 +678,7 @@ void persistAuditLogImage() {
       TaskLockGuard lock(debugLogMutex);
       auditLog.markFlushedThrough(batch[index].sequence);
     }
-    if (failed || !auditStoreCommitHeader()) break;
+    if (failed) break;
   }
   {
     TaskLockGuard lock(debugLogMutex);
@@ -1187,9 +1176,7 @@ void serviceShotStorePersistence() {
     if (resultOk) {
       shotStorePersistIoRetryMs = 0;
       shotStorePersistRetryAtMs = 0;
-      if (controllerStartedPending && !shotLog.dirty()) {
-        (void)enqueueControllerStartedWebhook();
-      }
+      if (controllerStartedPending) (void)enqueueControllerStartedWebhook();
     } else {
       if (resultIoFail) {
         shotStorePersistIoRetryMs = nextPersistenceIoRetry(
@@ -1261,7 +1248,7 @@ void serviceRuntimePersistence(
   if (networkSettingsPersistRequested.exchange(false, std::memory_order_acq_rel))
     queueRuntimePersist(RUNTIME_PERSIST_REASON_USER);
   if (runtimeConfig.firstTimezoneAutoClockQuality == 1 &&
-      runtimeConfig.firstTimezoneAutoBootId == copyShotLogBootIdCached()) {
+      runtimeConfig.firstTimezoneAutoBootId == currentBootId()) {
 #ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST
     const uint64_t nowUs = static_cast<uint64_t>(esp_timer_get_time());
 #else

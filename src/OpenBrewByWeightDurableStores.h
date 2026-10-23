@@ -1,5 +1,6 @@
 #pragma once
 
+#include "OpenBrewByWeightBbwQuickStart.h"
 #include "OpenBrewByWeightBleScanPersistence.h"
 #include "OpenBrewByWeightFirmwareMode.h"
 #include "OpenBrewByWeightHistory.h"
@@ -125,10 +126,12 @@ inline bool resetAllDurableStores(PersistedSettings &settings,
     return false;
   }
   // Factory reset clears the master switch too, so the controller comes back
-  // transparent (compatibility mode) and offers onboarding again.
+  // transparent (compatibility mode) and offers onboarding again; without a
+  // quick start record the next boot quick starts every factory preset.
 #if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                      \
     defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)
-  if (!clearFirmwareMode() || !eraseWebAccessStored()) {
+  if (!clearFirmwareMode() || !eraseWebAccessStored() ||
+      !eraseSettingsNvsKey(NvsSubsystem::SETTINGS, QUICK_START_KEY)) {
     return false;
   }
 #endif

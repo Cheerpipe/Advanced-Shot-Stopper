@@ -3,9 +3,8 @@
 // Drip quick start: right after the drip is set (or in a fresh preset), the
 // next three learning-eligible shots set the drip to their median at once
 // when they agree within QUICK_START_SPREAD_CG; otherwise normal learning
-// carries on. The record lives in its own NVS key, outside the settings blob:
-// older firmware ignores it, and an absent record means "off" so an upgrade
-// never jumps a drip the owner already tuned.
+// carries on. The record lives in its own NVS key, outside the settings blob;
+// an absent record (fresh install, factory reset) arms every preset.
 
 #include <stddef.h>
 #include <stdint.h>
@@ -106,15 +105,14 @@ inline QuickStartRecord armedQuickStart(const ShotPresetBank &bank) {
   return record;
 }
 
-// Boot: a fresh install, or a factory reset (stored with an empty bank),
-// quick starts every factory preset and returns true (the record must be
-// saved); otherwise the stored record, or all off without one, so an upgrade
-// never jumps a drip the owner already tuned.
+// Boot: fresh settings or no valid stored record (fresh install, factory
+// reset) quick starts every factory preset and returns true (the record must
+// be saved); otherwise the stored record is kept.
 inline bool bootQuickStart(QuickStartRecord &out, bool freshSettings,
-                           uint8_t storedPresetCount, const ShotPresetBank &bank,
+                           const ShotPresetBank &bank,
                            const QuickStartRecord *stored) {
-  const bool arm = freshSettings || storedPresetCount == 0;
-  out = arm ? armedQuickStart(bank) : stored != nullptr ? *stored : QuickStartRecord{};
+  const bool arm = freshSettings || stored == nullptr;
+  out = arm ? armedQuickStart(bank) : *stored;
   return arm;
 }
 
@@ -181,7 +179,7 @@ inline size_t formatDripChartJson(char *out, size_t cap, const ControlStatusFiel
 
 namespace openbrewbyweight {
 
-// An absent, unreadable or invalid record leaves every preset off.
+// False for an absent, unreadable or invalid record.
 inline bool loadQuickStart(QuickStartRecord &record) {
   QuickStartRecord read;
   bool ok = false;

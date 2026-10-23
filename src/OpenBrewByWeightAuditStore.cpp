@@ -31,9 +31,8 @@ const esp_partition_t *storePartition() {
 }
 
 size_t slotOffset(uint32_t absoluteIndex) {
-  return AUDIT_STORE_HEADER_BYTES +
-         (absoluteIndex % AUDIT_STORE_RECORD_CAPACITY) *
-             AUDIT_STORE_RECORD_BYTES;
+  return (absoluteIndex % AUDIT_STORE_RECORD_CAPACITY) *
+         AUDIT_STORE_RECORD_BYTES;
 }
 
 bool readSlot(const esp_partition_t *part, uint32_t index, uint8_t *slot) {
@@ -41,41 +40,11 @@ bool readSlot(const esp_partition_t *part, uint32_t index, uint8_t *slot) {
                             AUDIT_STORE_RECORD_BYTES) == ESP_OK;
 }
 
-// Header commits rewrite the same sector, and flash programs can only clear
-// bits: every commit erases sector 0 first, then programs the fresh header.
-// At a few committed batches per day this stays far inside sector endurance.
-bool commitHeader(const esp_partition_t *part) {
-  AuditStoreHeader header;
-  header.writeCursor = g_status.writeCursor;
-  header.windowStart = g_status.windowStart;
-  header.seqHigh = g_status.seqHigh;
-  header.generation = g_status.generation + 1;
-  header.checksum = auditStoreHeaderChecksum(header);
-  if (esp_partition_erase_range(part, 0, AUDIT_STORE_SECTOR_BYTES) != ESP_OK) {
-    return false;
-  }
-  feedFlashIoWatchdog();
-  if (esp_partition_write(part, 0, &header, sizeof(header)) != ESP_OK) {
-    return false;
-  }
-  g_status.generation = header.generation;
-  return true;
-}
-
-bool readHeader(const esp_partition_t *part, AuditStoreHeader &header) {
-  header = AuditStoreHeader{};
-  if (esp_partition_read(part, 0, &header, sizeof(header)) != ESP_OK) {
-    return false;
-  }
-  return auditStoreHeaderValid(header);
-}
-
 struct ScanRun {
   uint32_t start, end;  // slot indexes, half-open
 };
 
-// Full forward scan for a missing or invalid durable header: valid runs are
-// separated by erased (wrap-ahead) or torn slots. The active window is the
+// Boot scan: valid runs are separated by erased (wrap-ahead) or torn slots. The active window is the
 // run an append would extend: the last run in slot order, merged across the
 // wrap when a run reaches the body end and another starts at slot 0.
 bool scanWindow(const esp_partition_t *part) {
@@ -147,35 +116,7 @@ void auditStoreBootOpen(AuditLogLatch &latch, uint32_t &latchPendingAfter) {
     g_status.state = AuditStoreState::IO_ERROR;
     return;
   }
-  AuditStoreHeader header;
-  bool ok = readHeader(part, header);
-  bool needCommit = !ok;
-  if (ok) {
-    g_status.writeCursor = header.writeCursor;
-    g_status.windowStart = header.windowStart;
-    g_status.seqHigh = header.seqHigh;
-    g_status.generation = header.generation;
-    // Extend the cursor over records appended after the last commit (power
-    // cut between the body program and the header commit); the scan stops at
-    // the first erased or torn slot.
-    AuditRecord record;
-    uint8_t slot[AUDIT_STORE_RECORD_BYTES];
-    while (g_status.writeCursor - g_status.windowStart <
-           AUDIT_STORE_RECORD_CAPACITY) {
-      if (!readSlot(part, g_status.writeCursor, slot)) {
-        ok = false;
-        break;
-      }
-      if (!auditStoreDecodeRecord(slot, record)) break;
-      if (record.sequence > g_status.seqHigh) {
-        g_status.seqHigh = record.sequence;
-      }
-      ++g_status.writeCursor;
-      needCommit = true;
-    }
-  } else {
-    ok = scanWindow(part);
-  }
+  bool ok = scanWindow(part);
   // Backfill the latch from the retained window, oldest first, in one pass;
   // adopt() keeps the newest records when the window exceeds the latch ring.
   // Every adopted record is already durable, so nothing starts pending.
@@ -191,7 +132,6 @@ void auditStoreBootOpen(AuditLogLatch &latch, uint32_t &latchPendingAfter) {
     latch.adopt(record);
   }
   if (ok) latchPendingAfter = g_status.seqHigh;
-  if (ok && needCommit) ok = commitHeader(part);
   g_status.state = ok ? AuditStoreState::READY : AuditStoreState::IO_ERROR;
   g_status.retained = g_status.writeCursor - g_status.windowStart;
   unlockFlashIo();
@@ -206,7 +146,7 @@ bool auditStoreAppend(const AuditRecord &record) {
   // Entering a fresh sector: erase it ahead of the first append so a wrap
   // never programs over live bits, and retire the previous cycle's records
   // it held — the oldest window slice, one full ring behind the cursor.
-  if ((offset - AUDIT_STORE_HEADER_BYTES) % AUDIT_STORE_SECTOR_BYTES == 0) {
+  if (offset % AUDIT_STORE_SECTOR_BYTES == 0) {
     uint8_t probe[AUDIT_STORE_RECORD_BYTES];
     ok = esp_partition_read(part, offset, probe, sizeof(probe)) == ESP_OK;
     if (ok && !auditStoreSlotEmpty(probe)) {
@@ -233,15 +173,6 @@ bool auditStoreAppend(const AuditRecord &record) {
     if (record.sequence > g_status.seqHigh) g_status.seqHigh = record.sequence;
   }
   g_status.retained = g_status.writeCursor - g_status.windowStart;
-  unlockFlashIo();
-  return ok;
-}
-
-bool auditStoreCommitHeader() {
-  if (g_status.state != AuditStoreState::READY) return false;
-  const esp_partition_t *part = storePartition();
-  if (part == nullptr || !tryLockFlashIo()) return false;
-  const bool ok = commitHeader(part);
   unlockFlashIo();
   return ok;
 }

@@ -316,7 +316,7 @@ WebhookEvent baseWebhookEvent(WebhookEventType type, uint32_t cycleId,
   event.cycleId = cycleId;
   event.uptimeMs = occurredAtMs;
   event.unixSec = webhookUnixSecAt(occurredAtMs);
-  event.bootId = copyShotLogBootId();
+  event.bootId = currentBootId();
   return event;
 }
 

@@ -6,17 +6,14 @@
 
 namespace openbrewbyweight {
 
-// Durable audit store (phase 2): an append-only ring of fixed-size packed
-// records in a dedicated 64 KiB data partition. Sector 0 holds the durable
-// header, committed last; the body is written in whole-record programs and
-// wraps by erasing the 4 KiB sector ahead of the cursor, so a full circle
-// erases each sector exactly once. A power cut can lose at most the records
-// not yet flushed from the RAM latch; the boot scan recovers the last
-// consistent record without intervention.
-constexpr uint32_t AUDIT_STORE_MAGIC = 0x41554C47UL;  // "AULG"
+// Durable audit store: an append-only ring of fixed-size packed records
+// filling a dedicated 64 KiB data partition, with no header. Records are
+// written in whole-record programs and the ring wraps by erasing the 4 KiB
+// sector ahead of the cursor, so a full circle erases each sector exactly
+// once. A power cut can lose at most the records not yet flushed from the
+// RAM latch; the boot scan recovers the window from the records alone.
 constexpr uint16_t AUDIT_STORE_SCHEMA_VERSION = 0;
 constexpr size_t AUDIT_STORE_PARTITION_BYTES = 0x10000;
-constexpr size_t AUDIT_STORE_HEADER_BYTES = 4096;
 constexpr size_t AUDIT_STORE_SECTOR_BYTES = 4096;
 // u8 version, u8 level, u8 category, u8 code, u32 seq, u32 wallSec, u32 atMs,
 // i32 arg1, i32 arg2, u8 textLen, text[<24], u16 checksum — padded to a
@@ -26,9 +23,8 @@ constexpr size_t AUDIT_STORE_RECORD_BYTES = 64;
 static_assert(AUDIT_STORE_SECTOR_BYTES % AUDIT_STORE_RECORD_BYTES == 0,
               "audit records must tile the erase sector exactly");
 constexpr size_t AUDIT_STORE_RECORD_CAPACITY =
-    (AUDIT_STORE_PARTITION_BYTES - AUDIT_STORE_HEADER_BYTES) /
-    AUDIT_STORE_RECORD_BYTES;
-static_assert(AUDIT_STORE_RECORD_CAPACITY == 960,
+    AUDIT_STORE_PARTITION_BYTES / AUDIT_STORE_RECORD_BYTES;
+static_assert(AUDIT_STORE_RECORD_CAPACITY == 1024,
               "audit store capacity must match the wear planning");
 
 // Host- and target-pure helpers over packed slots.
@@ -114,36 +110,6 @@ inline void auditStoreEncodeRecord(uint8_t *slot, const AuditRecord &record) {
   slot[AUDIT_STORE_RECORD_BYTES - 1] = static_cast<uint8_t>(checksum >> 8);
 }
 
-// Durable header in sector 0; committed after each flushed batch.
-struct AuditStoreHeader {
-  uint32_t magic = 0;
-  uint16_t schemaVersion = 0;
-  uint16_t headerBytes = 0;
-  uint32_t writeCursor = 0;  // absolute record index of the next append
-  uint32_t windowStart = 0;  // oldest retained record index
-  uint32_t seqHigh = 0;      // highest persisted sequence
-  uint32_t generation = 0;   // bumped on every header commit
-  uint32_t reserved[3] = {};
-  uint32_t checksum = 0;     // FNV-1a (16-bit) over the preceding bytes
-};
-static_assert(sizeof(AuditStoreHeader) <= AUDIT_STORE_HEADER_BYTES,
-              "audit store header must fit its dedicated sector");
-
-inline uint16_t auditStoreHeaderChecksum(const AuditStoreHeader &header) {
-  return auditStoreChecksum(reinterpret_cast<const uint8_t *>(&header),
-                            offsetof(AuditStoreHeader, checksum));
-}
-
-inline bool auditStoreHeaderValid(const AuditStoreHeader &header) {
-  return header.magic == AUDIT_STORE_MAGIC &&
-         header.schemaVersion == AUDIT_STORE_SCHEMA_VERSION &&
-         header.headerBytes == sizeof(AuditStoreHeader) &&
-         header.writeCursor >= header.windowStart &&
-         header.writeCursor - header.windowStart <=
-             AUDIT_STORE_RECORD_CAPACITY &&
-         header.checksum == auditStoreHeaderChecksum(header);
-}
-
 // Partition-backed store state shared with the persistence worker.
 enum class AuditStoreState : uint8_t {
   UNSUPPORTED,  // partition absent: RAM-latch degraded mode
@@ -156,7 +122,6 @@ struct AuditStoreStatus {
   uint32_t writeCursor = 0;
   uint32_t windowStart = 0;
   uint32_t seqHigh = 0;
-  uint32_t generation = 0;
   size_t retained = 0;
 };
 
@@ -169,9 +134,6 @@ void auditStoreBootOpen(AuditLogLatch &latch, uint32_t &latchPendingAfter);
 // the cursor enters a new one. Returns false on I/O failure (record skipped).
 bool auditStoreAppend(const AuditRecord &record);
 
-// Commits the durable header after a flushed batch.
-bool auditStoreCommitHeader();
-
 // Copies up to `capacity` retained records in sequence order, newest last,
 // starting after `afterSequence`; returns how many were copied. A paging
 // caller passes the same `resumeSlot` (initially 0) to every page so each
@@ -180,7 +142,7 @@ bool auditStoreCommitHeader();
 size_t auditStoreCopyAfter(uint32_t afterSequence, AuditRecord *output,
                            size_t capacity, uint32_t *resumeSlot = nullptr);
 
-// Erases the whole store (header and body). Returns false on I/O failure.
+// Erases the whole store. Returns false on I/O failure.
 bool auditStoreEraseAll();
 
 // Explicit clear (diagnostics endpoint / factory reset): erase the durable

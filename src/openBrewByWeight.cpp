@@ -664,13 +664,6 @@ uint32_t shotStorePersistResultGeneration = 0;
 // shotStoreMutex dirty-check round trip; a failed or superseded persist
 // leaves it behind, so retries keep flowing through the locked path.
 uint32_t shotStorePersistCleanGeneration = 0;
-// Cached shot-log boot identity for the 100 Hz runtime-persistence
-// timezone check. The value changes only at boot (cache starts empty) or
-// via the clear/factory-reset wrappers, which bump the store generation,
-// so a generation-keyed lazy refresh stays correct. Control task only.
-bool shotLogBootIdCacheValid = false;
-uint32_t shotLogBootIdCache = 0;
-uint32_t shotLogBootIdCacheGeneration = 0;
 // Staged BLE scan settings: the control loop publishes, the settings_persist
 // worker owns the durable NVS write. pending/intensity/result flags are
 // guarded by bleScanPersistMux. Every request id accepted since the last
@@ -1078,10 +1071,7 @@ extern "C" bool verifyRollbackLater() {
 }
 #endif
 
-uint32_t copyShotLogBootId() {
-  TaskLockGuard lock(shotStoreMutex);
-  return shotLog.bootId();
-}
+uint32_t currentBootId() { return activationStores.bootId(); }
 
 void persistLastShotSnapshot(const PersistedLastShot &snapshot) {
   TaskLockGuard lock(shotStoreMutex);

@@ -1,6 +1,5 @@
-// Durable audit store contracts (plan F2.B/F2.C): packed roundtrip, torn
-// record terminal, wrap by sector erase, stale-header forward recovery, and
-// clear — exercised against the RAM partition fake with deterministic I/O
+// Durable audit store contracts: packed roundtrip, torn record terminal, wrap
+// by sector erase, header-free boot scan, and clear — exercised against the RAM partition fake with deterministic I/O
 // failure injection. OPEN_BREW_BY_WEIGHT_AUDIT_HOST_TEST comes from CMake.
 #include "../OpenBrewByWeightAuditStore.cpp"
 
@@ -55,7 +54,6 @@ static void testRoundtripAndPaging() {
     check(auditStoreAppend(makeRecord(seq, static_cast<int32_t>(seq))),
           "append failed");
   }
-  check(auditStoreCommitHeader(), "header commit failed");
   check(auditStoreStatus().seqHigh == 20 && auditStoreStatus().retained == 20,
         "cursor accounting is wrong after appends");
   AuditRecord page[7];
@@ -97,7 +95,7 @@ static void testTornRecordTerminal() {
     check(auditStoreAppend(makeRecord(seq, 1)), "append failed");
   }
   // Tear the newest record: an unreadable version byte fails the decode.
-  const size_t offset = AUDIT_STORE_HEADER_BYTES + 4 * AUDIT_STORE_RECORD_BYTES;
+  const size_t offset = 4 * AUDIT_STORE_RECORD_BYTES;
   fakeAuditLog.bytes[offset] = 0x02;
   AuditLogLatch recovered;
   auditStoreBootOpen(recovered, pendingAfter);
@@ -108,37 +106,6 @@ static void testTornRecordTerminal() {
         "the torn record must not be readable");
 }
 
-static void testUncommittedAppendRecovery() {
-  resetStore();
-  AuditLogLatch latch;
-  uint32_t pendingAfter = 0;
-  auditStoreBootOpen(latch, pendingAfter);
-  for (uint32_t seq = 1; seq <= 3; ++seq) {
-    check(auditStoreAppend(makeRecord(seq, 1)), "append failed");
-  }
-  check(auditStoreCommitHeader(), "commit failed");
-  // Power cut after the body program, before the header commit: seq 4 and 5
-  // are on flash but the header still points past 3.
-  check(auditStoreAppend(makeRecord(4, 1)), "append failed");
-  check(auditStoreAppend(makeRecord(5, 1)), "append failed");
-  AuditStoreHeader header;
-  header.writeCursor = 3;
-  header.windowStart = 0;
-  header.seqHigh = 3;
-  header.generation = 1;
-  header.checksum = auditStoreHeaderChecksum(header);
-  std::fill(fakeAuditLog.bytes.begin(),
-            fakeAuditLog.bytes.begin() + AUDIT_STORE_HEADER_BYTES, 0xFF);
-  std::memcpy(fakeAuditLog.bytes.data(), &header, sizeof(header));
-  AuditLogLatch recovered;
-  auditStoreBootOpen(recovered, pendingAfter);
-  check(auditStoreStatus().writeCursor == 5 && auditStoreStatus().seqHigh == 5,
-        "the forward scan must adopt uncommitted records");
-  AuditRecord page[8];
-  check(auditStoreCopyAfter(0, page, 8) == 5 && page[4].sequence == 5,
-        "adopted records must be readable in order");
-}
-
 static void testFullWrap() {
   resetStore();
   AuditLogLatch latch;
@@ -147,9 +114,6 @@ static void testFullWrap() {
   for (uint32_t seq = 1; seq <= AUDIT_STORE_RECORD_CAPACITY + 150; ++seq) {
     check(auditStoreAppend(makeRecord(seq, static_cast<int32_t>(seq))),
           "append failed during wrap");
-    if (seq % kRecordsPerSector == 0) {
-      check(auditStoreCommitHeader(), "commit failed during wrap");
-    }
   }
   check(auditStoreStatus().retained <= AUDIT_STORE_RECORD_CAPACITY &&
             auditStoreStatus().retained >=
@@ -171,27 +135,7 @@ static void testFullWrap() {
         "the newest records survive the wrap boot");
 }
 
-static void testMissingHeaderScan() {
-  resetStore();
-  AuditLogLatch latch;
-  uint32_t pendingAfter = 0;
-  auditStoreBootOpen(latch, pendingAfter);
-  for (uint32_t seq = 1; seq <= 10; ++seq) {
-    check(auditStoreAppend(makeRecord(seq, 1)), "append failed");
-  }
-  check(auditStoreCommitHeader(), "commit failed");
-  std::fill(fakeAuditLog.bytes.begin(),
-            fakeAuditLog.bytes.begin() + AUDIT_STORE_HEADER_BYTES, 0xFF);
-  AuditLogLatch recovered;
-  auditStoreBootOpen(recovered, pendingAfter);
-  check(auditStoreStatus().retained == 10 && auditStoreStatus().seqHigh == 10,
-        "a full scan must recover the window without the header");
-  AuditRecord page[4];
-  check(auditStoreCopyAfter(0, page, 4) == 4 && page[3].sequence == 4,
-        "recovered records must page in order");
-}
-
-// Torn header with the cursor on a not-yet-erased sector: every slot decodes,
+// Full ring with the cursor on a not-yet-erased sector: every slot decodes,
 // so the scan must rotate the window to the sequence drop.
 static void testFullRingScanFindsOldest() {
   resetStore();
@@ -202,8 +146,6 @@ static void testFullRingScanFindsOldest() {
   for (uint32_t seq = 1; seq <= total; ++seq) {
     check(auditStoreAppend(makeRecord(seq, 1)), "append failed");
   }
-  std::fill(fakeAuditLog.bytes.begin(),
-            fakeAuditLog.bytes.begin() + AUDIT_STORE_HEADER_BYTES, 0xFF);
   AuditLogLatch recovered;
   auditStoreBootOpen(recovered, pendingAfter);
   AuditRecord page[2];
@@ -249,7 +191,7 @@ static void testAbsentPartitionAndClear() {
   for (uint32_t seq = 1; seq <= 5; ++seq) {
     check(auditStoreAppend(makeRecord(seq, 1)), "append failed");
   }
-  check(auditStoreCommitHeader() && auditStoreEraseAll(),
+  check(auditStoreEraseAll(),
         "clear must succeed on a live store");
   check(auditStoreStatus().retained == 0 && auditStoreStatus().seqHigh == 0,
         "clear must reset the window");
@@ -263,7 +205,6 @@ static void testIoFailureLeavesWindowConsistent() {
   for (uint32_t seq = 1; seq <= 4; ++seq) {
     check(auditStoreAppend(makeRecord(seq, 1)), "append failed");
   }
-  check(auditStoreCommitHeader(), "commit failed");
   fakeAuditFailWriteAt = fakeAuditOps + 1;
   check(!auditStoreAppend(makeRecord(5, 1)),
         "a failed program must report failure");
@@ -273,7 +214,6 @@ static void testIoFailureLeavesWindowConsistent() {
   check(auditStoreStatus().retained == 4,
         "a failed program must not corrupt the window");
   check(auditStoreAppend(makeRecord(6, 1)), "append works after the failure");
-  check(auditStoreCommitHeader(), "commit works after the failure");
   AuditRecord page[8];
   check(auditStoreCopyAfter(0, page, 8) == 5 && page[4].sequence == 6,
         "post-failure appends must be retained");
@@ -283,9 +223,7 @@ int main() {
   testRoundtripAndPaging();
   testBootBackfill();
   testTornRecordTerminal();
-  testUncommittedAppendRecovery();
   testFullWrap();
-  testMissingHeaderScan();
   testFullRingScanFindsOldest();
   testFirstLapStaleSectorKeepsWindow();
   testAbsentPartitionAndClear();
