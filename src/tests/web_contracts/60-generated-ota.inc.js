@@ -745,9 +745,10 @@ if (generated.jsGzip.length > 7850) {
 // Group transition curve and the no-interpolate-size fallback switch: 16921, owner-requested
 // 2026-10-22. Animated equipment rows without hover or text selection: 16932, owner-requested
 // 2026-10-22. Compact History cards grouped under day headers: 16955, owner-requested
-// 2026-10-23; cap 16955.
-if (generated.cssGzip.length > 16955) {
-  throw new Error(`Compressed Web CSS exceeds the 16955-byte gzip budget (${generated.cssGzip.length})`);
+// 2026-10-23; cap 16955. Settings scope notes, the Account group and one-weight outlined
+// History icons: 17073, owner-requested 2026-10-22; cap 17090.
+if (generated.cssGzip.length > 17090) {
+  throw new Error(`Compressed Web CSS exceeds the 17090-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -997,7 +998,9 @@ if (generated.otaImageGzip.length > 3072) {
 // Diagnostics section rows with icons (the page's icon sprite ships in the module): diagnostic.js at 14688, owner-requested 2026-10-22.
 // Settings autosave (per-field patches, Save/Revert removed) measures settings.js at 18282, owner-requested 2026-10-22; cap 18300 for asset-tag gzip wobble.
 // Compact History cards under day headers measure records.js at 15389, owner-requested 2026-10-23; cap 15420 for asset-tag gzip wobble.
-const viewModuleBudgets = {records: 15420, diagnostic: 14690, admin: 17880, settings: 18300, setup: 5870};
+// Settings scope notes and the Account group measure settings.js at 18413, and one-weight outlined
+// History icons measure records.js at 15420, owner-requested 2026-10-22; caps 18430 and 15440.
+const viewModuleBudgets = {records: 15440, diagnostic: 14690, admin: 17880, settings: 18430, setup: 5870};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
