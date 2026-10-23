@@ -1303,12 +1303,9 @@ function createFilterMenu(buttonId, title, groups, onChange) {
       n = count(),
       chip = b?.querySelector(".histFilterCount");
     if (!b) return;
-    b.setAttribute("aria-pressed", n ? "true" : "false");
+    b.setAttribute("aria-pressed", !!n);
     b.classList.toggle("btnFilterOn", !!n);
-    if (chip) {
-      chip.textContent = n;
-      chip.hidden = !n;
-    }
+    if (chip) Object.assign(chip, { textContent: n, hidden: !n });
   };
   const changed = () => {
     if (panel)
@@ -1377,14 +1374,16 @@ function createFilterMenu(buttonId, title, groups, onChange) {
         p.append(item);
       }
     }
-    p.addEventListener("change", (e) => {
-      const box = e.target;
-      if (box.type !== "checkbox") return;
-      const s = (sel[box.name] ??= new Set());
-      box.checked ? s.add(box.value) : s.delete(box.value);
-      changed();
-    });
+    // Picks are the shown boxes, so a stale one never filters unseen.
+    const pick = () => {
+      for (const k in sel) sel[k].clear();
+      for (const b of p.querySelectorAll(":checked")) (sel[b.name] ??= new Set()).add(b.value);
+    };
+    p.onchange = () => (pick(), changed());
     document.body.append(p);
+    const n = count();
+    pick();
+    count() < n && changed();
   };
   const toggle = (force) => {
     const b = $(buttonId);
