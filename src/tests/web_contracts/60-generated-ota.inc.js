@@ -749,9 +749,10 @@ if (generated.jsGzip.length > 7850) {
 // History icons: 17073, owner-requested 2026-10-22; cap 17090. Unfilled outlined History icons
 // and the La Marzocco scope note above Account: 17102, owner-requested 2026-10-22; cap 17120.
 // List filter groups and result dots, the Stats window bar, and icon-only Shots actions on
-// phones: 17134, owner-requested 2026-10-23; cap 17140.
-if (generated.cssGzip.length > 17140) {
-  throw new Error(`Compressed Web CSS exceeds the 17140-byte gzip budget (${generated.cssGzip.length})`);
+// phones: 17134, owner-requested 2026-10-23; cap 17140. Diagnostics closing rule and the
+// detached download button: 17146, owner-requested 2026-10-23; cap 17150.
+if (generated.cssGzip.length > 17150) {
+  throw new Error(`Compressed Web CSS exceeds the 17150-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.

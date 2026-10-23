@@ -296,7 +296,7 @@ duration cap and does not supervise automatic backflush.
 
 ### Cloud diagnostics and logs
 
-**Diagnostic → La Marzocco cloud**, immediately above **Misc**, shows the saved
+**Diagnostic → La Marzocco cloud**, immediately above **Compile flags**, shows the saved
 account email and the active selected machine. The email is visible to anyone
 who can view diagnostics. The panel also shows the most recently completed
 cloud call: its start date and time in UTC, API name and HTTP method, result,

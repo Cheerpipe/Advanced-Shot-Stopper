@@ -1651,8 +1651,12 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
   color: var(--ac);
   font-size: inherit;
 }
-#adminControls > .cfgGroup:last-child {
+#adminControls > .cfgGroup:last-child,
+#diagnosticsPanel > .cfgGroup:has(+ .btnBar) {
   border-bottom: 1px solid var(--ln);
+}
+#diagnosticsPanel > .cfgGroup + .btnBar {
+  margin-top: 1.25rem;
 }
 .cfgGroup:has(> summary > .cfgIcon) {
   padding-inline: 2.15rem 0.85rem;
