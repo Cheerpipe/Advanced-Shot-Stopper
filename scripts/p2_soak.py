@@ -20,9 +20,6 @@ from typing import Any
 COUNTERS = (
     "loopDeadlineMisses",
     "scaleWorkerDeadlineMisses",
-    "bleHostAllocFallback",
-    "hciRxDropped",
-    "hciTxDropped",
 )
 LIFECYCLE_FAMILIES = ("http", "wifi", "ota", "webhookTls", "micraTls")
 

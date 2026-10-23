@@ -481,7 +481,7 @@ inline void serialCliPrintHelp() {
       "DEBUG_OFF  serial off and ring none (persists, any time)  e.g. "
       "DEBUG_OFF");
   Serial.println(
-      "DEBUG_STATUS  show serialDebugOutput, serialLogLevel, ringRetain  e.g. "
+      "DEBUG_STATUS  show serialLogLevel, ringRetainLogLevel  e.g. "
       "DEBUG_STATUS");
   Serial.println(
       "WIFI_CONNECT  associate saved STA (no NVS change)  e.g. WIFI_CONNECT");
@@ -605,10 +605,6 @@ struct SerialCliHealthDump {
   uint32_t psramSizeBytes = 0;
   uint32_t psramFreeBytes = 0;
   uint32_t psramLargestFreeBlockBytes = 0;
-  uint32_t bleHostAllocPsramCount = 0;
-  uint32_t bleHostAllocFallbackCount = 0;
-  uint32_t bleHostHciRxDropped = 0;
-  uint32_t bleHostHciTxDropped = 0;
   uint8_t bleBackend = 0;
   uint8_t bleRuntimeState = 0;
   int32_t bleRuntimeLastError = 0;
@@ -805,12 +801,9 @@ inline void serialCliPrintNetStatus(const SerialCliNetworkDump &dump) {
   serialCliPrintWebuiStatus(dump);
 }
 
-inline void serialCliPrintDebugStatus(bool serialDebugOutput,
-                                      LogLevel serialLevel,
+inline void serialCliPrintDebugStatus(LogLevel serialLevel,
                                       LogLevel ringLevel) {
   Serial.println("DEBUG_STATUS");
-  Serial.print("serialDebugOutput=");
-  Serial.println(serialDebugOutput ? "true" : "false");
   Serial.print("serialLogLevel=");
   Serial.println(logLevelName(serialLevel));
   Serial.print("ringRetainLogLevel=");
@@ -839,14 +832,6 @@ inline void serialCliPrintHealth(const SerialCliHealthDump &dump) {
   Serial.println(static_cast<unsigned long>(dump.psramFreeBytes));
   Serial.print("psramLargest=");
   Serial.println(static_cast<unsigned long>(dump.psramLargestFreeBlockBytes));
-  Serial.print("bleHostAllocPsram=");
-  Serial.println(static_cast<unsigned long>(dump.bleHostAllocPsramCount));
-  Serial.print("bleHostAllocFallback=");
-  Serial.println(static_cast<unsigned long>(dump.bleHostAllocFallbackCount));
-  Serial.print("hciRxDropped=");
-  Serial.println(static_cast<unsigned long>(dump.bleHostHciRxDropped));
-  Serial.print("hciTxDropped=");
-  Serial.println(static_cast<unsigned long>(dump.bleHostHciTxDropped));
   Serial.print("bleBackend=");
   Serial.println("nimble");
   Serial.print("bleRuntimeState=");

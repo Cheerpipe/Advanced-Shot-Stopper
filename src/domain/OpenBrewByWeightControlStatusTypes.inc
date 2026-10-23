@@ -41,7 +41,6 @@ struct ControlStatusFields : ScaleLinkMetrics {
   bool circuitFeedbackClosed = false;
   uint32_t resetReasonCode = 0;
   uint32_t unsafeResetCount = 0;
-  bool resetRecoveryRequired = false;
   bool bootLoopDetected = false;
   uint8_t resetHistoryCount = 0;
   ResetHistoryEntry resetHistory[RESET_HISTORY_CAPACITY] = {};
@@ -82,14 +81,7 @@ struct ControlStatusFields : ScaleLinkMetrics {
   uint32_t psramFreeBytes = 0;
   uint32_t psramMinimumFreeBytes = 0;
   uint32_t psramLargestFreeBlockBytes = 0;
-  // Legacy diagnostic ABI. Native NimBLE exposes allocator health through the
-  // runtime snapshot; these counters intentionally remain zero.
-  uint32_t bleHostAllocPsramCount = 0;
-  uint32_t bleHostAllocFallbackCount = 0;
-  uint32_t bleHostHciRxDropped = 0;
-  uint32_t bleHostHciTxDropped = 0;
-  // Backend-neutral host lifecycle metrics. Legacy BLEHost* counters above
-  // remain during rollback compatibility and are removed only in phase 5.
+  // Backend-neutral host lifecycle metrics.
   uint8_t bleBackend = 2;  // Native NimBLE; retained in the diagnostic ABI.
   uint8_t bleRuntimeState = 0;
   int32_t bleRuntimeLastError = 0;

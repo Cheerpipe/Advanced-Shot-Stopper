@@ -11,11 +11,9 @@
 using namespace openbrewbyweight;
 
 int main() {
-  // The removed regression mode must parse as an alias, never as value 0.
   uint8_t parsedAlgorithm = 2;
-  assert(parseBbwAlgorithm("legacy", parsedAlgorithm) && parsedAlgorithm == 1);
-  assert(parseBbwAlgorithm("linear_ewma", parsedAlgorithm) &&
-         parsedAlgorithm == 1);
+  assert(!parseBbwAlgorithm("legacy", parsedAlgorithm));
+  assert(!parseBbwAlgorithm("linear_ewma", parsedAlgorithm));
   assert(!parseBbwAlgorithm("regression", parsedAlgorithm));
   assert(!parseBbwAlgorithm(nullptr, parsedAlgorithm));
   assert(parseBbwAlgorithm("corridor", parsedAlgorithm) && parsedAlgorithm == 1);

@@ -153,7 +153,7 @@ persist.
 | `SERIAL_DEBUG_OFF` | none | USB traces off; ring unchanged. Replies before silencing |
 | `DEBUG_FULL` | none | USB traces + ring at debug |
 | `DEBUG_OFF` | none | USB traces off and ring none. Replies before silencing |
-| `DEBUG_STATUS` | none | Shows `serialDebugOutput`, `serialLogLevel`, `ringRetainLogLevel` |
+| `DEBUG_STATUS` | none | Shows `serialLogLevel` and `ringRetainLogLevel` |
 
 ## Diagnostics
 

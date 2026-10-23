@@ -1471,7 +1471,6 @@ void t13_reset_path_starts_with_relay_open() {
   CHECK(stopperState == StopperState::REQUIRES_OFF);
   CHECK(getRelaySafetySnapshot().state == RelaySafetyState::OPEN);
   CHECK(getRelaySafetySnapshot().fault == RelaySafetyFault::NONE);
-  CHECK(!getRelaySafetySnapshot().resetRecoveryRequired);
 }
 
 void t14_automatic_stop_stays_open_while_activator_on() {
@@ -6382,6 +6381,7 @@ void d05c_scan_intensity_hci_presets() {
   CHECK(parseBleScanIntensityId("balanced", parsed));
   CHECK(parsed == BleScanIntensity::BALANCED);
   CHECK(!parseBleScanIntensityId("burst", parsed));
+  CHECK(!parseBleScanIntensityId("light", parsed));
   CHECK(strcmp(bleScanIntensityName(BleScanIntensity::BALANCED), "balanced") == 0);
 }
 
@@ -15028,20 +15028,6 @@ void bc08_ble_scan_superseded_requests_all_report_persisted() {
   CHECK(!bleScanPersistPending);
 }
 
-void bc09_ble_scan_legacy_intensity_ids_parse_as_aliases() {
-  BleScanIntensity intensity = BleScanIntensity::AGGRESSIVE;
-  CHECK(parseBleScanIntensityId("light", intensity));
-  CHECK(intensity == BleScanIntensity::RELAXED);
-  CHECK(parseBleScanIntensityId("normal", intensity));
-  CHECK(intensity == BleScanIntensity::BALANCED);
-  // New names stay authoritative and unknown ids still fail.
-  CHECK(parseBleScanIntensityId("relaxed", intensity));
-  CHECK(intensity == BleScanIntensity::RELAXED);
-  CHECK(parseBleScanIntensityId("balanced", intensity));
-  CHECK(intensity == BleScanIntensity::BALANCED);
-  CHECK(!parseBleScanIntensityId("medium", intensity));
-}
-
 void bc10_ble_master_switch_quiesces_scale_link() {
   resetHarness(false, true);
   reachReadyFromBoot();
@@ -15206,7 +15192,7 @@ void sc10_help_prints_one_line_per_command() {
   CHECK(serialTxContains("SERIAL_DEBUG_OFF  disable USB debug"));
   CHECK(serialTxContains("DEBUG_FULL  serial debug + ring DEBUG"));
   CHECK(serialTxContains("DEBUG_OFF  serial off and ring none"));
-  CHECK(serialTxContains("DEBUG_STATUS  show serialDebugOutput"));
+  CHECK(serialTxContains("DEBUG_STATUS  show serialLogLevel"));
   CHECK(serialTxContains("WIFI_CONNECT  associate saved STA"));
   CHECK(serialTxContains("WIFI_DISCONNECT  drop STA"));
   CHECK(serialTxContains("WIFI_RESTART  drop then reconnect"));
@@ -15371,10 +15357,6 @@ void sc15_status_printers_use_dump_views() {
   CHECK(serialTxContains("psramSize=0"));
   CHECK(serialTxContains("psramFree=0"));
   CHECK(serialTxContains("psramLargest=0"));
-  CHECK(serialTxContains("bleHostAllocPsram=0"));
-  CHECK(serialTxContains("bleHostAllocFallback=0"));
-  CHECK(serialTxContains("hciRxDropped=0"));
-  CHECK(serialTxContains("hciTxDropped=0"));
   CHECK(serialTxContains("workBufExternal=false"));
   CHECK(serialTxContains("jsonArenaExternal=false"));
   CHECK(serialTxContains("allocExternalFallback=0"));
@@ -15458,7 +15440,6 @@ void sc16_debug_status_and_log_dump() {
   Serial.tx.clear();
   feedSerial("DEBUG_STATUS\n");
   CHECK(serialTxContains("DEBUG_STATUS"));
-  CHECK(serialTxContains("serialDebugOutput=false"));
   CHECK(serialTxContains("serialLogLevel=none"));
   CHECK(serialTxContains("ringRetainLogLevel=info"));
   addDebugEvent(DebugCategory::CONFIG, DebugCode::CONFIG_ACCEPTED);
@@ -22633,7 +22614,6 @@ const TestCase testCases[] = {
     {"BC06", bc06_micra_scan_override_selects_discovery_duty},
     {"BC07", bc07_ble_scan_relaxed_with_disabled_switch_is_api_valid},
     {"BC08", bc08_ble_scan_superseded_requests_all_report_persisted},
-    {"BC09", bc09_ble_scan_legacy_intensity_ids_parse_as_aliases},
     {"BC10", bc10_ble_master_switch_quiesces_scale_link},
     {"BC11", bc11_ble_master_switch_command_persists_live_without_restart},
     {"CM01", cm01_compatibility_mirror_follows_activator},

@@ -273,7 +273,6 @@ void publishControlStatus() {
   next.circuitFeedbackClosed = relay.feedbackClosed;
   next.resetReasonCode = relay.resetReasonCode;
   next.unsafeResetCount = relay.unsafeResetCount;
-  next.resetRecoveryRequired = relay.resetRecoveryRequired;
   next.bootLoopDetected = relay.bootLoopDetected;
   next.resetHistoryCount = relay.resetHistoryCount;
   for (uint8_t i = 0; i < next.resetHistoryCount; ++i)
@@ -348,10 +347,6 @@ void publishControlStatus() {
   next.psramFreeBytes = psramFreeBytes;
   next.psramMinimumFreeBytes = psramMinimumFreeBytes;
   next.psramLargestFreeBlockBytes = psramLargestFreeBlockBytes;
-  next.bleHostAllocPsramCount = bleHostAllocPsramCount;
-  next.bleHostAllocFallbackCount = bleHostAllocFallbackCount;
-  next.bleHostHciRxDropped = bleHostHciRxDropped;
-  next.bleHostHciTxDropped = bleHostHciTxDropped;
   next.bleBackend = 2;
   next.bleRuntimeState = bleRuntimeState;
   next.bleRuntimeLastError = bleRuntimeLastError;
@@ -819,10 +814,6 @@ void serialCliPrintLiveHealth() {
   dump.psramSizeBytes = psramSizeBytes;
   dump.psramFreeBytes = psramFreeBytes;
   dump.psramLargestFreeBlockBytes = psramLargestFreeBlockBytes;
-  dump.bleHostAllocPsramCount = bleHostAllocPsramCount;
-  dump.bleHostAllocFallbackCount = bleHostAllocFallbackCount;
-  dump.bleHostHciRxDropped = bleHostHciRxDropped;
-  dump.bleHostHciTxDropped = bleHostHciTxDropped;
   dump.bleBackend = 2;
   dump.bleRuntimeState = bleRuntimeState;
   dump.bleRuntimeLastError = bleRuntimeLastError;
@@ -1089,8 +1080,7 @@ void dispatchSerialCliRequest(SerialCliRequest &request) {
       serialCliApplyDebugPersist(false, LogLevel::NONE, "OK debug off");
       return;
     case SerialCliVerb::DEBUG_STATUS:
-      serialCliPrintDebugStatus(serialLogLevel != LogLevel::NONE, serialLogLevel,
-                                ringRetainLogLevel);
+      serialCliPrintDebugStatus(serialLogLevel, ringRetainLogLevel);
       return;
     case SerialCliVerb::WIFI_CONNECT:
       serialCliQueueNetworkAction(WebCommandType::WIFI_CONNECT, request.verb);

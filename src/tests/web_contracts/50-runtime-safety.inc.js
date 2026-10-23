@@ -243,7 +243,7 @@ if (network.includes('page == StatusPage::Diagnostic')) {
     'weightUpdateIntervalMs', 'maxPacketGapMs',
     'lastCommand', 'loopMaxGapMs',
     'machineState', 'physicalActivatorOn', 'reedOn', 'controlSource', 'cupPresence',
-    'streamState', 'controlState', 'taskWatchdogReady', 'recoveryRequired',
+    'streamState', 'controlState', 'taskWatchdogReady',
     'compileFlags', 'remoteMachineControl', 'hardwareProfile', 'machineProfile',
     'machineBrand', 'machineModel', 'serial', 'io4',
     'crashCount', 'resetHistory', 'supportedCommands', 'guards'
@@ -392,10 +392,9 @@ if (sharedRingOpen < 0) {
 }
 const ringOpenSlice = statusFormat.slice(sharedRingOpen, sharedRingOpen + 180);
 if (ringOpenSlice.includes('timezoneOffsetMinutes') ||
-    ringOpenSlice.includes('ntpServerPreset') ||
-    ringOpenSlice.includes('serialDebugOutput')) {
+    ringOpenSlice.includes('ntpServerPreset')) {
   throw new Error(
-      'NTP/serialDebug must not share the revision/ringRetainLogLevel open append');
+      'NTP must not share the revision/ringRetainLogLevel open append');
 }
 if (!codeIncludes(ui, 
         "typeof s.buzzerSupported==='boolean')updateBuzzerAlertVisibility") &&

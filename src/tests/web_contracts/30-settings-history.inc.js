@@ -480,7 +480,6 @@ if (!codeIncludes(ui, '<legend>Presets</legend>') ||
       !diagHtml.includes('id="dFault"') ||
       !diagHtml.includes('id="dWatchdog"') ||
       !diagHtml.includes('id="dExternal"') ||
-      !diagHtml.includes('id="dRecovery"') ||
       !diagHtml.includes('id="dStream"') ||
       !diagHtml.includes('id="dControl"') ||
       !diagHtml.includes('id="dScaleRssi"') ||

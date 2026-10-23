@@ -38,7 +38,7 @@
 
     // A fresh home stream reporting an active cycle keeps it on any view.
     api.setFrame(null);
-    api.setHome(false, {cycle: {active: true}});
+    api.setHome(false, {liveShot: true, cycle: {active: true}});
     now = 9000;
     assert.equal(api.polling(), true, 'a live cycle on the home stream must keep the session');
 

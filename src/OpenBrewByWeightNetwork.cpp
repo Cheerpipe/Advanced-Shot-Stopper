@@ -285,8 +285,6 @@ constexpr const char *STATUS_FORBIDDEN = "403 Forbidden";
 constexpr const char *STATUS_TOO_LARGE = "413 Content Too Large";
 constexpr const char *STATUS_SERVER_ERROR = "500 Internal Server Error";
 constexpr const char *DEVICE_PASSWORD_HEADER = "X-Device-Password";
-// Legacy header name kept so older CLI scripts still authenticate.
-constexpr const char *DEVICE_PASSWORD_HEADER_LEGACY = "X-OTA-Token";
 constexpr const char *OTA_ALLOW_DOWNGRADE_HEADER = "X-OTA-Allow-Downgrade";
 constexpr const char *OTA_TRANSFER_HEADER = "X-OTA-Transfer";
 constexpr const char *OTA_OFFSET_HEADER = "X-OTA-Offset";

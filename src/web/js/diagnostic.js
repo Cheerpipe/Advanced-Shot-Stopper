@@ -606,10 +606,6 @@ function applyDiagnosticLive(s) {
       ? __WEBUI_TEXT__("runtime.present_2")
       : __WEBUI_TEXT__("runtime.not_configured"),
   );
-  t(
-    "dRecovery",
-    sf.recoveryRequired ? __WEBUI_TEXT__("runtime.required") : __WEBUI_TEXT__("runtime.none_2"),
-  );
   t("dStream", sc.streamState);
   t("dControl", sc.controlState);
   t("dScaleRssi", typeof sc.rssi === "number" ? sc.rssi + __WEBUI_TEXT__("runtime.dbm") : "");

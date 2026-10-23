@@ -4,7 +4,7 @@
   if (!codeIncludes(machineFn, "scaleConnectedLed:$('scaleConnectedLed').checked") ||
       machineFn.includes('ntpServerPreset') ||
       machineFn.includes('timezoneOffsetMinutes') ||
-      machineFn.includes('serialDebugOutput') ||
+      machineFn.includes('serialLogLevel') ||
       machineFn.includes('ringRetainLogLevel') ||
       machineFn.includes('goalWeightG') ||
       machineFn.includes('brewByWeight') ||
@@ -625,7 +625,7 @@ if (network.includes('return "safety_recovery"') ||
     codeIncludes(ui, "safety_lockout:'safety lockout'")) {
   throw new Error('Safety recovery must not lock the WebUI');
 }
-if (!codeIncludes(ui, "s.safety.recoveryRequired||s.safety.state==='LOCKOUT'") ||
+if (!codeIncludes(ui, "relayStartReady=s.safety.state!=='LOCKOUT'") ||
     !codeIncludes(ui, 'admin&&remoteReady&&relayStartReady&&canControl') ||
     !codeIncludes(ui, "live?'Stop shot':'Start shot'") ||
     !codeIncludes(ui, "dataset.mode==='stop'") ||

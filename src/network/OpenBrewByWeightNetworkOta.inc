@@ -1041,17 +1041,13 @@ void appendOtaTag(char *buffer, size_t capacity, size_t &used,
 
 bool OpenBrewByWeightNetwork::authorizeOtaRequest(httpd_req_t *request) {
   char password[WIFI_PASSWORD_CAPACITY] = {};
-  const char *header = DEVICE_PASSWORD_HEADER;
-  size_t length = httpd_req_get_hdr_value_len(request, header);
-  if (length == 0) {
-    header = DEVICE_PASSWORD_HEADER_LEGACY;
-    length = httpd_req_get_hdr_value_len(request, header);
-  }
+  const size_t length =
+      httpd_req_get_hdr_value_len(request, DEVICE_PASSWORD_HEADER);
   // The header shares the sign-in failure counter and cooldown, so it cannot
   // be used to guess the password faster than the sign-in page.
   const bool passwordAuthorized =
       length > 0 && length + 1 <= sizeof(password) &&
-      httpd_req_get_hdr_value_str(request, header, password,
+      httpd_req_get_hdr_value_str(request, DEVICE_PASSWORD_HEADER, password,
                                   sizeof(password)) == ESP_OK &&
       checkDevicePassword(password) == PasswordCheck::OK;
   memset(password, 0, sizeof(password));

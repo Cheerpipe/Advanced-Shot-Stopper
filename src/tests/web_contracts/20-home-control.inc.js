@@ -1045,14 +1045,12 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
         html.indexOf('<summary>Scale guard</summary>') ||
     html.indexOf('id="noScaleBbwMode"') <
         html.indexOf('id="brewConflictChip"') ||
-    !network.includes('avoidBbwShotWithoutScale') ||
     !network.includes('noScaleBbwMode') ||
     !network.includes('noScaleAllowRinseWhileArmed') ||
     !network.includes('warn_once') ||
     !network.includes('require_scale') ||
-    !network.includes('not both') ||
     !network.includes('lastShotCooldownMs') ||
-    !network.includes('serialDebugOutput') ||
+    !network.includes('serialLogLevel') ||
     !network.includes('ringRetainLogLevel') ||
     !network.includes('noScaleShotGuard') ||
     !network.includes('noScaleShotGuardEnabled') ||

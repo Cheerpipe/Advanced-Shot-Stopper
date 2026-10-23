@@ -352,7 +352,7 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
         "\"cupRemovedWeightG\":%.1f,"
         "\"scaleMacCacheMode\":\"%s\","
         "\"bookooMuteOnBuzzerOnly\":%s,\"bookooConnectBeepLevel\":%u,"
-        "\"avoidBbwShotWithoutScale\":%s,\"noScaleBbwMode\":\"%s\","
+        "\"noScaleBbwMode\":\"%s\","
         "\"noScaleAllowRinseWhileArmed\":%s,\"lastShotCooldownMs\":%lu",
         static_cast<double>(goalWeightDgToGrams(control.config.goalWeightDg)),
         static_cast<double>(control.config.weightOffsetG),
@@ -420,7 +420,6 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
         scaleMacCacheModeId(control.config.scaleMacCacheMode),
         control.config.bookooMuteOnBuzzerOnly ? "true" : "false",
         static_cast<unsigned>(control.config.bookooConnectBeepLevel),
-        noScaleBbwEnabled(control.config.noScaleBbwMode) ? "true" : "false",
         noScaleBbwModeId(control.config.noScaleBbwMode),
         noScaleAllowRinseWhileArmed(control.config.noScaleBbwMode) ? "true"
                                                                  : "false",

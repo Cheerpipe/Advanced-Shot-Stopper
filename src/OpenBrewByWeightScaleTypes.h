@@ -212,16 +212,6 @@ inline bool parseBleScanIntensityId(const char *id, BleScanIntensity &out) {
     out = BleScanIntensity::BALANCED;
     return true;
   }
-  // Legacy wire names from before the Relaxed/Balanced rename; accepted as
-  // input aliases only, never emitted.
-  if (strcmp(id, "light") == 0) {
-    out = BleScanIntensity::RELAXED;
-    return true;
-  }
-  if (strcmp(id, "normal") == 0) {
-    out = BleScanIntensity::BALANCED;
-    return true;
-  }
   return false;
 }
 
@@ -268,8 +258,7 @@ inline bool parseScaleMacCacheMode(const char *text, uint8_t &mode) {
   if (text == nullptr) {
     return false;
   }
-  // Legacy wire strings from the Always-use checkbox era.
-  if (strcmp(text, "first") == 0 || strcmp(text, "disabled") == 0) {
+  if (strcmp(text, "first") == 0) {
     mode = static_cast<uint8_t>(ScaleMacCacheMode::FIRST);
     return true;
   }
@@ -277,7 +266,7 @@ inline bool parseScaleMacCacheMode(const char *text, uint8_t &mode) {
     mode = static_cast<uint8_t>(ScaleMacCacheMode::PREFER);
     return true;
   }
-  if (strcmp(text, "only") == 0 || strcmp(text, "full") == 0) {
+  if (strcmp(text, "only") == 0) {
     mode = static_cast<uint8_t>(ScaleMacCacheMode::ONLY);
     return true;
   }

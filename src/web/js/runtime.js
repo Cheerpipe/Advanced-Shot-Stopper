@@ -599,9 +599,7 @@ function sessionShotLive() {
   const s = homeFrame && homeFrame.status;
   return !!(
     (shotFrame && shotFrame.card.valid && shotFrame.card.live && !shotStale) ||
-    (!homeStale &&
-      s &&
-      (s.liveShot || (s.cycle && s.cycle.active) || s.machineRunning || s.relayClosed))
+    (!homeStale && s && (s.liveShot || s.machineRunning))
   );
 }
 // /setup (captive portal) needs no ownership: its endpoints are authorized by
@@ -3075,11 +3073,9 @@ function renderLog() {
     if (f && e.category !== f) continue;
     if ((r[e.level] ?? 3) > m) continue;
     o += e.line ??=
-      (e.wallSec
-        ? formatWallTimeLocal(e.localSec ?? e.wallSec)
-        : "+" + ((e.atMs || 0) / 1000).toFixed(3) + "s") +
+      (e.wallSec ? formatWallTimeLocal(e.localSec) : "+" + (e.atMs / 1000).toFixed(3) + "s") +
       " " +
-      (e.level || "info").toUpperCase() +
+      e.level.toUpperCase() +
       " [" +
       e.category +
       "] " +
@@ -6159,7 +6155,7 @@ function applyCommonStatus(s) {
   applyMachineTypeUi(s);
 }
 function applyMachineTypeUi(s) {
-  const t = s.machineType || (s.compileFlags && s.compileFlags.machineType) || "paddle";
+  const t = s.machineType;
   document.documentElement.classList.toggle("momentaryMachine", t !== "paddle");
   document.documentElement.classList.toggle("reedMachine", t === "momentary_reed");
   document.documentElement.classList.toggle(
@@ -6225,11 +6221,7 @@ function loadSettingsConfig(c) {
     const el = $(k);
     if (el) el.checked = !!c[k];
   });
-  $("noScaleBbwMode").value = ["off", "warn_once", "require_scale"].includes(c.noScaleBbwMode)
-    ? c.noScaleBbwMode
-    : c.avoidBbwShotWithoutScale
-      ? "warn_once"
-      : "off";
+  $("noScaleBbwMode").value = c.noScaleBbwMode;
   $("buzzerExtendedPulseRate").value = extRate(c.buzzerExtendedPulseRate);
   $("buzzerSlowExtendedPulseRate").value = extRate(c.buzzerSlowExtendedPulseRate);
   $("alertOutputChannel").value = ["scale_only", "buzzer_only", "scale_priority"].includes(
@@ -6241,14 +6233,7 @@ function loadSettingsConfig(c) {
     [0, 1, 2, 3, 4, 5].includes(+c.bookooConnectBeepLevel) ? +c.bookooConnectBeepLevel : 4,
   );
   if ($("scalePreference")) {
-    const m = ["first", "prefer", "only"].includes(c.scaleMacCacheMode)
-      ? c.scaleMacCacheMode
-      : c.scaleMacCacheMode === "full" || c.scaleMacCacheMode === "only"
-        ? "only"
-        : c.scaleMacCacheMode === "prefer"
-          ? "prefer"
-          : "first";
-    $("scalePreference").value = m;
+    $("scalePreference").value = c.scaleMacCacheMode;
     updateScalePreferenceOptions();
   }
   if ($("paddleMode"))
@@ -6301,13 +6286,13 @@ function applyHomeStatus(s) {
   const admin = !!s.adminUnlocked,
     canControl = controlsMutable,
     remoteReady = !!s.remoteControlEnabled,
-    relayStartReady = !(s.safety && (s.safety.recoveryRequired || s.safety.state === "LOCKOUT")),
+    relayStartReady = s.safety.state !== "LOCKOUT",
     live = !!s.machineRunning,
     shot = $("stopButton"),
     force = $("forcePulseButton"),
     g = shot && shot.querySelector(".g"),
     t = shot && shot.querySelector(".t"),
-    switchOnly = (s.machineType || (s.compileFlags && s.compileFlags.machineType)) === "momentary";
+    switchOnly = s.machineType === "momentary";
   syncAdminSessionUi(admin, remoteReady);
   // Stream frames repeat most values: unchanged text is not rewritten.
   setHomeSub("machineState", formatMachineState(s));
@@ -6335,7 +6320,7 @@ function applyHomeStatus(s) {
       remoteReady &&
       relayStartReady &&
       canControl &&
-      (s.config ? s.config.rinseEnabled === true : true)
+      s.config.rinseEnabled === true
     );
   if (shot) {
     shot.dataset.mode = live ? "stop" : "start";
@@ -6431,11 +6416,9 @@ async function loadStatus() {
       throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
     lastStatusAt = Date.now();
     if (v !== "diagnostic") {
-      if (typeof s.liveShot === "boolean") statusLiveShot = s.liveShot;
-      else if (s.cycle || typeof s.relayClosed === "boolean")
-        statusLiveShot = !!((s.cycle && s.cycle.active) || s.machineRunning || s.relayClosed);
+      statusLiveShot = s.liveShot;
+      applyCommonStatus(s);
     }
-    if (v !== "diagnostic") applyCommonStatus(s);
     if (s.snapshotStale) setMutable(false);
     const apply = viewStatusHandlers[v];
     if (apply) apply(s);

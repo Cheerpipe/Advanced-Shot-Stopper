@@ -1887,8 +1887,8 @@ void notePreferredScale(const char *mac, const char *name) {
   }
 }
 
-// Clear preferred without the Forget 30 s pause (API compatibility path).
-void clearPreferredScaleSelectionOnly() {
+// Settings choosing no preferred scale: clear it without the Forget 30 s pause.
+static void clearPreferredScaleSelectionOnly() {
   scalePreferredMacMux.lock();
   scalePreferredMac[0] = '\0';
   scalePreferredName[0] = '\0';

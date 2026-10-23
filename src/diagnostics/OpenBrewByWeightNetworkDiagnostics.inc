@@ -77,7 +77,7 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            "\"envelope\":{\"configMutable\":%s,\"liveShot\":%s,"
            "\"snapshotStale\":%s,"
            "\"configRevision\":%lu,\"ringRetainLogLevel\":\"%s\","
-           "\"serialLogLevel\":\"%s\",\"serialDebugOutput\":%s,"
+           "\"serialLogLevel\":\"%s\","
            "\"bootState\":\"%s\",\"bootComplete\":%s,\"bootDegraded\":%s,"
            "\"settingsPersistenceReady\":%s,"
            "\"scaleWorkerReady\":%s},",
@@ -89,8 +89,6 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            logLevelName(
                static_cast<LogLevel>(c.config.ringRetainLogLevel)),
            logLevelName(serialLogLevelFromRuntime(c.config)),
-           serialLogLevelFromRuntime(c.config) != LogLevel::NONE ? "true"
-                                                                  : "false",
            bootStateName(c.bootState),
            c.bootComplete ? "true" : "false",
            c.bootDegraded ? "true" : "false",
@@ -117,13 +115,13 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            "\"cupProtectionEnabled\":%s,\"stopIfCupRemoved\":%s,"
            "\"requireCupToStart\":%s,\"avoidAccidentalTouchEnabled\":%s,"
            "\"cupRemovedWeightG\":%.1f,"
-           "\"avoidBbwShotWithoutScale\":%s,\"noScaleBbwMode\":\"%s\","
+           "\"noScaleBbwMode\":\"%s\","
            "\"noScaleAllowRinseWhileArmed\":%s,\"autoRetare\":%s,"
            "\"retareWindowMs\":%lu,\"minimumCupWeightG\":%.1f,"
            "\"lastShotCooldownMs\":%lu,\"timezoneId\":\"%s\","
            "\"appliedTimezoneOffsetMinutes\":%d,\"timezoneOffsetKnown\":%s,"
            "\"tzdbVersion\":\"%s\",\"timezoneResolution\":\"%s\","
-           "\"serialLogLevel\":\"%s\",\"serialDebugOutput\":%s,"
+           "\"serialLogLevel\":\"%s\","
            "\"powerManagementEnabled\":%s},",
            static_cast<unsigned long>(c.config.revision),
            static_cast<double>(goalWeightDgToGrams(c.config.goalWeightDg)),
@@ -157,7 +155,6 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            c.config.requireCupToStart ? "true" : "false",
            c.config.avoidAccidentalTouchEnabled ? "true" : "false",
            static_cast<double>(c.config.cupRemovedWeightG),
-           noScaleBbwEnabled(c.config.noScaleBbwMode) ? "true" : "false",
            noScaleBbwModeId(c.config.noScaleBbwMode),
            noScaleAllowRinseWhileArmed(c.config.noScaleBbwMode) ? "true"
                                                               : "false",
@@ -169,8 +166,6 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            timezoneOffsetKnown ? "true" : "false", tzdb::kVersion,
            timeZoneResolution(c.config.timezoneId, timeStatus.utcSec),
            logLevelName(serialLogLevelFromRuntime(c.config)),
-           serialLogLevelFromRuntime(c.config) != LogLevel::NONE ? "true"
-                                                                  : "false",
            c.config.powerManagementEnabled ? "true" : "false");
 
   if (self.callbacks_.copyPresetBank != nullptr) {
@@ -330,7 +325,7 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            "\"watchdogReady\":%s,\"timersReady\":%s,\"tripped\":%s,"
            "\"operationalTripped\":%s,\"generation\":%lu,\"closedAtMs\":%lu,"
            "\"operationalLimitMs\":%lu,\"resetReasonCode\":%lu,"
-           "\"unsafeResetCount\":%lu,\"resetRecoveryRequired\":%s,"
+           "\"unsafeResetCount\":%lu,"
            "\"bootLoopDetected\":%s,\"resetHistory\":[",
            relaySafetyStateName(x.relay.state),
            relaySafetyFaultName(x.relay.fault),
@@ -348,7 +343,6 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<unsigned long>(x.relay.operationalLimitMs),
            static_cast<unsigned long>(x.relay.resetReasonCode),
            static_cast<unsigned long>(x.relay.unsafeResetCount),
-           x.relay.resetRecoveryRequired ? "true" : "false",
            x.relay.bootLoopDetected ? "true" : "false");
   for (uint8_t i = 0; i < x.relay.resetHistoryCount; ++i) {
     const ResetHistoryEntry &entry = x.relay.resetHistory[i];
@@ -601,9 +595,7 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            "\"internalHeapFragmentationPermille\":%u,"
            "\"psramSizeBytes\":%lu,\"psramFreeBytes\":%lu,"
            "\"psramMinimumFreeBytes\":%lu,"
-           "\"psramLargestFreeBlockBytes\":%lu,\"bleHostAllocPsram\":%lu,"
-           "\"bleHostAllocFallback\":%lu,\"hciRxDropped\":%lu,"
-           "\"hciTxDropped\":%lu,\"bleBackend\":\"%s\","
+           "\"psramLargestFreeBlockBytes\":%lu,\"bleBackend\":\"%s\","
            "\"bleRuntimeState\":%u,\"bleRuntimeLastError\":%ld,"
            "\"bleRuntimeLastResetReason\":%ld,"
            "\"bleRuntimeSyncGeneration\":%lu,\"bleRuntimeResetCount\":%lu,"
@@ -640,10 +632,6 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            static_cast<unsigned long>(c.psramFreeBytes),
            static_cast<unsigned long>(c.psramMinimumFreeBytes),
            static_cast<unsigned long>(c.psramLargestFreeBlockBytes),
-           static_cast<unsigned long>(c.bleHostAllocPsramCount),
-           static_cast<unsigned long>(c.bleHostAllocFallbackCount),
-           static_cast<unsigned long>(c.bleHostHciRxDropped),
-           static_cast<unsigned long>(c.bleHostHciTxDropped),
            "nimble",
            static_cast<unsigned>(c.bleRuntimeState),
            static_cast<long>(c.bleRuntimeLastError),
@@ -684,14 +672,13 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            request, buf, cap,
            "\"safety\":{\"state\":\"%s\",\"fault\":\"%s\","
            "\"taskWatchdogReady\":%s,\"externalHardware\":%s,"
-           "\"recoveryRequired\":%s,\"resetReasonCode\":%lu,"
+           "\"resetReasonCode\":%lu,"
            "\"unsafeResetCount\":%lu,\"bootLoopDetected\":%s,"
            "\"safetyGeneration\":%lu,\"safetyTimersReady\":%s},",
            relaySafetyStateName(c.safetyState),
            relaySafetyFaultName(c.safetyFault),
            c.taskWatchdogReady ? "true" : "false",
            c.externalSafetyPresent ? "true" : "false",
-           c.resetRecoveryRequired ? "true" : "false",
            static_cast<unsigned long>(c.resetReasonCode),
            static_cast<unsigned long>(c.unsafeResetCount),
            c.bootLoopDetected ? "true" : "false",

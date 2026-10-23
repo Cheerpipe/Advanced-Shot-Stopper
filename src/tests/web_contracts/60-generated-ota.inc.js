@@ -113,8 +113,7 @@ for (const [machineType, forbidden] of Object.entries(machineTypeExclusive)) {
   const ioPanelStart = machineTypePartial.indexOf('Machine I/O');
   const scalePanelStart = machineTypePartial.indexOf('Scale', ioPanelStart);
   const ioPanel = machineTypePartial.slice(ioPanelStart, scalePanelStart);
-  for (const keptId of ['dActivator', 'dRelay', 'dSafety', 'dWatchdog',
-    'dRecovery']) {
+  for (const keptId of ['dActivator', 'dRelay', 'dSafety', 'dWatchdog']) {
     if (!ioPanel.includes(keptId)) {
       throw new Error(`machine-type ${machineType} diagnostic Machine I/O ` +
           `panel must keep ${keptId}`);

@@ -143,15 +143,10 @@ esp_err_t OpenBrewByWeightNetwork::configHandler(httpd_req_t *request) {
   const bool bullseyeRtttlPresent = jsonFieldPresent(root, "bullseyeRtttl");
   const bool bullseyeConfigSpecified =
       bullseyeEnabledPresent || bullseyeRtttlPresent;
-  bool legacyAvoidBbwShotWithoutScale =
-      noScaleBbwEnabled(candidate.noScaleBbwMode);
-  bool legacyNoScalePresent = false;
   uint8_t parsedNoScaleMode = noScaleBbwModeValue(candidate.noScaleBbwMode);
   bool parsedAllowRinseWhileArmed =
       noScaleAllowRinseWhileArmed(candidate.noScaleBbwMode);
   bool parsedAccessoryRetare = idleAccessoryRetareEnabled(candidate.noScaleBbwMode);
-  bool legacySerialDebugOutput = false;
-  uint8_t requestedSerialLogLevel = 0;
   char customNtp[NTP_SERVER_HOST_CAPACITY] = {};
   memcpy(customNtp, candidate.ntpServerCustom, sizeof(customNtp));
   static const char *const fields[] = {
@@ -181,9 +176,9 @@ esp_err_t OpenBrewByWeightNetwork::configHandler(httpd_req_t *request) {
       "timezoneDetected", "timezoneAutomatic", "ntpSyncEnabled",
       "ntpServerPreset",
       "ntpServerCustom", "scaleMacCacheMode", "preferredScaleMac", "bookooMuteOnBuzzerOnly",
-      "bookooConnectBeepLevel", "noScaleBbwMode", "avoidBbwShotWithoutScale",
+      "bookooConnectBeepLevel", "noScaleBbwMode",
       "noScaleAllowRinseWhileArmed", "lastShotCooldownMs",
-      "serialLogLevel", "serialDebugOutput", "ringRetainLogLevel", "showDiagnosticPage",
+      "serialLogLevel", "ringRetainLogLevel", "showDiagnosticPage",
       "powerManagementEnabled"};
   const char *parseError = nullptr;
   size_t settingFieldCount = 0;
@@ -469,10 +464,6 @@ esp_err_t OpenBrewByWeightNetwork::configHandler(httpd_req_t *request) {
               candidate.bookooConnectBeepLevel > BOOKOO_BEEP_LEVEL_MAX)) {
     parseError = "bookooConnectBeepLevel must be an integer from 0 to 5.";
   } else if (jsonFieldPresent(root, "noScaleBbwMode") &&
-             jsonFieldPresent(root, "avoidBbwShotWithoutScale")) {
-    parseError =
-        "Send noScaleBbwMode or avoidBbwShotWithoutScale, not both.";
-  } else if (jsonFieldPresent(root, "noScaleBbwMode") &&
              !jsonNoScaleBbwMode(root, "noScaleBbwMode", parsedNoScaleMode)) {
     parseError =
         "noScaleBbwMode must be off, warn_once, or require_scale.";
@@ -480,28 +471,14 @@ esp_err_t OpenBrewByWeightNetwork::configHandler(httpd_req_t *request) {
              !jsonBoolean(root, "noScaleAllowRinseWhileArmed",
                           parsedAllowRinseWhileArmed)) {
     parseError = "noScaleAllowRinseWhileArmed must be a boolean.";
-  } else if (jsonFieldPresent(root, "avoidBbwShotWithoutScale") &&
-             !jsonBoolean(root, "avoidBbwShotWithoutScale",
-                          legacyAvoidBbwShotWithoutScale)) {
-    parseError = "avoidBbwShotWithoutScale must be a boolean.";
   } else if (jsonFieldPresent(root, "lastShotCooldownMs") &&
              !jsonUint32(root, "lastShotCooldownMs",
                          candidate.lastShotCooldownMs)) {
     parseError = "lastShotCooldownMs must be an integer (milliseconds).";
   } else if (jsonFieldPresent(root, "serialLogLevel") &&
-             !jsonLogLevel(root, "serialLogLevel", requestedSerialLogLevel)) {
+             !jsonLogLevel(root, "serialLogLevel", candidate.serialLogLevel)) {
     parseError =
         "serialLogLevel must be none, critical, error, warning, info, or debug.";
-  } else if (jsonFieldPresent(root, "serialDebugOutput") &&
-             !jsonBoolean(root, "serialDebugOutput",
-                          legacySerialDebugOutput)) {
-    parseError = "serialDebugOutput must be a boolean.";
-  } else if (jsonFieldPresent(root, "serialLogLevel")) {
-    setSerialLogLevel(candidate,
-                      static_cast<LogLevel>(requestedSerialLogLevel));
-  } else if (jsonFieldPresent(root, "serialDebugOutput")) {
-    setSerialLogLevel(candidate, legacySerialDebugOutput ? LogLevel::INFO
-                                                          : LogLevel::NONE);
   } else if (jsonFieldPresent(root, "showDiagnosticPage") &&
              !jsonBoolean(root, "showDiagnosticPage",
                           candidate.showDiagnosticPage)) {
@@ -529,8 +506,6 @@ esp_err_t OpenBrewByWeightNetwork::configHandler(httpd_req_t *request) {
          (timezoneDetected && candidate.timezoneAutomatic)) &&
         jsonHasOnlyUniqueFields(root, browserFields, 4);
     baseRevisionPresent = jsonFieldPresent(root, "baseRevision");
-    legacyNoScalePresent =
-        jsonFieldPresent(root, "avoidBbwShotWithoutScale");
     cJSON_Delete(root);
   }
   self.unlockJsonBody();
@@ -567,11 +542,6 @@ esp_err_t OpenBrewByWeightNetwork::configHandler(httpd_req_t *request) {
   if (timezoneIdPresent) {
     candidate.timezoneSource = timezoneAutoInit ? 3 :
         timezoneDetected ? (browserTimezonePatch ? 4 : 1) : 2;
-  }
-  if (legacyNoScalePresent) {
-    parsedNoScaleMode = static_cast<uint8_t>(
-        legacyAvoidBbwShotWithoutScale ? NoScaleBbwMode::WARN_ONCE
-                                       : NoScaleBbwMode::OFF);
   }
   candidate.noScaleBbwMode =
       packNoScaleBbwMode(parsedNoScaleMode, parsedAllowRinseWhileArmed) |
@@ -1018,7 +988,7 @@ esp_err_t OpenBrewByWeightNetwork::presetsHandler(httpd_req_t *request) {
         if (jsonFieldPresent(root, "bbwAlgorithm") &&
             (!jsonString(root, "bbwAlgorithm", algorithmName, sizeof(algorithmName), false) ||
              !parseBbwAlgorithm(algorithmName, algorithm)))
-          parseError = "bbwAlgorithm must be corridor (legacy and linear_ewma are accepted aliases).";
+          parseError = "bbwAlgorithm must be corridor.";
         if (jsonFieldPresent(root, "bbwAlpha") ||
             jsonFieldPresent(root, "bbwEwmaAlpha") ||
             jsonFieldPresent(root, "bbwAlphaLearned") ||

@@ -172,7 +172,6 @@ bool OpenBrewByWeightNetwork::sendHomeStream(UiStreamSession &session,
   delta.field("physicalActivatorOn", bool(control.physicalActivatorOn));
   delta.field("remoteControlEnabled", bool(control.remoteControlEnabled));
   delta.field("safety.state", "\"%s\"", relaySafetyStateName(control.safetyState));
-  delta.field("safety.recoveryRequired", bool(control.resetRecoveryRequired));
   delta.field("backflush.waiting", bool(control.backflushWaiting));
   delta.field("backflush.ready", bool(control.backflushReady));
   delta.field("backflush.unresolved", bool(control.backflushUnresolved));
@@ -405,7 +404,6 @@ bool OpenBrewByWeightNetwork::sendDiagnosticStream(UiStreamSession &session,
   delta.field("safety.fault", "\"%s\"", relaySafetyFaultName(control.safetyFault));
   delta.field("safety.taskWatchdogReady", bool(control.taskWatchdogReady));
   delta.field("safety.externalHardware", bool(control.externalSafetyPresent));
-  delta.field("safety.recoveryRequired", bool(control.resetRecoveryRequired));
   delta.field("scale.available", bool(control.scaleAvailable));
   delta.field("scale.streamState", "\"%s\"", weightStreamStateName(control.weightStreamState));
   delta.field("scale.controlState", "\"%s\"", weightControlStateName(control.weightControlState));

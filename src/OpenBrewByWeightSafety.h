@@ -88,9 +88,6 @@ struct RelaySafetySnapshot {
   RelayPurpose purpose = RelayPurpose::NORMAL;
   uint32_t resetReasonCode = 0;
   uint32_t unsafeResetCount = 0;
-  // Always false: resets never latch a boot lockout. Kept for the Diagnostic
-  // and stream `recoveryRequired` contract.
-  bool resetRecoveryRequired = false;
   bool bootLoopDetected = false;
   uint8_t resetHistoryCount = 0;
   ResetHistoryEntry resetHistory[RESET_HISTORY_CAPACITY] = {};

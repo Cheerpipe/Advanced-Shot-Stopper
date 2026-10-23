@@ -7,8 +7,7 @@
 namespace openbrewbyweight {
 
 // The single cutoff algorithm id (1). Its API name is "corridor" (the smooth
-// cut with drip-offset learning); "linear_ewma" and "legacy" stay accepted as
-// inputs and select it too.
+// cut with drip-offset learning).
 enum class BbwAlgorithm : uint8_t { LINEAR_EWMA = 1 };
 constexpr uint8_t DEFAULT_BBW_EWMA_ALPHA = 30;  // Hundredths, dimensionless.
 // Profile 3: the drip-offset EWMA learning against the smooth-cut line.
@@ -40,10 +39,7 @@ inline const char *bbwAlgorithmName(uint8_t algorithm) {
 
 inline bool parseBbwAlgorithm(const char *name, uint8_t &algorithm) {
   if (name == nullptr) return false;
-  // "legacy" (the removed regression mode) stays accepted so old clients and
-  // scripts keep working; both names select the only remaining algorithm.
-  if (strcmp(name, "corridor") == 0 || strcmp(name, "linear_ewma") == 0 ||
-      strcmp(name, "legacy") == 0) {
+  if (strcmp(name, "corridor") == 0) {
     algorithm = static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA);
     return true;
   }
