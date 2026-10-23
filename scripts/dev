@@ -68,6 +68,7 @@ BUILD_PROFILES = (
     ("esp32-s3-relay-x1-speaker-reed", "rancilio-silvia-pro-x-reed"),
 )
 FIRMWARE_BUDGET_OPTIONS = ["--flags=", "--development"]
+RELEASE_BUILD_ROOT = f"OPENBREWBYWEIGHT_IDF_BUILD_ROOT={ROOT}/build-idf/release"
 FIRMWARE_STAGES = {"build", "flash", "ota", "monitor"}
 FIRMWARE_PIPELINES = {
     ("build",), ("flash",), ("ota",), ("monitor",),
@@ -702,10 +703,12 @@ def main() -> int:
                             ("web-contracts", ["node", "src/tests/check_web_assets.js"])]
                 for hardware, machine in BUILD_PROFILES:
                     variant = f"{hardware}--{machine}"
-                    firmware.append((f"idf-{variant}", [
-                        "./scripts/internal/build-idf", "--hardware", hardware,
-                        "--machine", machine, "--webui-language", webui_language,
-                        *FIRMWARE_BUDGET_OPTIONS]))
+                    build = ["./scripts/internal/build-idf", "--hardware", hardware,
+                             "--machine", machine, "--webui-language", webui_language]
+                    # The shipped image builds in its own tree against its own baseline.
+                    firmware += [(f"idf-{variant}", [*build, *FIRMWARE_BUDGET_OPTIONS]),
+                                 (f"release-{variant}", ["env", RELEASE_BUILD_ROOT, *build,
+                                                         "--flags="])]
                     if risk == "R3":
                         firmware += [(f"cppcheck-{variant}", ["./scripts/static-idf",
                                       "--arch", "n16r8", "--build-dir", f"build-idf/{variant}"]),

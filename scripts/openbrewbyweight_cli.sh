@@ -151,7 +151,8 @@ Named parameters (long and short):
       --development        Build profile: admin unlock (--no-auth-admin) plus
                            the USB Serial/JTAG console (--jtag)
       --release            Build profile: no admin unlock and no JTAG console
-                           (default when no profile is given)
+                           (the default); given explicitly, it also requires a
+                           clean Git tree, untracked files included
       --no-auth-admin      Build-only admin unlock without a device-password
                            session (adds -DOPEN_BREW_BY_WEIGHT_DEVELOPMENT=1 to the
                            build flags; not persisted)

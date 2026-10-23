@@ -288,7 +288,9 @@ For local development, use the development build profile
 
 Omitting the profile, or passing `--release` explicitly, builds without admin
 unlock and without the JTAG console. `--no-auth-admin` and `--jtag` also work
-individually on top of a release build.
+individually on top of a release build. Pass `--release` explicitly for an
+image you publish: it refuses to build unless the Git tree is clean, untracked
+files included, so the image's version never carries `-dirty`.
 
 Machine type is derived from `interface.control` plus `interface.feedback`; a conflicting
 `OPEN_BREW_BY_WEIGHT_MACHINE_TYPE` override is rejected.
@@ -334,12 +336,12 @@ never persisted. They work through a generated defaults file appended to
 build recreates the configuration so the requested level takes effect, which
 discards local `menuconfig` choices stored in that file. A later
 build without a level option restores `-O2` the same way.
-The versioned image and memory baselines were measured with `-O2` and
-apply to `--development -O2` builds. Normal release builds and other
-optimization
-levels still check the OTA partition limit, external BSS ceiling, and required
-internal-memory placement; their image sizes do not establish a versioned
-resource baseline.
+The versioned image and memory baselines were measured with `-O2`: one shared
+baseline for `--development` builds and one per supported pair for the
+flag-free release image (see [resource budgets](P2_RESOURCE_BUDGETS.md)).
+Other optimization levels and builds with extra flags still check the OTA
+partition limit, external BSS ceiling, and required internal-memory placement;
+their image sizes do not establish a versioned resource baseline.
 
 The final verifier also rejects drift from the qualified production profile:
 the supported build uses 16 MB flash, `partitions-n16r8.csv`, and OCT PSRAM,
@@ -542,7 +544,8 @@ validation gate. It lists prerequisites, tool behavior and failure meanings.
 
 ## Firmware version
 
-`VERSION` supplies the release number; the build adds the git revision and a
-dirty marker when applicable, and rejects an absent or invalid commit ID
-instead of producing `unknown`. The Web UI footer and boot output
-identify the resulting version.
+`VERSION` supplies the release number as exactly `MAJOR.MINOR.PATCH` (for
+example `1.0.0`; `1.0`, `v1.0.0`, and leading zeros are rejected). The build
+adds the git revision and a `-dirty` marker when tracked files changed or
+untracked files exist. The Web UI footer and boot output identify the resulting
+version; the ESP-IDF app descriptor reports the `VERSION` number.

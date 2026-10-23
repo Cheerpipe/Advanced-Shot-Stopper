@@ -6,25 +6,46 @@ an implementation contract, not a substitute for target/HIL evidence.
 
 ## Firmware image and static regions
 
-`config/resource-baselines.json` records the current n16r8 `-O2` baseline.
-Every test or review that measures these
-budgets must compile with the
-`--development` profile; it enables the admin unlock and the USB Serial/JTAG
-console and gives a reproducible comparison profile. This is enforced, not
-just prose: the R2/R3 validation gate compiles every supported profile pair
-with `--development` (FIRMWARE_BUDGET_OPTIONS in scripts/dev), a tooling test
-pins that composition for both risk levels, and any other build profile makes
-the resource verifier print "budget evidence requires a --development build"
-instead of comparing baselines. Comparisons must use the
+`config/resource-baselines.json` records two kinds of `-O2` baseline.
+`targets.n16r8` is the shared development baseline: every measurement compared
+with it must compile with the `--development` profile, which enables the admin
+unlock and the USB Serial/JTAG console and gives a reproducible comparison
+profile. `releaseTargets` holds one baseline per supported profile pair for the
+image that ships: a flag-free release build (no `--development`, `--jtag`,
+`--no-auth-admin`, or `--flags`). This is enforced, not just prose: the R2/R3
+validation gate compiles every supported profile pair with `--development`
+(FIRMWARE_BUDGET_OPTIONS in scripts/dev) and again as a flag-free release
+image in its own `build-idf/release/` tree, and a tooling test pins that
+composition for both risk levels and requires a release baseline for every
+pair. Any other build profile makes the resource verifier print "no versioned
+baseline for this build profile" instead of comparing baselines. Comparisons
+must use the
 same hardware and machine profiles and the same profile on both sides. Every
 supported build emits `size.json` from the linker map and
 records image bytes, total linked bytes, DIRAM, flash code, and flash rodata.
 The verifier requires valid measurements for all five metrics at every
 optimization level.
-The versioned baseline comparisons apply to `--development -O2` builds.
-Normal release builds and other optimization levels retain the OTA-slot, external-BSS,
+Builds without a matching baseline (other optimization levels, extra flags,
+individual `--jtag`/`--no-auth-admin`) retain the OTA-slot, external-BSS,
 and internal-placement checks. The development and release Web UIs differ, so
 the development image is not always the larger one.
+Both kinds use the same growth allowances.
+
+The release baselines were first recorded on 2026-10-23 with ESP-IDF 6.1,
+because until then no gate built or measured the shipped image. Release images
+carry the password-unlock endpoints and lock panel that development builds
+omit, so the release Linea Micra image (2,477,840 bytes) was 9,216 bytes over
+the development baseline plus allowance (2,468,624) and its flash code
+(1,670,372 bytes) 5,916 bytes over that allowance, while still filling only
+78.8% of the 3 MiB OTA slot (667,888 bytes free). Nothing was removed to
+fit; each pair now compares against its own measured release image:
+
+| Pair | Image | Linked | DIRAM | Flash code | Rodata |
+| --- | --- | --- | --- | --- | --- |
+| `esp32-s3-relay-x1-speaker` + `la-marzocco-linea-micra` | 2,477,840 | 2,477,727 | 193,074 | 1,670,372 | 647,028 |
+| `esp32-s3-relay-x1-speaker` + `rancilio-silvia-pro-x` | 2,309,696 | 2,309,575 | 189,682 | 1,596,204 | 553,028 |
+| `esp32-s3-relay-x1-speaker-reed` + `rancilio-silvia-pro-x-reed` | 2,305,408 | 2,305,291 | 189,634 | 1,591,840 | 553,108 |
+
 Small reviewed growth allowances catch regressions without coupling unrelated
 toolchain padding to an exact byte count; raising a baseline or allowance
 requires explicit architecture and resource review.

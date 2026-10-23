@@ -27,11 +27,17 @@ if (optimization.length !== 1) {
   console.error(`Firmware optimization config must select one supported level: ${sdkconfigPath}`);
   process.exit(2);
 }
-const qualifiedSizeProfile = process.argv.includes('--development') &&
-  optimization[0] === 'CONFIG_COMPILER_OPTIMIZATION_PERF=y';
-
 const config = JSON.parse(fs.readFileSync(
   path.join(root, 'config', 'resource-baselines.json'), 'utf8'));
+// Development builds compare the shared arch baseline; flag-free release
+// builds of an official pair compare that pair's shipped-image baseline.
+const baselines = optimization[0] !== 'CONFIG_COMPILER_OPTIMIZATION_PERF=y' ? null :
+  process.argv.includes('--development') ? config.targets[arch] :
+  process.argv.includes('--release') ?
+    config.releaseTargets[path.basename(path.dirname(binPath))] : null;
+const qualifiedSizeProfile = Boolean(baselines);
+const unqualified = 'no versioned baseline for this build profile; budget evidence ' +
+  'requires a --development build or a flag-free release build of an official pair';
 const actual = JSON.parse(fs.readFileSync(sizePath, 'utf8'));
 if (Array.isArray(actual.layout)) {
   const regions = Object.fromEntries(actual.layout.map(region => [region.name, region]));
@@ -69,18 +75,16 @@ console.log(`external BSS: ${externalBssBytes} (budget ${config.maximumExternalB
 if (actual.image > slotLimits[arch]) {
   failures.push(`image ${actual.image} > OTA slot ${slotLimits[arch]}`);
 }
-for (const [metric, baseline] of Object.entries(config.targets[arch])) {
+for (const [metric, baseline] of Object.entries(baselines || config.targets[arch])) {
   const value = actual[metric];
   const limit = baseline + config.allowedGrowthBytes[metric];
   if (!Number.isFinite(value) || value < 0) failures.push(`${metric} is missing or invalid`);
   else if (qualifiedSizeProfile && value > limit) failures.push(`${metric} ${value} > baseline budget ${limit}`);
   else console.log(qualifiedSizeProfile
       ? `${metric}: ${value} (baseline ${baseline}, delta ${value - baseline})`
-      : `${metric}: ${value} (no versioned baseline for this build profile; ` +
-        'budget evidence requires a --development build)');
+      : `${metric}: ${value} (${unqualified})`);
 }
 if (failures.length) throw new Error(failures.join('; '));
 console.log(qualifiedSizeProfile
   ? `${arch}: image and memory regions are within versioned budgets`
-  : `${arch}: no versioned baseline for this build profile (budget evidence ` +
-    'requires a --development build); OTA slot and memory checks passed');
+  : `${arch}: ${unqualified}; OTA slot and memory checks passed`);

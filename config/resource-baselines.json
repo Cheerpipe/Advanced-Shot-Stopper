@@ -16,5 +16,28 @@
       "flash_code": 1589072,
       "flash_rodata": 618872
     }
+  },
+  "releaseTargets": {
+    "esp32-s3-relay-x1-speaker--la-marzocco-linea-micra": {
+      "image": 2477840,
+      "total_size": 2477727,
+      "used_diram": 193074,
+      "flash_code": 1670372,
+      "flash_rodata": 647028
+    },
+    "esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x": {
+      "image": 2309696,
+      "total_size": 2309575,
+      "used_diram": 189682,
+      "flash_code": 1596204,
+      "flash_rodata": 553028
+    },
+    "esp32-s3-relay-x1-speaker-reed--rancilio-silvia-pro-x-reed": {
+      "image": 2305408,
+      "total_size": 2305291,
+      "used_diram": 189634,
+      "flash_code": 1591840,
+      "flash_rodata": 553108
+    }
   }
 }

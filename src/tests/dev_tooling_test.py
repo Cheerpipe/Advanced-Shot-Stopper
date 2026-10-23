@@ -298,6 +298,16 @@ with tempfile.TemporaryDirectory(prefix="ai_temp_size_check_", dir=ROOT / "temp"
     assert check_size(development=True).returncode == 0
     image.write_bytes(b"x" * 3_145_729)
     assert "image 3145729 > OTA slot 3145728" in check_size().stderr
+    # A flag-free release build of an official pair compares its own baseline.
+    with tempfile.TemporaryDirectory(prefix="ai_temp_release_size_", dir=ROOT / "temp") as other:
+        image.write_bytes(b"x")
+        sdkconfig.write_text("CONFIG_COMPILER_OPTIMIZATION_PERF=y\n")
+        size.write_text(json.dumps({**metrics, "total_size": 3_000_000}))
+        official = Path(other) / "esp32-s3-relay-x1-speaker--rancilio-silvia-pro-x"
+        image = shutil.copytree(build, official) / image.name
+        assert "total_size 3000000 > baseline budget" in check_size().stderr
+        (image.parent / "size.json").write_text(json.dumps(metrics))
+        assert "within versioned budgets" in check_size().stdout
 
 for level in ("--o0", "--og", "--o2", "--os"):
     rejected = run("flash", level)
@@ -714,6 +724,26 @@ with tempfile.TemporaryDirectory(prefix="openbrewbyweight-version-") as temporar
     assert subprocess.run(command, env=env, capture_output=True).returncode == 0
     release = (ROOT / "VERSION").read_text().strip()
     assert f'{release}+unknown' in output.read_text()
+    # VERSION is strict MAJOR.MINOR.PATCH; untracked files mark the build dirty.
+    version_root = Path(temporary) / "repo"
+    (version_root / "scripts").mkdir(parents=True)
+    shutil.copy2(ROOT / "scripts/gen_version.sh", version_root / "scripts")
+    version_command = ["sh", str(version_root / "scripts/gen_version.sh"), "n16r8", "hw",
+                       "machine", str(output)]
+    for invalid in ("1", "1.0", "1.0.0.0", "01.0.0", "1.0.0-rc1", "v1.0.0"):
+        (version_root / "VERSION").write_text(invalid + "\n")
+        assert subprocess.run(version_command, env=env, capture_output=True).returncode == 1, \
+            invalid
+    (version_root / "VERSION").write_text("1.2.3\n")
+    git = ["git", "-C", str(version_root), "-c", "user.name=t", "-c", "user.email=t@t"]
+    subprocess.run([*git, "init", "-q"], check=True)
+    subprocess.run([*git, "add", "."], check=True)
+    subprocess.run([*git, "commit", "-qm", "v"], check=True)
+    subprocess.run(version_command, check=True, capture_output=True)
+    assert "1.2.3+" in output.read_text() and "-dirty" not in output.read_text()
+    (version_root / "new.txt").write_text("x")
+    subprocess.run(version_command, check=True, capture_output=True)
+    assert '-dirty"' in output.read_text()
 
 
 def iwyu_idf_run(*extra: str) -> tuple[subprocess.CompletedProcess[str], Path,
@@ -943,6 +973,16 @@ missing_profiles = subprocess.run(
     capture_output=True, text=True)
 assert missing_profiles.returncode == 2
 assert "hardware_config machine_config" in missing_profiles.stderr
+# An explicit --release refuses a tree with untracked files before any build work.
+with tempfile.TemporaryDirectory(prefix="openbrewbyweight-release-tree-") as temporary:
+    subprocess.run(["git", "init", "-q", temporary], check=True)
+    (Path(temporary) / "untracked.txt").write_text("x")
+    dirty_release = subprocess.run(
+        [str(INTERNAL / "build-idf"), "--release", "--flags=", "--hardware", "hw",
+         "--machine", "machine"], cwd=ROOT, capture_output=True, text=True,
+        env={**os.environ, "OPENBREWBYWEIGHT_NONINTERACTIVE": "1", "OBBW_CLI_ROOT": temporary})
+    assert dirty_release.returncode == 2 and "clean Git tree" in dirty_release.stderr, \
+        dirty_release.stderr
 erase_image = subprocess.run(
     [str(INTERNAL / "flash-idf"), "--erase-all", "--image", "external.bin"],
     cwd=ROOT, capture_output=True, text=True)
@@ -1027,6 +1067,13 @@ r2_steps = validate_language_steps(["src/web/app.js"], risk="R2")
 r2_builds = [argv for name, argv in r2_steps if name.startswith("idf-")]
 assert len(r2_builds) == 3, r2_builds
 assert all("--development" in argv for argv in r2_builds), r2_builds
+# The shipped (flag-free release) image of every pair builds in its own tree
+# and compares its own versioned baseline.
+r2_release = [argv for name, argv in r2_steps if name.startswith("release-")]
+assert len(r2_release) == 3 and all(
+    argv[:2] == ["env", f"OPENBREWBYWEIGHT_IDF_BUILD_ROOT={ROOT}/build-idf/release"] and
+    argv[-1] == "--flags=" and "--development" not in argv and "--jtag" not in argv
+    for argv in r2_release), r2_release
 
 # Host tests and firmware work run as two parallel lanes. Every step that
 # touches IDF trees, the shared Web UI header, or the CLI store stays serial in
@@ -1040,7 +1087,7 @@ firmware_names = [name for name, _ in firmware_lane]
 assert firmware_names[:2] == ["http-route-capacity", "web-contracts"], firmware_names
 assert firmware_names[2:] == [f"{kind}-{hardware}--{machine}"
                               for hardware, machine in dev_module["BUILD_PROFILES"]
-                              for kind in ("idf", "cppcheck", "warnings")], firmware_names
+                              for kind in ("idf", "release", "cppcheck", "warnings")], firmware_names
 assert all(argv[-2:] == ["-j", str(os.cpu_count() or 1)]
            for name, argv in host_lane if name.startswith("test-")), host_lane
 assert validate_language_steps(["src/web/app.js"], risk="R1", lanes=True) is None
@@ -1660,6 +1707,10 @@ for hardware_profile in hardware:
 local_pairs = dev_module["BUILD_PROFILES"]
 assert len(local_pairs) == len(supported_pairs) and set(local_pairs) == supported_pairs, \
     "local validation must cover every supported profile pair exactly once"
+release_baselines = json.loads((ROOT / "config/resource-baselines.json").read_text())
+assert set(release_baselines["releaseTargets"]) == {
+    f"{hardware}--{machine}" for hardware, machine in local_pairs}, \
+    "every supported pair needs its own release-image baseline"
 # The opt-in Web UI lint profile never installs: absent linters fail with 127.
 assert "test [normal|asan|tsan|web|ble|ota|tooling|lint]" in dev_module["help_text"]()
 with tempfile.TemporaryDirectory(prefix="openbrewbyweight-lint-") as temporary:

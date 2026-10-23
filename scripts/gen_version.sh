@@ -44,22 +44,17 @@ for compat in "$hardware_compat" "$machine_compat"; do
 done
 
 ver=$(tr -d '[:space:]' < "$version_file")
-case "$ver" in
-  *[!0-9.]*|""|*.*.*.*)
-    echo "Invalid VERSION: '$ver' (expected MAJOR.MINOR.PATCH)" >&2
-    exit 1
-    ;;
-esac
+# Exactly MAJOR.MINOR.PATCH without leading zeros (shell arithmetic below
+# would read 08 as invalid octal).
+if ! printf '%s\n' "$ver" | grep -Eqx '(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'; then
+  echo "Invalid VERSION: '$ver' (expected MAJOR.MINOR.PATCH)" >&2
+  exit 1
+fi
 
 major=${ver%%.*}
 rest=${ver#*.}
 minor=${rest%%.*}
 patch=${rest#*.}
-
-if [ -z "$major" ] || [ -z "$minor" ] || [ -z "$patch" ]; then
-  echo "Invalid VERSION: '$ver' (expected MAJOR.MINOR.PATCH)" >&2
-  exit 1
-fi
 
 if [ "$major" -gt 255 ] || [ "$minor" -gt 255 ] || [ "$patch" -gt 65535 ]; then
   echo "Invalid VERSION: '$ver' (major/minor <= 255, patch <= 65535)" >&2
@@ -71,7 +66,8 @@ packed=$(( (major << 24) | (minor << 16) | patch ))
 if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   sha=$(git -C "$root" rev-parse --short=7 HEAD)
   dirty=""
-  if ! git -C "$root" diff --quiet || ! git -C "$root" diff --cached --quiet; then
+  # Untracked (not ignored) files count too: they can change the image.
+  if [ -n "$(git -C "$root" status --porcelain)" ]; then
     dirty="-dirty"
   fi
 else

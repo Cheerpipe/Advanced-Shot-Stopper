@@ -20,7 +20,7 @@ subset of the applicable gates does not validate the change.
 | --- | --- | --- | --- |
 | R0 | Non-critical docs/meta | contract, link, and path checks | none |
 | R1 | Web UI, tests, tooling, pure logic | R0 + focused tests and generated assets | as identified |
-| R2 | BLE, network, persistence, OTA, build | full host + ASan/UBSan + TSAN + architecture + every official validation profile pair | subsystem-dependent |
+| R2 | BLE, network, persistence, OTA, build | full host + ASan/UBSan + TSAN + architecture + development and release images of every official validation profile pair | subsystem-dependent |
 | R3 | Relay, machine, ISR, watchdog, boot, GPIO, partitions, remote control, unknown | R2 + warnings/cppcheck + build variants | HIL/manual required |
 | Release | Candidate firmware image | complete analysis, resource budgets, applicable soak, HIL and manual plan | required |
 
@@ -47,19 +47,21 @@ strictly greater, preserving at least one spare slot.
 Missing tools or dependencies fail profiles that require them with exit 127.
 Tests never bootstrap packages or access hardware/network implicitly. R3 is not
 release-ready while required HIL/manual evidence is pending.
-Every versioned firmware budget measurement must build with the `--development`
-profile (admin unlock plus the JTAG console), as defined by
-`docs/P2_RESOURCE_BUDGETS.md`; normal release builds retain the OTA-slot and
-memory-placement checks but have no matching versioned size baseline. A plain
-`./scripts/dev build` therefore prints "budget evidence requires a
---development build" and is **not** budget evidence: only the development
-profile compares the versioned baselines, so any change that can move image
-size (embedded Web assets included) must be verified with a `--development`
-build or the R2/R3 gate before it is called done.
-R2/R3 validation applies it to all supported built-in profile pairs in
-`docs/BUILD_PROFILES.md` and leaves those
-measured images in their profile build directories. Image
-and memory regions are compared by
+Versioned firmware budgets come in two kinds, defined by
+`docs/P2_RESOURCE_BUDGETS.md`: the shared development baseline, measured with
+the `--development` profile (admin unlock plus the JTAG console), and one
+release baseline per supported profile pair, measured on the flag-free release
+image that ships. Other builds (extra flags, individual `--jtag` or
+`--no-auth-admin`, other optimization levels) retain the OTA-slot and
+memory-placement checks but print "no versioned baseline for this build
+profile" and are **not** budget evidence. Any change that can move image size
+(embedded Web assets included) must be verified with the R2/R3 gate, or with
+both a `--development` build and a flag-free release build of each affected
+pair, before it is called done.
+R2/R3 validation builds all supported built-in profile pairs in
+`docs/BUILD_PROFILES.md` both ways: the development images stay in their
+profile build directories and the release images in `build-idf/release/`.
+Image and memory regions are compared by
 `src/tests/check_firmware_size.js` against those versioned budgets.
 
 The documentation check covers root guides, canonical guides in `docs/`, the BLE

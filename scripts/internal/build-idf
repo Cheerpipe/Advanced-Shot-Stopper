@@ -63,6 +63,11 @@ if [[ "${OBBW_BUILD_LOCKED:-}" != "1" ]]; then
 
   obbw_cli_resolve "hardware_config machine_config webui_language" "flags" || exit $?
   effective_flags="$(obbw_cli_effective_flags)" || exit $?
+  # An explicit --release is a publishable image: its version must not be -dirty.
+  if [[ "$OBBW_CLI_RELEASE" == "1" && -n "$(git -C "$OBBW_CLI_ROOT" status --porcelain)" ]]; then
+    echo '--release needs a clean Git tree, untracked files included; commit or remove the changes, or omit --release for a local build.' >&2
+    exit 2
+  fi
 
   root="$OBBW_CLI_ROOT"
   cd "$root"
@@ -219,7 +224,9 @@ obbw_idf_verify_firmware
 
 python -m esp_idf_size --format json2 -o "$IDF_BUILD_DIR/size.json" \
   "$IDF_MAP"
+# Only a flag-free release build is the shipped image its baseline describes.
 size_check_profile=--release
+[[ -n "$effective_flags" ]] && size_check_profile=--custom-flags
 [[ "${OBBW_CLI_DEVELOPMENT:-0}" == "1" ]] && size_check_profile=--development
 node "$root/src/tests/check_firmware_size.js" "$IDF_IMAGE" \
   --arch "$OPENBREWBYWEIGHT_ARCH" "$size_check_profile"

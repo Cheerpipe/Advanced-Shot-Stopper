@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.16)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Board-parity defines (Arduino FQBN: PSRAM + Hardware CDC). CDC stays off
+# Board defines (PSRAM + Hardware CDC). CDC stays off
 # until setup() sees the USB console jumper (GPIO4–GND) and calls Serial.begin
 # on HWCDC (OpenBrewByWeightUsbConsole.h), unless OPENBREWBYWEIGHT_EXTRA_FLAGS includes
 # -DOPEN_BREW_BY_WEIGHT_ENABLE_JTAG=1 (ARDUINO_USB_CDC_ON_BOOT=1 + IDF console).
@@ -91,10 +91,15 @@ if(_obbw_cdc_on_boot)
   message(STATUS "USB Serial/JTAG enabled (ARDUINO_USB_CDC_ON_BOOT=1)")
 endif()
 
+# The app descriptor reports the release number from VERSION, not `git describe`.
+set(_obbw_version_file "${CMAKE_CURRENT_LIST_DIR}/../VERSION")
+file(STRINGS "${_obbw_version_file}" PROJECT_VER LIMIT_COUNT 1)
 project(openbrewbyweight)
 
-# ninja cmake_check reconfigures when the internal build stage updates the stamp.
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_obbw_extra_flags_file}")
+# ninja cmake_check reconfigures when the internal build stage updates the stamp
+# or VERSION changes.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${_obbw_extra_flags_file}" "${_obbw_version_file}")
 
 # Arduino-ESP32 compiles Esp.cpp as C++ against IDF SPI flash HAL headers
 # that use partial designated initializers (gpspi_flash_ll.h /

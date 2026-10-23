@@ -155,15 +155,21 @@ pairs. The compatible built-in pairs are listed in
 [Build profiles](BUILD_PROFILES.md#capability-matching); each machine profile
 declares its compatible hardware profiles. The optional `--development`
 profile enables the development admin/JTAG settings; `--release` is the
-default. These options are compile-time only and are never persisted.
+default. Passing `--release` explicitly marks a publishable image and requires
+a clean Git tree, untracked files included. These options are compile-time
+only and are never persisted.
 
-`./scripts/dev validate --risk R2` builds each official validation pair;
-`--risk R3` also checks each pair with Cppcheck and a GCC warning build.
+`./scripts/dev validate --risk R2` builds each official validation pair twice:
+a `--development` budget build and the flag-free release image that ships,
+each checked against its own size baseline. `--risk R3` also checks each pair
+with Cppcheck and a GCC warning build.
 R2 and R3 run two lanes at once: the host tests, and the firmware steps in a
-fixed order (route capacity, Web contracts, then each pair's build, Cppcheck,
-and warning build). Each step's output appears in the log as one block when
+fixed order (route capacity, Web contracts, then each pair's development
+build, release build, Cppcheck, and warning build). Each step's output appears
+in the log as one block when
 the step finishes. After any failure neither lane starts another step;
-steps already running finish first. The warning build uses its own tree,
+steps already running finish first. The release and warning builds use their
+own trees, `build-idf/release/<hardware>--<machine>/` and
 `build-idf/warnings/<hardware>--<machine>/`, so the gate's
 `build-idf/<hardware>--<machine>/` images stay incremental. Host tests and
 Cppcheck use one job per CPU.
