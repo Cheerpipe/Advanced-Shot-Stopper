@@ -345,6 +345,10 @@ bool OpenBrewByWeightNetwork::requireActiveWebUiClient(httpd_req_t *request) {
   dataMux_.lock();
   active = activeWebUiClientId_[0] != '\0' &&
            strcmp(activeWebUiClientId_, clientId) == 0;
+  // An accepted request also proves the page alive to its stream session.
+  for (auto &session : uiStreams_)
+    if (active && session.bound && strcmp(session.clientId, clientId) == 0)
+      session.heardAtMs = millis();
   dataMux_.unlock();
   memset(clientId, 0, sizeof(clientId));
   if (!active) {

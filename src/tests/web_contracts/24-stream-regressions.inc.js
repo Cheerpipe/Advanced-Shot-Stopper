@@ -71,6 +71,10 @@ bool selectStatsFetch(UiStreamSession &session,const ControlStatusSnapshot &cont
 ${selectStats}
   return fetch;
 }
+struct HeldRow { uint32_t id,hash; };
+constexpr size_t kHeldRows=32;
+size_t pageCount=10;
+struct { HeldRow statsHeld[kHeldRows]{},statsNext[kHeldRows]{}; uint8_t statsHeldCount=0; } held;
 void completeStatsPage(UiStreamSession &session,bool fetch,uint32_t epoch,uint32_t fingerprint){
 ${completeStats}
 }
@@ -95,14 +99,19 @@ int main(){
   session.statsResync=false;session.statsBoot=193;session.statsPaging=true;
   session.statsPageEpoch=5;session.statsPageRequest=1;
   assert(!selectStatsFetch(session,control,5)&&session.statsPaging);
+  held.statsNext[0]={7,70};
   completeStatsPage(session,false,5,42);
+  // A completed standing page becomes the rows the page holds.
+  assert(held.statsHeldCount==10&&held.statsHeld[0].id==7&&held.statsHeld[0].hash==70);
   assert(session.statsFetch&&selectStatsFetch(session,control,5));
   session.statsPaging=true;session.statsPageFetch=true;session.statsPageRequest=2;
   assert(selectStatsFetch(session,control,5)&&session.statsPaging);
   session.statsFetchRequest=3;
   assert(selectStatsFetch(session,control,5)&&!session.statsPaging);
+  held.statsNext[0]={8,80};
   completeStatsPage(session,true,5,99);
   assert(!session.statsFetch&&session.statsFingerprint==42);
+  assert(held.statsHeld[0].id==7);  // a fetch page never replaces the held standing rows
   const char *texts[]={"NimBLE runtime state=2", "quotes \\\" slash \\\\ newline\\n", "", "café"};
   for(const auto *text:texts)ring.add(10,0,LogLevel::INFO,DebugCategory::SYSTEM,DebugCode::BOOT_BANNER,1,2,text);
   assert(network.sendLogStream(session,control));

@@ -68,6 +68,18 @@ uint32_t uiStreamCurveHash(const ShotCurveRecord &curve, uint16_t count) {
   return hash;
 }
 
+using HeldRow = UiStreamFingerprints::HeldRow;
+constexpr size_t kHeldRows = UiStreamFingerprints::kHeldRows;
+uint32_t uiStreamRowHash(const void *bytes, size_t length) {
+  return crc32Update(0xFFFFFFFFU, static_cast<const uint8_t *>(bytes), length);
+}
+// True when the page holds this row unchanged in its standing page.
+bool uiStreamHeld(const HeldRow *rows, size_t count, uint32_t id, uint32_t hash) {
+  for (size_t index = 0; index < count; ++index)
+    if (rows[index].id == id) return rows[index].hash == hash;
+  return false;
+}
+
 // Close notice before httpd drops the socket. 4001 (ownership taken over,
 // from the dispatch path or a rejected bind) makes the page deactivate and
 // offer Reactivate instead of retrying forever; 4002 (page silent) makes it
@@ -162,7 +174,7 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
   const cJSON *op = cJSON_GetObjectItemCaseSensitive(message, "op");
   const cJSON *client = cJSON_GetObjectItemCaseSensitive(message, "client");
   bool accepted = false;
-  bool activity = false;
+  bool activity = false, resumed = false;
   int superseded = -1;
   {
     TaskLockGuard lock(self.dataMux_);
@@ -170,9 +182,14 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
         strcmp(op->valuestring, "activity") == 0 &&
         strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
       const cJSON *seconds = cJSON_GetObjectItemCaseSensitive(message, "seconds");
+      const cJSON *hidden = cJSON_GetObjectItemCaseSensitive(message, "hidden");
       if (cJSON_IsNumber(seconds) && seconds->valuedouble >= 0 &&
-          seconds->valuedouble <= 30 && seconds->valuedouble == seconds->valueint) {
+          seconds->valuedouble <= 30 && seconds->valuedouble == seconds->valueint &&
+          (!hidden || cJSON_IsBool(hidden))) {
         notePowerWebActivity(millis(), static_cast<uint32_t>(seconds->valueint));
+        // A visible page resumes with one delta of everything it missed.
+        resumed = session->paused && cJSON_IsFalse(hidden);
+        if (hidden) session->paused = cJSON_IsTrue(hidden);
         accepted = activity = true;
       }
     } else if (cJSON_IsString(op) && session->bound &&
@@ -392,6 +409,7 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
     return ESP_FAIL;
   }
   if (activity) {
+    if (resumed) self.uiStreamUrgent_.store(true, std::memory_order_release);
     uint8_t alive[] = "{\"v\":1,\"type\":\"alive\"}";
     httpd_ws_frame_t reply = {};
     reply.type = HTTPD_WS_TYPE_TEXT;
@@ -467,6 +485,7 @@ void OpenBrewByWeightNetwork::uiStreamDispatch(void *context) {
   // Tick-constant network state is fetched once per dispatch too and
   // shared by the home and diagnostic projections.
   const NetworkStatusSnapshot network = self.snapshot();
+  const bool live = control.activeCycle || control.homePending || control.relayClosed;
   for (auto &session : self.uiStreams_) {
     if (session.fd < 0) continue;
     bool allowed, silent;
@@ -475,8 +494,7 @@ void OpenBrewByWeightNetwork::uiStreamDispatch(void *context) {
       allowed = session.bound
           ? strcmp(session.clientId, self.activeWebUiClientId_) == 0
           : millis() - session.openedAtMs < kUiStreamBindMs;
-      silent = allowed && session.bound &&
-          !(control.activeCycle || control.homePending || control.relayClosed) &&
+      silent = allowed && session.bound && !live &&
           millis() - session.heardAtMs >= kUiStreamSilentMs;
       // Unbound until httpd frees it: later dispatches neither log nor send.
       if (silent) session.bound = false;
@@ -495,7 +513,9 @@ void OpenBrewByWeightNetwork::uiStreamDispatch(void *context) {
     }
     else if (session.bound) {
       httpd_sess_update_lru_counter(self.server_, session.fd);
-      self.sendUiStream(session, control, network, latest, eligible);
+      // A hidden page still gets owed snapshots: its setup window waits for them.
+      if (!session.paused || live || session.homeResync || session.resync)
+        self.sendUiStream(session, control, network, latest, eligible);
     }
   }
   self.unlockWorkBuf();

@@ -1980,6 +1980,7 @@ async function api(path, options = {}) {
   options.headers = webUiHeaders(options.headers);
   const powerSeconds = webUiPowerSeconds();
   if (powerSeconds) options.headers["X-WebUI-Activity"] = String(powerSeconds);
+  noteUiSent(powerSeconds > 0);
   if (options.body) options.headers["Content-Type"] ??= "application/json";
   const ac = new AbortController(),
     to = setTimeout(() => ac.abort(), options.timeoutMs || 8e3);
@@ -4318,10 +4319,9 @@ function startUiStream() {
     try {
       if (typeof event.data !== "string" || event.data.length > 28672) throw Error();
       const data = JSON.parse(event.data);
-      if (data.type === "alive") {
-        clearTimeout(shotDeadline);
-        return;
-      }
+      uiFrameAt = Date.now();
+      clearTimeout(shotDeadline);
+      if (data.type === "alive") return;
       // Log frames carry their own cursor: a pending resync must not drop them.
       if (data.type === "log") {
         if (!logStreamWanted) return;
@@ -4453,16 +4453,31 @@ function startUiStream() {
   };
 }
 // Module-scoped keepalive and resync: a tab back from the background re-arms them after frozen page timers.
+// Frames prove the socket and ops or API calls the page: the ping only renews
+// an active user's power window, probes a quiet live shot, and stays inside
+// the firmware's silence limit. `hidden` holds a hidden page's idle frames.
 function shotActivity() {
   if (!shotWs || shotWs.readyState !== 1 || !webUiPollingActive()) return;
   clearTimeout(shotAlive);
   clearTimeout(shotDeadline);
-  shotWs.send(JSON.stringify({ op: "activity", seconds: webUiPowerSeconds() }));
+  sendUiOperation({
+    op: "activity",
+    seconds: webUiPowerSeconds(),
+    hidden: document.hidden && !setupSession,
+  });
   shotDeadline = setTimeout(() => shotWs && shotWs.close(), 1e4);
-  shotAlive = setTimeout(() => {
-    shotTry = 0;
+  shotAlive = setTimeout(shotKeepalive, 2e4);
+}
+function shotKeepalive() {
+  shotTry = 0;
+  const now = Date.now();
+  if (
+    sessionShotLive()
+      ? now - uiFrameAt >= 2e4
+      : (webUiPowerSeconds() && now - uiPowerAt >= 19e3) || now - uiSentAt >= 12e4
+  )
     shotActivity();
-  }, 2e4);
+  else shotAlive = setTimeout(shotKeepalive, 2e4);
 }
 function requestShotResync() {
   if (!shotWs || shotWs.readyState !== 1) return;
@@ -4847,9 +4862,18 @@ function stopDiagnosticStream() {
 }
 // The serial log rides the owned socket: subscribe with the rendered tail's
 // cursor; watermark-gated frames push new events without REST polling.
-let logStreamWanted = false;
+let logStreamWanted = false,
+  uiSentAt = 0,
+  uiPowerAt = 0,
+  uiFrameAt = 0;
+function noteUiSent(power) {
+  uiSentAt = Date.now();
+  if (power) uiPowerAt = uiSentAt;
+}
 function sendUiOperation(op) {
-  if (shotWs && shotWs.readyState === 1) shotWs.send(JSON.stringify(op));
+  if (shotWs?.readyState !== 1) return;
+  shotWs.send(JSON.stringify(op));
+  noteUiSent(op.seconds > 0);
 }
 function startLogStream() {
   if (
@@ -5007,6 +5031,11 @@ function historyStreamFrame(message) {
   )
     throw Error();
   if (!message.snapshot && message.boot !== historyStreamBoot) throw Error();
+  // A standing refresh names records this page already holds by their id.
+  const held = !message.snapshot && uiState.historyData?.records;
+  message.records = message.records.map(
+    (r) => (Number.isInteger(r) && held && held.find((x) => x.id === r)) || r,
+  );
   if (
     message.offset + message.records.length > message.total ||
     message.hasMore !== message.offset + message.records.length < message.total
@@ -5196,7 +5225,11 @@ function statsStreamFrame(message) {
     : typeof message.cols === "string" && message.cols.split(",");
   if (!cols) throw Error();
   message.cols = cols;
+  // A standing refresh names held rows by id, as in History.
+  const held = !message.snapshot && uiState.shotHistory?.shots;
   message.rows = message.rows.map((a) => {
+    const kept = Number.isInteger(a) && held && held.find((x) => x.id === a);
+    if (kept) return kept;
     const c = Array.isArray(a) && a.length === cols.length + 1 && a.at(-1);
     if (!c || typeof c !== "object" || Array.isArray(c)) throw Error();
     return { ...Object.fromEntries(cols.map((k, i) => [k, a[i]])), ...c };
@@ -5321,7 +5354,10 @@ function onPageVisibility() {
   if (document.hidden) {
     hiddenAt = Date.now();
     hiddenPerf = performance.now();
-    if (!setupSession) hiddenClose = setTimeout(closeHiddenStream, HIDDEN_CLOSE_MS);
+    if (!setupSession) {
+      hiddenClose = setTimeout(closeHiddenStream, HIDDEN_CLOSE_MS);
+      shotActivity();
+    }
     return;
   }
   const away = hiddenAt ? Date.now() - hiddenAt : 0,

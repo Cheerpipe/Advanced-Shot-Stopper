@@ -72,6 +72,10 @@
   context.startUiStream(); sockets[0].onopen();
   assert.equal(sockets[0].sent[0].op, 'bind');
   assert.equal(sockets[0].sent[1].op, 'activity', 'liveness is a socket control message, not REST polling');
+  assert.equal(sockets[0].sent[1].hidden, false, 'a visible page asks for every frame');
+  // Every frame proves the socket; the ping only fills gaps in the traffic.
+  assert(codeIncludes(runtimeJs, 'uiFrameAt=Date.now();clearTimeout(shotDeadline);') &&
+      codeIncludes(runtimeJs, 'now-uiSentAt>=12e4'));
   sockets[0].onmessage({data: JSON.stringify({v: 1, type: 'alive'})});
   sockets[0].onmessage({data: JSON.stringify(initial)});
   assert(mutable); assert.equal(rendered.at(-1).scale.observedWeightG, 12);
@@ -350,8 +354,16 @@ int main(){
   // The firmware closes a bound session silent for 5 minutes, outside a live
   // cycle, with a plain close (not the 4001 takeover) and one log line.
   const stream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightUiStream.inc'), 'utf8');
-  assert(stream.includes('!(control.activeCycle || control.homePending || control.relayClosed) &&') &&
+  assert(stream.includes('const bool live = control.activeCycle || control.homePending || control.relayClosed;') &&
+      stream.includes('silent = allowed && session.bound && !live &&') &&
       stream.includes('millis() - session.heardAtMs >= kUiStreamSilentMs;'));
+  // A hidden page pauses its frames outside a live shot (owed snapshots still
+  // go out), and an accepted owned-API request also renews its silence timer.
+  assert(stream.includes('if (!session.paused || live || session.homeResync || session.resync)') &&
+      stream.includes('resumed = session->paused && cJSON_IsFalse(hidden);') &&
+      stream.includes('if (resumed) self.uiStreamUrgent_.store(true, std::memory_order_release);'));
+  assert(fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightHttpAuthAssets.inc'), 'utf8')
+      .includes('if (active && session.bound && strcmp(session.clientId, clientId) == 0)'));
   assert(stream.includes('if (accepted) session->heardAtMs = millis();'));
   const silentBranch = stream.slice(stream.indexOf('if (silent) {'), stream.indexOf('} else if (!allowed) {'));
   assert(silentBranch.includes('kUiStreamCloseSilent') && !silentBranch.includes('kUiStreamCloseTakeover'));

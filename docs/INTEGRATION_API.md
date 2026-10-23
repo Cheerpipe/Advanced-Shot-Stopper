@@ -547,9 +547,20 @@ minutes outside a live cycle (a phone that froze the page) with WebSocket
 close code 4002 and notes it in the Web UI log; the page reconnects quietly
 once visible, without the out-of-reach notice. Neither close affects the
 15-minute inactivity deactivation, and a setup session never closes on hide. Ownership takeover
-closes the previous socket with code 4001. Bounded `activity`/`alive` control
-messages every 20 seconds detect a lost connection and preserve existing power
-activity behavior; they do not request or repeat Home data. Clock synchronization
+closes the previous socket with code 4001. The browser's bounded
+`{"op":"activity","seconds":0-30,"hidden":bool}` message, answered with
+`{"type":"alive"}`, only fills gaps in the traffic the page already has: every
+received frame proves the socket and clears the liveness deadline, and every
+op or claimed API request proves the page (an accepted API request also renews
+the silence timer of that client's stream). The page sends `activity` every
+20 seconds while the user is active outside a live shot (`seconds` keeps the
+existing power activity window), during a live shot only after 20 seconds
+without frames, and otherwise at least every 2 minutes. These messages do not
+request or repeat Home data. A hidden page sends `activity` with
+`hidden: true` at once; the firmware then holds that session's frames outside a
+live shot (an owed snapshot still goes out) and keeps their fingerprints, so
+the visible `activity` (`hidden: false`) is followed by one catch-up delta
+instead of every intermediate change. Clock synchronization
 supplies a new time anchor; the browser advances relative time locally.
 `GET /api/v1/status/home` no longer exists: navigation visibility
 (`diagnosticPageVisible`, `compatibilityMode`) is carried by the Home stream
@@ -671,7 +682,11 @@ suppress sends while the page is unchanged, the same no-change contract as the
 Home delta: an untouched activation log produces no frames. Appends, single
 deletes, and clears move the epoch, so the standing subscription pushes the
 updated page without any browser request; clearing and deleting remain the
-confirmed REST commands above.
+confirmed REST commands above. In such a standing refresh (`snapshot: false`)
+a record the browser already holds unchanged from the previous standing page
+is sent as its bare `id` number, so a new activation costs one record; a
+snapshot (subscribe, resync, or reconnect) and append fetches always carry
+whole records, and an id the browser cannot resolve requests a resync.
 
 ### Stats live updates
 
@@ -714,7 +729,11 @@ pages and applies them whole when a frame ends with `more: false`. A store
 epoch and a fingerprint (window, aggregate, and per-row id, rating, and
 curve hashes) suppress pages while nothing changed — rating a shot, saving,
 deleting, or clearing moves the epoch, so the standing subscription pushes
-the updated page without any browser request. The export window streams the
+the updated page without any browser request. As in History, a standing
+refresh sends each row the browser already holds with the same rating and
+curve as its bare `id` number, so a new shot sends only its own row and curve
+plus the page header; snapshots, scroll fetches, and the export always carry
+whole rows. The export window streams the
 requested rows once without touching the subscribed view state. The server
 refreshes its cached records when the store epoch, sort field, or sort direction
 changes; subsequent frames reuse that snapshot. This preserves chronological

@@ -313,17 +313,11 @@ bool OpenBrewByWeightNetwork::sendHomeStream(UiStreamSession &session,
 #endif
   if (!delta.ok || !statusJsonAppend(&delta.used, "}}")) return false;
   if (!delta.changed) return true;
-  bool owner;
-  { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
-  httpd_ws_frame_t frame = {};
-  frame.type = HTTPD_WS_TYPE_TEXT;
-  frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
-  frame.len = delta.used;
-  if (!owner) return false;
-  if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
-    // The delta hashes were already consumed for the dropped frame, so only
-    // a full snapshot can repair the client; defer on a clean header abort.
-    if (!uiStreamSendCleanAbort) return false;
+  // The delta hashes were already consumed for a deferred frame, so only a
+  // full snapshot can repair the client.
+  bool deferred;
+  if (!sendUiStreamFrame(session, delta.used, deferred)) return false;
+  if (deferred) {
     session.homeResync = true;
     return true;
   }
@@ -1113,8 +1107,18 @@ bool OpenBrewByWeightNetwork::sendHistoryStream(UiStreamSession &session,
           static_cast<unsigned>(session.historyLimit),
           page.hasMore ? "true" : "false"))
     return false;
+  auto &held = workBuf_->uiFingerprints[&session - uiStreams_];
   for (size_t index = 0; index < page.count; ++index) {
     const HistoryRecord &record = page.records[index];
+    // A standing refresh names the records the page already holds by id.
+    if (!initial && !fetch &&
+        uiStreamHeld(held.historyHeld, held.historyHeldCount, record.id,
+                     uiStreamRowHash(&record, sizeof(record)))) {
+      if (!statusJsonAppend(&used, "%s%lu", index == 0 ? "" : ",",
+                            static_cast<unsigned long>(record.id)))
+        return false;
+      continue;
+    }
     if (!statusJsonAppend(&used,
             "%s{\"id\":%lu,\"type\":\"%s\",\"durationS\":%.1f,"
             "\"hasWallTime\":%s,\"endedAtUnixSec\":%lu,"
@@ -1130,25 +1134,21 @@ bool OpenBrewByWeightNetwork::sendHistoryStream(UiStreamSession &session,
       return false;
   }
   if (!statusJsonAppend(&used, "]}")) return false;
-  // Recheck ownership immediately before delivery; telemetry never renews it.
-  bool owner;
-  { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
-  httpd_ws_frame_t frame = {};
-  frame.type = HTTPD_WS_TYPE_TEXT;
-  frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
-  frame.len = used;
-  if (!owner) return false;
-  if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
-    // Nothing was delivered: the snapshot/fetch/epoch state that produced
-    // this frame is still armed, so the next dispatch retries it unchanged.
-    return uiStreamSendCleanAbort;
-  }
+  // A deferred send delivered nothing: the snapshot/fetch/epoch state that
+  // produced this frame is still armed, so the next dispatch retries it.
+  bool deferred;
+  if (!sendUiStreamFrame(session, used, deferred)) return false;
+  if (deferred) return true;
   session.historyBoot = control.bootId;
   session.historyResync = false;
   session.historyFetch = false;
   if (!fetch) {
     session.historyEpoch = epoch;
     session.historyFingerprint = fingerprint;
+    held.historyHeldCount = static_cast<uint8_t>(page.count < kHeldRows ? page.count : kHeldRows);
+    for (size_t index = 0; index < held.historyHeldCount; ++index)
+      held.historyHeld[index] = {page.records[index].id,
+                                 uiStreamRowHash(&page.records[index], sizeof(HistoryRecord))};
   }
   return true;
 }
@@ -1434,14 +1434,26 @@ bool OpenBrewByWeightNetwork::sendStatsStream(UiStreamSession &session,
           static_cast<unsigned>(limit), cache.hasMore ? "true" : "false"))
     return false;
   const size_t rowsBase = used;
+  auto &held = workBuf_->uiFingerprints[&session - uiStreams_];
   while (session.statsSent < pageCount) {
     const ShotLogRecord &record = snapshot.records[cache.order[start + session.statsSent]];
-    // Fetch only the curve of the row being framed; short store-lock holds
-    // paced across dispatches replace the former whole-store copy.
-    const bool haveCurve = callbacks_.copyShotCurveById != nullptr &&
-        callbacks_.copyShotCurveById(record.id, cache.fetchCurve);
-    const size_t rowBytes = formatShotStatsRow(
-        work, record, haveCurve ? &cache.fetchCurve : nullptr);
+    // Only the packed rating byte changes after commit; curves are immutable.
+    const uint32_t *curveHash = cache.curveHashes.find(record.id);
+    const uint32_t key[3] = {record.id, record.sideFlags, curveHash ? *curveHash : 0U};
+    const HeldRow row = {record.id, curveHash ? uiStreamRowHash(key, sizeof(key)) : 0U};
+    size_t rowBytes;
+    if (row.hash && !session.statsPageSnapshot && !session.statsPageFetch &&
+        uiStreamHeld(held.statsHeld, held.statsHeldCount, row.id, row.hash)) {
+      // A standing refresh names the rows the page already holds by id.
+      rowBytes = static_cast<size_t>(snprintf(work.jsonItem, NetworkWorkBuf::kJsonItem, "%lu",
+                                              static_cast<unsigned long>(record.id)));
+    } else {
+      // Fetch only the curve of the row being framed; short store-lock holds
+      // paced across dispatches replace the former whole-store copy.
+      const bool haveCurve = callbacks_.copyShotCurveById != nullptr &&
+          callbacks_.copyShotCurveById(record.id, cache.fetchCurve);
+      rowBytes = formatShotStatsRow(work, record, haveCurve ? &cache.fetchCurve : nullptr);
+    }
     if (!rowBytes) return false;
     // Close the frame before this row unless the frame is empty; a single
     // oversized row still fits under the client's frame guard alone.
@@ -1452,24 +1464,19 @@ bool OpenBrewByWeightNetwork::sendStatsStream(UiStreamSession &session,
     if (!statusJsonAppend(&used, "%s%s", used > rowsBase ? "," : "",
                           work.jsonItem))
       return false;
+    if (!session.statsPageFetch && session.statsSent < kHeldRows)
+      held.statsNext[session.statsSent] = row;
     ++session.statsSent;
   }
   const bool more = session.statsSent < pageCount;
   if (!statusJsonAppend(&used, "],\"rowBase\":%u,\"more\":%s}",
           static_cast<unsigned>(sentBase), more ? "true" : "false"))
     return false;
-  // Recheck ownership immediately before every delivery.
-  bool owner;
-  { TaskLockGuard lock(dataMux_); owner = strcmp(session.clientId, activeWebUiClientId_) == 0; }
-  httpd_ws_frame_t frame = {};
-  frame.type = HTTPD_WS_TYPE_TEXT;
-  frame.payload = reinterpret_cast<uint8_t *>(g_work->statusJson);
-  frame.len = used;
-  if (!owner) return false;
-  if (httpd_ws_send_frame_async(server_, session.fd, &frame) != ESP_OK) {
-    // A clean header abort delivered nothing: roll the buffered rows back so
-    // the next dispatch rebuilds the same frame for the same page.
-    if (!uiStreamSendCleanAbort) return false;
+  // A deferred send delivered nothing: roll the buffered rows back so the
+  // next dispatch rebuilds the same frame for the same page.
+  bool deferred;
+  if (!sendUiStreamFrame(session, used, deferred)) return false;
+  if (deferred) {
     session.statsSent = sentBase;
     return true;
   }
@@ -1484,6 +1491,8 @@ bool OpenBrewByWeightNetwork::sendStatsStream(UiStreamSession &session,
   if (!fetch) {
     session.statsEpoch = epoch;
     session.statsFingerprint = fingerprint;
+    held.statsHeldCount = static_cast<uint8_t>(pageCount < kHeldRows ? pageCount : kHeldRows);
+    memcpy(held.statsHeld, held.statsNext, held.statsHeldCount * sizeof(HeldRow));
   }
   return true;
 }

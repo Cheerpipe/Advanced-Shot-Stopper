@@ -1218,9 +1218,10 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // animation fallback (runtime and CSS) brings it to 72145, owner-requested 2026-10-22. Animated
 // equipment rows and unfolded-only preset graphs bring it to 72174, owner-requested 2026-10-22; cap 72190.
 // The Settings scope notes, Account group and outlined History icon CSS bring it to 72183,
-// owner-requested 2026-10-22; cap 72210.
-if (coldHomeGzip > 72210) {
-  throw new Error(`Cold Home download exceeds the 72210-byte gzip budget (${coldHomeGzip})`);
+// owner-requested 2026-10-22; cap 72210. The gap-only stream keepalive, hidden pause flag
+// and held Stats/History rows bring it to 72254, owner-requested 2026-10-23; cap 72280.
+if (coldHomeGzip > 72280) {
+  throw new Error(`Cold Home download exceeds the 72280-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin

@@ -14,6 +14,8 @@
   };
   const sessionStart = header.indexOf('  struct UiStreamSession {');
   const session = header.slice(sessionStart, header.indexOf('\n  };', sessionStart) + 5);
+  const uiStream = read('network/OpenBrewByWeightUiStream.inc');
+  const heldRows = body(uiStream, 'uint32_t uiStreamRowHash(') + '\n' + body(uiStream, 'bool uiStreamHeld(');
   const native = `
 #include <cassert>
 #include <atomic>
@@ -30,7 +32,7 @@ constexpr size_t kStatsStreamFrameBytes=20480;
 constexpr uint32_t kStatsStreamPaceMs=100;
 const char *uiStreamSendKind="";
 bool uiStreamSendCleanAbort=false;
-uint32_t now=1,storeEpoch=1; unsigned captures=0,hashes=0; int sendResult=ESP_OK;
+uint32_t now=1,storeEpoch=1,frozen=0; unsigned captures=0,hashes=0; int sendResult=ESP_OK;
 uint32_t millis(){return now;}
 struct TaskLockGuard {explicit TaskLockGuard(int){}};
 struct httpd_ws_frame_t{int type;uint8_t *payload;size_t len;};
@@ -41,10 +43,15 @@ int httpd_ws_send_frame_async(int,int,httpd_ws_frame_t *frame){
 }
 ${body(networkSource, 'struct StatsCurveHashCache {')};
 ${body(networkSource, 'struct StatsStreamCache {')};
+${body(header, 'struct UiStreamFingerprints {')};
+using HeldRow = UiStreamFingerprints::HeldRow;
+constexpr size_t kHeldRows = UiStreamFingerprints::kHeldRows;
+${heldRows}
 struct NetworkWorkBuf {
   static constexpr size_t kStatusJson=40960,kJsonItem=16000;
   char statusJson[kStatusJson]{},jsonItem[kJsonItem]{};
   StatsStreamCache statsCache;
+  UiStreamFingerprints uiFingerprints[2]{};
 } work;
 auto *g_work=&work;
 ${body(networkSource, 'bool __attribute__((format(printf, 2, 3)))\nstatusJsonAppend(')}
@@ -64,20 +71,23 @@ size_t formatShotStatsRow(NetworkWorkBuf &buffer,const ShotLogRecord &record,
 void capture(ShotStatsRecordsSnapshot &out){
   ++captures;
   out.epoch=storeEpoch;out.stats.shotCount=storeEpoch;out.count=3;
+  const uint32_t content=frozen?frozen:storeEpoch;
   for(size_t i=0;i<out.count;++i){
-    out.records[i]={};out.records[i].id=3-i;out.records[i].actualWeightCg=storeEpoch*100+i;
+    out.records[i]={};out.records[i].id=3-i;out.records[i].actualWeightCg=content*100+i;
     out.records[i].sideFlags=shotLogPackRating(0,i==0?1:i==1?5:0);
   }
 }
 bool curveById(uint32_t id,ShotCurveRecord &curve){
   resetShotCurveRecord(curve);
   if(id==0||id>3) return false;
-  appendShotCurvePoint(curve,storeEpoch*100+(3-id),0,false);
+  appendShotCurvePoint(curve,(frozen?frozen:storeEpoch)*100+(3-id),0,false);
   return true;
 }
 struct OpenBrewByWeightNetwork {
   static constexpr size_t WEB_UI_CLIENT_ID_CAPACITY=25;
 ${session}
+  NetworkWorkBuf *workBuf_=&work;
+  UiStreamSession uiStreams_[2];
   int dataMux_=0,server_=1;bool webUiOverrideActive_=false;uint32_t webUiOverrideUntilMs_=0;
   char activeWebUiClientId_[WEB_UI_CLIENT_ID_CAPACITY]="owner";
   std::atomic<bool> uiStreamUrgent_{false};
@@ -89,8 +99,10 @@ ${session}
   bool appendRecordPageUi(const ControlStatusSnapshot &,size_t *used,bool){
     return statusJsonAppend(used,"\\"ui\\":{}");
   }
+  bool sendUiStreamFrame(UiStreamSession &,size_t,bool &);
   bool sendStatsStream(UiStreamSession &,const ControlStatusSnapshot &);
 };
+${body(source, 'bool OpenBrewByWeightNetwork::sendUiStreamFrame(')}
 ${body(source, 'bool OpenBrewByWeightNetwork::sendStatsStream(')}
 int main(){
   // The recent list mirrors statsView: newest-first eligible shots, ten at most,
@@ -112,7 +124,7 @@ int main(){
     char tight[40]="{}",open[16]="{";
     assert(!appendStatsRecent(recent,tight,sizeof(tight))&&!appendStatsRecent(recent,open,sizeof(open)));
   }
-  OpenBrewByWeightNetwork network;OpenBrewByWeightNetwork::UiStreamSession session;
+  OpenBrewByWeightNetwork network;auto &session=network.uiStreams_[0];
   strcpy(session.clientId,"owner");session.fd=1;session.statsOn=true;
   ControlStatusSnapshot control;control.bootId=9;
   auto send=[&](auto &target){now+=kStatsStreamPaceMs;return network.sendStatsStream(target,control);};
@@ -154,7 +166,7 @@ int main(){
   assert(send(session)&&session.statsSent==2);
   assert(captures==copied&&hashes==hashed);
   // A new session owns its cursor; immutable cache contents may be shared.
-  OpenBrewByWeightNetwork::UiStreamSession fresh;strcpy(fresh.clientId,"owner");fresh.fd=2;
+  auto &fresh=network.uiStreams_[1];strcpy(fresh.clientId,"owner");fresh.fd=2;
   assert(send(fresh)&&fresh.statsSent==1&&captures==copied);
   strcpy(fresh.clientId,"superseded");
   assert(!send(fresh));
@@ -179,6 +191,14 @@ int main(){
   page(ShotLogSort::Date,ShotLogSortDir::Desc,3,2,1,true);
   page(ShotLogSort::Rating,ShotLogSortDir::Desc,2,3,1);
   page(ShotLogSort::Date,ShotLogSortDir::Desc,3,2,1);
+  // A standing refresh names the rows the page already holds by id: with row
+  // content unchanged, a store epoch move sends ids instead of rows.
+  frozen=storeEpoch;++storeEpoch;frames.clear();
+  assert(send(fresh)&&!fresh.statsPaging&&frames.size()==1);
+  assert(frames[0].find("\\"rows\\":[3,2,1],\\"rowBase\\":0,\\"more\\":false")!=std::string::npos);
+  // A resubscribe (or reconnect) still sends whole rows.
+  fresh.statsResync=true;frames.clear();
+  assert(send(fresh)&&frames[0].find("\\"id\\":3")!=std::string::npos);
 }
 `;
   const directory = path.resolve(sketchDir, '..', 'temp', 'ai_temp_stats_cache');

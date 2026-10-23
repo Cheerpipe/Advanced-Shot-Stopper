@@ -195,6 +195,13 @@ struct UiStreamFingerprints {
   uint32_t homeHashes[kHomeFields] = {};
   uint32_t diagHashes[kDiagFields] = {};
   uint32_t cardHashes[kCardFields + kCurveFields] = {};
+  // Rows (id, content hash) of the last standing Stats and History pages the
+  // page holds: a later standing page names an unchanged row by its id.
+  // statsNext collects a paced page until its last frame lands.
+  static constexpr size_t kHeldRows = 32;
+  struct HeldRow { uint32_t id, hash; };
+  HeldRow statsHeld[kHeldRows] = {}, statsNext[kHeldRows] = {}, historyHeld[kHeldRows] = {};
+  uint8_t statsHeldCount = 0, historyHeldCount = 0;
 };
 
 struct NetworkBridgeCallbacks {
@@ -436,6 +443,8 @@ class OpenBrewByWeightNetwork {
     char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
     bool bound = false, resync = true;
     bool homeResync = true;
+    // Hidden page: frames wait (fingerprints kept) outside a live shot.
+    bool paused = false;
     // Captured at handshake: the socket is served by the SoftAP interface, so
     // the session reports admin unlocked for its lifetime (the WPA2
     // passphrase is the device password).

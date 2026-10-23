@@ -230,7 +230,8 @@
          homeStream.includes('deferArm = true;') &&
          (homeStream.match(/sendUiStreamFrame\(session, [a-zA-Z.]+, session\.diagResync\)/g) || []).length === 4,
       'deferred Home/diagnostic sends must re-arm their snapshot');
-  assert(homeStream.includes('return uiStreamSendCleanAbort;'),
+  assert(homeStream.includes('if (deferred) return true;') &&
+         homeStream.includes('    session.statsSent = sentBase;\n    return true;'),
       'deferred record pages keep their retry state instead of closing');
   assert(homeStream.includes('session.statsSent = sentBase;'),
       'a deferred stats frame must roll its buffered rows back');

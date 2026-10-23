@@ -372,7 +372,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       const requests = [], responses = [];
       const slots = vm.createContext({activeView: view, deviceInFlight: 0, deviceWaiters: [],
         DEVICE_MAX_INFLIGHT: 1, webUiPollingActive: () => true,
-        WEB_UI_CLIENT_HEADER: 'X-WebUI-Client', webUiClientId: 'test', webUiPowerSeconds: () => 0,
+        WEB_UI_CLIENT_HEADER: 'X-WebUI-Client', webUiClientId: 'test', webUiPowerSeconds: () => 0, noteUiSent() {},
         WEB_UI_SESSION_HEADER: 'X-WebUI-Session', SESSION_KEY: 'obbwSession', sessionMemory: '',
         AbortController, setTimeout: () => 1, clearTimeout() {}, __WEBUI_TEXT__: key => key,
         fetch: path => {const response = deferred(); requests.push(path); responses.push(response); return response.promise;}});
@@ -960,8 +960,10 @@ if (htmlBytes > 107310) {
 // Settings group animation fallback for browsers without interpolate-size: measured 519506,
 // owner-requested 2026-10-22. Home equipment rows in the fallback and unfolded-only preset
 // graphs: measured 519725, owner-requested 2026-10-22.
-if (jsBytes > 519725) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 519725)`);
+// Stream traffic economy (gap-only keepalive, hidden pause flag, held Stats/History
+// rows by id): measured 520759, owner-requested 2026-10-23.
+if (jsBytes > 520759) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 520759)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.

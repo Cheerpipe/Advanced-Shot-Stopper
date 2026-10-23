@@ -1466,6 +1466,15 @@ if (!statsSection ||
         assert.throws(() => context.historyStreamFrame(bad),
             'invalid history frames must fail closed');
       }
+      // A standing refresh names the records the page holds by id; a snapshot
+      // or an id the page cannot resolve fails closed into a resync.
+      const kept = frame().records[0], added = frame().records[1];
+      vm.runInContext('uiState.historyData = {records: []}', context);
+      context.uiState.historyData.records.push(kept);
+      const refreshed = context.historyStreamFrame(frame({snapshot: false, records: [added, 2]}));
+      assert.equal(refreshed.records[1], kept, 'a held id resolves to the record already held');
+      assert.throws(() => context.historyStreamFrame(frame({snapshot: false, records: [added, 7]})));
+      assert.throws(() => context.historyStreamFrame(frame({records: [added, 2]})));
     }
     assert.ok(network.includes('requestPendingNetworkConfirm()'),
         'Accepted socket ops keep confirming pending station settings');
