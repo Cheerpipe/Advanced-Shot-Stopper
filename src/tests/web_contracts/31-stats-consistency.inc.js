@@ -70,7 +70,7 @@
   const filled = [];
   new Function('$', 'R', '__WEBUI_TEXT__', 'renderStatsDurChart',
       `${blockAt(rawViewJs.stats, 'function renderShotStats(')};renderShotStats();`)(
-      (id) => (filled.push(id), {classList: {toggle() {}}}),
+      (id) => (filled.push(id), {classList: {toggle() {}}, querySelectorAll: () => []}),
       {uiState: {shotStats: {avgDurationS: 1, avgYieldG: 2, shotsPerDay: 3, avgErrorPct: 4,
         avgFlowGps: 5, shotCount: 10}, statsWindow: 10}, sub: (t, v) => t + v},
       (key) => 'translated ' + key, () => {});

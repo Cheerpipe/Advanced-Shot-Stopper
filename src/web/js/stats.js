@@ -972,7 +972,7 @@ function renderShotStats() {
         ? __WEBUI_TEXT__("runtime.stats_window_one")
         : R.sub(__WEBUI_TEXT__("runtime.stats_window_hint"), [c]);
   }
-  for (const b of $("statsWindow")?.children || [])
+  for (const b of $("statsWindow")?.querySelectorAll("button") || [])
     b.setAttribute("aria-pressed", String(+b.dataset.v === R.uiState.statsWindow));
   renderStatsDurChart();
 }
@@ -1428,7 +1428,7 @@ export function init() {
     $("sortRatingButton").onclick = () => setShotSort("rating");
     syncShotSortButtons();
   }
-  for (const b of $("statsWindow").children)
+  for (const b of $("statsWindow").querySelectorAll("button"))
     b.onclick = () => {
       // Only the header changes: the firmware refreshes it and keeps the rows.
       R.uiState.statsWindow = +b.dataset.v;
