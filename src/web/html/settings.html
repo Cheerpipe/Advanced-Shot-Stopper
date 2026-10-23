@@ -64,9 +64,7 @@
 </svg>
 <div id="workflowPanel">
   <fieldset>
-    <legend>
-      {{webui:settings.presets}} <span class="hint">{{webui:settings.presets_scope_hint}}</span>
-    </legend>
+    <legend>{{webui:settings.presets}}</legend>
     <div class="presetManage">
       <div id="presetCardsWrap" class="panelWrap">
         <div
@@ -175,6 +173,7 @@
       <summary>{{webui:settings.recipe}}</summary>
       <label
         ><input id="brewByWeight" type="checkbox" checked />
+    <p class="scopeNote">{{webui:settings.presets_scope_note}}</p>
         {{webui:settings.brew_by_weight_2}}<small class="fieldHint"
           >{{webui:settings.off_keeps_tare_timer_physical_stop_and}}</small
         ></label
@@ -461,6 +460,7 @@
           ></label
         >
         <div id="lineaMicraPowerDeps" class="micraDeps">
+      <p class="scopeNote">{{webui:settings.micra_scope_note}}</p>
           <label
             ><input id="lineaMicraRecognizeWake" type="checkbox" checked />
             {{webui:settings.recognize_wake_gesture}}<small class="fieldHint"
@@ -519,10 +519,8 @@
     </div>
   </fieldset>
   <fieldset>
-    <legend>
-      {{webui:settings.shared_settings}}
-      <span class="hint">{{webui:settings.shared_scope_hint}}</span>
-    </legend>
+    <legend>{{webui:settings.shared_settings}}</legend>
+    <p class="scopeNote">{{webui:settings.shared_scope_note}}</p>
     <details data-g="paddle" class="cfgGroup paddleOnly">
       <summary>{{webui:settings.paddle}}</summary>
       <label

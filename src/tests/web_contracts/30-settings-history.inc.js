@@ -169,8 +169,8 @@ if (/R\.(homeFlushConfig|homeFlushPreset|configLoaded|formRev|brewDirty)\s*=/.te
   throw new Error(
       'View modules must call runtime helpers instead of assigning read-only ESM namespace exports');
 }
-if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
-    !codeIncludes(ui, '<legend>Shared settings <span class="hint">') ||
+if (!codeIncludes(ui, '<legend>Presets</legend>') ||
+    !codeIncludes(ui, '<legend>Shared settings</legend><p class="scopeNote">These settings') ||
     !codeIncludes(ui, '<summary>Network</summary>') ||
     !codeIncludes(ui, '<summary>Access</summary>') ||
     !codeIncludes(ui, '<summary>Frontend</summary>') ||
@@ -197,7 +197,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     html.indexOf('id="activeBrewProfileHint"') <
         html.indexOf('id="resetCalibrationButton"') ||
     html.indexOf('id="activeBrewProfileHint"') >
-        html.indexOf('<legend>Shared settings ') ||
+        html.indexOf('<legend>Shared settings</legend>') ||
     !codeIncludes(ui, 'id="presetResetBtn"') ||
     !codeIncludes(ui, 'id="presetDeleteBtn"') ||
     !codeIncludes(ui, 'id="presetRenameDialog"') ||

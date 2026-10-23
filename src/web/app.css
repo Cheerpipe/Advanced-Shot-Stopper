@@ -1515,7 +1515,8 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
   font-weight: 500;
   line-height: 1.4;
 }
-#message:before {
+#message:before,
+.scopeNote:before {
   content: __WEBUI_CSS_TEXT__("css.i");
   display: grid;
   place-items: center;
@@ -1616,8 +1617,23 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
 .cfgGroup[open] {
   padding-bottom: 0.75rem;
 }
-#lineaMicraLinkedNote + .cfgGroup {
-  margin-top: 0.85rem;
+.scopeNote {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0.85rem 0 0.75rem;
+  color: var(--mu);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+.scopeNote:before {
+  border: 0;
+  clip-path: polygon(29% 0, 71% 0, 100% 29%, 100% 71%, 71% 100%, 29% 100%, 0 71%, 0 29%);
+  background: var(--mu);
+  color: var(--sf);
+  font:
+    italic 700 0.8rem Georgia,
+    serif;
 }
 .adminLockTitle {
   display: flex;
