@@ -1806,11 +1806,15 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.cfgGroup .metric + .metric {
+  margin-top: 0.75rem;
+}
 .micraDeps {
   margin-left: 1.9rem;
 }
 .micraPill {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
   align-items: center;
   gap: 0.4rem;
   margin-top: 0.45rem;

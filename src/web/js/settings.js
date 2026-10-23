@@ -1040,6 +1040,7 @@ const GROUP_SUMMARIES = {
     if (!on("brewByWeight")) return __WEBUI_TEXT__("settings.sum_not_used");
     return Number.isFinite(parseFloat(g)) ? g + __WEBUI_TEXT__("runtime.g_2") : "";
   },
+  account: () => __WEBUI_TEXT__("settings.sum_signed_in"),
   power: () => {
     if (!on("lineaMicraObserveState")) return OFF;
     const deps = [...$("lineaMicraPowerDeps").querySelectorAll("input")],

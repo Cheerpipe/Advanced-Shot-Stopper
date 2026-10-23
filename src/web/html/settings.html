@@ -16,6 +16,10 @@
       d="M12 3c3 4 6 7.2 6 10.5a6 6 0 0 1-12 0C6 10.2 9 7 12 3Zm-2.5 11a2.5 2.5 0 0 0 2.5 2.5"
     />
   </symbol>
+  <symbol id="g-account" viewBox="0 0 24 24">
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 20a8 8 0 0 1 16 0" />
+  </symbol>
   <symbol id="g-power" viewBox="0 0 24 24"><path d="M12 3v8M6.3 7.5a8 8 0 1 0 11.4 0" /></symbol>
   <symbol id="g-auto" viewBox="0 0 24 24">
     <path d="M4 12a8 8 0 0 1 13.7-5.6L20 9m0-5v5h-5m5 3a8 8 0 0 1-13.7 5.6L4 15m0 5v-5h5" />
@@ -428,25 +432,31 @@
     </div>
     <small id="lineaMicraProgress" role="status"></small>
     <div id="lineaMicraConnected" hidden>
-      <div class="metric">
-        <strong>{{webui:settings.selected_machine}}</strong>
-        <div>
-          <span id="lineaMicraIdentity"></span>
-          <button id="lineaMicraChangeButton" class="inlineAction mutable" type="button">
-            ({{webui:settings.change}})
-          </button>
+      <details data-g="account" class="cfgGroup">
+        <summary>{{webui:settings.account}}</summary>
+        <div class="metric">
+          <strong>{{webui:settings.account}}</strong>
+          <div>
+            <span id="lineaMicraAccount"></span>
+            <button id="lineaMicraDisconnectButton" class="inlineAction mutable" type="button">
+              ({{webui:settings.disconnect_account}})
+            </button>
+          </div>
         </div>
-        <span id="lineaMicraStatus" class="micraPill"></span>
-      </div>
-      <div class="metric">
-        <strong>{{webui:settings.account}}</strong>
-        <div>
-          <span id="lineaMicraAccount"></span>
-          <button id="lineaMicraDisconnectButton" class="inlineAction mutable" type="button">
-            ({{webui:settings.disconnect_account}})
-          </button>
+        <div class="metric">
+          <strong>{{webui:settings.selected_machine}}</strong>
+          <div>
+            <span id="lineaMicraIdentity"></span>
+            <button id="lineaMicraChangeButton" class="inlineAction mutable" type="button">
+              ({{webui:settings.change}})
+            </button>
+          </div>
         </div>
-      </div>
+        <div class="metric">
+          <strong>{{webui:settings.machine_status}}</strong>
+          <span id="lineaMicraStatus" class="micraPill"></span>
+        </div>
+      </details>
       <p id="lineaMicraLinkedNote" class="readyMsg isOk" role="status" hidden>
         {{webui:settings.micra_linked_note}}
       </p>
