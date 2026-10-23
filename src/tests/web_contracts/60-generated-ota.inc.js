@@ -739,9 +739,10 @@ if (generated.jsGzip.length > 7850) {
 // Group switches, setting rows and the sunken open-group band: 16567, owner-requested 2026-10-22.
 // A setting row closing the band meets its bottom edge, and the group opening transition
 // survives minification, with a symmetric band: 16634, owner-requested 2026-10-22.
-// Joined-box number keys, compact fields and the dropdown key: 16839, owner-requested 2026-10-22; cap 16850.
-if (generated.cssGzip.length > 16850) {
-  throw new Error(`Compressed Web CSS exceeds the 16850-byte gzip budget (${generated.cssGzip.length})`);
+// Joined-box number keys, compact fields and the dropdown key: 16839, owner-requested 2026-10-22.
+// Home equipment rows on the sunken band: 16868, owner-requested 2026-10-22; cap 16880.
+if (generated.cssGzip.length > 16880) {
+  throw new Error(`Compressed Web CSS exceeds the 16880-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -1199,9 +1200,10 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // cup brings it to 71172, owner-requested 2026-10-22. The group switch, setting row and
 // sunken open-group CSS brings it to 71371, owner-requested 2026-10-22. The band's bottom
 // row fit and the minifier-safe group transition bring it to 71421. The joined-box
-// number keys and dropdown key bring it to 71872, owner-requested 2026-10-22; cap 71890.
-if (coldHomeGzip > 71890) {
-  throw new Error(`Cold Home download exceeds the 71890-byte gzip budget (${coldHomeGzip})`);
+// number keys and dropdown key bring it to 71872, owner-requested 2026-10-22. The Home
+// equipment rows on the sunken band bring it to 71901, owner-requested 2026-10-22; cap 71920.
+if (coldHomeGzip > 71920) {
+  throw new Error(`Cold Home download exceeds the 71920-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin

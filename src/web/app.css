@@ -1248,7 +1248,7 @@ label:has(> input[type="checkbox"]) .fieldHint {
 .lampRow summary::-webkit-details-marker {
   display: none;
 }
-.lampRow summary:hover {
+.lampRow:not([open]) summary:hover {
   background: var(--in);
 }
 .lampRow summary:focus-visible {
@@ -1353,6 +1353,19 @@ label:has(> input[type="checkbox"]) .fieldHint {
 }
 .lampRow[open] .chev {
   transform: rotate(90deg);
+}
+/* An open equipment row shows its readings on the same sunken band as an
+   open settings group, starting under the lamp. */
+.lampRow[open] {
+  padding-bottom: 0.75rem;
+}
+.lampRow[open] .devName {
+  color: var(--ac);
+}
+.lampRow .metricRows {
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--r);
+  background: var(--in);
 }
 .metricRows {
   display: grid;
