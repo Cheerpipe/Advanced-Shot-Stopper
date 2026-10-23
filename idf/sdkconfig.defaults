@@ -3,9 +3,8 @@
 # sdkconfig.defaults.n16r8. Do not put CONFIG_IDF_TARGET here: idf.py set-target
 # writes it into sdkconfig.
 #
-# Official supported firmware builds use ./scripts/dev build. The legacy
-# ESP-IDF is the only supported firmware build path;
-# prebuilt Arduino-ESP32 libraries there compile ALLOW_BSS out.
+# Official firmware builds use ./scripts/dev build; ESP-IDF is the only
+# supported build path (prebuilt Arduino-ESP32 libraries compile ALLOW_BSS out).
 
 CONFIG_FREERTOS_HZ=1000
 CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y
@@ -26,8 +25,7 @@ CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID=y
 # do not force OPEN_BREW_BY_WEIGHT_ENABLE_BUZZER here.
 
 # Open Brew by Weight runs at 80 MHz (setup() calls setCpuFrequencyMhz(80)).
-# Arduino-CLI boots at 240 (F_CPU) until that line; IDF's S3 default is 160.
-# Start already at 80 so cpu_start and setup agree.
+# IDF's S3 default is 160; start already at 80 so cpu_start and setup agree.
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_80=y
 
 # Use the measured -O2 resource profile for supported firmware builds.

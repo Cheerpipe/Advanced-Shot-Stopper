@@ -5,7 +5,7 @@ nearest scoped `AGENTS.md`. Set up dependencies using [Build](docs/BUILD.md);
 tests never install packages or contact hardware implicitly, and
 `./scripts/dev doctor` reports the local tool versions before tests or
 firmware compilation.
-Routine setup uses the committed npm, IDF, and uv locks; follow the
+Routine setup uses the committed npm and IDF locks; follow the
 [explicit upgrade steps](docs/BUILD.md#upgrade-dependencies-deliberately) when
 changing a dependency.
 

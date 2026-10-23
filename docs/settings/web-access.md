@@ -57,6 +57,12 @@ controller on your own network, not a guest or public one.
 Joining the controller's own setup network already proves the device password,
 so the setup page never asks for it again.
 
+The password does not protect the board itself. The firmware does not use
+secure boot or flash encryption, so anyone who can open the machine and plug a
+USB cable into the controller can read its saved settings, including your Wi-Fi
+password, or install other firmware. The factory device password
+(`ineedacoffee`) is public, so change it when you set up the controller.
+
 Whether the password is on or off, the controller answers only when you open
 it by an address that names it: its IP address, `<name>.local`, or the plain
 device name your router may offer (also with `.lan`, `.home.arpa` or

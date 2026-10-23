@@ -345,11 +345,11 @@ without changing scalar history, settings, partition addresses or OTA slots.
 Curve JSON keeps the seconds-based `dropS`, `extendedS`, `atmS`, `atmClearedS`
 and `endS` fields with three decimal places; scalar shot metrics retain their
 existing precision and meaning.
-An 816 KiB dedicated partition holds 101 reserved 8 KiB data blocks and two
+A 4,016 KiB dedicated partition holds 501 reserved 8 KiB data blocks and two
 4 KiB clear-epoch sectors. A maximum-size record occupies 5632 bytes. Writes
 erase only its one or two used physical sectors, transfer only the used record
 through the existing internal 1 KiB scratch, and commit the checksum-bearing
-header last. A replacement uses the spare block, retaining the previous 100
+header last. A replacement uses the spare block, retaining the previous 500
 records until commit. Startup scans only block starts, checks schema, lengths,
 counts, times and checksums, and reconstructs the newest retained records.
 Deletion clears a validity bit; the committed retention floor prevents old

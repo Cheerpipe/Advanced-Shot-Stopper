@@ -360,9 +360,9 @@ clocks, partitions, or watchdog durations.
 
 The supported build maps flash code and read-only data into PSRAM at startup
 and executes from there, reserving roughly 1.9 MiB of PSRAM ahead of the heap.
-Flash operations still disable both
-caches while they run, so this mapping does not change which code may run
-during a write. An existing build tree is regenerated when its selected
+Because code runs from PSRAM, flash writes and
+erases keep the caches enabled; ESP-IDF still pauses them while a flash
+memory mapping is open, such as during OTA image verification. An existing build tree is regenerated when its selected
 defaults change. A successful build verifies configuration and memory limits;
 only an on-device comparison can establish whether loop gaps improve.
 

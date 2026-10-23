@@ -102,4 +102,5 @@ risk gate in [VALIDATION.md](../VALIDATION.md).
 - [Contribution workflow](../CONTRIBUTING.md)
 - [AI workflow](AI_WORKFLOW.md)
 - [Build](BUILD.md) and [script reference](SCRIPTS.md)
+- [Release checklist](RELEASE.md) and [changelog](../CHANGELOG.md)
 - [Manual test plan](MANUAL_TEST_PLAN.md)
