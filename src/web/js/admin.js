@@ -318,15 +318,17 @@ function editDeviceName(title, name, rename) {
   input.select();
 }
 function deviceRow(icon, name, detail, self, actionLabel, askText, done, rename) {
-  const li = document.createElement("li");
+  const li = document.createElement("li"),
+    kind = rename ? "button" : "b";
   li.className = "dev";
-  li.innerHTML = `<span class="devIc"><svg viewBox="0 0 24 24">${DEVICE_ICONS[icon]}</svg></span><span class="devTx"><b></b><small></small></span>`;
-  const title = li.querySelector("b"),
+  li.innerHTML = `<span class="devIc"><svg viewBox="0 0 24 24">${DEVICE_ICONS[icon]}</svg></span><span class="devTx"><${kind}></${kind}><small></small></span>`;
+  const title = li.querySelector(kind),
     small = li.querySelector("small");
   title.textContent = name;
   small.textContent = detail;
   if (rename) {
-    title.classList.add("devName");
+    title.type = "button";
+    title.className = "devName inlineAction";
     title.title = __WEBUI_TEXT__("admin.rename_device");
     title.onclick = () => editDeviceName(title, name, rename);
   }
@@ -578,16 +580,19 @@ async function refreshWifiScan() {
     if (R.uiState.scanBusy || !R.webUiPollingActive()) return;
     R.uiState.scanBusy = true;
     try {
-      const d = await R.api("/api/v1/network/scan");
+      const d = await R.api("/api/v1/network/scan"),
+        waiting =
+          (d.state === "QUEUED" || d.state === "RUNNING") && Date.now() - scanStartedAt < 3e4;
       $("scanStatus").textContent =
         d.state === "READY"
           ? __WEBUI_TEXT__("runtime.ready") +
             d.networks.length +
             __WEBUI_TEXT__("runtime.network_s")
-          : d.state;
+          : waiting
+            ? __WEBUI_TEXT__("setup.searching_networks")
+            : __WEBUI_TEXT__("setup.scan_failed");
       if (d.state === "READY") showScanResults(d);
-      if (R.webUiPollingActive() && (d.state === "QUEUED" || d.state === "RUNNING"))
-        R.uiState.scanTimer = setTimeout(refreshWifiScan, 500);
+      if (R.webUiPollingActive() && waiting) R.uiState.scanTimer = setTimeout(refreshWifiScan, 500);
     } catch (e) {
       R.message(e.message, "error");
     } finally {
@@ -595,8 +600,11 @@ async function refreshWifiScan() {
     }
   });
 }
+// Setup's page-side bound: a scan is not polled past 30 s.
+let scanStartedAt = 0;
 async function startWifiScan() {
   if (R.uiState.scanBusy) return;
+  scanStartedAt = Date.now();
   clearTimeout(R.uiState.scanTimer);
   $("scanStatus").textContent = __WEBUI_TEXT__("runtime.requesting");
   return R.withPollGate(async () => {

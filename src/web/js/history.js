@@ -73,7 +73,7 @@ function renderHistory() {
     R.wrapTimeEl(time, r);
     const dur = document.createElement("td");
     dur.className = "shotDur";
-    dur.innerHTML = (r.durationS || 0).toFixed(1) + "<small>s</small>";
+    dur.innerHTML = (r.durationS || 0).toFixed(1) + `<small>${__WEBUI_TEXT__("runtime.s")}</small>`;
     const type = document.createElement("td");
     type.className = "histType";
     const badge = document.createElement("span");

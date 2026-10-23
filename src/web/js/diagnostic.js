@@ -644,6 +644,9 @@ function applyDiagnosticStatus(s) {
   const u = !!s.adminUnlocked,
     p = !!s.diagnosticPublic;
   R.syncAdminSessionUi(u);
+  // Reads stay public; actions follow the firmware gate.
+  for (const e of document.querySelectorAll(".diagGate"))
+    e.inert = !u && !s.development && !R.diagnosticVisible;
   R.uiState.diagnosticPublicView = p;
   if (!u && !p) return;
   const t = (i, v) => ($(i).textContent = v || __WEBUI_TEXT__("runtime.unknown"));

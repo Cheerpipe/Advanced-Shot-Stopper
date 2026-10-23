@@ -298,7 +298,10 @@ function renderShotSpark(h, shot, m = R.buildShotSparkModel(shot)) {
     if (!v || !g) return;
     const t = cursorT,
       w = curveAt(curve, t),
-      cut = rule.mode === "active" ? R.cutLine(t, rule).toFixed(1) + " g" : "\u2014";
+      cut =
+        rule.mode === "active"
+          ? R.cutLine(t, rule).toFixed(1) + __WEBUI_TEXT__("runtime.g_2")
+          : "\u2014";
     g.children[0].setAttribute("d", `M${v.X(t).toFixed(1)} ${v.T}V${v.B}`);
     g.children[1].setAttribute("cx", v.X(t).toFixed(2));
     g.children[1].setAttribute("cy", v.Y(w).toFixed(2));
@@ -1046,6 +1049,8 @@ function renderShots() {
       __WEBUI_TEXT__("runtime.cut_at"),
       __WEBUI_TEXT__("runtime.drip_delay"),
     ];
+    const G = __WEBUI_TEXT__("runtime.g"),
+      S = __WEBUI_TEXT__("runtime.s");
     for (const r of rows) {
       const row = document.createElement("tr");
       row.dataset.id = r.id;
@@ -1063,29 +1068,29 @@ function renderShots() {
         drip = cut.drip ?? null;
       const vals = [
         formatShotTime(r),
-        r.durationS.toFixed(1) + "s",
-        r.goalG.toFixed(1) + "g",
+        r.durationS.toFixed(1) + S,
+        r.goalG.toFixed(1) + G,
         estimated
           ? R.sub(__WEBUI_TEXT__("runtime.yield_estimated"), [Math.round(r.estimatedG)])
           : actual === null
             ? "—"
-            : actual.toFixed(1) + "g",
+            : actual.toFixed(1) + G,
         err,
-        drip === null ? "—" : (drip < 0 ? "" : "+") + drip.toFixed(1) + "g",
-        flow === null ? "—" : flow.toFixed(2) + " g/s",
+        drip === null ? "—" : (drip < 0 ? "" : "+") + drip.toFixed(1) + G,
+        flow === null ? "—" : flow.toFixed(2) + __WEBUI_TEXT__("runtime.g_s"),
         maxFlow === null
           ? "—"
           : maxFlow.toFixed(2) +
-            " g/s" +
+            __WEBUI_TEXT__("runtime.g_s") +
             (r.wTruncated ? __WEBUI_TEXT__("runtime.recorded_suffix") : ""),
-        r.firstDropS === null ? "—" : r.firstDropS.toFixed(1) + "s",
-        r.tareS == null ? __WEBUI_TEXT__("runtime.none") : r.tareS.toFixed(1) + "s",
+        r.firstDropS === null ? "—" : r.firstDropS.toFixed(1) + S,
+        r.tareS == null ? __WEBUI_TEXT__("runtime.none") : r.tareS.toFixed(1) + S,
         R.formatShotEnded(r.stopDetail, r.verdict),
         r.shotType,
         shotPresetName(r),
         r.scaleName || __WEBUI_TEXT__("runtime.none"),
-        cut.g == null ? "—" : cut.g.toFixed(1) + "g · " + cut.s.toFixed(1) + "s",
-        r.dripDelayS == null ? "—" : r.dripDelayS.toFixed(1) + "s",
+        cut.g == null ? "—" : cut.g.toFixed(1) + G + " · " + cut.s.toFixed(1) + S,
+        r.dripDelayS == null ? "—" : r.dripDelayS.toFixed(1) + S,
       ];
       const cls = [
         "",

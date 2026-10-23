@@ -177,7 +177,7 @@
           <strong
             >{{webui:diagnostic.max_scale_gap}} (<button
               id="scaleGapMaxResetButton"
-              class="inlineAction diagCtl"
+              class="inlineAction diagCtl diagGate"
               type="button"
             >
               {{webui:diagnostic.reset}}</button
@@ -245,11 +245,23 @@
           <div id="hProfileRecords">{{webui:diagnostic.unknown}}</div>
         </div>
         <div class="btnBar glassBar">
-          <button id="scaleProfileStartButton" class="btnGlyph scaleProfileCtl" type="button">
+          <button
+            id="scaleProfileStartButton"
+            class="btnGlyph scaleProfileCtl diagGate"
+            type="button"
+          >
             {{webui:diagnostic.start}}</button
-          ><button id="scaleProfileStopButton" class="btnGlyph scaleProfileCtl" type="button">
+          ><button
+            id="scaleProfileStopButton"
+            class="btnGlyph scaleProfileCtl diagGate"
+            type="button"
+          >
             {{webui:diagnostic.stop}}</button
-          ><button id="scaleProfileDeleteButton" class="btnGlyph scaleProfileCtl" type="button">
+          ><button
+            id="scaleProfileDeleteButton"
+            class="btnGlyph scaleProfileCtl diagGate"
+            type="button"
+          >
             {{webui:diagnostic.delete}}</button
           ><button
             id="scaleProfileDownloadButton"
@@ -421,9 +433,17 @@
           <div id="hTaskElapsed">{{webui:diagnostic.unknown}}</div>
         </div>
         <div class="btnBar glassBar">
-          <button id="taskProfilerStartButton" class="btnGlyph taskProfilerCtl" type="button">
+          <button
+            id="taskProfilerStartButton"
+            class="btnGlyph taskProfilerCtl diagGate"
+            type="button"
+          >
             {{webui:diagnostic.start}}</button
-          ><button id="taskProfilerStopButton" class="btnGlyph taskProfilerCtl" type="button">
+          ><button
+            id="taskProfilerStopButton"
+            class="btnGlyph taskProfilerCtl diagGate"
+            type="button"
+          >
             {{webui:diagnostic.stop}}
           </button>
         </div>
@@ -486,7 +506,7 @@
         </div>
         <div class="metric">
           <strong>{{webui:diagnostic.heap_map}}</strong>
-          <a id="heapMapDownload" href="#">{{webui:diagnostic.download}}</a>
+          <a id="heapMapDownload" class="diagGate" href="#">{{webui:diagnostic.download}}</a>
         </div>
       </div>
     </details>
@@ -669,7 +689,7 @@
           <strong
             >{{webui:diagnostic.loop_max}} (<button
               id="loopMaxResetButton"
-              class="inlineAction diagCtl"
+              class="inlineAction diagCtl diagGate"
               type="button"
             >
               {{webui:diagnostic.reset}}</button
@@ -717,7 +737,11 @@
             >{{webui:diagnostic.uptime_is_saved_every_minute_values_may}}</small
           >
           <div class="btnBar glassBar">
-            <button id="clearResetHistoryButton" class="btnGlyph btnWarn diagCtl" type="button">
+            <button
+              id="clearResetHistoryButton"
+              class="btnGlyph btnWarn diagCtl diagGate"
+              type="button"
+            >
               <span class="g" aria-hidden="true">{{webui:diagnostic.close}}</span
               ><span class="t">{{webui:diagnostic.reset}}</span>
             </button>
@@ -739,7 +763,7 @@
       <div id="auditSummary" aria-live="polite">{{webui:diagnostic.unknown}}</div>
     </div>
     <div class="btnBar glassBar">
-      <button id="auditVerboseButton" class="btnGlyph" type="button" disabled>
+      <button id="auditVerboseButton" class="btnGlyph diagGate" type="button" disabled>
         {{webui:diagnostic.audit_hunt_30m}}</button
       ><button id="auditClearButton" class="btnGlyph" type="button" disabled>
         {{webui:diagnostic.delete}}</button

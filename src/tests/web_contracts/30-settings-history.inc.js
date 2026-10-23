@@ -391,7 +391,7 @@ if (!codeIncludes(ui, '<legend>Presets</legend>') ||
       !codeIncludes(ui, 'id="hLoopGap"') ||
       !codeIncludes(ui, 'id="hLoopMax"') ||
       !codeIncludes(ui, 'id="loopMaxResetButton"') ||
-      !diagHtml.includes('Longest gap (<button id="scaleGapMaxResetButton" class="inlineAction diagCtl" type="button">Reset</button>)') ||
+      !diagHtml.includes('Longest gap (<button id="scaleGapMaxResetButton" class="inlineAction diagCtl diagGate" type="button">Reset</button>)') ||
       !codeIncludes(ui, 'id="hScaleGapMax"') ||
       !codeIncludes(ui, 'id="loopTimingTable"') ||
       !codeIncludes(ui, 'id="loopTimingBody"') ||

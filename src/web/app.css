@@ -1438,7 +1438,8 @@ label:has(> input[type="checkbox"]) .fieldHint {
   padding: 0.4rem 0.3rem;
   cursor: pointer;
 }
-.auditPageBtn:disabled {
+.auditPageBtn:disabled,
+[inert] {
   opacity: 0.4;
   cursor: default;
 }
@@ -2266,7 +2267,7 @@ summary::marker {
   min-width: 0;
   line-height: 1.25;
 }
-.devTx b {
+.devTx > :first-child {
   display: block;
   font-size: 0.9rem;
   font-weight: 600;

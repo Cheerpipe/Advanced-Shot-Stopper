@@ -29,8 +29,8 @@ function updatePreferredScaleSelect(s) {
     preferred = (s.scale && s.scale.preferredMac) || "",
     prev = sel.value,
     keep = sel.dataset.pending === "1",
-    draft = sel.selectedOptions && sel.selectedOptions[0];
-  sel.innerHTML = "";
+    draft = sel.selectedOptions && sel.selectedOptions[0],
+    list = document.createElement("select");
   if (!preferred || (keep && !prev)) {
     const first = document.createElement("option"),
       mode = s.config && s.config.scaleMacCacheMode;
@@ -39,7 +39,7 @@ function updatePreferredScaleSelect(s) {
       mode === "only" || mode === "prefer"
         ? __WEBUI_TEXT__("runtime.first_detected")
         : __WEBUI_TEXT__("runtime.no_preferred");
-    sel.appendChild(first);
+    list.appendChild(first);
   }
   const seen = {};
   history.forEach((e) => {
@@ -50,7 +50,7 @@ function updatePreferredScaleSelect(s) {
     o.value = mac;
     o.dataset.name = (e.name && String(e.name).trim()) || "";
     o.textContent = scaleHistoryLabel(e);
-    sel.appendChild(o);
+    list.appendChild(o);
   });
   if (preferred && !seen[preferred]) {
     const o = document.createElement("option");
@@ -62,15 +62,17 @@ function updatePreferredScaleSelect(s) {
         __WEBUI_TEXT__("runtime.unknown_2")) +
       __WEBUI_TEXT__("runtime.unknown_3") +
       preferred;
-    sel.appendChild(o);
+    list.appendChild(o);
   }
   if (keep && prev && !seen[prev] && prev !== preferred && draft) {
     const o = document.createElement("option");
     o.value = prev;
     o.dataset.name = draft.dataset.name || "";
     o.textContent = draft.textContent;
-    sel.appendChild(o);
+    list.appendChild(o);
   }
+  // Rebuild only on change: a poll must not close an open list.
+  if (sel.innerHTML !== list.innerHTML) sel.innerHTML = list.innerHTML;
   sel.value = keep ? prev : preferred || "";
   R.updateScalePreferenceOptions();
   sel.dataset.applied = preferred;

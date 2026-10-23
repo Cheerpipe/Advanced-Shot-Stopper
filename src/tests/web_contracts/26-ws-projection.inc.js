@@ -187,8 +187,9 @@ int main(){
   const nodes = new Map(), $ = id => {
     if (!nodes.has(id)) nodes.set(id, {textContent: ''});return nodes.get(id);
   };
-  const context = {$, __WEBUI_TEXT__: key => key,
-    R: {syncAdminSessionUi(){}, message(){}, uiState: {diagnosticPublicView: false}},
+  const action = {inert: true};
+  const context = {$, __WEBUI_TEXT__: key => key, document: {querySelectorAll: () => [action]},
+    R: {syncAdminSessionUi(){}, message(){}, uiState: {diagnosticPublicView: false}, diagnosticVisible: false},
     updH(){},ntpStateLabel(){},formatDiagnosticTimezoneOffset(){},renderDiagClock(){}};
   vm.createContext(context);
   vm.runInContext(blockAt(fs.readFileSync(path.join(sketchDir, 'web/js/diagnostic.js'), 'utf8'),
@@ -196,6 +197,9 @@ int main(){
   const status = {adminUnlocked:true,health:{},safety:{},maintenance:{},network:{},time:{},scale:{},
     config:{},nvs:{statsValid:false,usedEntries:0,availableEntries:20,freeEntries:0,totalEntries:20,namespaces:0}};
   context.applyDiagnosticStatus(status);
+  assert.equal(action.inert, false, 'unlocked Admin keeps the Diagnostic actions usable');
+  context.applyDiagnosticStatus({...status, adminUnlocked: false});
+  assert.equal(action.inert, true, 'locked Admin with a hidden page disables refused actions');
   for (const id of ['hNvsEntries','hNvsTotal','hNvsNamespaces']) assert.equal($(id).textContent, 'runtime.unknown');
   status.nvs.statsValid=true;context.applyDiagnosticStatus(status);
   assert.equal($('hNvsNamespaces').textContent,'0');assert($('hNvsEntries').textContent.startsWith('0'));

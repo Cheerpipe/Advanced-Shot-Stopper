@@ -966,9 +966,11 @@ if (htmlBytes > 107310) {
 // 10/50/100 Stats window, and firmware-computed charts: measured 523207,
 // owner-requested 2026-10-23. Rejected-op (4003) recovery that clears the list
 // views: measured 523596, owner-requested 2026-10-23. Stream render errors kept off
-// the corrupt-frame path: measured 523859, owner-requested 2026-10-23.
-if (jsBytes > 523859) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 523859)`);
+// the corrupt-frame path: measured 523859, owner-requested 2026-10-23. v1 Web UI
+// fixes (stream-confirmed commands, bounded sign-in and scan, keyed scale list,
+// modal overlay, Diagnostic action gate): measured 524387, owner-requested 2026-10-23.
+if (jsBytes > 524387) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 524387)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1139,8 +1141,9 @@ if (jsBytes > 523859) {
 // Firmware-side list filters, the Stats window, and firmware-computed charts: measured 629623,
 // owner-requested 2026-10-23. Rejected-op (4003) recovery: measured 630012, owner-requested 2026-10-23.
 // Stream render errors kept off the corrupt-frame path: measured 630275, owner-requested 2026-10-23.
-if (htmlBytes + jsBytes > 630275) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 630275)`);
+// v1 Web UI fixes: measured 630821, owner-requested 2026-10-23.
+if (htmlBytes + jsBytes > 630821) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 630821)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

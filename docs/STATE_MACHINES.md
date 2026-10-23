@@ -1013,6 +1013,10 @@ has not confirmed HTTP is refused.
 **Purpose.** The controller handles **one** mutating request at a time.
 The Web UI shows an action-specific success or failure toast when the
 HTTP handler accepts or rejects the command, not when NVS is done.
+Configuration and preset saves are the exception: they wait for their own
+request's `APPLIED` (presets: `PERSISTED`) and a new configuration revision,
+read from the Home stream that every page keeps open; REST status polls,
+backing off from 250 ms to 1 s, stand in only while that stream is down.
 
 Source: `OpenBrewByWeightDomain.h`.
 

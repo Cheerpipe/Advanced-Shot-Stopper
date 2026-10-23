@@ -10,10 +10,10 @@
     codeIncludes(ui, 'setInterval(()=>refreshStatus(),2500)')) {
   throw new Error('Web UI must adapt/pause status polls, serialize commands, time out hung fetches, and use DEVICE_MAX_INFLIGHT without POST heartbeat');
 }
-if (!codeIncludes(runtimeJs, "function statusIntervalMs(){return document.hidden?12e3:statusLiveShot?2500:4e3}") ||
+if (!codeIncludes(runtimeJs, "if(webUiPollingActive()&&statusPollDue())refreshStatus();},1e4)") ||
     !codeIncludes(runtimeJs, "s=v==='home'?await loadHomeStatus():v==='diagnostic'?await loadDiagnosticStatus():await api(") ||
     !codeIncludes(runtimeJs, "activeView!=='settings'&&activeView!=='admin'")) {
-  throw new Error('Home and Diagnostic must use their socket; other views retain live/idle/hidden REST intervals');
+  throw new Error('Home and Diagnostic must use their socket; Settings/Admin keep only the slow REST poll');
 }
 if (!codeIncludes(ui, 'async function loadStatus(){') ||
     !codeIncludes(ui, 'function startStatsStream(force){') ||

@@ -213,7 +213,7 @@
     ['a command rejection cannot be acknowledged by an unrelated revision', async () => {
       const code = blockAt(rawRuntimeJs, 'async function command(');
       let polls = 0;
-      const c = vm.createContext({configRevision: 10, lastCommandStatus: null,
+      const c = vm.createContext({configRevision: 10, lastCommandStatus: null, homeStale: true,
         withCommandGate: fn => fn(), api: async () => ({requestId: 7}), body: JSON.stringify,
         clearFieldErrors() {}, noteReachOk() {}, message() {}, commandBusy: false,
         __WEBUI_TEXT__: key => key, setTimeout: fn => { fn(); },
@@ -228,7 +228,7 @@
     ['command success waits for its own applied result', async () => {
       const code = blockAt(rawRuntimeJs, 'async function command(');
       let polls = 0;
-      const c = vm.createContext({configRevision: 10, lastCommandStatus: null,
+      const c = vm.createContext({configRevision: 10, lastCommandStatus: null, homeStale: true,
         withCommandGate: fn => fn(), api: async () => ({requestId: 7}), body: JSON.stringify,
         clearFieldErrors() {}, noteReachOk() {}, message() {}, commandBusy: false,
         __WEBUI_TEXT__: key => key, setTimeout: fn => { fn(); },
@@ -239,6 +239,22 @@
       vm.runInContext(code, c);
       assert.equal(await c.command('/api/v1/config', {timezoneId: 'Asia/Tokyo'}, true, '', ''), true);
       assert.equal(polls, 2);
+    }],
+    ['a live Home stream confirms a preset save without status polls', async () => {
+      const code = blockAt(rawRuntimeJs, 'async function command(');
+      let polls = 0, ticks = 0;
+      const c = vm.createContext({configRevision: 10, lastCommandStatus: null, homeStale: false,
+        withCommandGate: fn => fn(), api: async () => ({requestId: 7}), body: JSON.stringify,
+        clearFieldErrors() {}, noteReachOk() {}, message() {}, commandBusy: false,
+        __WEBUI_TEXT__: key => key,
+        setTimeout: fn => {
+          if (++ticks === 3) { c.configRevision = 11; c.lastCommandStatus = {requestId: 7, state: 'PERSISTED'}; }
+          fn();
+        },
+        refreshStatus: async () => { ++polls; }});
+      vm.runInContext(code, c);
+      assert.equal(await c.command('/api/v1/presets', {op: 'save'}, true, '', ''), true);
+      assert.equal(polls, 1, 'Home frames confirm the save; REST only repaints the view once');
     }]
   ];
   (async () => {

@@ -118,9 +118,14 @@
   const assert = require('assert').strict, vm = require('vm');
   const run = async () => {
     const a = 'AA:BB:CC:DD:EE:01', b = 'AA:BB:CC:DD:EE:02';
+    let rebuilds = 0;
+    const markup = options => JSON.stringify(options.map(o => [o.value, o.textContent, o.dataset.name]));
     const sel = {id: 'preferredScaleSelect', dataset: {}, options: [], selected: '',
-      appendChild(o) {this.options.push(o);},
-      set innerHTML(_) {this.options = []; this.selected = '';},
+      get innerHTML() {return markup(this.options);},
+      set innerHTML(html) {
+        rebuilds++; this.selected = '';
+        this.options = JSON.parse(html).map(([value, textContent, name]) => ({value, textContent, dataset: {name}}));
+      },
       set value(v) {this.selected = this.options.some(o => o.value === v) ? v : '';},
       get value() {return this.selected;},
       get selectedOptions() {return this.options.filter(o => o.value === this.value);}};
@@ -129,7 +134,9 @@
     const bullseye = {bullseyeMelodyEnabled: false, bullseyeRtttl: ''};
     let applied = a, editDuringSave = null;
     const context = vm.createContext({$: id => id === sel.id ? sel : null,
-      document: {activeElement: null, createElement: () => ({dataset: {}}),
+      document: {activeElement: null, createElement: tag => tag === 'select'
+        ? {options: [], appendChild(o) {this.options.push(o);}, get innerHTML() {return markup(this.options);}}
+        : {dataset: {}},
         querySelectorAll: () => [sel]},
       controlsMutable: true, __LINEA_MICRA__: false,
       settingsSectionOf: () => 'config', updateScalePreferenceOptions() {},
@@ -169,6 +176,8 @@
     const edit = () => context.noteEdit('config', 300);
     const flush = () => context.flushSection('config', true);
     context.updatePreferredScaleSelect(status()); settle();
+    context.updatePreferredScaleSelect(status());
+    assert.equal(rebuilds, 1, 'An unchanged scale list is not rebuilt, so an open list stays open');
     sel.value = b; context.selectPreferredScale(); edit();
     assert.equal(requests.length, 0, 'An edit waits for its pause before saving');
     assert(context.configDirty); assert.equal(context.renameMac, b);

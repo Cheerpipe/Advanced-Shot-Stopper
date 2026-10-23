@@ -69,6 +69,14 @@ feedback, lost diagnostics, or weaker reliability. When an exception is
 necessary, document the reason with the change. Modem sleep stays enabled;
 these rules reduce wakeups rather than disabling power saving.
 
+Documented exception: the Settings and Admin pages read their own status by
+REST every 10 seconds while visible and owned. Live and shared state (machine,
+scale, presets, command results, configuration revision) reaches every page
+on the Home stream, and command confirmation waits on that stream; the slow
+poll only catches device-side changes these forms show that have no stream
+projection (scale history, network, OTA, webhooks), which would otherwise need
+a per-page stream of their own.
+
 ## PSRAM cache before flash
 
 Everything a person can change from the Settings and Home pages, and the shot

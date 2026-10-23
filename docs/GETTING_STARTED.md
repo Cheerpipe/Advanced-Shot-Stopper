@@ -117,7 +117,7 @@ restore the complete header.
 Diagnostics appears only when **Show diagnostic page** is enabled in
 **Admin → Frontend**; hiding it gives the other buttons more room. While it is
 hidden, its actions (profilers, resets, tare, heap map) also need Admin
-unlocked.
+unlocked and stay dimmed until you unlock it.
 The phone header shrinks gradually as you scroll, keeping the logo and connection
 icons visible. Return to the top to restore its full size.
 

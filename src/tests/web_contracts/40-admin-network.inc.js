@@ -629,13 +629,15 @@ if (!codeIncludes(ui, "relayStartReady=s.safety.state!=='LOCKOUT'") ||
     !codeIncludes(ui, 'admin&&remoteReady&&relayStartReady&&canControl') ||
     !codeIncludes(ui, "live?'Stop shot':'Start shot'") ||
     !codeIncludes(ui, "dataset.mode==='stop'") ||
+    !codeIncludes(ui, "if(shot.dataset.mode==='stop'&&!live)shot.dataset.stoppedAt=Date.now()") ||
+    !codeIncludes(ui, "Date.now()-(stopButton.dataset.stoppedAt||0)>2e3&&R.command('/api/v1/control/paddle'") ||
     !codeIncludes(ui, "/api/v1/control/paddle") ||
     !codeIncludes(ui, "/api/v1/control/stop") ||
     !codeIncludes(ui, 'show=!!unlocked&&!!remoteEnabled') ||
     !codeIncludes(ui, 'syncAdminSessionUi(admin,remoteReady)') ||
     !codeIncludes(ui, "id=\"actionsPanel\" class=\"hidden\"") ||
     !codeIncludes(ui, 'shot.disabled=!admin||(!live&&!(remoteReady&&relayStartReady&&canControl))')) {
-  throw new Error('Circuit actions must require remote policy and Admin unlock while preserving Stop semantics');
+  throw new Error('Circuit actions must require remote policy and Admin unlock, preserve Stop semantics, and ignore Start for 2 s after a stop');
 }
 if (!codeIncludes(ui, 'id="forcePulseButton"') ||
     !codeIncludes(ui, 'class="btnGlyph btnWarn momentaryOnly"') ||
@@ -732,7 +734,6 @@ if (!codeIncludes(ui, 'function withPollGate(') ||
     !codeIncludes(ui, 'function armStatusTimer(') ||
     !codeIncludes(ui, 'function statusPollDue(') ||
     !codeIncludes(ui, 'commandBusy') ||
-    !codeIncludes(ui, 'statusLiveShot') ||
     !codeIncludes(ui, 'visibilitychange') ||
     !codeIncludes(ui, 'await refreshStatus()') ||
     !codeIncludes(ui, 'noteReachFail(') ||

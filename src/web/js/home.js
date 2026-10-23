@@ -161,7 +161,8 @@ export function init() {
     stopButton.onclick = () =>
       stopButton.dataset.mode === "stop"
         ? R.command("/api/v1/control/stop")
-        : R.command("/api/v1/control/paddle", { on: true });
+        : Date.now() - (stopButton.dataset.stoppedAt || 0) > 2e3 &&
+          R.command("/api/v1/control/paddle", { on: true });
   const forcePulseButton = $("forcePulseButton");
   if (forcePulseButton) forcePulseButton.onclick = () => R.command("/api/v1/control/force-pulse");
   [

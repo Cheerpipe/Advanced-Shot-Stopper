@@ -305,7 +305,6 @@ let bootId = 0,
   commandChain = Promise.resolve(),
   commandBusy = false,
   lastStatusAt = 0,
-  statusLiveShot = false,
   deviceInFlight = 0,
   deviceWaiters = [],
   diagnosticUnlocked = false,
@@ -593,7 +592,7 @@ function cycleTheme() {
 }
 // A running shot keeps the UI session alive (the Web UI doubles as a shot
 // timer); every signal is read from the live WebSocket state so a frozen
-// statusLiveShot copy cannot extend the session on non-polling views.
+// status copy cannot extend the session on non-polling views.
 // Takeover by another client still deactivates immediately elsewhere.
 function sessionShotLive() {
   const s = homeFrame && homeFrame.status;
@@ -672,15 +671,13 @@ function releaseDeviceSlot() {
 function statusPollDue() {
   return !commandBusy && !uiState.otaBusy && Date.now() - lastStatusAt >= 900;
 }
-function statusIntervalMs() {
-  return document.hidden ? 12e3 : statusLiveShot ? 2500 : 4e3;
-}
+// Settings/Admin only; live state rides the Home stream (ARCHITECTURE.md).
 function armStatusTimer() {
   clearInterval(statusTimer);
   if (!webUiPollingActive() || (activeView !== "settings" && activeView !== "admin")) return;
   statusTimer = setInterval(() => {
     if (webUiPollingActive() && statusPollDue()) refreshStatus();
-  }, statusIntervalMs());
+  }, 1e4);
 }
 function pad2(n) {
   return String(n).padStart(2, "0");
@@ -2046,6 +2043,8 @@ function showInactiveOverlay() {
   setInactiveError("");
   document.body.classList.add("webUiInactive");
   el.setAttribute("aria-hidden", "false");
+  // Modal: the page behind is inert.
+  for (const n of el.parentElement.children) n.inert = n !== el;
   if (!el.classList.contains("isVisible")) {
     void el.offsetWidth;
     el.classList.add("isVisible");
@@ -2065,6 +2064,7 @@ function hideInactiveOverlay() {
   if (!el || !el.classList.contains("isVisible")) return;
   el.classList.remove("isVisible");
   document.body.classList.remove("webUiInactive");
+  for (const n of el.parentElement.children) n.inert = false;
   clearTimeout(inactiveOverlayTimer);
   inactiveOverlayTimer = setTimeout(() => {
     el.setAttribute("aria-hidden", "true");
@@ -2222,6 +2222,22 @@ function deactivateWebUi() {
   setMutable(false);
   showInactiveOverlay();
 }
+// Bounded like api(); null data means a non-JSON body.
+async function fetchJson(path, options, ms = 8e3) {
+  const ac = new AbortController(),
+    to = setTimeout(() => ac.abort(), ms);
+  try {
+    const response = await fetch(path, { ...options, signal: ac.signal }),
+      txt = await response.text();
+    try {
+      return [response, txt ? JSON.parse(txt) : {}];
+    } catch (_) {
+      return [response, null];
+    }
+  } finally {
+    clearTimeout(to);
+  }
+}
 // `claimed` is a sign-in response, which already claimed this window.
 async function claimWebUiOwnership(claimed) {
   initShotFullScreen();
@@ -2233,25 +2249,17 @@ async function claimWebUiOwnership(claimed) {
   try {
     let data = claimed || {};
     if (!claimed) {
-      const ac = new AbortController(),
-        to = setTimeout(() => ac.abort(), rec ? 4e3 : 8e3);
-      let response, txt;
-      try {
-        response = await fetch("/api/v1/ui/claim", {
+      const [response, json] = await fetchJson(
+        "/api/v1/ui/claim",
+        {
           method: "POST",
           headers: webUiHeaders({ "Content-Type": "application/json" }),
           body: "{}",
-          signal: ac.signal,
-        });
-        txt = await response.text();
-      } finally {
-        clearTimeout(to);
-      }
-      try {
-        data = txt ? JSON.parse(txt) : {};
-      } catch (_) {
-        throw new Error(__WEBUI_TEXT__("runtime.invalid_ownership_response"));
-      }
+        },
+        rec ? 4e3 : 8e3,
+      );
+      data = json;
+      if (!data) throw new Error(__WEBUI_TEXT__("runtime.invalid_ownership_response"));
       if (data.error === "AUTH_REQUIRED") {
         endNetworkReconnectWait();
         showSignIn(!!sessionToken());
@@ -2319,8 +2327,7 @@ async function showSignIn(signedOut) {
     : __WEBUI_TEXT__("shell.sign_in_intro");
   $("loginPassword").focus({ preventScroll: true });
   try {
-    const response = await fetch("/api/v1/auth", { headers: webUiHeaders() });
-    const data = await response.json();
+    const [, data] = await fetchJson("/api/v1/auth", { headers: webUiHeaders() });
     $("loginDevice").textContent = $("loginUser").value = data.deviceName || "";
     // The login was turned off meanwhile, or this is the setup network.
     if (!data.loginRequired) {
@@ -2343,12 +2350,12 @@ async function showSignIn(signedOut) {
       submit.disabled = true;
       setSignInError("");
       try {
-        const response = await fetch("/api/v1/auth/login", {
-          method: "POST",
-          headers: { [WEB_UI_CLIENT_HEADER]: webUiClientId, "Content-Type": "application/json" },
-          body: body({ password, remember: $("loginRemember").checked, device: deviceLabel() }),
-        });
-        const data = await response.json().catch(() => ({}));
+        const [response, json] = await fetchJson("/api/v1/auth/login", {
+            method: "POST",
+            headers: { [WEB_UI_CLIENT_HEADER]: webUiClientId, "Content-Type": "application/json" },
+            body: body({ password, remember: $("loginRemember").checked, device: deviceLabel() }),
+          }),
+          data = json || {};
         if (data.error === "AUTH_NOT_REQUIRED") {
           $("webUiInactive").classList.remove("isLogin");
           return claimWebUiOwnership();
@@ -4148,7 +4155,6 @@ function renderHomeStream() {
   if (homeStale || !homeFrame) return;
   const status = homeFrame.status;
   lastStatusAt = Date.now();
-  statusLiveShot = !!status.liveShot;
   applyCommonStatus(status);
   // Only the Home stream carries the pairing request; Admin's status has its
   // own access summary.
@@ -6323,6 +6329,8 @@ function applyHomeStatus(s) {
       s.config.rinseEnabled === true
     );
   if (shot) {
+    // A Stop tap landing just after the shot ends must not start one.
+    if (shot.dataset.mode === "stop" && !live) shot.dataset.stoppedAt = Date.now();
     shot.dataset.mode = live ? "stop" : "start";
     shot.title = live
       ? __WEBUI_TEXT__("runtime.stop_shot_2")
@@ -6415,10 +6423,7 @@ async function loadStatus() {
     if (!s || (v !== "diagnostic" && !statusPageOk(v, s)))
       throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
     lastStatusAt = Date.now();
-    if (v !== "diagnostic") {
-      statusLiveShot = s.liveShot;
-      applyCommonStatus(s);
-    }
+    if (v !== "diagnostic") applyCommonStatus(s);
     if (s.snapshotStale) setMutable(false);
     const apply = viewStatusHandlers[v];
     if (apply) apply(s);
@@ -6467,24 +6472,29 @@ async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
         return true;
       }
       if (waitForRevision) {
-        let applied = false;
-        for (let i = 0; i < 40; i++) {
+        // Home frames refresh lastCommandStatus and configRevision; REST
+        // backs off (250 ms to 1 s) only while the stream is stale.
+        let applied = false,
+          polled = false;
+        for (let i = 0, next = 0, gap = 2.5; i < 40 && !applied; i++) {
           if (i) await new Promise((r) => setTimeout(r, 100));
-          await refreshStatus();
+          if ((polled = homeStale && i >= next)) {
+            await refreshStatus();
+            next = i + gap;
+            gap = Math.min(10, gap * 2);
+          }
           const result = lastCommandStatus;
           if (result?.requestId !== accepted.requestId) continue;
           if (result.state === "FAILED" || result.state === "CANCELED")
             throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));
           // The device rejects a preset operation until the previous one is saved.
-          if (
+          applied =
             (result.state === "PERSISTED" || (!presetOp && result.state === "APPLIED")) &&
-            configRevision !== previousRevision
-          ) {
-            applied = true;
-            break;
-          }
+            configRevision !== previousRevision;
         }
         if (!applied) throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));
+        // Repaint REST-backed forms once.
+        if (!polled) await refreshStatus();
       } else await refreshStatus();
       if (okMsg !== "")
         message(
@@ -6508,6 +6518,7 @@ async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
   });
 }
 export {
+  diagnosticVisible,
   saveFile,
   resetWebUiInactivity,
   activeView,

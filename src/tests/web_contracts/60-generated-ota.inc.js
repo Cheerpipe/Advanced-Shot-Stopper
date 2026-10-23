@@ -750,9 +750,10 @@ if (generated.jsGzip.length > 7850) {
 // and the La Marzocco scope note above Account: 17102, owner-requested 2026-10-22; cap 17120.
 // List filter groups and result dots, the Stats window bar, and icon-only Shots actions on
 // phones: 17134, owner-requested 2026-10-23; cap 17140. Diagnostics closing rule and the
-// detached download button: 17146, owner-requested 2026-10-23; cap 17150.
-if (generated.cssGzip.length > 17150) {
-  throw new Error(`Compressed Web CSS exceeds the 17150-byte gzip budget (${generated.cssGzip.length})`);
+// detached download button: 17146, owner-requested 2026-10-23; cap 17150. The device
+// rename button and dimmed inert controls: 17154, owner-requested 2026-10-23; cap 17160.
+if (generated.cssGzip.length > 17160) {
+  throw new Error(`Compressed Web CSS exceeds the 17160-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -1010,7 +1011,9 @@ if (generated.otaImageGzip.length > 3072) {
 // Compact History cards under day headers measure records.js at 15389, owner-requested 2026-10-23; cap 15420 for asset-tag gzip wobble.
 // Settings scope notes and the Account group measure settings.js at 18413, and one-weight outlined
 // History icons measure records.js at 15420, owner-requested 2026-10-22; caps 18430 and 15440.
-const viewModuleBudgets = {records: 15440, diagnostic: 14690, admin: 17880, settings: 18430, setup: 5870};
+// Localized, bounded Wi-Fi scan states and the keyboard rename button measure admin.js at 17947,
+// owner-requested 2026-10-23; cap 17970.
+const viewModuleBudgets = {records: 15440, diagnostic: 14690, admin: 17970, settings: 18430, setup: 5870};
 for (const [file, budget] of Object.entries(viewModuleBudgets)) {
   if (generated.moduleGzip[file].length > budget) {
     throw new Error(`Compressed ${file}.js exceeds the ${budget}-byte gzip budget (${generated.moduleGzip[file].length})`);
