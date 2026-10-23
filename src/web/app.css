@@ -1617,7 +1617,7 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
 .cfgGroup[open] {
   padding-bottom: 0.75rem;
 }
-#lineaMicraLinkedNote + .cfgGroup {
+#lineaMicraLinkedNote:not([hidden]) + .cfgGroup {
   margin-top: 0.85rem;
 }
 .scopeNote {
