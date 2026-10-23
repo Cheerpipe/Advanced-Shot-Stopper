@@ -254,7 +254,6 @@ const uiState = {
   brewWarnSig: "",
   brewWarnSeq: 0,
   configBaseline: null,
-  micraBaseline: null,
   micraDirty: false,
   micraSignIn: null,
   dateTimeBaseline: null,
@@ -2419,8 +2418,6 @@ const BREW_CONTROL_IDS = [
   "lineaMicraBrewTargetC",
 ];
 const REVERT_BUTTONS = {
-  saveConfigButton: "revertConfigButton",
-  saveBrewPresetButton: "revertBrewPresetButton",
   saveNetworkButton: "revertNetworkButton",
   saveDateTimeButton: "revertDateTimeButton",
   saveWebhookButton: "revertWebhookButton",
@@ -2429,7 +2426,6 @@ const REVERT_BUTTONS = {
   saveBleButton: "revertBleButton",
   savePowerButton: "revertPowerButton",
   saveFrontendButton: "revertFrontendButton",
-  lineaMicraSaveButton: "revertLineaMicraButton",
 };
 function settingsSectionOf(id) {
   if (BREW_CONTROL_IDS.includes(id)) return "brew";
@@ -2493,7 +2489,6 @@ function updateScalePreferenceOptions() {
 }
 function clearBrewDirty() {
   uiState.brewDirty = false;
-  setSaveDirty("saveBrewPresetButton", "brewDirtyHint", false);
 }
 // Live brew warnings: the save validator's verdict, rendered in yellow while
 // editing instead of red after Save. Same rules, same edited-field
@@ -2892,8 +2887,6 @@ function brewPayload() {
         "grindHintsEnabled",
       ].map((k) => [k, $(k).checked]),
     ]),
-    action: "save",
-    id: bbwFormPresetId,
     // Empty means "use your recent shots": the firmware stores it as 0.
     scaleLossFixedS: number("scaleLossFixedS"),
     ...(document.documentElement.classList.contains("micraTemperatureEnabled")
@@ -3241,15 +3234,10 @@ function renderAllPresetUi() {
   updatePresetActionButtons();
   updateActiveBrewProfileHint();
 }
-// Home writes reuse the Settings brew form: unsaved edits there must never
-// ride along, so the owner discards them first or the Home change is dropped.
+// Home writes reuse the Settings brew form: its pending autosave goes first,
+// and a form that cannot be saved drops the Home change.
 async function cleanBrewForm() {
-  if (uiState.brewDirty) {
-    if (!confirm(__WEBUI_TEXT__("runtime.you_have_unsaved_preset_changes_discard_them")))
-      return false;
-    clearBrewDirty();
-    invalidateSettingsHydration();
-  }
+  if (uiState.brewDirty && !(await uiState.flushSettings())) return false;
   await ensureSettingsHydrated();
   return true;
 }
@@ -3299,15 +3287,11 @@ async function applyPreset(id) {
     renderAllPresetUi();
     return;
   }
-  if (
-    uiState.brewDirty &&
-    !confirm(__WEBUI_TEXT__("runtime.you_have_unsaved_preset_changes_discard_them"))
-  ) {
+  if (uiState.brewDirty && !(await uiState.flushSettings())) {
     presetState.selectedId = presetState.activeId;
     renderAllPresetUi();
     return;
   }
-  clearBrewDirty();
   presetState.selectedId = id;
   configLoaded = false;
   formRev = 0;
@@ -3320,8 +3304,9 @@ async function applyPreset(id) {
     renderHomePresetAccordion();
   }
 }
-async function saveBrewPreset(okMsg, failMsg, fromDial = false) {
-  const ok = okMsg || __WEBUI_TEXT__("runtime.preset_saved"),
+// Saves a patch (only the changed recipe fields) onto the form's preset.
+async function saveBrewPreset(patch, okMsg, failMsg) {
+  const ok = okMsg ?? __WEBUI_TEXT__("runtime.preset_saved"),
     fail = failMsg || __WEBUI_TEXT__("runtime.could_not_save_preset");
   try {
     await ensureSettingsHydrated();
@@ -3338,20 +3323,23 @@ async function saveBrewPreset(okMsg, failMsg, fromDial = false) {
     return false;
   }
   // A new window or a target moved by more than 1 g restarts the preset's
-  // statistics: the editor asks first, the Home dial says so after saving.
+  // statistics: the notice follows the save.
   const saved = presetState.items.find((x) => x.id === bbwFormPresetId),
     restarts =
       saved &&
-      (number("fastBeforeS") !== saved.fastBeforeS ||
-        number("slowAfterS") !== saved.slowAfterS ||
-        Math.abs(number("goalWeightG") - saved.goalWeightG) > 1);
-  if (restarts && !fromDial && !confirm(__WEBUI_TEXT__("runtime.stats_reset_confirm")))
-    return false;
+      (("fastBeforeS" in patch && patch.fastBeforeS !== saved.fastBeforeS) ||
+        ("slowAfterS" in patch && patch.slowAfterS !== saved.slowAfterS) ||
+        ("goalWeightG" in patch && Math.abs(patch.goalWeightG - saved.goalWeightG) > 1));
   clearFieldErrors();
   try {
-    await command("/api/v1/presets", brewPayload(), 1, ok, fail, "saveBrewPresetButton");
-    if (restarts && fromDial) message(__WEBUI_TEXT__("runtime.stats_reset_confirm"), "ok");
-    clearBrewDirty();
+    await command(
+      "/api/v1/presets",
+      { action: "save", id: bbwFormPresetId, ...patch },
+      1,
+      ok,
+      fail,
+    );
+    if (restarts) message(__WEBUI_TEXT__("runtime.stats_reset_confirm"), "ok");
     clearBrewWarnings();
     return true;
   } catch (e) {
@@ -5350,9 +5338,17 @@ function onPageVisibility() {
 document.addEventListener("visibilitychange", onPageVisibility);
 if (document.hidden) onPageVisibility();
 window.addEventListener("pagehide", stopUiStream);
-// Unloading the page drops every unsaved Save/Revert section (setSaveDirty marks them).
+// Unloading the page drops every unsaved Save/Revert section (setSaveDirty
+// marks them) and a Settings autosave still pending or in flight.
 window.addEventListener("beforeunload", (e) => {
-  if (!fwReloading && document.querySelector('[data-dirty="1"]')) e.preventDefault();
+  if (
+    !fwReloading &&
+    (document.querySelector('[data-dirty="1"]') ||
+      uiState.configDirty ||
+      uiState.brewDirty ||
+      uiState.micraDirty)
+  )
+    e.preventDefault();
 });
 window.addEventListener("pageshow", () => {
   // A restored page starts fresh here; its visibility return must not redo it.
@@ -6085,10 +6081,6 @@ function loadSettingsConfig(c) {
   formRev = c.revision;
   configRevision = c.revision;
   configLoaded = true;
-  if (!uiState.brewDirty) {
-    uiState.configDirty = false;
-    setSaveDirty("saveConfigButton", "configDirtyHint", false);
-  }
   updateConfigGroups();
 }
 function updateHomeAdminActions(unlocked, remoteEnabled) {
@@ -6408,6 +6400,7 @@ export {
   updateScalePreferenceOptions,
   setSaveDirty,
   saveBrewPreset,
+  brewPayload,
   cleanBrewForm,
   settingsSectionOf,
   snapshotControls,
@@ -6499,7 +6492,6 @@ export {
   formNumber,
   sToMs,
   extRate,
-  ensureSettingsHydrated,
   updateBullseyeControls,
   loadSettingsConfig,
   ingestPresets,

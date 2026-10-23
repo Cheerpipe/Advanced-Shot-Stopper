@@ -113,7 +113,9 @@
   const nonMicraDocument = {documentElement: {classList: {contains: () => false}}};
   const fields = makePayload(id => elements.get(id) || {checked: true, value: 'auto'},
     () => 36, () => 30000, {activeId: 1}, 2, nonMicraDocument);
-  assert.equal(fields.id, 2, 'A selection change must not retarget the rendered recipe');
+  assert(!('id' in fields) && codeIncludes(blockAt(runtimeJs, 'async function saveBrewPreset('),
+      "{action:'save',id:bbwFormPresetId,...patch}"),
+      'A selection change must not retarget the rendered recipe');
   for (const key of ['bbwAlgorithm', 'weightOffsetBaselineG', 'bbwAlpha', 'bbwAlphaBaseline'])
     assert(!(key in fields), key);
 }

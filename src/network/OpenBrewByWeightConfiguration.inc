@@ -969,33 +969,43 @@ esp_err_t OpenBrewByWeightNetwork::presetsHandler(httpd_req_t *request) {
     if (!jsonUint8(root, "id", presetId) || presetId == 0) {
       parseError = "id must be a non-zero integer.";
     } else {
-      bool brewByWeight = true;
-      bool grindHints = true;
-      if (!jsonBoolean(root, "brewByWeight", brewByWeight) ||
-          !jsonGoalWeightDg(root, "goalWeightG", command.config.goalWeightDg) ||
-          !jsonUint32(root, "operationalWallMs",
-                      command.config.operationalWallMs) ||
-          !jsonUint32(root, "bbwProtectionMs",
-                      command.config.bbwProtectionMs) ||
-          (jsonFieldPresent(root, "weightOffsetBaselineG") &&
-           !jsonFloat(root, "weightOffsetBaselineG",
-                      command.config.weightOffsetBaselineG)) ||
-          !jsonBoolean(root, "fastExtractionGuardEnabled",
-                       command.config.fastSideEnabled) ||
-          !jsonSecondsMs(root, "fastBeforeS", command.config.fastBeforeMs) ||
-          !jsonGramsDg(root, "fastMarginG", command.config.fastMarginDg) ||
-          !jsonBoolean(root, "slowExtractionGuardEnabled",
-                       command.config.slowSideEnabled) ||
-          !jsonSecondsMs(root, "slowAfterS", command.config.slowAfterMs) ||
-          !jsonGramsDg(root, "slowMarginG", command.config.slowMarginDg) ||
-          !jsonSecondsMs(root, "scaleLossFixedS", command.config.scaleLossFixedMs) ||
-          (jsonFieldPresent(root, "doseG") &&
-           !jsonGramsDg(root, "doseG", command.presetDoseDg)) ||
-          (jsonFieldPresent(root, "grindHintsEnabled") &&
-           !jsonBoolean(root, "grindHintsEnabled", grindHints))) {
-        parseError = "save requires the full preset recipe field set.";
+      // A save is a patch: absent fields keep the stored preset value. Keys follow PresetRecipeField.
+      static const char *const recipeKeys[] = {
+          "brewByWeight", "goalWeightG", "operationalWallMs", "bbwProtectionMs",
+          "fastExtractionGuardEnabled", "fastMarginG", "fastBeforeS",
+          "slowExtractionGuardEnabled", "slowMarginG", "slowAfterS", "scaleLossFixedS",
+          "weightOffsetBaselineG", "doseG", "grindHintsEnabled", "bbwAlphaBaseline",
+          "lineaMicraBrewTargetC"};
+      uint16_t present = 0;
+      for (size_t i = 0; i < sizeof(recipeKeys) / sizeof(recipeKeys[0]); ++i)
+        if (jsonFieldPresent(root, recipeKeys[i])) present |= static_cast<uint16_t>(1U << i);
+      command.presetRecipeFields = present & PRESET_RECIPE_ALL;
+      const auto absent = [&](const char *key) { return !jsonFieldPresent(root, key); };
+      bool brewByWeight = true, grindHints = true;
+      RuntimeConfig &c = command.config;
+      if (present == 0) {
+        parseError = "save requires at least one preset recipe field.";
+      } else if (!((absent("brewByWeight") || jsonBoolean(root, "brewByWeight", brewByWeight)) &&
+                   (absent("goalWeightG") || jsonGoalWeightDg(root, "goalWeightG", c.goalWeightDg)) &&
+                   (absent("operationalWallMs") || jsonUint32(root, "operationalWallMs", c.operationalWallMs)) &&
+                   (absent("bbwProtectionMs") || jsonUint32(root, "bbwProtectionMs", c.bbwProtectionMs)) &&
+                   (absent("weightOffsetBaselineG") ||
+                    jsonFloat(root, "weightOffsetBaselineG", c.weightOffsetBaselineG)) &&
+                   (absent("fastExtractionGuardEnabled") ||
+                    jsonBoolean(root, "fastExtractionGuardEnabled", c.fastSideEnabled)) &&
+                   (absent("fastBeforeS") || jsonSecondsMs(root, "fastBeforeS", c.fastBeforeMs)) &&
+                   (absent("fastMarginG") || jsonGramsDg(root, "fastMarginG", c.fastMarginDg)) &&
+                   (absent("slowExtractionGuardEnabled") ||
+                    jsonBoolean(root, "slowExtractionGuardEnabled", c.slowSideEnabled)) &&
+                   (absent("slowAfterS") || jsonSecondsMs(root, "slowAfterS", c.slowAfterMs)) &&
+                   (absent("slowMarginG") || jsonGramsDg(root, "slowMarginG", c.slowMarginDg)) &&
+                   (absent("scaleLossFixedS") ||
+                    jsonSecondsMs(root, "scaleLossFixedS", c.scaleLossFixedMs)) &&
+                   (absent("doseG") || jsonGramsDg(root, "doseG", command.presetDoseDg)) &&
+                   (absent("grindHintsEnabled") || jsonBoolean(root, "grindHintsEnabled", grindHints)))) {
+        parseError = "save has an invalid preset recipe field.";
       } else {
-        command.config.timerOnly = !brewByWeight;
+        if (!absent("brewByWeight")) c.timerOnly = !brewByWeight;
         if (jsonFieldPresent(root, "grindHintsEnabled"))
           command.presetGrindHints = grindHints ? 1 : 0;
         command.bbwBaselineSpecified = jsonFieldPresent(root, "weightOffsetBaselineG");

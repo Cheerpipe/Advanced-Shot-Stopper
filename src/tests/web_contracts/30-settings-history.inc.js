@@ -79,15 +79,15 @@
         field.addEventListener = (type, fn) => events[type] = fn;
         // Settings-owned helpers are module locals; the rest come from R.
         new Function('document', 'R',
-            'const {markBrewDirty, clearBrewFieldErrors, refreshBrewWarnings} = R;' + bindings)(
+            'const {noteEdit, clearBrewFieldErrors, refreshBrewWarnings} = R;' + bindings)(
             {querySelectorAll: () => [field]}, {
-          settingsSectionOf: () => 'brew', markBrewDirty() {},
+          settingsSectionOf: () => 'brew', noteEdit() {},
           clearBrewFieldErrors() {}, refreshBrewWarnings() {},
           updateBbwControls() {}, updateConfigGroups: refresh, renderPresetReview() {}
         });
         for (const type of ['input', 'change']) {
           field.checked = !field.checked;
-          events[type]();
+          events[type]({type});
           if (get(childId).checked !== saved || get(childId).disabled === field.checked)
             throw new Error('BBW edits must update the fallback immediately without polling');
         }
@@ -184,27 +184,20 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     !codeIncludes(ui, 'id="presetDupBtn"') ||
     codeIncludes(ui, 'id="presetLoadBtn"') ||
     codeIncludes(ui, 'id="presetSaveBtn"') ||
-    !html.includes('id="saveBrewPresetButton" class="btnGlyph mutable btnInvert" data-dirty="0" disabled') ||
-    !html.includes('id="saveConfigButton" class="btnGlyph mutable btnInvert" data-dirty="0" disabled') ||
+    html.includes('id="saveBrewPresetButton"') || html.includes('id="saveConfigButton"') ||
     html.includes('id="exportShotsButton" class="btnGlyph btnInvert"') ||
     !css.includes('font-variant-emoji:text') ||
     !html.includes('<span class="g" aria-hidden="true">×</span>') ||
     !html.includes('<span class="g" aria-hidden="true">✓</span>') ||
     codeIncludes(ui, '💾') || codeIncludes(ui, '⚡') ||
-    !codeIncludes(ui, 'Save preset') ||
+    codeIncludes(ui, 'Save preset') ||
     !codeIncludes(ui, 'id="activeBrewProfileHint"') ||
     !codeIncludes(ui, 'Current preset: ') ||
     !codeIncludes(ui, 'function updateActiveBrewProfileHint(') ||
     html.indexOf('id="activeBrewProfileHint"') <
-        html.indexOf('id="saveBrewPresetButton"') ||
-    html.indexOf('id="saveBrewPresetButton"') <
         html.indexOf('id="resetCalibrationButton"') ||
-    html.indexOf('id="saveBrewPresetButton"') >
+    html.indexOf('id="activeBrewProfileHint"') >
         html.indexOf('<legend>Shared settings ') ||
-    html.indexOf('id="saveConfigButton"') <
-        html.indexOf('<summary>Alerts</summary>') ||
-    html.indexOf('id="saveConfigButton"') >
-        html.indexOf('<summary>Network</summary>') ||
     !codeIncludes(ui, 'id="presetResetBtn"') ||
     !codeIncludes(ui, 'id="presetDeleteBtn"') ||
     !codeIncludes(ui, 'id="presetRenameDialog"') ||
@@ -321,7 +314,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     !codeIncludes(ui, 'function updatePresetActionButtons(') ||
     !codeIncludes(ui, 'function presetSummary(p)') ||
     !codeIncludes(ui, 'badge.textContent = presetBadge(p)') ||
-    !codeIncludes(ui, 'Discard them and switch presets') ||
+    !codeIncludes(ui, 'flushSettings()') ||
     !codeIncludes(ui, 'saveBrewPreset') ||
     !codeIncludes(ui, '/api/v1/presets') ||
     codeIncludes(ui, 'id="presetNameInput"') ||
@@ -335,7 +328,7 @@ if (!codeIncludes(ui, '<legend>Presets <span class="hint">') ||
     !css.includes('.btnGlyph') ||
     !css.includes('.btnGlyph .g') ||
     !css.includes('.btnGlyph .t')) {
-  throw new Error('Brew presets CRUD UI must block factory delete, support reset, click-to-load, and unsaved switch confirm');
+  throw new Error('Brew presets CRUD UI must block factory delete, support reset, click-to-load, and save pending edits before switching');
 }
 {
   const diagHtml = html.slice(html.indexOf('id="view-diagnostic"'),

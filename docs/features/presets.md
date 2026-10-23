@@ -24,10 +24,10 @@ cuts** draws the preset's cut line, and the editor groups its settings:
 | **Time limits** | Earliest weight stop (s), Max shot time (s), Backup stop time (s) |
 | **Drip compensation** | Expected drip weight after the shot stops with its recent-shots chart, Set drip, Learning speed, Set learning speed |
 
-Select **Save preset** to keep your edits; the line beside it reads
-**Current preset:** followed by the preset in use. Everything under
-**Shared settings** further down applies to every preset and has its own
-**Save shared settings** button.
+Each change is saved to the preset in use as soon as you make it; the line
+below the recipe reads **Current preset:** followed by that preset. Everything
+under **Shared settings** further down applies to every preset and is saved the
+same way.
 
 On Home, the **Presets** section lists the recipes as rows: the active one is
 marked with a filled circle and expands to show how it cuts, for example
@@ -105,11 +105,11 @@ afterwards shows the normal Home.
 1. Tap the preset you want to start from.
 2. Select **Duplicate** to copy that recipe, or **New** for an Untitled
    preset with the Double · Adaptive values.
-3. Rename the card, edit its settings, and select **Save preset**.
-   While editing, values that conflict with another field are flagged in
-   yellow right away, before you save. Shot statistics only count shots made
-   with the preset's current window and a target within 1 g, so if you
-   changed the window or moved the target further, Save warns that they start
+3. Rename the card and edit its settings; each change is saved as you go.
+   Values that conflict with another field are flagged in yellow and saved
+   once the conflict is fixed. Shot statistics only count shots made with the
+   preset's current window and a target within 1 g, so if you change the
+   window or move the target further, a note after the save says they start
    over. Going back to the earlier values brings those shots back. The usual
    first-drop time does not depend on either and stays.
 4. Switch to another preset and back to check the saved recipe.
@@ -199,7 +199,7 @@ different dose), the drip is not re-detected: use **Set drip** to start it again
 **Set drip** uses the value you enter from the next shot and keeps it as the
 preset's starting point; if your next three shots agree on a different amount,
 the drip moves there at once. **Set learning speed** (0.01–1.00, step 0.01)
-applies a new speed at once and keeps the drip. Neither needs **Save preset**.
+applies a new speed at once and keeps the drip.
 **Restore** on a factory preset returns the whole recipe, its drip and a
 learning speed of 0.30, and starts a quick start; it is available only for
 factory presets. A device factory reset additionally erases other settings and

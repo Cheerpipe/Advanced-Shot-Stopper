@@ -69,6 +69,25 @@ feedback, lost diagnostics, or weaker reliability. When an exception is
 necessary, document the reason with the change. Modem sleep stays enabled;
 these rules reduce wakeups rather than disabling power saving.
 
+## PSRAM cache before flash
+
+Everything a person can change from the Settings and Home pages, and the shot
+history with its records and curves, is read from and written to its PSRAM
+cache only. Request handlers and the tasks that apply a change never read or
+write flash for these values: they update the cache, and the cache's own
+deferred persistence (the settings persist worker, the shot-store image
+writer) decides when and what reaches flash, coalescing bursts into one write.
+Reads always come from the cache, never from flash; flash is read only at boot
+to fill it. This covers presets, shared settings, Bullseye, scale choice and
+names, Linea Micra options and machine selection, quick settings, drip and
+learning-speed sets, and every history or shot mutation.
+
+Only some Admin operations may read or write flash directly, because they must
+be durable before they take effect: Wi-Fi and access point, device password and
+Web UI access, webhooks, firmware mode, factory reset, restart, and OTA. A new
+setting belongs to the cached group unless it has the same durability need;
+an exception must be documented with the change.
+
 ## Machine integration modules
 
 The machine profile declares an allow-listed `integration` value explicitly;
@@ -396,6 +415,11 @@ the controller clock is unavailable.
 
 First-auto provenance reads UTC once under the wall-clock owner's lock so
 its timestamp and quality cannot disagree during an NTP state transition.
+Configuration and preset saves are patches: the Web UI sends only the fields
+that changed, and the firmware merges them into the saved configuration or
+the stored preset recipe, validates the merged result as a whole, and
+persists it. A preset save that omits a recipe field keeps its stored value;
+a full recipe is still accepted.
 Configuration and preset saves are acknowledged by their request ID and
 result, together with the resulting revision; unrelated revision changes do
 not acknowledge a pending command. Applied settings may still await the

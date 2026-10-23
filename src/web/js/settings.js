@@ -81,14 +81,6 @@ function updatePreferredScaleSelect(s) {
     opt && opt.dataset ? String(opt.dataset.name || "") : "",
   );
 }
-function markConfigDirty() {
-  R.uiState.configDirty = true;
-  R.setSaveDirty("saveConfigButton", "configDirtyHint", true);
-}
-function markBrewDirty() {
-  R.uiState.brewDirty = true;
-  R.setSaveDirty("saveBrewPresetButton", "brewDirtyHint", true);
-}
 function brewWarningList() {
   // Suppress only the empty-field "is required" result: it fires mid-typing
   // and is self-evident. Everything else is a true statement about the
@@ -142,42 +134,6 @@ function clearBrewFieldErrors() {
     // the signature-skip renderer will not rewrite an unchanged set.
     R.refreshFieldAria(el);
   }
-}
-function revertBrewPreset() {
-  if (!R.uiState.brewDirty) return;
-  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
-  R.restoreSnapshot(R.uiState.brewBaseline);
-  R.clearBrewDirty();
-  R.clearFieldErrors();
-  R.updateConfigGroups();
-  refreshBrewWarnings();
-  R.refreshStatus();
-}
-function revertMachineConfig() {
-  if (!R.uiState.configDirty) return;
-  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
-  R.restoreSnapshot(R.uiState.configBaseline);
-  if ($("preferredScaleSelect")) $("preferredScaleSelect").dataset.pending = "0";
-  R.uiState.configBaseline = null;
-  R.uiState.configDirty = false;
-  R.setSaveDirty("saveConfigButton", "configDirtyHint", false);
-  R.clearFieldErrors();
-  R.updateConfigGroups();
-  // R2's inputs (retare window, auto-retare) live in this section: restoring
-  // them can change the retare floor, so the warnings re-run here.
-  refreshBrewWarnings();
-  R.refreshStatus();
-}
-function revertLineaMicra() {
-  if (!R.uiState.micraDirty) return;
-  if (!confirm(__WEBUI_TEXT__("runtime.discard_unsaved_changes"))) return;
-  R.restoreSnapshot(R.uiState.micraBaseline);
-  R.uiState.micraBaseline = null;
-  R.uiState.micraDirty = false;
-  R.setSaveDirty("lineaMicraSaveButton", "lineaMicraDirtyHint", false);
-  R.clearFieldErrors();
-  updateMicraDependentControls();
-  R.refreshStatus();
 }
 function validateMachineClient() {
   const m = document.documentElement.classList.contains("momentaryMachine");
@@ -326,6 +282,7 @@ function validateMachineClient() {
 function machinePayload() {
   const reminder = $("paddleReturnReminder");
   return {
+    preferredScaleMac: $("preferredScaleSelect")?.value,
     rinseEnabled: $("rinseEnabled").checked,
     rinseGestureMs: R.sToMs("rinseGestureS"),
     rinseDurationMs: R.sToMs("rinseDurationS"),
@@ -410,59 +367,30 @@ function validateBullseyeClient() {
       id: "bullseyeRtttl",
       msg: __WEBUI_TEXT__("runtime.rtttl_must_be_at_most_500_characters"),
     };
-  if ($("bullseyeMelodyEnabled").checked && !text.trim())
-    return {
-      id: "bullseyeRtttl",
-      msg: __WEBUI_TEXT__("runtime.paste_an_rtttl_tune_before_enabling_bullseye"),
-    };
   return null;
 }
-async function saveMachineConfig() {
-  const fail = __WEBUI_TEXT__("runtime.could_not_save_shared_settings");
-  try {
-    await R.ensureSettingsHydrated();
-  } catch (e) {
-    R.message(R.formatCommandError(fail, e), "error");
-    return;
-  }
-  const err = validateMachineClient() || validateBullseyeClient();
-  if (err) {
-    R.showFieldError(err.id, err.msg);
-    return;
-  }
-  R.clearFieldErrors();
-  const snapshot = R.snapshotControls(R.settingsSectionEls("config")),
-    sel = $("preferredScaleSelect"),
-    payload = R.withBaseRev(addBullseyePayload(machinePayload()));
-  if (sel && sel.dataset.pending === "1" && sel.value !== (sel.dataset.applied || ""))
-    payload.preferredScaleMac = sel.value || "";
-  try {
-    await R.command(
-      "/api/v1/config",
-      payload,
-      1,
-      __WEBUI_TEXT__("runtime.shared_settings_saved"),
-      fail,
-      "saveConfigButton",
-    );
-    if (
-      payload.preferredScaleMac !== undefined &&
-      sel.dataset.applied.toUpperCase() !== payload.preferredScaleMac.toUpperCase()
-    )
-      throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));
-    if (
-      JSON.stringify(R.snapshotControls(R.settingsSectionEls("config"))) ===
-      JSON.stringify(snapshot)
-    ) {
-      if (sel) sel.dataset.pending = "0";
-      R.uiState.configDirty = false;
-      R.setSaveDirty("saveConfigButton", "configDirtyHint", false);
+async function saveMachineConfig(patch) {
+  const fail = __WEBUI_TEXT__("runtime.could_not_save_shared_settings"),
+    sel = $("preferredScaleSelect");
+  for (let retry = true; ; retry = false)
+    try {
+      await R.command("/api/v1/config", R.withBaseRev(patch), 1, "", fail);
+      if (patch.preferredScaleMac !== undefined) {
+        if (sel.dataset.applied.toUpperCase() !== patch.preferredScaleMac.toUpperCase())
+          throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));
+        sel.dataset.pending = "0";
+      }
+      return true;
+    } catch (e) {
+      // The patch holds only this page's edits: resend it once on a newer revision.
       await R.refreshStatus();
+      if (retry && e.code === "CONFIG_REVISION_STALE") continue;
+      // Only the firmware parses RTTTL: a rejected tune is marked, not kept.
+      if (e.code === "INVALID_FIELD" && "bullseyeRtttl" in patch)
+        R.showFieldError("bullseyeRtttl", __WEBUI_TEXT__("settings.rtttl_not_saved"));
+      else R.message(R.formatCommandError(fail, e), "error");
+      return false;
     }
-  } catch (e) {
-    R.message(R.formatCommandError(fail, e), "error");
-    await R.refreshStatus();
-  }
 }
 const MICRA_SWITCHES = [
   "ApplyTemperature",
@@ -624,12 +552,6 @@ function applyLineaMicraStatus(s) {
   $("lineaMicraChangeButton").disabled = !canEdit || offline;
   for (const id of MICRA_SWITCHES) $("lineaMicra" + id).disabled = !canEdit;
   updateMicraDependentControls();
-  R.setSaveDirty("lineaMicraSaveButton", "lineaMicraDirtyHint", R.uiState.micraDirty);
-}
-function markLineaMicraDirty() {
-  R.uiState.micraDirty = true;
-  $("lineaMicraLinkedNote").hidden = true;
-  R.setSaveDirty("lineaMicraSaveButton", "lineaMicraDirtyHint", true);
 }
 function updateMicraDependentControls() {
   const canEdit = R.controlsMutable,
@@ -677,28 +599,24 @@ function endMicraChange() {
   $("lineaMicraChoose").hidden = !($("lineaMicraConnected").hidden = false);
   $("lineaMicraProgress").textContent = "";
 }
-async function saveLineaMicraSettings(action = "save", serial = "") {
-  const ok = await R.command(
+function micraPayload() {
+  return {
+    ...Object.fromEntries(
+      MICRA_SWITCHES.map((id) => [micraOptionField(id), $("lineaMicra" + id).checked]),
+    ),
+    shutdownGraceSeconds: Number($("lineaMicraShutdownGrace").value) || 0,
+  };
+}
+// Select sends every option with the chosen machine; save is a patch that
+// keeps the saved transport.
+function saveLineaMicraSettings(action, serial, options = micraPayload()) {
+  return R.command(
     "/api/v1/machine/linea-micra",
-    {
-      action,
-      ...(action === "select" ? { serial } : {}),
-      ...Object.fromEntries(
-        MICRA_SWITCHES.map((id) => [micraOptionField(id), $("lineaMicra" + id).checked]),
-      ),
-      connectionType: "websocket",
-      shutdownGraceSeconds: Number($("lineaMicraShutdownGrace").value) || 0,
-    },
+    { action, ...options, ...(action === "select" ? { serial, connectionType: "websocket" } : {}) },
     false,
-    __WEBUI_TEXT__("runtime.micra_settings_queued"),
+    action === "select" ? __WEBUI_TEXT__("runtime.micra_settings_queued") : "",
     __WEBUI_TEXT__("runtime.could_not_save_micra"),
-    action === "save" ? "lineaMicraSaveButton" : undefined,
   );
-  if (ok) {
-    R.uiState.micraDirty = false;
-    R.setSaveDirty("lineaMicraSaveButton", "lineaMicraDirtyHint", false);
-  }
-  return ok;
 }
 async function disconnectLineaMicra() {
   const ok = await R.lineaMicraAction("disconnect");
@@ -711,7 +629,9 @@ async function disconnectLineaMicra() {
 }
 function loadBullseyeConfig(c) {
   if (!c || R.uiState.configDirty || !$("bullseyeMelodyEnabled")) return;
-  $("bullseyeMelodyEnabled").checked = !!c.bullseyeMelodyEnabled;
+  // A toggle switched on keeps waiting while its tune is empty.
+  if (c.bullseyeMelodyEnabled || $("bullseyeRtttl").value.trim())
+    $("bullseyeMelodyEnabled").checked = !!c.bullseyeMelodyEnabled;
   $("bullseyeRtttl").value = typeof c.bullseyeRtttl === "string" ? c.bullseyeRtttl : "";
   R.updateBullseyeControls();
 }
@@ -746,8 +666,13 @@ function applySettingsStatus(s) {
       R.uiState.configBaseline = R.snapshotControls(R.settingsSectionEls("config"));
     if (!R.uiState.brewDirty)
       R.uiState.brewBaseline = R.snapshotControls(R.settingsSectionEls("brew"));
-    if (!R.uiState.micraDirty)
-      R.uiState.micraBaseline = R.snapshotControls(R.settingsSectionEls("micra"));
+    // A settled section bases its next edit on the shown values.
+    for (const [sec, a] of Object.entries(autosave))
+      if (!a.busy && !R.uiState[sec + "Dirty"]) {
+        clearTimeout(a.timer);
+        a.base = {};
+        a.last = a.payload();
+      }
   }
   refreshBrewWarnings();
 }
@@ -760,13 +685,94 @@ function selectPreferredScale() {
   if (!sel) return;
   const mac = sel.value || "";
   sel.dataset.pending = "1";
-  markConfigDirty();
   const opt = sel.selectedOptions && sel.selectedOptions[0];
   R.updateScaleRenameUi(
     "preferredScaleSelectRenameWrap",
     mac,
     opt && opt.dataset ? String(opt.dataset.name || "") : "",
   );
+}
+// Autosave: after a pause a section sends only the keys its edits changed (a
+// patch) for the firmware to merge and persist; one request in flight per
+// section, SAVE_GAP_MS apart, later edits follow as one trailing patch.
+const SAVE_GAP_MS = 1000;
+const autosave = {
+  config: {
+    // The toggle and its tune save together: on without a tune is a draft
+    // that saves with its first tune.
+    payload() {
+      const p = addBullseyePayload(machinePayload());
+      p.bullseyeMelodyEnabled &&= !!p.bullseyeRtttl.trim();
+      return p;
+    },
+    valid() {
+      const err = validateMachineClient() || validateBullseyeClient();
+      if (err) R.showFieldError(err.id, err.msg);
+      return !err;
+    },
+    save: saveMachineConfig,
+  },
+  // Conflicts already show as live warnings; the patch waits for them.
+  brew: {
+    payload: R.brewPayload,
+    valid: () => !R.validateBrewClient().length,
+    save: (patch) => R.saveBrewPreset(patch, ""),
+  },
+  ...(__LINEA_MICRA__ && {
+    micra: {
+      payload: micraPayload,
+      save: (patch) => saveLineaMicraSettings("save", "", patch),
+    },
+  }),
+};
+for (const a of Object.values(autosave)) Object.assign(a, { last: null, base: {}, at: 0 });
+// A key keeps the value its first edit replaced: edited back, it is not sent.
+// Each section owns its uiState[sec + "Dirty"] flag: pending or in flight.
+function noteEdit(sec, waitMs) {
+  const a = autosave[sec],
+    now = a.payload();
+  for (const k in now)
+    if (a.last && !(k in a.base) && !Object.is(now[k], a.last[k])) a.base[k] = a.last[k];
+  a.last = now;
+  R.uiState[sec + "Dirty"] = true;
+  clearTimeout(a.timer);
+  a.timer = setTimeout(() => flushSection(sec), waitMs);
+}
+// True once nothing is left to save; `force` skips the gap and drains edits.
+async function flushSection(sec, force) {
+  const a = autosave[sec];
+  while (a.busy) await a.busy;
+  clearTimeout(a.timer);
+  const now = a.payload(),
+    patch = {};
+  for (const k in a.base) if (!Object.is(now[k], a.base[k])) patch[k] = now[k];
+  // Nothing changed, or the page dropped the edit (preset switch, disconnect).
+  if (!R.uiState[sec + "Dirty"] || !Object.keys(patch).length) {
+    a.base = {};
+    R.uiState[sec + "Dirty"] = false;
+    return true;
+  }
+  const gap = a.at + SAVE_GAP_MS - Date.now();
+  if (!force && gap > 0) {
+    a.timer = setTimeout(() => flushSection(sec), gap);
+    return false;
+  }
+  if (a.valid && !a.valid()) return false;
+  const sent = a.base;
+  a.base = {};
+  a.at = Date.now();
+  const ok = await (a.busy = a.save(patch));
+  a.busy = null;
+  if (ok) return flushSection(sec, force);
+  // A failed patch stays pending with its error shown; the next edit retries.
+  Object.assign(a.base, sent);
+  return false;
+}
+async function flushSettings() {
+  const done = await Promise.all(Object.keys(autosave).map((sec) => flushSection(sec, true)));
+  if (done.every(Boolean)) return true;
+  R.message(__WEBUI_TEXT__("settings.settings_not_saved_yet"), "error");
+  return false;
 }
 let ready = false;
 export function applyStatus(s) {
@@ -1100,33 +1106,22 @@ export function init() {
   R.initGroupRows($("workflowPanel"));
   R.registerViewStatus("settings", applyStatus);
   $("presetCards")?.addEventListener("click", () => setTimeout(updateSettingsOverrides));
-  $("saveConfigButton").onclick = saveMachineConfig;
-  $("revertConfigButton").onclick = revertMachineConfig;
+  R.uiState.flushSettings = flushSettings;
   if ($("presetNewBtn"))
-    $("presetNewBtn").onclick = () => {
-      if (
-        R.uiState.brewDirty &&
-        !confirm(__WEBUI_TEXT__("settings.you_have_unsaved_preset_changes_discard_them"))
-      )
-        return;
+    $("presetNewBtn").onclick = async () => {
+      if (!(await flushSettings())) return;
       R.invalidateSettingsHydration();
       R.command("/api/v1/presets", { action: "new" });
     };
   if ($("presetDupBtn"))
-    $("presetDupBtn").onclick = () => {
-      if (
-        R.uiState.brewDirty &&
-        !confirm(__WEBUI_TEXT__("settings.you_have_unsaved_preset_changes_discard_them_2"))
-      )
-        return;
+    $("presetDupBtn").onclick = async () => {
+      if (!(await flushSettings())) return;
       R.invalidateSettingsHydration();
       R.command("/api/v1/presets", {
         action: "duplicate",
         id: R.presetState.selectedId || R.presetState.activeId,
       });
     };
-  if ($("saveBrewPresetButton")) $("saveBrewPresetButton").onclick = () => R.saveBrewPreset();
-  if ($("revertBrewPresetButton")) $("revertBrewPresetButton").onclick = revertBrewPreset;
   if ($("presetResetBtn"))
     $("presetResetBtn").onclick = async () => {
       const p = R.selectedPreset();
@@ -1157,11 +1152,7 @@ export function init() {
       )
         R.command("/api/v1/presets", { action: "delete", id: p.id });
     };
-  if ($("scalePreference"))
-    $("scalePreference").onchange = () => {
-      R.updateScalePreferenceOptions();
-      markConfigDirty();
-    };
+  if ($("scalePreference")) $("scalePreference").onchange = R.updateScalePreferenceOptions;
   $("forgetPairedScale").onclick = forgetPairedScale;
   if ($("preferredScaleSelect"))
     $("preferredScaleSelect").onchange = () => {
@@ -1191,16 +1182,13 @@ export function init() {
         $("lineaMicraLinkedNote").hidden = R.uiState.micraChange = true;
         if (!(await R.lineaMicraAction("relist"))) endMicraChange();
       };
-    if ($("lineaMicraSaveButton"))
-      $("lineaMicraSaveButton").onclick = () => saveLineaMicraSettings();
-    if ($("revertLineaMicraButton")) $("revertLineaMicraButton").onclick = revertLineaMicra;
     if ($("lineaMicraDisconnectButton"))
       $("lineaMicraDisconnectButton").onclick = () =>
         confirm(__WEBUI_TEXT__("settings.disconnect_account_confirm")) && disconnectLineaMicra();
     for (const id of ["lineaMicraObserveState", "lineaMicraShutdownWithScale"])
       if ($(id)) $(id).onchange = updateMicraDependentControls;
   }
-  // Every #workflowPanel field marks its section dirty and refreshes the
+  // Every #workflowPanel field autosaves its section and refreshes the
   // dependent groups through the shared listener below.
   $("bullseyeTestLink").onclick = (e) => {
     e.preventDefault();
@@ -1228,13 +1216,13 @@ export function init() {
         el.closest("#lineaMicraSignIn,#lineaMicraChoose")
       )
         return;
-      const fn = () => {
+      // Typing waits for a pause; leaving the field (a trusted change) saves
+      // now. The number keys' synthetic change counts as typing.
+      const typed = el.tagName === "TEXTAREA" || ["text", "number"].includes(el.type);
+      const fn = (e) => {
         const sec = R.settingsSectionOf(el.id);
-        sec === "brew"
-          ? markBrewDirty()
-          : sec === "micra"
-            ? markLineaMicraDirty()
-            : markConfigDirty();
+        if (sec === "micra") $("lineaMicraLinkedNote").hidden = true;
+        noteEdit(sec, !typed ? 300 : e.type === "change" && e.isTrusted ? 0 : 1200);
         R.updateConfigGroups();
         // Failed-save red marks on brew fields hand over to the live yellow
         // preview, which re-runs over the pending set as a whole.

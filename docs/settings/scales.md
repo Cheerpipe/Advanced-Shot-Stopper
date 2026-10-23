@@ -11,11 +11,9 @@ Which Bluetooth scale to use, how long to wait after a shot for drip, and
 Bookoo-specific volume / combined tare. Machine-level, under
 **Settings → Shared settings → Scale**.
 
-Choose a **My scale**, then press **Save shared settings** to apply it
-together with the other machine and scale settings. Until you save, the
-controller keeps using the saved preference. The arrow beside Save discards
-unsaved changes. **Forget scale** and **(rename)** are separate actions
-that take effect when confirmed.
+Choosing a **My scale** saves it right away, like every other setting on the
+page. **Forget scale** and **(rename)** are separate actions that take effect
+when confirmed.
 
 Daily defaults assume a **Bookoo** Themis Mini or Ultra. **Acaia**,
 **Felicita**, **AtomHeart Eclair**, **Decent**, **DiFluid Microbalance**,
@@ -242,8 +240,8 @@ rejects readings older than 1 s, before that link timeout. Check
 
 1. Turn off other compatible scales and close phone apps connected to the one
    you want.
-2. Select the intended remembered scale and press **Save shared settings**,
-   or choose **Forget scale** for a new one.
+2. Select the intended remembered scale (it is saved at once), or choose
+   **Forget scale** for a new one.
    Clearing pauses discovery for 30 s; it does not erase scale history.
 3. With **Only my scale** and no saved preference, let the intended scale
    complete its first connection. Check Home for fresh weight, not just a name.

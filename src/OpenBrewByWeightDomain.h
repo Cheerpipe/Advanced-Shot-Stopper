@@ -1013,6 +1013,22 @@ enum class PresetAction : uint8_t {
   NEW_COFFEE = 7  // Restarts the preset's shot statistics.
 };
 
+// Recipe fields a preset save carries; a save writes only the present ones.
+enum PresetRecipeField : uint16_t {
+  PRESET_RECIPE_BREW_BY_WEIGHT = 1U << 0,
+  PRESET_RECIPE_GOAL_WEIGHT = 1U << 1,
+  PRESET_RECIPE_OPERATIONAL_WALL = 1U << 2,
+  PRESET_RECIPE_BBW_PROTECTION = 1U << 3,
+  PRESET_RECIPE_FAST_ENABLED = 1U << 4,
+  PRESET_RECIPE_FAST_MARGIN = 1U << 5,
+  PRESET_RECIPE_FAST_BEFORE = 1U << 6,
+  PRESET_RECIPE_SLOW_ENABLED = 1U << 7,
+  PRESET_RECIPE_SLOW_MARGIN = 1U << 8,
+  PRESET_RECIPE_SLOW_AFTER = 1U << 9,
+  PRESET_RECIPE_SCALE_LOSS_FIXED = 1U << 10,
+  PRESET_RECIPE_ALL = (1U << 11) - 1U,
+};
+
 #include "domain/OpenBrewByWeightPresetTypes.inc"
 
 inline uint32_t effectiveRetareWindowMs(const RuntimeConfig &config) {
@@ -1783,6 +1799,7 @@ struct WebCommand {
   uint8_t bbwAlphaBaseline = 0;  // Zero means omitted; valid bases are 1–100.
   uint16_t presetDoseDg = 0;     // Zero means omitted.
   int8_t presetGrindHints = -1;  // Negative means omitted.
+  uint16_t presetRecipeFields = PRESET_RECIPE_ALL;
   bool bbwFullReset = false;
   bool bbwSetDrip = false;  // Set drip: config.weightOffsetBaselineG is the value.
   bool bbwResetRevisionSpecified = false;

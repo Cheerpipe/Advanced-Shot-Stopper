@@ -413,7 +413,6 @@ for (const id of ['lineaMicraSignIn', 'lineaMicraBusy', 'lineaMicraSteps', 'line
   'lineaMicraBoostScaleDetectionWhenOn', 'lineaMicraReduceScaleScanningWhenOff',
   'lineaMicraRecognizeWake', 'lineaMicraShutdownWithScale',
   'lineaMicraShutdownGraceWrap', 'lineaMicraShutdownGrace',
-  'lineaMicraSaveButton', 'revertLineaMicraButton', 'lineaMicraDirtyHint',
   'lineaMicraDisconnectButton', 'lineaMicraChangeButton', 'lineaMicraBrewTargetC']) {
   if (!micraSettingsHtml.includes(`id="${id}"`)) {
     throw new Error(`Linea Micra settings control is missing: ${id}`);
@@ -498,9 +497,6 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
   click();
   assert.strictEqual(calls, 1, 'Confirmed Disconnect must invoke the action');
 
-  const saveBinding = viewJs.settings.match(/\$\(\s*['"]lineaMicraSaveButton['"]\s*\)\s*\.\s*onclick\s*=([\s\S]*?);\s*if\s*\(/);
-  assert(saveBinding, 'Micra Save click binding is missing');
-
   // The Micra settings code lives in the Settings module; its runtime and
   // shared-state references resolve to this harness's globals.
   const statusUi = rawViewJs.settings.slice(rawViewJs.settings.search(/const\s+MICRA_SWITCHES\s*=/),
@@ -535,12 +531,9 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
       }});
       return label;
     }},
-    setSaveDirty: (id, hint, dirty) => { get(id).disabled = !dirty; get(hint).classList.toggle('hidden', !dirty); },
     command: async (url, body) => { commands.push({url, body: JSON.parse(JSON.stringify(body))}); return true; },
     __WEBUI_TEXT__: key => key});
   vm.runInContext(statusUi, context);
-  context.R = {saveLineaMicraSettings: context.saveLineaMicraSettings};
-  const saveClick = vm.runInContext(`(${saveBinding[1]})`, context);
   const apply = lm => vm.runInContext(`applyLineaMicraStatus(${JSON.stringify({lineaMicra: lm})})`, context);
   const panes = () => ['SignIn', 'Busy', 'Choose', 'Connected'].filter(p => !get('lineaMicra' + p).hidden).join();
   const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -624,24 +617,20 @@ for (const id of ['dMicraPower', 'dMicraPowerValue', 'dMicraMode',
     assert.deepStrictEqual(pill({observeState: false}), ['runtime.micra_pill_monitoring_off', '']);
     assert.deepStrictEqual(pill({shotPaused: true}), ['runtime.micra_power_on · runtime.target 93.5 °C · runtime.shot_paused', 'on']);
     apply(connected);
-    assert(get('lineaMicraSaveButton').disabled, 'Save waits for a change, like every other section');
-    vm.runInContext('markLineaMicraDirty()', context);
-    assert(!get('lineaMicraSaveButton').disabled && !get('lineaMicraDirtyHint').classes.has('hidden'));
+    context.micraDirty = true;
     get('lineaMicraObserveState').checked = false;
     get('lineaMicraApplyTemperature').checked = false;
     apply(connected);
     assert.strictEqual(get('lineaMicraApplyTemperature').checked, false, 'Status must not overwrite unsaved edits');
     assert(get('lineaMicraPowerDeps').classes.has('fieldOff') && get('lineaMicraRecognizeWake').disabled,
         'Options that need the power state follow Show power state');
-    saveClick({type: 'click', target: get('lineaMicraSaveButton')});
-    await flush();
-    assert.deepStrictEqual(commands[1].body, {action: 'save', applyTemperature: false, observeState: false,
-      boostScaleDetectionWhenOn: true, reduceScaleScanningWhenOff: true,
-      recognizeWakeGesture: true, powerOnWithScale: false, shutdownWithScale: true,
-      scaleOffWithMachine: true, connectionType: 'websocket', shutdownGraceSeconds: 15},
-      'Save sends every option in one batch, always over WebSocket, without credentials');
-    assert.strictEqual(context.micraDirty, false);
-    assert(get('lineaMicraSaveButton').disabled);
+    const all = vm.runInContext('micraPayload()', context);
+    assert.strictEqual(all.applyTemperature, false);
+    assert.strictEqual(all.shutdownGraceSeconds, 15);
+    await vm.runInContext('saveLineaMicraSettings("save", "", {applyTemperature: false, observeState: false})', context);
+    assert.deepStrictEqual(commands[1].body, {action: 'save', applyTemperature: false, observeState: false},
+      'Autosave sends only the changed options, keeping the saved transport, without credentials');
+    context.micraDirty = false;
     get('lineaMicraShutdownWithScale').checked = false;
     vm.runInContext('updateMicraDependentControls()', context);
     assert(get('lineaMicraShutdownGraceWrap').classes.has('hidden') && get('lineaMicraShutdownGrace').disabled);
@@ -704,7 +693,7 @@ if (!rawCss.includes('html:not(.lineaMicraIntegration) .micraOnly') ||
     !codeIncludes(rawAllJs, "lineaMicraAction('disconnect')") ||
     codeIncludes(rawRuntimeJs, "['queued','authenticating','listing','running','backoff'].includes(m.phase)") ||
     codeIncludes(rawAllJs, 'lineaMicraConnectionType') ||
-    !codeIncludes(rawRuntimeJs, "lineaMicraSaveButton:'revertLineaMicraButton'") ||
+    codeIncludes(rawRuntimeJs, 'lineaMicraSaveButton') ||
     !codeIncludes(viewJs.settings, "el.closest('#lineaMicraSignIn,#lineaMicraChoose')") ||
     micraSettingsHtml.indexOf('id="lineaMicraSettings"') > micraSettingsHtml.indexOf('{{webui:settings.shared_settings}}') ||
     !micraSettingsHtml.includes('<option value="15" selected>') ||

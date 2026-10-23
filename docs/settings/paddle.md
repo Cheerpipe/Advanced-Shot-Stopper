@@ -14,11 +14,10 @@ its actual maintained-input circuit passes the manual checks.
 In **Settings → Shared settings → Alerts**, choose **Paddle-off reminder**: **OFF**, **15**, **30**,
 **60**, or **120** seconds. The reminder is on at 30 seconds after a factory
 reset. OFF silences it. The separate **Paddle reminder limit** still stops
-repeating beeps after the chosen number of minutes. Save the machine settings
-to apply a change; the choice is shared across presets. An existing saved
-interval outside the new choices keeps running until you save: the selector
-shows 30 seconds and marks the settings as unsaved so you can choose a listed
-interval and apply it.
+repeating beeps after the chosen number of minutes. A change is saved as soon
+as you choose it and is shared across presets. An existing saved interval
+outside the listed choices keeps running and appears in the selector as it
+is, until you choose another one.
 
 ## Choose a mode
 

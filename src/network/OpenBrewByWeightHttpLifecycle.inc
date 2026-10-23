@@ -1,3 +1,10 @@
+// Linea Micra settings persist without a maintenance lease (see the control
+// task's SAVE_LINEA_MICRA case); every other accepted write holds one.
+static bool leaseFreeCommand(const WebCommand &command) {
+  return command.type == WebCommandType::SAVE_LINEA_MICRA &&
+         command.maintenanceLeaseId == 0;
+}
+
 void OpenBrewByWeightNetwork::processAcceptedCommands() {
   if (!acceptedCommandQueue_) {
     return;
@@ -80,9 +87,10 @@ void OpenBrewByWeightNetwork::processAcceptedCommands() {
 void OpenBrewByWeightNetwork::processAcceptedMaintenanceCommand(uint32_t now) {
   const ControlGateSnapshot control = controlGate();
   const bool matchingLease =
-      acceptedCommand_.maintenanceLeaseId != 0 &&
-      control.maintenanceLeaseActive &&
-      control.maintenanceLeaseId == acceptedCommand_.maintenanceLeaseId;
+      leaseFreeCommand(acceptedCommand_) ||
+      (acceptedCommand_.maintenanceLeaseId != 0 &&
+       control.maintenanceLeaseActive &&
+       control.maintenanceLeaseId == acceptedCommand_.maintenanceLeaseId);
   if (!matchingLease) {
     // The control task publishes the lease after enqueueing the command. Wait
     // for that publication, but reject a lease that was canceled/replaced.
@@ -173,7 +181,6 @@ bool OpenBrewByWeightNetwork::enqueueMaintenanceCompletion(
       succeeded ? (command.type == WebCommandType::PERSIST_RUNTIME ||
                            command.type == WebCommandType::SAVE_NETWORK ||
                            command.type == WebCommandType::SAVE_WEBHOOK ||
-                           command.type == WebCommandType::SAVE_LINEA_MICRA ||
                            command.type == WebCommandType::FORGET_NETWORK ||
                            command.type == WebCommandType::CHANGE_DEVICE_PASSWORD ||
                            command.type == WebCommandType::RESET_DEVICE_PASSWORD ||
@@ -184,7 +191,8 @@ bool OpenBrewByWeightNetwork::enqueueMaintenanceCompletion(
                        ? CommandResultState::PERSISTED
                        : CommandResultState::APPLIED)
                 : failureState);
-  if (callbacks_.enqueueWebCommand(result)) {
+  // A lease-free command has no lease for the control task to release.
+  if (leaseFreeCommand(command) || callbacks_.enqueueWebCommand(result)) {
     return true;
   }
   completionCommand_ = result;
@@ -265,9 +273,17 @@ bool OpenBrewByWeightNetwork::processPersistedCommand(const WebCommand &command)
         log(DebugCategory::CONFIG, DebugCode::CONFIG_REJECTED);
         return false;
       }
+      // A Settings-page change lives in the PSRAM record; the deferred
+      // settings persist decides when it reaches flash.
+      dataMux_.lock();
+      settings_.lineaMicra = staged;
+      dataMux_.unlock();
       next.lineaMicra = staged;
-      persist = true;
-      break;
+      wipeLineaMicraSettings(staged);
+      clearStagedLineaMicra(command.stagedConfigRequestId);
+      publishMachineIntegrationConfig(next, next.storageRevision);
+      networkSettingsPersistRequested.store(true, std::memory_order_release);
+      return true;
     }
 
     case WebCommandType::SAVE_NETWORK: {
@@ -475,9 +491,6 @@ bool OpenBrewByWeightNetwork::processPersistedCommand(const WebCommand &command)
     if (command.type == WebCommandType::SAVE_WEBHOOK) {
       webhooks_.setConfig(next.webhook);
       clearStagedWebhook(command.stagedConfigRequestId);
-    }
-    if (command.type == WebCommandType::SAVE_LINEA_MICRA) {
-      clearStagedLineaMicra(command.stagedConfigRequestId);
     }
     publishMachineIntegrationConfig(next, next.storageRevision);
     publishConfiguredAddressStatus();

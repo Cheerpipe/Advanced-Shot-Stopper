@@ -41,9 +41,8 @@ pulses depend on machine-state confirmation: see
 
 Defaults below describe factory Double; see [Presets](presets.md) for Single.
 These are saved with each preset under **Settings → Presets**, except where
-noted. While you edit, values that conflict with another field are flagged
-in yellow right away — the same message Save would show — so you can fix
-them before saving. How a shot stops follows the active preset: choose the
+noted, as soon as you change them. Values that conflict with another field are
+flagged in yellow right away and are saved once you fix them. How a shot stops follows the active preset: choose the
 **Manual** preset to stop shots yourself every time, or switch for now from the
 header (see below).
 
@@ -222,7 +221,7 @@ status, and a small chart of what each of your last five shots with this preset
 needed, drawn against a line for the drip in use. Shots that did not train the
 drip, such as a moved cup or a manual stop, show as skipped. With brew by weight
 off the section is hidden; both Set buttons need an editable, idle
-configuration with no unsaved recipe changes.
+configuration with no recipe change still being saved.
 
 - **Set drip** puts the value in use from your next shot and keeps it as the
   preset's starting point. It also starts a **quick start**: if your next three

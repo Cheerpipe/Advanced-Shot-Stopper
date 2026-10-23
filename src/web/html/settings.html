@@ -355,32 +355,7 @@
       </div>
     </details>
     <div class="configSaveBar">
-      <div class="btnBar">
-        <button
-          id="saveBrewPresetButton"
-          class="btnGlyph mutable btnInvert"
-          data-dirty="0"
-          disabled
-          title="{{webui:settings.save_preset}}"
-          type="button"
-        >
-          <span class="g" aria-hidden="true">{{webui:settings.check}}</span
-          ><span class="t">{{webui:settings.save_preset}}</span></button
-        ><button
-          id="revertBrewPresetButton"
-          class="btnGlyph mutable btnRevert"
-          data-dirty="0"
-          disabled
-          title="{{webui:settings.revert_unsaved_changes}}"
-          aria-label="{{webui:settings.revert_unsaved_changes}}"
-          type="button"
-        >
-          <span class="g" aria-hidden="true">{{webui:settings.symbol_7}}</span>
-        </button>
-      </div>
       <small id="activeBrewProfileHint" class="fieldHint">{{webui:settings.current_preset}}</small
-      ><small id="brewDirtyHint" class="warn hidden"
-        >{{webui:settings.unsaved_preset_changes}}</small
       ><small id="brewConflictChip" class="warn hidden"></small>
     </div>
   </fieldset>
@@ -541,34 +516,6 @@
           ></label
         >
       </details>
-      <div class="configSaveBar">
-        <div class="btnBar">
-          <button
-            id="lineaMicraSaveButton"
-            class="btnGlyph mutable btnInvert"
-            data-dirty="0"
-            disabled
-            title="{{webui:settings.save_micra}}"
-            type="button"
-          >
-            <span class="g" aria-hidden="true">{{webui:settings.check}}</span
-            ><span class="t">{{webui:settings.save_micra}}</span></button
-          ><button
-            id="revertLineaMicraButton"
-            class="btnGlyph mutable btnRevert"
-            data-dirty="0"
-            disabled
-            title="{{webui:settings.revert_unsaved_changes}}"
-            aria-label="{{webui:settings.revert_unsaved_changes}}"
-            type="button"
-          >
-            <span class="g" aria-hidden="true">{{webui:settings.symbol_7}}</span>
-          </button>
-        </div>
-        <small id="lineaMicraDirtyHint" class="warn hidden"
-          >{{webui:settings.unsaved_changes}}</small
-        >
-      </div>
     </div>
   </fieldset>
   <fieldset>
@@ -1106,31 +1053,5 @@
         >
       </div>
     </details>
-    <div class="configSaveBar">
-      <div class="btnBar">
-        <button
-          id="saveConfigButton"
-          class="btnGlyph mutable btnInvert"
-          data-dirty="0"
-          disabled
-          title="{{webui:settings.save_shared_settings}}"
-          type="button"
-        >
-          <span class="g" aria-hidden="true">{{webui:settings.check}}</span
-          ><span class="t">{{webui:settings.save_shared_settings}}</span></button
-        ><button
-          id="revertConfigButton"
-          class="btnGlyph mutable btnRevert"
-          data-dirty="0"
-          disabled
-          title="{{webui:settings.revert_unsaved_changes}}"
-          aria-label="{{webui:settings.revert_unsaved_changes}}"
-          type="button"
-        >
-          <span class="g" aria-hidden="true">{{webui:settings.symbol_7}}</span>
-        </button>
-      </div>
-      <small id="configDirtyHint" class="warn hidden">{{webui:settings.unsaved_changes}}</small>
-    </div>
   </fieldset>
 </div>

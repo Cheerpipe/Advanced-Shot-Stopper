@@ -50,14 +50,14 @@
       qwSettingsGoal[1] === '10' && qwSettingsGoal[2] === '200',
     'Sheet bounds must equal the firmware preset goal bounds');
 
-  // Commit order: clean (discard-or-cancel) and hydrate the settings form,
-  // write the goal, save the preset, so unsaved Settings edits never ride along.
+  // Commit order: flush any pending Settings autosave and hydrate the form,
+  // write the goal, then save a patch carrying only the goal.
   // A rejected save must put the previous value back so no phantom edit
   // lingers in the form (the live warnings and the brew baseline would
   // otherwise describe a value the device never accepted).
   const qwHydrate = qwFirst('if (!(await R.cleanBrewForm())) return;'),
     qwWrite = qwFirst('field.value = (dg / 10).toFixed(1)'),
-    qwSave = qwFirst('R.saveBrewPreset(undefined, undefined, true)'),
+    qwSave = qwFirst('R.saveBrewPreset({ goalWeightG: dg / 10 })'),
     qwRestore = qwFirst('field.value = rejected;');
   qwAssert.ok(0 <= qwHydrate && qwHydrate < qwWrite && qwWrite < qwSave,
     'Closing must hydrate, then write the goal field, then save the preset');

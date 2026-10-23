@@ -315,7 +315,7 @@
     engine.refreshBrewWarnings();
     svAssert.equal(harness.counts.created, createdAfterFirst + 2);
     svAssert.equal(harness.chip.hidden, false);
-    svAssert.equal(harness.chip.textContent, '2 conflicts will block saving.');
+    svAssert.equal(harness.chip.textContent, '2 conflicts to resolve before saving.');
     svAssert.match(harness.fields.goalWeightG.attrs['aria-describedby'],
       /^brewWarn\d+ brewWarn\d+$/,
       'Two warnings on one field must both stay aria-linked');
@@ -365,10 +365,6 @@
     svAssert.ok(codeIncludes(blockAt(viewJs.settings, 'function applySettingsStatus(s) {'),
       'refreshBrewWarnings();'),
       'applySettingsStatus must refresh warnings after re-capturing baselines');
-    svAssert.ok(codeIncludes(blockAt(viewJs.settings, 'function revertBrewPreset() {'),
-      'refreshBrewWarnings();'));
-    svAssert.ok(codeIncludes(blockAt(viewJs.settings, 'function revertMachineConfig() {'),
-      'refreshBrewWarnings();'));
     svAssert.ok(codeIncludes(blockAt(runtimeJs, 'function saveBrewPreset('),
       'clearBrewWarnings();'),
       'A successful brew save must clear the warnings immediately');

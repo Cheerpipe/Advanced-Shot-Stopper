@@ -452,7 +452,8 @@ void processWebCommand(const WebCommand &command) {
             break;
           }
           ShotPreset candidateRecipe = *preset;
-          copyUserRecipeFromConfig(command.config, candidateRecipe);
+          copyUserRecipeFromConfig(command.config, candidateRecipe,
+                                   command.presetRecipeFields);
           if (command.lineaMicraBrewTargetSpecified)
             candidateRecipe.lineaMicraBrewTargetDeciC =
                 command.lineaMicraBrewTargetDeciC;
@@ -463,8 +464,6 @@ void processWebCommand(const WebCommand &command) {
           if (command.presetDoseDg != 0) candidateRecipe.doseDg = command.presetDoseDg;
           if (command.presetGrindHints >= 0)
             candidateRecipe.grindHintsEnabled = command.presetGrindHints != 0;
-          // The preset form carries its Brew by weight in timerOnly.
-          candidateRecipe.brewByWeight = !command.config.timerOnly;
           ok = validateShotPresetRecipe(candidateRecipe,
                                         runtimeConfig.retareWindowMs,
                                         runtimeConfig.autoRetare);
@@ -562,9 +561,17 @@ void processWebCommand(const WebCommand &command) {
       holdOrBeginPlannedRestart(command);
       return;
 
+    // Micra settings touch neither the network nor the machine: they persist
+    // without a maintenance lease, so configuration and the cloud stay live.
+    case WebCommandType::SAVE_LINEA_MICRA:
+      if (!webCommandAllowsUnsafeConfiguration(command) ||
+          !forwardAcceptedNetworkCommand(command)) {
+        rejectWebCommand(command);
+      }
+      return;
+
     case WebCommandType::SAVE_NETWORK:
     case WebCommandType::SAVE_WEBHOOK:
-    case WebCommandType::SAVE_LINEA_MICRA:
     case WebCommandType::FORGET_NETWORK:
     case WebCommandType::CHANGE_DEVICE_PASSWORD:
     case WebCommandType::RESET_DEVICE_PASSWORD:

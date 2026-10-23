@@ -1259,6 +1259,8 @@ void serviceShotStorePersistence() {
 
 void serviceRuntimePersistence(
     const ScaleLinkSnapshot &link = getScaleLinkSnapshot()) {
+  if (networkSettingsPersistRequested.exchange(false, std::memory_order_acq_rel))
+    queueRuntimePersist(RUNTIME_PERSIST_REASON_USER);
   if (runtimeConfig.firstTimezoneAutoClockQuality == 1 &&
       runtimeConfig.firstTimezoneAutoBootId == copyShotLogBootIdCached()) {
 #ifndef OPEN_BREW_BY_WEIGHT_HOST_TEST

@@ -319,20 +319,22 @@ inline void copyDeviceProtectionFromConfig(const RuntimeConfig &from,
 }
 
 // Writes the editable recipe; learned drip state is never copied here.
+// `fields` limits the copy to the PresetRecipeField bits a partial save sent.
 inline void copyUserRecipeFromConfig(const RuntimeConfig &config,
-                                     ShotPreset &preset) {
-  preset.brewByWeight = !config.timerOnly;
-  preset.goalWeightDg = config.goalWeightDg;
-  preset.operationalWallMs = config.operationalWallMs;
-  preset.bbwProtectionMs = config.bbwProtectionMs;
+                                     ShotPreset &preset,
+                                     uint16_t fields = PRESET_RECIPE_ALL) {
+  if (fields & PRESET_RECIPE_BREW_BY_WEIGHT) preset.brewByWeight = !config.timerOnly;
+  if (fields & PRESET_RECIPE_GOAL_WEIGHT) preset.goalWeightDg = config.goalWeightDg;
+  if (fields & PRESET_RECIPE_OPERATIONAL_WALL) preset.operationalWallMs = config.operationalWallMs;
+  if (fields & PRESET_RECIPE_BBW_PROTECTION) preset.bbwProtectionMs = config.bbwProtectionMs;
   preset.weightOffsetBaselineG = config.weightOffsetBaselineG;
-  preset.fastSideEnabled = config.fastSideEnabled;
-  preset.fastMarginDg = config.fastMarginDg;
-  preset.fastBeforeMs = config.fastBeforeMs;
-  preset.slowSideEnabled = config.slowSideEnabled;
-  preset.slowMarginDg = config.slowMarginDg;
-  preset.slowAfterMs = config.slowAfterMs;
-  preset.scaleLossFixedMs = config.scaleLossFixedMs;
+  if (fields & PRESET_RECIPE_FAST_ENABLED) preset.fastSideEnabled = config.fastSideEnabled;
+  if (fields & PRESET_RECIPE_FAST_MARGIN) preset.fastMarginDg = config.fastMarginDg;
+  if (fields & PRESET_RECIPE_FAST_BEFORE) preset.fastBeforeMs = config.fastBeforeMs;
+  if (fields & PRESET_RECIPE_SLOW_ENABLED) preset.slowSideEnabled = config.slowSideEnabled;
+  if (fields & PRESET_RECIPE_SLOW_MARGIN) preset.slowMarginDg = config.slowMarginDg;
+  if (fields & PRESET_RECIPE_SLOW_AFTER) preset.slowAfterMs = config.slowAfterMs;
+  if (fields & PRESET_RECIPE_SCALE_LOSS_FIXED) preset.scaleLossFixedMs = config.scaleLossFixedMs;
 }
 
 inline bool allocateShotPresetId(ShotPresetBank &bank, uint8_t &outId) {

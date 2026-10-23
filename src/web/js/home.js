@@ -375,7 +375,7 @@ function initQuickWeight() {
       // A rejected value must not linger in the form as a phantom edit: put
       // the previous value back so the brew baseline and the live warnings
       // keep describing the real saved state.
-      if (!(await R.saveBrewPreset(undefined, undefined, true))) field.value = rejected;
+      if (!(await R.saveBrewPreset({ goalWeightG: dg / 10 }))) field.value = rejected;
     } catch (e) {
       R.message(R.formatCommandError(__WEBUI_TEXT__("runtime.could_not_save_preset"), e), "error");
     }

@@ -66,6 +66,7 @@
 #include "OpenBrewByWeightShotPredictor.h"
 #include "OpenBrewByWeightAuditLog.h"
 #include "OpenBrewByWeightOutboundAdmission.h"
+#include "OpenBrewByWeightSettingsWriteAdmission.h"
 #include "OpenBrewByWeightFirmwareMode.h"
 #include "machine/OpenBrewByWeightMachineIntegration.h"
 #include "machine/OpenBrewByWeightMicraTiming.h"

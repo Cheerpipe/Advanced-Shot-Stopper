@@ -180,6 +180,11 @@ sees `TRIPPED` / `LOCKOUT` and finalizes the cycle with
 `RELAY_SAFETY_FAILURE`. Network, OTA, and NTP never close the machine circuit. A
 maintenance lease (Wi-Fi scan, some admin work) forces machine circuit open and
 parks the brew orchestrator in `REQUIRES_OFF` if the paddle is ON.
+Linea Micra settings saves take no lease: they change neither the network nor
+the machine, so configuration stays editable and the cloud client keeps its
+in-flight requests. The network task commits them to the PSRAM settings record
+(only while no cycle is active and the machine circuit is open) and the
+deferred settings persist writes them, as for every Settings-page change.
 
 ---
 

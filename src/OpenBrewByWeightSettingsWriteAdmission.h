@@ -14,4 +14,8 @@ inline std::atomic<bool> settingsSchemaWritesAdmitted{
 #endif
 };
 
+// The network task sets this after committing a Settings-page change to the
+// PSRAM record; the control task turns it into the deferred settings persist.
+inline std::atomic<bool> networkSettingsPersistRequested{false};
+
 }  // namespace openbrewbyweight

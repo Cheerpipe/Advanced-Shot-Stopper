@@ -67,7 +67,7 @@ changed. On momentary machines, check the actual group and its state feedback.
 | **Fast-shot beeps** | Fast | Disabled / Slow / Medium / Fast / Rapid | Local-buzzer pulses while a fast shot continues past its target. Disabled when Play alerts on is Scale only. |
 | **Slow-shot beeps** | Fast | Same rates | Pulses while a shot runs past your shot time window. |
 | **Bullseye melody** | OFF | ON / OFF; Buzzer only | Plays the saved custom RTTTL tune once when a shot stopped by weight **On recipe** remains exactly at its target weight for at least 1 full second. Important alerts, such as a lost scale, interrupt the melody so you never miss them. The text is retained when disabled. |
-| **Custom RTTTL** | empty | Up to 500 ASCII characters / 250 notes | Validated when saved and parsed into a fixed-capacity buffer. Editable only while Bullseye melody is enabled; otherwise it remains visible and read-only. |
+| **Custom RTTTL** | empty | Up to 500 ASCII characters / 250 notes | Editable once Bullseye melody is on; otherwise it stays visible and read-only. Bullseye melody and its tune are saved together: switching it on saves nothing until you paste a tune, and a valid tune then saves both by itself. A tune that isn't valid RTTTL is marked and neither is saved. |
 
 ## Bullseye timing
 
@@ -113,7 +113,7 @@ setting or other individual sound controls, and [scale capabilities](settings/sc
 before changing wiring.
 A scale can support tare/timer without supporting arbitrary beeps.
 Custom RTTTL follows `name:defaults:notes`, for example
-`done:d=8,o=5,b=120:c,e,g`; save it with Bullseye enabled to test its validation.
+`done:d=8,o=5,b=120:c,e,g`; paste it with Bullseye on and it is checked as it saves.
 The defaults section accepts only `d=` (note length, 1–64), `o=` (octave, 4–8)
 and `b=` (tempo, 25–900 beats per minute); a tune with any other setting or an
 out-of-range value is rejected instead of playing at the wrong speed or pitch.

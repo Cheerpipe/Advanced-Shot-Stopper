@@ -135,24 +135,38 @@ esp_err_t OpenBrewByWeightNetwork::lineaMicraHandler(httpd_req_t *request) {
       }
     }
   } else if (parseError == nullptr && strcmp(action, "save") == 0) {
-    if (!candidate.accountConfigured ||
-        !jsonBoolean(root, "applyTemperature", applyTemperature) ||
-        !jsonBoolean(root, "observeState", observeState) ||
-        !jsonBoolean(root, "recognizeWakeGesture", recognizeWakeGesture) ||
-        !jsonBoolean(root, "shutdownWithScale", shutdownWithScale) ||
-        !jsonBoolean(root, "powerOnWithScale", powerOnWithScale) ||
-        !jsonBoolean(root, "scaleOffWithMachine", scaleOffWithMachine) ||
-        !jsonBoolean(root, "boostScaleDetectionWhenOn",
-                     boostScaleDetectionWhenOn) ||
-        !jsonBoolean(root, "reduceScaleScanningWhenOff",
-                     reduceScaleScanningWhenOff) ||
-        !jsonInt16(root, "shutdownGraceSeconds", shutdownGraceSeconds) ||
+    // A save is a patch: each absent option keeps its stored value.
+    const uint8_t o = candidate.options, so = candidate.scaleOptions;
+    applyTemperature = o & LINEA_MICRA_APPLY_TEMPERATURE;
+    observeState = o & LINEA_MICRA_OBSERVE_STATE;
+    recognizeWakeGesture = o & LINEA_MICRA_RECOGNIZE_WAKE;
+    shutdownWithScale = o & LINEA_MICRA_SHUTDOWN_WITH_SCALE;
+    powerOnWithScale = o & LINEA_MICRA_POWER_ON_WITH_SCALE;
+    scaleOffWithMachine = so & LINEA_MICRA_SCALE_OFF_WITH_MACHINE;
+    boostScaleDetectionWhenOn = so & LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON;
+    reduceScaleScanningWhenOff = so & LINEA_MICRA_SCALE_SCAN_RELAX_WHEN_OFF;
+    shutdownGraceSeconds = static_cast<int16_t>(lineaMicraShutdownGraceSeconds(o));
+    const auto option = [&](const char *key, bool &value) {
+      return !jsonFieldPresent(root, key) || jsonBoolean(root, key, value);
+    };
+    // Every member but `action` is an option, the transport or a rejected credential.
+    if (!candidate.accountConfigured || cJSON_GetArraySize(root) < 2 ||
+        !option("applyTemperature", applyTemperature) ||
+        !option("observeState", observeState) ||
+        !option("recognizeWakeGesture", recognizeWakeGesture) ||
+        !option("shutdownWithScale", shutdownWithScale) ||
+        !option("powerOnWithScale", powerOnWithScale) ||
+        !option("scaleOffWithMachine", scaleOffWithMachine) ||
+        !option("boostScaleDetectionWhenOn", boostScaleDetectionWhenOn) ||
+        !option("reduceScaleScanningWhenOff", reduceScaleScanningWhenOff) ||
+        (jsonFieldPresent(root, "shutdownGraceSeconds") &&
+         !jsonInt16(root, "shutdownGraceSeconds", shutdownGraceSeconds)) ||
         !lineaMicraGraceCodeFromSeconds(shutdownGraceSeconds,
                                         shutdownGraceCode) ||
         jsonFieldPresent(root, "username") ||
         jsonFieldPresent(root, "password") ||
         jsonFieldPresent(root, "serial")) {
-      parseError = "save requires a selected machine and all machine options.";
+      parseError = "save requires a selected machine and at least one valid machine option.";
     } else {
       candidate.connectionType = connectionType;
       setLineaMicraOptions(candidate, applyTemperature, observeState,

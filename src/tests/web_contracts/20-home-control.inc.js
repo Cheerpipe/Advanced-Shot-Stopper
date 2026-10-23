@@ -790,7 +790,7 @@ if (!statusSection || !statusSection[1].includes('class="lamp"') ||
     !codeIncludes(ui, "sel.value=keep?prev:preferred||'';updateScalePreferenceOptions()") ||
     !codeIncludes(ui, "sel.dataset.pending='1'") ||
     !codeIncludes(ui, "scaleMacCacheMode:['first','prefer','only'].includes($('scalePreference')?.value)?$('scalePreference').value:'only'") ||
-    !codeIncludes(ui, 'payload.preferredScaleMac=sel.value') ||
+    !codeIncludes(ui, "preferredScaleMac:$('preferredScaleSelect')?.value") ||
     codeIncludes(ui, 'id="alwaysUseThisScale"') ||
     codeIncludes(ui, 'Always use this scale') ||
     !codeIncludes(ui, 'function selectPreferredScale(') ||
@@ -1044,7 +1044,7 @@ if (!codeIncludes(ui, 'id="autoToManualGuardEnabled"') ||
     html.indexOf('id="paddleMode"') >
         html.indexOf('<summary>Scale guard</summary>') ||
     html.indexOf('id="noScaleBbwMode"') <
-        html.indexOf('id="saveBrewPresetButton"') ||
+        html.indexOf('id="brewConflictChip"') ||
     !network.includes('avoidBbwShotWithoutScale') ||
     !network.includes('noScaleBbwMode') ||
     !network.includes('noScaleAllowRinseWhileArmed') ||
@@ -1510,7 +1510,7 @@ if (!html.includes('id="postTareBaselineGraceS" type="number" min="0.5" max="10"
     !codeIncludes(ui, "$(k+'S').value=String(c[k+'Ms']/1000)") ||
     !codeIncludes(ui, "apply('tareOpt',!$('autoTare').checked)") ||
     // Tare switches go through the shared #workflowPanel field listener.
-    !codeIncludes(viewJs.settings, 'sec===brew?markBrewDirty():sec===micra?markLineaMicraDirty():markConfigDirty();updateConfigGroups();') ||
+    !codeIncludes(viewJs.settings, 'noteEdit(sec,!typed?300:e.type===change&&e.isTrusted?0:1200);updateConfigGroups();') ||
     !codeIncludes(ui, "typeof c.postTareBaselineGraceMs==='number'") ||
     !network.includes('\\"postTareBaselineGraceMs\\":%lu') ||
     !network.includes('Post-tare grace must be from 0.5 to 10 s.') ||

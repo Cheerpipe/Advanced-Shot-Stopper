@@ -72,11 +72,9 @@ firmware keeps the options you already saved.
 ### Change the options
 
 The options are grouped under **Machine power**, **Scale automations** and
-**Presets**. Like the other Settings sections, changes are saved together:
-adjust what you want and choose **Save La Marzocco settings**. The button and
-the revert button next to it are available only while there are unsaved
-changes, and **Unsaved changes** marks them. **Sign in**, **Use this machine**,
-**(Change)** and **(Disconnect)** act immediately and are not part of that save.
+**Presets**. Like everything else in Settings, each option is saved as soon as
+you change it. **Sign in**, **Use this machine**, **(Change)** and
+**(Disconnect)** are actions of their own and also take effect immediately.
 
 The four options that rely on **Show power state** are listed under it. When
 **Show power state** is off they are dimmed and can't be changed, but keep

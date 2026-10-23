@@ -188,8 +188,14 @@ want to watch, such as Scale or Wi-Fi. Press and hold a row's title to copy that
 section's readings, for example to paste them into a bug report; open the row
 first to include its values.
 
-Save buttons in **Settings** and **Admin** stay dimmed until you change one of
-their values. When you save, the small icon on the button turns into a spinning
+**Settings** saves every change by itself: switches and lists right away,
+typed numbers and text once you pause or leave the field, and only the settings
+you changed are sent. A value that conflicts with another one is flagged and
+saved as soon as you fix it; if the controller turns a change down, the field
+keeps your value and a red message explains why. If you try to leave the page
+while a change is still being saved, your browser asks first.
+
+Save buttons in **Admin** stay dimmed until you change one of their values. When you save, the small icon on the button turns into a spinning
 ring while the controller applies the change. A successful save dims the button
 again; if saving fails, the button remains available so you can retry and the
 red message bar explains the error. Every save button has a smaller revert
@@ -214,8 +220,8 @@ according to the selected [paddle](settings/paddle.md) or
    it or use several scales, follow [Scales](settings/scales.md).
 3. In **Settings → Presets**, tap **Double · Adaptive** or **Single · Adaptive**
    (or a Fixed preset to always stop at the target). For your own recipe,
-   duplicate a preset, change its target yield and shot time window, and select
-   **Save preset**. [Presets](features/presets.md) lists the factory values.
+   duplicate a preset and change its target yield and shot time window; each
+   change is saved to that preset as you make it. [Presets](features/presets.md) lists the factory values.
 4. For a latch/paddle installation, start with **Natural**, the default mode.
    Momentary builds show **Switch** instead; use their
    [button and sensor settings](settings/momentary.md).

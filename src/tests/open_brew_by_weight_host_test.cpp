@@ -7193,6 +7193,39 @@ void r23b_maintenance_waits_for_shot_store_persist() {
   CHECK(!maintenanceLease.active || maintenanceLease.forwarded);
 }
 
+// Micra settings take no maintenance lease and persist on the deferred path:
+// configuration stays editable and the cloud is not paused, but a working
+// machine still refuses.
+void r23c_micra_settings_save_without_a_lease() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  WebCommand command;
+  command.type = WebCommandType::SAVE_LINEA_MICRA;
+  command.requestId = 79;
+  const uint32_t callsBefore = hostForwardAcceptedNetworkCommandCalls;
+  processWebCommand(command);
+  CHECK(!maintenanceLease.active);
+  CHECK(hostForwardAcceptedNetworkCommandCalls == callsBefore + 1);
+  CHECK(hostLastForwardedNetworkCommand.type == WebCommandType::SAVE_LINEA_MICRA);
+  CHECK(hostLastForwardedNetworkCommand.maintenanceLeaseId == 0);
+  // The network task commits it to the PSRAM record and asks for the
+  // deferred settings persist, which the control task schedules.
+  runLoopAfter(RUNTIME_PERSIST_DEBOUNCE_MS + 1);
+  CHECK(!runtimePersistPending);
+  networkSettingsPersistRequested.store(true);
+  serviceRuntimePersistence();
+  CHECK(runtimePersistPending && !networkSettingsPersistRequested.load());
+
+  // The only forward for a refused save is its FAILED result.
+  setRawPaddle(true);
+  command.requestId = 80;
+  processWebCommand(command);
+  CHECK(!maintenanceLease.active);
+  CHECK(hostLastForwardedNetworkCommand.requestId == 80);
+  CHECK(hostLastForwardedNetworkCommand.type != WebCommandType::SAVE_LINEA_MICRA);
+  CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::FAILED);
+}
+
 void w86_config_applies_to_ram_immediately_and_coalesces() {
   resetHarness(false, false);
   reachReadyFromBoot();
@@ -13801,6 +13834,41 @@ void w91_preset_persistence_serializes_and_survives_retry() {
         activeShotPreset(presetBank).lineaMicraBrewTargetDeciC);
   CHECK(hostPresetWebhookCount == 1);
   CHECK(hostQuickSettingsWebhookCount == 1);
+}
+
+void w90d_partial_preset_save_writes_only_sent_fields() {
+  resetHarness(false, false);
+  reachReadyFromBoot();
+  ShotPreset &preset = mutableActiveShotPreset(presetBank);
+  const ShotPreset before = preset;
+  WebCommand save;
+  save.type = WebCommandType::PRESET_OP;
+  save.requestId = 903;
+  save.presetAction = static_cast<uint8_t>(PresetAction::SAVE);
+  save.presetId = preset.id;
+  save.config = runtimeConfig;
+  save.config.goalWeightDg = static_cast<uint16_t>(before.goalWeightDg + 10);
+  // Unsent fields carry different values: a patch must leave them stored.
+  save.config.operationalWallMs = before.operationalWallMs + 1000;
+  save.config.timerOnly = before.brewByWeight;
+  save.config.fastSideEnabled = !before.fastSideEnabled;
+  save.presetRecipeFields = PRESET_RECIPE_GOAL_WEIGHT;
+  processWebCommand(save);
+  CHECK(hostLastForwardedNetworkCommand.requestId == 903);
+  CHECK(hostLastForwardedNetworkCommand.resultState != CommandResultState::FAILED);
+  CHECK(preset.goalWeightDg == before.goalWeightDg + 10);
+  CHECK(preset.operationalWallMs == before.operationalWallMs);
+  CHECK(preset.brewByWeight == before.brewByWeight);
+  CHECK(preset.fastSideEnabled == before.fastSideEnabled);
+  CHECK(runtimeConfig.goalWeightDg == preset.goalWeightDg);
+
+  // The merged recipe is validated as a whole: an invalid patch changes nothing.
+  save.requestId = 904;
+  save.config.goalWeightDg = 0;
+  processWebCommand(save);
+  CHECK(hostLastForwardedNetworkCommand.requestId == 904);
+  CHECK(hostLastForwardedNetworkCommand.resultState == CommandResultState::FAILED);
+  CHECK(preset.goalWeightDg == before.goalWeightDg + 10);
 }
 
 void w90c_preset_temperature_presence_and_learning_invalidation() {
@@ -21860,6 +21928,7 @@ const TestCase testCases[] = {
     {"R22", r22_confirmed_implausible_weight_does_not_stop},
     {"R23", r23_maintenance_is_canceled_fail_open_by_physical_paddle},
     {"R23b", r23b_maintenance_waits_for_shot_store_persist},
+    {"R23c", r23c_micra_settings_save_without_a_lease},
     {"R24", r24_web_control_is_available_without_session_owner},
     {"R25", r25_critical_scale_mailbox_never_blocks_and_keeps_latest},
     {"RACE01", race01_idle_tare_validates_after_command_spacing},
@@ -22392,6 +22461,7 @@ const TestCase testCases[] = {
     {"W90", w90_save_unknown_preset_id_does_not_overwrite_active},
     {"W90b", w91_preset_persistence_serializes_and_survives_retry},
     {"W90c", w90c_preset_temperature_presence_and_learning_invalidation},
+    {"W90d", w90d_partial_preset_save_writes_only_sent_fields},
     {"W87c", w87c_runtime_persist_io_backoff_is_bounded_and_resets},
     {"HQ01", hq01_quick_settings_are_session_only},
     {"HQ02", hq02_quick_settings_revert_after_duration},

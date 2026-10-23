@@ -737,7 +737,7 @@ and `shutdownWithScale` machine-link booleans with `shutdownGraceSeconds`,
 and the `scaleOffWithMachine` scale-link boolean. `select` and `save` optionally accept `connectionType` as exactly `websocket`
 or `api`; missing retains the saved preference. Null, wrong types, unknown
 values and use with any other action are rejected. WebSocket is the default.
-`save` updates those options for an already selected machine. `refresh`, `relist`, and `disconnect` accept no additional fields;
+`save` is a patch for an already selected machine: it needs at least one option or `connectionType`, and every option it omits keeps its saved value. `refresh`, `relist`, and `disconnect` accept no additional fields;
 `relist` requires a selected machine, STA, and a closed setup AP, and lists the
 saved account's machines again over the existing session and installation key
 without changing the active machine, the published request phase/error, or
