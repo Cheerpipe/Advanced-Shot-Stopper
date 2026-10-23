@@ -744,9 +744,10 @@ if (generated.jsGzip.length > 7850) {
 // Home equipment rows on the sunken band: 16868, owner-requested 2026-10-22.
 // Group transition curve and the no-interpolate-size fallback switch: 16921, owner-requested
 // 2026-10-22. Animated equipment rows without hover or text selection: 16932, owner-requested
-// 2026-10-22; cap 16940.
-if (generated.cssGzip.length > 16940) {
-  throw new Error(`Compressed Web CSS exceeds the 16940-byte gzip budget (${generated.cssGzip.length})`);
+// 2026-10-22. Compact History cards grouped under day headers: 16955, owner-requested
+// 2026-10-23; cap 16955.
+if (generated.cssGzip.length > 16955) {
+  throw new Error(`Compressed Web CSS exceeds the 16955-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.

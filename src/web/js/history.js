@@ -58,53 +58,55 @@ function renderHistory() {
   if (!body || !R.historyLoaded) return;
   body.replaceChildren();
   const rows = historyVisibleRecords();
-  if (rows.length)
-    for (const r of rows) {
-      const row = document.createElement("tr");
-      const time = document.createElement("td");
-      time.dataset.label = __WEBUI_TEXT__("runtime.time");
-      time.className = "histTime";
-      time.textContent = formatHistoryTime(r);
-      R.wrapTimeEl(time, r);
-      const dur = document.createElement("td");
-      dur.dataset.label = __WEBUI_TEXT__("runtime.dur");
-      dur.className = "shotDur";
-      dur.textContent = (typeof r.durationS === "number" ? r.durationS : 0).toFixed(1) + "s";
-      const type = document.createElement("td");
-      type.dataset.label = __WEBUI_TEXT__("runtime.type");
-      type.className = "histType";
-      const badge = document.createElement("span");
-      badge.className = "histBadge";
-      badge.textContent = historyTypeLabel(r.type);
-      type.appendChild(badge);
-      const del = document.createElement("td");
-      del.className = "shotDel";
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "btnGlyph btnDanger";
-      btn.title = __WEBUI_TEXT__("runtime.delete");
-      btn.setAttribute("aria-label", __WEBUI_TEXT__("runtime.delete"));
-      btn.innerHTML =
-        '<span class="g" aria-hidden="true">' + __WEBUI_TEXT__("runtime.close") + "</span>";
-      btn.onclick = () => deleteOneHistory(r.id);
-      del.appendChild(btn);
-      const typeSvg = HIST_TYPE_SVG[r.type];
-      if (typeSvg) {
-        const icon = document.createElement("td");
-        // A shot without scale weight draws an outlined cup.
-        icon.className = r.type === "shot" && r.noWeight ? "histIcon histNoWeight" : "histIcon";
-        icon.setAttribute("aria-hidden", "true");
-        if (!histIcons[r.type]) {
-          const t = document.createElement("template");
-          t.innerHTML = typeSvg;
-          histIcons[r.type] = t.content;
-        }
-        icon.append(histIcons[r.type].cloneNode(true));
-        row.appendChild(icon);
-      }
-      row.append(time, dur, type, del);
-      body.appendChild(row);
+  let day;
+  for (const r of rows) {
+    const time = document.createElement("td");
+    time.className = "histTime";
+    time.textContent = formatHistoryTime(r);
+    // Entries sharing the label's day part share one header row.
+    if (day !== (day = time.textContent.split(__WEBUI_TEXT__("runtime.at"))[0])) {
+      const head = body.insertRow();
+      head.className = "histDay";
+      head.append(Object.assign(document.createElement("th"), { colSpan: 5, textContent: day }));
     }
+    const row = body.insertRow();
+    R.wrapTimeEl(time, r);
+    const dur = document.createElement("td");
+    dur.className = "shotDur";
+    dur.innerHTML = (r.durationS || 0).toFixed(1) + "<small>s</small>";
+    const type = document.createElement("td");
+    type.className = "histType";
+    const badge = document.createElement("span");
+    badge.className = "histBadge";
+    badge.textContent = historyTypeLabel(r.type);
+    type.append(badge);
+    const del = document.createElement("td");
+    del.className = "shotDel";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btnGlyph btnDanger";
+    btn.title = __WEBUI_TEXT__("runtime.delete");
+    btn.setAttribute("aria-label", __WEBUI_TEXT__("runtime.delete"));
+    btn.innerHTML =
+      '<span class="g" aria-hidden="true">' + __WEBUI_TEXT__("runtime.close") + "</span>";
+    btn.onclick = () => deleteOneHistory(r.id);
+    del.append(btn);
+    const typeSvg = HIST_TYPE_SVG[r.type];
+    if (typeSvg) {
+      const icon = document.createElement("td");
+      // A shot without scale weight draws an outlined cup.
+      icon.className = r.type === "shot" && r.noWeight ? "histIcon histNoWeight" : "histIcon";
+      icon.setAttribute("aria-hidden", "true");
+      if (!histIcons[r.type]) {
+        const t = document.createElement("template");
+        t.innerHTML = typeSvg;
+        histIcons[r.type] = t.content;
+      }
+      icon.append(histIcons[r.type].cloneNode(true));
+      row.append(icon);
+    }
+    row.append(time, dur, type, del);
+  }
   R.setEmptyState(
     "historyTableState",
     rows.length

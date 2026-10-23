@@ -1254,7 +1254,6 @@
     "runtime.too_many_sign_in_attempts": "Too many attempts. Try again in 30 seconds.",
     "runtime.touch_stop_fallback": "Touch fallback",
     "runtime.transfer": "Transfer ",
-    "runtime.type": "Type",
     "runtime.type_backflush": "Backflush",
     "runtime.type_no_scale_guard_aborted": "Blocked: no scale",
     "runtime.type_other": "Other",

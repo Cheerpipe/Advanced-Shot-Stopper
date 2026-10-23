@@ -57,18 +57,18 @@ connection. From then on the diary keeps refreshing in the background while
 you are on other pages, so History always opens instantly. The list loads
 **20 entries at a time** as you scroll. New or deleted entries refresh the list
 automatically from the first page; scroll to load more again. Sort by date,
-newest or oldest first, from the sort control at the top. Each card leads with
-the duration large on the left and the friendly time label small on the right:
-"Today" or "Yesterday" with the clock time to the minute, the weekday name for
+newest or oldest first, from the sort control at the top. Entries are grouped
+under a small heading for each day — "Today", "Yesterday", the weekday name for
 the rest of the week, "2 weeks ago" for older weeks, and a short date like
-"Sep 15" for older entries. Hovering the label shows the exact date and time.
-The activation type sits below as a small label. Shots carry a coffee-cup
+"Sep 15" for older entries. Each compact card shows the activation type with
+its time underneath, such as "Today at 08:47", and the duration on the right.
+Hovering the time shows the exact date and time. Shots carry a coffee-cup
 icon on the left of the card; the cup is only outlined when the scale had no
 valid weight at the end of the shot. Rinses carry a droplet, and other
 activations carry a lightning bolt, Power ON entries use the power symbol,
 and Blocked: no scale entries show an X. When the clock
 was not synced when the entry was recorded, the card shows "no time"
-instead of a date.
+instead of a date, and those entries share a "no time" heading.
 
 Narrow the diary to what you care about with the Filter control next to the
 sort order. It opens a checklist of activation types — Shot, Rinse, Backflush,

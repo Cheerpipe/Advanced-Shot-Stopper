@@ -3257,7 +3257,7 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   font-weight: 650;
   color: var(--mu);
 }
-:is(#shotTable, #historyTable) td::before {
+#shotTable td::before {
   content: attr(data-label);
   font-size: 0.62rem;
   font-weight: 600;
@@ -3334,8 +3334,7 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   background: color-mix(in srgb, var(--z) 13%, var(--sf));
   color: color-mix(in srgb, var(--z) 80%, var(--fg));
 }
-#shotTable .shotDel,
-#historyTable .shotDel {
+#shotTable .shotDel {
   position: absolute;
   top: 0.15rem;
   right: 0.15rem;
@@ -3393,8 +3392,7 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   grid-row: 2;
 }
 #shotTable .shotDur::before,
-#shotTable .shotActual::before,
-#historyTable td.shotDur::before {
+#shotTable .shotActual::before {
   font-size: 0.6875rem;
   font-weight: 700;
   color: var(--mu);
@@ -3459,51 +3457,58 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
 }
 #historyTable tr {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-areas: "icon dur time" "icon type time";
-  gap: 0.6rem 0.8rem;
-  align-items: start;
-  position: relative;
+  grid-template-columns: 1.75rem minmax(0, 1fr) auto auto;
+  grid-template-areas: "icon type dur del" "icon time dur del";
+  column-gap: 0.75rem;
+  align-items: center;
+  margin: 0 0 0.5rem;
+}
+#historyTable tr:not(.histDay) {
   background: var(--sf);
   border: 1px solid var(--ln);
   border-radius: var(--r);
-  padding: 1rem 3rem 1rem 1rem;
-  margin: 0 0 0.75rem;
+  padding: 0.45rem 0.1rem 0.45rem 0.85rem;
+}
+#historyTable tr.histDay {
+  display: block;
+  margin: 0.4rem 0.2rem 0.35rem;
+}
+#historyTable tr.histDay th {
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mu);
 }
 #historyTable td.histTime {
   grid-area: time;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--mu);
-  justify-self: end;
+  font-size: 0.75rem;
 }
 #historyTable td.shotDur {
   grid-area: dur;
+  display: block;
+  font-size: 1.3rem;
+  color: var(--fg);
 }
-#historyTable td.histType {
-  grid-area: type;
-  font-size: 0.75rem;
+#historyTable td.shotDur small {
+  display: inline;
+  font-size: 0.62em;
   font-weight: 600;
   color: var(--mu);
 }
-#historyTable td.histTime::before,
-#historyTable td.histIcon::before {
-  content: none;
+#historyTable td.histType {
+  grid-area: type;
+  font-size: 0.85rem;
+  color: var(--fg);
 }
-.histBadge {
-  align-self: flex-start;
-  display: inline-block;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+#historyTable td.shotDel {
+  grid-area: del;
 }
 #historyTable td.histIcon {
   grid-area: icon;
-  align-self: center;
-  width: 2.6rem;
-  height: 2.6rem;
-  font: 2.6rem/1 a;
+  width: 1.75rem;
+  height: 1.75rem;
+  font: 1.6rem/1 a;
+  color: var(--fg);
 }
 #historyTable td.histIcon svg {
   width: 100%;
