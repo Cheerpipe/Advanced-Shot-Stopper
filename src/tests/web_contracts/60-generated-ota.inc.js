@@ -746,9 +746,10 @@ if (generated.jsGzip.length > 7850) {
 // 2026-10-22. Animated equipment rows without hover or text selection: 16932, owner-requested
 // 2026-10-22. Compact History cards grouped under day headers: 16955, owner-requested
 // 2026-10-23; cap 16955. Settings scope notes, the Account group and one-weight outlined
-// History icons: 17073, owner-requested 2026-10-22; cap 17090.
-if (generated.cssGzip.length > 17090) {
-  throw new Error(`Compressed Web CSS exceeds the 17090-byte gzip budget (${generated.cssGzip.length})`);
+// History icons: 17073, owner-requested 2026-10-22; cap 17090. Unfilled outlined History icons
+// and the La Marzocco scope note above Account: 17102, owner-requested 2026-10-22; cap 17120.
+if (generated.cssGzip.length > 17120) {
+  throw new Error(`Compressed Web CSS exceeds the 17120-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -1216,8 +1217,10 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // equipment rows on the sunken band bring it to 71901, owner-requested 2026-10-22. The group
 // animation fallback (runtime and CSS) brings it to 72145, owner-requested 2026-10-22. Animated
 // equipment rows and unfolded-only preset graphs bring it to 72174, owner-requested 2026-10-22; cap 72190.
-if (coldHomeGzip > 72190) {
-  throw new Error(`Cold Home download exceeds the 72190-byte gzip budget (${coldHomeGzip})`);
+// The Settings scope notes, Account group and outlined History icon CSS bring it to 72183,
+// owner-requested 2026-10-22; cap 72210.
+if (coldHomeGzip > 72210) {
+  throw new Error(`Cold Home download exceeds the 72210-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin
