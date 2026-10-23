@@ -1427,7 +1427,7 @@ if (!codeIncludes(ui, 'id="learnedOffsetG"') ||
     html.indexOf('id="dripSetButton"') > html.indexOf('id="alphaSet"') ||
     !codeIncludes(ui, 'Expected drip weight after the shot stops') ||
     codeIncludes(ui, 'Save new reset values first') ||
-    !css.includes('.bbwLearning .btnBar{max-width:22rem}') ||
+    !css.includes('.bbwLearning .btnGlyph{flex:0 1 11rem}') ||
     css.includes('#bbwAlgorithm{width:100%}') ||
     !network.includes('"dripG"') ||
     !network.includes('formatDripChartJson(drip, sizeof(drip), control)') ||
