@@ -14,8 +14,8 @@ these settings are **machine-level** (not per-preset).
 ## When it applies
 
 **Sound alerts** is the master switch (default ON). Off silences operational
-alerts on both the local buzzer and the scale; the individual checkboxes are
-kept.
+alerts on both the local buzzer and the scale; the individual switches keep
+their positions.
 
 Most sounds follow their event: tare/start/stop, first drop, paddle reminder,
 completion extra, and scale-loss / no-scale / scale-link alerts follow **Play alerts on** when a
@@ -44,7 +44,7 @@ the shot-start cue cuts it off and plays immediately. A sound that the scale
 itself has already started as command feedback cannot be recalled over
 Bluetooth, so that scale sound may finish while the local shot-start cue begins.
 
-Without buzzer support, Play alerts on and the local-only checkboxes are hidden.
+Without buzzer support, Play alerts on and the local-only switches are hidden.
 The default channel is then **Scale only**.
 
 Start/stop cues are local feedback, not independent proof that water flow

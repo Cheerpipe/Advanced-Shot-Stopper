@@ -1620,6 +1620,79 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
 .cfgGroup:not([open]) .cfgIcon {
   color: var(--mu);
 }
+/* An open top-level group sinks its body onto a darker band across the whole
+   row, settings starting under the icon; fields stay lifted off the band. */
+.cfgGroup:has(> summary > .cfgIcon)[open]::details-content {
+  margin-inline: -2.15rem -0.85rem;
+  padding: 0 0.85rem 0.5rem;
+  border-radius: var(--r);
+  background: var(--in);
+}
+.cfgGroup:has(> summary > .cfgIcon)[open] :is(input:not([type="checkbox"]), select, textarea) {
+  background: var(--sf);
+}
+/* Settings rows: a block with its own highlight and a line between
+   consecutive rows. On/off options are switches on the right, placed by the
+   grid so the markup keeps the checkbox first. */
+.cfgGroup label:not(.windowPair label) {
+  margin: 0 -0.75rem;
+  padding: 0.75rem;
+}
+.cfgGroup :is(label, .windowField, div:has(> label)) + :is(label, .windowField, div:has(> label)) {
+  border-top: 1px solid var(--ln);
+}
+.cfgGroup label:has(> input[type="checkbox"]) {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 1rem;
+  align-items: center;
+  min-height: 0;
+  cursor: pointer;
+}
+.cfgGroup label:has(> input[type="checkbox"]):hover {
+  background: var(--pa);
+}
+.cfgGroup label:has(> input[type="checkbox"]) .fieldHint {
+  margin-left: 0;
+}
+.cfgGroup input[type="checkbox"] {
+  grid-area: 1 / 2;
+  position: relative;
+  width: 2.75rem;
+  height: 1.6rem;
+  margin: 0;
+  border: 1px solid var(--bd);
+  border-radius: 1rem;
+  background: var(--ln);
+  appearance: none;
+  cursor: pointer;
+  transition:
+    background 0.18s,
+    border-color 0.18s;
+}
+.cfgGroup input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  transition: transform 0.18s;
+}
+.cfgGroup input[type="checkbox"]:checked {
+  border-color: var(--pri);
+  background: var(--pri);
+}
+.cfgGroup input[type="checkbox"]:checked::before {
+  transform: translateX(1.15rem);
+}
+.cfgGroup input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
+}
 .cfgSum {
   flex: 1;
   min-width: 0;
@@ -1726,7 +1799,6 @@ summary::marker {
   background: var(--sf);
   padding: 0.65rem 0 calc(0.65rem + env(safe-area-inset-bottom));
   margin: 0.75rem 0 0;
-  border-top: 1px solid var(--ln);
   display: flex;
   align-items: center;
   gap: 0.75rem;

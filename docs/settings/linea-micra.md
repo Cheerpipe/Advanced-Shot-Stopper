@@ -341,7 +341,7 @@ or OFF observation is available.
 
 ## Machine-aware scale search
 
-Two checkboxes directly under **Show power state** tie scale
+Two switches directly under **Show power state** tie scale
 discovery to the machine's power state:
 
 - **Find the scale faster while the Micra is on** — searches more actively for a
@@ -359,7 +359,7 @@ unsupported reading — the saved [BLE scan mode](scales.md)
 applies unchanged.
 
 The options need **Show power state** on, because they read the
-same observed state. With monitoring off both checkboxes are disabled but
+same observed state. With monitoring off both switches are disabled but
 keep their saved choices. The options follow the same resolved state Home
 shows, including optimistic ON/OFF estimates and values retained through a
 temporary connection pause. There are no timers to configure or wait for,
@@ -505,7 +505,7 @@ reconnection resumes after that quiet period, without waiting for a second
 advertisement.
 
 Like every cloud option, it requires a saved, connected account: without one
-the checkbox stays disabled. The account requirement covers the machine
+the switch stays disabled. The account requirement covers the machine
 observation; the scale command itself is local Bluetooth and works with the
 connected scale regardless of brand.
 

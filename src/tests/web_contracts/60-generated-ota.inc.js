@@ -728,9 +728,10 @@ if (generated.jsGzip.length > 7630) {
 // Admin as one card of section rows: 16291; owner-requested 2026-10-22.
 // Diagnostics section rows with icons: 16325, owner-requested 2026-10-22.
 // Outlined History cup for shots without scale weight: 16372, owner-requested 2026-10-22.
-// Fixed Administration unlock section: 16387, owner-requested 2026-10-22; cap 16390.
-if (generated.cssGzip.length > 16390) {
-  throw new Error(`Compressed Web CSS exceeds the 16390-byte gzip budget (${generated.cssGzip.length})`);
+// Fixed Administration unlock section: 16387, owner-requested 2026-10-22.
+// Group switches, setting rows and the sunken open-group band: 16567, owner-requested 2026-10-22; cap 16570.
+if (generated.cssGzip.length > 16570) {
+  throw new Error(`Compressed Web CSS exceeds the 16570-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -1185,9 +1186,10 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Settings group row CSS brings it to 70898, owner-requested 2026-10-22; cap 70920.
 // The shared group-row helpers and the Admin card CSS bring it to 71080; the Diagnostic
 // log-stream resume brings it to 71130, owner-requested 2026-10-22. The outlined History
-// cup brings it to 71172, owner-requested 2026-10-22; cap 71190.
-if (coldHomeGzip > 71190) {
-  throw new Error(`Cold Home download exceeds the 71190-byte gzip budget (${coldHomeGzip})`);
+// cup brings it to 71172, owner-requested 2026-10-22. The group switch, setting row and
+// sunken open-group CSS brings it to 71371, owner-requested 2026-10-22; cap 71390.
+if (coldHomeGzip > 71390) {
+  throw new Error(`Cold Home download exceeds the 71390-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin
