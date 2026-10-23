@@ -1676,7 +1676,10 @@ for removed_alias in ("b", "bf", "bfm", "bo", "bsfm", "build", "f", "flash",
 assert not re.search(r"--(?:token|password)\s+['\"]", scripts_text), \
     "credentials must not be forwarded in argv"
 for analyzer in ("warnings-idf", "gcc_analyzer"):
-    assert "./scripts/internal/build-idf" in (ROOT / "scripts" / analyzer).read_text()
+    analyzer_text = (ROOT / "scripts" / analyzer).read_text()
+    assert "./scripts/internal/build-idf" in analyzer_text
+    # Profile defines reach the build only through the forwarded switches.
+    assert "obbw_cli_flags_for development release no_auth_admin jtag" in analyzer_text
 cppcheck_suppressions = (ROOT / "scripts/cppcheck-suppressions.txt").read_text()
 assert "**" not in cppcheck_suppressions, \
     "Cppcheck suppression globs must use a single '*' wildcard"

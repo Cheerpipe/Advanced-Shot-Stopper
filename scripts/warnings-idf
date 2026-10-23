@@ -59,10 +59,8 @@ output_path="$ROOT/$OUTPUT_DIR"
 rm -rf "$output_path"
 mkdir -p "$output_path"
 
-# -Wunused-parameter is a tool flag, not a user preference: passing it through
-# The internal build stage would persist it into .openbrewbyweight and every later
-# compile. Strip every copy before building and saving so this tool never
-# leaks its analysis-only option into ordinary builds.
+# -Wunused-parameter is this tool's own flag, not a user preference: strip
+# every copy so it is added exactly once, after the user's flags.
 configured_flags="$(obbw_get flags)"
 user_flags=""
 for configured_flag in $configured_flags; do
@@ -81,10 +79,13 @@ raw_report="$output_path/gcc-warnings-raw.txt"
 report="$output_path/gcc-warnings.txt"
 
 echo "Building $OPENBREWBYWEIGHT_ARCH (IDF) with extra GCC warnings..."
+# The build stage derives the profile defines from the forwarded switches; it
+# refuses them as raw --flags.
+obbw_cli_flags_for development release no_auth_admin jtag
 OPENBREWBYWEIGHT_NONINTERACTIVE=1 ./scripts/internal/build-idf \
   --hardware "$(obbw_get hardware_config)" --machine "$(obbw_get machine_config)" \
-  --webui-language "$(obbw_get webui_language)" \
-  --flags "$warning_flags" >"$raw_report" 2>&1
+  --webui-language "$(obbw_get webui_language)" ${OBBW_CLI_FORWARD[@]+"${OBBW_CLI_FORWARD[@]}"} \
+  --flags "${user_flags:+$user_flags }-Wunused-parameter" >"$raw_report" 2>&1
 build_status=$?
 
 obbw_cli_save
