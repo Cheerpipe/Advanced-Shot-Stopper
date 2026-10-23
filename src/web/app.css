@@ -2949,11 +2949,8 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   border-radius: 50%;
   animation: busySpin 0.8s linear infinite;
 }
-.bbwLearning .btnBar {
-  max-width: 22rem;
-}
-.bbwLearning button {
-  white-space: normal;
+.bbwLearning .btnGlyph {
+  flex: 0 1 11rem;
 }
 .dcValue {
   display: flex;
