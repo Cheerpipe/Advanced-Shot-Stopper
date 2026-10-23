@@ -38,6 +38,32 @@ function initGroupRows(root, p = "g-") {
     d.firstElementChild.insertAdjacentHTML("beforeend", '<span class="cfgSum"></span>');
   });
 }
+// Without interpolate-size (Safari) a group cannot transition its height to
+// auto, so open and close run here: both heights are measured once and the
+// browser animates between them on the same curve as the CSS transition.
+if (!CSS.supports("interpolate-size", "allow-keywords"))
+  document.addEventListener("click", (e) => {
+    const d = e.target.closest(".cfgGroup > summary")?.parentElement;
+    if (!d || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    e.preventDefault();
+    const from = d.offsetHeight,
+      shut = d.anim ? !d.anim.shut : d.open;
+    d.anim?.cancel();
+    d.open = !shut;
+    const to = d.offsetHeight;
+    d.open = true;
+    d.style.overflow = "clip";
+    const a = (d.anim = d.animate(
+      { height: [from + "px", to + "px"] },
+      { duration: 250, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+    ));
+    a.shut = shut;
+    a.onfinish = () => {
+      d.open = !shut;
+      d.style.overflow = "";
+      d.anim = null;
+    };
+  });
 function renderGroupRows(root, summaries) {
   root.querySelectorAll(".cfgSum").forEach((el) => {
     el.textContent = summaries[el.closest("details").dataset.g]?.() || "";

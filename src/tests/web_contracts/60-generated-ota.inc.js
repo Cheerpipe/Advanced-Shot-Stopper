@@ -740,9 +740,11 @@ if (generated.jsGzip.length > 7850) {
 // A setting row closing the band meets its bottom edge, and the group opening transition
 // survives minification, with a symmetric band: 16634, owner-requested 2026-10-22.
 // Joined-box number keys, compact fields and the dropdown key: 16839, owner-requested 2026-10-22.
-// Home equipment rows on the sunken band: 16868, owner-requested 2026-10-22; cap 16880.
-if (generated.cssGzip.length > 16880) {
-  throw new Error(`Compressed Web CSS exceeds the 16880-byte gzip budget (${generated.cssGzip.length})`);
+// Home equipment rows on the sunken band: 16868, owner-requested 2026-10-22.
+// Group transition curve and the no-interpolate-size fallback switch: 16921, owner-requested
+// 2026-10-22; cap 16930.
+if (generated.cssGzip.length > 16930) {
+  throw new Error(`Compressed Web CSS exceeds the 16930-byte gzip budget (${generated.cssGzip.length})`);
 }
 // Include zero baselines and the first-drop marker without sacrificing legibility.
 // Exporting the saved weight curve as per-shot CSV columns raises the cap by 100 bytes.
@@ -897,9 +899,10 @@ if (generated.cssGzip.length > 16880) {
 // lives in the runtime) brings it to 41531, owner-requested 2026-10-22; cap 41540 for gzip wobble.
 // Footer Sign out with its confirmation brings it to 41591, owner-requested 2026-10-22; cap 41610.
 // The browser's device label sent at sign-in brings it to 41846, owner-requested 2026-10-22; cap 41860.
-// The group-row helpers shared by Settings and Admin bring it to 42012, owner-requested 2026-10-22; cap 42030.
-if (sentinelRuntimeGzip.length > 42030) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 42030-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The group-row helpers shared by Settings and Admin bring it to 42012, owner-requested 2026-10-22.
+// The group animation fallback without interpolate-size brings it to 42215, owner-requested 2026-10-22; cap 42230.
+if (sentinelRuntimeGzip.length > 42230) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 42230-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -1201,9 +1204,10 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // sunken open-group CSS brings it to 71371, owner-requested 2026-10-22. The band's bottom
 // row fit and the minifier-safe group transition bring it to 71421. The joined-box
 // number keys and dropdown key bring it to 71872, owner-requested 2026-10-22. The Home
-// equipment rows on the sunken band bring it to 71901, owner-requested 2026-10-22; cap 71920.
-if (coldHomeGzip > 71920) {
-  throw new Error(`Cold Home download exceeds the 71920-byte gzip budget (${coldHomeGzip})`);
+// equipment rows on the sunken band bring it to 71901, owner-requested 2026-10-22. The group
+// animation fallback (runtime and CSS) brings it to 72145, owner-requested 2026-10-22; cap 72160.
+if (coldHomeGzip > 72160) {
+  throw new Error(`Cold Home download exceeds the 72160-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin

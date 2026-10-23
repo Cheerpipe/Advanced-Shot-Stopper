@@ -1645,10 +1645,17 @@ html:not(.micraTemperatureEnabled) .micraTempOpt {
   padding-inline: 6px;
   transition-property: block-size, content-visibility;
   transition-duration: 0.25s;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
   transition-behavior: allow-discrete;
 }
 .cfgGroup[open]::details-content {
   block-size: auto;
+}
+/* Without interpolate-size the group animation runs in runtime.js. */
+@supports not (interpolate-size: allow-keywords) {
+  .cfgGroup::details-content {
+    transition: none;
+  }
 }
 .cfgGroup > summary {
   display: flex;
