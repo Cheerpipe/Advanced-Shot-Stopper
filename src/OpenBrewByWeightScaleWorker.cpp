@@ -2394,7 +2394,6 @@ void serviceScaleWorkerDiscovery(uint32_t &lastScanCycleMs,
   const ScaleMacCacheMode cacheMode = currentScaleMacCacheMode();
 
   if (scale.isConnecting() || scaleLoggedGattConnecting) {
-    // connect() can block up to BLE_CONNECT_TIMEOUT_MS with no inner WDT feed.
     const bool connected = serviceScaleGattConnecting();
     if (connected) {
       connectAttemptSeriesActive = false;
@@ -2588,6 +2587,10 @@ void serviceScaleWorkerLink() {
     setScaleLinkState(ScaleLinkState::DISCONNECTED);
     return;
   }
+  // Ready can arrive between ticks: open the new generation before its
+  // first weight is stamped, or that sample would carry the old epoch.
+  if (!outboundScaleConnected.load(std::memory_order_acquire))
+    updateWorkerLinkState();
 
   // A user can enable PREFER/ONLY while an eligible scale is already linked.
   // Adopt it on the worker task just as if this were a fresh connection.

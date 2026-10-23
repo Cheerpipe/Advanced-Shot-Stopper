@@ -135,9 +135,10 @@ The owner consumes bounded queued RX evidence before deciding packet silence.
 Only frames captured before the relevant deadline and still fresh when serviced
 can refresh it; malformed, stale, or previous-generation frames cannot revive
 the stream. First-packet timeout is 5 s; Bookoo's valid-packet timeout is 8 s.
-Heartbeat attempts keep their protocol interval even after a recoverable write
-rejection. The worker continues consuming fresh weights and checking packet
-timeouts while the link remains up.
+Heartbeat intervals sit at or below 80% of the scale's keep-alive timeout, and
+attempts keep that interval even after a recoverable write rejection. The
+worker continues consuming fresh weights and checking packet timeouts while the
+link remains up.
 
 Bookoo weight/timer packets require the 20-byte `03 0B` envelope and XOR of the
 first 19 bytes. They also carry the scale's flow rate: byte 10 is its sign,

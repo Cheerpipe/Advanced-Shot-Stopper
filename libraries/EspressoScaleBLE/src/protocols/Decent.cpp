@@ -16,7 +16,9 @@ static const ScaleFeatureSet kDecentFeatures = {
     ScaleFeatureWeight | ScaleFeatureTare | ScaleFeatureHeartbeat,
     0,
     0,
-    5000,
+    // The scale drops a link after 5 s without a heartbeat; 80% leaves room
+    // for worker tick and radio scheduling latency.
+    4000,
     5000,
     0,
     380

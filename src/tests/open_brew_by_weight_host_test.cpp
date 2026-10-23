@@ -6193,6 +6193,22 @@ void d02e_mode_change_restarts_an_active_scan_with_the_new_filter() {
   CHECK(strcmp(scale.lastStartScanMac, "AA:BB:CC:DD:EE:FF") == 0);
 }
 
+void r12f_first_weight_of_a_new_link_carries_its_generation() {
+  resetHarness(false, true);
+  // The old link dropped; the new one reached Ready between worker ticks.
+  setScaleLinkState(ScaleLinkState::DISCONNECTED);
+  const uint32_t oldGeneration = getScaleLinkSnapshot().connectionGeneration;
+  scale.weight = 12.34f;
+  scale.newWeightAvailableValue = true;
+  serviceScaleWorkerLink();
+  const ScaleLinkSnapshot link = getScaleLinkSnapshot();
+  CHECK(link.state == ScaleLinkState::CONNECTED &&
+        link.connectionGeneration == oldGeneration + 1);
+  CHECK(scaleWeightEventCount == 1);
+  CHECK(scaleWeightEvents[scaleWeightEventHead].connectionGeneration ==
+        link.connectionGeneration);
+}
+
 void d02f_only_mode_disconnects_a_nonpreferred_live_scale() {
   resetHarness(false, false);
   reachReadyFromBoot();
@@ -21945,6 +21961,7 @@ const TestCase testCases[] = {
     {"BBW03", bbw03_shared_guard_parity},
     {"R12", r12_scale_worker_service_publishes_weight_and_detects_failure},
     {"R12e", r12e_rejected_heartbeat_preserves_connected_epoch},
+    {"R12f", r12f_first_weight_of_a_new_link_carries_its_generation},
     {"R12d", r12d_command_does_not_drain_buffered_weight},
     {"R12b", r12b_discovery_clears_stale_connected_link_snapshot},
     {"R12c", r12c_connected_link_rssi_samples_and_clears},

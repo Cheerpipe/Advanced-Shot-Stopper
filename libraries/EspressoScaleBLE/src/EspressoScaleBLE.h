@@ -162,8 +162,9 @@ class EspressoScaleBLE {
         uint32_t communicationSilenceRemainingMs() const;
         bool newWeightAvailable();
         void setDroppedFrameObserver(ScaleDroppedFrameObserver observer);
-        // Registered before scanning. May run under the discovery critical
-        // section: only publish atomics/notifications, never block or allocate.
+        // Registered before scanning. Runs outside critical sections, possibly
+        // on the NimBLE host task: publish atomics/notifications, never block.
+        // It may repeat a value; the last call reports the current state.
         void setAcquisitionObserver(void (*observer)(bool, uint32_t));
         ScaleFeatureSet features() const;
         ScaleModel model() const;

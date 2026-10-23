@@ -22,6 +22,8 @@ static const ScaleFeatureSet kDifluidFeatures = {
     ScaleFeatureWeight | ScaleFeatureTare | ScaleFeatureHeartbeat,
     0,
     0,
+    // No published keep-alive timeout: assume one no shorter than the 5 s
+    // Decent-class timeout, so 2 s keeps more than 50% margin.
     2000,
     5000,
     0,

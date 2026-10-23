@@ -75,7 +75,7 @@ static void run() {
     observed = &c;
     EspressoScaleBLE facade(false);
     facade.setAcquisitionObserver([](bool held, uint32_t) {
-      CHECK(testCriticalDepth > 0);
+      CHECK(testCriticalDepth == 0);
       if (held && !inhibited) CHECK(!observed->candidatePending_);
       inhibited = held;
     });
@@ -507,6 +507,9 @@ static void run() {
     CHECK(kScaleProtocolGenericFf11.features.has(ScaleFeaturePowerOff));
     CHECK(!kScaleProtocolAcaia.features.has(ScaleFeaturePowerOff));
     CHECK(!kScaleProtocolDifluid.features.has(ScaleFeaturePowerOff));
+    // Heartbeats land inside each scale's keep-alive timeout with margin.
+    CHECK(kScaleProtocolDecent.features.heartbeatPeriodMs <= 5000 * 4 / 5);
+    CHECK(kScaleProtocolDifluid.features.heartbeatPeriodMs <= 5000 * 4 / 5);
     CHECK(!kScaleProtocolFelicita.features.has(ScaleFeaturePowerOff));
   }
   {

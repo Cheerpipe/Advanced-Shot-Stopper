@@ -441,8 +441,8 @@ class NimbleScaleClient {
   void disconnect() {
     portENTER_CRITICAL(&mux_);
     acquisitionHeld_ = false;
-    if (g_acquisitionObserver) g_acquisitionObserver(false, nowMs());
     portEXIT_CRITICAL(&mux_);
+    notifyAcquisition(false, nowMs());
     finishLink(true, ScaleDisconnectReason::USER_REQUEST, 0);
   }
 
@@ -1249,39 +1249,40 @@ class NimbleScaleClient {
       portEXIT_CRITICAL(&advertMux_);
       return;
     }
-    if (candidate->connectable &&
-        ((!filterPresent && compatible) || addressMatches)) {
-      Event selected = {};
-      selected.type = EventType::Candidate;
-      selected.address = candidate->address;
-      memcpy(selected.name, candidate->advertisement.name,
-             sizeof(selected.name));
-      bool shouldQueue = false;
-      portENTER_CRITICAL(&mux_);
-      if (state_ == State::Scanning &&
-          operationId == scanOperationId_) {
-        acquisitionAbsenceMs_ = 0;
-        acquisitionPollAtMs_ = nowMs();
-        acquisitionHeld_ = true;
-        if (g_acquisitionObserver) g_acquisitionObserver(true, nowMs());
-      }
-      if (state_ == State::Scanning &&
-          operationId == scanOperationId_ && !candidateQueued_) {
-        candidateQueued_ = true;
-        selected.generation = generation_;
-        selected.operationId = operationId;
-        candidateMailbox_ = selected;
-        candidatePending_ = true;
-        shouldQueue = true;
-      }
-      portEXIT_CRITICAL(&mux_);
-      (void)shouldQueue;
-    } else if (!compatible && !addressMatches) {
-      portENTER_CRITICAL(&mux_);
-      ++discardedAdvertisements_;
-      portEXIT_CRITICAL(&mux_);
-    }
+    const bool selectable = candidate->connectable &&
+        ((!filterPresent && compatible) || addressMatches);
+    Event selected = {};
+    selected.type = EventType::Candidate;
+    selected.address = candidate->address;
+    memcpy(selected.name, candidate->advertisement.name, sizeof(selected.name));
     portEXIT_CRITICAL(&advertMux_);
+    if (!selectable) {
+      portENTER_CRITICAL(&mux_);
+      if (!compatible && !addressMatches) ++discardedAdvertisements_;
+      portEXIT_CRITICAL(&mux_);
+      return;
+    }
+    portENTER_CRITICAL(&mux_);
+    const bool acquired =
+        state_ == State::Scanning && operationId == scanOperationId_;
+    if (acquired) {
+      acquisitionAbsenceMs_ = 0;
+      acquisitionPollAtMs_ = nowMs();
+      acquisitionHeld_ = true;
+    }
+    portEXIT_CRITICAL(&mux_);
+    // Hold acquisition before the worker can see this candidate.
+    if (acquired) notifyAcquisition(true, nowMs());
+    portENTER_CRITICAL(&mux_);
+    if (state_ == State::Scanning &&
+        operationId == scanOperationId_ && !candidateQueued_) {
+      candidateQueued_ = true;
+      selected.generation = generation_;
+      selected.operationId = operationId;
+      candidateMailbox_ = selected;
+      candidatePending_ = true;
+    }
+    portEXIT_CRITICAL(&mux_);
   }
 
   void onNotification(uint16_t connectionHandle, uint16_t attributeHandle,
@@ -1659,11 +1660,24 @@ class NimbleScaleClient {
     stateEnteredAtMs_ = nowMs();
     stateTimeoutMs_ = timeoutMs;
     stateDeadlineArmed_ = timeoutMs != 0;
-    if (state == State::Ready && acquisitionHeld_) {
-      acquisitionHeld_ = false;
-      if (g_acquisitionObserver) g_acquisitionObserver(false, nowMs());
-    }
+    const bool released = state == State::Ready && acquisitionHeld_;
+    if (released) acquisitionHeld_ = false;
     portEXIT_CRITICAL(&mux_);
+    if (released) notifyAcquisition(false, nowMs());
+  }
+
+  // Runs outside every critical section: the observer may notify tasks.
+  // Callers on different tasks can race once unlocked, so redeliver until
+  // the last reported value is still the current one.
+  void notifyAcquisition(bool held, uint32_t atMs) {
+    while (g_acquisitionObserver != nullptr) {
+      g_acquisitionObserver(held, atMs);
+      portENTER_CRITICAL(&mux_);
+      const bool current = acquisitionHeld_;
+      portEXIT_CRITICAL(&mux_);
+      if (current == held) return;
+      held = current;
+    }
   }
 
   bool beginConfiguredScan(bool restart, State initialState = State::Scanning,
@@ -1745,17 +1759,18 @@ class NimbleScaleClient {
     }
     const uint32_t acquisitionNow = nowMs();
     const bool scanningNow = state_ == State::Scanning && ble_gap_disc_active();
+    bool released = false;
     portENTER_CRITICAL(&mux_);
     if (scanningNow && acquisitionScanning_ && acquisitionHeld_) {
       acquisitionAbsenceMs_ += acquisitionNow - acquisitionPollAtMs_;
-      if (acquisitionAbsenceMs_ >= 5000 && !candidatePending_ && !candidateQueued_) {
-        acquisitionHeld_ = false;
-        if (g_acquisitionObserver) g_acquisitionObserver(false, acquisitionNow);
-      }
+      released = acquisitionAbsenceMs_ >= 5000 && !candidatePending_ &&
+                 !candidateQueued_;
+      if (released) acquisitionHeld_ = false;
     }
     acquisitionScanning_ = scanningNow;
     acquisitionPollAtMs_ = acquisitionNow;
     portEXIT_CRITICAL(&mux_);
+    if (released) notifyAcquisition(false, acquisitionNow);
     if (communicationSilenced()) return;
     bool criticalOverflowed = false;
     bool controlOverflowed = false;
