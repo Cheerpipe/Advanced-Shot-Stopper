@@ -3538,7 +3538,8 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   height: 100%;
   fill: currentColor;
 }
-.histIcon .o {
+#historyTable td.histIcon svg.o,
+.histFilterIcon svg.o {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;
