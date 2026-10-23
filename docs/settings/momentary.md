@@ -61,7 +61,9 @@ not only the UI label, when inference is uncertain.
 On button-only firmware, Home **Mark as idle** / **Mark as running** correct
 the inferred state without pulsing the relay. They require the browser claim
 but not Admin unlock. First observe the machine, then choose the matching
-state. They are hidden on paddle and reed builds.
+state. **Mark as running** is refused while the controller is still stopping a
+shot it ended (until that stop is confirmed or retried), so a mis-tap cannot
+leave the machine pouring. They are hidden on paddle and reed builds.
 
 Remote Start/Stop synthesize configured pulses only under the applicable
 permission policy. **Force press**, on an explicitly enabled remote-control

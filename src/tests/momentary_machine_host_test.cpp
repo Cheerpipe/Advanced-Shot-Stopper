@@ -1659,6 +1659,26 @@ void t_override_sets_inferred_idle_and_brewing_without_pulse() {
   CHECK(hostRelayClosedWrites == closedBefore);
 }
 
+// NET-06: forcing "brewing" must not cancel a firmware stop still in flight.
+void t_override_on_refused_during_firmware_stop() {
+  resetMomentaryHarness();
+  runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
+  shortPress(150);
+  confirmEspressoFlow();
+  CHECK(machineRequestStop());
+  CHECK(momentaryFirmwareCutPending);
+  WebCommand brewing;
+  brewing.type = WebCommandType::STATE_OVERRIDE_ON;
+  processWebCommand(brewing);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
+  CHECK(momentaryFirmwareCutPending && momentaryStopSettling);
+  momentaryFirmwareCutPending = false;
+  momentaryStopRetryPending = true;
+  processWebCommand(brewing);
+  CHECK(momentaryStopRetryPending);
+  CHECK(machineRunState() == MachineRunState::IDLE_UNCONFIRMED);
+}
+
 void t_remote_start_emits_synthetic_start_pulse() {
   resetMomentaryHarness();
   runLoopAfter(ACTIVATOR_DEBOUNCE_MS + 1);
@@ -2459,6 +2479,7 @@ const TestCase kTests[] = {
     {"P25L", t_firmware_cut_stale_weight_stays_idle_unconfirmed},
     {"P25M", t_gusher_flow_confirms_running},
     {"P25D", t_override_sets_inferred_idle_and_brewing_without_pulse},
+    {"P25D2", t_override_on_refused_during_firmware_stop},
     {"P25R", t_remote_start_emits_synthetic_start_pulse},
     {"P25S", t_web_stop_emits_pulse_while_running_unconfirmed},
     {"P25E", t_scale_connect_settles_idle_when_idle},

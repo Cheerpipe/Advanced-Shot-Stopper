@@ -190,13 +190,14 @@ void settleMomentaryInferredOff() {
 
 void machineOverrideInferredOff() { settleMomentaryInferredOff(); }
 
-void machineOverrideInferredOn() {
+// Refused while the firmware is still cutting the shot: forcing "brewing"
+// would cancel the stop retry and leave the machine pouring.
+bool machineOverrideInferredOn() {
+  if (momentaryStopRetryPending || momentaryFirmwareCutPending) return false;
   momentaryStopAwaitingAck = false;
-  momentaryStopRetryPending = false;
   momentaryStartAwaitingAck = false;
   momentaryStartBaselineSinceMs = 0;
   momentaryOrphanRun = false;
-  momentaryFirmwareCutPending = false;
   momentarySettledWeightCutArmed = false;
   momentaryStopSettling = false;
   momentaryNoFlowIdlePending = false;
@@ -204,6 +205,7 @@ void machineOverrideInferredOn() {
   momentaryInferredState = MachineRunState::RUNNING;
   momentaryLogicalRunActive = true;
   momentaryLogicalRunStartedAtMs = millis();
+  return true;
 }
 
 void machineArmSettledWeightCutOff() { momentarySettledWeightCutArmed = true; }

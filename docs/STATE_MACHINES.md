@@ -340,7 +340,8 @@ pan (live, or at drip delay with a plausible settled weight) settles to
 `IDLE`. A short shot that never schedules drip-delay finalize still
 settles on a quiet pan. Home
 **Override idle** / **Override brewing** are the manual escape hatch when
-the group is electrically ON with no coffee; they do not pulse. An
+the group is electrically ON with no coffee; they do not pulse. Override
+brewing is rejected while a firmware cut or its stop retry is pending. An
 operational wall without `RUNNING` and with a scale still leaves an
 orphan run: settings stay locked and a later user Stop may pulse; firmware
 auto-cut does not. Max BBW time is not armed on timer-only or no-scale

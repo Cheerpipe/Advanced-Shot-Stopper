@@ -1741,3 +1741,17 @@ if (html.includes('id="debugPanel"') ||
   assert(hint.hidden, 'An unparseable minimum must keep the guidance hidden');
   assert(settingsHtml.includes('id="cupMinGuidance" class="fieldHint" hidden'));
 }
+
+// NET-05: POST /api/v1/config validates every field into the candidate in one
+// chain, so no field's branch can swallow the fields after it in one body.
+{
+  const start = network.indexOf('esp_err_t OpenBrewByWeightNetwork::configHandler(');
+  const handler = network.slice(start, network.indexOf('\n}\n', start));
+  const branches = [...handler.matchAll(/else if \(jsonFieldPresent\(root, "(\w+)"\)\s*(\S\S)/g)];
+  require('assert').ok(branches.length > 0 && branches.every((branch) => branch[2] === '&&'),
+      'Every config field branch must only validate into the candidate');
+  for (const field of ['serialLogLevel', 'ringRetainLogLevel', 'showDiagnosticPage']) {
+    require('assert').match(handler, new RegExp(
+        `jsonFieldPresent\\(root, "${field}"\\) &&\\s*!json\\w+\\(root, "${field}",\\s*candidate\\.${field}\\)`));
+  }
+}

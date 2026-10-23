@@ -135,7 +135,7 @@ inline void serviceMachine() {
   machineServiceReminders();
 }
 inline void machineOverrideInferredOff() {}
-inline void machineOverrideInferredOn() {}
+inline bool machineOverrideInferredOn() { return true; }
 inline void machineArmSettledWeightCutOff() {}
 inline void machineNoteSettledWeightCutOff() {}
 inline void machineCancelSettledWeightCutOff() {}
@@ -150,7 +150,7 @@ inline void machineCancelSettledWeightCutOff() {}
 
 #if OPEN_BREW_BY_WEIGHT_MACHINE_TYPE == 2
 inline void machineOverrideInferredOff() {}
-inline void machineOverrideInferredOn() {}
+inline bool machineOverrideInferredOn() { return true; }
 inline void machineArmSettledWeightCutOff() {}
 inline void machineNoteSettledWeightCutOff() {}
 inline void machineCancelSettledWeightCutOff() {}

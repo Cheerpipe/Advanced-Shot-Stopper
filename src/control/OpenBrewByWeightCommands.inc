@@ -138,7 +138,10 @@ void processWebCommand(const WebCommand &command) {
       return;
 
     case WebCommandType::STATE_OVERRIDE_ON:
-      machineOverrideInferredOn();
+      if (!machineOverrideInferredOn()) {
+        rejectWebCommand(command);
+        return;
+      }
       addDebugEvent(DebugCategory::WEB, DebugCode::WEB_COMMAND_ACCEPTED,
                     static_cast<int32_t>(command.type));
       reportControlCommandResult(command, CommandResultState::APPLIED);
