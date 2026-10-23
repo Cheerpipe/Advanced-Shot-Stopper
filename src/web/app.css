@@ -3527,7 +3527,6 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   grid-area: icon;
   width: 1.75rem;
   height: 1.75rem;
-  font: 1.6rem/1 a;
   color: var(--fg);
 }
 #historyTable td.histIcon svg {
@@ -3535,13 +3534,20 @@ html.theme-dark :is(.qwSheet, #actionsPanel) {
   height: 100%;
   fill: currentColor;
 }
+.histIcon .o {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .histNoWeight svg {
   overflow: visible;
 }
 .histNoWeight path:first-child {
   fill: none;
   stroke: currentColor;
-  stroke-width: 28;
+  stroke-width: 36;
   stroke-linejoin: round;
 }
 .shotSpark {

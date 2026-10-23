@@ -1143,10 +1143,10 @@ if (!shellHtml.includes('href="/history" data-route="/history"') ||
     !codeIncludes(historyRuntimeJs, 'function deleteOneHistory(') ||
     !codeIncludes(js, 'function clearActivationHistory(') ||
     !codeIncludes(historyRuntimeJs, "power_on:'Power ON'") ||
-    !codeIncludes(historyRuntimeJs, "HIST_TYPE_SVG.power_on='⏻'") ||
+    !codeIncludes(historyRuntimeJs, 'HIST_TYPE_SVG.power_on=\'<svg class="o"><use href="#hPW"/></svg>\'') ||
     !codeIncludes(historyRuntimeJs, 'Blocked: no scale') ||
     !codeIncludes(historyRuntimeJs, 'HIST_TYPE_SVG.no_scale_guard_aborted=') ||
-    !partialHtml.history.includes('id="hNS" viewBox="82 82 204 204"') ||
+    !partialHtml.history.includes('id="hNS" viewBox="0 0 24 24"') ||
     !historyTypesIo.includes('NO_SCALE_GUARD_ABORTED') ||
     !codeIncludes(js, "confirm:'CLEAR_HISTORY'") ||
     !codeIncludes(historyRuntimeJs, "'/api/v1/history/delete'") ||
