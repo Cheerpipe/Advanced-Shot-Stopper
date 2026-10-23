@@ -61,8 +61,8 @@
 namespace openbrewbyweight {
 
 constexpr uint32_t SERIAL_BAUD = 115200;
-// Fresh schema epoch: blobs written by any earlier firmware are rejected, so
-// crossing the cutover requires the documented USB erase workflow.
+// Settings layout version. With the magic, size and CRC it rejects any other
+// layout; layouts are frozen at v1 (see ARCHITECTURE.md).
 constexpr uint32_t CONFIG_SCHEMA_VERSION = 1;
 
 constexpr size_t NTP_SERVER_HOST_CAPACITY = 64;
@@ -638,12 +638,12 @@ struct RuntimeConfig {
   uint16_t goalWeightDg = DEFAULT_GOAL_WEIGHT_DG;
   // Global setting, never copied into a preset.
   bool powerManagementEnabled = true;
-  uint8_t timezoneAutomatic = 1;  // Former padding, identified by settings tag.
+  uint8_t timezoneAutomatic = 1;
   float weightOffsetG = DEFAULT_WEIGHT_OFFSET_G;
   // Seed for Reset learned stop offset; factory default remains 1.5 g.
   float weightOffsetBaselineG = DEFAULT_WEIGHT_OFFSET_G;
   bool autoTare = true;
-  bool touchStopFallbackEnabled = true;  // Settings v2 uses former padding.
+  bool touchStopFallbackEnabled = true;
   uint32_t postTareBaselineGraceMs = DEFAULT_POST_TARE_BASELINE_GRACE_MS;
   // Internal polarity: true disables weight stop. UI/API brewByWeight is the inverse.
   bool timerOnly = false;
@@ -714,22 +714,18 @@ struct RuntimeConfig {
   bool stopIfCupRemoved = true;
   bool requireCupToStart = false;
   bool avoidAccidentalTouchEnabled = true;
-  // Dead field: cup presence uses minimumCupWeightG. Kept for NVS layout.
-  float cupPresentWeightG = DEFAULT_CUP_PRESENT_WEIGHT_G;
   float cupRemovedWeightG = DEFAULT_CUP_REMOVED_WEIGHT_G;
-  // Reuses the legacy avoidBbwShotWithoutScale byte: low bits OFF/WARN_ONCE/
-  // REQUIRE_SCALE; bits 6/7 are idle accessory retare (on)/armed rinse (off).
+  // Low bits OFF/WARN_ONCE/REQUIRE_SCALE; bits 6/7 are idle accessory
+  // retare (on)/armed rinse (off).
   uint8_t noScaleBbwMode =
       static_cast<uint8_t>(NoScaleBbwMode::WARN_ONCE) | IDLE_ACCESSORY_RETARE;
   uint32_t lastShotCooldownMs = DEFAULT_LAST_SHOT_COOLDOWN_MS;
   // Minimum level sent to the ESP-IDF serial backend. NONE is off; CLI
-  // request/reply traffic remains independent. V7 reuses the old serial-debug
-  // boolean byte.
+  // request/reply traffic remains independent.
   uint8_t serialLogLevel = static_cast<uint8_t>(LogLevel::NONE);
   // Minimum level retained in the RAM debug ring (WebUI Log). NONE disables.
   uint8_t ringRetainLogLevel = static_cast<uint8_t>(LogLevel::NONE);
-  // Momentary Switch timings packed to keep NVS size. 0 = compiled default
-  // (legacy blobs that stored momentaryStartOnPress in stopPulseTenMs).
+  // Momentary Switch timings packed to keep NVS size; 0 = compiled default.
   uint8_t stopPulseTenMs =
       static_cast<uint8_t>((OPEN_BREW_BY_WEIGHT_STOP_PULSE_MS + 5) / 10);
   uint8_t maxSinglePressHundredMs =
@@ -744,7 +740,7 @@ struct RuntimeConfig {
   uint8_t shotReactTimeoutS = OPEN_BREW_BY_WEIGHT_DEFAULT_SHOT_REACTION_TIMEOUT_S;
   // Firmware rinse on/off. Default off for every machine type.
   bool rinseEnabled = OPEN_BREW_BY_WEIGHT_DEFAULT_RINSE_ENABLED;
-  // Read-only Diagnostic view without Admin unlock; occupies former padding.
+  // Read-only Diagnostic view without Admin unlock.
   bool showDiagnosticPage = false;
   // Retare even when no brew is active.
   bool autoTareOutsideBrew = true;
@@ -872,7 +868,6 @@ struct CycleConfigSnapshot {
   bool stopIfCupRemoved = true;
   bool requireCupToStart = false;
   bool avoidAccidentalTouchEnabled = true;
-  float cupPresentWeightG = DEFAULT_CUP_PRESENT_WEIGHT_G;
   float cupRemovedWeightG = DEFAULT_CUP_REMOVED_WEIGHT_G;
 };
 
@@ -918,7 +913,6 @@ inline CycleConfigSnapshot snapshotConfig(const RuntimeConfig &config) {
   snapshot.requireCupToStart = config.requireCupToStart;
   snapshot.avoidAccidentalTouchEnabled = config.avoidAccidentalTouchEnabled;
   snapshot.touchStopFallbackEnabled = config.touchStopFallbackEnabled;
-  snapshot.cupPresentWeightG = config.cupPresentWeightG;
   snapshot.cupRemovedWeightG = config.cupRemovedWeightG;
   return snapshot;
 }
@@ -965,7 +959,6 @@ enum class ConfigValidationError : uint8_t {
   SERIAL_LOG_LEVEL,
   RING_RETAIN_LOG_LEVEL,
   PADDLE_MODE,
-  CUP_PRESENT_WEIGHT,
   CUP_REMOVED_WEIGHT,
   STOP_PULSE,
   MAX_SINGLE_PRESS,
@@ -1217,11 +1210,6 @@ inline ConfigValidationError validateRuntimeConfig(
   if (!validPaddleMode(config.paddleMode)) {
     return ConfigValidationError::PADDLE_MODE;
   }
-  if (!std::isfinite(config.cupPresentWeightG) ||
-      config.cupPresentWeightG < MIN_CUP_PRESENT_WEIGHT_G ||
-      config.cupPresentWeightG > MAX_CUP_PRESENT_WEIGHT_G) {
-    return ConfigValidationError::CUP_PRESENT_WEIGHT;
-  }
   if (!std::isfinite(config.cupRemovedWeightG) ||
       config.cupRemovedWeightG < MIN_CUP_REMOVED_WEIGHT_G ||
       config.cupRemovedWeightG > MAX_CUP_REMOVED_WEIGHT_G) {
@@ -1343,8 +1331,6 @@ inline const char *configValidationErrorName(ConfigValidationError error) {
       return "ringRetainLogLevel";
     case ConfigValidationError::PADDLE_MODE:
       return "paddleMode";
-    case ConfigValidationError::CUP_PRESENT_WEIGHT:
-      return "cupPresentWeightG";
     case ConfigValidationError::CUP_REMOVED_WEIGHT:
       return "cupRemovedWeightG";
   }
@@ -1919,7 +1905,6 @@ struct PersistedLastShot {
   bool noScaleShotGuardArmed = false;
   char scaleProtocol[20] = "none";
   uint8_t rating = 0;
-  // Uses existing alignment padding before shotLogId; keeps blob size stable.
   uint8_t noScaleBbwMode = static_cast<uint8_t>(NoScaleBbwMode::OFF);
   uint32_t shotLogId = 0;
   uint32_t endedAtUptimeMs = 0;

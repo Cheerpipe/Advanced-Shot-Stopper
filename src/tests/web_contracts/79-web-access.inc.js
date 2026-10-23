@@ -72,8 +72,7 @@
   // Tokens stay out of logs and URLs.
   assert.ok(!access.includes('lifecycleLogf('), 'Access logs never format values');
   assert.ok(!/session=|token=/.test(rawRuntimeJs), 'Session tokens never travel in a URL');
-  assert.ok(core.includes('static_assert(sizeof(WebAccessStored) == 388') &&
-      core.includes('static_assert(sizeof(WebAccessStoredV0) == 196'));
+  assert.ok(core.includes('static_assert(sizeof(WebAccessStored) == 388'));
 
   // Integration API: info, exchange and pairing answer first; every other
   // route needs the Home Assistant token only while the login is on.

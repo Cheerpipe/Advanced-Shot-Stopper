@@ -151,7 +151,7 @@ inline const char *stopperStateName(StopperState state) {
 enum class EndReason : uint8_t {
   NONE = 0,
   ACTIVATOR = 1,
-  // 2 was SCALE_PREDICTION (removed); keep ordinals stable for old logs.
+  // 2 is retired; ordinals are stored in shot and audit logs.
   SCALE_THRESHOLD = 3,
   WEIGHT_ANOMALY = 4,
   GLOBAL_LIMIT = 5,

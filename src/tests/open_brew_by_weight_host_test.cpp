@@ -2771,7 +2771,6 @@ void w01_default_runtime_configuration_is_valid() {
   CHECK(config.stopIfCupRemoved);
   CHECK(!config.requireCupToStart);
   CHECK(config.avoidAccidentalTouchEnabled);
-  CHECK(fabsf(config.cupPresentWeightG - DEFAULT_CUP_PRESENT_WEIGHT_G) < 0.001f);
   CHECK(fabsf(config.cupRemovedWeightG - DEFAULT_CUP_REMOVED_WEIGHT_G) < 0.001f);
   CHECK(config.lastShotCooldownMs == DEFAULT_LAST_SHOT_COOLDOWN_MS);
   CHECK(config.dripDelayMs == DEFAULT_DRIP_DELAY_MS);
@@ -2974,18 +2973,6 @@ void w03_runtime_timing_relations_are_transactional() {
   config.shotReactTimeoutS = 12;
   CHECK(validateRuntimeConfig(config) == ConfigValidationError::NONE);
   CHECK(runtimeShotReactTimeoutS(config) == 12);
-  config = RuntimeConfig{};
-  config.cupPresentWeightG = 0.0f;
-  CHECK(validateRuntimeConfig(config) ==
-        ConfigValidationError::CUP_PRESENT_WEIGHT);
-  config = RuntimeConfig{};
-  config.cupPresentWeightG = MIN_CUP_PRESENT_WEIGHT_G - 0.1f;
-  CHECK(validateRuntimeConfig(config) ==
-        ConfigValidationError::CUP_PRESENT_WEIGHT);
-  config = RuntimeConfig{};
-  config.cupPresentWeightG = MAX_CUP_PRESENT_WEIGHT_G + 0.1f;
-  CHECK(validateRuntimeConfig(config) ==
-        ConfigValidationError::CUP_PRESENT_WEIGHT);
   config = RuntimeConfig{};
   config.cupRemovedWeightG = 0.0f;
   CHECK(validateRuntimeConfig(config) ==

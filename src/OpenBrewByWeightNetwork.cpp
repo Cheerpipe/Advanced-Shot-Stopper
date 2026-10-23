@@ -546,8 +546,6 @@ const char *configValidationMessage(ConfigValidationError error) {
              "debug.";
     case ConfigValidationError::PADDLE_MODE:
       return "Paddle mode must be auto, natural or original.";
-    case ConfigValidationError::CUP_PRESENT_WEIGHT:
-      return "Cup-present threshold must be from 0.1 to 50 g.";
     case ConfigValidationError::CUP_REMOVED_WEIGHT:
       return "Cup-removed threshold must be from -50 to -0.1 g.";
     case ConfigValidationError::STOP_PULSE:

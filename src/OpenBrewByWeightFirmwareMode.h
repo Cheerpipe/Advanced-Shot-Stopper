@@ -2,8 +2,7 @@
 
 // Boot-scoped firmware mode (master switch). The persisted record lives in
 // its own NVS namespace — deliberately outside the PersistedSettings blob —
-// so toggling or upgrading the mode never forces a CONFIG_SCHEMA_VERSION bump
-// that would factory-reset every stored setting. An absent, invalid, or
+// so toggling the mode never rewrites the settings blob. An absent, invalid, or
 // unreadable record means compatibility mode: a fresh or factory-reset
 // controller stays transparent until the owner enables the firmware.
 
@@ -38,6 +37,7 @@ struct SetupIntent {
   uint8_t reserved = 0;
   uint32_t staCrc = 0;
 };
+static_assert(sizeof(SetupIntent) == 8, "setup intent layout changed");
 
 #if !defined(OPEN_BREW_BY_WEIGHT_HOST_TEST) ||                                      \
     defined(OPEN_BREW_BY_WEIGHT_PERSISTENCE_HOST_TEST)

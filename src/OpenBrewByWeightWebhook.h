@@ -43,24 +43,8 @@ struct WebhookConfig {
   // Deliver in real time by default. Queueing protects the scale link, but
   // defers all shot events until the shot ends.
   bool deferDuringShot = false;
-  // Added in the former tail padding so V11 webhook bytes keep their offsets.
   bool presetChanges = false;
 };
-
-// V11 used the same persisted offsets but left the final byte unnamed.
-struct WebhookConfigV11 {
-  bool enabled = false;
-  bool brewState = true;
-  bool firstDrop = true;
-  bool end = true;
-  char url[WEBHOOK_URL_CAPACITY] = {};
-  bool deferDuringShot = false;
-  uint8_t reservedTail = 0;
-};
-
-static_assert(sizeof(WebhookConfigV11) == sizeof(WebhookConfig));
-static_assert(offsetof(WebhookConfigV11, deferDuringShot) ==
-              offsetof(WebhookConfig, deferDuringShot));
 
 inline bool escapeJsonString(const char *input, char *output, size_t capacity) {
   size_t used = 0;

@@ -25,8 +25,8 @@
   const detailFn = shotLogTypes.match(/shotLogStopDetailName\([^)]*\)\s*\{([\s\S]*?)\n\}/)[1];
   same([...detailFn.matchAll(/return "([a-z_]+)";/g)].map((m) => m[1])
          .filter((name) => name !== 'unknown').sort(),
-       [...frozen.stopDetails, ...frozen.retiredStopDetails].sort(),
-       'Firmware stopDetail strings');
+       [...frozen.stopDetails].sort(),
+       'Firmware stopDetail strings (retired names are never emitted)');
 
   const fixture = (name) => JSON.parse(fs.readFileSync(
     path.join(sketchDir, 'tests', 'fixtures', name), 'utf8'));

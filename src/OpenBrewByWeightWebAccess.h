@@ -57,18 +57,6 @@ struct WebAccessStored {
 };
 static_assert(sizeof(WebAccessStored) == 388, "webAccess blob layout changed");
 
-// Version 0 (before labels), migrated on load so an update keeps the login.
-struct WebAccessStoredV0 {
-  uint32_t magic, header, flags, homeAssistantSinceUtc;
-  uint8_t homeAssistantToken[WEB_ACCESS_TOKEN_BYTES];
-  struct {
-    uint8_t token[WEB_ACCESS_TOKEN_BYTES];
-    uint32_t usedUtc;
-  } remembered[WEB_ACCESS_REMEMBERED_SLOTS];
-  uint32_t checksum;
-};
-static_assert(sizeof(WebAccessStoredV0) == 196, "version 0 layout is frozen");
-
 enum class WebAccessPairing : uint8_t { NONE, PENDING, APPROVED, DENIED, EXPIRED };
 
 struct WebAccessState {
@@ -139,23 +127,6 @@ inline void copyWebAccessLabel(char label[WEB_ACCESS_LABEL_BYTES], const char *t
     index += width - 1;
   }
   memset(label + used, 0, WEB_ACCESS_LABEL_BYTES - used);
-}
-
-inline bool migrateWebAccessV0(const WebAccessStoredV0 &old, WebAccessStored &stored) {
-  if (old.magic != WEB_ACCESS_MAGIC || old.header != (sizeof(WebAccessStoredV0) << 16) ||
-      old.checksum != webAccessFnv(&old, offsetof(WebAccessStoredV0, checksum))) {
-    return false;
-  }
-  stored = WebAccessStored{};
-  memcpy(&stored.enabled, &old.flags, sizeof(old.flags));
-  stored.homeAssistantSinceUtc = old.homeAssistantSinceUtc;
-  memcpy(stored.homeAssistantToken, old.homeAssistantToken, WEB_ACCESS_TOKEN_BYTES);
-  for (uint8_t slot = 0; slot < WEB_ACCESS_REMEMBERED_SLOTS; ++slot) {
-    memcpy(stored.remembered[slot].token, old.remembered[slot].token, WEB_ACCESS_TOKEN_BYTES);
-    stored.remembered[slot].usedUtc = old.remembered[slot].usedUtc;
-  }
-  finalizeWebAccessStored(stored);
-  return validWebAccessStored(stored);
 }
 
 // Tokens travel as exactly 32 lowercase hex digits.

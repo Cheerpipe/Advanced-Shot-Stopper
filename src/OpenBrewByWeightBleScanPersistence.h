@@ -6,7 +6,7 @@
 namespace openbrewbyweight {
 
 // The BLE scan store has one fixed layout with an explicit master switch.
-// Blobs carrying any other schema version are invalid and never upgraded.
+// Blobs carrying any other schema version are invalid.
 constexpr uint32_t BLE_SCAN_SETTINGS_MAGIC = 0x424C4543U;  // "BLEC"
 constexpr uint16_t BLE_SCAN_SETTINGS_VERSION = 0;
 constexpr const char *BLE_SCAN_SLOT_A = "bleCfgA";
@@ -20,13 +20,11 @@ struct BleScanPersistedSettings {
   // BLE master switch: 1 (factory default) keeps scale Bluetooth active.
   uint8_t enabled = 1;
   uint8_t scanIntensity = static_cast<uint8_t>(BLE_SCAN_FACTORY_INTENSITY);
-  // Reserved byte positions of the removed quiet-backoff and machine-use
-  // boost minutes. Kept so blobs written by older firmware stay readable;
-  // their values are ignored and always rewritten as zero.
-  uint8_t reserved0 = 0;
+  uint8_t reserved0 = 0;  // Always written as zero; ignored on load.
   uint8_t reserved1 = 0;
   uint32_t checksum = 0;
 };
+static_assert(sizeof(BleScanPersistedSettings) == 20, "BLE scan settings layout changed");
 
 inline uint32_t bleScanSettingsChecksum(
     const BleScanPersistedSettings &settings) {

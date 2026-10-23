@@ -316,11 +316,13 @@ struct ScaleProfileHeader {
   uint32_t eventCount = 0;
   uint32_t startWallUtcSec = 0;
   uint32_t checksum = 0;
-  uint32_t reserved[4] = {};  // [0]: durationMs high word; legacy captures use 0.
+  uint32_t durationMsHigh = 0;
+  uint32_t reserved[3] = {};
   char context[SCALE_PROFILE_CONTEXT_BYTES] = {};
 };
-static_assert(sizeof(ScaleProfileHeader) <= 4096,
-              "Scale profile header must fit its dedicated sector");
+static_assert(sizeof(ScaleProfileHeader) == 1092 &&
+                  sizeof(ScaleProfileHeader) <= FLASH_IO_SCRATCH_BYTES,
+              "Scale profile header layout; it is staged through the flash scratch");
 
 struct ScaleProfilerStatus {
   ScaleProfilerState state = ScaleProfilerState::EMPTY;
@@ -347,7 +349,7 @@ inline uint64_t scaleProfileRecordTimeMs(const ScaleProfileRecord &record) {
 }
 
 inline uint64_t scaleProfileDurationMs(const ScaleProfileHeader &header) {
-  return (static_cast<uint64_t>(header.reserved[0]) << 32) | header.durationMs;
+  return (static_cast<uint64_t>(header.durationMsHigh) << 32) | header.durationMs;
 }
 
 // Composes the bounded initial context (firmware/build identity, scale,
@@ -377,7 +379,9 @@ inline bool scaleProfileHeaderValid(const ScaleProfileHeader &header) {
          header.payloadBytes ==
              header.recordCount * SCALE_PROFILE_RECORD_BYTES &&
          header.payloadBytes <=
-             SCALE_PROFILE_PARTITION_BYTES - SCALE_PROFILE_PAYLOAD_OFFSET;
+             SCALE_PROFILE_PARTITION_BYTES - SCALE_PROFILE_PAYLOAD_OFFSET &&
+         header.stopReason <=
+             static_cast<uint32_t>(ScaleProfilerStopReason::TRACE_LOSS);
 }
 
 class ScaleProfiler {
@@ -1316,7 +1320,7 @@ class ScaleProfiler {
     workspace_->header.payloadBytes =
         recordCount_ * SCALE_PROFILE_RECORD_BYTES;
     workspace_->header.durationMs = static_cast<uint32_t>(durationMs_);
-    workspace_->header.reserved[0] = static_cast<uint32_t>(durationMs_ >> 32);
+    workspace_->header.durationMsHigh = static_cast<uint32_t>(durationMs_ >> 32);
     workspace_->header.stopReason = static_cast<uint32_t>(reason);
     workspace_->header.lostCount = lostCount_;
     workspace_->header.weightCount = weightCount_;
@@ -1454,7 +1458,7 @@ class ScaleProfiler {
     header.recordCount = flashSave_.recordCount;
     header.payloadBytes = flashSave_.payloadBytes;
     header.durationMs = static_cast<uint32_t>(durationMs_);
-    header.reserved[0] = static_cast<uint32_t>(durationMs_ >> 32);
+    header.durationMsHigh = static_cast<uint32_t>(durationMs_ >> 32);
     header.stopReason = static_cast<uint32_t>(stopReason_);
     header.lostCount = lostCount_;
     header.weightCount = weightCount_;
@@ -1719,19 +1723,12 @@ inline size_t formatScaleProfileRow(char *out, size_t capacity,
                (record.flags & SCALE_PROFILE_FLAG_DISCONTINUITY) ? " disc=1" : "");
       break;
     case ScaleProfileEvent::PROFILE_START:
-      if (record.arg1 == 0) snprintf(suffix, sizeof(suffix), " limit=capacity");
-      else snprintf(suffix, sizeof(suffix), " maxMs=%lu",
-                    static_cast<unsigned long>(record.arg1));
+      snprintf(suffix, sizeof(suffix), " limit=capacity");
       break;
     case ScaleProfileEvent::PROFILE_STOP:
-      if (record.arg1 == static_cast<uint32_t>(ScaleProfilerStopReason::TIMEOUT)) {
-        snprintf(suffix, sizeof(suffix), " reason=timeout overrunMs=%lu",
-                 static_cast<unsigned long>(record.arg2));
-      } else {
-        snprintf(suffix, sizeof(suffix), " reason=%s",
-                 scaleProfilerStopReasonName(
-                     static_cast<ScaleProfilerStopReason>(record.arg1)));
-      }
+      snprintf(suffix, sizeof(suffix), " reason=%s",
+               scaleProfilerStopReasonName(
+                   static_cast<ScaleProfilerStopReason>(record.arg1)));
       break;
     case ScaleProfileEvent::SCALE_CONNECTED:
     case ScaleProfileEvent::SCALE_DISCONNECTED:

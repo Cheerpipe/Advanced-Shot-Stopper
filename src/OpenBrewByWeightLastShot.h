@@ -7,7 +7,7 @@
 namespace openbrewbyweight {
 
 constexpr uint32_t LAST_SHOT_MAGIC = 0x4C534854U;  // "LSHT"
-// Fixed last-shot schema. Older blobs decode as empty and are not upgraded.
+// Fixed last-shot schema; any other blob decodes as empty.
 constexpr uint16_t LAST_SHOT_SCHEMA_VERSION = 1;
 
 struct LastShotBlob {
@@ -39,6 +39,8 @@ inline bool validLastShotBlob(const LastShotBlob &blob) {
          blob.checksum == lastShotChecksum(blob);
 }
 
+static_assert(sizeof(PersistedLastShot) == 172 && sizeof(LastShotBlob) == 356,
+              "last-shot blob layout changed");
 static_assert(sizeof(LastShotBlob) <= FLASH_IO_SCRATCH_BYTES,
               "LastShotBlob must fit in the internal flash I/O scratch");
 
@@ -49,10 +51,7 @@ inline void resetLastShotBlob(LastShotBlob &blob) {
 
 class LastShotStore {
  public:
-  // `goodShotProtectionMs` remains part of the call contract for the live
-  // last-good-shot policy; persisted blobs are never upgraded.
-  bool load(uint32_t goodShotProtectionMs = DEFAULT_BBW_PROTECTION_MS) {
-    (void)goodShotProtectionMs;
+  bool load() {
 #if defined(OPEN_BREW_BY_WEIGHT_HOST_TEST)
     if (hostStorageValid_) {
       blob_ = hostStorage_;

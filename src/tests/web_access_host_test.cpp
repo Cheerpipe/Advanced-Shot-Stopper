@@ -208,28 +208,6 @@ void sessionsAreListedAndRevokedById() {
   assert(!webAccessRenameId(state, 1, "x") && !webAccessRenameId(state, WEB_ACCESS_SESSION_IDS, "x"));
 }
 
-void versionZeroBlobMigrates() {
-  WebAccessStoredV0 old = {};
-  old.magic = WEB_ACCESS_MAGIC;
-  old.header = static_cast<uint32_t>(sizeof(WebAccessStoredV0)) << 16;
-  const uint8_t flags[4] = {1, 1, 1, 0x03};  // enabled, notice, HA, two slots
-  std::memcpy(&old.flags, flags, sizeof(flags));
-  old.homeAssistantSinceUtc = T0;
-  token(9, old.homeAssistantToken);
-  token(5, old.remembered[1].token);
-  old.remembered[1].usedUtc = T0 + 7;
-  old.checksum = webAccessFnv(&old, offsetof(WebAccessStoredV0, checksum));
-  WebAccessStored stored;
-  assert(migrateWebAccessV0(old, stored) && validWebAccessStored(stored));
-  assert(stored.enabled == 1 && stored.noticeDismissed == 1 && stored.homeAssistant == 1 &&
-         stored.rememberedMask == 0x03 && stored.homeAssistantSinceUtc == T0);
-  assert(webAccessTokenEqual(stored.homeAssistantToken, old.homeAssistantToken));
-  assert(webAccessTokenEqual(stored.remembered[1].token, old.remembered[1].token));
-  assert(stored.remembered[1].usedUtc == T0 + 7 && stored.remembered[1].label[0] == '\0');
-  old.checksum ^= 1U;
-  assert(!migrateWebAccessV0(old, stored));
-}
-
 }  // namespace
 
 int main() {
@@ -241,6 +219,5 @@ int main() {
   storedBlobChecksum();
   labelsAreSanitizedAndWhole();
   sessionsAreListedAndRevokedById();
-  versionZeroBlobMigrates();
   return 0;
 }

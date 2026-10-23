@@ -26,9 +26,6 @@ struct ShotCurveBlockHeader {
   uint32_t validity;
 };
 static_assert(sizeof(ShotCurveBlockHeader) == 36, "Explicit flash block header");
-// validHeader loads only the current schema; a version bump must decide what
-// happens to the previous schema's blocks rather than silently strand them.
-static_assert(SHOT_CURVE_SCHEMA_VERSION == 3, "Decide the fate of schema-3 blocks");
 
 // Unpersisted curves a worker image carries per commit; any remainder stays
 // dirty in the live log and is captured by the next image.
@@ -365,7 +362,7 @@ class BasicShotCurveLog : public ShotCurveHostStorage {
            h.schema == SHOT_CURVE_SCHEMA_VERSION && h.bytes >= sizeof(h) + 18U &&
            h.bytes <= kDiskCapacity && h.bytes % 4U == 0 &&
            h.shotId != 0 && h.sequence != 0 && h.floor <= h.sequence &&
-           h.count <= SHOT_CURVE_MAX_POINTS && (h.flags == 1U || h.flags == 3U) &&
+           h.count <= SHOT_CURVE_MAX_POINTS && (h.flags & ~2U) == 0U &&
            (h.validity == kCommitted || h.validity == kDeleted);
   }
   bool retained(const ShotCurveBlockHeader &h) const {
@@ -412,8 +409,8 @@ class BasicShotCurveLog : public ShotCurveHostStorage {
     h->floor = floor;
     h->shotId = r.shotId;
     h->count = r.count;
-    // Millisecond times; bit 1 marks truncation.
-    h->flags = static_cast<uint16_t>(1U | (r.truncated ? 2U : 0U));
+    // Bit 1 marks truncation; the other bits stay zero.
+    h->flags = r.truncated ? 2U : 0U;
     h->validity = kCommitted;
     h->checksum = blockChecksum(h->bytes);
   }

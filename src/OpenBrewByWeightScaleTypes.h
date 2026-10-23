@@ -140,15 +140,14 @@ constexpr uint32_t SCALE_PAIRING_DISCOVERY_PAUSE_MS = 30000;
 constexpr uint32_t SCALE_PREFER_FALLBACK_MS = 5000;
 
 enum class ScaleMacCacheMode : uint8_t {
-  // Numeric values: FIRST=0 and ONLY=1 match legacy OFF/FULL in NVS.
+  // Numeric values are stored in NVS.
   FIRST = 0,  // Name scan; first compatible; do not lock preferred.
   ONLY = 1,   // Bootstrap by name if empty; then preferred MAC only.
   PREFER = 2, // Bootstrap if empty; else prefer MAC, then fall back to any.
 };
 
-// GAP scan duty while discovering a scale. Numeric values are stored in NVS:
-// 0 stays Balanced so a zeroed scanIntensity byte remains a valid duty
-// without a version bump.
+// GAP scan duty while discovering a scale. Numeric values are stored in NVS;
+// 0 is Balanced, the factory duty.
 enum class BleScanIntensity : uint8_t {
   BALANCED = 0,    // 50% — 31.25 ms / 62.5 ms
   AGGRESSIVE = 1,  // 100% — 20 ms / 20 ms
@@ -298,9 +297,6 @@ constexpr uint32_t MAX_POST_TARE_BASELINE_GRACE_MS = 10000;
 constexpr float DEFAULT_CUP_REMOVED_WEIGHT_G = -3.0f;
 constexpr float MIN_CUP_REMOVED_WEIGHT_G = -50.0f;
 constexpr float MAX_CUP_REMOVED_WEIGHT_G = -0.1f;
-constexpr float DEFAULT_CUP_PRESENT_WEIGHT_G = 3.0f;
-constexpr float MIN_CUP_PRESENT_WEIGHT_G = 0.1f;
-constexpr float MAX_CUP_PRESENT_WEIGHT_G = 50.0f;
 constexpr float MAX_PARSED_WEIGHT_G = 10000.0f;
 constexpr uint8_t DIRECT_STOP_CONFIRMATION_SAMPLES = 2;
 constexpr uint8_t WEIGHT_RECOVERY_CONFIRMATION_SAMPLES = 3;

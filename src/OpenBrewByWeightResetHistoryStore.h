@@ -16,6 +16,7 @@ struct ResetHistoryStoreBlob {
   uint32_t currentUptimeMs = 0;
   uint32_t checksum = 0;
 };
+static_assert(sizeof(ResetHistoryStoreBlob) == 96, "reset history blob layout changed");
 
 inline uint32_t resetHistoryStoreChecksum(const ResetHistoryStoreBlob &blob) {
   const uint32_t value =

@@ -85,6 +85,7 @@ struct OtaJournalRecord {
   char prefixSha256[OTA_SHA256_HEX_CAPACITY] = {};
   uint32_t checksum = 0;
 };
+static_assert(sizeof(OtaJournalRecord) == 416, "OTA journal layout changed");
 
 constexpr size_t OTA_TAG_REREAD_BYTES =
     OTA_TAG_PREFIX_CAPACITY + OTA_TAG_BODY_CAPACITY;

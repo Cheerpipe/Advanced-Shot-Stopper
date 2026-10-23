@@ -30,6 +30,7 @@ struct RecoveryIntent {
   uint8_t reserved[3] = {};
   uint32_t checksum = 0;
 };
+static_assert(sizeof(RecoveryIntent) == 16, "recovery intent layout changed");
 
 inline uint32_t recoveryIntentChecksum(const RecoveryIntent &intent) {
   return crc32(reinterpret_cast<const uint8_t *>(&intent),

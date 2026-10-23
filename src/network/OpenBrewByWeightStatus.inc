@@ -349,7 +349,7 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
         "\"stopIfCupRemoved\":%s,\"requireCupToStart\":%s,"
         "\"avoidAccidentalTouchEnabled\":%s,"
         "\"touchStopFallbackEnabled\":%s,"
-        "\"cupPresentWeightG\":%.1f,\"cupRemovedWeightG\":%.1f,"
+        "\"cupRemovedWeightG\":%.1f,"
         "\"scaleMacCacheMode\":\"%s\","
         "\"bookooMuteOnBuzzerOnly\":%s,\"bookooConnectBeepLevel\":%u,"
         "\"avoidBbwShotWithoutScale\":%s,\"noScaleBbwMode\":\"%s\","
@@ -416,7 +416,6 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
         control.config.requireCupToStart ? "true" : "false",
         control.config.avoidAccidentalTouchEnabled ? "true" : "false",
         control.config.touchStopFallbackEnabled ? "true" : "false",
-        static_cast<double>(control.config.cupPresentWeightG),
         static_cast<double>(control.config.cupRemovedWeightG),
         scaleMacCacheModeId(control.config.scaleMacCacheMode),
         control.config.bookooMuteOnBuzzerOnly ? "true" : "false",

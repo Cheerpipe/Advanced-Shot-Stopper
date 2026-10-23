@@ -908,8 +908,8 @@ shot types are `auto`, `timer_only`, and `manual`; supported stop details are
 `normal_target`, `extended_max_weight`, `extended_min_time`, `auto_to_manual`,
 `slow_max_time`, `slow_min_weight`, `cup_removed`, `activator`, `web_stop`,
 `web_heartbeat`, `physical_override`, `hard_limit`, `wall_limit`,
-`relay_safety`, `weight_anomaly`, `touch_weight_fallback`, and `other`. `prediction` is accepted as a
-legacy alias for `other`. These stop details, the Quick Settings names, the end
+`relay_safety`, `weight_anomaly`, `touch_weight_fallback`, and `other`. The retired
+`prediction` is never sent; receivers treat it as `other`. These stop details, the Quick Settings names, the end
 event keys, and the Stats CSV columns are frozen by
 `src/tests/fixtures/wire_contracts_v1.json`; a change to any of them updates
 that fixture, this reference, and the Home Assistant integration together.

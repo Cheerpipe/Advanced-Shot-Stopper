@@ -326,13 +326,11 @@ void setup() {
     presetBank = persistedSettings.presets;
     ensureShotPresetBank(presetBank, runtimeConfig.retareWindowMs,
                          runtimeConfig.autoRetare);
-    addMissingManualShotPreset(presetBank);
     QuickStartRecord storedQuickStart;
     if (bootQuickStart(bbwQuickStart, freshSettings, presetBank,
                        loadQuickStart(storedQuickStart) ? &storedQuickStart : nullptr))
       stageBbwQuickStart();
-    // Earlier firmware could save a controller-wide Manual; stop mode now
-    // follows the active preset only.
+    // Stop mode follows the active preset only.
     runtimeConfig.timerOnly = !activeShotPreset(presetBank).brewByWeight;
     scaleWorkerLoadPreferred(persistedSettings.preferredScaleMac,
                              persistedSettings.preferredScaleName,
@@ -375,7 +373,7 @@ void setup() {
     // finish every load before the network task can serve endpoints.
     TaskLockGuard storeLock(shotStoreMutex);
     bootIdentityDurable = activationStores.begin();
-    lastShotStore.load(runtimeConfig.bbwProtectionMs);
+    lastShotStore.load();
     lastShotNvsDirty = false;
   }
   if (!bootIdentityDurable)
@@ -385,7 +383,7 @@ void setup() {
   {
     TaskLockGuard storeLock(shotStoreMutex);
     activationStores.begin();
-    lastShotStore.load(runtimeConfig.bbwProtectionMs);
+    lastShotStore.load();
     lastShotNvsDirty = false;
   }
 #endif

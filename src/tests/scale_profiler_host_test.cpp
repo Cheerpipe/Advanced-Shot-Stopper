@@ -128,7 +128,7 @@ void testFullCaptureStopsWithoutRejectedAppend() {
   CHECK(profiler.hostLostCount() == 0);
 }
 
-void testLongCaptureTimestampsAndLegacyExport() {
+void testLongCaptureTimestampsAndExport() {
   ScaleProfiler profiler;
   const uint32_t start = 0xffffff00U;
   CHECK(profiler.hostStartNoFlash(start));
@@ -151,16 +151,6 @@ void testLongCaptureTimestampsAndLegacyExport() {
   char line[192];
   CHECK(formatScaleProfileRow(line, sizeof(line), profiler.hostExportRecord(61)));
   CHECK(std::string(line).find("+5184000.000") == 0);
-  ScaleProfileRecord legacy;
-  legacy.kind = static_cast<uint16_t>(ScaleProfileEvent::PROFILE_START);
-  legacy.arg1 = 180000;
-  CHECK(formatScaleProfileRow(line, sizeof(line), legacy));
-  CHECK(std::string(line).find("maxMs=180000") != std::string::npos);
-  legacy.kind = static_cast<uint16_t>(ScaleProfileEvent::PROFILE_STOP);
-  legacy.arg1 = static_cast<uint32_t>(ScaleProfilerStopReason::TIMEOUT);
-  legacy.arg2 = 40;
-  CHECK(formatScaleProfileRow(line, sizeof(line), legacy));
-  CHECK(std::string(line).find("reason=timeout overrunMs=40") != std::string::npos);
   CHECK(static_cast<uint32_t>(ScaleProfilerStopReason::BUFFER_FULL) == 3);
   CHECK(formatScaleProfileRow(line, sizeof(line), profiler.hostExportRecord(0)));
   CHECK(std::string(line).find("limit=capacity") != std::string::npos);
@@ -556,7 +546,7 @@ void runAll() {
   testCapacityReservesTerminalAndCountsLoss();
   testCaptureHasNoTimeLimit();
   testFullCaptureStopsWithoutRejectedAppend();
-  testLongCaptureTimestampsAndLegacyExport();
+  testLongCaptureTimestampsAndExport();
   testEstimateRatesAndLifecycle();
   testEstimateJitterAndRateChanges();
   testEstimateIrregularServiceAndClockWrap();

@@ -17,8 +17,8 @@ constexpr const char *WEB_ACCESS_KEY = "webAccess";
 enum class WebAccessLoad : uint8_t { LOADED, MISSING, INVALID };
 
 // A missing or invalid blob loads as the default: login off. INVALID (a
-// record that cannot be read or fails its checksum) is worth a log line. A
-// version 0 record (before device labels) is migrated; the next save rewrites it.
+// record that cannot be read, has another length, or fails its checksum) is
+// worth a log line.
 inline WebAccessLoad loadWebAccessStored(WebAccessStored &stored) {
   WebAccessLoad result = WebAccessLoad::INVALID;
   if (lockSettingsNvs()) {
@@ -27,17 +27,11 @@ inline WebAccessLoad loadWebAccessStored(WebAccessStored &stored) {
     result = WebAccessLoad::MISSING;
     if (preferences.begin(SETTINGS_NAMESPACE, true)) {
       if (preferences.isKey(WEB_ACCESS_KEY)) {
-        const size_t length = preferences.getBytesLength(WEB_ACCESS_KEY);
-        WebAccessStoredV0 old;
         const bool loaded =
-            length == sizeof(stored)
-                ? preferences.getBytes(WEB_ACCESS_KEY, &stored, sizeof(stored)) ==
-                          sizeof(stored) &&
-                      validWebAccessStored(stored)
-                : length == sizeof(old) &&
-                      preferences.getBytes(WEB_ACCESS_KEY, &old, sizeof(old)) == sizeof(old) &&
-                      migrateWebAccessV0(old, stored);
-        memset(&old, 0, sizeof(old));
+            preferences.getBytesLength(WEB_ACCESS_KEY) == sizeof(stored) &&
+            preferences.getBytes(WEB_ACCESS_KEY, &stored, sizeof(stored)) ==
+                sizeof(stored) &&
+            validWebAccessStored(stored);
         result = loaded ? WebAccessLoad::LOADED : WebAccessLoad::INVALID;
       }
       preferences.end();

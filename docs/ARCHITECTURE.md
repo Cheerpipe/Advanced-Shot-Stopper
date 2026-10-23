@@ -441,6 +441,13 @@ of these operational triggers. No callbacks run from an ISR or across a flash
 write, and the OTA update path remains available. The settings layout is
 schema 1; blobs from earlier firmware are rejected.
 
+Every persisted layout (the settings blob, presets, the flash stores and each
+NVS record) is frozen at v1, and `static_assert` size checks turn an
+accidental change into a build error. Settings validation is all-or-nothing:
+after v1, a layout or range change must come with a versioned load path that
+converts the previous layout, or an OTA update would reset Wi-Fi, the device
+password and the machine account to factory values.
+
 ## Residual qualification
 
 `RuntimeConfig` uses a 312-byte fixed layout inside the schema-1 settings blob.

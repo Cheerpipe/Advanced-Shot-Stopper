@@ -110,8 +110,6 @@ void p01_defaults_are_valid() {
   CHECK(settings.runtime.stopIfCupRemoved);
   CHECK(!settings.runtime.requireCupToStart);
   CHECK(settings.runtime.avoidAccidentalTouchEnabled);
-  CHECK(std::fabs(settings.runtime.cupPresentWeightG -
-                  DEFAULT_CUP_PRESENT_WEIGHT_G) < 0.001f);
   CHECK(std::fabs(settings.runtime.cupRemovedWeightG -
                   DEFAULT_CUP_REMOVED_WEIGHT_G) < 0.001f);
   CHECK(settings.runtime.lastShotCooldownMs == DEFAULT_LAST_SHOT_COOLDOWN_MS);
@@ -148,7 +146,6 @@ void p02_newest_valid_slot_is_loaded() {
   settings.runtime.stopIfCupRemoved = false;
   settings.runtime.requireCupToStart = true;
   settings.runtime.avoidAccidentalTouchEnabled = false;
-  settings.runtime.cupPresentWeightG = 4.5f;
   settings.runtime.cupRemovedWeightG = -6.0f;
   settings.presets.presets[0].bbwEwmaOffsetG = 4.5f;
   settings.presets.presets[0].bbwEwmaAlpha = 50;
@@ -165,7 +162,6 @@ void p02_newest_valid_slot_is_loaded() {
   CHECK(!loaded.runtime.stopIfCupRemoved);
   CHECK(loaded.runtime.requireCupToStart);
   CHECK(!loaded.runtime.avoidAccidentalTouchEnabled);
-  CHECK(std::fabs(loaded.runtime.cupPresentWeightG - 4.5f) < 0.001f);
   CHECK(std::fabs(loaded.runtime.cupRemovedWeightG - (-6.0f)) < 0.001f);
   CHECK(std::fabs(loaded.presets.presets[0].bbwEwmaOffsetG - 4.5f) < 0.001f);
   CHECK(loaded.presets.presets[0].bbwEwmaAlpha == 50);
@@ -1356,23 +1352,10 @@ void p91_web_access_store_round_trip_and_corruption() {
   CHECK(loadWebAccessStored(loaded) == WebAccessLoad::INVALID);
   CHECK(loaded.enabled == 0 && loaded.noticeDismissed == 0 &&
         loaded.rememberedMask == 0);
-  // A version 0 record from the previous firmware migrates on load.
-  {
-    WebAccessStoredV0 old = {};
-    old.magic = WEB_ACCESS_MAGIC;
-    old.header = static_cast<uint32_t>(sizeof(WebAccessStoredV0)) << 16;
-    const uint8_t flags[4] = {1, 0, 0, 0x01};
-    memcpy(&old.flags, flags, sizeof(flags));
-    old.remembered[0].token[0] = 0x42;
-    old.checksum = webAccessFnv(&old, offsetof(WebAccessStoredV0, checksum));
-    OpenBrewByWeightPreferences preferences(NvsSubsystem::WEB_ACCESS);
-    CHECK(preferences.begin(SETTINGS_NAMESPACE, false));
-    CHECK(preferences.putBytes(WEB_ACCESS_KEY, &old, sizeof(old)) == sizeof(old));
-    preferences.end();
-    CHECK(loadWebAccessStored(loaded) == WebAccessLoad::LOADED);
-    CHECK(loaded.enabled == 1 && loaded.rememberedMask == 0x01 &&
-          loaded.remembered[0].token[0] == 0x42 && loaded.version == WEB_ACCESS_VERSION);
-  }
+  // A record of another length is invalid.
+  const uint8_t shorter[sizeof(WebAccessStored) - 4] = {};
+  persistence_host::putRaw(SETTINGS_NAMESPACE, WEB_ACCESS_KEY, shorter, sizeof(shorter));
+  CHECK(loadWebAccessStored(loaded) == WebAccessLoad::INVALID);
   // Factory reset erases the record, and erasing a missing one succeeds.
   CHECK(saveWebAccessStored(stored));
   CHECK(eraseWebAccessStored());
@@ -2012,38 +1995,6 @@ void p61b_shot_curve_failed_compaction_restores_durable_ring() {
   }
 }
 
-// Golden pre-schema-3 block, hand-built with the absolute point layout older
-// firmware wrote (schema 1 has no held bitmap; schema 2 adds it).
-void writeLegacyCurveBlock(uint8_t *block, const ShotCurveRecord &r,
-                           uint16_t schema, uint32_t sequence) {
-  memset(block, 0xff, SHOT_CURVE_BLOCK_BYTES);
-  uint8_t *p = block + sizeof(ShotCurveBlockHeader);
-  memcpy(p, &r.atmClearedMs, 18); p += 18;
-  for (size_t i = 0; i < r.count; ++i) {
-    const CurvePoint point = curvePoint(r, i);
-    memcpy(p, &point.atMs, 2); p += 2;
-    memcpy(p, &point.cg, 2); p += 2;
-  }
-  const size_t bits = (r.count + 7U) / 8U;
-  memcpy(p, r.breakBefore, bits); p += bits;
-  if (schema == 2U) { memcpy(p, r.held, bits); p += bits; }
-  ShotCurveBlockHeader h = {};
-  h.magic = SHOT_CURVE_MAGIC;
-  h.schema = schema;
-  h.bytes = static_cast<uint16_t>((p - block + 3U) & ~size_t(3U));
-  h.epoch = 0;
-  h.sequence = sequence;
-  h.floor = 0;
-  h.shotId = r.shotId;
-  h.count = r.count;
-  h.flags = 1;
-  h.validity = UINT32_MAX - 1U;  // kCommitted
-  memcpy(block, &h, sizeof(h));
-  uint32_t crc = crc32Update(0xffffffffU, block, offsetof(ShotCurveBlockHeader, checksum));
-  h.checksum = ~crc32Update(crc, block + sizeof(h), h.bytes - sizeof(h));
-  memcpy(block, &h, sizeof(h));
-}
-
 uint8_t *findCurveBlock(uint32_t shotId) {
   uint8_t *flash = ShotCurveLog::hostFlashForTest();
   for (size_t b = 0; b < SHOT_CURVE_BLOCK_COUNT; ++b) {
@@ -2056,32 +2007,20 @@ uint8_t *findCurveBlock(uint32_t shotId) {
   return nullptr;
 }
 
-void p61c_shot_curve_legacy_schemas_are_dropped() {
-  // Absolute-point blocks (schemas 1 and 2) no longer load; current-schema
-  // records still persist beside them in the same store.
+void p61c_shot_curve_held_and_break_bits_round_trip() {
   resetHostPersistence();
-  ShotCurveRecord legacy = emptyShotCurveRecord();
-  legacy.shotId = 41;
+  ShotCurveRecord current = emptyShotCurveRecord();
+  current.shotId = 43;
   for (size_t i = 0; i < 9; ++i)  // Two bitmap bytes: 9 % 8 == 1.
-    CHECK(appendShotCurvePoint(legacy, static_cast<int16_t>(i * 40U),
+    CHECK(appendShotCurvePoint(current, static_cast<int16_t>(i * 40U),
                                static_cast<uint32_t>(i * 100U), i == 8, i == 2 || i == 3));
-  uint8_t *flash = ShotCurveLog::hostFlashForTest();
-  writeLegacyCurveBlock(flash + 2U * FLASH_IO_SECTOR_BYTES, legacy, 1, 1);
-  legacy.shotId = 42;
-  writeLegacyCurveBlock(flash + 2U * FLASH_IO_SECTOR_BYTES + SHOT_CURVE_BLOCK_BYTES,
-                        legacy, 2, 2);
-
   ShotCurveLog updated;
   CHECK(updated.load());
-  CHECK(updated.count() == 0);
-  ShotCurveRecord current = legacy;
-  current.shotId = 43;
   CHECK(updated.append(current));
   ShotCurveLog reloaded;
   CHECK(reloaded.load());
   CHECK(reloaded.count() == 1);
   ShotCurveRecord loaded = {};
-  CHECK(!reloaded.copyByShotId(41, loaded) && !reloaded.copyByShotId(42, loaded));
   CHECK(reloaded.copyByShotId(43, loaded));
   CHECK(loaded.count == 9 && curvePoint(loaded, 8).cg == 320);
   CHECK(shotCurveHeld(loaded, 2) && shotCurveHeld(loaded, 3) &&
@@ -2927,7 +2866,7 @@ void p61g_shot_curve_schema3_worst_case_stays_within_budget() {
   CHECK(block != nullptr);
   ShotCurveBlockHeader h = {};
   memcpy(&h, block, sizeof(h));
-  CHECK(h.schema == 3 && h.count == SHOT_CURVE_MAX_POINTS && h.flags == 1U);
+  CHECK(h.schema == 3 && h.count == SHOT_CURVE_MAX_POINTS && h.flags == 0U);
   CHECK(h.bytes == 5632);
   ShotCurveLog reloaded;
   CHECK(reloaded.load() && reloaded.count() == 1);
@@ -3007,7 +2946,7 @@ void p61i_shot_curve_schema3_wire_format_is_pinned() {
   h.floor = 0;
   h.shotId = 44;
   h.count = 9;
-  h.flags = 1;
+  h.flags = 0;
   h.validity = UINT32_MAX - 1U;  // kCommitted
   memcpy(block, &h, sizeof(h));
   resealCurveBlock(block);
@@ -3199,7 +3138,7 @@ void p91_schema1_golden_settings_blob_loads() {
   CHECK(loaded.schemaVersion == 1 && loaded.runtime.goalWeightDg == DEFAULT_GOAL_WEIGHT_DG);
   CHECK(!loaded.runtime.scaleLossEnabled && !loaded.runtime.cupProtectionEnabled);
   CHECK(!loaded.runtime.touchStopFallbackEnabled && loaded.runtime.avoidAccidentalTouchEnabled);
-  CHECK(loaded.presets.count == FACTORY_PRESET_COUNT + 1);
+  CHECK(loaded.presets.count == FACTORY_PRESET_COUNT + 2);  // Manual, Golden
   CHECK(loaded.presets.activeId == FACTORY_PRESET_ID_SINGLE_ADAPTIVE);
   const ShotPreset *dbl = findShotPreset(loaded.presets, FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
   CHECK(dbl != nullptr && dbl->fastBeforeMs == 26500 && dbl->fastMarginDg == 35);
@@ -3208,37 +3147,6 @@ void p91_schema1_golden_settings_blob_loads() {
   const ShotPreset *custom = findShotPreset(loaded.presets, FACTORY_PRESET_COUNT + 1);
   CHECK(custom != nullptr && strcmp(custom->name, "Golden") == 0 && !custom->isFactory);
   CHECK(!custom->fastSideEnabled && custom->goalWeightDg == FACTORY_SINGLE_GOAL_WEIGHT_DG);
-  {
-    // A bank saved before Manual existed gains it on boot, after its customs.
-    ShotPresetBank upgraded = loaded.presets;
-    addMissingManualShotPreset(upgraded);
-    addMissingManualShotPreset(upgraded);
-    CHECK(upgraded.count == loaded.presets.count + 1);
-    CHECK(upgraded.presets[loaded.presets.count].id == FACTORY_PRESET_ID_MANUAL);
-    CHECK(strcmp(findShotPreset(upgraded, FACTORY_PRESET_COUNT + 1)->name, "Golden") == 0);
-    ShotPresetBank named = loaded.presets;
-    CHECK(renameShotPreset(named, FACTORY_PRESET_COUNT + 1, "Manual"));
-    addMissingManualShotPreset(named);
-    CHECK(named.count == loaded.presets.count);
-    ShotPresetBank full = loaded.presets;
-    for (uint8_t id = 0; full.count < MAX_SHOT_PRESETS;) CHECK(createUntitledShotPreset(full, id));
-    addMissingManualShotPreset(full);
-    CHECK(findShotPresetIndex(full, FACTORY_PRESET_ID_MANUAL) < 0);
-  }
-
-  // The same bytes stamped schema 0 (the 1.0 epoch) never load.
-  PersistedSettings stale = golden;
-  stale.schemaVersion = 0;
-  stale.checksum = persistedSettingsChecksum(stale);
-  resetHostPersistence();
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, &stale, sizeof(stale));
-  CHECK(!loadPersistedSettings(loaded));
-  // A 1.0-sized blob (3344 bytes) is rejected by size before any field.
-  std::string legacy(3344, '\0');
-  memcpy(&legacy[0], &stale, sizeof(PersistedSettingsHeader));
-  resetHostPersistence();
-  persistence_host::putRaw(SETTINGS_NAMESPACE, SETTINGS_SLOT_A, legacy.data(), legacy.size());
-  CHECK(!loadPersistedSettings(loaded));
 }
 
 // Golden shot-log blob of schema 1 (W4b): header plus two records, each a
@@ -3314,7 +3222,7 @@ void p92_schema1_golden_shot_log_loads() {
   CHECK(fast.wallDs == 500 && fast.fastMarginDg == 40 && fast.slowMarginDg == 30);
   CHECK(fast.cutRampDs == 50 && shotLogPresetId(fast) == FACTORY_PRESET_ID_DOUBLE_ADAPTIVE);
   CHECK(corridor::verdictOf(store.records[1].verdict) == corridor::Verdict::SLOW);
-  store.header.schemaVersion = 0;  // The 1.0 epoch never loads.
+  store.header.schemaVersion = 0;  // Another schema never loads.
   store.header.checksum = 0;
   store.header.checksum = shotLogChecksum(store);
   CHECK(!validShotLogStore(store));
@@ -3399,7 +3307,7 @@ const TestCase tests[] = {
     {"P74", p74_factory_intent_second_failure_keeps_settings},
     {"P61", p61_shot_curve_dual_slot_round_trip_and_delete},
     {"P61B", p61b_shot_curve_failed_compaction_restores_durable_ring},
-    {"P61C", p61c_shot_curve_legacy_schemas_are_dropped},
+    {"P61C", p61c_shot_curve_held_and_break_bits_round_trip},
     {"P61F", p61f_shot_curve_schema3_round_trip_is_lossless},
     {"P61G", p61g_shot_curve_schema3_worst_case_stays_within_budget},
     {"P61H", p61h_shot_curve_schema3_malformed_blocks_are_rejected},

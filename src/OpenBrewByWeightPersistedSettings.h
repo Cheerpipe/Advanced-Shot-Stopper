@@ -8,7 +8,7 @@
 
 namespace openbrewbyweight {
 
-constexpr uint32_t PERSISTED_SETTINGS_MAGIC = 0x53544F50U;  // "STOP"
+constexpr uint32_t PERSISTED_SETTINGS_MAGIC = 0x4F424257U;  // "OBBW"
 // Shortened on purpose: "openbrewbyweight" exceeds the NVS name limit.
 constexpr char SETTINGS_NAMESPACE[] = "openbrew";
 static_assert(sizeof(SETTINGS_NAMESPACE) <= 16,

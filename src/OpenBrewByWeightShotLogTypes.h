@@ -89,7 +89,7 @@ enum class ShotLogCut : uint8_t {
 
 enum class ShotLogStopDetail : uint8_t {
   NORMAL_TARGET = 0,
-  PREDICTION = 1,  // legacy writes only; new shots never store this
+  // 1 is retired (wire name "prediction"); never reuse it.
   EXTENDED_MAX_WEIGHT = 2,
   EXTENDED_MIN_TIME = 3,
   AUTO_TO_MANUAL = 4,
@@ -160,7 +160,6 @@ inline uint8_t shotLogPackRating(uint8_t flags, uint8_t rating) {
 inline const char *shotLogStopDetailName(ShotLogStopDetail detail) {
   switch (detail) {
     case ShotLogStopDetail::NORMAL_TARGET: return "normal_target";
-    case ShotLogStopDetail::PREDICTION: return "prediction";
     case ShotLogStopDetail::EXTENDED_MAX_WEIGHT: return "extended_max_weight";
     case ShotLogStopDetail::EXTENDED_MIN_TIME: return "extended_min_time";
     case ShotLogStopDetail::AUTO_TO_MANUAL: return "auto_to_manual";
@@ -377,14 +376,14 @@ struct ShotLogRecord {
   uint8_t fastMarginDg;   // Relative to the target; meaningful with the side on.
   uint8_t slowMarginDg;
   uint8_t cutRampDs;      // Ramp length D (0 = step).
-  // Drip delay + 1 ds in former zero padding: 0 = recorded before the field.
+  // Drip delay + 1 ds; 0 = unknown.
   uint8_t dripDelayCode;
 };
 
 static_assert(sizeof(ShotLogRecord) == 120, "Shot-log schema 1 record size");
 static_assert(offsetof(ShotLogRecord, verdict) == 27, "schema 1 verdict byte");
 static_assert(offsetof(ShotLogRecord, slowAfterDs) == 108, "schema 1 snapshot tail");
-static_assert(offsetof(ShotLogRecord, dripDelayCode) == 117, "schema 1 padding byte");
+static_assert(offsetof(ShotLogRecord, dripDelayCode) == 117, "schema 1 drip delay byte");
 
 inline ShotLogType shotLogType(const ShotLogRecord &record);
 
@@ -561,8 +560,8 @@ inline uint32_t shotListFilterHash(const ShotListFilter &filter) {
                      filter.scaleCount * sizeof(filter.scales[0]));
 }
 
-// Profile 0 unknown, 5 smooth cut (corridor) v1; 1–4 were the pre-schema-1
-// policies and can no longer be stored. Alpha 0 unknown, 1–100 hundredths.
+// Profile 0 unknown, 5 smooth cut (corridor) v1; 1–4 are retired and never
+// written. Alpha 0 unknown, 1–100 hundredths.
 inline uint8_t shotLogBbwProfile(const ShotLogRecord &record) {
   return record.sideFlags >> 5;
 }
@@ -661,6 +660,7 @@ struct ShotLogHeader {
   uint16_t writeIndex;
   uint32_t checksum;
 };
+static_assert(sizeof(ShotLogHeader) == 24, "shot-log header layout changed");
 
 // Read-time view; stats are derived from shot records and never persisted.
 struct ShotStatsView {

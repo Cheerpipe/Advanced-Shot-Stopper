@@ -42,6 +42,7 @@ struct QuickStartRecord {
   QuickStartEntry entries[MAX_SHOT_PRESETS];
   uint32_t checksum = 0;
 };
+static_assert(sizeof(QuickStartRecord) == 204, "quick start record layout changed");
 
 inline uint32_t quickStartChecksum(const QuickStartRecord &record) {
   const uint8_t *bytes = reinterpret_cast<const uint8_t *>(&record);

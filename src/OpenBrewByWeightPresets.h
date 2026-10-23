@@ -227,23 +227,6 @@ inline void ensureShotPresetBank(ShotPresetBank &bank,
   }
 }
 
-// Boot-time upgrade for banks saved before Manual existed. Appends it when a
-// slot is free and neither its id nor the name "Manual" is taken; a skipped
-// bank retries on the next boot.
-inline void addMissingManualShotPreset(ShotPresetBank &bank) {
-  if (bank.count >= MAX_SHOT_PRESETS ||
-      findShotPresetIndex(bank, FACTORY_PRESET_ID_MANUAL) >= 0) {
-    return;
-  }
-  ShotPreset &slot = bank.presets[bank.count];
-  fillFactoryShotPreset(slot, FACTORY_PRESET_ID_MANUAL);
-  if (shotPresetNameExists(bank, slot.name, 0)) {
-    slot = ShotPreset{};
-    return;
-  }
-  ++bank.count;
-}
-
 inline const ShotPreset &activeShotPreset(const ShotPresetBank &bank) {
   const ShotPreset *preset = findShotPreset(bank, bank.activeId);
   if (preset != nullptr) {

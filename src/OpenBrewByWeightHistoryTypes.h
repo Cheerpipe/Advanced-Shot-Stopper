@@ -21,8 +21,7 @@ constexpr size_t HISTORY_PAGE_MAX = 120;
 
 constexpr uint8_t HISTORY_FLAG_WALL_TIME = 0x01;
 // Set when the activation ended without any registered scale weight; clear
-// means weight was registered (or the record predates the flag). Fits the
-// existing flags byte, so the flash layout and schema version are unchanged.
+// means weight was registered.
 constexpr uint8_t HISTORY_FLAG_NO_WEIGHT = 0x02;
 
 enum class HistoryType : uint8_t {

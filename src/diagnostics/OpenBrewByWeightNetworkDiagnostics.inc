@@ -116,7 +116,7 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            "\"autoToManualGuardEnabled\":%s,\"scaleLossFixedMs\":%lu,"
            "\"cupProtectionEnabled\":%s,\"stopIfCupRemoved\":%s,"
            "\"requireCupToStart\":%s,\"avoidAccidentalTouchEnabled\":%s,"
-           "\"cupPresentWeightG\":%.1f,\"cupRemovedWeightG\":%.1f,"
+           "\"cupRemovedWeightG\":%.1f,"
            "\"avoidBbwShotWithoutScale\":%s,\"noScaleBbwMode\":\"%s\","
            "\"noScaleAllowRinseWhileArmed\":%s,\"autoRetare\":%s,"
            "\"retareWindowMs\":%lu,\"minimumCupWeightG\":%.1f,"
@@ -156,7 +156,6 @@ esp_err_t OpenBrewByWeightNetwork::debugExportHandler(httpd_req_t *request) {
            c.config.stopIfCupRemoved ? "true" : "false",
            c.config.requireCupToStart ? "true" : "false",
            c.config.avoidAccidentalTouchEnabled ? "true" : "false",
-           static_cast<double>(c.config.cupPresentWeightG),
            static_cast<double>(c.config.cupRemovedWeightG),
            noScaleBbwEnabled(c.config.noScaleBbwMode) ? "true" : "false",
            noScaleBbwModeId(c.config.noScaleBbwMode),
