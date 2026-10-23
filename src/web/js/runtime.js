@@ -4414,6 +4414,15 @@ function decodeCurveDeltas(text, ref) {
   }
   return typeof text === "string" && { wAtMs, wCg };
 }
+// A page bug while drawing a valid frame must not read as a corrupt frame:
+// that would resync, close and reconnect into the same error forever.
+function paint(render) {
+  try {
+    render();
+  } catch (e) {
+    console.error(e);
+  }
+}
 function startUiStream() {
   if (!webUiPollingActive() || shotWs) return;
   clearTimeout(shotRetry);
@@ -4527,7 +4536,7 @@ function startUiStream() {
         // the Diagnostic menu entry live on every view without a REST probe.
         if ("diagnosticPageVisible" in data.changes) applyDiagnosticNavigation(homeFrame.status);
         // The duration chart bands follow the active preset's window.
-        if ("presets" in data.changes && activeView === "stats") renderStatsDurChart();
+        if ("presets" in data.changes && activeView === "stats") paint(renderStatsDurChart);
         if (
           shotClock &&
           homeFrame.boot === shotClock.boot &&
@@ -4535,7 +4544,7 @@ function startUiStream() {
             (homeFrame.status.machineType === "paddle" && paddleOff))
         )
           finishShotClock();
-        renderHomeStream();
+        paint(renderHomeStream);
         homeResolve(true);
       } else {
         if (!shotGotShot && !data.snapshot) throw Error();
@@ -5077,7 +5086,7 @@ function applyLogFrame(m) {
   if (uiState.logEvents.length > LOG_EVENTS_CAPACITY)
     uiState.logEvents.splice(0, uiState.logEvents.length - LOG_EVENTS_CAPACITY);
   updateLogHealth(m);
-  renderLog();
+  paint(renderLog);
   updateFirmwareFooter();
   if (activeView === "diagnostic") noteReachOk();
 }
@@ -5229,7 +5238,7 @@ function applyHistoryStream(message) {
   // The model updates on every view; only the hidden view's DOM work and
   // reachability signal wait until History is actually open.
   if (historyViewActive()) {
-    renderHistory();
+    paint(renderHistory);
     updateFirmwareFooter();
     noteReachOk();
   }
@@ -5461,7 +5470,7 @@ function applyStatsStream(message) {
   // The model updates on every view; only the hidden view's DOM work and
   // reachability signal wait until Stats is actually open.
   if (shotStatsViewActive()) {
-    renderShots();
+    paint(renderShots);
     updateFirmwareFooter();
     noteReachOk();
   }

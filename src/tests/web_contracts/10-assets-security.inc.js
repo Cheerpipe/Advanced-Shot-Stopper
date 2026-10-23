@@ -342,7 +342,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
     const logContext = vm.createContext({logBootId: 3, bootId: 3, logEvents: [],
       lastLog: 9, logMissed: 0, LOG_EVENTS_CAPACITY: 500, activeView: 'diagnostic',
       updateLogHealth() {}, renderLog: () => {rendered++;}, updateFirmwareFooter() {},
-      noteReachOk() {}, noteReachFail() {}});
+      noteReachOk() {}, noteReachFail() {}, paint: (fn) => fn()});
     const logFns = rawRuntimeJs.slice(rawRuntimeJs.indexOf('function logStreamFrame('),
         rawRuntimeJs.indexOf('function diagSnapshotOk('));
     vm.runInContext(runtimeStateGlobals + logFns, logContext);
@@ -965,9 +965,10 @@ if (htmlBytes > 107310) {
 // Firmware-side Shots and History filters with one shared filter menu, the
 // 10/50/100 Stats window, and firmware-computed charts: measured 523207,
 // owner-requested 2026-10-23. Rejected-op (4003) recovery that clears the list
-// views: measured 523596, owner-requested 2026-10-23.
-if (jsBytes > 523596) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 523596)`);
+// views: measured 523596, owner-requested 2026-10-23. Stream render errors kept off
+// the corrupt-frame path: measured 523859, owner-requested 2026-10-23.
+if (jsBytes > 523859) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 523859)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1137,8 +1138,9 @@ if (jsBytes > 523596) {
 // Equipment rows in the fallback and unfolded-only preset graphs: measured 626972, owner-requested 2026-10-22.
 // Firmware-side list filters, the Stats window, and firmware-computed charts: measured 629623,
 // owner-requested 2026-10-23. Rejected-op (4003) recovery: measured 630012, owner-requested 2026-10-23.
-if (htmlBytes + jsBytes > 630012) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 630012)`);
+// Stream render errors kept off the corrupt-frame path: measured 630275, owner-requested 2026-10-23.
+if (htmlBytes + jsBytes > 630275) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 630275)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

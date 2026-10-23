@@ -26,7 +26,7 @@
     applyPairingPrompt() {},
     setMutable: value => { mutable = value; }, noteReachOk: () => { reachOk++; }, noteReachFail() {}, hideHomeBoot() {},
     clearCupWeights() {}, updateHeaderSignals() {}, updateHomeAdminActions() {}, setHomeSub() {},
-    deactivateWebUi: () => { owner = false; }, $: () => null,
+    deactivateWebUi: () => { owner = false; }, $: () => null, console: {error() {}},
   };
   vm.runInNewContext(validator + source, context);
   const status = {firmwareVersion: 'test', bootId: 7, configMutable: true, timeUtcSec: 1700000000,
@@ -82,6 +82,13 @@
   assert.equal(context.statusUtcAnchorSec, status.timeUtcSec);
   assert.equal(context.statusUtcAnchorAt, 1234);
   assert.equal(rendered.at(-1).timeUtcSec, undefined, 'cached Home status must not reset the shared clock anchor');
+  // A Home render bug on a valid frame is logged, not counted as a corrupt
+  // frame: no resync, no close, and the next frame draws again.
+  const handler = context.viewStatusHandlers.home, sentBefore = sockets[0].sent.length;
+  context.viewStatusHandlers.home = () => { throw new TypeError('render bug'); };
+  sockets[0].onmessage({data: JSON.stringify(patch)});
+  assert(sockets[0].readyState === 1 && sockets[0].sent.length === sentBefore, 'render errors keep the stream');
+  context.viewStatusHandlers.home = handler;
   sockets[0].onmessage({data: JSON.stringify(patch)});
   assert.equal(rendered.at(-1).machineState, 'RUNNING');
   vm.runInNewContext("activeView='settings'", context);

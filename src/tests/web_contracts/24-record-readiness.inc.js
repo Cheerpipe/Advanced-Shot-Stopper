@@ -32,6 +32,7 @@
       scheduleShotPaint() {},
       applyHistoryPage: () => { context.historyLoaded = true; applied.push('history'); },
       renderShots: () => applied.push('render-stats'), renderHistory: () => applied.push('render-history'),
+      paint: (fn) => fn(),
       updateFirmwareFooter() {}, noteReachOk() {},
       shotSort: 'date', shotSortDir: 'desc', historyDir: 'desc',
       SHOTS_PAGE_SIZE: 10, SHOTS_EXPORT_LIMIT: 500, HISTORY_PAGE_SIZE: 20,

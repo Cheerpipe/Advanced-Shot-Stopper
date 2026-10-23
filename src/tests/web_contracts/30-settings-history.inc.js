@@ -1310,7 +1310,7 @@ if (!statsSection ||
         applyCommonStatus: () => events.push('state'),
         applyShotPage: (data, mode) => {context.shotsLoaded = true; events.push('records:' + mode);},
         scheduleShotPaint() {},
-        renderShots: () => events.push('render:' + context.controlsMutable),
+        renderShots: () => events.push('render:' + context.controlsMutable), paint: (fn) => fn(),
         updateHeaderSignals() {}, updateFirmwareFooter() {}, noteReachOk() {},
         atob, __WEBUI_TEXT__: key => key});
       // Shared state and runtime references resolve to this harness's globals.
@@ -1433,7 +1433,7 @@ if (!statsSection ||
         checkFirmwareReload: () => {}, applyMachineTypeUi() {}, applyDiagnosticNavigation() {},
         applyCommonStatus: () => events.push('state'),
         applyHistoryPage: (data, mode) => {context.historyLoaded = true; events.push('records:' + mode);},
-        renderHistory: () => events.push('render:' + context.controlsMutable),
+        renderHistory: () => events.push('render:' + context.controlsMutable), paint: (fn) => fn(),
         updateHeaderSignals() {}, updateFirmwareFooter() {}, noteReachOk() {},
         __WEBUI_TEXT__: key => key});
       const stream = runtimeStateGlobals + rawRuntimeJs.slice(rawRuntimeJs.indexOf('function historyStreamFrame('),

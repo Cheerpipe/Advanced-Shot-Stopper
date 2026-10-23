@@ -914,8 +914,10 @@ if (generated.cssGzip.length > 17150) {
 // 2026-10-23; cap 43130.
 // Rejected-op (4003) recovery that clears the list views brings it to 43169, owner-requested
 // 2026-10-23; cap 43180.
-if (sentinelRuntimeGzip.length > 43180) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 43180-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// Stream render errors kept off the corrupt-frame path bring it to 43181, owner-requested
+// 2026-10-23; cap 43200.
+if (sentinelRuntimeGzip.length > 43200) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 43200-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
