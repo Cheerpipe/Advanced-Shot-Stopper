@@ -284,8 +284,9 @@ shot has been stopped by weight yet. For example, a fast shot whose cut line
 stood at 38.0 g and that yielded 38.4 g counts as a 1.1 % miss. **Daily shots**
 averages the dated shots over the calendar days they span, including both ends.
 An erase-all firmware installation starts with empty shot history.
-If a low-weight older row is imported later, it remains in the table and CSV
-but does not enter Home or these summaries.
+If a low-weight older row is imported later, it stays in the CSV export but
+does not enter Home or these summaries; the list leaves it out only when its
+yield is under 1 g.
 
 In its Stats history card, each shot shows everything at once. At the top are
 its duration and yield in large numbers, then when you pulled it, with a

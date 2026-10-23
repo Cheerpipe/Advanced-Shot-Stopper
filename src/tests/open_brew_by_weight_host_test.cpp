@@ -16353,6 +16353,16 @@ void s04c_shot_list_filter_groups() {
   filter.presets[0] = 3;
   filter.scales[filter.scaleCount++] = shotLogScaleKey(timed);
   CHECK(shotListFilterMatches(filter, timed) && !shotListFilterMatches(filter, manual));
+  // List pages leave out stored yields under 1 g; a missing yield stays.
+  ShotListFilter listed;
+  listed.hideLowYield = true;
+  timed.actualWeightCg = 99;
+  manual.actualWeightCg = SHOT_LOG_WEIGHT_MISSING;
+  CHECK(!shotListFilterMatches(listed, timed) && shotListFilterMatches(listed, manual));
+  CHECK(shotListFilterMatches(ShotListFilter{}, timed));
+  timed.actualWeightCg = 100;
+  CHECK(shotListFilterMatches(listed, timed));
+  CHECK(shotListFilterHash(listed) != shotListFilterHash(ShotListFilter{}));
   // Equal filters share an identity; group boundaries are part of it.
   ShotListFilter same = filter, moved = {};
   moved.presets[moved.presetCount++] = 3;

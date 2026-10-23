@@ -525,8 +525,11 @@ inline uint32_t shotLogScaleKey(const ShotLogRecord &record) {
 
 // Shots-list filter: an empty group does not restrict, groups combine with
 // AND and the options of a group with OR. Results are shotLogResult bits.
+// hideLowYield leaves out stored yields under 1 g, as the list always did;
+// the CSV export reads every stored row.
 struct ShotListFilter {
   uint8_t results = 0, presetCount = 0, scaleCount = 0;
+  bool hideLowYield = false;
   uint8_t presets[SHOT_LIST_FILTER_MAX] = {};
   uint32_t scales[SHOT_LIST_FILTER_MAX] = {};
 };
@@ -535,6 +538,9 @@ inline bool shotListFilterMatches(const ShotListFilter &filter,
                                   const ShotLogRecord &record) {
   const uint8_t result = shotLogResult(record);
   if (filter.results && (result > 2 || !((filter.results >> result) & 1U)))
+    return false;
+  if (filter.hideLowYield && !shotLogWeightIsMissing(record.actualWeightCg) &&
+      record.actualWeightCg < 100)
     return false;
   bool preset = filter.presetCount == 0, scale = filter.scaleCount == 0;
   for (size_t i = 0; i < filter.presetCount; ++i)
@@ -547,7 +553,8 @@ inline bool shotListFilterMatches(const ShotListFilter &filter,
 
 // Identity of a filter for the page cache and the stream fingerprint.
 inline uint32_t shotListFilterHash(const ShotListFilter &filter) {
-  const uint8_t head[3] = {filter.results, filter.presetCount, filter.scaleCount};
+  const uint8_t head[4] = {filter.results, filter.presetCount, filter.scaleCount,
+                           filter.hideLowYield};
   uint32_t hash = crc32Update(0xFFFFFFFFU, head, sizeof(head));
   hash = crc32Update(hash, filter.presets, filter.presetCount);
   return crc32Update(hash, reinterpret_cast<const uint8_t *>(filter.scales),

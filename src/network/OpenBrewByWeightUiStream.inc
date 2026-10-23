@@ -436,6 +436,7 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
           session->statsPaging = false;
           session->statsRequest = requestId ? static_cast<uint32_t>(requestId->valuedouble) : 0;
           session->statsFilter = shotFilter;
+          session->statsFilter.hideLowYield = true;
           session->statsWindow = window ? static_cast<size_t>(window->valueint)
                                         : SHOT_LOG_STATS_WINDOW;
           if (offset)

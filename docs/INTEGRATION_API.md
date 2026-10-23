@@ -713,7 +713,9 @@ and `scale` takes the scale keys listed in the header's `facets`. Each list
 holds at most eight values; an empty or missing list does not restrict, lists
 combine with AND and the values of a list with OR. `window` (`10`, `50`, or
 `100`, default `10`) picks how many of the newest eligible shots the `stats`
-header covers. A subscribe carrying only `window` (no `request`) changes the
+header covers. The standing list and its scroll fetches also leave out stored
+yields under 1 g; a fetch with its own `filter` (the CSV export) reads every
+stored row. A subscribe carrying only `window` (no `request`) changes the
 header alone: the firmware sends a standing refresh with the new header and
 the rows it already holds as bare ids.
 

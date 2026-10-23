@@ -1024,10 +1024,7 @@ function renderShots() {
     p.appendChild(e);
     return e;
   };
-  const rows = R.uiState.shotHistory.shots.filter((r) => {
-    const y = r.estimatedG ?? shotDisplayActualG(r.actualG, r.wCg);
-    return y != null && y >= 1;
-  });
+  const rows = R.uiState.shotHistory.shots;
   if (rows.length) {
     const labels = [
       __WEBUI_TEXT__("runtime.time"),
