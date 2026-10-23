@@ -28,30 +28,31 @@ bool readWebAccessToken(httpd_req_t *request, const char *header,
 }  // namespace
 
 OpenBrewByWeightNetwork::PasswordCheck OpenBrewByWeightNetwork::checkDevicePassword(
-    const char *password) {
+    httpd_req_t *request, const char *password) {
   const uint32_t now = millis();
+  // The cooldown is keyed by the peer address, never the port; odd ids keep
+  // 0 free for an empty slot.
+  sockaddr_storage address = {};
+  socklen_t addressLength = sizeof(address);
+  uint32_t peer = 1;
+  if (getpeername(httpd_req_to_sockfd(request), reinterpret_cast<sockaddr *>(&address),
+                  &addressLength) == 0)
+    peer = (address.ss_family == AF_INET6
+                ? webAccessFnv(&reinterpret_cast<const sockaddr_in6 &>(address).sin6_addr, 16)
+                : webAccessFnv(&reinterpret_cast<const sockaddr_in &>(address).sin_addr, 4)) | 1U;
   char expected[WIFI_PASSWORD_CAPACITY] = {};
   dataMux_.lock();
-  const bool coolingDown =
-      adminUnlockCooldownUntilMs_ != 0 &&
-      static_cast<int32_t>(now - adminUnlockCooldownUntilMs_) < 0;
+  WebAccessPasswordPeer *slot = webAccessPasswordSlot(passwordPeers_, peer, now);
+  const bool coolingDown = webAccessPasswordCooling(slot, now);
   memcpy(expected, settings_.devicePassword, sizeof(expected));
   dataMux_.unlock();
   const bool matches = !coolingDown && secretsMatch(password, expected);
   memset(expected, 0, sizeof(expected));
   if (coolingDown) return PasswordCheck::COOLDOWN;
-  bool paused = false;
   dataMux_.lock();
-  if (matches) {
-    adminUnlockFailures_ = 0;
-    adminUnlockCooldownUntilMs_ = 0;
-  } else if (++adminUnlockFailures_ >= ADMIN_UNLOCK_FAILURES_BEFORE_COOLDOWN) {
-    adminUnlockCooldownUntilMs_ = now + ADMIN_UNLOCK_COOLDOWN_MS;
-    adminUnlockFailures_ = 0;
-    paused = true;
-  }
+  const bool paused = webAccessPasswordAttempt(*slot, matches, now);
   dataMux_.unlock();
-  if (paused) lifecycleLog("Device password rejected; attempts paused for 30 s");
+  if (paused) lifecycleLog("Device password rejected; attempts from this device paused for 30 s");
   else if (!matches) lifecycleLog("Device password rejected");
   return matches ? PasswordCheck::OK : PasswordCheck::WRONG;
 }
@@ -207,7 +208,7 @@ esp_err_t OpenBrewByWeightNetwork::authLoginHandler(httpd_req_t *request) {
   WebAccessBody body;
   esp_err_t sent = ESP_OK;
   if (!self.readWebAccessBody(request, body, sent)) return sent;
-  const PasswordCheck check = self.checkDevicePassword(body.password);
+  const PasswordCheck check = self.checkDevicePassword(request, body.password);
   if (check != PasswordCheck::OK) return sendPasswordCheckError(request, check);
   uint8_t token[WEB_ACCESS_TOKEN_BYTES] = {};
   esp_fill_random(token, sizeof(token));
@@ -294,7 +295,7 @@ esp_err_t OpenBrewByWeightNetwork::authAccessHandler(httpd_req_t *request) {
       return sendError(request, STATUS_UNPROCESSABLE, "DEVICE_PASSWORD_REQUIRED",
                        "Enter the device password.");
     }
-    const PasswordCheck check = self.checkDevicePassword(body.password);
+    const PasswordCheck check = self.checkDevicePassword(request, body.password);
     if (check != PasswordCheck::OK) return sendPasswordCheckError(request, check);
   }
   if (enable) {
@@ -491,7 +492,7 @@ __attribute__((noinline)) bool OpenBrewByWeightNetwork::integrationAccessRoute(
   if (exchange) {
     WebAccessBody body;
     if (!readWebAccessBody(request, body, result)) return true;
-    const PasswordCheck check = checkDevicePassword(body.password);
+    const PasswordCheck check = checkDevicePassword(request, body.password);
     if (check != PasswordCheck::OK) {
       result = sendPasswordCheckError(request, check);
       return true;

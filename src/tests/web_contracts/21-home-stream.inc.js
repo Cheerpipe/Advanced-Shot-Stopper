@@ -256,13 +256,13 @@ int main(){
       network.indexOf('esp_err_t OpenBrewByWeightNetwork::uiStreamHandshake'),
       network.indexOf('for (auto &session : self.uiStreams_)'));
   if (!handshake.includes('httpd_req_get_hdr_value_str(request, "Host", host, sizeof(host))') ||
-      !handshake.includes('uiStreamOriginMatches(origin, host)') ||
-      handshake.indexOf('uiStreamOriginMatches(origin, host)') >
-          handshake.indexOf('uiStreamOriginMatches(origin, network.iface.staIp)') ||
-      !handshake.includes('self.lifecycleLog(') ||
+      !handshake.includes('!uiStreamOriginMatches(origin, host) ||') ||
+      !handshake.includes('!webAccessHostAllowed(host, network.mdnsHost)') ||
+      handshake.includes('network.iface.staIp') ||
+      !handshake.includes('logRefusedHost(origin, network.mdnsHost)') ||
       !network.includes('constexpr size_t UI_STREAM_ORIGIN_CAPACITY = 128;')) {
-    throw new Error('UI stream must accept a same-origin page opened through any host name, ' +
-                    'keep the IP/mDNS list as fallback, and log a rejected Origin');
+    throw new Error('UI stream must accept only a same-origin page whose host names this ' +
+                    'controller (the HTTP Host allowlist) and log a rejected Origin');
   }
 }
 

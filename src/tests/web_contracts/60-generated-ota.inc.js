@@ -1939,7 +1939,10 @@ if (!codeIncludes(js, 'withPollGate(async()=>{if(scanBusy||!webUiPollingActive()
       (viewJs.admin.match(/\bapplyStatus\b/g) || []).length !== 2 ||
       codeIncludes(js, "$('diagnosticUnlockButton').onclick") ||
       network.includes('DIAGNOSTIC_DISABLED') ||
-      network.includes('!self.diagnosticPageEnabled()') ||
+      // Only diagnostic mutations (NET-04) may consult the toggle; the page
+      // and its stream stay reachable either way.
+      network.split('!self.diagnosticPageEnabled()').length !== 2 ||
+      !network.includes('matched->diagnostic && !self.diagnosticPageEnabled()') ||
       !network.includes(
           'self.diagnosticPageEnabled() ? "true" : "false"') ||
       !network.includes('showDiagnosticPage') ||

@@ -44,6 +44,20 @@ bool readWebUiClientId(httpd_req_t *request, char *output,
   return true;
 }
 
+// Refusals a LAN peer can repeat at will log at most once per 10 s per call
+// site; the line reports how many happened since the previous one.
+struct RefusalLog {
+  std::atomic<uint32_t> loggedAtMs{0}, refused{0};
+  // The count to report now, or 0 while the window is still quiet.
+  uint32_t due() {
+    refused.fetch_add(1);
+    const uint32_t now = millis(), at = loggedAtMs.load();
+    if (at != 0 && now - at < 10000) return 0;
+    loggedAtMs.store(now | 1U);
+    return refused.exchange(0);
+  }
+};
+
 }  // namespace
 
 esp_err_t OpenBrewByWeightNetwork::claimHandler(httpd_req_t *request) {
@@ -162,8 +176,6 @@ void OpenBrewByWeightNetwork::grantAdminUnlock(const char *clientId, uint32_t no
   memcpy(adminUnlockClientId_, clientId, sizeof(adminUnlockClientId_));
   adminUnlocked_ = true;
   adminUnlockUntilMs_ = now + ADMIN_UNLOCK_IDLE_MS;
-  adminUnlockFailures_ = 0;
-  adminUnlockCooldownUntilMs_ = 0;
   dataMux_.unlock();
 }
 
@@ -300,7 +312,7 @@ esp_err_t OpenBrewByWeightNetwork::adminUnlockHandler(httpd_req_t *request) {
                      "X-WebUI-Client must be a 16-24 character lowercase hex id.");
   }
 
-  const PasswordCheck check = self.checkDevicePassword(password);
+  const PasswordCheck check = self.checkDevicePassword(request, password);
   memset(password, 0, sizeof(password));
   if (check != PasswordCheck::OK) {
     memset(clientId, 0, sizeof(clientId));
@@ -375,6 +387,7 @@ esp_err_t OpenBrewByWeightNetwork::ownedApiHandler(httpd_req_t *request) {
     esp_err_t (*handler)(httpd_req_t *) = nullptr;
     bool setup = false;  // also served claim-less to SoftAP peers (/setup)
     bool open = false;   // served before any claim or sign-in (login page)
+    bool diagnostic = false;  // also needs Admin or the public Diagnostic page
   };
   static const Route routes[] = {
       {"/api/v1/status/settings", HTTP_GET, statusHandler},
@@ -384,8 +397,9 @@ esp_err_t OpenBrewByWeightNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/diagnostic/crashes/empty", HTTP_POST, crashArchiveClearHandler},
       {"/api/v1/diagnostic/audit/empty", HTTP_POST, auditLogClearHandler},
       {"/api/v1/diagnostic/audit", HTTP_GET, auditLogExportHandler},
-      {"/api/v1/diagnostic/heap-map", HTTP_GET, heapMapDownloadHandler},
-      {"/api/v1/diagnostic/audit/verbose", HTTP_POST, auditVerboseHandler},
+      {"/api/v1/diagnostic/heap-map", HTTP_GET, heapMapDownloadHandler, false, false, true},
+      {"/api/v1/diagnostic/audit/verbose", HTTP_POST, auditVerboseHandler, false, false,
+       true},
       {"/api/v1/stats/clear", HTTP_POST, shotsClearHandler},
       {"/api/v1/stats/delete", HTTP_POST, shotsDeleteHandler},
       {"/api/v1/stats/rate", HTTP_POST, shotsRateHandler},
@@ -413,8 +427,8 @@ esp_err_t OpenBrewByWeightNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/control/state-override", HTTP_POST, stateOverrideHandler},
       {"/api/v1/control/restart", HTTP_POST, restartHandler},
       {"/api/v1/firmware-mode", HTTP_POST, firmwareModeHandler},
-      {"/api/v1/diagnostic/reset-history", HTTP_POST,
-       clearResetHistoryHandler},
+      {"/api/v1/diagnostic/reset-history", HTTP_POST, clearResetHistoryHandler,
+       false, false, true},
       {"/api/v1/factory-reset", HTTP_POST, factoryResetHandler},
       {"/api/v1/network", HTTP_POST, networkHandler, true},
       {"/api/v1/network/scan", HTTP_GET, wifiScanStatusHandler, true},
@@ -434,13 +448,16 @@ esp_err_t OpenBrewByWeightNetwork::ownedApiHandler(httpd_req_t *request) {
       {"/api/v1/admin/lock", HTTP_POST, adminLockHandler},
 #endif
       {"/api/v1/admin/ble-scan", HTTP_PUT, bleScanHandler},
-      {"/api/v1/diagnostic/profiler", HTTP_POST, taskProfilerHandler},
-      {"/api/v1/diagnostic/scale-profile", HTTP_POST, scaleProfileHandler},
+      {"/api/v1/diagnostic/profiler", HTTP_POST, taskProfilerHandler, false, false, true},
+      {"/api/v1/diagnostic/scale-profile", HTTP_POST, scaleProfileHandler, false, false,
+       true},
       {"/api/v1/diagnostic/scale-profile/download", HTTP_GET,
        scaleProfileDownloadHandler},
-      {"/api/v1/diagnostic/loop-max/reset", HTTP_POST, loopMaxResetHandler},
-      {"/api/v1/diagnostic/scale-gap-max/reset", HTTP_POST, scaleGapMaxResetHandler},
-      {"/api/v1/diagnostic/tare", HTTP_POST, scaleTareHandler},
+      {"/api/v1/diagnostic/loop-max/reset", HTTP_POST, loopMaxResetHandler, false, false,
+       true},
+      {"/api/v1/diagnostic/scale-gap-max/reset", HTTP_POST, scaleGapMaxResetHandler,
+       false, false, true},
+      {"/api/v1/diagnostic/tare", HTTP_POST, scaleTareHandler, false, false, true},
   };
   const Route *matched = nullptr;
   for (const Route &route : routes) {
@@ -460,6 +477,14 @@ esp_err_t OpenBrewByWeightNetwork::ownedApiHandler(httpd_req_t *request) {
   const bool setupPeer = matched->setup && self.snapshot().apActive &&
                          socketServedBySoftAp(httpd_req_to_sockfd(request));
   if (!setupPeer && !self.requireActiveWebUiClient(request)) {
+    return ESP_OK;
+  }
+  if (matched->diagnostic && !self.diagnosticPageEnabled() &&
+      !self.requireAdminUnlock(request)) {
+    static RefusalLog log;
+    if (const uint32_t count = log.due())
+      self.lifecycleLogf("Refused %lu Diagnostic action(s): Admin is locked and the page is hidden",
+                         static_cast<unsigned long>(count));
     return ESP_OK;
   }
   return matched->handler(request);
@@ -490,8 +515,19 @@ bool OpenBrewByWeightNetwork::readJsonBody(
       request->content_len >= REQUEST_BODY_CAPACITY) {
     return false;
   }
+  // Callers hold the shared work buffer while the body arrives, so a
+  // trickling peer gets one total deadline (plus at most one receive timeout).
+  static RefusalLog slowBodies;
+  const uint32_t startedAtMs = millis();
   size_t received = 0;
   while (received < static_cast<size_t>(request->content_len)) {
+    if (millis() - startedAtMs >= 5000) {
+      if (const uint32_t count = slowBodies.due())
+        serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
+                             "http: refused %lu request body(s) that arrived too slowly",
+                             static_cast<unsigned long>(count));
+      return false;
+    }
     const int result = httpd_req_recv(
         request, body + received,
         static_cast<size_t>(request->content_len) - received);
@@ -662,6 +698,15 @@ esp_err_t serveProbeSuccess(httpd_req_t *request, const char *host) {
                          HTTPD_RESP_USE_STRLEN);
 }
 
+// Host and stream-Origin refusals share one rate-limited Web UI log line.
+void logRefusedHost(const char *name, const char *mdnsHost) {
+  static RefusalLog log;
+  if (const uint32_t count = log.due())
+    serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,
+                         "http: refused %lu request(s) for \"%.32s\"; use the IP or %.24s.local",
+                         static_cast<unsigned long>(count), name, mdnsHost);
+}
+
 }  // namespace
 
 esp_err_t OpenBrewByWeightNetwork::notFoundHandler(httpd_req_t *request,
@@ -689,6 +734,32 @@ esp_err_t OpenBrewByWeightNetwork::notFoundHandler(httpd_req_t *request,
   return httpd_resp_send(request, nullptr, 0);
 }
 
+bool OpenBrewByWeightNetwork::rejectForeignHost(httpd_req_t *request) {
+  char host[96] = {};
+  const size_t length = httpd_req_get_hdr_value_len(request, "Host");
+  if (length == 0) return false;
+  const NetworkStatusSnapshot network = instance_->snapshot();
+  if (length < sizeof(host) &&
+      httpd_req_get_hdr_value_str(request, "Host", host, sizeof(host)) == ESP_OK &&
+      (webAccessHostAllowed(host, network.mdnsHost) ||
+       (network.apActive && captiveProbeHost(request) != nullptr)))
+    return false;
+  logRefusedHost(host, network.mdnsHost);
+  if (strncmp(request->uri, "/api/", 5) == 0) {
+    sendError(request, STATUS_FORBIDDEN, "HOST_NOT_ALLOWED",
+              "Open the controller by its IP address or its .local name.");
+    return true;
+  }
+  // Pages bounce to the address the browser actually reached.
+  char location[24] = {};
+  snprintf(location, sizeof(location), "http://%s/", network.iface.staIp);
+  httpd_resp_set_status(request, "302 Found");
+  httpd_resp_set_hdr(request, "Location",
+                     instance_->softApPeer(request) ? CAPTIVE_PORTAL_URL : location);
+  httpd_resp_set_hdr(request, "Cache-Control", "no-store");
+  httpd_resp_send(request, nullptr, 0);
+  return true;
+}
 
 const char *OpenBrewByWeightNetwork::stateLabel(StopperState state) {
   const size_t index = static_cast<size_t>(state);

@@ -164,22 +164,18 @@ void sendUiStreamClose(httpd_handle_t server, int fd, uint16_t reason) {
 esp_err_t OpenBrewByWeightNetwork::uiStreamHandshake(httpd_req_t *request) {
   OpenBrewByWeightNetwork &self = *instance_;
   char origin[UI_STREAM_ORIGIN_CAPACITY] = {}, host[UI_STREAM_ORIGIN_CAPACITY] = {};
-  char local[DEVICE_NAME_CAPACITY + 8] = {};
   const size_t length = httpd_req_get_hdr_value_len(request, "Origin");
   if (length == 0 || length >= sizeof(origin) ||
       httpd_req_get_hdr_value_str(request, "Origin", origin, sizeof(origin)) != ESP_OK)
     return ESP_FAIL;
-  // Same-origin first: the page's Origin names the host the browser used,
-  // whether an IP, mDNS name, router DNS name or reverse proxy.
+  // Same origin, and that host must name this controller (the HTTP gate's
+  // allowlist), so a rebound page cannot open the stream.
   if (httpd_req_get_hdr_value_str(request, "Host", host, sizeof(host)) != ESP_OK)
     host[0] = '\0';
   const NetworkStatusSnapshot network = self.snapshot();
-  snprintf(local, sizeof(local), "%s.local", network.mdnsHost);
-  if (!uiStreamOriginMatches(origin, host) &&
-      !uiStreamOriginMatches(origin, network.iface.staIp) &&
-      !uiStreamOriginMatches(origin, network.iface.apIp) &&
-      !uiStreamOriginMatches(origin, local)) {
-    self.lifecycleLog("UI stream rejected: page Origin does not match this controller");
+  if (!uiStreamOriginMatches(origin, host) ||
+      !webAccessHostAllowed(host, network.mdnsHost)) {
+    logRefusedHost(origin, network.mdnsHost);
     return ESP_FAIL;
   }
   TaskLockGuard lock(self.dataMux_);

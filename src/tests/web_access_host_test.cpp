@@ -1,6 +1,7 @@
 #include "../OpenBrewByWeightWebAccess.h"
 
 #include <cassert>
+#include <initializer_list>
 #include <cstring>
 
 using namespace openbrewbyweight;
@@ -208,6 +209,46 @@ void sessionsAreListedAndRevokedById() {
   assert(!webAccessRenameId(state, 1, "x") && !webAccessRenameId(state, WEB_ACCESS_SESSION_IDS, "x"));
 }
 
+// NET-02: only Hosts that name this controller pass; a rebinding attacker
+// controls only public DNS names.
+void hostAllowlistRefusesRebindingNames() {
+  for (const char *host : {"192.168.1.40", "192.168.1.40:80", "[fe80::1]", "[2001:db8::7]:8080",
+                           "cafe-bar", "Cafe-Bar.local", "cafe-bar.local:80", "cafe-bar.lan",
+                           "cafe-bar.home.arpa", "cafe-bar.internal", "cafe-bar-2.local", ""}) {
+    assert(webAccessHostAllowed(host, "cafe-bar"));
+  }
+  for (const char *host : {"evil.example", "cafe-bar.evil.example", "cafe-bar.local.evil.example",
+                           "192.168.1.40.nip.io", "cafe-barx.local", "cafe.local", "localhost",
+                           "openbrewbyweight.local", "cafe-bar-.local", "cafe-bar-2x.local"}) {
+    assert(!webAccessHostAllowed(host, "cafe-bar"));
+  }
+  assert(webAccessHostAllowed(nullptr, "cafe-bar") && webAccessHostAllowed("10.0.0.2", ""));
+  assert(!webAccessHostAllowed("cafe-bar.local", ""));
+}
+
+// NET-07: each peer has its own failure budget; a busy table refuses newcomers.
+void passwordCooldownIsPerPeer() {
+  WebAccessPasswordPeer peers[WEB_ACCESS_PASSWORD_PEERS] = {};
+  WebAccessPasswordPeer *attacker = webAccessPasswordSlot(peers, 3, 100);
+  for (uint8_t i = 1; i < WEB_ACCESS_PASSWORD_FAILURES; ++i) {
+    assert(!webAccessPasswordAttempt(*attacker, false, 100 + i));
+  }
+  assert(webAccessPasswordAttempt(*attacker, false, 200));
+  assert(webAccessPasswordCooling(webAccessPasswordSlot(peers, 3, 201), 201));
+  WebAccessPasswordPeer *owner = webAccessPasswordSlot(peers, 5, 202);
+  assert(owner != attacker && !webAccessPasswordCooling(owner, 202));
+  assert(!webAccessPasswordAttempt(*owner, true, 202) && owner->peer == 0);
+  assert(!webAccessPasswordCooling(webAccessPasswordSlot(peers, 3, 200 + WEB_ACCESS_PASSWORD_COOLDOWN_MS),
+                                   200 + WEB_ACCESS_PASSWORD_COOLDOWN_MS));
+  for (uint32_t peer = 7; peer <= 11; peer += 2) {  // fills the table with peer 3
+    WebAccessPasswordPeer *slot = webAccessPasswordSlot(peers, peer, 300);
+    assert(slot != nullptr);
+    webAccessPasswordAttempt(*slot, false, 300);
+  }
+  assert(webAccessPasswordCooling(webAccessPasswordSlot(peers, 13, 301), 301));
+  assert(webAccessPasswordSlot(peers, 13, 300 + WEB_ACCESS_PASSWORD_COOLDOWN_MS) != nullptr);
+}
+
 }  // namespace
 
 int main() {
@@ -219,5 +260,7 @@ int main() {
   storedBlobChecksum();
   labelsAreSanitizedAndWhole();
   sessionsAreListedAndRevokedById();
+  hostAllowlistRefusesRebindingNames();
+  passwordCooldownIsPerPeer();
   return 0;
 }

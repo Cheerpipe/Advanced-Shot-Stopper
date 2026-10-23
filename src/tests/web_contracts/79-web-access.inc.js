@@ -35,6 +35,26 @@
     assert.ok(network.includes(route), `Missing access route ${route}`);
   }
   assert.ok(network.includes('if (matched->open) return matched->handler(request);'));
+  // NET-02: every registered handler passes the DNS-rebinding Host gate
+  // first; captive-probe hosts pass only while the SoftAP is up.
+  const timed = body(network, 'esp_err_t timedHandler(');
+  assert.ok(network.includes('descriptor.handler = timedHandler;') &&
+      timed.includes('rejectForeignHost(request)') &&
+      timed.indexOf('rejectForeignHost(request)') < timed.indexOf('request->user_ctx'));
+  const hostGate = body(network, 'bool OpenBrewByWeightNetwork::rejectForeignHost(');
+  assert.ok(hostGate.includes('webAccessHostAllowed(host, network.mdnsHost)') &&
+      hostGate.includes('(network.apActive && captiveProbeHost(request) != nullptr)') &&
+      hostGate.includes('logRefusedHost(host, network.mdnsHost)') &&
+      hostGate.includes('"HOST_NOT_ALLOWED"'), 'Foreign Hosts are refused and logged');
+  // NET-04: diagnostic mutations need Admin or the public Diagnostic page.
+  const owned = body(network, 'esp_err_t OpenBrewByWeightNetwork::ownedApiHandler(');
+  for (const handler of ['heapMapDownloadHandler', 'auditVerboseHandler', 'clearResetHistoryHandler',
+                         'taskProfilerHandler', 'scaleProfileHandler', 'loopMaxResetHandler',
+                         'scaleGapMaxResetHandler', 'scaleTareHandler']) {
+    assert.match(owned, new RegExp(`${handler},\\s*false, false,\\s*true\\}`), handler);
+  }
+  assert.ok(codeIncludes(owned, 'if(matched->diagnostic&&!self.diagnosticPageEnabled()&&' +
+      '!self.requireAdminUnlock(request)){'), 'Diagnostic routes check Admin or the public page');
   assert.ok(body(access, 'esp_err_t OpenBrewByWeightNetwork::authAccessHandler(')
       .includes('if (!self.requireAdminUnlock(request)) return ESP_OK;'),
       'Turning the login on or off stays inside an unlocked Admin');
@@ -45,11 +65,11 @@
     assert.ok(body(access, `OpenBrewByWeightNetwork::${handler}(`).includes('checkDevicePassword('));
   }
   assert.ok(body(network, 'esp_err_t OpenBrewByWeightNetwork::adminUnlockHandler(')
-      .includes('self.checkDevicePassword(password)'));
+      .includes('self.checkDevicePassword(request, password)'));
   // OTA keeps its device-password and Admin-unlock paths; the password header
   // shares the sign-in cooldown and a browser also needs its sign-in.
   const otaAuth = body(network, 'bool OpenBrewByWeightNetwork::authorizeOtaRequest(');
-  assert.ok(otaAuth.includes('checkDevicePassword(password) == PasswordCheck::OK') &&
+  assert.ok(otaAuth.includes('checkDevicePassword(request, password) == PasswordCheck::OK') &&
       otaAuth.includes('adminUnlockAllowed(request) && webAccessSessionAllowed(request)'));
 
   // Factory-password restores turn the login off; a password change keeps

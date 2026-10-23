@@ -311,6 +311,9 @@ class OpenBrewByWeightNetwork {
   StaJoinHints staJoinHints();
   bool enqueueWebhook(const WebhookEvent &event);
   WebhookConfig webhookConfig() const;
+  // Gate shared by every registered handler: answers the request and returns
+  // true when its Host does not name this controller (DNS rebinding).
+  static bool rejectForeignHost(httpd_req_t *request);
 
   private:
   void mergePreferredScaleMac(PersistedSettings &settings);
@@ -368,8 +371,6 @@ class OpenBrewByWeightNetwork {
   // Admin unlock is RAM-only and tied to the exclusive WebUI claim. Idle
   // slides on Admin page polls and privileged APIs, not on Home polls.
   static constexpr uint32_t ADMIN_UNLOCK_IDLE_MS = 15 * 60 * 1000;
-  static constexpr uint32_t ADMIN_UNLOCK_COOLDOWN_MS = 30000;
-  static constexpr uint8_t ADMIN_UNLOCK_FAILURES_BEFORE_COOLDOWN = 5;
   static constexpr uint32_t WEB_UI_OVERRIDE_MS = 60 * 1000;
   // Machine config JSON is ~1 KiB and grows with NTP custom / bool false
   // literals; keep headroom above the wire payload.
@@ -474,8 +475,7 @@ class OpenBrewByWeightNetwork {
   char adminUnlockClientId_[WEB_UI_CLIENT_ID_CAPACITY] = {};
   bool adminUnlocked_ = false;
   uint32_t adminUnlockUntilMs_ = 0;
-  uint32_t adminUnlockCooldownUntilMs_ = 0;
-  uint8_t adminUnlockFailures_ = 0;
+  WebAccessPasswordPeer passwordPeers_[WEB_ACCESS_PASSWORD_PEERS] = {};
   // Last Integration API request; the Access panel warns before the login
   // starts asking Home Assistant for a token.
   uint32_t integrationSeenMs_ = 0;
@@ -867,9 +867,9 @@ class OpenBrewByWeightNetwork {
   bool adminUnlockAllowed(httpd_req_t *request);
   bool requireAdminUnlock(httpd_req_t *request);
   // Device-password check shared by Admin unlock, Web UI sign-in and the
-  // Home Assistant exchange: one failure counter and one cooldown.
+  // Home Assistant exchange and the OTA header: one cooldown per peer.
   enum class PasswordCheck : uint8_t { OK, WRONG, COOLDOWN };
-  PasswordCheck checkDevicePassword(const char *password);
+  PasswordCheck checkDevicePassword(httpd_req_t *request, const char *password);
   static esp_err_t sendPasswordCheckError(httpd_req_t *request,
                                          PasswordCheck check);
   // Optional Web UI login (OpenBrewByWeightWebAccess.h). Effective only while

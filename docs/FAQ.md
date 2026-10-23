@@ -111,6 +111,16 @@ commonly block. In that case, find the controller's IP address in your
 router's device list and open that instead. See
 [Wi-Fi](settings/wifi.md#discovery-by-name).
 
+### A custom web address jumps to the IP address or stops working
+
+The controller answers only to its IP address, `<name>.local`, and the plain
+device name (also with `.lan`, `.home.arpa` or `.internal`), so a website cannot
+reach it by disguising its own address. A page opened by any other name moves
+to the controller's IP address; Home Assistant, scripts or a reverse proxy
+using such a name get an error and need the IP address or the `.local` name
+instead. The Diagnostic log shows each refused name. See
+[Web UI access](settings/web-access.md#what-it-protects-and-what-it-doesnt).
+
 ### Controls are locked or another browser took over
 
 Reload claims the Web UI. Admin unlock is a separate password check. Idle

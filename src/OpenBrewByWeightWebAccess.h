@@ -9,6 +9,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <initializer_list>
+#include <strings.h>
 
 namespace openbrewbyweight {
 
@@ -390,6 +392,70 @@ inline WebAccessPairing webAccessPairingStatus(
     pairing = WebAccessState::Pairing{};
   }
   return result;
+}
+
+// DNS-rebinding guard: a request is served only when its Host names this
+// controller. IP literals cannot be rebound; names are the mDNS host (or its
+// "-2"-style conflict rename), bare as routers publish the DHCP name or under
+// a home-network suffix that no public DNS answers. The port is ignored; a
+// request without Host (HTTP/1.0 tools, never a browser) passes.
+inline bool webAccessHostAllowed(const char *host, const char *mdnsHost) {
+  if (host == nullptr || host[0] == '\0' || host[0] == '[') return true;
+  const size_t length = strcspn(host, ":");
+  size_t own = mdnsHost == nullptr ? 0 : strlen(mdnsHost);
+  if (strspn(host, "0123456789.") == length) return true;
+  if (own == 0 || length < own || strncasecmp(host, mdnsHost, own) != 0) return false;
+  const size_t renamed = host[own] == '-' ? strspn(host + own + 1, "0123456789") : 0;
+  if (renamed > 0) own += renamed + 1;
+  for (const char *suffix : {"", ".local", ".lan", ".home.arpa", ".internal"}) {
+    if (length - own == strlen(suffix) && strncasecmp(host + own, suffix, length - own) == 0)
+      return true;
+  }
+  return false;
+}
+
+// Device-password failures per peer address: a peer that fails
+// WEB_ACCESS_PASSWORD_FAILURES times waits WEB_ACCESS_PASSWORD_COOLDOWN_MS,
+// so one peer's guesses never lock out another. A slot frees once its peer
+// has been quiet that long; while every slot holds a recent failure, new
+// peers wait too, which caps rotating addresses at slots × failures guesses
+// per cooldown.
+constexpr uint8_t WEB_ACCESS_PASSWORD_PEERS = 4;
+constexpr uint8_t WEB_ACCESS_PASSWORD_FAILURES = 5;
+constexpr uint32_t WEB_ACCESS_PASSWORD_COOLDOWN_MS = 30000;
+struct WebAccessPasswordPeer {
+  uint32_t peer = 0;  // 0 = free
+  uint32_t atMs = 0;  // last failure
+  uint8_t failures = 0;
+};
+
+// The peer's slot, or a free one claimed for it; nullptr while all are busy.
+inline WebAccessPasswordPeer *webAccessPasswordSlot(
+    WebAccessPasswordPeer (&peers)[WEB_ACCESS_PASSWORD_PEERS], uint32_t peer, uint32_t nowMs) {
+  WebAccessPasswordPeer *free = nullptr;
+  for (auto &slot : peers) {
+    if (slot.peer == peer) return &slot;
+    if (free == nullptr && (slot.peer == 0 || nowMs - slot.atMs >= WEB_ACCESS_PASSWORD_COOLDOWN_MS))
+      free = &slot;
+  }
+  if (free != nullptr) *free = WebAccessPasswordPeer{peer, nowMs, 0};
+  return free;
+}
+
+inline bool webAccessPasswordCooling(const WebAccessPasswordPeer *slot, uint32_t nowMs) {
+  return slot == nullptr || (slot->failures >= WEB_ACCESS_PASSWORD_FAILURES &&
+                             nowMs - slot->atMs < WEB_ACCESS_PASSWORD_COOLDOWN_MS);
+}
+
+// Records one attempt; true when this failure starts the peer's cooldown.
+inline bool webAccessPasswordAttempt(WebAccessPasswordPeer &slot, bool matched, uint32_t nowMs) {
+  if (matched) {
+    slot = WebAccessPasswordPeer{};
+    return false;
+  }
+  if (slot.failures >= WEB_ACCESS_PASSWORD_FAILURES) slot.failures = 0;
+  slot.atMs = nowMs;
+  return ++slot.failures == WEB_ACCESS_PASSWORD_FAILURES;
 }
 
 // Login off: every session, the Home Assistant token and a pending request

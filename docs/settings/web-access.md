@@ -34,8 +34,9 @@ save it; it shows the controller's name so you can tell controllers apart.
 - Turn it off on a shared or borrowed phone: you stay signed in only until you
   close the browser or the controller restarts, and at most 12 hours.
 
-Five wrong passwords in a row pause sign-in for everyone for 30 seconds,
-including Admin unlock and firmware updates that use the password.
+Five wrong passwords in a row from one phone or computer pause its password
+attempts for 30 seconds, including Admin unlock and firmware updates that use
+the password. Other devices can still sign in meanwhile.
 
 Up to 8 devices can be remembered at once; signing in on a ninth forgets the
 one you used least recently. Signing in with the password also unlocks Admin
@@ -55,6 +56,14 @@ controller on your own network, not a guest or public one.
 
 Joining the controller's own setup network already proves the device password,
 so the setup page never asks for it again.
+
+Whether the password is on or off, the controller answers only when you open
+it by an address that names it: its IP address, `<name>.local`, or the plain
+device name your router may offer (also with `.lan`, `.home.arpa` or
+`.internal`). This stops a website you visit from secretly reaching the
+controller through a look-alike web address. Opening it by any other name, such
+as a custom name you set up in your own DNS, sends the page to the
+controller's IP address, and apps or scripts using that name get an error.
 
 ## Home Assistant
 

@@ -753,7 +753,9 @@ esp_err_t timedHandler(httpd_req_t *request) {
   const uint32_t startedAtMs = millis();
   const uint32_t startedCpuUs = httpdCpuUs();
   const esp_err_t result =
-      reinterpret_cast<esp_err_t (*)(httpd_req_t *)>(request->user_ctx)(request);
+      OpenBrewByWeightNetwork::rejectForeignHost(request)
+          ? ESP_OK
+          : reinterpret_cast<esp_err_t (*)(httpd_req_t *)>(request->user_ctx)(request);
   const uint32_t elapsedMs = millis() - startedAtMs;
   if (elapsedMs >= SLOW_HTTP_HANDLER_MS) {
     serialTraceCategoryf(LogLevel::WARNING, DebugCategory::NETWORK,

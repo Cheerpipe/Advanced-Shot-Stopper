@@ -1049,7 +1049,7 @@ bool OpenBrewByWeightNetwork::authorizeOtaRequest(httpd_req_t *request) {
       length > 0 && length + 1 <= sizeof(password) &&
       httpd_req_get_hdr_value_str(request, DEVICE_PASSWORD_HEADER, password,
                                   sizeof(password)) == ESP_OK &&
-      checkDevicePassword(password) == PasswordCheck::OK;
+      checkDevicePassword(request, password) == PasswordCheck::OK;
   memset(password, 0, sizeof(password));
   if (passwordAuthorized) {
     return true;

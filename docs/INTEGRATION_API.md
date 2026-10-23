@@ -24,6 +24,13 @@ or directly actuate the machine.
 - Responses carry no cross-origin (CORS) headers, so a web page served from
   another site cannot read the API through a visitor's browser. Call it from a
   LAN client such as Home Assistant, a script, or the controller's own Web UI.
+- Every route, like the Web UI, answers only when the request's `Host` names
+  the controller: an IP address (IPv4 or bracketed IPv6), its mDNS name
+  `<name>.local` (including a `<name>-2.local` conflict rename), the bare name,
+  or the name under `.lan`, `.home.arpa` or `.internal`, with or without a
+  port. Any other host name gets `403 HOST_NOT_ALLOWED`, which keeps a website
+  from reaching the controller through DNS rebinding. Point clients at the IP
+  address or the `.local` name, and make a reverse proxy forward one of them.
 - Durable mutations return `202` and a `requestId`; this acknowledges only that
   the existing control queue accepted the operation. Poll the request-status
   route until it reports `PERSISTED`. A mutation is not successful before that
@@ -41,8 +48,9 @@ or directly actuate the machine.
 | 400 | `INVALID_REQUEST` | Malformed JSON, field, identifier, or bound |
 | 401 | `INTEGRATION_AUTH_REQUIRED` | The login is on and the bearer token is missing or no longer valid |
 | 401 | `DEVICE_PASSWORD_INVALID` | Wrong device password in an exchange |
+| 403 | `HOST_NOT_ALLOWED` | The `Host` header does not name this controller |
 | 409 | `AUTH_NOT_REQUIRED` | Exchange or pairing asked for while the login is off |
-| 429 | `AUTH_COOLDOWN` | Five wrong device passwords in a row; retry after 30 s |
+| 429 | `AUTH_COOLDOWN` | Five wrong device passwords in a row from this client; retry after 30 s |
 | 429 | `PAIRING_BUSY` | Another pairing request is open or was just decided; retry later (at most 2.5 min) |
 | 404 | `PRESET_NOT_FOUND` | Stable preset ID does not exist |
 | 409 | `CONFIG_LOCKED_DURING_ACTIVE_CYCLE` | Existing firmware safety gate is closed |
@@ -626,7 +634,10 @@ Commands from the Diagnostic page (log levels, profiler start and stop, loop
 and scale-gap resets, reset-history clearing, machine-integration refresh)
 keep their HTTP endpoints; their results reach the page through the stream's
 `lastCommand` and configuration revision fields, so no status polling backs
-them.
+them. The diagnostic actions under `/api/v1/diagnostic/` (verbose audit,
+task profiler, scale profile start/stop/delete, heap map, loop and scale-gap
+resets, tare, reset-history clearing) additionally need **Show diagnostic
+page** on or the Admin unlock; otherwise they answer `401 ADMIN_LOCKED`.
 
 The former `/api/v1/shots` route family was renamed to `/api/v1/stats` and its
 GET read has since moved to the owned WebSocket: external Web UI API callers
