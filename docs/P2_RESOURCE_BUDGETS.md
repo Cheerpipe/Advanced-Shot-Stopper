@@ -193,6 +193,32 @@ lifecycle: the Web contract caps were raised with dated entries (JS source
 capped at 155,560 — settings.js itself net-shrinks to 18,388). While the
 Settings view is inactive the settings subscription is now closed, so an
 idle device sends no settings frames at all.
+Per-preset granularity for Home's presets plus the rapid preset-switch fix
+(2026-10-24; measured over a tree that also carries the owner's Quick
+Settings write-coalescing change, so the web deltas below attribute both)
+— each bank slot's source (preset + its shot statistics) hashes
+independently, keyed by preset id, and a delta emits only the changed
+presets, the changed envelope scalars, or the ordered `ids` list on a
+creation/deletion: a single-field preset edit drops from ~2.5 KB to one
+item (~600-800 B), a preset switch to ~30 B, a deletion to ~40 B. PSRAM:
+the per-session preset records (`presetSlotHashes`/`presetSentIds` +
+scalars, ~45 B per session in `UiStreamFingerprints`, the `statsHeld`
+precedent) replace the dead `renderedPresetsHash`/`presetsJsonHome`
+globals in the heap-allocated work buffer — net ~+85 B, external BSS
+reports unchanged at 3,161,184 (it does not track that heap); no per-slot
+render cache exists (per-slot source hashing renders changed slots on
+demand). The development Micra build measures 2,462,656 image bytes
+(+1,408 over the previous round's 2,461,248; the embedded Web assets grew
++690 gzip — Quick Settings +529, this change +161 — and the per-item
+renderer replacing the whole-bank builder still net-shrinks flash code to
+1,657,700, −924), 644,312 rodata (+688, the assets), 193,430 DIRAM and
+external BSS unchanged. The R2 gate's six budgeted builds all pass: the
+Micra release image 2,474,912 (+1,376 over the previous round's mark,
+−2,928 against its release baseline), the Silvia release 2,309,248 (−448
+against its baseline) and the reed release 2,305,552 (+144). The Web
+contract caps were raised with dated entries (JS source 539,801; combined
+authoring 646,345; runtime.js gzip 44,517 capped at 44,540; cold Home
+74,660 capped at 74,690; combined compressed 156,192 capped at 156,220).
 Urgent control-gate publication and the no-scale timer's stop fade add another
 640 bytes of reviewed image/linked allowance, to 44,976 and 44,968 bytes.
 The mobile full-screen Home shot card and the Brew by Weight master toggle

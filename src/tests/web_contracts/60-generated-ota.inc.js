@@ -922,9 +922,14 @@ if (generated.cssGzip.length > 17163) {
 // replacing the Settings REST poll brings it to 43351, owner-requested 2026-10-23.
 // The layered disjoint-streams client (composed home+overlay model, view-scoped
 // subscription, quick-write holds) brings it to 43535, owner-requested 2026-10-24;
-// cap 43560 for gzip wobble.
-if (sentinelRuntimeGzip.length > 43560) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 43560-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// cap 43560 for gzip wobble. Quick Settings write coalescing (the shared autosave
+// engine moved in from Settings, pending-state paint, per-field serialized
+// readbacks) brings it to 44330, owner-requested 2026-10-24; cap 44350.
+// Per-preset granularity for Home's presets (sparse merge-by-id ingest,
+// pending-apply defer and settlement) brings it to 44517, owner-requested
+// 2026-10-24; cap 44540.
+if (sentinelRuntimeGzip.length > 44540) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 44540-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -1245,9 +1250,13 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // The Settings stream client replacing the Settings REST poll: 73495,
 // owner-requested 2026-10-23; cap 73500. The layered disjoint-streams client
 // (composed home+overlay model, view-scoped subscription, quick-write holds):
-// 73682, owner-requested 2026-10-24; cap 73700.
-if (coldHomeGzip > 73700) {
-  throw new Error(`Cold Home download exceeds the 73700-byte gzip budget (${coldHomeGzip})`);
+// 73682, owner-requested 2026-10-24; cap 73700. Quick Settings write
+// coalescing (shared autosave engine, pending-state paint, serialized
+// readbacks): 74482, owner-requested 2026-10-24; cap 74510. Per-preset
+// granularity for Home's presets: 74660, owner-requested 2026-10-24;
+// cap 74690.
+if (coldHomeGzip > 74690) {
+  throw new Error(`Cold Home download exceeds the 74690-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin
@@ -1267,9 +1276,13 @@ if (coldHomeGzip > 73700) {
 // The Settings stream client replacing the Settings REST poll: 155331,
 // owner-requested 2026-10-23; cap 155360. The layered disjoint-streams client
 // (composed home+overlay model, view-scoped subscription, quick-write holds):
-// 155500, owner-requested 2026-10-24; cap 155560.
-if (generated.combined > 155560) {
-  throw new Error(`Combined Web UI gzip exceeds the 155560-byte flash budget (${generated.combined})`);
+// 155500, owner-requested 2026-10-24; cap 155560. Quick Settings write
+// coalescing (shared autosave engine, pending-state paint, serialized
+// readbacks): 156031, owner-requested 2026-10-24; cap 156060. Per-preset
+// granularity for Home's presets: 156192, owner-requested 2026-10-24;
+// cap 156220.
+if (generated.combined > 156220) {
+  throw new Error(`Combined Web UI gzip exceeds the 156220-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {

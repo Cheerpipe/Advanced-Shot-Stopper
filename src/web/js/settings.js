@@ -671,12 +671,7 @@ function applySettingsStatus(s) {
     if (!R.uiState.brewDirty)
       R.uiState.brewBaseline = R.snapshotControls(R.settingsSectionEls("brew"));
     // A settled section bases its next edit on the shown values.
-    for (const [sec, a] of Object.entries(autosave))
-      if (!a.busy && !R.uiState[sec + "Dirty"]) {
-        clearTimeout(a.timer);
-        a.base = {};
-        a.last = a.payload();
-      }
+    for (const a of Object.values(autosave)) a.settle();
   }
   refreshBrewWarnings();
 }
@@ -698,8 +693,9 @@ function selectPreferredScale() {
 }
 // Autosave: after a pause a section sends only the keys its edits changed (a
 // patch) for the firmware to merge and persist; one request in flight per
-// section, SAVE_GAP_MS apart, later edits follow as one trailing patch.
-const SAVE_GAP_MS = 1000;
+// section, SAVE_GAP_MS apart, later edits follow as one trailing patch. The
+// engine (createAutosave) lives in runtime.js; the Quick Settings panel
+// shares it with the confirmed snapshot as its base.
 const autosave = {
   config: {
     // The toggle and its tune save together: on without a tune is a draft
@@ -729,51 +725,13 @@ const autosave = {
     },
   }),
 };
-for (const a of Object.values(autosave)) Object.assign(a, { last: null, base: {}, at: 0 });
-// A key keeps the value its first edit replaced: edited back, it is not sent.
-// Each section owns its uiState[sec + "Dirty"] flag: pending or in flight.
+for (const [sec, section] of Object.entries(autosave))
+  autosave[sec] = R.createAutosave(sec, section);
 function noteEdit(sec, waitMs) {
-  const a = autosave[sec],
-    now = a.payload();
-  for (const k in now)
-    if (a.last && !(k in a.base) && !Object.is(now[k], a.last[k])) a.base[k] = a.last[k];
-  a.last = now;
-  R.uiState[sec + "Dirty"] = true;
-  clearTimeout(a.timer);
-  a.timer = setTimeout(() => flushSection(sec), waitMs);
-}
-// True once nothing is left to save; `force` skips the gap and drains edits.
-async function flushSection(sec, force) {
-  const a = autosave[sec];
-  while (a.busy) await a.busy;
-  clearTimeout(a.timer);
-  const now = a.payload(),
-    patch = {};
-  for (const k in a.base) if (!Object.is(now[k], a.base[k])) patch[k] = now[k];
-  // Nothing changed, or the page dropped the edit (preset switch, disconnect).
-  if (!R.uiState[sec + "Dirty"] || !Object.keys(patch).length) {
-    a.base = {};
-    R.uiState[sec + "Dirty"] = false;
-    return true;
-  }
-  const gap = a.at + SAVE_GAP_MS - Date.now();
-  if (!force && gap > 0) {
-    a.timer = setTimeout(() => flushSection(sec), gap);
-    return false;
-  }
-  if (a.valid && !a.valid()) return false;
-  const sent = a.base;
-  a.base = {};
-  a.at = Date.now();
-  const ok = await (a.busy = a.save(patch));
-  a.busy = null;
-  if (ok) return flushSection(sec, force);
-  // A failed patch stays pending with its error shown; the next edit retries.
-  Object.assign(a.base, sent);
-  return false;
+  autosave[sec].noteEdit(waitMs);
 }
 async function flushSettings() {
-  const done = await Promise.all(Object.keys(autosave).map((sec) => flushSection(sec, true)));
+  const done = await Promise.all(Object.values(autosave).map((a) => a.flush(true)));
   if (done.every(Boolean)) return true;
   R.message(__WEBUI_TEXT__("settings.settings_not_saved_yet"), "error");
   return false;

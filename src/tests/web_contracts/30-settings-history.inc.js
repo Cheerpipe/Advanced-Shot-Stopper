@@ -920,10 +920,11 @@ if (!codeIncludes(js, 'function commandOkMessage(') ||
   throw new Error('Web UI must show action-specific success and failure toasts instead of generic queued/failed copy');
 }
 {
-  const commandFn = runtimeJs.slice(runtimeJs.indexOf('async function command('),
+  const commandFn = runtimeJs.slice(runtimeJs.indexOf('async function awaitCommandReadback('),
       runtimeJs.indexOf('async function setBleScanIntensity('));
   if (!codeIncludes(commandFn, "presetOp=path.endsWith('/presets'),waitForRevision=presetOp||path.endsWith('/config')") ||
-      !codeIncludes(commandFn, "result.state==='PERSISTED'||(!presetOp&&result.state==='APPLIED')") ||
+      !codeIncludes(commandFn, 'awaitCommandReadback(accepted,previousRevision,presetOp)') ||
+      !codeIncludes(commandFn, "result.state==='PERSISTED'||(!presetsOnly&&result.state==='APPLIED')") ||
       !codeIncludes(commandFn, 'configRevision!==previousRevision') ||
       !codeIncludes(commandFn, 'result?.requestId!==accepted.requestId') ||
       compactSource(commandFn).indexOf(compactSource("message(okMsg||")) <

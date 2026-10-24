@@ -182,13 +182,11 @@ struct NetworkWorkBuf {
   TaskProfilerSnapshot taskProfiler{};
   DebugExportExtras debugExport{};
   ShotPresetBank presetBank{};
-  // Home stream's last slim-presets render, compared to skip rebuilds.
+  // Home stream's preset render sources (bank copy + per-preset statistics),
+  // compared to skip the shot-replaying statistics recompute.
   ShotPresetBank renderedPresets{};
   PresetShotStats renderedStats[MAX_SHOT_PRESETS]{};
-  uint32_t renderedPresetsHash = 0;
   uint32_t renderedShotLogEpoch = 0;
-  // presetsJson still holds the Home render; other handlers clear it.
-  bool presetsJsonHome = false;
   // Integration snapshot pieces, kept off the internal httpd stack.
   RecipeSnapshot recipe{};
   char integrationLastShot[768]{};
@@ -1172,67 +1170,41 @@ int formatPresetShotStats(char *out, size_t cap, const PresetShotStats &s) {
       hintJson);
 }
 
-void buildSlimPresetsJson(const ShotPresetBank &presets) {
-  if (g_work == nullptr) {
-    return;
-  }
-  char *buf = g_work->presetsJson;
-  const size_t cap = NetworkWorkBuf::kPresetsJson;
-  buf[0] = '{';
-  buf[1] = '}';
-  buf[2] = 0;
-  size_t used = 0;
-  int n = snprintf(buf, cap, "{\"activeId\":%u,\"cutRampS\":%.1f,\"items\":[",
-                   static_cast<unsigned>(presets.activeId), corridor::RAMP_MS / 1000.0);
-  if (n > 0) {
-    used = static_cast<size_t>(n);
-  }
-  for (uint8_t i = 0; i < presets.count && i < MAX_SHOT_PRESETS; ++i) {
-    const ShotPreset &p = presets.presets[i];
-    char safeName[SHOT_PRESET_NAME_CAPACITY * 6] = {};
-    escapeJsonString(p.name, safeName, sizeof(safeName));
-    const size_t itemStart = used;
-    n = snprintf(
-        buf + used, cap - used,
-        "%s{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s,\"brewByWeight\":%s,"
-        "\"doseG\":%.1f,\"goalWeightG\":%.1f,\"fastBeforeS\":%.1f,"
-        "\"slowAfterS\":%.1f,\"fastMarginG\":%.1f,\"slowMarginG\":%.1f,"
-        "\"operationalWallMs\":%lu,\"bbwProtectionMs\":%lu,"
-        "\"fastExtractionGuardEnabled\":%s,\"slowExtractionGuardEnabled\":%s,"
-        "\"grindHintsEnabled\":%s,\"scaleLossFixedS\":%.1f,"
-        "\"bbwAlgorithm\":\"%s\",\"bbwAlphaBaseline\":%.2f,"
-        "\"lineaMicraBrewTargetC\":%.1f",
-        i == 0 ? "" : ",", static_cast<unsigned>(p.id), safeName,
-        p.isFactory ? "true" : "false", p.brewByWeight ? "true" : "false",
-        static_cast<double>(goalWeightDgToGrams(p.doseDg)),
-        static_cast<double>(goalWeightDgToGrams(p.goalWeightDg)),
-        p.fastBeforeMs / 1000.0, p.slowAfterMs / 1000.0,
-        static_cast<double>(goalWeightDgToGrams(p.fastMarginDg)),
-        static_cast<double>(goalWeightDgToGrams(p.slowMarginDg)),
-        static_cast<unsigned long>(p.operationalWallMs),
-        static_cast<unsigned long>(p.bbwProtectionMs),
-        p.fastSideEnabled ? "true" : "false",
-        p.slowSideEnabled ? "true" : "false",
-        p.grindHintsEnabled ? "true" : "false", p.scaleLossFixedMs / 1000.0,
-        bbwAlgorithmName(static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA)),
-        p.bbwAlphaBaseline / 100.0,
-        static_cast<double>(p.lineaMicraBrewTargetDeciC) / 10.0);
-    if (n < 0 || static_cast<size_t>(n) >= cap - used) {
-      break;
-    }
-    used += static_cast<size_t>(n);
-    n = formatPresetShotStats(buf + used, cap - used, g_work->presetStats[i]);
-    if (n < 0 || static_cast<size_t>(n) >= cap - used) {
-      used = itemStart;  // never leave an item unterminated
-      break;
-    }
-    used += static_cast<size_t>(n);
-  }
-  if (used + 2 < cap) {
-    buf[used++] = ']';
-    buf[used++] = '}';
-    buf[used] = 0;
-  }
+// One slim preset object (the Home presets blob's item shape). The sender
+// renders each slot independently so a mutation re-sends only that preset.
+int formatSlimPresetJson(char *out, size_t cap, const ShotPreset &p,
+                         const PresetShotStats &st) {
+  char safeName[SHOT_PRESET_NAME_CAPACITY * 6] = {};
+  escapeJsonString(p.name, safeName, sizeof(safeName));
+  int n = snprintf(
+      out, cap,
+      "{\"id\":%u,\"name\":\"%s\",\"isFactory\":%s,\"brewByWeight\":%s,"
+      "\"doseG\":%.1f,\"goalWeightG\":%.1f,\"fastBeforeS\":%.1f,"
+      "\"slowAfterS\":%.1f,\"fastMarginG\":%.1f,\"slowMarginG\":%.1f,"
+      "\"operationalWallMs\":%lu,\"bbwProtectionMs\":%lu,"
+      "\"fastExtractionGuardEnabled\":%s,\"slowExtractionGuardEnabled\":%s,"
+      "\"grindHintsEnabled\":%s,\"scaleLossFixedS\":%.1f,"
+      "\"bbwAlgorithm\":\"%s\",\"bbwAlphaBaseline\":%.2f,"
+      "\"lineaMicraBrewTargetC\":%.1f",
+      static_cast<unsigned>(p.id), safeName,
+      p.isFactory ? "true" : "false", p.brewByWeight ? "true" : "false",
+      static_cast<double>(goalWeightDgToGrams(p.doseDg)),
+      static_cast<double>(goalWeightDgToGrams(p.goalWeightDg)),
+      p.fastBeforeMs / 1000.0, p.slowAfterMs / 1000.0,
+      static_cast<double>(goalWeightDgToGrams(p.fastMarginDg)),
+      static_cast<double>(goalWeightDgToGrams(p.slowMarginDg)),
+      static_cast<unsigned long>(p.operationalWallMs),
+      static_cast<unsigned long>(p.bbwProtectionMs),
+      p.fastSideEnabled ? "true" : "false",
+      p.slowSideEnabled ? "true" : "false",
+      p.grindHintsEnabled ? "true" : "false", p.scaleLossFixedMs / 1000.0,
+      bbwAlgorithmName(static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA)),
+      p.bbwAlphaBaseline / 100.0,
+      static_cast<double>(p.lineaMicraBrewTargetDeciC) / 10.0);
+  if (n < 0 || static_cast<size_t>(n) >= cap) return n;
+  const int stats = formatPresetShotStats(out + n, cap - n, st);
+  if (stats < 0 || static_cast<size_t>(stats) >= cap - n) return stats;
+  return n + stats;
 }
 
 void buildScaleHistoryJson(const ScaleHistoryEntry *entries) {

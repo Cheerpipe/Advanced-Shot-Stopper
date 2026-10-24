@@ -235,7 +235,6 @@ esp_err_t OpenBrewByWeightNetwork::integrationHandler(httpd_req_t *request) {
     const bool ok = buildIntegrationPresets(
         recipe.presets, recipe.runtime.revision, self.workBuf_->presetsJson,
         NetworkWorkBuf::kPresetsJson);
-    self.workBuf_->presetsJsonHome = false;
     const esp_err_t result = ok
         ? sendJson(request, STATUS_OK, self.workBuf_->presetsJson)
         : sendError(request, STATUS_SERVER_ERROR, "RESPONSE_TOO_LARGE",

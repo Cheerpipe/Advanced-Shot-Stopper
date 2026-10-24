@@ -977,9 +977,14 @@ if (htmlBytes > 107310) {
 // owner-requested 2026-10-23. Save-error resync moved into the stale-revision
 // retry only: measured 529516, owner-requested 2026-10-24. Layered disjoint
 // streams — the composed home+overlay model, the view-scoped subscription, and
-// the quick-write holds: measured 532446, owner-requested 2026-10-24.
-if (jsBytes > 532446) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 532446)`);
+// the quick-write holds: measured 532446, owner-requested 2026-10-24. Quick
+// Settings write coalescing — the shared autosave engine moved from Settings
+// into runtime.js, pending-state paint, and per-field serialized readbacks:
+// measured 537197, owner-requested 2026-10-24. Per-preset granularity for
+// Home's presets (sparse merge-by-id ingest, pending-apply defer and
+// settlement): measured 539801, owner-requested 2026-10-24.
+if (jsBytes > 539801) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 539801)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1155,9 +1160,12 @@ if (jsBytes > 532446) {
 // owner-requested 2026-10-23. Save-error resync moved into the stale-revision
 // retry only: measured 636060, owner-requested 2026-10-24. Layered disjoint
 // streams — the composed home+overlay model, the view-scoped subscription, and
-// the quick-write holds: measured 638990, owner-requested 2026-10-24.
-if (htmlBytes + jsBytes > 638990) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 638990)`);
+// the quick-write holds: measured 638990, owner-requested 2026-10-24. Quick
+// Settings write coalescing (the shared autosave engine plus the quick
+// pipeline): measured 643741, owner-requested 2026-10-24. Per-preset
+// granularity for Home's presets: measured 646345, owner-requested 2026-10-24.
+if (htmlBytes + jsBytes > 646345) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 646345)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

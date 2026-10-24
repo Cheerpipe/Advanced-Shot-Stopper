@@ -499,8 +499,9 @@ The claimed browser binds the existing WebSocket at `/api/v1/ui/ui-stream`
 with `{"op":"bind","client":"<claimed X-WebUI-Client>"}`. A reconnecting page
 adds the `presetsTag` of the presets it still holds; when it matches, that
 connection's first Home snapshot omits `presets` (it still carries
-`presetsTag`) and the page keeps its copy. Home sends `presetsTag` with every
-presets change. Home receives an
+`presetsTag`) and the page keeps its copy. The tag is a composite over every
+preset with its shot statistics and the active id, so any of those changes
+moves it. Home sends `presetsTag` with every presets change. Home receives an
 initial snapshot and then field changes, without periodic REST status requests.
 While a browser is connected and a scale is streaming, the firmware's periodic
 comparison of the published state runs right after every second weight sample
@@ -521,8 +522,14 @@ RSSI changes within a level produce no signal delta; raw RSSI remains
 available in Diagnostics. The header popups display level names without dBm.
 The initial snapshot supplies the complete Home state; subsequent `changes`
 objects contain only changed paths, such as `scale.timerMs` or
-`lineaMicra.websocket.cleaning`. Objects such as `presets` are replaced as a
-unit when they change. Reliable, ordered WebSocket delivery applies these
+`lineaMicra.websocket.cleaning`. Most objects are replaced as a unit when they
+change; `presets` is finer-grained. A snapshot carries the whole set — the
+`activeId` and `cutRampS` scalars, an `items` array with every preset, and the
+ordered `ids` list — while a delta carries only what moved for that page:
+editing one preset sends only that preset's `items` entry, switching presets
+sends only the `activeId` scalar, and creating or deleting a preset sends the
+new `ids` list, so the page merges by preset `id` and prunes the ids that
+left. Reliable, ordered WebSocket delivery applies these
 scalar assignments in order. The shot card and curve retain their independent
 sequence and cursor contract on the same socket. A shot snapshot
 (`snapshot: true`) names the whole identity (`v`, `boot`, `seq`, `cycle`,

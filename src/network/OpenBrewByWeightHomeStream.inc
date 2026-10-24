@@ -242,37 +242,114 @@ bool OpenBrewByWeightNetwork::sendHomeStream(UiStreamSession &session,
   if (callbacks_.copyPresetBank) callbacks_.copyPresetBank(&g_work->presetBank);
   else memset(&g_work->presetBank, 0, sizeof(g_work->presetBank));
   // Preset statistics replay every stored shot: recompute them only when the
-  // bank or the shot-log epoch moved, and rebuild the slim JSON only when the
-  // render changed or another handler reused the shared buffer
-  // (presetsJsonHome). Single-threaded: httpd dispatch.
-  ShotPresetBank &renderedPresets = g_work->renderedPresets;
-  PresetShotStats (&renderedStats)[MAX_SHOT_PRESETS] = g_work->renderedStats;
-  uint32_t &renderedPresetsHash = g_work->renderedPresetsHash;
+  // bank or the shot-log epoch moved (the render caches' existing gates).
+  // Per-preset granularity (D20): every slot's source (preset + statistics)
+  // hashes independently, keyed by preset id, so a delta emits only the
+  // changed presets. Single-threaded: httpd dispatch.
   const uint32_t shotLogEpoch = callbacks_.shotLogEpoch ? callbacks_.shotLogEpoch() : 0;
-  const bool bankMoved =
-      memcmp(&renderedPresets, &g_work->presetBank, sizeof(renderedPresets)) != 0;
-  if (bankMoved || shotLogEpoch != g_work->renderedShotLogEpoch) {
+  if (memcmp(&g_work->renderedPresets, &g_work->presetBank,
+             sizeof(g_work->renderedPresets)) != 0 ||
+      shotLogEpoch != g_work->renderedShotLogEpoch) {
     copyPresetStatsForJson(callbacks_, g_work->presetBank);
     g_work->renderedShotLogEpoch = shotLogEpoch;
-    if (bankMoved || memcmp(renderedStats, g_work->presetStats, sizeof(renderedStats)) != 0) {
-      renderedPresets = g_work->presetBank;
-      memcpy(renderedStats, g_work->presetStats, sizeof(renderedStats));
-      g_work->presetsJsonHome = false;
-    }
+    g_work->renderedPresets = g_work->presetBank;
+    memcpy(g_work->renderedStats, g_work->presetStats, sizeof(g_work->renderedStats));
   }
-  if (!g_work->presetsJsonHome) {
-    memcpy(g_work->presetStats, renderedStats, sizeof(renderedStats));
-    buildSlimPresetsJson(renderedPresets);
-    renderedPresetsHash = crc32Update(0xFFFFFFFFU,
-        reinterpret_cast<const uint8_t *>(g_work->presetsJson),
-        strlen(g_work->presetsJson));
-    g_work->presetsJsonHome = true;
+  const ShotPresetBank &presets = g_work->renderedPresets;
+  const uint8_t presetCount =
+      presets.count < MAX_SHOT_PRESETS ? presets.count : MAX_SHOT_PRESETS;
+  const uint16_t rampCenti = static_cast<uint16_t>(corridor::RAMP_MS / 100);
+  auto &sent = workBuf_->uiFingerprints[&session - uiStreams_];
+  uint32_t slotHash[MAX_SHOT_PRESETS] = {};
+  for (uint8_t i = 0; i < presetCount; ++i) {
+    slotHash[i] = crc32Update(0xFFFFFFFFU,
+        reinterpret_cast<const uint8_t *>(&presets.presets[i]), sizeof(ShotPreset));
+    slotHash[i] = crc32Update(slotHash[i],
+        reinterpret_cast<const uint8_t *>(&g_work->renderedStats[i]),
+        sizeof(PresetShotStats));
   }
-  // A reconnecting page that still holds this exact presets JSON gets only
+  // The composite reconnect tag covers every emitted aspect: the per-slot
+  // sources (an empty slot hashes zero, so a creation or deletion moves the
+  // tag) and the active id. cutRampS is a build constant and needs no share.
+  uint32_t renderedPresetsHash =
+      crc32Update(0xFFFFFFFFU, reinterpret_cast<const uint8_t *>(slotHash),
+                  sizeof(slotHash));
+  renderedPresetsHash = crc32Update(renderedPresetsHash,
+      reinterpret_cast<const uint8_t *>(&presets.activeId), 1);
+  // A reconnecting page that still holds this exact presets state gets only
   // its tag and keeps its copy; any later snapshot sends them in full.
   delta.skipNext = initial && session.knownPresetsTag != 0 &&
       session.knownPresetsTag == renderedPresetsHash;
   session.knownPresetsTag = 0;
+  if (!delta.skipNext) {
+    // Value assembly into the shared presets scratch. A snapshot is
+    // self-sufficient (scalars, full item set, ordered ids); a delta carries
+    // only the parts this page has not seen. Overflow fails the frame (the
+    // sender's error path) rather than shipping a partial preset list.
+    char *const buf = g_work->presetsJson;
+    const size_t cap = NetworkWorkBuf::kPresetsJson;
+    size_t used = 0;
+    bool ok = true, needComma = false;
+    int n;
+    if (initial || sent.presetSentActiveId != presets.activeId) {
+      n = snprintf(buf, cap, "{\"activeId\":%u", static_cast<unsigned>(presets.activeId));
+      if (n > 0 && static_cast<size_t>(n) < cap) { used = static_cast<size_t>(n); needComma = true; }
+      else ok = false;
+    } else {
+      buf[0] = '{';
+      buf[1] = '\0';
+      used = 1;
+    }
+    if (ok && (initial || sent.presetSentRampCenti != rampCenti)) {
+      n = snprintf(buf + used, cap - used, "%s\"cutRampS\":%.1f", needComma ? "," : "",
+                   corridor::RAMP_MS / 1000.0);
+      if (n > 0 && static_cast<size_t>(n) < cap - used) { used += static_cast<size_t>(n); needComma = true; }
+      else ok = false;
+    }
+    bool itemsOpen = false, itemFirst = true;
+    for (uint8_t i = 0; i < presetCount && ok; ++i) {
+      // Keyed by preset id: a preset whose content this page already holds is
+      // not re-sent, even when a deletion shifted its bank slot.
+      int at = -1;
+      for (uint8_t s = 0; s < sent.presetSentCount; ++s)
+        if (sent.presetSentIds[s] == presets.presets[i].id) { at = s; break; }
+      if (!initial && at >= 0 && sent.presetSlotHashes[at] == slotHash[i]) continue;
+      if (!itemsOpen) {
+        n = snprintf(buf + used, cap - used, "%s\"items\":[", needComma ? "," : "");
+        if (n > 0 && static_cast<size_t>(n) < cap - used) {
+          used += static_cast<size_t>(n); needComma = true; itemsOpen = true;
+        } else { ok = false; break; }
+      }
+      n = snprintf(buf + used, cap - used, "%s", itemFirst ? "" : ",");
+      if (n > 0 && static_cast<size_t>(n) < cap - used) used += static_cast<size_t>(n);
+      else { ok = false; break; }
+      n = formatSlimPresetJson(buf + used, cap - used, presets.presets[i],
+                               g_work->renderedStats[i]);
+      if (n > 0 && static_cast<size_t>(n) < cap - used) { used += static_cast<size_t>(n); itemFirst = false; }
+      else { ok = false; break; }
+    }
+    // The ordered id list is the structural truth: a creation or deletion
+    // re-sends it so the page can prune and reorder without any item bytes.
+    bool idsMoved = initial || sent.presetSentCount != presetCount;
+    for (uint8_t i = 0; !idsMoved && i < presetCount; ++i)
+      idsMoved = sent.presetSentIds[i] != presets.presets[i].id;
+    if (ok && idsMoved) {
+      n = snprintf(buf + used, cap - used, "%s\"ids\":[", needComma ? "," : "");
+      if (n > 0 && static_cast<size_t>(n) < cap - used) { used += static_cast<size_t>(n); needComma = true; }
+      else ok = false;
+      for (uint8_t i = 0; ok && i < presetCount; ++i) {
+        n = snprintf(buf + used, cap - used, "%s%u", i ? "," : "",
+                     static_cast<unsigned>(presets.presets[i].id));
+        if (n > 0 && static_cast<size_t>(n) < cap - used) used += static_cast<size_t>(n);
+        else ok = false;
+      }
+      if (ok && used + 1 < cap) { buf[used++] = ']'; buf[used] = '\0'; }
+      else ok = false;
+    }
+    if (ok && used + 1 < cap) { buf[used++] = '}'; buf[used] = '\0'; }
+    else ok = false;
+    if (!ok) delta.ok = false;
+  }
   delta.hashedField("presets", renderedPresetsHash, g_work->presetsJson);
   delta.field("presetsTag", static_cast<unsigned long>(renderedPresetsHash));
 #if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
@@ -320,6 +397,16 @@ bool OpenBrewByWeightNetwork::sendHomeStream(UiStreamSession &session,
     session.homeResync = true;
     return true;
   }
+  // Delivered: the per-session preset record now matches what the page holds.
+  // It is recorded here, not at assembly, because a cleanly dropped Home
+  // batch rolls the fingerprints back and re-sends the same delta.
+  sent.presetSentCount = presetCount;
+  for (uint8_t i = 0; i < presetCount; ++i) {
+    sent.presetSentIds[i] = presets.presets[i].id;
+    sent.presetSlotHashes[i] = slotHash[i];
+  }
+  sent.presetSentActiveId = presets.activeId;
+  sent.presetSentRampCenti = rampCenti;
   session.homeBoot = control.bootId;
   session.homeResync = false;
   return true;

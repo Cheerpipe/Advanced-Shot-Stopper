@@ -170,12 +170,15 @@
       settingsTake('function scaleHistoryLabel(', 'function brewWarningList('),
       blockAt(viewJs.settings, 'function selectPreferredScale('),
       blockAt(viewJs.settings, 'async function saveMachineConfig('),
-      settingsTake('const SAVE_GAP_MS', 'let ready = false;'),
+      take('const SAVE_GAP_MS', 'const QUICK_REVERT'),
+      settingsTake('const autosave = {', 'let ready = false;'),
     ].join('\n'), context);
     // applySettingsStatus takes the shown values as the next edit's base.
-    const settle = () => vm.runInContext('autosave.config.last = autosave.config.payload()', context);
+    // `autosave` is a script-level const: reach it through the context's
+    // lexical environment, not as a global property.
+    const settle = () => vm.runInContext('autosave.config.settle()', context);
     const edit = () => context.noteEdit('config', 300);
-    const flush = () => context.flushSection('config', true);
+    const flush = () => vm.runInContext('autosave.config.flush(true)', context);
     context.updatePreferredScaleSelect(status()); settle();
     context.updatePreferredScaleSelect(status());
     assert.equal(rebuilds, 1, 'An unchanged scale list is not rebuilt, so an open list stays open');
@@ -204,7 +207,7 @@
     assert.equal(requests.length, sent, 'A setting edited back to its saved value is not sent');
     machine.autoTare = true; edit();
     sent = requests.length;
-    assert.equal(await context.flushSection('config'), false);
+    assert.equal(await vm.runInContext('autosave.config.flush()', context), false);
     assert.equal(requests.length, sent, 'Saves of one section stay SAVE_GAP_MS apart');
     editDuringSave = () => {machine.autoTare = false; edit();};
     assert.equal(await flush(), true);

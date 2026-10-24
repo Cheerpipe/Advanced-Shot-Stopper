@@ -135,6 +135,151 @@
   assert(codeIncludes(viewJs.home, 'R.formatMicraCleaning(s.lineaMicra)'));
 }
 
+// D20 + B1: Home's presets blob is per-preset granular. The harness runs the
+// real preset pipeline (sparse merge, applyPreset, the pending-apply defer)
+// against socket frames: a delta with one changed preset merges by id, a
+// deletion prunes through the ordered ids list, an activeId-only delta flips
+// the active preset, and two rapid applies paint only the last target while
+// the intermediate server state is deferred (B1); a failed final apply falls
+// back to the server's own active preset.
+{
+  const assert = require('assert').strict, vm = require('vm');
+  const validator = runtimeJs.slice(runtimeJs.indexOf('function statusPageOk('),
+    runtimeJs.indexOf('async function loadStatus('));
+  const source = 'var formRev = 2, configLoaded = true, configRevision = 5, ' +
+    'bbwFormPresetId = 0, dripFieldsPresetId = 0;\n' + runtimeStateDecl +
+    runtimeJs.slice(runtimeJs.search(/let\s+presetState\s*=/),
+      runtimeJs.indexOf('function setHomeSub(')) +
+    ';this.ps = () => presetState; this.acc = () => ({pending: homeAccPendingId, server: presetServerActiveId});';
+  const sockets = [], timers = new Map(), commands = [], settle = [];
+  let timer = 0, owner = true;
+  class Socket {
+    static OPEN = 1;
+    constructor(url) { this.url = url; this.readyState = 0; this.sent = []; sockets.push(this); }
+    send(value) { this.sent.push(JSON.parse(value)); }
+    open() { this.readyState = 1; this.onopen(); }
+    close(code = 1006) { if (this.readyState === 3) return; this.readyState = 3; this.onclose?.({code}); }
+  }
+  const context = {
+    WebSocket: Socket, location: {protocol: 'http:', host: 'device.local'},
+    document: {hidden: false, addEventListener() {}, querySelectorAll: () => []},
+    window: {addEventListener() {}},
+    setTimeout: (fn, delay) => { timers.set(++timer, {fn, delay}); return timer; },
+    clearTimeout: id => timers.delete(id), requestAnimationFrame: () => 1,
+    webUiPollingActive: () => owner, webUiClientId: '0123456789abcdef', webUiPowerSeconds: () => 30,
+    activeView: 'home', viewSeq: 1, viewReady: Promise.resolve(), lastStatusAt: 0,
+    performance: {now: () => 1234}, statusUtcAnchorSec: 0, statusUtcAnchorAt: 0,
+    statusLiveShot: false, viewStatusHandlers: {home() {}},
+    applyCommonStatus() {}, applyPairingPrompt() {}, setMutable() {}, noteReachOk() {},
+    noteReachFail() {}, hideHomeBoot() {}, clearCupWeights() {}, updateHeaderSignals() {},
+    updateHomeAdminActions() {}, setHomeSub() {}, deactivateWebUi: () => { owner = false; },
+    controlsMutable: true,
+    sub: (t) => t,
+    command: (path, value) => new Promise(resolve => { commands.push({path, value}); settle.push(resolve); }),
+    clearBrewDirty() {}, dropQuickPending() {},
+    $: () => null, console: {error() {}},
+  };
+  vm.runInNewContext(validator + source, context);
+  const item = (id, name, extra = {}) => ({id, name, isFactory: id <= 4, brewByWeight: true,
+    doseG: 18, goalWeightG: 36, fastBeforeS: 5, slowAfterS: 30, fastMarginG: 6, slowMarginG: 2,
+    operationalWallMs: 60000, bbwProtectionMs: 3000, fastExtractionGuardEnabled: true,
+    slowExtractionGuardEnabled: true, grindHintsEnabled: true, scaleLossFixedS: 0,
+    bbwAlgorithm: 'linear_ewma', bbwAlphaBaseline: 0.2, lineaMicraBrewTargetC: 93,
+    shotStats: {n: 0, total: 0}, firstDropS: 0, firstDropN: 0, arrivalsS: [], grindHint: null,
+    ...extra});
+  const base = {firmwareVersion: 'test', bootId: 7, configMutable: true, timeUtcSec: 1700000000,
+    adminUnlocked: false, snapshotStale: false, config: {soundAlertsEnabled: true, revision: 5},
+    safety: {state: 'READY'}, scale: {available: true, streamState: 'FRESH', observedWeightG: 12, timerMs: 1000},
+    cycle: {active: false}, lastShot: {valid: false}, noScaleShotGuard: {enabled: true},
+    machineState: 'IDLE', cupPresence: {present: false}};
+  const snapshot = (presets, tag) => ({v: 1, type: 'home', boot: 7, snapshot: true,
+    changes: {...base, presets, presetsTag: tag}});
+  const delta = (presets, tag) => ({type: 'home', changes: {presets, presetsTag: tag}});
+  const presetFrame = frame => sockets.at(-1).onmessage({data: JSON.stringify(frame)});
+  // VM-realm arrays and objects never pass host deepStrictEqual: marshal the
+  // ids, and compare item identity only within the model itself (the live
+  // model object is read fresh at each step, so snapshots of it capture
+  // scalars and item references, never the mutating container).
+  const idsOf = items => [...items].map(p => +p.id);
+  context.startUiStream(); sockets[0].open();
+  const A = item(1, 'Double'), B = item(2, 'Single'), C = item(5, 'Mine');
+  presetFrame(snapshot({activeId: 1, cutRampS: 5, items: [A, B, C], ids: [1, 2, 5]}, 42));
+  const initial = context.ps(), initialRev = initial.rev, initialItems = [...initial.items];
+  assert.deepEqual(idsOf(initialItems), [1, 2, 5], 'the snapshot seeds the model');
+  assert.equal(initial.activeId, 1);
+  // A sparse delta with one changed preset merges by id: the untouched item
+  // objects are kept by reference and only the changed preset is replaced.
+  const B2 = item(2, 'Single', {goalWeightG: 18});
+  presetFrame(delta({items: [B2]}, 43));
+  const merged = context.ps();
+  assert.equal(merged.rev, initialRev + 1, 'a content change bumps the render revision');
+  assert.equal(merged.items[1].goalWeightG, 18);
+  assert.equal(merged.items[1].name, 'Single', 'the changed preset is the incoming object');
+  assert.equal(merged.items[0], initialItems[0], 'an unchanged preset keeps its object');
+  assert.equal(merged.items[2], initialItems[2], 'an unchanged preset keeps its object');
+  // A deletion travels as the ordered id list alone: no item bytes.
+  presetFrame(delta({activeId: 1, ids: [1, 5]}, 44));
+  assert.deepEqual(idsOf(context.ps().items), [1, 5], 'the ids list prunes the deleted preset');
+  // A preset switch is one envelope scalar, not the whole bank.
+  presetFrame(delta({activeId: 5}, 45));
+  assert.equal(context.ps().activeId, 5, 'an activeId-only delta flips the active preset');
+  assert.equal(context.ps().selectedId, 5);
+  assert.equal(context.acc().server, 5);
+  // B1: two rapid applies B then A — the interleaved B frame paints data but
+  // never the active flip; only A paints. (The active preset is C.)
+  const applied = context.applyPreset(2);
+  const appliedLast = context.applyPreset(1);
+  await Promise.resolve();
+  assert.equal(context.acc().pending, 1, 'the last tap owns the pending target');
+  assert.equal(context.ps().selectedId, 1);
+  presetFrame(delta({activeId: 2}, 46));
+  assert.equal(context.ps().activeId, 5, 'the intermediate server state must not paint');
+  assert.equal(context.acc().server, 2, 'the deferred server state is still recorded');
+  presetFrame(delta({activeId: 1}, 47));
+  assert.equal(context.ps().activeId, 1, 'the pending target paints when it lands');
+  assert.equal(context.acc().pending, 0, 'the matching frame clears the pending target');
+  settle.splice(0).forEach(done => done(true));
+  await applied; await appliedLast;
+  assert.equal(context.ps().activeId, 1);
+  // B1: a failed final apply falls back to the server's own active preset.
+  const failing = context.applyPreset(2);
+  await Promise.resolve();
+  assert.equal(context.acc().pending, 2);
+  presetFrame(delta({activeId: 5}, 48));
+  assert.equal(context.ps().activeId, 1, 'a non-matching frame stays deferred');
+  settle.splice(0).forEach(done => done(false));
+  await failing;
+  assert.equal(context.ps().activeId, 5, 'a failed apply falls back to the server state');
+  assert.equal(context.ps().selectedId, 5);
+  assert.equal(context.acc().pending, 0);
+  assert.deepEqual(commands.map(c => ({action: c.value.action, id: c.value.id})), [
+    {action: 'apply', id: 2}, {action: 'apply', id: 1}, {action: 'apply', id: 2}]);
+  // Static firmware contracts for the same wire shape (D20): per-slot source
+  // hashes keyed by preset id, the ordered ids list as the structural truth,
+  // per-session sent records seeded only on delivery, and the whole-bank
+  // renderer replaced by the per-item slim render.
+  const homeSource = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightHomeStream.inc'), 'utf8');
+  const networkSource = fs.readFileSync(path.join(sketchDir, 'OpenBrewByWeightNetwork.cpp'), 'utf8');
+  const homePresets = homeSource.slice(homeSource.indexOf('if (callbacks_.copyPresetBank)'),
+      homeSource.indexOf('delta.hashedField("presets"'));
+  assert(homePresets.includes('sent.presetSlotHashes[at] == slotHash[i]'),
+      'a preset this page already holds is skipped by id, even after a slot shift');
+  assert(homePresets.includes('\\"ids\\":[') && homePresets.includes('\\"items\\":[') &&
+      homePresets.includes('\\"activeId\\":') && homePresets.includes('\\"cutRampS\\":'),
+      'the presets envelope carries scalars, changed items, and the ordered ids');
+  assert(homeSource.indexOf('sent.presetSentCount = presetCount;') >
+      homeSource.indexOf('if (deferred) {'),
+      'the per-session preset record seeds on delivery, after the deferred-frame arm');
+  assert(networkHeader.includes('presetSlotHashes[MAX_SHOT_PRESETS]') &&
+      networkHeader.includes('presetSentIds[MAX_SHOT_PRESETS]'),
+      'per-session preset records live in the fingerprint table');
+  assert(networkSource.includes('int formatSlimPresetJson(char *out, size_t cap, const ShotPreset &p,') &&
+      !networkSource.includes('buildSlimPresetsJson'),
+      'the per-item slim render replaces the whole-bank builder');
+  assert(codeIncludes(runtimeJs, 'function mergePresetsFragment(pr)'),
+      'the client merges sparse presets fragments by id');
+}
+
 // Execute the firmware's bounded field writer itself, including unchanged,
 // single-field, disconnect, resync and capacity-failure cases.
 {

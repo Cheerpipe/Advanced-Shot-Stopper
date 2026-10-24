@@ -197,6 +197,14 @@ struct UiStreamFingerprints {
   uint32_t diagHashes[kDiagFields] = {};
   uint32_t settingsHashes[kSettingsFields] = {};
   uint32_t cardHashes[kCardFields + kCurveFields] = {};
+  // Per-preset granularity of Home's presets blob (D20): each bank slot's
+  // source (preset + its shot statistics) hashes independently, keyed by
+  // preset id, so a delta lists only the presets that moved. The id order is
+  // the last one the page holds; a create or delete re-sends the list.
+  uint32_t presetSlotHashes[MAX_SHOT_PRESETS] = {};
+  uint8_t presetSentIds[MAX_SHOT_PRESETS] = {};
+  uint8_t presetSentCount = 0, presetSentActiveId = 0;
+  uint16_t presetSentRampCenti = 0;
   // Rows (id, content hash) of the last standing Stats and History pages the
   // page holds: a later standing page names an unchanged row by its id.
   // statsNext collects a paced page until its last frame lands.

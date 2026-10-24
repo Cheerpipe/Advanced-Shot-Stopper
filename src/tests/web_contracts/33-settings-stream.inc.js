@@ -10,7 +10,7 @@
   const assert = require('assert').strict, vm = require('vm');
   const validator = runtimeJs.slice(runtimeJs.indexOf('function statusPageOk('),
     runtimeJs.indexOf('async function loadStatus('));
-  const source = 'var formRev = 0, configLoaded = false;\n' + runtimeStateDecl +
+  const source = 'var formRev = 0, configLoaded = false, homeAccPendingId = 0, presetServerActiveId = 0;\n' + runtimeStateDecl +
     'let homeFrame=null, homeStale=false, homeReady=Promise.resolve(true), homeResolve=()=>{};' +
     runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('),
       runtimeJs.indexOf('function renderHomeStream(')) +
