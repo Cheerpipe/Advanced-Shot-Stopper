@@ -328,6 +328,10 @@ bool OpenBrewByWeightNetwork::sendHomeStream(UiStreamSession &session,
       if (n > 0 && static_cast<size_t>(n) < cap - used) { used += static_cast<size_t>(n); itemFirst = false; }
       else { ok = false; break; }
     }
+    if (ok && itemsOpen) {
+      if (used + 1 < cap) { buf[used++] = ']'; buf[used] = '\0'; }
+      else ok = false;
+    }
     // The ordered id list is the structural truth: a creation or deletion
     // re-sends it so the page can prune and reorder without any item bytes.
     bool idsMoved = initial || sent.presetSentCount != presetCount;
