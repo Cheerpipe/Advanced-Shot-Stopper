@@ -153,6 +153,27 @@ per-session filter and window fields) and external BSS (the Stats chart
 scratch lives in the PSRAM network work buffer) stay inside their
 allowances. Task priorities, cadences, OTA identity and partitions are
 unchanged.
+The Settings page's move onto the owned WebSocket (the settings stream sender
+and its `settings` op replacing the retired `GET /api/v1/status/settings`
+read page, with the Linea Micra status include folded into the sender, and
+the stream client replacing the browser's 10 s Settings poll) net-shrinks
+every measured firmware image: the development Micra build measures
+2,463,088 image bytes (93,632 over baseline), 2,462,963 linked (93,628),
+1,658,624 flash-code (69,552), 643,816 rodata (24,944) and 193,446 DIRAM
+(304) — 2,036 to 2,740 bytes below the pre-change marks for image, linked
+and flash code, 704 below for rodata and 32 above for DIRAM (the two
+settings render-cache pointers), all inside the existing allowances, with
+external BSS unchanged at 3,161,184; the ~256-byte difference from the
+task's first build is the documented version/asset-tag padding wobble. The
+validation gate's six budgeted builds — development and release images of
+every profile pair — all pass: the Micra release image measures 2,475,360
+(−2,480 against its release baseline), the Silvia release 2,308,704 (−992)
+and the reed release 2,310,752 (+5,344, embedded Web UI assets having grown
+since that baseline was recorded while flash code still shrank 376 bytes;
+still well inside its allowance). Removing the REST Settings builder
+outweighed the new stream projection, and the Admin 10 s poll remains the
+only status poll. Task ownership, control timing, OTA identity and
+partitions are unchanged.
 Urgent control-gate publication and the no-scale timer's stop fade add another
 640 bytes of reviewed image/linked allowance, to 44,976 and 44,968 bytes.
 The mobile full-screen Home shot card and the Brew by Weight master toggle
@@ -677,7 +698,16 @@ signed-in device list with inline renaming) and raises that cap to 151,380 bytes
 153,080 bytes; Admin's sections as the same rows measure 154,072 bytes and raise it to 154,100 bytes;
 Diagnostics' sections as rows with icons measure 154,901 bytes and raise it to 154,930 bytes,
 with the per-asset caps raised to their measured values in the Web contracts. Its firmware state (~400 bytes) lives in external BSS and
-one 388-byte NVS blob (196 bytes before device labels; migrated on load). The selectable
+one 388-byte NVS blob (196 bytes before device labels; migrated on load).
+The Settings page's stream client (the subscribe trio, snapshot wait, shared
+merge branch and Micra sign-in deltas replacing the 10 s REST poll) measures
+529,402 JavaScript and 635,946 combined authoring bytes (the HTML unchanged
+at 106,544 under its 107,310 cap), 43,351 runtime gzip bytes, a 73,495-byte
+cold Home download (cap 73,500) and 155,331 combined compressed bytes,
+raising that cap to 155,360; the Settings view module itself net-shrinks to
+18,405 gzip bytes under its 18,430 cap. Every raise carries a dated
+owner-requested entry in the Web contract tests, which remain the authority.
+The selectable
 WS implementation and its correctness fixes are included in the reviewed flash
 baseline above. The OTA-slot, DIRAM, external-BSS and other asset limits remain
 unchanged. The reference clean development build with WS measures 2,273,760 image

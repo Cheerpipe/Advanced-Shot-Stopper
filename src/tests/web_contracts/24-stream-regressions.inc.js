@@ -205,8 +205,8 @@ int main(){
 {
   const send = network.slice(network.indexOf('void OpenBrewByWeightNetwork::sendUiStream('),
                              network.indexOf('bool OpenBrewByWeightNetwork::sendShotCard('));
-  const stages = ['sendShotCard(', 'sendDiagnosticStream(', 'sendHistoryStream(',
-                  'sendStatsStream(', 'sendLogStream('];
+  const stages = ['sendShotCard(', 'sendDiagnosticStream(', 'sendSettingsStream(',
+                  'sendHistoryStream(', 'sendStatsStream(', 'sendLogStream('];
   if (!network.includes('constexpr uint32_t kUiStreamDispatchBudgetMs = 800;') ||
       stages.some(stage => !send.includes('within() && ' + stage)) ||
       !send.includes('if (!open) httpd_sess_trigger_close(server_, session.fd);')) {

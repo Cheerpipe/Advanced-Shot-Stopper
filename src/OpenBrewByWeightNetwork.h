@@ -188,12 +188,14 @@ inline int8_t clampWifiRssi(int32_t rssi) {
 struct NetworkWorkBuf;
 
 struct UiStreamFingerprints {
-  static constexpr size_t kHomeFields = 128, kDiagFields = 224, kCardFields = 32;
+  static constexpr size_t kHomeFields = 128, kDiagFields = 224, kCardFields = 32,
+                          kSettingsFields = 160;
   // The shot card's ten curve scalars (forEachShotCurveScalar) follow its
   // card fields in cardHashes.
   static constexpr size_t kCurveFields = 10;
   uint32_t homeHashes[kHomeFields] = {};
   uint32_t diagHashes[kDiagFields] = {};
+  uint32_t settingsHashes[kSettingsFields] = {};
   uint32_t cardHashes[kCardFields + kCurveFields] = {};
   // Rows (id, content hash) of the last standing Stats and History pages the
   // page holds: a later standing page names an unchanged row by its id.
@@ -450,6 +452,12 @@ class OpenBrewByWeightNetwork {
     size_t statsSent = 0;
     uint32_t statsPageEpoch = 0, statsPageRequest = 0, statsSentAtMs = 0;
     uint32_t statsRequest = 0, statsFetchRequest = 0;
+    // Settings page subscription, same view-scoped contract: fingerprints in
+    // the PSRAM work buffer suppress unchanged frames, and the clock anchor
+    // rebases only on reconnection or clock synchronization like Home's.
+    bool settingsOn = false, settingsResync = true;
+    uint32_t settingsBoot = 0, settingsRequest = 0;
+    uint32_t settingsClockSync = 0, settingsClockUtc = 0;
     char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
     bool bound = false, resync = true;
     bool homeResync = true;
@@ -707,6 +715,9 @@ class OpenBrewByWeightNetwork {
   bool sendHomeStream(UiStreamSession &session, const ControlStatusSnapshot &control,
                       const NetworkStatusSnapshot &network,
                       const ShotLogRecord *latest);
+  bool sendSettingsStream(UiStreamSession &session,
+                          const ControlStatusSnapshot &control,
+                          const NetworkStatusSnapshot &network);
   bool sendDiagnosticStream(UiStreamSession &session,
                             const ControlStatusSnapshot &control,
                             const NetworkStatusSnapshot &network);

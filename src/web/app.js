@@ -118,7 +118,7 @@ function startView(name, seq = routeSeq) {
     if (!R.webUiPollingActive() || name !== activeView || seq !== routeSeq) return false;
     stopExtraPolls();
     let ok = false;
-    if (["home", "settings", "admin", "diagnostic"].includes(name)) {
+    if (["home", "admin", "diagnostic"].includes(name)) {
       ok = await R.loadStatus();
       R.armStatusTimer();
     } else if (name === "setup") {
@@ -130,6 +130,7 @@ function startView(name, seq = routeSeq) {
     if (name === "diagnostic" && ok) ok = await R.startLogStream();
     if (name === "stats") ok = await R.startStatsStream();
     else if (name === "history") ok = await R.startHistoryStream();
+    else if (name === "settings") ok = await R.startSettingsStream();
     return ok;
   });
 }

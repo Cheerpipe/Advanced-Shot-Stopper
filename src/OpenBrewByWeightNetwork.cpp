@@ -198,6 +198,11 @@ struct NetworkWorkBuf {
   ScaleHistoryEntry scaleHistory[SCALE_HISTORY_CAPACITY]{};
   BullseyeMelodyConfig bullseyeMelody{};
   char safeBullseyeRtttl[BULLSEYE_RTTTL_CAPACITY]{};
+  // Settings stream render caches, the renderedPresets pattern: the melody
+  // copy gates the sanitize pass, and the hash gates the scale-history JSON
+  // rebuild (buildScaleHistoryJson renders into the historyJson scratch).
+  BullseyeMelodyConfig renderedBullseye{};
+  uint32_t renderedScaleHistoryHash = 0;
   // Must match OpenBrewByWeightNetwork::REQUEST_BODY_CAPACITY (asserted in begin()).
   char requestBody[2048]{};
   WifiScanSnapshot wifiScan{};
@@ -861,7 +866,7 @@ void sanitizeJsonEmbed(const char *input, char *output, size_t capacity) {
   output[written] = '\0';
 }
 
-enum class StatusPage : uint8_t { Settings, Admin, Unknown };
+enum class StatusPage : uint8_t { Admin, Unknown };
 
 StatusPage parseStatusPage(const char *uri) {
   if (uri == nullptr) {
@@ -878,9 +883,6 @@ StatusPage parseStatusPage(const char *uri) {
     memcpy(stack, uri, len);
     stack[len] = '\0';
     path = stack;
-  }
-  if (strcmp(path, "/api/v1/status/settings") == 0) {
-    return StatusPage::Settings;
   }
   if (strcmp(path, "/api/v1/status/admin") == 0) {
     return StatusPage::Admin;

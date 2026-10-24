@@ -377,7 +377,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
         AbortController, setTimeout: () => 1, clearTimeout() {}, __WEBUI_TEXT__: key => key,
         fetch: path => {const response = deferred(); requests.push(path); responses.push(response); return response.promise;}});
       vm.runInContext(slotSource, slots);
-      const records = view === 'history' ? '/api/v1/log' : '/api/v1/status/settings';
+      const records = view === 'history' ? '/api/v1/log' : '/api/v1/status/admin';
       const one = slots.api(records), two = slots.api(records),
         three = slots.api(records);
       const finish = () => responses.shift().resolve({ok: true, text: async () => '{}'});
@@ -457,21 +457,22 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
           startDiagnosticStream() {}, stopDiagnosticStream() {},
           startStatsStream: () => {events.push('data'); return data.promise;},
           startHistoryStream: () => {events.push('data'); return data.promise;},
+          startSettingsStream: () => {events.push('data'); return data.promise;},
           ensureBackgroundRecordStreams() {},
           loadStatus: () => {events.push('status'); return status.promise;},
           startLogStream: () => {events.push('data'); return data.promise;},
           hideHomeBoot: () => events.push('fade'), message: () => events.push('error')}});
       vm.runInContext(routeSource, r);
       const loading = r.renderRoute(path); await flush();
-      const paired = ['stats', 'history'].includes(view);
-      assert.deepEqual(events, paired ? ['show', 'markup', 'data'] :
+      const streamed = ['stats', 'history', 'settings'].includes(view);
+      assert.deepEqual(events, streamed ? ['show', 'markup', 'data'] :
         ['show', 'markup', 'status'], view + ': fetch data while lazy markup loads');
       markup.resolve(); await flush();
       assert.equal(bodyClasses.has('homeView'), view === 'home', 'Only Home uses the scrolling desktop header');
       assert.equal(events.includes('fade'), false, view + ': wait for initial data');
       status.resolve(true); await flush();
-      if (['stats', 'history', 'diagnostic'].includes(view)) {
-        assert.deepEqual(events, paired ? ['show', 'markup', 'data'] : ['show', 'markup', 'status', 'data']);
+      if (streamed || view === 'diagnostic') {
+        assert.deepEqual(events, streamed ? ['show', 'markup', 'data'] : ['show', 'markup', 'status', 'data']);
         data.resolve(true);
       }
       await loading;
@@ -483,7 +484,9 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
       assert.equal(events.slice(beforeFailure).includes('error'), true, view + ': expose lazy-load failure');
       assert.equal(events.slice(beforeFailure).includes('fade'), false, view + ': failed markup cannot reveal the page');
       r.ensureView = async () => {};
-      const loadName = view === 'stats' ? 'startStatsStream' : view === 'history' ? 'startHistoryStream' : 'loadStatus';
+      const loadName = view === 'stats' ? 'startStatsStream'
+        : view === 'history' ? 'startHistoryStream'
+        : view === 'settings' ? 'startSettingsStream' : 'loadStatus';
       r.R[loadName] = async () => false;
       await r.renderRoute(path);
       assert.equal(events.at(-1), 'error', view + ': expose initial data failure');
@@ -969,8 +972,11 @@ if (htmlBytes > 107310) {
 // the corrupt-frame path: measured 523859, owner-requested 2026-10-23. v1 Web UI
 // fixes (stream-confirmed commands, bounded sign-in and scan, keyed scale list,
 // modal overlay, Diagnostic action gate): measured 524387, owner-requested 2026-10-23.
-if (jsBytes > 524387) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 524387)`);
+// The Settings stream client (subscribe trio, snapshot wait, shared merge
+// branch, Micra deltas) replaces the Settings REST poll: measured 529402,
+// owner-requested 2026-10-23.
+if (jsBytes > 529402) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 529402)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1142,8 +1148,10 @@ if (jsBytes > 524387) {
 // owner-requested 2026-10-23. Rejected-op (4003) recovery: measured 630012, owner-requested 2026-10-23.
 // Stream render errors kept off the corrupt-frame path: measured 630275, owner-requested 2026-10-23.
 // v1 Web UI fixes: measured 630821, owner-requested 2026-10-23.
-if (htmlBytes + jsBytes > 630821) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 630821)`);
+// The Settings stream client replacing the Settings REST poll: measured 635946,
+// owner-requested 2026-10-23.
+if (htmlBytes + jsBytes > 635946) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 635946)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
@@ -1246,7 +1254,7 @@ if (!network.includes('"firstDropBeep"') ||
     !network.includes('allowedCount > kSeenWords * 64U') ||
     !network.includes('uint64_t seen[kSeenWords]') ||
     !network.includes('WEB_UI_ETAG') ||
-    !network.includes('\\"buzzerSupported\\"') ||
+    !network.includes('delta.field("buzzerSupported"') ||
     !network.includes('BUZZER_SUPPORT_ENABLED') ||
     !network.includes('"autoRetare"') ||
     !network.includes('"retareWindowMs"') ||
@@ -1347,11 +1355,11 @@ if (!codeIncludes(ui, 'id="bullseyeMelodyEnabled"') ||
 }
 if (!codeIncludes(ui, "scaleConnectedLed:$('scaleConnectedLed').checked") ||
     !codeIncludes(ui, "'scaleConnectedLed'") ||
-    !network.includes('\\"scaleConnectedLed\\":%s') ||
+    !network.includes('delta.field("config.scaleConnectedLed"') ||
     !firmware.includes('serviceScaleConnectedLed') ||
     !firmware.includes('SCALE_CONNECTED_LED_GPIO') ||
     !domain.includes('bool scaleConnectedLed = true')) {
-  throw new Error('Scale-connected GPIO LED must be wired through Settings, status/settings, and firmware');
+  throw new Error('Scale-connected GPIO LED must be wired through Settings, the settings stream, and firmware');
 }
 
 if (!codeIncludes(ui, 'id="soundAlertsEnabled"') ||

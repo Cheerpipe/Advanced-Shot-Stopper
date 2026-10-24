@@ -941,7 +941,7 @@ if (!codeIncludes(runtimeJs, 'SHOTS_PAGE_SIZE=10') ||
     !codeIncludes(runtimeJs, 'function ensureBackgroundRecordStreams(') ||
     // Navigation must settle a pending cold record entry so the serialized
     // poll gate never waits on an abandoned view's page.
-    !codeIncludes(runtimeJs, 'if(activeView!==name){statsResolve?.(false);statsResolve=null;historyResolve?.(false);historyResolve=null;}') ||
+    !codeIncludes(runtimeJs, 'if(activeView!==name){statsResolve?.(false);statsResolve=null;historyResolve?.(false);historyResolve=null;settingsResolve?.(false);settingsResolve=null;}') ||
     !codeIncludes(runtimeJs, 'function statsStreamFrame(') ||
     !codeIncludes(runtimeJs, 'function applyStatsStream(') ||
     !codeIncludes(runtimeJs, 'if(statsStreamWanted)statsSendSubscribe()') ||

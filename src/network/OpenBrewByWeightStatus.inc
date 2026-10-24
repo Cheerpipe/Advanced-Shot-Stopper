@@ -12,16 +12,16 @@ const char *OpenBrewByWeightNetwork::wifiScanStateName(WifiScanState state) {
 
 esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
   OpenBrewByWeightNetwork &self = *instance_;
-  // Settings stays claim-gated only. Admin mutations and the full
-  // privileged status body require a temporary device-password unlock;
-  // Diagnostic is intentionally public: /diagnostic stays reachable and the
-  // visibility toggle only hides the menu entry.
+  // Admin is the page's only remaining body: mutations and the full
+  // privileged status require a temporary device-password unlock. The
+  // Settings page reads its status from the owned UI WebSocket's settings
+  // subscription instead of this endpoint.
   self.requestPendingNetworkConfirm();
 
   const StatusPage page = parseStatusPage(request->uri);
   if (page == StatusPage::Unknown) {
     return sendError(request, "404 Not Found", "STATUS_PAGE_UNKNOWN",
-                     "Unknown status page; use /api/v1/status/{settings|admin|diagnostic}.");
+                     "Unknown status page; use /api/v1/status/admin.");
   }
 
   // JSON / snapshot work lives in one PSRAM-only blob.
@@ -52,38 +52,6 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
   const bool lastSyncOffsetKnown = timeStatus.lastSyncUtcSec != 0 &&
       timeZoneOffsetAtOrUtc(control.config.timezoneId, timeStatus.lastSyncUtcSec,
                               lastSyncTimezoneOffset);
-#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
-  LineaMicraStatus micraStatus = {};
-  LineaMicraDiscoverySnapshot micraDiscovery = {};
-  char safeMicraUsername[LINEA_MICRA_USERNAME_CAPACITY] = {};
-  char micraSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
-  char safeMicraSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
-  char micraName[LINEA_MICRA_NAME_CAPACITY] = {};
-  char safeMicraName[LINEA_MICRA_NAME_CAPACITY] = {};
-  uint8_t micraOptions = 0;
-  uint8_t micraScaleOptions = 0;
-  uint8_t micraConnectionType = 0;
-  bool micraAccountConfigured = false;
-  self.dataMux_.lock();
-  micraAccountConfigured = self.settings_.lineaMicra.accountConfigured;
-  micraOptions = self.settings_.lineaMicra.options;
-  micraScaleOptions = self.settings_.lineaMicra.scaleOptions;
-  micraConnectionType = self.settings_.lineaMicra.connectionType;
-  memcpy(safeMicraUsername, self.settings_.lineaMicra.username,
-         sizeof(safeMicraUsername));
-  memcpy(micraSerial, self.settings_.lineaMicra.selectedSerial,
-         sizeof(micraSerial));
-  memcpy(micraName, self.settings_.lineaMicra.selectedName,
-         sizeof(micraName));
-  self.dataMux_.unlock();
-  micraStatus = machineIntegrationStatus();
-  micraDiscovery = machineIntegrationDiscovery();
-  sanitizeJsonEmbed(safeMicraUsername, safeMicraUsername,
-                    sizeof(safeMicraUsername));
-  sanitizeJsonEmbed(micraSerial, safeMicraSerial, sizeof(safeMicraSerial));
-  sanitizeJsonEmbed(micraName, safeMicraName, sizeof(safeMicraName));
-#endif
-
   char staRssiJson[16] = "null";
   char staSignalQualityJson[16] = "null";
   char staChannelJson[8] = "null";
@@ -104,9 +72,6 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
           ? static_cast<uint32_t>(apClosingIn) : 0;
 
   char safeNtpCustom[NTP_SERVER_HOST_CAPACITY] = {};
-  char safeActiveServer[NTP_SERVER_HOST_CAPACITY] = {};
-  char safePreferredScaleMac[PREFERRED_SCALE_MAC_CAPACITY * 2] = {};
-  char safePreferredScaleName[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
   char safeFirmwareVersion[32] = {};
   char safeStaSsid[WIFI_SSID_CAPACITY] = {};
   char safeApSsid[WIFI_SSID_CAPACITY] = {};
@@ -115,12 +80,6 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
   char safeWebhookUrl[WEBHOOK_URL_CAPACITY * 2] = {};
   sanitizeJsonEmbed(control.config.ntpServerCustom, safeNtpCustom,
                     sizeof(safeNtpCustom));
-  sanitizeJsonEmbed(timeStatus.activeServer, safeActiveServer,
-                    sizeof(safeActiveServer));
-  sanitizeJsonEmbed(control.preferredScaleMac, safePreferredScaleMac,
-                    sizeof(safePreferredScaleMac));
-  sanitizeJsonEmbed(control.preferredScaleName, safePreferredScaleName,
-                    sizeof(safePreferredScaleName));
   sanitizeJsonEmbed(FW_VERSION, safeFirmwareVersion,
                     sizeof(safeFirmwareVersion));
   sanitizeJsonEmbed(network.iface.staSsid, safeStaSsid, sizeof(safeStaSsid));
@@ -131,60 +90,12 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
   const WebhookStatus webhookStatus = self.webhooks_.status();
   sanitizeJsonEmbed(webhookConfig.url, safeWebhookUrl,
                     sizeof(safeWebhookUrl));
-  if (page == StatusPage::Settings &&
-      self.callbacks_.copyBullseyeConfig != nullptr) {
-    self.callbacks_.copyBullseyeConfig(&g_work->bullseyeMelody);
-    sanitizeJsonEmbed(g_work->bullseyeMelody.rtttl,
-                      g_work->safeBullseyeRtttl,
-                      sizeof(g_work->safeBullseyeRtttl));
-  }
-
-  const bool needPresets = page == StatusPage::Settings;
-  const bool needHistory = page == StatusPage::Settings;
-  // Every header names the connected scale; the history array stays Settings-only.
-  if (needPresets) {
-    if (self.callbacks_.copyPresetBank != nullptr) {
-      self.callbacks_.copyPresetBank(&g_work->presetBank);
-    } else {
-      memset(&g_work->presetBank, 0, sizeof(g_work->presetBank));
-    }
-    copyPresetStatsForJson(self.callbacks_, g_work->presetBank);
-    buildSlimPresetsJson(g_work->presetBank);
-  } else {
-    g_work->presetsJson[0] = '{';
-    g_work->presetsJson[1] = '}';
-    g_work->presetsJson[2] = 0;
-  }
-  g_work->presetsJsonHome = false;
+  // Every header names the connected scale.
   if (self.callbacks_.copyScaleHistory != nullptr) {
     self.callbacks_.copyScaleHistory(g_work->scaleHistory);
   } else {
     memset(&g_work->scaleHistory, 0, sizeof(g_work->scaleHistory));
   }
-  if (needHistory) {
-    buildScaleHistoryJson(g_work->scaleHistory);
-  } else {
-    g_work->historyJson[0] = '[';
-    g_work->historyJson[1] = ']';
-    g_work->historyJson[2] = 0;
-  }
-  char preferredScaleFriendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
-  findScaleHistoryFriendlyName(g_work->scaleHistory, control.preferredScaleMac,
-                               preferredScaleFriendly,
-                               sizeof(preferredScaleFriendly));
-  char safePreferredScaleFriendly[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
-  sanitizeJsonEmbed(preferredScaleFriendly, safePreferredScaleFriendly,
-                    sizeof(safePreferredScaleFriendly));
-  char connectedScaleFriendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
-  findScaleHistoryFriendlyName(g_work->scaleHistory, control.connectedScaleMac,
-                               connectedScaleFriendly,
-                               sizeof(connectedScaleFriendly));
-  char safeConnectedScaleMac[PREFERRED_SCALE_MAC_CAPACITY * 2] = {};
-  char safeConnectedScaleFriendly[PREFERRED_SCALE_NAME_CAPACITY * 2] = {};
-  sanitizeJsonEmbed(control.connectedScaleMac, safeConnectedScaleMac,
-                    sizeof(safeConnectedScaleMac));
-  sanitizeJsonEmbed(connectedScaleFriendly, safeConnectedScaleFriendly,
-                    sizeof(safeConnectedScaleFriendly));
   char wifiName[WIFI_SSID_CAPACITY * 6] = {};
   char bluetoothName[PREFERRED_SCALE_NAME_CAPACITY * 6] = {};
   escapeJsonString(network.staState == StaState::CONNECTED ? network.iface.staSsid : "",
@@ -194,8 +105,8 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
   size_t used = 0;
   const bool liveShot =
       control.activeCycle || control.relayClosed;
-  // Shared envelope only: page-specific config (NTP, serial debug, buzzer)
-  // is appended below so home/settings polls stay lean.
+  // Shared envelope only: page-specific config (NTP, serial debug) is
+  // appended below so the Admin poll stays lean.
   bool ok = statusJsonAppend(
       &used,
       "{\"firmwareVersion\":\"%s\",\"bootId\":%lu,\"configMutable\":%s,"
@@ -256,16 +167,6 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
     ok = statusJsonAppend(&used, ",\"compatibilityMode\":%s",
                           firmwareCompatibilityMode() ? "true" : "false");
   }
-  if (ok && page == StatusPage::Settings) {
-    ok = statusJsonAppend(&used, ",\"buzzerSupported\":%s",
-                          BUZZER_SUPPORT_ENABLED ? "true" : "false");
-  }
-  if (ok && page == StatusPage::Settings) {
-    ok = statusJsonAppend(
-        &used, ",\"lastCommand\":{\"requestId\":%lu,\"state\":\"%s\"}",
-        static_cast<unsigned long>(network.lastCommandRequestId),
-        commandResultStateName(network.lastCommandState));
-  }
   if (ok) {
     ok = statusJsonAppend(
         &used, ",\"timeUtcSec\":%lu,\"config\":{\"revision\":%lu,\"ringRetainLogLevel\":\"%s\",\"serialLogLevel\":\"%s\"",
@@ -314,184 +215,11 @@ esp_err_t OpenBrewByWeightNetwork::statusHandler(httpd_req_t *request) {
         control.configPersistFailed ? "true" : "false");
   }
 
-  if (ok && page == StatusPage::Settings) {
-    ok = statusJsonAppend(
-        &used,
-        ",\"goalWeightG\":%.1f,\"weightOffsetG\":%.2f,"
-        "\"weightOffsetBaselineG\":%.2f,\"autoTare\":%s,"
-        "\"autoTareOutsideBrew\":%s,\"retareAccessoryOutsideBrew\":%s,"
-        "\"postTareBaselineGraceMs\":%lu,\"brewByWeight\":%s,"
-        "\"canTareStartTimer\":%s,\"scaleTimerStopExtraDelayMs\":%lu,"
-        "\"dripDelayMs\":%lu,"
-        "\"soundAlertsEnabled\":%s,\"firstDropBeep\":%s,"
-        "\"paddleReturnReminderBeep\":%s,"
-        "\"paddleReturnReminderIntervalMs\":%lu,"
-        "\"paddleReturnReminderMaxDurationMs\":%lu,\"paddleMode\":\"%s\","
-        "\"stopPulseMs\":%lu,\"maxSinglePressMs\":%lu,"
-        "\"momentaryStartEdge\":\"%s\",\"reedConfirmTimeoutMs\":%lu,"
-        "\"assumeIdleWhenScaleConnects\":%s,\"shotReactTimeoutS\":%u,"
-        "\"buzzerScaleLostBeep\":%s,\"buzzerAutoToManualGuardEndBeep\":%s,"
-        "\"buzzerManualNoScaleBeep\":%s,\"buzzerScaleConnectedBeep\":%s,"
-        "\"scaleConnectedLed\":%s,"
-        "\"buzzerExtendedPulseRate\":\"%s\","
-        "\"buzzerSlowExtendedPulseRate\":\"%s\","
-        "\"alertOutputChannel\":\"%s\",\"rinseEnabled\":%s,\"rinseGestureMs\":%lu,"
-        "\"rinseDurationMs\":%lu,\"autoRetare\":%s,\"retareWindowMs\":%lu,"
-        "\"minimumCupWeightG\":%.1f,\"retareStabilitySamples\":%u,"
-        "\"retareStabilityToleranceG\":%.1f,\"retareStabilityMaxGapMs\":%lu,"
-        "\"retareStabilityMinDurationMs\":%lu,\"bbwProtectionMs\":%lu,"
-        "\"operationalWallMs\":%lu,\"fastExtractionGuardEnabled\":%s,"
-        "\"fastMarginG\":%.1f,\"fastBeforeS\":%.1f,"
-        "\"slowExtractionGuardEnabled\":%s,\"slowMarginG\":%.1f,"
-        "\"slowAfterS\":%.1f,\"scaleLossFixedS\":%.1f,\"doseG\":%.1f,"
-        "\"grindHintsEnabled\":%s,"
-        "\"autoToManualGuardEnabled\":%s,\"cupProtectionEnabled\":%s,"
-        "\"stopIfCupRemoved\":%s,\"requireCupToStart\":%s,"
-        "\"avoidAccidentalTouchEnabled\":%s,"
-        "\"touchStopFallbackEnabled\":%s,"
-        "\"cupRemovedWeightG\":%.1f,"
-        "\"scaleMacCacheMode\":\"%s\","
-        "\"bookooMuteOnBuzzerOnly\":%s,\"bookooConnectBeepLevel\":%u,"
-        "\"noScaleBbwMode\":\"%s\","
-        "\"noScaleAllowRinseWhileArmed\":%s,\"lastShotCooldownMs\":%lu",
-        static_cast<double>(goalWeightDgToGrams(control.config.goalWeightDg)),
-        static_cast<double>(control.config.weightOffsetG),
-        static_cast<double>(control.config.weightOffsetBaselineG),
-        control.config.autoTare ? "true" : "false",
-        control.config.autoTareOutsideBrew ? "true" : "false",
-        idleAccessoryRetareEnabled(control.config.noScaleBbwMode) ? "true" : "false",
-        static_cast<unsigned long>(control.config.postTareBaselineGraceMs),
-        control.config.timerOnly ? "false" : "true",
-        control.config.canTareStartTimer ? "true" : "false",
-        static_cast<unsigned long>(control.config.scaleTimerStopExtraDelayMs),
-        static_cast<unsigned long>(control.config.dripDelayMs),
-        control.config.soundAlertsMuted ? "false" : "true",
-        control.config.firstDropBeep ? "true" : "false",
-        control.config.paddleReturnReminderBeep ? "true" : "false",
-        static_cast<unsigned long>(
-            control.config.paddleReturnReminderIntervalMs),
-        static_cast<unsigned long>(
-            control.config.paddleReturnReminderMaxDurationMs),
-        paddleModeId(control.config.paddleMode),
-        static_cast<unsigned long>(runtimeStopPulseMs(control.config)),
-        static_cast<unsigned long>(runtimeMaxSinglePressMs(control.config)),
-        momentaryStartEdgeId(control.config.momentaryStartOnPress),
-        static_cast<unsigned long>(
-            runtimeReedConfirmTimeoutMs(control.config)),
-        control.config.assumeIdleWhenScaleConnects ? "true" : "false",
-        static_cast<unsigned>(runtimeShotReactTimeoutS(control.config)),
-        control.config.buzzerScaleLostBeep ? "true" : "false",
-        control.config.buzzerAutoToManualGuardEndBeep ? "true" : "false",
-        control.config.buzzerManualNoScaleBeep ? "true" : "false",
-        control.config.buzzerScaleConnectedBeep ? "true" : "false",
-        control.config.scaleConnectedLed ? "true" : "false",
-        extendedPulseRateId(control.config.buzzerExtendedPulseRate),
-        extendedPulseRateId(control.config.buzzerSlowExtendedPulseRate),
-        alertOutputChannelId(control.config.alertOutputChannel),
-        control.config.rinseEnabled ? "true" : "false",
-        static_cast<unsigned long>(control.config.rinseGestureMs),
-        static_cast<unsigned long>(control.config.rinseDurationMs),
-        control.config.autoRetare ? "true" : "false",
-        static_cast<unsigned long>(control.config.retareWindowMs),
-        static_cast<double>(control.config.minimumCupWeightG),
-        static_cast<unsigned>(control.config.retareStabilitySamples),
-        static_cast<double>(control.config.retareStabilityToleranceG),
-        static_cast<unsigned long>(control.config.retareStabilityMaxGapMs),
-        static_cast<unsigned long>(control.config.retareStabilityMinDurationMs),
-        static_cast<unsigned long>(control.config.bbwProtectionMs),
-        static_cast<unsigned long>(control.config.operationalWallMs),
-        control.config.fastSideEnabled ? "true" : "false",
-        static_cast<double>(goalWeightDgToGrams(control.config.fastMarginDg)),
-        control.config.fastBeforeMs / 1000.0,
-        control.config.slowSideEnabled ? "true" : "false",
-        static_cast<double>(goalWeightDgToGrams(control.config.slowMarginDg)),
-        control.config.slowAfterMs / 1000.0,
-        control.config.scaleLossFixedMs / 1000.0,
-        // Preset-only recipe fields come from the active preset.
-        static_cast<double>(goalWeightDgToGrams(activeShotPreset(g_work->presetBank).doseDg)),
-        activeShotPreset(g_work->presetBank).grindHintsEnabled ? "true" : "false",
-        control.config.scaleLossEnabled ? "true" : "false",
-        control.config.cupProtectionEnabled ? "true" : "false",
-        control.config.stopIfCupRemoved ? "true" : "false",
-        control.config.requireCupToStart ? "true" : "false",
-        control.config.avoidAccidentalTouchEnabled ? "true" : "false",
-        control.config.touchStopFallbackEnabled ? "true" : "false",
-        static_cast<double>(control.config.cupRemovedWeightG),
-        scaleMacCacheModeId(control.config.scaleMacCacheMode),
-        control.config.bookooMuteOnBuzzerOnly ? "true" : "false",
-        static_cast<unsigned>(control.config.bookooConnectBeepLevel),
-        noScaleBbwModeId(control.config.noScaleBbwMode),
-        noScaleAllowRinseWhileArmed(control.config.noScaleBbwMode) ? "true"
-                                                                 : "false",
-        static_cast<unsigned long>(control.config.lastShotCooldownMs));
-  }
-
-  if (ok && page == StatusPage::Settings) {
-    ok = statusJsonAppend(
-        &used, ",\"bbwAlgorithm\":\"%s\",\"bbwPresetId\":%u,"
-        "\"bbwEwmaOffsetG\":%.2f,"
-        "\"bbwAlpha\":%.2f,\"bbwAlphaBaseline\":%.2f,\"bbwAlphaSource\":\"%s\",\"bbwEvidenceCount\":%u",
-        bbwAlgorithmName(static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA)), control.bbwPresetId,
-        static_cast<double>(control.bbwEwmaOffsetG), control.bbwAlpha / 100.0,
-        control.bbwAlphaBaseline / 100.0,
-        control.bbwAlphaLearned ? "learned" : "initial", control.bbwEvidenceCount);
-  }
-  if (ok && page == StatusPage::Settings) {
-    char drip[256];
-    ok = formatDripChartJson(drip, sizeof(drip), control) > 0 &&
-         statusJsonAppend(&used, "%s", drip);
-  }
-  if (ok && page == StatusPage::Settings) {
-    // Live platform weight for the cup-minimum setup guidance; presence
-    // classification itself depends on the minimum, so it cannot be used.
-    char cupObserved[24] = "null";
-    if (control.scaleAvailable && control.currentWeightValid &&
-        std::isfinite(control.currentWeightG)) {
-      snprintf(cupObserved, sizeof(cupObserved), "%.1f",
-               static_cast<double>(control.currentWeightG));
-    }
-    ok = statusJsonAppend(&used, ",\"cupSetup\":{\"observedG\":%s}",
-                          cupObserved);
-  }
-  if (ok && page == StatusPage::Settings) {
-    ok = statusJsonAppend(
-        &used, ",\"bullseyeMelodyEnabled\":%s,\"bullseyeRtttl\":\"%s\"",
-        g_work->bullseyeMelody.enabled ? "true" : "false",
-        g_work->safeBullseyeRtttl);
-  }
-
   if (ok) {
     ok = statusJsonAppend(&used, "}");
   }
 
-#include "OpenBrewByWeightLineaMicraStatus.inc"
-
-  if (ok && page == StatusPage::Settings) {
-    ok = statusJsonAppend(
-        &used,
-        ",\"scale\":{\"preferredMac\":\"%s\",\"preferredName\":\"%s\","
-        "\"preferredFriendlyName\":\"%s\","
-        "\"macCachePauseRemainingMs\":%lu,\"history\":%s},"
-        "\"presets\":%s,\"scaleLoss\":{\"enabled\":%s,\"projectedS\":%.1f,"
-        "\"source\":%s},\"stopPulseMs\":%lu,\"maxSinglePressMs\":%lu,"
-        "\"momentaryStartEdge\":\"%s\",\"reedConfirmTimeoutMs\":%lu,"
-        "\"assumeIdleWhenScaleConnects\":%s,\"shotReactTimeoutS\":%u",
-        safePreferredScaleMac, safePreferredScaleName,
-        safePreferredScaleFriendly,
-        static_cast<unsigned long>(control.scaleMacCachePauseRemainingMs),
-        g_work->historyJson, g_work->presetsJson,
-        control.config.scaleLossEnabled ? "true" : "false",
-        control.autoToManualGuardTrendMs / 1000.0,
-        shotLogScaleLossSourceJson(
-            static_cast<uint8_t>(control.scaleLossProjectedSource << 3)),
-        static_cast<unsigned long>(runtimeStopPulseMs(control.config)),
-        static_cast<unsigned long>(runtimeMaxSinglePressMs(control.config)),
-        momentaryStartEdgeId(control.config.momentaryStartOnPress),
-        static_cast<unsigned long>(
-            runtimeReedConfirmTimeoutMs(control.config)),
-        control.config.assumeIdleWhenScaleConnects ? "true" : "false",
-        static_cast<unsigned>(runtimeShotReactTimeoutS(control.config)));
-  } else if (ok && page == StatusPage::Admin) {
+  if (ok) {
     // Locked admin: confirm-window hint and the factory-password reminder
     // (that password is public). Unlocked: Wi-Fi/AP + BLE + OTA.
     bool factoryPassword = false;

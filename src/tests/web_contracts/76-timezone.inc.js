@@ -244,6 +244,7 @@
       const code = blockAt(rawRuntimeJs, 'async function command(');
       let polls = 0, ticks = 0;
       const c = vm.createContext({configRevision: 10, lastCommandStatus: null, homeStale: false,
+        activeView: 'home',
         withCommandGate: fn => fn(), api: async () => ({requestId: 7}), body: JSON.stringify,
         clearFieldErrors() {}, noteReachOk() {}, message() {}, commandBusy: false,
         __WEBUI_TEXT__: key => key,
@@ -254,7 +255,7 @@
         refreshStatus: async () => { ++polls; }});
       vm.runInContext(code, c);
       assert.equal(await c.command('/api/v1/presets', {op: 'save'}, true, '', ''), true);
-      assert.equal(polls, 1, 'Home frames confirm the save; REST only repaints the view once');
+      assert.equal(polls, 0, 'Home frames confirm the save; the repaint arrives as stream deltas');
     }]
   ];
   (async () => {

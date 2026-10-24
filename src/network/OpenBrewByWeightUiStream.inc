@@ -159,6 +159,7 @@ void sendUiStreamClose(httpd_handle_t server, int fd, uint16_t reason) {
 
 #include "OpenBrewByWeightStatsPage.inc"
 #include "OpenBrewByWeightHomeStream.inc"
+#include "OpenBrewByWeightSettingsStream.inc"
 #include "OpenBrewByWeightAuditStream.inc"
 
 esp_err_t OpenBrewByWeightNetwork::uiStreamHandshake(httpd_req_t *request) {
@@ -255,6 +256,7 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
       session->resync = true;
       session->homeResync = true;
       session->diagResync = session->diagnostic;
+      session->settingsResync = true;
       session->historyResync = true;
       session->statsResync = true;
       session->statsFetch = false;
@@ -446,6 +448,32 @@ esp_err_t OpenBrewByWeightNetwork::uiStreamHandler(httpd_req_t *request) {
             session->statsSort = shotLogSortFromName(sort->valuestring);
           if (dir)
             session->statsDir = shotLogSortDirFromName(dir->valuestring);
+          accepted = true;
+        }
+        if (accepted)
+          self.uiStreamUrgent_.store(true, std::memory_order_release);
+      }
+    } else if (cJSON_IsString(op) && session->bound &&
+               strcmp(op->valuestring, "settings") == 0 &&
+               strcmp(session->clientId, self.activeWebUiClientId_) == 0) {
+      // View-scoped Settings page subscription, History's contract in miniature:
+      // subscribe arms a snapshot; the request id lets the page discard frames
+      // from a superseded subscription. Unsubscribe carries no other field.
+      static const char *const kFields[] = {"op", "on", "request"};
+      const cJSON *on = cJSON_GetObjectItemCaseSensitive(message, "on");
+      const cJSON *requestId = cJSON_GetObjectItemCaseSensitive(message, "request");
+      const bool shapeOk =
+          cJSON_IsBool(on) && uiStreamKnownFields(message, kFields, 3);
+      const bool numbersOk = uiStreamIntInRange(requestId, 1, UINT32_MAX);
+      if (shapeOk && numbersOk) {
+        if (!cJSON_IsTrue(on)) {
+          accepted = !requestId;
+          if (accepted) session->settingsOn = false;
+        } else {
+          session->settingsOn = true;
+          session->settingsResync = true;
+          session->settingsRequest =
+              requestId ? static_cast<uint32_t>(requestId->valuedouble) : 0;
           accepted = true;
         }
         if (accepted)
@@ -643,6 +671,8 @@ void OpenBrewByWeightNetwork::sendUiStream(UiStreamSession &session,
   }
   if (open && session.diagnostic)
     open = within() && sendDiagnosticStream(session, control, network);
+  if (open && session.settingsOn)
+    open = within() && sendSettingsStream(session, control, network);
   if (open && session.historyOn) open = within() && sendHistoryStream(session, control);
   if (open && session.statsOn) open = within() && sendStatsStream(session, control);
   if (open && session.logOn) open = within() && sendLogStream(session, control);

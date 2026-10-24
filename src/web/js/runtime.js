@@ -85,6 +85,8 @@ function setActiveView(name, ready = Promise.resolve()) {
     statsResolve = null;
     historyResolve?.(false);
     historyResolve = null;
+    settingsResolve?.(false);
+    settingsResolve = null;
   }
   activeView = name || "";
   if (shotFsActive && activeView !== "home") exitShotFullScreen();
@@ -243,6 +245,7 @@ const uiState = {
   historyData: { bootId: 0, total: 0, hasMore: false, records: [] },
   historyExportWindow: null,
   historyNextRequest: 0,
+  settingsNextRequest: 0,
   historyDir: "desc",
   // Firmware-side list filters (empty = everything) and the Stats window;
   // none of them outlives the page.
@@ -671,10 +674,10 @@ function releaseDeviceSlot() {
 function statusPollDue() {
   return !commandBusy && !uiState.otaBusy && Date.now() - lastStatusAt >= 900;
 }
-// Settings/Admin only; live state rides the Home stream (ARCHITECTURE.md).
+// Admin only; every other view rides its stream (ARCHITECTURE.md).
 function armStatusTimer() {
   clearInterval(statusTimer);
-  if (!webUiPollingActive() || (activeView !== "settings" && activeView !== "admin")) return;
+  if (!webUiPollingActive() || activeView !== "admin") return;
   statusTimer = setInterval(() => {
     if (webUiPollingActive() && statusPollDue()) refreshStatus();
   }, 1e4);
@@ -3385,18 +3388,20 @@ async function cleanBrewForm() {
   await ensureSettingsHydrated();
   return true;
 }
+// D7: Home's quick-write path hydrates the Settings brew form from the
+// settings stream (subscribe-and-wait, a cold History entry's mechanism)
+// instead of the retired REST status page.
 async function ensureSettingsHydrated() {
   if (configLoaded) return;
   await ensureSettingsDom();
-  const s = await api("/api/v1/status/settings");
-  if (!statusPageOk("settings", s)) throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
+  const s = await settingsSnapshotWait();
+  if (!s) throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
   applyCommonStatus(s);
   loadSettingsConfig(s.config);
   // The hydrated form is clean, so snapshot the brew baseline here as well:
   // a Home quick-weight write that follows must count as an edited field for
-  // error attribution even when the Settings view has never been polled.
+  // error attribution even when the Settings view has never been open.
   if (!uiState.brewDirty) uiState.brewBaseline = snapshotControls(settingsSectionEls("brew"));
-  if (s.presets) ingestPresets(s);
 }
 function withBaseRev(p) {
   if (configRevision) p.baseRevision = configRevision;
@@ -4146,7 +4151,9 @@ function statusStreamFrame(previous, message, kept) {
   if (
     message.type === "diagnostic"
       ? snapshot && !diagSnapshotOk(status)
-      : !statusPageOk("home", status) || status.bootId !== boot
+      : message.type === "settings"
+        ? snapshot && !statusPageOk("settings", status)
+        : !statusPageOk("home", status) || status.bootId !== boot
   )
     throw Error();
   return { boot, status };
@@ -4165,6 +4172,9 @@ function renderHomeStream() {
   // Frames on any view prove reachability, so the out-of-reach overlay
   // clears even off Home.
   noteReachOk();
+  // Presets ride the Home stream on every view (D4): the Settings payload
+  // carries none, so its form and Home's quick-write path read them here.
+  ingestPresets(status);
   if (activeView !== "home") return;
   viewStatusHandlers.home?.(status);
   hideHomeBoot();
@@ -4247,9 +4257,12 @@ function resetUiStream() {
   statsLastSeq = 0;
   statsResolve?.(false);
   uiState.statsExportResolve?.(null);
+  settingsFrame = null;
+  settingsResolve?.(false);
+  settingsResolve = null;
   // A closed socket ends every subscription generation: nothing stays synced
   // until socket.onopen replays the wanted subscriptions.
-  historySynced = statsSynced = false;
+  historySynced = statsSynced = settingsSynced = false;
   shotStale = true;
   shotResync = false;
   invalidateHomeStream();
@@ -4463,6 +4476,7 @@ function startUiStream() {
     if (historyStreamWanted) historySendSubscribe();
     if (logStreamWanted) sendUiOperation({ op: "log", on: true, after: lastLog });
     if (statsStreamWanted) statsSendSubscribe();
+    if (settingsStreamWanted) settingsSendSubscribe();
     shotActivity();
   };
   socket.onmessage = (event) => {
@@ -4488,6 +4502,12 @@ function startUiStream() {
           scheduleDiagPaint();
         }
         resolveDiagFrame();
+        return;
+      }
+      if (data.type === "settings") {
+        // Stale request ids (a superseded subscription) never reach the model.
+        if (!settingsStreamWanted || data.request !== settingsRequest) return;
+        applySettingsStream(data);
         return;
       }
       if (data.type === "history") {
@@ -5481,6 +5501,92 @@ function applyStatsStream(message) {
     statsResolve?.(true);
   }
 }
+// Settings rides the owned socket with the History contract: a
+// session-standing subscription (the Settings entry and Home's quick-write
+// hydration both ensure it), a snapshot on subscribe, fingerprint deltas
+// after — one changed setting arrives alone in `changes`. The request id
+// discards frames of a superseded subscription; presets never ride this
+// stream (Home ingests them on every view, D4).
+let settingsStreamWanted = false,
+  settingsSynced = false,
+  settingsRequest = 0,
+  settingsFrame = null,
+  settingsResolve = null;
+function settingsSendSubscribe() {
+  if (!shotWs || shotWs.readyState !== 1) return;
+  settingsSynced = false;
+  settingsRequest = ++uiState.settingsNextRequest;
+  sendUiOperation({ op: "settings", on: true, request: settingsRequest });
+}
+// The Settings subscription is session-standing, like History and Stats.
+function ensureSettingsStream(resubscribe) {
+  if (resubscribe || !settingsStreamWanted) {
+    settingsStreamWanted = true;
+    if (shotWs?.readyState === 1) settingsSendSubscribe();
+  }
+}
+// Subscribe-and-wait (startHistoryStream's cold path): an in-date standing
+// model answers immediately; anything else re-subscribes — arming the
+// firmware's snapshot — and waits for it.
+function settingsSnapshotWait(force) {
+  if (!webUiPollingActive()) return Promise.resolve(null);
+  if (!force && settingsSynced && settingsFrame && shotWs?.readyState === 1 && !shotResync)
+    return Promise.resolve(settingsFrame.status);
+  settingsResolve?.(false);
+  const ready = new Promise((r) => (settingsResolve = r));
+  startUiStream();
+  ensureSettingsStream(true);
+  return ready;
+}
+function startSettingsStream(force) {
+  if (!webUiPollingActive()) return Promise.resolve(false);
+  return viewReady.then(() => {
+    if (!webUiPollingActive() || activeView !== "settings") return false;
+    // Warm entry: the standing subscription keeps the model current, so
+    // repaint it without an op or a snapshot wait. Forced refreshes, first
+    // opens, reconnects, and pending resyncs take the subscribe-and-wait path.
+    if (!force && settingsSynced && settingsFrame && shotWs?.readyState === 1 && !shotResync) {
+      renderSettingsStream();
+      return true;
+    }
+    return settingsSnapshotWait(true).then((s) => !!s);
+  });
+}
+// A superseded base revision needs the device's current values: re-subscribe
+// and wait for the snapshot, whatever view is active — the Settings form
+// also saves from Home's quick-write path.
+function resyncSettingsStream() {
+  return settingsSnapshotWait(true).then((s) => !!s);
+}
+function applySettingsStream(message) {
+  settingsFrame = statusStreamFrame(settingsFrame, message);
+  // Home's clock discipline: anchor on the emitted instant, then keep the
+  // cached value from re-anchoring the shared wall clock on a later paint.
+  if (typeof settingsFrame.status.timeUtcSec === "number") {
+    statusUtcAnchorSec = settingsFrame.status.timeUtcSec;
+    statusUtcAnchorAt = performance.now();
+  }
+  delete settingsFrame.status.timeUtcSec;
+  if (message.snapshot) {
+    settingsSynced = true;
+    const resolve = settingsResolve;
+    settingsResolve = null;
+    resolve?.(settingsFrame.status);
+  }
+  paint(renderSettingsStream);
+}
+// Settings frames paint like Home's: common status on every view (the
+// subscription is session-standing), the form only while Settings is open.
+function renderSettingsStream() {
+  if (!settingsFrame) return;
+  const status = settingsFrame.status;
+  lastStatusAt = Date.now();
+  applyCommonStatus(status);
+  noteReachOk();
+  if (status.snapshotStale) setMutable(false);
+  if (activeView !== "settings") return;
+  viewStatusHandlers.settings?.(status);
+}
 // After the first view paints, subscribe whichever record page is not
 // standing yet so both datasets refresh in the background for the rest of
 // the session. The active view has already painted, so the record pages
@@ -6349,7 +6455,6 @@ function applyHomeStatus(s) {
       a.setAttribute("aria-disabled", off ? "true" : "false");
     });
   }
-  ingestPresets(s);
   updateRuleChartFromStatus(s);
   renderHomeCards();
   renderHomePresetAccordion();
@@ -6384,8 +6489,9 @@ function statusPageOk(v, s) {
           typeof c.soundAlertsEnabled === "boolean" &&
           typeof c.dripDelayMs === "number" &&
           typeof c.postTareBaselineGraceMs === "number" &&
+          typeof c.revision === "number" &&
           s.scale &&
-          s.presets &&
+          typeof s.scale.macCachePauseRemainingMs === "number" &&
           typeof s.buzzerSupported === "boolean"
         )
       : v === "admin"
@@ -6441,7 +6547,13 @@ async function loadStatus() {
 }
 function refreshStatus() {
   return withPollGate(
-    activeView === "stats" ? refreshShots : activeView === "history" ? refreshHistory : loadStatus,
+    activeView === "stats"
+      ? refreshShots
+      : activeView === "history"
+        ? refreshHistory
+        : activeView === "settings"
+          ? () => startSettingsStream(true)
+          : loadStatus,
   );
 }
 
@@ -6493,8 +6605,9 @@ async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
             configRevision !== previousRevision;
         }
         if (!applied) throw new Error(__WEBUI_TEXT__("runtime.device_did_not_apply_the_change"));
-        // Repaint REST-backed forms once.
-        if (!polled) await refreshStatus();
+        // Repaint REST-backed forms once; the Settings form repaints from its
+        // own stream deltas and Home/Diagnostic from their stream frames.
+        if (!polled && activeView === "admin") await refreshStatus();
       } else await refreshStatus();
       if (okMsg !== "")
         message(
@@ -6509,7 +6622,8 @@ async function command(path, value = {}, soft, okMsg, failMsg, busyId) {
       if (soft) throw e;
       if (failMsg !== "")
         message(formatCommandError(failMsg || commandFailMessage(path, value), e), "error");
-      await refreshStatus();
+      // Settings frames keep that form current without a forced refresh.
+      if (activeView !== "settings") await refreshStatus();
       return false;
     } finally {
       commandBusy = false;
@@ -6564,6 +6678,8 @@ export {
   stopLogStream,
   startHistoryStream,
   startStatsStream,
+  startSettingsStream,
+  resyncSettingsStream,
   ensureBackgroundRecordStreams,
   renderLog,
   armListSentinel,

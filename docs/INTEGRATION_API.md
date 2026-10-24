@@ -284,7 +284,7 @@ cycle. A later Settings save that changes the same shared setting, or an edit
 of the active preset's Brew by weight, fast or slow choice, replaces the
 override with the saved value.
 
-The Web UI status (`/api/v1/status/{page}`) and the Home stream report the
+The Home and Settings streams and the Admin status response report the
 overrides as `quickRevert.overrides`, a bit mask in field order: `brewByWeight`
 (1), `noScaleBbwMode` (2), `autoToManualGuardEnabled` (4),
 `slowExtractionGuardEnabled` (8), `fastExtractionGuardEnabled` (16),
@@ -472,7 +472,7 @@ socket. Accepted WebSocket ops (claim, bind,
 activity, and the view subscriptions) retain the confirmation of pending
 Wi-Fi settings on a station connection.
 
-Home's live stream and the other Web UI page status responses include
+Home's live stream and the Admin status response include
 `connections`: `wifiConnected` and `bluetoothConnected` are booleans;
 `wifiLevel` and `bluetoothLevel` are firmware-calculated levels:
 `1` weak, `2` medium, `3` strong, or `null` when unavailable. The connection
@@ -548,7 +548,8 @@ ticking countdown locally, so a stable estimate emits no frames. Readiness is
 never evidence for control; power stays ON/OFF-only.
 
 Reconnect and `{"op":"resync"}` request fresh snapshots; the resync op also
-forces a fresh History snapshot for subscribed sessions. The browser sends a
+forces a fresh History and Settings snapshot for subscribed sessions. The
+browser sends a
 resync only after rejecting a frame. Returning to a page that stayed open
 needs none: the socket delivered every frame in order, so the browser only
 sends its liveness `activity` message. A page hidden for 5 minutes or longer
@@ -577,12 +578,14 @@ live shot (an owed snapshot still goes out) and keeps their fingerprints, so
 the visible `activity` (`hidden: false`) is followed by one catch-up delta
 instead of every intermediate change. Clock synchronization
 supplies a new time anchor; the browser advances relative time locally.
-`GET /api/v1/status/home` no longer exists: navigation visibility
-(`diagnosticPageVisible`, `compatibilityMode`) is carried by the Home stream
-itself and applied on every view, and the browser no longer probes a status
-route when entering Stats, History, or Diagnostic. Settings, Admin, and the
-public integration API keep their existing REST contracts;
-the Diagnostic page is WebSocket-only and is described next.
+`GET /api/v1/status/home` and `GET /api/v1/status/settings` no longer exist:
+navigation visibility (`diagnosticPageVisible`, `compatibilityMode`) is
+carried by the Home stream itself and applied on every view, the browser no
+longer probes a status route when entering Stats, History, Diagnostic, or
+Settings, and the Settings page reads only its WebSocket stream (described
+below under [Settings live updates](#settings-live-updates)). Admin and the
+public integration API keep their existing REST contracts; the Diagnostic
+page is WebSocket-only and is described next.
 
 ### Diagnostic live updates
 
@@ -789,6 +792,46 @@ and window changes reuse that snapshot, and the header is rebuilt when the
 store, the window, or the active preset changes. This preserves chronological
 CSV order after browsing by rating without repeated store captures per frame.
 
+### Settings live updates
+
+The Settings page rides the same owned WebSocket. The subscription is ensured
+by the first Settings entry (or Home's quick-write path) and then stays
+standing for the whole UI session, like History and Stats: device-side
+changes keep the cached page current while another view is open, a reconnect
+replays the subscription, and returning to the page with live data repaints
+from the standing model without any message. The browser subscribes with a
+generation id:
+
+```json
+{"op":"settings","on":true,"request":1}
+```
+
+Every frame echoes that `request`, and a frame whose id no longer matches the
+browser's current subscription is discarded. The browser never unsubscribes
+(the op accepts `on: false`, but the page keeps the subscription standing).
+
+The first frame after subscribing is a snapshot; later frames are `changes`
+deltas merged in order, exactly like Home. A snapshot names `v: 1`,
+`type: "settings"`, `boot`, `snapshot: true`, and `request`; later frames
+carry only `type`, `request`, and `changes`. A changed setting is sent alone,
+as its own path in `changes`, and a projection where nothing changed emits no
+frame, so an idle device costs nothing. The projection covers the Settings
+form fields with the configuration revision, the Brew by Weight learning
+readback and drip chart, cup detection and Bullseye settings, the scale
+choice with its scale history and the scale-loss projection, and the Linea
+Micra section with its machine list. Countdowns are quantized to whole
+seconds so a ticking value cannot wake the stream, and the time anchor is
+rebased only on a snapshot or clock synchronization; the page ticks local
+time itself.
+
+Settings writes keep using `POST /api/v1/config` with `baseRevision`; the
+applied change returns as a delta, and a form the user is editing is never
+overwritten — updates missed while a form was dirty are applied when it is
+clean again. A rejected frame arms the generic `{"op":"resync"}`, which also
+forces a fresh Settings snapshot. While the page is hidden the session keeps
+its fingerprints and holds its frames, so the page becoming visible again is
+followed by one catch-up delta instead of every intermediate change.
+
 
 ## Linea Micra Web API
 
@@ -815,7 +858,8 @@ disconnect erases durable credentials/selection and the RAM session. Unknown,
 duplicate, or action-inappropriate fields are rejected. Accepted commands
 return `202`.
 
-Settings and diagnostic status include a Micra subtree only in Micra firmware.
+The Settings stream and Diagnostic status include a Micra subtree only in
+Micra firmware.
 It reports whether an account is configured, selected name/serial, option flags,
 request phase/error, ON/OFF/UNKNOWN power state, raw observed mode, evidence
 quality, optimistic-ON and optimistic-OFF provenance, sample age/freshness,
@@ -825,8 +869,8 @@ last HTTP/transport status, and the bounded machine list returned while
 connecting or after `relist`. `accountMachineCount` is the number of machines on
 the saved account at its latest listing (`0` until listed after a boot),
 `machineListing` is true while a `relist` is queued or running, and
-`machineListError` reports its outcome with the same error names. Settings status
-also reports `readiness` (`off`, `warming_up`, `waiting_for_steam`, `ready`,
+`machineListError` reports its outcome with the same error names. The Settings
+stream also reports `readiness` (`off`, `warming_up`, `waiting_for_steam`, `ready`,
 `needs_water` or `unknown`, the same rollup Home uses) and `machineOffline`,
 true when the cloud reports that the machine itself is disconnected. The saved account email is visible in Settings and Diagnostics; password,
 installation private key, access token and refresh token are never returned. `refresh` is read-only and requires a selected

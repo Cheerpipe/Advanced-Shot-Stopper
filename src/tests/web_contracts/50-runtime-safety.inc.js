@@ -12,8 +12,8 @@
 }
 if (!codeIncludes(runtimeJs, "if(webUiPollingActive()&&statusPollDue())refreshStatus();},1e4)") ||
     !codeIncludes(runtimeJs, "s=v==='home'?await loadHomeStatus():v==='diagnostic'?await loadDiagnosticStatus():await api(") ||
-    !codeIncludes(runtimeJs, "activeView!=='settings'&&activeView!=='admin'")) {
-  throw new Error('Home and Diagnostic must use their socket; Settings/Admin keep only the slow REST poll');
+    !codeIncludes(runtimeJs, "activeView!=='admin'")) {
+  throw new Error('Home, Diagnostic, and Settings must use their socket; only Admin keeps the slow REST poll');
 }
 if (!codeIncludes(ui, 'async function loadStatus(){') ||
     !codeIncludes(ui, 'function startStatsStream(force){') ||
@@ -21,7 +21,7 @@ if (!codeIncludes(ui, 'async function loadStatus(){') ||
     !codeIncludes(ui, 'function applyLogFrame(') ||
     !codeIncludes(ui, 'LOG_EVENTS_CAPACITY') ||
     !codeIncludes(ui, 'logEvents.splice(0,logEvents.length-LOG_EVENTS_CAPACITY)') ||
-    !codeIncludes(ui, "function refreshStatus(){return withPollGate(activeView==='stats'?refreshShots:activeView==='history'?refreshHistory:loadStatus") ||
+    !codeIncludes(ui, "function refreshStatus(){return withPollGate(activeView==='stats'?refreshShots:activeView==='history'?refreshHistory:activeView==='settings'?()=>startSettingsStream(true):loadStatus") ||
     !codeIncludes(ui, "function refreshShots(){return shotStatsViewActive()?startStatsStream(true):Promise.resolve(false)}") ||
     !(codeIncludes(ui, "name==='home'||name==='settings'||name==='admin'||name==='diagnostic'") ||
       codeIncludes(ui, "name === 'home' || name === 'settings' || name === 'admin' ||") ||
@@ -183,18 +183,17 @@ for (const field of forbiddenResponseFields) {
 }
 const soundAlertStatusFields =
     statusFormat.match(/\\"soundAlertsEnabled\\":%s/g) || [];
-if (soundAlertStatusFields.length !== 1 ||
-    !network.includes('delta.field("config.soundAlertsEnabled"') ||
-    !statusFormat.includes('page == StatusPage::Settings')) {
+if (soundAlertStatusFields.length !== 0 ||
+    (network.match(/delta\.field\("config\.soundAlertsEnabled"/g) || []).length !== 2) {
   throw new Error(
-      'soundAlertsEnabled must be projected by the Home stream and status/settings');
+      'soundAlertsEnabled must be projected by the Home and Settings streams, not the REST page');
 }
 const alertChannelStatusFields =
     statusFormat.match(/\\"alertOutputChannel\\":\\"%s\\"/g) || [];
-if (alertChannelStatusFields.length !== 1 ||
-    !statusFormat.includes('page == StatusPage::Settings')) {
+if (alertChannelStatusFields.length !== 0 ||
+    !network.includes('delta.field("config.alertOutputChannel"')) {
   throw new Error(
-      'alertOutputChannel must remain available in status/settings');
+      'alertOutputChannel must remain available on the settings stream');
 }
 // Shared status envelope: firmware/bootId/mutable/liveShot/ringRetain only.
 // NTP → admin; serialDebug/diagnostics → diagnostic; buzzerSupported → settings.
@@ -212,10 +211,10 @@ if (/buzzerSupported.*liveShot|liveShot.*buzzerSupported/.test(
             statusFormat.indexOf('{\\"firmwareVersion\\"') + 200))) {
   throw new Error('buzzerSupported must not ride in the shared status open append');
 }
-if (!statusFormat.includes('page == StatusPage::Settings') ||
-    !statusFormat.includes(',\\"buzzerSupported\\":%s') ||
+if (!network.includes('delta.field("buzzerSupported"') ||
+    statusFormat.includes('buzzerSupported') ||
     statusFormat.includes('StatusPage::Debug')) {
-  throw new Error('buzzerSupported must be gated to status settings only');
+  throw new Error('buzzerSupported must ride the settings stream, not the REST envelope');
 }
 if (codeIncludes(ui, "statusPageOk(v,s)") && !codeIncludes(ui, "v!=='diagnostic'&&!statusPageOk(v,s)")) {
   throw new Error('statusPageOk must not validate a diagnostic REST payload');

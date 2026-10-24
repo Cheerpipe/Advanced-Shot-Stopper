@@ -918,8 +918,10 @@ if (generated.cssGzip.length > 17163) {
 // 2026-10-23; cap 43180.
 // Stream render errors kept off the corrupt-frame path bring it to 43181, owner-requested
 // 2026-10-23; cap 43200.
-if (sentinelRuntimeGzip.length > 43200) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 43200-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The Settings stream client (subscribe trio, snapshot wait, shared merge branch)
+// replacing the Settings REST poll brings it to 43351, owner-requested 2026-10-23.
+if (sentinelRuntimeGzip.length > 43351) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 43351-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -1237,8 +1239,10 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // shared list filter menu, its shell icon, and the Stats window bar bring it to 73206,
 // owner-requested 2026-10-23; cap 73230.
 // Rejected-op (4003) recovery: 73288, owner-requested 2026-10-23; cap 73300.
-if (coldHomeGzip > 73300) {
-  throw new Error(`Cold Home download exceeds the 73300-byte gzip budget (${coldHomeGzip})`);
+// The Settings stream client replacing the Settings REST poll: 73495,
+// owner-requested 2026-10-23; cap 73500.
+if (coldHomeGzip > 73500) {
+  throw new Error(`Cold Home download exceeds the 73500-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin
@@ -1255,8 +1259,10 @@ if (coldHomeGzip > 73300) {
 // Fixed Administration unlock section: 155002, owner-requested 2026-10-22; cap 155010.
 // Access password notes (the approved admin and CSS raises): 155040, owner-requested
 // 2026-10-23; cap 155040.
-if (generated.combined > 155040) {
-  throw new Error(`Combined Web UI gzip exceeds the 155040-byte flash budget (${generated.combined})`);
+// The Settings stream client replacing the Settings REST poll: 155331,
+// owner-requested 2026-10-23; cap 155360.
+if (generated.combined > 155360) {
+  throw new Error(`Combined Web UI gzip exceeds the 155360-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {

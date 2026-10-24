@@ -245,11 +245,12 @@
   const homeCall = stream.indexOf('bool open = sendHomeStream(session, control,');
   const cardCall = stream.indexOf('within() && sendShotCard(session, control,');
   const diagCall = stream.indexOf('within() && sendDiagnosticStream(session, control, network)');
+  const settingsCall = stream.indexOf('within() && sendSettingsStream(session, control, network)');
   const historyCall = stream.indexOf('within() && sendHistoryStream(session, control)');
   const statsCall = stream.indexOf('within() && sendStatsStream(session, control)');
   assert(homeCall >= 0 && cardCall > homeCall && diagCall > cardCall &&
-         historyCall > diagCall && statsCall > historyCall,
-      'dispatch must send home, card, diagnostic, history, stats in order');
+         settingsCall > diagCall && historyCall > settingsCall && statsCall > historyCall,
+      'dispatch must send home, card, diagnostic, settings, history, stats in order');
   // Bulk continuations leave ACK headroom while live Home can dispatch sooner.
   assert(homeStream.includes('session.statsPageEpoch != epoch') &&
          homeStream.includes('session.statsSent = 0;'),

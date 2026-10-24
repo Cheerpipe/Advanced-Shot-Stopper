@@ -148,6 +148,7 @@
       withBaseRev: p => ({...p, baseRevision: 7}),
       formatCommandError: (_, e) => e.message, message: e => errors.push(e),
       setTimeout: () => 0, clearTimeout() {},
+      resyncSettingsStream: async () => {},
       refreshStatus: async () => context.updatePreferredScaleSelect(status()),
       command: async (path, payload) => {
         requests.push({path, payload});

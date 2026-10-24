@@ -1015,8 +1015,9 @@ The Web UI shows an action-specific success or failure toast when the
 HTTP handler accepts or rejects the command, not when NVS is done.
 Configuration and preset saves are the exception: they wait for their own
 request's `APPLIED` (presets: `PERSISTED`) and a new configuration revision,
-read from the Home stream that every page keeps open; REST status polls,
-backing off from 250 ms to 1 s, stand in only while that stream is down.
+read from the Home stream that every page keeps open; while that stream is
+stale, a forced view refresh (the settings stream's snapshot wait, or Admin's
+REST poll) backs off from 250 ms to 1 s.
 
 Source: `OpenBrewByWeightDomain.h`.
 

@@ -384,8 +384,9 @@ async function saveMachineConfig(patch) {
       }
       return true;
     } catch (e) {
-      // The patch holds only this page's edits: resend it once on a newer revision.
-      await R.refreshStatus();
+      // The patch holds only this page's edits: resend it once on a newer
+      // revision, taken from a fresh settings-stream snapshot.
+      await R.resyncSettingsStream();
       if (retry && e.code === "CONFIG_REVISION_STALE") continue;
       // Only the firmware parses RTTTL: a rejected tune is marked, not kept.
       if (e.code === "INVALID_FIELD" && "bullseyeRtttl" in patch)
@@ -478,11 +479,9 @@ function applyLineaMicraStatus(s) {
     busy = signingIn || linking,
     choosing = changing || (!connected && !busy && machines.length > 0),
     stage = linking ? 2 : m.phase === "listing" ? 1 : 0;
-  if (busy && !R.uiState.micraPoll)
-    R.uiState.micraPoll = setTimeout(() => {
-      R.uiState.micraPoll = 0;
-      R.refreshStatus();
-    }, 1000);
+  // No sign-in poll: every phase step arrives as a settings-stream delta
+  // (this repaint runs from each frame); a lost socket is the reconnect
+  // machinery's problem.
   $("lineaMicraLegendHint").textContent =
     connected && !changing
       ? __WEBUI_TEXT__("runtime.micra_state_connected")
