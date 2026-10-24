@@ -306,7 +306,7 @@ bool OpenBrewByWeightNetwork::sendHomeStream(UiStreamSession &session,
       if (n > 0 && static_cast<size_t>(n) < cap - used) { used += static_cast<size_t>(n); needComma = true; }
       else ok = false;
     }
-    bool itemsOpen = false, itemFirst = true;
+    bool itemsOpen = false;
     for (uint8_t i = 0; i < presetCount && ok; ++i) {
       // Keyed by preset id: a preset whose content this page already holds is
       // not re-sent, even when a deletion shifted its bank slot.
@@ -314,18 +314,16 @@ bool OpenBrewByWeightNetwork::sendHomeStream(UiStreamSession &session,
       for (uint8_t s = 0; s < sent.presetSentCount; ++s)
         if (sent.presetSentIds[s] == presets.presets[i].id) { at = s; break; }
       if (!initial && at >= 0 && sent.presetSlotHashes[at] == slotHash[i]) continue;
-      if (!itemsOpen) {
-        n = snprintf(buf + used, cap - used, "%s\"items\":[", needComma ? "," : "");
-        if (n > 0 && static_cast<size_t>(n) < cap - used) {
-          used += static_cast<size_t>(n); needComma = true; itemsOpen = true;
-        } else { ok = false; break; }
-      }
-      n = snprintf(buf + used, cap - used, "%s", itemFirst ? "" : ",");
-      if (n > 0 && static_cast<size_t>(n) < cap - used) used += static_cast<size_t>(n);
-      else { ok = false; break; }
+      // The array opening or the item separator: never an empty write, which
+      // the overflow check would read as a failure.
+      n = snprintf(buf + used, cap - used, "%s",
+                   itemsOpen ? "," : needComma ? ",\"items\":[" : "\"items\":[");
+      if (n > 0 && static_cast<size_t>(n) < cap - used) {
+        used += static_cast<size_t>(n); needComma = true; itemsOpen = true;
+      } else { ok = false; break; }
       n = formatSlimPresetJson(buf + used, cap - used, presets.presets[i],
                                g_work->renderedStats[i]);
-      if (n > 0 && static_cast<size_t>(n) < cap - used) { used += static_cast<size_t>(n); itemFirst = false; }
+      if (n > 0 && static_cast<size_t>(n) < cap - used) used += static_cast<size_t>(n);
       else { ok = false; break; }
     }
     if (ok && itemsOpen) {
