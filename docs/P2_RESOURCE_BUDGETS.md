@@ -174,6 +174,25 @@ still well inside its allowance). Removing the REST Settings builder
 outweighed the new stream projection, and the Admin 10 s poll remains the
 only status poll. Task ownership, control timing, OTA identity and
 partitions are unchanged.
+The layered disjoint-streams correction (2026-10-24) — the Settings
+projection pruned to a thin Home-disjoint overlay (137 → 86 fields;
+`kSettingsFields` 160 → 96, freeing 64 fingerprint slots — 256 bytes — of
+per-session PSRAM), the dead clock-anchor and override machinery removed with the
+duplicated fields, and the browser client composing the overlay over Home's
+model with a view-scoped subscription — net-shrinks the firmware again: the
+development Micra build measures 2,461,248 image bytes (91,792 over
+baseline; 1,168 below the previous round's mark), 643,624 rodata (24,752),
+193,430 DIRAM (288) and external BSS unchanged at 3,161,184. The gate's six
+budgeted builds all pass: the Micra release image measures 2,473,536
+(−4,304 against its release baseline; −1,824 below the previous round), the
+Silvia release 2,308,416 (−1,280) and the reed release 2,304,064 (−1,344).
+The browser source grows with the composed model and the view-scoped
+lifecycle: the Web contract caps were raised with dated entries (JS source
+532,446; combined authoring 638,990; runtime.js gzip 43,535 capped at
+43,560; cold Home 73,682 capped at 73,700; combined compressed 155,502
+capped at 155,560 — settings.js itself net-shrinks to 18,388). While the
+Settings view is inactive the settings subscription is now closed, so an
+idle device sends no settings frames at all.
 Urgent control-gate publication and the no-scale timer's stop fade add another
 640 bytes of reviewed image/linked allowance, to 44,976 and 44,968 bytes.
 The mobile full-screen Home shot card and the Brew by Weight master toggle

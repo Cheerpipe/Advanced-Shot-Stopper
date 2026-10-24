@@ -863,11 +863,13 @@ document.addEventListener("click", async (e) => {
 
 // Setup help: something rests on the platform but reads below the configured
 // cup minimum, so cup detection and late tare will not see it as a cup.
+// The live platform weight is Home's scale.observedWeightG (the same
+// physics the settings projection once duplicated, D17).
 function updateCupMinGuidance(s) {
   const hint = $("cupMinGuidance");
   if (!hint) return;
   const observed =
-      s.cupSetup && typeof s.cupSetup.observedG === "number" ? s.cupSetup.observedG : null,
+      s.scale && typeof s.scale.observedWeightG === "number" ? s.scale.observedWeightG : null,
     min = R.number("minimumCupWeightG");
   const show = observed !== null && Number.isFinite(min) && observed > 0.5 && observed < min;
   hint.hidden = !show;

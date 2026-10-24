@@ -1,20 +1,24 @@
-// View-scoped Settings projection, the bounded sender contract of
-// sendHomeStream/sendDiagnosticStream: every scalar is formatted and
-// fingerprinted per dispatch and reaches the wire only when its hash
-// changes, so one changed setting travels alone and an unchanged projection
-// costs no frame. Live fields that move without a revision bump (bbw
-// learning readback, cupSetup.observedG, the Linea Micra section, the
-// scale-loss projection, the clock) ride the same per-field hashing; the
-// scale-history and Bullseye RTTTL blobs sit behind render caches, and
-// countdowns quantize to their UI resolution. Every value comes from the
-// control snapshot and the PSRAM cache callbacks; the sender never reads
-// flash (D10). sendHomeStream filled g_work->scaleHistory and
+// View-scoped Settings projection: a thin overlay over Home's core state
+// stream (D17 — every field Home already carries was removed here; the
+// client composes this frame over Home's standing model). The bounded
+// sender contract of sendHomeStream/sendDiagnosticStream still holds: every
+// scalar is formatted and fingerprinted per dispatch and reaches the wire
+// only when its hash changes, so one changed setting travels alone and an
+// unchanged projection costs no frame. Live fields that move without a
+// revision bump (bbw learning readback, the scale-loss projection, the
+// Linea Micra section) ride the same per-field hashing; the scale-history
+// and Bullseye RTTTL blobs sit behind render caches. Every value comes
+// from the control snapshot and the PSRAM cache callbacks; the sender
+// never reads flash (D10). sendHomeStream filled g_work->scaleHistory and
 // g_work->presetBank earlier in this same dispatch.
 __attribute__((optimize("Os")))
 bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
                                            const ControlStatusSnapshot &control,
                                            const NetworkStatusSnapshot &network) {
   uiStreamSendKind = "settings";
+  // The overlay no longer reads the network snapshot (lastCommand left with
+  // the Home-duplicated fields); the uniform sender-chain signature stays.
+  (void)network;
   const bool initial =
       session.settingsResync || session.settingsBoot != control.bootId;
   auto &hashes = workBuf_->uiFingerprints[&session - uiStreams_];
@@ -30,54 +34,9 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
       : statusJsonAppend(&delta.used,
             "{\"type\":\"settings\",\"request\":%lu,\"changes\":{",
             static_cast<unsigned long>(session.settingsRequest));
-  bool override = false;
-  {
-    TaskLockGuard lock(dataMux_);
-    override = webUiOverrideActive_ &&
-        static_cast<int32_t>(millis() - webUiOverrideUntilMs_) < 0;
-  }
-  delta.field("firmwareVersion", "\"%s\"", FW_VERSION);
-  delta.field("bootId", static_cast<unsigned long>(control.bootId));
-  delta.field("configMutable", bool(controlAllowsConfiguration(control)));
-  delta.field("snapshotStale", bool(control.snapshotStale));
-  delta.field("webUiOverrideActive", bool(override));
-  delta.field("compatibilityMode", bool(firmwareCompatibilityMode()));
-  delta.field("machineType", "\"%s\"", compiledMachineTypeId());
-#if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
-  delta.field("machineIntegration", "\"linea_micra_cloud\"");
-#else
-  delta.field("machineIntegration", "\"none\"");
-#endif
-  delta.field("diagnosticPageVisible", bool(diagnosticPageEnabled()));
   delta.field("buzzerSupported", bool(BUZZER_SUPPORT_ENABLED));
-  delta.field("lastCommand.requestId",
-              static_cast<unsigned long>(network.lastCommandRequestId));
-  delta.field("lastCommand.state", "\"%s\"",
-              commandResultStateName(network.lastCommandState));
-  delta.field("quickRevert.after", "\"%s\"",
-              quickRevertPolicyId(control.quickRevertPolicy));
-  delta.field("quickRevert.overrides", "%u",
-              static_cast<unsigned>(control.quickOverrideMask));
-  delta.field("quickRevert.remainingS",
-              static_cast<unsigned long>((control.quickRevertRemainingMs + 999) / 1000));
   const auto &config = control.config;
-  const auto clock = g_wallClock.snapshot(millis());
-  // Rebase only on connection or clock synchronization; ticking time is local.
-  if (initial || session.settingsClockSync != clock.lastSyncUtcSec) {
-    session.settingsClockSync = clock.lastSyncUtcSec;
-    session.settingsClockUtc = clock.utcSec;
-  }
-  int16_t timezoneOffset = 0;
-  timeZoneOffsetAtOrUtc(config.timezoneId, clock.utcSec, timezoneOffset);
-  delta.field("timeUtcSec", static_cast<unsigned long>(session.settingsClockUtc));
-  delta.field("config.revision", static_cast<unsigned long>(config.revision));
-  delta.field("config.timezoneId", "\"%s\"", config.timezoneId);
-  delta.field("config.timezoneAutomatic", bool(config.timezoneAutomatic));
-  delta.field("config.timezoneInitialized", bool(durableTimezoneSaved().load()));
-  delta.field("config.appliedTimezoneOffsetMinutes", "%d",
-              static_cast<int>(timezoneOffset));
   const auto &activePreset = activeShotPreset(g_work->presetBank);
-  delta.field("config.goalWeightG", goalWeightDgToGrams(config.goalWeightDg));
   // Finite or "null" like the float overload (D15): a non-finite value must
   // never render as bare nan and poison the frame.
   delta.field("config.weightOffsetG",
@@ -92,12 +51,10 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
               bool(idleAccessoryRetareEnabled(config.noScaleBbwMode)));
   delta.field("config.postTareBaselineGraceMs",
               static_cast<unsigned long>(config.postTareBaselineGraceMs));
-  delta.field("config.brewByWeight", !bool(config.timerOnly));
   delta.field("config.canTareStartTimer", bool(config.canTareStartTimer));
   delta.field("config.scaleTimerStopExtraDelayMs",
               static_cast<unsigned long>(config.scaleTimerStopExtraDelayMs));
   delta.field("config.dripDelayMs", static_cast<unsigned long>(config.dripDelayMs));
-  delta.field("config.soundAlertsEnabled", !bool(config.soundAlertsMuted));
   delta.field("config.firstDropBeep", bool(config.firstDropBeep));
   delta.field("config.paddleReturnReminderBeep",
               bool(config.paddleReturnReminderBeep));
@@ -133,7 +90,6 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
               extendedPulseRateId(config.buzzerSlowExtendedPulseRate));
   delta.field("config.alertOutputChannel", "\"%s\"",
               alertOutputChannelId(config.alertOutputChannel));
-  delta.field("config.rinseEnabled", bool(config.rinseEnabled));
   delta.field("config.rinseGestureMs",
               static_cast<unsigned long>(config.rinseGestureMs));
   delta.field("config.rinseDurationMs",
@@ -152,34 +108,16 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
               static_cast<unsigned long>(config.retareStabilityMinDurationMs));
   delta.field("config.bbwProtectionMs",
               static_cast<unsigned long>(config.bbwProtectionMs));
-  delta.field("config.operationalWallMs",
-              static_cast<unsigned long>(config.operationalWallMs));
-  delta.field("config.fastExtractionGuardEnabled", bool(config.fastSideEnabled));
-  delta.field("config.fastMarginG", goalWeightDgToGrams(config.fastMarginDg));
-  delta.field("config.fastBeforeS", config.fastBeforeMs / 1000.0f);
-  delta.field("config.slowExtractionGuardEnabled", bool(config.slowSideEnabled));
-  delta.field("config.slowMarginG", goalWeightDgToGrams(config.slowMarginDg));
-  delta.field("config.slowAfterS", config.slowAfterMs / 1000.0f);
   delta.field("config.scaleLossFixedS", config.scaleLossFixedMs / 1000.0f);
   delta.field("config.doseG", goalWeightDgToGrams(activePreset.doseDg));
   delta.field("config.grindHintsEnabled", bool(activePreset.grindHintsEnabled));
-  delta.field("config.autoToManualGuardEnabled", bool(config.scaleLossEnabled));
-  delta.field("config.cupProtectionEnabled", bool(config.cupProtectionEnabled));
-  delta.field("config.stopIfCupRemoved", bool(config.stopIfCupRemoved));
-  delta.field("config.requireCupToStart", bool(config.requireCupToStart));
-  delta.field("config.avoidAccidentalTouchEnabled",
-              bool(config.avoidAccidentalTouchEnabled));
   delta.field("config.touchStopFallbackEnabled",
               bool(config.touchStopFallbackEnabled));
   delta.field("config.cupRemovedWeightG", config.cupRemovedWeightG);
-  delta.field("config.scaleMacCacheMode", "\"%s\"",
-              scaleMacCacheModeId(config.scaleMacCacheMode));
   delta.field("config.bookooMuteOnBuzzerOnly",
               bool(config.bookooMuteOnBuzzerOnly));
   delta.field("config.bookooConnectBeepLevel", "%u",
               static_cast<unsigned>(config.bookooConnectBeepLevel));
-  delta.field("config.noScaleBbwMode", "\"%s\"",
-              noScaleBbwModeId(config.noScaleBbwMode));
   delta.field("config.noScaleAllowRinseWhileArmed",
               bool(noScaleAllowRinseWhileArmed(config.noScaleBbwMode)));
   delta.field("config.lastShotCooldownMs",
@@ -218,12 +156,6 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
                 afterQuick + strlen(",\"bbwRecentAfterQuick\":"));
     delta.field("config.bbwRecentG", "%s", recent + strlen(",\"bbwRecentG\":"));
   }
-  // Live platform weight for the cup-minimum setup guidance, top-level for
-  // the shared client merge exactly as the client reads it.
-  if (control.scaleAvailable && control.currentWeightValid &&
-      std::isfinite(control.currentWeightG))
-    delta.field("cupSetup.observedG", control.currentWeightG);
-  else delta.field("cupSetup.observedG", "null");
   {
     // The melody copy gates the sanitize pass (the renderedPresets pattern);
     // the quoted field form keeps an empty melody a valid "" JSON value.
@@ -240,22 +172,6 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
     delta.field("config.bullseyeRtttl", "\"%s\"", g_work->safeBullseyeRtttl);
   }
   {
-    // Same source and escaping as the Home projection's identical paths, so
-    // one client model serves both streams.
-    char friendly[PREFERRED_SCALE_NAME_CAPACITY] = {};
-    findScaleHistoryFriendlyName(g_work->scaleHistory, control.preferredScaleMac,
-                                 friendly, sizeof(friendly));
-    escapeJsonString(friendly, g_work->historyJson, NetworkWorkBuf::kHistoryJson);
-    delta.field("scale.preferredFriendlyName", "\"%s\"", g_work->historyJson);
-    delta.field("scale.preferredMac", "\"%s\"", control.preferredScaleMac);
-    escapeJsonString(control.preferredScaleName, g_work->historyJson,
-                     NetworkWorkBuf::kHistoryJson);
-    delta.field("scale.preferredName", "\"%s\"", g_work->historyJson);
-    // Whole-second ceiling (UI resolution): the delta hash must change only
-    // when the displayed countdown does, not on every stream tick.
-    delta.field("scale.macCachePauseRemainingMs",
-                static_cast<unsigned long>(
-                    (control.scaleMacCachePauseRemainingMs + 999U) / 1000U * 1000U));
     const uint32_t historyHash = crc32Update(0xFFFFFFFFU,
         reinterpret_cast<const uint8_t *>(g_work->scaleHistory),
         sizeof(g_work->scaleHistory));
@@ -272,7 +188,8 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
     }
     delta.hashedField("scale.history", historyHash, g_work->historyJson);
   }
-  delta.field("scaleLoss.enabled", bool(config.scaleLossEnabled));
+  // The projection text's live inputs (D14 consumers: applySettingsStatus);
+  // Home carries no scale-loss path, so the overlay keeps them.
   delta.field("scaleLoss.projectedS", control.autoToManualGuardTrendMs / 1000.0f);
   delta.field("scaleLoss.source", "%s",
               shotLogScaleLossSourceJson(static_cast<uint8_t>(
@@ -280,9 +197,11 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
 #if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   {
     // Consumer-first (D14): every path here has a named reader in the settings
-    // model (applyLineaMicraStatus). Unconsumed Micra telemetry — sample ages,
-    // freshness and transport internals, temperature-command state — rides the
-    // Diagnostic projection only; none of it self-ticks here.
+    // model (applyLineaMicraStatus); the live pill state Home already carries
+    // (power, readiness, quality, optimistic flags) is not duplicated here.
+    // Unconsumed Micra telemetry — sample ages, freshness and transport
+    // internals, temperature-command state — rides the Diagnostic projection
+    // only; none of it self-ticks here.
     const auto micra = machineIntegrationStatus();
     const auto micraDiscovery = machineIntegrationDiscovery();
     const auto micraWs = machineIntegrationWebSocketStatus(false);
@@ -290,10 +209,8 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
     char safeSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
     char safeName[LINEA_MICRA_NAME_CAPACITY] = {};
     uint8_t options, scaleOptions;
-    bool accountConfigured;
     {
       TaskLockGuard lock(dataMux_);
-      accountConfigured = settings_.lineaMicra.accountConfigured;
       options = settings_.lineaMicra.options;
       scaleOptions = settings_.lineaMicra.scaleOptions;
       memcpy(safeEmail, settings_.lineaMicra.username, sizeof(safeEmail));
@@ -303,14 +220,11 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
     sanitizeJsonEmbed(safeEmail, safeEmail, sizeof(safeEmail));
     sanitizeJsonEmbed(safeSerial, safeSerial, sizeof(safeSerial));
     sanitizeJsonEmbed(safeName, safeName, sizeof(safeName));
-    delta.field("lineaMicra.accountConfigured", bool(accountConfigured));
     delta.field("lineaMicra.email", "\"%s\"", safeEmail);
     delta.field("lineaMicra.selectedSerial", "\"%s\"", safeSerial);
     delta.field("lineaMicra.selectedName", "\"%s\"", safeName);
     delta.field("lineaMicra.applyTemperature",
                 bool(options & LINEA_MICRA_APPLY_TEMPERATURE));
-    delta.field("lineaMicra.observeState",
-                bool(options & LINEA_MICRA_OBSERVE_STATE));
     delta.field("lineaMicra.recognizeWakeGesture",
                 bool(options & LINEA_MICRA_RECOGNIZE_WAKE));
     delta.field("lineaMicra.powerOnWithScale",
@@ -328,16 +242,8 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
                 bool(scaleOptions & LINEA_MICRA_SCALE_SCAN_RELAX_WHEN_OFF));
     delta.field("lineaMicra.phase", "\"%s\"", lineaMicraPhaseName(micra.phase));
     delta.field("lineaMicra.error", "\"%s\"", lineaMicraErrorName(micra.error));
-    delta.field("lineaMicra.powerState", "\"%s\"",
-                lineaMicraPowerStateName(micra.powerState));
-    delta.field("lineaMicra.readiness", "\"%s\"",
-                lineaMicraReadinessName(lineaMicraReadiness(micra)));
     delta.field("lineaMicra.machineOffline",
                 bool(micraWs.machineConnectedKnown && !micraWs.machineConnected));
-    delta.field("lineaMicra.quality", "\"%s\"",
-                lineaMicraObservationQualityName(micra.quality));
-    delta.field("lineaMicra.optimisticOn", bool(micra.optimisticOn));
-    delta.field("lineaMicra.optimisticOff", bool(micra.optimisticOff));
     delta.field("lineaMicra.targetValid", bool(micra.targetValid));
     delta.field("lineaMicra.targetDeciC", "%u",
                 static_cast<unsigned>(micra.targetDeciC));

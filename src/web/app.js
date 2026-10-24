@@ -110,6 +110,7 @@ async function ensureView(name) {
 R.setEnsureViewHook(ensureView);
 function stopExtraPolls() {
   R.stopDiagnosticStream();
+  R.stopSettingsStream();
   R.stopLogStream();
   jsMods.get("setup")?.stop?.();
 }

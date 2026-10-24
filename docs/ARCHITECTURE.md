@@ -73,11 +73,14 @@ Documented exception: the Admin page reads its status by REST every 10 seconds
 while visible and owned. Every other page is event-driven: live and shared
 state (machine, scale, presets, command results, configuration revision)
 reaches every page on the Home stream, command confirmation waits on that
-stream, and Settings subscribes to its own projection on the same owned
-WebSocket — each changed setting arrives as a delta, so device-side changes
-reach the form without a poll. The slow Admin poll only catches device-side
-changes that page shows with no stream projection (network, OTA, webhooks),
-which would otherwise need a per-page stream of their own.
+stream, and Settings adds a thin overlay projection on the same owned
+WebSocket — subscribed only while the Settings view is active, each field
+Home does not already carry arrives as a delta, and the page composes the
+overlay over Home's model — so device-side changes reach the form without a
+poll and without duplicating a single field. The slow Admin poll only
+catches device-side changes that page shows with no stream projection
+(network, OTA, webhooks), which would otherwise need a per-page stream of
+their own.
 
 ## PSRAM cache before flash
 

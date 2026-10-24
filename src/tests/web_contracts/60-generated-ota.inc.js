@@ -920,8 +920,11 @@ if (generated.cssGzip.length > 17163) {
 // 2026-10-23; cap 43200.
 // The Settings stream client (subscribe trio, snapshot wait, shared merge branch)
 // replacing the Settings REST poll brings it to 43351, owner-requested 2026-10-23.
-if (sentinelRuntimeGzip.length > 43351) {
-  throw new Error(`Compressed Web UI runtime JS exceeds the 43351-byte gzip budget (${sentinelRuntimeGzip.length})`);
+// The layered disjoint-streams client (composed home+overlay model, view-scoped
+// subscription, quick-write holds) brings it to 43535, owner-requested 2026-10-24;
+// cap 43560 for gzip wobble.
+if (sentinelRuntimeGzip.length > 43560) {
+  throw new Error(`Compressed Web UI runtime JS exceeds the 43560-byte gzip budget (${sentinelRuntimeGzip.length})`);
 }
 if (generated.otaImageGzip.length > 3072) {
   throw new Error('Compressed OTA image module exceeds the 3 KiB gzip budget');
@@ -1240,9 +1243,11 @@ const coldHomeGzip = generated.gzip.length + generated.cssGzip.length +
 // owner-requested 2026-10-23; cap 73230.
 // Rejected-op (4003) recovery: 73288, owner-requested 2026-10-23; cap 73300.
 // The Settings stream client replacing the Settings REST poll: 73495,
-// owner-requested 2026-10-23; cap 73500.
-if (coldHomeGzip > 73500) {
-  throw new Error(`Cold Home download exceeds the 73500-byte gzip budget (${coldHomeGzip})`);
+// owner-requested 2026-10-23; cap 73500. The layered disjoint-streams client
+// (composed home+overlay model, view-scoped subscription, quick-write holds):
+// 73682, owner-requested 2026-10-24; cap 73700.
+if (coldHomeGzip > 73700) {
+  throw new Error(`Cold Home download exceeds the 73700-byte gzip budget (${coldHomeGzip})`);
 }
 // The optional Web UI login brings every embedded asset together to 149453,
 // owner-requested 2026-10-22; cap 149480 for asset-tag gzip wobble. The Admin
@@ -1260,9 +1265,11 @@ if (coldHomeGzip > 73500) {
 // Access password notes (the approved admin and CSS raises): 155040, owner-requested
 // 2026-10-23; cap 155040.
 // The Settings stream client replacing the Settings REST poll: 155331,
-// owner-requested 2026-10-23; cap 155360.
-if (generated.combined > 155360) {
-  throw new Error(`Combined Web UI gzip exceeds the 155360-byte flash budget (${generated.combined})`);
+// owner-requested 2026-10-23; cap 155360. The layered disjoint-streams client
+// (composed home+overlay model, view-scoped subscription, quick-write holds):
+// 155500, owner-requested 2026-10-24; cap 155560.
+if (generated.combined > 155560) {
+  throw new Error(`Combined Web UI gzip exceeds the 155560-byte flash budget (${generated.combined})`);
 }
 if (!network.includes('#include "OpenBrewByWeightWebAssetsGzip.h"') ||
     network.includes('#include "OpenBrewByWeightWebAssets.h"')) {

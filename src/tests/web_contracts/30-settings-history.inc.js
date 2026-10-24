@@ -1718,7 +1718,9 @@ if (html.includes('id="debugPanel"') ||
 {
   // Cup-minimum setup guidance: a live platform weight between 0.5 g and
   // the configured minimum must surface the hint with both placeholders
-  // substituted; everything else keeps it hidden without crashing.
+  // substituted; everything else keeps it hidden without crashing. The
+  // weight is Home's scale.observedWeightG (D17: the settings projection
+  // no longer duplicates the live platform weight).
   const assert = require('assert');
   let minimumCupWeightG = 10;
   const hint = {hidden: true, textContent: ''};
@@ -1727,17 +1729,17 @@ if (html.includes('id="debugPanel"') ||
     ';return updateCupMinGuidance;')(
     id => id === 'cupMinGuidance' ? hint : null,
     {number: () => minimumCupWeightG});
-  guidance({cupSetup: {observedG: 4.21}});
+  guidance({scale: {observedWeightG: 4.21}});
   assert(!hint.hidden && hint.textContent.includes('4.2') &&
       hint.textContent.includes('10.0') &&
       !hint.textContent.includes('{x}') && !hint.textContent.includes('{n}'));
-  for (const status of [{}, {cupSetup: {}}, {cupSetup: {observedG: null}},
-    {cupSetup: {observedG: 0.4}}, {cupSetup: {observedG: 12}}]) {
+  for (const status of [{}, {scale: {}}, {scale: {observedWeightG: null}},
+    {scale: {observedWeightG: 0.4}}, {scale: {observedWeightG: 12}}]) {
     guidance(status);
     assert(hint.hidden, 'Guidance must hide for absent, tiny and over-minimum cups');
   }
   minimumCupWeightG = Number.NaN;
-  guidance({cupSetup: {observedG: 4.2}});
+  guidance({scale: {observedWeightG: 4.2}});
   assert(hint.hidden, 'An unparseable minimum must keep the guidance hidden');
   assert(settingsHtml.includes('id="cupMinGuidance" class="fieldHint" hidden'));
 }

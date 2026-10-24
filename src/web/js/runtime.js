@@ -3390,11 +3390,18 @@ async function cleanBrewForm() {
 }
 // D7: Home's quick-write path hydrates the Settings brew form from the
 // settings stream (subscribe-and-wait, a cold History entry's mechanism)
-// instead of the retired REST status page.
+// instead of the retired REST status page. D17: the snapshot is the thin
+// overlay, composed over Home's model so the form sees every field; D19:
+// the hydration holds a transient subscription — ensured for the snapshot,
+// released when the write path's readback settles (an off-view release
+// sends the unsubscribe, so no settings bytes outlive the write).
 async function ensureSettingsHydrated() {
   if (configLoaded) return;
   await ensureSettingsDom();
-  const s = await settingsSnapshotWait();
+  const s = await withSettingsStreamHold(async () => {
+    const overlay = await settingsSnapshotWait();
+    return overlay && (await settingsComposedStatus());
+  });
   if (!s) throw new Error(__WEBUI_TEXT__("runtime.invalid_status"));
   applyCommonStatus(s);
   loadSettingsConfig(s.config);
@@ -3454,6 +3461,7 @@ async function applyPreset(id) {
   }
 }
 // Saves a patch (only the changed recipe fields) onto the form's preset.
+// The hydration inside holds the transient settings subscription (D19).
 async function saveBrewPreset(patch, okMsg, failMsg) {
   const ok = okMsg ?? __WEBUI_TEXT__("runtime.preset_saved"),
     fail = failMsg || __WEBUI_TEXT__("runtime.could_not_save_preset");
@@ -4476,7 +4484,7 @@ function startUiStream() {
     if (historyStreamWanted) historySendSubscribe();
     if (logStreamWanted) sendUiOperation({ op: "log", on: true, after: lastLog });
     if (statsStreamWanted) statsSendSubscribe();
-    if (settingsStreamWanted) settingsSendSubscribe();
+    if (settingsStreamLive()) settingsSendSubscribe();
     shotActivity();
   };
   socket.onmessage = (event) => {
@@ -4505,8 +4513,9 @@ function startUiStream() {
         return;
       }
       if (data.type === "settings") {
-        // Stale request ids (a superseded subscription) never reach the model.
-        if (!settingsStreamWanted || data.request !== settingsRequest) return;
+        // Stale request ids (a superseded subscription) and frames after the
+        // view-scoped subscription ended never reach the model.
+        if (!settingsStreamLive() || data.request !== settingsRequest) return;
         applySettingsStream(data);
         return;
       }
@@ -5501,33 +5510,44 @@ function applyStatsStream(message) {
     statsResolve?.(true);
   }
 }
-// Settings rides the owned socket with the History contract: a
-// session-standing subscription (the Settings entry and Home's quick-write
-// hydration both ensure it), a snapshot on subscribe, fingerprint deltas
-// after — one changed setting arrives alone in `changes`. The request id
-// discards frames of a superseded subscription; presets never ride this
-// stream (Home ingests them on every view, D4).
+// Settings rides the owned socket as a view-scoped subscription (D19, the
+// Diagnostic lifecycle): subscribed while the Settings view is active, and
+// transiently held by Home's quick-write path for its snapshot; while
+// neither applies, zero settings bytes flow. The projection is a thin
+// overlay over Home's core state stream (D17): every field it does not
+// carry is Home's, and the painters below read the composed model. The
+// request id discards frames of a superseded subscription; presets never
+// ride this stream (Home ingests them on every view, D4).
 let settingsStreamWanted = false,
+  settingsHolds = 0,
   settingsSynced = false,
   settingsRequest = 0,
   settingsFrame = null,
   settingsResolve = null;
+const settingsStreamLive = () => settingsStreamWanted || settingsHolds > 0;
 function settingsSendSubscribe() {
   if (!shotWs || shotWs.readyState !== 1) return;
   settingsSynced = false;
   settingsRequest = ++uiState.settingsNextRequest;
   sendUiOperation({ op: "settings", on: true, request: settingsRequest });
 }
-// The Settings subscription is session-standing, like History and Stats.
-function ensureSettingsStream(resubscribe) {
-  if (resubscribe || !settingsStreamWanted) {
-    settingsStreamWanted = true;
-    if (shotWs?.readyState === 1) settingsSendSubscribe();
-  }
+// Leaving the view stops the subscription (stopDiagnosticStream's rule):
+// only a live subscription sends "off", and the standing model goes with it
+// so a re-entry takes a fresh thin snapshot.
+function stopSettingsStream() {
+  if (settingsStreamWanted && shotWs?.readyState === 1)
+    sendUiOperation({ op: "settings", on: false });
+  settingsStreamWanted = false;
+  settingsFrame = null;
+  settingsResolve?.(false);
+  settingsResolve = null;
+  settingsSynced = false;
 }
 // Subscribe-and-wait (startHistoryStream's cold path): an in-date standing
 // model answers immediately; anything else re-subscribes — arming the
-// firmware's snapshot — and waits for it.
+// firmware's snapshot — and waits for it. The caller owns the wanted flag:
+// the view entry sets it, a quick-write hold keeps the subscription live
+// without claiming the view.
 function settingsSnapshotWait(force) {
   if (!webUiPollingActive()) return Promise.resolve(null);
   if (!force && settingsSynced && settingsFrame && shotWs?.readyState === 1 && !shotResync)
@@ -5535,38 +5555,75 @@ function settingsSnapshotWait(force) {
   settingsResolve?.(false);
   const ready = new Promise((r) => (settingsResolve = r));
   startUiStream();
-  ensureSettingsStream(true);
+  settingsSendSubscribe();
   return ready;
+}
+// D17: the overlay composes over Home's standing model — object subtrees
+// (config, scale, lineaMicra) merge per key so neither side's fields are
+// lost; arrays and scalars replace wholesale.
+function composeStatus(base, overlay) {
+  const out = { ...base };
+  for (const [k, v] of Object.entries(overlay)) {
+    const b = out[k];
+    out[k] =
+      v &&
+      typeof v === "object" &&
+      !Array.isArray(v) &&
+      b &&
+      typeof b === "object" &&
+      !Array.isArray(b)
+        ? composeStatus(b, v)
+        : v;
+  }
+  return out;
+}
+// The composed model the Settings painters read: the overlay must exist and
+// Home's model must be valid (homeReady is the page's base-layer gate).
+async function settingsComposedStatus() {
+  const overlay = settingsFrame?.status;
+  if (!overlay) return null;
+  const home = await loadHomeStatus();
+  return home ? composeStatus(home, overlay) : null;
 }
 function startSettingsStream(force) {
   if (!webUiPollingActive()) return Promise.resolve(false);
-  return viewReady.then(() => {
+  return viewReady.then(async () => {
     if (!webUiPollingActive() || activeView !== "settings") return false;
-    // Warm entry: the standing subscription keeps the model current, so
-    // repaint it without an op or a snapshot wait. Forced refreshes, first
-    // opens, reconnects, and pending resyncs take the subscribe-and-wait path.
+    settingsStreamWanted = true;
+    // Warm entry: an in-date standing model repaints without an op. Forced
+    // refreshes, first opens, reconnects, and pending resyncs take the
+    // subscribe-and-wait path, then wait on Home's model too (D17).
     if (!force && settingsSynced && settingsFrame && shotWs?.readyState === 1 && !shotResync) {
       renderSettingsStream();
       return true;
     }
-    return settingsSnapshotWait(true).then((s) => !!s);
+    const overlay = await settingsSnapshotWait(true);
+    if (!overlay) return false;
+    if (!(await settingsComposedStatus())) return false;
+    renderSettingsStream();
+    return true;
   });
 }
 // A superseded base revision needs the device's current values: re-subscribe
 // and wait for the snapshot, whatever view is active — the Settings form
-// also saves from Home's quick-write path.
+// also saves from Home's quick-write path. Off-view this is a transient
+// hold: the subscription releases once the fresh snapshot has landed.
 function resyncSettingsStream() {
-  return settingsSnapshotWait(true).then((s) => !!s);
+  return withSettingsStreamHold(() => settingsSnapshotWait(true).then((s) => !!s));
+}
+// Home's quick-write path holds the settings subscription only while the
+// write transaction needs the snapshot (D19); the last hold releases it.
+async function withSettingsStreamHold(work) {
+  settingsHolds++;
+  try {
+    return await work();
+  } finally {
+    settingsHolds = Math.max(0, settingsHolds - 1);
+    if (!settingsHolds && !settingsStreamWanted) stopSettingsStream();
+  }
 }
 function applySettingsStream(message) {
   settingsFrame = statusStreamFrame(settingsFrame, message);
-  // Home's clock discipline: anchor on the emitted instant, then keep the
-  // cached value from re-anchoring the shared wall clock on a later paint.
-  if (typeof settingsFrame.status.timeUtcSec === "number") {
-    statusUtcAnchorSec = settingsFrame.status.timeUtcSec;
-    statusUtcAnchorAt = performance.now();
-  }
-  delete settingsFrame.status.timeUtcSec;
   if (message.snapshot) {
     settingsSynced = true;
     const resolve = settingsResolve;
@@ -5575,11 +5632,14 @@ function applySettingsStream(message) {
   }
   paint(renderSettingsStream);
 }
-// Settings frames paint like Home's: common status on every view (the
-// subscription is session-standing), the form only while Settings is open.
+// Settings frames paint over Home's model (D17): common status on every
+// view a hold keeps open, the form only while Settings is open. Home's
+// model is the base layer, so a paint waits for it (the entry path's
+// homeReady wait makes this immediate in practice — Home is dispatched
+// first on the same socket).
 function renderSettingsStream() {
-  if (!settingsFrame) return;
-  const status = settingsFrame.status;
+  if (!settingsFrame || homeStale || !homeFrame) return;
+  const status = composeStatus(homeFrame.status, settingsFrame.status);
   lastStatusAt = Date.now();
   applyCommonStatus(status);
   noteReachOk();
@@ -6470,7 +6530,10 @@ function lineaMicraAction(action) {
 }
 function statusPageOk(v, s) {
   const c = s && s.config;
-  if (!c || typeof s.configMutable !== "boolean") return !1;
+  // Settings is the layered overlay (D17): its snapshot carries only
+  // settings-owned fields — the Home model supplies configMutable, revision
+  // and the rest, and the entry path waits on homeReady before painting.
+  if (!c || (v !== "settings" && typeof s.configMutable !== "boolean")) return !1;
   return v === "home"
     ? !!(
         typeof s.adminUnlocked === "boolean" &&
@@ -6486,13 +6549,10 @@ function statusPageOk(v, s) {
       )
     : v === "settings"
       ? !!(
-          typeof c.soundAlertsEnabled === "boolean" &&
           typeof c.dripDelayMs === "number" &&
           typeof c.postTareBaselineGraceMs === "number" &&
-          typeof c.revision === "number" &&
-          s.scale &&
-          typeof s.scale.macCachePauseRemainingMs === "number" &&
-          typeof s.buzzerSupported === "boolean"
+          typeof s.buzzerSupported === "boolean" &&
+          Array.isArray(s.scale && s.scale.history)
         )
       : v === "admin"
         ? !!(
@@ -6680,6 +6740,7 @@ export {
   startStatsStream,
   startSettingsStream,
   resyncSettingsStream,
+  stopSettingsStream,
   ensureBackgroundRecordStreams,
   renderLog,
   armListSentinel,

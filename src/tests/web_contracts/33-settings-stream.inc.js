@@ -1,17 +1,20 @@
-// The Settings page rides the owned socket: a session-standing `settings`
-// subscription with request-scoped frames. The harness executes the real
-// runtime trio against synthetic frames — cold entry subscribes and waits,
-// deltas patch the snapshot's identity, stale request ids never reach the
-// model, a dirty form absorbs its own save's echo without writing, and the
+// The Settings page rides the owned socket as a view-scoped subscription
+// (D19) carrying a thin overlay over Home's core state stream (D17): the
+// harness executes the real runtime trio against synthetic frames and a
+// standing Home model — cold entry subscribes and waits, the painters see
+// the composed {...home, ...settings} model, stale request ids and
+// off-view frames never reach the model, a dirty form absorbs its own
+// save's echo without writing, leaving the view unsubscribes, and the
 // Admin poll is untouched.
 {
   const assert = require('assert').strict, vm = require('vm');
   const validator = runtimeJs.slice(runtimeJs.indexOf('function statusPageOk('),
     runtimeJs.indexOf('async function loadStatus('));
   const source = 'var formRev = 0, configLoaded = false;\n' + runtimeStateDecl +
-    'let homeFrame=null;' +
+    'let homeFrame=null, homeStale=false, homeReady=Promise.resolve(true), homeResolve=()=>{};' +
     runtimeJs.slice(runtimeJs.indexOf('function statusStreamFrame('),
       runtimeJs.indexOf('function renderHomeStream(')) +
+    blockAt(runtimeJs, 'async function loadHomeStatus(') +
     runtimeJs.slice(runtimeJs.search(/let\s+shotWs\s*=/),
       runtimeJs.indexOf('function setHomeSub(')) +
     blockAt(runtimeJs, 'function loadSettingsConfig(');
@@ -53,10 +56,22 @@
     $: element, console: {error: e => errors.push(e)},
   };
   vm.runInNewContext(validator + source, context);
-  const config = {revision: 5, soundAlertsEnabled: true, dripDelayMs: 3000,
-    postTareBaselineGraceMs: 2000, goalWeightG: 36};
-  const status = () => ({configMutable: true, snapshotStale: false, buzzerSupported: true,
-    config: {...config}, scale: {macCachePauseRemainingMs: 0, preferredMac: 'aa:bb:cc:dd:ee:ff'}});
+  // The layered model (D17): Home carries the identity envelope, shared
+  // config, revision, scale preferences and the Micra pill state; the
+  // settings frame overlays only settings-owned fields.
+  const homeStatus = () => ({firmwareVersion: 'v1', bootId: 7, configMutable: true,
+    snapshotStale: false, diagnosticPageVisible: true, machineType: 'paddle',
+    config: {revision: 5, goalWeightG: 36, soundAlertsEnabled: true,
+      timezoneId: 'UTC', scaleMacCacheMode: 'prefer'},
+    quickRevert: {overrides: 0, remainingS: 0}, lastCommand: {requestId: 0, state: 'idle'},
+    cycle: {active: false},
+    scale: {preferredMac: 'aa:bb:cc:dd:ee:ff', preferredName: 'Bar',
+      macCachePauseRemainingMs: 0, observedWeightG: 4.2, history: null},
+    lineaMicra: {accountConfigured: false, powerState: 'UNKNOWN', readiness: 'unknown'}});
+  const config = {dripDelayMs: 3000, postTareBaselineGraceMs: 2000,
+    bullseyeRtttl: 'tune', rinseDurationMs: 5000};
+  const status = () => ({buzzerSupported: true, config: {...config},
+    scale: {history: []}, scaleLoss: {projectedS: 31, source: 'fixed'}});
   const flatten = (value, prefix = '', output = {}) => {
     for (const [key, item] of Object.entries(value)) {
       const name = prefix + key;
@@ -67,14 +82,22 @@
   };
   const snapshot = request => ({v: 1, type: 'settings', boot: 7, snapshot: true,
     request, changes: flatten(status())});
+  // The reconciled gate (D17): the thin overlay passes without any
+  // Home-owned field; Home's own gate still requires its envelope.
+  assert(context.statusPageOk('settings', status()),
+      'the settings gate requires only settings-owned fields');
+  assert(!context.statusPageOk('settings', {...status(), buzzerSupported: undefined}),
+      'the settings gate still fails closed without its own fields');
   // A snapshot the page cannot trust never becomes a model.
   for (const bad of [{...snapshot(1), changes: {...flatten(status()), buzzerSupported: undefined}},
-      {...snapshot(1), changes: {...flatten(status()), scale: undefined}}])
+      {...snapshot(1), changes: {...flatten(status()), 'scale.history': undefined}}])
     assert.throws(() => context.statusStreamFrame(null, bad),
         'an incomplete settings snapshot must fail closed');
   (async () => {
+    vm.runInContext('homeFrame = {boot: 7, status: ' + JSON.stringify(homeStatus()) + '}', context);
     // Cold entry waits for markup and an open socket, subscribes exactly once,
-    // and settles only on the snapshot of its own request id.
+    // and settles only on the snapshot of its own request id; the painters
+    // see the composed model (overlay fields and Home fields together).
     const pending = context.startSettingsStream();
     mount();
     await Promise.resolve();
@@ -86,7 +109,10 @@
         'an open socket replays the wanted settings subscription before liveness');
     socket.onmessage({data: JSON.stringify(snapshot(1))});
     assert.equal(await pending, true);
-    assert.equal(applied.at(-1).config.dripDelayMs, 3000);
+    assert.equal(applied.at(-1).config.dripDelayMs, 3000, 'the overlay field paints');
+    assert.equal(applied.at(-1).config.goalWeightG, 36, 'Home field reaches the painter composed');
+    assert.equal(applied.at(-1).scale.preferredMac, 'aa:bb:cc:dd:ee:ff',
+        'Home scale preferences compose under the overlay history');
     assert.equal(element('goalWeightG').value, '36.0');
     assert.equal(context.formRev, 5, 'the first paint loads the form and records its revision');
     // A delta with one changed setting applies alone; the snapshot's identity
@@ -95,7 +121,6 @@
         {type: 'settings', request: 1, changes: {'config.dripDelayMs': 5000}})});
     assert.equal(applied.at(-1).config.dripDelayMs, 5000);
     assert.equal(applied.at(-1).config.revision, 5);
-    assert.equal(applied.at(-1).scale.preferredMac, 'aa:bb:cc:dd:ee:ff');
     // The hardware incident class (2026-10-23): an empty RTTTL string must
     // parse, merge, and reach the Settings view as "" — never a broken frame.
     socket.onmessage({data: JSON.stringify(
@@ -105,26 +130,37 @@
     // Stale request ids (a superseded subscription) never reach the model.
     let stale = applied.length;
     socket.onmessage({data: JSON.stringify(
-        {type: 'settings', request: 99, changes: {'config.revision': 9}})});
+        {type: 'settings', request: 99, changes: {'config.dripDelayMs': 9000}})});
     assert.equal(applied.length, stale, 'a stale request id must be discarded');
     socket.onmessage({data: JSON.stringify(
-        {type: 'settings', request: 1, changes: {'config.revision': 6, 'config.goalWeightG': 40}})});
-    assert.equal(element('goalWeightG').value, '40.0');
-    assert.equal(context.formRev, 6, 'a clean form loads the changed device state');
-    // The echo path (D11): a dirty form absorbs its own save's confirmation
-    // without reloading — and frames never write, so no REST path exists here.
-    vm.runInContext('uiState.configDirty = true', context);
+        {type: 'settings', request: 1, changes: {'config.rinseDurationMs': 6000}})});
+    assert.equal(applied.at(-1).config.rinseDurationMs, 6000,
+        'the overlay model carries the changed setting');
+    assert.equal(element('rinseDurationS').value, '5',
+        'without a revision move the loaded form is not reloaded');
+    assert.equal(context.formRev, 5, 'an overlay-only change keeps the composed revision');
+    // The revision is Home's now (D17): a Home-side bump reloads the clean
+    // form on the next settings paint (the return-to-clean recovery).
+    vm.runInContext('homeFrame.status.config.revision = 6; homeFrame.status.config.goalWeightG = 40', context);
     socket.onmessage({data: JSON.stringify(
-        {type: 'settings', request: 1, changes: {'config.revision': 7, 'config.goalWeightG': 45}})});
-    assert.equal(element('goalWeightG').value, '40.0',
+        {type: 'settings', request: 1, changes: {'config.dripDelayMs': 4000}})});
+    assert.equal(element('goalWeightG').value, '40.0');
+    assert.equal(element('rinseDurationS').value, '6');
+    assert.equal(context.formRev, 6, 'a clean form follows the Home-side revision');
+    // The echo path (D11): a dirty form absorbs its own save's confirmation
+    // (its revision bump arrives on Home) without reloading — and frames
+    // never write, so no REST path exists here.
+    vm.runInContext('uiState.configDirty = true; homeFrame.status.config.revision = 7', context);
+    socket.onmessage({data: JSON.stringify(
+        {type: 'settings', request: 1, changes: {'config.dripDelayMs': 7000}})});
+    assert.equal(element('dripDelayS').value, '4',
         'a dirty form is never clobbered by its own echo');
     assert.equal(context.formRev, 6);
     // Returning clean applies the device state on the next paint.
     vm.runInContext('uiState.configDirty = false', context);
     socket.onmessage({data: JSON.stringify(
-        {type: 'settings', request: 1, changes: {'config.goalWeightG': 45}})});
-    assert.equal(element('goalWeightG').value, '45.0');
-    assert.equal(context.formRev, 7);
+        {type: 'settings', request: 1, changes: {'config.dripDelayMs': 7000}})});
+    assert.equal(element('dripDelayS').value, '7');
     assert.deepEqual(errors, []);
     // Warm entry repaints the standing model without any op.
     const ops = socket.sent.length, renders = applied.length;
@@ -140,39 +176,68 @@
     assert.equal(applied.length, renders + 1, 'non-snapshot frames wait out the resync');
     socket.onmessage({data: JSON.stringify(snapshot(1))});
     assert.equal(applied.length, renders + 2, 'the resync snapshot recovers the stream');
+    // D19: leaving the view unsubscribes (the bare op the router accepts),
+    // the standing model is dropped, and no frame is applied while off-view —
+    // not even the current request id's snapshot.
+    context.stopSettingsStream();
+    assert.deepEqual(socket.sent.at(-1), {op: 'settings', on: false},
+        'leaving the view sends the bare unsubscribe');
+    socket.onmessage({data: JSON.stringify(snapshot(1))});
+    assert.equal(applied.length, renders + 2, 'an off-view frame never reaches the model');
+    // Re-entry re-subscribes (a fresh thin snapshot) and settles on it.
+    const reentry = context.startSettingsStream();
+    await Promise.resolve();
+    assert.deepEqual(socket.sent.at(-1), {op: 'settings', on: true, request: 2},
+        'a re-entry subscribes again');
+    socket.onmessage({data: JSON.stringify(snapshot(2))});
+    assert.equal(await reentry, true);
     // The forced refresh (the stale-revision retry's path) re-subscribes
-    // deterministically; socket loss settles its pending wait false.
+    // deterministically; socket loss settles its pending wait false, and the
+    // view-wanted subscription replays on the reconnect.
     const forced = context.resyncSettingsStream();
     await Promise.resolve();
-    assert.equal(socket.sent.at(-1).request, 2, 'a forced refresh re-subscribes');
+    assert.equal(socket.sent.at(-1).request, 3, 'a forced refresh re-subscribes');
     socket.close();
     assert.equal(await forced, false, 'socket loss settles the pending wait');
     const retry = [...timers.values()].find(t => t.delay >= 400 && t.delay <= 600);
     assert(retry, 'socket loss must schedule a reconnect');
     retry.fn();
     sockets[1].open();
-    assert.deepEqual(sockets[1].sent[1], {op: 'settings', on: true, request: 3},
-        'the reconnect replays the standing subscription');
+    assert.deepEqual(sockets[1].sent[1], {op: 'settings', on: true, request: 4},
+        'the reconnect replays the view-wanted subscription');
     // A superseded generation's frames are discarded: only the newest request
-    // id may touch the model, and its snapshot settles the forced entry.
+    // id may touch the model, and its snapshot settles the forced entry. The
+    // re-entry and forced entry each paint twice (the frame's own paint plus
+    // the post-homeReady repaint).
     const forcedEntry = context.startSettingsStream(true);
     await Promise.resolve();
-    assert.deepEqual(sockets[1].sent.at(-1), {op: 'settings', on: true, request: 4},
+    assert.deepEqual(sockets[1].sent.at(-1), {op: 'settings', on: true, request: 5},
         'a forced entry over a fresh socket re-subscribes');
-    sockets[1].onmessage({data: JSON.stringify({...snapshot(3),
-        changes: {...flatten(status()), 'config.revision': 77}})});
-    assert.equal(applied.length, renders + 2, 'the superseded generation is discarded');
-    sockets[1].onmessage({data: JSON.stringify(snapshot(4))});
+    sockets[1].onmessage({data: JSON.stringify({...snapshot(4),
+        changes: {...flatten(status()), 'config.dripDelayMs': 9999}})});
+    assert.equal(applied.length, renders + 4, 'the superseded generation is discarded');
+    sockets[1].onmessage({data: JSON.stringify(snapshot(5))});
     assert.equal(await forcedEntry, true);
-    assert.equal(applied.at(-1).config.revision, 5);
-    assert(!sockets.some(s => s.sent.some(op => op.op === 'settings' && op.on === false)),
-        'the settings subscription is session-standing; nothing unsubscribes it');
+    assert.equal(applied.at(-1).config.dripDelayMs, 3000);
+    // Leaving again, then losing the socket off-view: the reconnect must not
+    // re-subscribe (D19 — zero settings bytes while the view is inactive).
+    context.stopSettingsStream();
+    assert.deepEqual(sockets[1].sent.at(-1), {op: 'settings', on: false});
+    sockets[1].close();
+    // The second reconnect backs off (500 ms * 2^n with jitter).
+    const idle = [...timers.values()].at(-1);
+    idle.fn();
+    sockets[2].open();
+    assert(!sockets[2].sent.some(op => op.op === 'settings'),
+        'an off-view reconnect must not re-subscribe the settings stream');
+    assert.equal(applied.filter(value => value.config.dripDelayMs === 9999).length, 0,
+        'a superseded frame never painted');
     assert.deepEqual(errors, []);
   })().catch(error => { console.error(error); process.exitCode = 1; });
 }
 
 // Firmware contracts: the op router's whitelist and rejection fall-through,
-// the sender's bounded projection, and the retired REST page's 404.
+// the sender's bounded overlay projection, and the retired REST page's 404.
 {
   const assert = require('assert').strict;
   const uiStream = fs.readFileSync(path.join(sketchDir, 'network/OpenBrewByWeightUiStream.inc'), 'utf8');
@@ -200,7 +265,7 @@
       'subscribe arms the snapshot and captures the request id');
   // The generic resync op arms the settings snapshot too (D9/F4).
   const resync = uiStream.slice(uiStream.indexOf('strcmp(op->valuestring, "resync")'),
-      uiStream.indexOf('strcmp(op->valuestring, "diagnostic")'));
+    uiStream.indexOf('strcmp(op->valuestring, "diagnostic")'));
   assert(resync.includes('session->settingsResync = true;'),
       'the resync op must also force a fresh settings snapshot');
   // Dispatch: ordered after Home+card and Diagnostic, inside the budget,
@@ -236,28 +301,48 @@
   assert(sender.includes('session.settingsBoot = control.bootId;') &&
       sender.includes('session.settingsResync = false;'),
       'boot and resync bookkeeping advances only on delivery');
-  // The projection stays inside its fingerprint table; if/else alternatives
-  // share a slot, so distinct paths are the slot-accurate count.
+  // The overlay stays inside its fingerprint table: 86 distinct fields of
+  // kSettingsFields = 96 (measured 2026-10-24, D17 prune from 137).
   const settingsSlots = Number(/kSettingsFields\s*=\s*(\d+)/.exec(networkHeader)[1]);
   const paths = [...sender.matchAll(/delta\.(?:hashedField|field)\("([^"]+)"/g)].map(m => m[1]);
   const distinct = new Set(paths);
   assert(paths.length > 0 && distinct.size <= settingsSlots,
       `Settings projection ${distinct.size} distinct fields exceeds ${settingsSlots} fingerprint slots`);
-  // The retired REST field set rides the stream with its client paths, live
-  // fields included (D6/F1), and presets never ride it (D4).
-  for (const field of ['timeUtcSec', 'config.revision', 'config.goalWeightG',
-    'config.postTareBaselineGraceMs', 'config.dripDelayMs', 'config.soundAlertsEnabled',
+  // The overlay carries only settings-owned fields (D17): the settings form,
+  // bbw readback, drip chart, Bullseye, scale history, the scale-loss
+  // projection, and the Micra picker/sign-in fields (34-stream-disjointness
+  // enforces the Home/Settings boundary mechanically).
+  for (const field of ['buzzerSupported', 'config.weightOffsetG',
+    'config.postTareBaselineGraceMs', 'config.dripDelayMs', 'config.doseG',
     'config.alertOutputChannel', 'config.buzzerExtendedPulseRate',
-    'config.bbwEwmaOffsetG', 'config.bbwEvidenceCount', 'config.bbwRecentG',
-    'cupSetup.observedG', 'config.bullseyeMelodyEnabled', 'config.bullseyeRtttl',
-    'scale.preferredMac', 'scale.macCachePauseRemainingMs', 'scale.history',
-    'scaleLoss.projectedS', 'quickRevert.remainingS', 'lastCommand.requestId',
+    'config.bbwEwmaOffsetG', 'config.bbwEvidenceCount', 'config.bbwQuickStart',
+    'config.bbwRecentG', 'config.bullseyeMelodyEnabled', 'config.bullseyeRtttl',
+    'scale.history', 'scaleLoss.projectedS', 'scaleLoss.source',
     'lineaMicra.phase', 'lineaMicra.targetDeciC', 'lineaMicra.machines'])
     assert(distinct.has(field), 'missing settings stream field ' + field);
-  // Consumer-first (D14): the settings projection carries only fields the
-  // settings/home model reads; unconsumed Micra telemetry rides the
-  // Diagnostic stream only and must not grow back here.
-  for (const field of ['lineaMicra.connectionType', 'lineaMicra.requestId',
+  // Consumer-first (D14) and layered disjointness (D17): the projection
+  // carries only fields Home does not carry and the settings/home model
+  // reads; unconsumed Micra telemetry rides the Diagnostic stream only and
+  // must not grow back here, nor may any Home-duplicated field return.
+  for (const field of ['firmwareVersion', 'bootId', 'configMutable', 'snapshotStale',
+    'webUiOverrideActive', 'compatibilityMode', 'machineType', 'machineIntegration',
+    'diagnosticPageVisible', 'lastCommand.requestId', 'lastCommand.state',
+    'quickRevert.after', 'quickRevert.overrides', 'quickRevert.remainingS',
+    'timeUtcSec', 'config.revision', 'config.timezoneId', 'config.timezoneAutomatic',
+    'config.timezoneInitialized', 'config.appliedTimezoneOffsetMinutes',
+    'config.goalWeightG', 'config.brewByWeight', 'config.rinseEnabled',
+    'config.soundAlertsEnabled', 'config.scaleMacCacheMode',
+    'config.fastExtractionGuardEnabled', 'config.fastMarginG', 'config.fastBeforeS',
+    'config.slowExtractionGuardEnabled', 'config.slowMarginG', 'config.slowAfterS',
+    'config.operationalWallMs', 'config.autoToManualGuardEnabled',
+    'config.cupProtectionEnabled', 'config.stopIfCupRemoved', 'config.requireCupToStart',
+    'config.avoidAccidentalTouchEnabled', 'config.noScaleBbwMode',
+    'scale.preferredFriendlyName', 'scale.preferredMac', 'scale.preferredName',
+    'scale.macCachePauseRemainingMs', 'cupSetup.observedG', 'scaleLoss.enabled',
+    'lineaMicra.accountConfigured', 'lineaMicra.observeState', 'lineaMicra.powerState',
+    'lineaMicra.readiness', 'lineaMicra.quality', 'lineaMicra.optimisticOn',
+    'lineaMicra.optimisticOff',
+    'lineaMicra.connectionType', 'lineaMicra.requestId',
     'lineaMicra.observedMode', 'lineaMicra.effectiveOn', 'lineaMicra.powerSource',
     'lineaMicra.freshnessPolicy', 'lineaMicra.sampleValid', 'lineaMicra.sampleAgeMs',
     'lineaMicra.freshnessMs', 'lineaMicra.pollIntervalMs', 'lineaMicra.temperatureState',
@@ -267,15 +352,17 @@
     'lineaMicra.temperatureTransportStatus', 'lineaMicra.scalePaused',
     'lineaMicra.httpStatus', 'lineaMicra.transportStatus',
     'lineaMicra.accountMachineCount'])
-    assert(!distinct.has(field), 'unconsumed settings stream field ' + field);
+    assert(!distinct.has(field), 'field must not ride the settings stream ' + field);
   assert(![...distinct].some(field => field === 'presets' || field.startsWith('presets.')),
       'presets ride the Home stream on every view, never the settings stream');
-  // D6 steady-state cost: render caches gate the blobs and countdowns quantize
-  // to their UI resolution, so an idle page emits nothing.
+  // D6 steady-state cost: render caches gate the blobs and nothing self-ticks
+  // (the two countdowns the overlay carried moved to Home with their fields).
   assert(sender.includes('renderedScaleHistoryHash') &&
       sender.includes('buildScaleHistoryJson(g_work->scaleHistory)') &&
       sender.includes('memcmp(&g_work->renderedBullseye'),
       'the history and RTTTL blobs sit behind render caches');
+  assert(!sender.includes('g_wallClock') && !sender.includes('timeZoneOffsetAtOrUtc'),
+      'the clock anchor died with timeUtcSec; no per-dispatch time work remains');
   // String values must be quoted JSON literals: an unquoted raw value renders
   // an empty melody as "config.bullseyeRtttl":, which poisons the whole frame
   // (hardware-confirmed 2026-10-23). Only the complete history array, already
@@ -294,8 +381,6 @@
       rawValues.every(value => value.includes('+ strlen(",') ||
           /Json\(/.test(value) || value === 'g_work->historyJson'),
       'raw %s field values must be complete-JSON producers');
-  assert(sender.includes('(control.scaleMacCachePauseRemainingMs + 999U) / 1000U * 1000U'),
-      'bounded countdowns must quantize to whole seconds so an idle stream stays idle');
   assert(!sender.includes('millis() - micra.sampleAtMs'),
       'a self-ticking sample age must never ride the settings projection (D14)');
   assert(sender.includes('std::isfinite(config.weightOffsetG) ? "%.2f" : "null"') &&
@@ -313,21 +398,39 @@
       'the retired page must answer 404 STATUS_PAGE_UNKNOWN');
 }
 
-// Client wiring: the subscription lifecycle, the Admin-only REST poll, and
-// the write paths that stay on POST /api/v1/config.
+// Client wiring: the view-scoped subscription lifecycle, the composed
+// model, the Admin-only REST poll, and the write paths that stay on
+// POST /api/v1/config.
 {
   const assert = require('assert').strict;
   assert(codeIncludes(runtimeJs, 'sendUiOperation({ op: "settings", on: true, request: settingsRequest })'),
       'subscribe carries the request id');
-  assert(codeIncludes(runtimeJs, 'if (settingsStreamWanted) settingsSendSubscribe();'),
-      'socket.onopen replays the standing subscription');
-  assert(codeIncludes(runtimeJs, 'if (!settingsStreamWanted || data.request !== settingsRequest) return;'),
-      'frames of a superseded subscription are discarded before the model');
+  assert(codeIncludes(runtimeJs, 'sendUiOperation({ op: "settings", on: false })'),
+      'leaving the view sends the bare unsubscribe the router accepts');
+  assert(codeIncludes(runtimeJs, 'if (settingsStreamLive()) settingsSendSubscribe();'),
+      'socket.onopen replays the subscription only while the view or a hold wants it');
+  assert(codeIncludes(runtimeJs, 'if (!settingsStreamLive() || data.request !== settingsRequest) return;'),
+      'frames of a superseded or ended subscription are discarded before the model');
   assert(codeIncludes(runtimeJs, 'historySynced = statsSynced = settingsSynced = false;') &&
       codeIncludes(runtimeJs, 'settingsFrame = null;'),
       'a closed socket ends the settings generation with the others');
-  assert(codeIncludes(runtimeJs, 'const s = await settingsSnapshotWait();'),
-      'Home quick writes hydrate through the settings stream, not REST');
+  // D17: the composed model — the painters read {...home, ...settings} with
+  // object subtrees merged, and the page waits on Home's model (homeReady).
+  assert(codeIncludes(runtimeJs, 'function composeStatus(base, overlay) {') &&
+      codeIncludes(runtimeJs, 'const home = await loadHomeStatus();') &&
+      codeIncludes(runtimeJs, 'const status = composeStatus(homeFrame.status, settingsFrame.status);'),
+      'the settings painters read the composed home+overlay model');
+  assert(codeIncludes(runtimeJs, 'if (!settingsFrame || homeStale || !homeFrame) return;'),
+      'a settings paint waits for the Home base layer');
+  assert(codeIncludes(runtimeJs, 'typeof s.buzzerSupported === "boolean"') &&
+      codeIncludes(runtimeJs, 'Array.isArray(s.scale && s.scale.history)') &&
+      codeIncludes(runtimeJs, '(v !== "settings" && typeof s.configMutable !== "boolean")'),
+      'the reconciled settings gate requires only settings-owned fields');
+  // D19: the transient quick-write hold.
+  assert(codeIncludes(runtimeJs, 'const settingsStreamLive = () => settingsStreamWanted || settingsHolds > 0;') &&
+      codeIncludes(runtimeJs, 'if (!settingsHolds && !settingsStreamWanted) stopSettingsStream();') &&
+      codeIncludes(runtimeJs, 'const overlay = await settingsSnapshotWait();'),
+      'Home quick writes hold the stream for their snapshot, then release it');
   const settingsBlock = runtimeJs.slice(runtimeJs.indexOf('function settingsSendSubscribe('),
       runtimeJs.indexOf('function ensureBackgroundRecordStreams('));
   assert(!/\bapi\(|\bcommand\(|\bfetch\(/.test(settingsBlock),
@@ -338,6 +441,8 @@
       'the Micra sign-in follows lineaMicra deltas; its REST poll is gone');
   assert(codeIncludes(viewJs.settings, 'loadSettingsConfig(s.config);'),
       'the Settings form repaints through the shared load guard');
+  assert(codeIncludes(viewJs.settings, 's.scale && typeof s.scale.observedWeightG === "number"'),
+      'the cup-minimum guidance reads Home\u2019s live platform weight (D17)');
   const polling = runtimeJs.slice(runtimeJs.indexOf('function armStatusTimer('),
       runtimeJs.indexOf('function pad2('));
   assert(polling.includes('activeView !== "admin"'),
@@ -346,6 +451,8 @@
       'Settings left the REST loadStatus entry list');
   assert(codeIncludes(appJsSource, 'name === "settings") ok = await R.startSettingsStream();'),
       'the Settings view enters through the stream');
+  assert(codeIncludes(appJsSource, 'R.stopSettingsStream();'),
+      'every route change stops the settings subscription');
   // No code path reads the retired Settings REST page; writes keep using
   // POST /api/v1/config with baseRevision (write-path suites cover them).
   assert(!codeIncludes(js, 'api(/api/v1/status/settings'),

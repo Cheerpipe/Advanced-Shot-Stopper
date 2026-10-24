@@ -284,7 +284,7 @@ cycle. A later Settings save that changes the same shared setting, or an edit
 of the active preset's Brew by weight, fast or slow choice, replaces the
 override with the saved value.
 
-The Home and Settings streams and the Admin status response report the
+The Home stream and the Admin status response report the
 overrides as `quickRevert.overrides`, a bit mask in field order: `brewByWeight`
 (1), `noScaleBbwMode` (2), `autoToManualGuardEnabled` (4),
 `slowExtractionGuardEnabled` (8), `fastExtractionGuardEnabled` (16),
@@ -794,45 +794,55 @@ CSV order after browsing by rating without repeated store captures per frame.
 
 ### Settings live updates
 
-The Settings page rides the same owned WebSocket. The subscription is ensured
-by the first Settings entry (or Home's quick-write path) and then stays
-standing for the whole UI session, like History and Stats: device-side
-changes keep the cached page current while another view is open, a reconnect
-replays the subscription, and returning to the page with live data repaints
-from the standing model without any message. The browser subscribes with a
-generation id:
+The Settings page rides the same owned WebSocket with a view-scoped
+subscription, like the Diagnostic page: the browser subscribes when the
+view appears and unsubscribes (`{"op":"settings","on":false}`) on every
+navigation, so while the Settings view is inactive no settings frames flow
+at all — not even single-field events. A reconnect replays the subscription
+only while the view is (or is about to be) active, and re-entering the page
+subscribes again and receives a fresh snapshot, which is small. The one
+other subscriber is Home's quick-write path: saving a brew preset from Home
+briefly holds the subscription just long enough to read the current values,
+then releases it. The browser subscribes with a generation id:
 
 ```json
 {"op":"settings","on":true,"request":1}
 ```
 
-Every frame echoes that `request`, and a frame whose id no longer matches the
-browser's current subscription is discarded. The browser never unsubscribes
-(the op accepts `on: false`, but the page keeps the subscription standing).
+Every frame echoes that `request`, and a frame whose id no longer matches
+the browser's current subscription is discarded.
+
+The Settings projection is a thin overlay over the Home stream: every field
+lives in exactly one stream, and anything Home already carries — the
+identity envelope, the shared configuration fields including the revision,
+quick revert, the last command, the timezone state, scale preferences, and
+the live Micra power state — is Home's alone. The overlay carries only what
+the Settings page reads beyond that: the Settings form fields Home does not
+carry, the Brew by Weight learning readback and drip chart, the Bullseye
+melody, the scale history list, the scale-loss projection, and the Linea
+Micra sign-in section with its machine list. The page composes the two
+models (`{...home, ...settings}`, with nested objects merged field by
+field), so a Settings snapshot on its own is not a complete status: the
+page waits for Home's model as well.
 
 The first frame after subscribing is a snapshot; later frames are `changes`
 deltas merged in order, exactly like Home. A snapshot names `v: 1`,
 `type: "settings"`, `boot`, `snapshot: true`, and `request`; later frames
-carry only `type`, `request`, and `changes`. A changed setting is sent alone,
-as its own path in `changes`, and a projection where nothing changed emits no
-frame, so an idle device costs nothing. The projection covers the Settings
-form fields with the configuration revision, the Brew by Weight learning
-readback and drip chart, cup detection and Bullseye settings, the scale
-choice with its scale history and the scale-loss projection, and the Linea
-Micra section with its machine list. Every value in the projection changes
-only when the device reports something new — none of them advances by
-itself — and the two bounded countdowns (the scale-cache pause and the
-quick-revert remainder) are quantized to whole seconds. The time anchor is
-rebased only on a snapshot or clock synchronization; the page ticks local
-time itself.
+carry only `type`, `request`, and `changes`. A changed setting is sent
+alone, as its own path in `changes`, and a projection where nothing changed
+emits no frame, so an idle device costs nothing. Every value in the
+projection changes only when the device reports something new — none of
+them advances by itself. Wall-clock time is Home's anchor alone; the page
+ticks local time itself.
 
 Settings writes keep using `POST /api/v1/config` with `baseRevision`; the
-applied change returns as a delta, and a form the user is editing is never
-overwritten — updates missed while a form was dirty are applied when it is
-clean again. A rejected frame arms the generic `{"op":"resync"}`, which also
-forces a fresh Settings snapshot. While the page is hidden the session keeps
-its fingerprints and holds its frames, so the page becoming visible again is
-followed by one catch-up delta instead of every intermediate change.
+applied change returns as a Home delta (the revision is a Home field), and
+a form the user is editing is never overwritten — updates missed while a
+form was dirty are applied when it is clean again. A rejected frame arms
+the generic `{"op":"resync"}`, which also forces a fresh Settings snapshot.
+While the page is hidden the session keeps its fingerprints and holds its
+frames, so the page becoming visible again is followed by one catch-up
+delta instead of every intermediate change.
 
 
 ## Linea Micra Web API
@@ -860,25 +870,26 @@ disconnect erases durable credentials/selection and the RAM session. Unknown,
 duplicate, or action-inappropriate fields are rejected. Accepted commands
 return `202`.
 
-The Settings stream and Diagnostic status include a Micra subtree only in
-Micra firmware.
-It reports whether an account is configured, selected name/serial, option flags,
-request phase/error, ON/OFF/UNKNOWN power state, raw observed mode, evidence
-quality, optimistic-ON and optimistic-OFF provenance, sample age/freshness,
-selected target
-temperature, STA/AP/shot gates,
-last HTTP/transport status, and the bounded machine list returned while
-connecting or after `relist`. `accountMachineCount` is the number of machines on
-the saved account at its latest listing (`0` until listed after a boot),
-`machineListing` is true while a `relist` is queued or running, and
-`machineListError` reports its outcome with the same error names. The Settings
-stream also reports `readiness` (`off`, `warming_up`, `waiting_for_steam`, `ready`,
-`needs_water` or `unknown`, the same rollup Home uses) and `machineOffline`,
-true when the cloud reports that the machine itself is disconnected. The saved account email is visible in Settings and Diagnostics; password,
-installation private key, access token and refresh token are never returned. `refresh` is read-only and requires a selected
+Micra firmware spreads the Micra subtree across its streams (each field in
+exactly one). The Home stream carries the live machine state on every view:
+whether an account is configured, the observe switch, ON/OFF/UNKNOWN power
+state, evidence quality, optimistic-ON and optimistic-OFF provenance,
+`readiness` (`off`, `warming_up`, `waiting_for_steam`, `ready`,
+`needs_water` or `unknown`), the boiler targets and cleaning availability.
+The Settings overlay carries the sign-in and picker data: the saved account
+email, selected name/serial, option flags, request phase/error, the selected
+target temperature, STA/AP/shot gates, `machineOffline` (true when the cloud
+reports that the machine itself is disconnected), `machineListing` (true
+while a `relist` is queued or running), `machineListError` (its outcome,
+with the same error names), and the bounded machine list returned while
+connecting or after `relist`. Diagnostic status carries the full telemetry
+subtree (observed mode, sample age/freshness, HTTP/transport status,
+account machine count, and the sections below). Password, installation
+private key, access token and refresh token are never returned. `refresh`
+is read-only and requires a selected
 machine; none of these fields authorizes machine actuation.
 
-The subtree also reports `connectionType`. Diagnostic status alone includes
+The Home subtree also reports `connectionType`. Diagnostic status alone includes
 `lineaMicra.websocket`: socket lifecycle/reason/epoch, subscription and machine
 connectivity, genuine evidence timestamps, payload byte counters, fixed 1s/60s
 rates, retry/stop/publication latency, cleaning availability and memory metrics.

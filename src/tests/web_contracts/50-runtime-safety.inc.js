@@ -183,10 +183,12 @@ for (const field of forbiddenResponseFields) {
 }
 const soundAlertStatusFields =
     statusFormat.match(/\\"soundAlertsEnabled\\":%s/g) || [];
+// Layered disjoint streams (D17, 2026-10-24): Home owns soundAlertsEnabled;
+// the Settings projection dropped its duplicate copy.
 if (soundAlertStatusFields.length !== 0 ||
-    (network.match(/delta\.field\("config\.soundAlertsEnabled"/g) || []).length !== 2) {
+    (network.match(/delta\.field\("config\.soundAlertsEnabled"/g) || []).length !== 1) {
   throw new Error(
-      'soundAlertsEnabled must be projected by the Home and Settings streams, not the REST page');
+      'soundAlertsEnabled must be projected by the Home stream only, not the REST page');
 }
 const alertChannelStatusFields =
     statusFormat.match(/\\"alertOutputChannel\\":\\"%s\\"/g) || [];

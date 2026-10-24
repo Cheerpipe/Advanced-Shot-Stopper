@@ -189,7 +189,7 @@ struct NetworkWorkBuf;
 
 struct UiStreamFingerprints {
   static constexpr size_t kHomeFields = 128, kDiagFields = 224, kCardFields = 32,
-                          kSettingsFields = 160;
+                          kSettingsFields = 96;
   // The shot card's ten curve scalars (forEachShotCurveScalar) follow its
   // card fields in cardHashes.
   static constexpr size_t kCurveFields = 10;
@@ -452,12 +452,12 @@ class OpenBrewByWeightNetwork {
     size_t statsSent = 0;
     uint32_t statsPageEpoch = 0, statsPageRequest = 0, statsSentAtMs = 0;
     uint32_t statsRequest = 0, statsFetchRequest = 0;
-    // Settings page subscription, same view-scoped contract: fingerprints in
-    // the PSRAM work buffer suppress unchanged frames, and the clock anchor
-    // rebases only on reconnection or clock synchronization like Home's.
+    // Settings page subscription, the layered-overlay contract (D17): the
+    // projection carries only fields Home does not, fingerprints in the
+    // PSRAM work buffer suppress unchanged frames, and the client composes
+    // the frame over Home's standing model.
     bool settingsOn = false, settingsResync = true;
     uint32_t settingsBoot = 0, settingsRequest = 0;
-    uint32_t settingsClockSync = 0, settingsClockUtc = 0;
     char clientId[WEB_UI_CLIENT_ID_CAPACITY] = {};
     bool bound = false, resync = true;
     bool homeResync = true;

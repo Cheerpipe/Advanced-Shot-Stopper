@@ -454,7 +454,7 @@ if (!shellHtml.includes('<div id="homeBoot" class="bootOverlay" role="status">')
           api: async () => {throw new Error('record views must not probe REST status');}, compatibilityModeOn: () => false,
           withPollGate: fn => fn(), webUiPollingActive: () => true,
           setActiveView() {}, armStatusTimer() {}, applyDiagnosticNavigation() {},
-          startDiagnosticStream() {}, stopDiagnosticStream() {},
+          startDiagnosticStream() {}, stopDiagnosticStream() {}, stopSettingsStream() {},
           startStatsStream: () => {events.push('data'); return data.promise;},
           startHistoryStream: () => {events.push('data'); return data.promise;},
           startSettingsStream: () => {events.push('data'); return data.promise;},
@@ -975,9 +975,11 @@ if (htmlBytes > 107310) {
 // The Settings stream client (subscribe trio, snapshot wait, shared merge
 // branch, Micra deltas) replaces the Settings REST poll: measured 529402,
 // owner-requested 2026-10-23. Save-error resync moved into the stale-revision
-// retry only: measured 529516, owner-requested 2026-10-24.
-if (jsBytes > 529516) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 529516)`);
+// retry only: measured 529516, owner-requested 2026-10-24. Layered disjoint
+// streams — the composed home+overlay model, the view-scoped subscription, and
+// the quick-write holds: measured 532446, owner-requested 2026-10-24.
+if (jsBytes > 532446) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 532446)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1151,9 +1153,11 @@ if (jsBytes > 529516) {
 // v1 Web UI fixes: measured 630821, owner-requested 2026-10-23.
 // The Settings stream client replacing the Settings REST poll: measured 635946,
 // owner-requested 2026-10-23. Save-error resync moved into the stale-revision
-// retry only: measured 636060, owner-requested 2026-10-24.
-if (htmlBytes + jsBytes > 636060) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 636060)`);
+// retry only: measured 636060, owner-requested 2026-10-24. Layered disjoint
+// streams — the composed home+overlay model, the view-scoped subscription, and
+// the quick-write holds: measured 638990, owner-requested 2026-10-24.
+if (htmlBytes + jsBytes > 638990) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 638990)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||
