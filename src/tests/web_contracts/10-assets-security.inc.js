@@ -974,9 +974,10 @@ if (htmlBytes > 107310) {
 // modal overlay, Diagnostic action gate): measured 524387, owner-requested 2026-10-23.
 // The Settings stream client (subscribe trio, snapshot wait, shared merge
 // branch, Micra deltas) replaces the Settings REST poll: measured 529402,
-// owner-requested 2026-10-23.
-if (jsBytes > 529402) {
-  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 529402)`);
+// owner-requested 2026-10-23. Save-error resync moved into the stale-revision
+// retry only: measured 529516, owner-requested 2026-10-24.
+if (jsBytes > 529516) {
+  throw new Error(`Web UI JS source exceeds the authoring budget (${jsBytes} > 529516)`);
 }
 // Sharing the brand wordmark selectors between the header, the loading view,
 // and the inactive overlay pays for the added shell markup.
@@ -1149,9 +1150,10 @@ if (jsBytes > 529402) {
 // Stream render errors kept off the corrupt-frame path: measured 630275, owner-requested 2026-10-23.
 // v1 Web UI fixes: measured 630821, owner-requested 2026-10-23.
 // The Settings stream client replacing the Settings REST poll: measured 635946,
-// owner-requested 2026-10-23.
-if (htmlBytes + jsBytes > 635946) {
-  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 635946)`);
+// owner-requested 2026-10-23. Save-error resync moved into the stale-revision
+// retry only: measured 636060, owner-requested 2026-10-24.
+if (htmlBytes + jsBytes > 636060) {
+  throw new Error(`Web UI HTML+JS source exceeds the combined authoring budget (${htmlBytes + jsBytes} > 636060)`);
 }
 if (!/lang="en"/.test(html) || !codeIncludes(ui, 'role="switch"') ||
     !codeIncludes(ui, 'id="dActivator"') || !codeIncludes(ui, 'firstDropBeep') ||

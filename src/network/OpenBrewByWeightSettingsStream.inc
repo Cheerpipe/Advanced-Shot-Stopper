@@ -78,9 +78,13 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
               static_cast<int>(timezoneOffset));
   const auto &activePreset = activeShotPreset(g_work->presetBank);
   delta.field("config.goalWeightG", goalWeightDgToGrams(config.goalWeightDg));
-  delta.field("config.weightOffsetG", "%.2f",
+  // Finite or "null" like the float overload (D15): a non-finite value must
+  // never render as bare nan and poison the frame.
+  delta.field("config.weightOffsetG",
+              std::isfinite(config.weightOffsetG) ? "%.2f" : "null",
               static_cast<double>(config.weightOffsetG));
-  delta.field("config.weightOffsetBaselineG", "%.2f",
+  delta.field("config.weightOffsetBaselineG",
+              std::isfinite(config.weightOffsetBaselineG) ? "%.2f" : "null",
               static_cast<double>(config.weightOffsetBaselineG));
   delta.field("config.autoTare", bool(config.autoTare));
   delta.field("config.autoTareOutsideBrew", bool(config.autoTareOutsideBrew));
@@ -184,10 +188,13 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
               bbwAlgorithmName(static_cast<uint8_t>(BbwAlgorithm::LINEAR_EWMA)));
   delta.field("config.bbwPresetId", "%u",
               static_cast<unsigned>(control.bbwPresetId));
-  delta.field("config.bbwEwmaOffsetG", "%.2f",
+  delta.field("config.bbwEwmaOffsetG",
+              std::isfinite(control.bbwEwmaOffsetG) ? "%.2f" : "null",
               static_cast<double>(control.bbwEwmaOffsetG));
-  delta.field("config.bbwAlpha", "%.2f", control.bbwAlpha / 100.0);
-  delta.field("config.bbwAlphaBaseline", "%.2f",
+  delta.field("config.bbwAlpha", std::isfinite(control.bbwAlpha / 100.0) ? "%.2f" : "null",
+              control.bbwAlpha / 100.0);
+  delta.field("config.bbwAlphaBaseline",
+              std::isfinite(control.bbwAlphaBaseline / 100.0) ? "%.2f" : "null",
               control.bbwAlphaBaseline / 100.0);
   delta.field("config.bbwAlphaSource", "\"%s\"",
               control.bbwAlphaLearned ? "learned" : "initial");
@@ -254,7 +261,11 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
         sizeof(g_work->scaleHistory));
     // Home's escapes reuse the historyJson scratch every dispatch, so the
     // render cache rebuilds on any change and on every snapshot; the sender
-    // is buildScaleHistoryJson's caller now (audit F3).
+    // is buildScaleHistoryJson's caller now (audit F3). The cache is global
+    // while the scale.history fingerprint is per-session: sound only because
+    // dispatch sends exactly the one bound active session (bind supersedes
+    // every other bound session), so no second session's per-session hash can
+    // ever be compared against this cache's render.
     if (initial || historyHash != g_work->renderedScaleHistoryHash) {
       buildScaleHistoryJson(g_work->scaleHistory);
       g_work->renderedScaleHistoryHash = historyHash;
@@ -268,24 +279,23 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
                   control.scaleLossProjectedSource << 3)));
 #if OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION == OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD
   {
+    // Consumer-first (D14): every path here has a named reader in the settings
+    // model (applyLineaMicraStatus). Unconsumed Micra telemetry — sample ages,
+    // freshness and transport internals, temperature-command state — rides the
+    // Diagnostic projection only; none of it self-ticks here.
     const auto micra = machineIntegrationStatus();
     const auto micraDiscovery = machineIntegrationDiscovery();
     const auto micraWs = machineIntegrationWebSocketStatus(false);
-    const bool sampleValid = micra.sampleAtMs != 0 &&
-        (micra.quality == LineaMicraObservationQuality::CURRENT ||
-         micra.quality == LineaMicraObservationQuality::STALE ||
-         micra.quality == LineaMicraObservationQuality::UNSUPPORTED);
     char safeEmail[LINEA_MICRA_USERNAME_CAPACITY] = {};
     char safeSerial[LINEA_MICRA_SERIAL_CAPACITY] = {};
     char safeName[LINEA_MICRA_NAME_CAPACITY] = {};
-    uint8_t options, scaleOptions, connectionType;
+    uint8_t options, scaleOptions;
     bool accountConfigured;
     {
       TaskLockGuard lock(dataMux_);
       accountConfigured = settings_.lineaMicra.accountConfigured;
       options = settings_.lineaMicra.options;
       scaleOptions = settings_.lineaMicra.scaleOptions;
-      connectionType = settings_.lineaMicra.connectionType;
       memcpy(safeEmail, settings_.lineaMicra.username, sizeof(safeEmail));
       memcpy(safeSerial, settings_.lineaMicra.selectedSerial, sizeof(safeSerial));
       memcpy(safeName, settings_.lineaMicra.selectedName, sizeof(safeName));
@@ -295,8 +305,6 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
     sanitizeJsonEmbed(safeName, safeName, sizeof(safeName));
     delta.field("lineaMicra.accountConfigured", bool(accountConfigured));
     delta.field("lineaMicra.email", "\"%s\"", safeEmail);
-    delta.field("lineaMicra.connectionType", "\"%s\"",
-                micraConnectionTypeName(connectionType));
     delta.field("lineaMicra.selectedSerial", "\"%s\"", safeSerial);
     delta.field("lineaMicra.selectedName", "\"%s\"", safeName);
     delta.field("lineaMicra.applyTemperature",
@@ -318,7 +326,6 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
                 bool(scaleOptions & LINEA_MICRA_SCALE_SCAN_BOOST_WHEN_ON));
     delta.field("lineaMicra.reduceScaleScanningWhenOff",
                 bool(scaleOptions & LINEA_MICRA_SCALE_SCAN_RELAX_WHEN_OFF));
-    delta.field("lineaMicra.requestId", static_cast<unsigned long>(micra.requestId));
     delta.field("lineaMicra.phase", "\"%s\"", lineaMicraPhaseName(micra.phase));
     delta.field("lineaMicra.error", "\"%s\"", lineaMicraErrorName(micra.error));
     delta.field("lineaMicra.powerState", "\"%s\"",
@@ -327,59 +334,16 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
                 lineaMicraReadinessName(lineaMicraReadiness(micra)));
     delta.field("lineaMicra.machineOffline",
                 bool(micraWs.machineConnectedKnown && !micraWs.machineConnected));
-    delta.field("lineaMicra.observedMode", "\"%s\"",
-                lineaMicraObservedModeName(micra.observedMode));
     delta.field("lineaMicra.quality", "\"%s\"",
                 lineaMicraObservationQualityName(micra.quality));
-    delta.field("lineaMicra.effectiveOn", bool(micra.effectiveOn));
-    delta.field("lineaMicra.powerSource", "\"%s\"",
-                micraPowerSourceName(micra.powerSource));
-    delta.field("lineaMicra.freshnessPolicy", "\"%s\"",
-                micra.connectionFreshness ? "connection" : "time");
     delta.field("lineaMicra.optimisticOn", bool(micra.optimisticOn));
     delta.field("lineaMicra.optimisticOff", bool(micra.optimisticOff));
-    delta.field("lineaMicra.sampleValid", bool(sampleValid));
-    // Whole seconds like the Diagnostic projection: the UI renders integer
-    // age and interpolates locally.
-    delta.field("lineaMicra.sampleAgeMs",
-                static_cast<unsigned long>(
-                    micra.sampleAtMs == 0
-                        ? 0
-                        : static_cast<uint32_t>(millis() - micra.sampleAtMs) /
-                              1000 * 1000));
-    delta.field("lineaMicra.freshnessMs",
-                static_cast<unsigned long>(micra_timing::kStateFreshnessMs));
-    delta.field("lineaMicra.pollIntervalMs",
-                static_cast<unsigned long>(micra_timing::kStatePollMs));
     delta.field("lineaMicra.targetValid", bool(micra.targetValid));
     delta.field("lineaMicra.targetDeciC", "%u",
                 static_cast<unsigned>(micra.targetDeciC));
-    delta.field("lineaMicra.temperatureState", "\"%s\"",
-                lineaMicraTemperatureStateName(micra.temperatureState));
-    delta.field("lineaMicra.temperatureError", "\"%s\"",
-                lineaMicraErrorName(micra.temperatureError));
-    delta.field("lineaMicra.temperatureCommandAccepted",
-                bool(micra.temperatureCommandAccepted));
-    delta.field("lineaMicra.temperatureRetryable",
-                bool(micra.temperatureRetryable));
-    delta.field("lineaMicra.requestedTargetDeciC", "%u",
-                static_cast<unsigned>(micra.requestedTargetDeciC));
-    delta.field("lineaMicra.appliedTargetDeciC", "%u",
-                static_cast<unsigned>(micra.appliedTargetDeciC));
-    delta.field("lineaMicra.temperatureHttpStatus", "%u",
-                static_cast<unsigned>(micra.temperatureHttpStatus));
-    delta.field("lineaMicra.temperatureTransportStatus", "%ld",
-                static_cast<long>(micra.temperatureTransportStatus));
     delta.field("lineaMicra.staConnected", bool(micra.staConnected));
     delta.field("lineaMicra.apActive", bool(micra.apActive));
     delta.field("lineaMicra.shotPaused", bool(micra.shotPaused));
-    delta.field("lineaMicra.scalePaused", bool(micra.scalePaused));
-    delta.field("lineaMicra.httpStatus", "%u",
-                static_cast<unsigned>(micra.httpStatus));
-    delta.field("lineaMicra.transportStatus", "%ld",
-                static_cast<long>(micra.transportStatus));
-    delta.field("lineaMicra.accountMachineCount", "%u",
-                static_cast<unsigned>(micraDiscovery.accountMachines));
     delta.field("lineaMicra.machineListing", bool(micraDiscovery.listing));
     delta.field("lineaMicra.machineListError", "\"%s\"",
                 lineaMicraErrorName(micraDiscovery.error));
@@ -405,8 +369,12 @@ bool OpenBrewByWeightNetwork::sendSettingsStream(UiStreamSession &session,
         break;
       used += static_cast<size_t>(n);
     }
-    g_work->historyJson[used++] = ']';
-    g_work->historyJson[used] = '\0';
+    // buildScaleHistoryJson's terminator guard: an exactly full buffer must
+    // not write its NUL one byte past historyJson.
+    if (used + 1 < NetworkWorkBuf::kHistoryJson) {
+      g_work->historyJson[used++] = ']';
+      g_work->historyJson[used] = '\0';
+    }
     delta.field("lineaMicra.machines", "%s", g_work->historyJson);
   }
 #endif

@@ -312,7 +312,6 @@ const micraStatusFailures = [
   !micraStatus.includes('delta.field("lineaMicra.accountConfigured"') && 'account status missing',
   !micraStatus.includes('delta.field("lineaMicra.email"') && 'account email missing',
   !micraStatus.includes('delta.field("lineaMicra.machines"') && 'machine list missing',
-  !micraStatus.includes('delta.field("lineaMicra.accountMachineCount"') && 'account machine count missing',
   !micraStatus.includes('OPEN_BREW_BY_WEIGHT_MACHINE_INTEGRATION_LINEA_MICRA_CLOUD') && 'compile gate missing',
   !micraStatus.includes('delta.field("machineIntegration"') && 'integration capability missing',
 ].filter(Boolean);
@@ -397,12 +396,8 @@ if (!micraTypes.includes('APPLY_TEMPERATURE') ||
     !micraService.includes('secureWipe(authorization, kTokenCapacity + 8);') ||
     micraService.includes('Bearer %s", work_->accessToken);\n    const bool ok = length > 0 &&\n                    static_cast<size_t>(length) < sizeof(io_->response)') ||
     !micraStatus.includes('delta.field("lineaMicra.temperatureState"') ||
-    !micraStatus.includes('delta.field("lineaMicra.temperatureCommandAccepted"') ||
-    !micraStatus.includes('delta.field("lineaMicra.temperatureRetryable"') ||
-    !micraStatus.includes('delta.field("lineaMicra.requestedTargetDeciC"') ||
-    !micraStatus.includes('delta.field("lineaMicra.appliedTargetDeciC"') ||
-    !micraStatus.includes('delta.field("lineaMicra.temperatureHttpStatus"') ||
-    !micraStatus.includes('delta.field("lineaMicra.scalePaused"')) {
+    !micraStatus.includes('delta.field("lineaMicra.targetValid"') ||
+    !micraStatus.includes('delta.field("lineaMicra.targetDeciC"')) {
   throw new Error('Linea Micra preset temperature must coalesce, gate on scale/shot activity, reuse authentication, and confirm dashboard readback');
 }
 for (const id of ['lineaMicraSignIn', 'lineaMicraBusy', 'lineaMicraSteps', 'lineaMicraLegendHint',

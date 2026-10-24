@@ -96,6 +96,12 @@
     assert.equal(applied.at(-1).config.dripDelayMs, 5000);
     assert.equal(applied.at(-1).config.revision, 5);
     assert.equal(applied.at(-1).scale.preferredMac, 'aa:bb:cc:dd:ee:ff');
+    // The hardware incident class (2026-10-23): an empty RTTTL string must
+    // parse, merge, and reach the Settings view as "" — never a broken frame.
+    socket.onmessage({data: JSON.stringify(
+        {type: 'settings', request: 1, changes: {'config.bullseyeRtttl': ''}})});
+    assert.strictEqual(applied.at(-1).config.bullseyeRtttl, '');
+    assert.deepEqual(errors, []);
     // Stale request ids (a superseded subscription) never reach the model.
     let stale = applied.length;
     socket.onmessage({data: JSON.stringify(
@@ -198,14 +204,22 @@
   assert(resync.includes('session->settingsResync = true;'),
       'the resync op must also force a fresh settings snapshot');
   // Dispatch: ordered after Home+card and Diagnostic, inside the budget,
-  // gated on the subscription; the paused-session gate (21-home-stream)
-  // covers the hidden page wholesale because fingerprints live in the shared
-  // PSRAM table the sender hashes through.
+  // gated on the subscription. The paused-session gate skips the whole
+  // sendUiStream call — settings fingerprints are retained, not consumed —
+  // and a page returning visible arms the urgent flag, so the next dispatch
+  // delivers one catch-up delta (21-home-stream's gate, pinned here for the
+  // settings ride).
   const chain = uiStream.slice(uiStream.indexOf('void OpenBrewByWeightNetwork::sendUiStream('),
       uiStream.indexOf('bool OpenBrewByWeightNetwork::sendShotCard('));
   assert(chain.includes('if (open && session.settingsOn)') &&
       chain.includes('within() && sendSettingsStream(session, control, network)'),
       'the settings sender rides the existing dispatch under its budget');
+  assert(uiStream.includes('if (!session.paused || live || session.homeResync || session.resync)') &&
+      uiStream.indexOf('session.paused') <
+          uiStream.indexOf('self.sendUiStream(session, control, network, latest, eligible)') &&
+      uiStream.includes('resumed = session->paused && cJSON_IsFalse(hidden);') &&
+      uiStream.includes('if (resumed) self.uiStreamUrgent_.store(true, std::memory_order_release);'),
+      'a hidden page holds settings frames whole; returning visible delivers one catch-up delta');
   assert(sender.includes('workBuf_->uiFingerprints[&session - uiStreams_]') &&
       sender.includes('hashes.settingsHashes'));
   // Envelope: a snapshot names v/boot/snapshot/request; an increment carries
@@ -232,14 +246,28 @@
   // The retired REST field set rides the stream with its client paths, live
   // fields included (D6/F1), and presets never ride it (D4).
   for (const field of ['timeUtcSec', 'config.revision', 'config.goalWeightG',
-      'config.postTareBaselineGraceMs', 'config.dripDelayMs', 'config.soundAlertsEnabled',
-      'config.alertOutputChannel', 'config.buzzerExtendedPulseRate',
-      'config.bbwEwmaOffsetG', 'config.bbwEvidenceCount', 'config.bbwRecentG',
-      'cupSetup.observedG', 'config.bullseyeMelodyEnabled', 'config.bullseyeRtttl',
-      'scale.preferredMac', 'scale.macCachePauseRemainingMs', 'scale.history',
-      'scaleLoss.projectedS', 'quickRevert.remainingS', 'lastCommand.requestId',
-      'lineaMicra.phase', 'lineaMicra.sampleAgeMs', 'lineaMicra.machines'])
+    'config.postTareBaselineGraceMs', 'config.dripDelayMs', 'config.soundAlertsEnabled',
+    'config.alertOutputChannel', 'config.buzzerExtendedPulseRate',
+    'config.bbwEwmaOffsetG', 'config.bbwEvidenceCount', 'config.bbwRecentG',
+    'cupSetup.observedG', 'config.bullseyeMelodyEnabled', 'config.bullseyeRtttl',
+    'scale.preferredMac', 'scale.macCachePauseRemainingMs', 'scale.history',
+    'scaleLoss.projectedS', 'quickRevert.remainingS', 'lastCommand.requestId',
+    'lineaMicra.phase', 'lineaMicra.targetDeciC', 'lineaMicra.machines'])
     assert(distinct.has(field), 'missing settings stream field ' + field);
+  // Consumer-first (D14): the settings projection carries only fields the
+  // settings/home model reads; unconsumed Micra telemetry rides the
+  // Diagnostic stream only and must not grow back here.
+  for (const field of ['lineaMicra.connectionType', 'lineaMicra.requestId',
+    'lineaMicra.observedMode', 'lineaMicra.effectiveOn', 'lineaMicra.powerSource',
+    'lineaMicra.freshnessPolicy', 'lineaMicra.sampleValid', 'lineaMicra.sampleAgeMs',
+    'lineaMicra.freshnessMs', 'lineaMicra.pollIntervalMs', 'lineaMicra.temperatureState',
+    'lineaMicra.temperatureError', 'lineaMicra.temperatureCommandAccepted',
+    'lineaMicra.temperatureRetryable', 'lineaMicra.requestedTargetDeciC',
+    'lineaMicra.appliedTargetDeciC', 'lineaMicra.temperatureHttpStatus',
+    'lineaMicra.temperatureTransportStatus', 'lineaMicra.scalePaused',
+    'lineaMicra.httpStatus', 'lineaMicra.transportStatus',
+    'lineaMicra.accountMachineCount'])
+    assert(!distinct.has(field), 'unconsumed settings stream field ' + field);
   assert(![...distinct].some(field => field === 'presets' || field.startsWith('presets.')),
       'presets ride the Home stream on every view, never the settings stream');
   // D6 steady-state cost: render caches gate the blobs and countdowns quantize
@@ -256,9 +284,23 @@
       'the RTTTL must be emitted as a quoted JSON string, empty included');
   assert([...sender.matchAll(/delta\.hashedField\("([^"]+)"/g)].every(m => m[1] === 'scale.history'),
       'only the complete history array may use a raw hashedField value');
-  assert(sender.includes('(control.scaleMacCachePauseRemainingMs + 999U) / 1000U * 1000U') &&
-      /millis\(\) - micra\.sampleAtMs\)[\s\S]{0,120}1000 \* 1000/.test(sender),
-      'countdowns must quantize to whole seconds so an idle stream stays idle');
+  // D15 value-space proof: every raw "%s" value must come from a producer of
+  // complete JSON fragments — a drip-chart slice past a fixed literal, a
+  // *Json()-named quoted-literal builder, or the machines array buffer (at
+  // minimum "[]"). A raw empty-able string is the bullseye incident class.
+  const rawValues = [...sender.matchAll(/delta\.field\("[^"]+", "%s",\s*([^;]+);/g)]
+      .map(m => m[1].replace(/\s+/g, ' ').replace(/\)\s*$/, '').trim());
+  assert(rawValues.length > 0 &&
+      rawValues.every(value => value.includes('+ strlen(",') ||
+          /Json\(/.test(value) || value === 'g_work->historyJson'),
+      'raw %s field values must be complete-JSON producers');
+  assert(sender.includes('(control.scaleMacCachePauseRemainingMs + 999U) / 1000U * 1000U'),
+      'bounded countdowns must quantize to whole seconds so an idle stream stays idle');
+  assert(!sender.includes('millis() - micra.sampleAtMs'),
+      'a self-ticking sample age must never ride the settings projection (D14)');
+  assert(sender.includes('std::isfinite(config.weightOffsetG) ? "%.2f" : "null"') &&
+      sender.includes('std::isfinite(control.bbwEwmaOffsetG) ? "%.2f" : "null"'),
+      'hand-formatted floats must degrade to null, never nan (D15)');
   // D10: values come from the control snapshot and the PSRAM cache callbacks.
   assert(sender.includes('callbacks_.copyBullseyeConfig') &&
       !/nvs|readPersisted|esp_partition|LoadPartition/.test(sender));
@@ -290,8 +332,8 @@
       runtimeJs.indexOf('function ensureBackgroundRecordStreams('));
   assert(!/\bapi\(|\bcommand\(|\bfetch\(/.test(settingsBlock),
       'settings frames only paint; writes originate from user-event handlers');
-  assert(codeIncludes(viewJs.settings, 'await R.resyncSettingsStream();'),
-      'the stale-revision retry refreshes through the stream snapshot');
+  assert(/CONFIG_REVISION_STALE"\)\s*\{\s*await R\.resyncSettingsStream\(\);/.test(viewJs.settings),
+      'only the stale-revision retry pays for a fresh settings snapshot');
   assert(!viewJs.settings.includes('micraPoll'),
       'the Micra sign-in follows lineaMicra deltas; its REST poll is gone');
   assert(codeIncludes(viewJs.settings, 'loadSettingsConfig(s.config);'),

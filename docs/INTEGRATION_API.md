@@ -819,8 +819,10 @@ frame, so an idle device costs nothing. The projection covers the Settings
 form fields with the configuration revision, the Brew by Weight learning
 readback and drip chart, cup detection and Bullseye settings, the scale
 choice with its scale history and the scale-loss projection, and the Linea
-Micra section with its machine list. Countdowns are quantized to whole
-seconds so a ticking value cannot wake the stream, and the time anchor is
+Micra section with its machine list. Every value in the projection changes
+only when the device reports something new — none of them advances by
+itself — and the two bounded countdowns (the scale-cache pause and the
+quick-revert remainder) are quantized to whole seconds. The time anchor is
 rebased only on a snapshot or clock synchronization; the page ticks local
 time itself.
 

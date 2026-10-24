@@ -385,9 +385,12 @@ async function saveMachineConfig(patch) {
       return true;
     } catch (e) {
       // The patch holds only this page's edits: resend it once on a newer
-      // revision, taken from a fresh settings-stream snapshot.
-      await R.resyncSettingsStream();
-      if (retry && e.code === "CONFIG_REVISION_STALE") continue;
+      // revision, taken from a fresh settings-stream snapshot. Non-retryable
+      // errors keep the standing model; a forced snapshot there is wasted air.
+      if (retry && e.code === "CONFIG_REVISION_STALE") {
+        await R.resyncSettingsStream();
+        continue;
+      }
       // Only the firmware parses RTTTL: a rejected tune is marked, not kept.
       if (e.code === "INVALID_FIELD" && "bullseyeRtttl" in patch)
         R.showFieldError("bullseyeRtttl", __WEBUI_TEXT__("settings.rtttl_not_saved"));
